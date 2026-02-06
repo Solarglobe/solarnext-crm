@@ -27,9 +27,11 @@
 
   function getCanvasCoords(canvas, clientX, clientY) {
     var rect = canvas.getBoundingClientRect();
+    var scaleX = rect.width ? canvas.width / rect.width : 1;
+    var scaleY = rect.height ? canvas.height / rect.height : 1;
     return {
-      x: clientX - rect.left,
-      y: clientY - rect.top
+      x: (clientX - rect.left) * scaleX,
+      y: (clientY - rect.top) * scaleY,
     };
   }
 
@@ -179,7 +181,8 @@
 
     if (DP2_TOOL.marquee && DP2_TOOL.marquee.active) {
       var x0 = DP2_TOOL.marquee.x0, y0 = DP2_TOOL.marquee.y0, x1 = DP2_TOOL.marquee.x1, y1 = DP2_TOOL.marquee.y1;
-      var rx = Math.min(x0, x1), ry = Math.min(y0, y1), rw = Math.abs(x1 - x0), rh = Math.abs(y1 - y0);
+      var left = Math.min(x0, x1), right = Math.max(x0, x1), top = Math.min(y0, y1), bottom = Math.max(y0, y1);
+      var rx = left, ry = top, rw = right - left, rh = bottom - top;
       ctx.save();
       ctx.fillStyle = "rgba(59,130,246,0.14)";
       ctx.strokeStyle = "rgba(59,130,246,0.95)";
@@ -320,10 +323,11 @@
       DP2_TOOL.pointerPos = { x: coords.x, y: coords.y };
 
       if (DP2_TOOL.rotating && DP2_TOOL.rotating.active) {
-        var angle = Math.atan2(coords.y - DP2_TOOL.rotating.pivot.y, coords.x - DP2_TOOL.rotating.pivot.x);
+        // pivot figé pendant le drag (comportement DP2)
+        var pivot = DP2_TOOL.rotating.pivot;
+        var angle = Math.atan2(coords.y - pivot.y, coords.x - pivot.x);
         var delta = angle - DP2_TOOL.rotating.startAngle;
         var ids = DP2_TOOL.selection ? DP2_TOOL.selection.panelIds : [];
-        var pivot = DP2_TOOL.rotating.pivot;
         var startById = DP2_TOOL.rotating.startById || {};
         for (var i = 0; i < ids.length; i++) {
           var p = getPanelById(ids[i]);
@@ -340,6 +344,7 @@
           p.geometry.rotation = (start.rotation || 0) + delta;
         }
         setSelection(ids);
+        DP2_TOOL.selection.pivot = { x: pivot.x, y: pivot.y };
         if (window.DP2Reset && window.DP2Reset.render) window.DP2Reset.render();
         return;
       }
