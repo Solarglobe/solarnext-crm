@@ -6684,17 +6684,14 @@ updateValidateButton();
           }
           return true;
         }
-        function getPanelDimensions(orientationOverride) {
+        function getPanelDimensions() {
           var spec = window.PV_SELECTED_PANEL;
-          var orientation = (orientationOverride != null && orientationOverride !== "")
-            ? String(orientationOverride).toLowerCase()
-            : ((window.PV_LAYOUT_RULES && window.PV_LAYOUT_RULES.orientation) ? String(window.PV_LAYOUT_RULES.orientation).toLowerCase() : "portrait");
-          if (orientation === "paysage") orientation = "landscape";
           if (!spec || spec.widthM == null || spec.heightM == null) return null;
-          if (orientation === "landscape") {
-            return { widthM: spec.heightM, heightM: spec.widthM };
-          }
-          return { widthM: spec.widthM, heightM: spec.heightM };
+
+          return {
+            widthM: spec.widthM,
+            heightM: spec.heightM
+          };
         }
         /**
          * Pr?paration pose par clic : ? appeler depuis le gestionnaire de clic canvas en Phase 3.
