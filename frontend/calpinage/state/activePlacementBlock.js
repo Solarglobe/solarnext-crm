@@ -226,9 +226,14 @@
       projectOpts.trueSlopeAxis = ctx.roofParams.trueSlopeAxis;
       projectOpts.truePerpAxis = ctx.roofParams.truePerpAxis;
     }
-    if (typeof ctx.panelParams.localRotationDeg === "number") {
-      projectOpts.localRotationDeg = ctx.panelParams.localRotationDeg;
-    }
+    var orientationFromCtx = (ctx.panelParams && ctx.panelParams.panelOrientation) ? String(ctx.panelParams.panelOrientation).toUpperCase() : "PORTRAIT";
+    var blockOrientation = (options.orientation && (options.orientation === "PORTRAIT" || options.orientation === "PAYSAGE"))
+      ? options.orientation
+      : (orientationFromCtx === "PAYSAGE" ? "PAYSAGE" : "PORTRAIT");
+    blockOrientation = blockOrientation === "PAYSAGE" ? "PAYSAGE" : "PORTRAIT";
+    projectOpts.panelOrientation = blockOrientation;
+    projectOpts.localRotationDeg = 0;
+    var rotationBaseDeg = 0;
 
     var masterProjection;
     try {
@@ -240,12 +245,6 @@
       return { block: null, success: false, reason: "Projection maître invalide." };
     }
 
-    var orientationFromCtx = (ctx.panelParams && ctx.panelParams.panelOrientation) ? String(ctx.panelParams.panelOrientation).toUpperCase() : "PORTRAIT";
-    var blockOrientation = (options.orientation && (options.orientation === "PORTRAIT" || options.orientation === "PAYSAGE"))
-      ? options.orientation
-      : (orientationFromCtx === "PAYSAGE" ? "PAYSAGE" : "PORTRAIT");
-    blockOrientation = blockOrientation === "PAYSAGE" ? "PAYSAGE" : "PORTRAIT";
-    var rotationBaseDeg = (blockOrientation === "PAYSAGE") ? 90 : 0;
     var block = {
       id: nextBlockId(),
       panId: panId,
@@ -279,11 +278,12 @@
     if (!ctx || !ctx.roofParams || !ctx.panelParams) return { success: false, reason: "Contexte incomplet." };
     var computeProjectedPanelRect = getComputeProjectedPanelRect();
     if (typeof computeProjectedPanelRect !== "function") return { success: false, reason: "Projection indisponible." };
+    var blockOrient = (activeBlock.orientation === "PAYSAGE" || activeBlock.orientation === "landscape") ? "PAYSAGE" : "PORTRAIT";
     var projectOpts = {
       center: { x: center.x, y: center.y },
       panelWidthMm: ctx.panelParams.panelWidthMm,
       panelHeightMm: ctx.panelParams.panelHeightMm,
-      panelOrientation: "PORTRAIT",
+      panelOrientation: blockOrient,
       roofSlopeDeg: ctx.roofParams.roofSlopeDeg,
       roofOrientationDeg: ctx.roofParams.roofOrientationDeg != null ? ctx.roofParams.roofOrientationDeg : 0,
       metersPerPixel: ctx.roofParams.metersPerPixel,
@@ -292,9 +292,7 @@
       projectOpts.trueSlopeAxis = ctx.roofParams.trueSlopeAxis;
       projectOpts.truePerpAxis = ctx.roofParams.truePerpAxis;
     }
-    if (typeof ctx.panelParams.localRotationDeg === "number") {
-      projectOpts.localRotationDeg = ctx.panelParams.localRotationDeg;
-    }
+    projectOpts.localRotationDeg = 0;
     var proj;
     try {
       proj = computeProjectedPanelRect(projectOpts);
@@ -624,7 +622,7 @@
         center: { x: center.x, y: center.y },
         panelWidthMm: ctx.panelParams.panelWidthMm,
         panelHeightMm: ctx.panelParams.panelHeightMm,
-        panelOrientation: "PORTRAIT",
+        panelOrientation: (ctx.panelParams.panelOrientation === "PAYSAGE" || ctx.panelParams.panelOrientation === "landscape") ? "PAYSAGE" : "PORTRAIT",
         roofSlopeDeg: ctx.roofParams.roofSlopeDeg,
         roofOrientationDeg: ctx.roofParams.roofOrientationDeg != null ? ctx.roofParams.roofOrientationDeg : 0,
         metersPerPixel: ctx.roofParams.metersPerPixel,

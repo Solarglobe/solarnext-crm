@@ -3069,11 +3069,12 @@ export function initCalpinage(container, options = {}) {
         };
         var out = Object.assign({}, ctx, { pvRules: pvRules });
         if (dims && Number.isFinite(dims.widthM) && Number.isFinite(dims.heightM)) {
+          /* panelOrientation reflète block.orientation (pas de hardcode) — dimensions effectives suivent. */
           out.panelParams = {
             panelWidthMm: dims.widthM * 1000,
             panelHeightMm: dims.heightM * 1000,
-            panelOrientation: "PORTRAIT",
-            localRotationDeg: block.rotationBaseDeg || 0,
+            panelOrientation: blockOrientEngine,
+            localRotationDeg: 0,
           };
         }
         if (typeof window !== "undefined" && window.__PV_AUDIT__ === true) {
