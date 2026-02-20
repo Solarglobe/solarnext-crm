@@ -2223,18 +2223,11 @@ export function initCalpinage(container, options = {}) {
       /** Flag : une fois true, PV_LAYOUT_RULES ne doit plus ??tre ?cras? par le state (Phase 3). */
       window.PV_RULES_INITIALIZED = false;
 
-      /** Mappe spacing UI vers axes moteur selon orientation : portrait = swap (panneaux→along), paysage = passthrough. */
-      function mapSpacingForOrientation(rules, orientation) {
-        var orient = (orientation || "").toString().toUpperCase();
-        if (orient === "PAYSAGE" || orient === "LANDSCAPE") {
-          return {
-            spacingXcm: Number(rules && rules.spacingXcm) || 0,
-            spacingYcm: Number(rules && rules.spacingYcm) || 0,
-          };
-        }
+      /** Convention finale : spacingYcm = rangées (along), spacingXcm = panneaux (perp). Aucun swap selon orientation. */
+      function mapSpacingForOrientation(rules) {
         return {
-          spacingXcm: Number(rules && rules.spacingYcm) || 0,
-          spacingYcm: Number(rules && rules.spacingXcm) || 0,
+          spacingXcm: Number(rules && rules.spacingXcm) || 0,
+          spacingYcm: Number(rules && rules.spacingYcm) || 0,
         };
       }
 
@@ -3011,7 +3004,7 @@ export function initCalpinage(container, options = {}) {
         var blockOrientEngine = blockOrient === "landscape" ? "PAYSAGE" : "PORTRAIT";
         var dims = (typeof window.getPanelDimensions === "function") ? window.getPanelDimensions(blockOrient) : null;
         var effRules = getEffectiveLayoutRules(blockOrient);
-        var mapped = mapSpacingForOrientation(rules, blockOrientEngine);
+        var mapped = mapSpacingForOrientation(rules);
         var pvRules = {
           spacingXcm: mapped.spacingXcm,
           spacingYcm: mapped.spacingYcm,
