@@ -2183,6 +2183,8 @@ export function initCalpinage(container, options = {}) {
         selectedRefs: [],
         selectedPanelIds: [],
         selectedPanelId: null,
+        selectedPlacedPanelId: null,
+        selectedPlacedBlockId: null,
         currentTool: "panels",
       };
       Object.defineProperty(window.CALPINAGE_DP2_STATE, "scale_m_per_px", {
@@ -3175,18 +3177,19 @@ export function initCalpinage(container, options = {}) {
         }
       }
 
-      /** Recalcule projections + ghosts du bloc actif (replace, jamais concat). Appel? par onOrientationChange. */
-      function recomputeActiveBlockProjectionsAndGhosts() {
+      /** Recalcule projections + ghosts du bloc actif (replace, jamais concat). Appelé par onOrientationChange. */
+      function recomputeActiveBlockProjectionsAndGhosts(pivotPanelId) {
         var ENG = window.pvPlacementEngine;
         var active = ENG && typeof ENG.getActiveBlock === "function" ? ENG.getActiveBlock() : null;
         if (!active) return;
-        recomputeAllPlacementBlocksFromRules(true);
+        recomputeAllPlacementBlocksFromRules(true, pivotPanelId);
       }
 
       /** Reflow : recalcule toutes les projections des blocs (fig?s + actif) via l'engine. Centres inchang?s.
        * Apr?s reflow, revalidation du bloc actif pour coh?rence valid/invalid.
-       * @param {boolean} [forceRebuild] - si true, re-fetch du bloc actif apr?s recompute pour ?viter d'utiliser d'anciens existingRects. */
-      function recomputeAllPlacementBlocksFromRules(forceRebuild) {
+       * @param {boolean} [forceRebuild] - si true, re-fetch du bloc actif apr?s recompute pour ?viter d'utiliser d'anciens existingRects.
+       * @param {string} [pivotPanelId] - panneau sélectionné pour ancrage grille (toggle orientation). */
+      function recomputeAllPlacementBlocksFromRules(forceRebuild, pivotPanelId) {
         var ENG = window.pvPlacementEngine;
         if (!ENG || typeof ENG.getFrozenBlocks !== "function" || typeof ENG.recomputeBlock !== "function") return;
         var frozen = ENG.getFrozenBlocks();
@@ -3198,7 +3201,8 @@ export function initCalpinage(container, options = {}) {
         var active = ENG.getActiveBlock();
         if (active) {
           var ctxActive = getProjectionContextForBlock(active);
-          if (ctxActive) ENG.recomputeBlock(active.id, window.PV_LAYOUT_RULES, ctxActive);
+          var optsActive = (pivotPanelId && active.panels && active.panels.some(function (p) { return p && p.id === pivotPanelId; })) ? { pivotPanelId: pivotPanelId } : undefined;
+          if (ctxActive) ENG.recomputeBlock(active.id, window.PV_LAYOUT_RULES, ctxActive, optsActive);
           if (forceRebuild) active = ENG.getActiveBlock();
           if (active && typeof ENG.updatePanelValidationForBlock === "function") {
             var getCtxActive = function () { return getProjectionContextForBlock(active); };
@@ -6323,10 +6327,11 @@ updateValidateButton();
           if (focusBlock) {
             /* CAS 1 : focusBlock existe — modifier UNIQUEMENT ce bloc */
             var engineOrient = (newOrientation === "landscape" || newOrientation === "PAYSAGE") ? "PAYSAGE" : "PORTRAIT";
-            var rotationBaseDeg = (engineOrient === "PAYSAGE") ? 90 : 0;
+            var rotationBaseDeg = 0;
             focusBlock.orientation = engineOrient;
             focusBlock.rotationBaseDeg = rotationBaseDeg;
-            recomputeActiveBlockProjectionsAndGhosts();
+            var pivotPanelId = (CALPINAGE_STATE.selectedPlacedPanelId && CALPINAGE_STATE.selectedPlacedBlockId === focusBlock.id) ? CALPINAGE_STATE.selectedPlacedPanelId : null;
+            recomputeActiveBlockProjectionsAndGhosts(pivotPanelId);
             if (window.DEBUG_ORIENTATION_TOGGLE && typeof getProjectionContextForBlock === "function") {
               var ctxDbg = getProjectionContextForBlock(focusBlock);
               var ghosts = (ENG.computeExpansionGhosts && typeof ENG.computeExpansionGhosts === "function") ? (ENG.computeExpansionGhosts(focusBlock, function () { return getProjectionContextForBlock(focusBlock); }) || []) : [];
@@ -8335,7 +8340,14 @@ updateValidateButton();
                     return;
                   }
                 }
-                if (focusBlock && typeof hitTestFocusBlockPanelIndex === "function" && hitTestFocusBlockPanelIndex(imgPt) >= 0) return;
+                if (focusBlock && typeof hitTestFocusBlockPanelId === "function") {
+                  var hitSel = hitTestFocusBlockPanelId(imgPt);
+                  if (hitSel && hitSel.panelId) {
+                    CALPINAGE_STATE.selectedPlacedPanelId = hitSel.panelId;
+                    CALPINAGE_STATE.selectedPlacedBlockId = hitSel.blockId;
+                    return;
+                  }
+                }
                 var panAtPointSel = null;
                 for (var si = 0; si < data.pans.length; si++) {
                   if (data.pans[si].polygon && pointInPolygonImage(imgPt, data.pans[si].polygon)) { panAtPointSel = data.pans[si]; break; }
@@ -8366,6 +8378,8 @@ updateValidateButton();
                 if (focusBlock && typeof hitTestFocusBlockPanelId === "function") {
                   var hitRm = hitTestFocusBlockPanelId(imgPt);
                   if (hitRm && hitRm.panelId) {
+                    CALPINAGE_STATE.selectedPlacedPanelId = hitRm.panelId;
+                    CALPINAGE_STATE.selectedPlacedBlockId = hitRm.blockId;
                     var blockRm = ENG.getFocusBlock ? ENG.getFocusBlock() : focusBlock;
                     var getCtxRm = function () { return (typeof getProjectionContextForBlock === "function" ? getProjectionContextForBlock(blockRm) : getProjectionContextForPan(blockRm.panId)); };
                     if (blockRm && typeof ENG.removePanelById === "function") {

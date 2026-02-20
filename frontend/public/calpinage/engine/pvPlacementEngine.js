@@ -340,7 +340,7 @@
    * @param {Object} context - Contexte retourné par buildProjectionContext()
    * @returns {{ success: boolean, reason?: string }}
    */
-  function recomputeBlock(blockId, rules, context) {
+  function recomputeBlock(blockId, rules, context, opts) {
     if (typeof window !== "undefined" && window.CALPINAGE_IS_MANIPULATING) return { success: false, reason: "Manipulation en cours." };
     var APB = getAPB();
     if (!APB || typeof APB.recomputeBlockProjections !== "function") {
@@ -353,6 +353,8 @@
     }
     var getProjectionContext = function () { return context; };
     APB.recomputeBlockProjections(block, getProjectionContext);
+    var gridOpts = (opts && opts.pivotPanelId) ? { pivotPanelId: opts.pivotPanelId } : undefined;
+    ensureBlockGrid(block, getProjectionContext, gridOpts);
     return { success: true };
   }
 
@@ -663,12 +665,13 @@
 
   /**
    * Migration : si des panneaux n'ont pas panel.grid, reconstruit (row,col) à partir des centres et de la projection.
-   * Référence p0 = premier panneau avec center et projection. Axes et pas déduits de la projection + spacing.
+   * Référence c0 = pivotCenter ou centre du pivotPanelId, sinon p0.center (premier panneau).
    *
    * @param {Object} block - Bloc
    * @param {function(): Object} getProjectionContext - Contexte
+   * @param {{ pivotPanelId?: string, pivotCenter?: {x:number,y:number} }} [opts] - Pivot optionnel (panneau sélectionné)
    */
-  function ensureBlockGrid(block, getProjectionContext) {
+  function ensureBlockGrid(block, getProjectionContext, opts) {
     if (!block || !block.panels || block.panels.length === 0 || typeof getProjectionContext !== "function") return;
     var needsGrid = false;
     for (var i = 0; i < block.panels.length; i++) {
@@ -690,6 +693,17 @@
       }
     }
     if (!p0) return;
+
+    var c0 = p0.center;
+    if (opts && opts.pivotCenter && typeof opts.pivotCenter.x === "number" && typeof opts.pivotCenter.y === "number") {
+      c0 = opts.pivotCenter;
+    } else if (opts && opts.pivotPanelId) {
+      var APB = getAPB();
+      var idx = APB && typeof APB.getPanelIndexById === "function" ? APB.getPanelIndexById(block, opts.pivotPanelId) : -1;
+      if (idx >= 0 && block.panels[idx] && block.panels[idx].center) {
+        c0 = block.panels[idx].center;
+      }
+    }
 
     var proj = p0.projection;
     var slopeAxis = proj.slopeAxis || { x: 1, y: 0 };
@@ -714,8 +728,6 @@
     if (typeof window !== "undefined" && window.__PV_AUDIT__ === true) {
       console.log("[PV_AUDIT][GRID]", block.id, halfAlong, halfPerp, stepAlong, stepPerp, spacingAlongPx, spacingPerpPx, "slopeAxis:" + slopeAxis.x + "," + slopeAxis.y, "perpAxis:" + perpAxis.x + "," + perpAxis.y);
     }
-
-    var c0 = p0.center;
     for (var k = 0; k < block.panels.length; k++) {
       var pi = block.panels[k];
       var ci = pi.center;
