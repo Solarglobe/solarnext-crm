@@ -718,8 +718,15 @@
     var mpp = ctx.roofParams.metersPerPixel;
     var pvRules = ctx.pvRules || {};
     var cmToPx = (typeof mpp === "number" && Number.isFinite(mpp) && mpp > 0) ? (1 / 100) / mpp : 0;
-    var spacingAlongPx = (Number.isFinite(pvRules.spacingYcm) ? pvRules.spacingYcm : 0) * cmToPx;
-    var spacingPerpPx = (Number.isFinite(pvRules.spacingXcm) ? pvRules.spacingXcm : 0) * cmToPx;
+    var spacingPanels = Number.isFinite(pvRules.spacingXcm) ? pvRules.spacingXcm : 0;
+    var spacingRows = Number.isFinite(pvRules.spacingYcm) ? pvRules.spacingYcm : 0;
+    if ((block.orientation || "").toString().toUpperCase() === "PAYSAGE") {
+      var tmp = spacingPanels;
+      spacingPanels = spacingRows;
+      spacingRows = tmp;
+    }
+    var spacingAlongPx = spacingRows * cmToPx;
+    var spacingPerpPx = spacingPanels * cmToPx;
     var stepAlong = 2 * halfAlong + spacingAlongPx;
     var stepPerp = 2 * halfPerp + spacingPerpPx;
     if (stepAlong <= 0) stepAlong = 1;
