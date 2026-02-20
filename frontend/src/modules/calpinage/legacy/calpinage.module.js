@@ -2926,8 +2926,8 @@ export function initCalpinage(container, options = {}) {
       }
 
       /**
-       * Contexte pour computeProjectedPanelRect (Phase 3 ??? bloc actif).
-       * Adaptateur UI : pr?pare les entr?es depuis l'?tat global puis appelle buildProjectionContext (pur).
+       * Contexte toit uniquement (roofParams, roofPolygon, roofConstraints).
+       * Aucune dimension panneau — getProjectionContextForBlock est la seule source pour panelParams.
        */
       function getProjectionContextForPan(panId) {
         if (window.CALPINAGE_IS_MANIPULATING) return null;
@@ -2937,11 +2937,6 @@ export function initCalpinage(container, options = {}) {
         if (!pan || !pan.polygon || pan.polygon.length < 3) return null;
         var rules = window.PV_LAYOUT_RULES;
         if (!rules) return null;
-        var panel = window.PV_SELECTED_PANEL;
-        if (!panel || !Number.isFinite(panel.widthMm) || !Number.isFinite(panel.heightMm)) return null;
-        var orientForPan = (rules.orientation === "landscape" || rules.orientation === "paysage") ? "landscape" : "portrait";
-        var dims = (typeof window.getPanelDimensions === "function") ? window.getPanelDimensions("portrait") : null;
-        if (!dims || !Number.isFinite(dims.widthM) || !Number.isFinite(dims.heightM)) return null;
         var mpp = data.scale.metersPerPixel;
         var ridgeSegments = [];
         if (pan.ridgeIds && CALPINAGE_STATE.ridges) {
@@ -2988,38 +2983,6 @@ export function initCalpinage(container, options = {}) {
             roofParams.truePerpAxis = axes.perpAxis;
           }
         }
-        /* Dimensions orientées via getPanelDimensions() — source de vérité unique. Géométrie paysage via localRotationDeg=90 uniquement (pas de swap dims). */
-        var panelWidthMm = dims.widthM * 1000;
-        var panelHeightMm = dims.heightM * 1000;
-        var localRotationDeg = (orientForPan === "landscape" || orientForPan === "paysage") ? 90 : 0;
-        var panelParams = {
-          panelWidthMm: panelWidthMm,
-          panelHeightMm: panelHeightMm,
-          panelOrientation: "PORTRAIT",
-          localRotationDeg: localRotationDeg,
-        };
-        if (window.DEBUG_CALPINAGE_WIDTH && panel) {
-          console.log("[getProjectionContextForPan] DIAG panelParams", {
-            panId: pan.id,
-            panelWidthMm: panelWidthMm,
-            panelHeightMm: panelHeightMm,
-            effectiveWidthM: dims.widthM,
-            effectiveHeightM: dims.heightM,
-            source: "getPanelDimensions()",
-          });
-        }
-        var orientEngine = (orientForPan === "landscape" || orientForPan === "paysage") ? "PAYSAGE" : "PORTRAIT";
-        var effRules = getEffectiveLayoutRules(orientForPan);
-        var mapped = mapSpacingForOrientation(rules, orientEngine);
-        if (typeof window !== "undefined" && window.__PV_AUDIT__ === true) {
-          console.log("[PV_AUDIT][CTX_PAN]", panId, rules.orientation, orientEngine, panelParams.panelOrientation, panelParams.localRotationDeg, mapped.spacingXcm, mapped.spacingYcm);
-        }
-        var pvRules = {
-          spacingXcm: mapped.spacingXcm,
-          spacingYcm: mapped.spacingYcm,
-          marginOuterCm: Number.isFinite(effRules.marginOuterCm) ? effRules.marginOuterCm : 0,
-          orientation: effRules.orientation,
-        };
         var traitSegments = [];
         var traits = CALPINAGE_STATE.traits || [];
         for (var ti = 0; ti < traits.length; ti++) {
@@ -3028,35 +2991,21 @@ export function initCalpinage(container, options = {}) {
             traitSegments.push([tr.a, tr.b]);
           }
         }
-        var roofConstraints = { ridgeSegments: ridgeSegments, traitSegments: traitSegments, obstaclePolygons: obstaclePolygons };
-        return window.pvPlacementEngine && typeof window.pvPlacementEngine.buildProjectionContext === "function"
-          ? window.pvPlacementEngine.buildProjectionContext({
-              pan: pan,
-              roofPolygon: pan.polygon,
-              roofParams: roofParams,
-              panelParams: panelParams,
-              pvRules: pvRules,
-              roofConstraints: roofConstraints,
-              existingProjections: existingPanelsProjections,
-            })
-          : (function fallback() {
-              var marginPx = Number.isFinite(rules.marginOuterCm) && mpp > 0 ? (rules.marginOuterCm / 100) / mpp : 0;
-              return {
-                roofPolygon: pan.polygon,
-                roofConstraints: { marginPx: marginPx, ridgeSegments: ridgeSegments, traitSegments: traitSegments, obstaclePolygons: obstaclePolygons },
-                roofParams: roofParams,
-                panelParams: panelParams,
-                pvRules: pvRules,
-                existingPanelsProjections: existingPanelsProjections,
-              };
-            })();
+        var marginPx = Number.isFinite(rules.marginOuterCm) && mpp > 0 ? (rules.marginOuterCm / 100) / mpp : 0;
+        var roofConstraints = { marginPx: marginPx, ridgeSegments: ridgeSegments, traitSegments: traitSegments, obstaclePolygons: obstaclePolygons };
+        return {
+          roofPolygon: pan.polygon,
+          roofConstraints: roofConstraints,
+          roofParams: roofParams,
+          existingPanelsProjections: existingPanelsProjections,
+        };
       }
 
       /** Contexte de projection pour un bloc donn?: dimensions via getPanelDimensions, pvRules via getEffectiveLayoutRules. */
       function getProjectionContextForBlock(block) {
         if (!block || !block.panId) return null;
         var ctx = getProjectionContextForPan(block.panId);
-        if (!ctx || !ctx.panelParams) return ctx;
+        if (!ctx || !ctx.roofParams) return null;
         var rules = window.PV_LAYOUT_RULES;
         var blockOrient = (block.orientation === "PAYSAGE" || block.orientation === "landscape") ? "landscape" : "portrait";
         var blockOrientEngine = blockOrient === "landscape" ? "PAYSAGE" : "PORTRAIT";
@@ -3079,7 +3028,7 @@ export function initCalpinage(container, options = {}) {
             localRotationDeg: 0,
           };
         }
-        if (typeof window !== "undefined" && window.__PV_AUDIT__ === true) {
+        if (typeof window !== "undefined" && window.__PV_AUDIT__ === true && out.panelParams) {
           console.log("[PV_AUDIT][CTX_BLOCK]", block.id, block.orientation, block.rotationBaseDeg, out.panelParams.panelOrientation, out.panelParams.localRotationDeg, pvRules.spacingXcm, pvRules.spacingYcm);
         }
         return out;
@@ -6566,9 +6515,10 @@ updateValidateButton();
           if (!pan || !pan.polygon || pan.polygon.length < 3) return { allowed: false, reason: "Pan invalide ou inconnu." };
           var ENG = window.pvPlacementEngine;
           var activeBlock = ENG && typeof ENG.getActiveBlock === "function" ? ENG.getActiveBlock() : null;
+          var orientForValidate = (rules.orientation === "landscape" || rules.orientation === "paysage") ? "PAYSAGE" : "PORTRAIT";
           var ctx = (activeBlock && activeBlock.panId === panId && typeof getProjectionContextForBlock === "function")
             ? getProjectionContextForBlock(activeBlock)
-            : (typeof getProjectionContextForPan === "function" ? getProjectionContextForPan(panId) : null);
+            : (typeof getProjectionContextForBlock === "function" ? getProjectionContextForBlock({ panId: panId, orientation: orientForValidate }) : null);
           var effRules = ctx && ctx.pvRules ? ctx.pvRules : null;
           if (!ctx || !ctx.roofParams || !ctx.panelParams) return { allowed: false, reason: "Contexte de projection indisponible." };
           if (!effRules) return { allowed: false, reason: "Règles d'espacement indisponibles pour le contexte." };
@@ -6635,9 +6585,10 @@ updateValidateButton();
           }
           var ENG = window.pvPlacementEngine;
           var block = ENG && ((typeof ENG.getFocusBlock === "function" && ENG.getFocusBlock()) || (typeof ENG.getActiveBlock === "function" && ENG.getActiveBlock()));
+          var orientForValidateBlock = (rules.orientation === "landscape" || rules.orientation === "paysage") ? "PAYSAGE" : "PORTRAIT";
           var ctx = (block && block.panId === panId && typeof getProjectionContextForBlock === "function")
             ? getProjectionContextForBlock(block)
-            : (typeof getProjectionContextForPan === "function" ? getProjectionContextForPan(panId) : null);
+            : (typeof getProjectionContextForBlock === "function" ? getProjectionContextForBlock({ panId: panId, orientation: orientForValidateBlock }) : null);
           if (!ctx || !ctx.roofParams || !ctx.panelParams) {
             if (typeof window !== "undefined") window.PV_LAYOUT_LAST_VALIDATION_REASON = "Contexte de projection incomplet.";
             return false;
@@ -8260,7 +8211,7 @@ updateValidateButton();
               var activeBlock = ENG.getActiveBlock ? ENG.getActiveBlock() : null;
               /* S'assurer que le bloc focus a des projections (sinon getManipulationHandlePositions retourne null et move/rotate ne démarrent jamais). */
               if (focusBlock && typeof ENG.recomputeBlock === "function") {
-                var ctxHandles = typeof getProjectionContextForBlock === "function" ? getProjectionContextForBlock(focusBlock) : (typeof getProjectionContextForPan === "function" ? getProjectionContextForPan(focusBlock.panId) : null);
+                var ctxHandles = typeof getProjectionContextForBlock === "function" ? getProjectionContextForBlock(focusBlock) : null;
                 if (ctxHandles) ENG.recomputeBlock(focusBlock.id, window.PV_LAYOUT_RULES, ctxHandles);
               }
 
@@ -8325,7 +8276,7 @@ updateValidateButton();
                       window.PV_LAYOUT_STATE = PV_LAYOUT_FLOW.SELECT;
                       var block = ENG.getFocusBlock ? ENG.getFocusBlock() : null;
                       if (block) {
-                        var ctxPan = typeof getProjectionContextForBlock === "function" ? getProjectionContextForBlock(block) : getProjectionContextForPan(block.panId);
+                        var ctxPan = typeof getProjectionContextForBlock === "function" ? getProjectionContextForBlock(block) : null;
                         if (ctxPan) {
                           ENG.recomputeBlock(block.id, window.PV_LAYOUT_RULES, ctxPan);
                           if (typeof ENG.updatePanelValidationForBlock === "function") {
@@ -8381,7 +8332,7 @@ updateValidateButton();
                     CALPINAGE_STATE.selectedPlacedPanelId = hitRm.panelId;
                     CALPINAGE_STATE.selectedPlacedBlockId = hitRm.blockId;
                     var blockRm = ENG.getFocusBlock ? ENG.getFocusBlock() : focusBlock;
-                    var getCtxRm = function () { return (typeof getProjectionContextForBlock === "function" ? getProjectionContextForBlock(blockRm) : getProjectionContextForPan(blockRm.panId)); };
+                    var getCtxRm = function () { return (typeof getProjectionContextForBlock === "function" ? getProjectionContextForBlock(blockRm) : null); };
                     if (blockRm && typeof ENG.removePanelById === "function") {
                       var isLastPanel = blockRm.panels && blockRm.panels.length === 1;
                       if (isLastPanel && typeof window.requestCalpinageConfirm === "function") {
@@ -8424,7 +8375,7 @@ updateValidateButton();
                     window.PV_LAYOUT_STATE = PV_LAYOUT_FLOW.SELECT;
                     var blockPanels = ENG.getFocusBlock ? ENG.getFocusBlock() : null;
                     if (blockPanels) {
-                      var ctxPanP = typeof getProjectionContextForBlock === "function" ? getProjectionContextForBlock(blockPanels) : getProjectionContextForPan(blockPanels.panId);
+                      var ctxPanP = typeof getProjectionContextForBlock === "function" ? getProjectionContextForBlock(blockPanels) : null;
                       if (ctxPanP) {
                         ENG.recomputeBlock(blockPanels.id, window.PV_LAYOUT_RULES, ctxPanP);
                         if (typeof ENG.updatePanelValidationForBlock === "function") {
@@ -8446,7 +8397,7 @@ updateValidateButton();
 
               /* Clic sur ghost => création panneau à cet emplacement */
               if (window.PV_SELECTED_PANEL && activeBlock && typeof ENG.computeExpansionGhosts === "function" && typeof pointInPolygonImage === "function") {
-                var getCtxGhost = function () { return (typeof getProjectionContextForBlock === "function" ? getProjectionContextForBlock(activeBlock) : getProjectionContextForPan(activeBlock.panId)); };
+                var getCtxGhost = function () { return (typeof getProjectionContextForBlock === "function" ? getProjectionContextForBlock(activeBlock) : null); };
                 var ghosts = ENG.computeExpansionGhosts(activeBlock, getCtxGhost);
                 if (Array.isArray(ghosts)) {
                   for (var gi = 0; gi < ghosts.length; gi++) {
@@ -8476,9 +8427,10 @@ updateValidateButton();
                 window.PV_LAYOUT_STATE = PV_LAYOUT_FLOW.VALIDATE;
                 ENG.endBlock();
                 window.PV_LAYOUT_STATE = PV_LAYOUT_FLOW.SELECT;
-                var ctxNew = getProjectionContextForPan(panAtPointEarly.id);
                 var rulesForCreate = Object.assign({}, window.PV_LAYOUT_RULES || {});
                 rulesForCreate.orientation = (rulesForCreate.orientation === "landscape" || rulesForCreate.orientation === "paysage") ? "PAYSAGE" : "PORTRAIT";
+                var virtualBlockNew = { panId: panAtPointEarly.id, orientation: rulesForCreate.orientation };
+                var ctxNew = (typeof getProjectionContextForBlock === "function") ? getProjectionContextForBlock(virtualBlockNew) : null;
                 var resultNew = ENG.createBlock(panAtPointEarly.id, { x: imgPt.x, y: imgPt.y }, rulesForCreate, ctxNew);
                 if (!resultNew.success && typeof window.showPvLayoutError === "function") {
                   window.showPvLayoutError(resultNew.reason || "Placement impossible");
@@ -8523,9 +8475,10 @@ updateValidateButton();
                 return;
               }
               if (window.PV_SELECTED_PANEL && !activeBlock && panAtPoint) {
-                var ctxCreate = getProjectionContextForPan(panAtPoint.id);
                 var rulesForCreate = Object.assign({}, window.PV_LAYOUT_RULES || {});
                 rulesForCreate.orientation = (rulesForCreate.orientation === "landscape" || rulesForCreate.orientation === "paysage") ? "PAYSAGE" : "PORTRAIT";
+                var virtualBlock = { panId: panAtPoint.id, orientation: rulesForCreate.orientation };
+                var ctxCreate = (typeof getProjectionContextForBlock === "function") ? getProjectionContextForBlock(virtualBlock) : null;
                 var result = ENG.createBlock(panAtPoint.id, { x: imgPt.x, y: imgPt.y }, rulesForCreate, ctxCreate);
                 if (result.success) {
                   window.PV_LAYOUT_STATE = PV_LAYOUT_FLOW.ADD;
@@ -11844,8 +11797,8 @@ updateValidateButton();
                 }
               }
               /* 3) Ghosts moteur (expansion) : affich?s pour le bloc actif. Tous les ghosts retourn?s par le moteur sont dessin?s, aucun filtrage. */
-              if (activeBl && ENG.computeExpansionGhosts && (typeof getProjectionContextForBlock === "function" || typeof getProjectionContextForPan === "function")) {
-                var getCtxForGhosts = function () { return typeof getProjectionContextForBlock === "function" ? getProjectionContextForBlock(activeBl) : getProjectionContextForPan(activeBl.panId); };
+              if (activeBl && ENG.computeExpansionGhosts && typeof getProjectionContextForBlock === "function") {
+                var getCtxForGhosts = function () { return typeof getProjectionContextForBlock === "function" ? getProjectionContextForBlock(activeBl) : null; };
                 var ghosts = ENG.computeExpansionGhosts(activeBl, getCtxForGhosts);
                 if (Array.isArray(ghosts)) {
                   for (var gi = 0; gi < ghosts.length; gi++) {
@@ -11870,8 +11823,8 @@ updateValidateButton();
                 }
               }
               /* B2.1 ??? Fl?che sens de pente du pan actif (overlay lecture seule, fa??tage ??? goutti?re) */
-              if (activeBl && (typeof getProjectionContextForBlock === "function" || typeof getProjectionContextForPan === "function")) {
-                var panCtx = typeof getProjectionContextForBlock === "function" ? getProjectionContextForBlock(activeBl) : getProjectionContextForPan(activeBl.panId);
+              if (activeBl && typeof getProjectionContextForBlock === "function") {
+                var panCtx = typeof getProjectionContextForBlock === "function" ? getProjectionContextForBlock(activeBl) : null;
                 if (panCtx && panCtx.roofParams && typeof panCtx.roofParams.roofAzimuthDeg === "number") {
                   var adapter = window.CALPINAGE_DP2_ADAPTER;
                   var centerImg = adapter && typeof adapter.getBlockCenter === "function" ? adapter.getBlockCenter(activeBl) : null;
