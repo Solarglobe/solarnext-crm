@@ -641,6 +641,27 @@
   }
 
   /**
+   * Supprime un panneau du bloc par son id (sélection stable).
+   *
+   * @param {Object} block - Bloc (actif ou figé)
+   * @param {string} panelId - Id du panneau à supprimer (ou "legacy-N" pour rétrocompat)
+   * @param {function(): Object} getProjectionContext - Contexte
+   * @returns {{ success: boolean, reason?: string }}
+   */
+  function removePanelById(block, panelId, getProjectionContext) {
+    if (!block || !panelId) return { success: false, reason: "Bloc ou panelId requis." };
+    var idx = -1;
+    if (typeof panelId === "string" && panelId.indexOf("legacy-") === 0) {
+      idx = parseInt(panelId.slice(7), 10);
+      if (!Number.isFinite(idx) || idx < 0 || idx >= (block.panels ? block.panels.length : 0)) idx = -1;
+    } else {
+      var APB = getAPB();
+      if (APB && typeof APB.getPanelIndexById === "function") idx = APB.getPanelIndexById(block, panelId);
+    }
+    return removePanelAtIndex(block, idx, getProjectionContext);
+  }
+
+  /**
    * Migration : si des panneaux n'ont pas panel.grid, reconstruit (row,col) à partir des centres et de la projection.
    * Référence p0 = premier panneau avec center et projection. Axes et pas déduits de la projection + spacing.
    *
@@ -1067,6 +1088,7 @@
     computeExpansionGhosts: computeExpansionGhosts,
     addPanelAtCenter: addPanelAtCenter,
     removePanelAtIndex: removePanelAtIndex,
+    removePanelById: removePanelById,
     ensureBlockGrid: ensureBlockGrid,
     togglePanelEnabled: togglePanelEnabled,
     removeBlock: removeBlock,

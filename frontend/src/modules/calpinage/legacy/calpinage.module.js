@@ -3106,16 +3106,35 @@ export function initCalpinage(container, options = {}) {
         return -1;
       }
 
-      /** Index du panneau du focusBlock (actif ou fig? s?lectionn?) sous le point. */
-      function hitTestFocusBlockPanelIndex(imgPt) {
+      /** Hit-test panneau du focusBlock : retourne { blockId, panelId } ou null (sélection stable). */
+      function hitTestFocusBlockPanelId(imgPt) {
         var ENG = window.pvPlacementEngine;
         var block = ENG && ENG.getFocusBlock ? ENG.getFocusBlock() : null;
-        if (!ENG || !block || !block.panels) return -1;
+        if (!ENG || !block || !block.panels) return null;
         for (var i = 0; i < block.panels.length; i++) {
           var proj = ENG.getEffectivePanelProjection(block, i);
-          if (proj && proj.points && proj.points.length >= 3 && pointInPolygonImage(imgPt, proj.points)) return i;
+          if (proj && proj.points && proj.points.length >= 3 && pointInPolygonImage(imgPt, proj.points)) {
+            var p = block.panels[i];
+            var panelId = p && typeof p.id === "string" && p.id ? p.id : ("legacy-" + i);
+            return { blockId: block.id, panelId: panelId };
+          }
         }
-        return -1;
+        return null;
+      }
+
+      /** Index du panneau du focusBlock sous le point. Rétrocompat (délègue à hitTestFocusBlockPanelId + getPanelIndexById). */
+      function hitTestFocusBlockPanelIndex(imgPt) {
+        var hit = hitTestFocusBlockPanelId(imgPt);
+        if (!hit || !hit.panelId) return -1;
+        var block = window.pvPlacementEngine && window.pvPlacementEngine.getBlockById ? window.pvPlacementEngine.getBlockById(hit.blockId) : null;
+        if (!block) return -1;
+        if (typeof hit.panelId === "string" && hit.panelId.indexOf("legacy-") === 0) {
+          var idx = parseInt(hit.panelId.slice(7), 10);
+          return (Number.isFinite(idx) && idx >= 0 && idx < block.panels.length) ? idx : -1;
+        }
+        return window.ActivePlacementBlock && typeof window.ActivePlacementBlock.getPanelIndexById === "function"
+          ? window.ActivePlacementBlock.getPanelIndexById(block, hit.panelId)
+          : -1;
       }
 
       /** Hit test blocs fig?s : retourne le premier bloc (en ordre dessin) dont un panneau contient le point. */
@@ -8343,12 +8362,12 @@ updateValidateButton();
 
               /* Mode "Ajouter panneaux" (CALPINAGE) : clic sur un panneau du bloc actif => supprimer ce panneau. Inactif en MODE SELECT. */
               if (window.CALPINAGE_INTERACTION_MODE !== "SELECT") {
-                if (focusBlock && typeof hitTestFocusBlockPanelIndex === "function") {
-                  var panelIdxRm = hitTestFocusBlockPanelIndex(imgPt);
-                  if (panelIdxRm >= 0) {
+                if (focusBlock && typeof hitTestFocusBlockPanelId === "function") {
+                  var hitRm = hitTestFocusBlockPanelId(imgPt);
+                  if (hitRm && hitRm.panelId) {
                     var blockRm = ENG.getFocusBlock ? ENG.getFocusBlock() : focusBlock;
                     var getCtxRm = function () { return (typeof getProjectionContextForBlock === "function" ? getProjectionContextForBlock(blockRm) : getProjectionContextForPan(blockRm.panId)); };
-                    if (blockRm && typeof ENG.removePanelAtIndex === "function") {
+                    if (blockRm && typeof ENG.removePanelById === "function") {
                       var isLastPanel = blockRm.panels && blockRm.panels.length === 1;
                       if (isLastPanel && typeof window.requestCalpinageConfirm === "function") {
                         window.requestCalpinageConfirm({
@@ -8357,7 +8376,7 @@ updateValidateButton();
                           confirmLabel: "Supprimer",
                           cancelLabel: "Annuler",
                           onConfirm: function () {
-                            ENG.removePanelAtIndex(blockRm, panelIdxRm, getCtxRm);
+                            ENG.removePanelById(blockRm, hitRm.panelId, getCtxRm);
                             if (typeof ENG.removeBlock === "function") ENG.removeBlock(blockRm.id);
                             if (typeof recomputeAllPlacementBlocksFromRules === "function") recomputeAllPlacementBlocksFromRules(true);
                             if (typeof pvSyncSaveRender === "function") pvSyncSaveRender();
@@ -8366,7 +8385,7 @@ updateValidateButton();
                       } else if (isLastPanel) {
                         if (typeof console !== "undefined" && console.error) console.error("[CALPINAGE] ConfirmProvider missing — destructive action blocked");
                       } else {
-                        ENG.removePanelAtIndex(blockRm, panelIdxRm, getCtxRm);
+                        ENG.removePanelById(blockRm, hitRm.panelId, getCtxRm);
                         if (blockRm.panels && blockRm.panels.length === 0 && typeof ENG.removeBlock === "function") {
                           ENG.removeBlock(blockRm.id);
                         }
