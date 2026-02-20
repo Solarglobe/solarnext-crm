@@ -3060,7 +3060,7 @@ export function initCalpinage(container, options = {}) {
         var rules = window.PV_LAYOUT_RULES;
         var blockOrient = (block.orientation === "PAYSAGE" || block.orientation === "landscape") ? "landscape" : "portrait";
         var blockOrientEngine = blockOrient === "landscape" ? "PAYSAGE" : "PORTRAIT";
-        var dims = (typeof window.getPanelDimensions === "function") ? window.getPanelDimensions("portrait") : null;
+        var dims = (typeof window.getPanelDimensions === "function") ? window.getPanelDimensions(blockOrient) : null;
         var effRules = getEffectiveLayoutRules(blockOrient);
         var mapped = mapSpacingForOrientation(rules, blockOrientEngine);
         var pvRules = {

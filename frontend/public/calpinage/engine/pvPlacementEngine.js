@@ -720,11 +720,6 @@
     var cmToPx = (typeof mpp === "number" && Number.isFinite(mpp) && mpp > 0) ? (1 / 100) / mpp : 0;
     var spacingPanels = Number.isFinite(pvRules.spacingXcm) ? pvRules.spacingXcm : 0;
     var spacingRows = Number.isFinite(pvRules.spacingYcm) ? pvRules.spacingYcm : 0;
-    if ((block.orientation || "").toString().toUpperCase() === "PAYSAGE") {
-      var tmp = spacingPanels;
-      spacingPanels = spacingRows;
-      spacingRows = tmp;
-    }
     var spacingAlongPx = spacingRows * cmToPx;
     var spacingPerpPx = spacingPanels * cmToPx;
     var stepAlong = 2 * halfAlong + spacingAlongPx;
