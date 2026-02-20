@@ -3024,7 +3024,7 @@ export function initCalpinage(container, options = {}) {
           out.panelParams = {
             panelWidthMm: dims.widthM * 1000,
             panelHeightMm: dims.heightM * 1000,
-            panelOrientation: blockOrientEngine,
+            panelOrientation: (blockOrientEngine === "PAYSAGE" ? "PORTRAIT" : "PAYSAGE"),
             localRotationDeg: 0,
           };
         }
