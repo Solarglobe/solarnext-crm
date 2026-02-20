@@ -6301,11 +6301,47 @@ updateValidateButton();
           rules.orientation = (newOrientation === "landscape" || newOrientation === "PAYSAGE") ? "landscape" : "portrait";
           savePvParams();
           if (focusBlock) {
-            /* CAS 1 : focusBlock existe — modifier UNIQUEMENT ce bloc */
+            /* CAS 1 : focusBlock existe — modifier UNIQUEMENT ce bloc, SANS GAP (centres réalignés sur grille) */
             var engineOrient = (newOrientation === "landscape" || newOrientation === "PAYSAGE") ? "PAYSAGE" : "PORTRAIT";
             var rotationBaseDeg = (engineOrient === "PAYSAGE") ? 90 : 0;
+            var getCtxBlock = function () { return getProjectionContextForBlock(focusBlock); };
+            var gridOld = (ENG.getBlockGridParams && typeof ENG.getBlockGridParams === "function") ? ENG.getBlockGridParams(focusBlock, getCtxBlock) : null;
+            if (gridOld && focusBlock.panels && focusBlock.panels.length > 0) {
+              var c0 = gridOld.c0;
+              var sax = gridOld.slopeAxis.x, say = gridOld.slopeAxis.y;
+              var pax = gridOld.perpAxis.x, pay = gridOld.perpAxis.y;
+              for (var gi = 0; gi < focusBlock.panels.length; gi++) {
+                var pn = focusBlock.panels[gi];
+                var ci = pn.center;
+                if (ci && typeof ci.x === "number" && typeof ci.y === "number") {
+                  var dx = ci.x - c0.x, dy = ci.y - c0.y;
+                  var u = (dx * sax + dy * say) / gridOld.stepAlong;
+                  var v = (dx * pax + dy * pay) / gridOld.stepPerp;
+                  pn.__gridTmp = { row: Math.round(u), col: Math.round(v) };
+                }
+              }
+            }
             focusBlock.orientation = engineOrient;
             focusBlock.rotationBaseDeg = rotationBaseDeg;
+            if (gridOld && focusBlock.panels) {
+              var gridNew = ENG.getBlockGridParams(focusBlock, getCtxBlock);
+              if (gridNew) {
+                var c0n = gridNew.c0;
+                var saxn = gridNew.slopeAxis.x, sayn = gridNew.slopeAxis.y;
+                var paxn = gridNew.perpAxis.x, payn = gridNew.perpAxis.y;
+                for (var gj = 0; gj < focusBlock.panels.length; gj++) {
+                  var pn2 = focusBlock.panels[gj];
+                  var gt = pn2.__gridTmp;
+                  if (gt != null && typeof gt.row === "number" && typeof gt.col === "number") {
+                    pn2.center = {
+                      x: c0n.x + gt.row * gridNew.stepAlong * saxn + gt.col * gridNew.stepPerp * paxn,
+                      y: c0n.y + gt.row * gridNew.stepAlong * sayn + gt.col * gridNew.stepPerp * payn,
+                    };
+                  }
+                  delete pn2.__gridTmp;
+                }
+              }
+            }
             recomputeActiveBlockProjectionsAndGhosts();
             if (window.DEBUG_ORIENTATION_TOGGLE && typeof getProjectionContextForBlock === "function") {
               var ctxDbg = getProjectionContextForBlock(focusBlock);

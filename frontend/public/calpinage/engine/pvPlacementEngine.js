@@ -647,6 +647,90 @@
    * @param {Object} block - Bloc
    * @param {function(): Object} getProjectionContext - Contexte
    */
+  /**
+   * Calcule les paramètres de grille (c0, axes, stepAlong, stepPerp) pour un bloc.
+   * Utilisé par ensureBlockGrid et par onOrientationChange pour le toggle sans gap.
+   * @param {Object} block - Bloc
+   * @param {function(): Object} getProjectionContext - Contexte
+   * @returns {{ c0: {x,y}, slopeAxis: {x,y}, perpAxis: {x,y}, stepAlong: number, stepPerp: number } | null}
+   */
+  function getBlockGridParams(block, getProjectionContext) {
+    if (!block || !block.panels || block.panels.length === 0 || typeof getProjectionContext !== "function") return null;
+    var ctx = getProjectionContext();
+    if (!ctx || !ctx.roofParams || !ctx.panelParams) return null;
+    var computeProjectedPanelRect = getComputeProjectedPanelRect();
+    if (typeof computeProjectedPanelRect !== "function") return null;
+    var panels = block.panels;
+    var firstCenter = null;
+    for (var f = 0; f < panels.length; f++) {
+      var pc = panels[f].center;
+      if (pc && typeof pc.x === "number" && typeof pc.y === "number") {
+        firstCenter = { x: pc.x, y: pc.y };
+        break;
+      }
+    }
+    if (!firstCenter) return null;
+    var mpp = ctx.roofParams.metersPerPixel;
+    var pvRules = ctx.pvRules || {};
+    var cmToPx = (typeof mpp === "number" && Number.isFinite(mpp) && mpp > 0) ? (1 / 100) / mpp : 0;
+    var spacingAlongPx = (Number.isFinite(pvRules.spacingYcm) ? pvRules.spacingYcm : 0) * cmToPx;
+    var spacingPerpPx = (Number.isFinite(pvRules.spacingXcm) ? pvRules.spacingXcm : 0) * cmToPx;
+    var rotationDeg = (block.rotation || 0) % 360;
+    if (rotationDeg < 0) rotationDeg += 360;
+    var projectOptsBase = {
+      panelWidthMm: ctx.panelParams.panelWidthMm,
+      panelHeightMm: ctx.panelParams.panelHeightMm,
+      panelOrientation: (ctx.panelParams.panelOrientation || "PORTRAIT").toString().toUpperCase(),
+      roofSlopeDeg: ctx.roofParams.roofSlopeDeg,
+      roofOrientationDeg: ctx.roofParams.roofOrientationDeg != null ? ctx.roofParams.roofOrientationDeg : 0,
+      metersPerPixel: mpp,
+    };
+    if (ctx.roofParams.trueSlopeAxis && ctx.roofParams.truePerpAxis) {
+      projectOptsBase.trueSlopeAxis = ctx.roofParams.trueSlopeAxis;
+      projectOptsBase.truePerpAxis = ctx.roofParams.truePerpAxis;
+    }
+    if (typeof ctx.panelParams.localRotationDeg === "number") {
+      projectOptsBase.localRotationDeg = ctx.panelParams.localRotationDeg;
+    }
+    var refProjOpts = {
+      center: { x: firstCenter.x, y: firstCenter.y },
+      panelWidthMm: ctx.panelParams.panelWidthMm,
+      panelHeightMm: ctx.panelParams.panelHeightMm,
+      panelOrientation: projectOptsBase.panelOrientation,
+      roofSlopeDeg: projectOptsBase.roofSlopeDeg,
+      roofOrientationDeg: projectOptsBase.roofOrientationDeg,
+      metersPerPixel: mpp,
+    };
+    if (projectOptsBase.trueSlopeAxis && projectOptsBase.truePerpAxis) {
+      refProjOpts.trueSlopeAxis = projectOptsBase.trueSlopeAxis;
+      refProjOpts.truePerpAxis = projectOptsBase.truePerpAxis;
+    }
+    if (typeof projectOptsBase.localRotationDeg === "number") {
+      refProjOpts.localRotationDeg = projectOptsBase.localRotationDeg;
+    }
+    var refProj;
+    try {
+      refProj = computeProjectedPanelRect(refProjOpts);
+    } catch (e) {
+      return null;
+    }
+    if (!refProj || !refProj.points || refProj.points.length < 4) return null;
+    if (rotationDeg) refProj = rotateProjectionByDegrees(refProj, firstCenter, rotationDeg);
+    var slopeAxis = refProj.slopeAxis || { x: 1, y: 0 };
+    var perpAxis = refProj.perpAxis || { x: 0, y: 1 };
+    var normSlope = Math.hypot(slopeAxis.x, slopeAxis.y) || 1;
+    slopeAxis = { x: slopeAxis.x / normSlope, y: slopeAxis.y / normSlope };
+    var normPerp = Math.hypot(perpAxis.x, perpAxis.y) || 1;
+    perpAxis = { x: perpAxis.x / normPerp, y: perpAxis.y / normPerp };
+    var halfAlong = refProj.halfLengthAlongSlopePx != null ? refProj.halfLengthAlongSlopePx : 0;
+    var halfPerp = refProj.halfLengthPerpPx != null ? refProj.halfLengthPerpPx : 0;
+    var stepAlong = 2 * halfAlong + spacingAlongPx;
+    var stepPerp = 2 * halfPerp + spacingPerpPx;
+    if (stepAlong <= 0) stepAlong = 1;
+    if (stepPerp <= 0) stepPerp = 1;
+    return { c0: firstCenter, slopeAxis: slopeAxis, perpAxis: perpAxis, stepAlong: stepAlong, stepPerp: stepPerp };
+  }
+
   function ensureBlockGrid(block, getProjectionContext) {
     if (!block || !block.panels || block.panels.length === 0 || typeof getProjectionContext !== "function") return;
     var needsGrid = false;
@@ -1067,6 +1151,7 @@
     computeExpansionGhosts: computeExpansionGhosts,
     addPanelAtCenter: addPanelAtCenter,
     removePanelAtIndex: removePanelAtIndex,
+    getBlockGridParams: getBlockGridParams,
     ensureBlockGrid: ensureBlockGrid,
     togglePanelEnabled: togglePanelEnabled,
     removeBlock: removeBlock,
