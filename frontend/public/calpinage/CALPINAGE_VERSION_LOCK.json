@@ -1,0 +1,22 @@
+{
+  "name": "Calpinage v1.0 Stable",
+  "tag": "calpinage-v1.0-stable",
+  "date": "2026-02-23",
+  "qa": {
+    "stress_openclose_x20": "PASS",
+    "provider_switch": "PASS",
+    "export_json_validation": "PASS",
+    "memory_leak_audit": "PASS",
+    "performance_profiling": "PASS"
+  },
+  "policy": {
+    "engine_changes": "FORBIDDEN_UNLESS_V2_BRANCH",
+    "allowed": [
+      "UI polish",
+      "copywriting",
+      "tests",
+      "docs",
+      "bugfix critical only with approval"
+    ]
+  }
+}
