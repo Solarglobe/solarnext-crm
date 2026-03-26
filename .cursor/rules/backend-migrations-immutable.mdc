@@ -1,0 +1,12 @@
+---
+description: Migrations PostgreSQL immuables après exécution (checksum SolarNext)
+globs: backend/migrations/**/*.js
+alwaysApply: false
+---
+
+# Migrations backend
+
+- **Ne jamais modifier** un fichier sous `backend/migrations/` une fois qu’il a été exécuté en base (présence dans `pgmigrations`). Toute modification change le SHA-256 et déclenche `MIGRATION_TAMPERED` au boot (`migration_checksums`).
+- Pour faire évoluer le schéma : **nouvelle** migration avec un timestamp supérieur (`npm run migrate:create` ou convention du projet), jamais en rééditant une migration déjà appliquée.
+- La migration `1774563000000_cp-financial-official-document-snapshot.js` est **gelée** : pas de patch sur ce fichier ; uniquement des migrations ultérieures si besoin.
+- Les fichiers sont versionnés en **LF** (voir `.gitattributes`) pour cohérence avec les checksums.

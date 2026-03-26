@@ -1,0 +1,3 @@
+# Migrations : LF obligatoire pour aligner le dépôt avec le hash SHA-256
+# enregistré en base (migration_checksums) et éviter les faux positifs CRLF/LF.
+backend/migrations/**/*.js text eol=lf
