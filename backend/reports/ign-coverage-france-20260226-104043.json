@@ -1,0 +1,44 @@
+{
+  "meta": {
+    "generatedAt": "2026-02-26T09:40:43.913Z",
+    "stepDeg": 2,
+    "pointsTested": 4,
+    "downloadMode": "HTTP",
+    "lockMode": "LOCAL",
+    "sharedCacheRoot": null
+  },
+  "summary": {
+    "ignOk": 0,
+    "fallback": 4,
+    "errors": 0,
+    "flatSuspect": 0,
+    "coveragePct": 0,
+    "fallbackPct": 100
+  },
+  "samples": {
+    "fallbackPoints": [
+      {
+        "lat": 44,
+        "lon": 2,
+        "reason": "IGN_UNAVAILABLE"
+      },
+      {
+        "lat": 44,
+        "lon": 4,
+        "reason": "IGN_UNAVAILABLE"
+      },
+      {
+        "lat": 46,
+        "lon": 2,
+        "reason": "IGN_UNAVAILABLE"
+      },
+      {
+        "lat": 46,
+        "lon": 4,
+        "reason": "IGN_UNAVAILABLE"
+      }
+    ],
+    "errorPoints": [],
+    "flatPoints": []
+  }
+}

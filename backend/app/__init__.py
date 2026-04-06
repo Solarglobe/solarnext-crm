@@ -1,0 +1,1 @@
+# SolarGlobe CRM - FastAPI app

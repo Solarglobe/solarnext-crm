@@ -12,8 +12,6 @@ import { loadScriptOnce } from "./loadCalpinageDeps";
 import {
   normalizeCalpinageGeometry3DReady,
   buildGeometry3DExportSection,
-  houseModelV2,
-  computeCentroidPx,
 } from "../geometry";
 import { unifiedHitTest } from "../core/unifiedHitTest";
 import { startInteraction, updateInteraction, commitInteraction } from "../core/interactionEngine";
@@ -24,9 +22,128 @@ import {
   setInteractionState,
   resetInteractionState,
 } from "../core/interactionStateMachine"; // STATE-MACHINE-WIRED
+import { enrichNormalizedShadingFromHorizon } from "../shading/enrichNormalizedShadingFromHorizon.js";
 import { validateInverterSizing } from "../inverterSizing";
 import { normalizeInverterFamily } from "../utils/normalizeInverterFamily";
 import { SG_P2_ICONS } from "../icons/solarglobePhase2Icons";
+import {
+  buildRoofContourEdgeSnapDetailed,
+  validateStructuralSnapPayload,
+  resolvePointFromRoofContourEdgeAttach,
+} from "./structuralSnapPhase2.js";
+import { commitEndpointAttachFromStructuralPayload } from "./endpointAttachCommitPhase2.js";
+import {
+  propagateLinkedEndpointsAfterDrag,
+  propagateExplicitTraitJunction,
+  propagateExplicitContourJunction,
+  propagateRoofContourEdgeJunctionAfterContourEdit,
+  fixContourVertexDeleteAttaches,
+  fixContourVertexInsertAttaches,
+} from "./junctionPropagationPhase2.js";
+import {
+  collectMandatoryContourSplitPointsFromStructuralEndpoints,
+  isStructuralContourAttach,
+} from "./pansTopologyPhase2.js";
+import { applyDerivedRoofTopologyAfterPans } from "./phase2RoofDerivedModel.js";
+import {
+  computeSafeZonesFromCalpinageState,
+  drawSafeZoneOverlay,
+  isPanelInsideSafeZone,
+  buildSafeZoneEdgesCache,
+  buildSafeZonePath2D,
+} from "../../../../calpinage/engine/safeZoneAdapter.js";
+import { buildShadingSummary } from "../dsmOverlay/buildShadingSummary.js";
+import { isFarHorizonRealTerrain } from "../dsmOverlay/farHorizonTruth.js";
+import { resolveAnnualProductionKwhForShadingOverlay } from "../dsmOverlay/dsmOverlayManager.js";
+import {
+  computeInitialZoomFromLeadMeta,
+  hasSeriousCalpinageGeometry,
+  getCenterFromSavedGeometry,
+  getGpsPrecisionHintMessage,
+  pickConfirmedBuildingGps,
+} from "../calpinageGpsPolicy.js";
+import { buildPremiumShadingExport } from "../export/buildShadingExport.js";
+import {
+  getOfficialGlobalShadingLossPct,
+  getOfficialGlobalShadingLossPctOr,
+  warnIfOfficialShadingRootMismatch,
+} from "../shading/officialGlobalShadingLoss.js";
+import { computeNearShadingFrontend } from "../shading/nearShadingWrapper";
+import {
+  registerCalpinageRuntime,
+  unregisterCalpinageRuntime,
+} from "../runtime/calpinageRuntime";
+import {
+  applyCanonical3DWorldContractToRoof,
+  getCanonical3DWorldContractDriftReport,
+} from "../runtime/canonical3DWorldContract";
+import {
+  captureObstacleIntegritySnapshot,
+  obstacleIntegrityClearBuildGeometryBaseline,
+  obstacleIntegrityOnBuildGeometryEnd,
+  obstacleIntegrityOnBuildGeometryStart,
+  obstacleIntegrityClearPansCoreBaseline,
+  obstacleIntegrityOnPansCoreBegin,
+  obstacleIntegrityOnPansCoreEnd,
+  obstacleIntegrityNotifyPvAction,
+} from "../integrity/obstacleIntegrityDiagnostics.js";
+import {
+  classifyCalpinageDataIntegrity,
+  applyReloadDiagnosticCoherence,
+  logIntegrityWarningIfNeeded,
+  attachIntegrityToWindow,
+} from "../integrity/classifyCalpinageDataIntegrity.js";
+import { getRoofObstacleCatalogEntry } from "../catalog/roofObstacleCatalog";
+import { computeObstacleFootprintAreaM2, computeShadowVolumeFootprintAreaM2 } from "../catalog/obstacleFootprint";
+import {
+  buildObstacleMetaFromCatalogId,
+  getShadowVolumeCreationPayload,
+  isKeepoutNonShadingObstacle,
+  readExplicitHeightM,
+  resolveLegacyShadowVolumeBusinessId,
+  resolveNearShadingHeightM,
+  shouldExcludeObstacleFromNearShading,
+} from "../catalog/roofObstacleRuntime";
+import {
+  computeCircleShapeMetaFromAnchorDrag,
+  computeRectShapeMetaFromAnchorDrag,
+  computeShadowCubeMetersFromAnchor,
+  computeShadowTubeMetersFromAnchor,
+  formatObstacle2DSelectionHud,
+  getPlacementDefaults2D,
+  shadowMinsM,
+  technicalMinObstaclePixels,
+  TECH_MIN_DIM_M,
+} from "../catalog/roofObstaclePlacement";
+
+/** Même contrat que normalizeFlatRoofConfig (IIFE calpinage) — utilisé hors de cette portée (ex. buildFinalCalpinageJSON). */
+function __safeNormalizeFlatRoofConfig(fc) {
+  var DEFAULT_FLAT_ROOF_CONFIG = {
+    supportTiltDeg: 10,
+    layoutOrientation: "portrait",
+    setbackRoofEdgeCm: 60,
+    setbackObstacleCm: 60,
+    rowSpacingCm: 25,
+    colSpacingCm: 2,
+  };
+  fc = fc && typeof fc === "object" ? fc : {};
+  var st = Number(fc.supportTiltDeg);
+  var supportTiltDeg = (st === 5 || st === 10 || st === 15) ? st : DEFAULT_FLAT_ROOF_CONFIG.supportTiltDeg;
+  var lo = (fc.layoutOrientation != null ? String(fc.layoutOrientation) : "").toLowerCase();
+  var layoutOrientation = (lo === "landscape" || lo === "paysage") ? "landscape" : "portrait";
+  function numCm(k, def) {
+    var v = Number(fc[k]);
+    return Number.isFinite(v) && v >= 0 ? v : def;
+  }
+  return {
+    supportTiltDeg: supportTiltDeg,
+    layoutOrientation: layoutOrientation,
+    setbackRoofEdgeCm: numCm("setbackRoofEdgeCm", DEFAULT_FLAT_ROOF_CONFIG.setbackRoofEdgeCm),
+    setbackObstacleCm: numCm("setbackObstacleCm", DEFAULT_FLAT_ROOF_CONFIG.setbackObstacleCm),
+    rowSpacingCm: numCm("rowSpacingCm", DEFAULT_FLAT_ROOF_CONFIG.rowSpacingCm),
+    colSpacingCm: numCm("colSpacingCm", DEFAULT_FLAT_ROOF_CONFIG.colSpacingCm),
+  };
+}
 
 function debugStateConsistency(drawState) {
   const state = getInteractionState();
@@ -85,6 +202,19 @@ export function initCalpinage(container, options = {}) {
     window.CALPINAGE_VERSION_ID = versionId;
   }
   var cleanupTasks = [];
+  var pvLayoutErrorTimeoutId = null;
+  if (typeof window !== "undefined") {
+    window.showCalpinageUxToast = function (message) {
+      if (typeof console !== "undefined" && console.log) console.log("[CALPINAGE UX]", message);
+    };
+    cleanupTasks.push(function () {
+      try {
+        delete window.showCalpinageUxToast;
+      } catch (_) {
+        window.showCalpinageUxToast = undefined;
+      }
+    });
+  }
   function addSafeListener(target, type, handler, options) {
     if (!target || !target.addEventListener) return;
     target.addEventListener(type, handler, options);
@@ -98,7 +228,7 @@ export function initCalpinage(container, options = {}) {
   }
   if (_calpinageInitInFlight) {
     if (devLog) console.warn("[CALPINAGE] init already in flight, aborting");
-    return function noop() { _calpinageInitInFlight = false; };
+    return function noop() { /* skip — init in flight, not our cleanup */ };
   }
   if (!container || !container.isConnected) {
     if (devLog) console.warn("[CALPINAGE] container missing or disconnected, aborting");
@@ -156,6 +286,21 @@ export function initCalpinage(container, options = {}) {
   container.__CALPINAGE_VERSION_ID = versionId;
 
   var CALPINAGE_STYLES = `
+    /* Scope visuel LIGHT fixe : isole le Calpinage du thème global (body.theme-dark) */
+    #calpinage-root {
+      color-scheme: light;
+      --sg-bg: #ffffff;
+      --sg-bg-soft: #f9fafb;
+      --sg-text: #1f2937;
+      --sg-text-muted: #6b7280;
+      --sg-border: #e5e7eb;
+      --sg-brand: #c39847;
+      --sg-brand-hover: #a97f35;
+      --sg-success: #16a34a;
+      --sg-warning: #f59e0b;
+      --sg-error: #dc2626;
+    }
+
     :root {
       --bg:#f4f1e9;
       --bg-soft:#f7f3eb;
@@ -209,6 +354,7 @@ export function initCalpinage(container, options = {}) {
       align-items: stretch;
       justify-content: flex-start;
       max-width: 100%;
+      position: relative;
     }
 
     #calpinage-body {
@@ -334,6 +480,11 @@ export function initCalpinage(container, options = {}) {
       font-size: 13px;
       background: var(--card);
       color: var(--ink);
+    }
+    #zone-a .map-source-selector select:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 2px var(--sg-brand);
+      outline-offset: 2px;
     }
     #zone-a .state-block {
       margin-top: 16px;
@@ -513,6 +664,8 @@ export function initCalpinage(container, options = {}) {
     /* ========== ZONE B ??? Barre d'action (au-dessus du plan) ========== */
     #zone-b {
       flex-shrink: 0;
+      position: relative;
+      z-index: 10;
       padding: 12px 20px;
       background: rgba(255,255,255,0.85);
       border-bottom: 1px solid var(--line);
@@ -544,7 +697,7 @@ export function initCalpinage(container, options = {}) {
       min-height: var(--calpinage-toolbar-height);
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 6px;
       padding: 0 10px;
       box-sizing: border-box;
       background: #fff;
@@ -552,40 +705,119 @@ export function initCalpinage(container, options = {}) {
       border-radius: var(--sg-radius-md);
       box-shadow: 0 1px 2px rgba(0,0,0,0.04);
     }
+    #zone-b-toolbar, #p3-topbar { gap: 5px; overflow: hidden; display: flex; align-items: center; }
+    /* Toolbar Phase 2 : autoriser les dropdown à dépasser verticalement */
+    #zone-b-toolbar {
+      position: relative;
+      overflow: visible;
+    }
+    /* Wrapper scroll — flex:1 min-width:0 pour contrainte ; enfants flex:0 0 auto = pas de compression */
+    #zone-b-toolbar .calpinage-toolbar-scroll,
+    #p3-topbar .calpinage-toolbar-scroll {
+      display: flex;
+      flex-wrap: nowrap;
+      align-items: center;
+      gap: 5px;
+      flex: 1;
+      min-width: 0;
+      overflow-x: auto;
+      overflow-y: hidden;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(0,0,0,0.2) transparent;
+    }
+    /* Le wrapper scroll garde le scroll horizontal mais laisse descendre les menus */
+    #zone-b-toolbar .calpinage-toolbar-scroll {
+      overflow-x: auto;
+      overflow-y: visible;
+    }
+    #zone-b-toolbar .calpinage-toolbar-scroll > *,
+    #p3-topbar .calpinage-toolbar-scroll > * {
+      flex: 0 0 auto;
+    }
+    #zone-b-toolbar .calpinage-toolbar-scroll::-webkit-scrollbar,
+    #p3-topbar .calpinage-toolbar-scroll::-webkit-scrollbar {
+      height: 6px;
+    }
+    #zone-b-toolbar .calpinage-toolbar-scroll::-webkit-scrollbar-track,
+    #p3-topbar .calpinage-toolbar-scroll::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    #zone-b-toolbar .calpinage-toolbar-scroll::-webkit-scrollbar-thumb,
+    #p3-topbar .calpinage-toolbar-scroll::-webkit-scrollbar-thumb {
+      background: rgba(0,0,0,0.2);
+      border-radius: 4px;
+    }
     .calpinage-toolbar-btn,
     .calpinage-toolbar .calpinage-tool-btn,
     .calpinage-toolbar .sg-btn.sg-btn-ghost {
       height: 36px;
-      padding: 0 12px;
+      padding: 0 8px;
       border-radius: var(--sg-radius-sm);
-      font-size: 13px;
+      font-size: 12.5px;
       font-weight: 500;
       background: transparent;
-      border: 1px solid transparent;
+      border: 1px solid rgba(0,0,0,0.12);
       color: var(--sg-text, var(--ink));
       transition: all 0.15s ease;
       display: inline-flex;
       align-items: center;
-      gap: 6px;
+      gap: 5px;
+    }
+    #zone-b-toolbar button,
+    #zone-b-toolbar .calpinage-tool-btn {
+      padding: 0 6px;
+      background: #ffffff;
+      border: 1px solid rgba(0,0,0,0.12);
+    }
+    #zone-b-toolbar .calpinage-tool-dessin-option,
+    #zone-b-toolbar .calpinage-tool-obstacle-option {
+      padding: 8px 14px;
     }
     .calpinage-toolbar-btn:hover,
     .calpinage-toolbar .calpinage-tool-btn:hover,
     .calpinage-toolbar .sg-btn.sg-btn-ghost:hover {
       background: rgba(195,152,71,0.08);
       color: var(--sg-brand);
+      border-color: rgba(0,0,0,0.25);
+    }
+    #zone-b-toolbar button:hover,
+    #zone-b-toolbar .calpinage-tool-btn:hover {
+      background: #fafafa;
+      border-color: rgba(0,0,0,0.25);
+      color: var(--sg-text, var(--ink));
     }
     .calpinage-toolbar-btn--active,
     .calpinage-toolbar .calpinage-tool-btn[aria-pressed="true"],
     .calpinage-toolbar .calpinage-tool-btn.calpinage-tool-active {
-      background: rgba(195,152,71,0.12);
+      background: rgba(195,152,71,0.08);
       color: var(--sg-brand);
-      border: 1px solid var(--sg-brand);
+      border: 1px solid #C39847;
+    }
+    #zone-b-toolbar button[aria-pressed="true"],
+    #zone-b-toolbar .calpinage-tool-btn[aria-pressed="true"],
+    #zone-b-toolbar .calpinage-tool-btn.calpinage-tool-active {
+      border: 1px solid #C39847;
+      background: rgba(195,152,71,0.08);
     }
     /* Bascule Phase 2 / Phase 3 : une seule colonne gauche visible */
     #zone-a.phase-pv-layout #zone-a-phase2 { display: none !important; }
     #zone-a.phase-pv-layout #zone-a-phase3 { display: block !important; }
     #zone-a:not(.phase-pv-layout) #zone-a-phase2 { display: block; }
     #zone-a:not(.phase-pv-layout) #zone-a-phase3 { display: none !important; }
+    /* Toiture plate — contrôle principal dans la sidebar React ; slot legacy masqué pour éviter doublon visuel (syncPhase3LayoutUI met display:inline — !important gagne). DOM conservé pour compat handlers. */
+    #p3-flat-roof-slot {
+      display: none !important;
+      visibility: hidden !important;
+      height: 0 !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      overflow: hidden !important;
+      pointer-events: none !important;
+      border: none !important;
+    }
+    #p3-flat-roof-slot .state-block.pv-layout-block {
+      margin-bottom: 0;
+    }
     #zone-a .pv-layout-block .state-title { margin-bottom: 8px; }
     #zone-a .pv-orientation-toggle { display: flex; gap: 8px; margin-top: 4px; }
     #zone-a .pv-orientation-btn {
@@ -604,6 +836,12 @@ export function initCalpinage(container, options = {}) {
       background: var(--bg-soft); color: var(--ink); cursor: pointer; margin-top: 6px;
     }
     #zone-a .pv-rotate-btn:hover { background: #ebe6dc; }
+    #zone-a .pv-orientation-btn:focus-visible,
+    #zone-a .pv-rotate-btn:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 2px var(--sg-brand);
+      outline-offset: 2px;
+    }
     #zone-a .pv-layout-label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 6px; }
     #zone-a .pv-panel-select {
       width: 100%; padding: 8px 12px; font-size: 13px; border: 1px solid var(--line);
@@ -709,7 +947,7 @@ export function initCalpinage(container, options = {}) {
     .calpinage-phase2-actions {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 6px;
       margin-left: auto;
     }
     .calpinage-btn-delete {
@@ -717,7 +955,20 @@ export function initCalpinage(container, options = {}) {
       min-width: 42px;
       padding: 0;
     }
-    .calpinage-tool-obstacle-wrap { position: relative; }
+    #zone-b-toolbar .calpinage-btn-delete {
+      color: #dc2626;
+      border: 1px solid rgba(220,38,38,0.4);
+      background: rgba(220,38,38,0.05);
+    }
+    #zone-b-toolbar .calpinage-btn-delete:hover {
+      background: rgba(220,38,38,0.1);
+      border-color: #dc2626;
+    }
+    /* Les wrappers des boutons dropdown doivent être l'ancre */
+    #zone-b-toolbar .calpinage-tool-dessin-wrap,
+    #zone-b-toolbar .calpinage-tool-obstacle-wrap {
+      position: relative;
+    }
     .calpinage-tool-obstacle-chevron { font-size: 10px; margin-left: 2px; opacity: 0.8; }
     .calpinage-tool-obstacle-dropdown {
       position: absolute;
@@ -729,8 +980,7 @@ export function initCalpinage(container, options = {}) {
       border-radius: var(--sg-radius-sm);
       box-shadow: var(--sg-shadow-soft);
       padding: 4px 0;
-      min-width: 140px;
-      z-index: 20;
+      z-index: 100;
     }
     .calpinage-tool-obstacle-dropdown[hidden] { display: none !important; }
     .calpinage-tool-obstacle-option {
@@ -745,6 +995,116 @@ export function initCalpinage(container, options = {}) {
       color: var(--ink);
     }
     .calpinage-tool-obstacle-option:hover { background: var(--bg-soft); }
+    .calpinage-tool-obstacle-group-label {
+      padding: 6px 14px 2px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+      color: var(--ink);
+      opacity: 0.55;
+    }
+    #canvas-wrapper { position: relative; }
+    /* Mini-toolbar flottante Phase 2 — obstacle / volume ombrant sélectionné */
+    .calpinage-p2-ob-toolbar {
+      position: fixed;
+      z-index: 220;
+      pointer-events: none;
+      visibility: hidden;
+      max-width: min(100vw - 16px, 340px);
+    }
+    .calpinage-p2-ob-toolbar.is-visible {
+      pointer-events: auto;
+      visibility: visible;
+    }
+    .calpinage-p2-ob-toolbar-inner {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 2px;
+      padding: 5px 6px;
+      background: rgba(255, 255, 255, 0.97);
+      border: 1px solid var(--sg-border, rgba(15, 23, 42, 0.12));
+      border-radius: var(--sg-radius-md, 10px);
+      box-shadow: 0 6px 28px rgba(15, 23, 42, 0.12), 0 1px 3px rgba(15, 23, 42, 0.08);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+    .calpinage-p2-ob-toolbar-btn {
+      font: 600 11px/1.25 system-ui, -apple-system, "Segoe UI", sans-serif;
+      padding: 7px 11px;
+      margin: 0;
+      border: none;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--sg-text, #0f172a);
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.12s ease, color 0.12s ease;
+    }
+    .calpinage-p2-ob-toolbar-btn:hover {
+      background: rgba(15, 23, 42, 0.06);
+    }
+    .calpinage-p2-ob-toolbar-btn:focus-visible {
+      outline: 2px solid var(--sg-brand, #c9a449);
+      outline-offset: 1px;
+    }
+    .calpinage-p2-ob-toolbar-btn--danger:hover {
+      background: rgba(220, 38, 38, 0.1);
+      color: #b91c1c;
+    }
+    .calpinage-p2-ob-toolbar-svha {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      margin-left: 4px;
+      padding-left: 8px;
+      border-left: 1px solid rgba(15, 23, 42, 0.1);
+    }
+    .calpinage-p2-ob-toolbar-h-label {
+      font: 600 11px system-ui, -apple-system, sans-serif;
+      color: var(--sg-muted, #64748b);
+    }
+    .calpinage-p2-ob-toolbar-h-input {
+      width: 52px;
+      padding: 5px 6px;
+      font: 600 12px system-ui, -apple-system, sans-serif;
+      border: 1px solid var(--sg-border, rgba(15, 23, 42, 0.15));
+      border-radius: 6px;
+      background: #fff;
+      color: var(--sg-text, #0f172a);
+      box-sizing: border-box;
+    }
+    .calpinage-p2-ob-toolbar-h-input:focus {
+      outline: 2px solid var(--sg-brand, #c9a449);
+      outline-offset: 0;
+    }
+    .calpinage-p2-ob-toolbar-h-unit {
+      font: 600 10px system-ui, sans-serif;
+      color: var(--sg-muted, #64748b);
+    }
+    .calpinage-obstacle-ux-hud {
+      position: absolute;
+      left: 12px;
+      bottom: 12px;
+      max-width: min(420px, 92%);
+      padding: 10px 14px;
+      font-size: 12px;
+      line-height: 1.45;
+      color: var(--ink);
+      background: rgba(255, 255, 255, 0.92);
+      border: 1px solid rgba(195, 152, 71, 0.45);
+      border-radius: var(--sg-radius-sm);
+      box-shadow: var(--sg-shadow-soft);
+      pointer-events: none;
+      z-index: 50;
+    }
+    .calpinage-obstacle-ux-hud div + div { margin-top: 4px; opacity: 0.92; }
+    .calpinage-tool-obstacle-option.active,
+    .calpinage-tool-obstacle-option[aria-pressed="true"] {
+      background: #eef2ff;
+      color: #4338ca;
+    }
 
     /* ========== Overlay dimensions obstacle Cercle / Rectangle — Design System aligné ========== */
     .sg-obstacle-overlay {
@@ -800,7 +1160,6 @@ export function initCalpinage(container, options = {}) {
     }
 
     /* Dropdown Dessin toiture (contour, trait, fa??tage, mesure) */
-    .calpinage-tool-dessin-wrap { position: relative; }
     .calpinage-tool-dessin-dropdown {
       position: absolute;
       top: 100%;
@@ -811,10 +1170,21 @@ export function initCalpinage(container, options = {}) {
       border-radius: var(--sg-radius-sm);
       box-shadow: var(--sg-shadow-soft);
       padding: 4px 0;
+      z-index: 100;
+    }
+    #zone-b-toolbar .calpinage-tool-dessin-dropdown,
+    #zone-b-toolbar .calpinage-tool-obstacle-dropdown {
       min-width: 160px;
-      z-index: 20;
     }
     .calpinage-tool-dessin-dropdown[hidden] { display: none !important; }
+    /* Sortir les dropdown Phase 2 du stacking context de #zone-b */
+    #calpinage-dessin-toiture-dropdown,
+    #calpinage-obstacle-dropdown,
+    #calpinage-shadow-volume-dropdown,
+    #calpinage-roof-extension-dropdown {
+      position: fixed;
+      z-index: 200000;
+    }
     .calpinage-tool-dessin-option {
       display: block;
       width: 100%;
@@ -836,6 +1206,9 @@ export function initCalpinage(container, options = {}) {
     /* ========== P3 Topbar — Barre horizontale Phase 3 (hauteur via --calpinage-toolbar-height) ========== */
     #p3-topbar {
       flex-shrink: 0;
+      position: relative;
+      z-index: 10;
+      pointer-events: auto;
       display: none;
       flex-direction: row;
       justify-content: flex-start;
@@ -848,10 +1221,10 @@ export function initCalpinage(container, options = {}) {
       display: flex;
       flex-direction: row;
       align-items: center;
-      gap: 8px;
+      gap: 5px;
     }
-    .p3-topbar-tech { gap: 8px; }
-    .p3-topbar-products { gap: 8px; }
+    .p3-topbar-tech { gap: 5px; }
+    .p3-topbar-products { gap: 5px; }
     .p3-topbar-separator {
       width: 1px;
       height: 20px;
@@ -861,32 +1234,40 @@ export function initCalpinage(container, options = {}) {
     #p3-topbar .p3-pill-btn,
     .p3-pill-btn {
       height: 36px;
-      padding: 0 12px;
+      padding: 0 4px;
       border-radius: var(--sg-radius-sm);
-      font-size: 13px;
+      font-size: 12.5px;
       font-weight: 500;
-      background: transparent;
-      border: 1px solid transparent;
+      background: #ffffff;
+      border: 1px solid rgba(0,0,0,0.15);
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04);
       color: var(--sg-text, var(--ink));
       line-height: 1.2;
       cursor: pointer;
       transition: all 0.15s ease;
       display: inline-flex;
       align-items: center;
-      gap: 6px;
+      gap: 5px;
     }
     #p3-topbar .p3-pill-btn:hover,
     .p3-pill-btn:hover {
-      background: rgba(195,152,71,0.08);
-      color: var(--sg-brand);
+      background: #fafafa;
+      border-color: rgba(0,0,0,0.3);
     }
     .p3-pill-btn.is-active {
-      background: rgba(195,152,71,0.12);
-      border: 1px solid var(--sg-brand);
+      background: rgba(195,152,71,0.06);
+      border: 1px solid #C39847;
       color: var(--sg-brand);
     }
-    .p3-pill-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
-    .p3-pill-value { font-size: 12px; font-weight: 600; }
+    .calpinage-tool-btn:focus-visible,
+    .p3-pill-btn:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 2px var(--sg-brand);
+      outline-offset: 2px;
+    }
+    .p3-pill-label { font-size: 9px; color: rgba(0,0,0,0.55); text-transform: uppercase; letter-spacing: 0.06em; }
+    .p3-pill-value { font-size: 12px; font-weight: 600; color: #1f2937; }
+    #p3-topbar .p3-pill-product .p3-pill-value { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .p3-pill-wrap { position: relative; }
     .p3-tech-popover {
       display: none;
@@ -899,13 +1280,18 @@ export function initCalpinage(container, options = {}) {
       border: 1px solid var(--line);
       border-radius: var(--sg-radius-md);
       box-shadow: var(--sg-shadow-soft);
-      z-index: 100;
+      z-index: 50;
+      pointer-events: auto;
       flex-direction: column;
       gap: 8px;
       min-width: 180px;
     }
     .p3-tech-popover.is-open {
-      display: flex;
+      display: flex !important;
+      opacity: 1 !important;
+      visibility: visible !important;
+      pointer-events: auto !important;
+      z-index: 9999 !important;
     }
     .p3-popover-label { font-size: 12px; font-weight: 600; color: var(--muted); }
     .p3-tech-popover input[type="number"] {
@@ -927,8 +1313,13 @@ export function initCalpinage(container, options = {}) {
       cursor: pointer;
     }
     .p3-popover-apply:hover { opacity: 0.9; }
+    .p3-popover-apply:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 2px var(--sg-brand);
+      outline-offset: 2px;
+    }
     @media (max-width: 480px) {
-      #p3-topbar { gap: 8px; }
+      #p3-topbar { gap: 6px; }
     }
 
     /* ========== ZONE C ??? Carte / image (support) ========== */
@@ -939,6 +1330,9 @@ export function initCalpinage(container, options = {}) {
       min-height: 0;
       overflow: hidden;
     }
+    #calpinage-dsm-read-overlay {
+      pointer-events: none;
+    }
     #zone-c {
       flex: 1;
       display: flex;
@@ -948,6 +1342,11 @@ export function initCalpinage(container, options = {}) {
       overflow: hidden;
       min-width: 0;
       position: relative;
+      z-index: 1;
+    }
+    #calpinage-canvas-el {
+      position: relative;
+      z-index: 1;
     }
     #zone-c canvas {
       display: block;
@@ -961,6 +1360,67 @@ export function initCalpinage(container, options = {}) {
       width: 100%;
       height: 100%;
       min-height: 0;
+    }
+    #zone-c-3d {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 3;
+      display: none;
+      background: #1a1a2e;
+    }
+    #zone-c-3d.visible {
+      display: block;
+    }
+    .zone-b-view-toggle {
+      flex-shrink: 0;
+      display: none;
+      align-items: center;
+      padding: 0 8px;
+      margin-left: auto;
+    }
+    #zone-b.capture-done .zone-b-view-toggle {
+      display: flex;
+    }
+    .btn-toggle-view-3d {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      font-size: 12px;
+      font-weight: 600;
+      border: 1px solid rgba(195, 152, 71, 0.4);
+      border-radius: 8px;
+      background: rgba(195, 152, 71, 0.08);
+      color: #c39847;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+    }
+    .btn-toggle-view-3d:hover {
+      background: rgba(195, 152, 71, 0.18);
+      border-color: rgba(195, 152, 71, 0.65);
+      color: #a97f35;
+    }
+    .btn-toggle-view-3d:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 2px #c39847;
+      outline-offset: 1px;
+    }
+    .btn-toggle-view-3d.active-3d {
+      background: #c39847;
+      border-color: #c39847;
+      color: #000;
+    }
+    .btn-toggle-view-3d.active-3d:hover {
+      background: #a97f35;
+      border-color: #a97f35;
+    }
+    .btn-toggle-view-3d-icon {
+      width: 16px;
+      height: 16px;
+      flex-shrink: 0;
     }
     #canvas-wrapper {
       position: absolute;
@@ -1176,9 +1636,11 @@ export function initCalpinage(container, options = {}) {
     #zone-a #btn-open-calpinage-settings { display: inline-block; width: 100%; padding: 12px 18px; font-size: 14px; font-weight: 600; border-radius: var(--sg-radius-md); border: 1px solid var(--line); background: var(--bg-soft); color: var(--ink); cursor: pointer; transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease; }
     #zone-a #btn-open-calpinage-settings:hover { background: #ebe6dc; border-color: rgba(0,0,0,0.12); box-shadow: var(--sg-shadow-soft); }
     #zone-a #btn-open-calpinage-settings:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px rgba(201,164,73,0.25); }
+    #zone-a #btn-open-calpinage-settings:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--sg-brand); outline-offset: 2px; }
     #zone-a #btn-validate-calpinage { display: inline-block; width: 100%; padding: 12px 18px; font-size: 14px; font-weight: 600; border-radius: var(--sg-radius-md); border: 1px solid var(--brand); background: var(--brand); color: #111; cursor: pointer; margin-top: 8px; transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease; }
     #zone-a #btn-validate-calpinage:hover { background: #d4b85c; border-color: #d4b85c; box-shadow: var(--sg-shadow-soft); }
     #zone-a #btn-validate-calpinage:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px rgba(201,164,73,0.25); }
+    #zone-a #btn-validate-calpinage:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--sg-brand); outline-offset: 2px; }
     #calpinage-settings-placeholder { display: none; }
     /* P3 Catalog Overlay — Overlay catalogue unique (Step 2, SAFE MODE) */
     .p3-catalog-overlay {
@@ -1304,6 +1766,55 @@ export function initCalpinage(container, options = {}) {
     #p3-catalog-load-more:disabled {
       display: none;
     }
+
+    /* ========== Loading overlay (capture + validation) ========== */
+    .calpinage-loading-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 50;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: all;
+    }
+    .calpinage-loading-overlay.hidden {
+      display: none;
+    }
+    .calpinage-loading-backdrop {
+      position: absolute;
+      inset: 0;
+      background: rgba(0,0,0,0.35);
+      backdrop-filter: blur(4px);
+    }
+    .calpinage-loading-content {
+      position: relative;
+      z-index: 1;
+      background: rgba(18,18,18,0.92);
+      padding: 28px 36px;
+      border-radius: 14px;
+      border: 1px solid rgba(195,152,71,0.35);
+      box-shadow:
+        0 10px 30px rgba(0,0,0,0.35),
+        0 0 0 1px rgba(195,152,71,0.15);
+      text-align: center;
+    }
+    .calpinage-spinner {
+      width: 30px;
+      height: 30px;
+      border: 3px solid rgba(255,255,255,0.2);
+      border-top: 3px solid #C39847;
+      border-radius: 50%;
+      animation: calpinage-spin 0.8s linear infinite;
+      margin: 0 auto 14px;
+    }
+    @keyframes calpinage-spin {
+      to { transform: rotate(360deg); }
+    }
+    .calpinage-loading-text {
+      font-size: 14px;
+      color: #ffffff;
+      letter-spacing: 0.5px;
+    }
   `;
 
   var CALPINAGE_HTML = `
@@ -1320,17 +1831,44 @@ export function initCalpinage(container, options = {}) {
           </div>
         </div>
         <div id="zone-a-phase3" class="zone-a-phase-block" style="display: none;">
+          <h2 class="phase-title" id="zone-a-phase3-title">Phase 3 — Implantation panneaux</h2>
+          <p class="phase-desc" id="zone-a-phase3-desc">Posez les modules sur les pans, choisissez le matériel puis validez le calepinage.</p>
           <div id="p3-sidebar-react-mount"></div>
+          <div id="p3-flat-roof-slot" class="p3-flat-roof-sidebar-host" style="display:none;" aria-hidden="true" aria-live="polite">
+              <div id="pv-flat-roof-enable-wrap" class="state-block pv-layout-block" style="display:none;" aria-hidden="true">
+                <button type="button" class="pv-orientation-btn" id="pv-flat-roof-enable-btn">Passer en toiture plate</button>
+              </div>
+              <div id="pv-flat-roof-panel" class="state-block pv-layout-block" style="display:none;" aria-hidden="true">
+                <div class="state-title">Toiture plate</div>
+                <span class="pv-layout-label">Inclinaison support</span>
+                <div class="pv-orientation-toggle" role="group" aria-label="Inclinaison support">
+                  <button type="button" class="pv-orientation-btn pv-flat-tilt-btn" data-tilt="5" aria-pressed="false">5°</button>
+                  <button type="button" class="pv-orientation-btn pv-flat-tilt-btn" data-tilt="10" aria-pressed="false">10°</button>
+                  <button type="button" class="pv-orientation-btn pv-flat-tilt-btn" data-tilt="15" aria-pressed="false">15°</button>
+                </div>
+                <span class="pv-layout-label">Pose</span>
+                <div class="pv-orientation-toggle" role="group" aria-label="Pose modules toiture plate">
+                  <button type="button" class="pv-orientation-btn pv-flat-layout-btn" data-layout="portrait" aria-pressed="true">Portrait</button>
+                  <button type="button" class="pv-orientation-btn pv-flat-layout-btn" data-layout="landscape" aria-pressed="false">Paysage</button>
+                </div>
+                <p class="pv-flat-roof-hint" style="font-size:12px;color:var(--muted);margin-top:8px;margin-bottom:0;">Marges et espacements sont appliqués automatiquement pour ce pan.</p>
+                <button type="button" class="pv-orientation-btn" id="pv-flat-roof-revert-btn" style="margin-top:10px;width:100%;box-sizing:border-box;">Revenir en toiture inclinée</button>
+              </div>
+          </div>
           <p id="pv-add-block-hint" class="pv-add-block-hint" aria-live="polite" style="display: none;">Cliquez sur un pan pour ajouter un bloc de panneaux</p>
           <div id="p3-legacy-triggers" style="position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);visibility:hidden;pointer-events:none;" aria-hidden="true">
             <button type="button" id="btn-open-calpinage-settings">Paramètres calpinage</button>
             <button type="button" id="btn-validate-calpinage" disabled title="Valider définitivement le calepinage et calculer le résultat">Valider le calepinage</button>
             <button type="button" id="btn-back-roof" title="Revenir au relevé toiture et invalider les panneaux posés">← Retour au relevé toiture</button>
             <button type="button" id="btn-show-horizon-mask" style="display:none" disabled title="Afficher le masque d'horizon (ombrage lointain)">Masque d'horizon</button>
-            <button type="button" id="btn-preview-3d" style="display:none" title="Aperçu 3D du modèle (houseModelV2)">Aperçu 3D</button>
-            <div id="pv-layout-dp2-toolbar" class="calpinage-toolbar" role="toolbar">
-              <button type="button" id="pv-tool-panels" data-tool="panels" title="Ajouter des panneaux">⊕</button>
-              <button type="button" id="pv-tool-select" data-tool="select" title="Sélectionner">Select</button>
+            <div id="pv-layout-dp2-toolbar" class="calpinage-toolbar" role="toolbar" style="flex-wrap:wrap;gap:8px;align-items:center;">
+              <button type="button" id="pv-tool-panels" data-tool="panels" title="Ajouter des panneaux">+ Ajouter panneaux</button>
+              <button type="button" id="pv-tool-autofill" class="sg-btn sg-btn-ghost" disabled title="Prévisualiser un remplissage automatique du pan">&#9889; Auto-remplir</button>
+            </div>
+            <div id="pv-autofill-bar" style="display:none;margin-top:8px;padding:10px 12px;background:rgba(0,0,0,0.06);border-radius:8px;flex-wrap:wrap;gap:10px;align-items:center;" role="region" aria-label="Aperçu auto-remplissage">
+              <span id="pv-autofill-bar-text" style="font-size:13px;flex:1;min-width:140px;"></span>
+              <button type="button" id="pv-autofill-confirm" class="sg-btn sg-btn-primary">Confirmer</button>
+              <button type="button" id="pv-autofill-cancel" class="sg-btn sg-btn-ghost">Annuler</button>
             </div>
           </div>
           <div id="calpinage-settings-placeholder">
@@ -1425,6 +1963,7 @@ export function initCalpinage(container, options = {}) {
           </div>
 
           <div id="zone-b-toolbar" class="calpinage-toolbar" role="toolbar" aria-label="Outils de relevé toiture">
+            <div class="calpinage-toolbar-scroll">
             <button type="button" class="calpinage-tool-btn sg-btn sg-btn-ghost" id="calpinage-tool-select" data-tool="select" title="Sélection (éditer / déplacer / supprimer)">
               <span class="sg-icon-wrapper"><span class="calpinage-tool-icon" aria-hidden="true"></span></span>
               <span class="calpinage-tool-label">Sélection</span>
@@ -1460,22 +1999,27 @@ export function initCalpinage(container, options = {}) {
             <div class="calpinage-tool-obstacle-wrap" role="group" aria-label="Obstacle toiture">
               <button type="button" class="calpinage-tool-btn sg-btn sg-btn-ghost" id="calpinage-tool-obstacle" title="Obstacle toiture (cheminée, lucarne, VMC — emprise au sol)">
                 <span class="sg-icon-wrapper" aria-hidden="true"><svg class="sg-icon" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">${SG_P2_ICONS.roofObstacle}</svg></span>
-                <span class="calpinage-tool-label">Obstacle toiture</span>
+                <span class="calpinage-tool-label" id="calpinage-tool-obstacle-label">Obstacle toiture</span>
                 <span class="calpinage-tool-obstacle-chevron" aria-hidden="true">▾</span>
               </button>
 
               <div class="calpinage-tool-obstacle-dropdown" id="calpinage-obstacle-dropdown" hidden>
-                <button type="button" class="calpinage-tool-obstacle-option" data-obstacle-shape="circle" title="Cercle (cheminée, VMC)">
-                  <span class="sg-icon-wrapper" aria-hidden="true"><svg class="sg-icon" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">${SG_P2_ICONS.circle}</svg></span>
-                  <span class="calpinage-tool-label">Cercle</span>
-                </button>
-                <button type="button" class="calpinage-tool-obstacle-option" data-obstacle-shape="rect" title="Rectangle (lucarne, Velux, acrotère)">
+                <div class="calpinage-tool-obstacle-group-label" role="presentation">Non ombrants</div>
+                <button type="button" class="calpinage-tool-obstacle-option" data-obstacle-business-id="roof_window" data-obstacle-shape="rect" title="Velux — zone non posable (sans ombrage physique)">
                   <span class="sg-icon-wrapper" aria-hidden="true"><svg class="sg-icon" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">${SG_P2_ICONS.rect}</svg></span>
-                  <span class="calpinage-tool-label">Rectangle</span>
+                  <span class="calpinage-tool-label">Velux</span>
                 </button>
-                <button type="button" class="calpinage-tool-obstacle-option" data-obstacle-shape="polygon" title="Polygone libre">
+                <button type="button" class="calpinage-tool-obstacle-option" data-obstacle-business-id="dormer_keepout" data-obstacle-shape="rect" title="Lucarne — zone non posable">
+                  <span class="sg-icon-wrapper" aria-hidden="true"><svg class="sg-icon" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">${SG_P2_ICONS.rect}</svg></span>
+                  <span class="calpinage-tool-label">Lucarne</span>
+                </button>
+                <button type="button" class="calpinage-tool-obstacle-option" data-obstacle-business-id="keepout_zone" data-obstacle-shape="rect" title="Zone non posable rectangulaire">
+                  <span class="sg-icon-wrapper" aria-hidden="true"><svg class="sg-icon" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">${SG_P2_ICONS.rect}</svg></span>
+                  <span class="calpinage-tool-label">Zone non posable</span>
+                </button>
+                <button type="button" class="calpinage-tool-obstacle-option" data-obstacle-business-id="generic_polygon_keepout" data-obstacle-shape="polygon" title="Contour libre — zone non posable">
                   <span class="sg-icon-wrapper" aria-hidden="true"><svg class="sg-icon" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">${SG_P2_ICONS.polygon}</svg></span>
-                  <span class="calpinage-tool-label">Polygone libre</span>
+                  <span class="calpinage-tool-label">Zone libre</span>
                 </button>
               </div>
             </div>
@@ -1483,17 +2027,26 @@ export function initCalpinage(container, options = {}) {
             <div class="calpinage-tool-obstacle-wrap" role="group" aria-label="Obstacle ombrant">
               <button type="button" class="calpinage-tool-btn sg-btn sg-btn-ghost" id="calpinage-tool-shadow-volume" title="Obstacle ombrant (volume 3D)">
                 <span class="sg-icon-wrapper" aria-hidden="true"><svg class="sg-icon" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">${SG_P2_ICONS.shadingObstacle}</svg></span>
-                <span class="calpinage-tool-label">Obstacle ombrant</span>
+                <span class="calpinage-tool-label" id="calpinage-tool-shadow-volume-label">Obstacle ombrant</span>
                 <span class="calpinage-tool-obstacle-chevron" aria-hidden="true">▾</span>
               </button>
               <div class="calpinage-tool-obstacle-dropdown" id="calpinage-shadow-volume-dropdown" hidden>
-                <button type="button" class="calpinage-tool-obstacle-option" data-shadow-shape="cube" title="Cube (prisme rectangulaire)">
+                <div class="calpinage-tool-obstacle-group-label" role="presentation">Ombrants</div>
+                <button type="button" class="calpinage-tool-obstacle-option" data-shadow-business-id="chimney_square" title="Cheminée carrée — volume ombrant (prisme)">
                   <span class="sg-icon-wrapper" aria-hidden="true"><svg class="sg-icon" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">${SG_P2_ICONS.cube}</svg></span>
-                  <span class="calpinage-tool-label">Cube</span>
+                  <span class="calpinage-tool-label">Cheminée carrée</span>
                 </button>
-                <button type="button" class="calpinage-tool-obstacle-option" data-shadow-shape="tube" title="Tube (cylindre)">
+                <button type="button" class="calpinage-tool-obstacle-option" data-shadow-business-id="chimney_round" title="Cheminée ronde — volume ombrant (cylindre)">
                   <span class="sg-icon-wrapper" aria-hidden="true"><svg class="sg-icon" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">${SG_P2_ICONS.tube}</svg></span>
-                  <span class="calpinage-tool-label">Tube</span>
+                  <span class="calpinage-tool-label">Cheminée ronde</span>
+                </button>
+                <button type="button" class="calpinage-tool-obstacle-option" data-shadow-business-id="vmc_round" title="VMC — volume ombrant">
+                  <span class="sg-icon-wrapper" aria-hidden="true"><svg class="sg-icon" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">${SG_P2_ICONS.tube}</svg></span>
+                  <span class="calpinage-tool-label">VMC</span>
+                </button>
+                <button type="button" class="calpinage-tool-obstacle-option" data-shadow-business-id="antenna" title="Antenne — volume ombrant simplifié">
+                  <span class="sg-icon-wrapper" aria-hidden="true"><svg class="sg-icon" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">${SG_P2_ICONS.tube}</svg></span>
+                  <span class="calpinage-tool-label">Antenne</span>
                 </button>
               </div>
             </div>
@@ -1520,9 +2073,11 @@ export function initCalpinage(container, options = {}) {
             <div class="calpinage-phase2-actions">
               <button type="button" class="calpinage-btn-delete sg-btn sg-btn-danger" title="Supprimer"><span class="sg-icon-wrapper" aria-hidden="true"><svg class="sg-icon" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></span></button>
             </div>
+            </div>
           </div>
         <!-- P3 Topbar — Barre horizontale Phase 3 (au-dessus du plan), enfant de #zone-b pour alignement structurel Phase 2/3 -->
         <div id="p3-topbar" class="p3-topbar" role="toolbar" aria-label="Paramètres implantation Phase 3">
+          <div class="calpinage-toolbar-scroll">
           <div class="p3-topbar-group p3-topbar-tech">
             <div class="p3-pill-wrap">
               <button type="button" class="p3-pill-btn" id="p3-pill-spacing-x" data-tech="spacing-x" title="Espacement entre panneaux (cm)">
@@ -1532,7 +2087,7 @@ export function initCalpinage(container, options = {}) {
               <div id="p3-popover-spacing-x" class="p3-tech-popover" aria-hidden="true">
                 <label class="p3-popover-label" for="p3-popover-spacing-x-input">Espacement entre panneaux (cm)</label>
                 <input type="number" id="p3-popover-spacing-x-input" min="0" value="2" step="1" aria-label="Espacement horizontal entre panneaux" />
-                <button type="button" class="p3-popover-apply" data-tech="spacing-x">Appliquer</button>
+                <button type="button" class="p3-popover-apply" data-tech="spacing-x" data-key="spacingXcm" data-min="0">Appliquer</button>
               </div>
             </div>
             <div class="p3-pill-wrap">
@@ -1543,7 +2098,7 @@ export function initCalpinage(container, options = {}) {
               <div id="p3-popover-spacing-y" class="p3-tech-popover" aria-hidden="true">
                 <label class="p3-popover-label" for="p3-popover-spacing-y-input">Espacement entre rangées (cm)</label>
                 <input type="number" id="p3-popover-spacing-y-input" min="0" value="4.5" step="1" aria-label="Espacement entre rangées" />
-                <button type="button" class="p3-popover-apply" data-tech="spacing-y">Appliquer</button>
+                <button type="button" class="p3-popover-apply" data-tech="spacing-y" data-key="spacingYcm" data-min="0">Appliquer</button>
               </div>
             </div>
             <div class="p3-pill-wrap">
@@ -1554,7 +2109,7 @@ export function initCalpinage(container, options = {}) {
               <div id="p3-popover-margin" class="p3-tech-popover" aria-hidden="true">
                 <label class="p3-popover-label" for="p3-popover-margin-input">Marge extérieure (cm)</label>
                 <input type="number" id="p3-popover-margin-input" min="0" value="20" step="1" aria-label="Marge extérieure" />
-                <button type="button" class="p3-popover-apply" data-tech="margin">Appliquer</button>
+                <button type="button" class="p3-popover-apply" data-tech="margin" data-key="marginOuterCm" data-min="0">Appliquer</button>
               </div>
             </div>
           </div>
@@ -1573,13 +2128,34 @@ export function initCalpinage(container, options = {}) {
               <span class="p3-pill-value" id="p3-pill-central-value">Choisir…</span>
             </button>
           </div>
+          </div>
+        </div>
+        <div id="zone-b-view-toggle" class="zone-b-view-toggle">
+          <button type="button" id="btn-toggle-view-3d" class="btn-toggle-view-3d" title="Basculer entre Vue plan et Vue 3D">
+            <svg id="btn-toggle-view-3d-icon-cube" class="btn-toggle-view-3d-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+            <svg id="btn-toggle-view-3d-icon-plan" class="btn-toggle-view-3d-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+            <span id="btn-toggle-view-3d-label">Vue 3D</span>
+          </button>
         </div>
         </div>
-        <!-- ZONE C ??? Carte + dessin 2D -->
+        <!-- ZONE C — Carte + dessin 2D + layer 3D -->
         <section id="zone-c">
           <div id="map-container"></div>
+          <div id="zone-c-3d"></div>
           <div id="canvas-wrapper">
             <canvas id="calpinage-canvas-el"></canvas>
+            <div id="calpinage-phase2-obstacle-toolbar" class="calpinage-p2-ob-toolbar" role="toolbar" aria-label="Actions sur l'obstacle" hidden>
+              <div class="calpinage-p2-ob-toolbar-inner">
+                <button type="button" class="calpinage-p2-ob-toolbar-btn" data-p2-ob-action="duplicate" title="Dupliquer (Ctrl+D)">Dupliquer</button>
+                <button type="button" class="calpinage-p2-ob-toolbar-btn calpinage-p2-ob-toolbar-btn--danger" data-p2-ob-action="delete" title="Supprimer (Suppr)">Supprimer</button>
+                <div class="calpinage-p2-ob-toolbar-svha" id="calpinage-p2-ob-toolbar-svha" hidden>
+                  <label class="calpinage-p2-ob-toolbar-h-label" id="calpinage-p2-sv-height-label" for="calpinage-p2-sv-height">H</label>
+                  <input type="number" id="calpinage-p2-sv-height" class="calpinage-p2-ob-toolbar-h-input" step="0.05" min="0.1" max="99" title="Hauteur (m)" aria-label="Hauteur volume ombrant en mètres" data-p2-h-mode="" />
+                  <span class="calpinage-p2-ob-toolbar-h-unit" id="calpinage-p2-sv-height-unit">m</span>
+                </div>
+              </div>
+            </div>
+            <div id="calpinage-obstacle-ux-hud" class="calpinage-obstacle-ux-hud" aria-live="polite" style="display:none;"></div>
             <div id="height-edit-inplace-container" style="position:absolute;top:0;left:0;right:0;bottom:0;pointer-events:none;z-index:100;overflow:visible;"></div>
             <div id="pv-layout-error" class="pv-layout-error" aria-live="polite"></div>
             <div id="pv-layout-feedback" class="pv-layout-feedback" aria-live="polite" style="display: none;">Bloc de panneaux validé</div>
@@ -1633,6 +2209,13 @@ export function initCalpinage(container, options = {}) {
         </section>
       </div>
     </section>
+    <div id="calpinage-loading-overlay" class="calpinage-loading-overlay hidden">
+      <div class="calpinage-loading-backdrop"></div>
+      <div class="calpinage-loading-content">
+        <div class="calpinage-spinner"></div>
+        <div class="calpinage-loading-text">Analyse en cours…</div>
+      </div>
+    </div>
   </main>
   <div id="calpinage-settings-overlay" class="p3-overlay-container" style="display:none;position:fixed;inset:0;z-index:9999;">
     <div id="calpinage-settings-backdrop" class="p3-overlay-backdrop"></div>
@@ -1658,18 +2241,13 @@ export function initCalpinage(container, options = {}) {
       <button type="button" id="p3-catalog-load-more">Charger plus</button>
     </div>
   </div>
-  <div id="calpinage-preview-3d-overlay" style="display:none;position:fixed;inset:0;z-index:9998;background:#111;">
-    <div style="position:absolute;top:8px;right:8px;z-index:10;">
-      <button type="button" id="btn-close-preview-3d" style="padding:8px 12px;background:#333;color:#fff;border:none;border-radius:var(--sg-radius-sm);cursor:pointer;">Fermer</button>
-    </div>
-    <div id="calpinage-preview-3d-container" style="position:absolute;inset:0;top:48px;"></div>
-  </div>
   `;
 
   /* Root interne : le legacy manipule UNIQUEMENT ce div, jamais le container React.
    * Pas de vidage du container (interdit). Le container est vide par design (CalpinageApp). */
   var innerRoot = document.createElement("div");
   innerRoot.id = "calpinage-root";
+  innerRoot.className = "calpinage-light-scope";
   innerRoot.innerHTML = "<style>" + CALPINAGE_STYLES + "</style>" + CALPINAGE_HTML;
   container.appendChild(innerRoot);
 
@@ -1682,6 +2260,20 @@ export function initCalpinage(container, options = {}) {
   }
 
   (function () {
+
+    function showCalpinageLoading(text) {
+      var el = document.getElementById("calpinage-loading-overlay");
+      if (!el) return;
+      var textEl = el.querySelector(".calpinage-loading-text");
+      if (text && textEl) textEl.textContent = text;
+      el.classList.remove("hidden");
+    }
+
+    function hideCalpinageLoading() {
+      var el = document.getElementById("calpinage-loading-overlay");
+      if (!el) return;
+      el.classList.add("hidden");
+    }
 
     /* ============================================================
        CALPINAGE ??? NORD : SUPPRESSION EXISTANT + BOUSSOLE PRO
@@ -1795,6 +2387,15 @@ export function initCalpinage(container, options = {}) {
         throw new Error(errMsg2);
       }
 
+      registerCalpinageRuntime();
+      cleanupTasks.unshift(function () {
+        try {
+          unregisterCalpinageRuntime();
+        } catch (e) {
+          if (typeof console !== "undefined" && console.warn) console.warn("[CALPINAGE] runtime unregister", e);
+        }
+      });
+
       var mapApi = null;
       /** Moteur canvas actuel (pour resize/destroy). */
       var currentCanvasEngine = null;
@@ -1802,10 +2403,27 @@ export function initCalpinage(container, options = {}) {
       var resizeRafId = null;
       /** RAF en cours pour la boucle de render (annulé au cleanup). */
       var renderRafId = null;
+      /** Reprise boucle render après onglet visible / resize (réassigné à chaque init canvas). */
+      var resumeCalpinageAnimLoopFn = null;
+      /** Observer léger : panneau réaffiché sans resize ni onglet (display / layout). */
+      var calpinageCanvasIntersectionObs = null;
+      function wakeCalpinageCanvasRender() {
+        if (typeof resumeCalpinageAnimLoopFn === "function") resumeCalpinageAnimLoopFn();
+        if (typeof window !== "undefined" && typeof window.CALPINAGE_RENDER === "function") {
+          requestAnimationFrame(function () {
+            if (typeof window !== "undefined" && typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
+          });
+        }
+      }
       /** Handler resize fenêtre (pour cleanup). */
       var resizeHandler = null;
       /** Centre maison (lead) mémorisé pour recentrage après changement de fond de carte. */
       var initialLeadCenter = null;
+      /** Bannière discrète précision GPS (position approximative). */
+      var gpsHintEl = null;
+      /** Message + repère déplaçable : confirmation bâtiment avant capture (phase 1 uniquement). */
+      var buildingConfirmHintEl = null;
+      var lastBuildingConfirmationGps = null;
       /** true si l'utilisateur a déplacé la carte manuellement → on ne recentre pas au changement de layer. */
       var userMovedMap = false;
 
@@ -1826,8 +2444,8 @@ export function initCalpinage(container, options = {}) {
       /* ??chelle DP4 : m??me constante que frontend/dp-tool/dp-app.js (Web Mercator, tuiles 256px). */
       var INITIAL_RES = 156543.03392804097;
 
-      /** Charge les coordonnées du lead depuis l'API study (pour centrage carte). */
-      async function loadLeadCoordinates(studyId) {
+      /** Charge GPS lead + métadonnées précision (GET /api/studies/:id) — référence métier fiche lead. */
+      async function loadLeadGpsContext(studyId) {
         if (!studyId) return null;
         try {
           var apiBase = (window.CALPINAGE_API_BASE != null ? window.CALPINAGE_API_BASE : (window.location && window.location.origin)) || "";
@@ -1837,49 +2455,215 @@ export function initCalpinage(container, options = {}) {
           var res = await fetch(apiBase + "/api/studies/" + encodeURIComponent(studyId), { headers });
           if (!res.ok) return null;
           var data = await res.json();
-          var lat = data && data.lead && data.lead.lat;
-          var lng = data && data.lead && data.lead.lng;
-          if (typeof lat === "number" && typeof lng === "number") return [lat, lng];
-          return null;
+          var lead = data && data.lead;
+          if (!lead || typeof lead.lat !== "number" || typeof lead.lng !== "number") return null;
+          return {
+            lat: lead.lat,
+            lng: lead.lng,
+            is_geo_verified: lead.is_geo_verified === true,
+            geo_precision_level: lead.geo_precision_level != null ? String(lead.geo_precision_level) : null,
+            geo_source: lead.geo_source != null ? String(lead.geo_source) : null,
+          };
         } catch (err) {
-          console.warn("[Calpinage] Unable to load lead coordinates", err);
+          console.warn("[Calpinage] Unable to load lead GPS context", err);
           return null;
         }
       }
 
-      /** Centre initial : mapCenter/roofState.map > lead > France. */
-      function getInitialCenter(stateOrGeom, leadCoords) {
-        var mapCenter = (stateOrGeom && stateOrGeom.roofState && stateOrGeom.roofState.map && stateOrGeom.roofState.map.centerLatLng)
-          || (stateOrGeom && stateOrGeom.mapCenter)
-          || (stateOrGeom && stateOrGeom.roof && stateOrGeom.roof.map && stateOrGeom.roof.map.centerLatLng);
-        if (mapCenter && typeof mapCenter.lat === "number" && typeof mapCenter.lng === "number") {
-          return [mapCenter.lat, mapCenter.lng];
+      /**
+       * Hiérarchie : (1) géométrie sérieuse déjà sauvegardée → centre + zoom sauvegardés
+       * (2) GPS officiel lead → zoom selon précision / validation
+       * (3) centre carte résiduel sans travail sérieux → zoom 19
+       * (4) France métropolitaine
+       */
+      function resolveInitialMapView(leadGps) {
+        var state = window.CALPINAGE_STATE;
+        if (hasSeriousCalpinageGeometry(state)) {
+          var cSaved = getCenterFromSavedGeometry(state);
+          if (cSaved) {
+            var zSaved = state.roof && state.roof.map && typeof state.roof.map.zoom === "number" ? state.roof.map.zoom : 19;
+            return { center: cSaved, zoom: zSaved, useFly: false, hintMeta: null };
+          }
         }
-        if (leadCoords && Array.isArray(leadCoords) && leadCoords.length >= 2) return leadCoords;
-        return [46.5, 2.5];
+        if (leadGps && typeof leadGps.lat === "number" && typeof leadGps.lng === "number") {
+          return {
+            center: [leadGps.lat, leadGps.lng],
+            zoom: computeInitialZoomFromLeadMeta(leadGps),
+            useFly: true,
+            hintMeta: leadGps,
+          };
+        }
+        var cFallback = getCenterFromSavedGeometry(state);
+        if (cFallback) {
+          return { center: cFallback, zoom: 19, useFly: false, hintMeta: null };
+        }
+        return { center: [46.5, 2.5], zoom: 12, useFly: false, hintMeta: null };
+      }
+
+      function updateGpsHintBanner(leadMeta) {
+        var msg = getGpsPrecisionHintMessage(leadMeta);
+        if (!msg) {
+          if (gpsHintEl && gpsHintEl.parentNode) gpsHintEl.parentNode.removeChild(gpsHintEl);
+          gpsHintEl = null;
+          return;
+        }
+        if (!gpsHintEl) {
+          gpsHintEl = document.createElement("div");
+          gpsHintEl.id = "calpinage-gps-hint";
+          gpsHintEl.setAttribute("role", "status");
+          gpsHintEl.style.cssText =
+            "margin:0 0 12px 0;padding:10px 14px;font-size:13px;line-height:1.45;color:var(--text-primary,#e8e8ef);background:rgba(15,23,42,0.55);border-radius:10px;border:1px solid rgba(255,255,255,0.12);max-width:min(720px,100%);";
+          if (mapContainer && mapContainer.parentNode) {
+            mapContainer.parentNode.insertBefore(gpsHintEl, mapContainer);
+          }
+        }
+        gpsHintEl.textContent = msg;
+      }
+
+      function isPhase1CapturePending() {
+        var img = CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.image;
+        return !img || !img.dataUrl;
+      }
+
+      function shouldShowBuildingConfirmationMarker() {
+        if (!isPhase1CapturePending()) return false;
+        if (hasSeriousCalpinageGeometry(CALPINAGE_STATE)) return false;
+        return true;
+      }
+
+      function syncLastBuildingConfirmationGps(lat, lon) {
+        if (typeof lat !== "number" || typeof lon !== "number" || Number.isNaN(lat) || Number.isNaN(lon)) return;
+        lastBuildingConfirmationGps = { lat: lat, lon: lon };
+        CALPINAGE_STATE.roof.gps = { lat: lat, lon: lon };
+      }
+
+      function showBuildingConfirmHint() {
+        if (!shouldShowBuildingConfirmationMarker()) {
+          hideBuildingConfirmHint();
+          return;
+        }
+        if (!buildingConfirmHintEl) {
+          buildingConfirmHintEl = document.createElement("div");
+          buildingConfirmHintEl.id = "calpinage-building-confirm-hint";
+          buildingConfirmHintEl.setAttribute("role", "note");
+          buildingConfirmHintEl.style.cssText =
+            "margin:0 0 10px 0;padding:8px 12px;font-size:12px;line-height:1.4;color:rgba(232,232,239,0.88);background:rgba(30,41,59,0.65);border-radius:8px;border:1px solid rgba(255,255,255,0.08);max-width:min(640px,100%);";
+          if (mapContainer && mapContainer.parentNode) {
+            mapContainer.parentNode.insertBefore(buildingConfirmHintEl, mapContainer);
+          }
+        }
+        buildingConfirmHintEl.textContent =
+          "Vérifiez que le repère est bien sur la maison à étudier avant de capturer le plan. Déplacez-le si nécessaire.";
+        buildingConfirmHintEl.style.display = "";
+      }
+
+      function hideBuildingConfirmHint() {
+        if (buildingConfirmHintEl) buildingConfirmHintEl.style.display = "none";
+      }
+
+      function removeBuildingConfirmHintFromDom() {
+        if (buildingConfirmHintEl && buildingConfirmHintEl.parentNode) {
+          try { buildingConfirmHintEl.parentNode.removeChild(buildingConfirmHintEl); } catch (_) {}
+        }
+        buildingConfirmHintEl = null;
+      }
+
+      function removeBuildingConfirmationUi() {
+        if (mapApi && typeof mapApi.removeBuildingConfirmationMarker === "function") {
+          mapApi.removeBuildingConfirmationMarker();
+        }
+        hideBuildingConfirmHint();
+      }
+
+      function setupBuildingConfirmationUi(view) {
+        if (!mapApi || typeof mapApi.setBuildingConfirmationMarker !== "function") return;
+        if (!shouldShowBuildingConfirmationMarker()) {
+          removeBuildingConfirmationUi();
+          removeBuildingConfirmHintFromDom();
+          lastBuildingConfirmationGps = null;
+          return;
+        }
+        var lat = view.center[0];
+        var lng = view.center[1];
+        var rg = CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.gps;
+        if (rg && typeof rg.lat === "number" && typeof rg.lon === "number" && !Number.isNaN(rg.lat) && !Number.isNaN(rg.lon)) {
+          lat = rg.lat;
+          lng = rg.lon;
+          if (typeof mapApi.setView === "function") {
+            mapApi.setView({ lat: lat, lon: lng }, view.zoom);
+          }
+        }
+        if (typeof lat !== "number" || typeof lng !== "number") return;
+        syncLastBuildingConfirmationGps(lat, lng);
+        mapApi.setBuildingConfirmationMarker(lat, lng, {
+          title: "Bâtiment à étudier — glisser pour ajuster",
+          onDragEnd: function (la, lo) {
+            syncLastBuildingConfirmationGps(la, lo);
+            if (typeof saveCalpinageState === "function") saveCalpinageState();
+          },
+        });
+        showBuildingConfirmHint();
+      }
+
+      function reapplyBuildingConfirmationAfterLayerSwitch() {
+        if (!mapApi || typeof mapApi.setBuildingConfirmationMarker !== "function") return;
+        if (!shouldShowBuildingConfirmationMarker()) return;
+        var lat;
+        var lng;
+        if (lastBuildingConfirmationGps && typeof lastBuildingConfirmationGps.lat === "number") {
+          lat = lastBuildingConfirmationGps.lat;
+          lng = lastBuildingConfirmationGps.lon;
+        } else if (CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.gps) {
+          lat = CALPINAGE_STATE.roof.gps.lat;
+          lng = CALPINAGE_STATE.roof.gps.lon;
+        } else {
+          var st = mapApi.getState && mapApi.getState();
+          if (st && st.centerLatLng) {
+            lat = st.centerLatLng.lat;
+            lng = st.centerLatLng.lng;
+          } else {
+            return;
+          }
+        }
+        if (typeof lat !== "number" || typeof lng !== "number") return;
+        mapApi.setBuildingConfirmationMarker(lat, lng, {
+          title: "Bâtiment à étudier — glisser pour ajuster",
+          onDragEnd: function (la, lo) {
+            syncLastBuildingConfirmationGps(la, lo);
+            if (typeof saveCalpinageState === "function") saveCalpinageState();
+          },
+        });
+        showBuildingConfirmHint();
       }
 
       var APPLY_INITIAL_MAP_POSITION_DONE = false;
       async function applyInitialMapPosition() {
         if (APPLY_INITIAL_MAP_POSITION_DONE || !mapApi || typeof mapApi.setView !== "function") return;
         var studyId = window.CALPINAGE_STUDY_ID || (function () { try { return new URLSearchParams(location.search).get("studyId"); } catch (e) { return null; } })();
-        var leadCoords = await loadLeadCoordinates(studyId);
-        var state = window.CALPINAGE_STATE;
-        var hasMapCenter = state && state.roof && state.roof.map && state.roof.map.centerLatLng
-          && typeof state.roof.map.centerLatLng.lat === "number" && typeof state.roof.map.centerLatLng.lng === "number";
-        var hasPansOrObstacles = state && (
-          (state.pans && state.pans.length > 0) || (state.obstacles && state.obstacles.length > 0)
-        );
-        var hasExistingCalpinage = hasMapCenter && hasPansOrObstacles;
-        var center = getInitialCenter(state, leadCoords);
-        var zoom = 19;
-        if (leadCoords) initialLeadCenter = leadCoords;
-        if (!hasExistingCalpinage && leadCoords) {
+        var leadGps = await loadLeadGpsContext(studyId);
+        if (leadGps && typeof leadGps.lat === "number" && typeof leadGps.lng === "number") {
+          initialLeadCenter = [leadGps.lat, leadGps.lng];
+        } else {
+          initialLeadCenter = null;
+        }
+        var view = resolveInitialMapView(leadGps);
+        var center = view.center;
+        var zoom = view.zoom;
+        updateGpsHintBanner(view.hintMeta);
+        if (view.useFly && leadGps) {
           mapApi.flyTo(center, zoom, { duration: 0.8 });
         } else {
           mapApi.setView(center, zoom);
         }
         APPLY_INITIAL_MAP_POSITION_DONE = true;
+        if (mapApi.waitForProjectionReady) {
+          try {
+            await mapApi.waitForProjectionReady();
+          } catch (_) {
+            /* projection optionnelle */
+          }
+        }
+        setupBuildingConfirmationUi(view);
       }
 
       function tryApplyInitialMapPosition() {
@@ -1895,25 +2679,52 @@ export function initCalpinage(container, options = {}) {
         }
       }
 
-      /** Recentre sur la maison après changement de fond de carte (IGN ↔ Google), si conditions remplies. */
-      function applyCenterOnLayerChange() {
+      /**
+       * Après changement Google ↔ IGN : la carte est recréée (défaut Paris sur IGN).
+       * On réapplique toujours une cible connue : vue capturée juste avant destroy, puis state / géométrie / repère / lead.
+       * Ne s'appuie pas sur userMovedMap (sinon la nouvelle carte reste sur le défaut du provider).
+       */
+      function restoreMapViewAfterProviderSwitch(preservedFromPreviousMap) {
         if (!mapApi || typeof mapApi.setView !== "function") return;
-        if (userMovedMap) return;
-        var geom = window.geometry_json;
-        var hasMapCenter = geom && geom.mapCenter && typeof geom.mapCenter.lat === "number" && typeof geom.mapCenter.lng === "number";
-        if (hasMapCenter) return;
         var state = window.CALPINAGE_STATE;
-        var hasStateMapCenter = state && state.roof && state.roof.map && state.roof.map.centerLatLng
-          && typeof state.roof.map.centerLatLng.lat === "number" && typeof state.roof.map.centerLatLng.lng === "number";
-        var hasPansOrObstacles = state && (
-          (state.pans && state.pans.length > 0) || (state.obstacles && state.obstacles.length > 0)
-        );
-        if (hasStateMapCenter && hasPansOrObstacles) return;
-        if (!initialLeadCenter) return;
-        if (CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.image) return;
-        var mapState = mapApi.getState && mapApi.getState();
-        var zoom = (mapState && typeof mapState.zoom === "number") ? mapState.zoom : 19;
-        mapApi.setView(initialLeadCenter, zoom);
+        var roofMap = state && state.roof && state.roof.map;
+        var zDef = 19;
+        var chosen = null;
+
+        function okCoord(lat, lng) {
+          return typeof lat === "number" && typeof lng === "number" && !Number.isNaN(lat) && !Number.isNaN(lng);
+        }
+
+        if (preservedFromPreviousMap && preservedFromPreviousMap.centerLatLng && okCoord(preservedFromPreviousMap.centerLatLng.lat, preservedFromPreviousMap.centerLatLng.lng)) {
+          var z0 = typeof preservedFromPreviousMap.zoom === "number" && !Number.isNaN(preservedFromPreviousMap.zoom) ? preservedFromPreviousMap.zoom : zDef;
+          chosen = { lat: preservedFromPreviousMap.centerLatLng.lat, lng: preservedFromPreviousMap.centerLatLng.lng, zoom: z0 };
+        }
+        if (!chosen && roofMap && roofMap.centerLatLng && okCoord(roofMap.centerLatLng.lat, roofMap.centerLatLng.lng)) {
+          var z1 = typeof roofMap.zoom === "number" && !Number.isNaN(roofMap.zoom) ? roofMap.zoom : zDef;
+          chosen = { lat: roofMap.centerLatLng.lat, lng: roofMap.centerLatLng.lng, zoom: z1 };
+        }
+        if (!chosen) {
+          var geom = window.geometry_json;
+          if (geom && geom.mapCenter && okCoord(geom.mapCenter.lat, geom.mapCenter.lng)) {
+            chosen = { lat: geom.mapCenter.lat, lng: geom.mapCenter.lng, zoom: zDef };
+          }
+        }
+        if (!chosen && lastBuildingConfirmationGps && okCoord(lastBuildingConfirmationGps.lat, lastBuildingConfirmationGps.lon)) {
+          chosen = { lat: lastBuildingConfirmationGps.lat, lng: lastBuildingConfirmationGps.lon, zoom: zDef };
+        }
+        if (!chosen && state && state.roof && state.roof.gps && okCoord(state.roof.gps.lat, state.roof.gps.lon)) {
+          chosen = { lat: state.roof.gps.lat, lng: state.roof.gps.lon, zoom: zDef };
+        }
+        if (!chosen && initialLeadCenter && Array.isArray(initialLeadCenter) && initialLeadCenter.length >= 2 && okCoord(initialLeadCenter[0], initialLeadCenter[1])) {
+          chosen = { lat: initialLeadCenter[0], lng: initialLeadCenter[1], zoom: zDef };
+        }
+        if (!chosen) return;
+
+        mapApi.setView({ lat: chosen.lat, lng: chosen.lng }, chosen.zoom);
+        if (roofMap) {
+          roofMap.centerLatLng = { lat: chosen.lat, lng: chosen.lng };
+          roofMap.zoom = chosen.zoom;
+        }
       }
 
       /**
@@ -1940,7 +2751,7 @@ export function initCalpinage(container, options = {}) {
         measures: [],
         activeContour: { points: [], hoverPoint: null },
         ridges: [],
-        activeRidge: { a: null, b: null, hover: null, hoverSnap: null },
+        activeRidge: { a: null, b: null, hover: null, hoverSnap: null, frozenStructuralSnap: null },
         planes: [],
         pans: [],
                selectedPanId: null,
@@ -1977,12 +2788,22 @@ export function initCalpinage(container, options = {}) {
         placedPanels: [],
         /** Bloc actuellement manipulable (rotation / déplacement) en Phase 3. null = aucune poignée. */
         activeManipulationBlockId: null,
+        /** Lot 1 — Pan courant Phase 3 (sélection explicite quand aucun bloc focus). */
+        phase3: { activePanId: null },
         /** Volumes ombrants (SHADOW_VOLUMES). Indépendants des obstacles 2D. */
         shadowVolumes: [],
         /** Extensions toiture (chien assis, etc.). Indépendantes des obstacles 2D. */
         roofExtensions: [],
       };
       window.CALPINAGE_STATE.roofExtensions = window.CALPINAGE_STATE.roofExtensions || [];
+
+      window.captureObstacleIntegritySnapshotForCalpinage = function () {
+        try {
+          return captureObstacleIntegritySnapshot(window.CALPINAGE_STATE);
+        } catch (_capErr) {
+          return null;
+        }
+      };
 
       if (!CALPINAGE_STATE.shading) {
         CALPINAGE_STATE.shading = {
@@ -2039,36 +2860,61 @@ export function initCalpinage(container, options = {}) {
         return { azimuthStepDeg: step, elevations: elevations };
       };
 
-      window.computeCalpinageShading = function() {
-        if (!window.computeAnnualShadingLoss) return null;
-        if (!CALPINAGE_STATE.shading.enabled) return null;
+      /** Source officielle GPS pour near/far shading. Fallback : si roof.gps absent mais map.centerLatLng présent → dériver et persister roof.gps. */
+      function getShadingGps() {
+        var roof = CALPINAGE_STATE.roof;
+        if (!roof) return null;
+        var lat = roof.gps && typeof roof.gps.lat === "number" ? roof.gps.lat : null;
+        var lon = roof.gps && typeof roof.gps.lon === "number" ? roof.gps.lon : null;
+        if (lat == null || lon == null) {
+          var center = roof.map && roof.map.centerLatLng;
+          if (center && typeof center.lat === "number" && typeof center.lng === "number" && !Number.isNaN(center.lat) && !Number.isNaN(center.lng)) {
+            lat = center.lat;
+            lon = center.lng;
+            CALPINAGE_STATE.roof.gps = { lat: lat, lon: lon };
+          } else {
+            return null;
+          }
+        }
+        if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return null;
+        return { lat: lat, lon: lon };
+      }
 
-        var lat = CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.gps ? CALPINAGE_STATE.roof.gps.lat : undefined;
-        var lon = CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.gps ? CALPINAGE_STATE.roof.gps.lon : undefined;
+      /** Appelé juste avant getAllPanels() pour que le moteur soit prêt (ex. blocs restaurés). Appelle syncPlacedPanelsFromBlocks puis eng.ensureReadyForShading si présent. */
+      if (typeof window.ensurePlacementEngineReadyForShading !== "function") {
+        window.ensurePlacementEngineReadyForShading = function () {
+          if (typeof window.syncPlacedPanelsFromBlocks === "function") window.syncPlacedPanelsFromBlocks();
+          var eng = typeof window !== "undefined" && window.pvPlacementEngine;
+          if (eng && typeof eng.ensureReadyForShading === "function") eng.ensureReadyForShading();
+        };
+      }
 
-        if (typeof lat !== "number" || typeof lon !== "number") return null;
+      /** Garantit window.getSunPositionAt après chargement des deps legacy. Ne dépend pas de shadingEngine : si __SHADING_SOLAR_POSITION__.getSunPosition est dispo, on le branche. */
+      function ensureGetSunPositionAt() {
+        if (typeof window === "undefined") return;
+        if (typeof window.getSunPositionAt === "function") return;
+        var solar = window.__SHADING_SOLAR_POSITION__;
+        if (solar && typeof solar.getSunPosition === "function") {
+          window.getSunPositionAt = function (date, latDeg, lonDeg) {
+            var r = solar.getSunPosition(date, latDeg, lonDeg);
+            return r != null ? { azimuthDeg: r.azimuthDeg, elevationDeg: r.elevationDeg } : null;
+          };
+          return;
+        }
+        if (typeof console !== "undefined" && console.error) {
+          console.error("[SHADING] getSunPositionAt manquant : charger solarPosition.js avant shading (ou vérifier window.__SHADING_SOLAR_POSITION__.getSunPosition).");
+        }
+      }
+      if (typeof window !== "undefined") window.ensureGetSunPositionAt = ensureGetSunPositionAt;
 
-        var panels = window.pvPlacementEngine
-          ? window.pvPlacementEngine.getAllPanels && window.pvPlacementEngine.getAllPanels()
-          : [];
-
-        if (!Array.isArray(panels)) return null;
-        panels = panels.filter(function (p) { return p.enabled !== false; });
-        panels = panels.filter(function (p) {
-          var poly = p.polygonPx;
-          return Array.isArray(poly) && poly.length >= 3;
-        });
-        if (panels.length === 0) return null;
-
-        var mpp = (CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.scale && CALPINAGE_STATE.roof.scale.metersPerPixel) || 1;
-        var rawObstacles = (CALPINAGE_STATE.obstacles || []).concat(
-          CALPINAGE_STATE.shadowVolumes || [],
-          CALPINAGE_STATE.roofExtensions || []
-        );
-
-        var nearObstacles = [];
-        for (var oi = 0; oi < rawObstacles.length; oi++) {
-          var o = rawObstacles[oi];
+      /** Normalisation unique des obstacles near : polygonPx || polygon || points || contour.points, heightM. Retourne { rawCount, validCount, obstacles }. */
+      function buildNearObstaclesFromState(state) {
+        var roof = (state && state.roof) || {};
+        var mpp = (roof.scale && roof.scale.metersPerPixel) || 1;
+        var raw = (state.obstacles || []).concat(state.shadowVolumes || [], state.roofExtensions || []);
+        var obstacles = [];
+        for (var oi = 0; oi < raw.length; oi++) {
+          var o = raw[oi];
           if (!o || typeof o !== "object") continue;
           var polygonPx = o.polygonPx || o.polygon || o.points || (o.contour && o.contour.points) || null;
           if (o.type === "shadow_volume" && !polygonPx) {
@@ -2080,8 +2926,7 @@ export function initCalpinage(container, options = {}) {
             var cos = Math.cos(rotRad), sin = Math.sin(rotRad);
             function rotPt(lx, ly) { return { x: cx + lx * cos - ly * sin, y: cy + lx * sin + ly * cos }; }
             if (o.shape === "tube") {
-              var r = wPx / 2;
-              var n = 16;
+              var r = wPx / 2, n = 16;
               polygonPx = [];
               for (var si = 0; si < n; si++) {
                 var a = (si / n) * Math.PI * 2;
@@ -2093,19 +2938,127 @@ export function initCalpinage(container, options = {}) {
             }
           }
           if (!Array.isArray(polygonPx) || polygonPx.length < 3) continue;
-          var heightM;
-          if (typeof o.heightM === "number") heightM = o.heightM;
-          else if (typeof o.heightRelM === "number") heightM = o.heightRelM;
-          else if (typeof o.height === "number") heightM = o.height;
-          else if (o.ridgeHeightRelM != null && typeof o.ridgeHeightRelM === "number") heightM = o.ridgeHeightRelM;
-          else heightM = 1;
+          if (shouldExcludeObstacleFromNearShading(o)) continue;
+          var heightM = resolveNearShadingHeightM(o);
           if (heightM <= 0) continue;
-          nearObstacles.push({
+          obstacles.push({
             id: (o.id != null && String(o.id)) || "obs-" + oi,
             polygonPx: polygonPx.map(function (pt) { return { x: typeof pt.x === "number" ? pt.x : 0, y: typeof pt.y === "number" ? pt.y : 0 }; }),
             heightM: heightM
           });
         }
+        return { rawCount: raw.length, validCount: obstacles.length, obstacles: obstacles };
+      }
+      window.buildNearObstaclesFromState = buildNearObstaclesFromState;
+
+      window.computeCalpinageShading = function() {
+        ensureGetSunPositionAt();
+        /* KPI shading : lastResult = recompute live ; normalized = V2 officielle affichage/export — docs/shading-kpi-contract.md */
+        if (!CALPINAGE_STATE.shading) CALPINAGE_STATE.shading = { lastResult: null, normalized: null, lastAbortReason: null, lastComputedAt: null, enabled: true };
+        CALPINAGE_STATE.shading.lastAbortReason = null;
+        CALPINAGE_STATE.shading.lastError = undefined;
+        if (typeof console !== "undefined" && console.log) console.log("[SHADING_TRACE] computeCalpinageShading ENTER", JSON.stringify({ ts: Date.now() }));
+
+        var trace = { gps: null, panelCountRaw: 0, panelCountValid: 0, obstacleCountRaw: 0, obstacleCountValid: 0, nearLossPct: null, farLossPct: null, totalLossPct: null, reasonIfAbort: null, abortReason: null, zMode: null };
+
+        try {
+        if (window.__CALPINAGE_VALIDATING__) {
+          if (window.CALPINAGE_VALIDATE_DEBUG) console.error("[VALIDATE] shading must not run during validation");
+          trace.reasonIfAbort = "VALIDATING";
+          trace.abortReason = trace.reasonIfAbort;
+          if (CALPINAGE_STATE.shading) CALPINAGE_STATE.shading.lastAbortReason = trace.reasonIfAbort;
+          if (typeof console !== "undefined" && console.log) console.log("[SHADING_TRACE]", JSON.stringify(trace));
+          if (typeof console !== "undefined" && console.log) console.log("[SHADING_TRACE] EXIT");
+          return null;
+        }
+        if (!window.computeAnnualShadingLoss) {
+          trace.reasonIfAbort = "NO_DEPENDENCIES";
+          trace.abortReason = trace.reasonIfAbort;
+          if (CALPINAGE_STATE.shading) CALPINAGE_STATE.shading.lastAbortReason = trace.reasonIfAbort;
+          if (typeof console !== "undefined" && console.log) console.log("[SHADING_TRACE]", JSON.stringify(trace));
+          if (typeof console !== "undefined" && console.log) console.log("[SHADING_TRACE] EXIT");
+          return null;
+        }
+        if (!CALPINAGE_STATE.shading.enabled) {
+          trace.reasonIfAbort = "SHADING_DISABLED";
+          trace.abortReason = trace.reasonIfAbort;
+          if (CALPINAGE_STATE.shading) CALPINAGE_STATE.shading.lastAbortReason = trace.reasonIfAbort;
+          if (typeof console !== "undefined" && console.log) console.log("[SHADING_TRACE]", JSON.stringify(trace));
+          if (typeof console !== "undefined" && console.log) console.log("[SHADING_TRACE] EXIT");
+          return null;
+        }
+
+        var gps = getShadingGps();
+        if (!gps) {
+          trace.reasonIfAbort = "NO_GPS";
+          trace.abortReason = null;
+          if (CALPINAGE_STATE.shading) CALPINAGE_STATE.shading.lastAbortReason = null;
+          if (typeof console !== "undefined" && console.log) console.log("[SHADING_TRACE]", JSON.stringify(trace));
+          if (typeof console !== "undefined" && console.warn) console.warn("[SHADING] GPS absent ou invalide : ombrage lointain indisponible (UNAVAILABLE_NO_GPS). Near/far physiques non calculés sans coordonnées fiables.");
+          var panelCountNoGps = 0;
+          try {
+            if (window.pvPlacementEngine && typeof window.pvPlacementEngine.getAllPanels === "function") {
+              panelCountNoGps = (window.pvPlacementEngine.getAllPanels() || []).filter(function (p) { return p && p.enabled !== false; }).length;
+            }
+          } catch (eNoGps) {}
+          trace.nearLossPct = null;
+          trace.farLossPct = null;
+          trace.totalLossPct = null;
+          if (typeof console !== "undefined" && console.log) console.log("[SHADING_TRACE]", JSON.stringify(trace));
+          if (typeof console !== "undefined" && console.log) console.log("[SHADING_TRACE] EXIT");
+          var resultNoGps = {
+            gpsUnavailable: true,
+            annualLossPercent: null,
+            nearLossPct: null,
+            farLossPct: null,
+            meta: { farSource: "UNAVAILABLE_NO_GPS", blockingReason: "missing_gps" },
+            panelStats: [],
+            panelCountNoGps: panelCountNoGps
+          };
+          CALPINAGE_STATE.shading.lastResult = resultNoGps;
+          CALPINAGE_STATE.shading.lastComputedAt = Date.now();
+          return resultNoGps;
+        }
+        trace.gps = { lat: gps.lat, lon: gps.lon };
+        var lat = gps.lat;
+        var lon = gps.lon;
+
+        if (typeof window.ensurePlacementEngineReadyForShading === "function") window.ensurePlacementEngineReadyForShading();
+        var panelsRaw = window.pvPlacementEngine && typeof window.pvPlacementEngine.getAllPanels === "function"
+          ? window.pvPlacementEngine.getAllPanels()
+          : [];
+        if (!Array.isArray(panelsRaw)) panelsRaw = [];
+        trace.panelCountRaw = panelsRaw.length;
+
+        var panels = panelsRaw.filter(function (p) { return p && p.enabled !== false; });
+        panels = panels.map(function (p) {
+          var poly = p.polygonPx || (p.projection && p.projection.points);
+          if (Array.isArray(poly) && poly.length >= 3 && !p.polygonPx) {
+            var clone = {};
+            for (var k in p) if (Object.prototype.hasOwnProperty.call(p, k)) clone[k] = p[k];
+            clone.polygonPx = poly;
+            return clone;
+          }
+          return p;
+        });
+        panels = panels.filter(function (p) {
+          var poly = p.polygonPx || (p.projection && p.projection.points);
+          return Array.isArray(poly) && poly.length >= 3;
+        });
+        trace.panelCountValid = panels.length;
+        if (panels.length === 0) {
+          trace.reasonIfAbort = "NO_PANELS";
+          trace.abortReason = trace.reasonIfAbort;
+          if (CALPINAGE_STATE.shading) CALPINAGE_STATE.shading.lastAbortReason = trace.reasonIfAbort;
+          if (typeof console !== "undefined" && console.log) console.log("[SHADING_TRACE]", JSON.stringify(trace));
+          if (typeof console !== "undefined" && console.log) console.log("[SHADING_TRACE] EXIT");
+          return null;
+        }
+
+        var obsResult = buildNearObstaclesFromState(CALPINAGE_STATE);
+        var nearObstacles = obsResult.obstacles;
+        trace.obstacleCountRaw = obsResult.rawCount;
+        trace.obstacleCountValid = obsResult.validCount;
 
         var horizonMask = null;
         if (CALPINAGE_STATE.horizonMask && CALPINAGE_STATE.horizonMask.enabled && CALPINAGE_STATE.horizonMask.data) {
@@ -2114,37 +3067,174 @@ export function initCalpinage(container, options = {}) {
             : null;
         }
 
-        var result = window.computeAnnualShadingLoss({
-          latDeg: lat,
-          lonDeg: lon,
-          roofPans: (CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.roofPans) ? CALPINAGE_STATE.roof.roofPans : [],
-          panels: panels,
-          obstacles: nearObstacles,
-          horizonMask: horizonMask,
-          getHeightAtImagePoint: typeof getHeightAtImgPoint === "function"
-            ? function (x, y) { return getHeightAtImgPoint({ x: x, y: y }); }
-            : undefined,
-          config: {
-            year: new Date().getFullYear(),
-            stepMinutes: 30,
-            minSunElevationDeg: 3
+        var shadingConfig = {
+          year: new Date().getFullYear(),
+          stepMinutes: 60,
+          minSunElevationDeg: 3
+        };
+
+        var hasZProvider = typeof getHeightAtImgPoint === "function";
+        trace.zMode = hasZProvider ? "LOCAL" : "FLAT";
+
+        var shadingMpp = (CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.scale && typeof CALPINAGE_STATE.roof.scale.metersPerPixel === "number" && CALPINAGE_STATE.roof.scale.metersPerPixel > 0 && Number.isFinite(CALPINAGE_STATE.roof.scale.metersPerPixel))
+          ? CALPINAGE_STATE.roof.scale.metersPerPixel
+          : 1;
+
+        var result;
+        if (window.nearShadingCore && typeof window.getAnnualSunVectors === "function") {
+          if ((CALPINAGE_STATE.pans || []).length > 0) {
+            applyDerivedRoofTopologyAfterPans(CALPINAGE_STATE);
           }
-        });
+          var resultFar = window.computeAnnualShadingLoss({
+            latDeg: lat,
+            lonDeg: lon,
+            roofPans: (CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.roofPans) ? CALPINAGE_STATE.roof.roofPans : [],
+            panels: panels,
+            obstacles: [],
+            horizonMask: horizonMask,
+            getHeightAtImagePoint: hasZProvider ? function (x, y) { return getHeightAtImgPoint({ x: x, y: y }); } : undefined,
+            config: shadingConfig,
+            metersPerPixel: shadingMpp
+          });
+          var nearResult = computeNearShadingFrontend({
+            panels: panels,
+            obstacles: nearObstacles,
+            latitude: lat,
+            longitude: lon,
+            config: shadingConfig,
+            getHeightAtImagePoint: hasZProvider ? function (pt) { return getHeightAtImgPoint(pt); } : undefined,
+            useZLocal: hasZProvider,
+            metersPerPixel: shadingMpp,
+            debug: !!(typeof window !== "undefined" && window.SHADING_DEBUG),
+            horizonMask: horizonMask,
+            calpinageRoofState: CALPINAGE_STATE.roof,
+            calpinageStructural: {
+              ridges: (CALPINAGE_STATE.ridges || []).filter(function (r) {
+                return r && r.roofRole !== "chienAssis";
+              }).map(function (r) {
+                return {
+                  id: r.id,
+                  roofRole: r.roofRole,
+                  a: resolveRidgePoint(r.a),
+                  b: resolveRidgePoint(r.b),
+                };
+              }),
+              traits: (CALPINAGE_STATE.traits || []).filter(function (t) {
+                return t && t.roofRole !== "chienAssis";
+              }).map(function (t) {
+                return {
+                  id: t.id,
+                  roofRole: t.roofRole,
+                  a: resolveRidgePoint(t.a),
+                  b: resolveRidgePoint(t.b),
+                };
+              }),
+            },
+          });
+          var farPct = (resultFar && typeof resultFar.annualLossPercent === "number") ? resultFar.annualLossPercent : 0;
+          var nearPct = (nearResult && typeof nearResult.totalLossPct === "number") ? nearResult.totalLossPct : 0;
+          var combinedPct = 100 * (1 - (1 - farPct / 100) * (1 - nearPct / 100));
+          var panelStats = (Array.isArray(nearResult.perPanel) ? nearResult.perPanel : []).map(function (p) {
+            var stepMin = (shadingConfig && shadingConfig.stepMinutes) || 30;
+            return {
+              panelId: p.panelId,
+              shadedFractionAvg: typeof p.shadedFractionAvg === "number" ? p.shadedFractionAvg : 0,
+              shadedHours: Number(((p.shadedSamplesCount ?? 0) * (stepMin / 60)).toFixed(2))
+            };
+          });
+          var shadingMetaNear = resultFar && resultFar.meta ? Object.assign({}, resultFar.meta) : {};
+          if (nearResult && nearResult.canonicalNear) {
+            shadingMetaNear.nearCanonical3d = nearResult.canonicalNear;
+          }
+          if (nearResult && nearResult.officialNear) {
+            shadingMetaNear.nearOfficial = nearResult.officialNear;
+          }
+          result = resultFar ? {
+            annualLossPercent: Number(combinedPct.toFixed(3)),
+            nearLossPct: Number(nearPct.toFixed(3)),
+            farLossPct: Number(farPct.toFixed(3)),
+            annualLossKWh: resultFar.annualLossKWh,
+            meta: shadingMetaNear,
+            panelStats: panelStats
+          } : { annualLossPercent: 0, nearLossPct: 0, farLossPct: 0, annualLossKWh: undefined, meta: Object.assign({ samples: 0, model: "annual-raycast-weighted-v2", year: shadingConfig.year, stepMinutes: shadingConfig.stepMinutes }, (function () { var m = {}; if (nearResult && nearResult.canonicalNear) m.nearCanonical3d = nearResult.canonicalNear; if (nearResult && nearResult.officialNear) m.nearOfficial = nearResult.officialNear; return m; })()), panelStats: panelStats };
+          if (typeof window !== "undefined" && window.SHADING_DEBUG && nearResult && nearResult.debugInfo) {
+            console.log("[SHADING_DEBUG] near=" + nearPct.toFixed(2) + "% combined=" + combinedPct.toFixed(2) + "% samples=" + (nearResult.debugInfo.sunVectorCount || 0));
+          }
+        } else {
+          result = null;
+          trace.reasonIfAbort = "NO_DEPENDENCIES";
+          if (CALPINAGE_STATE.shading) CALPINAGE_STATE.shading.lastAbortReason = trace.reasonIfAbort;
+        }
+
+        if (result && typeof result === "object") {
+          trace.nearLossPct = typeof result.nearLossPct === "number" ? result.nearLossPct : null;
+          trace.farLossPct = typeof result.farLossPct === "number" ? result.farLossPct : null;
+          trace.totalLossPct = typeof result.annualLossPercent === "number" ? result.annualLossPercent : null;
+        }
+        trace.abortReason = trace.reasonIfAbort;
+        if (typeof console !== "undefined" && console.log) console.log("[SHADING_TRACE]", JSON.stringify(trace));
+        if (typeof console !== "undefined" && console.log) console.log("[SHADING_TRACE] EXIT");
 
         CALPINAGE_STATE.shading.lastResult = result;
         CALPINAGE_STATE.shading.lastComputedAt = Date.now();
+        if (result != null) {
+          CALPINAGE_STATE.shading.lastAbortReason = null;
+          CALPINAGE_STATE.shading.zMode = trace.zMode;
+        }
 
         return result;
+        } catch (err) {
+          var excTrace = { gps: trace.gps, panelCountRaw: trace.panelCountRaw, panelCountValid: trace.panelCountValid, obstacleCountRaw: trace.obstacleCountRaw, obstacleCountValid: trace.obstacleCountValid, zMode: trace.zMode, nearLossPct: null, farLossPct: null, totalLossPct: null, reasonIfAbort: "EXCEPTION", abortReason: "EXCEPTION" };
+          if (CALPINAGE_STATE.shading) {
+            CALPINAGE_STATE.shading.lastAbortReason = "EXCEPTION";
+            CALPINAGE_STATE.shading.lastResult = null;
+            CALPINAGE_STATE.shading.lastError = { message: (err && err.message) || String(err), stack: (err && err.stack) || undefined };
+          }
+          if (typeof console !== "undefined" && console.error) console.error("[SHADING_ABORT] EXCEPTION", err);
+          if (typeof console !== "undefined" && console.log) console.log("[SHADING_TRACE]", JSON.stringify(excTrace));
+          if (typeof console !== "undefined" && console.log) console.log("[SHADING_TRACE] EXIT");
+          return null;
+        }
       };
 
       window.normalizeCalpinageShading = function () {
         const raw = CALPINAGE_STATE.shading.lastResult;
         if (!raw || typeof raw !== "object") return null;
 
+        if (raw.gpsUnavailable === true || raw.meta?.blockingReason === "missing_gps") {
+          const normalizedMissing = {
+            computedAt: Date.now(),
+            totalLossPct: null,
+            near: { totalLossPct: null },
+            far: {
+              totalLossPct: null,
+              source: "UNAVAILABLE_NO_GPS",
+              farHorizonKind: "UNAVAILABLE",
+            },
+            combined: { totalLossPct: null },
+            annualLossKWh: null,
+            panelCount: typeof raw.panelCountNoGps === "number" ? raw.panelCountNoGps : 0,
+            perPanel: [],
+            shadingQuality: {
+              confidence: "LOW",
+              blockingReason: "missing_gps",
+              farHorizonKind: "UNAVAILABLE",
+              provider: "UNAVAILABLE_NO_GPS",
+            },
+            farSource: "UNAVAILABLE_NO_GPS",
+          };
+          CALPINAGE_STATE.shading.normalized = normalizedMissing;
+          // Refresh intégrité : shading bloqué (GPS absent)
+          if (typeof refreshCalpinageIntegrity === "function") refreshCalpinageIntegrity();
+          return normalizedMissing;
+        }
+
         const totalLossPct =
           typeof raw.annualLossPercent === "number"
             ? raw.annualLossPercent
             : null;
+        const nearPct = typeof raw.nearLossPct === "number" ? raw.nearLossPct : 0;
+        const farPct = typeof raw.farLossPct === "number" ? raw.farLossPct : null;
 
         const perPanel = Array.isArray(raw.panelStats)
           ? raw.panelStats.map(function (p) {
@@ -2158,24 +3248,185 @@ export function initCalpinage(container, options = {}) {
             })
           : [];
 
+        var nearNorm = { totalLossPct: nearPct };
+        if (raw.meta && raw.meta.nearCanonical3d) {
+          nearNorm.canonical3d = raw.meta.nearCanonical3d;
+        }
+        if (raw.meta && raw.meta.nearOfficial) {
+          nearNorm.official = raw.meta.nearOfficial;
+        }
+
         const normalized = {
           computedAt: Date.now(),
+          /** Miroir de combined.totalLossPct — même sémantique que le normalizer backend / payload étude. */
           totalLossPct: totalLossPct,
-          annualLossKWh: null, // volontairement laissé à SmartPitch
+          near: nearNorm,
+          far: { totalLossPct: farPct },
+          combined: { totalLossPct: totalLossPct != null ? totalLossPct : null },
+          annualLossKWh: null,
           panelCount: perPanel.length,
           perPanel: perPanel
         };
 
+        const horizonPayload =
+          CALPINAGE_STATE.horizonMask && CALPINAGE_STATE.horizonMask.data
+            ? CALPINAGE_STATE.horizonMask.data
+            : null;
+        enrichNormalizedShadingFromHorizon(horizonPayload, normalized);
+
         CALPINAGE_STATE.shading.normalized = normalized;
+        warnIfOfficialShadingRootMismatch(normalized);
+        // Refresh intégrité : le shading vient de changer, sans save obligatoire
+        if (typeof refreshCalpinageIntegrity === "function") refreshCalpinageIntegrity();
         return normalized;
+      };
+
+      /** Test "worst case" preuve : mêmes entrées que computeCalpinageShading, vecteurs soleil bas (3°–15°) = ombre max. Log [NEAR_WORSTCASE_TRACE] explique pourquoi totalLossPct est 0 ou > 0. */
+      window.runNearWorstCase = function () {
+        ensureGetSunPositionAt();
+        var gps = getShadingGps();
+        var hasGetSunPositionAt = typeof window.getSunPositionAt === "function";
+        var hasSolar = !!(window.__SHADING_SOLAR_POSITION__ && typeof window.__SHADING_SOLAR_POSITION__.getSunPosition === "function");
+        var zMode = (typeof getHeightAtImgPoint === "function") ? "LOCAL" : "FLAT";
+
+        if (!gps) {
+          var traceNoGps = { gps: null, panelsRaw: 0, panelsValid: 0, obstaclesRaw: 0, obstaclesValid: 0, hasGetSunPositionAt: hasGetSunPositionAt, hasSolar: hasSolar, zMode: zMode, reason: "no GPS" };
+          if (typeof console !== "undefined" && console.log) console.log("[NEAR_WORSTCASE_TRACE]", JSON.stringify(traceNoGps));
+          return { error: "no GPS", perPanel: [], totalLossPct: 0 };
+        }
+        var lat = gps.lat;
+        var lon = gps.lon;
+
+        if (typeof window.ensurePlacementEngineReadyForShading === "function") window.ensurePlacementEngineReadyForShading();
+        var panelsRaw = (window.pvPlacementEngine && typeof window.pvPlacementEngine.getAllPanels === "function")
+          ? window.pvPlacementEngine.getAllPanels()
+          : [];
+        if (!Array.isArray(panelsRaw)) panelsRaw = [];
+        var panels = panelsRaw.filter(function (p) { return p && p.enabled !== false; });
+        panels = panels.map(function (p) {
+          var poly = p.polygonPx || (p.projection && p.projection.points);
+          if (Array.isArray(poly) && poly.length >= 3 && !p.polygonPx) {
+            var clone = {};
+            for (var k in p) if (Object.prototype.hasOwnProperty.call(p, k)) clone[k] = p[k];
+            clone.polygonPx = poly;
+            return clone;
+          }
+          return p;
+        });
+        panels = panels.filter(function (p) {
+          var poly = p.polygonPx || (p.projection && p.projection.points);
+          return Array.isArray(poly) && poly.length >= 3;
+        });
+
+        var obsResult = buildNearObstaclesFromState(CALPINAGE_STATE);
+        var nearObstacles = obsResult.obstacles;
+
+        var trace = {
+          gps: { lat: lat, lon: lon },
+          panelsRaw: panelsRaw.length,
+          panelsValid: panels.length,
+          obstaclesRaw: obsResult.rawCount,
+          obstaclesValid: obsResult.validCount,
+          hasGetSunPositionAt: hasGetSunPositionAt,
+          hasSolar: hasSolar,
+          zMode: zMode
+        };
+
+        if (panels.length === 0) {
+          trace.reason = "no panels with valid polygonPx";
+          if (typeof console !== "undefined" && console.log) console.log("[NEAR_WORSTCASE_TRACE]", JSON.stringify(trace));
+          return { error: "no panels with polygonPx", perPanel: [], totalLossPct: 0 };
+        }
+
+        var getSunPos = hasGetSunPositionAt ? window.getSunPositionAt : (hasSolar ? function (d, la, lo) { return window.__SHADING_SOLAR_POSITION__.getSunPosition(d, la, lo); } : null);
+        if (!getSunPos || !window.nearShadingCore || typeof window.nearShadingCore.computeSunVector !== "function") {
+          trace.reason = "getSunPosition or nearShadingCore.computeSunVector missing";
+          if (typeof console !== "undefined" && console.log) console.log("[NEAR_WORSTCASE_TRACE]", JSON.stringify(trace));
+          return { error: "getSunPosition or nearShadingCore.computeSunVector missing", perPanel: [], totalLossPct: 0 };
+        }
+
+        var year = new Date().getFullYear();
+        var sunVectors = [];
+        var elevMinDeg = 3;
+        var elevMaxDeg = 15;
+        var winterMonths = [0, 11];
+        var hourStart = 8;
+        var hourEnd = 16;
+        var stepMin = 30;
+        for (var mi = 0; mi < winterMonths.length; mi++) {
+          for (var h = hourStart; h <= hourEnd; h++) {
+            for (var step = 0; step < 60; step += stepMin) {
+              var d = new Date(year, winterMonths[mi], 21, h, step, 0);
+              var pos = getSunPos(d, lat, lon);
+              if (pos && typeof pos.elevationDeg === "number" && pos.elevationDeg > elevMinDeg && pos.elevationDeg <= elevMaxDeg) {
+                var v = window.nearShadingCore.computeSunVector(pos.azimuthDeg, pos.elevationDeg);
+                if (typeof console !== "undefined" && console.assert) console.assert(!Number.isNaN(v && v.dx), "[WORSTCASE] sunVec NaN");
+                if (v) sunVectors.push(v);
+              }
+            }
+          }
+        }
+        if (sunVectors.length === 0) {
+          trace.reason = "no sun vectors in 3°–15° (winter 21 Jan/Dec 8h–16h)";
+          trace.sunVectorsCount = 0;
+          if (typeof console !== "undefined" && console.log) console.log("[NEAR_WORSTCASE_TRACE]", JSON.stringify(trace));
+          return { error: "no sun vectors (elev 3–15°)", perPanel: [], totalLossPct: 0 };
+        }
+        trace.sunVectorsCount = sunVectors.length;
+
+        var getZWorldAtXY = (typeof getHeightAtImgPoint === "function")
+          ? function (x, y) { return getHeightAtImgPoint({ x: x, y: y }); }
+          : undefined;
+        var useZLocal = typeof getHeightAtImgPoint === "function";
+        var worstMpp = (CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.scale && typeof CALPINAGE_STATE.roof.scale.metersPerPixel === "number" && CALPINAGE_STATE.roof.scale.metersPerPixel > 0 && Number.isFinite(CALPINAGE_STATE.roof.scale.metersPerPixel))
+          ? CALPINAGE_STATE.roof.scale.metersPerPixel
+          : 1;
+        var result = window.nearShadingCore.computeNearShading({
+          panels: panels,
+          obstacles: nearObstacles,
+          sunVectors: sunVectors,
+          getZWorldAtXY: getZWorldAtXY,
+          useZLocal: useZLocal,
+          metersPerPixel: worstMpp
+        });
+        var totalLossPct = (result && typeof result.totalLossPct === "number") ? result.totalLossPct : 0;
+        trace.totalLossPct = totalLossPct;
+        if (totalLossPct === 0 && nearObstacles.length > 0) trace.reason = "obstacle(s) present but loss 0 (e.g. obstacle north or far)";
+        else if (totalLossPct === 0) trace.reason = "no obstacles";
+        if (typeof console !== "undefined" && console.log) console.log("[NEAR_WORSTCASE_TRACE]", JSON.stringify(trace));
+
+        return {
+          perPanel: (result && result.perPanel) ? result.perPanel.map(function (p) {
+            return { panelId: p.panelId, lossPct: p.lossPct, shadedFractionAvg: p.shadedFractionAvg };
+          }) : [],
+          totalLossPct: totalLossPct
+        };
       };
 
       window.applyShadingToEnergyProduction = function (annualKWh) {
         if (typeof annualKWh !== "number") return annualKWh;
         const shading = CALPINAGE_STATE.shading?.normalized;
-        if (!shading || typeof shading.totalLossPct !== "number") return annualKWh;
-        const lossFactor = 1 - Math.min(Math.max(shading.totalLossPct, 0), 100) / 100;
+        const pct = shading ? getOfficialGlobalShadingLossPctOr(shading, 0) : 0;
+        if (typeof pct !== "number") return annualKWh;
+        const lossFactor = 1 - Math.min(Math.max(pct, 0), 100) / 100;
         return annualKWh * lossFactor;
+      };
+
+      /** API unique pour calcul ombrage (Analyse Ombres ou Valider en silent). Même pipeline que le bouton Analyse Ombres. */
+      window.runCalpinageShading = function (opts) {
+        opts = opts || {};
+        var silent = opts.silent === true;
+        try {
+          if (!window.computeCalpinageShading) return Promise.resolve({ ok: false, normalized: null });
+          var raw = window.computeCalpinageShading();
+          if (raw && typeof window.normalizeCalpinageShading === "function") window.normalizeCalpinageShading();
+          var normalized = (window.CALPINAGE_STATE && window.CALPINAGE_STATE.shading && window.CALPINAGE_STATE.shading.normalized)
+            ? window.CALPINAGE_STATE.shading.normalized
+            : null;
+          return Promise.resolve({ ok: !!normalized, normalized: normalized });
+        } catch (e) {
+          return Promise.reject(e);
+        }
       };
 
       /** État pour le comportement DP2 (pose, ghost, snap, sélection, drag, rotation). Aucun state.panels : source de vérité = blocs calpinage via adapter. */
@@ -2225,16 +3476,9 @@ export function initCalpinage(container, options = {}) {
 
       /** Mappe spacing UI vers axes moteur selon orientation : portrait = swap (panneaux→along), paysage = passthrough. */
       function mapSpacingForOrientation(rules, orientation) {
-        var orient = (orientation || "").toString().toUpperCase();
-        if (orient === "PAYSAGE" || orient === "LANDSCAPE") {
-          return {
-            spacingXcm: Number(rules && rules.spacingXcm) || 0,
-            spacingYcm: Number(rules && rules.spacingYcm) || 0,
-          };
-        }
         return {
-          spacingXcm: Number(rules && rules.spacingYcm) || 0,
-          spacingYcm: Number(rules && rules.spacingXcm) || 0,
+          spacingXcm: Number(rules && rules.spacingXcm) || 0,
+          spacingYcm: Number(rules && rules.spacingYcm) || 0,
         };
       }
 
@@ -2269,8 +3513,11 @@ export function initCalpinage(container, options = {}) {
       window.PV_LAYOUT_STATE = PV_LAYOUT_FLOW.ADD;
 
       /** Entre beginManipulation() et commitManipulation() : aucun recalcul, clearSelection, endBlock, save ou render global. */
+      window.__FORCE_PV_MANIP_LOCK__ = false;
       window.CALPINAGE_IS_MANIPULATING = false;
       var calpinageHandleDrag = null;
+      /** Réentrance finalize Phase 3 poignées (sync lostpointercapture / pointerup théorique) */
+      var __pvPh3HandleFinalizeDepth = 0;
 
       /**
        * DATA SHAPE: Extension toiture (chien assis / dormer).
@@ -2809,6 +4056,25 @@ export function initCalpinage(container, options = {}) {
       }
 
       /**
+       * Résolution unique Wc panneau — alignée sur backend/utils/resolvePanelPowerWc.js
+       * Ordre : power_wc, powerWc, power_w, powerWp ; > 50 W ; null si absent (pas de 485 ici).
+       */
+      function resolvePanelPowerWc(panel) {
+        if (!panel || typeof panel !== "object") return null;
+        var keys = ["power_wc", "powerWc", "power_w", "powerWp"];
+        for (var i = 0; i < keys.length; i++) {
+          var k = keys[i];
+          if (!Object.prototype.hasOwnProperty.call(panel, k)) continue;
+          var v = panel[k];
+          if (v == null || v === "") continue;
+          var n = Number(String(v).replace(",", "."));
+          if (!Number.isFinite(n) || n <= 50) continue;
+          return n;
+        }
+        return null;
+      }
+
+      /**
        * Construit PV_SELECTED_PANEL ? partir d'un panneau API (format: id, brand, name, model_ref, power_wc, efficiency_pct, width_mm, height_mm).
        * @param {Object} apiPanel - ?l?ment de SOLARNEXT_PANELS
        * @returns {Object|null}
@@ -2872,12 +4138,356 @@ export function initCalpinage(container, options = {}) {
         }
         return true;
       }
+      /** Config par défaut — toiture plate (V1). */
+      var DEFAULT_FLAT_ROOF_CONFIG = {
+        supportTiltDeg: 10,
+        layoutOrientation: "portrait",
+        setbackRoofEdgeCm: 60,
+        setbackObstacleCm: 60,
+        rowSpacingCm: 25,
+        colSpacingCm: 2,
+      };
+
+      function normalizeFlatRoofConfig(fc) {
+        fc = fc && typeof fc === "object" ? fc : {};
+        var st = Number(fc.supportTiltDeg);
+        var supportTiltDeg = (st === 5 || st === 10 || st === 15) ? st : DEFAULT_FLAT_ROOF_CONFIG.supportTiltDeg;
+        var lo = (fc.layoutOrientation != null ? String(fc.layoutOrientation) : "").toLowerCase();
+        var layoutOrientation = (lo === "landscape" || lo === "paysage") ? "landscape" : "portrait";
+        function numCm(k, def) {
+          var v = Number(fc[k]);
+          return Number.isFinite(v) && v >= 0 ? v : def;
+        }
+        return {
+          supportTiltDeg: supportTiltDeg,
+          layoutOrientation: layoutOrientation,
+          setbackRoofEdgeCm: numCm("setbackRoofEdgeCm", DEFAULT_FLAT_ROOF_CONFIG.setbackRoofEdgeCm),
+          setbackObstacleCm: numCm("setbackObstacleCm", DEFAULT_FLAT_ROOF_CONFIG.setbackObstacleCm),
+          rowSpacingCm: numCm("rowSpacingCm", DEFAULT_FLAT_ROOF_CONFIG.rowSpacingCm),
+          colSpacingCm: numCm("colSpacingCm", DEFAULT_FLAT_ROOF_CONFIG.colSpacingCm),
+        };
+      }
+
+      /** Axes stables d’implantation (première arête non dégénérée du polygone). */
+      function computeFlatRoofFieldAxesFromPolygon(poly) {
+        if (!poly || poly.length < 2) return null;
+        for (var ei = 0; ei < poly.length; ei++) {
+          var a = poly[ei], b = poly[(ei + 1) % poly.length];
+          var ax = a.x != null ? a.x : a[0], ay = a.y != null ? a.y : a[1];
+          var bx = b.x != null ? b.x : b[0], by = b.y != null ? b.y : b[1];
+          var dx = bx - ax, dy = by - ay;
+          var len = Math.hypot(dx, dy);
+          if (len < 1e-6) continue;
+          var perpAxis = { x: dx / len, y: dy / len };
+          var slopeAxis = { x: -perpAxis.y, y: perpAxis.x };
+          return { trueSlopeAxis: slopeAxis, truePerpAxis: perpAxis };
+        }
+        return null;
+      }
+
+      /** FLAT : roofOrientationDeg aligné sur trueSlopeAxis fixe (convention panelProjection : sin(az), -cos(az)). */
+      function flatRoofOrientationDegFromFieldAxes(fieldAx) {
+        if (!fieldAx || !fieldAx.trueSlopeAxis) return null;
+        var sx = fieldAx.trueSlopeAxis.x, sy = fieldAx.trueSlopeAxis.y;
+        var h = Math.hypot(sx, sy);
+        if (h < 1e-9) return null;
+        var deg = (Math.atan2(sx / h, -sy / h) * 180) / Math.PI;
+        return ((deg % 360) + 360) % 360;
+      }
+
+      /**
+       * Debug / export uniquement — NE PAS alimenter getProjectionContextForPan (repère moteur FLAT = polygone fixe + block.rotation).
+       * Axes + azimut depuis la projection du premier panneau posé (focus → actif → figés).
+       */
+      function tryResolveFlatAxesFromPlacedPanels(panId) {
+        var ENG = typeof window !== "undefined" ? window.pvPlacementEngine : null;
+        if (!ENG || panId == null || String(panId) === "") return null;
+        var pid = String(panId);
+        function axesFromBlock(block) {
+          if (!block || String(block.panId || "") !== pid || !Array.isArray(block.panels)) return null;
+          for (var i = 0; i < block.panels.length; i++) {
+            var panP = block.panels[i];
+            if (panP && panP.enabled === false) continue;
+            var proj = typeof ENG.getEffectivePanelProjection === "function" ? ENG.getEffectivePanelProjection(block, i) : (panP && panP.projection);
+            if (!proj || typeof proj.slopeAxis.x !== "number" || typeof proj.slopeAxis.y !== "number") continue;
+            if (typeof proj.perpAxis.x !== "number" || typeof proj.perpAxis.y !== "number") continue;
+            var ns = Math.hypot(proj.slopeAxis.x, proj.slopeAxis.y);
+            var np = Math.hypot(proj.perpAxis.x, proj.perpAxis.y);
+            if (ns < 1e-9 || np < 1e-9) continue;
+            var tsx = proj.slopeAxis.x / ns, tsy = proj.slopeAxis.y / ns;
+            var px = proj.perpAxis.x / np, py = proj.perpAxis.y / np;
+            var deg = (Math.atan2(tsx, -tsy) * 180) / Math.PI;
+            deg = ((deg % 360) + 360) % 360;
+            return {
+              trueSlopeAxis: { x: tsx, y: tsy },
+              truePerpAxis: { x: px, y: py },
+              roofOrientationDeg: deg,
+            };
+          }
+          return null;
+        }
+        var focus = ENG.getFocusBlock && ENG.getFocusBlock();
+        var out = axesFromBlock(focus);
+        if (out) return out;
+        var active = ENG.getActiveBlock && ENG.getActiveBlock();
+        if (active && (!focus || active.id !== focus.id)) {
+          out = axesFromBlock(active);
+          if (out) return out;
+        }
+        var frozen = ENG.getFrozenBlocks && ENG.getFrozenBlocks();
+        if (Array.isArray(frozen)) {
+          for (var fi = 0; fi < frozen.length; fi++) {
+            out = axesFromBlock(frozen[fi]);
+            if (out) return out;
+          }
+        }
+        return null;
+      }
+      try {
+        if (typeof window !== "undefined") window.__tryResolveFlatAxesFromPlacedPanels = tryResolveFlatAxesFromPlacedPanels;
+      } catch (_w) {}
+
+      /**
+       * Lot 1 — Identité pan : seule comparaison autorisée dans les chemins migrés.
+       */
+      function samePanId(a, b) {
+        if (a == null || b == null) return false;
+        return String(a) === String(b);
+      }
+
+      function findValidatedPanById(data, panId) {
+        if (!data || !data.pans || panId == null) return null;
+        for (var _vi = 0; _vi < data.pans.length; _vi++) {
+          var _vp = data.pans[_vi];
+          if (_vp && samePanId(_vp.id, panId)) return _vp;
+        }
+        return null;
+      }
+
+      function normalizePanIdForWrite(panId) {
+        if (panId == null || panId === "") return null;
+        return String(panId);
+      }
+
+      /**
+       * Lot 1 — Contexte Phase 3 canonique : priorité focusBlock.panId, sinon phase3.activePanId (+ miroirs legacy si besoin).
+       */
+      function resolvePhase3Context(state) {
+        state = state || CALPINAGE_STATE;
+        var ENG = typeof window !== "undefined" ? window.pvPlacementEngine : null;
+        var focusBlock = ENG && typeof ENG.getFocusBlock === "function" ? ENG.getFocusBlock() : null;
+        var explicit = state.phase3 && state.phase3.activePanId != null && state.phase3.activePanId !== ""
+          ? String(state.phase3.activePanId)
+          : null;
+        var vrdEarly = state.validatedRoofData;
+        var explicitKnown = false;
+        if (explicit) {
+          if (getLivePanByIdFromState(explicit)) explicitKnown = true;
+          else if (vrdEarly && vrdEarly.pans && findValidatedPanById(vrdEarly, explicit)) explicitKnown = true;
+        }
+        var activePanId = null;
+        /* Sélection explicite Phase 3 (liste / sidebar) avant le focus moteur : évite panId obsolète ou bloc résiduel. */
+        if (explicitKnown && explicit) {
+          activePanId = explicit;
+        } else if (focusBlock && focusBlock.panId != null && focusBlock.panId !== "") {
+          activePanId = String(focusBlock.panId);
+        } else if (explicit) {
+          activePanId = explicit;
+        } else {
+          var leg = state.selectedPanId;
+          if ((leg == null || leg === "") && typeof CalpinagePans !== "undefined" && CalpinagePans.panState && CalpinagePans.panState.activePanId != null) {
+            leg = CalpinagePans.panState.activePanId;
+          }
+          activePanId = leg != null && leg !== "" ? String(leg) : null;
+        }
+        var livePan = null;
+        var pans = state.pans || [];
+        for (var pi = 0; pi < pans.length; pi++) {
+          if (pans[pi] && pans[pi].id != null && activePanId != null && samePanId(pans[pi].id, activePanId)) {
+            livePan = pans[pi];
+            break;
+          }
+        }
+        var validatedPan = null;
+        var vrd = state.validatedRoofData;
+        if (vrd && vrd.pans && activePanId) {
+          for (var vi = 0; vi < vrd.pans.length; vi++) {
+            var vp = vrd.pans[vi];
+            if (vp && vp.id != null && samePanId(vp.id, activePanId)) {
+              validatedPan = vp;
+              break;
+            }
+          }
+        }
+        var roofTypeEffectiveForUi = "PITCHED";
+        if (livePan && livePan.roofType === "FLAT") roofTypeEffectiveForUi = "FLAT";
+        else if (!livePan && validatedPan && validatedPan.roofType === "FLAT") roofTypeEffectiveForUi = "FLAT";
+        return {
+          activePanId: activePanId,
+          livePan: livePan,
+          validatedPan: validatedPan,
+          focusBlock: focusBlock,
+          roofTypeEffectiveForUi: roofTypeEffectiveForUi,
+          isFlat: roofTypeEffectiveForUi === "FLAT",
+        };
+      }
+
+      /**
+       * Lot 1 — Projection UI (toit plat, slot, contexte pan) : une seule lecture pour sync Phase 3.
+       */
+      function projectCalpinageUi(state) {
+        state = state || CALPINAGE_STATE;
+        var ctx = resolvePhase3Context(state);
+        var inPvLayout = state.currentPhase === "PV_LAYOUT";
+        var hasPanCtx = !!ctx.activePanId && !!(ctx.livePan || ctx.validatedPan);
+        return {
+          activePanId: ctx.activePanId,
+          hasPanCtx: hasPanCtx,
+          inPvLayout: inPvLayout,
+          showFlatPanel: inPvLayout && ctx.isFlat,
+          showFlatEnableWrap: inPvLayout && hasPanCtx && !ctx.isFlat,
+          roofTypeEffectiveForUi: ctx.roofTypeEffectiveForUi,
+          livePan: ctx.livePan,
+          validatedPan: ctx.validatedPan,
+          focusBlock: ctx.focusBlock,
+          isFlat: ctx.isFlat,
+        };
+      }
+
+      /**
+       * Lot 1 — Setter pan courant Phase 3 : en PV_LAYOUT, défocus bloc puis met à jour nid + miroirs legacy.
+       */
+      function setPhase3ActivePan(panId, reason, opts) {
+        opts = opts || {};
+        var st = CALPINAGE_STATE;
+        if (!st.phase3) st.phase3 = { activePanId: null };
+        var nid = normalizePanIdForWrite(panId);
+        /* Changer de pan (action utilisateur) : défocus si bloc focus. Initialisation ensurePhase3 : skipDefocus pour ne pas casser restore/load. */
+        if (st.currentPhase === "PV_LAYOUT" && nid != null && !opts.skipDefocus) {
+          var ENG = window.pvPlacementEngine;
+          if (ENG && typeof ENG.getFocusBlock === "function" && ENG.getFocusBlock()) {
+            if (typeof ENG.clearSelection === "function") ENG.clearSelection();
+          }
+        }
+        st.phase3.activePanId = nid;
+        st.selectedPanId = nid;
+        if (typeof CalpinagePans !== "undefined" && CalpinagePans.panState) CalpinagePans.panState.activePanId = nid;
+        if (typeof window !== "undefined") {
+          window.__CALPINAGE_PHASE3_ACTIVE_REASON__ = reason || "";
+        }
+      }
+
+      if (typeof window !== "undefined") {
+        window.samePanId = samePanId;
+        window.resolvePhase3Context = resolvePhase3Context;
+        window.projectCalpinageUi = projectCalpinageUi;
+        window.setPhase3ActivePan = setPhase3ActivePan;
+        window.ensurePhase3InitialPanOnEnter = ensurePhase3InitialPanOnEnter;
+      }
+      if (typeof cleanupTasks !== "undefined" && cleanupTasks && cleanupTasks.push) {
+        cleanupTasks.push(function () {
+          try {
+            if (typeof window !== "undefined") {
+              delete window.samePanId;
+              delete window.resolvePhase3Context;
+              delete window.projectCalpinageUi;
+              delete window.setPhase3ActivePan;
+              delete window.ensurePhase3InitialPanOnEnter;
+              delete window.__CALPINAGE_PHASE3_ACTIVE_REASON__;
+            }
+          } catch (_cl) {}
+        });
+      }
+
+      function getLivePanByIdFromState(panId) {
+        var list = CALPINAGE_STATE.pans || [];
+        for (var i = 0; i < list.length; i++) {
+          if (list[i] && samePanId(list[i].id, panId)) return list[i];
+        }
+        return null;
+      }
+
+      /**
+       * Phase 3 : si aucun pan courant valide alors que des pans existent, initialiser sans ambiguïté multi-pans.
+       * - 1 pan live → pan courant unique.
+       * - N pans → reprendre selectedPanId seulement s'il référence un pan live ; sinon laisser l'utilisateur choisir.
+       */
+      function ensurePhase3InitialPanOnEnter(reason) {
+        var st = CALPINAGE_STATE;
+        if (st.currentPhase !== "PV_LAYOUT") return;
+        if (!st.phase3) st.phase3 = { activePanId: null };
+        var pans = st.pans || [];
+        var withId = [];
+        for (var i = 0; i < pans.length; i++) {
+          if (pans[i] && pans[i].id != null && pans[i].id !== "") withId.push(pans[i]);
+        }
+        if (withId.length === 0) return;
+        var cur = st.phase3.activePanId;
+        if (cur != null && getLivePanByIdFromState(cur)) return;
+        if (withId.length === 1) {
+          setPhase3ActivePan(withId[0].id, (reason || "phase3-enter") + "-sole-pan", { skipDefocus: true });
+          return;
+        }
+        var sel = st.selectedPanId;
+        if (sel != null && getLivePanByIdFromState(sel)) {
+          setPhase3ActivePan(sel, (reason || "phase3-enter") + "-preserve-selected", { skipDefocus: true });
+        }
+      }
+
+      /** Pan exploitable sans faîtage : validation uniquement — roofType PITCHED ; FLAT = action utilisateur explicite. */
+      function buildFlatPanFromFirstClosedContour(state) {
+        state = state || CALPINAGE_STATE;
+        var contours = (state.contours || []).filter(function (c) { return c && c.roofRole !== "chienAssis"; });
+        for (var i = 0; i < contours.length; i++) {
+          var c = contours[i];
+          if (!c || !c.points || c.points.length < 3 || c.closed === false) continue;
+          var pts = c.points.map(function (p) { return { x: typeof p.x === "number" ? p.x : 0, y: typeof p.y === "number" ? p.y : 0 }; });
+          return {
+            id: "pan-flat-1",
+            name: "Pan (sans faîtage)",
+            polygon: pts,
+            points: pts,
+            ridgeIds: [],
+            traitIds: [],
+            obstacles: [],
+            tiltDeg: 0,
+            orientationDeg: 180,
+            azimuthDeg: 180,
+            roofType: "PITCHED",
+          };
+        }
+        return null;
+      }
+
+      /** Orientation initiale bloc / règles création : toiture plate → flatRoofConfig, sinon barre globale. */
+      function getDefaultBlockOrientationEngineForPan(pan) {
+        if (pan && pan.roofType === "FLAT" && pan.flatRoofConfig) {
+          var fc = normalizeFlatRoofConfig(pan.flatRoofConfig);
+          return fc.layoutOrientation === "landscape" ? "PAYSAGE" : "PORTRAIT";
+        }
+        var rules = window.PV_LAYOUT_RULES || {};
+        var uiOrientation = rules.orientation;
+        var isLand =
+          typeof uiOrientation === "string" &&
+          (uiOrientation.toLowerCase() === "landscape" || uiOrientation.toLowerCase() === "paysage");
+        return isLand ? "PAYSAGE" : "PORTRAIT";
+      }
+
       /** Peut-on activer le bouton "Valider le relevé toiture" : contour valide + au moins un pan. Les hauteurs sont informatives (orange/vert), jamais bloquantes. */
       function canValidateRoofSurvey() {
         if (CALPINAGE_STATE.roofSurveyLocked) return false;
         if (!isContourValid()) return false;
         computePansFromGeometry();
-        if ((CALPINAGE_STATE.pans || []).length < 1) return false;
+        var pans = CALPINAGE_STATE.pans || [];
+        if (pans.length < 1) {
+          var flatPan = buildFlatPanFromFirstClosedContour(CALPINAGE_STATE);
+          if (flatPan) {
+            if (!CALPINAGE_STATE.pans) CALPINAGE_STATE.pans = [];
+            CALPINAGE_STATE.pans.push(flatPan);
+            return true;
+          }
+          return false;
+        }
         return true;
       }
       /** Aire du polygone 2D en m?? (points en image, scale = m/px). */
@@ -2892,7 +4502,56 @@ export function initCalpinage(container, options = {}) {
         areaPx2 = Math.abs(areaPx2) * 0.5;
         return areaPx2 * metersPerPixel * metersPerPixel;
       }
-      /** Construit le snapshot fig? de la toiture (un pan par entr?e) pour la Phase 3. */
+      /** Enrichit les pans avec la structure officielle multi-pente (SOURCE UNIQUE). Use pans[] instead of global orientation/tilt/panelCount. */
+      function enrichPansWithOfficialFieldsInline(pansList, getPanelsFn, shadingNorm) {
+        if (!Array.isArray(pansList) || pansList.length === 0) return pansList;
+        var panels = typeof getPanelsFn === "function" ? getPanelsFn() : [];
+        var perPanelLoss = {};
+        if (shadingNorm && Array.isArray(shadingNorm.perPanel)) {
+          shadingNorm.perPanel.forEach(function (p) {
+            var id = p.panelId != null ? p.panelId : p.id;
+            if (id != null && typeof p.lossPct === "number" && !Number.isNaN(p.lossPct)) perPanelLoss[String(id)] = p.lossPct;
+          });
+        }
+        var gpsBlocked = !!(shadingNorm && ((shadingNorm.shadingQuality && shadingNorm.shadingQuality.blockingReason === "missing_gps") || (shadingNorm.far && shadingNorm.far.source === "UNAVAILABLE_NO_GPS")));
+        var globalNear = gpsBlocked ? null : ((shadingNorm && shadingNorm.near && typeof shadingNorm.near.totalLossPct === "number") ? shadingNorm.near.totalLossPct : (typeof (shadingNorm && shadingNorm.nearLossPct) === "number" ? shadingNorm.nearLossPct : 0));
+        var globalFar = gpsBlocked ? null : ((shadingNorm && shadingNorm.far && typeof shadingNorm.far.totalLossPct === "number") ? shadingNorm.far.totalLossPct : (typeof (shadingNorm && shadingNorm.farLossPct) === "number" ? shadingNorm.farLossPct : 0));
+        var globalCombined = gpsBlocked ? null : getOfficialGlobalShadingLossPctOr(shadingNorm, 0);
+        var panelsByPanId = {};
+        panels.forEach(function (panel) {
+          var panId = panel.panId != null ? panel.panId : (panel.pan_id != null ? panel.pan_id : null);
+          if (panId == null) return;
+          if (!panelsByPanId[panId]) panelsByPanId[panId] = [];
+          panelsByPanId[panId].push(panel);
+        });
+        function safeNum(v, fallback) { return (typeof v === "number" && Number.isFinite(v) && !Number.isNaN(v)) ? v : fallback; }
+        return pansList.map(function (p) {
+          var panId = p.id;
+          var panelList = panelsByPanId[panId] || [];
+          var panelCount = panelList.length;
+          var shadingCombinedPct = globalCombined;
+          if (panelList.length > 0 && Object.keys(perPanelLoss).length > 0) {
+            var sum = 0, n = 0;
+            panelList.forEach(function (panel) {
+              var loss = perPanelLoss[String(panel.id)];
+              if (typeof loss === "number") { sum += loss; n += 1; }
+            });
+            if (n > 0) shadingCombinedPct = sum / n;
+          }
+          return Object.assign({}, p, {
+            azimuth: safeNum(p.orientationDeg != null ? p.orientationDeg : p.azimuthDeg, 180),
+            tilt: safeNum(p.tiltDeg != null ? p.tiltDeg : p.tilt, 0),
+            panelCount: panelCount,
+            surface: safeNum(p.surfaceM2 != null ? p.surfaceM2 : p.surface, 0),
+            geometryRef: panId,
+            shadingNearPct: globalNear,
+            shadingFarPct: globalFar,
+            shadingCombinedPct: shadingCombinedPct
+          });
+        });
+      }
+
+      /** Construit le snapshot figé de la toiture (un pan par entrée) pour la Phase 3. pans[] = SOURCE UNIQUE (orientation, tilt, panelCount, surface, shading). */
       function buildValidatedRoofData() {
         ensurePanPointsWithHeights();
         if (window.CalpinagePans && CalpinagePans.recomputeAllPanPhysicalProps && CALPINAGE_STATE.pans.length) {
@@ -2900,48 +4559,132 @@ export function initCalpinage(container, options = {}) {
         }
         var mpp = (CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.scale && CALPINAGE_STATE.roof.scale.metersPerPixel) || 1;
         var pans = CALPINAGE_STATE.pans || [];
+        var rawPans = pans.map(function (p) {
+          var poly = p.points || p.polygon || [];
+          var pts = poly.map(function (pt) { return { x: pt.x, y: pt.y }; });
+          var orientationDeg = (p.physical && p.physical.orientation && typeof p.physical.orientation.azimuthDeg === "number") ? p.physical.orientation.azimuthDeg : (p.azimuthDeg != null ? p.azimuthDeg : null);
+          var tiltDeg = (p.physical && p.physical.slope && typeof p.physical.slope.valueDeg === "number") ? p.physical.slope.valueDeg : (p.tiltDeg != null ? p.tiltDeg : null);
+          var slopeDirectionLabel = (p.physical && p.physical.slopeDirectionLabel != null) ? p.physical.slopeDirectionLabel : null;
+          var roofType = p.roofType === "FLAT" ? "FLAT" : "PITCHED";
+          var row = {
+            id: p.id,
+            name: p.name,
+            orientationDeg: orientationDeg,
+            tiltDeg: tiltDeg,
+            slopeDirectionLabel: slopeDirectionLabel,
+            surfaceM2: polygonAreaM2(pts, mpp),
+            polygon: pts.slice(),
+            ridgeIds: (p.ridgeIds || []).slice(),
+            traitIds: (p.traitIds || []).slice(),
+            obstacleIds: (p.obstacles || []).slice(),
+            roofType: roofType,
+          };
+          if (roofType === "FLAT") {
+            row.flatRoofConfig = normalizeFlatRoofConfig(p.flatRoofConfig);
+          }
+          return row;
+        });
+        var getPanelsFn = (window.pvPlacementEngine && typeof window.pvPlacementEngine.getAllPanels === "function") ? function () { return window.pvPlacementEngine.getAllPanels(); } : function () { return []; };
+        var shadingNorm = (CALPINAGE_STATE.shading && CALPINAGE_STATE.shading.normalized) ? CALPINAGE_STATE.shading.normalized : null;
+        var pansWithOfficial = enrichPansWithOfficialFieldsInline(rawPans, getPanelsFn, shadingNorm);
         return {
-          pans: pans.map(function (p) {
-            var poly = p.points || p.polygon || [];
-            var pts = poly.map(function (pt) { return { x: pt.x, y: pt.y }; });
-            var orientationDeg = (p.physical && p.physical.orientation && typeof p.physical.orientation.azimuthDeg === "number") ? p.physical.orientation.azimuthDeg : (p.azimuthDeg != null ? p.azimuthDeg : null);
-            var tiltDeg = (p.physical && p.physical.slope && typeof p.physical.slope.valueDeg === "number") ? p.physical.slope.valueDeg : (p.tiltDeg != null ? p.tiltDeg : null);
-            var slopeDirectionLabel = (p.physical && p.physical.slopeDirectionLabel != null) ? p.physical.slopeDirectionLabel : null;
-            return {
-              id: p.id,
-              name: p.name,
-              orientationDeg: orientationDeg,
-              tiltDeg: tiltDeg,
-              slopeDirectionLabel: slopeDirectionLabel,
-              surfaceM2: polygonAreaM2(pts, mpp),
-              polygon: pts.slice(),
-              ridgeIds: (p.ridgeIds || []).slice(),
-              traitIds: (p.traitIds || []).slice(),
-              obstacleIds: (p.obstacles || []).slice(),
-            };
-          }),
+          pans: pansWithOfficial,
           scale: CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.scale ? { metersPerPixel: CALPINAGE_STATE.roof.scale.metersPerPixel } : null,
           north: CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.roof ? CALPINAGE_STATE.roof.roof : null,
         };
       }
 
       /**
+       * Repère toit depuis faîtages réels (segments image Phase 2).
+       * truePerpAxis = direction du faîtage ; trueSlopeAxis = perpendiculaire (axe pente), même convention que computeProjectedPanelRect / computeTrueSlopeAxisFromPolygon.
+       * Règle multi-segments : direction du segment le plus long (stable). Signe du faîtage aligné sur la « face » (azimut).
+       * @returns {{ trueSlopeAxis: {x:number,y:number}, truePerpAxis: {x:number,y:number} } | null}
+       */
+      function computeRoofAxesFromRealRidgeSegments(ridgeSegments, roofOrientationDeg, slopeDirectionLabel) {
+        if (!ridgeSegments || ridgeSegments.length === 0) return null;
+        var bestLen = 0;
+        var ux = 1;
+        var uy = 0;
+        for (var si = 0; si < ridgeSegments.length; si++) {
+          var seg = ridgeSegments[si];
+          if (!seg || seg.length < 2) continue;
+          var pa = seg[0];
+          var pb = seg[1];
+          var ax = pa.x != null ? pa.x : pa[0];
+          var ay = pa.y != null ? pa.y : pa[1];
+          var bx = pb.x != null ? pb.x : pb[0];
+          var by = pb.y != null ? pb.y : pb[1];
+          var vx = bx - ax;
+          var vy = by - ay;
+          var len = Math.hypot(vx, vy);
+          if (len < 1e-6) continue;
+          if (len > bestLen) {
+            bestLen = len;
+            ux = vx / len;
+            uy = vy / len;
+          }
+        }
+        if (bestLen < 1e-6) return null;
+        var DEG_TO_RAD = Math.PI / 180;
+        var azRad = (Number.isFinite(roofOrientationDeg) ? roofOrientationDeg : 0) * DEG_TO_RAD;
+        var faceX = Math.sin(azRad);
+        var faceY = -Math.cos(azRad);
+        var sign = (ux * faceX + uy * faceY) >= 0 ? 1 : -1;
+        var truePerpAxis = { x: sign * ux, y: sign * uy };
+        var cand1 = { x: truePerpAxis.y, y: -truePerpAxis.x };
+        var cand2 = { x: -truePerpAxis.y, y: truePerpAxis.x };
+        var downX = 0;
+        var downY = 1;
+        if (slopeDirectionLabel && typeof slopeDirectionLabel === "string") {
+          var L = slopeDirectionLabel.toUpperCase().charAt(0);
+          if (L === "N") { downX = 0; downY = -1; }
+          else if (L === "S") { downX = 0; downY = 1; }
+          else if (L === "E") { downX = 1; downY = 0; }
+          else if (L === "O" || L === "W") { downX = -1; downY = 0; }
+        }
+        var d1 = cand1.x * downX + cand1.y * downY;
+        var d2 = cand2.x * downX + cand2.y * downY;
+        var trueSlopeAxis = d1 >= d2 ? cand1 : cand2;
+        return { trueSlopeAxis: trueSlopeAxis, truePerpAxis: truePerpAxis };
+      }
+
+      /**
        * Contexte toit uniquement (roofParams, roofPolygon, roofConstraints).
        * Aucune dimension panneau — getProjectionContextForBlock est la seule source pour panelParams.
        */
-      function getProjectionContextForPan(panId) {
-        if (window.CALPINAGE_IS_MANIPULATING) return null;
+      function getProjectionContextForPan(panId, opts) {
+        opts = opts || {};
+        if (!opts.allowDuringManipulation && window.CALPINAGE_IS_MANIPULATING) return null;
         var data = CALPINAGE_STATE.validatedRoofData;
-        if (!data || !data.pans || !data.scale || !data.scale.metersPerPixel) return null;
-        var pan = data.pans.filter(function (p) { return p.id === panId; })[0];
+        if (!data || !data.pans) return null;
+        var mpp = (data.scale && Number.isFinite(data.scale.metersPerPixel)) ? data.scale.metersPerPixel : ((CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.scale && Number.isFinite(CALPINAGE_STATE.roof.scale.metersPerPixel)) ? CALPINAGE_STATE.roof.scale.metersPerPixel : null);
+        if (typeof mpp !== "number" || !Number.isFinite(mpp) || mpp <= 0) {
+          if (typeof window !== "undefined" && window.PV_LAYOUT_DEBUG === true) console.warn("[PV_LAYOUT][CTX_FAIL]", { panId: panId, reason: "mpp manquant ou invalide" });
+          return null;
+        }
+        var pan = findValidatedPanById(data, panId);
         if (!pan || !pan.polygon || pan.polygon.length < 3) return null;
         var rules = window.PV_LAYOUT_RULES;
         if (!rules) return null;
-        var mpp = data.scale.metersPerPixel;
+        var livePanMerge = getLivePanByIdFromState(pan.id);
+        var roofTypeEff = (livePanMerge && livePanMerge.roofType === "FLAT") || pan.roofType === "FLAT" ? "FLAT" : "PITCHED";
+        /* Source des ridgeIds : pan validé + priorité au pan « live » Phase 2 (même id) si ridgeIds non vides — aligné pose Phase 3 sur faîtage réel. */
+        var ridgeIdsForAxes = (Array.isArray(pan.ridgeIds) && pan.ridgeIds.length) ? pan.ridgeIds.slice() : [];
+        try {
+          var _stPans = CALPINAGE_STATE.pans || [];
+          for (var _lpi = 0; _lpi < _stPans.length; _lpi++) {
+            var _lp = _stPans[_lpi];
+            if (_lp && samePanId(_lp.id, pan.id) && Array.isArray(_lp.ridgeIds) && _lp.ridgeIds.length > 0) {
+              ridgeIdsForAxes = _lp.ridgeIds.slice();
+              break;
+            }
+          }
+        } catch (_ridgeIdErr) {}
+        var hasRidgeIdsForPan = ridgeIdsForAxes.length > 0;
         var ridgeSegments = [];
-        if (pan.ridgeIds && CALPINAGE_STATE.ridges) {
-          for (var ri = 0; ri < pan.ridgeIds.length; ri++) {
-            var r = CALPINAGE_STATE.ridges.filter(function (x) { return x.id === pan.ridgeIds[ri]; })[0];
+        if (hasRidgeIdsForPan && CALPINAGE_STATE.ridges) {
+          for (var ri = 0; ri < ridgeIdsForAxes.length; ri++) {
+            var r = CALPINAGE_STATE.ridges.filter(function (x) { return x.id === ridgeIdsForAxes[ri]; })[0];
             if (r && r.a && r.b && typeof resolveRidgePoint === "function") {
               var ra = resolveRidgePoint(r.a);
               var rb = resolveRidgePoint(r.b);
@@ -2970,18 +4713,87 @@ export function initCalpinage(container, options = {}) {
             }
           }
         }
-        var roofParams = {
-          roofSlopeDeg: Number.isFinite(pan.tiltDeg) ? pan.tiltDeg : 0,
-          roofOrientationDeg: Number.isFinite(pan.orientationDeg) ? pan.orientationDeg : 0,
-          metersPerPixel: mpp,
-        };
-        var computeTrueSlopeAxisFromPolygon = (typeof window !== "undefined" && window.computeTrueSlopeAxisFromPolygon) || (typeof global !== "undefined" && global.computeTrueSlopeAxisFromPolygon);
-        if (typeof computeTrueSlopeAxisFromPolygon === "function") {
-          var axes = computeTrueSlopeAxisFromPolygon(pan.polygon, pan.orientationDeg, pan.slopeDirectionLabel);
-          if (axes && axes.slopeAxis && axes.perpAxis) {
-            roofParams.trueSlopeAxis = axes.slopeAxis;
-            roofParams.truePerpAxis = axes.perpAxis;
+        var tiltDeg = Number.isFinite(pan.tiltDeg) ? pan.tiltDeg : 0;
+        var orientDeg = Number.isFinite(pan.orientationDeg) ? pan.orientationDeg : (pan.azimuthDeg != null && Number.isFinite(pan.azimuthDeg) ? pan.azimuthDeg : 180);
+
+        if (roofTypeEff === "FLAT") {
+          var fcCtx = normalizeFlatRoofConfig((livePanMerge && livePanMerge.flatRoofConfig) || pan.flatRoofConfig);
+          var fieldAx = computeFlatRoofFieldAxesFromPolygon(pan.polygon);
+          if (!fieldAx) {
+            fieldAx = { trueSlopeAxis: { x: 1, y: 0 }, truePerpAxis: { x: 0, y: 1 } };
           }
+          var orientFromPoly = flatRoofOrientationDegFromFieldAxes(fieldAx);
+          var orientDegFlat = orientFromPoly != null ? orientFromPoly : orientDeg;
+          var marginEdgeFlat = fcCtx.setbackRoofEdgeCm > 0 && mpp > 0 ? (fcCtx.setbackRoofEdgeCm / 100) / mpp : 0;
+          var obstacleMarginFlat = fcCtx.setbackObstacleCm > 0 && mpp > 0 ? (fcCtx.setbackObstacleCm / 100) / mpp : 0;
+          var roofParamsFlat = {
+            roofSlopeDeg: tiltDeg,
+            roofOrientationDeg: orientDegFlat,
+            metersPerPixel: mpp,
+            trueSlopeAxis: fieldAx.trueSlopeAxis,
+            truePerpAxis: fieldAx.truePerpAxis,
+            supportTiltDeg: fcCtx.supportTiltDeg,
+            roofType: "FLAT",
+          };
+          var roofConstraintsFlat = {
+            marginPx: marginEdgeFlat,
+            obstacleMarginPx: obstacleMarginFlat,
+            ridgeSegments: [],
+            traitSegments: [],
+            obstaclePolygons: obstaclePolygons,
+            roofPolygon: pan.polygon,
+          };
+          return {
+            roofPolygon: pan.polygon,
+            roofConstraints: roofConstraintsFlat,
+            roofParams: roofParamsFlat,
+            existingPanelsProjections: existingPanelsProjections,
+            flatRoofConfig: fcCtx,
+            roofType: "FLAT",
+          };
+        }
+
+        var roofParams = {
+          roofSlopeDeg: tiltDeg,
+          roofOrientationDeg: orientDeg,
+          metersPerPixel: mpp,
+          roofType: "PITCHED",
+        };
+        /* Axes : faîtage réel via pan.ridgeIds (segments résolus) en premier ; heuristique polygone seulement en repli (pas d’ids ou segments non résolus). */
+        var ridgeAxes = computeRoofAxesFromRealRidgeSegments(ridgeSegments, orientDeg, pan.slopeDirectionLabel);
+        if (ridgeAxes && ridgeAxes.trueSlopeAxis && ridgeAxes.truePerpAxis) {
+          roofParams.trueSlopeAxis = ridgeAxes.trueSlopeAxis;
+          roofParams.truePerpAxis = ridgeAxes.truePerpAxis;
+        } else {
+          var computeTrueSlopeAxisFromPolygon = (typeof window !== "undefined" && window.computeTrueSlopeAxisFromPolygon) || (typeof global !== "undefined" && global.computeTrueSlopeAxisFromPolygon);
+          if (typeof computeTrueSlopeAxisFromPolygon === "function") {
+            var axes = computeTrueSlopeAxisFromPolygon(pan.polygon, orientDeg, pan.slopeDirectionLabel);
+            if (axes && axes.slopeAxis && axes.perpAxis) {
+              roofParams.trueSlopeAxis = axes.slopeAxis;
+              roofParams.truePerpAxis = axes.perpAxis;
+            }
+          }
+        }
+        if (!roofParams.trueSlopeAxis || !roofParams.truePerpAxis) {
+          var poly = pan.polygon;
+          if (poly && poly.length >= 2) {
+            var maxLen = 0, bestAx = { x: 1, y: 0 }, bestPerp = { x: 0, y: 1 };
+            for (var ei = 0; ei < poly.length; ei++) {
+              var a = poly[ei], b = poly[(ei + 1) % poly.length];
+              var dx = b.x - a.x, dy = b.y - a.y;
+              var len = Math.hypot(dx, dy);
+              if (len > maxLen && len > 1e-6) {
+                maxLen = len;
+                bestAx = { x: dx / len, y: dy / len };
+                bestPerp = { x: -dy / len, y: dx / len };
+              }
+            }
+            roofParams.trueSlopeAxis = bestAx;
+            roofParams.truePerpAxis = bestPerp;
+          }
+        }
+        if (typeof window !== "undefined" && window.PV_LAYOUT_DEBUG === true && (!roofParams.trueSlopeAxis || !roofParams.truePerpAxis)) {
+          console.warn("[PV_LAYOUT][CTX_FAIL]", { panId: panId, missingTilt: !Number.isFinite(pan.tiltDeg), missingOrient: !Number.isFinite(pan.orientationDeg), usedFallback: true });
         }
         var traitSegments = [];
         var traits = CALPINAGE_STATE.traits || [];
@@ -3002,10 +4814,19 @@ export function initCalpinage(container, options = {}) {
       }
 
       /** Contexte de projection pour un bloc donn?: dimensions via getPanelDimensions, pvRules via getEffectiveLayoutRules. */
-      function getProjectionContextForBlock(block) {
+      function getProjectionContextForBlock(block, opts) {
         if (!block || !block.panId) return null;
-        var ctx = getProjectionContextForPan(block.panId);
+        var ctx = getProjectionContextForPan(block.panId, opts);
         if (!ctx || !ctx.roofParams) return null;
+        /* Rétrocompat : seuls les blocs explicitement useScreenAxes === true gardent le repère écran (anciens projets). */
+        if (block.useScreenAxes === true && ctx.roofParams) {
+          ctx = Object.assign({}, ctx, {
+            roofParams: Object.assign({}, ctx.roofParams, {
+              trueSlopeAxis: { x: 0, y: 1 },
+              truePerpAxis: { x: 1, y: 0 },
+            }),
+          });
+        }
         var rules = window.PV_LAYOUT_RULES;
         var blockOrient = (block.orientation === "PAYSAGE" || block.orientation === "landscape") ? "landscape" : "portrait";
         var blockOrientEngine = blockOrient === "landscape" ? "PAYSAGE" : "PORTRAIT";
@@ -3018,6 +4839,12 @@ export function initCalpinage(container, options = {}) {
           marginOuterCm: Number.isFinite(effRules.marginOuterCm) ? effRules.marginOuterCm : 0,
           orientation: effRules.orientation,
         };
+        if (ctx.roofType === "FLAT" && ctx.flatRoofConfig) {
+          var fcbPv = normalizeFlatRoofConfig(ctx.flatRoofConfig);
+          pvRules.spacingXcm = fcbPv.colSpacingCm;
+          pvRules.spacingYcm = fcbPv.rowSpacingCm;
+          pvRules.marginOuterCm = fcbPv.setbackRoofEdgeCm;
+        }
         var out = Object.assign({}, ctx, { pvRules: pvRules });
         if (dims && Number.isFinite(dims.widthM) && Number.isFinite(dims.heightM)) {
           /* panelOrientation reflète block.orientation (pas de hardcode) — dimensions effectives suivent. */
@@ -3107,7 +4934,7 @@ export function initCalpinage(container, options = {}) {
         return null;
       }
 
-      /** Reconstruit CALPINAGE_STATE.placedPanels ? partir des blocs fig?s uniquement. ?? appeler apr?s endBlock ou removeBlock. */
+      /** Reconstruit CALPINAGE_STATE.placedPanels ? partir des blocs fig?s uniquement. ?? appeler apr?s endBlock ou removeBlock. Exposé pour ensurePlacementEngineReadyForShading(). */
       function syncPlacedPanelsFromBlocks() {
         var ENG = window.pvPlacementEngine;
         if (!ENG || typeof ENG.getFrozenBlocks !== "function") return;
@@ -3125,6 +4952,7 @@ export function initCalpinage(container, options = {}) {
           }
         }
       }
+      window.syncPlacedPanelsFromBlocks = syncPlacedPanelsFromBlocks;
 
       /** Recalcule projections + ghosts du bloc actif (replace, jamais concat). Appelé par onOrientationChange. */
       function recomputeActiveBlockProjectionsAndGhosts(pivotPanelId) {
@@ -3134,20 +4962,101 @@ export function initCalpinage(container, options = {}) {
         recomputeAllPlacementBlocksFromRules(true, pivotPanelId);
       }
 
+      /** Aligne colSpacingCm / rowSpacingCm sur PV_LAYOUT_RULES pour chaque pan FLAT (menu Phase 3 = même source que toit incliné). */
+      function syncFlatRoofSpacingFromPvLayoutRules() {
+        var rules = window.PV_LAYOUT_RULES;
+        if (!rules) return false;
+        var sx = Number(rules.spacingXcm);
+        var sy = Number(rules.spacingYcm);
+        if (!Number.isFinite(sx) || sx < 0) sx = 0;
+        if (!Number.isFinite(sy) || sy < 0) sy = 0;
+        var list = CALPINAGE_STATE.pans || [];
+        var any = false;
+        for (var i = 0; i < list.length; i++) {
+          var p = list[i];
+          if (!p || p.roofType !== "FLAT") continue;
+          p.flatRoofConfig = normalizeFlatRoofConfig(Object.assign({}, p.flatRoofConfig || {}, {
+            colSpacingCm: sx,
+            rowSpacingCm: sy,
+          }));
+          any = true;
+        }
+        return any;
+      }
+
+      /** Aligne setbackRoofEdgeCm et setbackObstacleCm sur PV_LAYOUT_RULES.marginOuterCm pour chaque pan FLAT (une seule marge utilisateur = contour + obstacles / keepouts côté moteur). */
+      function syncFlatRoofMarginFromPvLayoutRules() {
+        var rules = window.PV_LAYOUT_RULES;
+        if (!rules) return false;
+        var m = Number(rules.marginOuterCm);
+        if (!Number.isFinite(m) || m < 0) m = 0;
+        var list = CALPINAGE_STATE.pans || [];
+        var any = false;
+        for (var i = 0; i < list.length; i++) {
+          var p = list[i];
+          if (!p || p.roofType !== "FLAT") continue;
+          p.flatRoofConfig = normalizeFlatRoofConfig(Object.assign({}, p.flatRoofConfig || {}, {
+            setbackRoofEdgeCm: m,
+            setbackObstacleCm: m,
+          }));
+          any = true;
+        }
+        return any;
+      }
+
+      /**
+       * Applique les règles PV (spacing/marge) : recompute tous les blocs + redraw. À appeler après modification de PV_LAYOUT_RULES.
+       * @param {{ flatMarginSync?: boolean }} [opts] - si flatMarginSync : propage marginOuterCm → setbacks contour + obstacles sur chaque pan FLAT (changement de marge uniquement).
+       */
+      function applyPvLayoutRulesAndRecompute(opts) {
+        opts = opts || {};
+        if (!window.PV_LAYOUT_RULES) return;
+        try {
+          var flatSpacingSynced = syncFlatRoofSpacingFromPvLayoutRules();
+          var flatMarginSynced = opts.flatMarginSync === true ? syncFlatRoofMarginFromPvLayoutRules() : false;
+          if (flatSpacingSynced || flatMarginSynced) {
+            try {
+              if (CALPINAGE_STATE.validatedRoofData && CALPINAGE_STATE.roofSurveyLocked && typeof buildValidatedRoofData === "function") {
+                CALPINAGE_STATE.validatedRoofData = buildValidatedRoofData();
+              }
+            } catch (_vrdSpacing) {}
+          }
+          if (window.PV_LAYOUT_DEBUG && typeof console !== "undefined") {
+            console.info("[P3][PILLS] apply-run", { rules: JSON.parse(JSON.stringify(window.PV_LAYOUT_RULES)) });
+          }
+          if (typeof savePvParams === "function") savePvParams();
+          if (typeof window.syncP3Topbar === "function") window.syncP3Topbar();
+          if (typeof recomputeAllPlacementBlocksFromRules === "function") {
+            recomputeAllPlacementBlocksFromRules(true);
+          }
+          if (typeof pvSyncSaveRender === "function") {
+            pvSyncSaveRender();
+          } else if (typeof window.CALPINAGE_RENDER === "function") {
+            window.CALPINAGE_RENDER();
+          }
+        } catch (e) {
+          if (typeof console !== "undefined") console.warn("[P3][SPACING][APPLY_FAIL]", e);
+        }
+      }
+
       /** Reflow : recalcule toutes les projections des blocs (fig?s + actif) via l'engine. Centres inchang?s.
        * Apr?s reflow, revalidation du bloc actif pour coh?rence valid/invalid.
        * @param {boolean} [forceRebuild] - si true, re-fetch du bloc actif apr?s recompute pour ?viter d'utiliser d'anciens existingRects.
        * @param {string} [pivotPanelId] - panneau sélectionné pour ancrage grille (toggle orientation). */
       function recomputeAllPlacementBlocksFromRules(forceRebuild, pivotPanelId) {
+        if (typeof setSafeZonePanelsDirty === "function") setSafeZonePanelsDirty();
         var ENG = window.pvPlacementEngine;
         if (!ENG || typeof ENG.getFrozenBlocks !== "function" || typeof ENG.recomputeBlock !== "function") return;
         var frozen = ENG.getFrozenBlocks();
+        var active = ENG.getActiveBlock();
+        if (window.PV_LAYOUT_DEBUG && typeof console !== "undefined") {
+          console.info("[P3][RECOMPUTE] run", { forceRebuild: !!forceRebuild, frozenCount: frozen.length, hasActive: !!active });
+        }
         for (var i = 0; i < frozen.length; i++) {
           var block = frozen[i];
           var ctx = getProjectionContextForBlock(block);
           if (ctx) ENG.recomputeBlock(block.id, window.PV_LAYOUT_RULES, ctx);
         }
-        var active = ENG.getActiveBlock();
         if (active) {
           var ctxActive = getProjectionContextForBlock(active);
           var optsActive = (pivotPanelId && active.panels && active.panels.some(function (p) { return p && p.id === pivotPanelId; })) ? { pivotPanelId: pivotPanelId } : undefined;
@@ -3160,18 +5069,433 @@ export function initCalpinage(container, options = {}) {
         }
       }
 
-      /** Phase 3 uniquement : met à jour la source de vérité moteur (position + rotation du bloc) avant tout recompute / render. */
-      function commitPhase3BlockTransform() {
-        if (CALPINAGE_STATE.currentPhase !== "PV_LAYOUT") return;
+      /** Met à jour flatRoofConfig sur le pan live, optionnellement l’orientation des blocs du même pan, puis reflow moteur + safe zone. */
+      function applyFlatRoofConfigAndRecompute(panId, patch) {
+        if (!panId || !patch || typeof patch !== "object") return;
+        var p = findLivePanForRoofTypeMutation(panId);
+        if (!p || p.roofType !== "FLAT") return;
+        var effPanIdFlat = p.id;
+        p.flatRoofConfig = normalizeFlatRoofConfig(Object.assign({}, p.flatRoofConfig || {}, patch));
+        if (patch.layoutOrientation != null) {
+          var ENG = window.pvPlacementEngine;
+          var o = p.flatRoofConfig.layoutOrientation === "landscape" ? "PAYSAGE" : "PORTRAIT";
+          var fb = ENG && ENG.getFocusBlock ? ENG.getFocusBlock() : null;
+          if (fb && samePanId(fb.panId, effPanIdFlat)) fb.orientation = o;
+          var frozen = ENG && ENG.getFrozenBlocks ? ENG.getFrozenBlocks() : [];
+          for (var fi = 0; fi < frozen.length; fi++) {
+            if (frozen[fi] && samePanId(frozen[fi].panId, effPanIdFlat)) frozen[fi].orientation = o;
+          }
+        }
+        try {
+          var ph3z = window.__SAFE_ZONE_PH3__;
+          if (ph3z) { ph3z.cache = null; ph3z.geoDirty = true; }
+        } catch (_ez) {}
+        try {
+          if (CALPINAGE_STATE.validatedRoofData && CALPINAGE_STATE.roofSurveyLocked && typeof buildValidatedRoofData === "function") {
+            CALPINAGE_STATE.validatedRoofData = buildValidatedRoofData();
+          }
+        } catch (_vrdFlat) {}
+        recomputeAllPlacementBlocksFromRules(true);
+        if (typeof saveCalpinageState === "function") saveCalpinageState();
+        if (typeof window.CALPINAGE_RENDER === "function") requestAnimationFrame(window.CALPINAGE_RENDER);
+        if (typeof window.syncPhase3LayoutUI === "function") window.syncPhase3LayoutUI();
+        if (typeof window.notifyPhase3SidebarUpdate === "function") window.notifyPhase3SidebarUpdate();
+      }
+
+      /**
+       * Résout l’objet pan éditable (CALPINAGE_STATE.pans) pour mutations toit plat / FLAT config.
+       * Repli si l’id UI (phase 3 / validé) ne matche plus les ids live après recompute ou rechargement :
+       * pan unique validé, ou même index dans validatedRoofData.pans et pans quand les longueurs coïncident.
+       */
+      function findLivePanForRoofTypeMutation(panId) {
+        var list = CALPINAGE_STATE.pans || [];
+        if (panId == null || panId === "") return null;
+        var pi, x;
+        for (pi = 0; pi < list.length; pi++) {
+          x = list[pi];
+          if (!x || x.id == null) continue;
+          if (samePanId(x.id, panId)) return x;
+        }
+        var vp = CALPINAGE_STATE.validatedRoofData && CALPINAGE_STATE.validatedRoofData.pans;
+        if (list.length === 1 && list[0] && vp && vp.length === 1 && vp[0]) {
+          var vid = vp[0].id;
+          if (samePanId(vid, panId)) return list[0];
+        }
+        if (vp && list.length > 0) {
+          for (var jj = 0; jj < vp.length; jj++) {
+            if (vp[jj] && samePanId(vp[jj].id, panId) && jj < list.length && list[jj]) return list[jj];
+          }
+        }
+        var vrd = CALPINAGE_STATE.validatedRoofData;
+        var vpan = vrd && findValidatedPanById(vrd, panId);
+        if (vpan && vpan.polygon && vpan.polygon.length >= 3 && list.length) {
+          var fp0 = vpan.polygon[0];
+          var fpx = fp0 && typeof fp0.x === "number" ? fp0.x : null;
+          var fpy = fp0 && typeof fp0.y === "number" ? fp0.y : null;
+          if (fpx != null && fpy != null) {
+            var nvp = vpan.polygon.length;
+            for (var li = 0; li < list.length; li++) {
+              var cand = list[li];
+              if (!cand) continue;
+              var pts = cand.points || cand.polygon || [];
+              if (pts.length < 3 || Math.abs(pts.length - nvp) > 0) continue;
+              var p0 = pts[0];
+              var lx = p0 && typeof p0.x === "number" ? p0.x : null;
+              var ly = p0 && typeof p0.y === "number" ? p0.y : null;
+              if (lx == null || ly == null) continue;
+              if (Math.hypot(lx - fpx, ly - fpy) <= 2) return cand;
+            }
+          }
+        }
+        return null;
+      }
+
+      /** Bascule manuelle FLAT / PITCHED sur un pan : orientation des blocs du pan, safe zone, moteur, save, UI. flatRoofConfig n’est jamais supprimé au passage en PITCHED. @returns {boolean} */
+      function applyManualPanRoofTypeAndRecompute(panId, nextRoofType) {
+        if (!panId || (nextRoofType !== "FLAT" && nextRoofType !== "PITCHED")) return false;
+        var p = findLivePanForRoofTypeMutation(panId);
+        if (!p) return false;
+        var effPanId = p.id;
+        var prevRoofType = p.roofType;
+        if (nextRoofType === "FLAT") {
+          p.roofType = "FLAT";
+          var baseFc = Object.assign({}, p.flatRoofConfig || {});
+          /* Passage incliné → plat : une seule marge Phase 3 → contour + obstacles. */
+          if (prevRoofType !== "FLAT") {
+            var rM = Number(window.PV_LAYOUT_RULES && window.PV_LAYOUT_RULES.marginOuterCm);
+            if (Number.isFinite(rM) && rM >= 0) {
+              baseFc.setbackRoofEdgeCm = rM;
+              baseFc.setbackObstacleCm = rM;
+            }
+          }
+          p.flatRoofConfig = normalizeFlatRoofConfig(baseFc);
+        } else {
+          p.roofType = "PITCHED";
+        }
+        var o =
+          p.roofType === "FLAT"
+            ? normalizeFlatRoofConfig(p.flatRoofConfig).layoutOrientation === "landscape"
+              ? "PAYSAGE"
+              : "PORTRAIT"
+            : getDefaultBlockOrientationEngineForPan(p);
         var ENG = window.pvPlacementEngine;
-        if (!ENG || typeof ENG.commitManipulation !== "function") return;
+        if (ENG) {
+          var seen = {};
+          function orientBlock(b) {
+            if (!b) return;
+            var bp = b.panId;
+            if (!samePanId(bp, effPanId)) return;
+            var bid = b.id != null ? String(b.id) : String(b);
+            if (seen[bid]) return;
+            seen[bid] = true;
+            b.orientation = o;
+          }
+          orientBlock(ENG.getFocusBlock && ENG.getFocusBlock());
+          orientBlock(ENG.getActiveBlock && ENG.getActiveBlock());
+          var frozen = ENG.getFrozenBlocks ? ENG.getFrozenBlocks() : [];
+          for (var fi = 0; fi < frozen.length; fi++) orientBlock(frozen[fi]);
+        }
+        try {
+          if (CALPINAGE_STATE.validatedRoofData && CALPINAGE_STATE.roofSurveyLocked && typeof buildValidatedRoofData === "function") {
+            CALPINAGE_STATE.validatedRoofData = buildValidatedRoofData();
+          }
+        } catch (_vrd) {}
+        try {
+          var ph3t = window.__SAFE_ZONE_PH3__;
+          if (ph3t) {
+            ph3t.cache = null;
+            ph3t.geoDirty = true;
+          }
+        } catch (_ez2) {}
+        recomputeAllPlacementBlocksFromRules(true);
+        if (typeof saveCalpinageState === "function") saveCalpinageState();
+        if (typeof window.CALPINAGE_RENDER === "function") requestAnimationFrame(window.CALPINAGE_RENDER);
+        if (typeof window.syncPhase3LayoutUI === "function") window.syncPhase3LayoutUI();
+        if (typeof window.notifyPhase3SidebarUpdate === "function") window.notifyPhase3SidebarUpdate();
+        return true;
+      }
 
-        console.log("[PH3] commit", {
-          phase: CALPINAGE_STATE.currentPhase,
-          isManip: window.CALPINAGE_IS_MANIPULATING
+      try {
+        if (typeof window !== "undefined") {
+          window.__applyFlatRoofConfigAndRecompute = applyFlatRoofConfigAndRecompute;
+          window.__applyManualPanRoofTypeAndRecompute = applyManualPanRoofTypeAndRecompute;
+        }
+      } catch (_wFlat) {}
+
+      /**
+       * Fin unique de manipulation poignées Phase 3 (move / rotate) : commit moteur, dirty safe-zone,
+       * recompute ciblé post-commit (hors manipulation), sync état global, save/render.
+       * @param {{ releaseCaptureEl?: Element, pointerId?: number|null, skipUxToast?: boolean }} opts
+       * @returns {boolean} true si une session active a été finalisée
+       */
+      function finalizePhase3PvHandleManipulation(opts) {
+        opts = opts || {};
+        if (CALPINAGE_STATE.currentPhase !== "PV_LAYOUT") return false;
+        if (!window.CALPINAGE_IS_MANIPULATING || !calpinageHandleDrag) return false;
+        if (__pvPh3HandleFinalizeDepth > 0) return false;
+
+        __pvPh3HandleFinalizeDepth++;
+        try {
+          var ENG = window.pvPlacementEngine;
+          var dragSnap = calpinageHandleDrag;
+          var manipType = dragSnap.type;
+          var blockId = dragSnap.blockId;
+          var ptrRelease = opts.pointerId != null ? opts.pointerId : dragSnap.pointerId;
+          var releaseEl = opts.releaseCaptureEl;
+
+          if (ENG && typeof ENG.commitManipulation === "function") {
+            ENG.commitManipulation();
+          }
+
+          if (typeof setSafeZonePanelsDirty === "function") setSafeZonePanelsDirty();
+          else {
+            var ph3d = window.__SAFE_ZONE_PH3__;
+            if (ph3d) ph3d.panelsDirty = true;
+          }
+
+          try {
+            if (drawState) {
+              drawState.ph3RotationLiveDeg = null;
+              drawState.ph3RotateShiftSnap = false;
+            }
+          } catch (_ds) {}
+
+          window.__FORCE_PV_MANIP_LOCK__ = false;
+          window.CALPINAGE_IS_MANIPULATING = false;
+          calpinageHandleDrag = null;
+
+          if (ENG && blockId && typeof ENG.getBlockById === "function") {
+            var blockPost = ENG.getBlockById(blockId);
+            if (blockPost && typeof getProjectionContextForBlock === "function") {
+              var ctxR = getProjectionContextForBlock(blockPost);
+              if (ctxR && typeof ENG.recomputeBlock === "function") {
+                ENG.recomputeBlock(blockPost.id, window.PV_LAYOUT_RULES, ctxR);
+              }
+              if (typeof ENG.updatePanelValidationForBlock === "function") {
+                var getCtxFn = function () { return getProjectionContextForBlock(blockPost); };
+                ENG.updatePanelValidationForBlock(blockPost, getCtxFn);
+              }
+            }
+          }
+
+          if (blockId) {
+            CALPINAGE_STATE.activeManipulationBlockId = blockId;
+            CALPINAGE_STATE.selectedPlacedBlockId = blockId;
+          }
+          try {
+            window.PV_LAYOUT_STATE = PV_LAYOUT_FLOW.SELECT;
+          } catch (_pvst) {}
+
+          if (ptrRelease != null && releaseEl && typeof releaseEl.releasePointerCapture === "function") {
+            try {
+              releaseEl.releasePointerCapture(ptrRelease);
+            } catch (_rel) {}
+          }
+
+          if (!opts.skipUxToast) {
+            if (manipType === "rotate" && typeof window.showCalpinageUxToast === "function") {
+              window.showCalpinageUxToast("Rotation");
+            } else if (manipType === "move" && typeof window.showCalpinageUxToast === "function") {
+              window.showCalpinageUxToast("Déplacement");
+            }
+          }
+
+          if (typeof pvSyncSaveRender === "function") pvSyncSaveRender();
+          else if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
+
+          return true;
+        } finally {
+          __pvPh3HandleFinalizeDepth--;
+        }
+      }
+
+      /** @deprecated Utiliser finalizePhase3PvHandleManipulation — alias conservé pour compat. */
+      function commitPhase3BlockTransform() {
+        finalizePhase3PvHandleManipulation({});
+      }
+
+      /** CP-PV-015-PERF-FINAL : marque panelsDirty pour forcer revalidation event-driven. */
+      function setSafeZonePanelsDirty() {
+        var ph3 = window.__SAFE_ZONE_PH3__;
+        if (ph3) ph3.panelsDirty = true;
+      }
+
+      /* ========== Floating Popover (portal body) — Phase 3 pills — évite clipping overflow ========== */
+      var _floatingPopoverRoot = null;
+      var _floatingPopoverPanel = null;
+      var _floatingPopoverAnchor = null;
+      var _floatingPopoverOnDocClick = null;
+      var _floatingPopoverOnKeydown = null;
+      var _floatingPopoverOnResizeScroll = null;
+      var _floatingPopoverResizeThrottle = null;
+
+      function ensureFloatingPopoverRoot() {
+        if (_floatingPopoverRoot && _floatingPopoverRoot.isConnected) return _floatingPopoverRoot;
+        var root = document.getElementById("sn-floating-popover-root");
+        if (root) { _floatingPopoverRoot = root; return root; }
+        root = document.createElement("div");
+        root.id = "sn-floating-popover-root";
+        root.style.cssText = "position:fixed;top:0;left:0;width:0;height:0;pointer-events:none;z-index:2147483647;";
+        document.body.appendChild(root);
+        _floatingPopoverRoot = root;
+        return root;
+      }
+
+      function repositionFloatingPopover(anchorEl) {
+        if (!_floatingPopoverPanel || !anchorEl) return;
+        var rect = anchorEl.getBoundingClientRect();
+        var vw = window.innerWidth || document.documentElement.clientWidth;
+        var vh = window.innerHeight || document.documentElement.clientHeight;
+        var panelRect = _floatingPopoverPanel.getBoundingClientRect();
+        var pw = panelRect.width || 220;
+        var ph = panelRect.height || 120;
+        var left = rect.left;
+        var top = rect.bottom + 4;
+        if (left + pw > vw) left = vw - pw - 8;
+        if (left < 8) left = 8;
+        if (top + ph > vh - 8) top = Math.max(8, rect.top - ph - 4);
+        if (top < 8) top = 8;
+        _floatingPopoverPanel.style.left = left + "px";
+        _floatingPopoverPanel.style.top = top + "px";
+      }
+
+      function hideFloatingPopover() {
+        if (_floatingPopoverOnDocClick) {
+          document.removeEventListener("click", _floatingPopoverOnDocClick, true);
+          _floatingPopoverOnDocClick = null;
+        }
+        if (_floatingPopoverOnKeydown) {
+          document.removeEventListener("keydown", _floatingPopoverOnKeydown);
+          _floatingPopoverOnKeydown = null;
+        }
+        if (_floatingPopoverOnResizeScroll) {
+          window.removeEventListener("resize", _floatingPopoverOnResizeScroll);
+          window.removeEventListener("scroll", _floatingPopoverOnResizeScroll, true);
+          _floatingPopoverOnResizeScroll = null;
+        }
+        _floatingPopoverResizeThrottle = null;
+        if (_floatingPopoverPanel && _floatingPopoverPanel.parentNode) {
+          _floatingPopoverPanel.parentNode.removeChild(_floatingPopoverPanel);
+        }
+        _floatingPopoverPanel = null;
+        _floatingPopoverAnchor = null;
+        if (_floatingPopoverRoot) _floatingPopoverRoot.style.pointerEvents = "none";
+      }
+
+      function showFloatingPopover(opts) {
+        var anchorEl = opts.anchorEl;
+        var tech = opts.tech || "";
+        var key = opts.key || "";
+        var value = opts.value;
+        var min = opts.min != null ? opts.min : 0;
+        var max = opts.max;
+        var step = opts.step != null ? opts.step : 1;
+        var onApply = opts.onApply;
+        if (!anchorEl || !key || typeof onApply !== "function") return;
+        hideFloatingPopover();
+        var root = ensureFloatingPopoverRoot();
+        root.style.pointerEvents = "auto";
+        var panel = document.createElement("div");
+        panel.className = "sn-floating-popover-panel";
+        panel.setAttribute("data-tech", tech);
+        panel.style.cssText = "position:fixed;min-width:220px;padding:10px;background:#111;color:#fff;border:1px solid rgba(255,255,255,0.2);border-radius:10px;z-index:2147483647;box-sizing:border-box;";
+        var label = document.createElement("div");
+        label.style.cssText = "font-size:12px;font-weight:600;color:rgba(255,255,255,0.9);";
+        label.textContent = tech === "spacing-x" ? "Espacement entre panneaux (cm)" : tech === "spacing-y" ? "Espacement entre rangées (cm)" : "Marge extérieure (cm)";
+        panel.appendChild(label);
+        var inp = document.createElement("input");
+        inp.type = "number";
+        inp.min = String(min);
+        if (max != null) inp.max = String(max);
+        inp.step = String(step);
+        inp.value = String(Number.isFinite(value) ? value : (tech === "spacing-x" ? 2 : tech === "spacing-y" ? 4.5 : 20));
+        inp.style.cssText = "width:100%;margin-top:8px;padding:8px;box-sizing:border-box;background:#222;color:#fff;border:1px solid rgba(255,255,255,0.2);border-radius:6px;";
+        panel.appendChild(inp);
+        var btn = document.createElement("button");
+        btn.textContent = "Appliquer";
+        btn.style.cssText = "margin-top:10px;width:100%;padding:8px 14px;background:#C39847;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600;font-size:13px;";
+        btn.addEventListener("click", function (e) {
+          e.stopPropagation();
+          var v = Number(inp.value);
+          if (!Number.isFinite(v) || v < min) return;
+          if (window.PV_LAYOUT_DEBUG && typeof console !== "undefined") {
+            console.info("[P3][FLOAT] apply", { key: key, value: v });
+          }
+          onApply(key, v);
+          hideFloatingPopover();
         });
+        panel.appendChild(btn);
+        panel.addEventListener("click", function (e) { e.stopPropagation(); });
+        root.appendChild(panel);
+        _floatingPopoverPanel = panel;
+        _floatingPopoverAnchor = anchorEl;
+        repositionFloatingPopover(anchorEl);
+        var rect = anchorEl.getBoundingClientRect();
+        var finalPos = { left: panel.style.left, top: panel.style.top };
+        if (window.PV_LAYOUT_DEBUG && typeof console !== "undefined") {
+          console.info("[P3][FLOAT] show", { tech: tech, key: key, rect: { top: rect.top, left: rect.left, bottom: rect.bottom }, finalPos: finalPos });
+        }
+        _floatingPopoverOnDocClick = function (e) {
+          if (panel.contains(e.target) || (anchorEl && anchorEl.contains(e.target)) || (e.target.closest && e.target.closest("#sn-floating-popover-root"))) return;
+          hideFloatingPopover();
+        };
+        _floatingPopoverOnKeydown = function (e) {
+          if (e.key === "Escape") { hideFloatingPopover(); e.preventDefault(); }
+        };
+        _floatingPopoverOnResizeScroll = function () {
+          if (_floatingPopoverResizeThrottle) return;
+          _floatingPopoverResizeThrottle = setTimeout(function () {
+            _floatingPopoverResizeThrottle = null;
+            if (_floatingPopoverAnchor) repositionFloatingPopover(_floatingPopoverAnchor);
+          }, 50);
+        };
+        document.addEventListener("click", _floatingPopoverOnDocClick, true);
+        document.addEventListener("keydown", _floatingPopoverOnKeydown);
+        window.addEventListener("resize", _floatingPopoverOnResizeScroll);
+        window.addEventListener("scroll", _floatingPopoverOnResizeScroll, true);
+      }
 
-        ENG.commitManipulation();
+      /** Bind direct sur les 3 pills (Espacement panneaux, Espacement rangées, Marge bord).
+       * Utilise le floating popover (portal body) pour éviter clipping overflow.
+       * tech mapping: spacing-x => spacingXcm, spacing-y => spacingYcm, margin => marginOuterCm */
+      function bindP3SpacingButtonsDirect() {
+        var topbar = container.querySelector("#p3-topbar");
+        if (!topbar) return;
+        var techToKey = { "spacing-x": "spacingXcm", "spacing-y": "spacingYcm", "margin": "marginOuterCm" };
+        var techDefaults = { "spacing-x": 2, "spacing-y": 4.5, "margin": 20 };
+        if (window.PV_LAYOUT_DEBUG && typeof console !== "undefined") {
+          console.info("[P3][BIND] bindP3SpacingButtonsDirect", { topbar: !!topbar, phase: (window.CALPINAGE_STATE && window.CALPINAGE_STATE.currentPhase) || "" });
+        }
+        topbar.querySelectorAll(".p3-pill-btn[data-tech]").forEach(function (pill) {
+          var tech = (pill.getAttribute && pill.getAttribute("data-tech")) || "";
+          var key = techToKey[tech];
+          if (!key) return;
+          addSafeListener(pill, "click", function (e) {
+            e.stopPropagation();
+            var rules = window.PV_LAYOUT_RULES || {};
+            var value = rules[key];
+            if (!Number.isFinite(value) || value < 0) value = techDefaults[tech] || 0;
+            showFloatingPopover({
+              anchorEl: pill,
+              tech: tech,
+              key: key,
+              value: value,
+              min: 0,
+              step: 1,
+              onApply: function (k, v) {
+                window.PV_LAYOUT_RULES = window.PV_LAYOUT_RULES || {};
+                window.PV_LAYOUT_RULES[k] = v;
+                if (typeof applyPvLayoutRulesAndRecompute === "function") {
+                  applyPvLayoutRulesAndRecompute(k === "marginOuterCm" ? { flatMarginSync: true } : undefined);
+                } else {
+                  if (typeof recomputeAllPlacementBlocksFromRules === "function") recomputeAllPlacementBlocksFromRules(true);
+                  if (typeof pvSyncSaveRender === "function") pvSyncSaveRender();
+                  else if (window.CALPINAGE_RENDER) window.CALPINAGE_RENDER();
+                }
+              }
+            });
+          });
+        });
       }
 
       /** Charge les param?tres PV depuis localStorage et remplit PV_LAYOUT_RULES (Phase 3). Restaure aussi le panneau s?lectionn?.
@@ -3301,6 +5625,10 @@ export function initCalpinage(container, options = {}) {
       }
       function resolveRidgePoint(rp) {
         if (!rp || typeof rp.x !== "number") return rp;
+        if (rp.attach && rp.attach.type === "roof_contour_edge") {
+          var pEdge = resolvePointFromRoofContourEdgeAttach(rp.attach, CALPINAGE_STATE.contours);
+          return pEdge || rp;
+        }
         if (rp.attach && rp.attach.type === "trait") {
           var t = CALPINAGE_STATE.traits.find(function (x) { return x.id === rp.attach.id; });
           if (!t) return rp;
@@ -3336,18 +5664,20 @@ export function initCalpinage(container, options = {}) {
           if (!contours[i].points) continue;
           for (var j = 0; j < contours[i].points.length; j++) {
             pt = contours[i].points[j];
-            if (pt && distImgPt(imgPt, pt) <= HEIGHT_EDIT_EPS_IMG) return typeof pt.h === "number" ? pt.h : DEFAULT_HEIGHT_GUTTER;
+            // Seule une hauteur explicitement numérique est retournée.
+            // Plus de fallback DEFAULT_HEIGHT_GUTTER — un point sans h explicite retourne null.
+            if (pt && distImgPt(imgPt, pt) <= HEIGHT_EDIT_EPS_IMG) return typeof pt.h === "number" ? pt.h : null;
           }
         }
         for (i = 0; i < ridges.length; i++) {
           pt = rp(ridges[i].a);
-          if (pt && distImgPt(imgPt, pt) <= HEIGHT_EDIT_EPS_IMG) return typeof ridges[i].a.h === "number" ? ridges[i].a.h : DEFAULT_HEIGHT_RIDGE;
+          if (pt && distImgPt(imgPt, pt) <= HEIGHT_EDIT_EPS_IMG) return typeof ridges[i].a.h === "number" ? ridges[i].a.h : null;
           pt = rp(ridges[i].b);
-          if (pt && distImgPt(imgPt, pt) <= HEIGHT_EDIT_EPS_IMG) return typeof ridges[i].b.h === "number" ? ridges[i].b.h : DEFAULT_HEIGHT_RIDGE;
+          if (pt && distImgPt(imgPt, pt) <= HEIGHT_EDIT_EPS_IMG) return typeof ridges[i].b.h === "number" ? ridges[i].b.h : null;
         }
         for (i = 0; i < traits.length; i++) {
-          if (traits[i].a && distImgPt(imgPt, traits[i].a) <= HEIGHT_EDIT_EPS_IMG) return typeof traits[i].a.h === "number" ? traits[i].a.h : DEFAULT_HEIGHT_GUTTER;
-          if (traits[i].b && distImgPt(imgPt, traits[i].b) <= HEIGHT_EDIT_EPS_IMG) return typeof traits[i].b.h === "number" ? traits[i].b.h : DEFAULT_HEIGHT_GUTTER;
+          if (traits[i].a && distImgPt(imgPt, traits[i].a) <= HEIGHT_EDIT_EPS_IMG) return typeof traits[i].a.h === "number" ? traits[i].a.h : null;
+          if (traits[i].b && distImgPt(imgPt, traits[i].b) <= HEIGHT_EDIT_EPS_IMG) return typeof traits[i].b.h === "number" ? traits[i].b.h : null;
         }
         return null;
       }
@@ -3361,7 +5691,8 @@ export function initCalpinage(container, options = {}) {
             var h = getHeightAtPoint(imgPt, CALPINAGE_STATE);
             if (h == null || (typeof h !== "number") || !Number.isFinite(h)) {
               CALPINAGE_STATE.__lastMissingH = (CALPINAGE_STATE.__lastMissingH || 0) + 1;
-              return 0;
+              // Retourne null — fitPlane filtrera ce point au lieu de polluer le plan avec 0
+              return null;
             }
             return h;
           }
@@ -3374,12 +5705,35 @@ export function initCalpinage(container, options = {}) {
         return window.CalpinagePans.getHeightAtXY(panId, xPx, yPx, getStateForPans());
       };
 
-      /** Hauteur à un point image (x,y). Trouve le pan contenant le point et appelle getHeightAtXY. Retourne 0 si hors pan. */
+      /**
+       * Hit-test pan exposé pour le moteur heightResolver.ts (TypeScript canonique).
+       * Retourne { id } ou null — interface minimale conforme à HeightResolverContext.hitTestPan.
+       * NE PAS APPELER DIRECTEMENT côté produit : passer par getHeightAtImgPoint.
+       */
+      window.__calpinage_hitTestPan__ = function (pt) {
+        try {
+          var pan = hitTestPan(pt);
+          return (pan && pan.id) ? { id: pan.id } : null;
+        } catch (_e) { return null; }
+      };
+
+      /**
+       * Hauteur à un point image (x,y).
+       * Ordre de résolution (aligné sur heightResolver.ts) :
+       *   P1 — hauteur explicite sur vertex source (contour / ridge / trait) si proche
+       *   P2 — fitPlane via hitTest pan + getHeightAtXY
+       *   P3 — fallback 0
+       * Contrat public inchangé : retourne toujours un number fini (0 en fallback).
+       */
       function getHeightAtImgPoint(imgPt) {
+        // P1 : hauteur explicite sur vertex source
+        var hExplicit = getHeightAtPoint(imgPt, CALPINAGE_STATE);
+        if (typeof hExplicit === "number" && Number.isFinite(hExplicit)) return hExplicit;
+        // P2 : fitPlane via hitTest
         var pan = hitTestPan(imgPt);
         if (!pan || !pan.id) return 0;
-        var h = window.getHeightAtXY(pan.id, imgPt.x, imgPt.y);
-        return (typeof h === "number" && Number.isFinite(h)) ? h : 0;
+        var hPan = window.getHeightAtXY(pan.id, imgPt.x, imgPt.y);
+        return (typeof hPan === "number" && Number.isFinite(hPan)) ? hPan : 0;
       }
 
       /** Pour chaque pan (CALPINAGE_STATE.pans), cr?e/met ? jour pan.points[] ? partir de pan.polygon[] et des hauteurs sources (getHeightAtPoint). */
@@ -3411,6 +5765,8 @@ export function initCalpinage(container, options = {}) {
         if (endpointObj && endpointObj.attach && endpointObj.attach.type) {
           if (endpointObj.attach.type === "ridge") return DEFAULT_HEIGHT_RIDGE;
           if (endpointObj.attach.type === "contour") return DEFAULT_HEIGHT_GUTTER;
+          if (endpointObj.attach.type === "roof_contour_edge") return DEFAULT_HEIGHT_GUTTER;
+          if (endpointObj.attach.type === "trait") return DEFAULT_HEIGHT_GUTTER;
           return DEFAULT_HEIGHT_GUTTER;
         }
         var contours = (state.contours || []).filter(function (c) { return c.roofRole !== "chienAssis"; });
@@ -3749,6 +6105,10 @@ export function initCalpinage(container, options = {}) {
       /** R?solution d?un point de fa??tage dans un state donn?. */
       function resolveRidgePointFromState(state, rp) {
         if (!rp || typeof rp.x !== "number") return rp;
+        if (rp.attach && rp.attach.type === "roof_contour_edge") {
+          var pEdgeS = resolvePointFromRoofContourEdgeAttach(rp.attach, state.contours);
+          return pEdgeS || rp;
+        }
         if (rp.attach && rp.attach.type === "trait") {
           var t = (state.traits || []).find(function (x) { return x.id === rp.attach.id; });
           if (!t) return rp;
@@ -3767,7 +6127,14 @@ export function initCalpinage(container, options = {}) {
       function edgePoints(edgeRef, resolveRidgePointFn) {
         var resolveRp = resolveRidgePointFn || resolveRidgePoint;
         if (edgeRef.kind === EDGE_CONTOUR) return (edgeRef.ref.points || []).slice();
-        if (edgeRef.kind === EDGE_TRAIT) return [edgeRef.ref.a, edgeRef.ref.b].filter(Boolean);
+        if (edgeRef.kind === EDGE_TRAIT) {
+          var ta = resolveRp(edgeRef.ref.a);
+          var tb = resolveRp(edgeRef.ref.b);
+          return [
+            ta && typeof ta.x === "number" ? ta : edgeRef.ref.a,
+            tb && typeof tb.x === "number" ? tb : edgeRef.ref.b,
+          ].filter(Boolean);
+        }
         if (edgeRef.kind === EDGE_RIDGE) {
           var ra = resolveRp(edgeRef.ref.a);
           var rb = resolveRp(edgeRef.ref.b);
@@ -3791,6 +6158,145 @@ export function initCalpinage(container, options = {}) {
 
       function edgeLabel(edgeRef) {
         return (edgeRef.kind || "?") + ":" + (edgeRef.id != null ? edgeRef.id : "?");
+      }
+
+      /** Même MERGE_EPS_IMG que computePansFromGeometryCore (snap graphe pans). */
+      function calpinageMergeEpsImg() {
+        var SNAP_PX_SCREEN = 10;
+        var vpScale = (typeof window !== "undefined" && typeof window.CALPINAGE_VIEWPORT_SCALE === "number") ? window.CALPINAGE_VIEWPORT_SCALE : 2;
+        var snapImg = Math.max(0.5, SNAP_PX_SCREEN / vpScale);
+        return snapImg * 0.75;
+      }
+
+      /** Point-in-polygon en coordonnées image, algorithme standard (rayon), sans tolérence — pour faîtage intérieur au pan. */
+      function pointInPolygonImageStrict(pt, poly) {
+        if (!pt || typeof pt.x !== "number" || typeof pt.y !== "number" || !poly || poly.length < 3) return false;
+        var px = pt.x;
+        var py = pt.y;
+        var n = poly.length;
+        var inside = false;
+        for (var i = 0, j = n - 1; i < n; j = i++) {
+          var xi = poly[i].x;
+          var yi = poly[i].y;
+          var xj = poly[j].x;
+          var yj = poly[j].y;
+          if (yi === yj) continue;
+          if (yi > py !== yj > py && px < ((xj - xi) * (py - yi)) / (yj - yi) + xi) inside = !inside;
+        }
+        return inside;
+      }
+
+      /** Cas A : segment faîtage recouvre un bord du pan (tolérance alignée sur le graphe pans). */
+      function ridgeSegmentOverlapsPanPolygonEdge(ax, ay, bx, by, px, py, qx, qy, eps) {
+        var abx = bx - ax, aby = by - ay;
+        var lab = Math.hypot(abx, aby);
+        if (lab < 1e-9) return false;
+        var pqx = qx - px, pqy = qy - py;
+        var lpq = Math.hypot(pqx, pqy);
+        if (lpq < 1e-9) return false;
+        var nx = -aby / lab;
+        var ny = abx / lab;
+        var dP = Math.abs((px - ax) * nx + (py - ay) * ny);
+        var dQ = Math.abs((qx - ax) * nx + (qy - ay) * ny);
+        if (dP > eps * 3 || dQ > eps * 3) return false;
+        var ux = abx / lab, uy = aby / lab;
+        var cross = Math.abs(ux * pqy - uy * pqx) / lpq;
+        if (cross > 0.08) return false;
+        var tP = (px - ax) * ux + (py - ay) * uy;
+        var tQ = (qx - ax) * ux + (qy - ay) * uy;
+        var rMin = Math.min(tP, tQ);
+        var rMax = Math.max(tP, tQ);
+        var overlap = Math.min(lab, rMax) - Math.max(0, rMin);
+        var minOverlap = Math.max(eps * 2, 2);
+        return overlap >= minOverlap;
+      }
+
+      /**
+       * Liste déterministe des ids de faîtage liés à un pan : Cas A (bord) + Cas B (deux extrémités résolues strictement intérieures au polygone).
+       */
+      function collectRidgeIdsForPanPolygon(poly, ridgeEdges, resolveRp, eps) {
+        var ids = [];
+        var seen = {};
+        if (!poly || poly.length < 2 || !ridgeEdges || !ridgeEdges.length) return ids;
+        var polyPts = [];
+        for (var k = 0; k < poly.length; k++) {
+          var P = poly[k];
+          if (!P) continue;
+          var x = P.x != null ? P.x : P[0];
+          var y = P.y != null ? P.y : P[1];
+          if (Number.isFinite(x) && Number.isFinite(y)) polyPts.push({ x: x, y: y });
+        }
+        if (polyPts.length < 3) return ids;
+        for (var ei = 0; ei < ridgeEdges.length; ei++) {
+          var redge = ridgeEdges[ei];
+          if (!redge || redge.id == null) continue;
+          var belongs = false;
+          var segs = edgeSegments(redge, resolveRp);
+          for (var sj = 0; sj < segs.length; sj++) {
+            var s = segs[sj];
+            if (!s || !s[0] || !s[1]) continue;
+            var px = s[0].x != null ? s[0].x : s[0][0];
+            var py = s[0].y != null ? s[0].y : s[0][1];
+            var qx = s[1].x != null ? s[1].x : s[1][0];
+            var qy = s[1].y != null ? s[1].y : s[1][1];
+            if (!Number.isFinite(px) || !Number.isFinite(py) || !Number.isFinite(qx) || !Number.isFinite(qy)) continue;
+            if (pointInPolygonImageStrict({ x: px, y: py }, polyPts) && pointInPolygonImageStrict({ x: qx, y: qy }, polyPts)) {
+              belongs = true;
+              break;
+            }
+            for (var pi = 0; pi < polyPts.length && !belongs; pi++) {
+              var A = polyPts[pi];
+              var B = polyPts[(pi + 1) % polyPts.length];
+              if (ridgeSegmentOverlapsPanPolygonEdge(A.x, A.y, B.x, B.y, px, py, qx, qy, eps)) belongs = true;
+            }
+            if (belongs) break;
+          }
+          if (belongs && !seen[redge.id]) {
+            seen[redge.id] = true;
+            ids.push(redge.id);
+          }
+        }
+        return ids;
+      }
+
+      /**
+       * Recalcule pan.ridgeIds depuis la géométrie courante (ridges + polygones pans). Sync validatedRoofData.pans par id.
+       * À appeler après restore / skip computePans pour ne pas garder des ridgeIds obsolètes.
+       */
+      function recomputePanRidgeIdsForAllPansInState(state) {
+        state = state || CALPINAGE_STATE;
+        var pans = state.pans;
+        if (!pans || !pans.length) return;
+        var eps = calpinageMergeEpsImg();
+        if (!state.ridges || !state.ridges.length) {
+          for (var zi = 0; zi < pans.length; zi++) {
+            if (pans[zi]) pans[zi].ridgeIds = [];
+          }
+          if (state.validatedRoofData && state.validatedRoofData.pans && Array.isArray(state.validatedRoofData.pans)) {
+            state.validatedRoofData.pans.forEach(function (vp) {
+              if (vp) vp.ridgeIds = [];
+            });
+          }
+          return;
+        }
+        var ridgeEdges = getEdgesFromState(state, { excludeChienAssis: true }).filter(function (e) { return e.kind === EDGE_RIDGE; });
+        for (var pi = 0; pi < pans.length; pi++) {
+          var pan = pans[pi];
+          if (!pan) continue;
+          var poly = pan.polygon || pan.points;
+          pan.ridgeIds = collectRidgeIdsForPanPolygon(poly, ridgeEdges, resolveRidgePoint, eps);
+        }
+        if (state.validatedRoofData && state.validatedRoofData.pans && Array.isArray(state.validatedRoofData.pans)) {
+          var byId = {};
+          for (var bj = 0; bj < pans.length; bj++) {
+            if (pans[bj] && pans[bj].id) byId[pans[bj].id] = pans[bj];
+          }
+          state.validatedRoofData.pans.forEach(function (vp) {
+            if (!vp || !vp.id) return;
+            var live = byId[vp.id];
+            if (live && Array.isArray(live.ridgeIds)) vp.ridgeIds = live.ridgeIds.slice();
+          });
+        }
       }
 
       function edgeProjectPointToSegment(pt, segA, segB) {
@@ -3817,6 +6323,8 @@ export function initCalpinage(container, options = {}) {
         activeTool: "select",
         drawingPoints: [],
         draggingVertexIndex: null,
+        /** Index du sommet de contour sélectionné (persiste après pointerup pour permettre Delete-sommet). */
+        selectedContourVertexIndex: null,
         selectedContourIndex: null,
         measureLineStart: null,
         selectedMesureIndex: null,
@@ -3825,6 +6333,8 @@ export function initCalpinage(container, options = {}) {
         traitSnapPreview: null,
         traitSnapPreviewSource: null,
         traitSnapEdge: null,
+        /** Dernier snap résolu pour outil trait (preview = commit). */
+        traitFrozenStructuralSnap: null,
         selectedTraitIndex: null,
         draggingTraitPoint: null,
         draggingTraitSegmentStart: null,
@@ -3835,6 +6345,8 @@ export function initCalpinage(container, options = {}) {
         draggingRidgePoint: null,
         draggingRidgeOffset: null,
         obstacleShape: null,
+        /** @type {string | null} id catalogue métier (Velux, Lucarne, …) */
+        obstacleBusinessId: null,
         obstacleAnchor: null,
         obstacleCircleStartPoint: null,
         obstacleCircleTempIndex: null,
@@ -3859,10 +6371,16 @@ export function initCalpinage(container, options = {}) {
         ph3HandleDrag: null,
         ph3HandleDragStart: null, // { x, y } point aimant VISUEL uniquement
         ph3HandleHover: null, // "rotate" | "move" | null pour curseur poignées Phase 3
+        /** Delta de rotation live (°) pendant poignée rotate — overlay UX uniquement */
+        ph3RotationLiveDeg: null,
+        /** true pendant rotate si Shift = snap 15° (affichage hint) */
+        ph3RotateShiftSnap: false,
         /** SHADOW_VOLUMES */
         shadowVolumeCreateShape: null, // "cube" | "tube" | null
+        /** @type {string | null} id catalogue métier pour le volume ombrant en cours de création */
+        shadowVolumeBusinessId: null,
         selectedShadowVolumeIndex: null,
-        draggingShadowVolumeHandle: null, // "right" | "bottom" | "corner" | "height"
+        draggingShadowVolumeHandle: null, // "rotate" | "radius" | 0..3 coin | "e0".."e3"
         isPlacingShadowVolume: false,
         shadowVolumePlaceStart: null, // {x,y}
         draggingShadowVolumeMove: false,
@@ -3882,6 +6400,18 @@ export function initCalpinage(container, options = {}) {
         hoverPanId: null,
       };
 
+      var _phase2LastObstacleSelSig = "";
+      function notifyPhase2ObstacleSelectionIfChanged() {
+        var sig = String(drawState.selectedObstacleIndex) + "|" + String(drawState.selectedShadowVolumeIndex);
+        if (sig !== _phase2LastObstacleSelSig) {
+          _phase2LastObstacleSelSig = sig;
+          if (typeof window.notifyPhase2SidebarUpdate === "function") window.notifyPhase2SidebarUpdate();
+        }
+      }
+
+      /** Retour en mode select après validation réussie d'un outil de dessin (Phase 2). Assignée dans initToolbar pour closure sur updateToolbarActiveUI/updateCursor. */
+      var resetActiveToolToSelect;
+
       var deleteCurrentSelection;
 
       /** Mode création volume ombrant. "CREATE_SHADOW_VOLUME" = en attente du clic sur toit. */
@@ -3894,6 +6424,7 @@ export function initCalpinage(container, options = {}) {
         drawState.dormerEditRxIndex = null;
         if (wasContour) drawState.dormerDraft = null;
         if (canvasEl) canvasEl.style.cursor = "default";
+        if (typeof resetActiveToolToSelect === "function") resetActiveToolToSelect();
       }
 
       /* Phase 2 — Centralisation sélection : reset uniquement les indices selected* */
@@ -3982,6 +6513,443 @@ export function initCalpinage(container, options = {}) {
         });
       })();
 
+      /**
+       * Lot 1 — Signature déterministe contour / traits / faîtages (coords résolues) pour prouver que les pans
+       * sauvegardés sont alignés sur la géométrie persistée. Utilisé au load : skip restaurer pans bruts uniquement si égalité stricte.
+       */
+      function computePansStructuralSignatureForPersistence(state) {
+        state = state || CALPINAGE_STATE;
+        function r6(n) {
+          return typeof n === "number" && Number.isFinite(n) ? Math.round(n * 1e6) / 1e6 : "";
+        }
+        function ptKey(p) {
+          if (!p) return "";
+          var q = typeof resolveRidgePoint === "function" ? resolveRidgePoint(p) : p;
+          if (!q || typeof q.x !== "number" || typeof q.y !== "number") return "";
+          return r6(q.x) + "," + r6(q.y);
+        }
+        var contours = (state.contours || []).filter(function (c) {
+          return c && (c.roofRole || "") !== "chienAssis" && c.points && c.points.length >= 2;
+        });
+        contours = contours.slice().sort(function (a, b) {
+          return String(a.id).localeCompare(String(b.id));
+        });
+        var cPart = contours
+          .map(function (c) {
+            var n = c.points.length;
+            var p0 = c.points[0];
+            var pL = c.points[n - 1];
+            var p1 = c.points[Math.min(1, n - 1)];
+            return (
+              String(c.id) +
+              ":" +
+              n +
+              ":" +
+              ptKey(p0) +
+              ":" +
+              ptKey(p1) +
+              ":" +
+              ptKey(pL)
+            );
+          })
+          .join("|");
+        var ridges = (state.ridges || []).filter(function (r) {
+          return r && (r.roofRole || "") !== "chienAssis";
+        });
+        ridges = ridges.slice().sort(function (a, b) {
+          return String(a.id).localeCompare(String(b.id));
+        });
+        var rPart = ridges
+          .map(function (rg) {
+            return String(rg.id) + ":" + ptKey(rg.a) + ":" + ptKey(rg.b);
+          })
+          .join("|");
+        var traits = (state.traits || []).filter(function (t) {
+          return t && (t.roofRole || "") !== "chienAssis";
+        });
+        traits = traits.slice().sort(function (a, b) {
+          return String(a.id).localeCompare(String(b.id));
+        });
+        var tPart = traits
+          .map(function (tr) {
+            return String(tr.id) + ":" + ptKey(tr.a) + ":" + ptKey(tr.b);
+          })
+          .join("|");
+        return "v1;C" + cPart + ";R" + rPart + ";T" + tPart;
+      }
+
+      function stableSerializeForHash(value) {
+        function normalize(x) {
+          if (x === null) return null;
+          var t = typeof x;
+          if (t === "number") return Number.isFinite(x) ? x : null;
+          if (t === "string" || t === "boolean") return x;
+          if (t === "undefined" || t === "function" || t === "symbol") return null;
+          if (Array.isArray(x)) return x.map(normalize);
+          if (t === "object") {
+            var out = {};
+            Object.keys(x).sort().forEach(function (k) {
+              if (k === "__proto__" || k === "constructor") return;
+              var v = x[k];
+              if (typeof v === "undefined" || typeof v === "function" || typeof v === "symbol") return;
+              out[k] = normalize(v);
+            });
+            return out;
+          }
+          return null;
+        }
+        try {
+          return JSON.stringify(normalize(value));
+        } catch (e) {
+          return "\"<unserializable>\"";
+        }
+      }
+
+      function lightweightHashHex(str) {
+        var h = 2166136261 >>> 0;
+        for (var i = 0; i < str.length; i++) {
+          h ^= str.charCodeAt(i);
+          h = Math.imul(h, 16777619) >>> 0;
+        }
+        return ("00000000" + h.toString(16)).slice(-8);
+      }
+
+      function stableHash(value) {
+        return lightweightHashHex(stableSerializeForHash(value));
+      }
+
+      function normalizeEndpointForHash(pt) {
+        if (!pt || typeof pt !== "object") return { x: 0, y: 0 };
+        var out = { x: typeof pt.x === "number" ? pt.x : 0, y: typeof pt.y === "number" ? pt.y : 0 };
+        if (typeof pt.h === "number" && Number.isFinite(pt.h)) out.h = pt.h;
+        return out;
+      }
+
+      function computeGeometryHash(geometry) {
+        var g = geometry && typeof geometry === "object" ? geometry : {};
+        var slim = {
+          map: g.map || null,
+          image: g.image
+            ? {
+                width: g.image.width,
+                height: g.image.height,
+                len: typeof g.image.dataUrl === "string" ? g.image.dataUrl.length : 0,
+                head: typeof g.image.dataUrl === "string" ? g.image.dataUrl.slice(0, 80) : null,
+                tail: typeof g.image.dataUrl === "string" ? g.image.dataUrl.slice(-80) : null,
+              }
+            : null,
+          scale: g.scale || null,
+          roof: g.roof || null,
+          contoursBati: Array.isArray(g.contoursBati) ? g.contoursBati : [],
+          traits: (Array.isArray(g.traits) ? g.traits : []).map(function (t) {
+            return { id: t && t.id, a: normalizeEndpointForHash(t && t.a), b: normalizeEndpointForHash(t && t.b), roofRole: t && t.roofRole || null };
+          }),
+          mesures: Array.isArray(g.mesures) ? g.mesures : [],
+          ridges: (Array.isArray(g.ridges) ? g.ridges : []).map(function (r) {
+            return { id: r && r.id, a: normalizeEndpointForHash(r && r.a), b: normalizeEndpointForHash(r && r.b), roofRole: r && r.roofRole || null };
+          }),
+          planes: g.planes || null,
+          obstacles: Array.isArray(g.obstacles) ? g.obstacles : [],
+          gps: g.gps || null,
+        };
+        return stableHash(slim);
+      }
+
+      function computePanelsHash(panels) {
+        var src = Array.isArray(panels) ? panels : [];
+        var blocks = src
+          .filter(function (bl) { return bl && typeof bl === "object"; })
+          .map(function (bl) {
+            var rows = Array.isArray(bl.panels) ? bl.panels : [];
+            return {
+              id: bl.id || null,
+              panId: bl.panId || null,
+              orientation: bl.orientation || null,
+              rotation: typeof bl.rotation === "number" ? bl.rotation : null,
+              useScreenAxes: bl.useScreenAxes === true,
+              panels: rows.map(function (p) {
+                return {
+                  center: p && p.center ? p.center : null,
+                  projection: p && p.projection ? p.projection : null,
+                  state: p ? p.state : null,
+                  enabled: p && p.enabled !== false,
+                  localRotationDeg: p && typeof p.localRotationDeg === "number" ? p.localRotationDeg : 0,
+                };
+              }),
+            };
+          })
+          .sort(function (a, b) { return String(a.id).localeCompare(String(b.id)); });
+        return stableHash(blocks);
+      }
+
+      function computeShadingHash(shading) {
+        if (!shading || typeof shading !== "object") return stableHash(null);
+        var perPanelRaw = Array.isArray(shading.perPanel) ? shading.perPanel : [];
+        var perPanel = perPanelRaw
+          .map(function (p) {
+            var pid = p && (p.panelId != null ? p.panelId : p.id);
+            return {
+              id: pid != null ? String(pid) : "",
+              lossPct: p ? p.lossPct : null,
+            };
+          })
+          .filter(function (p) { return p.id; })
+          .sort(function (a, b) { return a.id.localeCompare(b.id); });
+        return stableHash({
+          totalLossPct: shading.totalLossPct,
+          near: shading.near && typeof shading.near === "object" ? { totalLossPct: shading.near.totalLossPct } : shading.near,
+          far: shading.far && typeof shading.far === "object" ? { totalLossPct: shading.far.totalLossPct } : shading.far,
+          combined: shading.combined,
+          perPanel: perPanel,
+          computedAt: shading.computedAt || null,
+        });
+      }
+
+      function getEngineFrozenBlocksSnapshot() {
+        try {
+          var getFrozenBlocks = (window.pvPlacementEngine && window.pvPlacementEngine.getFrozenBlocks) || (window.ActivePlacementBlock && window.ActivePlacementBlock.getFrozenBlocks);
+          if (typeof getFrozenBlocks !== "function") return [];
+          var fb = getFrozenBlocks();
+          return Array.isArray(fb) ? fb : [];
+        } catch (e) {
+          return [];
+        }
+      }
+
+      function buildRoofStateForMetaFromLiveState() {
+        return {
+          map: CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.map ? CALPINAGE_STATE.roof.map : null,
+          image: CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.image ? CALPINAGE_STATE.roof.image : null,
+          scale: CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.scale ? CALPINAGE_STATE.roof.scale : null,
+          roof: CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.roof ? CALPINAGE_STATE.roof.roof : null,
+          contoursBati: (CALPINAGE_STATE.contours || []).map(function (c) { return { id: c.id, points: c.points, roofRole: c.roofRole }; }),
+          traits: (CALPINAGE_STATE.traits || []).map(function (t) { return { id: t.id, a: t.a, b: t.b, roofRole: t.roofRole }; }),
+          mesures: CALPINAGE_STATE.measures || [],
+          ridges: (CALPINAGE_STATE.ridges || []).map(function (r) { return { id: r.id, a: r.a, b: r.b, roofRole: r.roofRole }; }),
+          planes: CALPINAGE_STATE.planes || null,
+          obstacles: (CALPINAGE_STATE.obstacles || []).map(function (o) {
+            return {
+              id: o && o.id,
+              type: o && o.type,
+              points: o && Array.isArray(o.points) ? o.points : [],
+              roofRole: o && o.roofRole ? o.roofRole : null,
+              kind: o && o.kind ? o.kind : "other",
+              meta: o && o.meta && typeof o.meta === "object" ? o.meta : {},
+              shapeMeta: o && o.shapeMeta && typeof o.shapeMeta === "object" ? o.shapeMeta : undefined,
+              heightM: o && typeof o.heightM === "number" && Number.isFinite(o.heightM) ? o.heightM : undefined,
+            };
+          }),
+          gps: (CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.gps) ? CALPINAGE_STATE.roof.gps : null
+        };
+      }
+
+      function isValidShadingPayload(shading) {
+        return !!(shading && typeof shading === "object");
+      }
+
+      function computeReloadDiagnosticFromMeta(data, restoreStats) {
+        var currentRoof = buildRoofStateForMetaFromLiveState();
+        var currentFrozen = getEngineFrozenBlocksSnapshot();
+        var currentShading = (CALPINAGE_STATE.shading && CALPINAGE_STATE.shading.normalized) ? CALPINAGE_STATE.shading.normalized : null;
+        var currentGeometryHash = computeGeometryHash(currentRoof);
+        var currentPanelsHash = computePanelsHash(currentFrozen);
+        var currentShadingHash = computeShadingHash(currentShading);
+
+        var meta = data && data.calpinage_meta && typeof data.calpinage_meta === "object" ? data.calpinage_meta : null;
+        var hasMeta = !!meta;
+        var geometryMatch = !!(hasMeta && typeof meta.geometryHash === "string" && meta.geometryHash === currentGeometryHash);
+        var panelsMatch = !!(hasMeta && typeof meta.panelsHash === "string" && meta.panelsHash === currentPanelsHash);
+        var shadingMatch = !!(hasMeta && typeof meta.shadingHash === "string" && meta.shadingHash === currentShadingHash);
+        var shadingComputedAt = hasMeta && meta.shadingComputedAt != null ? String(meta.shadingComputedAt) : "";
+        var hasShadingComputedAt = shadingComputedAt.trim().length > 0;
+        var shadingValid = isValidShadingPayload(currentShading);
+        var shadingStale =
+          (!hasMeta && shadingValid) ||
+          !geometryMatch ||
+          !hasShadingComputedAt ||
+          !shadingValid;
+
+        var hasPartialData =
+          !data ||
+          !data.roofState ||
+          !Array.isArray(data.frozenBlocks) ||
+          (data.shading != null && typeof data.shading !== "object");
+
+        var reason = "OK";
+        if (!hasMeta) reason = "MISSING_META";
+        else if (hasPartialData) reason = "PARTIAL_DATA";
+        else if (!geometryMatch) reason = "GEOMETRY_CHANGED";
+        else if (!panelsMatch) reason = "PANELS_CHANGED";
+        else if (!shadingMatch || shadingStale) reason = "SHADING_OUTDATED";
+        else if (restoreStats && (restoreStats.panelsSkipped > 0 || restoreStats.frozenBlocksSkipped > 0)) reason = "INCONSISTENT_RESTORE";
+
+        var diagnostic = {
+          geometryMatch: geometryMatch,
+          panelsMatch: panelsMatch,
+          shadingMatch: shadingMatch,
+          shadingStale: shadingStale,
+          reason: reason
+        };
+        var status = {
+          isConsistent: reason === "OK",
+          hasStaleShading: shadingStale,
+          hasGeometryDrift: !geometryMatch,
+          hasPanelDrift: !panelsMatch
+        };
+        return {
+          diagnostic: diagnostic,
+          status: status,
+          current: {
+            geometryHash: currentGeometryHash,
+            panelsHash: currentPanelsHash,
+            shadingHash: currentShadingHash
+          }
+        };
+      }
+
+      function buildCalpinageMetaForSave(data) {
+        var source = "persisted";
+        if (
+          CALPINAGE_STATE &&
+          CALPINAGE_STATE.shading &&
+          CALPINAGE_STATE.shading.lastComputedAt != null &&
+          Number.isFinite(CALPINAGE_STATE.shading.lastComputedAt)
+        ) {
+          source = "recomputed";
+        }
+        var shadingObj = data && data.shading && typeof data.shading === "object" ? data.shading : null;
+        var shadingComputedAt = shadingObj && shadingObj.computedAt != null ? shadingObj.computedAt : null;
+        return {
+          version: "CALPINAGE_V1",
+          savedAt: new Date().toISOString(),
+          geometryHash: computeGeometryHash(data && data.roofState ? data.roofState : null),
+          panelsHash: computePanelsHash(data && Array.isArray(data.frozenBlocks) ? data.frozenBlocks : []),
+          shadingHash: computeShadingHash(shadingObj),
+          shadingComputedAt: shadingComputedAt,
+          shadingSource: source
+        };
+      }
+
+      /**
+       * Construit un snapshot minimal du dossier courant à partir du runtime.
+       * Utilisé par refreshCalpinageIntegrity quand aucun export n'est disponible
+       * (ex : après mise à jour shading sans save).
+       * Ne mute rien, ne calcule rien. Défensif.
+       */
+      function buildMinimalCalpinageSnapshotForIntegrity() {
+        try {
+          var roof = CALPINAGE_STATE && CALPINAGE_STATE.roof ? CALPINAGE_STATE.roof : {};
+          var gps = roof.gps && typeof roof.gps === "object" ? roof.gps : null;
+          var scale = roof.scale && typeof roof.scale === "object" ? roof.scale : null;
+          var image = roof.image && typeof roof.image.dataUrl === "string" && roof.image.dataUrl.length > 32
+            ? { dataUrl: roof.image.dataUrl, width: roof.image.width, height: roof.image.height }
+            : null;
+
+          var roofState = {
+            gps: gps,
+            scale: scale,
+            image: image,
+            contoursBati: Array.isArray(CALPINAGE_STATE.contours)
+              ? CALPINAGE_STATE.contours.map(function (c) { return { id: c.id, points: c.points, roofRole: c.roofRole }; })
+              : [],
+            traits: Array.isArray(CALPINAGE_STATE.traits)
+              ? CALPINAGE_STATE.traits.map(function (t) { return { id: t.id, a: t.a, b: t.b, roofRole: t.roofRole }; })
+              : [],
+            ridges: Array.isArray(CALPINAGE_STATE.ridges)
+              ? CALPINAGE_STATE.ridges.map(function (r) { return { id: r.id, a: r.a, b: r.b, roofRole: r.roofRole }; })
+              : [],
+            planes: CALPINAGE_STATE.planes || null,
+          };
+
+          var getFrozen =
+            (window.pvPlacementEngine && window.pvPlacementEngine.getFrozenBlocks) ||
+            (window.ActivePlacementBlock && window.ActivePlacementBlock.getFrozenBlocks);
+          var frozenBlocks = typeof getFrozen === "function" ? getFrozen() : [];
+
+          return {
+            roofState: roofState,
+            frozenBlocks: Array.isArray(frozenBlocks) ? frozenBlocks : [],
+            shading: CALPINAGE_STATE.shading && CALPINAGE_STATE.shading.normalized
+              ? CALPINAGE_STATE.shading.normalized
+              : null,
+            // calpinage_meta depuis le dernier chargement/save — absent si jamais persisté
+            calpinage_meta: CALPINAGE_STATE.calpinage_meta || null,
+          };
+        } catch (_err) {
+          return null;
+        }
+      }
+
+      /**
+       * Refresh centralisé de l'intégrité du dossier courant.
+       *
+       * Appelé :
+       * - Après loadCalpinageState (avec export data complet)
+       * - Après saveCalpinageState (avec export data complet)
+       * - Après normalizeCalpinageShading (sans export, snapshot thin)
+       *
+       * Ne recalcule jamais le shading. Ne mute jamais les données métier.
+       * Ne crashe jamais.
+       *
+       * @param {object|null} [exportData] — données complètes depuis buildGeometryForExport (avec calpinage_meta frais)
+       */
+      function refreshCalpinageIntegrity(exportData) {
+        try {
+          var data = exportData || buildMinimalCalpinageSnapshotForIntegrity();
+          if (!data) return;
+
+          // Mettre à jour calpinage_meta stocké si on a un export frais
+          if (exportData && exportData.calpinage_meta && typeof exportData.calpinage_meta === "object") {
+            CALPINAGE_STATE.calpinage_meta = exportData.calpinage_meta;
+          }
+
+          var integrity = classifyCalpinageDataIntegrity(data);
+
+          // Cohérence avec reload_diagnostic :
+          // si shading était stale au chargement ET n'a pas été recalculé cette session,
+          // ne pas upclasser silencieusement à OK.
+          var reloadDiag = CALPINAGE_STATE.reload_diagnostic || null;
+          var shadingRecomputedThisSession =
+            CALPINAGE_STATE.shading != null &&
+            typeof CALPINAGE_STATE.shading.lastComputedAt === "number" &&
+            Number.isFinite(CALPINAGE_STATE.shading.lastComputedAt);
+
+          integrity = applyReloadDiagnosticCoherence(integrity, reloadDiag, shadingRecomputedThisSession);
+
+          attachIntegrityToWindow(integrity);
+
+          var sid = (typeof window !== "undefined" && window.CALPINAGE_STUDY_ID) || null;
+          logIntegrityWarningIfNeeded(integrity, sid ? { studyId: sid } : undefined);
+        } catch (_err) {
+          // Refresh non critique — silencieux
+        }
+      }
+
+      /** Synchronise roof.canonical3DWorldContract depuis scale + nord (canonical3d). Pur données, pas d’UX. */
+      function syncCanonical3DWorldContractFromCalpinageRoof() {
+        try {
+          if (CALPINAGE_STATE && CALPINAGE_STATE.roof) {
+            applyCanonical3DWorldContractToRoof(CALPINAGE_STATE.roof);
+            if (typeof window !== "undefined" && window.__CALPINAGE_DEBUG_WORLD_CONTRACT__) {
+              var _driftAfter = getCanonical3DWorldContractDriftReport(CALPINAGE_STATE.roof);
+              if (!_driftAfter.aligned && typeof console !== "undefined" && console.warn) {
+                console.warn("[CALPINAGE] canonical3DWorldContract drift après sync (anomalie)", _driftAfter);
+              }
+            }
+          }
+        } catch (_syncWcErr) {}
+      }
+      if (typeof window !== "undefined") {
+        window.__CALPINAGE_SYNC_CANONICAL3D_WORLD_CONTRACT__ = syncCanonical3DWorldContractFromCalpinageRoof;
+        cleanupTasks.push(function () {
+          try {
+            if (window.__CALPINAGE_SYNC_CANONICAL3D_WORLD_CONTRACT__ === syncCanonical3DWorldContractFromCalpinageRoof) {
+              delete window.__CALPINAGE_SYNC_CANONICAL3D_WORLD_CONTRACT__;
+            }
+          } catch (_delSync) {}
+        });
+      }
+
       function loadCalpinageState(fromData) {
         try {
           var data;
@@ -3994,6 +6962,13 @@ export function initCalpinage(container, options = {}) {
             if (!raw) return;
             data = JSON.parse(raw);
           }
+          var _dbgLoad = (typeof window !== "undefined" && window.CALPINAGE_LOAD_DEBUG) || devLog;
+          var restoreStats = {
+            panelsRestored: 0,
+            panelsSkipped: 0,
+            frozenBlocksRestored: 0,
+            frozenBlocksSkipped: 0
+          };
           var savedPans = (data.pans && Array.isArray(data.pans)) ? data.pans : [];
           if (savedPans.length > 0) {
             CalpinagePans.panState.pans.length = 0;
@@ -4010,15 +6985,41 @@ export function initCalpinage(container, options = {}) {
           }
           if (data.roofState && typeof data.roofState === "object") {
             if (data.roofState.map) CALPINAGE_STATE.roof.map = data.roofState.map;
-            /* Ne jamais restaurer roof.image : le capture mode ne doit pas persister entre ouvertures (CP-015). */
+            /* CP-016 — Reprise persistante : restaurer l'image si valide (alignée avec la géométrie sauvegardée). */
+            var persistedImg = data.roofState.image;
+            if (persistedImg && typeof persistedImg === "object" && typeof persistedImg.dataUrl === "string" && persistedImg.dataUrl.length > 32
+              && typeof persistedImg.width === "number" && persistedImg.width > 0
+              && typeof persistedImg.height === "number" && persistedImg.height > 0) {
+              CALPINAGE_STATE.roof.image = {
+                dataUrl: persistedImg.dataUrl,
+                width: persistedImg.width,
+                height: persistedImg.height,
+                cssWidth: typeof persistedImg.cssWidth === "number" ? persistedImg.cssWidth : persistedImg.width,
+                cssHeight: typeof persistedImg.cssHeight === "number" ? persistedImg.cssHeight : persistedImg.height
+              };
+            } else if (persistedImg) {
+              if (typeof console !== "undefined" && console.warn) {
+                console.warn("[CALPINAGE] persisted roof.image invalid — not restored (CP-016)");
+              }
+            }
             if (data.roofState.gps && typeof data.roofState.gps === "object") {
               CALPINAGE_STATE.roof.gps = { lat: data.roofState.gps.lat, lon: data.roofState.gps.lon };
+            } else {
+              /* Fallback : dériver GPS depuis map.centerLatLng pour que shading (getShadingGps) ait une source. Test manuel après load : CALPINAGE_STATE.roof.gps doit être défini si map.centerLatLng existe. */
+              var centerLatLng = data.roofState.map && data.roofState.map.centerLatLng;
+              if (centerLatLng && typeof centerLatLng.lat === "number" && typeof centerLatLng.lng === "number" && !Number.isNaN(centerLatLng.lat) && !Number.isNaN(centerLatLng.lng)) {
+                CALPINAGE_STATE.roof.gps = { lat: centerLatLng.lat, lon: centerLatLng.lng };
+              }
             }
             if (data.roofState.scale) {
               CALPINAGE_STATE.roof.scale.metersPerPixel = data.roofState.scale.metersPerPixel;
               if (data.roofState.scale.source) CALPINAGE_STATE.roof.scale.source = data.roofState.scale.source;
             }
             if (data.roofState.roof) CALPINAGE_STATE.roof.roof = data.roofState.roof;
+            /* Prompt 1-bis : toute mutation autoritaire scale/nord → contrat à jour dans le même cycle (avant pans / intégrité). */
+            if (data.roofState.scale || data.roofState.roof) {
+              syncCanonical3DWorldContractFromCalpinageRoof();
+            }
             if (data.roofState.contoursBati && Array.isArray(data.roofState.contoursBati)) {
               CALPINAGE_STATE.contours = data.roofState.contoursBati.filter(function (pts) { return pts && (pts.roofRole || "") !== "chienAssis"; }).map(function (pts, idx) {
                 var points = Array.isArray(pts) ? pts : (pts && pts.points) ? pts.points : [];
@@ -4069,6 +7070,7 @@ export function initCalpinage(container, options = {}) {
                     roofRole: o.roofRole !== "chienAssis" ? (o.roofRole || null) : null,
                     kind: o.kind || "other",
                     meta: o.meta && typeof o.meta === "object" ? o.meta : {},
+                    heightM: typeof o.heightM === "number" && Number.isFinite(o.heightM) ? o.heightM : undefined,
                   };
                 }
                 if (o.points && Array.isArray(o.points) && o.points.length >= 3) {
@@ -4079,6 +7081,7 @@ export function initCalpinage(container, options = {}) {
                     roofRole: o.roofRole !== "chienAssis" ? (o.roofRole || null) : null,
                     kind: o.kind || "other",
                     meta: o.meta && typeof o.meta === "object" ? o.meta : {},
+                    heightM: typeof o.heightM === "number" && Number.isFinite(o.heightM) ? o.heightM : undefined,
                   };
                 }
                 var type = o.type || "rect";
@@ -4100,33 +7103,77 @@ export function initCalpinage(container, options = {}) {
                 return null;
               }).filter(Boolean);
             }
-            computePansFromGeometry();
-            ensurePanPointsWithHeights();
-            /* Restaurer hauteurs et physical depuis les pans sauvegard?s (par id). */
-            if (savedPans.length > 0) {
-              var savedById = {};
-              savedPans.forEach(function (p) { if (p && p.id) savedById[p.id] = p; });
-              CALPINAGE_STATE.pans.forEach(function (pan) {
-                var saved = savedById[pan.id];
-                if (!saved) return;
-                if (saved.points && Array.isArray(saved.points) && saved.points.length >= 2) {
-                  pan.points = saved.points.map(function (pt) { return { x: pt.x, y: pt.y, h: typeof pt.h === "number" ? pt.h : 0, id: pt.id }; });
-                }
-                if (saved.physical) {
-                  pan.physical = pan.physical || {};
-                  pan.physical.slope = pan.physical.slope || { mode: "auto", computedDeg: null, valueDeg: null };
-                  pan.physical.orientation = pan.physical.orientation || { azimuthDeg: null, label: null };
-                  if (saved.physical.slope) {
-                    if (saved.physical.slope.mode === "manual" || saved.physical.slope.mode === "auto") pan.physical.slope.mode = saved.physical.slope.mode;
-                    if (typeof saved.physical.slope.valueDeg === "number") pan.physical.slope.valueDeg = saved.physical.slope.valueDeg;
-                  }
-                  if (saved.physical.orientation) {
-                    if (typeof saved.physical.orientation.azimuthDeg === "number") pan.physical.orientation.azimuthDeg = saved.physical.orientation.azimuthDeg;
-                    if (typeof saved.physical.orientation.label === "string") pan.physical.orientation.label = saved.physical.orientation.label;
-                  }
-                }
-              });
+            /* Lot 1 — Ne restaurer les pans bruts sans recompute que si la géométrie chargée === celle ayant servi à sauver (signature stricte). */
+            var _ridgesInPayload = 0;
+            if (data.roofState && Array.isArray(data.roofState.ridges)) {
+              for (var _ri = 0; _ri < data.roofState.ridges.length; _ri++) {
+                var _rx = data.roofState.ridges[_ri];
+                if (_rx && (_rx.roofRole || "") !== "chienAssis") _ridgesInPayload++;
+              }
             }
+            var _traitsInPayload = 0;
+            if (data.roofState && Array.isArray(data.roofState.traits)) {
+              for (var _ti = 0; _ti < data.roofState.traits.length; _ti++) {
+                var _tx = data.roofState.traits[_ti];
+                if (_tx && (_tx.roofRole || "") !== "chienAssis") _traitsInPayload++;
+              }
+            }
+            var _sigNow = computePansStructuralSignatureForPersistence(CALPINAGE_STATE);
+            var _sigSaved = typeof data.pansStructuralSig === "string" ? data.pansStructuralSig : null;
+            var _hasFrozen = Array.isArray(data.frozenBlocks) && data.frozenBlocks.length > 0;
+            var _skipComputePans =
+              savedPans.length > 0 && _hasFrozen && _sigSaved != null && _sigSaved === _sigNow;
+            if (_skipComputePans) {
+              try {
+                CALPINAGE_STATE.pans = JSON.parse(JSON.stringify(savedPans));
+              } catch (_cloneErr) {
+                CALPINAGE_STATE.pans = savedPans.map(function (p) { return p; });
+              }
+            } else {
+              computePansFromGeometry();
+              /* Restaurer hauteurs et physical depuis les pans sauvegard?s (par id). */
+              if (savedPans.length > 0) {
+                var savedById = {};
+                savedPans.forEach(function (p) { if (p && p.id) savedById[p.id] = p; });
+                CALPINAGE_STATE.pans.forEach(function (pan) {
+                  var saved = savedById[pan.id];
+                  if (!saved) return;
+                  if (saved.roofType === "FLAT") {
+                    pan.roofType = "FLAT";
+                    pan.flatRoofConfig = normalizeFlatRoofConfig(saved.flatRoofConfig);
+                  }
+                  if (saved.points && Array.isArray(saved.points) && saved.points.length >= 2) {
+                    pan.points = saved.points.map(function (pt) { return { x: pt.x, y: pt.y, h: typeof pt.h === "number" ? pt.h : 0, id: pt.id }; });
+                  }
+                  if (saved.physical) {
+                    pan.physical = pan.physical || {};
+                    pan.physical.slope = pan.physical.slope || { mode: "auto", computedDeg: null, valueDeg: null };
+                    pan.physical.orientation = pan.physical.orientation || { azimuthDeg: null, label: null };
+                    if (saved.physical.slope) {
+                      if (saved.physical.slope.mode === "manual" || saved.physical.slope.mode === "auto") pan.physical.slope.mode = saved.physical.slope.mode;
+                      if (typeof saved.physical.slope.valueDeg === "number") pan.physical.slope.valueDeg = saved.physical.slope.valueDeg;
+                    }
+                    if (saved.physical.orientation) {
+                      if (typeof saved.physical.orientation.azimuthDeg === "number") pan.physical.orientation.azimuthDeg = saved.physical.orientation.azimuthDeg;
+                      if (typeof saved.physical.orientation.label === "string") pan.physical.orientation.label = saved.physical.orientation.label;
+                    }
+                  }
+                });
+                /* FLAT persisté : si recompute change l’id (ex. pan-flat-1 → pan-1) mais payload = un seul pan FLAT et un seul pan calculé, réappliquer. */
+                var _flatSaved = savedPans.filter(function (p) { return p && p.roofType === "FLAT"; });
+                if (_flatSaved.length === 1 && savedPans.length === 1 && CALPINAGE_STATE.pans.length === 1) {
+                  var _one = CALPINAGE_STATE.pans[0];
+                  if (_one && _one.roofType !== "FLAT") {
+                    _one.roofType = "FLAT";
+                    _one.flatRoofConfig = normalizeFlatRoofConfig(_flatSaved[0].flatRoofConfig);
+                  }
+                }
+              }
+            }
+            if (_skipComputePans) {
+              applyDerivedRoofTopologyAfterPans(CALPINAGE_STATE);
+            }
+            ensurePanPointsWithHeights();
             ensurePansHavePoints();
             CalpinagePans.ensurePanPhysicalProps(CALPINAGE_STATE.pans);
             if (CalpinagePans.recomputeAllPanPhysicalProps && CALPINAGE_STATE.pans.length) {
@@ -4136,10 +7183,35 @@ export function initCalpinage(container, options = {}) {
               CalpinagePans.panState.pans.length = 0;
               CALPINAGE_STATE.pans.forEach(function (p) { CalpinagePans.panState.pans.push(p); });
             }
-            if (data.selectedPanId != null && CALPINAGE_STATE.pans.some(function (p) { return p.id === data.selectedPanId; })) {
-              CALPINAGE_STATE.selectedPanId = data.selectedPanId;
+            if (!CALPINAGE_STATE.phase3) CALPINAGE_STATE.phase3 = { activePanId: null };
+            if (data.selectedPanId != null && CALPINAGE_STATE.pans.some(function (p) { return p && samePanId(p.id, data.selectedPanId); })) {
+              CALPINAGE_STATE.selectedPanId = normalizePanIdForWrite(data.selectedPanId);
             } else {
               CALPINAGE_STATE.selectedPanId = null;
+            }
+            if (data.phase3 && data.phase3.activePanId != null && CALPINAGE_STATE.pans.some(function (p) { return p && samePanId(p.id, data.phase3.activePanId); })) {
+              CALPINAGE_STATE.phase3.activePanId = normalizePanIdForWrite(data.phase3.activePanId);
+            } else if (CALPINAGE_STATE.selectedPanId != null) {
+              CALPINAGE_STATE.phase3.activePanId = CALPINAGE_STATE.selectedPanId;
+            } else {
+              CALPINAGE_STATE.phase3.activePanId = null;
+            }
+            if (typeof CalpinagePans !== "undefined" && CalpinagePans.panState) {
+              CalpinagePans.panState.activePanId = CALPINAGE_STATE.phase3.activePanId;
+            }
+            if (!CALPINAGE_STATE.roof.gps) {
+              if (typeof console !== "undefined" && console.warn) console.warn("[LOAD] Aucun GPS disponible (ni roofState.gps ni map.centerLatLng)");
+            }
+            if (_dbgLoad && typeof console !== "undefined" && console.log) {
+              console.log("[CALPINAGE] loadCalpinageState roof", {
+                ridgesLoaded: _ridgesInPayload,
+                traitsLoaded: _traitsInPayload,
+                skipComputePans: _skipComputePans,
+                pansRecalculated: !_skipComputePans,
+                pansCount: (CALPINAGE_STATE.pans || []).length,
+                pansStructuralSigMatch: _skipComputePans,
+                hasFrozenBlocks: _hasFrozen
+              });
             }
             setTimeout(function () { }, 0);
           }
@@ -4148,7 +7220,35 @@ export function initCalpinage(container, options = {}) {
             CALPINAGE_STATE.currentPhase = data.phase === 3 ? "PV_LAYOUT" : "ROOF_EDIT";
           }
           if (data.roofSurveyLocked === true) CALPINAGE_STATE.roofSurveyLocked = true;
-          if (data.validatedRoofData && typeof data.validatedRoofData === "object") CALPINAGE_STATE.validatedRoofData = data.validatedRoofData;
+          /* Phase 2 éditable : jamais roofSurveyLocked=true (JSON incohérent phase 2 + locked). */
+          if (CALPINAGE_STATE.currentPhase === "ROOF_EDIT") {
+            CALPINAGE_STATE.roofSurveyLocked = false;
+          }
+          /* Shading enrichi (far.source, horizonMeta, etc.) — même vérité qu’après Analyse d’ombrage + save API. */
+          if (data.shading && typeof data.shading === "object") {
+            if (!CALPINAGE_STATE.shading) {
+              CALPINAGE_STATE.shading = {
+                lastResult: null,
+                normalized: null,
+                lastAbortReason: null,
+                lastComputedAt: null,
+                enabled: true,
+              };
+            }
+            CALPINAGE_STATE.shading.normalized = data.shading;
+          }
+          if (data.validatedRoofData && typeof data.validatedRoofData === "object") {
+            CALPINAGE_STATE.validatedRoofData = data.validatedRoofData;
+            if (CALPINAGE_STATE.validatedRoofData.pans && Array.isArray(CALPINAGE_STATE.validatedRoofData.pans) && CALPINAGE_STATE.validatedRoofData.pans.length > 0) {
+              var first = CALPINAGE_STATE.validatedRoofData.pans[0];
+              var needsEnrich = first.panelCount === undefined && first.geometryRef === undefined;
+              if (needsEnrich) {
+                var getPanelsFn = (window.pvPlacementEngine && typeof window.pvPlacementEngine.getAllPanels === "function") ? function () { return window.pvPlacementEngine.getAllPanels(); } : function () { return []; };
+                var shadingNorm = (CALPINAGE_STATE.shading && CALPINAGE_STATE.shading.normalized) ? CALPINAGE_STATE.shading.normalized : null;
+                CALPINAGE_STATE.validatedRoofData.pans = enrichPansWithOfficialFieldsInline(CALPINAGE_STATE.validatedRoofData.pans, getPanelsFn, shadingNorm);
+              }
+            }
+          }
           if (data.pvParams && typeof data.pvParams === "object") {
             if (typeof data.pvParams.distanceLimitesCm === "number") CALPINAGE_STATE.pvParams.distanceLimitesCm = data.pvParams.distanceLimitesCm;
             if (typeof data.pvParams.espacementHorizontalCm === "number") CALPINAGE_STATE.pvParams.espacementHorizontalCm = data.pvParams.espacementHorizontalCm;
@@ -4177,7 +7277,60 @@ export function initCalpinage(container, options = {}) {
           }
           var restoreBlocks = (window.pvPlacementEngine && window.pvPlacementEngine.restoreFrozenBlocks) || (window.ActivePlacementBlock && window.ActivePlacementBlock.restoreFrozenBlocks);
           if (typeof restoreBlocks === "function" && Array.isArray(data.frozenBlocks)) {
-            restoreBlocks(data.frozenBlocks);
+            var validPanIdsForFrozen = {};
+            (CALPINAGE_STATE.pans || []).forEach(function (p) { if (p && p.id) validPanIdsForFrozen[p.id] = true; });
+            var filteredFrozenBlocks = [];
+            for (var _fbi = 0; _fbi < data.frozenBlocks.length; _fbi++) {
+              var _fb = data.frozenBlocks[_fbi];
+              var blockPanels = (_fb && Array.isArray(_fb.panels)) ? _fb.panels : [];
+              if (!_fb || !_fb.panId) {
+                restoreStats.frozenBlocksSkipped++;
+                restoreStats.panelsSkipped += blockPanels.length;
+                continue;
+              }
+              if (!validPanIdsForFrozen[_fb.panId]) {
+                restoreStats.frozenBlocksSkipped++;
+                restoreStats.panelsSkipped += blockPanels.length;
+                if (_dbgLoad && typeof console !== "undefined" && console.warn) {
+                  console.warn("[CALPINAGE] load: restoreFrozenBlocks ignoré — panId inconnu", _fb.panId);
+                }
+                continue;
+              }
+              var validPanels = [];
+              for (var _pi = 0; _pi < blockPanels.length; _pi++) {
+                var _pnl = blockPanels[_pi];
+                var hasValidCenter =
+                  _pnl &&
+                  _pnl.center &&
+                  typeof _pnl.center.x === "number" &&
+                  Number.isFinite(_pnl.center.x) &&
+                  typeof _pnl.center.y === "number" &&
+                  Number.isFinite(_pnl.center.y);
+                if (hasValidCenter) validPanels.push(_pnl);
+              }
+              restoreStats.panelsRestored += validPanels.length;
+              restoreStats.panelsSkipped += (blockPanels.length - validPanels.length);
+              if (validPanels.length === 0) {
+                restoreStats.frozenBlocksSkipped++;
+                continue;
+              }
+              filteredFrozenBlocks.push({
+                id: _fb.id,
+                panId: _fb.panId,
+                panels: validPanels,
+                rotation: _fb.rotation,
+                orientation: _fb.orientation,
+                useScreenAxes: _fb.useScreenAxes === true
+              });
+              restoreStats.frozenBlocksRestored++;
+            }
+            restoreBlocks(filteredFrozenBlocks);
+            if (_dbgLoad && typeof console !== "undefined" && console.log) {
+              console.log("[CALPINAGE] loadCalpinageState PV", {
+                frozenBlocksRestored: filteredFrozenBlocks.length,
+                frozenBlocksInPayload: data.frozenBlocks.length
+              });
+            }
           }
           if (data.panel && data.panel.id && typeof findPanelById === "function") {
             var restored = findPanelById(data.panel.id);
@@ -4194,6 +7347,37 @@ export function initCalpinage(container, options = {}) {
               window.CALPINAGE_SELECTED_INVERTER_ID = data.inverter.id;
             }
           }
+          /* RidgeIds : même si _skipComputePans, recalcul déterministe (faîtage intérieur + bord) + sync validatedRoofData. */
+          recomputePanRidgeIdsForAllPansInState(CALPINAGE_STATE);
+          if (CALPINAGE_STATE.phase === 3 && CALPINAGE_STATE.roofSurveyLocked) {
+            ensurePhase3InitialPanOnEnter("load-state");
+          }
+          CALPINAGE_STATE.restore_stats = restoreStats;
+          if (typeof window !== "undefined") {
+            window.__CALPINAGE_RESTORE_STATS__ = restoreStats;
+          }
+          var _reloadIntegrity = computeReloadDiagnosticFromMeta(data, restoreStats);
+          CALPINAGE_STATE.reload_diagnostic = _reloadIntegrity.diagnostic;
+          CALPINAGE_STATE.calpinage_state_status = _reloadIntegrity.status;
+          // Conserver calpinage_meta en état pour le snapshot thin (refreshCalpinageIntegrity sans export)
+          CALPINAGE_STATE.calpinage_meta = (data.calpinage_meta && typeof data.calpinage_meta === "object")
+            ? data.calpinage_meta : null;
+          if (typeof window !== "undefined") {
+            window.__CALPINAGE_RELOAD_DIAGNOSTIC__ = _reloadIntegrity.diagnostic;
+            window.__CALPINAGE_STATE_STATUS__ = _reloadIntegrity.status;
+          }
+          if (!_reloadIntegrity.status.isConsistent && typeof console !== "undefined" && console.warn) {
+            console.warn("[CALPINAGE_RELOAD_ISSUE]", {
+              geometryMatch: _reloadIntegrity.diagnostic.geometryMatch,
+              panelsMatch: _reloadIntegrity.diagnostic.panelsMatch,
+              shadingMatch: _reloadIntegrity.diagnostic.shadingMatch,
+              shadingStale: _reloadIntegrity.diagnostic.shadingStale,
+              reason: _reloadIntegrity.diagnostic.reason
+            });
+          }
+          syncCanonical3DWorldContractFromCalpinageRoof();
+          // Stratégie intégrité officielle centralisée — classification + exposition + warn
+          refreshCalpinageIntegrity(data);
         } catch (e) {}
       }
 
@@ -4216,10 +7400,19 @@ export function initCalpinage(container, options = {}) {
         var blockEl = container.querySelector("#zone-a-pans-block");
         if (!listEl || !blockEl) return;
         var pans = CALPINAGE_STATE.pans || [];
-        if (typeof CalpinagePans !== "undefined" && CalpinagePans.panState && CalpinagePans.panState.activePanId != null) {
-          CALPINAGE_STATE.selectedPanId = CalpinagePans.panState.activePanId;
+        var selectedId = null;
+        if (CALPINAGE_STATE.currentPhase === "PV_LAYOUT") {
+          selectedId = resolvePhase3Context(CALPINAGE_STATE).activePanId;
+        } else {
+          if (typeof CalpinagePans !== "undefined" && CalpinagePans.panState && CalpinagePans.panState.activePanId != null) {
+            CALPINAGE_STATE.selectedPanId = CalpinagePans.panState.activePanId;
+          }
+          if (!CALPINAGE_STATE.phase3) CALPINAGE_STATE.phase3 = { activePanId: null };
+          if (CALPINAGE_STATE.selectedPanId != null && CALPINAGE_STATE.phase3.activePanId == null) {
+            CALPINAGE_STATE.phase3.activePanId = normalizePanIdForWrite(CALPINAGE_STATE.selectedPanId);
+          }
+          selectedId = CALPINAGE_STATE.selectedPanId;
         }
-        var selectedId = CALPINAGE_STATE.selectedPanId;
         ensurePanPointsWithHeights();
         ensurePansHavePoints();
         if (typeof CalpinagePans !== "undefined") {
@@ -4238,7 +7431,7 @@ export function initCalpinage(container, options = {}) {
         listEl.classList.remove("pans-list");
         listEl.classList.add("pans-accordion");
         pans.forEach(function (pan) {
-          var isOpen = pan.id === selectedId;
+          var isOpen = selectedId != null && samePanId(pan.id, selectedId);
           var slope = (pan.physical && pan.physical.slope) ? pan.physical.slope : { mode: "auto", valueDeg: null, computedDeg: null };
           var orient = (pan.physical && pan.physical.orientation) ? pan.physical.orientation : { azimuthDeg: null, label: null };
           var mode = slope.mode || "auto";
@@ -4271,8 +7464,25 @@ export function initCalpinage(container, options = {}) {
           header.appendChild(badge);
           header.appendChild(chevron);
           addSafeListener(header, "click", function () {
-            CALPINAGE_STATE.selectedPanId = pan.id;
-            if (typeof CalpinagePans !== "undefined" && CalpinagePans.panState) CalpinagePans.panState.activePanId = pan.id;
+            if (CALPINAGE_STATE.currentPhase === "PV_LAYOUT") {
+              setPhase3ActivePan(pan.id, "pans-list-header");
+            } else {
+              /* Phase 2 : second clic sur le pan ouvert = refermer (aucun pan sélectionné dans la liste). */
+              var curSel = CALPINAGE_STATE.selectedPanId;
+              if ((curSel == null || curSel === "") && typeof CalpinagePans !== "undefined" && CalpinagePans.panState && CalpinagePans.panState.activePanId != null) {
+                curSel = CalpinagePans.panState.activePanId;
+              }
+              if (curSel != null && curSel !== "" && samePanId(pan.id, curSel)) {
+                CALPINAGE_STATE.selectedPanId = null;
+                if (CALPINAGE_STATE.phase3) CALPINAGE_STATE.phase3.activePanId = null;
+                if (typeof CalpinagePans !== "undefined" && CalpinagePans.panState) CalpinagePans.panState.activePanId = null;
+              } else {
+                CALPINAGE_STATE.selectedPanId = pan.id;
+                if (!CALPINAGE_STATE.phase3) CALPINAGE_STATE.phase3 = { activePanId: null };
+                CALPINAGE_STATE.phase3.activePanId = normalizePanIdForWrite(pan.id);
+                if (typeof CalpinagePans !== "undefined" && CalpinagePans.panState) CalpinagePans.panState.activePanId = pan.id;
+              }
+            }
             updatePansListUI();
             if (typeof requestAnimationFrame !== "undefined" && typeof window.CALPINAGE_RENDER === "function") requestAnimationFrame(window.CALPINAGE_RENDER);
           });
@@ -4439,6 +7649,103 @@ export function initCalpinage(container, options = {}) {
         } else if (m.originalType === "rect" && typeof m.width === "number" && typeof m.height === "number") {
           obstacle.points = obstacleRectToPoints(m.centerX, m.centerY, m.width, m.height, m.angle);
         }
+      }
+
+      function obstacleRectUnitAxes(angleRad) {
+        var c = Math.cos(angleRad || 0);
+        var s = Math.sin(angleRad || 0);
+        return { ex: { x: c, y: s }, ey: { x: -s, y: c } };
+      }
+
+      /** Coin rectangle (index 0..3) en espace image — aligné sur obstacleRectToPoints. */
+      function obstacleRectCornerWorld(cx, cy, hw, hh, angleRad, cornerIndex) {
+        var loc = [
+          { x: -hw, y: -hh },
+          { x: hw, y: -hh },
+          { x: hw, y: hh },
+          { x: -hw, y: hh },
+        ];
+        var p = loc[cornerIndex] || loc[0];
+        var a = typeof angleRad === "number" ? angleRad : 0;
+        var c = Math.cos(a);
+        var s = Math.sin(a);
+        return { x: cx + p.x * c - p.y * s, y: cy + p.x * s + p.y * c };
+      }
+
+      /** Redimensionnement coin : coin opposé fixe (world), coin tiré = curseur ; pas de grossissement « autour du centre ». */
+      function obstacleRectResizeFromCornerDrag(m, imgPt, start, minPx, shiftKey) {
+        var Wf = start.fixedCornerWorld;
+        if (!Wf || typeof Wf.x !== "number" || typeof Wf.y !== "number") return;
+        var th = typeof start.angleLock === "number" ? start.angleLock : 0;
+        var axes = obstacleRectUnitAxes(th);
+        var ex = axes.ex;
+        var ey = axes.ey;
+        var D = { x: imgPt.x - Wf.x, y: imgPt.y - Wf.y };
+        var dlx = D.x * ex.x + D.y * ex.y;
+        var dly = D.x * ey.x + D.y * ey.y;
+        var sx = dlx >= 0 ? 1 : -1;
+        var sy = dly >= 0 ? 1 : -1;
+        var w = Math.max(minPx, Math.abs(dlx));
+        var h = Math.max(minPx, Math.abs(dly));
+        if (shiftKey) {
+          var s = Math.max(w, h);
+          w = h = s;
+        }
+        m.width = w;
+        m.height = h;
+        m.angle = th;
+        var Wmx = Wf.x + sx * w * ex.x + sy * h * ey.x;
+        var Wmy = Wf.y + sx * w * ex.y + sy * h * ey.y;
+        m.centerX = (Wf.x + Wmx) / 2;
+        m.centerY = (Wf.y + Wmy) / 2;
+      }
+
+      /** Redimensionnement milieu d’arête : arête opposée fixe, largeur ou hauteur seule. */
+      function obstacleRectResizeFromEdgeDrag(m, imgPt, start, minPx) {
+        var th = typeof start.angleLock === "number" ? start.angleLock : 0;
+        var axes = obstacleRectUnitAxes(th);
+        var ex = axes.ex;
+        var ey = axes.ey;
+        var C0 = start.edgeStartCenter;
+        var hw0 = start.edgeStartHw;
+        var hh0 = start.edgeStartHh;
+        var ei = start.edgeIndex;
+        var M = imgPt;
+        if (!C0 || typeof hw0 !== "number" || typeof hh0 !== "number") return;
+        if (ei === 1) {
+          var LF = { x: C0.x - hw0 * ex.x, y: C0.y - hw0 * ex.y };
+          var wNew = Math.max(minPx, 2 * ((M.x - LF.x) * ex.x + (M.y - LF.y) * ex.y));
+          var hwN = wNew / 2;
+          m.width = wNew;
+          m.height = 2 * hh0;
+          m.centerX = LF.x + hwN * ex.x;
+          m.centerY = LF.y + hwN * ex.y;
+        } else if (ei === 3) {
+          var RF = { x: C0.x + hw0 * ex.x, y: C0.y + hw0 * ex.y };
+          var wNewR = Math.max(minPx, 2 * ((RF.x - M.x) * ex.x + (RF.y - M.y) * ex.y));
+          var hwN2 = wNewR / 2;
+          m.width = wNewR;
+          m.height = 2 * hh0;
+          m.centerX = RF.x - hwN2 * ex.x;
+          m.centerY = RF.y - hwN2 * ex.y;
+        } else if (ei === 0) {
+          var BF = { x: C0.x + hh0 * ey.x, y: C0.y + hh0 * ey.y };
+          var hNew = Math.max(minPx, 2 * ((BF.x - M.x) * ey.x + (BF.y - M.y) * ey.y));
+          var hhN = hNew / 2;
+          m.height = hNew;
+          m.width = 2 * hw0;
+          m.centerX = BF.x - hhN * ey.x;
+          m.centerY = BF.y - hhN * ey.y;
+        } else if (ei === 2) {
+          var TF = { x: C0.x - hh0 * ey.x, y: C0.y - hh0 * ey.y };
+          var hNew2 = Math.max(minPx, 2 * ((M.x - TF.x) * ey.x + (M.y - TF.y) * ey.y));
+          var hhN2 = hNew2 / 2;
+          m.height = hNew2;
+          m.width = 2 * hw0;
+          m.centerX = TF.x + hhN2 * ey.x;
+          m.centerY = TF.y + hhN2 * ey.y;
+        }
+        m.angle = th;
       }
 
       /**
@@ -4627,102 +7934,12 @@ export function initCalpinage(container, options = {}) {
         return null;
       }
 
+      /**
+       * Plans toiture : dérivés strictement des pans (`computePansFromGeometryCore`), plus miroir `roof.roofPans`.
+       * Ancienne logique « premier ridge sur contour » supprimée pour éviter divergence avec la topologie pans.
+       */
       function recomputeRoofPlanes() {
-        var contours = (CALPINAGE_STATE.contours || []).filter(function (c) { return c.roofRole !== "chienAssis"; });
-        var ridges = (CALPINAGE_STATE.ridges || []).filter(function (r) { return r.roofRole !== "chienAssis"; });
-        CALPINAGE_STATE.planes = [];
-        if (!contours.length) return;
-        function projectPointOnSegment(pt, a, b) {
-          var ax = a.x; var ay = a.y;
-          var bx = b.x; var by = b.y;
-          var px = pt.x; var py = pt.y;
-          var abx = bx - ax; var aby = by - ay;
-          var apx = px - ax; var apy = py - ay;
-          var t = (apx * abx + apy * aby) / (abx * abx + aby * aby + 1e-10);
-          t = Math.max(0, Math.min(1, t));
-          return { x: ax + t * abx, y: ay + t * aby };
-        }
-        function distImg(a, b) {
-          return Math.hypot(b.x - a.x, b.y - a.y);
-        }
-        function pointOnSegment(pt, segA, segB, tol) {
-          var proj = projectPointOnSegment(pt, segA, segB);
-          return distImg(pt, proj) <= tol;
-        }
-        var ra, rb;
-        if (ridges.length === 0) {
-          contours.forEach(function (c) {
-            if (c && c.points && c.points.length >= 3) {
-              CALPINAGE_STATE.planes.push({ points: c.points.slice() });
-            }
-          });
-          return;
-        }
-        contours.forEach(function (contour) {
-          if (!contour || !contour.points || contour.points.length < 3) return;
-          var pts = contour.points;
-          var scale = CALPINAGE_STATE.roof.scale && CALPINAGE_STATE.roof.scale.metersPerPixel;
-          var tol = (typeof scale === "number" && scale > 0) ? 0.5 / scale : 2;
-          var ridgesOnContour = [];
-          for (var ri = 0; ri < ridges.length; ri++) {
-            var r = ridges[ri];
-            ra = resolveRidgePoint(r.a);
-            rb = resolveRidgePoint(r.b);
-            var aOn = false; var bOn = false;
-            for (var i = 0; i < pts.length; i++) {
-              var segB = pts[(i + 1) % pts.length];
-              if (pointOnSegment(ra, pts[i], segB, tol)) aOn = true;
-              if (pointOnSegment(rb, pts[i], segB, tol)) bOn = true;
-            }
-            if (aOn && bOn) ridgesOnContour.push(r);
-          }
-          if (ridgesOnContour.length === 0) {
-            CALPINAGE_STATE.planes.push({ points: pts.slice() });
-            return;
-          }
-          var r0 = ridgesOnContour[0];
-          ra = resolveRidgePoint(r0.a);
-          rb = resolveRidgePoint(r0.b);
-          var idxA = -1; var idxB = -1; var tA = 0; var tB = 0;
-          for (var i = 0; i < pts.length; i++) {
-            var segB = pts[(i + 1) % pts.length];
-            var projA = projectPointOnSegment(ra, pts[i], segB);
-            if (distImg(ra, projA) <= tol) { idxA = i; tA = distImg(pts[i], ra) / (distImg(pts[i], segB) + 1e-10); break; }
-          }
-          for (var i = 0; i < pts.length; i++) {
-            var segB = pts[(i + 1) % pts.length];
-            var projB = projectPointOnSegment(rb, pts[i], segB);
-            if (distImg(rb, projB) <= tol) { idxB = i; tB = distImg(pts[i], rb) / (distImg(pts[i], segB) + 1e-10); break; }
-          }
-          if (idxA < 0 || idxB < 0) {
-            CALPINAGE_STATE.planes.push({ points: pts.slice() });
-            return;
-          }
-          var full = [];
-          var ia = -1; var ib = -1;
-          for (var i = 0; i < pts.length; i++) {
-            full.push(pts[i]);
-            if (idxA === i) { ia = full.length; full.push({ x: ra.x, y: ra.y }); }
-            if (idxB === i) { ib = full.length; full.push({ x: rb.x, y: rb.y }); }
-          }
-          if (ia < 0 || ib < 0) {
-            CALPINAGE_STATE.planes.push({ points: pts.slice() });
-            return;
-          }
-          var poly1 = []; var poly2 = [];
-          var n = full.length;
-          if (ia <= ib) {
-            for (var k = ia; k <= ib; k++) poly1.push(full[k]);
-            for (var k = ib; k < n; k++) poly2.push(full[k]);
-            for (var k = 0; k <= ia; k++) poly2.push(full[k]);
-          } else {
-            for (var k = ia; k < n; k++) poly1.push(full[k]);
-            for (var k = 0; k <= ib; k++) poly1.push(full[k]);
-            for (var k = ib; k <= ia; k++) poly2.push(full[k]);
-          }
-          if (poly1.length >= 3) CALPINAGE_STATE.planes.push({ points: poly1 });
-          if (poly2.length >= 3) CALPINAGE_STATE.planes.push({ points: poly2 });
-        });
+        computePansFromGeometry();
       }
 
       /**
@@ -4736,6 +7953,26 @@ export function initCalpinage(container, options = {}) {
         opts = opts || {};
         var excludeChienAssis = opts.excludeChienAssis === true;
         var resolveRp = opts.resolveRidgePoint || resolveRidgePoint;
+
+        /* Lot A — Debug topo visuel : logs uniquement, activé par window.CALPINAGE_DEBUG_TOPO === true (aucun effet prod par défaut). */
+        var TOPO_DEBUG =
+          typeof window !== "undefined" &&
+          window.CALPINAGE_DEBUG_TOPO === true &&
+          typeof console !== "undefined" &&
+          typeof console.log === "function";
+        var topoDbg = TOPO_DEBUG
+          ? {
+              crossInterior: 0,
+              tJunctionPush: 0,
+              mandatoryInject: 0,
+              dedupeSkips: 0,
+              rejectedByArea: 0,
+              rejectedByInside: 0,
+              acceptedFaces: 0,
+              partitionOuterRemoved: false,
+              envelopeFacesFiltered: 0,
+            }
+          : null;
 
         var edges = getEdgesFromState(state, { excludeChienAssis: excludeChienAssis });
         var contourEdges = edges.filter(function (e) { return e.kind === EDGE_CONTOUR; });
@@ -4767,6 +8004,20 @@ export function initCalpinage(container, options = {}) {
         var MERGE_EPS_IMG = snapImg * 0.75;
         var TOL = 1e-9;
         var AREA_EPS = 4;
+
+        /* Nœuds implicites sur contour (attach roof_contour_edge) — graphe pans uniquement. */
+        var topoSplit = collectMandatoryContourSplitPointsFromStructuralEndpoints(
+          state,
+          contourEdges,
+          ridgeEdges.map(function (e) {
+            return e.ref;
+          }),
+          traitEdges.map(function (e) {
+            return e.ref;
+          }),
+          MERGE_EPS_IMG
+        );
+        var mandatoryContourSplitByFlatSeg = topoSplit.mandatoryByFlatSeg;
 
         function distImg(a, b) {
           return Math.hypot(b.x - a.x, b.y - a.y);
@@ -4814,6 +8065,14 @@ export function initCalpinage(container, options = {}) {
           }
           return best ? best : { x: imgPt.x, y: imgPt.y };
         }
+        /* Extrémité faîtage/trait : si attach structurel contour, pas de snap tolérant (vérité Phase 2). */
+        function snapStructuralEndpointForPans(imgPt, endpointObj) {
+          if (isStructuralContourAttach(endpointObj)) {
+            var r = resolveRp(endpointObj);
+            if (r && typeof r.x === "number") return { x: r.x, y: r.y };
+          }
+          return snapPointToGeometryImage(imgPt, allPointsForSnap, allSegsForSnap, snapImg);
+        }
         /* Tous les points de g?om?trie pour snap (via Edge API) */
         var allPointsForSnap = [];
         edges.forEach(function (edge) {
@@ -4824,18 +8083,24 @@ export function initCalpinage(container, options = {}) {
         var allSegsForSnap = contourSegments.slice();
         ridgeSegments.forEach(function (s) { allSegsForSnap.push(s); });
         traitSegments.forEach(function (s) { allSegsForSnap.push(s); });
-        /* Snap des extr?mit?s traits et fa??tages */
-        var snappedRidges = ridgeSegments.map(function (seg) {
-          return [
-            snapPointToGeometryImage(seg[0], allPointsForSnap, allSegsForSnap, snapImg),
-            snapPointToGeometryImage(seg[1], allPointsForSnap, allSegsForSnap, snapImg)
-          ];
+        /* Snap des extr?mit?s traits et fa??tages (attach structurel = coordonn?es r?solues, pas merge tol?rant). */
+        var snappedRidges = [];
+        ridgeEdges.forEach(function (edge) {
+          edgeSegments(edge, resolveRp).forEach(function (seg) {
+            snappedRidges.push([
+              snapStructuralEndpointForPans(seg[0], edge.ref.a),
+              snapStructuralEndpointForPans(seg[1], edge.ref.b),
+            ]);
+          });
         });
-        var snappedTraits = traitSegments.map(function (seg) {
-          return [
-            snapPointToGeometryImage(seg[0], allPointsForSnap, allSegsForSnap, snapImg),
-            snapPointToGeometryImage(seg[1], allPointsForSnap, allSegsForSnap, snapImg)
-          ];
+        var snappedTraits = [];
+        traitEdges.forEach(function (edge) {
+          edgeSegments(edge, resolveRp).forEach(function (seg) {
+            snappedTraits.push([
+              snapStructuralEndpointForPans(seg[0], edge.ref.a),
+              snapStructuralEndpointForPans(seg[1], edge.ref.b),
+            ]);
+          });
         });
         var allSegments = [];
         contourSegments.forEach(function (seg) {
@@ -4851,6 +8116,30 @@ export function initCalpinage(container, options = {}) {
         var numContourSegments = contourSegments.length;
 
         console.debug("[computePansFromGeometry] edges: contour=" + contourEdges.length + " trait=" + traitEdges.length + " ridge=" + ridgeEdges.length + " | allSegments=" + allSegments.length + " numContourSegments=" + numContourSegments);
+
+        if (TOPO_DEBUG) {
+          var _ridgeSegLog = snappedRidges.map(function (rs) {
+            return [
+              { x: rs[0].x, y: rs[0].y },
+              { x: rs[1].x, y: rs[1].y },
+            ];
+          });
+          console.log("[CALPINAGE_TOPO] A SEGMENTS init", {
+            contourSegCount: contourSegments.length,
+            ridgeSegCountPresnap: ridgeSegments.length,
+            ridgeSegCountSnapped: snappedRidges.length,
+            traitSegCount: snappedTraits.length,
+            ridgeSegmentsPresnap: ridgeSegments.map(function (rs) {
+              return [
+                { x: rs[0].x, y: rs[0].y },
+                { x: rs[1].x, y: rs[1].y },
+              ];
+            }),
+            ridgeSegmentsSnapped: _ridgeSegLog,
+            MERGE_EPS_IMG: MERGE_EPS_IMG,
+            snapImg: snapImg,
+          });
+        }
 
         /* Split chaque segment ? toutes les intersections (croisement + T-junction).
          * Tout point d?intersection impliquant un segment de contour est projet? sur ce contour
@@ -4874,10 +8163,29 @@ export function initCalpinage(container, options = {}) {
                   else if (isCurrentContour) inter = projectPointOnSegment(inter, a, b);
                 }
                 points.push(inter);
+                if (topoDbg) topoDbg.crossInterior++;
               }
             }
-            if (pointOnSegment(a1, a, b, eps)) points.push({ x: a1.x, y: a1.y });
-            if (pointOnSegment(a2, a, b, eps)) points.push({ x: a2.x, y: a2.y });
+            if (pointOnSegment(a1, a, b, eps)) {
+              points.push({ x: a1.x, y: a1.y });
+              if (topoDbg) topoDbg.tJunctionPush++;
+            }
+            if (pointOnSegment(a2, a, b, eps)) {
+              points.push({ x: a2.x, y: a2.y });
+              if (topoDbg) topoDbg.tJunctionPush++;
+            }
+          }
+          if (isCurrentContour && mandatoryContourSplitByFlatSeg && segmentIndex != null) {
+            var extras = mandatoryContourSplitByFlatSeg[segmentIndex];
+            if (extras && extras.length) {
+              for (var ex = 0; ex < extras.length; ex++) {
+                var ep = extras[ex];
+                if (pointOnSegment(ep, a, b, eps)) {
+                  points.push({ x: ep.x, y: ep.y });
+                  if (topoDbg) topoDbg.mandatoryInject++;
+                }
+              }
+            }
           }
           points.sort(function (p, q) { return distImg(a, p) - distImg(a, q); });
           var out = [];
@@ -4889,10 +8197,30 @@ export function initCalpinage(container, options = {}) {
           return out;
         }
         var splitSegments = [];
+        var splitSegmentKinds = [];
+        var ridgeFlatStart = numContourSegments;
+        var ridgeFlatEnd = numContourSegments + snappedRidges.length;
+        var splitSubSegsFromRidge = 0;
         for (var si = 0; si < allSegments.length; si++) {
           var seg = allSegments[si];
+          var segKind = si < numContourSegments ? "contour" : si < ridgeFlatEnd ? "ridge" : "trait";
           var parts = splitSegmentAtIntersections(seg[0], seg[1], allSegments, si, numContourSegments);
-          for (var pi = 0; pi < parts.length; pi++) splitSegments.push(parts[pi]);
+          if (si >= ridgeFlatStart && si < ridgeFlatEnd) splitSubSegsFromRidge += parts.length;
+          for (var pi = 0; pi < parts.length; pi++) {
+            splitSegments.push(parts[pi]);
+            splitSegmentKinds.push(segKind);
+          }
+        }
+
+        if (TOPO_DEBUG) {
+          console.log("[CALPINAGE_TOPO] B APRÈS SPLIT", {
+            allSegmentsIn: allSegments.length,
+            splitSegmentsOut: splitSegments.length,
+            splitSubSegsFromRidge: splitSubSegsFromRidge,
+            intersectionCrossInterior: topoDbg ? topoDbg.crossInterior : null,
+            tJunctionPushes: topoDbg ? topoDbg.tJunctionPush : null,
+            mandatoryInjectPushes: topoDbg ? topoDbg.mandatoryInject : null,
+          });
         }
 
         /* Fusion des sommets proches (dedup) */
@@ -4906,11 +8234,40 @@ export function initCalpinage(container, options = {}) {
           return idx;
         }
         var edges = [];
-        splitSegments.forEach(function (seg) {
-          var u = getVertex(seg[0]);
-          var v = getVertex(seg[1]);
-          if (u !== v) edges.push([u, v]);
-        });
+        var edgeIsStructural = {};
+        var vertexTouchesContourEdge = {};
+        for (var _sxi = 0; _sxi < splitSegments.length; _sxi++) {
+          var _seg = splitSegments[_sxi];
+          var _kind = splitSegmentKinds[_sxi];
+          var u = getVertex(_seg[0]);
+          var v = getVertex(_seg[1]);
+          if (_kind === "contour") {
+            vertexTouchesContourEdge[u] = true;
+            vertexTouchesContourEdge[v] = true;
+          }
+          if (u !== v) {
+            edges.push([u, v]);
+            if (_kind === "ridge" || _kind === "trait") {
+              var _ek = u < v ? u + ":" + v : v + ":" + u;
+              edgeIsStructural[_ek] = true;
+            }
+          }
+        }
+
+        if (TOPO_DEBUG) {
+          var _undirectedKeys = {};
+          for (var _ei = 0; _ei < edges.length; _ei++) {
+            var _ea = edges[_ei][0];
+            var _eb = edges[_ei][1];
+            var _k = _ea < _eb ? _ea + ":" + _eb : _eb + ":" + _ea;
+            _undirectedKeys[_k] = true;
+          }
+          console.log("[CALPINAGE_TOPO] C APRÈS MERGE SOMMETS", {
+            vertexCount: vertexList.length,
+            directedEdgeRecords: edges.length,
+            undirectedDistinctEdges: Object.keys(_undirectedKeys).length,
+          });
+        }
 
         var adj = {};
         edges.forEach(function (e) {
@@ -4921,6 +8278,55 @@ export function initCalpinage(container, options = {}) {
           adj[v].push(u);
         });
 
+        function undirectedEdgeKeyTopo(a, b) {
+          return a < b ? a + ":" + b : b + ":" + a;
+        }
+        function cycleTouchesStructuralEdge(cycle) {
+          for (var cti = 0; cti < cycle.length; cti++) {
+            var ca = cycle[cti], cb = cycle[(cti + 1) % cycle.length];
+            if (edgeIsStructural[undirectedEdgeKeyTopo(ca, cb)]) return true;
+          }
+          return false;
+        }
+        function structuralSeparatorLinkedToContour() {
+          var hasSep = false;
+          for (var _sk in edgeIsStructural) {
+            if (edgeIsStructural[_sk]) {
+              hasSep = true;
+              break;
+            }
+          }
+          if (!hasSep) return false;
+          var seed = -1;
+          for (var _v0 = 0; _v0 < vertexList.length; _v0++) {
+            if (vertexTouchesContourEdge[_v0]) {
+              seed = _v0;
+              break;
+            }
+          }
+          if (seed < 0) return false;
+          var q = [seed];
+          var vis = {};
+          vis[seed] = true;
+          for (var _qx = 0; _qx < q.length; _qx++) {
+            var xv = q[_qx];
+            var nbl = adj[xv] || [];
+            for (var _nx = 0; _nx < nbl.length; _nx++) {
+              var yv = nbl[_nx];
+              if (!vis[yv]) {
+                vis[yv] = true;
+                q.push(yv);
+              }
+            }
+          }
+          for (var _ex = 0; _ex < edges.length; _ex++) {
+            var eua = edges[_ex][0], evb = edges[_ex][1];
+            if (!edgeIsStructural[undirectedEdgeKeyTopo(eua, evb)]) continue;
+            if (vis[eua] && vis[evb]) return true;
+          }
+          return false;
+        }
+
         function angleBetween(from, to) {
           var a = vertexList[from], b = vertexList[to];
           return Math.atan2(b.y - a.y, b.x - a.x);
@@ -4930,15 +8336,15 @@ export function initCalpinage(container, options = {}) {
           if (neighbors.length === 0) return null;
           var inAngle = angleBetween(vertex, incomingFrom);
           var best = null;
-          var bestDelta = Math.PI * 2;
+          var bestDelta = Infinity;
           for (var n = 0; n < neighbors.length; n++) {
             var w = neighbors[n];
             if (w === incomingFrom) continue;
             var outAngle = angleBetween(vertex, w);
             var delta = outAngle - inAngle;
-            while (delta <= -Math.PI) delta += 2 * Math.PI;
-            while (delta > Math.PI) delta -= 2 * Math.PI;
-            if (delta < 1e-6) continue;
+            while (delta <= 0) delta += 2 * Math.PI;
+            while (delta > 2 * Math.PI) delta -= 2 * Math.PI;
+            if (delta < 1e-10) continue;
             if (delta < bestDelta) {
               bestDelta = delta;
               best = w;
@@ -4989,10 +8395,14 @@ export function initCalpinage(container, options = {}) {
           for (var i = 0; i < cycle.length; i++) s += cycle[(minI + i) % cycle.length] + "-";
           return s;
         }
+        function cycleKeyCanonical(cycle) {
+          var k1 = cycleKey(cycle);
+          var k2 = cycleKey(cycle.slice().reverse());
+          return k1 < k2 ? k1 : k2;
+        }
 
         var faces = [];
-        edges.forEach(function (e) {
-          var v0 = e[0], v1 = e[1];
+        function walkOneFaceFromDirectedEdge(v0, v1) {
           var path = [v0, v1];
           var cur = v1, prev = v0;
           while (path.length < 500) {
@@ -5007,13 +8417,25 @@ export function initCalpinage(container, options = {}) {
             prev = cur;
             cur = next;
           }
+        }
+        edges.forEach(function (e) {
+          walkOneFaceFromDirectedEdge(e[0], e[1]);
+          walkOneFaceFromDirectedEdge(e[1], e[0]);
         });
 
-        var uniqueFaces = [];
+        if (TOPO_DEBUG) {
+          console.log("[CALPINAGE_TOPO] D FACE-WALK brut", { rawClosedCyclesFromWalk: faces.length });
+        }
+
+        var uniqueFaceEntries = [];
         var debugFacesAll = [];
+        var topoUniqueCandidates = TOPO_DEBUG ? [] : null;
         faces.forEach(function (f) {
-          var k = cycleKey(f);
-          if (seenCycles[k]) return;
+          var k = cycleKeyCanonical(f);
+          if (seenCycles[k]) {
+            if (topoDbg) topoDbg.dedupeSkips++;
+            return;
+          }
           seenCycles[k] = true;
           var poly = f.map(function (i) { return { x: vertexList[i].x, y: vertexList[i].y }; });
           var area = Math.abs(signedArea(poly));
@@ -5033,20 +8455,101 @@ export function initCalpinage(container, options = {}) {
               insideContour: insideBati,
             });
           }
-          if (area < AREA_EPS) return;
-          if (!insideBati) return;
-          uniqueFaces.push(poly);
+          if (TOPO_DEBUG && topoUniqueCandidates) {
+            var reject = null;
+            if (area < AREA_EPS) reject = "AREA_EPS";
+            else if (!insideBati) reject = "insideBati";
+            topoUniqueCandidates.push({
+              nPts: poly.length,
+              area: area,
+              insideBati: insideBati,
+              reject: reject,
+            });
+            console.log("[CALPINAGE_TOPO] D face unique candidate", {
+              nPts: poly.length,
+              area: Number(area.toFixed(4)),
+              insideBati: insideBati,
+              reject: reject,
+            });
+          }
+          if (area < AREA_EPS) {
+            if (topoDbg) topoDbg.rejectedByArea++;
+            return;
+          }
+          if (!insideBati) {
+            if (topoDbg) topoDbg.rejectedByInside++;
+            return;
+          }
+          uniqueFaceEntries.push({ polygon: poly, usesStructural: cycleTouchesStructuralEdge(f) });
         });
+
+        var structuralLinked = structuralSeparatorLinkedToContour();
+        if (structuralLinked && uniqueFaceEntries.length > 1) {
+          var _atomicOnly = uniqueFaceEntries.filter(function (ent) { return ent.usesStructural; });
+          if (_atomicOnly.length > 0) {
+            if (topoDbg && _atomicOnly.length < uniqueFaceEntries.length) {
+              topoDbg.envelopeFacesFiltered = uniqueFaceEntries.length - _atomicOnly.length;
+              topoDbg.partitionOuterRemoved = true;
+            }
+            uniqueFaceEntries = _atomicOnly;
+          }
+        }
+        var uniqueFaces = uniqueFaceEntries.map(function (ent) { return ent.polygon; });
+        if (topoDbg) topoDbg.acceptedFaces = uniqueFaces.length;
+
+        /* Phase 2 → Phase 3 : ridgeIds = Cas A (bord) + Cas B (extrémités strictement intérieures) — voir collectRidgeIdsForPanPolygon. */
+        function ridgeIdsForPanPolygon(poly) {
+          return collectRidgeIdsForPanPolygon(poly, ridgeEdges, resolveRp, MERGE_EPS_IMG);
+        }
 
         state.pans = uniqueFaces.map(function (polygon, idx) {
           return {
             id: "pan-" + (idx + 1),
             name: "Pan " + (idx + 1),
             polygon: polygon,
-            ridgeIds: [],
+            ridgeIds: ridgeIdsForPanPolygon(polygon),
             obstacles: [],
           };
         });
+
+        if (TOPO_DEBUG) {
+          console.log("[CALPINAGE_TOPO] E FINAL", {
+            uniqueTopologicalFacesBeforeFilter: topoUniqueCandidates ? topoUniqueCandidates.length : null,
+            facesAfterFilter: uniqueFaces.length,
+            statePansLength: state.pans.length,
+            dedupeSkips: topoDbg ? topoDbg.dedupeSkips : null,
+            rejectedByArea: topoDbg ? topoDbg.rejectedByArea : null,
+            rejectedByInside: topoDbg ? topoDbg.rejectedByInside : null,
+            acceptedFaces: topoDbg ? topoDbg.acceptedFaces : null,
+          });
+          if (state === CALPINAGE_STATE) {
+            CALPINAGE_STATE.debugTopoLast = {
+              at: new Date().toISOString(),
+              A: {
+                contourSegCount: contourSegments.length,
+                ridgeSegSnapped: snappedRidges.length,
+                ridgeSegmentsSnapped: snappedRidges.map(function (rs) {
+                  return [
+                    { x: rs[0].x, y: rs[0].y },
+                    { x: rs[1].x, y: rs[1].y },
+                  ];
+                }),
+              },
+              B: {
+                splitSegmentsOut: splitSegments.length,
+                splitSubSegsFromRidge: splitSubSegsFromRidge,
+                crossInterior: topoDbg ? topoDbg.crossInterior : 0,
+                tJunctionPush: topoDbg ? topoDbg.tJunctionPush : 0,
+              },
+              C: { vertexCount: vertexList.length, directedEdgeCount: edges.length },
+              D: { rawWalkCycles: faces.length, candidates: topoUniqueCandidates || [] },
+              E: {
+                uniqueFaces: uniqueFaces.length,
+                pansLength: state.pans.length,
+              },
+            };
+          }
+        }
 
         /* A-2.4 D?coupe logique : associer ? chaque pan les obstacles (polygones) qui l?intersectent ou sont dedans ??? toit principal uniquement */
         var polygonObstacles = (state.obstacles || []).filter(function (o) {
@@ -5078,6 +8581,18 @@ export function initCalpinage(container, options = {}) {
             vertexCount: vertexList.length,
             edgeCount: edges.length,
             faceCount: debugFacesAll.length,
+            topologyPhase2: {
+              mandatoryContourSplitKeys: Object.keys(mandatoryContourSplitByFlatSeg || {}),
+              mandatoryContourSplitCounts: (function () {
+                var o = mandatoryContourSplitByFlatSeg || {};
+                var out = {};
+                Object.keys(o).forEach(function (k) {
+                  out[k] = o[k] ? o[k].length : 0;
+                });
+                return out;
+              })(),
+              structuralTopoDebug: topoSplit.debug,
+            },
             faces: debugFacesAll.map(function (f) {
               return { area: f.area, centroid: f.centroid, insideContour: f.insideContour };
             }),
@@ -5091,16 +8606,43 @@ export function initCalpinage(container, options = {}) {
           CALPINAGE_STATE.debugPansInfo = null;
           CALPINAGE_STATE.debugFaces = null;
         }
+        if (state === CALPINAGE_STATE) {
+          try {
+            obstacleIntegrityOnPansCoreEnd(CALPINAGE_STATE);
+          } catch (_obsIntErr) {}
+        }
       }
 
-      /** Remplit CALPINAGE_STATE.pans (toit principal). */
+      /* Export pour code hors de cette IIFE (ex. buildFinalCalpinageJSON, preview 3D) — évite ReferenceError. */
+      try {
+        if (typeof window !== "undefined") window.__computePansFromGeometryCoreForExport = computePansFromGeometryCore;
+      } catch (_cpgExp) {}
+
+      /**
+       * Source de vérité dérivée toiture : graphe pans puis `planes` + `roof.roofPans` alignés (même polygones).
+       */
       function computePansFromGeometry() {
-        computePansFromGeometryCore(CALPINAGE_STATE, { excludeChienAssis: true });
+        try {
+          try {
+            obstacleIntegrityOnPansCoreBegin(CALPINAGE_STATE);
+          } catch (_obsIntBegin) {}
+          computePansFromGeometryCore(CALPINAGE_STATE, { excludeChienAssis: true });
+        } catch (_pansGeomErr) {
+          try {
+            obstacleIntegrityClearPansCoreBaseline();
+          } catch (_obsClr) {}
+          throw _pansGeomErr;
+        }
+        applyDerivedRoofTopologyAfterPans(CALPINAGE_STATE);
       }
 
       /** Construit l'objet geometry pour export (sans persistance). Utilisé par CRM (onValidate) et par saveCalpinageState. */
       function buildGeometryForExport() {
+        var _cpGeomExport = null;
         try {
+          try {
+            obstacleIntegrityOnBuildGeometryStart(CALPINAGE_STATE);
+          } catch (_ogStart) {}
           if (window.PV_LAYOUT_RULES) {
             CALPINAGE_STATE.pvParams.distanceLimitesCm = window.PV_LAYOUT_RULES.marginOuterCm;
             CALPINAGE_STATE.pvParams.espacementHorizontalCm = window.PV_LAYOUT_RULES.spacingXcm;
@@ -5119,7 +8661,7 @@ export function initCalpinage(container, options = {}) {
             if (prev.points && Array.isArray(prev.points) && prev.points.length >= 2) {
               pan.points = prev.points.map(function (pt) { return { x: pt.x, y: pt.y, h: typeof pt.h === "number" ? pt.h : 0, id: pt.id }; });
             }
-            if (prev.physical) {
+              if (prev.physical) {
               pan.physical = pan.physical || {};
               pan.physical.slope = pan.physical.slope || { mode: "auto", computedDeg: null, valueDeg: null };
               pan.physical.orientation = pan.physical.orientation || { azimuthDeg: null, label: null };
@@ -5129,6 +8671,12 @@ export function initCalpinage(container, options = {}) {
                 pan.physical.orientation.azimuthDeg = typeof prev.physical.orientation.azimuthDeg === "number" ? prev.physical.orientation.azimuthDeg : null;
                 pan.physical.orientation.label = typeof prev.physical.orientation.label === "string" ? prev.physical.orientation.label : null;
               }
+            }
+            if (prev.flatRoofConfig && typeof prev.flatRoofConfig === "object") {
+              pan.flatRoofConfig = normalizeFlatRoofConfig(prev.flatRoofConfig);
+            }
+            if (prev.roofType === "FLAT" || prev.roofType === "PITCHED") {
+              pan.roofType = prev.roofType;
             }
           });
           ensurePansHavePoints();
@@ -5140,12 +8688,40 @@ export function initCalpinage(container, options = {}) {
             CALPINAGE_STATE.pans.forEach(function (p) { CalpinagePans.panState.pans.push(p); });
           }
           updatePansListUI();
-          return {
+          if (!CALPINAGE_STATE.roof.gps && CALPINAGE_STATE.roof.map && CALPINAGE_STATE.roof.map.centerLatLng) {
+            var cl = CALPINAGE_STATE.roof.map.centerLatLng;
+            if (typeof cl.lat === "number" && typeof cl.lng === "number" && !Number.isNaN(cl.lat) && !Number.isNaN(cl.lng)) {
+              CALPINAGE_STATE.roof.gps = { lat: cl.lat, lon: cl.lng };
+            }
+          }
+          syncCanonical3DWorldContractFromCalpinageRoof();
+          var _cpNow = new Date().toISOString();
+          _cpGeomExport = {
+            /** Aligné backend V2_SCHEMA_VERSION — shading enrichi (far.source, horizonMeta, shadingQuality) non traité comme legacy. */
+            schemaVersion: "v2",
+            meta: {
+              version: "calpinage_v1_final",
+              generatedAt: _cpNow,
+              engine: { shading: "near+far+HD", production: "multi-pan" }
+            },
+            calpinageCheckpoint: {
+              schemaVersion: 1,
+              savedAt: _cpNow,
+              phase: CALPINAGE_STATE.phase,
+              currentPhase: CALPINAGE_STATE.currentPhase,
+              roofSurveyLocked: !!CALPINAGE_STATE.roofSurveyLocked,
+              captureDone: !!(CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.image && CALPINAGE_STATE.roof.image.dataUrl),
+              hasDrawing: typeof hasExistingGeometry === "function" ? hasExistingGeometry() : false
+            },
             roofState: {
               map: CALPINAGE_STATE.roof.map,
               image: CALPINAGE_STATE.roof.image,
               scale: CALPINAGE_STATE.roof.scale,
               roof: CALPINAGE_STATE.roof.roof,
+              canonical3DWorldContract:
+                CALPINAGE_STATE.roof.canonical3DWorldContract != null
+                  ? CALPINAGE_STATE.roof.canonical3DWorldContract
+                  : null,
               contoursBati: CALPINAGE_STATE.contours.map(function (c) { return { id: c.id, points: c.points, roofRole: c.roofRole }; }),
               traits: CALPINAGE_STATE.traits.map(function (t) { return { id: t.id, a: t.a, b: t.b, roofRole: t.roofRole }; }),
               mesures: CALPINAGE_STATE.measures,
@@ -5155,16 +8731,26 @@ export function initCalpinage(container, options = {}) {
                 if (!o || !o.points || !Array.isArray(o.points) || o.points.length < 3) return null;
                 var out = { id: o.id, type: "polygon", points: o.points.map(function (p) { return { x: p.x, y: p.y }; }), roofRole: o.roofRole || null, kind: o.kind || "other", meta: o.meta && typeof o.meta === "object" ? o.meta : {} };
                 if (o.shapeMeta && typeof o.shapeMeta === "object") out.shapeMeta = o.shapeMeta;
+                if (typeof o.heightM === "number" && Number.isFinite(o.heightM)) out.heightM = o.heightM;
                 return out;
               }).filter(Boolean),
               gps: (CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.gps) ? CALPINAGE_STATE.roof.gps : null
             },
+            pansStructuralSig: computePansStructuralSignatureForPersistence(CALPINAGE_STATE),
             pans: CALPINAGE_STATE.pans,
             activePanId: CalpinagePans.panState.activePanId,
+            phase3: CALPINAGE_STATE.phase3 ? { activePanId: CALPINAGE_STATE.phase3.activePanId } : { activePanId: null },
             selectedPanId: CALPINAGE_STATE.selectedPanId,
             phase: CALPINAGE_STATE.phase,
             roofSurveyLocked: CALPINAGE_STATE.roofSurveyLocked,
-            validatedRoofData: CALPINAGE_STATE.validatedRoofData,
+            validatedRoofData: (function () {
+              var vrd = CALPINAGE_STATE.validatedRoofData;
+              if (!vrd || !vrd.pans || !Array.isArray(vrd.pans)) return vrd;
+              var getPanelsFn = (window.pvPlacementEngine && typeof window.pvPlacementEngine.getAllPanels === "function") ? function () { return window.pvPlacementEngine.getAllPanels(); } : function () { return []; };
+              var shadingNorm = (CALPINAGE_STATE.shading && CALPINAGE_STATE.shading.normalized) ? CALPINAGE_STATE.shading.normalized : null;
+              var enrichedPans = enrichPansWithOfficialFieldsInline(vrd.pans.slice(), getPanelsFn, shadingNorm);
+              return { scale: vrd.scale, north: vrd.north, pans: enrichedPans };
+            })(),
             pvParams: CALPINAGE_STATE.pvParams,
             placedPanels: CALPINAGE_STATE.placedPanels || [],
             shadowVolumes: CALPINAGE_STATE.shadowVolumes || [],
@@ -5172,28 +8758,76 @@ export function initCalpinage(container, options = {}) {
             frozenBlocks: (function () {
               var getFrozen = (window.pvPlacementEngine && window.pvPlacementEngine.getFrozenBlocks) || (window.ActivePlacementBlock && window.ActivePlacementBlock.getFrozenBlocks);
               return typeof getFrozen === "function" ? getFrozen() : [];
-            })().map(function (bl) {
+                })().map(function (bl) {
+                  var bo = bl.orientation;
+                  var orientSaved =
+                    bo === "PORTRAIT" || bo === "PAYSAGE"
+                      ? bo
+                      : typeof bo === "string" &&
+                          (bo.toLowerCase() === "landscape" || bo.toLowerCase() === "paysage")
+                        ? "PAYSAGE"
+                        : typeof bo === "string" && bo.toLowerCase() === "portrait"
+                          ? "PORTRAIT"
+                          : null;
                   return {
                     id: bl.id,
                     panId: bl.panId,
                     panels: (bl.panels || []).map(function (p) { return { center: p.center, projection: p.projection, state: p.state, enabled: p.enabled !== false, localRotationDeg: typeof p.localRotationDeg === "number" ? p.localRotationDeg : 0 }; }),
                     rotation: bl.rotation,
-                    orientation: (bl.orientation === "PORTRAIT" || bl.orientation === "PAYSAGE") ? bl.orientation : null,
+                    orientation: orientSaved,
+                    useScreenAxes: bl.useScreenAxes === true,
                   };
                 }),
             shading: CALPINAGE_STATE.shading?.normalized || null,
+            shadingSummary: (function () {
+              var norm = CALPINAGE_STATE.shading?.normalized;
+              var totals = (function () {
+                var totalPanels = (window.pvPlacementEngine && window.pvPlacementEngine.getAllPanels) ? (window.pvPlacementEngine.getAllPanels() || []).length : 0;
+                var p = window.PV_SELECTED_PANEL;
+                var api = findPanelById(window.CALPINAGE_SELECTED_PANEL_ID) || (p ? findPanelById(p.id) : null) || p;
+                var powerWc = (api || p) && (api ? api.power_wc : p.powerWc) != null ? Number(api ? api.power_wc : p.powerWc) : 0;
+                var totalPowerKwc = totalPanels > 0 && powerWc > 0 ? (totalPanels * powerWc) / 1000 : 0;
+                return { panels_count: totalPanels, total_power_kwc: totalPowerKwc };
+              })();
+              var totalLossPct = norm ? getOfficialGlobalShadingLossPctOr(norm, 0) : 0;
+              var horizonData = (CALPINAGE_STATE.horizonMask && CALPINAGE_STATE.horizonMask.data) ? CALPINAGE_STATE.horizonMask.data : {};
+              var horizonMeta = horizonData.meta || {};
+              var isRealHorizon = isFarHorizonRealTerrain(horizonData);
+              var qualityScore = (typeof horizonMeta.qualityScore === "number") ? horizonMeta.qualityScore : (norm && norm.shadingQuality && typeof norm.shadingQuality.score === "number") ? norm.shadingQuality.score : null;
+              var source = (typeof horizonMeta.source === "string") ? horizonMeta.source : (norm && norm.far && norm.far.source) ? norm.far.source : null;
+              var annualProductionKwh = resolveAnnualProductionKwhForShadingOverlay(totals.total_power_kwc);
+              try {
+                return buildShadingSummary({
+                  totalLossPct: totalLossPct,
+                  annualProductionKwh: annualProductionKwh,
+                  pricePerKwh: 0.2,
+                  qualityScore: isRealHorizon ? qualityScore : null,
+                  source: source
+                });
+              } catch (e) {
+                if (typeof console !== "undefined") console.warn("[CALPINAGE] buildShadingSummary failed", e);
+                return null;
+              }
+            })(),
             panel: (function () {
               var p = window.PV_SELECTED_PANEL;
               var api = findPanelById(window.CALPINAGE_SELECTED_PANEL_ID) || (p ? findPanelById(p.id) : null) || p;
               if (!p && !api) return null;
               var src = api || p;
+              var catalogId =
+                (src && src.id != null && String(src.id).trim() !== "")
+                  ? String(src.id).trim()
+                  : window.CALPINAGE_SELECTED_PANEL_ID
+                    ? String(window.CALPINAGE_SELECTED_PANEL_ID).trim()
+                    : null;
               return {
-                id: src.id,
+                id: catalogId || (src.id != null ? src.id : null),
                 brand: src.brand,
                 name: src.name,
                 model_ref: src.model_ref || src.model || src.reference,
                 power_wc: Number(src.power_wc || src.powerWc) || 0,
                 efficiency_pct: src.efficiency_pct != null ? src.efficiency_pct : src.efficiency,
+                temp_coeff_pct_per_deg: src.temp_coeff_pct_per_deg != null ? Number(src.temp_coeff_pct_per_deg) : null,
                 width_mm: Number(src.width_mm || src.widthMm) || 0,
                 height_mm: Number(src.height_mm || src.heightMm) || 0
               };
@@ -5216,8 +8850,10 @@ export function initCalpinage(container, options = {}) {
                 name: inv.name,
                 model_ref: inv.model_ref,
                 inverter_type: inv.inverter_type,
+                inverter_family: inv.inverter_family || null,
                 nominal_power_kw: inv.nominal_power_kw,
-                nominal_va: inv.nominal_va
+                nominal_va: inv.nominal_va,
+                euro_efficiency_pct: inv.euro_efficiency_pct != null ? Number(inv.euro_efficiency_pct) : null
               };
             })(),
             inverter_totals: (function () {
@@ -5239,23 +8875,20 @@ export function initCalpinage(container, options = {}) {
                 warnings: validation.warnings
               };
             })(),
-            geometry3d: (function () {
-              try {
-                var ctx = typeof getHeightAtImgPoint === "function"
-                  ? { getHeightAtImagePoint: function (x, y) { return getHeightAtImgPoint({ x: x, y: y }); } }
-                  : null;
-                var norm = normalizeCalpinageGeometry3DReady(CALPINAGE_STATE, ctx, {
-                  getAllPanels: window.pvPlacementEngine && window.pvPlacementEngine.getAllPanels,
-                  computePansFromGeometryCore: computePansFromGeometryCore,
-                });
-                return buildGeometry3DExportSection(norm, ctx);
-              } catch (err) {
-                if (typeof console !== "undefined") console.warn("[CALPINAGE] geometry3d export failed", err);
-                return null;
-              }
-            })()
+            /* HOTFIX CRM : geometry3d désactivé pour éviter ReferenceError computePansFromGeometryCore (non dispo en navigateur). */
+            geometry3d: null
           };
-        } catch (e) { return null; }
+          _cpGeomExport.calpinage_meta = buildCalpinageMetaForSave(_cpGeomExport);
+        } catch (e) {
+          try {
+            obstacleIntegrityClearBuildGeometryBaseline();
+          } catch (_ogClr) {}
+          return null;
+        }
+        try {
+          if (_cpGeomExport) obstacleIntegrityOnBuildGeometryEnd(CALPINAGE_STATE, _cpGeomExport);
+        } catch (_ogEnd) {}
+        return _cpGeomExport;
       }
 
       /** Instrumentation : identifie la propriété qui fait échouer JSON.stringify (référence circulaire, fonction, DOM, canvas, moteur). */
@@ -5334,6 +8967,14 @@ export function initCalpinage(container, options = {}) {
 
       function saveCalpinageState() {
         try {
+          if (typeof window !== "undefined" && window.__CALPINAGE_INTEGRITY_VERBOSE__ === true) {
+            try {
+              console.debug(
+                "[CALPINAGE-INTEGRITY][OBSTACLE] checkpoint saveCalpinageState_entrée",
+                captureObstacleIntegritySnapshot(CALPINAGE_STATE)
+              );
+            } catch (_verbSave) {}
+          }
           var data = buildGeometryForExport();
           if (!data) return;
           var sid = (typeof window !== "undefined" && window.CALPINAGE_STUDY_ID) || null;
@@ -5348,10 +8989,16 @@ export function initCalpinage(container, options = {}) {
               debugStringifyError(data, "data");
             }
           }
+          // Refresh intégrité avec le dossier fraîchement construit (meta frais, hashes à jour)
+          refreshCalpinageIntegrity(data);
         } catch (e) {}
       }
 
       function pvSyncSaveRender() {
+        if (window.__PV_PLACEMENT_BATCH_DEPTH__ > 0) {
+          window.__PV_PLACEMENT_BATCH_DEFERRED_SYNC__ = true;
+          return;
+        }
         if (window.__PV_SYNC_PENDING__) return;
         window.__PV_SYNC_PENDING__ = true;
         requestAnimationFrame(function () {
@@ -5365,7 +9012,7 @@ export function initCalpinage(container, options = {}) {
             if (typeof updatePowerSummary === "function") updatePowerSummary();
             if (typeof updateCalpinageValidateButton === "function") updateCalpinageValidateButton();
             if (typeof window.notifyPhase3ChecklistUpdate === "function") window.notifyPhase3ChecklistUpdate();
-            if (typeof window.notifyPhase3SidebarUpdate === "function") window.notifyPhase3SidebarUpdate();
+            if (typeof window.notifyPhase3SidebarUpdate === "function") window.notifyPhase3SidebarUpdate(); if (typeof window.notifyCalpinageDirty === "function") window.notifyCalpinageDirty();
           } catch (e) {}
           try {
             if (typeof window.CALPINAGE_RENDER === "function") requestAnimationFrame(window.CALPINAGE_RENDER);
@@ -5374,8 +9021,25 @@ export function initCalpinage(container, options = {}) {
         });
       }
 
+      /** Verrou macro placement (auto-fill / lot) : une seule sync/notifications à la fin. */
+      function beginPvPlacementBatch() {
+        window.__PV_PLACEMENT_BATCH_DEPTH__ = (window.__PV_PLACEMENT_BATCH_DEPTH__ || 0) + 1;
+      }
+
+      function endPvPlacementBatch() {
+        window.__PV_PLACEMENT_BATCH_DEPTH__ = Math.max(0, (window.__PV_PLACEMENT_BATCH_DEPTH__ || 0) - 1);
+        if (window.__PV_PLACEMENT_BATCH_DEPTH__ === 0 && window.__PV_PLACEMENT_BATCH_DEFERRED_SYNC__) {
+          window.__PV_PLACEMENT_BATCH_DEFERRED_SYNC__ = false;
+          pvSyncSaveRender();
+        }
+      }
+
+      window.beginPvPlacementBatch = beginPvPlacementBatch;
+      window.endPvPlacementBatch = endPvPlacementBatch;
+
       /** CP-005 — Met ? jour l'affichage puissance totale (panneaux pos?s * power_wc). */
       function updatePowerSummary() {
+        if (window.__PV_PLACEMENT_BATCH_DEPTH__ > 0) return;
         var summaryEl = container.querySelector("#pv-power-summary");
         var countEl = container.querySelector("#pv-panels-count");
         var kwcEl = container.querySelector("#pv-total-kwc");
@@ -5397,7 +9061,7 @@ export function initCalpinage(container, options = {}) {
         if (liveKwcEl) liveKwcEl.textContent = kwcStr + " kWc";
         if (typeof updateInvertersRequired === "function") updateInvertersRequired();
         if (typeof window.notifyPhase3ChecklistUpdate === "function") window.notifyPhase3ChecklistUpdate();
-        if (typeof window.notifyPhase3SidebarUpdate === "function") window.notifyPhase3SidebarUpdate();
+        if (typeof window.notifyPhase3SidebarUpdate === "function") window.notifyPhase3SidebarUpdate(); if (typeof window.notifyCalpinageDirty === "function") window.notifyCalpinageDirty();
       }
 
       /**
@@ -5492,7 +9156,7 @@ export function initCalpinage(container, options = {}) {
             liveWarningEl.style.display = "none";
           }
         }
-        if (typeof window.notifyPhase3SidebarUpdate === "function") window.notifyPhase3SidebarUpdate();
+        if (typeof window.notifyPhase3SidebarUpdate === "function") window.notifyPhase3SidebarUpdate(); if (typeof window.notifyCalpinageDirty === "function") window.notifyCalpinageDirty();
       }
 
       /** CP-005 — Désactive "Valider calpinage" si aucun panneau sélectionné, 0 panneaux posés, pas d'onduleur (CP-006), ou checklist Phase3 non OK. */
@@ -5513,7 +9177,7 @@ export function initCalpinage(container, options = {}) {
           else btn.title = "Posez au moins un panneau pour valider";
         }
         if (typeof window.notifyPhase3ChecklistUpdate === "function") window.notifyPhase3ChecklistUpdate();
-        if (typeof window.notifyPhase3SidebarUpdate === "function") window.notifyPhase3SidebarUpdate();
+        if (typeof window.notifyPhase3SidebarUpdate === "function") window.notifyPhase3SidebarUpdate(); if (typeof window.notifyCalpinageDirty === "function") window.notifyCalpinageDirty();
       }
 
       /** Données pour Phase3ChecklistPanel (lecture seule, source existante). P5-CHECKLIST-LOCKED */
@@ -5564,11 +9228,27 @@ export function initCalpinage(container, options = {}) {
       function getCalpinageExportDataForCRM() {
         try {
           var geometryJson = buildGeometryForExport();
-          return { geometry_json: geometryJson, calpinage_data: geometryJson };
+          var out = { geometry_json: geometryJson, calpinage_data: geometryJson };
+          if (typeof window.buildFinalCalpinageJSON === "function") {
+            try {
+              var finalJson = window.buildFinalCalpinageJSON();
+              if (finalJson != null) out.final_json = finalJson;
+            } catch (finalErr) {
+              if (typeof console !== "undefined") console.warn("[CALPINAGE] buildFinalCalpinageJSON failed", finalErr);
+            }
+          }
+          return out;
         } catch (e) {
           if (typeof console !== "undefined") console.error("[CALPINAGE] getCalpinageExportDataForCRM failed", e);
           return { geometry_json: null, calpinage_data: null };
         }
+      }
+
+      /** CRM / overlay : export JSON courant pour POST brouillon (autosave) sans effets secondaires fetch. */
+      if (typeof window !== "undefined") {
+        window.getCalpinageGeometryForPersist = function () {
+          return getCalpinageExportDataForCRM();
+        };
       }
 
       function updateValidateButton() {
@@ -5578,7 +9258,7 @@ export function initCalpinage(container, options = {}) {
         var can = canValidateRoofSurvey();
         btn.disabled = !can;
         if (typeof window.notifyPhase2SidebarUpdate === "function") {
-          window.notifyPhase2SidebarUpdate();
+          window.notifyPhase2SidebarUpdate(); if (typeof window.notifyCalpinageDirty === "function") window.notifyCalpinageDirty();
         } else if (hint) {
           if (can) hint.textContent = "Cliquez pour figer le relev\u00E9 et passer \u00E0 l'implantation des panneaux.";
           else if (!isContourValid()) hint.textContent = "Dessinez d'abord un contour b\u00E2ti ferm\u00E9 (au moins 3 points).";
@@ -5591,9 +9271,37 @@ export function initCalpinage(container, options = {}) {
       function getPhase2ValidateHint() {
         var can = canValidateRoofSurvey();
         if (can) return "Cliquez pour figer le relev\u00E9 et passer \u00E0 l'implantation des panneaux.";
-        if (!isContourValid()) return "Dessinez d'abord un contour b\u00E2ti ferm\u00E9 (au moins 3 points).";
-        if ((CALPINAGE_STATE.pans || []).length < 1) return "Ajoutez au moins un fa\u00EEtage ou trait pour d\u00E9finir un pan.";
+        if (!isContourValid()) return "Tracez un contour ferm\u00E9 pour d\u00E9finir la toiture.";
+        computePansFromGeometry();
+        var pans = CALPINAGE_STATE.pans || [];
+        if (pans.length < 1 && buildFlatPanFromFirstClosedContour(CALPINAGE_STATE)) return "Toit plat d\u00E9tect\u00E9 : vous pouvez valider sans fa\u00EEtage.";
+        if (pans.length < 1) return "Tracez un contour ferm\u00E9 pour d\u00E9finir la toiture.";
         return "Contour b\u00E2ti et au moins un pan requis.";
+      }
+
+      /** CFIX-1 — Dessin / implantation déjà présents : une nouvelle capture sans reset provoquerait un décalage (repère image). */
+      function hasExistingGeometry() {
+        var st = CALPINAGE_STATE;
+        var contours = (st.contours || []).filter(function (c) { return c && c.points && c.points.length > 0; });
+        if (contours.length > 0) return true;
+        if ((st.traits || []).length > 0) return true;
+        if ((st.ridges || []).length > 0) return true;
+        if ((st.measures || []).length > 0) return true;
+        if ((st.obstacles || []).length > 0) return true;
+        if ((st.shadowVolumes || []).length > 0) return true;
+        if ((st.roofExtensions || []).length > 0) return true;
+        if ((st.placedPanels || []).length > 0) return true;
+        if ((st.pans || []).length > 0) return true;
+        var getFrozen = window.pvPlacementEngine && window.pvPlacementEngine.getFrozenBlocks;
+        var frozen = typeof getFrozen === "function" ? getFrozen() : [];
+        if (frozen && frozen.length > 0) return true;
+        var getAll = window.pvPlacementEngine && window.pvPlacementEngine.getAllPanels;
+        var panels = typeof getAll === "function" ? getAll() : [];
+        if (panels && panels.length > 0) return true;
+        if (st.validatedRoofData) return true;
+        if (st.roofSurveyLocked === true) return true;
+        if (st.phase === 3) return true;
+        return false;
       }
 
       window.getPhase2Data = function () {
@@ -5626,21 +9334,324 @@ export function initCalpinage(container, options = {}) {
           obstaclesCount: obstacles.length,
           canValidate: canValidateRoofSurvey(),
           validateHint: getPhase2ValidateHint(),
-          captured: captured
+          captured: captured,
+          hasExistingGeometry: hasExistingGeometry()
         };
       };
+
+      var phase2ObstacleEditorApi = {
+        getState: function () {
+          var mpp = (CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.scale && CALPINAGE_STATE.roof.scale.metersPerPixel) || 1;
+          var svIdx = drawState.selectedShadowVolumeIndex;
+          var obIdx = drawState.selectedObstacleIndex;
+          if (svIdx != null && svIdx >= 0 && CALPINAGE_STATE.shadowVolumes && svIdx < CALPINAGE_STATE.shadowVolumes.length) {
+            var v = CALPINAGE_STATE.shadowVolumes[svIdx];
+            var meta = v.meta && typeof v.meta === "object" ? v.meta : {};
+            var bid = (typeof meta.businessObstacleId === "string" && meta.businessObstacleId) ? meta.businessObstacleId : resolveLegacyShadowVolumeBusinessId(v.shape);
+            var entry = getRoofObstacleCatalogEntry(bid);
+            return {
+              kind: "shadow_volume",
+              index: svIdx,
+              metersPerPixel: mpp,
+              shape: v.shape,
+              widthM: typeof v.width === "number" ? v.width : 0.6,
+              depthM: typeof v.depth === "number" ? v.depth : 0.6,
+              heightM: typeof v.height === "number" ? v.height : 1,
+              rotationDeg: typeof v.rotation === "number" ? v.rotation : 0,
+              meta: meta,
+              businessId: bid,
+              label: (entry && entry.label) || meta.label || "Volume ombrant",
+              isShadingObstacle: entry ? entry.isShadingObstacle : true,
+              catalogDescription: entry && entry.description ? entry.description : "",
+              footprintAreaM2: computeShadowVolumeFootprintAreaM2(v, mpp),
+            };
+          }
+          if (obIdx != null && obIdx >= 0 && CALPINAGE_STATE.obstacles && obIdx < CALPINAGE_STATE.obstacles.length) {
+            var o = CALPINAGE_STATE.obstacles[obIdx];
+            var metaO = o.meta && typeof o.meta === "object" ? o.meta : {};
+            var bidO = typeof metaO.businessObstacleId === "string" ? metaO.businessObstacleId : null;
+            var entryO = bidO ? getRoofObstacleCatalogEntry(bidO) : null;
+            var isShading = metaO.isShadingObstacle !== false;
+            if (entryO) isShading = !!entryO.isShadingObstacle;
+            var sm = o.shapeMeta;
+            var shapeKind = sm && sm.originalType === "circle" ? "circle" : sm && sm.originalType === "rect" ? "rect" : "polygon";
+            var planWidthM = null;
+            var planHeightM = null;
+            var diameterM = null;
+            if (sm && sm.originalType === "rect" && typeof sm.width === "number" && typeof sm.height === "number") {
+              planWidthM = sm.width * mpp;
+              planHeightM = sm.height * mpp;
+            }
+            if (sm && sm.originalType === "circle" && typeof sm.radius === "number") {
+              diameterM = sm.radius * 2 * mpp;
+            }
+            var isKeepoutOb = isKeepoutNonShadingObstacle(o);
+            var hStored = isKeepoutOb ? null : readExplicitHeightM(o);
+            var hEff = isKeepoutOb ? 0 : resolveNearShadingHeightM(o);
+            return {
+              kind: "obstacle",
+              index: obIdx,
+              metersPerPixel: mpp,
+              shapeKind: shapeKind,
+              planWidthM: planWidthM,
+              planHeightM: planHeightM,
+              diameterM: diameterM,
+              heightMStored: hStored,
+              heightMEffective: hEff,
+              meta: metaO,
+              businessId: bidO,
+              label: (entryO && entryO.label) || metaO.label || o.kind || "Obstacle",
+              isShadingObstacle: isShading,
+              catalogDescription: entryO && entryO.description ? entryO.description : "",
+              footprintAreaM2: computeObstacleFootprintAreaM2(o, mpp),
+            };
+          }
+          return { kind: null, metersPerPixel: mpp };
+        },
+        applyObstaclePlanDimensions: function (index, patch) {
+          if (index == null || index < 0 || !CALPINAGE_STATE.obstacles || index >= CALPINAGE_STATE.obstacles.length) return false;
+          var o = CALPINAGE_STATE.obstacles[index];
+          var mpp = (CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.scale && CALPINAGE_STATE.roof.scale.metersPerPixel) || 1;
+          if (mpp <= 0 || !o || !o.shapeMeta) return false;
+          var m = o.shapeMeta;
+          if (m.originalType === "rect") {
+            if (patch && typeof patch.planWidthM === "number" && patch.planWidthM > 0) m.width = patch.planWidthM / mpp;
+            if (patch && typeof patch.planHeightM === "number" && patch.planHeightM > 0) m.height = patch.planHeightM / mpp;
+          } else if (m.originalType === "circle") {
+            if (patch && typeof patch.diameterM === "number" && patch.diameterM > 0) m.radius = (patch.diameterM / 2) / mpp;
+          } else {
+            return false;
+          }
+          obstacleRecalcFromShapeMeta(o);
+          if (typeof saveCalpinageState === "function") saveCalpinageState();
+          if (typeof recomputeAllPlacementBlocksFromRules === "function") recomputeAllPlacementBlocksFromRules();
+          if (typeof window.notifyPhase2SidebarUpdate === "function") window.notifyPhase2SidebarUpdate();
+          if (typeof requestAnimationFrame !== "undefined" && typeof window.CALPINAGE_RENDER === "function") requestAnimationFrame(window.CALPINAGE_RENDER);
+          return true;
+        },
+        setObstacleHeightM: function (index, heightM) {
+          if (index == null || index < 0 || !CALPINAGE_STATE.obstacles || index >= CALPINAGE_STATE.obstacles.length) return false;
+          var o = CALPINAGE_STATE.obstacles[index];
+          var metaO = o.meta && typeof o.meta === "object" ? o.meta : {};
+          var bidO = typeof metaO.businessObstacleId === "string" ? metaO.businessObstacleId : null;
+          var entryO = bidO ? getRoofObstacleCatalogEntry(bidO) : null;
+          var isShading = metaO.isShadingObstacle !== false;
+          if (entryO) isShading = !!entryO.isShadingObstacle;
+          if (!isShading) return false;
+          if (typeof heightM !== "number" || !Number.isFinite(heightM) || heightM < 0) return false;
+          o.heightM = heightM;
+          if (typeof saveCalpinageState === "function") saveCalpinageState();
+          if (typeof recomputeAllPlacementBlocksFromRules === "function") recomputeAllPlacementBlocksFromRules();
+          if (typeof window.notifyPhase2SidebarUpdate === "function") window.notifyPhase2SidebarUpdate();
+          if (typeof requestAnimationFrame !== "undefined" && typeof window.CALPINAGE_RENDER === "function") requestAnimationFrame(window.CALPINAGE_RENDER);
+          return true;
+        },
+        applyShadowVolumeDimensions: function (index, patch) {
+          if (index == null || index < 0 || !CALPINAGE_STATE.shadowVolumes || index >= CALPINAGE_STATE.shadowVolumes.length) return false;
+          var v = CALPINAGE_STATE.shadowVolumes[index];
+          if (!v || v.type !== "shadow_volume") return false;
+          if (patch && typeof patch.widthM === "number" && patch.widthM > 0) v.width = patch.widthM;
+          if (patch && typeof patch.depthM === "number" && patch.depthM > 0) v.depth = patch.depthM;
+          if (patch && typeof patch.heightM === "number" && patch.heightM >= 0) v.height = patch.heightM;
+          if (typeof saveCalpinageState === "function") saveCalpinageState();
+          if (typeof recomputeAllPlacementBlocksFromRules === "function") recomputeAllPlacementBlocksFromRules();
+          if (typeof window.notifyPhase2SidebarUpdate === "function") window.notifyPhase2SidebarUpdate();
+          if (typeof requestAnimationFrame !== "undefined" && typeof window.CALPINAGE_RENDER === "function") requestAnimationFrame(window.CALPINAGE_RENDER);
+          return true;
+        },
+        deleteSelection: function () {
+          var svIdx = drawState.selectedShadowVolumeIndex;
+          if (svIdx != null && CALPINAGE_STATE.shadowVolumes && svIdx >= 0 && svIdx < CALPINAGE_STATE.shadowVolumes.length) {
+            CALPINAGE_STATE.shadowVolumes.splice(svIdx, 1);
+            drawState.selectedShadowVolumeIndex = null;
+            drawState.selectedObstacleIndex = null;
+            if (typeof saveCalpinageState === "function") saveCalpinageState();
+            if (typeof recomputeAllPlacementBlocksFromRules === "function") recomputeAllPlacementBlocksFromRules();
+            if (typeof window.notifyPhase2SidebarUpdate === "function") window.notifyPhase2SidebarUpdate();
+            if (typeof requestAnimationFrame !== "undefined" && typeof window.CALPINAGE_RENDER === "function") requestAnimationFrame(window.CALPINAGE_RENDER);
+            return true;
+          }
+          var obIdx = drawState.selectedObstacleIndex;
+          if (obIdx != null && CALPINAGE_STATE.obstacles && obIdx >= 0 && obIdx < CALPINAGE_STATE.obstacles.length) {
+            CALPINAGE_STATE.obstacles.splice(obIdx, 1);
+            drawState.selectedObstacleIndex = null;
+            drawState.selectedShadowVolumeIndex = null;
+            if (typeof saveCalpinageState === "function") saveCalpinageState();
+            if (typeof recomputeAllPlacementBlocksFromRules === "function") recomputeAllPlacementBlocksFromRules();
+            if (typeof window.notifyPhase2SidebarUpdate === "function") window.notifyPhase2SidebarUpdate();
+            if (typeof requestAnimationFrame !== "undefined" && typeof window.CALPINAGE_RENDER === "function") requestAnimationFrame(window.CALPINAGE_RENDER);
+            return true;
+          }
+          return false;
+        },
+        duplicateSelection: function () {
+          var mpp = (CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.scale && CALPINAGE_STATE.roof.scale.metersPerPixel) || 1;
+          var svIdx = drawState.selectedShadowVolumeIndex;
+          if (svIdx != null && CALPINAGE_STATE.shadowVolumes && svIdx >= 0 && svIdx < CALPINAGE_STATE.shadowVolumes.length) {
+            var v0 = CALPINAGE_STATE.shadowVolumes[svIdx];
+            var v = JSON.parse(JSON.stringify(v0));
+            v.id = "shadow_" + Date.now() + "_" + Math.floor(Math.random() * 1e6);
+            var dx = Math.max(0.15, ((v.width || 0.6) * 0.35) / (mpp > 0 ? mpp : 1));
+            var dy = Math.max(0.15, ((v.depth || 0.6) * 0.2) / (mpp > 0 ? mpp : 1));
+            v.x = (typeof v.x === "number" ? v.x : 0) + dx;
+            v.y = (typeof v.y === "number" ? v.y : 0) + dy;
+            CALPINAGE_STATE.shadowVolumes.push(v);
+            drawState.selectedShadowVolumeIndex = CALPINAGE_STATE.shadowVolumes.length - 1;
+            drawState.selectedObstacleIndex = null;
+            if (typeof saveCalpinageState === "function") saveCalpinageState();
+            if (typeof recomputeAllPlacementBlocksFromRules === "function") recomputeAllPlacementBlocksFromRules();
+            if (typeof window.notifyPhase2SidebarUpdate === "function") window.notifyPhase2SidebarUpdate();
+            if (typeof requestAnimationFrame !== "undefined" && typeof window.CALPINAGE_RENDER === "function") requestAnimationFrame(window.CALPINAGE_RENDER);
+            return true;
+          }
+          var obIdx = drawState.selectedObstacleIndex;
+          if (obIdx != null && CALPINAGE_STATE.obstacles && obIdx >= 0 && obIdx < CALPINAGE_STATE.obstacles.length) {
+            var o0 = CALPINAGE_STATE.obstacles[obIdx];
+            var o = JSON.parse(JSON.stringify(o0));
+            o.id = (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : "obs-" + Date.now();
+            var sm = o.shapeMeta;
+            if (sm && typeof sm.centerX === "number" && typeof sm.centerY === "number") {
+              var off = Math.max(8, (sm.width || sm.radius || 40) * 0.12);
+              sm.centerX += off;
+              sm.centerY += off;
+              obstacleRecalcFromShapeMeta(o);
+            } else if (o.points && o.points.length) {
+              var off2 = 18 / (mpp > 0 ? mpp : 1);
+              o.points = o.points.map(function (p) { return { x: p.x + off2, y: p.y + off2 }; });
+            }
+            CALPINAGE_STATE.obstacles.push(o);
+            drawState.selectedObstacleIndex = CALPINAGE_STATE.obstacles.length - 1;
+            drawState.selectedShadowVolumeIndex = null;
+            if (typeof saveCalpinageState === "function") saveCalpinageState();
+            if (typeof recomputeAllPlacementBlocksFromRules === "function") recomputeAllPlacementBlocksFromRules();
+            if (typeof window.notifyPhase2SidebarUpdate === "function") window.notifyPhase2SidebarUpdate();
+            if (typeof requestAnimationFrame !== "undefined" && typeof window.CALPINAGE_RENDER === "function") requestAnimationFrame(window.CALPINAGE_RENDER);
+            return true;
+          }
+          return false;
+        },
+        resetSelectionSize: function () {
+          var mpp = (CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.scale && CALPINAGE_STATE.roof.scale.metersPerPixel) || 1;
+          var svIdx = drawState.selectedShadowVolumeIndex;
+          if (svIdx != null && CALPINAGE_STATE.shadowVolumes && svIdx >= 0 && svIdx < CALPINAGE_STATE.shadowVolumes.length) {
+            var v = CALPINAGE_STATE.shadowVolumes[svIdx];
+            var meta = v.meta && typeof v.meta === "object" ? v.meta : {};
+            var bid = (typeof meta.businessObstacleId === "string" && meta.businessObstacleId) ? meta.businessObstacleId : resolveLegacyShadowVolumeBusinessId(v.shape);
+            var payload = getShadowVolumeCreationPayload(bid);
+            v.width = payload.width;
+            v.depth = payload.depth;
+            v.height = payload.height;
+            if (typeof saveCalpinageState === "function") saveCalpinageState();
+            if (typeof recomputeAllPlacementBlocksFromRules === "function") recomputeAllPlacementBlocksFromRules();
+            if (typeof window.notifyPhase2SidebarUpdate === "function") window.notifyPhase2SidebarUpdate();
+            if (typeof requestAnimationFrame !== "undefined" && typeof window.CALPINAGE_RENDER === "function") requestAnimationFrame(window.CALPINAGE_RENDER);
+            return true;
+          }
+          var obIdx = drawState.selectedObstacleIndex;
+          if (obIdx == null || !CALPINAGE_STATE.obstacles || obIdx < 0 || obIdx >= CALPINAGE_STATE.obstacles.length) return false;
+          var o = CALPINAGE_STATE.obstacles[obIdx];
+          if (!o.shapeMeta) return false;
+          var metaO = o.meta && typeof o.meta === "object" ? o.meta : {};
+          var bidO = typeof metaO.businessObstacleId === "string" ? metaO.businessObstacleId : "generic_polygon_keepout";
+          var def = getPlacementDefaults2D(bidO, mpp);
+          var m = o.shapeMeta;
+          if (m.originalType === "rect") {
+            m.width = def.defaultWidthPx;
+            m.height = def.defaultHeightPx;
+          } else if (m.originalType === "circle") {
+            m.radius = def.defaultRadiusPx;
+          } else {
+            return false;
+          }
+          obstacleRecalcFromShapeMeta(o);
+          if (typeof saveCalpinageState === "function") saveCalpinageState();
+          if (typeof recomputeAllPlacementBlocksFromRules === "function") recomputeAllPlacementBlocksFromRules();
+          if (typeof window.notifyPhase2SidebarUpdate === "function") window.notifyPhase2SidebarUpdate();
+          if (typeof requestAnimationFrame !== "undefined" && typeof window.CALPINAGE_RENDER === "function") requestAnimationFrame(window.CALPINAGE_RENDER);
+          return true;
+        },
+      };
+      window.phase2ObstacleEditor = phase2ObstacleEditorApi;
+
+      (function initPhase2ObstacleFloatingToolbar() {
+        var el = container.querySelector("#calpinage-phase2-obstacle-toolbar");
+        if (!el || el.getAttribute("data-p2-toolbar-bound") === "1") return;
+        el.setAttribute("data-p2-toolbar-bound", "1");
+        el.addEventListener("mousedown", function (ev) {
+          ev.stopPropagation();
+        });
+        el.addEventListener("click", function (ev) {
+          var t = ev.target && ev.target.closest && ev.target.closest("[data-p2-ob-action]");
+          if (!t) return;
+          if (CALPINAGE_STATE.roofSurveyLocked || CALPINAGE_STATE.currentPhase !== "ROOF_EDIT") return;
+          var act = t.getAttribute("data-p2-ob-action");
+          if (act === "duplicate") {
+            if (phase2ObstacleEditorApi.duplicateSelection()) ev.preventDefault();
+          } else if (act === "delete") {
+            if (phase2ObstacleEditorApi.deleteSelection()) ev.preventDefault();
+          }
+        });
+        var hInpSv = container.querySelector("#calpinage-p2-sv-height");
+        if (hInpSv && hInpSv.getAttribute("data-p2-svh") !== "1") {
+          hInpSv.setAttribute("data-p2-svh", "1");
+          function applyP2ToolbarHeightInput() {
+            if (CALPINAGE_STATE.roofSurveyLocked || CALPINAGE_STATE.currentPhase !== "ROOF_EDIT") return;
+            var mode = hInpSv.getAttribute("data-p2-h-mode") || "";
+            var raw = parseFloat(String(hInpSv.value).replace(",", "."), 10);
+            if (!Number.isFinite(raw)) return;
+            if (mode === "sv_m") {
+              var idxH = drawState.selectedShadowVolumeIndex;
+              if (idxH == null || !CALPINAGE_STATE.shadowVolumes || idxH < 0 || idxH >= CALPINAGE_STATE.shadowVolumes.length) return;
+              if (raw < 0.05) return;
+              if (phase2ObstacleEditorApi.applyShadowVolumeDimensions(idxH, { heightM: raw })) {
+                if (typeof requestAnimationFrame !== "undefined" && typeof window.CALPINAGE_RENDER === "function") {
+                  requestAnimationFrame(window.CALPINAGE_RENDER);
+                }
+              }
+            } else if (mode === "keepout_cm") {
+              var idxO = drawState.selectedObstacleIndex;
+              var obsListH = CALPINAGE_STATE.obstacles || [];
+              if (idxO == null || idxO < 0 || idxO >= obsListH.length) return;
+              if (raw < 5) return;
+              var mppH = (CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.scale && CALPINAGE_STATE.roof.scale.metersPerPixel) || 1;
+              if (mppH <= 0) return;
+              var oH = obsListH[idxO];
+              var smH = oH && oH.shapeMeta;
+              if (!smH || smH.originalType !== "rect" || typeof smH.width !== "number") return;
+              var planHeightM = raw / 100;
+              if (planHeightM < 0.05) return;
+              var planWidthM = smH.width * mppH;
+              if (phase2ObstacleEditorApi.applyObstaclePlanDimensions(idxO, { planWidthM: planWidthM, planHeightM: planHeightM })) {
+                if (typeof requestAnimationFrame !== "undefined" && typeof window.CALPINAGE_RENDER === "function") {
+                  requestAnimationFrame(window.CALPINAGE_RENDER);
+                }
+              }
+            }
+          }
+          hInpSv.addEventListener("change", applyP2ToolbarHeightInput);
+          hInpSv.addEventListener("keydown", function (kev) {
+            if (kev.key === "Enter") applyP2ToolbarHeightInput();
+          });
+        }
+      })();
 
       function updatePhase2StepsUI() {
         if (CALPINAGE_STATE.currentPhase !== "ROOF_EDIT" || CALPINAGE_STATE.roofSurveyLocked) return;
         var ridges = (CALPINAGE_STATE.ridges || []).filter(function (r) { return r && r.roofRole !== "chienAssis"; });
+        var traits = (CALPINAGE_STATE.traits || []).filter(function (t) { return t && t.roofRole !== "chienAssis"; });
         var obstacles = CALPINAGE_STATE.obstacles || [];
         var hasContour = isContourValid();
+        computePansFromGeometry();
+        var pans = CALPINAGE_STATE.pans || [];
+        var hasFlatFallback = !!(pans.length < 1 && buildFlatPanFromFirstClosedContour(CALPINAGE_STATE));
         var hasRidge = ridges.length > 0;
-        var step3Unlocked = hasRidge;
+        var hasTrait = traits.length > 0;
+        var hasPans = pans.length >= 1 || hasFlatFallback;
+        var step3Unlocked = hasRidge || hasTrait || hasPans || hasFlatFallback;
         var heightsValid = areAllHeightsValid();
         var steps = [
           { id: "phase2-step-1", status: hasContour ? "completed" : "active" },
-          { id: "phase2-step-2", status: !hasContour ? "inactive" : hasRidge ? "completed" : "active" },
+          { id: "phase2-step-2", status: !hasContour ? "inactive" : (hasRidge || hasTrait || hasPans || hasFlatFallback) ? "completed" : "active" },
           { id: "phase2-step-3", status: !step3Unlocked ? "inactive" : obstacles.length > 0 ? "completed" : "active" },
           { id: "phase2-step-4", status: !step3Unlocked ? "inactive" : heightsValid ? "completed" : "active" }
         ];
@@ -5648,21 +9659,24 @@ export function initCalpinage(container, options = {}) {
           var el = container.querySelector("#" + s.id);
           if (el) el.setAttribute("data-status", s.status);
         });
-        if (typeof window.notifyPhase2SidebarUpdate === "function") window.notifyPhase2SidebarUpdate();
+        if (typeof window.notifyPhase2SidebarUpdate === "function") window.notifyPhase2SidebarUpdate(); if (typeof window.notifyCalpinageDirty === "function") window.notifyCalpinageDirty();
       }
 
       function updatePhaseUI() {
         var phase = CALPINAGE_STATE.phase;
-        var locked = CALPINAGE_STATE.roofSurveyLocked;
-        /* R?gle m?tier : un seul mode actif. Phase 2 = ROOF_EDIT, Phase 3 = PV_LAYOUT. */
-        CALPINAGE_STATE.currentPhase = (phase === 3 || locked) ? "PV_LAYOUT" : "ROOF_EDIT";
+        /* Règle métier : phase pilote la vue. Phase 2 = ROOF_EDIT, Phase 3 = PV_LAYOUT. roofSurveyLocked désactive l'édition, pas la phase affichée. */
+        CALPINAGE_STATE.currentPhase = (phase === 3) ? "PV_LAYOUT" : "ROOF_EDIT";
         if (
           CALPINAGE_STATE.currentPhase === "PV_LAYOUT" &&
           !CALPINAGE_STATE.validatedRoofData
         ) {
+          CALPINAGE_STATE.phase = 2;
           CALPINAGE_STATE.currentPhase = "ROOF_EDIT";
-          updatePhaseUI();
-          return;
+          CALPINAGE_STATE.roofSurveyLocked = false;
+        }
+        /* En relevé (ROOF_EDIT), l’édition doit toujours être permise — aligne UI / garde-fou pointerdown. */
+        if (CALPINAGE_STATE.currentPhase === "ROOF_EDIT") {
+          CALPINAGE_STATE.roofSurveyLocked = false;
         }
         var zoneA = container.querySelector("#zone-a");
         var bodyEl = container.querySelector("#calpinage-body");
@@ -5671,11 +9685,15 @@ export function initCalpinage(container, options = {}) {
         var validateBlock = container.querySelector("#zone-a-validate-block");
         var toolbar = container.querySelector("#zone-b-toolbar");
         if (CALPINAGE_STATE.currentPhase === "PV_LAYOUT") {
+          ensurePhase3InitialPanOnEnter("update-phase-ui");
+          if (zoneA) zoneA.classList.add("phase-pv-layout");
+          if (bodyEl) bodyEl.classList.add("phase-pv-layout");
+          setTimeout(function () {
+            if (typeof bindP3SpacingButtonsDirect === "function") bindP3SpacingButtonsDirect();
+          }, 0);
           drawState.activeTool = "panels";
           ensurePVSelectedPanel();
           window.CALPINAGE_ALLOWED = true;
-          if (zoneA) zoneA.classList.add("phase-pv-layout");
-          if (bodyEl) bodyEl.classList.add("phase-pv-layout");
           if (validateBlock) validateBlock.style.display = "none";
           if (toolbar) toolbar.classList.add("phase-locked");
           if (typeof window.syncPhase3LayoutUI === "function") window.syncPhase3LayoutUI();
@@ -5690,9 +9708,21 @@ if (descEl) descEl.textContent = "Dessinez le toit réel : contour, faîtages, o
 if (validateBlock) validateBlock.style.display = "block";
 if (toolbar) toolbar.classList.remove("phase-locked");
 CALPINAGE_STATE.activeManipulationBlockId = null;
+          if (typeof window.clearAutofillPreview === "function") window.clearAutofillPreview();
+          /* Après Phase 3, l’outil « panels » ne doit pas rester actif en Phase 2. */
+          if (drawState.activeTool === "panels") {
+            if (typeof window.applyCalpinagePhase2Tool === "function") {
+              window.applyCalpinagePhase2Tool("contour");
+            } else {
+              drawState.activeTool = "contour";
+            }
+          }
 updateValidateButton();
 
         }
+        /* Sanity: en Phase 2, jamais phase-locked sur toolbar (évite pointer-events:none stale) */
+        var tb = container.querySelector("#zone-b-toolbar");
+        if (tb && CALPINAGE_STATE.currentPhase === "ROOF_EDIT") tb.classList.remove("phase-locked");
       }
 
       // CP-005 — Charger le catalogue panneaux via API avant tout
@@ -5712,7 +9742,7 @@ updateValidateButton();
             window.CALPINAGE_STUDY_ID = studyId;
             window.CALPINAGE_VERSION_ID = versionId;
           }
-          var loaded = false;
+          var serverGeom = null;
           if (studyId && versionId) {
             try {
               var apiBase = (window.CALPINAGE_API_BASE != null ? window.CALPINAGE_API_BASE : (window.location && window.location.origin)) || "";
@@ -5723,8 +9753,11 @@ updateValidateButton();
               if (res.ok) {
                 var json = await res.json();
                 if (json.ok && json.calpinageData && json.calpinageData.geometry_json) {
-                  loadCalpinageState(json.calpinageData.geometry_json);
-                  loaded = true;
+                  serverGeom = json.calpinageData.geometry_json;
+                  var apAnnual = json.calpinageData.annual_production_kwh;
+                  if (typeof window !== "undefined" && window.CALPINAGE_STATE && apAnnual != null && Number(apAnnual) > 0) {
+                    window.CALPINAGE_STATE.calpinageAnnualProductionKwh = Number(apAnnual);
+                  }
                   if (typeof console !== "undefined" && console.log) console.log("[CALPINAGE] load: api ok");
                 }
               } else if (res.status === 404) {
@@ -5736,16 +9769,63 @@ updateValidateButton();
               console.warn("[CALPINAGE] API load failed, falling back to localStorage", e);
             }
           }
-          if (!loaded) {
-            if (studyId && versionId) {
-              var fallbackKey = getScopedKey(CALPINAGE_STORAGE_KEY, studyId, versionId);
-              if (fallbackKey) {
-                loadCalpinageState();
-                if (typeof console !== "undefined" && console.log) console.log("[CALPINAGE] load: fallback localStorage scoped key=" + fallbackKey);
+          function checkpointTime(g) {
+            if (!g || typeof g !== "object") return 0;
+            var cp = g.calpinageCheckpoint;
+            var t1 = cp && cp.savedAt ? Date.parse(cp.savedAt) : NaN;
+            if (!Number.isNaN(t1)) return t1;
+            var t2 = g.meta && g.meta.generatedAt ? Date.parse(g.meta.generatedAt) : NaN;
+            return Number.isNaN(t2) ? 0 : t2;
+          }
+          /** Compte les faîtages (ridges) utiles dans geometry_json (hors chien-assis). */
+          function countRidgeLinesInGeometryJson(g) {
+            if (!g || typeof g !== "object") return 0;
+            var rs = g.roofState && g.roofState.ridges;
+            if (!Array.isArray(rs)) return 0;
+            var n = 0;
+            for (var ri = 0; ri < rs.length; ri++) {
+              var r = rs[ri];
+              if (r && (r.roofRole || "") !== "chienAssis") n++;
+            }
+            return n;
+          }
+          var lsGeom = null;
+          if (studyId && versionId) {
+            try {
+              var lsRawMerge = getCalpinageItem("state", studyId, versionId);
+              lsGeom = lsRawMerge ? JSON.parse(lsRawMerge) : null;
+            } catch (e) {
+              lsGeom = null;
+            }
+          }
+          var mergedGeom = null;
+          if (serverGeom && lsGeom) {
+            var srvRidges = countRidgeLinesInGeometryJson(serverGeom);
+            var lsRidges = countRidgeLinesInGeometryJson(lsGeom);
+            if (srvRidges === 0 && lsRidges > 0) {
+              mergedGeom = lsGeom;
+              if (typeof console !== "undefined" && console.log) {
+                console.log("[CALPINAGE] load: merge api+localStorage → local (serveur sans faîtages, brouillon local contient des ridges)");
               }
             } else {
-              if (typeof console !== "undefined" && console.warn) console.warn("[CALPINAGE] load: pas de fallback localStorage (studyId ou versionId manquant)");
+              mergedGeom = checkpointTime(lsGeom) > checkpointTime(serverGeom) ? lsGeom : serverGeom;
+              if (typeof console !== "undefined" && console.log) {
+                console.log("[CALPINAGE] load: merge api+localStorage → " + (mergedGeom === lsGeom ? "local (plus récent)" : "serveur"));
+              }
             }
+          } else {
+            mergedGeom = serverGeom || lsGeom;
+          }
+          if (mergedGeom) {
+            loadCalpinageState(mergedGeom);
+          } else if (studyId && versionId) {
+            var fallbackKey = getScopedKey(CALPINAGE_STORAGE_KEY, studyId, versionId);
+            if (fallbackKey) {
+              loadCalpinageState();
+              if (typeof console !== "undefined" && console.log) console.log("[CALPINAGE] load: fallback localStorage scoped key=" + fallbackKey);
+            }
+          } else {
+            if (typeof console !== "undefined" && console.warn) console.warn("[CALPINAGE] load: pas de fallback localStorage (studyId ou versionId manquant)");
           }
         } else {
           console.log("[CALPINAGE] fresh=1 → skip loadCalpinageState()");
@@ -5755,7 +9835,16 @@ updateValidateButton();
         }
         updatePansListUI();
         updatePhaseUI();
-        if (typeof tryApplyInitialMapPosition === "function") tryApplyInitialMapPosition();
+        var hasPersistedImg = CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.image && CALPINAGE_STATE.roof.image.dataUrl;
+        if (hasPersistedImg) {
+          if (typeof showCanvas === "function") showCanvas();
+          if (canvasWrapper && typeof waitForContainerSize === "function" && typeof startCanvasWithImage === "function") {
+            waitForContainerSize(canvasWrapper, startCanvasWithImage);
+          }
+          if (typeof updateStateUI === "function") updateStateUI();
+        } else if (typeof tryApplyInitialMapPosition === "function") {
+          tryApplyInitialMapPosition();
+        }
       })();
 
       (function initValidateRoofButton() {
@@ -5768,6 +9857,7 @@ updateValidateButton();
           CALPINAGE_STATE.phase = 3;
           CALPINAGE_STATE.currentPhase = "PV_LAYOUT";
           window.CALPINAGE_ALLOWED = true;
+          ensurePhase3InitialPanOnEnter("validate-roof");
           /* PV_RULES_INITIALIZED : mono-point dans loadCalpinageState() apr?s mapping pvParams ??? PV_LAYOUT_RULES. */
           saveCalpinageState();
           updatePhaseUI();
@@ -5806,6 +9896,9 @@ updateValidateButton();
                 getBlockCenter: function (block) { return ENG && ENG.getBlockCenter && block ? ENG.getBlockCenter(block) : null; },
                 getFocusBlock: function () { return ENG && ENG.getFocusBlock ? ENG.getFocusBlock() : null; },
                 addPanelAtCenter: function (block, center, getCtx) { return ENG && ENG.addPanelAtCenter ? ENG.addPanelAtCenter(block, center, getCtx) : { success: false }; },
+                addPanelsAtCentersBatch: function (block, centers, getCtx) { return ENG && ENG.addPanelsAtCentersBatch ? ENG.addPanelsAtCentersBatch(block, centers, getCtx) : { success: false }; },
+                beginPlacementBatch: function () { if (ENG && ENG.beginPlacementBatch) ENG.beginPlacementBatch(); },
+                endPlacementBatch: function () { if (ENG && ENG.endPlacementBatch) ENG.endPlacementBatch(); },
                 createBlock: function (panId, center, rules, ctx) { return ENG && ENG.createBlock ? ENG.createBlock(panId, center, rules, ctx) : { success: false }; },
                 endBlock: function () { if (ENG && ENG.endBlock) ENG.endBlock(); },
                 recomputeBlockProjections: function (block, getCtx) { if (ENG && ENG.recomputeBlockProjections) ENG.recomputeBlockProjections(block, getCtx); },
@@ -5871,6 +9964,10 @@ updateValidateButton();
         if (!btn) return;
         addSafeListener(btn, "click", async function () {
           if (devLog) console.log("[CALPINAGE] Valider handler entry");
+          var delegateValidateToCrmOverlay = false;
+          function notifyCalpinageValidateFinished() {
+            try { window.dispatchEvent(new Event("calpinage:validate-finished")); } catch (_) {}
+          }
           var totalPanels = (window.pvPlacementEngine && window.pvPlacementEngine.getAllPanels) ? (window.pvPlacementEngine.getAllPanels() || []).length : 0;
           var hasPanel = !!(window.PV_SELECTED_PANEL && window.PV_SELECTED_PANEL.id) || !!(window.CALPINAGE_SELECTED_PANEL_ID);
           var hasInverter = !!(window.PV_SELECTED_INVERTER && window.PV_SELECTED_INVERTER.id) || !!(window.CALPINAGE_SELECTED_INVERTER_ID);
@@ -5878,52 +9975,42 @@ updateValidateButton();
             if (typeof window.calpinageToast !== "undefined" && window.calpinageToast.error) {
               window.calpinageToast.error("S\u00E9lectionnez un module photovolta\u00EFque avant de valider.");
             } else if (typeof console !== "undefined") console.warn("[CALPINAGE]", "S\u00E9lectionnez un module photovolta\u00EFque avant de valider.");
+            notifyCalpinageValidateFinished();
             return;
           }
           if (!hasInverter) {
             if (typeof window.calpinageToast !== "undefined" && window.calpinageToast.error) {
               window.calpinageToast.error("S\u00E9lectionnez un onduleur avant de valider.");
             } else if (typeof console !== "undefined") console.warn("[CALPINAGE]", "S\u00E9lectionnez un onduleur avant de valider.");
+            notifyCalpinageValidateFinished();
             return;
           }
           if (totalPanels <= 0) {
             if (typeof window.calpinageToast !== "undefined" && window.calpinageToast.error) {
               window.calpinageToast.error("Posez au moins un panneau avant de valider le calpinage.");
             } else if (typeof console !== "undefined") console.warn("[CALPINAGE]", "Posez au moins un panneau avant de valider le calpinage.");
+            notifyCalpinageValidateFinished();
             return;
           }
+          showCalpinageLoading("Validation en cours…");
           try {
             // DEV: Forcer une erreur pour tester l'affichage (activer via window.CALPINAGE_DEV_FORCE_ERROR = true)
             if (window.CALPINAGE_DEV_FORCE_ERROR) {
               throw new Error("Erreur de test (DEV_FORCE_ERROR)");
             }
-            // === OMBRAGE — calcul au moment de la validation calpinage ===
-            try {
-              if (window.loadCalpinageHorizonMask) {
-                window.loadCalpinageHorizonMask();
-              }
-
-              if (
-                window.CALPINAGE_STATE &&
-                window.CALPINAGE_STATE.roof &&
-                !window.CALPINAGE_STATE.roof.gps &&
-                window.CALPINAGE_STATE.roof.map &&
-                window.CALPINAGE_STATE.roof.map.centerLatLng
-              ) {
-                window.CALPINAGE_STATE.roof.gps = {
-                  lat: window.CALPINAGE_STATE.roof.map.centerLatLng.lat,
-                  lon: window.CALPINAGE_STATE.roof.map.centerLatLng.lng
-                };
-              }
-
-              if (window.computeCalpinageShading) {
-                const res = window.computeCalpinageShading();
-                if (res && window.normalizeCalpinageShading) {
-                  window.normalizeCalpinageShading();
-                }
-              }
-            } catch (e) {
-              console.warn("Shading computation failed during calpinage validation", e);
+            // RÈGLE PRODUIT : La validation ne doit JAMAIS déclencher de recalcul shading (évite require() en navigateur).
+            // On réutilise uniquement le shading déjà présent (CALPINAGE_STATE.shading) ou null.
+            if (
+              window.CALPINAGE_STATE &&
+              window.CALPINAGE_STATE.roof &&
+              !window.CALPINAGE_STATE.roof.gps &&
+              window.CALPINAGE_STATE.roof.map &&
+              window.CALPINAGE_STATE.roof.map.centerLatLng
+            ) {
+              window.CALPINAGE_STATE.roof.gps = {
+                lat: window.CALPINAGE_STATE.roof.map.centerLatLng.lat,
+                lon: window.CALPINAGE_STATE.roof.map.centerLatLng.lng
+              };
             }
 
             var CALPINAGE_STATE = window.CALPINAGE_STATE;
@@ -5933,18 +10020,41 @@ updateValidateButton();
             }
             /* Chemin CRM unique : onValidate défini → return immédiatement, pas de legacy (saveCalpinageState, fetch, solarnext_token, smartpitch_last_result). */
             if (typeof options.onValidate === "function") {
-              var data = getCalpinageExportDataForCRM();
-              if (devLog) {
-                try {
-                  var geomSize = (data && data.geometry_json) ? JSON.stringify(data.geometry_json).length : 0;
-                  console.log("[CALPINAGE] Valider: exportData size=" + geomSize + " calling onValidate");
-                } catch (stringifyErr) {
-                  console.error("STRINGIFY ERROR DETAIL (geometry_json):", stringifyErr);
-                  console.log("OBJECT STRUCTURE (data.geometry_json):", data && data.geometry_json);
-                }
+              var debugValidate = !!(window.CALPINAGE_VALIDATE_DEBUG);
+              if (debugValidate) {
+                try { console.groupCollapsed("[VALIDATE] start"); console.log("CALPINAGE_STATE present", !!window.CALPINAGE_STATE); console.groupEnd(); } catch (_) {}
               }
-              options.onValidate(data);
-              if (devLog) console.log("[CALPINAGE] Valider: onValidate returned");
+              window.__CALPINAGE_VALIDATING__ = true;
+              try {
+                var data = getCalpinageExportDataForCRM();
+                if (debugValidate) {
+                  try {
+                    var geom = data && data.geometry_json;
+                    var geomStr = geom ? JSON.stringify(geom) : "";
+                    var keys = geom && typeof geom === "object" ? Object.keys(geom) : [];
+                    console.groupCollapsed("[VALIDATE] export built");
+                    console.log("JSON size", geomStr.length, "keys", keys.slice(0, 20).join(", "));
+                    console.log("shading present?", !!(geom && (geom.shading !== undefined && geom.shading !== null)));
+                    console.log("geometry3d present?", !!(geom && geom.geometry3d != null));
+                    console.groupEnd();
+                  } catch (logErr) { console.warn("[VALIDATE] export log err", logErr); }
+                }
+                if (devLog) {
+                  try {
+                    var geomSize = (data && data.geometry_json) ? JSON.stringify(data.geometry_json).length : 0;
+                    console.log("[CALPINAGE] Valider: exportData size=" + geomSize + " calling onValidate");
+                  } catch (stringifyErr) {
+                    console.error("STRINGIFY ERROR DETAIL (geometry_json):", stringifyErr);
+                    console.log("OBJECT STRUCTURE (data.geometry_json):", data && data.geometry_json);
+                  }
+                }
+                delegateValidateToCrmOverlay = true;
+                options.onValidate(data);
+                if (devLog) console.log("[CALPINAGE] Valider: onValidate returned");
+              } finally {
+                window.__CALPINAGE_VALIDATING__ = false;
+              }
+              if (debugValidate) try { console.log("[VALIDATE] onValidate called (async flow in overlay)"); } catch (_) {}
               return; /* CRM : sortie immédiate, pas de POST legacy */
             }
             var raw = localStorage.getItem("smartpitch_last_result");
@@ -5976,9 +10086,15 @@ updateValidateButton();
                 var geometryJson = geoRaw ? JSON.parse(geoRaw) : null;
                 if (geometryJson) {
                   var panelCount = (window.pvPlacementEngine && window.pvPlacementEngine.getAllPanels) ? (window.pvPlacementEngine.getAllPanels() || []).length : 0;
-                  var shadingLossPct = (CALPINAGE_STATE && CALPINAGE_STATE.shading && CALPINAGE_STATE.shading.normalized && typeof CALPINAGE_STATE.shading.normalized.totalLossPct === "number") ? CALPINAGE_STATE.shading.normalized.totalLossPct : 0;
-                  var panelWp = (window.PV_SELECTED_PANEL && window.PV_SELECTED_PANEL.powerWc) ? window.PV_SELECTED_PANEL.powerWc : 485;
-                  var totalPowerKwc = panelCount > 0 ? (panelCount * panelWp) / 1000 : null;
+                  var _norm = CALPINAGE_STATE && CALPINAGE_STATE.shading && CALPINAGE_STATE.shading.normalized;
+var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
+                  var pSel = window.PV_SELECTED_PANEL;
+                  var apiPan = window.CALPINAGE_SELECTED_PANEL_ID ? findPanelById(window.CALPINAGE_SELECTED_PANEL_ID) : null;
+                  var panelForPower = apiPan || pSel;
+                  var resolvedWp = resolvePanelPowerWc(panelForPower);
+                  var LEGACY_FALLBACK_PANEL_WC = 485;
+                  var panelWp = resolvedWp != null ? resolvedWp : (panelCount > 0 ? LEGACY_FALLBACK_PANEL_WC : null);
+                  var totalPowerKwc = panelCount > 0 && panelWp != null ? (panelCount * panelWp) / 1000 : null;
                   var gps = (CALPINAGE_STATE && CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.gps) ? CALPINAGE_STATE.roof.gps : null;
                   var apiBase = (window.location && window.location.origin) || "";
                   var token = localStorage.getItem("solarnext_token");
@@ -6029,6 +10145,11 @@ updateValidateButton();
             } catch (e) {
               if (typeof console !== "undefined") console.warn("[CALPINAGE]", "Erreur lors de la validation du calpinage.");
             }
+          } finally {
+            hideCalpinageLoading();
+            if (!delegateValidateToCrmOverlay) {
+              notifyCalpinageValidateFinished();
+            }
           }
         });
       })();
@@ -6048,11 +10169,7 @@ updateValidateButton();
         var inverterSelectMicro = container.querySelector("#pv-inverter-select-micro");
 
         function buildInverterOptionLabel(inv) {
-          var brand = (inv.brand || "").trim();
-          var name = (inv.name || inv.model_ref || "").trim() || inv.id;
-          var type = (inv.inverter_type || "").toLowerCase();
-          var typeLabel = type === "micro" ? "micro" : type === "string" ? "string" : type || "";
-          return brand ? (brand + " \u2014 " + name + (typeLabel ? " (" + typeLabel + ")" : "")) : (name + (typeLabel ? " (" + typeLabel + ")" : ""));
+          return (inv.name || inv.model_ref || inv.id || "").trim();
         }
 
         function refreshInverterSelect() {
@@ -6160,10 +10277,7 @@ updateValidateButton();
           panelSelect.appendChild(opt0);
           for (var i = 0; i < list.length; i++) {
             var p = list[i];
-            var brand = (p.brand || "").trim();
-            var name = (p.name || p.model_ref || "").trim() || p.id;
-            var powerWc = (p.power_wc != null && p.power_wc !== "") ? (Number(p.power_wc) || p.power_wc) : "";
-            var label = brand ? (brand + " \u2014 " + name + (powerWc ? " " + powerWc + "W" : "")) : (name + (powerWc ? " " + powerWc + "W" : ""));
+            var label = (p.name || p.model_ref || p.id || "").trim();
             var opt = document.createElement("option");
             opt.value = p.id;
             opt.textContent = label;
@@ -6216,6 +10330,26 @@ updateValidateButton();
         }
 
         function syncUI() {
+          var uiFlat = projectCalpinageUi(CALPINAGE_STATE);
+          if (uiFlat.isFlat && uiFlat.activePanId) {
+            var pLiveFlat = getLivePanByIdFromState(uiFlat.activePanId);
+            var fcSrc = (pLiveFlat && pLiveFlat.flatRoofConfig) || (uiFlat.livePan && uiFlat.livePan.flatRoofConfig) || {};
+            var fcPre = normalizeFlatRoofConfig(fcSrc);
+            /* Anciens projets : deux setbacks distincts → unifier au max (ne pas réduire le recul effectif), puis une seule valeur affichée / pilotée. */
+            if (pLiveFlat && pLiveFlat.roofType === "FLAT" && fcPre.setbackRoofEdgeCm !== fcPre.setbackObstacleCm) {
+              var uM = Math.max(fcPre.setbackRoofEdgeCm, fcPre.setbackObstacleCm);
+              pLiveFlat.flatRoofConfig = normalizeFlatRoofConfig(Object.assign({}, pLiveFlat.flatRoofConfig || {}, {
+                setbackRoofEdgeCm: uM,
+                setbackObstacleCm: uM,
+              }));
+            }
+            var fcMirror = normalizeFlatRoofConfig(
+              (pLiveFlat && pLiveFlat.flatRoofConfig) || fcSrc
+            );
+            rules.spacingXcm = fcMirror.colSpacingCm;
+            rules.spacingYcm = fcMirror.rowSpacingCm;
+            rules.marginOuterCm = fcMirror.setbackRoofEdgeCm;
+          }
           var orient = (rules.orientation || "portrait").toString().toLowerCase();
           var ENG = window.pvPlacementEngine;
           var focusBlock = (ENG && typeof ENG.getFocusBlock === "function") ? ENG.getFocusBlock() : null;
@@ -6234,8 +10368,124 @@ updateValidateButton();
           refreshPanelSelect();
           refreshInverterSelect();
           if (typeof window.syncP3Topbar === "function") window.syncP3Topbar();
+          if (typeof window.refreshAutofillToolbar === "function") window.refreshAutofillToolbar();
+          var flatPanelEl = container.querySelector("#pv-flat-roof-panel");
+          var flatEnableWrap = container.querySelector("#pv-flat-roof-enable-wrap");
+          var flatSlotEl = container.querySelector("#p3-flat-roof-slot");
+          if (flatPanelEl) {
+            var uiProj = projectCalpinageUi(CALPINAGE_STATE);
+            var panIdF = uiProj.activePanId;
+            var liveF = uiProj.livePan;
+            var vpanF = uiProj.validatedPan;
+            var isFlatF = uiProj.isFlat;
+            var hasPanCtx = uiProj.hasPanCtx;
+            var inPvLayoutFlat = uiProj.inPvLayout;
+            if (flatSlotEl) {
+              /* Phase 3 : ne plus masquer tout le slot sur !hasPanCtx (régression bouton toit plat). Sans contexte : slot replié (pas de padding). */
+              flatSlotEl.style.display = inPvLayoutFlat ? "flex" : "none";
+              if (!hasPanCtx) {
+                flatSlotEl.style.padding = "0";
+                flatSlotEl.style.marginTop = "0";
+                flatSlotEl.style.marginBottom = "0";
+                try {
+                  flatSlotEl.style.gap = "0";
+                } catch (_g) {}
+              } else {
+                flatSlotEl.style.padding = "";
+                flatSlotEl.style.marginTop = "";
+                flatSlotEl.style.marginBottom = "";
+                try {
+                  flatSlotEl.style.gap = "";
+                } catch (_g2) {}
+              }
+              flatSlotEl.setAttribute("aria-hidden", hasPanCtx ? "false" : "true");
+            }
+            if (flatEnableWrap) {
+              var showEnable = hasPanCtx && !isFlatF;
+              flatEnableWrap.style.display = showEnable ? "block" : "none";
+              flatEnableWrap.setAttribute("aria-hidden", showEnable ? "false" : "true");
+            }
+            flatPanelEl.style.display = isFlatF ? "block" : "none";
+            flatPanelEl.setAttribute("aria-hidden", isFlatF ? "false" : "true");
+            if (isFlatF) {
+              var lpF = liveF || vpanF;
+              var fcF = normalizeFlatRoofConfig(lpF && lpF.flatRoofConfig);
+              var tiltBtns = flatPanelEl.querySelectorAll(".pv-flat-tilt-btn");
+              for (var ib = 0; ib < tiltBtns.length; ib++) {
+                var tb = tiltBtns[ib];
+                var tVal = Number(tb.getAttribute("data-tilt"));
+                var onT = tVal === fcF.supportTiltDeg;
+                tb.setAttribute("aria-pressed", onT ? "true" : "false");
+              }
+              var layBtns = flatPanelEl.querySelectorAll(".pv-flat-layout-btn");
+              for (var lb = 0; lb < layBtns.length; lb++) {
+                var lbEl = layBtns[lb];
+                var lo = lbEl.getAttribute("data-layout");
+                var onL = (lo === "landscape" && fcF.layoutOrientation === "landscape") || (lo === "portrait" && fcF.layoutOrientation === "portrait");
+                lbEl.setAttribute("aria-pressed", onL ? "true" : "false");
+              }
+            }
+          }
         }
         window.syncPhase3LayoutUI = syncUI;
+        function getPanIdForFlatRoofActions() {
+          return resolvePhase3Context(CALPINAGE_STATE).activePanId;
+        }
+        (function bindFlatRoofPanelClicks() {
+          var fp = container.querySelector("#pv-flat-roof-panel");
+          if (!fp) return;
+          addSafeListener(fp, "click", function (e) {
+            var revBtn = e.target && e.target.closest && e.target.closest("#pv-flat-roof-revert-btn");
+            if (revBtn) {
+              var pid0 = getPanIdForFlatRoofActions();
+              if (!pid0) {
+                if (typeof window.showCalpinageUxToast === "function") {
+                  window.showCalpinageUxToast("Impossible de revenir en toiture inclinée : aucun pan ciblé.");
+                }
+                return;
+              }
+              var okRev = applyManualPanRoofTypeAndRecompute(pid0, "PITCHED");
+              if (typeof window.showCalpinageUxToast === "function") {
+                window.showCalpinageUxToast(
+                  okRev ? "Toiture inclinée rétablie" : "Impossible de revenir en toiture inclinée sur ce pan."
+                );
+              }
+              return;
+            }
+            var tBtn = e.target && e.target.closest && e.target.closest(".pv-flat-tilt-btn");
+            var lBtn = e.target && e.target.closest && e.target.closest(".pv-flat-layout-btn");
+            if (!tBtn && !lBtn) return;
+            var pid = getPanIdForFlatRoofActions();
+            if (!pid) return;
+            if (tBtn) {
+              var tilt = Number(tBtn.getAttribute("data-tilt"));
+              if (tilt === 5 || tilt === 10 || tilt === 15) applyFlatRoofConfigAndRecompute(pid, { supportTiltDeg: tilt });
+            }
+            if (lBtn) {
+              var layout = lBtn.getAttribute("data-layout");
+              if (layout === "portrait" || layout === "landscape") applyFlatRoofConfigAndRecompute(pid, { layoutOrientation: layout });
+            }
+          });
+        })();
+        (function bindFlatRoofEnableClick() {
+          var en = container.querySelector("#pv-flat-roof-enable-btn");
+          if (!en) return;
+          addSafeListener(en, "click", function () {
+            var pid = getPanIdForFlatRoofActions();
+            if (!pid) {
+              if (typeof window.showCalpinageUxToast === "function") {
+                window.showCalpinageUxToast("Impossible d'activer le mode toiture plate : aucun pan ciblé.");
+              }
+              return;
+            }
+            var okFlat = applyManualPanRoofTypeAndRecompute(pid, "FLAT");
+            if (typeof window.showCalpinageUxToast === "function") {
+              window.showCalpinageUxToast(
+                okFlat ? "Toiture plate activée" : "Impossible d'activer le mode toiture plate sur ce pan."
+              );
+            }
+          });
+        })();
         if (panelSelect) addSafeListener(panelSelect, "change", onPanelSelectChange);
         if (inverterSelectCentral) addSafeListener(inverterSelectCentral, "change", onInverterCentralChange);
         if (inverterSelectMicro) addSafeListener(inverterSelectMicro, "change", onInverterMicroChange);
@@ -6298,7 +10548,7 @@ updateValidateButton();
           if (typeof window.syncP3Topbar === "function") window.syncP3Topbar();
           syncUI();
           if (typeof pvSyncSaveRender === "function") pvSyncSaveRender(); else if (typeof window.CALPINAGE_RENDER === "function") requestAnimationFrame(window.CALPINAGE_RENDER);
-          if (typeof window.notifyPhase3SidebarUpdate === "function") window.notifyPhase3SidebarUpdate();
+          if (typeof window.notifyPhase3SidebarUpdate === "function") window.notifyPhase3SidebarUpdate(); if (typeof window.notifyCalpinageDirty === "function") window.notifyCalpinageDirty();
         }
         if (portraitBtn) addSafeListener(portraitBtn, "click", function () { onOrientationChange("portrait"); });
         if (paysageBtn) addSafeListener(paysageBtn, "click", function () { onOrientationChange("landscape"); });
@@ -6311,10 +10561,7 @@ updateValidateButton();
             if (!Number.isFinite(n) || n < minVal) n = minVal;
             rules[key] = n;
             el.value = String(n);
-            savePvParams();
-            recomputeAllPlacementBlocksFromRules();
-            if (typeof window.syncP3Topbar === "function") window.syncP3Topbar();
-            if (typeof window.CALPINAGE_RENDER === "function") requestAnimationFrame(window.CALPINAGE_RENDER);
+            applyPvLayoutRulesAndRecompute(key === "marginOuterCm" ? { flatMarginSync: true } : undefined);
           });
         }
         bindNumberInput("pv-layout-margin-cm", "marginOuterCm", 0);
@@ -6366,53 +10613,30 @@ updateValidateButton();
             var optC = inverterSelectCentral.options[inverterSelectCentral.selectedIndex];
             vCentral.textContent = optC && optC.value ? (optC.textContent || "Choisir…") : "Choisir…";
           }
+          if (typeof window.refreshAutofillToolbar === "function") window.refreshAutofillToolbar();
         }
         window.syncP3Topbar = syncP3Topbar;
 
-        function closeAllTechPopovers() {
+        function closeAllTechPopovers(evt) {
+          var phase = (window.CALPINAGE_STATE && window.CALPINAGE_STATE.currentPhase) || "";
+          var insideTopbar = !!(evt && evt.target && evt.target.closest && evt.target.closest("#p3-topbar"));
+          var insidePopover = !!(evt && evt.target && evt.target.closest && evt.target.closest(".p3-tech-popover"));
+          if (window.PV_LAYOUT_DEBUG && typeof console !== "undefined") {
+            console.info("[P3][CLOSE][FIRE]", { fn: "closeAllTechPopovers", phase: phase, type: (evt && evt.type) || "", capture: false, target: (evt && evt.target) || null, insideTopbar: insideTopbar, insidePopover: insidePopover });
+          }
+          if (phase === "PV_LAYOUT" && (insideTopbar || insidePopover)) return;
+          /* Ne ferme que les legacy .p3-tech-popover (inline). Le floating panel (portal body) a ses propres règles (click outside, Esc). */
           topbar.querySelectorAll(".p3-tech-popover.is-open").forEach(function (p) {
             p.classList.remove("is-open");
             p.setAttribute("aria-hidden", "true");
           });
         }
 
-        var techMap = {
-          "spacing-x": { inputId: "p3-popover-spacing-x-input", targetId: "pv-layout-spacing-x-cm", key: "spacingXcm", min: 0 },
-          "spacing-y": { inputId: "p3-popover-spacing-y-input", targetId: "pv-layout-spacing-y-cm", key: "spacingYcm", min: 0 },
-          "margin": { inputId: "p3-popover-margin-input", targetId: "pv-layout-margin-cm", key: "marginOuterCm", min: 0 }
-        };
-
-        ["spacing-x", "spacing-y", "margin"].forEach(function (tech) {
-          var pill = container.querySelector("#p3-pill-" + (tech === "spacing-x" ? "spacing-x" : tech === "spacing-y" ? "spacing-y" : "margin"));
-          var popover = container.querySelector("#p3-popover-" + (tech === "spacing-x" ? "spacing-x" : tech === "spacing-y" ? "spacing-y" : "margin"));
-          var applyBtn = popover && popover.querySelector(".p3-popover-apply[data-tech=\"" + tech + "\"]");
-          var targetEl = container.querySelector("#" + techMap[tech].targetId);
-          if (!pill || !popover || !applyBtn || !targetEl) return;
-          addSafeListener(pill, "click", function (e) {
-            e.stopPropagation();
-            var isOpen = popover.classList.contains("is-open");
-            closeAllTechPopovers();
-            if (!isOpen) {
-              var val = rules[techMap[tech].key];
-              var fallback = tech === "margin" ? 20 : tech === "spacing-x" ? 2 : 4.5;
-              popover.querySelector("input").value = String(Number.isFinite(val) ? val : fallback);
-              popover.classList.add("is-open");
-              popover.setAttribute("aria-hidden", "false");
-            }
-          });
-          addSafeListener(applyBtn, "click", function () {
-            var inp = popover.querySelector("input");
-            var n = parseInt(inp.value, 10);
-            if (!Number.isFinite(n) || n < techMap[tech].min) n = techMap[tech].min;
-            targetEl.value = String(n);
-            targetEl.dispatchEvent(new Event("change", { bubbles: true }));
-            closeAllTechPopovers();
-          });
-        });
-
         addSafeListener(container, "click", function (e) {
-          if (!topbar.contains(e.target)) closeAllTechPopovers();
+          if (!topbar.contains(e.target)) closeAllTechPopovers(e);
         });
+
+        setTimeout(function () { bindP3SpacingButtonsDirect(); }, 0);
 
         ["panel", "micro", "central"].forEach(function (product) {
           var pill = container.querySelector("#p3-pill-" + (product === "panel" ? "module" : product === "micro" ? "micro" : "central"));
@@ -6432,6 +10656,386 @@ updateValidateButton();
         });
 
         syncP3Topbar();
+
+        (function initAutofillPhase3() {
+          var autofillBtn = container.querySelector("#pv-tool-autofill");
+          var autofillBar = container.querySelector("#pv-autofill-bar");
+          var autofillText = container.querySelector("#pv-autofill-bar-text");
+          var autofillConfirm = container.querySelector("#pv-autofill-confirm");
+          var autofillCancel = container.querySelector("#pv-autofill-cancel");
+          function ctxForBlock(block) {
+            return typeof getProjectionContextForBlock === "function"
+              ? getProjectionContextForBlock(block, { allowDuringManipulation: true })
+              : null;
+          }
+          /**
+           * Clé stable d'une case autofill (survit move/rotate : iu/iv grille liés au bloc).
+           * window.__CALPINAGE_AUTOFILL_SELECTION__.excludedKeys mémorise uniquement les retraits explicites.
+           */
+          function makeAutofillCellKey(blockId, panId, iu, iv) {
+            return String(blockId || "") + "|" + String(panId || "") + "|" + String(iu) + "|" + String(iv);
+          }
+          /** Même filtre UX que le rendu canvas : verts + rouges adjacents (pas la grille debug complète). */
+          function filterAutofillPreviewItemsForUx(raw) {
+            if (!raw || !raw.length) return [];
+            var HIDE_REASON = {
+              center_outside_pan: true,
+              collides_existing: true,
+              vertex_outside_or_margin: true,
+              safe_zone: true,
+              geometry: true,
+              out_of_bounds: true,
+              margin: true,
+            };
+            var SHOW_IF_ADJACENT_TO_VALID = { obstacle: true, overlap_panel: true, ridge_trait: true };
+            var validAt = {};
+            for (var vi = 0; vi < raw.length; vi++) {
+              var ev = raw[vi];
+              if (ev && ev.valid && typeof ev.iu === "number" && typeof ev.iv === "number") {
+                validAt[ev.iu + "," + ev.iv] = true;
+              }
+            }
+            function isAdjacentToValidCell(iu, iv) {
+              for (var du = -1; du <= 1; du++) {
+                for (var dv = -1; dv <= 1; dv++) {
+                  if (validAt[iu + du + "," + (iv + dv)]) return true;
+                }
+              }
+              return false;
+            }
+            var maxRedGhosts = 72;
+            var redDrawn = 0;
+            var outList = [];
+            for (var wi = 0; wi < raw.length; wi++) {
+              var t = raw[wi];
+              if (!t) continue;
+              if (t.valid) {
+                outList.push(t);
+                continue;
+              }
+              var reason = (t.invalidReason != null ? String(t.invalidReason) : "") || "";
+              if (HIDE_REASON[reason]) continue;
+              if (SHOW_IF_ADJACENT_TO_VALID[reason] && typeof t.iu === "number" && typeof t.iv === "number" && isAdjacentToValidCell(t.iu, t.iv)) {
+                if (redDrawn >= maxRedGhosts) continue;
+                redDrawn++;
+                outList.push(t);
+              }
+            }
+            return outList;
+          }
+          function ensureAutofillSelection(block) {
+            if (!block) return;
+            var sel = window.__CALPINAGE_AUTOFILL_SELECTION__;
+            var pid = block.panId || null;
+            if (!sel || sel.sourceBlockId !== block.id) {
+              window.__CALPINAGE_AUTOFILL_SELECTION__ = {
+                sourceBlockId: block.id,
+                sourcePanId: pid,
+                excludedKeys: new Set(),
+              };
+              return;
+            }
+            if (String(sel.sourcePanId || "") !== String(pid || "")) {
+              sel.sourcePanId = pid;
+              sel.excludedKeys = new Set();
+            }
+          }
+          function countValidPreviewItems(items) {
+            var n = 0;
+            if (!items) return 0;
+            for (var i = 0; i < items.length; i++) {
+              if (items[i] && items[i].valid) n++;
+            }
+            return n;
+          }
+          function buildCommitCentersFromAutofillSelection(res, block, excludedKeys) {
+            var items = res && res.previewItems ? res.previewItems : [];
+            var ex = excludedKeys && excludedKeys instanceof Set ? excludedKeys : new Set();
+            var bid = block && block.id ? block.id : "";
+            var pid = block && block.panId ? block.panId : null;
+            var out = [];
+            for (var i = 0; i < items.length; i++) {
+              var it = items[i];
+              if (!it || !it.valid || typeof it.iu !== "number" || typeof it.iv !== "number") continue;
+              var k = makeAutofillCellKey(bid, pid, it.iu, it.iv);
+              if (ex.has(k)) continue;
+              if (it.center && typeof it.center.x === "number" && typeof it.center.y === "number") {
+                out.push({ x: it.center.x, y: it.center.y });
+              }
+            }
+            return out;
+          }
+          window.__makeAutofillCellKey = makeAutofillCellKey;
+          window.__filterAutofillPreviewItemsForUx = filterAutofillPreviewItemsForUx;
+          /* Mode auto-remplissage vivant : window.__CALPINAGE_AUTOFILL_MODE__ { enabled, sourceBlockId, sourcePanId } — grille recalculée à chaque rendu. */
+          var _autofillSidebarKey = "";
+          function clearAutofillPreview() {
+            window.__CALPINAGE_AUTOFILL_MODE__ = null;
+            window.__CALPINAGE_AUTOFILL_PREVIEW__ = null;
+            window.__CALPINAGE_AUTOFILL_COMMIT_CENTERS__ = null;
+            window.__CALPINAGE_AUTOFILL_TEXT__ = null;
+            window.__CALPINAGE_AUTOFILL_VALID_COUNT__ = 0;
+            window.__CALPINAGE_AUTOFILL_SELECTION__ = null;
+            _autofillSidebarKey = "";
+            try {
+              window.__AF_GHOST_SMOOTH_STATE__ = { last: {} };
+            } catch (eAfSm) {}
+            if (autofillBar) autofillBar.style.display = "none";
+            if (typeof window.refreshAutofillToolbar === "function") window.refreshAutofillToolbar();
+            if (typeof window.CALPINAGE_RENDER === "function") requestAnimationFrame(window.CALPINAGE_RENDER);
+            if (typeof window.notifyPhase3SidebarUpdate === "function") window.notifyPhase3SidebarUpdate();
+          }
+          /** Même logique que getPhase3ActiveTool : en Phase 3, "select" et "panels" sont tous deux des modes valides pour travailler sur les blocs. Avant : seul "panels" activait le bouton — en mode sélection le bouton restait disabled et un .click() programmatique (sidebar React) ne déclenchait rien. */
+          function isToolOkForAutofill() {
+            var t = drawState.activeTool;
+            if (t === "panels" || t === "select") return true;
+            if (window.CALPINAGE_DP2_STATE) {
+              var dp = window.CALPINAGE_DP2_STATE.currentTool;
+              if (dp === "panels" || dp === "select") return true;
+            }
+            return false;
+          }
+          function refreshAutofillToolbar() {
+            if (!autofillBtn) return;
+            var phaseOk = CALPINAGE_STATE.currentPhase === "PV_LAYOUT";
+            var toolOk = isToolOkForAutofill();
+            var ENG = window.pvPlacementEngine;
+            var active = ENG && ENG.getActiveBlock && ENG.getActiveBlock();
+            var hasPanel = !!(window.PV_SELECTED_PANEL && active && active.panels && active.panels.length >= 1);
+            var liveAf = window.__CALPINAGE_AUTOFILL_MODE__;
+            var inLiveAutofill = !!(liveAf && liveAf.enabled);
+            autofillBtn.disabled = !phaseOk || !toolOk || !hasPanel || inLiveAutofill;
+          }
+          /** Même périmètre que le dessin Phase 3 : zone posable (safe zone) pour filtrer l’autofill comme le contour rouge. */
+          function getSafeZoneDataForAutofillPan(panId) {
+            if (!panId) return null;
+            var ph3 = window.__SAFE_ZONE_PH3__;
+            var cache = ph3 && ph3.cache;
+            if (cache && cache.byPanId && cache.byPanId[panId]) {
+              var sz = cache.byPanId[panId];
+              var polys = sz.safeZonePolygonsPx;
+              if (polys && polys.length > 0) {
+                var edges = cache._edgesByPanId && cache._edgesByPanId[panId];
+                if (!edges || edges.length === 0) edges = buildSafeZoneEdgesCache(polys);
+                return { polys: polys, edges: edges };
+              }
+            }
+            var data = CALPINAGE_STATE.validatedRoofData;
+            var mpp = (data && data.scale && Number.isFinite(data.scale.metersPerPixel))
+              ? data.scale.metersPerPixel
+              : (CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.scale && Number.isFinite(CALPINAGE_STATE.roof.scale.metersPerPixel)
+                ? CALPINAGE_STATE.roof.scale.metersPerPixel
+                : null);
+            if (typeof mpp !== "number" || !Number.isFinite(mpp) || mpp <= 0) mpp = 1;
+            var pans = CALPINAGE_STATE.pans || (data && data.pans) || [];
+            var rules = window.PV_LAYOUT_RULES || {};
+            try {
+              var fresh = computeSafeZonesFromCalpinageState({
+                pans: pans,
+                obstacles: CALPINAGE_STATE.obstacles || [],
+                shadowVolumes: CALPINAGE_STATE.shadowVolumes || [],
+                roofExtensions: CALPINAGE_STATE.roofExtensions || [],
+                marginOuterCm: Number(rules.marginOuterCm) || 0,
+                metersPerPixel: mpp,
+              });
+              var sz2 = fresh.byPanId && fresh.byPanId[panId];
+              if (!sz2 || !sz2.safeZonePolygonsPx || !sz2.safeZonePolygonsPx.length) return null;
+              var p2 = sz2.safeZonePolygonsPx;
+              return { polys: p2, edges: buildSafeZoneEdgesCache(p2) };
+            } catch (e) {
+              return null;
+            }
+          }
+          try {
+            window.__CALPINAGE_GET_SAFE_ZONE_DATA_FOR_AUTOFILL_PAN__ = getSafeZoneDataForAutofillPan;
+          } catch (_pubSz) {}
+          function computeAutofillForBlock(block) {
+            var ENG = window.pvPlacementEngine;
+            if (!ENG || typeof ENG.computeAutofillGridPreview !== "function" || !block) return null;
+            var getCtxFn = function () { return ctxForBlock(block); };
+            var szAutofill = getSafeZoneDataForAutofillPan(block.panId);
+            if (szAutofill) {
+              window.__CALPINAGE_AUTOFILL_SAFE_ZONE_OK__ = function (panelPolyPx) {
+                return isPanelInsideSafeZone(panelPolyPx, szAutofill.polys, szAutofill.edges);
+              };
+            }
+            var res = null;
+            try {
+              res = ENG.computeAutofillGridPreview(block, getCtxFn);
+            } finally {
+              try {
+                delete window.__CALPINAGE_AUTOFILL_SAFE_ZONE_OK__;
+              } catch (eDel) {
+                window.__CALPINAGE_AUTOFILL_SAFE_ZONE_OK__ = undefined;
+              }
+            }
+            return res;
+          }
+          /**
+           * Recalcul live pour affichage + sidebar. Ne désactive pas le mode si le moteur échoue un frame (pas de clear agressif).
+           */
+          function getLiveAutofillRenderData() {
+            var mode = window.__CALPINAGE_AUTOFILL_MODE__;
+            if (!mode || !mode.enabled) return null;
+            var ENG = window.pvPlacementEngine;
+            var block = ENG && ENG.getActiveBlock && ENG.getActiveBlock();
+            if (!block || block.id !== mode.sourceBlockId) {
+              clearAutofillPreview();
+              return null;
+            }
+            var res = computeAutofillForBlock(block);
+            if (!res || !res.success) {
+              var reason = (res && res.reason) ? String(res.reason) : "indisponible";
+              window.__CALPINAGE_AUTOFILL_TEXT__ = "Auto-remplissage : " + reason;
+              window.__CALPINAGE_AUTOFILL_VALID_COUNT__ = 0;
+              if (autofillConfirm) autofillConfirm.disabled = true;
+              var failKey = "fail|" + reason;
+              if (failKey !== _autofillSidebarKey) {
+                _autofillSidebarKey = failKey;
+                if (autofillBar && autofillText) {
+                  autofillText.textContent = window.__CALPINAGE_AUTOFILL_TEXT__;
+                  autofillBar.style.display = "flex";
+                }
+                if (typeof window.notifyPhase3SidebarUpdate === "function") window.notifyPhase3SidebarUpdate();
+              }
+              return { items: [], validCenters: [], computeFailed: true };
+            }
+            ensureAutofillSelection(block);
+            var selAf = window.__CALPINAGE_AUTOFILL_SELECTION__;
+            var exSet = selAf && selAf.excludedKeys instanceof Set ? selAf.excludedKeys : new Set();
+            var vAll = countValidPreviewItems(res.previewItems);
+            var commitCentersSel = buildCommitCentersFromAutofillSelection(res, block, exSet);
+            var vInc = commitCentersSel.length;
+            var nExcl = vAll - vInc;
+            var pCount = (res.stats && res.stats.candidatesAnalyzed != null) ? res.stats.candidatesAnalyzed : 0;
+            var pv = (res.stats && res.stats.previewCount != null) ? res.stats.previewCount : ((res.previewItems && res.previewItems.length) || 0);
+            var textAf = pCount + " case(s) dans le pan \u2014 " + pv + " aper\u00E7u(x) \u2014 " + vInc + " pose(s) \u00E0 confirmer";
+            if (nExcl > 0) textAf += " (" + nExcl + " retir\u00E9e(s) manuellement)";
+            window.__CALPINAGE_AUTOFILL_TEXT__ = textAf;
+            window.__CALPINAGE_AUTOFILL_VALID_COUNT__ = vInc;
+            window.__CALPINAGE_AUTOFILL_COMMIT_CENTERS__ = commitCentersSel;
+            if (autofillConfirm) autofillConfirm.disabled = vInc === 0;
+            var okKey = pCount + "|" + pv + "|" + vAll + "|" + vInc + "|" + nExcl;
+            if (okKey !== _autofillSidebarKey) {
+              _autofillSidebarKey = okKey;
+              if (autofillBar && autofillText) {
+                autofillText.textContent = window.__CALPINAGE_AUTOFILL_TEXT__;
+                autofillBar.style.display = "flex";
+              }
+              if (typeof window.notifyPhase3SidebarUpdate === "function") window.notifyPhase3SidebarUpdate();
+            }
+            return { items: res.previewItems || [], validCenters: commitCentersSel, computeFailed: false };
+          }
+          function runAutofillPreview() {
+            if (!CALPINAGE_STATE || CALPINAGE_STATE.currentPhase !== "PV_LAYOUT") {
+              if (typeof window.showCalpinageUxToast === "function") window.showCalpinageUxToast("Auto-remplissage disponible en phase implantation PV.");
+              return;
+            }
+            if (!isToolOkForAutofill()) {
+              if (typeof window.showCalpinageUxToast === "function") window.showCalpinageUxToast("Outil incompatible : repassez en mode panneaux ou sélection.");
+              return;
+            }
+            var ENG = window.pvPlacementEngine;
+            if (!ENG || typeof ENG.computeAutofillGridPreview !== "function") {
+              if (typeof window.showCalpinageUxToast === "function") window.showCalpinageUxToast("Moteur d'auto-remplissage indisponible.");
+              return;
+            }
+            var block = ENG.getActiveBlock && ENG.getActiveBlock();
+            if (!block || !block.panels || block.panels.length === 0) {
+              if (typeof window.showCalpinageUxToast === "function") window.showCalpinageUxToast("Placez au moins un panneau sur le bloc actif pour lancer l'auto-remplissage.");
+              return;
+            }
+            window.__CALPINAGE_AUTOFILL_MODE__ = {
+              enabled: true,
+              sourceBlockId: block.id,
+              sourcePanId: block.panId || null,
+            };
+            window.__CALPINAGE_AUTOFILL_SELECTION__ = {
+              sourceBlockId: block.id,
+              sourcePanId: block.panId || null,
+              excludedKeys: new Set(),
+            };
+            _autofillSidebarKey = "";
+            if (autofillBar) autofillBar.style.display = "flex";
+            if (typeof window.refreshAutofillToolbar === "function") window.refreshAutofillToolbar();
+            getLiveAutofillRenderData();
+            if (typeof window.CALPINAGE_RENDER === "function") requestAnimationFrame(window.CALPINAGE_RENDER);
+            if (typeof window.notifyPhase3SidebarUpdate === "function") window.notifyPhase3SidebarUpdate();
+          }
+          function confirmAutofill() {
+            var modeAf = window.__CALPINAGE_AUTOFILL_MODE__;
+            if (!modeAf || !modeAf.enabled) return;
+            var ENG = window.pvPlacementEngine;
+            var block = ENG.getActiveBlock && ENG.getActiveBlock();
+            if (!block || block.id !== modeAf.sourceBlockId) {
+              if (typeof window.showCalpinageUxToast === "function") {
+                window.showCalpinageUxToast("Bloc actif diff\u00E9rent : annulez et relancez l'auto-remplissage.");
+              }
+              return;
+            }
+            var liveRes = computeAutofillForBlock(block);
+            if (!liveRes || !liveRes.success) {
+              if (typeof window.showCalpinageUxToast === "function") {
+                window.showCalpinageUxToast((liveRes && liveRes.reason) || "Auto-remplissage indisponible pour la pose actuelle.");
+              }
+              return;
+            }
+            ensureAutofillSelection(block);
+            var selCommit = window.__CALPINAGE_AUTOFILL_SELECTION__;
+            var exCommit = selCommit && selCommit.excludedKeys instanceof Set ? selCommit.excludedKeys : new Set();
+            var centers = buildCommitCentersFromAutofillSelection(liveRes, block, exCommit);
+            if (!centers.length) return;
+            var filtered = typeof ENG.filterAutofillCommitCenters === "function"
+              ? ENG.filterAutofillCommitCenters(centers, 2)
+              : centers.slice();
+            if (!filtered.length) {
+              if (typeof window.showCalpinageUxToast === "function") {
+                window.showCalpinageUxToast("Aucune pose nouvelle \u00E0 confirmer (d\u00E9j\u00E0 occup\u00E9es).");
+              }
+              return;
+            }
+            try {
+              obstacleIntegrityNotifyPvAction("confirmAutofill");
+            } catch (_nPvAf) {}
+            var getCtxFn = function () {
+              var b = ENG.getActiveBlock && ENG.getActiveBlock();
+              return b ? ctxForBlock(b) : null;
+            };
+            if (typeof window.beginPvPlacementBatch === "function") window.beginPvPlacementBatch();
+            try {
+              var result = ENG.addPanelsAtCentersBatch(block, filtered, getCtxFn);
+              if (result.success && typeof recomputeAllPlacementBlocksFromRules === "function") {
+                recomputeAllPlacementBlocksFromRules(true);
+              }
+              if (!result.success) {
+                if (typeof window.showCalpinageUxToast === "function") window.showCalpinageUxToast(result.reason || "\u00C9chec du lot");
+              } else if (typeof window.showCalpinageUxToast === "function") {
+                window.showCalpinageUxToast((result.added || 0) + " panneau(x) ajout\u00E9(s)");
+              }
+            } finally {
+              if (typeof window.endPvPlacementBatch === "function") window.endPvPlacementBatch();
+            }
+            clearAutofillPreview();
+            if (typeof pvSyncSaveRender === "function") pvSyncSaveRender();
+          }
+          if (autofillBtn) addSafeListener(autofillBtn, "click", runAutofillPreview);
+          if (autofillCancel) addSafeListener(autofillCancel, "click", clearAutofillPreview);
+          if (autofillConfirm) addSafeListener(autofillConfirm, "click", confirmAutofill);
+          window.refreshAutofillToolbar = refreshAutofillToolbar;
+          window.clearAutofillPreview = clearAutofillPreview;
+          window.runCalpinageAutofillPreview = runAutofillPreview;
+          window.__getLiveAutofillRenderData = getLiveAutofillRenderData;
+          window.__ensureCalpinageAutofillSelection = ensureAutofillSelection;
+        })();
+
+        window.__p3DebugPills = function () {
+          var rulesBefore = JSON.stringify(window.PV_LAYOUT_RULES || {});
+          window.PV_LAYOUT_RULES = window.PV_LAYOUT_RULES || {};
+          window.PV_LAYOUT_RULES.spacingXcm = 80;
+          if (typeof applyPvLayoutRulesAndRecompute === "function") applyPvLayoutRulesAndRecompute();
+          var rulesAfter = JSON.stringify(window.PV_LAYOUT_RULES || {});
+          return { rulesBefore: rulesBefore, rulesAfter: rulesAfter };
+        };
       })();
 
       /* ========== R?gles d'implantation PV (Phase 3) ??? BLOQUANTES ==========
@@ -6511,12 +11115,14 @@ updateValidateButton();
           if (!data || !data.pans) return { allowed: false, reason: "Données toiture manquantes." };
           if (!rules) return { allowed: false, reason: "Règles d'implantation PV manquantes." };
           var mpp = (data.scale && data.scale.metersPerPixel) || 1;
-          var pan = data.pans.filter(function (p) { return p.id === panId; })[0];
+          var pan = findValidatedPanById(data, panId);
           if (!pan || !pan.polygon || pan.polygon.length < 3) return { allowed: false, reason: "Pan invalide ou inconnu." };
           var ENG = window.pvPlacementEngine;
           var activeBlock = ENG && typeof ENG.getActiveBlock === "function" ? ENG.getActiveBlock() : null;
-          var orientForValidate = (rules.orientation === "landscape" || rules.orientation === "paysage") ? "PAYSAGE" : "PORTRAIT";
-          var ctx = (activeBlock && activeBlock.panId === panId && typeof getProjectionContextForBlock === "function")
+          var orientForValidate = pan.roofType === "FLAT"
+            ? getDefaultBlockOrientationEngineForPan(getLivePanByIdFromState(panId) || pan)
+            : ((rules.orientation === "landscape" || rules.orientation === "paysage") ? "PAYSAGE" : "PORTRAIT");
+          var ctx = (activeBlock && samePanId(activeBlock.panId, panId) && typeof getProjectionContextForBlock === "function")
             ? getProjectionContextForBlock(activeBlock)
             : (typeof getProjectionContextForBlock === "function" ? getProjectionContextForBlock({ panId: panId, orientation: orientForValidate }) : null);
           var effRules = ctx && ctx.pvRules ? ctx.pvRules : null;
@@ -6529,10 +11135,11 @@ updateValidateButton();
           if (typeof computeProjectedPanelRect !== "function") return { allowed: false, reason: "Calcul de projection indisponible." };
           var projOpt = { panelWidthMm: ctx.panelParams.panelWidthMm, panelHeightMm: ctx.panelParams.panelHeightMm, panelOrientation: ctx.panelParams.panelOrientation, roofSlopeDeg: ctx.roofParams.roofSlopeDeg, roofOrientationDeg: ctx.roofParams.roofOrientationDeg != null ? ctx.roofParams.roofOrientationDeg : 0, metersPerPixel: ctx.roofParams.metersPerPixel };
           if (ctx.roofParams.trueSlopeAxis && ctx.roofParams.truePerpAxis) { projOpt.trueSlopeAxis = ctx.roofParams.trueSlopeAxis; projOpt.truePerpAxis = ctx.roofParams.truePerpAxis; }
+          if (Number.isFinite(ctx.roofParams.supportTiltDeg)) { projOpt.supportTiltDeg = ctx.roofParams.supportTiltDeg; }
           if (typeof ctx.panelParams.localRotationDeg === "number") { projOpt.localRotationDeg = ctx.panelParams.localRotationDeg; }
           var proj;
           try {
-            proj = computeProjectedPanelRect({ center: { x: centerX, y: centerY }, panelWidthMm: projOpt.panelWidthMm, panelHeightMm: projOpt.panelHeightMm, panelOrientation: projOpt.panelOrientation, roofSlopeDeg: projOpt.roofSlopeDeg, roofOrientationDeg: projOpt.roofOrientationDeg, metersPerPixel: projOpt.metersPerPixel, trueSlopeAxis: projOpt.trueSlopeAxis, truePerpAxis: projOpt.truePerpAxis, localRotationDeg: projOpt.localRotationDeg });
+            proj = computeProjectedPanelRect({ center: { x: centerX, y: centerY }, panelWidthMm: projOpt.panelWidthMm, panelHeightMm: projOpt.panelHeightMm, panelOrientation: projOpt.panelOrientation, roofSlopeDeg: projOpt.roofSlopeDeg, roofOrientationDeg: projOpt.roofOrientationDeg, metersPerPixel: projOpt.metersPerPixel, trueSlopeAxis: projOpt.trueSlopeAxis, truePerpAxis: projOpt.truePerpAxis, localRotationDeg: projOpt.localRotationDeg, supportTiltDeg: projOpt.supportTiltDeg });
           } catch (e) {
             return { allowed: false, reason: "Erreur lors du calcul de la forme projet\u00E9e." };
           }
@@ -6555,7 +11162,7 @@ updateValidateButton();
             if (p.panId !== panId) continue;
             var otherProj;
             try {
-              otherProj = computeProjectedPanelRect({ center: { x: p.x, y: p.y }, panelWidthMm: projOpt.panelWidthMm, panelHeightMm: projOpt.panelHeightMm, panelOrientation: projOpt.panelOrientation, roofSlopeDeg: projOpt.roofSlopeDeg, roofOrientationDeg: projOpt.roofOrientationDeg, metersPerPixel: projOpt.metersPerPixel, trueSlopeAxis: projOpt.trueSlopeAxis, truePerpAxis: projOpt.truePerpAxis, localRotationDeg: projOpt.localRotationDeg });
+              otherProj = computeProjectedPanelRect({ center: { x: p.x, y: p.y }, panelWidthMm: projOpt.panelWidthMm, panelHeightMm: projOpt.panelHeightMm, panelOrientation: projOpt.panelOrientation, roofSlopeDeg: projOpt.roofSlopeDeg, roofOrientationDeg: projOpt.roofOrientationDeg, metersPerPixel: projOpt.metersPerPixel, trueSlopeAxis: projOpt.trueSlopeAxis, truePerpAxis: projOpt.truePerpAxis, localRotationDeg: projOpt.localRotationDeg, supportTiltDeg: projOpt.supportTiltDeg });
             } catch (e) {
               return { allowed: false, reason: "Impossible de calculer la forme d'un panneau existant." };
             }
@@ -6585,7 +11192,10 @@ updateValidateButton();
           }
           var ENG = window.pvPlacementEngine;
           var block = ENG && ((typeof ENG.getFocusBlock === "function" && ENG.getFocusBlock()) || (typeof ENG.getActiveBlock === "function" && ENG.getActiveBlock()));
-          var orientForValidateBlock = (rules.orientation === "landscape" || rules.orientation === "paysage") ? "PAYSAGE" : "PORTRAIT";
+          var panRow = (data.pans || []).filter(function (pp) { return pp && pp.id === panId; })[0];
+          var orientForValidateBlock = panRow && panRow.roofType === "FLAT"
+            ? getDefaultBlockOrientationEngineForPan(getLivePanByIdFromState(panId) || panRow)
+            : ((rules.orientation === "landscape" || rules.orientation === "paysage") ? "PAYSAGE" : "PORTRAIT");
           var ctx = (block && block.panId === panId && typeof getProjectionContextForBlock === "function")
             ? getProjectionContextForBlock(block)
             : (typeof getProjectionContextForBlock === "function" ? getProjectionContextForBlock({ panId: panId, orientation: orientForValidateBlock }) : null);
@@ -6605,10 +11215,11 @@ updateValidateButton();
           }
           var projOpt = { panelWidthMm: ctx.panelParams.panelWidthMm, panelHeightMm: ctx.panelParams.panelHeightMm, panelOrientation: ctx.panelParams.panelOrientation, roofSlopeDeg: ctx.roofParams.roofSlopeDeg, roofOrientationDeg: ctx.roofParams.roofOrientationDeg != null ? ctx.roofParams.roofOrientationDeg : 0, metersPerPixel: ctx.roofParams.metersPerPixel };
           if (ctx.roofParams.trueSlopeAxis && ctx.roofParams.truePerpAxis) { projOpt.trueSlopeAxis = ctx.roofParams.trueSlopeAxis; projOpt.truePerpAxis = ctx.roofParams.truePerpAxis; }
+          if (Number.isFinite(ctx.roofParams.supportTiltDeg)) { projOpt.supportTiltDeg = ctx.roofParams.supportTiltDeg; }
           if (typeof ctx.panelParams.localRotationDeg === "number") { projOpt.localRotationDeg = ctx.panelParams.localRotationDeg; }
           var proj;
           try {
-            proj = computeProjectedPanelRect({ center: { x: centerX, y: centerY }, panelWidthMm: projOpt.panelWidthMm, panelHeightMm: projOpt.panelHeightMm, panelOrientation: projOpt.panelOrientation, roofSlopeDeg: projOpt.roofSlopeDeg, roofOrientationDeg: projOpt.roofOrientationDeg, metersPerPixel: projOpt.metersPerPixel, trueSlopeAxis: projOpt.trueSlopeAxis, truePerpAxis: projOpt.truePerpAxis, localRotationDeg: projOpt.localRotationDeg });
+            proj = computeProjectedPanelRect({ center: { x: centerX, y: centerY }, panelWidthMm: projOpt.panelWidthMm, panelHeightMm: projOpt.panelHeightMm, panelOrientation: projOpt.panelOrientation, roofSlopeDeg: projOpt.roofSlopeDeg, roofOrientationDeg: projOpt.roofOrientationDeg, metersPerPixel: projOpt.metersPerPixel, trueSlopeAxis: projOpt.trueSlopeAxis, truePerpAxis: projOpt.truePerpAxis, localRotationDeg: projOpt.localRotationDeg, supportTiltDeg: projOpt.supportTiltDeg });
           } catch (e) {
             if (typeof window !== "undefined") window.PV_LAYOUT_LAST_VALIDATION_REASON = "Erreur lors du calcul de la forme projet\u00E9e.";
             return false;
@@ -6625,7 +11236,7 @@ updateValidateButton();
           var espHpx = (Number.isFinite(effRules.spacingXcm) && mpp > 0) ? (effRules.spacingXcm / 100) / mpp : 0;
           var espVpx = (Number.isFinite(effRules.spacingYcm) && mpp > 0) ? (effRules.spacingYcm / 100) / mpp : 0;
           var spacingRequiredPx = Math.max(espHpx, espVpx);
-          var pan = data.pans.filter(function (p) { return p.id === panId; })[0];
+          var pan = findValidatedPanById(data, panId);
           if (!pan || !pan.polygon || pan.polygon.length < 3) {
             if (typeof window !== "undefined") window.PV_LAYOUT_LAST_VALIDATION_REASON = "Pan invalide ou inconnu.";
             return false;
@@ -6701,7 +11312,13 @@ updateValidateButton();
         function tryPlacePanelAtPoint(imgPt) {
           if (!CALPINAGE_STATE.validatedRoofData || !CALPINAGE_STATE.roofSurveyLocked) return { placed: false, reason: "Relev? non valid?." };
           if (!window.PV_SELECTED_PANEL) return { placed: false, reason: "Veuillez s\u00E9lectionner un panneau" };
-          var activePanId = (typeof CalpinagePans !== "undefined" && CalpinagePans.panState) ? CalpinagePans.panState.activePanId : (CALPINAGE_STATE.selectedPanId || (CALPINAGE_STATE.validatedRoofData.pans[0] && CALPINAGE_STATE.validatedRoofData.pans[0].id));
+          var _r3 =
+            typeof resolvePhase3Context === "function"
+              ? resolvePhase3Context(CALPINAGE_STATE)
+              : typeof window !== "undefined" && typeof window.resolvePhase3Context === "function"
+                ? window.resolvePhase3Context(CALPINAGE_STATE)
+                : { activePanId: null };
+          var activePanId = _r3.activePanId;
           if (!activePanId) return { placed: false, reason: "Aucun pan actif." };
           var mpp = (CALPINAGE_STATE.validatedRoofData.scale && CALPINAGE_STATE.validatedRoofData.scale.metersPerPixel) || 1;
           var dims = getPanelDimensions();
@@ -6723,25 +11340,24 @@ updateValidateButton();
 
       /** Message d'erreur contextuel Phase 3 (refus placement). Discret, non bloquant, ~800 ms puis fade out. Pas de spam si m??me message d?j? visible. */
       (function initPvLayoutError() {
-        var timeoutId = null;
         var currentMessage = "";
         window.showPvLayoutError = function (message) {
           var text = (message && String(message).trim()) || "Placement impossible";
           var el = container.querySelector("#pv-layout-error");
           if (!el) return;
           if (el.textContent === text && el.classList.contains("visible")) return;
-          if (timeoutId) clearTimeout(timeoutId);
+          if (pvLayoutErrorTimeoutId) clearTimeout(pvLayoutErrorTimeoutId);
           currentMessage = text;
           el.textContent = text;
           el.style.display = "block";
           el.classList.add("visible");
-          timeoutId = setTimeout(function () {
+          pvLayoutErrorTimeoutId = setTimeout(function () {
             el.classList.remove("visible");
-            timeoutId = setTimeout(function () {
+            pvLayoutErrorTimeoutId = setTimeout(function () {
               el.style.display = "none";
               el.textContent = "";
               currentMessage = "";
-              timeoutId = null;
+              pvLayoutErrorTimeoutId = null;
             }, 120);
           }, 800);
         };
@@ -6749,6 +11365,11 @@ updateValidateButton();
 
      function updateStateUI() {
         var captured = !!(CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.image && CALPINAGE_STATE.roof.image.dataUrl);
+        if (captured) {
+          if (typeof removeBuildingConfirmationUi === "function") removeBuildingConfirmationUi();
+          if (typeof removeBuildingConfirmHintFromDom === "function") removeBuildingConfirmHintFromDom();
+          lastBuildingConfirmationGps = null;
+        }
         if (stateCaptureText) {
           stateCaptureText.textContent = captured ? "Capture : effectuée" : "Capture : non effectuée";
         }
@@ -6758,7 +11379,7 @@ updateValidateButton();
         var stepsEl = container.querySelector("#phase2-steps");
         if (stepsEl) stepsEl.style.display = captured ? "" : "none";
         if (typeof updatePhase2StepsUI === "function") updatePhase2StepsUI();
-        if (typeof window.notifyPhase2SidebarUpdate === "function") window.notifyPhase2SidebarUpdate();
+        if (typeof window.notifyPhase2SidebarUpdate === "function") window.notifyPhase2SidebarUpdate(); if (typeof window.notifyCalpinageDirty === "function") window.notifyCalpinageDirty();
 }
 
       updateStateUI();
@@ -6779,6 +11400,7 @@ updateValidateButton();
           if (!canvasEl) return;
           var t = drawState.activeTool;
           if (t === "heightEdit") { canvasEl.style.cursor = "pointer"; return; }
+          if (t === "select") { canvasEl.style.cursor = "move"; return; }
           var isCrosshair = t === "contour" || t === "mesure" || t === "trait" || t === "ridge" || t === "obstacle";
           canvasEl.style.cursor = isCrosshair ? "crosshair" : "default";
         }
@@ -6852,11 +11474,25 @@ updateValidateButton();
           }
           updateToolbarActiveUI(toolName);
           updateCursor();
-          if (typeof window.notifyPhase2SidebarUpdate === "function") window.notifyPhase2SidebarUpdate();
+          if (typeof window.notifyPhase2SidebarUpdate === "function") window.notifyPhase2SidebarUpdate(); if (typeof window.notifyCalpinageDirty === "function") window.notifyCalpinageDirty();
         }
+        /** Assignation pour le scope principal : visible par les handlers pointerdown/pointerup. N'utilise pas activateTool pour éviter les side effects. */
+        resetActiveToolToSelect = function () {
+          drawState.activeTool = "select";
+          if (CALPINAGE_STATE.activeRidge) CALPINAGE_STATE.activeRidge.frozenStructuralSnap = null;
+          drawState.traitFrozenStructuralSnap = null;
+          var oLabReset = container.querySelector("#calpinage-tool-obstacle-label");
+          if (oLabReset) oLabReset.textContent = "Obstacle toiture";
+          var sLabReset = container.querySelector("#calpinage-tool-shadow-volume-label");
+          if (sLabReset) sLabReset.textContent = "Obstacle ombrant";
+          updateToolbarActiveUI("select");
+          updateCursor();
+          if (typeof window.notifyPhase2SidebarUpdate === "function") window.notifyPhase2SidebarUpdate();
+        };
         function applyTool(toolName) {
           activateTool(toolName);
         }
+        window.applyCalpinagePhase2Tool = applyTool;
         var roofExtensionDropdown = container.querySelector("#calpinage-roof-extension-dropdown");
         function setActive(btn) {
           if (obstacleDropdown) obstacleDropdown.hidden = true;
@@ -6865,21 +11501,32 @@ updateValidateButton();
           var nextTool = btn ? (btn.getAttribute("data-tool") || "contour") : "contour";
           applyTool(nextTool);
         }
-        function setObstacleActive(shape) {
+        function setObstacleActive(shape, businessId) {
           if (CALPINAGE_STATE.heightEditMode) exitHeightEdit(true);
           drawState.activeTool = "obstacle";
           drawState.obstacleShape = shape;
+          drawState.obstacleBusinessId = businessId != null && businessId !== "" ? businessId : null;
           if (shape !== "polygon" && CALPINAGE_STATE.activeObstacle) CALPINAGE_STATE.activeObstacle.points = [];
           if (dessinToitureDropdown) dessinToitureDropdown.hidden = true;
+          var oLabEl = container.querySelector("#calpinage-tool-obstacle-label");
+          if (oLabEl) {
+            if (drawState.obstacleBusinessId) {
+              var oe = getRoofObstacleCatalogEntry(drawState.obstacleBusinessId);
+              oLabEl.textContent = oe ? "Pose : " + oe.label : "Obstacle toiture";
+            } else {
+              oLabEl.textContent = "Obstacle toiture";
+            }
+          }
           updateToolbarActiveUI("obstacle");
           updateCursor();
-          if (typeof window.notifyPhase2SidebarUpdate === "function") window.notifyPhase2SidebarUpdate();
+          if (typeof window.notifyPhase2SidebarUpdate === "function") window.notifyPhase2SidebarUpdate(); if (typeof window.notifyCalpinageDirty === "function") window.notifyCalpinageDirty();
         }
         window.getPhase2ActiveTool = function () {
           return drawState.activeTool || "select";
         };
         buttons.forEach(function (btn) {
           addSafeListener(btn, "click", function () {
+            console.log("[PHASE2 CLICK]", btn.id || btn.getAttribute("data-tool") || "button");
             if (obstacleDropdown) obstacleDropdown.hidden = true;
             if (dessinToitureDropdown) dessinToitureDropdown.hidden = true;
             if (roofExtensionDropdown) roofExtensionDropdown.hidden = true;
@@ -6889,12 +11536,19 @@ updateValidateButton();
         if (dessinToitureTrigger && dessinToitureDropdown) {
           addSafeListener(dessinToitureTrigger, "click", function (e) {
             e.stopPropagation();
+            console.log("[PHASE2 CLICK]", "calpinage-tool-dessin-toiture");
             if (obstacleDropdown) obstacleDropdown.hidden = true;
             if (roofExtensionDropdown) roofExtensionDropdown.hidden = true;
             dessinToitureDropdown.hidden = !dessinToitureDropdown.hidden;
+            if (!dessinToitureDropdown.hidden) {
+              var rect = dessinToitureTrigger.getBoundingClientRect();
+              dessinToitureDropdown.style.top = (rect.bottom + 6) + "px";
+              dessinToitureDropdown.style.left = rect.left + "px";
+            }
           });
           dessinToitureDropdown.querySelectorAll(".calpinage-tool-dessin-option").forEach(function (opt) {
             addSafeListener(opt, "click", function (e) {
+              console.log("[PHASE2 CLICK]", "dessin-option-" + (opt.getAttribute("data-tool") || ""));
               e.stopPropagation();
               var tool = opt.getAttribute("data-tool");
               if (tool) applyTool(tool);
@@ -6904,6 +11558,7 @@ updateValidateButton();
         }
         if (heightEditBtn) {
           addSafeListener(heightEditBtn, "click", function () {
+            console.log("[PHASE2 CLICK]", "calpinage-btn-height-edit");
             if (obstacleDropdown) obstacleDropdown.hidden = true;
             if (dessinToitureDropdown) dessinToitureDropdown.hidden = true;
             if (roofExtensionDropdown) roofExtensionDropdown.hidden = true;
@@ -6920,17 +11575,28 @@ updateValidateButton();
         if (obstacleBtn && obstacleDropdown) {
           addSafeListener(obstacleBtn, "click", function (e) {
             e.stopPropagation();
+            console.log("[PHASE2 CLICK]", "calpinage-tool-obstacle");
             if (dessinToitureDropdown) dessinToitureDropdown.hidden = true;
             var svDrop = container.querySelector("#calpinage-shadow-volume-dropdown");
             if (svDrop) svDrop.hidden = true;
             if (roofExtensionDropdown) roofExtensionDropdown.hidden = true;
             obstacleDropdown.hidden = !obstacleDropdown.hidden;
+            if (!obstacleDropdown.hidden) {
+              var rect = obstacleBtn.getBoundingClientRect();
+              obstacleDropdown.style.top = (rect.bottom + 6) + "px";
+              obstacleDropdown.style.left = rect.left + "px";
+            }
           });
           obstacleDropdown.querySelectorAll(".calpinage-tool-obstacle-option").forEach(function (opt) {
             addSafeListener(opt, "click", function (e) {
+              console.log("[PHASE2 CLICK]", "obstacle-option-" + (opt.getAttribute("data-obstacle-business-id") || opt.getAttribute("data-obstacle-shape") || ""));
               e.stopPropagation();
-              var shape = opt.getAttribute("data-obstacle-shape");
-              if (shape) setObstacleActive(shape);
+              var businessId = opt.getAttribute("data-obstacle-business-id");
+              var entry = businessId ? getRoofObstacleCatalogEntry(businessId) : null;
+              var shape = entry
+                ? (entry.geometryShape === "circle" ? "circle" : entry.geometryShape === "polygon" ? "polygon" : "rect")
+                : opt.getAttribute("data-obstacle-shape");
+              if (shape) setObstacleActive(shape, businessId);
               obstacleDropdown.hidden = true;
             });
           });
@@ -6940,18 +11606,30 @@ updateValidateButton();
         if (shadowVolumeBtn && shadowVolumeDropdown) {
           addSafeListener(shadowVolumeBtn, "click", function (e) {
             e.stopPropagation();
+            console.log("[PHASE2 CLICK]", "calpinage-tool-shadow-volume");
             if (obstacleDropdown) obstacleDropdown.hidden = true;
             if (dessinToitureDropdown) dessinToitureDropdown.hidden = true;
             if (roofExtensionDropdown) roofExtensionDropdown.hidden = true;
             shadowVolumeDropdown.hidden = !shadowVolumeDropdown.hidden;
+            if (!shadowVolumeDropdown.hidden) {
+              var rect = shadowVolumeBtn.getBoundingClientRect();
+              shadowVolumeDropdown.style.top = (rect.bottom + 6) + "px";
+              shadowVolumeDropdown.style.left = rect.left + "px";
+            }
           });
           shadowVolumeDropdown.querySelectorAll(".calpinage-tool-obstacle-option").forEach(function (opt) {
             addSafeListener(opt, "click", function (e) {
+              console.log("[PHASE2 CLICK]", "shadow-option-" + (opt.getAttribute("data-shadow-business-id") || ""));
               e.stopPropagation();
-              var shape = opt.getAttribute("data-shadow-shape");
-              if (shape === "cube" || shape === "tube") {
+              var businessId = opt.getAttribute("data-shadow-business-id");
+              if (businessId) {
+                var payload = getShadowVolumeCreationPayload(businessId);
                 window.CALPINAGE_MODE = "CREATE_SHADOW_VOLUME";
-                drawState.shadowVolumeCreateShape = shape;
+                drawState.shadowVolumeCreateShape = payload.shape;
+                drawState.shadowVolumeBusinessId = businessId;
+                var sLab = container.querySelector("#calpinage-tool-shadow-volume-label");
+                var seLab = getRoofObstacleCatalogEntry(businessId);
+                if (sLab) sLab.textContent = seLab ? "Pose : " + seLab.label : "Obstacle ombrant";
                 shadowVolumeDropdown.hidden = true;
                 if (canvasEl) canvasEl.style.cursor = "crosshair";
                 if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
@@ -6963,13 +11641,20 @@ updateValidateButton();
         if (roofExtensionBtn && roofExtensionDropdown) {
           addSafeListener(roofExtensionBtn, "click", function (e) {
             e.stopPropagation();
+            console.log("[PHASE2 CLICK]", "calpinage-tool-roof-extension");
             if (obstacleDropdown) obstacleDropdown.hidden = true;
             if (dessinToitureDropdown) dessinToitureDropdown.hidden = true;
             if (shadowVolumeDropdown) shadowVolumeDropdown.hidden = true;
             roofExtensionDropdown.hidden = !roofExtensionDropdown.hidden;
+            if (!roofExtensionDropdown.hidden) {
+              var rect = roofExtensionBtn.getBoundingClientRect();
+              roofExtensionDropdown.style.top = (rect.bottom + 6) + "px";
+              roofExtensionDropdown.style.left = rect.left + "px";
+            }
           });
           roofExtensionDropdown.querySelectorAll("[data-dormer-tool]").forEach(function (opt) {
             addSafeListener(opt, "click", function (e) {
+              console.log("[PHASE2 CLICK]", "roof-extension-option-" + (opt.getAttribute("data-dormer-tool") || ""));
               e.stopPropagation();
               var tool = opt.getAttribute("data-dormer-tool");
               if (!tool) return;
@@ -7028,8 +11713,28 @@ updateValidateButton();
         var onDeleteClick = function () {
           if (deleteCurrentSelection) deleteCurrentSelection();
         };
-        if (btnDelete) addSafeListener(btnDelete, "click", onDeleteClick);
-        addSafeListener(container, "click", function () {
+        if (btnDelete) addSafeListener(btnDelete, "click", function () { console.log("[PHASE2 CLICK]", "calpinage-btn-delete"); onDeleteClick(); });
+        addSafeListener(container, "click", function (e) {
+          var phase = (window.CALPINAGE_STATE && window.CALPINAGE_STATE.currentPhase) || "";
+          var insideTopbar = !!(e.target && e.target.closest && e.target.closest("#p3-topbar"));
+          var insidePopover = !!(e.target && e.target.closest && e.target.closest(".p3-tech-popover"));
+          if (phase === "PV_LAYOUT") return;
+          if (insideTopbar || insidePopover) return;
+          if (window.PV_LAYOUT_DEBUG && typeof console !== "undefined") {
+            console.info("[P3][CLOSE][FIRE]", { fn: "container-global-close-dropdowns", phase: phase, type: (e && e.type) || "", capture: false, target: (e && e.target) || null, insideTopbar: insideTopbar, insidePopover: insidePopover });
+          }
+          console.log("[PHASE2 CLICK]", "container-global-close-dropdowns");
+          var t = (e && e.target) ? e.target : null;
+          var path = (e && typeof e.composedPath === "function") ? e.composedPath() : null;
+          var p0 = (path && path.length) ? path[0] : null;
+          var targetNode = (t instanceof Node) ? t : ((p0 instanceof Node) ? p0 : null);
+          var toolbar = container.querySelector("#zone-b-toolbar");
+          function containsNode(el, node) { return !!(el && node && el.contains(node)); }
+          if (containsNode(toolbar, targetNode)) return;
+          if (containsNode(obstacleDropdown, targetNode)) return;
+          if (containsNode(dessinToitureDropdown, targetNode)) return;
+          if (containsNode(shadowVolumeDropdown, targetNode)) return;
+          if (containsNode(roofExtensionDropdown, targetNode)) return;
           if (obstacleDropdown) obstacleDropdown.hidden = true;
           if (dessinToitureDropdown) dessinToitureDropdown.hidden = true;
           if (shadowVolumeDropdown) shadowVolumeDropdown.hidden = true;
@@ -7043,7 +11748,6 @@ updateValidateButton();
         var ph3Toolbar = container.querySelector("#pv-layout-dp2-toolbar");
         if (!ph3Toolbar) return;
         var btnPanels = container.querySelector("#pv-tool-panels");
-        var btnSelect = container.querySelector("#pv-tool-select");
         var ACTIVE = "calpinage-tool-active";
         function syncPhase3ToolbarActiveTool() {
           var t = (drawState.activeTool === "panels" || drawState.activeTool === "select") ? drawState.activeTool : "panels";
@@ -7052,10 +11756,8 @@ updateValidateButton();
             btnPanels.classList.toggle(ACTIVE, t === "panels");
             btnPanels.setAttribute("aria-pressed", t === "panels" ? "true" : "false");
           }
-          if (btnSelect) {
-            btnSelect.classList.toggle(ACTIVE, t === "select");
-            btnSelect.setAttribute("aria-pressed", t === "select" ? "true" : "false");
-          }
+          if (window.CALPINAGE_DP2_STATE) window.CALPINAGE_DP2_STATE.currentTool = t;
+          if (typeof window.refreshAutofillToolbar === "function") window.refreshAutofillToolbar();
         }
         window.syncPhase3ToolbarActiveTool = syncPhase3ToolbarActiveTool;
         window.getPhase3ActiveTool = function () {
@@ -7067,16 +11769,7 @@ updateValidateButton();
             window.CALPINAGE_INTERACTION_MODE = "CALPINAGE";
             syncPhase3ToolbarActiveTool();
             if (typeof window.CALPINAGE_RENDER === "function") requestAnimationFrame(window.CALPINAGE_RENDER);
-            if (typeof window.notifyPhase3SidebarUpdate === "function") window.notifyPhase3SidebarUpdate();
-          });
-        }
-        if (btnSelect) {
-          addSafeListener(btnSelect, "click", function () {
-            drawState.activeTool = "select";
-            window.CALPINAGE_INTERACTION_MODE = "SELECT";
-            syncPhase3ToolbarActiveTool();
-            if (typeof window.CALPINAGE_RENDER === "function") requestAnimationFrame(window.CALPINAGE_RENDER);
-            if (typeof window.notifyPhase3SidebarUpdate === "function") window.notifyPhase3SidebarUpdate();
+            if (typeof window.notifyPhase3SidebarUpdate === "function") window.notifyPhase3SidebarUpdate(); if (typeof window.notifyCalpinageDirty === "function") window.notifyCalpinageDirty();
           });
         }
       })();
@@ -7157,8 +11850,152 @@ updateValidateButton();
         return (INITIAL_RES * Math.cos((lat * Math.PI) / 180)) / Math.pow(2, zoom);
       }
 
+      /** CFIX-1 — Reset complet du dessin / implantation avant une nouvelle capture (1 capture = 1 repère = 1 géométrie). */
+      function resetCalpinageGeometry() {
+        if (CALPINAGE_STATE.heightEditMode && typeof exitHeightEdit === "function") {
+          exitHeightEdit(true);
+        }
+        var st = CALPINAGE_STATE;
+        st.contours = [];
+        st.traits = [];
+        st.ridges = [];
+        st.measures = [];
+        st.obstacles = [];
+        st.planes = [];
+        st.shadowVolumes = [];
+        st.roofExtensions = [];
+        st.pans = [];
+        st.selectedPanId = null;
+        st.editingPanId = null;
+        st.selectedPointId = null;
+        st.selected = { type: null, id: null, pointIndex: null };
+        st.activeContour = { points: [], hoverPoint: null };
+        st.activeRidge = { a: null, b: null, hover: null, hoverSnap: null, frozenStructuralSnap: null };
+        st.activeObstacle = { points: [], hover: null };
+        st.placedPanels = [];
+        st.validatedRoofData = null;
+        st.roofSurveyLocked = false;
+        st.phase = 2;
+        st.currentPhase = "ROOF_EDIT";
+        st.activeManipulationBlockId = null;
+        st.phase3 = { activePanId: null };
+        window.CALPINAGE_ALLOWED = false;
+        window.PV_RULES_INITIALIZED = false;
+        window.CALPINAGE_MODE = null;
+
+        if (window.CalpinagePans && window.CalpinagePans.panState) {
+          window.CalpinagePans.panState.pans.length = 0;
+          window.CalpinagePans.panState.activePanId = null;
+          window.CalpinagePans.panState.activePoint = null;
+        }
+
+        var engReset = (window.pvPlacementEngine && window.pvPlacementEngine.reset) || (window.ActivePlacementBlock && window.ActivePlacementBlock.reset);
+        if (typeof engReset === "function") {
+          engReset();
+        }
+
+        drawState.activeTool = "select";
+        drawState.drawingPoints = [];
+        drawState.draggingVertexIndex = null;
+        drawState.selectedContourIndex = null;
+        drawState.measureLineStart = null;
+        drawState.selectedMesureIndex = null;
+        drawState.draggingMesureStartImage = null;
+        drawState.traitLineStart = null;
+        drawState.traitSnapPreview = null;
+        drawState.traitSnapPreviewSource = null;
+        drawState.traitSnapEdge = null;
+        drawState.selectedTraitIndex = null;
+        drawState.draggingTraitPoint = null;
+        drawState.draggingTraitSegmentStart = null;
+        drawState.lastMouseImage = null;
+        drawState.hoverNearFirstPoint = false;
+        drawState.hoverNearFirstPointObstacle = false;
+        drawState.selectedRidgeIndex = null;
+        drawState.draggingRidgePoint = null;
+        drawState.draggingRidgeOffset = null;
+        drawState.obstacleShape = null;
+        drawState.obstacleBusinessId = null;
+        drawState.obstacleAnchor = null;
+        drawState.obstacleCircleStartPoint = null;
+        drawState.obstacleCircleTempIndex = null;
+        drawState.obstacleRectStartPoint = null;
+        drawState.obstacleRectTempIndex = null;
+        drawState.selectedObstacleIndex = null;
+        drawState.draggingObstacleOffset = null;
+        drawState.draggingObstacleHandle = null;
+        drawState.activePointerId = null;
+        drawState.draggingVertex = null;
+        drawState.resizeObstacleStart = null;
+        drawState.selectedContourIds = [];
+        drawState.selectedRidgeIds = [];
+        drawState.selectedTraitIds = [];
+        drawState.selectionBoxStart = null;
+        drawState.selectionBoxEnd = null;
+        drawState.isSelectingBox = false;
+        drawState.dragMode = null;
+        drawState.dragBase = null;
+        drawState.dragLastMouseImg = null;
+        drawState.snapPreview = null;
+        drawState.ph3HandleDrag = null;
+        drawState.ph3HandleDragStart = null;
+        drawState.ph3HandleHover = null;
+        drawState.shadowVolumeCreateShape = null;
+        drawState.selectedShadowVolumeIndex = null;
+        drawState.draggingShadowVolumeHandle = null;
+        drawState.isPlacingShadowVolume = false;
+        drawState.shadowVolumePlaceStart = null;
+        drawState.draggingShadowVolumeMove = false;
+        drawState.shadowVolumeMoveStart = null;
+        drawState.resizeShadowVolumeStart = null;
+        drawState.shadowVolumeRotateStart = null;
+        drawState.dormerDraft = null;
+        drawState.dormerActiveTool = null;
+        drawState.dormerEditRxIndex = null;
+        drawState.dormerStep = 0;
+        drawState.selectedRoofExtensionIndex = null;
+        drawState.dragOffset = null;
+        drawState.rxDragSnap = null;
+        drawState.contourHoverSnapSource = null;
+
+        if (typeof computePansFromGeometry === "function") computePansFromGeometry();
+        if (typeof updatePansListUI === "function") updatePansListUI();
+        if (typeof updateValidateButton === "function") updateValidateButton();
+        if (typeof updatePhaseUI === "function") updatePhaseUI();
+        if (typeof updateStateUI === "function") updateStateUI();
+        if (typeof saveCalpinageState === "function") saveCalpinageState();
+        if (typeof resetActiveToolToSelect === "function") {
+          resetActiveToolToSelect();
+        }
+        if (typeof window.notifyPhase2SidebarUpdate === "function") window.notifyPhase2SidebarUpdate();
+        if (typeof window.notifyPhase3SidebarUpdate === "function") window.notifyPhase3SidebarUpdate();
+        if (typeof window.notifyCalpinageDirty === "function") window.notifyCalpinageDirty();
+        if (typeof requestAnimationFrame !== "undefined" && typeof window.CALPINAGE_RENDER === "function") {
+          requestAnimationFrame(window.CALPINAGE_RENDER);
+        }
+        if (typeof console !== "undefined" && console.log) {
+          console.log("[CALPINAGE] reset geometry after recapture");
+        }
+      }
+
       function onCapture() {
         if (!mapApi) return Promise.reject(new Error("Carte non pr\u00EAte"));
+        if (typeof hasExistingGeometry === "function" && hasExistingGeometry()) {
+          var confirmReset = typeof window !== "undefined" && window.confirm(
+            "Une implantation existe d\u00E9j\u00E0.\n\nRefaire la capture supprimera tout le calpinage actuel.\n\nContinuer ?"
+          );
+          if (!confirmReset) {
+            return Promise.resolve();
+          }
+          resetCalpinageGeometry();
+        }
+        var markerPos = mapApi.getBuildingConfirmationPosition && mapApi.getBuildingConfirmationPosition();
+        var mapCenterFallback = mapApi.getState && mapApi.getState().centerLatLng;
+        var confirmedGps = pickConfirmedBuildingGps(markerPos, lastBuildingConfirmationGps, mapCenterFallback);
+        if (mapApi.removeBuildingConfirmationMarker) {
+          mapApi.removeBuildingConfirmationMarker();
+        }
+        hideBuildingConfirmHint();
         return mapApi.capture().then(function (result) {
           var state = mapApi.getState();
           var centerLatLng = state.centerLatLng;
@@ -7193,19 +12030,50 @@ updateValidateButton();
             mode: "auto-google",
             angleDeg: -bearingDeg,
           };
+          if (confirmedGps) {
+            CALPINAGE_STATE.roof.gps = { lat: confirmedGps.lat, lon: confirmedGps.lon };
+          }
+          lastBuildingConfirmationGps = null;
+          removeBuildingConfirmHintFromDom();
 
+          syncCanonical3DWorldContractFromCalpinageRoof();
           showCanvas();
           waitForContainerSize(canvasWrapper, startCanvasWithImage);
           updateStateUI();
           saveCalpinageState();
+        }).catch(function (err) {
+          if (shouldShowBuildingConfirmationMarker() && mapApi && typeof mapApi.setBuildingConfirmationMarker === "function") {
+            var stRec = mapApi.getState && mapApi.getState();
+            var g = confirmedGps || pickConfirmedBuildingGps(null, lastBuildingConfirmationGps, stRec && stRec.centerLatLng);
+            if (g) {
+              mapApi.setBuildingConfirmationMarker(g.lat, g.lon, {
+                title: "Bâtiment à étudier — glisser pour ajuster",
+                onDragEnd: function (la, lo) {
+                  syncLastBuildingConfirmationGps(la, lo);
+                  if (typeof saveCalpinageState === "function") saveCalpinageState();
+                },
+              });
+              syncLastBuildingConfirmationGps(g.lat, g.lon);
+              showBuildingConfirmHint();
+            }
+          }
+          throw err;
         });
       }
 
       if (btnCapture) {
         addSafeListener(btnCapture, "click", function () {
+          showCalpinageLoading("Capture en cours…");
           var p = onCapture();
           if (p && typeof p.then === "function") {
-            p.catch(function (err) { console.error("[Calpinage] onCapture", err); });
+            p.then(function () {
+              hideCalpinageLoading();
+            }).catch(function (err) {
+              console.error("[Calpinage] onCapture", err);
+              hideCalpinageLoading();
+            });
+          } else {
+            hideCalpinageLoading();
           }
         });
       }
@@ -7217,8 +12085,13 @@ updateValidateButton();
             cancelAnimationFrame(renderRafId);
             renderRafId = null;
           }
+          resumeCalpinageAnimLoopFn = null;
           currentCanvasEngine.destroy();
           currentCanvasEngine = null;
+        }
+        var _prevDsmOverlay = canvasWrapper && canvasWrapper.querySelector("#calpinage-dsm-read-overlay");
+        if (_prevDsmOverlay && _prevDsmOverlay.parentNode) {
+          try { _prevDsmOverlay.parentNode.removeChild(_prevDsmOverlay); } catch (_) {}
         }
         var engine = new CalpinageCanvas.CanvasEngine(canvasEl, canvasWrapper);
         currentCanvasEngine = engine;
@@ -7228,9 +12101,22 @@ updateValidateButton();
         vp.scale = Math.min(engine.width / imgW, engine.height / imgH) * 0.9;
         vp.offset.x = engine.width / 2 - (imgW / 2) * vp.scale;
         vp.offset.y = engine.height / 2 + (imgH / 2) * vp.scale;
+        var vpFitBaseScale = vp.scale;
+        if (vpFitBaseScale > 0 && isFinite(vpFitBaseScale)) {
+          vp.minScale = Math.max(1e-6, vpFitBaseScale * 0.035);
+          vp.maxScale = Math.min(600, vpFitBaseScale * 100);
+        }
+        function getVertexHitRadiusPx() {
+          var fit = vpFitBaseScale;
+          if (!fit || fit <= 0 || !vp.scale || vp.scale <= 0) return 8;
+          var r = (8 * fit) / vp.scale;
+          return Math.max(5, Math.min(24, r));
+        }
+
+        var __calpinageSafeRenderLastTs = 0;
+        var dsmReadOverlayEl = null;
 
         var panStart = null;
-        var VERTEX_HIT_RADIUS = 8;
 
         function imageToScreen(imgPt) {
           var world = { x: imgPt.x, y: imgH - imgPt.y };
@@ -7245,11 +12131,147 @@ updateValidateButton();
           var rect = canvasEl.getBoundingClientRect();
           return { x: e.clientX - rect.left, y: e.clientY - rect.top };
         }
+        function p2CanvasPointToClient(sc) {
+          var rect = canvasEl.getBoundingClientRect();
+          var cw = canvasEl.width || 1;
+          var ch = canvasEl.height || 1;
+          var sx = rect.width / cw;
+          var sy = rect.height / ch;
+          return { x: rect.left + sc.x * sx, y: rect.top + sc.y * sy };
+        }
+        function p2GetSelectionAnchorImg() {
+          var svIdx = drawState.selectedShadowVolumeIndex;
+          if (svIdx != null && CALPINAGE_STATE.shadowVolumes && svIdx >= 0 && svIdx < CALPINAGE_STATE.shadowVolumes.length) {
+            var v = CALPINAGE_STATE.shadowVolumes[svIdx];
+            if (v && typeof v.x === "number" && typeof v.y === "number") return { x: v.x, y: v.y };
+          }
+          var obIdx = drawState.selectedObstacleIndex;
+          if (obIdx != null && CALPINAGE_STATE.obstacles && obIdx >= 0 && obIdx < CALPINAGE_STATE.obstacles.length) {
+            var o = CALPINAGE_STATE.obstacles[obIdx];
+            var sm = o.shapeMeta;
+            if (sm && typeof sm.centerX === "number" && typeof sm.centerY === "number") {
+              return { x: sm.centerX, y: sm.centerY };
+            }
+            if (o.points && o.points.length) {
+              var cx = 0, cy = 0, pi;
+              for (pi = 0; pi < o.points.length; pi++) {
+                cx += o.points[pi].x;
+                cy += o.points[pi].y;
+              }
+              return { x: cx / o.points.length, y: cy / o.points.length };
+            }
+          }
+          return null;
+        }
+        function updatePhase2ObstacleFloatingToolbar() {
+          var bar = container.querySelector("#calpinage-phase2-obstacle-toolbar");
+          if (!bar) return;
+          var locked = !!CALPINAGE_STATE.roofSurveyLocked;
+          var phaseOk = CALPINAGE_STATE.currentPhase === "ROOF_EDIT";
+          var toolOk = drawState.activeTool === "select";
+          var hasSel = drawState.selectedObstacleIndex != null || drawState.selectedShadowVolumeIndex != null;
+          if (!phaseOk || locked || !toolOk || !hasSel) {
+            bar.setAttribute("hidden", "");
+            bar.classList.remove("is-visible");
+            return;
+          }
+          var anchor = p2GetSelectionAnchorImg();
+          if (!anchor) {
+            bar.setAttribute("hidden", "");
+            bar.classList.remove("is-visible");
+            return;
+          }
+          var sc = imageToScreen(anchor);
+          var client = p2CanvasPointToClient(sc);
+          var hRow = bar.querySelector("#calpinage-p2-ob-toolbar-svha");
+          var hInp = bar.querySelector("#calpinage-p2-sv-height");
+          var hUnit = bar.querySelector("#calpinage-p2-sv-height-unit");
+          var hLbl = bar.querySelector("#calpinage-p2-sv-height-label");
+          var mppTb = (CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.scale && CALPINAGE_STATE.roof.scale.metersPerPixel) || 1;
+          if (hRow && hInp) {
+            var showH = false;
+            if (drawState.selectedShadowVolumeIndex != null && CALPINAGE_STATE.shadowVolumes) {
+              var sviT = drawState.selectedShadowVolumeIndex;
+              var svvT = CALPINAGE_STATE.shadowVolumes[sviT];
+              if (svvT && svvT.type === "shadow_volume") {
+                showH = true;
+                hInp.setAttribute("data-p2-h-mode", "sv_m");
+                hInp.setAttribute("step", "0.05");
+                hInp.setAttribute("min", "0.1");
+                hInp.setAttribute("max", "99");
+                hInp.setAttribute("title", "Hauteur du volume (m)");
+                hInp.setAttribute("aria-label", "Hauteur du volume ombrant en mètres");
+                if (hLbl) hLbl.textContent = "H";
+                if (hUnit) hUnit.textContent = "m";
+                hRow.removeAttribute("hidden");
+                if (document.activeElement !== hInp) {
+                  var hm = typeof svvT.height === "number" && Number.isFinite(svvT.height) ? svvT.height : 1;
+                  hInp.value = String(Math.round(hm * 100) / 100);
+                }
+              }
+            }
+            if (!showH && drawState.selectedObstacleIndex != null && CALPINAGE_STATE.obstacles && mppTb > 0) {
+              var obiT = drawState.selectedObstacleIndex;
+              var obT = CALPINAGE_STATE.obstacles[obiT];
+              var metaT = obT && obT.meta && typeof obT.meta === "object" ? obT.meta : {};
+              var bidT = typeof metaT.businessObstacleId === "string" ? metaT.businessObstacleId : null;
+              var entryT = bidT ? getRoofObstacleCatalogEntry(bidT) : null;
+              var isShT = metaT.isShadingObstacle !== false;
+              if (entryT) isShT = !!entryT.isShadingObstacle;
+              var smT = obT && obT.shapeMeta;
+              if (!isShT && smT && smT.originalType === "rect" && typeof smT.width === "number" && typeof smT.height === "number") {
+                showH = true;
+                hInp.setAttribute("data-p2-h-mode", "keepout_cm");
+                hInp.setAttribute("step", "1");
+                hInp.setAttribute("min", "5");
+                hInp.setAttribute("max", "50000");
+                hInp.setAttribute("title", "Profondeur au sol (cm) — emprise zone de non-pose");
+                hInp.setAttribute("aria-label", "Profondeur au sol de la zone de non-pose en centimètres");
+                if (hLbl) hLbl.textContent = "P";
+                if (hUnit) hUnit.textContent = "cm";
+                hRow.removeAttribute("hidden");
+                if (document.activeElement !== hInp) {
+                  var phM = smT.height * mppTb;
+                  hInp.value = String(Math.round(phM * 100));
+                }
+              }
+            }
+            if (!showH) {
+              hRow.setAttribute("hidden", "");
+              hInp.setAttribute("data-p2-h-mode", "");
+            }
+          }
+          bar.removeAttribute("hidden");
+          bar.classList.add("is-visible");
+          var vw = typeof window !== "undefined" && window.innerWidth ? window.innerWidth : 800;
+          var vh = typeof window !== "undefined" && window.innerHeight ? window.innerHeight : 600;
+          var halfEst = 168;
+          var cxClamped = Math.min(vw - halfEst - 8, Math.max(halfEst + 8, client.x));
+          bar.style.left = cxClamped + "px";
+          bar.style.top = client.y + "px";
+          var offsetAbove = 14;
+          if (client.y < 52) {
+            bar.style.transform = "translate(-50%, " + (offsetAbove + 8) + "px)";
+          } else {
+            bar.style.transform = "translate(-50%, calc(-100% - " + offsetAbove + "px))";
+          }
+          var br = bar.getBoundingClientRect();
+          var pad = 8;
+          var dx = 0, dy = 0;
+          if (br.right > vw - pad) dx = vw - pad - br.right;
+          if (br.left < pad) dx = pad - br.left;
+          if (br.top < pad) dy = pad - br.top;
+          if (br.bottom > vh - pad) dy = vh - pad - br.bottom;
+          if (dx !== 0 || dy !== 0) {
+            bar.style.left = cxClamped + dx + "px";
+            bar.style.top = client.y + dy + "px";
+          }
+        }
         function hitVertex(screenPt, contour) {
           if (!contour || !contour.points.length) return -1;
           for (var i = 0; i < contour.points.length; i++) {
             var s = imageToScreen(contour.points[i]);
-            if (Math.hypot(s.x - screenPt.x, s.y - screenPt.y) <= VERTEX_HIT_RADIUS) return i;
+            if (Math.hypot(s.x - screenPt.x, s.y - screenPt.y) <= getVertexHitRadiusPx()) return i;
           }
           return -1;
         }
@@ -7259,7 +12281,7 @@ updateValidateButton();
           for (var i = 0; i < pan.polygon.length; i++) {
             var pt = pan.polygon[i];
             var s = imageToScreen({ x: pt.x, y: pt.y });
-            if (Math.hypot(s.x - screenPt.x, s.y - screenPt.y) <= VERTEX_HIT_RADIUS) return { panId: pan.id, pointIndex: i };
+            if (Math.hypot(s.x - screenPt.x, s.y - screenPt.y) <= getVertexHitRadiusPx()) return { panId: pan.id, pointIndex: i };
           }
           return null;
         }
@@ -7313,7 +12335,7 @@ updateValidateButton();
             var pts = c.points;
             for (var i = 0; i < pts.length; i++) {
               var j = (i + 1) % pts.length;
-              if (distSegmentScreen(screenPt, pts[i], pts[j]) <= VERTEX_HIT_RADIUS) return { kind: "contour", contourIndex: ci, vertexIndex: null, segmentIndex: i };
+              if (distSegmentScreen(screenPt, pts[i], pts[j]) <= getVertexHitRadiusPx()) return { kind: "contour", contourIndex: ci, vertexIndex: null, segmentIndex: i };
             }
           }
           return null;
@@ -7322,7 +12344,7 @@ updateValidateButton();
           for (var i = 0; i < CALPINAGE_STATE.measures.length; i++) {
             var m = CALPINAGE_STATE.measures[i];
             if (!m || !m.a || !m.b) continue;
-            if (distSegmentScreen(screenPt, m.a, m.b) <= VERTEX_HIT_RADIUS) return i;
+            if (distSegmentScreen(screenPt, m.a, m.b) <= getVertexHitRadiusPx()) return i;
           }
           return -1;
         }
@@ -7335,9 +12357,9 @@ updateValidateButton();
             var rb = resolveRidgePoint(r.b);
             var sa = imageToScreen(ra);
             var sb = imageToScreen(rb);
-            if (Math.hypot(screenPt.x - sa.x, screenPt.y - sa.y) <= VERTEX_HIT_RADIUS) return { ridgeIndex: i, pointIndex: 0 };
-            if (Math.hypot(screenPt.x - sb.x, screenPt.y - sb.y) <= VERTEX_HIT_RADIUS) return { ridgeIndex: i, pointIndex: 1 };
-            if (distSegmentScreen(screenPt, ra, rb) <= VERTEX_HIT_RADIUS) return { ridgeIndex: i, pointIndex: null };
+            if (Math.hypot(screenPt.x - sa.x, screenPt.y - sa.y) <= getVertexHitRadiusPx()) return { ridgeIndex: i, pointIndex: 0 };
+            if (Math.hypot(screenPt.x - sb.x, screenPt.y - sb.y) <= getVertexHitRadiusPx()) return { ridgeIndex: i, pointIndex: 1 };
+            if (distSegmentScreen(screenPt, ra, rb) <= getVertexHitRadiusPx()) return { ridgeIndex: i, pointIndex: null };
           }
           return null;
         }
@@ -7348,9 +12370,9 @@ updateValidateButton();
             if (!t || !t.a || !t.b) continue;
             var sa = imageToScreen(t.a);
             var sb = imageToScreen(t.b);
-            if (Math.hypot(screenPt.x - sa.x, screenPt.y - sa.y) <= VERTEX_HIT_RADIUS) return { traitIndex: i, pointIndex: 0 };
-            if (Math.hypot(screenPt.x - sb.x, screenPt.y - sb.y) <= VERTEX_HIT_RADIUS) return { traitIndex: i, pointIndex: 1 };
-            if (distSegmentScreen(screenPt, t.a, t.b) <= VERTEX_HIT_RADIUS) return { traitIndex: i, pointIndex: "segment" };
+            if (Math.hypot(screenPt.x - sa.x, screenPt.y - sa.y) <= getVertexHitRadiusPx()) return { traitIndex: i, pointIndex: 0 };
+            if (Math.hypot(screenPt.x - sb.x, screenPt.y - sb.y) <= getVertexHitRadiusPx()) return { traitIndex: i, pointIndex: 1 };
+            if (distSegmentScreen(screenPt, t.a, t.b) <= getVertexHitRadiusPx()) return { traitIndex: i, pointIndex: "segment" };
           }
           return null;
         }
@@ -7364,49 +12386,49 @@ updateValidateButton();
             var pts = rx.contour && rx.contour.points ? rx.contour.points : [];
             for (var i = 0; i < pts.length; i++) {
               var s = imageToScreen(pts[i]);
-              if (Math.hypot(s.x - screenPt.x, s.y - screenPt.y) <= VERTEX_HIT_RADIUS) {
+              if (Math.hypot(s.x - screenPt.x, s.y - screenPt.y) <= getVertexHitRadiusPx()) {
                 return { rxIndex: ri, type: "contour", subtype: "vertex", index: i, pointRef: pts[i] };
               }
             }
             for (var i = 0; i < pts.length; i++) {
               var a = pts[i];
               var b = pts[(i + 1) % pts.length];
-              if (distSegmentScreen(screenPt, a, b) <= VERTEX_HIT_RADIUS) {
+              if (distSegmentScreen(screenPt, a, b) <= getVertexHitRadiusPx()) {
                 return { rxIndex: ri, type: "body", subtype: "contour-edge" };
               }
             }
             if (rx.ridge && rx.ridge.a && rx.ridge.b) {
               var ra = imageToScreen(rx.ridge.a);
               var rb = imageToScreen(rx.ridge.b);
-              if (Math.hypot(ra.x - screenPt.x, ra.y - screenPt.y) <= VERTEX_HIT_RADIUS) {
+              if (Math.hypot(ra.x - screenPt.x, ra.y - screenPt.y) <= getVertexHitRadiusPx()) {
                 return { rxIndex: ri, type: "ridge", subtype: "a", pointRef: rx.ridge.a };
               }
-              if (Math.hypot(rb.x - screenPt.x, rb.y - screenPt.y) <= VERTEX_HIT_RADIUS) {
+              if (Math.hypot(rb.x - screenPt.x, rb.y - screenPt.y) <= getVertexHitRadiusPx()) {
                 return { rxIndex: ri, type: "ridge", subtype: "b", pointRef: rx.ridge.b };
               }
             }
             if (rx.hips) {
               if (rx.hips.left && rx.hips.left.a) {
                 var la = imageToScreen(rx.hips.left.a);
-                if (Math.hypot(la.x - screenPt.x, la.y - screenPt.y) <= VERTEX_HIT_RADIUS) {
+                if (Math.hypot(la.x - screenPt.x, la.y - screenPt.y) <= getVertexHitRadiusPx()) {
                   return { rxIndex: ri, type: "hip", subtype: "left-a", pointRef: rx.hips.left.a };
                 }
               }
               if (rx.hips.left && rx.hips.left.b) {
                 var lb = imageToScreen(rx.hips.left.b);
-                if (Math.hypot(lb.x - screenPt.x, lb.y - screenPt.y) <= VERTEX_HIT_RADIUS) {
+                if (Math.hypot(lb.x - screenPt.x, lb.y - screenPt.y) <= getVertexHitRadiusPx()) {
                   return { rxIndex: ri, type: "hip", subtype: "left-b", pointRef: rx.hips.left.b };
                 }
               }
               if (rx.hips.right && rx.hips.right.a) {
                 var rha = imageToScreen(rx.hips.right.a);
-                if (Math.hypot(rha.x - screenPt.x, rha.y - screenPt.y) <= VERTEX_HIT_RADIUS) {
+                if (Math.hypot(rha.x - screenPt.x, rha.y - screenPt.y) <= getVertexHitRadiusPx()) {
                   return { rxIndex: ri, type: "hip", subtype: "right-a", pointRef: rx.hips.right.a };
                 }
               }
               if (rx.hips.right && rx.hips.right.b) {
                 var rhb = imageToScreen(rx.hips.right.b);
-                if (Math.hypot(rhb.x - screenPt.x, rhb.y - screenPt.y) <= VERTEX_HIT_RADIUS) {
+                if (Math.hypot(rhb.x - screenPt.x, rhb.y - screenPt.y) <= getVertexHitRadiusPx()) {
                   return { rxIndex: ri, type: "hip", subtype: "right-b", pointRef: rx.hips.right.b };
                 }
               }
@@ -7414,13 +12436,13 @@ updateValidateButton();
             if (pts.length >= 3 && typeof pointInPolygonImage === "function" && pointInPolygonImage(imgPt, pts)) {
               return { rxIndex: ri, type: "body", subtype: "contour" };
             }
-            if (rx.ridge && rx.ridge.a && rx.ridge.b && distSegmentScreen(screenPt, rx.ridge.a, rx.ridge.b) <= VERTEX_HIT_RADIUS) {
+            if (rx.ridge && rx.ridge.a && rx.ridge.b && distSegmentScreen(screenPt, rx.ridge.a, rx.ridge.b) <= getVertexHitRadiusPx()) {
               return { rxIndex: ri, type: "body", subtype: "ridge" };
             }
-            if (rx.hips && rx.hips.left && rx.hips.left.a && rx.hips.left.b && distSegmentScreen(screenPt, rx.hips.left.a, rx.hips.left.b) <= VERTEX_HIT_RADIUS) {
+            if (rx.hips && rx.hips.left && rx.hips.left.a && rx.hips.left.b && distSegmentScreen(screenPt, rx.hips.left.a, rx.hips.left.b) <= getVertexHitRadiusPx()) {
               return { rxIndex: ri, type: "body", subtype: "hip-left" };
             }
-            if (rx.hips && rx.hips.right && rx.hips.right.a && rx.hips.right.b && distSegmentScreen(screenPt, rx.hips.right.a, rx.hips.right.b) <= VERTEX_HIT_RADIUS) {
+            if (rx.hips && rx.hips.right && rx.hips.right.a && rx.hips.right.b && distSegmentScreen(screenPt, rx.hips.right.a, rx.hips.right.b) <= getVertexHitRadiusPx()) {
               return { rxIndex: ri, type: "body", subtype: "hip-right" };
             }
           }
@@ -7530,6 +12552,262 @@ updateValidateButton();
 
           return best ? { x: best.x, y: best.y, source: best.source } : null;
         }
+
+        /** Snap structurant Phase 2 — une seule résolution pour preview et commit (ridge / trait). */
+        function mapGeomKindFromSource(src) {
+          if (!src) return "geometry";
+          if (src.type === EDGE_CONTOUR && src.pointIndex != null) return "roof_contour_vertex";
+          if (src.type === EDGE_CONTOUR) return "roof_contour_segment";
+          if (src.type === EDGE_TRAIT && src.pointIndex != null) return "trait_vertex";
+          if (src.type === EDGE_TRAIT) return "trait_segment";
+          if (src.type === EDGE_RIDGE) return "ridge_segment";
+          return "geometry";
+        }
+        function enrichContourSegmentAttachFromGeom(imgPt, src) {
+          if (!src || src.type !== EDGE_CONTOUR || src.id == null) return null;
+          var c = CALPINAGE_STATE.contours && CALPINAGE_STATE.contours.find(function (x) {
+            return x && x.id === src.id;
+          });
+          if (!c || !c.points || c.points.length < 2) return null;
+          var pts = c.points;
+          var n = pts.length;
+          var bestI = -1;
+          var bestProj = null;
+          var bestD = Infinity;
+          for (var ii = 0; ii < n; ii++) {
+            var a = pts[ii];
+            var b = pts[(ii + 1) % n];
+            if (!a || !b) continue;
+            var proj = edgeProjectPointToSegment(imgPt, a, b);
+            var d = distImg(imgPt, proj);
+            if (d < bestD) {
+              bestD = d;
+              bestI = ii;
+              bestProj = proj;
+            }
+          }
+          if (bestI < 0 || !bestProj) return null;
+          var a0 = pts[bestI];
+          var b0 = pts[(bestI + 1) % n];
+          var abx = b0.x - a0.x;
+          var aby = b0.y - a0.y;
+          var lenSq = abx * abx + aby * aby + 1e-20;
+          var t = ((bestProj.x - a0.x) * abx + (bestProj.y - a0.y) * aby) / lenSq;
+          t = Math.max(0, Math.min(1, t));
+          if (distImg(bestProj, a0) <= 0.55) return { type: "contour", id: c.id, pointIndex: bestI };
+          if (distImg(bestProj, b0) <= 0.55) return { type: "contour", id: c.id, pointIndex: (bestI + 1) % n };
+          return { type: "roof_contour_edge", contourId: c.id, segmentIndex: bestI, t: t, roofRole: c.roofRole != null ? c.roofRole : null };
+        }
+        function mapGeomSourceToRidgeAttach(imgPt, src) {
+          if (!src) return null;
+          if (src.type === EDGE_CONTOUR && src.pointIndex != null) {
+            return { type: "contour", id: src.id, pointIndex: src.pointIndex };
+          }
+          if (src.type === EDGE_CONTOUR && src.pointIndex == null) {
+            return enrichContourSegmentAttachFromGeom(imgPt, src);
+          }
+          if (src.type === EDGE_TRAIT && src.pointIndex != null) {
+            return { type: "trait", id: src.id, pointIndex: src.pointIndex };
+          }
+          return null;
+        }
+        function resolveStructuralSnapRidge(imgPt) {
+          var buildingContours = (CALPINAGE_STATE.contours || []).filter(function (c) {
+            return c && c.roofRole !== "chienAssis";
+          });
+          var edgeDet = buildRoofContourEdgeSnapDetailed(imgPt, buildingContours, 15);
+          if (edgeDet) {
+            return {
+              x: edgeDet.x,
+              y: edgeDet.y,
+              snapped: true,
+              kind: edgeDet.kind,
+              attach: edgeDet.attach,
+              sourceMeta: { priority: "roof_contour_edge" },
+            };
+          }
+          var g = snapPointToGeometry(imgPt, CALPINAGE_STATE.contours, CALPINAGE_STATE.traits, CALPINAGE_STATE.ridges, SNAP_DIST_PX);
+          if (g && g.source) {
+            var att = mapGeomSourceToRidgeAttach(imgPt, g.source);
+            return {
+              x: g.x,
+              y: g.y,
+              snapped: true,
+              kind: mapGeomKindFromSource(g.source),
+              attach: att,
+              sourceMeta: { priority: "snapPointToGeometry", rawSource: g.source },
+            };
+          }
+          if (g) {
+            return {
+              x: g.x,
+              y: g.y,
+              snapped: true,
+              kind: "geometry",
+              attach: null,
+              sourceMeta: { priority: "snapPointToGeometry" },
+            };
+          }
+          return {
+            x: imgPt.x,
+            y: imgPt.y,
+            snapped: false,
+            kind: "raw",
+            attach: null,
+            sourceMeta: { priority: "raw" },
+          };
+        }
+        function applyStructuralRidgePreview(imgPt) {
+          var payload = resolveStructuralSnapRidge(imgPt);
+          CALPINAGE_STATE.activeRidge.frozenStructuralSnap = payload;
+          CALPINAGE_STATE.activeRidge.hover = { x: payload.x, y: payload.y };
+          CALPINAGE_STATE.activeRidge.hoverSnap = {
+            point: { x: payload.x, y: payload.y },
+            source: payload.attach || null,
+          };
+          var onRoofEdge = payload.sourceMeta && payload.sourceMeta.priority === "roof_contour_edge";
+          CALPINAGE_STATE.activeRidge.snapEdge = onRoofEdge ? { x: payload.x, y: payload.y } : null;
+        }
+        function commitStructuralSnapForRidge(imgPt) {
+          var frozen = CALPINAGE_STATE.activeRidge.frozenStructuralSnap;
+          var contours = CALPINAGE_STATE.contours || [];
+          var traits = CALPINAGE_STATE.traits || [];
+          if (
+            frozen &&
+            validateStructuralSnapPayload(frozen, "ridge", contours, traits)
+          ) {
+            if (typeof window !== "undefined" && window.CALPINAGE_DEBUG_STRUCTURAL_SNAP) {
+              console.log("[structuralSnap] ridge commit FROZEN", frozen.x, frozen.y, frozen.kind, frozen.attach, frozen.sourceMeta);
+            }
+            return frozen;
+          }
+          var live = resolveStructuralSnapRidge(imgPt);
+          if (typeof window !== "undefined" && window.CALPINAGE_DEBUG_STRUCTURAL_SNAP) {
+            console.log("[structuralSnap] ridge commit LIVE(fallback)", live.x, live.y, live.kind, live.attach, live.sourceMeta);
+          }
+          return live;
+        }
+        function resolveStructuralSnapTrait(imgPt) {
+          var buildingContours = (CALPINAGE_STATE.contours || []).filter(function (c) {
+            return c && c.roofRole !== "chienAssis";
+          });
+          var edgeDet = buildRoofContourEdgeSnapDetailed(imgPt, buildingContours, 15);
+          if (edgeDet) {
+            return {
+              x: edgeDet.x,
+              y: edgeDet.y,
+              snapped: true,
+              kind: edgeDet.kind,
+              attach: edgeDet.attach,
+              sourceMeta: { priority: "roof_contour_edge" },
+            };
+          }
+          var TRAIT_VERTEX_SNAP_DIST_PX = 18;
+          var thresholdTraitImg = Math.max(0.5, TRAIT_VERTEX_SNAP_DIST_PX / vp.scale);
+          var traitVertexSnap = null;
+          (CALPINAGE_STATE.traits || []).forEach(function (t) {
+            if (!t || !t.a || !t.b) return;
+            var dA = Math.hypot(imgPt.x - t.a.x, imgPt.y - t.a.y);
+            var dB = Math.hypot(imgPt.x - t.b.x, imgPt.y - t.b.y);
+            if (dA < thresholdTraitImg && (!traitVertexSnap || dA < Math.hypot(imgPt.x - traitVertexSnap.x, imgPt.y - traitVertexSnap.y))) traitVertexSnap = { x: t.a.x, y: t.a.y, source: { type: EDGE_TRAIT, id: t.id, pointIndex: 0 } };
+            if (dB < thresholdTraitImg && (!traitVertexSnap || dB < Math.hypot(imgPt.x - traitVertexSnap.x, imgPt.y - traitVertexSnap.y))) traitVertexSnap = { x: t.b.x, y: t.b.y, source: { type: EDGE_TRAIT, id: t.id, pointIndex: 1 } };
+          });
+          if (traitVertexSnap) {
+            return {
+              x: traitVertexSnap.x,
+              y: traitVertexSnap.y,
+              snapped: true,
+              kind: "trait_vertex",
+              attach: traitVertexSnap.source,
+              sourceMeta: { priority: "trait_vertex" },
+            };
+          }
+          var snapped = snapPointToGeometry(imgPt, CALPINAGE_STATE.contours, CALPINAGE_STATE.traits, CALPINAGE_STATE.ridges, SNAP_DIST_PX);
+          var vertexSnap = snapped && snapped.source && snapped.source.pointIndex != null ? snapped : null;
+          if (vertexSnap) {
+            var attV = mapGeomSourceToRidgeAttach(imgPt, vertexSnap.source);
+            return {
+              x: vertexSnap.x,
+              y: vertexSnap.y,
+              snapped: true,
+              kind: mapGeomKindFromSource(vertexSnap.source),
+              attach: attV,
+              sourceMeta: { priority: "snapPointToGeometry_vertex" },
+            };
+          }
+          var snapEdge = snapToAllRoofEdges(imgPt, 15);
+          if (snapEdge) {
+            return {
+              x: snapEdge.x,
+              y: snapEdge.y,
+              snapped: true,
+              kind: "roof_edge_segment",
+              attach: null,
+              sourceMeta: { priority: "all_roof_edges" },
+            };
+          }
+          return {
+            x: imgPt.x,
+            y: imgPt.y,
+            snapped: false,
+            kind: "raw",
+            attach: null,
+            sourceMeta: { priority: "raw" },
+          };
+        }
+        function applyStructuralTraitPreview(imgPt) {
+          var payload = resolveStructuralSnapTrait(imgPt);
+          drawState.traitFrozenStructuralSnap = payload;
+          if (!drawState.traitLineStart) return;
+          drawState.traitSnapPreview = { x: payload.x, y: payload.y };
+          drawState.traitSnapPreviewSource = payload.attach || null;
+          var isVertex =
+            payload.kind === "trait_vertex" ||
+            payload.kind === "roof_contour_vertex" ||
+            (payload.attach && typeof payload.attach.pointIndex === "number");
+          var isSegmentSnap =
+            payload.snapped &&
+            !isVertex &&
+            (payload.kind === "roof_edge_segment" ||
+              payload.kind === "roof_contour_edge" ||
+              (payload.attach && payload.attach.type === "roof_contour_edge"));
+          if (isSegmentSnap) {
+            drawState.traitSnapEdge = { x: payload.x, y: payload.y };
+          } else {
+            drawState.traitSnapEdge = null;
+          }
+        }
+        function commitStructuralSnapForTrait(imgPt) {
+          var frozen = drawState.traitFrozenStructuralSnap;
+          var contours = CALPINAGE_STATE.contours || [];
+          var traits = CALPINAGE_STATE.traits || [];
+          if (
+            frozen &&
+            validateStructuralSnapPayload(frozen, "trait", contours, traits)
+          ) {
+            if (typeof window !== "undefined" && window.CALPINAGE_DEBUG_STRUCTURAL_SNAP) {
+              console.log("[structuralSnap] trait commit FROZEN", frozen.x, frozen.y, frozen.kind, frozen.attach, frozen.sourceMeta);
+            }
+            return frozen;
+          }
+          var live = resolveStructuralSnapTrait(imgPt);
+          if (typeof window !== "undefined" && window.CALPINAGE_DEBUG_STRUCTURAL_SNAP) {
+            console.log("[structuralSnap] trait commit LIVE(fallback)", live.x, live.y, live.kind, live.attach, live.sourceMeta);
+          }
+          return live;
+        }
+
+        /**
+         * Commit d’extrémité après drag : même hiérarchie que la création (resolveStructuralSnap* + validate),
+         * sans assigner snapPointToGeometry(...).source brut (dégradait roof_contour_edge).
+         */
+        function commitDragEndpointAttach(imgPt, tool) {
+          var contours = CALPINAGE_STATE.contours || [];
+          var traits = CALPINAGE_STATE.traits || [];
+          var payload = tool === "trait" ? resolveStructuralSnapTrait(imgPt) : resolveStructuralSnapRidge(imgPt);
+          return commitEndpointAttachFromStructuralPayload(imgPt, tool, contours, traits, payload);
+        }
+
         function segmentIntersection(a1, a2, b1, b2) {
           var ax = a2.x - a1.x; var ay = a2.y - a1.y;
           var bx = b2.x - b1.x; var by = b2.y - b1.y;
@@ -7577,6 +12855,33 @@ updateValidateButton();
           ctx.fillStyle = "#000";
           ctx.fillText(text, screenMid.x, screenMid.y);
         }
+        /**
+         * Vérifie si le sommet (contourId, pointIndex) est référencé par au moins un
+         * endpoint de trait ou faîtage via attach.type === "contour".
+         * Utilisé pour l'affichage des sommets partagés (halo vert).
+         */
+        function hasAttachedEndpoints(contourId, pointIndex, traitsArr, ridgesArr) {
+          for (var _hti = 0; _hti < (traitsArr || []).length; _hti++) {
+            var _ht = traitsArr[_hti];
+            if (!_ht) continue;
+            var _hEps = [_ht.a, _ht.b];
+            for (var _hei = 0; _hei < _hEps.length; _hei++) {
+              var _hep = _hEps[_hei];
+              if (_hep && _hep.attach && _hep.attach.type === "contour" && _hep.attach.id === contourId && _hep.attach.pointIndex === pointIndex) return true;
+            }
+          }
+          for (var _hri = 0; _hri < (ridgesArr || []).length; _hri++) {
+            var _hr = ridgesArr[_hri];
+            if (!_hr) continue;
+            var _hrEps = [_hr.a, _hr.b];
+            for (var _hrei = 0; _hrei < _hrEps.length; _hrei++) {
+              var _hrep = _hrEps[_hrei];
+              if (_hrep && _hrep.attach && _hrep.attach.type === "contour" && _hrep.attach.id === contourId && _hrep.attach.pointIndex === pointIndex) return true;
+            }
+          }
+          return false;
+        }
+
         function drawContourMeasurements(ctx, contour) {
           if (!contour || !contour.points || contour.points.length < 2) return;
           var segments = getContourSegments(contour.points, contour.closed);
@@ -7765,35 +13070,197 @@ updateValidateButton();
         }
 
         var roofImg = new Image();
+        var roofImgLoadSettled = false;
+        var roofImgLoadTimeout = typeof setTimeout !== "undefined" ? setTimeout(function () {
+          if (roofImgLoadSettled) return;
+          roofImgLoadSettled = true;
+          console.error("[CALPINAGE] Délai dépassé : chargement image toit");
+          try {
+            if (window.calpinageToast && window.calpinageToast.error) {
+              window.calpinageToast.error("L'image du toit met trop longtemps à charger ou est invalide.");
+            }
+          } catch (_) {}
+          if (renderRafId != null && typeof cancelAnimationFrame === "function") {
+            cancelAnimationFrame(renderRafId);
+            renderRafId = null;
+          }
+          try {
+            roofImg.onload = null;
+            roofImg.onerror = null;
+          } catch (_) {}
+          if (currentCanvasEngine === engine) {
+            try { engine.destroy(); } catch (_) {}
+            currentCanvasEngine = null;
+          }
+          if (typeof window !== "undefined") {
+            window.CALPINAGE_RENDER = null;
+            try {
+              delete window.CALPINAGE_VIEWPORT_FIT_SCALE;
+            } catch (_) {
+              window.CALPINAGE_VIEWPORT_FIT_SCALE = undefined;
+            }
+          }
+          resumeCalpinageAnimLoopFn = null;
+        }, 25000) : null;
+        roofImg.onerror = function () {
+          if (roofImgLoadSettled) return;
+          roofImgLoadSettled = true;
+          if (roofImgLoadTimeout != null) clearTimeout(roofImgLoadTimeout);
+          console.error("[CALPINAGE] Échec chargement image toit (data URL / réseau)");
+          try {
+            if (window.calpinageToast && window.calpinageToast.error) {
+              window.calpinageToast.error("Impossible d'afficher l'image du toit. Réessayez la capture.");
+            }
+          } catch (_) {}
+          if (renderRafId != null && typeof cancelAnimationFrame === "function") {
+            cancelAnimationFrame(renderRafId);
+            renderRafId = null;
+          }
+          try {
+            roofImg.onload = null;
+            roofImg.onerror = null;
+          } catch (_) {}
+          if (currentCanvasEngine === engine) {
+            try { engine.destroy(); } catch (_) {}
+            currentCanvasEngine = null;
+          }
+          if (typeof window !== "undefined") {
+            window.CALPINAGE_RENDER = null;
+            try {
+              delete window.CALPINAGE_VIEWPORT_FIT_SCALE;
+            } catch (_) {
+              window.CALPINAGE_VIEWPORT_FIT_SCALE = undefined;
+            }
+          }
+          resumeCalpinageAnimLoopFn = null;
+        };
         roofImg.onload = function () {
+          if (roofImgLoadSettled) return;
+          roofImgLoadSettled = true;
+          if (roofImgLoadTimeout != null) clearTimeout(roofImgLoadTimeout);
           recomputeRoofPlanes();
+          (function warnImageIntrinsicMismatch() {
+            try {
+              var nw = roofImg.naturalWidth || 0;
+              var nh = roofImg.naturalHeight || 0;
+              var ro = CALPINAGE_STATE.roof;
+              var dw = ro && ro.image ? ro.image.width : 0;
+              var dh = ro && ro.image ? ro.image.height : 0;
+              if (nw > 0 && nh > 0 && dw > 0 && dh > 0 && (nw !== dw || nh !== dh)) {
+                if (typeof console !== "undefined" && console.warn) {
+                  console.warn(
+                    "[CALPINAGE] Dimensions image : déclaré " + dw + "×" + dh + " px, bitmap réel " + nw + "×" + nh +
+                    " px. Le canvas 2D utilise drawImage(0,0," + dw + "," + dh + ") — même recadrage appliqué au fond 3D (texture.repeat)."
+                  );
+                }
+              }
+            } catch (_w) {}
+          })();
+          /* Handles Phase 3 : ancres ÉCRAN — rotate au-dessus du centroïde, move en dessous (Y écran), stable à tout angle toit/bloc ; hit-test en px écran pour cohérence zoom. */
+          var PH3_HANDLE_SCREEN_OFFSET_ROT_PX = 48;
+          var PH3_HANDLE_SCREEN_OFFSET_MOVE_PX = 48;
           function getManipulationHandlePositions(block) {
             if (!block || !block.panels) return null;
-            var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-            for (var i = 0; i < block.panels.length; i++) {
-              var proj = block.panels[i].projection;
-              if (!proj || !proj.points) continue;
-              for (var j = 0; j < proj.points.length; j++) {
-                var p = proj.points[j];
-                minX = Math.min(minX, p.x); minY = Math.min(minY, p.y);
-                maxX = Math.max(maxX, p.x); maxY = Math.max(maxY, p.y);
+            var ENG = window.pvPlacementEngine;
+            var getProj = (ENG && typeof ENG.getEffectivePanelProjection === "function")
+              ? function (i) { return ENG.getEffectivePanelProjection(block, i); }
+              : function (i) { return block.panels[i] && block.panels[i].projection; };
+            function collectImagePoints(skipDisabled) {
+              var out = [];
+              for (var i = 0; i < block.panels.length; i++) {
+                var panel = block.panels[i];
+                if (skipDisabled && panel && panel.enabled === false) continue;
+                var proj = getProj(i);
+                if (!proj || !proj.points) continue;
+                for (var j = 0; j < proj.points.length; j++) {
+                  var p = proj.points[j];
+                  if (typeof p.x !== "number" || typeof p.y !== "number" || !Number.isFinite(p.x) || !Number.isFinite(p.y)) continue;
+                  out.push({ x: p.x, y: p.y });
+                }
               }
+              return out;
             }
-            if (minX === Infinity) return null;
-            var centerX = (minX + maxX) / 2;
-            var topY = minY;
-            var bottomY = maxY;
-            var blockHeight = maxY - minY;
-            var offset = Math.max(18, blockHeight * 0.12);
+            var pts = collectImagePoints(true);
+            if (pts.length === 0) pts = collectImagePoints(false);
+            if (pts.length === 0) return null;
+            var sx = 0, sy = 0;
+            for (var ci = 0; ci < pts.length; ci++) {
+              sx += pts[ci].x;
+              sy += pts[ci].y;
+            }
+            var C = { x: sx / pts.length, y: sy / pts.length };
+            var cScr = imageToScreen(C);
+            var rotateScr = { x: cScr.x, y: cScr.y - PH3_HANDLE_SCREEN_OFFSET_ROT_PX };
+            var moveScr = { x: cScr.x, y: cScr.y + PH3_HANDLE_SCREEN_OFFSET_MOVE_PX };
             return {
-              rotate: { x: centerX, y: topY - offset },
-              move: { x: centerX, y: bottomY + offset },
-              topY: topY,
-              bottomY: bottomY,
-              centerX: centerX
+              rotate: screenToImage(rotateScr),
+              move: screenToImage(moveScr),
+              topOfBlock: C,
+              bottomOfBlock: C,
+              centerX: C.x,
+              topY: C.y,
+              bottomY: C.y,
             };
           }
-          var MANIPULATION_HANDLE_RADIUS_IMG = 18;
+          var PH3_HANDLE_HIT_ROTATE_SCREEN_PX = 24;
+          var PH3_HANDLE_HIT_MOVE_SCREEN_PX = 22;
+          function ph3PointerNearHandleScreen(ptrScreen, handleImg, radiusScrPx) {
+            if (!ptrScreen || !handleImg || typeof ptrScreen.x !== "number" || typeof ptrScreen.y !== "number") return false;
+            var hs = imageToScreen(handleImg);
+            var dx = ptrScreen.x - hs.x, dy = ptrScreen.y - hs.y;
+            return dx * dx + dy * dy <= radiusScrPx * radiusScrPx;
+          }
+          /** Tolérance image (px) : centre du ghost — mode ajout uniquement, après handles. */
+          var PH3_GHOST_HIT_CENTER_TOL_IMG = 14;
+          /**
+           * Ghost d'extension sous le point : polygone d'abord, sinon proximité du centre.
+           * Si plusieurs candidats « dans » le polygone, le plus proche du centre gagne.
+           */
+          function pickExpansionGhostUnderImagePoint(ghosts, imgPt) {
+            if (!ghosts || !imgPt || typeof imgPt.x !== "number" || typeof imgPt.y !== "number" || typeof pointInPolygonImage !== "function") {
+              return null;
+            }
+            var TOL = PH3_GHOST_HIT_CENTER_TOL_IMG;
+            var bestG = null;
+            var bestRank = 0;
+            var bestDist = Infinity;
+            for (var gi = 0; gi < ghosts.length; gi++) {
+              var g = ghosts[gi];
+              if (!g || !g.center || typeof g.center.x !== "number" || typeof g.center.y !== "number") continue;
+              var pts = g.projection && g.projection.points;
+              if (!pts || pts.length < 3) continue;
+              var dx = imgPt.x - g.center.x;
+              var dy = imgPt.y - g.center.y;
+              var dist = Math.hypot(dx, dy);
+              var inside = pointInPolygonImage(imgPt, pts);
+              if (inside) {
+                if (bestRank < 2 || (bestRank === 2 && dist < bestDist)) {
+                  bestG = g;
+                  bestRank = 2;
+                  bestDist = dist;
+                }
+              } else if (dist <= TOL) {
+                if (bestRank < 2 && (bestRank < 1 || dist < bestDist)) {
+                  bestG = g;
+                  bestRank = 1;
+                  bestDist = dist;
+                }
+              }
+            }
+            return bestG;
+          }
+          /** Phase 3 : point dans un pan toiture (pour curseur grab + pan fond sans Ctrl hors pans). */
+          function insideAnyPan(imgPt) {
+            if (!imgPt || typeof imgPt.x !== "number" || typeof imgPt.y !== "number") return false;
+            var vrd = CALPINAGE_STATE.validatedRoofData;
+            if (!vrd || !vrd.pans) return false;
+            var pans = vrd.pans;
+            for (var ip = 0; ip < pans.length; ip++) {
+              var pn = pans[ip];
+              if (pn && pn.polygon && pointInPolygonImage(imgPt, pn.polygon)) return true;
+            }
+            return false;
+          }
           addSafeListener(canvasEl, "pointerdown", function (e) {
             var rect = canvasEl.getBoundingClientRect();
             var x = e.clientX - rect.left;
@@ -7810,9 +13277,10 @@ updateValidateButton();
               console.log("[MD] blocked by button (not left)");
               return;
             }
-            /* Pan uniquement via Ctrl + glisser : pas de bouton Pan. En mode heightEdit, CTRL sert à la multi-sélection. */
+            /* Pan : Ctrl+glisser (Phase 2/3). Phase 3 : en plus, glisser sur le fond hors pans (sans Ctrl). En heightEdit, CTRL = multi-sélection. */
             if (e.ctrlKey && !CALPINAGE_STATE.heightEditMode) {
               panStart = { x: e.clientX, y: e.clientY };
+              if (canvasEl && e.pointerId != null) try { canvasEl.setPointerCapture(e.pointerId); } catch (_) {}
               return;
             }
             console.log("[PH3 DEBUG] pointerdown", {
@@ -7836,6 +13304,106 @@ updateValidateButton();
             }
             var screen = getMouseScreen(e);
             var imgPt = screenToImage(screen);
+
+            /* Phase 3 — priorité absolue poignées rotate/move avant pan fond : une poignée peut être hors contour pan (insideAnyPan). */
+            if (
+              CALPINAGE_STATE.currentPhase === "PV_LAYOUT" &&
+              !window.CALPINAGE_IS_MANIPULATING &&
+              window.CALPINAGE_MODE !== "CREATE_SHADOW_VOLUME" &&
+              !isDormerMode
+            ) {
+              var dataPvEarly = CALPINAGE_STATE.validatedRoofData;
+              var ENGPvEarly = window.pvPlacementEngine;
+              if (dataPvEarly && dataPvEarly.pans && ENGPvEarly && typeof ENGPvEarly.getFocusBlock === "function") {
+                var focusBlockEarly = ENGPvEarly.getFocusBlock ? ENGPvEarly.getFocusBlock() : null;
+                if (focusBlockEarly && typeof ENGPvEarly.recomputeBlock === "function") {
+                  var ctxHEarly = typeof getProjectionContextForBlock === "function" ? getProjectionContextForBlock(focusBlockEarly) : null;
+                  if (ctxHEarly) ENGPvEarly.recomputeBlock(focusBlockEarly.id, window.PV_LAYOUT_RULES, ctxHEarly);
+                }
+                if (focusBlockEarly && typeof getManipulationHandlePositions === "function") {
+                  var handlesEarly = getManipulationHandlePositions(focusBlockEarly);
+                  if (handlesEarly) {
+                    if (ph3PointerNearHandleScreen(screen, handlesEarly.rotate, PH3_HANDLE_HIT_ROTATE_SCREEN_PX)) {
+                      if (typeof ENGPvEarly.setActiveBlock === "function") ENGPvEarly.setActiveBlock(focusBlockEarly.id);
+                      if (typeof ENGPvEarly.beginManipulation === "function") ENGPvEarly.beginManipulation(focusBlockEarly.id);
+                      window.CALPINAGE_IS_MANIPULATING = true;
+                      window.__FORCE_PV_MANIP_LOCK__ = true;
+                      panStart = null;
+                      setInteractionState(InteractionStates.ROTATING);
+                      try {
+                        window.PV_LAYOUT_STATE = PV_LAYOUT_FLOW.ROTATE;
+                      } catch (_pvlr) {}
+                      CALPINAGE_STATE.activeManipulationBlockId = focusBlockEarly.id;
+                      var centerImgPv = ENGPvEarly.getBlockCenter && ENGPvEarly.getBlockCenter(focusBlockEarly);
+                      calpinageHandleDrag = {
+                        type: "rotate",
+                        blockId: focusBlockEarly.id,
+                        pointerId: e.pointerId,
+                        startImg: { x: imgPt.x, y: imgPt.y },
+                        centerImg: centerImgPv || null,
+                        startAngleRad: centerImgPv ? Math.atan2(imgPt.y - centerImgPv.y, imgPt.x - centerImgPv.x) : 0,
+                        lastAngleRad: centerImgPv ? Math.atan2(imgPt.y - centerImgPv.y, imgPt.x - centerImgPv.x) : 0
+                      };
+                      drawState.ph3RotationLiveDeg = 0;
+                      try { canvasEl.setPointerCapture(e.pointerId); } catch (_) {}
+                      return;
+                    }
+                    if (ph3PointerNearHandleScreen(screen, handlesEarly.move, PH3_HANDLE_HIT_MOVE_SCREEN_PX)) {
+                      if (typeof ENGPvEarly.setActiveBlock === "function") ENGPvEarly.setActiveBlock(focusBlockEarly.id);
+                      if (typeof ENGPvEarly.beginManipulation === "function") ENGPvEarly.beginManipulation(focusBlockEarly.id);
+                      window.CALPINAGE_IS_MANIPULATING = true;
+                      window.__FORCE_PV_MANIP_LOCK__ = true;
+                      panStart = null;
+                      setInteractionState(InteractionStates.DRAGGING);
+                      try {
+                        window.PV_LAYOUT_STATE = PV_LAYOUT_FLOW.MOVE;
+                      } catch (_pvlm) {}
+                      CALPINAGE_STATE.activeManipulationBlockId = focusBlockEarly.id;
+                      var centerImgMovePv = ENGPvEarly.getBlockCenter && ENGPvEarly.getBlockCenter(focusBlockEarly);
+                      calpinageHandleDrag = {
+                        type: "move",
+                        blockId: focusBlockEarly.id,
+                        pointerId: e.pointerId,
+                        startImg: { x: imgPt.x, y: imgPt.y },
+                        centerImg: centerImgMovePv || null,
+                        startImgX: imgPt.x,
+                        startImgY: imgPt.y,
+                        lastImgX: imgPt.x,
+                        lastImgY: imgPt.y
+                      };
+                      drawState.ph3RotationLiveDeg = null;
+                      try { canvasEl.setPointerCapture(e.pointerId); } catch (_) {}
+                      return;
+                    }
+                  }
+                }
+              }
+            }
+
+            /* Pan implantation : clic-glisser sur le fond hors pans (sans Ctrl). Pas en mode volume ombrant / chien assis / manip bloc.
+             * Avant : ce return court-circuitait le bloc Phase 3 « clic dans le vide » qui appelait clearSelection — on réapplique la même désélection ici. */
+            if (
+              !e.ctrlKey &&
+              CALPINAGE_STATE.currentPhase === "PV_LAYOUT" &&
+              !CALPINAGE_STATE.heightEditMode &&
+              window.CALPINAGE_MODE !== "CREATE_SHADOW_VOLUME" &&
+              !isDormerMode &&
+              !window.CALPINAGE_IS_MANIPULATING &&
+              !insideAnyPan(imgPt)
+            ) {
+              var ENGbg = window.pvPlacementEngine;
+              var focusBg = ENGbg && typeof ENGbg.getFocusBlock === "function" ? ENGbg.getFocusBlock() : null;
+              if (focusBg && typeof ENGbg.clearSelection === "function") {
+                ENGbg.clearSelection();
+                CALPINAGE_STATE.activeManipulationBlockId = null;
+                if (typeof syncPlacedPanelsFromBlocks === "function") syncPlacedPanelsFromBlocks();
+                if (typeof saveCalpinageState === "function") saveCalpinageState();
+                if (typeof window.syncPhase3LayoutUI === "function") window.syncPhase3LayoutUI();
+              }
+              panStart = { x: e.clientX, y: e.clientY };
+              if (canvasEl && e.pointerId != null) try { canvasEl.setPointerCapture(e.pointerId); } catch (_) {}
+              return;
+            }
 
             if (window.CALPINAGE_MODE === MODE_DORMER_HIPS) {
               var draft = getDormerEditTarget();
@@ -7880,6 +13448,7 @@ updateValidateButton();
                 if (canvasEl) canvasEl.style.cursor = "default";
                 if (typeof saveCalpinageState === "function") saveCalpinageState();
                 if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
+                if (typeof resetActiveToolToSelect === "function") resetActiveToolToSelect();
                 return;
               }
               return;
@@ -7901,6 +13470,7 @@ updateValidateButton();
                   if (canvasEl) canvasEl.style.cursor = "default";
                   if (typeof saveCalpinageState === "function") saveCalpinageState();
                   if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
+                  if (typeof resetActiveToolToSelect === "function") resetActiveToolToSelect();
                   return;
                 }
               }
@@ -7926,6 +13496,7 @@ updateValidateButton();
                 if (canvasEl) canvasEl.style.cursor = "default";
                 if (typeof saveCalpinageState === "function") saveCalpinageState();
                 if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
+                if (typeof resetActiveToolToSelect === "function") resetActiveToolToSelect();
                 return;
               }
               return;
@@ -7966,19 +13537,44 @@ updateValidateButton();
             /* CREATE_SHADOW_VOLUME : priorité absolue — clic démarre placement, drag resize live, mouseup commit */
             if (window.CALPINAGE_MODE === "CREATE_SHADOW_VOLUME" && drawState.shadowVolumeCreateShape) {
               var p = imgPt;
-              var shape = drawState.shadowVolumeCreateShape;
+              var bizSv = drawState.shadowVolumeBusinessId;
+              var payloadSv = bizSv
+                ? getShadowVolumeCreationPayload(bizSv)
+                : getShadowVolumeCreationPayload(drawState.shadowVolumeCreateShape === "tube" ? "chimney_round" : "chimney_square");
+              var shape = payloadSv.shape;
 
+              var mppSv0 = (CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.scale && CALPINAGE_STATE.roof.scale.metersPerPixel) || 1;
+              var ax0 = p.x;
+              var ay0 = p.y;
+              var initW;
+              var initD;
+              var cx0;
+              var cy0;
+              if (shape === "cube") {
+                var cubeInit = computeShadowCubeMetersFromAnchor(ax0, ay0, ax0, ay0, mppSv0, bizSv);
+                cx0 = cubeInit.cx;
+                cy0 = cubeInit.cy;
+                initW = cubeInit.widthM;
+                initD = cubeInit.depthM;
+              } else {
+                var tubeInit = computeShadowTubeMetersFromAnchor(ax0, ay0, ax0, ay0, mppSv0, bizSv);
+                cx0 = tubeInit.cx;
+                cy0 = tubeInit.cy;
+                initW = tubeInit.diameterM;
+                initD = tubeInit.diameterM;
+              }
               var v = {
                 id: "shadow_" + Date.now() + "_" + Math.floor(Math.random() * 1e6),
                 type: "shadow_volume",
                 shape: shape,
-                x: p.x,
-                y: p.y,
-                width: 0.01,
-                depth: 0.01,
-                height: 1.0,
+                x: cx0,
+                y: cy0,
+                width: initW,
+                depth: initD,
+                height: payloadSv.height,
                 rotation: 0,
-                baseZ: getHeightAtImgPoint(p)
+                baseZ: getHeightAtImgPoint(p),
+                meta: payloadSv.meta,
               };
 
               CALPINAGE_STATE.shadowVolumes = CALPINAGE_STATE.shadowVolumes || [];
@@ -7997,9 +13593,9 @@ updateValidateButton();
               return;
             }
 
-            /* SHADOW INTERACTION — Phase 2 + Phase 3 */
+            /* SHADOW INTERACTION — Phase 2 uniquement (read-only en PV_LAYOUT) */
             var svList = CALPINAGE_STATE.shadowVolumes || [];
-            if (svList.length > 0 && (CALPINAGE_STATE.currentPhase === "ROOF_EDIT" || CALPINAGE_STATE.currentPhase === "PV_LAYOUT")) {
+            if (svList.length > 0 && CALPINAGE_STATE.currentPhase === "ROOF_EDIT") {
               if (window.CALPINAGE_IS_MANIPULATING) { /* fallthrough */ } else {
                 var selSvIdx = drawState.selectedShadowVolumeIndex;
                 if (
@@ -8010,13 +13606,66 @@ updateValidateButton();
                 ) {
                   var handleHit = hitTestShadowVolumeHandles(screen, svList[selSvIdx], imageToScreen, vp.scale);
                   if (handleHit) {
-                    drawState.draggingShadowVolumeHandle = handleHit.handle;
-                    drawState.resizeShadowVolumeStart = { volume: svList[selSvIdx], imgPt: { x: imgPt.x, y: imgPt.y }, width: svList[selSvIdx].width, depth: svList[selSvIdx].depth, height: svList[selSvIdx].height, rotation: svList[selSvIdx].rotation };
-                    if (handleHit.handle === "rotate") {
-                      drawState.shadowVolumeRotateStart = { angle: typeof svList[selSvIdx].rotation === "number" ? svList[selSvIdx].rotation : 0, centerImg: { x: svList[selSvIdx].x, y: svList[selSvIdx].y }, startImg: { x: imgPt.x, y: imgPt.y } };
+                    var svH = svList[selSvIdx];
+                    var mppH0 = (CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.scale && CALPINAGE_STATE.roof.scale.metersPerPixel) || 1;
+                    var hKind = handleHit.handle;
+                    drawState.resizeShadowVolumeStart = {
+                      volume: svH,
+                      mpp: mppH0,
+                      resizeMode: null,
+                    };
+                    if (hKind === "rotate") {
+                      drawState.draggingShadowVolumeHandle = "rotate";
+                      drawState.resizeShadowVolumeStart.resizeMode = "rotate";
+                      drawState.shadowVolumeRotateStart = {
+                        angle: typeof svH.rotation === "number" ? svH.rotation : 0,
+                        centerImg: { x: svH.x, y: svH.y },
+                        startImg: { x: imgPt.x, y: imgPt.y },
+                      };
                       setInteractionState(InteractionStates.ROTATING);
-                    } else {
+                    } else if (svH.shape === "tube" && hKind === "radius") {
+                      drawState.draggingShadowVolumeHandle = "radius";
+                      drawState.resizeShadowVolumeStart.resizeMode = "tubeRadius";
+                      var metaBH = svH.meta && typeof svH.meta === "object" ? svH.meta : {};
+                      var bidTube = typeof metaBH.businessObstacleId === "string" ? metaBH.businessObstacleId : resolveLegacyShadowVolumeBusinessId(svH.shape);
+                      var minsT = shadowMinsM(bidTube);
+                      var minDiamT = Math.min(minsT.minWM, minsT.minDM);
+                      drawState.resizeShadowVolumeStart.centerImg = { x: svH.x, y: svH.y };
+                      drawState.resizeShadowVolumeStart.minDiamM = minDiamT;
+                      var angT = ((typeof svH.rotation === "number" ? svH.rotation : 0) * Math.PI) / 180;
+                      drawState.resizeShadowVolumeStart.ux = Math.cos(angT);
+                      drawState.resizeShadowVolumeStart.uy = Math.sin(angT);
                       setInteractionState(InteractionStates.RESIZING);
+                    } else if (svH.shape === "cube" && typeof hKind === "number" && hKind >= 0 && hKind <= 3) {
+                      drawState.draggingShadowVolumeHandle = hKind;
+                      var wPxH = svH.width / mppH0;
+                      var dPxH = svH.depth / mppH0;
+                      var hwH = wPxH / 2;
+                      var hdH = dPxH / 2;
+                      var angleRadH = ((typeof svH.rotation === "number" ? svH.rotation : 0) * Math.PI) / 180;
+                      var oppH = (hKind + 2) % 4;
+                      drawState.resizeShadowVolumeStart.resizeMode = "corner";
+                      drawState.resizeShadowVolumeStart.angleLock = angleRadH;
+                      drawState.resizeShadowVolumeStart.fixedCornerWorld = obstacleRectCornerWorld(svH.x, svH.y, hwH, hdH, angleRadH, oppH);
+                      setInteractionState(InteractionStates.RESIZING);
+                    } else if (svH.shape === "cube" && typeof hKind === "string" && /^e[0-3]$/.test(hKind)) {
+                      drawState.draggingShadowVolumeHandle = hKind;
+                      var wPxE = svH.width / mppH0;
+                      var dPxE = svH.depth / mppH0;
+                      var hwE = wPxE / 2;
+                      var hdE = dPxE / 2;
+                      var angleRadE = ((typeof svH.rotation === "number" ? svH.rotation : 0) * Math.PI) / 180;
+                      drawState.resizeShadowVolumeStart.resizeMode = "edge";
+                      drawState.resizeShadowVolumeStart.angleLock = angleRadE;
+                      drawState.resizeShadowVolumeStart.edgeIndex = parseInt(hKind.charAt(1), 10);
+                      drawState.resizeShadowVolumeStart.edgeStartCenter = { x: svH.x, y: svH.y };
+                      drawState.resizeShadowVolumeStart.edgeStartHw = hwE;
+                      drawState.resizeShadowVolumeStart.edgeStartHh = hdE;
+                      setInteractionState(InteractionStates.RESIZING);
+                    } else {
+                      drawState.resizeShadowVolumeStart = null;
+                      drawState.draggingShadowVolumeHandle = null;
+                      return;
                     }
                     try { canvasEl.setPointerCapture(e.pointerId); } catch (_) {}
                     return;
@@ -8043,10 +13692,12 @@ updateValidateButton();
 
             // --- ROOF OBSTACLE INTERACTION (RECT + CIRCLE) ---
             // Position : AVANT le bloc PV_LAYOUT
+            // Phase 3 (PV_LAYOUT) : obstacles read-only — ne pas intercepter le clic, laisser PV_LAYOUT gérer
             if (
               CALPINAGE_STATE.obstacles &&
               CALPINAGE_STATE.obstacles.length > 0 &&
-              !window.CALPINAGE_IS_MANIPULATING
+              !window.CALPINAGE_IS_MANIPULATING &&
+              CALPINAGE_STATE.currentPhase !== "PV_LAYOUT"
             ) {
 
               var obsList = CALPINAGE_STATE.obstacles;
@@ -8093,12 +13744,17 @@ updateValidateButton();
                       if (m.originalType === "rect" && typeof handleHit.handle === "number") {
                         var hw0 = m.width / 2, hh0 = m.height / 2;
                         var opp = handleHit.handle === 0 ? 2 : handleHit.handle === 1 ? 3 : handleHit.handle === 2 ? 0 : 1;
-                        var cornersLocal = [{ x: -hw0, y: -hh0 }, { x: hw0, y: -hh0 }, { x: hw0, y: hh0 }, { x: -hw0, y: hh0 }];
-                        resizeStart.startCenter = { x: center.x, y: center.y };
-                        resizeStart.startWidth = m.width;
-                        resizeStart.startHeight = m.height;
-                        resizeStart.startAngle = typeof m.angle === "number" ? m.angle : 0;
-                        resizeStart.oppositeLocal = { x: cornersLocal[opp].x, y: cornersLocal[opp].y };
+                        var ang0 = typeof m.angle === "number" ? m.angle : 0;
+                        resizeStart.resizeMode = "corner";
+                        resizeStart.angleLock = ang0;
+                        resizeStart.fixedCornerWorld = obstacleRectCornerWorld(m.centerX, m.centerY, hw0, hh0, ang0, opp);
+                      } else if (m.originalType === "rect" && typeof handleHit.handle === "string" && /^e[0-3]$/.test(handleHit.handle)) {
+                        resizeStart.resizeMode = "edge";
+                        resizeStart.edgeIndex = parseInt(handleHit.handle.charAt(1), 10);
+                        resizeStart.angleLock = typeof m.angle === "number" ? m.angle : 0;
+                        resizeStart.edgeStartCenter = { x: m.centerX, y: m.centerY };
+                        resizeStart.edgeStartHw = m.width / 2;
+                        resizeStart.edgeStartHh = m.height / 2;
                       }
                       drawState.resizeObstacleStart = resizeStart;
 
@@ -8212,52 +13868,104 @@ updateValidateButton();
                 if (ctxHandles) ENG.recomputeBlock(focusBlock.id, window.PV_LAYOUT_RULES, ctxHandles);
               }
 
-              /* Hit-test poignées rotation / déplacement AVANT tout le reste (priorité poignées > panneaux > ghosts) */
-              var blockForHandles = focusBlock;
-              if (blockForHandles && typeof getManipulationHandlePositions === "function") {
-                var handles = getManipulationHandlePositions(blockForHandles);
-                if (handles) {
-                  var dxR = imgPt.x - handles.rotate.x, dyR = imgPt.y - handles.rotate.y;
-                  var dxM = imgPt.x - handles.move.x, dyM = imgPt.y - handles.move.y;
-                  var r2 = MANIPULATION_HANDLE_RADIUS_IMG * MANIPULATION_HANDLE_RADIUS_IMG;
-                  if (dxR * dxR + dyR * dyR <= r2) {
-                    if (typeof ENG.setActiveBlock === "function") ENG.setActiveBlock(blockForHandles.id);
-                    if (typeof ENG.beginManipulation === "function") ENG.beginManipulation(blockForHandles.id);
-                    window.CALPINAGE_IS_MANIPULATING = true;
-                    setInteractionState(InteractionStates.ROTATING);
-                    var centerImg = ENG.getBlockCenter && ENG.getBlockCenter(blockForHandles);
-                    calpinageHandleDrag = {
-                      type: "rotate",
-                      blockId: blockForHandles.id,
-                      startImg: { x: imgPt.x, y: imgPt.y },
-                      centerImg: centerImg || null,
-                      startAngleRad: centerImg ? Math.atan2(imgPt.y - centerImg.y, imgPt.x - centerImg.x) : 0,
-                      lastAngleRad: centerImg ? Math.atan2(imgPt.y - centerImg.y, imgPt.x - centerImg.x) : 0
-                    };
-                    try { canvasEl.setPointerCapture(e.pointerId); } catch(_) {}
-                    return;
+              /* Mode ajout Phase 3 : priorité ABSOLUE — clic sur un panneau DÉJÀ POSÉ du bloc focus => suppression seule (pas ghost, pas autofill, pas add). */
+              if (
+                drawState.activeTool !== "select" &&
+                window.CALPINAGE_INTERACTION_MODE !== "SELECT" &&
+                focusBlock &&
+                typeof hitTestFocusBlockPanelId === "function" &&
+                typeof ENG.removePanelById === "function"
+              ) {
+                var hitRmEarly = hitTestFocusBlockPanelId(imgPt);
+                if (hitRmEarly && hitRmEarly.panelId) {
+                  CALPINAGE_STATE.selectedPlacedPanelId = hitRmEarly.panelId;
+                  CALPINAGE_STATE.selectedPlacedBlockId = hitRmEarly.blockId;
+                  var blockRmEarly = ENG.getFocusBlock ? ENG.getFocusBlock() : focusBlock;
+                  var getCtxRmEarly = function () {
+                    return typeof getProjectionContextForBlock === "function" ? getProjectionContextForBlock(blockRmEarly) : null;
+                  };
+                  var isLastPanelEarly = blockRmEarly && blockRmEarly.panels && blockRmEarly.panels.length === 1;
+                  if (isLastPanelEarly && typeof window.requestCalpinageConfirm === "function") {
+                    window.requestCalpinageConfirm({
+                      title: "Supprimer ce bloc ?",
+                      description: "Le dernier panneau du bloc sera supprimé. Le bloc entier sera supprimé.",
+                      confirmLabel: "Supprimer",
+                      cancelLabel: "Annuler",
+                      onConfirm: function () {
+                        ENG.removePanelById(blockRmEarly, hitRmEarly.panelId, getCtxRmEarly);
+                        if (typeof setSafeZonePanelsDirty === "function") setSafeZonePanelsDirty();
+                        if (typeof ENG.removeBlock === "function") ENG.removeBlock(blockRmEarly.id);
+                        try {
+                          obstacleIntegrityNotifyPvAction("removeBlock");
+                        } catch (_nPvE) {}
+                        if (typeof recomputeAllPlacementBlocksFromRules === "function") recomputeAllPlacementBlocksFromRules(true);
+                        if (typeof pvSyncSaveRender === "function") pvSyncSaveRender();
+                      }
+                    });
+                  } else if (isLastPanelEarly) {
+                    if (typeof console !== "undefined" && console.error) console.error("[CALPINAGE] ConfirmProvider missing — destructive action blocked");
+                  } else {
+                    ENG.removePanelById(blockRmEarly, hitRmEarly.panelId, getCtxRmEarly);
+                    if (typeof setSafeZonePanelsDirty === "function") setSafeZonePanelsDirty();
+                    if (blockRmEarly.panels && blockRmEarly.panels.length === 0 && typeof ENG.removeBlock === "function") {
+                      ENG.removeBlock(blockRmEarly.id);
+                      try {
+                        obstacleIntegrityNotifyPvAction("removeBlock");
+                      } catch (_nPvE2) {}
+                    } else {
+                      try {
+                        obstacleIntegrityNotifyPvAction("removePanel");
+                      } catch (_nPvE3) {}
+                    }
+                    if (typeof recomputeAllPlacementBlocksFromRules === "function") recomputeAllPlacementBlocksFromRules(true);
+                    if (typeof pvSyncSaveRender === "function") pvSyncSaveRender();
                   }
-                  if (dxM * dxM + dyM * dyM <= r2) {
-                    if (typeof ENG.setActiveBlock === "function") ENG.setActiveBlock(blockForHandles.id);
-                    if (typeof ENG.beginManipulation === "function") ENG.beginManipulation(blockForHandles.id);
-                    window.CALPINAGE_IS_MANIPULATING = true;
-                    setInteractionState(InteractionStates.DRAGGING);
-                    var centerImgMove = ENG.getBlockCenter && ENG.getBlockCenter(blockForHandles);
-                    calpinageHandleDrag = {
-                      type: "move",
-                      blockId: blockForHandles.id,
-                      startImg: { x: imgPt.x, y: imgPt.y },
-                      centerImg: centerImgMove || null,
-                      startImgX: imgPt.x,
-                      startImgY: imgPt.y,
-                      lastImgX: imgPt.x,
-                      lastImgY: imgPt.y
-                    };
-                    try { canvasEl.setPointerCapture(e.pointerId); } catch(_) {}
+                  return;
+                }
+              }
+
+              /* Auto-remplissage live : clic sur ghost valide (aperçu UX) => toggle exclusion du lot ; aucune pose tant que Confirmer n'est pas utilisé. */
+              var modeAfClick = window.__CALPINAGE_AUTOFILL_MODE__;
+              if (
+                modeAfClick &&
+                modeAfClick.enabled &&
+                activeBlock &&
+                activeBlock.id === modeAfClick.sourceBlockId &&
+                typeof window.__getLiveAutofillRenderData === "function" &&
+                typeof pointInPolygonImage === "function"
+              ) {
+                var afDataClick = window.__getLiveAutofillRenderData();
+                if (afDataClick && !afDataClick.computeFailed && Array.isArray(afDataClick.items)) {
+                  var rawAfClick = afDataClick.items;
+                  var listAfClick = typeof window.__filterAutofillPreviewItemsForUx === "function"
+                    ? window.__filterAutofillPreviewItemsForUx(rawAfClick)
+                    : rawAfClick;
+                  for (var afc = listAfClick.length - 1; afc >= 0; afc--) {
+                    var itAf = listAfClick[afc];
+                    if (!itAf || !itAf.valid || !itAf.projection || !itAf.projection.points || itAf.projection.points.length < 3) continue;
+                    if (typeof itAf.iu !== "number" || typeof itAf.iv !== "number") continue;
+                    if (!pointInPolygonImage(imgPt, itAf.projection.points)) continue;
+                    if (typeof window.__ensureCalpinageAutofillSelection === "function") {
+                      window.__ensureCalpinageAutofillSelection(activeBlock);
+                    }
+                    var selT = window.__CALPINAGE_AUTOFILL_SELECTION__;
+                    if (!selT || !(selT.excludedKeys instanceof Set) || typeof window.__makeAutofillCellKey !== "function") break;
+                    var keyT = window.__makeAutofillCellKey(activeBlock.id, activeBlock.panId || null, itAf.iu, itAf.iv);
+                    if (selT.excludedKeys.has(keyT)) selT.excludedKeys.delete(keyT);
+                    else selT.excludedKeys.add(keyT);
+                    try {
+                      e.preventDefault();
+                      e.stopPropagation();
+                    } catch (peAf) {}
+                    window.__getLiveAutofillRenderData();
+                    if (typeof window.notifyPhase3SidebarUpdate === "function") window.notifyPhase3SidebarUpdate();
+                    if (typeof window.CALPINAGE_RENDER === "function") requestAnimationFrame(window.CALPINAGE_RENDER);
                     return;
                   }
                 }
               }
+
+              /* Hit-test poignées : traité en tête du pointerdown (bloc dataPvEarly avant pan fond). */
 
               /* MODE SELECT : aucun clic ne supprime. Sélection → manipulation (handles) → modification (menu / Suppr). */
 
@@ -8321,43 +14029,44 @@ updateValidateButton();
                 return;
               }
 
-              /* Mode "Ajouter panneaux" (CALPINAGE) : clic sur un panneau du bloc actif => supprimer ce panneau. Inactif en MODE SELECT. */
-              if (window.CALPINAGE_INTERACTION_MODE !== "SELECT") {
-                if (focusBlock && typeof hitTestFocusBlockPanelId === "function") {
-                  var hitRm = hitTestFocusBlockPanelId(imgPt);
-                  if (hitRm && hitRm.panelId) {
-                    CALPINAGE_STATE.selectedPlacedPanelId = hitRm.panelId;
-                    CALPINAGE_STATE.selectedPlacedBlockId = hitRm.blockId;
-                    var blockRm = ENG.getFocusBlock ? ENG.getFocusBlock() : focusBlock;
-                    var getCtxRm = function () { return (typeof getProjectionContextForBlock === "function" ? getProjectionContextForBlock(blockRm) : null); };
-                    if (blockRm && typeof ENG.removePanelById === "function") {
-                      var isLastPanel = blockRm.panels && blockRm.panels.length === 1;
-                      if (isLastPanel && typeof window.requestCalpinageConfirm === "function") {
-                        window.requestCalpinageConfirm({
-                          title: "Supprimer ce bloc ?",
-                          description: "Le dernier panneau du bloc sera supprimé. Le bloc entier sera supprimé.",
-                          confirmLabel: "Supprimer",
-                          cancelLabel: "Annuler",
-                          onConfirm: function () {
-                            ENG.removePanelById(blockRm, hitRm.panelId, getCtxRm);
-                            if (typeof ENG.removeBlock === "function") ENG.removeBlock(blockRm.id);
-                            if (typeof recomputeAllPlacementBlocksFromRules === "function") recomputeAllPlacementBlocksFromRules(true);
-                            if (typeof pvSyncSaveRender === "function") pvSyncSaveRender();
-                          }
-                        });
-                      } else if (isLastPanel) {
-                        if (typeof console !== "undefined" && console.error) console.error("[CALPINAGE] ConfirmProvider missing — destructive action blocked");
-                      } else {
-                        ENG.removePanelById(blockRm, hitRm.panelId, getCtxRm);
-                        if (blockRm.panels && blockRm.panels.length === 0 && typeof ENG.removeBlock === "function") {
-                          ENG.removeBlock(blockRm.id);
-                        }
-                        if (typeof recomputeAllPlacementBlocksFromRules === "function") recomputeAllPlacementBlocksFromRules(true);
-                        if (typeof pvSyncSaveRender === "function") pvSyncSaveRender();
-                      }
+              /* Mode « Ajouter panneaux » : ghost d'extension (après suppression panneau existant + autofill + branche select). */
+              if (
+                window.CALPINAGE_INTERACTION_MODE !== "SELECT" &&
+                window.PV_SELECTED_PANEL &&
+                activeBlock &&
+                typeof ENG.computeExpansionGhosts === "function" &&
+                typeof pointInPolygonImage === "function"
+              ) {
+                var getCtxGhostFirst = function () {
+                  return typeof getProjectionContextForBlock === "function" ? getProjectionContextForBlock(activeBlock) : null;
+                };
+                var _ctxGf = getCtxGhostFirst();
+                var _isFlatGf = _ctxGf && ((_ctxGf.roofType === "FLAT") || (_ctxGf.roofParams && _ctxGf.roofParams.roofType === "FLAT"));
+                var _prevGfSz = typeof window !== "undefined" ? window.__CALPINAGE_GHOST_SAFE_ZONE_OK__ : undefined;
+                try {
+                  if (_isFlatGf && typeof window.__CALPINAGE_GET_SAFE_ZONE_DATA_FOR_AUTOFILL_PAN__ === "function") {
+                    var _szGf = window.__CALPINAGE_GET_SAFE_ZONE_DATA_FOR_AUTOFILL_PAN__(activeBlock.panId);
+                    if (_szGf && _szGf.polys && _szGf.polys.length) {
+                      window.__CALPINAGE_GHOST_SAFE_ZONE_OK__ = function (pp) {
+                        return isPanelInsideSafeZone(pp, _szGf.polys, _szGf.edges);
+                      };
+                    }
+                  }
+                  var ghostsFirst = ENG.computeExpansionGhosts(activeBlock, getCtxGhostFirst);
+                  var gHitFirst = pickExpansionGhostUnderImagePoint(ghostsFirst, imgPt);
+                  if (gHitFirst && gHitFirst.center) {
+                    var resGf = ENG.addPanelAtCenter(activeBlock, gHitFirst.center, getCtxGhostFirst);
+                    if (resGf && resGf.success) {
+                      if (typeof window.showCalpinageUxToast === "function") window.showCalpinageUxToast("+1 panneau ajouté");
+                      if (typeof setSafeZonePanelsDirty === "function") setSafeZonePanelsDirty();
+                      if (typeof recomputeAllPlacementBlocksFromRules === "function") recomputeAllPlacementBlocksFromRules(true);
+                      if (typeof saveCalpinageState === "function") saveCalpinageState();
+                      if (typeof pvSyncSaveRender === "function") pvSyncSaveRender();
                     }
                     return;
                   }
+                } finally {
+                  if (typeof window !== "undefined") window.__CALPINAGE_GHOST_SAFE_ZONE_OK__ = _prevGfSz;
                 }
               }
 
@@ -8388,29 +14097,10 @@ updateValidateButton();
                 }
               }
 
-              /* Mode "panels" (Ajouter panneaux) : ghost add, create block, clearSelection. Aucune suppression au clic. */
+              /* Ghost mode ajout : pickExpansionGhostUnderImagePoint après hit panneau posé + autofill + select. */
               if (!window.PV_SELECTED_PANEL) ensurePVSelectedPanel();
               if (!window.PV_SELECTED_PANEL) console.log("[PV] Aucun panneau disponible");
 
-              /* Clic sur ghost => création panneau à cet emplacement */
-              if (window.PV_SELECTED_PANEL && activeBlock && typeof ENG.computeExpansionGhosts === "function" && typeof pointInPolygonImage === "function") {
-                var getCtxGhost = function () { return (typeof getProjectionContextForBlock === "function" ? getProjectionContextForBlock(activeBlock) : null); };
-                var ghosts = ENG.computeExpansionGhosts(activeBlock, getCtxGhost);
-                if (Array.isArray(ghosts)) {
-                  for (var gi = 0; gi < ghosts.length; gi++) {
-                    var g = ghosts[gi];
-                    if (g.projection && g.projection.points && g.projection.points.length >= 3 && pointInPolygonImage(imgPt, g.projection.points)) {
-                      var res = ENG.addPanelAtCenter(activeBlock, g.center, getCtxGhost);
-                      if (res && res.success) {
-                        if (typeof recomputeAllPlacementBlocksFromRules === "function") recomputeAllPlacementBlocksFromRules(true);
-                        if (typeof saveCalpinageState === "function") saveCalpinageState();
-                        if (typeof pvSyncSaveRender === "function") pvSyncSaveRender();
-                      }
-                      return;
-                    }
-                  }
-                }
-              }
               /* En mode "panels" : pas de sélection au clic sur un bloc figé (on ne fait rien). */
               /* 3b) Clic sur un autre pan que le bloc actif : figer le bloc courant et cr?er un nouveau bloc sur le pan cliqu? */
               var panAtPointEarly = null;
@@ -8425,8 +14115,9 @@ updateValidateButton();
                 ENG.endBlock();
                 window.PV_LAYOUT_STATE = PV_LAYOUT_FLOW.SELECT;
                 var rulesForCreate = Object.assign({}, window.PV_LAYOUT_RULES || {});
-                rulesForCreate.orientation = (rulesForCreate.orientation === "landscape" || rulesForCreate.orientation === "paysage") ? "PAYSAGE" : "PORTRAIT";
-                var virtualBlockNew = { panId: panAtPointEarly.id, orientation: rulesForCreate.orientation };
+                var normalizedOrientationNew = getDefaultBlockOrientationEngineForPan(panAtPointEarly);
+                rulesForCreate.orientation = normalizedOrientationNew === "PAYSAGE" ? "landscape" : "portrait";
+                var virtualBlockNew = { panId: panAtPointEarly.id, orientation: normalizedOrientationNew };
                 var ctxNew = (typeof getProjectionContextForBlock === "function") ? getProjectionContextForBlock(virtualBlockNew) : null;
                 var resultNew = ENG.createBlock(panAtPointEarly.id, { x: imgPt.x, y: imgPt.y }, rulesForCreate, ctxNew);
                 if (!resultNew.success && typeof window.showPvLayoutError === "function") {
@@ -8473,8 +14164,9 @@ updateValidateButton();
               }
               if (window.PV_SELECTED_PANEL && !activeBlock && panAtPoint) {
                 var rulesForCreate = Object.assign({}, window.PV_LAYOUT_RULES || {});
-                rulesForCreate.orientation = (rulesForCreate.orientation === "landscape" || rulesForCreate.orientation === "paysage") ? "PAYSAGE" : "PORTRAIT";
-                var virtualBlock = { panId: panAtPoint.id, orientation: rulesForCreate.orientation };
+                var normalizedOrientation = getDefaultBlockOrientationEngineForPan(panAtPoint);
+                rulesForCreate.orientation = normalizedOrientation === "PAYSAGE" ? "landscape" : "portrait";
+                var virtualBlock = { panId: panAtPoint.id, orientation: normalizedOrientation };
                 var ctxCreate = (typeof getProjectionContextForBlock === "function") ? getProjectionContextForBlock(virtualBlock) : null;
                 var result = ENG.createBlock(panAtPoint.id, { x: imgPt.x, y: imgPt.y }, rulesForCreate, ctxCreate);
                 if (result.success) {
@@ -8515,7 +14207,7 @@ updateValidateButton();
                 heightEditDraftValue = null;
                 heightEditInplaceRollbackValues = [];
               }
-              requestAnimationFrame(render);
+              requestAnimationFrame(safeRender);
               return;
             }
             /* Outil Obstacle — cercle : drag (1 clic, drag, release) ; rect : drag ; polygon : clic = point, fermeture par proximité du premier */
@@ -8535,13 +14227,15 @@ updateValidateButton();
                         id: id,
                         points: pts,
                         kind: "polygon",
-                        roofRole: "obstacle"
+                        roofRole: "obstacle",
+                        meta: buildObstacleMetaFromCatalogId(drawState.obstacleBusinessId || "generic_polygon_keepout"),
                       });
                       drawState.selectedObstacleIndex = CALPINAGE_STATE.obstacles.length - 1;
                       activeObs.points = [];
                       activeObs.hover = null;
                       saveCalpinageState();
                       if (typeof recomputeAllPlacementBlocksFromRules === "function") recomputeAllPlacementBlocksFromRules();
+                      if (typeof resetActiveToolToSelect === "function") resetActiveToolToSelect();
                       if (typeof requestAnimationFrame !== "undefined" && typeof window.CALPINAGE_RENDER === "function") requestAnimationFrame(window.CALPINAGE_RENDER);
                       return;
                     }
@@ -8628,14 +14322,19 @@ updateValidateButton();
                       setInteractionState(InteractionStates.RESIZING);
                       resizeStart = { index: selIdx, shapeMeta: JSON.parse(JSON.stringify(m)) };
                       if (m.originalType === "rect" && typeof handleHit.handle === "number") {
-                        var hw0 = m.width / 2, hh0 = m.height / 2;
-                        var opp = handleHit.handle === 0 ? 2 : handleHit.handle === 1 ? 3 : handleHit.handle === 2 ? 0 : 1;
-                        var cornersLocal = [{ x: -hw0, y: -hh0 }, { x: hw0, y: -hh0 }, { x: hw0, y: hh0 }, { x: -hw0, y: hh0 }];
-                        resizeStart.startCenter = { x: center.x, y: center.y };
-                        resizeStart.startWidth = m.width;
-                        resizeStart.startHeight = m.height;
-                        resizeStart.startAngle = typeof m.angle === "number" ? m.angle : 0;
-                        resizeStart.oppositeLocal = { x: cornersLocal[opp].x, y: cornersLocal[opp].y };
+                        var hw0c = m.width / 2, hh0c = m.height / 2;
+                        var oppc = handleHit.handle === 0 ? 2 : handleHit.handle === 1 ? 3 : handleHit.handle === 2 ? 0 : 1;
+                        var ang0c = typeof m.angle === "number" ? m.angle : 0;
+                        resizeStart.resizeMode = "corner";
+                        resizeStart.angleLock = ang0c;
+                        resizeStart.fixedCornerWorld = obstacleRectCornerWorld(m.centerX, m.centerY, hw0c, hh0c, ang0c, oppc);
+                      } else if (m.originalType === "rect" && typeof handleHit.handle === "string" && /^e[0-3]$/.test(handleHit.handle)) {
+                        resizeStart.resizeMode = "edge";
+                        resizeStart.edgeIndex = parseInt(handleHit.handle.charAt(1), 10);
+                        resizeStart.angleLock = typeof m.angle === "number" ? m.angle : 0;
+                        resizeStart.edgeStartCenter = { x: m.centerX, y: m.centerY };
+                        resizeStart.edgeStartHw = m.width / 2;
+                        resizeStart.edgeStartHh = m.height / 2;
                       }
                       drawState.resizeObstacleStart = resizeStart;
                       startInteraction({
@@ -8664,12 +14363,17 @@ updateValidateButton();
                 var imgCircle = screenToImage(screen);
                 drawState.obstacleCircleStartPoint = imgCircle;
                 var idCircle = typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : "obs-" + Date.now();
-                var ptsCircle = obstacleCircleToPoints(imgCircle.x, imgCircle.y, 0);
+                var _mppC = (CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.scale && CALPINAGE_STATE.roof.scale.metersPerPixel) || 1;
+                var _defC = getPlacementDefaults2D(drawState.obstacleBusinessId, _mppC);
+                var _r0 = _defC.defaultRadiusPx;
+                var _cx0 = imgCircle.x + _r0;
+                var _cy0 = imgCircle.y;
+                var ptsCircle = obstacleCircleToPoints(_cx0, _cy0, _r0);
                 CALPINAGE_STATE.obstacles.push({
                   id: idCircle,
                   type: "polygon",
                   points: ptsCircle,
-                  shapeMeta: { originalType: "circle", centerX: imgCircle.x, centerY: imgCircle.y, radius: 0 },
+                  shapeMeta: { originalType: "circle", centerX: _cx0, centerY: _cy0, radius: _r0 },
                 });
                 drawState.obstacleCircleTempIndex = CALPINAGE_STATE.obstacles.length - 1;
                 drawState.dragMode = "circleCreation";
@@ -8681,12 +14385,29 @@ updateValidateButton();
               if (drawState.activeTool === "obstacle" && drawState.obstacleShape === "rect") {
                 drawState.obstacleRectStartPoint = { x: imgPt.x, y: imgPt.y };
                 var id = typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : "obs-" + Date.now();
-                var pts = obstacleRectToPoints(imgPt.x, imgPt.y, 0.01, 0.01);
+                var _mppR = (CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.scale && CALPINAGE_STATE.roof.scale.metersPerPixel) || 1;
+                var _defR = getPlacementDefaults2D(drawState.obstacleBusinessId, _mppR);
+                var smInit = computeRectShapeMetaFromAnchorDrag(
+                  imgPt.x,
+                  imgPt.y,
+                  imgPt.x + _defR.defaultWidthPx,
+                  imgPt.y + _defR.defaultHeightPx,
+                  _mppR,
+                  drawState.obstacleBusinessId
+                );
+                var pts = obstacleRectToPoints(smInit.centerX, smInit.centerY, smInit.width, smInit.height, smInit.angle || 0);
                 CALPINAGE_STATE.obstacles.push({
                   id: id,
                   type: "polygon",
                   points: pts,
-                  shapeMeta: { originalType: "rect", centerX: imgPt.x, centerY: imgPt.y, width: 0, height: 0 },
+                  shapeMeta: {
+                    originalType: "rect",
+                    centerX: smInit.centerX,
+                    centerY: smInit.centerY,
+                    width: smInit.width,
+                    height: smInit.height,
+                    angle: smInit.angle || 0,
+                  },
                 });
                 drawState.obstacleRectTempIndex = CALPINAGE_STATE.obstacles.length - 1;
                 drawState.dragMode = "rectangleCreation";
@@ -8744,6 +14465,7 @@ updateValidateButton();
                   activeContour.hoverPoint = null;
                   saveCalpinageState();
                   if (typeof updateValidateButton === "function") updateValidateButton();
+                  if (typeof resetActiveToolToSelect === "function") resetActiveToolToSelect();
                   return;
                 }
               }
@@ -8754,6 +14476,7 @@ updateValidateButton();
                   drawState.selectedContourIndex = hcContour.contourIndex;
                   if (typeof hcContour.vertexIndex === "number") {
                     drawState.draggingVertexIndex = hcContour.vertexIndex;
+                    drawState.selectedContourVertexIndex = hcContour.vertexIndex;
                     drawState.dragMode = "contour-vertex";
                     drawState.dragBase = { contourIndex: drawState.selectedContourIndex, vertexIndex: drawState.draggingVertexIndex };
                     drawState.dragLastMouseImg = { x: imgPt.x, y: imgPt.y };
@@ -8815,14 +14538,25 @@ updateValidateButton();
               });
               drawState.measureLineStart = null;
               saveCalpinageState();
+              if (typeof resetActiveToolToSelect === "function") resetActiveToolToSelect();
               console.log("[MD] return mesure segment done");
               return;
             }
             /* Outil Trait ??? 2 clics = ligne ouverte (ar??te g?om?trique), snap automatique prioritaire ; attach stock? pour hauteurs (contour/fa??tage). */
             if (drawState.activeTool === "trait") {
+              var TRAIT_VERTEX_SNAP_DIST_PX = 18;
               /* S?lection contextuelle : clic sur trait existant = s?lection/drag sans ajouter de point */
               if (hit && hit.type === "trait") {
                 var ht = { traitIndex: hit.index, pointIndex: hit.subType === "segment" ? "segment" : hit.data.pointIndex };
+                var skipTraitSelection = false;
+                if (ht.pointIndex === "segment") {
+                  var tSelHit = CALPINAGE_STATE.traits[ht.traitIndex];
+                  var thresholdVertexImg = Math.max(0.5, TRAIT_VERTEX_SNAP_DIST_PX / vp.scale);
+                  var dA = Math.hypot(imgPt.x - tSelHit.a.x, imgPt.y - tSelHit.a.y);
+                  var dB = Math.hypot(imgPt.x - tSelHit.b.x, imgPt.y - tSelHit.b.y);
+                  if (dA < thresholdVertexImg || dB < thresholdVertexImg) skipTraitSelection = true;
+                }
+                if (!skipTraitSelection) {
                 drawState.selectedRoofExtensionIndex = null;
                 var tSel = CALPINAGE_STATE.traits[ht.traitIndex];
                 CALPINAGE_STATE.selectedPanId = null;
@@ -8856,23 +14590,26 @@ updateValidateButton();
                   drawState.dragBase = { traitIndex: ht.traitIndex };
                   drawState.dragLastMouseImg = null;
                 }
-                requestAnimationFrame(render);
+                requestAnimationFrame(safeRender);
+                return;
+                }
+              }
+              var traitPayload = commitStructuralSnapForTrait(imgPt);
+              if (!traitPayload || typeof traitPayload.x !== "number" || typeof traitPayload.y !== "number" || !Number.isFinite(traitPayload.x) || !Number.isFinite(traitPayload.y)) {
                 return;
               }
-              var buildingContours = (CALPINAGE_STATE.contours || []).filter(function (c) { return c.roofRole !== "chienAssis"; });
-              var snapEdge = snapToAllRoofEdges(imgPt, 15);
-              var snapped = snapPointToGeometry(imgPt, CALPINAGE_STATE.contours, CALPINAGE_STATE.traits, CALPINAGE_STATE.ridges, SNAP_DIST_PX);
-              var pt = snapEdge ? { x: snapEdge.x, y: snapEdge.y } : (snapped ? { x: snapped.x, y: snapped.y } : { x: imgPt.x, y: imgPt.y });
+              var pt = { x: traitPayload.x, y: traitPayload.y };
+              var snapSource = traitPayload.attach || null;
               if (drawState.traitLineStart == null) {
-                if (!snapEdge && !snapped) drawState.traitHintMessageUntil = Date.now() + 800;
-                drawState.traitLineStart = { x: pt.x, y: pt.y, source: snapped && snapped.source ? snapped.source : null };
+                if (!traitPayload.snapped) drawState.traitHintMessageUntil = Date.now() + 800;
+                drawState.traitLineStart = { x: pt.x, y: pt.y, source: snapSource };
                 drawState.lastMouseImage = { x: pt.x, y: pt.y };
-                requestAnimationFrame(render);
+                requestAnimationFrame(safeRender);
                 return;
               }
               var start = drawState.traitLineStart;
               var aAttach = start.source || null;
-              var bAttach = snapped && snapped.source ? snapped.source : null;
+              var bAttach = snapSource || null;
               var newTrait = {
                 id: typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : "t-" + Date.now(),
                 a: { x: start.x, y: start.y, attach: aAttach },
@@ -8887,8 +14624,10 @@ updateValidateButton();
               drawState.traitSnapPreview = null;
               drawState.traitSnapPreviewSource = null;
               drawState.traitSnapEdge = null;
+              drawState.traitFrozenStructuralSnap = null;
               saveCalpinageState();
-              requestAnimationFrame(render);
+              /* Outil trait : on reste en mode "trait" pour enchaîner les arêtes sans retour toolbar */
+              requestAnimationFrame(safeRender);
               return;
             }
             /* Outil Fa??tage ??? 2 points sur contour ou trait ; au clic on valide le point snap? au hover si pr?sent (collage ? l?approche). */
@@ -8935,25 +14674,30 @@ updateValidateButton();
                   drawState.dragBase = { ridgeIndex: drawState.selectedRidgeIndex, end: drawState.draggingRidgePoint === 0 ? "a" : "b" };
                   drawState.dragLastMouseImg = null;
                 }
-                requestAnimationFrame(render);
+                requestAnimationFrame(safeRender);
                 return;
               }
               var activeRidge = CALPINAGE_STATE.activeRidge;
-              var buildingContours = (CALPINAGE_STATE.contours || []).filter(function (c) { return c.roofRole !== "chienAssis"; });
-              var snapEdge = snapToRoofContourEdge(imgPt, buildingContours, 15);
-              var snapped = snapEdge ? { x: snapEdge.x, y: snapEdge.y, source: null } : (activeRidge.hoverSnap ? { x: activeRidge.hoverSnap.point.x, y: activeRidge.hoverSnap.point.y, source: activeRidge.hoverSnap.source || null } : snapPointToGeometry(imgPt, CALPINAGE_STATE.contours, CALPINAGE_STATE.traits, CALPINAGE_STATE.ridges, SNAP_DIST_PX));
-              if (!snapped) {
+              var snappedPayload = commitStructuralSnapForRidge(imgPt);
+              if (
+                !snappedPayload ||
+                typeof snappedPayload.x !== "number" ||
+                typeof snappedPayload.y !== "number" ||
+                !Number.isFinite(snappedPayload.x) ||
+                !Number.isFinite(snappedPayload.y)
+              ) {
                 if (!activeRidge.a) {
                   drawState.ridgeHintMessageUntil = Date.now() + 800;
-                  requestAnimationFrame(render);
-                  setTimeout(function () { requestAnimationFrame(render); }, 850);
+                  requestAnimationFrame(safeRender);
+                  setTimeout(function () { requestAnimationFrame(safeRender); }, 850);
                 }
                 return;
               }
+              var attachEnd = snappedPayload.attach || null;
               if (!activeRidge.a) {
-                activeRidge.a = { x: snapped.x, y: snapped.y, attach: snapped.source || null };
+                activeRidge.a = { x: snappedPayload.x, y: snappedPayload.y, attach: attachEnd };
               } else {
-                activeRidge.b = { x: snapped.x, y: snapped.y, attach: snapped.source || null };
+                activeRidge.b = { x: snappedPayload.x, y: snappedPayload.y, attach: attachEnd };
                 CALPINAGE_STATE.ridges.push({
                   id: (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : "r-" + Date.now(),
                   a: { x: activeRidge.a.x, y: activeRidge.a.y, attach: activeRidge.a.attach || null },
@@ -8965,9 +14709,11 @@ updateValidateButton();
                 activeRidge.hover = null;
                 activeRidge.hoverSnap = null;
                 activeRidge.snapEdge = null;
+                activeRidge.frozenStructuralSnap = null;
                 recomputeRoofPlanes();
                 saveCalpinageState();
                 if (typeof updateValidateButton === "function") updateValidateButton();
+                if (typeof resetActiveToolToSelect === "function") resetActiveToolToSelect();
               }
               console.log("[MD] return ridge");
               return;
@@ -9021,14 +14767,19 @@ updateValidateButton();
                       setInteractionState(InteractionStates.RESIZING);
                       resizeStart = { index: selIdx, shapeMeta: JSON.parse(JSON.stringify(m)) };
                       if (m.originalType === "rect" && typeof handleHit.handle === "number") {
-                        var hw0 = m.width / 2, hh0 = m.height / 2;
-                        var opp = handleHit.handle === 0 ? 2 : handleHit.handle === 1 ? 3 : handleHit.handle === 2 ? 0 : 1;
-                        var cornersLocal = [{ x: -hw0, y: -hh0 }, { x: hw0, y: -hh0 }, { x: hw0, y: hh0 }, { x: -hw0, y: hh0 }];
-                        resizeStart.startCenter = { x: center.x, y: center.y };
-                        resizeStart.startWidth = m.width;
-                        resizeStart.startHeight = m.height;
-                        resizeStart.startAngle = typeof m.angle === "number" ? m.angle : 0;
-                        resizeStart.oppositeLocal = { x: cornersLocal[opp].x, y: cornersLocal[opp].y };
+                        var hw0b = m.width / 2, hh0b = m.height / 2;
+                        var oppb = handleHit.handle === 0 ? 2 : handleHit.handle === 1 ? 3 : handleHit.handle === 2 ? 0 : 1;
+                        var ang0b = typeof m.angle === "number" ? m.angle : 0;
+                        resizeStart.resizeMode = "corner";
+                        resizeStart.angleLock = ang0b;
+                        resizeStart.fixedCornerWorld = obstacleRectCornerWorld(m.centerX, m.centerY, hw0b, hh0b, ang0b, oppb);
+                      } else if (m.originalType === "rect" && typeof handleHit.handle === "string" && /^e[0-3]$/.test(handleHit.handle)) {
+                        resizeStart.resizeMode = "edge";
+                        resizeStart.edgeIndex = parseInt(handleHit.handle.charAt(1), 10);
+                        resizeStart.angleLock = typeof m.angle === "number" ? m.angle : 0;
+                        resizeStart.edgeStartCenter = { x: m.centerX, y: m.centerY };
+                        resizeStart.edgeStartHw = m.width / 2;
+                        resizeStart.edgeStartHh = m.height / 2;
                       }
                       drawState.resizeObstacleStart = resizeStart;
                       startInteraction({
@@ -9270,10 +15021,28 @@ updateValidateButton();
                 drawState.draggingTraitSegmentStart = null;
                 if (typeof hc.vertexIndex === "number") {
                   drawState.draggingVertexIndex = hc.vertexIndex;
+                  drawState.selectedContourVertexIndex = hc.vertexIndex;
                   drawState.dragMode = "contour-vertex";
                   drawState.dragBase = { contourIndex: drawState.selectedContourIndex, vertexIndex: drawState.draggingVertexIndex };
                   drawState.dragLastMouseImg = { x: imgPt.x, y: imgPt.y };
                   drawState.snapPreview = null;
+                } else if (typeof hc.segmentIndex === "number") {
+                  /* Clic sur arête : edge-split ou déplacement pan selon mouvement réel.
+                   * La décision est différée au pointermove (seuil 5 px écran).
+                   * dragBase.edgeSplitPending = true → edge-split au pointerup si pas de drag.
+                   * dragBase.edgeSplitPending = false → contour-move activé dans pointermove. */
+                  drawState.selectedContourVertexIndex = null;
+                  drawState.dragMode = "contour-pending";
+                  drawState.dragBase = {
+                    contourIndex: drawState.selectedContourIndex,
+                    segmentIndex: hc.segmentIndex,
+                    clickImgPt: { x: imgPt.x, y: imgPt.y },
+                    edgeSplitPending: true,
+                  };
+                  drawState.dragLastMouseImg = { x: imgPt.x, y: imgPt.y };
+                  drawState.snapPreview = null;
+                } else {
+                  drawState.selectedContourVertexIndex = null;
                 }
                 console.log("[MD] return select hit contour");
                 return;
@@ -9281,8 +15050,12 @@ updateValidateButton();
               var hitPan = hitTestPan(imgPt);
               if (!CALPINAGE_STATE.heightEditMode && !hitPan && !CALPINAGE_STATE.editingPanId) {
                 drawState.selectedRoofExtensionIndex = null;
-                CALPINAGE_STATE.selectedPanId = null;
-                if (typeof CalpinagePans !== "undefined" && CalpinagePans.panState) CalpinagePans.panState.activePanId = null;
+                if (CALPINAGE_STATE.currentPhase === "PV_LAYOUT") {
+                  setPhase3ActivePan(null, "canvas-no-pan-hit");
+                } else {
+                  CALPINAGE_STATE.selectedPanId = null;
+                  if (typeof CalpinagePans !== "undefined" && CalpinagePans.panState) CalpinagePans.panState.activePanId = null;
+                }
                 CALPINAGE_STATE.selected = { type: null, id: null, pointIndex: null };
                 drawState.isSelectingBox = false;
                 drawState.selectionBoxStart = null;
@@ -9305,13 +15078,13 @@ updateValidateButton();
                 if (hitVert) {
                   CALPINAGE_STATE.selectedPointId = hitVert.panId + "-" + hitVert.pointIndex;
                   updatePansListUI();
-                  requestAnimationFrame(render);
+                  requestAnimationFrame(safeRender);
                   console.log("[MD] return select hit pan vertex");
                   return;
                 }
                 if (hitPan && hitPan.id === CALPINAGE_STATE.editingPanId) {
                   /* Clic sur le pan en ?dition mais pas sur un sommet : garder l??tat */
-                  requestAnimationFrame(render);
+                  requestAnimationFrame(safeRender);
                   return;
                 }
                 /* Clic hors pan en ?dition : quitter le mode ?dition */
@@ -9322,7 +15095,7 @@ updateValidateButton();
                   if (typeof CalpinagePans !== "undefined" && CalpinagePans.panState) CalpinagePans.panState.activePanId = null;
                 }
                 updatePansListUI();
-                requestAnimationFrame(render);
+                requestAnimationFrame(safeRender);
                 if (hitPan) {
                   CALPINAGE_STATE.selectedPanId = hitPan.id;
                   if (typeof CalpinagePans !== "undefined" && CalpinagePans.recomputePanPhysicalProps) CalpinagePans.recomputePanPhysicalProps(hitPan, getStateForPans());
@@ -9341,8 +15114,12 @@ updateValidateButton();
                 return;
               }
               if (hitPan) {
-                CALPINAGE_STATE.selectedPanId = hitPan.id;
-                if (typeof CalpinagePans !== "undefined" && CalpinagePans.panState) CalpinagePans.panState.activePanId = hitPan.id;
+                if (CALPINAGE_STATE.currentPhase === "PV_LAYOUT") {
+                  setPhase3ActivePan(hitPan.id, "canvas-hit-pan");
+                } else {
+                  CALPINAGE_STATE.selectedPanId = hitPan.id;
+                  if (typeof CalpinagePans !== "undefined" && CalpinagePans.panState) CalpinagePans.panState.activePanId = hitPan.id;
+                }
                 CALPINAGE_STATE.selectedPointId = null;
                 if (typeof CalpinagePans !== "undefined" && CalpinagePans.recomputePanPhysicalProps) CalpinagePans.recomputePanPhysicalProps(hitPan, getStateForPans());
                 updatePansListUI();
@@ -9366,8 +15143,12 @@ updateValidateButton();
                 return;
               }
               CALPINAGE_STATE.selected = { type: null, id: null, pointIndex: null };
-              CALPINAGE_STATE.selectedPanId = null;
-              if (typeof CalpinagePans !== "undefined" && CalpinagePans.panState) CalpinagePans.panState.activePanId = null;
+              if (CALPINAGE_STATE.currentPhase === "PV_LAYOUT") {
+                setPhase3ActivePan(null, "canvas-fallthrough-no-pan");
+              } else {
+                CALPINAGE_STATE.selectedPanId = null;
+                if (typeof CalpinagePans !== "undefined" && CalpinagePans.panState) CalpinagePans.panState.activePanId = null;
+              }
               CALPINAGE_STATE.editingPanId = null;
               CALPINAGE_STATE.selectedPointId = null;
               CALPINAGE_STATE.selectedHeightPoint = null;
@@ -9424,11 +15205,11 @@ updateValidateButton();
               var screen = getMouseScreen(e);
               var imgPt = screenToImage(screen);
               var hitPan = hitTestPan(imgPt);
-              if (hitPan && CALPINAGE_STATE.selectedPanId === hitPan.id) {
+              if (hitPan && samePanId(CALPINAGE_STATE.selectedPanId, hitPan.id)) {
                 CALPINAGE_STATE.editingPanId = hitPan.id;
                 CALPINAGE_STATE.selectedPointId = null;
                 updatePansListUI();
-                requestAnimationFrame(render);
+                requestAnimationFrame(safeRender);
                 console.log("[MD] enter pan edit mode");
                 return;
               }
@@ -9468,19 +15249,88 @@ updateValidateButton();
               activeContour.hoverPoint = null;
               saveCalpinageState();
               if (typeof updateValidateButton === "function") updateValidateButton();
+              if (typeof resetActiveToolToSelect === "function") resetActiveToolToSelect();
             }
           });
 
+          /**
+           * Drag poignées Phase 3.
+           * Navigateurs avec Pointer Events : uniquement pointermove (window) — évite le doublon mousemove+pointermove.
+           * Fallback sans PointerEvent : mousemove via handleWindowMousemove.
+           */
+          function stepPvHandleManipFromEvent(e) {
+            if (!window.CALPINAGE_IS_MANIPULATING || !calpinageHandleDrag) return false;
+            var screenPt = getMouseScreen(e);
+            var imgPtPv = screenToImage(screenPt);
+            var ENGwm = window.pvPlacementEngine;
+            if (!ENGwm || typeof ENGwm.setManipulationTransform !== "function") return true;
+            if (calpinageHandleDrag.type === "move") {
+              drawState.ph3RotateShiftSnap = false;
+              var dxPv = imgPtPv.x - calpinageHandleDrag.startImgX;
+              var dyPv = imgPtPv.y - calpinageHandleDrag.startImgY;
+              ENGwm.setManipulationTransform(dxPv, dyPv, 0);
+            } else if (calpinageHandleDrag.type === "rotate") {
+              var cImgPv = calpinageHandleDrag.centerImg;
+              if (cImgPv) {
+                var anglePv = Math.atan2(imgPtPv.y - cImgPv.y, imgPtPv.x - cImgPv.x);
+                var deltaPv = anglePv - calpinageHandleDrag.startAngleRad;
+                var deltaDeg = deltaPv * (180 / Math.PI);
+                var shiftSnap = !!(e && e.shiftKey);
+                drawState.ph3RotateShiftSnap = shiftSnap;
+                if (shiftSnap) {
+                  var stepDeg = 15;
+                  deltaDeg = Math.round(deltaDeg / stepDeg) * stepDeg;
+                }
+                drawState.ph3RotationLiveDeg = deltaDeg;
+                ENGwm.setManipulationTransform(0, 0, deltaDeg);
+              }
+            }
+            if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
+            return true;
+          }
+
+          function handleWindowPointermoveForPv(e) {
+            if (stepPvHandleManipFromEvent(e)) {
+              try {
+                e.preventDefault();
+              } catch (_pe) {}
+            }
+          }
+
           var handleWindowMousemove = function (e) {
+            /* Priorité absolue : drag poignées PV si pas Pointer Events (sinon déjà géré par pointermove seul). */
+            if (typeof PointerEvent === "undefined" && stepPvHandleManipFromEvent(e)) {
+              return;
+            }
             var screen = getMouseScreen(e);
             var imgPt = screenToImage(screen);
+            // Phase 3: obstacles read-only — neutraliser toute manip obstacle en cours (edge-case)
+            if (CALPINAGE_STATE && CALPINAGE_STATE.currentPhase === "PV_LAYOUT") {
+              var hasObstacleManip = drawState.draggingObstacleHandle != null || drawState.draggingObstacleOffset != null || drawState.draggingVertex != null;
+              if (hasObstacleManip) {
+                drawState.draggingObstacleHandle = null;
+                drawState.draggingObstacleOffset = null;
+                drawState.draggingVertex = null;
+                drawState.resizeObstacleStart = null;
+                drawState.selectedObstacleIndex = null;
+                if (drawState.activePointerId != null && canvasEl && typeof canvasEl.releasePointerCapture === "function") {
+                  try { canvasEl.releasePointerCapture(drawState.activePointerId); } catch (_) {}
+                  drawState.activePointerId = null;
+                }
+                if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
+                return;
+              }
+            }
             if (drawState.draggingObstacleHandle != null && drawState.resizeObstacleStart != null) {
-              var MIN_OBSTACLE_PX = 10;
               var obsList = CALPINAGE_STATE.obstacles || [];
               var start = drawState.resizeObstacleStart;
               var o = obsList[start.index];
               if (!o || !o.shapeMeta) return;
               var m = o.shapeMeta;
+              var _mppObs = (CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.scale && CALPINAGE_STATE.roof.scale.metersPerPixel) || 1;
+              var _tpmObs = technicalMinObstaclePixels(_mppObs);
+              var MIN_OBSTACLE_PX = Math.max(_tpmObs.minW, _tpmObs.minH);
+              var MIN_OBSTACLE_RADIUS_PX = _tpmObs.minR;
               var h = drawState.draggingObstacleHandle;
               if (h === "rotate") {
                 var a = Math.atan2(imgPt.y - start.cy, imgPt.x - start.cx);
@@ -9491,36 +15341,21 @@ updateValidateButton();
               }
               if (m.originalType === "circle" && h === "radius") {
                 var r = Math.hypot(imgPt.x - m.centerX, imgPt.y - m.centerY);
-                m.radius = Math.max(MIN_OBSTACLE_PX, r);
+                m.radius = Math.max(MIN_OBSTACLE_RADIUS_PX, r);
                 obstacleRecalcFromShapeMeta(o);
                 updateInteraction({ imgPt: { x: imgPt.x, y: imgPt.y }, radius: m.radius });
                 return;
               }
-              if (m.originalType === "rect" && typeof h === "number" && start.oppositeLocal) {
-                var cx0 = start.startCenter.x, cy0 = start.startCenter.y;
-                var a0 = start.startAngle;
-                var c = Math.cos(a0), s = Math.sin(a0);
-                var dx = imgPt.x - cx0, dy = imgPt.y - cy0;
-                var mouseLocalX = dx * c + dy * s;
-                var mouseLocalY = -dx * s + dy * c;
-                var ox = start.oppositeLocal.x, oy = start.oppositeLocal.y;
-                var newW = Math.max(MIN_OBSTACLE_PX, Math.abs(mouseLocalX - ox));
-                var newH = Math.max(MIN_OBSTACLE_PX, Math.abs(mouseLocalY - oy));
-                if (e.shiftKey) {
-                  var sq = Math.max(newW, newH);
-                  newW = sq;
-                  newH = sq;
-                }
-                var newCenterLocalX = (mouseLocalX + ox) / 2;
-                var newCenterLocalY = (mouseLocalY + oy) / 2;
-                var newCenterWorldX = cx0 + newCenterLocalX * c - newCenterLocalY * s;
-                var newCenterWorldY = cy0 + newCenterLocalX * s + newCenterLocalY * c;
-                m.width = newW;
-                m.height = newH;
-                m.centerX = newCenterWorldX;
-                m.centerY = newCenterWorldY;
+              if (m.originalType === "rect" && start.resizeMode === "edge") {
+                obstacleRectResizeFromEdgeDrag(m, imgPt, start, MIN_OBSTACLE_PX);
                 obstacleRecalcFromShapeMeta(o);
-                updateInteraction({ imgPt: { x: imgPt.x, y: imgPt.y }, width: newW, height: newH });
+                updateInteraction({ imgPt: { x: imgPt.x, y: imgPt.y }, width: m.width, height: m.height });
+                return;
+              }
+              if (m.originalType === "rect" && start.resizeMode === "corner" && start.fixedCornerWorld) {
+                obstacleRectResizeFromCornerDrag(m, imgPt, start, MIN_OBSTACLE_PX, !!(e && e.shiftKey));
+                obstacleRecalcFromShapeMeta(o);
+                updateInteraction({ imgPt: { x: imgPt.x, y: imgPt.y }, width: m.width, height: m.height });
                 return;
               }
               return;
@@ -9615,6 +15450,39 @@ updateValidateButton();
               // 3) pendant drag : PAS de recompute, PAS de save
               return;
             }
+            if (drawState.dragMode === "contour-pending" && drawState.dragBase && drawState.dragLastMouseImg) {
+              /* Décision différée : si le curseur a bougé de plus de 5 px écran,
+               * basculer en contour-move (déplacement pan entier). */
+              var _cpScreenNow = getMouseScreen(e);
+              var _cpScreenStart = imageToScreen(drawState.dragLastMouseImg);
+              var _cpDragDist = Math.hypot(_cpScreenNow.x - _cpScreenStart.x, _cpScreenNow.y - _cpScreenStart.y);
+              if (_cpDragDist > 5) {
+                drawState.dragBase.edgeSplitPending = false;
+                drawState.dragMode = "contour-move";
+                drawState.dragLastMouseImg = { x: imgPt.x, y: imgPt.y };
+              }
+              /* Pas de mouvement de points avant la décision */
+              if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
+              return;
+            }
+            if (drawState.dragMode === "contour-move" && drawState.dragBase && drawState.dragLastMouseImg) {
+              /* Déplacement du pan entier : translation de tous les sommets */
+              var _cmCi = drawState.dragBase.contourIndex;
+              var _cmC = (CALPINAGE_STATE.contours || [])[_cmCi];
+              if (_cmC && _cmC.points) {
+                var _cmDx = imgPt.x - drawState.dragLastMouseImg.x;
+                var _cmDy = imgPt.y - drawState.dragLastMouseImg.y;
+                drawState.dragLastMouseImg = { x: imgPt.x, y: imgPt.y };
+                for (var _cmPi = 0; _cmPi < _cmC.points.length; _cmPi++) {
+                  _cmC.points[_cmPi] = clonePointPreserveHeight(_cmC.points[_cmPi], {
+                    x: _cmC.points[_cmPi].x + _cmDx,
+                    y: _cmC.points[_cmPi].y + _cmDy,
+                  });
+                }
+              }
+              if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
+              return;
+            }
             if (drawState.draggingMesureStartImage !== null && drawState.selectedMesureIndex !== null) {
               var m = CALPINAGE_STATE.measures[drawState.selectedMesureIndex];
               if (m && m.a && m.b) {
@@ -9639,6 +15507,21 @@ updateValidateButton();
                 drawState.dragLastMouseImg = { x: imgPt.x, y: imgPt.y };
                 r.a.x += dx; r.a.y += dy;
                 r.b.x += dx; r.b.y += dy;
+                /* Fix-move: propager les endpoints liés en temps réel */
+                var _attMRA = r.a.attach;
+                if (_attMRA && typeof _attMRA === "object" && _attMRA.type === "trait" &&
+                    typeof _attMRA.id === "string" && (_attMRA.pointIndex === 0 || _attMRA.pointIndex === 1)) {
+                  propagateExplicitTraitJunction(CALPINAGE_STATE.traits, CALPINAGE_STATE.ridges, _attMRA.id, _attMRA.pointIndex, r.a.x, r.a.y);
+                } else {
+                  propagateExplicitTraitJunction(CALPINAGE_STATE.traits, CALPINAGE_STATE.ridges, r.id, 0, r.a.x, r.a.y);
+                }
+                var _attMRB = r.b.attach;
+                if (_attMRB && typeof _attMRB === "object" && _attMRB.type === "trait" &&
+                    typeof _attMRB.id === "string" && (_attMRB.pointIndex === 0 || _attMRB.pointIndex === 1)) {
+                  propagateExplicitTraitJunction(CALPINAGE_STATE.traits, CALPINAGE_STATE.ridges, _attMRB.id, _attMRB.pointIndex, r.b.x, r.b.y);
+                } else {
+                  propagateExplicitTraitJunction(CALPINAGE_STATE.traits, CALPINAGE_STATE.ridges, r.id, 1, r.b.x, r.b.y);
+                }
                 recomputeRoofPlanes();
                 saveCalpinageState();
               }
@@ -9650,6 +15533,14 @@ updateValidateButton();
 
               r.a.x = imgPt.x;
               r.a.y = imgPt.y;
+
+              /* Fix3-ridge: si ce endpoint est alias d'un trait canonique, propager vers lui
+                 (ce qui entraîne aussi tous les autres alias du même sommet — traits et ridges) */
+              var _attLiveRA = r.a.attach;
+              if (_attLiveRA && typeof _attLiveRA === "object" && _attLiveRA.type === "trait" &&
+                  typeof _attLiveRA.id === "string" && (_attLiveRA.pointIndex === 0 || _attLiveRA.pointIndex === 1)) {
+                propagateExplicitTraitJunction(CALPINAGE_STATE.traits, CALPINAGE_STATE.ridges, _attLiveRA.id, _attLiveRA.pointIndex, imgPt.x, imgPt.y);
+              }
 
               var sp = snapPointToGeometry(
                 imgPt,
@@ -9668,6 +15559,13 @@ updateValidateButton();
 
               r.b.x = imgPt.x;
               r.b.y = imgPt.y;
+
+              /* Fix3-ridge: même logique que endA pour endB */
+              var _attLiveRB = r.b.attach;
+              if (_attLiveRB && typeof _attLiveRB === "object" && _attLiveRB.type === "trait" &&
+                  typeof _attLiveRB.id === "string" && (_attLiveRB.pointIndex === 0 || _attLiveRB.pointIndex === 1)) {
+                propagateExplicitTraitJunction(CALPINAGE_STATE.traits, CALPINAGE_STATE.ridges, _attLiveRB.id, _attLiveRB.pointIndex, imgPt.x, imgPt.y);
+              }
 
               var sp = snapPointToGeometry(
                 imgPt,
@@ -9689,6 +15587,21 @@ updateValidateButton();
                 drawState.dragLastMouseImg = { x: imgPt.x, y: imgPt.y };
                 t.a.x += dx; t.a.y += dy;
                 t.b.x += dx; t.b.y += dy;
+                /* Fix-move: propager les endpoints liés en temps réel */
+                var _attMTA = t.a.attach;
+                if (_attMTA && typeof _attMTA === "object" && _attMTA.type === "trait" &&
+                    typeof _attMTA.id === "string" && (_attMTA.pointIndex === 0 || _attMTA.pointIndex === 1)) {
+                  propagateExplicitTraitJunction(CALPINAGE_STATE.traits, CALPINAGE_STATE.ridges, _attMTA.id, _attMTA.pointIndex, t.a.x, t.a.y);
+                } else {
+                  propagateExplicitTraitJunction(CALPINAGE_STATE.traits, CALPINAGE_STATE.ridges, t.id, 0, t.a.x, t.a.y);
+                }
+                var _attMTB = t.b.attach;
+                if (_attMTB && typeof _attMTB === "object" && _attMTB.type === "trait" &&
+                    typeof _attMTB.id === "string" && (_attMTB.pointIndex === 0 || _attMTB.pointIndex === 1)) {
+                  propagateExplicitTraitJunction(CALPINAGE_STATE.traits, CALPINAGE_STATE.ridges, _attMTB.id, _attMTB.pointIndex, t.b.x, t.b.y);
+                } else {
+                  propagateExplicitTraitJunction(CALPINAGE_STATE.traits, CALPINAGE_STATE.ridges, t.id, 1, t.b.x, t.b.y);
+                }
                 recomputeRoofPlanes();
                 saveCalpinageState();
               }
@@ -9700,6 +15613,17 @@ updateValidateButton();
 
               t.a.x = imgPt.x;
               t.a.y = imgPt.y;
+
+              /* Fix3: propagation visuelle temps réel — les endpoints liés suivent le curseur */
+              var _attLiveA = t.a.attach;
+              if (_attLiveA && typeof _attLiveA === "object" && _attLiveA.type === "trait" &&
+                  typeof _attLiveA.id === "string" && (_attLiveA.pointIndex === 0 || _attLiveA.pointIndex === 1)) {
+                /* t.a est alias → propager vers le canonique (qui propagera lui-même vers ses autres alias) */
+                propagateExplicitTraitJunction(CALPINAGE_STATE.traits, CALPINAGE_STATE.ridges, _attLiveA.id, _attLiveA.pointIndex, imgPt.x, imgPt.y);
+              } else {
+                /* t.a est canonique → propager vers tous ses alias */
+                propagateExplicitTraitJunction(CALPINAGE_STATE.traits, CALPINAGE_STATE.ridges, t.id, 0, imgPt.x, imgPt.y);
+              }
 
               var sp = snapPointToGeometry(
                 imgPt,
@@ -9719,6 +15643,17 @@ updateValidateButton();
               t.b.x = imgPt.x;
               t.b.y = imgPt.y;
 
+              /* Fix3: propagation visuelle temps réel pour endB */
+              var _attLiveB = t.b.attach;
+              if (_attLiveB && typeof _attLiveB === "object" && _attLiveB.type === "trait" &&
+                  typeof _attLiveB.id === "string" && (_attLiveB.pointIndex === 0 || _attLiveB.pointIndex === 1)) {
+                /* t.b est alias → propager vers le canonique */
+                propagateExplicitTraitJunction(CALPINAGE_STATE.traits, CALPINAGE_STATE.ridges, _attLiveB.id, _attLiveB.pointIndex, imgPt.x, imgPt.y);
+              } else {
+                /* t.b est canonique → propager vers tous ses alias */
+                propagateExplicitTraitJunction(CALPINAGE_STATE.traits, CALPINAGE_STATE.ridges, t.id, 1, imgPt.x, imgPt.y);
+              }
+
               var sp = snapPointToGeometry(
                 imgPt,
                 CALPINAGE_STATE.contours,
@@ -9730,7 +15665,7 @@ updateValidateButton();
 
               return;
             }
-            if (panStart) {
+            if (panStart && !window.CALPINAGE_IS_MANIPULATING) {
               var dx = e.clientX - panStart.x;
               var dy = e.clientY - panStart.y;
               panStart = { x: e.clientX, y: e.clientY };
@@ -9742,17 +15677,43 @@ updateValidateButton();
             }
           };
           window.addEventListener("mousemove", handleWindowMousemove);
+          if (typeof PointerEvent !== "undefined") {
+            window.addEventListener("pointermove", handleWindowPointermoveForPv, { passive: false });
+          }
           function handlePointerOrMouseUp(e) {
+            /* Phase 3 poignées : finaliser uniquement sur relâchement bouton principal (évite état zombie si autre bouton enfoncé). */
+            var pvHandleActive =
+              CALPINAGE_STATE.currentPhase === "PV_LAYOUT" &&
+              window.CALPINAGE_IS_MANIPULATING &&
+              calpinageHandleDrag;
+            if (pvHandleActive) {
+              if (typeof e.button === "number" && e.button !== 0) {
+                return;
+              }
+            } else if (
+              window.CALPINAGE_IS_MANIPULATING &&
+              typeof e.buttons === "number" &&
+              e.buttons !== 0
+            ) {
+              return;
+            }
             if (drawState.dragMode === "circleCreation") {
               var obsCircleUp = CALPINAGE_STATE.obstacles[drawState.obstacleCircleTempIndex];
-              if (!obsCircleUp || !obsCircleUp.shapeMeta || (obsCircleUp.shapeMeta.radius || 0) < 3) {
+              var _mppCu = (CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.scale && CALPINAGE_STATE.roof.scale.metersPerPixel) || 1;
+              var _tpmCu = technicalMinObstaclePixels(_mppCu);
+              var _discardCircleR = Math.max(_tpmCu.minR * 1.25, 2);
+              if (!obsCircleUp || !obsCircleUp.shapeMeta || (obsCircleUp.shapeMeta.radius || 0) < _discardCircleR) {
                 CALPINAGE_STATE.obstacles.pop();
                 if (typeof saveCalpinageState === "function") saveCalpinageState();
               } else {
                 drawState.selectedObstacleIndex = drawState.obstacleCircleTempIndex;
-                drawState.activeTool = "select";
+                var obsCircFin = CALPINAGE_STATE.obstacles[drawState.obstacleCircleTempIndex];
+                if (obsCircFin && drawState.obstacleBusinessId) {
+                  obsCircFin.meta = buildObstacleMetaFromCatalogId(drawState.obstacleBusinessId);
+                }
                 if (typeof saveCalpinageState === "function") saveCalpinageState();
                 if (typeof recomputeAllPlacementBlocksFromRules === "function") recomputeAllPlacementBlocksFromRules();
+                if (typeof resetActiveToolToSelect === "function") resetActiveToolToSelect();
               }
               drawState.dragMode = null;
               drawState.obstacleCircleStartPoint = null;
@@ -9770,22 +15731,19 @@ updateValidateButton();
               var obs = idx != null && idx >= 0 && idx < obstacles.length ? obstacles[idx] : null;
               var sp = drawState.obstacleRectStartPoint;
               if (obs && obs.shapeMeta && sp) {
-                var dx = obs.shapeMeta.width || 0;
-                var dy = obs.shapeMeta.height || 0;
-                var ww = Math.abs(dx);
-                var hh = Math.abs(dy);
-                if (ww >= 3 && hh >= 3) {
-                  var cx = sp.x + dx / 2;
-                  var cy = sp.y + dy / 2;
-                  obs.shapeMeta.centerX = cx;
-                  obs.shapeMeta.centerY = cy;
-                  obs.shapeMeta.width = ww;
-                  obs.shapeMeta.height = hh;
-                  obs.points = obstacleRectToPoints(cx, cy, ww, hh);
+                var _mppU = (CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.scale && CALPINAGE_STATE.roof.scale.metersPerPixel) || 1;
+                var _tpmU = technicalMinObstaclePixels(_mppU);
+                var ww = Math.abs(obs.shapeMeta.width || 0);
+                var hh = Math.abs(obs.shapeMeta.height || 0);
+                if (ww >= _tpmU.minW * 0.99 && hh >= _tpmU.minH * 0.99) {
+                  obs.points = obstacleRectToPoints(obs.shapeMeta.centerX, obs.shapeMeta.centerY, ww, hh, typeof obs.shapeMeta.angle === "number" ? obs.shapeMeta.angle : 0);
+                  if (drawState.obstacleBusinessId) {
+                    obs.meta = buildObstacleMetaFromCatalogId(drawState.obstacleBusinessId);
+                  }
                   drawState.selectedObstacleIndex = idx;
-                  drawState.activeTool = "select";
                   if (typeof saveCalpinageState === "function") saveCalpinageState();
                   if (typeof recomputeAllPlacementBlocksFromRules === "function") recomputeAllPlacementBlocksFromRules();
+                  if (typeof resetActiveToolToSelect === "function") resetActiveToolToSelect();
                 } else {
                   obstacles.splice(idx, 1);
                   drawState.selectedObstacleIndex = null;
@@ -9807,6 +15765,9 @@ updateValidateButton();
               drawState.shadowVolumePlaceStart = null;
               window.CALPINAGE_MODE = null;
               drawState.shadowVolumeCreateShape = null;
+              drawState.shadowVolumeBusinessId = null;
+              var sLabUp = container.querySelector("#calpinage-tool-shadow-volume-label");
+              if (sLabUp) sLabUp.textContent = "Obstacle ombrant";
               if (canvasEl && e.pointerId != null && canvasEl.releasePointerCapture) {
                 try { canvasEl.releasePointerCapture(e.pointerId); } catch (_) {}
               }
@@ -9817,6 +15778,17 @@ updateValidateButton();
               return;
             }
             if (drawState.draggingShadowVolumeMove) {
+              if (CALPINAGE_STATE && CALPINAGE_STATE.currentPhase === "PV_LAYOUT") {
+                drawState.draggingShadowVolumeMove = false;
+                drawState.shadowVolumeMoveStart = null;
+                drawState.selectedShadowVolumeIndex = null;
+                if (canvasEl && e.pointerId != null && canvasEl.releasePointerCapture) {
+                  try { canvasEl.releasePointerCapture(e.pointerId); } catch (_) {}
+                }
+                if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
+                resetInteractionState();
+                return;
+              }
               drawState.draggingShadowVolumeMove = false;
               drawState.shadowVolumeMoveStart = null;
               if (canvasEl && e.pointerId != null && canvasEl.releasePointerCapture) {
@@ -9827,26 +15799,12 @@ updateValidateButton();
               resetInteractionState();
               return;
             }
-            if (CALPINAGE_STATE && CALPINAGE_STATE.currentPhase === "PV_LAYOUT" && window.CALPINAGE_IS_MANIPULATING) {
-              var ENG = window.pvPlacementEngine;
-              if (ENG && typeof ENG.commitManipulation === "function") ENG.commitManipulation();
-              window.CALPINAGE_IS_MANIPULATING = false;
-              calpinageHandleDrag = null;
-              if (e && e.pointerId != null && typeof canvasEl !== "undefined" && canvasEl) { try { canvasEl.releasePointerCapture(e.pointerId); } catch(_) {} }
-              if (typeof pvSyncSaveRender === "function") pvSyncSaveRender();
-              else if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
+            /* Fin de drag poignées PV : chemin unique (finalizePhase3PvHandleManipulation). pointerup + mouseup : 2e appel no-op. */
+            if (CALPINAGE_STATE && CALPINAGE_STATE.currentPhase === "PV_LAYOUT" && window.CALPINAGE_IS_MANIPULATING && calpinageHandleDrag) {
+              finalizePhase3PvHandleManipulation({ releaseCaptureEl: canvasEl, pointerId: e.pointerId });
               /* ne pas return -> laisser le cleanup général (snapPreview, dragMode, etc.) s'exécuter */
             }
             if (e.button === 0) {
-              if (CALPINAGE_STATE.currentPhase === "PV_LAYOUT" && window.CALPINAGE_IS_MANIPULATING) {
-                var ENG = window.pvPlacementEngine;
-                if (ENG && typeof ENG.commitManipulation === "function") ENG.commitManipulation();
-                window.CALPINAGE_IS_MANIPULATING = false;
-                calpinageHandleDrag = null;
-                if (typeof pvSyncSaveRender === "function") pvSyncSaveRender();
-                else if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
-                if (e.pointerId != null && canvasEl) { try { canvasEl.releasePointerCapture(e.pointerId); } catch(_) {} }
-              }
               /* Ne pas r?initialiser traitLineStart / measureLineStart ici : le 2e clic doit compl?ter le segment (trait ou mesure). */
               if (drawState.isSelectingBox && drawState.selectionBoxStart && drawState.selectionBoxEnd) {
                 var startScreen = imageToScreen(drawState.selectionBoxStart);
@@ -9898,10 +15856,12 @@ updateValidateButton();
                 var list = CALPINAGE_STATE.ridges || [];
                 var r = list[base.ridgeIndex];
                 if (r) {
-                  var aSn = snapPointToGeometry({ x: r.a.x, y: r.a.y }, CALPINAGE_STATE.contours, CALPINAGE_STATE.traits, CALPINAGE_STATE.ridges, SNAP_DIST_PX);
-                  var bSn = snapPointToGeometry({ x: r.b.x, y: r.b.y }, CALPINAGE_STATE.contours, CALPINAGE_STATE.traits, CALPINAGE_STATE.ridges, SNAP_DIST_PX);
-                  if (aSn) { r.a.x = aSn.x; r.a.y = aSn.y; r.a.attach = aSn.source || null; } else { r.a.attach = null; }
-                  if (bSn) { r.b.x = bSn.x; r.b.y = bSn.y; r.b.attach = bSn.source || null; } else { r.b.attach = null; }
+                  var outA = commitDragEndpointAttach({ x: r.a.x, y: r.a.y }, "ridge");
+                  var outB = commitDragEndpointAttach({ x: r.b.x, y: r.b.y }, "ridge");
+                  r.a.x = outA.x; r.a.y = outA.y; r.a.attach = outA.attach;
+                  r.b.x = outB.x; r.b.y = outB.y; r.b.attach = outB.attach;
+                  propagateLinkedEndpointsAfterDrag(CALPINAGE_STATE, r.a, null);
+                  propagateLinkedEndpointsAfterDrag(CALPINAGE_STATE, r.b, null);
                   recomputeRoofPlanes();
                   saveCalpinageState();
                 }
@@ -9909,8 +15869,15 @@ updateValidateButton();
               if (drawState.dragMode === "ridge-endA" && drawState.dragBase) {
                 var r = (CALPINAGE_STATE.ridges || [])[drawState.dragBase.ridgeIndex];
                 if (r) {
-                  var aSn = snapPointToGeometry({ x: r.a.x, y: r.a.y }, CALPINAGE_STATE.contours, CALPINAGE_STATE.traits, CALPINAGE_STATE.ridges, SNAP_DIST_PX);
-                  if (aSn) { r.a.x = aSn.x; r.a.y = aSn.y; r.a.attach = aSn.source || null; } else { r.a.attach = null; }
+                  var _origAttRA = r.a.attach;
+                  /* Fix2-ridge: pré-propager le trait canonique AVANT commit — même logique que trait-endA/B */
+                  if (_origAttRA && typeof _origAttRA === "object" && _origAttRA.type === "trait" &&
+                      typeof _origAttRA.id === "string" && (_origAttRA.pointIndex === 0 || _origAttRA.pointIndex === 1)) {
+                    propagateExplicitTraitJunction(CALPINAGE_STATE.traits, CALPINAGE_STATE.ridges, _origAttRA.id, _origAttRA.pointIndex, r.a.x, r.a.y);
+                  }
+                  var outA = commitDragEndpointAttach({ x: r.a.x, y: r.a.y }, "ridge");
+                  r.a.x = outA.x; r.a.y = outA.y; r.a.attach = outA.attach;
+                  propagateLinkedEndpointsAfterDrag(CALPINAGE_STATE, r.a, null);
                   recomputeRoofPlanes();
                   saveCalpinageState();
                 }
@@ -9918,8 +15885,15 @@ updateValidateButton();
               if (drawState.dragMode === "ridge-endB" && drawState.dragBase) {
                 var r = (CALPINAGE_STATE.ridges || [])[drawState.dragBase.ridgeIndex];
                 if (r) {
-                  var bSn = snapPointToGeometry({ x: r.b.x, y: r.b.y }, CALPINAGE_STATE.contours, CALPINAGE_STATE.traits, CALPINAGE_STATE.ridges, SNAP_DIST_PX);
-                  if (bSn) { r.b.x = bSn.x; r.b.y = bSn.y; r.b.attach = bSn.source || null; } else { r.b.attach = null; }
+                  var _origAttRB = r.b.attach;
+                  /* Fix2-ridge: même logique que endA */
+                  if (_origAttRB && typeof _origAttRB === "object" && _origAttRB.type === "trait" &&
+                      typeof _origAttRB.id === "string" && (_origAttRB.pointIndex === 0 || _origAttRB.pointIndex === 1)) {
+                    propagateExplicitTraitJunction(CALPINAGE_STATE.traits, CALPINAGE_STATE.ridges, _origAttRB.id, _origAttRB.pointIndex, r.b.x, r.b.y);
+                  }
+                  var outB = commitDragEndpointAttach({ x: r.b.x, y: r.b.y }, "ridge");
+                  r.b.x = outB.x; r.b.y = outB.y; r.b.attach = outB.attach;
+                  propagateLinkedEndpointsAfterDrag(CALPINAGE_STATE, r.b, null);
                   recomputeRoofPlanes();
                   saveCalpinageState();
                 }
@@ -9927,10 +15901,12 @@ updateValidateButton();
               if (drawState.dragMode === "trait-move" && drawState.dragBase) {
                 var t = (CALPINAGE_STATE.traits || [])[drawState.dragBase.traitIndex];
                 if (t) {
-                  var aSn = snapPointToGeometry({ x: t.a.x, y: t.a.y }, CALPINAGE_STATE.contours, CALPINAGE_STATE.traits, CALPINAGE_STATE.ridges, SNAP_DIST_PX);
-                  var bSn = snapPointToGeometry({ x: t.b.x, y: t.b.y }, CALPINAGE_STATE.contours, CALPINAGE_STATE.traits, CALPINAGE_STATE.ridges, SNAP_DIST_PX);
-                  if (aSn) { t.a.x = aSn.x; t.a.y = aSn.y; t.a.attach = aSn.source || null; } else { t.a.attach = null; }
-                  if (bSn) { t.b.x = bSn.x; t.b.y = bSn.y; t.b.attach = bSn.source || null; } else { t.b.attach = null; }
+                  var outTA = commitDragEndpointAttach({ x: t.a.x, y: t.a.y }, "trait");
+                  var outTB = commitDragEndpointAttach({ x: t.b.x, y: t.b.y }, "trait");
+                  t.a.x = outTA.x; t.a.y = outTA.y; t.a.attach = outTA.attach;
+                  t.b.x = outTB.x; t.b.y = outTB.y; t.b.attach = outTB.attach;
+                  propagateLinkedEndpointsAfterDrag(CALPINAGE_STATE, t.a, { kind: "trait", traitId: t.id, traitPointIndex: 0 });
+                  propagateLinkedEndpointsAfterDrag(CALPINAGE_STATE, t.b, { kind: "trait", traitId: t.id, traitPointIndex: 1 });
                   var ftIdx = (CALPINAGE_STATE.traits || []).filter(function (x) { return x.roofRole !== "chienAssis"; }).indexOf(t);
                   if (ftIdx >= 0) {
                     if (typeof t.a.h !== "number") applyHeightToSelectedPoints(getTraitEndpointHeight(t.a, t.a, CALPINAGE_STATE), [{ type: "trait", index: ftIdx, pointIndex: 0 }]);
@@ -9943,8 +15919,17 @@ updateValidateButton();
               if (drawState.dragMode === "trait-endA" && drawState.dragBase) {
                 var t = (CALPINAGE_STATE.traits || [])[drawState.dragBase.traitIndex];
                 if (t) {
-                  var aSn = snapPointToGeometry({ x: t.a.x, y: t.a.y }, CALPINAGE_STATE.contours, CALPINAGE_STATE.traits, CALPINAGE_STATE.ridges, SNAP_DIST_PX);
-                  if (aSn) { t.a.x = aSn.x; t.a.y = aSn.y; t.a.attach = aSn.source || null; } else { t.a.attach = null; }
+                  var _origAttA = t.a.attach;
+                  /* Fix2: pré-propager le canonique AVANT commit — resolveStructuralSnapTrait trouvera le
+                     point canonique à la nouvelle position et restaurera l'attach alias correctement.
+                     Sans ça, au 2ème drag le canonique est encore à l'ancienne pos → snap échoue → attach=null → disconnect. */
+                  if (_origAttA && typeof _origAttA === "object" && _origAttA.type === "trait" &&
+                      typeof _origAttA.id === "string" && (_origAttA.pointIndex === 0 || _origAttA.pointIndex === 1)) {
+                    propagateExplicitTraitJunction(CALPINAGE_STATE.traits, CALPINAGE_STATE.ridges, _origAttA.id, _origAttA.pointIndex, t.a.x, t.a.y);
+                  }
+                  var outTA = commitDragEndpointAttach({ x: t.a.x, y: t.a.y }, "trait");
+                  t.a.x = outTA.x; t.a.y = outTA.y; t.a.attach = outTA.attach;
+                  propagateLinkedEndpointsAfterDrag(CALPINAGE_STATE, t.a, { kind: "trait", traitId: t.id, traitPointIndex: 0 });
                   var ftIdx = (CALPINAGE_STATE.traits || []).filter(function (x) { return x.roofRole !== "chienAssis"; }).indexOf(t);
                   if (ftIdx >= 0 && typeof t.a.h !== "number") applyHeightToSelectedPoints(getTraitEndpointHeight(t.a, t.a, CALPINAGE_STATE), [{ type: "trait", index: ftIdx, pointIndex: 0 }]);
                   recomputeRoofPlanes();
@@ -9954,8 +15939,15 @@ updateValidateButton();
               if (drawState.dragMode === "trait-endB" && drawState.dragBase) {
                 var t = (CALPINAGE_STATE.traits || [])[drawState.dragBase.traitIndex];
                 if (t) {
-                  var bSn = snapPointToGeometry({ x: t.b.x, y: t.b.y }, CALPINAGE_STATE.contours, CALPINAGE_STATE.traits, CALPINAGE_STATE.ridges, SNAP_DIST_PX);
-                  if (bSn) { t.b.x = bSn.x; t.b.y = bSn.y; t.b.attach = bSn.source || null; } else { t.b.attach = null; }
+                  var _origAttB = t.b.attach;
+                  /* Fix2: même logique que endA — propager canonique AVANT commit */
+                  if (_origAttB && typeof _origAttB === "object" && _origAttB.type === "trait" &&
+                      typeof _origAttB.id === "string" && (_origAttB.pointIndex === 0 || _origAttB.pointIndex === 1)) {
+                    propagateExplicitTraitJunction(CALPINAGE_STATE.traits, CALPINAGE_STATE.ridges, _origAttB.id, _origAttB.pointIndex, t.b.x, t.b.y);
+                  }
+                  var outTB = commitDragEndpointAttach({ x: t.b.x, y: t.b.y }, "trait");
+                  t.b.x = outTB.x; t.b.y = outTB.y; t.b.attach = outTB.attach;
+                  propagateLinkedEndpointsAfterDrag(CALPINAGE_STATE, t.b, { kind: "trait", traitId: t.id, traitPointIndex: 1 });
                   var ftIdx = (CALPINAGE_STATE.traits || []).filter(function (x) { return x.roofRole !== "chienAssis"; }).indexOf(t);
                   if (ftIdx >= 0 && typeof t.b.h !== "number") applyHeightToSelectedPoints(getTraitEndpointHeight(t.b, t.b, CALPINAGE_STATE), [{ type: "trait", index: ftIdx, pointIndex: 1 }]);
                   recomputeRoofPlanes();
@@ -10006,6 +15998,23 @@ updateValidateButton();
                   }
 
                   if (sp) c.points[vi] = clonePointPreserveHeight(c.points[vi], { x: sp.x, y: sp.y });
+
+                  // Propagation topologique : synchronise les x,y stockés de toutes les
+                  // extrémités (traits / faîtages) attachées à ce sommet de contour, ainsi
+                  // que les extrémités de type "roof_contour_edge" sur les arêtes voisines.
+                  // Sans cela, un trait-move ultérieur appliquerait le delta depuis la position
+                  // périmée plutôt que depuis la position réelle résolue au render.
+                  if (c.roofRole !== "chienAssis" && c.id) {
+                    var finalPt = c.points[vi];
+                    propagateExplicitContourJunction(
+                      CALPINAGE_STATE.contours, CALPINAGE_STATE.traits, CALPINAGE_STATE.ridges,
+                      c.id, vi, finalPt.x, finalPt.y
+                    );
+                    propagateRoofContourEdgeJunctionAfterContourEdit(
+                      CALPINAGE_STATE.contours, CALPINAGE_STATE.traits, CALPINAGE_STATE.ridges,
+                      c.id
+                    );
+                  }
                 }
 
                 // snapPreview OFF apr?s validation
@@ -10015,7 +16024,76 @@ updateValidateButton();
                 recomputeRoofPlanes();
                 saveCalpinageState();
               }
-              if (drawState.dragMode === "ridge-move" || drawState.dragMode === "ridge-endA" || drawState.dragMode === "ridge-endB" || drawState.dragMode === "trait-move" || drawState.dragMode === "trait-endA" || drawState.dragMode === "trait-endB" || drawState.dragMode === "contour-vertex" || drawState.dragMode === "roofExtensionVertex") {
+              if (drawState.dragMode === "contour-pending" && drawState.dragBase && drawState.dragBase.edgeSplitPending) {
+                /* Commit edge-split : insertion du nouveau sommet sur l'arête cliquée */
+                var _esUpCi = drawState.dragBase.contourIndex;
+                var _esUpSi = drawState.dragBase.segmentIndex;
+                var _esUpClickPt = drawState.dragBase.clickImgPt;
+                var _esUpC = (CALPINAGE_STATE.contours || [])[_esUpCi];
+                if (_esUpC && _esUpC.points && _esUpC.roofRole !== "chienAssis" &&
+                    typeof _esUpSi === "number" && _esUpC.points.length > _esUpSi) {
+                  var _esPtA = _esUpC.points[_esUpSi];
+                  var _esPtB = _esUpC.points[(_esUpSi + 1) % _esUpC.points.length];
+                  /* Calculer t du point cliqué sur le segment en espace image */
+                  var _esAbx = _esPtB.x - _esPtA.x;
+                  var _esAby = _esPtB.y - _esPtA.y;
+                  var _esApx = _esUpClickPt.x - _esPtA.x;
+                  var _esApy = _esUpClickPt.y - _esPtA.y;
+                  var _esTRaw = (_esApx * _esAbx + _esApy * _esAby) / (_esAbx * _esAbx + _esAby * _esAby + 1e-10);
+                  var _esT = Math.max(0.001, Math.min(0.999, _esTRaw));
+                  /* Position projetée sur le segment */
+                  var _esNewX = _esPtA.x + _esT * _esAbx;
+                  var _esNewY = _esPtA.y + _esT * _esAby;
+                  /* Interpoler h entre les deux sommets */
+                  var _esHa = typeof _esPtA.h === "number" ? _esPtA.h : null;
+                  var _esHb = typeof _esPtB.h === "number" ? _esPtB.h : null;
+                  var _esH = (_esHa !== null && _esHb !== null) ? (_esHa + _esHb) / 2 : (_esHa !== null ? _esHa : (_esHb !== null ? _esHb : null));
+                  var _esNewPt = clonePointPreserveHeight({ x: _esNewX, y: _esNewY });
+                  if (_esH !== null) _esNewPt.h = _esH;
+                  var _esInsertIndex = _esUpSi + 1;
+                  /* 1. Corriger les attaches AVANT le splice */
+                  if (_esUpC.id) {
+                    fixContourVertexInsertAttaches(
+                      CALPINAGE_STATE.contours, CALPINAGE_STATE.traits, CALPINAGE_STATE.ridges,
+                      _esUpC.id, _esInsertIndex, _esT
+                    );
+                  }
+                  /* 2. Insérer le sommet */
+                  _esUpC.points.splice(_esInsertIndex, 0, _esNewPt);
+                  /* 3. Sélectionner le nouveau sommet */
+                  drawState.selectedContourVertexIndex = _esInsertIndex;
+                  /* 4. Propagation edge junctions après edit */
+                  if (_esUpC.id && _esUpC.roofRole !== "chienAssis") {
+                    propagateRoofContourEdgeJunctionAfterContourEdit(
+                      CALPINAGE_STATE.contours, CALPINAGE_STATE.traits, CALPINAGE_STATE.ridges,
+                      _esUpC.id
+                    );
+                  }
+                  recomputeRoofPlanes();
+                  saveCalpinageState();
+                  if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
+                }
+              }
+              if (drawState.dragMode === "contour-move" && drawState.dragBase) {
+                /* Commit déplacement pan : propagation topologique + recalcul */
+                var _cmUpCi = drawState.dragBase.contourIndex;
+                var _cmUpC = (CALPINAGE_STATE.contours || [])[_cmUpCi];
+                if (_cmUpC && _cmUpC.id && _cmUpC.roofRole !== "chienAssis" && _cmUpC.points) {
+                  for (var _cmUpPvi = 0; _cmUpPvi < _cmUpC.points.length; _cmUpPvi++) {
+                    propagateExplicitContourJunction(
+                      CALPINAGE_STATE.contours, CALPINAGE_STATE.traits, CALPINAGE_STATE.ridges,
+                      _cmUpC.id, _cmUpPvi, _cmUpC.points[_cmUpPvi].x, _cmUpC.points[_cmUpPvi].y
+                    );
+                  }
+                  propagateRoofContourEdgeJunctionAfterContourEdit(
+                    CALPINAGE_STATE.contours, CALPINAGE_STATE.traits, CALPINAGE_STATE.ridges,
+                    _cmUpC.id
+                  );
+                }
+                recomputeRoofPlanes();
+                saveCalpinageState();
+              }
+              if (drawState.dragMode === "ridge-move" || drawState.dragMode === "ridge-endA" || drawState.dragMode === "ridge-endB" || drawState.dragMode === "trait-move" || drawState.dragMode === "trait-endA" || drawState.dragMode === "trait-endB" || drawState.dragMode === "contour-vertex" || drawState.dragMode === "contour-move" || drawState.dragMode === "contour-pending" || drawState.dragMode === "roofExtensionVertex") {
               }
               /* Clic vide Phase PV_LAYOUT : hit-test au point rel??ch? ; si aucun hit panneau => clearSelection.
                * En mode "Ajouter panneaux", ne pas clear au mouseup si le bloc a encore des panneaux (évite clear après suppression d'un panneau). */
@@ -10055,7 +16133,15 @@ updateValidateButton();
                 resetInteractionState();
               }
               if (drawState.draggingObstacleOffset != null || (drawState.draggingObstacleHandle != null && drawState.resizeObstacleStart != null)) {
-                commitInteraction(saveCalpinageState);
+                // Phase 3: empêcher commit obstacle — obstacles read-only
+                if (CALPINAGE_STATE && CALPINAGE_STATE.currentPhase === "PV_LAYOUT") {
+                  drawState.draggingObstacleOffset = null;
+                  drawState.draggingObstacleHandle = null;
+                  drawState.resizeObstacleStart = null;
+                  drawState.selectedObstacleIndex = null;
+                } else {
+                  commitInteraction(saveCalpinageState);
+                }
               }
               if (drawState.activePointerId != null && canvasEl && typeof canvasEl.releasePointerCapture === "function") {
                 try { canvasEl.releasePointerCapture(drawState.activePointerId); } catch (err) {}
@@ -10065,7 +16151,9 @@ updateValidateButton();
               drawState.draggingObstacleOffset = null;
               drawState.draggingObstacleHandle = null;
               if (drawState.draggingShadowVolumeHandle != null && drawState.resizeShadowVolumeStart != null) {
-                if (typeof saveCalpinageState === "function") saveCalpinageState();
+                if (CALPINAGE_STATE && CALPINAGE_STATE.currentPhase !== "PV_LAYOUT") {
+                  if (typeof saveCalpinageState === "function") saveCalpinageState();
+                }
               }
               drawState.draggingObstacleOffset = null;
             drawState.draggingObstacleHandle = null;
@@ -10101,23 +16189,40 @@ updateValidateButton();
             }
 
             if (window.CALPINAGE_IS_MANIPULATING) {
-              var ENGpl = window.pvPlacementEngine;
-              if (ENGpl && typeof ENGpl.cancelManipulation === "function") ENGpl.cancelManipulation();
-              window.CALPINAGE_IS_MANIPULATING = false;
-              calpinageHandleDrag = null;
-              if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
+              if (!window.__FORCE_PV_MANIP_LOCK__) {
+                var ENGpl = window.pvPlacementEngine;
+                if (ENGpl && typeof ENGpl.cancelManipulation === "function") ENGpl.cancelManipulation();
+                window.CALPINAGE_IS_MANIPULATING = false;
+                calpinageHandleDrag = null;
+                if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
+              }
             }
+          });
+          addSafeListener(canvasEl, "lostpointercapture", function (ev) {
+            if (CALPINAGE_STATE.currentPhase !== "PV_LAYOUT" || !window.CALPINAGE_IS_MANIPULATING || !calpinageHandleDrag) {
+              return;
+            }
+            /* Capture déjà relâchée : finaliser sans re-release ; évite état bloqué si pointerup irrégulier */
+            finalizePhase3PvHandleManipulation({ releaseCaptureEl: null, pointerId: ev && ev.pointerId });
+          });
+          addSafeListener(canvasEl, "pointercancel", function (ev) {
+            if (CALPINAGE_STATE.currentPhase !== "PV_LAYOUT" || !window.CALPINAGE_IS_MANIPULATING || !calpinageHandleDrag) {
+              return;
+            }
+            finalizePhase3PvHandleManipulation({ releaseCaptureEl: null, pointerId: ev && ev.pointerId, skipUxToast: true });
           });
           var handleWindowMouseleave = function () {
             if (CALPINAGE_STATE && CALPINAGE_STATE.currentPhase === "PV_LAYOUT" && window.CALPINAGE_IS_MANIPULATING) {
               return; // IMPORTANT: ne pas annuler une manip PV en cours
             }
             if (window.CALPINAGE_IS_MANIPULATING) {
-              var ENGml = window.pvPlacementEngine;
-              if (ENGml && typeof ENGml.cancelManipulation === "function") ENGml.cancelManipulation();
-              window.CALPINAGE_IS_MANIPULATING = false;
-              calpinageHandleDrag = null;
-              if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
+              if (!window.__FORCE_PV_MANIP_LOCK__) {
+                var ENGml = window.pvPlacementEngine;
+                if (ENGml && typeof ENGml.cancelManipulation === "function") ENGml.cancelManipulation();
+                window.CALPINAGE_IS_MANIPULATING = false;
+                calpinageHandleDrag = null;
+                if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
+              }
             }
             panStart = null;
             if (drawState.dragMode === "circleCreation") {
@@ -10177,76 +16282,88 @@ updateValidateButton();
             CALPINAGE_STATE.activeRidge.hover = null;
             CALPINAGE_STATE.activeRidge.hoverSnap = null;
             CALPINAGE_STATE.activeRidge.snapEdge = null;
+            CALPINAGE_STATE.activeRidge.frozenStructuralSnap = null;
+            drawState.traitFrozenStructuralSnap = null;
             if (CALPINAGE_STATE.activeObstacle) CALPINAGE_STATE.activeObstacle.hover = null;
           };
           window.addEventListener("mouseleave", handleWindowMouseleave);
           addSafeListener(canvasEl, "mousemove", function (e) {
-            if (window.CALPINAGE_IS_MANIPULATING && calpinageHandleDrag) {
-              var ENG = window.pvPlacementEngine;
-              if (ENG && typeof ENG.setManipulationTransform === "function") {
-                var screen = getMouseScreen(e);
-                var imgPt = screenToImage(screen);
-                if (calpinageHandleDrag.type === "rotate") {
-                  var center = calpinageHandleDrag.centerImg;
-                  if (center) {
-                    var currentAngleRad = Math.atan2(imgPt.y - center.y, imgPt.x - center.x);
-                    var rotTotalDeg = (currentAngleRad - calpinageHandleDrag.startAngleRad) * 180 / Math.PI;
-                    ENG.setManipulationTransform(0, 0, rotTotalDeg);
-                  }
-                } else if (calpinageHandleDrag.type === "move") {
-                  var dxTotal = imgPt.x - calpinageHandleDrag.startImgX;
-                  var dyTotal = imgPt.y - calpinageHandleDrag.startImgY;
-                  ENG.setManipulationTransform(dxTotal, dyTotal, 0);
+            if (window.CALPINAGE_IS_MANIPULATING) return;
+            if (drawState.draggingShadowVolumeHandle && drawState.resizeShadowVolumeStart) {
+              if (CALPINAGE_STATE && CALPINAGE_STATE.currentPhase === "PV_LAYOUT") {
+                drawState.draggingShadowVolumeHandle = null;
+                drawState.resizeShadowVolumeStart = null;
+                drawState.shadowVolumeRotateStart = null;
+                drawState.selectedShadowVolumeIndex = null;
+                if (drawState.activePointerId != null && canvasEl && typeof canvasEl.releasePointerCapture === "function") {
+                  try { canvasEl.releasePointerCapture(drawState.activePointerId); } catch (_) {}
+                  drawState.activePointerId = null;
                 }
                 if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
+                return;
               }
-              return;
-            }
-            if (drawState.draggingShadowVolumeHandle && drawState.resizeShadowVolumeStart) {
               var screenMv = getMouseScreen(e);
               var imgPtMv = screenToImage(screenMv);
               var vol = drawState.resizeShadowVolumeStart.volume;
               var start = drawState.resizeShadowVolumeStart;
-              var mpp = (CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.scale && CALPINAGE_STATE.roof.scale.metersPerPixel) || 1;
+              var mpp = start.mpp || (CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.scale && CALPINAGE_STATE.roof.scale.metersPerPixel) || 1;
+              var _tpmSv = technicalMinObstaclePixels(mpp);
+              var minPxSv = Math.max(_tpmSv.minW, _tpmSv.minH);
               if (drawState.draggingShadowVolumeHandle === "rotate" && drawState.shadowVolumeRotateStart) {
                 var rotStart = drawState.shadowVolumeRotateStart;
                 var center = rotStart.centerImg || { x: vol.x, y: vol.y };
                 var startAngle = Math.atan2(rotStart.startImg.y - center.y, rotStart.startImg.x - center.x);
                 var currAngle = Math.atan2(imgPtMv.y - center.y, imgPtMv.x - center.x);
                 vol.rotation = rotStart.angle + (currAngle - startAngle) * 180 / Math.PI;
-              } else if (drawState.draggingShadowVolumeHandle === "height") {
-                var dyH = imgPtMv.y - start.imgPt.y;
-                vol.height = Math.max(0.1, start.height - dyH * mpp);
-                drawState.resizeShadowVolumeStart.imgPt = { x: imgPtMv.x, y: imgPtMv.y };
-                drawState.resizeShadowVolumeStart.height = vol.height;
-              } else if (drawState.draggingShadowVolumeHandle === "right") {
-                var dx = imgPtMv.x - start.imgPt.x;
-                var dy = imgPtMv.y - start.imgPt.y;
-                var rotRad = ((typeof vol.rotation === "number" ? vol.rotation : 0) * Math.PI) / 180;
-                var proj = dx * Math.cos(rotRad) + dy * Math.sin(rotRad);
-                vol.width = Math.max(0.1, start.width + proj * mpp);
-              } else if (drawState.draggingShadowVolumeHandle === "bottom") {
-                var dxB = imgPtMv.x - start.imgPt.x;
-                var dyB = imgPtMv.y - start.imgPt.y;
-                var rotRadB = ((typeof vol.rotation === "number" ? vol.rotation : 0) * Math.PI) / 180;
-                var projB = -dxB * Math.sin(rotRadB) + dyB * Math.cos(rotRadB);
-                vol.depth = Math.max(0.1, start.depth + projB * mpp);
-              } else if (drawState.draggingShadowVolumeHandle === "corner") {
-                var dxC = imgPtMv.x - start.imgPt.x;
-                var dyC = imgPtMv.y - start.imgPt.y;
-                var rotRadC = ((typeof vol.rotation === "number" ? vol.rotation : 0) * Math.PI) / 180;
-                var cosC = Math.cos(rotRadC), sinC = Math.sin(rotRadC);
-                var projW = dxC * cosC + dyC * sinC;
-                var projD = -dxC * sinC + dyC * cosC;
-                vol.width = Math.max(0.1, start.width + projW * mpp);
-                vol.depth = Math.max(0.1, start.depth + projD * mpp);
-                drawState.resizeShadowVolumeStart.imgPt = { x: imgPtMv.x, y: imgPtMv.y };
-                drawState.resizeShadowVolumeStart.width = vol.width;
-                drawState.resizeShadowVolumeStart.depth = vol.depth;
-              } else if (drawState.draggingShadowVolumeHandle === "right" || drawState.draggingShadowVolumeHandle === "bottom") {
-                drawState.resizeShadowVolumeStart.imgPt = { x: imgPtMv.x, y: imgPtMv.y };
-                drawState.resizeShadowVolumeStart.width = vol.width;
-                drawState.resizeShadowVolumeStart.depth = vol.depth;
+              } else if (start.resizeMode === "tubeRadius" && start.centerImg && typeof start.ux === "number") {
+                var vmx = imgPtMv.x - start.centerImg.x;
+                var vmy = imgPtMv.y - start.centerImg.y;
+                var projR = vmx * start.ux + vmy * start.uy;
+                var minRpx = (start.minDiamM || TECH_MIN_DIM_M) / 2 / mpp;
+                var rPx = Math.max(minRpx, projR);
+                vol.x = start.centerImg.x;
+                vol.y = start.centerImg.y;
+                vol.width = vol.depth = 2 * rPx * mpp;
+              } else if (start.resizeMode === "corner" && start.fixedCornerWorld) {
+                var mCorner = {
+                  centerX: vol.x,
+                  centerY: vol.y,
+                  width: vol.width / mpp,
+                  height: vol.depth / mpp,
+                  angle: typeof start.angleLock === "number" ? start.angleLock : 0,
+                };
+                obstacleRectResizeFromCornerDrag(
+                  mCorner,
+                  imgPtMv,
+                  { fixedCornerWorld: start.fixedCornerWorld, angleLock: start.angleLock },
+                  minPxSv,
+                  !!(e && e.shiftKey)
+                );
+                vol.x = mCorner.centerX;
+                vol.y = mCorner.centerY;
+                vol.width = mCorner.width * mpp;
+                vol.depth = mCorner.height * mpp;
+                vol.rotation = (mCorner.angle * 180) / Math.PI;
+              } else if (start.resizeMode === "edge") {
+                var mEdge = {
+                  centerX: vol.x,
+                  centerY: vol.y,
+                  width: vol.width / mpp,
+                  height: vol.depth / mpp,
+                  angle: typeof start.angleLock === "number" ? start.angleLock : 0,
+                };
+                obstacleRectResizeFromEdgeDrag(mEdge, imgPtMv, {
+                  angleLock: start.angleLock,
+                  edgeIndex: start.edgeIndex,
+                  edgeStartCenter: start.edgeStartCenter,
+                  edgeStartHw: start.edgeStartHw,
+                  edgeStartHh: start.edgeStartHh,
+                }, minPxSv);
+                vol.x = mEdge.centerX;
+                vol.y = mEdge.centerY;
+                vol.width = mEdge.width * mpp;
+                vol.depth = mEdge.height * mpp;
+                vol.rotation = (mEdge.angle * 180) / Math.PI;
               }
               if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
               return;
@@ -10261,11 +16378,8 @@ updateValidateButton();
               if (focusMm && typeof getManipulationHandlePositions === "function") {
                 var h = getManipulationHandlePositions(focusMm);
                 if (h) {
-                  var r2 = MANIPULATION_HANDLE_RADIUS_IMG * MANIPULATION_HANDLE_RADIUS_IMG;
-                  var dr = (imgPt.x - h.rotate.x) * (imgPt.x - h.rotate.x) + (imgPt.y - h.rotate.y) * (imgPt.y - h.rotate.y);
-                  var dm = (imgPt.x - h.move.x) * (imgPt.x - h.move.x) + (imgPt.y - h.move.y) * (imgPt.y - h.move.y);
-                  if (dr <= r2) drawState.ph3HandleHover = "rotate";
-                  else if (dm <= r2) drawState.ph3HandleHover = "move";
+                  if (ph3PointerNearHandleScreen(screen, h.rotate, PH3_HANDLE_HIT_ROTATE_SCREEN_PX)) drawState.ph3HandleHover = "rotate";
+                  else if (ph3PointerNearHandleScreen(screen, h.move, PH3_HANDLE_HIT_MOVE_SCREEN_PX)) drawState.ph3HandleHover = "move";
                   else drawState.ph3HandleHover = null;
                 } else drawState.ph3HandleHover = null;
               } else drawState.ph3HandleHover = null;
@@ -10280,46 +16394,26 @@ updateValidateButton();
               drawState.contourHoverSnapSource = null;
             }
             if (drawState.activeTool === "ridge") {
-              var buildingContours = (CALPINAGE_STATE.contours || []).filter(function (c) { return c.roofRole !== "chienAssis"; });
-              var snapEdge = snapToRoofContourEdge(imgPt, buildingContours, 15);
-              if (snapEdge) {
-                CALPINAGE_STATE.activeRidge.hover = { x: snapEdge.x, y: snapEdge.y };
-                CALPINAGE_STATE.activeRidge.hoverSnap = { point: { x: snapEdge.x, y: snapEdge.y }, source: null };
-                CALPINAGE_STATE.activeRidge.snapEdge = { x: snapEdge.x, y: snapEdge.y };
-              } else {
-                var snapped = snapPointToGeometry(imgPt, CALPINAGE_STATE.contours, CALPINAGE_STATE.traits, CALPINAGE_STATE.ridges, SNAP_DIST_PX);
-                CALPINAGE_STATE.activeRidge.hover = snapped ? { x: snapped.x, y: snapped.y } : imgPt;
-                CALPINAGE_STATE.activeRidge.hoverSnap = snapped ? { point: { x: snapped.x, y: snapped.y }, source: snapped.source || null } : null;
-                CALPINAGE_STATE.activeRidge.snapEdge = null;
-              }
+              applyStructuralRidgePreview(imgPt);
             } else {
               CALPINAGE_STATE.activeRidge.hover = null;
               CALPINAGE_STATE.activeRidge.hoverSnap = null;
               CALPINAGE_STATE.activeRidge.snapEdge = null;
+              CALPINAGE_STATE.activeRidge.frozenStructuralSnap = null;
             }
-            if (drawState.activeTool === "trait" && drawState.traitLineStart) {
-              var buildingContours = (CALPINAGE_STATE.contours || []).filter(function (c) { return c.roofRole !== "chienAssis"; });
-              var snapEdge = snapToAllRoofEdges(imgPt, 15);
-              var snapped = snapPointToGeometry(imgPt, CALPINAGE_STATE.contours, CALPINAGE_STATE.traits, CALPINAGE_STATE.ridges, SNAP_DIST_PX);
-              if (snapEdge) {
-                drawState.traitSnapPreview = { x: snapEdge.x, y: snapEdge.y };
-                drawState.traitSnapPreviewSource = null;
-                drawState.traitSnapEdge = { x: snapEdge.x, y: snapEdge.y };
-              } else {
-                drawState.traitSnapPreview = snapped ? snapped : { x: imgPt.x, y: imgPt.y };
-                drawState.traitSnapPreviewSource = snapped && snapped.source ? snapped.source : null;
-                drawState.traitSnapEdge = null;
-              }
-              requestAnimationFrame(render);
+            if (drawState.activeTool === "trait") {
+              applyStructuralTraitPreview(imgPt);
+              if (drawState.traitLineStart) requestAnimationFrame(safeRender);
             } else {
               drawState.traitSnapPreview = null;
               drawState.traitSnapPreviewSource = null;
               drawState.traitSnapEdge = null;
+              drawState.traitFrozenStructuralSnap = null;
             }
             if (drawState.activeTool === "obstacle" && drawState.obstacleShape === "polygon" && CALPINAGE_STATE.activeObstacle.points.length > 0) {
               var snappedObs = snapPointToGeometry(imgPt, CALPINAGE_STATE.contours, CALPINAGE_STATE.traits, CALPINAGE_STATE.ridges, SNAP_DIST_PX, CALPINAGE_STATE.activeObstacle.points);
               CALPINAGE_STATE.activeObstacle.hover = snappedObs ? { x: snappedObs.x, y: snappedObs.y } : { x: imgPt.x, y: imgPt.y };
-              requestAnimationFrame(render);
+              requestAnimationFrame(safeRender);
             } else if (CALPINAGE_STATE.activeObstacle) {
               CALPINAGE_STATE.activeObstacle.hover = null;
             }
@@ -10327,6 +16421,11 @@ updateValidateButton();
             if (drawState.activeTool === "contour" && activeContour.points.length >= 3) {
               var firstScreen = imageToScreen(activeContour.points[0]);
               drawState.hoverNearFirstPoint = (Math.hypot(screen.x - firstScreen.x, screen.y - firstScreen.y) <= CLOSE_THRESHOLD_PX);
+              /* Snap visuel : coller le hoverPoint au premier point pour preview fermeture parfaite */
+              if (drawState.hoverNearFirstPoint) {
+                activeContour.hoverPoint = { x: activeContour.points[0].x, y: activeContour.points[0].y };
+                drawState.contourHoverSnapSource = null;
+              }
             } else {
               drawState.hoverNearFirstPoint = false;
             }
@@ -10360,6 +16459,7 @@ updateValidateButton();
             }
           });
           addSafeListener(canvasEl, "pointermove", function (e) {
+            if (window.CALPINAGE_IS_MANIPULATING) return;
             const interactionState = getInteractionState();
             debugStateConsistency(drawState);
             // READ-ONLY guard (no behavior change)
@@ -10371,13 +16471,14 @@ updateValidateButton();
               var screenCircle = getMouseScreen(e);
               var imgCircle = screenToImage(screenCircle);
               var startCircle = drawState.obstacleCircleStartPoint;
-              var dxCircle = imgCircle.x - startCircle.x;
-              var dyCircle = imgCircle.y - startCircle.y;
-              var radiusCircle = Math.sqrt(dxCircle * dxCircle + dyCircle * dyCircle);
               var obsCircle = CALPINAGE_STATE.obstacles[drawState.obstacleCircleTempIndex];
+              var _mppCm = (CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.scale && CALPINAGE_STATE.roof.scale.metersPerPixel) || 1;
+              var smC = computeCircleShapeMetaFromAnchorDrag(startCircle.x, startCircle.y, imgCircle.x, imgCircle.y, _mppCm, drawState.obstacleBusinessId);
               if (obsCircle && obsCircle.shapeMeta) {
-                obsCircle.shapeMeta.radius = radiusCircle;
-                obsCircle.points = obstacleCircleToPoints(obsCircle.shapeMeta.centerX, obsCircle.shapeMeta.centerY, radiusCircle);
+                obsCircle.shapeMeta.centerX = smC.centerX;
+                obsCircle.shapeMeta.centerY = smC.centerY;
+                obsCircle.shapeMeta.radius = smC.radius;
+                obsCircle.points = obstacleCircleToPoints(smC.centerX, smC.centerY, smC.radius);
               }
               if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
               return;
@@ -10391,17 +16492,14 @@ updateValidateButton();
               var tempObs = obstacles[drawState.obstacleRectTempIndex];
               if (tempObs && tempObs.shapeMeta && tempObs.shapeMeta.originalType === "rect") {
                 var sp = drawState.obstacleRectStartPoint;
-                var dx = imgPtRect.x - sp.x;
-                var dy = imgPtRect.y - sp.y;
-                var ww = dx;
-                var hh = dy;
-                var cx = sp.x + ww / 2;
-                var cy = sp.y + hh / 2;
-                tempObs.shapeMeta.width = ww;
-                tempObs.shapeMeta.height = hh;
-                tempObs.shapeMeta.centerX = cx;
-                tempObs.shapeMeta.centerY = cy;
-                tempObs.points = obstacleRectToPoints(cx, cy, Math.abs(ww) || 0.01, Math.abs(hh) || 0.01);
+                var _mppRm = (CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.scale && CALPINAGE_STATE.roof.scale.metersPerPixel) || 1;
+                var smR = computeRectShapeMetaFromAnchorDrag(sp.x, sp.y, imgPtRect.x, imgPtRect.y, _mppRm, drawState.obstacleBusinessId);
+                tempObs.shapeMeta.width = smR.width;
+                tempObs.shapeMeta.height = smR.height;
+                tempObs.shapeMeta.centerX = smR.centerX;
+                tempObs.shapeMeta.centerY = smR.centerY;
+                tempObs.shapeMeta.angle = 0;
+                tempObs.points = obstacleRectToPoints(smR.centerX, smR.centerY, smR.width, smR.height, 0);
                 if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
               }
               return;
@@ -10422,10 +16520,20 @@ updateValidateButton();
                 var sx = drawState.shadowVolumePlaceStart.x;
                 var sy = drawState.shadowVolumePlaceStart.y;
                 var mpp = (CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.scale && CALPINAGE_STATE.roof.scale.metersPerPixel) || 1;
-                v.width = Math.max(0.05, Math.abs(p.x - sx) * 2 * mpp);
-                v.depth = Math.max(0.05, Math.abs(p.y - sy) * 2 * mpp);
-                v.x = sx;
-                v.y = sy;
+                var bizPl = drawState.shadowVolumeBusinessId;
+                if (v.shape === "tube") {
+                  var tubePl = computeShadowTubeMetersFromAnchor(sx, sy, p.x, p.y, mpp, bizPl);
+                  v.x = tubePl.cx;
+                  v.y = tubePl.cy;
+                  v.width = tubePl.diameterM;
+                  v.depth = tubePl.diameterM;
+                } else {
+                  var cubePl = computeShadowCubeMetersFromAnchor(sx, sy, p.x, p.y, mpp, bizPl);
+                  v.x = cubePl.cx;
+                  v.y = cubePl.cy;
+                  v.width = cubePl.widthM;
+                  v.depth = cubePl.depthM;
+                }
                 if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
               }
               return;
@@ -10439,6 +16547,17 @@ updateValidateButton();
               drawState.selectedShadowVolumeIndex >= 0 &&
               drawState.selectedShadowVolumeIndex < CALPINAGE_STATE.shadowVolumes.length
             ) {
+              if (CALPINAGE_STATE && CALPINAGE_STATE.currentPhase === "PV_LAYOUT") {
+                drawState.draggingShadowVolumeMove = false;
+                drawState.shadowVolumeMoveStart = null;
+                drawState.selectedShadowVolumeIndex = null;
+                if (drawState.activePointerId != null && canvasEl && typeof canvasEl.releasePointerCapture === "function") {
+                  try { canvasEl.releasePointerCapture(drawState.activePointerId); } catch (_) {}
+                  drawState.activePointerId = null;
+                }
+                if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
+                return;
+              }
               var idxMv = drawState.selectedShadowVolumeIndex;
               var vMv = CALPINAGE_STATE.shadowVolumes[idxMv];
               if (vMv) {
@@ -10447,27 +16566,6 @@ updateValidateButton();
                 var st = drawState.shadowVolumeMoveStart;
                 vMv.x = st.cx + (pMv.x - st.x);
                 vMv.y = st.cy + (pMv.y - st.y);
-                if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
-              }
-              return;
-            }
-            if (window.CALPINAGE_IS_MANIPULATING && calpinageHandleDrag) {
-              var ENG = window.pvPlacementEngine;
-              if (ENG && typeof ENG.setManipulationTransform === "function") {
-                var screen = getMouseScreen(e);
-                var imgPt = screenToImage(screen);
-                if (calpinageHandleDrag.type === "rotate") {
-                  var center = calpinageHandleDrag.centerImg;
-                  if (center) {
-                    var currentAngleRad = Math.atan2(imgPt.y - center.y, imgPt.x - center.x);
-                    var rotTotalDeg = (currentAngleRad - calpinageHandleDrag.startAngleRad) * 180 / Math.PI;
-                    ENG.setManipulationTransform(0, 0, rotTotalDeg);
-                  }
-                } else if (calpinageHandleDrag.type === "move") {
-                  var dxTotal = imgPt.x - calpinageHandleDrag.startImgX;
-                  var dyTotal = imgPt.y - calpinageHandleDrag.startImgY;
-                  ENG.setManipulationTransform(dxTotal, dyTotal, 0);
-                }
                 if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
               }
               return;
@@ -10482,11 +16580,8 @@ updateValidateButton();
               if (focusMm && typeof getManipulationHandlePositions === "function") {
                 var h = getManipulationHandlePositions(focusMm);
                 if (h) {
-                  var r2 = MANIPULATION_HANDLE_RADIUS_IMG * MANIPULATION_HANDLE_RADIUS_IMG;
-                  var dr = (imgPt.x - h.rotate.x) * (imgPt.x - h.rotate.x) + (imgPt.y - h.rotate.y) * (imgPt.y - h.rotate.y);
-                  var dm = (imgPt.x - h.move.x) * (imgPt.x - h.move.x) + (imgPt.y - h.move.y) * (imgPt.y - h.move.y);
-                  if (dr <= r2) drawState.ph3HandleHover = "rotate";
-                  else if (dm <= r2) drawState.ph3HandleHover = "move";
+                  if (ph3PointerNearHandleScreen(screen, h.rotate, PH3_HANDLE_HIT_ROTATE_SCREEN_PX)) drawState.ph3HandleHover = "rotate";
+                  else if (ph3PointerNearHandleScreen(screen, h.move, PH3_HANDLE_HIT_MOVE_SCREEN_PX)) drawState.ph3HandleHover = "move";
                   else drawState.ph3HandleHover = null;
                 } else drawState.ph3HandleHover = null;
               } else drawState.ph3HandleHover = null;
@@ -10501,46 +16596,26 @@ updateValidateButton();
               drawState.contourHoverSnapSource = null;
             }
             if (drawState.activeTool === "ridge") {
-              var buildingContours = (CALPINAGE_STATE.contours || []).filter(function (c) { return c.roofRole !== "chienAssis"; });
-              var snapEdge = snapToRoofContourEdge(imgPt, buildingContours, 15);
-              if (snapEdge) {
-                CALPINAGE_STATE.activeRidge.hover = { x: snapEdge.x, y: snapEdge.y };
-                CALPINAGE_STATE.activeRidge.hoverSnap = { point: { x: snapEdge.x, y: snapEdge.y }, source: null };
-                CALPINAGE_STATE.activeRidge.snapEdge = { x: snapEdge.x, y: snapEdge.y };
-              } else {
-                var snapped = snapPointToGeometry(imgPt, CALPINAGE_STATE.contours, CALPINAGE_STATE.traits, CALPINAGE_STATE.ridges, SNAP_DIST_PX);
-                CALPINAGE_STATE.activeRidge.hover = snapped ? { x: snapped.x, y: snapped.y } : imgPt;
-                CALPINAGE_STATE.activeRidge.hoverSnap = snapped ? { point: { x: snapped.x, y: snapped.y }, source: snapped.source || null } : null;
-                CALPINAGE_STATE.activeRidge.snapEdge = null;
-              }
+              applyStructuralRidgePreview(imgPt);
             } else {
               CALPINAGE_STATE.activeRidge.hover = null;
               CALPINAGE_STATE.activeRidge.hoverSnap = null;
               CALPINAGE_STATE.activeRidge.snapEdge = null;
+              CALPINAGE_STATE.activeRidge.frozenStructuralSnap = null;
             }
-            if (drawState.activeTool === "trait" && drawState.traitLineStart) {
-              var buildingContours = (CALPINAGE_STATE.contours || []).filter(function (c) { return c.roofRole !== "chienAssis"; });
-              var snapEdge = snapToAllRoofEdges(imgPt, 15);
-              var snapped = snapPointToGeometry(imgPt, CALPINAGE_STATE.contours, CALPINAGE_STATE.traits, CALPINAGE_STATE.ridges, SNAP_DIST_PX);
-              if (snapEdge) {
-                drawState.traitSnapPreview = { x: snapEdge.x, y: snapEdge.y };
-                drawState.traitSnapPreviewSource = null;
-                drawState.traitSnapEdge = { x: snapEdge.x, y: snapEdge.y };
-              } else {
-                drawState.traitSnapPreview = snapped ? snapped : { x: imgPt.x, y: imgPt.y };
-                drawState.traitSnapPreviewSource = snapped && snapped.source ? snapped.source : null;
-                drawState.traitSnapEdge = null;
-              }
-              requestAnimationFrame(render);
+            if (drawState.activeTool === "trait") {
+              applyStructuralTraitPreview(imgPt);
+              if (drawState.traitLineStart) requestAnimationFrame(safeRender);
             } else {
               drawState.traitSnapPreview = null;
               drawState.traitSnapPreviewSource = null;
               drawState.traitSnapEdge = null;
+              drawState.traitFrozenStructuralSnap = null;
             }
             if (drawState.activeTool === "obstacle" && drawState.obstacleShape === "polygon" && CALPINAGE_STATE.activeObstacle.points.length > 0) {
               var snappedObs = snapPointToGeometry(imgPt, CALPINAGE_STATE.contours, CALPINAGE_STATE.traits, CALPINAGE_STATE.ridges, SNAP_DIST_PX, CALPINAGE_STATE.activeObstacle.points);
               CALPINAGE_STATE.activeObstacle.hover = snappedObs ? { x: snappedObs.x, y: snappedObs.y } : { x: imgPt.x, y: imgPt.y };
-              requestAnimationFrame(render);
+              requestAnimationFrame(safeRender);
             } else if (CALPINAGE_STATE.activeObstacle) {
               CALPINAGE_STATE.activeObstacle.hover = null;
             }
@@ -10548,6 +16623,11 @@ updateValidateButton();
             if (drawState.activeTool === "contour" && activeContour.points.length >= 3) {
               var firstScreen = imageToScreen(activeContour.points[0]);
               drawState.hoverNearFirstPoint = (Math.hypot(screen.x - firstScreen.x, screen.y - firstScreen.y) <= CLOSE_THRESHOLD_PX);
+              /* Snap visuel : coller le hoverPoint au premier point pour preview fermeture parfaite */
+              if (drawState.hoverNearFirstPoint) {
+                activeContour.hoverPoint = { x: activeContour.points[0].x, y: activeContour.points[0].y };
+                drawState.contourHoverSnapSource = null;
+              }
             } else {
               drawState.hoverNearFirstPoint = false;
             }
@@ -10624,13 +16704,16 @@ updateValidateButton();
               if (ENG && ENG.getFocusBlock && ENG.getFocusBlock()) {
                 var blockId = ENG.getFocusBlock().id;
                 var doRemoveBlock = function () {
+                  try {
+                    obstacleIntegrityNotifyPvAction("removeBlock");
+                  } catch (_nPvK) {}
                   ENG.removeBlock(blockId);
                   if (typeof pvSyncSaveRender === "function") pvSyncSaveRender();
                   else {
                     if (typeof updatePowerSummary === "function") updatePowerSummary();
                     if (typeof updateCalpinageValidateButton === "function") updateCalpinageValidateButton();
                     if (typeof window.notifyPhase3ChecklistUpdate === "function") window.notifyPhase3ChecklistUpdate();
-                    if (typeof window.notifyPhase3SidebarUpdate === "function") window.notifyPhase3SidebarUpdate();
+                    if (typeof window.notifyPhase3SidebarUpdate === "function") window.notifyPhase3SidebarUpdate(); if (typeof window.notifyCalpinageDirty === "function") window.notifyCalpinageDirty();
                   }
                 };
                 if (typeof window.requestCalpinageConfirm !== "function") {
@@ -10649,9 +16732,28 @@ updateValidateButton();
               return;
             }
             if (drawState.selectedContourIndex !== null && CALPINAGE_STATE.contours[drawState.selectedContourIndex]) {
+              var _cDel = CALPINAGE_STATE.contours[drawState.selectedContourIndex];
+              var _viDel = drawState.selectedContourVertexIndex;
+              /* Suppression du sommet sélectionné (si présent et polygone assez grand) */
+              if (typeof _viDel === "number" && _viDel >= 0 && _cDel.points && _viDel < _cDel.points.length && _cDel.points.length > 3) {
+                fixContourVertexDeleteAttaches(CALPINAGE_STATE.contours, CALPINAGE_STATE.traits, CALPINAGE_STATE.ridges, _cDel.id, _viDel);
+                _cDel.points.splice(_viDel, 1);
+                drawState.selectedContourVertexIndex = null;
+                if (_cDel.id && _cDel.roofRole !== "chienAssis") {
+                  propagateRoofContourEdgeJunctionAfterContourEdit(CALPINAGE_STATE.contours, CALPINAGE_STATE.traits, CALPINAGE_STATE.ridges, _cDel.id);
+                }
+                recomputeRoofPlanes();
+                saveCalpinageState();
+                if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
+                if (e) e.preventDefault();
+                return;
+              }
+              /* Suppression du pan entier (fallback) */
               CALPINAGE_STATE.contours.splice(drawState.selectedContourIndex, 1);
               drawState.selectedContourIndex = null;
+              drawState.selectedContourVertexIndex = null;
               drawState.draggingVertexIndex = null;
+              recomputeRoofPlanes();
               saveCalpinageState();
               if (e) e.preventDefault();
               return;
@@ -10730,9 +16832,34 @@ updateValidateButton();
             var tag = e.target && e.target.tagName;
             if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
             if (e.target && e.target.isContentEditable) return;
+            if (
+              (e.ctrlKey || e.metaKey) &&
+              (e.key === "d" || e.key === "D") &&
+              CALPINAGE_STATE.currentPhase === "ROOF_EDIT" &&
+              !CALPINAGE_STATE.roofSurveyLocked
+            ) {
+              var dupOb = drawState.selectedObstacleIndex != null;
+              var dupSv = drawState.selectedShadowVolumeIndex != null;
+              if (dupOb || dupSv) {
+                if (typeof phase2ObstacleEditorApi !== "undefined" && phase2ObstacleEditorApi.duplicateSelection) {
+                  if (phase2ObstacleEditorApi.duplicateSelection()) {
+                    e.preventDefault();
+                    return;
+                  }
+                }
+              }
+            }
             var zoneA = container.querySelector("#zone-a");
             var allowDeleteInZoneA = (e.key === "Delete" || e.key === "Backspace") && CALPINAGE_STATE.currentPhase === "PV_LAYOUT" && window.pvPlacementEngine && window.pvPlacementEngine.getFocusBlock && window.pvPlacementEngine.getFocusBlock();
             if (zoneA && e.target && zoneA.contains(e.target) && !allowDeleteInZoneA) return;
+            /* Backspace durant dessin contour = retirer le dernier point (priorité sur delete-sélection) */
+            if (e.key === "Backspace" && drawState.activeTool === "contour" && CALPINAGE_STATE.activeContour && CALPINAGE_STATE.activeContour.points.length > 0) {
+              CALPINAGE_STATE.activeContour.points.pop();
+              if (CALPINAGE_STATE.activeContour.points.length === 0) CALPINAGE_STATE.activeContour.hoverPoint = null;
+              requestAnimationFrame(safeRender);
+              e.preventDefault();
+              return;
+            }
             if (e.key === "Delete" || e.key === "Backspace") {
               deleteCurrentSelection(e);
               e.preventDefault();
@@ -10744,7 +16871,7 @@ updateValidateButton();
                 drawState.traitSnapPreview = null;
                 drawState.traitSnapPreviewSource = null;
                 drawState.traitSnapEdge = null;
-                requestAnimationFrame(render);
+                requestAnimationFrame(safeRender);
                 e.preventDefault();
                 return;
               }
@@ -10753,14 +16880,14 @@ updateValidateButton();
                 CALPINAGE_STATE.activeRidge.b = null;
                 CALPINAGE_STATE.activeRidge.hover = null;
                 CALPINAGE_STATE.activeRidge.hoverSnap = null;
-                requestAnimationFrame(render);
+                requestAnimationFrame(safeRender);
                 e.preventDefault();
                 return;
               }
               if (drawState.activeTool === "contour" && CALPINAGE_STATE.activeContour && CALPINAGE_STATE.activeContour.points.length > 0) {
                 CALPINAGE_STATE.activeContour.points.pop();
                 if (CALPINAGE_STATE.activeContour.points.length === 0) CALPINAGE_STATE.activeContour.hoverPoint = null;
-                requestAnimationFrame(render);
+                requestAnimationFrame(safeRender);
                 e.preventDefault();
                 return;
               }
@@ -10773,7 +16900,7 @@ updateValidateButton();
                 drawState.dragMode = null;
                 drawState.obstacleCircleStartPoint = null;
                 drawState.obstacleCircleTempIndex = null;
-                requestAnimationFrame(render);
+                requestAnimationFrame(safeRender);
                 e.preventDefault();
               }
               if (drawState.dragMode === "rectangleCreation") {
@@ -10785,12 +16912,12 @@ updateValidateButton();
                 drawState.dragMode = null;
                 drawState.obstacleRectStartPoint = null;
                 drawState.obstacleRectTempIndex = null;
-                requestAnimationFrame(render);
+                requestAnimationFrame(safeRender);
                 e.preventDefault();
               }
               if (drawState.obstacleAnchor != null) {
                 drawState.obstacleAnchor = null;
-                requestAnimationFrame(render);
+                requestAnimationFrame(safeRender);
                 e.preventDefault();
               }
               if (drawState.obstacleShape === "polygon" && CALPINAGE_STATE.activeObstacle) {
@@ -10798,7 +16925,7 @@ updateValidateButton();
                 if (p && p.length > 0) {
                   CALPINAGE_STATE.activeObstacle.points = [];
                   CALPINAGE_STATE.activeObstacle.hover = null;
-                  requestAnimationFrame(render);
+                  requestAnimationFrame(safeRender);
                   e.preventDefault();
                 }
               }
@@ -10814,6 +16941,9 @@ updateValidateButton();
             drawState.traitSnapPreviewSource = null;
             drawState.traitSnapEdge = null;
             window.removeEventListener("mousemove", handleWindowMousemove);
+            if (typeof PointerEvent !== "undefined") {
+              window.removeEventListener("pointermove", handleWindowPointermoveForPv);
+            }
             window.removeEventListener("mouseup", handlePointerOrMouseUp);
             window.removeEventListener("pointerup", handlePointerOrMouseUp);
             window.removeEventListener("mouseleave", handleWindowMouseleave);
@@ -10833,13 +16963,121 @@ updateValidateButton();
             vp.zoom(factor, center);
           }, { passive: false });
 
-          function render() {
+          function syncCalpinageDsmReadOverlay() {
+            if (!canvasEl || !canvasWrapper || !engine || engine._destroyed) return;
+            if (!dsmReadOverlayEl) {
+              dsmReadOverlayEl = document.createElement("canvas");
+              dsmReadOverlayEl.id = "calpinage-dsm-read-overlay";
+              dsmReadOverlayEl.setAttribute("aria-hidden", "true");
+              dsmReadOverlayEl.style.cssText = "position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;opacity:0.4;z-index:3;";
+              canvasWrapper.appendChild(dsmReadOverlayEl);
+            }
+            var dsmData = typeof window !== "undefined" ? window.__CALPINAGE_DSM_OVERLAY_DATA__ : null;
+            var octx = dsmReadOverlayEl.getContext("2d");
+            if (!octx) return;
+            if (dsmReadOverlayEl.width !== canvasEl.width || dsmReadOverlayEl.height !== canvasEl.height) {
+              dsmReadOverlayEl.width = canvasEl.width;
+              dsmReadOverlayEl.height = canvasEl.height;
+            }
+            octx.clearRect(0, 0, dsmReadOverlayEl.width, dsmReadOverlayEl.height);
+            if (!Array.isArray(dsmData) || dsmData.length === 0) return;
+            for (var dxi = 0; dxi < dsmData.length; dxi++) {
+              var dpt = dsmData[dxi];
+              if (!dpt || typeof dpt.x !== "number" || typeof dpt.y !== "number") continue;
+              var inten = typeof dpt.shadow === "number" ? dpt.shadow : 0;
+              if (inten < 0) inten = 0;
+              if (inten > 1) inten = 1;
+              octx.fillStyle = "rgba(0,0,0," + inten + ")";
+              octx.fillRect(dpt.x, dpt.y, 4, 4);
+            }
+          }
+
+          function updateObstacleUxHud() {
+            var hud = container.querySelector("#calpinage-obstacle-ux-hud");
+            if (!hud) return;
+            if (CALPINAGE_STATE.currentPhase !== "ROOF_EDIT") {
+              hud.style.display = "none";
+              hud.textContent = "";
+              return;
+            }
+            var mpp = (CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.scale && CALPINAGE_STATE.roof.scale.metersPerPixel) || 1;
+            var lines = [];
+            if (drawState.activeTool === "obstacle" && drawState.obstacleShape) {
+              var oe = drawState.obstacleBusinessId ? getRoofObstacleCatalogEntry(drawState.obstacleBusinessId) : null;
+              var lab = oe ? oe.label : "Obstacle";
+              if (drawState.obstacleShape === "polygon") {
+                lines.push("Polygone — cliquez les sommets, fermez près du 1er point");
+              } else {
+                lines.push("Pose : " + lab + " — cliquer un coin, étirer vers le coin opposé, relâcher");
+              }
+            }
+            if (window.CALPINAGE_MODE === "CREATE_SHADOW_VOLUME" && drawState.shadowVolumeBusinessId) {
+              var se = getRoofObstacleCatalogEntry(drawState.shadowVolumeBusinessId);
+              lines.push("Volume ombrant : " + (se ? se.label : "") + " — même principe (coin → étirer)");
+            }
+            if (drawState.activeTool === "select" && drawState.selectedObstacleIndex != null) {
+              var oSel = (CALPINAGE_STATE.obstacles || [])[drawState.selectedObstacleIndex];
+              if (oSel) {
+                lines.push(formatObstacle2DSelectionHud(oSel, mpp));
+              }
+            }
+            if (lines.length === 0) {
+              hud.style.display = "none";
+              hud.textContent = "";
+              return;
+            }
+            hud.textContent = "";
+            lines.forEach(function (line) {
+              var d = document.createElement("div");
+              d.textContent = line;
+              hud.appendChild(d);
+            });
+            hud.style.display = "block";
+          }
+
+          function safeRender() {
+            if (!engine || engine._destroyed) return;
+            var _nowSr = performance.now();
+            if (_nowSr - __calpinageSafeRenderLastTs < 16) return;
+            __calpinageSafeRenderLastTs = _nowSr;
+            renderImpl();
+            updateObstacleUxHud();
+          }
+          function calpinageCanvasHostVisible() {
+            if (typeof document !== "undefined" && document.hidden) return false;
+            if (!canvasWrapper || !canvasEl) return false;
+            var r = canvasWrapper.getBoundingClientRect();
+            return r.width >= 2 && r.height >= 2;
+          }
+          function calpinageAnimationLoop() {
+            if (!engine || engine._destroyed) {
+              renderRafId = null;
+              return;
+            }
+            if (!calpinageCanvasHostVisible()) {
+              renderRafId = null;
+              return;
+            }
+            safeRender();
+            if (!engine || engine._destroyed) return;
+            renderRafId = requestAnimationFrame(calpinageAnimationLoop);
+          }
+          resumeCalpinageAnimLoopFn = function () {
+            if (renderRafId != null) return;
+            if (!engine || engine._destroyed) return;
+            calpinageAnimationLoop();
+          };
+
+          function renderImpl() {
             if (!engine || engine._destroyed) {
               return;
             }
             engine.resize();
             engine.clear();
-            if (typeof window !== "undefined") window.CALPINAGE_VIEWPORT_SCALE = vp.scale;
+            if (typeof window !== "undefined") {
+              window.CALPINAGE_VIEWPORT_SCALE = vp.scale;
+              window.CALPINAGE_VIEWPORT_FIT_SCALE = vpFitBaseScale;
+            }
             var ctx = engine.ctx;
             var s = vp.scale;
             var ox = vp.offset.x;
@@ -10935,7 +17173,7 @@ updateValidateButton();
                 ctx.fillStyle = "rgba(255, 255, 255, 0.06)";
                 ctx.fill();
                 ctx.strokeStyle = "#C39847";
-                ctx.lineWidth = 1.2;
+                ctx.lineWidth = 2;
                 ctx.stroke();
               }
             }
@@ -11048,6 +17286,9 @@ updateValidateButton();
               var o = obstaclesList[oi];
               if (!o || !o.points || !Array.isArray(o.points) || o.points.length < 3) continue;
               var sel = obstacleSelectedIndex === oi;
+              var isCrePrev =
+                (drawState.dragMode === "rectangleCreation" && drawState.obstacleRectTempIndex === oi) ||
+                (drawState.dragMode === "circleCreation" && drawState.obstacleCircleTempIndex === oi);
               ctx.beginPath();
               var p0 = imageToScreen(o.points[0]);
               ctx.moveTo(p0.x, p0.y);
@@ -11056,12 +17297,35 @@ updateValidateButton();
                 ctx.lineTo(ps.x, ps.y);
               }
               ctx.closePath();
-              ctx.fillStyle = sel ? "rgba(180, 100, 60, 0.35)" : "rgba(120, 80, 80, 0.28)";
+              if (isCrePrev) {
+                ctx.fillStyle = "rgba(120, 80, 80, 0.14)";
+                ctx.strokeStyle = "rgba(90, 58, 58, 0.9)";
+                ctx.lineWidth = 2;
+                ctx.setLineDash([7, 5]);
+              } else {
+                ctx.fillStyle = sel ? "rgba(180, 83, 9, 0.24)" : "rgba(120, 80, 80, 0.28)";
+                ctx.setLineDash([]);
+              }
+              ctx.lineJoin = "round";
+              ctx.lineCap = "round";
               ctx.fill();
-              ctx.strokeStyle = sel ? "#8b4513" : "#5a3a3a";
-              ctx.lineWidth = sel ? 2.5 : 1.5;
-              ctx.setLineDash([]);
-              ctx.stroke();
+              if (isCrePrev) {
+                ctx.stroke();
+              } else if (sel) {
+                ctx.strokeStyle = "rgba(255, 255, 255, 0.92)";
+                ctx.lineWidth = 4.5;
+                ctx.stroke();
+                ctx.strokeStyle = "rgba(30, 41, 59, 0.88)";
+                ctx.lineWidth = 2.25;
+                ctx.stroke();
+                ctx.strokeStyle = "rgba(180, 83, 9, 0.65)";
+                ctx.lineWidth = 1.2;
+                ctx.stroke();
+              } else {
+                ctx.strokeStyle = "#5a3a3a";
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
+              }
               var label = (o.meta && o.meta.label) || o.kind || "";
               if (label) {
                 var cx = 0, cy = 0;
@@ -11400,6 +17664,7 @@ updateValidateButton();
              */
             /* SHADOW_VOLUMES : footprint orange — Phase 2 + Phase 3 */
             var svList = CALPINAGE_STATE.shadowVolumes || [];
+            var svSelDraw = drawState.selectedShadowVolumeIndex;
             if (svList.length > 0) {
               var mpp = (CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.scale && CALPINAGE_STATE.roof.scale.metersPerPixel) || 1;
               for (var svi = 0; svi < svList.length; svi++) {
@@ -11411,6 +17676,8 @@ updateValidateButton();
                 var cx = sv.x, cy = sv.y;
                 var rotRad = (rotDeg * Math.PI) / 180;
                 var cos = Math.cos(rotRad), sin = Math.sin(rotRad);
+                var svIsPlacing = drawState.isPlacingShadowVolume && drawState.selectedShadowVolumeIndex === svi;
+                var svIsSelected = svSelDraw === svi;
                 function rotatePoint(x, y, ox, oy) {
                   var dx = x - ox, dy = y - oy;
                   return { x: ox + dx * cos - dy * sin, y: oy + dx * sin + dy * cos };
@@ -11421,11 +17688,32 @@ updateValidateButton();
                   var rScreen = r * vp.scale;
                   ctx.beginPath();
                   ctx.arc(sc.x, sc.y, Math.max(2, rScreen), 0, Math.PI * 2);
-                  ctx.fillStyle = "rgba(255,140,0,0.15)";
+                  ctx.fillStyle = svIsPlacing ? "rgba(255,140,0,0.08)" : svIsSelected ? "rgba(255,140,0,0.18)" : "rgba(255,140,0,0.15)";
                   ctx.fill();
-                  ctx.strokeStyle = "#ff8c00";
-                  ctx.lineWidth = 2;
-                  ctx.stroke();
+                  ctx.lineJoin = "round";
+                  ctx.lineCap = "round";
+                  if (svIsPlacing) {
+                    ctx.strokeStyle = "rgba(180,90,0,0.95)";
+                    ctx.lineWidth = 2.2;
+                    ctx.setLineDash([6, 4]);
+                    ctx.stroke();
+                  } else if (svIsSelected) {
+                    ctx.setLineDash([]);
+                    ctx.strokeStyle = "rgba(255, 255, 255, 0.9)";
+                    ctx.lineWidth = 4;
+                    ctx.stroke();
+                    ctx.strokeStyle = "rgba(30, 41, 59, 0.88)";
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                    ctx.strokeStyle = "rgba(234, 88, 12, 0.5)";
+                    ctx.lineWidth = 1.1;
+                    ctx.stroke();
+                  } else {
+                    ctx.setLineDash([]);
+                    ctx.strokeStyle = "#ff8c00";
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                  }
                 } else {
                   var hw = wPx / 2, hd = dPx / 2;
                   var pts = [
@@ -11442,16 +17730,38 @@ updateValidateButton();
                     ctx.lineTo(sp.x, sp.y);
                   }
                   ctx.closePath();
-                  ctx.fillStyle = "rgba(255,140,0,0.15)";
+                  ctx.fillStyle = svIsPlacing ? "rgba(255,140,0,0.08)" : svIsSelected ? "rgba(255,140,0,0.18)" : "rgba(255,140,0,0.15)";
                   ctx.fill();
-                  ctx.strokeStyle = "#ff8c00";
-                  ctx.lineWidth = 2;
-                  ctx.stroke();
+                  ctx.lineJoin = "round";
+                  ctx.lineCap = "round";
+                  if (svIsPlacing) {
+                    ctx.strokeStyle = "rgba(180,90,0,0.95)";
+                    ctx.lineWidth = 2.2;
+                    ctx.setLineDash([6, 4]);
+                    ctx.stroke();
+                  } else if (svIsSelected) {
+                    ctx.setLineDash([]);
+                    ctx.strokeStyle = "rgba(255, 255, 255, 0.9)";
+                    ctx.lineWidth = 4;
+                    ctx.stroke();
+                    ctx.strokeStyle = "rgba(30, 41, 59, 0.88)";
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                    ctx.strokeStyle = "rgba(234, 88, 12, 0.5)";
+                    ctx.lineWidth = 1.1;
+                    ctx.stroke();
+                  } else {
+                    ctx.setLineDash([]);
+                    ctx.strokeStyle = "#ff8c00";
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                  }
                 }
+                ctx.setLineDash([]);
               }
             }
-            /* SHADOW HANDLES — Phase 2 + Phase 3 (design premium rotation via CalpinageCanvas) */
-            if ((CALPINAGE_STATE.currentPhase === "ROOF_EDIT" || CALPINAGE_STATE.currentPhase === "PV_LAYOUT")) {
+            /* SHADOW HANDLES — Phase 2 uniquement (read-only en PV_LAYOUT) */
+            if (CALPINAGE_STATE.currentPhase === "ROOF_EDIT") {
               var svSel = drawState.selectedShadowVolumeIndex;
               if (
                 svSel != null &&
@@ -11474,6 +17784,63 @@ updateValidateButton();
               }
             }
             if (CALPINAGE_STATE.currentPhase === "PV_LAYOUT" && window.pvPlacementEngine) {
+              /* [PROFILING] Activer avec window.__SAFE_ZONE_PROF_ENABLE__ = true */
+              if (window.__SAFE_ZONE_PROF_ENABLE__) {
+                if (!window.__SAFE_ZONE_PROF__) {
+                  window.__SAFE_ZONE_PROF__ = {
+                    renderCount: 0, lastRenderTime: 0, fpsSamples: [],
+                    isPanelCalls: 0, isPanelTimes: [],
+                    drawOverlayCalls: 0, drawOverlayTimes: [],
+                    computeCalls: 0, buildEdgesCalls: 0, buildEdgesTimes: [],
+                    blockT0: 0, blockTimes: [],
+                    lastLogTs: 0, polyStats: { szVertices: [], obsEdges: [] }
+                  };
+                  setInterval(function () {
+                    var P = window.__SAFE_ZONE_PROF__;
+                    if (!P || !window.__SAFE_ZONE_PROF_ENABLE__) return;
+                    var now = performance.now();
+                    if (now - P.lastLogTs < 2000) return;
+                    P.lastLogTs = now;
+                    var sec = 2;
+                    var fps = P.fpsSamples.length > 0 ? P.fpsSamples.reduce(function (a, b) { return a + b; }, 0) / P.fpsSamples.length : 0;
+                    var avg = function (arr) { return arr.length ? arr.reduce(function (a, b) { return a + b; }, 0) / arr.length : 0; };
+                    var p95 = function (arr) {
+                      if (arr.length < 2) return arr[0] || 0;
+                      var s = arr.slice().sort(function (a, b) { return a - b; });
+                      return s[Math.floor(s.length * 0.95)] || s[s.length - 1];
+                    };
+                    console.table({
+                      "calls/sec": {
+                        render: (P.renderCount / sec).toFixed(1),
+                        isPanelInsideSafeZone: (P.isPanelCalls / sec).toFixed(1),
+                        drawSafeZoneOverlay: (P.drawOverlayCalls / sec).toFixed(1),
+                        computeSafeZones: (P.computeCalls / sec).toFixed(1),
+                        buildEdgesCache: (P.buildEdgesCalls / sec).toFixed(1)
+                      }
+                    });
+                    console.table({
+                      "ms avg/p95": {
+                        isPanelInsideSafeZone: avg(P.isPanelTimes).toFixed(3) + " / " + p95(P.isPanelTimes).toFixed(3),
+                        drawSafeZoneOverlay: avg(P.drawOverlayTimes).toFixed(3) + " / " + p95(P.drawOverlayTimes).toFixed(3),
+                        blockSafeZone: avg(P.blockTimes).toFixed(3) + " / " + p95(P.blockTimes).toFixed(3)
+                      }
+                    });
+                    console.log("[SAFE_ZONE_PROF] fps=" + fps.toFixed(1) + " | szVertices min/max=" + (P.polyStats.szVertices.length ? Math.min.apply(null, P.polyStats.szVertices) + "/" + Math.max.apply(null, P.polyStats.szVertices) : "n/a") + " | edgesCache total=" + (P.polyStats.obsEdges.length ? P.polyStats.obsEdges.reduce(function (a, b) { return a + b; }, 0) : "n/a") + " | attente: immobile isPanel~0, drag isPanel~12, drawOverlay ms bas avec Path2D");
+                    P.isPanelCalls = 0; P.isPanelTimes = []; P.drawOverlayCalls = 0; P.drawOverlayTimes = [];
+                    P.computeCalls = 0; P.buildEdgesCalls = 0; P.buildEdgesTimes = [];
+                    P.renderCount = 0; P.fpsSamples = []; P.blockTimes = []; P.polyStats = { szVertices: [], obsEdges: [] };
+                  }, 2100);
+                }
+                var prof = window.__SAFE_ZONE_PROF__;
+                prof.renderCount++;
+                var nowProf = performance.now();
+                if (prof.lastRenderTime > 0) {
+                  var dt = nowProf - prof.lastRenderTime;
+                  if (dt > 0 && dt < 500) prof.fpsSamples.push(1000 / dt);
+                }
+                prof.lastRenderTime = nowProf;
+                prof.blockT0 = nowProf;
+              }
               var ENG = window.pvPlacementEngine;
               var PANEL_OUTLINE_ACTIVE = "#C39847";
               var PANEL_OUTLINE_SELECTED = "#C39847";
@@ -11493,6 +17860,119 @@ updateValidateButton();
                 }
               }
               var dormerShadedCount = 0;
+
+              /* CP-PV-015 — Safe Zone cache : recalcul uniquement si pans/obstacles/sv/rx/margin/mpp changent */
+              var safeZonePh3 = window.__SAFE_ZONE_PH3__;
+              if (!safeZonePh3) window.__SAFE_ZONE_PH3__ = safeZonePh3 = {};
+              var pans = CALPINAGE_STATE.pans || CALPINAGE_STATE.validatedRoofData?.pans || [];
+              var obstacles = CALPINAGE_STATE.obstacles || [];
+              var shadowVolumes = CALPINAGE_STATE.shadowVolumes || [];
+              var roofExtensions = CALPINAGE_STATE.roofExtensions || [];
+              var rules = window.PV_LAYOUT_RULES || {};
+              var marginOuterCm = Number(rules.marginOuterCm) || 0;
+              var panIds = pans.map(function (p) { return (p && p.id) || ""; }).sort().join(",");
+              var obsIds = obstacles.map(function (o) { return (o && o.id) || ""; }).sort().join(",");
+              var svIds = shadowVolumes.map(function (s) { return (s && s.id) || ""; }).sort().join(",");
+              var rxIds = roofExtensions.map(function (r) { return (r && r.id) || ""; }).sort().join(",");
+              var flatRoofSig = pans
+                .map(function (pp) {
+                  if (!pp || pp.roofType !== "FLAT") return "";
+                  var f = normalizeFlatRoofConfig(pp.flatRoofConfig);
+                  return (
+                    (pp.id || "") +
+                    ":st" +
+                    f.supportTiltDeg +
+                    ",lo" +
+                    f.layoutOrientation +
+                    ",e" +
+                    f.setbackRoofEdgeCm +
+                    ",o" +
+                    f.setbackObstacleCm +
+                    ",r" +
+                    f.rowSpacingCm +
+                    ",c" +
+                    f.colSpacingCm
+                  );
+                })
+                .filter(function (s) {
+                  return s.length > 0;
+                })
+                .sort()
+                .join(";");
+              var cacheKey = (panIds + "|" + obsIds + "|" + svIds + "|" + rxIds + "|" + marginOuterCm + "|" + mpp + "|" + flatRoofSig).replace(/\./g, "_");
+              var safeZoneCache = safeZonePh3.cache;
+              if (!safeZoneCache || safeZoneCache._key !== cacheKey) {
+                try {
+                  safeZoneCache = computeSafeZonesFromCalpinageState({
+                    pans: pans,
+                    obstacles: obstacles,
+                    shadowVolumes: shadowVolumes,
+                    roofExtensions: roofExtensions,
+                    marginOuterCm: marginOuterCm,
+                    metersPerPixel: mpp,
+                  });
+                  safeZoneCache._key = cacheKey;
+                  safeZoneCache._edgesByPanId = {};
+                  safeZoneCache._path2dByPanId = {};
+                  var _q = function (n) { return Math.round(n * 100) / 100; };
+                  safeZoneCache._path2dKey = _q(vp.scale) + "|" + _q(vp.offset.x) + "|" + _q(vp.offset.y);
+                  if (safeZoneCache.byPanId) {
+                    for (var pid in safeZoneCache.byPanId) {
+                      var sz = safeZoneCache.byPanId[pid];
+                      if (sz && sz.safeZonePolygonsPx && sz.safeZonePolygonsPx.length > 0) {
+                        safeZoneCache._edgesByPanId[pid] = buildSafeZoneEdgesCache(sz.safeZonePolygonsPx);
+                        safeZoneCache._path2dByPanId[pid] = buildSafeZonePath2D(sz.safeZonePolygonsPx, imageToScreen);
+                      }
+                    }
+                  }
+                  safeZonePh3.cache = safeZoneCache;
+                  safeZonePh3.validationCache = null;
+                  safeZonePh3.lastValidateTs = 0;
+                  safeZonePh3.geoDirty = true;
+                  window.__SAFE_ZONE_PH3__ = safeZonePh3;
+                } catch (e) {
+                  safeZoneCache = null;
+                  safeZonePh3.cache = null;
+                }
+              }
+
+              /* CP-PV-015-PERF-FINAL — Event-driven validation : uniquement si geoDirty, panelsDirty ou throttle drag */
+              var now = typeof performance !== "undefined" && performance.now ? performance.now() : Date.now();
+              var isManipulating = !!window.CALPINAGE_IS_MANIPULATING;
+              var hasValidationCache = !!(safeZonePh3.validationCache && safeZonePh3.validationCache.byBlock);
+              var shouldValidate;
+              if (isManipulating) {
+                shouldValidate = (now - (safeZonePh3.lastValidateTs || 0)) >= 80;
+              } else {
+                shouldValidate = !!(safeZonePh3.geoDirty || safeZonePh3.panelsDirty || !hasValidationCache);
+              }
+
+              /* CP-PV-015 — Safe Zone overlay : Path2D cache invalidé quand vue (pan/zoom) change */
+              var _qV = function (n) { return Math.round(n * 100) / 100; };
+              var viewKey = _qV(vp.scale) + "|" + _qV(vp.offset.x) + "|" + _qV(vp.offset.y);
+              if (safeZoneCache && safeZoneCache._path2dKey !== viewKey) {
+                safeZoneCache._path2dByPanId = {};
+                safeZoneCache._path2dKey = viewKey;
+              }
+              var panIdToShow = CALPINAGE_STATE.selectedPanId;
+              if (!panIdToShow && CALPINAGE_STATE.currentPhase === "PV_LAYOUT" && ENG) {
+                var fb = ENG.getFocusBlock ? ENG.getFocusBlock() : null;
+                var ab = ENG.getActiveBlock ? ENG.getActiveBlock() : null;
+                if (fb && fb.panId) panIdToShow = fb.panId;
+                else if (ab && ab.panId) panIdToShow = ab.panId;
+              }
+              if (safeZoneCache && panIdToShow) {
+                var szForPan = safeZoneCache.byPanId && safeZoneCache.byPanId[panIdToShow];
+                var path2dForPan = safeZoneCache._path2dByPanId && safeZoneCache._path2dByPanId[panIdToShow];
+                if (!path2dForPan && szForPan && szForPan.safeZonePolygonsPx && szForPan.safeZonePolygonsPx.length > 0) {
+                  if (!safeZoneCache._path2dByPanId) safeZoneCache._path2dByPanId = {};
+                  path2dForPan = buildSafeZonePath2D(szForPan.safeZonePolygonsPx, imageToScreen);
+                  safeZoneCache._path2dByPanId[panIdToShow] = path2dForPan;
+                }
+                if (szForPan && szForPan.safeZonePolygonsPx && szForPan.safeZonePolygonsPx.length > 0) {
+                  drawSafeZoneOverlay(ctx, szForPan.safeZonePolygonsPx, imageToScreen, path2dForPan);
+                }
+              }
 
               function buildPanelPathSimple(ctx, screenPts) {
                 if (!screenPts || screenPts.length < 3) return;
@@ -11674,14 +18154,34 @@ updateValidateButton();
                 }
                 var outlineColor = isSelectedFrozen ? PANEL_OUTLINE_SELECTED : PANEL_OUTLINE_FROZEN;
                 var outlineWidth = isSelectedFrozen ? 2.5 : 1.5;
+                var szFrozen = safeZoneCache && bl.panId ? (safeZoneCache.byPanId && safeZoneCache.byPanId[bl.panId]) : null;
+                var safeZonePolysFrozen = szFrozen && szFrozen.safeZonePolygonsPx ? szFrozen.safeZonePolygonsPx : [];
+                var edgesFrozen = safeZoneCache && bl.panId && safeZoneCache._edgesByPanId ? safeZoneCache._edgesByPanId[bl.panId] : null;
+                var vcFrozen = safeZonePh3.validationCache && safeZonePh3.validationCache.byBlock ? safeZonePh3.validationCache.byBlock[bl.id] : null;
                 for (var pi = 0; pi < bl.panels.length; pi++) {
                   var p = bl.panels[pi];
                   var proj = p.projection;
                   if (!proj || !proj.points) continue;
-                  if (p.enabled === false) {
-                    drawPanelPolygon(ctx, proj.points, imageToScreen, outlineColor, outlineWidth, [6, 4], true, isSelectedFrozen);
+                  var invalidSafeZone;
+                  if (safeZonePolysFrozen.length === 0) {
+                    invalidSafeZone = false;
+                  } else if (shouldValidate) {
+                    invalidSafeZone = !isPanelInsideSafeZone(proj.points, safeZonePolysFrozen, edgesFrozen);
+                    if (!vcFrozen) { vcFrozen = {}; if (!safeZonePh3.validationCache) safeZonePh3.validationCache = { byBlock: {} }; safeZonePh3.validationCache.byBlock[bl.id] = vcFrozen; }
+                    vcFrozen[pi] = !invalidSafeZone;
+                  } else if (vcFrozen && vcFrozen[pi] !== undefined) {
+                    invalidSafeZone = !vcFrozen[pi];
                   } else {
-                    drawPanelPolygon(ctx, proj.points, imageToScreen, outlineColor, outlineWidth, [], false, isSelectedFrozen);
+                    safeZonePh3.panelsDirty = true;
+                    invalidSafeZone = false;
+                  }
+                  var effInvalid = p.state === "invalid" || invalidSafeZone;
+                  var frameColorFrozen = effInvalid ? PANEL_OUTLINE_INVALID : outlineColor;
+                  var dashFrozen = effInvalid ? [6, 4] : (p.enabled === false ? [6, 4] : []);
+                  if (p.enabled === false) {
+                    drawPanelPolygon(ctx, proj.points, imageToScreen, frameColorFrozen, outlineWidth, dashFrozen, true, isSelectedFrozen && !effInvalid);
+                  } else {
+                    drawPanelPolygon(ctx, proj.points, imageToScreen, frameColorFrozen, outlineWidth, dashFrozen, false, isSelectedFrozen && !effInvalid);
                   }
                   if (vp && typeof vp.scale === "number" && focusBlock && bl.id === focusBlock.id && !activeBl) {
                     for (var vk = 0; vk < proj.points.length; vk++) visibleScreenPtsForHandles.push(imageToScreen(proj.points[vk]));
@@ -11699,6 +18199,20 @@ updateValidateButton();
                     for (var k = 1; k < panelPoly.length; k++) {
                       var spk = imageToScreen(panelPoly[k]);
                       ctx.lineTo(spk.x, spk.y);
+                    }
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.restore();
+                  }
+                  if (effInvalid) {
+                    ctx.save();
+                    ctx.fillStyle = "rgba(239,68,68,0.25)";
+                    ctx.beginPath();
+                    var sp0inv = imageToScreen(panelPoly[0]);
+                    ctx.moveTo(sp0inv.x, sp0inv.y);
+                    for (var kinv = 1; kinv < panelPoly.length; kinv++) {
+                      var spkinv = imageToScreen(panelPoly[kinv]);
+                      ctx.lineTo(spkinv.x, spkinv.y);
                     }
                     ctx.closePath();
                     ctx.fill();
@@ -11739,9 +18253,45 @@ updateValidateButton();
                 }
               }
               if (activeBl && activeBl.panels) {
+                var szActive = safeZoneCache && activeBl.panId ? (safeZoneCache.byPanId && safeZoneCache.byPanId[activeBl.panId]) : null;
+                var safeZonePolysActive = szActive && szActive.safeZonePolygonsPx ? szActive.safeZonePolygonsPx : [];
+                var edgesActive = safeZoneCache && activeBl.panId && safeZoneCache._edgesByPanId ? safeZoneCache._edgesByPanId[activeBl.panId] : null;
+                var vcActive = safeZonePh3.validationCache && safeZonePh3.validationCache.byBlock ? safeZonePh3.validationCache.byBlock[activeBl.id] : null;
                 for (var pi = 0; pi < activeBl.panels.length; pi++) {
                   var p = activeBl.panels[pi];
-                  var isInvalid = p.state === "invalid";
+                  var panelPolyForSz = null;
+                  if (window.CALPINAGE_IS_MANIPULATING && activeBl.manipulationTransform && p.projection && p.projection.points) {
+                    var centerAct = ENG.getBlockCenter ? ENG.getBlockCenter(activeBl) : null;
+                    if (centerAct) {
+                      var t = activeBl.manipulationTransform;
+                      var cos = Math.cos((t.rotationDeg || 0) * Math.PI / 180);
+                      var sin = Math.sin((t.rotationDeg || 0) * Math.PI / 180);
+                      var ox = t.offsetX || 0, oy = t.offsetY || 0;
+                      panelPolyForSz = [];
+                      for (var ti = 0; ti < p.projection.points.length; ti++) {
+                        var pt = p.projection.points[ti];
+                        var dx = pt.x - centerAct.x, dy = pt.y - centerAct.y;
+                        panelPolyForSz.push({ x: centerAct.x + dx * cos - dy * sin + ox, y: centerAct.y + dx * sin + dy * cos + oy });
+                      }
+                    }
+                  } else {
+                    var effProjSz = ENG.getEffectivePanelProjection ? ENG.getEffectivePanelProjection(activeBl, pi) : null;
+                    panelPolyForSz = effProjSz && effProjSz.points ? effProjSz.points : null;
+                  }
+                  var invalidSafeZoneActive;
+                  if (safeZonePolysActive.length === 0 || !panelPolyForSz) {
+                    invalidSafeZoneActive = false;
+                  } else if (shouldValidate) {
+                    invalidSafeZoneActive = !isPanelInsideSafeZone(panelPolyForSz, safeZonePolysActive, edgesActive);
+                    if (!vcActive) { vcActive = {}; if (!safeZonePh3.validationCache) safeZonePh3.validationCache = { byBlock: {} }; safeZonePh3.validationCache.byBlock[activeBl.id] = vcActive; }
+                    vcActive[pi] = !invalidSafeZoneActive;
+                  } else if (vcActive && vcActive[pi] !== undefined) {
+                    invalidSafeZoneActive = !vcActive[pi];
+                  } else {
+                    safeZonePh3.panelsDirty = true;
+                    invalidSafeZoneActive = false;
+                  }
+                  var isInvalid = p.state === "invalid" || invalidSafeZoneActive;
                   var outlineColor = isInvalid ? PANEL_OUTLINE_INVALID : PANEL_OUTLINE_ACTIVE;
                   var outlineWidth = isInvalid ? 3 : 2.5;
                   var dash = isInvalid ? [6, 4] : [];
@@ -11790,13 +18340,65 @@ updateValidateButton();
                       ctx.fill();
                       ctx.restore();
                     }
+                    if (isInvalid) {
+                      ctx.save();
+                      ctx.fillStyle = "rgba(239,68,68,0.25)";
+                      ctx.beginPath();
+                      var sp0invAct = imageToScreen(panelPolyAct[0]);
+                      ctx.moveTo(sp0invAct.x, sp0invAct.y);
+                      for (var kinvAct = 1; kinvAct < panelPolyAct.length; kinvAct++) {
+                        var spkinvAct = imageToScreen(panelPolyAct[kinvAct]);
+                        ctx.lineTo(spkinvAct.x, spkinvAct.y);
+                      }
+                      ctx.closePath();
+                      ctx.fill();
+                      ctx.restore();
+                    }
                   }
                 }
               }
-              /* 3) Ghosts moteur (expansion) : affich?s pour le bloc actif. Tous les ghosts retourn?s par le moteur sont dessin?s, aucun filtrage. */
+              if (shouldValidate) {
+                safeZonePh3.lastValidateTs = now;
+                safeZonePh3.geoDirty = false;
+                safeZonePh3.panelsDirty = false;
+              }
+              if (window.__SAFE_ZONE_PROF_ENABLE__ && window.__SAFE_ZONE_PROF__) {
+                var prof = window.__SAFE_ZONE_PROF__;
+                prof.blockTimes.push(performance.now() - prof.blockT0);
+                if (safeZoneCache && safeZoneCache.byPanId) {
+                  for (var _pid in safeZoneCache.byPanId) {
+                    var _sz = safeZoneCache.byPanId[_pid];
+                    if (_sz && _sz.safeZonePolygonsPx) {
+                      for (var _k = 0; _k < _sz.safeZonePolygonsPx.length; _k++) {
+                        var _p = _sz.safeZonePolygonsPx[_k];
+                        if (_p && _p.length) prof.polyStats.szVertices.push(_p.length);
+                      }
+                    }
+                    var _ed = safeZoneCache._edgesByPanId && safeZoneCache._edgesByPanId[_pid];
+                    if (_ed && _ed.length) prof.polyStats.obsEdges.push(_ed.length);
+                  }
+                }
+              }
+              /* 3) Ghosts moteur (expansion) : FLAT = filtrés côté moteur (safe zone + validation alignée autofill). */
               if (activeBl && ENG.computeExpansionGhosts && typeof getProjectionContextForBlock === "function") {
                 var getCtxForGhosts = function () { return typeof getProjectionContextForBlock === "function" ? getProjectionContextForBlock(activeBl) : null; };
-                var ghosts = ENG.computeExpansionGhosts(activeBl, getCtxForGhosts);
+                var _prevGhostSzOk = typeof window !== "undefined" ? window.__CALPINAGE_GHOST_SAFE_ZONE_OK__ : undefined;
+                var ghosts;
+                try {
+                  var _ctxG = getCtxForGhosts();
+                  var _isFlatG = _ctxG && ((_ctxG.roofType === "FLAT") || (_ctxG.roofParams && _ctxG.roofParams.roofType === "FLAT"));
+                  if (_isFlatG && typeof window.__CALPINAGE_GET_SAFE_ZONE_DATA_FOR_AUTOFILL_PAN__ === "function") {
+                    var _szGhost = window.__CALPINAGE_GET_SAFE_ZONE_DATA_FOR_AUTOFILL_PAN__(activeBl.panId);
+                    if (_szGhost && _szGhost.polys && _szGhost.polys.length) {
+                      window.__CALPINAGE_GHOST_SAFE_ZONE_OK__ = function (pp) {
+                        return isPanelInsideSafeZone(pp, _szGhost.polys, _szGhost.edges);
+                      };
+                    }
+                  }
+                  ghosts = ENG.computeExpansionGhosts(activeBl, getCtxForGhosts);
+                } finally {
+                  if (typeof window !== "undefined") window.__CALPINAGE_GHOST_SAFE_ZONE_OK__ = _prevGhostSzOk;
+                }
                 if (Array.isArray(ghosts)) {
                   for (var gi = 0; gi < ghosts.length; gi++) {
                     var g = ghosts[gi];
@@ -11816,6 +18418,122 @@ updateValidateButton();
                     ctx.fill();
                     ctx.stroke();
                     ctx.restore();
+                  }
+                }
+              }
+              /* Auto-fill mode live : moteur inchangé ; filtre UX pour ne pas afficher la grille rouge « debug » (hors pan, marge, safe zone, etc.). */
+              var afLive = typeof window.__getLiveAutofillRenderData === "function" ? window.__getLiveAutofillRenderData() : null;
+              var afItemsRaw = afLive && Array.isArray(afLive.items) ? afLive.items : [];
+              var afUxFilter = typeof window.__filterAutofillPreviewItemsForUx === "function" ? window.__filterAutofillPreviewItemsForUx : null;
+              var afItems = afUxFilter ? afUxFilter(afItemsRaw) : afItemsRaw;
+              afItems.sort(function (sa, sb) {
+                if (!!sa.valid !== !!sb.valid) return sa.valid ? 1 : -1;
+                var aiu = typeof sa.iu === "number" ? sa.iu : 0;
+                var aiv = typeof sa.iv === "number" ? sa.iv : 0;
+                var biu = typeof sb.iu === "number" ? sb.iu : 0;
+                var biv = typeof sb.iv === "number" ? sb.iv : 0;
+                if (aiu !== biu) return aiu - biu;
+                return aiv - biv;
+              });
+              var isManipAfDraw = !!window.CALPINAGE_IS_MANIPULATING;
+              var afModeDraw = window.__CALPINAGE_AUTOFILL_MODE__;
+              var afBlockIdDraw = afModeDraw && afModeDraw.sourceBlockId ? afModeDraw.sourceBlockId : "";
+              var afPanIdDraw = afModeDraw && afModeDraw.sourcePanId != null ? afModeDraw.sourcePanId : "";
+              var selAfDraw = window.__CALPINAGE_AUTOFILL_SELECTION__;
+              var mkAfKeyDraw = typeof window.__makeAutofillCellKey === "function" ? window.__makeAutofillCellKey : null;
+              var afSmooth = window.__AF_GHOST_SMOOTH_STATE__;
+              if (!afSmooth || typeof afSmooth !== "object" || !afSmooth.last) {
+                afSmooth = window.__AF_GHOST_SMOOTH_STATE__ = { last: {} };
+              }
+              if (!isManipAfDraw) {
+                afSmooth.last = {};
+              }
+              var afSeenSmoothKeys = {};
+              if (afItems.length > 0) {
+                for (var aix = 0; aix < afItems.length; aix++) {
+                  var afIt = afItems[aix];
+                  if (!afIt || !afIt.projection || !afIt.projection.points || afIt.projection.points.length < 3) continue;
+                  var tgtPts = afIt.projection.points;
+                  var ptsDraw = tgtPts;
+                  if (isManipAfDraw && afBlockIdDraw && typeof afIt.iu === "number" && typeof afIt.iv === "number") {
+                    var skAf = afBlockIdDraw + "|" + afIt.iu + "|" + afIt.iv;
+                    afSeenSmoothKeys[skAf] = true;
+                    var prevEnt = afSmooth.last[skAf];
+                    var vNow = !!afIt.valid;
+                    if (prevEnt && prevEnt.valid === vNow && prevEnt.pts && prevEnt.pts.length === tgtPts.length) {
+                      var alphaAf = 0.52;
+                      ptsDraw = [];
+                      for (var pji = 0; pji < tgtPts.length; pji++) {
+                        ptsDraw.push({
+                          x: prevEnt.pts[pji].x + (tgtPts[pji].x - prevEnt.pts[pji].x) * alphaAf,
+                          y: prevEnt.pts[pji].y + (tgtPts[pji].y - prevEnt.pts[pji].y) * alphaAf,
+                        });
+                      }
+                    }
+                    var ptsCopy = [];
+                    for (var pjc = 0; pjc < ptsDraw.length; pjc++) {
+                      ptsCopy.push({ x: ptsDraw[pjc].x, y: ptsDraw[pjc].y });
+                    }
+                    afSmooth.last[skAf] = { valid: vNow, pts: ptsCopy };
+                  }
+                  ctx.save();
+                  var afExcludedValid = false;
+                  if (afIt.valid && mkAfKeyDraw && selAfDraw && selAfDraw.excludedKeys && typeof afIt.iu === "number" && typeof afIt.iv === "number") {
+                    afExcludedValid = selAfDraw.excludedKeys.has(mkAfKeyDraw(afBlockIdDraw, afPanIdDraw, afIt.iu, afIt.iv));
+                  }
+                  if (afIt.valid) {
+                    if (afExcludedValid) {
+                      ctx.fillStyle = "rgba(190,190,205,0.14)";
+                      ctx.strokeStyle = "rgba(110,110,130,0.55)";
+                      ctx.setLineDash([4, 4]);
+                    } else {
+                      ctx.fillStyle = "rgba(200,200,200,0.35)";
+                      ctx.strokeStyle = "rgba(160,160,160,0.6)";
+                      ctx.setLineDash([]);
+                    }
+                  } else {
+                    ctx.fillStyle = "rgba(220, 60, 60, 0.22)";
+                    ctx.strokeStyle = "rgba(170, 30, 30, 0.88)";
+                    ctx.setLineDash([4, 3]);
+                  }
+                  ctx.lineWidth = 1;
+                  ctx.beginPath();
+                  var ap0 = imageToScreen(ptsDraw[0]);
+                  ctx.moveTo(ap0.x, ap0.y);
+                  for (var apk = 1; apk < ptsDraw.length; apk++) {
+                    var apt = imageToScreen(ptsDraw[apk]);
+                    ctx.lineTo(apt.x, apt.y);
+                  }
+                  ctx.closePath();
+                  ctx.fill();
+                  ctx.stroke();
+                  if (afIt.valid && afExcludedValid) {
+                    var cxAf = 0, cyAf = 0;
+                    for (var bxi = 0; bxi < ptsDraw.length; bxi++) {
+                      cxAf += ptsDraw[bxi].x;
+                      cyAf += ptsDraw[bxi].y;
+                    }
+                    cxAf /= ptsDraw.length;
+                    cyAf /= ptsDraw.length;
+                    var cAfScr = imageToScreen({ x: cxAf, y: cyAf });
+                    var hAf = 2.5;
+                    ctx.strokeStyle = "rgba(90,90,108,0.72)";
+                    ctx.lineWidth = 1;
+                    ctx.setLineDash([]);
+                    ctx.beginPath();
+                    ctx.moveTo(cAfScr.x - hAf, cAfScr.y - hAf);
+                    ctx.lineTo(cAfScr.x + hAf, cAfScr.y + hAf);
+                    ctx.moveTo(cAfScr.x - hAf, cAfScr.y + hAf);
+                    ctx.lineTo(cAfScr.x + hAf, cAfScr.y - hAf);
+                    ctx.stroke();
+                  }
+                  ctx.restore();
+                }
+                if (isManipAfDraw) {
+                  for (var skDel in afSmooth.last) {
+                    if (!Object.prototype.hasOwnProperty.call(afSeenSmoothKeys, skDel)) {
+                      delete afSmooth.last[skDel];
+                    }
                   }
                 }
               }
@@ -11858,72 +18576,84 @@ updateValidateButton();
               if (focusBlock && selectedBlockScreenPts && selectedBlockForTooltip) {
                 drawBlockSelectionBorderAndTooltip(ctx, selectedBlockScreenPts, selectedBlockForTooltip);
               }
-              /* Poignées rotation / déplacement du bloc focus (lignes premium + boutons) */
+              /* Poignées rotation / déplacement du bloc focus — source unique getManipulationHandlePositions */
               if (
                 CALPINAGE_STATE.currentPhase === "PV_LAYOUT" &&
                 vp &&
                 typeof vp.scale === "number" &&
                 focusBlock &&
-                (visibleScreenPtsForHandles.length >= 3 || typeof getManipulationHandlePositions === "function")
+                typeof getManipulationHandlePositions === "function"
               ) {
-                var rScr = null, mScr = null, topScr = null, bottomScr = null;
-                if (visibleScreenPtsForHandles.length >= 3) {
-                  var vMinX = visibleScreenPtsForHandles[0].x, vMaxX = visibleScreenPtsForHandles[0].x;
-                  var vMinY = visibleScreenPtsForHandles[0].y, vMaxY = visibleScreenPtsForHandles[0].y;
-                  for (var vi = 1; vi < visibleScreenPtsForHandles.length; vi++) {
-                    var vpt = visibleScreenPtsForHandles[vi];
-                    if (vpt.x < vMinX) vMinX = vpt.x; if (vpt.x > vMaxX) vMaxX = vpt.x;
-                    if (vpt.y < vMinY) vMinY = vpt.y; if (vpt.y > vMaxY) vMaxY = vpt.y;
-                  }
-                  var vCenterX = (vMinX + vMaxX) / 2;
-                  var vTopY = vMinY;
-                  var vBottomY = vMaxY;
-                  var vBlockHeight = vMaxY - vMinY;
-                  var vOffset = Math.max(18, vBlockHeight * 0.12);
-                  rScr = { x: vCenterX, y: vTopY - vOffset };
-                  mScr = { x: vCenterX, y: vBottomY + vOffset };
-                  topScr = { x: vCenterX, y: vTopY };
-                  bottomScr = { x: vCenterX, y: vBottomY };
-                } else if (typeof getManipulationHandlePositions === "function") {
-                  var posHandles = getManipulationHandlePositions(focusBlock);
-                  if (posHandles) {
-                    rScr = imageToScreen(posHandles.rotate);
-                    mScr = imageToScreen(posHandles.move);
-                    topScr = imageToScreen({ x: posHandles.centerX, y: posHandles.topY });
-                    bottomScr = imageToScreen({ x: posHandles.centerX, y: posHandles.bottomY });
-                  }
+                var rScr = null, mScr = null, stemScr = null;
+                var posHandles = getManipulationHandlePositions(focusBlock);
+                if (posHandles) {
+                  rScr = imageToScreen(posHandles.rotate);
+                  mScr = imageToScreen(posHandles.move);
+                  stemScr = imageToScreen(posHandles.topOfBlock);
                 }
-                if (rScr && mScr && topScr && bottomScr) {
+                if (rScr && mScr && stemScr) {
+                  var ph3HH = drawState.ph3HandleHover;
                   ctx.save();
-                  ctx.strokeStyle = "rgba(255,255,255,0.25)";
-                  ctx.lineWidth = 1;
+                  ctx.strokeStyle = ph3HH ? "rgba(255,255,255,0.42)" : "rgba(255,255,255,0.3)";
+                  ctx.lineWidth = ph3HH ? 1.25 : 1;
                   ctx.beginPath();
-                  ctx.moveTo(topScr.x, topScr.y);
+                  ctx.moveTo(stemScr.x, stemScr.y);
                   ctx.lineTo(rScr.x, rScr.y);
                   ctx.stroke();
                   ctx.beginPath();
-                  ctx.moveTo(bottomScr.x, bottomScr.y);
+                  ctx.moveTo(stemScr.x, stemScr.y);
                   ctx.lineTo(mScr.x, mScr.y);
                   ctx.stroke();
-                  /* Rotation handle : cercle plein 8px, fill #C39847, stroke rgba(0,0,0,0.35), shadowBlur 1.5, pas d'icône */
-                  var radiusRotate = 8, radiusMove = 5;
-                  ctx.shadowBlur = 1.5;
+                  /* Rotation handle : disque + arc (hit zone alignée px écran) */
+                  var radiusRotate = 9, radiusMove = 6;
+                  ctx.shadowBlur = ph3HH === "rotate" ? 2.2 : 1.5;
                   ctx.fillStyle = "#C39847";
-                  ctx.strokeStyle = "rgba(0,0,0,0.35)";
-                  ctx.lineWidth = 1;
+                  ctx.strokeStyle = ph3HH === "rotate" ? "rgba(255,255,255,0.55)" : "rgba(0,0,0,0.35)";
+                  ctx.lineWidth = ph3HH === "rotate" ? 1.5 : 1;
                   ctx.beginPath();
                   ctx.arc(rScr.x, rScr.y, radiusRotate, 0, Math.PI * 2);
                   ctx.fill();
                   ctx.stroke();
                   ctx.shadowBlur = 0;
-                  /* Move handle : cercle blanc 5px, stroke #C39847, pas d'ombre, pas d'icône */
-                  ctx.fillStyle = "#ffffff";
-                  ctx.strokeStyle = "#C39847";
+                  /* Icône rotation : arc intérieur + flèche */
+                  ctx.save();
+                  ctx.strokeStyle = "rgba(0,0,0,0.55)";
                   ctx.lineWidth = 1;
+                  ctx.shadowBlur = 0;
+                  var arcR = 5, arcStart = 0.3 * Math.PI, arcEnd = 1.8 * Math.PI;
+                  ctx.beginPath();
+                  ctx.arc(rScr.x, rScr.y, arcR, arcStart, arcEnd);
+                  ctx.stroke();
+                  var tipX = rScr.x + Math.cos(arcEnd) * arcR, tipY = rScr.y + Math.sin(arcEnd) * arcR;
+                  var arrLen = 2.2;
+                  ctx.beginPath();
+                  ctx.moveTo(tipX, tipY);
+                  ctx.lineTo(tipX + Math.cos(arcEnd - 0.5) * arrLen, tipY + Math.sin(arcEnd - 0.5) * arrLen);
+                  ctx.moveTo(tipX, tipY);
+                  ctx.lineTo(tipX + Math.cos(arcEnd + 0.5) * arrLen, tipY + Math.sin(arcEnd + 0.5) * arrLen);
+                  ctx.stroke();
+                  ctx.restore();
+                  /* Move : disque blanc + croix */
+                  ctx.fillStyle = "#ffffff";
+                  ctx.strokeStyle = ph3HH === "move" ? "rgba(195,152,71,0.95)" : "#C39847";
+                  ctx.lineWidth = ph3HH === "move" ? 1.5 : 1;
                   ctx.beginPath();
                   ctx.arc(mScr.x, mScr.y, radiusMove, 0, Math.PI * 2);
                   ctx.fill();
                   ctx.stroke();
+                  /* Icône move : croix fine centrée */
+                  ctx.save();
+                  ctx.strokeStyle = "#C39847";
+                  ctx.lineWidth = 1;
+                  ctx.shadowBlur = 0;
+                  var crossLen = 3.5;
+                  ctx.beginPath();
+                  ctx.moveTo(mScr.x - crossLen, mScr.y);
+                  ctx.lineTo(mScr.x + crossLen, mScr.y);
+                  ctx.moveTo(mScr.x, mScr.y - crossLen);
+                  ctx.lineTo(mScr.x, mScr.y + crossLen);
+                  ctx.stroke();
+                  ctx.restore();
                   ctx.restore();
                 }
               }
@@ -12034,6 +18764,20 @@ updateValidateButton();
                 }
               }
               if (drawState.hoverNearFirstPoint && activeContourPts.length >= 3) {
+                /* Ligne de fermeture en vert (dernier point → premier point) */
+                var _closeLast = imageToScreen(activeContourPts[activeContourPts.length - 1]);
+                var _closeFirst = imageToScreen(activeContourPts[0]);
+                ctx.save();
+                ctx.strokeStyle = "#22c55e";
+                ctx.lineWidth = 2.5;
+                ctx.setLineDash([5, 3]);
+                ctx.beginPath();
+                ctx.moveTo(_closeLast.x, _closeLast.y);
+                ctx.lineTo(_closeFirst.x, _closeFirst.y);
+                ctx.stroke();
+                ctx.setLineDash([]);
+                ctx.restore();
+                /* Tooltip */
                 var firstSc = imageToScreen(activeContourPts[0]);
                 ctx.font = "11px system-ui, sans-serif";
                 ctx.fillStyle = "rgba(0,0,0,0.7)";
@@ -12146,12 +18890,27 @@ updateValidateButton();
               if (!c || !c.points || c.points.length < 2) continue;
               var contourSelected = (drawState.activeTool === "contour" || drawState.activeTool === "select") && (drawState.selectedContourIndex === ci || selContourIds.has(c.id));
               if (contourSelected) {
-                ctx.fillStyle = "#1f2937";
                 for (var j = 0; j < c.points.length; j++) {
                   var sc = imageToScreen(c.points[j]);
+                  var _isSharedVtx = c.id ? hasAttachedEndpoints(c.id, j, CALPINAGE_STATE.traits, CALPINAGE_STATE.ridges) : false;
+                  var _isSelVtx = (j === drawState.selectedContourVertexIndex && drawState.selectedContourIndex === ci);
+                  var _vtxR = _isSelVtx ? 7 : (_isSharedVtx ? 6 : 5);
+                  ctx.save();
+                  ctx.fillStyle = _isSelVtx ? "#c9a449" : (_isSharedVtx ? "#22c55e" : "#1f2937");
                   ctx.beginPath();
-                  ctx.arc(sc.x, sc.y, 5, 0, Math.PI * 2);
+                  ctx.arc(sc.x, sc.y, _vtxR, 0, Math.PI * 2);
                   ctx.fill();
+                  if (_isSharedVtx && !_isSelVtx) {
+                    ctx.strokeStyle = "#16a34a";
+                    ctx.lineWidth = 1.5;
+                    ctx.stroke();
+                  }
+                  if (_isSelVtx) {
+                    ctx.strokeStyle = "#92400e";
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                  }
+                  ctx.restore();
                 }
               }
             }
@@ -12263,8 +19022,17 @@ updateValidateButton();
               canvasEl.style.cursor = "grabbing";
             } else if (drawState.draggingShadowVolumeHandle === "rotate") {
               canvasEl.style.cursor = "grabbing";
-            } else if (CALPINAGE_STATE.currentPhase === "PV_LAYOUT" && drawState.ph3HandleHover) {
-              canvasEl.style.cursor = drawState.ph3HandleHover === "rotate" ? "grab" : "move";
+            } else if (CALPINAGE_STATE.currentPhase === "PV_LAYOUT") {
+              if (drawState.ph3HandleHover) {
+                canvasEl.style.cursor = drawState.ph3HandleHover === "rotate" ? "grab" : "move";
+              } else if (drawState.lastMouseImage && !insideAnyPan(drawState.lastMouseImage)) {
+                canvasEl.style.cursor = "grab";
+              } else {
+                var p3tool = window.CALPINAGE_DP2_STATE && window.CALPINAGE_DP2_STATE.currentTool;
+                if (p3tool === "panels") canvasEl.style.cursor = "pointer";
+                else if (p3tool === "select") canvasEl.style.cursor = "move";
+                else canvasEl.style.cursor = "default";
+              }
             } else {
               var obstacleHoverRotate = false;
               if (drawState.selectedObstacleIndex != null && drawState.lastMouseImage && window.CalpinageCanvas && window.CalpinageCanvas.hitTestObstacleHandles) {
@@ -12382,6 +19150,30 @@ updateValidateButton();
               ctx.restore();
             }
 
+            /* Phase 3 — delta d'angle discret pendant rotation poignée (image space ignoré : coin canvas CSS) */
+            if (
+              CALPINAGE_STATE.currentPhase === "PV_LAYOUT" &&
+              window.CALPINAGE_IS_MANIPULATING &&
+              calpinageHandleDrag &&
+              calpinageHandleDrag.type === "rotate" &&
+              drawState.ph3RotationLiveDeg != null &&
+              Number.isFinite(drawState.ph3RotationLiveDeg)
+            ) {
+              ctx.save();
+              ctx.setTransform(1, 0, 0, 1, 0, 0);
+              ctx.font = "12px system-ui, -apple-system, sans-serif";
+              ctx.fillStyle = "rgba(15,23,42,0.92)";
+              ctx.textAlign = "left";
+              ctx.textBaseline = "top";
+              var _rd = drawState.ph3RotationLiveDeg;
+              var angStr = (Math.abs(_rd) >= 10 ? Math.round(_rd) : Math.round(_rd * 10) / 10).toString().replace(".", ",") + "\u00b0";
+              if (drawState.ph3RotateShiftSnap) angStr += " \u2022 snap 15\u00b0";
+              ctx.fillText(angStr, 10, 8);
+              ctx.restore();
+            }
+
+            syncCalpinageDsmReadOverlay();
+
             var toolbar = container.querySelector("#zone-b-toolbar");
             if (toolbar && drawState.activeTool === "contour" && CALPINAGE_STATE.activeContour && CALPINAGE_STATE.activeContour.points.length > 0) {
               var badgeEl = toolbar.querySelector(".contour-badge-ux");
@@ -12397,38 +19189,69 @@ updateValidateButton();
               var badgeEl = toolbar.querySelector(".contour-badge-ux");
               if (badgeEl) badgeEl.style.display = "none";
             }
-
-            window.CALPINAGE_RENDER = render;
-            if (!engine._destroyed) {
-              renderRafId = requestAnimationFrame(render);
-            }
+            updatePhase2ObstacleFloatingToolbar();
           }
-          render();
+          window.CALPINAGE_RENDER = safeRender;
+          if (!engine._destroyed) {
+            calpinageAnimationLoop();
+          }
         };
         roofImg.src = CALPINAGE_STATE.roof.image.dataUrl;
       }
 
       function waitForContainerSize(container, callback) {
         var attempts = 0;
+        var done = false;
+        function finish() {
+          if (done) return;
+          done = true;
+          if (toId != null) clearTimeout(toId);
+          callback();
+        }
+        var toId = typeof setTimeout !== "undefined" ? setTimeout(function () {
+          if (!done) {
+            console.warn("[CALPINAGE] waitForContainerSize: timeout, poursuite avec taille actuelle");
+            finish();
+          }
+        }, 5000) : null;
         function check() {
           var rect = container.getBoundingClientRect();
           if (rect.width > 0 && rect.height > 0) {
             if (devLog) {
               console.log("[CALPINAGE] container size before init: " + rect.width + " x " + rect.height);
             }
-            callback();
-          } else if (attempts < 10) {
+            finish();
+          } else if (attempts < 45) {
             attempts++;
             requestAnimationFrame(check);
           } else {
             console.warn("[CALPINAGE] container never got size");
-            callback();
+            finish();
           }
         }
         check();
       }
 
       function doSwitchProvider(src) {
+        var preservedView = null;
+        try {
+          var apiBefore = mapApi || (typeof window !== "undefined" ? window.calpinageMap : null);
+          if (apiBefore && typeof apiBefore.getState === "function") {
+            var stKeep = apiBefore.getState();
+            if (stKeep && stKeep.centerLatLng && typeof stKeep.centerLatLng.lat === "number" && typeof stKeep.centerLatLng.lng === "number"
+              && !Number.isNaN(stKeep.centerLatLng.lat) && !Number.isNaN(stKeep.centerLatLng.lng)) {
+              var zKeep = typeof stKeep.zoom === "number" && !Number.isNaN(stKeep.zoom) ? stKeep.zoom : 19;
+              preservedView = { centerLatLng: { lat: stKeep.centerLatLng.lat, lng: stKeep.centerLatLng.lng }, zoom: zKeep };
+            }
+          }
+          if (preservedView && CALPINAGE_STATE && CALPINAGE_STATE.roof) {
+            if (!CALPINAGE_STATE.roof.map) CALPINAGE_STATE.roof.map = {};
+            CALPINAGE_STATE.roof.map.centerLatLng = { lat: preservedView.centerLatLng.lat, lng: preservedView.centerLatLng.lng };
+            CALPINAGE_STATE.roof.map.zoom = preservedView.zoom;
+          }
+        } catch (e) {
+          if (typeof console !== "undefined" && console.warn) console.warn("[CALPINAGE] capture map view before provider switch", e);
+        }
         if (window.calpinageMap && window.calpinageMap.destroy) {
           window.calpinageMap.destroy();
         }
@@ -12443,8 +19266,9 @@ updateValidateButton();
             showCanvas();
             waitForContainerSize(canvasWrapper, startCanvasWithImage);
           }
+          if (typeof restoreMapViewAfterProviderSwitch === "function") restoreMapViewAfterProviderSwitch(preservedView);
           if (typeof setupMapDragListener === "function") setupMapDragListener();
-          if (typeof applyCenterOnLayerChange === "function") applyCenterOnLayerChange();
+          if (typeof reapplyBuildingConfirmationAfterLayerSwitch === "function") reapplyBuildingConfirmationAfterLayerSwitch();
           resizeCanvasToContainer();
         }
         if (src === "geoportail-ortho") {
@@ -12489,6 +19313,7 @@ updateValidateButton();
           if (rect.width > 0 && rect.height > 0) {
             if (currentCanvasEngine) currentCanvasEngine.resize();
             doResizeMap();
+            wakeCalpinageCanvasRender();
           } else if (attempts < 10) {
             attempts++;
             resizeRafId = requestAnimationFrame(doResize);
@@ -12500,6 +19325,35 @@ updateValidateButton();
 
       resizeHandler = function () { resizeCanvasToContainer(); };
       window.addEventListener("resize", resizeHandler);
+      function onCalpinageDocumentVisibility() {
+        if (typeof document !== "undefined" && document.hidden) return;
+        wakeCalpinageCanvasRender();
+      }
+      if (typeof document !== "undefined") {
+        document.addEventListener("visibilitychange", onCalpinageDocumentVisibility);
+      }
+      if (typeof IntersectionObserver !== "undefined" && canvasWrapper) {
+        calpinageCanvasIntersectionObs = new IntersectionObserver(function (entries) {
+          for (var _ioi = 0; _ioi < entries.length; _ioi++) {
+            var en = entries[_ioi];
+            if (
+              en.isIntersecting &&
+              en.intersectionRect &&
+              en.intersectionRect.width >= 2 &&
+              en.intersectionRect.height >= 2
+            ) {
+              wakeCalpinageCanvasRender();
+              break;
+            }
+          }
+        }, { threshold: [0, 0.01] });
+        try {
+          calpinageCanvasIntersectionObs.observe(canvasWrapper);
+        } catch (e) {
+          if (typeof console !== "undefined" && console.warn) console.warn("[CALPINAGE] IntersectionObserver canvas", e);
+          calpinageCanvasIntersectionObs = null;
+        }
+      }
 
       var defaultSource = (typeof window !== "undefined" && window.__CALPINAGE_INITIAL_PROVIDER__) || "google";
       function afterMapReady() {
@@ -12515,6 +19369,23 @@ updateValidateButton();
       }
 
       cleanupTasks.push(function () {
+        if (calpinageCanvasIntersectionObs) {
+          try {
+            calpinageCanvasIntersectionObs.disconnect();
+          } catch (_) {}
+          calpinageCanvasIntersectionObs = null;
+        }
+        if (typeof document !== "undefined") {
+          document.removeEventListener("visibilitychange", onCalpinageDocumentVisibility);
+        }
+        resumeCalpinageAnimLoopFn = null;
+        if (typeof window !== "undefined") {
+          try {
+            delete window.CALPINAGE_VIEWPORT_FIT_SCALE;
+          } catch (_) {
+            window.CALPINAGE_VIEWPORT_FIT_SCALE = undefined;
+          }
+        }
         if (resizeHandler && typeof window !== "undefined") {
           window.removeEventListener("resize", resizeHandler);
           resizeHandler = null;
@@ -12850,64 +19721,68 @@ updateValidateButton();
     }
   })();
 
-  (function initHouseModelV2Preview() {
-    var HOUSEMODEL_V2 = typeof window !== "undefined" && window.HOUSEMODEL_V2;
-    var btn = container.querySelector("#btn-preview-3d");
-    var overlay = container.querySelector("#calpinage-preview-3d-overlay");
-    var container3d = container.querySelector("#calpinage-preview-3d-container");
-    var btnClose = container.querySelector("#btn-close-preview-3d");
-    if (!btn || !overlay || !container3d) return;
-    if (HOUSEMODEL_V2) btn.style.display = "inline-block";
-    else return;
+  /* ——— Toggle 2D / 3D dans le workspace central (#zone-c) ——— */
+  (function initViewToggle() {
+    var currentViewMode = "2D";
+    var btn = container.querySelector("#btn-toggle-view-3d");
+    var labelEl = container.querySelector("#btn-toggle-view-3d-label");
+    var iconCube = container.querySelector("#btn-toggle-view-3d-icon-cube");
+    var iconPlan = container.querySelector("#btn-toggle-view-3d-icon-plan");
+    var canvasWrapper = container.querySelector("#canvas-wrapper");
+    var zone3d = container.querySelector("#zone-c-3d");
 
-    var phase3ViewerInstance = null;
-    function withBase(path) {
-      var base = (typeof import.meta !== "undefined" && import.meta.env && import.meta.env.BASE_URL) || "/";
-      var b = base.endsWith("/") ? base : base + "/";
-      var p = path.startsWith("/") ? path.slice(1) : path;
-      return b + p;
+    if (!btn || !canvasWrapper || !zone3d) return;
+
+    if (typeof window !== "undefined") {
+      window.__CALPINAGE_VIEW_MODE__ = currentViewMode;
     }
 
-    addSafeListener(btn, "click", async function () {
-      try {
-        var ctx = typeof getHeightAtImgPoint === "function"
-          ? { getHeightAtImagePoint: function (x, y) { return getHeightAtImgPoint({ x: x, y: y }); } }
-          : null;
-        var norm = normalizeCalpinageGeometry3DReady(CALPINAGE_STATE, ctx, {
-          getAllPanels: window.pvPlacementEngine && window.pvPlacementEngine.getAllPanels,
-          computePansFromGeometryCore: computePansFromGeometryCore,
-        });
-        var mpp = (CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.scale && CALPINAGE_STATE.roof.scale.metersPerPixel) || 1;
-        var buildingContours = (norm.index && norm.index.byType && norm.index.byType.BUILDING_CONTOUR) || [];
-        var originPx = { x: 0, y: 0 };
-        if (buildingContours.length > 0 && buildingContours[0].footprintPx && buildingContours[0].footprintPx.length > 0) {
-          originPx = computeCentroidPx(buildingContours[0].footprintPx);
-        }
-        var houseModel = houseModelV2(norm.entities, { metersPerPixel: mpp, originPx: originPx });
+    function switchTo3D() {
+      if (currentViewMode === "3D") return;
+      currentViewMode = "3D";
+      if (typeof window !== "undefined") window.__CALPINAGE_VIEW_MODE__ = "3D";
+      canvasWrapper.classList.remove("visible");
+      zone3d.classList.add("visible");
+      btn.classList.add("active-3d");
+      if (labelEl) labelEl.textContent = "Vue plan";
+      if (iconCube) iconCube.style.display = "none";
+      if (iconPlan) iconPlan.style.display = "";
+      window.dispatchEvent(new CustomEvent("calpinage:viewmode", { detail: { mode: "3D" } }));
+    }
 
-        if (!window.THREE) {
-          await loadScriptOnce("https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js");
-        }
-        if (!window.Phase3Viewer) {
-          await loadScriptOnce(withBase("calpinage/phase3/phase3Viewer.js"));
-        }
-        if (!window.Phase3Viewer || !window.Phase3Viewer.initPhase3Viewer) {
-          console.warn("[HOUSEMODEL_V2] Phase3Viewer non chargé");
-          return;
-        }
-        if (phase3ViewerInstance && phase3ViewerInstance.dispose) phase3ViewerInstance.dispose();
-        container3d.innerHTML = "";
-        phase3ViewerInstance = window.Phase3Viewer.initPhase3Viewer(container3d, houseModel);
-        overlay.style.display = "block";
-      } catch (err) {
-        console.error("[HOUSEMODEL_V2] Erreur aperçu 3D", err);
+    function switchTo2D() {
+      if (currentViewMode === "2D") return;
+      currentViewMode = "2D";
+      if (typeof window !== "undefined") window.__CALPINAGE_VIEW_MODE__ = "2D";
+      zone3d.classList.remove("visible");
+      canvasWrapper.classList.add("visible");
+      btn.classList.remove("active-3d");
+      if (labelEl) labelEl.textContent = "Vue 3D";
+      if (iconCube) iconCube.style.display = "";
+      if (iconPlan) iconPlan.style.display = "none";
+      window.dispatchEvent(new CustomEvent("calpinage:viewmode", { detail: { mode: "2D" } }));
+    }
+
+    function toggleView() {
+      if (currentViewMode === "2D") switchTo3D();
+      else switchTo2D();
+    }
+
+    addSafeListener(btn, "click", toggleView);
+
+    if (typeof window !== "undefined") {
+      window.__calpinageToggleView = toggleView;
+      window.__calpinageSwitchTo3D = switchTo3D;
+      window.__calpinageSwitchTo2D = switchTo2D;
+    }
+
+    cleanupTasks.push(function () {
+      if (typeof window !== "undefined") {
+        delete window.__CALPINAGE_VIEW_MODE__;
+        delete window.__calpinageToggleView;
+        delete window.__calpinageSwitchTo3D;
+        delete window.__calpinageSwitchTo2D;
       }
-    });
-
-    addSafeListener(btnClose, "click", function () {
-      overlay.style.display = "none";
-      if (phase3ViewerInstance && phase3ViewerInstance.dispose) phase3ViewerInstance.dispose();
-      phase3ViewerInstance = null;
     });
   })();
 
@@ -12927,18 +19802,22 @@ updateValidateButton();
       : [];
 
     const shading = (CALPINAGE_STATE.shading && CALPINAGE_STATE.shading.normalized)
-      ? {
-          totalLossPct: CALPINAGE_STATE.shading.normalized.totalLossPct,
-          panelCount: CALPINAGE_STATE.shading.normalized.panelCount,
-          perPanel: CALPINAGE_STATE.shading.normalized.perPanel,
-          computedAt: CALPINAGE_STATE.shading.normalized.computedAt
-        }
+      ? (function () {
+          var n = CALPINAGE_STATE.shading.normalized;
+          var off = getOfficialGlobalShadingLossPct(n);
+          return {
+            totalLossPct: off != null ? off : (typeof n.totalLossPct === "number" ? n.totalLossPct : null),
+            panelCount: n.panelCount,
+            perPanel: n.perPanel,
+            computedAt: n.computedAt
+          };
+        })()
       : null;
 
     var rulesOrient = (window.PV_LAYOUT_RULES && window.PV_LAYOUT_RULES.orientation) ? String(window.PV_LAYOUT_RULES.orientation).toLowerCase() : "portrait";
     var exportOrientation = (rulesOrient === "landscape" || rulesOrient === "paysage") ? "landscape" : "portrait";
 
-    return {
+    var finalJson = {
       meta: {
         generatedAt: Date.now(),
         version: "calpinage-v1"
@@ -12965,12 +19844,31 @@ updateValidateButton();
       },
 
       roof: {
-        pans: CALPINAGE_STATE.validatedRoofData.pans.map(p => ({
-          id: p.id,
-          orientationDeg: p.orientationDeg,
-          tiltDeg: p.tiltDeg,
-          surfaceM2: p.surfaceM2
-        })),
+        pans: CALPINAGE_STATE.validatedRoofData.pans.map(function (p) {
+          var rt = p.roofType === "FLAT" ? "FLAT" : "PITCHED";
+          var row = {
+            id: p.id,
+            orientationDeg: p.orientationDeg,
+            tiltDeg: p.tiltDeg,
+            surfaceM2: p.surfaceM2,
+            roofType: rt,
+          };
+          if (rt === "FLAT") {
+            var liveExp = null;
+            var plist = CALPINAGE_STATE.pans || [];
+            for (var ei = 0; ei < plist.length; ei++) {
+              if (plist[ei] && plist[ei].id === p.id) {
+                liveExp = plist[ei];
+                break;
+              }
+            }
+            var flatRoofConfig = (liveExp && liveExp.flatRoofConfig) || p.flatRoofConfig;
+            row.flatRoofConfig = (typeof normalizeFlatRoofConfig === "function"
+              ? normalizeFlatRoofConfig(flatRoofConfig)
+              : (typeof console !== "undefined" && console.warn && console.warn("[FLAT CONFIG FALLBACK]", flatRoofConfig), __safeNormalizeFlatRoofConfig(flatRoofConfig)));
+          }
+          return row;
+        }),
         scale: CALPINAGE_STATE.validatedRoofData.scale,
         north: CALPINAGE_STATE.validatedRoofData.north || null
       },
@@ -12982,9 +19880,12 @@ updateValidateButton();
           var ctx = typeof getHeightAtImgPoint === "function"
             ? { getHeightAtImagePoint: function (x, y) { return getHeightAtImgPoint({ x: x, y: y }); } }
             : null;
+          var coreFn = typeof window !== "undefined" && typeof window.__computePansFromGeometryCoreForExport === "function"
+            ? window.__computePansFromGeometryCoreForExport
+            : undefined;
           var norm = normalizeCalpinageGeometry3DReady(CALPINAGE_STATE, ctx, {
             getAllPanels: window.pvPlacementEngine && window.pvPlacementEngine.getAllPanels,
-            computePansFromGeometryCore: computePansFromGeometryCore,
+            computePansFromGeometryCore: coreFn,
           });
           return buildGeometry3DExportSection(norm, ctx);
         } catch (err) {
@@ -12993,6 +19894,16 @@ updateValidateButton();
         }
       })()
     };
+    finalJson.calpinage_meta = {
+      version: "CALPINAGE_V1",
+      savedAt: new Date().toISOString(),
+      geometryHash: computeGeometryHash(finalJson.roof || null),
+      panelsHash: computePanelsHash(finalJson.panels && Array.isArray(finalJson.panels.layout) ? finalJson.panels.layout : []),
+      shadingHash: computeShadingHash(finalJson.shading || null),
+      shadingComputedAt: finalJson.shading && finalJson.shading.computedAt ? finalJson.shading.computedAt : null,
+      shadingSource: (CALPINAGE_STATE.shading && CALPINAGE_STATE.shading.lastComputedAt != null) ? "recomputed" : "persisted"
+    };
+    return finalJson;
   };
 
   /* Cleanup : listeners, RAF, intervals, puis reset complet pour isolation par studyId/versionId.
@@ -13026,6 +19937,10 @@ updateValidateButton();
     /* Supprimer toute référence window pour éviter fuite d'état entre études */
     if (typeof window !== "undefined") {
       try { delete window.CALPINAGE_STATE; } catch (_) {}
+      try { delete window.__applyFlatRoofConfigAndRecompute; } catch (_) {}
+      try { delete window.__applyManualPanRoofTypeAndRecompute; } catch (_) {}
+      try { delete window.__computePansFromGeometryCoreForExport; } catch (_) {}
+      try { delete window.__calpinage_hitTestPan__; } catch (_) {}
       window.CALPINAGE_STUDY_ID = null;
       window.CALPINAGE_VERSION_ID = null;
       window.PV_SELECTED_PANEL = null;

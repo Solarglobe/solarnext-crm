@@ -1,0 +1,796 @@
+/* Phase2Sidebar — zones : header, action, validation (remontée), pans, secondaire */
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 12px 16px;
+  background: #fafafa;
+  border-right: 1px solid rgba(195, 152, 71, 0.22);
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* ——— ZONE 1 — HEADER ——— */
+.zoneHeader {
+  flex-shrink: 0;
+  padding-bottom: 2px;
+}
+
+.zoneHeaderTitleRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+}
+
+.zoneHeaderPhase {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--sg-brand, #c39847);
+}
+
+.zoneHeaderDivider {
+  color: var(--sg-text-muted, #9ca3af);
+  font-size: 12px;
+}
+
+.zoneHeaderSubtitle {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--sg-text, #111827);
+  letter-spacing: -0.02em;
+}
+
+.zoneHeaderTagline {
+  margin: 4px 0 0;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--sg-text-muted, #6b7280);
+}
+
+/* ——— ZONES 2–5 — EYEBROWS ——— */
+.zoneEyebrow {
+  display: block;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: #9ca3af;
+  margin-bottom: 4px;
+}
+
+.zoneAction,
+.zonePans,
+.zoneValidation,
+.zoneSecondary {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-width: 0;
+}
+
+/* ——— ZONE 2 — ACTION (une carte) ——— */
+.actionCard {
+  padding: 8px 10px;
+  background: #fff;
+  border: 1px solid #e8e8e8;
+  border-radius: 10px;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 0 8px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.toolbarLabel {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #9ca3af;
+}
+
+.toolbarValue {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--sg-text, #1f2937);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.quickTools {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.quickToolsLabel {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #9ca3af;
+}
+
+.quickToolsRow {
+  display: flex;
+  gap: 4px;
+}
+
+.quickToolBtn {
+  flex: 1;
+  min-width: 0;
+  min-height: 30px;
+  padding: 4px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #fff;
+  color: var(--sg-text, #374151);
+  cursor: pointer;
+  transition:
+    background 0.12s ease,
+    border-color 0.12s ease,
+    color 0.12s ease;
+}
+
+.quickToolBtn:hover {
+  background: rgba(195, 152, 71, 0.06);
+  border-color: rgba(195, 152, 71, 0.3);
+  color: var(--sg-brand, #a97f35);
+}
+
+.quickToolBtnActive {
+  border-color: var(--sg-brand, #c39847);
+  background: rgba(195, 152, 71, 0.1);
+  color: var(--sg-brand, #8b6914);
+}
+
+.quickToolBtn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--sg-brand);
+  outline-offset: 1px;
+}
+
+/* ——— ZONE VALIDATION (remontée : après Action, avant Pans) ——— */
+.zoneValidation {
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* ——— ZONE PANS ——— */
+.pansZone {
+  padding: 6px 8px 8px;
+  background: #fff;
+  border: 1px solid #e8e8e8;
+  border-radius: 10px;
+  min-height: 0;
+}
+
+.pansZoneTitle {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #6b7280;
+  margin-bottom: 4px;
+}
+
+/* Liste simple (fallback) */
+.pansZone :global(#zone-a-pans-list.pans-list) {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.pansZone :global(#zone-a-pans-list.pans-list li) {
+  font-size: 12px;
+  padding: 4px 6px;
+  margin: 1px 0;
+  border-radius: 6px;
+}
+
+/*
+ * Cartes PAN — format ultra-compact (accordéon dense, pas fiche formulaire)
+ * DOM inchangé (legacy) ; layout grille : orientation | sens côte à côte
+ */
+:global(#zone-a-pans-block) :global(ul.pans-accordion) {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 280px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+:global(#zone-a-pans-block) :global(.pans-accordion-item) {
+  margin: 0 0 4px;
+  border-radius: 8px;
+  border: 1px solid rgba(17, 24, 39, 0.12);
+  background: #fff;
+  overflow: hidden;
+  box-shadow: 0 1px 0 rgba(17, 24, 39, 0.04);
+}
+
+:global(#zone-a-pans-block) :global(.pans-accordion-item:last-child) {
+  margin-bottom: 0;
+}
+
+:global(#zone-a-pans-block) :global(.pans-accordion-item.open) {
+  border-color: rgba(17, 24, 39, 0.18);
+  box-shadow:
+    0 1px 0 rgba(17, 24, 39, 0.06),
+    0 0 0 1px rgba(195, 152, 71, 0.22);
+}
+
+/* Fermé = une seule bande lisible, pas de header épais */
+:global(#zone-a-pans-block) :global(.pans-accordion-header) {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  width: 100%;
+  min-height: 28px;
+  max-height: 30px;
+  padding: 3px 8px;
+  box-sizing: border-box;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: #0f172a;
+  background: #fff;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  line-height: 1.15;
+  transition: background 0.1s ease;
+}
+
+:global(#zone-a-pans-block) :global(.pans-accordion-header:hover) {
+  background: #f8fafc;
+}
+
+:global(#zone-a-pans-block) :global(.pans-accordion-item.open .pans-accordion-header) {
+  background: #fff;
+  color: #0f172a;
+  border-bottom: 1px solid rgba(17, 24, 39, 0.1);
+  max-height: none;
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+:global(#zone-a-pans-block) :global(.pans-accordion-header-label) {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+:global(#zone-a-pans-block) :global(.pans-accordion-header-badge) {
+  flex-shrink: 0;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 1px 4px;
+  border-radius: 3px;
+  border: 1px solid transparent;
+  line-height: 1.2;
+}
+
+:global(#zone-a-pans-block) :global(.pans-accordion-header-badge.mode-auto) {
+  color: #14532d;
+  border-color: rgba(22, 101, 52, 0.45);
+  background: rgba(220, 252, 231, 0.65);
+}
+
+:global(#zone-a-pans-block) :global(.pans-accordion-header-badge.mode-manual) {
+  color: #7c2d12;
+  border-color: rgba(180, 83, 9, 0.4);
+  background: rgba(255, 247, 237, 0.9);
+}
+
+:global(#zone-a-pans-block) :global(.pans-accordion-header-chevron) {
+  flex-shrink: 0;
+  font-size: 8px;
+  line-height: 1;
+  opacity: 0.55;
+  color: #475569;
+  transition:
+    transform 0.15s ease,
+    opacity 0.15s ease;
+}
+
+:global(#zone-a-pans-block) :global(.pans-accordion-item.open .pans-accordion-header-chevron) {
+  opacity: 0.85;
+}
+
+/* Corps : grille — lignes 1–3 pleine largeur, ligne orientation|sens en 2 colonnes */
+:global(#zone-a-pans-block) :global(.pans-accordion-body) {
+  display: none;
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: #fff;
+}
+
+:global(#zone-a-pans-block) :global(.pans-accordion-item.open .pans-accordion-body) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  column-gap: 6px;
+  row-gap: 3px;
+  padding: 5px 7px 6px;
+  border-top: 1px solid rgba(17, 24, 39, 0.08);
+  align-content: start;
+}
+
+/*
+ * Ordre visuel imposé : inclinaison → checkbox → orientation | sens → pente calculée (dernier)
+ * (le DOM legacy met la pente calculée avant orientation ; on corrige uniquement en CSS)
+ */
+:global(#zone-a-pans-block) :global(.pans-accordion-body > div:nth-child(1)) {
+  order: 1;
+  grid-column: 1 / -1;
+}
+
+:global(#zone-a-pans-block) :global(.pans-accordion-body > div:nth-child(2)) {
+  order: 2;
+  grid-column: 1 / -1;
+}
+
+:global(#zone-a-pans-block) :global(.pans-accordion-body > div:nth-child(3)) {
+  order: 10;
+  grid-column: 1 / -1;
+}
+
+:global(#zone-a-pans-block) :global(.pans-accordion-body > div:nth-child(4)) {
+  order: 3;
+  grid-column: 1;
+}
+
+:global(#zone-a-pans-block) :global(.pans-accordion-body > div:nth-child(5)) {
+  order: 4;
+  grid-column: 2;
+}
+
+:global(#zone-a-pans-block) :global(.pan-panel-slope-computed:empty) {
+  display: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  min-height: 0 !important;
+}
+
+:global(#zone-a-pans-block) :global(.pan-panel-row) {
+  margin: 0;
+  font-size: 11px;
+}
+
+:global(#zone-a-pans-block) :global(.pans-accordion-body > div:nth-child(4)),
+:global(#zone-a-pans-block) :global(.pans-accordion-body > div:nth-child(5)) {
+  min-width: 0;
+  padding: 4px 5px;
+  background: #f8fafc;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 6px;
+  box-sizing: border-box;
+}
+
+:global(#zone-a-pans-block) :global(.pan-panel-label) {
+  display: block;
+  font-weight: 600;
+  font-size: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748b;
+  margin-bottom: 1px;
+  line-height: 1.2;
+}
+
+:global(#zone-a-pans-block) :global(.pan-panel-value) {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: #0f172a;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Ligne 1 : inclinaison + champ sur une bande */
+:global(#zone-a-pans-block) :global(.pan-panel-inclinaison-row) {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 6px;
+  padding: 2px 0;
+}
+
+:global(#zone-a-pans-block) :global(.pan-panel-inclinaison-row .pan-panel-label) {
+  display: inline;
+  margin-bottom: 0;
+  flex-shrink: 0;
+  font-size: 8px;
+  color: #64748b;
+}
+
+:global(#zone-a-pans-block) :global(.pan-panel-inclinaison-row input[type="number"]) {
+  width: 44px;
+  min-width: 44px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  border: 1px solid rgba(15, 23, 42, 0.15);
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  background: #fff;
+  color: #0f172a;
+  line-height: 1.2;
+}
+
+:global(#zone-a-pans-block) :global(.pan-panel-inclinaison-row input[type="number"]:focus) {
+  outline: none;
+  border-color: rgba(195, 152, 71, 0.75);
+  box-shadow: 0 0 0 2px rgba(195, 152, 71, 0.15);
+}
+
+/* Ligne 2 : checkbox */
+:global(#zone-a-pans-block) :global(.pan-panel-slope-toggle) {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 1px 0 2px;
+  margin: 0;
+}
+
+:global(#zone-a-pans-block) :global(.pan-panel-slope-toggle label) {
+  font-size: 10px;
+  font-weight: 500;
+  color: #475569;
+  margin: 0;
+  line-height: 1.2;
+}
+
+:global(#zone-a-pans-block) :global(.pan-panel-slope-toggle input[type="checkbox"]) {
+  width: 13px;
+  height: 13px;
+  cursor: pointer;
+  flex-shrink: 0;
+  margin: 0;
+}
+
+/* Dernière ligne : pente calculée (secondaire), pleine largeur après la grille 2 col */
+:global(#zone-a-pans-block) :global(.pan-panel-slope-computed) {
+  font-size: 9px;
+  font-weight: 500;
+  color: #64748b;
+  line-height: 1.25;
+  padding: 3px 0 0;
+  margin: 0;
+  border-top: 1px solid rgba(15, 23, 42, 0.07);
+}
+
+.stepsCompact {
+  list-style: none;
+  margin: 0;
+  padding: 6px 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  background: #fff;
+  border: 1px solid #e8e8e8;
+  border-radius: 10px;
+}
+
+.stepChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px 3px 5px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #4b5563;
+  background: #f3f4f6;
+  border: 1px solid transparent;
+}
+
+.stepChipDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #d1d5db;
+  flex-shrink: 0;
+}
+
+.stepChip[data-status="completed"] {
+  color: #166534;
+  background: rgba(34, 197, 94, 0.12);
+  border-color: rgba(34, 197, 94, 0.2);
+}
+
+.stepChip[data-status="completed"] .stepChipDot {
+  background: #16a34a;
+}
+
+.stepChip[data-status="active"] {
+  color: #92400e;
+  background: rgba(195, 152, 71, 0.12);
+  border-color: rgba(195, 152, 71, 0.28);
+}
+
+.stepChip[data-status="active"] .stepChipDot {
+  background: var(--sg-brand, #c39847);
+}
+
+.stepChip[data-status="inactive"] {
+  opacity: 0.55;
+}
+
+.stepChip[data-status="pending"] {
+  color: #6b7280;
+  border-style: dashed;
+  border-color: rgba(195, 152, 71, 0.35);
+}
+
+.stepChipText {
+  line-height: 1.2;
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.actionBtn {
+  width: 100%;
+  padding: 11px 14px;
+  font-size: 13px;
+  font-weight: 700;
+  border-radius: 10px;
+  border: 1px solid var(--sg-border, #e5e7eb);
+  background: #ffffff;
+  color: var(--sg-text, #1f2937);
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.actionBtn:hover {
+  background: var(--sg-bg-soft, #f9fafb);
+  border-color: var(--sg-text-muted, #6b7280);
+}
+
+.actionBtn.primary {
+  border-color: var(--sg-brand, #c39847);
+  background: var(--sg-brand, #c39847);
+  color: #111;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.actionBtn.primary:hover {
+  background: var(--sg-brand-hover, #a97f35);
+  border-color: var(--sg-brand-hover, #a97f35);
+}
+
+.actionBtn.primary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.actionBtn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--sg-brand);
+  outline-offset: 2px;
+}
+
+.validateHint {
+  font-size: 11px;
+  color: var(--sg-text-muted, #6b7280);
+  margin: 0;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ——— ZONE 5 — SECONDAIRE ——— */
+.zoneSecondary {
+  margin-top: auto;
+  padding-top: 6px;
+  border-top: 1px dashed rgba(0, 0, 0, 0.08);
+  gap: 6px;
+}
+
+.secondaryDetails {
+  border: 1px solid #ebebeb;
+  border-radius: 8px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.secondarySummary {
+  padding: 8px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #6b7280;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.secondarySummary::-webkit-details-marker {
+  display: none;
+}
+
+.secondarySummary::before {
+  content: "▸ ";
+  display: inline-block;
+  margin-right: 4px;
+  transition: transform 0.12s ease;
+}
+
+.secondaryDetails[open] .secondarySummary::before {
+  transform: rotate(90deg);
+}
+
+.secondaryDetailsBody {
+  padding: 0 8px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-top: 1px solid #f3f4f6;
+}
+
+.stateBlockCompact {
+  padding: 6px 0 0;
+}
+
+.stateTitleCompact {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #9ca3af;
+  margin-bottom: 4px;
+}
+
+.stateCompactList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.stateCompactItem {
+  font-size: 11px;
+  color: #4b5563;
+  line-height: 1.3;
+}
+
+.existingGeomHintCompact {
+  margin: 6px 0 0;
+  padding: 5px 7px;
+  font-size: 10px;
+  line-height: 1.35;
+  color: #78350f;
+  background: rgba(251, 191, 36, 0.12);
+  border: 1px solid rgba(251, 191, 36, 0.25);
+  border-radius: 6px;
+}
+
+.propertiesSlot {
+  min-height: 0;
+}
+
+/* ----- Source carte (compacte, zone secondaire) ----- */
+.mapSourceRoot {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+  width: 100%;
+  color-scheme: light;
+}
+
+.mapSourceRoot,
+.mapSourceRoot * {
+  box-sizing: border-box;
+}
+
+.mapSourceLabel {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #9ca3af;
+  margin: 0;
+}
+
+.mapSourceTrigger {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #1f2937;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s ease;
+}
+
+.mapSourceTrigger:hover {
+  background: #f9fafb;
+}
+
+.mapSourceTrigger:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--sg-brand, #c39847);
+  outline-offset: 2px;
+}
+
+.mapSourceDropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 4px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.06);
+  border-radius: 8px;
+  overflow: hidden;
+  z-index: 1000;
+}
+
+.mapSourceOption {
+  padding: 8px 10px;
+  font-size: 12px;
+  color: #1f2937;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.mapSourceOption:hover {
+  background: rgba(195, 152, 71, 0.12);
+}
+
+.mapSourceOptionHighlight {
+  background: rgba(195, 152, 71, 0.12);
+}
+
+.mapSourceOptionActive {
+  background: rgba(195, 152, 71, 0.18);
+}
+
+.mapSourceOptionActive.mapSourceOptionHighlight,
+.mapSourceOptionActive:hover {
+  background: rgba(195, 152, 71, 0.18);
+}

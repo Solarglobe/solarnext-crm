@@ -1,0 +1,99 @@
+/* LOT C — UserMultiSelect */
+
+.planning-user-multi-select {
+  position: relative;
+  width: 100%;
+}
+
+.planning-user-multi-select-trigger {
+  min-height: 40px;
+  padding: 6px 12px;
+  background: var(--input-bg, var(--surface-2));
+  border: 1px solid var(--border-2, var(--border));
+  border-radius: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+
+.planning-user-multi-select-trigger.open {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--ring);
+}
+
+.planning-user-multi-select-trigger.disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.planning-user-multi-select-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+}
+
+.planning-user-multi-select-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  background: var(--primary);
+  color: #fff;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.planning-user-multi-select-tag-remove {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  padding: 0;
+  font-size: 14px;
+  line-height: 1;
+  opacity: 0.9;
+}
+
+.planning-user-multi-select-tag-remove:hover {
+  opacity: 1;
+}
+
+.planning-user-multi-select-input {
+  flex: 1;
+  min-width: 120px;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 14px;
+  outline: none;
+}
+
+.planning-user-multi-select-input::placeholder {
+  color: var(--text-muted);
+}
+
+.planning-user-multi-select-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.planning-user-multi-select-option {
+  padding: 10px 12px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.planning-user-multi-select-option:hover {
+  background: var(--sn-bg-hover, rgba(255, 255, 255, 0.06));
+}
+
+.planning-user-multi-select-empty {
+  padding: 12px;
+  color: var(--text-muted);
+  font-size: 13px;
+}

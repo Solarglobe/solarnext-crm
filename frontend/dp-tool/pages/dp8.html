@@ -1,0 +1,241 @@
+<section class="dp-page" id="dp8-page">
+
+  <style>
+    .dp7-image-wrapper {
+      width: 100%;
+      display: flex;
+      justify-content: center;
+      grid-column: 1 / -1;
+    }
+
+    /* DP7 — Carte "Image de référence" : la rendre centrale et lisible */
+    .dp7-image-block {
+      width: 60%;
+      max-width: 800px;
+    }
+
+    @media (max-width: 900px) {
+      .dp7-image-block {
+        width: 100%;
+      }
+    }
+
+    .dp7-image-card {
+      width: 100%;
+      max-width: 100%;
+      min-height: 360px;
+    }
+
+    .dp7-image-card .dp4-entry-thumb,
+    .dp7-image-card .dp4-entry-placeholder {
+      min-height: 360px;
+    }
+
+    .dp7-image-actions {
+      justify-content: center;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    /* ======================================================
+       DP8 — FIX HAUTEUR WORKSPACE (Street View / Import)
+       Objectif: garantir une chaîne de hauteur non nulle
+       (copie stricte des règles DP7, mais avec IDs dp8-*)
+    ====================================================== */
+
+    #dp8-photo-modal .dp-modal-body {
+      min-height: 0; /* sécurité : permet aux enfants de shrink/fill */
+    }
+
+    #dp8-photo-modal .dp-map-canvas {
+      height: 100%;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #dp8-photo-workspace {
+      position: relative;
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+      background: #f3f4f6;
+    }
+
+    #dp8-streetview {
+      width: 100%;
+      height: 100%;
+      min-height: 0;
+    }
+  </style>
+
+  <!-- HEADER -->
+  <div class="dp-page-head">
+    <div>
+      <h1>DP8 — Environnement lointain</h1>
+      <p class="dp-lead">
+        Cette section sert uniquement à visualiser l’emplacement des panneaux à l’aide de flèches rouges dessinées manuellement.
+      </p>
+    </div>
+    <div class="dp-page-actions">
+      <button id="dp8-export-pdf" class="dp-btn dp-btn-primary" type="button">
+        Exporter le PDF
+      </button>
+    </div>
+  </div>
+
+  <hr class="dp-sep" />
+
+  <div class="dp-hint">
+    Ouvrez une photo (Google Street View ou import), puis dessinez des flèches rouges pour indiquer l’implantation.
+  </div>
+
+  <!-- ENTRÉES DP7 -->
+  <div class="dp4-entry-grid" style="margin-top:14px">
+
+    <!-- DP7 — IMAGE -->
+    <div class="dp7-image-wrapper">
+      <div class="dp4-entry-block dp7-image-block">
+        <div class="dp4-entry-card dp7-image-card" id="dp8-card-before" aria-label="DP8 — Image de référence">
+          <img id="dp8-thumb-before" class="dp4-entry-thumb" alt="Miniature DP8 — Image de référence" />
+          <div class="dp4-entry-placeholder">
+            <div class="dp-placeholder">
+              <div class="dp-placeholder-title">DP8 — Image de référence</div>
+              <div class="dp-placeholder-sub">Aucune image enregistrée</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="dp-page-actions dp7-image-actions" style="margin-top:14px">
+          <button id="dp8-create-before" class="dp-btn dp-btn-primary" type="button">
+            Ajouter la photo
+          </button>
+          <button id="dp8-create-after" class="dp-btn dp-btn-primary" type="button">
+            Créer l’implantation
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- (Interne) éléments conservés pour l'aperçu, non affichés -->
+    <div class="dp4-entry-card" id="dp8-card-after" aria-label="DP8 — Aperçu" style="display:none">
+      <img id="dp8-thumb-after" class="dp4-entry-thumb" alt="Miniature DP8 — Aperçu" />
+      <div class="dp4-entry-placeholder">
+        <div class="dp-placeholder">
+          <div class="dp-placeholder-title">DP8 — Aperçu</div>
+          <div class="dp-placeholder-sub">Aucune image enregistrée</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+</section>
+
+<!-- ==================================================
+     DP7 — OVERLAY DE TRAVAIL (IMPLANTATION DES PANNEAUX)
+     ================================================== -->
+<div class="dp-modal" id="dp8-photo-modal" aria-hidden="true">
+
+  <div class="dp-modal-backdrop"></div>
+
+  <div class="dp-modal-panel">
+
+    <!-- Header -->
+    <div class="dp-modal-header">
+      <h2 class="dp-modal-title-solarglobe">
+        DP8 — Environnement lointain
+      </h2>
+      <button class="dp-modal-close" type="button" aria-label="Fermer">
+        ✕
+      </button>
+    </div>
+
+    <!-- Body -->
+    <div class="dp-modal-body">
+
+      <!-- Colonne gauche -->
+      <aside class="dp-map-help" id="dp8-settings-panel">
+        <h3>Paramètres du plan</h3>
+
+        <!-- Catégorie (lecture seule) -->
+        <div class="dp2-field" style="margin-top: 14px;">
+          <label class="dp2-label">Catégorie</label>
+          <div class="dp2-panel-readonly">
+            <div id="dp8-photo-category-label">—</div>
+          </div>
+        </div>
+
+        <hr />
+
+        <h3>Source de la photo</h3>
+
+        <div class="dp-hint" style="margin-top:10px">
+          Choisissez la photo servant de fond (Street View ou import).
+        </div>
+
+        <div class="dp-page-actions" style="margin-top:14px; flex-direction:column; gap:10px">
+          <button id="dp8-use-street" class="dp-btn dp-btn-primary" type="button">
+            Utiliser Google Street View
+          </button>
+
+          <button id="dp8-use-upload" class="dp-btn dp-btn-outline" type="button">
+            Importer une photo
+          </button>
+        </div>
+
+        <hr />
+
+        <div class="dp-map-note">
+          Positionnez-vous correctement (si Street View), puis faites une capture écran avec l’outil système et importez-la.
+        </div>
+      </aside>
+
+      <!-- Zone centrale de travail -->
+      <div class="dp-map-canvas">
+        <div id="dp8-photo-workspace">
+          <div id="dp8-photo-content">
+            <div id="dp8-toolbar" class="dp2-toolbar" style="position:absolute; top:12px; left:12px; z-index:70; border-radius:10px; border-bottom:1px solid #e5e7eb;">
+              <button id="dp8-tool-arrow" class="dp2-tool-btn" type="button" aria-pressed="false">
+                <span class="dp2-tool-icon">➝</span>
+                <span class="dp2-tool-label">Dessiner une flèche</span>
+              </button>
+            </div>
+            <canvas id="dp8-canvas" aria-label="Rendu DP8"></canvas>
+          </div>
+          <div id="dp8-overlay-layer" aria-hidden="true"></div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Footer -->
+    <div class="dp-modal-footer">
+      <div class="dp-page-actions" style="margin-right:auto; gap:8px; align-items:center; flex-wrap:wrap">
+        <button id="dp8-zoom-out" class="dp-btn dp-btn-outline" type="button" title="Zoom -">
+          Zoom −
+        </button>
+        <button id="dp8-zoom-in" class="dp-btn dp-btn-outline" type="button" title="Zoom +">
+          Zoom +
+        </button>
+        <button id="dp8-zoom-reset" class="dp-btn dp-btn-outline" type="button" title="Réinitialiser le zoom">
+          Réinitialiser le zoom
+        </button>
+        <div id="dp8-zoom-label" class="dp-hint" style="margin:0; padding:0">
+          100%
+        </div>
+      </div>
+
+      <button id="dp8-cancel" class="dp-btn dp-btn-outline" type="button">
+        Annuler
+      </button>
+
+      <button id="dp8-validate" class="dp-btn dp-btn-primary" type="button" disabled>
+        Valider l’implantation
+      </button>
+    </div>
+
+  </div>
+</div>
+

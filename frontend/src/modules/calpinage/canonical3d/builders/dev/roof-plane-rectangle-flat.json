@@ -1,0 +1,56 @@
+{
+  "schemaId": "canonical-house3d-model-v1",
+  "building": {
+    "buildingId": "b",
+    "buildingFootprint": [{ "x": 0, "y": 0 }, { "x": 10, "y": 0 }, { "x": 10, "y": 10 }, { "x": 0, "y": 10 }],
+    "buildingOuterContour": [{ "x": 0, "y": 0 }, { "x": 10, "y": 0 }, { "x": 10, "y": 10 }, { "x": 0, "y": 10 }],
+    "baseZ": 0,
+    "wallHeightM": 3
+  },
+  "roof": {
+    "topology": {
+      "roofId": "r1",
+      "vertices": [
+        { "vertexId": "va", "positionXY": { "x": 0, "y": 0 }, "heightQuantityId": "hq-pan" },
+        { "vertexId": "vb", "positionXY": { "x": 10, "y": 0 }, "heightQuantityId": "hq-pan" },
+        { "vertexId": "vc", "positionXY": { "x": 10, "y": 10 }, "heightQuantityId": "hq-pan" },
+        { "vertexId": "vd", "positionXY": { "x": 0, "y": 10 }, "heightQuantityId": "hq-pan" }
+      ],
+      "edges": [
+        { "edgeId": "e0", "vertexIdA": "va", "vertexIdB": "vb", "kind": "eave" },
+        { "edgeId": "e1", "vertexIdA": "vb", "vertexIdB": "vc", "kind": "eave" },
+        { "edgeId": "e2", "vertexIdA": "vc", "vertexIdB": "vd", "kind": "eave" },
+        { "edgeId": "e3", "vertexIdA": "vd", "vertexIdB": "va", "kind": "eave" }
+      ],
+      "patches": [
+        {
+          "roofPatchId": "pan-main",
+          "boundaryVertexIds": ["va", "vb", "vc", "vd"],
+          "boundaryEdgeIds": ["e0", "e1", "e2", "e3"]
+        }
+      ],
+      "roofToBuildingBindings": [{ "roofPatchId": "pan-main", "buildingId": "b", "note": "fixture" }]
+    },
+    "geometry": { "roofPatches": [], "roofEdges": [] }
+  },
+  "heightModel": {
+    "quantities": [
+      {
+        "id": "hq-pan",
+        "role": "custom",
+        "valueM": 5.2,
+        "provenance": "user_input",
+        "derivationRuleId": "fixture.flat"
+      }
+    ],
+    "zBase": {
+      "id": "hq-z-base",
+      "role": "z_base",
+      "valueM": 0,
+      "provenance": "business_rule",
+      "derivationRuleId": "fixture"
+    },
+    "conventions": { "basePlaneDescription": "fixture" }
+  },
+  "annexes": []
+}

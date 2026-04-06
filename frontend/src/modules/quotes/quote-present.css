@@ -1,0 +1,230 @@
+/**
+ * Page « Présenter le devis » — chrome CRM uniquement (document = financial-quote-pdf.css).
+ */
+
+.qp-root {
+  max-width: none;
+  margin: 0 auto;
+  padding: 1.25rem 1rem 3rem;
+}
+
+.qp-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--sn-border-subtle, rgba(0, 0, 0, 0.08));
+}
+
+.qp-toolbar__left,
+.qp-toolbar__right {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.qp-toolbar-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.25rem;
+  font-size: 0.82rem;
+  margin-bottom: 1rem;
+}
+
+.qp-present-ux-status {
+  flex: 1 1 100%;
+  margin-bottom: 0.15rem;
+}
+
+.qp-present-ux-status .qp-muted {
+  opacity: 0.75;
+  margin-right: 0.25rem;
+}
+
+.qp-sign-ok {
+  color: var(--sn-success, #2e7d32);
+}
+
+.qp-sign-missing {
+  opacity: 0.75;
+}
+
+.qp-draft-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  border-radius: 10px;
+  border: 1px solid var(--sn-border-subtle, rgba(212, 175, 55, 0.45));
+  background: rgba(212, 175, 55, 0.1);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.qp-signed-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  border-radius: 10px;
+  border: 1px solid var(--sn-success-muted, rgba(46, 125, 50, 0.35));
+  background: rgba(46, 125, 50, 0.08);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.qp-context-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  font-size: 0.88rem;
+}
+
+/* Aperçu : même gabarit A4 que le PDF (210 mm), centré, fond « feuille » */
+.qp-document-print-area {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  width: 100%;
+  overflow-x: auto;
+  padding: 12px 8px 24px;
+  background: var(--sn-surface-muted, #e8e8ea);
+  border-radius: 8px;
+}
+
+.qp-document-print-area .fq-root {
+  flex: 0 0 auto;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+}
+
+.theme-dark .qp-document-print-area {
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.theme-dark .qp-document-print-area .fq-root {
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.4);
+}
+
+.qp-pdf-banner {
+  margin-top: 1.25rem;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.04);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.theme-dark .qp-pdf-banner {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.qp-muted {
+  opacity: 0.78;
+  font-size: 0.92rem;
+}
+
+.qp-error {
+  color: var(--sn-danger, #c62828);
+}
+
+@media print {
+  /**
+   * Forcer le format feuille (Chrome / Edge « Enregistrer en PDF » suit @page quand il le peut).
+   */
+  @page {
+    size: A4 portrait;
+    margin: 10mm 12mm;
+  }
+
+  /**
+   * Impression depuis /quotes/:id/present : la mise en page CRM (.sn-main overflow:auto + 100vh)
+   * ne montre qu’une « fenêtre » au navigateur — on force tout le flux à être visible pour plusieurs pages A4.
+   */
+  html body.qp-print-quote-present {
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  body.qp-print-quote-present #root {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  body.qp-print-quote-present .sn-app-root {
+    display: block !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  body.qp-print-quote-present .sn-app-root > div {
+    display: block !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  body.qp-print-quote-present .sn-main {
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+    flex: none !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+  }
+
+  .sn-sidebar,
+  .qp-no-print {
+    display: none !important;
+  }
+
+  .sn-app-root {
+    display: block !important;
+  }
+
+  .sn-main {
+    padding: 0 !important;
+    max-width: none !important;
+  }
+
+  .qp-root {
+    max-width: none;
+    padding: 0;
+  }
+
+  .qp-document-print-area {
+    background: transparent !important;
+    padding: 0;
+    border-radius: 0;
+    overflow: visible !important;
+  }
+
+  .fq-root {
+    max-width: none;
+    padding: 0 4mm;
+    overflow: visible !important;
+  }
+
+  body.qp-print-quote-present .fq-doc {
+    width: 210mm !important;
+    max-width: 210mm !important;
+    margin: 0 auto !important;
+    overflow: visible !important;
+    box-sizing: border-box !important;
+  }
+
+  body.qp-print-quote-present .fq-root {
+    width: 210mm !important;
+    max-width: 210mm !important;
+    margin: 0 auto !important;
+  }
+}

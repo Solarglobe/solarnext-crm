@@ -1,0 +1,486 @@
+/* Phase3Sidebar — fond clair, texte noir pour lisibilité (contraste WCAG) */
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 12px 12px 14px;
+  background: #fafafa;
+  border-right: 1px solid #e5e7eb;
+  min-height: 0;
+  overflow-y: auto;
+  color: #111827;
+}
+
+/* —— ZONE 1 Header —— */
+.zoneHeader {
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.headerTitle {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #000000;
+  line-height: 1.2;
+}
+
+.headerLead {
+  margin: 4px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #92400e;
+  line-height: 1.3;
+}
+
+.headerTagline {
+  margin: 6px 0 0;
+  font-size: 11px;
+  line-height: 1.35;
+  color: #374151;
+}
+
+/* —— ZONE 2 Action —— */
+.zoneAction {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.modeSegmentRow {
+  display: flex;
+  gap: 0;
+  padding: 3px;
+  background: #e5e7eb;
+  border-radius: 10px;
+}
+
+.modeSegmentBtn {
+  flex: 1;
+  min-height: 34px;
+  padding: 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #111827;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.modeSegmentBtn:hover {
+  background: rgba(195, 152, 71, 0.2);
+  color: #000000;
+}
+
+.modeSegmentBtnActive {
+  background: #fef3c7;
+  color: #000000;
+  box-shadow: inset 0 0 0 1px #c39847;
+}
+
+.modeSegmentBtn:focus-visible,
+.toggleCompactBtn:focus-visible,
+.toolLinkBtn:focus-visible,
+.btnValidatePrimary:focus-visible,
+.btnBackSecondary:focus-visible,
+.toolGhostBtn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px #c39847;
+  outline-offset: 1px;
+}
+
+.orientationInline {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.orientationMicroLabel {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #374151;
+}
+
+.toggleCompact {
+  display: flex;
+  gap: 4px;
+}
+
+.toggleCompactBtn {
+  flex: 1;
+  height: 30px;
+  font-size: 12px;
+  font-weight: 600;
+  border: none;
+  border-radius: 8px;
+  background: #e5e7eb;
+  color: #111827;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.toggleCompactBtn:hover {
+  background: #d1d5db;
+  color: #000000;
+}
+
+.toggleCompactBtnOn {
+  background: #fef3c7;
+  color: #000000;
+  box-shadow: inset 0 0 0 1px #c39847;
+}
+
+.flatRoofInline {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 4px;
+}
+
+.flatRoofMicroLabel {
+  font-size: 11px;
+  font-weight: 700;
+  color: #000000;
+}
+
+.flatRoofTinyLabel {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #374151;
+}
+
+.toolLinkBtn {
+  align-self: flex-start;
+  padding: 0;
+  border: none;
+  background: none;
+  font-size: 11px;
+  font-weight: 600;
+  color: #92400e;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.toolLinkBtn:hover {
+  color: #78350f;
+}
+
+/* —— ZONE 3 État —— */
+.zoneState {
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.stateBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.stateStatusRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.stateStatusKey {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #374151;
+}
+
+.stateStatusVal {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.stateStatusOk {
+  color: #15803d;
+}
+
+.stateStatusIncomplete {
+  color: #b45309;
+}
+
+.stateStatusBlocked {
+  color: #b91c1c;
+}
+
+.stateDl {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.stateDlRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.stateDlRow dt {
+  margin: 0;
+  color: #374151;
+  font-weight: 500;
+}
+
+.stateDlRow dd {
+  margin: 0;
+  font-weight: 600;
+  color: #000000;
+  text-align: right;
+}
+
+.stateDdTruncate {
+  max-width: 58%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.metricOk {
+  color: #15803d !important;
+}
+
+.metricWarn {
+  color: #b45309 !important;
+}
+
+/* —— ZONE 4 Validation —— */
+.zoneValidation {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.checklistEmbed {
+  margin: 0 !important;
+}
+
+.checklistLoading {
+  margin: 0;
+  font-size: 11px;
+  color: #374151;
+}
+
+.validationNoteOk,
+.validationNoteBlock {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.validationNoteOk {
+  color: #15803d;
+}
+
+.validationNoteBlock {
+  color: #92400e;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.actionsCol {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.btnValidatePrimary {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  border: none;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #d4a85a 0%, #c39847 100%);
+  color: #000000;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(195, 152, 71, 0.25);
+  transition: filter 0.15s ease, transform 0.1s ease;
+}
+
+.btnValidatePrimary:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+
+.btnValidatePrimary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.validateBtnInner {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.validateSpinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(17, 17, 17, 0.25);
+  border-top-color: #111;
+  border-radius: 50%;
+  animation: phase3-spin 0.7s linear infinite;
+}
+
+@keyframes phase3-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.btnBackSecondary {
+  width: 100%;
+  min-height: 36px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #111827;
+  cursor: pointer;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+.btnBackSecondary:hover {
+  border-color: #c39847;
+  background: #fffbeb;
+  color: #000000;
+}
+
+/* —— ZONE 5 Outils —— */
+.zoneTools {
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px dashed #d1d5db;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.toolGhostBtn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  border: none;
+  border-radius: 8px;
+  background: #f3f4f6;
+  color: #111827;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.toolGhostBtn:hover {
+  background: #e5e7eb;
+  color: #000000;
+}
+
+.toolGhostBtnOn {
+  background: #fef3c7;
+  color: #000000;
+  box-shadow: inset 0 0 0 1px #c39847;
+}
+
+.toolGhostBtnOn .toolGhostIcon {
+  color: #111827;
+}
+
+.toolGhostIcon {
+  display: inline-flex;
+  color: #374151;
+}
+
+.autofillWrap {
+  margin: 0;
+  width: 100%;
+}
+
+.autofillWrap .toolGhostBtn {
+  width: 100%;
+}
+
+.autofillActive {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #f3f4f6;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: 1px solid #e5e7eb;
+}
+
+.autofillText {
+  font-size: 11px;
+  color: #111827;
+  line-height: 1.35;
+}
+
+.autofillRow {
+  display: flex;
+  gap: 6px;
+}
+
+.autofillConfirm {
+  flex: 1;
+  padding: 6px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  border: none;
+  border-radius: 6px;
+  background: #c39847;
+  color: #000000;
+  cursor: pointer;
+}
+
+.autofillConfirm:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.autofillCancel {
+  flex: 1;
+  padding: 6px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #111827;
+  cursor: pointer;
+}

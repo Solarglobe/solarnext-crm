@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <title>DP Tool</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+
+  <!-- CONTROLES -->
+  <input type="file" id="imageInput" accept="image/*" />
+  <button id="removeImageBtn">Supprimer l’image</button>
+  <button id="exportImageBtn">Exporter PNG</button>
+  <button id="exportJpgBtn">Exporter JPG</button>
+
+  <!-- ZONE DE TRAVAIL -->
+  <div id="app">
+    <!-- Image de fond -->
+    <img id="backgroundImage" />
+
+    <!-- Canvas de dessin -->
+    <canvas id="drawCanvas"></canvas>
+  </div>
+
+  <!-- SCRIPT -->
+  <script src="app.js"></script>
+
+</body>
+</html>

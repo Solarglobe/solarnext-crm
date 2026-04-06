@@ -1,0 +1,140 @@
+{
+  "points": [
+    {
+      "name": "Urbain dense",
+      "lat": 48.8566,
+      "lon": 2.3522,
+      "std": {
+        "durationMs": 0.9,
+        "range": 20.5,
+        "stdDev": 7.488,
+        "totalLossPct": 12.03
+      },
+      "hd": {
+        "durationMs": 0.36,
+        "range": 20.5,
+        "stdDev": 7.488,
+        "totalLossPct": 12.03
+      },
+      "cpuRatio": 0.4,
+      "lossDelta": 0,
+      "rangeDelta": 0,
+      "stdDevDelta": 0
+    },
+    {
+      "name": "Campagne plate",
+      "lat": 48.2,
+      "lon": 1.7,
+      "std": {
+        "durationMs": 0.16,
+        "range": 20.499,
+        "stdDev": 7.488,
+        "totalLossPct": 11.61
+      },
+      "hd": {
+        "durationMs": 0.29,
+        "range": 20.499,
+        "stdDev": 7.488,
+        "totalLossPct": 11.61
+      },
+      "cpuRatio": 1.79,
+      "lossDelta": 0,
+      "rangeDelta": 0,
+      "stdDevDelta": 0
+    },
+    {
+      "name": "Montagne",
+      "lat": 45.9237,
+      "lon": 6.8694,
+      "std": {
+        "durationMs": 0.32,
+        "range": 20.494,
+        "stdDev": 7.486,
+        "totalLossPct": 10.13
+      },
+      "hd": {
+        "durationMs": 0.34,
+        "range": 20.494,
+        "stdDev": 7.486,
+        "totalLossPct": 10.13
+      },
+      "cpuRatio": 1.05,
+      "lossDelta": 0,
+      "rangeDelta": 0,
+      "stdDevDelta": 0
+    },
+    {
+      "name": "Vallée encaissée",
+      "lat": 45.5,
+      "lon": 6.5,
+      "std": {
+        "durationMs": 0.24,
+        "range": 20.494,
+        "stdDev": 7.486,
+        "totalLossPct": 9.74
+      },
+      "hd": {
+        "durationMs": 0.4,
+        "range": 20.494,
+        "stdDev": 7.486,
+        "totalLossPct": 9.76
+      },
+      "cpuRatio": 1.66,
+      "lossDelta": 0.02,
+      "rangeDelta": 0,
+      "stdDevDelta": 0
+    },
+    {
+      "name": "Zone côtière",
+      "lat": 43.6959,
+      "lon": 7.2712,
+      "std": {
+        "durationMs": 0.28,
+        "range": 20.49,
+        "stdDev": 7.484,
+        "totalLossPct": 7.16
+      },
+      "hd": {
+        "durationMs": 0.38,
+        "range": 20.49,
+        "stdDev": 7.484,
+        "totalLossPct": 7.16
+      },
+      "cpuRatio": 1.36,
+      "lossDelta": 0,
+      "rangeDelta": 0,
+      "stdDevDelta": 0
+    },
+    {
+      "name": "Zone forêt",
+      "lat": 48.4045,
+      "lon": 2.7012,
+      "std": {
+        "durationMs": 0.33,
+        "range": 20.5,
+        "stdDev": 7.488,
+        "totalLossPct": 11.77
+      },
+      "hd": {
+        "durationMs": 0.24,
+        "range": 20.5,
+        "stdDev": 7.488,
+        "totalLossPct": 11.77
+      },
+      "cpuRatio": 0.73,
+      "lossDelta": 0,
+      "rangeDelta": 0,
+      "stdDevDelta": 0
+    }
+  ],
+  "summary": {
+    "cpuStdMean": 0.37,
+    "cpuHdMean": 0.34,
+    "cpuRatio": 0.9,
+    "meanLossDelta": 0,
+    "maxLossDelta": 0.02,
+    "meanRangeDelta": 0,
+    "meanStdDevDelta": 0
+  },
+  "runAt": "2026-02-26T09:58:17.710Z"
+}

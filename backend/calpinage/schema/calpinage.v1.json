@@ -1,0 +1,171 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://smartpitch.local/schema/calpinage.v1.json",
+  "title": "CalpinageProject",
+  "type": "object",
+  "required": ["meta", "roof", "planes", "keepouts", "pv", "obstaclesRoof", "obstaclesFar"],
+  "properties": {
+    "meta": {
+      "type": "object",
+      "required": ["version", "createdAt", "updatedAt"],
+      "properties": {
+        "version": { "type": "string", "enum": ["v1"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "leadId": { "type": ["string", "null"] },
+        "projectId": { "type": ["string", "null"] }
+      },
+      "additionalProperties": false
+    },
+
+    "roof": {
+      "type": "object",
+      "required": ["image"],
+      "properties": {
+        "image": { "type": "string" },
+        "scale": { "type": "number" },
+        "north": { "type": "number" },
+        "referencePoints": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["x", "y"],
+            "properties": {
+              "x": { "type": "number" },
+              "y": { "type": "number" }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "planes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "polygon", "azimuthDeg", "tiltDeg"],
+        "properties": {
+          "id": { "type": "string" },
+          "polygon": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["x", "y"],
+              "properties": {
+                "x": { "type": "number" },
+                "y": { "type": "number" }
+              },
+              "additionalProperties": false
+            },
+            "minItems": 3
+          },
+          "azimuthDeg": { "type": "number" },
+          "tiltDeg": { "type": "number" }
+        },
+        "additionalProperties": false
+      }
+    },
+
+    "keepouts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "polygon", "type"],
+        "properties": {
+          "id": { "type": "string" },
+          "polygon": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["x", "y"],
+              "properties": {
+                "x": { "type": "number" },
+                "y": { "type": "number" }
+              },
+              "additionalProperties": false
+            },
+            "minItems": 3
+          },
+          "type": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+
+    "pv": {
+      "type": "object",
+      "required": ["module", "layout"],
+      "properties": {
+        "module": { "type": "string" },
+        "layout": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["x", "y", "width", "height", "rotation"],
+            "properties": {
+              "x": { "type": "number" },
+              "y": { "type": "number" },
+              "width": { "type": "number" },
+              "height": { "type": "number" },
+              "rotation": { "type": "number" }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "obstaclesRoof": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "polygon", "heightRelM"],
+        "properties": {
+          "id": { "type": "string" },
+          "polygon": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["x", "y"],
+              "properties": {
+                "x": { "type": "number" },
+                "y": { "type": "number" }
+              },
+              "additionalProperties": false
+            },
+            "minItems": 3
+          },
+          "heightRelM": { "type": "number" }
+        },
+        "additionalProperties": false
+      }
+    },
+
+    "obstaclesFar": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "point", "heightM", "kind"],
+        "properties": {
+          "id": { "type": "string" },
+          "point": {
+            "type": "object",
+            "required": ["x", "y"],
+            "properties": {
+              "x": { "type": "number" },
+              "y": { "type": "number" }
+            },
+            "additionalProperties": false
+          },
+          "heightM": { "type": "number" },
+          "kind": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

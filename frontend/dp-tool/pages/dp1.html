@@ -1,0 +1,237 @@
+<!-- =========================
+     DP1 — PLAN DE SITUATION
+     ÉTAPE 1 : UI PURE
+     (Aucune API / Aucune carte / Aucun ERP)
+========================= -->
+
+<section class="dp-page" id="dp1-page">
+
+  <!-- HEADER -->
+  <div class="dp-page-head">
+    <div>
+      <h1>DP1 – Plan de situation</h1>
+      <p class="dp-lead">
+        Cette section permet de générer l’annexe DP1 (plan de situation) pour le projet.
+        <strong>Interne :</strong> standard SolarGlobe, à produire avant dépôt.
+      </p>
+    </div>
+
+    <!-- Actions (placeholder UI) -->
+    <div class="dp-page-actions">
+      <button class="dp-btn dp-btn-outline" type="button" disabled>
+        Télécharger toutes les annexes
+      </button>
+
+      <button class="dp-btn dp-btn-primary" type="button" id="dp1-generate-auto">
+        Générer automatiquement
+      </button>
+    </div>
+  </div>
+
+  <hr class="dp-sep" />
+
+  <!-- CONTENU -->
+  <div class="dp-grid-4" id="dp1-cards">
+
+    <!-- Carte 1 : Upload manuel (fallback) -->
+    <div class="dp-card dp-card-upload" id="dp1-upload-card">
+      <div class="dp-upload-box" role="button" tabindex="0" aria-label="Ajouter une image">
+        <div class="dp-upload-icon" aria-hidden="true">+</div>
+        <div class="dp-upload-text">
+          <div class="dp-upload-title">Ajouter une image</div>
+          <div class="dp-upload-sub">
+            Fallback manuel si l’auto-génération n’est pas possible.
+          </div>
+        </div>
+      </div>
+
+      <!-- input caché (UI only) -->
+      <input type="file" id="dp1-upload-input" accept="image/*" hidden />
+    </div>
+
+<!-- Cartes 2–4 : vues DP1 -->
+
+<div class="dp-view">
+  <div class="dp-card dp-card-placeholder" data-slot="dp1-view-1">
+    <div class="dp-placeholder">
+      <div class="dp-placeholder-title">Vue large</div>
+      <div class="dp-placeholder-sub">Échelle : 1 / 20 000</div>
+    </div>
+  </div>
+
+  <div class="dp-caption">
+    <strong>Vue large</strong><br>
+    Échelle : 1 / 20 000
+  </div>
+</div>
+
+<div class="dp-view">
+  <div class="dp-card dp-card-placeholder" data-slot="dp1-view-2">
+    <div class="dp-placeholder">
+      <div class="dp-placeholder-title">Vue intermédiaire</div>
+      <div class="dp-placeholder-sub">Échelle : 1 / 5 000</div>
+    </div>
+  </div>
+
+  <div class="dp-caption">
+    <strong>Vue intermédiaire</strong><br>
+    Échelle : 1 / 5 000
+  </div>
+</div>
+
+<div class="dp-view">
+  <div class="dp-card dp-card-placeholder" data-slot="dp1-view-3">
+    <div class="dp-placeholder">
+      <div class="dp-placeholder-title">Vue proche</div>
+      <div class="dp-placeholder-sub">Échelle : 1 / 650</div>
+    </div>
+  </div>
+
+  <div class="dp-caption">
+    <strong>Vue proche</strong><br>
+    Échelle : 1 / 650
+  </div>
+</div>
+
+
+  <!-- NOTE INTERNE -->
+  <div class="dp-hint" id="dp1-hint">
+    <strong>Process :</strong> cliquez sur <em>Générer automatiquement</em> (Étape suivante)
+    pour ouvrir la carte, recentrer le marqueur sur la parcelle, puis produire les 3 vues.
+  </div>
+
+</section>
+
+<!-- =========================
+     DP1 — INFOS PARCELLE VALIDÉE
+========================= -->
+<div class="dp-card dp-card-info" id="dp1-parcelle-info" hidden>
+
+  <h3>Parcelle validée</h3>
+
+  <ul class="dp-parcelle-list">
+    <li><strong>Section :</strong> <span id="dp1-info-section">—</span></li>
+    <li><strong>Parcelle :</strong> <span id="dp1-info-parcelle">—</span></li>
+    <li><strong>Surface :</strong> <span id="dp1-info-surface">—</span></li>
+  </ul>
+
+  <div class="dp-parcelle-actions">
+    <button
+      class="dp-btn dp-btn-outline"
+      type="button"
+      id="dp1-parcelle-edit">
+      Modifier la position
+    </button>
+  </div>
+
+</div>
+
+<!-- =========================
+     DP1 — MODAL CARTE (ÉTAPE 4)
+========================= -->
+<div class="dp-modal" id="dp1-map-modal" aria-hidden="true">
+  <div class="dp-modal-backdrop"></div>
+
+  <div class="dp-modal-panel">
+
+    <!-- Header -->
+    <div class="dp-modal-header">
+      <h2 class="dp-modal-title-solarglobe">DP1 — Localisation de la parcelle</h2>
+      <button class="dp-modal-close" type="button" aria-label="Fermer">✕</button>
+    </div>
+
+    <!-- Body -->
+    <div class="dp-modal-body">
+
+      <!-- Tutoriel -->
+      <aside class="dp-map-help">
+        <h3>Comment faire</h3>
+        <ol>
+          <li>Vérifiez que la parcelle est bien visible</li>
+          <li>Déplacez le marqueur au centre du terrain</li>
+          <li>Cliquez sur <strong>Générer</strong></li>
+        </ol>
+        <p class="dp-map-note">
+          Cette étape sert uniquement à recentrer la position.
+          Aucune sélection de parcelle n’est nécessaire.
+        </p>
+      </aside>
+
+      <!-- Carte IGN réelle -->
+      <div class="dp-map-pane">
+        <div class="dp1-point-help" id="dp1-point-help" role="note" hidden>
+          <span>💡 Le point est positionné automatiquement à l’adresse.</span><br />
+          <span>Déplacez-le si nécessaire pour le placer sur la maison.</span>
+        </div>
+
+        <div class="dp-map-canvas">
+          <div id="dp1-ign-map"></div>
+
+          <!-- Flèche Nord DP1 -->
+          <img
+            src="/frontend/dp-tool/assets/north-arrow.svg"
+            class="dp1-north-arrow"
+            alt="Nord"
+            aria-hidden="true"
+          />
+        </div>
+      </div>
+
+    </div><!-- /.dp-modal-body -->
+
+  <!-- Footer -->
+<div class="dp-modal-footer">
+
+  <!-- Groupe gauche : contrôle de position -->
+  <div class="dp-modal-footer-left">
+    <button
+      class="dp-btn dp-btn-outline"
+      type="button"
+      id="dp1-map-reset"
+      title="Revenir au point initial (ERP / adresse)">
+      Réinitialiser
+    </button>
+
+    <button
+      class="dp-btn dp-btn-outline"
+      type="button"
+      id="dp1-map-recalc"
+      title="Recalculer la parcelle à partir du point actuel">
+      Recalculer la parcelle
+    </button>
+  </div>
+
+  <!-- Groupe droite : validation / sortie -->
+  <div class="dp-modal-footer-right">
+    <button
+      class="dp-btn dp-btn-outline"
+      type="button"
+      id="dp1-map-cancel">
+      Annuler
+    </button>
+
+    <button
+      class="dp-btn dp-btn-primary"
+      type="button"
+      id="dp1-map-validate">
+      Valider la parcelle
+    </button>
+  </div>
+
+</div>
+
+
+  </div><!-- /.dp-modal-panel -->
+</div><!-- /.dp-modal -->
+
+
+<div class="dp-image-preview" aria-hidden="true">
+  <img alt="Aperçu DP1" />
+</div>
+
+<!-- ======================================================
+     AJOUT OBLIGATOIRE — ET RIEN D’AUTRE
+====================================================== -->
+
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<script src="dp-app.js"></script>

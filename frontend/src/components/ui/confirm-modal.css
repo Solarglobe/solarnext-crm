@@ -1,0 +1,168 @@
+/* SolarNext — confirmations CRM (Lot 1) : défaut = CRM clair, theme-dark en surcharge */
+
+:root {
+  --sn-z-confirm: 1000;
+  --sn-z-confirm-stacked: 1100;
+  --sn-confirm-backdrop: rgba(15, 23, 42, 0.42);
+  --sn-confirm-panel-border: rgba(15, 23, 42, 0.1);
+  --sn-confirm-panel-bg: linear-gradient(
+    165deg,
+    rgba(255, 255, 255, 0.98) 0%,
+    rgba(248, 250, 252, 0.96) 100%
+  );
+  --sn-confirm-panel-shadow: 0 20px 40px rgba(15, 23, 42, 0.12), 0 0 0 1px rgba(15, 23, 42, 0.04);
+  --sn-confirm-text: #0f172a;
+  --sn-confirm-text-muted: #475569;
+}
+
+.sn-confirm-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--sn-z-confirm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+  background: var(--sn-confirm-backdrop);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  animation: sn-confirm-backdrop-in 0.22s ease-out;
+}
+
+.sn-confirm-modal-backdrop--stacked {
+  z-index: var(--sn-z-confirm-stacked);
+}
+
+@keyframes sn-confirm-backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.sn-confirm-modal-panel {
+  width: min(420px, 100%);
+  border-radius: 14px;
+  border: 1px solid var(--sn-confirm-panel-border);
+  background: var(--sn-confirm-panel-bg);
+  box-shadow: var(--sn-confirm-panel-shadow);
+  color: var(--sn-confirm-text);
+  transform: translateY(0);
+  animation: sn-confirm-panel-in 0.26s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes sn-confirm-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.sn-confirm-modal-title {
+  margin: 0;
+  padding: 1.25rem 1.25rem 0.4rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--sn-confirm-text);
+}
+
+.sn-confirm-modal-message {
+  margin: 0;
+  padding: 0 1.25rem 1.2rem;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--sn-confirm-text-muted);
+  white-space: pre-line;
+}
+
+.sn-confirm-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  padding: 0 1.25rem 1.25rem;
+}
+
+.sn-confirm-modal-btn {
+  appearance: none;
+  border-radius: 9px;
+  border: 1px solid transparent;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    opacity 0.15s ease,
+    transform 0.12s ease;
+}
+
+.sn-confirm-modal-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.sn-confirm-modal-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.sn-confirm-modal-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Secondaire — aligné tokens CRM clair */
+.sn-confirm-modal-btn--ghost {
+  background: rgba(15, 23, 42, 0.06);
+  border-color: rgba(15, 23, 42, 0.12);
+  color: var(--sn-confirm-text);
+}
+
+.sn-confirm-modal-btn--default {
+  background: linear-gradient(135deg, #38bdf8 0%, #0ea5e9 100%);
+  color: #0b1220;
+}
+
+.sn-confirm-modal-btn--warning {
+  background: linear-gradient(135deg, #fb923c 0%, #ea580c 100%);
+  color: #0b1220;
+}
+
+.sn-confirm-modal-btn--danger {
+  background: linear-gradient(135deg, #f87171 0%, #dc2626 100%);
+  color: #fff;
+}
+
+/* ========== Mode sombre (optionnel) ========== */
+
+html.theme-dark {
+  --sn-confirm-backdrop: rgba(8, 12, 22, 0.55);
+  --sn-confirm-panel-border: rgba(255, 255, 255, 0.1);
+  --sn-confirm-panel-bg: linear-gradient(
+    145deg,
+    rgba(22, 32, 52, 0.94) 0%,
+    rgba(14, 20, 36, 0.9) 100%
+  );
+  --sn-confirm-panel-shadow:
+    0 24px 48px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --sn-confirm-text: rgba(248, 250, 252, 0.96);
+  --sn-confirm-text-muted: rgba(226, 232, 240, 0.82);
+}
+
+html.theme-dark .sn-confirm-modal-btn--ghost {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.12);
+  color: rgba(248, 250, 252, 0.95);
+}
+
+html.theme-dark .sn-confirm-modal-btn--danger {
+  color: #0b1220;
+}

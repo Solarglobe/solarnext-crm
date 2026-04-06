@@ -1,0 +1,2082 @@
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+}
+/* =========================
+   ZONE DE TRAVAIL (CANVAS)
+========================= */
+
+#app {
+  position: relative;
+  width: 100%;
+  max-width: 1000px;
+  margin-top: 20px;
+}
+
+/* Image de fond */
+#backgroundImage {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* Canvas au-dessus */
+#drawCanvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: auto; /* pour l’instant */
+}
+/* ======================================================
+   SMARTPITCH — DP TOOL
+   Style global unique
+   (Layout + DP + Canvas + contenu)
+====================================================== */
+
+/* ================= VARIABLES ================= */
+
+:root {
+  --bg: #f4f1e9;
+  --bg-soft: #f7f3eb;
+  --card: #ffffff;
+
+  --ink: #1f2937;
+  --muted: #6b7280;
+
+  --line: #e4ddcc;
+  --brand: #c9a449;
+
+  --radius-lg: 18px;
+  --radius-md: 12px;
+  --radius-pill: 999px;
+
+  --shadow-soft: 0 14px 40px rgba(15,23,42,0.10);
+  --shadow-subtle: 0 6px 20px rgba(15,23,42,0.08);
+}
+
+/* ================= RESET ================= */
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+}
+
+body {
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  background: radial-gradient(
+    circle at top left,
+    #fbf7ee 0%,
+    #f3efe5 32%,
+    #f4f1e9 55%,
+    #f0ece2 100%
+  );
+  color: var(--ink);
+}
+
+/* ================= HEADER ================= */
+
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  backdrop-filter: blur(14px);
+  background: linear-gradient(
+    180deg,
+    rgba(255,255,255,0.96),
+    rgba(255,255,255,0.88)
+  );
+  border-bottom: 1px solid var(--line);
+  box-shadow: 0 18px 40px rgba(148,118,63,0.08);
+}
+
+.topbar {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 12px 22px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.brand-mark {
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  background: linear-gradient(135deg,#e9cf81,#c9a449,#a27c30);
+  box-shadow: 0 8px 22px rgba(148,118,63,0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 16px;
+  color: #1b1307;
+}
+
+.brand-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+}
+
+.brand-text span:first-child {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #6b5530;
+  font-weight: 700;
+}
+
+.brand-text span:last-child {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* ================= TOP NAV ================= */
+
+.top-nav {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.top-nav a {
+  text-decoration: none;
+  font-size: 13px;
+  padding: 7px 14px;
+  border-radius: var(--radius-pill);
+  border: 1px solid rgba(213,196,159,0.9);
+  background: rgba(255,255,255,0.9);
+  color: #4b5563;
+  transition: all 0.15s ease;
+}
+
+.top-nav a.active {
+  background: linear-gradient(135deg,#fffaf0,#f3e1b7,#e0c076);
+  color: #111827;
+  border-color: transparent;
+  box-shadow: 0 6px 18px rgba(148,118,63,0.35);
+}
+
+.top-nav a:hover:not(.active) {
+  background: #fdf7ea;
+  transform: translateY(-1px);
+}
+
+/* ================= LAYOUT ================= */
+
+.layout {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  min-height: calc(100vh - 70px);
+}
+
+/* ================= SIDEBAR ================= */
+
+.sidebar {
+  background: rgba(255,255,255,0.75);
+  border-right: 1px solid var(--line);
+  padding: 20px 16px;
+}
+
+.sidebar h3 {
+  margin: 0 0 12px;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: #6b5530;
+}
+
+.dp-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dp-menu a {
+  text-decoration: none;
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  color: #374151;
+  border: 1px solid transparent;
+  transition: all 0.15s ease;
+}
+
+.dp-menu a.active {
+  background: linear-gradient(135deg,#fff9ec,#f3e1b7,#e0c076);
+  border-color: rgba(213,196,159,0.9);
+  font-weight: 600;
+}
+
+.dp-menu a:hover:not(.active) {
+  background: #fdf7ea;
+}
+
+.dp-separator {
+  border: none;
+  border-top: 1px dashed rgba(213,196,159,0.9);
+  margin: 10px 0;
+}
+
+/* ================= CONTENT ================= */
+
+.content {
+  padding: 24px 28px;
+}
+
+.content-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-soft);
+  padding: 28px;
+  min-height: 400px;
+}
+
+/* ================= DP CONTENT ================= */
+
+.dp-page h1 {
+  margin: 0 0 14px;
+  font-size: 26px;
+  font-weight: 700;
+}
+
+.dp-intro {
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.6;
+  max-width: 900px;
+}
+
+.dp-section {
+  margin-top: 28px;
+}
+
+.dp-section h2 {
+  font-size: 18px;
+  margin-bottom: 6px;
+}
+
+.dp-section p {
+  margin: 4px 0;
+  color: #374151;
+  line-height: 1.6;
+}
+
+.dp-divider {
+  border: none;
+  border-top: 1px solid var(--line);
+  margin: 26px 0;
+}
+
+.dp-list {
+  margin: 10px 0 0;
+  padding-left: 18px;
+}
+
+.dp-list li {
+  margin-bottom: 10px;
+  line-height: 1.5;
+}
+
+.dp-list strong {
+  font-weight: 600;
+}
+
+.dp-list span {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+/* ================= CANVAS BLOCK ================= */
+
+.canvas-block {
+  margin-top: 24px;
+  padding: 18px;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-md);
+  background: var(--bg-soft);
+}
+
+/* ======================================================
+   CANVAS — SOCLE TECHNIQUE (ON GARDE TEL QUEL)
+====================================================== */
+
+#app {
+  position: relative;
+  width: 100%;
+  max-width: 1000px;
+  margin-top: 20px;
+}
+
+#backgroundImage {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+#drawCanvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: auto;
+}
+
+/* ================= RESPONSIVE ================= */
+
+@media (max-width: 900px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+  .sidebar {
+    display: none;
+  }
+}
+/* ======================================================
+   DP — SECTIONS DÉROULANTES (ACCORDION)
+====================================================== */
+
+.dp-accordion {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 24px;
+}
+
+.dp-item {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: #fff;
+  overflow: hidden;
+  transition: box-shadow 0.2s ease;
+}
+
+.dp-item.open {
+  box-shadow: var(--shadow-subtle);
+}
+
+.dp-item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 18px;
+  cursor: pointer;
+  background: linear-gradient(180deg, #ffffff, #faf7f0);
+}
+
+.dp-item-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.dp-item-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.dp-badge {
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: var(--radius-pill);
+  background: #f3e1b7;
+  color: #5b430c;
+  font-weight: 600;
+}
+
+.dp-toggle {
+  font-size: 13px;
+  color: var(--brand);
+  font-weight: 600;
+}
+
+.dp-item-content {
+  display: none;
+  padding: 16px 18px 18px;
+  border-top: 1px solid var(--line);
+}
+
+.dp-item.open .dp-item-content {
+  display: block;
+}
+
+.dp-item-content p {
+  margin: 6px 0;
+  line-height: 1.6;
+  color: #374151;
+}
+/* ======================================================
+   DP — PAGE MANDAT DE REPRÉSENTATION
+   (Intro + génération PDF)
+====================================================== */
+
+.dp-page {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-soft);
+  padding: 32px 34px;
+  max-width: 100%;
+}
+
+/* -------------------------
+   TITRE
+------------------------- */
+.dp-page h1 {
+  margin: 0 0 14px;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+}
+
+/* -------------------------
+   INTRO
+------------------------- */
+.dp-intro {
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--muted);
+  max-width: 900px;
+}
+
+/* -------------------------
+   DIVIDER
+------------------------- */
+.dp-divider {
+  border: none;
+  border-top: 1px solid var(--line);
+  margin: 26px 0;
+}
+
+/* -------------------------
+   SECTIONS
+------------------------- */
+.dp-section {
+  margin-top: 26px;
+}
+
+.dp-section h2 {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+
+.dp-section p {
+  margin: 4px 0;
+  font-size: 14.5px;
+  line-height: 1.6;
+  color: #374151;
+}
+
+/* ======================================================
+   CONTENU DU MANDAT — BLOC UNIQUE
+====================================================== */
+
+.dp-mandat-box {
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+/* item interne */
+.dp-mandat-item {
+  padding: 16px 18px;
+}
+
+/* séparateur interne */
+.dp-mandat-item + .dp-mandat-item {
+  border-top: 1px solid var(--line);
+}
+
+.dp-mandat-item strong {
+  display: block;
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: 4px;
+}
+
+.dp-mandat-item span {
+  font-size: 14px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+/* =========================================================
+   DP — TITRES DORÉS SOLARGLOBE (MANDAT)
+========================================================= */
+
+.dp-page h1 {
+  color: #C39847;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+}
+
+/* ======================================================
+   BOUTON — GÉNÉRER LE MANDAT
+====================================================== */
+
+.btn-mandat-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 12px 24px;
+  font-size: 14.5px;
+  font-weight: 600;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  border: 1px solid rgba(213,196,159,0.9);
+
+  background: linear-gradient(
+    135deg,
+    #fff9ec,
+    #f3e1b7,
+    #e0c076
+  );
+
+  color: #1f2937;
+  box-shadow: 0 6px 18px rgba(148,118,63,0.35);
+  transition: all 0.15s ease;
+}
+
+.btn-mandat-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px rgba(148,118,63,0.45);
+}
+
+.btn-mandat-primary:active {
+  transform: translateY(0);
+  box-shadow: 0 6px 16px rgba(148,118,63,0.35);
+}
+
+
+
+
+/* =========================================================
+   DP — BASE UI (DP1 / DP2 / …)
+   ÉTAPE 1 : esthétique uniquement
+========================================================= */
+
+/* -------- Page -------- */
+.dp-page {
+  padding: 24px 28px;
+}
+
+.dp-page-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.dp-page-head h1 {
+  margin: 0 0 6px;
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.dp-lead {
+  margin: 0;
+  font-size: 14px;
+  color: #6b7280;
+  max-width: 680px;
+}
+
+.dp-page-actions {
+  display: flex;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+/* -------- Boutons -------- */
+.dp-btn {
+  padding: 8px 14px;
+  font-size: 13px;
+  border-radius: 6px;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.dp-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.dp-btn-primary {
+  background: #111827;
+  color: #fff;
+}
+
+.dp-btn-primary:hover {
+  background: #000;
+}
+
+.dp-btn-outline {
+  background: #fff;
+  color: #374151;
+  border-color: #d1d5db;
+  cursor: pointer;
+}
+
+.dp-btn-outline:hover {
+  background: #f9fafb;
+  border-color: #9ca3af;
+}
+
+.dp-btn-secondary {
+  background: #f3f4f6;
+  color: #374151;
+  border-color: #d1d5db;
+}
+
+.dp-btn-secondary:hover {
+  background: #e5e7eb;
+  border-color: #9ca3af;
+}
+
+/* -------- Séparateur -------- */
+.dp-sep {
+  border: none;
+  border-top: 1px solid #e5e7eb;
+  margin: 18px 0 24px;
+}
+
+/* -------- Grid -------- */
+.dp-grid-4 {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+/* -------- Cartes -------- */
+.dp-card {
+  background: #fff;
+  border: 1px dashed #d1d5db;
+  border-radius: 8px;
+  min-height: 160px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Upload */
+.dp-card-upload {
+  border-style: dashed;
+}
+
+.dp-upload-box {
+  text-align: center;
+  cursor: pointer;
+  outline: none;
+}
+
+.dp-upload-icon {
+  font-size: 26px;
+  line-height: 1;
+  margin-bottom: 8px;
+  color: #6b7280;
+}
+
+.dp-upload-title {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.dp-upload-sub {
+  font-size: 12px;
+  color: #9ca3af;
+  margin-top: 2px;
+}
+
+/* Placeholders vues */
+.dp-card-placeholder {
+  background: #f9fafb;
+  border-style: solid;
+}
+
+.dp-placeholder {
+  text-align: center;
+}
+
+.dp-placeholder-title {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.dp-placeholder-sub {
+  font-size: 12px;
+  color: #6b7280;
+  margin-top: 4px;
+}
+
+/* -------- Hint -------- */
+.dp-hint {
+  margin-top: 18px;
+  font-size: 13px;
+  color: #6b7280;
+}
+/* =========================================================
+   DP1 — TITRE DORÉ SOLARGLOBE (PLEIN)
+========================================================= */
+
+#dp1-page .dp-page-head h1 {
+  color: #C39847;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+}
+
+/* DP2 — même titre doré que DP1 (copie stricte) */
+#dp2-page .dp-page-head h1 {
+  color: #C39847;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+}
+
+/* DP4 — même titre doré que DP1/DP2 (copie stricte) */
+#dp4-page .dp-page-head h1 {
+  color: #C39847;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+}
+
+/* =========================================================
+   DP4 — ÉCRAN D’ENTRÉE (AVANT OUVERTURE CANVAS)
+   2 blocs : Avant / Après (miniature ou placeholder)
+========================================================= */
+.dp4-entry-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.dp4-entry-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  min-height: 220px;
+}
+
+.dp4-entry-thumb {
+  width: 100%;
+  height: 220px;
+  object-fit: cover;
+  display: none;
+}
+
+.dp4-entry-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f9fafb;
+}
+
+.dp4-entry-card.has-thumb .dp4-entry-thumb {
+  display: block;
+}
+
+.dp4-entry-card.has-thumb .dp4-entry-placeholder {
+  display: none;
+}
+
+/* =========================================================
+   DP — BOUTON PRINCIPAL DORÉ SOLARGLOBE (FINAL)
+========================================================= */
+
+.dp-btn-primary {
+  background: linear-gradient(
+    135deg,
+    #fff9ec,
+    #f3e1b7,
+    #e0c076
+  );
+  color: #1f2937;
+  border: 1px solid rgba(195,152,71,0.45);
+  font-weight: 600;
+  box-shadow: 0 2px 6px rgba(148,118,63,0.25);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* Hover = léger relief, AUCUN changement de couleur */
+.dp-btn-primary:hover {
+  background: linear-gradient(
+    135deg,
+    #fff9ec,
+    #f3e1b7,
+    #e0c076
+  );
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(148,118,63,0.35);
+}
+
+/* Active = bouton pressé, discret */
+.dp-btn-primary:active {
+  background: linear-gradient(
+    135deg,
+    #fff9ec,
+    #f3e1b7,
+    #e0c076
+  );
+  transform: translateY(0);
+  box-shadow: 0 1px 4px rgba(148,118,63,0.35);
+}
+
+
+
+/* =========================================================
+   DP1 — TITRE MODAL DORÉ SOLARGLOBE
+========================================================= */
+
+.dp-modal-title-solarglobe {
+  color: #C39847;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+}
+
+/* =========================================================
+   DP — MODAL CARTE (DP1) — VERSION CORRECTE
+   Compatible HTML DP1 actuel
+========================================================= */
+
+.dp-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: none;
+}
+
+.dp-modal[aria-hidden="false"] {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dp-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+}
+
+/* ===== PANEL ===== */
+.dp-modal-panel {
+  position: relative;
+  width: 92%;
+  max-width: 1200px;
+  height: 88%;
+  background: #fff;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  z-index: 1;
+}
+
+/* ===== HEADER ===== */
+.dp-modal-header {
+  flex-shrink: 0;
+  padding: 14px 18px;
+  border-bottom: 1px solid #e5e7eb;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.dp-modal-header h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.dp-modal-close {
+  background: none;
+  border: none;
+  font-size: 18px;
+  cursor: pointer;
+}
+
+/* ===== BODY ===== */
+.dp-modal-body {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  min-height: 0; /* CRUCIAL */
+}
+
+/* ===== HELP ===== */
+.dp-map-help {
+  padding: 16px;
+  border-right: 1px solid #e5e7eb;
+  font-size: 13px;
+  overflow-y: auto;
+}
+
+.dp-map-help h3 {
+  margin-top: 0;
+  font-size: 14px;
+}
+
+.dp-map-help ol {
+  padding-left: 18px;
+}
+
+.dp-map-note {
+  margin-top: 10px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+/* ===== MAP ===== */
+.dp-map-canvas {
+  position: relative;
+  height: 100%;
+  min-height: 0;
+  background: #f3f4f6;
+}
+
+/* OpenLayers cible */
+#dp1-ign-map {
+  position: absolute;
+  inset: 0;
+}
+
+/* DP4 — OpenLayers IGN ORTHO (dans overlay uniquement) */
+#dp4-ign-map {
+  position: absolute;
+  inset: 0;
+}
+
+/* ===== FOOTER ===== */
+.dp-modal-footer {
+  flex-shrink: 0;
+  padding: 14px 18px;
+  border-top: 1px solid #e5e7eb;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+/* ===============================
+   DP1 — Flèche Nord (overlay carte)
+=============================== */
+.dp-map-canvas {
+  position: relative;
+}
+
+.dp1-north-arrow {
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  width: 62px;
+  height: auto;
+  opacity: 1;
+  pointer-events: none;
+  z-index: 20;
+}
+/* =========================================================
+   DP1 — CARTES DE CAPTURE (TAILLE FIXE & STABLE)
+========================================================= */
+
+/* Carte DP1 = carré verrouillé */
+#dp1-cards .dp-card {
+  position: relative;
+  aspect-ratio: 1 / 1;     /* ⬅️ carré parfait */
+  overflow: hidden;        /* ⬅️ rien ne déborde */
+  background: #f9fafb;
+}
+
+/* Wrapper image générée */
+.dp-generated {
+  position: absolute;
+  inset: 0;
+  display: flex;
+}
+
+/* Image capturée */
+.dp-generated img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover; /* plein, propre */
+  display: block;
+}
+
+/* Wrapper vue (carte + légende) */
+.dp-view {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Légende fine sous la carte */
+.dp-caption {
+  margin-top: 4px;
+  text-align: center;
+  font-size: 12px;
+  line-height: 1.2;
+  color: #6b7280;
+  white-space: nowrap;
+}
+
+.dp-caption strong {
+  font-weight: 500;
+}
+/* ===============================
+   DP1 — Aperçu image plein écran
+=============================== */
+
+.dp-image-preview {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 99999;
+  cursor: zoom-out;
+}
+
+.dp-image-preview[aria-hidden="true"] {
+  display: none;
+}
+
+.dp-image-preview img {
+  max-width: 92vw;
+  max-height: 92vh;
+  object-fit: contain;
+  background: #fff;
+  border-radius: 6px;
+}
+
+/* Bloque le scroll quand l’aperçu est ouvert */
+body.dp-lock-scroll {
+  overflow: hidden;
+}
+/* ======================================================
+   DP1 — INFOS PARCELLE VALIDÉE (VERSION PROPRE)
+====================================================== */
+
+.dp-card-info {
+  margin-top: 24px;
+  padding: 24px 28px;
+  border: 1px solid #d1d5db;
+  border-left: 5px solid #16a34a;
+  border-radius: 10px;
+  background: #f9fafb;
+}
+
+/* Titre */
+.dp-card-info h3 {
+  margin: 0 0 20px 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #065f46;
+}
+
+/* Liste infos */
+.dp-parcelle-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.dp-parcelle-list li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  font-size: 14px;
+  border-bottom: 1px dashed #e5e7eb;
+}
+
+.dp-parcelle-list li:last-child {
+  border-bottom: none;
+}
+
+.dp-parcelle-list strong {
+  width: 90px;
+  font-weight: 500;
+  color: #374151;
+}
+
+.dp-parcelle-list span {
+  font-weight: 600;
+  color: #111827;
+}
+
+/* Zone actions (BOUTON) */
+.dp-parcelle-actions {
+  margin-top: 24px;          /* 🔴 ESPACE CLAIR */
+  padding-top: 16px;
+  border-top: 1px solid #e5e7eb;
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* Bouton */
+#dp1-parcelle-edit {
+  padding: 10px 18px;
+  font-size: 14px;
+  border-radius: 8px;
+  background: #ffffff;
+  border: 1px solid #9ca3af;
+  color: #111827;
+  cursor: pointer;
+}
+
+#dp1-parcelle-edit:hover {
+  background: #f3f4f6;
+  border-color: #6b7280;
+}
+/* ======================================================
+   DP1 — FORCE LAYOUT VERTICAL (FIX DÉFINITIF)
+====================================================== */
+
+/* On force la carte en colonne */
+#dp1-parcelle-info {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+}
+
+/* Liste normale */
+#dp1-parcelle-info .dp-parcelle-list {
+  margin: 0;
+  padding: 0;
+}
+
+/* 🔴 ON FORCE UNE RUPTURE AVANT LE BOUTON */
+#dp1-parcelle-info .dp-parcelle-actions {
+  margin-top: 32px !important;
+  padding-top: 20px;
+  border-top: 1px solid #e5e7eb;
+  display: flex;
+  justify-content: flex-end;
+  width: 100%;
+}
+
+/* Bouton bien isolé */
+#dp1-parcelle-edit {
+  margin: 0;
+}
+
+/* ======================================================
+   DP2 — Barre d’outils (au-dessus du canvas)
+====================================================== */
+
+/* ======================================================
+   DP2 — Champs (utilisés dans l’overlay)
+====================================================== */
+.dp2-field {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.dp2-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.dp2-select {
+  appearance: none;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid #d1d5db;
+  background: #ffffff;
+  color: #111827;
+  font-size: 13px;
+  font-weight: 600;
+  outline: none;
+}
+
+.dp2-select:focus {
+  border-color: rgba(195,152,71,0.75);
+  box-shadow: 0 0 0 3px rgba(195,152,71,0.18);
+}
+
+.dp2-panel-readonly {
+  display: grid;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.dp2-kv {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: 10px;
+  align-items: center;
+}
+
+.dp2-k {
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+.dp2-v {
+  font-size: 13px;
+  font-weight: 700;
+  color: #111827;
+}
+
+/* BUG FIX : Le canvas #dp2-draw-canvas est en position:absolute top:0 left:0
+   (défini en JS) et recouvre tout #dp2-captured-image-wrap, y compris la toolbar.
+   En DOM la toolbar est avant le canvas, donc le canvas est peint au-dessus et
+   intercepte tous les clics. On place la toolbar au-dessus du canvas en stacking
+   pour qu’elle reçoive les clics sans toucher au JS. */
+.dp2-toolbar {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-bottom: none;
+  border-radius: 10px 10px 0 0;
+  box-shadow: 0 -1px 0 0 #e5e7eb;
+}
+
+.dp2-tool-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #374151;
+  background: #f9fafb;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.dp2-tool-btn:hover:not(:disabled) {
+  background: #f3f4f6;
+  border-color: #9ca3af;
+}
+
+.dp2-tool-btn[aria-pressed="true"],
+.dp2-tool-btn.dp2-tool-active {
+  background: #eef2ff;
+  border-color: #6366f1;
+  color: #4338ca;
+}
+
+.dp2-tool-btn:disabled,
+.dp2-tool-btn.dp2-tool-btn-disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.dp2-tool-icon {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.dp2-tool-label {
+  white-space: nowrap;
+}
+
+/* ======================================================
+   DP2 — Overlay paramètres (modal au-dessus du plan)
+====================================================== */
+/* (SUPPRIMÉ) DP2 overlay paramètres : remplacé par la colonne gauche du modal DP2 */
+
+.dp2-panel-readonly strong {
+  color: #111827;
+}
+
+/* =========================================================
+   DP2 — MODAL (hérite du style standard)
+========================================================= */
+
+/* Colonne gauche un peu plus large pour les champs DP2 */
+#dp2-map-modal .dp-modal-body {
+  grid-template-columns: 360px 1fr;
+}
+
+/* ======================================================
+   DP2 — Panel gauche (SolarGlobe)
+====================================================== */
+#dp2-settings-panel {
+  background: #fcfbf7; /* blanc cassé / beige très léger */
+  border-right: 1px solid rgba(195,152,71,0.35);
+}
+
+#dp2-settings-panel h3 {
+  font-weight: 600;
+  color: #111827;
+  letter-spacing: -0.2px;
+}
+
+.dp2-label {
+  color: #6b7280; /* gris moyen (labels) */
+}
+
+.dp2-select {
+  border-color: rgba(195,152,71,0.25);
+  background: #ffffff;
+}
+
+.dp2-panel-readonly {
+  color: rgba(17,24,39,0.70);
+}
+
+.dp2-panel-readonly strong {
+  color: #111827;
+}
+
+/* La zone de travail DP2 ne doit pas créer de scroll horizontal */
+#dp2-map-modal .dp-map-canvas {
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+/* ======================================================
+   DP2 — Overlay paramètres : Légende (lecture seule)
+====================================================== */
+.dp2-legend-field .dp2-label {
+  display: block;
+  margin-bottom: 8px;
+}
+
+.dp2-legend-empty {
+  font-size: 13px;
+  color: rgba(17, 24, 39, 0.60);
+  padding: 10px 12px;
+  border: 1px dashed rgba(195,152,71,0.35);
+  border-radius: 12px;
+  background: rgba(245, 243, 237, 1);
+  margin-bottom: 10px;
+}
+
+.dp2-legend-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dp2-legend-row {
+  display: grid;
+  grid-template-columns: 58px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(195,152,71,0.22);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 1);
+}
+
+.dp2-legend-mini {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 58px;
+}
+
+.dp2-legend-mini-canvas {
+  width: 52px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid rgba(195,152,71,0.18);
+  background: rgba(249, 250, 251, 1);
+}
+
+.dp2-legend-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.dp2-legend-count {
+  font-size: 12px;
+  font-weight: 700;
+  color: rgba(17, 24, 39, 0.55);
+}
+
+/* Message discret (panneaux sans module sélectionné) */
+.dp2-toast {
+  position: absolute;
+  right: 12px;
+  top: 56px;
+  z-index: 2;
+  background: rgba(17, 24, 39, 0.92);
+  color: #fff;
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-size: 13px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+}
+
+/* ======================================================
+   DP2 — Dropdown "Mesures" (premium, sobre BE)
+====================================================== */
+
+.dp2-dropdown-btn {
+  gap: 8px;
+}
+
+.dp2-tool-caret {
+  font-size: 12px;
+  opacity: 0.8;
+  margin-left: 2px;
+}
+
+.dp2-dropdown-btn.dp2-dropdown-open .dp2-tool-caret {
+  opacity: 1;
+}
+
+.dp2-dropdown-menu {
+  position: absolute;
+  z-index: 5; /* au-dessus du canvas (toolbar z-index:1) */
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(209, 213, 219, 0.9);
+  border-radius: 10px;
+  box-shadow: 0 12px 30px rgba(17, 24, 39, 0.12);
+  color: #111827;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.dp2-dropdown-menu[hidden] {
+  display: none;
+}
+
+.dp2-dropdown-menu li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  color: #111827;
+  user-select: none;
+}
+
+.dp2-dropdown-menu li:hover {
+  background: #f3f4f6;
+}
+
+.dp2-dropdown-menu li:active {
+  background: #e5e7eb;
+}
+
+/* ======================================================
+   DP2 — Barre d’actions DESSIN (Undo / Redo / Supprimer)
+   Flottante au-dessus du canvas (zone dessin uniquement)
+====================================================== */
+.dp2-draw-actions {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 6; /* au-dessus du canvas + au-dessus des dropdowns */
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.84);
+  border: 1px solid rgba(209, 213, 219, 0.95);
+  box-shadow: 0 12px 30px rgba(17, 24, 39, 0.10);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.dp2-action-btn {
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: rgba(249, 250, 251, 0.95);
+  border: 1px solid rgba(209, 213, 219, 0.95);
+  color: #111827;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.02s ease;
+}
+
+.dp2-action-btn:hover:not(:disabled) {
+  background: #f3f4f6;
+  border-color: #9ca3af;
+}
+
+.dp2-action-btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.dp2-action-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ======================================================
+   DP2 — Surface de travail 16:10 (plan de masse / capture)
+   Objectif: ratio fixe sur la zone "carte + dessins + rose des vents + objets"
+   sans toucher à la logique OpenLayers / capture.
+====================================================== */
+.dp2-map-wrap {
+  /* Conteneur principal (zone blanche) */
+  position: relative;
+  width: 100%;
+  height: auto;            /* override .dp-map-canvas { height: 100% } */
+  aspect-ratio: 16 / 10;   /* ratio documentaire */
+  margin: 0 auto;
+  overflow: hidden;        /* rien ne déborde du cadre 16:10 */
+  background: #fff;
+}
+
+/* ======================================================
+   DP2 — Rose des vents (flèche Nord)
+   Ajustement strictement visuel (DP2 uniquement) :
+   - décale vers l’intérieur (marge impression)
+   - agrandit légèrement (+~26%)
+====================================================== */
+#dp2-map-modal .dp2-map-wrap > .dp1-north-arrow {
+  bottom: 28px; /* évite bord bas */
+  right: 28px;  /* évite bord droit */
+  width: 78px;  /* 62px → 78px (+25.8%) */
+}
+
+/* Les deux modes (carte OU capture) doivent remplir le cadre 16:10 */
+.dp2-map-wrap > #dp2-ign-map,
+.dp2-map-wrap > #dp2-captured-image-wrap {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* OpenLayers attend une cible dimensionnée par le DOM */
+#dp2-ign-map {
+  min-height: 0;
+}
+
+/* DP2 — Zoom visuel : conteneur image + canvas (transform scale uniquement, sans modifier scale_m_per_px) */
+#dp2-captured-image-wrap {
+  /* Devient un calque plein cadre (et reste un parent "positionné" pour #dp2-zoom-container) */
+  position: absolute;
+  overflow: hidden;
+}
+
+#dp2-zoom-container {
+  /* Le conteneur doit remplir le cadre 16:10 (JS applique seulement transform/transformOrigin) */
+  position: absolute !important; /* JS force "relative" mais on garde le plein cadre */
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transform-origin: 0 0;
+  /* transform translate() scale() est appliqué en JS depuis initDP2Editor/initDP2ViewZoom */
+}
+
+/* DP2 — Clic/double-clic sur les mesures (canvas) : le canvas doit recevoir les events, pas l’image */
+#dp2-captured-image {
+  pointer-events: none;
+  z-index: 0;
+}
+#dp2-draw-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 2; /* strictement supérieur à #dp2-captured-image pour recevoir clic/dblclick */
+  pointer-events: auto;
+}
+
+/* DP2 — Curseur Pan (outil déplacement visuel) */
+#dp2-captured-image-wrap.dp2-tool-pan {
+  cursor: grab;
+}
+
+#dp2-captured-image-wrap.dp2-tool-pan.dp2-panning,
+body.dp2-panning #dp2-captured-image-wrap {
+  cursor: grabbing;
+}
+
+/* =========================================================
+   DP3 — PLAN DE COUPE (FRONTEND)
+   Ajouts minimaux, préfixés dp3-
+========================================================= */
+
+/* --- Preview home --- */
+.dp3-preview {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  padding: 10px;
+}
+
+.dp3-preview-img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.dp3-preview-badge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: rgba(16, 185, 129, 0.12);
+  color: #065f46;
+  border: 1px solid rgba(16, 185, 129, 0.28);
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-weight: 700;
+}
+
+/* --- Modal type (2x2) --- */
+.dp3-type-modal .dp-modal-panel {
+  max-width: 980px;
+  height: auto;
+  max-height: 88%;
+}
+
+.dp3-modal-subtitle {
+  display: inline-block;
+  margin-left: 10px;
+  font-size: 12px;
+  color: #6b7280;
+  font-weight: 600;
+}
+
+.dp3-type-body {
+  display: block; /* on ne veut pas la grille 320/1fr de .dp-modal-body */
+  padding: 16px 18px;
+  overflow: auto;
+}
+
+.dp3-type-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.dp3-type-card {
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  border-radius: 12px;
+  padding: 10px;
+  cursor: pointer;
+  display: grid;
+  gap: 10px;
+  text-align: left;
+  transition: box-shadow 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+}
+
+.dp3-type-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 24px rgba(17, 24, 39, 0.08);
+  border-color: rgba(59, 130, 246, 0.35);
+}
+
+.dp3-type-card.selected {
+  border-color: rgba(59, 130, 246, 0.7);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.14);
+}
+
+.dp3-type-card-img {
+  width: 100%;
+  height: 160px;
+  object-fit: contain;
+  background: #f9fafb;
+  border-radius: 10px;
+  border: 1px solid #f3f4f6;
+  display: block;
+}
+
+.dp3-type-card-label {
+  font-weight: 700;
+  color: #111827;
+}
+
+/* --- Editor --- */
+.dp3-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  color: #374151;
+  margin-bottom: 6px;
+}
+
+.dp3-select,
+.dp3-textarea {
+  width: 100%;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 10px 10px;
+  font-size: 13px;
+  background: #fff;
+}
+
+.dp3-textarea {
+  resize: vertical;
+}
+
+.dp3-counter {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #6b7280;
+  text-align: right;
+}
+
+.dp3-editor-canvas {
+  overflow: auto;
+  background: #f3f4f6;
+  padding: 16px;
+}
+
+.dp3-page {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(17, 24, 39, 0.08);
+  padding: 18px;
+  min-height: 100%;
+}
+
+.dp3-stage-wrap {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+.dp3-stage {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+}
+
+#dp3-stage-img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  user-select: none;
+  pointer-events: none;
+}
+
+.dp3-overlay {
+  position: absolute;
+  inset: 0;
+}
+
+/* --- Text boxes --- */
+.dp3-textbox {
+  position: absolute;
+  background: #ffffff;
+  border: 1px solid #3b82f6;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(17, 24, 39, 0.08);
+  padding: 10px;
+  color: #111827;
+  overflow: hidden;
+  cursor: grab;
+}
+
+.dp3-textbox.selected {
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.18), 0 2px 10px rgba(17, 24, 39, 0.1);
+}
+
+.dp3-textbox:active {
+  cursor: grabbing;
+}
+
+.dp3-textbox-content {
+  width: 100%;
+  height: 100%;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.dp3-textbox-placeholder {
+  color: #6b7280;
+  font-weight: 600;
+}
+
+.dp3-resize-handle {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  background: #3b82f6;
+  border: 2px solid #ffffff;
+  cursor: nwse-resize;
+}
+
+.dp3-textbox-editor {
+  width: 100%;
+  height: 100%;
+  border: none;
+  outline: none;
+  resize: none;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+}
+
+/* ======================================================
+   DP6 — FIX HAUTEUR WORKSPACE (Street View / Import)
+   Objectif: garantir une chaîne de hauteur non nulle
+====================================================== */
+
+#dp6-photo-modal .dp-modal-body {
+  min-height: 0; /* sécurité : permet aux enfants de shrink/fill */
+}
+
+#dp6-photo-modal .dp-map-canvas {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+#dp6-photo-workspace {
+  position: relative;   /* nécessaire pour bouton capture en absolute */
+  flex: 1;              /* prend toute la hauteur dispo de dp-map-canvas */
+  min-height: 0;        /* évite la résolution à 0 dans certains layouts */
+  overflow: hidden;     /* évite scroll interne qui casse la capture */
+  background: #f3f4f6;  /* optionnel : même fond que les autres maps */
+}
+
+#dp6-streetview {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+/* ======================================================
+   DP7 — FIX HAUTEUR WORKSPACE (Street View / Import)
+   Objectif: garantir une chaîne de hauteur non nulle
+====================================================== */
+
+#dp7-photo-modal .dp-modal-body {
+  min-height: 0; /* sécurité : permet aux enfants de shrink/fill */
+}
+
+#dp7-photo-modal .dp-map-canvas {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+#dp7-photo-workspace {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  background: #f3f4f6;
+}
+
+#dp7-streetview {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+/* ======================================================
+   CERFA — Description du projet (formulaire saisie manuelle)
+====================================================== */
+
+.cerfa-card {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 24px 28px;
+  margin-top: 0;
+}
+
+.cerfa-section {
+  margin: 0;
+}
+
+.cerfa-section-title {
+  margin: 0 0 16px 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.cerfa-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.cerfa-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cerfa-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.cerfa-input,
+.cerfa-select {
+  width: 100%;
+  max-width: 320px;
+  padding: 10px 14px;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--ink);
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  box-sizing: border-box;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.cerfa-input:focus,
+.cerfa-select:focus {
+  outline: none;
+  border-color: rgba(195, 152, 71, 0.7);
+  box-shadow: 0 0 0 3px rgba(195, 152, 71, 0.18);
+}
+
+.cerfa-input::placeholder {
+  color: var(--muted);
+}
+
+.cerfa-select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236b7280' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 36px;
+}
+
+.cerfa-input-suffix {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 320px;
+}
+
+.cerfa-input-suffix .cerfa-input {
+  max-width: 120px;
+}
+
+.cerfa-suffix {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.cerfa-dimensions-row {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.cerfa-dim-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cerfa-dim-item .cerfa-input {
+  max-width: 100px;
+}
+
+.cerfa-dim-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.cerfa-toggle-group,
+.cerfa-energy-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.cerfa-energy-group {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.cerfa-energy-group .cerfa-toggle-btn {
+  justify-content: center;
+}
+
+.cerfa-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 10px 18px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #374151;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.cerfa-toggle-btn:hover {
+  background: var(--bg-soft);
+  border-color: rgba(195, 152, 71, 0.4);
+}
+
+.cerfa-toggle-btn.active {
+  background: linear-gradient(135deg, #fff9ec, #f3e1b7);
+  border-color: rgba(195, 152, 71, 0.7);
+  color: #5b430c;
+  font-weight: 600;
+}
+
+.cerfa-description {
+  width: 100%;
+  min-height: 120px;
+  padding: 12px 14px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink);
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  resize: vertical;
+  cursor: default;
+}
+
+.cerfa-description::placeholder {
+  color: var(--muted);
+}

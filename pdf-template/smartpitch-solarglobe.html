@@ -1,0 +1,3281 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <title>SmartPitch Solarglobe � A4 paysage (PDF ready)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <style>
+    /* 1) PDF : A4 paysage */
+    @page { size: A4 landscape; margin: 0; }
+
+    /* 2) Base écran */
+    html, body {
+      margin: 0;
+      background: #f5f6f8;
+      color: #0F172A;
+      font: 13.5px/1.45 "Inter", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    }
+
+    /* 3) 1 section = 1 page */
+    .sheet {
+      width: 277mm;
+      height: 190mm;
+      margin: 10mm auto;
+      background: #fff;
+      border: 0.3mm solid #e6e8ee;
+      border-radius: 3mm;
+      box-shadow: 0 2mm 7mm rgba(15,23,42,.08);
+      display: flex;
+      flex-direction: column;
+      padding: 8mm 12mm;
+      gap: 4mm;
+      overflow: visible;
+      page-break-after: always;
+      break-after: page;
+    }
+
+    .sheet:first-of-type { margin-top: 0; }
+    .sheet:last-child { page-break-after: auto; }
+
+    /* 4) Barre dorée / header / grilles */
+    .bar { height: 1.6mm; background: linear-gradient(90deg,#C39847,#e8d2a5); border-radius: 3mm; }
+    .header { display: flex; align-items: flex-end; justify-content: space-between; position: relative; }
+    .badge {
+      font-size: 3.1mm;
+      border: 0.3mm solid #C39847;
+      color: #C39847;
+      border-radius: 999mm;
+      padding: .8mm 2.8mm;
+    }
+    .grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 2.5mm; }
+    .col-6 { grid-column: span 6; }
+    .card { border: 0.3mm solid #e6e8ee; border-radius: 2.8mm; padding: 3.2mm; background: #fff; }
+    .soft { background: #faf9f6; border-color: #efe7d7; }
+    .meta-compact {
+      display: flex; flex-wrap: wrap; gap: 6mm; justify-content: flex-end;
+      font: 400 3.6mm/1.35 Inter,system-ui; color: #333;
+    }
+    .meta-compact b { color: #555; }
+
+    /* 5) spécifique page 1 */
+    #p1_photo {
+      height: 70mm;
+      border-radius: 2.5mm;
+      background-size: cover;
+      background-position: center;
+      background-image: url('images/accueil-pdf.png');
+    }
+    #p1 h2 { font-size: 9.8mm; line-height: 1.05; }
+
+    /* 6) Impression */
+    @media print {
+      html, body { background: #fff !important; }
+      .sheet {
+        width: 277mm !important; height: 190mm !important;
+        margin-left: auto; margin-right: auto;
+        box-shadow: none !important; border: none;
+      }
+      .sheet:first-of-type { margin-top: 0 !important; }
+    }
+
+  </style>
+
+  <!-- Chart.js nécessaire pour les graphiques (P2, P4, P5, P6, P8⬦) -->
+ <!-- Chart.js �  OK -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+
+</head>
+
+<body>
+
+  <div class="wrap">
+
+
+<!-- =========================================================
+     PAGE 1 � COUVERTURE (premium dorée) + OVERLAY DE SAISIE
+     ======================================================= -->
+<section class="sheet" id="p1" data-engine="meta"
+  style="padding:7mm 11mm;gap:3.5mm;display:flex;flex-direction:column;justify-content:space-between;">
+
+  <!-- ===== HEADER ===== -->
+  <div class="header"
+       style="--brand:#C39847;--logoW:22mm;--metaW:110mm;
+       padding-left:var(--logoW);padding-right:var(--metaW);padding-bottom:5mm;position:relative;">
+    <img src="/pdf-assets/images/logo-solarglobe-rect.png" alt="Solarglobe"
+         style="position:absolute;left:0;top:0;height:18mm;object-fit:contain;">
+    <span class="badge"
+          style="margin-left:auto;font-size:6mm;padding:1mm 3.2mm;border-width:0.4mm;">
+      �0tude Solarglobe
+    </span>
+
+   <div class="meta-compact" id="p1_meta_line"
+     style="
+       position:absolute;
+       right:0;
+       bottom:0;
+       width:var(--metaW);
+       display:flex;
+       flex-direction:column;
+       align-items:flex-end;
+       gap:1mm;
+       text-align:right;
+       line-height:1.3;
+     ">
+
+      <div><b>Client</b> : <span id="p1_client" contenteditable="true">�</span></div>
+      <div><b>Réf.</b> : <span id="p1_ref" contenteditable="true">�</span></div>
+      <div><b>Date</b> : <span id="p1_date" contenteditable="true">�</span></div>
+    </div>
+  </div>
+
+  <!-- ===== BARRE DOR�0E ===== -->
+  <div class="bar"
+       style="height:1mm;background:linear-gradient(90deg,#C39847,#d4af63);
+       border-radius:999mm;margin-bottom:3mm;"></div>
+
+  <!-- ===== CONTENU PRINCIPAL ===== -->
+  <div class="grid" style="gap:3.5mm;">
+    <!-- Colonne gauche -->
+    <div class="col-6" style="display:flex;flex-direction:column;gap:3.5mm;">
+      <div class="card" style="border:none;padding:0;">
+        <h2 style="margin:0 0 1.2mm 0;font-weight:900;color:#C39847;line-height:1.05;">
+          Votre maison, vos habitudes,<br> notre étude sur mesure
+        </h2>
+        <p style="margin:0;font-size:3.9mm;">
+          Nous analysons vos usages et la configuration du toit pour proposer une solution
+          photovoltaïque qui privilégie <strong>l�"autoconsommation</strong> et la
+          <strong>stabilité</strong> à long terme.
+        </p>
+      </div>
+
+      <div class="card" style="padding:3mm 4mm;">
+        <h3 style="margin:0 0 2mm 0;color:#C39847;font-weight:700;">Méthode & scénario choisi</h3>
+        <p id="p1_method" style="margin:0;">
+          Basée sur votre profil de consommation et les données PVGIS,
+          la puissance optimale estimée est de <strong id="p1_m_kwc" contenteditable="true">6 kWc</strong>.
+          Cette configuration couvre environ <strong id="p1_m_auto" contenteditable="true">70 %</strong> de vos besoins
+          et génère un gain estimé de <strong id="p1_m_gain" contenteditable="true">22 000 ��</strong> sur 25 ans.
+        </p>
+      </div>
+
+      <div class="card" style="padding:3mm 4mm;">
+        <h3 style="margin:0 0 2mm 0;color:#C39847;font-weight:700;">Pourquoi ce dimensionnement ?</h3>
+        <p id="p1_why" contenteditable="true" style="margin:0;">
+          Le dimensionnement a été ajusté pour maximiser votre autoconsommation
+          tout en conservant une rentabilité optimale et une compatibilité avec votre installation actuelle.
+        </p>
+      </div>
+
+      <div class="card" style="padding:3mm 4mm;">
+        <h3 style="margin:0 0 2mm 0;color:#C39847;font-weight:700;">Vos objectifs</h3>
+        <ul style="margin:0 0 0 4mm;padding-left:3mm;font-size:3.9mm;line-height:1.5;">
+          <li><strong style="color:#C39847;">Autonomie</strong> : consommer d�"abord votre production.</li>
+          <li><strong style="color:#C39847;">Stabilité</strong> : protection face aux hausses de tarifs.</li>
+          <li><strong style="color:#C39847;">Rentabilité</strong> : ROI clair et durable.</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Colonne droite -->
+    <div class="col-6" style="display:flex;flex-direction:column;gap:3.5mm;">
+      <div class="card soft" style="padding:3mm;">
+        <!-- PHOTO -->
+        <div id="p1_photo"
+             style="height:68mm;border-radius:2.5mm;overflow:hidden;border:0.3mm solid #eee;">
+          <img id="p1_photo_img" src="/pdf-assets/images/accueil-pdf.png"
+               alt="Photo d'une maison équipée Solarglobe"
+               style="width:100%;height:100%;object-fit:cover;display:block;">
+        </div>
+        <p style="margin-top:2mm;font-size:3.6mm;text-align:center;">
+          Vue illustrative d�"une installation résidentielle.
+        </p>
+
+        <!-- KPI -->
+        <div class="kpis"
+             style="margin-top:2mm;display:flex;flex-wrap:wrap;gap:4mm;justify-content:space-between;
+             font-size:3.9mm;line-height:1.3;">
+          <div>
+            <div class="lab" style="color:#C39847;font-weight:600;">Puissance</div>
+            <div class="val" id="p1_k_puissance" contenteditable="true">6,7 kWc</div>
+          </div>
+          <div>
+            <div class="lab" style="color:#C39847;font-weight:600;">Autonomie</div>
+            <div class="val" id="p1_k_autonomie" contenteditable="true">72 %</div>
+          </div>
+          <div>
+            <div class="lab" style="color:#C39847;font-weight:600;">TRI</div>
+            <div class="val" id="p1_k_tri" contenteditable="true">10 ans</div>
+          </div>
+          <div>
+            <div class="lab" style="color:#C39847;font-weight:600;">Gains 25 ans</div>
+            <div class="val" id="p1_k_gains" contenteditable="true">27 000 ��</div>
+          </div>
+        </div>
+
+        <!-- PARAM��TRES INSTALLATION -->
+        <div class="card"
+             style="margin-top:4mm;border:0.4mm solid rgba(195,152,71,0.25);
+             border-radius:3mm;padding:3mm 4mm;background:rgba(0,0,0,0.012);">
+          <h4 style="margin:0 0 2mm 0;font-size:4mm;color:#C39847;">Paramètres installation</h4>
+          <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:2.5mm;font-size:3.8mm;line-height:1.35;">
+            <div>
+              <span style="color:#C39847;font-weight:600;">Raccordement</span><br>
+              <strong id="p1_param_kva" contenteditable="true">6 kVA</strong>
+            </div>
+            <div>
+              <span style="color:#C39847;font-weight:600;">Réseau</span><br>
+              <strong id="p1_param_reseau" contenteditable="true">Triphasé</strong>
+            </div>
+            <div style="grid-column:1 / -1;">
+              <span style="color:#C39847;font-weight:600;">Conso annuelle</span><br>
+              <strong id="p1_param_conso" contenteditable="true">7 000 kWh/an</strong>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =========================================================
+     PAGE 2 � �0TUDE FINANCI��RE 25 ANS (version premium compacte)
+     ======================================================= -->
+
+<section class="sheet" id="p2" data-engine="summary"
+  style="padding:9mm 11mm 9mm 11mm;display:flex;flex-direction:column;gap:6mm;">
+
+  <!-- ===== HEADER ===== -->
+  <div class="header"
+       style="position:relative;--brand:#C39847;--logoW:22mm;--metaW:110mm;
+       padding-left:var(--logoW);padding-right:var(--metaW);padding-bottom:6mm;">
+
+    <img src="/pdf-assets/images/logo-solarglobe-rect.png" alt="Solarglobe"
+         style="position:absolute;left:0;top:0;height:18mm;object-fit:contain;">
+
+    <span class="badge"
+          style="margin-left:auto;font-size:6mm;padding:1mm 3.2mm;border-width:0.4mm;">
+      �0tude financière 25 ans
+    </span>
+
+   <div class="meta-compact" id="p2_meta_line"
+     style="
+       position:absolute;
+       right:0;
+       bottom:0;
+       width:var(--metaW);
+       display:flex;
+       flex-direction:column;
+       align-items:flex-end;
+       gap:1mm;
+       text-align:right;
+       line-height:1.3;
+     ">
+
+  <div><b>Client :</b> <span id="p2_client" contenteditable="true">�</span></div>
+  <div><b>Réf. :</b> <span id="p2_ref" contenteditable="true">�</span></div>
+  <div><b>Date :</b> <span id="p2_date" contenteditable="true">�</span></div>
+
+</div>
+
+
+  </div>
+
+  <!-- ===== BARRE DOR�0E ===== -->
+  <div class="bar"
+       style="height:1mm;background:linear-gradient(90deg,#C39847,#d4af63);
+       border-radius:999mm;margin-bottom:5mm;position:relative;z-index:5;"></div>
+
+  <!-- ===== CONTENU PRINCIPAL ===== -->
+  <div class="grid" style="display:flex;gap:6mm;">
+
+    <!-- ========== COLONNE GAUCHE ========== -->
+    <div class="col-6" style="flex:1;display:flex;flex-direction:column;gap:6mm;">
+
+      <!-- Bloc EN 3 PHRASES (compact) -->
+      <div class="card soft" style="padding:4mm 5mm" id="p2_exec">
+        <h3 style="margin:0 0 3mm;color:#C39847;font-weight:700;">En 3 phrases</h3>
+
+        <p id="p2_s1" contenteditable="true">
+          Votre installation photovoltaïque réduit durablement vos factures d�"électricité.
+        </p>
+        <p id="p2_s2" contenteditable="true">
+          Elle valorise votre production solaire selon vos usages réels.
+        </p>
+        <p id="p2_s3" contenteditable="true">
+          Le scénario sélectionné offre un équilibre optimal entre coût et performance.
+        </p>
+            <div id="p2_hint"
+             style="margin-top:4mm;background:#fbf6ec;border:0.5mm solid #f1e8d8;
+             border-radius:2.5mm;padding:3.5mm 4mm;color:#6b6b6b;" contenteditable="true">
+          Analyse basée sur votre profil de consommation réel et les projections sur 25 ans.
+        </div>
+     
+      </div>
+
+      <!-- Comparatif Sans / Avec / �0conomie -->
+      <div class="card soft" style="padding:4mm 5mm" id="p2_jalons_box">
+        <h3 style="margin:0 0 3mm;color:#C39847;font-weight:700;">Comparatif sur 25 ans</h3>
+
+        <table id="p2_table_jalons"
+               style="width:100%;border-collapse:collapse;font-size:3.8mm;line-height:1.45;">
+          <thead>
+            <tr style="color:#555;border-bottom:0.3mm solid #ddd;">
+              <th align="left">Année</th>
+              <th align="right">Sans solaire</th>
+              <th align="right">Avec solaire</th>
+              <th align="right">�0conomie</th>
+            </tr>
+          </thead>
+
+          <tbody id="p2_jalons_body" contenteditable="true">
+            <tr><td>1 an</td><td align="right">�</td><td align="right">�</td><td align="right">�</td></tr>
+            <tr><td>5 ans</td><td align="right">�</td><td align="right">�</td><td align="right">�</td></tr>
+            <tr><td>10 ans</td><td align="right">�</td><td align="right">�</td><td align="right">�</td></tr>
+            <tr><td>15 ans</td><td align="right">�</td><td align="right">�</td><td align="right">�</td></tr>
+            <tr><td>20 ans</td><td align="right">�</td><td align="right">�</td><td align="right">�</td></tr>
+            <tr><td>25 ans</td><td align="right">�</td><td align="right">�</td><td align="right">�</td></tr>
+          </tbody>
+        </table>
+
+        <p id="p2_caption" contenteditable="true"
+           style="margin-top:3mm;font-size:3.5mm;color:#666;">
+          Votre installation permet de réduire vos dépenses dès les premières années.
+        </p>
+      </div>
+
+    </div>
+
+    <!-- ========== COLONNE DROITE ========== -->
+    <div class="col-6" style="flex:1;display:flex;flex-direction:column;gap:6mm;">
+
+      <!-- KPI EN 3 COLONNES -->
+      <div class="card soft" style="padding:4mm 5mm" id="p2_kpi_box">
+        <h3 style="margin:0 0 3mm;color:#C39847;font-weight:700;">Indicateurs clés</h3>
+
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:2mm;
+            font-size:3.6mm;line-height:1.35;">
+
+  <!-- Ligne 1 -->
+  <div><b>TRI</b><br><span id="p2_k_tri" contenteditable="true">�</span></div>
+  <div><b>ROI</b><br><span id="p2_k_roi" contenteditable="true">�</span></div>
+  <div><b>LCOE</b><br><span id="p2_k_lcoe" contenteditable="true">�</span></div>
+
+  <!-- Ligne 2 -->
+  <div><b>�0conomie 25 ans</b><br><span id="p2_k_economie25" contenteditable="true">�</span></div>
+  <div><b>Revente 25 ans</b><br><span id="p2_k_revente25" contenteditable="true">�</span></div>
+  <div><b>Gains 25 ans</b><br><span id="p2_k_gains" contenteditable="true">�</span></div>
+
+  <!-- Ligne 3 -->
+  <div><b>Tarif TTC</b><br><span id="p2_k_tarif" contenteditable="true">�</span></div>
+  <div><b>Prime</b><br><span id="p2_k_prime" contenteditable="true">�</span></div>
+  <div><b>Reste à charge</b><br><span id="p2_k_reste" contenteditable="true">�</span></div>
+
+</div>
+
+      </div>
+
+      <!-- GRAPH & BENEFICES -->
+      <div class="card soft" style="padding:4mm 5mm" id="p2_benefices_box">
+        <h3 style="margin:0 0 3mm;color:#C39847;font-weight:700;">�0volution des coûts & bénéfices</h3>
+
+        <canvas id="p2_chart" style="width:100%;height:42mm;margin-bottom:4mm;"></canvas>
+
+        <ul style="font-size:3.8mm;margin:0 0 0 4mm;padding-left:3mm;line-height:1.55;">
+          <li><b>Facture stabilisée</b> :
+            <span id="p2_b1" contenteditable="true">Des dépenses plus prévisibles.</span>
+          </li>
+          <li><b>Protection long terme</b> :
+            <span id="p2_b2" contenteditable="true">Résilience face aux hausses du kWh.</span>
+          </li>
+          <li><b>Gain net</b> :
+            <span id="p2_b3" contenteditable="true">Des économies cumulées significatives.</span>
+          </li>
+        </ul>
+
+      </div>
+
+    </div>
+
+  </div>
+
+</section>
+<!-- =========================================================
+     PAGE 3 � OFFRE CHIFFR�0E (premium) + OVERLAY DE SAISIE
+     ======================================================= -->
+<section class="sheet" id="p3" data-engine="offer"
+  style="padding:7mm 11mm 8mm 11mm;gap:1mm;display:flex;flex-direction:column;justify-content:flex-start;">
+
+  <!-- ===== HEADER ===== -->
+  <div class="header"
+       style="position:relative;--brand:#C39847;--logoW:22mm;--metaW:110mm;
+       padding-left:var(--logoW);padding-right:var(--metaW);padding-bottom:10mm;">
+    <img src="/pdf-assets/images/logo-solarglobe-rect.png" alt="Solarglobe"
+         style="position:absolute;left:0;top:0;height:18mm;object-fit:contain;">
+    <span class="badge"
+          style="margin-left:auto;font-size:6mm;padding:1mm 3.2mm;border-width:0.4mm;">
+      Offre chiffrée
+    </span>
+
+   <div class="meta-compact" id="p4_meta_line"
+     style="
+       position:absolute;
+       right:0;
+       bottom:0;
+       width:var(--metaW);
+       display:flex;
+       flex-direction:column;
+       align-items:flex-end;
+       gap:1mm;
+       text-align:right;
+       line-height:1.3;
+     ">
+
+      <div><b>Client</b> : <span id="p3_client" contenteditable="true">�</span></div>
+      <div><b>Réf.</b> : <span id="p3_ref" contenteditable="true">�</span></div>
+      <div><b>Date</b> : <span id="p3_date" contenteditable="true">�</span></div>
+    </div>
+  </div>
+
+  <!-- ===== BARRE DOR�0E ===== -->
+  <div class="bar"
+       style="height:1mm;background:linear-gradient(90deg,#C39847,#d4af63);
+       border-radius:999mm;margin-bottom:4mm;"></div>
+
+  <!-- ===== CONTENU PRINCIPAL ===== -->
+  <div class="grid" style="gap:4mm;align-items:flex-start;">
+    <!-- Colonne gauche -->
+    <div class="col-6" style="display:flex;flex-direction:column;gap:4mm;">
+      <div class="card soft" id="p3_pricing" style="padding:5mm 5.5mm;">
+        <h3 style="margin:0 0 4mm 0;color:#C39847;font-weight:700;">Détail de l�"offre</h3>
+
+        <table style="width:100%;border-collapse:collapse;font-size:4mm;line-height:1.55;">
+          <thead>
+            <tr style="color:#555;border-bottom:0.3mm solid #ddd;">
+              <th align="left">Poste</th>
+              <th align="right">Montant HT</th>
+            </tr>
+          </thead>
+          <tbody id="p3_table_body" contenteditable="true">
+            <tr><td>Matériel principal</td><td align="right" id="p3_v_materiel">�</td></tr>
+            <tr><td>Batterie</td><td align="right" id="p3_v_batterie">�</td></tr>
+            <tr><td>Optimisation / monitoring</td><td align="right" id="p3_v_shelly">�</td></tr>
+            <tr><td>Pose & mise en service</td><td align="right" id="p3_v_pose">�</td></tr>
+            <tr><td>Gestion administrative</td><td align="right" id="p3_v_gestion">�</td></tr>
+            <tr style="border-top:0.3mm solid #ddd;">
+              <td><b>Sous-total HT</b></td><td align="right" id="p3_v_subht">�</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div style="display:flex;gap:5mm;margin-top:4mm;justify-content:space-between;">
+          <div style="flex:1;">
+            <div class="lab" style="color:#C39847;font-weight:600;">TVA Matériel</div>
+            <div>Taux : <span id="p3_ro_tva_mat" contenteditable="true">20 %</span></div>
+            <div>Montant : <span id="p3_v_tva_materiel" contenteditable="true">�</span></div>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:5mm;margin-top:5mm;flex-wrap:wrap;justify-content:space-between;">
+          <div>
+            <div class="lab" style="color:#C39847;font-weight:600;">Total TTC</div>
+            <div id="p3_v_ttc" contenteditable="true">�</div>
+          </div>
+          <div>
+            <div class="lab" style="color:#C39847;font-weight:600;">Prime autoconsommation</div>
+            <div id="p3_v_prime" contenteditable="true">�</div>
+          </div>
+          <div>
+            <div class="lab" style="color:#C39847;font-weight:600;">Reste à charge estimé</div>
+            <div id="p3_v_reste" contenteditable="true">�</div>
+          </div>
+        </div>
+
+        <p style="margin-top:4mm;color:#666;font-size:3.6mm;">
+          La prime d�"autoconsommation est <b>versée par l�"organisme</b> (non déduite de la facture).  
+          Le « reste à charge » est indicatif et peut varier selon le financement.
+        </p>
+      </div>
+    </div>
+
+    <!-- Colonne droite -->
+    <div class="col-6" style="display:flex;flex-direction:column;gap:3mm;">
+      <div class="card soft" style="padding:4.5mm 5mm;">
+        <h3 style="margin:0 0 2.5mm 0;color:#C39847;font-weight:700;">Résumé technique</h3>
+        <ul style="margin:0 0 0 5mm;font-size:3.9mm;line-height:1.55;">
+          <li><b>Puissance</b> : <span id="p3_r_puissance" contenteditable="true">�</span></li>
+          <li><b>Batterie</b> : <span id="p3_r_batterie" contenteditable="true">�</span></li>
+          <li><b>Onduleurs</b> : <span id="p3_r_onduleurs" contenteditable="true">�</span></li>
+          <li><b>Garantie</b> : <span id="p3_r_garantie" contenteditable="true">�</span></li>
+        </ul>
+
+        <hr style="margin:4mm 0;border:none;border-top:0.3mm solid #ddd;">
+
+        <h3 style="margin:0 0 2.5mm 0;color:#C39847;font-weight:700;">Conditions & paiement</h3>
+        <ul style="margin:0 0 0 5mm;font-size:3.9mm;line-height:1.55;">
+          <li><b>�0chelonnement</b> : <span id="p3_r_echelon" contenteditable="true">30 % à la commande, 40 % après pose, 30 % après CONSUEL</span></li>
+          <li><b>Validité de l�"offre</b> : <span id="p3_r_validite" contenteditable="true">Offre valable 30 jours</span></li>
+          <li><b>Délai indicatif</b> : <span id="p3_r_delai" contenteditable="true">Pose sous 4 à 8 semaines</span></li>
+        </ul>
+
+        <div id="p3_financement" style="margin-top:3mm;">
+          <div style="display:flex;justify-content:space-between;align-items:center;background:#f6f2ea;border-radius:3mm;padding:3mm 4mm;">
+            <div>
+              <div style="font-weight:600;color:#C39847;">Financement (optionnel)</div>
+              <div style="font-size:3.7mm;">Mensualité estimée</div>
+            </div>
+            <div id="p3_v_mensu" style="font-size:5mm;font-weight:700;" contenteditable="true">�</div>
+          </div>
+          <p id="p3_finance_note" style="margin-top:3mm;color:#666;font-size:3.6mm;" contenteditable="true">
+            Simulation indicative sans engagement.
+          </p>
+        </div>
+
+        <hr style="margin:3.5mm 0;border:none;border-top:0.3mm solid #ddd;">
+
+        <h3 style="margin:0 0 2.5mm 0;color:#C39847;font-weight:700;">Inclus / non inclus</h3>
+        <div style="display:flex;gap:4mm;">
+          <div style="flex:1;">
+            <div class="lab" style="color:#C39847;font-weight:600;">Inclus</div>
+            <ul style="margin:0 0 0 5mm;font-size:3.9mm;line-height:1.5;" contenteditable="true" id="p3_list_inclus">
+              <li>Fourniture panneaux + micros</li>
+              <li>Dossier Enedis / OA</li>
+              <li>Mise en service</li>
+            </ul>
+          </div>
+          <div style="flex:1;">
+            <div class="lab" style="color:#C39847;font-weight:600;">Non inclus</div>
+            <ul style="margin:0 0 0 5mm;font-size:3.9mm;line-height:1.5;" contenteditable="true" id="p3_list_noninclus">
+              <li>Renfort charpente si nécessaire</li>
+              <li>Tranchées longues</li>
+              <li>Options domotiques spécifiques</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =========================================================
+     PAGE 3bis � Photo calepinage & mémo toiture
+========================================================= -->
+<section class="sheet" id="p3b" data-engine="calepinage"
+  style="padding:5mm 11mm 5mm 11mm;
+         gap:3mm;
+         display:flex;
+         flex-direction:column;
+         justify-content:flex-start;">
+
+  <!-- ===== HEADER ===== -->
+  <div class="header"
+       style="position:relative;--brand:#C39847;--logoW:22mm;--metaW:110mm;
+       padding-left:var(--logoW);padding-right:var(--metaW);padding-bottom:10mm;">
+
+    <img src="/pdf-assets/images/logo-solarglobe-rect.png" alt="Solarglobe"
+         style="position:absolute;left:0;top:0;height:18mm;object-fit:contain;">
+
+    <span class="badge"
+          style="margin-left:auto;font-size:6mm;padding:1mm 3.2mm;border-width:0.4mm;">
+      Calepinage toiture
+    </span>
+
+    <div class="meta-compact"
+      style="
+       position:absolute;
+       right:0;
+       bottom:0;
+       width:var(--metaW);
+       display:flex;
+       flex-direction:column;
+       align-items:flex-end;
+       gap:1mm;
+       text-align:right;
+       line-height:1.3;
+     ">
+      <div><b>Client</b> : <span id="p3b_client" contenteditable="true">�</span></div>
+      <div><b>Réf.</b> : <span id="p3b_ref" contenteditable="true">�</span></div>
+      <div><b>Date</b> : <span id="p3b_date" contenteditable="true">�</span></div>
+    </div>
+  </div>
+
+  <!-- ===== BARRE DOR�0E ===== -->
+  <div class="bar"
+       style="height:1mm;background:linear-gradient(90deg,#C39847,#d4af63);
+       border-radius:999mm;margin-bottom:4mm;"></div>
+
+  <!-- ===== CONTENU PRINCIPAL ===== -->
+  <div class="grid" style="gap:4mm;align-items:stretch;flex:1;">
+
+    <!-- Colonne gauche : photo calepinage -->
+    <div class="col-6" style="display:flex;flex-direction:column;gap:3mm;">
+      <div class="card soft"
+           style="flex:1;display:flex;flex-direction:column;gap:3mm;padding:3mm 4mm;">
+
+        <h3 style="margin:0;color:#C39847;font-weight:700;">Photo du calepinage</h3>
+
+  
+        <div id="p3b_photo"
+             style="
+               flex:1;
+               height:80mm;
+               border-radius:2.5mm;
+               border:0.45mm dashed #d1d5db;
+               background:#f3f4f6;
+               display:flex;
+               align-items:center;
+               justify-content:center;
+               overflow:hidden;
+               position:relative;
+             ">
+          <span id="p3b_photo_placeholder"
+                style="font-size:3.2mm;color:#9ca3af;text-align:center;padding:0 6mm;">
+            Aucune image pour le moment<br>Cliquer sur « Ajouter une photo »
+          </span>
+        </div>
+
+      </div>
+    </div>
+<!-- Colonne droite : mémo technique toiture -->
+<div class="col-6" style="display:flex;flex-direction:column;gap:3mm;">
+  <div class="card soft"
+       style="padding:4mm 5mm;
+              display:flex;
+              flex-direction:column;
+              gap:3mm;
+              min-height:85mm;">
+
+    <h3 style="margin:0;color:#C39847;font-weight:700;">Comprendre votre calepinage</h3>
+
+    <p style="margin:0;font-size:3.4mm;line-height:1.45;color:#374151;">
+      Le calepinage permet de valider la faisabilité technique exacte de votre installation.
+      Chaque panneau est positionné selon la pente, l�"orientation, les règles de sécurité et
+      la surface réellement exploitable.
+      Ce schéma garantit une installation conforme, optimisée et parfaitement adaptée à votre toiture.
+    </p>
+
+    <h4 style="margin:3mm 0 1mm 0;font-size:3.6mm;color:#C39847;">Points techniques vérifiés :</h4>
+
+    <ul style="margin:0 0 3mm 3mm;padding:0;font-size:3.3mm;color:#4b5563;line-height:1.4;">
+      <li>Inclinaison réelle : impact direct sur la production.</li>
+      <li>Orientation : optimise la captation solaire.</li>
+      <li>Surface utile : zone réellement exploitable.</li>
+      <li>Nombre de panneaux : correspond à la puissance choisie.</li>
+    </ul>
+
+    <hr style="margin:2mm 0;border:none;border-top:0.3mm solid #e5e7eb;">
+
+    <div style="display:flex;flex-direction:column;gap:1.5mm;font-size:3.6mm;color:#111827;">
+      <div><span style="font-weight:600;">Inclinaison toiture :</span> <span id="p3b_inclinaison" contenteditable="true">�</span>°</div>
+      <div><span style="font-weight:600;">Orientation :</span> <span id="p3b_orientation" contenteditable="true">�</span></div>
+      <div><span style="font-weight:600;">Surface utilisée :</span> <span id="p3b_surface" contenteditable="true">�</span> m²</div>
+      <div><span style="font-weight:600;">Nombre de panneaux :</span> <span id="p3b_panneaux" contenteditable="true">�</span></div>
+    </div>
+
+    <p style="margin-top:3mm;font-size:3.2mm;color:#64748b;line-height:1.45;">
+      Cette validation technique vous assure que le projet présenté dans cette étude n�"est pas théorique :
+      <strong>il correspond exactement à ce qui est réalisable sur votre toiture.</strong>
+    </p>
+  </div>
+</div>
+
+</section>
+
+<script>
+(function(){
+  function copyMetaFromP3(){
+    const sC = document.getElementById('p3_client');
+    const sR = document.getElementById('p3_ref');
+    const sD = document.getElementById('p3_date');
+    const dC = document.getElementById('p3b_client');
+    const dR = document.getElementById('p3b_ref');
+    const dD = document.getElementById('p3b_date');
+
+    if(sC && dC && dC.textContent.trim()==='�') dC.textContent = sC.textContent || '�';
+    if(sR && dR && dR.textContent.trim()==='�') dR.textContent = sR.textContent || '�';
+    if(sD && dD && dD.textContent.trim()==='�') dD.textContent = sD.textContent || '�';
+  }
+
+  copyMetaFromP3();
+})();
+</script>
+
+
+<!-- =========================================================
+     PAGE 4 � ESTIMATION DE LA PRODUCTION (overlay + graph)
+     ======================================================= -->
+<section class="sheet" id="p4" data-engine="prodconso"
+  style="padding:6mm 11mm 9mm 11mm;gap:5mm;display:flex;flex-direction:column;justify-content:flex-start;">
+
+  <!-- ===== HEADER ===== -->
+  <div class="header"
+       style="position:relative;--brand:#C39847;--logoW:22mm;--metaW:110mm;
+       padding-left:var(--logoW);padding-right:var(--metaW);padding-bottom:10mm;">
+    <img src="/pdf-assets/images/logo-solarglobe-rect.png" alt="Solarglobe"
+         style="position:absolute;left:0;top:2mm;height:18mm;object-fit:contain;">
+    <span class="badge"
+          style="margin-left:auto;font-size:6mm;padding:1mm 3mm;border-width:0.4mm;">
+      Estimation de la production
+    </span>
+    <div class="meta-compact" id="p4_meta_line"
+     style="
+       position:absolute;
+       right:0;
+       bottom:0;
+       width:var(--metaW);
+       display:flex;
+       flex-direction:column;
+       align-items:flex-end;
+       gap:1mm;
+       text-align:right;
+       line-height:1.3;
+     ">
+
+      <div><b>Client</b> : <span id="p4_client" contenteditable="true">�</span></div>
+      <div><b>Réf.</b> : <span id="p4_ref" contenteditable="true">�</span></div>
+      <div><b>Date</b> : <span id="p4_date" contenteditable="true">�</span></div>
+    </div>
+  </div>
+
+  <!-- ===== BARRE DOR�0E ===== -->
+  <div class="bar"
+       style="height:1mm;background:linear-gradient(90deg,#C39847,#d4af63);
+       border-radius:999mm;margin-bottom:0.1mm;"></div>
+
+  <!-- ===== CTA SAISIE ===== -->
+  <div class="card soft" style="padding:4mm 5mm;border:0.5mm solid rgba(195,152,71,.25);display:flex;justify-content:space-between;align-items:center;">
+    <div style="font-size:3.6mm;color:#555">
+      Saisissez ou collez vos données mensuelles (PVGIS / Linky). L�"autoconsommation est <i>min(Prod, Conso)</i> si laissée vide.
+    </div>
+    <div style="display:flex;gap:4mm;align-items:center;">
+      <span id="p4_validated" style="font-weight:700;color:#C39847;opacity:0;transition:opacity .6s ease;">�S& Validé</span>
+    </div>
+  </div>
+
+  <!-- ===== ZONE GRAPHIQUE ===== -->
+  <div id="p4_chart_zone" class="card soft chart-card premium" style="padding:2.5mm;border:0.5mm solid rgba(195,152,71,.25);display:none;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:2.4mm;">
+      <h3 style="margin:0;color:#C39847;">Impact du photovoltaïque</h3>
+      <div style="font-weight:700;color:#444;font-size:3.6mm;">
+        Mois : <span id="p4_month">Jan �  Déc</span> &nbsp;&nbsp;
+        Autoconso : <span id="p4_auto_title">calculée</span>
+      </div>
+    </div>
+
+    <!-- SVG avec axes, grille et courbes lissées -->
+    <div style="height:70mm;position:relative;">
+      <svg id="p4-chart" viewBox="0 0 1750 600" style="width:100%;height:100%;display:block;"></svg>
+    </div>
+
+    <!-- Légende -->
+    <div class="legend legend-row" style="margin-top:3mm;">
+      <span class="pill pill-violet"></span>
+      <div class="legend-text"><b>Consommation réseau</b><br><span class="sub">achetée</span></div>
+      <span class="pill pill-gold"></span>
+      <div class="legend-text"><b>Production PV</b><br><span class="sub">autoconsommée + injectée</span></div>
+      <span class="pill pill-cyan"></span>
+      <div class="legend-text"><b>Autoconsommation</b><br><span class="sub">gratuite</span></div>
+      <span class="pill pill-green" id="leg-batt" style="display:none;"></span>
+      <div class="legend-text" id="leg-batt-text" style="display:none;">
+        <b>Batterie</b><br><span class="sub">charge/décharge</span>
+      </div>
+    </div>
+
+    <!-- Récap ANNUEL -->
+    <div id="p4_numbers" style="margin-top:6mm; display:none;">
+      <h4 style="margin:0 0 2mm 0; color:#C39847;">Chiffres validés (kWh) � Année</h4>
+      <div id="p4_numbers_table" style="overflow:auto;"></div>
+    </div>
+  </div>
+
+  <!-- ===== STYLES LOCAUX ===== -->
+  <style>
+    .chart-card.premium{box-shadow:0 2mm 6mm rgba(0,0,0,.04);border-radius:5mm;}
+    .legend.legend-row{
+      display:grid;grid-template-columns:auto 1fr auto 1fr auto 1fr auto 1fr;
+      column-gap:5mm;row-gap:1.6mm;align-items:center;
+    }
+    .pill{width:7mm;height:5mm;border-radius:2mm;border:0.3mm solid rgba(0,0,0,.06);display:inline-block;}
+    .pill-violet{background:#E9E6FF;}
+    .pill-gold{background:#F6D68B;}
+    .pill-cyan{background:#CFF5FB;}
+    .pill-green{background:#E3FBE6;}
+    .legend-text b{color:#2f3640;font-size:3.2mm;}
+    .legend-text .sub{color:#8190a5;font-weight:600;font-size:2.7mm;}
+  </style>
+</section>
+
+<!-- =========================================================
+     PAGE 5 � IMPACT PHOTOVOLTAÏQUE (JOURN�0E TYPE � overlay + graph)
+     ======================================================= -->
+<section class="sheet" id="p5" data-engine="journee-type"
+  style="padding:6mm 11mm 9mm 11mm;gap:5mm;display:flex;flex-direction:column;justify-content:flex-start;">
+
+<div class="header"
+     style="position:relative;--brand:#C39847;--logoW:22mm;--metaW:110mm;
+     padding-left:var(--logoW);padding-right:var(--metaW);padding-bottom:10mm;">
+  <img src="/pdf-assets/images/logo-solarglobe-rect.png"
+       style="position:absolute;left:0;top:2mm;height:18mm;object-fit:contain;">
+  <span class="badge"
+        style="margin-left:60mm;font-size:6mm;padding:1mm 3mm;border-width:0.4mm;white-space:nowrap;">
+    Impact photovoltaïque � journée type
+  </span>
+<div class="meta-compact" id="p5_meta_line"
+     style="
+       position:absolute;
+       right:0;
+       bottom:0;
+       width:var(--metaW);
+       display:flex;
+       flex-direction:column;
+       align-items:flex-end;
+       gap:1mm;
+       text-align:right;
+       line-height:1.3;
+     ">
+
+    <div><b>Client</b> : <span id="p5_client" contenteditable="true">�</span></div>
+    <div><b>Réf.</b> : <span id="p5_ref" contenteditable="true">�</span></div>
+    <div><b>Date</b> : <span id="p5_date" contenteditable="true">�</span></div>
+  </div>
+</div>
+
+
+  <!-- ===== BARRE DOR�0E ===== -->
+  <div class="bar"
+       style="height:1mm;background:linear-gradient(90deg,#C39847,#d4af63);
+       border-radius:999mm;margin-bottom:0.1mm;"></div>
+
+  <!-- ===== CTA SAISIE ===== -->
+  <div class="card soft" style="padding:4mm 5mm;border:0.5mm solid rgba(195,152,71,.25);
+       display:flex;justify-content:space-between;align-items:center;">
+    <div style="font-size:3.6mm;color:#555">
+      Définissez votre <b>journée type</b> heure par heure (mois simulé + production / consommation / batterie).  
+      L�"autoconsommation est calculée automatiquement <i>(min(PV, Conso))</i>.
+    </div>
+    <div style="display:flex;gap:4mm;align-items:center;">
+      <span id="p5_validated" style="font-weight:700;color:#C39847;opacity:0;transition:opacity .6s ease;">�S& Validé</span>
+    </div>
+  </div>
+
+  <!-- ===== ZONE GRAPHIQUE ===== -->
+  <div id="p5_chart_zone" class="card soft chart-card premium"
+       style="padding:2.5mm;border:0.5mm solid rgba(195,152,71,.25);display:none;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:2.4mm;">
+      <h3 style="margin:0;color:#C39847;">Journée type � production, consommation et stockage</h3>
+      <div style="font-weight:700;color:#444;font-size:3.6mm;">
+        Mois simulé : <span id="p5_month">�</span>
+      </div>
+    </div>
+
+    <!-- SVG -->
+    <div style="height:75mm;position:relative;">
+      <svg id="p5-chart" viewBox="0 0 2000 560"
+           style="width:100%;height:100%;display:block;"></svg>
+    </div>
+
+    <!-- Légende -->
+    <div class="legend legend-row" style="margin-top:3mm;">
+      <span class="pill pill-gold"></span>
+      <div class="legend-text"><b>Production solaire</b><br><span class="sub">Puissance PV (kW)</span></div>
+      <span class="pill pill-gray"></span>
+      <div class="legend-text"><b>Consommation</b><br><span class="sub">Besoins instantanés</span></div>
+      <span class="pill pill-cyan"></span>
+      <div class="legend-text"><b>Autoconsommation</b><br><span class="sub">Utilisation directe</span></div>
+      <span class="pill pill-green" id="p5_leg_batt" style="display:none;"></span>
+      <div class="legend-text" id="p5_leg_batt_text" style="display:none;">
+        <b>Batterie</b><br><span class="sub">charge / décharge</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== STYLES LOCAUX ===== -->
+  <style>
+    .chart-card.premium{box-shadow:0 2mm 6mm rgba(0,0,0,.04);border-radius:5mm;}
+    .legend.legend-row{
+      display:grid;grid-template-columns:auto 1fr auto 1fr auto 1fr auto 1fr;
+      column-gap:5mm;row-gap:1.6mm;align-items:center;
+    }
+    .pill{width:7mm;height:5mm;border-radius:2mm;border:0.3mm solid rgba(0,0,0,.06);display:inline-block;}
+    .pill-gold{background:#F6D68B;}
+    .pill-gray{background:#D8D8D8;}
+    .pill-cyan{background:#CFF5FB;}
+    .pill-green{background:#E3FBE6;}
+    .legend-text b{color:#2f3640;font-size:3.2mm;}
+    .legend-text .sub{color:#8190a5;font-weight:600;font-size:2.7mm;}
+  </style>
+</section>
+<!-- =========================================================
+     PAGE 6 � Répartition consommation 12 mois (overlay centré)
+     ======================================================= -->
+<section class="sheet" id="p6" style="padding:6mm 11mm 10mm 11mm; display:flex; flex-direction:column; gap:6mm;">
+
+  <!-- ===== HEADER (alignement premium identique aux autres pages) ===== -->
+  <div class="header p6-header"
+       style="position:relative; --brand:#C39847; --logoW:22mm; --metaW:110mm;
+              padding-left:var(--logoW); padding-right:var(--metaW); padding-bottom:10mm;">
+
+    <!-- Logo -->
+    <img src="/pdf-assets/images/logo-solarglobe-rect.png"
+         style="position:absolute; left:0; top:2mm; height:18mm; object-fit:contain;">
+
+    <!-- Titre centré -->
+    <span class="badge"
+          style="margin-left:60mm; font-size:6mm; padding:1mm 3mm;
+                 border-width:0.4mm; white-space:nowrap;">
+      Répartition consommation � 12 mois
+    </span>
+
+    <!-- Bloc métadonnées -->
+ <div class="meta-compact" id="p6_meta_line"
+     style="
+       position:absolute;
+       right:0;
+       bottom:0;
+       width:var(--metaW);
+       display:flex;
+       flex-direction:column;
+       align-items:flex-end;
+       gap:1mm;
+       text-align:right;
+       line-height:1.3;
+     ">
+
+      <div><b>Client</b> : <span id="p6_client" contenteditable="true">�</span></div>
+      <div><b>Réf.</b> : <span id="p6_ref" contenteditable="true">�</span></div>
+      <div><b>Date</b> : <span id="p6_date" contenteditable="true">�</span></div>
+    </div>
+  </div>
+
+  <!-- ===== BARRE DOR�0E ===== -->
+  <div class="bar" style="height:1mm; border-radius:999mm; background:linear-gradient(90deg,#C39847,#d4af63);"></div>
+
+  <!-- ===== CTA SAISIE (masqué après validation) ===== -->
+  <div id="p6_cta" class="card soft p6-cta" style="padding:4mm 5mm; border:.5mm solid rgba(195,152,71,.22); border-radius:5mm; display:flex; justify-content:space-between; align-items:center; gap:8mm;">
+    <div class="p6-cta-text" style="font-size:3.4mm; color:#555;">
+      Saisissez votre <b>répartition mensuelle</b> (PV utilisée, décharge batterie, import réseau) ou bien entrez la
+      <u>conso totale</u> et laissez le réseau se calculer.
+    </div>
+    <div class="p6-cta-actions" style="display:flex; gap:4mm; align-items:center;">
+      <span id="p6_validated" class="p6-valid" style="font-weight:700; color:#C39847; opacity:0; transition:opacity .6s ease;">�S& Validé</span>
+    </div>
+  </div>
+
+  <!-- ===== CARTE GRAPHIQUE (cliquable pour modifier) ===== -->
+  <div id="p6_chart_zone" class="card soft chart-card premium"
+       style="display:none; cursor:pointer; padding:5mm; border:.5mm solid rgba(195,152,71,.22); box-shadow:0 8px 24px rgba(0,0,0,.06); border-radius:6mm;"
+       title="Cliquer pour modifier">
+    <div class="p6-chart-head" style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:2.4mm;">
+      <h3 style="margin:0; color:#C39847; font-weight:800;">Répartition mensuelle � PV directe, batterie, réseau</h3>
+      <div class="meta-inline">Simulation validée � <span id="p6_year_label">Année courante</span></div>
+    </div>
+
+ <!-- Légende -->
+<div class="p6-legend" style="display:flex; gap:8mm; align-items:center; font-size:3mm; margin-bottom:1mm;">
+  
+  <span class="leg" style="display:flex; gap:2mm; align-items:center;">
+    <i style="display:inline-block; width:7mm; height:3mm; border-radius:999mm; background:#86D8F1;"></i>
+    PV utilisée
+  </span>
+
+  <span class="leg" style="display:flex; gap:2mm; align-items:center;">
+    <i style="display:inline-block; width:7mm; height:3mm; border-radius:999mm; background:#B3F4C4;"></i>
+    Décharge batterie
+  </span>
+
+  <span class="leg" style="display:flex; gap:2mm; align-items:center;">
+    <i style="display:inline-block; width:7mm; height:3mm; border-radius:999mm; background:#CFCBFF;"></i>
+    Import réseau
+  </span>
+
+  <span class="leg" style="display:flex; gap:2mm; align-items:center;">
+    <b style="display:inline-block; width:12mm; height:1.6mm; background:#e6ebf2; border-radius:2mm;"></b>
+    Moyenne conso
+  </span>
+
+</div>
+
+
+    <div class="p6-chart-wrap" style="height:66mm; position:relative;">
+      <svg id="p6-chart" viewBox="0 0 1750 520" style="width:100%; height:100%; display:block;"></svg>
+    </div>
+  </div>
+
+ <!-- ===== KPI ===== -->
+<div id="p6_kpis" style="display:none; grid-template-columns:repeat(3,1fr); gap:3mm;">
+
+  <!-- AUTONOMIE ANNUELLE -->
+  <div class="card soft" style="border-color:#E3CFA9; padding:4mm; border:.4mm solid #E3CFA9; border-radius:4mm;">
+    <div style="display:flex;gap:3mm;align-items:center;">
+      <!-- PV utilisée = BLEU FLASH (#86D8F1) -->
+      <div style="width:9mm;height:9mm;border-radius:999mm;background:#86D8F1;"></div>
+
+      <div>
+        <div style="font-weight:700;font-size:3.4mm;">Autonomie annuelle</div>
+        <div style="font-size:3mm;color:#6b7280;">Part couverte sans réseau</div>
+      </div>
+    </div>
+
+    <div style="font-size:6mm;font-weight:800;margin-top:2mm;" id="p6_autonomie">�</div>
+    <div style="font-size:3mm;color:#6b7280;" id="p6_autonomie_txt">�</div>
+  </div>
+
+  <!-- IMPORT R�0SEAU -->
+  <div class="card soft" style="border-color:#E3CFA9; padding:4mm; border:.4mm solid #E3CFA9; border-radius:4mm;">
+    <div style="display:flex;gap:3mm;align-items:center;">
+
+      <!-- Import réseau = VIOLET FLASH (#CFCBFF) -->
+      <div style="width:9mm;height:9mm;border-radius:999mm;background:#CFCBFF;"></div>
+
+      <div>
+        <div style="font-weight:700;font-size:3.4mm;">Import réseau</div>
+        <div style="font-size:3mm;color:#6b7280;">kWh & coût estimé</div>
+      </div>
+    </div>
+
+    <div style="font-size:5.6mm;font-weight:800;margin-top:2mm;" id="p6_grid_kwh">�</div>
+    <div style="font-size:3mm;color:#6b7280;" id="p6_grid_eur">�</div>
+  </div>
+
+  <!-- AUTOCONSOMMATION -->
+  <div class="card soft" style="border-color:#E3CFA9; padding:4mm; border:.4mm solid #E3CFA9; border-radius:4mm;">
+    <div style="display:flex;gap:3mm;align-items:center;">
+
+      <!-- Décharge batterie = VERT FLASH (#B3F4C4) -->
+      <div style="width:9mm;height:9mm;border-radius:999mm;background:#B3F4C4;"></div>
+
+      <div>
+        <div style="font-weight:700;font-size:3.4mm;">Autoconsommation</div>
+        <div style="font-size:3mm;color:#6b7280;">PV consommée sur place</div>
+      </div>
+    </div>
+
+    <div style="font-size:5.6mm;font-weight:800;margin-top:2mm;" id="p6_auto_pct">�</div>
+    <div style="font-size:3mm;color:#6b7280;" id="p6_auto_txt">�</div>
+  </div>
+
+</div>
+
+  <style>
+    /* ===== Ajustements responsifs & print ===== */
+    @media (max-width:1200px){
+      #p6 .badge{ font-size:4.8mm !important; }
+    }
+    @media print{
+      #p6 #p6_cta{ display:none !important; }
+      #p6 .chart-card.premium{ box-shadow:none !important; }
+    }
+  </style>
+</section>
+
+<!-- =========================================================
+     PAGE 7 � D�0COMPOSITION DE LA CONSOMMATION (overlay centré)
+     ======================================================= -->
+<section class="sheet" id="p7" style="padding:6mm 11mm 10mm 11mm; display:flex; flex-direction:column; gap:6mm;">
+
+  <!-- ===== Header ===== -->
+  <div class="header" style="position:relative; --brand:#C39847; --logoW:26mm; --metaW:120mm;
+      padding-left:var(--logoW); padding-right:var(--metaW); padding-bottom:15mm;">
+    <img src="/pdf-assets/images/logo-solarglobe-rect.png"
+         style="position:absolute;left:0;top:2mm;height:18mm;object-fit:contain;">
+    <div style="position:absolute;left:50%;top:0;transform:translateX(-50%);">
+      <span class="badge" style="font-size:6mm; padding:1mm 3mm; border-width:.5mm;">
+        Décomposition de la consommation
+      </span>
+    </div>
+    
+    <div class="meta-compact" id="p7_meta_line"
+     style="
+       position:absolute;
+       right:0;
+       bottom:0;
+       width:var(--metaW);
+       display:flex;
+       flex-direction:column;
+       align-items:flex-end;
+       gap:1mm;
+       text-align:right;
+       line-height:1.3;
+     ">
+
+      <span>Client : <span id="p7_client" contenteditable="true" style="font-weight:400;">�</span></span>
+<span>Réf. : <span id="p7_ref" contenteditable="true" style="font-weight:400;">�</span></span>
+<span>Date : <span id="p7_date" contenteditable="true" style="font-weight:400;">�</span></span>
+
+    </div>
+  </div>
+
+  <!-- Barre dorée -->
+  <div class="bar" style="height:1mm;background:linear-gradient(90deg,#C39847,#d4af63);border-radius:999mm;margin:10mm 0 8mm;"></div>
+
+  <!-- Bandeau action -->
+  <div class="card soft" style="padding:4mm 5mm; border:.5mm solid rgba(195,152,71,.25); display:flex; justify-content:space-between; align-items:center; gap:6mm; flex-wrap:wrap;">
+    <div style="font-size:3.4mm;color:#555">
+      Saisissez vos <b>valeurs annuelles</b> (en kWh ou %) � le <b>Réseau</b> et le <b>Surplus</b> sont calculés automatiquement.
+    </div>
+    <div style="display:flex; gap:4mm; align-items:center;">
+      <span id="p7_validated" style="font-weight:700; color:#C39847; opacity:0; transition:opacity .6s ease;">�S& Validé</span>
+    </div>
+  </div>
+
+  <!-- ===== VISUELS ===== -->
+  <div id="p7_visual_zone" style="display:none;">
+    <div class="card soft" style="padding:3mm 6mm;margin:0 0 4mm;border-radius:5mm;
+         border:.45mm solid rgba(195,152,71,.25);box-shadow:0 1.6mm 5mm rgba(0,0,0,.04);">
+
+      <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:1.6mm">
+        <h3 class="section" style="margin:0;font-size:4.6mm;">Origine / Destination � scénario retenu</h3>
+        <div id="p7_meta_scen" style="font-weight:800;color:#444;font-size:3.6mm;"></div>
+      </div>
+
+      <!-- Légende -->
+      <div style="display:flex;gap:5mm;align-items:center;flex-wrap:wrap;margin:0 0 2mm;font-size:3.4mm;">
+        <span style="display:inline-flex;gap:2.5mm;align-items:center;">
+          <i style="width:6.2mm;height:4.4mm;border-radius:2mm;background:#E7C25A;border:0.3mm solid rgba(0,0,0,.06);"></i> PV directe
+        </span>
+        <span style="display:inline-flex;gap:2.5mm;align-items:center;">
+          <i style="width:6.2mm;height:4.4mm;border-radius:2mm;background:#CFEFD9;border:0.3mm solid rgba(0,0,0,.06);"></i> Batterie
+        </span>
+        <span style="display:inline-flex;gap:2.5mm;align-items:center;">
+          <i style="width:6.2mm;height:4.4mm;border-radius:2mm;background:#D5CBFF;border:0.3mm solid rgba(0,0,0,.06);"></i> Réseau
+        </span>
+        <span style="display:inline-flex;gap:2.5mm;align-items:center;">
+          <i style="width:6.2mm;height:4.4mm;border-radius:2mm;background:#CFF5FB;border:0.3mm solid rgba(0,0,0,.06);"></i> Autoconso (prod)
+        </span>
+        <span style="display:inline-flex;gap:2.5mm;align-items:center;">
+          <i style="width:6.2mm;height:4.4mm;border-radius:2mm;background:#6BB4E0;border:0.3mm solid rgba(0,0,0,.06);"></i> Surplus
+        </span>
+      </div>
+
+      <!-- Graphique : 2 barres 100 % -->
+      <div style="position:relative;padding:0 2mm;">
+        <div style="font-weight:800;color:#333;margin:0 0 .9mm 2mm;">Origine de la <b>consommation</b> (100 %)</div>
+        <div class="p7-bar p7-conso" style="display:flex;height:8.2mm;border-radius:5mm;overflow:hidden;box-shadow:0 0 0 1px #eee inset;">
+          <div id="p7_conso_pv"     class="p7-seg" style="background:#E7C25A;display:flex;align-items:center;justify-content:center;font-weight:700;color:#1b1b1b;font-size:3.5mm;"></div>
+          <div id="p7_conso_batt"   class="p7-seg" style="background:#CFEFD9;display:flex;align-items:center;justify-content:center;font-weight:700;color:#10331f;font-size:3.5mm;"></div>
+          <div id="p7_conso_reseau" class="p7-seg" style="background:#D5CBFF;display:flex;align-items:center;justify-content:center;font-weight:700;color:#222;font-size:3.5mm;"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:3.1mm;color:#777;margin-top:1.4mm;padding:0 2mm;">
+          <span>0%</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span>
+        </div>
+
+        <div style="height:4mm;"></div>
+
+        <div style="font-weight:800;color:#333;margin:0 0 .9mm 2mm;">Destination de la <b>production</b> (100 %)</div>
+        <div class="p7-bar p7-prod" style="display:flex;height:8.2mm;border-radius:5mm;overflow:hidden;box-shadow:0 0 0 1px #eee inset;">
+          <div id="p7_prod_auto"    class="p7-seg" style="background:#CFF5FB;display:flex;align-items:center;justify-content:center;font-weight:700;color:#124b5b;font-size:3.5mm;"></div>
+          <div id="p7_prod_batt"    class="p7-seg" style="background:#CFEFD9;display:flex;align-items:center;justify-content:center;font-weight:700;color:#10331f;font-size:3.5mm;"></div>
+          <div id="p7_prod_surplus" class="p7-seg" style="background:#6BB4E0;display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff;font-size:3.5mm;"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:3.1mm;color:#777;margin-top:1.4mm;padding:0 2mm;">
+          <span>0%</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- KPIs -->
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4mm;margin-top:2mm;">
+      <div class="p7-kpi card soft" style="min-height:20mm;padding:3.8mm 3.6mm;background:#fdfcf9;border:1px solid rgba(195,152,71,.30);
+                  border-radius:6mm;box-shadow:0 1mm 3.6mm rgba(0,0,0,.04);">
+        <div style="font-weight:700;margin-bottom:1mm;">Autonomie</div>
+        <div id="p7_autonomie_pct" style="font-size:6.8mm;line-height:1;margin:0 0 .6mm;">�</div>
+        <div id="p7_autonomie_note" style="font-size:3.3mm;color:#444;">&nbsp;</div>
+      </div>
+
+      <div class="p7-kpi card soft" style="min-height:20mm;padding:3.8mm 3.6mm;background:#fdfcf9;border:1px solid rgba(195,152,71,.30);
+                  border-radius:6mm;box-shadow:0 1mm 3.6mm rgba(0,0,0,.04);">
+        <div style="font-weight:700;margin-bottom:1mm;">Autoconsommation</div>
+        <div id="p7_autocons_pct" style="font-size:6.8mm;line-height:1;margin:0 0 .6mm;">�</div>
+        <div id="p7_autocons_note" style="font-size:3.3mm;color:#444;">&nbsp;</div>
+      </div>
+
+      <div class="p7-kpi card soft" style="min-height:20mm;padding:3.8mm 3.6mm;background:#fdfcf9;border:1px solid rgba(195,152,71,.30);
+                  border-radius:6mm;box-shadow:0 1mm 3.6mm rgba(0,0,0,.04);">
+        <div style="font-weight:700;margin-bottom:1mm;">Part réseau</div>
+        <div id="p7_reseau_pct" style="font-size:6.8mm;line-height:1;margin:0 0 .6mm;">�</div>
+        <div id="p7_reseau_kwh" style="font-size:3.3mm;color:#444;">&nbsp;</div>
+      </div>
+
+      <div class="p7-kpi card soft" style="min-height:20mm;padding:3.8mm 3.6mm;background:#fdfcf9;border:1px solid rgba(195,152,71,.30);
+                  border-radius:6mm;box-shadow:0 1mm 3.6mm rgba(0,0,0,.04);">
+        <div style="font-weight:700;margin-bottom:1mm;">Surplus</div>
+        <div id="p7_surplus_pct" style="font-size:6.8mm;line-height:1;margin:0 0 .6mm;">�</div>
+        <div id="p7_surplus_kwh" style="font-size:3.3mm;color:#444;">&nbsp;</div>
+      </div>
+    </div>
+
+    <p style="margin:4mm 0 0;text-align:center;color:#555;font-size:3.5mm;">
+      Une barre = 100&nbsp;%. Haut : origine de la <b>consommation</b>. Bas : destination de la <b>production</b>.
+    </p>
+  </div>
+</section>
+
+<!-- =========================================================
+     PAGE 8 � IMPACT BATTERIE (overlay centré, premium)
+     ======================================================= -->
+<section class="sheet" id="p8">
+
+  <!-- ===== Header (identique P5/P6) ===== -->
+  <div class="header" style="position:relative; --brand:#C39847; --logoW:26mm; --metaW:120mm;
+      padding-left:var(--logoW); padding-right:var(--metaW); padding-bottom:16mm;">
+    <img src="/pdf-assets/images/logo-solarglobe-rect.png" alt="Solarglobe"
+         style="position:absolute;left:0;top:0;height:16mm;object-fit:contain;">
+    <div style="position:absolute;left:50%;top:0;transform:translateX(-50%);">
+      <span class="badge" style="font-size:5mm; padding:1.1mm 6mm; border-width:0.5mm;">
+        Impact de la batterie
+      </span>
+    </div>
+  <div class="meta-compact" id="p8_meta_line"
+     style="
+       position:absolute;
+       right:0;
+       bottom:0;
+       width:var(--metaW);
+       display:flex;
+       flex-direction:column;
+       align-items:flex-end;
+       gap:1mm;
+       text-align:right;
+       line-height:1.3;
+     ">
+
+      <span>Client : <span id="p8_client" contenteditable="true">�</span></span>
+      <span>Ref : <span id="p8_ref" contenteditable="true">�</span></span>
+      <span>Date : <span id="p8_date" contenteditable="true">�</span></span>
+    </div>
+  </div>
+
+  <!-- Barre dorée -->
+  <div class="bar" style="height:0;border-top:0.8mm solid #C39847;margin:3mm 0 2.5mm 0;"></div>
+
+  <!-- ===================== R�0SULTATS ===================== -->
+  <div id="p8_results" style="display:none;">
+
+    <!-- Rangée 1 : double graphique -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6mm;margin-bottom:5mm;">
+
+      <!-- Graphique A/B (barres %) -->
+      <div class="card soft" style="padding:3mm 4mm;border-radius:4mm;
+           border:.4mm solid rgba(195,152,71,.22);box-shadow:0 1.6mm 5mm rgba(0,0,0,.04);">
+        <h3 style="margin:0 0 2.5mm 0;font-size:4mm;">Comparatif annuel</h3>
+        <p id="p8_meta_year" style="margin:0 0 2.8mm 0;font-size:3.4mm;color:#555;"></p>
+
+        <div style="font-weight:700;margin-bottom:1mm;font-size:3.4mm;">Sans batterie</div>
+        <div class="p8-bar" style="display:flex;height:8mm;border-radius:4mm;overflow:hidden;box-shadow:0 0 0 1px #eee inset;">
+          <div id="p8_a_auto"    class="p8-seg" style="background:#BEE3F8;display:flex;align-items:center;justify-content:center;font-size:3.3mm;font-weight:700;color:#0f3c50;"></div>
+          <div id="p8_a_surplus" class="p8-seg" style="background:#63B3ED;display:flex;align-items:center;justify-content:center;font-size:3.3mm;font-weight:700;color:#fff;"></div>
+        </div>
+
+        <div style="font-weight:700;margin:3mm 0 1mm;font-size:3.4mm;">Avec batterie</div>
+        <div class="p8-bar" style="display:flex;height:8mm;border-radius:4mm;overflow:hidden;box-shadow:0 0 0 1px #eee inset;">
+          <div id="p8_b_auto"    class="p8-seg" style="background:#BEE3F8;display:flex;align-items:center;justify-content:center;font-size:3.3mm;font-weight:700;color:#0f3c50;"></div>
+          <div id="p8_b_batt"    class="p8-seg" style="background:#A6E3AE;display:flex;align-items:center;justify-content:center;font-size:3.3mm;font-weight:700;color:#0d341c;"></div>
+          <div id="p8_b_surplus" class="p8-seg" style="background:#63B3ED;display:flex;align-items:center;justify-content:center;font-size:3.3mm;font-weight:700;color:#fff;"></div>
+        </div>
+
+        <ul style="margin:3mm 0 0 6mm;line-height:1.4;font-size:3.3mm;">
+          <li id="p8_delta_autocons">�</li>
+          <li id="p8_delta_reseau">�</li>
+          <li id="p8_delta_surplus">�</li>
+        </ul>
+      </div>
+
+      <!-- Profil journée (lignes lissées style P4/P5) -->
+      <div class="card soft" style="padding:3mm 4mm;border-radius:4mm;
+           border:.4mm solid rgba(195,152,71,.22);box-shadow:0 1.6mm 5mm rgba(0,0,0,.04);">
+        <h3 style="margin:0 0 2.5mm 0;font-size:4mm;">Profil d�"une journée type</h3>
+        <svg id="p8_svg" viewBox="0 0 600 200" style="width:100%;height:auto;">
+          <line x1="40" y1="170" x2="580" y2="170" stroke="#999" stroke-width="1"/>
+          <g id="p8_svg_lines"></g>
+          <text x="60"  y="185" font-size="11" fill="#777">Matin</text>
+          <text x="280" y="185" font-size="11" fill="#777">Midi</text>
+          <text x="460" y="185" font-size="11" fill="#777">Soirée</text>
+        </svg>
+        <div style="display:flex;justify-content:center;gap:8mm;margin-top:2.5mm;font-size:3.2mm;">
+          <span style="display:inline-flex;align-items:center;gap:2mm;"><i style="width:5mm;height:3.5mm;border-radius:2mm;background:#FFD54F;"></i>Production</span>
+          <span style="display:inline-flex;align-items:center;gap:2mm;"><i style="width:5mm;height:3.5mm;border-radius:2mm;background:#A6E3AE;"></i>Charge batt.</span>
+          <span style="display:inline-flex;align-items:center;gap:2mm;"><i style="width:5mm;height:3.5mm;border-radius:2mm;background:#2E8B57;"></i>Décharge</span>
+          <span style="display:inline-flex;align-items:center;gap:2mm;"><i style="width:5mm;height:3.5mm;border-radius:2mm;background:#E0E0E0;"></i>Conso maison</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Rangée 2 : bas de page -->
+    <div style="display:grid;grid-template-columns:1.2fr 0.9fr 0.9fr;gap:6mm;">
+
+      <!-- Tableau détaillé A/B -->
+      <div class="card soft" style="padding:3mm 4mm;border-radius:4mm;border:.4mm solid rgba(195,152,71,.22);">
+        <h3 style="margin:0 0 2mm 0;font-size:3.8mm;">Autonomie & flux détaillés</h3>
+        <table style="width:100%;border-collapse:collapse;font-size:3.2mm;">
+          <thead>
+            <tr style="background:#fbf8f1;">
+              <th style="text-align:left;padding:2mm;border-bottom:1px solid #eee;">Indicateur</th>
+              <th style="text-align:right;padding:2mm;border-bottom:1px solid #eee;">Sans batt.</th>
+              <th style="text-align:right;padding:2mm;border-bottom:1px solid #eee;">Avec batt.</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td style="padding:1.8mm;">Production (kWh)</td>
+                <td id="p8_t_A_prod" style="text-align:right;padding:1.8mm;">�</td>
+                <td id="p8_t_B_prod" style="text-align:right;padding:1.8mm;">�</td></tr>
+            <tr><td style="padding:1.8mm;">Autoconso (kWh)</td>
+                <td id="p8_t_A_auto" style="text-align:right;padding:1.8mm;">�</td>
+                <td id="p8_t_B_auto" style="text-align:right;padding:1.8mm;">�</td></tr>
+            <tr><td style="padding:1.8mm;">Via batterie (kWh)</td>
+                <td style="text-align:right;padding:1.8mm;color:#aaa;">�</td>
+                <td id="p8_t_B_batt" style="text-align:right;padding:1.8mm;">�</td></tr>
+            <tr><td style="padding:1.8mm;">Surplus (kWh)</td>
+                <td id="p8_t_A_sur" style="text-align:right;padding:1.8mm;">�</td>
+                <td id="p8_t_B_sur" style="text-align:right;padding:1.8mm;">�</td></tr>
+            <tr><td style="padding:1.8mm;">Achats réseau (kWh)</td>
+                <td id="p8_t_A_grid" style="text-align:right;padding:1.8mm;">�</td>
+                <td id="p8_t_B_grid" style="text-align:right;padding:1.8mm;">�</td></tr>
+            <tr><td style="padding:1.8mm;">Autonomie (%)</td>
+                <td id="p8_t_A_autopct" style="text-align:right;padding:1.8mm;">�</td>
+                <td id="p8_t_B_autopct" style="text-align:right;padding:1.8mm;">�</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Hypothèses + KPIs -->
+      <div class="card soft" style="padding:3mm 4mm;border-radius:4mm;border:.4mm solid rgba(195,152,71,.22);">
+        <h3 style="margin:0 0 2mm 0;font-size:3.8mm;">Hypothèses</h3>
+        <ul style="margin:0;padding-left:5mm;line-height:1.5;font-size:3.2mm;color:#444;">
+          <li id="p8_h_year">Année : �</li>
+          <li id="p8_h_cycles">Cycles/an : �</li>
+          <li id="p8_h_capacity">Capacité utile : �</li>
+          <li id="p8_h_profile">Profil journée : �</li>
+        </ul>
+
+        <div style="display:grid;grid-template-columns:1fr;gap:3mm;margin-top:3mm;">
+          <div class="card" style="padding:2.5mm;background:#fdfcf9;border:1px solid rgba(195,152,71,.28);border-radius:4mm;">
+            <div style="font-weight:700;font-size:3.2mm;margin-bottom:1mm;">Gain d�"autonomie</div>
+            <div id="p8_kpi_autonomie" style="font-size:6mm;line-height:1;">�</div>
+            <div id="p8_kpi_autonomie_note" style="font-size:3mm;color:#666;">&nbsp;</div>
+          </div>
+          <div class="card" style="padding:2.5mm;background:#fdfcf9;border:1px solid rgba(195,152,71,.28);border-radius:4mm;">
+            <div style="font-weight:700;font-size:3.2mm;margin-bottom:1mm;">Réduction achats réseau</div>
+            <div id="p8_kpi_grid" style="font-size:6mm;line-height:1;">�</div>
+            <div id="p8_kpi_grid_note" style="font-size:3mm;color:#666;">&nbsp;</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Interprétation auto -->
+      <div class="card soft" style="padding:3mm 4mm;border-radius:4mm;border:.4mm solid rgba(195,152,71,.22);">
+        <h3 style="margin:0 0 2mm 0;font-size:3.8mm;">Interprétation automatique</h3>
+        <ul style="margin:0;padding-left:5mm;line-height:1.5;font-size:3.2mm;color:#444;">
+          <li id="p8_i_gain">�</li>
+          <li id="p8_i_grid">�</li>
+          <li id="p8_i_surplus">�</li>
+        </ul>
+
+       <div class="card"
+     style="padding:4mm 4mm;background:#fdfcf9;
+            border:1px solid rgba(195,152,71,.28);
+            border-radius:4mm; min-height:20mm; margin-top:4mm;">
+
+  <div style="font-size:3.3mm; line-height:1.45; color:#444;">
+    Grâce à une gestion intelligente de la charge et de la décharge,
+    la batterie fonctionne uniquement lorsque cela maximise l�"autoconsommation
+    et la performance énergétique de l�"installation, tout en préservant
+    sa durée de vie pour un fonctionnement fiable et durable au quotidien.
+  </div>
+
+</div>
+
+         
+        </div>
+      </div>
+    </div>
+  </div> <!-- /#p8_results -->
+
+</section>
+
+<script>
+(function(){
+  const API = (window.SmartPitch = window.SmartPitch || {});
+  const $ = s => document.querySelector(s);
+  const STORAGE='smartpitch_overrides';
+  const r0 = x => Math.round(+x||0);
+  const p0 = x => `${Math.round(+x||0)} %`;
+  const clampPct = v => Math.max(0, Math.min(100, +v||0));
+  const pct = (x,tot)=> tot>0 ? 100*(+x||0)/(+tot||1) : 0;
+
+  function getStore(){ return JSON.parse(localStorage.getItem(STORAGE)||'{}'); }
+  function setStore(o){ localStorage.setItem(STORAGE, JSON.stringify(o||{})); }
+  function setText(sel, value){ const n=$(sel); if(n) n.textContent = value; }
+
+  // ===== Lignes (profil jour) � lissées type P4/P5 =====
+  function pathSmooth(arr, xAt, yAt){
+    if(!arr || arr.length===0) return "";
+    if(arr.length===1) return `M ${xAt(0)} ${yAt(arr[0])}`;
+    let d = `M ${xAt(0)} ${yAt(arr[0])}`;
+    // simple Catmull-Rom to Bezier
+    for(let i=0;i<arr.length-1;i++){
+      const p0 = i>0 ? arr[i-1] : arr[i];
+      const p1 = arr[i];
+      const p2 = arr[i+1];
+      const p3 = (i+2<arr.length) ? arr[i+2] : p2;
+
+      const x1 = xAt(i),   y1 = yAt(p1);
+      const x2 = xAt(i+1), y2 = yAt(p2);
+
+      const cp1x = x1 + (xAt(i+1)-xAt(i-1<0?0:i-1))/6;
+      const cp1y = y1 + (yAt(p2)-yAt(p0))/6;
+      const cp2x = x2 - (xAt(i+2<arr.length?i+2:i+1)-xAt(i))/6;
+      const cp2y = y2 - (yAt(p3)-yAt(p1))/6;
+
+      d += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${x2} ${y2}`;
+    }
+    return d;
+  }
+
+  function drawLines(series){
+    const g = $('#p8_svg_lines'); if(!g) return;
+    g.innerHTML = "";
+    const x0=40, x1=580, yBase=170, maxH=120;
+    const arrays = [series.pv, series.load, series.charge, series.discharge].map(a=>a||[]);
+    const N = Math.max(1, ...arrays.map(a=>a.length));
+    const maxVal = Math.max(1, ...arrays.flat().map(v=>+v||0));
+    const xAt = i => x0 + (i*(x1-x0)/Math.max(1,(N-1)));
+    const yAt = v => yBase - ((v/maxVal) * maxH);
+
+    function add(arr, color, width, dash, opacity){
+      if(!arr || !arr.length) return;
+      const p = document.createElementNS("http://www.w3.org/2000/svg","path");
+      p.setAttribute("d", pathSmooth(arr, xAt, yAt));
+      p.setAttribute("fill", "none");
+      p.setAttribute("stroke", color);
+      p.setAttribute("stroke-width", width);
+      p.setAttribute("stroke-linecap","round");
+      p.setAttribute("stroke-linejoin","round");
+      if(dash) p.setAttribute("stroke-dasharray", dash);
+      if(opacity!=null) p.setAttribute("opacity", opacity);
+      g.appendChild(p);
+    }
+
+    // Style harmonisé avec P4/P5
+    add(series.load || [],      '#E0E0E0', 2.2, "", 1);
+    add(series.pv || [],        '#FFD54F', 2.4, "", 0.95);
+    add(series.charge || [],    '#A6E3AE', 2.1, "4 3", 1);
+    add(series.discharge || [], '#2E8B57', 2.2, "", 1);
+  }
+
+  // ===== Segments barres % =====
+  function setSeg(el, pctVal, label){
+    if (!el) return;
+    const v = clampPct(pctVal);
+    el.style.flex = `0 0 ${v}%`;
+    el.textContent = v<2 ? "" : `${p0(v)} ${label}`;
+    el.style.display = v<0.5 ? "none" : "flex";
+  }
+
+  function parseCSV24(str){
+    if(!str) return [];
+    const clean = String(str).replace(/^.*?:/i,'').trim();
+    return clean.split(/[,;\s]+/).map(v=>+v||0).slice(0,24);
+  }
+
+  // ===== Rendu principal =====
+  function renderP8(d){
+    if(!d) return;
+    setText('#p8_client', d.meta?.client || d.client || '�');
+    setText('#p8_ref',    d.meta?.ref    || d.ref    || '�');
+    setText('#p8_date',   d.meta?.date   || d.date   || '�');
+    setText('#p8_meta_year', d.year ? `Année de référence : ${d.year}` : '');
+
+    const A = d.A || {}, B = d.B || {};
+    const Aprod = +A.production_kwh || 0, Bprod = +B.production_kwh || 0;
+
+    const Aauto = pct(A.autocons_kwh||0, Aprod);
+    const Asurp = clampPct(100 - Aauto);
+
+    const Bauto = pct(B.autocons_kwh||0, Bprod);
+    const Bbatt = pct(B.battery_throughput_kwh||0, Bprod);
+    const Bsurp = clampPct(100 - Bauto - Bbatt);
+
+    setSeg($('#p8_a_auto'),    Aauto, 'Autoconso');
+    setSeg($('#p8_a_surplus'), Asurp, 'Surplus');
+    setSeg($('#p8_b_auto'),    Bauto,  'Autoconso');
+    setSeg($('#p8_b_batt'),    Bbatt,  'Batterie');
+    setSeg($('#p8_b_surplus'), Bsurp,  'Surplus');
+
+    const k = d.kpis || {};
+    const gridDeltaKwh = (k.grid_delta_kwh != null) ? k.grid_delta_kwh
+      : (A.grid_import_kwh||0) - (B.grid_import_kwh||0);
+    const surplusDeltaKwh = (k.surplus_delta_kwh != null) ? k.surplus_delta_kwh
+      : (A.surplus_kwh||0) - (B.surplus_kwh||0);
+    const gridDeltaEur = (k.grid_delta_eur != null) ? k.grid_delta_eur : null;
+
+    const autoA = A.autonomie_pct ?? Aauto;
+    const autoB = B.autonomie_pct ?? (Bauto + Bbatt);
+    const autoGain = (k.autonomie_gain_pts != null) ? k.autonomie_gain_pts : (autoB - autoA);
+
+    setText('#p8_delta_autocons', `${autoGain>0?"+":""}${r0(autoGain)} pts d�"autoconsommation`);
+    const txtReseau = gridDeltaKwh > 0
+      ? `��${r0(gridDeltaKwh)} kWh d�"achats réseau${gridDeltaEur!=null ? ` (�0� ${r0(gridDeltaEur)} �� / an)` : ""}`
+      : (gridDeltaKwh < 0 ? `+${r0(-gridDeltaKwh)} kWh d�"achats réseau` : `Achats réseau stables`);
+    setText('#p8_delta_reseau', txtReseau);
+    setText('#p8_delta_surplus',
+      surplusDeltaKwh > 0 ? `��${r0(surplusDeltaKwh)} kWh de surplus`
+                          : (surplusDeltaKwh<0? `+${r0(-surplusDeltaKwh)} kWh de surplus` : `Surplus inchangé`));
+
+    setText('#p8_kpi_autonomie', `${autoGain>0?"+":""}${r0(autoGain)} pts`);
+    setText('#p8_kpi_autonomie_note', `Autonomie ${r0(autoA)} % �  ${r0(autoB)} %`);
+    setText('#p8_kpi_grid', gridDeltaKwh>0 ? `��${r0(gridDeltaKwh)}` : `${r0(gridDeltaKwh)}`);
+    setText('#p8_kpi_grid_note', gridDeltaEur!=null ? `�0� ${r0(gridDeltaEur)} �� / an` : '');
+    setText('#p8_kpi_cycles', r0(d.kpis?.cycles_an||0));
+    setText('#p8_kpi_cycles_note', d.kpis?.cycles_an ? `Estimation annuelle de cycles` : '');
+    setText('#p8_kpi_capacity', d.kpis?.capacite_utile_kwh!=null ? `${r0(d.kpis.capacite_utile_kwh)} kWh` : '�');
+    setText('#p8_kpi_capacity_note', d.kpis?.capacite_utile_note || '');
+
+    setText('#p8_t_A_prod', (Aprod||0).toLocaleString('fr-FR'));
+    setText('#p8_t_B_prod', (Bprod||0).toLocaleString('fr-FR'));
+    setText('#p8_t_A_auto', r0(A.autocons_kwh||0).toLocaleString('fr-FR'));
+    setText('#p8_t_B_auto', r0(B.autocons_kwh||0).toLocaleString('fr-FR'));
+    setText('#p8_t_B_batt', r0(B.battery_throughput_kwh||0).toLocaleString('fr-FR'));
+    setText('#p8_t_A_sur',  r0(A.surplus_kwh||0).toLocaleString('fr-FR'));
+    setText('#p8_t_B_sur',  r0(B.surplus_kwh||0).toLocaleString('fr-FR'));
+    setText('#p8_t_A_grid', r0(A.grid_import_kwh||0).toLocaleString('fr-FR'));
+    setText('#p8_t_B_grid', r0(B.grid_import_kwh||0).toLocaleString('fr-FR'));
+    setText('#p8_t_A_autopct', `${r0(autoA)} %`);
+    setText('#p8_t_B_autopct', `${r0(autoB)} %`);
+
+    setText('#p8_h_year', `Année : ${d.year || '�'}`);
+    setText('#p8_h_cycles', `Cycles/an : ${r0(d.kpis?.cycles_an||0)}`);
+    setText('#p8_h_capacity', `Capacité utile : ${d.kpis?.capacite_utile_kwh!=null ? r0(d.kpis.capacite_utile_kwh)+' kWh' : '�'}`);
+
+    const prof = d.profile || { pv:[], load:[], charge:[], discharge:[] };
+    const ok12 = [prof.pv,prof.load,prof.charge,prof.discharge].every(a=>Array.isArray(a) && a.length>=12);
+    setText('#p8_h_profile', `Profil journée : ${ok12 ? 'fourni' : 'non fourni'}`);
+
+    drawLines({
+      pv:        prof.pv || [],
+      load:      prof.load || [],
+      charge:    prof.charge || [],
+      discharge: prof.discharge || []
+    });
+  }
+
+  function showResultsAndHideAction(){
+    const action = $('#p8_action');
+    if (action) action.style.display = 'none';
+    const res = $('#p8_results');
+    if (res) res.style.display = '';
+  }
+
+  function rebuildIfStored(){
+    const s=getStore();
+    // Meta header si vide
+    if($('#p8_client').textContent.trim()==='�' && s['p8_meta_client']) setText('#p8_client', s['p8_meta_client']);
+    if($('#p8_ref').textContent.trim()==='�'    && s['p8_meta_ref'])    setText('#p8_ref', s['p8_meta_ref']);
+    if($('#p8_date').textContent.trim()==='�'   && s['p8_meta_date'])   setText('#p8_date', s['p8_meta_date']);
+
+    const hasA = ['p8_A_prod','p8_A_auto_pct','p8_A_grid','p8_A_surplus'].some(k => s[k]!=null && s[k]!=='');
+    const hasB = ['p8_B_prod','p8_B_auto_pct','p8_B_batt_pct','p8_B_grid','p8_B_surplus'].some(k => s[k]!=null && s[k]!=='');
+
+    if(!(hasA||hasB)) return;
+
+    const payload = {
+      meta: { client: s['p8_meta_client']||'', ref: s['p8_meta_ref']||'', date: s['p8_meta_date']||'' },
+      year: +s['p8_year']||null,
+      A: {
+        production_kwh: +s['p8_A_prod']||0,
+        autocons_kwh: (+s['p8_A_prod']||0) * ((+s['p8_A_auto_pct']||0)/100),
+        grid_import_kwh: +s['p8_A_grid']||0,
+        surplus_kwh: +s['p8_A_surplus']||0,
+      },
+      B: {
+        production_kwh: +s['p8_B_prod']||0,
+        autocons_kwh: (+s['p8_B_prod']||0) * ((+s['p8_B_auto_pct']||0)/100),
+        battery_throughput_kwh: (+s['p8_B_prod']||0) * ((+s['p8_B_batt_pct']||0)/100),
+        grid_import_kwh: +s['p8_B_grid']||0,
+        surplus_kwh: +s['p8_B_surplus']||0,
+      },
+      kpis: {
+        cycles_an: +s['p8_k_cycles']||0,
+        capacite_utile_kwh: +s['p8_k_capacity']||0,
+        capacite_utile_note: (+s['p8_k_capacity']||0) ? "Capacité utile estimée" : ""
+      },
+      profile: {
+        pv: parseCSV24(s['p8_prof_pv']||""),
+        load: parseCSV24(s['p8_prof_load']||""),
+        charge: parseCSV24(s['p8_prof_charge']||""),
+        discharge: parseCSV24(s['p8_prof_discharge']||"")
+      }
+    };
+
+    // compléter autonomie & deltas si possible
+    const Aprod = payload.A.production_kwh||0, Bprod = payload.B.production_kwh||0;
+    payload.A.autonomie_pct = Aprod>0 ? (payload.A.autocons_kwh/Aprod)*100 : null;
+    payload.B.autonomie_pct = Bprod>0 ? ((payload.B.autocons_kwh+payload.B.battery_throughput_kwh)/Bprod)*100 : null;
+    payload.kpis.autonomie_gain_pts = (payload.A.autonomie_pct!=null && payload.B.autonomie_pct!=null)
+      ? (payload.B.autonomie_pct - payload.A.autonomie_pct) : null;
+    payload.kpis.grid_delta_kwh = (payload.A.grid_import_kwh||0) - (payload.B.grid_import_kwh||0);
+    payload.kpis.surplus_delta_kwh = (payload.A.surplus_kwh||0) - (payload.B.surplus_kwh||0);
+
+    showResultsAndHideAction();
+    renderP8(payload);
+  }
+
+  // ===== Engine hooks =====
+  API.renderP8 = renderP8;
+  window.renderP8 = renderP8; 
+  API.bindEngineP8 = function(engine){
+    if (!engine) return;
+    if (typeof engine.on === "function") {
+      engine.on("p8:update", (payload) => {
+        showResultsAndHideAction();
+        renderP8(payload);
+      });
+    }
+    if (typeof engine.getP8 === "function") {
+      const first = engine.getP8();
+      if (first) {
+        showResultsAndHideAction();
+        renderP8(first);
+      }
+    }
+  };
+  if (window.Engine) API.bindEngineP8(window.Engine);
+
+  // ===== Init =====
+  rebuildIfStored();
+})();
+</script>
+
+
+
+<!-- =========================================================
+     PAGE 9 � GAINS CUMUL�0S (25 ANS) � overlay centré
+     ======================================================= -->
+<section class="sheet" id="p9">
+  <!-- ===== Header ===== -->
+  <div class="header" style="position:relative; --brand:#C39847; --logoW:26mm; --metaW:120mm;
+      padding-left:var(--logoW); padding-right:var(--metaW); padding-bottom:12mm;">
+    <img src="/pdf-assets/images/logo-solarglobe-rect.png"
+         style="position:absolute;left:0;top:0;height:14mm;object-fit:contain;">
+    <div style="position:absolute;left:50%;top:0;transform:translateX(-50%);">
+      <span class="badge" style="font-size:4.6mm; padding:1mm 6mm; border-width:0.45mm;">
+        Gains cumulés � 25 ans
+      </span>
+    </div>
+<div class="meta-compact" id="p9_meta_line"
+     style="
+       position:absolute;
+       right:0;
+       bottom:0;
+       width:var(--metaW);
+       display:flex;
+       flex-direction:column;
+       align-items:flex-end;
+       gap:1mm;
+       text-align:right;
+       line-height:1.3;
+     ">
+
+      <span>Client : <span id="p9_client" contenteditable="true">�</span></span>
+      <span>Ref : <span id="p9_ref" contenteditable="true">�</span></span>
+      <span>Date : <span id="p9_date" contenteditable="true">�</span></span>
+    </div>
+  </div>
+
+  <!-- Séparateur doré -->
+  <div style="height:1.2mm;background:#C39847;border-radius:2mm;margin:0 0 6mm 0;"></div>
+
+<div id="p9_results" style="display:none;">
+
+  <div style="display:grid;grid-template-columns:1fr 42mm;gap:6mm;">
+    
+    <!-- ======== GRAPHIQUE ======== -->
+    <div class="chart-wrap" style="height:82mm;position:relative;background:#fff;border:1px solid #eef0f2;border-radius:10px;">
+
+      <!-- Légende FIXE & CORRECTE -->
+      <div id="p9_legend" style="position:absolute;left:6mm;top:4mm;display:flex;gap:10mm;font-size:3.4mm;align-items:center;">
+
+        <div style="display:flex;align-items:center;gap:3mm;">
+          <span style="display:inline-block;width:10mm;height:1.6mm;border-radius:4mm;background:#C39847;"></span>
+          <span id="p9_leg_a">Sans batterie</span>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:3mm;">
+          <span style="display:inline-block;width:10mm;height:1.6mm;border-radius:4mm;background:#4A5568;"></span>
+          <span id="p9_leg_b">Avec batterie</span>
+        </div>
+
+      </div>
+
+      <div id="p9_roi_pins" style="position:absolute;inset:0;pointer-events:none;"></div>
+      <svg id="p9_chart" viewBox="0 0 1750 600" style="width:100%;height:100%;display:block;"></svg>
+    </div>
+
+    <!-- ======== TRI ======== -->
+    <div style="display:flex;flex-direction:column;gap:4mm;">
+
+      <div id="p9_tri_a" style="background:#fff;border:1px solid #eef0f2;border-left:3px solid #C39847;border-radius:10px;padding:4mm;font-size:3.2mm;">
+        Sans batterie � TRI : �
+      </div>
+
+      <div id="p9_tri_b" style="background:#fff;border:1px solid #eef0f2;border-left:3px solid #4A5568;border-radius:10px;padding:4mm;font-size:3.2mm;">
+        Avec batterie � TRI : �
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ======== CARTES BAS GAUCHE/DROITE ======== -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:6mm;margin-top:6mm;">
+
+    <!-- G = SANS BATTERIE -->
+    <div id="p9_card_a" style="border:1px solid #eef0f2;border-radius:10px;background:#fff;padding:5mm;display:grid;grid-template-columns:auto 1fr;gap:3mm 5mm;">
+      <div style="font-size:3mm;padding:1mm 3mm;border-radius:999px;border:1px solid #4A5568;justify-self:start;">Sans batterie</div>
+      <div style="grid-column:1/-1;font-size:4.2mm;font-weight:600;">Gains nets cumulés (25 ans)</div>
+      <div id="p9_a_total" style="grid-column:1/-1;font-size:7mm;font-weight:700;line-height:1.1;color:#4A5568;">�</div>
+      <div id="p9_a_meta" style="grid-column:1/-1;font-size:3.2mm;opacity:0.8;">ROI : année � � TRI : �</div>
+    </div>
+
+    <!-- B = AVEC BATTERIE -->
+    <div id="p9_card_b" style="border:1px solid #eef0f2;border-radius:10px;background:#fff;padding:5mm;display:grid;grid-template-columns:auto 1fr;gap:3mm 5mm;">
+      <div style="font-size:3mm;padding:1mm 3mm;border-radius:999px;border:1px solid #C39847;justify-self:start;">Avec batterie</div>
+      <div style="grid-column:1/-1;font-size:4.2mm;font-weight:600;">Gains nets cumulés (25 ans)</div>
+      <div id="p9_b_total" style="grid-column:1/-1;font-size:7mm;font-weight:700;line-height:1.1;color:#C39847;">�</div>
+      <div id="p9_b_meta" style="grid-column:1/-1;font-size:3.2mm;opacity:0.8;">ROI : année � � TRI : �</div>
+    </div>
+
+  </div>
+</div>
+
+</section>
+
+<script>
+(function(){
+  const ns='http://www.w3.org/2000/svg';
+  const $svg = document.getElementById('p9_chart');
+  const $pins = document.getElementById('p9_roi_pins');
+  const BRAND = '#C39847';
+  const STORAGE='smartpitch_overrides';
+  let lastPayload = null;
+
+  // ===== utils
+  const $ = s => document.querySelector(s);
+  const euro = v => (v<0?'- ':'')+Math.abs(v).toLocaleString('fr-FR',{maximumFractionDigits:0})+' ��';
+  const roiYear = arr => { for(let i=0;i<arr.length;i++) if(arr[i]>=0) return i+1; return null; };
+  const parseCSVn = (str,n)=> String(str||'').trim().split(/[,;\s]+/).map(v=>+v||0).slice(0,n);
+  const demoA = ()=>[-9000,-8200,-7000,-5600,-4200,-2800,-1400,200,1800,3600,5400,7200,9000,11000,13000,15000,17000,20000,23000,25500,28000,30000,31500,32000,32000];
+  const demoB = ()=>[-12000,-10800,-9000,-7400,-5600,-3800,-2000,0,2200,4400,6600,8800,11000,13500,16000,18500,21000,24000,27000,30000,32500,34500,35800,36500,36000];
+
+  function getStore(){ return JSON.parse(localStorage.getItem(STORAGE)||'{}'); }
+  function setStore(o){ localStorage.setItem(STORAGE, JSON.stringify(o||{})); }
+
+  // ===== dessin
+  function clear(el){ while(el.firstChild) el.removeChild(el.firstChild); }
+  function buildPath(c,x0,y0,w,h,yMin,yMax){
+    const n=25, step=w/(n-1), mapY=v=>y0+h-((v-yMin)/(yMax-yMin))*h;
+    let d=''; for(let i=0;i<n;i++){ const x=x0+i*step, y=mapY(c[i]); d+=(i?'L':'M')+x+' '+y+' '; }
+    return d;
+  }
+  function drawCurve(g,d,style){
+    const p=document.createElementNS(ns,'path');
+    p.setAttribute('d',d); p.setAttribute('fill','none');
+    p.setAttribute('stroke',style.stroke); p.setAttribute('stroke-width',style.width);
+    if(style.dash) p.setAttribute('stroke-dasharray',style.dash);
+    p.setAttribute('stroke-linecap','round'); p.setAttribute('stroke-linejoin','round');
+    g.appendChild(p);
+  }
+  function pins(x0,y0,w,h,yMin,yMax, ra, rb){
+    clear($pins);
+    const step=w/(25-1);
+    function add(y,color,top){
+      if(!y) return;
+      const x=x0+(y-1)*step;
+      const line=document.createElement('div');
+      line.style.position='absolute';
+      line.style.left=`calc(${(x/1750*100).toFixed(4)}%)`;
+      line.style.top='0'; line.style.bottom='0';
+      line.style.borderLeft=`1.5px dashed ${color}`; line.style.opacity='0.7';
+      $pins.appendChild(line);
+      const badge=document.createElement('div');
+      badge.textContent=`ROI : année ${y}`;
+      Object.assign(badge.style,{
+        position:'absolute',left:`calc(${(x/1750*100).toFixed(4)}%)`,
+        transform:'translateX(-50%)',background:'#fff',border:`1px solid ${color}`,
+        padding:'1.8mm 3mm',borderRadius:'6px',fontSize:'3mm',boxShadow:'0 2px 6px rgba(0,0,0,.06)'
+      });
+      badge.style[top?'top':'bottom']='10mm';
+      $pins.appendChild(badge);
+    }
+    add(ra,BRAND,true); add(rb,'#111',false);
+  }
+
+  // ===== render principal
+  function render(payload){
+    lastPayload = payload;
+    const meta = payload.meta || {};
+    $('#p9_client').textContent = meta.client || '�';
+    $('#p9_ref').textContent    = meta.ref || '�';
+    $('#p9_date').textContent   = meta.date || '�';
+
+    const A = payload.recommended, B = payload.compare;
+    if (A?.label) $('#p9_leg_a').textContent = A.label;
+    if (B?.label) $('#p9_leg_b').textContent = B.label;
+
+    const Ac = (A?.cumul_25y||[]).length===25 ? A.cumul_25y : null;
+    const Bc = (B?.cumul_25y||[]).length===25 ? B.cumul_25y : null;
+    if(!Ac && !Bc){ clear($svg); clear($pins); return; }
+
+    // domaine Y
+    const allY = (Ac||[]).concat(Bc||[]);
+    let yMin = Math.min(...allY), yMax = Math.max(...allY);
+    if (!isFinite(yMin) || !isFinite(yMax)){ return; }
+    if (yMax===yMin) yMax = yMin + 1;
+    const pad = Math.max(Math.abs(yMax-yMin)*0.1, 500);
+    yMin = Math.floor((yMin-pad)/1000)*1000;
+    yMax = Math.ceil((yMax+pad)/1000)*1000;
+
+    // cadre + grille
+    clear($svg);
+    const g=document.createElementNS(ns,'g'); $svg.appendChild(g);
+    const x0=100, y0=30, w=1460, h=500;
+
+    const rect=document.createElementNS(ns,'rect');
+    rect.setAttribute('x',x0); rect.setAttribute('y',y0);
+    rect.setAttribute('width',w); rect.setAttribute('height',h);
+    rect.setAttribute('rx',8); rect.setAttribute('fill','none');
+    rect.setAttribute('stroke','#E8EAED'); rect.setAttribute('stroke-width','1.5');
+    g.appendChild(rect);
+
+    for(let i=0;i<=5;i++){
+      const y=y0+(h/5)*i;
+      const ln=document.createElementNS(ns,'line');
+      ln.setAttribute('x1',x0); ln.setAttribute('x2',x0+w);
+      ln.setAttribute('y1',y); ln.setAttribute('y2',y);
+      ln.setAttribute('stroke','#F1F3F5'); ln.setAttribute('stroke-width','1.2');
+      g.appendChild(ln);
+    }
+
+    if (yMin<0 && yMax>0){
+      const yZero = y0 + h - ((0 - yMin)/(yMax - yMin)) * h;
+      const l0=document.createElementNS(ns,'line');
+      l0.setAttribute('x1',x0); l0.setAttribute('x2',x0+w);
+      l0.setAttribute('y1',yZero); l0.setAttribute('y2',yZero);
+      l0.setAttribute('stroke','#C5CCD3'); l0.setAttribute('stroke-width','1.8'); l0.setAttribute('stroke-dasharray','4 6');
+      g.appendChild(l0);
+    }
+
+    const lab=document.createElementNS(ns,'g'); lab.setAttribute('font-size','26'); lab.setAttribute('fill','#7A828C');
+    const step=w/(25-1); [1,5,10,15,20,25].forEach(n=>{
+      const x=x0+(n-1)*step; const t=document.createElementNS(ns,'text');
+      t.setAttribute('x',x); t.setAttribute('y',y0+h+42); t.setAttribute('text-anchor','middle'); t.textContent='Année '+n; lab.appendChild(t);
+    }); g.appendChild(lab);
+
+    if (Ac){ drawCurve(g, buildPath(Ac,x0,y0,w,h,yMin,yMax), {stroke:BRAND,width:6}); }
+    if (Bc){ drawCurve(g, buildPath(Bc,x0,y0,w,h,yMin,yMax), {stroke:'#111',width:3.5,dash:'10 7'}); }
+
+    pins(x0,y0,w,h,yMin,yMax, A?.roi_year || roiYear(Ac||[]), B?.roi_year || roiYear(Bc||[]));
+
+    // Cartes
+    $('#p9_a_total').textContent = Ac ? euro(Ac[24]) : '�';
+    $('#p9_b_total').textContent = Bc ? euro(Bc[24]) : '�';
+    $('#p9_a_meta').textContent  = `ROI : année ${A?.roi_year ?? (Ac?roiYear(Ac):'�')} � TRI : ${A?.tri_pct!=null?A.tri_pct.toLocaleString('fr-FR',{maximumFractionDigits:1})+' %':'�'}`;
+    $('#p9_b_meta').textContent  = `ROI : année ${B?.roi_year ?? (Bc?roiYear(Bc):'�')} � TRI : ${B?.tri_pct!=null?B.tri_pct.toLocaleString('fr-FR',{maximumFractionDigits:1})+' %':'�'}`;
+    $('#p9_tri_a').textContent   = (A?.label||'Sans batterie') + ' � TRI : ' + (A?.tri_pct!=null?A.tri_pct.toLocaleString('fr-FR',{maximumFractionDigits:1})+' %':'�');
+    $('#p9_tri_b').textContent   = (B?.label||'Avec batterie') + ' � TRI : ' + (B?.tri_pct!=null?B.tri_pct.toLocaleString('fr-FR',{maximumFractionDigits:1})+' %':'�');
+  }
+  function rebuildIfStored(){
+    const s=getStore();
+    if($('#p9_client').textContent.trim()==='�' && s['p9_meta_client']) $('#p9_client').textContent = s['p9_meta_client'];
+    if($('#p9_ref').textContent.trim()==='�'    && s['p9_meta_ref'])    $('#p9_ref').textContent    = s['p9_meta_ref'];
+    if($('#p9_date').textContent.trim()==='�'   && s['p9_meta_date'])   $('#p9_date').textContent   = s['p9_meta_date'];
+
+    const has = s['p9_a_cumul'] || s['p9_b_cumul'];
+    if(!has) return;
+    const payload = {
+      meta: { client:s['p9_meta_client']||'', ref:s['p9_meta_ref']||'', date:s['p9_meta_date']||'', year: parseInt(s['p9_year']||'2025',10) || 2025 },
+      recommended: {
+        label: s['p9_a_label'] || 'Sans batterie',
+        tri_pct: s['p9_a_tri'] ? parseFloat(s['p9_a_tri']) : null,
+        roi_year: s['p9_a_roi'] ? parseInt(s['p9_a_roi'],10) : null,
+        cumul_25y: parseCSVn(s['p9_a_cumul'],25)
+      },
+      compare: {
+        label: s['p9_b_label'] || 'Avec batterie',
+        tri_pct: s['p9_b_tri'] ? parseFloat(s['p9_b_tri']) : null,
+        roi_year: s['p9_b_roi'] ? parseInt(s['p9_b_roi'],10) : null,
+        cumul_25y: parseCSVn(s['p9_b_cumul'],25)
+      }
+    };
+    if (!payload.recommended.roi_year && payload.recommended.cumul_25y.length===25) payload.recommended.roi_year = roiYear(payload.recommended.cumul_25y);
+    if (!payload.compare.roi_year && payload.compare.cumul_25y.length===25) payload.compare.roi_year = roiYear(payload.compare.cumul_25y);
+
+    $('#p9_results').style.display='';
+    render(payload);
+  }
+
+  // ===== intégration moteur
+  const API = (window.SmartPitch = window.SmartPitch || {});
+  API.renderP9 = render;
+  API.bindEngineP9 = function(engine){
+    if (!engine) return;
+    if (typeof engine.on === "function"){
+      engine.on("p9:update", (payload)=> { $('#p9_results').style.display=''; render(payload); });
+    }
+    if (typeof engine.getP9 === "function"){
+      const first = engine.getP9();
+      if (first) { $('#p9_results').style.display=''; render(first); }
+    }
+  };
+  if (window.Engine){ API.bindEngineP9(window.Engine); }
+
+  // ===== init
+  rebuildIfStored();
+})();
+</script>
+
+
+<!-- =========================================================
+     PAGE 10 � Synthèse finale (manuel + moteur) � overlay centré
+     ======================================================= -->
+<section class="sheet" id="p10">
+  <!-- ===== HEADER ===== -->
+  <div class="header" style="position:relative; --brand:#C39847; --logoW:26mm; --metaW:120mm;
+      padding-left:var(--logoW); padding-right:var(--metaW); padding-bottom:16mm;">
+    <img src="/pdf-assets/images/logo-solarglobe-rect.png"
+         style="position:absolute;left:0;top:0;height:16mm;object-fit:contain;">
+    <div style="position:absolute;left:50%;top:0;transform:translateX(-50%);">
+      <span class="badge" style="font-size:5mm; padding:1.1mm 6mm; border-width:0.5mm;">
+        Synthèse de l�"offre retenue
+      </span>
+    </div>
+   <div class="meta-compact" id="p10_meta_line"
+     style="
+       position:absolute;
+       right:0;
+       bottom:0;
+       width:var(--metaW);
+       display:flex;
+       flex-direction:column;
+       align-items:flex-end;
+       gap:1mm;
+       text-align:right;
+       line-height:1.3;
+     ">
+
+      <span>Client : <span id="p10_client" contenteditable="true">�</span></span>
+      <span>Ref : <span id="p10_ref" contenteditable="true">�</span></span>
+      <span>Date : <span id="p10_date" contenteditable="true">�</span></span>
+    </div>
+  </div>
+
+  <!-- Séparateur doré -->
+  <div class="bar" style="height:0;border-top:0.9mm solid #C39847;margin:0 0 5mm;"></div>
+
+  <!-- ======================== R�0SULTAT ======================== -->
+  <div id="p10_result" style="display:none;">
+    <!-- TITRE -->
+    <div style="display:flex;align-items:center;gap:6mm;margin-bottom:4.5mm;">
+      <div style="display:flex;align-items:center;gap:4mm;">
+        <div style="width:6.5mm;height:6.5mm;border-radius:999px;background:linear-gradient(90deg,#C39847,#E4C98B);"></div>
+        <div style="font-weight:800;font-size:4.8mm;">Votre solution solaire personnalisée</div>
+      </div>
+      <span style="margin-left:auto;background:#111;color:#fff;border-radius:999px;padding:1.6mm 6mm;font-weight:700;">
+        Offre recommandée par Solarglobe
+      </span>
+    </div>
+
+    <!-- KPIs -->
+    <div class="p10-kpis" style="display:grid;grid-template-columns:repeat(4,1fr);gap:4.5mm;margin-bottom:1mm;">
+      <div style="border:0.45mm solid #ECECEC;border-radius:6mm;padding:5mm;display:flex;flex-direction:column;gap:1.6mm;min-height:24mm;">
+        <div style="font-size:3.4mm;opacity:.7;">Puissance installée</div>
+        <div style="display:flex;align-items:baseline;gap:2mm;">
+          <div id="p10_kwc" style="font-size:9.2mm;font-weight:900;">�</div>
+          <div style="font-size:3.8mm;font-weight:700;opacity:.75;">kWc</div>
+        </div>
+        <div id="p10_modules" style="font-size:3.4mm;opacity:.75;">&nbsp;</div>
+      </div>
+
+      <div style="border:0.45mm solid #ECECEC;border-radius:6mm;padding:5mm;display:flex;flex-direction:column;gap:1.6mm;min-height:24mm;">
+        <div style="font-size:3.4mm;opacity:.7;">�0conomie moyenne</div>
+        <div style="display:flex;align-items:baseline;gap:2mm;">
+          <div id="p10_savings_y1" style="font-size:9.2mm;font-weight:900;">�</div>
+          <div style="font-size:3.8mm;font-weight:700;opacity:.75;">��/an</div>
+        </div>
+        <div style="font-size:3.4mm;opacity:.75;">Année 1, hors indexation</div>
+      </div>
+
+      <div style="border:0.45mm solid #ECECEC;border-radius:6mm;padding:5mm;display:flex;flex-direction:column;gap:1.6mm;min-height:24mm;">
+        <div style="font-size:3.4mm;opacity:.7;">ROI</div>
+        <div style="display:flex;align-items:baseline;gap:2mm;">
+          <div id="p10_roi" style="font-size:9.2mm;font-weight:900;">�</div>
+          <div style="font-size:3.8mm;font-weight:700;opacity:.75;">ans</div>
+        </div>
+        <div style="font-size:3.4mm;opacity:.75;">Retour sur investissement</div>
+      </div>
+
+      <div style="border:0.45mm solid #ECECEC;border-radius:6mm;padding:5mm;display:flex;flex-direction:column;gap:1.6mm;min-height:24mm;">
+        <div style="font-size:3.4mm;opacity:.7;">TRI</div>
+        <div style="display:flex;align-items:baseline;gap:2mm;">
+          <div id="p10_tri" style="font-size:9.2mm;font-weight:900;color:#0047AB;">�</div>
+          <div style="font-size:3.8mm;font-weight:700;opacity:.75;">%</div>
+        </div>
+        <div style="font-size:3.4mm;opacity:.75;">Sur 25 ans</div>
+      </div>
+    </div>
+
+    <!-- SYNTH��SE -->
+    <div class="p10-card" style="border:2mm solid #FAF7F1;border-radius:7mm;overflow:hidden;">
+      <div style="background:#111;color:#fff;padding:2.5mm 6mm;font-weight:800;font-size:4mm;">
+        Synthèse chiffrée de l�"offre retenue
+      </div>
+
+      <div style="display:grid;grid-template-columns:1.05fr 1fr;gap:0;border-top:0.45mm solid #EFEFEF;">
+        <div style="padding:6mm 6mm;">
+          <table style="width:100%;border-collapse:collapse;font-size:3.5mm;line-height:1.24;">
+            <tbody>
+              <tr><td>Configuration</td><td id="p10_cfg" style="text-align:right;">�</td></tr>
+              <tr><td>Autoconsommation</td><td id="p10_autoprod" style="text-align:right;">�</td></tr>
+              <tr><td>Autonomie réseau</td><td id="p10_autonomy" style="text-align:right;">�</td></tr>
+              <tr><td>Gains cumulés (25 ans)</td><td id="p10_gains25" style="text-align:right;"><strong>�</strong></td></tr>
+              <tr><td>LCOE</td><td id="p10_lcoe" style="text-align:right;">�</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- DROITE � barres -->
+        <div style="padding:4.5mm 6mm;">
+          <div style="font-weight:800;margin-bottom:3.5mm;">Indicateurs de rentabilité</div>
+          <div>ROI (ans) <span id="p10_roi_val" style="float:right;">�</span></div>
+          <div style="height:6mm;background:#F1F1F1;border-radius:5mm;margin:1.5mm 0 4mm;">
+            <div id="p10_roi_bar" style="height:100%;width:0%;background:linear-gradient(90deg,#E4C98B,#C39847);"></div>
+          </div>
+          <div>TRI (%) <span id="p10_tri_val" style="float:right;">�</span></div>
+          <div style="height:6mm;background:#F1F1F1;border-radius:5mm;margin:1.5mm 0 4mm;">
+            <div id="p10_tri_bar" style="height:100%;width:0%;background:linear-gradient(90deg,#8FB3FF,#0047AB);"></div>
+          </div>
+          <div>LCOE (��/kWh) <span id="p10_lcoe_val" style="float:right;">�</span></div>
+          <div style="height:6mm;background:#F1F1F1;border-radius:5mm;">
+            <div id="p10_lcoe_bar" style="height:100%;width:0%;background:linear-gradient(90deg,#A3E8C9,#0B6E4F);"></div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:4mm;padding:3mm 6mm;background:#FAF7F1;border-top:0.45mm solid #E8DCC5;">
+        <div style="width:4mm;height:4mm;border-radius:999px;background:#C39847;"></div>
+        <div id="p10_audit" style="font-size:3.3mm;">�</div>
+      </div>
+    </div>
+
+    <!-- Ruban bas � une seule ligne, fin, sans bouton -->
+    <div class="p10-ribbon" style="
+         display:flex;align-items:center;gap:5mm;margin-top:4.5mm;
+         border:0.35mm solid #E8DCC5;background:#FAF7F1;border-radius:6mm;
+         padding:2.5mm 6mm; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+      <div style="width:5mm;height:5mm;border-radius:999px;background:#C39847;flex:0 0 auto;"></div>
+      <div style="font-weight:800;flex:0 0 auto;">Recommandation Solarglobe</div>
+      <div style="font-size:3.2mm;opacity:.9;flex:1 1 auto;overflow:hidden;text-overflow:ellipsis;">
+        ⬢ Calculs SmartPitch ⬢ Audit OK ⬢ Alternative sans batterie sur demande ⬢ Page 11 : option financement
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+(function(){
+  const STORAGE='smartpitch_overrides';
+  const nfEUR0 = new Intl.NumberFormat('fr-FR',{maximumFractionDigits:0});
+  const nf1 = new Intl.NumberFormat('fr-FR',{maximumFractionDigits:1});
+  const nf2 = new Intl.NumberFormat('fr-FR',{minimumFractionDigits:3,maximumFractionDigits:3});
+  const MAX = { ROI:20, TRI:20, LCOE:0.25 };
+  const clamp01 = x => Math.max(0, Math.min(1, x));
+  const $ = s => document.querySelector(s);
+
+  function getStore(){ return JSON.parse(localStorage.getItem(STORAGE)||'{}'); }
+  function setStore(o){ localStorage.setItem(STORAGE, JSON.stringify(o||{})); }
+  const setTxt = (id,v)=>{ const e=document.getElementById(id); if(e) e.textContent=v; };
+
+  function showResultsAndHideAction(){
+    const action = $('#p10_action'); if(action) action.style.display='none';
+    const res = $('#p10_result');   if(res) res.style.display='';
+  }
+
+  // ====== RENDER
+  function renderP10(d){
+    const b = d?.best || d || {};
+    const meta = d?.meta || d || {};
+
+    setTxt('p10_client', meta.client || d?.client || '�');
+    setTxt('p10_ref',    meta.ref    || d?.ref    || '�');
+    setTxt('p10_date',   meta.date   || d?.date   || '�');
+
+    setTxt('p10_kwc', nf1.format(b.kwc||0));
+    setTxt('p10_modules', [b.modules_label,b.inverter_label].filter(Boolean).join(' ⬢ ') || '�');
+    setTxt('p10_savings_y1', nfEUR0.format(b.savings_year1_eur||0));
+    setTxt('p10_roi', nf1.format(b.roi_years||0));
+    setTxt('p10_tri', nf1.format(b.tri_pct||0));
+
+    const cfg = b.cfg_label || `${nf1.format(b.kwc||0)} kWc${b.battery_kwh?` + Batterie ${nf1.format(b.battery_kwh)} kWh`:''}`;
+    setTxt('p10_cfg', cfg);
+    setTxt('p10_autoprod', b.autoprod_pct!=null ? `${nf1.format(b.autoprod_pct)} %` : '�');
+    setTxt('p10_autonomy', b.autonomy_pct!=null ? `�0� ${nf1.format(b.autonomy_pct)} %` : '�');
+    setTxt('p10_gains25', b.gains_25_eur!=null ? `${nfEUR0.format(b.gains_25_eur)} ��` : '�');
+    setTxt('p10_lcoe', b.lcoe_eur_kwh!=null ? `${nf2.format(b.lcoe_eur_kwh)} ��/kWh` : '�');
+
+    setTxt('p10_roi_val', b.roi_years!=null ? nf1.format(b.roi_years) : '�');
+    setTxt('p10_tri_val', b.tri_pct!=null ? nf1.format(b.tri_pct) : '�');
+    setTxt('p10_lcoe_val', b.lcoe_eur_kwh!=null ? nf2.format(b.lcoe_eur_kwh) : '�');
+
+    $('#p10_roi_bar').style.width=(clamp01((MAX.ROI-(b.roi_years||MAX.ROI))/MAX.ROI)*100)+'%';
+    $('#p10_tri_bar').style.width=(clamp01((b.tri_pct||0)/MAX.TRI)*100)+'%';
+    $('#p10_lcoe_bar').style.width=(clamp01((b.lcoe_eur_kwh||0)/MAX.LCOE)*100)+'%';
+
+    const hyp = d?.hyp || {};
+    setTxt('p10_audit',
+      `PVGIS + hypothèses Solarglobe (dégrad. ��${nf1.format(hyp.pv_degrad ?? 0.5)} %/an, `+
+      `élec +${nf1.format(hyp.elec_infl ?? 4)} %/an, OA ${nf2.format(hyp.oa_price ?? 0.04)} ��/kWh) � audit automatique �S&`
+    );
+
+    showResultsAndHideAction();
+  }
+
+  // ===== reconstruction auto si données stockées
+  function rebuildIfStored(){
+    const s=getStore();
+    if($('#p10_client').textContent.trim()==='�' && s['p10_client']) $('#p10_client').textContent = s['p10_client'];
+    if($('#p10_ref').textContent.trim()==='�'    && s['p10_ref'])    $('#p10_ref').textContent    = s['p10_ref'];
+    if($('#p10_date').textContent.trim()==='�'   && s['p10_date'])   $('#p10_date').textContent   = s['p10_date'];
+
+    if (s['p10_cfg_label'] || s['p10_kwc']) {
+      const payload = {
+        meta: { client:s['p10_client']||'', ref:s['p10_ref']||'', date:s['p10_date']||'', year: parseInt(s['p10_year']||'2025',10) || 2025 },
+        best: {
+          cfg_label: s['p10_cfg_label'] || '',
+          kwc: parseFloat(s['p10_kwc']||'0') || 0,
+          modules_label: s['p10_modules'] || '',
+          inverter_label: s['p10_inverter'] || '',
+          battery_kwh: parseFloat(s['p10_batt_kwh']||'0') || 0,
+          savings_year1_eur: parseFloat(s['p10_sav_y1']||'0') || 0,
+          roi_years: parseFloat(s['p10_roi']||'0') || 0,
+          tri_pct: parseFloat(s['p10_tri']||'0') || 0,
+          autoprod_pct: s['p10_autoprod'] ? parseFloat(s['p10_autoprod']) : undefined,
+          autonomy_pct: s['p10_autonomy'] ? parseFloat(s['p10_autonomy']) : undefined,
+          gains_25_eur: parseFloat(s['p10_gains25']||'0') || 0,
+          lcoe_eur_kwh: parseFloat(s['p10_lcoe']||'0') || 0
+        },
+        hyp: {
+          pv_degrad: s['p10_h_degrad'] ? parseFloat(s['p10_h_degrad']) : undefined,
+          elec_infl: s['p10_h_elec'] ? parseFloat(s['p10_h_elec']) : undefined,
+          oa_price:  s['p10_h_oa'] ? parseFloat(s['p10_h_oa']) : undefined
+        }
+      };
+      renderP10(payload);
+    }
+  }
+
+  // ===== Intégration moteur SmartPitch
+  const API = (window.SmartPitch = window.SmartPitch || {});
+  API.renderP10 = renderP10;
+  API.bindEngineP10 = function(engine){
+    if (!engine) return;
+    if (typeof engine.on === "function"){
+      engine.on("p10:update", (payload)=> { showResultsAndHideAction(); renderP10(payload); });
+    }
+    if (typeof engine.getP10 === "function"){
+      const first = engine.getP10();
+      if (first) { showResultsAndHideAction(); renderP10(first); }
+    }
+  };
+  if (window.Engine){ API.bindEngineP10(window.Engine); }
+
+  // ===== init
+  rebuildIfStored();
+})();
+</script>
+
+
+
+
+
+<!-- =========================================================
+     PAGE 11 � FINANCEMENT (Crédit + Sunlib)
+     ======================================================= -->
+<section class="sheet" id="p11" data-engine="finance">
+  <!-- ======= HEADER ======= -->
+  <div class="header" style="position:relative; --brand:#C39847; --logoW:26mm; --metaW:120mm;
+      padding-left:var(--logoW); padding-right:var(--metaW); padding-bottom:16mm;">
+    <img src="/pdf-assets/images/logo-solarglobe-rect.png"
+         style="position:absolute;left:0;top:0;height:16mm;object-fit:contain;">
+    <div style="position:absolute;left:50%;top:0;transform:translateX(-50%);">
+      <span class="badge" style="font-size:5mm; padding:1.1mm 6mm; border-width:0.5mm;">
+        Financement (optionnel)
+      </span>
+    </div>
+<div class="meta-compact" id="p11_meta_line"
+     style="
+       position:absolute;
+       right:0;
+       bottom:0;
+       width:var(--metaW);
+       display:flex;
+       flex-direction:column;
+       align-items:flex-end;
+       gap:1mm;
+       text-align:right;
+       line-height:1.3;
+     ">
+
+      <span>Client : <span id="p11_client">�</span></span>
+      <span>Ref : <span id="p11_ref">�</span></span>
+      <span>Date : <span id="p11_date">�</span></span>
+    </div>
+  </div>
+
+  <!-- Séparateur doré -->
+  <div style="height:0;border-top:0.9mm solid #C39847;margin:0 0 5mm;"></div>
+
+  <div class="p11-grid" style="display:grid;grid-template-columns:1.6fr 1fr;gap:8mm;align-items:start;">
+    <!-- ===== Colonne gauche ===== -->
+    <div style="display:grid;gap:5mm;">
+      <!-- Résumé paramètres -->
+      <div id="p11_params_card" style="display:grid;grid-template-columns:1fr auto;gap:4mm;
+           border:.5mm solid #e6e2da;border-radius:5mm;padding:4mm;cursor:pointer;">
+        <div style="font-size:3mm;line-height:1.35;">
+          <strong>Mode :</strong> <span id="p11_mode">�</span> ⬢
+          <strong>Montant :</strong> <span id="p11_amount">�</span> ⬢
+          <strong>Durée :</strong> <span id="p11_duree">�</span><br>
+          <strong>TAEG :</strong> <span id="p11_taeg">�</span> ⬢
+          <strong>Assurance :</strong> <span id="p11_assurance">�</span> ⬢
+          <strong>Apport :</strong> <span id="p11_apport">�</span>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:2.7mm;opacity:.7;">Mensualité</div>
+          <div id="p11_mensu" style="font-size:5.8mm;font-weight:800;">�</div>
+        </div>
+      </div>
+
+      <!-- ====== GRAPHIQUE ====== -->
+      <div id="p11_chart_wrap" style="border:.6mm solid #e6e2da;border-radius:6mm;padding:3mm 3.5mm;
+           position:relative;height:68mm;cursor:pointer;">
+        <div style="display:flex;gap:8mm;font-size:2.9mm;align-items:center;margin:2mm 0 1mm 2mm;">
+          <span style="display:flex;align-items:center;gap:2.5mm;">
+            <i style="width:6mm;height:3mm;background:#C39847;border-radius:1mm;display:inline-block;"></i> �0conomies annuelles
+          </span>
+          <span style="display:flex;align-items:center;gap:2.5mm;">
+            <i style="width:6mm;height:3mm;background:#2f2f31;border-radius:1mm;display:inline-block;opacity:.7;"></i> Paiement annuel
+          </span>
+        </div>
+        <div style="position:absolute;left:3.5mm;right:3.5mm;bottom:3.5mm;top:16mm;">
+          <svg id="p11_chart" viewBox="0 0 1750 520"
+               style="width:100%;height:100%;display:block;"
+               aria-label="�0conomies vs Paiement annuel"></svg>
+        </div>
+      </div>
+
+      <!-- ====== Tableau lecture rapide ====== -->
+      <div id="p11_quick_table" style="cursor:pointer;">
+        <table style="width:100%;border-collapse:collapse;font-size:2.8mm;">
+          <thead>
+            <tr style="background:#faf8f4;">
+              <th align="left" style="padding:2.2mm;border:.35mm solid #eee;">Année</th>
+              <th style="padding:2.2mm;border:.35mm solid #eee;">�0conomies annuelles</th>
+              <th style="padding:2.2mm;border:.35mm solid #eee;">Reste à charge annuel</th>
+            </tr>
+          </thead>
+          <tbody id="p11_summary_rows"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ===== Colonne droite ===== -->
+    <div style="display:grid;gap:6mm;">
+      <!-- Cartes KPI (dynamiques selon mode) -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:4mm;">
+        <div style="border:.5mm solid #e6e2da;border-radius:5mm;padding:3mm;">
+          <div id="p11_kpi1_label" style="font-size:2.7mm;opacity:.7;">Mensualité estimée</div>
+          <div id="p11_kpi1_val" style="font-size:5.6mm;font-weight:800;">�</div>
+        </div>
+        <div style="border:.5mm solid #e6e2da;border-radius:5mm;padding:3mm;">
+          <div id="p11_kpi2_label" style="font-size:2.7mm;opacity:.7;">Total payé</div>
+          <div id="p11_kpi2_val" style="font-size:5.6mm;font-weight:800;">�</div>
+        </div>
+        <div style="border:.5mm solid #e6e2da;border-radius:5mm;padding:3mm;">
+          <div id="p11_kpi3_label" style="font-size:2.7mm;opacity:.7;">ROI (années)</div>
+          <div id="p11_kpi3_val" style="font-size:5.6mm;font-weight:800;">�</div>
+        </div>
+        <div style="border:.5mm solid #e6e2da;border-radius:5mm;padding:3mm;">
+          <div id="p11_kpi4_label" style="font-size:2.7mm;opacity:.7;">Reste moyen (��/mois)</div>
+          <div id="p11_kpi4_val" style="font-size:5.6mm;font-weight:800;color:#c33;">�</div>
+        </div>
+      </div>
+
+      <!-- Bloc durées / texte Sunlib -->
+      <div id="p11_durations_block" style="border:.5mm solid #e6e2da;border-radius:5mm;padding:3mm;
+           display:grid;grid-template-rows:auto 1fr;gap:2mm;cursor:pointer;">
+        <!-- rempli par JS -->
+      </div>
+
+      <!-- Projection après remboursement -->
+      <div id="p11_postloan_block" style="border:.5mm solid #e6e2da;border-radius:5mm;padding:3mm;display:grid;gap:3mm;cursor:pointer;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div style="font-size:3.2mm;font-weight:700;">Projection après remboursement</div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:3mm;">
+          <div style="border:.4mm solid #eee;border-radius:4mm;padding:3mm;">
+            <div style="font-size:2.6mm;opacity:.75;">�0conomies nettes à 25 ans</div>
+            <div id="p11_net_25" style="font-size:3.8mm;font-weight:800;">�</div>
+          </div>
+          <div style="border:.4mm solid #eee;border-radius:4mm;padding:3mm;">
+            <div style="font-size:2.6mm;opacity:.75;">Mensualité libérée</div>
+            <div id="p11_mensu_free" style="font-size:3.8mm;font-weight:800;">�</div>
+          </div>
+          <div style="border:.4mm solid #eee;border-radius:4mm;padding:3mm;">
+            <div style="font-size:2.6mm;opacity:.75;">Reste à charge (moyen)</div>
+            <div id="p11_reste_card" style="font-size:3.8mm;font-weight:800;color:#c33;">�</div>
+          </div>
+        </div>
+        <div style="font-size:2.3mm;opacity:.68;line-height:1.2;">
+          Projections sur 25 ans. Diminution PV moyenne : ��0,5 %/an. Prix électricité : +4 %/an. Données indicatives non contractuelles.
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+(function(){
+  const STORAGE='smartpitch_p11_overrides';
+  const $ = s => document.querySelector(s);
+  const nf0 = new Intl.NumberFormat('fr-FR',{maximumFractionDigits:0});
+  const nf1 = new Intl.NumberFormat('fr-FR',{maximumFractionDigits:1});
+  const nf2 = new Intl.NumberFormat('fr-FR',{maximumFractionDigits:2});
+  const fmtEur = v => (v!=null ? nf0.format(v)+' ��' : '�');
+  const TABLE_YEARS = [1,5,10,15,25];
+  const TAEG_BY_MONTHS = {60:7.0,84:6.0};
+
+  const sum = arr => arr.reduce((a,b)=>a+(+b||0),0);
+
+  function parseEco(){
+    const raw = ($('#g11_eco_in').value||'').trim();
+    if(!raw) return Array.from({length:25},()=>0);
+    const vals = raw.split(/[,;\s]+/).map(v=>+v||0).slice(0,25);
+    while(vals.length<25) vals.push(0);
+    return vals;
+  }
+
+  function calcMensuCredit(amount, months, taeg, assur){
+    if(!amount || !months) return 0;
+    const r  = (taeg||0)/100/12;
+    const ra = (assur||0)/100/12;
+    const mCredit = r>0 ? amount*( r/(1-Math.pow(1+r,-months)) ) : amount/months;
+    const mAssur  = amount*ra;
+    return Math.round(mCredit+mAssur);
+  }
+
+  function roiYearsFromEco(eco, totalCost){
+    let cum=0;
+    for(let i=0;i<eco.length;i++){
+      cum += eco[i]||0;
+      if(cum>=totalCost) return i+1;
+    }
+    return null;
+  }
+
+  function getStore(){ return JSON.parse(localStorage.getItem(STORAGE)||'{}'); }
+  function setStore(o){ localStorage.setItem(STORAGE,JSON.stringify(o||{})); }
+
+  // ===== Render =====
+  function renderP11(payload){
+    const meta = payload.meta||{};
+    const f    = payload.finance||{};
+    const eco  = f.eco_annual||[];
+    const ann  = f.ann_annual||[];
+    const reste= f.reste_annual||[];
+
+    // Meta
+    $('#p11_client').textContent = meta.client || '�';
+    $('#p11_ref').textContent    = meta.ref    || '�';
+    $('#p11_date').textContent   = meta.date   || '�';
+
+    // Résumé
+    $('#p11_mode').textContent   = f.mode==='sunlib'?'Sunlib':'Crédit';
+    $('#p11_amount').textContent = fmtEur(f.amount_eur);
+    $('#p11_duree').textContent  = f.duration_label || '�';
+    $('#p11_taeg').textContent   = f.taeg_pct!=null ? nf2.format(f.taeg_pct)+' %' : '�';
+    $('#p11_assurance').textContent = f.assur_pct!=null ? nf2.format(f.assur_pct)+' %' : '�';
+    $('#p11_apport').textContent = f.mode==='credit' ? fmtEur(f.apport_eur) : '�';
+    $('#p11_mensu').textContent  = fmtEur(f.mensualite_eur);
+
+    // KPIs labels/valeurs
+    const l1=$('#p11_kpi1_label'), v1=$('#p11_kpi1_val');
+    const l2=$('#p11_kpi2_label'), v2=$('#p11_kpi2_val');
+    const l3=$('#p11_kpi3_label'), v3=$('#p11_kpi3_val');
+    const l4=$('#p11_kpi4_label'), v4=$('#p11_kpi4_val');
+
+    if(f.mode==='credit'){
+      l1.textContent='Mensualité estimée';
+      l2.textContent='Total payé pendant le crédit';
+      l3.textContent='ROI (années)';
+      l4.textContent='Reste moyen (��/mois)';
+
+      v1.textContent=fmtEur(f.mensualite_eur);
+      v2.textContent=fmtEur(f.total_paye_eur);
+      v3.textContent=f.roi_years? nf1.format(f.roi_years)+' ans' : '�';
+      v4.textContent=(f.reste_moyen_mensu!=null)?fmtEur(f.reste_moyen_mensu):'�';
+    }else{
+      l1.textContent='Reste à charge année 1 (��/mois)';
+      l2.textContent='Reste à charge année 10 (��/mois)';
+      l3.textContent='Reste à charge année 15 (��/mois)';
+      l4.textContent='Reste à charge année 25 (��/mois)';
+
+      v1.textContent=fmtEur(f.mensualite_eur - Math.round((eco[0]||0)/12));
+      v2.textContent=fmtEur(f.mensualite_eur - Math.round((eco[9]||0)/12));
+      v3.textContent=fmtEur(f.mensualite_eur - Math.round((eco[14]||0)/12));
+      v4.textContent=fmtEur(f.mensualite_eur - Math.round((eco[24]||0)/12));
+    }
+
+    // Projection
+    $('#p11_net_25').textContent   = fmtEur(f.net_25_eur);
+    $('#p11_mensu_free').textContent = fmtEur(f.mensualite_eur);
+    $('#p11_reste_card').textContent = f.mode==='credit' && f.reste_moyen_mensu!=null
+      ? fmtEur(f.reste_moyen_mensu)
+      : '�';
+
+    // Tableau bas
+    const tbody = $('#p11_summary_rows');
+    tbody.innerHTML='';
+    TABLE_YEARS.forEach(y=>{
+      const i=y-1;
+      const tr=document.createElement('tr');
+      tr.innerHTML = `
+        <td style="padding:2mm;border:.35mm solid #eee;">${y}</td>
+        <td align="right" style="padding:2mm;border:.35mm solid #eee;">${fmtEur(eco[i]||0)}</td>
+        <td align="right" style="padding:2mm;border:.35mm solid #eee;">${fmtEur(reste[i]||0)}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+
+    // Bloc durées / texte
+    const durBlock = $('#p11_durations_block');
+    if(f.mode==='credit'){
+      durBlock.innerHTML=`
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2mm;">
+          <div style="font-size:3.1mm;font-weight:700;">Comparatif des durées</div>
+        </div>
+        <table style="width:100%;border-collapse:collapse;font-size:2.7mm;">
+          <thead>
+            <tr style="background:#faf8f4;">
+              <th align="left" style="padding:2mm;border:.35mm solid #eee;">Durée</th>
+              <th style="padding:2mm;border:.35mm solid #eee;">TAEG</th>
+              <th style="padding:2mm;border:.35mm solid #eee;">Mensualité</th>
+              <th style="padding:2mm;border:.35mm solid #eee;">Coût crédit</th>
+              <th style="padding:2mm;border:.35mm solid #eee;">ROI (années)</th>
+            </tr>
+          </thead>
+          <tbody id="p11_dur_rows"></tbody>
+        </table>`;
+      const bodyDur = $('#p11_dur_rows');
+      bodyDur.innerHTML='';
+      [60,84].forEach(m=>{
+        const taeg=TAEG_BY_MONTHS[m];
+        const mensu = calcMensuCredit(f.amount_eur,m,taeg,f.assur_pct||0);
+        const years=Math.ceil(m/12);
+        const annTmp=Array.from({length:25},(_,i)=> i<years? mensu*12:0);
+        const total=sum(annTmp);
+        const roi=roiYearsFromEco(eco,total);
+        const tr=document.createElement('tr');
+        tr.innerHTML=`
+          <td style="padding:2mm;border:.35mm solid #eee;">${m} mois</td>
+          <td align="center" style="padding:2mm;border:.35mm solid #eee;">${nf1.format(taeg)} %</td>
+          <td align="right" style="padding:2mm;border:.35mm solid #eee;">${fmtEur(mensu)}</td>
+          <td align="right" style="padding:2mm;border:.35mm solid #eee;">${fmtEur(total)}</td>
+          <td align="center" style="padding:2mm;border:.35mm solid #eee;">${roi? nf1.format(roi)+' ans':'�'}</td>
+        `;
+        bodyDur.appendChild(tr);
+      });
+    }else{
+      durBlock.innerHTML=`
+        <div style="font-size:3.2mm;font-weight:700;">Sunlib � location avec option d�"achat</div>
+        <div style="font-size:2.7mm;line-height:1.3;margin-top:2mm;">
+          Mensualité fixe pendant ${f.duration_label||'�'}. Le matériel devient la propriété du client à la fin du contrat.
+          Le tableau et les cartes montrent l�"évolution du reste à charge <strong>annuel</strong> et <strong>mensuel</strong>
+          en fonction de la hausse du prix de l�"électricité et des économies solaires.
+        </div>`;
+    }
+
+    drawChart(eco,ann);
+  }
+
+  // ===== Chart =====
+  function drawChart(eco,ann){
+    const svg=document.getElementById('p11_chart');
+    while(svg.firstChild) svg.removeChild(svg.firstChild);
+    const ns='http://www.w3.org/2000/svg';
+    const g=document.createElementNS(ns,'g'); svg.appendChild(g);
+    const N=25, W=1750, H=520, x0=70, x1=W-40, y0=40, y1=H-30;
+    const maxY=Math.max(1,...eco,...ann);
+    const mapX=i=>x0 + i*(x1-x0)/(N-1);
+    const mapY=v=>y1 - (v/maxY)*(y1-y0);
+    const barW=(x1-x0)/N*0.32;
+
+    for(let k=0;k<=4;k++){
+      const y=y1 - k*(y1-y0)/4;
+      const line=document.createElementNS(ns,'line');
+      line.setAttribute('x1',x0); line.setAttribute('x2',x1);
+      line.setAttribute('y1',y);  line.setAttribute('y2',y);
+      line.setAttribute('stroke','#ececec'); line.setAttribute('stroke-width','1');
+      g.appendChild(line);
+    }
+
+    for(let i=0;i<N;i++){
+      const ya=mapY(ann[i]||0);
+      const xa=mapX(i)-barW;
+      const ra=document.createElementNS(ns,'rect');
+      ra.setAttribute('x',xa); ra.setAttribute('width',barW);
+      ra.setAttribute('y',ya); ra.setAttribute('height',Math.max(0,y1-ya));
+      ra.setAttribute('fill','#2f2f31'); ra.setAttribute('opacity','.65');
+      g.appendChild(ra);
+
+      const ye=mapY(eco[i]||0);
+      const xe=mapX(i)+2;
+      const re=document.createElementNS(ns,'rect');
+      re.setAttribute('x',xe); re.setAttribute('width',barW);
+      re.setAttribute('y',ye); re.setAttribute('height',Math.max(0,y1-ye));
+      re.setAttribute('fill','#C39847');
+      g.appendChild(re);
+    }
+  }
+
+})();
+</script>
+
+<!-- =========================================================
+     PAGE 12 � IMPACT ENVIRONNEMENTAL � overlay centré
+     ======================================================= -->
+<section class="sheet" id="p12" data-engine="env">
+
+  <!-- ===== HEADER ===== -->
+  <div class="header" style="position:relative; --brand:#C39847; --logoW:26mm; --metaW:120mm;
+      padding-left:var(--logoW); padding-right:var(--metaW); padding-bottom:16mm;">
+    <img src="/pdf-assets/images/logo-solarglobe-rect.png" alt="Solarglobe"
+         style="position:absolute;left:0;top:0;height:16mm;object-fit:contain;">
+    <div style="position:absolute;left:50%;top:0;transform:translateX(-50%);">
+      <span class="badge" style="font-size:5mm; padding:1.1mm 6mm; border-width:0.5mm;">
+        Impact environnemental
+      </span>
+    </div>
+ <div class="meta-compact" id="p12_meta_line"
+     style="
+       position:absolute;
+       right:0;
+       bottom:0;
+       width:var(--metaW);
+       display:flex;
+       flex-direction:column;
+       align-items:flex-end;
+       gap:1mm;
+       text-align:right;
+       line-height:1.3;
+     ">
+
+      <span>Client : <span id="p12_client">�</span></span>
+      <span>Ref : <span id="p12_ref">�</span></span>
+      <span>Date : <span id="p12_date">�</span></span>
+    </div>
+  </div>
+
+  <!-- R��GLE DOR�0E -->
+  <div style="height:0;border-top:0.9mm solid #C39847;margin:0 0 5mm;"></div>
+
+  <!-- ========================== R�0SULTAT ========================== -->
+  <div id="p12_result">
+    <div class="p12-wrap" style="display:flex;gap:10mm;align-items:center;height:155mm;">
+
+      <!-- COLONNE CHIFFRES CL�0S -->
+      <div id="p12_kpi_col" class="p12-col p12-kpis"
+           style="flex:1;display:flex;flex-direction:column;gap:7mm;justify-content:center;cursor:pointer;">
+        <div class="eco-item">
+          <svg width="22mm" viewBox="0 0 64 64" aria-label="CO2">
+            <circle cx="32" cy="32" r="30" fill="#2E7D32" opacity="0.12"/>
+            <text x="50%" y="52%" text-anchor="middle" font-size="22" font-weight="700" fill="#2E7D32">CO�</text>
+          </svg>
+          <div><div class="eco-value" id="v_co2">�</div><div class="eco-label">de CO� évités / an</div></div>
+        </div>
+        <div class="eco-item">
+          <svg width="22mm" viewBox="0 0 64 64" aria-label="Arbres">
+            <circle cx="32" cy="32" r="30" fill="#2E7D32" opacity="0.12"/>
+            <path d="M32 10c8 0 14 6 14 14 0 4-2 8-5 10 4 1 7 5 7 9 0 6-6 11-13 11h-6v-8h-4l8-10h-8l12-16z" fill="#2E7D32"/>
+          </svg>
+          <div><div class="eco-value" id="v_trees">�</div><div class="eco-label">arbres équivalents</div></div>
+        </div>
+        <div class="eco-item">
+          <svg width="22mm" viewBox="0 0 64 64" aria-label="Voitures">
+            <circle cx="32" cy="32" r="30" fill="#2E7D32" opacity="0.12"/>
+            <path d="M14 36l4-10c1-3 4-6 8-6h12c4 0 7 3 8 6l4 10H14zM18 44a4 4 0 110-8 4 4 0 010 8zm28 0a4 4 0 110-8 4 4 0 010 8z" fill="#2E7D32"/>
+          </svg>
+          <div><div class="eco-value" id="v_cars">�</div><div class="eco-label">voitures retirées / an</div></div>
+        </div>
+        <div class="eco-item">
+          <svg width="22mm" viewBox="0 0 64 64" aria-label="Recyclage SOREN">
+            <circle cx="32" cy="32" r="30" fill="#2E7D32" opacity="0.12"/>
+            <path d="M21 26l4-7 4 7h-3v6h-6v-6h-3zm27 6l-4 7-4-7h3v-6h6v6h-3zM27 45h10l-3 5h-4l-3-5z" fill="#2E7D32"/>
+          </svg>
+          <div><div class="eco-value">100&nbsp;%</div><div class="eco-label">des panneaux recyclés via SOREN</div></div>
+        </div>
+
+        <div class="eco-25" style="margin-top:2mm; padding:4mm 5mm; border:0.6mm solid #EAEAEA; border-radius:4mm;">
+          <div style="font-weight:700; font-size:4.2mm; margin-bottom:2mm;">Bilan sur 25 ans (projection)</div>
+          <div style="display:flex; gap:8mm; flex-wrap:wrap;">
+            <div><span style="font-weight:700" id="v_co2_25">�</span> <span style="color:#555">CO� évités</span></div>
+            <div><span style="font-weight:700" id="v_trees_25">�</span> <span style="color:#555">arbres</span></div>
+            <div><span style="font-weight:700" id="v_cars_25">�</span> <span style="color:#555">voitures</span></div>
+          </div>
+          <div style="font-size:3.5mm;color:#666;margin-top:1mm;">Hypothèses : dégradation PV annuelle & facteurs paramétrables.</div>
+        </div>
+      </div>
+
+      <!-- COLONNE VISUELLE -->
+      <div id="p12_graph_col" class="p12-col p12-graph" style="flex:1.1;position:relative;cursor:pointer;">
+        <div class="donut-wrap" style="width:100%;max-width:120mm;margin:auto;aspect-ratio:1/1;position:relative;">
+          <svg id="p12_donut" viewBox="0 0 100 100" aria-label="Répartition autoconsommation / injection">
+            <circle cx="50" cy="50" r="42" fill="none" stroke="#EAEAEA" stroke-width="16"/>
+            <circle id="donut_auto" cx="50" cy="50" r="42" fill="none" stroke="#C39847" stroke-width="16" stroke-linecap="round" transform="rotate(-90 50 50)" stroke-dasharray="0 264"/>
+            <circle id="donut_inj"  cx="50" cy="50" r="42" fill="none" stroke="#2E7D32" stroke-width="16" stroke-linecap="round" transform="rotate(-90 50 50)" stroke-dasharray="0 264" opacity="0.85"/>
+            <circle cx="50" cy="50" r="28" fill="#fff"/>
+            <text id="donut_center" x="50" y="47" text-anchor="middle" font-size="11" font-weight="700" fill="#222">�</text>
+            <text x="50" y="60" text-anchor="middle" font-size="4" fill="#666">Autoconsommation</text>
+          </svg>
+        </div>
+        <div class="p12-legend" style="display:flex;gap:8mm;justify-content:center;margin-top:6mm;flex-wrap:wrap;">
+          <div class="leg-item"><span class="dot" style="background:linear-gradient(135deg,#D9AE5B,#C39847);"></span> Autoconsommation</div>
+          <div class="leg-item"><span class="dot" style="background:#2E7D32;"></span> �0nergie injectée</div>
+        </div>
+        <div style="font-size:3.8mm;color:#666;text-align:right;margin-top:6mm;">
+          Facteurs par défaut : 0,065&nbsp;kgCO�/kWh ; 1 arbre �0� 22&nbsp;kgCO�/an ; 1 voiture �0� 1,5&nbsp;tCO�/an � SOREN & ADEME
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <style>
+    #p12 .eco-item{display:flex;align-items:center;gap:6mm}
+    #p12 .eco-value{font-size:7.2mm;font-weight:800;color:#1B5E20;line-height:1}
+    #p12 .eco-label{font-size:4mm;color:#555}
+    #p12 .leg-item{display:flex;align-items:center;gap:3mm;font-size:4mm;color:#333}
+    #p12 .leg-item .dot{display:inline-block;width:6mm;height:6mm;border-radius:999px;box-shadow:0 0 0 0.3mm #EEE inset}
+  </style>
+</section>
+
+<script>
+(function(){
+  const STORAGE='smartpitch_overrides';
+  const nf0 = new Intl.NumberFormat('fr-FR',{maximumFractionDigits:0});
+  const clamp=(v,min,max)=>Math.max(min,Math.min(max,Number.isFinite(+v)?+v:0));
+  const safeNum=(v,def=0)=>Number.isFinite(+v)?+v:def;
+  const set = (id,v)=>{const e=document.getElementById(id); if(e) e.textContent=v;};
+  const $ = s => document.querySelector(s);
+  let lastPayload=null;
+
+  // ===== LS helpers
+  function getStore(){ return JSON.parse(localStorage.getItem(STORAGE)||'{}'); }
+  function setStore(o){ localStorage.setItem(STORAGE, JSON.stringify(o||{})); }
+
+  // ===== donut helpers
+  function setDash(id, on, total, offset){
+    const el = document.getElementById(id);
+    if(!el) return;
+    el.setAttribute('stroke-dasharray', `${on.toFixed(2)} ${total.toFixed(2)}`);
+    if(Number.isFinite(offset)) el.setAttribute('stroke-dashoffset', `${offset.toFixed(2)}`);
+  }
+
+  // ===== RENDER
+  function renderP12(data){
+    lastPayload = data;
+    const meta = data.meta || data || {};
+    const f = data.env || data || {};
+
+    set('p12_client', meta.client || data.client || '�');
+    set('p12_ref',    meta.ref    || data.ref    || '�');
+    set('p12_date',   meta.date   || data.date   || '�');
+
+    const prodAn   = safeNum(f.production_kwh_an ?? f.prod_annuelle, 0); // kWh/an
+    const autoPct  = clamp(f.autocons_pct ?? f.autoconso_pct ?? 50, 0, 100);
+    const FACT_CO2 = safeNum(f.co2_kg_per_kwh, 0.065);     // kg/kWh
+    const TREE_KG  = Math.max(1, safeNum(f.tree_kg_per_year, 22));
+    const CAR_KG   = Math.max(1, safeNum(f.car_kg_per_year, 1500));
+    const degr     = clamp((safeNum(f.pv_degrad_pct, 0.5))/100, 0, 0.08);
+    const years    = 25;
+
+    const co2_kg  = prodAn * FACT_CO2;
+    const trees   = co2_kg / TREE_KG;
+    const cars    = co2_kg / CAR_KG;
+
+    let sumProd = 0;
+    for(let y=0;y<years;y++) sumProd += prodAn * Math.pow(1 - degr, y);
+    const co2_25  = sumProd * FACT_CO2;
+    const trees25 = co2_25 / TREE_KG;
+    const cars25  = co2_25 / CAR_KG;
+
+    set('v_co2',      prodAn>0 ? `�0� ${nf0.format(co2_kg)} kg` : '�');
+    set('v_trees',    prodAn>0 ? `�0� ${nf0.format(trees)} arbres` : '�');
+    set('v_cars',     prodAn>0 ? `�0� ${Number(cars).toLocaleString('fr-FR',{maximumFractionDigits:1})} voitures` : '�');
+    set('v_co2_25',   prodAn>0 ? `${co2_25.toLocaleString('fr-FR',{maximumFractionDigits:0})} kg` : '�');
+    set('v_trees_25', prodAn>0 ? trees25.toLocaleString('fr-FR',{maximumFractionDigits:0}) : '�');
+    set('v_cars_25',  prodAn>0 ? cars25.toLocaleString('fr-FR',{maximumFractionDigits:1}) : '�');
+
+    const CIRC = 2*Math.PI*42;
+    const autoLen = (autoPct/100)*CIRC;
+    const injLen  = CIRC - autoLen;
+    setDash('donut_auto', autoLen, CIRC);
+    setDash('donut_inj',  injLen,  CIRC, -autoLen);
+    set('donut_center', `${nf0.format(autoPct)} %`);
+  }
+
+  // ===== API SmartPitch
+  const API = (window.SmartPitch = window.SmartPitch || {});
+  API.renderP12 = renderP12;
+  API.bindEngineP12 = function(engine){
+    if(engine?.on) engine.on('p12:update',(p)=>{ renderP12(p); });
+    if(typeof engine?.getP12 === 'function'){
+      const first = engine.getP12();
+      if(first) renderP12(first);
+    }
+  };
+  if(window.Engine) API.bindEngineP12(window.Engine);
+
+  // ===== restauration auto si déjà saisi
+  (function rebuildIfStored(){
+    const s=getStore();
+    if (s['p12_prod'] || s['p12_auto'] || s['p12_co2']) {
+      const payload = {
+        meta: { client:s['p12_client']||'', ref:s['p12_ref']||'', date:s['p12_date']||'', year: parseInt(s['p12_year']||'2025',10)||2025 },
+        env: {
+          production_kwh_an: safeNum(s['p12_prod'],0),
+          autocons_pct: clamp(s['p12_auto'],0,100),
+          co2_kg_per_kwh: safeNum(s['p12_co2']||0.065,0.065),
+          tree_kg_per_year: safeNum(s['p12_tree']||22,22),
+          car_kg_per_year: safeNum(s['p12_car']||1500,1500),
+          pv_degrad_pct: safeNum(s['p12_degrad']||0.5,0.5)
+        }
+      };
+      renderP12(payload);
+    }
+  })();
+})();
+</script>
+
+<!-- =========================================================
+     PAGE 13 � Détails techniques & garanties (inline edit en bas)
+     ======================================================= -->
+<section class="sheet print-tight" id="p13" data-engine="tech">
+
+  <!-- ===== HEADER (identique) ===== -->
+  <div class="header" style="position:relative; --brand:#C39847; --logoW:26mm; --metaW:120mm;
+      padding-left:var(--logoW); padding-right:var(--metaW); padding-bottom:14mm;">
+    <img src="/pdf-assets/images/logo-solarglobe-rect.png" alt="Solarglobe"
+         style="position:absolute;left:0;top:0;height:15mm;object-fit:contain;">
+    <div style="position:absolute;left:50%;top:0;transform:translateX(-50%);">
+      <span class="badge" style="font-size:4.6mm; padding:1mm 5mm; border-width:0.45mm;">
+        Détails techniques & garanties
+      </span>
+    </div>
+ <div class="meta-compact" id="p13_meta_line"
+     style="
+       position:absolute;
+       right:0;
+       bottom:0;
+       width:var(--metaW);
+       display:flex;
+       flex-direction:column;
+       align-items:flex-end;
+       gap:1mm;
+       text-align:right;
+       line-height:1.3;
+     ">
+>
+      <span>Client : <span id="p13_client" class="meta-click" data-target="client">�</span></span>
+      <span>Ref : <span id="p13_ref" class="meta-click" data-target="ref">�</span></span>
+      <span>Date : <span id="p13_date" class="meta-click" data-target="date">�</span></span>
+    </div>
+  </div>
+
+  <!-- ===== R��GLE DOR�0E ===== -->
+  <div style="height:0;border-top:0.8mm solid #C39847;margin:0 0 4mm;"></div>
+
+  <!-- ===== STYLES LOCAUX (tableau inchangé) ===== -->
+  <style>
+    /* Couleurs imprimées fidèles */
+    #p13 { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+
+    /* densification globale */
+    #p13.print-tight { font-size: 3.2mm; }
+    #p13 .card.soft{
+      background:#fbf6ec;                /* doré très léger */
+      border:0.5mm solid #f1e8d8;        /* cadre premium */
+      border-radius:2.4mm;               /* bords arrondis */
+      box-shadow:0 0.5mm 1.6mm rgba(0,0,0,0.04);
+      page-break-inside: avoid;
+    }
+    #p13 .card.soft.pad { padding:4.5mm; }
+    #p13 .section{ font-size:3.9mm; font-weight:700; letter-spacing:.05mm; margin:0 0 3mm 0; }
+
+    /* Tableau compact mais lisible � IDENTIQUE à ta version */
+    #p13 table{ width:100%; border-collapse:collapse; table-layout:fixed; page-break-inside:auto; }
+    #p13 thead th:nth-child(1){ width:18%; }
+    #p13 thead th:nth-child(2){ width:23%; }
+    #p13 thead th:nth-child(3){ width:39%; }
+    #p13 thead th:nth-child(4){ width:20%; }
+    #p13 thead th{
+      background:#fff; border-bottom:0.35mm solid #e6e1d9;
+      padding:2.2mm; font-weight:700; font-size:3.25mm;
+    }
+    #p13 tbody td{
+      padding:1.9mm 2.2mm; border-top:0.2mm solid #eee; line-height:1.38;
+      hyphens:auto; overflow-wrap:anywhere; word-break:normal;
+    }
+    #p13 tbody td strong{ color:#3b3b3b; font-weight:800; }
+    #p13 tr{ page-break-inside:avoid; }
+
+    /* Grilles cartes secondaires */
+    #p13 .grid-2{ display:grid; grid-template-columns:1fr 1fr; gap:3.5mm; }
+    #p13 .icons{ display:grid; grid-template-columns:repeat(5,1fr); gap:3.2mm; }
+    #p13 .icons .i{ font-size:6.6mm; line-height:1; }
+    #p13 .icons .ico div:last-child{ font-size:2.9mm; opacity:.85; }
+
+    /* Marges utilitaires */
+    #p13 .mb-4{ margin-bottom:4mm; }
+
+  </style>
+
+  <!-- ===== CARTE : TABLEAU SYNTH�0TIQUE (inchangé) ===== -->
+  <div class="card soft pad mb-4">
+    <h3 class="section">Caractéristiques techniques & garanties</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Composant</th>
+          <th>Modèle / Marque</th>
+          <th>Caractéristiques principales</th>
+          <th>Garantie</th>
+        </tr>
+      </thead>
+      <tbody id="p13_rows">
+        <!-- Lignes par défaut (identiques à ta version) -->
+        <tr>
+          <td>Modules photovoltaïques</td>
+          <td>LONGi Hi-MO X10 Explorer 485 W</td>
+          <td>N-Type TOPCon, Back Contact, cadre noir, ~22,5&nbsp;% de rendement, très bon en faible luminosité, PID/LID minimes</td>
+          <td><strong>30 ans perf.</strong> / <strong>25 ans produit</strong> (extension fournisseur +10 ans)</td>
+        </tr>
+        <tr>
+          <td>Micro-onduleurs</td>
+          <td>ATMOCE MI-450 / MI-500</td>
+          <td>MPPT individuel, rendement &gt; 96&nbsp;%, suivi module à module, conformité UTE C 15-712-1</td>
+          <td><strong>25 ans constructeur</strong></td>
+        </tr>
+        <tr>
+          <td>Coffret de protection</td>
+          <td>ATMOCE MC-100 L / T</td>
+          <td>Protection AC/DC, parafoudre, sectionneur, différentiels ; variantes L / T selon topologie</td>
+          <td><strong>10 ans</strong></td>
+        </tr>
+        <tr>
+          <td>Structure de fixation</td>
+          <td>ISYPV / K2 Systems</td>
+          <td>Alu anodisé, visserie inox, profils validés charges vent/neige, tuiles/ardoises/bac acier</td>
+          <td><strong>25 ans</strong></td>
+        </tr>
+        <tr>
+          <td>Câblage & connectique</td>
+          <td>Prysmian Solar + MC4 Evo2</td>
+          <td>Câbles T�SV 1000&nbsp;V, double isolation, résistants UV/ozone ; connectique IP68</td>
+          <td><strong>25 ans</strong> (câble) / <strong>10 ans</strong> (connectique)</td>
+        </tr>
+        <tr>
+          <td>Batterie (option)</td>
+          <td>ATMOCE Home 7&nbsp;kWh LiFePO�</td>
+          <td>&gt; 6000 cycles, charge/décharge 5&nbsp;kW, rendement &gt; 95&nbsp;%, BMS avancé</td>
+          <td><strong>15 ans</strong> (assurance performance)</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ===== LIGNE DE CARTES SECONDAIRES (inchangées) ===== -->
+  <div class="grid-2">
+    <div class="card soft pad">
+      <h3 class="section">Points forts des composants</h3>
+      <div class="icons">
+        <div class="ico" style="text-align:center;">
+          <div class="i">�x:�️</div>
+          <div>Fiabilité testée</div>
+        </div>
+        <div class="ico" style="text-align:center;">
+          <div class="i">�a"️</div>
+          <div>TOPCon N-Type</div>
+        </div>
+        <div class="ico" style="text-align:center;">
+          <div class="i">�x9</div>
+          <div>LiFePO� &gt; 6000</div>
+        </div>
+        <div class="ico" style="text-align:center;">
+          <div class="i">�ܬ️</div>
+          <div>Rend. ~22,5&nbsp;%</div>
+        </div>
+        <div class="ico" style="text-align:center;">
+          <div class="i">�xR�️</div>
+          <div>IP68 intempéries</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card soft pad">
+      <h3 class="section">Conformité & pose</h3>
+      <div class="note" style="font-size:3.1mm; line-height:1.45;">
+        <p>Tous les équipements sont <strong>certifiés CE</strong> et conformes aux normes françaises en vigueur
+          (<strong>UTE C 15-712-1</strong>, <strong>NFC 15-100</strong>). Pose par partenaires <strong>RGE QualiPV</strong>.</p>
+        <p><em>Remarque :</em> la référence exacte (MI-450/500, MC-100 L/T, structure ISYPV/K2) est
+          déterminée par le calepinage et l�"étude technique du site.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== SCRIPT ===== -->
+  <script>
+  (function(){
+    const API = (window.SmartPitch = window.SmartPitch || {});
+    const $ = (s) => document.querySelector(s);
+
+    const KEYS = {
+      client: 'p13_meta_client_in',
+      ref:    'p13_meta_ref_in',
+      date:   'p13_meta_date_in'
+    };
+
+    function lsGet(){ try{ return JSON.parse(localStorage.getItem('smartpitch_overrides')||'{}'); }catch{ return {}; } }
+    function lsSet(p){ const s = lsGet(); Object.assign(s,p); localStorage.setItem('smartpitch_overrides', JSON.stringify(s)); }
+    function setText(sel,v){ const e=$(sel); if(e) e.textContent = (v && String(v).trim()) || '�'; }
+    function safe(v){ return v==null?'�':String(v).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'); }
+
+    // --- Hydrate META depuis LS > Engine > payload
+    function hydrateMeta(payload){
+      const ls = lsGet();
+      const eng = (window.Engine?.getMeta?.()) || {};
+      const c = ls[KEYS.client] ?? payload?.client ?? payload?.meta?.client ?? eng.client ?? '';
+      const r = ls[KEYS.ref]    ?? payload?.ref    ?? payload?.meta?.ref    ?? eng.ref    ?? '';
+      const d = ls[KEYS.date]   ?? payload?.date   ?? payload?.meta?.date   ?? eng.date   ?? '';
+
+      setText('#p13_client', c);
+      setText('#p13_ref', r);
+      setText('#p13_date', d);
+    }
+
+    // --- Rendu technique (items) � remplace le tbody si fourni
+    function renderP13(data){
+      hydrateMeta(data);
+      const items = data?.tech?.items || data?.items;
+      if(Array.isArray(items) && items.length){
+        $('#p13_rows').innerHTML = items.map(it => `
+          <tr>
+            <td>${safe(it.comp)}</td>
+            <td>${safe(it.model)}</td>
+            <td>${safe(it.features)}</td>
+            <td><strong>${safe(it.warranty)}</strong></td>
+          </tr>`).join('');
+      }
+    }
+
+    // --- Bind moteur
+    API.renderP13 = renderP13;
+    API.bindEngineP13 = function(engine){
+      if(!engine) return;
+      if(engine.on) engine.on('p13:update', renderP13);
+      const first = engine.getP13?.(); if(first) renderP13(first); else hydrateMeta();
+    };
+
+    // --- Boot
+    if(window.Engine) API.bindEngineP13(window.Engine); else hydrateMeta();
+
+  })();
+  </script>
+</section>
+
+
+
+<!-- =========================================================
+     PAGE 14 � Prochaines étapes & mentions légales (A4 paysage)
+     Version remplie � mentions société en dur � inline meta edit
+     ======================================================= -->
+<section class="sheet" id="p14">
+
+  <!-- ===== HEADER ===== -->
+  <div class="header" style="position:relative; --brand:#C39847; --logoW:26mm; --metaW:120mm;
+      padding-left:var(--logoW); padding-right:var(--metaW); padding-bottom:16mm;">
+    <img src="/pdf-assets/images/logo-solarglobe-rect.png" alt="Solarglobe"
+         style="position:absolute;left:0;top:0;height:16mm;object-fit:contain;">
+    <div style="position:absolute;left:50%;top:0;transform:translateX(-50%);">
+      <span class="badge" style="font-size:5mm; padding:1.1mm 6mm; border-width:0.5mm;">
+        Prochaines étapes & mentions légales
+      </span>
+    </div>
+ <div class="meta-compact" id="p14_meta_line"
+     style="
+       position:absolute;
+       right:0;
+       bottom:0;
+       width:var(--metaW);
+       display:flex;
+       flex-direction:column;
+       align-items:flex-end;
+       gap:1mm;
+       text-align:right;
+       line-height:1.3;
+     ">
+
+      <span>Client : <span id="p14_client" class="meta-click" data-target="client">�</span></span>
+      <span>Ref : <span id="p14_ref" class="meta-click" data-target="ref">�</span></span>
+      <span>Date : <span id="p14_date" class="meta-click" data-target="date">�</span></span>
+    </div>
+  </div>
+
+  <!-- ===== R��GLE DOR�0E ===== -->
+  <div style="height:0;border-top:0.9mm solid #C39847;margin:0 0 5mm;"></div>
+
+  <!-- ===== CONTENU ===== -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8mm;align-items:start;padding:0 2mm;">
+
+    <!-- === Colonne gauche : Prochaines étapes (5 étapes) === -->
+    <div style="background:#fafafa;border:0.5mm solid #eee;border-radius:4mm;padding:6mm;">
+      <div style="display:flex;align-items:center;gap:4mm;margin-bottom:4mm;">
+        <div style="width:8mm;height:8mm;border-radius:50%;
+                    background:linear-gradient(135deg,#f5d9a6,#C39847);"></div>
+        <h3 style="margin:0;font-size:5mm;line-height:1.1;">Prochaines étapes (accompagnement)</h3>
+      </div>
+
+      <ol style="margin:0;padding:0;list-style:none;">
+        <li style="display:grid;grid-template-columns:10mm 1fr;gap:4mm;align-items:start;margin-bottom:5mm;">
+          <div style="position:relative;">
+            <div style="width:8mm;height:8mm;border:0.6mm solid #C39847;border-radius:50%;
+                        display:flex;align-items:center;justify-content:center;font-weight:700;font-size:3.6mm;">1</div>
+            <div style="position:absolute;left:3.9mm;top:8mm;bottom:-6mm;width:0.6mm;background:#ead7b8;"></div>
+          </div>
+          <div>
+            <div style="font-weight:700;font-size:4mm;">Validation de l�"offre</div>
+            <div style="font-size:3.4mm;color:#333;">
+              Signature du devis et, si un financement est choisi, finalisation du dossier avant le lancement du projet.
+            </div>
+          </div>
+        </li>
+
+        <li style="display:grid;grid-template-columns:10mm 1fr;gap:4mm;align-items:start;margin-bottom:5mm;">
+          <div style="position:relative;">
+            <div style="width:8mm;height:8mm;border:0.6mm solid #C39847;border-radius:50%;
+                        display:flex;align-items:center;justify-content:center;font-weight:700;font-size:3.6mm;">2</div>
+            <div style="position:absolute;left:3.9mm;top:8mm;bottom:-6mm;width:0.6mm;background:#ead7b8;"></div>
+          </div>
+          <div>
+            <div style="font-weight:700;font-size:4mm;">Pré-étude technique</div>
+            <div style="font-size:3.4mm;color:#333;">
+              Relevé toiture, calepinage, dimensionnement final (structures, protections, câblage).
+            </div>
+          </div>
+        </li>
+
+        <li style="display:grid;grid-template-columns:10mm 1fr;gap:4mm;align-items:start;margin-bottom:5mm;">
+          <div style="position:relative;">
+            <div style="width:8mm;height:8mm;border:0.6mm solid #C39847;border-radius:50%;
+                        display:flex;align-items:center;justify-content:center;font-weight:700;font-size:3.6mm;">3</div>
+            <div style="position:absolute;left:3.9mm;top:8mm;bottom:-6mm;width:0.6mm;background:#ead7b8;"></div>
+          </div>
+          <div>
+            <div style="font-weight:700;font-size:4mm;">Démarches administratives</div>
+            <div style="font-size:3.4mm;color:#333;">
+              Déclaration mairie, dossier Enedis (raccordement), OA/prime autoconsommation, assurances.
+            </div>
+          </div>
+        </li>
+
+        <li style="display:grid;grid-template-columns:10mm 1fr;gap:4mm;align-items:start;margin-bottom:5mm;">
+          <div style="position:relative;">
+            <div style="width:8mm;height:8mm;border:0.6mm solid #C39847;border-radius:50%;
+                        display:flex;align-items:center;justify-content:center;font-weight:700;font-size:3.6mm;">4</div>
+            <div style="position:absolute;left:3.9mm;top:8mm;bottom:-6mm;width:0.6mm;background:#ead7b8;"></div>
+          </div>
+          <div>
+            <div style="font-weight:700;font-size:4mm;">Installation</div>
+            <div style="font-size:3.4mm;color:#333;">
+              Pose par partenaire RGE (structures, câblage, protections, essais) selon le calepinage validé.
+            </div>
+          </div>
+        </li>
+
+        <li style="display:grid;grid-template-columns:10mm 1fr;gap:4mm;align-items:start;">
+          <div>
+            <div style="width:8mm;height:8mm;border:0.6mm solid #C39847;border-radius:50%;
+                        display:flex;align-items:center;justify-content:center;font-weight:700;font-size:3.6mm;">5</div>
+          </div>
+          <div>
+            <div style="font-weight:700;font-size:4mm;">CONSUEL & mise en service</div>
+            <div style="font-size:3.4mm;color:#333;">
+              Visite CONSUEL, attestation de conformité, mise en service, assistance à l�"activation et prise en main du monitoring. Suivi post-installation.
+            </div>
+          </div>
+        </li>
+      </ol>
+
+      <div style="margin-top:6mm;padding:3.5mm;border:0.5mm dashed #ead7b8;border-radius:3mm;background:#fff;">
+        <div style="font-size:3.5mm;">
+          <strong>Accompagnement :</strong> Solarglobe vous suit jusqu�"à la mise en service et durant la première année d�"exploitation (optimisations & suivi conso/production).
+        </div>
+      </div>
+    </div>
+
+    <!-- === Colonne droite : cartes === -->
+    <div style="display:grid;grid-template-rows:auto auto 1fr;gap:6mm;min-height:0;">
+
+      <div style="border:0.5mm solid #e6e6e6;border-radius:4mm;padding:5mm;background:#fbfbfb;">
+        <div style="display:flex;align-items:center;gap:4mm;margin-bottom:2mm;">
+          <div style="width:8mm;height:8mm;border-radius:50%;background:#22c55e;"></div>
+          <div style="font-weight:700;font-size:4.2mm;">Audit des calculs</div>
+        </div>
+        <div style="font-size:3.5mm;color:#333;">
+          <strong style="color:#16a34a;">�S& Conforme</strong> � Identités vérifiées (Σ mois = annuel, autoconso �0� prod/conso, prime & OA conformes). Export PDF autorisé.
+        </div>
+      </div>
+
+      <div style="border:0.5mm solid #e6e6e6;border-radius:4mm;padding:5mm;background:#fff;">
+        <div style="display:flex;align-items:center;gap:4mm;margin-bottom:3mm;">
+          <div style="width:8mm;height:8mm;border-radius:50%;
+                      background:linear-gradient(135deg,#f5d9a6,#C39847);"></div>
+          <div style="font-weight:700;font-size:4.2mm;">Mentions légales & conformité</div>
+        </div>
+        <div style="font-size:3.2mm;line-height:1.45;color:#333;">
+          �0tude indicative fondée sur les données communiquées et les hypothèses standard Solarglobe :
+          production PVGIS (pertes 14&nbsp;%), prix électricité indexé +4&nbsp;%/an, dégradation modules 0,5&nbsp;%/an.
+          Les indicateurs (ROI, TRI, LCOE, gains) sont des estimations et ne constituent pas un engagement
+          contractuel. Matériels certifiés CE (EN&nbsp;61215 / EN&nbsp;61730). Garanties selon p.&nbsp;13.
+          Installation réalisée par un partenaire RGE ; prime OA & TVA réduite sous conditions.
+        </div>
+      </div>
+
+      <div style="border:0.5mm solid #e6e6e6;border-radius:4mm;padding:5mm;background:#fff;display:grid;grid-template-rows:auto 1fr;min-height:42mm;">
+        <div style="display:flex;align-items:center;gap:4mm;margin-bottom:3mm;">
+          <div style="width:8mm;height:8mm;border-radius:50%;
+                      background:linear-gradient(135deg,#f5d9a6,#C39847);"></div>
+          <div style="font-weight:700;font-size:4.2mm;">Société & coordonnées</div>
+        </div>
+
+        <div style="font-size:2.8mm;line-height:1.45;color:#333;display:grid;grid-template-columns:1fr 1fr;gap:2mm 6mm;">
+          <div><strong>Solarglobe SAS</strong> � SAS</div>
+          <div><strong>Capital :</strong> 2&nbsp;000,00&nbsp;��</div>
+
+          <div><strong>SIREN :</strong> 988&nbsp;455&nbsp;416</div>
+          <div><strong>SIRET :</strong> 988&nbsp;455&nbsp;416&nbsp;00012</div>
+
+          <div><strong>TVA intracom :</strong> FR18988455416</div>
+          <div><strong>RCS :</strong> 988&nbsp;455&nbsp;416 R.C.S. Meaux</div>
+
+          <div><strong>Greffe :</strong> Meaux</div>
+          <div><strong>NAF :</strong> 00.00Z</div>
+
+          <div style="grid-column:1/-1;"><strong>Siège :</strong> 19 Avenue Pierre Curie, 77500 Chelles</div>
+          <div><strong>Création :</strong> 24/06/2025</div>
+          <div><strong>Dirigeants :</strong> Letren&nbsp;Benoit, Brunet&nbsp;Nicolas</div>
+
+          <div style="grid-column:1/-1;border-top:0.3mm solid #eee;padding-top:2mm;margin-top:1mm;display:flex;justify-content:space-between;gap:4mm;flex-wrap:wrap;">
+            <span>www.solarglobe.fr</span>
+            <span>© 2025 Tous droits réservés</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== SCRIPT p14 (inline edit + bind moteur) ===== -->
+  <script>
+  (function(){
+    const API = (window.SmartPitch = window.SmartPitch || {});
+    const $  = (s)=>document.querySelector(s);
+
+    const KEYS = {
+      client: 'p14_meta_client_in',
+      ref:    'p14_meta_ref_in',
+      date:   'p14_meta_date_in'
+    };
+
+    function lsGet(){ try{ return JSON.parse(localStorage.getItem('smartpitch_overrides')||'{}'); }catch{ return {}; } }
+    function lsSet(p){ const s = lsGet(); Object.assign(s,p); localStorage.setItem('smartpitch_overrides', JSON.stringify(s)); }
+    function setText(sel,v){ const e=$(sel); if(e) e.textContent = (v && String(v).trim()) || '�'; }
+
+    function hydrateMeta(payload){
+      const ls  = lsGet();
+      const eng = (window.Engine?.getMeta?.()) || {};
+      const c = ls[KEYS.client] ?? payload?.client ?? payload?.meta?.client ?? eng.client ?? '';
+      const r = ls[KEYS.ref]    ?? payload?.ref    ?? payload?.meta?.ref    ?? eng.ref    ?? '';
+      const d = ls[KEYS.date]   ?? payload?.date   ?? payload?.meta?.date   ?? eng.date   ?? '';
+
+      setText('#p14_client', c);
+      setText('#p14_ref', r);
+      setText('#p14_date', d);
+    }
+
+    // moteur
+    function renderP14(payload){ hydrateMeta(payload); }
+    API.renderP14 = renderP14;
+    API.bindEngineP14 = function(engine){
+      if(!engine) return;
+      if(engine.on) engine.on('p14:update', renderP14);
+      const first = engine.getP14?.(); if(first) renderP14(first); else hydrateMeta();
+    };
+
+    // boot
+    if(window.Engine) API.bindEngineP14(window.Engine); else hydrateMeta();
+  })();
+  </script>
+</section>
+
+<script>
+window.API = window.API || {};
+
+</script>
+
+
+<script src="/pdf-engines/engine-main.js"></script>
+<script src="/pdf-engines/engine-p1.js"></script>
+<script src="/pdf-engines/engine-p2.js"></script>
+<script src="/pdf-engines/engine-p3.js"></script>
+<script src="/pdf-engines/engine-p3b.js"></script>
+<script src="/pdf-engines/engine-p4.js"></script>
+<script src="/pdf-engines/engine-p5.js"></script>
+<script src="/pdf-engines/engine-p6.js"></script>
+<script src="/pdf-engines/engine-p7.js"></script>
+<script src="/pdf-engines/engine-p8.js"></script>
+<script src="/pdf-engines/engine-p9.js"></script>
+<script src="/pdf-engines/engine-p10.js"></script>
+<script src="/pdf-engines/engine-p11.js"></script>
+<script src="/pdf-engines/engine-p12.js"></script>
+<script src="/pdf-engines/engine-p13.js"></script>
+<script src="/pdf-engines/engine-p14.js"></script>
+
+<script>
+  window.API.bindEngineP1(window.Engine);
+  window.API.bindEngineP2(window.Engine);
+  window.API.bindEngineP3(window.Engine);
+
+  window.API.bindEngineP4(window.Engine);
+  window.API.bindEngineP5(window.Engine);
+  window.API.bindEngineP6(window.Engine);
+  window.API.bindEngineP7(window.Engine);
+  window.API.bindEngineP8(window.Engine);
+  window.API.bindEngineP11(window.Engine);
+
+</script>
+
+
+</body>
+</html>
+
+
+
+
+

@@ -1,0 +1,51 @@
+{
+  "roofSurveyLocked": false,
+  "roof": {
+    "scale": { "metersPerPixel": 0.05 },
+    "roof": { "north": { "angleDeg": 0 } }
+  },
+  "contours": [
+    {
+      "id": "footprint",
+      "closed": true,
+      "roofRole": "contour",
+      "points": [
+        { "x": 0, "y": 0, "h": 5 },
+        { "x": 300, "y": 0, "h": 5 },
+        { "x": 300, "y": 200, "h": 5 },
+        { "x": 0, "y": 200, "h": 5 }
+      ]
+    }
+  ],
+  "ridges": [
+    {
+      "id": "ridge-main",
+      "a": { "x": 150, "y": 0, "h": 7 },
+      "b": { "x": 150, "y": 200, "h": 7 }
+    }
+  ],
+  "traits": [],
+  "pans": [
+    {
+      "id": "pan-left",
+      "points": [
+        { "x": 10, "y": 10, "h": 6 },
+        { "x": 140, "y": 10, "h": 6 },
+        { "x": 140, "y": 190, "h": 6 },
+        { "x": 10, "y": 190, "h": 6 }
+      ]
+    },
+    {
+      "id": "pan-right",
+      "points": [
+        { "x": 160, "y": 10, "h": 6 },
+        { "x": 290, "y": 10, "h": 6 },
+        { "x": 290, "y": 190, "h": 6 },
+        { "x": 160, "y": 190, "h": 6 }
+      ]
+    }
+  ],
+  "obstacles": [],
+  "shadowVolumes": [],
+  "roofExtensions": []
+}

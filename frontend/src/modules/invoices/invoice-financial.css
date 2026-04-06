@@ -1,0 +1,320 @@
+/* Suivi financier facture — blocs denses, même ADN que qb/ib */
+
+.if-suite {
+  margin-top: 28px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+}
+
+.if-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  padding: 16px 18px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.08), rgba(15, 23, 42, 0.5));
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.09));
+  margin-bottom: 20px;
+}
+
+.if-strip-cell {
+  min-width: 0;
+}
+
+.if-strip-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.if-strip-value {
+  font-size: 18px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.if-strip-value--due {
+  color: #fbbf24;
+}
+
+.if-strip-value--ok {
+  color: #6ee7b7;
+}
+
+.if-strip-hint {
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--text-muted);
+  grid-column: 1 / -1;
+}
+
+.if-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+.if-panel {
+  border-radius: 10px;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.08));
+  background: var(--surface-elevated, rgba(15, 23, 42, 0.35));
+  overflow: hidden;
+}
+
+.if-panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border, rgba(255, 255, 255, 0.06));
+}
+
+.if-panel-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.if-panel-sub {
+  margin: 0 0 10px;
+  padding: 0 14px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.if-panel-body {
+  padding: 0 14px 14px;
+}
+
+.if-panel--payments .if-panel-head {
+  align-items: flex-start;
+}
+
+.if-panel-desc {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.if-panel-body--payments {
+  padding: 12px 14px 16px;
+}
+
+.if-payments-empty {
+  margin: 8px 0;
+  padding: 16px;
+  text-align: center;
+  border-radius: 10px;
+  border: 1px dashed var(--border, rgba(255, 255, 255, 0.12));
+}
+
+.if-payments-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.if-payment-card {
+  padding: 14px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+  background: color-mix(in srgb, var(--surface-2, #252032) 55%, transparent);
+}
+
+.theme-light .if-payment-card {
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.if-payment-card--cancelled {
+  opacity: 0.72;
+  border-style: dashed;
+}
+
+.if-payment-card__main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.if-payment-card__amount {
+  font-size: 1.15rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.if-payment-card__date {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.if-payment-card__dl {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px 16px;
+  margin: 0;
+  font-size: 12px;
+}
+
+.if-payment-card__dl dt {
+  margin: 0;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.if-payment-card__dl dd {
+  margin: 2px 0 0;
+  color: var(--text-primary);
+  word-break: break-word;
+}
+
+.if-payment-card__note-row {
+  grid-column: 1 / -1;
+}
+
+.if-payment-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border, rgba(255, 255, 255, 0.08));
+}
+
+.if-payment-badge {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.if-payment-cancel {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--link-color, #a78bfa);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.if-payment-cancel:hover:not(:disabled) {
+  color: var(--text-primary);
+}
+
+.if-payment-cancel:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.if-payments-foot {
+  margin: 14px 0 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.if-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.if-table th,
+.if-table td {
+  padding: 8px 6px;
+  text-align: left;
+  border-bottom: 1px solid var(--border, rgba(255, 255, 255, 0.06));
+}
+
+.if-table th {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.if-table tr:last-child td {
+  border-bottom: none;
+}
+
+.if-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.if-muted {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.if-row-cancelled {
+  opacity: 0.55;
+  text-decoration: line-through;
+}
+
+.if-badge {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(148, 163, 184, 0.2);
+}
+
+.if-badge--draft {
+  background: rgba(100, 116, 139, 0.3);
+}
+.if-badge--issued {
+  background: rgba(16, 185, 129, 0.2);
+  color: #6ee7b7;
+}
+
+.if-modal-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.if-modal-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.if-modal-grid input,
+.if-modal-grid select,
+.if-modal-grid textarea {
+  width: 100%;
+}
+
+.if-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}

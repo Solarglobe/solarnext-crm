@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <title>DP6 — Insertion du projet | SolarGlobe</title>
+
+<style>
+/* ======================================================
+   DP6 — INSERTION DU PROJET
+   SOLARGLOBE — ALIGNÉ DP2 / DP4 (structure/marges/logo/footer)
+   A4 LANDSCAPE — 2 PAGES (AVANT / APRÈS)
+====================================================== */
+
+@page{
+  size: A4 landscape;
+  margin: 12mm;
+}
+
+:root{
+  --ink:#111;
+  --muted:#6b7280;
+  --line:#e5e7eb;
+  --brand:#C39847; /* OR SOLARGLOBE */
+  --bg:#ffffff;
+  --card:#ffffff;
+}
+
+html, body{
+  margin:0;
+  padding:0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* ===============================
+   PAGE — STRICT 1 PAGE = 1 A4
+=============================== */
+.page{
+  width:100%;
+  height: calc(210mm - 24mm);
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+  page-break-after:always;
+}
+.page:last-child{
+  page-break-after:auto;
+}
+
+/* ===============================
+   HEADER
+=============================== */
+.topbar{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:12px;
+  margin-bottom:6mm;
+}
+
+.logo{
+  width:160px;
+  height:44px;
+}
+.logo img{
+  width:100%;
+  height:100%;
+  object-fit:contain;
+  display:block;
+}
+
+.brandline{
+  text-align:right;
+  font-size:10.5px;
+  line-height:1.35;
+  color:#374151;
+  white-space:nowrap;
+}
+
+/* ===============================
+   LAYOUT
+=============================== */
+.sheet{
+  flex:1;
+  display:grid;
+  grid-template-columns:60mm 1fr;
+  gap:8mm;
+  min-height:0;
+}
+
+/* ===============================
+   LEFT — INFOS
+=============================== */
+.left{
+  border:1.2px solid var(--brand);
+  border-radius:8px;
+  background:var(--card);
+  padding:10px;
+  display:flex;
+  flex-direction:column;
+  min-height:0;
+}
+
+.h1{
+  font-size:15px;
+  font-weight:700;
+  margin:0 0 12px;
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+.h1::before{
+  content:"";
+  width:4px;
+  height:16px;
+  background:var(--brand);
+  border-radius:2px;
+}
+
+/* (DP6) Pas de légende / pas de métriques / pas de texte métier supplémentaire */
+
+.section-title{
+  font-size:11.2px;
+  font-weight:800;
+  letter-spacing:0.2px;
+  margin: 0 0 6px 0;
+}
+
+.row{
+  display:flex;
+  gap:8px;
+  align-items:flex-start;
+  margin:4px 0;
+  font-size:11px;
+  line-height:1.35;
+}
+.label{
+  color:var(--muted);
+  min-width:22mm;
+  white-space:nowrap;
+}
+.value{
+  font-weight:600;
+  color:var(--ink);
+  flex:1;
+}
+
+.divider{
+  height:1px;
+  background:linear-gradient(
+    to right,
+    var(--brand),
+    transparent
+  );
+  margin:9px 0;
+}
+
+/* ===============================
+   RIGHT — IMAGE
+=============================== */
+.right{
+  border:1.2px solid var(--brand);
+  border-radius:8px;
+  background:#fff;
+  padding:6mm;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  overflow:hidden;
+}
+
+.plan-img{
+  width:100%;
+  height:100%;
+  max-width:100%;
+  max-height:100%;
+  object-fit:contain;
+  display:block;
+}
+
+/* ===============================
+   FOOTER
+=============================== */
+.footer{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-end;
+  margin-top:4mm;
+  padding-top:2mm;
+  border-top:1px solid var(--brand);
+  font-size:10px;
+  color:#374151;
+}
+.footer .muted{
+  color:var(--muted);
+}
+
+[data-field]{
+  font-weight:600;
+}
+</style>
+</head>
+
+<body>
+  <!-- Hydratation stricte des contextes (si fournis par le backend).
+       Objectif : DP6 lit uniquement SMARTPITCH_CTX / DP1_CONTEXT (comme DP2/DP4). -->
+  <script>
+    (function () {
+      try {
+        const st = window.DP6_STATE || null;
+        if (st && !window.SMARTPITCH_CTX && st.SMARTPITCH_CTX) window.SMARTPITCH_CTX = st.SMARTPITCH_CTX;
+        if (st && !window.DP1_CONTEXT && st.DP1_CONTEXT) window.DP1_CONTEXT = st.DP1_CONTEXT;
+      } catch (_) {}
+    })();
+  </script>
+
+  <!-- ===============================
+       PAGE 1 — AVANT TRAVAUX
+  =============================== -->
+  <section class="page">
+    <div class="topbar">
+      <div class="logo">
+        <img src="/pdf-assets/images/logo-solarglobe-rect.png">
+      </div>
+      <div class="brandline">
+        SolarGlobe · Bureau d’étude photovoltaïque<br>
+        19 Avenue Pierre Curie · 77500 Chelles
+      </div>
+    </div>
+
+    <div class="sheet">
+      <aside class="left">
+        <h1 class="h1">DP6 — Insertion du projet</h1>
+
+        <div class="row"><div class="label">Catégorie</div><div class="value">Avant travaux</div></div>
+
+        <div class="divider"></div>
+
+        <div class="row"><div class="label">Client</div><div class="value" data-field="client.nom"></div></div>
+        <div class="row">
+          <div class="label">Adresse projet</div>
+          <div class="value">
+            <span data-field="client.adresse"></span><br>
+            <span data-field="client.cp"></span> <span data-field="client.ville"></span>
+          </div>
+        </div>
+        <div class="row"><div class="label">Réf. cadastrales</div><div class="value" data-field="cadastre.refs"></div></div>
+      </aside>
+
+      <main class="right">
+        <img class="plan-img" data-field="images.before" alt="DP6 — Avant travaux">
+      </main>
+    </div>
+
+    <div class="footer">
+      <div class="muted">Document interne – avant dépôt</div>
+      <div>DP6 · Page 1 / 2<br><span class="muted">le <span data-field="date"></span></span></div>
+    </div>
+  </section>
+
+  <!-- ===============================
+       PAGE 2 — APRÈS TRAVAUX
+  =============================== -->
+  <section class="page">
+    <div class="topbar">
+      <div class="logo">
+        <img src="/pdf-assets/images/logo-solarglobe-rect.png">
+      </div>
+      <div class="brandline">
+        SolarGlobe · Bureau d’étude photovoltaïque<br>
+        19 Avenue Pierre Curie · 77500 Chelles
+      </div>
+    </div>
+
+    <div class="sheet">
+      <aside class="left">
+        <h1 class="h1">DP6 — Insertion du projet</h1>
+
+        <div class="row"><div class="label">Catégorie</div><div class="value">Après travaux</div></div>
+
+        <div class="divider"></div>
+
+        <div class="row"><div class="label">Client</div><div class="value" data-field="client.nom"></div></div>
+        <div class="row">
+          <div class="label">Adresse projet</div>
+          <div class="value">
+            <span data-field="client.adresse"></span><br>
+            <span data-field="client.cp"></span> <span data-field="client.ville"></span>
+          </div>
+        </div>
+        <div class="row"><div class="label">Réf. cadastrales</div><div class="value" data-field="cadastre.refs"></div></div>
+
+        <div class="divider"></div>
+
+        <div class="section-title">Module photovoltaïque</div>
+        <div class="row"><div class="label">Fabricant</div><div class="value" data-field="dp6.module.fabricant"></div></div>
+        <div class="row"><div class="label">Référence</div><div class="value" data-field="dp6.module.reference"></div></div>
+        <div class="row"><div class="label">Dimensions des modules :</div><div class="value" data-field="dp6.module.dimensions"></div></div>
+        <div class="row"><div class="label">Orientation</div><div class="value" data-field="dp6.layout.orientation"></div></div>
+      </aside>
+
+      <main class="right">
+        <img class="plan-img" data-field="images.after" alt="DP6 — Après travaux">
+      </main>
+    </div>
+
+    <div class="footer">
+      <div class="muted">Document interne – avant dépôt</div>
+      <div>DP6 · Page 2 / 2<br><span class="muted">le <span data-field="date"></span></span></div>
+    </div>
+  </section>
+
+  <script src="/shared/panel-dimensions.js"></script>
+  <script src="dp6.js"></script>
+</body>
+</html>
+

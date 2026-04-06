@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Déclaration Préalable</title>
+
+  <link rel="icon" href="./favicon.png" />
+  <link rel="stylesheet" href="style.css" />
+
+  <!-- OpenLayers (carte IGN DP1) -->
+<link
+  rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/ol@10.7.0/ol.css"
+/>
+<script src="https://cdn.jsdelivr.net/npm/ol@10.7.0/dist/ol.js"></script>
+
+</head>
+
+<body>
+
+  <!-- ================= HEADER ================= -->
+  <header class="app-header">
+    <div class="topbar">
+      <div class="brand">
+        <div class="brand-mark">S</div>
+        <div class="brand-text">
+          <span>Solarglobe</span>
+          <span>SolarNext</span>
+        </div>
+      </div>
+
+      <nav class="top-nav">
+        <a href="../index.html">Accueil</a>
+        <a href="../crm.html">CRM SolarNext</a>
+        <a href="../crm.html">CRM SolarNext</a>
+        <a href="#" class="active">Déclaration préalable</a>
+        <a href="../result.html">Résultat</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- ================= LAYOUT ================= -->
+  <div class="layout">
+
+    <!-- ===== SIDEBAR DP ===== -->
+    <aside class="sidebar">
+      <h3>Dossier DP</h3>
+
+      <nav class="dp-menu">
+        <a href="#" data-page="pages/mandat.html">Mandat de représentation</a>
+
+        <hr class="dp-separator">
+
+        <a href="#" data-page="pages/general.html" class="active">Général</a>
+
+        <a href="#" data-page="pages/dp1.html">DP1 — Situation</a>
+        <a href="#" data-page="pages/dp2.html">DP2 — Plan de masse</a>
+        <a href="#" data-page="pages/dp3.html">DP3 — Plan de coupe</a>
+        <a href="#" data-page="pages/dp4.html">DP4 — Toiture</a>
+        <a href="#" data-page="pages/dp6.html">DP6 — Insertion</a>
+        <a href="#" data-page="pages/dp7.html">DP7 — Environnement proche</a>
+        <a href="#" data-page="pages/dp8.html">DP8 — Environnement lointain</a>
+
+        <a href="#" data-page="pages/cerfa.html">CERFA</a>
+      </nav>
+    </aside>
+
+    <!-- ===== CONTENU CENTRAL ===== -->
+    <main class="content">
+      <div class="content-card" id="page-content">
+        <!-- Fragment injecté ici -->
+      </div>
+    </main>
+
+  </div>
+
+  <!-- ================= SCRIPT APP ================= -->
+  
+
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+<script src="../../shared/panel-dimensions.js"></script>
+<script src="../config/featureFlags.js"></script>
+<script>
+  (function () {
+    var el = document.getElementById("nav-calpinage");
+    if (!el) return;
+    window.getFeatureFlags().then(function () {
+      if (window.isCalpinageEnabled()) el.style.display = "";
+    });
+  })();
+</script>
+<script src="./dp-app.js"></script>
+<script src="./dp7.js"></script>
+<script src="./dp8.js"></script>
+
+</body>
+</html>

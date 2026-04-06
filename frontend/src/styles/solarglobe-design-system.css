@@ -1,0 +1,135 @@
+:root {
+  /* Brand */
+  --sg-brand: #C39847;
+  --sg-brand-hover: #A97F35;
+
+  /* States */
+  --sg-success: #16A34A;
+  --sg-warning: #F59E0B;
+  --sg-error: #DC2626;
+
+  /* Neutrals */
+  --sg-text: #1F2937;
+  --sg-text-muted: #6B7280;
+  --sg-border: #E5E7EB;
+  --sg-bg: #FFFFFF;
+  --sg-bg-soft: #F9FAFB;
+
+  /* Radius */
+  --sg-radius-sm: 8px;
+  --sg-radius-md: 12px;
+  --sg-radius-lg: 16px;
+
+  /* Shadow */
+  --sg-shadow-soft: 0 6px 16px rgba(0,0,0,0.06);
+}
+
+/* Base typography */
+.sg-title-lg { font-size: 18px; font-weight: 600; color: var(--sg-text); }
+.sg-title-md { font-size: 16px; font-weight: 600; color: var(--sg-text); }
+.sg-text { font-size: 13px; color: var(--sg-text); }
+.sg-label { font-size: 14px; font-weight: 500; color: var(--sg-text); }
+.sg-helper { font-size: 12px; color: var(--sg-text-muted); }
+
+/* Buttons */
+.sg-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 42px;
+  padding: 0 20px;
+  border-radius: var(--sg-radius-md);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.sg-btn-primary {
+  background: var(--sg-brand);
+  color: #ffffff;
+  border: none;
+}
+
+.sg-btn-primary:hover {
+  background: var(--sg-brand-hover);
+  box-shadow: var(--sg-shadow-soft);
+}
+
+.sg-btn-secondary {
+  background: transparent;
+  border: 1px solid var(--sg-brand);
+  color: var(--sg-brand);
+}
+
+.sg-btn-danger {
+  background: var(--sg-error);
+  color: #ffffff;
+  border: none;
+}
+
+.sg-btn-ghost {
+  background: var(--sg-bg-soft);
+  border: 1px solid var(--sg-border);
+  color: var(--sg-text);
+  height: 36px;
+  padding: 0 14px;
+  border-radius: var(--sg-radius-sm);
+}
+
+/* States */
+.sg-state-success { color: var(--sg-success); }
+.sg-state-warning { color: var(--sg-warning); }
+.sg-state-error { color: var(--sg-error); }
+
+/* ─────────────────────────────
+   SOLARGLOBE ICON SYSTEM v1
+───────────────────────────── */
+
+.sg-icon-wrapper {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--sg-radius-sm);
+  background: transparent;
+  color: var(--sg-text-muted);
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.sg-icon {
+  width: 18px;
+  height: 18px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: stroke 0.2s ease;
+}
+
+/* Active state */
+.sg-icon-wrapper.is-active {
+  background: rgba(195,152,71,0.12);
+  color: var(--sg-brand);
+}
+
+/* Hover */
+.sg-icon-wrapper:hover {
+  background: rgba(195,152,71,0.08);
+  color: var(--sg-text);
+}
+
+/* Inside colored buttons (primary, danger) — inherit button color */
+.sg-btn-primary .sg-icon-wrapper,
+.sg-btn-danger .sg-icon-wrapper {
+  color: inherit;
+}
+
+/* Active tool button — inherit button color */
+.calpinage-tool-btn[aria-pressed="true"] .sg-icon-wrapper,
+.calpinage-tool-btn.calpinage-tool-active .sg-icon-wrapper {
+  color: inherit;
+  background: transparent;
+}

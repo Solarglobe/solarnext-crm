@@ -1,0 +1,73 @@
+import React from "react";
+import { Button } from "../../components/ui/Button";
+import type { InvoiceStatusUi } from "./invoice.types";
+import { invoiceStatusClass, invoiceStatusLabel } from "./invoiceStatusUi";
+
+export interface InvoiceToolbarProps {
+  invoiceNumber: string;
+  invoiceNumberTitle?: string | null;
+  statusUi: InvoiceStatusUi;
+  canEdit: boolean;
+  saving: boolean;
+  linkHint?: string | null;
+  onBack: () => void;
+  onSave: () => void;
+  onDuplicate: () => void;
+  onPdf: () => void;
+  /** Passe la facture en statut ISSUED (émise), pas « envoyée » au sens courrier. */
+  onMarkIssued: () => void;
+  onDelete: () => void;
+}
+
+export default function InvoiceToolbar({
+  invoiceNumber,
+  invoiceNumberTitle,
+  statusUi,
+  canEdit,
+  saving,
+  linkHint,
+  onBack,
+  onSave,
+  onDuplicate,
+  onPdf,
+  onMarkIssued,
+  onDelete,
+}: InvoiceToolbarProps) {
+  return (
+    <header className="qb-toolbar ib-toolbar">
+      <div className="qb-toolbar-left">
+        <button type="button" className="qb-btn-ghost" onClick={onBack}>
+          ← Retour
+        </button>
+        <div className="qb-toolbar-title">
+          <span className="qb-mono" title={invoiceNumberTitle || undefined}>
+            {invoiceNumber || "Facture"}
+          </span>
+          <span className={invoiceStatusClass(statusUi)}>{invoiceStatusLabel(statusUi)}</span>
+          {linkHint ? <span className="qb-badge-study">{linkHint}</span> : null}
+        </div>
+      </div>
+      <div className="qb-toolbar-actions ib-toolbar-actions">
+        <Button type="button" variant="ghost" size="sm" onClick={onDuplicate}>
+          Dupliquer
+        </Button>
+        <Button type="button" variant="outlineGold" size="sm" onClick={onPdf}>
+          Générer le PDF
+        </Button>
+        {canEdit ? (
+          <Button type="button" variant="outlineGold" size="sm" onClick={onMarkIssued}>
+            Émettre la facture
+          </Button>
+        ) : null}
+        {canEdit ? (
+          <Button type="button" variant="ghost" size="sm" onClick={onDelete}>
+            Supprimer
+          </Button>
+        ) : null}
+        <Button type="button" variant="primary" size="sm" disabled={!canEdit || saving} onClick={onSave}>
+          {saving ? "Enregistrement…" : "Enregistrer"}
+        </Button>
+      </div>
+    </header>
+  );
+}

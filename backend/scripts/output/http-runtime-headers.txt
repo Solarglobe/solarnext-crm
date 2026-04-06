@@ -1,0 +1,11 @@
+HTTP 400 Bad Request
+access-control-allow-credentials: true
+access-control-allow-origin: http://localhost:5173
+connection: keep-alive
+content-length: 48
+content-type: application/json; charset=utf-8
+date: Wed, 25 Feb 2026 12:43:47 GMT
+etag: W/"30-+zFhxumMgBp6EtzzivKTDZ0eRKo"
+keep-alive: timeout=5
+vary: Origin
+x-powered-by: Express

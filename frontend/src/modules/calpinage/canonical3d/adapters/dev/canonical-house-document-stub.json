@@ -1,0 +1,46 @@
+{
+  "schemaId": "canonical-house3d-model-v1",
+  "building": {
+    "buildingId": "stub-building",
+    "buildingFootprint": [
+      { "x": 0, "y": 0 },
+      { "x": 10, "y": 0 },
+      { "x": 10, "y": 10 },
+      { "x": 0, "y": 10 }
+    ],
+    "buildingOuterContour": [
+      { "x": 0, "y": 0 },
+      { "x": 10, "y": 0 },
+      { "x": 10, "y": 10 },
+      { "x": 0, "y": 10 }
+    ],
+    "baseZ": 0
+  },
+  "roof": {
+    "topology": {
+      "roofId": "roof-stub",
+      "vertices": [],
+      "edges": [],
+      "patches": [],
+      "roofToBuildingBindings": []
+    },
+    "geometry": { "roofPatches": [], "roofEdges": [] }
+  },
+  "heightModel": {
+    "quantities": [],
+    "zBase": {
+      "id": "hq-z-base-convention",
+      "role": "z_base",
+      "valueM": 0,
+      "provenance": "business_rule",
+      "derivationRuleId": "stub"
+    },
+    "conventions": { "basePlaneDescription": "stub" }
+  },
+  "annexes": [],
+  "worldPlacement": {
+    "northAngleDeg": 0,
+    "metersPerPixel": 0.05,
+    "imageSpaceOriginPolicy": "other"
+  }
+}

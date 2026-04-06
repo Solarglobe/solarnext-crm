@@ -1,0 +1,28 @@
+/**
+ * LOT C — Panneau flottant planning (portail body) : cohérence CRM, pas de clip overflow modal.
+ */
+
+.planning-dropdown-panel {
+  box-sizing: border-box;
+  background: var(--surface, #1c1a2e);
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
+  border-radius: 10px;
+  box-shadow: var(--shadow-2, 0 12px 40px rgba(0, 0, 0, 0.35));
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  /* max-height vient du style inline (viewport / placement) */
+}
+
+.planning-dropdown-panel:focus-visible {
+  outline: 2px solid var(--ring, rgba(195, 152, 71, 0.45));
+  outline-offset: 1px;
+}
+
+.planning-dropdown-panel__scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}

@@ -1,0 +1,50 @@
+{
+  "schemaId": "canonical-house3d-model-v1",
+  "building": {
+    "buildingId": "b-bind-flat",
+    "buildingFootprint": [{ "x": 0, "y": 0 }, { "x": 20, "y": 0 }, { "x": 20, "y": 10 }, { "x": 0, "y": 10 }],
+    "buildingOuterContour": [{ "x": 0, "y": 0 }, { "x": 20, "y": 0 }, { "x": 20, "y": 10 }, { "x": 0, "y": 10 }],
+    "baseZ": 0,
+    "wallHeightM": 3
+  },
+  "roof": {
+    "topology": {
+      "roofId": "roof-bind-flat",
+      "vertices": [
+        { "vertexId": "v00", "positionXY": { "x": 0, "y": 0 }, "heightQuantityId": "hFlat" },
+        { "vertexId": "v20", "positionXY": { "x": 20, "y": 0 }, "heightQuantityId": "hFlat" },
+        { "vertexId": "v2010", "positionXY": { "x": 20, "y": 10 }, "heightQuantityId": "hFlat" },
+        { "vertexId": "v010", "positionXY": { "x": 0, "y": 10 }, "heightQuantityId": "hFlat" }
+      ],
+      "edges": [
+        { "vertexIdA": "v00", "vertexIdB": "v20", "edgeId": "e-s", "kind": "eave" },
+        { "vertexIdA": "v20", "vertexIdB": "v2010", "edgeId": "e-e", "kind": "eave" },
+        { "vertexIdA": "v2010", "vertexIdB": "v010", "edgeId": "e-n", "kind": "eave" },
+        { "vertexIdA": "v010", "vertexIdB": "v00", "edgeId": "e-w", "kind": "eave" }
+      ],
+      "patches": [
+        {
+          "roofPatchId": "pan-flat",
+          "boundaryVertexIds": ["v00", "v20", "v2010", "v010"],
+          "boundaryEdgeIds": ["e-s", "e-e", "e-n", "e-w"]
+        }
+      ],
+      "roofToBuildingBindings": []
+    },
+    "geometry": { "roofPatches": [], "roofEdges": [] }
+  },
+  "heightModel": {
+    "quantities": [
+      { "id": "hFlat", "role": "custom", "valueM": 3, "provenance": "user_input", "derivationRuleId": "binding.flat" }
+    ],
+    "zBase": {
+      "id": "hq-z",
+      "role": "z_base",
+      "valueM": 0,
+      "provenance": "business_rule",
+      "derivationRuleId": "fixture"
+    },
+    "conventions": { "basePlaneDescription": "binding flat" }
+  },
+  "annexes": []
+}

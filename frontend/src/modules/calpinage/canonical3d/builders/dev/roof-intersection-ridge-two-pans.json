@@ -1,0 +1,63 @@
+{
+  "schemaId": "canonical-house3d-model-v1",
+  "building": {
+    "buildingId": "b-ridge",
+    "buildingFootprint": [{ "x": 0, "y": 0 }, { "x": 20, "y": 0 }, { "x": 20, "y": 10 }, { "x": 0, "y": 10 }],
+    "buildingOuterContour": [{ "x": 0, "y": 0 }, { "x": 20, "y": 0 }, { "x": 20, "y": 10 }, { "x": 0, "y": 10 }],
+    "baseZ": 0
+  },
+  "roof": {
+    "topology": {
+      "roofId": "roof-ridge-fixture",
+      "vertices": [
+        { "vertexId": "v00", "positionXY": { "x": 0, "y": 0 }, "heightQuantityId": "hLow" },
+        { "vertexId": "v10a", "positionXY": { "x": 10, "y": 0 }, "heightQuantityId": "hRidge" },
+        { "vertexId": "v1010a", "positionXY": { "x": 10, "y": 10 }, "heightQuantityId": "hRidge" },
+        { "vertexId": "v010", "positionXY": { "x": 0, "y": 10 }, "heightQuantityId": "hLow" },
+        { "vertexId": "v10b", "positionXY": { "x": 10, "y": 0 }, "heightQuantityId": "hRidge" },
+        { "vertexId": "v20", "positionXY": { "x": 20, "y": 0 }, "heightQuantityId": "hLow" },
+        { "vertexId": "v2010", "positionXY": { "x": 20, "y": 10 }, "heightQuantityId": "hLow" },
+        { "vertexId": "v1010b", "positionXY": { "x": 10, "y": 10 }, "heightQuantityId": "hRidge" }
+      ],
+      "edges": [
+        { "vertexIdA": "v00", "vertexIdB": "v10a", "edgeId": "e-l0", "kind": "eave" },
+        { "vertexIdA": "v10a", "vertexIdB": "v1010a", "edgeId": "e-ridge", "kind": "ridge" },
+        { "vertexIdA": "v1010a", "vertexIdB": "v010", "edgeId": "e-l2", "kind": "eave" },
+        { "vertexIdA": "v010", "vertexIdB": "v00", "edgeId": "e-l3", "kind": "eave" },
+        { "vertexIdA": "v10b", "vertexIdB": "v20", "edgeId": "e-r0", "kind": "eave" },
+        { "vertexIdA": "v20", "vertexIdB": "v2010", "edgeId": "e-r1", "kind": "eave" },
+        { "vertexIdA": "v2010", "vertexIdB": "v1010b", "edgeId": "e-r2", "kind": "eave" },
+        { "vertexIdA": "v1010b", "vertexIdB": "v10b", "edgeId": "e-ridge-b", "kind": "ridge" }
+      ],
+      "patches": [
+        {
+          "roofPatchId": "pan-left",
+          "boundaryVertexIds": ["v00", "v10a", "v1010a", "v010"],
+          "boundaryEdgeIds": ["e-l0", "e-ridge", "e-l2", "e-l3"]
+        },
+        {
+          "roofPatchId": "pan-right",
+          "boundaryVertexIds": ["v10b", "v20", "v2010", "v1010b"],
+          "boundaryEdgeIds": ["e-r0", "e-r1", "e-r2", "e-ridge-b"]
+        }
+      ],
+      "roofToBuildingBindings": []
+    },
+    "geometry": { "roofPatches": [], "roofEdges": [] }
+  },
+  "heightModel": {
+    "quantities": [
+      { "id": "hLow", "role": "custom", "valueM": 5, "provenance": "user_input", "derivationRuleId": "fixture" },
+      { "id": "hRidge", "role": "custom", "valueM": 7, "provenance": "user_input", "derivationRuleId": "fixture" }
+    ],
+    "zBase": {
+      "id": "hq-z",
+      "role": "z_base",
+      "valueM": 0,
+      "provenance": "business_rule",
+      "derivationRuleId": "fixture"
+    },
+    "conventions": { "basePlaneDescription": "fixture" }
+  },
+  "annexes": []
+}

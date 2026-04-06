@@ -1,0 +1,671 @@
+/**
+ * CP-DSM-016 — DSM Visual Overlay Premium
+ * Pure visualisation, non destructif, pointer-events: none.
+ */
+
+.dsm-overlay-container {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 50;
+  overflow: hidden;
+}
+
+.dsm-overlay-container.dsm-overlay-visible {
+  opacity: 1;
+  transition: opacity 200ms ease-out;
+}
+
+.dsm-overlay-container:not(.dsm-overlay-visible) {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 200ms ease-out;
+}
+
+#dsm-overlay-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  mix-blend-mode: multiply;
+  pointer-events: none;
+}
+
+/* Colonne haute droite : panneau temporel + radar */
+.dsm-overlay-right-stack {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  z-index: 85;
+  max-width: min(268px, 46vw);
+  pointer-events: none;
+}
+
+.dsm-overlay-right-stack > * {
+  pointer-events: auto;
+}
+
+.dsm-horizon-radar {
+  position: relative;
+  top: auto;
+  right: auto;
+  width: 128px;
+  min-height: 120px;
+  max-width: 100%;
+  align-self: flex-end;
+  overflow: visible;
+  border-radius: 12px;
+  box-shadow: 0 6px 24px rgba(15, 23, 42, 0.14);
+  background: rgba(15, 23, 42, 0.82);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(195, 152, 71, 0.35);
+  pointer-events: auto;
+  z-index: 90;
+}
+
+.dsm-horizon-radar canvas {
+  display: block;
+  width: 120px;
+  height: 120px;
+  margin: 0 auto;
+}
+
+.dsm-radar-legend {
+  padding: 4px 6px 2px;
+  font-size: 7.5px;
+  line-height: 1.35;
+  color: rgba(148, 163, 184, 0.88);
+  letter-spacing: 0.01em;
+  text-align: center;
+}
+
+.dsm-radar-legend-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.dsm-radar-legend-swatch {
+  flex: 0 0 6px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.dsm-radar-legend-swatch--sun {
+  background: radial-gradient(circle at 35% 35%, #fff8c4 0%, #ffd700 55%, #c9a000 100%);
+  box-shadow: 0 0 4px rgba(255, 200, 80, 0.45);
+}
+
+.dsm-radar-legend-swatch--zone {
+  border-radius: 1px;
+  background: rgba(248, 113, 113, 0.45);
+  border: 1px solid rgba(248, 113, 113, 0.65);
+}
+
+.dsm-radar-dominant-text {
+  padding: 6px 4px 8px;
+  font-size: 10px;
+  color: #e2e8f0;
+  text-align: center;
+  line-height: 1.3;
+}
+
+.dsm-radar-dominant-title {
+  font-weight: 700;
+  font-size: 9px;
+  letter-spacing: 0.05em;
+  color: #94a3b8;
+  margin-bottom: 2px;
+}
+
+.dsm-radar-dominant-direction {
+  font-weight: 600;
+  color: #f87171;
+}
+
+.dsm-radar-dominant-period {
+  font-size: 9px;
+  color: #94a3b8;
+}
+
+.dsm-radar-tooltip {
+  position: absolute;
+  bottom: -24px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 8px;
+  font-size: 10px;
+  background: rgba(14, 14, 26, 0.95);
+  color: #e2e8f0;
+  border-radius: 4px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* CP-DSM-UX — Carte synthèse ombrage (lisibilité prioritaire) */
+.dsm-shading-summary {
+  position: absolute;
+  left: 14px;
+  bottom: 14px;
+  max-width: min(360px, 94vw);
+  max-height: min(72vh, 560px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  z-index: 70;
+  pointer-events: auto;
+  padding: 0;
+  background: transparent;
+  border: none;
+  scrollbar-width: thin;
+}
+
+.dsm-shade-card {
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(195, 152, 71, 0.28);
+  border-radius: 16px;
+  padding: 14px 16px 16px;
+  color: #0f172a;
+  box-shadow: 0 10px 40px rgba(15, 23, 42, 0.1);
+}
+
+.dsm-shading-summary.dsm-shade-tier-excellent .dsm-shade-card {
+  border-left: 3px solid #16a34a;
+}
+
+.dsm-shading-summary.dsm-shade-tier-bon .dsm-shade-card {
+  border-left: 3px solid #ca8a04;
+}
+
+.dsm-shading-summary.dsm-shade-tier-surveiller .dsm-shade-card {
+  border-left: 3px solid #ea580c;
+}
+
+.dsm-shading-summary.dsm-shade-tier-penalisant .dsm-shade-card {
+  border-left: 3px solid #dc2626;
+}
+
+.dsm-shading-summary.dsm-shade-tier-unknown .dsm-shade-card {
+  border-left: 3px solid #94a3b8;
+}
+
+.dsm-shade-card-title {
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  color: #0f172a;
+  margin: 0;
+}
+
+.dsm-shade-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.dsm-shade-lead {
+  margin: 0 0 8px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #1e293b;
+}
+
+.dsm-shade-lead strong {
+  color: #0f172a;
+}
+
+.dsm-shade-dot {
+  opacity: 0.45;
+  margin: 0 4px;
+}
+
+.dsm-shade-stance {
+  font-size: 11px;
+  line-height: 1.4;
+  color: #64748b;
+  margin: 0 0 12px;
+}
+
+.dsm-shade-metrics {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 10px;
+  margin-bottom: 12px;
+}
+
+.dsm-shade-metric {
+  background: rgba(248, 250, 252, 0.98);
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  border-radius: 12px;
+  padding: 8px 10px;
+}
+
+.dsm-shade-metric-label {
+  display: block;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #64748b;
+  margin-bottom: 4px;
+}
+
+.dsm-shade-metric-value {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.2;
+}
+
+.dsm-shade-metric-value--wrap {
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.dsm-shade-narrative {
+  margin: 0 0 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #334155;
+  font-style: italic;
+}
+
+.dsm-shade-pill {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+  letter-spacing: 0.02em;
+}
+
+.dsm-shade-pill--excellent {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.dsm-shade-pill--bon {
+  background: #fef9c3;
+  color: #854d0e;
+}
+
+.dsm-shade-pill--surveiller {
+  background: #ffedd5;
+  color: #9a3412;
+}
+
+.dsm-shade-pill--penalisant {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.dsm-shade-pill--unknown {
+  background: #e2e8f0;
+  color: #475569;
+}
+
+.dsm-shade-tech {
+  margin-top: 2px;
+  border-radius: 12px;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  overflow: hidden;
+  background: #f8fafc;
+}
+
+.dsm-shade-tech > summary {
+  cursor: pointer;
+  list-style: none;
+  font-size: 12px;
+  font-weight: 600;
+  color: #92400e;
+  padding: 10px 12px;
+  background: rgba(253, 230, 138, 0.2);
+  user-select: none;
+}
+
+.dsm-shade-tech > summary::-webkit-details-marker {
+  display: none;
+}
+
+.dsm-shade-tech > summary::after {
+  content: "▸";
+  float: right;
+  opacity: 0.5;
+  font-size: 11px;
+}
+
+.dsm-shade-tech[open] > summary::after {
+  content: "▾";
+}
+
+.dsm-shade-tech-inner {
+  padding: 10px 12px 12px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: #475569;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.dsm-tech-line {
+  margin: 6px 0;
+}
+
+.dsm-tech-muted {
+  color: #64748b;
+  font-size: 10px;
+}
+
+.dsm-shade-error {
+  margin: 0;
+  font-size: 12px;
+  color: #b91c1c;
+}
+
+.dsm-summary-loading {
+  color: #64748b;
+  font-style: italic;
+  font-size: 12px;
+  margin: 4px 0 0;
+}
+
+/* Panneau « Quand l’ombre agit le plus » */
+.dsm-shading-temporal-panel {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(195, 152, 71, 0.28);
+  box-shadow: 0 10px 36px rgba(15, 23, 42, 0.1);
+  z-index: 80;
+}
+
+.dsm-temporal-head {
+  margin-bottom: 8px;
+}
+
+.dsm-temporal-title {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: #0f172a;
+}
+
+.dsm-temporal-body {
+  font-size: 11px;
+  color: #475569;
+}
+
+.dsm-temporal-muted {
+  margin: 0;
+  font-size: 11px;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+.dsm-temporal-conclusion {
+  margin: 10px 0 0;
+  font-size: 11px;
+  line-height: 1.45;
+  color: #1e293b;
+  font-weight: 500;
+}
+
+.dsm-temporal-section {
+  margin-bottom: 10px;
+}
+
+.dsm-temporal-section-label {
+  display: block;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: #64748b;
+  margin-bottom: 6px;
+}
+
+.dsm-temporal-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dsm-temporal-hbar {
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  align-items: center;
+  gap: 8px;
+}
+
+.dsm-temporal-hbar-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: #475569;
+}
+
+.dsm-temporal-hbar-track {
+  height: 8px;
+  background: rgba(148, 163, 184, 0.28);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.dsm-temporal-hbar-fill {
+  height: 100%;
+  min-width: 0;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #94a3b8, #c39847);
+  transition: width 0.25s ease;
+}
+
+.dsm-temporal-hbar-fill--active {
+  background: linear-gradient(90deg, #15803d, #c39847);
+}
+
+.dsm-sun-sim-details {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(226, 232, 240, 0.95);
+  font-size: 11px;
+  color: #64748b;
+}
+
+.dsm-sun-sim-details > summary {
+  cursor: pointer;
+  user-select: none;
+  font-weight: 600;
+  color: #92400e;
+}
+
+.dsm-sun-sim-details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.dsm-sun-sim-inner {
+  margin-top: 8px;
+}
+
+.dsm-no-data,
+.dsm-loading,
+.dsm-error {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  padding: 16px 24px;
+  font-size: 14px;
+  color: #94a3b8;
+  background: rgba(14, 14, 26, 0.9);
+  border-radius: 8px;
+  pointer-events: none;
+}
+
+.dsm-loading {
+  color: #e2e8f0;
+}
+
+.dsm-error {
+  color: #f87171;
+}
+
+.p3-pill-btn.dsm-analyse-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.p3-pill-btn.dsm-analyse-btn.active {
+  background: rgba(195, 152, 71, 0.12);
+  border-color: var(--sg-brand, #c39847);
+}
+
+/* CP-DSM-UI-002 — Interaction layer + tooltip panneau */
+/* CP-DSM-FIX-006 — z-index 40 pour ne pas recouvrir contrôles (80) et radar (90) */
+.dsm-interaction-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 40;
+  pointer-events: auto;
+  cursor: default;
+}
+
+.dsm-panel-tooltip {
+  position: fixed;
+  background: rgba(0, 0, 0, 0.85);
+  border: 1px solid #c39847;
+  border-radius: 12px;
+  padding: 8px 12px;
+  font-size: 13px;
+  pointer-events: none;
+  z-index: 10001;
+  transform: translate(10px, 10px);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  white-space: nowrap;
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.dsm-panel-tooltip-title {
+  font-weight: 600;
+  font-size: 12px;
+  color: #e2e8f0;
+}
+
+.dsm-panel-tooltip-value {
+  font-size: 13px;
+  color: #c39847;
+}
+
+/* Simulation soleil (repliable, radar uniquement) */
+.dsm-solar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.dsm-solar-hour-display {
+  font-size: 13px;
+  font-weight: 700;
+  color: #b45309;
+}
+
+.dsm-solar-season-toggle {
+  display: flex;
+  gap: 4px;
+}
+
+.dsm-solar-season-btn {
+  padding: 4px 10px;
+  font-size: 11px;
+  border: 1px solid rgba(195, 152, 71, 0.5);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.4);
+  color: #e2e8f0;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.dsm-solar-season-btn:hover {
+  background: rgba(195, 152, 71, 0.2);
+  border-color: #c39847;
+}
+
+.dsm-solar-season-btn.active {
+  background: rgba(195, 152, 71, 0.28);
+  border-color: #c39847;
+  color: #92400e;
+}
+
+.dsm-solar-controls-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.dsm-solar-slider {
+  flex: 1;
+  min-width: 80px;
+  height: 6px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+}
+
+.dsm-solar-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #c39847;
+  cursor: pointer;
+}
+
+.dsm-solar-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #c39847;
+  cursor: pointer;
+  border: none;
+}
+
+.dsm-solar-play-btn {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid #c39847;
+  border-radius: 8px;
+  background: rgba(195, 152, 71, 0.18);
+  color: #92400e;
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+}
+
+.dsm-solar-play-btn:hover {
+  background: rgba(195, 152, 71, 0.4);
+}

@@ -1,0 +1,415 @@
+{
+  "meta": {
+    "version": "study_v1_final",
+    "generatedAt": "<ISO>",
+    "calpinageVersion": "calpinage_v1_final",
+    "engine": {
+      "shading": "near+far+HD",
+      "production": "multi-pan"
+    }
+  },
+  "geometry": {
+    "meta": {
+      "version": "calpinage_v1_final",
+      "generatedAt": "<ISO>",
+      "engine": {
+        "shading": "near+far+HD",
+        "production": "multi-pan"
+      }
+    },
+    "roof": {
+      "scale": {
+        "metersPerPixel": 0.05
+      },
+      "north": 0,
+      "pans": [
+        {
+          "id": "pan-A",
+          "azimuth": 180,
+          "tilt": 30,
+          "panelCount": 6,
+          "surface": 15.2,
+          "geometryRef": "pan-A",
+          "shadingNearPct": 2.5,
+          "shadingFarPct": 7,
+          "shadingCombinedPct": 4.8
+        },
+        {
+          "id": "pan-B",
+          "azimuth": 90,
+          "tilt": 25,
+          "panelCount": 4,
+          "surface": 10.1,
+          "geometryRef": "pan-B",
+          "shadingNearPct": 3,
+          "shadingFarPct": 6.5,
+          "shadingCombinedPct": 5.2
+        }
+      ]
+    },
+    "pans": [
+      {
+        "id": "pan-A",
+        "azimuth": 180,
+        "tilt": 30,
+        "panelCount": 6,
+        "surface": 15.2,
+        "geometryRef": "pan-A",
+        "shadingNearPct": 2.5,
+        "shadingFarPct": 7,
+        "shadingCombinedPct": 4.8
+      },
+      {
+        "id": "pan-B",
+        "azimuth": 90,
+        "tilt": 25,
+        "panelCount": 4,
+        "surface": 10.1,
+        "geometryRef": "pan-B",
+        "shadingNearPct": 3,
+        "shadingFarPct": 6.5,
+        "shadingCombinedPct": 5.2
+      }
+    ],
+    "panels": [
+      {
+        "id": "block-A_0",
+        "panId": "pan-A",
+        "position": {
+          "x": 100,
+          "y": 200
+        },
+        "orientation": "PORTRAIT",
+        "state": null
+      },
+      {
+        "id": "block-A_1",
+        "panId": "pan-A",
+        "position": {
+          "x": 150,
+          "y": 200
+        },
+        "orientation": "PORTRAIT",
+        "state": null
+      },
+      {
+        "id": "block-A_2",
+        "panId": "pan-A",
+        "position": {
+          "x": 200,
+          "y": 200
+        },
+        "orientation": "PORTRAIT",
+        "state": null
+      },
+      {
+        "id": "block-A_3",
+        "panId": "pan-A",
+        "position": {
+          "x": 100,
+          "y": 260
+        },
+        "orientation": "PORTRAIT",
+        "state": null
+      },
+      {
+        "id": "block-A_4",
+        "panId": "pan-A",
+        "position": {
+          "x": 150,
+          "y": 260
+        },
+        "orientation": "PORTRAIT",
+        "state": null
+      },
+      {
+        "id": "block-A_5",
+        "panId": "pan-A",
+        "position": {
+          "x": 200,
+          "y": 260
+        },
+        "orientation": "PORTRAIT",
+        "state": null
+      },
+      {
+        "id": "block-B_0",
+        "panId": "pan-B",
+        "position": {
+          "x": 300,
+          "y": 200
+        },
+        "orientation": "PORTRAIT",
+        "state": null
+      },
+      {
+        "id": "block-B_1",
+        "panId": "pan-B",
+        "position": {
+          "x": 350,
+          "y": 200
+        },
+        "orientation": "PORTRAIT",
+        "state": null
+      },
+      {
+        "id": "block-B_2",
+        "panId": "pan-B",
+        "position": {
+          "x": 300,
+          "y": 260
+        },
+        "orientation": "PORTRAIT",
+        "state": null
+      },
+      {
+        "id": "block-B_3",
+        "panId": "pan-B",
+        "position": {
+          "x": 350,
+          "y": 260
+        },
+        "orientation": "PORTRAIT",
+        "state": null
+      }
+    ],
+    "panelSpec": {
+      "id": "mod-1",
+      "brand": "Longi",
+      "model": "Hi-MO 5",
+      "reference": null,
+      "powerWc": 485,
+      "widthM": 1.132,
+      "heightM": 2.278,
+      "technology": null,
+      "efficiency": null
+    },
+    "shading": {
+      "near": {
+        "totalLossPct": 2.8
+      },
+      "far": {
+        "totalLossPct": 6.8,
+        "source": "IGN_RGE_ALTI",
+        "coverage": 1,
+        "confidenceLevel": "HIGH"
+      },
+      "combined": {
+        "totalLossPct": 5
+      },
+      "totalLossPct": 5,
+      "confidence": "HIGH",
+      "source": "IGN_RGE_ALTI",
+      "computedAt": "<ISO>",
+      "perPanel": [
+        {
+          "panelId": "b1_0",
+          "lossPct": 4.2
+        },
+        {
+          "panelId": "b1_1",
+          "lossPct": 4.5
+        },
+        {
+          "panelId": "b1_2",
+          "lossPct": 5
+        },
+        {
+          "panelId": "b1_3",
+          "lossPct": 5.1
+        },
+        {
+          "panelId": "b1_4",
+          "lossPct": 4.8
+        },
+        {
+          "panelId": "b1_5",
+          "lossPct": 5.2
+        },
+        {
+          "panelId": "b2_0",
+          "lossPct": 5
+        },
+        {
+          "panelId": "b2_1",
+          "lossPct": 5.4
+        },
+        {
+          "panelId": "b2_2",
+          "lossPct": 5.1
+        },
+        {
+          "panelId": "b2_3",
+          "lossPct": 5.3
+        }
+      ],
+      "shadingQuality": {
+        "confidence": "HIGH",
+        "score": 0.9
+      }
+    },
+    "production": null,
+    "geometry3d": null
+  },
+  "hardware": {
+    "panel": {
+      "id": "mod-1",
+      "brand": "Longi",
+      "model": "Hi-MO 5",
+      "reference": null,
+      "powerWc": 485,
+      "widthM": 1.132,
+      "heightM": 2.278,
+      "technology": null,
+      "efficiency": null
+    },
+    "inverter": null,
+    "inverterTotals": null,
+    "layoutRules": null
+  },
+  "electrical": {
+    "totalPanels": 10,
+    "totalDcKw": 4.85,
+    "totalAcKw": null,
+    "dcAcRatio": null
+  },
+  "shading": {
+    "near": {
+      "totalLossPct": 2.8
+    },
+    "far": {
+      "totalLossPct": 6.8,
+      "source": "IGN_RGE_ALTI",
+      "coverage": 1,
+      "confidenceLevel": "HIGH"
+    },
+    "combined": {
+      "totalLossPct": 5
+    },
+    "totalLossPct": 5,
+    "confidence": "HIGH",
+    "source": "IGN_RGE_ALTI",
+    "computedAt": "<ISO>",
+    "perPanel": [
+      {
+        "panelId": "b1_0",
+        "lossPct": 4.2
+      },
+      {
+        "panelId": "b1_1",
+        "lossPct": 4.5
+      },
+      {
+        "panelId": "b1_2",
+        "lossPct": 5
+      },
+      {
+        "panelId": "b1_3",
+        "lossPct": 5.1
+      },
+      {
+        "panelId": "b1_4",
+        "lossPct": 4.8
+      },
+      {
+        "panelId": "b1_5",
+        "lossPct": 5.2
+      },
+      {
+        "panelId": "b2_0",
+        "lossPct": 5
+      },
+      {
+        "panelId": "b2_1",
+        "lossPct": 5.4
+      },
+      {
+        "panelId": "b2_2",
+        "lossPct": 5.1
+      },
+      {
+        "panelId": "b2_3",
+        "lossPct": 5.3
+      }
+    ]
+  },
+  "production": {
+    "byPan": [
+      {
+        "panId": "pan-A",
+        "annualKwh": 7200,
+        "monthlyKwh": [
+          400,
+          500,
+          650,
+          700,
+          750,
+          800,
+          800,
+          750,
+          650,
+          500,
+          400,
+          400
+        ]
+      },
+      {
+        "panId": "pan-B",
+        "annualKwh": 4800,
+        "monthlyKwh": [
+          300,
+          350,
+          420,
+          450,
+          500,
+          520,
+          520,
+          500,
+          420,
+          350,
+          300,
+          300
+        ]
+      }
+    ],
+    "annualKwh": 12000,
+    "monthlyKwh": [
+      700,
+      850,
+      1070,
+      1150,
+      1250,
+      1320,
+      1320,
+      1250,
+      1070,
+      850,
+      700,
+      700
+    ]
+  },
+  "calcSummary": {
+    "annual_kwh": 12000,
+    "capex_ttc": 25000,
+    "roi": 8.2,
+    "scenarios": {
+      "A1": {
+        "capex_ttc": 25000,
+        "roi": 8.2
+      },
+      "A2": {
+        "capex_ttc": 28000,
+        "roi": 7.5
+      },
+      "B1": {
+        "capex_ttc": 12000,
+        "roi": 9.1
+      },
+      "B2": {
+        "capex_ttc": 15000,
+        "roi": 8.8
+      }
+    },
+    "computed_at": "<ISO>"
+  }
+}

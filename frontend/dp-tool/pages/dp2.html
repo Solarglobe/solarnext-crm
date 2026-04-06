@@ -1,0 +1,209 @@
+<section class="dp-page" id="dp2-page">
+
+  <!-- HEADER (aligné DP1) -->
+  <div class="dp-page-head">
+    <div>
+      <h1>DP2 – Plan de masse (Capture)</h1>
+      <p class="dp-lead">
+        Position reprise automatiquement depuis DP1 (parcelle validée).
+      </p>
+    </div>
+
+    <div class="dp-page-actions"></div>
+  </div>
+
+  <hr class="dp-sep" />
+
+  <div class="dp-hint" id="dp2-hint">
+    <strong>Process :</strong> cliquez sur <em>Éditer le plan de masse</em> pour ouvrir l’éditeur plein écran,
+    capturer le plan, puis dessiner/ajouter les objets métier.
+  </div>
+
+  <div class="dp-page-actions" style="margin-top: 14px;">
+    <button id="dp2-open-editor" class="dp-btn dp-btn-primary" type="button">
+      Éditer le plan de masse
+    </button>
+  </div>
+
+</section>
+
+<!-- =========================
+     DP2 — MODAL PLEIN ÉCRAN (PATTERN DP1)
+     Toute l’édition se fait ici (carte + canvas + paramètres)
+========================= -->
+<div class="dp-modal" id="dp2-map-modal" aria-hidden="true">
+  <div class="dp-modal-backdrop"></div>
+
+  <div class="dp-modal-panel">
+    <!-- Header -->
+    <div class="dp-modal-header">
+      <h2 class="dp-modal-title-solarglobe">DP2 — Plan de masse</h2>
+      <button class="dp-modal-close" type="button" aria-label="Fermer">✕</button>
+    </div>
+
+    <!-- Body -->
+    <div class="dp-modal-body">
+      <!-- Colonne gauche (paramètres DP2, toujours visible) -->
+      <aside class="dp-map-help" id="dp2-settings-panel">
+        <h3>Paramètres du plan</h3>
+
+        <div class="dp-hint" style="margin-top: 10px;">
+          <span id="dp2-scale">Échelle : —</span>
+        </div>
+
+        <!-- Catégorie photo -->
+        <div class="dp2-field" style="margin-top: 14px;">
+          <label class="dp2-label">Catégorie</label>
+          <select id="dp2-photo-category" class="dp2-select">
+            <option value="">— Sélectionner —</option>
+            <option value="before">Avant travaux</option>
+            <option value="after">Après travaux</option>
+          </select>
+        </div>
+
+        <hr />
+
+        <!-- Modules PV -->
+        <div class="dp2-field">
+          <label class="dp2-label">Module photovoltaïque</label>
+          <select id="dp2-panel-select" class="dp2-select">
+            <option value="">— Sélectionner un module —</option>
+            <option value="longi_x10_artist">LONGi Hi-MO X10 Artist — 485 W</option>
+            <option value="longi_x10_explorer">LONGi Hi-MO X10 Explorer — 485 W</option>
+          </select>
+        </div>
+
+        <div class="dp2-panel-readonly">
+          <div><strong>Fabricant :</strong> <span id="dp2-panel-manufacturer">—</span></div>
+          <div><strong>Référence :</strong> <span id="dp2-panel-reference">—</span></div>
+          <div><strong>Puissance :</strong> <span id="dp2-panel-power">—</span></div>
+          <div><strong>Dimensions :</strong> <span id="dp2-panel-dimensions">—</span></div>
+        </div>
+
+        <hr />
+
+        <!-- Légende (lecture seule) : reflète exactement la légende PDF DP2 -->
+        <div class="dp2-field dp2-legend-field">
+          <div class="dp2-label">Légende</div>
+          <div id="dp2-legend-empty" class="dp2-legend-empty" hidden>
+            Aucun objet métier sur le plan.
+          </div>
+          <div id="dp2-legend-list" class="dp2-legend-list" aria-label="Légende du plan"></div>
+        </div>
+      </aside>
+
+      <!-- Colonne droite (surface de travail DP2) -->
+      <div class="dp-map-canvas">
+        <div class="dp2-map-wrap">
+          <div id="dp2-ign-map"></div>
+
+          <div id="dp2-captured-image-wrap" style="display:none;">
+            <!-- Barre d'outils DP2 (au-dessus du canvas) -->
+            <div class="dp2-toolbar" id="dp2-toolbar" role="toolbar" aria-label="Outils plan de masse">
+              <button type="button" class="dp2-tool-btn" id="dp2-tool-select" title="Sélection (sortir de l’outil en cours)">
+                <span class="dp2-tool-icon" aria-hidden="true">↖</span>
+                <span class="dp2-tool-label">Sélection</span>
+              </button>
+              <button type="button" class="dp2-tool-btn" id="dp2-tool-pan" title="Pan (déplacer le plan)">
+                <span class="dp2-tool-icon" aria-hidden="true">✋</span>
+                <span class="dp2-tool-label">Pan</span>
+              </button>
+
+              <button type="button" class="dp2-tool-btn" id="dp2-tool-panels" title="Panneaux photovoltaïques (placer un panneau)">
+                <span class="dp2-tool-icon" aria-hidden="true">▭</span>
+                <span class="dp2-tool-label">Panneaux</span>
+              </button>
+
+              <button id="dp2-tool-text" type="button" class="dp2-tool-btn dp2-dropdown-btn" aria-haspopup="menu" aria-expanded="false" title="Texte (annotations)">
+                <span class="dp2-tool-icon" aria-hidden="true">T</span>
+                <span class="dp2-tool-label">Texte</span>
+                <span class="dp2-tool-caret" aria-hidden="true">▾</span>
+              </button>
+
+              <ul id="dp2-text-menu" class="dp2-dropdown-menu" role="menu" aria-label="Texte" hidden>
+                <li role="menuitem" data-textkind="free">Texte libre</li>
+                <li role="menuitem" data-textkind="DP6">DP6</li>
+                <li role="menuitem" data-textkind="DP7">DP7</li>
+                <li role="menuitem" data-textkind="DP8">DP8</li>
+              </ul>
+
+              <button id="dp2-tool-measures" type="button" class="dp2-tool-btn dp2-dropdown-btn" aria-haspopup="menu" aria-expanded="false" title="Outils de mesure / structure">
+                <span class="dp2-tool-icon" aria-hidden="true">📐</span>
+                <span class="dp2-tool-label">Mesures</span>
+                <span class="dp2-tool-caret" aria-hidden="true">▾</span>
+              </button>
+
+              <ul id="dp2-measures-menu" class="dp2-dropdown-menu" role="menu" aria-label="Mesures" hidden>
+                <li role="menuitem" data-tool="building_outline">⬛ Contour bâti</li>
+                <li role="menuitem" data-tool="measure_line">↔ Trait de mesure</li>
+                <li role="menuitem" data-tool="ridge_line">▲ Faîtage</li>
+              </ul>
+
+              <button id="dp2-tool-business" type="button" class="dp2-tool-btn dp2-dropdown-btn" aria-haspopup="menu" aria-expanded="false" title="Formes métier (contrôlées)">
+                <span class="dp2-tool-icon" aria-hidden="true">⬚</span>
+                <span class="dp2-tool-label">Formes métier</span>
+                <span class="dp2-tool-caret" aria-hidden="true">▾</span>
+              </button>
+
+              <ul id="dp2-business-menu" class="dp2-dropdown-menu" role="menu" aria-label="Formes métier" hidden>
+                <li role="menuitem" data-tool="compteur">🔌 Compteur électrique</li>
+                <li role="menuitem" data-tool="disjoncteur">⛔ Disjoncteur</li>
+                <li role="menuitem" data-tool="batterie">🔋 Batterie de stockage</li>
+                <li role="menuitem" data-tool="sens_pente">↘ Sens de la pente</li>
+                <li role="menuitem" data-tool="voie_acces">🛣 Voie d’accès</li>
+                <li role="menuitem" data-tool="angle_vue">📷 Angle de prise de vue (DP6/DP7)</li>
+                <li role="menuitem" data-tool="rect">▭ Rectangle libre</li>
+                <li role="menuitem" data-tool="circle">◯ Cercle libre</li>
+                <li role="menuitem" data-tool="triangle">△ Triangle libre</li>
+                <li role="menuitem" data-tool="arrow">➤ Flèche libre</li>
+              </ul>
+            </div>
+
+            <!-- Barre d’actions DESSIN (flottante, au-dessus du canvas) -->
+            <div class="dp2-draw-actions" id="dp2-draw-actions" role="toolbar" aria-label="Actions dessin">
+              <button type="button" class="dp2-action-btn" id="dp2-action-undo" title="Undo" aria-label="Undo">
+                ↶
+              </button>
+              <button type="button" class="dp2-action-btn" id="dp2-action-redo" title="Redo" aria-label="Redo">
+                ↷
+              </button>
+              <button type="button" class="dp2-action-btn" id="dp2-action-delete" title="Supprimer" aria-label="Supprimer" disabled>
+                🗑
+              </button>
+            </div>
+
+            <!-- Conteneur zoom : image + canvas synchronisés (zoom visuel uniquement, sans modifier scale_m_per_px) -->
+            <div id="dp2-zoom-container">
+              <img id="dp2-captured-image" alt="Plan de masse capturé" style="pointer-events: none;" />
+              <canvas id="dp2-draw-canvas" style="pointer-events: auto; z-index: 2;"></canvas>
+            </div>
+          </div>
+
+          <!-- Flèche Nord (même asset + même style que DP1) -->
+          <img
+            src="/frontend/dp-tool/assets/north-arrow.svg"
+            class="dp1-north-arrow"
+            alt="Nord"
+            aria-hidden="true"
+          />
+        </div>
+      </div>
+    </div><!-- /.dp-modal-body -->
+
+    <!-- Footer -->
+    <div class="dp-modal-footer">
+      <button class="dp-btn dp-btn-outline" type="button" id="dp2-map-cancel">
+        Fermer
+      </button>
+
+      <!-- Visible après capture (sans fermer le modal) -->
+      <button class="dp-btn dp-btn-primary" type="button" id="dp2-modal-download" style="display:none;">
+        Télécharger DP2
+      </button>
+
+      <button id="dp2-capture-btn" class="dp-btn dp-btn-primary" type="button">
+        Capturer le plan
+      </button>
+    </div>
+  </div><!-- /.dp-modal-panel -->
+</div><!-- /.dp-modal -->

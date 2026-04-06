@@ -1,0 +1,1084 @@
+/**
+ * CP-PDF — Styles port PDF legacy Solarglobe (P1–P14).
+ * Les pages sont des `<section id="pN">` rendues par PdfPageLayout (plus de classe .sheet).
+ */
+
+/* Variables legacy */
+.pdf-legacy-port {
+  --brand: #C39847;
+  background: #f5f6f8;
+  color: #0F172A;
+  --bar-gradient: linear-gradient(90deg, #C39847, #d4af63);
+  --card-border: #e6e8ee;
+  --card-soft-bg: #faf9f6;
+  --card-soft-border: #efe7d7;
+  font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: #0F172A;
+}
+
+/* P2 — Lisibilité premium (typographie, contraste) */
+#p2 {
+  color: #1a1a1a;
+}
+
+#p2 .p2-table-head-row {
+  border-bottom: 0.35mm solid rgba(195, 152, 71, 0.55);
+}
+
+#p2 tbody .p2-table-body-row:nth-child(odd) {
+  background: rgba(255, 255, 255, 0.45);
+}
+
+#p2 tbody .p2-table-body-row:nth-child(even) {
+  background: rgba(251, 246, 236, 0.35);
+}
+
+/* Tableau — chiffres plus visibles */
+#p2 .p2-table-compact td {
+  font-size: 1.05em;
+  font-weight: 500;
+}
+
+#p2 .p2-table-compact td:nth-child(2) {
+  color: #1a1a1a;
+}
+
+#p2 .p2-table-compact td:nth-child(3) {
+  color: #C39847;
+  font-weight: 600;
+}
+
+#p2 .p2-table-compact td:nth-child(4) {
+  color: #1f7a4f;
+  font-weight: 600;
+}
+
+/* Ligne 25 ans — LA ligne importante */
+#p2 .p2-highlight-row td {
+  font-weight: 700;
+  font-size: 1.15em;
+  background: rgba(195, 152, 71, 0.08);
+}
+
+/* En-têtes tableau */
+#p2 .p2-table-compact th {
+  font-size: 0.95em;
+  font-weight: 600;
+  color: #444;
+}
+
+/* KPI droite — valeurs impactantes */
+#p2 #p2_roi,
+#p2 #p2_tri,
+#p2 #p2_lcoe {
+  font-size: 1.2em;
+  font-weight: 600;
+  color: #111;
+}
+
+/* Labels KPI (ROI, TRI, LCOE) */
+#p2 div:has(> #p2_roi) > div:first-child,
+#p2 div:has(> #p2_tri) > div:first-child,
+#p2 div:has(> #p2_lcoe) > div:first-child {
+  font-size: 0.85em;
+  color: #777;
+}
+
+/* Hero — chiffre principal */
+#p2 .p2-hero strong {
+  font-size: 1.15em;
+  font-weight: 700;
+  color: #C39847;
+}
+
+#p2 .p2-hero strong span {
+  font-size: inherit;
+  font-weight: inherit;
+  color: inherit;
+}
+
+/* Barre — séparation subtile */
+#p2 .bar {
+  margin-top: 1.5mm;
+}
+
+/* P2 — Colonne droite : panneau KPI + comparatif (hauteur utile, cohérence premium) */
+#p2 .p2-right-impact-panel {
+  min-height: 0;
+}
+
+/* Graphique : occupe l’espace vertical restant dans le panneau */
+#p2 .p2-bar-chart {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+#p2 .p2-bar-container {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 4.5mm;
+  width: 100%;
+  min-height: 55mm;
+  height: 56mm;
+  box-sizing: border-box;
+}
+
+#p2 .p2-bar {
+  flex: 1 1 50%;
+  min-width: 0;
+  max-width: none;
+  border-radius: 2.5mm;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  padding: 2.2mm 1.75mm;
+  box-sizing: border-box;
+}
+
+#p2 .p2-bar-full {
+  background: linear-gradient(180deg, #3d3d3d 0%, #2a2a2a 100%);
+}
+
+#p2 .p2-bar-reduced {
+  background: linear-gradient(180deg, #d4ae5e 0%, #c39847 45%, #a67d35 100%);
+}
+
+#p2 .p2-bar span {
+  font-size: 3.65mm;
+  font-weight: 800;
+  color: #fff;
+}
+
+#p2 .p2-bar label {
+  font-size: 2.75mm;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.92);
+  margin-top: 0.55mm;
+}
+
+/* P2 — Résumé client */
+#p2 .p2-summary {
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+#p2 .p2-summary h3 {
+  font-weight: 600;
+  margin-bottom: 2mm;
+}
+
+#p2 .p2-summary li {
+  margin-bottom: 1mm;
+}
+
+/* P2 — Fiabilité : 2 colonnes + dernière ligne pleine largeur (gain de hauteur, PDF) */
+#p2 .p2-reliability-bullets {
+  align-items: start;
+}
+
+/* Barre dorée */
+.pdf-legacy-port .bar {
+  height: 1.6mm;
+  background: linear-gradient(90deg, #C39847, #e8d2a5);
+  border-radius: 3mm;
+}
+
+.pdf-legacy-port .bar.thin {
+  height: 1mm;
+  background: linear-gradient(90deg, #C39847, #d4af63);
+  border-radius: 999mm;
+}
+
+/* Header */
+.pdf-legacy-port .header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  position: relative;
+}
+
+/* Badge */
+.pdf-legacy-port .badge {
+  font-size: 3.1mm;
+  border: 0.3mm solid #C39847;
+  color: #C39847;
+  border-radius: 999mm;
+  padding: 0.8mm 2.8mm;
+}
+
+/* Grid */
+.pdf-legacy-port .grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 2.5mm;
+}
+
+.pdf-legacy-port .col-6 {
+  grid-column: span 6;
+}
+
+/* Cards */
+.pdf-legacy-port .card {
+  border: 0.3mm solid #e6e8ee;
+  border-radius: 2.8mm;
+  padding: 3.2mm;
+  background: #fff;
+}
+
+.pdf-legacy-port .card.soft {
+  background: #faf9f6;
+  border-color: #efe7d7;
+}
+
+/* Meta compact */
+.pdf-legacy-port .meta-compact {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6mm;
+  justify-content: flex-end;
+  font: 400 3.6mm/1.35 Inter, system-ui;
+  color: #333;
+}
+
+.pdf-legacy-port .meta-compact b {
+  color: #555;
+}
+
+/* P1 spécifique (legacy #p1 h2) */
+.pdf-legacy-port #p1 h2 {
+  font-size: 9.8mm;
+  line-height: 1.05;
+}
+
+/* P4 — KPI bande premium */
+.pdf-legacy-port .p4-kpi-line {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  justify-content: space-between;
+  align-items: center;
+  padding: 2.8mm 3.2mm;
+  margin-top: 2.4mm;
+  border: 0.3mm solid rgba(195, 152, 71, 0.25);
+  border-radius: 3mm;
+  background: linear-gradient(90deg, rgba(195, 152, 71, 0.06), rgba(250, 249, 246, 1));
+  font-size: 3.4mm;
+  column-gap: 1.2mm;
+}
+
+.pdf-legacy-port .kpi-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3mm;
+  white-space: nowrap;
+  align-items: center;
+  text-align: center;
+}
+
+.pdf-legacy-port .kpi-item span {
+  font-size: 2.85mm;
+  color: #6b6b6b;
+}
+
+.pdf-legacy-port .kpi-item strong {
+  font-size: 3.65mm;
+  color: #141414;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.pdf-legacy-port .kpi-item.highlight strong {
+  color: #C39847;
+}
+
+/* P7 — Schéma flux : traitement distinct de P6 (graphique courbe + légende) */
+.pdf-legacy-port #p7 .p7-flux-hero {
+  position: relative;
+  flex-shrink: 0;
+  padding: 4.2mm 5.2mm 4.35mm 6.2mm;
+  border: none;
+  border-radius: 4.6mm;
+  background: linear-gradient(165deg, #fffefb 0%, #ffffff 55%, #faf8f5 100%);
+  box-shadow:
+    inset 0 0 0 0.38mm rgba(195, 152, 71, 0.34),
+    0 1.35mm 4.2mm rgba(15, 23, 42, 0.048);
+}
+
+.pdf-legacy-port #p7 .p7-flux-hero::before {
+  content: "";
+  position: absolute;
+  left: 1.95mm;
+  top: 2.65mm;
+  bottom: 2.65mm;
+  width: 0.5mm;
+  border-radius: 1mm;
+  background: linear-gradient(180deg, #d4af63, #c39847);
+  opacity: 0.95;
+}
+
+.pdf-legacy-port #p7 .p7-lecture-card.card.soft {
+  border-style: dashed;
+  border-width: 0.4mm;
+  border-color: rgba(195, 152, 71, 0.32);
+  background: rgba(255, 252, 248, 0.92);
+}
+
+.pdf-legacy-port #p7 .p7-lecture-steps {
+  margin: 0;
+  padding-left: 4.6mm;
+  list-style: decimal;
+  font-size: 3.08mm;
+  color: #444;
+  line-height: 1.43;
+}
+
+.pdf-legacy-port #p7 .p7-lecture-steps li {
+  margin-bottom: 0.4mm;
+  padding-left: 0.45mm;
+}
+
+.pdf-legacy-port #p7 .p7-lecture-steps li:last-child {
+  margin-bottom: 0;
+}
+
+.pdf-legacy-port #p7 .p7-lecture-steps--compact li {
+  margin-bottom: 0.32mm;
+}
+
+/* P4/P5 chart-card, legend, pill (legacy inline styles) */
+.pdf-legacy-port .chart-card.premium {
+  box-shadow: 0 2mm 6mm rgba(0, 0, 0, 0.04);
+  border-radius: 5mm;
+}
+.pdf-legacy-port .legend.legend-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto 1fr auto 1fr auto 1fr;
+  column-gap: 5mm;
+  row-gap: 1.6mm;
+  align-items: center;
+}
+.pdf-legacy-port .pill {
+  width: 7mm;
+  height: 5mm;
+  border-radius: 2mm;
+  border: 0.3mm solid rgba(0, 0, 0, 0.06);
+  display: inline-block;
+}
+.pdf-legacy-port .pill-violet { background: #E9E6FF; }
+.pdf-legacy-port .pill-gold { background: #F6D68B; }
+.pdf-legacy-port .pill-gray { background: #D8D8D8; }
+.pdf-legacy-port .pill-cyan { background: #CFF5FB; }
+.pdf-legacy-port .pill-green { background: #E3FBE6; }
+.pdf-legacy-port .legend-text b { color: #2f3640; font-size: 3.2mm; }
+.pdf-legacy-port .legend-text .sub { color: #8190a5; font-weight: 600; font-size: 2.7mm; }
+
+/* P8–P10 : sauts de page sur la section gérés par PdfPageLayout (inline). */
+
+/* Aligné flux P7 : colonne naturelle, sans remplissage vertical (pas de flex:1 sur l’enveloppe) */
+.pdf-legacy-port #p8 .p8-container {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 auto;
+  min-height: 0;
+  overflow: visible;
+}
+
+/* P10 — corps principal : empilement haut → bas comme P7 (pas de consommation de la hauteur feuille) */
+.pdf-legacy-port #p10 .p10-main {
+  flex: 0 0 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: visible;
+}
+
+/* Corps P9 — même logique que P7 : pas de flex-grow sur le bloc résultats */
+.pdf-legacy-port #p9 .p9-body {
+  flex: 0 0 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: visible;
+}
+
+.pdf-legacy-port #p9 .p9-empty-state {
+  flex: 1 1 auto;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  min-height: 88mm;
+  margin: 4mm 0;
+  padding: 8mm 10mm;
+  font-size: 4.6mm;
+  font-weight: 600;
+  color: #718096;
+  letter-spacing: 0.06em;
+  text-align: center;
+  background: linear-gradient(180deg, #fafaf9, #fff);
+  border: 0.35mm dashed rgba(195, 152, 71, 0.35);
+  border-radius: 5mm;
+}
+
+/* Conteneur moteur (#p9_main_stack) : colonne naturelle (comme P7) */
+.pdf-legacy-port #p9 .p9-main-stack.p9-main-stack--outer {
+  flex: 0 0 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: visible;
+}
+
+/* Hero + graph puis KPI : flux séquentiel avec écart fixe (évite l’étirement type space-between) */
+.pdf-legacy-port #p9 .p9-main-stack-inner {
+  flex: 0 0 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 2.2mm;
+  overflow: visible;
+  max-width: none;
+  width: 100%;
+}
+
+.pdf-legacy-port #p9 .p9-top-content {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 auto;
+  min-height: 0;
+  gap: 1.85mm;
+  width: 100%;
+}
+
+.pdf-legacy-port #p9 .p9-bottom-content {
+  flex-shrink: 0;
+  width: 100%;
+}
+
+.pdf-legacy-port #p9 .p9-zone--hero {
+  flex-shrink: 0;
+  text-align: center;
+  padding: 2.2mm 3.2mm 0.65mm;
+  margin: 0 -0.5mm 0.35mm;
+  background: radial-gradient(ellipse 120% 80% at 50% 0%, rgba(195, 152, 71, 0.08), transparent 55%);
+}
+
+.pdf-legacy-port #p9 .p9-hero-caption {
+  font-size: 3.65mm;
+  font-weight: 700;
+  color: #1a202c;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  line-height: 1.22;
+}
+
+.pdf-legacy-port #p9 .p9-hero-value {
+  margin-top: 0.98mm;
+  margin-bottom: 0;
+  padding: 0.92mm 2mm 0.08mm;
+  font-size: 9mm;
+  font-weight: 800;
+  line-height: 1.02;
+  color: #6b5220;
+  letter-spacing: -0.04em;
+  text-shadow: 0 0.12mm 0 rgba(255, 255, 255, 1), 0 0.2mm 0.6mm rgba(195, 152, 71, 0.22);
+}
+
+.pdf-legacy-port #p9 .p9-scenario-line {
+  margin-top: 0.82mm;
+  font-size: 2.85mm;
+  color: #4a5568;
+  font-weight: 600;
+  line-height: 1.22;
+}
+
+.pdf-legacy-port #p9 .p9-support-line {
+  margin: 0;
+  text-align: center;
+  font-size: 2.92mm;
+  color: #5c6570;
+  line-height: 1.28;
+  flex-shrink: 0;
+  padding: 0.28mm 4mm 0.08mm;
+  font-weight: 500;
+}
+
+.pdf-legacy-port #p9 .p9-zone--chart {
+  flex: 0 0 auto;
+  min-height: 0;
+  width: 100%;
+  max-width: none;
+  align-self: stretch;
+}
+
+/* Redondant avec le hero — masqué, le graphique porte la page */
+.pdf-legacy-port #p9 .p9-chart-heading {
+  display: none;
+}
+
+.pdf-legacy-port #p9 .p9-chart-wrap.p9-chart-surface {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: none;
+  /* Légèrement réduit pour compenser le KPI bas plus grand (évite débordement page) */
+  height: 106mm;
+  padding: 8px 12px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(180deg, #fffdf9 0%, #ffffff 50%, #fafbfc 100%);
+  border: 0.3mm solid rgba(195, 152, 71, 0.28);
+  border-radius: 4mm;
+  flex-shrink: 0;
+  overflow: hidden;
+  box-shadow: 0 1mm 3.5mm rgba(15, 23, 42, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.85);
+}
+
+.pdf-legacy-port #p9 .p9-chart-wrap.p9-chart-surface #p9_chart {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  max-width: none;
+}
+
+.pdf-legacy-port #p9 .p9-bottom-content .p9-zone--kpi {
+  flex-shrink: 0;
+  padding-top: 0.45mm;
+}
+
+.pdf-legacy-port #p9 .p9-kpi-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.2mm;
+  align-items: start;
+  max-height: none;
+  box-sizing: border-box;
+}
+
+/* Bandeau indicateurs : ~ −1/3 sur hauteur & typo (chiffres foncés) */
+.pdf-legacy-port #p9 .p9-kpi-cell {
+  border: 0.38mm solid rgba(195, 152, 71, 0.3);
+  border-radius: 2.7mm;
+  padding: 0.7mm 1mm 0.75mm;
+  min-height: 12mm;
+  max-height: none;
+  background: linear-gradient(165deg, rgba(255, 255, 255, 0.95) 0%, rgba(253, 252, 249, 1) 100%);
+  text-align: center;
+  box-shadow: 0 0.75mm 1.85mm rgba(15, 23, 42, 0.06);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.pdf-legacy-port #p9 .p9-kpi-title {
+  font-size: 2.2mm;
+  font-weight: 600;
+  color: #5c6778;
+  line-height: 1.18;
+  margin-bottom: 0.3mm;
+}
+
+.pdf-legacy-port #p9 .p9-kpi-value {
+  font-size: 4mm;
+  font-weight: 800;
+  color: #1a202c;
+  letter-spacing: -0.03em;
+  line-height: 1.08;
+}
+
+/* Rentabilité (3e carte) : ~ −1/3 vs les deux autres — chiffres foncés plus discrets */
+.pdf-legacy-port #p9 .p9-kpi-row .p9-kpi-cell:nth-child(3) {
+  min-height: 8mm;
+  padding: 0.45mm 0.65mm 0.5mm;
+  border-radius: 1.8mm;
+  box-shadow: 0 0.5mm 1.2mm rgba(15, 23, 42, 0.05);
+}
+
+.pdf-legacy-port #p9 .p9-kpi-row .p9-kpi-cell:nth-child(3) .p9-kpi-title {
+  font-size: 1.5mm;
+  margin-bottom: 0.2mm;
+}
+
+.pdf-legacy-port #p9 .p9-kpi-row .p9-kpi-cell:nth-child(3) .p9-kpi-value {
+  font-size: 2.7mm;
+}
+
+/* Bas de page — même esprit que P4 (texte pédagogique petit) */
+.pdf-legacy-port #p9 .p9-footer-note {
+  margin: 0.65mm 0 0 0;
+  padding: 0 3mm 0.25mm;
+  font-size: 2.45mm;
+  line-height: 1.22;
+  color: #555;
+  flex: 0 0 auto;
+  text-align: center;
+}
+
+.pdf-legacy-port #p8 .p8-container > .header,
+.pdf-legacy-port #p8 .p8-container > .bar {
+  flex-shrink: 0;
+  max-height: 100%;
+}
+
+/*
+ * Ancienne règle #p8_results (flex + gap) ciblait #p8.p8-page — classe absente après migration.
+ * Ne pas réactiver sans audit PDF (changerait le layout quand l’engine affiche #p8_results).
+ */
+
+.pdf-legacy-port #p8 .p8-grid-lead {
+  flex: 0 0 auto;
+  min-height: 0;
+  overflow: visible;
+}
+
+.pdf-legacy-port #p8 .p8-grid-compare {
+  flex: 0 0 auto;
+  min-height: 0;
+  overflow: visible;
+  margin-top: 2.85mm;
+}
+
+.pdf-legacy-port #p8 .p8-grid-bottom {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+  height: auto;
+  align-self: stretch;
+  overflow: visible;
+  margin-top: 3.35mm;
+}
+
+.pdf-legacy-port #p8 .p8-grid-bottom .p8-battery-card {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+  height: 100%;
+  overflow: visible;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+#p8 .p8-lead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 3.35mm;
+  margin: 5.25mm 0 0;
+  padding: 2.35mm 3.5mm;
+  border-radius: 2.6mm;
+  background: linear-gradient(135deg, rgba(195, 152, 71, 0.18) 0%, rgba(26, 32, 44, 0.06) 100%);
+  border: 0.35mm solid rgba(195, 152, 71, 0.45);
+  box-shadow: 0 0.5mm 2mm rgba(15, 23, 42, 0.12);
+}
+
+#p8 .p8-lead-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+#p8 .p8-lead-line1 {
+  font-size: 5.35mm;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.02em;
+  line-height: 1.14;
+}
+
+/* Sous-titre dynamique (ex. « soit ~X kWh achetés en moins ») — doré, légèrement plus marqué */
+#p8 .p8-lead-line2 {
+  margin-top: 0.85mm;
+  font-size: 3.55mm;
+  font-weight: 700;
+  color: #c39847;
+  line-height: 1.22;
+}
+
+#p8 .p8-lead-schema {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+}
+
+#p8 .p8-schema-flow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 4.2mm;
+}
+
+#p8 .p8-schema-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 1.45mm;
+  max-width: 30mm;
+}
+
+#p8 .p8-schema-icon {
+  display: block;
+}
+
+#p8 .p8-schema-icon--sun {
+  color: #C39847;
+}
+
+#p8 .p8-schema-icon--bat {
+  color: #15803d;
+}
+
+#p8 .p8-schema-icon--home {
+  color: #64748b;
+}
+
+#p8 .p8-schema-label {
+  font-size: 2.65mm;
+  font-weight: 700;
+  color: #334155;
+  line-height: 1.2;
+}
+
+#p8 .p8-schema-arrow-svg {
+  flex-shrink: 0;
+  flex-grow: 0;
+  color: #94a3b8;
+  align-self: center;
+  margin: 0 0.8mm 2.5mm;
+}
+
+#p8 .p8-compare {
+  display: flex;
+  gap: 3.25mm;
+  margin: 0;
+  align-items: stretch;
+}
+
+#p8 .p8-compare-col {
+  flex: 1;
+  padding: 2.85mm 3.5mm;
+  border-radius: 2.6mm;
+  border: 0.35mm solid rgba(15, 23, 42, 0.12);
+  box-shadow: 0 0.4mm 1.5mm rgba(15, 23, 42, 0.08);
+}
+
+#p8 .p8-compare-col--base {
+  background: linear-gradient(180deg, #f1f5f9 0%, #e2e8f0 100%);
+}
+
+#p8 .p8-compare-col--bat {
+  background: linear-gradient(180deg, rgba(195, 152, 71, 0.14) 0%, rgba(255, 255, 255, 0.95) 55%);
+  border-color: rgba(195, 152, 71, 0.4);
+}
+
+#p8 .p8-compare-title {
+  font-size: 3.5mm;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #0f172a;
+  margin-bottom: 1.65mm;
+  padding-bottom: 1.2mm;
+  border-bottom: 0.35mm solid rgba(15, 23, 42, 0.12);
+}
+
+#p8 .p8-compare-col--bat .p8-compare-title {
+  color: #92400e;
+  border-bottom-color: rgba(195, 152, 71, 0.35);
+}
+
+#p8 .p8-compare-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 2mm;
+  padding: 1.35mm 0;
+  border-bottom: 0.2mm solid rgba(15, 23, 42, 0.08);
+  font-size: 3.05mm;
+  line-height: 1.2;
+}
+
+#p8 .p8-compare-row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+#p8 .p8-compare-label {
+  color: #475569;
+  font-weight: 600;
+  flex: 1;
+  min-width: 0;
+  line-height: 1.28;
+}
+
+#p8 .p8-compare-val {
+  font-weight: 800;
+  font-size: 3.8mm;
+  color: #0f172a;
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+#p8 .p8-compare-val--accent {
+  color: #15803d;
+}
+
+#p8 .p8-battery-card {
+  margin: 0;
+  flex-shrink: 0;
+  padding: 3.35mm 3.85mm;
+  border-radius: 2.6mm;
+  background: #f8fafc;
+  border: 0.35mm solid rgba(15, 23, 42, 0.14);
+  box-shadow: 0 0.5mm 2mm rgba(15, 23, 42, 0.1);
+}
+
+#p8 .p8-battery-card--virt {
+  background: linear-gradient(180deg, #fffdfb 0%, #fff 100%);
+  border-color: rgba(195, 152, 71, 0.35);
+}
+
+#p8 .p8-battery-title {
+  font-size: 3.65mm;
+  font-weight: 800;
+  color: #C39847;
+  margin-bottom: 2mm;
+  line-height: 1.18;
+  flex-shrink: 0;
+}
+
+#p8 .p8-battery-card--virt .p8-battery-title {
+  color: #C39847;
+}
+
+#p8 .p8-battery-grid {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 6mm;
+  align-items: stretch;
+  min-height: 0;
+  height: auto;
+}
+
+#p8 .p8-grid-bottom .p8-battery-grid {
+  flex: 0 0 auto;
+  min-height: 0;
+  height: auto;
+  max-height: none;
+  overflow: visible;
+  gap: 2.8mm;
+  align-items: stretch;
+  align-self: stretch;
+  width: 100%;
+}
+
+/* Accroche commerciale — projection 25 ans (données mapper + engine-p8) */
+#p8 .p8-commercial-hook {
+  margin: 3.35mm 0 0;
+  padding: 0 3.85mm;
+  width: 100%;
+  max-width: 100%;
+  flex-shrink: 0;
+  align-self: stretch;
+  box-sizing: border-box;
+}
+
+#p8 .p8-commercial-hook__main {
+  margin: 0;
+  padding: 0;
+  font-size: 3.35mm;
+  font-weight: 800;
+  color: #c39847;
+  line-height: 1.28;
+  text-align: left;
+  letter-spacing: -0.01em;
+}
+
+#p8 .p8-commercial-hook__option {
+  margin: 1.4mm 0 0;
+  padding: 0;
+  font-size: 3.1mm;
+  font-weight: 700;
+  color: #a67c32;
+  line-height: 1.32;
+  text-align: left;
+}
+
+/* Disclaimer — sous le bloc carte batterie (hors carte), aligné sur le contenu */
+#p8 .p8-grid-bottom-disclaimer {
+  margin: 2.5mm 0 0;
+  padding: 0 3.85mm;
+  width: 100%;
+  max-width: 100%;
+  flex-shrink: 0;
+  align-self: stretch;
+  box-sizing: border-box;
+  font-size: 3.15mm;
+  line-height: 1.44;
+  font-style: italic;
+  font-weight: 500;
+  color: #5c6b7e;
+  text-align: left;
+}
+
+#p8 .p8-battery-kpis {
+  min-width: 0;
+  padding: 2.8mm 2.6mm;
+  background: rgba(248, 250, 252, 0.98);
+  border: 0.35mm solid rgba(15, 23, 42, 0.14);
+  border-radius: 2.6mm;
+  box-shadow: inset 0 0 0 0.2mm rgba(255, 255, 255, 0.6);
+  min-height: 0;
+  height: auto;
+  max-height: none;
+  overflow: visible;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 1.4mm;
+}
+
+/* Lignes KPI = mini-cartes lisibles */
+#p8 .p8-battery-kpis .p8-compare-row {
+  padding: 2.2mm 2.4mm;
+  margin: 0;
+  border-radius: 2mm;
+  border: 0.3mm solid rgba(15, 23, 42, 0.1);
+  border-bottom: 0.3mm solid rgba(15, 23, 42, 0.1);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 0.35mm 1mm rgba(15, 23, 42, 0.06);
+  font-size: 3.12mm;
+}
+
+#p8 .p8-battery-kpis .p8-compare-row:last-child {
+  border-bottom: 0.3mm solid rgba(15, 23, 42, 0.1);
+  padding-bottom: 2.2mm;
+}
+
+#p8 .p8-battery-kpis .p8-compare-label {
+  color: #334155;
+  font-weight: 700;
+  font-size: 3.1mm;
+}
+
+#p8 .p8-battery-kpis .p8-compare-val {
+  font-size: 3.45mm;
+  font-weight: 800;
+  color: #0a0f1a;
+}
+
+#p8 .p8-battery-aside {
+  border-left: 0.45mm solid rgba(195, 152, 71, 0.42);
+  padding: 0 0 0 3.6mm;
+  margin: 0;
+  min-width: 0;
+  min-height: 0;
+  height: auto;
+  max-height: none;
+  flex: 0 0 auto;
+  overflow: visible;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 2.2mm;
+}
+
+#p8 .p8-battery-card--virt .p8-battery-aside {
+  border-left-color: rgba(195, 152, 71, 0.45);
+}
+
+#p8 .p8-battery-aside-title {
+  font-size: 3.2mm;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0 0 1.2mm;
+  line-height: 1.22;
+  letter-spacing: -0.02em;
+  flex-shrink: 0;
+}
+
+#p8 .p8-battery-card--virt .p8-battery-aside-title {
+  color: #92400e;
+}
+
+#p8 .p8-battery-copy {
+  font-size: 3.12mm;
+  line-height: 1.52;
+  color: #3d4a5c;
+  max-width: none;
+  flex: 0 0 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 1.8mm;
+}
+
+#p8 .p8-battery-copy p {
+  margin: 0;
+}
+
+#p8 .p8-battery-copy p:last-child {
+  margin-bottom: 0;
+}
+
+#p8 .p8-battery-lead {
+  font-weight: 800;
+  color: #334155;
+  font-size: 3.05mm;
+}
+
+#p8 .p8-battery-highlights {
+  list-style: none;
+  margin: 0;
+  margin-top: 1.6mm;
+  padding: 2.4mm 2.8mm;
+  background: rgba(21, 128, 61, 0.09);
+  border-radius: 2.5mm;
+  border: 0.3mm solid rgba(21, 128, 61, 0.22);
+  flex-shrink: 0;
+}
+
+#p8 .p8-battery-card--virt .p8-battery-highlights {
+  background: rgba(195, 152, 71, 0.1);
+  border-color: rgba(195, 152, 71, 0.28);
+}
+
+#p8 .p8-battery-highlights li {
+  display: flex;
+  align-items: flex-start;
+  gap: 1.5mm;
+  font-size: 2.95mm;
+  font-weight: 600;
+  color: #1a2332;
+  padding: 1.35mm 0;
+  border-bottom: 0.2mm solid rgba(15, 23, 42, 0.1);
+  line-height: 1.28;
+}
+
+#p8 .p8-battery-highlights li:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+#p8 .p8-hl-check {
+  flex-shrink: 0;
+  margin-top: 0.28mm;
+  color: #15803d;
+}
+
+/* Impression */
+@media print {
+  .pdf-legacy-port {
+    background: #fff !important;
+  }
+}

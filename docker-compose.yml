@@ -1,0 +1,52 @@
+services:
+
+  db:
+    image: postgres:15
+    container_name: solarglobe_db
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: solarnext
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 3s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    image: node:20
+    container_name: solarglobe_backend
+    working_dir: /app
+    command: sh -c "npm install && node scripts/docker-bootstrap.js"
+    volumes:
+      - ./backend:/app
+    env_file:
+      - .env.dev
+    environment:
+      PGHOST: db
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/solarnext
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: solarglobe_frontend
+    environment:
+      VITE_PROXY_BACKEND: http://backend:3000
+    depends_on:
+      - backend
+    ports:
+      - "5173:5173"
+
+volumes:
+  postgres_data:

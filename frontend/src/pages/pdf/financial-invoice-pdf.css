@@ -1,0 +1,318 @@
+/* PDF Facture — plus administratif / officiel que le devis */
+
+.fi-doc-contract {
+  margin: 14px 0 12px;
+  padding: 8px 10px;
+  font-size: 8.5pt;
+  line-height: 1.4;
+  color: var(--fi-muted);
+  border: 1px dashed var(--fi-line);
+  border-radius: 4px;
+  background: rgba(18, 16, 24, 0.02);
+}
+
+.fi-doc-contract p {
+  margin: 0;
+}
+
+.fi-root {
+  --fi-brand: #8a7348;
+  --fi-ink: #121018;
+  --fi-muted: #4a4654;
+  --fi-line: rgba(18, 16, 24, 0.14);
+  --fi-panel: #f6f5f8;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 190mm;
+  margin: 0 auto;
+  padding: 0 4mm;
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-size: 10pt;
+  line-height: 1.45;
+  color: var(--fi-ink);
+  background: #fff;
+}
+
+.fi-root *,
+.fi-root *::before,
+.fi-root *::after {
+  box-sizing: border-box;
+}
+
+.fi-topbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 12px;
+  border-bottom: 3px solid var(--fi-ink);
+  margin-bottom: 16px;
+}
+
+.fi-logo-wrap {
+  flex: 0 0 auto;
+  max-width: 50mm;
+  min-height: 20mm;
+  display: flex;
+  align-items: center;
+}
+
+.fi-logo-wrap img {
+  max-width: 100%;
+  max-height: 20mm;
+  object-fit: contain;
+}
+
+.fi-brand-fallback {
+  font-size: 12pt;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+
+.fi-doc-head {
+  text-align: right;
+}
+
+.fi-doc-head h1 {
+  margin: 0;
+  font-size: 20pt;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  color: var(--fi-ink);
+}
+
+.fi-status-pill {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 4px 10px;
+  font-size: 8pt;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border: 1px solid var(--fi-line);
+  border-radius: 4px;
+  background: var(--fi-panel);
+  color: var(--fi-muted);
+}
+
+.fi-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.fi-block h2 {
+  margin: 0 0 6px;
+  font-size: 7.5pt;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--fi-muted);
+}
+
+.fi-block p {
+  margin: 0 0 3px;
+}
+
+.fi-recipient-name {
+  font-weight: 700;
+  font-size: 10.5pt;
+}
+
+.fi-meta {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.fi-meta-box {
+  padding: 10px 12px;
+  border: 1px solid var(--fi-line);
+  border-radius: 6px;
+  background: var(--fi-panel);
+  font-size: 9.5pt;
+}
+
+.fi-meta-box dt {
+  margin: 0 0 2px;
+  font-size: 7pt;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--fi-muted);
+}
+
+.fi-meta-box dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.fi-ref-quote {
+  font-size: 8.5pt;
+  color: var(--fi-muted);
+  margin-bottom: 12px;
+}
+
+.fi-table-wrap {
+  border: 1px solid var(--fi-line);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+
+.fi-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 9pt;
+}
+
+.fi-table thead {
+  background: rgba(18, 16, 24, 0.06);
+}
+
+.fi-table th {
+  text-align: left;
+  padding: 7px 8px;
+  font-weight: 700;
+  font-size: 7.5pt;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fi-muted);
+  border-bottom: 1px solid var(--fi-line);
+}
+
+.fi-table th.fi-num,
+.fi-table td.fi-num {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.fi-table td {
+  padding: 7px 8px;
+  border-bottom: 1px solid var(--fi-line);
+  vertical-align: top;
+}
+
+.fi-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.fi-line-desc {
+  font-weight: 600;
+}
+
+.fi-line-desc small {
+  display: block;
+  margin-top: 2px;
+  font-weight: 400;
+  color: var(--fi-muted);
+  font-size: 8pt;
+}
+
+.fi-summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 14px;
+  align-items: start;
+}
+
+.fi-totals {
+  border: 1px solid var(--fi-line);
+  border-radius: 6px;
+  padding: 10px 12px;
+  background: #fff;
+}
+
+.fi-totals-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 3px 0;
+  font-size: 9.5pt;
+}
+
+.fi-totals-row--due {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 2px solid var(--fi-ink);
+  font-size: 12pt;
+  font-weight: 800;
+}
+
+.fi-totals-row--due span:last-child {
+  color: var(--fi-brand);
+}
+
+.fi-pay-panel {
+  border: 1px solid var(--fi-line);
+  border-radius: 6px;
+  padding: 10px 12px;
+  background: var(--fi-panel);
+  font-size: 9pt;
+}
+
+.fi-pay-panel h3 {
+  margin: 0 0 8px;
+  font-size: 7.5pt;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--fi-muted);
+}
+
+.fi-pay-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 2px 0;
+  border-bottom: 1px dashed var(--fi-line);
+}
+
+.fi-pay-row:last-child {
+  border-bottom: none;
+}
+
+.fi-terms {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border-left: 3px solid var(--fi-ink);
+  background: rgba(18, 16, 24, 0.03);
+  border-radius: 0 6px 6px 0;
+  font-size: 9pt;
+}
+
+.fi-terms h3 {
+  margin: 0 0 6px;
+  font-size: 7.5pt;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--fi-muted);
+}
+
+.fi-legal {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--fi-line);
+  font-size: 7.5pt;
+  color: var(--fi-muted);
+  line-height: 1.45;
+}
+
+.fi-legal h3 {
+  margin: 0 0 6px;
+  font-size: 7.5pt;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fi-ink);
+}
+
+.fi-loading,
+.fi-error {
+  padding: 2rem;
+  text-align: center;
+}
+
+.fi-error {
+  color: #b91c1c;
+}

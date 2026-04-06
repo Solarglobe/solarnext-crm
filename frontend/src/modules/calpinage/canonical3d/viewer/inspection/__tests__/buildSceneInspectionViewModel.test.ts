@@ -1,0 +1,31 @@
+import { describe, it, expect } from "vitest";
+import { buildDemoSolarScene3D } from "../../demoSolarScene3d";
+import { buildSceneInspectionViewModel } from "../buildSceneInspectionViewModel";
+
+describe("buildSceneInspectionViewModel", () => {
+  const scene = buildDemoSolarScene3D();
+
+  it("résout un pan", () => {
+    const m = buildSceneInspectionViewModel(scene, { kind: "PAN", id: "roof-h" });
+    expect(m.title).toContain("pan");
+    expect(m.rows.some((r) => r.label === "Type" && r.value.includes("Pan"))).toBe(true);
+    expect(m.rows.some((r) => r.label === "ID")).toBe(true);
+  });
+
+  it("résout un panneau PV", () => {
+    const m = buildSceneInspectionViewModel(scene, { kind: "PV_PANEL", id: "pv-1" });
+    expect(m.rows.some((r) => r.value === "Panneau PV" || r.value.includes("Panneau"))).toBe(true);
+    expect(m.rows.some((r) => r.label === "Pan associé")).toBe(true);
+  });
+
+  it("résout un obstacle", () => {
+    const m = buildSceneInspectionViewModel(scene, { kind: "OBSTACLE", id: "obs-block" });
+    expect(m.rows.some((r) => r.label === "Sous-type")).toBe(true);
+    expect(m.rows.some((r) => r.label === "Hauteur")).toBe(true);
+  });
+
+  it("panneau inexistant → message clair", () => {
+    const m = buildSceneInspectionViewModel(scene, { kind: "PV_PANEL", id: "nope" });
+    expect(m.title).toContain("introuvable");
+  });
+});

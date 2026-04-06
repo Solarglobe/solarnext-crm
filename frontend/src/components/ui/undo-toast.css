@@ -1,0 +1,104 @@
+.sn-undo-toast-host {
+  position: fixed;
+  right: 1.25rem;
+  bottom: 1.25rem;
+  z-index: 13000;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.5rem;
+  pointer-events: none;
+}
+
+.sn-undo-toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 260px;
+  max-width: min(420px, calc(100vw - 2rem));
+  padding: 0.65rem 0.85rem;
+  border-radius: 0.65rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: linear-gradient(
+    135deg,
+    rgba(22, 32, 52, 0.92) 0%,
+    rgba(14, 20, 36, 0.9) 100%
+  );
+  box-shadow:
+    0 24px 48px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  color: rgba(248, 250, 252, 0.95);
+  font-size: 0.9rem;
+  animation: sn-undo-toast-in 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes sn-undo-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.sn-undo-toast-msg {
+  flex: 1;
+  line-height: 1.35;
+}
+
+.sn-undo-toast-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.sn-undo-toast-btn {
+  appearance: none;
+  border: none;
+  border-radius: 9px;
+  padding: 0.35rem 0.55rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  background: rgba(56, 189, 248, 0.18);
+  color: #7dd3fc;
+  transition:
+    background 0.15s ease,
+    transform 0.12s ease;
+}
+
+.sn-undo-toast-btn:hover {
+  background: rgba(56, 189, 248, 0.28);
+  transform: translateY(-1px);
+}
+
+.sn-undo-toast-timer {
+  font-size: 0.75rem;
+  color: rgba(226, 232, 240, 0.55);
+  font-variant-numeric: tabular-nums;
+  min-width: 2.5rem;
+  text-align: right;
+}
+
+html.theme-light .sn-undo-toast {
+  border-color: rgba(15, 23, 42, 0.1);
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.96) 0%,
+    rgba(241, 245, 249, 0.94) 100%
+  );
+  color: #0f172a;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.12);
+}
+
+html.theme-light .sn-undo-toast-btn {
+  background: rgba(14, 165, 233, 0.12);
+  color: #0369a1;
+}
+
+html.theme-light .sn-undo-toast-timer {
+  color: #64748b;
+}

@@ -1,0 +1,22 @@
+{
+  "decision": "HD_DEFAULT_FALSE",
+  "recommendation": "KEEP STD BY DEFAULT",
+  "fromBenchmark": "hd-vs-std-benchmark-20260226.json",
+  "benchmarkRunAt": "2026-02-26T09:58:17.710Z",
+  "inputs": {
+    "cpuRatioMean": 0.9,
+    "meanLossDelta": 0,
+    "maxLossDelta": 0.02
+  },
+  "thresholds": {
+    "lossMean": 0.3,
+    "lossMax": 0.8,
+    "cpuRatioMax": 3
+  },
+  "rules": {
+    "significantPrecision": false,
+    "acceptableCost": true,
+    "enableHdByDefault": false
+  },
+  "decidedAt": "2026-02-26T10:01:17.683Z"
+}

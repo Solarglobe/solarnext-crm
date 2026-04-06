@@ -1,0 +1,81 @@
+/**
+ * LOT A — Formulaires mission (ModalShell) : champs + pied d’édition.
+ */
+
+.planning-modal-field {
+  margin-bottom: 16px;
+}
+
+.planning-modal-field label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 13px;
+}
+
+.planning-modal-row {
+  display: flex;
+  gap: 16px;
+}
+
+.planning-modal-row .planning-modal-field {
+  flex: 1;
+}
+
+.planning-modal-hint {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 0 0 16px 0;
+}
+
+.planning-modal-id-block {
+  margin-top: 8px;
+  padding: 10px 12px;
+  background: var(--surface-2);
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.planning-modal-id {
+  font-size: 12px;
+  color: var(--primary);
+}
+
+.planning-modal-error {
+  color: var(--error);
+  margin: 12px 0;
+}
+
+.planning-mission-edit-footer {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.planning-mission-edit-footer-end {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.sn-btn-danger {
+  background: var(--error, #ef4444);
+  color: #fff;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.sn-btn-danger:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.sn-btn-danger:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

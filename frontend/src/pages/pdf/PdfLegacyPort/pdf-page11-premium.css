@@ -1,0 +1,559 @@
+/**
+ * Page 11 PDF — paysage premium, budget px strict (zone utile .p11-premium).
+ * Totaux : hero + central + synth + footer + 3×gap ≤ 603.56 px.
+ */
+
+.p11-premium {
+  --p11-ink: #1a1917;
+  --p11-ink-soft: #45423e;
+  --p11-muted: #6b6560;
+  --p11-line: #e0dbd2;
+  --p11-line-soft: #eee9e0;
+  --p11-paper: #f9f7f3;
+  --p11-gold: #b8923f;
+  --p11-gold-soft: rgba(184, 146, 63, 0.11);
+
+  --p11-w: 1047px;
+  --p11-h-max: 603.56px;
+  --p11-gap-v: 6px;
+  --p11-h-hero: 78px;
+  --p11-h-central: 374px;
+  --p11-h-synth: 112px;
+  --p11-h-foot: 20px;
+
+  /* Bloc central horizontal — plus d’air entre graphique et colonne */
+  --p11-col-chart: 668px;
+  --p11-col-gap: 20px;
+  --p11-col-read: 359px;
+
+  --p11-plot-min: 358px;
+
+  /* Colonne droite (alignée sur --p11-h-central) */
+  --p11-read-gap: 12px;
+  --p11-read-pad-y: 10px;
+  --p11-read-h1: 98px;
+  --p11-read-h2: 165px;
+  --p11-read-h3: 80px;
+
+  width: var(--p11-w);
+  max-width: 100%;
+  max-height: var(--p11-h-max);
+  height: auto;
+  margin: 0 auto;
+  padding: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--p11-gap-v);
+  color: var(--p11-ink);
+  font-family: inherit;
+  position: relative;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.p11-premium *,
+.p11-premium *::before,
+.p11-premium *::after {
+  box-sizing: border-box;
+}
+
+/* ---------- A — Hero ---------- */
+.p11-hero {
+  flex: 0 0 var(--p11-h-hero);
+  height: var(--p11-h-hero);
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 4px 6px 6px;
+  border-bottom: 1px solid var(--p11-line-soft);
+}
+
+.p11-hero__line1 {
+  margin: 0 0 8px;
+  font-size: 13.5px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--p11-ink);
+}
+
+.p11-hero__line2 {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
+  min-width: 0;
+  width: 100%;
+}
+
+.p11-hero__top {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  flex-wrap: nowrap;
+  gap: 18px 24px;
+  min-width: 0;
+}
+
+.p11-hero__figure {
+  font-size: 38px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--p11-ink);
+  flex-shrink: 0;
+}
+
+.p11-hero__dur {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--p11-ink-soft);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.p11-hero__hint {
+  display: block;
+  margin-top: 3px;
+  padding-left: 0;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.22;
+  text-align: left;
+  color: var(--p11-muted);
+  max-width: min(420px, 100%);
+}
+
+/* ---------- B — Central : graphique | lecture ---------- */
+.p11-central {
+  flex: 0 0 var(--p11-h-central);
+  height: var(--p11-h-central);
+  min-height: 0;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  width: 100%;
+  min-width: 0;
+}
+
+.p11-central__gap {
+  flex: 0 0 var(--p11-col-gap);
+  width: var(--p11-col-gap);
+}
+
+/* Graphique gauche */
+.p11-chart {
+  flex: 0 0 var(--p11-col-chart);
+  width: var(--p11-col-chart);
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.p11-chart__head {
+  flex: 0 0 auto;
+  padding-bottom: 4px;
+}
+
+.p11-chart__title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.015em;
+  color: var(--p11-ink);
+}
+
+.p11-chart__inner {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #d8d2c8;
+  border-radius: 12px;
+  padding: 2px 6px 4px;
+  background: linear-gradient(180deg, #fff 0%, #faf8f5 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85);
+}
+
+.p11-chart__legend {
+  flex: 0 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--p11-ink-soft);
+  margin: 0 0 2px 2px;
+  line-height: 1.15;
+}
+
+.p11-chart__legend .p11-leg-eco,
+.p11-chart__legend .p11-leg-pay {
+  width: 18px;
+  height: 9px;
+  border-radius: 2px;
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 6px;
+}
+
+.p11-chart__legend .p11-leg-eco {
+  background: linear-gradient(180deg, #e4c56d 0%, #a67c28 100%);
+}
+
+.p11-chart__legend .p11-leg-pay {
+  background: linear-gradient(180deg, #4a4a52 0%, #1a1a1e 100%);
+}
+
+.p11-chart__svg-wrap {
+  flex: 1 1 auto;
+  min-height: var(--p11-plot-min);
+  position: relative;
+  width: 100%;
+}
+
+.p11-chart__svg-wrap svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* Colonne lecture droite */
+.p11-read {
+  flex: 0 0 var(--p11-col-read);
+  width: var(--p11-col-read);
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--p11-read-gap);
+  padding: var(--p11-read-pad-y) 0;
+}
+
+.p11-read__card {
+  border-radius: 11px;
+  padding: 10px 12px 11px;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border: 1px solid var(--p11-line);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.9) inset;
+}
+
+.p11-read__card--loan {
+  flex: 0 0 var(--p11-read-h1);
+  height: var(--p11-read-h1);
+  border-top: 2px solid rgba(184, 146, 63, 0.35);
+}
+
+.p11-read__card--after {
+  flex: 0 0 var(--p11-read-h2);
+  height: var(--p11-read-h2);
+  background: linear-gradient(165deg, #fffefb 0%, #f5f0e6 100%);
+  border-color: rgba(184, 146, 63, 0.28);
+}
+
+.p11-read__card--now {
+  flex: 0 0 var(--p11-read-h3);
+  height: var(--p11-read-h3);
+  overflow: hidden;
+  padding: 8px 10px 9px;
+  justify-content: flex-start;
+}
+
+.p11-read__card--now .p11-read__card-title {
+  margin: 0 0 5px;
+  flex-shrink: 0;
+}
+
+.p11-read__card--now .p11-read__row {
+  margin-top: 0;
+  min-height: 0;
+}
+
+.p11-read__card--now .p11-read__row + .p11-read__row {
+  margin-top: 5px;
+}
+
+.p11-read__card--now .p11-read__label {
+  line-height: 1.18;
+}
+
+.p11-read__card--now .p11-read__val {
+  font-size: 15px;
+  line-height: 1.1;
+}
+
+.p11-read__card-title {
+  margin: 0 0 9px;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #2c2a26;
+  line-height: 1.15;
+}
+
+.p11-read__row {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+
+.p11-read__row + .p11-read__row {
+  margin-top: 8px;
+}
+
+.p11-read__label {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--p11-muted);
+  flex: 1 1 auto;
+  min-width: 0;
+  line-height: 1.22;
+}
+
+.p11-read__val {
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1, "lnum" 1;
+  color: var(--p11-ink);
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.p11-read__val--gold {
+  color: #946c22;
+}
+
+.p11-read__val--reste {
+  color: #b05038;
+}
+
+.p11-read__stack {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  flex: 1;
+  min-height: 0;
+  justify-content: center;
+}
+
+.p11-read__kv {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.p11-read__kv .p11-read__label {
+  font-size: 9.5px;
+}
+
+.p11-read__kv .p11-read__val {
+  font-size: 15px;
+}
+
+/* ---------- C — Synthèse années clés ---------- */
+.p11-synth {
+  flex: 0 0 var(--p11-h-synth);
+  height: var(--p11-h-synth);
+  min-height: 0;
+  width: 100%;
+  overflow: hidden;
+  padding: 9px 12px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(212, 206, 196, 0.95);
+  background: linear-gradient(180deg, #fff 0%, #faf9f6 100%);
+  box-shadow:
+    0 1px 2px rgba(26, 25, 23, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92);
+  display: flex;
+  flex-direction: column;
+}
+
+.p11-synth__title {
+  flex: 0 0 auto;
+  margin: 0 0 7px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(184, 146, 63, 0.25);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #2e2c28;
+}
+
+.p11-synth__grid {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0 10px;
+  align-items: stretch;
+}
+
+.p11-synth__card {
+  min-width: 0;
+  padding: 8px 8px 9px;
+  border-radius: 9px;
+  background: linear-gradient(165deg, #fffefb 0%, #f4f1ea 100%);
+  border: 1px solid rgba(208, 202, 192, 0.88);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.88);
+}
+
+.p11-synth__year {
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: var(--p11-ink);
+  line-height: 1.12;
+  flex-shrink: 0;
+}
+
+/* Grille 2×2 : ligne libellés, ligne montants (évite coupure € / milliers en PDF) */
+.p11-synth__mini {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  gap: 5px 4px;
+  width: 100%;
+  min-width: 0;
+  align-items: baseline;
+}
+
+.p11-synth__h {
+  font-size: 8.5px;
+  font-weight: 700;
+  color: var(--p11-muted);
+  line-height: 1.15;
+}
+
+.p11-synth__h:nth-child(1) {
+  text-align: left;
+}
+
+.p11-synth__h:nth-child(2) {
+  text-align: right;
+}
+
+.p11-synth__h::after {
+  content: " :";
+}
+
+/* Montants : pas de césure (word-break cassait « 10 792 € » sur 2 lignes) */
+.p11-synth__v {
+  font-size: 9.75px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #161514;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  min-width: 0;
+  overflow: visible;
+}
+
+.p11-synth__v:nth-child(3) {
+  text-align: left;
+}
+
+.p11-synth__v:nth-child(4) {
+  text-align: right;
+}
+
+/* ---------- D — Ligne finale ---------- */
+.p11-foot {
+  flex: 0 0 var(--p11-h-foot);
+  height: var(--p11-h-foot);
+  min-height: 0;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 14px;
+  border-radius: 9px;
+  background: linear-gradient(180deg, #fcfaf7 0%, #f0eae2 100%);
+  border: 1px solid rgba(212, 206, 196, 0.88);
+  border-top: 1px solid rgba(184, 146, 63, 0.32);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+}
+
+.p11-foot__left {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  flex-shrink: 0;
+}
+
+.p11-foot__repay {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #2c2a26;
+}
+
+.p11-foot__dur {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--p11-ink);
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.p11-foot__right {
+  font-size: 10px;
+  font-weight: 500;
+  font-style: italic;
+  color: #45423e;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+  text-align: right;
+  flex: 1;
+  min-width: 0;
+}
+
+/* ---------- Pont moteur (hors flux, ids conservés pour engine-p11.js) ---------- */
+.p11-engine-bridge {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+  pointer-events: none;
+}
+
+.p11-engine-bridge__grid {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 2px;
+}
+
+@media print {
+  .p11-premium {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

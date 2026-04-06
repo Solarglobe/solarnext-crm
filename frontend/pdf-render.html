@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <title>SolarNext PDF Renderer</title>
+  <script>
+    window.SMARTPITCH_DISABLE_OVERLAYS = true;
+  </script>
+  <script src="/pdf-engines/engine-bridge.js"></script>
+  <script src="/pdf-engines/engine-p1.js"></script>
+  <script src="/pdf-engines/engine-p2.js"></script>
+  <script src="/pdf-engines/engine-p3b.js"></script>
+  <!-- engine-p4 supprimé : P4 rendu en React pur (PdfPage4) -->
+  <script src="/pdf-engines/engine-p5.js"></script>
+  <script src="/pdf-engines/engine-p6.js"></script>
+  <!-- engine-p7 supprimé : P7 rendu en React pur (PdfPage7) -->
+  <script src="/pdf-engines/engine-p8.js"></script>
+  <script src="/pdf-engines/engine-p9.js"></script>
+  <script src="/pdf-engines/engine-p10.js"></script>
+  <script src="/pdf-engines/engine-p11.js"></script>
+  <script src="/pdf-engines/engine-p12.js"></script>
+</head>
+<body>
+  <div id="pdf-app"></div>
+  <script type="module" src="/src/pdf-render.tsx"></script>
+</body>
+</html>

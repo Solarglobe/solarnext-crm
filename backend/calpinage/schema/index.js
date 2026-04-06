@@ -1,0 +1,2 @@
+// Calpinage schema — placeholder
+export {};

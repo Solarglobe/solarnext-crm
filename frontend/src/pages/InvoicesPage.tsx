@@ -1,0 +1,580 @@
+/**
+ * Liste factures — filtres métier, colonnes encours, création depuis devis (recherche, pas d’UUID).
+ */
+
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Button } from "../components/ui/Button";
+import { ModalShell } from "../components/ui/ModalShell";
+import {
+  createInvoiceFromQuote,
+  fetchInvoicesList,
+  fetchQuotesList,
+  type InvoiceListRow,
+  type QuoteListRow,
+} from "../services/financial.api";
+import { formatInvoiceNumberDisplay } from "../modules/finance/documentDisplay";
+import { InvoiceStatusBadge } from "../modules/leads/LeadDetail/financial/financialStatusBadges";
+import "../modules/quotes/quote-builder.css";
+import "../modules/invoices/invoice-builder.css";
+import "../modules/leads/LeadDetail/financial/financial-tab.css";
+
+function eur(v: unknown) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €" : "—";
+}
+
+function fmtDate(s: string | undefined | null) {
+  if (!s) return "—";
+  try {
+    return new Date(s).toLocaleDateString("fr-FR", { dateStyle: "short" });
+  } catch {
+    return "—";
+  }
+}
+
+function toAmount(v: unknown): number {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function isInvoiceOverdue(inv: InvoiceListRow): boolean {
+  const st = String(inv.status).toUpperCase();
+  if (["PAID", "CANCELLED", "DRAFT"].includes(st)) return false;
+  const ad = toAmount(inv.amount_due);
+  if (ad <= 0 || !inv.due_date) return false;
+  return String(inv.due_date).slice(0, 10) < new Date().toISOString().slice(0, 10);
+}
+
+function formatInvoiceClient(row: InvoiceListRow): string {
+  if (row.company_name?.trim()) return row.company_name.trim();
+  const parts = [row.first_name, row.last_name].filter(Boolean);
+  if (parts.length) return parts.join(" ").trim();
+  if (row.lead_id) return "Lead (sans fiche client)";
+  return "—";
+}
+
+function invoiceRowDateMs(r: InvoiceListRow): number {
+  const raw = r.issue_date || r.created_at;
+  if (!raw) return 0;
+  const t = new Date(raw).getTime();
+  return Number.isFinite(t) ? t : 0;
+}
+
+type InvStatusFilter = "ALL" | "DRAFT" | "ISSUED" | "PAID" | "PARTIAL" | "OVERDUE";
+type InvPeriodFilter = "ALL" | "WEEK" | "MONTH" | "YEAR";
+/** Critère du filtre date à date (création / édition) */
+type InvDateRangeBasis = "CREATED" | "UPDATED" | "EITHER";
+
+function norm(s: string | undefined) {
+  return String(s || "")
+    .trim()
+    .toUpperCase();
+}
+
+function matchesInvoiceStatus(row: InvoiceListRow, f: InvStatusFilter): boolean {
+  if (f === "ALL") return true;
+  const st = norm(row.status);
+  if (f === "OVERDUE") return isInvoiceOverdue(row);
+  if (f === "PARTIAL") return st === "PARTIALLY_PAID";
+  return st === f;
+}
+
+function matchesInvoicePeriod(row: InvoiceListRow, f: InvPeriodFilter): boolean {
+  if (f === "ALL") return true;
+  const ms = invoiceRowDateMs(row);
+  if (!ms) return true;
+  const now = new Date();
+  const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const t0 = startOfDay(now);
+  if (f === "WEEK") return ms >= t0 - 6 * 86400000;
+  if (f === "MONTH") return ms >= new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+  if (f === "YEAR") return ms >= new Date(now.getFullYear(), 0, 1).getTime();
+  return true;
+}
+
+function parseIsoToMs(s: string | undefined | null): number | null {
+  if (!s) return null;
+  const t = new Date(s).getTime();
+  return Number.isFinite(t) ? t : null;
+}
+
+function localYmdStartMs(ymd: string): number | null {
+  const t = ymd.trim();
+  if (!t) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(t);
+  if (!m) return null;
+  const y = Number(m[1]);
+  const mo = Number(m[2]) - 1;
+  const d = Number(m[3]);
+  const ms = new Date(y, mo, d).getTime();
+  return Number.isFinite(ms) ? ms : null;
+}
+
+/** Filtre inclusif sur journées locales ; si les deux bornes sont renseignées dans le désordre, l’intervalle est normalisé. */
+function matchesInvoiceDateRange(
+  row: InvoiceListRow,
+  fromYmd: string,
+  toYmd: string,
+  basis: InvDateRangeBasis
+): boolean {
+  const hasFrom = Boolean(fromYmd.trim());
+  const hasTo = Boolean(toYmd.trim());
+  if (!hasFrom && !hasTo) return true;
+
+  const a = hasFrom ? localYmdStartMs(fromYmd) : null;
+  const b = hasTo ? localYmdStartMs(toYmd) : null;
+  if (hasFrom && a == null) return true;
+  if (hasTo && b == null) return true;
+
+  let low: number;
+  let highExclusive: number;
+  if (a != null && b != null) {
+    low = Math.min(a, b);
+    highExclusive = Math.max(a, b) + 86400000;
+  } else if (a != null) {
+    low = a;
+    highExclusive = Infinity;
+  } else {
+    low = -Infinity;
+    highExclusive = b! + 86400000;
+  }
+
+  const inRange = (ts: number) => ts >= low && ts < highExclusive;
+
+  if (basis === "CREATED") {
+    const ts = parseIsoToMs(row.created_at);
+    return ts != null && inRange(ts);
+  }
+  if (basis === "UPDATED") {
+    const ts = parseIsoToMs(row.updated_at ?? row.created_at);
+    return ts != null && inRange(ts);
+  }
+  const c = parseIsoToMs(row.created_at);
+  const u = parseIsoToMs(row.updated_at);
+  if (c != null && inRange(c)) return true;
+  if (u != null && inRange(u)) return true;
+  return false;
+}
+
+function formatQuoteLine(q: QuoteListRow): string {
+  const num = q.quote_number || q.id.slice(0, 8);
+  const contact =
+    q.company_name?.trim() ||
+    [q.first_name, q.last_name].filter(Boolean).join(" ").trim() ||
+    q.lead_full_name?.trim() ||
+    "—";
+  return `${num} — ${contact}`;
+}
+
+export default function InvoicesPage() {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const [rows, setRows] = useState<InvoiceListRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<InvStatusFilter>("ALL");
+  const [periodFilter, setPeriodFilter] = useState<InvPeriodFilter>("ALL");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [dateRangeBasis, setDateRangeBasis] = useState<InvDateRangeBasis>("EITHER");
+  const [quoteModal, setQuoteModal] = useState(false);
+  const [quotesForPicker, setQuotesForPicker] = useState<QuoteListRow[]>([]);
+  const [quotesLoading, setQuotesLoading] = useState(false);
+  const [quoteSearch, setQuoteSearch] = useState("");
+  const [selectedQuote, setSelectedQuote] = useState<QuoteListRow | null>(null);
+  const [creating, setCreating] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      setRows(await fetchInvoicesList({ limit: 500 }));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erreur");
+      setRows([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  useEffect(() => {
+    if (!quoteModal) return;
+    let cancelled = false;
+    setQuotesLoading(true);
+    void fetchQuotesList({ limit: 500 })
+      .then((list) => {
+        if (!cancelled) {
+          const accepted = list.filter((q) => norm(q.status) === "ACCEPTED");
+          setQuotesForPicker(accepted);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setQuotesForPicker([]);
+      })
+      .finally(() => {
+        if (!cancelled) setQuotesLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [quoteModal]);
+
+  useEffect(() => {
+    if (!quoteModal) {
+      setQuoteSearch("");
+      setSelectedQuote(null);
+    }
+  }, [quoteModal]);
+
+  const useCustomDateRange = Boolean(dateFrom.trim() || dateTo.trim());
+
+  const filtered = useMemo(() => {
+    const custom = Boolean(dateFrom.trim() || dateTo.trim());
+    return rows
+      .filter((r) => matchesInvoiceStatus(r, statusFilter))
+      .filter((r) =>
+        custom ? matchesInvoiceDateRange(r, dateFrom, dateTo, dateRangeBasis) : matchesInvoicePeriod(r, periodFilter)
+      )
+      .sort((a, b) => {
+        const oa = isInvoiceOverdue(a) ? 0 : 1;
+        const ob = isInvoiceOverdue(b) ? 0 : 1;
+        if (oa !== ob) return oa - ob;
+        if (oa === 0) {
+          const da = String(a.due_date || "").slice(0, 10);
+          const db = String(b.due_date || "").slice(0, 10);
+          return da.localeCompare(db);
+        }
+        return invoiceRowDateMs(b) - invoiceRowDateMs(a);
+      });
+  }, [rows, statusFilter, periodFilter, dateFrom, dateTo, dateRangeBasis]);
+
+  const quotePickerOptions = useMemo(() => {
+    const q = quoteSearch.trim().toLowerCase();
+    let list = quotesForPicker;
+    if (q) {
+      list = list.filter((row) => {
+        const num = String(row.quote_number || "").toLowerCase();
+        const contact = formatQuoteLine(row).toLowerCase();
+        return num.includes(q) || contact.includes(q) || String(row.id).toLowerCase().includes(q);
+      });
+    }
+    return list.slice(0, 40);
+  }, [quotesForPicker, quoteSearch]);
+
+  const createFromSelectedQuote = async () => {
+    if (!selectedQuote) return;
+    setCreating(true);
+    try {
+      const inv = await createInvoiceFromQuote(selectedQuote.id);
+      setQuoteModal(false);
+      if (inv?.id) navigate(`/invoices/${inv.id}`);
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : "Erreur");
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  return (
+    <div className="qb-page fin-pole-shell">
+      <div className="fin-pole-list-hero">
+        <div className="fin-pole-list-hero__text">
+          <h1 className="sg-title">Factures</h1>
+          <p className="fin-pole-lead">
+            Encaissements et relances. Acomptes et soldes depuis un devis accepté ; le bouton ci-contre duplique les lignes d&apos;un
+            devis accepté en facture complète.
+          </p>
+        </div>
+        <div className="fin-pole-list-hero__actions">
+          <Link to="/finance" className="sn-btn sn-btn-ghost sn-btn-sm">
+            Vue d&apos;ensemble
+          </Link>
+          <Link to="/quotes" className="sn-btn sn-btn-ghost sn-btn-sm">
+            Devis
+          </Link>
+          <Button type="button" variant="outlineGold" size="sm" onClick={() => setQuoteModal(true)}>
+            Créer depuis devis
+          </Button>
+          <Button type="button" variant="primary" size="sm" onClick={() => navigate("/invoices/new")}>
+            Nouvelle facture
+          </Button>
+        </div>
+      </div>
+
+      <div className="fin-saas-filters" style={{ marginBottom: 16 }}>
+        <label className="fin-saas-filter-field">
+          <span className="fin-saas-filter-label">Statut</span>
+          <select className="sn-input" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as InvStatusFilter)}>
+            <option value="ALL">Tous</option>
+            <option value="DRAFT">Brouillon</option>
+            <option value="ISSUED">Émise</option>
+            <option value="PARTIAL">Partiellement payée</option>
+            <option value="PAID">Payée</option>
+            <option value="OVERDUE">En retard</option>
+          </select>
+        </label>
+        <label className="fin-saas-filter-field" title={useCustomDateRange ? "Désactivé tant qu’un intervalle Du/Au est renseigné" : undefined}>
+          <span className="fin-saas-filter-label">Période rapide</span>
+          <select
+            className="sn-input"
+            value={periodFilter}
+            disabled={useCustomDateRange}
+            onChange={(e) => setPeriodFilter(e.target.value as InvPeriodFilter)}
+          >
+            <option value="ALL">Toutes</option>
+            <option value="WEEK">Semaine glissante</option>
+            <option value="MONTH">Mois en cours</option>
+            <option value="YEAR">Année en cours</option>
+          </select>
+        </label>
+        <label className="fin-saas-filter-field fin-saas-filter-field--date">
+          <span className="fin-saas-filter-label">Du</span>
+          <input
+            type="date"
+            className="sn-input"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+            aria-label="Date de début (filtre)"
+          />
+        </label>
+        <label className="fin-saas-filter-field fin-saas-filter-field--date">
+          <span className="fin-saas-filter-label">Au</span>
+          <input
+            type="date"
+            className="sn-input"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+            aria-label="Date de fin (filtre)"
+          />
+        </label>
+        <label className="fin-saas-filter-field fin-saas-filter-field--basis">
+          <span className="fin-saas-filter-label">Filtrer sur</span>
+          <select
+            className="sn-input"
+            value={dateRangeBasis}
+            onChange={(e) => setDateRangeBasis(e.target.value as InvDateRangeBasis)}
+            aria-label="Critère de dates"
+          >
+            <option value="EITHER">Création ou dernière modification</option>
+            <option value="CREATED">Date de création</option>
+            <option value="UPDATED">Dernière modification</option>
+          </select>
+        </label>
+      </div>
+
+      {error ? <p className="qb-error-inline">{error}</p> : null}
+      {loading ? <p className="qb-muted">Chargement…</p> : null}
+
+      {!loading && rows.length > 0 && filtered.length === 0 ? (
+        <p className="qb-muted">Aucune facture ne correspond aux filtres.</p>
+      ) : null}
+
+      {!loading && filtered.length > 0 ? (
+        <div className="qb-table-wrap">
+          <table className="qb-table">
+            <thead>
+              <tr>
+                <th>Numéro</th>
+                <th>Client</th>
+                <th className="qb-num">Montant TTC</th>
+                <th className="qb-num">Payé</th>
+                <th className="qb-num">Reste à encaisser</th>
+                <th>Statut</th>
+                <th>Échéance</th>
+                <th>Retard</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((r) => {
+                const overdue = isInvoiceOverdue(r);
+                const paid = toAmount(r.total_paid);
+                const due = toAmount(r.amount_due);
+                const partial = norm(r.status) === "PARTIALLY_PAID" && due > 0;
+                return (
+                  <tr
+                    key={r.id}
+                    className={`qb-line${overdue ? " fin-saas-row-overdue" : ""}`}
+                    style={{ cursor: "pointer" }}
+                    onClick={() => navigate(`/invoices/${r.id}`)}
+                  >
+                    <td className="qb-mono">{formatInvoiceNumberDisplay(r.invoice_number, r.status)}</td>
+                    <td>{formatInvoiceClient(r)}</td>
+                    <td className="qb-num">{eur(r.total_ttc)}</td>
+                    <td className="qb-num">{eur(r.total_paid)}</td>
+                    <td className="qb-num">{eur(r.amount_due)}</td>
+                    <td onClick={(e) => e.stopPropagation()}>
+                      <InvoiceStatusBadge status={r.status} />
+                    </td>
+                    <td>{fmtDate(r.due_date)}</td>
+                    <td onClick={(e) => e.stopPropagation()}>
+                      {overdue ? (
+                        <span className="fin-badge fin-badge--danger" title="Échéance dépassée et solde dû">
+                          Retard
+                        </span>
+                      ) : paid > 0 && due <= 0 ? (
+                        <span className="fin-badge fin-badge--success">Soldée</span>
+                      ) : partial ? (
+                        <span className="fin-badge fin-badge--warning">Partiel</span>
+                      ) : (
+                        <span className="fin-badge fin-badge--muted">—</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
+
+      {!loading && rows.length === 0 ? <p className="qb-muted">Aucune facture pour l&apos;instant.</p> : null}
+
+      <ModalShell
+        open={quoteModal}
+        onClose={() => setQuoteModal(false)}
+        title="Créer depuis un devis"
+        subtitle="Seuls les devis acceptés sont proposés. Pour acompte ou solde, ouvrez le devis et utilisez les liens Facturation."
+        size="md"
+        footer={
+          <>
+            <Button type="button" variant="ghost" onClick={() => setQuoteModal(false)}>
+              Fermer
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              disabled={creating || !selectedQuote}
+              onClick={() => void createFromSelectedQuote()}
+            >
+              {creating ? "Création…" : "Créer la facture"}
+            </Button>
+          </>
+        }
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <label className="ib-label" style={{ width: "100%" }}>
+            Rechercher un devis
+            <input
+              className="sn-input ib-input-full"
+              value={quoteSearch}
+              onChange={(e) => setQuoteSearch(e.target.value)}
+              placeholder="Numéro ou nom client…"
+              autoComplete="off"
+            />
+          </label>
+          {quotesLoading ? <p className="qb-muted">Chargement des devis acceptés…</p> : null}
+          {!quotesLoading && quotesForPicker.length === 0 ? (
+            <p className="qb-muted">Aucun devis accepté trouvé.</p>
+          ) : null}
+          {!quotesLoading && quotePickerOptions.length > 0 ? (
+            <div
+              className="fin-saas-quote-ac"
+              role="listbox"
+              aria-label="Sélection de devis"
+              style={{
+                maxHeight: 280,
+                overflow: "auto",
+                border: "1px solid var(--border, rgba(255,255,255,0.1))",
+                borderRadius: 8,
+              }}
+            >
+              {quotePickerOptions.map((q) => {
+                const sel = selectedQuote?.id === q.id;
+                return (
+                  <button
+                    key={q.id}
+                    type="button"
+                    role="option"
+                    aria-selected={sel}
+                    className={`fin-saas-quote-ac-row${sel ? " fin-saas-quote-ac-row--sel" : ""}`}
+                    onClick={() => setSelectedQuote(q)}
+                  >
+                    <span className="qb-mono" style={{ fontSize: 13 }}>
+                      {q.quote_number || q.id.slice(0, 8)}
+                    </span>
+                    <span style={{ color: "var(--text-muted)", fontSize: 13 }}>{formatQuoteContact(q)}</span>
+                    <span style={{ marginLeft: "auto", fontSize: 12 }}>{eur(q.total_ttc)}</span>
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
+          {!quotesLoading && quotesForPicker.length > 0 && quotePickerOptions.length === 0 ? (
+            <p className="qb-muted">Aucun résultat pour cette recherche.</p>
+          ) : null}
+        </div>
+      </ModalShell>
+
+      <style>{`
+        .fin-saas-filters {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 12px 16px;
+          align-items: flex-end;
+        }
+        .fin-saas-filter-field {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+          min-width: 160px;
+        }
+        .fin-saas-filter-field--date {
+          min-width: 148px;
+          max-width: 168px;
+        }
+        .fin-saas-filter-field--basis {
+          min-width: 200px;
+          flex: 1 1 220px;
+          max-width: 320px;
+        }
+        .fin-saas-filter-label {
+          font-size: 11px;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+          color: var(--text-muted);
+        }
+        .fin-saas-row-overdue {
+          box-shadow: inset 3px 0 0 var(--sg-error, #dc2626);
+        }
+        .fin-saas-quote-ac-row {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px 12px;
+          align-items: center;
+          width: 100%;
+          text-align: left;
+          padding: 10px 12px;
+          border: none;
+          border-bottom: 1px solid var(--border, rgba(255,255,255,0.08));
+          background: transparent;
+          color: inherit;
+          cursor: pointer;
+          font: inherit;
+        }
+        .fin-saas-quote-ac-row:last-child {
+          border-bottom: none;
+        }
+        .fin-saas-quote-ac-row:hover {
+          background: color-mix(in srgb, var(--sg-brand, #c39847) 12%, transparent);
+        }
+        .fin-saas-quote-ac-row--sel {
+          background: color-mix(in srgb, var(--sg-brand, #c39847) 22%, transparent);
+        }
+      `}</style>
+    </div>
+  );
+}
+
+function formatQuoteContact(row: QuoteListRow): string {
+  if (row.company_name?.trim()) return row.company_name.trim();
+  const parts = [row.first_name, row.last_name].filter(Boolean);
+  if (parts.length) return parts.join(" ").trim();
+  if (row.lead_full_name?.trim()) return row.lead_full_name.trim();
+  return "—";
+}

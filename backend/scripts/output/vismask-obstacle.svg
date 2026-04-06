@@ -1,0 +1,99 @@
+<svg viewBox="0 0 520 340" class="horizon-cartesian-chart" preserveAspectRatio="xMidYMid meet">
+<g id="background-layer">
+<line x1="50" y1="261.42857142857144" x2="435" y2="261.42857142857144" stroke="#e5e7eb" stroke-width="0.5"/>
+<line x1="50" y1="222.85714285714286" x2="435" y2="222.85714285714286" stroke="#e5e7eb" stroke-width="0.5"/>
+<line x1="50" y1="184.28571428571428" x2="435" y2="184.28571428571428" stroke="#e5e7eb" stroke-width="0.5"/>
+<line x1="50" y1="145.71428571428572" x2="435" y2="145.71428571428572" stroke="#e5e7eb" stroke-width="0.5"/>
+<line x1="50" y1="107.14285714285714" x2="435" y2="107.14285714285714" stroke="#e5e7eb" stroke-width="0.5"/>
+<line x1="50" y1="68.57142857142858" x2="435" y2="68.57142857142858" stroke="#e5e7eb" stroke-width="0.5"/>
+<line x1="50" y1="30" x2="50" y2="300" stroke="#e5e7eb" stroke-width="0.5"/>
+<line x1="114.16666666666666" y1="30" x2="114.16666666666666" y2="300" stroke="#e5e7eb" stroke-width="0.5"/>
+<line x1="178.33333333333331" y1="30" x2="178.33333333333331" y2="300" stroke="#e5e7eb" stroke-width="0.5"/>
+<line x1="242.5" y1="30" x2="242.5" y2="300" stroke="#e5e7eb" stroke-width="0.5"/>
+<line x1="306.66666666666663" y1="30" x2="306.66666666666663" y2="300" stroke="#e5e7eb" stroke-width="0.5"/>
+<line x1="370.83333333333337" y1="30" x2="370.83333333333337" y2="300" stroke="#e5e7eb" stroke-width="0.5"/>
+<line x1="435" y1="30" x2="435" y2="300" stroke="#e5e7eb" stroke-width="0.5"/>
+</g>
+<g id="sun-visible-layer">
+<path class="sun-visible" d="M 187.25478188570384 267.7367734977882 L 205.71919585876987 247.42812922127283 L 225.49564723040098 235.12456584042997" fill="none" stroke="#93c5fd" stroke-width="2"/>
+<path class="sun-visible" d="M 266.34163561482376 238.31987202326394 L 285.7166780352193 253.50183392939948 L 303.6814406652122 276.17976532241437" fill="none" stroke="#93c5fd" stroke-width="2"/>
+<path class="sun-visible" d="M 165.09980004193199 287.63793526925326 L 182.37949992968638 259.2595833608505 L 201.2637047231252 237.11604733476466 L 221.69646996166935 222.9741024606576" fill="none" stroke="#60a5fa" stroke-width="2"/>
+<path class="sun-visible" d="M 264.46928226442924 223.44922621288566 L 284.84035371224974 238.01339423997013 L 303.651797563905 260.49535085617737 L 320.87174318585943 289.12199719436984" fill="none" stroke="#60a5fa" stroke-width="2"/>
+<path class="sun-visible" d="M 157.8289377511713 258.89726291558105 L 176.18437383956203 228.5090464186444 L 196.65923533657605 204.34315201990825 L 219.30655504686348 188.67088361597848" fill="none" stroke="#3b82f6" stroke-width="2"/>
+<path class="sun-visible" d="M 267.38351124153155 189.3488435167476 L 289.914398792881 205.6019130606298 L 310.25956100338436 230.20324749347293 L 328.5144585190478 260.8808671442888" fill="none" stroke="#3b82f6" stroke-width="2"/>
+<path class="sun-visible" d="M 133.44154014894048 257.4130957987669 L 150.91547919117264 221.57812899481561 L 170.5203488778389 189.5113640863419 L 193.14767563879656 163.7158609969561 L 219.04184261782194 147.2215665558611" fill="none" stroke="#2563eb" stroke-width="2"/>
+<path class="sun-visible" d="M 274.5818561402478 151.15973168863516 L 299.5112243175506 170.86438433451 L 321.1353184316834 198.89055132700435 L 339.98497141499047 232.324733072453 L 357.02384819534683 268.8581355408752" fill="none" stroke="#2563eb" stroke-width="2"/>
+<path class="sun-visible" d="M 108.33927774863224 255.59516663431512 L 124.60038414918357 217.58665558942897 L 142.36326323349186 180.61200916660826 L 163.04392356345693 146.70261148427426 L 188.27778119522563 118.85775850484839 L 218.96066973399934 101.30035620085343 L 253.0588195234194 98.20429686449893 L 285.5470953812195 110.47620078716756 L 312.9196592105942 134.82415155831492 L 335.20022558082064 166.74879906572772 L 353.92950440648747 202.7543435024847 L 370.6467414789605 240.48816123535894 L 386.5704097714478 278.2573726499028" fill="none" stroke="#1d4ed8" stroke-width="2"/>
+<path class="sun-visible" d="M 79.20074821391637 262.0159422924013 L 94.1517414096545 226.16714865221718 L 109.35524922708177 188.6344982786189 L 125.90636623742876 150.70108189707585 L 145.5357857443295 114.03314159223626 L 171.10880029377842 81.40215208435126 L 206.36142160966202 57.98609066474825 L 250.5791180250922 51.385513967135864 L 292.42041881942146 64.77453621076498 L 323.87998732215476 92.25695782460491 L 346.92887928694915 126.75532675379134 L 365.2085497055028 164.11027182654072 L 381.1256542157157 202.0620617835518 L 396.1355711141266 239.13714023840362 L 411.1931372659944 274.09379891140037" fill="none" stroke="#1e40af" stroke-width="2"/>
+</g>
+<g id="sun-shadow-layer">
+<path class="sun-shadow" d="M 124.38932778640849 300 L 139.40122749957226 300 L 154.45713946151474 300 L 170.2455458405086 294.48039908822886" fill="none" stroke="rgba(100,116,139,0.7)" stroke-width="2" stroke-dasharray="4 3"/>
+<path class="sun-shadow" d="M 320.23498768694805 300 L 335.70998251226433 300 L 350.66339473704045 300 L 365.8600332776924 300 L 382.3904400163374 300" fill="none" stroke="rgba(100,116,139,0.7)" stroke-width="2" stroke-dasharray="4 3"/>
+<path class="sun-shadow" d="M 118.32504427604373 300 L 133.7483245677918 300 L 149.08357061072587 300" fill="none" stroke="rgba(100,116,139,0.7)" stroke-width="2" stroke-dasharray="4 3"/>
+<path class="sun-shadow" d="M 336.85715763730775 300 L 352.20157116808514 300 L 367.6863399981114 300 L 384.3618623901168 300" fill="none" stroke="rgba(100,116,139,0.7)" stroke-width="2" stroke-dasharray="4 3"/>
+<path class="sun-shadow" d="M 109.04599474468071 300 L 125.07635465448608 300 L 141.04611026271147 293.45370361226276" fill="none" stroke="rgba(100,116,139,0.7)" stroke-width="2" stroke-dasharray="4 3"/>
+<path class="sun-shadow" d="M 345.2468646600222 295.5985702023127 L 361.2261382239128 300 L 377.33506433918 300 L 394.6166086231346 300" fill="none" stroke="rgba(100,116,139,0.7)" stroke-width="2" stroke-dasharray="4 3"/>
+<path class="sun-shadow" d="M 100.88990480165391 300 L 117.09129436040233 295.09788175681945" fill="none" stroke="rgba(100,116,139,0.7)" stroke-width="2" stroke-dasharray="4 3"/>
+<path class="sun-shadow" d="M 373.25323589713645 300 L 389.6398066220245 300 L 407.16270046748633 300" fill="none" stroke="rgba(100,116,139,0.7)" stroke-width="2" stroke-dasharray="4 3"/>
+<path class="sun-shadow" d="M 76.07693771420867 300 L 92.46980353963227 293.08421557451754" fill="none" stroke="rgba(100,116,139,0.7)" stroke-width="2" stroke-dasharray="4 3"/>
+</g>
+<g id="hour-layer">
+<path class="hour-line" data-hour="7" d="M 117.09129436040233 295.09788175681945 L 92.46980353963227 293.08421557451754 L 79.20074821391637 262.0159422924013" fill="none" stroke="#f59e0b" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>
+<text x="85.20074821391637" y="260.0159422924013" text-anchor="start" font-size="9" fill="#f59e0b" font-weight="500" opacity="0.9">7h</text>
+<path class="hour-line" data-hour="8" d="M 141.04611026271147 293.45370361226276 L 133.44154014894048 257.4130957987669 L 108.33927774863224 255.59516663431512 L 94.1517414096545 226.16714865221718" fill="none" stroke="#f59e0b" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>
+<text x="100.1517414096545" y="224.16714865221718" text-anchor="start" font-size="9" fill="#f59e0b" font-weight="500" opacity="0.9">8h</text>
+<path class="hour-line" data-hour="9" d="M 170.2455458405086 294.48039908822886 L 165.09980004193199 287.63793526925326 L 157.8289377511713 258.89726291558105 L 150.91547919117264 221.57812899481561 L 124.60038414918357 217.58665558942897 L 109.35524922708177 188.6344982786189" fill="none" stroke="#f59e0b" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>
+<text x="115.35524922708177" y="186.6344982786189" text-anchor="start" font-size="9" fill="#f59e0b" font-weight="500" opacity="0.9">9h</text>
+<path class="hour-line" data-hour="10" d="M 187.25478188570384 267.7367734977882 L 182.37949992968638 259.2595833608505 L 176.18437383956203 228.5090464186444 L 170.5203488778389 189.5113640863419 L 142.36326323349186 180.61200916660826 L 125.90636623742876 150.70108189707585" fill="none" stroke="#f59e0b" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>
+<text x="131.90636623742876" y="148.70108189707585" text-anchor="start" font-size="9" fill="#f59e0b" font-weight="500" opacity="0.9">10h</text>
+<path class="hour-line" data-hour="11" d="M 205.71919585876987 247.42812922127283 L 201.2637047231252 237.11604733476466 L 196.65923533657605 204.34315201990825 L 193.14767563879656 163.7158609969561 L 163.04392356345693 146.70261148427426 L 145.5357857443295 114.03314159223626" fill="none" stroke="#f59e0b" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>
+<text x="151.5357857443295" y="112.03314159223626" text-anchor="start" font-size="9" fill="#f59e0b" font-weight="500" opacity="0.9">11h</text>
+<path class="hour-line" data-hour="12" d="M 225.49564723040098 235.12456584042997 L 221.69646996166935 222.9741024606576 L 219.30655504686348 188.67088361597848 L 219.04184261782194 147.2215665558611 L 188.27778119522563 118.85775850484839 L 171.10880029377842 81.40215208435126" fill="none" stroke="#f59e0b" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>
+<text x="177.10880029377842" y="79.40215208435126" text-anchor="start" font-size="9" fill="#f59e0b" font-weight="500" opacity="0.9">12h</text>
+<path class="hour-line" data-hour="13" d="M 245.99651538432653 231.98028561565621 L 243.0951499760007 218.24137176291828 L 243.3690508863296 183.42272050990383 L 247.02170865226455 142.74382921313085 L 218.96066973399934 101.30035620085343 L 206.36142160966202 57.98609066474825" fill="none" stroke="#f59e0b" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>
+<text x="212.36142160966202" y="55.98609066474825" text-anchor="start" font-size="9" fill="#f59e0b" font-weight="500" opacity="0.9">13h</text>
+<path class="hour-line" data-hour="14" d="M 266.34163561482376 238.31987202326394 L 264.46928226442924 223.44922621288566 L 267.38351124153155 189.3488435167476 L 274.5818561402478 151.15973168863516 L 253.0588195234194 98.20429686449893 L 250.5791180250922 51.385513967135864" fill="none" stroke="#f59e0b" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>
+<text x="256.5791180250922" y="49.385513967135864" text-anchor="start" font-size="9" fill="#f59e0b" font-weight="500" opacity="0.9">14h</text>
+<path class="hour-line" data-hour="15" d="M 285.7166780352193 253.50183392939948 L 284.84035371224974 238.01339423997013 L 289.914398792881 205.6019130606298 L 299.5112243175506 170.86438433451 L 285.5470953812195 110.47620078716756 L 292.42041881942146 64.77453621076498" fill="none" stroke="#f59e0b" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>
+<text x="298.42041881942146" y="62.77453621076498" text-anchor="start" font-size="9" fill="#f59e0b" font-weight="500" opacity="0.9">15h</text>
+<path class="hour-line" data-hour="16" d="M 303.6814406652122 276.17976532241437 L 303.651797563905 260.49535085617737 L 310.25956100338436 230.20324749347293 L 321.1353184316834 198.89055132700435 L 312.9196592105942 134.82415155831492 L 323.87998732215476 92.25695782460491" fill="none" stroke="#f59e0b" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>
+<text x="329.87998732215476" y="90.25695782460491" text-anchor="start" font-size="9" fill="#f59e0b" font-weight="500" opacity="0.9">16h</text>
+<path class="hour-line" data-hour="17" d="M 320.87174318585943 289.12199719436984 L 328.5144585190478 260.8808671442888 L 339.98497141499047 232.324733072453 L 335.20022558082064 166.74879906572772 L 346.92887928694915 126.75532675379134" fill="none" stroke="#f59e0b" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>
+<text x="352.92887928694915" y="124.75532675379134" text-anchor="start" font-size="9" fill="#f59e0b" font-weight="500" opacity="0.9">17h</text>
+<path class="hour-line" data-hour="18" d="M 345.2468646600222 295.5985702023127 L 357.02384819534683 268.8581355408752 L 353.92950440648747 202.7543435024847 L 365.2085497055028 164.11027182654072" fill="none" stroke="#f59e0b" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>
+<text x="371.2085497055028" y="162.11027182654072" text-anchor="start" font-size="9" fill="#f59e0b" font-weight="500" opacity="0.9">18h</text>
+<path class="hour-line" data-hour="19" d="M 370.6467414789605 240.48816123535894 L 381.1256542157157 202.0620617835518" fill="none" stroke="#f59e0b" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>
+<text x="387.1256542157157" y="200.0620617835518" text-anchor="start" font-size="9" fill="#f59e0b" font-weight="500" opacity="0.9">19h</text>
+<path class="hour-line" data-hour="20" d="M 386.5704097714478 278.2573726499028 L 396.1355711141266 239.13714023840362" fill="none" stroke="#f59e0b" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>
+<text x="402.1355711141266" y="237.13714023840362" text-anchor="start" font-size="9" fill="#f59e0b" font-weight="500" opacity="0.9">20h</text>
+</g>
+<g id="month-labels-layer">
+<line x1="50" y1="231.98028561565621" x2="435" y2="231.98028561565621" stroke="#64748b" stroke-width="0.8"/>
+<text x="443" y="234.98028561565621" text-anchor="start" font-size="9" fill="#475569" font-weight="600">Déc</text>
+<line x1="50" y1="218.24137176291828" x2="435" y2="218.24137176291828" stroke="#64748b" stroke-width="0.8"/>
+<text x="443" y="221.24137176291828" text-anchor="start" font-size="9" fill="#475569" font-weight="600">Nov/Jan</text>
+<line x1="50" y1="183.42272050990383" x2="435" y2="183.42272050990383" stroke="#64748b" stroke-width="0.8"/>
+<text x="443" y="186.42272050990383" text-anchor="start" font-size="9" fill="#475569" font-weight="600">Fév/Oct</text>
+<line x1="50" y1="142.74382921313085" x2="435" y2="142.74382921313085" stroke="#64748b" stroke-width="0.8"/>
+<text x="443" y="145.74382921313085" text-anchor="start" font-size="9" fill="#475569" font-weight="600">Mar/Sep</text>
+<line x1="50" y1="98.20429686449893" x2="435" y2="98.20429686449893" stroke="#64748b" stroke-width="0.8"/>
+<text x="443" y="101.20429686449893" text-anchor="start" font-size="9" fill="#475569" font-weight="600">Avr/Août</text>
+<line x1="50" y1="51.385513967135864" x2="435" y2="51.385513967135864" stroke="#64748b" stroke-width="0.8"/>
+<text x="443" y="54.385513967135864" text-anchor="start" font-size="9" fill="#475569" font-weight="600">Mai/Juin/Juil</text>
+</g>
+<text x="50" y="332" text-anchor="middle" font-size="10" fill="#6b7280">-135°</text>
+<text x="114.16666666666666" y="332" text-anchor="middle" font-size="10" fill="#6b7280">E</text>
+<text x="178.33333333333331" y="332" text-anchor="middle" font-size="10" fill="#6b7280">-45°</text>
+<text x="242.5" y="332" text-anchor="middle" font-size="10" fill="#6b7280">S</text>
+<text x="306.66666666666663" y="332" text-anchor="middle" font-size="10" fill="#6b7280">+45°</text>
+<text x="370.83333333333337" y="332" text-anchor="middle" font-size="10" fill="#6b7280">O</text>
+<text x="435" y="332" text-anchor="middle" font-size="10" fill="#6b7280">+135°</text>
+<text x="44" y="304" text-anchor="end" font-size="9" fill="#6b7280">0°</text>
+<text x="44" y="265.42857142857144" text-anchor="end" font-size="9" fill="#6b7280">10°</text>
+<text x="44" y="226.85714285714286" text-anchor="end" font-size="9" fill="#6b7280">20°</text>
+<text x="44" y="188.28571428571428" text-anchor="end" font-size="9" fill="#6b7280">30°</text>
+<text x="44" y="149.71428571428572" text-anchor="end" font-size="9" fill="#6b7280">40°</text>
+<text x="44" y="111.14285714285714" text-anchor="end" font-size="9" fill="#6b7280">50°</text>
+<text x="44" y="72.57142857142858" text-anchor="end" font-size="9" fill="#6b7280">60°</text>
+<text x="44" y="34" text-anchor="end" font-size="9" fill="#6b7280">70°</text>
+</svg>

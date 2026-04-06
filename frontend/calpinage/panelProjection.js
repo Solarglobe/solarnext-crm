@@ -8,6 +8,9 @@
  * RÈGLE MÉTIER : Les dimensions catalogue du panneau (mm) ne doivent jamais
  * être utilisées directement en 2D. SEULE la forme projetée est autorisée
  * pour collisions, espacements, emplacements fantômes et règles de pose.
+ *
+ * Espace : ici image 2D (px / coords dessin). Pour le repère monde 3D canonique (m),
+ * voir docs/architecture/3d-world-convention.md et canonical3d/core/worldConvention.ts.
  */
 (function (global) {
   "use strict";
@@ -131,6 +134,13 @@
     if (!Number.isFinite(roofSlopeDeg) || roofSlopeDeg < 0 || roofSlopeDeg > 90) {
       throw new Error("computeProjectedPanelRect: roofSlopeDeg doit être entre 0 et 90.");
     }
+    var slopeDegForProjection = roofSlopeDeg;
+    if (options.supportTiltDeg != null && Number.isFinite(options.supportTiltDeg)) {
+      if (options.supportTiltDeg < 0 || options.supportTiltDeg > 90) {
+        throw new Error("computeProjectedPanelRect: supportTiltDeg doit être entre 0 et 90.");
+      }
+      slopeDegForProjection = options.supportTiltDeg;
+    }
     if (!Number.isFinite(roofOrientationDeg)) {
       roofOrientationDeg = 0;
     }
@@ -154,7 +164,8 @@
     var dimensionPerpMm = effectiveWidthMm;          // jamais modifiée par la projection
 
     // ——— 2) Projection : cos(pente) UNIQUEMENT sur la dimension alignée avec la pente ———
-    var slopeRad = roofSlopeDeg * DEG_TO_RAD;
+    // Toiture plate : supportTiltDeg = inclinaison du support (ne pas confondre avec roofSlopeDeg = pente toiture).
+    var slopeRad = slopeDegForProjection * DEG_TO_RAD;
     var projectionFactor = Math.cos(slopeRad);
     var dimensionAlongSlopeProjMm = dimensionAlongSlopeMm * projectionFactor;
     var dimensionPerpProjMm = dimensionPerpMm;  // inchangée (pas de facteur cos)

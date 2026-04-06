@@ -14,6 +14,28 @@
   }
 
   /**
+   * Axes pour computeProjectedPanelRect : uniquement ceux du contexte pan (faîtage réel ou polygone).
+   * Sinon computeProjectedPanelRect retombe sur l’azimut seul (pas de repère écran imposé ici).
+   */
+  function resolveTrueAxesForProjectOpts(roofParams) {
+    if (!roofParams) return {};
+    if (
+      roofParams.trueSlopeAxis &&
+      roofParams.truePerpAxis &&
+      typeof roofParams.trueSlopeAxis.x === "number" &&
+      typeof roofParams.trueSlopeAxis.y === "number" &&
+      typeof roofParams.truePerpAxis.x === "number" &&
+      typeof roofParams.truePerpAxis.y === "number"
+    ) {
+      return {
+        trueSlopeAxis: roofParams.trueSlopeAxis,
+        truePerpAxis: roofParams.truePerpAxis,
+      };
+    }
+    return {};
+  }
+
+  /**
    * Crée un identifiant unique pour un bloc.
    */
   function nextBlockId() {
@@ -222,14 +244,29 @@
       roofOrientationDeg: ctx.roofParams.roofOrientationDeg != null ? ctx.roofParams.roofOrientationDeg : 0,
       metersPerPixel: ctx.roofParams.metersPerPixel,
     };
-    if (ctx.roofParams.trueSlopeAxis && ctx.roofParams.truePerpAxis) {
-      projectOpts.trueSlopeAxis = ctx.roofParams.trueSlopeAxis;
-      projectOpts.truePerpAxis = ctx.roofParams.truePerpAxis;
+    var axesCreate = resolveTrueAxesForProjectOpts(ctx.roofParams);
+    if (axesCreate.trueSlopeAxis && axesCreate.truePerpAxis) {
+      projectOpts.trueSlopeAxis = axesCreate.trueSlopeAxis;
+      projectOpts.truePerpAxis = axesCreate.truePerpAxis;
+    }
+    if (Number.isFinite(ctx.roofParams.supportTiltDeg)) {
+      projectOpts.supportTiltDeg = ctx.roofParams.supportTiltDeg;
     }
     var orientationFromCtx = (ctx.panelParams && ctx.panelParams.panelOrientation) ? String(ctx.panelParams.panelOrientation).toUpperCase() : "PORTRAIT";
-    var blockOrientation = (options.orientation && (options.orientation === "PORTRAIT" || options.orientation === "PAYSAGE"))
-      ? options.orientation
-      : (orientationFromCtx === "PAYSAGE" ? "PAYSAGE" : "PORTRAIT");
+    if (orientationFromCtx === "LANDSCAPE") orientationFromCtx = "PAYSAGE";
+    if (orientationFromCtx !== "PORTRAIT" && orientationFromCtx !== "PAYSAGE") orientationFromCtx = "PORTRAIT";
+    var optO = options.orientation;
+    var blockOrientation;
+    if (optO === "PORTRAIT" || optO === "PAYSAGE") {
+      blockOrientation = optO;
+    } else if (typeof optO === "string") {
+      var ol = optO.toLowerCase();
+      if (ol === "landscape" || ol === "paysage") blockOrientation = "PAYSAGE";
+      else if (ol === "portrait") blockOrientation = "PORTRAIT";
+      else blockOrientation = orientationFromCtx === "PAYSAGE" ? "PAYSAGE" : "PORTRAIT";
+    } else {
+      blockOrientation = orientationFromCtx === "PAYSAGE" ? "PAYSAGE" : "PORTRAIT";
+    }
     blockOrientation = blockOrientation === "PAYSAGE" ? "PAYSAGE" : "PORTRAIT";
     projectOpts.panelOrientation = blockOrientation;
     projectOpts.localRotationDeg = 0;
@@ -256,6 +293,8 @@
       manipulationTransform: null,
       orientation: blockOrientation,
       rotationBaseDeg: rotationBaseDeg,
+      /* false = repère toit (faîtage / polygone) ; true = rétrocompat repère écran pour blocs sauvegardés anciens. */
+      useScreenAxes: false,
     };
 
     ensureSingleActiveBlock(block);
@@ -292,6 +331,9 @@
       projectOpts.trueSlopeAxis = ctx.roofParams.trueSlopeAxis;
       projectOpts.truePerpAxis = ctx.roofParams.truePerpAxis;
     }
+    if (Number.isFinite(ctx.roofParams.supportTiltDeg)) {
+      projectOpts.supportTiltDeg = ctx.roofParams.supportTiltDeg;
+    }
     projectOpts.localRotationDeg = 0;
     var proj;
     try {
@@ -312,6 +354,132 @@
       localRotationDeg: 0,
     });
     return { success: true };
+  }
+
+  /** Tolérance alignée sur les ghosts (calpinage) — dédup et déterminisme. */
+  var BATCH_CENTER_TOL_PX = 1;
+
+  function sameCenterBatch(a, b) {
+    return Math.abs(a.x - b.x) <= BATCH_CENTER_TOL_PX && Math.abs(a.y - b.y) <= BATCH_CENTER_TOL_PX;
+  }
+
+  /**
+   * Filtre invalide, déduplique, trie (y puis x) pour un ordre stable du lot.
+   * @returns {{ list: Array<{x:number,y:number}>, skippedInvalid: number, skippedDuplicate: number }}
+   */
+  function prepareBatchCenters(centers) {
+    var skippedInvalid = 0;
+    var skippedDuplicate = 0;
+    var raw = [];
+    if (!Array.isArray(centers)) return { list: [], skippedInvalid: 0, skippedDuplicate: 0 };
+    for (var i = 0; i < centers.length; i++) {
+      var c = centers[i];
+      if (!c || typeof c.x !== "number" || typeof c.y !== "number" || !Number.isFinite(c.x) || !Number.isFinite(c.y)) {
+        skippedInvalid++;
+        continue;
+      }
+      raw.push({ x: c.x, y: c.y });
+    }
+    raw.sort(function (a, b) {
+      if (a.y !== b.y) return a.y - b.y;
+      return a.x - b.x;
+    });
+    var list = [];
+    for (var j = 0; j < raw.length; j++) {
+      var p = raw[j];
+      if (list.length > 0 && sameCenterBatch(list[list.length - 1], p)) {
+        skippedDuplicate++;
+        continue;
+      }
+      list.push({ x: p.x, y: p.y });
+    }
+    return { list: list, skippedInvalid: skippedInvalid, skippedDuplicate: skippedDuplicate };
+  }
+
+  /**
+   * Ajoute plusieurs panneaux : dry-run des projections (tout ou rien), puis push, puis un seul recompute/validation côté moteur.
+   *
+   * @param {Array<{ x: number, y: number }>} centers
+   * @returns {{ success: boolean, added: number, skippedInvalid?: number, skippedDuplicate?: number, reason?: string }}
+   */
+  function addPanelsAtCentersBatch(centers, getProjectionContext) {
+    if (activeBlock == null || !activeBlock.isActive) return { success: false, reason: "Aucun bloc actif.", added: 0 };
+    if (typeof getProjectionContext !== "function") return { success: false, reason: "Contexte requis.", added: 0 };
+    var prep = prepareBatchCenters(centers);
+    if (prep.list.length === 0) {
+      return {
+        success: true,
+        added: 0,
+        skippedInvalid: prep.skippedInvalid,
+        skippedDuplicate: prep.skippedDuplicate,
+      };
+    }
+    var ctx = getProjectionContext();
+    if (!ctx || !ctx.roofParams || !ctx.panelParams) return { success: false, reason: "Contexte incomplet.", added: 0 };
+    var computeProjectedPanelRect = getComputeProjectedPanelRect();
+    if (typeof computeProjectedPanelRect !== "function") return { success: false, reason: "Projection indisponible.", added: 0 };
+
+    var blockOrient = (activeBlock.orientation === "PAYSAGE" || activeBlock.orientation === "landscape") ? "PAYSAGE" : "PORTRAIT";
+    var rotation = (activeBlock.rotation || 0) % 360;
+    if (rotation < 0) rotation += 360;
+
+    var dry = [];
+    for (var di = 0; di < prep.list.length; di++) {
+      var center = prep.list[di];
+      var projectOpts = {
+        center: { x: center.x, y: center.y },
+        panelWidthMm: ctx.panelParams.panelWidthMm,
+        panelHeightMm: ctx.panelParams.panelHeightMm,
+        panelOrientation: blockOrient,
+        roofSlopeDeg: ctx.roofParams.roofSlopeDeg,
+        roofOrientationDeg: ctx.roofParams.roofOrientationDeg != null ? ctx.roofParams.roofOrientationDeg : 0,
+        metersPerPixel: ctx.roofParams.metersPerPixel,
+      };
+      if (ctx.roofParams.trueSlopeAxis && ctx.roofParams.truePerpAxis) {
+        projectOpts.trueSlopeAxis = ctx.roofParams.trueSlopeAxis;
+        projectOpts.truePerpAxis = ctx.roofParams.truePerpAxis;
+      }
+      if (Number.isFinite(ctx.roofParams.supportTiltDeg)) {
+        projectOpts.supportTiltDeg = ctx.roofParams.supportTiltDeg;
+      }
+      projectOpts.localRotationDeg = 0;
+      var proj;
+      try {
+        proj = computeProjectedPanelRect(projectOpts);
+      } catch (e) {
+        return { success: false, reason: "Projection invalide (dry-run).", added: 0 };
+      }
+      if (!proj || !proj.points || proj.points.length < 4) {
+        return { success: false, reason: "Projection invalide (dry-run).", added: 0 };
+      }
+      if (rotation) proj = rotateProjectionAroundCenter(proj, center, rotation);
+      dry.push({ center: { x: center.x, y: center.y }, projection: proj });
+    }
+
+    var startLen = activeBlock.panels.length;
+    try {
+      for (var pi = 0; pi < dry.length; pi++) {
+        var item = dry[pi];
+        activeBlock.panels.push({
+          id: nextPanelId(),
+          center: { x: item.center.x, y: item.center.y },
+          projection: item.projection,
+          state: "valid",
+          enabled: true,
+          localRotationDeg: 0,
+        });
+      }
+    } catch (e) {
+      activeBlock.panels.length = startLen;
+      return { success: false, reason: "Erreur lors de l'ajout du lot.", added: 0 };
+    }
+
+    return {
+      success: true,
+      added: dry.length,
+      skippedInvalid: prep.skippedInvalid,
+      skippedDuplicate: prep.skippedDuplicate,
+    };
   }
 
   /**
@@ -622,7 +790,14 @@
         center: { x: center.x, y: center.y },
         panelWidthMm: ctx.panelParams.panelWidthMm,
         panelHeightMm: ctx.panelParams.panelHeightMm,
-        panelOrientation: (ctx.panelParams.panelOrientation === "PAYSAGE" || ctx.panelParams.panelOrientation === "landscape") ? "PAYSAGE" : "PORTRAIT",
+        panelOrientation: (function () {
+          var po = ctx.panelParams.panelOrientation;
+          var u = po != null ? String(po).toUpperCase() : "";
+          if (u === "PAYSAGE" || u === "LANDSCAPE") return "PAYSAGE";
+          var l = po != null ? String(po).toLowerCase() : "";
+          if (l === "landscape" || l === "paysage") return "PAYSAGE";
+          return "PORTRAIT";
+        })(),
         roofSlopeDeg: ctx.roofParams.roofSlopeDeg,
         roofOrientationDeg: ctx.roofParams.roofOrientationDeg != null ? ctx.roofParams.roofOrientationDeg : 0,
         metersPerPixel: ctx.roofParams.metersPerPixel,
@@ -630,6 +805,9 @@
       if (ctx.roofParams.trueSlopeAxis && ctx.roofParams.truePerpAxis) {
         projectOpts.trueSlopeAxis = ctx.roofParams.trueSlopeAxis;
         projectOpts.truePerpAxis = ctx.roofParams.truePerpAxis;
+      }
+      if (Number.isFinite(ctx.roofParams.supportTiltDeg)) {
+        projectOpts.supportTiltDeg = ctx.roofParams.supportTiltDeg;
       }
       if (typeof ctx.panelParams.localRotationDeg === "number") {
         projectOpts.localRotationDeg = ctx.panelParams.localRotationDeg;
@@ -650,10 +828,23 @@
    */
   function restoreFrozenBlocks(blocks) {
     if (!Array.isArray(blocks)) return;
+    var validPanIds = {};
+    try {
+      var st = typeof window !== "undefined" && window.CALPINAGE_STATE;
+      if (st && Array.isArray(st.pans)) {
+        st.pans.forEach(function (p) { if (p && p.id) validPanIds[p.id] = true; });
+      }
+    } catch (_) {}
     frozenBlocks = [];
     for (var i = 0; i < blocks.length; i++) {
       var b = blocks[i];
       if (!b || !b.panId || !b.panels || !Array.isArray(b.panels)) continue;
+      if (Object.keys(validPanIds).length > 0 && !validPanIds[b.panId]) {
+        if (typeof console !== "undefined" && console.warn) {
+          console.warn("[CALPINAGE] restoreFrozenBlocks: bloc ignoré (panId inconnu)", b.panId);
+        }
+        continue;
+      }
       var panels = [];
       for (var j = 0; j < b.panels.length; j++) {
         var p = b.panels[j];
@@ -670,7 +861,17 @@
         }
       }
       if (panels.length === 0) continue;
-      var orient = (b.orientation === "PORTRAIT" || b.orientation === "PAYSAGE") ? b.orientation : "PORTRAIT";
+      var bo = b.orientation;
+      var orient =
+        bo === "PORTRAIT" || bo === "PAYSAGE"
+          ? bo
+          : typeof bo === "string" &&
+              (bo.toLowerCase() === "landscape" || bo.toLowerCase() === "paysage")
+            ? "PAYSAGE"
+            : bo != null && String(bo).toLowerCase() === "portrait"
+              ? "PORTRAIT"
+              : "PORTRAIT";
+      orient = orient === "PAYSAGE" ? "PAYSAGE" : "PORTRAIT";
       var rotBase = typeof b.rotationBaseDeg === "number" ? b.rotationBaseDeg : (orient === "PAYSAGE" ? 90 : 0);
       frozenBlocks.push({
         id: b.id || nextBlockId(),
@@ -681,6 +882,7 @@
         manipulationTransform: null,
         orientation: orient,
         rotationBaseDeg: rotBase,
+        useScreenAxes: b.useScreenAxes === true,
       });
     }
     // Restauration de la sélection par défaut : le dernier bloc devient actif/sélectionné
@@ -696,6 +898,7 @@
   var ActivePlacementBlockModule = {
     createBlock: createBlock,
     addPanelAtCenter: addPanelAtCenter,
+    addPanelsAtCentersBatch: addPanelsAtCentersBatch,
     togglePanelEnabled: togglePanelEnabled,
     endBlock: endBlock,
     setActiveBlock: setActiveBlock,

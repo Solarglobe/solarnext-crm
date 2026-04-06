@@ -1,0 +1,1364 @@
+/**
+ * Préparation devis technique — layout dense, une carte travail, tokens solarnext.
+ */
+
+/* ——— Page ——— */
+.study-quote-page {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 16px 24px 24px;
+}
+
+/* Champs number + champs texte localisés (même rendu visuel) */
+.study-quote-page input[type="number"]::-webkit-outer-spin-button,
+.study-quote-page input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.study-quote-page input[type="number"],
+.study-quote-page input.qb-locale-num {
+  -moz-appearance: textfield;
+  appearance: textfield;
+  font-variant-numeric: tabular-nums;
+}
+
+.study-quote-page--narrow {
+  max-width: 560px;
+}
+
+.study-quote-page .sqb-margin-bottom {
+  margin-bottom: var(--spacing-12);
+}
+
+.study-quote-page .sqb-text--danger {
+  color: var(--danger);
+}
+
+.study-quote-page .sqb-row-strong {
+  font-weight: 600;
+}
+
+/* ——— Carte travail unique ——— */
+.sqb-workbench {
+  width: 100%;
+  max-width: 1400px;
+  margin-inline: auto;
+  padding: 0 20px 2px;
+  border-radius: var(--radius-16);
+}
+
+.sqb-section {
+  padding: 18px 0;
+}
+
+.sqb-section:first-of-type {
+  padding-top: 16px;
+}
+
+.sqb-section.sqb-section--technical-summary {
+  padding-top: 10px;
+  padding-bottom: 12px;
+}
+
+.sqb-workbench .sqb-h2.sqb-h2--technical-summary {
+  margin-bottom: 8px;
+}
+
+/* Bloc prix — dominant sans carte supplémentaire */
+.sqb-section--pricing {
+  padding-top: 14px;
+  padding-bottom: 6px;
+}
+
+.sqb-pricing-panel {
+  padding: 14px 16px 16px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--border) 85%, var(--text-muted));
+  background: color-mix(in srgb, var(--surface-2) 92%, var(--surface));
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset;
+}
+
+.sqb-workbench .sqb-h2--pricing {
+  margin-bottom: 12px;
+  color: var(--text-primary);
+  letter-spacing: 0.06em;
+}
+
+.sqb-divider {
+  height: 1px;
+  margin: 0;
+  border: none;
+  background: var(--border-soft);
+}
+
+/* ——— Typo ——— */
+.study-quote-page .sqb-h1 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
+}
+
+/* Titres de section dans la carte travail */
+.sqb-workbench .sqb-h2 {
+  margin: 0 0 10px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.sqb-workbench .sqb-h2--inline {
+  margin-bottom: 0;
+  text-transform: none;
+  letter-spacing: -0.01em;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+/* Modales : titre normal (pas uppercase) */
+.study-quote-page .sqb-modal-header .sqb-h2 {
+  margin: 0 0 var(--spacing-16);
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  text-transform: none;
+  letter-spacing: -0.02em;
+}
+
+.study-quote-page .sqb-h3 {
+  margin: 0 0 8px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* Sous-titres options scénario (physique / virtuel) */
+.study-quote-page .sqb-scenario-subtitle {
+  margin: 0 0 8px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: -0.015em;
+}
+
+.sqb-scenario-virtual {
+  margin-top: 4px;
+}
+
+.study-quote-page .sqb-text {
+  font-size: 0.8125rem;
+  color: var(--text-primary);
+}
+
+.study-quote-page .sqb-text--small {
+  font-size: 0.75rem;
+}
+
+.study-quote-page .sqb-muted {
+  color: var(--text-muted);
+}
+
+.study-quote-page .sqb-helper {
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+  margin: 0;
+  line-height: 1.35;
+}
+
+.study-quote-page .sqb-label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.study-quote-page .sqb-label--compact {
+  font-size: 0.6875rem;
+  font-weight: 500;
+}
+
+.study-quote-page .sqb-label .sn-input,
+.study-quote-page .sqb-label select.sn-input {
+  display: block;
+  margin-top: 4px;
+  width: 100%;
+}
+
+.study-quote-page .sqb-label--inline {
+  display: inline;
+}
+
+.study-quote-page .sqb-status--ok {
+  color: var(--success);
+}
+
+.study-quote-page .sqb-status--err {
+  color: var(--danger);
+}
+
+.study-quote-page .sqb-badge {
+  font-size: 0.6875rem;
+  font-weight: 500;
+  color: var(--success);
+}
+
+.study-quote-page .sqb-total-ttc {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
+}
+
+/* En-tête page */
+.study-quote-page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-bottom: 12px;
+}
+
+.study-quote-page-header__meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Section matériel */
+.sqb-section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.sqb-section--material {
+  width: 100%;
+}
+
+.sqb-section--material .sn-table-wrapper {
+  width: 100%;
+}
+
+.sqb-section--material .sn-table-finance {
+  width: 100%;
+}
+
+.sqb-section--material .sn-table-finance .col-designation input {
+  max-width: 100%;
+}
+
+.sqb-toolbar {
+  margin-top: 8px;
+}
+
+.sqb-btn-compact {
+  font-size: 12px;
+}
+
+/* Badge TVA PRO (régime professionnel — taux réduit interdit) */
+.sqb-pro-vat-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  background: var(--primary-light, #eff6ff);
+  color: var(--primary, #3b82f6);
+  border: 1px solid var(--primary-border, #bfdbfe);
+  white-space: nowrap;
+}
+
+/* KPI — résumé technique (grille équilibrée, cartes type SaaS) */
+.study-quote-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  width: 100%;
+}
+
+@media (max-width: 900px) {
+  .study-quote-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 480px) {
+  .study-quote-kpis {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+}
+
+.study-quote-kpis .study-quote-kpi {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 14px 12px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--border-soft) 90%, var(--border));
+  background: color-mix(in srgb, var(--surface-2) 88%, var(--surface));
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06) inset;
+}
+
+.study-quote-kpis .study-quote-kpi-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+}
+
+.study-quote-kpis .study-quote-kpi-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  line-height: 1.25;
+}
+
+.study-quote-kpis .study-quote-kpi-detail {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.3;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.study-quote-kpi-label-row {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  flex-wrap: wrap;
+  max-width: 100%;
+}
+
+.study-quote-kpi-help {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--text-muted);
+  border: 1px solid color-mix(in srgb, var(--border-soft) 85%, transparent);
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  cursor: help;
+  user-select: none;
+}
+
+.study-quote-kpi-help:focus-visible {
+  outline: 2px solid var(--primary, #3b82f6);
+  outline-offset: 2px;
+}
+
+.study-quote-kpi-empty {
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+}
+
+/* Prix & conditions */
+.sqb-price-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.sqb-price-stack.sqb-pricing-section {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  align-items: start;
+}
+
+@media (max-width: 719px) {
+  .sqb-price-stack.sqb-pricing-section {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (min-width: 720px) {
+  .sqb-pricing-section .sqb-subzone + .sqb-subzone {
+    border-top: none;
+    padding-top: 0;
+  }
+}
+
+.sqb-subzone {
+  padding: 10px 0;
+}
+
+.sqb-subzone + .sqb-subzone {
+  border-top: 1px solid color-mix(in srgb, var(--border-soft) 80%, transparent);
+}
+
+.sqb-subzone:first-child {
+  padding-top: 0;
+}
+
+.sqb-subzone:last-child {
+  padding-bottom: 0;
+}
+
+.sqb-subzone-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.sqb-grid-2 {
+  display: grid;
+  grid-template-columns: minmax(100px, 1fr) auto;
+  gap: 8px 14px;
+  align-items: center;
+}
+
+.sqb-grid-2--dense {
+  gap: 8px 12px;
+}
+
+.sqb-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sqb-rows--dense {
+  gap: 6px;
+}
+
+.sqb-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.sqb-row__val {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.sqb-row-total {
+  border-top: 1px solid var(--border-soft);
+  padding-top: 8px;
+  margin-top: 4px;
+}
+
+.sqb-ttc-highlight {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--violet-strong) 28%, var(--border-soft));
+  background: color-mix(in srgb, var(--surface) 70%, var(--surface-2));
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+.sqb-ttc-highlight.sqb-row {
+  align-items: baseline;
+}
+
+.sqb-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.sqb-total.sqb-row {
+  align-items: center;
+}
+
+.study-quote-page .sqb-total .sqb-total-ttc {
+  font-size: 1.2rem;
+}
+
+.study-quote-page .sqb-total .sqb-total-ttc__amount {
+  font-size: 1.2rem;
+}
+
+.study-quote-page .sqb-total-ttc__amount {
+  font-size: 1.125rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+  color: var(--text-primary);
+}
+
+.sqb-input-narrow {
+  width: 100%;
+  min-width: 6.5rem;
+  max-width: 10rem;
+  justify-self: end;
+  box-sizing: border-box;
+}
+
+.study-quote-page .sqb-grid-2 .sqb-input-narrow {
+  justify-self: end;
+}
+
+/* Options scénario — une colonne, flux vertical dense */
+.sqb-scenarios-section {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.sqb-scenarios-section .sqb-section-heading {
+  margin-bottom: 0;
+}
+
+.sqb-scenarios-section > .sqb-section--financing,
+.sqb-scenarios-section > .sqb-section--internal-analysis {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+/* Financement */
+.sqb-section--financing {
+  padding-bottom: 4px;
+}
+
+.sqb-financing {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(180px, 1fr));
+  gap: 16px;
+  width: 100%;
+  box-sizing: border-box;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 16px;
+}
+
+.sqb-financing > .sqb-h2 {
+  grid-column: 1 / -1;
+  margin: 0 0 4px;
+  opacity: 0.9;
+}
+
+.sqb-financing .sqb-financing-panel {
+  display: contents;
+}
+
+.sqb-financing .sqb-financing-inline {
+  display: contents;
+}
+
+.sqb-financing .sqb-field-inline {
+  min-width: 0;
+}
+
+.sqb-financing .sqb-field-inline .sn-input {
+  width: 100%;
+  max-width: 100%;
+}
+
+@media (max-width: 900px) {
+  .sqb-financing {
+    grid-template-columns: 1fr;
+  }
+}
+
+.sqb-financing-panel {
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-soft);
+  background: color-mix(in srgb, var(--surface-2) 88%, transparent);
+}
+
+.sqb-financing-inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px 16px;
+}
+
+.sqb-field-inline {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 120px;
+  flex: 1;
+}
+
+.sqb-field-inline .sn-input {
+  max-width: 200px;
+}
+
+@media (min-width: 720px) {
+  .sqb-financing-inline {
+    flex-wrap: nowrap;
+  }
+
+  .sqb-field-inline {
+    flex: 1 1 0;
+  }
+
+  .sqb-field-inline .sn-input {
+    max-width: none;
+  }
+}
+
+/* Analyse interne (bas de page, hors prix client) */
+.sqb-section--internal-analysis {
+  padding-top: 10px;
+  padding-bottom: 4px;
+}
+
+.sqb-internal-analysis {
+  width: 100%;
+  flex-shrink: 0;
+}
+
+.sqb-internal-analysis table {
+  width: 100%;
+}
+
+.sqb-internal-analysis .sqb-internal-compare {
+  max-width: none;
+  width: 100%;
+}
+
+.sqb-internal-analysis .sqb-internal-analysis-hint {
+  max-width: none;
+}
+
+.sqb-internal-analysis strong,
+.sqb-internal-analysis td:last-child,
+.sqb-internal-analysis .sqb-internal-compare__val {
+  font-weight: 500;
+  font-size: 0.8125rem;
+}
+
+.study-quote-page .sqb-scenarios-section > .sqb-h3.sqb-scenario-subtitle {
+  margin-bottom: 8px;
+  opacity: 0.9;
+}
+
+.sqb-h2--internal-analysis {
+  margin-bottom: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.sqb-internal-analysis-hint {
+  margin: 0 0 10px;
+  max-width: 56ch;
+}
+
+.sqb-internal-compare {
+  max-width: 520px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px dashed color-mix(in srgb, var(--border-soft) 90%, var(--text-muted));
+  background: color-mix(in srgb, var(--surface-2) 35%, transparent);
+}
+
+.sqb-internal-compare__grid {
+  display: grid;
+  grid-template-columns: minmax(120px, 1.1fr) 1fr 1fr;
+  gap: 6px 12px;
+  align-items: baseline;
+  padding: 5px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--border-soft) 70%, transparent);
+  font-size: 0.8125rem;
+}
+
+.sqb-internal-compare__grid:last-child {
+  border-bottom: none;
+}
+
+.sqb-internal-compare__grid--head {
+  border-bottom: 1px solid var(--border-soft);
+  padding-bottom: 6px;
+  margin-bottom: 2px;
+}
+
+.sqb-internal-compare__col-title {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  text-align: right;
+}
+
+.sqb-internal-compare__val {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+/* Options scénario */
+.sqb-scenario-hint {
+  margin: 0 0 10px;
+}
+
+.sqb-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sqb-battery-label--spaced {
+  margin-left: 8px;
+}
+
+/* Batterie virtuelle — compact */
+.sqb-vb--compact {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-soft);
+}
+
+.sqb-vb-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 8px 10px;
+  margin-bottom: 8px;
+}
+
+@media (max-width: 768px) {
+  .study-quote-page .sqb-vb-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.sqb-vb-estimate--compact {
+  margin-top: 8px;
+  padding: 8px 10px;
+  background: var(--surface-2);
+  border-radius: 8px;
+  border: 1px solid var(--border-soft);
+}
+
+.sqb-vb-estimate-head {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.sqb-vb-rows--compact {
+  gap: 4px;
+}
+
+.sqb-vb-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.sqb-vb-total--compact {
+  border-top: 1px solid var(--border-soft);
+  padding-top: 6px;
+  margin-top: 4px;
+}
+
+.sqb-vb-total-val {
+  font-weight: 600;
+}
+
+/* Pied intégré */
+.sqb-workbench-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 12px;
+  padding: 14px 4px 4px;
+  margin-top: 8px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 55%, var(--border-soft));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface-2) 40%, transparent) 0%, transparent 100%);
+}
+
+.sqb-workbench-footer__actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  margin-left: auto;
+}
+
+/* Inputs compacts (page) */
+.study-quote-page .sn-input,
+.study-quote-page select.sn-input {
+  min-height: 38px;
+  height: 38px;
+  padding: 0 12px;
+  font-size: 13px;
+  border-radius: 10px;
+}
+
+/* Tables */
+.study-quote-page .sn-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  margin-bottom: 6px;
+}
+
+.study-quote-page .sn-table-finance {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.study-quote-page .sn-table-finance th {
+  text-align: left;
+  font-weight: 500;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-muted);
+  background: var(--surface-2);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.study-quote-page .sn-table-finance td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border-soft);
+  vertical-align: middle;
+}
+
+.study-quote-page .sn-table-finance tbody tr:nth-child(even) {
+  background: var(--surface-2);
+}
+
+.study-quote-page .sn-table-finance tbody tr:hover {
+  background: var(--sn-bg-hover);
+}
+
+.study-quote-page .sn-table-finance .col-qty,
+.study-quote-page .sn-table-finance .col-price,
+.study-quote-page .sn-table-finance .col-vat,
+.study-quote-page .sn-table-finance .col-total {
+  text-align: right;
+}
+
+/* Colonnes chiffrées : largeur mini pour montants fr-FR (ex. 29 700,00) */
+.study-quote-page .sn-table-finance th.col-qty,
+.study-quote-page .sn-table-finance td.col-qty {
+  min-width: 5.75rem;
+  width: 1%;
+}
+
+.study-quote-page .sn-table-finance th.col-price,
+.study-quote-page .sn-table-finance td.col-price {
+  min-width: 8rem;
+  width: 1%;
+}
+
+.study-quote-page .sn-table-finance th.col-vat,
+.study-quote-page .sn-table-finance td.col-vat {
+  min-width: 4.75rem;
+  width: 1%;
+}
+
+.study-quote-page .sn-table-finance th.col-total,
+.study-quote-page .sn-table-finance td.col-total {
+  min-width: 7rem;
+  white-space: nowrap;
+}
+
+.study-quote-page .sn-table-finance .col-total {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.study-quote-page .sn-table-finance .col-actions {
+  width: 40px;
+  text-align: center;
+}
+
+.study-quote-page .sn-table-finance .col-actif {
+  width: 84px;
+  vertical-align: middle;
+}
+
+.study-quote-page .sn-table-finance input.sn-input {
+  height: 36px;
+  min-height: 36px;
+  border-radius: 10px;
+  padding: 0 10px;
+  font-size: 13px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.study-quote-page .sn-table-finance input.sn-input::placeholder {
+  color: var(--text-muted);
+}
+
+.study-quote-page .sn-table-finance input.sn-input:focus {
+  outline: none;
+  border-color: var(--violet-strong);
+  box-shadow: 0 0 0 2px var(--violet-glow);
+}
+
+.study-quote-page .sn-table-finance .col-designation input {
+  max-width: 280px;
+}
+
+.study-quote-page .sn-table-finance .col-qty input.sn-input,
+.study-quote-page .sn-table-finance .col-price input.sn-input,
+.study-quote-page .sn-table-finance .col-vat input.sn-input {
+  text-align: right;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.study-quote-page .sn-table-finance .sn-table-finance-action {
+  min-width: 28px;
+  height: 32px;
+  padding: 0 6px;
+  background: transparent !important;
+  border: none !important;
+  opacity: 0.65;
+  color: var(--text-muted);
+}
+
+.study-quote-page .sn-table-finance .sn-table-finance-action:hover {
+  opacity: 1;
+  color: var(--text-primary);
+  background: transparent !important;
+}
+
+/* Toasts */
+.study-quote-toast {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 9999;
+  padding: 12px 16px;
+  border-radius: var(--radius-btn);
+  font-weight: 500;
+  box-shadow: var(--shadow-1);
+  color: var(--text-on-dark);
+}
+
+.study-quote-toast-success {
+  background: var(--success);
+}
+
+/* Confirmation post-validation devis → scénarios (ne pas confondre avec une erreur) */
+.study-quote-toast-success-premium {
+  background: color-mix(in srgb, var(--sn-bg-elevated, #1a1f2e) 92%, transparent);
+  border: 1px solid rgba(195, 152, 71, 0.4);
+  color: var(--sn-text-primary, var(--text-primary, #e8ecf4));
+  box-shadow:
+    0 12px 36px rgba(0, 0, 0, 0.38),
+    0 0 0 1px rgba(195, 152, 71, 0.06) inset;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  max-width: min(28rem, calc(100vw - 2.5rem));
+  font-size: 0.9375rem;
+  line-height: 1.45;
+  font-weight: 500;
+}
+
+.theme-light .study-quote-toast-success-premium {
+  background: color-mix(in srgb, var(--surface-app, #fff) 94%, #f5efe6);
+  color: var(--text-primary, #1a1d26);
+  border-color: rgba(195, 152, 71, 0.45);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(195, 152, 71, 0.08) inset;
+}
+
+.study-quote-toast-error {
+  background: var(--danger);
+}
+
+/* Modales */
+.sqb-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.sqb-modal-panel {
+  max-width: 520px;
+  width: 90%;
+  max-height: 80vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+}
+
+.sqb-modal-header {
+  padding: var(--spacing-20);
+  border-bottom: 1px solid var(--border);
+}
+
+.sqb-modal-header .sqb-h2 {
+  margin-bottom: var(--spacing-16);
+}
+
+.sqb-modal-body {
+  flex: 1;
+  overflow: auto;
+  padding: var(--spacing-12);
+}
+
+.sqb-modal-body--scroll {
+  overflow-y: auto;
+  flex: 1;
+}
+
+.sqb-modal-footer {
+  padding: var(--spacing-12);
+  border-top: 1px solid var(--border);
+}
+
+.sqb-modal-empty {
+  padding: var(--spacing-24);
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.sqb-modal-list {
+  list-style: none;
+  margin: 0;
+  padding: var(--spacing-8);
+}
+
+.sqb-modal-list-item {
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.sqb-modal-battery-btn {
+  width: 100%;
+  justify-content: flex-start;
+  text-align: left;
+  padding: var(--spacing-12);
+}
+
+.sqb-modal-battery-price {
+  margin-left: var(--spacing-8);
+}
+
+.sqb-modal-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-12);
+}
+
+.sqb-modal-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+}
+
+.sqb-modal-catalog-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.sqb-modal-catalog-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-12);
+  padding: 10px var(--spacing-12);
+  border-bottom: 1px solid var(--border);
+}
+
+.sqb-modal-catalog-row:last-child {
+  border-bottom: none;
+}
+
+.sqb-modal-desc {
+  margin-top: var(--spacing-4);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-wrap: break-word;
+  max-height: 12rem;
+  overflow-y: auto;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+.sqb-modal-product-name {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.sqb-modal-error {
+  margin-bottom: var(--spacing-12);
+  font-size: 0.75rem;
+  color: var(--danger);
+}
+
+/* ── Bandeau marge négative ──────────────────────────────────── */
+.sqb-negative-margin-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-10, 10px);
+  background: rgba(220, 38, 38, 0.12);
+  border: 1px solid rgba(220, 38, 38, 0.35);
+  border-radius: var(--radius-8, 8px);
+  padding: var(--spacing-12, 12px) var(--spacing-16, 16px);
+  margin-bottom: var(--spacing-16, 16px);
+  color: var(--danger, #dc2626);
+}
+.sqb-negative-margin-banner__icon {
+  font-size: 1.2rem;
+  flex-shrink: 0;
+  line-height: 1.4;
+}
+.sqb-negative-margin-banner__text {
+  font-size: var(--font-size-body, 0.875rem);
+  line-height: 1.5;
+}
+
+/* ── Compteur de référence (étude / devis technique) ───────────── */
+.sqb-study-meter {
+  padding: 16px 0 8px;
+}
+
+.sqb-study-meter--error,
+.sqb-study-meter--muted {
+  padding: 12px 0;
+}
+
+.sqb-study-meter__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.sqb-study-meter__title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.sqb-study-meter__subtitle {
+  margin: 6px 0 0;
+  font-size: 0.8125rem;
+  color: var(--text-muted, #9ca8c6);
+  line-height: 1.45;
+}
+
+.sqb-study-meter__badge {
+  display: inline-block;
+  margin: 0 0 8px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.sqb-study-meter__badge--info {
+  background: color-mix(in srgb, var(--sn-gold, #c9a227) 18%, transparent);
+  color: var(--text-primary);
+  border: 1px solid color-mix(in srgb, var(--sn-gold, #c9a227) 35%, transparent);
+}
+
+.sqb-study-meter__badge--alt {
+  background: color-mix(in srgb, var(--text-muted) 12%, transparent);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+}
+
+.sqb-study-meter__hint {
+  margin: 0 0 10px;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.sqb-study-meter__warn {
+  margin: 0 0 10px;
+  font-size: 0.8125rem;
+  color: var(--danger);
+}
+
+.sqb-study-meter__card {
+  border: 1px solid color-mix(in srgb, var(--border) 90%, var(--text-muted));
+  border-radius: 10px;
+  padding: 14px 16px;
+  background: color-mix(in srgb, var(--surface-2) 88%, var(--surface));
+}
+
+.sqb-study-meter__card--loading {
+  opacity: 0.72;
+}
+
+.sqb-study-meter__dl {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px 20px;
+  margin: 0;
+}
+
+.sqb-study-meter__dl dt {
+  margin: 0;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.sqb-study-meter__dl dd {
+  margin: 4px 0 0;
+  font-size: 0.875rem;
+  color: var(--text-primary);
+}
+
+.sqb-study-meter__pill {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  background: color-mix(in srgb, var(--sn-gold, #c9a227) 22%, transparent);
+  color: var(--text-primary);
+}
+
+.sqb-study-recalc-banner {
+  margin: 0 0 12px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--sn-gold, #c9a227) 40%, var(--border));
+  background: color-mix(in srgb, var(--sn-gold, #c9a227) 10%, var(--surface));
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--text-primary);
+}
+
+.sqb-study-recalc-banner strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.sqb-study-meter-modal-root {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.sqb-study-meter-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  border: none;
+  padding: 0;
+  margin: 0;
+  background: rgba(0, 0, 0, 0.45);
+  cursor: pointer;
+}
+
+.sqb-study-meter-modal-panel {
+  position: relative;
+  z-index: 1;
+  width: min(520px, 100%);
+  max-height: min(80vh, 560px);
+  overflow: auto;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+  padding: 16px 18px 18px;
+}
+
+.sqb-study-meter-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.sqb-study-meter-modal-head h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.sqb-study-meter-modal-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.sqb-study-meter-modal-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.sqb-study-meter-modal-item:last-child {
+  border-bottom: none;
+}
+
+.sqb-study-meter-modal-item__main {
+  flex: 1;
+  min-width: 0;
+}
+
+.sqb-study-meter-modal-item__name {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+}
+
+.sqb-study-meter-modal-item__meta {
+  margin: 4px 0 0;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}

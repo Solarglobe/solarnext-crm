@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <title>DP2 – Plan de masse | SolarGlobe</title>
+
+<style>
+/* ======================================================
+   DP2 — PLAN DE MASSE
+   SOLARGLOBE — VERSION PREMIUM ADMINISTRATIVE
+   A4 LANDSCAPE — 1 PAGE
+====================================================== */
+
+@page{
+  size: A4 landscape;
+  margin: 12mm;
+}
+
+:root{
+  --ink:#111;
+  --muted:#6b7280;
+  --line:#e5e7eb;
+  --brand:#C39847; /* OR SOLARGLOBE */
+  --bg:#ffffff;
+  --card:#ffffff;
+}
+
+html, body{
+  margin:0;
+  padding:0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* ===============================
+   PAGE — STRICT 1 PAGE = 1 A4
+=============================== */
+.page{
+  width:100%;
+  height: calc(210mm - 24mm);
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+  page-break-after:always;
+}
+.page:last-child{
+  page-break-after:auto;
+}
+
+/* ===============================
+   HEADER
+=============================== */
+.topbar{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:12px;
+  margin-bottom:6mm;
+}
+
+.logo{
+  width:160px;
+  height:44px;
+}
+.logo img{
+  width:100%;
+  height:100%;
+  object-fit:contain;
+  display:block;
+}
+
+.brandline{
+  text-align:right;
+  font-size:10.5px;
+  line-height:1.35;
+  color:#374151;
+  white-space:nowrap;
+}
+
+/* ===============================
+   LAYOUT
+=============================== */
+.sheet{
+  flex:1;
+  display:grid;
+  /* Colonne gauche plus compacte : laisse plus d’espace au plan */
+  grid-template-columns:60mm 1fr;
+  gap:8mm;
+  min-height:0;
+}
+
+/* ===============================
+   LEFT — INFOS
+=============================== */
+.left{
+  border:1.2px solid var(--brand);
+  border-radius:8px;
+  background:var(--card);
+  padding:10px;
+  display:flex;
+  flex-direction:column;
+  min-height:0;
+}
+
+.h1{
+  font-size:15px;
+  font-weight:700;
+  margin:0 0 12px;
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+.h1::before{
+  content:"";
+  width:4px;
+  height:16px;
+  background:var(--brand);
+  border-radius:2px;
+}
+
+.row{
+  display:flex;
+  gap:8px;
+  align-items:flex-start;
+  margin:4px 0;
+  font-size:11px;
+  line-height:1.35;
+}
+.label{
+  color:var(--muted);
+  min-width:16mm;
+  white-space:nowrap;
+}
+.value{
+  font-weight:600;
+  color:var(--ink);
+  flex:1;
+}
+
+.divider{
+  height:1px;
+  background:linear-gradient(
+    to right,
+    var(--brand),
+    transparent
+  );
+  margin:9px 0;
+}
+
+/* ===============================
+   LÉGENDE — VISUELLE (FORMES/COULEURS)
+=============================== */
+.legend-block{
+  margin-top: 2px;
+}
+.legend-title{
+  font-size: 11.2px;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+  margin: 0 0 6px 0;
+}
+.legend-list{
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+}
+.legend-item{
+  display:flex;
+  align-items:flex-start;
+  gap:6px;
+  font-size:10.3px;
+  line-height:1.2;
+}
+.legend-icon{
+  width:14px;
+  height:14px;
+  flex:0 0 auto;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+}
+.legend-icon svg{
+  width:14px;
+  height:14px;
+  display:block;
+}
+.legend-text{
+  flex:1;
+  overflow:visible;
+  text-overflow:clip;
+  white-space:normal;
+  overflow-wrap:anywhere;
+}
+.legend-count{
+  font-weight:700;
+  color: var(--muted);
+  margin-left: 4px;
+  white-space:nowrap;
+}
+
+/* ===============================
+   RIGHT — PLAN
+=============================== */
+.right{
+  border:1.2px solid var(--brand);
+  border-radius:8px;
+  background:#fff;
+  padding:6mm;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  overflow:hidden;
+}
+
+.plan-img{
+  max-width:100%;
+  max-height:100%;
+  object-fit:contain;
+  display:block;
+}
+
+/* ===============================
+   FOOTER
+=============================== */
+.footer{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-end;
+  margin-top:4mm;
+  padding-top:2mm;
+  border-top:1px solid var(--brand);
+  font-size:10px;
+  color:#374151;
+}
+.footer .muted{
+  color:var(--muted);
+}
+
+/* ===============================
+   DATA
+=============================== */
+[data-field]{
+  font-weight:600;
+}
+</style>
+
+
+<body>
+
+  <!-- ===============================
+       PAGE 1 — DP2 PLAN DE MASSE
+  =============================== -->
+  <section class="page">
+    <div class="topbar">
+      <div class="logo">
+        <img src="/pdf-assets/images/logo-solarglobe-rect.png">
+      </div>
+      <div class="brandline">
+        SolarGlobe · Bureau d’étude photovoltaïque<br>
+        19 Avenue Pierre Curie · 77500 Chelles
+      </div>
+    </div>
+
+    <div class="sheet">
+      <aside class="left">
+        <h1 class="h1">DP2 – Plan de masse</h1>
+
+        <div class="row"><div class="label">Client</div><div class="value" data-field="client.nom"></div></div>
+        <div class="row">
+          <div class="label">Adresse</div>
+          <div class="value">
+            <span data-field="client.adresse"></span><br>
+            <span data-field="client.cp"></span> <span data-field="client.ville"></span>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="row"><div class="label">Parcelle</div><div class="value" data-field="parcelle.numero"></div></div>
+        <div class="row"><div class="label">Surface</div><div class="value"><span data-field="parcelle.surface_m2"></span> m²</div></div>
+
+        <div class="divider"></div>
+
+        <div class="row"><div class="label">Catégorie</div><div class="value" data-field="dp2.category"></div></div>
+        <div class="row"><div class="label">Échelle</div><div class="value" data-field="dp2.scale"></div></div>
+
+        <div class="divider"></div>
+
+        <div class="row"><div class="label">Module PV</div><div class="value"><span data-field="dp2.modulePv.manufacturer"></span></div></div>
+        <div class="row"><div class="label">Référence</div><div class="value"><span data-field="dp2.modulePv.reference"></span></div></div>
+        <div class="row"><div class="label">Puissance</div><div class="value"><span data-field="dp2.modulePv.power_w"></span></div></div>
+        <div class="row"><div class="label">Dimensions</div><div class="value"><span data-field="dp2.modulePv.dimensions"></span></div></div>
+
+        <div class="divider"></div>
+
+        <div class="legend-block" aria-label="Légende">
+          <div class="legend-title">Légende</div>
+          <div class="legend-list" data-field="dp2.legend" aria-label="Éléments de légende"></div>
+        </div>
+
+      </aside>
+
+      <main class="right">
+        <img class="plan-img" data-field="images.plan" alt="DP2 – Plan de masse">
+      </main>
+    </div>
+
+    <div class="footer">
+      <div class="muted">Document interne – avant dépôt</div>
+      <div>DP2 · Page 1 / 1<br><span class="muted">le <span data-field="date"></span></span></div>
+    </div>
+  </section>
+
+  <script src="dp2.js"></script>
+</body>
+</html>
+

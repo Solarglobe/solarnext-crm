@@ -1,0 +1,20 @@
+{
+  "schemaVersion": "canonical-hardening-golden-v1",
+  "description": "Plages de référence anti-régression — near shading 3D canonique (Vitest + scènes fixes).",
+  "scenes": {
+    "clearZenith": {
+      "meanShadedFraction": 0,
+      "meanShadedFractionEpsilon": 1e-12
+    },
+    "zenithOcclusion": {
+      "meanShadedFractionMin": 0.02,
+      "meanShadedFractionMax": 1
+    },
+    "eastSunObstacleWest": {
+      "meanShadedFractionMax": 1e-6
+    },
+    "eastSunObstacleSouth": {
+      "meanShadedFractionMax": 1e-6
+    }
+  }
+}

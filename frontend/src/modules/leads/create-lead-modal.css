@@ -1,0 +1,65 @@
+/* CreateLeadModal — contenu dans ModalShell */
+
+.create-lead-type-toggle {
+  display: flex;
+  gap: 0;
+  margin-bottom: 20px;
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.create-lead-type-btn {
+  flex: 1;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  transition: background 0.15s, color 0.15s;
+}
+
+.create-lead-type-btn.active {
+  background: var(--primary, #3b82f6);
+  color: #fff;
+}
+
+.create-lead-type-btn:not(.active):hover {
+  background: var(--surface-hover, #f1f5f9);
+}
+
+.create-lead-field {
+  margin-bottom: 16px;
+}
+
+.create-lead-field-row {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 0;
+}
+
+.create-lead-field-row .create-lead-field {
+  flex: 1;
+}
+
+.create-lead-field label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.create-lead-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: -8px 0 12px 0;
+}
+
+.create-lead-error {
+  color: var(--error, #ef4444);
+  font-size: 13px;
+  margin: 12px 0;
+}

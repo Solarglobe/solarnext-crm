@@ -1,0 +1,302 @@
+/**
+ * Construction du snapshot complet figé au clic "Choisir ce scénario".
+ * Agrège : lead/site_address (client, site), quote-prep (installation, equipment),
+ * scenarios_v2 (shading, energy, finance, production, cashflows, assumptions).
+ * Garantit que PDF / comparatif / devis final peuvent être générés sans relancer le moteur calcul.
+ */
+
+import { pool } from "../config/db.js";
+import * as quotePrepService from "./quotePrep/quotePrep.service.js";
+
+/**
+ * Construit le snapshot complet pour selected_scenario_snapshot.
+ * @param {{ studyId: string, versionId: string, scenarioId: string, organizationId: string, dataJson: object }}
+ * @returns {Promise<object>} Snapshot au format documenté (client, site, installation, equipment, shading, energy, finance, production, cashflows, assumptions)
+ */
+export async function buildSelectedScenarioSnapshot({
+  studyId,
+  versionId,
+  scenarioId,
+  organizationId,
+  dataJson,
+}) {
+  const scenario = (dataJson?.scenarios_v2 || []).find(
+    (s) => (s.id || s.name) === scenarioId
+  );
+  if (!scenario) {
+    throw new Error(`Scénario ${scenarioId} introuvable dans scenarios_v2`);
+  }
+
+  const studyRes = await pool.query(
+    `SELECT s.lead_id, s.client_id
+     FROM studies s
+     WHERE s.id = $1 AND s.organization_id = $2 AND (s.archived_at IS NULL) AND (s.deleted_at IS NULL)`,
+    [studyId, organizationId]
+  );
+  if (studyRes.rows.length === 0) {
+    throw new Error("Étude non trouvée");
+  }
+  const study = studyRes.rows[0];
+  const leadId = study.lead_id;
+  const clientId = study.client_id;
+
+  let client = { nom: null, prenom: null, adresse: null, cp: null, ville: null };
+  let site = {
+    lat: null,
+    lon: null,
+    orientation_deg: null,
+    tilt_deg: null,
+    puissance_compteur_kva: null,
+    type_reseau: null,
+  };
+
+  if (leadId) {
+    const leadRes = await pool.query(
+      `SELECT l.first_name, l.last_name, l.company_name, l.contact_first_name, l.contact_last_name,
+              l.customer_type, l.site_address_id, l.meter_power_kva, l.grid_type
+       FROM leads l
+       WHERE l.id = $1 AND l.organization_id = $2 AND (l.archived_at IS NULL)`,
+      [leadId, organizationId]
+    );
+    const lead = leadRes.rows[0] || null;
+    if (lead) {
+      const isProLead = (lead.customer_type ?? "PERSON") === "PRO";
+      if (isProLead) {
+        // PRO : nom principal = entreprise, prenom = contact
+        client.nom = lead.company_name ?? null;
+        client.prenom = [lead.contact_first_name, lead.contact_last_name].filter(Boolean).join(" ") || null;
+      } else {
+        client.nom = lead.last_name ?? null;
+        client.prenom = lead.first_name ?? null;
+      }
+      site.puissance_compteur_kva =
+        lead.meter_power_kva != null ? Number(lead.meter_power_kva) : null;
+      site.type_reseau = lead.grid_type ?? null;
+
+      if (lead.site_address_id) {
+        const addrRes = await pool.query(
+          `SELECT address_line1, address_line2, postal_code, city, lat, lon, formatted_address
+           FROM addresses WHERE id = $1 AND organization_id = $2`,
+          [lead.site_address_id, organizationId]
+        );
+        const addr = addrRes.rows[0] || null;
+        if (addr) {
+          client.adresse =
+            addr.formatted_address ||
+            [addr.address_line1, addr.address_line2]
+              .filter(Boolean)
+              .join(", ") ||
+            null;
+          client.cp = addr.postal_code ?? null;
+          client.ville = addr.city ?? null;
+          site.lat =
+            addr.lat != null && !Number.isNaN(Number(addr.lat))
+              ? Number(addr.lat)
+              : null;
+          site.lon =
+            addr.lon != null && !Number.isNaN(Number(addr.lon))
+              ? Number(addr.lon)
+              : null;
+        }
+      }
+    }
+
+    if (clientId) {
+      const clientRes = await pool.query(
+        `SELECT first_name, last_name, company_name
+         FROM clients WHERE id = $1 AND organization_id = $2`,
+        [clientId, organizationId]
+      );
+      const c = clientRes.rows[0] || null;
+      if (c) {
+        if (c.company_name != null) {
+          // PRO converti : company_name = nom principal, first_name + last_name = contact
+          client.nom = c.company_name;
+          const contactName = [c.first_name, c.last_name].filter(Boolean).join(" ") || null;
+          if (contactName) client.prenom = contactName;
+        } else {
+          // PERSON : comportement inchangé
+          if (c.last_name != null) client.nom = c.last_name;
+          if (c.first_name != null) client.prenom = c.first_name;
+        }
+      }
+    }
+  }
+
+  let technical = null;
+  try {
+    const quotePrep = await quotePrepService.getQuotePrep({
+      studyId,
+      versionId,
+      organizationId,
+    });
+    technical = quotePrep.technical_snapshot_summary || null;
+  } catch (_) {
+    // Pas de calpinage / quote-prep : installation et equipment restent vides
+  }
+
+  if (technical) {
+    site.orientation_deg = technical.orientation_deg ?? site.orientation_deg;
+    site.tilt_deg = technical.tilt_deg ?? site.tilt_deg;
+    if (technical.gps && (technical.gps.lat != null || technical.gps.lon != null)) {
+      if (site.lat == null) site.lat = Number(technical.gps.lat) || null;
+      if (site.lon == null) site.lon = Number(technical.gps.lon) || null;
+    }
+  }
+
+  /** Dernier calcul : cohérence PDF / site avec le compteur réellement utilisé (pas seulement leads à plat). */
+  const meterSnap =
+    dataJson.meter_snapshot && typeof dataJson.meter_snapshot === "object"
+      ? dataJson.meter_snapshot
+      : null;
+  if (meterSnap) {
+    if (meterSnap.meter_power_kva != null) {
+      site.puissance_compteur_kva = Number(meterSnap.meter_power_kva);
+    }
+    if (meterSnap.grid_type != null) {
+      site.type_reseau = meterSnap.grid_type;
+    }
+  }
+
+  const installation = {
+    panneaux_nombre: technical?.nb_panels ?? technical?.total_panels ?? null,
+    puissance_kwc: technical?.power_kwc ?? technical?.total_power_kwc ?? null,
+    production_annuelle_kwh: technical?.production_annual_kwh ?? null,
+    surface_panneaux_m2: null,
+  };
+
+  const equipment = {
+    panneau:
+      technical?.panel && typeof technical.panel === "object"
+        ? {
+            id: technical.panel.id ?? technical.panel.panel_id ?? null,
+            panel_id: technical.panel.panel_id ?? technical.panel.id ?? null,
+            marque: technical.panel.brand ?? null,
+            modele: technical.panel.model ?? null,
+            puissance_wc: technical.panel.power_wc ?? null,
+            largeur_mm: technical.panel.width_mm ?? null,
+            hauteur_mm: technical.panel.height_mm ?? null,
+          }
+        : {
+            id: null,
+            panel_id: null,
+            marque: null,
+            modele: null,
+            puissance_wc: null,
+            largeur_mm: null,
+            hauteur_mm: null,
+          },
+    onduleur:
+      technical?.inverter && typeof technical.inverter === "object"
+        ? {
+            id: technical.inverter.id ?? technical.inverter.inverter_id ?? null,
+            inverter_id: technical.inverter.inverter_id ?? technical.inverter.id ?? null,
+            marque: technical.inverter.brand ?? null,
+            modele: technical.inverter.name ?? technical.inverter.model_ref ?? null,
+            quantite: technical.inverter_totals?.units_required ?? null,
+            puissance_nominale_kw: technical.inverter.nominal_power_kw ?? null,
+            nominal_va: technical.inverter.nominal_va ?? null,
+            rendement_euro_pct: technical.inverter.euro_efficiency_pct ?? null,
+            modules_par_onduleur: technical.inverter.modules_per_inverter ?? null,
+          }
+        : {
+            id: null,
+            inverter_id: null,
+            marque: null,
+            modele: null,
+            quantite: null,
+            puissance_nominale_kw: null,
+            nominal_va: null,
+            rendement_euro_pct: null,
+            modules_par_onduleur: null,
+          },
+    batterie: {
+      id: scenario.hardware?.battery_id ?? null,
+      capacite_kwh:
+        scenario.hardware?.battery_usable_kwh ??
+        scenario.hardware?.battery_capacity_kwh ??
+        null,
+      type:
+        scenarioId === "BATTERY_PHYSICAL"
+          ? "physique"
+          : scenarioId === "BATTERY_VIRTUAL"
+            ? "virtuelle"
+            : null,
+    },
+  };
+
+  const shading = {
+    near_loss_pct: scenario.shading?.near_loss_pct ?? null,
+    far_loss_pct: scenario.shading?.far_loss_pct ?? null,
+    total_loss_pct: scenario.shading?.total_loss_pct ?? null,
+  };
+
+  const energy = {
+    production_kwh: scenario.energy?.production_kwh ?? null,
+    consumption_kwh: scenario.energy?.consumption_kwh ?? null,
+    autoconsumption_kwh: scenario.energy?.autoconsumption_kwh ?? null,
+    surplus_kwh: scenario.energy?.surplus_kwh ?? null,
+    import_kwh: scenario.energy?.import_kwh ?? null,
+    billable_import_kwh: scenario.energy?.billable_import_kwh ?? null,
+    independence_pct: scenario.energy?.energy_independence_pct ?? null,
+  };
+
+  const finance = {
+    capex_ttc: scenario.finance?.capex_ttc ?? null,
+    economie_year_1: scenario.finance?.economie_year_1 ?? null,
+    economie_total: scenario.finance?.economie_total ?? null,
+    roi_years: scenario.finance?.roi_years ?? null,
+    irr_pct: scenario.finance?.irr_pct ?? null,
+    facture_restante: scenario.finance?.residual_bill_eur ?? null,
+    revenu_surplus: scenario.finance?.surplus_revenue_eur ?? null,
+  };
+
+  const production = {
+    annual_kwh: scenario.production?.annual_kwh ?? null,
+    monthly_kwh: scenario.production?.monthly_kwh ?? null,
+  };
+
+  const flows = Array.isArray(scenario.finance?.annual_cashflows)
+    ? scenario.finance.annual_cashflows.map((f) => ({
+        year: f.year ?? null,
+        gain: f.total_eur ?? f.gain_auto ?? f.gain_oa ?? null,
+        cumul: f.cumul_eur ?? null,
+        cumul_gains: f.cumul_gains_eur ?? null
+      }))
+    : [];
+
+  const assumptions = {
+    model_version: scenario.assumptions?.model_version ?? null,
+    shading_source: scenario.assumptions?.shading_source ?? null,
+    battery_enabled: scenario.assumptions?.battery_enabled ?? false,
+    virtual_enabled: scenario.assumptions?.virtual_enabled ?? false,
+  };
+
+  const created_at = new Date().toISOString();
+
+  return {
+    scenario_type: scenarioId,
+    created_at,
+
+    client,
+    site,
+    installation,
+    equipment,
+    shading,
+
+    energy,
+    finance,
+    production,
+    cashflows: flows,
+    assumptions,
+    ...(meterSnap
+      ? {
+          study_meter: {
+            selected_meter_id: dataJson.selected_meter_id ?? meterSnap.selected_meter_id ?? null,
+            snapshot_captured_at: dataJson.meter_snapshot_captured_at ?? null,
+            snapshot: meterSnap,
+          },
+        }
+      : {}),
+  };
+}

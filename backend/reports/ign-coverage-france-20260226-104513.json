@@ -1,0 +1,39 @@
+{
+  "meta": {
+    "generatedAt": "2026-02-26T09:45:13.418Z",
+    "stepDeg": 2,
+    "pointsTested": 4,
+    "downloadMode": "HTTP",
+    "lockMode": "LOCAL",
+    "sharedCacheRoot": "C:\\Users\\Benoit\\AppData\\Local\\Temp\\ign-coverage-offline-1772099113008"
+  },
+  "summary": {
+    "ignOk": 1,
+    "fallback": 3,
+    "errors": 0,
+    "flatSuspect": 0,
+    "coveragePct": 25,
+    "fallbackPct": 75
+  },
+  "samples": {
+    "fallbackPoints": [
+      {
+        "lat": 44,
+        "lon": 4,
+        "reason": "IGN_UNAVAILABLE"
+      },
+      {
+        "lat": 46,
+        "lon": 2,
+        "reason": "IGN_UNAVAILABLE"
+      },
+      {
+        "lat": 46,
+        "lon": 4,
+        "reason": "IGN_UNAVAILABLE"
+      }
+    ],
+    "errorPoints": [],
+    "flatPoints": []
+  }
+}

@@ -1,0 +1,192 @@
+<section class="dp-page" id="dp4-page">
+
+  <!-- HEADER (aligné DP2) -->
+  <div class="dp-page-head">
+    <div>
+      <h1>DP4 — Plan de toiture</h1>
+      <p class="dp-lead">
+        Cette section permet de créer l’annexe DP4 (plan de toiture) pour le projet.
+      </p>
+    </div>
+
+    <div class="dp-page-actions"></div>
+  </div>
+
+  <hr class="dp-sep" />
+
+  <div class="dp-hint" id="dp4-hint">
+    Sélectionnez la version du plan DP4 à créer / modifier.
+  </div>
+
+  <div class="dp4-entry-grid" id="dp4-entry-grid" style="margin-top: 14px;">
+    <!-- DP4 — Avant travaux -->
+    <div class="dp4-entry-block">
+      <div class="dp4-entry-card" id="dp4-card-before" aria-label="DP4 — Avant travaux">
+        <img id="dp4-thumb-before" class="dp4-entry-thumb" alt="Miniature DP4 — Avant travaux" />
+        <div class="dp4-entry-placeholder" id="dp4-placeholder-before">
+          <div class="dp-placeholder">
+            <div class="dp-placeholder-title">DP4 — Avant travaux</div>
+            <div class="dp-placeholder-sub">Aucun plan enregistré</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="dp-page-actions" style="margin-top: 10px;">
+        <button id="dp4-create-before" class="dp-btn dp-btn-primary" type="button">
+          Créer DP4 avant travaux
+        </button>
+        <button id="dp4-delete-before" class="dp-btn dp-btn-outline dp-btn-danger" type="button">
+          🗑 Supprimer
+        </button>
+      </div>
+    </div>
+
+    <!-- DP4 — Après travaux -->
+    <div class="dp4-entry-block">
+      <div class="dp4-entry-card" id="dp4-card-after" aria-label="DP4 — Après travaux">
+        <img id="dp4-thumb-after" class="dp4-entry-thumb" alt="Miniature DP4 — Après travaux" />
+        <div class="dp4-entry-placeholder" id="dp4-placeholder-after">
+          <div class="dp-placeholder">
+            <div class="dp-placeholder-title">DP4 — Après travaux</div>
+            <div class="dp-placeholder-sub">Aucun plan enregistré</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="dp-page-actions" style="margin-top: 10px;">
+        <button id="dp4-create-after" class="dp-btn dp-btn-primary" type="button">
+          Créer DP4 après travaux
+        </button>
+        <button
+          id="dp4-import-before-into-after"
+          class="dp-btn dp-btn-secondary"
+          type="button"
+        >
+          Importer Avant Travaux
+        </button>
+        <button id="dp4-delete-after" class="dp-btn dp-btn-outline dp-btn-danger" type="button">
+          🗑 Supprimer
+        </button>
+      </div>
+    </div>
+  </div>
+
+</section>
+
+<!-- =========================
+     DP4 — OVERLAY CARTE (pattern DP1)
+     Rôle : aide visuelle uniquement (OpenLayers IGN ORTHO)
+========================= -->
+<div class="dp-modal" id="dp4-map-modal" aria-hidden="true">
+  <div class="dp-modal-backdrop"></div>
+
+  <div class="dp-modal-panel">
+    <!-- Header -->
+    <div class="dp-modal-header">
+      <h2 class="dp-modal-title-solarglobe">DP4 — Plan de toiture</h2>
+      <button class="dp-modal-close" type="button" aria-label="Fermer">✕</button>
+    </div>
+
+    <!-- Body -->
+    <div class="dp-modal-body">
+      <!-- Colonne gauche (paramètres DP4) — copie stricte DP2 + 1 champ "Type de toit" -->
+      <aside class="dp-map-help" id="dp4-settings-panel">
+        <h3>Paramètres du plan</h3>
+
+        <div class="dp-hint" style="margin-top: 10px;">
+          <span id="dp4-scale">Échelle : —</span>
+          <div class="dp2-field" style="margin-top: 10px;">
+            <label class="dp2-label">Hauteur de vue</label>
+            <div class="dp2-panel-readonly">
+              <span id="dp4-view-height">Hauteur de vue : —</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Catégorie photo -->
+        <div class="dp2-field" style="margin-top: 14px;">
+          <label class="dp2-label">Catégorie</label>
+          <select id="dp4-photo-category" class="dp2-select">
+            <option value="">— Sélectionner —</option>
+            <option value="before">Avant travaux</option>
+            <option value="after">Après travaux</option>
+          </select>
+        </div>
+
+        <hr />
+
+        <!-- Modules PV -->
+        <div class="dp2-field">
+          <label class="dp2-label">Module photovoltaïque</label>
+          <select id="dp4-panel-select" class="dp2-select">
+            <option value="">— Sélectionner un module —</option>
+            <option value="longi_x10_artist">LONGi Hi-MO X10 Artist — 485 W</option>
+            <option value="longi_x10_explorer">LONGi Hi-MO X10 Explorer — 485 W</option>
+          </select>
+        </div>
+
+        <div class="dp2-panel-readonly">
+          <div><strong>Fabricant :</strong> <span id="dp4-panel-manufacturer">—</span></div>
+          <div><strong>Référence :</strong> <span id="dp4-panel-reference">—</span></div>
+          <div><strong>Puissance :</strong> <span id="dp4-panel-power">—</span></div>
+          <div><strong>Dimensions :</strong> <span id="dp4-panel-dimensions">—</span></div>
+        </div>
+
+        <hr />
+
+        <!-- DP4 UNIQUEMENT : type de toit (graphique uniquement) -->
+        <div class="dp2-field">
+          <label class="dp2-label">Type de toit</label>
+          <select id="dp4-roof-type" class="dp2-select">
+            <option value="">— Sélectionner —</option>
+            <option value="tuile">tuile</option>
+            <option value="ardoise">ardoise</option>
+            <option value="bac_acier">Bac acier</option>
+            <option value="autre">autre</option>
+          </select>
+        </div>
+
+        <hr />
+
+        <!-- Légende (lecture seule) : reflète exactement la légende PDF DP2 -->
+        <div class="dp2-field dp2-legend-field">
+          <div class="dp2-label">Légende</div>
+          <div id="dp4-legend-empty" class="dp2-legend-empty" hidden>
+            Aucun objet métier sur le plan.
+          </div>
+          <div id="dp4-legend-list" class="dp2-legend-list" aria-label="Légende du plan"></div>
+        </div>
+      </aside>
+
+      <div class="dp-map-pane">
+        <div class="dp-map-canvas">
+          <div id="dp4-ign-map" class="dp-map"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="dp-modal-footer">
+      <button class="dp-btn dp-btn-outline" type="button" id="dp4-map-cancel">
+        Annuler
+      </button>
+      <button
+        class="dp-btn dp-btn-outline"
+        type="button"
+        id="dp4-import-dp2-btn"
+        style="display:none;"
+      >
+        Importer DP2
+      </button>
+      <!-- Visible uniquement quand la carte est chargée (piloté par dp-app.js) -->
+      <button
+        class="dp-btn dp-btn-primary"
+        type="button"
+        id="dp4-map-validate"
+        style="display:none;"
+      >
+        Valider cette vue
+      </button>
+    </div>
+  </div>
+</div>

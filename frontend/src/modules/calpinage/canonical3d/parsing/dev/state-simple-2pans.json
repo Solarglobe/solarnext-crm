@@ -1,0 +1,46 @@
+{
+  "roofSurveyLocked": false,
+  "roof": {
+    "scale": { "metersPerPixel": 0.05 },
+    "roof": { "north": { "angleDeg": 0 } },
+    "gps": { "lat": 48.8566, "lon": 2.3522 }
+  },
+  "contours": [
+    {
+      "id": "footprint",
+      "closed": true,
+      "roofRole": "contour",
+      "points": [
+        { "x": 0, "y": 0, "h": 5 },
+        { "x": 400, "y": 0, "h": 5 },
+        { "x": 400, "y": 300, "h": 5 },
+        { "x": 0, "y": 300, "h": 5 }
+      ]
+    }
+  ],
+  "ridges": [],
+  "traits": [],
+  "pans": [
+    {
+      "id": "pan-a",
+      "points": [
+        { "x": 20, "y": 20, "h": 6 },
+        { "x": 180, "y": 20, "h": 6 },
+        { "x": 180, "y": 120, "h": 6 },
+        { "x": 20, "y": 120, "h": 6 }
+      ]
+    },
+    {
+      "id": "pan-b",
+      "points": [
+        { "x": 200, "y": 20, "h": 6.2 },
+        { "x": 380, "y": 20, "h": 6.2 },
+        { "x": 380, "y": 120, "h": 6.2 },
+        { "x": 200, "y": 120, "h": 6.2 }
+      ]
+    }
+  ],
+  "obstacles": [],
+  "shadowVolumes": [],
+  "roofExtensions": []
+}

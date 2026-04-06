@@ -1,0 +1,9 @@
+{
+  "name": "smartpitch-shared",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "clipper-lib": "^6.4.2"
+  }
+}

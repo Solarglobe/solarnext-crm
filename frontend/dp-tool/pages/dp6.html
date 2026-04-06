@@ -1,0 +1,209 @@
+<section class="dp-page" id="dp6-page">
+
+  <!-- HEADER -->
+  <div class="dp-page-head">
+    <div>
+      <h1>DP6 — Insertion du projet</h1>
+      <p class="dp-lead">
+        Cette section permet de représenter l’aspect extérieur du projet après travaux.
+      </p>
+    </div>
+    <div class="dp-page-actions">
+      <button id="dp6-export-pdf" class="dp-btn dp-btn-primary" type="button">
+        Exporter le PDF
+      </button>
+    </div>
+  </div>
+
+  <hr class="dp-sep" />
+
+  <div class="dp-hint">
+    Créez le photomontage du projet à partir d’une photo réelle (Google Street View ou import).
+  </div>
+
+  <!-- ENTRÉES DP6 -->
+  <div class="dp4-entry-grid" style="margin-top:14px">
+
+    <!-- DP6 — AVANT TRAVAUX -->
+    <div class="dp4-entry-block">
+      <div class="dp4-entry-card" id="dp6-card-before" aria-label="DP6 — Avant travaux">
+        <img id="dp6-thumb-before" class="dp4-entry-thumb" alt="Miniature DP6 — Avant travaux" />
+        <div class="dp4-entry-placeholder">
+          <div class="dp-placeholder">
+            <div class="dp-placeholder-title">DP6 — Avant travaux</div>
+            <div class="dp-placeholder-sub">Aucune image enregistrée</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="dp-page-actions" style="margin-top:10px">
+        <button id="dp6-create-before" class="dp-btn dp-btn-primary" type="button">
+          Ajouter la photo avant travaux
+        </button>
+      </div>
+    </div>
+
+    <!-- DP6 — APRÈS TRAVAUX -->
+    <div class="dp4-entry-block">
+      <div class="dp4-entry-card" id="dp6-card-after" aria-label="DP6 — Après travaux">
+        <img id="dp6-thumb-after" class="dp4-entry-thumb" alt="Miniature DP6 — Après travaux" />
+        <div class="dp4-entry-placeholder">
+          <div class="dp-placeholder">
+            <div class="dp-placeholder-title">DP6 — Après travaux</div>
+            <div class="dp-placeholder-sub">Aucune image enregistrée</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="dp-page-actions" style="margin-top:10px">
+        <button id="dp6-create-after" class="dp-btn dp-btn-primary" type="button">
+          Créer le photomontage après travaux
+        </button>
+      </div>
+    </div>
+
+  </div>
+
+</section>
+
+<!-- ==================================================
+     DP6 — OVERLAY DE TRAVAIL (INSERTION DU PROJET)
+     ================================================== -->
+<div class="dp-modal" id="dp6-photo-modal" aria-hidden="true">
+
+  <div class="dp-modal-backdrop"></div>
+
+  <div class="dp-modal-panel">
+
+    <!-- Header -->
+    <div class="dp-modal-header">
+      <h2 class="dp-modal-title-solarglobe">
+        DP6 — Insertion du projet
+      </h2>
+      <button class="dp-modal-close" type="button" aria-label="Fermer">
+        ✕
+      </button>
+    </div>
+
+    <!-- Body -->
+    <div class="dp-modal-body">
+
+      <!-- Colonne gauche -->
+      <aside class="dp-map-help" id="dp6-settings-panel">
+        <h3>Paramètres du plan</h3>
+
+        <!-- Catégorie (lecture seule) -->
+        <div class="dp2-field" style="margin-top: 14px;">
+          <label class="dp2-label">Catégorie</label>
+          <div class="dp2-panel-readonly">
+            <div id="dp6-photo-category-label">—</div>
+          </div>
+        </div>
+
+        <hr />
+
+        <!-- Modules PV -->
+        <div class="dp2-field">
+          <label class="dp2-label">Module photovoltaïque</label>
+          <select id="dp6-panel-select" class="dp2-select">
+            <option value="">— Sélectionner un module —</option>
+            <option value="longi_x10_artist">LONGi Hi-MO X10 Artist — 485 W</option>
+            <option value="longi_x10_explorer">LONGi Hi-MO X10 Explorer — 485 W</option>
+          </select>
+        </div>
+
+        <div class="dp2-panel-readonly">
+          <div><strong>Fabricant :</strong> <span id="dp6-panel-manufacturer">—</span></div>
+          <div><strong>Référence :</strong> <span id="dp6-panel-reference">—</span></div>
+          <div><strong>Puissance :</strong> <span id="dp6-panel-power">—</span></div>
+          <div><strong>Dimensions :</strong> <span id="dp6-panel-dimensions">—</span></div>
+        </div>
+
+        <hr />
+
+        <div class="dp2-field">
+          <label class="dp2-label">Orientation des panneaux</label>
+          <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap">
+            <label style="display:flex; gap:8px; align-items:center; cursor:pointer; user-select:none">
+              <input type="radio" name="dp6-orientation" id="dp6-orientation-portrait" value="PORTRAIT" />
+              Portrait
+            </label>
+            <label style="display:flex; gap:8px; align-items:center; cursor:pointer; user-select:none">
+              <input type="radio" name="dp6-orientation" id="dp6-orientation-paysage" value="PAYSAGE" />
+              Paysage
+            </label>
+          </div>
+        </div>
+
+        <hr />
+
+        <h3>Source de la photo</h3>
+
+        <div class="dp-hint" style="margin-top:10px">
+          Choisissez la photo servant à représenter le projet après travaux.
+        </div>
+
+        <div class="dp-page-actions" style="margin-top:14px; flex-direction:column; gap:10px">
+          <button id="dp6-use-street" class="dp-btn dp-btn-primary" type="button">
+            Utiliser Google Street View
+          </button>
+
+          <button id="dp6-use-upload" class="dp-btn dp-btn-outline" type="button">
+            Importer une photo
+          </button>
+        </div>
+
+        <hr />
+
+        <div class="dp-map-note">
+          Cette image servira à générer le visuel DP6 avant et après travaux.
+          <br />
+          Positionnez-vous correctement, puis faites une capture écran avec l’outil système et importez-la.
+        </div>
+      </aside>
+
+      <!-- Zone centrale de travail -->
+      <div class="dp-map-canvas">
+        <div id="dp6-photo-workspace">
+          <!--
+            DP6 — Zone de travail
+            - Le contenu (StreetView / image) est injecté dans #dp6-photo-content
+            - Le dessin de sélection (quadrilatère libre + poignées) est rendu dans #dp6-selection-layer
+          -->
+          <div id="dp6-photo-content">
+            <canvas id="dp6-canvas" aria-label="Rendu DP6"></canvas>
+          </div>
+          <div id="dp6-selection-layer" aria-hidden="true"></div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Footer -->
+    <div class="dp-modal-footer">
+      <div class="dp-page-actions" style="margin-right:auto; gap:8px; align-items:center; flex-wrap:wrap">
+        <button id="dp6-zoom-out" class="dp-btn dp-btn-outline" type="button" title="Zoom -">
+          Zoom −
+        </button>
+        <button id="dp6-zoom-in" class="dp-btn dp-btn-outline" type="button" title="Zoom +">
+          Zoom +
+        </button>
+        <button id="dp6-zoom-reset" class="dp-btn dp-btn-outline" type="button" title="Réinitialiser le zoom">
+          Réinitialiser le zoom
+        </button>
+        <div id="dp6-zoom-label" class="dp-hint" style="margin:0; padding:0">
+          100%
+        </div>
+      </div>
+
+      <button id="dp6-cancel" class="dp-btn dp-btn-outline" type="button">
+        Annuler
+      </button>
+
+      <button id="dp6-validate" class="dp-btn dp-btn-primary" type="button" disabled>
+        Valider le photomontage
+      </button>
+    </div>
+
+  </div>
+</div>

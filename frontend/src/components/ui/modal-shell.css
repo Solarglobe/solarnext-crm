@@ -1,0 +1,150 @@
+/**
+ * Lot 2 — Coque modale formulaire CRM (clair, portal body, scroll interne).
+ * Z-index < ConfirmModal stacked (1100) : voir overlayTokens.ts
+ */
+
+:root {
+  --sn-z-modal-shell: 1000;
+}
+
+.sn-modal-shell-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--sn-z-modal-shell);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-16, 16px);
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  box-sizing: border-box;
+}
+
+.sn-modal-shell-panel {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-height: min(90vh, 900px);
+  border-radius: var(--radius-16, 16px);
+  overflow: hidden;
+  box-shadow:
+    0 24px 48px rgba(15, 23, 42, 0.12),
+    0 0 0 1px rgba(15, 23, 42, 0.06);
+}
+
+.sn-modal-shell-panel--sm {
+  max-width: min(420px, 100%);
+}
+
+.sn-modal-shell-panel--md {
+  max-width: min(560px, 100%);
+}
+
+.sn-modal-shell-panel--lg {
+  max-width: min(720px, 100%);
+}
+
+.sn-modal-shell-panel--xl {
+  max-width: min(960px, 100%);
+}
+
+.sn-modal-shell-header {
+  flex-shrink: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--spacing-12, 12px);
+  padding: var(--spacing-20, 20px) var(--spacing-24, 24px) var(--spacing-16, 16px);
+  border-bottom: 1px solid var(--border-soft, var(--sn-border-soft));
+}
+
+.sn-modal-shell-header-text {
+  min-width: 0;
+}
+
+.sn-modal-shell-title {
+  margin: 0 0 var(--spacing-4, 4px);
+  font-size: var(--font-size-title-md, 1.125rem);
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.3;
+}
+
+.sn-modal-shell-subtitle {
+  margin: 0;
+  font-size: var(--font-size-body-sm, 0.8125rem);
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.sn-modal-shell-close {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  margin: -6px -8px 0 0;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-btn, 8px);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 1.35rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.sn-modal-shell-close:hover {
+  background: rgba(15, 23, 42, 0.06);
+  color: var(--text-primary);
+}
+
+.sn-modal-shell-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: var(--spacing-16, 16px) var(--spacing-24, 24px);
+}
+
+/* Contenu qui gère son propre padding (ex. admin users) */
+.sn-modal-shell-body--flush {
+  padding: 0;
+}
+
+.sn-modal-shell-footer {
+  flex-shrink: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--spacing-12, 12px);
+  padding: var(--spacing-16, 16px) var(--spacing-24, 24px) var(--spacing-20, 20px);
+  border-top: 1px solid var(--border-soft, var(--sn-border-soft));
+  background: var(--surface-card, var(--sn-bg-elevated));
+}
+
+@media (max-width: 480px) {
+  .sn-modal-shell-backdrop {
+    padding: var(--spacing-12, 12px);
+    align-items: flex-end;
+  }
+
+  .sn-modal-shell-panel {
+    max-height: min(92vh, 900px);
+  }
+
+  .sn-modal-shell-footer {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+
+  .sn-modal-shell-footer > * {
+    width: 100%;
+    justify-content: center;
+  }
+}

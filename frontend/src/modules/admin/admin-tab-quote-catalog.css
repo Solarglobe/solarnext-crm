@@ -1,0 +1,556 @@
+/* CP-QUOTE-003 — Catalogue devis admin — Phase 1 professionnel */
+
+.admin-tab-quote-catalog {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* Toolbar structurée */
+.admin-catalog-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-16);
+  margin-bottom: var(--spacing-24);
+}
+
+.admin-catalog-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-16);
+  flex-wrap: wrap;
+}
+
+.admin-catalog-toolbar-right {
+  flex-shrink: 0;
+}
+
+/* Inputs uniformisés 44px */
+.admin-tab-quote-catalog .admin-catalog-input,
+.admin-tab-quote-catalog .admin-catalog-select {
+  height: 44px;
+  padding: 0 var(--spacing-12);
+  border-radius: var(--radius-btn, 8px);
+  border: 1px solid var(--sn-border-soft, #e5e7eb);
+  font-size: 14px;
+  background: var(--surface-card, #fff);
+  box-sizing: border-box;
+}
+
+.admin-tab-quote-catalog .admin-catalog-input {
+  width: 220px;
+}
+
+.admin-tab-quote-catalog .admin-catalog-select {
+  width: 180px;
+}
+
+.admin-catalog-checkbox-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+/* Table */
+.admin-catalog-table-wrap {
+  overflow-x: auto;
+  border-radius: var(--radius-12, 12px);
+  border: 1px solid var(--border-soft, var(--sn-border-soft));
+  background: var(--surface-card);
+}
+
+.admin-catalog-table {
+  width: 100%;
+  min-width: 1120px;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+/* Largeurs relatives — catégorie assez large pour « Coffret de protection » + clip si besoin */
+.admin-catalog-col-nom {
+  width: 22%;
+  min-width: 160px;
+}
+
+.admin-catalog-col-categorie {
+  width: 16%;
+  min-width: 13.5rem;
+}
+
+.admin-catalog-col-mode {
+  width: 10%;
+  min-width: 6.25rem;
+}
+
+.admin-catalog-col-prix {
+  width: 9%;
+  min-width: 6.25rem;
+}
+
+.admin-catalog-col-marge {
+  width: 7%;
+  min-width: 4.5rem;
+}
+
+.admin-catalog-col-tva {
+  width: 5%;
+  min-width: 3.25rem;
+}
+
+.admin-catalog-col-statut {
+  width: 7%;
+  min-width: 5rem;
+}
+
+.admin-catalog-col-actions {
+  width: 88px;
+  min-width: 88px;
+}
+
+.admin-catalog-table thead th {
+  padding: 10px 14px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.admin-catalog-table thead th.admin-catalog-th-right {
+  text-align: right;
+}
+
+.admin-catalog-table thead th.admin-catalog-th-muted {
+  font-size: 11px;
+  opacity: 0.8;
+}
+
+.admin-catalog-table tbody td {
+  padding: 10px 14px;
+  font-size: 13px;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--border-soft);
+  line-height: 1.3;
+}
+
+/* Aucun débordement visuel sur la colonne voisine */
+.admin-catalog-table tbody td.admin-catalog-col-categorie,
+.admin-catalog-table tbody td.admin-catalog-col-mode {
+  overflow: hidden;
+}
+
+.admin-catalog-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.admin-catalog-table tbody tr:hover td {
+  background: var(--surface-2, rgba(0, 0, 0, 0.02));
+}
+
+.admin-catalog-table tbody td.admin-catalog-cell-right {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Hiérarchie colonnes */
+.admin-catalog-cell-name {
+  display: block;
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-catalog-cell-secondary {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.admin-catalog-cell-nowrap {
+  white-space: nowrap;
+}
+
+/* Catégorie / mode tarif : une ligne, ellipsis si trop long (évite chevauchement) */
+.admin-catalog-cell-clip {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* TVA — réduit, muted, une seule ligne */
+.admin-catalog-cell-tva {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.admin-catalog-cell-price {
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Marge — couleur selon niveau, chiffre + % collés (nbsp en JSX) */
+.admin-catalog-marge {
+  display: inline-block;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.admin-catalog-marge--low {
+  color: var(--danger, #dc2626);
+}
+
+.admin-catalog-marge--mid {
+  color: var(--warning, #f59e0b);
+}
+
+.admin-catalog-marge--good {
+  color: var(--success, #22c55e);
+}
+
+/* Badge Actif / Inactif */
+.admin-catalog-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.admin-catalog-badge--active {
+  background: rgba(34, 197, 94, 0.15);
+  color: var(--success, #16a34a);
+}
+
+.admin-catalog-badge--inactive {
+  background: rgba(107, 114, 128, 0.15);
+  color: var(--text-muted, #6b7280);
+}
+
+/* Ligne inactive — fond léger */
+.admin-catalog-table tbody tr.admin-catalog-row-inactive td {
+  background: var(--surface-subtle, rgba(0, 0, 0, 0.03));
+}
+
+.admin-catalog-table tbody tr.admin-catalog-row-inactive:hover td {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+/* Actions icônes */
+.admin-catalog-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.admin-catalog-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.admin-catalog-icon-btn:hover {
+  background: rgba(124, 58, 237, 0.1);
+  color: var(--text-primary);
+}
+
+.admin-catalog-icon-btn--success:hover {
+  background: rgba(34, 197, 94, 0.15);
+  color: var(--success);
+}
+
+.admin-catalog-icon-btn--warning:hover {
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--warning);
+}
+
+.admin-catalog-icon-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* Empty state */
+.admin-catalog-empty {
+  text-align: center;
+  padding: var(--spacing-48) var(--spacing-24);
+}
+
+.admin-catalog-empty-title {
+  margin: 0 0 var(--spacing-8);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.admin-catalog-empty-desc {
+  margin: 0 0 var(--spacing-24);
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+/* Skeleton loading */
+.admin-catalog-skeleton {
+  padding: var(--spacing-24);
+}
+
+.admin-catalog-skeleton-line {
+  height: 20px;
+  background: linear-gradient(90deg, var(--surface-subtle) 25%, rgba(0, 0, 0, 0.06) 50%, var(--surface-subtle) 75%);
+  background-size: 200% 100%;
+  animation: admin-catalog-skeleton-shine 1.2s ease-in-out infinite;
+  border-radius: 4px;
+  margin-bottom: 12px;
+}
+
+.admin-catalog-skeleton-line:last-child {
+  margin-bottom: 0;
+}
+
+@keyframes admin-catalog-skeleton-shine {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Modal produit — contenu dans ModalShell (scroll = .sn-modal-shell-body) */
+.admin-catalog-modal {
+  width: 100%;
+  padding: 0;
+}
+
+.admin-catalog-modal-section {
+  margin-bottom: 14px;
+}
+
+.admin-catalog-modal-section:last-of-type {
+  margin-bottom: 0;
+}
+
+.admin-catalog-modal-section-title {
+  margin: 0 0 8px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.admin-catalog-modal-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.admin-catalog-modal-field {
+  flex: 1;
+  min-width: 0;
+}
+
+.admin-catalog-modal-field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.admin-catalog-modal-field-row--3 {
+  grid-template-columns: 1fr 1fr 1fr;
+}
+
+.admin-catalog-field-optional {
+  opacity: 0.85;
+}
+
+.admin-catalog-field-label-optional {
+  font-size: 11px;
+  opacity: 0.8;
+}
+
+.admin-catalog-modal-input-optional {
+  font-size: 13px;
+}
+
+.admin-catalog-field-label {
+  display: block;
+  margin-bottom: 3px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.admin-catalog-field-error {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--danger);
+}
+
+.admin-catalog-modal-input {
+  width: 100%;
+  height: 44px;
+  padding: 0 12px;
+  border-radius: var(--radius-btn, 8px);
+  border: 1px solid var(--sn-border-soft);
+  font-size: 14px;
+  box-sizing: border-box;
+}
+
+.admin-catalog-modal-textarea {
+  min-height: 200px;
+  height: auto;
+  padding: 10px 12px;
+  resize: vertical;
+  line-height: 1.5;
+  font-family: inherit;
+}
+
+.admin-catalog-desc-counter {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: right;
+}
+
+/* Résultat — marge bien visible */
+.admin-catalog-modal-marge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 14px;
+  background: var(--surface-subtle);
+  border-radius: var(--radius-btn, 8px);
+}
+
+.admin-catalog-marge-value {
+  font-size: 16px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+.admin-catalog-marge-sep {
+  margin: 0 10px;
+  font-weight: 400;
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+
+.admin-catalog-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-soft);
+}
+
+/* —— Segments admin (catalogue page + modèles de texte) —— même look actif / hover —— */
+.admin-text-template-tabs,
+.admin-catalog-page-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.admin-text-template-tab,
+.admin-catalog-page-tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+  border-radius: 10px;
+  cursor: pointer;
+  border: 1px solid var(--border-soft, rgba(148, 163, 184, 0.35));
+  background: color-mix(in srgb, var(--surface-card, #fff) 92%, var(--text-muted) 8%);
+  color: var(--text-muted);
+  box-shadow: none;
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease,
+    color 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.admin-text-template-tab:hover:not(.admin-text-template-tab--active),
+.admin-catalog-page-tab:hover:not(.admin-catalog-page-tab--active) {
+  background: color-mix(in srgb, var(--violet-strong, #6d28d9) 10%, var(--surface-card, #fff));
+  border-color: color-mix(in srgb, var(--violet-strong, #6d28d9) 28%, var(--border-soft));
+  color: var(--text-primary);
+}
+
+.admin-text-template-tab:focus-visible,
+.admin-catalog-page-tab:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--violet-strong, #6d28d9) 55%, transparent);
+  outline-offset: 2px;
+}
+
+.admin-text-template-tab--active,
+.admin-catalog-page-tab--active {
+  background: linear-gradient(
+    165deg,
+    color-mix(in srgb, var(--violet-strong, #6d28d9) 22%, var(--surface-card, #fff)),
+    color-mix(in srgb, var(--violet-strong, #6d28d9) 12%, var(--surface-card, #fff))
+  );
+  border-color: color-mix(in srgb, var(--violet-strong, #6d28d9) 42%, var(--border-soft));
+  color: var(--violet-strong, #6d28d9);
+  box-shadow:
+    0 1px 0 color-mix(in srgb, #fff 55%, transparent),
+    0 2px 8px color-mix(in srgb, var(--violet-strong, #6d28d9) 18%, transparent);
+}
+
+.theme-dark .admin-text-template-tab,
+.theme-dark .admin-catalog-page-tab {
+  background: rgba(148, 163, 184, 0.08);
+  border-color: rgba(148, 163, 184, 0.22);
+}
+
+.theme-dark .admin-text-template-tab:hover:not(.admin-text-template-tab--active),
+.theme-dark .admin-catalog-page-tab:hover:not(.admin-catalog-page-tab--active) {
+  background: color-mix(in srgb, var(--violet-strong, #7c3aed) 14%, rgba(15, 23, 42, 0.6));
+  border-color: color-mix(in srgb, var(--violet-strong, #a78bfa) 35%, rgba(148, 163, 184, 0.25));
+  color: var(--text-primary);
+}
+
+.theme-dark .admin-text-template-tab--active,
+.theme-dark .admin-catalog-page-tab--active {
+  background: linear-gradient(
+    165deg,
+    color-mix(in srgb, var(--violet-strong, #7c3aed) 35%, rgba(15, 23, 42, 0.85)),
+    color-mix(in srgb, var(--violet-strong, #7c3aed) 18%, rgba(15, 23, 42, 0.75))
+  );
+  border-color: color-mix(in srgb, var(--violet-strong, #a78bfa) 55%, rgba(148, 163, 184, 0.2));
+  color: #e9d5ff;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.06),
+    0 2px 12px rgba(124, 58, 237, 0.28);
+}
+

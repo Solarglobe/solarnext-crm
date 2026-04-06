@@ -1,0 +1,245 @@
+/**
+ * pdf-unified.css — Feuille de styles UNIQUE pour le système PDF SolarGlobe
+ *
+ * Règles :
+ *  - Ce fichier ne définit QUE des utilitaires et des réinitialisations @media print
+ *  - Toutes les dimensions critiques sont dans pdfLayout.ts (inline styles)
+ *  - Pas de hauteurs codées en dur ici — tout est calculé par PdfPageLayout
+ *  - Compatible Playwright + prévisualisation navigateur
+ *
+ * Structure CSS :
+ *  1. @page nommé — A4 paysage (propos commercial / étude). Obligatoire car pdf-render
+ *     bundle aussi le CSS du devis portrait : un @page anonyme portrait écraserait ce fichier.
+ *  2. Reset global pour le rendu PDF
+ *  3. Conteneur racine #pdf-root
+ *  3. Classes utilitaires (texte, couleurs, flex helpers)
+ *  4. @media print — surcharges Playwright
+ */
+
+/* ─────────────────────────────────────────────────────────────────
+   1. @PAGE nommé — A4 paysage, marges 0
+   Playwright : generatePdfFromRendererUrl → landscape:true.
+   Nommé pour ne pas entrer en conflit avec financial-quote-pdf.css (même chunk Vite).
+───────────────────────────────────────────────────────────────── */
+@page sn-study-report {
+  size: A4 landscape;
+  margin: 0;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   2. RESET PDF
+───────────────────────────────────────────────────────────────── */
+#pdf-root *,
+#pdf-root *::before,
+#pdf-root *::after {
+  box-sizing: border-box;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+#pdf-root {
+  page: sn-study-report;
+  margin: 0;
+  padding: 0;
+  background: #0B0F1E;
+  /* Évite tout scroll parasite en preview */
+  overflow-x: hidden;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   2. CONTENEUR DE RAPPORT
+───────────────────────────────────────────────────────────────── */
+.pdf-engine-report {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
+  padding: 0;
+  margin: 0;
+}
+
+/* Chaque page est un bloc autonome */
+.pdf-engine-page {
+  /* Les dimensions sont injectées en inline style par PdfPageLayout */
+  display: block;
+  position: relative;
+  page-break-after: always;
+  break-after: page;
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+.pdf-engine-page:last-child {
+  page-break-after: auto;
+  break-after: auto;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   3. UTILITAIRES DE TEXTE
+───────────────────────────────────────────────────────────────── */
+
+/* Tronquer le texte sur une ligne */
+.pdf-truncate {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* Empêcher le texte de déborder sur plusieurs lignes */
+.pdf-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.pdf-clamp-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   4. UTILITAIRES COULEURS
+───────────────────────────────────────────────────────────────── */
+.pdf-text-gold    { color: #C39847; }
+.pdf-text-primary { color: #E8ECF8; }
+.pdf-text-second  { color: #9FA8C7; }
+.pdf-text-green   { color: #4ade80; }
+.pdf-text-blue    { color: #4A90E2; }
+
+/* ─────────────────────────────────────────────────────────────────
+   5. UTILITAIRES FLEX / LAYOUT
+───────────────────────────────────────────────────────────────── */
+.pdf-row {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.pdf-row--center {
+  align-items: center;
+}
+
+.pdf-col {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pdf-flex-1 { flex: 1 1 0; min-width: 0; }
+.pdf-flex-2 { flex: 2 1 0; min-width: 0; }
+.pdf-flex-3 { flex: 3 1 0; min-width: 0; }
+
+/* ─────────────────────────────────────────────────────────────────
+   6. ZONE GRAPHIQUE
+   Les hauteurs sont toujours définies en inline style (calculées)
+───────────────────────────────────────────────────────────────── */
+.pdf-chart-area {
+  width: 100%;
+  overflow: hidden;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 8px;
+  box-sizing: border-box;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   7. DIVISEUR (séparateur visuel)
+───────────────────────────────────────────────────────────────── */
+.pdf-divider {
+  width: 100%;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
+  border: none;
+}
+
+.pdf-divider--gold {
+  background: linear-gradient(90deg, #C39847 0%, #C3984740 70%, transparent 100%);
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   8. BARRES SEGMENTÉES (P7)
+───────────────────────────────────────────────────────────────── */
+.pdf-bar {
+  display: flex;
+  height: 22px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.2);
+  width: 100%;
+}
+
+.pdf-bar__seg { min-width: 2px; }
+.pdf-bar__seg--pv      { background: #C39847; }
+.pdf-bar__seg--bat     { background: #2E8B57; }
+.pdf-bar__seg--grid    { background: #4A90E2; }
+.pdf-bar__seg--auto    { background: #40E0D0; }
+.pdf-bar__seg--surplus { background: #E67E22; }
+
+.pdf-bar-legend {
+  display: flex;
+  gap: 12px;
+  margin-top: 4px;
+  font-size: 8pt;
+  color: #9FA8C7;
+  flex-wrap: wrap;
+}
+
+.pdf-bar-legend__dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   9. @MEDIA PRINT — Surcharges pour Playwright
+───────────────────────────────────────────────────────────────── */
+@media print {
+  /* Forcer les couleurs en print */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  body {
+    margin: 0;
+    padding: 0;
+    background: transparent;
+  }
+
+  #pdf-root {
+    background: transparent;
+  }
+
+  .pdf-engine-report {
+    background: transparent;
+  }
+
+  /* Les pages doivent rester à leur taille exacte */
+  .pdf-engine-page {
+    overflow: hidden !important;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   10. PREVIEW SCREEN — Espacement entre pages
+───────────────────────────────────────────────────────────────── */
+@media screen {
+  .pdf-engine-page {
+    margin-bottom: 24px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    border-radius: 4px;
+  }
+
+  #pdf-root {
+    padding: 24px;
+    min-height: 100vh;
+  }
+}

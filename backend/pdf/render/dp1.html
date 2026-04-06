@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <title>DP1 – Plan de situation | SolarGlobe</title>
+
+<style>
+/* ======================================================
+   DP1 — PLAN DE SITUATION
+   SOLARGLOBE — VERSION PREMIUM ADMINISTRATIVE
+   A4 LANDSCAPE — 0 PAGE BLANCHE
+====================================================== */
+
+@page{
+  size: A4 landscape;
+  margin: 12mm;
+}
+
+:root{
+  --ink:#111;
+  --muted:#6b7280;
+  --line:#e5e7eb;
+  --brand:#C39847; /* OR SOLARGLOBE */
+  --bg:#ffffff;
+  --card:#ffffff;
+}
+
+html, body{
+  margin:0;
+  padding:0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* ===============================
+   PAGE — STRICT 1 PAGE = 1 A4
+=============================== */
+.page{
+  width:100%;
+  height: calc(210mm - 24mm);
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+  page-break-after:always;
+}
+.page:last-child{
+  page-break-after:auto;
+}
+
+/* ===============================
+   HEADER
+=============================== */
+.topbar{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:12px;
+  margin-bottom:8mm;
+}
+
+.logo{
+  width:160px;
+  height:44px;
+}
+.logo img{
+  width:100%;
+  height:100%;
+  object-fit:contain;
+  display:block;
+}
+
+.brandline{
+  text-align:right;
+  font-size:10.5px;
+  line-height:1.35;
+  color:#374151;
+  white-space:nowrap;
+}
+
+/* ===============================
+   LAYOUT
+=============================== */
+.sheet{
+  flex:1;
+  display:grid;
+  grid-template-columns:68mm 1fr;
+  gap:10mm;
+}
+
+/* ===============================
+   LEFT — INFOS
+=============================== */
+.left{
+  border:1.2px solid var(--brand);
+  border-radius:8px;
+  background:var(--card);
+  padding:12px;
+  display:flex;
+  flex-direction:column;
+}
+
+.h1{
+  font-size:15px;
+  font-weight:700;
+  margin:0 0 12px;
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+.h1::before{
+  content:"";
+  width:4px;
+  height:16px;
+  background:var(--brand);
+  border-radius:2px;
+}
+
+.row{
+  display:flex;
+  gap:8px;
+  align-items:flex-start;
+  margin:6px 0;
+  font-size:11.5px;
+  line-height:1.35;
+}
+.label{
+  color:var(--muted);
+  min-width:18mm;
+  white-space:nowrap;
+}
+.value{
+  font-weight:600;
+  color:var(--ink);
+  flex:1;
+}
+
+.divider{
+  height:1px;
+  background:linear-gradient(
+    to right,
+    var(--brand),
+    transparent
+  );
+  margin:12px 0;
+}
+
+/* ===============================
+   RIGHT — MAP
+=============================== */
+.right{
+  border:1.2px solid var(--brand);
+  border-radius:8px;
+  background:#fff;
+  padding:6mm;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  overflow:hidden;
+}
+
+.map-img{
+  max-width:100%;
+  max-height:100%;
+  object-fit:contain;
+  display:block;
+}
+
+/* ===============================
+   FOOTER
+=============================== */
+.footer{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-end;
+  margin-top:6mm;
+  padding-top:3mm;
+  border-top:1px solid var(--brand);
+  font-size:10.5px;
+  color:#374151;
+}
+.footer .muted{
+  color:var(--muted);
+}
+
+/* ===============================
+   DATA
+=============================== */
+[data-field]{
+  font-weight:600;
+}
+</style>
+
+
+<body>
+
+  <!-- ===============================
+       PAGE 1 — 1 / 20 000
+  =============================== -->
+  <section class="page">
+    <div class="topbar">
+      <div class="logo">
+        <img src="/pdf-assets/images/logo-solarglobe-rect.png">
+      </div>
+      <div class="brandline">
+        SolarGlobe · Bureau d’étude photovoltaïque<br>
+        19 Avenue Pierre Curie · 77500 Chelles
+      </div>
+    </div>
+
+    <div class="sheet">
+      <aside class="left">
+        <h1 class="h1">DP1 – Plan de situation</h1>
+
+        <div class="row"><div class="label">Client</div><div class="value" data-field="client.nom"></div></div>
+        <div class="row">
+          <div class="label">Adresse</div>
+          <div class="value">
+            <span data-field="client.adresse"></span><br>
+            <span data-field="client.cp"></span> <span data-field="client.ville"></span>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="row"><div class="label">Parcelle</div><div class="value" data-field="parcelle.numero"></div></div>
+        <div class="row"><div class="label">Surface</div><div class="value"><span data-field="parcelle.surface_m2"></span> m²</div></div>
+
+        <div class="divider"></div>
+
+        <div class="row"><div class="label">Échelle</div><div class="value">1 / 20 000</div></div>
+        <div class="row"><div class="label">Note</div><div class="value" data-field="note"></div></div>
+      </aside>
+
+      <main class="right">
+        <img class="map-img" data-field="img.20000" alt="DP1 – 1/20000">
+      </main>
+    </div>
+
+    <div class="footer">
+      <div class="muted">Document interne – avant dépôt</div>
+      <div>DP1 · Page 1 / 3<br><span class="muted">le <span data-field="date"></span></span></div>
+    </div>
+  </section>
+
+  <!-- ===============================
+       PAGE 2 — 1 / 5 000
+  =============================== -->
+  <section class="page">
+    <div class="topbar">
+      <div class="logo">
+        <img src="/pdf-assets/images/logo-solarglobe-rect.png">
+      </div>
+      <div class="brandline">
+        SolarGlobe · Bureau d’étude photovoltaïque<br>
+        19 Avenue Pierre Curie · 77500 Chelles
+      </div>
+    </div>
+
+    <div class="sheet">
+      <aside class="left">
+        <h1 class="h1">DP1 – Plan de situation</h1>
+
+        <div class="row"><div class="label">Client</div><div class="value" data-field="client.nom"></div></div>
+        <div class="row">
+          <div class="label">Adresse</div>
+          <div class="value">
+            <span data-field="client.adresse"></span><br>
+            <span data-field="client.cp"></span> <span data-field="client.ville"></span>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="row"><div class="label">Parcelle</div><div class="value" data-field="parcelle.numero"></div></div>
+        <div class="row"><div class="label">Surface</div><div class="value"><span data-field="parcelle.surface_m2"></span> m²</div></div>
+
+        <div class="divider"></div>
+
+        <div class="row"><div class="label">Échelle</div><div class="value">1 / 5 000</div></div>
+        <div class="row"><div class="label">Note</div><div class="value" data-field="note"></div></div>
+      </aside>
+
+      <main class="right">
+        <img class="map-img" data-field="img.5000" alt="DP1 – 1/5000">
+      </main>
+    </div>
+
+    <div class="footer">
+      <div class="muted">Document interne – avant dépôt</div>
+      <div>DP1 · Page 2 / 3<br><span class="muted">le <span data-field="date"></span></span></div>
+    </div>
+  </section>
+
+  <!-- ===============================
+       PAGE 3 — 1 / 650
+  =============================== -->
+  <section class="page">
+    <div class="topbar">
+      <div class="logo">
+        <img src="/pdf-assets/images/logo-solarglobe-rect.png">
+      </div>
+      <div class="brandline">
+        SolarGlobe · Bureau d’étude photovoltaïque<br>
+        19 Avenue Pierre Curie · 77500 Chelles
+      </div>
+    </div>
+
+    <div class="sheet">
+      <aside class="left">
+        <h1 class="h1">DP1 – Plan de situation</h1>
+
+        <div class="row"><div class="label">Client</div><div class="value" data-field="client.nom"></div></div>
+        <div class="row">
+          <div class="label">Adresse</div>
+          <div class="value">
+            <span data-field="client.adresse"></span><br>
+            <span data-field="client.cp"></span> <span data-field="client.ville"></span>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="row"><div class="label">Parcelle</div><div class="value" data-field="parcelle.numero"></div></div>
+        <div class="row"><div class="label">Surface</div><div class="value"><span data-field="parcelle.surface_m2"></span> m²</div></div>
+
+        <div class="divider"></div>
+
+        <div class="row"><div class="label">Échelle</div><div class="value">1 / 650</div></div>
+        <div class="row"><div class="label">Note</div><div class="value" data-field="note"></div></div>
+      </aside>
+
+      <main class="right">
+        <img class="map-img" data-field="img.650" alt="DP1 – 1/650">
+      </main>
+    </div>
+
+    <div class="footer">
+      <div class="muted">Document interne – avant dépôt</div>
+      <div>DP1 · Page 3 / 3<br><span class="muted">le <span data-field="date"></span></span></div>
+    </div>
+  </section>
+
+  <script src="dp1.js"></script>
+</body>
+</html>

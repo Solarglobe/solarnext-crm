@@ -1,0 +1,683 @@
+/* Devis A4 portrait — PDF (renderer /financial-quote-pdf-render) + page Présenter CRM.
+ * Racine PDF : #financial-quote-pdf-root.fq-root — pas #pdf-root (étude).
+ * Source de vérité marges PDF Playwright devis : @page sn-financial-quote (preferCSSPageSize côté backend). */
+
+@page sn-financial-quote {
+  size: A4 portrait;
+  margin: 15mm 18mm;
+}
+
+.fq-root {
+  page: sn-financial-quote;
+  --fq-accent: #b59449;
+  --fq-ink: #000;
+  --fq-muted: #555;
+  --fq-border: #e0e0e0;
+  --fq-table-head: #f2f2f2;
+  box-sizing: border-box;
+  margin: 0 auto;
+  font-family: Arial, Helvetica, "Segoe UI", system-ui, sans-serif;
+  font-size: 10pt;
+  line-height: 1.4;
+  color: var(--fq-ink);
+  background: #fff;
+}
+
+.fq-root *,
+.fq-root *::before,
+.fq-root *::after {
+  box-sizing: border-box;
+}
+
+/* Impression / PDF : zone utile = page moins @page (pas de double marge avec .fq-doc). Écran : gabarit « feuille ». */
+.fq-doc {
+  width: 100%;
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 0;
+  background: #fff;
+}
+
+.fq-section {
+  display: block;
+}
+
+.fq-section + .fq-section {
+  margin-top: 6mm;
+}
+
+/* En-tête + méta + identités : éviter une coupure au milieu du bloc. */
+.fq-devis-dochead-block {
+  break-inside: avoid;
+  page-break-inside: avoid;
+  margin-bottom: 2mm;
+}
+
+/* Réglementaire inclus dans le bundle de clôture ; paragraphes un peu plus stables. */
+.fq-devis-regulatory-block {
+  display: block;
+  margin-bottom: 5mm;
+}
+
+.fq-devis-regulatory-block .fq-regulatory-callout p {
+  orphans: 3;
+  widows: 3;
+}
+
+/*
+ * Bloc de clôture unique : réglementaire + totaux + annexes + paiement + bon pour accord + signatures.
+ * Même page en pagination (break-inside: avoid). Si le bloc dépasse une page entière, le moteur peut fragmenter.
+ */
+.fq-devis-pricing-signature-bundle {
+  break-inside: avoid;
+  page-break-inside: avoid;
+  margin-top: 2mm;
+}
+
+.fq-devis-pricing-signature-bundle .fq-payment-sign-flow {
+  margin-top: 4mm;
+}
+
+.fq-payment-sign-flow {
+  display: block;
+}
+
+.fq-payment-section {
+  margin-bottom: 5mm;
+}
+
+@media screen {
+  .fq-doc {
+    max-width: 210mm;
+    padding: 12mm 18mm 14mm;
+    box-shadow: 0 0 0 1px var(--fq-border);
+  }
+}
+
+/* --- En-tête : DEVIS à gauche, logo à droite --- */
+.fq-erp-toprow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8mm;
+  margin-bottom: 0;
+}
+
+.fq-erp-dochead--left {
+  flex: 1;
+  text-align: left;
+}
+
+.fq-erp-devis-title {
+  margin: 0 0 3mm;
+  font-size: 22pt;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--fq-accent);
+}
+
+/* Proposition / PDF non officiel (pas encore Signé côté produit) */
+.fq-erp-devis-title--presentation {
+  font-weight: 600;
+  font-size: 17pt;
+  letter-spacing: 0.05em;
+  color: var(--fq-muted);
+}
+
+.fq-erp-docmeta {
+  font-size: 9.5pt;
+  color: var(--fq-ink);
+}
+
+.fq-erp-docmeta-line {
+  margin: 0 0 1mm;
+}
+
+.fq-erp-docmeta-line strong {
+  font-weight: 600;
+  margin-right: 4px;
+}
+
+.fq-erp-logo--right {
+  flex: 0 0 auto;
+  text-align: right;
+  max-width: 55mm;
+  min-height: 16mm;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+}
+
+.fq-erp-logo--right img {
+  max-width: 100%;
+  max-height: 22mm;
+  object-fit: contain;
+}
+
+.fq-brand-fallback {
+  font-size: 14pt;
+  font-weight: 700;
+  color: var(--fq-accent);
+  letter-spacing: 0.06em;
+}
+
+.fq-erp-rule {
+  height: 2px;
+  background: var(--fq-accent);
+  margin: 4mm 0 5mm;
+  border: none;
+}
+
+/* Identité */
+.fq-erp-identity {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6mm 10mm;
+  margin-bottom: 5mm;
+}
+
+.fq-erp-col-label {
+  margin: 0 0 1.5mm;
+  font-size: 8pt;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fq-muted);
+}
+
+.fq-erp-col-body {
+  margin: 0;
+  font-size: 9.5pt;
+  line-height: 1.45;
+}
+
+.fq-erp-col-body p {
+  margin: 0 0 2px;
+}
+
+.fq-erp-primary-line {
+  font-weight: 700;
+  font-size: 10.5pt;
+  margin-bottom: 2mm !important;
+}
+
+.fq-erp-col--issuer {
+  text-align: right;
+}
+
+.fq-erp-col--issuer .fq-erp-col-label {
+  text-align: right;
+}
+
+.fq-erp-col--issuer .fq-erp-col-body {
+  text-align: right;
+}
+
+/* Détail offre */
+.fq-erp-offer-title {
+  margin: 4mm 0 2mm;
+  font-size: 10pt;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fq-accent);
+}
+
+.fq-table-wrap {
+  margin: 0 0 2mm;
+  border: none;
+}
+
+.fq-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 9pt;
+}
+
+.fq-table thead {
+  display: table-header-group;
+}
+
+.fq-table thead th {
+  text-align: left;
+  padding: 6px 8px;
+  font-weight: 700;
+  font-size: 8.5pt;
+  color: #333;
+  background: var(--fq-table-head);
+  border-bottom: 1px solid var(--fq-border);
+}
+
+.fq-table th.fq-center,
+.fq-table td.fq-center {
+  text-align: center;
+}
+
+.fq-table th.fq-num,
+.fq-table td.fq-num {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.fq-table td {
+  padding: 8px;
+  border-bottom: 1px solid var(--fq-border);
+  vertical-align: top;
+}
+
+/* Une ligne de devis = un groupe ; évite une coupure au milieu d’une ligne. */
+.fq-line-group {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.fq-line-group--last {
+  break-after: auto;
+  page-break-after: auto;
+}
+
+.fq-line-desc {
+  font-weight: 700;
+}
+
+.fq-line-desc-body {
+  display: block;
+  margin-top: 3px;
+  font-weight: 400;
+  color: var(--fq-ink);
+  font-size: 8.5pt;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-wrap: break-word;
+  max-width: 100%;
+}
+
+.fq-condensed-hint {
+  margin: 0 0 6px;
+  font-size: 8pt;
+  color: var(--fq-muted);
+}
+
+.fq-table.fq-table--condensed thead th {
+  background: var(--fq-table-head);
+}
+
+.fq-condensed-title {
+  font-weight: 700;
+  font-size: 10pt;
+}
+
+.fq-condensed-ref {
+  margin-top: 3px;
+  font-size: 8.5pt;
+  color: var(--fq-muted);
+}
+
+.fq-condensed-desc {
+  margin-top: 4px;
+  font-size: 9pt;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-wrap: break-word;
+  max-width: 100%;
+}
+
+.fq-regulatory-callout {
+  position: relative;
+  margin: 0 0 5mm;
+  padding: 10px 12px 10px 16px;
+  background: #f7f7f7;
+  border: 1px solid var(--fq-border);
+}
+
+.fq-regulatory-callout::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 5px;
+  background: var(--fq-accent);
+}
+
+.fq-regulatory-callout h3 {
+  margin: 0 0 8px;
+  font-size: 10pt;
+  font-weight: 700;
+  color: var(--fq-ink);
+}
+
+.fq-regulatory-callout p {
+  margin: 0 0 8px;
+  font-size: 9pt;
+  line-height: 1.45;
+  color: var(--fq-ink);
+}
+
+.fq-regulatory-callout p:last-child {
+  margin-bottom: 0;
+}
+
+.fq-regulatory-placeholder {
+  font-style: italic;
+  color: var(--fq-muted);
+}
+
+.fq-frozen-hint {
+  margin: 8px 0 0;
+  font-size: 8.5pt;
+  color: var(--fq-muted);
+  line-height: 1.4;
+}
+
+.fq-legal {
+  margin: 6px 0 0;
+  font-size: 8.5pt;
+  color: var(--fq-muted);
+  line-height: 1.4;
+}
+
+/* Totaux à droite */
+.fq-totals {
+  margin: 0 0 6mm;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.fq-totals-inner {
+  min-width: 78mm;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.fq-totals-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12mm;
+  padding: 2px 0;
+  font-size: 9.5pt;
+}
+
+.fq-totals-row--sep {
+  margin-top: 4px;
+  padding-top: 6px;
+  border-top: 2px solid var(--fq-accent);
+}
+
+.fq-totals-row--emph {
+  margin-top: 2px;
+  font-size: 12pt;
+  font-weight: 700;
+}
+
+.fq-totals-row--emph span {
+  color: var(--fq-accent);
+}
+
+/* Annexes devis (hors bloc gris) */
+.fq-quote-annexes {
+  margin: 0 0 5mm;
+  font-size: 9pt;
+  line-height: 1.45;
+}
+
+.fq-quote-annexes p {
+  margin: 0 0 6px;
+  white-space: pre-wrap;
+}
+
+/* Modalités de paiement — titre or */
+.fq-erp-gold-heading {
+  margin: 0 0 3mm;
+  font-size: 10pt;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fq-accent);
+}
+
+.fq-payment-body {
+  margin: 0;
+  font-size: 9.5pt;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.fq-deposit {
+  margin: 0 0 3mm;
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+
+.fq-deposit-note {
+  margin-top: 2mm !important;
+  font-size: 8.5pt !important;
+  color: var(--fq-muted) !important;
+}
+
+.fq-sign-section-wrap {
+  margin-top: 5mm;
+  padding-top: 4mm;
+  border-top: 1px solid var(--fq-border);
+}
+
+.fq-signature-erp {
+  orphans: 3;
+  widows: 3;
+}
+
+.fq-signature-erp > h3 {
+  margin: 0 0 2mm;
+  font-size: 10pt;
+  font-weight: 700;
+  color: var(--fq-ink);
+}
+
+.fq-accord-intro {
+  margin: 0 0 4mm;
+  font-size: 8.5pt;
+  line-height: 1.45;
+}
+
+.fq-signature-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5mm 8mm;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.fq-signature-box {
+  min-height: 22mm;
+  padding: 6px 8px;
+  border: 1px solid #333;
+  font-size: 8.5pt;
+  display: flex;
+  flex-direction: column;
+}
+
+.fq-signature-box strong {
+  display: block;
+  margin-bottom: 3px;
+  font-size: 8pt;
+  font-weight: 600;
+  color: var(--fq-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.fq-signature-canvas-area {
+  flex: 1;
+  min-height: 18mm;
+  max-height: 22mm;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed #888;
+  margin-top: 2px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.fq-signature-canvas-area img {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  object-position: center center;
+}
+
+.fq-signature-placeholder {
+  color: var(--fq-muted);
+  font-size: 8pt;
+  text-align: center;
+  padding: 4px;
+}
+
+.fq-signature-box--interactive .fq-signature-canvas-area {
+  cursor: pointer;
+}
+
+button.fq-signature-canvas-area.fq-signature-touch-target {
+  font: inherit;
+  color: inherit;
+  align-self: stretch;
+  width: 100%;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  min-height: max(18mm, 44px);
+}
+
+@media print {
+  button.fq-signature-canvas-area.fq-signature-touch-target {
+    min-height: 18mm;
+  }
+}
+
+.fq-approval-draft-hint {
+  margin: 2mm 0 0;
+  padding: 0;
+  border: none;
+  font-size: 8pt;
+  line-height: 1.4;
+  color: var(--fq-muted);
+}
+
+.fq-client-approval-block {
+  margin: 0 0 4mm;
+  padding: 3mm 4mm;
+  border: 1px solid var(--fq-border);
+  background: #fafafa;
+}
+
+.fq-client-approval-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0 0 2mm;
+  font-size: 8.5pt;
+  line-height: 1.45;
+  cursor: pointer;
+}
+
+.fq-client-approval-label--static {
+  cursor: default;
+}
+
+.fq-client-approval-checkbox {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  margin-top: 1px;
+  accent-color: var(--fq-accent);
+}
+
+.fq-client-approval-faux-cb {
+  flex: 0 0 auto;
+  font-size: 11pt;
+  line-height: 1;
+  margin-top: 1px;
+  user-select: none;
+}
+
+.fq-client-approval-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.fq-client-approval-title {
+  font-weight: 600;
+  color: var(--fq-ink);
+}
+
+.fq-client-approval-sub {
+  font-size: 8pt;
+  color: var(--fq-muted);
+  line-height: 1.4;
+}
+
+.fq-signature-date-today {
+  margin: 0;
+  font-size: 8.5pt;
+  color: var(--fq-ink);
+}
+
+.fq-signature-date-today strong {
+  margin-right: 6px;
+  font-weight: 600;
+}
+
+.fq-sign-dates {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4mm;
+  margin-top: 3mm;
+  font-size: 8.5pt;
+  color: var(--fq-muted);
+}
+
+.fq-sign-dates-hint {
+  text-align: center;
+  font-size: 8pt;
+  color: var(--fq-muted);
+}
+
+@media print {
+  .fq-sign-dates--present-hint {
+    display: none;
+  }
+}
+
+.fq-loading,
+.fq-error {
+  padding: 2rem;
+  text-align: center;
+}
+
+.fq-error {
+  color: #b91c1c;
+}
+
+@media print {
+  .fq-doc {
+    padding: 0;
+    margin: 0;
+    max-width: none;
+    width: 100%;
+    box-shadow: none;
+  }
+
+  .fq-root,
+  .fq-doc {
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+  }
+}

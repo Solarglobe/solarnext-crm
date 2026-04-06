@@ -1,0 +1,1537 @@
+{
+  "meta": {
+    "lat": 48.8566,
+    "lon": 2.3522,
+    "radius_m": 3000.0,
+    "bbox_epsg4326": [
+      2.31124019335422,
+      48.82965066475027,
+      2.3931598066457798,
+      48.88354933524973
+    ],
+    "timestamp": "2026-02-13T16:36:45.352377+00:00",
+    "wfs_url": "https://data.geopf.fr/wfs/ows?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature&TYPENAMES=IGNF_MNT-LIDAR-HD:dalle&SRSNAME=EPSG:4326&BBOX=48.82965066475027,2.31124019335422,48.88354933524973,2.3931598066457798&COUNT=10000&OUTPUTFORMAT=application%2Fjson",
+    "source": "LIDAR_HD"
+  },
+  "features": [
+    {
+      "id": "dalle.322135",
+      "bbox_epsg4326": [
+        2.38690865,
+        48.82948553,
+        2.40063578,
+        48.8385477
+      ],
+      "properties": {
+        "id": "322135",
+        "name": "LHD_FXX_0655_6860_MNT_O_0M50_LAMB93_IGN69",
+        "url": "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=654999.75,6859000.25,655999.75,6860000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0655_6860_MNT_O_0M50_LAMB93_IGN69.tif",
+        "name_download": "LHD_FXX_0655_6860_MNT_O_0M50_LAMB93_IGN69.tif",
+        "id_chantier": "131",
+        "timestamp": "2025-05-01",
+        "legend": "LHD_FXX_0655_6860_MNT_O_0M50_LAMB93_IGN69",
+        "type_produit": "",
+        "projection": "EPSG:2154",
+        "zoom_start": 10,
+        "zoom_stop": "",
+        "format": "image/geotiff",
+        "bbox": "654999.75,6859000.25,655999.75,6860000.25",
+        "width": 2000,
+        "height": 2000
+      },
+      "download_hints": [
+        "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=654999.75,6859000.25,655999.75,6860000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0655_6860_MNT_O_0M50_LAMB93_IGN69.tif",
+        "LHD_FXX_0655_6860_MNT_O_0M50_LAMB93_IGN69.tif"
+      ],
+      "geometry_type": "Polygon"
+    },
+    {
+      "id": "dalle.322149",
+      "bbox_epsg4326": [
+        2.38648523,
+        48.86545758,
+        2.40022192,
+        48.8745195
+      ],
+      "properties": {
+        "id": "322149",
+        "name": "LHD_FXX_0655_6864_MNT_O_0M50_LAMB93_IGN69",
+        "url": "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=654999.75,6863000.25,655999.75,6864000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0655_6864_MNT_O_0M50_LAMB93_IGN69.tif",
+        "name_download": "LHD_FXX_0655_6864_MNT_O_0M50_LAMB93_IGN69.tif",
+        "id_chantier": "131",
+        "timestamp": "2025-05-01",
+        "legend": "LHD_FXX_0655_6864_MNT_O_0M50_LAMB93_IGN69",
+        "type_produit": "",
+        "projection": "EPSG:2154",
+        "zoom_start": 10,
+        "zoom_stop": "",
+        "format": "image/geotiff",
+        "bbox": "654999.75,6863000.25,655999.75,6864000.25",
+        "width": 2000,
+        "height": 2000
+      },
+      "download_hints": [
+        "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=654999.75,6863000.25,655999.75,6864000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0655_6864_MNT_O_0M50_LAMB93_IGN69.tif",
+        "LHD_FXX_0655_6864_MNT_O_0M50_LAMB93_IGN69.tif"
+      ],
+      "geometry_type": "Polygon"
+    },
+    {
+      "id": "dalle.322188",
+      "bbox_epsg4326": [
+        2.31808467,
+        48.88307433,
+        2.33183772,
+        48.89214384
+      ],
+      "properties": {
+        "id": "322188",
+        "name": "LHD_FXX_0650_6866_MNT_O_0M50_LAMB93_IGN69",
+        "url": "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=649999.75,6865000.25,650999.75,6866000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0650_6866_MNT_O_0M50_LAMB93_IGN69.tif",
+        "name_download": "LHD_FXX_0650_6866_MNT_O_0M50_LAMB93_IGN69.tif",
+        "id_chantier": "131",
+        "timestamp": "2025-05-01",
+        "legend": "LHD_FXX_0650_6866_MNT_O_0M50_LAMB93_IGN69",
+        "type_produit": "",
+        "projection": "EPSG:2154",
+        "zoom_start": 10,
+        "zoom_stop": "",
+        "format": "image/geotiff",
+        "bbox": "649999.75,6865000.25,650999.75,6866000.25",
+        "width": 2000,
+        "height": 2000
+      },
+      "download_hints": [
+        "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=649999.75,6865000.25,650999.75,6866000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0650_6866_MNT_O_0M50_LAMB93_IGN69.tif",
+        "LHD_FXX_0650_6866_MNT_O_0M50_LAMB93_IGN69.tif"
+      ],
+      "geometry_type": "Polygon"
+    },
+    {
+      "id": "dalle.322200",
+      "bbox_epsg4326": [
+        2.34547305,
+        48.8742338,
+        2.35921908,
+        48.88330029
+      ],
+      "properties": {
+        "id": "322200",
+        "name": "LHD_FXX_0652_6865_MNT_O_0M50_LAMB93_IGN69",
+        "url": "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=651999.75,6864000.25,652999.75,6865000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0652_6865_MNT_O_0M50_LAMB93_IGN69.tif",
+        "name_download": "LHD_FXX_0652_6865_MNT_O_0M50_LAMB93_IGN69.tif",
+        "id_chantier": "131",
+        "timestamp": "2025-05-01",
+        "legend": "LHD_FXX_0652_6865_MNT_O_0M50_LAMB93_IGN69",
+        "type_produit": "",
+        "projection": "EPSG:2154",
+        "zoom_start": 10,
+        "zoom_stop": "",
+        "format": "image/geotiff",
+        "bbox": "651999.75,6864000.25,652999.75,6865000.25",
+        "width": 2000,
+        "height": 2000
+      },
+      "download_hints": [
+        "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=651999.75,6864000.25,652999.75,6865000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0652_6865_MNT_O_0M50_LAMB93_IGN69.tif",
+        "LHD_FXX_0652_6865_MNT_O_0M50_LAMB93_IGN69.tif"
+      ],
+      "geometry_type": "Polygon"
+    },
+    {
+      "id": "dalle.322274",
+      "bbox_epsg4326": [
+        2.30444706,
+        48.8829959,
+        2.31820242,
+        48.89206695
+      ],
+      "properties": {
+        "id": "322274",
+        "name": "LHD_FXX_0649_6866_MNT_O_0M50_LAMB93_IGN69",
+        "url": "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=648999.75,6865000.25,649999.75,6866000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0649_6866_MNT_O_0M50_LAMB93_IGN69.tif",
+        "name_download": "LHD_FXX_0649_6866_MNT_O_0M50_LAMB93_IGN69.tif",
+        "id_chantier": "131",
+        "timestamp": "2025-05-01",
+        "legend": "LHD_FXX_0649_6866_MNT_O_0M50_LAMB93_IGN69",
+        "type_produit": "",
+        "projection": "EPSG:2154",
+        "zoom_start": 10,
+        "zoom_stop": "",
+        "format": "image/geotiff",
+        "bbox": "648999.75,6865000.25,649999.75,6866000.25",
+        "width": 2000,
+        "height": 2000
+      },
+      "download_hints": [
+        "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=648999.75,6865000.25,649999.75,6866000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0649_6866_MNT_O_0M50_LAMB93_IGN69.tif",
+        "LHD_FXX_0649_6866_MNT_O_0M50_LAMB93_IGN69.tif"
+      ],
+      "geometry_type": "Polygon"
+    },
+    {
+      "id": "dalle.322402",
+      "bbox_epsg4326": [
+        2.34558606,
+        48.86524101,
+        2.35932969,
+        48.87430756
+      ],
+      "properties": {
+        "id": "322402",
+        "name": "LHD_FXX_0652_6864_MNT_O_0M50_LAMB93_IGN69",
+        "url": "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=651999.75,6863000.25,652999.75,6864000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0652_6864_MNT_O_0M50_LAMB93_IGN69.tif",
+        "name_download": "LHD_FXX_0652_6864_MNT_O_0M50_LAMB93_IGN69.tif",
+        "id_chantier": "131",
+        "timestamp": "2025-05-01",
+        "legend": "LHD_FXX_0652_6864_MNT_O_0M50_LAMB93_IGN69",
+        "type_produit": "",
+        "projection": "EPSG:2154",
+        "zoom_start": 10,
+        "zoom_stop": "",
+        "format": "image/geotiff",
+        "bbox": "651999.75,6863000.25,652999.75,6864000.25",
+        "width": 2000,
+        "height": 2000
+      },
+      "download_hints": [
+        "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=651999.75,6863000.25,652999.75,6864000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0652_6864_MNT_O_0M50_LAMB93_IGN69.tif",
+        "LHD_FXX_0652_6864_MNT_O_0M50_LAMB93_IGN69.tif"
+      ],
+      "geometry_type": "Polygon"
+    },
+    {
+      "id": "dalle.322403",
+      "bbox_epsg4326": [
+        2.3320684,
+        48.85617286,
+        2.34581196,
+        48.86524101
+      ],
+      "properties": {
+        "id": "322403",
+        "name": "LHD_FXX_0651_6863_MNT_O_0M50_LAMB93_IGN69",
+        "url": "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=650999.75,6862000.25,651999.75,6863000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0651_6863_MNT_O_0M50_LAMB93_IGN69.tif",
+        "name_download": "LHD_FXX_0651_6863_MNT_O_0M50_LAMB93_IGN69.tif",
+        "id_chantier": "131",
+        "timestamp": "2025-05-01",
+        "legend": "LHD_FXX_0651_6863_MNT_O_0M50_LAMB93_IGN69",
+        "type_produit": "",
+        "projection": "EPSG:2154",
+        "zoom_start": 10,
+        "zoom_stop": "",
+        "format": "image/geotiff",
+        "bbox": "650999.75,6862000.25,651999.75,6863000.25",
+        "width": 2000,
+        "height": 2000
+      },
+      "download_hints": [
+        "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=650999.75,6862000.25,651999.75,6863000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0651_6863_MNT_O_0M50_LAMB93_IGN69.tif",
+        "LHD_FXX_0651_6863_MNT_O_0M50_LAMB93_IGN69.tif"
+      ],
+      "geometry_type": "Polygon"
+    },
+    {
+      "id": "dalle.322406",
+      "bbox_epsg4326": [
+        2.33172232,
+        48.8831512,
+        2.34547305,
+        48.89221917
+      ],
+      "properties": {
+        "id": "322406",
+        "name": "LHD_FXX_0651_6866_MNT_O_0M50_LAMB93_IGN69",
+        "url": "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=650999.75,6865000.25,651999.75,6866000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0651_6866_MNT_O_0M50_LAMB93_IGN69.tif",
+        "name_download": "LHD_FXX_0651_6866_MNT_O_0M50_LAMB93_IGN69.tif",
+        "id_chantier": "131",
+        "timestamp": "2025-05-01",
+        "legend": "LHD_FXX_0651_6866_MNT_O_0M50_LAMB93_IGN69",
+        "type_produit": "",
+        "projection": "EPSG:2154",
+        "zoom_start": 10,
+        "zoom_stop": "",
+        "format": "image/geotiff",
+        "bbox": "650999.75,6865000.25,651999.75,6866000.25",
+        "width": 2000,
+        "height": 2000
+      },
+      "download_hints": [
+        "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=650999.75,6865000.25,651999.75,6866000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0651_6866_MNT_O_0M50_LAMB93_IGN69.tif",
+        "LHD_FXX_0651_6866_MNT_O_0M50_LAMB93_IGN69.tif"
+      ],
+      "geometry_type": "Polygon"
+    },
+    {
+      "id": "dalle.322413",
+      "bbox_epsg4326": [
+        2.33241413,
+        48.82919386,
+        2.34615051,
+        48.83826219
+      ],
+      "properties": {
+        "id": "322413",
+        "name": "LHD_FXX_0651_6860_MNT_O_0M50_LAMB93_IGN69",
+        "url": "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=650999.75,6859000.25,651999.75,6860000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0651_6860_MNT_O_0M50_LAMB93_IGN69.tif",
+        "name_download": "LHD_FXX_0651_6860_MNT_O_0M50_LAMB93_IGN69.tif",
+        "id_chantier": "131",
+        "timestamp": "2025-05-01",
+        "legend": "LHD_FXX_0651_6860_MNT_O_0M50_LAMB93_IGN69",
+        "type_produit": "",
+        "projection": "EPSG:2154",
+        "zoom_start": 10,
+        "zoom_stop": "",
+        "format": "image/geotiff",
+        "bbox": "650999.75,6859000.25,651999.75,6860000.25",
+        "width": 2000,
+        "height": 2000
+      },
+      "download_hints": [
+        "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=650999.75,6859000.25,651999.75,6860000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0651_6860_MNT_O_0M50_LAMB93_IGN69.tif",
+        "LHD_FXX_0651_6860_MNT_O_0M50_LAMB93_IGN69.tif"
+      ],
+      "geometry_type": "Polygon"
+    },
+    {
+      "id": "dalle.322481",
+      "bbox_epsg4326": [
+        2.3729604,
+        48.85639405,
+        2.38669701,
+        48.86545758
+      ],
+      "properties": {
+        "id": "322481",
+        "name": "LHD_FXX_0654_6863_MNT_O_0M50_LAMB93_IGN69",
+        "url": "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=653999.75,6862000.25,654999.75,6863000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0654_6863_MNT_O_0M50_LAMB93_IGN69.tif",
+        "name_download": "LHD_FXX_0654_6863_MNT_O_0M50_LAMB93_IGN69.tif",
+        "id_chantier": "131",
+        "timestamp": "2025-05-01",
+        "legend": "LHD_FXX_0654_6863_MNT_O_0M50_LAMB93_IGN69",
+        "type_produit": "",
+        "projection": "EPSG:2154",
+        "zoom_start": 10,
+        "zoom_stop": "",
+        "format": "image/geotiff",
+        "bbox": "653999.75,6862000.25,654999.75,6863000.25",
+        "width": 2000,
+        "height": 2000
+      },
+      "download_hints": [
+        "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=653999.75,6862000.25,654999.75,6863000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0654_6863_MNT_O_0M50_LAMB93_IGN69.tif",
+        "LHD_FXX_0654_6863_MNT_O_0M50_LAMB93_IGN69.tif"
+      ],
+      "geometry_type": "Polygon"
+    },
+    {
+      "id": "dalle.322622",
+      "bbox_epsg4326": [
+        2.31820242,
+        48.87408163,
+        2.33195308,
+        48.8831512
+      ],
+      "properties": {
+        "id": "322622",
+        "name": "LHD_FXX_0650_6865_MNT_O_0M50_LAMB93_IGN69",
+        "url": "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=649999.75,6864000.25,650999.75,6865000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0650_6865_MNT_O_0M50_LAMB93_IGN69.tif",
+        "name_download": "LHD_FXX_0650_6865_MNT_O_0M50_LAMB93_IGN69.tif",
+        "id_chantier": "131",
+        "timestamp": "2025-05-01",
+        "legend": "LHD_FXX_0650_6865_MNT_O_0M50_LAMB93_IGN69",
+        "type_produit": "",
+        "projection": "EPSG:2154",
+        "zoom_start": 10,
+        "zoom_stop": "",
+        "format": "image/geotiff",
+        "bbox": "649999.75,6864000.25,650999.75,6865000.25",
+        "width": 2000,
+        "height": 2000
+      },
+      "download_hints": [
+        "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=649999.75,6864000.25,650999.75,6865000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0650_6865_MNT_O_0M50_LAMB93_IGN69.tif",
+        "LHD_FXX_0650_6865_MNT_O_0M50_LAMB93_IGN69.tif"
+      ],
+      "geometry_type": "Polygon"
+    },
+    {
+      "id": "dalle.322656",
+      "bbox_epsg4326": [
+        2.30468724,
+        48.86501047,
+        2.31843782,
+        48.87408163
+      ],
+      "properties": {
+        "id": "322656",
+        "name": "LHD_FXX_0649_6864_MNT_O_0M50_LAMB93_IGN69",
+        "url": "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=648999.75,6863000.25,649999.75,6864000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0649_6864_MNT_O_0M50_LAMB93_IGN69.tif",
+        "name_download": "LHD_FXX_0649_6864_MNT_O_0M50_LAMB93_IGN69.tif",
+        "id_chantier": "131",
+        "timestamp": "2025-05-01",
+        "legend": "LHD_FXX_0649_6864_MNT_O_0M50_LAMB93_IGN69",
+        "type_produit": "",
+        "projection": "EPSG:2154",
+        "zoom_start": 10,
+        "zoom_stop": "",
+        "format": "image/geotiff",
+        "bbox": "648999.75,6863000.25,649999.75,6864000.25",
+        "width": 2000,
+        "height": 2000
+      },
+      "download_hints": [
+        "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=648999.75,6863000.25,649999.75,6864000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0649_6864_MNT_O_0M50_LAMB93_IGN69.tif",
+        "LHD_FXX_0649_6864_MNT_O_0M50_LAMB93_IGN69.tif"
+      ],
+      "geometry_type": "Polygon"
+    },
+    {
+      "id": "dalle.322689",
+      "bbox_epsg4326": [
+        2.35921908,
+        48.86531475,
+        2.3729604,
+        48.87437976
+      ],
+      "properties": {
+        "id": "322689",
+        "name": "LHD_FXX_0653_6864_MNT_O_0M50_LAMB93_IGN69",
+        "url": "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=652999.75,6863000.25,653999.75,6864000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0653_6864_MNT_O_0M50_LAMB93_IGN69.tif",
+        "name_download": "LHD_FXX_0653_6864_MNT_O_0M50_LAMB93_IGN69.tif",
+        "id_chantier": "131",
+        "timestamp": "2025-05-01",
+        "legend": "LHD_FXX_0653_6864_MNT_O_0M50_LAMB93_IGN69",
+        "type_produit": "",
+        "projection": "EPSG:2154",
+        "zoom_start": 10,
+        "zoom_stop": "",
+        "format": "image/geotiff",
+        "bbox": "652999.75,6863000.25,653999.75,6864000.25",
+        "width": 2000,
+        "height": 2000
+      },
+      "download_hints": [
+        "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=652999.75,6863000.25,653999.75,6864000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0653_6864_MNT_O_0M50_LAMB93_IGN69.tif",
+        "LHD_FXX_0653_6864_MNT_O_0M50_LAMB93_IGN69.tif"
+      ],
+      "geometry_type": "Polygon"
+    },
+    {
+      "id": "dalle.322721",
+      "bbox_epsg4326": [
+        2.30492726,
+        48.84702474,
+        2.31867304,
+        48.85609602
+      ],
+      "properties": {
+        "id": "322721",
+        "name": "LHD_FXX_0649_6862_MNT_O_0M50_LAMB93_IGN69",
+        "url": "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=648999.75,6861000.25,649999.75,6862000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0649_6862_MNT_O_0M50_LAMB93_IGN69.tif",
+        "name_download": "LHD_FXX_0649_6862_MNT_O_0M50_LAMB93_IGN69.tif",
+        "id_chantier": "131",
+        "timestamp": "2025-05-01",
+        "legend": "LHD_FXX_0649_6862_MNT_O_0M50_LAMB93_IGN69",
+        "type_produit": "",
+        "projection": "EPSG:2154",
+        "zoom_start": 10,
+        "zoom_stop": "",
+        "format": "image/geotiff",
+        "bbox": "648999.75,6861000.25,649999.75,6862000.25",
+        "width": 2000,
+        "height": 2000
+      },
+      "download_hints": [
+        "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=648999.75,6861000.25,649999.75,6862000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0649_6862_MNT_O_0M50_LAMB93_IGN69.tif",
+        "LHD_FXX_0649_6862_MNT_O_0M50_LAMB93_IGN69.tif"
+      ],
+      "geometry_type": "Polygon"
+    },
+    {
+      "id": "dalle.322811",
+      "bbox_epsg4326": [
+        2.31867304,
+        48.83811012,
+        2.33241413,
+        48.84717993
+      ],
+      "properties": {
+        "id": "322811",
+        "name": "LHD_FXX_0650_6861_MNT_O_0M50_LAMB93_IGN69",
+        "url": "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=649999.75,6860000.25,650999.75,6861000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0650_6861_MNT_O_0M50_LAMB93_IGN69.tif",
+        "name_download": "LHD_FXX_0650_6861_MNT_O_0M50_LAMB93_IGN69.tif",
+        "id_chantier": "131",
+        "timestamp": "2025-05-01",
+        "legend": "LHD_FXX_0650_6861_MNT_O_0M50_LAMB93_IGN69",
+        "type_produit": "",
+        "projection": "EPSG:2154",
+        "zoom_start": 10,
+        "zoom_stop": "",
+        "format": "image/geotiff",
+        "bbox": "649999.75,6860000.25,650999.75,6861000.25",
+        "width": 2000,
+        "height": 2000
+      },
+      "download_hints": [
+        "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=649999.75,6860000.25,650999.75,6861000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0650_6861_MNT_O_0M50_LAMB93_IGN69.tif",
+        "LHD_FXX_0650_6861_MNT_O_0M50_LAMB93_IGN69.tif"
+      ],
+      "geometry_type": "Polygon"
+    },
+    {
+      "id": "dalle.322854",
+      "bbox_epsg4326": [
+        2.31855545,
+        48.84710311,
+        2.33229893,
+        48.85617286
+      ],
+      "properties": {
+        "id": "322854",
+        "name": "LHD_FXX_0650_6862_MNT_O_0M50_LAMB93_IGN69",
+        "url": "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=649999.75,6861000.25,650999.75,6862000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0650_6862_MNT_O_0M50_LAMB93_IGN69.tif",
+        "name_download": "LHD_FXX_0650_6862_MNT_O_0M50_LAMB93_IGN69.tif",
+        "id_chantier": "131",
+        "timestamp": "2025-05-01",
+        "legend": "LHD_FXX_0650_6862_MNT_O_0M50_LAMB93_IGN69",
+        "type_produit": "",
+        "projection": "EPSG:2154",
+        "zoom_start": 10,
+        "zoom_stop": "",
+        "format": "image/geotiff",
+        "bbox": "649999.75,6861000.25,650999.75,6862000.25",
+        "width": 2000,
+        "height": 2000
+      },
+      "download_hints": [
+        "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=649999.75,6861000.25,650999.75,6862000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0650_6862_MNT_O_0M50_LAMB93_IGN69.tif",
+        "LHD_FXX_0650_6862_MNT_O_0M50_LAMB93_IGN69.tif"
+      ],
+      "geometry_type": "Polygon"
+    },
+    {
+      "id": "dalle.322903",
+      "bbox_epsg4326": [
+        2.35955081,
+        48.83833589,
+        2.37328496,
+        48.84740109
+      ],
+      "properties": {
+        "id": "322903",
+        "name": "LHD_FXX_0653_6861_MNT_O_0M50_LAMB93_IGN69",
+        "url": "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=652999.75,6860000.25,653999.75,6861000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0653_6861_MNT_O_0M50_LAMB93_IGN69.tif",
+        "name_download": "LHD_FXX_0653_6861_MNT_O_0M50_LAMB93_IGN69.tif",
+        "id_chantier": "131",
+        "timestamp": "2025-05-01",
+        "legend": "LHD_FXX_0653_6861_MNT_O_0M50_LAMB93_IGN69",
+        "type_produit": "",
+        "projection": "EPSG:2154",
+        "zoom_start": 10,
+        "zoom_stop": "",
+        "format": "image/geotiff",
+        "bbox": "652999.75,6860000.25,653999.75,6861000.25",
+        "width": 2000,
+        "height": 2000
+      },
+      "download_hints": [
+        "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=652999.75,6860000.25,653999.75,6861000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0653_6861_MNT_O_0M50_LAMB93_IGN69.tif",
+        "LHD_FXX_0653_6861_MNT_O_0M50_LAMB93_IGN69.tif"
+      ],
+      "geometry_type": "Polygon"
+    },
+    {
+      "id": "dalle.322968",
+      "bbox_epsg4326": [
+        2.38637928,
+        48.87445041,
+        2.40011836,
+        48.88351227
+      ],
+      "properties": {
+        "id": "322968",
+        "name": "LHD_FXX_0655_6865_MNT_O_0M50_LAMB93_IGN69",
+        "url": "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=654999.75,6864000.25,655999.75,6865000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0655_6865_MNT_O_0M50_LAMB93_IGN69.tif",
+        "name_download": "LHD_FXX_0655_6865_MNT_O_0M50_LAMB93_IGN69.tif",
+        "id_chantier": "131",
+        "timestamp": "2025-05-01",
+        "legend": "LHD_FXX_0655_6865_MNT_O_0M50_LAMB93_IGN69",
+        "type_produit": "",
+        "projection": "EPSG:2154",
+        "zoom_start": 10,
+        "zoom_stop": "",
+        "format": "image/geotiff",
+        "bbox": "654999.75,6864000.25,655999.75,6865000.25",
+        "width": 2000,
+        "height": 2000
+      },
+      "download_hints": [
+        "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=654999.75,6864000.25,655999.75,6865000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0655_6865_MNT_O_0M50_LAMB93_IGN69.tif",
+        "LHD_FXX_0655_6865_MNT_O_0M50_LAMB93_IGN69.tif"
+      ],
+      "geometry_type": "Polygon"
+    },
+    {
+      "id": "dalle.322973",
+      "bbox_epsg4326": [
+        2.34569903,
+        48.85624814,
+        2.35944027,
+        48.86531475
+      ],
+      "properties": {
+        "id": "322973",
+        "name": "LHD_FXX_0652_6863_MNT_O_0M50_LAMB93_IGN69",
+        "url": "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=651999.75,6862000.25,652999.75,6863000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0652_6863_MNT_O_0M50_LAMB93_IGN69.tif",
+        "name_download": "LHD_FXX_0652_6863_MNT_O_0M50_LAMB93_IGN69.tif",
+        "id_chantier": "131",
+        "timestamp": "2025-05-01",
+        "legend": "LHD_FXX_0652_6863_MNT_O_0M50_LAMB93_IGN69",
+        "type_produit": "",
+        "projection": "EPSG:2154",
+        "zoom_start": 10,
+        "zoom_stop": "",
+        "format": "image/geotiff",
+        "bbox": "651999.75,6862000.25,652999.75,6863000.25",
+        "width": 2000,
+        "height": 2000
+      },
+      "download_hints": [
+        "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=651999.75,6862000.25,652999.75,6863000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0652_6863_MNT_O_0M50_LAMB93_IGN69.tif",
+        "LHD_FXX_0652_6863_MNT_O_0M50_LAMB93_IGN69.tif"
+      ],
+      "geometry_type": "Polygon"
+    },
+    {
+      "id": "dalle.323037",
+      "bbox_epsg4326": [
+        2.31832014,
+        48.86508887,
+        2.3320684,
+        48.87415849
+      ],
+      "properties": {
+        "id": "323037",
+        "name": "LHD_FXX_0650_6864_MNT_O_0M50_LAMB93_IGN69",
+        "url": "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=649999.75,6863000.25,650999.75,6864000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0650_6864_MNT_O_0M50_LAMB93_IGN69.tif",
+        "name_download": "LHD_FXX_0650_6864_MNT_O_0M50_LAMB93_IGN69.tif",
+        "id_chantier": "131",
+        "timestamp": "2025-05-01",
+        "legend": "LHD_FXX_0650_6864_MNT_O_0M50_LAMB93_IGN69",
+        "type_produit": "",
+        "projection": "EPSG:2154",
+        "zoom_start": 10,
+        "zoom_stop": "",
+        "format": "image/geotiff",
+        "bbox": "649999.75,6863000.25,650999.75,6864000.25",
+        "width": 2000,
+        "height": 2000
+      },
+      "download_hints": [
+        "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=649999.75,6863000.25,650999.75,6864000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0650_6864_MNT_O_0M50_LAMB93_IGN69.tif",
+        "LHD_FXX_0650_6864_MNT_O_0M50_LAMB93_IGN69.tif"
+      ],
+      "geometry_type": "Polygon"
+    },
+    {
+      "id": "dalle.323188",
+      "bbox_epsg4326": [
+        2.3862733,
+        48.88344316,
+        2.40001477,
+        48.89250496
+      ],
+      "properties": {
+        "id": "323188",
+        "name": "LHD_FXX_0655_6866_MNT_O_0M50_LAMB93_IGN69",
+        "url": "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=654999.75,6865000.25,655999.75,6866000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0655_6866_MNT_O_0M50_LAMB93_IGN69.tif",
+        "name_download": "LHD_FXX_0655_6866_MNT_O_0M50_LAMB93_IGN69.tif",
+        "id_chantier": "131",
+        "timestamp": "2025-05-01",
+        "legend": "LHD_FXX_0655_6866_MNT_O_0M50_LAMB93_IGN69",
+        "type_produit": "",
+        "projection": "EPSG:2154",
+        "zoom_start": 10,
+        "zoom_stop": "",
+        "format": "image/geotiff",
+        "bbox": "654999.75,6865000.25,655999.75,6866000.25",
+        "width": 2000,
+        "height": 2000
+      },
+      "download_hints": [
+        "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=654999.75,6865000.25,655999.75,6866000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0655_6866_MNT_O_0M50_LAMB93_IGN69.tif",
+        "LHD_FXX_0655_6866_MNT_O_0M50_LAMB93_IGN69.tif"
+      ],
+      "geometry_type": "Polygon"
+    },
+    {
+      "id": "dalle.323191",
+      "bbox_epsg4326": [
+        2.35899773,
+        48.88330029,
+        2.37274384,
+        48.89236517
+      ],
+      "properties": {
+        "id": "323191",
+        "name": "LHD_FXX_0653_6866_MNT_O_0M50_LAMB93_IGN69",
+        "url": "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=652999.75,6865000.25,653999.75,6866000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0653_6866_MNT_O_0M50_LAMB93_IGN69.tif",
+        "name_download": "LHD_FXX_0653_6866_MNT_O_0M50_LAMB93_IGN69.tif",
+        "id_chantier": "131",
+        "timestamp": "2025-05-01",
+        "legend": "LHD_FXX_0653_6866_MNT_O_0M50_LAMB93_IGN69",
+        "type_produit": "",
+        "projection": "EPSG:2154",
+        "zoom_start": 10,
+        "zoom_stop": "",
+        "format": "image/geotiff",
+        "bbox": "652999.75,6865000.25,653999.75,6866000.25",
+        "width": 2000,
+        "height": 2000
+      },
+      "download_hints": [
+        "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=652999.75,6865000.25,653999.75,6866000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0653_6866_MNT_O_0M50_LAMB93_IGN69.tif",
+        "LHD_FXX_0653_6866_MNT_O_0M50_LAMB93_IGN69.tif"
+      ],
+      "geometry_type": "Polygon"
+    },
+    {
+      "id": "dalle.323198",
+      "bbox_epsg4326": [
+        2.37317681,
+        48.83840805,
+        2.38690865,
+        48.8474717
+      ],
+      "properties": {
+        "id": "323198",
+        "name": "LHD_FXX_0654_6861_MNT_O_0M50_LAMB93_IGN69",
+        "url": "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=653999.75,6860000.25,654999.75,6861000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0654_6861_MNT_O_0M50_LAMB93_IGN69.tif",
+        "name_download": "LHD_FXX_0654_6861_MNT_O_0M50_LAMB93_IGN69.tif",
+        "id_chantier": "131",
+        "timestamp": "2025-05-01",
+        "legend": "LHD_FXX_0654_6861_MNT_O_0M50_LAMB93_IGN69",
+        "type_produit": "",
+        "projection": "EPSG:2154",
+        "zoom_start": 10,
+        "zoom_stop": "",
+        "format": "image/geotiff",
+        "bbox": "653999.75,6860000.25,654999.75,6861000.25",
+        "width": 2000,
+        "height": 2000
+      },
+      "download_hints": [
+        "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=653999.75,6860000.25,654999.75,6861000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0654_6861_MNT_O_0M50_LAMB93_IGN69.tif",
+        "LHD_FXX_0654_6861_MNT_O_0M50_LAMB93_IGN69.tif"
+      ],
+      "geometry_type": "Polygon"
+    },
+    {
+      "id": "dalle.323291",
+      "bbox_epsg4326": [
+        2.34536001,
+        48.88322652,
+        2.35910843,
+        48.89229295
+      ],
+      "properties": {
+        "id": "323291",
+        "name": "LHD_FXX_0652_6866_MNT_O_0M50_LAMB93_IGN69",
+        "url": "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=651999.75,6865000.25,652999.75,6866000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0652_6866_MNT_O_0M50_LAMB93_IGN69.tif",
+        "name_download": "LHD_FXX_0652_6866_MNT_O_0M50_LAMB93_IGN69.tif",
+        "id_chantier": "131",
+        "timestamp": "2025-05-01",
+        "legend": "LHD_FXX_0652_6866_MNT_O_0M50_LAMB93_IGN69",
+        "type_produit": "",
+        "projection": "EPSG:2154",
+        "zoom_start": 10,
+        "zoom_stop": "",
+        "format": "image/geotiff",
+        "bbox": "651999.75,6865000.25,652999.75,6866000.25",
+        "width": 2000,
+        "height": 2000
+      },
+      "download_hints": [
+        "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=651999.75,6865000.25,652999.75,6866000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0652_6866_MNT_O_0M50_LAMB93_IGN69.tif",
+        "LHD_FXX_0652_6866_MNT_O_0M50_LAMB93_IGN69.tif"
+      ],
+      "geometry_type": "Polygon"
+    },
+    {
+      "id": "dalle.323403",
+      "bbox_epsg4326": [
+        2.37274384,
+        48.87437976,
+        2.38648523,
+        48.88344316
+      ],
+      "properties": {
+        "id": "323403",
+        "name": "LHD_FXX_0654_6865_MNT_O_0M50_LAMB93_IGN69",
+        "url": "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=653999.75,6864000.25,654999.75,6865000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0654_6865_MNT_O_0M50_LAMB93_IGN69.tif",
+        "name_download": "LHD_FXX_0654_6865_MNT_O_0M50_LAMB93_IGN69.tif",
+        "id_chantier": "131",
+        "timestamp": "2025-05-01",
+        "legend": "LHD_FXX_0654_6865_MNT_O_0M50_LAMB93_IGN69",
+        "type_produit": "",
+        "projection": "EPSG:2154",
+        "zoom_start": 10,
+        "zoom_stop": "",
+        "format": "image/geotiff",
+        "bbox": "653999.75,6864000.25,654999.75,6865000.25",
+        "width": 2000,
+        "height": 2000
+      },
+      "download_hints": [
+        "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=653999.75,6864000.25,654999.75,6865000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0654_6865_MNT_O_0M50_LAMB93_IGN69.tif",
+        "LHD_FXX_0654_6865_MNT_O_0M50_LAMB93_IGN69.tif"
+      ],
+      "geometry_type": "Polygon"
+    },
+    {
+      "id": "dalle.323526",
+      "bbox_epsg4326": [
+        2.38659114,
+        48.85646467,
+        2.40032544,
+        48.86552666
+      ],
+      "properties": {
+        "id": "323526",
+        "name": "LHD_FXX_0655_6863_MNT_O_0M50_LAMB93_IGN69",
+        "url": "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=654999.75,6862000.25,655999.75,6863000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0655_6863_MNT_O_0M50_LAMB93_IGN69.tif",
+        "name_download": "LHD_FXX_0655_6863_MNT_O_0M50_LAMB93_IGN69.tif",
+        "id_chantier": "131",
+        "timestamp": "2025-05-01",
+        "legend": "LHD_FXX_0655_6863_MNT_O_0M50_LAMB93_IGN69",
+        "type_produit": "",
+        "projection": "EPSG:2154",
+        "zoom_start": 10,
+        "zoom_stop": "",
+        "format": "image/geotiff",
+        "bbox": "654999.75,6862000.25,655999.75,6863000.25",
+        "width": 2000,
+        "height": 2000
+      },
+      "download_hints": [
+        "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=654999.75,6862000.25,655999.75,6863000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0655_6863_MNT_O_0M50_LAMB93_IGN69.tif",
+        "LHD_FXX_0655_6863_MNT_O_0M50_LAMB93_IGN69.tif"
+      ],
+      "geometry_type": "Polygon"
+    },
+    {
+      "id": "dalle.323600",
+      "bbox_epsg4326": [
+        2.30456717,
+        48.87400322,
+        2.31832014,
+        48.88307433
+      ],
+      "properties": {
+        "id": "323600",
+        "name": "LHD_FXX_0649_6865_MNT_O_0M50_LAMB93_IGN69",
+        "url": "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=648999.75,6864000.25,649999.75,6865000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0649_6865_MNT_O_0M50_LAMB93_IGN69.tif",
+        "name_download": "LHD_FXX_0649_6865_MNT_O_0M50_LAMB93_IGN69.tif",
+        "id_chantier": "131",
+        "timestamp": "2025-05-01",
+        "legend": "LHD_FXX_0649_6865_MNT_O_0M50_LAMB93_IGN69",
+        "type_produit": "",
+        "projection": "EPSG:2154",
+        "zoom_start": 10,
+        "zoom_stop": "",
+        "format": "image/geotiff",
+        "bbox": "648999.75,6864000.25,649999.75,6865000.25",
+        "width": 2000,
+        "height": 2000
+      },
+      "download_hints": [
+        "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=648999.75,6864000.25,649999.75,6865000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0649_6865_MNT_O_0M50_LAMB93_IGN69.tif",
+        "LHD_FXX_0649_6865_MNT_O_0M50_LAMB93_IGN69.tif"
+      ],
+      "geometry_type": "Polygon"
+    },
+    {
+      "id": "dalle.323662",
+      "bbox_epsg4326": [
+        2.37328496,
+        48.82941494,
+        2.38701441,
+        48.83847865
+      ],
+      "properties": {
+        "id": "323662",
+        "name": "LHD_FXX_0654_6860_MNT_O_0M50_LAMB93_IGN69",
+        "url": "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=653999.75,6859000.25,654999.75,6860000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0654_6860_MNT_O_0M50_LAMB93_IGN69.tif",
+        "name_download": "LHD_FXX_0654_6860_MNT_O_0M50_LAMB93_IGN69.tif",
+        "id_chantier": "131",
+        "timestamp": "2025-05-01",
+        "legend": "LHD_FXX_0654_6860_MNT_O_0M50_LAMB93_IGN69",
+        "type_produit": "",
+        "projection": "EPSG:2154",
+        "zoom_start": 10,
+        "zoom_stop": "",
+        "format": "image/geotiff",
+        "bbox": "653999.75,6859000.25,654999.75,6860000.25",
+        "width": 2000,
+        "height": 2000
+      },
+      "download_hints": [
+        "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=653999.75,6859000.25,654999.75,6860000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0654_6860_MNT_O_0M50_LAMB93_IGN69.tif",
+        "LHD_FXX_0654_6860_MNT_O_0M50_LAMB93_IGN69.tif"
+      ],
+      "geometry_type": "Polygon"
+    },
+    {
+      "id": "dalle.323680",
+      "bbox_epsg4326": [
+        2.34581196,
+        48.8472552,
+        2.35955081,
+        48.85632187
+      ],
+      "properties": {
+        "id": "323680",
+        "name": "LHD_FXX_0652_6862_MNT_O_0M50_LAMB93_IGN69",
+        "url": "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=651999.75,6861000.25,652999.75,6862000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0652_6862_MNT_O_0M50_LAMB93_IGN69.tif",
+        "name_download": "LHD_FXX_0652_6862_MNT_O_0M50_LAMB93_IGN69.tif",
+        "id_chantier": "131",
+        "timestamp": "2025-05-01",
+        "legend": "LHD_FXX_0652_6862_MNT_O_0M50_LAMB93_IGN69",
+        "type_produit": "",
+        "projection": "EPSG:2154",
+        "zoom_start": 10,
+        "zoom_stop": "",
+        "format": "image/geotiff",
+        "bbox": "651999.75,6861000.25,652999.75,6862000.25",
+        "width": 2000,
+        "height": 2000
+      },
+      "download_hints": [
+        "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=651999.75,6861000.25,652999.75,6862000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0652_6862_MNT_O_0M50_LAMB93_IGN69.tif",
+        "LHD_FXX_0652_6862_MNT_O_0M50_LAMB93_IGN69.tif"
+      ],
+      "geometry_type": "Polygon"
+    },
+    {
+      "id": "dalle.323716",
+      "bbox_epsg4326": [
+        2.33229893,
+        48.83818693,
+        2.3460377,
+        48.8472552
+      ],
+      "properties": {
+        "id": "323716",
+        "name": "LHD_FXX_0651_6861_MNT_O_0M50_LAMB93_IGN69",
+        "url": "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=650999.75,6860000.25,651999.75,6861000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0651_6861_MNT_O_0M50_LAMB93_IGN69.tif",
+        "name_download": "LHD_FXX_0651_6861_MNT_O_0M50_LAMB93_IGN69.tif",
+        "id_chantier": "131",
+        "timestamp": "2025-05-01",
+        "legend": "LHD_FXX_0651_6861_MNT_O_0M50_LAMB93_IGN69",
+        "type_produit": "",
+        "projection": "EPSG:2154",
+        "zoom_start": 10,
+        "zoom_stop": "",
+        "format": "image/geotiff",
+        "bbox": "650999.75,6860000.25,651999.75,6861000.25",
+        "width": 2000,
+        "height": 2000
+      },
+      "download_hints": [
+        "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=650999.75,6860000.25,651999.75,6861000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0651_6861_MNT_O_0M50_LAMB93_IGN69.tif",
+        "LHD_FXX_0651_6861_MNT_O_0M50_LAMB93_IGN69.tif"
+      ],
+      "geometry_type": "Polygon"
+    },
+    {
+      "id": "dalle.323769",
+      "bbox_epsg4326": [
+        2.3726355,
+        48.8833725,
+        2.38637928,
+        48.89243584
+      ],
+      "properties": {
+        "id": "323769",
+        "name": "LHD_FXX_0654_6866_MNT_O_0M50_LAMB93_IGN69",
+        "url": "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=653999.75,6865000.25,654999.75,6866000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0654_6866_MNT_O_0M50_LAMB93_IGN69.tif",
+        "name_download": "LHD_FXX_0654_6866_MNT_O_0M50_LAMB93_IGN69.tif",
+        "id_chantier": "131",
+        "timestamp": "2025-05-01",
+        "legend": "LHD_FXX_0654_6866_MNT_O_0M50_LAMB93_IGN69",
+        "type_produit": "",
+        "projection": "EPSG:2154",
+        "zoom_start": 10,
+        "zoom_stop": "",
+        "format": "image/geotiff",
+        "bbox": "653999.75,6865000.25,654999.75,6866000.25",
+        "width": 2000,
+        "height": 2000
+      },
+      "download_hints": [
+        "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=653999.75,6865000.25,654999.75,6866000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0654_6866_MNT_O_0M50_LAMB93_IGN69.tif",
+        "LHD_FXX_0654_6866_MNT_O_0M50_LAMB93_IGN69.tif"
+      ],
+      "geometry_type": "Polygon"
+    },
+    {
+      "id": "dalle.323842",
+      "bbox_epsg4326": [
+        2.30480727,
+        48.85601764,
+        2.31855545,
+        48.86508887
+      ],
+      "properties": {
+        "id": "323842",
+        "name": "LHD_FXX_0649_6863_MNT_O_0M50_LAMB93_IGN69",
+        "url": "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=648999.75,6862000.25,649999.75,6863000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0649_6863_MNT_O_0M50_LAMB93_IGN69.tif",
+        "name_download": "LHD_FXX_0649_6863_MNT_O_0M50_LAMB93_IGN69.tif",
+        "id_chantier": "131",
+        "timestamp": "2025-05-01",
+        "legend": "LHD_FXX_0649_6863_MNT_O_0M50_LAMB93_IGN69",
+        "type_produit": "",
+        "projection": "EPSG:2154",
+        "zoom_start": 10,
+        "zoom_stop": "",
+        "format": "image/geotiff",
+        "bbox": "648999.75,6862000.25,649999.75,6863000.25",
+        "width": 2000,
+        "height": 2000
+      },
+      "download_hints": [
+        "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=648999.75,6862000.25,649999.75,6863000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0649_6863_MNT_O_0M50_LAMB93_IGN69.tif",
+        "LHD_FXX_0649_6863_MNT_O_0M50_LAMB93_IGN69.tif"
+      ],
+      "geometry_type": "Polygon"
+    },
+    {
+      "id": "dalle.323980",
+      "bbox_epsg4326": [
+        2.31843782,
+        48.85609602,
+        2.33218368,
+        48.86516571
+      ],
+      "properties": {
+        "id": "323980",
+        "name": "LHD_FXX_0650_6863_MNT_O_0M50_LAMB93_IGN69",
+        "url": "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=649999.75,6862000.25,650999.75,6863000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0650_6863_MNT_O_0M50_LAMB93_IGN69.tif",
+        "name_download": "LHD_FXX_0650_6863_MNT_O_0M50_LAMB93_IGN69.tif",
+        "id_chantier": "131",
+        "timestamp": "2025-05-01",
+        "legend": "LHD_FXX_0650_6863_MNT_O_0M50_LAMB93_IGN69",
+        "type_produit": "",
+        "projection": "EPSG:2154",
+        "zoom_start": 10,
+        "zoom_stop": "",
+        "format": "image/geotiff",
+        "bbox": "649999.75,6862000.25,650999.75,6863000.25",
+        "width": 2000,
+        "height": 2000
+      },
+      "download_hints": [
+        "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=649999.75,6862000.25,650999.75,6863000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0650_6863_MNT_O_0M50_LAMB93_IGN69.tif",
+        "LHD_FXX_0650_6863_MNT_O_0M50_LAMB93_IGN69.tif"
+      ],
+      "geometry_type": "Polygon"
+    },
+    {
+      "id": "dalle.324004",
+      "bbox_epsg4326": [
+        2.3050472,
+        48.83803176,
+        2.3187906,
+        48.84710311
+      ],
+      "properties": {
+        "id": "324004",
+        "name": "LHD_FXX_0649_6861_MNT_O_0M50_LAMB93_IGN69",
+        "url": "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=648999.75,6860000.25,649999.75,6861000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0649_6861_MNT_O_0M50_LAMB93_IGN69.tif",
+        "name_download": "LHD_FXX_0649_6861_MNT_O_0M50_LAMB93_IGN69.tif",
+        "id_chantier": "131",
+        "timestamp": "2025-05-01",
+        "legend": "LHD_FXX_0649_6861_MNT_O_0M50_LAMB93_IGN69",
+        "type_produit": "",
+        "projection": "EPSG:2154",
+        "zoom_start": 10,
+        "zoom_stop": "",
+        "format": "image/geotiff",
+        "bbox": "648999.75,6860000.25,649999.75,6861000.25",
+        "width": 2000,
+        "height": 2000
+      },
+      "download_hints": [
+        "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=648999.75,6860000.25,649999.75,6861000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0649_6861_MNT_O_0M50_LAMB93_IGN69.tif",
+        "LHD_FXX_0649_6861_MNT_O_0M50_LAMB93_IGN69.tif"
+      ],
+      "geometry_type": "Polygon"
+    },
+    {
+      "id": "dalle.324129",
+      "bbox_epsg4326": [
+        2.3187906,
+        48.82911706,
+        2.33252929,
+        48.83818693
+      ],
+      "properties": {
+        "id": "324129",
+        "name": "LHD_FXX_0650_6860_MNT_O_0M50_LAMB93_IGN69",
+        "url": "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=649999.75,6859000.25,650999.75,6860000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0650_6860_MNT_O_0M50_LAMB93_IGN69.tif",
+        "name_download": "LHD_FXX_0650_6860_MNT_O_0M50_LAMB93_IGN69.tif",
+        "id_chantier": "131",
+        "timestamp": "2025-05-01",
+        "legend": "LHD_FXX_0650_6860_MNT_O_0M50_LAMB93_IGN69",
+        "type_produit": "",
+        "projection": "EPSG:2154",
+        "zoom_start": 10,
+        "zoom_stop": "",
+        "format": "image/geotiff",
+        "bbox": "649999.75,6859000.25,650999.75,6860000.25",
+        "width": 2000,
+        "height": 2000
+      },
+      "download_hints": [
+        "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=649999.75,6859000.25,650999.75,6860000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0650_6860_MNT_O_0M50_LAMB93_IGN69.tif",
+        "LHD_FXX_0650_6860_MNT_O_0M50_LAMB93_IGN69.tif"
+      ],
+      "geometry_type": "Polygon"
+    },
+    {
+      "id": "dalle.324186",
+      "bbox_epsg4326": [
+        2.3460377,
+        48.8292691,
+        2.35977178,
+        48.83833589
+      ],
+      "properties": {
+        "id": "324186",
+        "name": "LHD_FXX_0652_6860_MNT_O_0M50_LAMB93_IGN69",
+        "url": "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=651999.75,6859000.25,652999.75,6860000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0652_6860_MNT_O_0M50_LAMB93_IGN69.tif",
+        "name_download": "LHD_FXX_0652_6860_MNT_O_0M50_LAMB93_IGN69.tif",
+        "id_chantier": "131",
+        "timestamp": "2025-05-01",
+        "legend": "LHD_FXX_0652_6860_MNT_O_0M50_LAMB93_IGN69",
+        "type_produit": "",
+        "projection": "EPSG:2154",
+        "zoom_start": 10,
+        "zoom_stop": "",
+        "format": "image/geotiff",
+        "bbox": "651999.75,6859000.25,652999.75,6860000.25",
+        "width": 2000,
+        "height": 2000
+      },
+      "download_hints": [
+        "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=651999.75,6859000.25,652999.75,6860000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0652_6860_MNT_O_0M50_LAMB93_IGN69.tif",
+        "LHD_FXX_0652_6860_MNT_O_0M50_LAMB93_IGN69.tif"
+      ],
+      "geometry_type": "Polygon"
+    },
+    {
+      "id": "dalle.324200",
+      "bbox_epsg4326": [
+        2.35944027,
+        48.84732892,
+        2.37317681,
+        48.85639405
+      ],
+      "properties": {
+        "id": "324200",
+        "name": "LHD_FXX_0653_6862_MNT_O_0M50_LAMB93_IGN69",
+        "url": "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=652999.75,6861000.25,653999.75,6862000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0653_6862_MNT_O_0M50_LAMB93_IGN69.tif",
+        "name_download": "LHD_FXX_0653_6862_MNT_O_0M50_LAMB93_IGN69.tif",
+        "id_chantier": "131",
+        "timestamp": "2025-05-01",
+        "legend": "LHD_FXX_0653_6862_MNT_O_0M50_LAMB93_IGN69",
+        "type_produit": "",
+        "projection": "EPSG:2154",
+        "zoom_start": 10,
+        "zoom_stop": "",
+        "format": "image/geotiff",
+        "bbox": "652999.75,6861000.25,653999.75,6862000.25",
+        "width": 2000,
+        "height": 2000
+      },
+      "download_hints": [
+        "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=652999.75,6861000.25,653999.75,6862000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0653_6862_MNT_O_0M50_LAMB93_IGN69.tif",
+        "LHD_FXX_0653_6862_MNT_O_0M50_LAMB93_IGN69.tif"
+      ],
+      "geometry_type": "Polygon"
+    },
+    {
+      "id": "dalle.324204",
+      "bbox_epsg4326": [
+        2.35910843,
+        48.87430756,
+        2.37285214,
+        48.8833725
+      ],
+      "properties": {
+        "id": "324204",
+        "name": "LHD_FXX_0653_6865_MNT_O_0M50_LAMB93_IGN69",
+        "url": "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=652999.75,6864000.25,653999.75,6865000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0653_6865_MNT_O_0M50_LAMB93_IGN69.tif",
+        "name_download": "LHD_FXX_0653_6865_MNT_O_0M50_LAMB93_IGN69.tif",
+        "id_chantier": "131",
+        "timestamp": "2025-05-01",
+        "legend": "LHD_FXX_0653_6865_MNT_O_0M50_LAMB93_IGN69",
+        "type_produit": "",
+        "projection": "EPSG:2154",
+        "zoom_start": 10,
+        "zoom_stop": "",
+        "format": "image/geotiff",
+        "bbox": "652999.75,6864000.25,653999.75,6865000.25",
+        "width": 2000,
+        "height": 2000
+      },
+      "download_hints": [
+        "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=652999.75,6864000.25,653999.75,6865000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0653_6865_MNT_O_0M50_LAMB93_IGN69.tif",
+        "LHD_FXX_0653_6865_MNT_O_0M50_LAMB93_IGN69.tif"
+      ],
+      "geometry_type": "Polygon"
+    },
+    {
+      "id": "dalle.324209",
+      "bbox_epsg4326": [
+        2.35932969,
+        48.85632187,
+        2.37306862,
+        48.86538694
+      ],
+      "properties": {
+        "id": "324209",
+        "name": "LHD_FXX_0653_6863_MNT_O_0M50_LAMB93_IGN69",
+        "url": "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=652999.75,6862000.25,653999.75,6863000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0653_6863_MNT_O_0M50_LAMB93_IGN69.tif",
+        "name_download": "LHD_FXX_0653_6863_MNT_O_0M50_LAMB93_IGN69.tif",
+        "id_chantier": "131",
+        "timestamp": "2025-05-01",
+        "legend": "LHD_FXX_0653_6863_MNT_O_0M50_LAMB93_IGN69",
+        "type_produit": "",
+        "projection": "EPSG:2154",
+        "zoom_start": 10,
+        "zoom_stop": "",
+        "format": "image/geotiff",
+        "bbox": "652999.75,6862000.25,653999.75,6863000.25",
+        "width": 2000,
+        "height": 2000
+      },
+      "download_hints": [
+        "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=652999.75,6862000.25,653999.75,6863000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0653_6863_MNT_O_0M50_LAMB93_IGN69.tif",
+        "LHD_FXX_0653_6863_MNT_O_0M50_LAMB93_IGN69.tif"
+      ],
+      "geometry_type": "Polygon"
+    },
+    {
+      "id": "dalle.324247",
+      "bbox_epsg4326": [
+        2.35966131,
+        48.8293428,
+        2.37339307,
+        48.83840805
+      ],
+      "properties": {
+        "id": "324247",
+        "name": "LHD_FXX_0653_6860_MNT_O_0M50_LAMB93_IGN69",
+        "url": "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=652999.75,6859000.25,653999.75,6860000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0653_6860_MNT_O_0M50_LAMB93_IGN69.tif",
+        "name_download": "LHD_FXX_0653_6860_MNT_O_0M50_LAMB93_IGN69.tif",
+        "id_chantier": "131",
+        "timestamp": "2025-05-01",
+        "legend": "LHD_FXX_0653_6860_MNT_O_0M50_LAMB93_IGN69",
+        "type_produit": "",
+        "projection": "EPSG:2154",
+        "zoom_start": 10,
+        "zoom_stop": "",
+        "format": "image/geotiff",
+        "bbox": "652999.75,6859000.25,653999.75,6860000.25",
+        "width": 2000,
+        "height": 2000
+      },
+      "download_hints": [
+        "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=652999.75,6859000.25,653999.75,6860000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0653_6860_MNT_O_0M50_LAMB93_IGN69.tif",
+        "LHD_FXX_0653_6860_MNT_O_0M50_LAMB93_IGN69.tif"
+      ],
+      "geometry_type": "Polygon"
+    },
+    {
+      "id": "dalle.324277",
+      "bbox_epsg4326": [
+        2.33195308,
+        48.86516571,
+        2.34569903,
+        48.8742338
+      ],
+      "properties": {
+        "id": "324277",
+        "name": "LHD_FXX_0651_6864_MNT_O_0M50_LAMB93_IGN69",
+        "url": "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=650999.75,6863000.25,651999.75,6864000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0651_6864_MNT_O_0M50_LAMB93_IGN69.tif",
+        "name_download": "LHD_FXX_0651_6864_MNT_O_0M50_LAMB93_IGN69.tif",
+        "id_chantier": "131",
+        "timestamp": "2025-05-01",
+        "legend": "LHD_FXX_0651_6864_MNT_O_0M50_LAMB93_IGN69",
+        "type_produit": "",
+        "projection": "EPSG:2154",
+        "zoom_start": 10,
+        "zoom_stop": "",
+        "format": "image/geotiff",
+        "bbox": "650999.75,6863000.25,651999.75,6864000.25",
+        "width": 2000,
+        "height": 2000
+      },
+      "download_hints": [
+        "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=650999.75,6863000.25,651999.75,6864000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0651_6864_MNT_O_0M50_LAMB93_IGN69.tif",
+        "LHD_FXX_0651_6864_MNT_O_0M50_LAMB93_IGN69.tif"
+      ],
+      "geometry_type": "Polygon"
+    },
+    {
+      "id": "dalle.324306",
+      "bbox_epsg4326": [
+        2.30516711,
+        48.82903872,
+        2.31890811,
+        48.83811012
+      ],
+      "properties": {
+        "id": "324306",
+        "name": "LHD_FXX_0649_6860_MNT_O_0M50_LAMB93_IGN69",
+        "url": "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=648999.75,6859000.25,649999.75,6860000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0649_6860_MNT_O_0M50_LAMB93_IGN69.tif",
+        "name_download": "LHD_FXX_0649_6860_MNT_O_0M50_LAMB93_IGN69.tif",
+        "id_chantier": "131",
+        "timestamp": "2025-05-01",
+        "legend": "LHD_FXX_0649_6860_MNT_O_0M50_LAMB93_IGN69",
+        "type_produit": "",
+        "projection": "EPSG:2154",
+        "zoom_start": 10,
+        "zoom_stop": "",
+        "format": "image/geotiff",
+        "bbox": "648999.75,6859000.25,649999.75,6860000.25",
+        "width": 2000,
+        "height": 2000
+      },
+      "download_hints": [
+        "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=648999.75,6859000.25,649999.75,6860000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0649_6860_MNT_O_0M50_LAMB93_IGN69.tif",
+        "LHD_FXX_0649_6860_MNT_O_0M50_LAMB93_IGN69.tif"
+      ],
+      "geometry_type": "Polygon"
+    },
+    {
+      "id": "dalle.324348",
+      "bbox_epsg4326": [
+        2.34592485,
+        48.83826219,
+        2.35966131,
+        48.84732892
+      ],
+      "properties": {
+        "id": "324348",
+        "name": "LHD_FXX_0652_6861_MNT_O_0M50_LAMB93_IGN69",
+        "url": "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=651999.75,6860000.25,652999.75,6861000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0652_6861_MNT_O_0M50_LAMB93_IGN69.tif",
+        "name_download": "LHD_FXX_0652_6861_MNT_O_0M50_LAMB93_IGN69.tif",
+        "id_chantier": "131",
+        "timestamp": "2025-05-01",
+        "legend": "LHD_FXX_0652_6861_MNT_O_0M50_LAMB93_IGN69",
+        "type_produit": "",
+        "projection": "EPSG:2154",
+        "zoom_start": 10,
+        "zoom_stop": "",
+        "format": "image/geotiff",
+        "bbox": "651999.75,6860000.25,652999.75,6861000.25",
+        "width": 2000,
+        "height": 2000
+      },
+      "download_hints": [
+        "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=651999.75,6860000.25,652999.75,6861000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0652_6861_MNT_O_0M50_LAMB93_IGN69.tif",
+        "LHD_FXX_0652_6861_MNT_O_0M50_LAMB93_IGN69.tif"
+      ],
+      "geometry_type": "Polygon"
+    },
+    {
+      "id": "dalle.324454",
+      "bbox_epsg4326": [
+        2.33218368,
+        48.84717993,
+        2.34592485,
+        48.85624814
+      ],
+      "properties": {
+        "id": "324454",
+        "name": "LHD_FXX_0651_6862_MNT_O_0M50_LAMB93_IGN69",
+        "url": "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=650999.75,6861000.25,651999.75,6862000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0651_6862_MNT_O_0M50_LAMB93_IGN69.tif",
+        "name_download": "LHD_FXX_0651_6862_MNT_O_0M50_LAMB93_IGN69.tif",
+        "id_chantier": "131",
+        "timestamp": "2025-05-01",
+        "legend": "LHD_FXX_0651_6862_MNT_O_0M50_LAMB93_IGN69",
+        "type_produit": "",
+        "projection": "EPSG:2154",
+        "zoom_start": 10,
+        "zoom_stop": "",
+        "format": "image/geotiff",
+        "bbox": "650999.75,6861000.25,651999.75,6862000.25",
+        "width": 2000,
+        "height": 2000
+      },
+      "download_hints": [
+        "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=650999.75,6861000.25,651999.75,6862000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0651_6862_MNT_O_0M50_LAMB93_IGN69.tif",
+        "LHD_FXX_0651_6862_MNT_O_0M50_LAMB93_IGN69.tif"
+      ],
+      "geometry_type": "Polygon"
+    },
+    {
+      "id": "dalle.324476",
+      "bbox_epsg4326": [
+        2.37306862,
+        48.84740109,
+        2.38680285,
+        48.85646467
+      ],
+      "properties": {
+        "id": "324476",
+        "name": "LHD_FXX_0654_6862_MNT_O_0M50_LAMB93_IGN69",
+        "url": "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=653999.75,6861000.25,654999.75,6862000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0654_6862_MNT_O_0M50_LAMB93_IGN69.tif",
+        "name_download": "LHD_FXX_0654_6862_MNT_O_0M50_LAMB93_IGN69.tif",
+        "id_chantier": "131",
+        "timestamp": "2025-05-01",
+        "legend": "LHD_FXX_0654_6862_MNT_O_0M50_LAMB93_IGN69",
+        "type_produit": "",
+        "projection": "EPSG:2154",
+        "zoom_start": 10,
+        "zoom_stop": "",
+        "format": "image/geotiff",
+        "bbox": "653999.75,6861000.25,654999.75,6862000.25",
+        "width": 2000,
+        "height": 2000
+      },
+      "download_hints": [
+        "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=653999.75,6861000.25,654999.75,6862000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0654_6862_MNT_O_0M50_LAMB93_IGN69.tif",
+        "LHD_FXX_0654_6862_MNT_O_0M50_LAMB93_IGN69.tif"
+      ],
+      "geometry_type": "Polygon"
+    },
+    {
+      "id": "dalle.324499",
+      "bbox_epsg4326": [
+        2.37285214,
+        48.86538694,
+        2.38659114,
+        48.87445041
+      ],
+      "properties": {
+        "id": "324499",
+        "name": "LHD_FXX_0654_6864_MNT_O_0M50_LAMB93_IGN69",
+        "url": "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=653999.75,6863000.25,654999.75,6864000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0654_6864_MNT_O_0M50_LAMB93_IGN69.tif",
+        "name_download": "LHD_FXX_0654_6864_MNT_O_0M50_LAMB93_IGN69.tif",
+        "id_chantier": "131",
+        "timestamp": "2025-05-01",
+        "legend": "LHD_FXX_0654_6864_MNT_O_0M50_LAMB93_IGN69",
+        "type_produit": "",
+        "projection": "EPSG:2154",
+        "zoom_start": 10,
+        "zoom_stop": "",
+        "format": "image/geotiff",
+        "bbox": "653999.75,6863000.25,654999.75,6864000.25",
+        "width": 2000,
+        "height": 2000
+      },
+      "download_hints": [
+        "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=653999.75,6863000.25,654999.75,6864000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0654_6864_MNT_O_0M50_LAMB93_IGN69.tif",
+        "LHD_FXX_0654_6864_MNT_O_0M50_LAMB93_IGN69.tif"
+      ],
+      "geometry_type": "Polygon"
+    },
+    {
+      "id": "dalle.324560",
+      "bbox_epsg4326": [
+        2.38669701,
+        48.8474717,
+        2.40042892,
+        48.85653375
+      ],
+      "properties": {
+        "id": "324560",
+        "name": "LHD_FXX_0655_6862_MNT_O_0M50_LAMB93_IGN69",
+        "url": "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=654999.75,6861000.25,655999.75,6862000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0655_6862_MNT_O_0M50_LAMB93_IGN69.tif",
+        "name_download": "LHD_FXX_0655_6862_MNT_O_0M50_LAMB93_IGN69.tif",
+        "id_chantier": "131",
+        "timestamp": "2025-05-01",
+        "legend": "LHD_FXX_0655_6862_MNT_O_0M50_LAMB93_IGN69",
+        "type_produit": "",
+        "projection": "EPSG:2154",
+        "zoom_start": 10,
+        "zoom_stop": "",
+        "format": "image/geotiff",
+        "bbox": "654999.75,6861000.25,655999.75,6862000.25",
+        "width": 2000,
+        "height": 2000
+      },
+      "download_hints": [
+        "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=654999.75,6861000.25,655999.75,6862000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0655_6862_MNT_O_0M50_LAMB93_IGN69.tif",
+        "LHD_FXX_0655_6862_MNT_O_0M50_LAMB93_IGN69.tif"
+      ],
+      "geometry_type": "Polygon"
+    },
+    {
+      "id": "dalle.324601",
+      "bbox_epsg4326": [
+        2.38680285,
+        48.83847865,
+        2.40053237,
+        48.84754076
+      ],
+      "properties": {
+        "id": "324601",
+        "name": "LHD_FXX_0655_6861_MNT_O_0M50_LAMB93_IGN69",
+        "url": "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=654999.75,6860000.25,655999.75,6861000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0655_6861_MNT_O_0M50_LAMB93_IGN69.tif",
+        "name_download": "LHD_FXX_0655_6861_MNT_O_0M50_LAMB93_IGN69.tif",
+        "id_chantier": "131",
+        "timestamp": "2025-05-01",
+        "legend": "LHD_FXX_0655_6861_MNT_O_0M50_LAMB93_IGN69",
+        "type_produit": "",
+        "projection": "EPSG:2154",
+        "zoom_start": 10,
+        "zoom_stop": "",
+        "format": "image/geotiff",
+        "bbox": "654999.75,6860000.25,655999.75,6861000.25",
+        "width": 2000,
+        "height": 2000
+      },
+      "download_hints": [
+        "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=654999.75,6860000.25,655999.75,6861000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0655_6861_MNT_O_0M50_LAMB93_IGN69.tif",
+        "LHD_FXX_0655_6861_MNT_O_0M50_LAMB93_IGN69.tif"
+      ],
+      "geometry_type": "Polygon"
+    },
+    {
+      "id": "dalle.324608",
+      "bbox_epsg4326": [
+        2.33183772,
+        48.87415849,
+        2.34558606,
+        48.88322652
+      ],
+      "properties": {
+        "id": "324608",
+        "name": "LHD_FXX_0651_6865_MNT_O_0M50_LAMB93_IGN69",
+        "url": "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=650999.75,6864000.25,651999.75,6865000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0651_6865_MNT_O_0M50_LAMB93_IGN69.tif",
+        "name_download": "LHD_FXX_0651_6865_MNT_O_0M50_LAMB93_IGN69.tif",
+        "id_chantier": "131",
+        "timestamp": "2025-05-01",
+        "legend": "LHD_FXX_0651_6865_MNT_O_0M50_LAMB93_IGN69",
+        "type_produit": "",
+        "projection": "EPSG:2154",
+        "zoom_start": 10,
+        "zoom_stop": "",
+        "format": "image/geotiff",
+        "bbox": "650999.75,6864000.25,651999.75,6865000.25",
+        "width": 2000,
+        "height": 2000
+      },
+      "download_hints": [
+        "https://data.geopf.fr/wms-r?SERVICE=WMS&VERSION=1.3.0&EXCEPTIONS=text/xml&REQUEST=GetMap&LAYERS=IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93&FORMAT=image/geotiff&STYLES=&CRS=EPSG:2154&BBOX=650999.75,6864000.25,651999.75,6865000.25&WIDTH=2000&HEIGHT=2000&FILENAME=LHD_FXX_0651_6865_MNT_O_0M50_LAMB93_IGN69.tif",
+        "LHD_FXX_0651_6865_MNT_O_0M50_LAMB93_IGN69.tif"
+      ],
+      "geometry_type": "Polygon"
+    }
+  ]
+}

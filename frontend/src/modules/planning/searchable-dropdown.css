@@ -1,0 +1,81 @@
+/* LOT C — SearchableDropdown (trigger + contenu panneau portail) */
+
+.planning-searchable-dropdown {
+  position: relative;
+  width: 100%;
+}
+
+.planning-searchable-dropdown-trigger {
+  min-height: 40px;
+  padding: 8px 12px;
+  background: var(--input-bg, var(--surface-2));
+  border: 1px solid var(--border-2, var(--border));
+  border-radius: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+
+.planning-searchable-dropdown-trigger.open {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--ring);
+}
+
+.planning-searchable-dropdown-trigger.disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.planning-searchable-dropdown-value,
+.planning-searchable-dropdown-placeholder {
+  font-size: 14px;
+}
+
+.planning-searchable-dropdown-placeholder {
+  color: var(--text-muted);
+}
+
+.planning-searchable-dropdown-color-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 8px;
+  display: inline-block;
+}
+
+.planning-searchable-dropdown-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  font-size: 14px;
+  outline: none;
+  flex-shrink: 0;
+}
+
+.planning-searchable-dropdown-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 220px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.planning-searchable-dropdown-option {
+  padding: 10px 12px;
+  cursor: pointer;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+}
+
+.planning-searchable-dropdown-option:hover {
+  background: var(--sn-bg-hover, rgba(255, 255, 255, 0.06));
+}
+
+.planning-searchable-dropdown-option.selected {
+  background: var(--primary);
+  color: #fff;
+}

@@ -1,0 +1,68 @@
+<!-- =========================
+     DP3 — PLAN DE COUPE
+     SQUELETTE (UI MINIMALE)
+========================= -->
+
+<section class="dp-page" id="dp3-page">
+  <div id="dp3-root">
+
+    <div class="dp-page-head">
+      <div>
+        <h1>DP3 — Plan de coupe</h1>
+        <p class="dp-lead">
+          Cette section permet de générer l’annexe DP3 (plan de coupe) pour le projet.
+        </p>
+      </div>
+      <div class="dp-page-actions">
+        <button id="dp3-import-btn" class="dp-btn dp-btn-outline" type="button">
+          Importer photo
+        </button>
+        <button id="dp3-create-btn" class="dp-btn dp-btn-primary" type="button">
+          Créer nouvelle DP3
+        </button>
+        <button id="dp3-download-btn" class="dp-btn dp-btn-outline" type="button" style="display:none;">
+          Télécharger DP3
+        </button>
+      </div>
+    </div>
+
+    <hr class="dp-sep" />
+
+    <!-- CONTENU (UI identique DP1) -->
+    <div class="dp-grid-4" id="dp3-cards" style="margin-top: 14px;">
+
+      <!-- Carte 1 : Upload manuel (fallback) -->
+      <div class="dp-card dp-card-upload" id="dp3-card-add">
+        <div class="dp-upload-box" role="button" tabindex="0" aria-label="Ajouter une image">
+          <div class="dp-upload-icon" aria-hidden="true">+</div>
+          <div class="dp-upload-text">
+            <div class="dp-upload-title">Ajouter une image</div>
+            <div class="dp-upload-sub" id="dp3-upload-sub">
+              Fallback manuel si l’auto-génération n’est pas possible.
+            </div>
+          </div>
+        </div>
+
+        <input id="dp3-file-input" type="file" accept="image/*" style="display:none" />
+      </div>
+
+      <!-- Carte 2 : vue DP3 -->
+      <div class="dp-view">
+        <div class="dp-card dp-card-placeholder" id="dp3-card-preview" data-slot="dp3-view-1">
+          <div class="dp-placeholder" id="dp3-preview-inner">
+            <div class="dp-placeholder-title">Plan de coupe</div>
+            <div class="dp-placeholder-sub">1 vue</div>
+          </div>
+        </div>
+
+        <div class="dp-caption">
+          <strong>Plan de coupe</strong><br>
+          1 vue
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+</section>
+

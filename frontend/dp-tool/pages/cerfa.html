@@ -1,0 +1,177 @@
+<!-- =========================
+     CERFA — Description du projet photovoltaïque
+     Saisie manuelle uniquement (UI + state frontend)
+========================= -->
+
+<section class="dp-page" id="cerfa-page">
+
+  <div class="dp-page-head">
+    <div>
+      <h1>CERFA — Description du projet photovoltaïque</h1>
+      <p class="dp-lead">
+        Saisissez les informations du projet pour la description CERFA.
+      </p>
+    </div>
+  </div>
+
+  <hr class="dp-sep" />
+
+  <div class="cerfa-card">
+
+    <!-- SECTION : Panneaux photovoltaïques -->
+    <div class="cerfa-section">
+      <h3 class="cerfa-section-title">Panneaux photovoltaïques</h3>
+
+      <div class="cerfa-fields">
+        <div class="cerfa-field">
+          <label class="cerfa-label" for="cerfa-panel-count">Nombre de panneaux</label>
+          <input type="number" id="cerfa-panel-count" class="cerfa-input" min="1" placeholder="—" />
+        </div>
+
+        <div class="cerfa-field">
+          <label class="cerfa-label" for="cerfa-panel-power">Puissance par panneau</label>
+          <div class="cerfa-input-suffix">
+            <input type="number" id="cerfa-panel-power" class="cerfa-input" min="0" placeholder="—" />
+            <span class="cerfa-suffix">Wc</span>
+          </div>
+        </div>
+
+        <div class="cerfa-field cerfa-dimensions">
+          <label class="cerfa-label">Dimensions des panneaux</label>
+          <div class="cerfa-dimensions-row">
+            <div class="cerfa-dim-item">
+              <label class="cerfa-dim-label" for="cerfa-height">Hauteur (mm)</label>
+              <input type="number" id="cerfa-height" class="cerfa-input" min="0" placeholder="—" />
+            </div>
+            <div class="cerfa-dim-item">
+              <label class="cerfa-dim-label" for="cerfa-width">Largeur (mm)</label>
+              <input type="number" id="cerfa-width" class="cerfa-input" min="0" placeholder="—" />
+            </div>
+            <div class="cerfa-dim-item">
+              <label class="cerfa-dim-label" for="cerfa-depth">Profondeur (mm)</label>
+              <input type="number" id="cerfa-depth" class="cerfa-input" min="0" placeholder="—" />
+            </div>
+          </div>
+        </div>
+
+        <div class="cerfa-field">
+          <label class="cerfa-label" for="cerfa-brand">Marque</label>
+          <input type="text" id="cerfa-brand" class="cerfa-input" placeholder="—" />
+        </div>
+
+        <div class="cerfa-field">
+          <label class="cerfa-label">Couleur</label>
+          <div class="cerfa-toggle-group" role="group" aria-label="Couleur des panneaux">
+            <button type="button" class="cerfa-toggle-btn" data-value="Noir" id="cerfa-color-noir">Noir</button>
+            <button type="button" class="cerfa-toggle-btn" data-value="Autre" id="cerfa-color-autre">Autre</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <hr class="dp-sep" />
+
+    <!-- SECTION : Disposition des panneaux -->
+    <div class="cerfa-section">
+      <h3 class="cerfa-section-title">Disposition des panneaux</h3>
+
+      <div class="cerfa-fields">
+        <div class="cerfa-field">
+          <label class="cerfa-label" for="cerfa-panels-per-row">Nombre de panneaux par ligne</label>
+          <input type="number" id="cerfa-panels-per-row" class="cerfa-input" min="1" placeholder="—" />
+        </div>
+
+        <div class="cerfa-field">
+          <label class="cerfa-label" for="cerfa-columns">Nombre de colonnes</label>
+          <input type="number" id="cerfa-columns" class="cerfa-input" min="1" placeholder="—" />
+        </div>
+
+        <div class="cerfa-field">
+          <label class="cerfa-label">Orientation des panneaux</label>
+          <div class="cerfa-toggle-group" role="group" aria-label="Orientation des panneaux">
+            <button type="button" class="cerfa-toggle-btn" data-value="Portrait" id="cerfa-panel-orientation-portrait">Portrait</button>
+            <button type="button" class="cerfa-toggle-btn" data-value="Paysage" id="cerfa-panel-orientation-paysage">Paysage</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <hr class="dp-sep" />
+
+    <!-- SECTION : Toiture -->
+    <div class="cerfa-section">
+      <h3 class="cerfa-section-title">Toiture</h3>
+
+      <div class="cerfa-fields">
+        <div class="cerfa-field">
+          <label class="cerfa-label" for="cerfa-roof-orientation">Orientation du pan de toit</label>
+          <select id="cerfa-roof-orientation" class="cerfa-select">
+            <option value="">— Sélectionner —</option>
+            <option value="Nord">Nord</option>
+            <option value="Sud">Sud</option>
+            <option value="Est">Est</option>
+            <option value="Ouest">Ouest</option>
+            <option value="Nord-Est">Nord-Est</option>
+            <option value="Sud-Est">Sud-Est</option>
+            <option value="Sud-Ouest">Sud-Ouest</option>
+            <option value="Nord-Ouest">Nord-Ouest</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <hr class="dp-sep" />
+
+    <!-- SECTION : Gestion de l'énergie -->
+    <div class="cerfa-section">
+      <h3 class="cerfa-section-title">Gestion de l'énergie</h3>
+
+      <div class="cerfa-fields">
+        <div class="cerfa-field">
+          <label class="cerfa-label">Gestion de l'énergie</label>
+          <div class="cerfa-energy-group" role="group" aria-label="Mode de gestion de l'énergie">
+            <button type="button" class="cerfa-toggle-btn cerfa-energy-btn" data-value="Autoconsommation" id="cerfa-energy-autoconsommation">Autoconsommation</button>
+            <button type="button" class="cerfa-toggle-btn cerfa-energy-btn" data-value="Autoconsommation + Vente de surplus" id="cerfa-energy-vente-surplus">Autoconsommation + Vente de surplus</button>
+            <button type="button" class="cerfa-toggle-btn cerfa-energy-btn" data-value="Vente totale" id="cerfa-energy-vente-totale">Vente totale</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <hr class="dp-sep" />
+
+    <!-- Bouton de génération -->
+    <div class="cerfa-section">
+      <button type="button" id="cerfa-btn-generate-description" class="dp-btn dp-btn-primary">
+        Générer la description du projet
+      </button>
+    </div>
+
+    <!-- SECTION : Description réglementaire -->
+    <div class="cerfa-section">
+      <h3 class="cerfa-section-title">Description réglementaire du projet</h3>
+      <textarea
+        id="cerfa-description"
+        class="cerfa-description"
+        readonly
+        rows="6"
+        placeholder="Cliquez sur « Générer la description du projet » pour produire le texte CERFA."
+        style="
+          font-size:14px;
+          line-height:1.4;
+          color:#000000;
+          white-space:pre-wrap;
+          word-break:break-word;
+        "
+      ></textarea>
+    </div>
+
+    <div class="cerfa-section">
+      <button type="button" id="cerfa-btn-create-pdf" class="dp-btn dp-btn-primary">
+        Créer le CERFA (PDF)
+      </button>
+    </div>
+
+  </div>
+
+</section>

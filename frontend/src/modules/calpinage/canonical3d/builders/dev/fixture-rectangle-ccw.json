@@ -1,0 +1,42 @@
+{
+  "schemaId": "canonical-house3d-model-v1",
+  "building": {
+    "buildingId": "fixture-rect-ccw",
+    "buildingFootprint": [
+      { "x": 0, "y": 0 },
+      { "x": 12, "y": 0 },
+      { "x": 12, "y": 8 },
+      { "x": 0, "y": 8 }
+    ],
+    "buildingOuterContour": [
+      { "x": 0, "y": 0 },
+      { "x": 12, "y": 0 },
+      { "x": 12, "y": 8 },
+      { "x": 0, "y": 8 }
+    ],
+    "baseZ": 0,
+    "wallHeightM": 3
+  },
+  "roof": {
+    "topology": {
+      "roofId": "none",
+      "vertices": [],
+      "edges": [],
+      "patches": [],
+      "roofToBuildingBindings": []
+    },
+    "geometry": { "roofPatches": [], "roofEdges": [] }
+  },
+  "heightModel": {
+    "quantities": [],
+    "zBase": {
+      "id": "hq-z-base",
+      "role": "z_base",
+      "valueM": 0,
+      "provenance": "business_rule",
+      "derivationRuleId": "fixture"
+    },
+    "conventions": { "basePlaneDescription": "fixture" }
+  },
+  "annexes": []
+}

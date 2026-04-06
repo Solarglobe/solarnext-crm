@@ -1,0 +1,258 @@
+{
+  "schemaId": "canonical-house3d-model-v1",
+  "description": "Schéma cible machine-readable du moteur Maison 3D SolarNext (repère local bâtiment). Sans parseur. Aligné sur docs/architecture/2d-entity-dictionary.*",
+  "engineHouse3D": {
+    "includes": [
+      "building_footprint_and_shell_future",
+      "roof_topology_graph",
+      "roof_geometry_patches_and_edges",
+      "height_model_with_provenance",
+      "annexes_typed_families",
+      "pv_attachment_placeholder",
+      "explicit_entity_relations"
+    ],
+    "excludes": [
+      "drawState",
+      "selection_state",
+      "canvas_handles",
+      "snap_previews",
+      "selection_marquee",
+      "viewport_zoom_pan",
+      "ghost_slots_ux",
+      "safe_zone_cache",
+      "dsm_overlay_pixels",
+      "dom_north_compass",
+      "shading_kpi_normalized",
+      "horizon_mask_payload",
+      "debug_topology_overlay",
+      "threejs_scene_graph",
+      "camera_rig"
+    ]
+  },
+  "coordinateFrames": {
+    "buildingLocal": {
+      "name": "BUILDING_LOCAL_M",
+      "x": "horizontal_axis_1_m",
+      "y": "horizontal_axis_2_m",
+      "z": "vertical_up_m",
+      "zZero": "official_building_base_plane",
+      "rule": "No WGS84, no terrain altitude, no viewer camera in core vertex positions."
+    },
+    "worldPlacement": {
+      "name": "WORLD_PLACEMENT_ADAPTER",
+      "role": "Optional wrapper: GPS, northAngleDeg, metersPerPixel, scene offset — does not mutate core (x,y,z) building-local semantics.",
+      "status": "optional_external"
+    }
+  },
+  "blocks": {
+    "canonicalHouseDocument": {
+      "status": "primary_root",
+      "fields": {
+        "schemaId": { "type": "string", "status": "primary" },
+        "building": { "type": "ref:BuildingBlock", "status": "primary" },
+        "roof": { "type": "ref:RoofBlock", "status": "primary" },
+        "heightModel": { "type": "ref:HeightModelBlock", "status": "primary" },
+        "annexes": { "type": "array<AnnexDiscriminated>", "status": "primary" },
+        "pv": { "type": "ref:PvBlock", "status": "future_placeholder_optional" },
+        "worldPlacement": { "type": "ref:WorldPlacementBlock", "status": "optional_external" },
+        "metadata": { "type": "DocumentMetadata", "status": "optional" }
+      }
+    },
+    "BuildingBlock": {
+      "status": "primary",
+      "fields": {
+        "buildingId": { "type": "StableEntityId", "status": "primary" },
+        "buildingFootprint": { "type": "Polygon2DLocal", "status": "primary_or_derived" },
+        "buildingOuterContour": { "type": "Polygon2DLocal", "status": "primary_or_derived" },
+        "baseZ": { "type": "number", "status": "convention_zero" },
+        "wallTopContour": { "type": "Polyline3DLocal_or_Polygon3D", "status": "future_optional" },
+        "wallHeight": { "type": "number_or_per_edge", "status": "future_optional" },
+        "buildingShell": { "type": "BrepOrMeshRef", "status": "derived_builder_future" }
+      }
+    },
+    "RoofBlock": {
+      "status": "primary",
+      "subblocks": {
+        "topology": {
+          "name": "RoofTopology",
+          "status": "primary",
+          "fields": {
+            "roofId": { "type": "StableEntityId", "status": "primary" },
+            "vertices": { "type": "array<RoofTopologyVertex>", "status": "primary" },
+            "edges": { "type": "array<RoofTopologyEdge>", "status": "primary" },
+            "patches": { "type": "array<RoofTopologyPatchRef>", "status": "primary" },
+            "roofToBuildingBindings": { "type": "array<BindingRoofToBuilding>", "status": "derived" }
+          }
+        },
+        "geometry": {
+          "name": "RoofGeometry",
+          "status": "derived_mostly",
+          "fields": {
+            "roofPatches": { "type": "array<RoofPatchGeometry>", "status": "derived" },
+            "roofEdges": { "type": "array<RoofEdgeGeometry>", "status": "derived" },
+            "roofPlanesInput": { "type": "array<PlaneEquationLocal_optional>", "status": "optional_primary_if_supplied" }
+          }
+        }
+      }
+    },
+    "RoofTopologyEdge": {
+      "fields": {
+        "edgeId": { "type": "StableEntityId", "status": "primary" },
+        "vertexIdA": { "type": "StableEntityId", "status": "primary" },
+        "vertexIdB": { "type": "StableEntityId", "status": "primary" },
+        "kind": {
+          "type": "RoofEdgeKind",
+          "enum": [
+            "ridge",
+            "hip",
+            "valley",
+            "eave",
+            "gable",
+            "rake",
+            "wall_plate",
+            "internal_structural",
+            "unknown_structural",
+            "contour_perimeter"
+          ],
+          "status": "primary_or_classified"
+        },
+        "source2dEntityId": { "type": "string_optional", "status": "traceability" }
+      }
+    },
+    "HeightModelBlock": {
+      "status": "primary",
+      "fields": {
+        "quantities": { "type": "array<HeightQuantity>", "status": "primary" },
+        "zBase": { "type": "HeightQuantity", "status": "convention" },
+        "conventions": { "type": "HeightConventionNotes", "status": "primary" }
+      },
+      "HeightQuantity": {
+        "fields": {
+          "id": { "type": "StableEntityId", "status": "primary" },
+          "role": {
+            "type": "enum",
+            "values": [
+              "z_ground_local_optional",
+              "z_base",
+              "z_wall_top",
+              "z_eave",
+              "z_ridge",
+              "z_obstacle_base",
+              "z_obstacle_top",
+              "z_panel_mount",
+              "custom"
+            ],
+            "status": "primary"
+          },
+          "valueM": { "type": "number", "status": "primary" },
+          "provenance": {
+            "type": "enum",
+            "values": ["user_input", "business_rule", "solver", "fallback", "reconstruction"],
+            "status": "primary"
+          },
+          "sourceRef": { "type": "string_optional", "status": "traceability" },
+          "derivationRuleId": { "type": "string_optional", "status": "traceability" }
+        }
+      }
+    },
+    "AnnexDiscriminated": {
+      "status": "primary",
+      "families": [
+        {
+          "family": "layout_keepout",
+          "description": "No-PV zone; not necessarily a physical obstacle.",
+          "2d_source": "e_obstacle_roof when typed keepout"
+        },
+        {
+          "family": "physical_roof_obstacle",
+          "description": "Real roof obstacle volume or prism.",
+          "2d_source": "e_obstacle_roof when typed physical"
+        },
+        {
+          "family": "shading_volume",
+          "description": "Shading-first volume; distinct from keepout.",
+          "2d_source": "e_shadow_volume"
+        },
+        {
+          "family": "roof_extension",
+          "description": "Dormer / structural extension.",
+          "2d_source": "e_roof_extension"
+        },
+        {
+          "family": "future_opening",
+          "description": "Reserved.",
+          "2d_source": "none_yet"
+        },
+        {
+          "family": "future_parapet_acrotere",
+          "description": "Reserved.",
+          "2d_source": "none_yet"
+        }
+      ],
+      "common_fields": {
+        "annexId": { "type": "StableEntityId", "status": "primary" },
+        "family": { "type": "AnnexFamily", "status": "primary" },
+        "attachedRoofPatchIds": { "type": "array<StableEntityId>", "status": "primary" },
+        "geometry": { "type": "AnnexGeometryLocal", "status": "primary_or_derived" }
+      }
+    },
+    "PvBlock": {
+      "status": "future_placeholder",
+      "fields": {
+        "pvGroups": { "type": "array<PvGroup>", "status": "future" },
+        "pvPanels": { "type": "array<PvPanelInstance>", "status": "future" }
+      },
+      "PvPanelInstance": {
+        "fields": {
+          "panelInstanceId": { "type": "StableEntityId", "status": "future" },
+          "roofPatchId": { "type": "StableEntityId", "status": "future" },
+          "mountPlaneRef": { "type": "string", "status": "future" },
+          "panelLocalTransform": { "type": "rigid_transform_local", "status": "future" },
+          "orientationDeg": { "type": "number", "status": "future" },
+          "layoutMetadata": { "type": "object", "status": "future" },
+          "projection2dTraceId": { "type": "string_optional", "status": "trace_future" }
+        }
+      }
+    },
+    "WorldPlacementBlock": {
+      "status": "optional_external",
+      "fields": {
+        "gpsLatLon": { "type": "object_optional", "status": "external" },
+        "northAngleDeg": { "type": "number_optional", "status": "external" },
+        "metersPerPixel": { "type": "number_optional", "status": "external" },
+        "imageSpaceOriginPolicy": { "type": "string", "status": "external" }
+      }
+    }
+  },
+  "relationFamilies": [
+    { "id": "containment", "description": "roof belongs to building; patch belongs to roof" },
+    { "id": "topology_incidence", "description": "vertex-edge-patch incidence" },
+    { "id": "geometry_derivation", "description": "topology + heights -> roofGeometry" },
+    { "id": "pv_attachment", "description": "panel -> roofPatch" },
+    { "id": "height_provenance", "description": "HeightQuantity -> sourceRef / rule" },
+    { "id": "world_adapter", "description": "worldPlacement documents world without mutating local core" }
+  ],
+  "mapping2dToCanonical": [
+    { "entity2d": "e_contour_bati", "canonicalTargets": ["BuildingBlock.buildingFootprint", "RoofBlock.topology.contour_perimeter"], "status": "primary" },
+    { "entity2d": "e_trait_structurel", "canonicalTargets": ["RoofBlock.topology.edges.internal_structural"], "status": "primary" },
+    { "entity2d": "e_ridge_segment", "canonicalTargets": ["RoofBlock.topology.edges.ridge"], "status": "primary" },
+    { "entity2d": "e_pan_surface", "canonicalTargets": ["RoofBlock.geometry.roofPatches"], "status": "derived" },
+    { "entity2d": "e_planes_derived", "canonicalTargets": [], "status": "mirror_do_not_use_as_primary" },
+    { "entity2d": "e_roof_roofpans_mirror", "canonicalTargets": [], "status": "mirror_do_not_use_as_primary" },
+    { "entity2d": "e_obstacle_roof", "canonicalTargets": ["AnnexDiscriminated.layout_keepout", "AnnexDiscriminated.physical_roof_obstacle"], "status": "primary_split_by_parser_typing" },
+    { "entity2d": "e_shadow_volume", "canonicalTargets": ["AnnexDiscriminated.shading_volume"], "status": "primary" },
+    { "entity2d": "e_roof_extension", "canonicalTargets": ["AnnexDiscriminated.roof_extension"], "status": "primary" },
+    { "entity2d": "e_validated_roof_snapshot", "canonicalTargets": ["CanonicalHouseDocument input replay"], "status": "primary_snapshot_input" },
+    { "entity2d": "e_placement_block", "canonicalTargets": ["PvBlock.pvGroups"], "status": "primary_future" },
+    { "entity2d": "e_panel_in_block", "canonicalTargets": ["PvBlock.pvPanels"], "status": "primary_future" },
+    { "entity2d": "e_panel_projection", "canonicalTargets": ["PvPanelInstance.projection2dTraceId", "derived local geom"], "status": "projection" },
+    { "entity2d": "e_ghost_slot", "canonicalTargets": [], "status": "excluded_from_house_engine" },
+    { "entity2d": "e_safe_zone_cache", "canonicalTargets": [], "status": "excluded_from_house_engine" },
+    { "entity2d": "e_placed_panels_flat", "canonicalTargets": [], "status": "mirror_incomplete_do_not_reconstruct" },
+    { "entity2d": "e_roof_scale", "canonicalTargets": ["WorldPlacementBlock.metersPerPixel"], "status": "external" },
+    { "entity2d": "e_north_reference", "canonicalTargets": ["WorldPlacementBlock.northAngleDeg"], "status": "external" },
+    { "entity2d": "e_roof_gps", "canonicalTargets": ["WorldPlacementBlock.gpsLatLon"], "status": "external" },
+    { "entity2d": "e_roof_image", "canonicalTargets": ["metadata.textures_or_viewer"], "status": "external" },
+    { "entity2d": "e_c3d_contract", "canonicalTargets": ["adapter bridge to existing canonical3d"], "status": "bridge" }
+  ]
+}

@@ -1,0 +1,107 @@
+/* Phase3ChecklistPanel — Module UI passif, lecture seule */
+
+.panel {
+  background: #ffffff;
+  border: 1px solid var(--sg-border);
+  border-radius: var(--sg-radius-md);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--sg-text);
+}
+
+.label {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--sg-text);
+}
+
+.value {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--sg-text);
+}
+
+.statusOk { color: var(--sg-success); }
+.statusWarning { color: var(--sg-warning); }
+.statusError { color: var(--sg-error); }
+.statusNeutral { color: #888; }
+
+.icon {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.iconOk { color: var(--sg-success); }
+.iconWarning { color: var(--sg-warning); }
+.iconError { color: var(--sg-error); }
+.iconNeutral { color: #888; }
+
+/* Variante sidebar — pas de carte lourde */
+.panelCompact {
+  margin-bottom: 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  gap: 6px;
+}
+
+.panelCompact .row {
+  gap: 8px;
+  font-size: 12px;
+  color: #111827;
+}
+
+.panelCompact .label {
+  font-size: 12px;
+  font-weight: 500;
+  color: #111827;
+}
+
+.panelCompact .value {
+  font-size: 12px;
+  color: #000000;
+}
+
+/* Statuts checklist : couleurs sémantiques lisibles sur fond clair */
+.panelCompact .statusOk,
+.panelCompact .iconOk {
+  color: #15803d;
+}
+
+.panelCompact .statusWarning,
+.panelCompact .iconWarning {
+  color: #b45309;
+}
+
+.panelCompact .statusError,
+.panelCompact .iconError {
+  color: #b91c1c;
+}
+
+.panelCompact .statusNeutral,
+.panelCompact .iconNeutral {
+  color: #4b5563;
+}
+
+.panelCompact .icon {
+  width: 14px;
+  height: 14px;
+}

@@ -1,0 +1,22 @@
+/* Pad de signature modale uniquement — ne modifie pas le layout du devis A4 */
+
+.quote-signature-pad-canvas-wrap {
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.quote-signature-pad-canvas {
+  display: block;
+  width: 100%;
+  max-width: 720px;
+  height: auto;
+  aspect-ratio: 720 / 320;
+  box-sizing: border-box;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  border: 1px solid #333;
+  background: #fff;
+  cursor: crosshair;
+}

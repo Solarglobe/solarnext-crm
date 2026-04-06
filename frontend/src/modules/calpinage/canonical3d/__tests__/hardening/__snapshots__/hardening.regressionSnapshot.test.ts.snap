@@ -1,0 +1,10 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`hardening — régression (snapshots) > métriques de référence zénith 1`] = `
+{
+  "clearMean": 0,
+  "occMax": 1,
+  "occMean": 1,
+  "occMin": 1,
+}
+`;

@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <title>Mandat de représentation – SolarGlobe</title>
+
+</head>
+<style>
+/* ===============================
+   PDF A4 — MANDAT SOLARGLOBE
+   Version PRO — structurée & lisible
+================================ */
+
+/* ----- PAGE ----- */
+@page {
+  size: A4;
+  margin: 14mm 15mm;
+}
+
+/* ----- VARIABLES ----- */
+:root{
+  --ink:#111;
+  --muted:#666;
+  --line:#d6d6d6;
+  --brand:#c9a449;
+  --brand-soft:#f7f1df;
+  --card:#fafafa;
+}
+
+/* ----- BASE ----- */
+html, body{
+  margin:0;
+  padding:0;
+}
+
+body{
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 10.4px;
+  line-height: 1.38;
+  color: var(--ink);
+}
+
+.mandat-doc{
+  max-width: 180mm;
+  margin: 0 auto;
+}
+
+/* ===============================
+   HEADER
+================================ */
+.mandat-header{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:14px;
+  margin-bottom: 8px;
+  padding:10px 12px;
+  border:1px solid var(--brand);
+  border-radius:7px;
+  background: linear-gradient(180deg, #fff 0%, var(--brand-soft) 100%);
+}
+
+.mandat-header-text{ flex:1; }
+
+.mandat-title{
+  font-size: 16px;
+  margin: 0 0 2px;
+  font-weight: 700;
+}
+
+.mandat-subtitle{
+  font-size: 10.4px;
+  margin: 0;
+  color:#333;
+  max-width: 120mm;
+}
+
+.mandat-header-logo{
+  width:135px;
+  height:44px;
+  flex-shrink:0;
+}
+
+.mandat-header-logo img{
+  width:100%;
+  height:100%;
+  object-fit:contain;
+  display:block;
+}
+/* ===============================
+   ARTICLES — CADRES DORÉS SOBRES
+================================ */
+
+.mandat-article{
+  margin: 8px 0;
+  padding: 8px 10px 9px;
+  border: 1px solid var(--brand);   /* TRAIT DORÉ */
+  border-radius: 6px;
+  background: #fff;                 /* FOND BLANC */
+}
+
+/* Titre d’article */
+.mandat-article > h2{
+  margin: 0 0 6px;
+  padding-left: 8px;
+  font-size: 12.4px;
+  font-weight: 700;
+  color: #222;
+  border-left: 3px solid var(--brand); /* ACCENT DORÉ */
+  background: none;                   /* PAS DE FOND */
+}
+
+/* Sous-parties */
+.mandat-article h3{
+  font-size: 11px;
+  margin: 6px 0 3px;
+  font-weight: 700;
+}
+
+.mandat-article p{
+  margin: 3px 0;
+}
+
+.mandat-article ul{
+  margin: 4px 0 4px 16px;
+}
+
+.mandat-article ul li{
+  margin: 2px 0;
+}
+
+
+/* ===============================
+   TITRES
+================================ */
+h2{
+  font-size: 12.2px;
+  margin: 0 0 6px;
+  font-weight: 700;
+  padding-left: 8px;
+  border-left: 3px solid var(--brand);
+}
+
+h3{
+  font-size: 11px;
+  margin: 6px 0 3px;
+  font-weight: 700;
+}
+
+/* ===============================
+   TEXTE
+================================ */
+p{
+  margin: 3px 0;
+}
+
+.mandat-hr{
+  border:none;
+  border-top:1px solid var(--line);
+  margin: 6px 0;
+}
+
+/* ===============================
+   LISTES
+================================ */
+ul{
+  margin: 4px 0 4px 16px;
+  padding: 0;
+}
+
+ul li{
+  margin: 2px 0;
+}
+
+/* ===============================
+   CHAMPS DYNAMIQUES
+================================ */
+[data-field]{
+  display:inline-block;
+  min-width: 58mm;
+  border-bottom: 1px dotted #aaa;
+  padding: 0 2px 1px;
+}
+
+/* ===============================
+   PARAPHE
+================================ */
+.mandat-paraph{
+  margin-top: 6px;
+  font-size: 9.6px;
+  color: var(--muted);
+  text-align: right;
+}
+
+/* ===============================
+   SIGNATURES
+================================ */
+.mandat-sign-grid{
+  display:flex;
+  gap: 16px;
+  margin-top: 8px;
+}
+
+.mandat-sign-col{
+  flex:1;
+  border:1px solid var(--line);
+  border-radius:6px;
+  padding:8px 10px;
+  background:#fff;
+}
+
+.sign-img{
+  width: 235px;
+  margin-top: 6px;
+  display:block;
+}
+
+
+
+.mandat-sign-box{
+  margin-top: 6px;
+  height: 66px;
+  border: 1px dashed #999;
+  border-radius: 4px;
+  display:flex;
+  align-items:flex-end;
+  justify-content:center;
+  padding-bottom: 5px;
+  font-weight: 700;
+  font-size: 9.8px;
+}
+
+/* ===============================
+   PRINT — COUPURES MAÎTRISÉES
+================================ */
+@media print {
+
+  p, ul, li, .mandat-block, .mandat-sign-col {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .article-2{
+    page-break-before: always;
+    break-before: page;
+  }
+  .no-print{
+    display:none !important;
+  }
+}
+.mandat-article{
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+</style>
+
+
+<body>
+<section class="mandat-doc" id="mandatDoc">
+
+  <!-- HEADER -->
+  <div class="mandat-header">
+
+    <div class="mandat-header-text">
+      <h1 class="mandat-title">Mandat de représentation</h1>
+      <p class="mandat-subtitle">
+        Mandat d’assistance administrative de représentation pour la réalisation
+        des démarches d’urbanisme et de raccordement au réseau public d’électricité
+      </p>
+    </div>
+
+    <div class="mandat-header-logo">
+      <img src="/pdf-assets/images/logo-solarglobe-rect.png">
+    </div>
+
+  </div>
+
+  <hr class="mandat-hr">
+
+  <!-- TEXTE SOLTEO MOT POUR MOT -->
+
+<p>
+  Je soussigné(e) : <strong><span data-field="client.nom"></span></strong><br>
+  né(e) le <span data-field="client.date_naissance"></span><br>
+  demeurant <span data-field="client.adresse"></span>
+</p>
+
+<hr>
+
+<p>
+  <strong>Désignation du ou des sites dont le raccordement au Réseau Public de Distribution est à réaliser :</strong><br>
+  Adresse : <span data-field="client.adresse"></span>
+</p>
+
+<p>
+  <strong>Nature des opérations :</strong>
+  Raccordement d’une installation de production.
+</p>
+
+<hr>
+
+<p>
+  Donne mandat à <strong>Solarglobe</strong><br>
+  immatriculée au registre des commerces sous le numéro <strong>98845541600012</strong><br>
+  domiciliée <strong>19 Avenue Pierre Curie 77500 Chelles</strong><br>
+  représentée par <strong>Benoit LETREN</strong><br>
+  en sa qualité de gérant, ci-après le “Mandataire”, d’effectuer ou de faire effectuer par une société de sous-traitance,
+  en son nom et pour son compte :
+</p>
+
+<div class="mandat-article">
+  <h2>Article 1 - Objet du mandat</h2>
+
+<p>
+  <strong>1.1 - Réalisation des démarches nécessaires à la déclaration préalable de travaux</strong>
+</p>
+
+<ul>
+  <li>Réalisation de la déclaration préalable de travaux,</li>
+  <li>Envoi ou dépôt du dossier à la mairie,</li>
+  <li>Récupération du récépissé de dépôt et de la décision finale.</li>
+</ul>
+
+<p>
+  <strong>
+    1.2 - Réalisation des démarches nécessaires à l’établissement du contrat de raccordement,
+    d’accès au réseau et d’exploitation avec le gestionnaire de réseau (ENEDIS ou ELD) :
+  </strong>
+</p>
+
+<p>
+  Par le présent mandat, le Mandant donne pouvoir au Mandataire et à son sous-traitant pour
+  réaliser ou faire réaliser, en son nom et pour son compte, les démarches nécessaires auprès
+  d’Enedis ou du gestionnaire du Réseau Public de distribution d’électricité, en lien avec
+  son projet d’installation photovoltaïque dont la désignation et localisation géographique
+  sont précisées ci-dessus.
+</p>
+
+<p>
+  Le Mandataire devient l’interlocuteur d’Enedis ou de l’entreprise locale de distribution (ELD)
+  pour toutes les étapes du raccordement. À ce titre, lui ou son sous-traitant est destinataire
+  des documents relatifs au déroulement de l’opération de raccordement ; Enedis se réserve toutefois
+  le droit de prévenir le Mandant en cas de risque de sortie de la file d’attente
+  (en particulier à l’approche de l’échéance de l’offre de raccordement).
+</p>
+
+<p>
+  Le Mandant confie au Mandataire ou société de sous-traitance de son choix tous les éléments
+  nécessaires pour que celui-ci mène l’ensemble des démarches susmentionnées à bien.
+  Toute information nouvelle ou toute demande de compléments émanant d’une des administrations
+  susvisées concernant le dossier qui serait réceptionnée directement par le Mandant,
+  sera transmise par ce dernier immédiatement au Mandataire.
+</p>
+
+<p>
+  Dans le cadre de ce mandat, le Mandant donne pouvoir au Mandataire,
+  pour le site mentionné ci-dessus, de :
+</p>
+
+<ul>
+  <li>
+    Signer en son nom et pour son compte tout document contractuel relatif au raccordement :
+    Proposition de Raccordement (PDR), Contrat d’Accès au réseau et d’Exploitation (CAE),
+    Convention d’Autoconsommation Sans Injection (CACSI), Proposition Technico Financière,
+    Convention de Raccordement, Convention de Raccordement Directe, Contrat de Mandat
+    L.342-2 et Avenant L.342-2 à la PDR, PTF ou CRD.
+    Ces documents étant rédigés au nom du Mandant.
+    Le Mandataire prenant toute disposition pour assurer la pleine information du Mandant
+    sur les clauses particulières afférentes au projet.
+  </li>
+
+  <li>
+    Procéder en son nom et pour son compte aux règlements financiers relatifs au raccordement.
+    À ce titre ENEDIS adressera tous documents financiers (factures, relances...) au Mandataire,
+    étant entendu que ceux-ci demeureront émis au nom du Mandant.
+    En cas de recours à l’article L342-2 du code de l’énergie, exécuter le contrat de mandat
+    L342-2 et ses annexes au nom et pour le compte du Mandant, sous réserve de satisfaire
+    aux critères énumérés à l’annexe 1 de présent document et étant entendu que le Demandeur
+    du raccordement demeure responsable de sa bonne exécution.
+  </li>
+
+  <li>
+    Pour les seuls contrats d’injection HTA et BT SUP 36, signer en son nom et pour son compte,
+    le Contrat d’Accès au Réseau de Distribution d’une installation de production (CARD-I),
+    Contrat de Service de Décompte (CSD), ces documents étant rédigés au nom du Mandant.
+    Le Mandataire prenant toute disposition pour assurer la pleine information du Mandant
+    sur les clauses particulières afférentes au projet.
+  </li>
+</ul>
+
+  </div>
+  <p class="paraph">Mandat de représentation — Paraphe 1/2</p>
+
+  <div class="pagebreak"></div>
+
+
+
+ <div class="mandat-article article-2">
+  <h2>Article 2 - Obligations du Mandataire</h2>
+
+
+
+<p>
+  En considération du présent mandat de représentation, le Mandataire pourra notamment :
+</p>
+
+<ul>
+  <li>
+    Demander auprès des services compétents d’ENEDIS, la communication de toute information
+    confidentielle concernant le Mandant, au sens de l’article R111-25 du Code de l’Énergie,
+    relatif à la confidentialité des informations détenues par les gestionnaires de Réseaux
+    Publics de Transport ou de Distribution d’électricité. Les informations communiquées ne
+    peuvent concerner que les seules informations utiles à l’étude et à la réalisation du
+    raccordement du ou des sites dont le Mandant est maître d’ouvrage et dont l’identification
+    et la description figurent au présent mandat, à l’exclusion de toute autre utilisation ;
+  </li>
+</ul>
+
+<p>
+  Le Mandataire rendra compte au Mandant de l’exécution des présentes.
+</p>
+</div>
+<div class="mandat-article">
+  <h2>Article 3 - Obligations du Mandant</h2>
+
+<p>Le Mandant s’engage à :</p>
+
+<ul>
+  <li>
+    Fournir au Mandataire et à son sous-traitant les éléments nécessaires
+    à l’exécution de son mandat,
+  </li>
+  <li>
+    Exécuter les engagements contractés en son nom et pour son compte par
+    le Mandataire et son sous-traitant dans le cadre du présent mandat.
+  </li>
+</ul>
+</div>
+
+<div class="mandat-article">
+  <h2>Article 4 - Nature et Durée du mandat</h2>
+<p>
+  Le présent mandat de représentation est donné pour le ou les seuls sites
+  ci-dessus mentionnés. Il prend effet à la date de sa signature.
+  Il est valable pour le raccordement des sites dont la demande a été exprimée
+  dans l’année qui suit sa signature et prend fin lors de :
+</p>
+
+<ul>
+  <li>
+    La mise en service d’une installation de production, ou de la modification
+    de la puissance de raccordement de celle-ci ;
+  </li>
+  <li>
+    La mise à disposition par Enedis des ouvrages de raccordement de ces sites
+    (autres natures d’opérations).
+  </li>
+</ul>
+</div>
+  <p>Fait en deux exemplaires originaux remis à chacune des parties, qui reconnaît en avoir reçu communication.</p>
+  <!-- SIGNATURES -->
+  <div class="mandat-sign-grid">
+
+    <div class="mandat-sign-col">
+      <p><strong>Le Mandataire&nbsp;:</strong> LETREN Benoit</p>
+      <p><strong>SOLARGLOBE</strong> — 19 avenue Pierre Curie, 77500 Chelles</p>
+      <p><strong>RCS&nbsp;:</strong> 98845541600012</p>
+      <p><strong>Fait à&nbsp;:</strong> Chelles</p>
+      <p><strong>Le&nbsp;:</strong> <span id="dateDuJour"></span></p>
+      <img src="/pdf-assets/images/signature.webp" class="sign-img">
+
+    </div>
+
+    <div class="mandat-sign-col">
+      <p><strong>Le Mandant</strong></p>
+      <p><strong>Fait à&nbsp;:</strong> <span data-field="client.ville">________________________</span></p>
+      <p><strong>Le&nbsp;:</strong> <span id="dateDuJour2"></span></p>
+      <div class="mandat-sign-box">Signature du Mandant</div>
+    </div>
+
+  </div>
+
+  <p class="mandat-paraph">Mandat de représentation — 2/2</p>
+
+
+
+</section>
+
+<script>
+  (function () {
+    const today = new Date().toLocaleDateString("fr-FR");
+    const d1 = document.getElementById("dateDuJour");
+    const d2 = document.getElementById("dateDuJour2");
+    if (d1) d1.textContent = today;
+    if (d2) d2.textContent = today;
+  })();
+</script>
+
+<!-- DATA INJECTION POINT -->
+<script src="mandat.js"></script>
+
+
+</body>
+</html>
