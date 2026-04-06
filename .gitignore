@@ -1,4 +1,9 @@
-# Secrets — ne jamais committer
+# =============================================================================
+# Solarnext CRM — hygiène Git durable
+# Référence : docs/architecture/git-hygiene-solarnext.md
+# =============================================================================
+
+# --- Secrets & environnements locaux (jamais versionner) ---
 .env
 .env.dev
 .env.prod
@@ -14,10 +19,16 @@ frontend/.env.local
 !backend/.env.example
 !frontend/.env.example
 
-# Dépendances
+# --- Dépendances & caches package managers ---
 node_modules/
+.npm/
+.pnpm-store/
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
 
-# Builds & sorties packagées
+# --- Builds & bundles applicatifs ---
 dist/
 dist-crm/
 build/
@@ -25,18 +36,20 @@ out/
 .next/
 .nuxt/
 
-# Vite (artefacts locaux)
+# --- Vite (artefacts locaux, hors source) ---
 .vite/
 frontend/vite.config.ts.timestamp-*.mjs
 
-# Tests & rapports
+# --- Tests E2E / unitaires (sorties, pas les specs) ---
 test-results/
 playwright-report/
 coverage/
 .nyc_output/
 playwright/.cache/
+.vitest/
+*.tsbuildinfo
 
-# Caches & logs
+# --- Caches & logs ---
 .cache/
 *.log
 npm-debug.log*
@@ -44,31 +57,47 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# Temporaires & sauvegardes locales
+# --- Temporaires & éditeurs (fichiers de secours) ---
 tmp/
 temp/
 *.tmp
 *.bak
+**/.~lock*
 
-# Python
+# --- Python (backend/app, scripts utilitaires) ---
 __pycache__/
 *.py[cod]
 *$py.class
+.venv/
+venv/
+*.egg-info/
 
-# IDE & préférences locales Cursor/VS Code
+# --- IDE & préférences locales ---
 .vscode/
 .idea/
 *.swp
 *.swo
 .cursor/settings.json
 
-# OS
+# --- OS ---
 .DS_Store
 Thumbs.db
+ehthumbs.db
+Desktop.ini
 
-# Données volumineuses / locales (non versionnées)
-# Extracts IGN / DSM (fichiers lourds, chemins longs sous Windows)
-backend/data/dsm/ign/extract/
-# Téléversements applicatifs (contenu hashé, spécifique machine)
+# --- Backend : stockage runtime documents (PDF, CSV conso, logos, etc.) ---
+# Le code crée ces fichiers à l'exécution ; seul le dossier vide est versionné.
+backend/storage/*
+!backend/storage/.gitkeep
+
+# --- Backend : téléversements & données utilisateur locales ---
 backend/backend/data/uploads/
 backend/data/uploads/
+
+# --- Backend : DSM / IGN — extracts lourds & caches (reproductibles localement) ---
+backend/data/dsm/ign/extract/
+backend/data/dsm/**/*.7z
+backend/data/dsm/**/cache/*.asc
+
+# --- Backend : sorties de scripts debug / audits visuels (régénérables) ---
+backend/scripts/output/
