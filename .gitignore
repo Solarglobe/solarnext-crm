@@ -50,6 +50,11 @@ temp/
 *.tmp
 *.bak
 
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
 # IDE & préférences locales Cursor/VS Code
 .vscode/
 .idea/
