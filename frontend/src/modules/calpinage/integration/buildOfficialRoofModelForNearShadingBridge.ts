@@ -9,7 +9,10 @@ import type {
   BuildRoofModel3DResult,
   RoofGeometryFidelityMode,
 } from "../canonical3d/builder/buildRoofModel3DFromLegacyGeometry";
-import { resolveOfficialRoofTruthFromRuntime } from "../canonical3d/scene/resolveOfficialRoofTruthFromRuntime";
+import {
+  isOfficialRoofTruthBuildOk,
+  resolveOfficialRoofTruthFromRuntime,
+} from "../canonical3d/scene/resolveOfficialRoofTruthFromRuntime";
 import { validateCanonicalScene3DInput } from "../canonical3d/validation/validateCanonicalScene3DInput";
 import type { PlacementEngineLike } from "./enrichPanelsForCanonicalShading";
 import { rememberOfficialRoofModelForNearShading } from "./officialRoofModelNearShadingCache";
@@ -56,10 +59,14 @@ export function buildOfficialRoofModelForNearShadingOnly(
     roofGeometryFidelityMode: options?.roofGeometryFidelityMode,
   });
 
-  if (!roofTruth.ok) {
+  if (!isOfficialRoofTruthBuildOk(roofTruth)) {
     return null;
   }
 
-  rememberOfficialRoofModelForNearShading(runtime, roofTruth.roofRes, options?.getAllPanels);
-  return roofTruth.roofRes;
+  if (!("roofRes" in roofTruth) || roofTruth.roofRes == null) {
+    return null;
+  }
+  const roofRes = roofTruth.roofRes;
+  rememberOfficialRoofModelForNearShading(runtime, roofRes, options?.getAllPanels);
+  return roofRes;
 }

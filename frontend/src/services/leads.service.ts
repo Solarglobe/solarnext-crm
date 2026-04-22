@@ -3,9 +3,10 @@
  * Tous les appels via apiFetch
  */
 
+import { getCrmApiBase } from "@/config/crmApiBase";
 import { apiFetch } from "./api";
 
-const API_BASE = import.meta.env?.VITE_API_URL || "";
+const API_BASE = getCrmApiBase();
 
 /** CP-LEAD-CLIENT-SPLIT-06 — Cycle projet (CLIENT uniquement) */
 export type ProjectStatus =

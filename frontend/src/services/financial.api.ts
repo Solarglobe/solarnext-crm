@@ -2,10 +2,11 @@
  * Hub financier CRM — appels API pôle financier (devis / factures / paiements / avoirs / relances).
  */
 
+import { getCrmApiBase } from "@/config/crmApiBase";
 import { apiFetch } from "./api";
 import type { QuotePdfPayload } from "../modules/quotes/quoteDocumentTypes";
 
-const API_BASE = import.meta.env?.VITE_API_URL || "";
+const API_BASE = getCrmApiBase();
 
 export interface InvoiceListRow {
   id: string;

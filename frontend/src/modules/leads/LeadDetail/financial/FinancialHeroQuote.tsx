@@ -16,8 +16,9 @@ import {
   type QuoteDocumentListRow,
 } from "../../../quotes/quoteWorkflow";
 import { formatQuoteNumberDisplay } from "../../../finance/documentDisplay";
+import { getCrmApiBase } from "@/config/crmApiBase";
 
-const API_BASE = import.meta.env?.VITE_API_URL || "";
+const API_BASE = getCrmApiBase();
 function eur(v: unknown) {
   const n = Number(v);
   return Number.isFinite(n) ? n.toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: 2 }) + " €" : "—";

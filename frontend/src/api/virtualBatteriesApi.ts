@@ -2,9 +2,11 @@
  * API Batteries virtuelles (Paramètres PV) — CRUD admin
  */
 
+import { buildApiUrl } from "@/config/crmApiBase";
 import { apiFetch } from "../services/api";
 
 const BASE = "/api/admin/pv/virtual-batteries";
+const u = (path: string) => buildApiUrl(path);
 
 async function handleResponse<T>(res: Response): Promise<T> {
   const text = await res.text();
@@ -44,14 +46,14 @@ export interface PvVirtualBattery {
 }
 
 export async function listVirtualBatteries(): Promise<PvVirtualBattery[]> {
-  const res = await apiFetch(BASE);
+  const res = await apiFetch(u(BASE));
   return handleResponse<PvVirtualBattery[]>(res);
 }
 
 export async function createVirtualBattery(
   body: Partial<PvVirtualBattery>
 ): Promise<PvVirtualBattery> {
-  const res = await apiFetch(BASE, {
+  const res = await apiFetch(u(BASE), {
     method: "POST",
     body: JSON.stringify(body),
   });
@@ -62,7 +64,7 @@ export async function updateVirtualBattery(
   id: string,
   body: Partial<PvVirtualBattery>
 ): Promise<PvVirtualBattery> {
-  const res = await apiFetch(`${BASE}/${id}`, {
+  const res = await apiFetch(u(`${BASE}/${id}`), {
     method: "PUT",
     body: JSON.stringify(body),
   });
@@ -70,7 +72,7 @@ export async function updateVirtualBattery(
 }
 
 export async function deleteVirtualBattery(id: string): Promise<void> {
-  const res = await apiFetch(`${BASE}/${id}`, { method: "DELETE" });
+  const res = await apiFetch(u(`${BASE}/${id}`), { method: "DELETE" });
   if (!res.ok) {
     const text = await res.text();
     const data = text ? JSON.parse(text) : {};

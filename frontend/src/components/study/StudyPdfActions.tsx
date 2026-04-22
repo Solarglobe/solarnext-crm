@@ -5,9 +5,10 @@
  */
 
 import React, { useCallback, useEffect, useState } from "react";
+import { getCrmApiBase } from "@/config/crmApiBase";
 import { apiFetch, getAuthToken } from "../../services/api";
 
-const API_BASE = import.meta.env?.VITE_API_URL || "http://localhost:3000";
+const API_BASE = getCrmApiBase();
 
 export interface StudyPdfDocument {
   id: string;

@@ -3,9 +3,11 @@
  * Appels vers les endpoints admin existants (aucun modifié).
  */
 
+import { buildApiUrl } from "@/config/crmApiBase";
 import { apiFetch } from "./api";
 
 const BASE = "/api/admin";
+const apiUrl = (path: string) => buildApiUrl(path);
 
 async function handleResponse<T>(res: Response): Promise<T> {
   const text = await res.text();
@@ -31,7 +33,7 @@ export interface AdminUser {
 }
 
 export async function adminGetUsers(): Promise<AdminUser[]> {
-  const res = await apiFetch(`${BASE}/users`);
+  const res = await apiFetch(apiUrl(`${BASE}/users`));
   return handleResponse<AdminUser[]>(res);
 }
 
@@ -42,7 +44,7 @@ export async function adminCreateUser(body: {
   last_name?: string | null;
   roleIds?: string[];
 }): Promise<AdminUser> {
-  const res = await apiFetch(`${BASE}/users`, {
+  const res = await apiFetch(apiUrl(`${BASE}/users`), {
     method: "POST",
     body: JSON.stringify(body),
   });
@@ -60,7 +62,7 @@ export async function adminUpdateUser(
     roleIds?: string[];
   }
 ): Promise<AdminUser> {
-  const res = await apiFetch(`${BASE}/users/${id}`, {
+  const res = await apiFetch(apiUrl(`${BASE}/users/${id}`), {
     method: "PUT",
     body: JSON.stringify(body),
   });
@@ -68,7 +70,7 @@ export async function adminUpdateUser(
 }
 
 export async function adminDeleteUser(id: string): Promise<void> {
-  const res = await apiFetch(`${BASE}/users/${id}`, { method: "DELETE" });
+  const res = await apiFetch(apiUrl(`${BASE}/users/${id}`), { method: "DELETE" });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
     throw new Error(data.error || `Erreur ${res.status}`);
@@ -83,7 +85,7 @@ export interface UserTeam {
 }
 
 export async function adminGetUserTeams(userId: string): Promise<UserTeam[]> {
-  const res = await apiFetch(`${BASE}/users/${userId}/teams`);
+  const res = await apiFetch(apiUrl(`${BASE}/users/${userId}/teams`));
   return handleResponse<UserTeam[]>(res);
 }
 
@@ -91,7 +93,7 @@ export async function adminPutUserTeams(
   userId: string,
   teamIds: string[]
 ): Promise<UserTeam[]> {
-  const res = await apiFetch(`${BASE}/users/${userId}/teams`, {
+  const res = await apiFetch(apiUrl(`${BASE}/users/${userId}/teams`), {
     method: "PUT",
     body: JSON.stringify({ teamIds }),
   });
@@ -105,7 +107,7 @@ export interface UserAgency {
 }
 
 export async function adminGetUserAgencies(userId: string): Promise<UserAgency[]> {
-  const res = await apiFetch(`${BASE}/users/${userId}/agencies`);
+  const res = await apiFetch(apiUrl(`${BASE}/users/${userId}/agencies`));
   return handleResponse<UserAgency[]>(res);
 }
 
@@ -113,7 +115,7 @@ export async function adminPutUserAgencies(
   userId: string,
   agencyIds: string[]
 ): Promise<UserAgency[]> {
-  const res = await apiFetch(`${BASE}/users/${userId}/agencies`, {
+  const res = await apiFetch(apiUrl(`${BASE}/users/${userId}/agencies`), {
     method: "PUT",
     body: JSON.stringify({ agencyIds }),
   });
@@ -130,7 +132,7 @@ export interface AdminRole {
 }
 
 export async function adminGetRoles(): Promise<AdminRole[]> {
-  const res = await apiFetch(`${BASE}/roles`);
+  const res = await apiFetch(apiUrl(`${BASE}/roles`));
   return handleResponse<AdminRole[]>(res);
 }
 
@@ -142,7 +144,7 @@ export interface AdminPermission {
 }
 
 export async function adminGetRolePermissions(roleId: string): Promise<AdminPermission[]> {
-  const res = await apiFetch(`${BASE}/roles/${roleId}/permissions`);
+  const res = await apiFetch(apiUrl(`${BASE}/roles/${roleId}/permissions`));
   return handleResponse<AdminPermission[]>(res);
 }
 
@@ -150,7 +152,7 @@ export async function adminPutRolePermissions(
   roleId: string,
   permissionIds: string[]
 ): Promise<AdminPermission[]> {
-  const res = await apiFetch(`${BASE}/roles/${roleId}/permissions`, {
+  const res = await apiFetch(apiUrl(`${BASE}/roles/${roleId}/permissions`), {
     method: "PUT",
     body: JSON.stringify({ permissionIds }),
   });
@@ -158,7 +160,7 @@ export async function adminPutRolePermissions(
 }
 
 export async function adminGetAllPermissions(): Promise<AdminPermission[]> {
-  const res = await apiFetch(`${BASE}/permissions`);
+  const res = await apiFetch(apiUrl(`${BASE}/permissions`));
   return handleResponse<AdminPermission[]>(res);
 }
 
@@ -171,12 +173,12 @@ export interface AdminAgency {
 }
 
 export async function adminGetAgencies(): Promise<AdminAgency[]> {
-  const res = await apiFetch(`${BASE}/agencies`);
+  const res = await apiFetch(apiUrl(`${BASE}/agencies`));
   return handleResponse<AdminAgency[]>(res);
 }
 
 export async function adminCreateAgency(body: { name: string }): Promise<AdminAgency> {
-  const res = await apiFetch(`${BASE}/agencies`, {
+  const res = await apiFetch(apiUrl(`${BASE}/agencies`), {
     method: "POST",
     body: JSON.stringify(body),
   });
@@ -187,7 +189,7 @@ export async function adminUpdateAgency(
   id: string,
   body: { name: string }
 ): Promise<AdminAgency> {
-  const res = await apiFetch(`${BASE}/agencies/${id}`, {
+  const res = await apiFetch(apiUrl(`${BASE}/agencies/${id}`), {
     method: "PUT",
     body: JSON.stringify(body),
   });
@@ -195,7 +197,7 @@ export async function adminUpdateAgency(
 }
 
 export async function adminDeleteAgency(id: string): Promise<void> {
-  const res = await apiFetch(`${BASE}/agencies/${id}`, { method: "DELETE" });
+  const res = await apiFetch(apiUrl(`${BASE}/agencies/${id}`), { method: "DELETE" });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
     throw new Error(data.error || `Erreur ${res.status}`);
@@ -212,7 +214,7 @@ export interface AdminTeam {
 }
 
 export async function adminGetTeams(): Promise<AdminTeam[]> {
-  const res = await apiFetch(`${BASE}/teams`);
+  const res = await apiFetch(apiUrl(`${BASE}/teams`));
   return handleResponse<AdminTeam[]>(res);
 }
 
@@ -220,7 +222,7 @@ export async function adminCreateTeam(body: {
   name: string;
   agency_id?: string;
 }): Promise<AdminTeam> {
-  const res = await apiFetch(`${BASE}/teams`, {
+  const res = await apiFetch(apiUrl(`${BASE}/teams`), {
     method: "POST",
     body: JSON.stringify(body),
   });
@@ -231,7 +233,7 @@ export async function adminUpdateTeam(
   id: string,
   body: { name: string; agency_id?: string }
 ): Promise<AdminTeam> {
-  const res = await apiFetch(`${BASE}/teams/${id}`, {
+  const res = await apiFetch(apiUrl(`${BASE}/teams/${id}`), {
     method: "PUT",
     body: JSON.stringify(body),
   });
@@ -239,7 +241,7 @@ export async function adminUpdateTeam(
 }
 
 export async function adminDeleteTeam(id: string): Promise<void> {
-  const res = await apiFetch(`${BASE}/teams/${id}`, { method: "DELETE" });
+  const res = await apiFetch(apiUrl(`${BASE}/teams/${id}`), { method: "DELETE" });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
     throw new Error(data.error || `Erreur ${res.status}`);
@@ -286,12 +288,12 @@ export interface AdminOrg {
 export type AdminOrgUpdate = Partial<Omit<AdminOrg, "id" | "created_at">>;
 
 export async function adminGetOrg(): Promise<AdminOrg> {
-  const res = await apiFetch(`${BASE}/org`);
+  const res = await apiFetch(apiUrl(`${BASE}/org`));
   return handleResponse<AdminOrg>(res);
 }
 
 export async function adminUpdateOrg(body: AdminOrgUpdate): Promise<AdminOrg> {
-  const res = await apiFetch(`${BASE}/org`, {
+  const res = await apiFetch(apiUrl(`${BASE}/org`), {
     method: "PUT",
     body: JSON.stringify(body),
   });
@@ -301,7 +303,7 @@ export async function adminUpdateOrg(body: AdminOrgUpdate): Promise<AdminOrg> {
 export async function adminUploadLogo(file: File): Promise<{ logo_url: string }> {
   const formData = new FormData();
   formData.append("file", file);
-  const res = await apiFetch(`${BASE}/org/logo`, {
+  const res = await apiFetch(apiUrl(`${BASE}/org/logo`), {
     method: "POST",
     body: formData,
   });
@@ -309,7 +311,7 @@ export async function adminUploadLogo(file: File): Promise<{ logo_url: string }>
 }
 
 export async function adminDeleteLogo(): Promise<void> {
-  const res = await apiFetch(`${BASE}/org/logo`, {
+  const res = await apiFetch(apiUrl(`${BASE}/org/logo`), {
     method: "DELETE",
   });
   if (!res.ok) {
@@ -324,7 +326,7 @@ export async function adminUploadPdfCover(file: File, orgId: string): Promise<{ 
   formData.append("entityId", orgId);
   formData.append("document_type", "organization_pdf_cover");
   formData.append("file", file);
-  const res = await apiFetch("/api/documents", {
+  const res = await apiFetch(apiUrl("/api/documents"), {
     method: "POST",
     body: formData,
   });
@@ -335,7 +337,7 @@ export async function adminUploadPdfCover(file: File, orgId: string): Promise<{ 
 }
 
 export async function adminDeletePdfCover(): Promise<void> {
-  const res = await apiFetch(`${BASE}/org/pdf-cover`, {
+  const res = await apiFetch(apiUrl(`${BASE}/org/pdf-cover`), {
     method: "DELETE",
   });
   if (!res.ok) {
@@ -428,12 +430,12 @@ export interface OrgPvSettings {
 }
 
 export async function adminGetOrgSettings(): Promise<OrgPvSettings> {
-  const res = await apiFetch(`${BASE}/org/settings`);
+  const res = await apiFetch(apiUrl(`${BASE}/org/settings`));
   return handleResponse<OrgPvSettings>(res);
 }
 
 export async function adminPostOrgSettings(body: Partial<OrgPvSettings>): Promise<OrgPvSettings> {
-  const res = await apiFetch(`${BASE}/org/settings`, {
+  const res = await apiFetch(apiUrl(`${BASE}/org/settings`), {
     method: "POST",
     body: JSON.stringify(body),
   });
@@ -455,12 +457,12 @@ export interface AdminArchiveItem {
 }
 
 export async function adminGetArchives(): Promise<{ items: AdminArchiveItem[] }> {
-  const res = await apiFetch(`${BASE}/archives`);
+  const res = await apiFetch(apiUrl(`${BASE}/archives`));
   return handleResponse<{ items: AdminArchiveItem[] }>(res);
 }
 
 export async function adminRestoreArchive(id: string): Promise<unknown> {
-  const res = await apiFetch(`${BASE}/archives/${id}/restore`, {
+  const res = await apiFetch(apiUrl(`${BASE}/archives/${id}/restore`), {
     method: "POST",
   });
   return handleResponse<unknown>(res);
@@ -471,7 +473,7 @@ export async function adminRestoreArchive(id: string): Promise<unknown> {
  * Télécharge le fichier archives-export.csv
  */
 export async function adminExportArchivesCsv(): Promise<void> {
-  const res = await apiFetch(`${BASE}/archives/export`);
+  const res = await apiFetch(apiUrl(`${BASE}/archives/export`));
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
     throw new Error((data as { error?: string }).error || `Erreur ${res.status}`);
@@ -486,12 +488,12 @@ export async function adminExportArchivesCsv(): Promise<void> {
 }
 
 export async function orgGetSettings(): Promise<Record<string, unknown>> {
-  const res = await apiFetch("/api/organization/settings");
+  const res = await apiFetch(apiUrl("/api/organization/settings"));
   return handleResponse<Record<string, unknown>>(res);
 }
 
 export async function orgPutSettings(settings: Record<string, unknown>): Promise<Record<string, unknown>> {
-  const res = await apiFetch("/api/organization/settings", {
+  const res = await apiFetch(apiUrl("/api/organization/settings"), {
     method: "PUT",
     body: JSON.stringify(settings),
   });
@@ -535,7 +537,7 @@ export interface OrganizationsFullSettingsResponse extends SmartpitchSettingsRes
 }
 
 export async function getOrganizationsSettings(): Promise<OrganizationsFullSettingsResponse> {
-  const res = await apiFetch("/api/organizations/settings");
+  const res = await apiFetch(apiUrl("/api/organizations/settings"));
   return handleResponse<OrganizationsFullSettingsResponse>(res);
 }
 
@@ -544,7 +546,7 @@ export async function putOrganizationsSettings(body: {
   quote?: { prefix?: string | null; next_number?: number };
   finance?: Partial<OrgFinanceSettings>;
 }): Promise<OrganizationsFullSettingsResponse> {
-  const res = await apiFetch("/api/organizations/settings", {
+  const res = await apiFetch(apiUrl("/api/organizations/settings"), {
     method: "PUT",
     body: JSON.stringify(body),
   });
@@ -596,7 +598,7 @@ export async function adminGetQuoteCatalog(params?: {
   if (params?.q) sp.set("q", params.q);
   if (params?.category) sp.set("category", params.category);
   const qs = sp.toString();
-  const res = await apiFetch(`${BASE}/quote-catalog${qs ? `?${qs}` : ""}`);
+  const res = await apiFetch(apiUrl(`${BASE}/quote-catalog${qs ? `?${qs}` : ""}`));
   return handleResponse<{ items: QuoteCatalogItem[] }>(res);
 }
 
@@ -609,7 +611,7 @@ export async function adminCreateQuoteCatalogItem(body: {
   purchase_price_ht_cents?: number;
   default_vat_rate_bps?: number;
 }): Promise<{ item: QuoteCatalogItem }> {
-  const res = await apiFetch(`${BASE}/quote-catalog`, {
+  const res = await apiFetch(apiUrl(`${BASE}/quote-catalog`), {
     method: "POST",
     body: JSON.stringify(body),
   });
@@ -628,7 +630,7 @@ export async function adminPatchQuoteCatalogItem(
     default_vat_rate_bps: number;
   }>
 ): Promise<{ item: QuoteCatalogItem }> {
-  const res = await apiFetch(`${BASE}/quote-catalog/${id}`, {
+  const res = await apiFetch(apiUrl(`${BASE}/quote-catalog/${id}`), {
     method: "PATCH",
     body: JSON.stringify(body),
   });
@@ -636,12 +638,12 @@ export async function adminPatchQuoteCatalogItem(
 }
 
 export async function adminDeactivateQuoteCatalogItem(id: string): Promise<{ item: QuoteCatalogItem }> {
-  const res = await apiFetch(`${BASE}/quote-catalog/${id}/deactivate`, { method: "POST" });
+  const res = await apiFetch(apiUrl(`${BASE}/quote-catalog/${id}/deactivate`), { method: "POST" });
   return handleResponse<{ item: QuoteCatalogItem }>(res);
 }
 
 export async function adminActivateQuoteCatalogItem(id: string): Promise<{ item: QuoteCatalogItem }> {
-  const res = await apiFetch(`${BASE}/quote-catalog/${id}/activate`, { method: "POST" });
+  const res = await apiFetch(apiUrl(`${BASE}/quote-catalog/${id}/activate`), { method: "POST" });
   return handleResponse<{ item: QuoteCatalogItem }>(res);
 }
 
@@ -663,7 +665,7 @@ export async function adminGetQuoteTextTemplates(params?: {
   const sp = new URLSearchParams();
   if (params?.kind) sp.set("kind", params.kind);
   const qs = sp.toString();
-  const res = await apiFetch(`${BASE}/quote-text-templates${qs ? `?${qs}` : ""}`);
+  const res = await apiFetch(apiUrl(`${BASE}/quote-text-templates${qs ? `?${qs}` : ""}`));
   return handleResponse<{ items: QuoteTextTemplateItem[] }>(res);
 }
 
@@ -672,7 +674,7 @@ export async function adminCreateQuoteTextTemplate(body: {
   name: string;
   content: string;
 }): Promise<{ item: QuoteTextTemplateItem }> {
-  const res = await apiFetch(`${BASE}/quote-text-templates`, {
+  const res = await apiFetch(apiUrl(`${BASE}/quote-text-templates`), {
     method: "POST",
     body: JSON.stringify(body),
   });
@@ -683,7 +685,7 @@ export async function adminPatchQuoteTextTemplate(
   id: string,
   body: Partial<{ name: string; content: string }>
 ): Promise<{ item: QuoteTextTemplateItem }> {
-  const res = await apiFetch(`${BASE}/quote-text-templates/${id}`, {
+  const res = await apiFetch(apiUrl(`${BASE}/quote-text-templates/${id}`), {
     method: "PATCH",
     body: JSON.stringify(body),
   });
@@ -691,6 +693,6 @@ export async function adminPatchQuoteTextTemplate(
 }
 
 export async function adminDeleteQuoteTextTemplate(id: string): Promise<void> {
-  const res = await apiFetch(`${BASE}/quote-text-templates/${id}`, { method: "DELETE" });
+  const res = await apiFetch(apiUrl(`${BASE}/quote-text-templates/${id}`), { method: "DELETE" });
   await handleResponse<{ ok?: boolean }>(res);
 }

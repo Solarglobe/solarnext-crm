@@ -95,7 +95,7 @@ export function deriveCanonicalPans3DFromRoofPlanePatches(args: {
     const centroidPx = centroid2DPx(points2D);
     const areaPlanM2 = polygonProjectedHorizontalAreaXY(cornersVec);
     const area3DM2 = polygonArea3dIntrinsic(cornersVec);
-    const nu = normalize3(physics.normal);
+    const nu = normalize3(physics.normal) ?? { x: 0, y: 0, z: 1 };
     const isDegenerate = physics.source !== "newell_corners_world" || area2d < 1e-9 || n < 3;
 
     const boundaryEdgesWorld: CanonicalPanBoundaryEdgeWorld[] = [];

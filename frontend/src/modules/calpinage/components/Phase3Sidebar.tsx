@@ -14,6 +14,7 @@ import {
 import { Phase3ChecklistPanel } from "../Phase3ChecklistPanel";
 import { createDsmOverlayManager } from "../dsmOverlay";
 import { getCurrentUser } from "../../../services/auth.service";
+import { getCrmApiBase } from "@/config/crmApiBase";
 import { apiFetch } from "../../../services/api";
 import "../dsmOverlay/dsmOverlay.css";
 
@@ -89,10 +90,7 @@ function Phase3ModeSegment() {
 /** Émis par CalpinageOverlay (CRM) ou le legacy à la fin du flux de validation. */
 const CALPINAGE_VALIDATE_FINISHED = "calpinage:validate-finished";
 
-const API_BASE =
-  import.meta.env?.VITE_API_URL ||
-  import.meta.env?.VITE_PROXY_BACKEND ||
-  "http://localhost:3000";
+const API_BASE = getCrmApiBase();
 
 function Phase3FlatRoofControls() {
   const { flatRoof } = usePhase3Data();

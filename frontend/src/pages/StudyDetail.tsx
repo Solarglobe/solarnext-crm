@@ -6,9 +6,10 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { getCrmApiBase } from "@/config/crmApiBase";
 import { apiFetch } from "../services/api";
 
-const API_BASE = import.meta.env?.VITE_API_URL || "http://localhost:3000";
+const API_BASE = getCrmApiBase();
 
 interface StudyVersionRow {
   id: string;

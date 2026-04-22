@@ -15,8 +15,9 @@ import {
 } from "./financialPdfFormat";
 import "./financial-invoice-pdf.css";
 import { resolvePdfPrimaryColor } from "./pdfBrand";
+import { getCrmApiBaseWithWindowFallback } from "@/config/crmApiBase";
 
-const API_BASE = import.meta.env?.VITE_API_URL || (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000");
+const API_BASE = getCrmApiBaseWithWindowFallback();
 
 type Status = "loading" | "error" | "ready";
 

@@ -31,6 +31,11 @@
  */
 
 import { Canvas, type ThreeEvent, useThree } from "@react-three/fiber";
+
+/** @react-three/fiber : `gl` / `camera` sur l’événement (types ThreeEvent incomplets selon versions). */
+function r3fGl(e: ThreeEvent<PointerEvent | MouseEvent>): THREE.WebGLRenderer {
+  return (e as any).gl;
+}
 import { Grid, Outlines } from "@react-three/drei";
 import {
   useCallback,
@@ -1049,7 +1054,7 @@ function ViewerSceneContent({
                   ? (e) => {
                       e.stopPropagation();
                       const ne = e.nativeEvent;
-                      const gl = e.gl;
+                      const gl = r3fGl(e);
                       const cam = e.camera;
                       let hit = null as ReturnType<typeof pickSceneHitFromIntersections>;
                       if (panSelection3DMode && cam && gl?.domElement) {
@@ -1695,7 +1700,7 @@ function SolarScene3DViewer({
       }
       if (panSelection3DMode) {
         const cam = e.camera;
-        const gl = e.gl;
+        const gl = r3fGl(e);
         const ne = e.nativeEvent;
         let hit: ScenePickHit | null = null;
         if (cam && gl?.domElement) {
@@ -1822,7 +1827,7 @@ function SolarScene3DViewer({
       flushSync(() => {
         setOrbitSuppressed(true);
       });
-      const gl = e.gl;
+      const gl = r3fGl(e);
       const cam = e.camera;
       const rect = gl.domElement.getBoundingClientRect();
       const zb = worldZFromPointerOnVerticalThroughXY(

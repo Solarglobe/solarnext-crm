@@ -2,6 +2,7 @@
  * Appels API suivi financier (paiements, avoirs, relances) — sous-ressources /api/invoices/:id/...
  */
 
+import { getCrmApiBase } from "@/config/crmApiBase";
 import { apiFetch } from "../../services/api";
 import type {
   InvoiceCreditNoteApi,
@@ -9,7 +10,7 @@ import type {
   InvoiceReminderApi,
 } from "./invoice-financial.types";
 
-const API_BASE = import.meta.env?.VITE_API_URL || "";
+const API_BASE = getCrmApiBase();
 
 function jsonHeaders() {
   return { "Content-Type": "application/json" };

@@ -22,8 +22,9 @@ import {
 import { getAuthToken, apiFetch } from "../../services/api";
 import { showCrmInlineToast } from "../../components/ui/crmInlineToast";
 import { DEFAULT_PDF_PRIMARY_COLOR, normalizePdfPrimaryForApi, resolvePdfPrimaryColor } from "../../pages/pdf/pdfBrand";
+import { getCrmApiBase } from "@/config/crmApiBase";
 
-const API_BASE = import.meta.env?.VITE_API_URL || "";
+const API_BASE = getCrmApiBase();
 
 /** Même priorité que l’émetteur sur les PDF (devis, factures) : juridique → commercial → nom entreprise. */
 function computeDocumentDisplayNamePreview(p: { legal_name: string; trade_name: string; name: string }): string {

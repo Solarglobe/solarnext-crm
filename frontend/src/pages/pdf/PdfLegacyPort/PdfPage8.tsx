@@ -7,8 +7,9 @@ import React, { useMemo } from "react";
 import PdfPageLayout from "../PdfEngine/PdfPageLayout";
 import PdfHeader from "../../../components/pdf/PdfHeader";
 import "./pdf-page8-premium.css";
+import { getCrmApiBaseWithWindowFallback } from "@/config/crmApiBase";
 
-const API_BASE = import.meta.env?.VITE_API_URL || (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000");
+const API_BASE = getCrmApiBaseWithWindowFallback();
 const PLACEHOLDER_LOGO = "/pdf-assets/images/logo-solarglobe-rect.png";
 
 function getStorageUrl(

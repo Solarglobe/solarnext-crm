@@ -2,6 +2,7 @@
  * CGV — /api/settings/legal/cgv
  */
 
+import { buildApiUrl } from "@/config/crmApiBase";
 import { apiFetch } from "./api";
 
 /** Upload PDF CGV — met à jour settings (mode pdf) côté serveur. */
@@ -11,7 +12,7 @@ export async function uploadLegalCgvPdf(file: File, organizationId: string): Pro
   formData.append("entityId", organizationId);
   formData.append("document_type", "organization_legal_cgv");
   formData.append("file", file);
-  const res = await apiFetch("/api/documents", {
+  const res = await apiFetch(buildApiUrl("/api/documents"), {
     method: "POST",
     body: formData,
   });
@@ -33,7 +34,7 @@ export type LegalCgvState = {
 };
 
 export async function getLegalCgv(): Promise<{ ok: boolean; cgv: LegalCgvState | null }> {
-  const res = await apiFetch("/api/settings/legal/cgv");
+  const res = await apiFetch(buildApiUrl("/api/settings/legal/cgv"));
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     throw new Error((data as { error?: string }).error || `Erreur ${res.status}`);
@@ -47,7 +48,7 @@ export async function getComplementaryLegalDocsStatus(): Promise<{
   rge: { configured: boolean; file_name: string | null };
   decennale: { configured: boolean; file_name: string | null };
 }> {
-  const res = await apiFetch("/api/settings/legal/complementary-docs");
+  const res = await apiFetch(buildApiUrl("/api/settings/legal/complementary-docs"));
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     throw new Error((data as { error?: string }).error || `Erreur ${res.status}`);
@@ -70,7 +71,7 @@ export async function uploadOrgComplementaryLegalPdf(
   formData.append("entityId", organizationId);
   formData.append("document_type", documentType);
   formData.append("file", file);
-  const res = await apiFetch("/api/documents", {
+  const res = await apiFetch(buildApiUrl("/api/documents"), {
     method: "POST",
     body: formData,
   });
@@ -87,7 +88,7 @@ export async function postLegalCgv(body: {
   pdf_document_id?: string | null;
   url?: string | null;
 }): Promise<{ ok: boolean; cgv: LegalCgvState | null }> {
-  const res = await apiFetch("/api/settings/legal/cgv", {
+  const res = await apiFetch(buildApiUrl("/api/settings/legal/cgv"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),

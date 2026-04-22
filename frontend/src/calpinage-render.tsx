@@ -9,9 +9,10 @@
 import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import CalpinageApp from "./modules/calpinage/CalpinageApp";
+import { getCrmApiBaseWithWindowFallback } from "@/config/crmApiBase";
 import { setCalpinageItem } from "./modules/calpinage/calpinageStorage";
 
-const API_BASE = import.meta.env?.VITE_API_URL || (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000");
+const API_BASE = getCrmApiBaseWithWindowFallback();
 
 function logRender(msg: string) {
   if (typeof console !== "undefined") console.log("[CALPINAGE_RENDER]", msg);

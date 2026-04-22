@@ -11,6 +11,7 @@
 import React, { useEffect, useCallback, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
+import { getCrmApiBaseWithWindowFallback } from "@/config/crmApiBase";
 import { apiFetch } from "../services/api";
 import CalpinageApp from "../modules/calpinage/CalpinageApp";
 import { setCalpinageItem } from "../modules/calpinage/calpinageStorage";
@@ -94,7 +95,7 @@ function isValidShading(sh: unknown): boolean {
   return false;
 }
 
-const API_BASE = import.meta.env?.VITE_API_URL || (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000");
+const API_BASE = getCrmApiBaseWithWindowFallback();
 
 export interface CalpinageOverlayProps {
   studyId: string;

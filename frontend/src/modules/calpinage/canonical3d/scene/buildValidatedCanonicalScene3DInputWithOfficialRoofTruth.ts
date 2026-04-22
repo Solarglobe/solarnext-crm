@@ -21,7 +21,10 @@ import {
   type ValidateCanonicalScene3DInputOptions,
 } from "../validation/validateCanonicalScene3DInput";
 import type { MapCalpinageRoofToLegacyRoofGeometryInputOptions } from "../../integration/mapCalpinageToCanonicalNearShading";
-import { resolveOfficialRoofTruthFromRuntime } from "./resolveOfficialRoofTruthFromRuntime";
+import {
+  isOfficialRoofTruthBuildOk,
+  resolveOfficialRoofTruthFromRuntime,
+} from "./resolveOfficialRoofTruthFromRuntime";
 
 function withCanonicalScenePansFromDerivedRoofTruth(
   scene: CanonicalScene3DInput,
@@ -132,6 +135,24 @@ export function buildValidatedCanonicalScene3DInputWithOfficialRoofTruth(
       },
       is3DEligible: false,
       autopsyLegacyPath: roofTruth.autopsyLegacyPath,
+    };
+  }
+
+  if (!isOfficialRoofTruthBuildOk(roofTruth)) {
+    return {
+      ok: false,
+      stage: "roof_truth_build",
+      diagnostics: {
+        errors: [
+          {
+            code: "SCENE_BUILD_FAILED",
+            message: "Phase toit incomplète (prepare sans build) — ne devrait pas arriver après validation scène.",
+          },
+        ],
+        warnings: validation.diagnostics.warnings,
+        stats: validation.diagnostics.stats,
+      },
+      is3DEligible: false,
     };
   }
 

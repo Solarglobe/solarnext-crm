@@ -95,7 +95,7 @@ export async function enrichRoofModelShadingPhase6(
     updatedAtIso,
     ...(horizonMask ? { horizonMask } : {}),
     ...(pvgisHourly ? { pvgisHourly } : {}),
-    shadowPresentation: DEFAULT_SHADOW_MAP_PRESENTATION_V1,
+    shadowPresentation: { ...DEFAULT_SHADOW_MAP_PRESENTATION_V1 } as Readonly<Record<string, unknown>>,
   };
 
   return {

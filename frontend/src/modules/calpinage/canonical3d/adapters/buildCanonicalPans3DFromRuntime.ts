@@ -229,9 +229,10 @@ function readPanPolygon2D(pan: Record<string, unknown>): { x: number; y: number 
   const poly = resolved.raw;
   if (!poly || poly.length < 2) return null;
   const out: { x: number; y: number }[] = [];
-  for (const pt of poly) {
-    const x = typeof pt?.x === "number" ? pt.x : 0;
-    const y = typeof pt?.y === "number" ? pt.y : 0;
+  for (const rawPt of poly) {
+    const pt = rawPt as Record<string, unknown>;
+    const x = typeof pt.x === "number" ? pt.x : 0;
+    const y = typeof pt.y === "number" ? pt.y : 0;
     out.push({ x, y });
   }
   const stripped = stripClosingDuplicate2D(out);
@@ -246,8 +247,9 @@ function readPanPolygon2DWithHeights(
   const poly = resolved.raw;
   if (!poly || poly.length < 2) return null;
   const out: Array<{ x: number; y: number; h?: number }> = [];
-  for (const pt of poly) {
-    if (!pt || typeof pt !== "object") continue;
+  for (const rawPt of poly) {
+    if (!rawPt || typeof rawPt !== "object") continue;
+    const pt = rawPt as Record<string, unknown>;
     const x = typeof pt.x === "number" ? pt.x : 0;
     const y = typeof pt.y === "number" ? pt.y : 0;
     const h = finiteRoofHeightMOrUndefined(pt.h ?? pt.heightM);

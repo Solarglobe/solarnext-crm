@@ -2,9 +2,10 @@
  * Recherche globale CRM — GET /api/search/global
  */
 
+import { getCrmApiBase } from "@/config/crmApiBase";
 import { apiFetch } from "./api";
 
-const API_BASE = import.meta.env?.VITE_API_URL || "";
+const API_BASE = getCrmApiBase();
 
 export interface GlobalSearchHit {
   type: "lead" | "client";

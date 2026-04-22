@@ -27,8 +27,9 @@ import dayjs from "dayjs";
 import "dayjs/locale/fr";
 import PlanningDateTimeField from "./PlanningDateTimeField";
 import { showCrmInlineToast } from "../../components/ui/crmInlineToast";
+import { getCrmApiBase } from "@/config/crmApiBase";
 
-const API_BASE = import.meta.env?.VITE_API_URL || "http://localhost:3000";
+const API_BASE = getCrmApiBase();
 
 const STATUS_OPTIONS = [
   { id: "scheduled", label: "Planifiée" },

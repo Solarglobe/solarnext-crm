@@ -2,10 +2,11 @@
  * Envoi email groupé — POST /api/mail/bulk-send
  */
 
+import { getCrmApiBase } from "@/config/crmApiBase";
 import { apiFetch } from "./api";
 import type { LeadsFilters } from "./leads.service";
 
-const API_BASE = import.meta.env?.VITE_API_URL || "";
+const API_BASE = getCrmApiBase();
 
 const MAX_BULK_LEAD_IDS = 200;
 

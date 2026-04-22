@@ -2,9 +2,11 @@
  * CP-002 — API catalogue PV (panneaux, onduleurs, batteries)
  */
 
+import { buildApiUrl } from "@/config/crmApiBase";
 import { apiFetch } from "../services/api";
 
 const BASE = "/api/pv";
+const u = (path: string) => buildApiUrl(path);
 
 async function handleResponse<T>(res: Response): Promise<T> {
   const text = await res.text();
@@ -44,12 +46,12 @@ export interface PvPanel {
 }
 
 export async function listPanels(): Promise<PvPanel[]> {
-  const res = await apiFetch(`${BASE}/panels`);
+  const res = await apiFetch(u(`${BASE}/panels`));
   return handleResponse<PvPanel[]>(res);
 }
 
 export async function createPanel(body: Partial<PvPanel>): Promise<PvPanel> {
-  const res = await apiFetch(`${BASE}/panels`, {
+  const res = await apiFetch(u(`${BASE}/panels`), {
     method: "POST",
     body: JSON.stringify(body),
   });
@@ -57,7 +59,7 @@ export async function createPanel(body: Partial<PvPanel>): Promise<PvPanel> {
 }
 
 export async function updatePanel(id: string, body: Partial<PvPanel>): Promise<PvPanel> {
-  const res = await apiFetch(`${BASE}/panels/${id}`, {
+  const res = await apiFetch(u(`${BASE}/panels/${id}`), {
     method: "PUT",
     body: JSON.stringify(body),
   });
@@ -95,12 +97,12 @@ export interface PvInverter {
 
 export async function listInverters(family?: "CENTRAL" | "MICRO"): Promise<PvInverter[]> {
   const url = family ? `${BASE}/inverters?family=${family}` : `${BASE}/inverters`;
-  const res = await apiFetch(url);
+  const res = await apiFetch(u(url));
   return handleResponse<PvInverter[]>(res);
 }
 
 export async function createInverter(body: Partial<PvInverter>): Promise<PvInverter> {
-  const res = await apiFetch(`${BASE}/inverters`, {
+  const res = await apiFetch(u(`${BASE}/inverters`), {
     method: "POST",
     body: JSON.stringify(body),
   });
@@ -108,7 +110,7 @@ export async function createInverter(body: Partial<PvInverter>): Promise<PvInver
 }
 
 export async function updateInverter(id: string, body: Partial<PvInverter>): Promise<PvInverter> {
-  const res = await apiFetch(`${BASE}/inverters/${id}`, {
+  const res = await apiFetch(u(`${BASE}/inverters/${id}`), {
     method: "PUT",
     body: JSON.stringify(body),
   });
@@ -144,12 +146,12 @@ export interface PvBattery {
 }
 
 export async function listBatteries(): Promise<PvBattery[]> {
-  const res = await apiFetch(`${BASE}/batteries`);
+  const res = await apiFetch(u(`${BASE}/batteries`));
   return handleResponse<PvBattery[]>(res);
 }
 
 export async function createBattery(body: Partial<PvBattery>): Promise<PvBattery> {
-  const res = await apiFetch(`${BASE}/batteries`, {
+  const res = await apiFetch(u(`${BASE}/batteries`), {
     method: "POST",
     body: JSON.stringify(body),
   });
@@ -157,7 +159,7 @@ export async function createBattery(body: Partial<PvBattery>): Promise<PvBattery
 }
 
 export async function updateBattery(id: string, body: Partial<PvBattery>): Promise<PvBattery> {
-  const res = await apiFetch(`${BASE}/batteries/${id}`, {
+  const res = await apiFetch(u(`${BASE}/batteries/${id}`), {
     method: "PUT",
     body: JSON.stringify(body),
   });

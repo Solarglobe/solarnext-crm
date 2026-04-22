@@ -2,7 +2,7 @@
  * HTML imprimable A4 — plan (image optionnelle), cadre 3D, tableaux énergie + BOM.
  */
 
-import type { RoofOutputsBundleV1 } from "../roofModelOutputsV1Types";
+import type { RoofOutputsBundleV1 } from "./roofModelOutputsV1Types";
 
 function esc(s: string): string {
   return String(s)

@@ -1,3 +1,4 @@
+import { buildApiUrl } from "@/config/crmApiBase";
 import { getAuthToken } from "./api";
 
 const TOKEN_KEY = "solarnext_token";
@@ -16,7 +17,7 @@ export async function login(
   email: string,
   password: string
 ): Promise<LoginResponse> {
-  const res = await fetch("/auth/login", {
+  const res = await fetch(buildApiUrl("/auth/login"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password }),
@@ -129,7 +130,7 @@ export interface CurrentUser {
 }
 
 export async function getCurrentUser(): Promise<CurrentUser> {
-  const res = await fetch("/auth/me", {
+  const res = await fetch(buildApiUrl("/auth/me"), {
     headers: {
       Authorization: `Bearer ${getAuthToken()}`,
     },
@@ -144,7 +145,7 @@ export interface UserPermissions {
 }
 
 export async function getUserPermissions(): Promise<UserPermissions> {
-  const res = await fetch("/auth/permissions", {
+  const res = await fetch(buildApiUrl("/auth/permissions"), {
     headers: {
       Authorization: `Bearer ${getAuthToken()}`,
     },

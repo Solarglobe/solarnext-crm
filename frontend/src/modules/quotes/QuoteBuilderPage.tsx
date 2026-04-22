@@ -61,9 +61,10 @@ import { getComplementaryLegalDocsStatus } from "../../services/legalCgv.api";
 import { showCrmInlineToast } from "../../components/ui/crmInlineToast";
 import type { MailComposerInitialPrefill } from "../../pages/mail/MailComposer";
 import { useSuperAdminReadOnly } from "../../contexts/OrganizationContext";
+import { getCrmApiBase } from "@/config/crmApiBase";
 import "./quote-builder.css";
 
-const API_BASE = import.meta.env?.VITE_API_URL || "";
+const API_BASE = getCrmApiBase();
 
 const EMPTY_TEXT_TEMPLATES: {
   commercial_notes: QuoteTextTemplateItem[];
@@ -1089,7 +1090,18 @@ export default function QuoteBuilderPage() {
           canEdit={canEditMutations}
           onPdfShowLinePricingChange={(v) => dispatch({ type: "SET_META", payload: { pdf_show_line_pricing: v } })}
           legalDocuments={state.meta.legal_documents}
-          onLegalDocumentsChange={(patch) => dispatch({ type: "SET_META", payload: { legal_documents: patch } })}
+          onLegalDocumentsChange={(patch) =>
+            dispatch({
+              type: "SET_META",
+              payload: {
+                legal_documents: {
+                  include_rge: patch.include_rge ?? state.meta.legal_documents?.include_rge ?? false,
+                  include_decennale:
+                    patch.include_decennale ?? state.meta.legal_documents?.include_decennale ?? false,
+                },
+              },
+            })
+          }
           complementaryConfigured={
             complementaryDocStatus
               ? {

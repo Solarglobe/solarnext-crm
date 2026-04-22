@@ -7,9 +7,10 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import CalpinageOverlay from "../../components/CalpinageOverlay";
+import { getCrmApiBase } from "@/config/crmApiBase";
 import { apiFetch } from "../../services/api";
 
-const API_BASE = import.meta.env?.VITE_API_URL || "http://localhost:3000";
+const API_BASE = getCrmApiBase();
 
 interface StudyVersion {
   id: string;

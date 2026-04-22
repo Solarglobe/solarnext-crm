@@ -3,10 +3,11 @@
  */
 
 import { adminGetQuoteCatalog } from "../../services/admin.api";
+import { getCrmApiBase } from "@/config/crmApiBase";
 import { apiFetch } from "../../services/api";
 import type { QuoteLine } from "./quote.types";
 
-const API_BASE = import.meta.env?.VITE_API_URL || "";
+const API_BASE = getCrmApiBase();
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;

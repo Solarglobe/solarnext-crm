@@ -43,8 +43,9 @@ import "../quotes/quote-builder.css";
 import "./invoice-builder.css";
 import "./invoice-financial.css";
 import { formatInvoiceNumberDisplay } from "../finance/documentDisplay";
+import { getCrmApiBase } from "@/config/crmApiBase";
 
-const API_BASE = import.meta.env?.VITE_API_URL || "";
+const API_BASE = getCrmApiBase();
 
 function buildStateFromApi(inv: InvoiceDetail & Record<string, unknown>): InvoiceBuilderState {
   const clientLabel = inv.company_name

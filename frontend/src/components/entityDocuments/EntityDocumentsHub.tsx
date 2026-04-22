@@ -3,13 +3,14 @@
  */
 
 import { useCallback, useMemo, useRef, useState, type ChangeEvent } from "react";
+import { getCrmApiBase } from "@/config/crmApiBase";
 import { apiFetch, getAuthToken } from "../../services/api";
 import type { DocumentCategory, DocumentSectionKey, EntityDocument } from "./entityDocumentTypes";
 import { resolveDocumentLifecycleBadge } from "./documentLifecycleBadge";
 import { groupDocumentsBySection, SECTION_ORDER } from "./groupDocumentsBySection";
 import styles from "./EntityDocumentsHub.module.css";
 
-const API_BASE = import.meta.env?.VITE_API_URL || "http://localhost:3000";
+const API_BASE = getCrmApiBase();
 
 const SECTION_UI: Record<DocumentSectionKey, { title: string; empty: string; kicker: string }> = {
   QUOTE: { title: "Devis", empty: "Aucun devis", kicker: "Offres & PDF devis" },

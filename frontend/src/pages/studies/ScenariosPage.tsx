@@ -13,8 +13,9 @@ import ScenarioEconomicsChart from "../../components/study/ScenarioEconomicsChar
 import StudyCalcTracePanel from "../../components/study/StudyCalcTracePanel";
 import type { StudyVersionDataJson } from "../../services/studies.service";
 import { useSuperAdminReadOnly } from "../../contexts/OrganizationContext";
+import { getCrmApiBaseWithWindowFallback } from "@/config/crmApiBase";
 
-const API_BASE = import.meta.env?.VITE_API_URL || (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000");
+const API_BASE = getCrmApiBaseWithWindowFallback();
 
 type ScenarioId = "BASE" | "BATTERY_PHYSICAL" | "BATTERY_VIRTUAL";
 

@@ -233,7 +233,7 @@ export async function loadDpTool(options: DpToolLoaderOptions): Promise<DpToolLo
     try {
       const flush = (w as Window & { __snDpForceFlush?: () => unknown }).__snDpForceFlush;
       if (typeof flush === "function") flush();
-      else w.DpDraftStore?.forceSaveDraft?.();
+      else (w as Window & { DpDraftStore?: { forceSaveDraft?: () => void } }).DpDraftStore?.forceSaveDraft?.();
     } catch {
       /* ignore */
     }

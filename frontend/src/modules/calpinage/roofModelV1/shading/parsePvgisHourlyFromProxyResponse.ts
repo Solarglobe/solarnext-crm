@@ -1,9 +1,6 @@
-import type { PvgisHourlySeriesDocumentV1 } from "../roofModelShadingV1Types";
+import type { PvgisHourlySeriesDocumentV1, PvgisProxyEnvelope } from "../roofModelShadingV1Types";
 
-export type PvgisProxyEnvelope = Readonly<{
-  proxyMeta?: { proxiedUrl?: string; fetchedAt?: string };
-  pvgis?: unknown;
-}>;
+export type { PvgisProxyEnvelope };
 
 function num(x: unknown): number {
   const n = typeof x === "number" ? x : Number(x);

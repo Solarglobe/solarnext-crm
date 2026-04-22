@@ -20,8 +20,9 @@ import WeekView from "./WeekView";
 import DayView from "./DayView";
 import MonthView from "./MonthView";
 import { showCrmInlineToast } from "../../components/ui/crmInlineToast";
+import { getCrmApiBase } from "@/config/crmApiBase";
 
-const API_BASE = import.meta.env?.VITE_API_URL || "http://localhost:3000";
+const API_BASE = getCrmApiBase();
 
 function getWeekStart(d: Date): Date {
   const x = new Date(d);

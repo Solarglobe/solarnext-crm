@@ -30,6 +30,7 @@ import {
 import { computeSolarScore } from "./solarScore.js";
 import { createDsmInteractionLayer } from "./dsmInteractionLayer.js";
 import { createDsmSolarAnimationControls } from "./dsmSolarAnimationControls.js";
+import { getCrmApiBaseWithWindowFallback } from "../../../config/crmApiBase";
 import { apiFetch } from "../../../services/api";
 
 let instance = null;
@@ -756,11 +757,11 @@ function scheduleRedraw(manager) {
 }
 
 function getApiBase() {
-  const base =
-    (typeof window !== "undefined" && window.CALPINAGE_API_BASE) ||
-    import.meta.env?.VITE_API_URL ||
-    (typeof window !== "undefined" ? window.location.origin : "");
-  return base || "http://localhost:3000";
+  const w = typeof window !== "undefined" && window.CALPINAGE_API_BASE;
+  if (w) {
+    return String(w).replace(/\/$/, "");
+  }
+  return getCrmApiBaseWithWindowFallback();
 }
 
 async function fetchHorizonOnDemand(manager, lat, lon) {

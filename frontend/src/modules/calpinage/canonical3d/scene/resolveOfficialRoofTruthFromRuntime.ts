@@ -72,6 +72,11 @@ export type ResolveOfficialRoofTruthResult =
   | OfficialRoofTruthBuildOk
   | OfficialRoofTruthBuildLegacyNull;
 
+/** Prépare (`{ ok: true }` seul) vs build toit complet avec `roofRes`. */
+export function isOfficialRoofTruthBuildOk(r: ResolveOfficialRoofTruthResult): r is OfficialRoofTruthBuildOk {
+  return r.ok === true && "roofRes" in r && (r as OfficialRoofTruthBuildOk).roofRes != null;
+}
+
 /**
  * Exécute la phase « prepare » ou « build » du toit officiel 3D.
  * Le pipeline produit doit appeler `prepare` puis, après validation de la scène canonique, `build`.

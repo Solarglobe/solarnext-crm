@@ -57,9 +57,6 @@ import MailOutboxPage from "./pages/mail/MailOutboxPage";
 import MailSettingsPage from "./pages/settings/MailSettingsPage";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 
-/** Référence stable pour éviter tout effet de closure / cache HMR sur le flag v7. */
-const ROUTER_PROVIDER_FUTURE = { v7_startTransition: true as const };
-
 /**
  * Le routeur utilise basename `/crm.html`. Une URL du type `/client-portal/:token`
  * (sans ce préfixe) ne correspond à aucune route → écran blanc. On corrige l’URL avant le 1er rendu.
@@ -207,12 +204,7 @@ const router = createBrowserRouter(
       ]
     }
   ],
-  {
-    basename: "/crm.html",
-    future: {
-      v7_startTransition: true
-    }
-  }
+  { basename: "/crm.html" }
 );
 
 const root = document.getElementById("root");
@@ -220,7 +212,7 @@ if (root) {
   createRoot(root).render(
     <React.StrictMode>
       <ErrorBoundary>
-        <RouterProvider router={router} future={ROUTER_PROVIDER_FUTURE} />
+        <RouterProvider router={router} />
       </ErrorBoundary>
     </React.StrictMode>
   );

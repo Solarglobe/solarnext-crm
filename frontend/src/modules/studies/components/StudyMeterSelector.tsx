@@ -6,9 +6,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiFetch } from "../../../services/api";
+import { getCrmApiBase } from "@/config/crmApiBase";
 import { postStudyVersionDataMerge, type StudyWithVersions } from "../../../services/studies.service";
 
-const DEFAULT_API = import.meta.env?.VITE_API_URL || "";
+const DEFAULT_API = getCrmApiBase();
 
 export interface LeadMeterListItem {
   id: string;

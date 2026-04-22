@@ -8,6 +8,7 @@ import PdfPageLayout from "../PdfEngine/PdfPageLayout";
 import PdfHeader from "../../../components/pdf/PdfHeader";
 import { usePdfOrgBranding } from "./pdfOrgBrandingContext";
 import "./pdf-page-methodology-solarglobe.css";
+import { getCrmApiBaseWithWindowFallback } from "@/config/crmApiBase";
 
 function val(v: unknown): string {
   if (v == null || v === "") return "—";
@@ -134,7 +135,7 @@ const NE_PRETEND_PAS = [
   "Constituer une promesse absolue de performance ou de gain net",
 ];
 
-const API_BASE = import.meta.env?.VITE_API_URL || (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000");
+const API_BASE = getCrmApiBaseWithWindowFallback();
 const PLACEHOLDER_LOGO = "/pdf-assets/images/logo-solarglobe-rect.png";
 
 function getLogoUrl(

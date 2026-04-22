@@ -25,8 +25,9 @@ import dayjs from "dayjs";
 import "dayjs/locale/fr";
 import PlanningDateTimeField from "./PlanningDateTimeField";
 import { snapToQuarter } from "./planningDateTime.utils";
+import { getCrmApiBase } from "@/config/crmApiBase";
 
-const API_BASE = import.meta.env?.VITE_API_URL || "http://localhost:3000";
+const API_BASE = getCrmApiBase();
 
 interface MissionCreateModalProps {
   onClose: () => void;

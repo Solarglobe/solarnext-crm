@@ -15,6 +15,7 @@ import {
   logPvLayout3dRolloutOnce,
 } from "./runtime/pvLayout3dRollout";
 import { emitRoofVertexZTelemetry } from "./runtime/roofVertexZEditTelemetry";
+import { getCrmApiBase } from "@/config/crmApiBase";
 import { ConfirmProvider } from "./ui/ConfirmProvider";
 import { ToastProvider } from "./ui/ToastProvider";
 
@@ -144,7 +145,7 @@ export default function CalpinageApp({
       console.log("[CalpinageApp] init start");
     }
     try {
-      const apiBase = import.meta.env?.VITE_API_URL || (typeof window !== "undefined" ? window.location.origin : "");
+      const apiBase = getCrmApiBase() || (typeof window !== "undefined" ? window.location.origin : "");
       if (typeof window !== "undefined" && apiBase) {
         (window as unknown as { CALPINAGE_API_BASE?: string }).CALPINAGE_API_BASE = apiBase;
       }

@@ -2,9 +2,10 @@
  * Dashboard pilotage — données agrégées serveur uniquement (GET /api/dashboard/overview).
  */
 
+import { getCrmApiBase } from "@/config/crmApiBase";
 import { apiFetch } from "./api";
 
-const API_BASE = import.meta.env?.VITE_API_URL || "";
+const API_BASE = getCrmApiBase();
 
 export type DashboardRange = "7d" | "30d" | "90d" | "12m" | "custom";
 

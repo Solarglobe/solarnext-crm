@@ -8,6 +8,7 @@ import PdfHeader from "../../../components/pdf/PdfHeader";
 import { hexToRgba } from "../pdfBrand";
 import { usePdfOrgBranding } from "./pdfOrgBrandingContext";
 import ChartP5DayProfile from "./ChartP5DayProfile";
+import { getCrmApiBaseWithWindowFallback } from "@/config/crmApiBase";
 
 function as24(arr: unknown): number[] {
   if (!Array.isArray(arr)) return Array(24).fill(0);
@@ -16,7 +17,7 @@ function as24(arr: unknown): number[] {
   return out;
 }
 
-const API_BASE = import.meta.env?.VITE_API_URL || (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000");
+const API_BASE = getCrmApiBaseWithWindowFallback();
 const PLACEHOLDER_LOGO = "/pdf-assets/images/logo-solarglobe-rect.png";
 
 function getStorageUrl(

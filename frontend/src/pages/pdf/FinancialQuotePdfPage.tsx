@@ -8,8 +8,9 @@ import { QuoteDocumentView } from "../../modules/quotes/QuoteDocumentView";
 import type { QuotePdfPayload } from "../../modules/quotes/quoteDocumentTypes";
 import { quoteShowsOfficialNumber } from "../../modules/quotes/quoteUiStatus";
 import { resolvePdfPrimaryColor } from "./pdfBrand";
+import { getCrmApiBaseWithWindowFallback } from "@/config/crmApiBase";
 
-const API_BASE = import.meta.env?.VITE_API_URL || (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000");
+const API_BASE = getCrmApiBaseWithWindowFallback();
 
 type Status = "loading" | "error" | "ready";
 

@@ -27,8 +27,9 @@ import type { QuotePdfPayload } from "./quoteDocumentTypes";
 import { resolvePdfPrimaryColor } from "../../pages/pdf/pdfBrand";
 import { quoteShowsOfficialNumber, quoteStatusToUiLabel } from "./quoteUiStatus";
 import "./quote-present.css";
+import { getCrmApiBase } from "@/config/crmApiBase";
 
-const API_BASE = import.meta.env?.VITE_API_URL || "";
+const API_BASE = getCrmApiBase();
 
 interface QuotePdfDocumentRow {
   id: string;

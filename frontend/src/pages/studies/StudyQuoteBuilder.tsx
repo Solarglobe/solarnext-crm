@@ -20,8 +20,9 @@ import { ConfirmModal } from "../../components/ui/ConfirmModal";
 import StudyMeterSelector from "../../modules/studies/components/StudyMeterSelector";
 import LocaleNumberInput from "../../modules/quotes/LocaleNumberInput";
 import "./study-quote-builder.css";
+import { getCrmApiBaseWithWindowFallback } from "@/config/crmApiBase";
 
-const API_BASE = import.meta.env?.VITE_API_URL || (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000");
+const API_BASE = getCrmApiBaseWithWindowFallback();
 
 // ——— Types ———
 interface TechnicalSummary {
