@@ -4,5 +4,10 @@
     { "source": "/crm.html", "destination": "/" },
     { "source": "/crm.html/:path*", "destination": "/:path*" }
   ],
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+  "rewrites": [
+    {
+      "source": "/((?!assets|.*\\..*).*)",
+      "destination": "/index.html"
+    }
+  ]
 }
