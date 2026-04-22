@@ -2,7 +2,11 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card } from "../components/ui/Card";
 import { Button } from "../components/ui/Button";
-import { login, isAuthenticated } from "../services/auth.service";
+import {
+  login,
+  isAuthenticated,
+  LoginAmbiguousError,
+} from "../services/auth.service";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -11,6 +15,11 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  /** Désambiguïsation login quand le même email existe dans plusieurs organisations. */
+  const [orgChoices, setOrgChoices] = useState<
+    { id: string; name: string | null }[] | null
+  >(null);
+  const [selectedOrgId, setSelectedOrgId] = useState("");
 
   useEffect(() => {
     document.documentElement.classList.add("sn-auth-page");
@@ -31,12 +40,24 @@ export default function Login() {
     setError("");
     setLoading(true);
     try {
-      await login(email, password);
+      const orgId =
+        orgChoices && orgChoices.length > 0 ? selectedOrgId || undefined : undefined;
+      await login(email, password, orgId);
+      setOrgChoices(null);
+      setSelectedOrgId("");
       navigate("/dashboard", { replace: true });
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Identifiants invalides"
-      );
+      if (err instanceof LoginAmbiguousError) {
+        setOrgChoices(err.organizations);
+        setSelectedOrgId(err.organizations[0]?.id ?? "");
+        setError(err.message);
+      } else {
+        setOrgChoices(null);
+        setSelectedOrgId("");
+        setError(
+          err instanceof Error ? err.message : "Identifiants invalides"
+        );
+      }
     } finally {
       setLoading(false);
     }
@@ -81,7 +102,11 @@ export default function Login() {
                 id="email"
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  setOrgChoices(null);
+                  setSelectedOrgId("");
+                }}
                 required
                 autoComplete="email"
                 className="sn-input"
@@ -107,7 +132,11 @@ export default function Login() {
                   id="password"
                   type={showPassword ? "text" : "password"}
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    setOrgChoices(null);
+                    setSelectedOrgId("");
+                  }}
                   required
                   autoComplete="current-password"
                   className="sn-input"
@@ -135,6 +164,36 @@ export default function Login() {
                 </button>
               </div>
             </div>
+
+            {orgChoices && orgChoices.length > 0 && (
+              <div style={{ marginBottom: 16 }}>
+                <label
+                  htmlFor="organization"
+                  style={{
+                    display: "block",
+                    marginBottom: 4,
+                    fontSize: 13,
+                    fontWeight: 500,
+                    color: "var(--text-muted)",
+                  }}
+                >
+                  Organisation
+                </label>
+                <select
+                  id="organization"
+                  value={selectedOrgId}
+                  onChange={(e) => setSelectedOrgId(e.target.value)}
+                  className="sn-input"
+                  style={{ height: 44, padding: "0 14px", width: "100%" }}
+                >
+                  {orgChoices.map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {o.name?.trim() ? o.name : o.id}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             {error && <p className="sn-auth-error">{error}</p>}
 

@@ -1,14 +1,20 @@
 import { applyOrganizationHeaders } from "./orgContextStorage";
 
+/** Même clé que `auth.service` — seul stockage du JWT côté client. */
+export const AUTH_TOKEN_STORAGE_KEY = "solarnext_token";
+
 export function getAuthToken(): string | null {
-  return localStorage.getItem("solarnext_token");
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
 }
 
+/**
+ * En-têtes de base (JSON + contexte org super-admin).
+ * Le Bearer est ajouté uniquement dans `apiFetch` pour une seule source de vérité.
+ */
 export function authHeaders(): HeadersInit {
-  const token = getAuthToken();
   const base: Record<string, string> = {
     "Content-Type": "application/json",
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
   applyOrganizationHeaders(base);
   return base;
@@ -38,7 +44,7 @@ function handleSessionExpired(): void {
   if (_sessionExpiredPending) return;
   _sessionExpiredPending = true;
 
-  localStorage.removeItem("solarnext_token");
+  localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
   localStorage.removeItem("solarnext_super_admin_edit_mode");
 
   // Affichage d'un message léger sans dépendre d'un composant React
@@ -77,21 +83,28 @@ function redirectToLoginIfNeeded(): void {
 }
 
 /**
- * Client HTTP unique CRM : en-têtes JSON + org + **Authorization Bearer** obligatoire
- * (sauf `skipAuth: true`, réservé aux cas publics éventuels).
+ * Client HTTP unique CRM : **Authorization: Bearer** obligatoire pour toute requête
+ * (sauf `skipAuth: true`, réservé aux cas publics).
+ *
+ * Le token est relu explicitement depuis `localStorage` et l’en-tête est posé en **dernier**
+ * après fusion des headers d’appel, pour qu’aucune option ne l’écrase par erreur.
  */
 export async function apiFetch(url: string, options: ApiFetchOptions = {}): Promise<Response> {
   const { skipAuth = false, headers: optionHeaders, ...rest } = options;
 
+  let bearerToken = "";
   if (!skipAuth && typeof window !== "undefined") {
-    const tokenRaw = getAuthToken();
-    const token = tokenRaw != null ? String(tokenRaw).trim() : "";
-    if (!token) {
+    const token = localStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
+    bearerToken = token != null ? String(token).trim() : "";
+    if (!bearerToken) {
       redirectToLoginIfNeeded();
       return Promise.reject(new Error("Token manquant — redirection vers /login"));
     }
-    // Debug temporaire — retirer une fois le flux auth validé
-    console.log("[apiFetch] JWT (debug)", `${token.slice(0, 28)}…`);
+    if (import.meta.env.DEV) {
+      console.log("[apiFetch] Authorization debug — token JWT complet :", bearerToken);
+    } else {
+      console.log("[apiFetch] Bearer présent, longueur token :", bearerToken.length);
+    }
   }
 
   let baseRecord: Record<string, string> = { ...(authHeaders() as Record<string, string>) };
@@ -114,11 +127,9 @@ export async function apiFetch(url: string, options: ApiFetchOptions = {}): Prom
     });
   }
 
-  if (!skipAuth) {
-    const token = String(getAuthToken() ?? "").trim();
-    if (token) {
-      headers.set("Authorization", `Bearer ${token}`);
-    }
+  if (!skipAuth && bearerToken) {
+    headers.delete("Authorization");
+    headers.set("Authorization", `Bearer ${bearerToken}`);
   }
 
   const response = await fetch(url, {

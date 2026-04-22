@@ -41,9 +41,28 @@ applyTrustProxy(app);
 
 // ------------------------------------------------------------
 // CORS — avant express.json() et toutes les routes (Vercel → Railway)
+// CORS_ORIGIN : une ou plusieurs origines séparées par des virgules (voir backend/.env.example).
+// En production sans variable : repli sur l’app Vercel principale (compat).
+// En dev sans variable : origin dynamique (localhost Vite, etc.).
 // ------------------------------------------------------------
+function resolveCorsOrigin() {
+  const raw = String(process.env.CORS_ORIGIN ?? "").trim();
+  if (raw) {
+    const allowed = raw.split(",").map((s) => s.trim()).filter(Boolean);
+    return (origin, callback) => {
+      if (!origin) return callback(null, true);
+      if (allowed.includes(origin)) return callback(null, true);
+      callback(null, false);
+    };
+  }
+  if (process.env.NODE_ENV === "production") {
+    return "https://solarnext-crm.vercel.app";
+  }
+  return true;
+}
+
 const corsHandler = cors({
-  origin: "https://solarnext-crm.vercel.app",
+  origin: resolveCorsOrigin(),
   credentials: true,
 });
 

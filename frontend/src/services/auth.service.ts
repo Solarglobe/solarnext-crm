@@ -1,7 +1,5 @@
 import { buildApiUrl } from "@/config/crmApiBase";
-import { apiFetch, getAuthToken } from "./api";
-
-const TOKEN_KEY = "solarnext_token";
+import { apiFetch, AUTH_TOKEN_STORAGE_KEY, getAuthToken } from "./api";
 
 export interface LoginResponse {
   token: string;
@@ -13,14 +11,31 @@ export interface LoginResponse {
   };
 }
 
+/** Plusieurs comptes actifs pour le même email (orgs différentes) — choix d’organisation requis. */
+export class LoginAmbiguousError extends Error {
+  readonly code = "LOGIN_ORG_AMBIGUOUS" as const;
+  constructor(
+    public readonly organizations: { id: string; name: string | null }[]
+  ) {
+    super(
+      "Plusieurs comptes pour cet email. Choisissez l’organisation, puis validez à nouveau."
+    );
+    this.name = "LoginAmbiguousError";
+  }
+}
+
 export async function login(
   email: string,
-  password: string
+  password: string,
+  organizationId?: string | null
 ): Promise<LoginResponse> {
+  const body: Record<string, string> = { email, password };
+  if (organizationId) body.organizationId = organizationId;
+
   const res = await fetch(buildApiUrl("/auth/login"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify(body),
   });
   const text = await res.text();
   let data: Partial<LoginResponse> & { error?: string } = {};
@@ -32,17 +47,45 @@ export async function login(
     }
   }
   if (!res.ok) {
+    if (res.status === 409 && data && typeof data === "object" && "code" in data) {
+      const code = (data as { code?: string }).code;
+      if (code === "LOGIN_ORG_AMBIGUOUS") {
+        const raw = (data as { organizations?: unknown }).organizations;
+        const organizations = Array.isArray(raw)
+          ? raw.map((o) => {
+              const row = o as { id?: string; name?: string | null };
+              return {
+                id: String(row.id ?? ""),
+                name:
+                  row.name === undefined || row.name === null
+                    ? null
+                    : String(row.name),
+              };
+            })
+            .filter((o) => o.id)
+          : [];
+        throw new LoginAmbiguousError(organizations);
+      }
+    }
     throw new Error(data.error || text || "Erreur de connexion");
   }
   if (!data.token) {
     throw new Error("Réponse serveur invalide (pas de token)");
   }
-  localStorage.setItem(TOKEN_KEY, data.token);
+  localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, data.token);
+  const stored = localStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
+  console.log(
+    "[auth/login] solarnext_token stocké :",
+    Boolean(stored && stored.length > 0),
+    "longueur :",
+    stored?.length ?? 0,
+    import.meta.env.DEV ? `| jeton : ${stored}` : ""
+  );
   return data as LoginResponse;
 }
 
 export function logout(): void {
-  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
   localStorage.removeItem("solarnext_current_organization_id");
   localStorage.removeItem("solarnext_super_admin");
   localStorage.removeItem("solarnext_super_admin_edit_mode");

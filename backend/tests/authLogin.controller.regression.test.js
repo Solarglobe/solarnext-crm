@@ -1,6 +1,6 @@
 /**
- * Régression : login ne doit plus dépendre d’un filtre rbac_roles.organization_id
- * ni d’une seule ligne utilisateur quand le même email existe dans plusieurs orgs.
+ * Régression : login avec email partagé entre orgs — boucle candidats + bcrypt,
+ * désambiguïsation si plusieurs comptes valident le même mot de passe.
  */
 import { readFileSync } from "fs";
 import { fileURLToPath } from "url";
@@ -11,24 +11,27 @@ import assert from "node:assert/strict";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const controllerPath = join(__dirname, "../auth/auth.controller.js");
 
-test("auth.controller.js : mot de passe avant rôle, pas de rbac org_id=$2", () => {
+test("auth.controller.js : candidats multiples, rôle sans filtre org RBAC", () => {
   const src = readFileSync(controllerPath, "utf8");
   assert.ok(
-    src.includes("for (const row of result.rows)") &&
-      src.includes("comparePassword(password, row.password_hash)"),
-    "boucle candidats + vérif mot de passe attendue"
+    src.includes("passwordMatches") && src.includes("comparePassword(password, row.password_hash)"),
+    "collecte des lignes dont le hash valide le mot de passe"
   );
   assert.ok(
     src.includes("LOWER(TRIM(u.email))"),
     "recherche email insensible à la casse / espaces"
   );
   assert.ok(
-    src.includes("resolveLoginRole(client, user.id)") &&
-      !src.includes("resolveLoginRole(client, user.id, user.organization_id)"),
-    "resolveLoginRole ne doit pas filtrer RBAC par organization_id du user"
+    src.includes("LOGIN_ORG_AMBIGUOUS") && src.includes("organizationId"),
+    "409 + organizationId attendus pour désambiguïsation"
+  );
+  assert.ok(
+    src.includes("resolveEffectiveHighestRole(client, user.id)") &&
+      !src.includes("resolveEffectiveHighestRole(client, user.id, user.organization_id)"),
+    "rôle effectif : pas de 3e argument organization_id"
   );
   assert.ok(
     !src.match(/rbac_roles rr[\s\S]*organization_id = \$2/),
-    "pas de filtre rbac organization_id = $2 (source de LOGIN_NO_ROLE)"
+    "pas de filtre rbac organization_id = $2 (source historique de LOGIN_NO_ROLE)"
   );
 });

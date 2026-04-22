@@ -11,6 +11,10 @@ import {
 import { resolveEffectiveHighestRole } from "../lib/superAdminUserGuards.js";
 import { syncAdminRbacOnLogin } from "../rbac/rbac.service.js";
 
+/** Aligné sur auth.middleware (validation organizationId login). */
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 export async function login(req, res) {
   if (process.env.NODE_ENV !== "production") {
     console.log("LOGIN START");
@@ -19,6 +23,9 @@ export async function login(req, res) {
   }
 
   const { email, password } = req.body ?? {};
+  const bodyOrgRaw = req.body?.organizationId ?? req.body?.organization_id;
+  const bodyOrganizationId =
+    typeof bodyOrgRaw === "string" ? bodyOrgRaw.trim() : "";
 
   if (!email || !password) {
     return res.status(400).json({ error: "email et password requis" });
@@ -33,10 +40,11 @@ export async function login(req, res) {
   try {
     client = await pool.connect();
     const result = await client.query(
-      `SELECT u.id, u.email, u.organization_id, u.password_hash
+      `SELECT u.id, u.email, u.organization_id, u.password_hash, o.name AS organization_name
        FROM users u
+       LEFT JOIN organizations o ON o.id = u.organization_id
        WHERE LOWER(TRIM(u.email)) = $1 AND u.status = 'active'
-       ORDER BY u.created_at DESC`,
+       ORDER BY u.created_at ASC`,
       [emailNorm]
     );
 
@@ -54,8 +62,13 @@ export async function login(req, res) {
       return res.status(401).json({ error: "Identifiants invalides" });
     }
 
-    /** Plusieurs orgs peuvent partager le même email (unique = org+email) : on trouve la ligne dont le hash correspond. */
-    let user = null;
+    /**
+     * Contrainte DB : UNIQUE (organization_id, email). Plusieurs lignes = même email dans des orgs différentes.
+     * Si le même mot de passe a été réutilisé, plusieurs lignes peuvent valider bcrypt : il faut désambiguïser
+     * (organizationId dans le body), sinon 409 LOGIN_ORG_AMBIGUOUS.
+     * Ancien bug : `ORDER BY created_at DESC` + `break` au premier match → compte le plus récent gagnait toujours.
+     */
+    const passwordMatches = [];
     for (const row of result.rows) {
       if (!row?.password_hash || typeof row.password_hash !== "string") continue;
       let valid = false;
@@ -71,11 +84,43 @@ export async function login(req, res) {
         }
         return;
       }
-      if (valid) {
-        user = row;
-        break;
+      if (valid) passwordMatches.push(row);
+    }
+
+    let user = null;
+    if (passwordMatches.length === 1) {
+      user = passwordMatches[0];
+    } else if (passwordMatches.length > 1) {
+      if (!bodyOrganizationId) {
+        return res.status(409).json({
+          error:
+            "Plusieurs comptes actifs pour cet email. Choisissez l’organisation ou indiquez organizationId.",
+          code: "LOGIN_ORG_AMBIGUOUS",
+          organizations: passwordMatches.map((m) => ({
+            id: m.organization_id,
+            name: m.organization_name ?? null
+          }))
+        });
+      }
+      if (!UUID_RE.test(bodyOrganizationId)) {
+        return res.status(400).json({ error: "organizationId invalide", code: "INVALID_ORG_ID" });
+      }
+      user = passwordMatches.find((m) => String(m.organization_id) === bodyOrganizationId) ?? null;
+      if (!user) {
+        await recordLoginFailure(req, emailNorm);
+        void logAuditEvent({
+          action: AuditActions.AUTH_LOGIN_FAILURE,
+          entityType: "auth",
+          organizationId: null,
+          userId: null,
+          req,
+          statusCode: 401,
+          metadata: { login_failure_reason: "org_mismatch_multi_account_email" }
+        });
+        return res.status(401).json({ error: "Identifiants invalides" });
       }
     }
+
     if (!user) {
       await recordLoginFailure(req, emailNorm);
       void logAuditEvent({
