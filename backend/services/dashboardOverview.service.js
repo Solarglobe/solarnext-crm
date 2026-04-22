@@ -7,6 +7,11 @@
 import { pool } from "../config/db.js";
 import { getUserPermissions } from "../rbac/rbac.service.js";
 import {
+  resolveEffectiveHighestRole,
+  SUPER_ADMIN_ROLE_CODE,
+} from "../lib/superAdminUserGuards.js";
+import { isSuperAdminBypassEnabled } from "../config/rbacMode.js";
+import {
   num,
   ratePercent,
   avgMoneyOrNull,
@@ -81,10 +86,18 @@ export async function buildDashboardOverview(input) {
   const uid = input.userId;
   const period = resolveDashboardPeriod(input);
 
-  const perms = await getUserPermissions({ userId: uid, organizationId: org });
-  const canReadAll =
-    perms.has("lead.read.all") || perms.has("quote.manage") || perms.has("invoice.manage");
-  const canReadSelf = perms.has("lead.read.self");
+  const effective = await resolveEffectiveHighestRole(pool, uid);
+  let canReadAll = false;
+  let canReadSelf = false;
+  if (effective === SUPER_ADMIN_ROLE_CODE && isSuperAdminBypassEnabled()) {
+    canReadAll = true;
+    canReadSelf = true;
+  } else {
+    const perms = await getUserPermissions({ userId: uid, organizationId: org });
+    canReadAll =
+      perms.has("lead.read.all") || perms.has("quote.manage") || perms.has("invoice.manage");
+    canReadSelf = perms.has("lead.read.self");
+  }
 
   if (!canReadAll && !canReadSelf) {
     const err = new Error("Forbidden");
