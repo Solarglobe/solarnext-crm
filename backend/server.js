@@ -1,3 +1,4 @@
+console.log("SERVER START WITHOUT MIGRATIONS");
 console.log("🔥 REAL BACKEND STARTED 🔥");
 // ======================================================================
 // SMARTPITCH V8 — SERVER.JS
