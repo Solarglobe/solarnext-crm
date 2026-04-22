@@ -10,11 +10,8 @@ import { persistGeometryHashForStudyVersion } from "./calpinageGeometryHash.js";
 import { lockCalpinageVersion } from "./calpinageDataConcurrency.js";
 import { withPgRetryOnce } from "../../utils/pgRetry.js";
 import { createPdfRenderToken } from "../pdfRenderToken.service.js";
+import { getPdfRendererBaseUrl } from "../pdfGeneration.service.js";
 
-const RENDERER_BASE =
-  process.env.PDF_RENDERER_BASE_URL ||
-  process.env.FRONTEND_URL ||
-  "http://localhost:5173";
 const RENDER_READY_TIMEOUT =
   parseInt(process.env.CALPINAGE_RENDER_READY_TIMEOUT || "60000", 10);
 const PAGE_LOAD_TIMEOUT = 15000;
@@ -43,7 +40,7 @@ export async function generateCalpinageSnapshotForVersion(studyId, studyVersionI
   }
 
   const renderToken = createPdfRenderToken(studyId, studyVersionId, organizationId);
-  const base = RENDERER_BASE.replace(/\/$/, "");
+  const base = getPdfRendererBaseUrl();
   const renderUrl = `${base}/calpinage-render?studyId=${encodeURIComponent(studyId)}&versionId=${encodeURIComponent(studyVersionId)}&renderToken=${encodeURIComponent(renderToken)}`;
 
   let browser;

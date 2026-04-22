@@ -21,11 +21,27 @@ export function runUrlTests() {
   passed = 0;
   failed = 0;
   const origTestUrl = process.env.PDF_RENDERER_TEST_URL;
+  const origPdfBase = process.env.PDF_RENDERER_BASE_URL;
+  const origFront = process.env.FRONTEND_URL;
+  const origNodeEnv = process.env.NODE_ENV;
 
   try {
+    // getPdfRendererBaseUrl() exige une base en production sans localhost implicite
+    process.env.PDF_RENDERER_BASE_URL = "http://localhost:5173";
+    delete process.env.FRONTEND_URL;
+    if (origNodeEnv === "production") {
+      process.env.NODE_ENV = "development";
+    }
+
     const restore = () => {
       if (origTestUrl !== undefined) process.env.PDF_RENDERER_TEST_URL = origTestUrl;
       else delete process.env.PDF_RENDERER_TEST_URL;
+      if (origPdfBase !== undefined) process.env.PDF_RENDERER_BASE_URL = origPdfBase;
+      else delete process.env.PDF_RENDERER_BASE_URL;
+      if (origFront !== undefined) process.env.FRONTEND_URL = origFront;
+      else delete process.env.FRONTEND_URL;
+      if (origNodeEnv !== undefined) process.env.NODE_ENV = origNodeEnv;
+      else delete process.env.NODE_ENV;
     };
 
     // ——— buildRendererUrl retourne /pdf-render?studyId=...&versionId=... ———
@@ -70,6 +86,12 @@ export function runUrlTests() {
   } catch (e) {
     if (origTestUrl !== undefined) process.env.PDF_RENDERER_TEST_URL = origTestUrl;
     else delete process.env.PDF_RENDERER_TEST_URL;
+    if (origPdfBase !== undefined) process.env.PDF_RENDERER_BASE_URL = origPdfBase;
+    else delete process.env.PDF_RENDERER_BASE_URL;
+    if (origFront !== undefined) process.env.FRONTEND_URL = origFront;
+    else delete process.env.FRONTEND_URL;
+    if (origNodeEnv !== undefined) process.env.NODE_ENV = origNodeEnv;
+    else delete process.env.NODE_ENV;
     fail("runUrlTests", e.message);
   }
 

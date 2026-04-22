@@ -19,14 +19,20 @@ export function getPdfRenderReadyTimeoutMs() {
 }
 
 /**
- * Base URL du renderer (PDF études + financiers). Jamais vide si la chaîne de fallback est utilisée.
+ * Base URL du renderer (PDF études + financiers).
+ * En production : obligatoire (Playwright sur Railway ne peut pas servir le front sur localhost:5173).
+ * En dev : repli `http://localhost:5173` (Vite).
  * @returns {string} sans slash final
  */
 export function getPdfRendererBaseUrl() {
-  const raw = (process.env.PDF_RENDERER_BASE_URL || process.env.FRONTEND_URL || "http://localhost:5173").trim();
+  const fromEnv = (process.env.PDF_RENDERER_BASE_URL || process.env.FRONTEND_URL || "").trim();
+  const isProd = process.env.NODE_ENV === "production";
+  const raw = fromEnv || (!isProd ? "http://localhost:5173" : "");
   if (!raw) {
     throw new Error(
-      "PDF impossible : URL du renderer vide. Définir PDF_RENDERER_BASE_URL ou FRONTEND_URL (ex. https://crm.example.com)."
+      isProd
+        ? "PDF impossible en production : définir PDF_RENDERER_BASE_URL ou FRONTEND_URL (URL absolue du front Vercel, ex. https://votre-projet.vercel.app). Le backend appelle ce domaine en Playwright pour /pdf-render, /financial-quote-pdf-render, etc."
+        : "PDF impossible : URL du renderer vide. Définir PDF_RENDERER_BASE_URL ou FRONTEND_URL (ex. https://crm.example.com)."
     );
   }
   let parsed;
