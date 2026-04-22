@@ -15,6 +15,7 @@ import { computeProductionMultiPan } from "../services/productionMultiPan.servic
 import {
   resolvePanelPowerWc,
   computeInstalledKwcRounded2,
+  ENGINE_ERROR_PANEL_REQUIRED,
 } from "../utils/resolvePanelPowerWc.js";
 
 import { buildPilotedProfile } from "../services/pilotageService.js";
@@ -359,8 +360,11 @@ if (devLog) {
     let productionMultiPan = null;
 
     if (useMultiPan) {
-      // moduleWp : puissance réelle du panneau (résolution unifiée), sinon settings (rétrocompatible)
-      const resolvedModuleWp = resolvePanelPowerWc(form?.panel_input) ?? undefined;
+      const resolvedModuleWp = resolvePanelPowerWc(form?.panel_input);
+      if (resolvedModuleWp == null) {
+        console.error("[ENGINE ERROR] Missing panel in study");
+        throw new Error(ENGINE_ERROR_PANEL_REQUIRED);
+      }
       const multiResult = await computeProductionMultiPan({
         site: ctx.site,
         settings: ctx.settings,
@@ -371,10 +375,9 @@ if (devLog) {
       productionMultiPan = multiResult;
       const pvHourly = solarModelService.buildHourlyPV(multiResult.monthlyKwh, ctx);
       const maxPanelsMp = Math.floor(Number(form?.maison?.panneaux_max || 0));
-      const panelWcMp = resolvePanelPowerWc(form?.panel_input);
       const installedKwcMp =
-        panelWcMp != null && maxPanelsMp > 0
-          ? computeInstalledKwcRounded2(maxPanelsMp, panelWcMp)
+        maxPanelsMp > 0
+          ? computeInstalledKwcRounded2(maxPanelsMp, resolvedModuleWp)
           : null;
       ctx.pv = {
         hourly: pvHourly,
@@ -418,7 +421,7 @@ if (devLog) {
         }
       }
 
-      const kwc = resolveKwcMono(form, ctx.settings);
+      const kwc = resolveKwcMono(form);
       const monthly_total = (pvMonthly.monthly_kwh || []).map((v) => (Number(v) || 0) * kwc);
       const pvHourly = solarModelService.buildHourlyPV(monthly_total, ctx);
       const annual_total = monthly_total.reduce((a, b) => a + b, 0);
@@ -689,7 +692,7 @@ if (devLog) {
           baseScenario.kwc ??
           baseScenario.metadata?.kwc ??
           ctx.pv?.kwc ??
-          resolveKwcMono(ctx.form, ctx.settings);
+          resolveKwcMono(ctx.form);
 
         let vbSim = null;
 
@@ -1407,22 +1410,23 @@ async function buildBaseScenarioOnly(ctx) {
 // ======================================================================
 // kWc mode mono (pour scaling PV 1 kWp → total installation)
 // ======================================================================
-function resolveKwcMono(form, settings) {
+function resolveKwcMono(form) {
   const forced = Number(form?.forcage?.puissance_kwc || 0);
   if (Number.isFinite(forced) && forced > 0) return forced;
   const explicit = Number(form?.system_kwc ?? form?.maison?.system_kwc ?? 0);
   if (Number.isFinite(explicit) && explicit > 0) return explicit;
-  const pricing = settings?.pricing || {};
-  // Priorité 1 : puissance réelle du panneau sélectionné dans le devis (injectée par solarnextPayloadBuilder)
-  // Priorité 2 : kit_panel_power_w org settings (fallback rétrocompatible)
+
   const panelPowerFromDevis = resolvePanelPowerWc(form?.panel_input);
-  const panelWp =
-    panelPowerFromDevis != null
-      ? panelPowerFromDevis
-      : Number(pricing.kit_panel_power_w || 485);
+  if (panelPowerFromDevis == null) {
+    console.error("[ENGINE ERROR] Missing panel in study");
+    throw new Error(ENGINE_ERROR_PANEL_REQUIRED);
+  }
   const maxPanels = Number(form?.maison?.panneaux_max || 0);
-  if (maxPanels > 0) return Math.round((maxPanels * panelWp) / 1000 * 100) / 100;
-  return 1;
+  if (maxPanels > 0) {
+    return Math.round((maxPanels * panelPowerFromDevis) / 1000 * 100) / 100;
+  }
+  console.error("[ENGINE ERROR] Missing panel in study");
+  throw new Error(ENGINE_ERROR_PANEL_REQUIRED);
 }
 
 // ======================================================================
@@ -1435,6 +1439,11 @@ function buildContext(form, settings) {
     if (v === null || v === undefined) return null;
     return Number(String(v).replace(",", "."));
   };
+
+  const rawSettings = settings && typeof settings === "object" ? settings : {};
+  const mergedEconomics = mergeOrgEconomicsPartial(
+    rawSettings.economics && typeof rawSettings.economics === "object" ? rawSettings.economics : null
+  );
 
   return {
     meta: {
@@ -1462,13 +1471,17 @@ function buildContext(form, settings) {
       etages: Number(take(form, "maison.etages", 1))
     },
 
-    pricing: settings.pricing || {},
-    economics: mergeOrgEconomicsPartial(
-      settings.economics && typeof settings.economics === "object" ? settings.economics : null
-    ),
+    pricing: rawSettings.pricing || {},
+    economics: mergedEconomics,
+    /** financeService / economicsResolve lisent ctx.settings.economics — obligatoire pour primes, OA, etc. */
+    settings: {
+      ...rawSettings,
+      pricing: rawSettings.pricing || {},
+      economics: mergedEconomics,
+    },
     organization_settings:
-      settings?.organization_settings && typeof settings.organization_settings === "object"
-        ? settings.organization_settings
+      rawSettings?.organization_settings && typeof rawSettings.organization_settings === "object"
+        ? rawSettings.organization_settings
         : {
             virtual_battery_activation_cost_ttc: null,
           },

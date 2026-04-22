@@ -45,9 +45,12 @@ const _dir = new THREE.Vector3();
 
 /**
  * @param aspect largeur / hauteur du viewport (> 0)
+ * @param framingMargin multiplicateur de distance (défaut `VIEWER_FRAMING_MARGIN`)
  */
-export function computeViewerFraming(box: THREE.Box3, aspect: number): ViewerFraming {
+export function computeViewerFraming(box: THREE.Box3, aspect: number, framingMargin = VIEWER_FRAMING_MARGIN): ViewerFraming {
   const a = Number.isFinite(aspect) && aspect > 0 ? aspect : 1;
+  const margin =
+    Number.isFinite(framingMargin) && framingMargin > 1 ? framingMargin : VIEWER_FRAMING_MARGIN;
   box.getCenter(_center);
   box.getSize(_size);
   box.getBoundingSphere(_sphere);
@@ -59,7 +62,7 @@ export function computeViewerFraming(box: THREE.Box3, aspect: number): ViewerFra
   const distVert = radius / Math.sin(vFovRad / 2);
   const halfHoriz = Math.hypot(_size.x, _size.y) / 2;
   const distHoriz = halfHoriz > 1e-6 ? halfHoriz / Math.tan(hFovRad / 2) : distVert;
-  const distance = VIEWER_FRAMING_MARGIN * Math.max(distVert, distHoriz, radius * 1.05);
+  const distance = margin * Math.max(distVert, distHoriz, radius * 1.05);
 
   _dir.set(VIEWER_DEFAULT_CAMERA_OFFSET.x, VIEWER_DEFAULT_CAMERA_OFFSET.y, VIEWER_DEFAULT_CAMERA_OFFSET.z).normalize();
   const position = _center.clone().add(_dir.multiplyScalar(distance));
@@ -88,15 +91,18 @@ export function computeViewerFraming(box: THREE.Box3, aspect: number): ViewerFra
 export function computePlanOrthographicFraming(
   box: THREE.Box3,
   aspect: number,
+  framingMargin = VIEWER_FRAMING_MARGIN,
 ): PlanOrthographicFraming {
   const a = Number.isFinite(aspect) && aspect > 0 ? aspect : 1;
+  const margin =
+    Number.isFinite(framingMargin) && framingMargin > 1 ? framingMargin : VIEWER_FRAMING_MARGIN;
   box.getCenter(_center);
   box.getSize(_size);
   box.getBoundingSphere(_sphere);
   const radius = Math.max(_sphere.radius, 1e-4);
 
-  let halfW = (_size.x / 2) * VIEWER_FRAMING_MARGIN;
-  let halfH = (_size.y / 2) * VIEWER_FRAMING_MARGIN;
+  let halfW = (_size.x / 2) * margin;
+  let halfH = (_size.y / 2) * margin;
   const ar = halfW / Math.max(halfH, 1e-9);
   if (ar > a) {
     halfH = halfW / a;
@@ -105,7 +111,7 @@ export function computePlanOrthographicFraming(
   }
 
   const target = new THREE.Vector3(_center.x, _center.y, _center.z);
-  const dist = VIEWER_FRAMING_MARGIN * Math.max(radius * 1.05, Math.hypot(halfW, halfH));
+  const dist = margin * Math.max(radius * 1.05, Math.hypot(halfW, halfH));
   const jitter = Math.max(1e-5, radius * 1e-6);
   const position = new THREE.Vector3(_center.x + jitter, _center.y + jitter, _center.z + dist);
 

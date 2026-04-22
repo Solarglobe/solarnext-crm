@@ -2,12 +2,12 @@
  * Test Node du module geoEntity3D (normalisation 3D-ready).
  * Exécuter : node scripts/test-geo-entity-3d.js
  *
- * Utilise la version CJS compilée (frontend/public/calpinage/geometry/geoEntity3D.cjs).
+ * Utilise la version CJS compilée (backend/calpinage-legacy-assets/geometry/geoEntity3D.cjs).
  * Si absente, exécuter d'abord : cd frontend && npm run build:geom3d
  */
 
 const path = require("path");
-const geomPath = path.join(__dirname, "../frontend/public/calpinage/geometry/geoEntity3D.cjs");
+const geomPath = path.join(__dirname, "../backend/calpinage-legacy-assets/geometry/geoEntity3D.cjs");
 let geoEntity3D;
 try {
   geoEntity3D = require(geomPath);
@@ -29,7 +29,7 @@ const {
 
 let houseModelV2;
 try {
-  houseModelV2 = require(path.join(__dirname, "../frontend/public/calpinage/geometry/geoEntity3D.cjs")).houseModelV2;
+    houseModelV2 = require(path.join(__dirname, "../backend/calpinage-legacy-assets/geometry/geoEntity3D.cjs")).houseModelV2;
 } catch {
   houseModelV2 = null;
 }

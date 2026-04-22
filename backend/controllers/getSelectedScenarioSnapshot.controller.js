@@ -26,20 +26,10 @@ export async function getSelectedScenarioSnapshot(req, res) {
       return res.status(400).json({ ok: false, error: "studyId et versionId requis" });
     }
 
-    const row = await getSelectedScenarioSnapshotRow(versionId);
+    const row = await getSelectedScenarioSnapshotRow(versionId, org);
 
     if (!row) {
       return res.status(404).json({ ok: false, error: "STUDY_VERSION_NOT_FOUND" });
-    }
-
-    if (row.organization_id !== org) {
-      logger.warn("LOG_SELECTED_SCENARIO_SNAPSHOT_FORBIDDEN", {
-        studyId,
-        versionId,
-        orgRequested: org,
-        orgActual: row.organization_id,
-      });
-      return res.status(403).json({ ok: false, error: "FORBIDDEN_CROSS_ORG" });
     }
 
     if (row.study_id !== studyId) {

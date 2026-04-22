@@ -31,7 +31,8 @@ export function defaultClientVisibleForCategory(category) {
   return (
     category === ENTITY_DOCUMENT_CATEGORY.QUOTE ||
     category === ENTITY_DOCUMENT_CATEGORY.INVOICE ||
-    category === ENTITY_DOCUMENT_CATEGORY.COMMERCIAL_PROPOSAL
+    category === ENTITY_DOCUMENT_CATEGORY.COMMERCIAL_PROPOSAL ||
+    category === ENTITY_DOCUMENT_CATEGORY.DP
   );
 }
 
@@ -67,17 +68,50 @@ function manualDefaultsForDocumentType(documentType) {
         source_type: ENTITY_DOCUMENT_SOURCE_TYPE.MANUAL_UPLOAD,
         is_client_visible: true,
       };
+    case "dp_pdf":
+      return {
+        document_category: ENTITY_DOCUMENT_CATEGORY.DP,
+        source_type: ENTITY_DOCUMENT_SOURCE_TYPE.MANUAL_UPLOAD,
+        is_client_visible: defaultClientVisibleForCategory(ENTITY_DOCUMENT_CATEGORY.DP),
+      };
     case "organization_pdf_cover":
       return {
         document_category: ENTITY_DOCUMENT_CATEGORY.ADMINISTRATIVE,
         source_type: ENTITY_DOCUMENT_SOURCE_TYPE.MANUAL_UPLOAD,
         is_client_visible: false,
       };
+    case "organization_legal_cgv":
+      return {
+        document_category: ENTITY_DOCUMENT_CATEGORY.ADMINISTRATIVE,
+        source_type: ENTITY_DOCUMENT_SOURCE_TYPE.MANUAL_UPLOAD,
+        is_client_visible: false,
+        display_name: "Conditions Générales de Vente (PDF)",
+      };
+    case "organization_legal_rge":
+      return {
+        document_category: ENTITY_DOCUMENT_CATEGORY.ADMINISTRATIVE,
+        source_type: ENTITY_DOCUMENT_SOURCE_TYPE.MANUAL_UPLOAD,
+        is_client_visible: false,
+        display_name: "Attestation RGE",
+      };
+    case "organization_legal_decennale":
+      return {
+        document_category: ENTITY_DOCUMENT_CATEGORY.ADMINISTRATIVE,
+        source_type: ENTITY_DOCUMENT_SOURCE_TYPE.MANUAL_UPLOAD,
+        is_client_visible: false,
+        display_name: "Assurance décennale",
+      };
     case "lead_attachment":
     case "study_attachment":
       return {
         document_category: ENTITY_DOCUMENT_CATEGORY.OTHER,
         source_type: ENTITY_DOCUMENT_SOURCE_TYPE.MANUAL_UPLOAD,
+        is_client_visible: false,
+      };
+    case "mail_attachment":
+      return {
+        document_category: ENTITY_DOCUMENT_CATEGORY.OTHER,
+        source_type: ENTITY_DOCUMENT_SOURCE_TYPE.SYSTEM_GENERATED,
         is_client_visible: false,
       };
     default:
@@ -133,6 +167,7 @@ export function resolveManualUploadDocumentMeta(documentType, body) {
  * @param {string|null} [opts.numberForLabel] — ex. numéro devis / facture pour display_name
  * @param {string|null} [opts.displayName] — force le libellé métier
  * @param {string|null} [opts.fileName] — nom fichier physique (ex. étude PDF)
+ * @param {string|null} [opts.dpPiece] — pièce DP (mandat, DP1, CERFA, …)
  * @param {boolean} [opts.manualConsumptionCsv] — CSV conso uploadé à la main via CRM
  * @param {string|null} [opts.description]
  */
@@ -140,6 +175,7 @@ export function resolveSystemDocumentMetadata(documentType, opts = {}) {
   const displayNameOverride = trimOrNull(opts.displayName);
   const description = trimOrNull(opts.description);
   const num = trimOrNull(opts.numberForLabel);
+  const dpPiece = trimOrNull(opts.dpPiece);
 
   const dt = documentType ? String(documentType) : "";
 
@@ -177,6 +213,14 @@ export function resolveSystemDocumentMetadata(documentType, opts = {}) {
         display_name: displayNameOverride || stripPdfExtension(opts.fileName) || null,
         description,
       };
+    case "dp_pdf":
+      return {
+        document_category: ENTITY_DOCUMENT_CATEGORY.DP,
+        source_type: ENTITY_DOCUMENT_SOURCE_TYPE.SYSTEM_GENERATED,
+        is_client_visible: true,
+        display_name: displayNameOverride || (dpPiece ? `DP — ${dpPiece}` : stripPdfExtension(opts.fileName)) || null,
+        description,
+      };
     case "quote_signature_client":
     case "quote_signature_company":
       return {
@@ -211,6 +255,14 @@ export function resolveSystemDocumentMetadata(documentType, opts = {}) {
         source_type: ENTITY_DOCUMENT_SOURCE_TYPE.MANUAL_UPLOAD,
         is_client_visible: false,
         display_name: displayNameOverride,
+        description,
+      };
+    case "mail_attachment":
+      return {
+        document_category: ENTITY_DOCUMENT_CATEGORY.OTHER,
+        source_type: ENTITY_DOCUMENT_SOURCE_TYPE.SYSTEM_GENERATED,
+        is_client_visible: false,
+        display_name: displayNameOverride || stripPdfExtension(opts.fileName) || null,
         description,
       };
     default:

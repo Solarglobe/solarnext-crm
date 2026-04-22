@@ -8,7 +8,7 @@ import { aggregateMonthly } from "../monthlyAggregator.js";
 import {
   resolvePanelPowerWc,
   computeInstalledKwcRounded2,
-  LEGACY_FALLBACK_PANEL_WC,
+  ENGINE_ERROR_PANEL_REQUIRED,
 } from "../../utils/resolvePanelPowerWc.js";
 
 const HOURS_PER_YEAR = 8760;
@@ -192,12 +192,8 @@ function resolveKwc(ctx) {
   if (maxPanels > 0 && realPanelWc != null) {
     return computeInstalledKwcRounded2(maxPanels, realPanelWc);
   }
-  const pricing = ctx?.settings?.pricing || {};
-  const panelWp = Number(pricing.kit_panel_power_w || LEGACY_FALLBACK_PANEL_WC);
-  if (maxPanels > 0) {
-    return Math.round((maxPanels * panelWp) / 1000 * 100) / 100;
-  }
-  return 0;
+  console.error("[ENGINE ERROR] Missing panel in study");
+  throw new Error(ENGINE_ERROR_PANEL_REQUIRED);
 }
 
 function resolveNbPanneaux(ctx) {

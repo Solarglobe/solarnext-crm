@@ -19,6 +19,10 @@ import {
   structuralRoofLineRawUsable,
 } from "./calpinageStructuralRoofFromRuntime";
 import { calpinageStateToLegacyRoofInput } from "../adapter/calpinageStateToLegacyRoofInput";
+import { coerceFiniteRoofHeightMInput, finiteRoofHeightMOrUndefined } from "../core/vertexHeightSemantics";
+import { readOfficialRoofPanRecordsForCanonical3D } from "./readOfficialCalpinageGeometryForCanonical3D";
+import { resolvePanPolygonFor3D } from "./resolvePanPolygonFor3D";
+import { recordAutopsyLegacyRoofPath } from "../canonical3d/dev/runtime3DAutopsy";
 
 const DEFAULT_MODULE_W_M = 1;
 const DEFAULT_MODULE_H_M = 1.7;
@@ -35,7 +39,7 @@ function polygonCentroidPx(poly: ReadonlyArray<{ x: number; y: number }>): { x: 
   return { x: sx / n, y: sy / n };
 }
 
-function mapStructuralRidges(ridges: unknown[] | undefined): LegacyStructuralLine2D[] {
+export function mapStructuralRidges(ridges: readonly unknown[] | undefined): LegacyStructuralLine2D[] {
   if (!Array.isArray(ridges)) return [];
   const out: LegacyStructuralLine2D[] = [];
   for (let i = 0; i < ridges.length; i++) {
@@ -54,7 +58,7 @@ function mapStructuralRidges(ridges: unknown[] | undefined): LegacyStructuralLin
   return out;
 }
 
-function mapStructuralTraits(traits: unknown[] | undefined): LegacyStructuralLine2D[] {
+export function mapStructuralTraits(traits: readonly unknown[] | undefined): LegacyStructuralLine2D[] {
   if (!Array.isArray(traits)) return [];
   const out: LegacyStructuralLine2D[] = [];
   for (let i = 0; i < traits.length; i++) {
@@ -76,7 +80,7 @@ function mapStructuralTraits(traits: unknown[] | undefined): LegacyStructuralLin
 /**
  * Vérifie qu'un `LegacyRoofGeometryInput` est utilisable pour le pipeline 3D (rejet → fallback mapper historique).
  */
-function isExploitableLegacyRoofGeometryInput(
+export function isExploitableLegacyRoofGeometryInput(
   input: LegacyRoofGeometryInput | null | undefined,
 ): input is LegacyRoofGeometryInput {
   if (input == null) return false;
@@ -89,16 +93,62 @@ function isExploitableLegacyRoofGeometryInput(
   return true;
 }
 
+export type MapCalpinageRoofToLegacyRoofGeometryInputOptions = {
+  /** Produit : `state.pans` racine seule (pas de miroir `roof.roofPans`). */
+  readonly productStrictStatePans?: boolean;
+  /**
+   * Produit : n’appelle pas le mapper fallback pauvre (`defaultHeightM: 5`, traits/ridges sans Z).
+   * Retourne `null` si le chemin riche n’est pas exploitable.
+   */
+  readonly disallowPoorLegacyFallback?: boolean;
+  /**
+   * Désactive le rapprochement px entre sommets de pans distincts — voir `CalpinageRoofAdapterOptions.skipInterPanVertexSnap`.
+   */
+  readonly skipInterPanVertexSnap?: boolean;
+};
+
+/**
+ * Preset **un seul bâtiment** : `state.pans` strict, pas de snap inter-pans (meilleure fidélité aux cotes).
+ * Ajoutez `disallowPoorLegacyFallback: true` si vous préférez échouer plutôt que le repli `defaultHeightM: 5`.
+ */
+export function optimalSingleBuildingLegacyRoofMapOptions(): MapCalpinageRoofToLegacyRoofGeometryInputOptions {
+  return {
+    productStrictStatePans: true,
+    skipInterPanVertexSnap: true,
+  };
+}
+
+/** Copie tableaux pour `calpinageStateToLegacyRoofInput` (contrat `unknown[]` mutable) sans changer la sémantique. */
+function structuralPayloadToLegacyMutable(
+  structural:
+    | { readonly ridges?: readonly unknown[]; readonly traits?: readonly unknown[] }
+    | null
+    | undefined,
+): { ridges?: unknown[]; traits?: unknown[] } | undefined {
+  if (structural == null) return undefined;
+  const ridges = structural.ridges;
+  const traits = structural.traits;
+  if (!ridges && !traits) return undefined;
+  return {
+    ...(ridges ? { ridges: [...ridges] } : {}),
+    ...(traits ? { traits: [...traits] } : {}),
+  };
+}
+
 /**
  * Mapper historique (comportement strict inchangé) — repli si `calpinageStateToLegacyRoofInput` est indisponible ou invalide.
  */
 function mapCalpinageRoofToLegacyRoofGeometryInputFallback(
   roof: unknown,
-  structural?: { ridges?: unknown[]; traits?: unknown[] } | null,
+  structural?: { readonly ridges?: readonly unknown[]; readonly traits?: readonly unknown[] } | null,
+  runtimeRoot?: unknown,
 ): LegacyRoofGeometryInput | null {
   if (!roof || typeof roof !== "object") return null;
   const r = roof as Record<string, unknown>;
-  const pansRaw = r.roofPans;
+  const panRead = readOfficialRoofPanRecordsForCanonical3D(
+    runtimeRoot !== undefined ? runtimeRoot : { roof },
+  );
+  const pansRaw = panRead.pans;
   if (!Array.isArray(pansRaw) || pansRaw.length === 0) return null;
   const scale = r.scale as { metersPerPixel?: number } | undefined;
   const mpp = scale?.metersPerPixel;
@@ -109,19 +159,15 @@ function mapCalpinageRoofToLegacyRoofGeometryInputFallback(
   const pans: LegacyPanInput[] = [];
   for (let i = 0; i < pansRaw.length; i++) {
     const pan = pansRaw[i] as Record<string, unknown>;
-    const poly =
-      (pan.polygonPx as { x: number; y: number }[] | undefined) ||
-      (pan.points as { x: number; y: number }[] | undefined) ||
-      (pan.contour as { points?: { x: number; y: number }[] } | undefined)?.points;
-    if (!Array.isArray(poly) || poly.length < 3) continue;
+    const resolved = resolvePanPolygonFor3D(pan);
+    const poly = resolved.raw as { x: number; y: number }[] | undefined;
+    if (!poly || poly.length < 3) continue;
     const polygonPx: LegacyImagePoint2D[] = poly.map((pt) => {
       const xPx = typeof pt.x === "number" ? pt.x : 0;
       const yPx = typeof pt.y === "number" ? pt.y : 0;
       const pr = pt as { heightM?: unknown; h?: unknown };
       const hRaw = pr.heightM !== undefined ? pr.heightM : pr.h;
-      // h === 0 sur un toit est un placeholder artificiel (ancien ensurePanPhysicalProps) → ignoré
-      const heightM =
-        typeof hRaw === "number" && Number.isFinite(hRaw) && hRaw !== 0 ? hRaw : undefined;
+      const heightM = finiteRoofHeightMOrUndefined(coerceFiniteRoofHeightMInput(hRaw));
       return heightM !== undefined ? { xPx, yPx, heightM } : { xPx, yPx };
     });
     pans.push({
@@ -150,20 +196,41 @@ function mapCalpinageRoofToLegacyRoofGeometryInputFallback(
  *
  * 1) Tente `calpinageStateToLegacyRoofInput` (Z sommets / faîtages / hints `physical`) — sans warning console en usage normal.
  * 2) Si résultat non exploitable, repli strict sur le mapper historique (`defaultHeightM: 5`, ridges/traits XY seuls).
+ *
+ * @param runtimeRoot — `CALPINAGE_STATE` complet : **obligatoire** pour prioriser `state.pans` sur `roof.roofPans`.
  */
 export function mapCalpinageRoofToLegacyRoofGeometryInput(
   roof: unknown,
-  structural?: { ridges?: unknown[]; traits?: unknown[] } | null
+  structural?: { readonly ridges?: readonly unknown[]; readonly traits?: readonly unknown[] } | null,
+  runtimeRoot?: unknown,
+  options?: MapCalpinageRoofToLegacyRoofGeometryInputOptions,
 ): LegacyRoofGeometryInput | null {
+  const strict = options?.productStrictStatePans === true;
+  const noPoor = options?.disallowPoorLegacyFallback === true;
   try {
-    const rich = calpinageStateToLegacyRoofInput(roof, structural ?? undefined, {
-      warnIfNoRuntime: false,
-    });
-    if (isExploitableLegacyRoofGeometryInput(rich)) return rich;
+    const rich = calpinageStateToLegacyRoofInput(
+      roof,
+      structuralPayloadToLegacyMutable(structural),
+      {
+        warnIfNoRuntime: false,
+        productStrictStatePansOnly: strict,
+        ...(options?.skipInterPanVertexSnap === true ? { skipInterPanVertexSnap: true } : {}),
+      },
+      runtimeRoot,
+    );
+    if (isExploitableLegacyRoofGeometryInput(rich)) {
+      recordAutopsyLegacyRoofPath("rich");
+      return rich;
+    }
   } catch {
     /* défense : ne jamais casser le pipeline si le chemin riche lève */
   }
-  return mapCalpinageRoofToLegacyRoofGeometryInputFallback(roof, structural);
+  if (noPoor) {
+    recordAutopsyLegacyRoofPath("none");
+    return null;
+  }
+  recordAutopsyLegacyRoofPath("fallback");
+  return mapCalpinageRoofToLegacyRoofGeometryInputFallback(roof, structural, runtimeRoot);
 }
 
 export function mapNearObstaclesToVolumeInputs(
@@ -300,12 +367,27 @@ export function mapPanelsToPvPlacementInputs(
         ? { x: p.center.x, y: p.center.y }
         : polygonCentroidPx(poly);
     const panIdForZ = p.panId != null ? String(p.panId) : null;
-    const z =
-      typeof extras?.resolveZWorldAtImageWithPanId === "function"
-        ? extras.resolveZWorldAtImageWithPanId({ x: c.x, y: c.y }, panIdForZ)
-        : typeof getHeightAtImagePoint === "function"
-          ? getHeightAtImagePoint({ x: c.x, y: c.y })
-          : 0;
+    let z: number;
+    if (typeof extras?.resolveZWorldAtImageWithPanId === "function") {
+      const rawZ = extras.resolveZWorldAtImageWithPanId({ x: c.x, y: c.y }, panIdForZ);
+      if (typeof rawZ === "number" && Number.isFinite(rawZ)) {
+        z = rawZ;
+      } else {
+        diag.push(`${panelLabel}: Z centre — valeur non finie depuis resolveZWorldAtImageWithPanId (0 non métier)`);
+        z = 0;
+      }
+    } else if (typeof getHeightAtImagePoint === "function") {
+      const rawZ = getHeightAtImagePoint({ x: c.x, y: c.y });
+      if (typeof rawZ === "number" && Number.isFinite(rawZ)) {
+        z = rawZ;
+      } else {
+        diag.push(`${panelLabel}: Z centre — getHeightAtImagePoint non fini (0 non métier)`);
+        z = 0;
+      }
+    } else {
+      diag.push(`${panelLabel}: Z centre — aucun fournisseur hauteur (0 legacy explicite)`);
+      z = 0;
+    }
     const xy = imagePxToWorldHorizontalM(c.x, c.y, metersPerPixel, northAngleDeg);
     const { w, h } = getPanelModuleDimsM(p);
     const rot = normalizeRotationDegInPlane(p.rotationDeg ?? 0, p.localRotationDeg ?? 0);

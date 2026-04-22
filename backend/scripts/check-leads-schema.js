@@ -21,7 +21,7 @@ async function main() {
   const usedInGetAll = [
     "id", "first_name", "last_name", "email", "phone", "address",
     "estimated_kw", "score", "potential_revenue", "inactivity_level", "status",
-    "stage_id", "assigned_to", "created_at", "updated_at", "last_activity_at"
+    "stage_id", "assigned_user_id", "created_at", "updated_at", "last_activity_at"
   ];
 
   console.log("\n=== VÉRIFICATION COLONNES UTILISÉES DANS getAll ===\n");
@@ -38,12 +38,12 @@ async function main() {
     const testRes = await pool.query(`
       SELECT l.id, l.first_name, l.last_name, l.email, l.phone, l.address,
         l.estimated_kw, l.score, l.potential_revenue, l.inactivity_level, l.status,
-        l.stage_id, l.assigned_to, l.created_at, l.updated_at, l.last_activity_at,
+        l.stage_id, l.assigned_user_id, l.created_at, l.updated_at, l.last_activity_at,
         ps.name as stage_name,
         u.email as assigned_to_email
       FROM leads l
       LEFT JOIN pipeline_stages ps ON ps.id = l.stage_id
-      LEFT JOIN users u ON u.id = l.assigned_to
+      LEFT JOIN users u ON u.id = l.assigned_user_id
       WHERE l.organization_id = '00000000-0000-0000-0000-000000000000' AND (l.archived_at IS NULL)
       ORDER BY l.updated_at DESC
       LIMIT 1

@@ -5,6 +5,8 @@
 import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card } from "../../components/ui/Card";
+import { Button } from "../../components/ui/Button";
+import { BulkEmailModal } from "../../components/leads/BulkEmailModal";
 import { ClientsPortfolioList } from "../../components/clients/ClientsPortfolioList";
 import { ClientsDetailPanel } from "../../components/clients/ClientsDetailPanel";
 import { ClientsFilters } from "../../components/clients/ClientsFilters";
@@ -12,6 +14,8 @@ import {
   fetchLeads,
   fetchLeadsMeta,
   archiveLead,
+  unarchiveLead,
+  isLeadArchivedRecord,
   type Lead,
   type LeadsFilters,
   type ProjectStatus,
@@ -19,6 +23,47 @@ import {
 import { getUserPermissions } from "../../services/auth.service";
 import { computeProjectKpis } from "../../components/clients/projectPvTracking";
 import "./clients-page.css";
+
+const CLIENTS_FILTERS_STORAGE_KEY = "solarnext_clients_filters_v1";
+
+function defaultClientsFilters(): LeadsFilters {
+  return {
+    view: "clients",
+    archive_scope: "active",
+    search: "",
+    assigned_to: "",
+    project_status: undefined,
+    from_date: "",
+    to_date: "",
+    created_from: "",
+    created_to: "",
+    sort: "updated_at",
+    order: "desc",
+    page: 1,
+    limit: 25,
+  };
+}
+
+function readStoredClientsFilters(): LeadsFilters {
+  const base = defaultClientsFilters();
+  if (typeof window === "undefined") return base;
+  try {
+    const raw = localStorage.getItem(CLIENTS_FILTERS_STORAGE_KEY);
+    if (!raw) return base;
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return base;
+    const merged = { ...base, ...(parsed as LeadsFilters) };
+    merged.view = "clients";
+    if (merged.include_archived === true && !merged.archive_scope) {
+      merged.archive_scope = "all";
+      delete merged.include_archived;
+    }
+    if (!merged.archive_scope) merged.archive_scope = "active";
+    return merged;
+  } catch {
+    return base;
+  }
+}
 
 /** IDs API parfois number — tout normaliser en string pour sélection / find. */
 function normalizeClientId(
@@ -34,7 +79,13 @@ function filtersAreActive(f: LeadsFilters): boolean {
       f.assigned_to ||
       f.project_status ||
       (f.from_date && f.from_date !== "") ||
-      (f.to_date && f.to_date !== "")
+      (f.to_date && f.to_date !== "") ||
+      (f.created_from && f.created_from !== "") ||
+      (f.created_to && f.created_to !== "") ||
+      f.marketing_opt_in === true ||
+      f.marketing_opt_in === false ||
+      (f.archive_scope != null && f.archive_scope !== "active") ||
+      f.include_archived === true
   );
 }
 
@@ -46,21 +97,23 @@ export default function ClientsPage() {
   const [users, setUsers] = useState<{ id: string; email?: string }[]>([]);
   /** Même garde que le PATCH lead (statut projet, archivage) — aligné API + auth/permissions. */
   const [canUpdateLead, setCanUpdateLead] = useState(false);
+  const [canBulkEmail, setCanBulkEmail] = useState(false);
+  const [bulkEmailOpen, setBulkEmailOpen] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
-  const [filters, setFilters] = useState<LeadsFilters>({
-    view: "clients",
-    search: "",
-    assigned_to: "",
-    project_status: undefined,
-    from_date: "",
-    to_date: "",
-    sort: "updated_at",
-    order: "desc",
-    page: 1,
-    limit: 25,
-  });
+  const [filters, setFilters] = useState<LeadsFilters>(() =>
+    readStoredClientsFilters()
+  );
 
   const filtersActive = useMemo(() => filtersAreActive(filters), [filters]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(CLIENTS_FILTERS_STORAGE_KEY, JSON.stringify(filters));
+    } catch {
+      /* ignore */
+    }
+  }, [filters]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -74,9 +127,15 @@ export default function ClientsPage() {
       }
       if (filters.from_date) f.from_date = filters.from_date;
       if (filters.to_date) f.to_date = filters.to_date;
+      if (filters.created_from) f.created_from = filters.created_from;
+      if (filters.created_to) f.created_to = filters.created_to;
+      if (filters.marketing_opt_in !== undefined) {
+        f.marketing_opt_in = filters.marketing_opt_in;
+      }
       if (filters.sort) f.sort = filters.sort;
       if (filters.order) f.order = filters.order;
       if (filters.page) f.page = filters.page;
+      if (filters.archive_scope) f.archive_scope = filters.archive_scope;
       const data = await fetchLeads(f);
       setLeads(data);
     } catch (e) {
@@ -113,15 +172,92 @@ export default function ClientsPage() {
       .then((p) => {
         const perms = p.permissions ?? [];
         const superAdmin = p.superAdmin === true;
+        const star = perms.includes("*");
         const can =
           superAdmin ||
-          perms.includes("*") ||
+          star ||
           perms.includes("lead.update.all") ||
           perms.includes("lead.update.self");
         setCanUpdateLead(can);
+        setCanBulkEmail(
+          (star || perms.includes("org.settings.manage")) &&
+            (star || perms.includes("mail.use"))
+        );
       })
-      .catch(() => setCanUpdateLead(false));
+      .catch(() => {
+        setCanUpdateLead(false);
+        setCanBulkEmail(false);
+      });
   }, []);
+
+  useEffect(() => {
+    const ids = new Set(leads.map((l) => String(l.id)));
+    setSelectedIds((prev) => prev.filter((id) => ids.has(id)));
+  }, [leads]);
+
+  const toggleBulkSelect = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const s = String(id);
+      if (prev.includes(s)) return prev.filter((x) => x !== s);
+      return [...prev, s];
+    });
+  }, []);
+
+  const selectAllOnPage = useCallback(() => {
+    const pageIds = leads.map((l) => String(l.id));
+    setSelectedIds((prev) => {
+      const set = new Set(prev);
+      const allOnPage = pageIds.length > 0 && pageIds.every((id) => set.has(id));
+      if (allOnPage) {
+        pageIds.forEach((id) => set.delete(id));
+      } else {
+        pageIds.forEach((id) => set.add(id));
+      }
+      return Array.from(set);
+    });
+  }, [leads]);
+
+  const clearBulkSelection = useCallback(() => setSelectedIds([]), []);
+
+  const handleBulkArchive = useCallback(async () => {
+    if (!canUpdateLead || selectedIds.length === 0) return;
+    const toArchive = selectedIds.filter((id) => {
+      const lead = leads.find((l) => String(l.id) === String(id));
+      return Boolean(lead && !isLeadArchivedRecord(lead));
+    });
+    if (toArchive.length === 0) return;
+    if (!window.confirm(`Archiver ${toArchive.length} dossier(s) ?`)) return;
+    setError(null);
+    try {
+      for (const id of toArchive) {
+        await archiveLead(id);
+      }
+      await loadData();
+      clearBulkSelection();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erreur");
+    }
+  }, [canUpdateLead, selectedIds, leads, loadData, clearBulkSelection]);
+
+  const handleBulkUnarchive = useCallback(async () => {
+    if (!canUpdateLead || selectedIds.length === 0) return;
+    const toRestore = selectedIds.filter((id) => {
+      const lead = leads.find((l) => String(l.id) === String(id));
+      return Boolean(lead && isLeadArchivedRecord(lead));
+    });
+    if (toRestore.length === 0) return;
+    if (!window.confirm(`Restaurer ${toRestore.length} dossier(s) ?`)) return;
+    setError(null);
+    try {
+      for (const id of toRestore) {
+        await unarchiveLead(id);
+      }
+      await loadData();
+      clearBulkSelection();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erreur");
+    }
+  }, [canUpdateLead, selectedIds, leads, loadData, clearBulkSelection]);
 
   const handleArchiveLead = useCallback(
     async (id: string) => {
@@ -162,18 +298,7 @@ export default function ClientsPage() {
   }, []);
 
   const resetFilters = () => {
-    setFilters({
-      view: "clients",
-      search: "",
-      assigned_to: "",
-      project_status: undefined,
-      from_date: "",
-      to_date: "",
-      sort: "updated_at",
-      order: "desc",
-      page: 1,
-      limit: 25,
-    });
+    setFilters(defaultClientsFilters());
   };
 
   const openFull = useCallback(
@@ -247,6 +372,7 @@ export default function ClientsPage() {
           onFiltersChange={setFilters}
           users={users}
           onReset={resetFilters}
+          resultCount={leads.length}
         />
       </div>
 
@@ -267,6 +393,10 @@ export default function ClientsPage() {
               selectedId={selectedClientId}
               onSelect={(id) => setSelectedClientId(normalizeClientId(id))}
               onOpenFull={openFull}
+              selectedIds={selectedIds}
+              onToggleBulkSelect={toggleBulkSelect}
+              onSelectAllOnPage={selectAllOnPage}
+              onResetFilters={resetFilters}
             />
           </div>
           {selectedClientId && (
@@ -284,6 +414,71 @@ export default function ClientsPage() {
           )}
         </div>
       </section>
+
+      {selectedIds.length > 0 ? (
+        <div
+          className="sn-bulk-selection-bar"
+          role="region"
+          aria-label="Sélection pour envoi groupé"
+        >
+          <div className="sn-bulk-selection-bar__count-block">
+            <span className="sn-bulk-selection-bar__count">
+              <strong>{selectedIds.length}</strong> sélectionné
+              {selectedIds.length > 1 ? "s" : ""}
+            </span>
+            <p className="sn-bulk-selection-bar__sub">Sélection sur cette page</p>
+          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={clearBulkSelection}
+          >
+            Tout désélectionner
+          </Button>
+          {canBulkEmail ? (
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              onClick={() => setBulkEmailOpen(true)}
+            >
+              📨 Envoyer email
+            </Button>
+          ) : (
+            <span className="sn-bulk-selection-bar__locked" role="note">
+              🔒 Envoi groupé réservé aux administrateurs
+            </span>
+          )}
+          {canUpdateLead && selectedIds.length > 0 ? (
+            <>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => void handleBulkArchive()}
+              >
+                📁 Archiver
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => void handleBulkUnarchive()}
+              >
+                ♻️ Restaurer
+              </Button>
+            </>
+          ) : null}
+        </div>
+      ) : null}
+
+      <BulkEmailModal
+        open={bulkEmailOpen}
+        onClose={() => setBulkEmailOpen(false)}
+        filters={filters}
+        selectedLeadIds={selectedIds}
+      />
     </div>
   );
 }

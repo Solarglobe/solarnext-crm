@@ -10,6 +10,28 @@ export interface QuotePdfDepositDisplay {
   note?: string | null;
 }
 
+/** CGV organisation — aligné sur getLegalCgvForPdfRender (backend). Mode pdf : fusion serveur, pas de bloc HTML. */
+export type QuotePdfLegalCgv =
+  | { mode: "html"; html: string }
+  | { mode: "url"; url: string; qr_data_url?: string | null }
+  | { mode: "pdf" };
+
+/** Annexes PDF optionnelles (snapshot / metadata). */
+export interface QuotePdfLegalDocuments {
+  include_rge: boolean;
+  include_decennale: boolean;
+}
+
+/** Métadonnées pad « lu et accepté » (persistées sur PNG signature côté serveur). */
+export interface QuoteSignatureReadAcceptance {
+  accepted?: boolean;
+  acceptedLabel?: string | null;
+  /** Horodatage serveur officiel (metadata_json.signedAtServer) — prioritaire pour l’affichage */
+  signedAtServer?: string | null;
+  /** Alias d’affichage : signedAtServer || generated_at (ancien) */
+  recordedAt?: string | null;
+}
+
 export interface QuotePdfPayload {
   schema_version?: number;
   snapshot_checksum?: string;
@@ -34,4 +56,11 @@ export interface QuotePdfPayload {
   frozen_at?: string | null;
   /** Paramètre org. (settings_json.quote_pdf.regulatory_text) — hors snapshot */
   regulatory_document_text?: string | null;
+  /** CGV (paramètres org.) — html/url rendus ici ; pdf fusionné côté serveur */
+  legal_cgv?: QuotePdfLegalCgv | null;
+  /** RGE / décennale : fusion PDF côté serveur uniquement */
+  legal_documents?: QuotePdfLegalDocuments | null;
+  /** PDF signé / devis accepté : lecture depuis metadata_json des signatures */
+  signature_client_read_acceptance?: QuoteSignatureReadAcceptance | null;
+  signature_company_read_acceptance?: QuoteSignatureReadAcceptance | null;
 }

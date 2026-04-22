@@ -8,6 +8,8 @@
 import { pool } from "../../config/db.js";
 import { withTx } from "../../db/tx.js";
 import { assertOrgEntity } from "../../services/guards.service.js";
+import { logAuditEvent } from "../../services/audit/auditLog.service.js";
+import { AuditActions } from "../../services/audit/auditActions.js";
 import {
   ensureDefaultLeadMeter,
   getDefaultMeterRow,
@@ -220,7 +222,19 @@ export async function createStudy(organizationId, userId, body) {
       [organizationId, studyId, dataJson, userId || null]
     );
 
-    return getStudyByIdTx(client, studyId, organizationId);
+    const studyPayload = await getStudyByIdTx(client, studyId, organizationId);
+    void logAuditEvent({
+      action: AuditActions.STUDY_CREATED,
+      entityType: "study",
+      entityId: studyId,
+      organizationId,
+      userId: userId || null,
+      targetLabel: study.study_number ?? undefined,
+      req: null,
+      statusCode: 201,
+      metadata: { initial_version: 1 },
+    });
+    return studyPayload;
   });
 }
 
@@ -332,7 +346,22 @@ export async function createVersion(studyId, organizationId, userId, body = {}) 
       }
     }
 
-    return getStudyByIdTx(client, studyId, organizationId);
+    const studyPayload = await getStudyByIdTx(client, studyId, organizationId);
+    void logAuditEvent({
+      action: AuditActions.STUDY_VERSION_CREATED,
+      entityType: "study_version",
+      entityId: newVersionId,
+      organizationId,
+      userId: userId || null,
+      targetLabel: studyPayload?.study?.study_number ?? undefined,
+      req: null,
+      statusCode: 201,
+      metadata: {
+        study_id: studyId,
+        version_number: nextVersion,
+      },
+    });
+    return studyPayload;
   });
 }
 
@@ -518,12 +547,12 @@ export async function getVersionById(versionId, organizationId) {
  * @param {string} versionId - study_versions.id (UUID)
  * @returns {Promise<{ selected_scenario_snapshot: object | null, organization_id: string, study_id: string } | null>}
  */
-export async function getSelectedScenarioSnapshotRow(versionId) {
+export async function getSelectedScenarioSnapshotRow(versionId, organizationId) {
   const res = await pool.query(
     `SELECT selected_scenario_snapshot, organization_id, study_id
      FROM study_versions
-     WHERE id = $1`,
-    [versionId]
+     WHERE id = $1 AND organization_id = $2`,
+    [versionId, organizationId]
   );
   if (res.rows.length === 0) return null;
   const row = res.rows[0];
@@ -540,12 +569,12 @@ export async function getSelectedScenarioSnapshotRow(versionId) {
  * @param {string} versionId - study_versions.id (UUID)
  * @returns {Promise<{ selected_scenario_snapshot: object | null, data_json: object | null, selected_scenario_id: string | null, organization_id: string, study_id: string } | null>}
  */
-export async function getPdfViewModelRow(versionId) {
+export async function getPdfViewModelRow(versionId, organizationId) {
   const res = await pool.query(
     `SELECT selected_scenario_snapshot, data_json, selected_scenario_id, organization_id, study_id
      FROM study_versions
-     WHERE id = $1`,
-    [versionId]
+     WHERE id = $1 AND organization_id = $2`,
+    [versionId, organizationId]
   );
   if (res.rows.length === 0) return null;
   const row = res.rows[0];

@@ -15,7 +15,7 @@
  *   P1 — Hauteur explicite sur un vertex source (contour / ridge / trait) dans l'état
  *   P2 — fitPlane via getHeightAtXY avec panId connu (le plus fiable géométriquement)
  *   P3 — hitTest pan automatique + fitPlane (panId déduit par position)
- *   P4 — Fallback contrôlé (valeur par défaut explicite, jamais silencieux)
+ *   P4 — Fallback contrôlé (`defaultHeightM` explicite) ou `insufficient_height_signal` sans cote (pas de 0 implicite)
  *
  * CONSOMMATEURS PRÉVUS :
  *   - adapter/calpinageStateToLegacyRoofInput.ts (remplacera resolveHeightAtPx)
@@ -56,8 +56,11 @@ export type HeightSource =
   | "pan_plane_fit_hittest"
   /** Valeur par défaut explicite fournie en option. conf ≈ 0.15 */
   | "fallback_default"
-  /** Fallback zéro ultime (aucune source disponible). conf ≈ 0.05 */
-  | "fallback_zero";
+  /**
+   * Aucune source fiable et aucun `defaultHeightM` fourni au résolveur —
+   * **pas** de cote numérique imposée (évite la confusion undefined → 0).
+   */
+  | "insufficient_height_signal";
 
 /**
  * Résultat détaillé d'une résolution de hauteur.
@@ -65,8 +68,11 @@ export type HeightSource =
 export interface HeightResolutionResult {
   /** true si une source fiable a été trouvée (P1, P2, P3). false = fallback. */
   readonly ok: boolean;
-  /** Hauteur résolue en mètres. Toujours un nombre fini. */
-  readonly heightM: number;
+  /**
+   * Hauteur résolue (m). Absente uniquement si `source === "insufficient_height_signal"`.
+   * Sinon nombre fini (y compris 0 métrique explicite via P1–P3).
+   */
+  readonly heightM?: number;
   /** Source identifiée. */
   readonly source: HeightSource;
   /**
@@ -154,7 +160,7 @@ export interface ResolveHeightOptions {
   panId?: string;
   /**
    * Hauteur par défaut (m) utilisée en fallback si aucune source n'est trouvée.
-   * @default 0
+   * Si omise, le résolveur retourne `insufficient_height_signal` **sans** `heightM` (pas de 0 silencieux).
    */
   defaultHeightM?: number;
   /**
@@ -179,14 +185,11 @@ export const HEIGHT_SOURCE_CONFIDENCE: Readonly<Record<HeightSource, number>> = 
   pan_plane_fit:            0.85,
   pan_plane_fit_hittest:    0.78,
   fallback_default:         0.15,
-  fallback_zero:            0.05,
+  insufficient_height_signal: 0.03,
 } as const;
 
 /** Epsilon pixels par défaut : aligné sur HEIGHT_EDIT_EPS_IMG dans calpinage.module.js. */
 const DEFAULT_EPSILON_PX = 15;
-
-/** Hauteur par défaut absolue si aucune option fournie. */
-const ABSOLUTE_FALLBACK_HEIGHT_M = 0;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HELPERS PURS
@@ -195,6 +198,30 @@ const ABSOLUTE_FALLBACK_HEIGHT_M = 0;
 /** Distance euclidienne entre deux points image. */
 function distPx(ax: number, ay: number, bx: number, by: number): number {
   return Math.hypot(bx - ax, by - ay);
+}
+
+/** Projection orthogonale de P sur [AB] ; retourne distance² et paramètre t∈[0,1] pour interpoler une cote le long de l'arête. */
+function pointToSegmentParamSq(
+  px: number,
+  py: number,
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+): { distSq: number; t: number } {
+  const dx = bx - ax;
+  const dy = by - ay;
+  const len2 = dx * dx + dy * dy;
+  if (len2 < 1e-18) {
+    const d = (px - ax) * (px - ax) + (py - ay) * (py - ay);
+    return { distSq: d, t: 0 };
+  }
+  let t = ((px - ax) * dx + (py - ay) * dy) / len2;
+  t = Math.max(0, Math.min(1, t));
+  const qx = ax + t * dx;
+  const qy = ay + t * dy;
+  const distSq = (px - qx) * (px - qx) + (py - qy) * (py - qy);
+  return { distSq, t };
 }
 
 /** Plage métier (m) : toiture résidentielle — rejette les Z aberrants (ex. bug getHeightAtXY). */
@@ -224,7 +251,7 @@ export function isValidBuildingHeightM(h: unknown): h is number {
  * Cherche une hauteur explicite sur un vertex de contour / ridge / trait
  * dans un rayon epsilonPx autour du point (xPx, yPx).
  *
- * Priorité interne : ridge > contour > trait
+ * Priorité interne : ridge > contour (sommets puis arêtes interpolées) > trait
  * (les faîtages sont les points les plus fiables géométriquement).
  */
 export function getExplicitHeightAtPoint(
@@ -254,9 +281,38 @@ export function getExplicitHeightAtPoint(
   const contours = state.contours?.filter((c) => c?.roofRole !== "chienAssis") ?? [];
   for (const contour of contours) {
     for (const pt of contour.points ?? []) {
-      if (distPx(xPx, yPx, pt.x, pt.y) <= epsilonPx && isValidH(pt.h)) {
+      const px = pt.x ?? 0;
+      const py = pt.y ?? 0;
+      if (distPx(xPx, yPx, px, py) <= epsilonPx && isValidH(pt.h)) {
         return { heightM: pt.h, source: "explicit_vertex_contour" };
       }
+    }
+  }
+
+  const epsSq = epsilonPx * epsilonPx;
+  for (const contour of contours) {
+    const pts = contour.points ?? [];
+    const m = pts.length;
+    if (m < 2) continue;
+    const edgeCount = m >= 3 ? m : m - 1;
+    for (let i = 0; i < edgeCount; i++) {
+      const j = m >= 3 ? (i + 1) % m : i + 1;
+      const a = pts[i];
+      const b = pts[j];
+      if (!a || !b) continue;
+      const ax = a.x ?? 0;
+      const ay = a.y ?? 0;
+      const bx = b.x ?? 0;
+      const by = b.y ?? 0;
+      const { distSq, t } = pointToSegmentParamSq(xPx, yPx, ax, ay, bx, by);
+      if (distSq > epsSq) continue;
+      const ha = isValidH(a.h) ? a.h : null;
+      const hb = isValidH(b.h) ? b.h : null;
+      if (ha !== null && hb !== null) {
+        return { heightM: ha + t * (hb - ha), source: "explicit_vertex_contour" };
+      }
+      if (ha !== null) return { heightM: ha, source: "explicit_vertex_contour" };
+      if (hb !== null) return { heightM: hb, source: "explicit_vertex_contour" };
     }
   }
 
@@ -314,24 +370,27 @@ export function resolveHeightFromPanPlane(
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Fallback explicite et traçable. Jamais silencieux.
- * Retourne une source "fallback_default" si defaultHeightM est fourni,
- * ou "fallback_zero" si aucun défaut n'est configuré.
+ * Fallback explicite et traçable.
+ * - `defaultHeightM` fini → repli numérique assumé (`fallback_default`).
+ * - sinon → **aucune** cote imposée (`insufficient_height_signal`, pas de 0 implicite).
  */
-export function resolveHeightFallback(
-  defaultHeightM: number | undefined,
-): { heightM: number; source: HeightSource; warning: string } {
+export function resolveHeightFallback(defaultHeightM: number | undefined): {
+  heightM: number | undefined;
+  source: HeightSource;
+  warning: string;
+} {
   if (typeof defaultHeightM === "number" && Number.isFinite(defaultHeightM)) {
     return {
       heightM: defaultHeightM,
       source: "fallback_default",
-      warning: `No reliable roof height source found — using default ${defaultHeightM}m`,
+      warning: `No reliable roof height source found — using explicit defaultHeightM=${defaultHeightM}m`,
     };
   }
   return {
-    heightM: ABSOLUTE_FALLBACK_HEIGHT_M,
-    source: "fallback_zero",
-    warning: "No reliable roof height source found — fallback to 0m",
+    heightM: undefined,
+    source: "insufficient_height_signal",
+    warning:
+      "No reliable roof height source found — insufficient_height_signal (no numeric height; do not treat as 0)",
   };
 }
 
@@ -346,7 +405,7 @@ export function resolveHeightFallback(
  *   P1 — Hauteur explicite sur vertex source (contour/ridge/trait) dans options.epsilonPx
  *   P2 — fitPlane via context.getHeightAtXY avec panId connu (options.panId)
  *   P3 — hitTest pan automatique + fitPlane (context.hitTestPan requis)
- *   P4 — Fallback contrôlé (options.defaultHeightM ou 0)
+ *   P4 — Fallback contrôlé (`options.defaultHeightM`) ou signal insuffisant sans cote
  *
  * @param xPx - Coordonnée X en pixels image
  * @param yPx - Coordonnée Y en pixels image
@@ -430,11 +489,11 @@ export function resolveHeightAtXY(
     }
   }
 
-  // ── P4 : fallback contrôlé ───────────────────────────────────────────────
+  // ── P4 : fallback contrôlé ou signal insuffisant (jamais 0 implicite) ───
   const fallback = resolveHeightFallback(options.defaultHeightM);
   return {
     ok: false,
-    heightM: fallback.heightM,
+    ...(fallback.heightM !== undefined ? { heightM: fallback.heightM } : {}),
     source: fallback.source,
     confidence: HEIGHT_SOURCE_CONFIDENCE[fallback.source],
     warning: fallback.warning,
@@ -533,5 +592,8 @@ export function resolveHeightAtPxRuntime(
 ): number | undefined {
   const context = buildRuntimeContext(state);
   const result = resolveHeightAtXY(xPx, yPx, context, { panId });
-  return result.ok ? result.heightM : undefined;
+  if (result.ok && result.heightM !== undefined && Number.isFinite(result.heightM)) {
+    return result.heightM;
+  }
+  return undefined;
 }

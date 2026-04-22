@@ -1,18 +1,28 @@
 /**
  * Aire d’emprise obstacle au sol (m²) pour heuristiques métier.
+ * Niveau 3 : polygone via `polygonHorizontalAreaM2FromImagePx` ; rectangle via côtés monde officiels.
  */
+
+import {
+  polygonHorizontalAreaM2FromImagePx,
+  segmentHorizontalLengthMFromImagePx,
+} from "../canonical3d/builder/worldMapping";
 
 export function computeObstacleFootprintAreaM2(
   obstacle: {
     points?: { x: number; y: number }[];
     shapeMeta?: { originalType?: string; width?: number; height?: number; radius?: number };
   },
-  metersPerPixel: number
+  metersPerPixel: number,
+  northAngleDeg: number = 0,
 ): number {
   const mpp = metersPerPixel > 0 ? metersPerPixel : 1;
+  const north = Number.isFinite(northAngleDeg) ? northAngleDeg : 0;
   const sm = obstacle.shapeMeta;
   if (sm?.originalType === "rect" && typeof sm.width === "number" && typeof sm.height === "number") {
-    return Math.abs(sm.width * mpp) * Math.abs(sm.height * mpp);
+    const wM = segmentHorizontalLengthMFromImagePx({ x: 0, y: 0 }, { x: sm.width, y: 0 }, mpp, north);
+    const hM = segmentHorizontalLengthMFromImagePx({ x: 0, y: 0 }, { x: 0, y: sm.height }, mpp, north);
+    return Math.abs(wM * hM);
   }
   if (sm?.originalType === "circle" && typeof sm.radius === "number") {
     const r = Math.abs(sm.radius) * mpp;
@@ -20,12 +30,7 @@ export function computeObstacleFootprintAreaM2(
   }
   const pts = obstacle.points;
   if (pts && pts.length >= 3) {
-    let a = 0;
-    for (let i = 0; i < pts.length; i++) {
-      const j = (i + 1) % pts.length;
-      a += pts[i].x * pts[j].y - pts[j].x * pts[i].y;
-    }
-    return Math.abs(a / 2) * mpp * mpp;
+    return polygonHorizontalAreaM2FromImagePx(pts, mpp, north);
   }
   return 0.01;
 }

@@ -48,6 +48,16 @@ function IconTrash() {
   );
 }
 
+function TemplateSkeleton() {
+  return (
+    <div className="admin-catalog-skeleton" aria-hidden>
+      {Array.from({ length: 6 }).map((_, i) => (
+        <div key={i} className="admin-catalog-skeleton-line" style={{ width: i % 3 === 0 ? "55%" : "100%" }} />
+      ))}
+    </div>
+  );
+}
+
 export function AdminTabQuoteTextTemplates() {
   const [items, setItems] = useState<QuoteTextTemplateItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -138,157 +148,185 @@ export function AdminTabQuoteTextTemplates() {
 
   if (loading) {
     return (
-      <div className="admin-tab-quote-catalog">
-        <p className="qb-muted" style={{ margin: 0 }}>
-          Chargement…
-        </p>
+      <div className="admin-tab-quote-catalog org-structure-tab">
+        <TemplateSkeleton />
       </div>
     );
   }
 
   return (
-    <div className="admin-tab-quote-catalog">
-      <div className="admin-catalog-toolbar" style={{ marginBottom: "var(--spacing-16)" }}>
-        <div
-          className="admin-catalog-toolbar-left"
-          role="tablist"
-          aria-label="Type de modèle de texte"
-          style={{ flexWrap: "wrap", gap: 8 }}
-        >
-          <div className="admin-text-template-tabs">
-            {KINDS.map((k) => (
-              <button
-                key={k}
-                type="button"
-                role="tab"
-                id={`quote-text-tab-${k}`}
-                aria-selected={activeKind === k}
-                className={`admin-text-template-tab${activeKind === k ? " admin-text-template-tab--active" : ""}`}
-                onClick={() => setActiveKind(k)}
-              >
-                {KIND_LABELS[k]}
-              </button>
-            ))}
+    <div className="admin-tab-quote-catalog org-structure-tab">
+      <header className="sn-saas-tab-inner-header">
+        <h2 className="sn-saas-tab-inner-header__title">Modèles de texte</h2>
+        <p className="sn-saas-tab-inner-header__lead">
+          Préremplissez notes commerciales, détails techniques et paiement pour accélérer la rédaction des devis.
+        </p>
+      </header>
+
+      <div className="sn-saas-stack">
+        {error && !modalOpen ? (
+          <div className="sn-saas-form-section sn-saas-callout-error" role="alert">
+            <p className="sn-saas-callout-error__text">{error}</p>
           </div>
-        </div>
-        <div className="admin-catalog-toolbar-right">
-          <Button variant="primary" type="button" onClick={openCreate}>
-            Nouveau modèle
-          </Button>
-        </div>
-      </div>
+        ) : null}
 
-      {error && !modalOpen && (
-        <p style={{ color: "var(--danger)", marginBottom: "var(--spacing-16)" }}>{error}</p>
-      )}
+        <section className="sn-saas-form-section" aria-labelledby="quote-text-models-title">
+          <div className="sn-saas-form-section__head">
+            <h3 id="quote-text-models-title" className="sn-saas-form-section__title">
+              Bibliothèque
+            </h3>
+            <Button variant="primary" size="sm" type="button" onClick={openCreate}>
+              Nouveau modèle
+            </Button>
+          </div>
 
-      <div
-        role="tabpanel"
-        id="quote-text-template-panel"
-        aria-labelledby={`quote-text-tab-${activeKind}`}
-      >
-      {filtered.length === 0 ? (
-        <div className="admin-catalog-empty">
-          <h3 className="admin-catalog-empty-title">Aucun modèle</h3>
-          <p className="admin-catalog-empty-desc">
-            Ajoutez un modèle pour préremplir ce type de texte dans les devis.
-          </p>
-          <Button variant="primary" onClick={openCreate}>
-            Nouveau modèle
-          </Button>
-        </div>
-      ) : (
-        <div className="admin-catalog-table-wrap">
-          <table className="admin-catalog-table">
-            <thead>
-              <tr>
-                <th>Nom</th>
-                <th className="admin-catalog-th-muted">Aperçu</th>
-                <th style={{ width: 100 }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((row) => (
-                <tr key={row.id}>
-                  <td>
-                    <span className="admin-catalog-cell-name" title={row.id}>
-                      {row.name}
-                    </span>
-                  </td>
-                  <td>
-                    <span className="admin-catalog-cell-secondary">{previewText(row.content)}</span>
-                  </td>
-                  <td>
-                    <div className="admin-catalog-actions">
-                      <button
-                        type="button"
-                        className="admin-catalog-icon-btn"
-                        onClick={() => openEdit(row)}
-                        aria-label="Modifier"
-                        title="Modifier"
-                      >
-                        <IconEdit />
-                      </button>
-                      <button
-                        type="button"
-                        className="admin-catalog-icon-btn admin-catalog-icon-btn--warning"
-                        onClick={() => setDeleteId(row.id)}
-                        aria-label="Supprimer"
-                        title="Supprimer"
-                      >
-                        <IconTrash />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
+          <div className="sn-saas-toolbar admin-catalog-kind-tabs">
+            <div
+              className="sn-saas-toolbar__main sn-saas-tabs sn-saas-tabs--embedded"
+              role="tablist"
+              aria-label="Type de modèle de texte"
+            >
+              {KINDS.map((k) => (
+                <button
+                  key={k}
+                  type="button"
+                  role="tab"
+                  id={`quote-text-tab-${k}`}
+                  aria-selected={activeKind === k}
+                  className={`sn-saas-tab${activeKind === k ? " sn-saas-tab--active" : ""}`}
+                  onClick={() => setActiveKind(k)}
+                >
+                  {KIND_LABELS[k]}
+                </button>
               ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+            </div>
+          </div>
+
+          <div
+            role="tabpanel"
+            id="quote-text-template-panel"
+            aria-labelledby={`quote-text-tab-${activeKind}`}
+          >
+            {filtered.length === 0 ? (
+              <div className="admin-catalog-empty admin-catalog-empty--inline">
+                <h3 className="admin-catalog-empty-title">Aucun modèle</h3>
+                <p className="admin-catalog-empty-desc">
+                  Ajoutez un modèle pour le type « {KIND_LABELS[activeKind]} » — bouton « Nouveau modèle » ci-dessus.
+                </p>
+              </div>
+            ) : (
+              <div className="sn-saas-table-wrap">
+                <table className="sn-saas-table sn-saas-table--dense admin-tab-quote-text-table">
+                  <thead>
+                    <tr>
+                      <th>Nom</th>
+                      <th className="admin-catalog-th-muted">Aperçu</th>
+                      <th className="admin-catalog-th-right" style={{ width: 88 }}>
+                        <span className="sn-visually-hidden">Actions</span>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.map((row) => (
+                      <tr key={row.id}>
+                        <td>
+                          <span className="admin-catalog-cell-name" title={row.name}>
+                            {row.name}
+                          </span>
+                        </td>
+                        <td>
+                          <span className="admin-catalog-cell-secondary admin-catalog-cell-clip" title={row.content}>
+                            {previewText(row.content)}
+                          </span>
+                        </td>
+                        <td className="admin-catalog-cell-right">
+                          <div className="admin-catalog-actions" style={{ justifyContent: "flex-end" }}>
+                            <button
+                              type="button"
+                              className="admin-catalog-icon-btn"
+                              onClick={() => openEdit(row)}
+                              aria-label="Modifier"
+                              title="Modifier"
+                            >
+                              <IconEdit />
+                            </button>
+                            <button
+                              type="button"
+                              className="admin-catalog-icon-btn admin-catalog-icon-btn--warning"
+                              onClick={() => setDeleteId(row.id)}
+                              aria-label="Supprimer"
+                              title="Supprimer"
+                            >
+                              <IconTrash />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </section>
       </div>
 
       <ModalShell
         open={modalOpen}
         onClose={() => !submitting && setModalOpen(false)}
         title={editing ? "Modifier le modèle" : `Nouveau modèle — ${KIND_LABELS[activeKind]}`}
+        subtitle={editing ? undefined : "Enregistré dans la bibliothèque de textes devis"}
         size="md"
+        panelClassName="admin-catalog-modal"
         footer={
           <>
-            <Button type="button" variant="ghost" onClick={() => setModalOpen(false)} disabled={submitting}>
+            <Button type="button" variant="secondary" size="sm" onClick={() => setModalOpen(false)} disabled={submitting}>
               Annuler
             </Button>
-            <Button type="submit" form="quote-text-template-form" variant="primary" disabled={submitting}>
+            <Button type="submit" form="quote-text-template-form" variant="primary" size="sm" disabled={submitting}>
               {submitting ? "…" : "Enregistrer"}
             </Button>
           </>
         }
       >
-        <form id="quote-text-template-form" onSubmit={handleSubmit}>
+        <form id="quote-text-template-form" className="sn-saas-stack admin-catalog-modal-form" onSubmit={handleSubmit}>
           {error && modalOpen ? (
-            <p style={{ color: "var(--danger)", marginBottom: 12 }}>{error}</p>
+            <div className="sn-saas-form-section sn-saas-callout-error" role="alert">
+              <p className="sn-saas-callout-error__text">{error}</p>
+            </div>
           ) : null}
-          <label className="qb-field qb-field--block" style={{ marginBottom: 12 }}>
-            <span>Nom du modèle</span>
-            <input
-              className="sn-input"
-              value={formName}
-              onChange={(e) => setFormName(e.target.value)}
-              required
-              minLength={2}
-              maxLength={200}
-            />
-          </label>
-          <label className="qb-field qb-field--block">
-            <span>Contenu</span>
-            <textarea
-              className="sn-input"
-              rows={10}
-              value={formContent}
-              onChange={(e) => setFormContent(e.target.value)}
-              style={{ width: "100%", minHeight: 160, resize: "vertical" }}
-            />
-          </label>
+          <div className="sn-saas-form-section">
+            <h3 className="sn-saas-form-section__title">Identification</h3>
+            <div>
+              <label className="sn-saas-label" htmlFor="qtt-name">
+                Nom du modèle
+              </label>
+              <input
+                id="qtt-name"
+                className="sn-saas-input"
+                value={formName}
+                onChange={(e) => setFormName(e.target.value)}
+                required
+                minLength={2}
+                maxLength={200}
+              />
+            </div>
+          </div>
+          <div className="sn-saas-form-section">
+            <h3 className="sn-saas-form-section__title">Contenu</h3>
+            <div>
+              <label className="sn-saas-label" htmlFor="qtt-body">
+                Texte inséré dans le devis
+              </label>
+              <textarea
+                id="qtt-body"
+                className="sn-saas-textarea"
+                rows={12}
+                value={formContent}
+                onChange={(e) => setFormContent(e.target.value)}
+              />
+            </div>
+          </div>
         </form>
       </ModalShell>
 
@@ -297,6 +335,7 @@ export function AdminTabQuoteTextTemplates() {
         title="Supprimer ce modèle ?"
         message="Cette action est définitive."
         confirmLabel="Supprimer"
+        cancelLabel="Annuler"
         variant="danger"
         confirmDisabled={submitting}
         elevation="stacked"

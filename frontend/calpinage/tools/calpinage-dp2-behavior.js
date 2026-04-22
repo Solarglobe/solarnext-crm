@@ -297,6 +297,9 @@
         console.log("[PH3] tools disabled (PV_LAYOUT)");
         return;
       }
+      if (typeof window !== "undefined" && window.__CALPINAGE_3D_ROOF_VERTEX_EDIT_ACTIVE__) {
+        return;
+      }
       if (state.blockRotation || state.blockManipulation) return;
       var tool = state.currentTool || "select";
       if (tool !== "select" && tool !== "panels") return;
@@ -361,6 +364,7 @@
 
     canvas.addEventListener("pointermove", function (e) {
       if (window.CALPINAGE_STATE && window.CALPINAGE_STATE.currentPhase === "PV_LAYOUT") return;
+      if (typeof window !== "undefined" && window.__CALPINAGE_3D_ROOF_VERTEX_EDIT_ACTIVE__) return;
       if (state.blockRotation) {
         var coords = getCanvasCoords(canvas, e.clientX, e.clientY);
         var center = state.blockRotation.center;
@@ -384,6 +388,7 @@
 
     canvas.addEventListener("pointerup", function (e) {
       if (window.CALPINAGE_STATE && window.CALPINAGE_STATE.currentPhase === "PV_LAYOUT") return;
+      if (typeof window !== "undefined" && window.__CALPINAGE_3D_ROOF_VERTEX_EDIT_ACTIVE__) return;
       if (state.blockRotation) {
         if (adapter.commitManipulation && typeof adapter.commitManipulation === "function") adapter.commitManipulation();
         state.blockRotation = null;

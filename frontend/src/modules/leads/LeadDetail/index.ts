@@ -7,7 +7,7 @@ export { default as ActionBar } from "./ActionBar";
 export { default as LeadTabs } from "./LeadTabs";
 export type { LeadTabId } from "./LeadTabs";
 export { default as OverviewTab } from "./OverviewTab";
-export type { EnergyEngineResult, LeadOverviewSummaryProps } from "./OverviewTab";
+export type { EnergyEngineResult, LeadOverviewSummaryProps, OverviewLead } from "./OverviewTab";
 export { default as StudiesTab } from "./StudiesTab";
 export { default as NotesTab } from "./NotesTab";
 export { default as RdvTab } from "./RdvTab";

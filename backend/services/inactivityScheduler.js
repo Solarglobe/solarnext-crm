@@ -40,7 +40,7 @@ async function runDailyInactivityRecalculation() {
   try {
     while (true) {
       const { rows } = await pool.query(
-        `SELECT id FROM leads
+        `SELECT id, organization_id FROM leads
          WHERE archived_at IS NULL AND status != 'ARCHIVED'
          ORDER BY id
          LIMIT $1 OFFSET $2`,
@@ -51,7 +51,7 @@ async function runDailyInactivityRecalculation() {
 
       for (const row of rows) {
         try {
-          await recalculateLeadScore(row.id);
+          await recalculateLeadScore(row.id, row.organization_id);
           processed++;
         } catch {
           errors++;

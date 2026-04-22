@@ -3,7 +3,11 @@
  * puis planes et miroirs pour consommateurs (export, 3D, shading).
  *
  * Ne modifie pas le schéma JSON persistant des contours ; enrichit seulement des champs dérivés.
+ *
+ * Lecture des sommets : même contrat que `panVertexContract.ts` (points → polygonPx → polygon).
  */
+
+import { readPanVertexRing } from "../runtime/panVertexContract";
 
 /** @type {string} */
 export var DERIVED_ROOF_TOPOLOGY_SOURCE = "computePansFromGeometryCore_v1";
@@ -19,12 +23,12 @@ export function deriveRoofPlanesFromPans(state) {
   for (var i = 0; i < pans.length; i++) {
     var p = pans[i];
     if (!p) continue;
-    var poly = p.polygon || p.points;
-    if (!poly || poly.length < 3) continue;
+    var ring = readPanVertexRing(p);
+    if (!ring || ring.length < 3) continue;
     var pts = [];
-    for (var k = 0; k < poly.length; k++) {
-      var pt = poly[k];
-      if (pt && typeof pt.x === "number" && typeof pt.y === "number") pts.push({ x: pt.x, y: pt.y });
+    for (var k = 0; k < ring.length; k++) {
+      var vtx = ring[k];
+      if (vtx && typeof vtx.x === "number" && typeof vtx.y === "number") pts.push({ x: vtx.x, y: vtx.y });
     }
     if (pts.length < 3) continue;
     out.push({
@@ -70,7 +74,9 @@ export function syncRoofPansMirrorFromPans(state) {
   var pans = state.pans || [];
   state.roof.roofPans = pans.map(function (p, idx) {
     if (!p) return null;
-    var poly = p.polygon || p.points;
+    /** Même ordre que panVertexContract : points runtime → polygonPx → polygon. */
+    var poly =
+      Array.isArray(p.points) && p.points.length >= 2 ? p.points : p.polygonPx || p.polygon;
     var base = {
       id: p.id != null ? p.id : "pan-" + (idx + 1),
       polygon: Array.isArray(p.polygon) ? p.polygon.map(function (pt) {
@@ -84,7 +90,10 @@ export function syncRoofPansMirrorFromPans(state) {
     };
     if (Array.isArray(poly)) {
       base.polygonPx = poly.map(function (pt) {
-        return { x: pt.x, y: pt.y };
+        var o = { x: pt.x, y: pt.y };
+        if (typeof pt.h === "number") o.h = pt.h;
+        if (typeof pt.heightM === "number") o.heightM = pt.heightM;
+        return o;
       });
     }
     return base;

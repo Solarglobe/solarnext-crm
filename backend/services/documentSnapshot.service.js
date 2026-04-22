@@ -53,7 +53,10 @@ export function buildIssuerSnapshotFromOrganizationRow(orgRow) {
     },
     branding: {
       logo_url: orgRow.logo_url ?? null,
-      pdf_primary_color: orgRow.pdf_primary_color ?? null,
+      pdf_primary_color:
+        orgRow.pdf_primary_color != null && String(orgRow.pdf_primary_color).trim() !== ""
+          ? String(orgRow.pdf_primary_color).trim()
+          : null,
       pdf_secondary_color: orgRow.pdf_secondary_color ?? null,
     },
   };

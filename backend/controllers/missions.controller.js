@@ -4,6 +4,7 @@
 
 import { pool } from "../config/db.js";
 import * as missionService from "../services/missionService.js";
+import { assertClientApiAccess } from "../services/clientRequestAccess.service.js";
 
 const orgId = (req) => req.user?.organizationId ?? req.user?.organization_id;
 const userId = (req) => req.user?.userId ?? req.user?.id;
@@ -248,6 +249,16 @@ export async function createFromClient(req, res) {
     const clientId = req.params.id;
     const body = req.body;
 
+    const access = await assertClientApiAccess(pool, {
+      clientId,
+      organizationId: org,
+      userId: uid,
+      mode: "write",
+      logContext: "missions.createFromClient",
+      req,
+    });
+    if (!access.ok) return res.status(access.status).json(access.body);
+
     const mission = await missionService.createMissionFromClient(
       clientId,
       {
@@ -286,7 +297,18 @@ export async function createFromClient(req, res) {
 export async function listByClient(req, res) {
   try {
     const org = orgId(req);
+    const uid = userId(req);
     const clientId = req.params.id;
+
+    const access = await assertClientApiAccess(pool, {
+      clientId,
+      organizationId: org,
+      userId: uid,
+      mode: "read",
+      logContext: "missions.listByClient",
+      req,
+    });
+    if (!access.ok) return res.status(access.status).json(access.body);
 
     const result = await pool.query(
       `SELECT m.*, mt.name as mission_type_name, mt.color as mission_type_color,

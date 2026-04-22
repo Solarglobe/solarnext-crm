@@ -3,6 +3,7 @@
  */
 
 import type { RoofPlanePatch3D } from "../../types/roof-surface";
+import { imagePxToWorldHorizontalM } from "../../builder/worldMapping";
 import type { NearShadingSceneContext, NearShadingSolarDirectionInput } from "../../types/near-shading-3d";
 import { buildPvPanels3D } from "../../pvPanels/buildPvPanels3D";
 import { buildRoofVolumes3D } from "../../volumes/buildRoofVolumes3D";
@@ -13,6 +14,64 @@ import type { Vector3 } from "../../types/primitives";
 export type HardeningScene = NearShadingSceneContext;
 
 /** Carré horizontal z = z0, côté `size` (m), origine coin. */
+/**
+ * Pan plan horizontal z = z0 dont l’empreinte XY monde coïncide avec le contour image
+ * (`imagePxToWorldHorizontalM` — même chaîne que contour bâti / shell). À utiliser dans les tests
+ * où le shell est découpé par l’union des empreintes pans : un carré « monde » (0,0)–(size,size)
+ * ne correspond en général **pas** au polygone px→monde.
+ */
+export function makeFlatPatchFromImageContourPx(
+  id: string,
+  contourPx: readonly { readonly x: number; readonly y: number }[],
+  z0: number,
+  metersPerPixel: number,
+  northAngleDeg: number,
+): RoofPlanePatch3D {
+  const cornersWorld = contourPx.map((p) => {
+    const w = imagePxToWorldHorizontalM(p.x, p.y, metersPerPixel, northAngleDeg);
+    return { x: w.x, y: w.y, z: z0 };
+  });
+  const normal = { x: 0, y: 0, z: 1 };
+  let cx = 0;
+  let cy = 0;
+  let cz = 0;
+  for (const c of cornersWorld) {
+    cx += c.x;
+    cy += c.y;
+    cz += c.z;
+  }
+  const n = cornersWorld.length;
+  const centroid = { x: cx / n, y: cy / n, z: cz / n };
+  let area2 = 0;
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    area2 += cornersWorld[i]!.x * cornersWorld[j]!.y - cornersWorld[j]!.x * cornersWorld[i]!.y;
+  }
+  const areaM2 = Math.abs(area2) * 0.5;
+  return {
+    id,
+    topologyRole: "primary_shell",
+    boundaryVertexIds: ["v1", "v2", "v3", "v4"],
+    boundaryEdgeIds: ["e1", "e2", "e3", "e4"],
+    cornersWorld,
+    localFrame: {
+      role: "roof_face",
+      origin: { ...cornersWorld[0]! },
+      xAxis: { x: 1, y: 0, z: 0 },
+      yAxis: { x: 0, y: 1, z: 0 },
+      zAxis: { ...normal },
+    },
+    normal,
+    equation: { normal, d: -z0 },
+    boundaryCycleWinding: "unspecified",
+    centroid,
+    surface: { areaM2 },
+    adjacentPlanePatchIds: [],
+    provenance: { source: "solver", solverStep: "hardening:test" },
+    quality: { confidence: "high", diagnostics: [] },
+  } as RoofPlanePatch3D;
+}
+
 export function makeHorizontalSquarePatch(
   id: string,
   size: number,

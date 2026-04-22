@@ -5,17 +5,18 @@
  */
 
 import React, { useEffect, useState, useCallback, useRef } from "react";
-import { useParams, useNavigate, useBlocker } from "react-router-dom";
+import { useParams, useNavigate, useBlocker, useSearchParams } from "react-router-dom";
 import { apiFetch, getAuthToken } from "../services/api";
-import { getUserPermissions } from "../services/auth.service";
 import { createAddress, type AutocompleteSuggestion } from "../services/address.service";
 import {
   fetchLeadsMeta,
   archiveLead,
   unarchiveLead,
-  deleteLead,
   convertLead,
+  revertLeadToLead,
+  type LeadsMeta,
 } from "../services/leads.service";
+import { fetchMailAccounts } from "../services/mailApi";
 import {
   fetchActivities,
   createActivity,
@@ -46,7 +47,10 @@ import {
   ACTIVITY_TAG_DP_RETRY_LATER,
   type DPRefusedChoice,
 } from "../modules/leads/dpRefusedStatus";
-import { PROJECT_CYCLE_LABELS } from "../modules/leads/LeadDetail/constants";
+import {
+  PROJECT_CYCLE_LABELS,
+  isLeadDpFolderAccessible,
+} from "../modules/leads/LeadDetail/constants";
 import {
   LeadHeader,
   LeadTabs,
@@ -54,6 +58,7 @@ import {
   type LeadTabId,
   OverviewTab,
   type EnergyEngineResult,
+  type OverviewLead,
   StudiesTab,
   NotesTab,
   RdvTab,
@@ -84,7 +89,10 @@ import {
 } from "../modules/leads/LeadDetail/addressFallback";
 import "../modules/leads/LeadDetail/lead-detail.css";
 
-const API_BASE = import.meta.env?.VITE_API_URL || "http://localhost:3000";
+import { getCrmApiBase } from "../config/crmApiBase";
+import { useSuperAdminReadOnly } from "../contexts/OrganizationContext";
+
+const API_BASE = getCrmApiBase();
 
 /** Liste compteurs : plus de `null`/`[]` ambigu côté autosave. */
 type MetersLoadPhase = "idle" | "loading" | "ready" | "error";
@@ -178,12 +186,16 @@ interface Lead {
   contact_last_name?: string;
   /** PRO : numéro SIRET */
   siret?: string | null;
+  /** ISO YYYY-MM-DD — mandat DP */
+  birth_date?: string | null;
   email?: string;
   phone?: string;
   phone_mobile?: string;
   phone_landline?: string;
   address?: string;
   source_id?: string;
+  source_name?: string;
+  source_slug?: string | null;
   lead_source?: string;
   stage_id: string;
   status?: string;
@@ -193,8 +205,7 @@ interface Lead {
   client_id?: string;
   site_address_id?: string;
   billing_address_id?: string;
-  assigned_salesperson_user_id?: string;
-  assigned_to?: string;
+  assigned_user_id?: string;
   customer_type?: "PERSON" | "PRO";
   notes?: string;
   energy_profile?: unknown;
@@ -222,6 +233,20 @@ interface Lead {
   frame_type?: string;
   /** Dénormalisé côté API pour affichage */
   stage_name?: string;
+  rgpd_consent?: boolean;
+  rgpd_consent_at?: string | null;
+  marketing_opt_in?: boolean;
+  marketing_opt_in_at?: string | null;
+  /** CP-MAIRIES-004 — lien mairie (PATCH + GET détail enrichi) */
+  mairie_id?: string | null;
+  mairie_account_status?: "none" | "to_create" | "created" | null;
+  mairie_name?: string | null;
+  mairie_postal_code?: string | null;
+  mairie_city?: string | null;
+  mairie_portal_url?: string | null;
+  mairie_portal_type?: "online" | "email" | "paper" | null;
+  mairie_account_email?: string | null;
+  mairie_bitwarden_ref?: string | null;
 }
 
 interface Stage {
@@ -260,12 +285,14 @@ interface LeadDetailData {
 export default function LeadDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [data, setData] = useState<LeadDetailData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [stageChanging, setStageChanging] = useState(false);
   const [statusSaving, setStatusSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState<LeadTabId>("overview");
+  const _initialTab = (searchParams.get("tab") as LeadTabId | null) ?? "overview";
+  const [activeTab, setActiveTab] = useState<LeadTabId>(_initialTab);
   const [addNotesFormOpen, setAddNotesFormOpen] = useState(false);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [activitiesLoading, setActivitiesLoading] = useState(false);
@@ -278,6 +305,7 @@ export default function LeadDetail() {
   const [addressInput, setAddressInput] = useState("");
   const [geoValidationModalOpen, setGeoValidationModalOpen] = useState(false);
   const [users, setUsers] = useState<{ id: string; email?: string }[]>([]);
+  const [leadSources, setLeadSources] = useState<LeadsMeta["sources"]>([]);
   const [documents, setDocuments] = useState<Document[]>([]);
   const [studies, setStudies] = useState<Study[]>([]);
   const [quotes, setQuotes] = useState<Quote[]>([]);
@@ -295,7 +323,10 @@ export default function LeadDetail() {
   /** Conso moteur PDL (CSV) — loadConsumption + sum(hourly), aligné sur le calcul */
   const [energyEngine, setEnergyEngine] = useState<EnergyEngineResult | null>(null);
   const [energyProfileSuccessMessage, setEnergyProfileSuccessMessage] = useState<string | null>(null);
-  const [canHardDelete, setCanHardDelete] = useState(false);
+  const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false);
+  const [revertConfirmOpen, setRevertConfirmOpen] = useState(false);
+  const [revertSaving, setRevertSaving] = useState(false);
+  const [convertConfirmOpen, setConvertConfirmOpen] = useState(false);
 
   /** Brouillon Vue générale — autosave debounced */
   const [formLead, setFormLead] = useState<Lead | null>(null);
@@ -363,6 +394,7 @@ export default function LeadDetail() {
   }, [selectedMeterId]);
 
   const { scheduleUndo, activeToast } = useUndoAction();
+  const isReadOnly = useSuperAdminReadOnly();
   const [confirmProjectOpen, setConfirmProjectOpen] = useState(false);
   const [pendingProjectStatus, setPendingProjectStatus] = useState<string | null>(null);
   const [dpRefusedOpen, setDpRefusedOpen] = useState(false);
@@ -381,15 +413,40 @@ export default function LeadDetail() {
 
   useEffect(() => {
     fetchLeadsMeta()
-      .then((m) => setUsers(m.users || []))
-      .catch(() => setUsers([]));
+      .then((m) => {
+        setUsers(m.users || []);
+        setLeadSources(m.sources || []);
+      })
+      .catch(() => {
+        setUsers([]);
+        setLeadSources([]);
+      });
   }, []);
 
-  useEffect(() => {
-    getUserPermissions()
-      .then((p) => setCanHardDelete(p.permissions?.includes("lead.delete") ?? false))
-      .catch(() => setCanHardDelete(false));
-  }, []);
+  const openComposeForLeadEmail = useCallback(
+    async (email: string, leadId: string) => {
+      const addr = email.trim();
+      if (!addr || !leadId) return;
+      try {
+        const accounts = await fetchMailAccounts();
+        if (accounts.length > 0) {
+          navigate("/mail", {
+            state: {
+              mailComposePrefill: {
+                crmLeadId: leadId,
+                composePresentation: "overlay",
+              },
+            },
+          });
+        } else {
+          window.location.href = `mailto:${encodeURIComponent(addr)}`;
+        }
+      } catch {
+        window.location.href = `mailto:${encodeURIComponent(addr)}`;
+      }
+    },
+    [navigate]
+  );
 
   useEffect(() => {
     setMeterModalOpen(false);
@@ -593,9 +650,15 @@ export default function LeadDetail() {
     };
   }, [id, selectedMeterId, metersLoadPhase, metersList, meterModalOpen]);
 
-  const handleArchiveLead = useCallback(async () => {
+  const handleArchiveLeadRequest = useCallback(() => {
+    if (isReadOnly) return;
+    setArchiveConfirmOpen(true);
+  }, [isReadOnly]);
+
+  const performArchiveLead = useCallback(async () => {
+    if (isReadOnly) return;
     if (!id) return;
-    if (!window.confirm("Archiver ce lead ?")) return;
+    setArchiveConfirmOpen(false);
     setError(null);
     try {
       await archiveLead(id);
@@ -604,9 +667,10 @@ export default function LeadDetail() {
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur");
     }
-  }, [id, navigate]);
+  }, [isReadOnly, id, navigate]);
 
   const handleUnarchiveLead = useCallback(async () => {
+    if (isReadOnly) return;
     if (!id) return;
     if (!window.confirm("Restaurer ce lead dans le pipeline ?")) return;
     setError(null);
@@ -617,25 +681,7 @@ export default function LeadDetail() {
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur");
     }
-  }, [id, fetchLead]);
-
-  const handleDeleteLead = useCallback(async () => {
-    if (!id) return;
-    if (
-      !window.confirm(
-        "Supprimer définitivement ce lead ? Cette action est irréversible."
-      )
-    ) {
-      return;
-    }
-    setError(null);
-    try {
-      await deleteLead(id);
-      navigate("/leads");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Erreur");
-    }
-  }, [id, navigate]);
+  }, [isReadOnly, id, fetchLead]);
 
   useEffect(() => {
     fetchLead();
@@ -745,6 +791,7 @@ export default function LeadDetail() {
   }, [data?.lead?.status, data?.lead?.client_id, fetchClientMissions]);
 
   const handleCreateStudy = async () => {
+    if (isReadOnly) return;
     if (!id) return;
     setCreateStudyLoading(true);
     setError(null);
@@ -780,6 +827,7 @@ export default function LeadDetail() {
 
 
   const handleRunCalc = async () => {
+    if (isReadOnly) return;
     const latest = studies[0];
     if (!latest) {
       setError("Créez d'abord une étude avec le bouton « Créer étude ».");
@@ -1019,6 +1067,7 @@ export default function LeadDetail() {
   );
 
   const handleDeleteEnergyProfile = useCallback(async () => {
+    if (isReadOnly) return;
     if (!id) return;
     const mid = selectedMeterIdRef.current;
     const meters =
@@ -1050,16 +1099,18 @@ export default function LeadDetail() {
       setEnergyProfileSuccessMessage("Profil énergie supprimé");
       window.setTimeout(() => setEnergyProfileSuccessMessage(null), 3000);
     }
-  }, [id, patchMeterSilent]);
+  }, [isReadOnly, id, patchMeterSilent]);
 
-  const handleFormLeadChange = useCallback((patch: Partial<Lead>) => {
+  const handleFormLeadChange = useCallback((patch: Partial<OverviewLead>) => {
+    if (isReadOnly) return;
     lastOverviewEditKindRef.current = "form";
     if (isAutosaveInFlightRef.current) editedDuringAutosaveRef.current = true;
-    setFormLead((prev) => (prev ? { ...prev, ...patch } : null));
+    setFormLead((prev) => (prev ? ({ ...prev, ...patch } as Lead) : null));
     setOverviewDirty(true);
-  }, []);
+  }, [isReadOnly]);
 
   const performOverviewSave = useCallback(async (): Promise<boolean> => {
+    if (isReadOnly) return false;
     if (!id) return false;
     const fl = formLeadRef.current;
     if (!fl) return false;
@@ -1117,19 +1168,21 @@ export default function LeadDetail() {
 
     overviewSavePromiseRef.current = promise;
     return promise;
-  }, [id, patchLeadSilent, patchConsumptionSilent]);
+  }, [isReadOnly, id, patchLeadSilent, patchConsumptionSilent]);
 
   const flushOverviewSave = useCallback(async (): Promise<boolean> => {
+    if (isReadOnly) return true;
     if (autosaveDebounceRef.current) {
       clearTimeout(autosaveDebounceRef.current);
       autosaveDebounceRef.current = null;
     }
     if (!overviewDirty || !formLeadRef.current) return true;
     return performOverviewSave();
-  }, [overviewDirty, performOverviewSave]);
+  }, [isReadOnly, overviewDirty, performOverviewSave]);
 
   const scheduleOverviewAutosave = useCallback(
     (delayMs: number) => {
+      if (isReadOnly) return;
       if (autosaveDebounceRef.current) clearTimeout(autosaveDebounceRef.current);
       setSaveSyncState((prev) => {
         if (prev === "saving") return prev;
@@ -1143,21 +1196,23 @@ export default function LeadDetail() {
         void performOverviewSave();
       }, delayMs);
     },
-    [performOverviewSave]
+    [isReadOnly, performOverviewSave]
   );
 
   const handleMonthlyLocalChange = useCallback((months: { month: number; kwh: number }[]) => {
+    if (isReadOnly) return;
     lastOverviewEditKindRef.current = "monthly";
     if (isAutosaveInFlightRef.current) editedDuringAutosaveRef.current = true;
     setMonthlyLocal(months);
     setOverviewDirty(true);
-  }, []);
+  }, [isReadOnly]);
 
   const setMonthlyGridEditing = useCallback((editing: boolean) => {
     monthlyGridEditingRef.current = editing;
   }, []);
 
   const handleOpenMeterCreateModal = useCallback(async () => {
+    if (isReadOnly) return;
     if (!id) return;
     const flushed = await flushOverviewSave();
     if (!flushed) {
@@ -1170,10 +1225,11 @@ export default function LeadDetail() {
     setMeterModalMode("create");
     setMeterModalMeterId(null);
     setMeterModalOpen(true);
-  }, [id, flushOverviewSave]);
+  }, [isReadOnly, id, flushOverviewSave]);
 
   const handleOpenMeterEditModal = useCallback(
     async (meterId: string) => {
+      if (isReadOnly) return;
       if (!id) return;
       const flushed = await flushOverviewSave();
       if (!flushed) {
@@ -1188,7 +1244,7 @@ export default function LeadDetail() {
       setMeterModalMeterId(meterId);
       setMeterModalOpen(true);
     },
-    [id, flushOverviewSave]
+    [isReadOnly, id, flushOverviewSave]
   );
 
   const handleMeterModalClose = useCallback(() => {
@@ -1221,6 +1277,7 @@ export default function LeadDetail() {
 
   const handleSetDefaultMeter = useCallback(
     async (meterId: string) => {
+      if (isReadOnly) return;
       if (!id) return;
       const ok = await flushOverviewSave();
       if (!ok) return;
@@ -1243,11 +1300,12 @@ export default function LeadDetail() {
         setMetersBusy(false);
       }
     },
-    [id, flushOverviewSave, fetchLead]
+    [isReadOnly, id, flushOverviewSave, fetchLead]
   );
 
   const handleDeleteMeter = useCallback(
     async (meterId: string) => {
+      if (isReadOnly) return;
       if (!id) return;
       const ok = await flushOverviewSave();
       if (!ok) return;
@@ -1268,11 +1326,12 @@ export default function LeadDetail() {
         setMetersBusy(false);
       }
     },
-    [id, flushOverviewSave, fetchLead]
+    [isReadOnly, id, flushOverviewSave, fetchLead]
   );
 
   const handleProjectStatusIntent = useCallback(
     async (next: string) => {
+      if (isReadOnly) return;
       if (!id || !data) return;
       const current = String(
         formLeadRef.current?.project_status ?? data.lead.project_status ?? "SIGNE"
@@ -1287,10 +1346,11 @@ export default function LeadDetail() {
       setPendingProjectStatus(next);
       setConfirmProjectOpen(true);
     },
-    [id, data, flushOverviewSave]
+    [isReadOnly, id, data, flushOverviewSave]
   );
 
   const confirmProjectApply = useCallback(async () => {
+    if (isReadOnly) return;
     if (!pendingProjectStatus || !id || !data) return;
     const prev = String(
       formLeadRef.current?.project_status ?? data.lead.project_status ?? "SIGNE"
@@ -1313,10 +1373,11 @@ export default function LeadDetail() {
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur");
     }
-  }, [pendingProjectStatus, id, data, scheduleUndo, patchLeadSilent]);
+  }, [isReadOnly, pendingProjectStatus, id, data, scheduleUndo, patchLeadSilent]);
 
   const handleDpRefusedChoose = useCallback(
     async (choice: DPRefusedChoice) => {
+      if (isReadOnly) return;
       if (!id || !data) return;
       setDpRefusedBusy(true);
       setError(null);
@@ -1365,10 +1426,11 @@ export default function LeadDetail() {
         setDpRefusedBusy(false);
       }
     },
-    [id, data, flushOverviewSave, scheduleUndo, patchLeadSilent, navigate]
+    [isReadOnly, id, data, flushOverviewSave, scheduleUndo, patchLeadSilent, navigate]
   );
 
   useEffect(() => {
+    if (isReadOnly) return;
     if (!overviewDirty || !formLead) return;
     if (saveSyncState === "saving") return;
     const delayMs = lastOverviewEditKindRef.current === "monthly" ? 2400 : 1300;
@@ -1376,9 +1438,10 @@ export default function LeadDetail() {
     return () => {
       if (autosaveDebounceRef.current) clearTimeout(autosaveDebounceRef.current);
     };
-  }, [overviewDirty, formLead, monthlyLocal, saveSyncState, scheduleOverviewAutosave]);
+  }, [isReadOnly, overviewDirty, formLead, monthlyLocal, saveSyncState, scheduleOverviewAutosave]);
 
   const handleEnergyEngineChange = useCallback((engine: EnergyEngineResult | null) => {
+    if (isReadOnly) return;
     lastOverviewEditKindRef.current = "form";
     if (isAutosaveInFlightRef.current) editedDuringAutosaveRef.current = true;
     setEnergyEngine(engine);
@@ -1388,7 +1451,7 @@ export default function LeadDetail() {
         : null
     );
     setOverviewDirty(true);
-  }, []);
+  }, [isReadOnly]);
 
   /** Blocage navigation uniquement en erreur : la sauvegarde tourne en fond (flush à l’onglet / actions critiques). */
   const navigationBlocked = saveSyncState === "error";
@@ -1438,27 +1501,59 @@ export default function LeadDetail() {
   }, [data?.lead?.id]);
 
   const handleStatusChange = async (newStatus: string) => {
+    if (isReadOnly) return;
     if (!id || !data || newStatus === data.lead.status) return;
+    if (newStatus === "CLIENT") {
+      setConvertConfirmOpen(true);
+      return;
+    }
     const flushed = await flushOverviewSave();
     if (!flushed) return;
     setStatusSaving(true);
     setError(null);
     try {
-      if (newStatus === "CLIENT") {
-        // Conversion complète : crée l’enregistrement client (SG-YYYY-XXXX) + client_id
-        await convertLead(id);
-        showLeadSuccessToast("Lead converti en client — visible dans l’onglet Clients.");
-        setTimeout(() => navigate("/clients"), 800);
-      } else {
-        // Retour en lead (cas rare, pas de création de fiche client)
-        await patchLeadSilent({ status: newStatus });
-        showLeadSuccessToast("Dossier basculé en Lead — visible dans l’onglet Leads.");
-        setTimeout(() => navigate("/leads"), 800);
-      }
+      await patchLeadSilent({ status: newStatus });
+      showLeadSuccessToast("Statut mis à jour.");
+      await fetchLead();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur");
     } finally {
       setStatusSaving(false);
+    }
+  };
+
+  const performConvertToClient = async () => {
+    if (isReadOnly || !id || !data) return;
+    const flushed = await flushOverviewSave();
+    if (!flushed) return;
+    setStatusSaving(true);
+    setError(null);
+    try {
+      await convertLead(id);
+      setConvertConfirmOpen(false);
+      showLeadSuccessToast("Lead converti en client — visible dans l’onglet Clients.");
+      setTimeout(() => navigate("/clients"), 800);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erreur");
+    } finally {
+      setStatusSaving(false);
+    }
+  };
+
+  const performRevertToLead = async () => {
+    if (isReadOnly || !id) return;
+    setRevertSaving(true);
+    setError(null);
+    try {
+      await revertLeadToLead(id);
+      setRevertConfirmOpen(false);
+      showLeadSuccessToast("Dossier remis en lead — visible dans l’onglet Leads.");
+      await fetchLead();
+      setTimeout(() => navigate("/leads"), 600);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erreur");
+    } finally {
+      setRevertSaving(false);
     }
   };
 
@@ -1481,6 +1576,7 @@ export default function LeadDetail() {
   };
 
   const handleSaveStudyTitle = async () => {
+    if (isReadOnly) return;
     if (!studyTitleModalStudy) return;
     const t = studyTitleDraft.trim();
     if (!t) {
@@ -1501,6 +1597,7 @@ export default function LeadDetail() {
   };
 
   const handleStageChange = async (stageId: string) => {
+    if (isReadOnly) return;
     if (!id || !data || data.lead.stage_id === stageId) return;
     const flushed = await flushOverviewSave();
     if (!flushed) return;
@@ -1526,6 +1623,7 @@ export default function LeadDetail() {
     s: AutocompleteSuggestion,
     pickTier: AddressPickTier = "normal"
   ) => {
+    if (isReadOnly) return;
     try {
       const geo_source: string =
         pickTier === "normal"
@@ -1569,6 +1667,7 @@ export default function LeadDetail() {
   };
 
   const handleManualMapPlacement = async () => {
+    if (isReadOnly) return;
     if (!id) return;
     setError(null);
     try {
@@ -1590,6 +1689,7 @@ export default function LeadDetail() {
   };
 
   const handleAddActivity = async () => {
+    if (isReadOnly) return;
     if (!id) return;
     if (addActivityType === "NOTE" && !addActivityContent.trim()) return;
     setAddActivitySaving(true);
@@ -1613,6 +1713,7 @@ export default function LeadDetail() {
   };
 
   const handleEditActivity = async (activityId: string) => {
+    if (isReadOnly) return;
     if (!editContent.trim()) return;
     setError(null);
     try {
@@ -1626,6 +1727,7 @@ export default function LeadDetail() {
   };
 
   const handleDeleteActivity = async (activityId: string) => {
+    if (isReadOnly) return;
     if (!window.confirm("Supprimer cette note ?")) return;
     setError(null);
     try {
@@ -1642,18 +1744,16 @@ export default function LeadDetail() {
     (displayLead && [displayLead.first_name, displayLead.last_name].filter(Boolean).join(" ").trim());
 
   const commercialEmail =
-    users.find((u) => u.id === displayLead?.assigned_salesperson_user_id)?.email ?? "";
+    users.find((u) => u.id === displayLead?.assigned_user_id)?.email ?? "";
 
   const notes = activities.filter((a) => a.type === "NOTE");
   const historyItems = activities.filter((a) => a.type !== "NOTE");
 
   const isArchived =
     data?.lead?.status === "ARCHIVED" || Boolean(data?.lead?.archived_at);
-  const isLead = data?.lead?.status === "LEAD";
   const isClient = data?.lead?.status === "CLIENT";
-  const headerTypeStatus: "LEAD" | "CLIENT" = data?.lead?.client_id
-    ? "CLIENT"
-    : "LEAD";
+  const isLead = !isClient && !isArchived;
+  const headerTypeStatus: "LEAD" | "CLIENT" = isClient ? "CLIENT" : "LEAD";
 
   if (loading) {
     return (
@@ -1694,28 +1794,21 @@ export default function LeadDetail() {
       <button
         type="button"
         className="sn-btn sn-btn-ghost sn-btn-sm crm-lead-header-v4-back"
+        disabled={isReadOnly}
         onClick={() => void handleUnarchiveLead()}
       >
-        Restaurer
+        ♻️ Restaurer
       </button>
     ) : (
       <>
         <button
           type="button"
           className="sn-btn sn-btn-ghost sn-btn-sm crm-lead-header-v4-back"
-          onClick={() => void handleArchiveLead()}
+          disabled={isReadOnly}
+          onClick={handleArchiveLeadRequest}
         >
-          Archiver
+          📁 Archiver
         </button>
-        {canHardDelete ? (
-          <button
-            type="button"
-            className="sn-btn sn-btn-ghost sn-btn-sm crm-lead-header-v4-back crm-lead-header-v4-back--danger"
-            onClick={() => void handleDeleteLead()}
-          >
-            Supprimer
-          </button>
-        ) : null}
       </>
     );
 
@@ -1729,7 +1822,7 @@ export default function LeadDetail() {
           status={headerTypeStatus}
           isArchived={isArchived}
           phone={displayLead?.phone_mobile ?? displayLead?.phone ?? ""}
-          source={displayLead?.lead_source ?? ""}
+          source={displayLead?.source_name ?? displayLead?.lead_source ?? ""}
           saveSyncState={saveSyncState}
           onRetrySave={() => void performOverviewSave()}
           onBack={() => navigate(-1)}
@@ -1738,9 +1831,16 @@ export default function LeadDetail() {
           onCreateStudy={handleCreateStudy}
           createStudyLoading={createStudyLoading}
           showConvert={isLead && !isArchived}
-          onConvert={() => void handleStatusChange("CLIENT")}
+          onConvert={() => setConvertConfirmOpen(true)}
+          showRevertToLead={isClient && !isArchived}
+          onRevertToLead={() => setRevertConfirmOpen(true)}
+          revertSaving={revertSaving}
           statusSaving={statusSaving}
           actions={headerActions}
+          readOnly={isReadOnly}
+          leadStatusCode={displayLead?.status}
+          stageName={displayLead?.stage_name ?? data.stage?.name}
+          stageCode={data.stage?.code}
         />
       ) : null}
 
@@ -1755,12 +1855,15 @@ export default function LeadDetail() {
           phone={displayLead?.phone_mobile ?? displayLead?.phone ?? ""}
           email={displayLead?.email ?? ""}
           commercialEmail={commercialEmail}
-          source={displayLead?.lead_source ?? ""}
+          source={displayLead?.source_name ?? displayLead?.lead_source ?? ""}
           isLead={isLead}
           hasClientId={!!data.lead.client_id}
           onBack={() => navigate(-1)}
           onProjectStatusIntent={(v) => void handleProjectStatusIntent(v)}
           showProjectCycle={isClient}
+          showRevertToLead={isClient && !isArchived}
+          onRevertToLead={() => setRevertConfirmOpen(true)}
+          revertSaving={revertSaving}
           onStatusChange={handleStatusChange}
           onRdvClick={() => setCreateMissionModalOpen(true)}
           statusSaving={statusSaving}
@@ -1768,6 +1871,15 @@ export default function LeadDetail() {
           onRetrySave={() => void performOverviewSave()}
           isArchived={isArchived}
           actions={headerActions}
+          readOnly={isReadOnly}
+          onWriteEmail={
+            displayLead?.email?.trim() && id
+              ? () => void openComposeForLeadEmail(displayLead.email!, id)
+              : undefined
+          }
+          leadStatusCode={displayLead?.status}
+          stageName={displayLead?.stage_name ?? data.stage?.name}
+          stageCode={data.stage?.code}
         />
 
         {error && (
@@ -1790,7 +1902,24 @@ export default function LeadDetail() {
           currentStageId={data.lead.stage_id}
           onStageChange={handleStageChange}
           stageChanging={stageChanging}
+          readOnly={isReadOnly}
         />
+
+        {displayLead && isLeadDpFolderAccessible(displayLead) && id ? (
+          <div style={{ marginTop: 12 }}>
+            <button
+              type="button"
+              className="sn-btn sn-btn-primary sn-btn-sm"
+              disabled={isReadOnly}
+              onClick={() => {
+                if (isReadOnly) return;
+                navigate(`/leads/${id}/dp`);
+              }}
+            >
+              Créer / Continuer le dossier DP
+            </button>
+          </div>
+        ) : null}
       </div>
 
       <LeadTabs
@@ -1813,6 +1942,7 @@ export default function LeadDetail() {
             setAddressInput={setAddressInput}
             consumptionMonthly={monthlyLocal}
             users={users}
+            leadSources={leadSources}
             onLeadChange={handleFormLeadChange}
             onMonthlyConsumptionChange={handleMonthlyLocalChange}
             onMonthlyGridEditingChange={setMonthlyGridEditing}
@@ -1847,6 +1977,7 @@ export default function LeadDetail() {
             showEnergyConsoBody={showEnergyConsoBody}
             energyConsoBlockedSummary={energySectionSummary}
             hasMeters={metersLoadPhase === "ready" && metersList.length > 0}
+            readOnly={isReadOnly}
           />
         )}
         {activeTab === "studies" && (
@@ -1936,7 +2067,12 @@ export default function LeadDetail() {
             <Button type="button" variant="ghost" disabled={studyTitleSaving} onClick={() => setStudyTitleModalStudy(null)}>
               Annuler
             </Button>
-            <Button type="button" variant="primary" disabled={studyTitleSaving} onClick={handleSaveStudyTitle}>
+            <Button
+              type="button"
+              variant="primary"
+              disabled={studyTitleSaving || isReadOnly}
+              onClick={handleSaveStudyTitle}
+            >
               {studyTitleSaving ? "Enregistrement…" : "Enregistrer"}
             </Button>
           </>
@@ -1951,7 +2087,7 @@ export default function LeadDetail() {
           style={{ width: "100%", boxSizing: "border-box" }}
           value={studyTitleDraft}
           onChange={(e) => setStudyTitleDraft(e.target.value)}
-          disabled={studyTitleSaving}
+          disabled={studyTitleSaving || isReadOnly}
           autoFocus
         />
       </ModalShell>
@@ -1971,6 +2107,43 @@ export default function LeadDetail() {
           }}
         />
       )}
+
+      <ConfirmModal
+        open={archiveConfirmOpen}
+        title="Archiver ce lead ?"
+        message="Le lead sera retiré des actifs mais restera accessible dans les archives."
+        confirmLabel="Archiver"
+        cancelLabel="Annuler"
+        variant="default"
+        onCancel={() => setArchiveConfirmOpen(false)}
+        onConfirm={() => void performArchiveLead()}
+      />
+
+      <ConfirmModal
+        open={convertConfirmOpen}
+        title="Convertir en client ?"
+        message="Ce lead apparaîtra dans la liste Clients. Vous pourrez revenir en arrière."
+        confirmLabel="Confirmer"
+        cancelLabel="Annuler"
+        variant="default"
+        confirmDisabled={statusSaving}
+        cancelDisabled={statusSaving}
+        onCancel={() => !statusSaving && setConvertConfirmOpen(false)}
+        onConfirm={() => void performConvertToClient()}
+      />
+
+      <ConfirmModal
+        open={revertConfirmOpen}
+        title="Revenir en lead ?"
+        message="Le dossier repassera dans la liste Leads. La fiche client sera supprimée s’il n’y a pas de facture ni d’avoir lié."
+        confirmLabel="Revenir en lead"
+        cancelLabel="Annuler"
+        variant="warning"
+        confirmDisabled={revertSaving}
+        cancelDisabled={revertSaving}
+        onCancel={() => !revertSaving && setRevertConfirmOpen(false)}
+        onConfirm={() => void performRevertToLead()}
+      />
 
       <ConfirmModal
         open={confirmProjectOpen}

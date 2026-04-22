@@ -16,6 +16,7 @@ function formatValidUntilIso(iso: string | null | undefined): string | null {
 export interface QuoteSummaryPanelProps {
   totals: QuoteTotals;
   globalDiscountPercent: number;
+  globalDiscountAmountHt: number;
   validityDays: number;
   deposit: QuoteDeposit;
   linesCount?: number;
@@ -30,6 +31,7 @@ export interface QuoteSummaryPanelProps {
 export default function QuoteSummaryPanel({
   totals,
   globalDiscountPercent,
+  globalDiscountAmountHt,
   validityDays,
   deposit,
   linesCount = 0,
@@ -40,6 +42,19 @@ export default function QuoteSummaryPanel({
   const expectedTtc = computeExpectedDepositTtc(deposit, totals.total_ttc);
   const hasDeposit = deposit.value > 0 && Number.isFinite(deposit.value);
   const untilLabel = formatValidUntilIso(validUntil);
+  const hasDocDiscount = totals.applied_global_discount_ht > 0.005;
+  const fmtAmt = globalDiscountAmountHt.toLocaleString("fr-FR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+  let docDiscountLabel = "Remise document";
+  if (globalDiscountPercent > 0 && globalDiscountAmountHt > 0) {
+    docDiscountLabel = `Remise document (${globalDiscountPercent} % + ${fmtAmt} € HT fixe)`;
+  } else if (globalDiscountPercent > 0) {
+    docDiscountLabel = `Remise document (${globalDiscountPercent} % sur HT)`;
+  } else if (globalDiscountAmountHt > 0) {
+    docDiscountLabel = "Remise document (montant fixe HT)";
+  }
 
   return (
     <section className="qb-pricing-panel qb-pricing-panel--commercial" aria-labelledby="qb-pricing-title">
@@ -65,9 +80,9 @@ export default function QuoteSummaryPanel({
               <dt>Total TTC avant remise document</dt>
               <dd>{eur(totals.subtotal_ttc)}</dd>
             </div>
-            {globalDiscountPercent > 0 ? (
+            {hasDocDiscount ? (
               <div className="qb-pricing-row qb-pricing-row--accent">
-                <dt>Remise document ({globalDiscountPercent} % sur HT)</dt>
+                <dt>{docDiscountLabel}</dt>
                 <dd>−{eur(totals.applied_global_discount_ht)} HT</dd>
               </div>
             ) : null}

@@ -32,6 +32,8 @@ export interface Lead {
   /** PRO : numéro SIRET (14 chiffres) */
   siret?: string | null;
   customer_type?: "PERSON" | "PRO";
+  /** ISO YYYY-MM-DD — mandat de représentation DP */
+  birth_date?: string | null;
   email?: string;
   phone?: string;
   phone_mobile?: string;
@@ -48,15 +50,23 @@ export interface Lead {
   score: number;
   potential_revenue: number;
   inactivity_level: "none" | "warning" | "danger" | "critical";
-  status: "LEAD" | "CLIENT" | "ARCHIVED" | "active" | "signed" | "finalized" | "archived";
+  /** Statut commercial CRM (LEAD, NEW, QUALIFIED, CLIENT, LOST, …) */
+  status: string;
   archived_at?: string | null;
   project_status?: ProjectStatus;
   stage_id: string;
   client_id?: string;
   stage_name?: string;
+  /** Filtre API inchangé (UUID commercial) */
   assigned_to?: string;
-  assigned_salesperson_user_id?: string;
+  assigned_user_id?: string;
   assigned_to_email?: string;
+  source_id?: string;
+  /** Nom catalogue lead_sources (jointure API) */
+  source_name?: string;
+  /** Slug stable d’acquisition (jointure API) — pour stats / ROI */
+  source_slug?: string | null;
+  /** @deprecated préférer source_name — texte libre legacy si colonne DB encore présente */
   lead_source?: string;
   is_geo_verified?: boolean;
   has_signed_quote?: boolean;
@@ -68,6 +78,22 @@ export interface Lead {
   updated_at?: string;
   last_activity_at?: string;
   lost_reason?: string | null;
+  rgpd_consent?: boolean;
+  rgpd_consent_at?: string | null;
+  marketing_opt_in?: boolean;
+  marketing_opt_in_at?: string | null;
+  /** CP-MAIRIES-004 — lien mairie (GET liste / détail enrichi) */
+  mairie_id?: string | null;
+  /** Statut compte portail mairie liée — sinon absent / null */
+  mairie_account_status?: "none" | "to_create" | "created" | null;
+  /** Détails GET /api/leads/:id seulement (jointure) */
+  mairie_name?: string | null;
+  mairie_postal_code?: string | null;
+  mairie_city?: string | null;
+  mairie_portal_url?: string | null;
+  mairie_portal_type?: "online" | "email" | "paper" | null;
+  mairie_account_email?: string | null;
+  mairie_bitwarden_ref?: string | null;
 }
 
 export interface LeadsFilters {
@@ -86,10 +112,29 @@ export interface LeadsFilters {
   budget_max?: number;
   is_geo_verified?: boolean;
   has_signed_quote?: boolean;
-  sort?: "full_name" | "updated_at" | "assigned_salesperson_user_id" | "project_status" | "estimated_budget_eur";
+  /** Filtre sur la date de création du dossier (YYYY-MM-DD) */
+  created_from?: string;
+  created_to?: string;
+  /** Source d’acquisition (UUID) */
+  source_id?: string;
+  /** Opt-in marketing (table leads) */
+  marketing_opt_in?: boolean;
+  sort?:
+    | "full_name"
+    | "updated_at"
+    | "created_at"
+    | "assigned_user_id"
+    | "assigned_salesperson_user_id"
+    | "project_status"
+    | "estimated_budget_eur"
+    | "score"
+    | "inactivity_level"
+    | "stage_name";
   order?: "asc" | "desc";
-  /** Liste uniquement : inclure les leads archivés (status ARCHIVED) */
+  /** @deprecated préférer archive_scope — liste leads/clients */
   include_archived?: boolean;
+  /** Filtre archivage : actifs ( défaut ), archivés seuls, ou tous */
+  archive_scope?: "active" | "archived" | "all";
 }
 
 export interface KanbanColumn {
@@ -122,7 +167,7 @@ export async function fetchKanban(
   return data.columns ?? [];
 }
 
-export async function fetchLeads(filters?: LeadsFilters): Promise<Lead[]> {
+function leadsQueryParams(filters?: LeadsFilters, extra?: Record<string, string>): URLSearchParams {
   const params = new URLSearchParams();
   params.set("view", filters?.view ?? "leads");
   if (filters?.stage) params.set("stage", filters.stage);
@@ -139,9 +184,32 @@ export async function fetchLeads(filters?: LeadsFilters): Promise<Lead[]> {
   if (filters?.budget_max != null) params.set("budget_max", String(filters.budget_max));
   if (filters?.is_geo_verified !== undefined) params.set("is_geo_verified", String(filters.is_geo_verified));
   if (filters?.has_signed_quote !== undefined) params.set("has_signed_quote", String(filters.has_signed_quote));
+  if (filters?.created_from) params.set("created_from", filters.created_from);
+  if (filters?.created_to) params.set("created_to", filters.created_to);
+  if (filters?.source_id) params.set("source_id", filters.source_id);
+  if (filters?.marketing_opt_in !== undefined) {
+    params.set("marketing_opt_in", String(filters.marketing_opt_in));
+  }
+  const scope = filters?.archive_scope;
+  if (scope === "archived" || scope === "all") {
+    params.set("archive_scope", scope);
+  } else if (scope === "active") {
+    params.set("archive_scope", "active");
+  } else if (filters?.include_archived === true) {
+    params.set("include_archived", "true");
+  }
   if (filters?.sort) params.set("sort", filters.sort);
   if (filters?.order) params.set("order", filters.order);
+  if (extra) {
+    for (const [k, v] of Object.entries(extra)) {
+      params.set(k, v);
+    }
+  }
+  return params;
+}
 
+export async function fetchLeads(filters?: LeadsFilters): Promise<Lead[]> {
+  const params = leadsQueryParams(filters);
   const qs = params.toString();
   const url = `${API_BASE}/api/leads${qs ? `?${qs}` : ""}`;
   const res = await apiFetch(url);
@@ -149,7 +217,38 @@ export async function fetchLeads(filters?: LeadsFilters): Promise<Lead[]> {
     const err = await res.json().catch(() => ({}));
     throw new Error((err as { error?: string }).error || `Erreur ${res.status}`);
   }
-  return res.json();
+  const data = await res.json();
+  if (Array.isArray(data)) return data as Lead[];
+  if (data && typeof data === "object" && Array.isArray((data as { leads?: unknown }).leads)) {
+    return (data as { leads: Lead[] }).leads;
+  }
+  return [];
+}
+
+/** GET /api/leads avec `include_total` — pagination serveur (total filtré). */
+export async function fetchLeadsWithTotal(
+  filters?: LeadsFilters
+): Promise<{ leads: Lead[]; total: number }> {
+  const params = leadsQueryParams(filters, { include_total: "true" });
+  const qs = params.toString();
+  const url = `${API_BASE}/api/leads${qs ? `?${qs}` : ""}`;
+  const res = await apiFetch(url);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { error?: string }).error || `Erreur ${res.status}`);
+  }
+  const data = await res.json();
+  if (data && typeof data === "object" && Array.isArray((data as { leads?: unknown }).leads)) {
+    return {
+      leads: (data as { leads: Lead[] }).leads,
+      total: Number((data as { total?: unknown }).total) || 0,
+    };
+  }
+  if (Array.isArray(data)) {
+    const rows = data as Lead[];
+    return { leads: rows, total: rows.length };
+  }
+  return { leads: [], total: 0 };
 }
 
 export async function archiveLead(id: string): Promise<Lead> {
@@ -168,14 +267,6 @@ export async function unarchiveLead(id: string): Promise<Lead> {
     throw new Error((err as { error?: string }).error || `Erreur ${res.status}`);
   }
   return res.json();
-}
-
-export async function deleteLead(id: string): Promise<void> {
-  const res = await apiFetch(`${API_BASE}/api/leads/${id}`, { method: "DELETE" });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error((err as { error?: string }).error || `Erreur ${res.status}`);
-  }
 }
 
 export async function updateLeadStage(leadId: string, stageId: string): Promise<{ stage: { id: string; name: string } }> {
@@ -206,6 +297,10 @@ export async function updateLead(
   return (await res.json()) as Lead;
 }
 
+export function isLeadArchivedRecord(lead: Pick<Lead, "status" | "archived_at">): boolean {
+  return lead.status === "ARCHIVED" || Boolean(lead.archived_at);
+}
+
 export function getLeadName(lead: Lead): string {
   if (lead.full_name?.trim()) return lead.full_name.trim();
   const parts = [lead.first_name, lead.last_name].filter(Boolean);
@@ -226,7 +321,8 @@ export function getLeadCity(lead: Lead): string {
 export function getLeadProjectHint(lead: Lead): string {
   if (lead.project_status)
     return String(lead.project_status).replace(/_/g, " ");
-  if (lead.lead_source?.trim()) return lead.lead_source.trim();
+  const src = lead.source_name?.trim() || lead.lead_source?.trim();
+  if (src) return src;
   return "";
 }
 
@@ -251,6 +347,20 @@ export function getLeadFullAddress(lead: Lead): string {
   return "";
 }
 
+/** Libellé compact pour liste (CP + ville, ou 1re ligne d’adresse courte) — évite le pavé complet. */
+export function getLeadListLocation(lead: Lead): string {
+  const pc = lead.site_postal_code?.trim();
+  const city = lead.site_city?.trim() || lead.city?.trim();
+  if (pc && city) return `${pc} ${city}`;
+  if (city) return city;
+  if (pc) return pc;
+  const full = getLeadFullAddress(lead);
+  if (!full) return "";
+  const firstLine = full.split(",")[0]?.trim() ?? "";
+  if (firstLine.length > 48) return `${firstLine.slice(0, 45)}…`;
+  return firstLine;
+}
+
 /** Téléphone mobile ou fixe */
 export function getLeadPhoneDisplay(lead: Lead): string {
   const m = lead.phone_mobile?.trim();
@@ -268,6 +378,19 @@ export function formatPotentialRevenue(value: number): string {
   }).format(Number(value));
 }
 
+export type LeadAcquisitionCategory =
+  | "field"
+  | "digital_owned"
+  | "digital_paid"
+  | "organic"
+  | "offline"
+  | "events"
+  | "referral"
+  | "partner"
+  | "inbound"
+  | "platform"
+  | "other";
+
 export interface LeadsMeta {
   stages: {
     id: string;
@@ -277,6 +400,13 @@ export interface LeadsMeta {
     code?: string | null;
   }[];
   users: { id: string; email?: string }[];
+  sources: {
+    id: string;
+    name: string;
+    slug?: string;
+    sort_order?: number;
+    category?: LeadAcquisitionCategory;
+  }[];
 }
 
 export async function fetchLeadsMeta(): Promise<LeadsMeta> {
@@ -285,7 +415,12 @@ export async function fetchLeadsMeta(): Promise<LeadsMeta> {
     const err = await res.json().catch(() => ({}));
     throw new Error((err as { error?: string }).error || `Erreur ${res.status}`);
   }
-  return res.json();
+  const data = (await res.json()) as Partial<LeadsMeta>;
+  return {
+    stages: data.stages ?? [],
+    users: data.users ?? [],
+    sources: data.sources ?? [],
+  };
 }
 
 export interface CreateLeadPayload {
@@ -328,6 +463,16 @@ export async function createLead(payload: CreateLeadPayload): Promise<Lead> {
 /** CP-CONVERT — Convertit un lead en client (crée l'enregistrement client, génère SG-YYYY-XXXX) */
 export async function convertLead(id: string): Promise<{ client: unknown; lead: Lead }> {
   const res = await apiFetch(`${API_BASE}/api/leads/${id}/convert`, { method: "POST" });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { error?: string }).error || `Erreur ${res.status}`);
+  }
+  return res.json();
+}
+
+/** Remet un dossier CLIENT en LEAD (supprime la fiche client si aucune facture / avoir). */
+export async function revertLeadToLead(id: string): Promise<{ ok: boolean; lead_id: string }> {
+  const res = await apiFetch(`${API_BASE}/api/leads/${id}/revert-to-lead`, { method: "POST" });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error((err as { error?: string }).error || `Erreur ${res.status}`);

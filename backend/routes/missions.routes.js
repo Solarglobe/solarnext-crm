@@ -38,8 +38,16 @@ router.get(
     try {
       const org = req.user?.organizationId ?? req.user?.organization_id;
       const { pool } = await import("../config/db.js");
+      const { isJwtSuperAdmin, sqlAndUserNotSuperAdmin } = await import("../lib/superAdminUserGuards.js");
+      const hideSuperUsers = !isJwtSuperAdmin(req);
       const [usersRes, teamsRes, agenciesRes] = await Promise.all([
-        pool.query("SELECT id, email FROM users WHERE organization_id = $1 AND status = 'active' ORDER BY email", [org]),
+        pool.query(
+          `SELECT u.id, u.email FROM users u
+           WHERE u.organization_id = $1 AND u.status = 'active'
+           ${hideSuperUsers ? sqlAndUserNotSuperAdmin("u") : ""}
+           ORDER BY u.email`,
+          [org]
+        ),
         pool.query("SELECT id, name FROM teams WHERE organization_id = $1 ORDER BY name", [org]).catch(() => ({ rows: [] })),
         pool.query("SELECT id, name FROM agencies WHERE organization_id = $1 ORDER BY name", [org]).catch(() => ({ rows: [] })),
       ]);

@@ -4,6 +4,8 @@
 
 import { pool } from "../config/db.js";
 import * as invoiceService from "../services/invoices.service.js";
+import { logAuditEvent } from "../services/audit/auditLog.service.js";
+import { AuditActions } from "../services/audit/auditActions.js";
 
 const orgId = (req) => req.user.organizationId ?? req.user.organization_id;
 const userId = (req) => req.user.userId ?? req.user.id;
@@ -151,7 +153,24 @@ export async function recalculateStatus(req, res) {
 export async function remove(req, res) {
   try {
     const org = orgId(req);
-    await invoiceService.deleteInvoiceHard(req.params.id, org);
+    const invoiceId = req.params.id;
+    const info = await pool.query(
+      `SELECT invoice_number FROM invoices WHERE id = $1 AND organization_id = $2 AND (archived_at IS NULL)`,
+      [invoiceId, org]
+    );
+    const label = info.rows[0]?.invoice_number ?? null;
+    await invoiceService.deleteInvoiceHard(invoiceId, org);
+    void logAuditEvent({
+      action: AuditActions.INVOICE_DELETED,
+      entityType: "invoice",
+      entityId: invoiceId,
+      organizationId: org,
+      userId: userId(req),
+      targetLabel: label != null ? String(label) : undefined,
+      req,
+      statusCode: 204,
+      metadata: { hard_delete: true },
+    });
     res.status(204).send();
   } catch (e) {
     const code = e.statusCode === 404 ? 404 : e.statusCode === 403 ? 403 : 500;

@@ -75,9 +75,10 @@ describe("buildRoofModel3DFromLegacyGeometry", () => {
     expect(shared.length).toBeGreaterThanOrEqual(1);
     const adj = model.roofPlanePatches[0].adjacentPlanePatchIds;
     expect(adj).toContain("p2");
-    expect(model.globalQuality.diagnostics.some((d) => d.code === "INTERPAN_SHARED_EDGE_PLANE_SUMMARY")).toBe(
-      true,
-    );
+    // Imposition par arête : si les plans sont déjà cohérents (coplanaires), aucun Z n’est recalculé → pas de SUMMARY.
+    const hasImposeSummary = model.globalQuality.diagnostics.some((d) => d.code === "INTERPAN_SHARED_EDGE_PLANE_SUMMARY");
+    const hasImposeLocked = model.globalQuality.diagnostics.some((d) => d.code === "INTERPAN_SHARED_EDGE_PLANE_LOCKED");
+    expect(hasImposeSummary === hasImposeLocked).toBe(true);
     for (const patch of model.roofPlanePatches) {
       const c = centroid3(patch.cornersWorld);
       const rms = planeFitResidualRms(patch.cornersWorld, patch.normal, c);
@@ -202,7 +203,7 @@ describe("buildRoofModel3DFromLegacyGeometry", () => {
     expect(validateRoofModel3D(model).ok).toBe(true);
   });
 
-  it("verrouille le Z identique sur les coins partagés si les hauteurs explicites divergent", () => {
+  it("préserve les Z explicites divergents sur l’arête commune (unify ne réécrit pas les sommets heightM)", () => {
     const mpp = 0.05;
     const { model, interPanReports } = buildRoofModel3DFromLegacyGeometry({
       metersPerPixel: mpp,
@@ -243,12 +244,14 @@ describe("buildRoofModel3DFromLegacyGeometry", () => {
         zsByXY.set(k, arr);
       }
     }
+    const sharedEdgeDz: number[] = [];
     for (const zs of zsByXY.values()) {
       if (zs.length > 1) {
-        expect(Math.max(...zs) - Math.min(...zs)).toBeLessThan(1e-4);
+        sharedEdgeDz.push(Math.max(...zs) - Math.min(...zs));
       }
     }
-    expect(model.globalQuality.diagnostics.some((d) => d.code === "INTERPAN_SHARED_CORNER_Z_LOCKED")).toBe(true);
+    expect(sharedEdgeDz.some((dz) => dz > 0.1)).toBe(true);
+    expect(model.globalQuality.diagnostics.some((d) => d.code === "INTERPAN_SHARED_CORNER_Z_LOCKED")).toBe(false);
   });
 
   it("priorise les hauteurs explicites sur les sommets par rapport au défaut global", () => {
@@ -272,5 +275,50 @@ describe("buildRoofModel3DFromLegacyGeometry", () => {
     for (const v of model.roofVertices) {
       expect(v.position.z).toBe(0);
     }
+  });
+
+  const twoAdjacentPansInput = {
+    metersPerPixel: 0.05,
+    northAngleDeg: 0,
+    defaultHeightM: 8,
+    pans: [
+      {
+        id: "p1",
+        polygonPx: [
+          { xPx: 0, yPx: 0, heightM: 8 },
+          { xPx: 100, yPx: 0, heightM: 8 },
+          { xPx: 100, yPx: 100, heightM: 8 },
+          { xPx: 0, yPx: 100, heightM: 8 },
+        ],
+      },
+      {
+        id: "p2",
+        polygonPx: [
+          { xPx: 100, yPx: 0, heightM: 8 },
+          { xPx: 200, yPx: 0, heightM: 8 },
+          { xPx: 200, yPx: 100, heightM: 8 },
+          { xPx: 100, yPx: 100, heightM: 8 },
+        ],
+      },
+    ],
+  };
+
+  it("mode fidélité pure : diagnostic raffinement normales désactivé", () => {
+    const { model } = buildRoofModel3DFromLegacyGeometry(twoAdjacentPansInput, {
+      roofGeometryFidelityMode: "fidelity",
+    });
+    expect(
+      model.globalQuality.diagnostics.some((d) => d.code === "ROOF_SHARED_EDGE_NORMAL_REFINEMENT_SKIPPED_FIDELITY"),
+    ).toBe(true);
+  });
+
+  it("mode hybride : pas de skip raffinement normales ; diagnostic hybride actif", () => {
+    const { model } = buildRoofModel3DFromLegacyGeometry(twoAdjacentPansInput, {
+      roofGeometryFidelityMode: "hybrid",
+    });
+    expect(
+      model.globalQuality.diagnostics.some((d) => d.code === "ROOF_SHARED_EDGE_NORMAL_REFINEMENT_SKIPPED_FIDELITY"),
+    ).toBe(false);
+    expect(model.globalQuality.diagnostics.some((d) => d.code === "ROOF_GEOMETRY_HYBRID_MODE_ACTIVE")).toBe(true);
   });
 });

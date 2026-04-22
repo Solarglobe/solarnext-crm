@@ -17,6 +17,7 @@ import { canOfferOfficialQuotePdfFromListRow } from "../modules/quotes/quoteWork
 import { QuoteStatusBadge } from "../modules/leads/LeadDetail/financial/financialStatusBadges";
 import "../modules/quotes/quote-builder.css";
 import "../modules/leads/LeadDetail/financial/financial-tab.css";
+import "../modules/finance/financial-list-saas.css";
 
 function eur(v: unknown) {
   const n = Number(v);
@@ -150,6 +151,26 @@ function matchesQuoteDateRange(row: QuoteListRow, fromYmd: string, toYmd: string
 const PDF_OFFICIAL_HINT =
   "Un PDF peut être généré une fois le document figé (« Envoyé » ou validation signée depuis « Présenter »). Le numéro officiel n’apparaît qu’après signature du devis.";
 
+function IconSearchFin({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <circle cx="11" cy="11" r="7" />
+      <path d="M21 21l-4.3-4.3" />
+    </svg>
+  );
+}
+
 function PdfGlyph({ hasPdf, hasSignedPdf = false }: { hasPdf: boolean; hasSignedPdf?: boolean }) {
   const ok = hasPdf || hasSignedPdf;
   return (
@@ -265,6 +286,15 @@ export default function QuotesList() {
     }
   };
 
+  const handleResetFilters = useCallback(() => {
+    setStatusFilter("ALL");
+    setPeriodFilter("ALL");
+    setDateFrom("");
+    setDateTo("");
+    setDateRangeBasis("EITHER");
+    setSearch("");
+  }, []);
+
   const onDeleteQuote = async (e: React.MouseEvent, id: string) => {
     e.preventDefault();
     e.stopPropagation();
@@ -305,74 +335,109 @@ export default function QuotesList() {
         </div>
       </div>
 
-      <div className="fin-saas-filters" style={{ marginBottom: 16 }}>
-        <label className="fin-saas-filter-field">
-          <span className="fin-saas-filter-label">Statut</span>
-          <select className="sn-input" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as QuoteStatusFilter)}>
-            <option value="ALL">Tous</option>
-            <option value="DRAFT">Brouillon</option>
-            <option value="SENT">Envoyé / prêt</option>
-            <option value="ACCEPTED">Accepté</option>
-            <option value="REFUSED">Refusé</option>
-          </select>
-        </label>
-        <label className="fin-saas-filter-field" title={useCustomDateRange ? "Désactivé tant qu’un intervalle Du/Au est renseigné" : undefined}>
-          <span className="fin-saas-filter-label">Période rapide</span>
-          <select
-            className="sn-input"
-            value={periodFilter}
-            disabled={useCustomDateRange}
-            onChange={(e) => setPeriodFilter(e.target.value as PeriodFilter)}
-          >
-            <option value="ALL">Toutes</option>
-            <option value="TODAY">Aujourd&apos;hui</option>
-            <option value="7D">7 jours</option>
-            <option value="30D">30 jours</option>
-          </select>
-        </label>
-        <label className="fin-saas-filter-field fin-saas-filter-field--date">
-          <span className="fin-saas-filter-label">Du</span>
-          <input
-            type="date"
-            className="sn-input"
-            value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
-            aria-label="Date de début (filtre)"
-          />
-        </label>
-        <label className="fin-saas-filter-field fin-saas-filter-field--date">
-          <span className="fin-saas-filter-label">Au</span>
-          <input
-            type="date"
-            className="sn-input"
-            value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
-            aria-label="Date de fin (filtre)"
-          />
-        </label>
-        <label className="fin-saas-filter-field fin-saas-filter-field--basis">
-          <span className="fin-saas-filter-label">Filtrer sur</span>
-          <select
-            className="sn-input"
-            value={dateRangeBasis}
-            onChange={(e) => setDateRangeBasis(e.target.value as QuoteDateRangeBasis)}
-            aria-label="Critère de dates"
-          >
-            <option value="EITHER">Création ou dernière modification</option>
-            <option value="CREATED">Date de création</option>
-            <option value="UPDATED">Dernière modification</option>
-          </select>
-        </label>
-        <label className="fin-saas-filter-field fin-saas-filter-field--grow">
-          <span className="fin-saas-filter-label">Recherche</span>
-          <input
-            className="sn-input"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="N° devis, client, contact…"
-            aria-label="Recherche devis"
-          />
-        </label>
+      <div className="sn-leads-toolbar-wrap">
+        <div className="sn-leads-filters-card" role="search" aria-label="Filtres devis">
+          <div className="sn-leads-filters-primary">
+            <div className="sn-leads-filters-search">
+              <IconSearchFin className="sn-leads-filters-search__icon" />
+              <input
+                id="fin-quotes-search"
+                type="search"
+                className="sn-leads-filters-search__input"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Rechercher n°, client, contact…"
+                aria-label="Rechercher un devis"
+                autoComplete="off"
+              />
+            </div>
+            <div className="sn-leads-filters-field">
+              <label htmlFor="fin-quotes-status" className="sn-leads-filters-field__label">
+                Statut
+              </label>
+              <select
+                id="fin-quotes-status"
+                className="sn-leads-filters-select"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as QuoteStatusFilter)}
+              >
+                <option value="ALL">Tous</option>
+                <option value="DRAFT">Brouillon</option>
+                <option value="SENT">Envoyé / prêt</option>
+                <option value="ACCEPTED">Accepté</option>
+                <option value="REFUSED">Refusé</option>
+              </select>
+            </div>
+            <div
+              className="sn-leads-filters-field sn-leads-filters-field--daterange"
+              title="Date de création ou de modification selon « Filtrer sur »"
+            >
+              <span className="sn-leads-filters-field__label">Plage de dates</span>
+              <div className="sn-leads-filters-daterange">
+                <input
+                  type="date"
+                  className="sn-leads-filters-input sn-leads-filters-input--date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  aria-label="Date de début (filtre)"
+                />
+                <span className="sn-leads-filters-daterange__sep" aria-hidden>
+                  –
+                </span>
+                <input
+                  type="date"
+                  className="sn-leads-filters-input sn-leads-filters-input--date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  aria-label="Date de fin (filtre)"
+                />
+              </div>
+            </div>
+            <div className="sn-leads-filters-primary__reset">
+              <button type="button" className="sn-leads-filters-reset" onClick={handleResetFilters}>
+                Réinitialiser
+              </button>
+            </div>
+          </div>
+          <div className="sn-leads-filters-secondary" aria-label="Filtres dates">
+            <div
+              className="sn-leads-filters-field sn-leads-filters-field--subtle"
+              title={useCustomDateRange ? "Désactivé tant qu’une plage Du/Au est renseignée" : undefined}
+            >
+              <label htmlFor="fin-quotes-period" className="sn-leads-filters-field__label">
+                Période rapide
+              </label>
+              <select
+                id="fin-quotes-period"
+                className="sn-leads-filters-select sn-leads-filters-select--subtle"
+                value={periodFilter}
+                disabled={useCustomDateRange}
+                onChange={(e) => setPeriodFilter(e.target.value as PeriodFilter)}
+              >
+                <option value="ALL">Toutes</option>
+                <option value="TODAY">Aujourd&apos;hui</option>
+                <option value="7D">7 jours</option>
+                <option value="30D">30 jours</option>
+              </select>
+            </div>
+            <div className="sn-leads-filters-field sn-leads-filters-field--subtle fin-list-field--wide">
+              <label htmlFor="fin-quotes-basis" className="sn-leads-filters-field__label">
+                Filtrer sur
+              </label>
+              <select
+                id="fin-quotes-basis"
+                className="sn-leads-filters-select sn-leads-filters-select--subtle"
+                value={dateRangeBasis}
+                onChange={(e) => setDateRangeBasis(e.target.value as QuoteDateRangeBasis)}
+                aria-label="Critère de dates"
+              >
+                <option value="EITHER">Création ou dernière modification</option>
+                <option value="CREATED">Date de création</option>
+                <option value="UPDATED">Dernière modification</option>
+              </select>
+            </div>
+          </div>
+        </div>
       </div>
 
       {error ? <p className="qb-error-inline">{error}</p> : null}
@@ -397,8 +462,8 @@ export default function QuotesList() {
       ) : null}
 
       {!loading && filtered.length > 0 ? (
-        <div className="qb-table-wrap">
-          <table className="qb-table">
+        <div className="qb-table-wrap qb-table-wrap--list-saas">
+          <table className="qb-table qb-table--list-saas">
             <thead>
               <tr>
                 <th>Numéro</th>
@@ -424,7 +489,7 @@ export default function QuotesList() {
                     <PdfGlyph hasPdf={Boolean(r.has_pdf)} hasSignedPdf={Boolean(r.has_signed_pdf)} />
                   </td>
                   <td>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
+                    <div className="fin-list-actions">
                       <button
                         type="button"
                         className="fin-link-btn fin-link-btn--accent"
@@ -484,92 +549,6 @@ export default function QuotesList() {
         </div>
       ) : null}
 
-      <style>{`
-        .fin-saas-filters {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 12px 16px;
-          align-items: flex-end;
-        }
-        .fin-saas-filter-field {
-          display: flex;
-          flex-direction: column;
-          gap: 4px;
-          min-width: 140px;
-        }
-        .fin-saas-filter-field--grow {
-          flex: 1 1 220px;
-          min-width: 200px;
-        }
-        .fin-saas-filter-field--date {
-          min-width: 148px;
-          max-width: 168px;
-        }
-        .fin-saas-filter-field--basis {
-          min-width: 200px;
-          flex: 1 1 200px;
-          max-width: 320px;
-        }
-        .fin-saas-filter-label {
-          font-size: 11px;
-          font-weight: 700;
-          text-transform: uppercase;
-          letter-spacing: 0.05em;
-          color: var(--text-muted);
-        }
-        .fin-saas-pdf-ic {
-          position: relative;
-          display: inline-flex;
-          color: var(--text-muted);
-          vertical-align: middle;
-        }
-        .fin-saas-pdf-dot {
-          position: absolute;
-          right: -2px;
-          bottom: -2px;
-          width: 8px;
-          height: 8px;
-          border-radius: 50%;
-          border: 2px solid var(--surface-elevated, #1e1a28);
-        }
-        .theme-light .fin-saas-pdf-dot {
-          border-color: #fff;
-        }
-        .fin-saas-pdf-dot--ok {
-          background: var(--sg-success, #16a34a);
-        }
-        .fin-saas-pdf-dot--off {
-          background: color-mix(in srgb, var(--text-muted) 45%, transparent);
-        }
-        .fin-quote-list-delete {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          width: 32px;
-          height: 32px;
-          margin-left: 2px;
-          padding: 0;
-          border: none;
-          border-radius: 8px;
-          background: transparent;
-          color: #dc2626;
-          cursor: pointer;
-          vertical-align: middle;
-          transition: background 0.15s ease, color 0.15s ease;
-        }
-        .fin-quote-list-delete:hover:not(:disabled) {
-          background: rgba(220, 38, 38, 0.14);
-          color: #b91c1c;
-        }
-        .fin-quote-list-delete:focus-visible {
-          outline: 2px solid rgba(220, 38, 38, 0.45);
-          outline-offset: 2px;
-        }
-        .fin-quote-list-delete:disabled {
-          opacity: 0.45;
-          cursor: not-allowed;
-        }
-      `}</style>
     </div>
   );
 }

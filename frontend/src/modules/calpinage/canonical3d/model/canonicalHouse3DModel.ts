@@ -165,6 +165,106 @@ export type AnnexDiscriminated = AnnexBase & {
   readonly geometry: AnnexGeometryLocal;
 };
 
+// ——— Annexes toiture 3D officielles (Prompt 8 — couche géométrique / métier) ———
+
+/** Famille métier unique par objet annexe (pas de fusion sémantique). */
+export type RoofAnnexOfficialFamily =
+  | "roof_obstacle_solid"
+  | "roof_opening"
+  | "roof_keepout_zone"
+  | "roof_shadow_volume"
+  | "roof_extension_volume"
+  | "roof_edge_uplift"
+  | "roof_unknown_annex";
+
+/** Résultat du rattachement XY d’une annexe aux pans topologiques résolus. */
+export type RoofAnnexBindingStatus =
+  | "fully_contained_single_patch"
+  | "partial_overlap_single_patch"
+  | "straddles_multiple_patches"
+  | "outside_all_patches"
+  | "ambiguous_patch_choice"
+  | "no_solved_plane_for_primary_patch"
+  | "no_footprint_geometry"
+  | "degenerate_footprint";
+
+export type RoofAnnexBindingConfidence = "high" | "medium" | "low" | "none";
+
+/** Base Z issue du plan de pan résolu (vérité métier — pas getHeightAtXY / snap visuel). */
+export interface RoofAnnexBaseReference {
+  readonly method: "roof_patch_plane_evaluation";
+  readonly roofPatchId: CanonicalHouseEntityId;
+  readonly planeEquationImplicit: { readonly normal: BuildingLocalVec3; readonly d: number };
+  /** Identifiants hauteur canonique utilisés pour l’extrusion (traçabilité). */
+  readonly heightQuantityIds: Readonly<{
+    readonly bottomId: CanonicalHouseEntityId;
+    readonly topId: CanonicalHouseEntityId;
+  }>;
+}
+
+export interface RoofAnnexHeightInfo {
+  readonly heightM: number | null;
+  readonly extrusionDirection: "along_patch_outward_normal" | "world_vertical_z" | "opening_no_extrusion";
+  readonly notes?: string;
+}
+
+export type RoofAnnexGeometryStatus =
+  | "volume_ok"
+  | "opening_footprint_only"
+  | "edge_uplift_deferred"
+  | "height_missing"
+  | "plane_unresolved"
+  | "unsupported_non_planar_footprint";
+
+export type RoofAnnexTopologyCompatibility =
+  | "compatible"
+  | "partial_overlap"
+  | "crosses_roof_edge"
+  | "crosses_patch_boundary"
+  | "needs_roof_split"
+  | "invalid_position"
+  | "unsupported_geometry";
+
+export interface CanonicalRoofAnnexItem {
+  readonly annexId: CanonicalHouseEntityId;
+  readonly annexFamily: RoofAnnexOfficialFamily;
+  readonly sourceEntityKind: string;
+  readonly roofPatchId: CanonicalHouseEntityId | null;
+  readonly bindingStatus: RoofAnnexBindingStatus;
+  readonly bindingConfidence: RoofAnnexBindingConfidence;
+  readonly footprintOnRoofPlane: Polygon2DLocal | null;
+  readonly bindingDiagnostics: readonly string[];
+  readonly baseReference: RoofAnnexBaseReference | null;
+  readonly footprint2D: Polygon2DLocal | null;
+  readonly footprint3D: readonly BuildingLocalVec3[] | null;
+  readonly heightInfo: RoofAnnexHeightInfo;
+  readonly geometryStatus: RoofAnnexGeometryStatus;
+  readonly topologyCompatibility: RoofAnnexTopologyCompatibility;
+  readonly shadingRelevance: boolean;
+  readonly cutCandidate: boolean;
+  /** Extensions / lucarnes : statut de découpe topologique future (pas de fake split ici). */
+  readonly extensionTopologyIntent: "simple_volume" | "sub_roof_structure" | "needs_dedicated_topology_split" | "n_a";
+  readonly sideFacesTriangleIndices: readonly Readonly<{ a: number; b: number; c: number }>[] | null;
+  readonly topFacePolygonVertexIndices: readonly number[] | null;
+  readonly diagnostics: readonly string[];
+}
+
+export interface RoofAnnexesLayerDiagnostics {
+  readonly annexCount: number;
+  readonly boundCount: number;
+  readonly volumeBuiltCount: number;
+  readonly errors: readonly string[];
+  readonly warnings: readonly string[];
+}
+
+export const ROOF_ANNEXES_CANONICAL_SCHEMA_ID = "roof-annexes-canonical-v1" as const;
+
+export interface RoofAnnexesCanonicalBlock {
+  readonly schemaId: typeof ROOF_ANNEXES_CANONICAL_SCHEMA_ID;
+  readonly items: readonly CanonicalRoofAnnexItem[];
+  readonly diagnostics: RoofAnnexesLayerDiagnostics;
+}
+
 export interface BuildingBlock {
   readonly buildingId: CanonicalHouseEntityId;
   readonly buildingFootprint: Polygon2DLocal;
@@ -224,6 +324,11 @@ export interface CanonicalHouseDocument {
   readonly roof: RoofBlock;
   readonly heightModel: HeightModelBlock;
   readonly annexes: readonly AnnexDiscriminated[];
+  /**
+   * Couche annexes toiture 3D (binding pans + volumes) — produite par `buildCanonicalRoofAnnexesLayer3D`,
+   * pas par le parseur runtime seul.
+   */
+  readonly roofAnnexes?: RoofAnnexesCanonicalBlock;
   /** Absent tant que la pose PV n’est pas importée — évite un sous-système parallèle plus tard. */
   readonly pv?: PvBlock;
   readonly worldPlacement?: WorldPlacementBlock;

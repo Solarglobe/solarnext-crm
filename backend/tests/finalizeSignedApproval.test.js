@@ -5,7 +5,10 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { assertFinalizeSignedClientReadApproval } from "../routes/quotes/service.js";
+import {
+  assertFinalizeSignedClientReadApproval,
+  assertSignaturePadReadAcceptance,
+} from "../routes/quotes/service.js";
 
 test("assertFinalizeSignedClientReadApproval : absent → 400", () => {
   assert.throws(
@@ -27,4 +30,15 @@ test("assertFinalizeSignedClientReadApproval : true OK", () => {
 
 test("assertFinalizeSignedClientReadApproval : chaîne 'true' OK (tolérance JSON)", () => {
   assert.doesNotThrow(() => assertFinalizeSignedClientReadApproval({ client_read_approved: "true" }));
+});
+
+test("assertSignaturePadReadAcceptance : absent → 400", () => {
+  assert.throws(
+    () => assertSignaturePadReadAcceptance(undefined, "Signature client"),
+    (e) => e.statusCode === 400 && /fenêtre de signature/.test(e.message)
+  );
+});
+
+test("assertSignaturePadReadAcceptance : accepted true OK", () => {
+  assert.doesNotThrow(() => assertSignaturePadReadAcceptance({ accepted: true }, "Signature client"));
 });

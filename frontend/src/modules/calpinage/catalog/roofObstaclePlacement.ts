@@ -4,6 +4,7 @@
  * Les obstacles persistés restent centre + dimensions (shapeMeta) — compatible moteur existant.
  */
 
+import { segmentHorizontalLengthMFromImagePx } from "../canonical3d/builder/worldMapping";
 import { getRoofObstacleCatalogEntry } from "./roofObstacleCatalog";
 
 /** Largeur / hauteur / diamètre plancher (m) — invisible en usage normal, évite dégénérescence. */
@@ -149,9 +150,11 @@ export function computeShadowCubeMetersFromAnchor(
   mx: number,
   my: number,
   metersPerPixel: number,
-  businessId: string | null | undefined
+  businessId: string | null | undefined,
+  northAngleDeg: number = 0,
 ): { cx: number; cy: number; widthM: number; depthM: number } {
   const mpp = metersPerPixel > 0 ? metersPerPixel : 1;
+  const north = Number.isFinite(northAngleDeg) ? northAngleDeg : 0;
   const mins = shadowMinsM(businessId);
   const dx = mx - ax;
   const dy = my - ay;
@@ -163,8 +166,8 @@ export function computeShadowCubeMetersFromAnchor(
   const sy = dy >= 0 ? 1 : -1;
   const x2 = ax + sx * wPx;
   const y2 = ay + sy * dPx;
-  const widthM = wPx * mpp;
-  const depthM = dPx * mpp;
+  const widthM = segmentHorizontalLengthMFromImagePx({ x: ax, y: ay }, { x: x2, y: ay }, mpp, north);
+  const depthM = segmentHorizontalLengthMFromImagePx({ x: ax, y: ay }, { x: ax, y: y2 }, mpp, north);
   return {
     cx: (ax + x2) / 2,
     cy: (ay + y2) / 2,
@@ -180,9 +183,11 @@ export function computeShadowTubeMetersFromAnchor(
   mx: number,
   my: number,
   metersPerPixel: number,
-  businessId: string | null | undefined
+  businessId: string | null | undefined,
+  northAngleDeg: number = 0,
 ): { cx: number; cy: number; diameterM: number } {
   const mpp = metersPerPixel > 0 ? metersPerPixel : 1;
+  const north = Number.isFinite(northAngleDeg) ? northAngleDeg : 0;
   const mins = shadowMinsM(businessId);
   const minDiamM = mins.minWM;
   const entry = getRoofObstacleCatalogEntry(businessId || "chimney_round");
@@ -190,7 +195,7 @@ export function computeShadowTubeMetersFromAnchor(
   const dx = mx - ax;
   const dy = my - ay;
   const dist = Math.hypot(dx, dy);
-  const distM = dist * mpp;
+  const distM = segmentHorizontalLengthMFromImagePx({ x: ax, y: ay }, { x: mx, y: my }, mpp, north);
   let diameterM: number;
   if (dist < 1e-6) {
     diameterM = defaultDiamM;
@@ -217,9 +222,11 @@ export function formatObstacle2DSelectionHud(
     shapeMeta?: { originalType?: string; width?: number; height?: number; radius?: number };
     meta?: Record<string, unknown>;
   },
-  metersPerPixel: number
+  metersPerPixel: number,
+  northAngleDeg: number = 0,
 ): string {
   const mpp = metersPerPixel > 0 ? metersPerPixel : 1;
+  const north = Number.isFinite(northAngleDeg) ? northAngleDeg : 0;
   const meta = obstacle.meta || {};
   const bid =
     (typeof meta.businessObstacleId === "string" ? meta.businessObstacleId : "") ||
@@ -237,10 +244,12 @@ export function formatObstacle2DSelectionHud(
   const sm = obstacle.shapeMeta;
   let dim = "";
   if (sm && sm.originalType === "circle" && typeof sm.radius === "number") {
-    const d = sm.radius * 2 * mpp;
+    const d = segmentHorizontalLengthMFromImagePx({ x: 0, y: 0 }, { x: sm.radius * 2, y: 0 }, mpp, north);
     dim = "Ø " + d.toFixed(2) + " m";
   } else if (sm && sm.originalType === "rect" && typeof sm.width === "number" && typeof sm.height === "number") {
-    dim = (sm.width * mpp).toFixed(2) + " × " + (sm.height * mpp).toFixed(2) + " m";
+    const wM = segmentHorizontalLengthMFromImagePx({ x: 0, y: 0 }, { x: sm.width, y: 0 }, mpp, north);
+    const hM = segmentHorizontalLengthMFromImagePx({ x: 0, y: 0 }, { x: 0, y: sm.height }, mpp, north);
+    dim = wM.toFixed(2) + " × " + hM.toFixed(2) + " m";
   }
   return dim ? label + " · " + dim + " · " + sh : label + " · " + sh;
 }

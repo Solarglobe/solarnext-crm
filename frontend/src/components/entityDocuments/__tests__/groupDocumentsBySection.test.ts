@@ -37,17 +37,19 @@ describe("groupDocumentsBySection", () => {
         created_at: "2026-01-01",
         documentCategory: "COMMERCIAL_PROPOSAL",
       }),
-      base({ id: "4", created_at: "2025-12-01", documentCategory: "DP_MAIRIE" }),
-      base({ id: "5", created_at: "2025-11-01", documentCategory: "ADMINISTRATIVE" }),
-      base({ id: "6", created_at: "2025-10-01", documentCategory: "OTHER" }),
+      base({ id: "4", created_at: "2025-12-02", documentCategory: "DP" }),
+      base({ id: "5", created_at: "2025-12-01", documentCategory: "DP_MAIRIE" }),
+      base({ id: "6", created_at: "2025-11-01", documentCategory: "ADMINISTRATIVE" }),
+      base({ id: "7", created_at: "2025-10-01", documentCategory: "OTHER" }),
     ];
     const g = groupDocumentsBySection(docs);
     expect(g.QUOTE.map((d) => d.id)).toEqual(["1"]);
     expect(g.INVOICE.map((d) => d.id)).toEqual(["2"]);
     expect(g.COMMERCIAL_PROPOSAL.map((d) => d.id)).toEqual(["3"]);
-    expect(g.DP_MAIRIE.map((d) => d.id)).toEqual(["4"]);
-    expect(g.ADMINISTRATIVE.map((d) => d.id)).toEqual(["5"]);
-    expect(g.OTHER.map((d) => d.id)).toEqual(["6"]);
+    expect(g.DP.map((d) => d.id)).toEqual(["4"]);
+    expect(g.DP_MAIRIE.map((d) => d.id)).toEqual(["5"]);
+    expect(g.ADMINISTRATIVE.map((d) => d.id)).toEqual(["6"]);
+    expect(g.OTHER.map((d) => d.id)).toEqual(["7"]);
   });
 
   it("catégorie absente → Autres", () => {
@@ -80,7 +82,7 @@ describe("groupDocumentsBySection", () => {
 
   it("ordre des sections fixe", () => {
     expect(SECTION_ORDER[0]).toBe("QUOTE");
-    expect(SECTION_ORDER[5]).toBe("OTHER");
+    expect(SECTION_ORDER[SECTION_ORDER.length - 1]).toBe("OTHER");
   });
 });
 

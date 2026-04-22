@@ -1,0 +1,505 @@
+/**
+ * Paramètres PV — shell SaaS (sections blanches, tables denses, fond lavé).
+ */
+
+.pv-settings-page {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: clamp(16px, 2.5vw, 24px);
+  width: 100%;
+  margin: 0;
+  box-sizing: border-box;
+  background: #f8fafc;
+}
+
+.pv-settings-page__sticky {
+  flex-shrink: 0;
+  margin-bottom: 16px;
+}
+
+.pv-settings-page__scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-top: 4px;
+}
+
+.pv-settings-page__lead {
+  margin: 8px 0 0;
+  max-width: 52rem;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: #64748b;
+}
+
+.pv-settings-page__lead code {
+  font-size: 0.8125rem;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: #e2e8f0;
+  color: #334155;
+}
+
+/* ——— Économie : compact (écrans 15" / laptop) ——— */
+.pv-eco-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.pv-eco-head__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.pv-eco-topbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px 16px;
+  margin-bottom: 2px;
+}
+
+.pv-eco-topbar__text {
+  min-width: 0;
+  flex: 1 1 12rem;
+}
+
+.pv-eco-topbar__title {
+  margin: 0 0 2px;
+  font-size: 0.9375rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  color: #0f172a;
+  line-height: 1.25;
+}
+
+.pv-eco-topbar__lead {
+  margin: 0;
+  font-size: 0.6875rem;
+  line-height: 1.4;
+  color: #94a3b8;
+  max-width: 42rem;
+}
+
+.pv-eco-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Sections économie : plus légères que le défaut global */
+.pv-eco-stack .sn-saas-form-section {
+  padding: 12px 14px;
+  border-radius: 10px;
+}
+
+.pv-eco-stack .sn-saas-form-section__title {
+  margin: 0 0 10px;
+  padding-bottom: 8px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #64748b;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.pv-eco-stack .sn-saas-label {
+  margin-bottom: 3px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: #475569;
+  letter-spacing: 0.01em;
+}
+
+.pv-eco-stack .sn-saas-input {
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 8px;
+  font-size: 0.8125rem;
+}
+
+.pv-eco-stack .pv-eco-hint {
+  margin: 0 0 4px;
+  font-size: 0.625rem;
+  line-height: 1.35;
+  color: #94a3b8;
+}
+
+.pv-eco-stack .pv-eco-field {
+  min-width: 0;
+}
+
+/* Grille dense : 3 col sur laptop 15" (souvent ~1366–1920 de large utile) */
+.pv-eco-grid--dense {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px 12px;
+}
+
+@media (max-width: 1024px) {
+  .pv-eco-grid--dense {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .pv-eco-grid--dense {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Compat : anciennes grilles si réutilisées ailleurs */
+.pv-eco-grid--4 {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.pv-eco-grid--3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+@media (max-width: 1100px) {
+  .pv-eco-grid--4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .pv-eco-grid--4,
+  .pv-eco-grid--3 {
+    grid-template-columns: 1fr;
+  }
+}
+
+.pv-eco-hint {
+  margin: 0 0 6px;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: #94a3b8;
+}
+
+/* ——— Catalogues (panneaux, onduleurs, batteries) ——— */
+.pv-cat-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.pv-cat-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.pv-cat-filter {
+  width: min(200px, 100%);
+  height: 40px;
+  padding: 0 12px;
+  box-sizing: border-box;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fafafa;
+  font-size: 0.875rem;
+  color: #0f172a;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    background 0.15s ease;
+}
+
+.pv-cat-filter:focus {
+  outline: none;
+}
+
+.pv-cat-filter:focus-visible {
+  background: #fff;
+  border-color: #94a3b8;
+  box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.07);
+}
+
+.pv-cat-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8125rem;
+  color: #475569;
+  cursor: pointer;
+}
+
+.pv-bulk-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.pv-bulk-bar__count {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #475569;
+  margin-right: auto;
+}
+
+.pv-cat-table-wrap {
+  overflow-x: auto;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+}
+
+.pv-cat-table {
+  width: 100%;
+  min-width: 640px;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.pv-cat-table thead th {
+  padding: 8px 12px;
+  text-align: left;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #64748b;
+  border-bottom: 1px solid #e2e8f0;
+  background: #f8fafc;
+  white-space: nowrap;
+}
+
+.pv-cat-table thead th.pv-cat-table__th--right,
+.pv-cat-table tbody td.pv-cat-table__td--right {
+  text-align: right;
+}
+
+.pv-cat-table thead th.pv-cat-table__th--check,
+.pv-cat-table tbody td.pv-cat-table__td--check {
+  width: 44px;
+  text-align: center;
+  padding-left: 10px;
+  padding-right: 10px;
+  vertical-align: middle;
+}
+
+.pv-cat-table tbody td {
+  padding: 8px 12px;
+  vertical-align: middle;
+  border-bottom: 1px solid #f1f5f9;
+  color: #0f172a;
+}
+
+.pv-cat-table tbody tr {
+  transition: background 0.15s ease;
+}
+
+.pv-cat-table tbody tr:hover {
+  background: #f8fafc;
+}
+
+.pv-cat-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.pv-cat-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.pv-cat-badge--on {
+  background: rgba(34, 197, 94, 0.12);
+  color: #15803d;
+}
+
+.pv-cat-badge--off {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.pv-cat-row-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.pv-cat-empty {
+  margin: 0;
+  padding: 32px 16px;
+  text-align: center;
+  font-size: 0.875rem;
+  color: #64748b;
+}
+
+.pv-cat-block-gap {
+  margin-top: 20px;
+}
+
+/* Virtual battery wrapper */
+.pv-virtual-root {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.pv-virtual-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.pv-virtual-provider-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 16px 18px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.pv-virtual-provider-card h3 {
+  margin: 0 0 14px;
+  font-size: 0.9375rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  color: #0f172a;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.pv-vb-accordion {
+  margin-bottom: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.pv-vb-accordion__btn {
+  width: 100%;
+  padding: 12px 16px;
+  background: #f8fafc;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #334155;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: background 0.15s ease;
+}
+
+.pv-vb-accordion__btn:hover {
+  background: #f1f5f9;
+}
+
+.pv-vb-accordion__body {
+  padding: 12px;
+  overflow-x: auto;
+  border-top: 1px solid #f1f5f9;
+}
+
+.pv-vb-input {
+  padding: 6px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fafafa;
+  font-size: 0.8125rem;
+  color: #0f172a;
+}
+
+.pv-vb-input:focus {
+  outline: none;
+}
+
+.pv-vb-input:focus-visible {
+  background: #fff;
+  border-color: #94a3b8;
+  box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.06);
+}
+
+.pv-vb-input--w90 {
+  width: 90px;
+  max-width: 100%;
+  text-align: right;
+  box-sizing: border-box;
+}
+
+.pv-vb-input--w100 {
+  width: 100px;
+  max-width: 100%;
+  text-align: right;
+  box-sizing: border-box;
+}
+
+.pv-vb-input--w120 {
+  width: 120px;
+  max-width: 100%;
+  text-align: right;
+  box-sizing: border-box;
+}
+
+.pv-vb-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.pv-vb-table th {
+  text-align: left;
+  padding: 8px;
+  border-bottom: 1px solid #e2e8f0;
+  color: #64748b;
+  font-weight: 600;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.pv-vb-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.pv-vb-table tbody tr {
+  transition: background 0.15s ease;
+}
+
+.pv-vb-table tbody tr:hover {
+  background: #f8fafc;
+}
+
+.pv-settings-page .sn-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.2;
+}

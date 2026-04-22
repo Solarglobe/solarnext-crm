@@ -42,6 +42,20 @@ describe("resolvePanVertexZ — vérité géométrique", () => {
     expect(r.source).not.toBe("explicit_pan_vertex_h");
   });
 
+  it("h explicite = 0 (cote réelle) est conservée", () => {
+    const ctx: HeightResolverContext = { state: {}, getHeightAtXY: () => 9 };
+    const r = resolvePanVertexZ({
+      xPx: 0,
+      yPx: 0,
+      explicitPanVertexH: 0,
+      panId: "p",
+      context: ctx,
+    });
+    expect(r.ok).toBe(true);
+    expect(r.heightM).toBe(0);
+    expect(r.source).toBe("explicit_pan_vertex_h");
+  });
+
   it("sans h explicite : cohérent avec resolveHeightAtXY", () => {
     const ctx: HeightResolverContext = {
       state: {},

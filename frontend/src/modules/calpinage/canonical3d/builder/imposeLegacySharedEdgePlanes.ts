@@ -10,6 +10,7 @@ import type { GeometryDiagnostic } from "../types/quality";
 import type { Vector3 } from "../types/primitives";
 import { cross3, dot3, length3, normalize3, sub3 } from "../utils/math3";
 import { orientExteriorNormalTowardSky } from "./planePolygon3d";
+import { legacyPanRawCornerHasExplicitHeightM } from "./explicitLegacyPanCornerZ";
 import type { LegacyPanCornerPhase } from "./unifyLegacyPanSharedCornersZ";
 import { LEGACY_SHARED_CORNER_CLUSTER_TOL_PX } from "./unifyLegacyPanSharedCornersZ";
 import {
@@ -79,16 +80,18 @@ function findBestSharedEdgeBetweenPans(
   pi: number,
   pj: number,
   tolPx: number,
+  minSharedEdgeLenPx: number,
 ): EdgeMatch | null {
+  const minSq = minSharedEdgeLenPx * minSharedEdgeLenPx;
   const rawA = phases[pi].raw;
   const rawB = phases[pj].raw;
   const na = rawA.length;
   const nb = rawB.length;
   let best: EdgeMatch | null = null;
   for (let ia = 0; ia < na; ia++) {
-    if (edgeLenSqPx(rawA, ia, (ia + 1) % na) < MIN_SHARED_EDGE_LEN_PX * MIN_SHARED_EDGE_LEN_PX) continue;
+    if (edgeLenSqPx(rawA, ia, (ia + 1) % na) < minSq) continue;
     for (let ib = 0; ib < nb; ib++) {
-      if (edgeLenSqPx(rawB, ib, (ib + 1) % nb) < MIN_SHARED_EDGE_LEN_PX * MIN_SHARED_EDGE_LEN_PX) continue;
+      if (edgeLenSqPx(rawB, ib, (ib + 1) % nb) < minSq) continue;
       const m = tryMatchDirectedEdge(rawA, rawB, ia, ib, tolPx);
       if (!m) continue;
       const lenSq = edgeLenSqPx(rawA, m.iA0, m.iA1);
@@ -184,13 +187,37 @@ function projectPanCornersOntoPlaneThroughEdge(
   const ny = exterior.y;
   const nz = exterior.z;
 
+  let updatedAny = false;
   for (let i = 0; i < phase.cornersWorld.length; i++) {
+    if (legacyPanRawCornerHasExplicitHeightM(phase.raw, i)) {
+      continue;
+    }
     const c = phase.cornersWorld[i];
     const zNew = (-d - nx * c.x - ny * c.y) / nz;
     if (!Number.isFinite(zNew)) return false;
     phase.cornersWorld[i] = { x: c.x, y: c.y, z: zNew };
+    updatedAny = true;
   }
-  return true;
+  return updatedAny;
+}
+
+export type ImposeLegacySharedEdgePlanesOptions = {
+  /**
+   * Si true : n’impose pas de plan sur une paire de pans si l’un ou l’autre a au moins un sommet
+   * avec cote explicite sur polygone pan — évite de réécrire tous les Z du pan (mode fidélité).
+   */
+  readonly skipIfEitherPanHasExplicitVertex?: boolean;
+  /**
+   * Mode toiture fidèle : si les **quatre** sommets d’arête commune (2 par pan) ont `heightM` explicite
+   * sur le polygone raw, ne pas lancer la projection de plan (arête entièrement relevée).
+   */
+  readonly skipPairIfSharedEdgeEndpointsFullyExplicit?: boolean;
+  /** Longueur minimale d’arête (px) pour matcher — niveau 2 : `legacyMinSharedEdgeLenPx(cornerTol)`. */
+  readonly minSharedEdgeLenPx?: number;
+};
+
+function phaseHasExplicitPolygonVertex(phase: LegacyPanCornerPhase): boolean {
+  return phase.cornerTraces.some((t) => t.source === "explicit_polygon_vertex");
 }
 
 /**
@@ -201,19 +228,56 @@ export function imposeLegacyPanPlanesThroughSharedEdges(
   phases: LegacyPanCornerPhase[],
   upWorld: Vector3,
   tolPx: number = LEGACY_SHARED_CORNER_CLUSTER_TOL_PX,
-): { readonly diagnostics: GeometryDiagnostic[] } {
+  opts?: ImposeLegacySharedEdgePlanesOptions,
+): {
+  readonly diagnostics: GeometryDiagnostic[];
+  /** Pans ayant eu au moins un Z modifié par impose (projection plan). */
+  readonly touchedPanIds: ReadonlySet<string>;
+} {
   const diagnostics: GeometryDiagnostic[] = [];
+  const touchedPanIds = new Set<string>();
   if (phases.length < 2) {
-    return { diagnostics };
+    return { diagnostics, touchedPanIds };
   }
+
+  const minEdgeLenPx =
+    typeof opts?.minSharedEdgeLenPx === "number" && Number.isFinite(opts.minSharedEdgeLenPx) && opts.minSharedEdgeLenPx > 0
+      ? opts.minSharedEdgeLenPx
+      : MIN_SHARED_EDGE_LEN_PX;
 
   const applied = new Set<number>();
   let pairCount = 0;
 
   for (let pi = 0; pi < phases.length; pi++) {
     for (let pj = pi + 1; pj < phases.length; pj++) {
-      const em = findBestSharedEdgeBetweenPans(phases, pi, pj, tolPx);
+      if (opts?.skipIfEitherPanHasExplicitVertex) {
+        if (phaseHasExplicitPolygonVertex(phases[pi]) || phaseHasExplicitPolygonVertex(phases[pj])) {
+          continue;
+        }
+      }
+
+      const em = findBestSharedEdgeBetweenPans(phases, pi, pj, tolPx, minEdgeLenPx);
       if (!em) continue;
+
+      if (opts?.skipPairIfSharedEdgeEndpointsFullyExplicit) {
+        const rawA = phases[pi].raw;
+        const rawB = phases[pj].raw;
+        if (
+          legacyPanRawCornerHasExplicitHeightM(rawA, em.iA0) &&
+          legacyPanRawCornerHasExplicitHeightM(rawA, em.iA1) &&
+          legacyPanRawCornerHasExplicitHeightM(rawB, em.iB0) &&
+          legacyPanRawCornerHasExplicitHeightM(rawB, em.iB1)
+        ) {
+          diagnostics.push({
+            code: "INTERPAN_IMPOSE_SKIPPED_EXPLICIT_SHARED_EDGE",
+            severity: "info",
+            message:
+              "Imposition de plan ignorée : les deux extrémités d’arête commune ont heightM explicite sur les deux pans (mode toiture fidèle).",
+            context: { panA: phases[pi].pan.id, panB: phases[pj].pan.id },
+          });
+          continue;
+        }
+      }
 
       const iBpForP = em.flipped ? em.iB1 : em.iB0;
       const iBpForQ = em.flipped ? em.iB0 : em.iB1;
@@ -273,8 +337,14 @@ export function imposeLegacyPanPlanesThroughSharedEdges(
         }
       }
 
-      if (okA) applied.add(pi);
-      if (okB) applied.add(pj);
+      if (okA) {
+        applied.add(pi);
+        touchedPanIds.add(phases[pi].pan.id);
+      }
+      if (okB) {
+        applied.add(pj);
+        touchedPanIds.add(phases[pj].pan.id);
+      }
 
       if (okA || okB) {
         pairCount++;
@@ -297,5 +367,5 @@ export function imposeLegacyPanPlanesThroughSharedEdges(
     });
   }
 
-  return { diagnostics };
+  return { diagnostics, touchedPanIds };
 }

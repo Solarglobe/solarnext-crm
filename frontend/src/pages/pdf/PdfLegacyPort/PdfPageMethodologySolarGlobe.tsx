@@ -3,9 +3,10 @@
  * Insérée en avant-dernière position (après P11 financement, avant P12 clôture).
  * Contenu éditorial statique ; méta client/ref/date alignées sur fullReport.p10.
  */
-import React from "react";
+import React, { useMemo } from "react";
 import PdfPageLayout from "../PdfEngine/PdfPageLayout";
 import PdfHeader from "../../../components/pdf/PdfHeader";
+import { usePdfOrgBranding } from "./pdfOrgBrandingContext";
 import "./pdf-page-methodology-solarglobe.css";
 
 function val(v: unknown): string {
@@ -133,13 +134,33 @@ const NE_PRETEND_PAS = [
   "Constituer une promesse absolue de performance ou de gain net",
 ];
 
+const API_BASE = import.meta.env?.VITE_API_URL || (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000");
+const PLACEHOLDER_LOGO = "/pdf-assets/images/logo-solarglobe-rect.png";
+
+function getLogoUrl(
+  organization: { id?: string; logo_image_key?: string | null } | undefined,
+  viewModel: { meta?: { studyId?: string; versionId?: string } } | undefined
+): string {
+  const params = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+  const renderToken = params?.get("renderToken") ?? "";
+  const studyId = params?.get("studyId") ?? viewModel?.meta?.studyId ?? "";
+  const versionId = params?.get("versionId") ?? viewModel?.meta?.versionId ?? "";
+  const orgId = organization?.id;
+  if (!orgId || !renderToken || !studyId || !versionId || !organization?.logo_image_key) return PLACEHOLDER_LOGO;
+  return `${API_BASE}/api/internal/pdf-asset/${orgId}/logo?renderToken=${encodeURIComponent(renderToken)}&studyId=${encodeURIComponent(studyId)}&versionId=${encodeURIComponent(versionId)}`;
+}
+
 export default function PdfPageMethodologySolarGlobe({
   viewModel,
+  organization,
 }: {
-  viewModel?: { fullReport?: Record<string, unknown> };
+  viewModel?: { fullReport?: Record<string, unknown>; meta?: { studyId?: string; versionId?: string } };
+  organization?: { id?: string; logo_image_key?: string | null };
 }) {
   const p10 = viewModel?.fullReport?.p10 as { meta?: { client?: string; ref?: string; date?: string } } | undefined;
   const meta = p10?.meta ?? {};
+  const { orgDisplayName } = usePdfOrgBranding();
+  const methodologyLogoUrl = useMemo(() => getLogoUrl(organization, viewModel), [organization, viewModel]);
 
   return (
     <PdfPageLayout
@@ -155,8 +176,8 @@ export default function PdfPageMethodologySolarGlobe({
             }}
             logo={
               <img
-                src="/pdf-assets/images/logo-solarglobe-rect.png"
-                alt="Solarglobe"
+                src={methodologyLogoUrl}
+                alt=""
                 style={{ position: "absolute", left: 0, top: 0, height: "16mm", objectFit: "contain" }}
               />
             }
@@ -195,7 +216,10 @@ export default function PdfPageMethodologySolarGlobe({
     >
       <div className="p-msg-premium">
         <header className="p-msg-hero">
-          <h1 className="p-msg-hero__title">Méthodologie de calcul SolarGlobe</h1>
+          <h1 className="p-msg-hero__title">
+            Méthodologie de calcul
+            {orgDisplayName ? ` — ${orgDisplayName}` : ""}
+          </h1>
           <p className="p-msg-hero__lead">
             Une chaîne de calcul documentée, du relevé d’implantation aux indicateurs de synthèse — pour estimer le
             projet avec rigueur et lisibilité.

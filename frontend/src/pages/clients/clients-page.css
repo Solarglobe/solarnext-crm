@@ -130,6 +130,11 @@
   max-width: 200px;
 }
 
+.clients-filters-bar__select--marketing {
+  min-width: 130px;
+  max-width: 160px;
+}
+
 .clients-filters-bar__date {
   min-width: 128px;
   max-width: 150px;
@@ -252,6 +257,19 @@
   gap: 8px;
 }
 
+.clients-detail__title-inner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+  margin-bottom: 10px;
+}
+
+.clients-detail__title-inner .clients-detail__title {
+  margin-bottom: 0;
+}
+
 .clients-detail__close-btn {
   flex-shrink: 0;
   width: 26px;
@@ -300,6 +318,32 @@
   gap: 8px;
   align-items: center;
   min-width: 480px;
+}
+
+.clients-portfolio-list--bulk .clients-portfolio-list__head,
+.clients-portfolio-list--bulk .clients-portfolio-list__row {
+  grid-template-columns:
+    36px
+    minmax(120px, 1.25fr)
+    minmax(88px, 1fr)
+    minmax(160px, 1.5fr)
+    minmax(72px, 0.95fr);
+  min-width: 516px;
+}
+
+.clients-portfolio-list__th--check,
+.clients-portfolio-list__cell--check {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.clients-portfolio-list__bulk-check {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: var(--primary, #c39847);
 }
 
 .clients-portfolio-list__head {
@@ -359,6 +403,13 @@
   gap: 2px;
 }
 
+.clients-portfolio-list__name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
 .clients-portfolio-list__name {
   font-weight: 600;
   font-size: 13px;
@@ -366,6 +417,19 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  min-width: 0;
+}
+
+.clients-portfolio-archive-badge {
+  flex-shrink: 0;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--text-muted) 38%, transparent);
+  color: var(--text-secondary);
+  line-height: 1.2;
 }
 
 .clients-portfolio-list__sub {
@@ -617,6 +681,78 @@
   );
 }
 
+/* Synthèse chiffrée — fiche client (panneau latéral) */
+.clients-detail-quick-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  padding: 10px 12px;
+  margin: 0 0 4px;
+  border-radius: 10px;
+  border: 1px solid var(--border-subtle);
+  background: color-mix(in srgb, var(--surface-elevated) 90%, transparent);
+}
+
+.clients-detail-quick-stats__item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 3.25rem;
+}
+
+.clients-detail-quick-stats__n {
+  font-size: 1.2rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+  color: var(--text-primary);
+}
+
+.clients-detail-quick-stats__lbl {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.clients-filters-wrap-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.clients-filters-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  padding: 8px 2px 2px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.clients-filters-footer__count {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.clients-filters-footer__count strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.clients-filters-footer__reset {
+  flex-shrink: 0;
+}
+
+.clients-portfolio-empty__reset {
+  margin-top: 14px;
+}
+
 .clients-detail--empty {
   justify-content: center;
   align-items: center;
@@ -695,6 +831,10 @@
 .clients-detail__row dd {
   margin: 0;
   color: var(--text-primary);
+}
+
+.clients-detail__birth-input {
+  max-width: 12rem;
 }
 
 .clients-detail__muted {

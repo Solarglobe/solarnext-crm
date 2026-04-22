@@ -18,7 +18,7 @@ export const PDF_HEADER_META_WIDTH_WIDE = "120mm";
 /** @deprecated alias historique ; préférer `PDF_HEADER_META_WIDTH_NARROW`. */
 export const PDF_LEGACY_HEADER_META_W_DEFAULT = PDF_HEADER_META_WIDTH_NARROW;
 
-const BRAND_HEX = "#C39847";
+const BRAND_FALLBACK = "#C39847";
 
 /** Variante de largeur méta sans passer par `headerStyle['--metaW']`. */
 export type PdfHeaderMetaWidth = "narrow" | "wide";
@@ -40,9 +40,9 @@ const BADGE_STYLE: React.CSSProperties = {
   padding: "1mm 3.45mm",
   borderStyle: "solid",
   borderWidth: "0.32mm",
-  borderColor: "rgba(195, 152, 71, 0.42)",
+  borderColor: `rgb(from var(--brand, ${BRAND_FALLBACK}) r g b / 0.42)`,
   borderRadius: "999mm",
-  color: BRAND_HEX,
+  color: `var(--brand, ${BRAND_FALLBACK})`,
   background: "rgba(255, 255, 255, 0.92)",
 };
 
@@ -52,8 +52,7 @@ const BADGE_STYLE: React.CSSProperties = {
 const BAR_STYLE: React.CSSProperties = {
   alignSelf: "stretch",
   height: "0.45mm",
-  background:
-    "linear-gradient(90deg, transparent 0%, rgba(195,152,71,0.6) 15%, #C39847 35%, #d4af63 65%, rgba(195,152,71,0.6) 85%, transparent 100%)",
+  background: `linear-gradient(90deg, transparent 0%, rgb(from var(--brand, ${BRAND_FALLBACK}) r g b / 0.6) 15%, var(--brand, ${BRAND_FALLBACK}) 35%, color-mix(in srgb, var(--brand, ${BRAND_FALLBACK}) 72%, #ffffff) 65%, rgb(from var(--brand, ${BRAND_FALLBACK}) r g b / 0.6) 85%, transparent 100%)`,
   borderRadius: "999mm",
   marginTop: "7.5mm",
   marginBottom: 0,
@@ -99,7 +98,6 @@ export interface PdfHeaderProps {
 
 export default function PdfHeader({ logo, badge, metaColumn, metaWidth, headerStyle }: PdfHeaderProps) {
   const cssVars: React.CSSProperties = {
-    ["--brand" as string]: BRAND_HEX,
     ["--metaW" as string]: resolveMetaWVariable(metaWidth),
   };
 

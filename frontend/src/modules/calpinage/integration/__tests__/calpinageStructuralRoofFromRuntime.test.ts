@@ -115,6 +115,16 @@ describe("buildSolarScene3DFromCalpinageRuntime structural (Cas 4 & 5)", () => {
   it("Cas 4 — multi-pans + faîtage sur arête commune → ridge 3D présente", () => {
     const mpp = 0.05;
     const runtime = {
+      pans: [
+        {
+          id: "p1",
+          polygonPx: contoursP1.map((p) => ({ x: p.x, y: p.y, h: p.h })),
+        },
+        {
+          id: "p2",
+          polygonPx: contoursP2.map((p) => ({ x: p.x, y: p.y, h: p.h })),
+        },
+      ],
       roof: {
         ...roofBlock(mpp),
         roofPans: [
@@ -153,6 +163,10 @@ describe("buildSolarScene3DFromCalpinageRuntime structural (Cas 4 & 5)", () => {
   it("Cas 5 — multi-pans sans lignes structurantes → avertissement diagnostique", () => {
     const mpp = 0.05;
     const runtime = {
+      pans: [
+        { id: "p1", polygonPx: contoursP1.map((p) => ({ x: p.x, y: p.y, h: p.h })) },
+        { id: "p2", polygonPx: contoursP2.map((p) => ({ x: p.x, y: p.y, h: p.h })) },
+      ],
       roof: {
         ...roofBlock(mpp),
         roofPans: [

@@ -11,11 +11,11 @@
   --msg-ink: #1a1917;
   --msg-ink-soft: #3d3a36;
   --msg-muted: #5c5752;
-  --msg-gold: #c39847;
-  --msg-gold-mid: #b8923f;
-  --msg-gold-dim: rgba(184, 146, 63, 0.88);
-  --msg-line: rgba(195, 152, 71, 0.28);
-  --msg-line-soft: rgba(195, 152, 71, 0.16);
+  --msg-gold: var(--brand, #c39847);
+  --msg-gold-mid: color-mix(in srgb, var(--brand, #c39847) 88%, #1a1206);
+  --msg-gold-dim: color-mix(in srgb, var(--brand, #c39847) 72%, transparent);
+  --msg-line: rgb(from var(--brand, #c39847) r g b / 0.28);
+  --msg-line-soft: rgb(from var(--brand, #c39847) r g b / 0.16);
   --msg-paper: #fdfcf9;
   --msg-paper-2: #faf7f0;
 
@@ -247,13 +247,13 @@
   border-top: 0.35mm solid var(--msg-gold-mid);
 }
 .p-msg-card:nth-child(4) {
-  border-top: 0.35mm solid rgba(195, 152, 71, 0.45);
+  border-top: 0.35mm solid rgb(from var(--brand, #c39847) r g b / 0.45);
 }
 .p-msg-card:nth-child(5) {
-  border-top: 0.35mm solid rgba(195, 152, 71, 0.45);
+  border-top: 0.35mm solid rgb(from var(--brand, #c39847) r g b / 0.45);
 }
 .p-msg-card:nth-child(6) {
-  border-top: 0.35mm solid rgba(195, 152, 71, 0.45);
+  border-top: 0.35mm solid rgb(from var(--brand, #c39847) r g b / 0.45);
 }
 
 .p-msg-card__title {

@@ -68,7 +68,11 @@ export function computeExpectedDepositTtc(deposit: QuoteDeposit, totalTtc: numbe
   return round2(Math.min(ttc, Math.max(0, v)));
 }
 
-export function computeQuoteTotals(lines: QuoteLine[], globalDiscountPercent: number): QuoteTotals {
+export function computeQuoteTotals(
+  lines: QuoteLine[],
+  globalDiscountPercent: number,
+  globalDiscountAmountHt: number = 0
+): QuoteTotals {
   let subHt = 0;
   let subVat = 0;
   let subTtc = 0;
@@ -79,7 +83,8 @@ export function computeQuoteTotals(lines: QuoteLine[], globalDiscountPercent: nu
     subTtc = round2(subTtc + a.total_ttc);
   }
   const pct = Math.max(0, Math.min(100, globalDiscountPercent));
-  const docDiscHt = round2(subHt * (pct / 100));
+  const amtHt = Math.max(0, round2(globalDiscountAmountHt));
+  const docDiscHt = round2(subHt * (pct / 100) + amtHt);
   const fin = applyGlobalDiscountHt(subHt, subVat, subTtc, docDiscHt);
   return {
     subtotal_ht: subHt,

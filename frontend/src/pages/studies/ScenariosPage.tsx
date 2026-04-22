@@ -12,6 +12,7 @@ import ScenarioComparisonTable, { type ScenarioV2 as ScenarioV2Type } from "../.
 import ScenarioEconomicsChart from "../../components/study/ScenarioEconomicsChart";
 import StudyCalcTracePanel from "../../components/study/StudyCalcTracePanel";
 import type { StudyVersionDataJson } from "../../services/studies.service";
+import { useSuperAdminReadOnly } from "../../contexts/OrganizationContext";
 
 const API_BASE = import.meta.env?.VITE_API_URL || (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000");
 
@@ -102,6 +103,7 @@ export default function ScenariosPage() {
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
   const [titleSaving, setTitleSaving] = useState(false);
+  const isReadOnly = useSuperAdminReadOnly();
 
   const orderedScenarios = useMemo(() => normalizeOrderedScenarios(scenarios), [scenarios]);
   const availableCount = orderedScenarios.filter(Boolean).length;
@@ -188,6 +190,7 @@ export default function ScenariosPage() {
 
   const handleSelectScenario = useCallback(
     async (scenarioId: ScenarioId, ctx?: { addToDocuments?: boolean }) => {
+      if (isReadOnly) return;
       if (!studyId || !versionId) return;
       const base = API_BASE.replace(/\/$/, "");
       const addToDocuments = ctx?.addToDocuments === true;
@@ -271,10 +274,11 @@ export default function ScenariosPage() {
         setSelectingId(null);
       }
     },
-    [studyId, versionId, fetchScenariosOnly, refreshStudy]
+    [isReadOnly, studyId, versionId, fetchScenariosOnly, refreshStudy]
   );
 
   const handleRedownloadPdf = useCallback(async () => {
+    if (isReadOnly) return;
     if (!studyId || !versionId) return;
     const base = API_BASE.replace(/\/$/, "");
     setRedownloading(true);
@@ -301,9 +305,10 @@ export default function ScenariosPage() {
       setRedownloading(false);
       setPdfFlowBusy(false);
     }
-  }, [studyId, versionId]);
+  }, [isReadOnly, studyId, versionId]);
 
   const handleModifierEtude = useCallback(async () => {
+    if (isReadOnly) return;
     if (!studyId || !versionId) return;
     if (!versionLocked) {
       navigate(`/studies/${studyId}/versions/${versionId}/calpinage`);
@@ -318,9 +323,10 @@ export default function ScenariosPage() {
     } finally {
       setModifierLoading(false);
     }
-  }, [studyId, versionId, versionLocked, navigate]);
+  }, [isReadOnly, studyId, versionId, versionLocked, navigate]);
 
   const startTitleEdit = () => {
+    if (isReadOnly) return;
     setTitleDraft(studyDisplayName);
     setEditingTitle(true);
   };
@@ -330,6 +336,7 @@ export default function ScenariosPage() {
   };
 
   const saveTitle = async () => {
+    if (isReadOnly) return;
     if (!studyId) return;
     const next = titleDraft.trim();
     if (next === "") {
@@ -414,10 +421,10 @@ export default function ScenariosPage() {
                 color: "var(--sn-text-primary)",
               }}
               autoFocus
-              disabled={titleSaving || versionLocked}
+              disabled={titleSaving || versionLocked || isReadOnly}
               aria-label="Nom de l'étude"
             />
-            <button type="button" className="sg-btn sg-btn-primary" onClick={() => void saveTitle()} disabled={titleSaving || versionLocked}>
+            <button type="button" className="sg-btn sg-btn-primary" onClick={() => void saveTitle()} disabled={titleSaving || versionLocked || isReadOnly}>
               {titleSaving ? "…" : "✔"}
             </button>
             <button type="button" className="sg-btn sg-btn-ghost" onClick={cancelTitleEdit} disabled={titleSaving}>
@@ -433,7 +440,7 @@ export default function ScenariosPage() {
               type="button"
               className="sg-btn sg-btn-ghost sn-btn-sm"
               onClick={startTitleEdit}
-              disabled={versionLocked}
+              disabled={versionLocked || isReadOnly}
               title={versionLocked ? "Version verrouillée" : "Renommer l'étude"}
               aria-label="Renommer l'étude"
             >
@@ -447,7 +454,7 @@ export default function ScenariosPage() {
           type="button"
           className="sg-btn sg-btn-outline-gold sn-btn-sm"
           onClick={() => void handleModifierEtude()}
-          disabled={modifierLoading || pdfFlowBusy || redownloading}
+          disabled={modifierLoading || pdfFlowBusy || redownloading || isReadOnly}
         >
           Modifier mon étude
         </button>
@@ -592,7 +599,7 @@ export default function ScenariosPage() {
             studyId={studyId ?? undefined}
             versionId={versionId ?? undefined}
             onSelectScenario={handleSelectScenario}
-            selectionDisabled={pdfFlowBusy || redownloading}
+            selectionDisabled={pdfFlowBusy || redownloading || isReadOnly}
             selectingId={selectingId}
             versionLocked={versionLocked}
             selectedScenarioId={selectedScenarioId}

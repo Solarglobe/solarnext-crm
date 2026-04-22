@@ -4,6 +4,7 @@
 
 import React from "react";
 import type { LeadSaveSyncState } from "./LeadHeader";
+import { CrmLeadStatusBadge } from "../../../components/crm/CrmLeadStatusBadge";
 
 export interface LeadDetailStickyBarProps {
   fullName: string;
@@ -23,8 +24,16 @@ export interface LeadDetailStickyBarProps {
   createStudyLoading?: boolean;
   showConvert?: boolean;
   onConvert?: () => void;
+  showRevertToLead?: boolean;
+  onRevertToLead?: () => void;
+  revertSaving?: boolean;
   statusSaving?: boolean;
   actions?: React.ReactNode;
+  /** CP-078B — SUPER_ADMIN mode support lecture seule */
+  readOnly?: boolean;
+  leadStatusCode?: string | null;
+  stageName?: string | null;
+  stageCode?: string | null;
 }
 
 function savePillClass(state: LeadSaveSyncState): string {
@@ -73,12 +82,19 @@ export default function LeadDetailStickyBar({
   createStudyLoading,
   showConvert,
   onConvert,
+  showRevertToLead = false,
+  onRevertToLead,
+  revertSaving = false,
   statusSaving,
   actions,
+  readOnly = false,
+  leadStatusCode,
+  stageName,
+  stageCode,
 }: LeadDetailStickyBarProps) {
   const isPro = customerType === "PRO";
   const telHref = phone.replace(/\s/g, "");
-  const isLead = status === "LEAD" && !isArchived;
+  const isLead = status !== "CLIENT" && !isArchived;
 
   return (
     <div className="crm-lead-sticky-bar" role="region" aria-label="Fiche lead — raccourcis">
@@ -95,13 +111,14 @@ export default function LeadDetailStickyBar({
             ) : null}
           </h2>
           {isArchived ? (
-            <span className="crm-lead-badge crm-lead-badge--compact badge-archived">Archivé</span>
+            <span className="crm-lead-badge crm-lead-badge--compact badge-archived">ARCHIVÉ</span>
           ) : (
-            <span
-              className={`crm-lead-badge crm-lead-badge--compact ${status === "CLIENT" ? "crm-lead-badge-client" : "crm-lead-badge-lead"}`}
-            >
-              {status === "CLIENT" ? "Client" : "Lead"}
-            </span>
+            <CrmLeadStatusBadge
+              status={leadStatusCode ?? (status === "CLIENT" ? "CLIENT" : "LEAD")}
+              stageName={stageName}
+              stageCode={stageCode}
+              className="crm-status-badge--in-header"
+            />
           )}
           {isPro ? <span className="crm-lead-badge-pro">PRO</span> : null}
 
@@ -109,7 +126,15 @@ export default function LeadDetailStickyBar({
             <span className="crm-lead-save-dot" aria-hidden />
             <span className="crm-lead-save-label">{saveLabel(saveSyncState)}</span>
             {saveSyncState === "error" && onRetrySave ? (
-              <button type="button" className="crm-lead-save-retry" onClick={onRetrySave}>
+              <button
+                type="button"
+                className="crm-lead-save-retry"
+                disabled={readOnly}
+                onClick={() => {
+                  if (readOnly) return;
+                  onRetrySave();
+                }}
+              >
                 Réessayer
               </button>
             ) : null}
@@ -142,10 +167,20 @@ export default function LeadDetailStickyBar({
             <button
               type="button"
               className="sn-btn sn-btn-primary sn-btn-sm"
-              disabled={createStudyLoading}
+              disabled={createStudyLoading || readOnly}
               onClick={onCreateStudy}
             >
               {createStudyLoading ? "Création…" : "Nouvelle étude"}
+            </button>
+          ) : null}
+          {showRevertToLead && onRevertToLead ? (
+            <button
+              type="button"
+              className="sn-btn sn-btn-ghost sn-btn-sm"
+              onClick={() => onRevertToLead()}
+              disabled={revertSaving || readOnly}
+            >
+              {revertSaving ? "Rétablissement…" : "Revenir en lead"}
             </button>
           ) : null}
           {showConvert && onConvert ? (
@@ -153,7 +188,7 @@ export default function LeadDetailStickyBar({
               type="button"
               className="crm-lead-header-convert-btn crm-lead-sticky-bar-convert"
               onClick={() => onConvert()}
-              disabled={statusSaving}
+              disabled={statusSaving || readOnly}
             >
               {statusSaving ? "Conversion…" : "Convertir"}
             </button>

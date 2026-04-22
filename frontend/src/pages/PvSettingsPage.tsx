@@ -6,15 +6,18 @@
  */
 
 import React, { useEffect, useState, useCallback } from "react";
-import { Card } from "../components/ui/Card";
 import { Button } from "../components/ui/Button";
 import { ModalShell } from "../components/ui/ModalShell";
+import { SaasTabs } from "../components/ui/SaasTabs";
+import "../modules/admin/admin-tab-quote-catalog.css";
+import "./pv-settings-page.css";
 import VirtualBatterySettings from "../modules/pv/VirtualBatterySettings";
 import {
   adminGetOrgSettings,
   adminPostOrgSettings,
   type OrgPvSettings,
 } from "../services/admin.api";
+import { ORG_ECONOMICS_UI_KEYS } from "../config/orgEconomicsKeys";
 import {
   listPanels,
   createPanel,
@@ -33,92 +36,39 @@ import {
   type PvBattery,
 } from "../api/pvCatalogApi";
 
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  padding: "var(--spacing-8) var(--spacing-12)",
-  borderRadius: "var(--radius-btn)",
-  border: "1px solid var(--sn-border-soft)",
-  background: "var(--bg-surface)",
-  color: "var(--text-primary)",
-  fontSize: "var(--font-size-body)",
-};
+/** Onglets paramètres PV — ids stables pour SaasTabs */
+type PvSettingsTabId = "economie" | "panneaux" | "onduleurs" | "batteries" | "virtuelles";
 
-const labelStyle: React.CSSProperties = {
-  display: "block",
-  fontSize: "var(--font-size-body-sm)",
-  color: "var(--text-secondary)",
-  marginBottom: "var(--spacing-4)",
-  fontWeight: 500,
-};
-
-const gridStyle: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
-  gap: "var(--spacing-16)",
-};
+const PV_TAB_ITEMS: { id: PvSettingsTabId; label: string }[] = [
+  { id: "economie", label: "Économie" },
+  { id: "panneaux", label: "Panneaux" },
+  { id: "onduleurs", label: "Micro/Onduleurs" },
+  { id: "batteries", label: "Batteries" },
+  { id: "virtuelles", label: "Batteries virtuelles" },
+];
 
 function Field({
   label,
   sublabel,
   children,
   style,
-  variant = "default",
 }: {
   label: string;
   sublabel?: string;
   children: React.ReactNode;
   style?: React.CSSProperties;
-  variant?: "default" | "premium";
 }) {
-  const isPremium = variant === "premium";
-  const effectiveLabelStyle: React.CSSProperties = isPremium
-    ? {
-        display: "block",
-        fontSize: "var(--font-size-body)",
-        fontWeight: 500,
-        color: "var(--text-primary)",
-        letterSpacing: "0.025em",
-        marginBottom: "var(--spacing-4)",
-      }
-    : labelStyle;
   return (
     <div style={style}>
-      <label style={effectiveLabelStyle}>{label}</label>
-      {sublabel && (
-        <div
-          style={{
-            fontSize: "var(--font-size-label)",
-            color: "var(--text-muted)",
-            marginTop: "var(--spacing-4)",
-            marginBottom: "var(--spacing-4)",
-          }}
-        >
-          {sublabel}
-        </div>
-      )}
+      <span className="qc-modal-label">{label}</span>
+      {sublabel ? <p className="pv-eco-hint" style={{ marginTop: 4 }}>{sublabel}</p> : null}
       {children}
     </div>
   );
 }
 
-const TABS = ["Économie", "Panneaux", "Micro/Onduleurs", "Batteries", "Batteries virtuelles"] as const;
-
-/** Aligné sur financeService.pickEconomics + impactService (horizon) + calc (prix / OA). */
-const ECONOMICS_KEYS = [
-  "price_eur_kwh",
-  "elec_growth_pct",
-  "pv_degradation_pct",
-  "horizon_years",
-  "oa_rate_lt_9",
-  "oa_rate_gte_9",
-  "prime_lt9",
-  "prime_gte9",
-  "maintenance_pct",
-  "onduleur_year",
-  "onduleur_cost_pct",
-  /** Dégradation annuelle de l’énergie « utile » batterie physique (cashflows) — moteur finance uniquement */
-  "battery_degradation_pct",
-] as const;
+/** Aligné sur `config/orgEconomicsKeys` ↔ backend `orgEconomics.common.js`. */
+const ECONOMICS_KEYS = ORG_ECONOMICS_UI_KEYS;
 
 function showToast(message: string, type: "success" | "error" = "success") {
   const toast = document.createElement("div");
@@ -146,7 +96,7 @@ function validateEconomics(e: Record<string, unknown>): boolean {
 }
 
 export default function PvSettingsPage() {
-  const [activeTab, setActiveTab] = useState<(typeof TABS)[number]>("Économie");
+  const [pvTab, setPvTab] = useState<PvSettingsTabId>("economie");
   const [data, setData] = useState<OrgPvSettings | null>(null);
   const [initialEconomics, setInitialEconomics] = useState<Record<string, unknown>>({});
   const [loading, setLoading] = useState(true);
@@ -206,11 +156,14 @@ export default function PvSettingsPage() {
   }, [load]);
 
   useEffect(() => {
-    if (activeTab !== "Économie") loadCatalogs();
-  }, [activeTab, loadCatalogs]);
+    if (pvTab !== "economie") loadCatalogs();
+  }, [pvTab, loadCatalogs]);
 
   const saveEconomics = async () => {
-    if (!data?.economics) return;
+    if (!data?.economics) {
+      showToast("Données économiques indisponibles. Rechargez la page.", "error");
+      return;
+    }
     const e = data.economics;
     if (!validateEconomics(e)) {
       showToast("Valeurs invalides (NaN ou négatives). Corrigez avant d'enregistrer.", "error");
@@ -304,16 +257,18 @@ export default function PvSettingsPage() {
 
   if (loading) {
     return (
-      <div style={{ padding: "var(--spacing-24)", color: "var(--text-muted)" }}>
-        Chargement…
+      <div className="pv-settings-page">
+        <p className="sn-saas-muted">Chargement…</p>
       </div>
     );
   }
 
   if (error || !data) {
     return (
-      <div style={{ padding: "var(--spacing-24)", color: "var(--danger)" }}>
-        {error || "Données non disponibles"}
+      <div className="pv-settings-page">
+        <p className="sn-saas-callout-error__text" style={{ color: "var(--danger)" }}>
+          {error || "Données non disponibles"}
+        </p>
       </div>
     );
   }
@@ -321,233 +276,205 @@ export default function PvSettingsPage() {
   const e = data.economics ?? {};
 
   return (
-    /* ── Wrapper flex-column : remplit sn-main (height:100%) sans déborder ──
-       Le header + onglets occupent leur hauteur naturelle (flex-shrink:0).
-       La zone de contenu (flex:1 + overflow:auto) scrolle en interne.
-       Résultat : body.scrollHeight = viewport, aucun fond artificiel.           */
-    <div className="pv-settings-page" style={{
-      display: "flex",
-      flexDirection: "column",
-      flex: "1 1 auto",
-      minHeight: 0,
-      padding: "var(--spacing-24)",
-      width: "100%",
-      margin: 0,
-      boxSizing: "border-box",
-    }}>
-
-      {/* ─── En-tête + barre d'onglets : ne scrollent jamais ─── */}
-      <div style={{ flexShrink: 0, marginBottom: "var(--spacing-16)" }}>
-        <header style={{ marginBottom: "var(--spacing-16)" }}>
+    <div className="pv-settings-page">
+      <div className="pv-settings-page__sticky">
+        <header style={{ marginBottom: 16 }}>
           <h1 className="sg-title">Paramètres PV</h1>
-          <p style={{ color: "var(--text-muted)", fontSize: "var(--font-size-body)", marginTop: "var(--spacing-8)" }}>
-            Paramètres économiques, catalogues panneaux, micro-onduleurs et batteries
+          <p className="pv-settings-page__lead">
+            Paramètres économiques, catalogues panneaux, micro-onduleurs et batteries. Les blocs API hérités{" "}
+            <code>pvtech</code> / <code>ai</code> restent en base mais ne sont plus exposés ici (non branchés au moteur).
           </p>
         </header>
 
-        <div
-          role="tablist"
-          aria-label="Sections paramètres PV"
-          style={{ display: "flex", borderBottom: "1px solid var(--sn-border-soft)", paddingBottom: "var(--spacing-4)" }}
-        >
-          {TABS.map((tab) => (
-            <button
-              key={tab}
-              type="button"
-              role="tab"
-              aria-selected={activeTab === tab}
-              onClick={() => setActiveTab(tab)}
-              style={{
-                flex: 1,
-                padding: "var(--spacing-8) var(--spacing-8)",
-                borderRadius: "var(--radius-btn) var(--radius-btn) 0 0",
-                border: "none",
-                borderBottom: activeTab === tab ? "2px solid var(--primary)" : "2px solid transparent",
-                background: "transparent",
-                color: activeTab === tab ? "var(--primary)" : "var(--text-secondary)",
-                cursor: "pointer",
-                fontSize: "var(--font-size-body)",
-                fontWeight: activeTab === tab ? 600 : 400,
-                textAlign: "center",
-                whiteSpace: "nowrap",
-                transition: "color 0.15s, border-color 0.15s",
-              }}
-            >
-              {tab}
-            </button>
-          ))}
-        </div>
+        <SaasTabs<PvSettingsTabId>
+          items={PV_TAB_ITEMS}
+          activeId={pvTab}
+          onChange={setPvTab}
+          ariaLabel="Sections paramètres PV"
+        />
       </div>
 
-      {/* ─── Zone de contenu : scroll interne uniquement ─── */}
-      <div style={{ flex: 1, minHeight: 0, overflowY: "auto", paddingTop: "var(--spacing-8)" }}>
+      <div className="pv-settings-page__scroll">
 
-      {activeTab === "Économie" && (
-        <>
-      {/* Économie nationale — champs autorisés uniquement */}
-      <Card variant="premium" padding="lg" style={{ marginBottom: "var(--spacing-24)" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--spacing-16)", flexWrap: "wrap", gap: "var(--spacing-12)" }}>
-          <h2 style={{ margin: 0, fontSize: 18 }}>Économie nationale</h2>
-          <div style={{ display: "flex", gap: "var(--spacing-8)", alignItems: "center" }}>
-            <Button variant="ghost" size="sm" onClick={resetEconomics} disabled={!isEconomicsDirty}>
-              Réinitialiser
-            </Button>
-            <Button variant="primary" size="sm" onClick={saveEconomics} disabled={!isEconomicsDirty || saving}>
-              {saving ? "Enregistrement…" : "Enregistrer"}
-            </Button>
+      {pvTab === "economie" && (
+        <div className="pv-eco-stack">
+          <div className="pv-eco-topbar">
+            <div className="pv-eco-topbar__text">
+              <h2 className="pv-eco-topbar__title">Économie nationale</h2>
+              <p className="pv-eco-topbar__lead">Prix, simulation, rachat et OPEX — mise en page dense pour laptop.</p>
+            </div>
+            <div className="pv-eco-head__actions">
+              <Button variant="ghost" size="sm" onClick={resetEconomics} disabled={!isEconomicsDirty}>
+                Réinitialiser
+              </Button>
+              <Button variant="primary" size="sm" onClick={saveEconomics} disabled={!isEconomicsDirty || saving}>
+                {saving ? "Enregistrement…" : "Enregistrer"}
+              </Button>
+            </div>
           </div>
+
+          <section className="sn-saas-form-section">
+            <h3 className="sn-saas-form-section__title">Prix, simulation &amp; rachat &lt; 9 kWc</h3>
+            <div className="pv-eco-grid--dense">
+              <div className="pv-eco-field">
+                <label className="sn-saas-label" htmlFor="pv-eco-kwh">Prix du kWh (€)</label>
+                <p className="pv-eco-hint">Référence HT</p>
+                <input
+                  id="pv-eco-kwh"
+                  type="number"
+                  step={0.0001}
+                  min={0}
+                  value={e.price_eur_kwh ?? ""}
+                  onChange={(ev) => updateEconomics({ price_eur_kwh: Number(ev.target.value) || 0 })}
+                  className="sn-saas-input"
+                />
+              </div>
+              <div className="pv-eco-field">
+                <label className="sn-saas-label" htmlFor="pv-eco-elec-growth">Croissance prix élec. (%/an)</label>
+                <p className="pv-eco-hint">Hypothèse long terme</p>
+                <input
+                  id="pv-eco-elec-growth"
+                  type="number"
+                  step={0.1}
+                  value={e.elec_growth_pct ?? ""}
+                  onChange={(ev) => updateEconomics({ elec_growth_pct: Number(ev.target.value) || 0 })}
+                  className="sn-saas-input"
+                />
+              </div>
+              <div className="pv-eco-field">
+                <label className="sn-saas-label" htmlFor="pv-eco-pvdeg">Dégrad. modules (%/an)</label>
+                <p className="pv-eco-hint">Perte production</p>
+                <input
+                  id="pv-eco-pvdeg"
+                  type="number"
+                  step={0.1}
+                  value={e.pv_degradation_pct ?? ""}
+                  onChange={(ev) => updateEconomics({ pv_degradation_pct: Number(ev.target.value) || 0 })}
+                  className="sn-saas-input"
+                />
+              </div>
+              <div className="pv-eco-field">
+                <label className="sn-saas-label" htmlFor="pv-eco-batdeg">Dégrad. batterie (%/an)</label>
+                <p className="pv-eco-hint">Scénario avec stockage</p>
+                <input
+                  id="pv-eco-batdeg"
+                  type="number"
+                  step={0.1}
+                  min={0}
+                  value={e.battery_degradation_pct ?? ""}
+                  onChange={(ev) => updateEconomics({ battery_degradation_pct: Number(ev.target.value) || 0 })}
+                  className="sn-saas-input"
+                />
+              </div>
+              <div className="pv-eco-field">
+                <label className="sn-saas-label" htmlFor="pv-eco-horizon">Horizon (années)</label>
+                <p className="pv-eco-hint">Durée analyse</p>
+                <input
+                  id="pv-eco-horizon"
+                  type="number"
+                  value={e.horizon_years ?? ""}
+                  onChange={(ev) => updateEconomics({ horizon_years: Number(ev.target.value) || 0 })}
+                  className="sn-saas-input"
+                />
+              </div>
+              <div className="pv-eco-field">
+                <label className="sn-saas-label" htmlFor="pv-eco-oa-lt">Rachat surplus &lt; 9 kWc</label>
+                <p className="pv-eco-hint">€/kWh injecté</p>
+                <input
+                  id="pv-eco-oa-lt"
+                  type="number"
+                  step={0.0001}
+                  value={e.oa_rate_lt_9 ?? ""}
+                  onChange={(ev) => updateEconomics({ oa_rate_lt_9: Number(ev.target.value) || 0 })}
+                  className="sn-saas-input"
+                />
+              </div>
+            </div>
+          </section>
+
+          <section className="sn-saas-form-section">
+            <h3 className="sn-saas-form-section__title">Rachat ≥ 9 kWc, primes &amp; exploitation</h3>
+            <div className="pv-eco-grid--dense">
+              <div className="pv-eco-field">
+                <label className="sn-saas-label" htmlFor="pv-eco-oa-gte">Rachat surplus ≥ 9 kWc</label>
+                <p className="pv-eco-hint">€/kWh injecté</p>
+                <input
+                  id="pv-eco-oa-gte"
+                  type="number"
+                  step={0.0001}
+                  value={e.oa_rate_gte_9 ?? ""}
+                  onChange={(ev) => updateEconomics({ oa_rate_gte_9: Number(ev.target.value) || 0 })}
+                  className="sn-saas-input"
+                />
+              </div>
+              <div className="pv-eco-field">
+                <label className="sn-saas-label" htmlFor="pv-eco-prime-lt">Prime auto. &lt; 9 kWc</label>
+                <p className="pv-eco-hint">€/kWc</p>
+                <input
+                  id="pv-eco-prime-lt"
+                  type="number"
+                  value={e.prime_lt9 ?? ""}
+                  onChange={(ev) => updateEconomics({ prime_lt9: Number(ev.target.value) || 0 })}
+                  className="sn-saas-input"
+                />
+              </div>
+              <div className="pv-eco-field">
+                <label className="sn-saas-label" htmlFor="pv-eco-prime-gte">Prime auto. ≥ 9 kWc</label>
+                <p className="pv-eco-hint">€/kWc</p>
+                <input
+                  id="pv-eco-prime-gte"
+                  type="number"
+                  value={e.prime_gte9 ?? ""}
+                  onChange={(ev) => updateEconomics({ prime_gte9: Number(ev.target.value) || 0 })}
+                  className="sn-saas-input"
+                />
+              </div>
+              <div className="pv-eco-field">
+                <label className="sn-saas-label" htmlFor="pv-eco-maint">Maintenance (%/an)</label>
+                <p className="pv-eco-hint">% CAPEX TTC</p>
+                <input
+                  id="pv-eco-maint"
+                  type="number"
+                  step={0.1}
+                  min={0}
+                  value={e.maintenance_pct ?? ""}
+                  onChange={(ev) => updateEconomics({ maintenance_pct: Number(ev.target.value) || 0 })}
+                  className="sn-saas-input"
+                />
+              </div>
+              <div className="pv-eco-field">
+                <label className="sn-saas-label" htmlFor="pv-eco-inv-y">Remplac. onduleur (année)</label>
+                <p className="pv-eco-hint">Index 1…N</p>
+                <input
+                  id="pv-eco-inv-y"
+                  type="number"
+                  step={1}
+                  min={0}
+                  value={e.onduleur_year ?? ""}
+                  onChange={(ev) => updateEconomics({ onduleur_year: Number(ev.target.value) || 0 })}
+                  className="sn-saas-input"
+                />
+              </div>
+              <div className="pv-eco-field">
+                <label className="sn-saas-label" htmlFor="pv-eco-inv-pct">Coût onduleur (%)</label>
+                <p className="pv-eco-hint">% CAPEX TTC</p>
+                <input
+                  id="pv-eco-inv-pct"
+                  type="number"
+                  step={0.1}
+                  min={0}
+                  value={e.onduleur_cost_pct ?? ""}
+                  onChange={(ev) => updateEconomics({ onduleur_cost_pct: Number(ev.target.value) || 0 })}
+                  className="sn-saas-input"
+                />
+              </div>
+            </div>
+          </section>
         </div>
-        <h3 style={{ margin: "0 0 var(--spacing-12)", fontSize: "11px", fontWeight: 600, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.06em" }}>Prix &amp; tarifs</h3>
-        <div className="sn-economics-grid-4">
-          <div className="flex flex-col" style={{ display: "flex", flexDirection: "column" }}>
-            <label style={{ display: "block", fontSize: "var(--font-size-body)", fontWeight: 500, color: "var(--text-primary)", letterSpacing: "0.025em", marginBottom: "var(--spacing-4)" }}>Prix du kWh (€)</label>
-            <span className="sn-helper">Prix de référence de l&apos;électricité (hors taxes)</span>
-            <input
-              type="number"
-              step={0.0001}
-              min={0}
-              value={e.price_eur_kwh ?? ""}
-              onChange={(ev) => updateEconomics({ price_eur_kwh: Number(ev.target.value) || 0 })}
-              style={inputStyle}
-            />
-          </div>
-        </div>
-        <h3 style={{ margin: "var(--spacing-20) 0 var(--spacing-12)", fontSize: "11px", fontWeight: 600, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.06em" }}>Simulation</h3>
-        <div className="sn-economics-grid-4">
-          <div className="flex flex-col" style={{ display: "flex", flexDirection: "column" }}>
-            <label style={{ display: "block", fontSize: "var(--font-size-body)", fontWeight: 500, color: "var(--text-primary)", letterSpacing: "0.025em", marginBottom: "var(--spacing-4)" }}>Croissance du prix de l'électricité</label>
-            <span className="sn-helper">Évolution annuelle moyenne estimée</span>
-            <input
-              type="number"
-              step={0.1}
-              value={e.elec_growth_pct ?? ""}
-              onChange={(ev) => updateEconomics({ elec_growth_pct: Number(ev.target.value) || 0 })}
-              style={inputStyle}
-            />
-          </div>
-          <div className="flex flex-col" style={{ display: "flex", flexDirection: "column" }}>
-            <label style={{ display: "block", fontSize: "var(--font-size-body)", fontWeight: 500, color: "var(--text-primary)", letterSpacing: "0.025em", marginBottom: "var(--spacing-4)" }}>Dégradation annuelle des modules</label>
-            <span className="sn-helper">Perte moyenne de production par an</span>
-            <input
-              type="number"
-              step={0.1}
-              value={e.pv_degradation_pct ?? ""}
-              onChange={(ev) => updateEconomics({ pv_degradation_pct: Number(ev.target.value) || 0 })}
-              style={inputStyle}
-            />
-          </div>
-          <div className="flex flex-col" style={{ display: "flex", flexDirection: "column" }}>
-            <label style={{ display: "block", fontSize: "var(--font-size-body)", fontWeight: 500, color: "var(--text-primary)", letterSpacing: "0.025em", marginBottom: "var(--spacing-4)" }}>Dégradation batterie physique (%/an)</label>
-            <span className="sn-helper">Hypothèse moteur finance (scénario avec batterie) — priorité fiche panneau inchangée pour le PV</span>
-            <input
-              type="number"
-              step={0.1}
-              min={0}
-              value={e.battery_degradation_pct ?? ""}
-              onChange={(ev) => updateEconomics({ battery_degradation_pct: Number(ev.target.value) || 0 })}
-              style={inputStyle}
-            />
-          </div>
-          <div className="flex flex-col" style={{ display: "flex", flexDirection: "column" }}>
-            <label style={{ display: "block", fontSize: "var(--font-size-body)", fontWeight: 500, color: "var(--text-primary)", letterSpacing: "0.025em", marginBottom: "var(--spacing-4)" }}>Durée d'analyse financière</label>
-            <span className="sn-helper">Nombre d'années simulées</span>
-            <input
-              type="number"
-              value={e.horizon_years ?? ""}
-              onChange={(ev) => updateEconomics({ horizon_years: Number(ev.target.value) || 0 })}
-              style={inputStyle}
-            />
-          </div>
-          <div className="flex flex-col" style={{ display: "flex", flexDirection: "column" }}>
-            <label style={{ display: "block", fontSize: "var(--font-size-body)", fontWeight: 500, color: "var(--text-primary)", letterSpacing: "0.025em", marginBottom: "var(--spacing-4)" }}>Tarif de rachat — installation &lt; 9 kWc</label>
-            <span className="sn-helper">Tarif réglementé de revente du surplus</span>
-            <input
-              type="number"
-              step={0.0001}
-              value={e.oa_rate_lt_9 ?? ""}
-              onChange={(ev) => updateEconomics({ oa_rate_lt_9: Number(ev.target.value) || 0 })}
-              style={inputStyle}
-            />
-          </div>
-        </div>
-        <h3 style={{ margin: "var(--spacing-20) 0 var(--spacing-12)", fontSize: "11px", fontWeight: 600, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.06em" }}>Rachat du surplus</h3>
-        <div className="sn-economics-grid-3">
-          <div className="flex flex-col" style={{ display: "flex", flexDirection: "column" }}>
-            <label style={{ display: "block", fontSize: "var(--font-size-body)", fontWeight: 500, color: "var(--text-primary)", letterSpacing: "0.025em", marginBottom: "var(--spacing-4)" }}>Tarif de rachat — installation ≥ 9 kWc</label>
-            <span className="sn-helper">Applicable aux puissances supérieures ou égales à 9 kWc</span>
-            <input
-              type="number"
-              step={0.0001}
-              value={e.oa_rate_gte_9 ?? ""}
-              onChange={(ev) => updateEconomics({ oa_rate_gte_9: Number(ev.target.value) || 0 })}
-              style={inputStyle}
-            />
-          </div>
-          <div className="flex flex-col" style={{ display: "flex", flexDirection: "column" }}>
-            <label style={{ display: "block", fontSize: "var(--font-size-body)", fontWeight: 500, color: "var(--text-primary)", letterSpacing: "0.025em", marginBottom: "var(--spacing-4)" }}>Prime à l'autoconsommation &lt; 9 kWc</label>
-            <span className="sn-helper">Montant versé par kWc installé</span>
-            <input
-              type="number"
-              value={e.prime_lt9 ?? ""}
-              onChange={(ev) => updateEconomics({ prime_lt9: Number(ev.target.value) || 0 })}
-              style={inputStyle}
-            />
-          </div>
-          <div className="flex flex-col" style={{ display: "flex", flexDirection: "column" }}>
-            <label style={{ display: "block", fontSize: "var(--font-size-body)", fontWeight: 500, color: "var(--text-primary)", letterSpacing: "0.025em", marginBottom: "var(--spacing-4)" }}>Prime à l'autoconsommation ≥ 9 kWc</label>
-            <span className="sn-helper">Applicable aux puissances ≥ 9 kWc</span>
-            <input
-              type="number"
-              value={e.prime_gte9 ?? ""}
-              onChange={(ev) => updateEconomics({ prime_gte9: Number(ev.target.value) || 0 })}
-              style={inputStyle}
-            />
-          </div>
-        </div>
-        <h3 style={{ margin: "var(--spacing-20) 0 var(--spacing-12)", fontSize: "11px", fontWeight: 600, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.06em" }}>Coûts d'exploitation</h3>
-        <div className="sn-economics-grid-3">
-          <div className="flex flex-col" style={{ display: "flex", flexDirection: "column" }}>
-            <label style={{ display: "block", fontSize: "var(--font-size-body)", fontWeight: 500, color: "var(--text-primary)", letterSpacing: "0.025em", marginBottom: "var(--spacing-4)" }}>Maintenance annuelle (%)</label>
-            <span className="sn-helper">Part du CAPEX TTC par an</span>
-            <input
-              type="number"
-              step={0.1}
-              min={0}
-              value={e.maintenance_pct ?? ""}
-              onChange={(ev) => updateEconomics({ maintenance_pct: Number(ev.target.value) || 0 })}
-              style={inputStyle}
-            />
-          </div>
-          <div className="flex flex-col" style={{ display: "flex", flexDirection: "column" }}>
-            <label style={{ display: "block", fontSize: "var(--font-size-body)", fontWeight: 500, color: "var(--text-primary)", letterSpacing: "0.025em", marginBottom: "var(--spacing-4)" }}>Remplacement onduleur (année)</label>
-            <span className="sn-helper">Année de simulation (1 à N) où appliquer le coût</span>
-            <input
-              type="number"
-              step={1}
-              min={0}
-              value={e.onduleur_year ?? ""}
-              onChange={(ev) => updateEconomics({ onduleur_year: Number(ev.target.value) || 0 })}
-              style={inputStyle}
-            />
-          </div>
-          <div className="flex flex-col" style={{ display: "flex", flexDirection: "column" }}>
-            <label style={{ display: "block", fontSize: "var(--font-size-body)", fontWeight: 500, color: "var(--text-primary)", letterSpacing: "0.025em", marginBottom: "var(--spacing-4)" }}>Coût remplacement onduleur (%)</label>
-            <span className="sn-helper">Pourcentage du CAPEX TTC</span>
-            <input
-              type="number"
-              step={0.1}
-              min={0}
-              value={e.onduleur_cost_pct ?? ""}
-              onChange={(ev) => updateEconomics({ onduleur_cost_pct: Number(ev.target.value) || 0 })}
-              style={inputStyle}
-            />
-          </div>
-        </div>
-      </Card>
-        </>
       )}
 
-      {activeTab === "Panneaux" && (
+      {pvTab === "panneaux" && (
+        <div className="pv-cat-page">
         <CatalogPanelsTab
           panels={panels}
           loading={catalogLoading}
@@ -563,8 +490,9 @@ export default function PvSettingsPage() {
             else showToast(`${ok} panneau(x) ${active ? "activé(s)" : "désactivé(s)"}`);
           }}
         />
+        </div>
       )}
-      {activeTab === "Micro/Onduleurs" && (
+      {pvTab === "onduleurs" && (
         <CatalogInvertersTab
           invertersCentral={invertersCentral}
           invertersMicro={invertersMicro}
@@ -583,7 +511,8 @@ export default function PvSettingsPage() {
           }}
         />
       )}
-      {activeTab === "Batteries" && (
+      {pvTab === "batteries" && (
+        <div className="pv-cat-page">
         <CatalogBatteriesTab
           batteries={batteries}
           loading={catalogLoading}
@@ -599,11 +528,12 @@ export default function PvSettingsPage() {
             else showToast(`${ok} batterie(s) ${active ? "activée(s)" : "désactivée(s)"}`);
           }}
         />
+        </div>
       )}
 
-      {activeTab === "Batteries virtuelles" && <VirtualBatterySettings />}
+      {pvTab === "virtuelles" && <VirtualBatterySettings />}
 
-      </div>{/* ── fin zone scrollable ── */}
+      </div>
 
       {/* Modales : position:fixed → hors du flux, indépendantes du scroll */}
       {panelModalOpen && (
@@ -631,25 +561,9 @@ export default function PvSettingsPage() {
           saveError={catalogSaveError}
         />
       )}
-      <style>{`
-        .pv-settings-page .sn-btn {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          line-height: 1.2;
-        }
-      `}</style>
     </div>
   );
 }
-
-const filtersRowStyle: React.CSSProperties = {
-  display: "flex",
-  flexWrap: "wrap",
-  gap: "var(--spacing-12)",
-  alignItems: "center",
-  marginBottom: "var(--spacing-16)",
-};
 
 function CatalogPanelsTab({
   panels,
@@ -713,78 +627,85 @@ function CatalogPanelsTab({
     }
   };
 
-  if (loading) return <div style={{ padding: "var(--spacing-24)", color: "var(--text-muted)" }}>Chargement…</div>;
+  if (loading) return <div className="pv-cat-empty">Chargement…</div>;
   return (
-    <Card variant="premium" padding="lg">
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--spacing-16)" }}>
-        <h2 style={{ margin: 0, fontSize: 18 }}>Catalogue panneaux</h2>
+    <section className="sn-saas-form-section">
+      <div className="sn-saas-form-section__head">
+        <h2 className="sn-saas-form-section__title">Catalogue panneaux</h2>
         <Button variant="primary" size="sm" onClick={onAdd}>+ Ajouter</Button>
       </div>
-      <div style={filtersRowStyle}>
+      <p className="pv-eco-hint" style={{ marginTop: -6, marginBottom: 12 }}>Filtrez par marque ou texte, puis activez ou éditez les références.</p>
+      <div className="pv-cat-toolbar">
         <input
           type="text"
           placeholder="Recherche…"
           value={search}
           onChange={(e) => handleFilterChange(() => setSearch(e.target.value))}
-          style={{ ...inputStyle, width: 180 }}
+          className="pv-cat-filter"
         />
         <select
           value={brandFilter}
           onChange={(e) => handleFilterChange(() => setBrandFilter(e.target.value))}
-          style={{ ...inputStyle, width: 160 }}
+          className="pv-cat-filter"
         >
           <option value="">Toutes les marques</option>
           {brands.map((b) => (
             <option key={b} value={b}>{b}</option>
           ))}
         </select>
-        <label style={{ display: "flex", alignItems: "center", gap: "var(--spacing-8)", cursor: "pointer", fontSize: 13 }}>
+        <label className="pv-cat-check">
           <input type="checkbox" checked={activeOnly} onChange={(e) => handleFilterChange(() => setActiveOnly(e.target.checked))} />
           Actifs seulement
         </label>
       </div>
       {selectedOnPage.length > 0 && (
-        <div style={{ display: "flex", alignItems: "center", gap: "var(--spacing-12)", marginBottom: "var(--spacing-12)", padding: "var(--spacing-8)", background: "var(--bg-muted)", borderRadius: "var(--radius-btn)" }}>
-          <span style={{ fontSize: 13 }}>{selectedOnPage.length} sélectionné(s)</span>
-          <Button variant="danger" size="sm" onClick={() => handleBulk(false)} disabled={bulkLoading}>Désactiver ({selectedOnPage.length})</Button>
-          <Button variant="ghost" size="sm" onClick={() => handleBulk(true)} disabled={bulkLoading}>Activer ({selectedOnPage.length})</Button>
-          <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())} disabled={bulkLoading}>Annuler sélection</Button>
+        <div className="pv-bulk-bar">
+          <span className="pv-bulk-bar__count">{selectedOnPage.length} sélectionné(s)</span>
+          <Button variant="secondary" size="sm" onClick={() => handleBulk(false)} disabled={bulkLoading}>Désactiver</Button>
+          <Button variant="secondary" size="sm" onClick={() => handleBulk(true)} disabled={bulkLoading}>Activer</Button>
+          <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())} disabled={bulkLoading}>Effacer</Button>
         </div>
       )}
-      <div style={{ overflowX: "auto" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+      <div className="pv-cat-table-wrap">
+        <table className="pv-cat-table">
           <thead>
             <tr>
-              <th style={{ width: 40, padding: "var(--spacing-8)", borderBottom: "1px solid var(--sn-border-soft)" }}>
-                <input type="checkbox" checked={allSelected} onChange={toggleSelectAll} disabled={filtered.length === 0} />
+              <th className="pv-cat-table__th--check" scope="col">
+                <input type="checkbox" checked={allSelected} onChange={toggleSelectAll} disabled={filtered.length === 0} aria-label="Tout sélectionner" />
               </th>
-              <th style={{ textAlign: "left", padding: "var(--spacing-8)", borderBottom: "1px solid var(--sn-border-soft)" }}>Marque</th>
-              <th style={{ textAlign: "left", padding: "var(--spacing-8)", borderBottom: "1px solid var(--sn-border-soft)" }}>Modèle</th>
-              <th style={{ textAlign: "right", padding: "var(--spacing-8)", borderBottom: "1px solid var(--sn-border-soft)" }}>Wc</th>
-              <th style={{ textAlign: "right", padding: "var(--spacing-8)", borderBottom: "1px solid var(--sn-border-soft)" }}>L×H (mm)</th>
-              <th style={{ textAlign: "left", padding: "var(--spacing-8)", borderBottom: "1px solid var(--sn-border-soft)" }}>Statut</th>
-              <th style={{ textAlign: "right", padding: "var(--spacing-8)", borderBottom: "1px solid var(--sn-border-soft)" }}>Actions</th>
+              <th scope="col">Marque</th>
+              <th scope="col">Modèle</th>
+              <th className="pv-cat-table__th--right" scope="col">Wc</th>
+              <th className="pv-cat-table__th--right" scope="col">L×H (mm)</th>
+              <th scope="col">Statut</th>
+              <th className="pv-cat-table__th--right" scope="col">Actions</th>
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 ? (
-              <tr><td colSpan={7} style={{ padding: "var(--spacing-24)", color: "var(--text-muted)", textAlign: "center" }}>Aucun panneau.</td></tr>
+              <tr>
+                <td colSpan={7}>
+                  <p className="pv-cat-empty">Aucun panneau.</p>
+                </td>
+              </tr>
             ) : (
               filtered.map((p) => (
-                <tr key={p.id} style={{ borderBottom: "1px solid var(--sn-border-soft)" }}>
-                  <td style={{ padding: "var(--spacing-8)" }}>
-                    <input type="checkbox" checked={selectedIds.has(p.id)} onChange={() => toggleSelect(p.id)} />
+                <tr key={p.id}>
+                  <td className="pv-cat-table__td--check">
+                    <input type="checkbox" checked={selectedIds.has(p.id)} onChange={() => toggleSelect(p.id)} aria-label={`Sélectionner ${p.brand} ${p.model_ref}`} />
                   </td>
-                  <td style={{ padding: "var(--spacing-8)" }}>{p.brand}</td>
-                  <td style={{ padding: "var(--spacing-8)" }}>{p.model_ref}</td>
-                  <td style={{ padding: "var(--spacing-8)", textAlign: "right" }}>{p.power_wc}</td>
-                  <td style={{ padding: "var(--spacing-8)", textAlign: "right" }}>{p.width_mm}×{p.height_mm}</td>
-                  <td style={{ padding: "var(--spacing-8)" }}>
-                    <span style={{ padding: "2px 8px", borderRadius: "var(--radius-pill)", fontSize: 12, background: p.active ? "rgba(22,163,74,0.2)" : "rgba(107,114,128,0.2)", color: p.active ? "var(--success)" : "var(--text-muted)" }}>{p.active ? "Actif" : "Inactif"}</span>
+                  <td>{p.brand}</td>
+                  <td>{p.model_ref}</td>
+                  <td className="pv-cat-table__td--right">{p.power_wc}</td>
+                  <td className="pv-cat-table__td--right">{p.width_mm}×{p.height_mm}</td>
+                  <td>
+                    <span className={p.active ? "pv-cat-badge pv-cat-badge--on" : "pv-cat-badge pv-cat-badge--off"}>{p.active ? "Actif" : "Inactif"}</span>
                   </td>
-                  <td style={{ padding: "var(--spacing-8)", textAlign: "right" }}>
-                    <Button variant="ghost" size="sm" onClick={() => onToggle(p)}>{p.active ? "Désactiver" : "Activer"}</Button>
-                    <Button variant="ghost" size="sm" onClick={() => onEdit(p)}>Modifier</Button>
+                  <td className="pv-cat-table__td--right">
+                    <div className="pv-cat-row-actions">
+                      <Button variant="ghost" size="sm" onClick={() => onToggle(p)}>{p.active ? "Désact." : "Activer"}</Button>
+                      <Button variant="ghost" size="sm" onClick={() => onEdit(p)}>Modifier</Button>
+                    </div>
                   </td>
                 </tr>
               ))
@@ -792,7 +713,7 @@ function CatalogPanelsTab({
           </tbody>
         </table>
       </div>
-    </Card>
+    </section>
   );
 }
 
@@ -803,6 +724,7 @@ function InverterBlock({
   onEdit,
   onToggle,
   onBulkActiveChange,
+  addButtonVariant = "primary",
 }: {
   title: string;
   inverters: PvInverter[];
@@ -810,6 +732,8 @@ function InverterBlock({
   onEdit: (i: PvInverter) => void;
   onToggle: (i: PvInverter) => void;
   onBulkActiveChange: (ids: string[], active: boolean) => Promise<void>;
+  /** Une seule action primaire par écran : le second bloc catalogue passe en secondary. */
+  addButtonVariant?: "primary" | "secondary";
 }) {
   const [search, setSearch] = useState("");
   const [brandFilter, setBrandFilter] = useState<string>("");
@@ -859,76 +783,82 @@ function InverterBlock({
   };
 
   return (
-    <Card variant="premium" padding="lg" style={{ marginBottom: "var(--spacing-24)" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--spacing-16)" }}>
-        <h2 style={{ margin: 0, fontSize: 18 }}>{title}</h2>
-        <Button variant="primary" size="sm" onClick={onAdd}>+ Ajouter</Button>
+    <section className="sn-saas-form-section">
+      <div className="sn-saas-form-section__head">
+        <h2 className="sn-saas-form-section__title">{title}</h2>
+        <Button variant={addButtonVariant} size="sm" onClick={onAdd}>+ Ajouter</Button>
       </div>
-      <div style={filtersRowStyle}>
+      <div className="pv-cat-toolbar">
         <input
           type="text"
           placeholder="Recherche…"
           value={search}
           onChange={(e) => handleFilterChange(() => setSearch(e.target.value))}
-          style={{ ...inputStyle, width: 180 }}
+          className="pv-cat-filter"
         />
         <select
           value={brandFilter}
           onChange={(e) => handleFilterChange(() => setBrandFilter(e.target.value))}
-          style={{ ...inputStyle, width: 160 }}
+          className="pv-cat-filter"
         >
           <option value="">Toutes les marques</option>
           {brands.map((b) => (
             <option key={b} value={b}>{b}</option>
           ))}
         </select>
-        <label style={{ display: "flex", alignItems: "center", gap: "var(--spacing-8)", cursor: "pointer", fontSize: 13 }}>
+        <label className="pv-cat-check">
           <input type="checkbox" checked={activeOnly} onChange={(e) => handleFilterChange(() => setActiveOnly(e.target.checked))} />
           Actifs seulement
         </label>
       </div>
       {selectedOnPage.length > 0 && (
-        <div style={{ display: "flex", alignItems: "center", gap: "var(--spacing-12)", marginBottom: "var(--spacing-12)", padding: "var(--spacing-8)", background: "var(--bg-muted)", borderRadius: "var(--radius-btn)" }}>
-          <span style={{ fontSize: 13 }}>{selectedOnPage.length} sélectionné(s)</span>
-          <Button variant="danger" size="sm" onClick={() => handleBulk(false)} disabled={bulkLoading}>Désactiver ({selectedOnPage.length})</Button>
-          <Button variant="ghost" size="sm" onClick={() => handleBulk(true)} disabled={bulkLoading}>Activer ({selectedOnPage.length})</Button>
-          <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())} disabled={bulkLoading}>Annuler sélection</Button>
+        <div className="pv-bulk-bar">
+          <span className="pv-bulk-bar__count">{selectedOnPage.length} sélectionné(s)</span>
+          <Button variant="secondary" size="sm" onClick={() => handleBulk(false)} disabled={bulkLoading}>Désactiver</Button>
+          <Button variant="secondary" size="sm" onClick={() => handleBulk(true)} disabled={bulkLoading}>Activer</Button>
+          <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())} disabled={bulkLoading}>Effacer</Button>
         </div>
       )}
-      <div style={{ overflowX: "auto" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+      <div className="pv-cat-table-wrap">
+        <table className="pv-cat-table">
           <thead>
             <tr>
-              <th style={{ width: 40, padding: "var(--spacing-8)", borderBottom: "1px solid var(--sn-border-soft)" }}>
-                <input type="checkbox" checked={allSelected} onChange={toggleSelectAll} disabled={filtered.length === 0} />
+              <th className="pv-cat-table__th--check" scope="col">
+                <input type="checkbox" checked={allSelected} onChange={toggleSelectAll} disabled={filtered.length === 0} aria-label="Tout sélectionner" />
               </th>
-              <th style={{ textAlign: "left", padding: "var(--spacing-8)", borderBottom: "1px solid var(--sn-border-soft)" }}>Marque</th>
-              <th style={{ textAlign: "left", padding: "var(--spacing-8)", borderBottom: "1px solid var(--sn-border-soft)" }}>Modèle</th>
-              <th style={{ textAlign: "left", padding: "var(--spacing-8)", borderBottom: "1px solid var(--sn-border-soft)" }}>Type</th>
-              <th style={{ textAlign: "right", padding: "var(--spacing-8)", borderBottom: "1px solid var(--sn-border-soft)" }}>Puissance</th>
-              <th style={{ textAlign: "left", padding: "var(--spacing-8)", borderBottom: "1px solid var(--sn-border-soft)" }}>Statut</th>
-              <th style={{ textAlign: "right", padding: "var(--spacing-8)", borderBottom: "1px solid var(--sn-border-soft)" }}>Actions</th>
+              <th scope="col">Marque</th>
+              <th scope="col">Modèle</th>
+              <th scope="col">Type</th>
+              <th className="pv-cat-table__th--right" scope="col">Puissance</th>
+              <th scope="col">Statut</th>
+              <th className="pv-cat-table__th--right" scope="col">Actions</th>
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 ? (
-              <tr><td colSpan={7} style={{ padding: "var(--spacing-24)", color: "var(--text-muted)", textAlign: "center" }}>Aucun onduleur.</td></tr>
+              <tr>
+                <td colSpan={7}>
+                  <p className="pv-cat-empty">Aucun onduleur.</p>
+                </td>
+              </tr>
             ) : (
               filtered.map((i) => (
-                <tr key={i.id} style={{ borderBottom: "1px solid var(--sn-border-soft)" }}>
-                  <td style={{ padding: "var(--spacing-8)" }}>
-                    <input type="checkbox" checked={selectedIds.has(i.id)} onChange={() => toggleSelect(i.id)} />
+                <tr key={i.id}>
+                  <td className="pv-cat-table__td--check">
+                    <input type="checkbox" checked={selectedIds.has(i.id)} onChange={() => toggleSelect(i.id)} aria-label={`Sélectionner ${i.brand} ${i.model_ref}`} />
                   </td>
-                  <td style={{ padding: "var(--spacing-8)" }}>{i.brand}</td>
-                  <td style={{ padding: "var(--spacing-8)" }}>{i.model_ref}</td>
-                  <td style={{ padding: "var(--spacing-8)" }}>{i.inverter_type}</td>
-                  <td style={{ padding: "var(--spacing-8)", textAlign: "right" }}>{i.nominal_va ? `${i.nominal_va} VA` : i.nominal_power_kw ? `${i.nominal_power_kw} kW` : "—"}</td>
-                  <td style={{ padding: "var(--spacing-8)" }}>
-                    <span style={{ padding: "2px 8px", borderRadius: "var(--radius-pill)", fontSize: 12, background: i.active ? "rgba(22,163,74,0.2)" : "rgba(107,114,128,0.2)", color: i.active ? "var(--success)" : "var(--text-muted)" }}>{i.active ? "Actif" : "Inactif"}</span>
+                  <td>{i.brand}</td>
+                  <td>{i.model_ref}</td>
+                  <td>{i.inverter_type}</td>
+                  <td className="pv-cat-table__td--right">{i.nominal_va ? `${i.nominal_va} VA` : i.nominal_power_kw ? `${i.nominal_power_kw} kW` : "—"}</td>
+                  <td>
+                    <span className={i.active ? "pv-cat-badge pv-cat-badge--on" : "pv-cat-badge pv-cat-badge--off"}>{i.active ? "Actif" : "Inactif"}</span>
                   </td>
-                  <td style={{ padding: "var(--spacing-8)", textAlign: "right" }}>
-                    <Button variant="ghost" size="sm" onClick={() => onToggle(i)}>{i.active ? "Désactiver" : "Activer"}</Button>
-                    <Button variant="ghost" size="sm" onClick={() => onEdit(i)}>Modifier</Button>
+                  <td className="pv-cat-table__td--right">
+                    <div className="pv-cat-row-actions">
+                      <Button variant="ghost" size="sm" onClick={() => onToggle(i)}>{i.active ? "Désact." : "Activer"}</Button>
+                      <Button variant="ghost" size="sm" onClick={() => onEdit(i)}>Modifier</Button>
+                    </div>
                   </td>
                 </tr>
               ))
@@ -936,7 +866,7 @@ function InverterBlock({
           </tbody>
         </table>
       </div>
-    </Card>
+    </section>
   );
 }
 
@@ -959,9 +889,9 @@ function CatalogInvertersTab({
   onToggle: (i: PvInverter) => void;
   onBulkActiveChange: (ids: string[], active: boolean) => Promise<void>;
 }) {
-  if (loading) return <div style={{ padding: "var(--spacing-24)", color: "var(--text-muted)" }}>Chargement…</div>;
+  if (loading) return <div className="pv-cat-empty">Chargement…</div>;
   return (
-    <>
+    <div className="pv-cat-page">
       <InverterBlock
         title="Micro-onduleurs"
         inverters={invertersMicro}
@@ -969,9 +899,9 @@ function CatalogInvertersTab({
         onEdit={onEdit}
         onToggle={onToggle}
         onBulkActiveChange={onBulkActiveChange}
+        addButtonVariant="primary"
       />
-      {/* Séparateur visuel entre les deux catalogues */}
-      <div style={{ marginTop: "var(--spacing-32)" }}>
+      <div className="pv-cat-block-gap">
         <InverterBlock
           title="Onduleurs centraux"
           inverters={invertersCentral}
@@ -979,9 +909,10 @@ function CatalogInvertersTab({
           onEdit={onEdit}
           onToggle={onToggle}
           onBulkActiveChange={onBulkActiveChange}
+          addButtonVariant="secondary"
         />
       </div>
-    </>
+    </div>
   );
 }
 
@@ -1047,80 +978,87 @@ function CatalogBatteriesTab({
     }
   };
 
-  if (loading) return <div style={{ padding: "var(--spacing-24)", color: "var(--text-muted)" }}>Chargement…</div>;
+  if (loading) return <div className="pv-cat-empty">Chargement…</div>;
   return (
-    <Card variant="premium" padding="lg">
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--spacing-16)" }}>
-        <h2 style={{ margin: 0, fontSize: 18 }}>Catalogue batteries</h2>
+    <section className="sn-saas-form-section">
+      <div className="sn-saas-form-section__head">
+        <h2 className="sn-saas-form-section__title">Catalogue batteries</h2>
         <Button variant="primary" size="sm" onClick={onAdd}>+ Ajouter</Button>
       </div>
-      <div style={filtersRowStyle}>
+      <p className="pv-eco-hint" style={{ marginTop: -6, marginBottom: 12 }}>Prix catalogue et achat optionnel pour le suivi de marge.</p>
+      <div className="pv-cat-toolbar">
         <input
           type="text"
           placeholder="Recherche…"
           value={search}
           onChange={(e) => handleFilterChange(() => setSearch(e.target.value))}
-          style={{ ...inputStyle, width: 180 }}
+          className="pv-cat-filter"
         />
         <select
           value={brandFilter}
           onChange={(e) => handleFilterChange(() => setBrandFilter(e.target.value))}
-          style={{ ...inputStyle, width: 160 }}
+          className="pv-cat-filter"
         >
           <option value="">Toutes les marques</option>
           {brands.map((br) => (
             <option key={br} value={br}>{br}</option>
           ))}
         </select>
-        <label style={{ display: "flex", alignItems: "center", gap: "var(--spacing-8)", cursor: "pointer", fontSize: 13 }}>
+        <label className="pv-cat-check">
           <input type="checkbox" checked={activeOnly} onChange={(e) => handleFilterChange(() => setActiveOnly(e.target.checked))} />
           Actifs seulement
         </label>
       </div>
       {selectedOnPage.length > 0 && (
-        <div style={{ display: "flex", alignItems: "center", gap: "var(--spacing-12)", marginBottom: "var(--spacing-12)", padding: "var(--spacing-8)", background: "var(--bg-muted)", borderRadius: "var(--radius-btn)" }}>
-          <span style={{ fontSize: 13 }}>{selectedOnPage.length} sélectionné(s)</span>
-          <Button variant="danger" size="sm" onClick={() => handleBulk(false)} disabled={bulkLoading}>Désactiver ({selectedOnPage.length})</Button>
-          <Button variant="ghost" size="sm" onClick={() => handleBulk(true)} disabled={bulkLoading}>Activer ({selectedOnPage.length})</Button>
-          <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())} disabled={bulkLoading}>Annuler sélection</Button>
+        <div className="pv-bulk-bar">
+          <span className="pv-bulk-bar__count">{selectedOnPage.length} sélectionné(s)</span>
+          <Button variant="secondary" size="sm" onClick={() => handleBulk(false)} disabled={bulkLoading}>Désactiver</Button>
+          <Button variant="secondary" size="sm" onClick={() => handleBulk(true)} disabled={bulkLoading}>Activer</Button>
+          <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())} disabled={bulkLoading}>Effacer</Button>
         </div>
       )}
-      <div style={{ overflowX: "auto" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+      <div className="pv-cat-table-wrap">
+        <table className="pv-cat-table">
           <thead>
             <tr>
-              <th style={{ width: 40, padding: "var(--spacing-8)", borderBottom: "1px solid var(--sn-border-soft)" }}>
-                <input type="checkbox" checked={allSelected} onChange={toggleSelectAll} disabled={filtered.length === 0} />
+              <th className="pv-cat-table__th--check" scope="col">
+                <input type="checkbox" checked={allSelected} onChange={toggleSelectAll} disabled={filtered.length === 0} aria-label="Tout sélectionner" />
               </th>
-              <th style={{ textAlign: "left", padding: "var(--spacing-8)", borderBottom: "1px solid var(--sn-border-soft)" }}>Marque</th>
-              <th style={{ textAlign: "left", padding: "var(--spacing-8)", borderBottom: "1px solid var(--sn-border-soft)" }}>Modèle</th>
-              <th style={{ textAlign: "right", padding: "var(--spacing-8)", borderBottom: "1px solid var(--sn-border-soft)" }}>kWh</th>
-              <th style={{ textAlign: "right", padding: "var(--spacing-8)", borderBottom: "1px solid var(--sn-border-soft)" }}>Prix HT</th>
-              <th style={{ textAlign: "right", padding: "var(--spacing-8)", borderBottom: "1px solid var(--sn-border-soft)" }}>Achat HT</th>
-              <th style={{ textAlign: "left", padding: "var(--spacing-8)", borderBottom: "1px solid var(--sn-border-soft)" }}>Statut</th>
-              <th style={{ textAlign: "right", padding: "var(--spacing-8)", borderBottom: "1px solid var(--sn-border-soft)" }}>Actions</th>
+              <th scope="col">Marque</th>
+              <th scope="col">Modèle</th>
+              <th className="pv-cat-table__th--right" scope="col">kWh</th>
+              <th className="pv-cat-table__th--right" scope="col">Prix HT</th>
+              <th className="pv-cat-table__th--right" scope="col">Achat HT</th>
+              <th scope="col">Statut</th>
+              <th className="pv-cat-table__th--right" scope="col">Actions</th>
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 ? (
-              <tr><td colSpan={8} style={{ padding: "var(--spacing-24)", color: "var(--text-muted)", textAlign: "center" }}>Aucune batterie.</td></tr>
+              <tr>
+                <td colSpan={8}>
+                  <p className="pv-cat-empty">Aucune batterie.</p>
+                </td>
+              </tr>
             ) : (
               filtered.map((b) => (
-                <tr key={b.id} style={{ borderBottom: "1px solid var(--sn-border-soft)" }}>
-                  <td style={{ padding: "var(--spacing-8)" }}>
-                    <input type="checkbox" checked={selectedIds.has(b.id)} onChange={() => toggleSelect(b.id)} />
+                <tr key={b.id}>
+                  <td className="pv-cat-table__td--check">
+                    <input type="checkbox" checked={selectedIds.has(b.id)} onChange={() => toggleSelect(b.id)} aria-label={`Sélectionner ${b.brand} ${b.model_ref}`} />
                   </td>
-                  <td style={{ padding: "var(--spacing-8)" }}>{b.brand}</td>
-                  <td style={{ padding: "var(--spacing-8)" }}>{b.model_ref}</td>
-                  <td style={{ padding: "var(--spacing-8)", textAlign: "right" }}>{b.usable_kwh}</td>
-                  <td style={{ padding: "var(--spacing-8)", textAlign: "right" }}>{b.default_price_ht != null ? `${Number(b.default_price_ht).toLocaleString("fr-FR")} €` : "—"}</td>
-                  <td style={{ padding: "var(--spacing-8)", textAlign: "right" }}>{b.purchase_price_ht != null ? `${Number(b.purchase_price_ht).toLocaleString("fr-FR")} €` : "—"}</td>
-                  <td style={{ padding: "var(--spacing-8)" }}>
-                    <span style={{ padding: "2px 8px", borderRadius: "var(--radius-pill)", fontSize: 12, background: b.active ? "rgba(22,163,74,0.2)" : "rgba(107,114,128,0.2)", color: b.active ? "var(--success)" : "var(--text-muted)" }}>{b.active ? "Actif" : "Inactif"}</span>
+                  <td>{b.brand}</td>
+                  <td>{b.model_ref}</td>
+                  <td className="pv-cat-table__td--right">{b.usable_kwh}</td>
+                  <td className="pv-cat-table__td--right">{b.default_price_ht != null ? `${Number(b.default_price_ht).toLocaleString("fr-FR")} €` : "—"}</td>
+                  <td className="pv-cat-table__td--right">{b.purchase_price_ht != null ? `${Number(b.purchase_price_ht).toLocaleString("fr-FR")} €` : "—"}</td>
+                  <td>
+                    <span className={b.active ? "pv-cat-badge pv-cat-badge--on" : "pv-cat-badge pv-cat-badge--off"}>{b.active ? "Actif" : "Inactif"}</span>
                   </td>
-                  <td style={{ padding: "var(--spacing-8)", textAlign: "right" }}>
-                    <Button variant="ghost" size="sm" onClick={() => onToggle(b)}>{b.active ? "Désactiver" : "Activer"}</Button>
-                    <Button variant="ghost" size="sm" onClick={() => onEdit(b)}>Modifier</Button>
+                  <td className="pv-cat-table__td--right">
+                    <div className="pv-cat-row-actions">
+                      <Button variant="ghost" size="sm" onClick={() => onToggle(b)}>{b.active ? "Désact." : "Activer"}</Button>
+                      <Button variant="ghost" size="sm" onClick={() => onEdit(b)}>Modifier</Button>
+                    </div>
                   </td>
                 </tr>
               ))
@@ -1128,7 +1066,7 @@ function CatalogBatteriesTab({
           </tbody>
         </table>
       </div>
-    </Card>
+    </section>
   );
 }
 
@@ -1158,10 +1096,13 @@ function PvPanelModal({ panel, onSave, onClose, saveError }: { panel: PvPanel | 
       open
       onClose={onClose}
       size="lg"
+      panelClassName="qc-modal-panel"
+      bodyClassName="qc-modal-shell-body"
       title={panel ? "Modifier le panneau" : "Ajouter un panneau"}
+      subtitle="Référence catalogue — champs structurés par bloc."
       footer={
         <>
-          <Button type="button" variant="ghost" onClick={onClose}>
+          <Button type="button" variant="secondary" onClick={onClose}>
             Annuler
           </Button>
           <Button type="submit" variant="primary" form={PV_PANEL_FORM_ID}>
@@ -1170,49 +1111,57 @@ function PvPanelModal({ panel, onSave, onClose, saveError }: { panel: PvPanel | 
         </>
       }
     >
-        {saveError && <div style={alertErrorStyle} role="alert">{saveError}</div>}
-        <form id={PV_PANEL_FORM_ID} onSubmit={handleSubmit}>
-          <div style={{ display: "flex", flexDirection: "column", gap: "var(--spacing-12)" }}>
-            <Field label="Marque *"><input type="text" value={form.brand ?? ""} onChange={(e) => setForm({ ...form, brand: e.target.value })} style={inputStyle} required readOnly={!!panel} /></Field>
-            <Field label="Modèle / Réf *"><input type="text" value={form.model_ref ?? ""} onChange={(e) => setForm({ ...form, model_ref: e.target.value })} style={inputStyle} required readOnly={!!panel} /></Field>
-            {panel && (
-              <p style={{ margin: 0, fontSize: "var(--font-size-body-sm)", color: "var(--text-muted)", lineHeight: 1.4 }}>
-                La référence technique n'est pas modifiable. Dupliquez le produit pour créer une nouvelle référence.
-              </p>
-            )}
-            <Field label="Nom affiché"><input type="text" value={form.name ?? ""} onChange={(e) => setForm({ ...form, name: e.target.value })} style={inputStyle} placeholder="ex: LONGi 485W" /></Field>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--spacing-12)" }}>
-              <Field label="Technologie"><input type="text" value={form.technology ?? ""} onChange={(e) => setForm({ ...form, technology: e.target.value })} style={inputStyle} placeholder="PERC, TOPCon, HJT" /></Field>
-              <Field label="Bifacial"><label><input type="checkbox" checked={form.bifacial ?? false} onChange={(e) => setForm({ ...form, bifacial: e.target.checked })} /> Oui</label></Field>
+      {saveError ? <div style={alertErrorStyle} role="alert">{saveError}</div> : null}
+      <form id={PV_PANEL_FORM_ID} className="qc-modal-form" onSubmit={handleSubmit}>
+        <div className="qc-modal-section">
+          <h3 className="qc-modal-section__title">Identité</h3>
+          <div className="qc-modal-field-grid qc-modal-field-grid--2">
+            <Field label="Marque *"><input type="text" value={form.brand ?? ""} onChange={(e) => setForm({ ...form, brand: e.target.value })} className="qc-modal-input" required readOnly={!!panel} /></Field>
+            <Field label="Modèle / Réf *"><input type="text" value={form.model_ref ?? ""} onChange={(e) => setForm({ ...form, model_ref: e.target.value })} className="qc-modal-input" required readOnly={!!panel} /></Field>
+            <div className="qc-modal-field-span-2">
+              <Field label="Nom affiché"><input type="text" value={form.name ?? ""} onChange={(e) => setForm({ ...form, name: e.target.value })} className="qc-modal-input" placeholder="ex: LONGi 485W" /></Field>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--spacing-12)" }}>
-              <Field label="Puissance (Wc) *"><input type="number" value={form.power_wc ?? ""} onChange={(e) => setForm({ ...form, power_wc: Number(e.target.value) || 0 })} style={inputStyle} required /></Field>
-              <Field label="Rendement (%) *"><input type="number" step={0.01} value={form.efficiency_pct ?? ""} onChange={(e) => setForm({ ...form, efficiency_pct: Number(e.target.value) || 0 })} style={inputStyle} required /></Field>
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--spacing-12)" }}>
-              <Field label="Coeff. temp (°C)"><input type="number" step={0.001} value={form.temp_coeff_pct_per_deg ?? ""} onChange={(e) => setForm({ ...form, temp_coeff_pct_per_deg: e.target.value ? Number(e.target.value) : undefined })} style={inputStyle} /></Field>
-              <Field label="Dégrad. an 1 (%)"><input type="number" step={0.01} value={form.degradation_first_year_pct ?? ""} onChange={(e) => setForm({ ...form, degradation_first_year_pct: Number(e.target.value) || 1 })} style={inputStyle} /></Field>
-              <Field label="Dégrad. annuelle (%)"><input type="number" step={0.01} value={form.degradation_annual_pct ?? ""} onChange={(e) => setForm({ ...form, degradation_annual_pct: Number(e.target.value) || 0.4 })} style={inputStyle} /></Field>
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "var(--spacing-12)" }}>
-              <Field label="Voc (V)"><input type="number" step={0.01} value={form.voc_v ?? ""} onChange={(e) => setForm({ ...form, voc_v: e.target.value ? Number(e.target.value) : undefined })} style={inputStyle} /></Field>
-              <Field label="Isc (A)"><input type="number" step={0.01} value={form.isc_a ?? ""} onChange={(e) => setForm({ ...form, isc_a: e.target.value ? Number(e.target.value) : undefined })} style={inputStyle} /></Field>
-              <Field label="Vmp (V)"><input type="number" step={0.01} value={form.vmp_v ?? ""} onChange={(e) => setForm({ ...form, vmp_v: e.target.value ? Number(e.target.value) : undefined })} style={inputStyle} /></Field>
-              <Field label="Imp (A)"><input type="number" step={0.01} value={form.imp_a ?? ""} onChange={(e) => setForm({ ...form, imp_a: e.target.value ? Number(e.target.value) : undefined })} style={inputStyle} /></Field>
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "var(--spacing-12)" }}>
-              <Field label="Largeur (mm) *"><input type="number" value={form.width_mm ?? ""} onChange={(e) => setForm({ ...form, width_mm: Number(e.target.value) || 0 })} style={inputStyle} required /></Field>
-              <Field label="Hauteur (mm) *"><input type="number" value={form.height_mm ?? ""} onChange={(e) => setForm({ ...form, height_mm: Number(e.target.value) || 0 })} style={inputStyle} required /></Field>
-              <Field label="Épaisseur (mm)"><input type="number" value={form.thickness_mm ?? ""} onChange={(e) => setForm({ ...form, thickness_mm: e.target.value ? Number(e.target.value) : undefined })} style={inputStyle} /></Field>
-              <Field label="Poids (kg)"><input type="number" step={0.01} value={form.weight_kg ?? ""} onChange={(e) => setForm({ ...form, weight_kg: e.target.value ? Number(e.target.value) : undefined })} style={inputStyle} /></Field>
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--spacing-12)" }}>
-              <Field label="Garantie produit (ans)"><input type="number" value={form.warranty_product_years ?? ""} onChange={(e) => setForm({ ...form, warranty_product_years: e.target.value ? Number(e.target.value) : undefined })} style={inputStyle} /></Field>
-              <Field label="Garantie perf. (ans)"><input type="number" value={form.warranty_performance_years ?? ""} onChange={(e) => setForm({ ...form, warranty_performance_years: e.target.value ? Number(e.target.value) : undefined })} style={inputStyle} /></Field>
-            </div>
-            <Field label="Actif"><label><input type="checkbox" checked={form.active !== false} onChange={(e) => setForm({ ...form, active: e.target.checked })} /> Oui</label></Field>
           </div>
-        </form>
+          {panel ? (
+            <p className="pv-eco-hint" style={{ marginTop: 12 }}>
+              La référence technique n&apos;est pas modifiable. Dupliquez le produit pour créer une nouvelle référence.
+            </p>
+          ) : null}
+        </div>
+        <div className="qc-modal-section">
+          <h3 className="qc-modal-section__title">Performance</h3>
+          <div className="qc-modal-field-grid qc-modal-field-grid--2">
+            <Field label="Technologie"><input type="text" value={form.technology ?? ""} onChange={(e) => setForm({ ...form, technology: e.target.value })} className="qc-modal-input" placeholder="PERC, TOPCon, HJT" /></Field>
+            <Field label="Bifacial"><label className="pv-cat-check"><input type="checkbox" checked={form.bifacial ?? false} onChange={(e) => setForm({ ...form, bifacial: e.target.checked })} /> Oui</label></Field>
+            <Field label="Puissance (Wc) *"><input type="number" value={form.power_wc ?? ""} onChange={(e) => setForm({ ...form, power_wc: Number(e.target.value) || 0 })} className="qc-modal-input" required /></Field>
+            <Field label="Rendement (%) *"><input type="number" step={0.01} value={form.efficiency_pct ?? ""} onChange={(e) => setForm({ ...form, efficiency_pct: Number(e.target.value) || 0 })} className="qc-modal-input" required /></Field>
+            <Field label="Coeff. temp (°C)"><input type="number" step={0.001} value={form.temp_coeff_pct_per_deg ?? ""} onChange={(e) => setForm({ ...form, temp_coeff_pct_per_deg: e.target.value ? Number(e.target.value) : undefined })} className="qc-modal-input" /></Field>
+            <Field label="Dégrad. an 1 (%)"><input type="number" step={0.01} value={form.degradation_first_year_pct ?? ""} onChange={(e) => setForm({ ...form, degradation_first_year_pct: Number(e.target.value) || 1 })} className="qc-modal-input" /></Field>
+            <Field label="Dégrad. annuelle (%)"><input type="number" step={0.01} value={form.degradation_annual_pct ?? ""} onChange={(e) => setForm({ ...form, degradation_annual_pct: Number(e.target.value) || 0.4 })} className="qc-modal-input" /></Field>
+          </div>
+        </div>
+        <div className="qc-modal-section">
+          <h3 className="qc-modal-section__title">Électrique (STC)</h3>
+          <div className="qc-modal-field-grid qc-modal-field-grid--2">
+            <Field label="Voc (V)"><input type="number" step={0.01} value={form.voc_v ?? ""} onChange={(e) => setForm({ ...form, voc_v: e.target.value ? Number(e.target.value) : undefined })} className="qc-modal-input" /></Field>
+            <Field label="Isc (A)"><input type="number" step={0.01} value={form.isc_a ?? ""} onChange={(e) => setForm({ ...form, isc_a: e.target.value ? Number(e.target.value) : undefined })} className="qc-modal-input" /></Field>
+            <Field label="Vmp (V)"><input type="number" step={0.01} value={form.vmp_v ?? ""} onChange={(e) => setForm({ ...form, vmp_v: e.target.value ? Number(e.target.value) : undefined })} className="qc-modal-input" /></Field>
+            <Field label="Imp (A)"><input type="number" step={0.01} value={form.imp_a ?? ""} onChange={(e) => setForm({ ...form, imp_a: e.target.value ? Number(e.target.value) : undefined })} className="qc-modal-input" /></Field>
+          </div>
+        </div>
+        <div className="qc-modal-section">
+          <h3 className="qc-modal-section__title">Gabarit &amp; garanties</h3>
+          <div className="qc-modal-field-grid qc-modal-field-grid--2">
+            <Field label="Largeur (mm) *"><input type="number" value={form.width_mm ?? ""} onChange={(e) => setForm({ ...form, width_mm: Number(e.target.value) || 0 })} className="qc-modal-input" required /></Field>
+            <Field label="Hauteur (mm) *"><input type="number" value={form.height_mm ?? ""} onChange={(e) => setForm({ ...form, height_mm: Number(e.target.value) || 0 })} className="qc-modal-input" required /></Field>
+            <Field label="Épaisseur (mm)"><input type="number" value={form.thickness_mm ?? ""} onChange={(e) => setForm({ ...form, thickness_mm: e.target.value ? Number(e.target.value) : undefined })} className="qc-modal-input" /></Field>
+            <Field label="Poids (kg)"><input type="number" step={0.01} value={form.weight_kg ?? ""} onChange={(e) => setForm({ ...form, weight_kg: e.target.value ? Number(e.target.value) : undefined })} className="qc-modal-input" /></Field>
+            <Field label="Garantie produit (ans)"><input type="number" value={form.warranty_product_years ?? ""} onChange={(e) => setForm({ ...form, warranty_product_years: e.target.value ? Number(e.target.value) : undefined })} className="qc-modal-input" /></Field>
+            <Field label="Garantie perf. (ans)"><input type="number" value={form.warranty_performance_years ?? ""} onChange={(e) => setForm({ ...form, warranty_performance_years: e.target.value ? Number(e.target.value) : undefined })} className="qc-modal-input" /></Field>
+            <Field label="Actif"><label className="pv-cat-check"><input type="checkbox" checked={form.active !== false} onChange={(e) => setForm({ ...form, active: e.target.checked })} /> Catalogue actif</label></Field>
+          </div>
+        </div>
+      </form>
     </ModalShell>
   );
 }
@@ -1248,10 +1197,13 @@ function PvInverterModal({ inverter, defaultFamily, onSave, onClose, saveError }
       open
       onClose={onClose}
       size="lg"
+      panelClassName="qc-modal-panel"
+      bodyClassName="qc-modal-shell-body"
       title={inverter ? "Modifier l'onduleur" : "Ajouter un onduleur"}
+      subtitle="Famille centrale ou micro — champs MPPT uniquement pour le central."
       footer={
         <>
-          <Button type="button" variant="ghost" onClick={onClose}>
+          <Button type="button" variant="secondary" onClick={onClose}>
             Annuler
           </Button>
           <Button type="submit" variant="primary" form={PV_INVERTER_FORM_ID}>
@@ -1260,47 +1212,63 @@ function PvInverterModal({ inverter, defaultFamily, onSave, onClose, saveError }
         </>
       }
     >
-        {saveError && <div style={alertErrorStyle} role="alert">{saveError}</div>}
-        <form id={PV_INVERTER_FORM_ID} onSubmit={handleSubmit}>
-          <div style={{ display: "flex", flexDirection: "column", gap: "var(--spacing-12)" }}>
-            <Field label="Marque *"><input type="text" value={form.brand ?? ""} onChange={(e) => setForm({ ...form, brand: e.target.value })} style={inputStyle} required /></Field>
-            <Field label="Modèle / Réf *"><input type="text" value={form.model_ref ?? ""} onChange={(e) => setForm({ ...form, model_ref: e.target.value })} style={inputStyle} required /></Field>
-            <Field label="Nom affiché"><input type="text" value={form.name ?? ""} onChange={(e) => setForm({ ...form, name: e.target.value })} style={inputStyle} /></Field>
-            <Field label="Famille *"><select value={form.inverter_family ?? "CENTRAL"} onChange={(e) => setForm({ ...form, inverter_family: e.target.value as "CENTRAL" | "MICRO" })} style={inputStyle} required><option value="CENTRAL">CENTRAL</option><option value="MICRO">MICRO</option></select></Field>
-            <Field label="Type *"><select value={form.inverter_type ?? "micro"} onChange={(e) => setForm({ ...form, inverter_type: e.target.value as "micro" | "string" })} style={inputStyle}><option value="micro">Micro</option><option value="string">String</option></select></Field>
+      {saveError ? <div style={alertErrorStyle} role="alert">{saveError}</div> : null}
+      <form id={PV_INVERTER_FORM_ID} className="qc-modal-form" onSubmit={handleSubmit}>
+        <div className="qc-modal-section">
+          <h3 className="qc-modal-section__title">Identité</h3>
+          <div className="qc-modal-field-grid qc-modal-field-grid--2">
+            <Field label="Marque *"><input type="text" value={form.brand ?? ""} onChange={(e) => setForm({ ...form, brand: e.target.value })} className="qc-modal-input" required /></Field>
+            <Field label="Modèle / Réf *"><input type="text" value={form.model_ref ?? ""} onChange={(e) => setForm({ ...form, model_ref: e.target.value })} className="qc-modal-input" required /></Field>
+            <div className="qc-modal-field-span-2">
+              <Field label="Nom affiché"><input type="text" value={form.name ?? ""} onChange={(e) => setForm({ ...form, name: e.target.value })} className="qc-modal-input" /></Field>
+            </div>
+            <Field label="Famille *"><select value={form.inverter_family ?? "CENTRAL"} onChange={(e) => setForm({ ...form, inverter_family: e.target.value as "CENTRAL" | "MICRO" })} className="qc-modal-input" required><option value="CENTRAL">CENTRAL</option><option value="MICRO">MICRO</option></select></Field>
+            <Field label="Type *"><select value={form.inverter_type ?? "micro"} onChange={(e) => setForm({ ...form, inverter_type: e.target.value as "micro" | "string" })} className="qc-modal-input"><option value="micro">Micro</option><option value="string">String</option></select></Field>
+          </div>
+        </div>
+        <div className="qc-modal-section">
+          <h3 className="qc-modal-section__title">Puissance &amp; alimentation</h3>
+          <div className="qc-modal-field-grid qc-modal-field-grid--2">
             {form.inverter_type === "micro" ? (
               <>
-                <Field label="Nominal VA *"><input type="number" value={form.nominal_va ?? ""} onChange={(e) => setForm({ ...form, nominal_va: e.target.value ? Number(e.target.value) : undefined })} style={inputStyle} /></Field>
-                <Field label="Modules par onduleur *"><input type="number" value={form.modules_per_inverter ?? ""} onChange={(e) => setForm({ ...form, modules_per_inverter: e.target.value ? Number(e.target.value) : undefined })} style={inputStyle} min={1} /></Field>
+                <Field label="Nominal VA *"><input type="number" value={form.nominal_va ?? ""} onChange={(e) => setForm({ ...form, nominal_va: e.target.value ? Number(e.target.value) : undefined })} className="qc-modal-input" /></Field>
+                <Field label="Modules par onduleur *"><input type="number" value={form.modules_per_inverter ?? ""} onChange={(e) => setForm({ ...form, modules_per_inverter: e.target.value ? Number(e.target.value) : undefined })} className="qc-modal-input" min={1} /></Field>
               </>
             ) : (
-              <Field label="Puissance nominale (kW)"><input type="number" step={0.01} value={form.nominal_power_kw ?? ""} onChange={(e) => setForm({ ...form, nominal_power_kw: e.target.value ? Number(e.target.value) : undefined })} style={inputStyle} /></Field>
+              <div className="qc-modal-field-span-2">
+                <Field label="Puissance nominale (kW)"><input type="number" step={0.01} value={form.nominal_power_kw ?? ""} onChange={(e) => setForm({ ...form, nominal_power_kw: e.target.value ? Number(e.target.value) : undefined })} className="qc-modal-input" /></Field>
+              </div>
             )}
-            <Field label="Phases"><select value={form.phases ?? ""} onChange={(e) => setForm({ ...form, phases: e.target.value || undefined })} style={inputStyle}><option value="">—</option><option value="1P">1P</option><option value="3P">3P</option></select></Field>
-            <p style={{ margin: 0, fontSize: "var(--font-size-body-sm)", color: "var(--text-muted)", lineHeight: 1.4 }}>
-              {family === "MICRO"
-                ? "Les paramètres MPPT ne s'appliquent pas aux micro-onduleurs."
-                : "Les paramètres MPPT sont requis pour le dimensionnement des strings."}
-            </p>
-            {family === "CENTRAL" && (
-              <>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--spacing-12)" }}>
-                  <Field label="MPPT count"><input type="number" value={form.mppt_count ?? ""} onChange={(e) => setForm({ ...form, mppt_count: e.target.value ? Number(e.target.value) : undefined })} style={inputStyle} /></Field>
-                  <Field label="Inputs/MPPT"><input type="number" value={form.inputs_per_mppt ?? ""} onChange={(e) => setForm({ ...form, inputs_per_mppt: e.target.value ? Number(e.target.value) : undefined })} style={inputStyle} /></Field>
-                  <Field label="MPPT min V"><input type="number" step={0.01} value={form.mppt_min_v ?? ""} onChange={(e) => setForm({ ...form, mppt_min_v: e.target.value ? Number(e.target.value) : undefined })} style={inputStyle} /></Field>
-                  <Field label="MPPT max V"><input type="number" step={0.01} value={form.mppt_max_v ?? ""} onChange={(e) => setForm({ ...form, mppt_max_v: e.target.value ? Number(e.target.value) : undefined })} style={inputStyle} /></Field>
-                </div>
-                <Field label="Euro efficiency (%)"><input type="number" step={0.01} value={form.euro_efficiency_pct ?? ""} onChange={(e) => setForm({ ...form, euro_efficiency_pct: e.target.value ? Number(e.target.value) : undefined })} style={inputStyle} /></Field>
-              </>
-            )}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--spacing-12)" }}>
-              <Field label="Max input current (A)"><input type="number" step={0.01} value={form.max_input_current_a ?? ""} onChange={(e) => setForm({ ...form, max_input_current_a: e.target.value ? Number(e.target.value) : undefined })} style={inputStyle} /></Field>
-              <Field label="Max DC power (kW)"><input type="number" step={0.01} value={form.max_dc_power_kw ?? ""} onChange={(e) => setForm({ ...form, max_dc_power_kw: e.target.value ? Number(e.target.value) : undefined })} style={inputStyle} /></Field>
-            </div>
-            <Field label="Compatible batterie"><label><input type="checkbox" checked={form.compatible_battery ?? false} onChange={(e) => setForm({ ...form, compatible_battery: e.target.checked })} /> Oui</label></Field>
-            <Field label="Actif"><label><input type="checkbox" checked={form.active !== false} onChange={(e) => setForm({ ...form, active: e.target.checked })} /> Oui</label></Field>
+            <Field label="Phases"><select value={form.phases ?? ""} onChange={(e) => setForm({ ...form, phases: e.target.value || undefined })} className="qc-modal-input"><option value="">—</option><option value="1P">1P</option><option value="3P">3P</option></select></Field>
           </div>
-        </form>
+          <p className="pv-eco-hint" style={{ marginTop: 12 }}>
+            {family === "MICRO"
+              ? "Les paramètres MPPT ne s'appliquent pas aux micro-onduleurs."
+              : "Les paramètres MPPT sont requis pour le dimensionnement des strings."}
+          </p>
+        </div>
+        {family === "CENTRAL" ? (
+          <div className="qc-modal-section">
+            <h3 className="qc-modal-section__title">MPPT &amp; rendement</h3>
+            <div className="qc-modal-field-grid qc-modal-field-grid--2">
+              <Field label="MPPT count"><input type="number" value={form.mppt_count ?? ""} onChange={(e) => setForm({ ...form, mppt_count: e.target.value ? Number(e.target.value) : undefined })} className="qc-modal-input" /></Field>
+              <Field label="Inputs/MPPT"><input type="number" value={form.inputs_per_mppt ?? ""} onChange={(e) => setForm({ ...form, inputs_per_mppt: e.target.value ? Number(e.target.value) : undefined })} className="qc-modal-input" /></Field>
+              <Field label="MPPT min V"><input type="number" step={0.01} value={form.mppt_min_v ?? ""} onChange={(e) => setForm({ ...form, mppt_min_v: e.target.value ? Number(e.target.value) : undefined })} className="qc-modal-input" /></Field>
+              <Field label="MPPT max V"><input type="number" step={0.01} value={form.mppt_max_v ?? ""} onChange={(e) => setForm({ ...form, mppt_max_v: e.target.value ? Number(e.target.value) : undefined })} className="qc-modal-input" /></Field>
+              <Field label="Euro efficiency (%)"><input type="number" step={0.01} value={form.euro_efficiency_pct ?? ""} onChange={(e) => setForm({ ...form, euro_efficiency_pct: e.target.value ? Number(e.target.value) : undefined })} className="qc-modal-input" /></Field>
+            </div>
+          </div>
+        ) : null}
+        <div className="qc-modal-section">
+          <h3 className="qc-modal-section__title">Limites DC &amp; options</h3>
+          <div className="qc-modal-field-grid qc-modal-field-grid--2">
+            <Field label="Max input current (A)"><input type="number" step={0.01} value={form.max_input_current_a ?? ""} onChange={(e) => setForm({ ...form, max_input_current_a: e.target.value ? Number(e.target.value) : undefined })} className="qc-modal-input" /></Field>
+            <Field label="Max DC power (kW)"><input type="number" step={0.01} value={form.max_dc_power_kw ?? ""} onChange={(e) => setForm({ ...form, max_dc_power_kw: e.target.value ? Number(e.target.value) : undefined })} className="qc-modal-input" /></Field>
+            <Field label="Compatible batterie"><label className="pv-cat-check"><input type="checkbox" checked={form.compatible_battery ?? false} onChange={(e) => setForm({ ...form, compatible_battery: e.target.checked })} /> Oui</label></Field>
+            <Field label="Actif"><label className="pv-cat-check"><input type="checkbox" checked={form.active !== false} onChange={(e) => setForm({ ...form, active: e.target.checked })} /> Catalogue actif</label></Field>
+          </div>
+        </div>
+      </form>
     </ModalShell>
   );
 }
@@ -1331,10 +1299,13 @@ function PvBatteryModal({ battery, onSave, onClose, saveError }: { battery: PvBa
       open
       onClose={onClose}
       size="lg"
+      panelClassName="qc-modal-panel"
+      bodyClassName="qc-modal-shell-body"
       title={battery ? "Modifier la batterie" : "Ajouter une batterie"}
+      subtitle="Prix catalogue, capacité utile et limites de puissance."
       footer={
         <>
-          <Button type="button" variant="ghost" onClick={onClose}>
+          <Button type="button" variant="secondary" onClick={onClose}>
             Annuler
           </Button>
           <Button type="submit" variant="primary" form={PV_BATTERY_FORM_ID}>
@@ -1343,14 +1314,23 @@ function PvBatteryModal({ battery, onSave, onClose, saveError }: { battery: PvBa
         </>
       }
     >
-        {saveError && <div style={alertErrorStyle} role="alert">{saveError}</div>}
-        <form id={PV_BATTERY_FORM_ID} onSubmit={handleSubmit}>
-          <div style={{ display: "flex", flexDirection: "column", gap: "var(--spacing-12)" }}>
-            <Field label="Marque *"><input type="text" value={form.brand ?? ""} onChange={(e) => setForm({ ...form, brand: e.target.value })} style={inputStyle} required /></Field>
-            <Field label="Modèle / Réf *"><input type="text" value={form.model_ref ?? ""} onChange={(e) => setForm({ ...form, model_ref: e.target.value })} style={inputStyle} required /></Field>
-            <Field label="Nom affiché"><input type="text" value={form.name ?? ""} onChange={(e) => setForm({ ...form, name: e.target.value })} style={inputStyle} /></Field>
-            <Field label="Prix catalogue HT (€)"><input type="number" min={0} step={0.01} value={form.default_price_ht ?? ""} onChange={(e) => setForm({ ...form, default_price_ht: e.target.value === "" ? undefined : Number(e.target.value) })} style={inputStyle} placeholder="—" /></Field>
-            <Field label="Prix d&apos;achat HT (€)" sublabel="Optionnel — marge interne devis technique">
+      {saveError ? <div style={alertErrorStyle} role="alert">{saveError}</div> : null}
+      <form id={PV_BATTERY_FORM_ID} className="qc-modal-form" onSubmit={handleSubmit}>
+        <div className="qc-modal-section">
+          <h3 className="qc-modal-section__title">Identité</h3>
+          <div className="qc-modal-field-grid qc-modal-field-grid--2">
+            <Field label="Marque *"><input type="text" value={form.brand ?? ""} onChange={(e) => setForm({ ...form, brand: e.target.value })} className="qc-modal-input" required /></Field>
+            <Field label="Modèle / Réf *"><input type="text" value={form.model_ref ?? ""} onChange={(e) => setForm({ ...form, model_ref: e.target.value })} className="qc-modal-input" required /></Field>
+            <div className="qc-modal-field-span-2">
+              <Field label="Nom affiché"><input type="text" value={form.name ?? ""} onChange={(e) => setForm({ ...form, name: e.target.value })} className="qc-modal-input" /></Field>
+            </div>
+          </div>
+        </div>
+        <div className="qc-modal-section">
+          <h3 className="qc-modal-section__title">Prix &amp; capacité</h3>
+          <div className="qc-modal-field-grid qc-modal-field-grid--2">
+            <Field label="Prix catalogue HT (€)"><input type="number" min={0} step={0.01} value={form.default_price_ht ?? ""} onChange={(e) => setForm({ ...form, default_price_ht: e.target.value === "" ? undefined : Number(e.target.value) })} className="qc-modal-input" placeholder="—" /></Field>
+            <Field label="Prix d&apos;achat HT (€)" sublabel="Optionnel — marge interne">
               <input
                 type="number"
                 min={0}
@@ -1359,29 +1339,36 @@ function PvBatteryModal({ battery, onSave, onClose, saveError }: { battery: PvBa
                 onChange={(e) =>
                   setForm({ ...form, purchase_price_ht: e.target.value === "" ? undefined : Number(e.target.value) })
                 }
-                style={inputStyle}
+                className="qc-modal-input"
                 placeholder="—"
               />
             </Field>
-            <Field label="Capacité utilisable (kWh) *"><input type="number" step={0.01} value={form.usable_kwh ?? ""} onChange={(e) => setForm({ ...form, usable_kwh: Number(e.target.value) || 0 })} style={inputStyle} required /></Field>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--spacing-12)" }}>
-              <Field label="Tension nominale (V)"><input type="number" step={0.01} value={form.nominal_voltage_v ?? ""} onChange={(e) => setForm({ ...form, nominal_voltage_v: e.target.value ? Number(e.target.value) : undefined })} style={inputStyle} /></Field>
-              <Field label="Chimie"><input type="text" value={form.chemistry ?? ""} onChange={(e) => setForm({ ...form, chemistry: e.target.value })} style={inputStyle} placeholder="LFP" /></Field>
+            <div className="qc-modal-field-span-2">
+              <Field label="Capacité utilisable (kWh) *"><input type="number" step={0.01} value={form.usable_kwh ?? ""} onChange={(e) => setForm({ ...form, usable_kwh: Number(e.target.value) || 0 })} className="qc-modal-input" required /></Field>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--spacing-12)" }}>
-              <Field label="Charge max (kW)"><input type="number" step={0.01} value={form.max_charge_kw ?? ""} onChange={(e) => setForm({ ...form, max_charge_kw: e.target.value ? Number(e.target.value) : undefined })} style={inputStyle} /></Field>
-              <Field label="Décharge max (kW)"><input type="number" step={0.01} value={form.max_discharge_kw ?? ""} onChange={(e) => setForm({ ...form, max_discharge_kw: e.target.value ? Number(e.target.value) : undefined })} style={inputStyle} /></Field>
-              <Field label="Rendement (%)"><input type="number" step={0.01} value={form.roundtrip_efficiency_pct ?? ""} onChange={(e) => setForm({ ...form, roundtrip_efficiency_pct: e.target.value ? Number(e.target.value) : undefined })} style={inputStyle} /></Field>
-              <Field label="DoD (%)"><input type="number" step={0.01} value={form.depth_of_discharge_pct ?? ""} onChange={(e) => setForm({ ...form, depth_of_discharge_pct: e.target.value ? Number(e.target.value) : undefined })} style={inputStyle} /></Field>
-              <Field label="Cycles"><input type="number" value={form.cycle_life ?? ""} onChange={(e) => setForm({ ...form, cycle_life: e.target.value ? Number(e.target.value) : undefined })} style={inputStyle} /></Field>
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--spacing-12)" }}>
-              <Field label="Scalable"><label><input type="checkbox" checked={form.scalable ?? false} onChange={(e) => setForm({ ...form, scalable: e.target.checked })} /> Oui</label></Field>
-              <Field label="Max modules"><input type="number" value={form.max_modules ?? ""} onChange={(e) => setForm({ ...form, max_modules: e.target.value ? Number(e.target.value) : undefined })} style={inputStyle} /></Field>
-            </div>
-            <Field label="Actif"><label><input type="checkbox" checked={form.active !== false} onChange={(e) => setForm({ ...form, active: e.target.checked })} /> Oui</label></Field>
           </div>
-        </form>
+        </div>
+        <div className="qc-modal-section">
+          <h3 className="qc-modal-section__title">Électrique</h3>
+          <div className="qc-modal-field-grid qc-modal-field-grid--2">
+            <Field label="Tension nominale (V)"><input type="number" step={0.01} value={form.nominal_voltage_v ?? ""} onChange={(e) => setForm({ ...form, nominal_voltage_v: e.target.value ? Number(e.target.value) : undefined })} className="qc-modal-input" /></Field>
+            <Field label="Chimie"><input type="text" value={form.chemistry ?? ""} onChange={(e) => setForm({ ...form, chemistry: e.target.value })} className="qc-modal-input" placeholder="LFP" /></Field>
+            <Field label="Charge max (kW)"><input type="number" step={0.01} value={form.max_charge_kw ?? ""} onChange={(e) => setForm({ ...form, max_charge_kw: e.target.value ? Number(e.target.value) : undefined })} className="qc-modal-input" /></Field>
+            <Field label="Décharge max (kW)"><input type="number" step={0.01} value={form.max_discharge_kw ?? ""} onChange={(e) => setForm({ ...form, max_discharge_kw: e.target.value ? Number(e.target.value) : undefined })} className="qc-modal-input" /></Field>
+            <Field label="Rendement (%)"><input type="number" step={0.01} value={form.roundtrip_efficiency_pct ?? ""} onChange={(e) => setForm({ ...form, roundtrip_efficiency_pct: e.target.value ? Number(e.target.value) : undefined })} className="qc-modal-input" /></Field>
+            <Field label="DoD (%)"><input type="number" step={0.01} value={form.depth_of_discharge_pct ?? ""} onChange={(e) => setForm({ ...form, depth_of_discharge_pct: e.target.value ? Number(e.target.value) : undefined })} className="qc-modal-input" /></Field>
+            <Field label="Cycles"><input type="number" value={form.cycle_life ?? ""} onChange={(e) => setForm({ ...form, cycle_life: e.target.value ? Number(e.target.value) : undefined })} className="qc-modal-input" /></Field>
+          </div>
+        </div>
+        <div className="qc-modal-section">
+          <h3 className="qc-modal-section__title">Modularité &amp; statut</h3>
+          <div className="qc-modal-field-grid qc-modal-field-grid--2">
+            <Field label="Scalable"><label className="pv-cat-check"><input type="checkbox" checked={form.scalable ?? false} onChange={(e) => setForm({ ...form, scalable: e.target.checked })} /> Oui</label></Field>
+            <Field label="Max modules"><input type="number" value={form.max_modules ?? ""} onChange={(e) => setForm({ ...form, max_modules: e.target.value ? Number(e.target.value) : undefined })} className="qc-modal-input" /></Field>
+            <Field label="Actif"><label className="pv-cat-check"><input type="checkbox" checked={form.active !== false} onChange={(e) => setForm({ ...form, active: e.target.checked })} /> Catalogue actif</label></Field>
+          </div>
+        </div>
+      </form>
     </ModalShell>
   );
 }

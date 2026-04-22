@@ -2,6 +2,10 @@ import React, { useState, useRef, useEffect, useCallback } from "react";
 import { Outlet, NavLink, useLocation } from "react-router-dom";
 import { logout } from "../services/auth.service";
 import CreateLeadModal from "../modules/leads/CreateLeadModal";
+import { OrganizationSwitcher } from "../components/organization/OrganizationSwitcher";
+import { SuperAdminSupportBanner } from "../components/support/SuperAdminSupportBanner";
+import { GlobalSearchBar } from "../components/layout/GlobalSearchBar";
+import { useOrganization, useSuperAdminReadOnly } from "../contexts/OrganizationContext";
 
 const THEME_KEY = "solarnext_theme";
 
@@ -27,11 +31,29 @@ function InvoiceNavIcon() {
   );
 }
 
+function DashboardNavIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="7" height="9" rx="1" />
+      <rect x="14" y="3" width="7" height="5" rx="1" />
+      <rect x="14" y="12" width="7" height="9" rx="1" />
+      <rect x="3" y="16" width="7" height="5" rx="1" />
+    </svg>
+  );
+}
+
 const principalModules = [
+  { path: "/dashboard", label: "Tableau de bord", icon: DashboardNavIcon, end: true },
   { path: "/leads", label: "Leads", icon: LeadIcon },
   { path: "/clients", label: "Clients", icon: ClientIcon },
   { path: "/planning", label: "Planning", icon: CalendarIcon, end: true },
   { path: "/documents", label: "Documents", icon: DocumentIcon, end: true },
+  { path: "/mairies", label: "Mairies", icon: MairiesNavIcon, end: true },
+];
+
+const mailModules = [
+  { path: "/mail", label: "Mail", icon: MailIcon, end: true },
+  { path: "/settings/mail", label: "Messagerie", icon: MailIcon, end: true },
 ];
 
 const financeModules = [
@@ -48,6 +70,20 @@ const organizationNavItems = [
 
 const technicalPvModules = [
   { path: "/admin/settings/pv", label: "Paramètres PV", icon: SunIcon, end: true },
+];
+
+function SuperAdminOrgsIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="18" height="18" rx="2" />
+      <path d="M9 3v18" />
+      <path d="M3 9h18" />
+    </svg>
+  );
+}
+
+const superAdminModules = [
+  { path: "/admin/organizations", label: "Organisations", icon: SuperAdminOrgsIcon, end: true },
 ];
 
 function LeadIcon() {
@@ -117,6 +153,31 @@ function DocumentIcon() {
   );
 }
 
+/** Mairie / hôtel de ville — colonnes */
+function MairiesNavIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 21h18" />
+      <path d="M5 21V7l7-4v18" />
+      <path d="M19 21V11l-7-4" />
+      <path d="M9 9v.01" />
+      <path d="M9 13v.01" />
+      <path d="M9 17v.01" />
+      <path d="M14 14v.01" />
+      <path d="M14 18v.01" />
+    </svg>
+  );
+}
+
+function MailIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+      <polyline points="22,6 12,13 2,6" />
+    </svg>
+  );
+}
+
 function UsersIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -160,22 +221,30 @@ function MoonIcon() {
   );
 }
 
-type SidebarSectionId = "principal" | "finance" | "entreprise" | "technical";
+type SidebarSectionId = "principal" | "mail" | "finance" | "entreprise" | "technical" | "superadmin";
 
 function pathMatchesSection(pathname: string, id: SidebarSectionId): boolean {
   if (id === "principal") {
     return (
+      pathname.startsWith("/dashboard") ||
       pathname.startsWith("/leads") ||
       pathname.startsWith("/clients") ||
       pathname.startsWith("/planning") ||
-      pathname.startsWith("/documents")
+      pathname.startsWith("/documents") ||
+      pathname.startsWith("/mairies")
     );
+  }
+  if (id === "mail") {
+    return pathname.startsWith("/mail") || pathname.startsWith("/settings/mail");
   }
   if (id === "finance") {
     return pathname.startsWith("/quotes") || pathname.startsWith("/invoices") || pathname.startsWith("/finance");
   }
   if (id === "entreprise") {
     return pathname.startsWith("/organization");
+  }
+  if (id === "superadmin") {
+    return pathname.startsWith("/admin/organizations");
   }
   return pathname.startsWith("/admin/settings/pv");
 }
@@ -259,6 +328,7 @@ function SidebarCollapsibleSection({
 }
 
 export function AppLayout() {
+  const { isSuperAdmin } = useOrganization();
   const { pathname } = useLocation();
   const [theme, setTheme] = useState<"light" | "dark">(getStoredTheme);
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -267,9 +337,11 @@ export function AppLayout() {
 
   const [sectionOpen, setSectionOpen] = useState<Record<SidebarSectionId, boolean>>({
     principal: true,
+    mail: false,
     finance: false,
     entreprise: false,
     technical: false,
+    superadmin: false,
   });
 
   const toggleSection = useCallback((id: SidebarSectionId) => {
@@ -280,7 +352,7 @@ export function AppLayout() {
     setSectionOpen((prev) => {
       let changed = false;
       const next = { ...prev };
-      (["principal", "finance", "entreprise", "technical"] as SidebarSectionId[]).forEach((id) => {
+      (["principal", "mail", "finance", "entreprise", "technical", "superadmin"] as SidebarSectionId[]).forEach((id) => {
         if (pathMatchesSection(pathname, id) && !next[id]) {
           next[id] = true;
           changed = true;
@@ -320,17 +392,31 @@ export function AppLayout() {
     setStoredTheme(next);
   };
 
+  const superAdminReadOnly = useSuperAdminReadOnly();
+
   return (
-    <div className="sn-app-root sn-app-bg">
+    <div className="sn-app-root sn-app-bg" style={{ flexDirection: "column" }}>
+      <SuperAdminSupportBanner />
+      <div style={{ display: "flex", flex: 1, minHeight: 0, width: "100%" }}>
       <aside className="sn-sidebar">
         <div className="sn-sidebar-header">
-          <div className="sn-sidebar-brand sidebar-brand">SolarNext</div>
+          <div className="sn-sidebar-header-brand">
+            <div className="sn-sidebar-brand sidebar-brand">SolarNext</div>
+            <OrganizationSwitcher />
+          </div>
           <div className="sn-sidebar-actions">
             <button
               type="button"
-              onClick={() => setIsCreateLeadOpen(true)}
+              onClick={() => {
+                if (!superAdminReadOnly) setIsCreateLeadOpen(true);
+              }}
+              disabled={superAdminReadOnly}
               className="sn-sidebar-action-btn"
-              title="Nouveau lead"
+              title={
+                superAdminReadOnly
+                  ? "Lecture seule (mode support) — activez l’édition dans le bandeau"
+                  : "Nouveau lead"
+              }
               aria-label="Nouveau lead"
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -396,6 +482,13 @@ export function AppLayout() {
             navLinks={principalModules}
           />
           <SidebarCollapsibleSection
+            sectionId="mail"
+            title="Mail"
+            expanded={sectionOpen.mail}
+            onToggle={() => toggleSection("mail")}
+            navLinks={mailModules}
+          />
+          <SidebarCollapsibleSection
             sectionId="finance"
             title="Finance"
             expanded={sectionOpen.finance}
@@ -419,9 +512,20 @@ export function AppLayout() {
             navLinks={technicalPvModules}
             linkClassName="sn-sidebar-link-nested"
           />
+          {isSuperAdmin ? (
+            <SidebarCollapsibleSection
+              sectionId="superadmin"
+              title="Super admin"
+              expanded={sectionOpen.superadmin}
+              onToggle={() => toggleSection("superadmin")}
+              navLinks={superAdminModules}
+              linkClassName="sn-sidebar-link-nested"
+            />
+          ) : null}
         </nav>
       </aside>
       <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
+        <GlobalSearchBar />
         <main className="sn-main">
           <Outlet />
         </main>
@@ -429,6 +533,7 @@ export function AppLayout() {
       {isCreateLeadOpen && (
         <CreateLeadModal onClose={() => setIsCreateLeadOpen(false)} />
       )}
+      </div>
     </div>
   );
 }

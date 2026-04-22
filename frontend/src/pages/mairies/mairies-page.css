@@ -1,0 +1,498 @@
+/* Mairies / Portails DP — aligné charte SolarGlobe (violet + or), pas de bleu utilitaire */
+
+.mairies-page {
+  padding: var(--spacing-16, 16px);
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* Bandeau titre — carte légère, accent doré + fond dégradé discret */
+.mairies-page__hero {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--spacing-12, 12px);
+  margin-bottom: var(--spacing-16, 16px);
+  padding: 18px 20px 18px 22px;
+  border-radius: 14px;
+  border: 1px solid var(--border-soft, rgba(15, 23, 42, 0.1));
+  background: linear-gradient(
+    125deg,
+    var(--surface-card, #fff) 0%,
+    color-mix(in srgb, var(--surface-card, #fff) 88%, var(--gold-soft, rgba(184, 134, 11, 0.1))) 40%,
+    color-mix(in srgb, var(--surface-card, #fff) 90%, var(--violet-glow, rgba(109, 40, 217, 0.12))) 100%
+  );
+  box-shadow:
+    0 2px 12px color-mix(in srgb, var(--primary, #6d28d9) 7%, transparent),
+    0 1px 2px rgba(15, 23, 42, 0.05),
+    0 1px 0 color-mix(in srgb, var(--gold, #b8860b) 18%, transparent);
+  border-left: 3px solid var(--gold, #b8860b);
+}
+
+.theme-dark .mairies-page__hero,
+[data-theme="dark"] .mairies-page__hero {
+  background: linear-gradient(
+    125deg,
+    var(--surface-elevated, #1e1a28) 0%,
+    color-mix(in srgb, var(--surface-elevated) 92%, var(--primary, #7c3aed) 8%) 100%
+  );
+  border-color: var(--border-soft, rgba(255, 255, 255, 0.08));
+  box-shadow:
+    0 2px 16px rgba(0, 0, 0, 0.35),
+    0 0 0 1px color-mix(in srgb, var(--primary) 12%, transparent);
+}
+
+.mairies-page__title {
+  margin: 0;
+  font-size: 1.45rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  background: linear-gradient(90deg, var(--text-primary, #1a1625) 0%, color-mix(in srgb, var(--primary, #6d28d9) 75%, var(--text-primary)) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.theme-dark .mairies-page__title,
+[data-theme="dark"] .mairies-page__title {
+  background: linear-gradient(90deg, var(--text-primary, #f3f6ff) 0%, color-mix(in srgb, var(--gold, #c39847) 55%, var(--text-primary)) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Filtres — même famille que le hero, moins imposant */
+.mairies-page__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-10, 10px);
+  align-items: flex-end;
+  margin-bottom: var(--spacing-16, 16px);
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--border-soft, rgba(15, 23, 42, 0.1));
+  background: var(--surface-card, #fff);
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--primary, #6d28d9) 4%, transparent);
+}
+
+.theme-dark .mairies-page__filters,
+[data-theme="dark"] .mairies-page__filters {
+  background: color-mix(in srgb, var(--surface-elevated) 96%, var(--surface-2) 4%);
+  border-color: var(--border-subtle);
+}
+
+.mairies-page__filters input,
+.mairies-page__filters select {
+  min-height: 38px;
+  padding: 0 10px;
+  border-radius: var(--radius-md, 8px);
+  border: 1px solid var(--input-border, var(--border-2));
+  background: var(--input-bg, var(--surface-2));
+  color: inherit;
+  font-size: 14px;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.mairies-page__filters input:focus,
+.mairies-page__filters select:focus {
+  outline: none;
+  border-color: var(--primary, #6d28d9);
+  box-shadow: 0 0 0 2px var(--violet-glow, rgba(109, 40, 217, 0.25));
+}
+
+.mairies-page__filters label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-muted, #64748b);
+}
+
+/* Tableau liste — cadre teinté violet (remplace le gris neutre pur sur cette page) */
+.mairies-page .mairies-page__table-wrap.qb-table-wrap--list-saas,
+.mairies-page .mairies-page__skeleton-wrap .qb-table-wrap--list-saas {
+  border-color: color-mix(in srgb, var(--primary, #6d28d9) 14%, var(--border, #e5e7eb));
+  box-shadow:
+    0 2px 10px color-mix(in srgb, var(--primary, #6d28d9) 6%, transparent),
+    0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.theme-dark .mairies-page .mairies-page__table-wrap.qb-table-wrap--list-saas,
+.theme-dark .mairies-page .mairies-page__skeleton-wrap .qb-table-wrap--list-saas,
+[data-theme="dark"] .mairies-page .mairies-page__table-wrap.qb-table-wrap--list-saas,
+[data-theme="dark"] .mairies-page .mairies-page__skeleton-wrap .qb-table-wrap--list-saas {
+  border-color: color-mix(in srgb, var(--primary) 22%, var(--border-subtle));
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.28);
+}
+
+.mairies-page .qb-table.qb-table--list-saas thead th {
+  border-bottom-color: color-mix(in srgb, var(--primary, #6d28d9) 12%, rgba(15, 23, 42, 0.08));
+}
+
+.theme-dark .mairies-page .qb-table.qb-table--list-saas thead th,
+[data-theme="dark"] .mairies-page .qb-table.qb-table--list-saas thead th {
+  border-bottom-color: color-mix(in srgb, var(--gold) 10%, rgba(255, 255, 255, 0.1));
+}
+
+.mairies-page .qb-table.qb-table--list-saas tbody tr:hover {
+  background: color-mix(in srgb, var(--gold-soft, rgba(184, 134, 11, 0.1)) 65%, var(--surface, #fff));
+}
+
+.theme-dark .mairies-page .qb-table.qb-table--list-saas tbody tr:hover,
+[data-theme="dark"] .mairies-page .qb-table.qb-table--list-saas tbody tr:hover {
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
+}
+
+.mairie-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.35;
+  white-space: nowrap;
+}
+
+.mairie-badge--red {
+  background: color-mix(in srgb, #ef4444 18%, transparent);
+  color: #b91c1c;
+}
+
+.mairie-badge--orange {
+  background: color-mix(in srgb, var(--gold, #b8860b) 22%, transparent);
+  color: color-mix(in srgb, var(--gold, #b8860b) 95%, #92400e);
+}
+
+.mairie-badge--green {
+  background: color-mix(in srgb, #22c55e 16%, transparent);
+  color: #15803d;
+}
+
+.theme-dark .mairie-badge--orange,
+[data-theme="dark"] .mairie-badge--orange {
+  color: #fcd34d;
+}
+
+.mairies-page__table-wrap {
+  overflow-x: auto;
+}
+
+.mairies-page tr.mairies-page__row-click {
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+/* Ligne sélectionnée clavier — violet, pas bleu */
+.mairies-page tr.mairies-page__row--kbd {
+  outline: 2px solid var(--primary, #6d28d9);
+  outline-offset: -2px;
+  background: color-mix(in srgb, var(--violet-glow, rgba(109, 40, 217, 0.25)) 45%, var(--surface));
+}
+
+.theme-dark .mairies-page tr.mairies-page__row--kbd,
+[data-theme="dark"] .mairies-page tr.mairies-page__row--kbd {
+  background: color-mix(in srgb, var(--primary) 16%, transparent);
+  outline-color: color-mix(in srgb, var(--gold) 35%, var(--primary));
+}
+
+.mairies-page__table-kb {
+  border-radius: var(--radius-md, 8px);
+  outline: none;
+}
+
+.mairies-page__table-kb:focus-visible {
+  box-shadow: 0 0 0 2px var(--primary, #6d28d9), 0 0 14px var(--violet-glow, rgba(109, 40, 217, 0.35));
+}
+
+.mairies-page__kbd-hint {
+  font-size: 12px;
+  opacity: 0.78;
+  color: color-mix(in srgb, var(--primary, #6d28d9) 35%, var(--text-muted, #64748b));
+}
+
+.mairies-page__name-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Récent = pastille violette (cohérent avec la marque) */
+.mairie-recent-dot {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, #e9d5ff, var(--primary, #6d28d9));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--gold, #b8860b) 40%, transparent);
+}
+
+.theme-dark .mairie-recent-dot,
+[data-theme="dark"] .mairie-recent-dot {
+  background: radial-gradient(circle at 30% 30%, #f5e9ff, var(--gold, #c39847));
+  box-shadow: 0 0 6px var(--violet-glow);
+}
+
+.mairies-page__status-inline {
+  min-width: 118px;
+  max-width: 100%;
+  min-height: 40px;
+  padding: 6px 10px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: var(--radius-md, 8px);
+  border: 1px solid var(--border-soft, rgba(15, 23, 42, 0.1));
+  background: var(--input-bg, var(--surface-2));
+  color: inherit;
+  cursor: pointer;
+}
+
+.mairies-page__status-inline:focus-visible {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--violet-glow);
+}
+
+.mairies-page__status-inline:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+/* Liste — skeleton */
+.mairies-page__skeleton-wrap {
+  overflow-x: auto;
+  margin-bottom: var(--spacing-8, 8px);
+}
+
+.mairies-page__skeleton-table tbody td {
+  vertical-align: middle;
+  padding-top: 14px;
+  padding-bottom: 14px;
+}
+
+.mairies-page__sk-line {
+  height: 12px;
+  border-radius: 6px;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--primary, #6d28d9) 6%, var(--color-surface-hover, rgba(0, 0, 0, 0.06))) 0%,
+    color-mix(in srgb, var(--gold, #b8860b) 8%, var(--color-surface-hover, rgba(0, 0, 0, 0.04))) 50%,
+    color-mix(in srgb, var(--primary, #6d28d9) 6%, var(--color-surface-hover, rgba(0, 0, 0, 0.06))) 100%
+  );
+  background-size: 200% 100%;
+  animation: mairies-sk-shimmer 1.2s ease-in-out infinite;
+}
+
+@keyframes mairies-sk-shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+
+.mairies-page__empty-title {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.mairies-page__empty-card {
+  text-align: left;
+  border: 1px solid var(--border-soft);
+  border-left: 3px solid var(--primary);
+}
+
+.mairies-page__compte-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.mairies-page__bw-copy {
+  flex-shrink: 0;
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8px;
+  border: none;
+  border-radius: var(--radius-md, 8px);
+  background: color-mix(in srgb, var(--gold-soft, rgba(184, 134, 11, 0.12)) 80%, var(--surface-2));
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  transition: background 0.15s ease;
+}
+
+.mairies-page__bw-copy:hover {
+  background: color-mix(in srgb, var(--primary) 12%, var(--gold-soft));
+}
+
+.mairies-page__bw-copy:focus-visible {
+  outline: 2px solid var(--primary, #6d28d9);
+  outline-offset: 2px;
+}
+
+/* Compteur leads liés — teinte violette + chiffre lisible */
+.mairie-leads-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.75rem;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  background: color-mix(in srgb, var(--primary, #6d28d9) 14%, var(--gold-soft, rgba(184, 134, 11, 0.08)));
+  color: var(--primary, #6d28d9);
+  border: 1px solid color-mix(in srgb, var(--primary) 22%, transparent);
+}
+
+.theme-dark .mairie-leads-badge,
+[data-theme="dark"] .mairie-leads-badge {
+  background: color-mix(in srgb, var(--primary) 22%, transparent);
+  color: #e9d5ff;
+  border-color: color-mix(in srgb, var(--gold) 25%, transparent);
+}
+
+/* Bouton « Ouvrir » : le composant Button primary est déjà violet ; on retire l’ombre bleue */
+.mairies-page__actions-cell {
+  vertical-align: middle;
+}
+
+.mairies-page__actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.mairies-page__open-portal-btn.mairies-page__open-portal-btn {
+  font-weight: 600;
+  box-shadow: 0 3px 12px var(--violet-glow, rgba(109, 40, 217, 0.35)), 0 0 0 1px color-mix(in srgb, var(--gold) 20%, transparent);
+}
+
+.mairies-page__open-portal-btn.mairies-page__open-portal-btn:hover:not(:disabled) {
+  box-shadow: 0 4px 16px var(--violet-glow), 0 0 0 1px color-mix(in srgb, var(--gold) 35%, transparent);
+}
+
+.mairies-page__open-icon {
+  display: inline-block;
+  font-weight: 700;
+  margin-right: 2px;
+}
+
+.mairies-page__row-action {
+  min-height: 44px;
+  padding: 8px 12px;
+  font-size: 14px;
+}
+
+.mairie-form {
+  max-width: 640px;
+}
+
+.mairie-form--in-modal {
+  max-width: none;
+}
+
+.mairie-form__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacing-12, 12px);
+}
+
+@media (max-width: 720px) {
+  .mairie-form__grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.mairie-form__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.mairie-form__field label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted, #64748b);
+}
+
+.mairie-form__field input,
+.mairie-form__field select,
+.mairie-form__field textarea {
+  min-height: 40px;
+  padding: 8px 10px;
+  border-radius: var(--radius-md, 8px);
+  border: 1px solid var(--input-border, var(--border-2));
+  background: var(--input-bg, var(--surface-2));
+  color: inherit;
+  font-size: 14px;
+}
+
+.mairie-form__field input:focus,
+.mairie-form__field select:focus,
+.mairie-form__field textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--violet-glow);
+}
+
+.mairie-form__field textarea {
+  min-height: 100px;
+  resize: vertical;
+}
+
+.mairie-form__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-8, 8px);
+  margin-top: var(--spacing-16, 16px);
+}
+
+.mairie-form__duplicate-title {
+  margin: 0 0 8px;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.mairie-form__duplicate-suggestion {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--color-text, inherit);
+}
+
+.mairie-toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 10000;
+  padding: 12px 18px;
+  border-radius: 10px;
+  font-size: 14px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.15);
+  max-width: 360px;
+}
+
+.mairie-toast--ok {
+  background: linear-gradient(135deg, #15803d 0%, #0f766e 100%);
+  color: #fff;
+}
+
+.mairie-toast--err {
+  background: linear-gradient(135deg, #b91c1c 0%, #991b1b 100%);
+  color: #fff;
+}

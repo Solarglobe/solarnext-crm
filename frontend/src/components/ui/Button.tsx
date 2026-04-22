@@ -1,6 +1,6 @@
 import React from "react";
 
-type ButtonVariant = "primary" | "premium" | "ghost" | "danger" | "outlineGold";
+type ButtonVariant = "primary" | "secondary" | "premium" | "ghost" | "danger" | "outlineGold";
 type ButtonSize = "sm" | "md" | "lg";
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
@@ -18,6 +18,7 @@ const sizeStyles: Record<ButtonSize, React.CSSProperties> = {
 
 const variantClasses: Record<ButtonVariant, string> = {
   primary: "sn-btn sn-btn-primary",
+  secondary: "sn-btn sn-btn-secondary",
   premium: "sn-btn sn-btn-premium",
   ghost: "sn-btn sn-btn-ghost",
   danger: "sn-btn sn-btn-danger",

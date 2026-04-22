@@ -191,29 +191,35 @@ export function toFootprintPx(entity: unknown): Point2D[] | null {
 // ─── baseZWorldM ────────────────────────────────────────────────────────────
 
 /**
- * Règle unique pour baseZWorldM.
+ * Z « base » monde (m) sans imposer 0 comme vérité métier : `null` = signal absent.
+ * Préférer ce helper dans le nouveau code ; `getBaseZWorldM` conserve le pont legacy (0).
+ */
+export function tryGetBaseZWorldM(xPx: number, yPx: number, ctx?: GeoEntity3DContext | null): number | null {
+  if (!ctx) return null;
+  if (typeof ctx.resolveHeight === "function") {
+    const z = ctx.resolveHeight(xPx, yPx);
+    if (typeof z === "number" && Number.isFinite(z)) return z;
+  }
+  const fn = ctx.getZWorldAtXY ?? ctx.getHeightAtXY ?? ctx.getHeightAtImagePoint;
+  if (typeof fn !== "function") return null;
+  const z = fn(xPx, yPx);
+  return typeof z === "number" && Number.isFinite(z) ? z : null;
+}
+
+/**
+ * Règle unique pour baseZWorldM (pont legacy).
  *
  * Ordre de lecture (priorité décroissante) :
  *   1. ctx.resolveHeight   — moteur canonique heightResolver.ts (enrichi : P1 explicite + P3 fitPlane)
  *   2. ctx.getZWorldAtXY   — compatibilité legacy (même contrat, hit-test interne)
  *   3. ctx.getHeightAtXY   — compatibilité legacy
  *   4. ctx.getHeightAtImagePoint — compatibilité legacy
- *   5. 0                   — fallback ultime (jamais silencieux côté appelant)
+ *   5. 0                   — **compatibilité uniquement** : ne pas confondre avec une cote mesurée
  *
- * Le contrat public est inchangé : retourne toujours un number fini.
+ * Préférer `tryGetBaseZWorldM` pour distinguer absence de signal.
  */
 export function getBaseZWorldM(xPx: number, yPx: number, ctx?: GeoEntity3DContext | null): number {
-  if (!ctx) return 0;
-  // Priorité 1 : moteur canonique enrichi
-  if (typeof ctx.resolveHeight === "function") {
-    const z = ctx.resolveHeight(xPx, yPx);
-    if (typeof z === "number" && Number.isFinite(z)) return z;
-  }
-  // Priorité 2–4 : façades legacy (compatibilité descendante)
-  const fn = ctx.getZWorldAtXY ?? ctx.getHeightAtXY ?? ctx.getHeightAtImagePoint;
-  if (typeof fn !== "function") return 0;
-  const z = fn(xPx, yPx);
-  return typeof z === "number" && Number.isFinite(z) ? z : 0;
+  return tryGetBaseZWorldM(xPx, yPx, ctx) ?? 0;
 }
 
 // ─── heightM ────────────────────────────────────────────────────────────────

@@ -16,8 +16,11 @@ import {
 import { calculateSmartpitch } from "./calc.controller.js";
 import { isUseOfficialShadingEnabled } from "../services/calpinage/officialShading.service.js";
 import { isShadingParityPersistEnabled } from "../services/calpinage/shadingParity.service.js";
+import { logAuditEvent } from "../services/audit/auditLog.service.js";
+import { AuditActions } from "../services/audit/auditActions.js";
 
 const orgId = (req) => req.user?.organizationId ?? req.user?.organization_id;
+const userIdFromReq = (req) => req.user?.userId ?? req.user?.id ?? null;
 
 /**
  * POST /api/studies/:studyId/versions/:versionId/calc
@@ -126,8 +129,10 @@ export async function runStudyCalc(req, res) {
        WHERE study_id = $1 AND version_number = $2 AND organization_id = $3`,
       [studyId, versionNum, org]
     );
+    let auditVersionId = null;
     if (versionRes.rows.length > 0) {
       const versionRow = versionRes.rows[0];
+      auditVersionId = versionRow.id;
       if (versionRow.is_locked === true) {
         return res.status(400).json({ error: "LOCKED_VERSION" });
       }
@@ -242,6 +247,20 @@ export async function runStudyCalc(req, res) {
     }
 
     const summary = buildSummary(ctxFinal);
+    void logAuditEvent({
+      action: AuditActions.STUDY_CALC_LAUNCHED,
+      entityType: "study_version",
+      entityId: auditVersionId,
+      organizationId: org,
+      userId: userIdFromReq(req),
+      req,
+      statusCode: 200,
+      metadata: {
+        study_id: studyId,
+        version_number: versionNum,
+        calc_source: "study_calc_endpoint",
+      },
+    });
     if (req._validateDevisTechnique === true && Array.isArray(ctxFinal.scenarios_v2)) {
       const scenarios = buildScenariosSummaryFromV2(ctxFinal.scenarios_v2);
       const ids = (ctxFinal.scenarios_v2 || []).map((s) => s?.id ?? s?.name).filter(Boolean);

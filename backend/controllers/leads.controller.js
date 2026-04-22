@@ -13,6 +13,45 @@ import {
   insertDefaultMeterForNewLead,
   syncDefaultMeterFromLeadRow,
 } from "../services/leadMeters.service.js";
+import { logAuditEvent } from "../services/audit/auditLog.service.js";
+import { AuditActions } from "../services/audit/auditActions.js";
+import { assertOrgOwnership } from "../services/security/assertOrgOwnership.js";
+import { isSuperAdminBypassEnabled } from "../config/rbacMode.js";
+import { resolveArchiveScopeFromQuery } from "../services/leadsListFilterSql.service.js";
+import { isJwtSuperAdmin, sqlAndUserNotSuperAdmin } from "../lib/superAdminUserGuards.js";
+import {
+  hasEffectiveLeadReadScope,
+  hasEffectiveLeadUpdateScope,
+  leadReadFlagsForQuery,
+  leadUpdateFlagsForQuery,
+} from "../services/leadRequestAccess.service.js";
+import { categoryForAcquisitionSlug } from "../constants/leadAcquisitionSources.js";
+import { ensureCanonicalLeadSourcesForOrg } from "../services/leadSourcesCatalog.service.js";
+import { isUuid } from "../services/mairies/mairies.validation.js";
+import {
+  applyMairieAutoMatchIfEligible,
+  assertMairieInOrg,
+} from "../services/leads/leadMairieMatch.service.js";
+
+const SOURCE_ID_UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function parseIsoDateOnly(s) {
+  if (!s || typeof s !== "string") return null;
+  const t = s.trim();
+  if (!t) return null;
+  const m = t.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return null;
+  return `${m[1]}-${m[2]}-${m[3]}`;
+}
+
+function parseQueryBool(v) {
+  if (v === undefined || v === null || v === "") return undefined;
+  const s = String(v).toLowerCase().trim();
+  if (s === "true" || s === "1") return true;
+  if (s === "false" || s === "0") return false;
+  return undefined;
+}
 
 /** Statuts autorisés sur PATCH (aligné DB + migration lead status) */
 const ALLOWED_STATUSES = [
@@ -40,6 +79,85 @@ function isValidTransition(from, to) {
 const orgId = (req) => req.user.organizationId ?? req.user.organization_id;
 const userId = (req) => req.user.userId ?? req.user.id;
 
+async function getDefaultLeadSourceIdForOrg(organizationId) {
+  await ensureCanonicalLeadSourcesForOrg(organizationId);
+  const r = await pool.query(
+    `SELECT id FROM lead_sources WHERE organization_id = $1 AND slug = 'autre' LIMIT 1`,
+    [organizationId]
+  );
+  return r.rows[0]?.id ?? null;
+}
+
+async function assertLeadSourceInOrg(sourceId, organizationId) {
+  if (!sourceId) return false;
+  const r = await pool.query(
+    `SELECT 1 FROM lead_sources WHERE id = $1 AND organization_id = $2`,
+    [sourceId, organizationId]
+  );
+  return r.rows.length > 0;
+}
+
+/** Commercial unique : colonne DB assigned_user_id ; body peut encore envoyer l’ancien nom de champ. */
+function resolveAssignedUserIdFromBody(body) {
+  if (!body || typeof body !== "object") return undefined;
+  if (body.assigned_user_id !== undefined) return body.assigned_user_id;
+  if (body.assigned_salesperson_user_id !== undefined) return body.assigned_salesperson_user_id;
+  if (body.assigned_to !== undefined) return body.assigned_to;
+  return undefined;
+}
+
+/** GET ?q= — autocomplétion légère (mail, filtres CRM). */
+export async function quickSearch(req, res) {
+  try {
+    const org = orgId(req);
+    const uid = userId(req);
+    const perms = await getUserPermissions({
+      userId: uid,
+      organizationId: org,
+    });
+    if (!hasEffectiveLeadReadScope(req, perms)) {
+      return res.status(403).json({
+        error: "Vous n'avez pas l'autorisation de consulter les dossiers.",
+        code: "LEAD_ACCESS_DENIED",
+      });
+    }
+    const { readAll: canReadAll, readSelf: canReadSelf } = leadReadFlagsForQuery(req, perms);
+    const q = String(req.query.q ?? "").trim();
+    if (q.length < 2) {
+      return res.json({ items: [] });
+    }
+    const esc = q.replace(/!/g, "!!").replace(/%/g, "!%").replace(/_/g, "!_");
+    const pat = `%${esc}%`;
+    const params = [org, pat];
+    let leadScopeSql = "";
+    if (canReadSelf && !canReadAll) {
+      leadScopeSql = ` AND assigned_user_id = $3`;
+      params.push(uid);
+    }
+    const result = await pool.query(
+      `SELECT id,
+        COALESCE(
+          NULLIF(TRIM(COALESCE(first_name, '') || ' ' || COALESCE(last_name, '')), ''),
+          NULLIF(TRIM(email), '')
+        ) AS label,
+        email
+       FROM leads
+       WHERE organization_id = $1 AND archived_at IS NULL
+         ${leadScopeSql}
+         AND (
+           email ILIKE $2 ESCAPE '!'
+           OR TRIM(COALESCE(first_name, '') || ' ' || COALESCE(last_name, '')) ILIKE $2 ESCAPE '!'
+         )
+       ORDER BY updated_at DESC
+       LIMIT 20`,
+      params
+    );
+    res.json({ items: result.rows });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+}
+
 export async function getAll(req, res) {
   try {
     const org = orgId(req);
@@ -62,24 +180,37 @@ export async function getAll(req, res) {
       to_date,
       sort,
       order,
-      include_archived
+      source_id,
+      created_from,
+      created_to,
+      marketing_opt_in,
     } = req.query;
 
     const perms = await getUserPermissions({
       userId: uid,
       organizationId: org
     });
-    const canReadAll = perms.has("lead.read.all");
-    const canReadSelf = perms.has("lead.read.self");
+    if (!hasEffectiveLeadReadScope(req, perms)) {
+      return res.status(403).json({
+        error: "Vous n'avez pas l'autorisation de consulter les dossiers.",
+        code: "LEAD_ACCESS_DENIED",
+      });
+    }
+    const { readAll: canReadAll, readSelf: canReadSelf } = leadReadFlagsForQuery(req, perms);
 
-    // CP-029 : view=leads => status=LEAD, view=clients => status=CLIENT (+ devis signé non requis pour la liste)
+    // view=leads => tout dossier non-CLIENT ; view=clients => statut CLIENT uniquement
     const viewMode = (view || "leads").toLowerCase();
-    const showArchived =
-      include_archived === "true" || include_archived === "1";
+    const archiveScope = resolveArchiveScopeFromQuery(req.query);
 
     let query = `SELECT l.id, l.full_name, l.first_name, l.last_name, l.email, l.phone, l.phone_mobile,
        l.estimated_kw, l.estimated_budget_eur, l.score, l.potential_revenue, l.inactivity_level, l.status,
-       l.stage_id, l.project_status, l.assigned_to, l.assigned_salesperson_user_id, l.lead_source,
+       l.stage_id, l.project_status, l.assigned_user_id, l.source_id, l.client_id,
+       l.mairie_id,
+       m.account_status AS mairie_account_status,
+       l.marketing_opt_in,
+       COALESCE(l.birth_date, lc.birth_date) AS birth_date,
+       ls.name as source_name,
+       ls.slug as source_slug,
        l.created_at, l.updated_at, l.last_activity_at, l.archived_at,
        ps.name as stage_name,
        u.email as assigned_to_email,
@@ -94,34 +225,41 @@ export async function getAll(req, res) {
         WHERE q.lead_id = l.id AND q.status = 'ACCEPTED' AND (q.archived_at IS NULL)) as quote_signed_at
      FROM leads l
      LEFT JOIN pipeline_stages ps ON ps.id = l.stage_id
-     LEFT JOIN users u ON u.id = COALESCE(l.assigned_salesperson_user_id, l.assigned_to)
+     LEFT JOIN lead_sources ls ON ls.id = l.source_id
+     LEFT JOIN users u ON u.id = l.assigned_user_id
      LEFT JOIN addresses sa ON sa.id = l.site_address_id
+     LEFT JOIN clients lc ON lc.id = l.client_id AND lc.organization_id = l.organization_id
+     LEFT JOIN mairies m ON m.id = l.mairie_id AND m.organization_id = l.organization_id
      WHERE l.organization_id = $1`;
     const params = [org];
     let idx = 2;
 
     if (viewMode === "clients") {
-      if (showArchived) {
+      if (archiveScope === "all") {
         query += ` AND (
           (l.status = 'CLIENT' AND l.archived_at IS NULL)
           OR (l.status = 'ARCHIVED' AND l.archived_at IS NOT NULL AND l.client_id IS NOT NULL)
         )`;
+      } else if (archiveScope === "archived") {
+        query += ` AND l.status = 'ARCHIVED' AND l.archived_at IS NOT NULL AND l.client_id IS NOT NULL`;
       } else {
         query += ` AND l.status = 'CLIENT' AND l.archived_at IS NULL`;
       }
     } else {
-      if (showArchived) {
+      if (archiveScope === "all") {
         query += ` AND (
-          (l.status = 'LEAD' AND l.archived_at IS NULL)
+          (l.status <> 'CLIENT' AND l.archived_at IS NULL)
           OR (l.status = 'ARCHIVED' AND l.archived_at IS NOT NULL AND l.client_id IS NULL)
         )`;
+      } else if (archiveScope === "archived") {
+        query += ` AND l.status = 'ARCHIVED' AND l.archived_at IS NOT NULL AND l.client_id IS NULL`;
       } else {
-        query += ` AND l.status = 'LEAD' AND l.archived_at IS NULL`;
+        query += ` AND l.status <> 'CLIENT' AND l.archived_at IS NULL`;
       }
     }
 
     if (canReadSelf && !canReadAll) {
-      query += ` AND (l.assigned_salesperson_user_id = $${idx} OR l.assigned_to = $${idx})`;
+      query += ` AND l.assigned_user_id = $${idx}`;
       params.push(uid);
       idx++;
     }
@@ -132,7 +270,7 @@ export async function getAll(req, res) {
       idx++;
     }
     if (assigned_to) {
-      query += ` AND COALESCE(l.assigned_salesperson_user_id, l.assigned_to) = $${idx++}`;
+      query += ` AND l.assigned_user_id = $${idx++}`;
       params.push(assigned_to);
     }
     if (project_status) {
@@ -152,17 +290,46 @@ export async function getAll(req, res) {
     } else if (is_geo_verified === "false" || is_geo_verified === "0") {
       query += ` AND (sa.is_geo_verified = false OR sa.is_geo_verified IS NULL)`;
     }
-    if (has_signed_quote === "true" || has_signed_quote === "1") {
+    const hasSignedParsed = parseQueryBool(has_signed_quote);
+    if (hasSignedParsed === true) {
       query += ` AND EXISTS (
         SELECT 1 FROM quotes q
         WHERE q.lead_id = l.id AND q.status = 'ACCEPTED' AND (q.archived_at IS NULL)
       )`;
-    } else if (has_signed_quote === "false" || has_signed_quote === "0") {
+    } else if (hasSignedParsed === false) {
       query += ` AND NOT EXISTS (
         SELECT 1 FROM quotes q
         WHERE q.lead_id = l.id AND q.status = 'ACCEPTED' AND (q.archived_at IS NULL)
       )`;
     }
+
+    const sourceIdTrim = source_id != null && String(source_id).trim() ? String(source_id).trim() : "";
+    if (sourceIdTrim) {
+      if (!SOURCE_ID_UUID_RE.test(sourceIdTrim)) {
+        return res.status(400).json({ error: "source_id invalide (UUID attendu)" });
+      }
+      query += ` AND l.source_id = $${idx++}`;
+      params.push(sourceIdTrim);
+    }
+
+    const createdFrom = parseIsoDateOnly(created_from);
+    const createdTo = parseIsoDateOnly(created_to);
+    if (createdFrom) {
+      query += ` AND l.created_at::date >= $${idx++}::date`;
+      params.push(createdFrom);
+    }
+    if (createdTo) {
+      query += ` AND l.created_at::date <= $${idx++}::date`;
+      params.push(createdTo);
+    }
+
+    const marketingParsed = parseQueryBool(marketing_opt_in);
+    if (marketingParsed === true) {
+      query += ` AND l.marketing_opt_in = true`;
+    } else if (marketingParsed === false) {
+      query += ` AND l.marketing_opt_in = false`;
+    }
+
     const dateFrom = from_date || date_from;
     const dateTo = to_date || date_to;
     if (dateFrom) {
@@ -183,25 +350,52 @@ export async function getAll(req, res) {
       idx++;
     }
 
-    const sortCol = ["full_name", "updated_at", "assigned_salesperson_user_id", "project_status", "estimated_budget_eur"].includes(sort)
-      ? sort
-      : "updated_at";
+    const allowedSort = [
+      "full_name",
+      "updated_at",
+      "created_at",
+      "assigned_user_id",
+      "assigned_salesperson_user_id",
+      "project_status",
+      "estimated_budget_eur",
+      "score",
+      "inactivity_level",
+      "stage_name",
+    ];
+    const sortCol = allowedSort.includes(String(sort)) ? String(sort) : "updated_at";
     const sortColSql =
-      sortCol === "assigned_salesperson_user_id"
-        ? "u.email"
-        : sortCol === "estimated_budget_eur"
-          ? "COALESCE(l.estimated_budget_eur, l.potential_revenue, 0)"
-          : `l.${sortCol}`;
+      sortCol === "stage_name"
+        ? "ps.name"
+        : sortCol === "assigned_salesperson_user_id" || sortCol === "assigned_user_id"
+          ? "u.email"
+          : sortCol === "estimated_budget_eur"
+            ? "COALESCE(l.estimated_budget_eur, l.potential_revenue, 0)"
+            : `l.${sortCol}`;
     const orderDir = (order || "desc").toLowerCase() === "asc" ? "ASC" : "DESC";
-    query += ` ORDER BY ${sortColSql} ${orderDir} NULLS LAST`;
+    const orderClause = ` ORDER BY ${sortColSql} ${orderDir} NULLS LAST`;
 
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 50));
     const offset = (pageNum - 1) * limitNum;
-    query += ` LIMIT $${idx++} OFFSET $${idx++}`;
+
+    const includeTotal =
+      req.query.include_total === "true" || req.query.include_total === "1";
+
+    let totalRows = null;
+    if (includeTotal) {
+      const countSql = `SELECT COUNT(*)::int AS c FROM (${query}) AS lead_list_count`;
+      const countRes = await pool.query(countSql, [...params]);
+      totalRows = countRes.rows[0]?.c ?? 0;
+    }
+
+    const limitIdx = idx;
+    const queryFinal = `${query}${orderClause} LIMIT $${limitIdx} OFFSET $${limitIdx + 1}`;
     params.push(limitNum, offset);
 
-    const result = await pool.query(query, params);
+    const result = await pool.query(queryFinal, params);
+    if (includeTotal) {
+      return res.json({ leads: result.rows, total: totalRows });
+    }
     res.json(result.rows);
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -215,7 +409,7 @@ export async function getSelf(req, res) {
     const result = await pool.query(
       `SELECT l.*, ps.name as stage_name FROM leads l
        LEFT JOIN pipeline_stages ps ON ps.id = l.stage_id
-       WHERE l.organization_id = $1 AND l.assigned_to = $2 AND (l.archived_at IS NULL) ORDER BY l.updated_at DESC`,
+       WHERE l.organization_id = $1 AND l.assigned_user_id = $2 AND (l.archived_at IS NULL) ORDER BY l.updated_at DESC`,
       [org, uid]
     );
     res.json(result.rows);
@@ -234,22 +428,30 @@ export async function getById(req, res) {
       userId: uid,
       organizationId: org
     });
-    const canReadAll = perms.has("lead.read.all");
-    const canReadSelf = perms.has("lead.read.self");
+    if (!hasEffectiveLeadReadScope(req, perms)) {
+      return res.status(403).json({
+        error: "Vous n'avez pas l'autorisation de consulter ce dossier.",
+        code: "LEAD_ACCESS_DENIED",
+      });
+    }
+    const { readAll: canReadAll, readSelf: canReadSelf } = leadReadFlagsForQuery(req, perms);
 
     let query = `SELECT l.*, ps.name as stage_name FROM leads l
        LEFT JOIN pipeline_stages ps ON ps.id = l.stage_id
        WHERE l.id = $1 AND l.organization_id = $2`;
     const params = [id, org];
     if (canReadSelf && !canReadAll) {
-      query += ` AND l.assigned_to = $3`;
+      query += ` AND l.assigned_user_id = $3`;
       params.push(uid);
     }
 
     const result = await pool.query(query, params);
     if (result.rows.length === 0) return res.status(404).json({ error: "Lead non trouvé" });
+    assertOrgOwnership(result.rows[0].organization_id, org);
     res.json(result.rows[0]);
   } catch (e) {
+    const code = e?.statusCode;
+    if (code === 403) return res.status(403).json({ error: e.message, code: e.code });
     res.status(500).json({ error: e.message });
   }
 }
@@ -257,6 +459,7 @@ export async function getById(req, res) {
 export async function create(req, res) {
   try {
     const org = orgId(req);
+    const uid = userId(req);
     const {
       stage_id,
       first_name,
@@ -272,8 +475,6 @@ export async function create(req, res) {
       phone_mobile,
       address,
       source_id,
-      assigned_to,
-      assigned_salesperson_user_id,
       notes,
       estimated_kw,
       is_owner,
@@ -289,16 +490,26 @@ export async function create(req, res) {
     const fn = isPro
       ? (company_name ?? "").trim() || "Sans nom"
       : (full_name ?? [first_name, last_name].filter(Boolean).join(" ").trim()) || "Sans nom";
-    const assigned = assigned_salesperson_user_id ?? assigned_to;
+    const assigned = resolveAssignedUserIdFromBody(req.body);
+    let resolvedSourceId = source_id ?? (await getDefaultLeadSourceIdForOrg(org));
+    if (!resolvedSourceId) {
+      return res.status(500).json({
+        error:
+          "Aucune source d’acquisition configurée (attendu : entrée catalogue « Autre »). Exécutez les migrations ou créez une source.",
+      });
+    }
+    if (!(await assertLeadSourceInOrg(resolvedSourceId, org))) {
+      return res.status(400).json({ error: "source_id invalide pour cette organisation" });
+    }
     const result = await pool.query(
       `INSERT INTO leads (organization_id, stage_id, status, project_status,
         full_name, first_name, last_name,
         company_name, contact_first_name, contact_last_name, customer_type, siret,
         email, phone, phone_mobile, address,
-        source_id, assigned_to, assigned_salesperson_user_id, notes, estimated_kw, is_owner, consumption, surface_m2,
+        source_id, assigned_user_id, notes, estimated_kw, is_owner, consumption, surface_m2,
         project_delay_months, budget_validated, roof_exploitable)
        VALUES ($1, $2, 'LEAD', NULL, $3, $4, $5, $6, $7, $8, $9, $10,
-               $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25) RETURNING *`,
+               $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24) RETURNING *`,
       [
         org,
         stageId,
@@ -314,8 +525,7 @@ export async function create(req, res) {
         phone ?? null,
         phone_mobile ?? null,
         address ?? null,
-        source_id ?? null,
-        assigned ?? null,
+        resolvedSourceId,
         assigned ?? null,
         notes ?? null,
         estimated_kw ?? null,
@@ -324,14 +534,29 @@ export async function create(req, res) {
         surface_m2 ?? null,
         project_delay_months ?? null,
         budget_validated ?? false,
-        roof_exploitable ?? false
+        roof_exploitable ?? false,
       ]
     );
     const lead = result.rows[0];
     await insertDefaultMeterForNewLead(pool, lead);
-    await recalculateLeadScore(lead.id);
-    const updated = await pool.query("SELECT * FROM leads WHERE id = $1", [lead.id]);
-    res.status(201).json(updated.rows[0]);
+    await recalculateLeadScore(lead.id, org);
+    const updated = await pool.query(
+      "SELECT * FROM leads WHERE id = $1 AND organization_id = $2",
+      [lead.id, org]
+    );
+    const row = updated.rows[0];
+    void logAuditEvent({
+      action: AuditActions.LEAD_CREATED,
+      entityType: "lead",
+      entityId: row.id,
+      organizationId: org,
+      userId: uid,
+      targetLabel: row.full_name || row.email || undefined,
+      req,
+      statusCode: 201,
+      metadata: { stage_id: row.stage_id },
+    });
+    res.status(201).json(row);
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -358,9 +583,6 @@ export async function update(req, res) {
       phone_landline,
       address,
       source_id,
-      lead_source,
-      assigned_to,
-      assigned_salesperson_user_id,
       customer_type,
       notes,
       estimated_kw,
@@ -382,7 +604,10 @@ export async function update(req, res) {
       roof_type,
       frame_type,
       energy_profile,
-      lost_reason
+      lost_reason,
+      birth_date,
+      marketing_opt_in,
+      mairie_id,
     } = req.body;
 
     /* SIGNED n'est pas un statut persistant de lead ; on le normalise en CLIENT + SIGNE
@@ -393,7 +618,7 @@ export async function update(req, res) {
     }
 
     const existingRes = await pool.query(
-      "SELECT status, archived_at, project_status, customer_type FROM leads WHERE id = $1 AND organization_id = $2",
+      "SELECT status, archived_at, project_status, customer_type, assigned_user_id FROM leads WHERE id = $1 AND organization_id = $2",
       [id, org]
     );
     const existingLead = existingRes.rows[0];
@@ -409,6 +634,19 @@ export async function update(req, res) {
     if (billing_address_id !== undefined) {
       const ok = await validateAddressForLead(org, billing_address_id);
       if (!ok) return res.status(400).json({ error: "billing_address_id doit appartenir à votre organisation" });
+    }
+
+    if (mairie_id !== undefined) {
+      if (mairie_id === null || mairie_id === "") {
+        /* cleared below */
+      } else if (!isUuid(String(mairie_id))) {
+        return res.status(400).json({ error: "mairie_id invalide", code: "VALIDATION" });
+      } else {
+        const okM = await assertMairieInOrg(pool, org, mairie_id);
+        if (!okM) {
+          return res.status(400).json({ error: "mairie_id inconnu pour cette organisation", code: "INVALID_MAIRIE" });
+        }
+      }
     }
 
     if (status !== undefined) {
@@ -427,7 +665,10 @@ export async function update(req, res) {
 
     // CP-LEAD-CLIENT-SPLIT-06-LOCK : validations (status, stage_id)
     if (status === "LEAD" && existingLead.status === "CLIENT") {
-      return res.status(400).json({ error: "Impossible de remettre un client en lead" });
+      return res.status(400).json({
+        error: "Pour remettre un client en lead, utilisez l’action « Revenir en lead » sur la fiche.",
+        code: "USE_REVERT_TO_LEAD",
+      });
     }
     if (stage_id !== undefined && existingLead.status === "CLIENT") {
       return res.status(400).json({ error: "Impossible de modifier le pipeline après conversion en client" });
@@ -437,8 +678,28 @@ export async function update(req, res) {
       userId: uid,
       organizationId: org
     });
-    const canUpdateAll = perms.has("lead.update.all");
-    const canUpdateSelf = perms.has("lead.update.self");
+    if (!hasEffectiveLeadUpdateScope(req, perms)) {
+      return res.status(403).json({
+        error: "Vous n'avez pas l'autorisation de modifier ce dossier.",
+        code: "LEAD_ACCESS_DENIED",
+      });
+    }
+    const { canUpdateAll, canUpdateSelf } = leadUpdateFlagsForQuery(req, perms);
+
+    if (marketing_opt_in !== undefined) {
+      const superOk = req.user?.role === "SUPER_ADMIN" && isSuperAdminBypassEnabled();
+      const canMarketing =
+        superOk ||
+        perms.has("org.settings.manage") ||
+        canUpdateAll ||
+        (canUpdateSelf && String(existingLead.assigned_user_id ?? "") === String(uid));
+      if (!canMarketing) {
+        return res.status(403).json({
+          error: "Modification du consentement marketing non autorisée",
+          code: "MARKETING_CONSENT_FORBIDDEN",
+        });
+      }
+    }
 
     let query = `UPDATE leads SET updated_at = CURRENT_TIMESTAMP`;
     const updates = [];
@@ -469,9 +730,10 @@ export async function update(req, res) {
       updates.push(`phone_mobile = $${idx++}`);
       values.push(phone_mobile);
     }
-    if (assigned_salesperson_user_id !== undefined) {
-      updates.push(`assigned_salesperson_user_id = $${idx++}`);
-      values.push(assigned_salesperson_user_id);
+    const resolvedPatchAssign = resolveAssignedUserIdFromBody(req.body);
+    if (resolvedPatchAssign !== undefined) {
+      updates.push(`assigned_user_id = $${idx++}`);
+      values.push(resolvedPatchAssign || null);
     }
     if (email !== undefined) {
       updates.push(`email = $${idx++}`);
@@ -490,12 +752,11 @@ export async function update(req, res) {
       values.push(address);
     }
     if (source_id !== undefined) {
+      if (source_id != null && !(await assertLeadSourceInOrg(source_id, org))) {
+        return res.status(400).json({ error: "source_id invalide pour cette organisation" });
+      }
       updates.push(`source_id = $${idx++}`);
       values.push(source_id);
-    }
-    if (lead_source !== undefined) {
-      updates.push(`lead_source = $${idx++}`);
-      values.push(lead_source);
     }
     if (customer_type !== undefined) {
       updates.push(`customer_type = $${idx++}`);
@@ -539,10 +800,6 @@ export async function update(req, res) {
         values.push(computedFn);
       }
     }
-    if (assigned_to !== undefined) {
-      updates.push(`assigned_to = $${idx++}`);
-      values.push(assigned_to);
-    }
     if (notes !== undefined) {
       updates.push(`notes = $${idx++}`);
       values.push(notes);
@@ -583,6 +840,10 @@ export async function update(req, res) {
       updates.push(`billing_address_id = $${idx++}`);
       values.push(billing_address_id);
     }
+    if (mairie_id !== undefined) {
+      updates.push(`mairie_id = $${idx++}`);
+      values.push(mairie_id === null || mairie_id === "" ? null : mairie_id);
+    }
     if (project_status !== undefined) {
       // CP-LEAD-CLIENT-SPLIT-06-LOCK : validation stricte
       const validProjectStatus = [
@@ -618,6 +879,13 @@ export async function update(req, res) {
       updates.push(`rgpd_consent_at = $${idx++}`);
       values.push(rgpd_consent ? new Date() : null);
     }
+    if (marketing_opt_in !== undefined) {
+      const on = !!marketing_opt_in;
+      updates.push(`marketing_opt_in = $${idx++}`);
+      values.push(on);
+      updates.push(`marketing_opt_in_at = $${idx++}`);
+      values.push(on ? new Date() : null);
+    }
     if (property_type !== undefined) {
       updates.push(`property_type = $${idx++}`);
       values.push(property_type);
@@ -641,6 +909,19 @@ export async function update(req, res) {
     if (frame_type !== undefined) {
       updates.push(`frame_type = $${idx++}`);
       values.push(frame_type);
+    }
+    if (birth_date !== undefined) {
+      if (birth_date === null || birth_date === "") {
+        updates.push(`birth_date = $${idx++}`);
+        values.push(null);
+      } else {
+        const s = String(birth_date).trim().slice(0, 10);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+          return res.status(400).json({ error: "birth_date doit être au format YYYY-MM-DD" });
+        }
+        updates.push(`birth_date = $${idx++}`);
+        values.push(s);
+      }
     }
     if (energy_profile !== undefined) {
       const stored = buildStoredEnergyProfile(
@@ -705,7 +986,7 @@ export async function update(req, res) {
     values.push(unarchive);
 
     if (canUpdateSelf && !canUpdateAll) {
-      query += ` AND assigned_to = $${idx++}`;
+      query += ` AND assigned_user_id = $${idx++}`;
       values.push(uid);
     }
 
@@ -734,12 +1015,44 @@ export async function update(req, res) {
       } catch (_) {}
     }
 
-    await recalculateLeadScore(id);
-    const updated = await pool.query("SELECT * FROM leads WHERE id = $1", [id]);
+    await applyMairieAutoMatchIfEligible(pool, org, id);
+    await recalculateLeadScore(id, org);
+    const updated = await pool.query("SELECT * FROM leads WHERE id = $1 AND organization_id = $2", [id, org]);
     if (energy_profile !== undefined && updated.rows[0]) {
       await syncDefaultMeterFromLeadRow(pool, updated.rows[0]);
     }
-    res.json(updated.rows[0]);
+    const rowOut = updated.rows[0];
+    const changedFields = updates
+      .map((u) => {
+        const m = u.match(/^([\w_]+)\s*=/);
+        return m ? m[1] : null;
+      })
+      .filter(Boolean);
+    void logAuditEvent({
+      action: AuditActions.LEAD_UPDATED,
+      entityType: "lead",
+      entityId: id,
+      organizationId: org,
+      userId: uid,
+      targetLabel: rowOut?.full_name || rowOut?.email || undefined,
+      req,
+      statusCode: 200,
+      metadata: { changed_fields: changedFields },
+    });
+    if (marketing_opt_in !== undefined) {
+      void logAuditEvent({
+        action: AuditActions.LEAD_MARKETING_OPT_IN_UPDATED,
+        entityType: "lead",
+        entityId: id,
+        organizationId: org,
+        userId: uid,
+        targetLabel: rowOut?.full_name || rowOut?.email || undefined,
+        req,
+        statusCode: 200,
+        metadata: { marketing_opt_in: !!rowOut?.marketing_opt_in },
+      });
+    }
+    res.json(rowOut);
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -755,8 +1068,13 @@ export async function getKanban(req, res) {
       userId: uid,
       organizationId: org
     });
-    const canReadAll = perms.has("lead.read.all");
-    const canReadSelf = perms.has("lead.read.self");
+    if (!hasEffectiveLeadReadScope(req, perms)) {
+      return res.status(403).json({
+        error: "Vous n'avez pas l'autorisation de consulter les dossiers.",
+        code: "LEAD_ACCESS_DENIED",
+      });
+    }
+    const { readAll: canReadAll, readSelf: canReadSelf } = leadReadFlagsForQuery(req, perms);
 
     const stagesRes = await pool.query(
       `SELECT id, name, position, is_closed, code FROM pipeline_stages
@@ -768,7 +1086,10 @@ export async function getKanban(req, res) {
     let leadsQuery = `SELECT l.id, l.full_name, l.first_name, l.last_name, l.email, l.phone, l.phone_mobile,
          l.address, l.estimated_kw, l.score, l.potential_revenue, l.status, l.stage_id,
          l.inactivity_level,
-         l.assigned_to, l.assigned_salesperson_user_id, l.lead_source,
+         l.assigned_user_id, l.source_id, l.mairie_id,
+         m.account_status AS mairie_account_status,
+         ls.name as source_name,
+         ls.slug as source_slug,
          l.created_at, l.updated_at, ps.name as stage_name,
          u.email as assigned_to_email,
          sa.formatted_address as site_formatted_address,
@@ -778,14 +1099,16 @@ export async function getKanban(req, res) {
          sa.city as site_city
        FROM leads l
        LEFT JOIN pipeline_stages ps ON ps.id = l.stage_id
-       LEFT JOIN users u ON u.id = COALESCE(l.assigned_salesperson_user_id, l.assigned_to)
+       LEFT JOIN lead_sources ls ON ls.id = l.source_id
+       LEFT JOIN users u ON u.id = l.assigned_user_id
        LEFT JOIN addresses sa ON sa.id = l.site_address_id
-       WHERE l.organization_id = $1 AND (l.archived_at IS NULL) AND l.status = 'LEAD'`;
+       LEFT JOIN mairies m ON m.id = l.mairie_id AND m.organization_id = l.organization_id
+       WHERE l.organization_id = $1 AND (l.archived_at IS NULL) AND l.status <> 'CLIENT'`;
     const values = [org];
     let idx = 2;
 
     if (canReadSelf && !canReadAll) {
-      leadsQuery += ` AND (l.assigned_salesperson_user_id = $${idx} OR l.assigned_to = $${idx})`;
+      leadsQuery += ` AND l.assigned_user_id = $${idx}`;
       values.push(uid);
       idx++;
     }
@@ -796,7 +1119,7 @@ export async function getKanban(req, res) {
       idx++;
     }
     if (assigned_to) {
-      leadsQuery += ` AND COALESCE(l.assigned_salesperson_user_id, l.assigned_to) = $${idx++}`;
+      leadsQuery += ` AND l.assigned_user_id = $${idx++}`;
       values.push(assigned_to);
     }
     if (search) {
@@ -838,20 +1161,35 @@ export async function getKanban(req, res) {
 export async function getMeta(req, res) {
   try {
     const org = orgId(req);
-    const [stagesRes, usersRes] = await Promise.all([
+    await ensureCanonicalLeadSourcesForOrg(org);
+    const [stagesRes, usersRes, sourcesRes] = await Promise.all([
       pool.query(
         `SELECT id, name, position, is_closed, code FROM pipeline_stages
          WHERE organization_id = $1 ORDER BY position ASC`,
         [org]
       ),
       pool.query(
-        `SELECT id, email FROM users WHERE organization_id = $1 ORDER BY email`,
+        `SELECT u.id, u.email FROM users u
+         WHERE u.organization_id = $1
+         ${!isJwtSuperAdmin(req) ? sqlAndUserNotSuperAdmin("u") : ""}
+         ORDER BY u.email`,
         [org]
-      )
+      ),
+      pool.query(
+        `SELECT id, name, slug, sort_order FROM lead_sources
+         WHERE organization_id = $1
+         ORDER BY sort_order ASC, name ASC`,
+        [org]
+      ),
     ]);
+    const sources = sourcesRes.rows.map((s) => ({
+      ...s,
+      category: categoryForAcquisitionSlug(s.slug),
+    }));
     res.json({
       stages: stagesRes.rows,
-      users: usersRes.rows
+      users: usersRes.rows,
+      sources,
     });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -862,13 +1200,13 @@ async function assertLeadUpdateAccess(req, leadRow) {
   const uid = userId(req);
   const perms = await getUserPermissions({
     userId: uid,
-    organizationId: orgId(req)
+    organizationId: orgId(req),
   });
-  const canAll = perms.has("lead.update.all");
-  const canSelf = perms.has("lead.update.self");
-  if (canAll) return true;
-  const assignee = leadRow.assigned_salesperson_user_id ?? leadRow.assigned_to;
-  if (canSelf && assignee === uid) return true;
+  if (!hasEffectiveLeadUpdateScope(req, perms)) return false;
+  const { canUpdateAll, canUpdateSelf } = leadUpdateFlagsForQuery(req, perms);
+  if (canUpdateAll) return true;
+  const assignee = leadRow.assigned_user_id;
+  if (canUpdateSelf && assignee === uid) return true;
   return false;
 }
 
@@ -879,7 +1217,7 @@ export async function patchArchive(req, res) {
     const uid = userId(req);
     const { id } = req.params;
     const r = await pool.query(
-      `SELECT id, assigned_to, assigned_salesperson_user_id, archived_at, status, client_id
+      `SELECT id, assigned_user_id, archived_at, status, client_id
        FROM leads WHERE id = $1 AND organization_id = $2`,
       [id, org]
     );
@@ -919,7 +1257,7 @@ export async function patchUnarchive(req, res) {
     const uid = userId(req);
     const { id } = req.params;
     const r = await pool.query(
-      `SELECT id, assigned_to, assigned_salesperson_user_id, archived_at, status, client_id
+      `SELECT id, assigned_user_id, archived_at, status, client_id
        FROM leads WHERE id = $1 AND organization_id = $2`,
       [id, org]
     );
@@ -946,41 +1284,6 @@ export async function patchUnarchive(req, res) {
     );
     if (u.rows.length === 0) return res.status(400).json({ error: "Désarchivage impossible" });
     res.json(u.rows[0]);
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-}
-
-/** DELETE — suppression définitive (permission lead.delete) */
-export async function deleteLeadHard(req, res) {
-  try {
-    const org = orgId(req);
-    const uid = userId(req);
-    const { id } = req.params;
-
-    const perms = await getUserPermissions({ userId: uid, organizationId: org });
-    if (!perms.has("lead.delete")) {
-      return res.status(403).json({ error: "Forbidden" });
-    }
-
-    const r = await pool.query(
-      `SELECT id FROM leads WHERE id = $1 AND organization_id = $2`,
-      [id, org]
-    );
-    if (r.rows.length === 0) return res.status(404).json({ error: "Lead non trouvé" });
-
-    const dep = await pool.query(
-      `SELECT EXISTS (SELECT 1 FROM quotes WHERE lead_id = $1 LIMIT 1) AS has_quote`,
-      [id]
-    );
-    if (dep.rows[0]?.has_quote) {
-      return res.status(400).json({
-        error: "Impossible de supprimer un lead avec des données devis / financières"
-      });
-    }
-
-    await pool.query(`DELETE FROM leads WHERE id = $1 AND organization_id = $2`, [id, org]);
-    res.status(204).send();
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

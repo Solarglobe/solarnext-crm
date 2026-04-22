@@ -645,3 +645,42 @@
     transform-origin: top center;
   }
 }
+
+/* CGV — fin de rapport étude (PdfLegacyPort / #pdf-root) */
+.pdf-legacy-port .pdf-cgv {
+  page-break-before: always;
+  font-size: 10px;
+  line-height: 1.4;
+  max-width: 210mm;
+  margin: 0 auto 16px;
+  padding: 16mm;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  color: var(--sn-text-primary, #e8ecf8);
+  background: var(--sn-bg-surface, #161c34);
+  border-radius: 8px;
+  border: 1px solid var(--sn-border-soft, rgba(255, 255, 255, 0.08));
+}
+
+.pdf-legacy-port .pdf-cgv__title {
+  font-size: 14px;
+  margin: 0 0 0.75em;
+  color: var(--sn-accent-gold, #c39847);
+}
+
+.pdf-legacy-port .pdf-cgv__html {
+  color: var(--sn-text-secondary, #9fa8c7);
+}
+
+.pdf-legacy-port .pdf-cgv--url .pdf-cgv__intro,
+.pdf-legacy-port .pdf-cgv--url .pdf-cgv__url {
+  margin: 0.5em 0;
+}
+
+.pdf-legacy-port .pdf-cgv--url a {
+  color: var(--sn-accent-gold, #c39847);
+  word-break: break-all;
+}
+
+.pdf-legacy-port .pdf-cgv__qr-wrap {
+  margin-top: 12px;
+}

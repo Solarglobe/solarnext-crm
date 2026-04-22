@@ -10,15 +10,28 @@
 
 import fetch from "node-fetch";
 import { round } from "./utils/helpers.js";
-
-// -----------------------------------------------------------------------
-// Constantes de pertes système — identiques en résidentiel FR
-// (sources : IEC 61724, SolarEdge Design Guide, ADEME Guide Solaire)
-// -----------------------------------------------------------------------
-const L_CABLE    = 0.015;  // Câblage DC + AC (1,5 %)
-const L_SOIL     = 0.025;  // Salissures / encrassement (2,5 %)
-const L_MISMATCH = 0.010;  // Mismatch entre panneaux (1,0 %)
-const L_AVAIL    = 0.005;  // Indisponibilité / maintenance (0,5 %)
+import {
+  L_CABLE,
+  L_SOIL,
+  L_MISMATCH,
+  L_AVAIL,
+  DEFAULT_INVERTER_EFFICIENCY,
+  FALLBACK_NATIONAL_MONTHLY_DC,
+  FALLBACK_NATIONAL_ANNUAL_DC_REF,
+  PVGIS_FALLBACK_LAT_MIN,
+  PVGIS_FALLBACK_LAT_MAX,
+  PVGIS_FALLBACK_LON_DEFAULT,
+  PVGIS_FALLBACK_LON_MIN,
+  PVGIS_FALLBACK_LON_MAX,
+  PVGIS_FALLBACK_DC_KWH_KWP_ZONE_A,
+  PVGIS_FALLBACK_DC_KWH_KWP_NORTH,
+  PVGIS_FALLBACK_DC_KWH_KWP_NORTH_MID,
+  PVGIS_FALLBACK_DC_KWH_KWP_CENTER,
+  PVGIS_FALLBACK_DC_KWH_KWP_SW,
+  PVGIS_FALLBACK_DC_KWH_KWP_SE,
+  PVGIS_FETCH_TIMEOUT_MS,
+  PVGIS_DEFAULT_TILT_DEG,
+} from "./core/engineConstants.js";
 
 /**
  * Calcule le factorAC (PR partiel hors température et IAM déjà dans PVGIS).
@@ -27,11 +40,14 @@ const L_AVAIL    = 0.005;  // Indisponibilité / maintenance (0,5 %)
  * @returns {{ factorAC: number, etaInv: number, source: string }}
  */
 function _computeFactorAC(ctx) {
+  if (!ctx?.form?.pv_inverter?.euro_efficiency_pct) {
+    console.warn("[ENGINE WARNING] Using default inverter efficiency (0.965)");
+  }
   const rawEuroEff = ctx?.form?.pv_inverter?.euro_efficiency_pct;
   const etaInv =
     rawEuroEff != null && Number.isFinite(Number(rawEuroEff)) && Number(rawEuroEff) > 50
       ? Number(rawEuroEff) / 100
-      : 0.965; // défaut : onduleur string résidentiel moderne
+      : DEFAULT_INVERTER_EFFICIENCY; // défaut : onduleur string résidentiel moderne
 
   const factorAC = etaInv * (1 - L_CABLE) * (1 - L_SOIL) * (1 - L_MISMATCH) * (1 - L_AVAIL);
   const source = rawEuroEff != null ? "fiche-technique" : "défaut-0.965";
@@ -44,10 +60,6 @@ export function computeFactorACForTests(ctx) {
   return _computeFactorAC(ctx);
 }
 
-/** Courbe DC mensuelle de secours (1 kWp), France « moyenne » — somme = référence annuelle. */
-const FALLBACK_NATIONAL_MONTHLY_DC = [52, 67, 93, 115, 135, 145, 150, 145, 120, 88, 60, 48];
-const FALLBACK_NATIONAL_ANNUAL_DC_REF = FALLBACK_NATIONAL_MONTHLY_DC.reduce((a, b) => a + b, 0);
-
 /**
  * Cible DC kWh/kWp/an pour le fallback API PVGIS KO — grosses zones FR (lat/lon), ordre des tests important.
  * Hors périmètre métro approximatif → référence nationale (comportement historique).
@@ -55,16 +67,16 @@ const FALLBACK_NATIONAL_ANNUAL_DC_REF = FALLBACK_NATIONAL_MONTHLY_DC.reduce((a, 
 function getFallbackAnnualDcKwhPerKwp(lat, lon) {
   const ref = FALLBACK_NATIONAL_ANNUAL_DC_REF;
   if (typeof lat !== "number" || !Number.isFinite(lat)) return ref;
-  if (lat < 41 || lat > 51.5) return ref;
-  const lonN = typeof lon === "number" && Number.isFinite(lon) ? lon : 2.5;
-  if (lonN < -5.5 || lonN > 10.5) return ref;
+  if (lat < PVGIS_FALLBACK_LAT_MIN || lat > PVGIS_FALLBACK_LAT_MAX) return ref;
+  const lonN = typeof lon === "number" && Number.isFinite(lon) ? lon : PVGIS_FALLBACK_LON_DEFAULT;
+  if (lonN < PVGIS_FALLBACK_LON_MIN || lonN > PVGIS_FALLBACK_LON_MAX) return ref;
 
-  if (lat >= 41 && lat <= 43.5 && lonN >= 8 && lonN <= 10) return 1340;
-  if (lat >= 49.2) return 1020;
-  if (lat >= 48.0) return 1080;
-  if (lat >= 45.5) return 1180;
-  if (lat < 45.5 && lonN < 3.5) return 1200;
-  if (lat < 45.5) return 1280;
+  if (lat >= 41 && lat <= 43.5 && lonN >= 8 && lonN <= 10) return PVGIS_FALLBACK_DC_KWH_KWP_ZONE_A;
+  if (lat >= 49.2) return PVGIS_FALLBACK_DC_KWH_KWP_NORTH;
+  if (lat >= 48.0) return PVGIS_FALLBACK_DC_KWH_KWP_NORTH_MID;
+  if (lat >= 45.5) return PVGIS_FALLBACK_DC_KWH_KWP_CENTER;
+  if (lat < 45.5 && lonN < 3.5) return PVGIS_FALLBACK_DC_KWH_KWP_SW;
+  if (lat < 45.5) return PVGIS_FALLBACK_DC_KWH_KWP_SE;
   return ref;
 }
 
@@ -77,7 +89,7 @@ function timeout(ms) {
 export async function computeProductionMonthly(ctx) {
   const { lat, lon, orientation, inclinaison } = ctx.site;
   const aspect = convertOrientation(orientation);
-  const tilt = inclinaison || 30;
+  const tilt = inclinaison || PVGIS_DEFAULT_TILT_DEG;
 
   // ===================================================================
   // 0) PVGIS URL — aucune perte (loss=0)
@@ -98,7 +110,7 @@ export async function computeProductionMonthly(ctx) {
   let js = null;
 
   try {
-    const res = await Promise.race([fetch(url), timeout(8000)]);
+    const res = await Promise.race([fetch(url), timeout(PVGIS_FETCH_TIMEOUT_MS)]);
     if (!res.ok) {
       console.error("❌ PVGIS HTTP ERROR:", res.status);
       throw new Error("PVGIS HTTP " + res.status);
@@ -162,7 +174,7 @@ export async function computeProductionMonthly(ctx) {
 // FALLBACK — valeurs premium en cas d'échec API
 // ======================================================================
 function fallbackPV(ctx) {
-  console.warn("⚠️ PVGIS FALLBACK ACTIVATED — using local fallback");
+  console.warn("[ENGINE WARNING] Using PVGIS fallback data (national profile)");
 
   const site = ctx.site || {};
   const annualDcTarget = getFallbackAnnualDcKwhPerKwp(site.lat, site.lon);
@@ -241,7 +253,7 @@ export async function computeProductionMonthlyForOrientation(ctx, azimuthDeg, ti
     return fallbackPVForOrientation(ctx, azimuthDeg, tiltDeg);
   }
   const aspect = azimuthDegToPvgisAspect(azimuthDeg);
-  const tilt = typeof tiltDeg === "number" && Number.isFinite(tiltDeg) ? tiltDeg : 30;
+  const tilt = typeof tiltDeg === "number" && Number.isFinite(tiltDeg) ? tiltDeg : PVGIS_DEFAULT_TILT_DEG;
 
   const url =
     `https://re.jrc.ec.europa.eu/api/v5_2/PVcalc?` +
@@ -256,7 +268,7 @@ export async function computeProductionMonthlyForOrientation(ctx, azimuthDeg, ti
 
   let js = null;
   try {
-    const res = await Promise.race([fetch(url), timeout(8000)]);
+    const res = await Promise.race([fetch(url), timeout(PVGIS_FETCH_TIMEOUT_MS)]);
     if (!res.ok) throw new Error("PVGIS HTTP " + res.status);
     js = await res.json();
   } catch (err) {

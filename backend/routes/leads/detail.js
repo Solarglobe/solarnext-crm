@@ -18,7 +18,14 @@ import {
   hydrateLeadWithDefaultMeterFields,
   syncDefaultMeterFromLeadRow,
 } from "../../services/leadMeters.service.js";
-import { assertLeadApiAccess } from "../../services/leadRequestAccess.service.js";
+import {
+  assertLeadApiAccess,
+  hasEffectiveLeadUpdateScope,
+  leadUpdateFlagsForQuery,
+} from "../../services/leadRequestAccess.service.js";
+import { logAuditEvent } from "../../services/audit/auditLog.service.js";
+import { AuditActions } from "../../services/audit/auditActions.js";
+import { ensureClientWhenSignedStage } from "../../services/leadClientConversion.service.js";
 
 const router = express.Router();
 const orgId = (req) => req.user.organizationId ?? req.user.organization_id;
@@ -40,14 +47,27 @@ async function getDetail(req, res) {
       userId: uid,
       mode: "read",
       logContext: "GET /api/leads/:id",
+      req,
     });
     if (!gate.ok) {
       return res.status(gate.status).json(gate.body);
     }
 
-    const leadQuery = `SELECT l.*, ps.name as stage_name, ps.code as stage_code, ps.position as stage_position, ps.is_closed as stage_is_closed
+    const leadQuery = `SELECT l.*, ps.name as stage_name, ps.code as stage_code, ps.position as stage_position, ps.is_closed as stage_is_closed,
+       ls.name as source_name,
+       ls.slug as source_slug,
+       ma.name AS mairie_name,
+       ma.postal_code AS mairie_postal_code,
+       ma.city AS mairie_city,
+       ma.portal_url AS mairie_portal_url,
+       ma.portal_type AS mairie_portal_type,
+       ma.account_status AS mairie_account_status,
+       ma.account_email AS mairie_account_email,
+       ma.bitwarden_ref AS mairie_bitwarden_ref
        FROM leads l
        LEFT JOIN pipeline_stages ps ON ps.id = l.stage_id
+       LEFT JOIN lead_sources ls ON ls.id = l.source_id
+       LEFT JOIN mairies ma ON ma.id = l.mairie_id AND ma.organization_id = l.organization_id
        WHERE l.id = $1 AND l.organization_id = $2`;
     const leadParams = [id, org];
 
@@ -71,20 +91,37 @@ async function getDetail(req, res) {
       contact_first_name: leadRow.contact_first_name ?? null,
       contact_last_name: leadRow.contact_last_name ?? null,
       siret: leadRow.siret ?? null,
+      birth_date:
+        leadRow.birth_date != null
+          ? typeof leadRow.birth_date === "string"
+            ? leadRow.birth_date.slice(0, 10)
+            : leadRow.birth_date instanceof Date
+              ? leadRow.birth_date.toISOString().slice(0, 10)
+              : String(leadRow.birth_date).slice(0, 10)
+          : null,
       email: leadRow.email,
       phone: leadRow.phone,
       phone_mobile: leadRow.phone_mobile,
       phone_landline: leadRow.phone_landline,
       address: leadRow.address,
       source_id: leadRow.source_id,
-      lead_source: leadRow.lead_source,
-      assigned_to: leadRow.assigned_to,
-      assigned_salesperson_user_id: leadRow.assigned_salesperson_user_id ?? leadRow.assigned_to,
+      source_name: leadRow.source_name ?? null,
+      source_slug: leadRow.source_slug ?? null,
+      assigned_user_id: leadRow.assigned_user_id,
       customer_type: leadRow.customer_type,
       stage_id: leadRow.stage_id,
       status: leadRow.status ?? "LEAD",
       client_id: leadRow.client_id,
       site_address_id: leadRow.site_address_id,
+      mairie_id: leadRow.mairie_id ?? null,
+      mairie_name: leadRow.mairie_id ? leadRow.mairie_name ?? null : null,
+      mairie_postal_code: leadRow.mairie_id ? leadRow.mairie_postal_code ?? null : null,
+      mairie_city: leadRow.mairie_id ? leadRow.mairie_city ?? null : null,
+      mairie_portal_url: leadRow.mairie_id ? leadRow.mairie_portal_url ?? null : null,
+      mairie_portal_type: leadRow.mairie_id ? leadRow.mairie_portal_type ?? null : null,
+      mairie_account_status: leadRow.mairie_id ? leadRow.mairie_account_status ?? null : null,
+      mairie_account_email: leadRow.mairie_id ? leadRow.mairie_account_email ?? null : null,
+      mairie_bitwarden_ref: leadRow.mairie_id ? leadRow.mairie_bitwarden_ref ?? null : null,
       billing_address_id: leadRow.billing_address_id,
       notes: leadRow.notes,
       internal_note: leadRow.internal_note,
@@ -118,6 +155,8 @@ async function getDetail(req, res) {
       has_asbestos_roof: leadRow.has_asbestos_roof,
       rgpd_consent: leadRow.rgpd_consent,
       rgpd_consent_at: leadRow.rgpd_consent_at,
+      marketing_opt_in: leadRow.marketing_opt_in ?? false,
+      marketing_opt_in_at: leadRow.marketing_opt_in_at ?? null,
       last_activity_at: leadRow.last_activity_at,
       created_at: leadRow.created_at,
       updated_at: leadRow.updated_at,
@@ -238,14 +277,19 @@ async function patchStage(req, res) {
       userId: uid,
       organizationId: org
     });
-    const canUpdateAll = perms.has("lead.update.all");
-    const canUpdateSelf = perms.has("lead.update.self");
+    if (!hasEffectiveLeadUpdateScope(req, perms)) {
+      return res.status(403).json({
+        error: "Vous n'avez pas l'autorisation de modifier ce dossier.",
+        code: "LEAD_ACCESS_DENIED",
+      });
+    }
+    const { canUpdateAll, canUpdateSelf } = leadUpdateFlagsForQuery(req, perms);
 
     await client.query("BEGIN");
 
     const leadCheck = await client.query(
       `SELECT l.id, l.stage_id, l.status FROM leads l
-       WHERE l.id = $1 AND l.organization_id = $2 AND (l.archived_at IS NULL)${canUpdateSelf && !canUpdateAll ? " AND (l.assigned_salesperson_user_id = $3 OR l.assigned_to = $3)" : ""}`,
+       WHERE l.id = $1 AND l.organization_id = $2 AND (l.archived_at IS NULL)${canUpdateSelf && !canUpdateAll ? " AND l.assigned_user_id = $3" : ""}`,
       canUpdateSelf && !canUpdateAll ? [id, org, uid] : [id, org]
     );
 
@@ -254,9 +298,9 @@ async function patchStage(req, res) {
       return res.status(404).json({ error: "Lead non trouvé" });
     }
 
-    if (leadCheck.rows[0].status !== "LEAD") {
+    if (leadCheck.rows[0].status === "CLIENT") {
       await client.query("ROLLBACK");
-      return res.status(400).json({ error: "Seuls les leads (status=LEAD) peuvent être déplacés dans le Kanban" });
+      return res.status(400).json({ error: "Les clients convertis ne peuvent pas être déplacés dans le pipeline" });
     }
 
     const currentStageId = leadCheck.rows[0].stage_id;
@@ -298,14 +342,10 @@ async function patchStage(req, res) {
       );
     }
 
-    // CP-LEAD-CLIENT-SPLIT-06-LOCK : conversion via stage.code === 'SIGNED' (plus jamais sur le label)
+    // CP-LEAD-CLIENT-SPLIT-06-LOCK : étape SIGNED = conversion complète (fiche clients + client_id)
     const isSignedStage = stageCode === "SIGNED";
     if (isSignedStage) {
-      await client.query(
-        `UPDATE leads SET status = 'CLIENT', project_status = 'SIGNE', updated_at = now()
-         WHERE id = $1 AND organization_id = $2 AND status = 'LEAD'`,
-        [id, org]
-      );
+      await ensureClientWhenSignedStage(client, id, org, "SIGNE");
     }
 
     await client.query(
@@ -336,7 +376,22 @@ async function patchStage(req, res) {
       }
     } catch (_) {}
 
-    await recalculateLeadScore(id);
+    await recalculateLeadScore(id, org);
+
+    void logAuditEvent({
+      action: AuditActions.LEAD_STAGE_CHANGED,
+      entityType: "lead",
+      entityId: id,
+      organizationId: org,
+      userId: uid,
+      req,
+      statusCode: 200,
+      metadata: {
+        old_stage_id: currentStageId,
+        new_stage_id: stageId,
+        stage_code: stageCode,
+      },
+    });
 
     res.json({
       stage: { id: stageCheck.rows[0].id, name: stageCheck.rows[0].name }
@@ -366,6 +421,7 @@ async function deleteEnergyProfile(req, res) {
       mode: "write",
       forbidArchivedWrite: true,
       logContext: "DELETE /api/leads/:id/energy-profile",
+      req,
     });
     if (!gate.ok) {
       return res.status(gate.status).json(gate.body);

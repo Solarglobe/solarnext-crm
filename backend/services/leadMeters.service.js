@@ -196,10 +196,34 @@ export async function getDefaultMeterIdForLead(db, leadId, organizationId) {
 }
 
 /**
+ * PDL : kWh/an moteur CSV souvent dans energy_profile avant sync colonne — affichage liste / résumé.
+ * @param {unknown} ep
+ * @returns {number|null}
+ */
+function annualKwhFromEnergyProfileForList(ep) {
+  if (ep == null) return null;
+  const p = typeof ep === "string" ? (() => { try { return JSON.parse(ep); } catch { return null; } })() : ep;
+  if (!p || typeof p !== "object") return null;
+  const eng = p.engine?.annual_kwh;
+  if (typeof eng === "number" && Number.isFinite(eng)) return Math.round(eng);
+  const sum = p.summary?.annual_kwh;
+  if (typeof sum === "number" && Number.isFinite(sum)) return Math.round(sum);
+  return null;
+}
+
+/**
  * Réponse légère GET /meters (liste UI).
  * @param {object} row
  */
 export function meterRowToListItem(row) {
+  const mode = String(row.consumption_mode ?? "").toUpperCase();
+  let annual = row.consumption_annual_kwh ?? null;
+  if (
+    (annual == null || annual === "") &&
+    mode === "PDL"
+  ) {
+    annual = annualKwhFromEnergyProfileForList(row.energy_profile);
+  }
   return {
     id: row.id,
     name: row.name,
@@ -207,7 +231,7 @@ export function meterRowToListItem(row) {
     meter_power_kva: row.meter_power_kva ?? null,
     grid_type: row.grid_type ?? null,
     consumption_mode: row.consumption_mode ?? null,
-    consumption_annual_kwh: row.consumption_annual_kwh ?? null,
+    consumption_annual_kwh: annual != null && annual !== "" ? Number(annual) : null,
     consumption_annual_calculated_kwh: row.consumption_annual_calculated_kwh ?? null,
     consumption_pdl: row.consumption_pdl ?? null,
     sort_order: row.sort_order ?? 0,

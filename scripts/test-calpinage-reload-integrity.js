@@ -7,7 +7,7 @@
  */
 
 const path = require("path");
-const geomPath = path.join(__dirname, "../frontend/public/calpinage/geometry/geoEntity3D.cjs");
+const geomPath = path.join(__dirname, "../backend/calpinage-legacy-assets/geometry/geoEntity3D.cjs");
 let geoEntity3D;
 try {
   geoEntity3D = require(geomPath);

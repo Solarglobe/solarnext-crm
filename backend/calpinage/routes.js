@@ -1,6 +1,7 @@
 // ======================================================================
-// Routes CRUD Calpinage — GET / POST / DELETE par leadId
-// Stockage fichier, validation schema v1, pas d'auth
+// Routes CRUD Calpinage — GET / POST / DELETE par leadId (stockage fichier)
+// DÉMONTÉ du serveur : ancien montage /calpinage sans JWT (fuite données).
+// Conservé pour référence / scripts locaux éventuels — ne pas remonter sur app sans auth.
 // ======================================================================
 
 import express from "express";
@@ -11,8 +12,16 @@ import {
 } from "./storage/fileStore.js";
 import { validateCalpinage } from "./schema/validateCalpinage.js";
 import { migrateCalpinage } from "./schema/migrateCalpinage.js";
+import { publicHeavyRateLimiter } from "../middleware/security/rateLimit.presets.js";
 
 const router = express.Router();
+
+router.use((req, res, next) => {
+  if (req.method === "POST" || req.method === "DELETE") {
+    return publicHeavyRateLimiter(req, res, next);
+  }
+  next();
+});
 
 router.get("/:leadId", (req, res) => {
   const { leadId } = req.params;

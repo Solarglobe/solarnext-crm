@@ -32,7 +32,7 @@ describe("PdfLegacyPort — méthodologie SolarGlobe", () => {
     const root = container.querySelector("#p-methodology-solarglobe");
     expect(root).toBeTruthy();
     const text = root?.textContent ?? "";
-    expect(text).toContain("Méthodologie de calcul SolarGlobe");
+    expect(text).toContain("Méthodologie de calcul");
     expect(text).toContain("Ce que notre étude prend en compte");
     expect(text).toContain("Logique générale de calcul");
     expect(text).toMatch(/Données d['’]entrée/);

@@ -25,6 +25,8 @@ export function inferDocumentCategory(documentType) {
       return ENTITY_DOCUMENT_CATEGORY.INVOICE;
     case "study_pdf":
       return ENTITY_DOCUMENT_CATEGORY.COMMERCIAL_PROPOSAL;
+    case "dp_pdf":
+      return ENTITY_DOCUMENT_CATEGORY.DP;
     case QUOTE_DOC_SIGNATURE_CLIENT:
     case QUOTE_DOC_SIGNATURE_COMPANY:
       return ENTITY_DOCUMENT_CATEGORY.ADMINISTRATIVE;
@@ -72,6 +74,7 @@ export function inferSourceType(documentType, row) {
     "invoice_pdf",
     "credit_note_pdf",
     "study_pdf",
+    "dp_pdf",
     QUOTE_DOC_SIGNATURE_CLIENT,
     QUOTE_DOC_SIGNATURE_COMPANY,
   ]);
@@ -86,7 +89,8 @@ export function visibilityForCategory(category) {
   return (
     category === ENTITY_DOCUMENT_CATEGORY.QUOTE ||
     category === ENTITY_DOCUMENT_CATEGORY.INVOICE ||
-    category === ENTITY_DOCUMENT_CATEGORY.COMMERCIAL_PROPOSAL
+    category === ENTITY_DOCUMENT_CATEGORY.COMMERCIAL_PROPOSAL ||
+    category === ENTITY_DOCUMENT_CATEGORY.DP
   );
 }
 
@@ -103,6 +107,7 @@ export function looksLikeTechnicalFileName(fileName) {
   if (/^doc[_-]?\d+\./i.test(base)) return true;
   if (/^temp[_-]/i.test(base)) return true;
   if (/solarnext-(devis|facture|study|devis-signe)/i.test(base)) return true;
+  if (/^devis-signe-/i.test(base)) return true;
   if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\./i.test(base)) return true;
   if (/^[a-z0-9_-]{20,}\.(pdf|png|csv|jpg|jpeg)$/i.test(base) && !/[àâäéèêëïîôùûç\s]/i.test(base)) {
     return true;
@@ -140,6 +145,14 @@ export function buildDisplayName(ctx) {
 
   if (category === ENTITY_DOCUMENT_CATEGORY.COMMERCIAL_PROPOSAL) {
     return "Proposition commerciale – Étude solaire";
+  }
+
+  if (category === ENTITY_DOCUMENT_CATEGORY.DP) {
+    if (!looksLikeTechnicalFileName(fileName)) {
+      const t = fileName != null ? String(fileName).trim() : "";
+      if (t) return t.replace(/\.[^.]+$/, "") || t;
+    }
+    return "Document DP";
   }
 
   if (category === ENTITY_DOCUMENT_CATEGORY.DP_MAIRIE) {

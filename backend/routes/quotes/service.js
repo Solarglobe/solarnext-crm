@@ -9,6 +9,7 @@ import { createAutoActivity } from "../../modules/activities/activity.service.js
 import { withTx } from "../../db/tx.js";
 import { assertOrgEntity, assertStatus } from "../../services/guards.service.js";
 import { getQuoteCatalogItemById } from "../../services/quoteCatalog.service.js";
+import { buildQuoteMarginKpi } from "../../services/quoteMarginReliability.service.js";
 import {
   buildQuoteItemSnapshotFromCatalogItem,
   recomputeAndPersistQuoteTotals,
@@ -25,6 +26,9 @@ import {
   buildFinancialQuoteRendererUrl,
   generatePdfFromFinancialQuoteUrl,
 } from "../../services/pdfGeneration.service.js";
+import { mergeOrganizationCgvPdfAppend } from "../../services/legalCgvPdfMerge.service.js";
+import { mergeQuoteLegalComplementaryPdfsAppend } from "../../services/legalComplementaryPdfMerge.service.js";
+import { assertQuoteLegalDocumentsConfiguredOrThrow } from "../../services/organizationLegalDocuments.service.js";
 import fs from "fs/promises";
 import {
   removeQuotePdfDocuments,
@@ -34,6 +38,7 @@ import {
   removeQuoteSignatureDocuments,
   removeQuoteSignedPdfDocuments,
   saveQuoteSignaturePng,
+  fetchQuoteSignatureReadAcceptances,
   saveQuoteSignedPdfDocument,
   QUOTE_DOC_SIGNATURE_CLIENT,
   QUOTE_DOC_SIGNATURE_COMPANY,
@@ -49,6 +54,16 @@ import {
 import { mergeQuoteOrgDocumentFieldsIntoPayload } from "../../services/quoteDocumentOrgSettings.service.js";
 import { buildQuotePdfPayloadFromSnapshot } from "../../services/financialDocumentPdfPayload.service.js";
 import { normalizeQuoteStatusInput } from "../../utils/financialDocumentStatus.js";
+import { logAuditEvent } from "../../services/audit/auditLog.service.js";
+import { AuditActions } from "../../services/audit/auditActions.js";
+import { assertOrgOwnership } from "../../services/security/assertOrgOwnership.js";
+import { getOrgDefaultVatRate, resolveLineVatRate } from "../../services/orgQuoteFinanceDefaults.service.js";
+import { SIGNATURE_READ_ACCEPTANCE_LABEL_FR } from "../../constants/signatureReadAcceptance.js";
+import {
+  buildQuoteSignedPdfFileName,
+  buildQuoteUnsignedPdfFileName,
+  resolveQuotePdfClientSlug,
+} from "../../services/quotePdfStorageName.js";
 
 /**
  * Acompte structuré (metadata_json.deposit). Met à jour deposit_percent pour compat (PERCENT uniquement).
@@ -253,10 +268,17 @@ export async function getQuoteDocumentViewModel(quoteId, organizationId) {
   const snap = parseOfficialQuoteSnapshotFromRow(quote);
   if (snap && typeof snap === "object") {
     try {
-      const payload = await mergeQuoteOrgDocumentFieldsIntoPayload(
+      let payload = await mergeQuoteOrgDocumentFieldsIntoPayload(
         buildQuotePdfPayloadFromSnapshot(snap),
         organizationId
       );
+      const st = String(quote.status || "").toUpperCase();
+      if (st === "ACCEPTED") {
+        const acc = await fetchQuoteSignatureReadAcceptances(organizationId, quoteId);
+        payload = { ...payload };
+        if (acc.client) payload.signature_client_read_acceptance = acc.client;
+        if (acc.company) payload.signature_company_read_acceptance = acc.company;
+      }
       return { mode: "official", payload, organizationId };
     } catch {
       /* snapshot corrompu — retomber sur live */
@@ -388,8 +410,9 @@ function buildQuoteLineSnapshotJsonForWrite(it) {
  * items: [{ label, description, quantity, unit_price_ht, tva_rate, line_source?, catalog_item_id? }]
  * Si pas de client : customer_snapshot (lead) enregistré dans metadata_json pour le PDF.
  * metadata optionnel : fusionné dans metadata_json (ex. study_import).
+ * @param {{ req?: import("express").Request; userId?: string | null }} [auditContext]
  */
-export async function createQuote(organizationId, body) {
+export async function createQuote(organizationId, body, auditContext = null) {
   const { client_id, lead_id, study_id, study_version_id, items = [], metadata } = body;
 
   const hasClient = client_id != null && String(client_id).trim() !== "";
@@ -411,6 +434,7 @@ export async function createQuote(organizationId, body) {
   const quoteNumber = draftQuoteNumber();
 
   return withTx(pool, async (client) => {
+    const defaultVat = await getOrgDefaultVatRate(client, organizationId);
     const clientIdVal = hasClient ? client_id : null;
     const leadIdVal = lead_id || null;
     const studyIdVal = study_id || null;
@@ -444,7 +468,7 @@ export async function createQuote(organizationId, body) {
       const it = items[i];
       const qty = Number(it.quantity) || 0;
       const up = Number(it.unit_price_ht) || 0;
-      const rate = Number(it.tva_rate) || 0;
+      const rate = resolveLineVatRate(it, defaultVat);
       const discHt = Number(it.discount_ht) || 0;
       const { total_line_ht: th, total_line_vat: tv, total_line_ttc: tt } = computeFinancialLineDbFields({
         quantity: qty,
@@ -480,13 +504,26 @@ export async function createQuote(organizationId, body) {
       );
     }
 
-    totalHt = Math.round(totalHt * 100) / 100;
-    totalTva = Math.round(totalTva * 100) / 100;
-    totalTtc = Math.round(totalTtc * 100) / 100;
+    totalHt = roundMoney2(totalHt);
+    totalTva = roundMoney2(totalTva);
+    totalTtc = roundMoney2(totalTtc);
+
+    const subtotals = { total_ht: totalHt, total_vat: totalTva, total_ttc: totalTtc };
+    let docDiscHt = 0;
+    const gPct = metadataJson?.global_discount_percent;
+    const gAmt = metadataJson?.global_discount_amount_ht;
+    const hasPct = gPct != null && gPct !== undefined && gPct !== "";
+    const hasAmtHt = gAmt != null && gAmt !== undefined && gAmt !== "";
+    if (hasPct || hasAmtHt) {
+      const pct = hasPct ? Math.max(0, Math.min(100, Number(gPct))) : 0;
+      const amtHt = hasAmtHt ? Math.max(0, roundMoney2(Number(gAmt))) : 0;
+      docDiscHt = roundMoney2(totalHt * (pct / 100) + amtHt);
+    }
+    const final = applyDocumentDiscountHt(subtotals, docDiscHt);
 
     await client.query(
-      `UPDATE quotes SET total_ht = $1, total_vat = $2, total_ttc = $3 WHERE id = $4`,
-      [totalHt, totalTva, totalTtc, quoteId]
+      `UPDATE quotes SET total_ht = $1, total_vat = $2, total_ttc = $3, discount_ht = $4, updated_at = now() WHERE id = $5`,
+      [final.total_ht, final.total_vat, final.total_ttc, final.applied_document_discount_ht, quoteId]
     );
 
     const [quoteRow] = (
@@ -502,7 +539,30 @@ export async function createQuote(organizationId, body) {
       )
     ).rows;
 
-    return { quote: quoteRow, items: itemsRows };
+    return {
+      quote: quoteRow,
+      items: itemsRows,
+      margin_kpi: buildQuoteMarginKpi(itemsRows),
+    };
+  }).then((data) => {
+    const q = data?.quote;
+    if (q?.id && auditContext) {
+      void logAuditEvent({
+        action: AuditActions.QUOTE_CREATED,
+        entityType: "quote",
+        entityId: q.id,
+        organizationId,
+        userId: auditContext.userId ?? null,
+        targetLabel: q.quote_number ?? undefined,
+        req: auditContext.req ?? undefined,
+        statusCode: 201,
+        metadata: {
+          lead_id: q.lead_id ?? undefined,
+          client_id: q.client_id ?? undefined,
+        },
+      });
+    }
+    return data;
   });
 }
 
@@ -521,6 +581,7 @@ export async function getQuoteById(quoteId, organizationId) {
   if (quoteRes.rows.length === 0) return null;
 
   const quote = quoteRes.rows[0];
+  assertOrgOwnership(quote.organization_id, organizationId);
   if (!quote.client_id && quote.metadata_json?.customer_snapshot) {
     const cs = quote.metadata_json.customer_snapshot;
     quote.first_name = quote.first_name ?? cs.first_name;
@@ -536,15 +597,21 @@ export async function getQuoteById(quoteId, organizationId) {
     [quoteId, organizationId]
   );
 
-  return { quote, items: itemsRes.rows };
+  return {
+    quote,
+    items: itemsRes.rows,
+    margin_kpi: buildQuoteMarginKpi(itemsRes.rows),
+  };
 }
 
 /**
  * Modifier devis (lignes + entête si brouillon / prêt à envoyer)
  * items: [{ label, description, quantity, unit_price_ht, tva_rate }]
+ * @param {{ req?: import("express").Request; userId?: string | null }} [auditContext]
  */
-export async function updateQuote(quoteId, organizationId, body) {
+export async function updateQuote(quoteId, organizationId, body, auditContext = null) {
   await withTx(pool, async (client) => {
+    const defaultVat = await getOrgDefaultVatRate(client, organizationId);
     const quoteRow = await assertOrgEntity(client, "quotes", quoteId, organizationId);
     if (!isQuoteEditable(quoteRow.status)) {
       throw new Error("Modification interdite : devis figé ou terminé");
@@ -561,6 +628,7 @@ export async function updateQuote(quoteId, organizationId, body) {
       study_version_id,
       discount_ht,
       global_discount_percent,
+      global_discount_amount_ht,
       validity_days,
       commercial_notes,
       technical_notes,
@@ -569,6 +637,7 @@ export async function updateQuote(quoteId, organizationId, body) {
       deposit,
       study_import,
       pdf_show_line_pricing,
+      legal_documents,
     } = body;
 
     if (validity_days !== undefined && body.valid_until === undefined) {
@@ -629,6 +698,7 @@ export async function updateQuote(quoteId, organizationId, body) {
 
     if (
       global_discount_percent !== undefined ||
+      global_discount_amount_ht !== undefined ||
       commercial_notes !== undefined ||
       technical_notes !== undefined ||
       payment_terms !== undefined ||
@@ -636,12 +706,16 @@ export async function updateQuote(quoteId, organizationId, body) {
       deposit !== undefined ||
       validity_days !== undefined ||
       study_import !== undefined ||
-      pdf_show_line_pricing !== undefined
+      pdf_show_line_pricing !== undefined ||
+      legal_documents !== undefined
     ) {
       const cur = await client.query("SELECT metadata_json FROM quotes WHERE id = $1", [quoteId]);
       const meta = { ...(cur.rows[0]?.metadata_json || {}) };
       if (global_discount_percent !== undefined) {
         meta.global_discount_percent = Math.max(0, Math.min(100, Number(global_discount_percent)));
+      }
+      if (global_discount_amount_ht !== undefined) {
+        meta.global_discount_amount_ht = Math.max(0, roundMoney2(Number(global_discount_amount_ht)));
       }
       if (commercial_notes !== undefined) meta.commercial_notes = commercial_notes;
       if (technical_notes !== undefined) meta.technical_notes = technical_notes;
@@ -663,6 +737,12 @@ export async function updateQuote(quoteId, organizationId, body) {
       }
       if (pdf_show_line_pricing !== undefined) {
         meta.pdf_show_line_pricing = Boolean(pdf_show_line_pricing);
+      }
+      if (legal_documents !== undefined) {
+        meta.legal_documents = {
+          include_rge: Boolean(legal_documents?.include_rge),
+          include_decennale: Boolean(legal_documents?.include_decennale),
+        };
       }
       await client.query(`UPDATE quotes SET metadata_json = $1::jsonb, updated_at = now() WHERE id = $2`, [
         JSON.stringify(meta),
@@ -687,7 +767,7 @@ export async function updateQuote(quoteId, organizationId, body) {
       const it = items[i];
       const qty = Number(it.quantity) || 0;
       const up = Number(it.unit_price_ht) || 0;
-      const rate = Number(it.tva_rate) || 0;
+      const rate = resolveLineVatRate(it, defaultVat);
       const { total_line_ht: th, total_line_vat: tv, total_line_ttc: tt } = computeFinancialLineDbFields({
         quantity: qty,
         unit_price_ht: up,
@@ -727,9 +807,14 @@ export async function updateQuote(quoteId, organizationId, body) {
 
     const subtotals = { total_ht: totalHt, total_vat: totalTva, total_ttc: totalTtc };
     let docDiscHt = 0;
-    if (global_discount_percent != null && global_discount_percent !== undefined && global_discount_percent !== "") {
-      const pct = Math.max(0, Math.min(100, Number(global_discount_percent)));
-      docDiscHt = roundMoney2(totalHt * (pct / 100));
+    const hasPct =
+      global_discount_percent != null && global_discount_percent !== undefined && global_discount_percent !== "";
+    const hasAmtHt =
+      global_discount_amount_ht != null && global_discount_amount_ht !== undefined && global_discount_amount_ht !== "";
+    if (hasPct || hasAmtHt) {
+      const pct = hasPct ? Math.max(0, Math.min(100, Number(global_discount_percent))) : 0;
+      const amtHt = hasAmtHt ? Math.max(0, roundMoney2(Number(global_discount_amount_ht))) : 0;
+      docDiscHt = roundMoney2(totalHt * (pct / 100) + amtHt);
     } else if (discount_ht !== undefined) {
       docDiscHt = Math.max(0, roundMoney2(Number(discount_ht)));
     }
@@ -740,7 +825,25 @@ export async function updateQuote(quoteId, organizationId, body) {
       [final.total_ht, final.total_vat, final.total_ttc, final.applied_document_discount_ht, quoteId]
     );
   });
-  return getQuoteById(quoteId, organizationId);
+  return getQuoteById(quoteId, organizationId).then((detail) => {
+    if (auditContext && detail?.quote) {
+      const keys = Object.keys(body || {}).filter((k) => body[k] !== undefined);
+      if (keys.length > 0) {
+        void logAuditEvent({
+          action: AuditActions.QUOTE_UPDATED,
+          entityType: "quote",
+          entityId: quoteId,
+          organizationId,
+          userId: auditContext.userId ?? null,
+          targetLabel: detail.quote.quote_number ?? undefined,
+          req: auditContext.req ?? undefined,
+          statusCode: 200,
+          metadata: { changed_fields: keys },
+        });
+      }
+    }
+    return detail;
+  });
 }
 
 /**
@@ -752,6 +855,13 @@ export async function patchQuoteStatus(quoteId, organizationId, newStatus, userI
   if (!normalized) {
     throw new Error("Statut invalide");
   }
+
+  const head = await pool.query(
+    `SELECT status, quote_number FROM quotes WHERE id = $1 AND organization_id = $2 AND (archived_at IS NULL)`,
+    [quoteId, organizationId]
+  );
+  const previous_status = head.rows[0]?.status ?? null;
+  const quote_number_label = head.rows[0]?.quote_number ?? null;
 
   return withTx(pool, async (client) => {
     await assertOrgEntity(client, "quotes", quoteId, organizationId);
@@ -887,6 +997,19 @@ export async function patchQuoteStatus(quoteId, organizationId, newStatus, userI
       }
     }
     return getQuoteDetail(qid, org);
+  }).then((detail) => {
+    void logAuditEvent({
+      action: AuditActions.QUOTE_STATUS_UPDATED,
+      entityType: "quote",
+      entityId: quoteId,
+      organizationId,
+      userId,
+      targetLabel: quote_number_label ?? undefined,
+      req: null,
+      statusCode: 200,
+      metadata: { previous_status, next_status: normalized },
+    });
+    return detail;
   });
 }
 
@@ -1004,7 +1127,11 @@ export async function duplicateQuote(quoteId, organizationId) {
  */
 async function buildOfficialQuotePdfBuffer(quoteId, organizationId) {
   const r = await pool.query(
-    "SELECT quote_number, document_snapshot_json, status FROM quotes WHERE id = $1 AND organization_id = $2 AND (archived_at IS NULL)",
+    `SELECT q.quote_number, q.document_snapshot_json, q.status,
+            l.last_name AS lead_last_name, l.full_name AS lead_full_name
+     FROM quotes q
+     LEFT JOIN leads l ON l.id = q.lead_id AND l.organization_id = q.organization_id
+     WHERE q.id = $1 AND q.organization_id = $2 AND (q.archived_at IS NULL)`,
     [quoteId, organizationId]
   );
   if (r.rows.length === 0) {
@@ -1022,19 +1149,24 @@ async function buildOfficialQuotePdfBuffer(quoteId, organizationId) {
     throw err;
   }
   const snapshot = typeof snapRaw === "string" ? JSON.parse(snapRaw) : snapRaw;
+  await assertQuoteLegalDocumentsConfiguredOrThrow(organizationId, snapshot.legal_documents);
   const pdfPayload = buildQuotePdfPayloadFromSnapshot(snapshot);
   const renderToken = createFinancialQuoteRenderToken(quoteId, organizationId);
   const rendererUrl = buildFinancialQuoteRendererUrl(quoteId, renderToken);
-  const pdfBuffer = await generatePdfFromFinancialQuoteUrl(rendererUrl);
+  let pdfBuffer = await generatePdfFromFinancialQuoteUrl(rendererUrl);
+  /* PDF devis (financialDocumentPdfKind.QUOTE) : fusion CGV org + annexes RGE/décennale du snapshot. */
+  pdfBuffer = await mergeOrganizationCgvPdfAppend(pdfBuffer, organizationId);
+  pdfBuffer = await mergeQuoteLegalComplementaryPdfsAppend(pdfBuffer, organizationId, snapshot.legal_documents);
   return { pdfBuffer, pdfPayload, row };
 }
 
 async function persistGeneratedQuotePdfOnQuote(pdfBuffer, pdfPayload, quoteId, organizationId, userId, row) {
-  const num = row.quote_number || quoteId;
+  const quotePdfClientSlug = resolveQuotePdfClientSlug(row.lead_last_name, row.lead_full_name);
   await removeQuotePdfDocuments(organizationId, quoteId);
   return saveQuotePdfDocument(pdfBuffer, organizationId, quoteId, userId, {
-    fileName: `devis-${num}.pdf`,
+    fileName: buildQuoteUnsignedPdfFileName(row.quote_number ?? null, quoteId, quotePdfClientSlug),
     quoteNumber: row.quote_number ?? null,
+    quotePdfClientSlug,
     metadata: {
       source: "document_snapshot_json",
       snapshot_checksum: pdfPayload.snapshot_checksum,
@@ -1044,27 +1176,220 @@ async function persistGeneratedQuotePdfOnQuote(pdfBuffer, pdfPayload, quoteId, o
 }
 
 /**
+ * Vérité documentaire unique pour un devis : PDF signé d’abord, puis non signé, puis régénération (selon intent).
+ * @param {'lead_document' | 'api_post_pdf'} intent — lead_document : copie vers lead ; api_post_pdf : POST /quotes/:id/pdf
+ * @returns {Promise<object>} — forme selon intent (voir implémentation)
+ */
+export async function getOfficialQuotePdf(quoteId, organizationId, userId, intent) {
+  const qr = await pool.query(
+    `SELECT status FROM quotes WHERE id = $1 AND organization_id = $2 AND (archived_at IS NULL)`,
+    [quoteId, organizationId]
+  );
+  if (qr.rows.length === 0) {
+    const err = new Error("Devis non trouvé");
+    err.statusCode = 404;
+    throw err;
+  }
+  const statusUpper = String(qr.rows[0].status || "").toUpperCase();
+  const isAccepted = statusUpper === "ACCEPTED";
+
+  const signedRes = await pool.query(
+    `SELECT id, file_name, storage_key FROM entity_documents
+     WHERE organization_id = $1 AND entity_type = 'quote' AND entity_id = $2
+       AND document_type = $3 AND (archived_at IS NULL)
+     ORDER BY created_at DESC
+     LIMIT 1`,
+    [organizationId, quoteId, QUOTE_DOC_PDF_SIGNED]
+  );
+  const unsignedRes = await pool.query(
+    `SELECT id, file_name, storage_key FROM entity_documents
+     WHERE organization_id = $1 AND entity_type = 'quote' AND entity_id = $2
+       AND document_type = 'quote_pdf' AND (archived_at IS NULL)
+     ORDER BY created_at DESC
+     LIMIT 1`,
+    [organizationId, quoteId]
+  );
+
+  const signedRow = signedRes.rows[0] ?? null;
+  const unsignedRow = unsignedRes.rows[0] ?? null;
+
+  if (intent === "lead_document") {
+    let pdfBuffer;
+    let reusedSigned = false;
+    let reusedUnsigned = false;
+    let sourceTag = "regenerated";
+
+    if (signedRow) {
+      pdfBuffer = await fs.readFile(getAbsolutePath(signedRow.storage_key));
+      reusedSigned = true;
+      sourceTag = "signed";
+    } else if (isAccepted) {
+      if (unsignedRow) {
+        pdfBuffer = await fs.readFile(getAbsolutePath(unsignedRow.storage_key));
+        reusedUnsigned = true;
+        sourceTag = "unsigned_fallback_accepted";
+      } else {
+        const err = new Error(
+          "Devis accepté : aucun PDF signé disponible pour ce devis — impossible d’ajouter aux documents."
+        );
+        err.statusCode = 400;
+        throw err;
+      }
+    } else if (unsignedRow) {
+      pdfBuffer = await fs.readFile(getAbsolutePath(unsignedRow.storage_key));
+      reusedUnsigned = true;
+      sourceTag = "unsigned";
+    } else {
+      const built = await buildOfficialQuotePdfBuffer(quoteId, organizationId);
+      await persistGeneratedQuotePdfOnQuote(
+        built.pdfBuffer,
+        built.pdfPayload,
+        quoteId,
+        organizationId,
+        userId,
+        built.row
+      );
+      pdfBuffer = built.pdfBuffer;
+      sourceTag = "regenerated";
+    }
+
+    return {
+      pdfBuffer,
+      leadCopyMeta: {
+        source: sourceTag,
+        reused_quote_signed_pdf_row: reusedSigned,
+        reused_quote_pdf_row: reusedUnsigned,
+      },
+    };
+  }
+
+  if (intent === "api_post_pdf") {
+    if (isAccepted) {
+      if (signedRow) {
+        return {
+          kind: "existing",
+          document: signedRow,
+          pdf_payload: null,
+          message: "PDF signé (version officielle pour un devis accepté).",
+        };
+      }
+      const err = new Error(
+        "Devis accepté : le PDF signé est introuvable. La régénération d’un PDF non signé n’est pas autorisée."
+      );
+      err.statusCode = 400;
+      throw err;
+    }
+    if (signedRow) {
+      return {
+        kind: "existing",
+        document: signedRow,
+        pdf_payload: null,
+        message: "PDF déjà enregistré (version signée disponible).",
+      };
+    }
+    if (unsignedRow) {
+      return {
+        kind: "existing",
+        document: unsignedRow,
+        pdf_payload: null,
+        message: "PDF déjà enregistré sur le devis.",
+      };
+    }
+    const built = await buildOfficialQuotePdfBuffer(quoteId, organizationId);
+    const doc = await persistGeneratedQuotePdfOnQuote(
+      built.pdfBuffer,
+      built.pdfPayload,
+      quoteId,
+      organizationId,
+      userId,
+      built.row
+    );
+    return {
+      kind: "generated",
+      document: doc,
+      pdf_payload: built.pdfPayload,
+      message: "PDF devis généré et enregistré (rendu client depuis le snapshot figé).",
+    };
+  }
+
+  const err = new Error("intent invalide pour getOfficialQuotePdf");
+  err.statusCode = 400;
+  throw err;
+}
+
+/**
  * Enregistre une entrée document PDF devis (rendu PDF Playwright + stockage quote).
  */
 export async function generateQuotePdfRecord(quoteId, organizationId, userId) {
-  const { pdfBuffer, pdfPayload, row } = await buildOfficialQuotePdfBuffer(quoteId, organizationId);
-  const doc = await persistGeneratedQuotePdfOnQuote(pdfBuffer, pdfPayload, quoteId, organizationId, userId, row);
+  const r = await getOfficialQuotePdf(quoteId, organizationId, userId, "api_post_pdf");
+  if (r.kind === "existing") {
+    return {
+      document: r.document,
+      pdf_payload: r.pdf_payload,
+      downloadUrl: `/api/documents/${r.document.id}/download`,
+      message: r.message,
+    };
+  }
+  const qn = (
+    await pool.query(`SELECT quote_number FROM quotes WHERE id = $1 AND organization_id = $2`, [
+      quoteId,
+      organizationId,
+    ])
+  ).rows[0]?.quote_number;
+  void logAuditEvent({
+    action: AuditActions.QUOTE_PDF_GENERATED,
+    entityType: "quote",
+    entityId: quoteId,
+    organizationId,
+    userId,
+    targetLabel: qn ?? undefined,
+    req: null,
+    statusCode: 201,
+    metadata: { source: "api_post_pdf" },
+  });
   return {
-    document: doc,
-    pdf_payload: pdfPayload,
-    downloadUrl: `/api/documents/${doc.id}/download`,
-    message: "PDF devis généré et enregistré (rendu client depuis le snapshot figé).",
+    document: r.document,
+    pdf_payload: r.pdf_payload,
+    downloadUrl: `/api/documents/${r.document.id}/download`,
+    message: r.message,
   };
 }
 
 /**
- * Enregistre le PDF devis sur entity_documents du lead (Documents > Devis), sans upload front.
- * Réutilise le PDF déjà stocké sur le quote ou régénère via le même pipeline que generateQuotePdfRecord.
- * @returns {{ alreadyExists: boolean, document: object }}
+ * Indique si un fichier PDF signé est déjà stocké sur l’entité quote (source prioritaire pour copie lead).
  */
-export async function addQuotePdfToDocuments(quoteId, organizationId, userId) {
+async function quoteEntityHasSignedPdf(organizationId, quoteId) {
+  const r = await pool.query(
+    `SELECT 1 FROM entity_documents
+     WHERE organization_id = $1 AND entity_type = 'quote' AND entity_id = $2
+       AND document_type = $3 AND (archived_at IS NULL)
+     LIMIT 1`,
+    [organizationId, quoteId, QUOTE_DOC_PDF_SIGNED]
+  );
+  return r.rows.length > 0;
+}
+
+/**
+ * Enregistre le PDF devis sur entity_documents du lead (Documents > Devis), sans upload front.
+ * Utilise {@link getOfficialQuotePdf} (intent `lead_document`) : pour un devis ACCEPTÉ, le PDF signé
+ * est la seule source officielle ; `quote_pdf` n’est utilisé qu’en secours si aucun signé n’existe.
+ *
+ * @param {object} [body]
+ * @param {boolean} [body.force_replace] — si un document existe déjà pour ce devis sur le lead, le supprimer puis recréer
+ * @returns {Promise<{ status: 'conflict', existing_document_id: string, is_signed: boolean, message: string } | { status: 'created'|'replaced', document: object }>}
+ */
+export async function addQuotePdfToDocuments(quoteId, organizationId, userId, body = {}) {
+  const forceReplace =
+    body?.force_replace === true ||
+    body?.forceReplace === true ||
+    body?.force_replace === "true" ||
+    body?.forceReplace === "true";
+
   const q = await pool.query(
-    `SELECT lead_id, quote_number FROM quotes WHERE id = $1 AND organization_id = $2 AND (archived_at IS NULL)`,
+    `SELECT q.lead_id, q.quote_number, l.last_name AS lead_last_name, l.full_name AS lead_full_name
+     FROM quotes q
+     LEFT JOIN leads l ON l.id = q.lead_id AND l.organization_id = q.organization_id
+     WHERE q.id = $1 AND q.organization_id = $2 AND (q.archived_at IS NULL)`,
     [quoteId, organizationId]
   );
   if (q.rows.length === 0) {
@@ -1072,7 +1397,8 @@ export async function addQuotePdfToDocuments(quoteId, organizationId, userId) {
     err.statusCode = 404;
     throw err;
   }
-  const { lead_id: leadId, quote_number: quoteNumber } = q.rows[0];
+  const { lead_id: leadId, quote_number: quoteNumber, lead_last_name, lead_full_name } = q.rows[0];
+  const quotePdfClientSlug = resolveQuotePdfClientSlug(lead_last_name, lead_full_name);
   if (!leadId) {
     const err = new Error("Rattachez un dossier lead à ce devis pour l’ajouter aux documents.");
     err.statusCode = 400;
@@ -1081,47 +1407,71 @@ export async function addQuotePdfToDocuments(quoteId, organizationId, userId) {
   await assertLeadInOrg(leadId, organizationId);
 
   const existingLead = await findExistingLeadQuotePdfForQuote(organizationId, leadId, quoteId);
+  let replacedPreviousDocumentId = null;
+
   if (existingLead) {
-    return { alreadyExists: true, document: addDocumentApiAliases(existingLead) };
+    if (!forceReplace) {
+      const is_signed = await quoteEntityHasSignedPdf(organizationId, quoteId);
+      return {
+        status: "conflict",
+        existing_document_id: existingLead.id,
+        is_signed,
+        message: "Document déjà existant",
+      };
+    }
+    replacedPreviousDocumentId = existingLead.id;
+    await deleteDocument(existingLead.id, organizationId);
   }
 
-  const quoteDocRes = await pool.query(
-    `SELECT storage_key FROM entity_documents
-     WHERE organization_id = $1 AND entity_type = 'quote' AND entity_id = $2
-       AND document_type = 'quote_pdf' AND (archived_at IS NULL)
-     ORDER BY created_at DESC
-     LIMIT 1`,
-    [organizationId, quoteId]
-  );
+  const resolved = await getOfficialQuotePdf(quoteId, organizationId, userId, "lead_document");
+  const { pdfBuffer, leadCopyMeta } = resolved;
 
-  let pdfBuffer;
-  const sk = quoteDocRes.rows[0]?.storage_key;
-  if (sk) {
-    pdfBuffer = await fs.readFile(getAbsolutePath(sk));
-  } else {
-    const built = await buildOfficialQuotePdfBuffer(quoteId, organizationId);
-    await persistGeneratedQuotePdfOnQuote(
-      built.pdfBuffer,
-      built.pdfPayload,
-      quoteId,
-      organizationId,
-      userId,
-      built.row
-    );
-    pdfBuffer = built.pdfBuffer;
-  }
+  const leadFileName =
+    leadCopyMeta.source === "signed"
+      ? buildQuoteSignedPdfFileName(quoteNumber ?? null, quoteId, quotePdfClientSlug)
+      : buildQuoteUnsignedPdfFileName(quoteNumber ?? null, quoteId, quotePdfClientSlug);
+  const replaceMeta =
+    replacedPreviousDocumentId != null
+      ? {
+          replaced_at: new Date().toISOString(),
+          replaced_previous_document_id: String(replacedPreviousDocumentId),
+        }
+      : {};
 
-  const num = quoteNumber || quoteId;
   const leadDoc = await saveQuotePdfOnLeadDocument(pdfBuffer, organizationId, leadId, quoteId, userId, {
     quoteNumber: quoteNumber ?? null,
-    fileName: `devis-${num}.pdf`,
+    quotePdfClientSlug,
+    fileName: leadFileName,
     metadata: {
       source: "add_to_lead_documents",
-      reused_quote_pdf_row: Boolean(sk),
+      reused_quote_signed_pdf_row: leadCopyMeta.reused_quote_signed_pdf_row,
+      reused_quote_pdf_row: leadCopyMeta.reused_quote_pdf_row,
+      official_pdf_source: leadCopyMeta.source,
+      ...replaceMeta,
     },
   });
 
-  return { alreadyExists: false, document: addDocumentApiAliases(leadDoc) };
+  const out = {
+    status: replacedPreviousDocumentId != null ? "replaced" : "created",
+    document: addDocumentApiAliases(leadDoc),
+  };
+  void logAuditEvent({
+    action:
+      out.status === "replaced" ? AuditActions.DOCUMENT_REPLACED : AuditActions.DOCUMENT_ATTACHED,
+    entityType: "document",
+    entityId: leadDoc?.id ?? null,
+    organizationId,
+    userId,
+    targetLabel: quoteNumber ? String(quoteNumber) : String(quoteId),
+    req: null,
+    statusCode: 200,
+    metadata: {
+      quote_id: quoteId,
+      lead_id: leadId,
+      outcome: out.status,
+    },
+  });
+  return out;
 }
 
 const MAX_SIGNATURE_PNG_BYTES = 900000;
@@ -1135,6 +1485,22 @@ export function assertFinalizeSignedClientReadApproval(body) {
   if (approved !== true && approved !== "true") {
     const err = new Error(
       "Attestation « Bon pour accord » requise : le client doit avoir lu et approuvé le devis (client_read_approved: true)."
+    );
+    err.statusCode = 400;
+    throw err;
+  }
+}
+
+/**
+ * Attestation dans le pad de signature (lu et accepté) — obligatoire pour client et entreprise.
+ * @param {object|undefined} block
+ * @param {string} label — message d’erreur
+ */
+export function assertSignaturePadReadAcceptance(block, label) {
+  const ok = block && (block.accepted === true || block.accepted === "true");
+  if (!ok) {
+    const err = new Error(
+      `${label} : cochez la case attestant avoir lu et accepté le document dans la fenêtre de signature.`
     );
     err.statusCode = 400;
     throw err;
@@ -1159,6 +1525,8 @@ function parsePngDataUrl(dataUrl) {
  */
 export async function finalizeQuoteSigned(quoteId, organizationId, userId, body = {}) {
   assertFinalizeSignedClientReadApproval(body);
+  assertSignaturePadReadAcceptance(body.signature_client_acceptance, "Signature client");
+  assertSignaturePadReadAcceptance(body.signature_company_acceptance, "Signature entreprise");
 
   const clientBuf = parsePngDataUrl(body.signature_client_data_url);
   const companyBuf = parsePngDataUrl(body.signature_company_data_url);
@@ -1244,8 +1612,11 @@ export async function finalizeQuoteSigned(quoteId, organizationId, userId, body 
   });
 
   const r = await pool.query(
-    `SELECT id, status, quote_number, document_snapshot_json FROM quotes
-     WHERE id = $1 AND organization_id = $2 AND (archived_at IS NULL)`,
+    `SELECT q.id, q.status, q.quote_number, q.document_snapshot_json,
+            l.last_name AS lead_last_name, l.full_name AS lead_full_name
+     FROM quotes q
+     LEFT JOIN leads l ON l.id = q.lead_id AND l.organization_id = q.organization_id
+     WHERE q.id = $1 AND q.organization_id = $2 AND (q.archived_at IS NULL)`,
     [quoteId, organizationId]
   );
   if (r.rows.length === 0) {
@@ -1254,6 +1625,7 @@ export async function finalizeQuoteSigned(quoteId, organizationId, userId, body 
     throw err;
   }
   const row = r.rows[0];
+  const quotePdfClientSlug = resolveQuotePdfClientSlug(row.lead_last_name, row.lead_full_name);
   const snapRaw = row.document_snapshot_json;
   if (snapRaw == null || (typeof snapRaw === "object" && snapRaw !== null && Object.keys(snapRaw).length === 0)) {
     const err = new Error("Document non figé après finalisation — contactez le support.");
@@ -1262,8 +1634,26 @@ export async function finalizeQuoteSigned(quoteId, organizationId, userId, body 
   }
 
   await removeQuoteSignatureDocuments(organizationId, quoteId);
-  await saveQuoteSignaturePng(clientBuf, organizationId, quoteId, userId, QUOTE_DOC_SIGNATURE_CLIENT);
-  await saveQuoteSignaturePng(companyBuf, organizationId, quoteId, userId, QUOTE_DOC_SIGNATURE_COMPANY);
+  const acceptancePayload = {
+    accepted: true,
+    acceptedLabel: SIGNATURE_READ_ACCEPTANCE_LABEL_FR,
+  };
+  await saveQuoteSignaturePng(
+    clientBuf,
+    organizationId,
+    quoteId,
+    userId,
+    QUOTE_DOC_SIGNATURE_CLIENT,
+    acceptancePayload
+  );
+  await saveQuoteSignaturePng(
+    companyBuf,
+    organizationId,
+    quoteId,
+    userId,
+    QUOTE_DOC_SIGNATURE_COMPANY,
+    acceptancePayload
+  );
 
   const snapshot = typeof snapRaw === "string" ? JSON.parse(snapRaw) : snapRaw;
   let pdfPayload;
@@ -1275,24 +1665,29 @@ export async function finalizeQuoteSigned(quoteId, organizationId, userId, body 
     throw err;
   }
 
+  await assertQuoteLegalDocumentsConfiguredOrThrow(organizationId, snapshot.legal_documents);
+
   const renderToken = createFinancialQuoteRenderToken(quoteId, organizationId);
   const rendererUrl = buildFinancialQuoteRendererUrl(quoteId, renderToken, { quoteSigned: true });
   let pdfBuffer;
   try {
     pdfBuffer = await generatePdfFromFinancialQuoteUrl(rendererUrl);
+    /* PDF devis signé (QUOTE) : même annexes légales que le devis non signé. */
+    pdfBuffer = await mergeOrganizationCgvPdfAppend(pdfBuffer, organizationId);
+    pdfBuffer = await mergeQuoteLegalComplementaryPdfsAppend(pdfBuffer, organizationId, snapshot.legal_documents);
   } catch (e) {
     const err = new Error(e.message || "Échec de la génération du PDF signé");
     err.statusCode = 502;
     throw err;
   }
 
-  const num = row.quote_number || quoteId;
   let docRow = null;
   try {
     await removeQuoteSignedPdfDocuments(organizationId, quoteId);
     docRow = await saveQuoteSignedPdfDocument(pdfBuffer, organizationId, quoteId, userId, {
-      fileName: `devis-signe-${num}.pdf`,
+      fileName: buildQuoteSignedPdfFileName(row.quote_number ?? null, quoteId, quotePdfClientSlug),
       quoteNumber: row.quote_number ?? null,
+      quotePdfClientSlug,
       metadata: {
         source: "document_snapshot_json_signed",
         snapshot_checksum: pdfPayload.snapshot_checksum,

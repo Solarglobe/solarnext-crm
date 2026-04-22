@@ -12,6 +12,16 @@
     <div class="dp-page-actions"></div>
   </div>
 
+  <div class="dp-doc-version-strip">
+    <div class="dp-doc-version" id="dp4-doc-version" data-dp-doc-version="dp4">
+      <button type="button" class="dp-doc-version__trigger" id="dp4-doc-version-trigger" aria-expanded="false" aria-haspopup="menu" aria-controls="dp4-doc-version-menu">
+        <span class="dp-doc-version__label" id="dp4-doc-version-label">Version 1</span>
+        <span class="dp-doc-version__chevron" aria-hidden="true">▾</span>
+      </button>
+      <div class="dp-doc-version__dropdown" id="dp4-doc-version-menu" hidden role="menu" aria-label="Versions du document"></div>
+    </div>
+  </div>
+
   <hr class="dp-sep" />
 
   <div class="dp-hint" id="dp4-hint">
@@ -87,79 +97,70 @@
       <button class="dp-modal-close" type="button" aria-label="Fermer">✕</button>
     </div>
 
-    <!-- Body -->
+    <!-- Body (structure identique DP2 — rail + carte) -->
     <div class="dp-modal-body">
-      <!-- Colonne gauche (paramètres DP4) — copie stricte DP2 + 1 champ "Type de toit" -->
-      <aside class="dp-map-help" id="dp4-settings-panel">
-        <h3>Paramètres du plan</h3>
-
-        <div class="dp-hint" style="margin-top: 10px;">
-          <span id="dp4-scale">Échelle : —</span>
-          <div class="dp2-field" style="margin-top: 10px;">
-            <label class="dp2-label">Hauteur de vue</label>
+      <aside class="dp-map-help dp2-settings-rail" id="dp4-settings-panel">
+        <section class="card dp2-settings-card" aria-labelledby="dp4-heading-plan-params">
+          <h3 class="dp2-card-heading" id="dp4-heading-plan-params">Paramètres du plan</h3>
+          <p class="dp2-scale-line">
+            <span id="dp4-scale">Échelle : —</span>
+          </p>
+          <div class="dp2-field">
+            <label class="dp2-label" for="dp4-photo-category">Catégorie</label>
+            <select id="dp4-photo-category" class="dp2-select">
+              <option value="">— Sélectionner —</option>
+              <option value="before">Avant travaux</option>
+              <option value="after">Après travaux</option>
+            </select>
+          </div>
+          <div class="dp2-field">
+            <div class="dp2-label">Hauteur de vue</div>
             <div class="dp2-panel-readonly">
               <span id="dp4-view-height">Hauteur de vue : —</span>
             </div>
           </div>
-        </div>
+        </section>
 
-        <!-- Catégorie photo -->
-        <div class="dp2-field" style="margin-top: 14px;">
-          <label class="dp2-label">Catégorie</label>
-          <select id="dp4-photo-category" class="dp2-select">
-            <option value="">— Sélectionner —</option>
-            <option value="before">Avant travaux</option>
-            <option value="after">Après travaux</option>
-          </select>
-        </div>
-
-        <hr />
-
-        <!-- Modules PV -->
-        <div class="dp2-field">
-          <label class="dp2-label">Module photovoltaïque</label>
-          <select id="dp4-panel-select" class="dp2-select">
-            <option value="">— Sélectionner un module —</option>
-            <option value="longi_x10_artist">LONGi Hi-MO X10 Artist — 485 W</option>
-            <option value="longi_x10_explorer">LONGi Hi-MO X10 Explorer — 485 W</option>
-          </select>
-        </div>
-
-        <div class="dp2-panel-readonly">
-          <div><strong>Fabricant :</strong> <span id="dp4-panel-manufacturer">—</span></div>
-          <div><strong>Référence :</strong> <span id="dp4-panel-reference">—</span></div>
-          <div><strong>Puissance :</strong> <span id="dp4-panel-power">—</span></div>
-          <div><strong>Dimensions :</strong> <span id="dp4-panel-dimensions">—</span></div>
-        </div>
-
-        <hr />
-
-        <!-- DP4 UNIQUEMENT : type de toit (graphique uniquement) -->
-        <div class="dp2-field">
-          <label class="dp2-label">Type de toit</label>
-          <select id="dp4-roof-type" class="dp2-select">
-            <option value="">— Sélectionner —</option>
-            <option value="tuile">tuile</option>
-            <option value="ardoise">ardoise</option>
-            <option value="bac_acier">Bac acier</option>
-            <option value="autre">autre</option>
-          </select>
-        </div>
-
-        <hr />
-
-        <!-- Légende (lecture seule) : reflète exactement la légende PDF DP2 -->
-        <div class="dp2-field dp2-legend-field">
-          <div class="dp2-label">Légende</div>
-          <div id="dp4-legend-empty" class="dp2-legend-empty" hidden>
-            Aucun objet métier sur le plan.
+        <section class="card dp2-settings-card" aria-labelledby="dp4-heading-pv-module">
+          <h3 class="dp2-card-heading" id="dp4-heading-pv-module">Module photovoltaïque</h3>
+          <div class="dp2-field">
+            <label class="dp2-label" for="dp4-panel-select">Module</label>
+            <select id="dp4-panel-select" class="dp2-select">
+              <option value="">— Sélectionner un module —</option>
+            </select>
           </div>
-          <div id="dp4-legend-list" class="dp2-legend-list" aria-label="Légende du plan"></div>
-        </div>
+        </section>
+
+        <section class="card dp2-settings-card" aria-labelledby="dp4-heading-roof-type">
+          <h3 class="dp2-card-heading" id="dp4-heading-roof-type">Type de toit</h3>
+          <div class="dp2-field">
+            <label class="dp2-label" for="dp4-roof-type">Type</label>
+            <select id="dp4-roof-type" class="dp2-select">
+              <option value="">— Sélectionner —</option>
+              <option value="tuile">tuile</option>
+              <option value="ardoise">ardoise</option>
+              <option value="bac_acier">Bac acier</option>
+              <option value="autre">autre</option>
+            </select>
+          </div>
+        </section>
+
+        <section class="card dp2-settings-card" aria-labelledby="dp4-heading-legend">
+          <h3 class="dp2-card-heading" id="dp4-heading-legend">Légende</h3>
+          <div class="dp2-field dp2-legend-field">
+            <div id="dp4-legend-empty" class="dp2-legend-empty" hidden>
+              Aucun objet métier sur le plan.
+            </div>
+            <div id="dp4-legend-list" class="dp2-legend-list" aria-label="Légende du plan"></div>
+          </div>
+        </section>
       </aside>
 
-      <div class="dp-map-pane">
-        <div class="dp-map-canvas">
+      <div class="dp-map-canvas">
+        <div class="dp4-map-ol-wrap">
+          <div id="dp4-cursor-hint" class="dp4-cursor-hint" aria-hidden="true" hidden>
+            <span class="dp4-cursor-hint-pulse"></span>
+          </div>
           <div id="dp4-ign-map" class="dp-map"></div>
         </div>
       </div>

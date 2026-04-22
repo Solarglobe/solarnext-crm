@@ -20,31 +20,34 @@ const worldContract = {
 };
 
 /** Deux versants qui se rejoignent sur l’arête x=100 (faîtage), h explicites cohérentes. */
+const twoSlopeRoofPans = [
+  {
+    id: "west",
+    points: [
+      { x: 0, y: 0, h: 5 },
+      { x: 100, y: 0, h: 8 },
+      { x: 100, y: 120, h: 8 },
+      { x: 0, y: 120, h: 5 },
+    ],
+  },
+  {
+    id: "east",
+    points: [
+      { x: 100, y: 0, h: 8 },
+      { x: 200, y: 0, h: 5 },
+      { x: 200, y: 120, h: 5 },
+      { x: 100, y: 120, h: 8 },
+    ],
+  },
+];
+
 const twoSlopeRuntime = {
+  pans: twoSlopeRoofPans,
   roof: {
     scale: { metersPerPixel: 0.01 },
     roof: { north: { angleDeg: 0 } },
     canonical3DWorldContract: worldContract,
-    roofPans: [
-      {
-        id: "west",
-        points: [
-          { x: 0, y: 0, h: 5 },
-          { x: 100, y: 0, h: 8 },
-          { x: 100, y: 120, h: 8 },
-          { x: 0, y: 120, h: 5 },
-        ],
-      },
-      {
-        id: "east",
-        points: [
-          { x: 100, y: 0, h: 8 },
-          { x: 200, y: 0, h: 5 },
-          { x: 200, y: 120, h: 5 },
-          { x: 100, y: 120, h: 8 },
-        ],
-      },
-    ],
+    roofPans: twoSlopeRoofPans,
   },
 };
 

@@ -9,39 +9,12 @@ import { pool } from "../../config/db.js";
 import { withTx } from "../../db/tx.js";
 import { assertOrgEntity } from "../../services/guards.service.js";
 import { getUserPermissions } from "../../rbac/rbac.service.js";
+import { logAuditEvent } from "../../services/audit/auditLog.service.js";
+import { AuditActions } from "../../services/audit/auditActions.js";
+import { createClientAndLinkLead } from "../../services/leadClientConversion.service.js";
 
 const orgId = (req) => req.user.organizationId ?? req.user.organization_id;
 const userId = (req) => req.user.userId ?? req.user.id;
-
-/**
- * Génère le prochain client_number au format SG-{YYYY}-{NNNN} pour l'organisation
- */
-async function generateClientNumber(client, organizationId) {
-  const year = new Date().getFullYear();
-  const prefix = `SG-${year}-`;
-  const result = await client.query(
-    `SELECT client_number FROM clients
-     WHERE organization_id = $1 AND client_number LIKE $2
-     ORDER BY client_number DESC LIMIT 1`,
-    [organizationId, prefix + "%"]
-  );
-  let nextSeq = 1;
-  if (result.rows.length > 0) {
-    const last = result.rows[0].client_number;
-    const match = last.match(new RegExp(`^SG-${year}-(\\d+)$`));
-    if (match) nextSeq = parseInt(match[1], 10) + 1;
-  }
-  return `${prefix}${String(nextSeq).padStart(4, "0")}`;
-}
-
-/** Téléphone client : mobile prioritaire, sinon ligne legacy `phone`. */
-function resolveLeadPhoneForClient(lead) {
-  const mobile = lead.phone_mobile != null ? String(lead.phone_mobile).trim() : "";
-  if (mobile) return mobile;
-  const legacy = lead.phone != null ? String(lead.phone).trim() : "";
-  if (legacy) return legacy;
-  return null;
-}
 
 export async function convertLead(req, res) {
   try {
@@ -51,76 +24,36 @@ export async function convertLead(req, res) {
 
     const perms = await getUserPermissions({
       userId: uid,
-      organizationId: org
+      organizationId: org,
     });
     const canUpdateAll = perms.has("lead.update.all");
     const canUpdateSelf = perms.has("lead.update.self");
 
     const { client, lead: updatedLead } = await withTx(pool, async (dbClient) => {
-      const leadRow = await assertOrgEntity(dbClient, "leads", leadId, org);
-      const effectiveOwner =
-        leadRow.assigned_salesperson_user_id ?? leadRow.assigned_to;
+      await assertOrgEntity(dbClient, "leads", leadId, org);
+      const leadFullRes = await dbClient.query(
+        `SELECT * FROM leads WHERE id = $1 AND organization_id = $2 AND (archived_at IS NULL)`,
+        [leadId, org]
+      );
+      const lead = leadFullRes.rows[0];
+      if (!lead) {
+        const err = new Error("Lead non trouvé");
+        err.statusCode = 404;
+        throw err;
+      }
+      const effectiveOwner = lead.assigned_user_id;
       if (canUpdateSelf && !canUpdateAll && effectiveOwner !== uid) {
         const err = new Error("Lead non trouvé");
         err.statusCode = 404;
         throw err;
       }
-      if (leadRow.client_id) {
+      if (lead.client_id) {
         const err = new Error("Lead déjà converti en client");
         err.statusCode = 400;
         throw err;
       }
 
-      const lead = leadRow;
-
-      const clientNumber = await generateClientNumber(dbClient, org);
-
-      // PRO : company_name = nom entreprise, first_name/last_name = contact physique
-      // PERSON : company_name vide, first_name/last_name = personne
-      const isPro = (lead.customer_type ?? "PERSON") === "PRO";
-      const clientFirstName = isPro
-        ? (lead.contact_first_name ?? null)
-        : (lead.first_name ?? null);
-      const clientLastName = isPro
-        ? (lead.contact_last_name ?? null)
-        : (lead.last_name ?? null);
-      const clientCompanyName = isPro ? (lead.company_name ?? null) : null;
-
-      const resolvedPhone = resolveLeadPhoneForClient(lead);
-
-      const clientResult = await dbClient.query(
-        `INSERT INTO clients (
-          organization_id,
-          client_number,
-          company_name,
-          first_name,
-          last_name,
-          email,
-          phone,
-          siret,
-          created_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now())
-        RETURNING *`,
-        [
-          lead.organization_id,
-          clientNumber,
-          clientCompanyName,
-          clientFirstName,
-          clientLastName,
-          lead.email ?? null,
-          resolvedPhone,
-          lead.siret ?? null
-        ]
-      );
-      const newClient = clientResult.rows[0];
-      const clientId = newClient.id;
-
-      await dbClient.query(
-        `UPDATE leads
-         SET status = 'CLIENT', client_id = $1, updated_at = now()
-         WHERE id = $2 AND organization_id = $3`,
-        [clientId, leadId, org]
-      );
+      const { client: newClient } = await createClientAndLinkLead(dbClient, lead, org, {});
 
       await dbClient.query(
         `INSERT INTO lead_stage_history (
@@ -142,13 +75,28 @@ export async function convertLead(req, res) {
 
       return {
         client: newClient,
-        lead: updatedLeadResult.rows[0]
+        lead: updatedLeadResult.rows[0],
       };
+    });
+
+    void logAuditEvent({
+      action: AuditActions.LEAD_CONVERTED_TO_CLIENT,
+      entityType: "lead",
+      entityId: leadId,
+      organizationId: org,
+      userId: uid,
+      targetLabel: updatedLead?.full_name || client?.email || undefined,
+      req,
+      statusCode: 200,
+      metadata: {
+        client_id: client?.id,
+        client_number: client?.client_number,
+      },
     });
 
     res.json({
       client,
-      lead: updatedLead
+      lead: updatedLead,
     });
   } catch (e) {
     const code = e.statusCode || 500;

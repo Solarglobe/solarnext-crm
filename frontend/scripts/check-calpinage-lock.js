@@ -7,7 +7,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const lockPath = path.join(__dirname, '..', 'public', 'calpinage', 'CALPINAGE_VERSION_LOCK.json');
+const lockPath = path.join(__dirname, '..', '..', 'backend', 'calpinage-legacy-assets', 'CALPINAGE_VERSION_LOCK.json');
 
 if (!fs.existsSync(lockPath)) {
   console.error('❌ CALPINAGE_VERSION_LOCK.json absent:', lockPath);

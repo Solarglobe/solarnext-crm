@@ -1,9 +1,10 @@
 /**
  * CP-032 — Routes Documents (Stockage Local VPS)
  * CP-032C — withTx, assertOrgEntity (archived → 404)
+ * GET /api/documents — liste globale organisation (Document Center, query search|type|limit|offset)
  * POST /api/documents — upload
  * GET /api/documents/:id/download — téléchargement sécurisé
- * GET /api/documents/:entityType/:entityId — liste
+ * GET /api/documents/:entityType/:entityId — liste par entité
  * DELETE /api/documents/:id — suppression physique + DB (transaction)
  */
 
@@ -16,13 +17,14 @@ import {
   uploadFile as localStorageUpload,
   getAbsolutePath
 } from "../services/localStorage.service.js";
-import { deleteDocument, patchEntityDocument } from "../services/documents.service.js";
+import { deleteDocument, listOrganizationDocuments, patchEntityDocument } from "../services/documents.service.js";
 import { deleteFile as localStorageDelete } from "../services/localStorage.service.js";
 import { archiveEntity, restoreEntity } from "../services/archive.service.js";
 import {
   addDocumentApiAliases,
   resolveManualUploadDocumentMeta,
 } from "../services/documentMetadata.service.js";
+import { sensitiveUserRateLimiter } from "../middleware/security/rateLimit.presets.js";
 
 const router = express.Router();
 const orgId = (req) => req.user.organizationId ?? req.user.organization_id;
@@ -84,6 +86,64 @@ async function assertEntityInOrg(entityType, entityId, organizationId) {
 const DOC_PERMS = ["client.read.all", "lead.read.all", "study.manage", "quote.manage", "org.settings.manage"];
 
 /**
+ * GET /api/documents — Liste globale organisation (Document Center), paginée.
+ * Query: search, type (all|quote|invoice|study|dp|admin|other), limit, offset
+ * Doit rester déclaré AVANT /:id/download et /:entityType/:entityId.
+ */
+router.get("/", verifyJWT, requireAnyPermission(DOC_PERMS), async (req, res) => {
+  try {
+    const org = orgId(req);
+    if (!org) {
+      return res.status(403).json({ error: "FORBIDDEN", code: "INVALID_ORG" });
+    }
+    const search = typeof req.query.search === "string" ? req.query.search : "";
+    const type = typeof req.query.type === "string" ? req.query.type : "all";
+    const limit = req.query.limit != null ? Number(req.query.limit) : undefined;
+    const offset = req.query.offset != null ? Number(req.query.offset) : undefined;
+
+    const listResult = await listOrganizationDocuments({
+      organizationId: org,
+      search,
+      type,
+      limit,
+      offset,
+    });
+    const rows = listResult.rows ?? [];
+    const total = typeof listResult.total === "number" ? listResult.total : 0;
+    const listOk = listResult.success !== false;
+
+    const lim = Math.min(Math.max(Number(limit) || 50, 1), 100);
+    const off = Math.max(Number(offset) || 0, 0);
+
+    const documents = rows.map((row) => {
+      const base = addDocumentApiAliases(row);
+      return {
+        ...base,
+        entity_type: row.entity_type,
+        entity_id: row.entity_id,
+        lead_id: row.lead_id ?? null,
+        lead_name: row.lead_name ?? null,
+        client_name: row.client_name ?? null,
+        download_url: `/api/documents/${row.id}/download`,
+        updated_at: null,
+        is_visible_to_client: row.is_client_visible === true,
+      };
+    });
+
+    res.json({
+      success: listOk,
+      documents,
+      total,
+      limit: lim,
+      offset: off,
+    });
+  } catch (e) {
+    console.error("GET /api/documents (liste org):", e);
+    res.status(500).json({ error: e.message || "DOCUMENTS_LIST_ERROR" });
+  }
+});
+
+/**
  * GET /api/documents/:id/download — Téléchargement sécurisé via API
  * Pas d'accès direct aux fichiers
  */
@@ -131,6 +191,7 @@ router.post(
   "/",
   verifyJWT,
   requireAnyPermission(DOC_PERMS),
+  sensitiveUserRateLimiter,
   upload.single("file"),
   async (req, res) => {
     try {
@@ -161,7 +222,11 @@ router.post(
         "lead_attachment",
         "study_attachment",
         "study_pdf",
-        "organization_pdf_cover"
+        "organization_pdf_cover",
+        "organization_legal_cgv",
+        "organization_legal_rge",
+        "organization_legal_decennale",
+        "dp_pdf"
       ];
       let documentType = (req.body.document_type || "").trim() || null;
       if (documentType && !allowedDocumentTypes.includes(documentType)) {
@@ -171,22 +236,63 @@ router.post(
       if (!documentType && (entityType === "lead" || entityType === "study") && originalName.toLowerCase().endsWith(".csv")) {
         documentType = "consumption_csv";
       }
-      // Pour organization : document_type doit être organization_pdf_cover (image couverture PDF)
+      const orgSinglePdfTypes = [
+        "organization_legal_cgv",
+        "organization_legal_rge",
+        "organization_legal_decennale",
+      ];
+      // Pour organization : couverture PDF (image) ou documents légaux (PDF)
       if (entityType === "organization") {
-        if (documentType !== "organization_pdf_cover") {
-          return res.status(400).json({ error: "Pour une organisation, document_type doit être organization_pdf_cover" });
+        const orgAllowed =
+          documentType === "organization_pdf_cover" || orgSinglePdfTypes.includes(documentType);
+        if (!orgAllowed) {
+          return res.status(400).json({
+            error:
+              "Pour une organisation, document_type doit être organization_pdf_cover, organization_legal_cgv, organization_legal_rge ou organization_legal_decennale",
+          });
         }
-        // Supprimer l'ancienne image de couverture si elle existe (une seule par org)
-        const old = await pool.query(
-          `SELECT id, storage_key FROM entity_documents
-           WHERE organization_id = $1 AND entity_type = 'organization' AND document_type = 'organization_pdf_cover' AND (archived_at IS NULL)`,
-          [org]
-        );
-        for (const row of old.rows) {
-          try {
-            await localStorageDelete(row.storage_key);
-          } catch (_) {}
-          await pool.query("DELETE FROM entity_documents WHERE id = $1", [row.id]);
+        if (documentType === "organization_pdf_cover") {
+          const old = await pool.query(
+            `SELECT id, storage_key FROM entity_documents
+             WHERE organization_id = $1 AND entity_type = 'organization' AND document_type = 'organization_pdf_cover' AND (archived_at IS NULL)`,
+            [org]
+          );
+          for (const row of old.rows) {
+            try {
+              await localStorageDelete(row.storage_key);
+            } catch (_) {}
+            await pool.query("DELETE FROM entity_documents WHERE id = $1", [row.id]);
+          }
+        } else if (documentType === "organization_legal_cgv") {
+          if (!String(req.file.mimetype || "").toLowerCase().includes("pdf")) {
+            return res.status(400).json({ error: "Le fichier CGV doit être un PDF" });
+          }
+          const oldCgv = await pool.query(
+            `SELECT id, storage_key FROM entity_documents
+             WHERE organization_id = $1 AND entity_type = 'organization' AND document_type = 'organization_legal_cgv' AND (archived_at IS NULL)`,
+            [org]
+          );
+          for (const row of oldCgv.rows) {
+            try {
+              await localStorageDelete(row.storage_key);
+            } catch (_) {}
+            await pool.query("DELETE FROM entity_documents WHERE id = $1", [row.id]);
+          }
+        } else if (documentType === "organization_legal_rge" || documentType === "organization_legal_decennale") {
+          if (!String(req.file.mimetype || "").toLowerCase().includes("pdf")) {
+            return res.status(400).json({ error: "Le fichier doit être un PDF" });
+          }
+          const oldRows = await pool.query(
+            `SELECT id, storage_key FROM entity_documents
+             WHERE organization_id = $1 AND entity_type = 'organization' AND document_type = $2 AND (archived_at IS NULL)`,
+            [org, documentType]
+          );
+          for (const row of oldRows.rows) {
+            try {
+              await localStorageDelete(row.storage_key);
+            } catch (_) {}
+            await pool.query("DELETE FROM entity_documents WHERE id = $1", [row.id]);
+          }
         }
       }
 
@@ -231,6 +337,15 @@ router.post(
       );
 
       const row = ins.rows[0];
+      if (documentType === "organization_legal_cgv") {
+        const { saveLegalCgvSettings } = await import("../services/legalCgv.service.js");
+        await saveLegalCgvSettings(org, {
+          mode: "pdf",
+          html: null,
+          url: null,
+          pdf_document_id: row.id,
+        });
+      }
       const payload = {
         id: row.id,
         file_name: row.file_name,

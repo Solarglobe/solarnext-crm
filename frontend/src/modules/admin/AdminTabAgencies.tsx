@@ -15,6 +15,7 @@ import {
   type AdminAgency,
   type AdminTeam,
 } from "../../services/admin.api";
+import { OrgIconEdit, OrgIconTrash } from "./orgStructureTableIcons";
 
 export function AdminTabAgencies() {
   const [agencies, setAgencies] = useState<AdminAgency[]>([]);
@@ -90,60 +91,72 @@ export function AdminTabAgencies() {
   };
 
   if (loading) {
-    return <p style={{ color: "var(--text-muted)" }}>Chargement…</p>;
+    return <p className="org-tab-loading">Chargement des agences…</p>;
   }
 
   return (
-    <div className="admin-tab-agencies">
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: "var(--spacing-24)",
-        }}
-      >
-        <span style={{ color: "var(--text-muted)", fontSize: "var(--font-size-body)" }}>
-          {agencies.length} agence(s)
-        </span>
-        <Button variant="primary" onClick={openCreate}>
-          Nouvelle agence
-        </Button>
-      </div>
+    <div className="admin-tab-agencies org-structure-tab">
+      <header className="org-tab-hero">
+        <div className="org-tab-hero__text">
+          <h2 className="org-tab-hero__title">Agences</h2>
+          <p className="org-tab-hero__lead">
+            Structurez votre réseau : chaque agence peut regrouper plusieurs équipes et servir de repère pour l&apos;organisation.
+          </p>
+          <span className="org-tab-hero__meta">{agencies.length} agence{agencies.length !== 1 ? "s" : ""}</span>
+        </div>
+        <div className="org-tab-hero__actions">
+          <Button variant="primary" size="md" type="button" onClick={openCreate}>
+            Nouvelle agence
+          </Button>
+        </div>
+      </header>
 
-      {error && (
-        <p style={{ color: "var(--danger)", marginBottom: "var(--spacing-16)" }}>{error}</p>
-      )}
+      {error ? <p className="org-tab-alert">{error}</p> : null}
 
-      <div style={{ overflowX: "auto" }}>
-        <table className="sn-table sn-leads-table" style={{ width: "100%" }}>
+      <div className="org-tab-table-wrap">
+        <table className="org-tab-table">
           <thead>
             <tr>
               <th>Nom</th>
-              <th>Nombre d'équipes</th>
-              <th>Actions</th>
+              <th>Équipes rattachées</th>
+              <th className="org-tab-table__cell--right">Actions</th>
             </tr>
           </thead>
           <tbody>
-            {agencies.map((a) => (
-              <tr key={a.id}>
-                <td>{a.name}</td>
-                <td>{teamCountByAgency[a.id] ?? 0}</td>
-                <td>
-                  <Button variant="ghost" size="sm" onClick={() => openEdit(a)}>
-                    Éditer
-                  </Button>
-                  <Button
-                    variant="danger"
-                    size="sm"
-                    onClick={() => handleDelete(a)}
-                    style={{ marginLeft: 8 }}
-                  >
-                    Supprimer
-                  </Button>
+            {agencies.length === 0 ? (
+              <tr>
+                <td colSpan={3} className="org-tab-table__empty">
+                  Aucune agence. Créez une agence avant d&apos;associer des équipes.
                 </td>
               </tr>
-            ))}
+            ) : (
+              agencies.map((a) => (
+                <tr key={a.id}>
+                  <td className="org-tab-table__cell--strong">{a.name}</td>
+                  <td>{teamCountByAgency[a.id] ?? 0}</td>
+                  <td className="org-tab-table__cell--right">
+                    <div className="org-tab-row-actions">
+                      <button
+                        type="button"
+                        className="org-tab-icon-btn"
+                        onClick={() => openEdit(a)}
+                        aria-label={`Modifier ${a.name}`}
+                      >
+                        <OrgIconEdit />
+                      </button>
+                      <button
+                        type="button"
+                        className="org-tab-icon-btn org-tab-icon-btn--danger"
+                        onClick={() => void handleDelete(a)}
+                        aria-label={`Supprimer ${a.name}`}
+                      >
+                        <OrgIconTrash />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
@@ -151,33 +164,39 @@ export function AdminTabAgencies() {
       <ModalShell
         open={modalOpen}
         onClose={() => setModalOpen(false)}
-        size="sm"
+        size="md"
         title={editingAgency ? "Modifier l'agence" : "Nouvelle agence"}
+        subtitle="Libellé interne visible dans l’admin et les listes."
         footer={
           <>
-            <Button variant="ghost" type="button" onClick={() => setModalOpen(false)}>
+            <Button variant="secondary" size="sm" type="button" onClick={() => setModalOpen(false)}>
               Annuler
             </Button>
-            <Button variant="primary" type="submit" form="admin-agency-form">
+            <Button variant="primary" size="sm" type="submit" form="admin-agency-form">
               {editingAgency ? "Enregistrer" : "Créer"}
             </Button>
           </>
         }
       >
         <form id="admin-agency-form" onSubmit={handleSubmit}>
-          <div style={{ marginBottom: 0 }}>
-            <label style={{ display: "block", marginBottom: 4, fontSize: 13, color: "var(--text-muted)" }}>
-              Nom
-            </label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-              className="sn-input"
-              style={{ height: 44, width: "100%", boxSizing: "border-box" }}
-            />
-          </div>
+          <section className="sn-saas-form-section">
+            <h3 className="sn-saas-form-section__title">Informations</h3>
+            <div>
+              <label className="sn-saas-label" htmlFor="admin-agency-name">
+                Nom de l&apos;agence
+              </label>
+              <input
+                id="admin-agency-name"
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+                className="sn-saas-input"
+                autoComplete="off"
+                placeholder="Ex. Agence Lyon"
+              />
+            </div>
+          </section>
         </form>
       </ModalShell>
     </div>

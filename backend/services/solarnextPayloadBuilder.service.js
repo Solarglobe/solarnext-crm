@@ -71,6 +71,7 @@ const FALLBACK_PARAMS = {
     battery_atmoce_unit_price_ht: 450,
   },
   economics: DEFAULT_ECONOMICS_FALLBACK,
+  /** Enveloppe `settings_json.pvtech` (héritage) — voir `orgSettingsDeprecated.js` ; hypothèses effectives = catalogues + étude. */
   pvtech: {
     system_yield_pct: 85,
     longi_lowlight_gain_pct: 0,
@@ -850,7 +851,7 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading
     /** Onduleur réel (snapshot calpinage) — moteur finance (remplacement année N). */
     pv_inverter,
     /** Panneau réel sélectionné (snapshot calpinage) — power_wc injecté dans calcul production.
-     *  null si panneau absent du snapshot → resolveKwcMono tombera sur kit_panel_power_w (org settings). */
+     *  Obligatoire pour le moteur : sans panel_input valide (power_wc), le calcul lève une erreur bloquante. */
     panel_input,
     battery_input,
     virtual_battery_input,

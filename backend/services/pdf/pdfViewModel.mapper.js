@@ -5,6 +5,19 @@
  */
 
 import { resolveShadingTotalLossPct } from "../shading/resolveShadingTotalLossPct.js";
+import {
+  mergeOrgEconomicsPartial,
+  overlayFormEconomics,
+  DEFAULT_ECONOMICS_FALLBACK,
+  resolveOaRateForKwc,
+} from "../economicsResolve.service.js";
+import {
+  IMPACT_FACTOR_CO2_AUTO_KG_PER_KWH,
+  IMPACT_FACTOR_CO2_SURPLUS_KG_PER_KWH,
+  IMPACT_TREE_CO2_KG_PER_YEAR,
+  IMPACT_CAR_CO2_KG_PER_KM,
+} from "../core/engineConstants.js";
+import { buildP5DailyProfiles } from "./pdfP5DailyProfile.js";
 
 const SCENARIO_LABELS = {
   BASE: "Sans batterie",
@@ -14,6 +27,51 @@ const SCENARIO_LABELS = {
 
 const MONTHS_COUNT = 12;
 
+/**
+ * Même priorité que financeService.pickEconomics pour l’affichage PDF (sans importer le moteur finance).
+ */
+function mirrorPickEconomicsForPdf(form, orgEconomics) {
+  const f = form && typeof form === "object" ? form : {};
+  const e = overlayFormEconomics(mergeOrgEconomicsPartial(orgEconomics ?? null), f.economics);
+  const n = (v, fb) => {
+    const x = Number(v);
+    return Number.isFinite(x) ? x : fb;
+  };
+  return {
+    price_eur_kwh: n(
+      f.params?.tarif_kwh ?? f.params?.tarif_actuel ?? e.price_eur_kwh,
+      DEFAULT_ECONOMICS_FALLBACK.price_eur_kwh
+    ),
+    elec_growth_pct: n(e.elec_growth_pct, DEFAULT_ECONOMICS_FALLBACK.elec_growth_pct),
+    pv_degradation_pct: n(
+      f.panel_input?.degradation_annual_pct ?? f.params?.degradation ?? e.pv_degradation_pct,
+      DEFAULT_ECONOMICS_FALLBACK.pv_degradation_pct
+    ),
+    horizon_years: n(e.horizon_years, DEFAULT_ECONOMICS_FALLBACK.horizon_years),
+    prime_lt9: n(e.prime_lt9, DEFAULT_ECONOMICS_FALLBACK.prime_lt9),
+    prime_gte9: n(e.prime_gte9, DEFAULT_ECONOMICS_FALLBACK.prime_gte9),
+  };
+}
+
+/** Répartition uniforme sur 12 mois (somme = total), sans courbe artificielle. */
+function uniformMonthly12FromTotal(totalKwh) {
+  const t = num(totalKwh);
+  if (t == null || !Number.isFinite(t) || t <= 0) return Array(12).fill(0);
+  const base = t / 12;
+  const out = Array.from({ length: 12 }, () => base);
+  const sum = out.reduce((a, b) => a + b, 0);
+  out[11] += t - sum;
+  return out.map((x) => Math.round(x));
+}
+
+/** Puissance moyenne (kW) par heure sur l’année : total kWh / 8760 — cohérent avec les agrégats moteur. */
+function flatAverageKw24FromAnnualKwh(annualKwh) {
+  const a = num(annualKwh);
+  if (a == null || !Number.isFinite(a) || a <= 0) return Array(24).fill(0);
+  const perHour = a / 8760;
+  return Array.from({ length: 24 }, () => perHour);
+}
+
 function num(v) {
   if (v == null || v === "" || Number.isNaN(Number(v))) return null;
   return Number(v);
@@ -22,6 +80,30 @@ function num(v) {
 function numOrZero(v) {
   const n = num(v);
   return n != null ? n : 0;
+}
+
+/**
+ * Prime à l'autoconsommation (PDF P2) — même règle que financeService :
+ * priorité au montant d'année 1 dans les flux du scénario si présent, sinon
+ * kwc × prime_lt9 (moins de 9 kWc) ou × prime_gte9 (9 kWc et plus) depuis org + form.economics.
+ */
+function resolvePdfPrimeAutoconsoEur({ systemPowerKw, scenarioForFinance, snapshot, options }) {
+  const flows =
+    scenarioForFinance?.finance?.annual_cashflows ??
+    (Array.isArray(scenarioForFinance?.cashflows) ? scenarioForFinance.cashflows : null);
+  if (Array.isArray(flows) && flows.length > 0) {
+    const y1 = flows.find((f) => num(f?.year) === 1) ?? flows[0];
+    const p = num(y1?.prime);
+    if (p != null && Number.isFinite(p) && p >= 0) return p;
+  }
+  const formEco =
+    snapshot?.form && typeof snapshot.form === "object" && snapshot.form.economics != null
+      ? snapshot.form.economics
+      : null;
+  const econ = overlayFormEconomics(mergeOrgEconomicsPartial(options?.org_economics ?? null), formEco);
+  const kwc = Number(systemPowerKw);
+  if (!Number.isFinite(kwc) || kwc <= 0) return 0;
+  return kwc < 9 ? kwc * econ.prime_lt9 : kwc * econ.prime_gte9;
 }
 
 /**
@@ -352,8 +434,18 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
 
   const systemPowerKw = num(hardware.kwc) ?? num(installation.puissance_kwc) ?? 0;
   const annualKwh = num(production.annual_kwh) ?? num(installation.production_annuelle_kwh) ?? 0;
-  const monthly = normalizeMonthlyProduction(production.monthly_kwh);
+  let monthly = normalizeMonthlyProduction(production.monthly_kwh);
+  const monthlyProdSum = monthly.reduce((a, b) => a + numOrZero(b), 0);
+  if (monthlyProdSum < 0.01 && annualKwh > 0.01) {
+    monthly = uniformMonthly12FromTotal(annualKwh);
+  }
   const specificYield = systemPowerKw > 0 && annualKwh > 0 ? annualKwh / systemPowerKw : 0;
+
+  const pdfEconomicsCtx = {
+    settings: { economics: mergeOrgEconomicsPartial(options.org_economics ?? null) },
+    form,
+  };
+  const econDisplay = mirrorPickEconomicsForPdf(form, options.org_economics);
 
   const scenariosArr = options.scenarios_v2 ?? [];
   const selectedKey = options.selected_scenario_id ?? snapshot.scenario_type ?? "BASE";
@@ -446,8 +538,12 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
   // Économie brute = différence pure de factures électricité (sans investissement)
   const economieGross = gridCostWithoutSolar - gridCostWithSolar;
 
-  // Prime autoconsommation : < 9 kWc → 80 €/kWc, ≥ 9 kWc → 180 €/kWc
-  const primeAmount = systemPowerKw < 9 ? systemPowerKw * 80 : systemPowerKw * 180;
+  const primeAmount = resolvePdfPrimeAutoconsoEur({
+    systemPowerKw,
+    scenarioForFinance,
+    snapshot,
+    options
+  });
   const resteACharge = Math.max(0, Math.round(capex - primeAmount));
 
   const lcoeVal = systemPowerKw > 0 && annualKwh > 0 ? capex / (annualKwh * 25) : null;
@@ -483,7 +579,7 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
     layout_snapshot: options.calpinage_layout_snapshot ?? null,
   };
 
-  const consumptionKwh = num(energy.consumption_kwh) ?? consoAnnuelle ?? annualKwh * 0.8;
+  const consumptionKwh = num(energy.consumption_kwh) ?? consoAnnuelle ?? 0;
   const economieAn1 = numOrZero(financeActive.economie_year_1);
   const annualSavings = Math.max(0, economieAn1);
 
@@ -533,7 +629,7 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
       ? Math.min(100, (num(energyP10.autoconsumption_kwh) / num(energyP10.production_kwh)) * 100)
       : null;
 
-  // P4 mensuel : priorité energy.monthly du scénario (scenarios_v2), sinon fallback sinusoïdal
+  // P4 mensuel : priorité energy.monthly du scénario (scenarios_v2), sinon répartition uniforme (somme = annuel)
   let consoMonthly;
   let autoMonthly;
   let surplusMonthly;
@@ -545,9 +641,10 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
     autoMonthly = scenarioMonthly.slice(0, 12).map((m) => numOrZero(m.auto_kwh ?? m.auto));
     surplusMonthly = scenarioMonthly.slice(0, 12).map((m) => numOrZero(m.surplus_kwh ?? m.surplus));
   } else {
-    consoMonthly = monthly.map((_, i) => Math.round((consumptionKwh / 12) * (0.8 + 0.4 * Math.sin((i - 2) * 0.5))));
-    autoMonthly = monthly.map((p, i) => Math.min(p, consoMonthly[i]));
-    surplusMonthly = monthly.map((p, i) => Math.max(0, p - (autoMonthly[i] ?? 0)));
+    const cTot = num(consoAnnuelle) ?? num(consumptionKwh) ?? 0;
+    consoMonthly = uniformMonthly12FromTotal(cTot);
+    autoMonthly = monthly.map((p, i) => Math.min(numOrZero(p), numOrZero(consoMonthly[i])));
+    surplusMonthly = monthly.map((p, i) => Math.max(0, numOrZero(p) - numOrZero(autoMonthly[i])));
   }
 
   // P6 : batterie mensuelle — lue depuis scenarioMonthly si scénario batterie, sinon 0
@@ -559,7 +656,7 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
   const dirMonthly = autoMonthly.map((a, i) => Math.max(0, (a ?? 0) - (batMonthly[i] ?? 0)));
   const gridMonthly = consoMonthly.map((c, i) => Math.max(0, c - dirMonthly[i] - batMonthly[i]));
   const totMonthly = consoMonthly;
-  const price = 0.18;
+  const price = econDisplay.price_eur_kwh;
 
   // P4 — synthèse annuelle (données réelles energy/finance)
   const prodAnnuelle = num(energy.production_kwh) ?? annualKwh;
@@ -570,8 +667,30 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
   const couverturePct = consoAnnuelleP4 > 0 ? Math.min(100, Math.round((autoAnnuelle / consoAnnuelleP4) * 100)) : null;
   const tauxAutoPct = prodAnnuelle > 0 ? Math.min(100, Math.round((autoAnnuelle / prodAnnuelle) * 100)) : (selfConsumptionPct != null ? Math.round(selfConsumptionPct) : null);
 
-  const p5Prod = Array.from({ length: 24 }, (_, h) => (h >= 8 && h <= 17 ? (annualKwh / 365 / 10) * (1 + Math.sin((h - 12) * 0.5)) : 0));
-  const p5Conso = Array.from({ length: 24 }, (_, h) => (consumptionKwh / 365 / 24) * (1.2 + 0.5 * Math.sin((h - 18) * 0.3)));
+  let pvHourlyKw8760 = null;
+  const shapePerKwc = options.p5_pv_hourly_shape_per_kwc_8760;
+  if (Array.isArray(shapePerKwc) && shapePerKwc.length >= 8760 && systemPowerKw > 0) {
+    pvHourlyKw8760 = shapePerKwc.map((v) => (Number(v) || 0) * systemPowerKw);
+  } else if (Array.isArray(options.p5_pv_hourly_kw_8760) && options.p5_pv_hourly_kw_8760.length >= 8760) {
+    pvHourlyKw8760 = options.p5_pv_hourly_kw_8760.map((v) => Number(v) || 0);
+  }
+
+  let consoHourlyKw8760 = null;
+  if (Array.isArray(options.p5_conso_hourly_kw_8760) && options.p5_conso_hourly_kw_8760.length >= 8760) {
+    consoHourlyKw8760 = options.p5_conso_hourly_kw_8760.map((v) => Number(v) || 0);
+  }
+
+  const p5Profiles = buildP5DailyProfiles({
+    annualProductionKwh: annualKwh,
+    monthlyProductionKwh12: monthly,
+    annualConsumptionKwh: consumptionKwh,
+    monthlyConsumptionKwh12: consoMonthly,
+    latitudeDeg: num(site.lat),
+    pvHourlyKw8760,
+    consoHourlyKw8760,
+  });
+  const p5Prod = p5Profiles.production_kw;
+  const p5Conso = p5Profiles.consommation_kw;
   let p5Batt = Array(24).fill(0);
   if (pdfBatteryType === "VIRTUAL" && pdfBatteryScenario) {
     const vbP5 =
@@ -588,6 +707,8 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
   const offerMateriel = Math.round(capex * 0.7);
   const offerPose = Math.round(capex * 0.3);
   const batterieHtPdf = Math.round(numOrZero(pdfBatteryScenario?.finance?.capex_ttc));
+  const primeAmountRounded = Math.round(primeAmount);
+  const totalTtcOffer = Math.round(capex * 1.1);
   const offer = {
     materiel_ht: offerMateriel,
     batterie_ht: batterieHtPdf,
@@ -599,9 +720,9 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
     tva_pose: 10,
     tva_materiel_eur: Math.round(offerMateriel * 0.1),
     tva_pose_eur: Math.round(offerPose * 0.1),
-    total_ttc: Math.round(capex * 1.1),
-    prime: 0,
-    reste: Math.round(capex * 1.1),
+    total_ttc: totalTtcOffer,
+    prime: primeAmountRounded,
+    reste: Math.max(0, totalTtcOffer - primeAmountRounded),
     puissance: systemPowerKw,
     batterie_label: "",
     onduleurs: str(onduleur.modele) || str(onduleur.marque) || "",
@@ -611,10 +732,13 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
     delai: "À définir",
   };
 
-  const co2PerKwh = 0.04;
-  const co2Evite = Math.round(annualKwh * co2PerKwh);
-  const treesEquiv = Math.round(co2Evite / 22);
-  const carsEquiv = Math.round(co2Evite / 2000);
+  const autoKwhCo2 = num(energy.autoconsumption_kwh) ?? num(selectedScenario?.energy?.autoconsumption_kwh) ?? 0;
+  const surplusKwhCo2 = num(energy.surplus_kwh) ?? num(selectedScenario?.energy?.surplus_kwh) ?? 0;
+  const co2Evite = Math.round(
+    autoKwhCo2 * IMPACT_FACTOR_CO2_AUTO_KG_PER_KWH + surplusKwhCo2 * IMPACT_FACTOR_CO2_SURPLUS_KG_PER_KWH
+  );
+  const treesEquiv = Math.round(co2Evite / IMPACT_TREE_CO2_KG_PER_YEAR);
+  const carsEquiv = Math.round(co2Evite / IMPACT_CAR_CO2_KG_PER_KM);
 
   const generatedAt = str(snapshot.computed_at) || str(snapshot.created_at) || new Date().toISOString();
   return {
@@ -730,6 +854,7 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
         production_kw: p5Prod,
         consommation_kw: p5Conso,
         batterie_kw: p5Batt,
+        profile_notes: p5Profiles.profile_notes,
       },
       p6: {
         p6: {
@@ -879,12 +1004,9 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
           if (arr.length >= 8760) return hourly8760ToAvg24(arr);
           return arr.slice(0, 24).map((x) => numOrZero(x));
         };
-        const pvFallback = Array.from({ length: 24 }, (_, h) =>
-          h >= 8 && h <= 17 ? (prodKwh / 365 / 10) * (1 + Math.sin((h - 12) * 0.5)) : 0
-        );
-        const loadFallback = Array.from({ length: 24 }, (_, h) =>
-          (consumptionKwh / 365 / 24) * (1.2 + 0.5 * Math.sin((h - 18) * 0.3))
-        );
+        const consoKwhP8 = num(A.consumption_kwh) ?? consumptionKwh;
+        const pvFallback = flatAverageKw24FromAnnualKwh(prodKwh);
+        const loadFallback = flatAverageKw24FromAnnualKwh(consoKwhP8);
 
         const rawCharge =
           vb8760.virtual_battery_hourly_charge_kwh ??
@@ -1136,7 +1258,14 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
           nb_panels: numOrZero(installation.panneaux_nombre),
           annual_production_kwh: annualKwh,
         },
-        hyp: { pv_degrad: 0.5, elec_infl: 4, oa_price: 0.04 },
+        hyp: {
+          pv_degrad: econDisplay.pv_degradation_pct,
+          elec_infl: econDisplay.elec_growth_pct,
+          oa_price: resolveOaRateForKwc(pdfEconomicsCtx, systemPowerKw),
+          price_kwh: econDisplay.price_eur_kwh,
+          horizon_years: econDisplay.horizon_years,
+          prime_autoconso_eur: primeAmount,
+        },
       },
       p11: p11Section,
       p12: {
@@ -1223,7 +1352,13 @@ function buildEmptyFullReport() {
       autonomie_pct: null,
       economie_annee_1: 0,
     },
-    p5: { meta: emptyMeta, production_kw: empty24, consommation_kw: empty24, batterie_kw: empty24 },
+    p5: {
+      meta: emptyMeta,
+      production_kw: empty24,
+      consommation_kw: empty24,
+      batterie_kw: empty24,
+      profile_notes: { production: "", consumption: "" },
+    },
     p6: { p6: { meta: emptyMeta, price: 0, dir: emptyMonthly, bat: emptyMonthly, grid: emptyMonthly, tot: emptyMonthly } },
     p7: { meta: emptyMeta, pct: {}, c_grid: 0, p_surplus: 0 },
     p8: null,

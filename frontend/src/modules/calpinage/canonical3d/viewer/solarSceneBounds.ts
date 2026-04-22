@@ -25,6 +25,14 @@ export function computeSolarSceneBoundingBox(scene: SolarScene3D): THREE.Box3 {
     }
   }
 
+  const shell = scene.buildingShell;
+  if (shell?.vertices?.length) {
+    for (const v of shell.vertices) {
+      const p = v.position;
+      expand(p.x, p.y, p.z);
+    }
+  }
+
   const addVolume = (
     vol: { vertices: readonly { position: { x: number; y: number; z: number } }[] },
     kind: "obstacle" | "extension",

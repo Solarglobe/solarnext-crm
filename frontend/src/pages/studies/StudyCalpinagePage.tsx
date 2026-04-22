@@ -17,7 +17,7 @@ interface StudyVersion {
 }
 
 interface StudyData {
-  study: { id: string };
+  study: { id: string; lead_id?: string };
   versions: StudyVersion[];
 }
 
@@ -27,6 +27,7 @@ export default function StudyCalpinagePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [versionNumber, setVersionNumber] = useState<number | null>(null);
+  const [leadId, setLeadId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!studyId || !versionId) {
@@ -55,6 +56,7 @@ export default function StudyCalpinagePage() {
           return;
         }
         setVersionNumber(version.version_number);
+        if (data.study.lead_id) setLeadId(data.study.lead_id);
       })
       .catch((e) => {
         if (!cancelled) setError(e instanceof Error ? e.message : "Erreur de chargement");
@@ -66,10 +68,13 @@ export default function StudyCalpinagePage() {
   }, [studyId, versionId]);
 
   const handleClose = useCallback(() => {
-    if (studyId && versionId) {
+    if (leadId) {
+      navigate(`/leads/${leadId}?tab=studies`);
+    } else if (studyId && versionId) {
+      // Fallback : lead_id non disponible (étude orpheline), retour à la page étude
       navigate(`/studies/${studyId}/versions/${versionId}`);
     }
-  }, [navigate, studyId, versionId]);
+  }, [navigate, leadId, studyId, versionId]);
 
   const handleSaved = useCallback(() => {
     // Optionnel : recharger si besoin (l’overlay a déjà notifié le parent)

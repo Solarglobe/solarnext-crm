@@ -4,7 +4,7 @@
 
 | Couche | Rôle |
 |--------|------|
-| **`sourceTrace` sur `SolarScene3D`** | Référence légère : ids pans / obstacles / panneaux attendus, ids patches toiture legacy, contour 2D optionnel (`contourPx`), métriques (aire/bbox image, comptages). |
+| **`sourceTrace` sur `SolarScene3D`** | Référence légère : ids pans / obstacles / panneaux attendus, ids patches toiture legacy, contour 2D optionnel (`contourPx`), métriques (aire/bbox image, **`roofOutlineHorizontalAreaM2`** si contour + monde valides — Niveau 4), comptages. |
 | **`validate2DTo3DCoherence`** | Cohérence **structurelle** (monde, pans, volumes, panneaux) **+ fidélité** (couverture ids, divergence double chemin toiture, emprise globale heuristique, dispersion panneaux). |
 | **`coherence.confidence`** | Synthèse **non marketing** : lien 2D, niveau de traçabilité toiture, confiance géométrique, ratio de couverture source optionnel. |
 | **`coherence.summary`** | Booléens + compteurs **dérivés des issues** (et présence de `sourceTrace`) : lecture rapide sans parcourir la liste complète. |

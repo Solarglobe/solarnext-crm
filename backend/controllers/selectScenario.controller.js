@@ -9,6 +9,8 @@
 import { pool } from "../config/db.js";
 import { buildSelectedScenarioSnapshot } from "../services/selectedScenarioSnapshot.service.js";
 import { generatePdfForVersion } from "./pdfGeneration.controller.js";
+import { logAuditEvent } from "../services/audit/auditLog.service.js";
+import { AuditActions } from "../services/audit/auditActions.js";
 
 const VALID_SCENARIO_IDS = ["BASE", "BATTERY_PHYSICAL", "BATTERY_VIRTUAL"];
 const orgId = (req) => req.user?.organizationId ?? req.user?.organization_id;
@@ -70,6 +72,20 @@ export async function selectScenario(req, res) {
        WHERE id = $3 AND organization_id = $4`,
       [scenarioId, JSON.stringify(snapshot), versionId, org]
     );
+
+    void logAuditEvent({
+      action: AuditActions.STUDY_SCENARIO_SELECTED,
+      entityType: "study_version",
+      entityId: versionId,
+      organizationId: org,
+      userId: userId(req),
+      req,
+      statusCode: 200,
+      metadata: {
+        study_id: studyId,
+        scenario_id: scenarioId,
+      },
+    });
 
     // Génération PDF automatique (try/catch séparé : snapshot reste valide si PDF échoue)
     // SKIP_PDF_IN_SELECT_SCENARIO=1 pour tests sans Playwright

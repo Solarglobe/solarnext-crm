@@ -11,75 +11,71 @@
  */
 
 import type { Pan, PanPhysical, Point2D } from "./panState";
+import {
+  collectPartialWorldHeightSamplesFromImage,
+  computeOfficialPanPhysicsFromImageVertices,
+  tryPanPhysicsFromWorldHeightSamples,
+} from "../../src/modules/calpinage/canonical3d/builder/computeOfficialPanPhysicsFromImageVertices";
+import { segmentHorizontalLengthMFromImagePx } from "../../src/modules/calpinage/canonical3d/builder/worldMapping";
+import { readPanVertexRing } from "../../src/modules/calpinage/runtime/panVertexContract";
 
-/** État minimal pour les calculs (roof.north, scale). */
+/** État minimal pour les calculs (roof.north, scale) — aligné bundle / worldMapping. */
 export type CalpinageStateLike = {
   pans: Pan[];
   roof?: {
+    north?: { angleDeg: number } | null;
     scale?: { metersPerPixel: number } | null;
     roof?: { north?: { angleDeg: number } | null } | null;
   } | null;
 };
 
-const DEG_PER_RAD = 180 / Math.PI;
 const TOL = 1e-10;
 const TOL_PX = 1e-6;
+
+function readNorthDeg(state: CalpinageStateLike): number {
+  const n1 = state.roof?.north?.angleDeg;
+  if (typeof n1 === "number" && Number.isFinite(n1)) return n1;
+  const n2 = state.roof?.roof?.north?.angleDeg;
+  if (typeof n2 === "number" && Number.isFinite(n2)) return n2;
+  return 0;
+}
+
+function getVertexZForPhysics(pt: Point2D): number | null {
+  return typeof pt.h === "number" && Number.isFinite(pt.h) ? pt.h : null;
+}
 
 /** Retourne la hauteur effective d'un point (m). */
 function getH(pt: Point2D): number {
   return typeof pt.h === "number" && Number.isFinite(pt.h) ? pt.h : 0;
 }
 
-/** Distance horizontale en mètres entre deux points (x,y en pixels, scale en m/px). */
-function horizontalDistanceM(a: Point2D, b: Point2D, metersPerPixel: number): number {
-  return Math.hypot(b.x - a.x, b.y - a.y) * metersPerPixel;
+/** Distance horizontale monde (m) — même loi que la 3D (`segmentHorizontalLengthMFromImagePx`, Niveau 2). */
+function horizontalDistanceM(
+  a: Point2D,
+  b: Point2D,
+  metersPerPixel: number,
+  northAngleDeg: number,
+): number {
+  return segmentHorizontalLengthMFromImagePx(
+    { x: a.x, y: a.y },
+    { x: b.x, y: b.y },
+    metersPerPixel,
+    northAngleDeg,
+  );
 }
 
-/** Points effectifs du pan (points ou dérivés de polygon). */
+/** Points effectifs du pan — contrat panVertexContract (points → polygonPx → polygon), sans h fictif. */
 function getPanPointsForPlane(pan: Pan): Point2D[] {
-  if (pan.points && pan.points.length >= 2) return pan.points;
-  if (pan.polygon && pan.polygon.length >= 2) {
-    return pan.polygon.map((p, i) => ({
-      x: p.x,
-      y: p.y,
-      h: 0,
-      id: pan.id + "-" + i,
-    }));
-  }
-  return [];
+  const ring = readPanVertexRing(pan as unknown as Record<string, unknown>);
+  return ring.map((v, i) => {
+    const o: Point2D = { x: v.x, y: v.y, id: v.id ?? pan.id + "-" + i };
+    if (typeof v.h === "number" && Number.isFinite(v.h)) o.h = v.h;
+    return o;
+  });
 }
 
 /**
- * Ajuste un plan h = a·xM + b·yM + c par moindres carrés sur les points (xM, yM, h).
- * (xM, yM) = (x, y) en pixels convertis en mètres via mpp.
- */
-function fitPlane(
-  pts: Point2D[],
-  metersPerPixel: number
-): { a: number; b: number; c: number } | null {
-  if (!pts.length || !Number.isFinite(metersPerPixel) || metersPerPixel <= 0)
-    return null;
-  const n = pts.length;
-  let sumX = 0, sumY = 0, sumH = 0, sumXX = 0, sumYY = 0, sumXY = 0, sumXH = 0, sumYH = 0;
-  for (let i = 0; i < n; i++) {
-    const xM = pts[i].x * metersPerPixel;
-    const yM = pts[i].y * metersPerPixel;
-    const h = getH(pts[i]);
-    sumX += xM; sumY += yM; sumH += h;
-    sumXX += xM * xM; sumYY += yM * yM; sumXY += xM * yM;
-    sumXH += xM * h; sumYH += yM * h;
-  }
-  const m = n;
-  const det = m * (sumXX * sumYY - sumXY * sumXY) - sumX * (sumX * sumYY - sumXY * sumY) + sumY * (sumX * sumXY - sumXX * sumY);
-  if (Math.abs(det) < TOL) return null;
-  const a = (m * (sumXH * sumYY - sumYH * sumXY) - sumX * (sumH * sumYY - sumYH * sumY) + sumY * (sumH * sumXY - sumXH * sumY)) / det;
-  const b = (m * (sumXX * sumYH - sumXH * sumXY) - sumX * (sumXX * sumH - sumXH * sumX) + sumY * (sumXY * sumX - sumXX * sumY)) / det;
-  const c = (sumH - a * sumX - b * sumY) / m;
-  return { a, b, c };
-}
-
-/**
- * Pente calculée à partir du plan ajusté : slopeDeg = atan(sqrt(a² + b²)) * 180/π.
+ * Pente : même chaîne que le canonical (image → ENU → Newell), repli LSQ monde.
  */
 export function computePanSlopeComputedDeg(
   pan: Pan,
@@ -87,30 +83,17 @@ export function computePanSlopeComputedDeg(
 ): number {
   const pts = getPanPointsForPlane(pan);
   const mpp = state.roof?.scale?.metersPerPixel ?? 1;
-  const plane = fitPlane(pts, mpp);
-  if (!plane) {
-    if (typeof window !== "undefined" && (window as any).__DEV_MODE__ === true) {
-      console.warn("[PAN_PHYSICS] fitPlane failed -> tilt=0", { panId: pan.id });
-    }
-    return 0;
+  if (!Number.isFinite(mpp) || mpp <= 0) return 0;
+  const north = readNorthDeg(state);
+  const official = computeOfficialPanPhysicsFromImageVertices(pts, (pt) => getVertexZForPhysics(pt), mpp, north);
+  if (official.source === "newell_corners_world" && official.slopeDeg != null) return official.slopeDeg;
+  const samples = collectPartialWorldHeightSamplesFromImage(pts, (pt) => getVertexZForPhysics(pt), mpp, north);
+  const lsq = tryPanPhysicsFromWorldHeightSamples(samples);
+  if (lsq) return lsq.slopeDeg;
+  if (typeof window !== "undefined" && (window as any).__DEV_MODE__ === true) {
+    console.warn("[PAN_PHYSICS] pas de plan monde fiable -> tilt=0", { panId: pan.id });
   }
-  const norm = Math.sqrt(plane.a * plane.a + plane.b * plane.b);
-  if (norm < TOL) {
-    if (typeof window !== "undefined" && (window as any).__DEV_MODE__ === true) {
-      console.warn("[PAN_PHYSICS] norm < TOL -> tilt=0", { panId: pan.id, norm });
-    }
-    return 0;
-  }
-  return Math.atan(norm) * DEG_PER_RAD;
-}
-
-/** Vecteur de descente (faîtage → gouttière) : v = (-a, -b). */
-function getDescentVector(pan: Pan, state: CalpinageStateLike): { vx: number; vy: number } | null {
-  const pts = getPanPointsForPlane(pan);
-  const mpp = state.roof?.scale?.metersPerPixel ?? 1;
-  const plane = fitPlane(pts, mpp);
-  if (!plane) return null;
-  return { vx: -plane.a, vy: -plane.b };
+  return 0;
 }
 
 /** Libellés cardinaux (N, NNE, …) pour l’azimut final. */
@@ -142,27 +125,27 @@ function azimuthToCardinalLabel(azimuthDeg: number): string {
 }
 
 /**
- * Orientation du pan : azimut 0–360° (direction vers laquelle le pan fait face) et label cardinal.
- * Sens de la pente = direction de descente (faîtage → gouttière).
- * v = (-a, -b) ; azimut descente = (atan2(vx, -vy) * 180/π + 360) % 360 + north ; face = (descent + 180) % 360.
+ * Azimut ENU de la normale horizontale (0=N, 90=E) — identique au canonical / pans-bundle (Prompt 4B).
  */
 export function computePanOrientation(
   pan: Pan,
   state: CalpinageStateLike
 ): { azimuthDeg: number; label: string; slopeDirectionLabel: string } | null {
-  const v = getDescentVector(pan, state);
-  if (!v || (Math.abs(v.vx) < TOL && Math.abs(v.vy) < TOL)) return null;
-
-  const north = state.roof?.roof?.north?.angleDeg ?? 0;
-  const northDeg = Number.isFinite(north) ? north : 0;
-
-  let descentAzimutDeg = (Math.atan2(v.vx, -v.vy) * DEG_PER_RAD + 360) % 360;
-  descentAzimutDeg = (descentAzimutDeg + northDeg + 360) % 360;
-  const slopeDirectionLabel = azimuthToCardinalLabel(descentAzimutDeg);
-
-  const azimuthDeg = (descentAzimutDeg + 180) % 360;
+  const pts = getPanPointsForPlane(pan);
+  const mpp = state.roof?.scale?.metersPerPixel ?? 1;
+  if (!Number.isFinite(mpp) || mpp <= 0) return null;
+  const north = readNorthDeg(state);
+  const official = computeOfficialPanPhysicsFromImageVertices(pts, (pt) => getVertexZForPhysics(pt), mpp, north);
+  let azimuthDeg: number | null =
+    official.source === "newell_corners_world" && official.azimuthDeg != null ? official.azimuthDeg : null;
+  if (azimuthDeg == null) {
+    const samples = collectPartialWorldHeightSamplesFromImage(pts, (pt) => getVertexZForPhysics(pt), mpp, north);
+    const lsq = tryPanPhysicsFromWorldHeightSamples(samples);
+    if (lsq) azimuthDeg = lsq.azimuthDeg;
+  }
+  if (azimuthDeg == null) return null;
   const label = azimuthToCardinalLabel(azimuthDeg);
-  return { azimuthDeg, label, slopeDirectionLabel };
+  return { azimuthDeg, label, slopeDirectionLabel: label };
 }
 
 /** Structure physical par défaut pour un nouveau pan. */
@@ -252,18 +235,9 @@ export function recomputeAllPanPhysicalProps(
 
 const VERTEX_TOL_PX = 0.5;
 
-/** Points effectifs du pan (points ou dérivés de polygon). */
+/** Points effectifs du pan — même contrat que getPanPointsForPlane. */
 function getPanPoints(pan: Pan): Point2D[] {
-  if (pan.points && pan.points.length >= 2) return pan.points;
-  if (pan.polygon && pan.polygon.length >= 2) {
-    return pan.polygon.map((p, i) => ({
-      x: p.x,
-      y: p.y,
-      h: 0,
-      id: pan.id + "-" + i,
-    }));
-  }
-  return [];
+  return getPanPointsForPlane(pan);
 }
 
 /** Deux points sont-ils au même endroit (tolérance pixels) ? */
@@ -409,6 +383,7 @@ export function applyManualSlopeToPan(
 
   const mpp = state.roof?.scale?.metersPerPixel ?? 1;
   if (!Number.isFinite(mpp) || mpp <= 0) return;
+  const north = readNorthDeg(state);
 
   const workPts = pan.points;
   let minH = getH(workPts[0]);
@@ -443,7 +418,7 @@ export function applyManualSlopeToPan(
         (hi <= minH + TOL_PX && hj >= maxH - TOL_PX) ||
         (hj <= minH + TOL_PX && hi >= maxH - TOL_PX);
       if (!isLowHigh) continue;
-      const run = horizontalDistanceM(workPts[i], workPts[j], mpp);
+      const run = horizontalDistanceM(workPts[i], workPts[j], mpp, north);
       if (run > maxRun) maxRun = run;
     }
   }

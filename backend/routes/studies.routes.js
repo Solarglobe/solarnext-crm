@@ -8,8 +8,12 @@ import express from "express";
 import { verifyJWT } from "../middleware/auth.middleware.js";
 import { requirePermission } from "../rbac/rbac.middleware.js";
 import logger from "../app/core/logger.js";
+import { pool } from "../config/db.js";
 import * as service from "./studies/service.js";
 import { archiveEntity, restoreEntity } from "../services/archive.service.js";
+import { heavyUserRateLimiter } from "../middleware/security/rateLimit.presets.js";
+import { logAuditEvent } from "../services/audit/auditLog.service.js";
+import { AuditActions } from "../services/audit/auditActions.js";
 
 const router = express.Router();
 const orgId = (req) => req.user.organizationId ?? req.user.organization_id;
@@ -172,6 +176,11 @@ router.delete(
     try {
       const org = orgId(req);
       const studyId = req.params.id;
+      const snRes = await pool.query(
+        `SELECT study_number FROM studies WHERE id = $1 AND organization_id = $2`,
+        [studyId, org]
+      );
+      const studyNumber = snRes.rows[0]?.study_number ?? null;
       const deleted = await service.deleteStudy(studyId, org);
       if (!deleted) {
         return res.status(404).json({ error: "STUDY_NOT_FOUND" });
@@ -179,6 +188,17 @@ router.delete(
       logger.info("study.permanently_deleted", {
         studyId,
         organizationId: org,
+      });
+      void logAuditEvent({
+        action: AuditActions.STUDY_DELETED,
+        entityType: "study",
+        entityId: studyId,
+        organizationId: org,
+        userId: userId(req),
+        targetLabel: studyNumber != null ? String(studyNumber) : undefined,
+        req,
+        statusCode: 200,
+        metadata: { hard_delete: true, study_number: studyNumber },
       });
       return res.json({ success: true });
     } catch (e) {
@@ -224,6 +244,7 @@ router.post(
   "/:studyId/economic-snapshot",
   verifyJWT,
   requirePermission("study.manage"),
+  heavyUserRateLimiter,
   postEconomicSnapshot
 );
 
@@ -246,6 +267,7 @@ router.post(
   "/:studyId/versions/:versionId/quote-prep/validate",
   verifyJWT,
   requirePermission("study.manage"),
+  heavyUserRateLimiter,
   quotePrepController.postValidate
 );
 router.post(
@@ -394,7 +416,7 @@ import { getStudyScenarios } from "../controllers/studyScenarios.controller.js";
 router.get(
   "/:studyId/versions/:versionId/scenarios",
   verifyJWT,
-  requirePermission("study.read"),
+  requirePermission("study.manage"),
   getStudyScenarios
 );
 
@@ -404,7 +426,7 @@ import { getSelectedScenarioSnapshot } from "../controllers/getSelectedScenarioS
 router.get(
   "/:studyId/versions/:versionId/selected-scenario-snapshot",
   verifyJWT,
-  requirePermission("study.read"),
+  requirePermission("study.manage"),
   getSelectedScenarioSnapshot
 );
 
@@ -414,7 +436,7 @@ import { getPdfViewModel } from "../controllers/getPdfViewModel.controller.js";
 router.get(
   "/:studyId/versions/:versionId/pdf-view-model",
   verifyJWT,
-  requirePermission("study.read"),
+  requirePermission("study.manage"),
   getPdfViewModel
 );
 
@@ -425,7 +447,7 @@ import { generatePdfFromScenario } from "../controllers/generatePdfFromScenario.
 router.post(
   "/:studyId/versions/:versionId/generate-pdf",
   verifyJWT,
-  requirePermission("study.read"),
+  requirePermission("study.manage"),
   generatePdf
 );
 

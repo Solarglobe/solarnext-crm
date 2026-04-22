@@ -9,7 +9,10 @@ import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { apiFetch } from "../../services/api";
 import { createQuoteDraft } from "../../services/financial.api";
-import { fetchQuotePrepEconomicItems, mapEconomicItemsToStudyQuoteItems } from "../../modules/quotes/quotePrepImport";
+import {
+  buildQuoteCreatePayloadFromQuotePrep,
+  fetchQuotePrepEconomicItems,
+} from "../../modules/quotes/quotePrepImport";
 import { listBatteries, type PvBattery } from "../../api/pvCatalogApi";
 import type { VirtualBatteryConfig, PvVirtualBatterySettings } from "../../types/pvVirtualBatterySettings";
 import VirtualBatteryConfigurator from "../../components/study/VirtualBatteryConfigurator";
@@ -828,26 +831,29 @@ export default function StudyQuoteBuilder() {
         window.alert("Aucun lead associé à cette étude pour créer un devis commercial.");
         return;
       }
-      let draftItems: ReturnType<typeof mapEconomicItemsToStudyQuoteItems> = [];
-      try {
-        const { items } = await fetchQuotePrepEconomicItems(studyId, versionId);
-        if (items.length) draftItems = mapEconomicItemsToStudyQuoteItems(items);
-      } catch {
-        /* devis créé sans lignes si quote-prep indisponible */
-      }
-      const { quote } = await createQuoteDraft({
+      const studyImportOnly = {
+        study_import: {
+          last_at: new Date().toISOString(),
+          study_version_id: versionId,
+        },
+      };
+      const body: Parameters<typeof createQuoteDraft>[0] = {
         lead_id: leadId,
         client_id: data.study?.client_id || undefined,
         study_id: studyId,
         study_version_id: versionId,
-        items: draftItems,
-        metadata: {
-          study_import: {
-            last_at: new Date().toISOString(),
-            study_version_id: versionId,
-          },
-        },
-      });
+        items: [],
+        metadata: studyImportOnly,
+      };
+      try {
+        const prep = await fetchQuotePrepEconomicItems(studyId, versionId);
+        const { items, metadata } = buildQuoteCreatePayloadFromQuotePrep(versionId, prep);
+        body.items = items;
+        body.metadata = metadata;
+      } catch {
+        /* devis créé sans lignes si quote-prep indisponible — metadata minimal ci-dessus */
+      }
+      const { quote } = await createQuoteDraft(body);
       navigate(`/quotes/${quote.id}`);
     } catch (e) {
       window.alert(e instanceof Error ? e.message : "Impossible de créer le devis");

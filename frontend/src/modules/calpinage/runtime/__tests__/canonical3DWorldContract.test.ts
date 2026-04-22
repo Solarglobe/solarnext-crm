@@ -24,6 +24,17 @@ function roofComplete(overrides: Record<string, unknown> = {}) {
 describe("canonical3DWorldContract runtime", () => {
   it("Cas 1 — runtime complet → contrat + scène 3D éligible", () => {
     const state = {
+      pans: [
+        {
+          id: "p1",
+          polygonPx: [
+            { x: 100, y: 100 },
+            { x: 200, y: 100 },
+            { x: 200, y: 200 },
+            { x: 100, y: 200 },
+          ],
+        },
+      ],
       roof: {
         ...roofComplete(),
         roofPans: [
@@ -55,7 +66,7 @@ describe("canonical3DWorldContract runtime", () => {
     expect(peek?.referenceFrame).toBe("LOCAL_IMAGE_ENU");
     expect(peek?.northAngleDeg).toBe(12.5);
 
-    const sceneIn = buildCanonicalScene3DInput({ state });
+    const sceneIn = buildCanonicalScene3DInput({ state, deferPlacedPanels: true });
     expect(sceneIn.diagnostics.is3DEligible).toBe(true);
     expect(sceneIn.world.referenceFrame).toBe("LOCAL_IMAGE_ENU");
 

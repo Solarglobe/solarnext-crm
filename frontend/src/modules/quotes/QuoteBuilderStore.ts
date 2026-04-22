@@ -48,6 +48,12 @@ export function quoteBuilderReducer(state: QuoteBuilderState, action: QuoteBuild
       if (p.deposit && typeof p.deposit === "object") {
         nextMeta.deposit = { ...state.meta.deposit, ...p.deposit };
       }
+      if (p.legal_documents && typeof p.legal_documents === "object") {
+        nextMeta.legal_documents = {
+          ...state.meta.legal_documents,
+          ...p.legal_documents,
+        };
+      }
       return { ...state, meta: nextMeta, dirty: true };
     }
     case "SET_HEADER":
@@ -94,12 +100,14 @@ export function createEmptyMeta(): QuoteBuilderMeta {
     validity_days: 30,
     deposit: { type: "PERCENT", value: 0 },
     global_discount_percent: 0,
+    global_discount_amount_ht: 0,
     notes: "",
     commercial_notes: "",
     technical_notes: "",
     payment_terms: "",
     study_import: null,
     pdf_show_line_pricing: true,
+    legal_documents: { include_rge: false, include_decennale: false },
   };
 }
 
@@ -199,6 +207,14 @@ export function buildStateFromApi(data: { quote: Record<string, unknown>; items:
               : null,
         }
       : null;
+  const ldRaw = metaRaw.legal_documents;
+  const legal_documents =
+    ldRaw && typeof ldRaw === "object"
+      ? {
+          include_rge: Boolean((ldRaw as { include_rge?: unknown }).include_rge),
+          include_decennale: Boolean((ldRaw as { include_decennale?: unknown }).include_decennale),
+        }
+      : { include_rge: false, include_decennale: false };
   return {
     header: {
       id: String(q.id),
@@ -216,12 +232,14 @@ export function buildStateFromApi(data: { quote: Record<string, unknown>; items:
       validity_days: Number(metaRaw.validity_days) || 30,
       deposit: parseDepositFromMeta(metaRaw),
       global_discount_percent: Number(metaRaw.global_discount_percent) || 0,
+      global_discount_amount_ht: Math.max(0, Number(metaRaw.global_discount_amount_ht) || 0),
       notes: String(metaRaw.notes ?? ""),
       commercial_notes: String(metaRaw.commercial_notes ?? ""),
       technical_notes: String(metaRaw.technical_notes ?? ""),
       payment_terms: String(metaRaw.payment_terms ?? ""),
       study_import: studyImport,
       pdf_show_line_pricing: metaRaw.pdf_show_line_pricing !== false,
+      legal_documents,
     },
     dirty: false,
   };

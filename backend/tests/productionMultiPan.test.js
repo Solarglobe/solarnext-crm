@@ -47,6 +47,7 @@ const SETTINGS = { pricing: { kit_panel_power_w: 485 } };
     site: SITE,
     settings: SETTINGS,
     pans: onePan,
+    moduleWp: 485,
   });
   assert(Array.isArray(r1.byPan) && r1.byPan.length === 1, "byPan.length === 1");
   assert(r1.byPan[0].panId === "p1", "panId p1");
@@ -65,6 +66,7 @@ const SETTINGS = { pricing: { kit_panel_power_w: 485 } };
     site: SITE,
     settings: SETTINGS,
     pans: twoPans,
+    moduleWp: 485,
   });
   assert(r2.byPan.length === 2, "byPan.length === 2");
   const sumByPan = r2.byPan[0].annualKwh + r2.byPan[1].annualKwh;
@@ -82,6 +84,7 @@ const SETTINGS = { pricing: { kit_panel_power_w: 485 } };
     site: SITE,
     settings: SETTINGS,
     pans: pansShading,
+    moduleWp: 485,
   });
   const s0Pan = r3.byPan.find((p) => p.panId === "s0");
   const s20Pan = r3.byPan.find((p) => p.panId === "s20");
@@ -96,6 +99,7 @@ const SETTINGS = { pricing: { kit_panel_power_w: 485 } };
     site: SITE,
     settings: SETTINGS,
     pans: [{ id: "r", azimuth: 180, tilt: 30, panelCount: 1, shadingCombinedPct: 0 }],
+    moduleWp: 485,
   });
   assert(!Number.isNaN(r4.annualKwh), "annualKwh pas NaN");
   assert(r4.monthlyKwh.every((v) => !Number.isNaN(v)), "monthlyKwh pas de NaN");

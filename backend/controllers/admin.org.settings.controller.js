@@ -6,6 +6,8 @@
 
 import { pool } from "../config/db.js";
 import { parseDocumentPrefixForStorage } from "../utils/documentPrefix.js";
+import { pickOrgEconomicsNumericPatch } from "../config/orgEconomics.common.js";
+import { logDeprecatedOrgSettingsWrite } from "../config/orgSettingsDeprecated.js";
 
 const orgId = (req) => req.user.organizationId ?? req.user.organization_id;
 
@@ -52,7 +54,12 @@ const DEFAULT_SETTINGS = {
     maintenance_pct: 0,
     onduleur_year: 15,
     onduleur_cost_pct: 12,
+    battery_degradation_pct: 2,
   },
+  /**
+   * @deprecated Bloc hérité — persisté et fusionné pour rétrocompatibilité ; non branché au moteur PV
+   * (catalogues + étude portent les hypothèses effectives). Voir `orgSettingsDeprecated.js`.
+   */
   pvtech: {
     system_yield_pct: 86,
     panel_surface_m2: 2.04,
@@ -78,6 +85,10 @@ const DEFAULT_SETTINGS = {
     micro_mppt_pct: 99.8,
     standard_loss_pct: 12,
   },
+  /**
+   * @deprecated Bloc hérité — persisté pour rétrocompatibilité ; non branché au moteur.
+   * Voir `orgSettingsDeprecated.js`.
+   */
   ai: {
     use_enedis_first: true,
     use_pvgis: true,
@@ -124,23 +135,15 @@ function validatePricing(p) {
   };
 }
 
+/** @see pickOrgEconomicsNumericPatch — clés autorisées centralisées dans `config/orgEconomics.common.js` */
 function validateEconomics(e) {
-  if (!e || typeof e !== "object") return null;
-  return {
-    price_eur_kwh: typeof e.price_eur_kwh === "number" ? e.price_eur_kwh : undefined,
-    elec_growth_pct: typeof e.elec_growth_pct === "number" ? e.elec_growth_pct : undefined,
-    pv_degradation_pct: typeof e.pv_degradation_pct === "number" ? e.pv_degradation_pct : undefined,
-    horizon_years: typeof e.horizon_years === "number" ? e.horizon_years : undefined,
-    oa_rate_lt_9: typeof e.oa_rate_lt_9 === "number" ? e.oa_rate_lt_9 : undefined,
-    oa_rate_gte_9: typeof e.oa_rate_gte_9 === "number" ? e.oa_rate_gte_9 : undefined,
-    prime_lt9: typeof e.prime_lt9 === "number" ? e.prime_lt9 : undefined,
-    prime_gte9: typeof e.prime_gte9 === "number" ? e.prime_gte9 : undefined,
-    maintenance_pct: typeof e.maintenance_pct === "number" ? e.maintenance_pct : undefined,
-    onduleur_year: typeof e.onduleur_year === "number" ? e.onduleur_year : undefined,
-    onduleur_cost_pct: typeof e.onduleur_cost_pct === "number" ? e.onduleur_cost_pct : undefined,
-  };
+  return pickOrgEconomicsNumericPatch(e, {
+    onUnknownKey: (key) =>
+      console.warn(`[SETTINGS DEPRECATED] Ignored unknown economics key on admin merge: ${key}`),
+  });
 }
 
+/** @deprecated Sert uniquement à fusionner l’héritage `pvtech` — voir `orgSettingsDeprecated.js`. */
 function validatePvtech(p) {
   if (!p || typeof p !== "object") return null;
   return {
@@ -174,6 +177,7 @@ function validateComponents(c) {
   };
 }
 
+/** @deprecated Sert uniquement à fusionner l’héritage `ai` — voir `orgSettingsDeprecated.js`. */
 function validateAi(a) {
   if (!a || typeof a !== "object") return null;
   return {
@@ -238,6 +242,8 @@ export async function post(req, res) {
     if (typeof body !== "object") {
       return res.status(400).json({ error: "Body doit être un objet JSON" });
     }
+
+    logDeprecatedOrgSettingsWrite(body);
 
     const current = await pool.query(
       "SELECT settings_json FROM organizations WHERE id = $1",
@@ -306,7 +312,26 @@ export async function post(req, res) {
         }
       }
     }
+
+    if (Object.keys(updates).length === 0) {
+      const merged = deepMerge(DEFAULT_SETTINGS, existing);
+      return res.json(stripPanelsCatalog(merged));
+    }
+
+    const mergedSettings = deepMerge(existing, updates);
+    const toStore = stripPanelsCatalog(mergedSettings);
+    if (toStore.panels_catalog != null) {
+      delete toStore.panels_catalog;
+    }
+
+    await pool.query("UPDATE organizations SET settings_json = $1::jsonb WHERE id = $2", [
+      JSON.stringify(toStore),
+      org,
+    ]);
+
+    const out = deepMerge(DEFAULT_SETTINGS, toStore);
+    res.json(stripPanelsCatalog(out));
   } catch (err) {
-    next(err);
+    res.status(500).json({ error: err instanceof Error ? err.message : "Erreur serveur" });
   }
-};
+}

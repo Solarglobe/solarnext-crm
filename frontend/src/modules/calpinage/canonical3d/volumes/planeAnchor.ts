@@ -20,6 +20,18 @@ export function projectPointOntoPlane(point: Vector3, eq: PlaneEquation): WorldP
   return { x: p.x, y: p.y, z: p.z };
 }
 
+/**
+ * Intersection du plan `n·p + d = 0` avec la droite verticale {(x, y, t), t ∈ ℝ}.
+ * Même hauteur qu’utiliserait un positionnement « sur le plan » avec (x,y) fixés — aligné avec
+ * `resolveCenterOnPlaneWorld` / maillage toit par patch (équation du `RoofPlanePatch3D`).
+ */
+export function zOnPlaneEquationAtFixedXY(eq: PlaneEquation, x: number, y: number, epsNz = 1e-6): number | null {
+  const nz = eq.normal.z;
+  if (!Number.isFinite(nz) || Math.abs(nz) < epsNz) return null;
+  const z = -(eq.normal.x * x + eq.normal.y * y + eq.d) / nz;
+  return Number.isFinite(z) ? z : null;
+}
+
 export function projectFootprintOntoPlane(
   points: readonly WorldPosition3D[],
   eq: PlaneEquation

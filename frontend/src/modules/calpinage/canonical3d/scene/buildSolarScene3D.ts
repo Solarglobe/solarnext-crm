@@ -11,14 +11,19 @@ import type { NearShadingSolarDirectionInput } from "../types/near-shading-3d";
 import type { PvPanelSurface3D } from "../types/pv-panel-3d";
 import type { RoofExtensionVolume3D } from "../types/roof-extension-volume";
 import type { RoofObstacleVolume3D } from "../types/roof-obstacle-volume";
+import type { BuildingShell3D } from "../types/building-shell-3d";
 import type { Vector3 } from "../types/primitives";
 import { normalize3 } from "../utils/math3";
 import type { PanelVisualShading } from "../types/panelVisualShading";
 import type {
   SolarScene3D,
   SolarScene3DMetadata,
+  SolarSceneBuildGuard,
   SolarSceneGenerator,
   SolarScenePanelShadingSummary,
+  SolarSceneRoofGeometrySource,
+  SolarSceneRoofQualityPhaseA,
+  SolarSceneRoofQualityPhaseB,
   SolarSceneShadingSnapshot3D,
   SolarSceneSolarContext3D,
 } from "../types/solarScene3d";
@@ -47,6 +52,16 @@ export interface BuildSolarScene3DInput {
   readonly sourceTrace?: Scene2DSourceTrace;
   /** Lecture seule runtime / export — coloration viewer sans recalcul ombrage. */
   readonly panelVisualShadingByPanelId?: Readonly<Record<string, PanelVisualShading>>;
+  readonly roofGeometrySource?: SolarSceneRoofGeometrySource;
+  readonly roofGeometryFallbackReason?: string | null;
+  /** Prisme bâtiment (runtime calpinage) — optionnel. */
+  readonly buildingShell?: BuildingShell3D | null;
+  /** Garde-fous niveau 0 — audit / bandeau viewer (optionnel). */
+  readonly buildGuards?: readonly SolarSceneBuildGuard[];
+  /** Plan d’action Phase A (correctifs 2D) — optionnel. */
+  readonly roofQualityPhaseA?: SolarSceneRoofQualityPhaseA;
+  /** Preuve technique Phase B (métriques, export support) — optionnel. */
+  readonly roofQualityPhaseB?: SolarSceneRoofQualityPhaseB;
 }
 
 function summarizePanelsFromNearSeries(
@@ -101,6 +116,14 @@ export function buildSolarScene3D(input: BuildSolarScene3DInput): SolarScene3D {
     generator: input.generator ?? "buildSolarScene3D",
     ...(input.studyRef != null && { studyRef: input.studyRef }),
     ...(input.integrationNotes != null && { integrationNotes: input.integrationNotes }),
+    ...(input.roofGeometrySource != null && { roofGeometrySource: input.roofGeometrySource }),
+    ...(input.roofGeometryFallbackReason !== undefined && {
+      roofGeometryFallbackReason: input.roofGeometryFallbackReason,
+    }),
+    ...(input.buildGuards != null &&
+      input.buildGuards.length > 0 && { buildGuards: input.buildGuards }),
+    ...(input.roofQualityPhaseA != null && { roofQualityPhaseA: input.roofQualityPhaseA }),
+    ...(input.roofQualityPhaseB != null && { roofQualityPhaseB: input.roofQualityPhaseB }),
   };
 
   let solarContext: SolarSceneSolarContext3D | undefined;
@@ -126,6 +149,7 @@ export function buildSolarScene3D(input: BuildSolarScene3DInput): SolarScene3D {
     ...(input.worldConfig != null && { worldConfig: input.worldConfig }),
     ...(input.sourceTrace != null && { sourceTrace: input.sourceTrace }),
     roofModel: input.roofModel,
+    ...(input.buildingShell != null ? { buildingShell: input.buildingShell } : {}),
     obstacleVolumes: input.obstacleVolumes,
     extensionVolumes: input.extensionVolumes,
     volumesQuality: input.volumesQuality,
@@ -136,6 +160,20 @@ export function buildSolarScene3D(input: BuildSolarScene3DInput): SolarScene3D {
     ...(solarContext && { solarContext }),
     ...(nearShadingSnapshot && { nearShadingSnapshot }),
   };
+
+  if (import.meta.env.DEV && input.buildingShell != null) {
+    const sh = input.buildingShell;
+    console.info("[HOUSE3D-FIX][SCENE]", {
+      buildingShellInjected: true,
+      contourSource: sh.contourSource,
+      shellVertices: sh.vertices.length,
+      shellFaces: sh.faces.length,
+      shellMinZ: Number(sh.bounds.min.z.toFixed(4)),
+      shellMaxZ: Number(sh.bounds.max.z.toFixed(4)),
+      lateralWallFaces: sh.faces.filter((f) => f.kind === "side").length,
+      roofPatchCount: input.roofModel.roofPlanePatches.length,
+    });
+  }
 
   const coherence = validate2DTo3DCoherence(base);
   return {

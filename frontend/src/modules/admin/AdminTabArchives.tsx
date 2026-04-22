@@ -1,7 +1,6 @@
 /**
  * CP-AUTO-CONVERT-ARCHIVE-08 — Tab Archives
  * CP-ARCHIVE-EXPORT-09 — Export CSV + recherche rapide
- * Liste des leads archivés + restauration
  */
 
 import React, { useEffect, useMemo, useState } from "react";
@@ -12,6 +11,7 @@ import {
   adminExportArchivesCsv,
   type AdminArchiveItem,
 } from "../../services/admin.api";
+import { OrgIconUndo } from "./orgStructureTableIcons";
 
 export function AdminTabArchives() {
   const [items, setItems] = useState<AdminArchiveItem[]>([]);
@@ -92,92 +92,100 @@ export function AdminTabArchives() {
   };
 
   if (loading) {
-    return <p style={{ color: "var(--text-muted)" }}>Chargement…</p>;
+    return <p className="org-tab-loading">Chargement des archives…</p>;
   }
 
   return (
-    <div className="admin-tab-archives">
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: "var(--spacing-24)",
-        }}
-      >
-        <span style={{ color: "var(--text-muted)", fontSize: "var(--font-size-body)" }}>
-          {filteredItems.length} lead(s) archivé(s)
-          {search && ` (filtré sur ${items.length} total)`}
-        </span>
-        <button
-          type="button"
-          className="sn-btn sn-btn-primary"
-          onClick={handleExportCsv}
-          disabled={exporting || items.length === 0}
-        >
-          {exporting ? "Export…" : "Exporter CSV"}
-        </button>
-      </div>
-
-      {items.length > 0 && (
-        <div style={{ marginBottom: "var(--spacing-16)" }}>
-          <input
-            type="text"
-            className="sn-input"
-            placeholder="Rechercher nom, email, téléphone"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            style={{ maxWidth: 320 }}
-          />
+    <div className="admin-tab-archives org-structure-tab">
+      <header className="org-tab-hero">
+        <div className="org-tab-hero__text">
+          <h2 className="org-tab-hero__title">Archives</h2>
+          <p className="org-tab-hero__lead">
+            Leads archivés : recherchez, exportez en CSV ou restaurez un dossier dans le pipeline.
+          </p>
+          <span className="org-tab-hero__meta">
+            {filteredItems.length} sur {items.length} lead{items.length !== 1 ? "s" : ""}
+            {search.trim() ? " (filtré)" : ""}
+          </span>
         </div>
-      )}
+        <div className="org-tab-hero__actions">
+          <Button
+            variant="secondary"
+            size="md"
+            type="button"
+            onClick={() => void handleExportCsv()}
+            disabled={exporting || items.length === 0}
+          >
+            {exporting ? "Export…" : "Exporter CSV"}
+          </Button>
+        </div>
+      </header>
 
-      {error && (
-        <p style={{ color: "var(--danger)", marginBottom: "var(--spacing-16)" }}>{error}</p>
-      )}
+      {error ? <p className="org-tab-alert">{error}</p> : null}
+
+      {items.length > 0 ? (
+        <div className="org-tab-toolbar">
+          <div className="org-tab-toolbar__search">
+            <input
+              type="search"
+              className="sn-input"
+              placeholder="Rechercher nom, e-mail, téléphone…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              aria-label="Filtrer les archives"
+            />
+          </div>
+        </div>
+      ) : null}
 
       {items.length === 0 ? (
-        <p style={{ color: "var(--text-muted)", padding: "var(--spacing-24)" }}>
-          Aucun lead archivé.
-        </p>
+        <div className="org-tab-table-wrap">
+          <p className="org-tab-table__empty" style={{ margin: 0 }}>
+            Aucun lead archivé.
+          </p>
+        </div>
       ) : filteredItems.length === 0 ? (
-        <p style={{ color: "var(--text-muted)", padding: "var(--spacing-24)" }}>
-          Aucun résultat pour la recherche.
-        </p>
+        <div className="org-tab-table-wrap">
+          <p className="org-tab-table__empty" style={{ margin: 0 }}>
+            Aucun résultat pour cette recherche.
+          </p>
+        </div>
       ) : (
-        <div style={{ overflowX: "auto" }}>
-          <table className="sn-table sn-leads-table" style={{ width: "100%" }}>
+        <div className="org-tab-table-wrap">
+          <table className="org-tab-table">
             <thead>
               <tr>
                 <th>Nom</th>
                 <th>Email</th>
-                <th>Téléphone</th>
+                <th>Tél.</th>
                 <th>Stage</th>
                 <th>Raison</th>
                 <th>Archivé le</th>
                 <th>Par</th>
-                <th>Actions</th>
+                <th className="org-tab-table__cell--right">Actions</th>
               </tr>
             </thead>
             <tbody>
               {filteredItems.map((item) => (
                 <tr key={item.id}>
-                  <td>{item.full_name || "—"}</td>
-                  <td>{item.email || "—"}</td>
+                  <td className="org-tab-table__cell--strong">{item.full_name || "—"}</td>
+                  <td className="org-tab-table__cell--muted">{item.email || "—"}</td>
                   <td>{item.phone || "—"}</td>
                   <td>{item.stage_name || "—"}</td>
                   <td>{reasonLabel(item.archived_reason)}</td>
-                  <td>{formatDate(item.archived_at)}</td>
-                  <td>{item.archived_by_email || "—"}</td>
-                  <td>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleRestore(item)}
+                  <td className="org-tab-table__cell--muted">{formatDate(item.archived_at)}</td>
+                  <td className="org-tab-table__cell--muted">{item.archived_by_email || "—"}</td>
+                  <td className="org-tab-table__cell--right">
+                    <button
+                      type="button"
+                      className="org-tab-icon-btn"
+                      onClick={() => void handleRestore(item)}
                       disabled={restoringId === item.id}
+                      aria-label={`Restaurer ${item.full_name || item.email || "ce lead"}`}
+                      title="Restaurer"
                     >
-                      {restoringId === item.id ? "Restauré…" : "Restaurer"}
-                    </Button>
+                      <OrgIconUndo />
+                    </button>
                   </td>
                 </tr>
               ))}

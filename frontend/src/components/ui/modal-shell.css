@@ -1,6 +1,6 @@
 /**
- * Lot 2 — Coque modale formulaire CRM (clair, portal body, scroll interne).
- * Z-index < ConfirmModal stacked (1100) : voir overlayTokens.ts
+ * Coque modale formulaire CRM — standard SaaS (léger, centré, blur discret).
+ * Z-index < ConfirmModal stacked (1100).
  */
 
 :root {
@@ -14,31 +14,55 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: var(--spacing-16, 16px);
-  background: rgba(15, 23, 42, 0.45);
+  padding: 16px;
+  background: rgba(15, 23, 42, 0.38);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
   box-sizing: border-box;
+  animation: sn-modal-backdrop-in 0.18s ease-out both;
+}
+
+@keyframes sn-modal-backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .sn-modal-shell-panel {
   display: flex;
   flex-direction: column;
   width: 100%;
-  max-height: min(90vh, 900px);
-  border-radius: var(--radius-16, 16px);
+  max-height: min(90vh, 880px);
+  border-radius: 12px;
   overflow: hidden;
+  background: var(--surface-card, #fff);
+  border: 1px solid color-mix(in srgb, var(--border-soft, rgba(15, 23, 42, 0.1)) 100%, transparent);
   box-shadow:
-    0 24px 48px rgba(15, 23, 42, 0.12),
-    0 0 0 1px rgba(15, 23, 42, 0.06);
+    0 12px 40px rgba(15, 23, 42, 0.1),
+    0 2px 8px rgba(15, 23, 42, 0.04);
+  animation: sn-modal-panel-in 0.18s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes sn-modal-panel-in {
+  from {
+    opacity: 0;
+    transform: scale(0.98) translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
 }
 
 .sn-modal-shell-panel--sm {
-  max-width: min(420px, 100%);
+  max-width: min(520px, 100%);
 }
 
 .sn-modal-shell-panel--md {
-  max-width: min(560px, 100%);
+  max-width: min(600px, 100%);
 }
 
 .sn-modal-shell-panel--lg {
@@ -46,7 +70,7 @@
 }
 
 .sn-modal-shell-panel--xl {
-  max-width: min(960px, 100%);
+  max-width: min(720px, 100%);
 }
 
 .sn-modal-shell-header {
@@ -54,9 +78,10 @@
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: var(--spacing-12, 12px);
-  padding: var(--spacing-20, 20px) var(--spacing-24, 24px) var(--spacing-16, 16px);
+  gap: 12px;
+  padding: 14px 20px 12px;
   border-bottom: 1px solid var(--border-soft, var(--sn-border-soft));
+  background: var(--surface-card, #fff);
 }
 
 .sn-modal-shell-header-text {
@@ -64,18 +89,20 @@
 }
 
 .sn-modal-shell-title {
-  margin: 0 0 var(--spacing-4, 4px);
-  font-size: var(--font-size-title-md, 1.125rem);
+  margin: 0 0 4px;
+  font-size: 1.0625rem;
   font-weight: 600;
+  letter-spacing: -0.02em;
   color: var(--text-primary);
   line-height: 1.3;
 }
 
 .sn-modal-shell-subtitle {
   margin: 0;
-  font-size: var(--font-size-body-sm, 0.8125rem);
+  font-size: 0.8125rem;
   color: var(--text-muted);
   line-height: 1.45;
+  max-width: 52ch;
 }
 
 .sn-modal-shell-close {
@@ -83,23 +110,28 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
-  margin: -6px -8px 0 0;
+  width: 32px;
+  height: 32px;
+  margin: -4px -6px 0 0;
   padding: 0;
   border: none;
-  border-radius: var(--radius-btn, 8px);
+  border-radius: 8px;
   background: transparent;
   color: var(--text-muted);
-  font-size: 1.35rem;
-  line-height: 1;
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
 }
 
 .sn-modal-shell-close:hover {
-  background: rgba(15, 23, 42, 0.06);
+  background: color-mix(in srgb, var(--text-primary) 7%, transparent);
   color: var(--text-primary);
+}
+
+.sn-modal-shell-close:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--primary) 45%, transparent);
+  outline-offset: 2px;
 }
 
 .sn-modal-shell-body {
@@ -108,10 +140,9 @@
   overflow-x: hidden;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  padding: var(--spacing-16, 16px) var(--spacing-24, 24px);
+  padding: 16px 20px;
 }
 
-/* Contenu qui gère son propre padding (ex. admin users) */
 .sn-modal-shell-body--flush {
   padding: 0;
 }
@@ -122,20 +153,32 @@
   flex-wrap: wrap;
   justify-content: flex-end;
   align-items: center;
-  gap: var(--spacing-12, 12px);
-  padding: var(--spacing-16, 16px) var(--spacing-24, 24px) var(--spacing-20, 20px);
+  gap: 8px;
+  padding: 10px 20px 12px;
   border-top: 1px solid var(--border-soft, var(--sn-border-soft));
-  background: var(--surface-card, var(--sn-bg-elevated));
+  background: color-mix(in srgb, var(--surface-card, #fff) 92%, var(--surface-2, #f8fafc));
 }
 
 @media (max-width: 480px) {
   .sn-modal-shell-backdrop {
-    padding: var(--spacing-12, 12px);
+    padding: 12px;
     align-items: flex-end;
   }
 
   .sn-modal-shell-panel {
     max-height: min(92vh, 900px);
+    animation: sn-modal-panel-in-mobile 0.18s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  @keyframes sn-modal-panel-in-mobile {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 
   .sn-modal-shell-footer {
@@ -147,4 +190,9 @@
     width: 100%;
     justify-content: center;
   }
+}
+
+.theme-dark .sn-modal-shell-footer,
+[data-theme="dark"] .sn-modal-shell-footer {
+  background: color-mix(in srgb, var(--surface-card) 88%, transparent);
 }

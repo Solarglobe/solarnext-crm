@@ -327,18 +327,36 @@ export async function postGenerateQuotePdf(quoteId: string): Promise<{
 }
 
 /** PDF devis → entity_documents du lead (Documents > Devis), sans upload. */
-export async function postQuoteAddToDocuments(quoteId: string): Promise<{
-  alreadyExists: boolean;
-  document?: Record<string, unknown>;
-}> {
+export async function postQuoteAddToDocuments(
+  quoteId: string,
+  opts?: { force_replace?: boolean }
+): Promise<
+  | {
+      status: "conflict";
+      existing_document_id: string;
+      is_signed: boolean;
+      message: string;
+    }
+  | { status: "created" | "replaced"; document?: Record<string, unknown> }
+> {
   const res = await apiFetch(`${API_BASE}/api/quotes/${encodeURIComponent(quoteId)}/add-to-documents`, {
     method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ force_replace: opts?.force_replace === true }),
   });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error((err as { error?: string }).error || `Erreur ${res.status}`);
+  const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  if (res.status === 409) {
+    return {
+      status: "conflict",
+      existing_document_id: String(data.existing_document_id ?? ""),
+      is_signed: data.is_signed === true,
+      message: typeof data.message === "string" ? data.message : "Document déjà existant",
+    };
   }
-  return res.json();
+  if (!res.ok) {
+    throw new Error((data.error as string) || `Erreur ${res.status}`);
+  }
+  return data as { status: "created" | "replaced"; document?: Record<string, unknown> };
 }
 
 /** Finalisation terrain : figement si besoin, snapshot, PDF signé, statut Accepté (une requête API). */
@@ -348,6 +366,8 @@ export async function postFinalizeQuoteSigned(
     client_read_approved: boolean;
     signature_client_data_url: string;
     signature_company_data_url: string;
+    signature_client_acceptance: { accepted: boolean; acceptedLabel?: string };
+    signature_company_acceptance: { accepted: boolean; acceptedLabel?: string };
   }
 ): Promise<{
   document?: { id?: string; file_name?: string };

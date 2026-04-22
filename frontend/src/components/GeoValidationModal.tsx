@@ -1,7 +1,7 @@
 /**
- * GeoValidationModal — Validation cadastrale obligatoire via Géoportail (IGN)
- * Modal plein écran avec carte OpenLayers (ortho + parcellaire), marker draggable,
- * récupération parcelle cadastrale, validation via POST /api/addresses/verify-pin
+ * GeoValidationModal — Validation cadastrale obligatoire
+ * Modal plein écran avec carte OpenLayers (ortho uniquement, sans couche parcellaire IGN),
+ * marker draggable, récupération parcelle cadastrale, validation via POST /api/addresses/verify-pin
  */
 
 import React, { useEffect, useRef, useState } from "react";
@@ -51,36 +51,6 @@ function createOrthoLayer(): TileLayer<WMTS> {
   return new TileLayer({ source });
 }
 
-function createCadastreLayer(): TileLayer<WMTS> {
-  const proj3857 = getProjection("EPSG:3857")!;
-  const maxResolution = getWidth(proj3857.getExtent()) / 256;
-  const resolutions: number[] = [];
-  const matrixIds: string[] = [];
-  for (let i = 0; i <= 21; i++) {
-    matrixIds.push(String(i));
-    resolutions.push(maxResolution / Math.pow(2, i));
-  }
-  const tileGrid = new WMTSTileGrid({
-    origin: [-20037508, 20037508],
-    resolutions,
-    matrixIds,
-  });
-  const source = new WMTS({
-    url: "https://data.geopf.fr/wmts",
-    layer: "CADASTRALPARCELS.PARCELLAIRE_EXPRESS",
-    matrixSet: "PM",
-    format: "image/png",
-    projection: "EPSG:3857",
-    tileGrid,
-    style: "normal",
-    attributions: "© IGN",
-  });
-  return new TileLayer({
-    source,
-    opacity: 0.7,
-  });
-}
-
 export interface GeoValidationModalProps {
   addressId: string;
   /** Si absent (ex. adresse sans GPS encore), centre France métropolitaine — le point n’est persisté qu’après confirmation. */
@@ -121,7 +91,6 @@ export default function GeoValidationModal({
     if (!mapRef.current) return;
 
     const ortho = createOrthoLayer();
-    const cadastre = createCadastreLayer();
 
     const { lat: effLat, lon: effLon } = resolveCoordOrFrance(lat, lon);
     const center = fromLonLat([effLon, effLat]);
@@ -152,7 +121,7 @@ export default function GeoValidationModal({
 
     const map = new Map({
       target: mapRef.current,
-      layers: [ortho, cadastre, vectorLayer],
+      layers: [ortho, vectorLayer],
       view: new View({
         center,
         zoom: 19,

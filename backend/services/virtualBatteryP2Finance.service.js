@@ -21,22 +21,18 @@ import {
   VB_LEGACY_URBAN_HPHC_HP_DISCHARGE_SUM_HT,
   VB_LEGACY_URBAN_HPHC_HC_DISCHARGE_SUM_HT,
 } from "./pv/virtualBatteryLegacyDefaults.js";
+import {
+  VIRTUAL_BATTERY_P2_VAT_RATE,
+  MYSMART_CAPACITY_TIERS_HT,
+  URBAN_BASE_KVA_STEPS,
+  URBAN_BASE_ENERGY_LOW,
+  URBAN_BASE_ENERGY_HIGH,
+  VIRTUAL_BATTERY_LEGACY_SUBSCRIPTION_EUR_PER_KWC_MONTH,
+} from "./core/engineConstants.js";
 
-const VAT = 0.2;
+export { MYSMART_CAPACITY_TIERS_HT };
 
-/** Paliers MySmartBattery : [kWh palier, €/mois HT] — plus petit palier ≥ capacité requise */
-export const MYSMART_CAPACITY_TIERS_HT = [
-  [20, 10.83],
-  [100, 14.16],
-  [300, 22.49],
-  [600, 29.16],
-  [900, 33.33],
-  [1200, 37.49],
-  [1800, 47.49],
-  [3000, 75.83],
-  [5000, 112.49],
-  [10000, 179.16],
-];
+const VAT = VIRTUAL_BATTERY_P2_VAT_RATE;
 
 const P = {
   URBAN_SOLAR: "URBAN_SOLAR",
@@ -56,10 +52,6 @@ function htToTtc(ht) {
  * Échelon kVA grille Urban BASE (aligné `frontend/src/data/virtualBatteryTariffs2026.ts` : 3,6,9 → LOW ; 12–36 → HIGH).
  * Pas d’invention hors ces paliers — le compteur est rattaché au palier Enedis le plus proche.
  */
-const URBAN_BASE_KVA_STEPS = [3, 6, 9, 12, 15, 18, 24, 30, 36];
-const URBAN_BASE_ENERGY_LOW = 0.1308;
-const URBAN_BASE_ENERGY_HIGH = 0.1297;
-
 export function meterKvaToNearestUrbanBaseStep(meterKva) {
   const n = Math.max(3, Math.min(36, Math.round(Number(meterKva))));
   return URBAN_BASE_KVA_STEPS.reduce((prev, curr) =>
@@ -269,7 +261,7 @@ export function computeVirtualBatteryP2Finance(input) {
         notes.push("HPHC Urban : ventilation HP/HC décharge absente ou incomplète — pas de coût déstockage calculé.");
       }
     } else {
-      annual_subscription_ht = round2(installedKwc * 1.0 * 12);
+      annual_subscription_ht = round2(installedKwc * VIRTUAL_BATTERY_LEGACY_SUBSCRIPTION_EUR_PER_KWC_MONTH * 12);
       annual_autoproducer_contribution_ht = VB_LEGACY_DEFAULT_AUTOPROD_CONTRIBUTION_EUR_PER_YEAR_HT;
       if (contractType === "BASE") {
         const e = urbanBaseEnergyPriceHt(meterKva);
@@ -326,7 +318,7 @@ export function computeVirtualBatteryP2Finance(input) {
         notes.push("HPHC MyBattery : ventilation HP/HC décharge absente — pas de coût déstockage calculé.");
       }
     } else {
-      annual_subscription_ht = round2(installedKwc * 1.0 * 12);
+      annual_subscription_ht = round2(installedKwc * VIRTUAL_BATTERY_LEGACY_SUBSCRIPTION_EUR_PER_KWC_MONTH * 12);
       annual_autoproducer_contribution_ht = VB_LEGACY_DEFAULT_AUTOPROD_CONTRIBUTION_EUR_PER_YEAR_HT;
       if (contractType === "BASE") {
         annual_virtual_discharge_cost_ht = round2(discharged * VB_LEGACY_MYBATTERY_BASE_DISCHARGE_EUR_PER_KWH_HT);

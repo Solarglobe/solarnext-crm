@@ -1,5 +1,6 @@
 import "./styles/solarglobe-design-system.css";
 import "./styles/solarnext-theme.css";
+import "./design-system/saas-crm.css";
 import "ol/ol.css";
 import React from "react";
 
@@ -15,8 +16,10 @@ function ClientToLeadRedirect() {
   return <Navigate to={id ? `/leads/${id}` : "/clients"} replace />;
 }
 import { AppLayout } from "./layout/AppLayout";
+import { OrganizationProvider } from "./contexts/OrganizationContext";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import { AdminRoute } from "./components/auth/AdminRoute";
+import { SuperAdminRoute } from "./components/auth/SuperAdminRoute";
 import Login from "./pages/Login";
 import LeadDetail from "./pages/LeadDetail";
 import QuoteBuilderPage from "./modules/quotes/QuoteBuilderPage";
@@ -25,7 +28,9 @@ import StudyDetail from "./pages/StudyDetail";
 import StudyQuoteBuilder from "./pages/studies/StudyQuoteBuilder";
 import StudyCalpinagePage from "./pages/studies/StudyCalpinagePage";
 import ScenariosPage from "./pages/studies/ScenariosPage";
+import DashboardPage from "./pages/DashboardPage";
 import LeadsPage from "./pages/LeadsPage";
+import LeadDpPage from "./pages/leads/LeadDpPage";
 import ClientsList from "./pages/ClientsList";
 import PlanningPage from "./modules/planning/PlanningPage";
 import QuotesList from "./pages/QuotesList";
@@ -34,6 +39,7 @@ import InvoiceCreatePage from "./pages/InvoiceCreatePage";
 import InvoiceBuilderPage from "./modules/invoices/InvoiceBuilderPage";
 import FinancialHubPage from "./pages/FinancialHubPage";
 import DocumentsList from "./pages/DocumentsList";
+import MairiesPage from "./pages/MairiesPage";
 import PvSettingsPage from "./pages/PvSettingsPage";
 import AdminSmartpitchSettings from "./pages/AdminSmartpitchSettings";
 import StudySnapshotPdfPage from "./pages/pdf/StudySnapshotPdfPage";
@@ -43,12 +49,42 @@ import OrganizationStructurePage from "./pages/organization/OrganizationStructur
 import OrganizationCatalogPage from "./pages/organization/OrganizationCatalogPage";
 import SolarScene3DDebugPage from "./pages/dev/SolarScene3DDebugPage";
 import Dev3DPage from "./modules/calpinage/canonical3d/dev/Dev3DPage";
+import ClientPortalPage from "./pages/ClientPortalPage";
+import RouterNotFoundPage from "./pages/RouterNotFoundPage";
+import AdminOrganizationsPage from "./pages/admin/AdminOrganizationsPage";
+import MailInboxPage from "./pages/mail/MailInboxPage";
+import MailOutboxPage from "./pages/mail/MailOutboxPage";
+import MailSettingsPage from "./pages/settings/MailSettingsPage";
+import { ErrorBoundary } from "./components/ErrorBoundary";
+
+/** Référence stable pour éviter tout effet de closure / cache HMR sur le flag v7. */
+const ROUTER_PROVIDER_FUTURE = { v7_startTransition: true as const };
+
+/**
+ * Le routeur utilise basename `/crm.html`. Une URL du type `/client-portal/:token`
+ * (sans ce préfixe) ne correspond à aucune route → écran blanc. On corrige l’URL avant le 1er rendu.
+ */
+if (typeof window !== "undefined") {
+  const p = window.location.pathname;
+  if (p === "/client-portal" || p.startsWith("/client-portal/")) {
+    const suffix = p === "/client-portal" ? "/client-portal/" : p;
+    window.history.replaceState(
+      window.history.state,
+      "",
+      `/crm.html${suffix}${window.location.search}${window.location.hash}`
+    );
+  }
+}
 
 const router = createBrowserRouter(
   [
     {
       path: "/login",
       element: <Login />
+    },
+    {
+      path: "/client-portal/:token",
+      element: <ClientPortalPage />
     },
     {
       path: "/pdf-render/:studyId/:versionId",
@@ -69,13 +105,17 @@ const router = createBrowserRouter(
       path: "/",
       element: (
         <ProtectedRoute>
-          <AppLayout />
+          <OrganizationProvider>
+            <AppLayout />
+          </OrganizationProvider>
         </ProtectedRoute>
       ),
       children: [
-        { index: true, element: <Navigate to="/leads" /> },
+        { index: true, element: <Navigate to="/dashboard" replace /> },
+        { path: "dashboard", element: <DashboardPage /> },
         { path: "leads", element: <LeadsPage /> },
         { path: "leads/:id", element: <LeadDetail /> },
+        { path: "leads/:id/dp", element: <LeadDpPage /> },
         { path: "clients", element: <ClientsList /> },
         { path: "planning", element: <PlanningPage /> },
         { path: "clients/:id", element: <ClientToLeadRedirect /> },
@@ -92,6 +132,19 @@ const router = createBrowserRouter(
         { path: "invoices/new", element: <InvoiceCreatePage /> },
         { path: "invoices/:id", element: <InvoiceBuilderPage /> },
         { path: "documents", element: <DocumentsList /> },
+        { path: "mairies/new", element: <Navigate to="/mairies" replace /> },
+        { path: "mairies/:id", element: <MairiesPage /> },
+        { path: "mairies", element: <MairiesPage /> },
+        { path: "mail", element: <MailInboxPage /> },
+        { path: "mail/accounts", element: <Navigate to="/settings/mail?tab=accounts" replace /> },
+        { path: "mail/signatures", element: <Navigate to="/settings/mail?tab=signatures" replace /> },
+        { path: "mail/templates", element: <Navigate to="/settings/mail?tab=templates" replace /> },
+        { path: "mail/access", element: <Navigate to="/settings/mail?tab=access" replace /> },
+        { path: "mail/outbox", element: <MailOutboxPage /> },
+        { path: "settings/mail", element: <MailSettingsPage /> },
+        { path: "settings/mail-signatures", element: <Navigate to="/settings/mail?tab=signatures" replace /> },
+        { path: "settings/mail-templates", element: <Navigate to="/settings/mail?tab=templates" replace /> },
+        { path: "settings/mail-permissions", element: <Navigate to="/settings/mail?tab=access" replace /> },
         {
           path: "organization",
           element: (
@@ -104,6 +157,7 @@ const router = createBrowserRouter(
             { path: "users", element: <OrganizationUsersPage /> },
             { path: "structure", element: <OrganizationStructurePage /> },
             { path: "catalog", element: <OrganizationCatalogPage /> },
+            { path: "org-settings", element: <Navigate to="/organization/structure" replace /> },
           ]
         },
         {
@@ -131,18 +185,33 @@ const router = createBrowserRouter(
           ),
         },
         {
+          path: "admin/organizations",
+          element: (
+            <SuperAdminRoute>
+              <AdminOrganizationsPage />
+            </SuperAdminRoute>
+          ),
+        },
+        {
           path: "dev/solar-scene-3d",
           element: import.meta.env.DEV ? <SolarScene3DDebugPage /> : <Navigate to="/" replace />
         },
         {
           path: "dev/3d",
           element: import.meta.env.DEV ? <Dev3DPage /> : <Navigate to="/" replace />
+        },
+        {
+          path: "*",
+          element: <RouterNotFoundPage />
         }
       ]
     }
   ],
   {
-    basename: "/crm.html"
+    basename: "/crm.html",
+    future: {
+      v7_startTransition: true
+    }
   }
 );
 
@@ -150,7 +219,9 @@ const root = document.getElementById("root");
 if (root) {
   createRoot(root).render(
     <React.StrictMode>
-      <RouterProvider router={router} />
+      <ErrorBoundary>
+        <RouterProvider router={router} future={ROUTER_PROVIDER_FUTURE} />
+      </ErrorBoundary>
     </React.StrictMode>
   );
 }

@@ -1,9 +1,15 @@
 /**
  * CP-LEAD-V2 — Onglet Vue générale
- * Identité/Contacts, Adresse, Bien/foyer, Consommation, Maison & toiture
+ * Identité/contact, adresse, bien/foyer, maison & toiture, consommation, suivi client
  */
 
 import React, { useRef, useEffect, useState, useCallback, useMemo } from "react";
+import { useSuperAdminReadOnly } from "../../../contexts/OrganizationContext";
+import {
+  fetchClientById,
+  patchClient,
+  type Client,
+} from "../../../services/clients.service";
 import {
   geoAutocomplete,
   type AutocompleteSuggestion,
@@ -21,12 +27,16 @@ import GeoValidationModal from "../../../components/GeoValidationModal";
 import type { Study } from "../../../services/studies.service";
 import type { Activity } from "../../../services/activities.service";
 import { OverviewCardSection } from "./OverviewCardSection";
+import type { Lead as LeadRow, LeadsMeta } from "../../../services/leads.service";
+import { getCrmApiBase } from "../../../config/crmApiBase";
+import LeadClientPortalSection from "./LeadClientPortalSection";
 import {
   formatEnergyKwh,
   formatEnergyKwhPerYear,
   formatPowerKva,
 } from "./leadEnergyFormat";
 import LeadQuickSummary from "./LeadQuickSummary";
+import LeadMairieSection from "./LeadMairieSection";
 import type { EquipementActuelParams, EquipementsAVenir } from "./equipmentPilotageHelpers";
 import type { EquipmentItem, EquipmentKind, EquipmentV2 } from "./equipmentTypes";
 import {
@@ -189,6 +199,99 @@ function buildConsommationSummary(annualKwh: number | null | undefined, meterKva
   return bits.length ? bits.join(" • ") : null;
 }
 
+function formatConsentDate(iso?: string | null): string {
+  if (!iso) return "—";
+  try {
+    return new Date(iso).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" });
+  } catch {
+    return "—";
+  }
+}
+
+function ClientTableConsentSection({
+  clientId,
+  readOnly,
+}: {
+  clientId: string;
+  readOnly: boolean;
+}) {
+  const [row, setRow] = useState<Client | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setErr(null);
+    fetchClientById(clientId)
+      .then((r) => {
+        if (!cancelled) setRow(r);
+      })
+      .catch((e: Error) => {
+        if (!cancelled) setErr(e?.message || "Erreur");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [clientId]);
+
+  const patch = async (body: Partial<Client>) => {
+    if (readOnly) return;
+    setBusy(true);
+    try {
+      const next = await patchClient(clientId, body);
+      setRow(next);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Erreur");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <OverviewCardSection
+      index={100}
+      title="Consentements (fiche client CRM)"
+      defaultOpen
+      summary={row?.client_number ? `N° ${row.client_number}` : undefined}
+    >
+      {err ? <p className="crm-lead-warning">{err}</p> : null}
+      {!row && !err ? <p className="sn-muted">Chargement…</p> : null}
+      {row ? (
+        <div className="crm-lead-fields">
+          <div className="crm-lead-field">
+            <label>
+              <input
+                type="checkbox"
+                checked={Boolean(row.rgpd_consent)}
+                disabled={readOnly || busy}
+                onChange={(e) => void patch({ rgpd_consent: e.target.checked })}
+              />{" "}
+              Consentement RGPD (traitement des données)
+            </label>
+            <p className="sn-muted" style={{ marginTop: 4, fontSize: 12 }}>
+              Enregistré le {formatConsentDate(row.rgpd_consent_at)}
+            </p>
+          </div>
+          <div className="crm-lead-field" style={{ marginTop: 12 }}>
+            <label>
+              <input
+                type="checkbox"
+                checked={Boolean(row.marketing_opt_in)}
+                disabled={readOnly || busy}
+                onChange={(e) => void patch({ marketing_opt_in: e.target.checked })}
+              />{" "}
+              Autorisé marketing (e-mail, publicité)
+            </label>
+            <p className="sn-muted" style={{ marginTop: 4, fontSize: 12 }}>
+              Enregistré le {formatConsentDate(row.marketing_opt_in_at)}
+            </p>
+          </div>
+        </div>
+      ) : null}
+    </OverviewCardSection>
+  );
+}
+
 function useDebounce<T>(value: T, delay: number): T {
   const [debouncedValue, setDebouncedValue] = useState<T>(value);
   useEffect(() => {
@@ -198,7 +301,7 @@ function useDebounce<T>(value: T, delay: number): T {
   return debouncedValue;
 }
 
-interface OverviewLead {
+export interface OverviewLead {
   id?: string;
   civility?: string;
   full_name?: string;
@@ -212,12 +315,16 @@ interface OverviewLead {
   /** PRO : numéro SIRET (14 chiffres) */
   siret?: string | null;
   customer_type?: "PERSON" | "PRO";
+  /** ISO YYYY-MM-DD — mandat de représentation DP */
+  birth_date?: string | null;
   email?: string;
   phone?: string;
   phone_mobile?: string;
   phone_landline?: string;
   address?: string;
-  lead_source?: string;
+  source_id?: string;
+  /** Exposé par l’API détail pour affichage ; la sélection reste sur source_id */
+  source_slug?: string | null;
   status?: string;
   consumption_mode?: "ANNUAL" | "MONTHLY" | "PDL";
   consumption_annual_kwh?: number;
@@ -235,14 +342,27 @@ interface OverviewLead {
   insulation_level?: string;
   roof_type?: string;
   frame_type?: string;
-  assigned_salesperson_user_id?: string;
-  assigned_to?: string;
+  assigned_user_id?: string;
   site_address_id?: string;
   /** Stocké côté API : { engine: { annual_kwh, hourly, debug? } } (conso moteur) */
   energy_profile?: Record<string, unknown> | unknown | null;
   equipement_actuel?: string | null;
   equipement_actuel_params?: EquipementActuelParams | EquipmentV2 | null;
   equipements_a_venir?: EquipementsAVenir | EquipmentV2 | null;
+  rgpd_consent?: boolean;
+  rgpd_consent_at?: string | null;
+  marketing_opt_in?: boolean;
+  marketing_opt_in_at?: string | null;
+  client_id?: string;
+  mairie_id?: string | null;
+  mairie_name?: string | null;
+  mairie_postal_code?: string | null;
+  mairie_city?: string | null;
+  mairie_portal_url?: string | null;
+  mairie_portal_type?: string | null;
+  mairie_account_status?: string | null;
+  mairie_account_email?: string | null;
+  mairie_bitwarden_ref?: string | null;
 }
 
 interface SiteAddress {
@@ -299,6 +419,7 @@ interface OverviewTabProps {
   setAddressInput: (v: string) => void;
   consumptionMonthly: { month: number; kwh: number }[];
   users: { id: string; email?: string }[];
+  leadSources: LeadsMeta["sources"];
   /** Brouillon — aucun PATCH */
   onLeadChange: (p: Partial<OverviewLead>) => void;
   onMonthlyConsumptionChange: (months: { month: number; kwh: number }[]) => void;
@@ -335,9 +456,11 @@ interface OverviewTabProps {
   energyConsoBlockedSummary?: string;
   /** Si true : équipements édités via la modal compteur (évite double saisie / autosave). */
   hasMeters?: boolean;
+  /** Vue seule (ex. super-admin lecture) */
+  readOnly?: boolean;
 }
 
-const API_BASE = import.meta.env?.VITE_API_URL || "http://localhost:3000";
+const API_BASE = getCrmApiBase();
 
 export default function OverviewTab({
   lead,
@@ -346,6 +469,7 @@ export default function OverviewTab({
   setAddressInput,
   consumptionMonthly,
   users,
+  leadSources = [],
   onLeadChange,
   onMonthlyConsumptionChange,
   onMonthlyGridEditingChange,
@@ -368,7 +492,9 @@ export default function OverviewTab({
   showEnergyConsoBody = true,
   energyConsoBlockedSummary,
   hasMeters = false,
+  readOnly = false,
 }: OverviewTabProps) {
+  const readOnlySuper = useSuperAdminReadOnly();
   const overviewStudies = Array.isArray(leadOverview?.studies)
     ? leadOverview.studies
     : [];
@@ -391,6 +517,12 @@ export default function OverviewTab({
   const [equipmentKindPicker, setEquipmentKindPicker] = useState<
     null | "actuel" | "avenir"
   >(null);
+  /** Résumé accordion « Page de suivi client » (lien généré dans la session). */
+  const [clientPortalLinkActive, setClientPortalLinkActive] = useState(false);
+
+  useEffect(() => {
+    setClientPortalLinkActive(false);
+  }, [lead.id]);
 
   const handleEnedisAuth = () => {
     window.open(`${apiBase}/api/enedis/connect`, "_blank", "noopener,noreferrer");
@@ -839,6 +971,56 @@ export default function OverviewTab({
           studiesCount={overviewStudies.length}
           lastActivity={lastActivityPreview}
         />
+        {lead.id ? (
+          <LeadMairieSection
+            lead={{
+              id: lead.id,
+              mairie_id: lead.mairie_id,
+              mairie_name: lead.mairie_name,
+              mairie_postal_code: lead.mairie_postal_code,
+              mairie_city: lead.mairie_city,
+              mairie_portal_url: lead.mairie_portal_url,
+              mairie_portal_type: lead.mairie_portal_type as LeadRow["mairie_portal_type"],
+              mairie_account_status: lead.mairie_account_status as LeadRow["mairie_account_status"],
+              mairie_account_email: lead.mairie_account_email,
+            }}
+          />
+        ) : null}
+        <OverviewCardSection index={99} title="Consentements (dossier lead)" defaultOpen>
+          <div className="crm-lead-fields">
+            <div className="crm-lead-field">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={Boolean(lead.rgpd_consent)}
+                  disabled={readOnlySuper}
+                  onChange={(e) => onLeadChange({ rgpd_consent: e.target.checked })}
+                />{" "}
+                Consentement RGPD (traitement des données)
+              </label>
+              <p className="sn-muted" style={{ marginTop: 4, fontSize: 12 }}>
+                Enregistré le {formatConsentDate(lead.rgpd_consent_at)}
+              </p>
+            </div>
+            <div className="crm-lead-field" style={{ marginTop: 12 }}>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={Boolean(lead.marketing_opt_in)}
+                  disabled={readOnlySuper}
+                  onChange={(e) => onLeadChange({ marketing_opt_in: e.target.checked })}
+                />{" "}
+                Autorisé marketing (e-mail, publicité)
+              </label>
+              <p className="sn-muted" style={{ marginTop: 4, fontSize: 12 }}>
+                Enregistré le {formatConsentDate(lead.marketing_opt_in_at)}
+              </p>
+            </div>
+          </div>
+        </OverviewCardSection>
+        {lead.client_id ? (
+          <ClientTableConsentSection clientId={lead.client_id} readOnly={readOnlySuper} />
+        ) : null}
       </div>
       <div className="crm-lead-overview-surface">
       <div className="lead-overview-grid">
@@ -977,31 +1159,77 @@ export default function OverviewTab({
               placeholder="01…"
             />
           </div>
-          <div className="crm-lead-field">
-            <label>Conseiller commercial</label>
-            <select
+          <div className="crm-lead-identity-row crm-lead-identity-row--advisor-source">
+            <div className="crm-lead-field">
+              <label htmlFor="lead-assigned-user">Conseiller commercial</label>
+              <select
+                id="lead-assigned-user"
+                className="sn-input"
+                value={lead.assigned_user_id ?? ""}
+                onChange={(e) =>
+                  onLeadChange({
+                    assigned_user_id: e.target.value || undefined,
+                  })
+                }
+              >
+                <option value="">—</option>
+                {users.map((u) => (
+                  <option key={u.id} value={u.id}>{u.email || u.id}</option>
+                ))}
+              </select>
+            </div>
+            <div className="crm-lead-field">
+              <label
+                htmlFor="lead-source-acquisition"
+                title="Permet d'analyser la performance des canaux d'acquisition."
+              >
+                Source du lead
+              </label>
+              <select
+                id="lead-source-acquisition"
+                className="sn-input"
+                value={lead.source_id ?? leadSources[0]?.id ?? ""}
+                onChange={(e) =>
+                  onLeadChange({
+                    source_id: e.target.value || undefined,
+                  })
+                }
+                required={leadSources.length > 0}
+              >
+                {leadSources.length === 0 ? (
+                  <option value="">—</option>
+                ) : null}
+                {leadSources.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="crm-lead-field crm-lead-field-full" style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(0,0,0,.08)" }}>
+            <h4 className="crm-lead-subsection-title" style={{ margin: "0 0 6px", fontSize: "0.95rem", fontWeight: 600 }}>
+              Mandat de représentation (DP)
+            </h4>
+            <p className="crm-lead-hint" style={{ margin: "0 0 8px", fontSize: "0.85rem", opacity: 0.85 }}>
+              Ces informations alimentent le PDF mandat (déclaration préalable).
+            </p>
+            <label htmlFor="lead-birth-date">Date de naissance</label>
+            <input
+              id="lead-birth-date"
               className="sn-input"
-              value={lead.assigned_salesperson_user_id ?? ""}
+              type="date"
+              value={
+                lead.birth_date
+                  ? String(lead.birth_date).slice(0, 10)
+                  : ""
+              }
               onChange={(e) =>
                 onLeadChange({
-                  assigned_salesperson_user_id: e.target.value || undefined,
-                  assigned_to: e.target.value || undefined,
+                  birth_date: e.target.value ? e.target.value : null,
                 })
               }
-            >
-              <option value="">—</option>
-              {users.map((u) => (
-                <option key={u.id} value={u.id}>{u.email || u.id}</option>
-              ))}
-            </select>
-          </div>
-          <div className="crm-lead-field">
-            <label>Source du lead</label>
-            <input
-              className="sn-input"
-              value={lead.lead_source ?? ""}
-              onChange={(e) => onLeadChange({ lead_source: e.target.value })}
-              placeholder="Site web, bouche-à-oreille…"
             />
           </div>
         </div>
@@ -1216,7 +1444,7 @@ export default function OverviewTab({
       </OverviewCardSection>
 
       <OverviewCardSection
-        index={4}
+        index={5}
         title="Consommation et énergie"
         defaultOpen
         summary={
@@ -1528,7 +1756,7 @@ export default function OverviewTab({
       </OverviewCardSection>
 
       <OverviewCardSection
-        index={5}
+        index={4}
         title="Maison et toiture"
         defaultOpen={false}
         summary={maisonToitureSummary || undefined}
@@ -1590,9 +1818,30 @@ export default function OverviewTab({
         </div>
       </OverviewCardSection>
 
-      {!hasMeters ? (
       <OverviewCardSection
         index={6}
+        title="Page de suivi client"
+        defaultOpen={false}
+        summary={clientPortalLinkActive ? "🔗 Lien actif" : undefined}
+        sectionClassName="crm-lead-overview-section--client-portal"
+      >
+        {lead.id ? (
+          <LeadClientPortalSection
+            leadId={lead.id}
+            apiBase={apiBase}
+            embedded
+            onLinkStateChange={setClientPortalLinkActive}
+          />
+        ) : (
+          <p style={{ margin: 0, fontSize: 13, opacity: 0.75 }}>
+            Enregistrez le dossier pour générer un lien de suivi.
+          </p>
+        )}
+      </OverviewCardSection>
+
+      {!hasMeters ? (
+      <OverviewCardSection
+        index={7}
         title="Équipements énergétiques"
         defaultOpen={false}
         summary={equipmentSummary || undefined}

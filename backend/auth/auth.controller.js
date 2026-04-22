@@ -1,6 +1,15 @@
 import { pool } from "../config/db.js";
 import { comparePassword, generateJWT } from "./auth.service.js";
 import logger from "../app/core/logger.js";
+import { logAuditEvent } from "../services/audit/auditLog.service.js";
+import { AuditActions } from "../services/audit/auditActions.js";
+import {
+  checkLoginFailuresAllowed,
+  recordLoginFailure,
+  resetLoginFailures,
+} from "../middleware/security/loginRateLimit.helper.js";
+import { resolveEffectiveHighestRole } from "../lib/superAdminUserGuards.js";
+import { syncAdminRbacOnLogin } from "../rbac/rbac.service.js";
 
 export async function login(req, res) {
   if (process.env.NODE_ENV !== "production") {
@@ -15,51 +24,111 @@ export async function login(req, res) {
     return res.status(400).json({ error: "email et password requis" });
   }
 
+  const emailNorm = String(email).toLowerCase().trim();
+  if (!(await checkLoginFailuresAllowed(req, res, emailNorm))) {
+    return;
+  }
+
   let client;
   try {
     client = await pool.connect();
-    // CP-ADMIN-ARCH-01 : ORDER BY pour JWT.role stable (priorité rôle le plus élevé)
     const result = await client.query(
-      `SELECT u.id, u.email, u.organization_id, u.password_hash, r.name as role
+      `SELECT u.id, u.email, u.organization_id, u.password_hash
        FROM users u
-       JOIN user_roles ur ON u.id = ur.user_id
-       JOIN roles r ON ur.role_id = r.id
-       WHERE u.email = $1 AND u.status = 'active'
-       ORDER BY CASE r.name
-         WHEN 'SUPER_ADMIN' THEN 1
-         WHEN 'ADMIN' THEN 2
-         WHEN 'SALES_MANAGER' THEN 3
-         WHEN 'SALES' THEN 4
-         WHEN 'TECHNICIEN' THEN 5
-         WHEN 'ASSISTANTE' THEN 6
-         WHEN 'APPORTEUR' THEN 7
-         ELSE 99
-       END
-       LIMIT 1`,
-      [email.toLowerCase().trim()]
+       WHERE LOWER(TRIM(u.email)) = $1 AND u.status = 'active'
+       ORDER BY u.created_at DESC`,
+      [emailNorm]
     );
 
-    const user = result.rows[0];
+    if (result.rows.length === 0) {
+      await recordLoginFailure(req, emailNorm);
+      void logAuditEvent({
+        action: AuditActions.AUTH_LOGIN_FAILURE,
+        entityType: "auth",
+        organizationId: null,
+        userId: null,
+        req,
+        statusCode: 401,
+        metadata: { login_failure_reason: "unknown_user" },
+      });
+      return res.status(401).json({ error: "Identifiants invalides" });
+    }
+
+    /** Plusieurs orgs peuvent partager le même email (unique = org+email) : on trouve la ligne dont le hash correspond. */
+    let user = null;
+    for (const row of result.rows) {
+      if (!row?.password_hash || typeof row.password_hash !== "string") continue;
+      let valid = false;
+      try {
+        valid = await comparePassword(password, row.password_hash);
+      } catch (bcryptErr) {
+        console.error("LOGIN BCRYPT ERROR:", {
+          message: bcryptErr?.message,
+          userId: row.id
+        });
+        if (!res.headersSent) {
+          return res.status(500).json({ error: "Erreur vérification mot de passe", code: "BCRYPT_COMPARE" });
+        }
+        return;
+      }
+      if (valid) {
+        user = row;
+        break;
+      }
+    }
     if (!user) {
+      await recordLoginFailure(req, emailNorm);
+      void logAuditEvent({
+        action: AuditActions.AUTH_LOGIN_FAILURE,
+        entityType: "auth",
+        organizationId: null,
+        userId: null,
+        req,
+        statusCode: 401,
+        metadata: { login_failure_reason: "bad_password" },
+      });
       return res.status(401).json({ error: "Identifiants invalides" });
     }
 
-    if (!user.password_hash) {
-      logger.warn("LOGIN_NO_PASSWORD_HASH", { userId: user.id });
+    const role = await resolveEffectiveHighestRole(client, user.id);
+    if (!role) {
+      logger.warn("LOGIN_NO_ROLE", { userId: user.id });
+      await recordLoginFailure(req, emailNorm);
+      void logAuditEvent({
+        action: AuditActions.AUTH_LOGIN_FAILURE,
+        entityType: "user",
+        entityId: user.id,
+        organizationId: user.organization_id,
+        userId: user.id,
+        req,
+        statusCode: 401,
+        metadata: { login_failure_reason: "no_role" },
+      });
       return res.status(401).json({ error: "Identifiants invalides" });
     }
+    user.role = role;
 
-    const valid = await comparePassword(password, user.password_hash);
-    if (!valid) {
-      return res.status(401).json({ error: "Identifiants invalides" });
-    }
+    await syncAdminRbacOnLogin(client, user.id, user.organization_id);
 
     await client.query(
       "UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1",
       [user.id]
     );
 
+    await resetLoginFailures(req, emailNorm);
+
     const token = generateJWT(user);
+    void logAuditEvent({
+      action: AuditActions.AUTH_LOGIN_SUCCESS,
+      entityType: "user",
+      entityId: user.id,
+      organizationId: user.organization_id,
+      userId: user.id,
+      targetLabel: user.email,
+      req,
+      statusCode: 200,
+      metadata: { role },
+    });
     return res.json({
       token,
       user: {
@@ -70,7 +139,11 @@ export async function login(req, res) {
       }
     });
   } catch (err) {
-    console.error("LOGIN ERROR:", err);
+    console.error("LOGIN ERROR FULL:", {
+      message: err?.message,
+      stack: err?.stack,
+      name: err?.name
+    });
     logger.error("LOGIN_ERROR", { err: err?.message, stack: err?.stack });
     if (!res.headersSent) {
       const message = err?.message || (err && String(err)) || "Erreur serveur";

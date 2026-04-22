@@ -1,0 +1,615 @@
+/**
+ * Refonte visible — page /organization/structure
+ * Onglets segmentés, en-têtes d’onglet, tableaux type “database SaaS”, modales formulaire.
+ */
+
+/* ——— Onglets page : segmented control (très visible) ——— */
+.org-structure-tabs-segmented.sn-saas-tabs {
+  gap: 4px;
+  padding: 5px;
+  margin-bottom: 22px;
+  background: color-mix(in srgb, var(--text-primary) 6%, var(--surface-card, #fff));
+  border: 1px solid var(--border-soft, rgba(15, 23, 42, 0.1));
+  border-radius: 12px;
+  border-bottom: 1px solid var(--border-soft);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.theme-dark .org-structure-tabs-segmented.sn-saas-tabs,
+[data-theme="dark"] .org-structure-tabs-segmented.sn-saas-tabs {
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.org-structure-tabs-segmented .sn-saas-tab {
+  margin-bottom: 0;
+  border-bottom: none;
+  border-radius: 9px;
+  padding: 11px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.org-structure-tabs-segmented .sn-saas-tab:hover {
+  color: var(--text-primary);
+  background: transparent;
+}
+
+.org-structure-tabs-segmented .sn-saas-tab--active {
+  font-weight: 600;
+  color: var(--text-primary);
+  background: var(--surface-card, #fff);
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.06),
+    0 2px 8px rgba(15, 23, 42, 0.04);
+}
+
+.theme-dark .org-structure-tabs-segmented .sn-saas-tab--active,
+[data-theme="dark"] .org-structure-tabs-segmented .sn-saas-tab--active {
+  background: rgba(15, 23, 42, 0.85);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
+}
+
+/* Panneau : un peu plus d’air sous les onglets */
+.org-structure-panel.sn-saas-surface {
+  padding: 0;
+  overflow: hidden;
+}
+
+.org-structure-tab {
+  padding: 22px 24px 28px;
+  box-sizing: border-box;
+}
+
+@media (max-width: 640px) {
+  .org-structure-tab {
+    padding: 16px 16px 24px;
+  }
+}
+
+/* ——— En-tête d’onglet ——— */
+.org-tab-hero {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border-soft) 90%, transparent);
+}
+
+.org-tab-hero__text {
+  min-width: 0;
+  flex: 1 1 240px;
+}
+
+.org-tab-hero__title {
+  margin: 0 0 6px;
+  font-size: 1.0625rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+}
+
+.org-tab-hero__lead {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+  max-width: 560px;
+}
+
+.org-tab-hero__meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-primary) 5%, transparent);
+  border: 1px solid var(--border-soft);
+}
+
+.org-tab-hero__actions {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* ——— Alertes ——— */
+.org-tab-alert {
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  font-size: 0.875rem;
+  line-height: 1.45;
+  border: 1px solid color-mix(in srgb, var(--danger, #dc2626) 35%, transparent);
+  background: color-mix(in srgb, var(--danger, #dc2626) 8%, var(--surface-card));
+  color: var(--text-primary);
+}
+
+/* ——— Tableau liste SaaS ——— */
+.org-tab-table-wrap {
+  border-radius: 12px;
+  border: 1px solid var(--border-soft, rgba(15, 23, 42, 0.1));
+  background: var(--surface-card, #fff);
+  overflow: auto;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.org-tab-table {
+  width: 100%;
+  min-width: 520px;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.org-tab-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 10px 14px;
+  text-align: left;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--primary) 12%, var(--text-muted));
+  background: color-mix(in srgb, var(--surface-2) 55%, var(--surface-card));
+  border-bottom: 1px solid var(--border-soft);
+  white-space: nowrap;
+}
+
+.org-tab-table tbody td {
+  padding: 10px 14px;
+  vertical-align: middle;
+  border-bottom: 1px solid color-mix(in srgb, var(--border-soft) 75%, transparent);
+  color: var(--text-primary);
+}
+
+.org-tab-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.org-tab-table tbody tr {
+  transition: background-color 0.15s ease;
+}
+
+.org-tab-table tbody tr:hover {
+  background: color-mix(in srgb, var(--text-primary) 3.5%, transparent);
+}
+
+.org-tab-table__cell--strong {
+  font-weight: 600;
+}
+
+.org-tab-table__cell--muted {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.org-tab-table__cell--right {
+  text-align: right;
+}
+
+.org-tab-table__empty {
+  text-align: center;
+  padding: 36px 20px !important;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
+.org-tab-table-wrap > .org-tab-table__empty {
+  display: block;
+  margin: 0;
+  padding: 40px 24px !important;
+}
+
+/* ——— Actions ligne (icônes) ——— */
+.org-tab-row-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.org-tab-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.org-tab-icon-btn:hover {
+  background: color-mix(in srgb, var(--text-primary) 7%, transparent);
+  color: var(--text-primary);
+}
+
+.org-tab-icon-btn:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--primary) 45%, transparent);
+  outline-offset: 2px;
+}
+
+.org-tab-icon-btn--danger:hover {
+  background: color-mix(in srgb, var(--danger, #dc2626) 12%, transparent);
+  color: var(--danger, #dc2626);
+}
+
+/* ——— Badges type (rôles) ——— */
+.org-tab-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid var(--border-soft);
+}
+
+.org-tab-badge--system {
+  background: color-mix(in srgb, var(--text-muted) 12%, transparent);
+  color: var(--text-muted);
+}
+
+.org-tab-badge--custom {
+  background: color-mix(in srgb, var(--primary) 10%, var(--surface-card));
+  border-color: color-mix(in srgb, var(--primary) 22%, transparent);
+  color: color-mix(in srgb, var(--primary) 70%, var(--text-primary));
+}
+
+/* ——— Toolbar secondaire (recherche + actions) ——— */
+.org-tab-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.org-tab-toolbar__search {
+  flex: 1 1 220px;
+  min-width: 180px;
+  max-width: 360px;
+}
+
+.org-tab-toolbar__search .sn-input {
+  width: 100%;
+  height: 40px;
+  border-radius: 10px;
+  font-size: 13px;
+}
+
+.org-tab-loading {
+  margin: 0;
+  padding: 28px 8px;
+  text-align: center;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}
+
+/* ——— Modales formulaire (équipe / agence) ——— */
+.org-tab-modal-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 4px 2px 8px;
+}
+
+.org-tab-modal-field label {
+  display: block;
+  margin-bottom: 7px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.org-tab-modal-field .sn-input {
+  width: 100%;
+  height: 46px;
+  border-radius: 10px;
+  box-sizing: border-box;
+}
+
+/* ——— Entreprise : page unique SaaS (sections plates, pas de cartes) ——— */
+.org-org-page-intro {
+  margin: 0 0 20px;
+  max-width: 640px;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.org-org-page-intro strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.org-org-page {
+  max-width: 720px;
+}
+
+.org-org-section {
+  padding: 18px 0 22px;
+  border-bottom: 1px solid var(--border-soft, rgba(15, 23, 42, 0.08));
+}
+
+.org-org-section:last-of-type {
+  border-bottom: none;
+  padding-bottom: 8px;
+}
+
+.org-org-section__title {
+  margin: 0 0 4px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+}
+
+.org-org-section__desc {
+  margin: 0 0 14px;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+.org-org-fields {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px 20px;
+}
+
+@media (min-width: 640px) {
+  .org-org-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.org-org-field--full {
+  grid-column: 1 / -1;
+}
+
+.org-org-preview-box {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-soft);
+  background: color-mix(in srgb, var(--text-primary) 3%, transparent);
+}
+
+.org-org-preview-box__label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.org-org-preview-box__value {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.org-structure-panel .admin-tab-org .admin-org-actions {
+  margin-top: 4px;
+  padding: 16px 0 0;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  border-top: 1px solid var(--border-soft);
+}
+
+/* ——— Documents légaux : page sobre (sections plates, pas cartes) ——— */
+.org-legal-page {
+  max-width: 720px;
+}
+
+.org-legal-page-intro {
+  margin: 0 0 18px;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+  max-width: 640px;
+}
+
+.org-legal-page-intro strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.org-legal-block {
+  padding: 18px 0 22px;
+  border-bottom: 1px solid var(--border-soft, rgba(15, 23, 42, 0.08));
+}
+
+.org-legal-block:last-child {
+  border-bottom: none;
+  padding-bottom: 8px;
+}
+
+.org-legal-block__title {
+  margin: 0 0 4px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+}
+
+.org-legal-block__lead {
+  margin: 0 0 16px;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+  max-width: 640px;
+}
+
+.org-legal-subheading {
+  display: block;
+  margin: 18px 0 8px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.org-legal-mode-switch {
+  display: inline-flex;
+  flex-wrap: wrap;
+  padding: 4px;
+  margin-bottom: 16px;
+  gap: 4px;
+  background: color-mix(in srgb, var(--text-primary) 5%, var(--surface-card, #fff));
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+}
+
+.org-legal-mode-switch__btn {
+  margin: 0;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: transparent;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.org-legal-mode-switch__btn:hover {
+  color: var(--text-primary);
+}
+
+.org-legal-mode-switch__btn--active {
+  background: var(--surface-card, #fff);
+  color: var(--text-primary);
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+}
+
+.theme-dark .org-legal-mode-switch__btn--active,
+[data-theme="dark"] .org-legal-mode-switch__btn--active {
+  background: rgba(15, 23, 42, 0.75);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.org-legal-mode-switch__btn:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--primary) 45%, transparent);
+  outline-offset: 2px;
+}
+
+.org-legal-field {
+  margin-bottom: 0;
+}
+
+.org-legal-field__label {
+  display: block;
+  margin-bottom: 7px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.org-legal-field .sn-input[type="url"],
+.org-legal-field select.sn-input {
+  width: 100%;
+  max-width: 100%;
+  height: 44px;
+  border-radius: 10px;
+  box-sizing: border-box;
+}
+
+.org-legal-editor-shell {
+  margin-top: 4px;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--surface-card, #fff);
+}
+
+.org-legal-upload {
+  margin-top: 4px;
+}
+
+.org-legal-upload__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.org-legal-upload__input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.org-legal-upload__trigger {
+  display: inline-flex;
+  cursor: pointer;
+}
+
+.org-legal-upload__meta {
+  flex: 1 1 200px;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.org-legal-upload__meta--ok {
+  color: var(--text-primary);
+}
+
+.org-legal-upload__meta--muted {
+  color: var(--text-muted);
+}
+
+.org-legal-upload__filename {
+  font-weight: 600;
+  word-break: break-all;
+}
+
+.org-legal-actions {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-soft);
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+}
+
+.org-legal-divider {
+  height: 1px;
+  margin: 8px 0 4px;
+  background: var(--border-soft);
+  border: none;
+}
+
+/* ——— Rôles : carte tableau + toolbar ——— */
+.org-tab-roles-toolbar {
+  margin-bottom: 14px;
+}

@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.json",
+  "include": [
+    "src/vite-env.d.ts",
+    "src/services/mailApi.ts",
+    "src/pages/mail/**/*.ts",
+    "src/pages/mail/**/*.tsx"
+  ]
+}

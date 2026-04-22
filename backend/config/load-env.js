@@ -23,3 +23,6 @@ dotenv.config({
 
 const { applyResolvedDatabaseUrl } = await import("./database-url.js");
 applyResolvedDatabaseUrl();
+
+/** JWT : obligatoire — process.exit(1) si absent (voir config/auth.js). */
+await import("./auth.js");

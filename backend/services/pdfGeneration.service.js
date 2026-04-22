@@ -5,6 +5,7 @@
 
 import { chromium } from "playwright";
 import logger from "../app/core/logger.js";
+import { JWT_SECRET } from "../config/auth.js";
 
 const PAGE_LOAD_TIMEOUT = 30000;
 
@@ -51,8 +52,8 @@ async function waitForPdfPageReady(page, rendererUrl, logLabel) {
   console.log("[PDF] waiting for ready...", { timeoutMs, logLabel });
   logger.info("PDF waiting for renderer ready", { timeoutMs, logLabel, rendererUrl });
 
-  const jwtHint = (process.env.JWT_SECRET || process.env.JWT_SECRET_KEY || "").slice(0, 12);
-  console.log("[PDF] using JWT_SECRET prefix:", jwtHint || "(absent — renderToken échouera)");
+  const jwtHint = JWT_SECRET.slice(0, 12);
+  console.log("[PDF] using JWT_SECRET prefix:", jwtHint);
 
   try {
     await page.waitForFunction(

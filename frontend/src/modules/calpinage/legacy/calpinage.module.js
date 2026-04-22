@@ -77,6 +77,13 @@ import {
   applyCanonical3DWorldContractToRoof,
   getCanonical3DWorldContractDriftReport,
 } from "../runtime/canonical3DWorldContract";
+import { syncPolygonPxFromPoints } from "../runtime/syncPolygonPxFromPoints";
+import {
+  alignPanPolygonToCanonicalPoints,
+  computePanPhysicsDiagnostics,
+  ensurePanPointsCanonicalFromGeometry,
+  savedPanVertexRingCompatibleWithPolygon,
+} from "../runtime/panVertexContract";
 import {
   captureObstacleIntegritySnapshot,
   obstacleIntegrityClearBuildGeometryBaseline,
@@ -105,6 +112,10 @@ import {
   shouldExcludeObstacleFromNearShading,
 } from "../catalog/roofObstacleRuntime";
 import {
+  polygonHorizontalAreaM2FromImagePx,
+  segmentHorizontalLengthMFromImagePx,
+} from "../canonical3d/builder/worldMapping";
+import {
   computeCircleShapeMetaFromAnchorDrag,
   computeRectShapeMetaFromAnchorDrag,
   computeShadowCubeMetersFromAnchor,
@@ -116,6 +127,20 @@ import {
   TECH_MIN_DIM_M,
 } from "../catalog/roofObstaclePlacement";
 
+/** Même priorité que `readNorthDeg` (panPhysical) / `getNorthAngleDeg` (pans-bundle). */
+function readNorthAngleDegFromCalpinageRoof(roof) {
+  if (!roof || typeof roof !== "object") return 0;
+  var n1 = roof.north && typeof roof.north.angleDeg === "number" ? roof.north.angleDeg : NaN;
+  if (Number.isFinite(n1)) return n1;
+  var n2 = roof.roof && roof.roof.north && typeof roof.roof.north.angleDeg === "number" ? roof.roof.north.angleDeg : NaN;
+  if (Number.isFinite(n2)) return n2;
+  return 0;
+}
+
+/** Inter-rangées toit plat Phase 3 — unique produit (550 mm = 55 cm). */
+var FLAT_ROOF_ROW_SPACING_CM = 55;
+var FLAT_ROOF_ROW_SPACING_MM = 550;
+
 /** Même contrat que normalizeFlatRoofConfig (IIFE calpinage) — utilisé hors de cette portée (ex. buildFinalCalpinageJSON). */
 function __safeNormalizeFlatRoofConfig(fc) {
   var DEFAULT_FLAT_ROOF_CONFIG = {
@@ -123,7 +148,7 @@ function __safeNormalizeFlatRoofConfig(fc) {
     layoutOrientation: "portrait",
     setbackRoofEdgeCm: 60,
     setbackObstacleCm: 60,
-    rowSpacingCm: 25,
+    rowSpacingCm: FLAT_ROOF_ROW_SPACING_CM,
     colSpacingCm: 2,
   };
   fc = fc && typeof fc === "object" ? fc : {};
@@ -140,9 +165,19 @@ function __safeNormalizeFlatRoofConfig(fc) {
     layoutOrientation: layoutOrientation,
     setbackRoofEdgeCm: numCm("setbackRoofEdgeCm", DEFAULT_FLAT_ROOF_CONFIG.setbackRoofEdgeCm),
     setbackObstacleCm: numCm("setbackObstacleCm", DEFAULT_FLAT_ROOF_CONFIG.setbackObstacleCm),
-    rowSpacingCm: numCm("rowSpacingCm", DEFAULT_FLAT_ROOF_CONFIG.rowSpacingCm),
+    rowSpacingCm: FLAT_ROOF_ROW_SPACING_CM,
+    rowSpacingMm: FLAT_ROOF_ROW_SPACING_MM,
     colSpacingCm: numCm("colSpacingCm", DEFAULT_FLAT_ROOF_CONFIG.colSpacingCm),
+    rowSpacingManual: fc.rowSpacingManual === true,
   };
+}
+
+/**
+ * Toit plat : inter-rangées figée (55 cm) — plus de variation selon l’inclinaison support.
+ * @returns {number}
+ */
+function getAutoRowSpacingCmFromTilt(_tiltDeg) {
+  return FLAT_ROOF_ROW_SPACING_CM;
 }
 
 function debugStateConsistency(drawState) {
@@ -705,15 +740,24 @@ export function initCalpinage(container, options = {}) {
       border-radius: var(--sg-radius-md);
       box-shadow: 0 1px 2px rgba(0,0,0,0.04);
     }
-    #zone-b-toolbar, #p3-topbar { gap: 5px; overflow: hidden; display: flex; align-items: center; }
+    #zone-b-toolbar { gap: 5px; overflow: hidden; display: flex; align-items: center; }
+    /* Phase 3 : pas de scroll horizontal — déborde = masquait le bouton 3D sur petits écrans */
+    #p3-topbar {
+      gap: 8px;
+      overflow: visible;
+      display: flex;
+      align-items: center;
+      flex: 1;
+      min-width: 0;
+      justify-content: flex-start;
+    }
     /* Toolbar Phase 2 : autoriser les dropdown à dépasser verticalement */
     #zone-b-toolbar {
       position: relative;
       overflow: visible;
     }
     /* Wrapper scroll — flex:1 min-width:0 pour contrainte ; enfants flex:0 0 auto = pas de compression */
-    #zone-b-toolbar .calpinage-toolbar-scroll,
-    #p3-topbar .calpinage-toolbar-scroll {
+    #zone-b-toolbar .calpinage-toolbar-scroll {
       display: flex;
       flex-wrap: nowrap;
       align-items: center;
@@ -730,22 +774,119 @@ export function initCalpinage(container, options = {}) {
       overflow-x: auto;
       overflow-y: visible;
     }
-    #zone-b-toolbar .calpinage-toolbar-scroll > *,
-    #p3-topbar .calpinage-toolbar-scroll > * {
+    #zone-b-toolbar .calpinage-toolbar-scroll > * {
       flex: 0 0 auto;
     }
-    #zone-b-toolbar .calpinage-toolbar-scroll::-webkit-scrollbar,
-    #p3-topbar .calpinage-toolbar-scroll::-webkit-scrollbar {
+    #zone-b-toolbar .calpinage-toolbar-scroll::-webkit-scrollbar {
       height: 6px;
     }
-    #zone-b-toolbar .calpinage-toolbar-scroll::-webkit-scrollbar-track,
-    #p3-topbar .calpinage-toolbar-scroll::-webkit-scrollbar-track {
+    #zone-b-toolbar .calpinage-toolbar-scroll::-webkit-scrollbar-track {
       background: transparent;
     }
-    #zone-b-toolbar .calpinage-toolbar-scroll::-webkit-scrollbar-thumb,
-    #p3-topbar .calpinage-toolbar-scroll::-webkit-scrollbar-thumb {
+    #zone-b-toolbar .calpinage-toolbar-scroll::-webkit-scrollbar-thumb {
       background: rgba(0,0,0,0.2);
       border-radius: 4px;
+    }
+    /* —— Phase 3 topbar : menus Espacement / Matériel + bouton 3D —— */
+    .p3-topbar-primary {
+      display: flex;
+      flex-direction: row;
+      flex-wrap: nowrap;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+      flex-shrink: 1;
+    }
+    .p3-topbar-menu {
+      position: relative;
+      flex-shrink: 0;
+    }
+    .p3-topbar-menu-trigger {
+      height: 36px;
+      padding: 0 12px;
+      border-radius: var(--sg-radius-sm);
+      font-size: 12.5px;
+      font-weight: 600;
+      background: #ffffff;
+      border: 1px solid rgba(0,0,0,0.15);
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+      color: var(--sg-text, var(--ink));
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+    }
+    .p3-topbar-menu-trigger:hover {
+      background: #fafafa;
+      border-color: rgba(0,0,0,0.28);
+    }
+    .p3-topbar-menu-trigger.is-open,
+    .p3-topbar-menu-trigger[aria-expanded="true"] {
+      background: rgba(195,152,71,0.08);
+      border-color: #C39847;
+      color: var(--sg-brand, #C39847);
+    }
+    .p3-topbar-menu-chevron {
+      font-size: 10px;
+      opacity: 0.75;
+    }
+    .p3-topbar-flyout {
+      position: absolute;
+      top: calc(100% + 6px);
+      left: 0;
+      z-index: 200;
+      box-sizing: border-box;
+      min-width: min(320px, calc(100vw - 48px));
+      max-width: min(380px, 92vw);
+      padding: 12px;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: var(--sg-radius-md);
+      box-shadow: 0 10px 28px rgba(15, 23, 42, 0.12), 0 2px 8px rgba(15, 23, 42, 0.06);
+      display: none;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .p3-topbar-flyout.is-open {
+      display: flex !important;
+    }
+    .p3-topbar-flyout-inner {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      width: 100%;
+    }
+    .p3-topbar-flyout-inner .p3-pill-wrap {
+      width: 100%;
+    }
+    .p3-topbar-flyout-inner .p3-pill-btn {
+      width: 100%;
+      justify-content: space-between;
+      box-sizing: border-box;
+    }
+    .p3-topbar-flyout--material .p3-pill-product {
+      width: 100%;
+      justify-content: space-between;
+    }
+    .p3-topbar-flyout-inner.p3-topbar-group {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .p3-topbar-menu-trigger:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 2px var(--sg-brand);
+      outline-offset: 2px;
+    }
+    @media (max-width: 480px) {
+      #p3-topbar { gap: 6px; }
+      .p3-topbar-menu-trigger { padding: 0 9px; font-size: 12px; }
+      #p3-topbar .btn-toggle-view-3d { padding: 6px 10px; font-size: 11px; }
+    }
+    .p3-topbar-primary .zone-b-view-toggle {
+      margin-left: 0;
+      padding: 0;
     }
     .calpinage-toolbar-btn,
     .calpinage-toolbar .calpinage-tool-btn,
@@ -1205,13 +1346,11 @@ export function initCalpinage(container, options = {}) {
 
     /* ========== P3 Topbar — Barre horizontale Phase 3 (hauteur via --calpinage-toolbar-height) ========== */
     #p3-topbar {
-      flex-shrink: 0;
       position: relative;
       z-index: 10;
       pointer-events: auto;
       display: none;
       flex-direction: row;
-      justify-content: flex-start;
       flex-wrap: nowrap;
     }
     #calpinage-body.phase-pv-layout #p3-topbar {
@@ -1318,10 +1457,6 @@ export function initCalpinage(container, options = {}) {
       box-shadow: 0 0 0 2px var(--sg-brand);
       outline-offset: 2px;
     }
-    @media (max-width: 480px) {
-      #p3-topbar { gap: 6px; }
-    }
-
     /* ========== ZONE C ??? Carte / image (support) ========== */
     #zone-b-c {
       flex: 1;
@@ -2071,71 +2206,90 @@ export function initCalpinage(container, options = {}) {
             </div>
 
             <div class="calpinage-phase2-actions">
+              <button type="button" id="calpinage-tool-undo" class="calpinage-tool-btn sg-btn sg-btn-ghost" title="Annuler (Ctrl+Z)" disabled><span class="sg-icon-wrapper" aria-hidden="true"><svg class="sg-icon" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></span></button>
+              <button type="button" id="calpinage-tool-redo" class="calpinage-tool-btn sg-btn sg-btn-ghost" title="Rétablir (Ctrl+Y)" disabled><span class="sg-icon-wrapper" aria-hidden="true"><svg class="sg-icon" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14l5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg></span></button>
               <button type="button" class="calpinage-btn-delete sg-btn sg-btn-danger" title="Supprimer"><span class="sg-icon-wrapper" aria-hidden="true"><svg class="sg-icon" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></span></button>
             </div>
             </div>
           </div>
         <!-- P3 Topbar — Barre horizontale Phase 3 (au-dessus du plan), enfant de #zone-b pour alignement structurel Phase 2/3 -->
         <div id="p3-topbar" class="p3-topbar" role="toolbar" aria-label="Paramètres implantation Phase 3">
-          <div class="calpinage-toolbar-scroll">
-          <div class="p3-topbar-group p3-topbar-tech">
-            <div class="p3-pill-wrap">
-              <button type="button" class="p3-pill-btn" id="p3-pill-spacing-x" data-tech="spacing-x" title="Espacement entre panneaux (cm)">
-                <span class="p3-pill-label">Espacement panneaux</span>
-                <span class="p3-pill-value" id="p3-pill-spacing-x-value">—</span>
+          <div class="p3-topbar-primary">
+            <div class="p3-topbar-menu">
+              <button type="button" id="p3-topbar-btn-spacing" class="p3-topbar-menu-trigger" aria-expanded="false" aria-haspopup="true" aria-controls="p3-topbar-panel-spacing" title="Espacement d'implantation">
+                <span>Espacement</span>
+                <span class="p3-topbar-menu-chevron" aria-hidden="true">▾</span>
               </button>
-              <div id="p3-popover-spacing-x" class="p3-tech-popover" aria-hidden="true">
-                <label class="p3-popover-label" for="p3-popover-spacing-x-input">Espacement entre panneaux (cm)</label>
-                <input type="number" id="p3-popover-spacing-x-input" min="0" value="2" step="1" aria-label="Espacement horizontal entre panneaux" />
-                <button type="button" class="p3-popover-apply" data-tech="spacing-x" data-key="spacingXcm" data-min="0">Appliquer</button>
+              <!-- Phase3SpacingPanel (inline) : 3 contrôles existants, mêmes ids / handlers -->
+              <div id="p3-topbar-panel-spacing" class="p3-topbar-flyout p3-topbar-flyout--spacing" role="region" aria-label="Espacement" hidden>
+                <div class="p3-topbar-flyout-inner p3-topbar-group p3-topbar-tech">
+                  <div class="p3-pill-wrap">
+                    <button type="button" class="p3-pill-btn" id="p3-pill-spacing-x" data-tech="spacing-x" title="Espacement entre panneaux (cm)">
+                      <span class="p3-pill-label">Espacement panneaux</span>
+                      <span class="p3-pill-value" id="p3-pill-spacing-x-value">—</span>
+                    </button>
+                    <div id="p3-popover-spacing-x" class="p3-tech-popover" aria-hidden="true">
+                      <label class="p3-popover-label" for="p3-popover-spacing-x-input">Espacement entre panneaux (cm)</label>
+                      <input type="number" id="p3-popover-spacing-x-input" min="0" value="2" step="1" aria-label="Espacement horizontal entre panneaux" />
+                      <button type="button" class="p3-popover-apply" data-tech="spacing-x" data-key="spacingXcm" data-min="0">Appliquer</button>
+                    </div>
+                  </div>
+                  <div class="p3-pill-wrap">
+                    <button type="button" class="p3-pill-btn" id="p3-pill-spacing-y" data-tech="spacing-y" title="Espacement entre rangées (cm)">
+                      <span class="p3-pill-label">Espacement rangées</span>
+                      <span class="p3-pill-value" id="p3-pill-spacing-y-value">—</span>
+                    </button>
+                    <div id="p3-popover-spacing-y" class="p3-tech-popover" aria-hidden="true">
+                      <label class="p3-popover-label" for="p3-popover-spacing-y-input">Espacement entre rangées (cm)</label>
+                      <input type="number" id="p3-popover-spacing-y-input" min="0" value="4.5" step="1" aria-label="Espacement entre rangées" />
+                      <button type="button" class="p3-popover-apply" data-tech="spacing-y" data-key="spacingYcm" data-min="0">Appliquer</button>
+                    </div>
+                  </div>
+                  <div class="p3-pill-wrap">
+                    <button type="button" class="p3-pill-btn" id="p3-pill-margin" data-tech="margin" title="Marge extérieure (cm)">
+                      <span class="p3-pill-label">Marge bord</span>
+                      <span class="p3-pill-value" id="p3-pill-margin-value">—</span>
+                    </button>
+                    <div id="p3-popover-margin" class="p3-tech-popover" aria-hidden="true">
+                      <label class="p3-popover-label" for="p3-popover-margin-input">Marge extérieure (cm)</label>
+                      <input type="number" id="p3-popover-margin-input" min="0" value="20" step="1" aria-label="Marge extérieure" />
+                      <button type="button" class="p3-popover-apply" data-tech="margin" data-key="marginOuterCm" data-min="0">Appliquer</button>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
-            <div class="p3-pill-wrap">
-              <button type="button" class="p3-pill-btn" id="p3-pill-spacing-y" data-tech="spacing-y" title="Espacement entre rangées (cm)">
-                <span class="p3-pill-label">Espacement rangées</span>
-                <span class="p3-pill-value" id="p3-pill-spacing-y-value">—</span>
+            <div class="p3-topbar-menu">
+              <button type="button" id="p3-topbar-btn-material" class="p3-topbar-menu-trigger" aria-expanded="false" aria-haspopup="true" aria-controls="p3-topbar-panel-material" title="Matériel PV">
+                <span>Matériel</span>
+                <span class="p3-topbar-menu-chevron" aria-hidden="true">▾</span>
               </button>
-              <div id="p3-popover-spacing-y" class="p3-tech-popover" aria-hidden="true">
-                <label class="p3-popover-label" for="p3-popover-spacing-y-input">Espacement entre rangées (cm)</label>
-                <input type="number" id="p3-popover-spacing-y-input" min="0" value="4.5" step="1" aria-label="Espacement entre rangées" />
-                <button type="button" class="p3-popover-apply" data-tech="spacing-y" data-key="spacingYcm" data-min="0">Appliquer</button>
+              <!-- Phase3MaterialPanel (inline) : 3 contrôles existants -->
+              <div id="p3-topbar-panel-material" class="p3-topbar-flyout p3-topbar-flyout--material" role="region" aria-label="Matériel" hidden>
+                <div class="p3-topbar-flyout-inner p3-topbar-group p3-topbar-products">
+                  <button type="button" class="p3-pill-btn p3-pill-product" id="p3-pill-module" data-product="panel" title="Choisir un module">
+                    <span class="p3-pill-label">Module / panneaux</span>
+                    <span class="p3-pill-value" id="p3-pill-module-value">Choisir…</span>
+                  </button>
+                  <button type="button" class="p3-pill-btn p3-pill-product" id="p3-pill-micro" data-product="micro" title="Choisir un micro-onduleur">
+                    <span class="p3-pill-label">Micro-onduleur</span>
+                    <span class="p3-pill-value" id="p3-pill-micro-value">Choisir…</span>
+                  </button>
+                  <button type="button" class="p3-pill-btn p3-pill-product" id="p3-pill-central" data-product="central" title="Choisir un onduleur central">
+                    <span class="p3-pill-label">Onduleur</span>
+                    <span class="p3-pill-value" id="p3-pill-central-value">Choisir…</span>
+                  </button>
+                </div>
               </div>
             </div>
-            <div class="p3-pill-wrap">
-              <button type="button" class="p3-pill-btn" id="p3-pill-margin" data-tech="margin" title="Marge extérieure (cm)">
-                <span class="p3-pill-label">Marge bord</span>
-                <span class="p3-pill-value" id="p3-pill-margin-value">—</span>
+            <div id="zone-b-view-toggle" class="zone-b-view-toggle">
+              <button type="button" id="btn-toggle-view-3d" class="btn-toggle-view-3d" title="Basculer entre Vue plan et Vue 3D">
+                <svg id="btn-toggle-view-3d-icon-cube" class="btn-toggle-view-3d-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+                <svg id="btn-toggle-view-3d-icon-plan" class="btn-toggle-view-3d-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+                <span id="btn-toggle-view-3d-label">3D</span>
               </button>
-              <div id="p3-popover-margin" class="p3-tech-popover" aria-hidden="true">
-                <label class="p3-popover-label" for="p3-popover-margin-input">Marge extérieure (cm)</label>
-                <input type="number" id="p3-popover-margin-input" min="0" value="20" step="1" aria-label="Marge extérieure" />
-                <button type="button" class="p3-popover-apply" data-tech="margin" data-key="marginOuterCm" data-min="0">Appliquer</button>
-              </div>
             </div>
           </div>
-          <div class="p3-topbar-separator"></div>
-          <div class="p3-topbar-group p3-topbar-products">
-            <button type="button" class="p3-pill-btn p3-pill-product" id="p3-pill-module" data-product="panel" title="Choisir un module">
-              <span class="p3-pill-label">Module</span>
-              <span class="p3-pill-value" id="p3-pill-module-value">Choisir…</span>
-            </button>
-            <button type="button" class="p3-pill-btn p3-pill-product" id="p3-pill-micro" data-product="micro" title="Choisir un micro-onduleur">
-              <span class="p3-pill-label">Micro-onduleur</span>
-              <span class="p3-pill-value" id="p3-pill-micro-value">Choisir…</span>
-            </button>
-            <button type="button" class="p3-pill-btn p3-pill-product" id="p3-pill-central" data-product="central" title="Choisir un onduleur central">
-              <span class="p3-pill-label">Onduleur</span>
-              <span class="p3-pill-value" id="p3-pill-central-value">Choisir…</span>
-            </button>
-          </div>
-          </div>
-        </div>
-        <div id="zone-b-view-toggle" class="zone-b-view-toggle">
-          <button type="button" id="btn-toggle-view-3d" class="btn-toggle-view-3d" title="Basculer entre Vue plan et Vue 3D">
-            <svg id="btn-toggle-view-3d-icon-cube" class="btn-toggle-view-3d-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
-            <svg id="btn-toggle-view-3d-icon-plan" class="btn-toggle-view-3d-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
-            <span id="btn-toggle-view-3d-label">Vue 3D</span>
-          </button>
         </div>
         </div>
         <!-- ZONE C — Carte + dessin 2D + layer 3D -->
@@ -2797,6 +2951,26 @@ export function initCalpinage(container, options = {}) {
       };
       window.CALPINAGE_STATE.roofExtensions = window.CALPINAGE_STATE.roofExtensions || [];
 
+      /** Prompt 7 — événement officiel structurel (debouncé côté `emitOfficialRuntimeStructuralChange`). */
+      function calpinageLegacyEmitOfficialStructuralChange(partial) {
+        try {
+          if (typeof window === "undefined") return;
+          var fn = window.emitOfficialRuntimeStructuralChange;
+          if (typeof fn !== "function") return;
+          if (!partial || typeof partial.reason !== "string" || !Array.isArray(partial.changedDomains)) return;
+          var sid = window.CALPINAGE_STUDY_ID != null ? window.CALPINAGE_STUDY_ID : null;
+          var vid = window.CALPINAGE_VERSION_ID != null ? window.CALPINAGE_VERSION_ID : null;
+          fn({
+            reason: partial.reason,
+            changedDomains: partial.changedDomains,
+            studyId: partial.studyId != null ? partial.studyId : sid,
+            versionId: partial.versionId != null ? partial.versionId : vid,
+            timestamp: typeof partial.timestamp === "number" ? partial.timestamp : Date.now(),
+            debug: partial.debug,
+          });
+        } catch (_legacyEmitErr) {}
+      }
+
       window.captureObstacleIntegritySnapshotForCalpinage = function () {
         try {
           return captureObstacleIntegritySnapshot(window.CALPINAGE_STATE);
@@ -3107,6 +3281,7 @@ export function initCalpinage(container, options = {}) {
             metersPerPixel: shadingMpp,
             debug: !!(typeof window !== "undefined" && window.SHADING_DEBUG),
             horizonMask: horizonMask,
+            calpinageRuntimeRoot: CALPINAGE_STATE,
             calpinageRoofState: CALPINAGE_STATE.roof,
             calpinageStructural: {
               ridges: (CALPINAGE_STATE.ridges || []).filter(function (r) {
@@ -3474,12 +3649,26 @@ export function initCalpinage(container, options = {}) {
       /** Flag : une fois true, PV_LAYOUT_RULES ne doit plus ??tre ?cras? par le state (Phase 3). */
       window.PV_RULES_INITIALIZED = false;
 
-      /** Mappe spacing UI vers axes moteur selon orientation : portrait = swap (panneaux→along), paysage = passthrough. */
+      /**
+       * Spacing Phase 3 : pas de swap portrait/paysage ici — les cm restent toujours en repère toit moteur.
+       * spacingXcm → espacement perpendiculaire à la pente (spacingPerp / inter-panneaux sur faîtage).
+       * spacingYcm → espacement selon la pente (spacingAlong / inter-rangées).
+       * L’orientation bloc ne permute pas ces axes (le swap largeur/hauteur module est géré par panelOrientation + computeProjectedPanelRect).
+       */
       function mapSpacingForOrientation(rules, orientation) {
-        return {
+        var out = {
           spacingXcm: Number(rules && rules.spacingXcm) || 0,
           spacingYcm: Number(rules && rules.spacingYcm) || 0,
         };
+        if (typeof window !== "undefined" && window.__PHASE3_FIX_LOGS__ === true && typeof console !== "undefined" && console.info) {
+          console.info("[PHASE3-FIX][SPACING]", {
+            blockOrientationEngine: orientation,
+            spacingXcm_perpToSlope: out.spacingXcm,
+            spacingYcm_alongSlope: out.spacingYcm,
+            swapApplied: false,
+          });
+        }
+        return out;
       }
 
       /** Règles effectives pour l'implantation. Passthrough toiture-first : spacingXcm=panneaux (axe faîtage/perp), spacingYcm=rangées (axe pente/along). */
@@ -3521,6 +3710,7 @@ export function initCalpinage(container, options = {}) {
 
       /**
        * DATA SHAPE: Extension toiture (chien assis / dormer).
+       * Champs optionnels visuel 3D (aucune obligation, JSON anciens inchangés) : dormerType, depthM, wallHeightM — types TS `roofExtensionVisualTypes.ts`.
        * Factory pure : ne lit pas le DOM, ne modifie pas l'état global, pas de rendu.
        * @param {string} shapeId - "dormer" uniquement pour l'instant.
        * @param {{x:number,y:number}} atImgPt - point en image-space.
@@ -4144,7 +4334,7 @@ export function initCalpinage(container, options = {}) {
         layoutOrientation: "portrait",
         setbackRoofEdgeCm: 60,
         setbackObstacleCm: 60,
-        rowSpacingCm: 25,
+        rowSpacingCm: FLAT_ROOF_ROW_SPACING_CM,
         colSpacingCm: 2,
       };
 
@@ -4163,9 +4353,23 @@ export function initCalpinage(container, options = {}) {
           layoutOrientation: layoutOrientation,
           setbackRoofEdgeCm: numCm("setbackRoofEdgeCm", DEFAULT_FLAT_ROOF_CONFIG.setbackRoofEdgeCm),
           setbackObstacleCm: numCm("setbackObstacleCm", DEFAULT_FLAT_ROOF_CONFIG.setbackObstacleCm),
-          rowSpacingCm: numCm("rowSpacingCm", DEFAULT_FLAT_ROOF_CONFIG.rowSpacingCm),
+          rowSpacingCm: FLAT_ROOF_ROW_SPACING_CM,
+          rowSpacingMm: FLAT_ROOF_ROW_SPACING_MM,
           colSpacingCm: numCm("colSpacingCm", DEFAULT_FLAT_ROOF_CONFIG.colSpacingCm),
+          rowSpacingManual: fc.rowSpacingManual === true,
         };
+      }
+
+      /** Marque l’espacement rangées comme saisi manuellement sur chaque pan FLAT (ne plus l’écraser au changement d’inclinaison). */
+      function markAllFlatPansRowSpacingManual() {
+        var list = CALPINAGE_STATE.pans || [];
+        for (var i = 0; i < list.length; i++) {
+          var pan = list[i];
+          if (!pan || pan.roofType !== "FLAT") continue;
+          pan.flatRoofConfig = normalizeFlatRoofConfig(
+            Object.assign({}, pan.flatRoofConfig || {}, { rowSpacingManual: true })
+          );
+        }
       }
 
       /** Axes stables d’implantation (première arête non dégénérée du polygone). */
@@ -4490,17 +4694,11 @@ export function initCalpinage(container, options = {}) {
         }
         return true;
       }
-      /** Aire du polygone 2D en m?? (points en image, scale = m/px). */
+      /** Aire horizontale monde (m²) — `polygonHorizontalAreaM2FromImagePx` (Niveau 3). */
       function polygonAreaM2(points, metersPerPixel) {
         if (!points || points.length < 3 || !Number.isFinite(metersPerPixel) || metersPerPixel <= 0) return 0;
-        var n = points.length;
-        var areaPx2 = 0;
-        for (var i = 0; i < n; i++) {
-          var j = (i + 1) % n;
-          areaPx2 += points[i].x * points[j].y - points[j].x * points[i].y;
-        }
-        areaPx2 = Math.abs(areaPx2) * 0.5;
-        return areaPx2 * metersPerPixel * metersPerPixel;
+        var northA = readNorthAngleDegFromCalpinageRoof(CALPINAGE_STATE.roof);
+        return polygonHorizontalAreaM2FromImagePx(points, metersPerPixel, northA);
       }
       /** Enrichit les pans avec la structure officielle multi-pente (SOURCE UNIQUE). Use pans[] instead of global orientation/tilt/panelCount. */
       function enrichPansWithOfficialFieldsInline(pansList, getPanelsFn, shadingNorm) {
@@ -4861,6 +5059,112 @@ export function initCalpinage(container, options = {}) {
         return out;
       }
 
+      /**
+       * Pass 4 — pose PV depuis un point image (px) obtenu par intersection rayon / toiture 3D → `worldPointToImage`.
+       * Même chaîne que le clic canvas Phase 3 (`getProjectionContextForBlock` + `pvPlacementEngine.createBlock`).
+       * Prérequis : panneau SKU sélectionné (`PV_SELECTED_PANEL`), règles `PV_LAYOUT_RULES`, pas de bloc actif.
+       */
+      function commitPvPlacementFrom3DImagePoint(panId, centerImage) {
+        try {
+          if (!CALPINAGE_STATE || CALPINAGE_STATE.currentPhase !== "PV_LAYOUT") {
+            return {
+              ok: false,
+              code: "WRONG_PHASE",
+              message: "Passez en phase Implantation PV (comme en 2D) pour poser des panneaux en 3D.",
+            };
+          }
+          var ENG = typeof window !== "undefined" ? window.pvPlacementEngine : null;
+          if (!ENG || typeof ENG.createBlock !== "function") {
+            return { ok: false, code: "ENGINE_UNAVAILABLE", message: "Moteur Phase 3 (pvPlacementEngine) indisponible." };
+          }
+          if (!centerImage || typeof centerImage.x !== "number" || typeof centerImage.y !== "number") {
+            return { ok: false, code: "BAD_IMAGE_POINT", message: "Point image invalide." };
+          }
+          var data = CALPINAGE_STATE && CALPINAGE_STATE.validatedRoofData;
+          if (!data || !data.pans) {
+            return { ok: false, code: "NO_ROOF_DATA", message: "Données toit validées absentes." };
+          }
+          var panAtPoint = null;
+          for (var pi = 0; pi < data.pans.length; pi++) {
+            if (data.pans[pi] && samePanId(data.pans[pi].id, panId)) {
+              panAtPoint = data.pans[pi];
+              break;
+            }
+          }
+          if (!panAtPoint || !panAtPoint.polygon || panAtPoint.polygon.length < 3) {
+            return { ok: false, code: "PAN_NOT_FOUND", message: "Pan introuvable ou polygone invalide." };
+          }
+          if (typeof pointInPolygonImage === "function" && !pointInPolygonImage(centerImage, panAtPoint.polygon)) {
+            return { ok: false, code: "OUTSIDE_PAN", message: "Le point projeté en image est hors du polygone du pan." };
+          }
+          var activeBlock = ENG.getFocusBlock ? ENG.getFocusBlock() : null;
+          if (activeBlock) {
+            if (samePanId(activeBlock.panId, panId)) {
+              return {
+                ok: false,
+                code: "ACTIVE_BLOCK",
+                message: "Un bloc de pose est déjà actif sur ce pan — validez ou terminez depuis le calpinage 2D avant un autre placement.",
+              };
+            }
+            try {
+              window.PV_LAYOUT_STATE = PV_LAYOUT_FLOW.VALIDATE;
+            } catch (_pvst0) {}
+            if (typeof ENG.endBlock === "function") ENG.endBlock();
+            try {
+              window.PV_LAYOUT_STATE = PV_LAYOUT_FLOW.SELECT;
+            } catch (_pvst1) {}
+            activeBlock = ENG.getFocusBlock ? ENG.getFocusBlock() : null;
+            if (activeBlock) {
+              return {
+                ok: false,
+                code: "END_BLOCK_FAILED",
+                message: "Impossible de libérer le bloc actif avant placement sur un autre pan.",
+              };
+            }
+          }
+          if (typeof ensurePVSelectedPanel === "function") ensurePVSelectedPanel();
+          if (!window.PV_SELECTED_PANEL) {
+            return { ok: false, code: "NO_PANEL_SKU", message: "Aucun modèle de panneau sélectionné (sélectionnez un panneau comme en 2D)." };
+          }
+          var rulesForCreate = Object.assign({}, window.PV_LAYOUT_RULES || {});
+          var normalizedOrientation = getDefaultBlockOrientationEngineForPan(panAtPoint);
+          rulesForCreate.orientation = normalizedOrientation === "PAYSAGE" ? "landscape" : "portrait";
+          var virtualBlock = { panId: panAtPoint.id, orientation: normalizedOrientation };
+          var ctxCreate = typeof getProjectionContextForBlock === "function" ? getProjectionContextForBlock(virtualBlock) : null;
+          if (!ctxCreate || !ctxCreate.panelParams) {
+            return { ok: false, code: "CTX_FAIL", message: "Contexte de projection indisponible (règles / dimensions panneau)." };
+          }
+          var result = ENG.createBlock(panAtPoint.id, { x: centerImage.x, y: centerImage.y }, rulesForCreate, ctxCreate);
+          if (!result || !result.success) {
+            return {
+              ok: false,
+              code: "CREATE_FAILED",
+              message: (result && result.reason) ? String(result.reason) : "Placement impossible.",
+            };
+          }
+          if (typeof PV_LAYOUT_FLOW !== "undefined") {
+            window.PV_LAYOUT_STATE = PV_LAYOUT_FLOW.ADD;
+          }
+          var newBlock = ENG.getFocusBlock ? ENG.getFocusBlock() : null;
+          if (newBlock && CALPINAGE_STATE) {
+            CALPINAGE_STATE.activeManipulationBlockId = newBlock.id;
+          }
+          if (typeof recomputeAllPlacementBlocksFromRules === "function") {
+            recomputeAllPlacementBlocksFromRules();
+          }
+          if (typeof pvSyncSaveRender === "function") {
+            pvSyncSaveRender();
+          }
+          return { ok: true, blockId: newBlock ? newBlock.id : null };
+        } catch (err) {
+          return {
+            ok: false,
+            code: "EXCEPTION",
+            message: err && err.message ? String(err.message) : String(err),
+          };
+        }
+      }
+
       /** Teste si un point (image) est ? l?int?rieur d?un panneau du bloc actif (projection effective). Utilis? pour d?marrer la manipulation du bloc. */
       function hitTestActiveBlock(imgPt) {
         var ENG = window.pvPlacementEngine;
@@ -4934,6 +5238,28 @@ export function initCalpinage(container, options = {}) {
         return null;
       }
 
+      /** Pass 5 — hit-test panneau (focus puis figés) pour déplacement 3D : { blockId, panelId }. */
+      function hitTestAnyPvBlockPanelFromImage(imgPt) {
+        var hFocus = hitTestFocusBlockPanelId(imgPt);
+        if (hFocus) return hFocus;
+        var ENG = window.pvPlacementEngine;
+        if (!ENG || typeof ENG.getFrozenBlocks !== "function") return null;
+        var frozen = ENG.getFrozenBlocks();
+        for (var fi = frozen.length - 1; fi >= 0; fi--) {
+          var bl = frozen[fi];
+          if (!bl || !bl.panels) continue;
+          for (var p = 0; p < bl.panels.length; p++) {
+            var proj = bl.panels[p].projection;
+            if (proj && proj.points && proj.points.length >= 3 && pointInPolygonImage(imgPt, proj.points)) {
+              var pnl = bl.panels[p];
+              var panelId = pnl && typeof pnl.id === "string" && pnl.id ? pnl.id : ("legacy-" + p);
+              return { blockId: bl.id, panelId: panelId };
+            }
+          }
+        }
+        return null;
+      }
+
       /** Reconstruit CALPINAGE_STATE.placedPanels ? partir des blocs fig?s uniquement. ?? appeler apr?s endBlock ou removeBlock. Exposé pour ensurePlacementEngineReadyForShading(). */
       function syncPlacedPanelsFromBlocks() {
         var ENG = window.pvPlacementEngine;
@@ -4962,14 +5288,12 @@ export function initCalpinage(container, options = {}) {
         recomputeAllPlacementBlocksFromRules(true, pivotPanelId);
       }
 
-      /** Aligne colSpacingCm / rowSpacingCm sur PV_LAYOUT_RULES pour chaque pan FLAT (menu Phase 3 = même source que toit incliné). */
+      /** Aligne colSpacingCm sur PV_LAYOUT_RULES pour chaque pan FLAT ; inter-rangées toit plat figée (55 cm), sans recopier spacingYcm incliné. */
       function syncFlatRoofSpacingFromPvLayoutRules() {
         var rules = window.PV_LAYOUT_RULES;
         if (!rules) return false;
         var sx = Number(rules.spacingXcm);
-        var sy = Number(rules.spacingYcm);
         if (!Number.isFinite(sx) || sx < 0) sx = 0;
-        if (!Number.isFinite(sy) || sy < 0) sy = 0;
         var list = CALPINAGE_STATE.pans || [];
         var any = false;
         for (var i = 0; i < list.length; i++) {
@@ -4977,7 +5301,7 @@ export function initCalpinage(container, options = {}) {
           if (!p || p.roofType !== "FLAT") continue;
           p.flatRoofConfig = normalizeFlatRoofConfig(Object.assign({}, p.flatRoofConfig || {}, {
             colSpacingCm: sx,
-            rowSpacingCm: sy,
+            rowSpacingCm: FLAT_ROOF_ROW_SPACING_CM,
           }));
           any = true;
         }
@@ -5075,7 +5399,8 @@ export function initCalpinage(container, options = {}) {
         var p = findLivePanForRoofTypeMutation(panId);
         if (!p || p.roofType !== "FLAT") return;
         var effPanIdFlat = p.id;
-        p.flatRoofConfig = normalizeFlatRoofConfig(Object.assign({}, p.flatRoofConfig || {}, patch));
+        var merged = Object.assign({}, p.flatRoofConfig || {}, patch);
+        p.flatRoofConfig = normalizeFlatRoofConfig(merged);
         if (patch.layoutOrientation != null) {
           var ENG = window.pvPlacementEngine;
           var o = p.flatRoofConfig.layoutOrientation === "landscape" ? "PAYSAGE" : "PORTRAIT";
@@ -5309,6 +5634,82 @@ export function initCalpinage(container, options = {}) {
         }
       }
 
+      /**
+       * Pass 5 — démarrage manipulation « move » depuis la 3D (px image au pointerdown).
+       * Remplit `calpinageHandleDrag` comme les poignées 2D pour réutiliser `finalizePhase3PvHandleManipulation`.
+       */
+      function beginPhase3PvMoveManipulationFrom3d(blockId, startImg, pointerId) {
+        if (CALPINAGE_STATE.currentPhase !== "PV_LAYOUT") {
+          return { ok: false, code: "WRONG_PHASE", message: "Phase Implantation PV requise." };
+        }
+        if (window.CALPINAGE_IS_MANIPULATING) {
+          return { ok: false, code: "ALREADY_MANIPULATING", message: "Une manipulation PV est déjà en cours." };
+        }
+        var ENG = window.pvPlacementEngine;
+        if (!ENG || typeof ENG.beginManipulation !== "function") {
+          return { ok: false, code: "ENGINE_UNAVAILABLE", message: "Moteur Phase 3 indisponible." };
+        }
+        var bid = blockId != null ? String(blockId) : "";
+        var block = typeof ENG.getBlockById === "function" ? ENG.getBlockById(bid) : null;
+        if (!block) {
+          return { ok: false, code: "BLOCK_NOT_FOUND", message: "Bloc PV introuvable." };
+        }
+        if (typeof ENG.setActiveBlock === "function") ENG.setActiveBlock(bid);
+        ENG.beginManipulation(bid);
+        window.CALPINAGE_IS_MANIPULATING = true;
+        window.__FORCE_PV_MANIP_LOCK__ = true;
+        if (typeof setInteractionState === "function") setInteractionState(InteractionStates.DRAGGING);
+        try {
+          window.PV_LAYOUT_STATE = PV_LAYOUT_FLOW.MOVE;
+        } catch (_pvlm) {}
+        CALPINAGE_STATE.activeManipulationBlockId = bid;
+        var centerImgPv = ENG.getBlockCenter && ENG.getBlockCenter(block);
+        var sx = startImg && typeof startImg.x === "number" ? startImg.x : 0;
+        var sy = startImg && typeof startImg.y === "number" ? startImg.y : 0;
+        var ptr = pointerId != null && pointerId !== undefined ? pointerId : -1;
+        calpinageHandleDrag = {
+          type: "move",
+          blockId: bid,
+          pointerId: ptr,
+          startImg: { x: sx, y: sy },
+          centerImg: centerImgPv || null,
+          startImgX: sx,
+          startImgY: sy,
+          lastImgX: sx,
+          lastImgY: sy
+        };
+        try {
+          if (drawState) drawState.ph3RotationLiveDeg = null;
+        } catch (_ds0) {}
+        return { ok: true };
+      }
+
+      function applyPhase3PvMoveLiveFrom3d(dxImg, dyImg) {
+        var ENG = window.pvPlacementEngine;
+        if (!ENG || typeof ENG.setManipulationTransform !== "function") return false;
+        if (!window.CALPINAGE_IS_MANIPULATING || !calpinageHandleDrag || calpinageHandleDrag.type !== "move") {
+          return false;
+        }
+        ENG.setManipulationTransform(dxImg, dyImg, 0);
+        return true;
+      }
+
+      function cancelPhase3PvMoveFrom3d() {
+        if (!CALPINAGE_STATE || CALPINAGE_STATE.currentPhase !== "PV_LAYOUT") return false;
+        if (!window.CALPINAGE_IS_MANIPULATING || !calpinageHandleDrag) return false;
+        var ENG = window.pvPlacementEngine;
+        window.__FORCE_PV_MANIP_LOCK__ = false;
+        if (ENG && typeof ENG.cancelManipulation === "function") ENG.cancelManipulation();
+        window.CALPINAGE_IS_MANIPULATING = false;
+        calpinageHandleDrag = null;
+        try {
+          if (drawState) drawState.ph3RotationLiveDeg = null;
+        } catch (_ds1) {}
+        if (typeof resetInteractionState === "function") resetInteractionState();
+        if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
+        return true;
+      }
+
       /** @deprecated Utiliser finalizePhase3PvHandleManipulation — alias conservé pour compat. */
       function commitPhase3BlockTransform() {
         finalizePhase3PvHandleManipulation({});
@@ -5381,6 +5782,9 @@ export function initCalpinage(container, options = {}) {
         _floatingPopoverAnchor = null;
         if (_floatingPopoverRoot) _floatingPopoverRoot.style.pointerEvents = "none";
       }
+      try {
+        window.__calpinageHideFloatingP3Popover = hideFloatingPopover;
+      } catch (_hf) {}
 
       function showFloatingPopover(opts) {
         var anchorEl = opts.anchorEl;
@@ -5485,6 +5889,9 @@ export function initCalpinage(container, options = {}) {
               onApply: function (k, v) {
                 window.PV_LAYOUT_RULES = window.PV_LAYOUT_RULES || {};
                 window.PV_LAYOUT_RULES[k] = v;
+                if (k === "spacingYcm" && typeof markAllFlatPansRowSpacingManual === "function") {
+                  markAllFlatPansRowSpacingManual();
+                }
                 if (typeof applyPvLayoutRulesAndRecompute === "function") {
                   applyPvLayoutRulesAndRecompute(k === "marginOuterCm" ? { flatMarginSync: true } : undefined);
                 } else {
@@ -5644,41 +6051,183 @@ export function initCalpinage(container, options = {}) {
         return rp;
       }
 
+      /** Proximité édition / hit-test sélection hauteur (px image). */
       var HEIGHT_EDIT_EPS_IMG = 15;
+      /**
+       * Appartenance point ∈ sommet ou segment (px image) : epsilon faible mais réaliste
+       * (évite faux négatifs sur sommets pans / flottants), sans logique de proximité au plus proche.
+       */
+      var HEIGHT_STRUCTURE_SEGMENT_MEMBERSHIP_EPS_IMG = 0.5;
       var DEFAULT_HEIGHT_GUTTER = 4;
       var DEFAULT_HEIGHT_RIDGE = 7;
+
+      /** Sommet contour en cours de tracé : cote initiale une fois (pas un fallback runtime). */
+      function newContourVertexAtDraw(x, y) {
+        return { x: x, y: y, h: DEFAULT_HEIGHT_GUTTER, heightSource: "default" };
+      }
+
+      /** Extrémité faîtage persistée : copie attach + h existante, sinon défaut création. */
+      function ridgePersistEndpoint(end) {
+        if (!end || typeof end.x !== "number" || typeof end.y !== "number") return end;
+        var o = { x: end.x, y: end.y, attach: end.attach != null ? end.attach : null };
+        if (typeof end.h === "number" && Number.isFinite(end.h)) {
+          o.h = end.h;
+          if (end.heightSource) o.heightSource = end.heightSource;
+        } else {
+          o.h = DEFAULT_HEIGHT_RIDGE;
+          o.heightSource = "default";
+        }
+        return o;
+      }
 
       function distImgPt(a, b) {
         return Math.hypot((b.x - a.x), (b.y - a.y));
       }
 
-      /** Retourne la hauteur du point source ? la position imgPt (contour / fa??tage / trait), ou null. */
-      function getHeightAtPoint(imgPt, state) {
+      /** Distance² de P au segment [AB] + paramètre t∈[0,1] pour interpoler h le long d'une arête de contour. */
+      function distPointToSegmentSq(px, py, ax, ay, bx, by) {
+        var dx = bx - ax;
+        var dy = by - ay;
+        var len2 = dx * dx + dy * dy;
+        if (len2 < 1e-18) {
+          var d = (px - ax) * (px - ax) + (py - ay) * (py - ay);
+          return { distSq: d, t: 0 };
+        }
+        var t = ((px - ax) * dx + (py - ay) * dy) / len2;
+        if (t < 0) t = 0;
+        else if (t > 1) t = 1;
+        var qx = ax + t * dx;
+        var qy = ay + t * dy;
+        var distSq = (px - qx) * (px - qx) + (py - qy) * (py - qy);
+        return { distSq: distSq, t: t };
+      }
+
+      function finiteHeightH(h) {
+        return typeof h === "number" && Number.isFinite(h);
+      }
+
+      function finiteImgPt(p) {
+        return p && typeof p.x === "number" && typeof p.y === "number" && Number.isFinite(p.x) && Number.isFinite(p.y);
+      }
+
+      /**
+       * Lecture des cotes saisies : le point doit appartenir au sommet ou au segment d’une structure.
+       * Chevauchements (ex. même point sur contour et faîtage) : priorité géométrique
+       * faîtage > trait (arête) > contour — pas l’ordre des boucles.
+       * Interpolation linéaire uniquement sur le segment et si les deux extrémités ont une h finie.
+       */
+      function getHeightFromStructureExact(imgPt, state) {
         state = state || CALPINAGE_STATE;
+        if (!finiteImgPt(imgPt)) return null;
         var contours = (state.contours || []).filter(function (c) { return c.roofRole !== "chienAssis"; });
         var ridges = (state.ridges || []).filter(function (r) { return r.roofRole !== "chienAssis"; });
         var traits = (state.traits || []).filter(function (t) { return t.roofRole !== "chienAssis"; });
-        var rp = state === CALPINAGE_STATE ? resolveRidgePoint : function (rp) { return resolveRidgePointFromState(state, rp); };
-        var i, pt;
-        for (i = 0; i < contours.length; i++) {
-          if (!contours[i].points) continue;
-          for (var j = 0; j < contours[i].points.length; j++) {
-            pt = contours[i].points[j];
-            // Seule une hauteur explicitement numérique est retournée.
-            // Plus de fallback DEFAULT_HEIGHT_GUTTER — un point sans h explicite retourne null.
-            if (pt && distImgPt(imgPt, pt) <= HEIGHT_EDIT_EPS_IMG) return typeof pt.h === "number" ? pt.h : null;
+        var rp = state === CALPINAGE_STATE ? resolveRidgePoint : function (rpp) { return resolveRidgePointFromState(state, rpp); };
+        var eps = HEIGHT_STRUCTURE_SEGMENT_MEMBERSHIP_EPS_IMG;
+        var epsSq = eps * eps;
+        var PRIO_RIDGE = 1;
+        var PRIO_TRAIT = 2;
+        var PRIO_CONTOUR = 3;
+        var candidates = [];
+        function pushCand(prio, distSq, h) {
+          if (!finiteHeightH(h)) return;
+          candidates.push({ prio: prio, distSq: distSq, h: h });
+        }
+        var i, j, pt, seg, ra, rb, d;
+
+        for (i = 0; i < ridges.length; i++) {
+          ra = rp(ridges[i].a);
+          rb = rp(ridges[i].b);
+          if (finiteImgPt(ra)) {
+            d = distImgPt(imgPt, ra);
+            if (d <= eps) pushCand(PRIO_RIDGE, d * d, ridges[i].a.h);
+          }
+          if (finiteImgPt(rb)) {
+            d = distImgPt(imgPt, rb);
+            if (d <= eps) pushCand(PRIO_RIDGE, d * d, ridges[i].b.h);
           }
         }
         for (i = 0; i < ridges.length; i++) {
-          pt = rp(ridges[i].a);
-          if (pt && distImgPt(imgPt, pt) <= HEIGHT_EDIT_EPS_IMG) return typeof ridges[i].a.h === "number" ? ridges[i].a.h : null;
-          pt = rp(ridges[i].b);
-          if (pt && distImgPt(imgPt, pt) <= HEIGHT_EDIT_EPS_IMG) return typeof ridges[i].b.h === "number" ? ridges[i].b.h : null;
+          ra = rp(ridges[i].a);
+          rb = rp(ridges[i].b);
+          if (!finiteImgPt(ra) || !finiteImgPt(rb)) continue;
+          seg = distPointToSegmentSq(imgPt.x, imgPt.y, ra.x, ra.y, rb.x, rb.y);
+          if (seg.distSq > epsSq) continue;
+          var rha = finiteHeightH(ridges[i].a.h) ? ridges[i].a.h : null;
+          var rhb = finiteHeightH(ridges[i].b.h) ? ridges[i].b.h : null;
+          if (rha !== null && rhb !== null) pushCand(PRIO_RIDGE, seg.distSq, rha + seg.t * (rhb - rha));
+        }
+
+        for (i = 0; i < traits.length; i++) {
+          if (traits[i].a && finiteImgPt(traits[i].a)) {
+            d = distImgPt(imgPt, traits[i].a);
+            if (d <= eps) pushCand(PRIO_TRAIT, d * d, traits[i].a.h);
+          }
+          if (traits[i].b && finiteImgPt(traits[i].b)) {
+            d = distImgPt(imgPt, traits[i].b);
+            if (d <= eps) pushCand(PRIO_TRAIT, d * d, traits[i].b.h);
+          }
         }
         for (i = 0; i < traits.length; i++) {
-          if (traits[i].a && distImgPt(imgPt, traits[i].a) <= HEIGHT_EDIT_EPS_IMG) return typeof traits[i].a.h === "number" ? traits[i].a.h : null;
-          if (traits[i].b && distImgPt(imgPt, traits[i].b) <= HEIGHT_EDIT_EPS_IMG) return typeof traits[i].b.h === "number" ? traits[i].b.h : null;
+          var ta = traits[i].a;
+          var tb = traits[i].b;
+          if (!finiteImgPt(ta) || !finiteImgPt(tb)) continue;
+          seg = distPointToSegmentSq(imgPt.x, imgPt.y, ta.x, ta.y, tb.x, tb.y);
+          if (seg.distSq > epsSq) continue;
+          var tha = finiteHeightH(ta.h) ? ta.h : null;
+          var thb = finiteHeightH(tb.h) ? tb.h : null;
+          if (tha !== null && thb !== null) pushCand(PRIO_TRAIT, seg.distSq, tha + seg.t * (thb - tha));
         }
+
+        for (i = 0; i < contours.length; i++) {
+          if (!contours[i].points) continue;
+          for (j = 0; j < contours[i].points.length; j++) {
+            pt = contours[i].points[j];
+            if (!finiteImgPt(pt)) continue;
+            d = distImgPt(imgPt, pt);
+            if (d <= eps) pushCand(PRIO_CONTOUR, d * d, pt.h);
+          }
+        }
+        for (i = 0; i < contours.length; i++) {
+          if (!contours[i].points) continue;
+          var cpts = contours[i].points;
+          var m = cpts.length;
+          if (m < 2) continue;
+          var edgeCount = m >= 3 ? m : m - 1;
+          for (var ei = 0; ei < edgeCount; ei++) {
+            var ej = m >= 3 ? (ei + 1) % m : ei + 1;
+            var ca = cpts[ei];
+            var cb = cpts[ej];
+            if (!finiteImgPt(ca) || !finiteImgPt(cb)) continue;
+            seg = distPointToSegmentSq(imgPt.x, imgPt.y, ca.x, ca.y, cb.x, cb.y);
+            if (seg.distSq > epsSq) continue;
+            var cha = finiteHeightH(ca.h) ? ca.h : null;
+            var chb = finiteHeightH(cb.h) ? cb.h : null;
+            if (cha !== null && chb !== null) pushCand(PRIO_CONTOUR, seg.distSq, cha + seg.t * (chb - cha));
+          }
+        }
+
+        if (!candidates.length) return null;
+        candidates.sort(function (a, b) {
+          if (a.prio !== b.prio) return a.prio - b.prio;
+          return a.distSq - b.distSq;
+        });
+        return candidates[0].h;
+      }
+
+      /**
+       * Alias historique : même contrat que getHeightFromStructureExact (cotes saisies uniquement).
+       */
+      function getHeightAtPoint(imgPt, state) {
+        return getHeightFromStructureExact(imgPt, state || CALPINAGE_STATE);
+      }
+
+      /**
+       * Conservé pour compatibilité d’appels : ne renvoie plus aucune hauteur implicite (4 m / 7 m) ni proximité.
+       */
+      function tryPhysicsStructuralFallbackZ(imgPt, state) {
+        void imgPt;
+        void state;
         return null;
       }
 
@@ -5688,15 +6237,84 @@ export function initCalpinage(container, options = {}) {
           roof: CALPINAGE_STATE.roof,
           pans: CALPINAGE_STATE.pans,
           getVertexH: function (imgPt) {
-            var h = getHeightAtPoint(imgPt, CALPINAGE_STATE);
-            if (h == null || (typeof h !== "number") || !Number.isFinite(h)) {
-              CALPINAGE_STATE.__lastMissingH = (CALPINAGE_STATE.__lastMissingH || 0) + 1;
-              // Retourne null — fitPlane filtrera ce point au lieu de polluer le plan avec 0
-              return null;
-            }
-            return h;
+            var h = getHeightFromStructureExact(imgPt, CALPINAGE_STATE);
+            if (typeof h === "number" && Number.isFinite(h)) return h;
+            CALPINAGE_STATE.__lastMissingH = (CALPINAGE_STATE.__lastMissingH || 0) + 1;
+            return null;
           }
         };
+      }
+
+      /**
+       * Trace pipeline hauteurs → sommets pan → physique (logs détaillés).
+       * Activer : window.CALPINAGE_DEBUG_PAN_PHYSICS_PIPELINE = true
+       */
+      function tracePanPhysicsPipeline(stage) {
+        try {
+          if (typeof window === "undefined" || !window.CALPINAGE_DEBUG_PAN_PHYSICS_PIPELINE) return;
+          if (typeof console === "undefined" || !console.info) return;
+          var st = CALPINAGE_STATE || {};
+          var contours = (st.contours || []).filter(function (c) { return c.roofRole !== "chienAssis"; });
+          var ridges = (st.ridges || []).filter(function (r) { return r.roofRole !== "chienAssis"; });
+          var traits = (st.traits || []).filter(function (t) { return t.roofRole !== "chienAssis"; });
+          function ptsH(arr) {
+            if (!arr || !arr.length) return [];
+            return arr.map(function (p) {
+              if (!p) return null;
+              return { x: p.x, y: p.y, h: typeof p.h === "number" && Number.isFinite(p.h) ? p.h : null };
+            });
+          }
+          var entry = {
+            stage: stage,
+            mpp: st.roof && st.roof.scale && st.roof.scale.metersPerPixel,
+            northAngleDeg: st.roof && st.roof.north && typeof st.roof.north.angleDeg === "number" ? st.roof.north.angleDeg : null,
+            contoursSample: contours.slice(0, 3).map(function (c) {
+              return { id: c.id, points: ptsH(c.points) };
+            }),
+            ridgesSample: ridges.slice(0, 6).map(function (r) {
+              return { id: r.id, a: r.a ? { x: r.a.x, y: r.a.y, h: r.a.h } : null, b: r.b ? { x: r.b.x, y: r.b.y, h: r.b.h } : null };
+            }),
+            traitsSample: traits.slice(0, 6).map(function (t) {
+              return {
+                id: t.id,
+                a: t.a ? { x: t.a.x, y: t.a.y, h: t.a.h } : null,
+                b: t.b ? { x: t.b.x, y: t.b.y, h: t.b.h } : null,
+              };
+            }),
+            pans: (st.pans || []).map(function (p) {
+              if (!p) return null;
+              return {
+                id: p.id,
+                ridgeIds: p.ridgeIds,
+                polygonLen: p.polygon && p.polygon.length,
+                polygon: ptsH(p.polygon),
+                points: ptsH(p.points),
+                physical: p.physical
+                  ? {
+                      slope: p.physical.slope,
+                      orientation: p.physical.orientation,
+                    }
+                  : null,
+              };
+            }),
+            diagnostics: st.__panPhysicsDiagnostics || null,
+          };
+          console.info("[PAN_PHYSICS_PIPELINE]", entry);
+        } catch (_tp) { /* ignore */ }
+      }
+
+      /** Diagnostic session pans / physique — activer window.CALPINAGE_DEBUG_PAN_PHYSICS pour log console. */
+      function refreshPanPhysicsDiagnostics() {
+        try {
+          var gv = null;
+          try {
+            gv = getStateForPans().getVertexH;
+          } catch (_gve) {}
+          CALPINAGE_STATE.__panPhysicsDiagnostics = computePanPhysicsDiagnostics(CALPINAGE_STATE.pans || [], gv || undefined);
+          if (typeof window !== "undefined" && window.CALPINAGE_DEBUG_PAN_PHYSICS && typeof console !== "undefined" && console.info) {
+            console.info("[PAN_PHYSICS_DIAG]", CALPINAGE_STATE.__panPhysicsDiagnostics);
+          }
+        } catch (_diagErr) {}
       }
 
       /** API officielle : hauteur Z (m) d'un point (xPx,yPx) sur un pan. Plan h = a*xM + b*yM + c. */
@@ -5720,14 +6338,14 @@ export function initCalpinage(container, options = {}) {
       /**
        * Hauteur à un point image (x,y).
        * Ordre de résolution (aligné sur heightResolver.ts) :
-       *   P1 — hauteur explicite sur vertex source (contour / ridge / trait) si proche
+       *   P1 — cote saisie sur structure (contour / faîtage / trait), appartenance géométrique stricte
        *   P2 — fitPlane via hitTest pan + getHeightAtXY
        *   P3 — fallback 0
        * Contrat public inchangé : retourne toujours un number fini (0 en fallback).
        */
       function getHeightAtImgPoint(imgPt) {
-        // P1 : hauteur explicite sur vertex source
-        var hExplicit = getHeightAtPoint(imgPt, CALPINAGE_STATE);
+        // P1 : hauteur sur structure dessinée (pas de proximité métier)
+        var hExplicit = getHeightFromStructureExact(imgPt, CALPINAGE_STATE);
         if (typeof hExplicit === "number" && Number.isFinite(hExplicit)) return hExplicit;
         // P2 : fitPlane via hitTest
         var pan = hitTestPan(imgPt);
@@ -5736,56 +6354,47 @@ export function initCalpinage(container, options = {}) {
         return (typeof hPan === "number" && Number.isFinite(hPan)) ? hPan : 0;
       }
 
-      /** Pour chaque pan (CALPINAGE_STATE.pans), cr?e/met ? jour pan.points[] ? partir de pan.polygon[] et des hauteurs sources (getHeightAtPoint). */
+      /**
+       * Met à jour pan.points (contrat canonique) ; n’impose jamais h = 0 si la hauteur est inconnue.
+       * Ordre géométrie : points → polygonPx → polygon (voir panVertexContract.ts).
+       * Puis aligne pan.polygon et polygonPx depuis points.
+       */
       function ensurePanPointsWithHeights() {
         var pans = CALPINAGE_STATE.pans || [];
         for (var i = 0; i < pans.length; i++) {
           var pan = pans[i];
-          var poly = pan.polygon || pan.points || null;
-          if (!poly || poly.length < 2) continue;
-          if (pan.polygon && pan.polygon.length >= 2) {
-            pan.points = pan.polygon.map(function (p, idx) {
-              var h = (typeof getHeightAtPoint === "function") ? getHeightAtPoint(p, CALPINAGE_STATE) : 0;
-              return { x: p.x, y: p.y, h: (typeof h === "number" ? h : 0), id: (pan.id ? (pan.id + "-" + idx) : ("pan-" + i + "-" + idx)) };
-            });
-          } else if (pan.points && pan.points.length >= 2) {
-            pan.points = pan.points.map(function (p, idx) {
-              if (typeof p.h === "number") return p;
-              var h = (typeof getHeightAtPoint === "function") ? getHeightAtPoint(p, CALPINAGE_STATE) : 0;
-              return { x: p.x, y: p.y, h: (typeof h === "number" ? h : 0), id: p.id || (pan.id ? (pan.id + "-" + idx) : ("pan-" + i + "-" + idx)) };
-            });
-          }
+          if (!pan) continue;
+          ensurePanPointsCanonicalFromGeometry(pan);
+          if (!pan.points || pan.points.length < 2) continue;
+          pan.points = pan.points.map(function (p, idx) {
+            var o = { x: p.x, y: p.y, id: p.id || (pan.id ? (pan.id + "-" + idx) : ("pan-" + i + "-" + idx)) };
+            if (typeof p.h === "number" && Number.isFinite(p.h)) {
+              o.h = p.h;
+              o.hPhysicsSource = p.hPhysicsSource || "explicit_pan_vertex";
+              return o;
+            }
+            var h = getHeightFromStructureExact(p, CALPINAGE_STATE);
+            if (typeof h === "number" && Number.isFinite(h)) {
+              o.h = h;
+              o.hPhysicsSource = "explicit_structure";
+            }
+            return o;
+          });
+          alignPanPolygonToCanonicalPoints(pan);
+          syncPolygonPxFromPoints(pan);
         }
       }
 
-      /** Hauteur d?une extr?mit? de trait : connect? ? fa??tage ??? 7 m, contour b??ti ??? 4 m. Utilise attach si pr?sent, sinon d?tection par position (fa??tage prioritaire). */
+      /** Hauteur d’une extrémité de trait : uniquement cote déjà présente ou lecture stricte sur structure (même règle que les pans). */
       function getTraitEndpointHeight(imgPt, endpointObj, state) {
         state = state || CALPINAGE_STATE;
-        var rp = state === CALPINAGE_STATE ? resolveRidgePoint : function (rp) { return resolveRidgePointFromState(state, rp); };
-        if (endpointObj && endpointObj.attach && endpointObj.attach.type) {
-          if (endpointObj.attach.type === "ridge") return DEFAULT_HEIGHT_RIDGE;
-          if (endpointObj.attach.type === "contour") return DEFAULT_HEIGHT_GUTTER;
-          if (endpointObj.attach.type === "roof_contour_edge") return DEFAULT_HEIGHT_GUTTER;
-          if (endpointObj.attach.type === "trait") return DEFAULT_HEIGHT_GUTTER;
-          return DEFAULT_HEIGHT_GUTTER;
+        var p = endpointObj && finiteImgPt(endpointObj) ? endpointObj : imgPt;
+        if (endpointObj && finiteHeightH(endpointObj.h)) return endpointObj.h;
+        if (finiteImgPt(p)) {
+          var hz = getHeightFromStructureExact(p, state);
+          if (finiteHeightH(hz)) return hz;
         }
-        var contours = (state.contours || []).filter(function (c) { return c.roofRole !== "chienAssis"; });
-        var ridges = (state.ridges || []).filter(function (r) { return r.roofRole !== "chienAssis"; });
-        var i, pt;
-        for (i = 0; i < ridges.length; i++) {
-          pt = rp(ridges[i].a);
-          if (pt && distImgPt(imgPt, pt) <= HEIGHT_EDIT_EPS_IMG) return DEFAULT_HEIGHT_RIDGE;
-          pt = rp(ridges[i].b);
-          if (pt && distImgPt(imgPt, pt) <= HEIGHT_EDIT_EPS_IMG) return DEFAULT_HEIGHT_RIDGE;
-        }
-        for (i = 0; i < contours.length; i++) {
-          if (!contours[i].points) continue;
-          for (var j = 0; j < contours[i].points.length; j++) {
-            pt = contours[i].points[j];
-            if (pt && distImgPt(imgPt, pt) <= HEIGHT_EDIT_EPS_IMG) return DEFAULT_HEIGHT_GUTTER;
-          }
-        }
-        return DEFAULT_HEIGHT_GUTTER;
+        return null;
       }
 
       /** Réservé à un import initial hors UI. Ne modifie plus h. */
@@ -5850,6 +6459,41 @@ export function initCalpinage(container, options = {}) {
         return best;
       }
 
+      /**
+       * Trouve le point source de hauteur (contour / faîtage / trait) le plus proche en coordonnées image.
+       * Même jeu de filtres que `hitTestHeightPoints` ; distance max en px image (défaut HEIGHT_EDIT_EPS_IMG).
+       * Utilisé pour que l’édition Z d’un sommet de pan en 3D réutilise `applyHeightToSelectedPoints` + `computePansFromGeometry`.
+       */
+      function resolveStructuralHeightSelectionNearImagePoint(imgPt, maxDistImg) {
+        var md = typeof maxDistImg === "number" && maxDistImg > 0 ? maxDistImg : HEIGHT_EDIT_EPS_IMG;
+        var contours = (CALPINAGE_STATE.contours || []).filter(function (c) { return c.roofRole !== "chienAssis"; });
+        var ridges = (CALPINAGE_STATE.ridges || []).filter(function (r) { return r.roofRole !== "chienAssis"; });
+        var traits = (CALPINAGE_STATE.traits || []).filter(function (t) { return t.roofRole !== "chienAssis"; });
+        var best = null;
+        var bestD = md + 1;
+        var i, j, d, pt;
+        for (i = 0; i < contours.length; i++) {
+          if (!contours[i].points) continue;
+          for (j = 0; j < contours[i].points.length; j++) {
+            pt = contours[i].points[j];
+            if (!pt) continue;
+            d = distImgPt(imgPt, pt);
+            if (d < bestD && d <= md) { bestD = d; best = { type: "contour", index: i, pointIndex: j }; }
+          }
+        }
+        for (i = 0; i < ridges.length; i++) {
+          var ra = resolveRidgePoint(ridges[i].a);
+          var rb = resolveRidgePoint(ridges[i].b);
+          if (ra) { d = distImgPt(imgPt, ra); if (d < bestD && d <= md) { bestD = d; best = { type: "ridge", index: i, pointIndex: 0 }; } }
+          if (rb) { d = distImgPt(imgPt, rb); if (d < bestD && d <= md) { bestD = d; best = { type: "ridge", index: i, pointIndex: 1 }; } }
+        }
+        for (i = 0; i < traits.length; i++) {
+          if (traits[i].a) { d = distImgPt(imgPt, traits[i].a); if (d < bestD && d <= md) { bestD = d; best = { type: "trait", index: i, pointIndex: 0 }; } }
+          if (traits[i].b) { d = distImgPt(imgPt, traits[i].b); if (d < bestD && d <= md) { bestD = d; best = { type: "trait", index: i, pointIndex: 1 }; } }
+        }
+        return best;
+      }
+
       /** Retourne la hauteur pour une sélection donnée (un point). */
       function getHeightForSelection(sel) {
         if (!sel) return null;
@@ -5859,19 +6503,22 @@ export function initCalpinage(container, options = {}) {
         if (sel.type === "contour") {
           var c = contours[sel.index];
           if (!c || !c.points || c.points[sel.pointIndex] == null) return null;
-          return typeof c.points[sel.pointIndex].h === "number" ? c.points[sel.pointIndex].h : DEFAULT_HEIGHT_GUTTER;
+          var ch = c.points[sel.pointIndex].h;
+          return typeof ch === "number" && Number.isFinite(ch) ? ch : null;
         }
         if (sel.type === "ridge") {
           var r = ridges[sel.index];
           if (!r) return null;
           var end = sel.pointIndex === 0 ? r.a : r.b;
-          return typeof end.h === "number" ? end.h : DEFAULT_HEIGHT_RIDGE;
+          var rh = end && end.h;
+          return typeof rh === "number" && Number.isFinite(rh) ? rh : null;
         }
         if (sel.type === "trait") {
           var t = traits[sel.index];
           if (!t) return null;
-          var end = sel.pointIndex === 0 ? t.a : t.b;
-          return typeof end.h === "number" ? end.h : DEFAULT_HEIGHT_GUTTER;
+          var tend = sel.pointIndex === 0 ? t.a : t.b;
+          var th = tend && tend.h;
+          return typeof th === "number" && Number.isFinite(th) ? th : null;
         }
         return null;
       }
@@ -5905,6 +6552,7 @@ export function initCalpinage(container, options = {}) {
           }
         }
         sels.forEach(setOne);
+        tracePanPhysicsPipeline("A_after_height_edit");
         if (optionalSels == null) CALPINAGE_STATE.selectedHeightPoint = sels[0];
         computePansFromGeometry();
         ensurePanPointsWithHeights();
@@ -5915,6 +6563,218 @@ export function initCalpinage(container, options = {}) {
         if (typeof requestAnimationFrame !== "undefined" && typeof window.CALPINAGE_RENDER === "function") requestAnimationFrame(window.CALPINAGE_RENDER);
         saveCalpinageState();
       }
+
+      /**
+       * Cible métier pour rollback de `h` sur un point structurel (indices = tableaux filtrés chienAssis).
+       */
+      function structuralPointTargetForHeightSel(sel) {
+        var contours = (CALPINAGE_STATE.contours || []).filter(function (c) { return c.roofRole !== "chienAssis"; });
+        var ridges = (CALPINAGE_STATE.ridges || []).filter(function (r) { return r.roofRole !== "chienAssis"; });
+        var traits = (CALPINAGE_STATE.traits || []).filter(function (t) { return t.roofRole !== "chienAssis"; });
+        if (sel.type === "contour") {
+          var c = contours[sel.index];
+          return c && c.points && c.points[sel.pointIndex] ? c.points[sel.pointIndex] : null;
+        }
+        if (sel.type === "ridge") {
+          var r = ridges[sel.index];
+          if (!r) return null;
+          return sel.pointIndex === 0 ? r.a : r.b;
+        }
+        if (sel.type === "trait") {
+          var t = traits[sel.index];
+          if (!t) return null;
+          return sel.pointIndex === 0 ? t.a : t.b;
+        }
+        return null;
+      }
+
+      /**
+       * Même chaîne métier que l’outil hauteur 2D : résoudre le sommet de pan → point structurel proche,
+       * puis `applyHeightToSelectedPoints` (recalcul des pans, pas de plan brisé).
+       * @returns {{ ok: true, rollback: function(): void } | { ok: false, code: string, message: string }}
+       */
+      function commitRoofVertexHeightLike2D(panId, vertexIndex, heightM) {
+        var v = parseFloat(heightM);
+        if (isNaN(v) || v < 0) {
+          return { ok: false, code: "INVALID_HEIGHT", message: "Hauteur invalide." };
+        }
+        var pans = CALPINAGE_STATE.pans || [];
+        var pan = null;
+        for (var pi = 0; pi < pans.length; pi++) {
+          if (pans[pi] && String(pans[pi].id) === String(panId)) { pan = pans[pi]; break; }
+        }
+        if (!pan) {
+          return { ok: false, code: "PAN_NOT_FOUND", message: "Pan introuvable." };
+        }
+        var poly =
+          Array.isArray(pan.points) && pan.points.length >= 2
+            ? pan.points
+            : pan.polygonPx || pan.polygon;
+        if (!Array.isArray(poly) || vertexIndex < 0 || vertexIndex >= poly.length) {
+          return { ok: false, code: "VERTEX_BAD", message: "Sommet introuvable sur ce pan." };
+        }
+        var vtx = poly[vertexIndex];
+        if (!vtx || typeof vtx.x !== "number" || typeof vtx.y !== "number") {
+          return { ok: false, code: "VERTEX_XY", message: "Sommet sans coordonnées image valides." };
+        }
+        var imgPt = { x: vtx.x, y: vtx.y };
+        var sel = resolveStructuralHeightSelectionNearImagePoint(imgPt, 48);
+        if (!sel) {
+          return {
+            ok: false,
+            code: "NO_STRUCTURAL_HIT",
+            message: "Ce sommet n’est pas assez proche d’un point de toiture (contour, faîtage ou trait). Utilisez l’outil hauteur en 2D sur ce point.",
+          };
+        }
+        var tgt = structuralPointTargetForHeightSel(sel);
+        if (!tgt || typeof tgt !== "object") {
+          return { ok: false, code: "STRUCTURE_GONE", message: "Point structurel introuvable." };
+        }
+        var hadH = Object.prototype.hasOwnProperty.call(tgt, "h");
+        var prevH = hadH ? tgt.h : undefined;
+        applyHeightToSelectedPoints(v, [sel]);
+        return {
+          ok: true,
+          rollback: function () {
+            try {
+              if (!hadH) {
+                try { delete tgt.h; } catch (_dh) { /* ignore */ }
+              } else {
+                tgt.h = prevH;
+              }
+              computePansFromGeometry();
+              ensurePanPointsWithHeights();
+              if (window.CalpinagePans && CalpinagePans.recomputeAllPanPhysicalProps && CALPINAGE_STATE.pans && CALPINAGE_STATE.pans.length) {
+                CalpinagePans.recomputeAllPanPhysicalProps(CALPINAGE_STATE.pans, getStateForPans());
+              }
+              if (typeof updatePansListUI === "function") updatePansListUI();
+              if (typeof requestAnimationFrame !== "undefined" && typeof window.CALPINAGE_RENDER === "function") requestAnimationFrame(window.CALPINAGE_RENDER);
+              else if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
+              if (typeof saveCalpinageState === "function") saveCalpinageState();
+            } catch (rbErr) {
+              if (typeof console !== "undefined" && console.warn) console.warn("[CALPINAGE] commitRoofVertexHeightLike2D rollback", rbErr);
+            }
+          },
+        };
+      }
+      try {
+        if (typeof window !== "undefined") {
+          window.__calpinageCommitRoofVertexHeightLike2D = commitRoofVertexHeightLike2D;
+        }
+      } catch (_expCommit2d) { /* ignore */ }
+
+      /**
+       * Après mutation des `h` sur les sommets de `pans` hors outil hauteur 2D (ex. commit 3D) :
+       * même post-traitement que la fin de `applyHeightToSelectedPoints`, **sans** `computePansFromGeometry`
+       * (le graphe contour / faîtage / trait n’a pas changé).
+       * Exposé pour `Inline3DViewerBridge` afin que le canvas 2D et la persistance restent alignés.
+       */
+      function refreshLegacyUiAfterPanVertexHeightMutation() {
+        try {
+          ensurePanPointsWithHeights();
+          applyDerivedRoofTopologyAfterPans(CALPINAGE_STATE);
+        } catch (err) {
+          if (typeof console !== "undefined" && console.warn) console.warn("[CALPINAGE] refreshLegacyUiAfterPanVertexHeightMutation", err);
+        }
+        try {
+          if (window.CalpinagePans && CalpinagePans.recomputeAllPanPhysicalProps && CALPINAGE_STATE.pans && CALPINAGE_STATE.pans.length) {
+            CalpinagePans.recomputeAllPanPhysicalProps(CALPINAGE_STATE.pans, getStateForPans());
+          }
+        } catch (_rpp) { /* ignore */ }
+        try {
+          if (typeof updatePansListUI === "function") updatePansListUI();
+        } catch (_ui) { /* ignore */ }
+        if (typeof requestAnimationFrame !== "undefined" && typeof window.CALPINAGE_RENDER === "function") {
+          requestAnimationFrame(window.CALPINAGE_RENDER);
+        } else if (typeof window.CALPINAGE_RENDER === "function") {
+          window.CALPINAGE_RENDER();
+        }
+        try {
+          if (typeof saveCalpinageState === "function") saveCalpinageState();
+        } catch (_sv) { /* ignore */ }
+      }
+      try {
+        if (typeof window !== "undefined") {
+          window.__calpinageRefreshLegacyUiAfterPanVertexHeightEdit = refreshLegacyUiAfterPanVertexHeightMutation;
+        }
+      } catch (_expPanH) { /* ignore */ }
+
+      /**
+       * Pass 3 — commit hauteur sur un **point structurel** (contour / faîtage / trait), même chaîne que l’outil hauteur 2D.
+       * Indices = tableaux filtrés `chienAssis` (alignés sur `resolveStructuralHeightSelectionNearImagePoint`).
+       * @param {{ type: string, index: number, pointIndex: number }} sel
+       * @returns {{ ok: boolean, code?: string, message?: string }}
+       */
+      function applyStructuralHeightSelection(sel, heightM) {
+        var v = parseFloat(heightM);
+        if (isNaN(v) || v < 0) {
+          return { ok: false, code: "INVALID_HEIGHT", message: "Hauteur invalide (≥ 0 requis)." };
+        }
+        if (!sel || typeof sel !== "object") {
+          return { ok: false, code: "BAD_SELECTION", message: "Sélection structurelle attendue." };
+        }
+        var t = sel.type;
+        if (t !== "contour" && t !== "ridge" && t !== "trait") {
+          return { ok: false, code: "BAD_TYPE", message: "Type attendu : contour, faîtage (ridge) ou trait." };
+        }
+        var idx = sel.index;
+        var pi = sel.pointIndex;
+        if (!Number.isFinite(idx) || idx < 0 || idx !== Math.floor(idx)) {
+          return { ok: false, code: "BAD_INDEX", message: "Index structurel invalide." };
+        }
+        var contours = (CALPINAGE_STATE.contours || []).filter(function (c) { return c.roofRole !== "chienAssis"; });
+        var ridges = (CALPINAGE_STATE.ridges || []).filter(function (r) { return r.roofRole !== "chienAssis"; });
+        var traits = (CALPINAGE_STATE.traits || []).filter(function (tr) { return tr.roofRole !== "chienAssis"; });
+        if (t === "contour") {
+          if (!Number.isFinite(pi) || pi < 0 || pi !== Math.floor(pi)) {
+            return { ok: false, code: "BAD_POINT_INDEX", message: "Index de sommet de contour invalide." };
+          }
+          if (idx >= contours.length) {
+            return { ok: false, code: "CONTOUR_OUT_OF_RANGE", message: "Contour introuvable (index filtré)." };
+          }
+          var c = contours[idx];
+          if (!c || !c.points || pi >= c.points.length || !c.points[pi]) {
+            return { ok: false, code: "CONTOUR_VERTEX_BAD", message: "Sommet de contour introuvable." };
+          }
+        } else if (t === "ridge") {
+          if (pi !== 0 && pi !== 1) {
+            return { ok: false, code: "BAD_ENDPOINT", message: "Extrémité faîtage invalide (0 = a, 1 = b)." };
+          }
+          if (idx >= ridges.length) {
+            return { ok: false, code: "RIDGE_OUT_OF_RANGE", message: "Faîtage introuvable (index filtré)." };
+          }
+        } else if (t === "trait") {
+          if (pi !== 0 && pi !== 1) {
+            return { ok: false, code: "BAD_ENDPOINT", message: "Extrémité de trait invalide (0 = a, 1 = b)." };
+          }
+          if (idx >= traits.length) {
+            return { ok: false, code: "TRAIT_OUT_OF_RANGE", message: "Trait introuvable (index filtré)." };
+          }
+        }
+        applyHeightToSelectedPoints(v, [sel]);
+        return { ok: true };
+      }
+
+      /** Rétrocompat Pass 2 — refuse toute sélection dont le type n’est pas `ridge`. */
+      function applyStructuralRidgeHeightSelection(sel, heightM) {
+        if (!sel || typeof sel !== "object" || sel.type !== "ridge") {
+          return { ok: false, code: "BAD_SELECTION", message: "Sélection faîtage attendue (type ridge)." };
+        }
+        return applyStructuralHeightSelection(sel, heightM);
+      }
+      try {
+        if (typeof window !== "undefined") {
+          window.__calpinageApplyStructuralHeightSelection = applyStructuralHeightSelection;
+          window.__calpinageApplyStructuralRidgeHeightSelection = applyStructuralRidgeHeightSelection;
+          window.__calpinageResolveStructuralHeightSelectionNearImagePoint = resolveStructuralHeightSelectionNearImagePoint;
+          window.__calpinageCommitPvPlacementFrom3DImagePoint = commitPvPlacementFrom3DImagePoint;
+          window.__calpinageHitTestPvBlockPanelFromImagePoint = hitTestAnyPvBlockPanelFromImage;
+          window.__calpinageBeginPhase3PvMoveFrom3d = beginPhase3PvMoveManipulationFrom3d;
+          window.__calpinageApplyPhase3PvMoveLiveFrom3d = applyPhase3PvMoveLiveFrom3d;
+          window.__calpinageCancelPhase3PvMoveFrom3d = cancelPhase3PvMoveFrom3d;
+          window.__calpinageFinalizePhase3PvHandleManipulation = finalizePhase3PvHandleManipulation;
+        }
+      } catch (_expRidgeStruct) { /* ignore */ }
 
       /** Valide la hauteur en cours : appelle applyHeightToSelectedPoints, sauvegarde, ferme l'input, feedback. Reste en mode HeightEditMode. */
       function commitHeightEdit() {
@@ -6311,6 +7171,11 @@ export function initCalpinage(container, options = {}) {
       var CLOSE_THRESHOLD_PX = 15;
       /* Snap automatique prioritaire : distance ?cran en px (une seule r?gle pour contour / fa??tage / trait) */
       const SNAP_DIST_PX = 12;
+      /** Snap prioritaire contour bâti (faîtage / trait) : cible ~px écran, avec plafond relatif au bbox (vue dézoomée). */
+      const CONTOUR_SNAP_SCREEN_PX = 15;
+      const CONTOUR_SNAP_BBOX_CAP_K = 0.2;
+      /** Re-snap orphelins après edit contour : multiple du seuil contour (comportement historique ×3). */
+      const ROOF_CONTOUR_ORPHAN_RESNAP_MULT = 3;
       /* Mode debug pans : 1 = affiche stats + overlay des faces d?tect?es (d?sactiv? par d?faut) */
       const CALPINAGE_DEBUG_PANS = 0;
       const MODE_CREATE_DORMER = "CREATE_DORMER";
@@ -6319,6 +7184,13 @@ export function initCalpinage(container, options = {}) {
       const MODE_DORMER_HIPS    = "DORMER_HIPS";
 
       /* ??tat dessin : outil actif + pr?visualisation ; donn?es m?tier dans CALPINAGE_STATE */
+      /* ── Undo / Redo ─────────────────────────────────────────────────────── */
+      var _undoStack = [];
+      var _redoStack = [];
+      var _pendingUndoSnap = null;
+      var _undoRedoInProgress = false;
+      /* ─────────────────────────────────────────────────────────────────────── */
+
       var drawState = {
         activeTool: "select",
         drawingPoints: [],
@@ -6339,6 +7211,8 @@ export function initCalpinage(container, options = {}) {
         draggingTraitPoint: null,
         draggingTraitSegmentStart: null,
         lastMouseImage: null,
+        /** Shift : désactive tout le magnétisme structurant (contour bâti, sommets/arêtes toit, preview au drag). */
+        skipStructuralContourSnap: false,
         hoverNearFirstPoint: false,
         hoverNearFirstPointObstacle: false,
         selectedRidgeIndex: null,
@@ -6397,6 +7271,7 @@ export function initCalpinage(container, options = {}) {
         contourHoverSnapSource: null,
         ridgeHintMessageUntil: 0,
         traitHintMessageUntil: 0,
+        ridgeTopoWarnUntil: 0,
         hoverPanId: null,
       };
 
@@ -6514,10 +7389,11 @@ export function initCalpinage(container, options = {}) {
       })();
 
       /**
-       * Lot 1 — Signature déterministe contour / traits / faîtages (coords résolues) pour prouver que les pans
-       * sauvegardés sont alignés sur la géométrie persistée. Utilisé au load : skip restaurer pans bruts uniquement si égalité stricte.
+       * Lot 1 — Signature déterministe contour / traits / faîtages pour prouver que les pans
+       * sauvegardés sont alignés sur la géométrie persistée.
+       * v2 : tous les sommets de chaque contour (polygones denses) — v1 ne gardait que 3 points / contour et provoquait des mismatch au reload.
        */
-      function computePansStructuralSignatureForPersistence(state) {
+      function computePansStructuralSignatureV1Legacy(state) {
         state = state || CALPINAGE_STATE;
         function r6(n) {
           return typeof n === "number" && Number.isFinite(n) ? Math.round(n * 1e6) / 1e6 : "";
@@ -6529,7 +7405,7 @@ export function initCalpinage(container, options = {}) {
           return r6(q.x) + "," + r6(q.y);
         }
         var contours = (state.contours || []).filter(function (c) {
-          return c && (c.roofRole || "") !== "chienAssis" && c.points && c.points.length >= 2;
+          return c && (c.roofRole || "") !== "chienAssis" && c.points && c.points.length >= 3;
         });
         contours = contours.slice().sort(function (a, b) {
           return String(a.id).localeCompare(String(b.id));
@@ -6576,6 +7452,61 @@ export function initCalpinage(container, options = {}) {
           })
           .join("|");
         return "v1;C" + cPart + ";R" + rPart + ";T" + tPart;
+      }
+
+      function computePansStructuralSignatureForPersistence(state) {
+        state = state || CALPINAGE_STATE;
+        function r6(n) {
+          return typeof n === "number" && Number.isFinite(n) ? Math.round(n * 1e6) / 1e6 : "";
+        }
+        function ptKey(p) {
+          if (!p) return "";
+          var q = typeof resolveRidgePoint === "function" ? resolveRidgePoint(p) : p;
+          if (!q || typeof q.x !== "number" || typeof q.y !== "number") return "";
+          return r6(q.x) + "," + r6(q.y);
+        }
+        var contours = (state.contours || []).filter(function (c) {
+          return c && (c.roofRole || "") !== "chienAssis" && c.points && c.points.length >= 3;
+        });
+        contours = contours.slice().sort(function (a, b) {
+          return String(a.id).localeCompare(String(b.id));
+        });
+        var cPart = contours
+          .map(function (c) {
+            return (
+              String(c.id) +
+              ":" +
+              c.points
+                .map(function (p) {
+                  return ptKey(p);
+                })
+                .join(";")
+            );
+          })
+          .join("|");
+        var ridges = (state.ridges || []).filter(function (r) {
+          return r && (r.roofRole || "") !== "chienAssis";
+        });
+        ridges = ridges.slice().sort(function (a, b) {
+          return String(a.id).localeCompare(String(b.id));
+        });
+        var rPart = ridges
+          .map(function (rg) {
+            return String(rg.id) + ":" + ptKey(rg.a) + ":" + ptKey(rg.b);
+          })
+          .join("|");
+        var traits = (state.traits || []).filter(function (t) {
+          return t && (t.roofRole || "") !== "chienAssis";
+        });
+        traits = traits.slice().sort(function (a, b) {
+          return String(a.id).localeCompare(String(b.id));
+        });
+        var tPart = traits
+          .map(function (tr) {
+            return String(tr.id) + ":" + ptKey(tr.a) + ":" + ptKey(tr.b);
+          })
+          .join("|");
+        return "v2;C" + cPart + ";R" + rPart + ";T" + tPart;
       }
 
       function stableSerializeForHash(value) {
@@ -6952,10 +7883,12 @@ export function initCalpinage(container, options = {}) {
 
       function loadCalpinageState(fromData) {
         try {
+          var _roofReloadDiag = null;
           var data;
           if (fromData && typeof fromData === "object") {
             data = fromData;
           } else {
+            if (typeof window !== "undefined") window.__CALPINAGE_GEOMETRY_LOAD_SOURCE__ = "localStorage_scoped_fallback";
             var sid = (typeof window !== "undefined" && window.CALPINAGE_STUDY_ID) || null;
             var vid = (typeof window !== "undefined" && window.CALPINAGE_VERSION_ID) || null;
             var raw = getCalpinageItem("state", sid, vid);
@@ -6977,9 +7910,8 @@ export function initCalpinage(container, options = {}) {
               CalpinagePans.panState.pans.push(p);
             });
             CalpinagePans.ensurePanPhysicalProps(CalpinagePans.panState.pans);
-            if (CalpinagePans.recomputeAllPanPhysicalProps && CalpinagePans.panState.pans.length) {
-              CalpinagePans.recomputeAllPanPhysicalProps(CalpinagePans.panState.pans, getStateForPans());
-            }
+            /* Pas de recomputeAllPanPhysicalProps ici : contours/traits/ridges ne sont pas encore dans CALPINAGE_STATE —
+             * sinon azimut / pente corrompus sur les objets pans partagés avant le clone (3D / shell cassés au reload). */
             CalpinagePans.panState.activePanId = data.activePanId == null ? null : data.activePanId;
             CalpinagePans.panState.activePoint = null;
           }
@@ -7023,11 +7955,16 @@ export function initCalpinage(container, options = {}) {
             if (data.roofState.contoursBati && Array.isArray(data.roofState.contoursBati)) {
               CALPINAGE_STATE.contours = data.roofState.contoursBati.filter(function (pts) { return pts && (pts.roofRole || "") !== "chienAssis"; }).map(function (pts, idx) {
                 var points = Array.isArray(pts) ? pts : (pts && pts.points) ? pts.points : [];
-                var id = (pts && pts.id) ? pts.id : (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : "c-" + idx;
-                return { id: id, points: points, closed: true, roofRole: "main" };
-              }).filter(function (c) { return c && c.points && c.points.length >= 2; });
-            } else if (data.roofState.contourBati && Array.isArray(data.roofState.contourBati)) {
-              CALPINAGE_STATE.contours = [{ id: (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : "c-0", points: data.roofState.contourBati, closed: true }];
+                /* ID déterministe si absent du JSON : évite une nouvelle UUID à chaque load → cassait pansStructuralSig et forçait computePansFromGeometry. */
+                var id = (pts && pts.id) ? pts.id : "contour-restored-" + idx;
+                /* Aligné shell 3D : ne pas forcer "main" (ignoré par extractBuildingContourPolygonPx avant fix).
+                 * Conserver le rôle persisté ; défaut "contour" = outil contour bâti (même sémantique que live). */
+                var persisted = pts && typeof pts.roofRole === "string" ? pts.roofRole.trim() : "";
+                var roofRole = persisted && persisted !== "chienAssis" ? persisted : "contour";
+                return { id: id, points: points, closed: true, roofRole: roofRole };
+              }).filter(function (c) { return c && c.points && c.points.length >= 3; });
+            } else if (data.roofState.contourBati && Array.isArray(data.roofState.contourBati) && data.roofState.contourBati.length >= 3) {
+              CALPINAGE_STATE.contours = [{ id: "contour-restored-legacy", points: data.roofState.contourBati, closed: true, roofRole: "contour" }];
             }
             if (data.roofState.mesures && Array.isArray(data.roofState.mesures)) {
               CALPINAGE_STATE.measures = data.roofState.mesures.map(function (m, idx) {
@@ -7037,7 +7974,7 @@ export function initCalpinage(container, options = {}) {
             }
             if (data.roofState.traits && Array.isArray(data.roofState.traits)) {
               CALPINAGE_STATE.traits = data.roofState.traits.filter(function (t) { return !t || t.roofRole !== "chienAssis"; }).map(function (t, idx) {
-                var id = (t && t.id) ? t.id : (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : "t-" + idx;
+                var id = (t && t.id) ? t.id : "trait-restored-" + idx;
                 var a = t.a && typeof t.a.x === "number" ? { x: t.a.x, y: typeof t.a.y === "number" ? t.a.y : 0, attach: (t.a.attach && typeof t.a.attach === "object") ? t.a.attach : null, h: typeof t.a.h === "number" ? t.a.h : undefined } : { x: 0, y: 0 };
                 var b = t.b && typeof t.b.x === "number" ? { x: t.b.x, y: typeof t.b.y === "number" ? t.b.y : 0, attach: (t.b.attach && typeof t.b.attach === "object") ? t.b.attach : null, h: typeof t.b.h === "number" ? t.b.h : undefined } : { x: 0, y: 0 };
                 return { id: id, a: a, b: b, roofRole: "main" };
@@ -7047,7 +7984,7 @@ export function initCalpinage(container, options = {}) {
               CALPINAGE_STATE.ridges = data.roofState.ridges.filter(function (r) { return !r || (r.roofRole || "") !== "chienAssis"; }).map(function (r, idx) {
                 var a = r.a || { x: 0, y: 0 };
                 var b = r.b || { x: 0, y: 0 };
-                var id = (r && r.id) ? r.id : (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : "r-" + idx;
+                var id = (r && r.id) ? r.id : "ridge-restored-" + idx;
                 return {
                   id: id,
                   a: { x: a.x, y: a.y, attach: a.attach || null, h: typeof a.h === "number" ? a.h : undefined },
@@ -7103,7 +8040,8 @@ export function initCalpinage(container, options = {}) {
                 return null;
               }).filter(Boolean);
             }
-            /* Lot 1 — Ne restaurer les pans bruts sans recompute que si la géométrie chargée === celle ayant servi à sauver (signature stricte). */
+            /* Lot 1 — Ne restaurer les pans bruts sans recompute que si la géométrie chargée === celle ayant servi à sauver (signature stricte).
+             * Lot 1-bis — Ne plus exiger frozenBlocks : relevé validé / brouillon sans blocs PV figés doit garder les mêmes pans (3D / shell stables au reload). */
             var _ridgesInPayload = 0;
             if (data.roofState && Array.isArray(data.roofState.ridges)) {
               for (var _ri = 0; _ri < data.roofState.ridges.length; _ri++) {
@@ -7119,10 +8057,18 @@ export function initCalpinage(container, options = {}) {
               }
             }
             var _sigNow = computePansStructuralSignatureForPersistence(CALPINAGE_STATE);
+            var _sigV1Compat = computePansStructuralSignatureV1Legacy(CALPINAGE_STATE);
             var _sigSaved = typeof data.pansStructuralSig === "string" ? data.pansStructuralSig : null;
             var _hasFrozen = Array.isArray(data.frozenBlocks) && data.frozenBlocks.length > 0;
+            var _sigMatchesSaved = _sigSaved != null && (_sigSaved === _sigNow || _sigSaved === _sigV1Compat);
+            /* Repli API / vieux dossiers : pas de pansStructuralSig mais relevé verrouillé → garder les pans persistés (évite toit / shell fragmentés). */
+            var _skipLegacyLockedNoSig =
+              savedPans.length > 0 &&
+              _sigSaved == null &&
+              data.roofSurveyLocked === true;
             var _skipComputePans =
-              savedPans.length > 0 && _hasFrozen && _sigSaved != null && _sigSaved === _sigNow;
+              savedPans.length > 0 &&
+              (_sigMatchesSaved || _skipLegacyLockedNoSig);
             if (_skipComputePans) {
               try {
                 CALPINAGE_STATE.pans = JSON.parse(JSON.stringify(savedPans));
@@ -7142,8 +8088,18 @@ export function initCalpinage(container, options = {}) {
                     pan.roofType = "FLAT";
                     pan.flatRoofConfig = normalizeFlatRoofConfig(saved.flatRoofConfig);
                   }
-                  if (saved.points && Array.isArray(saved.points) && saved.points.length >= 2) {
-                    pan.points = saved.points.map(function (pt) { return { x: pt.x, y: pt.y, h: typeof pt.h === "number" ? pt.h : 0, id: pt.id }; });
+                  if (
+                    saved.points &&
+                    Array.isArray(saved.points) &&
+                    saved.points.length >= 2 &&
+                    savedPanVertexRingCompatibleWithPolygon(saved.points, pan.polygon)
+                  ) {
+                    pan.points = saved.points.map(function (pt) {
+                      var o = { x: pt.x, y: pt.y, id: pt.id };
+                      if (typeof pt.h === "number" && Number.isFinite(pt.h)) o.h = pt.h;
+                      return o;
+                    });
+                    syncPolygonPxFromPoints(pan);
                   }
                   if (saved.physical) {
                     pan.physical = pan.physical || {};
@@ -7175,10 +8131,12 @@ export function initCalpinage(container, options = {}) {
             }
             ensurePanPointsWithHeights();
             ensurePansHavePoints();
+            syncPanPolygonFromPointsForProduct3D(CALPINAGE_STATE.pans);
             CalpinagePans.ensurePanPhysicalProps(CALPINAGE_STATE.pans);
             if (CalpinagePans.recomputeAllPanPhysicalProps && CALPINAGE_STATE.pans.length) {
               CalpinagePans.recomputeAllPanPhysicalProps(CALPINAGE_STATE.pans, getStateForPans());
             }
+            refreshPanPhysicsDiagnostics();
             if (CalpinagePans.panState) {
               CalpinagePans.panState.pans.length = 0;
               CALPINAGE_STATE.pans.forEach(function (p) { CalpinagePans.panState.pans.push(p); });
@@ -7209,10 +8167,42 @@ export function initCalpinage(container, options = {}) {
                 skipComputePans: _skipComputePans,
                 pansRecalculated: !_skipComputePans,
                 pansCount: (CALPINAGE_STATE.pans || []).length,
-                pansStructuralSigMatch: _skipComputePans,
+                pansStructuralSigMatch: _sigMatchesSaved,
                 hasFrozenBlocks: _hasFrozen
               });
             }
+            _roofReloadDiag = {
+              geometrySourceAtStart: (typeof window !== "undefined" && window.__CALPINAGE_GEOMETRY_LOAD_SOURCE__) || "inline_payload",
+              skipComputePans: _skipComputePans,
+              pansRecalculated: !_skipComputePans,
+              savedPansInPayload: savedPans.length,
+              loadedPansCount: (CALPINAGE_STATE.pans || []).length,
+              pansStructuralSigInPayload: _sigSaved != null,
+              sigMatchesSavedV2orV1: _sigMatchesSaved,
+              sigSavedEqualsV1CompatOnly: _sigSaved != null && _sigSaved === _sigV1Compat && _sigSaved !== _sigNow,
+              skipLegacyLockedNoSig: _skipLegacyLockedNoSig,
+              sigSavedHead: _sigSaved ? _sigSaved.slice(0, 120) : null,
+              sigNowHead: _sigNow ? _sigNow.slice(0, 120) : null,
+              roofSurveyLockedInPayload: data.roofSurveyLocked === true,
+              phaseInPayload: data.phase,
+              ridgesInPayload: _ridgesInPayload,
+              traitsInPayload: _traitsInPayload,
+              panPolygonVsPoints: (function () {
+                var out = [];
+                var arr = CALPINAGE_STATE.pans || [];
+                for (var si = 0; si < arr.length && si < 8; si++) {
+                  var p = arr[si];
+                  if (!p) { out.push(null); continue; }
+                  var polyN = p.polygon && Array.isArray(p.polygon) ? p.polygon.length : 0;
+                  var ptsN = p.points && Array.isArray(p.points) ? p.points.length : 0;
+                  out.push({ id: p.id, polygonN: polyN, pointsN: ptsN, mismatch: polyN > 0 && ptsN > 0 && polyN !== ptsN });
+                }
+                return out;
+              })(),
+              interpretHint: !_skipComputePans
+                ? "pansRecalculated=true → computePansFromGeometry a tourné ; si la 3D casse, cause probable = nouveaux polygones pans vs session précédente."
+                : "pans restaurés sans computePansFromGeometry ; si la 3D casse encore, creuser Z / weld / autre pipeline.",
+            };
             setTimeout(function () { }, 0);
           }
           if (data.phase === 2 || data.phase === 3) {
@@ -7375,23 +8365,54 @@ export function initCalpinage(container, options = {}) {
               reason: _reloadIntegrity.diagnostic.reason
             });
           }
+          if (typeof console !== "undefined" && console.info) {
+            var _geomSrc = (typeof window !== "undefined" && window.__CALPINAGE_GEOMETRY_LOAD_SOURCE__) || (_roofReloadDiag && _roofReloadDiag.geometrySourceAtStart) || "unknown";
+            try {
+              if (typeof window !== "undefined") delete window.__CALPINAGE_GEOMETRY_LOAD_SOURCE__;
+            } catch (_delGs) {}
+            var _fullReloadDiag = Object.assign({}, _roofReloadDiag || { noRoofStateInPayload: true }, {
+              geometryLoadSource: _geomSrc,
+              reloadMetaReason: _reloadIntegrity.diagnostic && _reloadIntegrity.diagnostic.reason,
+              reloadGeometryMatch: _reloadIntegrity.diagnostic && _reloadIntegrity.diagnostic.geometryMatch,
+              reloadIsConsistent: _reloadIntegrity.status && _reloadIntegrity.status.isConsistent,
+            });
+            console.info("[CALPINAGE_RELOAD_DIAG]", _fullReloadDiag);
+            if (typeof window !== "undefined") window.__CALPINAGE_LAST_RELOAD_DIAG__ = _fullReloadDiag;
+          }
           syncCanonical3DWorldContractFromCalpinageRoof();
           // Stratégie intégrité officielle centralisée — classification + exposition + warn
           refreshCalpinageIntegrity(data);
+          calpinageLegacyEmitOfficialStructuralChange({
+            reason: "STATE_LOADED",
+            changedDomains: ["pans", "contours", "ridges", "traits", "world", "pv", "obstacles", "extensions"],
+            debug: { sourceFile: "calpinage.module.js", sourceAction: "loadCalpinageState" },
+          });
         } catch (e) {}
       }
 
-      /** Assure que chaque pan a .points (? partir de .polygon si besoin) pour calculs physiques. */
+      /** Assure .points via contrat canonique (points → polygonPx → polygon). */
       function ensurePansHavePoints() {
         var pans = CALPINAGE_STATE.pans || [];
         for (var i = 0; i < pans.length; i++) {
+          if (pans[i]) ensurePanPointsCanonicalFromGeometry(pans[i]);
+        }
+      }
+
+      /**
+       * Après reload : `points` (hauteurs, vérité bundle) et `polygon` divergeaient → legacy 3D lisait surtout `points`,
+       * autres chemins `polygon` → fentes / shell incohérent. On recopie le polygone image depuis `points`.
+       */
+      function syncPanPolygonFromPointsForProduct3D(pans) {
+        if (!pans || !pans.length) return;
+        for (var i = 0; i < pans.length; i++) {
           var pan = pans[i];
-          if (!pan) continue;
-          if (!pan.points && pan.polygon && Array.isArray(pan.polygon)) {
-            pan.points = pan.polygon.map(function (pt, idx) {
-              return { x: pt.x, y: pt.y, h: 0, id: pan.id + "-" + idx };
-            });
-          }
+          if (!pan || !pan.points || !Array.isArray(pan.points) || pan.points.length < 3) continue;
+          pan.polygon = pan.points.map(function (pt) {
+            var o = { x: pt.x, y: pt.y };
+            if (typeof pt.h === "number" && Number.isFinite(pt.h)) o.h = pt.h;
+            return o;
+          });
+          syncPolygonPxFromPoints(pan);
         }
       }
 
@@ -7421,6 +8442,7 @@ export function initCalpinage(container, options = {}) {
             CalpinagePans.recomputeAllPanPhysicalProps(pans, getStateForPans());
           }
         }
+        refreshPanPhysicsDiagnostics();
         /* Log temporaire pour tests : d?commenter pour voir deg, runM, deltaH, az sur le 1er pan
         if (pans.length && pans[0].physical) {
           var s = pans[0].physical.slope, o = pans[0].physical.orientation;
@@ -7435,12 +8457,16 @@ export function initCalpinage(container, options = {}) {
           var slope = (pan.physical && pan.physical.slope) ? pan.physical.slope : { mode: "auto", valueDeg: null, computedDeg: null };
           var orient = (pan.physical && pan.physical.orientation) ? pan.physical.orientation : { azimuthDeg: null, label: null };
           var mode = slope.mode || "auto";
-          var valueDeg = (slope.valueDeg != null ? slope.valueDeg : (pan.tiltDeg != null ? pan.tiltDeg : (slope.computedDeg != null ? slope.computedDeg : 0)));
-          valueDeg = Math.round(Number(valueDeg));
-          var computedDeg = slope.computedDeg != null ? Math.round(slope.computedDeg) : null;
-          var azimuth = orient.azimuthDeg != null ? Math.round(orient.azimuthDeg) : null;
-          var cardinal = orient.label || "\u2014";
-          var sensPente = (pan.physical && pan.physical.slopeDirectionLabel) ? pan.physical.slopeDirectionLabel : (orient.label || "\u2014");
+          var displayInclDeg = null;
+          if (mode === "manual") {
+            if (slope.valueDeg != null && Number.isFinite(slope.valueDeg)) displayInclDeg = Math.round(slope.valueDeg);
+          } else {
+            if (slope.computedDeg != null && Number.isFinite(slope.computedDeg)) displayInclDeg = Math.round(slope.computedDeg);
+          }
+          var computedDeg = slope.computedDeg != null && Number.isFinite(slope.computedDeg) ? Math.round(slope.computedDeg) : null;
+          var azimuth = orient.azimuthDeg != null && Number.isFinite(orient.azimuthDeg) ? Math.round(orient.azimuthDeg) : null;
+          var cardinal = azimuth != null ? (orient.label || "\u2014") : "\u2014";
+          var sensPente = (pan.physical && pan.physical.slopeDirectionLabel) ? pan.physical.slopeDirectionLabel : "\u2014";
 
           var li = document.createElement("li");
           li.className = "pans-accordion-item" + (isOpen ? " open" : "");
@@ -7501,7 +8527,8 @@ export function initCalpinage(container, options = {}) {
           inclInput.min = "0";
           inclInput.max = "90";
           inclInput.step = "1";
-          inclInput.value = String(valueDeg);
+          inclInput.value = displayInclDeg != null ? String(displayInclDeg) : "";
+          inclInput.placeholder = "\u2014";
           inclInput.setAttribute("data-pan-id", pan.id);
           inclinaisonRow.appendChild(inclLabel);
           inclinaisonRow.appendChild(inclInput);
@@ -7521,11 +8548,9 @@ export function initCalpinage(container, options = {}) {
 
           var computedRow = document.createElement("div");
           computedRow.className = "pan-panel-row pan-panel-slope-computed";
-          if (computedDeg != null) {
-            computedRow.textContent = "Pente calcul\u00E9e : " + computedDeg + "\u00B0";
-          } else {
-            computedRow.textContent = "";
-          }
+          computedRow.textContent = computedDeg != null
+            ? ("Pente calcul\u00E9e : " + computedDeg + "\u00B0")
+            : "Pente calcul\u00E9e : \u2014";
           body.appendChild(computedRow);
 
           var orientRow = document.createElement("div");
@@ -7553,8 +8578,16 @@ export function initCalpinage(container, options = {}) {
           body.appendChild(sensRow);
 
           addSafeListener(inclInput, "change", function () {
-            var v = parseInt(inclInput.value, 10);
-            if (!Number.isFinite(v) || v < 0) v = 0;
+            var raw = (inclInput.value || "").trim();
+            if (raw === "") {
+              updatePansListUI();
+              return;
+            }
+            var v = parseInt(raw, 10);
+            if (!Number.isFinite(v) || v < 0) {
+              updatePansListUI();
+              return;
+            }
             if (v > 90) v = 90;
             inclInput.value = String(v);
             if (typeof CalpinagePans !== "undefined" && CalpinagePans.applyManualSlopeToPan) {
@@ -7573,8 +8606,23 @@ export function initCalpinage(container, options = {}) {
 
           addSafeListener(toggleCheck, "change", function () {
             if (toggleCheck.checked) {
-              var v = parseInt(inclInput.value, 10);
-              if (!Number.isFinite(v)) v = 0;
+              var raw = (inclInput.value || "").trim();
+              var v = raw === "" ? NaN : parseInt(raw, 10);
+              if (!Number.isFinite(v)) {
+                var sc = pan.physical && pan.physical.slope;
+                var fb = sc && sc.computedDeg != null && Number.isFinite(sc.computedDeg) ? Math.round(sc.computedDeg) : null;
+                if (fb != null) {
+                  v = fb;
+                  inclInput.value = String(v);
+                } else {
+                  toggleCheck.checked = false;
+                  updatePansListUI();
+                  if (typeof requestAnimationFrame !== "undefined" && typeof window.CALPINAGE_RENDER === "function") requestAnimationFrame(window.CALPINAGE_RENDER);
+                  return;
+                }
+              }
+              if (v < 0) v = 0;
+              if (v > 90) v = 90;
               if (typeof CalpinagePans !== "undefined" && CalpinagePans.applyManualSlopeToPan) {
                 CalpinagePans.applyManualSlopeToPan(pan, v, getStateForPans());
               } else {
@@ -7582,6 +8630,7 @@ export function initCalpinage(container, options = {}) {
                   pan.physical.slope.mode = "manual";
                   pan.physical.slope.valueDeg = v;
                 }
+                pan.tiltDeg = v;
               }
             } else {
               if (pan.physical && pan.physical.slope) {
@@ -8615,8 +9664,21 @@ export function initCalpinage(container, options = {}) {
 
       /* Export pour code hors de cette IIFE (ex. buildFinalCalpinageJSON, preview 3D) — évite ReferenceError. */
       try {
-        if (typeof window !== "undefined") window.__computePansFromGeometryCoreForExport = computePansFromGeometryCore;
+        if (typeof window !== "undefined") {
+          window.__computePansFromGeometryCoreForExport = computePansFromGeometryCore;
+          window.__computeGeometryHashForExport = computeGeometryHash;
+          window.__computePanelsHashForExport = computePanelsHash;
+          window.__computeShadingHashForExport = computeShadingHash;
+        }
       } catch (_cpgExp) {}
+
+      /**
+       * Ne plus imposer de cotes implicites (4 m / 7 m) : les hauteurs viennent uniquement de la saisie.
+       * Conservé comme point d’accroche dans le pipeline après computePansFromGeometryCore.
+       */
+      function materializeImplicitStructuralHeights(state) {
+        void state;
+      }
 
       /**
        * Source de vérité dérivée toiture : graphe pans puis `planes` + `roof.roofPans` alignés (même polygones).
@@ -8627,6 +9689,7 @@ export function initCalpinage(container, options = {}) {
             obstacleIntegrityOnPansCoreBegin(CALPINAGE_STATE);
           } catch (_obsIntBegin) {}
           computePansFromGeometryCore(CALPINAGE_STATE, { excludeChienAssis: true });
+          tracePanPhysicsPipeline("B_after_computePansFromGeometryCore");
         } catch (_pansGeomErr) {
           try {
             obstacleIntegrityClearPansCoreBaseline();
@@ -8634,6 +9697,20 @@ export function initCalpinage(container, options = {}) {
           throw _pansGeomErr;
         }
         applyDerivedRoofTopologyAfterPans(CALPINAGE_STATE);
+        materializeImplicitStructuralHeights(CALPINAGE_STATE);
+        ensurePanPointsWithHeights();
+        tracePanPhysicsPipeline("C_after_ensurePanPointsWithHeights");
+        if (window.CalpinagePans && CalpinagePans.recomputeAllPanPhysicalProps && CALPINAGE_STATE.pans && CALPINAGE_STATE.pans.length) {
+          tracePanPhysicsPipeline("D_before_recomputeAllPanPhysicalProps");
+          CalpinagePans.recomputeAllPanPhysicalProps(CALPINAGE_STATE.pans, getStateForPans());
+          tracePanPhysicsPipeline("E_after_recomputeAllPanPhysicalProps");
+        }
+        refreshPanPhysicsDiagnostics();
+        calpinageLegacyEmitOfficialStructuralChange({
+          reason: "GEOMETRY_PANS_RECOMPUTED",
+          changedDomains: ["pans"],
+          debug: { sourceFile: "calpinage.module.js", sourceAction: "computePansFromGeometry" },
+        });
       }
 
       /** Construit l'objet geometry pour export (sans persistance). Utilisé par CRM (onValidate) et par saveCalpinageState. */
@@ -8659,9 +9736,14 @@ export function initCalpinage(container, options = {}) {
             var prev = previousPansById[pan.id];
             if (!prev) return;
             if (prev.points && Array.isArray(prev.points) && prev.points.length >= 2) {
-              pan.points = prev.points.map(function (pt) { return { x: pt.x, y: pt.y, h: typeof pt.h === "number" ? pt.h : 0, id: pt.id }; });
+              pan.points = prev.points.map(function (pt) {
+                var o = { x: pt.x, y: pt.y, id: pt.id };
+                if (typeof pt.h === "number" && Number.isFinite(pt.h)) o.h = pt.h;
+                return o;
+              });
+              syncPolygonPxFromPoints(pan);
             }
-              if (prev.physical) {
+            if (prev.physical) {
               pan.physical = pan.physical || {};
               pan.physical.slope = pan.physical.slope || { mode: "auto", computedDeg: null, valueDeg: null };
               pan.physical.orientation = pan.physical.orientation || { azimuthDeg: null, label: null };
@@ -8679,10 +9761,12 @@ export function initCalpinage(container, options = {}) {
               pan.roofType = prev.roofType;
             }
           });
+          ensurePanPointsWithHeights();
           ensurePansHavePoints();
           if (CalpinagePans.recomputeAllPanPhysicalProps && CALPINAGE_STATE.pans.length) {
             CalpinagePans.recomputeAllPanPhysicalProps(CALPINAGE_STATE.pans, getStateForPans());
           }
+          refreshPanPhysicsDiagnostics();
           if (CalpinagePans.panState) {
             CalpinagePans.panState.pans.length = 0;
             CALPINAGE_STATE.pans.forEach(function (p) { CalpinagePans.panState.pans.push(p); });
@@ -8965,8 +10049,76 @@ export function initCalpinage(container, options = {}) {
         inspect(obj, label || "obj");
       }
 
+      function captureGeometrySnapshot() {
+        try {
+          return JSON.stringify({
+            contours:  CALPINAGE_STATE.contours,
+            ridges:    CALPINAGE_STATE.ridges,
+            traits:    CALPINAGE_STATE.traits,
+            pans:      CALPINAGE_STATE.pans,
+            obstacles: CALPINAGE_STATE.obstacles,
+          });
+        } catch (_) { return null; }
+      }
+
+      function updateUndoRedoUI() {
+        try {
+          var btnUndo = container.querySelector("#calpinage-tool-undo");
+          var btnRedo = container.querySelector("#calpinage-tool-redo");
+          if (btnUndo) btnUndo.disabled = _undoStack.length === 0;
+          if (btnRedo) btnRedo.disabled = _redoStack.length === 0;
+        } catch (_) {}
+      }
+
+      function applyGeometrySnapshot(snap) {
+        try {
+          var s = JSON.parse(snap);
+          CALPINAGE_STATE.contours  = s.contours  || [];
+          CALPINAGE_STATE.ridges    = s.ridges    || [];
+          CALPINAGE_STATE.traits    = s.traits    || [];
+          CALPINAGE_STATE.pans      = s.pans      || [];
+          CALPINAGE_STATE.obstacles = s.obstacles || [];
+        } catch (_) {}
+      }
+
+      function undoCalpinage() {
+        if (_undoStack.length === 0) return;
+        var current = captureGeometrySnapshot();
+        if (current) _redoStack.push(current);
+        var snap = _undoStack.pop();
+        applyGeometrySnapshot(snap);
+        if (typeof recomputeRoofPlanes === "function") recomputeRoofPlanes();
+        _undoRedoInProgress = true;
+        saveCalpinageState();
+        _undoRedoInProgress = false;
+        updateUndoRedoUI();
+        if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
+      }
+
+      function redoCalpinage() {
+        if (_redoStack.length === 0) return;
+        var current = captureGeometrySnapshot();
+        if (current) _undoStack.push(current);
+        var snap = _redoStack.pop();
+        applyGeometrySnapshot(snap);
+        if (typeof recomputeRoofPlanes === "function") recomputeRoofPlanes();
+        _undoRedoInProgress = true;
+        saveCalpinageState();
+        _undoRedoInProgress = false;
+        updateUndoRedoUI();
+        if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
+      }
+
       function saveCalpinageState() {
         try {
+          /* ── Undo : enregistre l'état pré-action si disponible ── */
+          if (!_undoRedoInProgress && _pendingUndoSnap !== null) {
+            _undoStack.push(_pendingUndoSnap);
+            if (_undoStack.length > 50) _undoStack.shift();
+            _redoStack = [];
+            _pendingUndoSnap = null;
+            updateUndoRedoUI();
+          }
           if (typeof window !== "undefined" && window.__CALPINAGE_INTEGRITY_VERBOSE__ === true) {
             try {
               console.debug(
@@ -9008,6 +10160,15 @@ export function initCalpinage(container, options = {}) {
           try {
             if (typeof saveCalpinageState === "function") saveCalpinageState();
           } catch (e) {}
+          try {
+            if (typeof calpinageLegacyEmitOfficialStructuralChange === "function") {
+              calpinageLegacyEmitOfficialStructuralChange({
+                reason: "PV_PLACEMENT_SYNC",
+                changedDomains: ["pv"],
+                debug: { sourceFile: "calpinage.module.js", sourceAction: "pvSyncSaveRender" },
+              });
+            }
+          } catch (_pvEmit) {}
           try {
             if (typeof updatePowerSummary === "function") updatePowerSummary();
             if (typeof updateCalpinageValidateButton === "function") updateCalpinageValidateButton();
@@ -9249,6 +10410,14 @@ export function initCalpinage(container, options = {}) {
         window.getCalpinageGeometryForPersist = function () {
           return getCalpinageExportDataForCRM();
         };
+        /**
+         * E2E / console : même chaîne que le pipeline utilisateur après édition structure (recalcul pans + panneau gauche).
+         * Ne remplace pas le dessin manuel ; permet de valider runtime DOM + physique après injection d'état.
+         */
+        window.__calpinageRecomputePansFromGeometryAndUI = function () {
+          computePansFromGeometry();
+          if (typeof updatePansListUI === "function") updatePansListUI();
+        };
       }
 
       function updateValidateButton() {
@@ -9375,15 +10544,16 @@ export function initCalpinage(container, options = {}) {
             if (entryO) isShading = !!entryO.isShadingObstacle;
             var sm = o.shapeMeta;
             var shapeKind = sm && sm.originalType === "circle" ? "circle" : sm && sm.originalType === "rect" ? "rect" : "polygon";
+            var northObFoot = readNorthAngleDegFromCalpinageRoof(CALPINAGE_STATE.roof);
             var planWidthM = null;
             var planHeightM = null;
             var diameterM = null;
             if (sm && sm.originalType === "rect" && typeof sm.width === "number" && typeof sm.height === "number") {
-              planWidthM = sm.width * mpp;
-              planHeightM = sm.height * mpp;
+              planWidthM = segmentHorizontalLengthMFromImagePx({ x: 0, y: 0 }, { x: sm.width, y: 0 }, mpp, northObFoot);
+              planHeightM = segmentHorizontalLengthMFromImagePx({ x: 0, y: 0 }, { x: 0, y: sm.height }, mpp, northObFoot);
             }
             if (sm && sm.originalType === "circle" && typeof sm.radius === "number") {
-              diameterM = sm.radius * 2 * mpp;
+              diameterM = segmentHorizontalLengthMFromImagePx({ x: 0, y: 0 }, { x: sm.radius * 2, y: 0 }, mpp, northObFoot);
             }
             var isKeepoutOb = isKeepoutNonShadingObstacle(o);
             var hStored = isKeepoutOb ? null : readExplicitHeightM(o);
@@ -9403,7 +10573,7 @@ export function initCalpinage(container, options = {}) {
               label: (entryO && entryO.label) || metaO.label || o.kind || "Obstacle",
               isShadingObstacle: isShading,
               catalogDescription: entryO && entryO.description ? entryO.description : "",
-              footprintAreaM2: computeObstacleFootprintAreaM2(o, mpp),
+              footprintAreaM2: computeObstacleFootprintAreaM2(o, mpp, northObFoot),
             };
           }
           return { kind: null, metersPerPixel: mpp };
@@ -9799,23 +10969,48 @@ updateValidateButton();
             }
           }
           var mergedGeom = null;
+          var _geometryLoadSourceTag = "unknown";
           if (serverGeom && lsGeom) {
             var srvRidges = countRidgeLinesInGeometryJson(serverGeom);
             var lsRidges = countRidgeLinesInGeometryJson(lsGeom);
             if (srvRidges === 0 && lsRidges > 0) {
               mergedGeom = lsGeom;
+              _geometryLoadSourceTag = "merged_localStorage_priority_server_had_no_ridges";
               if (typeof console !== "undefined" && console.log) {
                 console.log("[CALPINAGE] load: merge api+localStorage → local (serveur sans faîtages, brouillon local contient des ridges)");
               }
             } else {
               mergedGeom = checkpointTime(lsGeom) > checkpointTime(serverGeom) ? lsGeom : serverGeom;
+              _geometryLoadSourceTag = mergedGeom === lsGeom ? "merged_localStorage_newer_checkpoint" : "merged_api_newer_or_equal_checkpoint";
               if (typeof console !== "undefined" && console.log) {
                 console.log("[CALPINAGE] load: merge api+localStorage → " + (mergedGeom === lsGeom ? "local (plus récent)" : "serveur"));
               }
             }
           } else {
             mergedGeom = serverGeom || lsGeom;
+            _geometryLoadSourceTag = serverGeom && !lsGeom ? "api_only" : (!serverGeom && lsGeom ? "localStorage_only" : "none");
           }
+          /* Serveur sans pansStructuralSig : réinjecter la signature locale si session proche + même nombre de pans (évite skip KO sans écraser les pans serveur). */
+          if (
+            mergedGeom &&
+            serverGeom &&
+            lsGeom &&
+            mergedGeom === serverGeom &&
+            typeof serverGeom.pansStructuralSig !== "string" &&
+            typeof lsGeom.pansStructuralSig === "string" &&
+            Array.isArray(serverGeom.pans) &&
+            Array.isArray(lsGeom.pans) &&
+            serverGeom.pans.length > 0 &&
+            serverGeom.pans.length === lsGeom.pans.length &&
+            Math.abs(checkpointTime(serverGeom) - checkpointTime(lsGeom)) < 300000
+          ) {
+            mergedGeom = Object.assign({}, serverGeom, { pansStructuralSig: lsGeom.pansStructuralSig });
+            _geometryLoadSourceTag = _geometryLoadSourceTag + "+reinjected_pansStructuralSig_from_local";
+            if (typeof console !== "undefined" && console.log) {
+              console.log("[CALPINAGE] merge api+localStorage → reinject pansStructuralSig depuis local (serveur incomplet, même nb pans)");
+            }
+          }
+          if (typeof window !== "undefined") window.__CALPINAGE_GEOMETRY_LOAD_SOURCE__ = _geometryLoadSourceTag;
           if (mergedGeom) {
             loadCalpinageState(mergedGeom);
           } else if (studyId && versionId) {
@@ -10561,6 +11756,9 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             if (!Number.isFinite(n) || n < minVal) n = minVal;
             rules[key] = n;
             el.value = String(n);
+            if (key === "spacingYcm" && typeof markAllFlatPansRowSpacingManual === "function") {
+              markAllFlatPansRowSpacingManual();
+            }
             applyPvLayoutRulesAndRecompute(key === "marginOuterCm" ? { flatMarginSync: true } : undefined);
           });
         }
@@ -10583,6 +11781,38 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
         var inverterSelectCentral = container.querySelector("#pv-inverter-select-central");
         var inverterSelectMicro = container.querySelector("#pv-inverter-select-micro");
         var btnOpenSettings = container.querySelector("#btn-open-calpinage-settings");
+        var panelSpacingEl = container.querySelector("#p3-topbar-panel-spacing");
+        var panelMaterialEl = container.querySelector("#p3-topbar-panel-material");
+        var btnSpacingMenu = container.querySelector("#p3-topbar-btn-spacing");
+        var btnMaterialMenu = container.querySelector("#p3-topbar-btn-material");
+        /** @type {'spacing' | 'material' | null} */
+        var activeTopbarPanel = null;
+
+        function setActiveTopbarPanel(next) {
+          var prev = activeTopbarPanel;
+          activeTopbarPanel = next === "spacing" || next === "material" ? next : null;
+          if (prev !== activeTopbarPanel && typeof window.__calpinageHideFloatingP3Popover === "function") {
+            if (activeTopbarPanel === null || activeTopbarPanel === "material") window.__calpinageHideFloatingP3Popover();
+          }
+          if (panelSpacingEl) {
+            var showSp = activeTopbarPanel === "spacing";
+            panelSpacingEl.hidden = !showSp;
+            panelSpacingEl.classList.toggle("is-open", showSp);
+          }
+          if (btnSpacingMenu) {
+            btnSpacingMenu.setAttribute("aria-expanded", activeTopbarPanel === "spacing" ? "true" : "false");
+            btnSpacingMenu.classList.toggle("is-open", activeTopbarPanel === "spacing");
+          }
+          if (panelMaterialEl) {
+            var showMat = activeTopbarPanel === "material";
+            panelMaterialEl.hidden = !showMat;
+            panelMaterialEl.classList.toggle("is-open", showMat);
+          }
+          if (btnMaterialMenu) {
+            btnMaterialMenu.setAttribute("aria-expanded", activeTopbarPanel === "material" ? "true" : "false");
+            btnMaterialMenu.classList.toggle("is-open", activeTopbarPanel === "material");
+          }
+        }
 
         function syncP3Topbar() {
           var vSpacingX = container.querySelector("#p3-pill-spacing-x-value");
@@ -10633,8 +11863,32 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
         }
 
         addSafeListener(container, "click", function (e) {
-          if (!topbar.contains(e.target)) closeAllTechPopovers(e);
+          var t = e.target;
+          if (t && t.closest && t.closest("#sn-floating-popover-root")) return;
+          if (!topbar.contains(t)) {
+            closeAllTechPopovers(e);
+            setActiveTopbarPanel(null);
+          }
         });
+
+        addSafeListener(document, "keydown", function (e) {
+          if (e.key !== "Escape") return;
+          if (!activeTopbarPanel) return;
+          setActiveTopbarPanel(null);
+        });
+
+        if (btnSpacingMenu) addSafeListener(btnSpacingMenu, "click", function (e) {
+          e.stopPropagation();
+          if (activeTopbarPanel === "spacing") setActiveTopbarPanel(null);
+          else setActiveTopbarPanel("spacing");
+        });
+        if (btnMaterialMenu) addSafeListener(btnMaterialMenu, "click", function (e) {
+          e.stopPropagation();
+          if (activeTopbarPanel === "material") setActiveTopbarPanel(null);
+          else setActiveTopbarPanel("material");
+        });
+
+        window.__closeP3TopbarMenus = function () { setActiveTopbarPanel(null); };
 
         setTimeout(function () { bindP3SpacingButtonsDirect(); }, 0);
 
@@ -10642,6 +11896,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
           var pill = container.querySelector("#p3-pill-" + (product === "panel" ? "module" : product === "micro" ? "micro" : "central"));
           if (!pill) return;
           addSafeListener(pill, "click", function () {
+            if (typeof window.__closeP3TopbarMenus === "function") window.__closeP3TopbarMenus();
             if (typeof window.openCatalogOverlay === "function") {
               window.openCatalogOverlay(product);
             } else if (btnOpenSettings) {
@@ -11100,6 +12355,73 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
           }
           return d;
         }
+
+        function phase3SpacingValidationLog(payload) {
+          if (typeof window === "undefined" || typeof console === "undefined" || !console.info) return;
+          if (window.__PHASE3_FIX_LOGS__ !== true && !payload.reject) return;
+          console.info("[PHASE3-FIX][VALIDATION]", payload);
+        }
+
+        /**
+         * Espacement bi-axes aligné moteur : spacingAlongPx = Ycm (selon pente), spacingPerpPx = Xcm (⊥ pente).
+         * Rejette si une séparation visible sur un axe est inférieure au minimum exigé sur cet axe ;
+         * cas diagonal (projections qui se chevauchent sur u et v mais d euclidien > 0) : min(d) vs min(des deux).
+         */
+        function phase3SpacingBetweenProjectedPanelsOk(polyA, polyB, slopeAxis, perpAxis, spacingAlongPx, spacingPerpPx) {
+          var d = minDistanceBetweenPolygons(polyA, polyB);
+          if (d < 1e-9) {
+            return { ok: false, reason: "overlap_or_touch", d: d, gAlong: 0, gPerp: 0 };
+          }
+          if (!slopeAxis || !perpAxis || typeof slopeAxis.x !== "number" || typeof perpAxis.x !== "number") {
+            var fallbackMin = Math.min(spacingAlongPx, spacingPerpPx);
+            return { ok: d >= fallbackMin - 1e-9, reason: "no_axes_fallback_min", d: d, gAlong: 0, gPerp: 0 };
+          }
+          var ux = slopeAxis.x;
+          var uy = slopeAxis.y;
+          var n1 = Math.hypot(ux, uy) || 1;
+          ux /= n1;
+          uy /= n1;
+          var vx = perpAxis.x;
+          var vy = perpAxis.y;
+          var n2 = Math.hypot(vx, vy) || 1;
+          vx /= n2;
+          vy /= n2;
+          function intervalOnAxis(poly, ox, oy) {
+            var mn = Infinity;
+            var mx = -Infinity;
+            for (var i = 0; i < poly.length; i++) {
+              var t = poly[i].x * ox + poly[i].y * oy;
+              if (t < mn) mn = t;
+              if (t > mx) mx = t;
+            }
+            return { min: mn, max: mx };
+          }
+          function gap1d(ia, ib) {
+            if (ia.max < ib.min - 1e-9) return ib.min - ia.max;
+            if (ib.max < ia.min - 1e-9) return ia.min - ib.max;
+            return 0;
+          }
+          var iuA = intervalOnAxis(polyA, ux, uy);
+          var iuB = intervalOnAxis(polyB, ux, uy);
+          var ivA = intervalOnAxis(polyA, vx, vy);
+          var ivB = intervalOnAxis(polyB, vx, vy);
+          var gAlong = gap1d(iuA, iuB);
+          var gPerp = gap1d(ivA, ivB);
+          if (gAlong > 1e-9 && gAlong < spacingAlongPx - 1e-9) {
+            return { ok: false, reason: "along_slope_insufficient", d: d, gAlong: gAlong, gPerp: gPerp };
+          }
+          if (gPerp > 1e-9 && gPerp < spacingPerpPx - 1e-9) {
+            return { ok: false, reason: "perp_slope_insufficient", d: d, gAlong: gAlong, gPerp: gPerp };
+          }
+          if (gAlong <= 1e-9 && gPerp <= 1e-9 && d > 1e-9) {
+            var need = Math.min(spacingAlongPx, spacingPerpPx);
+            if (d < need - 1e-9) {
+              return { ok: false, reason: "diagonal_clearance", d: d, gAlong: gAlong, gPerp: gPerp };
+            }
+          }
+          return { ok: true, reason: "ok", d: d, gAlong: gAlong, gPerp: gPerp };
+        }
+
         /**
          * Valide la pose d?un panneau. R?gles BLOQUANTES.
          * @param {string} panId - id du pan (validatedRoofData.pans)
@@ -11128,9 +12450,8 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
           var effRules = ctx && ctx.pvRules ? ctx.pvRules : null;
           if (!ctx || !ctx.roofParams || !ctx.panelParams) return { allowed: false, reason: "Contexte de projection indisponible." };
           if (!effRules) return { allowed: false, reason: "Règles d'espacement indisponibles pour le contexte." };
-          var espHpx = cmToPx(effRules.spacingXcm || 0, mpp);
-          var espVpx = cmToPx(effRules.spacingYcm || 0, mpp);
-          var spacingRequiredPx = Math.max(espHpx, espVpx);
+          var spacingPerpPx = cmToPx(effRules.spacingXcm || 0, mpp);
+          var spacingAlongPx = cmToPx(effRules.spacingYcm || 0, mpp);
           var computeProjectedPanelRect = (typeof window !== "undefined" && window.computeProjectedPanelRect) || (typeof global !== "undefined" && global.computeProjectedPanelRect);
           if (typeof computeProjectedPanelRect !== "function") return { allowed: false, reason: "Calcul de projection indisponible." };
           var projOpt = { panelWidthMm: ctx.panelParams.panelWidthMm, panelHeightMm: ctx.panelParams.panelHeightMm, panelOrientation: ctx.panelParams.panelOrientation, roofSlopeDeg: ctx.roofParams.roofSlopeDeg, roofOrientationDeg: ctx.roofParams.roofOrientationDeg != null ? ctx.roofParams.roofOrientationDeg : 0, metersPerPixel: ctx.roofParams.metersPerPixel };
@@ -11167,7 +12488,27 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               return { allowed: false, reason: "Impossible de calculer la forme d'un panneau existant." };
             }
             if (!otherProj || !otherProj.points || otherProj.points.length < 4) return { allowed: false, reason: "Forme d'un panneau existant invalide." };
-            if (minDistanceBetweenPolygons(proj.points, otherProj.points) < spacingRequiredPx) return { allowed: false, reason: "Espacement insuffisant avec un panneau existant." };
+            var spOk = phase3SpacingBetweenProjectedPanelsOk(
+              proj.points,
+              otherProj.points,
+              proj.slopeAxis,
+              proj.perpAxis,
+              spacingAlongPx,
+              spacingPerpPx,
+            );
+            if (!spOk.ok) {
+              phase3SpacingValidationLog({
+                fn: "validatePlacement",
+                reject: true,
+                panelOrientation: ctx.panelParams.panelOrientation,
+                spacingXcm: effRules.spacingXcm,
+                spacingYcm: effRules.spacingYcm,
+                spacingPerpPx: spacingPerpPx,
+                spacingAlongPx: spacingAlongPx,
+                decision: spOk,
+              });
+              return { allowed: false, reason: "Espacement insuffisant avec un panneau existant." };
+            }
           }
           return { allowed: true };
         }
@@ -11233,9 +12574,8 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             if (typeof window !== "undefined") window.PV_LAYOUT_LAST_VALIDATION_REASON = "Règles d'espacement indisponibles pour le contexte.";
             return false;
           }
-          var espHpx = (Number.isFinite(effRules.spacingXcm) && mpp > 0) ? (effRules.spacingXcm / 100) / mpp : 0;
-          var espVpx = (Number.isFinite(effRules.spacingYcm) && mpp > 0) ? (effRules.spacingYcm / 100) / mpp : 0;
-          var spacingRequiredPx = Math.max(espHpx, espVpx);
+          var spacingPerpPxBlock = (Number.isFinite(effRules.spacingXcm) && mpp > 0) ? (effRules.spacingXcm / 100) / mpp : 0;
+          var spacingAlongPxBlock = (Number.isFinite(effRules.spacingYcm) && mpp > 0) ? (effRules.spacingYcm / 100) / mpp : 0;
           var pan = findValidatedPanById(data, panId);
           if (!pan || !pan.polygon || pan.polygon.length < 3) {
             if (typeof window !== "undefined") window.PV_LAYOUT_LAST_VALIDATION_REASON = "Pan invalide ou inconnu.";
@@ -11288,7 +12628,25 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               if (typeof window !== "undefined") window.PV_LAYOUT_LAST_VALIDATION_REASON = "Forme d'un panneau existant invalide.";
               return false;
             }
-            if (minDistanceBetweenPolygons(proj.points, rProj.points) < spacingRequiredPx) {
+            var spB = phase3SpacingBetweenProjectedPanelsOk(
+              proj.points,
+              rProj.points,
+              proj.slopeAxis,
+              proj.perpAxis,
+              spacingAlongPxBlock,
+              spacingPerpPxBlock,
+            );
+            if (!spB.ok) {
+              phase3SpacingValidationLog({
+                fn: "validatePanelAtCenterForBlock",
+                reject: true,
+                panelOrientation: ctx.panelParams.panelOrientation,
+                spacingXcm: effRules.spacingXcm,
+                spacingYcm: effRules.spacingYcm,
+                spacingPerpPx: spacingPerpPxBlock,
+                spacingAlongPx: spacingAlongPxBlock,
+                decision: spB,
+              });
               if (typeof window !== "undefined") window.PV_LAYOUT_LAST_VALIDATION_REASON = "Espacement inter-panneaux insuffisant.";
               return false;
             }
@@ -11556,6 +12914,29 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             });
           });
         }
+        /* ── Boutons Annuler / Rétablir ───────────────────────────────────── */
+        var undoBtn = container.querySelector("#calpinage-tool-undo");
+        var redoBtn = container.querySelector("#calpinage-tool-redo");
+        if (undoBtn) {
+          addSafeListener(undoBtn, "click", function () {
+            console.log("[PHASE2 CLICK]", "calpinage-tool-undo");
+            undoCalpinage();
+          });
+        }
+        if (redoBtn) {
+          addSafeListener(redoBtn, "click", function () {
+            console.log("[PHASE2 CLICK]", "calpinage-tool-redo");
+            redoCalpinage();
+          });
+        }
+        /* Raccourcis clavier Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z */
+        addSafeListener(document, "keydown", function (e) {
+          if (!container.isConnected) return;
+          if (e.ctrlKey && !e.shiftKey && e.key === "z") { e.preventDefault(); undoCalpinage(); }
+          if (e.ctrlKey && (e.key === "y" || (e.shiftKey && e.key === "z"))) { e.preventDefault(); redoCalpinage(); }
+        });
+        /* ─────────────────────────────────────────────────────────────────── */
+
         if (heightEditBtn) {
           addSafeListener(heightEditBtn, "click", function () {
             console.log("[PHASE2 CLICK]", "calpinage-btn-height-edit");
@@ -12611,11 +13992,59 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
           }
           return null;
         }
+        function computeBuildingContoursUnionBBoxMinSide(buildingContours) {
+          var minX = Infinity;
+          var minY = Infinity;
+          var maxX = -Infinity;
+          var maxY = -Infinity;
+          var any = false;
+          if (!buildingContours || !buildingContours.length) return null;
+          for (var ci = 0; ci < buildingContours.length; ci++) {
+            var c = buildingContours[ci];
+            var pts = c && c.points;
+            if (!pts || !pts.length) continue;
+            for (var pi = 0; pi < pts.length; pi++) {
+              var p = pts[pi];
+              if (!p || typeof p.x !== "number" || typeof p.y !== "number") continue;
+              any = true;
+              if (p.x < minX) minX = p.x;
+              if (p.x > maxX) maxX = p.x;
+              if (p.y < minY) minY = p.y;
+              if (p.y > maxY) maxY = p.y;
+            }
+          }
+          if (!any || !isFinite(minX) || !isFinite(maxX)) return null;
+          var w = maxX - minX;
+          var h = maxY - minY;
+          var m = Math.min(w, h);
+          return m > 0 && isFinite(m) ? m : null;
+        }
+        /**
+         * Distance max (px image) pour le snap sur le bord du contour bâti.
+         * Shift : 0 (désactivé). Sinon équiv. ~CONTOUR_SNAP_SCREEN_PX à l'écran, plafonné par une fraction du petit côté du bbox.
+         */
+        function computeRoofContourSnapMaxDistImg(vpScale, buildingContours, skipContourSnap) {
+          if (skipContourSnap) return 0;
+          var s = typeof vpScale === "number" && vpScale > 0 ? vpScale : 1;
+          var fromScreen = CONTOUR_SNAP_SCREEN_PX / s;
+          var minSide = computeBuildingContoursUnionBBoxMinSide(buildingContours);
+          var capped = fromScreen;
+          if (minSide != null && minSide > 0) {
+            var cap = CONTOUR_SNAP_BBOX_CAP_K * minSide;
+            capped = Math.min(fromScreen, cap);
+          }
+          return Math.max(0.5, capped);
+        }
         function resolveStructuralSnapRidge(imgPt) {
           var buildingContours = (CALPINAGE_STATE.contours || []).filter(function (c) {
             return c && c.roofRole !== "chienAssis";
           });
-          var edgeDet = buildRoofContourEdgeSnapDetailed(imgPt, buildingContours, 15);
+          var _snapContourDistR = computeRoofContourSnapMaxDistImg(
+            vp.scale,
+            buildingContours,
+            drawState.skipStructuralContourSnap
+          );
+          var edgeDet = buildRoofContourEdgeSnapDetailed(imgPt, buildingContours, _snapContourDistR);
           if (edgeDet) {
             return {
               x: edgeDet.x,
@@ -12626,27 +14055,29 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               sourceMeta: { priority: "roof_contour_edge" },
             };
           }
-          var g = snapPointToGeometry(imgPt, CALPINAGE_STATE.contours, CALPINAGE_STATE.traits, CALPINAGE_STATE.ridges, SNAP_DIST_PX);
-          if (g && g.source) {
-            var att = mapGeomSourceToRidgeAttach(imgPt, g.source);
-            return {
-              x: g.x,
-              y: g.y,
-              snapped: true,
-              kind: mapGeomKindFromSource(g.source),
-              attach: att,
-              sourceMeta: { priority: "snapPointToGeometry", rawSource: g.source },
-            };
-          }
-          if (g) {
-            return {
-              x: g.x,
-              y: g.y,
-              snapped: true,
-              kind: "geometry",
-              attach: null,
-              sourceMeta: { priority: "snapPointToGeometry" },
-            };
+          if (!drawState.skipStructuralContourSnap) {
+            var g = snapPointToGeometry(imgPt, CALPINAGE_STATE.contours, CALPINAGE_STATE.traits, CALPINAGE_STATE.ridges, SNAP_DIST_PX);
+            if (g && g.source) {
+              var att = mapGeomSourceToRidgeAttach(imgPt, g.source);
+              return {
+                x: g.x,
+                y: g.y,
+                snapped: true,
+                kind: mapGeomKindFromSource(g.source),
+                attach: att,
+                sourceMeta: { priority: "snapPointToGeometry", rawSource: g.source },
+              };
+            }
+            if (g) {
+              return {
+                x: g.x,
+                y: g.y,
+                snapped: true,
+                kind: "geometry",
+                attach: null,
+                sourceMeta: { priority: "snapPointToGeometry" },
+              };
+            }
           }
           return {
             x: imgPt.x,
@@ -12673,6 +14104,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
           var contours = CALPINAGE_STATE.contours || [];
           var traits = CALPINAGE_STATE.traits || [];
           if (
+            !drawState.skipStructuralContourSnap &&
             frozen &&
             validateStructuralSnapPayload(frozen, "ridge", contours, traits)
           ) {
@@ -12691,7 +14123,12 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
           var buildingContours = (CALPINAGE_STATE.contours || []).filter(function (c) {
             return c && c.roofRole !== "chienAssis";
           });
-          var edgeDet = buildRoofContourEdgeSnapDetailed(imgPt, buildingContours, 15);
+          var _snapContourDistT = computeRoofContourSnapMaxDistImg(
+            vp.scale,
+            buildingContours,
+            drawState.skipStructuralContourSnap
+          );
+          var edgeDet = buildRoofContourEdgeSnapDetailed(imgPt, buildingContours, _snapContourDistT);
           if (edgeDet) {
             return {
               x: edgeDet.x,
@@ -12700,6 +14137,16 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               kind: edgeDet.kind,
               attach: edgeDet.attach,
               sourceMeta: { priority: "roof_contour_edge" },
+            };
+          }
+          if (drawState.skipStructuralContourSnap) {
+            return {
+              x: imgPt.x,
+              y: imgPt.y,
+              snapped: false,
+              kind: "raw",
+              attach: null,
+              sourceMeta: { priority: "raw" },
             };
           }
           var TRAIT_VERTEX_SNAP_DIST_PX = 18;
@@ -12782,6 +14229,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
           var contours = CALPINAGE_STATE.contours || [];
           var traits = CALPINAGE_STATE.traits || [];
           if (
+            !drawState.skipStructuralContourSnap &&
             frozen &&
             validateStructuralSnapPayload(frozen, "trait", contours, traits)
           ) {
@@ -12796,6 +14244,27 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
           }
           return live;
         }
+
+        function refreshStructuralSnapPreviewFromLastMouse() {
+          var p = drawState.lastMouseImage;
+          if (!p || typeof p.x !== "number" || !Number.isFinite(p.x) || !Number.isFinite(p.y)) return;
+          if (drawState.activeTool === "ridge") {
+            applyStructuralRidgePreview(p);
+          } else if (drawState.activeTool === "trait") {
+            applyStructuralTraitPreview(p);
+          }
+        }
+
+        (function bindStructuralSnapShiftKeyboard() {
+          function onStructuralShiftKey(e) {
+            if (e.key !== "Shift" && e.code !== "ShiftLeft" && e.code !== "ShiftRight") return;
+            drawState.skipStructuralContourSnap = e.type === "keydown";
+            refreshStructuralSnapPreviewFromLastMouse();
+            if (typeof window.CALPINAGE_RENDER === "function") requestAnimationFrame(window.CALPINAGE_RENDER);
+          }
+          window.addEventListener("keydown", onStructuralShiftKey, true);
+          window.addEventListener("keyup", onStructuralShiftKey, true);
+        })();
 
         /**
          * Commit d’extrémité après drag : même hiérarchie que la création (resolveStructuralSnap* + validate),
@@ -12947,6 +14416,43 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
           var text = lenM.toFixed(2).replace(".", ",") + " m";
           drawSegmentLabelHalo(ctx, screenMid, text);
         }
+        /** Phase 2 : repère 90° live pendant le tracé du contour bâti.
+         * S'affiche au dernier point posé si l'angle entre le segment précédent et
+         * le segment en cours (→ hoverPoint) est à 90° ± 1°. Purement visuel. */
+        function drawLiveContourAngleHint(ctx) {
+          var pts = CALPINAGE_STATE.activeContour.points;
+          var hover = CALPINAGE_STATE.activeContour.hoverPoint;
+          if (!hover || pts.length < 2) return;
+          var hPrev = imageToScreen(pts[pts.length - 2]);
+          var hVtx  = imageToScreen(pts[pts.length - 1]);
+          var hNext = imageToScreen(hover);
+          var v1x = hPrev.x - hVtx.x, v1y = hPrev.y - hVtx.y;
+          var v2x = hNext.x - hVtx.x, v2y = hNext.y - hVtx.y;
+          var len1 = Math.hypot(v1x, v1y), len2 = Math.hypot(v2x, v2y);
+          if (len1 < 3 || len2 < 3) return;
+          v1x /= len1; v1y /= len1;
+          v2x /= len2; v2y /= len2;
+          var hdot = Math.max(-1, Math.min(1, v1x * v2x + v1y * v2y));
+          var angDeg = Math.acos(hdot) * (180 / Math.PI);
+          if (Math.abs(angDeg - 90) > 1) return;
+          var bx = v1x + v2x, by = v1y + v2y;
+          var bl = Math.hypot(bx, by);
+          if (bl < 1e-6) return;
+          bx /= bl; by /= bl;
+          var SQ_PX = 12, INSET_PX = 10;
+          var hcx = hVtx.x + bx * INSET_PX;
+          var hcy = hVtx.y + by * INSET_PX;
+          ctx.save();
+          ctx.translate(hcx, hcy);
+          ctx.rotate(Math.atan2(by, bx) + Math.PI / 4);
+          ctx.fillStyle = "rgba(201, 164, 73, 0.38)";
+          ctx.strokeStyle = "rgba(120, 85, 30, 0.95)";
+          ctx.lineWidth = 2;
+          ctx.setLineDash([]);
+          ctx.fillRect(-SQ_PX / 2, -SQ_PX / 2, SQ_PX, SQ_PX);
+          ctx.strokeRect(-SQ_PX / 2, -SQ_PX / 2, SQ_PX, SQ_PX);
+          ctx.restore();
+        }
         function drawLiveTrait(ctx) {
           if (drawState.activeTool !== "trait" || !drawState.traitLineStart) return;
           ctx.save();
@@ -13069,6 +14575,59 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
           }
         }
 
+        /** Phase 2 : repère 90° live pendant le tracé d'un faîtage.
+         * S'affiche à l'endpoint A (ancré sur contour) et/ou au hover
+         * si le faîtage est perpendiculaire au bord de contour correspondant.
+         * Purement visuel — aucune modification de state. */
+        function drawLiveRidgeAngleHint(ctx) {
+          var r = CALPINAGE_STATE.activeRidge;
+          if (!r || !r.a || !r.hover) return;
+          var pa = resolveRidgePoint(r.a);
+          var ph = { x: r.hover.x, y: r.hover.y };
+          var sa = imageToScreen(pa);
+          var sh = imageToScreen(ph);
+          var rdx = sh.x - sa.x, rdy = sh.y - sa.y;
+          var rlen = Math.hypot(rdx, rdy);
+          if (rlen < 3) return;
+          rdx /= rlen; rdy /= rlen;
+          var SQ_PX = 12, INSET_PX = 10;
+          var TOL_PERP = Math.sin(Math.PI / 180); /* sin(1°) ≈ 0.0175 */
+          function drawHintAt(attach, scrPt, inX, inY) {
+            if (!attach || attach.type !== "roof_contour_edge") return;
+            var cont = (CALPINAGE_STATE.contours || []).find(function (c) { return c && c.id === attach.contourId; });
+            if (!cont || !cont.points || cont.points.length < 2) return;
+            var n = cont.points.length;
+            var si = typeof attach.segmentIndex === "number" ? attach.segmentIndex : -1;
+            if (si < 0 || si >= n) return;
+            var eA = imageToScreen(cont.points[si]);
+            var eB = imageToScreen(cont.points[(si + 1) % n]);
+            var edx = eB.x - eA.x, edy = eB.y - eA.y;
+            var elen = Math.hypot(edx, edy);
+            if (elen < 3) return;
+            edx /= elen; edy /= elen;
+            /* |cos(angle ridge, bord)| ≈ 0 ↔ perpendiculaire */
+            if (Math.abs(inX * edx + inY * edy) > TOL_PERP) return;
+            var bx = inX + edx, by = inY + edy;
+            var bl = Math.hypot(bx, by);
+            if (bl < 1e-6) { bx = -inY; by = inX; bl = 1; }
+            bx /= bl; by /= bl;
+            ctx.save();
+            ctx.translate(scrPt.x + bx * INSET_PX, scrPt.y + by * INSET_PX);
+            ctx.rotate(Math.atan2(by, bx) + Math.PI / 4);
+            ctx.fillStyle = "rgba(201, 164, 73, 0.38)";
+            ctx.strokeStyle = "rgba(120, 85, 30, 0.95)";
+            ctx.lineWidth = 2;
+            ctx.setLineDash([]);
+            ctx.fillRect(-SQ_PX / 2, -SQ_PX / 2, SQ_PX, SQ_PX);
+            ctx.strokeRect(-SQ_PX / 2, -SQ_PX / 2, SQ_PX, SQ_PX);
+            ctx.restore();
+          }
+          /* Côté A : ancré sur contour, direction inward = vers hover */
+          drawHintAt(r.a.attach, sa, rdx, rdy);
+          /* Côté hover (B) : si frozenStructuralSnap a un attach contour */
+          var frozenA = r.frozenStructuralSnap && r.frozenStructuralSnap.attach;
+          drawHintAt(frozenA, sh, -rdx, -rdy);
+        }
         var roofImg = new Image();
         var roofImgLoadSettled = false;
         var roofImgLoadTimeout = typeof setTimeout !== "undefined" ? setTimeout(function () {
@@ -13277,9 +14836,17 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               console.log("[MD] blocked by button (not left)");
               return;
             }
+            drawState.skipStructuralContourSnap = !!(e && e.shiftKey);
+            /* ── Undo : capture l'état avant toute action utilisateur ── */
+            _pendingUndoSnap = captureGeometrySnapshot();
+            /* ─────────────────────────────────────────────────────────── */
             /* Pan : Ctrl+glisser (Phase 2/3). Phase 3 : en plus, glisser sur le fond hors pans (sans Ctrl). En heightEdit, CTRL = multi-sélection. */
             if (e.ctrlKey && !CALPINAGE_STATE.heightEditMode) {
+              drawState.phase3PanFixMoveFluxLogged = null;
               panStart = { x: e.clientX, y: e.clientY };
+              if (typeof process !== "undefined" && process.env && process.env.NODE_ENV !== "production") {
+                try { console.log("[PHASE3-PAN-FIX][START]", { kind: "ctrl" }); } catch (_ls) {}
+              }
               if (canvasEl && e.pointerId != null) try { canvasEl.setPointerCapture(e.pointerId); } catch (_) {}
               return;
             }
@@ -13329,6 +14896,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                       window.CALPINAGE_IS_MANIPULATING = true;
                       window.__FORCE_PV_MANIP_LOCK__ = true;
                       panStart = null;
+                      drawState.phase3PanFixMoveFluxLogged = null;
                       setInteractionState(InteractionStates.ROTATING);
                       try {
                         window.PV_LAYOUT_STATE = PV_LAYOUT_FLOW.ROTATE;
@@ -13354,6 +14922,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                       window.CALPINAGE_IS_MANIPULATING = true;
                       window.__FORCE_PV_MANIP_LOCK__ = true;
                       panStart = null;
+                      drawState.phase3PanFixMoveFluxLogged = null;
                       setInteractionState(InteractionStates.DRAGGING);
                       try {
                         window.PV_LAYOUT_STATE = PV_LAYOUT_FLOW.MOVE;
@@ -13400,7 +14969,11 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 if (typeof saveCalpinageState === "function") saveCalpinageState();
                 if (typeof window.syncPhase3LayoutUI === "function") window.syncPhase3LayoutUI();
               }
+              drawState.phase3PanFixMoveFluxLogged = null;
               panStart = { x: e.clientX, y: e.clientY };
+              if (typeof process !== "undefined" && process.env && process.env.NODE_ENV !== "production") {
+                try { console.log("[PHASE3-PAN-FIX][START]", { kind: "phase3-bg" }); } catch (_ls) {}
+              }
               if (canvasEl && e.pointerId != null) try { canvasEl.setPointerCapture(e.pointerId); } catch (_) {}
               return;
             }
@@ -13544,6 +15117,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               var shape = payloadSv.shape;
 
               var mppSv0 = (CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.scale && CALPINAGE_STATE.roof.scale.metersPerPixel) || 1;
+              var northSv0 = readNorthAngleDegFromCalpinageRoof(CALPINAGE_STATE.roof);
               var ax0 = p.x;
               var ay0 = p.y;
               var initW;
@@ -13551,13 +15125,13 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               var cx0;
               var cy0;
               if (shape === "cube") {
-                var cubeInit = computeShadowCubeMetersFromAnchor(ax0, ay0, ax0, ay0, mppSv0, bizSv);
+                var cubeInit = computeShadowCubeMetersFromAnchor(ax0, ay0, ax0, ay0, mppSv0, bizSv, northSv0);
                 cx0 = cubeInit.cx;
                 cy0 = cubeInit.cy;
                 initW = cubeInit.widthM;
                 initD = cubeInit.depthM;
               } else {
-                var tubeInit = computeShadowTubeMetersFromAnchor(ax0, ay0, ax0, ay0, mppSv0, bizSv);
+                var tubeInit = computeShadowTubeMetersFromAnchor(ax0, ay0, ax0, ay0, mppSv0, bizSv, northSv0);
                 cx0 = tubeInit.cx;
                 cy0 = tubeInit.cy;
                 initW = tubeInit.diameterM;
@@ -14460,6 +16034,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                     id: typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : "c-" + Date.now(),
                     points: pts,
                     closed: true,
+                    roofRole: "contour",
                   });
                   activeContour.points = [];
                   activeContour.hoverPoint = null;
@@ -14482,17 +16057,32 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                     drawState.dragLastMouseImg = { x: imgPt.x, y: imgPt.y };
                     drawState.snapPreview = null;
                   }
-                  if (hcContour.vertexIndex === null && typeof hcContour.segmentIndex === "number") {
+                  if (hcContour.vertexIndex === null && typeof hcContour.segmentIndex === "number" && activeContour.points.length > 0) {
                     var contour = CALPINAGE_STATE.contours[hcContour.contourIndex];
                     if (contour && contour.points && contour.roofRole !== "chienAssis") {
                       var prevPt = contour.points[hcContour.segmentIndex];
                       var nextPt = contour.points[(hcContour.segmentIndex + 1) % contour.points.length];
-                      var interpH = (typeof prevPt.h === "number" && typeof nextPt.h === "number") ? (prevPt.h + nextPt.h) / 2 : (typeof prevPt.h === "number" ? prevPt.h : (typeof nextPt.h === "number" ? nextPt.h : DEFAULT_HEIGHT_GUTTER));
+                      var segIns = distPointToSegmentSq(imgPt.x, imgPt.y, prevPt.x, prevPt.y, nextPt.x, nextPt.y);
+                      var chaIns = typeof prevPt.h === "number" && Number.isFinite(prevPt.h) ? prevPt.h : null;
+                      var chbIns = typeof nextPt.h === "number" && Number.isFinite(nextPt.h) ? nextPt.h : null;
+                      var interpH = null;
+                      if (chaIns !== null && chbIns !== null) interpH = chaIns + segIns.t * (chbIns - chaIns);
+                      else if (chaIns !== null) interpH = chaIns;
+                      else if (chbIns !== null) interpH = chbIns;
                       var newPt = clonePointPreserveHeight({ x: imgPt.x, y: imgPt.y });
                       contour.points.splice(hcContour.segmentIndex + 1, 0, newPt);
                       var fc = (CALPINAGE_STATE.contours || []).filter(function (c) { return c.roofRole !== "chienAssis"; });
                       var ci = fc.indexOf(contour);
-                      if (ci >= 0) applyHeightToSelectedPoints(interpH, [{ type: "contour", index: ci, pointIndex: hcContour.segmentIndex + 1 }]);
+                      var insIdx = hcContour.segmentIndex + 1;
+                      if (ci >= 0 && interpH != null && Number.isFinite(interpH)) {
+                        applyHeightToSelectedPoints(interpH, [{ type: "contour", index: ci, pointIndex: insIdx }]);
+                      } else if (ci >= 0) {
+                        var pIns = contour.points[insIdx];
+                        if (pIns && !(typeof pIns.h === "number" && Number.isFinite(pIns.h))) {
+                          applyHeightToSelectedPoints(DEFAULT_HEIGHT_GUTTER, [{ type: "contour", index: ci, pointIndex: insIdx }]);
+                          if (contour.points[insIdx]) contour.points[insIdx].heightSource = "default";
+                        }
+                      }
                       if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
                     }
                   }
@@ -14503,13 +16093,13 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 drawState.selectedContourIndex = null;
                 var snapped = snapPointToGeometry(imgPt, CALPINAGE_STATE.contours, CALPINAGE_STATE.traits, CALPINAGE_STATE.ridges, SNAP_DIST_PX);
                 var pt = snapped ? { x: snapped.x, y: snapped.y } : { x: imgPt.x, y: imgPt.y };
-                activeContour.points = [{ x: pt.x, y: pt.y }];
+                activeContour.points = [newContourVertexAtDraw(pt.x, pt.y)];
                 activeContour.hoverPoint = null;
                 return;
               }
               var snapped = snapPointToGeometry(imgPt, CALPINAGE_STATE.contours, CALPINAGE_STATE.traits, CALPINAGE_STATE.ridges, SNAP_DIST_PX, activeContour.points);
               var pt = snapped ? { x: snapped.x, y: snapped.y } : { x: imgPt.x, y: imgPt.y };
-              activeContour.points.push({ x: pt.x, y: pt.y });
+              activeContour.points.push(newContourVertexAtDraw(pt.x, pt.y));
               activeContour.hoverPoint = null;
               return;
             }
@@ -14698,12 +16288,13 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 activeRidge.a = { x: snappedPayload.x, y: snappedPayload.y, attach: attachEnd };
               } else {
                 activeRidge.b = { x: snappedPayload.x, y: snappedPayload.y, attach: attachEnd };
-                CALPINAGE_STATE.ridges.push({
+                var _newRidge = {
                   id: (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : "r-" + Date.now(),
-                  a: { x: activeRidge.a.x, y: activeRidge.a.y, attach: activeRidge.a.attach || null },
-                  b: { x: activeRidge.b.x, y: activeRidge.b.y, attach: activeRidge.b.attach || null },
+                  a: ridgePersistEndpoint(activeRidge.a),
+                  b: ridgePersistEndpoint(activeRidge.b),
                   roofRole: "main",
-                });
+                };
+                CALPINAGE_STATE.ridges.push(_newRidge);
                 activeRidge.a = null;
                 activeRidge.b = null;
                 activeRidge.hover = null;
@@ -14711,6 +16302,14 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 activeRidge.snapEdge = null;
                 activeRidge.frozenStructuralSnap = null;
                 recomputeRoofPlanes();
+                /* P4 — Avertissement topologie : si l'un des endpoints n'est pas ancré au contour,
+                 * le faîtage ne pourra pas splitter le bâti. On affiche un message d'alerte 3 secondes. */
+                var _ridgeTopoOk = !!(_newRidge.a && _newRidge.a.attach) && !!(_newRidge.b && _newRidge.b.attach);
+                if (!_ridgeTopoOk) {
+                  drawState.ridgeTopoWarnUntil = Date.now() + 3500;
+                  requestAnimationFrame(safeRender);
+                  setTimeout(function () { requestAnimationFrame(safeRender); }, 3600);
+                }
                 saveCalpinageState();
                 if (typeof updateValidateButton === "function") updateValidateButton();
                 if (typeof resetActiveToolToSelect === "function") resetActiveToolToSelect();
@@ -15037,7 +16636,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                     contourIndex: drawState.selectedContourIndex,
                     segmentIndex: hc.segmentIndex,
                     clickImgPt: { x: imgPt.x, y: imgPt.y },
-                    edgeSplitPending: true,
+                    edgeSplitPending: false,
                   };
                   drawState.dragLastMouseImg = { x: imgPt.x, y: imgPt.y };
                   drawState.snapPreview = null;
@@ -15253,6 +16852,25 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             }
           });
 
+          /** Pan vue (Ctrl ou fond Phase 3) : même delta clientX/Y que l’historique mousemove. */
+          function applyViewportPanStepFromClient(e) {
+            if (!panStart || window.CALPINAGE_IS_MANIPULATING) return false;
+            var dx = e.clientX - panStart.x;
+            var dy = e.clientY - panStart.y;
+            panStart = { x: e.clientX, y: e.clientY };
+            vp.pan(dx, dy);
+            if (canvasEl) canvasEl.style.cursor = "grabbing";
+            return true;
+          }
+          function logPhase3PanFixDevOncePerGestureMove(flux) {
+            try {
+              if (typeof process === "undefined" || !process.env || process.env.NODE_ENV === "production") return;
+              if (drawState.phase3PanFixMoveFluxLogged) return;
+              drawState.phase3PanFixMoveFluxLogged = flux;
+              console.log("[PHASE3-PAN-FIX][MOVE]", { flux: flux });
+            } catch (_e) {}
+          }
+
           /**
            * Drag poignées Phase 3.
            * Navigateurs avec Pointer Events : uniquement pointermove (window) — évite le doublon mousemove+pointermove.
@@ -15294,6 +16912,11 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               try {
                 e.preventDefault();
               } catch (_pe) {}
+              return;
+            }
+            /* Pointer Events : pan vue ici uniquement (sinon doublon avec mousemove). Sans API PointerEvent, mousemove seul. */
+            if (typeof PointerEvent !== "undefined" && applyViewportPanStepFromClient(e)) {
+              logPhase3PanFixDevOncePerGestureMove("pointermove");
             }
           }
 
@@ -15304,6 +16927,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             }
             var screen = getMouseScreen(e);
             var imgPt = screenToImage(screen);
+            drawState.skipStructuralContourSnap = !!(e && e.shiftKey);
             // Phase 3: obstacles read-only — neutraliser toute manip obstacle en cours (edge-case)
             if (CALPINAGE_STATE && CALPINAGE_STATE.currentPhase === "PV_LAYOUT") {
               var hasObstacleManip = drawState.draggingObstacleHandle != null || drawState.draggingObstacleOffset != null || drawState.draggingVertex != null;
@@ -15531,25 +17155,44 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               var r = (CALPINAGE_STATE.ridges || [])[drawState.dragBase.ridgeIndex];
               if (!r) return;
 
-              r.a.x = imgPt.x;
-              r.a.y = imgPt.y;
+              /* P3 — Snap live pendant le drag : si l'endpoint est à portée d'un bord de contour
+               * ET qu'il n'est pas alias d'un trait canonique (pour ne pas corrompre la jonction
+               * trait en temps réel), on colle l'endpoint à la position projetée sur le contour.
+               * Si plus à portée, on revient à la position brute de la souris.
+               * Le commit pointerup recompute de toute façon de façon autoritaire. */
+              var _dragContBuildA = (CALPINAGE_STATE.contours || []).filter(function (c) { return c && c.roofRole !== "chienAssis"; });
+              var _dragSnapMaxA = computeRoofContourSnapMaxDistImg(vp.scale, _dragContBuildA, drawState.skipStructuralContourSnap);
+              var _dragSnapEdgeA = buildRoofContourEdgeSnapDetailed(imgPt, _dragContBuildA, _dragSnapMaxA);
+              var _attLiveRA = r.a.attach;
+              var _raIsTraitAlias = _attLiveRA && typeof _attLiveRA === "object" && _attLiveRA.type === "trait" &&
+                  typeof _attLiveRA.id === "string" && (_attLiveRA.pointIndex === 0 || _attLiveRA.pointIndex === 1);
+              if (_dragSnapEdgeA && !_raIsTraitAlias) {
+                r.a.x = _dragSnapEdgeA.x;
+                r.a.y = _dragSnapEdgeA.y;
+              } else {
+                r.a.x = imgPt.x;
+                r.a.y = imgPt.y;
+              }
 
               /* Fix3-ridge: si ce endpoint est alias d'un trait canonique, propager vers lui
                  (ce qui entraîne aussi tous les autres alias du même sommet — traits et ridges) */
-              var _attLiveRA = r.a.attach;
-              if (_attLiveRA && typeof _attLiveRA === "object" && _attLiveRA.type === "trait" &&
-                  typeof _attLiveRA.id === "string" && (_attLiveRA.pointIndex === 0 || _attLiveRA.pointIndex === 1)) {
+              if (_raIsTraitAlias) {
                 propagateExplicitTraitJunction(CALPINAGE_STATE.traits, CALPINAGE_STATE.ridges, _attLiveRA.id, _attLiveRA.pointIndex, imgPt.x, imgPt.y);
               }
 
-              var sp = snapPointToGeometry(
-                imgPt,
-                CALPINAGE_STATE.contours,
-                CALPINAGE_STATE.traits,
-                CALPINAGE_STATE.ridges,
-                SNAP_DIST_PX
-              );
-              drawState.snapPreview = sp ? { x: sp.x, y: sp.y } : null;
+              if (drawState.skipStructuralContourSnap) {
+                drawState.snapPreview = null;
+              } else {
+                var sp = snapPointToGeometry(
+                  imgPt,
+                  CALPINAGE_STATE.contours,
+                  CALPINAGE_STATE.traits,
+                  CALPINAGE_STATE.ridges,
+                  SNAP_DIST_PX
+                );
+                drawState.snapPreview = sp ? { x: sp.x, y: sp.y } : null;
+              }
+              drawState.dragRidgeEndSnapEdge = _dragSnapEdgeA ? { x: _dragSnapEdgeA.x, y: _dragSnapEdgeA.y } : null;
 
               return;
             }
@@ -15557,24 +17200,39 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               var r = (CALPINAGE_STATE.ridges || [])[drawState.dragBase.ridgeIndex];
               if (!r) return;
 
-              r.b.x = imgPt.x;
-              r.b.y = imgPt.y;
+              /* P3 — même logique snap live que endA. */
+              var _dragContBuildB = (CALPINAGE_STATE.contours || []).filter(function (c) { return c && c.roofRole !== "chienAssis"; });
+              var _dragSnapMaxB = computeRoofContourSnapMaxDistImg(vp.scale, _dragContBuildB, drawState.skipStructuralContourSnap);
+              var _dragSnapEdgeB = buildRoofContourEdgeSnapDetailed(imgPt, _dragContBuildB, _dragSnapMaxB);
+              var _attLiveRB = r.b.attach;
+              var _rbIsTraitAlias = _attLiveRB && typeof _attLiveRB === "object" && _attLiveRB.type === "trait" &&
+                  typeof _attLiveRB.id === "string" && (_attLiveRB.pointIndex === 0 || _attLiveRB.pointIndex === 1);
+              if (_dragSnapEdgeB && !_rbIsTraitAlias) {
+                r.b.x = _dragSnapEdgeB.x;
+                r.b.y = _dragSnapEdgeB.y;
+              } else {
+                r.b.x = imgPt.x;
+                r.b.y = imgPt.y;
+              }
 
               /* Fix3-ridge: même logique que endA pour endB */
-              var _attLiveRB = r.b.attach;
-              if (_attLiveRB && typeof _attLiveRB === "object" && _attLiveRB.type === "trait" &&
-                  typeof _attLiveRB.id === "string" && (_attLiveRB.pointIndex === 0 || _attLiveRB.pointIndex === 1)) {
+              if (_rbIsTraitAlias) {
                 propagateExplicitTraitJunction(CALPINAGE_STATE.traits, CALPINAGE_STATE.ridges, _attLiveRB.id, _attLiveRB.pointIndex, imgPt.x, imgPt.y);
               }
 
-              var sp = snapPointToGeometry(
-                imgPt,
-                CALPINAGE_STATE.contours,
-                CALPINAGE_STATE.traits,
-                CALPINAGE_STATE.ridges,
-                SNAP_DIST_PX
-              );
-              drawState.snapPreview = sp ? { x: sp.x, y: sp.y } : null;
+              if (drawState.skipStructuralContourSnap) {
+                drawState.snapPreview = null;
+              } else {
+                var spB = snapPointToGeometry(
+                  imgPt,
+                  CALPINAGE_STATE.contours,
+                  CALPINAGE_STATE.traits,
+                  CALPINAGE_STATE.ridges,
+                  SNAP_DIST_PX
+                );
+                drawState.snapPreview = spB ? { x: spB.x, y: spB.y } : null;
+              }
+              drawState.dragRidgeEndSnapEdge = _dragSnapEdgeB ? { x: _dragSnapEdgeB.x, y: _dragSnapEdgeB.y } : null;
 
               return;
             }
@@ -15625,14 +17283,18 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 propagateExplicitTraitJunction(CALPINAGE_STATE.traits, CALPINAGE_STATE.ridges, t.id, 0, imgPt.x, imgPt.y);
               }
 
-              var sp = snapPointToGeometry(
-                imgPt,
-                CALPINAGE_STATE.contours,
-                CALPINAGE_STATE.traits,
-                CALPINAGE_STATE.ridges,
-                SNAP_DIST_PX
-              );
-              drawState.snapPreview = sp ? { x: sp.x, y: sp.y } : null;
+              if (drawState.skipStructuralContourSnap) {
+                drawState.snapPreview = null;
+              } else {
+                var spTraitA = snapPointToGeometry(
+                  imgPt,
+                  CALPINAGE_STATE.contours,
+                  CALPINAGE_STATE.traits,
+                  CALPINAGE_STATE.ridges,
+                  SNAP_DIST_PX
+                );
+                drawState.snapPreview = spTraitA ? { x: spTraitA.x, y: spTraitA.y } : null;
+              }
 
               return;
             }
@@ -15654,23 +17316,23 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 propagateExplicitTraitJunction(CALPINAGE_STATE.traits, CALPINAGE_STATE.ridges, t.id, 1, imgPt.x, imgPt.y);
               }
 
-              var sp = snapPointToGeometry(
-                imgPt,
-                CALPINAGE_STATE.contours,
-                CALPINAGE_STATE.traits,
-                CALPINAGE_STATE.ridges,
-                SNAP_DIST_PX
-              );
-              drawState.snapPreview = sp ? { x: sp.x, y: sp.y } : null;
+              if (drawState.skipStructuralContourSnap) {
+                drawState.snapPreview = null;
+              } else {
+                var spTraitB = snapPointToGeometry(
+                  imgPt,
+                  CALPINAGE_STATE.contours,
+                  CALPINAGE_STATE.traits,
+                  CALPINAGE_STATE.ridges,
+                  SNAP_DIST_PX
+                );
+                drawState.snapPreview = spTraitB ? { x: spTraitB.x, y: spTraitB.y } : null;
+              }
 
               return;
             }
-            if (panStart && !window.CALPINAGE_IS_MANIPULATING) {
-              var dx = e.clientX - panStart.x;
-              var dy = e.clientY - panStart.y;
-              panStart = { x: e.clientX, y: e.clientY };
-              vp.pan(dx, dy);
-              if (canvasEl) canvasEl.style.cursor = "grabbing";
+            if (typeof PointerEvent === "undefined" && applyViewportPanStepFromClient(e)) {
+              logPhase3PanFixDevOncePerGestureMove("mousemove");
             }
             if (drawState.isSelectingBox && drawState.selectionBoxStart) {
               drawState.selectionBoxEnd = screenToImage(screen);
@@ -15805,6 +17467,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               /* ne pas return -> laisser le cleanup général (snapPreview, dragMode, etc.) s'exécuter */
             }
             if (e.button === 0) {
+              drawState.skipStructuralContourSnap = !!(e && e.shiftKey);
               /* Ne pas r?initialiser traitLineStart / measureLineStart ici : le 2e clic doit compl?ter le segment (trait ou mesure). */
               if (drawState.isSelectingBox && drawState.selectionBoxStart && drawState.selectionBoxEnd) {
                 var startScreen = imageToScreen(drawState.selectionBoxStart);
@@ -15850,6 +17513,10 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               drawState.isSelectingBox = false;
               drawState.selectionBoxStart = null;
               drawState.selectionBoxEnd = null;
+              if (panStart && typeof process !== "undefined" && process.env && process.env.NODE_ENV !== "production") {
+                try { console.log("[PHASE3-PAN-FIX][STOP]"); } catch (_t) {}
+              }
+              drawState.phase3PanFixMoveFluxLogged = null;
               panStart = null;
               if (drawState.dragMode === "ridge-move" && drawState.dragBase) {
                 var base = drawState.dragBase;
@@ -15867,6 +17534,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 }
               }
               if (drawState.dragMode === "ridge-endA" && drawState.dragBase) {
+                drawState.dragRidgeEndSnapEdge = null;
                 var r = (CALPINAGE_STATE.ridges || [])[drawState.dragBase.ridgeIndex];
                 if (r) {
                   var _origAttRA = r.a.attach;
@@ -15879,10 +17547,17 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                   r.a.x = outA.x; r.a.y = outA.y; r.a.attach = outA.attach;
                   propagateLinkedEndpointsAfterDrag(CALPINAGE_STATE, r.a, null);
                   recomputeRoofPlanes();
+                  /* P4 — Avertissement si l'endpoint draggué n'est toujours pas ancré au contour. */
+                  if (!r.a.attach || !r.b.attach) {
+                    drawState.ridgeTopoWarnUntil = Date.now() + 3500;
+                    requestAnimationFrame(safeRender);
+                    setTimeout(function () { requestAnimationFrame(safeRender); }, 3600);
+                  }
                   saveCalpinageState();
                 }
               }
               if (drawState.dragMode === "ridge-endB" && drawState.dragBase) {
+                drawState.dragRidgeEndSnapEdge = null;
                 var r = (CALPINAGE_STATE.ridges || [])[drawState.dragBase.ridgeIndex];
                 if (r) {
                   var _origAttRB = r.b.attach;
@@ -15895,6 +17570,12 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                   r.b.x = outB.x; r.b.y = outB.y; r.b.attach = outB.attach;
                   propagateLinkedEndpointsAfterDrag(CALPINAGE_STATE, r.b, null);
                   recomputeRoofPlanes();
+                  /* P4 — Avertissement si l'endpoint draggué n'est toujours pas ancré au contour. */
+                  if (!r.a.attach || !r.b.attach) {
+                    drawState.ridgeTopoWarnUntil = Date.now() + 3500;
+                    requestAnimationFrame(safeRender);
+                    setTimeout(function () { requestAnimationFrame(safeRender); }, 3600);
+                  }
                   saveCalpinageState();
                 }
               }
@@ -16014,6 +17695,27 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                       CALPINAGE_STATE.contours, CALPINAGE_STATE.traits, CALPINAGE_STATE.ridges,
                       c.id
                     );
+                    /* Re-snap des endpoints orphelins (attach===null) après déplacement de sommet.
+                     * propagateRoofContourEdgeJunctionAfterContourEdit met à jour les endpoints
+                     * qui ont un attach valide, mais pas ceux dont l'attach avait déjà été annulé.
+                     * On les ré-accroche ici avec le même seuil généreux que pour la suppression. */
+                    if (c.points && c.points.length >= 2) {
+                      var _mvRsCList = [c];
+                      var _mvRsThresh = computeRoofContourSnapMaxDistImg(vp.scale, _mvRsCList, false) * ROOF_CONTOUR_ORPHAN_RESNAP_MULT;
+                      var _mvRsReSnap = function (ep) {
+                        if (!ep || typeof ep.x !== "number" || ep.attach) return;
+                        var _mvDet = buildRoofContourEdgeSnapDetailed({ x: ep.x, y: ep.y }, _mvRsCList, _mvRsThresh);
+                        if (_mvDet) { ep.x = _mvDet.x; ep.y = _mvDet.y; ep.attach = _mvDet.attach; }
+                      };
+                      (CALPINAGE_STATE.ridges || []).forEach(function (r) {
+                        if (!r || r.roofRole === "chienAssis") return;
+                        _mvRsReSnap(r.a); _mvRsReSnap(r.b);
+                      });
+                      (CALPINAGE_STATE.traits || []).forEach(function (t) {
+                        if (!t || t.roofRole === "chienAssis") return;
+                        _mvRsReSnap(t.a); _mvRsReSnap(t.b);
+                      });
+                    }
                   }
                 }
 
@@ -16224,6 +17926,10 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
               }
             }
+            if (panStart && typeof process !== "undefined" && process.env && process.env.NODE_ENV !== "production") {
+              try { console.log("[PHASE3-PAN-FIX][STOP]"); } catch (_t) {}
+            }
+            drawState.phase3PanFixMoveFluxLogged = null;
             panStart = null;
             if (drawState.dragMode === "circleCreation") {
               var idxCircle = drawState.obstacleCircleTempIndex;
@@ -16371,6 +18077,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             var screen = getMouseScreen(e);
             var imgPt = screenToImage(screen);
             drawState.lastMouseImage = imgPt;
+            drawState.skipStructuralContourSnap = !!(e && e.shiftKey);
             /* Phase 3 : hover poignées rotation / déplacement pour curseur grab | move */
             if (CALPINAGE_STATE.currentPhase === "PV_LAYOUT") {
               var ENGmm = window.pvPlacementEngine;
@@ -16520,15 +18227,16 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 var sx = drawState.shadowVolumePlaceStart.x;
                 var sy = drawState.shadowVolumePlaceStart.y;
                 var mpp = (CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.scale && CALPINAGE_STATE.roof.scale.metersPerPixel) || 1;
+                var northPl = readNorthAngleDegFromCalpinageRoof(CALPINAGE_STATE.roof);
                 var bizPl = drawState.shadowVolumeBusinessId;
                 if (v.shape === "tube") {
-                  var tubePl = computeShadowTubeMetersFromAnchor(sx, sy, p.x, p.y, mpp, bizPl);
+                  var tubePl = computeShadowTubeMetersFromAnchor(sx, sy, p.x, p.y, mpp, bizPl, northPl);
                   v.x = tubePl.cx;
                   v.y = tubePl.cy;
                   v.width = tubePl.diameterM;
                   v.depth = tubePl.diameterM;
                 } else {
-                  var cubePl = computeShadowCubeMetersFromAnchor(sx, sy, p.x, p.y, mpp, bizPl);
+                  var cubePl = computeShadowCubeMetersFromAnchor(sx, sy, p.x, p.y, mpp, bizPl, northPl);
                   v.x = cubePl.cx;
                   v.y = cubePl.cy;
                   v.width = cubePl.widthM;
@@ -16573,6 +18281,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             var screen = getMouseScreen(e);
             var imgPt = screenToImage(screen);
             drawState.lastMouseImage = imgPt;
+            drawState.skipStructuralContourSnap = !!(e && e.shiftKey);
             /* Phase 3 : hover poignées rotation / déplacement pour curseur grab | move */
             if (CALPINAGE_STATE.currentPhase === "PV_LAYOUT") {
               var ENGmm = window.pvPlacementEngine;
@@ -16741,6 +18450,27 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 drawState.selectedContourVertexIndex = null;
                 if (_cDel.id && _cDel.roofRole !== "chienAssis") {
                   propagateRoofContourEdgeJunctionAfterContourEdit(CALPINAGE_STATE.contours, CALPINAGE_STATE.traits, CALPINAGE_STATE.ridges, _cDel.id);
+                }
+                /* Re-snap des endpoints dont l'attach a été annulé (null) par fixContourVertexDeleteAttaches.
+                 * Après la suppression du sommet le contour a une nouvelle forme : on essaie de ré-accrocher
+                 * les endpoints orphelins au segment le plus proche du contour modifié.
+                 * On ne touche qu'aux endpoints avec attach===null situés à portée du contour. */
+                if (_cDel.id && _cDel.roofRole !== "chienAssis" && _cDel.points && _cDel.points.length >= 2) {
+                  var _rsCList = [_cDel];
+                  var _rsThresh = computeRoofContourSnapMaxDistImg(vp.scale, _rsCList, false) * ROOF_CONTOUR_ORPHAN_RESNAP_MULT;
+                  var _rsReSnap = function (ep) {
+                    if (!ep || typeof ep.x !== "number" || ep.attach) return;
+                    var _rsDet = buildRoofContourEdgeSnapDetailed({ x: ep.x, y: ep.y }, _rsCList, _rsThresh);
+                    if (_rsDet) { ep.x = _rsDet.x; ep.y = _rsDet.y; ep.attach = _rsDet.attach; }
+                  };
+                  (CALPINAGE_STATE.ridges || []).forEach(function (r) {
+                    if (!r || r.roofRole === "chienAssis") return;
+                    _rsReSnap(r.a); _rsReSnap(r.b);
+                  });
+                  (CALPINAGE_STATE.traits || []).forEach(function (t) {
+                    if (!t || t.roofRole === "chienAssis") return;
+                    _rsReSnap(t.a); _rsReSnap(t.b);
+                  });
                 }
                 recomputeRoofPlanes();
                 saveCalpinageState();
@@ -17001,6 +18731,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               return;
             }
             var mpp = (CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.scale && CALPINAGE_STATE.roof.scale.metersPerPixel) || 1;
+            var northHud = readNorthAngleDegFromCalpinageRoof(CALPINAGE_STATE.roof);
             var lines = [];
             if (drawState.activeTool === "obstacle" && drawState.obstacleShape) {
               var oe = drawState.obstacleBusinessId ? getRoofObstacleCatalogEntry(drawState.obstacleBusinessId) : null;
@@ -17018,7 +18749,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             if (drawState.activeTool === "select" && drawState.selectedObstacleIndex != null) {
               var oSel = (CALPINAGE_STATE.obstacles || [])[drawState.selectedObstacleIndex];
               if (oSel) {
-                lines.push(formatObstacle2DSelectionHud(oSel, mpp));
+                lines.push(formatObstacle2DSelectionHud(oSel, mpp, northHud));
               }
             }
             if (lines.length === 0) {
@@ -17042,6 +18773,92 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             __calpinageSafeRenderLastTs = _nowSr;
             renderImpl();
             updateObstacleUxHud();
+          }
+
+          /** Phase 2 : repères 90° uniquement pendant tracé / ajustement (contour posé + non sélectionné = rien). Purement visuel. */
+          function drawPhase2ContourRightAngleHints(ctx) {
+            var TOL_DEG = 1;
+            var SQ_PX = 12;
+            var INSET_PX = 10;
+            var MIN_EDGE_SCR_PX = 3;
+            var selContourIdsHint = new Set(drawState.selectedContourIds || []);
+            function contourStoredBeingEdited(ci, c) {
+              var t = drawState.activeTool;
+              if (t !== "contour" && t !== "select") return false;
+              if (drawState.selectedContourIndex === ci) return true;
+              if (c && c.id && selContourIdsHint.has(c.id)) return true;
+              return false;
+            }
+            function tryDrawMarkerAtCorner(hPrev, hVtx, hNext, requireConvex, area2) {
+              if (requireConvex) {
+                var crossImg = (hVtx.x - hPrev.x) * (hNext.y - hVtx.y) - (hVtx.y - hPrev.y) * (hNext.x - hVtx.x);
+                if (Math.abs(crossImg) < 1e-9) return;
+                if (area2 * crossImg <= 0) return;
+              }
+              var hSv = imageToScreen(hVtx);
+              var hSp = imageToScreen(hPrev);
+              var hSn = imageToScreen(hNext);
+              var v1x = hSp.x - hSv.x;
+              var v1y = hSp.y - hSv.y;
+              var v2x = hSn.x - hSv.x;
+              var v2y = hSn.y - hSv.y;
+              var len1 = Math.hypot(v1x, v1y);
+              var len2 = Math.hypot(v2x, v2y);
+              if (len1 < MIN_EDGE_SCR_PX || len2 < MIN_EDGE_SCR_PX) return;
+              v1x /= len1;
+              v1y /= len1;
+              v2x /= len2;
+              v2y /= len2;
+              var hdot = v1x * v2x + v1y * v2y;
+              if (hdot > 1) hdot = 1;
+              if (hdot < -1) hdot = -1;
+              var angDeg = Math.acos(hdot) * (180 / Math.PI);
+              if (Math.abs(angDeg - 90) > TOL_DEG) return;
+              var bx = v1x + v2x;
+              var by = v1y + v2y;
+              var bl = Math.hypot(bx, by);
+              if (bl < 1e-6) return;
+              bx /= bl;
+              by /= bl;
+              var hcx = hSv.x + bx * INSET_PX;
+              var hcy = hSv.y + by * INSET_PX;
+              ctx.save();
+              ctx.translate(hcx, hcy);
+              ctx.rotate(Math.atan2(by, bx) + Math.PI / 4);
+              ctx.fillStyle = "rgba(201, 164, 73, 0.38)";
+              ctx.strokeStyle = "rgba(120, 85, 30, 0.95)";
+              ctx.lineWidth = 2;
+              ctx.setLineDash([]);
+              ctx.fillRect(-SQ_PX / 2, -SQ_PX / 2, SQ_PX, SQ_PX);
+              ctx.strokeRect(-SQ_PX / 2, -SQ_PX / 2, SQ_PX, SQ_PX);
+              ctx.restore();
+            }
+            var contoursList = CALPINAGE_STATE.contours || [];
+            for (var hci = 0; hci < contoursList.length; hci++) {
+              var hc = contoursList[hci];
+              if (!hc || !hc.points || hc.points.length < 3 || !hc.closed || hc.roofRole === "chienAssis") continue;
+              if (!contourStoredBeingEdited(hci, hc)) continue;
+              var hpts = hc.points;
+              var hn = hpts.length;
+              var area2 = 0;
+              for (var hai = 0; hai < hn; hai++) {
+                var hap = hpts[hai];
+                var haq = hpts[(hai + 1) % hn];
+                area2 += hap.x * haq.y - haq.x * hap.y;
+              }
+              if (Math.abs(area2) < 1e-12) continue;
+              for (var hi = 0; hi < hn; hi++) {
+                tryDrawMarkerAtCorner(hpts[(hi - 1 + hn) % hn], hpts[hi], hpts[(hi + 1) % hn], true, area2);
+              }
+            }
+            if (drawState.activeTool === "contour") {
+              var apts = CALPINAGE_STATE.activeContour && CALPINAGE_STATE.activeContour.points;
+              if (apts && apts.length >= 3) {
+                for (var ai = 1; ai <= apts.length - 2; ai++) {
+                  tryDrawMarkerAtCorner(apts[ai - 1], apts[ai], apts[ai + 1], false, 0);
+                }
+              }
+            }
           }
           function calpinageCanvasHostVisible() {
             if (typeof document !== "undefined" && document.hidden) return false;
@@ -18698,6 +20515,9 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             if (activeContourPts.length >= 2) {
               drawContourSegmentLabels(ctx, { points: activeContourPts, closed: false });
             }
+            if (CALPINAGE_STATE.currentPhase === "ROOF_EDIT") {
+              drawPhase2ContourRightAngleHints(ctx);
+            }
             /* 5. Contour actif + mesures live */
             var hoverPt = CALPINAGE_STATE.activeContour.hoverPoint;
             if (activeContourPts.length >= 1) {
@@ -18792,8 +20612,10 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               }
             }
             drawLiveContourMeasure(ctx);
+            drawLiveContourAngleHint(ctx);
             drawLiveTrait(ctx);
             drawLiveRidge(ctx);
+            drawLiveRidgeAngleHint(ctx);
             if (drawState.activeTool === "ridge" && Date.now() < drawState.ridgeHintMessageUntil) {
               ctx.save();
               ctx.font = "13px system-ui, sans-serif";
@@ -18822,6 +20644,28 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               var msgT = "Astuce : accrochez l'arête à un bord existant pour plus de précision";
               ctx.strokeText(msgT, cwT / 2, chT / 2);
               ctx.fillText(msgT, cwT / 2, chT / 2);
+              ctx.restore();
+            }
+            /* P4 — Alerte topologie : un endpoint du faîtage n'est pas ancré au contour → le bâti ne sera pas splitté. */
+            if (Date.now() < drawState.ridgeTopoWarnUntil) {
+              ctx.save();
+              var _twCw = canvasEl ? canvasEl.width : 800;
+              var _twCh = canvasEl ? canvasEl.height : 600;
+              var _twMsg = "⚠ Faîtage non ancré : repositionnez les extrémités sur le contour";
+              var _twPad = 12;
+              ctx.font = "bold 13px system-ui, sans-serif";
+              var _twW = ctx.measureText(_twMsg).width + _twPad * 2;
+              var _twH = 34;
+              var _twX = (_twCw - _twW) / 2;
+              var _twY = _twCh / 2 + 40;
+              ctx.fillStyle = "rgba(220,38,38,0.88)";
+              ctx.beginPath();
+              ctx.roundRect ? ctx.roundRect(_twX, _twY, _twW, _twH, 6) : ctx.rect(_twX, _twY, _twW, _twH);
+              ctx.fill();
+              ctx.fillStyle = "#fff";
+              ctx.textAlign = "center";
+              ctx.textBaseline = "middle";
+              ctx.fillText(_twMsg, _twCw / 2, _twY + _twH / 2);
               ctx.restore();
             }
             /* 7. Mode éditer les hauteurs : tous les points source visibles (contour / faîtage / trait) */
@@ -18955,6 +20799,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             }
             /* drawMeasures() ??? TOUJOURS (ind?pendant de l?outil actif, toujours visible (S?lection / Contour / Fa??tage / etc.) ; segment + label m ; ne modifie aucune g?om?trie */
             var scaleMperPx = CALPINAGE_STATE.roof.scale && typeof CALPINAGE_STATE.roof.scale.metersPerPixel === "number" ? CALPINAGE_STATE.roof.scale.metersPerPixel : 0;
+            var northDegMeasures = readNorthAngleDegFromCalpinageRoof(CALPINAGE_STATE.roof);
             // console.log("[SCALE DEBUG] scale source = CALPINAGE_STATE.roof.scale.metersPerPixel (before 2D measures draw)", scaleMperPx);
             for (var mi = 0; mi < CALPINAGE_STATE.measures.length; mi++) {
               var mes = CALPINAGE_STATE.measures[mi];
@@ -18969,10 +20814,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               ctx.lineTo(sb.x, sb.y);
               ctx.stroke();
               if (scaleMperPx > 0) {
-                var dx = mes.b.x - mes.a.x;
-                var dy = mes.b.y - mes.a.y;
-                var distancePixels = Math.hypot(dx, dy);
-                var lenM = distancePixels * scaleMperPx;
+                var lenM = segmentHorizontalLengthMFromImagePx(mes.a, mes.b, scaleMperPx, northDegMeasures);
                 var mid = imageToScreen({ x: (mes.a.x + mes.b.x) / 2, y: (mes.a.y + mes.b.y) / 2 });
                 ctx.font = "12px system-ui, sans-serif";
                 ctx.fillStyle = "#1f2937";
@@ -19000,9 +20842,12 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               ctx.lineTo(mm.x, mm.y);
               ctx.stroke();
               if (scaleMperPx > 0) {
-                var pdx = drawState.lastMouseImage.x - drawState.measureLineStart.x;
-                var pdy = drawState.lastMouseImage.y - drawState.measureLineStart.y;
-                var prevM = Math.hypot(pdx, pdy) * scaleMperPx;
+                var prevM = segmentHorizontalLengthMFromImagePx(
+                  drawState.measureLineStart,
+                  drawState.lastMouseImage,
+                  scaleMperPx,
+                  northDegMeasures
+                );
                 var midP = { x: (ma.x + mm.x) / 2, y: (ma.y + mm.y) / 2 };
                 ctx.setLineDash([]);
                 ctx.font = "12px system-ui, sans-serif";
@@ -19060,7 +20905,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               if (obstacleHoverRotate || svHoveredRotate) {
                 canvasEl.style.cursor = "grab";
               } else {
-                canvasEl.style.cursor = (drawState.activeTool === "contour" && drawState.hoverNearFirstPoint) || (drawState.activeTool === "obstacle" && drawState.obstacleShape === "polygon" && drawState.hoverNearFirstPointObstacle) || (drawState.activeTool === "ridge" && CALPINAGE_STATE.activeRidge.snapEdge) || (drawState.activeTool === "trait" && drawState.traitLineStart && drawState.traitSnapEdge) ? "pointer" : (drawState.activeTool === "contour" || drawState.activeTool === "mesure" || drawState.activeTool === "trait" || drawState.activeTool === "ridge" || drawState.activeTool === "obstacle") ? "crosshair" : "default";
+                canvasEl.style.cursor = (drawState.activeTool === "contour" && drawState.hoverNearFirstPoint) || (drawState.activeTool === "obstacle" && drawState.obstacleShape === "polygon" && drawState.hoverNearFirstPointObstacle) || (drawState.activeTool === "ridge" && CALPINAGE_STATE.activeRidge.snapEdge) || (drawState.activeTool === "trait" && drawState.traitLineStart && drawState.traitSnapEdge) || ((drawState.dragMode === "ridge-endA" || drawState.dragMode === "ridge-endB") && drawState.dragRidgeEndSnapEdge) ? "pointer" : (drawState.activeTool === "contour" || drawState.activeTool === "mesure" || drawState.activeTool === "trait" || drawState.activeTool === "ridge" || drawState.activeTool === "obstacle") ? "crosshair" : "default";
               }
             }
 
@@ -19545,10 +21390,8 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
         if (grid) {
           recents.forEach(function (id) {
             var item = type === "panel" ? (typeof findPanelById === "function" ? findPanelById(id) : null) : (typeof findInverterById === "function" ? findInverterById(id) : null);
-            if (item) {
-              var card = type === "panel" ? buildPanelCard(item) : buildInverterCard(item);
-              grid.appendChild(card);
-            }
+            var card = type === "panel" ? buildPanelCard(item) : buildInverterCard(item);
+            grid.appendChild(card);
           });
         }
       } else {
@@ -19701,10 +21544,12 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
       var canvas = document.createElement("canvas");
       canvas.width = 500;
       canvas.height = 500;
-      overlay.appendChild(canvas);
-      addSafeListener(overlay, "click", function () { overlay.remove(); });
-      innerRoot.appendChild(overlay);
       drawHorizonMask(canvas, data.horizon);
+      overlay.appendChild(canvas);
+      innerRoot.appendChild(overlay);
+      overlay.addEventListener("click", function (ev) {
+        if (ev.target === overlay) overlay.remove();
+      });
     };
     function updateHorizonMaskButtonState() {
       var btn = container.querySelector("#btn-show-horizon-mask");
@@ -19757,13 +21602,14 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
       zone3d.classList.remove("visible");
       canvasWrapper.classList.add("visible");
       btn.classList.remove("active-3d");
-      if (labelEl) labelEl.textContent = "Vue 3D";
+      if (labelEl) labelEl.textContent = "3D";
       if (iconCube) iconCube.style.display = "";
       if (iconPlan) iconPlan.style.display = "none";
       window.dispatchEvent(new CustomEvent("calpinage:viewmode", { detail: { mode: "2D" } }));
     }
 
     function toggleView() {
+      if (typeof window.__closeP3TopbarMenus === "function") window.__closeP3TopbarMenus();
       if (currentViewMode === "2D") switchTo3D();
       else switchTo2D();
     }
@@ -19897,9 +21743,20 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
     finalJson.calpinage_meta = {
       version: "CALPINAGE_V1",
       savedAt: new Date().toISOString(),
-      geometryHash: computeGeometryHash(finalJson.roof || null),
-      panelsHash: computePanelsHash(finalJson.panels && Array.isArray(finalJson.panels.layout) ? finalJson.panels.layout : []),
-      shadingHash: computeShadingHash(finalJson.shading || null),
+      geometryHash:
+        typeof window !== "undefined" && typeof window.__computeGeometryHashForExport === "function"
+          ? window.__computeGeometryHashForExport(finalJson.roof || null)
+          : "",
+      panelsHash:
+        typeof window !== "undefined" && typeof window.__computePanelsHashForExport === "function"
+          ? window.__computePanelsHashForExport(
+              finalJson.panels && Array.isArray(finalJson.panels.layout) ? finalJson.panels.layout : [],
+            )
+          : "",
+      shadingHash:
+        typeof window !== "undefined" && typeof window.__computeShadingHashForExport === "function"
+          ? window.__computeShadingHashForExport(finalJson.shading || null)
+          : "",
       shadingComputedAt: finalJson.shading && finalJson.shading.computedAt ? finalJson.shading.computedAt : null,
       shadingSource: (CALPINAGE_STATE.shading && CALPINAGE_STATE.shading.lastComputedAt != null) ? "recomputed" : "persisted"
     };
@@ -19940,7 +21797,13 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
       try { delete window.__applyFlatRoofConfigAndRecompute; } catch (_) {}
       try { delete window.__applyManualPanRoofTypeAndRecompute; } catch (_) {}
       try { delete window.__computePansFromGeometryCoreForExport; } catch (_) {}
+      try { delete window.__computeGeometryHashForExport; } catch (_) {}
+      try { delete window.__computePanelsHashForExport; } catch (_) {}
+      try { delete window.__computeShadingHashForExport; } catch (_) {}
+      try { delete window.__calpinageRefreshLegacyUiAfterPanVertexHeightEdit; } catch (_) {}
+      try { delete window.__calpinageCommitRoofVertexHeightLike2D; } catch (_) {}
       try { delete window.__calpinage_hitTestPan__; } catch (_) {}
+      try { delete window.__calpinageRecomputePansFromGeometryAndUI; } catch (_) {}
       window.CALPINAGE_STUDY_ID = null;
       window.CALPINAGE_VERSION_ID = null;
       window.PV_SELECTED_PANEL = null;

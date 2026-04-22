@@ -1,31 +1,460 @@
 // ======================================================
-// DEV LOCAL — MOCK SMARTPITCH_CTX
-// ⚠️ À SUPPRIMER EN PROD
+// SOLARNEXT CRM — contrat d'hébergement (injecté par le loader avant ce script)
+// window.__SOLARNEXT_API_BASE__       : origine seule, sans /api (ex. http://localhost:5173) — défaut = location.origin
+// window.__SOLARNEXT_DP_CONTEXT__     : réponse GET /api/leads/:id/dp ou { leadId, context: { identity, site, dp1, ... } }
+// window.__SOLARNEXT_DP_CRM_EMBED     : true si chargé depuis loadDpTool (CRM) — obligatoire hors __SN_DP_DEV_MODE
+// window.__SN_DP_DEV_MODE             : true = contourne la barrière CRM (debug local uniquement)
+// window.__SOLARNEXT_DP_STORAGE_KEY__ : suffixe namespace stockage (ex. UUID lead) — défaut si absent = "dp-tool-cache"
+// window.__SOLARNEXT_DP_ASSET_BASE__   : URL absolue du dossier dp-tool/ (slash final) — fetch pages/*.html / photos/*
+// window.__SOLARNEXT_DP_DRAFT_SERVER__ : brouillon serveur (optionnel, hydratation ultérieure)
 // ======================================================
-if (!window.SMARTPITCH_CTX) {
-  console.warn("DEV MODE : injection SMARTPITCH_CTX mock");
-  window.SMARTPITCH_CTX = {
+function __solarnextDpResolveAssetUrl(relativePath) {
+  const base =
+    typeof window !== "undefined" && window.__SOLARNEXT_DP_ASSET_BASE__;
+  if (base != null && String(base).trim()) {
+    const b = String(base).replace(/\/?$/, "/");
+    return new URL(String(relativePath).replace(/^\//, ""), b).href;
+  }
+  return relativePath;
+}
+function __solarnextDpApiOrigin() {
+  const w = typeof window !== "undefined" ? window : {};
+  const b = w.__SOLARNEXT_API_BASE__;
+  if (b != null && String(b).trim()) return String(b).replace(/\/$/, "");
+  if (w.location && w.location.origin) {
+    var isViteDev =
+      w.location.hostname === "localhost" && String(w.location.port) === "5173";
+    if (isViteDev) return w.location.origin + "/api";
+    return w.location.origin;
+  }
+  return "";
+}
+
+/** Équiv. `import { fromLonLat } from "ol/proj"` — WGS84 [lon, lat] → EPSG:3857 (bundle ol global). */
+function fromLonLat(coord) {
+  if (typeof ol === "undefined" || !ol.proj || typeof ol.proj.fromLonLat !== "function") {
+    throw new Error(
+      "[DP] OpenLayers (ol) introuvable — chargez ol.js avant dp-app.js (embed CRM ou déclaration préalable)."
+    );
+  }
+  return ol.proj.fromLonLat(coord);
+}
+
+/** CRM : aligne SMARTPITCH_CTX sur __SOLARNEXT_DP_CONTEXT__ (mandat, DP6, etc.). */
+function __solarnextHydrateSmartpitchFromDpContext() {
+  var w = typeof window !== "undefined" ? window : {};
+  var inj = w.__SOLARNEXT_DP_CONTEXT__;
+  if (!inj || typeof inj !== "object") return;
+  var c = inj.context;
+  if (!c || typeof c !== "object") return;
+  var id = c.identity && typeof c.identity === "object" ? c.identity : {};
+  var site = c.site && typeof c.site === "object" ? c.site : {};
+  var full =
+    (id.fullName != null && String(id.fullName).trim()) ||
+    [id.firstName, id.lastName].filter(Boolean).join(" ").trim() ||
+    "";
+  var birth =
+    id.birthDate != null && String(id.birthDate).trim()
+      ? String(id.birthDate).trim().slice(0, 10)
+      : "";
+  w.SMARTPITCH_CTX = {
     client: {
-      nom: "GIRARD Kim",
-      date_naissance: "1970-06-18",
-      adresse: "14 Rue Gabriel Peri",
-      ville: "Cachan"
+      name: full,
+      nom: full,
+      adresse: site.address != null ? String(site.address) : "",
+      ville: site.city != null ? String(site.city) : "",
+      date_naissance: birth || undefined,
     },
-    maison: { toiture: "Bacacier", orientation: "N", inclinaison: 15 }
+    project: {
+      address: site.address != null ? String(site.address) : "",
+      city: site.city != null ? String(site.city) : "",
+    },
+    leadId: inj.leadId,
+    maison: { toiture: "", orientation: "", inclinaison: 0 },
   };
 }
-// ======================================================
-// DEV LOCAL — MOCK DP1_CONTEXT (à partir de SMARTPITCH_CTX)
-// ======================================================
-if (!window.DP1_CONTEXT && window.SMARTPITCH_CTX?.client) {
-  console.warn("DEV MODE : injection DP1_CONTEXT mock");
 
-  window.DP1_CONTEXT = {
-    nom: window.SMARTPITCH_CTX.client.nom,
-    adresse: window.SMARTPITCH_CTX.client.adresse,
-    cp: "77520",      // ← tu peux changer pour tester
-    ville: window.SMARTPITCH_CTX.client.ville
+/** Corrige les URLs absolues /frontend/dp-tool/... après injection HTML. */
+function __solarnextFixDpInjectedAssetUrls(root) {
+  if (!root || !root.querySelectorAll) return;
+  var prefix = "/frontend/dp-tool/";
+  root.querySelectorAll("img[src]").forEach(function (img) {
+    var s = img.getAttribute("src") || "";
+    if (s.indexOf(prefix) !== 0) return;
+    var tail = s.slice(prefix.length);
+    img.setAttribute("src", __solarnextDpResolveAssetUrl(tail));
+  });
+  root.querySelectorAll("[style]").forEach(function (el) {
+    var st = el.getAttribute("style");
+    if (!st || st.indexOf(prefix) === -1) return;
+    el.setAttribute(
+      "style",
+      st.replace(
+        /url\(\s*["']?(\/frontend\/dp-tool\/[^"')]+)["']?\s*\)/g,
+        function (_, absPath) {
+          var rel = absPath.indexOf(prefix) === 0 ? absPath.slice(prefix.length) : absPath;
+          return "url(" + __solarnextDpResolveAssetUrl(rel) + ")";
+        }
+      )
+    );
+  });
+}
+
+/** URL absolue ou chemin relatif sûr (jamais localhost forcé). */
+function __solarnextPdfUrl(path) {
+  const p = path.startsWith("/") ? path : "/" + path;
+  const o = __solarnextDpApiOrigin();
+  return o ? o + p : p;
+}
+
+try {
+  window.__solarnextMandatSignatureStampUrl = function () {
+    return __solarnextPdfUrl("pdf/render/mandat/signature-stamp");
   };
+} catch (_) {}
+
+/** Construit une URL absolue vers `/api/<tail>` (ex. `pv/panels`) quel que soit le mode dev/prod. */
+function __solarnextDpAbsApiUrl(tail) {
+  const t = String(tail || "").replace(/^\//, "");
+  const o = __solarnextDpApiOrigin();
+  if (!o) return "/api/" + t;
+  const base = /\/api$/i.test(o) ? o : String(o).replace(/\/$/, "") + "/api";
+  return base + "/" + t;
+}
+
+function __solarnextDpAuthHeadersJson() {
+  var h = { "Content-Type": "application/json" };
+  try {
+    var token = typeof localStorage !== "undefined" && localStorage.getItem("solarnext_token");
+    if (token) h.Authorization = "Bearer " + token;
+  } catch (e) {}
+  return h;
+}
+
+function __solarnextDpAuthHeadersBearerOnly() {
+  var h = {};
+  try {
+    var token = typeof localStorage !== "undefined" && localStorage.getItem("solarnext_token");
+    if (token) h.Authorization = "Bearer " + token;
+  } catch (e) {}
+  return h;
+}
+
+function __solarnextDpLeadIdForPdfPayload() {
+  try {
+    var c = typeof window !== "undefined" && window.__SOLARNEXT_DP_CONTEXT__;
+    return c && c.leadId ? String(c.leadId) : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function __solarnextDpMergeLeadId(body) {
+  var lid = __solarnextDpLeadIdForPdfPayload();
+  var o = body && typeof body === "object" ? body : {};
+  if (!lid) return o;
+  if (o.leadId || o.lead_id) return o;
+  return Object.assign({}, o, { leadId: lid });
+}
+
+/** Aligné backend/constants/dpPdfFileNames.js — nom local si réponse = PDF brut (sans enregistrement). */
+function __solarnextDpFallbackPdfName(pieceKey) {
+  var M = {
+    mandat: "mandat-representation.pdf",
+    dp1: "dp1-plan-de-situation.pdf",
+    dp2: "dp2-plan-de-masse.pdf",
+    dp3: "dp3-plan-de-coupe.pdf",
+    dp4: "dp4-plan-facades-toitures.pdf",
+    dp5: "dp5-representation-graphique.pdf",
+    dp6: "dp6-insertion-paysagere.pdf",
+    dp7: "dp7-photo-proche.pdf",
+    dp8: "dp8-photo-lointaine.pdf",
+    cerfa: "cerfa.pdf",
+    dp_complet: "dossier-declaration-prealable.pdf",
+  };
+  var k = String(pieceKey || "document").trim().toLowerCase();
+  var num = /^dp\s*(\d+)$/i.exec(k);
+  if (num) k = "dp" + num[1];
+  return M[k] || "document.pdf";
+}
+
+async function __solarnextDpOpenSavedPdfFromJson(j, defaultDownloadName) {
+  var docId = j.documentId || j.document_id;
+  if (!docId) {
+    alert("Réponse serveur invalide (documentId manquant).");
+    return;
+  }
+  var down = await fetch(__solarnextDpAbsApiUrl("documents/" + encodeURIComponent(docId) + "/download"), {
+    method: "GET",
+    headers: __solarnextDpAuthHeadersBearerOnly(),
+  });
+  if (!down.ok) {
+    try {
+      var errJ = await down.json();
+      if (errJ && errJ.error) {
+        alert(errJ.error);
+        return;
+      }
+    } catch (e2) {}
+    alert("Impossible de télécharger le document enregistré.");
+    return;
+  }
+  var blob = await down.blob();
+  var url = URL.createObjectURL(blob);
+  window.open(url, "_blank");
+  var a = document.createElement("a");
+  a.href = url;
+  a.download = (j.fileName || defaultDownloadName || "document.pdf").replace(/[\r\n]/g, "");
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(function () {
+    URL.revokeObjectURL(url);
+  }, 3000);
+}
+
+/**
+ * POST PDF DP avec dédoublonnage : si le serveur signale alreadyExists → confirm puis forceReplace.
+ */
+async function __solarnextDpFetchPdfWithReplace(urlPath, getPayload, pieceKey, getFallbackName) {
+  var fallback = function () {
+    if (typeof getFallbackName === "function") {
+      return getFallbackName();
+    }
+    return __solarnextDpFallbackPdfName(pieceKey);
+  };
+  async function post(forceReplace) {
+    var p = getPayload();
+    if (forceReplace) p.forceReplace = true;
+    return fetch(__solarnextPdfUrl(urlPath), {
+      method: "POST",
+      headers: __solarnextDpAuthHeadersJson(),
+      body: JSON.stringify(__solarnextDpMergeLeadId(p)),
+    });
+  }
+
+  var res = await post(false);
+  var ct = (res.headers.get("content-type") || "").toLowerCase();
+
+  if (ct.indexOf("application/json") >= 0) {
+    var j = await res.json();
+    if (j.alreadyExists === true) {
+      var line = j.fileName ? "\n\nFichier actuel : " + j.fileName : "";
+      if (!window.confirm("Ce document existe déjà pour ce dossier." + line + "\n\nVoulez-vous le remplacer ?")) {
+        return;
+      }
+      res = await post(true);
+      ct = (res.headers.get("content-type") || "").toLowerCase();
+      if (ct.indexOf("application/json") >= 0) {
+        j = await res.json();
+        if (j.error) {
+          alert(j.error);
+          return;
+        }
+        if (j.alreadyExists === true) {
+          alert("Impossible de finaliser le remplacement.");
+          return;
+        }
+        if (j.documentId || j.document_id) {
+          await __solarnextDpOpenSavedPdfFromJson(j, fallback());
+          return;
+        }
+        alert("Réponse serveur inattendue après remplacement.");
+        return;
+      }
+    } else if (j.error) {
+      alert(j.error);
+      return;
+    } else if (j.documentId || j.document_id) {
+      await __solarnextDpOpenSavedPdfFromJson(j, fallback());
+      return;
+    } else {
+      alert("Réponse serveur inattendue.");
+      return;
+    }
+  }
+
+  await __solarnextDpFetchPdfThenOpenOrDownload(res, fallback());
+}
+
+async function __solarnextDpFetchPdfThenOpenOrDownload(res, defaultDownloadName) {
+  var ct = (res.headers.get("content-type") || "").toLowerCase();
+  if (ct.indexOf("application/json") >= 0) {
+    var j = await res.json();
+    if (j.error) {
+      alert(j.error);
+      return;
+    }
+    if (j.alreadyExists === true) {
+      alert("Un document du même type existe déjà — utilisez l’export depuis le CRM avec confirmation.");
+      return;
+    }
+    await __solarnextDpOpenSavedPdfFromJson(j, defaultDownloadName);
+    return;
+  }
+  if (!res.ok) {
+    try {
+      var ej = await res.json();
+      if (ej && ej.error) {
+        alert(ej.error);
+        return;
+      }
+    } catch (e3) {}
+    alert("Erreur lors de la génération du PDF.");
+    return;
+  }
+  var blob = await res.blob();
+  var url2 = URL.createObjectURL(blob);
+  window.open(url2, "_blank");
+  var a2 = document.createElement("a");
+  a2.href = url2;
+  a2.download = defaultDownloadName || "document.pdf";
+  document.body.appendChild(a2);
+  a2.click();
+  a2.remove();
+  setTimeout(function () {
+    URL.revokeObjectURL(url2);
+  }, 3000);
+}
+
+async function __solarnextDpPersistCerfaPdfBytes(pdfBytes) {
+  var lid = __solarnextDpLeadIdForPdfPayload();
+  var token = typeof localStorage !== "undefined" && localStorage.getItem("solarnext_token");
+  if (!lid || !token) return;
+  try {
+    var fd = new FormData();
+    fd.append("entityType", "lead");
+    fd.append("entityId", lid);
+    fd.append("document_type", "dp_pdf");
+    fd.append("document_category", "DP");
+    fd.append(
+      "file",
+      new Blob([pdfBytes], { type: "application/pdf" }),
+      "cerfa-" + lid + ".pdf"
+    );
+    var r = await fetch(__solarnextDpAbsApiUrl("documents"), {
+      method: "POST",
+      headers: { Authorization: "Bearer " + token },
+      body: fd,
+    });
+    if (!r.ok) {
+      console.warn("[CERFA] enregistrement document DP", r.status);
+    }
+  } catch (e) {
+    console.warn("[CERFA] persist document", e);
+  }
+}
+
+/** Blocage plein écran — DP réservé au CRM (sauf __SN_DP_DEV_MODE). */
+function solarnextDpInstallCrmRequiredBlock(message) {
+  const msg = message || "Ce module doit être utilisé depuis le CRM";
+  function paint() {
+    if (document.getElementById("sn-dp-crm-required-block")) return;
+    const el = document.createElement("div");
+    el.id = "sn-dp-crm-required-block";
+    el.setAttribute("role", "alert");
+    el.textContent = msg;
+    el.style.cssText =
+      "position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;padding:24px;background:#f9fafb;color:#111827;font:600 16px/1.5 system-ui,sans-serif;text-align:center;box-sizing:border-box;";
+    document.body.appendChild(el);
+    document.body.style.overflow = "hidden";
+  }
+  if (typeof document !== "undefined" && document.body) paint();
+  else if (typeof document !== "undefined") {
+    document.addEventListener("DOMContentLoaded", paint, { once: true });
+  }
+}
+
+(function solarnextDpRunCrmEntryGate() {
+  const w = typeof window !== "undefined" ? window : {};
+  if (w.__SN_DP_INIT_BLOCKED) {
+    solarnextDpInstallCrmRequiredBlock("Ce module doit être utilisé depuis le CRM");
+    return;
+  }
+  if (w.__SN_DP_DEV_MODE === true) return;
+  const ctx = w.__SOLARNEXT_DP_CONTEXT__;
+  if (!ctx || !ctx.leadId) {
+    console.error("[DP INIT BLOCKED — NO CRM CONTEXT]");
+    w.__SN_DP_INIT_BLOCKED = true;
+    w.__SN_DP_PERSISTENCE_DISABLED = true;
+    solarnextDpInstallCrmRequiredBlock("Ce module doit être utilisé depuis le CRM");
+    return;
+  }
+  if (w.__SOLARNEXT_DP_CRM_EMBED !== true) {
+    console.error("[DP INIT BLOCKED — NOT CRM EMBED]");
+    w.__SN_DP_INIT_BLOCKED = true;
+    w.__SN_DP_PERSISTENCE_DISABLED = true;
+    solarnextDpInstallCrmRequiredBlock("Ce module doit être utilisé depuis le CRM");
+  }
+})();
+
+function __solarnextScopedStorageKey(suffix) {
+  const w = typeof window !== "undefined" ? window : {};
+  const ns = w.__SOLARNEXT_DP_STORAGE_KEY__;
+  const part = ns != null && String(ns).trim() ? String(ns).trim() : "dp-tool-cache";
+  return "sn_dp:" + part + ":" + suffix;
+}
+
+function __solarnextReadScopedStorage(suffix) {
+  try {
+    return localStorage.getItem(__solarnextScopedStorageKey(suffix));
+  } catch (_) {
+    return null;
+  }
+}
+
+function __solarnextWriteScopedStorage(suffix, value) {
+  try {
+    localStorage.setItem(__solarnextScopedStorageKey(suffix), value);
+  } catch (_) {}
+}
+
+function __solarnextRemoveScopedStorage(suffix) {
+  try {
+    localStorage.removeItem(__solarnextScopedStorageKey(suffix));
+  } catch (_) {}
+}
+
+function __solarnextSessionScopedKey(suffix) {
+  return __solarnextScopedStorageKey("sess:" + suffix);
+}
+
+// ======================================================
+// CRM : contexte lead injecté avant ce script → prioritaire sur le mock
+// ======================================================
+if (!window.__SN_DP_INIT_BLOCKED) {
+  __solarnextHydrateSmartpitchFromDpContext();
+}
+
+// ======================================================
+// DEV LOCAL — mocks (uniquement si __SN_DP_DEV_MODE — pas de fallback silencieux hors CRM)
+// ======================================================
+if (window.__SN_DP_DEV_MODE === true) {
+  if (!window.SMARTPITCH_CTX) {
+    console.warn("[DP DEV] injection SMARTPITCH_CTX mock");
+    window.SMARTPITCH_CTX = {
+      client: {
+        nom: "GIRARD Kim",
+        date_naissance: "1970-06-18",
+        adresse: "14 Rue Gabriel Peri",
+        ville: "Cachan"
+      },
+      maison: { toiture: "Bacacier", orientation: "N", inclinaison: 15 }
+    };
+  }
+  if (
+    !window.DP1_CONTEXT &&
+    window.SMARTPITCH_CTX?.client &&
+    !window.__SOLARNEXT_DP_CONTEXT__
+  ) {
+    console.warn("[DP DEV] injection DP1_CONTEXT mock");
+    window.DP1_CONTEXT = {
+      nom: window.SMARTPITCH_CTX.client.nom || window.SMARTPITCH_CTX.client.name,
+      adresse: window.SMARTPITCH_CTX.client.adresse,
+      cp: "77520",
+      ville: window.SMARTPITCH_CTX.client.ville
+    };
+  }
 }
 
 // ======================================================
@@ -90,19 +519,40 @@ function applySafeInitialResolution(map, targetResolution, wmtsResolutions) {
 }
 
 // ======================================================
-// NAVIGATION / CHARGEMENT DES PAGES (UNIQUE)
+// NAVIGATION / CHARGEMENT DES PAGES (UNIQUE) — mount shell + embed CRM (scripts chargés après DOM ready)
 // ======================================================
-document.addEventListener("DOMContentLoaded", () => {
+function solarnextDpMountNavigationShell() {
+  if (window.__SN_DP_INIT_BLOCKED) return;
+  if (window.__SOLARNEXT_DP_NAV_MOUNTED__) return;
+  const viewsRoot = document.getElementById("dp-views-root");
   const content = document.getElementById("page-content");
-  const links = document.querySelectorAll(".dp-menu a[data-page]");
-  if (!content) return;
+  const mountRoot = document.getElementById("dp-tool-root") || document.body;
+  if (!viewsRoot && !content) return;
+
+  window.__SOLARNEXT_DP_NAV_MOUNTED__ = true;
+  const abort = new AbortController();
+  window.__SOLARNEXT_DP_NAV_ABORT__ = function solarnextDpNavAbort() {
+    try {
+      abort.abort();
+    } catch (_) {}
+    delete window.__SOLARNEXT_DP_NAV_MOUNTED__;
+    try {
+      delete window.__DP_MOUNTED_PATHS__;
+    } catch (_) {
+      window.__DP_MOUNTED_PATHS__ = undefined;
+    }
+    window.__SOLARNEXT_DP_NAV_ABORT__ = undefined;
+  };
+
+  const links = mountRoot.querySelectorAll(".dp-menu a[data-page]");
 
   function setActive(page) {
-    links.forEach(a => a.classList.toggle("active", a.dataset.page === page));
+    links.forEach((a) => a.classList.toggle("active", a.dataset.page === page));
   }
 
-  function wireAccordions() {
-    content.querySelectorAll(".dp-item-header").forEach(header => {
+  function wireAccordions(root) {
+    if (!root) return;
+    root.querySelectorAll(".dp-item-header").forEach((header) => {
       header.addEventListener("click", () => {
         const item = header.closest(".dp-item");
         if (!item) return;
@@ -143,6 +593,10 @@ function initInjectedPage(page) {
     } else {
       console.warn("[DP8] initDP8 introuvable");
     }
+  } else if (page.endsWith("mandat.html")) {
+    if (typeof window.initMandatPage === "function") {
+      window.initMandatPage();
+    }
   } else if (page.endsWith("cerfa.html")) {
     if (typeof initCERFA === "function") {
       initCERFA();
@@ -152,14 +606,104 @@ function initInjectedPage(page) {
   }
 }
 
-  async function loadPage(page) {
+  function resolveBootPagePath() {
+    var boot = "pages/general.html";
     try {
-      const res = await fetch(page, { cache: "no-store" });
+      if (window.DpDraftStore && typeof window.DpDraftStore.getDraft === "function") {
+        var d = window.DpDraftStore.getDraft();
+        var pid = d && d.progression && d.progression.currentPageId;
+        if (pid && window.DpDraftStore.pageIdToPath) {
+          boot = window.DpDraftStore.pageIdToPath(pid);
+        }
+      }
+    } catch (_) {}
+    return boot;
+  }
+
+  async function mountViewOnce(pagePath) {
+    if (!viewsRoot) return;
+    if (!window.__DP_MOUNTED_PATHS__) window.__DP_MOUNTED_PATHS__ = new Set();
+    if (window.__DP_MOUNTED_PATHS__.has(pagePath)) return;
+    var pageId =
+      window.DpDraftStore && typeof window.DpDraftStore.mapPathToPageId === "function"
+        ? window.DpDraftStore.mapPathToPageId(pagePath)
+        : "general";
+    var slot = document.getElementById("view-" + pageId);
+    if (!slot) {
+      console.warn("[DP] mountViewOnce: slot introuvable", pagePath, pageId);
+      return;
+    }
+    try {
+      const res = await fetch(__solarnextDpResolveAssetUrl(pagePath), { cache: "no-store" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      slot.innerHTML = await res.text();
+      __solarnextFixDpInjectedAssetUrls(slot);
+      wireAccordions(slot);
+      initInjectedPage(pagePath);
+      window.__DP_MOUNTED_PATHS__.add(pagePath);
+    } catch (e) {
+      console.error(e);
+      slot.innerHTML = `
+        <p style="color:#b91c1c;font-weight:600">Erreur de chargement</p>
+        <p style="color:#6b7280">${e.message}</p>
+      `;
+      window.__DP_MOUNTED_PATHS__.add(pagePath);
+    }
+  }
+
+  function showView(pagePath) {
+    if (!viewsRoot) return;
+    var pageId =
+      window.DpDraftStore && typeof window.DpDraftStore.mapPathToPageId === "function"
+        ? window.DpDraftStore.mapPathToPageId(pagePath)
+        : "general";
+    /* Uniquement les slots racine — ne pas toucher aux .dp-view internes (ex. grille DP1). */
+    var i;
+    var ch = viewsRoot.children;
+    for (i = 0; i < ch.length; i++) {
+      var el = ch[i];
+      if (el && el.classList && el.classList.contains("dp-view")) {
+        el.classList.remove("dp-view--active");
+      }
+    }
+    var slot = document.getElementById("view-" + pageId);
+    if (slot) slot.classList.add("dp-view--active");
+    setActive(pagePath);
+    try {
+      if (window.DpDraftStore && typeof window.DpDraftStore.setCurrentPage === "function") {
+        window.DpDraftStore.setCurrentPage(pageId);
+      }
+    } catch (_) {}
+    try {
+      if (typeof window.hydratePage === "function") window.hydratePage(pagePath);
+    } catch (_) {}
+    try {
+      if (typeof window.__snDpPersistDebounced === "function") window.__snDpPersistDebounced(false);
+    } catch (_) {}
+  }
+
+  async function navigateTo(pagePath) {
+    if (viewsRoot) {
+      await mountViewOnce(pagePath);
+      showView(pagePath);
+      return;
+    }
+    await legacyLoadPage(pagePath);
+  }
+
+  async function legacyLoadPage(page) {
+    if (!content) return;
+    try {
+      const res = await fetch(__solarnextDpResolveAssetUrl(page), { cache: "no-store" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       content.innerHTML = await res.text();
+      __solarnextFixDpInjectedAssetUrls(content);
       setActive(page);
-      wireAccordions();
+      wireAccordions(content);
       initInjectedPage(page);
+      try {
+        if (typeof window.hydratePage === "function") window.hydratePage(page);
+      } catch (_) {}
     } catch (e) {
       console.error(e);
       content.innerHTML = `
@@ -169,15 +713,54 @@ function initInjectedPage(page) {
     }
   }
 
-  document.addEventListener("click", e => {
-    const link = e.target.closest(".dp-menu a[data-page]");
-    if (!link) return;
-    e.preventDefault();
-    loadPage(link.dataset.page);
-  });
+  mountRoot.addEventListener(
+    "click",
+    async (e) => {
+      const link = e.target.closest(".dp-menu a[data-page]");
+      if (!link) return;
+      e.preventDefault();
+      if (typeof window.__snDpNotifyMenuNavigate === "function") {
+        try {
+          window.__snDpNotifyMenuNavigate(link.dataset.page);
+        } catch (err) {
+          console.warn("[DP] draft menu hook", err);
+        }
+      }
+      await navigateTo(link.dataset.page);
+    },
+    { signal: abort.signal }
+  );
 
-  loadPage("pages/general.html");
-});
+  navigateTo(resolveBootPagePath()).catch(function (err) {
+    console.error("[DP] boot navigation", err);
+  });
+}
+
+function solarnextDpScheduleMountShell() {
+  if (window.__SN_DP_INIT_BLOCKED) return;
+  if (document.getElementById("dp-views-root") || document.getElementById("page-content")) {
+    solarnextDpMountNavigationShell();
+    return;
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener(
+      "DOMContentLoaded",
+      () => {
+        solarnextDpMountNavigationShell();
+      },
+      { once: true }
+    );
+  } else {
+    queueMicrotask(() => {
+      solarnextDpMountNavigationShell();
+    });
+  }
+}
+
+if (!window.__SN_DP_INIT_BLOCKED && !window.__SOLARNEXT_DP_EMBED_LOADER__) {
+  solarnextDpScheduleMountShell();
+}
+window.__SOLARNEXT_DP_MOUNT_SHELL__ = solarnextDpMountNavigationShell;
 
 // ======================================================
 // CERFA — INIT (structure + affichage uniquement)
@@ -196,8 +779,31 @@ window.CERFA_STATE = window.CERFA_STATE || {
   rowsCount: "",
   panelOrientation: "",
   roofOrientation: "",
-  energyManagement: ""
+  energyManagement: "",
+  /**
+   * Cases urbanisme CERFA (triplets oui / non / non concerné). Valeurs : 'oui' | 'non' | 'nc'.
+   * null / undefined = ne cocher aucune case de la ligne (pas de supposition métier).
+   */
+  urbanismeCU: null,
+  urbanismeLot: null,
+  urbanismeZAC: null,
+  urbanismeAFU: null,
+  urbanismePUP: null,
+  /** '' | 'new' | 'existing' — C2ZA1_nouvelle vs C2ZB1_existante (exclusifs). */
+  constructionType: "",
+  /** '' | 'personnel' | 'vente' | 'location' — occupation du déclarant. */
+  occupationMode: "",
+  /** '' | 'principale' | 'secondaire' — résidence concernée. */
+  residenceType: "",
+  /** true = case D5A (contact email) cochée ; ne pas activer sans consentement explicite. */
+  declarantAcceptEmailContact: false,
+  /** Surcharge explicite pour case « toiture » (X1V) ; sinon dérivé de roofOrientation. */
+  installationOnRoof: null
 };
+
+/** Sections général / DP5 — persistance unifiée (state_json) ; pas d’UI dédiée pour l’instant. */
+window.DP_GENERAL_STATE = window.DP_GENERAL_STATE || {};
+window.DP5_STATE = window.DP5_STATE || {};
 
 function cerfaLogState() {
   console.log("CERFA_STATE", { ...window.CERFA_STATE });
@@ -217,12 +823,144 @@ function normOrientation(v) {
   return "";
 }
 
-function buildCerfaDescriptionText() {
-  const S = window.CERFA_STATE || {};
+function cerfaIsDebugMode() {
+  try {
+    if (typeof window !== "undefined" && window.localStorage && window.localStorage.getItem("SOLARNEXT_CERFA_DEBUG") === "1") {
+      return true;
+    }
+    if (typeof window !== "undefined" && /\bcerfaDebug=1\b/.test(String(window.location && window.location.search))) {
+      return true;
+    }
+  } catch (_) {}
+  return false;
+}
 
+/**
+ * Date de signature CERFA : format JJ/MM/AAAA (lisible, attendu sur formulaires français).
+ * @param {Date} [d]
+ * @returns {string}
+ */
+function formatDateCerfa(d) {
+  const x = d instanceof Date && !isNaN(d.getTime()) ? d : new Date();
+  const dd = String(x.getDate()).padStart(2, "0");
+  const mm = String(x.getMonth() + 1).padStart(2, "0");
+  const yyyy = String(x.getFullYear());
+  return dd + "/" + mm + "/" + yyyy;
+}
+
+/**
+ * Puissance kWc : virgule décimale, sans zéros superflus (ex. 3, 3,5 et non 3.00).
+ * @param {number} kwc
+ * @returns {string}
+ */
+function formatPowerCerfa(kwc) {
+  const n = Number(kwc);
+  if (!Number.isFinite(n) || n < 0) return "";
+  const rounded = Math.round(n * 1000) / 1000;
+  if (Math.abs(rounded - Math.round(rounded)) < 1e-9) return String(Math.round(rounded));
+  const s = rounded.toFixed(3).replace(/\.?0+$/, "");
+  return s.replace(".", ",");
+}
+
+/**
+ * Téléphone affichage CERFA : national FR 0X XX XX XX XX si possible ; indicatif séparé.
+ * @param {string} raw
+ * @returns {{ national: string, indicatif: string, hadInput: boolean }}
+ */
+function formatPhoneCerfa(raw) {
+  const hadInput = raw != null && String(raw).trim() !== "";
+  let digits = String(raw || "").replace(/[^\d+]/g, "");
+  let indicatif = "33";
+  if (digits.startsWith("+33")) {
+    digits = "0" + digits.slice(3);
+  } else if (digits.startsWith("0033")) {
+    digits = "0" + digits.slice(4);
+  }
+  digits = digits.replace(/\D/g, "");
+  if (digits.startsWith("33") && digits.length >= 10) {
+    digits = "0" + digits.slice(2);
+  }
+  if (digits.length === 9 && !digits.startsWith("0")) {
+    digits = "0" + digits;
+  }
+  let national = "";
+  if (digits.length >= 10 && digits.startsWith("0")) {
+    national = digits.slice(0, 10);
+  } else if (digits.length > 0) {
+    national = digits;
+  }
+  return { national, indicatif, hadInput };
+}
+
+/**
+ * Découpage adresse française : première unité si elle ressemble à un numéro de voirie, sinon tout en voie.
+ * Gère les adresses sans numéro en tête (ex. « Rue de la Paix » → voie complète, numéro vide).
+ * @param {string} line
+ * @returns {{ numeroVoie: string, voie: string }}
+ */
+function parseFrenchAddressLine(line) {
+  const full = String(line || "").trim().replace(/\s+/g, " ");
+  if (!full) return { numeroVoie: "", voie: "" };
+  const m = full.match(
+    /^(\d{1,4}(?:\s*[A-Za-z])?(?:\s*(?:bis|ter|quater))?)\s+(.+)$/i
+  );
+  if (m) {
+    return { numeroVoie: m[1].replace(/\s+/g, " ").trim(), voie: m[2].trim() };
+  }
+  return { numeroVoie: "", voie: full };
+}
+
+function truncateForField(str, max) {
+  const s = String(str || "");
+  if (!max || s.length <= max) return s;
+  return s.slice(0, max - 1).trimEnd() + "…";
+}
+
+function normalizeScalarForPdf(value, opts) {
+  const allowZero = opts && opts.allowZero;
+  if (value === null || value === undefined) return "";
+  if (typeof value === "number" && Number.isFinite(value)) {
+    if (allowZero && value === 0) return "0";
+    if (!allowZero && value === 0) return "";
+    return String(value);
+  }
+  let s = String(value).trim();
+  if (!s || /^undefined$/i.test(s) || /^null$/i.test(s) || s === "[object Object]") return "";
+  return s.replace(/\s+/g, " ").trim();
+}
+
+function createCerfaFillReport() {
+  return {
+    filled: [],
+    skippedOptional: [],
+    missingRequired: [],
+    fieldErrors: [],
+    warnings: [],
+    checkboxesApplied: [],
+    checkboxesSkipped: []
+  };
+}
+
+var CERFA_TEXT_FONT = {
+  short: 10,
+  medium: 9,
+  street: 8.5,
+  multiline: 7,
+  tiny: 8
+};
+
+/**
+ * Description CERFA : uniquement à partir de l’objet d’état (aucune lecture DOM).
+ * @param {object} cerfaState
+ * @returns {string}
+ */
+function buildCerfaDescriptionText(cerfaState) {
+  const S = cerfaState && typeof cerfaState === "object" ? cerfaState : {};
   const safe = (v) => {
     if (v === undefined || v === null) return "";
-    return String(v).trim();
+    const t = String(v).trim();
+    if (!t || /^undefined$/i.test(t) || /^null$/i.test(t)) return "";
+    return t;
   };
 
   const panelCount = safe(S.panelCount);
@@ -230,33 +968,65 @@ function buildCerfaDescriptionText() {
   const panelWidth = safe(S.panelWidth);
   const panelHeight = safe(S.panelHeight);
   const panelThickness = safe(S.panelDepth);
-  const rowCount = safe(S.rowsCount);
+  const columnsCount = safe(S.columnsCount);
   const panelsPerRow = safe(S.panelsPerRow);
   const roofOrientation = safe(S.roofOrientation);
   const panelBrand = safe(S.brand);
   const panelColor = safe(S.color);
 
-  const orientation = (S.panelOrientation === "landscape" || S.panelOrientation === "paysage")
-    ? "en paysage"
-    : "en portrait";
+  const orientationFr =
+    S.panelOrientation === "landscape" || S.panelOrientation === "paysage" || normOrientation(S.panelOrientation) === "paysage"
+      ? "paysage"
+      : S.panelOrientation || normOrientation(S.panelOrientation)
+        ? "portrait"
+        : "";
 
-  return (
-    "Pose de " + panelCount + " panneaux solaires photovoltaïques d'une puissance unitaire de " +
-    panelPower + " Wc et de dimensions " +
-    panelWidth + " x " + panelHeight + " x " + panelThickness + " mm,\n" +
-    "disposés en " +
-    document.getElementById("cerfa-columns")?.value +
-    " rangées de " +
-    document.getElementById("cerfa-panels-per-row")?.value +
-    " panneaux (" + orientation + ") sur toiture d'orientation " +
-    roofOrientation + ".\n" +
-    "Panneaux de marque " + panelBrand +
-    ", traitement anti-reflet, couleur " + panelColor + "."
-  );
+  const phrases = [];
+
+  if (panelCount && panelPower) {
+    let p =
+      "Pose de " +
+      panelCount +
+      " panneau(x) solaire(s) photovoltaïque(s) d’une puissance unitaire de " +
+      panelPower +
+      " Wc";
+    if (panelWidth && panelHeight && panelThickness) {
+      p += ", de dimensions " + panelWidth + " × " + panelHeight + " × " + panelThickness + " mm";
+    }
+    phrases.push(p + ".");
+  } else if (panelCount || panelPower) {
+    phrases.push(
+      "Installation photovoltaïque : compléter le nombre de modules et/ou la puissance unitaire (Wc) pour une description conforme."
+    );
+  }
+
+  if (columnsCount && panelsPerRow) {
+    let d =
+      "Disposition : " +
+      columnsCount +
+      " colonne(s), " +
+      panelsPerRow +
+      " panneau(x) par ligne";
+    if (orientationFr) d += ", modules en " + orientationFr;
+    phrases.push(d + ".");
+  }
+
+  if (roofOrientation) {
+    phrases.push("Orientation du pan de toit : " + roofOrientation + ".");
+  }
+
+  if (panelBrand || panelColor) {
+    const bits = [];
+    if (panelBrand) bits.push("marque " + panelBrand);
+    if (panelColor) bits.push("couleur " + panelColor);
+    phrases.push("Modules : " + bits.join(", ") + ", traitement anti-reflet.");
+  }
+
+  return phrases.join("\n").trim();
 }
 
 function generateCerfaDescription() {
-  const text = buildCerfaDescriptionText();
+  const text = buildCerfaDescriptionText(window.CERFA_STATE || {});
   const ta = document.getElementById("cerfa-description");
   if (ta) ta.value = text;
   console.log("[CERFA] Texte généré:", text);
@@ -323,6 +1093,33 @@ function initCERFA() {
     "energyManagement"
   );
 
+  if (S.constructionType === undefined || S.constructionType === null) S.constructionType = "";
+  if (S.occupationMode === undefined || S.occupationMode === null) S.occupationMode = "";
+  if (S.residenceType === undefined || S.residenceType === null) S.residenceType = "";
+  if (S.declarantAcceptEmailContact === undefined) S.declarantAcceptEmailContact = false;
+
+  bindToggleGroup(
+    ["cerfa-construction-unset", "cerfa-construction-existing", "cerfa-construction-new"],
+    "constructionType"
+  );
+  bindToggleGroup(
+    ["cerfa-occupation-unset", "cerfa-occupation-personnel", "cerfa-occupation-vente", "cerfa-occupation-location"],
+    "occupationMode"
+  );
+  bindToggleGroup(
+    ["cerfa-residence-unset", "cerfa-residence-main", "cerfa-residence-sec"],
+    "residenceType"
+  );
+
+  const consentEl = document.getElementById("cerfa-email-consent");
+  if (consentEl) {
+    consentEl.checked = S.declarantAcceptEmailContact === true;
+    consentEl.addEventListener("change", function () {
+      S.declarantAcceptEmailContact = !!consentEl.checked;
+      cerfaLogState();
+    });
+  }
+
   const btnGenerate = document.getElementById("cerfa-btn-generate-description");
   if (btnGenerate) btnGenerate.addEventListener("click", generateCerfaDescription);
 
@@ -334,112 +1131,314 @@ function initCERFA() {
 // CERFA — Création PDF prérempli (frontend uniquement, pdf-lib)
 // ======================================================
 async function loadPdf() {
-  const res = await fetch("photos/cerfa_16702-02.pdf", { cache: "no-store" });
+  const res = await fetch(__solarnextDpResolveAssetUrl("photos/cerfa_16702-02.pdf"), { cache: "no-store" });
   if (!res.ok) throw new Error("Impossible de charger le PDF CERFA");
   return res.arrayBuffer();
 }
 
+/**
+ * Normalise une réponse urbanisme CERFA (oui | non | nc).
+ * @param {unknown} val
+ * @returns {'oui'|'non'|'nc'|''}
+ */
+function normOuiNonNc(val) {
+  const v = val != null ? String(val).trim().toLowerCase() : "";
+  if (v === "oui" || v === "o" || v === "yes" || v === "true") return "oui";
+  if (v === "non" || v === "n" || v === "no" || v === "false") return "non";
+  if (v === "nc" || v === "n/c" || v === "na" || v === "n.a." || v === "non concerné" || v === "non concerne") {
+    return "nc";
+  }
+  return "";
+}
+
+/**
+ * Remplissage CERFA + rapport structuré (champs remplis, manquants, cases, erreurs PDF).
+ * @returns {ReturnType<typeof createCerfaFillReport>}
+ */
 function fillCerfaFields(pdfDoc, state, descriptionText, options) {
-  if (!pdfDoc.getForm) return;
+  if (!pdfDoc.getForm) return createCerfaFillReport();
   const form = options?.form ?? pdfDoc.getForm();
   const helveticaFont = options?.helveticaFont;
-  const rgb = options?.rgb;
+  const report = options?.report || createCerfaFillReport();
+  const cerfaState = options?.cerfaState && typeof options.cerfaState === "object" ? options.cerfaState : {};
+  void helveticaFont;
 
-  function safeSetText(name, value) {
-    if (!value) return;
+  function applyFontSize(field, category, fieldName) {
+    const sz = CERFA_TEXT_FONT[category] || CERFA_TEXT_FONT.medium;
+    try {
+      field.setFontSize(sz);
+    } catch (e) {
+      report.warnings.push({ code: "FONT_SIZE_SKIP", field: fieldName, detail: String(e.message || e) });
+    }
+  }
 
+  function setTextField(name, raw, opts) {
+    const required = !!(opts && opts.required);
+    const category = (opts && opts.category) || "medium";
+    const maxLen = opts && opts.maxLen;
+    const allowZero = !!(opts && opts.allowZero);
+    let text = normalizeScalarForPdf(raw, { allowZero });
+    if (!text && (raw === 0 || raw === "0") && allowZero) text = "0";
+    if (!text) {
+      if (required) report.missingRequired.push({ name, detail: "valeur vide" });
+      else report.skippedOptional.push({ name });
+      return;
+    }
+    if (maxLen) text = truncateForField(text, maxLen);
     try {
       const field = form.getTextField(name);
-      field.setText(String(value));
+      applyFontSize(field, category, name);
+      field.setText(text);
+      report.filled.push({ name });
     } catch (err) {
-      console.warn("CERFA skip", name);
+      report.fieldErrors.push({ name, message: err.message || String(err) });
     }
   }
 
-  function safeCheck(name) {
+  function setDescriptionMultiline(text) {
+    const body = normalizeScalarForPdf(text, {});
+    if (!body) {
+      report.missingRequired.push({ name: "C2ZD1_description", detail: "description vide" });
+      return;
+    }
+    try {
+      const descField = form.getTextField("C2ZD1_description");
+      descField.enableMultiline();
+      applyFontSize(descField, "multiline", "C2ZD1_description");
+      descField.setText(truncateForField(body, 8000));
+      report.filled.push({ name: "C2ZD1_description" });
+    } catch (err) {
+      report.fieldErrors.push({ name: "C2ZD1_description", message: err.message || String(err) });
+    }
+  }
+
+  function checkTripletOUINONNC(map, rawValue, label) {
+    const v = normOuiNonNc(rawValue);
+    if (!v || !map[v]) {
+      report.checkboxesSkipped.push({ group: label, reason: "aucune valeur métier (oui|non|nc)" });
+      return;
+    }
+    const fieldName = map[v];
+    try {
+      form.getCheckBox(fieldName).check();
+      report.checkboxesApplied.push(fieldName);
+    } catch (err) {
+      report.fieldErrors.push({ name: fieldName, message: err.message || String(err) });
+    }
+  }
+
+  function checkWhen(name, condition, reason) {
+    if (!condition) {
+      report.checkboxesSkipped.push({ name, reason: reason || "condition non remplie" });
+      return;
+    }
     try {
       form.getCheckBox(name).check();
+      report.checkboxesApplied.push(name);
     } catch (err) {
-      console.warn("[CERFA PDF] check skip", name, err.message);
+      report.fieldErrors.push({ name, message: err.message || String(err) });
     }
   }
 
-  // 1) En-tête
-  safeSetText("N1FCA_formulaire", "DPC");
+  setTextField("N1FCA_formulaire", "DPC", { required: true, category: "short" });
 
-  // 2) Déclarant
-  safeSetText("D1N_nom", state.nom);
-  safeSetText("D1P_prenom", state.prenom);
-  safeSetText("D1E_pays", state.pays || "FRANCE");
+  setTextField("D1N_nom", state.nom, { required: true, category: "short" });
+  setTextField("D1P_prenom", state.prenom, { category: "short" });
+  setTextField("D1E_pays", state.pays || "FRANCE", { required: true, category: "short" });
 
-  // 3) Adresse / contact
-  safeSetText("D3N_numero", state.numeroVoie);
-  safeSetText("D3V_voie", state.voie);
-  safeSetText("D3L_localite", state.ville);
-  safeSetText("D3C_code", state.cp);
-  safeSetText("D3T_telephone", state.telephone);
-  safeSetText("D3K_indicatif", state.indicatif || "33");
+  setTextField("D3N_numero", state.numeroVoie, { category: "tiny" });
+  setTextField("D3V_voie", state.voie, { category: "street", maxLen: 120 });
+  setTextField("D3L_localite", state.ville, { required: true, category: "medium" });
+  setTextField("D3C_code", state.cp, { required: true, category: "short" });
+  setTextField("D3T_telephone", state.telephone, { category: "medium" });
+  setTextField("D3K_indicatif", state.indicatif || "33", { category: "tiny" });
 
-  // Email SPLIT
-  safeSetText("D5GE1_email", state.emailLocal);
-  safeSetText("D5GE2_email", state.emailDomain);
-  if (state.emailAccepted === true) safeCheck("D5A_acceptation");
+  setTextField("D5GE1_email", state.emailLocal, { category: "medium" });
+  setTextField("D5GE2_email", state.emailDomain, { category: "medium" });
 
-  // 4) Terrain (adresse + cadastre)
-  safeSetText("T2Q_numero", state.numeroVoie);
-  safeSetText("T2V_voie", state.voie);
-  safeSetText("T2L_localite", state.ville);
-  safeSetText("T2C_code", state.cp);
-  safeSetText("T2S_section", state.parcelleSection);
-  safeSetText("T2N_numero", state.parcelleNumero);
-  safeSetText("T2T_superficie", state.parcelleSurfaceM2);
-  // Superficie totale du terrain (champ réel : D5T_total)
-  safeSetText("D5T_total", state.superficieTotale);
-
-  // Cases "NC"
-  safeCheck("T3B_CUnc");
-  safeCheck("T3S_lotnc");
-  safeCheck("T3T_ZACnc");
-  safeCheck("T3E_AFUnc");
-  safeCheck("T3F_PUPnc");
-
-  // 5) Nature des travaux / PV (section 4.2.1)
-  safeCheck("C2ZB1_existante");
-  safeSetText("C2ZA7_autres", "Pose de panneaux solaires photovoltaïques");
-  try {
-    const descField = form.getTextField("C2ZD1_description");
-    descField.setText(descriptionText);
-    descField.enableMultiline();
-  } catch (err) {
-    console.warn("[CERFA] skip description", err);
+  if (state.declarantAcceptEmailContact === true) {
+    checkWhen("D5A_acceptation", true, null);
+  } else {
+    report.checkboxesSkipped.push({ name: "D5A_acceptation", reason: "consentement contact email non attesté (CERFA_STATE.declarantAcceptEmailContact)" });
   }
-  safeSetText("C2ZP1_crete", state.puissanceKwc);
+
+  setTextField("T2Q_numero", state.numeroVoie, { category: "tiny" });
+  setTextField("T2V_voie", state.voie, { category: "street", maxLen: 120 });
+  setTextField("T2L_localite", state.ville, { category: "medium" });
+  setTextField("T2C_code", state.cp, { category: "short" });
+  setTextField("T2S_section", state.parcelleSection, { category: "short" });
+  setTextField("T2N_numero", state.parcelleNumero, { category: "short" });
+  setTextField("T2T_superficie", state.parcelleSurfaceM2, { category: "tiny" });
+  setTextField("D5T_total", state.superficieTotale, { category: "tiny", allowZero: true });
+
+  checkTripletOUINONNC({ oui: "T3A_CUoui", non: "T3H_CUnon", nc: "T3B_CUnc" }, cerfaState.urbanismeCU, "urbanismeCU");
+  checkTripletOUINONNC({ oui: "T3I_lotoui", non: "T3L_lotnon", nc: "T3S_lotnc" }, cerfaState.urbanismeLot, "urbanismeLot");
+  checkTripletOUINONNC({ oui: "T3J_ZACoui", non: "T3Q_ZACnon", nc: "T3T_ZACnc" }, cerfaState.urbanismeZAC, "urbanismeZAC");
+  checkTripletOUINONNC({ oui: "T3G_AFUoui", non: "T3R_AFUnon", nc: "T3E_AFUnc" }, cerfaState.urbanismeAFU, "urbanismeAFU");
+  checkTripletOUINONNC({ oui: "T3P_PUPoui", non: "T3C_PUPnon", nc: "T3F_PUPnc" }, cerfaState.urbanismePUP, "urbanismePUP");
+
+  const ctype = cerfaState.constructionType != null ? String(cerfaState.constructionType).trim().toLowerCase() : "";
+  if (ctype === "new" || ctype === "nouvelle") {
+    checkWhen("C2ZA1_nouvelle", true, null);
+  } else if (ctype === "existing" || ctype === "existante" || ctype === "existant") {
+    checkWhen("C2ZB1_existante", true, null);
+  } else {
+    report.checkboxesSkipped.push({
+      name: "C2ZA1|C2ZB1",
+      reason: "constructionType non renseigné (new|existing) — cases travaux neuf / existant non cochées"
+    });
+  }
+
+  setTextField(
+    "C2ZA7_autres",
+    state.c2za7AutresLabel || "Pose de panneaux solaires photovoltaïques",
+    { category: "street", maxLen: 200 }
+  );
+
+  setDescriptionMultiline(descriptionText);
+
+  setTextField("C2ZP1_crete", state.puissanceKwc, { required: true, category: "medium" });
   if (state.forcePuissanceElecZero === true) {
-    safeSetText("C2ZE1_puissance", "0");
+    setTextField("C2ZE1_puissance", "0", { category: "tiny", allowZero: true });
   }
-  safeSetText("C2ZR1_destination", state.destinationEnergie);
+  setTextField("C2ZR1_destination", state.destinationEnergie, { category: "street", maxLen: 120 });
 
-  // 6) Mode d'occupation
-  safeCheck("C5ZD1_personnel");
-  safeCheck("C2ZF1_principale");
+  const occ = cerfaState.occupationMode != null ? String(cerfaState.occupationMode).trim().toLowerCase() : "";
+  if (occ === "personnel") checkWhen("C5ZD1_personnel", true, null);
+  else if (occ === "vente") checkWhen("C5ZD2_vente", true, null);
+  else if (occ === "location") checkWhen("C5ZD3_location", true, null);
+  else {
+    report.checkboxesSkipped.push({ name: "C5ZD*", reason: "occupationMode non renseigné (personnel|vente|location)" });
+  }
 
-  // 7) Surfaces
-  safeSetText("W3ES2_creee", "0");
-  safeSetText("W3ES3_supprimee", "0");
+  const res = cerfaState.residenceType != null ? String(cerfaState.residenceType).trim().toLowerCase() : "";
+  if (res === "principale" || res === "princip") {
+    checkWhen("C2ZF1_principale", true, null);
+  } else if (res === "secondaire" || res === "second") {
+    checkWhen("C2ZF2_secondaire", true, null);
+  } else {
+    report.checkboxesSkipped.push({ name: "C2ZF*", reason: "residenceType non renseigné (principale|secondaire)" });
+  }
 
-  // 8) Signature / date / lieu
-  safeSetText("E1L_lieu", state.signatureLieu);
-  safeSetText("E1D_date", state.signatureDateDDMMYYYY);
-  safeSetText("E1S_signature", state.signatureTexte);
+  setTextField("W3ES2_creee", normalizeScalarForPdf(state.surfaceCreee, { allowZero: true }) || "0", {
+    category: "tiny",
+    allowZero: true
+  });
+  setTextField("W3ES3_supprimee", normalizeScalarForPdf(state.surfaceSupprimee, { allowZero: true }) || "0", {
+    category: "tiny",
+    allowZero: true
+  });
 
-  // 9) PV checkboxes
-  safeCheck("P5PA1");
-  safeCheck("P5PB1");
-  safeCheck("P3GE1");
-  safeCheck("P3GD1");
-  safeCheck("P3GF1");
-  safeCheck("P3GG1");
-  safeCheck("P3GH1");
+  setTextField("E1L_lieu", state.signatureLieu, { category: "medium" });
+  setTextField("E1D_date", state.signatureDateFormatted, { required: true, category: "short" });
+
+  try {
+    const sigField = form.getTextField("E1S_signature");
+    applyFontSize(sigField, "multiline", "E1S_signature");
+    sigField.setText("");
+    report.filled.push({ name: "E1S_signature", detail: "laissé vierge (signature manuscrite)" });
+  } catch (err) {
+    report.fieldErrors.push({ name: "E1S_signature", message: err.message || String(err) });
+  }
+
+  let onRoof = null;
+  if (cerfaState.installationOnRoof === true) onRoof = true;
+  else if (cerfaState.installationOnRoof === false) onRoof = false;
+  else {
+    const ro = normalizeScalarForPdf(cerfaState.roofOrientation, {});
+    onRoof = ro.length > 0 ? true : null;
+  }
+  if (onRoof === true) checkWhen("X1V_toiture", true, null);
+  else if (onRoof === false) checkWhen("X1V0_toiture", true, null);
+  else {
+    report.checkboxesSkipped.push({
+      name: "X1V_toiture",
+      reason: "emplacement non déduit — renseigner roofOrientation ou CERFA_STATE.installationOnRoof"
+    });
+  }
+
+  return report;
+}
+
+/**
+ * Validations pré-export (bloque la génération si erreurs bloquantes).
+ */
+function validateCerfaPreExport(payload) {
+  const errors = [];
+  const warnings = [];
+  const nom = normalizeScalarForPdf(payload.nom, {});
+  const cp = normalizeScalarForPdf(payload.cp, {});
+  const ville = normalizeScalarForPdf(payload.ville, {});
+  const descriptionText = String(payload.descriptionText || "").trim();
+  const puissanceKwc = normalizeScalarForPdf(payload.puissanceKwc, {});
+  const destinationEnergie = normalizeScalarForPdf(payload.destinationEnergie, {});
+
+  if (!nom) {
+    errors.push({
+      code: "DECLARANT_NOM_MANQUANT",
+      message: "Nom du déclarant introuvable (DP1_CONTEXT.nom ou client.nom)."
+    });
+  }
+  if (!cp || !ville) {
+    errors.push({
+      code: "ADRESSE_POSTALE_INCOMPLETE",
+      message: "Code postal et commune obligatoires (DP1_CONTEXT ou client : cp, ville)."
+    });
+  }
+  if (!descriptionText) {
+    errors.push({
+      code: "DESCRIPTION_VIDE",
+      message: "Description projet vide : saisir les données CERFA puis « Générer la description du projet »."
+    });
+  }
+
+  const count = payload.panelCount;
+  const power = payload.panelPower;
+  const hasPanels = count !== "" && count != null && Number.isFinite(Number(count)) && Number(count) > 0;
+  const hasPower = power !== "" && power != null && Number.isFinite(Number(power)) && Number(power) > 0;
+  if (!hasPanels || !hasPower) {
+    errors.push({
+      code: "PUISSANCE_CRETE_INCOMPLETE",
+      message: "Nombre de panneaux et puissance unitaire (Wc) obligatoires pour la puissance crête."
+    });
+  }
+  if (!puissanceKwc) {
+    errors.push({ code: "PUISSANCE_KWC_VIDE", message: "Puissance crête (kWc) non calculée." });
+  }
+
+  const phone = payload.phoneFormat || { national: "" };
+  if (!phone.national) {
+    warnings.push({ code: "TELEPHONE_ABSENT", message: "Téléphone absent : champ D3T laissé vide dans le PDF." });
+  }
+
+  const dp1 = payload.dp1State;
+  const parcel = dp1 && dp1.selectedParcel;
+  const hasParcelId =
+    parcel &&
+    (normalizeScalarForPdf(parcel.section, {}) ||
+      normalizeScalarForPdf(parcel.numero, {}) ||
+      (parcel.parcel != null && String(parcel.parcel).trim()));
+  if (!hasParcelId) {
+    warnings.push({
+      code: "PARCELLE_MANQUANTE",
+      message: "Parcelle cadastrale absente dans DP1 : section/numéro vides — compléter DP1 ou le PDF à la main."
+    });
+  }
+  if (dp1 && dp1.isValidated === false && hasParcelId) {
+    warnings.push({
+      code: "DP1_NON_VALIDE",
+      message: "DP1 non validé (isValidated=false) : vérifier la parcelle avant dépôt."
+    });
+  }
+
+  if (!destinationEnergie) {
+    warnings.push({
+      code: "GESTION_ENERGIE_NON_RENSEIGNEE",
+      message: "Mode de gestion de l’énergie non choisi : le champ « destination » (C2ZR1) sera vide dans le PDF."
+    });
+  }
+
+  return { errors, warnings };
 }
 
 function openPdfInNewTab(pdfBytes) {
@@ -449,33 +1448,31 @@ function openPdfInNewTab(pdfBytes) {
   setTimeout(function () { URL.revokeObjectURL(url); }, 60000);
 }
 
-function pad2(n) {
-  return n < 10 ? "0" + n : String(n);
-}
-
 async function createCerfaPdf() {
   const PDFLib = window.PDFLib;
   if (!PDFLib || !PDFLib.PDFDocument) {
     console.warn("[CERFA PDF] pdf-lib non chargé");
     return;
   }
+  const debug = cerfaIsDebugMode();
   try {
     const arrayBuffer = await loadPdf();
     const pdfDoc = await PDFLib.PDFDocument.load(arrayBuffer);
 
-    const { rgb, StandardFonts } = PDFLib;
+    const { StandardFonts } = PDFLib;
     const helveticaFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
     const form = pdfDoc.getForm();
 
     const ctx = window.DP1_CONTEXT || {};
     const client = window.SMARTPITCH_CTX?.client || {};
     const cad = window.DP1_STATE?.selectedParcel || null;
+    const dp1State = window.DP1_STATE || {};
     const cerfaState = window.CERFA_STATE || {};
 
-    // 2) Nom / prénom : nom en MAJ, prénom normal (comme Solteo)
-    const nomComplet = String(ctx.nom || client.nom || "").trim();
-    const parts = nomComplet.split(/\s+/);
-    let nom, prenom;
+    const nomComplet = normalizeScalarForPdf(ctx.nom || client.nom, {});
+    const parts = nomComplet ? nomComplet.split(/\s+/) : [];
+    let nom = "";
+    let prenom = "";
     if (parts.length > 1) {
       nom = parts[parts.length - 1].toUpperCase();
       prenom = parts.slice(0, -1).join(" ");
@@ -484,63 +1481,82 @@ async function createCerfaPdf() {
       prenom = "";
     }
 
-    // 3) Adresse / cp / ville
-    const adresse = String(ctx.adresse || client.adresse || "").trim();
-    const cp = String(ctx.cp || client.cp || "").trim();
-    const ville = String(ctx.ville || client.ville || "").trim();
-    const adresseTokens = adresse ? adresse.split(/\s+/) : [];
-    const numeroVoie = adresseTokens.length > 0 && /^\d/.test(adresseTokens[0]) ? adresseTokens[0] : "";
-    const voie = numeroVoie ? (adresseTokens.length > 1 ? adresseTokens.slice(1).join(" ") : "") : adresse;
+    const adresse = normalizeScalarForPdf(ctx.adresse || client.adresse, {});
+    const cp = normalizeScalarForPdf(ctx.cp || client.cp, {});
+    const ville = normalizeScalarForPdf(ctx.ville || client.ville, {});
+    const parsedAddr = parseFrenchAddressLine(adresse);
+    const numeroVoie = parsedAddr.numeroVoie;
+    const voie = parsedAddr.voie;
 
-    // 4) Téléphone : format national sans + (ex 0673...), indicatif 33
-    let tel = String(client.telephone || "").trim().replace(/[\s.\-]/g, "");
-    let indicatif = "33";
-    let telNational = tel;
-    if (tel.startsWith("+33")) {
-      indicatif = "33";
-      telNational = tel.slice(3).replace(/[\s.\-]/g, "");
-      if (telNational && !telNational.startsWith("0")) telNational = "0" + telNational;
-    } else if (tel.startsWith("0033")) {
-      indicatif = "33";
-      telNational = tel.slice(4).replace(/[\s.\-]/g, "");
-      if (telNational && !telNational.startsWith("0")) telNational = "0" + telNational;
-    }
+    const phoneFmt = formatPhoneCerfa(client.telephone || ctx.telephone || "");
+    const telNational = phoneFmt.national;
+    const indicatif = phoneFmt.indicatif;
 
-    // 5) Email split
-    const email = String(client.email || client.mail || "").trim();
+    const email = normalizeScalarForPdf(client.email || client.mail || ctx.email, {});
     const split = email.split("@");
-    const emailLocal = split[0] || "";
-    const emailDomain = split[1] || "";
-    const emailAccepted = !!(emailLocal && emailDomain);
+    const emailLocal = normalizeScalarForPdf(split[0], {});
+    const emailDomain = normalizeScalarForPdf(split[1], {});
 
-    // 6) Puissance crête kWc
     const count = cerfaState.panelCount;
     const power = cerfaState.panelPower;
-    const puissanceKwc = count != null && power != null && !isNaN(Number(count)) && !isNaN(Number(power))
-      ? (Number(count) * Number(power) / 1000).toFixed(2)
-      : "";
+    const hasPanels = count !== "" && count != null && Number.isFinite(Number(count)) && Number(count) > 0;
+    const hasPower = power !== "" && power != null && Number.isFinite(Number(power)) && Number(power) > 0;
+    let puissanceKwcRaw = "";
+    if (hasPanels && hasPower) {
+      puissanceKwcRaw = formatPowerCerfa((Number(count) * Number(power)) / 1000);
+    }
 
-    // 7) Destination énergie
     let destinationEnergie = "";
     if (cerfaState.energyManagement === "Autoconsommation") destinationEnergie = "Autoconsommation";
-    else if (cerfaState.energyManagement === "Autoconsommation + Vente de surplus") destinationEnergie = "Autoconsommation avec vente du surplus";
-    else if (cerfaState.energyManagement === "Vente totale") destinationEnergie = "Vente totale";
-    else if (cerfaState.energyManagement) destinationEnergie = cerfaState.energyManagement;
+    else if (cerfaState.energyManagement === "Autoconsommation + Vente de surplus") {
+      destinationEnergie = "Autoconsommation avec vente du surplus";
+    } else if (cerfaState.energyManagement === "Vente totale") destinationEnergie = "Vente totale";
+    else if (cerfaState.energyManagement) destinationEnergie = normalizeScalarForPdf(cerfaState.energyManagement, {});
 
-    // 8) Cadastre
-    const parcelleSection = cad?.section || "";
-    const parcelleNumero = cad?.numero || "";
-    const parcelleSurfaceM2 = cad?.surface_m2 != null ? String(cad.surface_m2) : "";
+    const parcelleSection = normalizeScalarForPdf(cad && cad.section, {});
+    let parcelleNumero = normalizeScalarForPdf(cad && cad.numero, {});
+    if (!parcelleNumero && cad && cad.parcel != null) {
+      parcelleNumero = normalizeScalarForPdf(String(cad.parcel), {});
+    }
+    const surfRaw = cad && (cad.surface_m2 != null ? cad.surface_m2 : cad.surface);
+    const parcelleSurfaceM2 = surfRaw != null && String(surfRaw).trim() !== "" ? normalizeScalarForPdf(String(surfRaw), {}) : "";
 
     const s1 = Number(parcelleSurfaceM2 || 0);
-    const total = s1;
-    const superficieTotale = total > 0 ? String(Math.round(total)) : "";
+    const superficieTotale = s1 > 0 ? String(Math.round(s1)) : "";
 
-    // 9) Signature
     const signatureLieu = ville || "";
-    const d = new Date();
-    const signatureDateDDMMYYYY = pad2(d.getDate()) + pad2(d.getMonth() + 1) + String(d.getFullYear());
-    const signatureTexte = (prenom + " " + nom).trim();
+    const signatureDateFormatted = formatDateCerfa(new Date());
+
+    const descriptionText = buildCerfaDescriptionText(cerfaState);
+
+    const pre = validateCerfaPreExport({
+      nom,
+      cp,
+      ville,
+      descriptionText,
+      puissanceKwc: puissanceKwcRaw,
+      destinationEnergie,
+      panelCount: count,
+      panelPower: power,
+      dp1State,
+      phoneFormat: phoneFmt
+    });
+
+    if (pre.errors.length > 0) {
+      const msg = pre.errors.map((e) => e.message).join("\n");
+      console.error("[CERFA] Export bloqué", pre.errors, pre.warnings);
+      window.alert("Impossible de générer le CERFA :\n\n" + msg);
+      return;
+    }
+    for (const w of pre.warnings) {
+      console.warn("[CERFA]", w.code, w.message);
+    }
+    if (pre.warnings.length > 0) {
+      const wtxt = pre.warnings.map((w) => "• " + w.message).join("\n");
+      if (!window.confirm("Avertissements avant génération du CERFA :\n\n" + wtxt + "\n\nContinuer ?")) {
+        return;
+      }
+    }
 
     const state = {
       nom,
@@ -554,31 +1570,93 @@ async function createCerfaPdf() {
       indicatif,
       emailLocal,
       emailDomain,
-      emailAccepted,
+      declarantAcceptEmailContact: cerfaState.declarantAcceptEmailContact === true,
       parcelleSection,
       parcelleNumero,
       parcelleSurfaceM2,
       superficieTotale,
-      puissanceKwc,
+      puissanceKwc: puissanceKwcRaw,
       destinationEnergie,
       signatureLieu,
-      signatureDateDDMMYYYY,
-      signatureTexte,
-      forcePuissanceElecZero: cerfaState.forcePuissanceElecZero === true
+      signatureDateFormatted,
+      forcePuissanceElecZero: cerfaState.forcePuissanceElecZero === true,
+      surfaceCreee: cerfaState.surfaceCreee,
+      surfaceSupprimee: cerfaState.surfaceSupprimee,
+      c2za7AutresLabel: cerfaState.c2za7AutresLabel
     };
 
-    const descriptionText = buildCerfaDescriptionText();
+    const report = createCerfaFillReport();
+    fillCerfaFields(pdfDoc, state, descriptionText, {
+      helveticaFont,
+      form,
+      report,
+      cerfaState
+    });
 
-    fillCerfaFields(pdfDoc, state, descriptionText, { helveticaFont, form, rgb });
+    for (const w of pre.warnings) {
+      report.warnings.push({ code: w.code, detail: w.message });
+    }
+
+    if (debug) {
+      console.info("[CERFA DEBUG] Rapport remplissage", report);
+    }
+    try {
+      window.__SOLARNEXT_CERFA_LAST_REPORT = report;
+    } catch (_) {}
+
+    if (report.missingRequired.length > 0 || report.fieldErrors.length > 0) {
+      console.error("[CERFA] Échec remplissage PDF", report.missingRequired, report.fieldErrors);
+      window.alert(
+        "Le CERFA n’a pas pu être rempli correctement (champs obligatoires manquants ou noms de champs PDF inattendus). " +
+          "Voir la console et __SOLARNEXT_CERFA_LAST_REPORT.\n\n" +
+          "missingRequired: " +
+          report.missingRequired.map((x) => x.name).join(", ") +
+          "\nfieldErrors: " +
+          report.fieldErrors.map((x) => x.name).join(", ")
+      );
+      return;
+    }
 
     form.updateFieldAppearances(helveticaFont);
 
+    if (!debug) {
+      try {
+        form.flatten({ updateFieldAppearances: false });
+      } catch (fe) {
+        console.error("[CERFA] flatten", fe);
+        report.warnings.push({ code: "FLATTEN_FAILED", detail: String(fe.message || fe) });
+        window.alert(
+          "Le PDF CERFA n’a pas pu être aplati (apparences figées). Le fichier reste éditable. Détail : " +
+            (fe.message || fe) +
+            "\n\nAstuce : mode debug (?cerfaDebug=1 ou localStorage SOLARNEXT_CERFA_DEBUG=1) pour conserver les champs formulaire."
+        );
+      }
+    } else {
+      console.info("[CERFA DEBUG] flatten ignoré (aperçu / champs encore éditables)");
+    }
+
     const pdfBytes = await pdfDoc.save();
     openPdfInNewTab(pdfBytes);
+    void __solarnextDpPersistCerfaPdfBytes(pdfBytes);
   } catch (err) {
     console.error("[CERFA PDF]", err);
+    window.alert("Erreur génération CERFA : " + (err.message || err));
   }
 }
+
+try {
+  window.__solarnextCerfaApi = {
+    buildCerfaDescriptionText,
+    parseFrenchAddressLine,
+    formatPowerCerfa,
+    formatPhoneCerfa,
+    formatDateCerfa,
+    validateCerfaPreExport,
+    normOuiNonNc,
+    cerfaIsDebugMode,
+    createCerfaFillReport
+  };
+} catch (_) {}
 
 // ======================================================
 // GÉNÉRATION PDF MANDAT — FRONT (inchangé)
@@ -589,33 +1667,29 @@ async function generateMandatPDF() {
     return;
   }
 
+  var sig = window.__MANDAT_SIGNATURE__;
+  if (!sig || !sig.signed || !sig.signatureDataUrl) {
+    alert("Veuillez signer le mandat avant génération");
+    return;
+  }
+
   try {
-    const res = await fetch("http://localhost:3000/pdf/render/mandat/pdf", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ mandatData: window.SMARTPITCH_CTX })
-    });
-
-    if (!res.ok) throw new Error("Erreur génération PDF");
-
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-
-    window.open(url, "_blank");
-
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "mandat-solarglobe.pdf";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-
-    setTimeout(() => URL.revokeObjectURL(url), 3000);
+    await __solarnextDpFetchPdfWithReplace(
+      "/pdf/render/mandat/pdf",
+      function () {
+        return {
+          mandatData: Object.assign({}, window.SMARTPITCH_CTX, { mandatSignature: sig }),
+        };
+      },
+      "mandat"
+    );
   } catch (err) {
     console.error(err);
     alert("Erreur lors de la génération du PDF.");
   }
 }
+
+window.generateMandatPDF = generateMandatPDF;
 
 // ======================================================
 // DP1 — STATE GLOBAL (mode / validation / parcelle / centroid)
@@ -637,38 +1711,401 @@ window.DP1_STATE = window.DP1_STATE || {
   // point courant manipulé (avant validation)
   currentPoint: null, // ex: { lat, lon }
 
-  // utilitaire: reset complet
-  reset() {
-    this.currentMode = "strict";
-    this.isValidated = false;
-    this.selectedParcel = null;
-    this.lastCentroid = null;
-    this.currentPoint = null;
-  },
+  /** aperçus des vues (synchros avec les versions, voir dp1SnapshotImages côté brouillon) */
+  dp1SnapshotImages: {},
 
-  // utilitaire: marquer “non validé” si l’utilisateur bouge le point
-  markDirty() {
-    this.isValidated = false;
-    this.selectedParcel = null;
-    this.lastCentroid = null;
-  }
+  dp1Versions: [],
+  dp1ActiveVersionId: null,
 };
 
+function dp1MarkDirty() {
+  if (!window.DP1_STATE) return;
+  window.DP1_STATE.isValidated = false;
+  window.DP1_STATE.selectedParcel = null;
+  window.DP1_STATE.lastCentroid = null;
+}
+
 // ======================================================
-// DP1 — INIT GLOBAL (ANTI DOUBLE BIND GLOBAL)
+// Phase 2 — Restauration depuis lead_dp.state_json (hydrate mémoire + DOM au initDP*)
+// ======================================================
+
+/** Extrait une URL / data URL exploitable depuis tout format d’image draft (string, { base64 }, { dataUrl }, …). */
+function getImageSrc(img) {
+  if (img == null) return null;
+  if (typeof img === "string") {
+    var t = img.trim();
+    return t || null;
+  }
+  if (typeof img === "object") {
+    if (img.dataUrl != null && String(img.dataUrl).trim()) return String(img.dataUrl).trim();
+    if (img.src != null && String(img.src).trim()) return String(img.src).trim();
+    if (img.base64 != null) {
+      var b = String(img.base64).trim();
+      if (!b) return null;
+      if (b.indexOf("data:") === 0) return b;
+      return "data:image/png;base64," + b.replace(/^data:image\/\w+;base64,/, "");
+    }
+  }
+  return null;
+}
+
+function dp1ImageSrcIsRenderable(src) {
+  if (!src || typeof src !== "string") return false;
+  if (src.indexOf("data:image") === 0) return true;
+  if (/^https?:\/\//i.test(src)) return true;
+  if (/^blob:/i.test(src)) return true;
+  return false;
+}
+
+/** Fusionne les clés images possibles (racine dp1, anciens drafts sous state.images). */
+function resolveDp1ImagesFromDraftFragment(d1) {
+  if (!d1 || typeof d1 !== "object") return {};
+  var base = d1.images && typeof d1.images === "object" ? d1.images : {};
+  var nested = d1.state && d1.state.images && typeof d1.state.images === "object" ? d1.state.images : {};
+  return Object.assign({}, nested, base);
+}
+
+function draftGetDp1Fragment() {
+  try {
+    var d = window.DpDraftStore && window.DpDraftStore.getDraft && window.DpDraftStore.getDraft();
+    if (!d || typeof d !== "object") return null;
+    return d.dp1 || (d.dp && d.dp.dp1) || null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function draftDp1IndicatesRestore() {
+  try {
+    var d1 = draftGetDp1Fragment();
+    if (!d1) return false;
+    var imgs = resolveDp1ImagesFromDraftFragment(d1);
+    if (getImageSrc(imgs.view_20000) || getImageSrc(imgs.view_5000) || getImageSrc(imgs.view_650)) return true;
+    if (
+      d1.state &&
+      (d1.state.isValidated ||
+        (d1.state.selectedParcel &&
+          (d1.state.selectedParcel.section ||
+            d1.state.selectedParcel.numero ||
+            d1.state.selectedParcel.parcel)))
+    )
+      return true;
+    return false;
+  } catch (_) {
+    return false;
+  }
+}
+
+function hydrateDP1(data) {
+  if (!data || typeof data !== "object") return;
+  try {
+    console.log("HYDRATE DP1 DATA:", data);
+  } catch (_) {}
+
+  var s = data.state && typeof data.state === "object" ? data.state : {};
+  var selectedParcel = null;
+  if (s.selectedParcel != null && typeof s.selectedParcel === "object") {
+    selectedParcel = s.selectedParcel;
+  } else if (data.selectedParcel != null && typeof data.selectedParcel === "object") {
+    selectedParcel = data.selectedParcel;
+  }
+
+  Object.assign(window.DP1_STATE, {
+    currentMode: s.currentMode != null ? s.currentMode : window.DP1_STATE.currentMode,
+    isValidated: !!s.isValidated,
+    selectedParcel: selectedParcel,
+    lastCentroid: s.lastCentroid != null ? s.lastCentroid : data.lastCentroid != null ? data.lastCentroid : null,
+    currentPoint: s.currentPoint != null ? s.currentPoint : data.currentPoint != null ? data.currentPoint : null,
+  });
+  try {
+    if (Array.isArray(s.dp1Versions)) {
+      window.DP1_STATE.dp1Versions = JSON.parse(JSON.stringify(s.dp1Versions));
+    }
+    if (s.dp1ActiveVersionId != null && s.dp1ActiveVersionId !== "") {
+      window.DP1_STATE.dp1ActiveVersionId = s.dp1ActiveVersionId;
+    }
+    if (s.dp1SnapshotImages && typeof s.dp1SnapshotImages === "object") {
+      window.DP1_STATE.dp1SnapshotImages = JSON.parse(JSON.stringify(s.dp1SnapshotImages));
+    }
+  } catch (_) {}
+  if (data.context && typeof data.context === "object") {
+    window.DP1_CONTEXT = Object.assign({}, data.context);
+  }
+}
+
+function mergeDp1ContextFromDraft() {
+  try {
+    var d1 = draftGetDp1Fragment();
+    var c = d1 && d1.context;
+    if (!c || typeof c !== "object") return;
+    if (!window.DP1_CONTEXT) window.DP1_CONTEXT = {};
+    Object.assign(window.DP1_CONTEXT, c);
+    __solarnextWriteScopedStorage("dp1_context", JSON.stringify(window.DP1_CONTEXT));
+  } catch (_) {}
+}
+
+function applyDP1DraftImagesToDom() {
+  try {
+    var d1 = draftGetDp1Fragment();
+    var imgs = resolveDp1ImagesFromDraftFragment(d1 || {});
+
+    var anyImg = false;
+
+    function injectIntoDp1View(scale, slotFallbackSel, rawSrc) {
+      var src = getImageSrc(rawSrc);
+      if (!src || !dp1ImageSrcIsRenderable(src)) return false;
+      var root =
+        document.querySelector('[data-dp1-view="' + scale + '"]') || document.querySelector(slotFallbackSel);
+      if (!root) return false;
+      var existing = root.querySelector(".dp-generated img");
+      if (!existing) existing = root.querySelector(":scope img");
+      if (existing && root.contains(existing)) {
+        existing.src = src;
+        existing.alt = "DP1 vue";
+        return true;
+      }
+      root.textContent = "";
+      var wrap = document.createElement("div");
+      wrap.className = "dp-generated";
+      var im = document.createElement("img");
+      im.alt = "DP1 vue";
+      im.src = src;
+      wrap.appendChild(im);
+      root.appendChild(wrap);
+      return true;
+    }
+
+    if (injectIntoDp1View("20000", '[data-slot="dp1-view-1"]', imgs.view_20000)) anyImg = true;
+    if (injectIntoDp1View("5000", '[data-slot="dp1-view-2"]', imgs.view_5000)) anyImg = true;
+    if (injectIntoDp1View("650", '[data-slot="dp1-view-3"]', imgs.view_650)) anyImg = true;
+
+    if (anyImg && window.DP1_UI && typeof window.DP1_UI.setState === "function") {
+      window.DP1_UI.setState("GENERATED");
+    }
+
+    if (typeof refreshDP1ParcelleUI === "function") refreshDP1ParcelleUI();
+
+    requestAnimationFrame(function () {
+      try {
+        window.dispatchEvent(new Event("resize"));
+      } catch (_) {}
+    });
+  } catch (e) {
+    console.warn("[DP1] applyDP1DraftImagesToDom", e);
+  }
+}
+
+/** Applique les miniatures DP1 depuis DP1_STATE.dp1SnapshotImages (changement de version). */
+function dp1ApplyDp1SnapshotImagesToDom() {
+  try {
+    var s = window.DP1_STATE;
+    if (!s || !s.dp1SnapshotImages || typeof s.dp1SnapshotImages !== "object") return;
+
+    var imgs = s.dp1SnapshotImages;
+    var anyImg = false;
+
+    function injectIntoDp1View(scale, slotFallbackSel, rawSrc) {
+      var src = getImageSrc(rawSrc);
+      if (!src || !dp1ImageSrcIsRenderable(src)) return false;
+      var root =
+        document.querySelector('[data-dp1-view="' + scale + '"]') || document.querySelector(slotFallbackSel);
+      if (!root) return false;
+      var existing = root.querySelector(".dp-generated img");
+      if (existing && root.contains(existing)) {
+        existing.src = src;
+        existing.alt = "DP1 vue";
+        return true;
+      }
+      root.textContent = "";
+      var wrap = document.createElement("div");
+      wrap.className = "dp-generated";
+      var im = document.createElement("img");
+      im.alt = "DP1 vue";
+      im.src = src;
+      wrap.appendChild(im);
+      root.appendChild(wrap);
+      return true;
+    }
+
+    if (injectIntoDp1View("20000", '[data-slot="dp1-view-1"]', imgs.view_20000)) anyImg = true;
+    if (injectIntoDp1View("5000", '[data-slot="dp1-view-2"]', imgs.view_5000)) anyImg = true;
+    if (injectIntoDp1View("650", '[data-slot="dp1-view-3"]', imgs.view_650)) anyImg = true;
+
+    if (anyImg && window.DP1_UI && typeof window.DP1_UI.setState === "function") {
+      window.DP1_UI.setState("GENERATED");
+    }
+
+    if (typeof refreshDP1ParcelleUI === "function") refreshDP1ParcelleUI();
+
+    requestAnimationFrame(function () {
+      try {
+        window.dispatchEvent(new Event("resize"));
+      } catch (_) {}
+    });
+  } catch (e) {
+    console.warn("[DP1] dp1ApplyDp1SnapshotImagesToDom", e);
+  }
+}
+
+/**
+ * Réhydratation légère au changement de vue (sans réinitialiser les modules ni recharger le HTML).
+ */
+function hydratePage(pagePath) {
+  if (!pagePath || !window.DpDraftStore || typeof window.DpDraftStore.mapPathToPageId !== "function") return;
+  var id = window.DpDraftStore.mapPathToPageId(pagePath);
+  if (id === "dp1") {
+    mergeDp1ContextFromDraft();
+    applyDP1DraftImagesToDom();
+    if (draftDp1IndicatesRestore() && window.DP1_UI && typeof window.DP1_UI.setState === "function") {
+      window.DP1_UI.setState("GENERATED");
+    }
+  }
+  if (id === "dp2") {
+    try {
+      dp2SanitizeVersionsInPlace();
+      if (typeof dp2PruneRedundantEmptyVersionsInPlace === "function" && dp2PruneRedundantEmptyVersionsInPlace()) {
+        if (typeof window.__snDpPersistDebounced === "function") window.__snDpPersistDebounced("fast");
+      }
+    } catch (_) {}
+    if (window.DP2_STATE && window.DP2_STATE.capture && window.DP2_STATE.capture.imageBase64) {
+      var mapWrapR = document.getElementById("dp2-ign-map");
+      if (mapWrapR) mapWrapR.style.display = "none";
+      var imgWrapR = document.getElementById("dp2-captured-image-wrap");
+      var imgElR = document.getElementById("dp2-captured-image");
+      if (imgWrapR && imgElR) {
+        var runEditor = function () {
+          try {
+            if (typeof initDP2Editor === "function") initDP2Editor();
+            if (typeof window.renderDP2FromState === "function") window.renderDP2FromState();
+          } catch (err) {
+            console.warn("[DP2] hydratePage restore editor", err);
+          }
+        };
+        imgElR.onload = runEditor;
+        if (imgElR.src !== window.DP2_STATE.capture.imageBase64) {
+          imgElR.src = window.DP2_STATE.capture.imageBase64;
+        } else {
+          requestAnimationFrame(runEditor);
+        }
+        imgWrapR.style.display = "block";
+        if (imgElR.complete && imgElR.naturalWidth > 0) {
+          requestAnimationFrame(runEditor);
+        }
+      }
+      try {
+        if (typeof setDP2ModeEdition === "function") setDP2ModeEdition();
+      } catch (_) {}
+    } else if (typeof window.renderDP2FromState === "function") {
+      try {
+        window.renderDP2FromState();
+      } catch (_) {}
+    }
+    try {
+      if (typeof dp2RenderEntryPanel === "function") dp2RenderEntryPanel();
+    } catch (_) {}
+    if (window.DP2_UI?.setState) {
+      window.DP2_UI.setState(window.DP2_STATE?.capture?.imageBase64 ? "GENERATED" : "EMPTY");
+    }
+    try {
+      if (typeof dp2RefreshDocVersionMenu === "function") dp2RefreshDocVersionMenu();
+    } catch (_) {}
+  }
+  if (id === "dp3" && typeof window.DP3_renderHome === "function") {
+    try {
+      window.DP3_renderHome();
+    } catch (_) {}
+  }
+}
+
+window.hydratePage = hydratePage;
+
+function hydrateDP2(data) {
+  if (!data || typeof data !== "object" || !window.DP2_STATE) return;
+  var k;
+  for (k in data) {
+    if (Object.prototype.hasOwnProperty.call(data, k)) {
+      window.DP2_STATE[k] = data[k];
+    }
+  }
+  try {
+    dp2SanitizeVersionsInPlace();
+  } catch (_) {}
+  try {
+    if (typeof dp2PruneRedundantEmptyVersionsInPlace === "function" && dp2PruneRedundantEmptyVersionsInPlace()) {
+      if (typeof window.__snDpPersistDebounced === "function") window.__snDpPersistDebounced("fast");
+    }
+  } catch (e) {
+    console.warn("[DP2] prune versions vides après hydrate", e);
+  }
+  if (typeof dp2AfterHydrateMigrateVersions === "function") {
+    try {
+      dp2AfterHydrateMigrateVersions();
+    } catch (e) {
+      console.warn("[DP2] migrate versions après hydrate", e);
+    }
+  }
+  if (typeof dp2RehydrateWorkingFromActiveVersionIfNeeded === "function") {
+    try {
+      dp2RehydrateWorkingFromActiveVersionIfNeeded();
+    } catch (e) {
+      console.warn("[DP2] rehydrate working depuis version active", e);
+    }
+  }
+  try {
+    if (typeof dp2RefreshDocVersionMenu === "function") dp2RefreshDocVersionMenu();
+  } catch (_) {}
+}
+
+function hydrateDP3(data) {
+  if (!data || typeof data !== "object") return;
+  try {
+    if (typeof __solarnextScopedStorageKey === "function") {
+      localStorage.setItem(__solarnextScopedStorageKey("DP3_STATE_V1"), JSON.stringify(data));
+    }
+  } catch (_) {}
+  try {
+    window.DP3_STATE = JSON.parse(JSON.stringify(data));
+  } catch (_) {
+    window.DP3_STATE = data;
+  }
+}
+
+window.hydrateDP1 = hydrateDP1;
+window.hydrateDP2 = hydrateDP2;
+window.hydrateDP3 = hydrateDP3;
+
+// ======================================================
+// DP1 — INIT GLOBAL (par fragment #dp1-page — monté une fois par vue persistante / embed CRM)
 // ======================================================
 function initDP1() {
-  // 🔒 Anti double initialisation DP1
-  if (window.__DP1_INIT_DONE === true) {
-    return;
-  }
-  window.__DP1_INIT_DONE = true;
+  const dp1Page = document.getElementById("dp1-page");
+  if (!dp1Page) return;
 
   initDP1_UIOnly();
   initDP1_UIStates();
   initDP1_MapModal();
   loadDP1LeadContext(); // silencieux
+  mergeDp1ContextFromDraft();
+  applyDP1DraftImagesToDom();
   initDP1_ImagePreview();
+
+  try {
+    if (window.snDpV && typeof window.snDpV.migrateKind === "function") {
+      window.snDpV.migrateKind("dp1");
+    }
+    if (typeof window.snDpVSetupPageUi === "function") {
+      window.snDpVSetupPageUi("dp1", {
+        onAfter: function () {
+          try {
+            dp1ApplyDp1SnapshotImagesToDom();
+          } catch (_) {}
+          try {
+            if (typeof refreshDP1ParcelleUI === "function") refreshDP1ParcelleUI();
+          } catch (_) {}
+        },
+      });
+    }
+  } catch (_) {}
 }
 
 
@@ -678,6 +2115,8 @@ function initDP1() {
 function initDP1_UIOnly() {
   const dp1Page = document.getElementById("dp1-page");
   if (!dp1Page) return;
+  if (dp1Page.dataset.dp1UiOnlyBound === "1") return;
+  dp1Page.dataset.dp1UiOnlyBound = "1";
 
   const uploadBox = document.querySelector("#dp1-upload-card .dp-upload-box");
   const uploadInput = document.getElementById("dp1-upload-input");
@@ -773,61 +2212,52 @@ function initDP1_UIStates() {
   };
 
   // état initial
-  window.DP1_UI.setState("EMPTY");
+  if (draftDp1IndicatesRestore()) {
+    window.DP1_UI.setState("GENERATED");
+  } else {
+    window.DP1_UI.setState("EMPTY");
+  }
 }
 
 
 // ======================================================
-// DP1 — ÉTAPE 3 : CHARGEMENT LEAD (ERPNext)
+// DP1 — ÉTAPE 3 : CHARGEMENT LEAD (contexte injecté CRM ou mock DEV / cache scoped)
 // ======================================================
 async function loadDP1LeadContext() {
-  const params = new URLSearchParams(window.location.search);
-  const leadId = params.get("lead_id");
+  const injected = typeof window !== "undefined" ? window.__SOLARNEXT_DP_CONTEXT__ : null;
 
-  if (!leadId) {
-    console.warn("[DP1] lead_id manquant dans l’URL");
-    return null;
-  }
-
-  try {
-    const res = await fetch(
-      `https://solarnext-crm.fr/api/method/solarnext.api.get_lead_data?lead_id=${encodeURIComponent(leadId)}`,
-      {
-        headers: {
-          "Authorization": "token 03a306b161bb4f4:f313b736c475c00",
-          "Accept": "application/json"
-        }
-      }
-    );
-
-    if (!res.ok) throw new Error("Erreur ERPNext");
-
-    const json = await res.json();
-    const message = json?.message;
-    const client = message?.client;
-    const site = message?.site || {};
-
-    if (!client) return null;
-
-    // ======================================================
-    // DP1 — CONTEXTE GLOBAL (client + lat / lon ERPNext)
-    // ======================================================
+  if (injected && typeof injected === "object") {
+    const leadId = injected.leadId ?? null;
+    const c = injected.context;
+    const d = c && typeof c.dp1 === "object" && c.dp1 ? c.dp1 : {};
+    const site = c && typeof c.site === "object" && c.site ? c.site : null;
+    const id = c && typeof c.identity === "object" && c.identity ? c.identity : null;
+    const fullFromIdentity =
+      id &&
+      (id.fullName || [id.firstName, id.lastName].filter(Boolean).join(" ").trim() || null);
     window.DP1_CONTEXT = {
       lead_id: leadId,
-      nom: client.nom || "",
-      adresse: client.adresse || "",
-      cp: client.cp || "",
-      ville: client.ville || "",
-
-      // coordonnées PRIORITAIRES
-      lat: site.latitude ? Number(site.latitude) : null,
-      lon: site.longitude ? Number(site.longitude) : null
+      nom: (d.nom != null && String(d.nom).trim()) || fullFromIdentity || "",
+      adresse: d.adresse != null ? d.adresse : site?.address || "",
+      cp: d.cp != null ? d.cp : site?.postalCode || "",
+      ville: d.ville != null ? d.ville : site?.city || "",
+      lat:
+        d.lat != null
+          ? Number(d.lat)
+          : site?.lat != null
+            ? Number(site.lat)
+            : null,
+      lon:
+        d.lon != null
+          ? Number(d.lon)
+          : site?.lon != null
+            ? Number(site.lon)
+            : null
     };
 
-    // initialiser le point courant UNE SEULE FOIS
     if (
-      window.DP1_CONTEXT.lat &&
-      window.DP1_CONTEXT.lon &&
+      window.DP1_CONTEXT.lat != null &&
+      window.DP1_CONTEXT.lon != null &&
       !window.DP1_STATE.currentPoint
     ) {
       window.DP1_STATE.currentPoint = {
@@ -836,19 +2266,44 @@ async function loadDP1LeadContext() {
       };
     }
 
-    // persistance locale (ok pour DP suivants)
-    localStorage.setItem(
-      "dp1_context",
-      JSON.stringify(window.DP1_CONTEXT)
-    );
-
-    console.log("[DP1] Contexte chargé", window.DP1_CONTEXT);
+    __solarnextWriteScopedStorage("dp1_context", JSON.stringify(window.DP1_CONTEXT));
+    console.log("[DP1] Contexte CRM injecté", window.DP1_CONTEXT);
     return window.DP1_CONTEXT;
-
-  } catch (err) {
-    console.error("[DP1] Erreur chargement Lead", err);
-    return null;
   }
+
+  try {
+    if (!window.__SN_DP_SERVER_DRAFT_ACTIVE) {
+      const raw = __solarnextReadScopedStorage("dp1_context");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === "object") window.DP1_CONTEXT = parsed;
+      }
+    }
+  } catch (_) {}
+
+  if (window.DP1_CONTEXT && (window.DP1_CONTEXT.nom || window.DP1_CONTEXT.adresse)) {
+    if (
+      window.DP1_CONTEXT.lat != null &&
+      window.DP1_CONTEXT.lon != null &&
+      !window.DP1_STATE.currentPoint
+    ) {
+      window.DP1_STATE.currentPoint = {
+        lat: window.DP1_CONTEXT.lat,
+        lon: window.DP1_CONTEXT.lon
+      };
+    }
+    if (window.__SN_DP_DEV_MODE === true) {
+      console.warn("[DP1] Mode DEV — contexte mock ou cache secondaire sn_dp:* (pas d’appel réseau lead).");
+    }
+    return window.DP1_CONTEXT;
+  }
+
+  if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("lead_id")) {
+    console.warn(
+      "[DP1] Paramètre lead_id en URL sans contexte CRM — ouvrir le DP depuis le CRM ou définir window.__SN_DP_DEV_MODE pour le debug local."
+    );
+  }
+  return null;
 }
 
 
@@ -865,25 +2320,71 @@ function initDP1_MapModal() {
   const modal = document.getElementById("dp1-map-modal");
   if (!modal) return;
 
-  // Anti double-binding (lié au modal DOM)
-  if (modal.dataset.bound === "1") return;
-  modal.dataset.bound = "1";
+  // Anti double-binding sur le même nœud modal (pas de second passage sur le même fragment)
+  if (modal.dataset.dp1ModalInit === "1") return;
+  modal.dataset.dp1ModalInit = "1";
+
+  function __getDp1MapModalEl() {
+    return document.getElementById("dp1-map-modal");
+  }
+
+  /** Toujours projeté en EPSG:3857 ; lat/lon peuvent être des nombres ou des chaînes JSON. */
+  function dp1Coord3857FromWgs84(lon, lat) {
+    const lo = Number(lon);
+    const la = Number(lat);
+    if (!Number.isFinite(lo) || !Number.isFinite(la)) return null;
+    return fromLonLat([lo, la]);
+  }
+
+  function dp1FitViewToCadastreGeometry(geoJsonGeometry) {
+    if (!map || !geoJsonGeometry) return;
+    try {
+      const raw = extractGeoJsonGeometry(geoJsonGeometry);
+      if (!raw || !window.ol?.format?.GeoJSON) return;
+      const gj = new ol.format.GeoJSON();
+      const g = gj.readGeometry(raw, {
+        dataProjection: "EPSG:4326",
+        featureProjection: "EPSG:3857"
+      });
+      if (!g || typeof g.getExtent !== "function") return;
+      const ext = g.getExtent();
+      if (!ext || !ext.every(Number.isFinite)) return;
+      map.getView().fit(ext, {
+        padding: [32, 32, 32, 32],
+        maxZoom: 21,
+        duration: 200
+      });
+      map.renderSync();
+    } catch (e) {
+      console.warn("[DP1] fit parcelle impossible", e);
+    }
+  }
 
 // ===============================
 // DP1 — ACTION : RECALCUL PARCELLE (API cadastre)
 // ===============================
 
-// ⚠️ Mets ici TON endpoint cadastre (backend SmartPitch/DP)
-// Priorité : CADASTRE_POINT_API > SMARTPITCH_API_BASE + /api/cadastre/by-point > localhost:3000
+// Priorité : CADASTRE_POINT_API > SMARTPITCH_API_BASE | __SOLARNEXT_API_BASE__ > origine courante > chemin relatif
+// Contrat : base = origine sans /api ; on ajoute une seule fois "/api/cadastre/by-point". Tout suffixe /api résiduel est retiré.
+function __solarnextStripTrailingApiSegments(originOrBase) {
+  let s = String(originOrBase).trim().replace(/\/+$/, "");
+  while (s.length > 0 && s.endsWith("/api")) {
+    s = s.slice(0, -4).replace(/\/+$/, "");
+  }
+  return s;
+}
+function joinCadastreByPointUrl(originOrBase) {
+  const b = __solarnextStripTrailingApiSegments(originOrBase);
+  if (!b) return "/api/cadastre/by-point";
+  return b + "/api/cadastre/by-point";
+}
 function getCadastreApiBase() {
   if (window.CADASTRE_POINT_API) return window.CADASTRE_POINT_API;
-  const base = window.SMARTPITCH_API_BASE || "";
-  if (base) return base.replace(/\/$/, "") + "/api/cadastre/by-point";
-  // Dev Vite : proxy /api → localhost:3000 → URL relative
-  if (typeof window !== "undefined" && (window.location.port === "5173" || window.location.port === "5174")) {
-    return window.location.origin + "/api/cadastre/by-point";
-  }
-  return "http://localhost:3000/api/cadastre/by-point";
+  const base = window.SMARTPITCH_API_BASE || window.__SOLARNEXT_API_BASE__ || "";
+  if (base && String(base).trim()) return joinCadastreByPointUrl(String(base));
+  const o = __solarnextDpApiOrigin();
+  if (o) return joinCadastreByPointUrl(o);
+  return "/api/cadastre/by-point";
 }
 
 // récupère le point courant (priorité : marker -> DP1_STATE -> center map)
@@ -1084,6 +2585,7 @@ async function snapDP1MarkerToDetectedParcelCentroid() {
     // Déplacer le marker + source de vérité "point courant"
     setParcelleMarker(centroid.lon, centroid.lat);
     window.DP1_STATE.currentPoint = { lat: centroid.lat, lon: centroid.lon };
+    dp1FitViewToCadastreGeometry(cad.geometry);
     // On ne touche pas selectedParcel ici (pour ne pas modifier l'UI hors action utilisateur)
 
     return true;
@@ -1110,6 +2612,8 @@ if (btnRecalc) {
 
       // ✅ rafraîchir immédiatement l’UI "Parcelle validée"
       refreshDP1ParcelleUI();
+
+      dp1FitViewToCadastreGeometry(cad.geometry);
 
       console.log("[DP1] Cadastre recalculé", cad);
     } catch (e) {
@@ -1166,20 +2670,48 @@ if (btnValidate) {
     try {
       ensureMap();
       if (!map) {
-        console.warn("[DP1][VALIDATE] Carte indisponible");
+        console.warn("[DP1][VALIDATE] Carte indisponible — parcelle conservée, sauvegarde brouillon");
+        window.DP1_STATE.isValidated = true;
+        if (typeof refreshDP1ParcelleUI === "function") refreshDP1ParcelleUI();
+        if (typeof window.__snDpAfterDp1Validated === "function") {
+          try {
+            window.__snDpAfterDp1Validated();
+          } catch (errDp) {
+            console.warn("[DP1] draft hook", errDp);
+          }
+        }
         return;
       }
       const view = map.getView();
-      view.setCenter(ol.proj.fromLonLat([p.lon, p.lat]));
+      const c3857 = dp1Coord3857FromWgs84(p.lon, p.lat);
+      if (c3857) view.setCenter(c3857);
       map.renderSync();
 
       await runDP1ViewGeneration();
 
-      localStorage.setItem("dp1_parcelle", JSON.stringify({ centroid: window.DP1_STATE.lastCentroid }));
+      __solarnextWriteScopedStorage("dp1_parcelle", JSON.stringify({ centroid: window.DP1_STATE.lastCentroid }));
       window.DP1_STATE.isValidated = true;
       console.log("[DP1][VALIDATE] Parcelle validée et persistée");
+      if (typeof window.__snDpAfterDp1Validated === "function") {
+        try {
+          window.__snDpAfterDp1Validated();
+        } catch (errDp) {
+          console.warn("[DP1] draft hook", errDp);
+        }
+      }
     } catch (err) {
       console.error("[DP1][VALIDATE] Erreur", err);
+      // Même si la génération des vues échoue, la parcelle cadastrale est déjà dans l’état : on force l’enregistrement.
+      window.DP1_STATE.isValidated = true;
+      try {
+        if (typeof refreshDP1ParcelleUI === "function") refreshDP1ParcelleUI();
+      } catch (_) {}
+      try {
+        if (typeof window.__snDpForceFlush === "function") window.__snDpForceFlush();
+        else if (window.DpDraftStore && typeof window.DpDraftStore.forceSaveDraft === "function") {
+          window.DpDraftStore.forceSaveDraft();
+        }
+      } catch (_) {}
     } finally {
       modal.dataset.generating = "0";
       closeModal();
@@ -1194,7 +2726,6 @@ if (btnValidate) {
   let map = null;
 
   let ignLayer = null;
-  let cadastreLayer = null;
 
   let viewStrict = null;
   let viewLibre = null;
@@ -1231,8 +2762,16 @@ function refreshDP1ParcelleUI() {
   }
 
   const section = cad.section || "—";
-  const numeroFull = [cad.section, cad.numero].filter(Boolean).join(" ").trim();
-  const surfaceText = cad.surface_m2 ? `${cad.surface_m2} m²` : "—";
+  const numeroFull =
+    (cad.parcel != null && String(cad.parcel).trim()) ||
+    [cad.section, cad.numero].filter(Boolean).join(" ").trim();
+  const smRaw = cad.surface_m2 != null ? cad.surface_m2 : cad.surface != null ? cad.surface : null;
+  const surfaceText =
+    smRaw !== null && smRaw !== undefined && String(smRaw).trim() !== ""
+      ? String(smRaw).indexOf("m²") >= 0
+        ? String(smRaw)
+        : `${smRaw} m²`
+      : "—";
 
   sectionEl.textContent = section;
   parcelleEl.textContent = numeroFull || "—";
@@ -1298,12 +2837,9 @@ function refreshDP1ParcelleUI() {
   // ✅ FIX ALL BROWSERS : attendre que les tuiles WMTS soient réellement chargées/dessinées
   // (rendercomplete n’est pas suffisant sur Firefox/Edge -> écran gris jusqu’à interaction)
   async function waitTilesIdle(timeoutMs = 2500) {
-    if (!map || !ignLayer || !cadastreLayer) return;
+    if (!map || !ignLayer) return;
 
-    const sources = [
-      ignLayer.getSource && ignLayer.getSource(),
-      cadastreLayer.getSource && cadastreLayer.getSource()
-    ].filter(Boolean);
+    const sources = [ignLayer.getSource && ignLayer.getSource()].filter(Boolean);
 
     if (!sources.length) return;
 
@@ -1383,6 +2919,9 @@ function refreshDP1ParcelleUI() {
   function buildLayers() {
     ignLayer = new ol.layer.Tile({
       opacity: 1,
+      transition: 0,
+      preload: 2,
+      cacheSize: 1024,
       source: new ol.source.WMTS({
         url: "https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile",
         layer: "GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2",
@@ -1395,26 +2934,13 @@ function refreshDP1ParcelleUI() {
       })
     });
 
-    cadastreLayer = new ol.layer.Tile({
-      opacity: 1,
-      source: new ol.source.WMTS({
-        url: "https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile",
-        layer: "CADASTRALPARCELS.PARCELLAIRE_EXPRESS",
-        matrixSet: "PM",
-        format: "image/png",
-        style: "normal",
-        tileGrid: wmtsGridPM,
-        wrapX: false,
-        crossOrigin: "anonymous"
-      })
-    });
   }
 
   // --------------------------
   // Build views
   // --------------------------
   function buildViews() {
-    const centerParis = ol.proj.fromLonLat([2.3488, 48.8534]);
+    const centerParis = fromLonLat([2.3488, 48.8534]);
 
    viewStrict = new ol.View({
   center: centerParis,
@@ -1438,26 +2964,6 @@ function refreshDP1ParcelleUI() {
   }
 
   // --------------------------
-  // CADASTRE AUTO — OFF quand trop dézoomé
-  // --------------------------
-  function updateCadastreVisibility() {
-    if (!map || !cadastreLayer) return;
-    const resolution = map.getView().getResolution();
-
-    // ✅ ton seuil d’origine conservé (tu dis qu’il est bon)
-    const CADASTRE_MAX_RESOLUTION = 1.4; // ~1:5000 (approx)
-    cadastreLayer.setVisible(resolution < CADASTRE_MAX_RESOLUTION);
-  }
-
-  function bindResolutionListenerToCurrentView() {
-    if (!map) return;
-    const v = map.getView();
-    v.un("change:resolution", updateCadastreVisibility);
-    v.on("change:resolution", updateCadastreVisibility);
-    updateCadastreVisibility();
-  }
-
-  // --------------------------
   // Marker layer + marker
   // --------------------------
   function initParcelleMarkerLayer() {
@@ -1474,7 +2980,8 @@ function setParcelleMarker(lon, lat) {
   if (!map || !parcelleMarkerLayer) return;
 
   const source = parcelleMarkerLayer.getSource();
-  const coords = ol.proj.fromLonLat([lon, lat]);
+  const coords = dp1Coord3857FromWgs84(lon, lat);
+  if (!coords) return;
 
   // 1ère fois : on crée la feature
   if (!parcelleMarkerFeature) {
@@ -1482,26 +2989,34 @@ function setParcelleMarker(lon, lat) {
       geometry: new ol.geom.Point(coords)
     });
 
+    // Épingle « carte » (SVG inline, pas de fichier) — même palette #ff3b3b
+    // TODO: optionnellement basculer vers asset packagé si besoin de variante HDPI
+    var dp1PinSvg =
+      '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="52" viewBox="0 0 40 52">' +
+      '<path fill="#ff3b3b" stroke="#ffffff" stroke-width="2" stroke-linejoin="round" d="M20 2C11 2 4 9 4 17.5c0 10 16 32.5 16 32.5s16-22.5 16-32.5C36 9 29 2 20 2z"/>' +
+      '<circle cx="20" cy="17" r="5" fill="#ffffff"/>' +
+      "</svg>";
     parcelleMarkerFeature.setStyle(
       new ol.style.Style({
         image: new ol.style.Icon({
-          src: "./assets/marker-pin-plan.svg",
-          crossOrigin: "anonymous",
+          src: "data:image/svg+xml;charset=utf-8," + encodeURIComponent(dp1PinSvg),
           anchor: [0.5, 1],
           anchorXUnits: "fraction",
           anchorYUnits: "fraction",
-          scale: 0.85
+          scale: 1
         })
       })
     );
 
     source.clear();
     source.addFeature(parcelleMarkerFeature);
+    window.parcelleMarkerFeature = parcelleMarkerFeature;
     return;
   }
 
   // sinon : on déplace la feature existante
   parcelleMarkerFeature.getGeometry().setCoordinates(coords);
+  window.parcelleMarkerFeature = parcelleMarkerFeature;
 }
 
 function enableMarkerDrag() {
@@ -1523,11 +3038,33 @@ function enableMarkerDrag() {
 
     window.DP1_STATE.currentPoint = { lat, lon };
 
-    if (window.DP1_STATE?.markDirty) window.DP1_STATE.markDirty();
-    else window.DP1_STATE.isValidated = false;
+    dp1MarkDirty();
 
     console.log("[DP1] Marker déplacé -> currentPoint", { lat, lon });
   });
+}
+
+/** Dernier état de la vue : centrage sur le marker (après toutes les animations OL). */
+function dp1CenterViewOnParcelleMarker() {
+  const mapOl = window.__DP1_OL_MAP;
+  const feature = window.parcelleMarkerFeature;
+  if (!mapOl || !feature) return;
+  const geom = feature.getGeometry();
+  if (!geom || typeof geom.getCoordinates !== "function") return;
+  const coord = geom.getCoordinates();
+  if (!coord || !coord.every(Number.isFinite)) return;
+  setTimeout(() => {
+    const view = mapOl.getView();
+    view.setCenter(coord);
+    try {
+      view.setZoom(19);
+    } catch (_) {
+      /* vue WMTS stricte */
+    }
+    try {
+      mapOl.renderSync();
+    } catch (_) {}
+  }, 100);
 }
 
 // --------------------------
@@ -1540,11 +3077,13 @@ async function centerMapFromLead() {
   const { lat, lon, adresse, cp, ville } = window.DP1_CONTEXT;
 
   // ======================================================
-  // 1️⃣ PRIORITÉ ABSOLUE — coordonnées ERPNext
+  // 1️⃣ PRIORITÉ ABSOLUE — coordonnées ERPNext (nombre ou chaîne JSON)
   // ======================================================
-  if (typeof lat === "number" && typeof lon === "number") {
-    setParcelleMarker(lon, lat);
-    return ol.proj.fromLonLat([lon, lat]);
+  const la0 = Number(lat);
+  const lo0 = Number(lon);
+  if (Number.isFinite(la0) && Number.isFinite(lo0)) {
+    setParcelleMarker(lo0, la0);
+    return fromLonLat([lo0, la0]);
   }
 
   // ======================================================
@@ -1566,7 +3105,7 @@ async function centerMapFromLead() {
 
     setParcelleMarker(lonBan, latBan);
 
-    return ol.proj.fromLonLat([lonBan, latBan]);
+    return fromLonLat([Number(lonBan), Number(latBan)]);
   } catch (e) {
     console.warn("[DP1] BAN impossible", e);
     return null;
@@ -1581,40 +3120,53 @@ async function centerMapFromLead() {
     if (map) return;
 
     const target = document.getElementById("dp1-ign-map");
-    if (!target) return;
+    if (!target) {
+      console.error("[DP1] #dp1-ign-map introuvable — impossible d’initialiser la carte.");
+      return;
+    }
 
-    buildLayers();
-    buildViews();
+    try {
+      buildLayers();
+      buildViews();
 
-   map = new ol.Map({
-  target,
-  layers: [ignLayer, cadastreLayer],
-  view: viewStrict,
-  pixelRatio: window.devicePixelRatio || 1,
-  controls: [
-    new ol.control.Zoom(),
-    new ol.control.Rotate({ autoHide: true })
-  ]
-});
+      map = new ol.Map({
+        target,
+        layers: [ignLayer],
+        view: viewStrict,
+        // Limiter le DPR : au-delà de 2, le coût GPU/largeur canvas explose sans gain net sur plans cadastraux.
+        pixelRatio: Math.min(2, window.devicePixelRatio || 1),
+        moveTolerance: 2,
+        maxTilesLoading: 12,
+        controls: [
+          new ol.control.Zoom(),
+          new ol.control.Rotate({ autoHide: true })
+        ]
+      });
 
+      window.__DP1_OL_MAP = map;
 
-    initParcelleMarkerLayer();
-    currentMode = "strict";
-  enableMarkerDrag();
+      initParcelleMarkerLayer();
+      currentMode = "strict";
+      enableMarkerDrag();
 
-    // ✅ bind sur la view active
-    bindResolutionListenerToCurrentView();
-
-    // API exposée
-    window.DP1_MAP = {
-      get map() { return map; },
-      get mode() { return currentMode; },
-      setMode,
-      setDP1Scale,
-      waitRenderComplete,
-      centerMapFromLead,
-      setParcelleMarker
-    };
+      // API exposée
+      window.DP1_MAP = {
+        get map() {
+          return map;
+        },
+        get mode() {
+          return currentMode;
+        },
+        setMode,
+        setDP1Scale,
+        waitRenderComplete,
+        centerMapFromLead,
+        setParcelleMarker
+      };
+    } catch (e) {
+      console.error("[DP1] Échec initialisation OpenLayers", e);
+      map = null;
+    }
   }
 
   // --------------------------
@@ -1633,7 +3185,6 @@ async function centerMapFromLead() {
 
     if (mode === "strict") {
       map.setView(viewStrict);
-      bindResolutionListenerToCurrentView();
 
       if (c) viewStrict.setCenter(c);
       if (typeof z === "number") viewStrict.setZoom(Math.min(20, Math.max(12, z)));
@@ -1643,7 +3194,6 @@ async function centerMapFromLead() {
     }
 
     map.setView(viewLibre);
-    bindResolutionListenerToCurrentView();
 
     if (c) viewLibre.setCenter(c);
     if (typeof z === "number") viewLibre.setZoom(Math.min(23, Math.max(12, z)));
@@ -1684,8 +3234,6 @@ function setDP1Scale(scale) {
   // 🔁 Phase 2 — retour sur la cible (comme l’utilisateur)
   view.setResolution(targetResolution);
   map.renderSync();
-
-  updateCadastreVisibility();
 }
 
 // --------------------------
@@ -1861,6 +3409,8 @@ async function runDP1ViewGeneration() {
   }
   // Rafraîchit l’UI "Parcelle validée" uniquement à partir de DP1_STATE.selectedParcel
   refreshDP1ParcelleUI();
+
+  dp1CenterViewOnParcelleMarker();
 }
 
 // --------------------------
@@ -1868,8 +3418,10 @@ async function runDP1ViewGeneration() {
 // --------------------------
 
 function closeModal() {
-  modal.setAttribute("aria-hidden", "true");
-  modal.dataset.generating = "0";
+  const m = __getDp1MapModalEl();
+  if (!m) return;
+  m.setAttribute("aria-hidden", "true");
+  m.dataset.generating = "0";
 
   if (document.activeElement) {
     document.activeElement.blur();
@@ -1877,8 +3429,10 @@ function closeModal() {
 }
 
 async function openModal() {
+  const m = __getDp1MapModalEl();
+  if (!m) return;
   // 1) Ouvrir le modal
-  modal.setAttribute("aria-hidden", "false");
+  m.setAttribute("aria-hidden", "false");
 
   // 2) Laisser le navigateur poser le layout
   await new Promise(r => requestAnimationFrame(r));
@@ -1886,48 +3440,38 @@ async function openModal() {
 
   // 3) Créer la map
   ensureMap();
-  if (!map) return;
+  if (!map) {
+    console.error("[DP1] Impossible d’afficher la carte (initialisation OL ou conteneur).");
+    alert(
+      "La carte du DP1 ne s’est pas chargée.\n\nRechargez la page ou ouvrez la console (F12) pour le détail."
+    );
+    return;
+  }
 
-  // 4) Forcer la taille réelle
+  // 4) Forcer la taille réelle (+ second passage après layout embed CRM / flex)
+  map.updateSize();
+  map.renderSync();
+  await new Promise((r) => setTimeout(r, 60));
   map.updateSize();
   map.renderSync();
 
-  // 5) Recentrer depuis BAN
-  const center = await centerMapFromLead();
-  if (center) {
-    const view = map.getView();
-    view.setCenter(center);
-    view.setZoom(view.getZoom() ?? 17);
-  }
+  // 5) Recentrer depuis BAN (marker + état ; pas de setCenter ici — centrage final en fin de flux)
+  await centerMapFromLead();
 
   // 5bis) Snapping auto : si une parcelle est détectée depuis le point initial,
   // on repositionne le marker au centroïde avant le rendu final (UX : meilleur centrage).
-  const snapped = await snapDP1MarkerToDetectedParcelCentroid();
-  if (snapped) {
-    const p2 = window.DP1_STATE?.currentPoint;
-    if (p2 && map?.getView) {
-      const view = map.getView();
-      view.setCenter(ol.proj.fromLonLat([p2.lon, p2.lat]));
-    }
-  }
+  await snapDP1MarkerToDetectedParcelCentroid();
 
   // 6) Rendu stable
   map.renderSync();
   await waitRenderComplete(1200);
 
-  // 7) Cadastre auto
-  updateCadastreVisibility();
+  dp1CenterViewOnParcelleMarker();
 }
 
  // --------------------------
-// Bind UI events
+// Bind UI events — délégation document unique ; openModal courant via window.__solarnext_dp1_openModal
 // --------------------------
-document.addEventListener("click", (e) => {
-  if (e.target.closest("#dp1-generate-auto")) {
-    e.preventDefault();
-    openModal();
-  }
-});
 
 // ===============================
 // DP1 — Bouton "Modifier la position"
@@ -1968,6 +3512,30 @@ modal.addEventListener("click", async (e) => {
       if (e.key === "l" || e.key === "L") window.DP1_MAP.setMode("libre");
     });
   }
+
+  window.__solarnext_dp1_openModal = openModal;
+  window.__solarnext_dp1_closeModal = closeModal;
+
+  // Délégation sur #dp-tool-root (pas sur document en bubble) : l’overlay CRM React
+  // (DpOverlay) fait stopPropagation sur le panneau — le clic n’atteint jamais document.
+  if (!window.__SOLARNEXT_DP1_GENERATE_DELEGATE_BOUND) {
+    window.__SOLARNEXT_DP1_GENERATE_DELEGATE_BOUND = true;
+    const dpToolRoot = document.getElementById("dp-tool-root");
+    const bindTarget = dpToolRoot || document;
+    const useCapture = !dpToolRoot;
+    bindTarget.addEventListener(
+      "click",
+      function (e) {
+        const raw = e.target;
+        const el = raw && raw.nodeType === 1 ? raw : raw && raw.parentElement;
+        if (!el || !el.closest("#dp1-generate-auto")) return;
+        e.preventDefault();
+        var fn = window.__solarnext_dp1_openModal;
+        if (typeof fn === "function") void fn();
+      },
+      useCapture
+    );
+  }
 }
 function initDP1_ImagePreview() {
   const preview = document.querySelector(".dp-image-preview");
@@ -1975,31 +3543,52 @@ function initDP1_ImagePreview() {
 
   const previewImg = preview.querySelector("img");
 
-  // OUVERTURE au clic sur une image DP1
-  document.addEventListener("click", (e) => {
-    const img = e.target.closest(".dp-generated img");
-    if (!img) return;
+  // OUVERTURE au clic sur une image DP1 (un seul listener document — évite doublons au retour sur DP1)
+  if (!window.__DP1_IMAGE_PREVIEW_DOC_OPEN_BOUND) {
+    window.__DP1_IMAGE_PREVIEW_DOC_OPEN_BOUND = true;
+    const dpToolRoot = document.getElementById("dp-tool-root");
+    const bindTarget = dpToolRoot || document;
+    const useCapture = !dpToolRoot;
+    bindTarget.addEventListener(
+      "click",
+      (e) => {
+        const raw = e.target;
+        const el = raw && raw.nodeType === 1 ? raw : raw && raw.parentElement;
+        const img = el && el.closest(".dp-generated img");
+        if (!img) return;
 
-    previewImg.src = img.src;
-    preview.setAttribute("aria-hidden", "false");
-    document.body.classList.add("dp-lock-scroll");
-  });
+        const pv = document.querySelector(".dp-image-preview");
+        const pvi = pv && pv.querySelector("img");
+        if (!pv || !pvi) return;
 
-  // FERMETURE au clic
+        pvi.src = img.src;
+        pv.setAttribute("aria-hidden", "false");
+        document.body.classList.add("dp-lock-scroll");
+      },
+      useCapture
+    );
+  }
+
+  // FERMETURE au clic (nœud preview courant)
   preview.addEventListener("click", () => {
     preview.setAttribute("aria-hidden", "true");
     previewImg.src = "";
     document.body.classList.remove("dp-lock-scroll");
   });
 
-  // FERMETURE avec ESC
-  window.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") {
-      preview.setAttribute("aria-hidden", "true");
-      previewImg.src = "";
+  // FERMETURE avec ESC (un seul listener)
+  if (!window.__DP1_IMAGE_PREVIEW_ESC_BOUND) {
+    window.__DP1_IMAGE_PREVIEW_ESC_BOUND = true;
+    window.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape") return;
+      const pv = document.querySelector(".dp-image-preview");
+      const pvi = pv && pv.querySelector("img");
+      if (!pv || !pvi) return;
+      pv.setAttribute("aria-hidden", "true");
+      pvi.src = "";
       document.body.classList.remove("dp-lock-scroll");
-    }
-  });
+    });
+  }
 }
 // ======================================================
 // DP1 — RÉCUPÉRATION DES 3 PLANS POUR PDF
@@ -2060,29 +3649,13 @@ async function generateDP1PDF() {
     note: "Document généré automatiquement"
   };
 
-  const res = await fetch("http://localhost:3000/pdf/render/dp1/pdf", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ dp1Data })
-  });
-
-  if (!res.ok) {
-    alert("Erreur PDF DP1");
-    return;
-  }
-
-  const blob = await res.blob();
-  const url = URL.createObjectURL(blob);
-  window.open(url, "_blank");
-
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "dp1-plan-situation.pdf";
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-
-  setTimeout(() => URL.revokeObjectURL(url), 3000);
+  await __solarnextDpFetchPdfWithReplace(
+    "/pdf/render/dp1/pdf",
+    function () {
+      return { dp1Data: dp1Data };
+    },
+    "dp1"
+  );
 }
 
 // ======================================================
@@ -2211,33 +3784,28 @@ function initDP4_UIStates() {
 // DP2 — IMAGE FINALE (fond capture + overlay canvas)
 // - 1 seule image base64 envoyée au backend (images.plan)
 // ======================================================
-async function collectDP2FinalPlanImage() {
+function collectDP2FinalPlanImageSync() {
   const imgEl = document.getElementById("dp2-captured-image");
   const overlayCanvas = document.getElementById("dp2-draw-canvas");
 
   if (!window.DP2_STATE?.capture?.imageBase64) {
-    console.warn("[DP2 PDF] capture absente");
     return null;
   }
 
   if (!imgEl || !imgEl.src || !imgEl.src.startsWith("data:image")) {
-    console.warn("[DP2 PDF] image de fond DP2 absente/invalide");
     return null;
   }
 
   if (!overlayCanvas || overlayCanvas.width <= 0 || overlayCanvas.height <= 0) {
-    console.warn("[DP2 PDF] canvas overlay DP2 absent/invalide");
     return null;
   }
 
-  // Forcer un dernier rendu si une fonction de rendu existe (sans refactor)
   if (typeof window.renderDP2FromState === "function") {
     try { window.renderDP2FromState(); } catch (_) {}
   } else if (typeof renderDP2FromState === "function") {
     try { renderDP2FromState(); } catch (_) {}
   }
 
-  // Offscreen = buffer final (dimensions natives)
   const out = document.createElement("canvas");
   const w = imgEl.naturalWidth || overlayCanvas.width;
   const h = imgEl.naturalHeight || overlayCanvas.height;
@@ -2251,6 +3819,750 @@ async function collectDP2FinalPlanImage() {
 
   return out.toDataURL("image/png");
 }
+
+async function collectDP2FinalPlanImage() {
+  const r = collectDP2FinalPlanImageSync();
+  if (!r) {
+    console.warn("[DP2 PDF] composition plan absente ou incomplète");
+  }
+  return r;
+}
+
+// ======================================================
+// DP2 — VERSIONS (UX + persistance brouillon, sans toucher au moteur canvas)
+// ======================================================
+function dp2Uuid() {
+  return "v_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 10);
+}
+
+/**
+ * Supprime les doublons (même id), les entrées sans id, et réaligne dp2ActiveVersionId.
+ * Appelé à chaque lecture des versions (réhydratation serveur / état corrompu possible).
+ */
+function dp2SanitizeVersionsInPlace() {
+  const s = window.DP2_STATE;
+  if (!s || !Array.isArray(s.dp2Versions)) return;
+  const seen = new Set();
+  const out = [];
+  for (let i = 0; i < s.dp2Versions.length; i++) {
+    const v = s.dp2Versions[i];
+    if (!v || typeof v !== "object" || v.id == null || String(v.id).trim() === "") continue;
+    const id = String(v.id);
+    if (seen.has(id)) continue;
+    seen.add(id);
+    out.push(v);
+  }
+  s.dp2Versions = out;
+  if (s.dp2ActiveVersionId != null && String(s.dp2ActiveVersionId).trim() !== "") {
+    const aid = String(s.dp2ActiveVersionId);
+    if (!seen.has(aid)) {
+      s.dp2ActiveVersionId = out.length ? out[out.length - 1].id : null;
+    }
+  } else if (out.length && (s.dp2ActiveVersionId == null || s.dp2ActiveVersionId === "")) {
+    s.dp2ActiveVersionId = out[out.length - 1].id;
+  }
+}
+
+function dp2EnsureVersionsArray() {
+  if (!window.DP2_STATE) return [];
+  if (!Array.isArray(window.DP2_STATE.dp2Versions)) window.DP2_STATE.dp2Versions = [];
+  try {
+    dp2SanitizeVersionsInPlace();
+  } catch (_) {}
+  return window.DP2_STATE.dp2Versions;
+}
+
+function dp2CloneWorkingStateForVersionJson() {
+  const s = window.DP2_STATE;
+  if (!s) return null;
+  try {
+    const raw = JSON.parse(JSON.stringify(s));
+    delete raw.dp2Versions;
+    delete raw.dp2ActiveVersionId;
+    Object.keys(raw).forEach((k) => {
+      if (k.indexOf("_") === 0) delete raw[k];
+    });
+    return raw;
+  } catch (e) {
+    return null;
+  }
+}
+
+function dp2WorkingHasPlanContent(sIn) {
+  const s = sIn != null && typeof sIn === "object" ? sIn : window.DP2_STATE;
+  if (!s) return false;
+  if (s.capture && s.capture.imageBase64) return true;
+  if (Array.isArray(s.panels) && s.panels.length) return true;
+  if (Array.isArray(s.businessObjects) && s.businessObjects.length) return true;
+  if (Array.isArray(s.buildingContours) && s.buildingContours.length) return true;
+  if (Array.isArray(s.textObjects) && s.textObjects.length) return true;
+  if (Array.isArray(s.objects) && s.objects.length) return true;
+  return false;
+}
+
+function dp2VersionRowHasPersistableContent(v) {
+  if (!v || typeof v !== "object") return false;
+  if (typeof v.snapshot_image === "string" && v.snapshot_image.indexOf("data:image") === 0) return true;
+  const sj = v.state_json;
+  if (sj && typeof sj === "object" && dp2WorkingHasPlanContent(sj)) return true;
+  return false;
+}
+
+/**
+ * Fusionne les versions « fantômes » : plusieurs lignes sans miniature ni plan dans state_json
+ * (souvent d’anciens « Nouvelle version » jamais remplis). On garde une seule ligne vide
+ * (version active si possible, sinon la plus récente). Les versions avec contenu sont conservées.
+ * @returns {boolean} true si dp2Versions a été modifié
+ */
+function dp2PruneRedundantEmptyVersionsInPlace() {
+  const s = window.DP2_STATE;
+  if (!s || !Array.isArray(s.dp2Versions)) return false;
+  const versions = s.dp2Versions;
+  const empties = [];
+  for (let i = 0; i < versions.length; i++) {
+    const v = versions[i];
+    if (!v || v.id == null || String(v.id).trim() === "") continue;
+    if (!dp2VersionRowHasPersistableContent(v)) empties.push(v);
+  }
+  if (empties.length <= 1) return false;
+
+  const activeId =
+    s.dp2ActiveVersionId != null && String(s.dp2ActiveVersionId).trim() !== ""
+      ? String(s.dp2ActiveVersionId)
+      : "";
+  let keep = null;
+  if (activeId) {
+    for (let k = 0; k < empties.length; k++) {
+      if (String(empties[k].id) === activeId) {
+        keep = empties[k];
+        break;
+      }
+    }
+  }
+  if (!keep) keep = empties[empties.length - 1];
+  const keepId = String(keep.id);
+
+  const out = [];
+  for (let m = 0; m < versions.length; m++) {
+    const vv = versions[m];
+    if (!vv || vv.id == null || String(vv.id).trim() === "") continue;
+    if (dp2VersionRowHasPersistableContent(vv)) {
+      out.push(vv);
+      continue;
+    }
+    if (String(vv.id) === keepId) out.push(vv);
+  }
+
+  if (out.length === versions.length) return false;
+  s.dp2Versions = out;
+  const seen = new Set(out.map((x) => (x && x.id != null ? String(x.id) : "")));
+  if (activeId && !seen.has(activeId)) {
+    s.dp2ActiveVersionId = out.length ? out[out.length - 1].id : null;
+  }
+  return true;
+}
+
+function dp2AfterHydrateMigrateVersions() {
+  const s = window.DP2_STATE;
+  if (!s) return;
+  const versions = dp2EnsureVersionsArray();
+  if (versions.length) return;
+  if (!dp2WorkingHasPlanContent()) return;
+  const snap = collectDP2FinalPlanImageSync();
+  versions.push({
+    id: dp2Uuid(),
+    createdAt: new Date().toISOString(),
+    snapshot_image: snap || null,
+    state_json: dp2CloneWorkingStateForVersionJson()
+  });
+  s.dp2ActiveVersionId = versions[versions.length - 1].id;
+}
+
+/** Si le brouillon n’a pas de capture à la racine mais une version avec state_json, réapplique l’état utile. */
+function dp2RehydrateWorkingFromActiveVersionIfNeeded() {
+  const s = window.DP2_STATE;
+  if (!s) return;
+  if (s.capture && s.capture.imageBase64) return;
+  const versions = dp2EnsureVersionsArray();
+  if (!versions.length) return;
+  const id = s.dp2ActiveVersionId;
+  const v = id ? versions.find((x) => x && x.id === id) : null;
+  const target = v || versions[versions.length - 1];
+  const sj = target && target.state_json;
+  if (sj && typeof sj === "object" && sj.capture && sj.capture.imageBase64) {
+    dp2ApplyStateJsonToWorking(sj);
+  }
+}
+
+function dp2FindVersionIndexById(id) {
+  const versions = dp2EnsureVersionsArray();
+  if (!id) return -1;
+  return versions.findIndex((v) => v && v.id === id);
+}
+
+function dp2SyncActiveVersionBeforeDraft() {
+  const s = window.DP2_STATE;
+  if (!s) return;
+  const versions = dp2EnsureVersionsArray();
+  let id = s.dp2ActiveVersionId;
+  if (!id && versions.length) {
+    id = versions[versions.length - 1].id;
+    s.dp2ActiveVersionId = id;
+  }
+  if (!id) return;
+  const idx = dp2FindVersionIndexById(id);
+  if (idx < 0) return;
+  const stateJson = dp2CloneWorkingStateForVersionJson();
+  const snap = collectDP2FinalPlanImageSync();
+  const prev = versions[idx] || {};
+  versions[idx] = {
+    id: prev.id || id,
+    createdAt: prev.createdAt || new Date().toISOString(),
+    snapshot_image: snap != null ? snap : (prev.snapshot_image != null ? prev.snapshot_image : null),
+    state_json: stateJson || prev.state_json || null
+  };
+}
+
+function dp2TeardownMapIfAny() {
+  try {
+    if (window.__dp2MapResizeObs) {
+      window.__dp2MapResizeObs.disconnect();
+      window.__dp2MapResizeObs = null;
+    }
+  } catch (_) {}
+  try {
+    if (window.DP2_MAP && window.DP2_MAP.map && typeof window.DP2_MAP.map.setTarget === "function") {
+      window.DP2_MAP.map.setTarget(null);
+    }
+  } catch (_) {}
+  window.DP2_MAP = null;
+  window.__DP2_INIT_DONE = false;
+}
+
+function dp2ResetWorkingEditorFieldsPreservingVersions() {
+  const s = window.DP2_STATE;
+  if (!s) return;
+  const versions = dp2EnsureVersionsArray();
+  const activeId = s.dp2ActiveVersionId;
+  const fresh = {
+    mode: "CAPTURE",
+    scale_m_per_px: null,
+    orientation: "N",
+    backgroundImage: null,
+    objects: [],
+    buildingContours: [],
+    selectedBuildingContourId: null,
+    buildingContourInteraction: null,
+    lineVertexInteraction: null,
+    disjoncteurScale: 1,
+    panels: [],
+    textObjects: [],
+    history: [],
+    currentTool: "select",
+    selectedObjectId: null,
+    selectedPanelId: null,
+    selectedPanelIds: [],
+    selectedTextId: null,
+    selectedTextIds: [],
+    drawingPreview: null,
+    businessObjects: [],
+    selectedBusinessObjectId: null,
+    _businessHoverId: null,
+    businessInteraction: null,
+    businessDragCandidate: null,
+    pvPanelInteraction: null,
+    panelInteraction: null,
+    panelGroupInteraction: null,
+    textInteraction: null,
+    selectionRect: null,
+    photoCategory: null,
+    panelModel: null,
+    viewZoom: 1,
+    viewPanX: 0,
+    viewPanY: 0,
+    measureLineStart: null,
+    ridgeLineStart: null,
+    capture: null,
+    editorProfile: null,
+    dp2Versions: versions,
+    dp2ActiveVersionId: activeId
+  };
+  Object.keys(s).forEach((k) => {
+    delete s[k];
+  });
+  Object.assign(s, fresh);
+}
+
+function dp2ApplyStateJsonToWorking(stateJson) {
+  if (!stateJson || typeof stateJson !== "object" || !window.DP2_STATE) return;
+  const s = window.DP2_STATE;
+  const versions = dp2EnsureVersionsArray();
+  const activeId = s.dp2ActiveVersionId;
+  let copy;
+  try {
+    copy = JSON.parse(JSON.stringify(stateJson));
+  } catch (_) {
+    return;
+  }
+  Object.keys(s).forEach((k) => delete s[k]);
+  Object.assign(s, copy);
+  s.dp2Versions = versions;
+  s.dp2ActiveVersionId = activeId;
+}
+
+function dp2RestoreDomForWorkingState() {
+  const mapWrap = document.getElementById("dp2-ign-map");
+  const imgWrap = document.getElementById("dp2-captured-image-wrap");
+  const imgEl = document.getElementById("dp2-captured-image");
+  const modal = document.getElementById("dp2-map-modal");
+  const arrow = modal ? modal.querySelector(".dp1-north-arrow") : null;
+  if (window.DP2_STATE?.capture?.imageBase64) {
+    if (mapWrap) mapWrap.style.display = "none";
+    if (imgWrap) imgWrap.style.display = "block";
+    if (imgEl) imgEl.src = window.DP2_STATE.capture.imageBase64;
+    if (arrow) arrow.style.display = "";
+  } else {
+    if (mapWrap) mapWrap.style.display = "";
+    if (imgWrap) imgWrap.style.display = "none";
+    if (arrow) arrow.style.display = "";
+  }
+}
+
+function dp2GetPreviewDataUrlForVersion(v) {
+  if (!v || typeof v !== "object") return null;
+  if (typeof v.snapshot_image === "string" && v.snapshot_image.indexOf("data:image") === 0) {
+    return v.snapshot_image;
+  }
+  const sj = v.state_json;
+  if (sj && sj.capture && typeof sj.capture.imageBase64 === "string") {
+    return sj.capture.imageBase64;
+  }
+  return null;
+}
+
+function dp2UpdateRepairHintVisibility() {
+  const row = document.getElementById("dp2-versions-repair");
+  if (!row) return;
+  try {
+    const versions = typeof dp2EnsureVersionsArray === "function" ? dp2EnsureVersionsArray() : [];
+    row.hidden = !Array.isArray(versions) || versions.length <= 5;
+  } catch (_) {
+    row.hidden = true;
+  }
+}
+
+/** Re-render the document version dropdown from current DP2_STATE (after delete/new/dup outside menu clicks). */
+function dp2RefreshDocVersionMenu() {
+  try {
+    if (typeof window.snDpVRefreshDocVersionMenu === "function") {
+      window.snDpVRefreshDocVersionMenu("dp2");
+    }
+  } catch (_) {}
+  try {
+    if (typeof dp2UpdateRepairHintVisibility === "function") dp2UpdateRepairHintVisibility();
+  } catch (_) {}
+}
+
+function dp2RenderEntryPanel() {
+  const panel = document.getElementById("dp2-entry-panel");
+  const prevImg = document.getElementById("dp2-entry-preview");
+  const rowEmpty = document.getElementById("dp2-entry-actions-empty");
+  const rowList = document.getElementById("dp2-entry-actions-has-versions");
+  const emptyHint = document.getElementById("dp2-entry-preview-empty");
+  if (!panel || !prevImg || !rowEmpty || !rowList) return;
+
+  const versions = dp2EnsureVersionsArray();
+  if (!versions.length) {
+    panel.hidden = false;
+    rowEmpty.hidden = false;
+    rowList.hidden = true;
+    prevImg.removeAttribute("src");
+    prevImg.hidden = true;
+    if (emptyHint) {
+      emptyHint.textContent = "Créez votre premier plan de masse pour ce dossier.";
+      emptyHint.hidden = false;
+    }
+    return;
+  }
+
+  panel.hidden = false;
+  rowEmpty.hidden = true;
+  rowList.hidden = false;
+
+  let preview = null;
+  const activeId = window.DP2_STATE?.dp2ActiveVersionId;
+  if (activeId) {
+    const v = versions.find((x) => x && x.id === activeId);
+    preview = dp2GetPreviewDataUrlForVersion(v);
+  }
+  if (!preview) {
+    for (let i = versions.length - 1; i >= 0; i--) {
+      preview = dp2GetPreviewDataUrlForVersion(versions[i]);
+      if (preview) break;
+    }
+  }
+  if (preview) {
+    prevImg.hidden = false;
+    prevImg.src = preview;
+    if (emptyHint) emptyHint.hidden = true;
+  } else {
+    prevImg.hidden = true;
+    prevImg.removeAttribute("src");
+    if (emptyHint) emptyHint.hidden = false;
+  }
+  try {
+    dp2UpdateRepairHintVisibility();
+  } catch (_) {}
+}
+
+function dp2EnsureVersionRowBeforeEdit() {
+  const s = window.DP2_STATE;
+  if (!s) return;
+  const versions = dp2EnsureVersionsArray();
+  if (!s.dp2ActiveVersionId) {
+    if (!versions.length) {
+      versions.push({
+        id: dp2Uuid(),
+        createdAt: new Date().toISOString(),
+        snapshot_image: null,
+        state_json: null
+      });
+    }
+    s.dp2ActiveVersionId = versions[versions.length - 1].id;
+  }
+}
+
+function dp2BootstrapEditorDomFromWorking() {
+  if (!window.DP2_STATE?.capture?.imageBase64) return;
+  const mapWrapR = document.getElementById("dp2-ign-map");
+  if (mapWrapR) mapWrapR.style.display = "none";
+  const imgWrapR = document.getElementById("dp2-captured-image-wrap");
+  const imgElR = document.getElementById("dp2-captured-image");
+  if (imgWrapR && imgElR) {
+    const runEditor = function () {
+      try {
+        initDP2Editor();
+        if (typeof window.renderDP2FromState === "function") window.renderDP2FromState();
+      } catch (err) {
+        console.warn("[DP2] restore editor", err);
+      }
+    };
+    imgElR.onload = runEditor;
+    imgElR.src = window.DP2_STATE.capture.imageBase64;
+    imgWrapR.style.display = "block";
+    if (imgElR.complete && imgElR.naturalWidth > 0) {
+      requestAnimationFrame(runEditor);
+    }
+  }
+  try {
+    setDP2ModeEdition();
+  } catch (_) {}
+}
+
+function dp2OnEntryCreateFirstPlan(e) {
+  if (e) e.preventDefault();
+  const versions = dp2EnsureVersionsArray();
+  const id = dp2Uuid();
+  versions.push({
+    id,
+    createdAt: new Date().toISOString(),
+    snapshot_image: null,
+    state_json: null
+  });
+  window.DP2_STATE.dp2ActiveVersionId = id;
+  dp2TeardownMapIfAny();
+  dp2ResetWorkingEditorFieldsPreservingVersions();
+  dp2RestoreDomForWorkingState();
+  setDP2ModeCapture();
+  if (typeof window.dp2OpenMapModal === "function") window.dp2OpenMapModal();
+  try {
+    dp2RefreshDocVersionMenu();
+  } catch (_) {}
+}
+
+function dp2OnEntryContinue(e) {
+  if (e) e.preventDefault();
+  dp2EnsureVersionRowBeforeEdit();
+  dp2TeardownMapIfAny();
+  dp2RestoreDomForWorkingState();
+  if (window.DP2_STATE?.capture?.imageBase64) {
+    dp2BootstrapEditorDomFromWorking();
+  } else {
+    try {
+      setDP2ModeCapture();
+    } catch (_) {}
+  }
+  if (typeof window.dp2OpenMapModal === "function") window.dp2OpenMapModal();
+}
+
+function dp2OnEntryNewVersion(e) {
+  if (e) e.preventDefault();
+  dp2SyncActiveVersionBeforeDraft();
+  const versions = dp2EnsureVersionsArray();
+  const id = dp2Uuid();
+  versions.push({
+    id,
+    createdAt: new Date().toISOString(),
+    snapshot_image: null,
+    state_json: null
+  });
+  window.DP2_STATE.dp2ActiveVersionId = id;
+  dp2TeardownMapIfAny();
+  dp2ResetWorkingEditorFieldsPreservingVersions();
+  dp2RestoreDomForWorkingState();
+  setDP2ModeCapture();
+  if (typeof window.dp2OpenMapModal === "function") window.dp2OpenMapModal();
+  try {
+    dp2RefreshDocVersionMenu();
+  } catch (_) {}
+}
+
+function dp2OnEntryDeleteVersion(e) {
+  if (e) e.preventDefault();
+  if (!window.confirm("Supprimer cette version du plan de masse ?")) return;
+  const versions = dp2EnsureVersionsArray();
+  const id = window.DP2_STATE.dp2ActiveVersionId;
+  const idx = dp2FindVersionIndexById(id);
+  if (idx < 0) return;
+  versions.splice(idx, 1);
+  dp2TeardownMapIfAny();
+  if (versions.length) {
+    const last = versions[versions.length - 1];
+    window.DP2_STATE.dp2ActiveVersionId = last.id;
+    const sj = last.state_json && typeof last.state_json === "object" ? last.state_json : null;
+    if (sj && dp2WorkingHasPlanContent(sj)) {
+      dp2ApplyStateJsonToWorking(sj);
+    } else if (dp2ApplySnapshotImageToWorkingCapture(last.snapshot_image)) {
+      /* miniature seule */
+    } else {
+      dp2ResetWorkingEditorFieldsPreservingVersions();
+    }
+  } else {
+    window.DP2_STATE.dp2ActiveVersionId = null;
+    dp2ResetWorkingEditorFieldsPreservingVersions();
+  }
+  dp2RestoreDomForWorkingState();
+  if (window.DP2_STATE?.capture?.imageBase64) {
+    dp2BootstrapEditorDomFromWorking();
+  } else {
+    try {
+      setDP2ModeCapture();
+    } catch (_) {}
+  }
+  dp2RenderEntryPanel();
+  if (typeof window.DP2_UI?.setState === "function") {
+    window.DP2_UI.setState(window.DP2_STATE.capture?.imageBase64 ? "GENERATED" : "EMPTY");
+  }
+  try {
+    dp2RefreshDocVersionMenu();
+  } catch (_) {}
+  try {
+    var flushP =
+      typeof window.__snDpForceFlush === "function"
+        ? Promise.resolve(window.__snDpForceFlush())
+        : typeof window.DpDraftStore?.forceSaveDraft === "function"
+          ? Promise.resolve(window.DpDraftStore.forceSaveDraft())
+          : null;
+    if (flushP) {
+      flushP.finally(function () {
+        try {
+          dp2RefreshDocVersionMenu();
+        } catch (_) {}
+      });
+    } else if (typeof window.__snDpPersistDebounced === "function") {
+      window.__snDpPersistDebounced("fast");
+      try {
+        Promise.resolve().then(function () {
+          try {
+            dp2RefreshDocVersionMenu();
+          } catch (_) {}
+        });
+      } catch (_) {}
+    }
+  } catch (_) {
+    try {
+      dp2RefreshDocVersionMenu();
+    } catch (_) {}
+  }
+}
+
+/**
+ * Répare un brouillon surchargé : une seule version = l'état actuellement édité (plan affiché).
+ * À lancer depuis la console (F12) sur la page DP2 avec le dossier déjà ouvert, puis attendre « enregistré ».
+ */
+function dp2CollapseVersionsToSingleActive() {
+  if (!window.DP2_STATE) return Promise.resolve(null);
+  const stateJson = dp2CloneWorkingStateForVersionJson();
+  const snap = typeof collectDP2FinalPlanImageSync === "function" ? collectDP2FinalPlanImageSync() : null;
+  const id = dp2Uuid();
+  const now = new Date().toISOString();
+  const s = window.DP2_STATE;
+  s.dp2Versions = [
+    {
+      id,
+      createdAt: now,
+      snapshot_image: snap != null ? snap : null,
+      state_json: stateJson || null,
+    },
+  ];
+  s.dp2ActiveVersionId = id;
+  try {
+    dp2SanitizeVersionsInPlace();
+  } catch (_) {}
+  if (stateJson && dp2WorkingHasPlanContent(stateJson)) {
+    dp2ApplyStateJsonToWorking(stateJson);
+  } else if (typeof snap === "string" && snap.indexOf("data:image") === 0) {
+    dp2ApplySnapshotImageToWorkingCapture(snap);
+  } else {
+    dp2ResetWorkingEditorFieldsPreservingVersions();
+  }
+  try {
+    dp2TeardownMapIfAny();
+  } catch (_) {}
+  try {
+    dp2RestoreDomForWorkingState();
+  } catch (_) {}
+  if (s.capture?.imageBase64) {
+    try {
+      dp2BootstrapEditorDomFromWorking();
+    } catch (_) {}
+  } else {
+    try {
+      setDP2ModeCapture();
+    } catch (_) {}
+  }
+  try {
+    dp2RenderEntryPanel();
+  } catch (_) {}
+  if (typeof window.DP2_UI?.setState === "function") {
+    window.DP2_UI.setState(s.capture?.imageBase64 ? "GENERATED" : "EMPTY");
+  }
+  try {
+    if (typeof window.snDpVSetupPageUi === "function") {
+      window.snDpVSetupPageUi("dp2", {
+        onAfter: function () {
+          try {
+            if (typeof dp2RenderEntryPanel === "function") dp2RenderEntryPanel();
+          } catch (_) {}
+        },
+      });
+    }
+  } catch (_) {}
+  try {
+    if (typeof window.__snDpForceFlush === "function") {
+      return window.__snDpForceFlush();
+    }
+    if (typeof window.DpDraftStore?.forceSaveDraft === "function") {
+      return window.DpDraftStore.forceSaveDraft();
+    }
+  } catch (_) {}
+  return Promise.resolve(null);
+}
+
+function dp2VersionStatusForDocMenu(v, activeId) {
+  if (!v) return "Brouillon";
+  var sj = v.state_json;
+  if (sj && sj.capture && sj.capture.imageBase64) return "Validée";
+  if (sj && typeof dp2WorkingHasPlanContent === "function" && dp2WorkingHasPlanContent(sj)) return "Validée";
+  if (typeof v.snapshot_image === "string" && v.snapshot_image.indexOf("data:image") === 0) return "Validée";
+  if (v.id === activeId) return "En cours";
+  return "Brouillon";
+}
+
+function dp2ApplySnapshotImageToWorkingCapture(snapshot) {
+  if (typeof snapshot !== "string" || snapshot.indexOf("data:image") !== 0) return false;
+  dp2ResetWorkingEditorFieldsPreservingVersions();
+  window.DP2_STATE.capture = { imageBase64: snapshot, resolution: null };
+  return true;
+}
+
+function dp2SetActiveVersion(vid) {
+  dp2SyncActiveVersionBeforeDraft();
+  const versions = dp2EnsureVersionsArray();
+  const idx = dp2FindVersionIndexById(vid);
+  if (idx < 0) return;
+  const v = versions[idx];
+  window.DP2_STATE.dp2ActiveVersionId = vid;
+  const sj = v && v.state_json && typeof v.state_json === "object" ? v.state_json : null;
+  if (sj && dp2WorkingHasPlanContent(sj)) {
+    dp2ApplyStateJsonToWorking(sj);
+  } else if (v && dp2ApplySnapshotImageToWorkingCapture(v.snapshot_image)) {
+    /* state_json absent ou vide : miniature seule (anciennes lignes de version) */
+  } else {
+    dp2ResetWorkingEditorFieldsPreservingVersions();
+  }
+  dp2TeardownMapIfAny();
+  dp2RestoreDomForWorkingState();
+  if (window.DP2_STATE?.capture?.imageBase64) {
+    dp2BootstrapEditorDomFromWorking();
+  } else {
+    try {
+      setDP2ModeCapture();
+    } catch (_) {}
+  }
+  try {
+    dp2RenderEntryPanel();
+  } catch (_) {}
+  if (typeof window.DP2_UI?.setState === "function") {
+    window.DP2_UI.setState(window.DP2_STATE.capture?.imageBase64 ? "GENERATED" : "EMPTY");
+  }
+  try {
+    dp2RefreshDocVersionMenu();
+  } catch (_) {}
+}
+
+function dp2DuplicateActiveVersion() {
+  dp2SyncActiveVersionBeforeDraft();
+  const s = window.DP2_STATE;
+  const versions = dp2EnsureVersionsArray();
+  const id = s.dp2ActiveVersionId;
+  const src = versions.find((v) => v && v.id === id);
+  if (!src) return;
+  let copy = {};
+  if (src.state_json && typeof src.state_json === "object") {
+    try {
+      copy = JSON.parse(JSON.stringify(src.state_json));
+    } catch (_) {}
+  }
+  const newId = dp2Uuid();
+  versions.push({
+    id: newId,
+    createdAt: new Date().toISOString(),
+    snapshot_image: src.snapshot_image || null,
+    state_json: copy && typeof copy === "object" ? copy : null,
+  });
+  s.dp2ActiveVersionId = newId;
+  if (copy && typeof copy === "object") {
+    dp2ApplyStateJsonToWorking(copy);
+  }
+  dp2TeardownMapIfAny();
+  dp2RestoreDomForWorkingState();
+  if (s.capture?.imageBase64) {
+    dp2BootstrapEditorDomFromWorking();
+  } else {
+    try {
+      setDP2ModeCapture();
+    } catch (_) {}
+  }
+  try {
+    dp2RenderEntryPanel();
+  } catch (_) {}
+  if (typeof window.DP2_UI?.setState === "function") {
+    window.DP2_UI.setState(s.capture?.imageBase64 ? "GENERATED" : "EMPTY");
+  }
+  try {
+    dp2RefreshDocVersionMenu();
+  } catch (_) {}
+  try {
+    if (typeof window.__snDpPersistDebounced === "function") window.__snDpPersistDebounced("fast");
+  } catch (_) {}
+}
+
+window.dp2SyncActiveVersionBeforeDraft = dp2SyncActiveVersionBeforeDraft;
+window.dp2SetActiveVersion = dp2SetActiveVersion;
+window.dp2DuplicateActiveVersion = dp2DuplicateActiveVersion;
+window.dp2VersionStatusForDocMenu = dp2VersionStatusForDocMenu;
+window.dp2CollapseVersionsToSingleActive = dp2CollapseVersionsToSingleActive;
 
 // ======================================================
 // PDF — CLIENT (SOURCE UNIQUE = DP1_CONTEXT) — DP2/DP3
@@ -2342,29 +4654,13 @@ async function generateDP2PDF() {
     },
   };
 
-  const res = await fetch("http://localhost:3000/pdf/render/dp2/pdf", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ dp2Data })
-  });
-
-  if (!res.ok) {
-    alert("Erreur PDF DP2");
-    return;
-  }
-
-  const blob = await res.blob();
-  const url = URL.createObjectURL(blob);
-  window.open(url, "_blank");
-
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "dp2-plan-masse.pdf";
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-
-  setTimeout(() => URL.revokeObjectURL(url), 3000);
+  await __solarnextDpFetchPdfWithReplace(
+    "/pdf/render/dp2/pdf",
+    function () {
+      return { dp2Data: dp2Data };
+    },
+    "dp2"
+  );
 }
 
 // ======================================================
@@ -2554,63 +4850,175 @@ async function generateDP4PDF() {
     pages
   };
 
-  // D) POST vers backend (pattern DP2/DP3)
-  const res = await fetch("http://localhost:3000/pdf/render/dp4/pdf", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ dp4Data })
-  });
-
-  if (!res.ok) {
-    alert("Erreur PDF DP4");
-    return;
-  }
-
-  // E) Download blob
-  const blob = await res.blob();
-  const url = URL.createObjectURL(blob);
-  window.open(url, "_blank");
-
-  const a = document.createElement("a");
-  a.href = url;
-
-  const hasBefore = pages.some((p) => p.category === "before");
-  const hasAfter = pages.some((p) => p.category === "after");
-  if (hasBefore && hasAfter) {
-    a.download = "DP4_Plan_de_toiture_Avant_Apres.pdf";
-  } else if (hasBefore) {
-    a.download = "DP4_Plan_de_toiture_Avant.pdf";
-  } else {
-    a.download = "DP4_Plan_de_toiture_Apres.pdf";
-  }
-
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-
-  setTimeout(() => URL.revokeObjectURL(url), 3000);
+  await __solarnextDpFetchPdfWithReplace(
+    "/pdf/render/dp4/pdf",
+    function () {
+      return { dp4Data: dp4Data };
+    },
+    "dp4"
+  );
 }
 
 // --------------------------
 // DP2 — STATE GLOBAL (source de vérité unique)
 // --------------------------
-// Catalogue PV (DP2) — en dur, prêt pour la légende PDF plus tard
-const DP2_PANEL_CATALOG = {
-  longi_x10_artist: {
-    manufacturer: "LONGi Solar",
-    reference: "LR7-54HVB-485M",
-    power_w: 485,
-    width_m: 1.134,
-    height_m: 1.800
-  },
-  longi_x10_explorer: {
-    manufacturer: "LONGi Solar",
-    reference: "LR7-54HVH-485M",
-    power_w: 485,
-    width_m: 1.134,
-    height_m: 1.800
-  }
+// Catalogue PV — source unique API (GET /api/pv/panels, repli GET /api/public/pv/panels)
+window.DP_PV_PANELS_CACHE = window.DP_PV_PANELS_CACHE || {
+  rows: [],
+  byId: {},
+  loaded: false,
+  error: null,
+  source: null
 };
+var _dpPvCatalogPromise = null;
+
+function dpPvFormatSelectLabel(row) {
+  if (!row) return "";
+  const brand = String(row.brand || "").trim();
+  const model = String(row.model_ref || "").trim();
+  const pw = Number(row.power_wc);
+  const pow = Number.isFinite(pw) ? Math.round(pw) : "—";
+  const left = `${brand} ${model}`.trim();
+  return left ? `${left} — ${pow}W` : `— ${pow}W`;
+}
+
+function dpPvRowToPanelModel(row) {
+  if (!row || row.id == null) return null;
+  const wmm = Number(row.width_mm);
+  const hmm = Number(row.height_mm);
+  const pw = Number(row.power_wc);
+  if (!Number.isFinite(wmm) || !Number.isFinite(hmm) || wmm <= 0 || hmm <= 0) return null;
+  return {
+    panel_id: String(row.id),
+    manufacturer: String(row.brand || "").trim(),
+    reference: String(row.model_ref || "").trim(),
+    power_w: Number.isFinite(pw) ? pw : null,
+    width_m: wmm / 1000,
+    height_m: hmm / 1000
+  };
+}
+
+function dpPvFilterSelectableRows(rows) {
+  return (Array.isArray(rows) ? rows : []).filter((r) => {
+    if (!r || r.id == null) return false;
+    if (r.active === false) return false;
+    const w = Number(r.width_mm);
+    const h = Number(r.height_mm);
+    const p = Number(r.power_wc);
+    return Number.isFinite(w) && Number.isFinite(h) && w > 0 && h > 0 && Number.isFinite(p);
+  });
+}
+
+function dpFindPvRowForLegacyModel(model, rows) {
+  if (!model || !Array.isArray(rows)) return null;
+  const pid = model.panel_id != null ? String(model.panel_id) : "";
+  if (pid) {
+    for (const r of rows) {
+      if (r && String(r.id) === pid) return r;
+    }
+  }
+  const ref = String(model.reference || "").trim();
+  if (!ref) return null;
+  const man = String(model.manufacturer || "").trim();
+  const sameRef = rows.filter((r) => r && String(r.model_ref || "").trim() === ref);
+  if (sameRef.length === 1) return sameRef[0];
+  if (man && sameRef.length > 1) {
+    const m2 = sameRef.filter((r) => String(r.brand || "").trim() === man);
+    if (m2.length === 1) return m2[0];
+  }
+  return null;
+}
+
+function dpReconcilePanelModel(model, cache) {
+  const c = cache || window.DP_PV_PANELS_CACHE || {};
+  const rows = Array.isArray(c.rows) ? c.rows : [];
+  const byId = c.byId && typeof c.byId === "object" ? c.byId : {};
+  if (!model) return null;
+  if (model.panel_id && byId[String(model.panel_id)]) {
+    return dpPvRowToPanelModel(byId[String(model.panel_id)]);
+  }
+  const hit = dpFindPvRowForLegacyModel(model, rows);
+  if (hit) return dpPvRowToPanelModel(hit);
+  const wm = Number(model.width_m);
+  const hm = Number(model.height_m);
+  if (Number.isFinite(wm) && Number.isFinite(hm) && wm > 0 && hm > 0) return model;
+  return null;
+}
+
+function dpPopulatePvPanelSelectOptions(selectEl, selectedPanelId) {
+  if (!selectEl) return;
+  const rows = (window.DP_PV_PANELS_CACHE && window.DP_PV_PANELS_CACHE.rows) || [];
+  selectEl.textContent = "";
+  const opt0 = document.createElement("option");
+  opt0.value = "";
+  opt0.textContent = "— Sélectionner un module —";
+  selectEl.appendChild(opt0);
+  for (const row of rows) {
+    const m = dpPvRowToPanelModel(row);
+    if (!m) continue;
+    const o = document.createElement("option");
+    o.value = String(row.id);
+    o.textContent = dpPvFormatSelectLabel(row);
+    selectEl.appendChild(o);
+  }
+  const want = selectedPanelId != null && String(selectedPanelId) !== "" ? String(selectedPanelId) : "";
+  if (want && [...selectEl.options].some((op) => op.value === want)) {
+    selectEl.value = want;
+  } else {
+    selectEl.value = "";
+  }
+}
+
+function dpModelFromPanelSelectValue(value) {
+  const v = String(value || "").trim();
+  if (!v) return null;
+  const byId = (window.DP_PV_PANELS_CACHE && window.DP_PV_PANELS_CACHE.byId) || {};
+  const row = byId[v];
+  return row ? dpPvRowToPanelModel(row) : null;
+}
+
+async function dpFetchPvPanelsCatalog() {
+  const authUrl = __solarnextDpAbsApiUrl("pv/panels");
+  let rows = null;
+  let source = "auth";
+  try {
+    const res = await fetch(authUrl, { credentials: "include", cache: "no-store" });
+    if (res.ok) {
+      rows = await res.json();
+    }
+  } catch (_) {}
+  if (!Array.isArray(rows)) {
+    source = "public";
+    const pubUrl = __solarnextDpAbsApiUrl("public/pv/panels");
+    try {
+      const res2 = await fetch(pubUrl, { credentials: "same-origin", cache: "no-store" });
+      if (res2.ok) rows = await res2.json();
+    } catch (_) {}
+  }
+  rows = dpPvFilterSelectableRows(Array.isArray(rows) ? rows : []);
+  const byId = {};
+  for (const r of rows) {
+    if (r && r.id != null) byId[String(r.id)] = r;
+  }
+  window.DP_PV_PANELS_CACHE = {
+    rows,
+    byId,
+    loaded: true,
+    error: rows.length ? null : "empty",
+    source
+  };
+  return window.DP_PV_PANELS_CACHE;
+}
+
+function dpEnsurePvPanelsLoaded() {
+  if (_dpPvCatalogPromise) return _dpPvCatalogPromise;
+  _dpPvCatalogPromise = dpFetchPvPanelsCatalog().catch((e) => {
+    console.warn("[DP] Catalogue PV indisponible :", e);
+    window.DP_PV_PANELS_CACHE = { rows: [], byId: {}, loaded: true, error: String(e && e.message ? e.message : e), source: "none" };
+    return window.DP_PV_PANELS_CACHE;
+  });
+  return _dpPvCatalogPromise;
+}
 
 // --------------------------
 // DP2 — FORMES MÉTIER (ÉTAPE 6)
@@ -2685,7 +5093,9 @@ window.DP2_STATE = window.DP2_STATE || {
   // Formes métier (ÉTAPE 6) — objets normalisés (modèle imposé)
   businessObjects: [],            // tableau d'objets métier
   selectedBusinessObjectId: null, // id string (pas un index)
+  _businessHoverId: null,        // survol souris (UI, non sérialisé)
   businessInteraction: null,      // état interne drag/resize/rotate (non sérialisé)
+  businessDragCandidate: null,    // corps : clic sans drag encore (non sérialisé)
   pvPanelInteraction: null,       // état interne drag/rotate des panneaux PV (non sérialisé)
   panelInteraction: null,         // état interne drag/rotate des panneaux PV (nouveau modèle)
   panelGroupInteraction: null,    // état interne drag/rotate groupé des panneaux (non sérialisé)
@@ -2698,7 +5108,7 @@ window.DP2_STATE = window.DP2_STATE || {
   _businessKeyHandlerBound: false,
   // Métadonnées (passives) — pour la légende PDF DP2 (sans génération PDF ici)
   photoCategory: null,    // "before" | "after" | null
-  panelModel: null,       // objet du catalogue (DP2_PANEL_CATALOG[...]) ou null
+  panelModel: null,       // { panel_id, manufacturer, reference, power_w, width_m, height_m } (API pv_panels) ou legacy
   // Zoom visuel uniquement (affichage image + canvas, sans modifier scale_m_per_px ni les mesures)
   viewZoom: 1,            // facteur d'affichage 0.5 → 3
   viewPanX: 0,            // translation visuelle du plan (pan, px) — purement visuel
@@ -2706,7 +5116,58 @@ window.DP2_STATE = window.DP2_STATE || {
   // Trait de mesure en cours : point A posé, en attente du clic B
   measureLineStart: null, // { x, y } | null
   // Faîtage en cours : point A posé, en attente du clic B
-  ridgeLineStart: null    // { x, y } | null
+  ridgeLineStart: null,   // { x, y } | null
+  /** Historique des plans (persisté dans le brouillon dp2). */
+  dp2Versions: [],
+  /** id de la ligne de dp2Versions en cours d’édition. */
+  dp2ActiveVersionId: null,
+  /** "detailed" = panneaux individuels ; "simple" = seule emprise globale (lecture DP). Anciens brouillons : undefined → détaillé. */
+  displayMode: "detailed"
+};
+
+function dp2GetDisplayMode() {
+  const m = window.DP2_STATE?.displayMode;
+  return m === "simple" ? "simple" : "detailed";
+}
+
+function syncDP2DisplayModeToolbarUI() {
+  const detailedBtn = document.getElementById("dp2-display-mode-detailed");
+  const simpleBtn = document.getElementById("dp2-display-mode-simple");
+  if (!detailedBtn || !simpleBtn) return;
+  const detailed = dp2GetDisplayMode() === "detailed";
+  detailedBtn.classList.toggle("dp2-tool-active", detailed);
+  detailedBtn.setAttribute("aria-pressed", detailed ? "true" : "false");
+  simpleBtn.classList.toggle("dp2-tool-active", !detailed);
+  simpleBtn.setAttribute("aria-pressed", detailed ? "false" : "true");
+}
+
+/**
+ * Alias lecture/écriture demandé produit : tableau de { id, createdAt, snapshot_image, state_json }.
+ * Stockage réel : window.DP2_STATE.dp2Versions
+ */
+try {
+  Object.defineProperty(window, "DP2_VERSIONS", {
+    configurable: true,
+    enumerable: true,
+    get: function () {
+      if (!window.DP2_STATE) return [];
+      if (!Array.isArray(window.DP2_STATE.dp2Versions)) window.DP2_STATE.dp2Versions = [];
+      return window.DP2_STATE.dp2Versions;
+    },
+    set: function (arr) {
+      if (!window.DP2_STATE) return;
+      window.DP2_STATE.dp2Versions = Array.isArray(arr) ? arr : [];
+    }
+  });
+} catch (_) {}
+
+// État UX centralisé (DP2) — curseurs, hover, édition : ne modifie pas la géométrie métier
+window.dp2InteractionState = {
+  mode: "idle",
+  tool: "select",
+  hoveredFeatureId: null,
+  activeFeatureId: null,
+  editingFeatureId: null
 };
 
 function isDP2BusinessTool(tool) {
@@ -2776,6 +5237,7 @@ function dp2ResetActiveToolToNeutral(options) {
 
   // Purge des états d'interaction (ne doit pas survivre à un reset)
   state.businessInteraction = null;
+  state.businessDragCandidate = null;
   state.pvPanelInteraction = null;
   state.panelInteraction = null;
   state.panelGroupInteraction = null;
@@ -2785,6 +5247,12 @@ function dp2ResetActiveToolToNeutral(options) {
   state.measureLineStart = null;
   state.ridgeLineStart = null;
   state.panelPlacementPreview = null;
+
+  const parcelIdx = (state.objects || []).findIndex(o => o && o.__parcelEdge);
+  if (parcelIdx >= 0 && typeof dp2RemoveParcelEdgeInlineInput === "function") {
+    dp2RemoveParcelEdgeInlineInput();
+    state.objects.splice(parcelIdx, 1);
+  }
 
   if (!preserveSelection) {
     state.selectedBusinessObjectId = null;
@@ -2849,11 +5317,41 @@ function dp2ResetActiveToolToNeutral(options) {
   if (textIconEl) textIconEl.textContent = "T";
   if (textLabelEl) textLabelEl.textContent = "Texte";
 
-  // Curseur pan éventuel sur le wrap (déplacement visuel uniquement)
+  // Curseur pan / mode dessin sur le wrap
   const imgWrap = document.getElementById("dp2-captured-image-wrap");
   if (imgWrap) imgWrap.classList.remove("dp2-tool-pan");
 
+  try {
+    if (window.dp2InteractionState) {
+      window.dp2InteractionState.hoveredFeatureId = null;
+      window.dp2InteractionState.activeFeatureId = null;
+      window.dp2InteractionState.editingFeatureId = null;
+      dp2SyncInteractionToolFromDp2State();
+      dp2FinalizeInteractionChrome();
+    }
+  } catch (_) {}
+
+  if (typeof refreshDP2ModeStrip === "function") refreshDP2ModeStrip();
+
   if (typeof renderDP2FromState === "function") renderDP2FromState();
+}
+
+/**
+ * Après création d’objet validée (pointerup / clic final) : repasse en mode sélection pour éviter les créations en chaîne.
+ * N’appelle pas reset si un flux multi-étapes est encore en cours (mesure/faîtage : premier point seulement, contour bâti ouvert).
+ */
+function dp2AutoReturnToSelectIfCreationDone(options) {
+  const opts = options || {};
+  const state = window.DP2_STATE;
+  if (!state || state.mode !== "EDITION") return;
+  if (typeof hasDP2OpenBuildingOutline === "function" && hasDP2OpenBuildingOutline()) return;
+  if (state.currentTool === "measure_line" && state.measureLineStart) return;
+  if (state.currentTool === "ridge_line" && state.ridgeLineStart) return;
+
+  dp2ResetActiveToolToNeutral({
+    preserveSelection: opts.preserveSelection !== false,
+    reason: opts.reason || "dp2_auto_select_after_create"
+  });
 }
 
 function createDP2BusinessObject(type, geometry) {
@@ -3113,32 +5611,34 @@ function initDP2MetadataUI() {
     });
   }
 
-  // Sélection module PV (DP2)
+  // Sélection module PV (DP2) — catalogue central GET /api/pv/panels
   const panelSelect = document.getElementById("dp2-panel-select");
   if (panelSelect) {
-    // sync état -> UI si déjà défini (on tente de retrouver la key via reference)
-    if (window.DP2_STATE?.panelModel) {
-      const currentRef = window.DP2_STATE.panelModel.reference;
-      const key = Object.keys(DP2_PANEL_CATALOG).find((k) => DP2_PANEL_CATALOG[k]?.reference === currentRef);
-      if (key) panelSelect.value = key;
-    } else {
-      // sync UI -> état au chargement UNIQUEMENT si l'état n'est pas déjà défini
-      const initialKey = panelSelect.value || "";
-      window.DP2_STATE.panelModel = DP2_PANEL_CATALOG[initialKey] || null;
-    }
-    syncDP2PanelMetadataUI();
+    dpEnsurePvPanelsLoaded()
+      .then((cache) => {
+        window.DP2_STATE.panelModel = dpReconcilePanelModel(window.DP2_STATE.panelModel, cache);
+        const selId = window.DP2_STATE.panelModel?.panel_id || null;
+        dpPopulatePvPanelSelectOptions(panelSelect, selId);
+        syncDP2PanelMetadataUI();
 
-    panelSelect.addEventListener("change", (e) => {
-      const value = e.target?.value || "";
-      window.DP2_STATE.panelModel = DP2_PANEL_CATALOG[value] || null;
-      syncDP2PanelMetadataUI();
+        if (panelSelect.dataset.dpPvPanelBound !== "1") {
+          panelSelect.dataset.dpPvPanelBound = "1";
+          panelSelect.addEventListener("change", (e) => {
+            const value = e.target?.value || "";
+            window.DP2_STATE.panelModel = dpModelFromPanelSelectValue(value);
+            syncDP2PanelMetadataUI();
 
-      // Si l’utilisateur retire le module PV pendant l’outil "Panneaux", on désactive immédiatement l’outil.
-      if (window.DP2_STATE?.currentTool === "panels" && !window.DP2_STATE.panelModel) {
-        showDP2Toast("Sélectionnez un module PV dans Paramètres.");
-        dp2ResetActiveToolToNeutral({ preserveSelection: true, reason: "panel_model_unset" });
-      }
-    });
+            if (window.DP2_STATE?.currentTool === "panels" && !window.DP2_STATE.panelModel) {
+              showDP2Toast("Sélectionnez un module PV dans Paramètres.");
+              dp2ResetActiveToolToNeutral({ preserveSelection: true, reason: "panel_model_unset" });
+            }
+          });
+        }
+      })
+      .catch(() => {
+        dpPopulatePvPanelSelectOptions(panelSelect, null);
+        syncDP2PanelMetadataUI();
+      });
   }
 }
 
@@ -3168,49 +5668,6 @@ function showDP4Toast(message) {
   dp4ToastTimer = setTimeout(() => {
     try { el.remove(); } catch (_) {}
   }, 2600);
-}
-
-// Copie stricte du catalogue DP2 (mêmes valeurs)
-const DP4_PANEL_CATALOG = {
-  longi_x10_artist: {
-    manufacturer: "LONGi",
-    reference: "Hi-MO X10 Artist",
-    power_w: 485,
-    width_m: 1.134,
-    height_m: 2 + 0.382
-  },
-  longi_x10_explorer: {
-    manufacturer: "LONGi",
-    reference: "Hi-MO X10 Explorer",
-    power_w: 485,
-    width_m: 1.134,
-    height_m: 2 + 0.382
-  }
-};
-
-function syncDP4PanelMetadataUI() {
-  const manufacturerEl = document.getElementById("dp4-panel-manufacturer");
-  const referenceEl = document.getElementById("dp4-panel-reference");
-  const powerEl = document.getElementById("dp4-panel-power");
-  const dimensionsEl = document.getElementById("dp4-panel-dimensions");
-  if (!manufacturerEl || !referenceEl || !powerEl || !dimensionsEl) return;
-
-  const model = window.DP4_STATE?.panelModel || null;
-  if (!model) {
-    manufacturerEl.textContent = "—";
-    referenceEl.textContent = "—";
-    powerEl.textContent = "—";
-    dimensionsEl.textContent = "—";
-    return;
-  }
-
-  manufacturerEl.textContent = model.manufacturer || "—";
-  referenceEl.textContent = model.reference || "—";
-  powerEl.textContent = typeof model.power_w === "number" ? `${model.power_w} Wc` : "—";
-
-  const h = typeof model.height_m === "number" ? model.height_m.toFixed(2) : null;
-  const w = typeof model.width_m === "number" ? model.width_m.toFixed(2) : null;
-  dimensionsEl.textContent = h && w ? `${h} × ${w} m` : "—";
 }
 
 function syncDP4ScaleUI() {
@@ -3346,31 +5803,34 @@ function initDP4MetadataUI() {
     });
   }
 
-  // Sélection module PV (DP4)
+  // Sélection module PV (DP4) — même catalogue API que DP2
   const panelSelect = document.getElementById("dp4-panel-select");
   if (panelSelect) {
-    if (window.DP4_STATE?.panelModel) {
-      const currentRef = window.DP4_STATE.panelModel.reference;
-      const key = Object.keys(DP4_PANEL_CATALOG).find((k) => DP4_PANEL_CATALOG[k]?.reference === currentRef);
-      if (key) panelSelect.value = key;
-    } else {
-      const initialKey = panelSelect.value || "";
-      window.DP4_STATE.panelModel = DP4_PANEL_CATALOG[initialKey] || null;
-      if (window.DP2_STATE) window.DP2_STATE.panelModel = window.DP4_STATE.panelModel;
-    }
-    syncDP4PanelMetadataUI();
+    dpEnsurePvPanelsLoaded()
+      .then((cache) => {
+        window.DP4_STATE.panelModel = dpReconcilePanelModel(window.DP4_STATE.panelModel, cache);
+        if (window.DP2_STATE) window.DP2_STATE.panelModel = window.DP4_STATE.panelModel;
+        const selId = window.DP4_STATE.panelModel?.panel_id || null;
+        dpPopulatePvPanelSelectOptions(panelSelect, selId);
 
-    panelSelect.addEventListener("change", (e) => {
-      const value = e.target?.value || "";
-      window.DP4_STATE.panelModel = DP4_PANEL_CATALOG[value] || null;
-      if (window.DP2_STATE) window.DP2_STATE.panelModel = window.DP4_STATE.panelModel;
-      syncDP4PanelMetadataUI();
+        if (panelSelect.dataset.dpPvPanelBound !== "1") {
+          panelSelect.dataset.dpPvPanelBound = "1";
+          panelSelect.addEventListener("change", (e) => {
+            const value = e.target?.value || "";
+            const next = dpModelFromPanelSelectValue(value);
+            window.DP4_STATE.panelModel = next;
+            if (window.DP2_STATE) window.DP2_STATE.panelModel = next;
 
-      if (window.DP2_STATE?.currentTool === "panels" && !window.DP2_STATE.panelModel) {
-        showDP4Toast("Sélectionnez un module PV dans Paramètres.");
-        dp2ResetActiveToolToNeutral({ preserveSelection: true, reason: "dp4_panel_model_unset" });
-      }
-    });
+            if (window.DP2_STATE?.currentTool === "panels" && !window.DP2_STATE.panelModel) {
+              showDP4Toast("Sélectionnez un module PV dans Paramètres.");
+              dp2ResetActiveToolToNeutral({ preserveSelection: true, reason: "dp4_panel_model_unset" });
+            }
+          });
+        }
+      })
+      .catch(() => {
+        dpPopulatePvPanelSelectOptions(panelSelect, null);
+      });
   }
 
   // DP4 UNIQUEMENT : type de toit (graphique uniquement)
@@ -3962,13 +6422,33 @@ function dp2ApplyHistorySnapshot(snap) {
   state.selectedTextId = state.selectedTextIds.length === 1 ? state.selectedTextIds[0] : null;
   // Ne jamais restaurer des états d'interaction non sérialisés
   state.businessInteraction = null;
+  state.businessDragCandidate = null;
   state.panelInteraction = null;
   state.panelGroupInteraction = null;
   state.textInteraction = null;
   state.selectionRect = null;
   state.buildingContourInteraction = null;
   state.lineVertexInteraction = null;
+  state._businessHoverId = null;
+  state._businessSelectionFlashPhase = false;
+  state._businessGripReleaseAt = null;
+  state._bizHoverChromeAt = null;
+  state._bizSelChromeAt = null;
+  state._bizUiPrevSelBizId = undefined;
   renderDP2FromState();
+}
+
+/** Court surlignage de la sélection métier après undo/redo (feedback visuel). */
+function dp2TriggerBusinessSelectionHistoryFlash() {
+  const s = window.DP2_STATE;
+  if (!s || !s.selectedBusinessObjectId) return;
+  s._businessSelectionFlashPhase = true;
+  renderDP2FromState();
+  window.setTimeout(() => {
+    if (!window.DP2_STATE) return;
+    window.DP2_STATE._businessSelectionFlashPhase = false;
+    renderDP2FromState();
+  }, 170);
 }
 
 function dp2CommitHistoryPoint() {
@@ -3978,6 +6458,11 @@ function dp2CommitHistoryPoint() {
   undo.push(snap);
   // Toute nouvelle action invalide le redo
   redo.length = 0;
+  if (window.DP2_DEBUG_HISTORY) {
+    try {
+      console.log("[DP2 history] commit → undo:", undo.length, "redo vidé");
+    } catch (_) {}
+  }
   syncDP2DrawActionsUI();
 }
 
@@ -3987,8 +6472,14 @@ function dp2Undo() {
   const current = dp2SnapshotForHistory();
   const prev = undo.pop();
   if (current) redo.push(current);
+  if (window.DP2_DEBUG_HISTORY) {
+    try {
+      console.log("[DP2 history] undo → undo:", undo.length, "redo:", redo.length);
+    } catch (_) {}
+  }
   dp2ApplyHistorySnapshot(prev);
   syncDP2DrawActionsUI();
+  dp2TriggerBusinessSelectionHistoryFlash();
 }
 
 function dp2Redo() {
@@ -3997,8 +6488,14 @@ function dp2Redo() {
   const current = dp2SnapshotForHistory();
   const next = redo.pop();
   if (current) undo.push(current);
+  if (window.DP2_DEBUG_HISTORY) {
+    try {
+      console.log("[DP2 history] redo → undo:", undo.length, "redo:", redo.length);
+    } catch (_) {}
+  }
   dp2ApplyHistorySnapshot(next);
   syncDP2DrawActionsUI();
+  dp2TriggerBusinessSelectionHistoryFlash();
 }
 
 function dp2DeleteSelected() {
@@ -4080,10 +6577,10 @@ function dp2DeleteSelected() {
 }
 
 function syncDP2DrawActionsUI() {
-  const undoBtn = document.getElementById("dp2-action-undo");
-  const redoBtn = document.getElementById("dp2-action-redo");
-  const delBtn = document.getElementById("dp2-action-delete");
-  if (!undoBtn && !redoBtn && !delBtn) return; // UI DP2 pas monté
+  const delBtns = document.querySelectorAll("[data-dp2-action='delete']");
+  const undoBtns = document.querySelectorAll("[data-dp2-action='undo']");
+  const redoBtns = document.querySelectorAll("[data-dp2-action='redo']");
+  if (!undoBtns.length && !redoBtns.length && !delBtns.length) return; // UI DP2 pas monté
 
   const state = window.DP2_STATE;
   const hasPanelsSelection =
@@ -4098,33 +6595,128 @@ function syncDP2DrawActionsUI() {
       state.selectedTextId ||
       (Array.isArray(state.selectedTextIds) && state.selectedTextIds.length >= 1)
     ));
-  const hasSelection = !!(state && (state.selectedBusinessObjectId || hasPanelsSelection || hasTextSelection || state.selectedObjectId != null));
+  const hasBuildingContourSelection = !!(state && state.selectedBuildingContourId);
+  const hasSelection = !!(
+    state &&
+    (state.selectedBusinessObjectId ||
+      hasPanelsSelection ||
+      hasTextSelection ||
+      hasBuildingContourSelection ||
+      state.selectedObjectId != null)
+  );
 
-  if (delBtn) delBtn.disabled = !hasSelection;
+  delBtns.forEach((btn) => {
+    btn.disabled = !hasSelection;
+  });
 
   const { undo, redo } = dp2EnsureHistoryStacks();
-  if (undoBtn) undoBtn.disabled = !(undo && undo.length);
-  if (redoBtn) redoBtn.disabled = !(redo && redo.length);
+  const canUndo = !!(undo && undo.length);
+  const canRedo = !!(redo && redo.length);
+  undoBtns.forEach((btn) => {
+    btn.disabled = !canUndo;
+    btn.classList.toggle("dp2-history-can", canUndo);
+  });
+  redoBtns.forEach((btn) => {
+    btn.disabled = !canRedo;
+    btn.classList.toggle("dp2-history-can", canRedo);
+  });
+}
+
+function initDP2UndoRedoKeyboard() {
+  if (window.__DP2_UNDO_REDO_KB_BOUND === true) return;
+  window.__DP2_UNDO_REDO_KB_BOUND = true;
+  document.addEventListener(
+    "keydown",
+    (e) => {
+      const mod = e.ctrlKey || e.metaKey;
+      if (!mod) return;
+      const key = typeof e.key === "string" ? e.key.toLowerCase() : "";
+      if (key !== "z" && key !== "y") return;
+
+      const ae = document.activeElement;
+      const typing =
+        ae &&
+        (ae.tagName === "INPUT" ||
+          ae.tagName === "TEXTAREA" ||
+          ae.tagName === "SELECT" ||
+          (typeof ae.isContentEditable === "boolean" && ae.isContentEditable));
+      if (typing) return;
+
+      if (!window.DP2_STATE || window.DP2_STATE.mode !== "EDITION") return;
+      const wrap = document.getElementById("dp2-captured-image-wrap");
+      if (!wrap || wrap.style.display === "none") return;
+
+      if (key === "z" && e.shiftKey) {
+        const { redo } = dp2EnsureHistoryStacks();
+        if (!redo || !redo.length) return;
+        e.preventDefault();
+        e.stopPropagation();
+        dp2Redo();
+        return;
+      }
+      if (key === "z" && !e.shiftKey) {
+        const { undo } = dp2EnsureHistoryStacks();
+        if (!undo || !undo.length) return;
+        e.preventDefault();
+        e.stopPropagation();
+        dp2Undo();
+        return;
+      }
+      if (key === "y" && !e.shiftKey) {
+        const { redo } = dp2EnsureHistoryStacks();
+        if (!redo || !redo.length) return;
+        e.preventDefault();
+        e.stopPropagation();
+        dp2Redo();
+      }
+    },
+    true
+  );
 }
 
 function initDP2DrawActions() {
-  const wrap = document.getElementById("dp2-captured-image-wrap");
-  const host = document.getElementById("dp2-draw-actions");
-  if (!wrap || !host) return;
+  // Plusieurs wraps peuvent coexister (vue DP2 + overlay DP4 réutilisant le moteur) : même id dans le DOM.
+  const wraps = document.querySelectorAll("#dp2-captured-image-wrap");
+  if (!wraps.length) return;
 
-  if (host.dataset.bound === "1") return;
-  host.dataset.bound = "1";
+  function bindOneWrap(wrap) {
+    if (!wrap || wrap.dataset.dp2DrawActionsDelegate === "1") return;
+    wrap.dataset.dp2DrawActionsDelegate = "1";
+    wrap.addEventListener(
+      "click",
+      function dp2DrawActionsClickCapture(e) {
+        const raw = e.target;
+        const el = raw && raw.nodeType === 1 ? raw : raw && raw.parentElement;
+        if (!el) return;
+        const undoEl = el.closest("[data-dp2-action='undo']");
+        if (undoEl) {
+          if (undoEl.disabled) return;
+          e.preventDefault();
+          dp2Undo();
+          return;
+        }
+        const redoEl = el.closest("[data-dp2-action='redo']");
+        if (redoEl) {
+          if (redoEl.disabled) return;
+          e.preventDefault();
+          dp2Redo();
+          return;
+        }
+        const delEl = el.closest("[data-dp2-action='delete']");
+        if (delEl) {
+          if (delEl.disabled) return;
+          e.preventDefault();
+          dp2DeleteSelected();
+        }
+      },
+      true
+    );
+  }
 
-  const undoBtn = document.getElementById("dp2-action-undo");
-  const redoBtn = document.getElementById("dp2-action-redo");
-  const delBtn = document.getElementById("dp2-action-delete");
+  for (let i = 0; i < wraps.length; i++) bindOneWrap(wraps[i]);
 
-  undoBtn?.addEventListener("click", () => dp2Undo());
-  redoBtn?.addEventListener("click", () => dp2Redo());
-  delBtn?.addEventListener("click", () => dp2DeleteSelected());
-
-  // État initial
   syncDP2DrawActionsUI();
+  initDP2UndoRedoKeyboard();
 }
 
 // --------------------------
@@ -4143,7 +6735,22 @@ function applyDP2ViewTransform() {
   const panY = window.DP2_STATE.viewPanY != null ? window.DP2_STATE.viewPanY : 0;
   const zoom = window.DP2_STATE.viewZoom != null ? window.DP2_STATE.viewZoom : 1;
   zoomContainer.style.transform = "translate(" + panX + "px, " + panY + "px) scale(" + zoom + ")";
+  if (typeof dp2SyncMapAnchoredOverlays === "function") dp2SyncMapAnchoredOverlays();
 }
+
+(function dp2BindInteractionPointerUp() {
+  if (window.__DP2_IX_POINTER_UP_BOUND) return;
+  window.__DP2_IX_POINTER_UP_BOUND = true;
+  window.addEventListener(
+    "pointerup",
+    () => {
+      if (!window.dp2InteractionState) return;
+      window.dp2InteractionState.activeFeatureId = null;
+      if (typeof dp2FinalizeInteractionChrome === "function") dp2FinalizeInteractionChrome();
+    },
+    true
+  );
+})();
 
 function initDP2ViewZoom() {
   const wrap = document.getElementById("dp2-captured-image-wrap");
@@ -4234,6 +6841,312 @@ function getDP2CanvasToClient(canvas, canvasX, canvasY) {
   };
 }
 
+const DP2_IX_MODE_CLASSES = ["dp2-mode-idle", "dp2-mode-draw", "dp2-mode-hover", "dp2-mode-active", "dp2-mode-editing"];
+
+function dp2EnsureOverlayLayer() {
+  const wrap = document.getElementById("dp2-captured-image-wrap");
+  if (!wrap) return;
+  let layer = document.getElementById("dp2-overlay-layer");
+  if (layer) {
+    if (layer.parentNode !== wrap) wrap.appendChild(layer);
+    return;
+  }
+  layer = document.createElement("div");
+  layer.id = "dp2-overlay-layer";
+  layer.className = "dp2-overlay-layer";
+  wrap.appendChild(layer);
+}
+
+function dp2SyncInteractionToolFromDp2State() {
+  const is = window.dp2InteractionState;
+  if (!is) return;
+  const ct = window.DP2_STATE?.currentTool || "select";
+  const map = {
+    select: "select",
+    pan: "pan",
+    building_outline: "contour",
+    measure_line: "measure",
+    ridge_line: "ridge",
+    panels: "pv"
+  };
+  is.tool = map[ct] || "select";
+}
+
+function dp2InteractionDragActive() {
+  const s = window.DP2_STATE;
+  if (!s) return false;
+  return !!(
+    s.buildingContourInteraction ||
+    s.lineVertexInteraction ||
+    s.parcelLabelDrag ||
+    s.measureLabelDrag ||
+    s.measureLabelDragCandidate ||
+    s.ridgeLabelDrag ||
+    s.panelInteraction ||
+    s.panelGroupInteraction ||
+    (s.textInteraction && typeof s.textInteraction.pointerId === "number") ||
+    (s.businessInteraction && typeof s.businessInteraction.pointerId === "number") ||
+    (s.businessDragCandidate && typeof s.businessDragCandidate.pointerId === "number") ||
+    s.pvPanelInteraction
+  );
+}
+
+function dp2PickHoverFeatureId(canvas, x, y) {
+  const tool = window.DP2_STATE?.currentTool || "select";
+
+  if (typeof dp2IsDP4RoofProfile === "function" && dp2IsDP4RoofProfile()) {
+    const groupHit = dp2HitTestPanelGroup(x, y);
+    if (groupHit && groupHit.part === "scale") return "pvScale:" + String(groupHit.id || "group");
+    const hitPanel = dp2HitTestPanel(x, y);
+    if (hitPanel && hitPanel.part === "scale" && hitPanel.id) return "pvScale:" + String(hitPanel.id);
+  }
+
+  if (tool === "select") {
+    const hitLabel = dp2HitTestMeasureLabel(canvas, x, y);
+    if (hitLabel && hitLabel.kind === "measure_label" && typeof hitLabel.index === "number")
+      return "measure:" + hitLabel.index;
+
+    const hitParcelLbl = dp2HitTestParcelSegmentLabel(canvas, x, y);
+    if (hitParcelLbl && hitParcelLbl.contourId != null && typeof hitParcelLbl.segmentIndex === "number")
+      return "parcelSeg:" + hitParcelLbl.contourId + ":" + hitParcelLbl.segmentIndex;
+
+    const hitRidgeLbl = dp2HitTestRidgeLabel(canvas, x, y);
+    if (hitRidgeLbl && typeof hitRidgeLbl.index === "number") return "ridge:" + hitRidgeLbl.index;
+  }
+
+  const ht = dp2HitTest(canvas, x, y);
+  if (ht && ht.kind === "building_contour" && ht.id != null && typeof ht.vertexIndex === "number")
+    return "contourVtx:" + ht.id + ":" + ht.vertexIndex;
+
+  const segNear = dp2HitTestParcelSegmentClosest(canvas, x, y);
+  if (segNear && segNear.contourId != null && typeof segNear.segmentIndex === "number")
+    return "parcelSeg:" + segNear.contourId + ":" + segNear.segmentIndex;
+
+  if (tool === "select") {
+    for (let i = (window.DP2_STATE?.objects || []).length - 1; i >= 0; i--) {
+      const obj = window.DP2_STATE.objects[i];
+      if (!obj || obj.type !== "measure_line" || !obj.a || !obj.b || obj.__parcelEdge) continue;
+      const dA = Math.hypot((obj.a.x || 0) - x, (obj.a.y || 0) - y);
+      const dB = Math.hypot((obj.b.x || 0) - x, (obj.b.y || 0) - y);
+      if (dA <= 12 || dB <= 12) return "measure:" + i;
+      const dx = obj.b.x - obj.a.x;
+      const dy = obj.b.y - obj.a.y;
+      const lenSq = dx * dx + dy * dy || 1;
+      const t = Math.max(0, Math.min(1, ((x - obj.a.x) * dx + (y - obj.a.y) * dy) / lenSq));
+      const px = obj.a.x + t * dx;
+      const py = obj.a.y + t * dy;
+      if (Math.hypot(x - px, y - py) <= 12) return "measure:" + i;
+    }
+    for (let i = (window.DP2_STATE?.objects || []).length - 1; i >= 0; i--) {
+      const obj = window.DP2_STATE.objects[i];
+      if (!obj || obj.type !== "ridge_line" || !obj.a || !obj.b) continue;
+      const dA = Math.hypot((obj.a.x || 0) - x, (obj.a.y || 0) - y);
+      const dB = Math.hypot((obj.b.x || 0) - x, (obj.b.y || 0) - y);
+      if (dA <= 12 || dB <= 12) return "ridge:" + i;
+      const dx = obj.b.x - obj.a.x;
+      const dy = obj.b.y - obj.a.y;
+      const lenSq = dx * dx + dy * dy || 1;
+      const t = Math.max(0, Math.min(1, ((x - obj.a.x) * dx + (y - obj.a.y) * dy) / lenSq));
+      const px = obj.a.x + t * dx;
+      const py = obj.a.y + t * dy;
+      if (Math.hypot(x - px, y - py) <= 12) return "ridge:" + i;
+    }
+  }
+
+  return null;
+}
+
+function dp2FinalizeInteractionChrome() {
+  const is = window.dp2InteractionState;
+  if (!is) return;
+  dp2SyncInteractionToolFromDp2State();
+
+  if (document.getElementById("dp2-parcel-edge-inline-input")) {
+    is.mode = "editing";
+    if (!is.editingFeatureId && is.hoveredFeatureId && String(is.hoveredFeatureId).startsWith("parcelSeg:"))
+      is.editingFeatureId = is.hoveredFeatureId;
+    dp2ApplyInteractionChrome();
+    return;
+  }
+  is.editingFeatureId = null;
+
+  if (document.getElementById("dp2-captured-image-wrap")?.classList.contains("dp2-panning")) {
+    is.mode = "idle";
+    dp2ApplyInteractionChrome();
+    return;
+  }
+
+  if (dp2InteractionDragActive()) {
+    is.mode = "active";
+    dp2ApplyInteractionChrome();
+    return;
+  }
+
+  const drawTools = is.tool === "contour" || is.tool === "measure" || is.tool === "ridge" || is.tool === "pv";
+  if (is.hoveredFeatureId) is.mode = "hover";
+  else if (drawTools) is.mode = "draw";
+  else is.mode = "idle";
+
+  dp2ApplyInteractionChrome();
+}
+
+function dp2ApplyInteractionChrome() {
+  const wrap = document.getElementById("dp2-captured-image-wrap");
+  if (!wrap || !window.dp2InteractionState) return;
+  const is = window.dp2InteractionState;
+  for (const c of DP2_IX_MODE_CLASSES) wrap.classList.remove(c);
+  wrap.classList.add("dp2-mode-" + is.mode);
+  wrap.setAttribute("data-dp2-tool", is.tool);
+  const fid = String(is.hoveredFeatureId || "");
+  wrap.classList.toggle("dp2-cursor-resize", fid.startsWith("pvScale:"));
+}
+
+function dp2UpdateHoverFromPointerMove(canvas, e) {
+  if (!window.dp2InteractionState) return;
+  if (document.getElementById("dp2-parcel-edge-inline-input")) return;
+  if (dp2InteractionDragActive()) return;
+  const coords = getDP2CanvasCoords(canvas, e.clientX, e.clientY);
+  window.dp2InteractionState.hoveredFeatureId = dp2PickHoverFeatureId(canvas, coords.x, coords.y);
+}
+
+function dp2SetActiveFeatureFromPointerDown(canvas, e) {
+  if (!window.dp2InteractionState) return;
+  const coords = getDP2CanvasCoords(canvas, e.clientX, e.clientY);
+  window.dp2InteractionState.activeFeatureId = dp2PickHoverFeatureId(canvas, coords.x, coords.y);
+}
+
+/** Positionne l’input sur le libellé ; coords écran via canvas, position relative à #dp2-captured-image-wrap (overlay hors zoom transform). */
+function dp2LayoutParcelEdgeInlineInputInLayer(canvas, input) {
+  const wrap = document.getElementById("dp2-captured-image-wrap");
+  if (!wrap || !canvas || !input) return;
+  const is = window.dp2InteractionState;
+  const fid = is?.editingFeatureId || "";
+  const m = /^parcelSeg:([^:]+):(\d+)$/.exec(fid);
+  if (!m) return;
+  const contour = dp2GetBuildingContourById(m[1]);
+  if (!contour) return;
+  const segIdx = parseInt(m[2], 10);
+  const pt = dp2ComputeParcelSegmentLabelCanvasPoint(contour, segIdx);
+  if (!pt) return;
+  const client = getDP2CanvasToClient(canvas, pt.x, pt.y);
+  const wrapperRect = wrap.getBoundingClientRect();
+  const w = 72;
+  const h = 26;
+  let left = client.clientX - wrapperRect.left - w / 2;
+  let top = client.clientY - wrapperRect.top - h / 2;
+  const pad = 8;
+  const maxLeft = Math.max(pad, wrapperRect.width - w - pad);
+  const maxTop = Math.max(pad, wrapperRect.height - h - pad);
+  if (left < pad) left = pad;
+  else if (left > maxLeft) left = maxLeft;
+  if (top < pad) top = pad;
+  else if (top > maxTop) top = maxTop;
+  input.style.left = left + "px";
+  input.style.top = top + "px";
+}
+
+function dp2SyncMapAnchoredOverlays() {
+  dp2EnsureOverlayLayer();
+  const canvas = document.getElementById("dp2-draw-canvas");
+  const input = document.getElementById("dp2-parcel-edge-inline-input");
+  if (!document.getElementById("dp2-overlay-layer") || !canvas || !input) return;
+  dp2LayoutParcelEdgeInlineInputInLayer(canvas, input);
+}
+
+function dp2InteractionTierForFeature(featureId) {
+  if (!featureId || !window.dp2InteractionState) return null;
+  const is = window.dp2InteractionState;
+  if (is.editingFeatureId === featureId) return "editing";
+  if (is.activeFeatureId === featureId) return "active";
+  if (is.hoveredFeatureId === featureId) return "hover";
+  return null;
+}
+
+/** Surcouche UX sur un segment (cote) — pas de modification géométrique */
+function dp2DrawCoteSegmentTier(ctx, p1, p2, tier) {
+  if (!tier) return;
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(p1.x, p1.y);
+  ctx.lineTo(p2.x, p2.y);
+  const gold = "#C39847";
+  if (tier === "hover") {
+    ctx.strokeStyle = gold;
+    ctx.globalAlpha = 0.6;
+    ctx.lineWidth = 1.75;
+    ctx.shadowColor = "rgba(195, 152, 71, 0.4)";
+    ctx.shadowBlur = 8;
+  } else if (tier === "active") {
+    ctx.strokeStyle = gold;
+    ctx.globalAlpha = 1;
+    ctx.lineWidth = 2.75;
+  } else if (tier === "editing") {
+    ctx.strokeStyle = gold;
+    ctx.globalAlpha = 1;
+    ctx.lineWidth = 3.2;
+    ctx.setLineDash([5, 4]);
+    ctx.shadowColor = "rgba(195, 152, 71, 0.55)";
+    ctx.shadowBlur = 12;
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
+function dp2FillCoteLabelWithTier(ctx, text, midX, midY, tier) {
+  const sc = tier === "hover" ? 1.05 : tier === "active" ? 1.04 : tier === "editing" ? 1.06 : 1;
+  ctx.save();
+  if (sc !== 1) {
+    ctx.translate(midX, midY);
+    ctx.scale(sc, sc);
+    ctx.translate(-midX, -midY);
+  }
+  if (tier === "hover" || tier === "editing") {
+    ctx.shadowColor = "rgba(195, 152, 71, 0.45)";
+    ctx.shadowBlur = tier === "editing" ? 10 : 6;
+  }
+  ctx.fillText(text, midX, midY);
+  ctx.restore();
+}
+
+function dp2EnsureModeStrip() {
+  const wrap = document.getElementById("dp2-captured-image-wrap");
+  if (!wrap || document.getElementById("dp2-mode-strip")) return;
+  const strip = document.createElement("div");
+  strip.id = "dp2-mode-strip";
+  strip.className = "dp2-mode-strip";
+  strip.setAttribute("aria-live", "polite");
+  const actions = document.getElementById("dp2-draw-actions");
+  const toolbar = document.getElementById("dp2-toolbar");
+  if (actions && toolbar && actions.parentNode === wrap) wrap.insertBefore(strip, actions);
+  else if (toolbar && toolbar.parentNode === wrap) toolbar.insertAdjacentElement("afterend", strip);
+  else wrap.insertAdjacentElement("afterbegin", strip);
+}
+
+function refreshDP2ModeStrip() {
+  dp2EnsureModeStrip();
+  const el = document.getElementById("dp2-mode-strip");
+  if (!el) return;
+  const tool = window.DP2_STATE?.currentTool || "select";
+  const openOutline = typeof hasDP2OpenBuildingOutline === "function" && hasDP2OpenBuildingOutline();
+  let text = "";
+  if (openOutline && tool === "building_outline") {
+    text = "Contour bâti ouvert — cliquez pour placer les sommets, double-clic pour fermer le polygone.";
+  } else if (tool === "building_outline") {
+    text = "Mode contour bâti — dessinez le pourtour du bâtiment (clics successifs).";
+  } else if (tool === "measure_line") {
+    text = "Trait de mesure — 1er clic : point A, 2e clic : point B. Double-clic sur une cote pour la modifier.";
+  } else if (tool === "ridge_line") {
+    text = "Faîtage — deux clics pour définir l’arête.";
+  } else if (tool === "pan") {
+    text = "Pan — glisser pour déplacer la vue (molette : zoom).";
+  } else if (tool === "panels") {
+    text = "Pose de panneaux — le fantôme indique où le module sera posé.";
+  } else {
+    text = "Sélection — double-clic sur une cote jaune pour modifier la longueur ; glisser une cote pour la déplacer.";
+  }
+  el.textContent = text;
+}
+
 // --------------------------
 // DP2 — BARRE D'OUTILS (ÉTAPE 4)
 // Tant que contour bâti non fermé → seul outil actif = contour bâti (sélection bloquée).
@@ -4242,6 +7155,8 @@ function initDP2Toolbar() {
   const selectBtn = document.getElementById("dp2-tool-select");
   const panBtn = document.getElementById("dp2-tool-pan");
   const panelsBtn = document.getElementById("dp2-tool-panels");
+  const displayModeDetailedBtn = document.getElementById("dp2-display-mode-detailed");
+  const displayModeSimpleBtn = document.getElementById("dp2-display-mode-simple");
   const textBtn = document.getElementById("dp2-tool-text");
   const textMenu = document.getElementById("dp2-text-menu");
   const textIconEl = textBtn?.querySelector?.(".dp2-tool-icon") || null;
@@ -4473,9 +7388,13 @@ function initDP2Toolbar() {
     syncMeasuresButtonDisplay(tool);
     syncBusinessButtonDisplay(tool);
     syncTextButtonDisplay(tool);
-    // Curseur Pan sur le wrap (déplacement visuel uniquement)
     const imgWrap = document.getElementById("dp2-captured-image-wrap");
     if (imgWrap) imgWrap.classList.toggle("dp2-tool-pan", tool === "pan");
+    try {
+      dp2SyncInteractionToolFromDp2State();
+      dp2FinalizeInteractionChrome();
+    } catch (_) {}
+    refreshDP2ModeStrip();
     renderDP2FromState();
   }
 
@@ -4502,12 +7421,17 @@ function initDP2Toolbar() {
     if (panBtn) panBtn.disabled = open;
     panelsBtn?.classList.toggle("dp2-tool-btn-disabled", open);
     if (panelsBtn) panelsBtn.disabled = open;
+    displayModeDetailedBtn?.classList.toggle("dp2-tool-btn-disabled", open);
+    if (displayModeDetailedBtn) displayModeDetailedBtn.disabled = open;
+    displayModeSimpleBtn?.classList.toggle("dp2-tool-btn-disabled", open);
+    if (displayModeSimpleBtn) displayModeSimpleBtn.disabled = open;
     textBtn?.classList.toggle("dp2-tool-btn-disabled", open);
     if (textBtn) textBtn.disabled = open;
     businessBtn?.classList.toggle("dp2-tool-btn-disabled", open);
     if (businessBtn) businessBtn.disabled = open;
     // Le dropdown regroupe les outils métier : on bloque l'ouverture si contour non fermé
     // (via hasDP2OpenBuildingOutline() dans les handlers), sans griser le bouton actif.
+    refreshDP2ModeStrip();
   }
 
   selectBtn?.addEventListener("click", () => {
@@ -4549,6 +7473,20 @@ function initDP2Toolbar() {
       return;
     }
     setActiveTool("panels");
+  });
+
+  displayModeDetailedBtn?.addEventListener("click", () => {
+    if (hasDP2OpenBuildingOutline()) return;
+    if (!window.DP2_STATE) return;
+    window.DP2_STATE.displayMode = "detailed";
+    renderDP2FromState();
+  });
+
+  displayModeSimpleBtn?.addEventListener("click", () => {
+    if (hasDP2OpenBuildingOutline()) return;
+    if (!window.DP2_STATE) return;
+    window.DP2_STATE.displayMode = "simple";
+    renderDP2FromState();
   });
 
   textBtn?.addEventListener("click", (e) => {
@@ -4626,6 +7564,7 @@ function initDP2Toolbar() {
       const objs = window.DP2_STATE?.objects || [];
       const idx = objs.findIndex(o => o && o.__parcelEdge);
       if (idx >= 0) {
+        if (typeof dp2RemoveParcelEdgeInlineInput === "function") dp2RemoveParcelEdgeInlineInput();
         objs.splice(idx, 1);
         if (typeof dp2RemoveMeasureResizePreviewOverlay === "function") dp2RemoveMeasureResizePreviewOverlay();
         if (typeof renderDP2FromState === "function") renderDP2FromState();
@@ -4847,13 +7786,76 @@ function dp2HitTestParcelSegmentClosest(canvas, x, y) {
   return best;
 }
 
+/** Centre canvas (px) du libellé de cote d’un segment — aligné sur renderDP2BuildingContour + hit-test. */
+function dp2ComputeParcelSegmentLabelCanvasPoint(contour, segmentIndex) {
+  if (!contour || !Array.isArray(contour.points)) return null;
+  const pts = contour.points;
+  const i = segmentIndex;
+  const segments = contour.closed ? pts.length : pts.length - 1;
+  if (i < 0 || i >= segments) return null;
+  const p1 = pts[i];
+  const p2 = pts[(i + 1) % pts.length];
+  if (!p1 || !p2) return null;
+  const offMap = contour.labelOffsets && typeof contour.labelOffsets === "object" ? contour.labelOffsets : {};
+  const segOff = offMap[i] && typeof offMap[i].x === "number" && typeof offMap[i].y === "number" ? offMap[i] : { x: 0, y: 0 };
+  const cutParts = contour.cuts && contour.cuts[i];
+  let midX; let midY;
+  if (Array.isArray(cutParts) && cutParts.length === 2 && cutParts[0]?.a && cutParts[0]?.b && cutParts[1]?.a && cutParts[1]?.b) {
+    const m0x = (cutParts[0].a.x + cutParts[0].b.x) / 2;
+    const m0y = (cutParts[0].a.y + cutParts[0].b.y) / 2;
+    const m1x = (cutParts[1].a.x + cutParts[1].b.x) / 2;
+    const m1y = (cutParts[1].a.y + cutParts[1].b.y) / 2;
+    midX = (m0x + m1x) / 2;
+    midY = (m0y + m1y) / 2;
+  } else {
+    midX = (p1.x + p2.x) / 2;
+    midY = (p1.y + p2.y) / 2;
+  }
+  return { x: midX + segOff.x, y: midY + segOff.y };
+}
+
+/** Double-clic édition cote parcelle : hit sur le libellé affiché (pas sur l’arête brute). */
+const DP2_PARCEL_LABEL_DBLCLICK_HIT_PX = 25;
+
+function dp2HitTestParcelLabelForDblClick(canvasX, canvasY) {
+  const contours = dp2GetBuildingContours();
+  const objects = window.DP2_STATE?.objects || [];
+  let best = null;
+  let bestD = Infinity;
+  for (let c = 0; c < contours.length; c++) {
+    const contour = contours[c];
+    if (!contour || !contour.id || !Array.isArray(contour.points) || contour.points.length < 2) continue;
+    const pts = contour.points;
+    const segments = contour.closed ? pts.length : pts.length - 1;
+    for (let i = 0; i < segments; i++) {
+      const parcelEdgeML = objects.find(
+        o => o && o.type === "measure_line" && o.__parcelEdge && o.__parcelEdge.contourId === contour.id && o.__parcelEdge.segmentIndex === i
+      );
+      if (parcelEdgeML) continue;
+      const pt = dp2ComputeParcelSegmentLabelCanvasPoint(contour, i);
+      if (!pt) continue;
+      const d = Math.hypot(canvasX - pt.x, canvasY - pt.y);
+      if (d >= DP2_PARCEL_LABEL_DBLCLICK_HIT_PX || d >= bestD) continue;
+      bestD = d;
+      const p1 = pts[i];
+      const p2 = pts[(i + 1) % pts.length];
+      best = {
+        contourId: contour.id,
+        segmentIndex: i,
+        a: { x: p1.x, y: p1.y },
+        b: { x: p2.x, y: p2.y }
+      };
+    }
+  }
+  return best;
+}
+
 // DP2 — Hit-test étiquette de cote (texte "X,XX m") sur un segment de contour jaune. Pour drag visuel uniquement.
 function dp2HitTestParcelSegmentLabel(canvas, x, y) {
   const contours = dp2GetBuildingContours();
   const objects = window.DP2_STATE?.objects || [];
   const halfW = 32;
   const halfH = 12;
-  let best = null;
   for (let c = contours.length - 1; c >= 0; c--) {
     const contour = contours[c];
     if (!contour || !contour.id || !Array.isArray(contour.points)) continue;
@@ -4861,32 +7863,14 @@ function dp2HitTestParcelSegmentLabel(canvas, x, y) {
     const scale = window.DP2_STATE?.scale_m_per_px;
     if (pts.length < 2 || typeof scale !== "number" || scale <= 0) continue;
     const segments = contour.closed ? pts.length : pts.length - 1;
-    const offMap = contour.labelOffsets && typeof contour.labelOffsets === "object" ? contour.labelOffsets : {};
     for (let i = segments - 1; i >= 0; i--) {
       const parcelEdgeML = objects.find(
         o => o && o.type === "measure_line" && o.__parcelEdge && o.__parcelEdge.contourId === contour.id && o.__parcelEdge.segmentIndex === i
       );
       if (parcelEdgeML) continue;
-      const p1 = pts[i];
-      const p2 = pts[(i + 1) % pts.length];
-      if (!p1 || !p2) continue;
-      const cutParts = contour.cuts && contour.cuts[i];
-      let lx; let ly;
-      if (Array.isArray(cutParts) && cutParts.length === 2 && cutParts[0]?.a && cutParts[0]?.b && cutParts[1]?.a && cutParts[1]?.b) {
-        const m0x = (cutParts[0].a.x + cutParts[0].b.x) / 2;
-        const m0y = (cutParts[0].a.y + cutParts[0].b.y) / 2;
-        const m1x = (cutParts[1].a.x + cutParts[1].b.x) / 2;
-        const m1y = (cutParts[1].a.y + cutParts[1].b.y) / 2;
-        lx = (m0x + m1x) / 2;
-        ly = (m0y + m1y) / 2;
-      } else {
-        lx = (p1.x + p2.x) / 2;
-        ly = (p1.y + p2.y) / 2;
-      }
-      const off = offMap[i] && typeof offMap[i].x === "number" && typeof offMap[i].y === "number" ? offMap[i] : { x: 0, y: 0 };
-      lx += off.x;
-      ly += off.y;
-      if (x >= lx - halfW && x <= lx + halfW && y >= ly - halfH && y <= ly + halfH)
+      const pt = dp2ComputeParcelSegmentLabelCanvasPoint(contour, i);
+      if (!pt) continue;
+      if (x >= pt.x - halfW && x <= pt.x + halfW && y >= pt.y - halfH && y <= pt.y + halfH)
         return { contourId: contour.id, segmentIndex: i };
     }
   }
@@ -5109,6 +8093,53 @@ function dp2ClearSelectedTexts() {
 function dp2PointInAABB(x, y, aabb) {
   if (!aabb) return false;
   return x >= aabb.minX && x <= aabb.maxX && y >= aabb.minY && y <= aabb.maxY;
+}
+
+/**
+ * Rectangle englobant (AABB monde canvas) de tous les panneaux DP2_STATE.panels — fonction pure.
+ * Même convention de transform que renderDP2PanelRect (échelle optionnelle sur la géométrie, puis rotation).
+ * @returns {{ x:number, y:number, width:number, height:number } | null}
+ */
+function computePanelsBoundingBox(panels) {
+  const list = Array.isArray(panels) ? panels : [];
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  let count = 0;
+  for (const p of list) {
+    if (!p || p.type !== "panel" || p.visible !== true || !p.geometry) continue;
+    const g = p.geometry;
+    const w = g.width || 0;
+    const h = g.height || 0;
+    if (!(w > 0) || !(h > 0)) continue;
+    const rot = g.rotation || 0;
+    const cx = (g.x || 0) + w / 2;
+    const cy = (g.y || 0) + h / 2;
+    const sx = g.displayScaleX ?? g.displayScale ?? 1;
+    const sy = g.displayScaleY ?? g.displayScale ?? 1;
+    const hw = (w / 2) * sx;
+    const hh = (h / 2) * sy;
+    const cornersLocal = [
+      { x: -hw, y: -hh },
+      { x: +hw, y: -hh },
+      { x: +hw, y: +hh },
+      { x: -hw, y: +hh }
+    ];
+    const c = Math.cos(rot);
+    const s = Math.sin(rot);
+    for (const pt of cornersLocal) {
+      const wx = cx + (pt.x * c - pt.y * s);
+      const wy = cy + (pt.x * s + pt.y * c);
+      if (wx < minX) minX = wx;
+      if (wy < minY) minY = wy;
+      if (wx > maxX) maxX = wx;
+      if (wy > maxY) maxY = wy;
+    }
+    count++;
+  }
+  if (count === 0) return null;
+  return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
 }
 
 function dp2PanelWorldAABB(g) {
@@ -5457,15 +8488,52 @@ function dp2IsVectorCreateBusinessType(type) {
   return type === "sens_pente" || type === "voie_acces" || type === "arrow" || type === "angle_vue";
 }
 
+// Formes métier — resize + rotation (× viewZoom, ×0.8 visuel) ; déplacement = drag sur le corps
+const DP2_BIZ_HANDLE_VIS_GLOBAL = 0.8;
+const DP2_BIZ_HANDLE_VISUAL_PX = 11;
+const DP2_BIZ_HANDLE_HIT_PAD_PX = 9;
+const DP2_BIZ_ROT_LINE_PX = 18;
+const DP2_BIZ_ROT_VIS_R_PX = 7;
+const DP2_BIZ_ROT_HIT_PAD_PX = 9;
+const DP2_BIZ_BODY_HIT_PAD_PX = 5;
+/** Seuil canvas (px) : au-delà, le candidat corps → vrai drag métier + commit historique. */
+const DP2_BIZ_DRAG_PROMOTE_PX = 4;
+
+function dp2GetBusinessSelectionUiScale() {
+  const z = window.DP2_STATE?.viewZoom;
+  if (typeof z !== "number" || z <= 0) return 1;
+  return Math.max(0.65, Math.min(1.75, 1 / z));
+}
+
+function dp2GetBusinessSelectionMetrics() {
+  const sc = dp2GetBusinessSelectionUiScale();
+  const vg = DP2_BIZ_HANDLE_VIS_GLOBAL;
+  const visualHalf = (DP2_BIZ_HANDLE_VISUAL_PX * sc * vg) / 2;
+  const hitResizeHalf = visualHalf + DP2_BIZ_HANDLE_HIT_PAD_PX * sc;
+  const rotLine = DP2_BIZ_ROT_LINE_PX * sc * vg;
+  const rotVisR = DP2_BIZ_ROT_VIS_R_PX * sc * vg;
+  const rotHitR = rotVisR + DP2_BIZ_ROT_HIT_PAD_PX * sc;
+  const bodyPad = DP2_BIZ_BODY_HIT_PAD_PX * sc;
+  return { sc, vg, visualHalf, hitResizeHalf, rotLine, rotVisR, rotHitR, bodyPad };
+}
+
+/** Resize unique coin bas-droit (repère local non rotaté, comme avant multi-handles). */
+function dp2ApplyBusinessResizeFromLocal(inter, g, lx, ly) {
+  const sx = inter.startX;
+  const sy = inter.startY;
+  const minSize = 12;
+  g.x = sx;
+  g.y = sy;
+  g.width = Math.max(minSize, lx - sx);
+  g.height = Math.max(minSize, ly - sy);
+}
+
 function dp2HitTestBusiness(x, y) {
   const items = window.DP2_STATE?.businessObjects || [];
-  const handleSize = 10;
-  const rotateHandleR = 8;
-  const rotateHandleOffset = 18;
-  // En mode "Sélection" (neutre), on conserve uniquement sélection/déplacement :
-  // pas de handles resize/rotate, donc pas d'actions associées.
+  const m = dp2GetBusinessSelectionMetrics();
+  const { hitResizeHalf, rotLine, rotHitR, bodyPad } = m;
   const tool = window.DP2_STATE?.currentTool || "select";
-  const allowHandles = isDP2BusinessTool(tool);
+  const selectedBizId = window.DP2_STATE?.selectedBusinessObjectId || null;
 
   for (let i = items.length - 1; i >= 0; i--) {
     const obj = items[i];
@@ -5475,32 +8543,157 @@ function dp2HitTestBusiness(x, y) {
     const h = g.height || 0;
     if (!(w > 0) || !(h > 0)) continue;
 
-    // Convertir le point monde -> repère non-rotaté (local) via rotation inverse autour du centre
+    const canHitHandles =
+      isDP2BusinessTool(tool) ||
+      (tool === "select" && selectedBizId && obj.id === selectedBizId);
+
     const local = dp2BusinessWorldToLocal(obj, x, y);
     const lx = local.x;
     const ly = local.y;
 
-    const inside = lx >= g.x && lx <= g.x + w && ly >= g.y && ly <= g.y + h;
+    const inside =
+      lx >= g.x - bodyPad &&
+      lx <= g.x + w + bodyPad &&
+      ly >= g.y - bodyPad &&
+      ly <= g.y + h + bodyPad;
 
-    if (allowHandles) {
-      // Rotation handle : au-dessus du centre haut du bbox
+    const strictIn =
+      lx >= g.x &&
+      lx <= g.x + w &&
+      ly >= g.y &&
+      ly <= g.y + h;
+
+    if (canHitHandles) {
       const rhX = g.x + w / 2;
-      const rhY = g.y - rotateHandleOffset;
-      if (Math.hypot(lx - rhX, ly - rhY) <= rotateHandleR) {
+      const rhY = g.y - rotLine;
+      if (Math.hypot(lx - rhX, ly - rhY) <= rotHitR) {
         return { id: obj.id, part: "rotate" };
       }
 
-      // Resize handle : coin bas-droit
       const hx = g.x + w;
       const hy = g.y + h;
-      if (lx >= hx - handleSize && lx <= hx + handleSize && ly >= hy - handleSize && ly <= hy + handleSize) {
-        return { id: obj.id, part: "resize" };
+      if (lx >= hx - hitResizeHalf && lx <= hx + hitResizeHalf && ly >= hy - hitResizeHalf && ly <= hy + hitResizeHalf) {
+        return { id: obj.id, part: "resize", handle: "br" };
+      }
+
+      if (strictIn) {
+        return { id: obj.id, part: "body" };
       }
     }
 
     if (inside) return { id: obj.id, part: "body" };
   }
   return null;
+}
+
+let _dp2BizDragRenderRaf = null;
+function dp2ScheduleBusinessDragRender() {
+  if (_dp2BizDragRenderRaf != null) return;
+  _dp2BizDragRenderRaf = requestAnimationFrame(() => {
+    _dp2BizDragRenderRaf = null;
+    renderDP2FromState();
+  });
+}
+function dp2CancelPendingBusinessDragRender() {
+  if (_dp2BizDragRenderRaf != null) {
+    cancelAnimationFrame(_dp2BizDragRenderRaf);
+    _dp2BizDragRenderRaf = null;
+  }
+}
+
+/** Transitions chrome métier (hover / sélection / fin de drag) — 80–120 ms, sans logique métier. */
+function dp2BizUiEaseOutQuad(t) {
+  const u = Math.min(1, Math.max(0, t));
+  return 1 - (1 - u) * (1 - u);
+}
+function dp2BizUiBlend01(startAt, durationMs) {
+  if (startAt == null || typeof startAt !== "number") return 1;
+  const u = (Date.now() - startAt) / durationMs;
+  if (u >= 1) return 1;
+  return dp2BizUiEaseOutQuad(u);
+}
+function dp2BizSelectionGripBlend(state, objId) {
+  if (!state || !objId) return 0;
+  const inter = state.businessInteraction;
+  if (inter && inter.id === objId && inter.part !== "create") {
+    if (inter.part === "move" || inter.part === "resize" || inter.part === "rotate") return 1;
+  }
+  const rel = state._businessGripReleaseAt;
+  if (rel == null || typeof rel !== "number") return 0;
+  const dt = Date.now() - rel;
+  if (dt >= 115) return 0;
+  return 1 - dt / 115;
+}
+function dp2BizUiTransitionPending() {
+  const st = window.DP2_STATE;
+  if (!st) return false;
+  const now = Date.now();
+  if (st._bizHoverChromeAt != null && now - st._bizHoverChromeAt < 108) return true;
+  if (st._bizSelChromeAt != null && now - st._bizSelChromeAt < 108) return true;
+  if (st._businessGripReleaseAt != null && now - st._businessGripReleaseAt < 125) return true;
+  return false;
+}
+let _dp2BizUiChromeRaf = null;
+function dp2TryScheduleBizUiChromeFrame() {
+  if (_dp2BizUiChromeRaf != null || !dp2BizUiTransitionPending()) return;
+  _dp2BizUiChromeRaf = requestAnimationFrame(() => {
+    _dp2BizUiChromeRaf = null;
+    renderDP2FromState();
+  });
+}
+
+function dp2TryUpdateBusinessHoverCursor(canvas, clientX, clientY) {
+  if (!canvas || window.DP2_STATE?.mode !== "EDITION") return;
+  const tool = window.DP2_STATE?.currentTool || "select";
+  if (tool === "pan" || tool === "panels" || tool === "measure_line" || tool === "ridge_line" || tool === "building_outline") {
+    canvas.style.cursor = "";
+    return;
+  }
+  if (isDP2TextTool(tool)) {
+    canvas.style.cursor = "";
+    return;
+  }
+  if (
+    window.DP2_STATE?.businessInteraction ||
+    window.DP2_STATE?.businessDragCandidate ||
+    window.DP2_STATE?.panelInteraction ||
+    window.DP2_STATE?.panelGroupInteraction ||
+    window.DP2_STATE?.textInteraction ||
+    window.DP2_STATE?.selectionRect ||
+    window.DP2_STATE?.measureLabelDrag ||
+    window.DP2_STATE?.measureLabelDragCandidate
+  ) {
+    return;
+  }
+  if (!isDP2BusinessTool(tool) && tool !== "select") {
+    canvas.style.cursor = "";
+    return;
+  }
+  const coords = getDP2CanvasCoords(canvas, clientX, clientY);
+  const hit = dp2HitTestBusiness(coords.x, coords.y);
+  const nextHover = hit && hit.id ? hit.id : null;
+  const prevHover = window.DP2_STATE._businessHoverId ?? null;
+  if (nextHover !== prevHover) {
+    window.DP2_STATE._businessHoverId = nextHover;
+    window.DP2_STATE._bizHoverChromeAt = Date.now();
+    renderDP2FromState();
+  }
+  if (!hit || !hit.id) {
+    canvas.style.cursor = "";
+    return;
+  }
+  if (hit.part === "rotate") {
+    canvas.style.cursor = "crosshair";
+    return;
+  }
+  if (hit.part === "body") {
+    canvas.style.cursor = "move";
+    return;
+  }
+  if (hit.part === "resize") {
+    canvas.style.cursor = "nwse-resize";
+    return;
+  }
 }
 
 // --------------------------
@@ -5528,59 +8721,21 @@ function initDP2CanvasEvents() {
         (activeEl.tagName === "INPUT" || activeEl.tagName === "TEXTAREA" || activeEl.isContentEditable);
       if (typing) return;
 
-      const bizId = window.DP2_STATE?.selectedBusinessObjectId || null;
+      const state = window.DP2_STATE;
+      if (!state || state.mode !== "EDITION") return;
+
+      const bizId = state.selectedBusinessObjectId || null;
       const panelIds = typeof dp2GetEffectiveSelectedPanelIds === "function" ? dp2GetEffectiveSelectedPanelIds() : [];
       const textIds = typeof dp2GetEffectiveSelectedTextIds === "function" ? dp2GetEffectiveSelectedTextIds() : [];
-      // IMPORTANT: au clavier, on ne supprime QUE formes métier + panneaux + textes (pas les objets standards).
-      if (!bizId && (!panelIds || !panelIds.length) && (!textIds || !textIds.length)) return;
+      const objIdx = state.selectedObjectId != null ? state.selectedObjectId : null;
+      const contourId = state.selectedBuildingContourId || null;
 
-      dp2CommitHistoryPoint();
-
-      // 0) Textes (suppression groupée)
-      if (textIds && textIds.length) {
-        const idSet = new Set(textIds.filter(Boolean));
-        const items = Array.isArray(window.DP2_STATE.textObjects) ? window.DP2_STATE.textObjects : [];
-        const kept = [];
-        for (const t of items) {
-          if (!t || !t.id || !idSet.has(t.id)) kept.push(t);
-        }
-        window.DP2_STATE.textObjects = kept;
-        dp2ClearSelectedTexts();
-        window.DP2_STATE.textInteraction = null;
-        renderDP2FromState();
-        e.preventDefault();
+      if (!bizId && (!panelIds || !panelIds.length) && (!textIds || !textIds.length) && objIdx == null && !contourId) {
         return;
       }
 
-      // 1) Priorité : forme métier
-      if (bizId) {
-        const items = window.DP2_STATE.businessObjects || [];
-        const idx = items.findIndex((o) => o && o.id === bizId);
-        if (idx >= 0) {
-          items.splice(idx, 1);
-          window.DP2_STATE.selectedBusinessObjectId = null;
-          renderDP2FromState();
-          e.preventDefault();
-        }
-        return;
-      }
-
-      // 2) Ensuite : panneau PV (suppression groupée si multi-sélection active)
-      if (panelIds && panelIds.length) {
-        const idSet = new Set(panelIds.filter(Boolean));
-        const items = Array.isArray(window.DP2_STATE.panels) ? window.DP2_STATE.panels : [];
-        const kept = [];
-        for (const p of items) {
-          if (!p || !p.id || !idSet.has(p.id)) kept.push(p);
-        }
-        window.DP2_STATE.panels = kept;
-        dp2ClearSelectedPanels();
-        window.DP2_STATE.selectionRect = null;
-        window.DP2_STATE.panelGroupInteraction = null;
-        window.DP2_STATE.panelInteraction = null;
-        renderDP2FromState();
-        e.preventDefault();
-      }
+      dp2DeleteSelected();
+      e.preventDefault();
     });
   }
 
@@ -5591,6 +8746,9 @@ function initDP2CanvasEvents() {
     if (tool !== "select" && tool !== "panels" && !isDP2BusinessTool(tool) && !isDP2TextTool(tool)) return;
 
     const coords = getDP2CanvasCoords(canvas, e.clientX, e.clientY);
+    try {
+      dp2SetActiveFeatureFromPointerDown(canvas, e);
+    } catch (_) {}
 
     // 0) Étiquette de mesure (label) : candidat au drag (seuil 4px en pointermove) — uniquement outil Sélection, avant tout autre hit
     if (tool === "select") {
@@ -5806,14 +8964,41 @@ function initDP2CanvasEvents() {
       dp2ClearSelectedTexts();
       window.DP2_STATE.selectedBuildingContourId = null;
       window.DP2_STATE.selectedBusinessObjectId = obj.id;
-      dp2CommitHistoryPoint();
 
       const g = obj.geometry;
       const cx = g.x + (g.width || 0) / 2;
       const cy = g.y + (g.height || 0) / 2;
+
+      // Corps : sélection immédiate ; drag réel seulement après seuil (voir businessDragCandidate + pointermove)
+      if (hitBiz.part === "body") {
+        window.DP2_STATE._businessGripReleaseAt = null;
+        window.DP2_STATE.businessDragCandidate = {
+          id: obj.id,
+          pointerId: e.pointerId,
+          startClientX: e.clientX,
+          startClientY: e.clientY,
+          startX: g.x,
+          startY: g.y,
+          startW: g.width,
+          startH: g.height,
+          startRotation: g.rotation || 0,
+          cx,
+          cy,
+          startAngle: Math.atan2(coords.y - cy, coords.x - cx)
+        };
+        try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
+        e.preventDefault();
+        renderDP2FromState();
+        return;
+      }
+
+      dp2CommitHistoryPoint();
+      window.DP2_STATE.businessDragCandidate = null;
+      window.DP2_STATE._businessGripReleaseAt = null;
       window.DP2_STATE.businessInteraction = {
         id: obj.id,
         part: hitBiz.part,
+        resizeHandle: hitBiz.part === "resize" ? (hitBiz.handle || "br") : undefined,
         pointerId: e.pointerId,
         startClientX: e.clientX,
         startClientY: e.clientY,
@@ -5827,6 +9012,8 @@ function initDP2CanvasEvents() {
         startAngle: Math.atan2(coords.y - cy, coords.x - cx),
         hasMoved: false
       };
+      if (hitBiz.part === "rotate") canvas.style.cursor = "grabbing";
+      else if (hitBiz.part === "resize") canvas.style.cursor = "nwse-resize";
       try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
       e.preventDefault();
       renderDP2FromState();
@@ -5996,6 +9183,44 @@ function initDP2CanvasEvents() {
       delete window.DP2_STATE.measureLabelDragCandidate;
     }
 
+    // Formes métier — corps : candidat → vrai move + 1× commit au début du drag réel
+    const bdc = window.DP2_STATE?.businessDragCandidate || null;
+    if (bdc && typeof bdc.pointerId === "number" && bdc.pointerId === e.pointerId) {
+      const cur = getDP2CanvasCoords(canvas, e.clientX, e.clientY);
+      const startCanvas = getDP2CanvasCoords(canvas, bdc.startClientX, bdc.startClientY);
+      const dist = Math.hypot(cur.x - startCanvas.x, cur.y - startCanvas.y);
+      if (dist < DP2_BIZ_DRAG_PROMOTE_PX) return;
+      dp2CommitHistoryPoint();
+      const bdcId = bdc.id;
+      window.DP2_STATE.businessInteraction = {
+        id: bdcId,
+        part: "move",
+        pointerId: e.pointerId,
+        startClientX: bdc.startClientX,
+        startClientY: bdc.startClientY,
+        startX: bdc.startX,
+        startY: bdc.startY,
+        startW: bdc.startW,
+        startH: bdc.startH,
+        startRotation: bdc.startRotation,
+        cx: bdc.cx,
+        cy: bdc.cy,
+        startAngle: bdc.startAngle,
+        hasMoved: true,
+        historyCommitted: true
+      };
+      window.DP2_STATE.businessDragCandidate = null;
+      const objProm = getDP2BusinessObjectById(bdcId);
+      if (objProm && objProm.geometry) {
+        const g0 = objProm.geometry;
+        g0.x = bdc.startX + (cur.x - startCanvas.x);
+        g0.y = bdc.startY + (cur.y - startCanvas.y);
+      }
+      window.DP2_STATE._businessGripReleaseAt = null;
+      dp2ScheduleBusinessDragRender();
+      return;
+    }
+
     // DP2 — Drag étiquette de cote (segment jaune) : déplacement visuel uniquement
     const pld = window.DP2_STATE?.parcelLabelDrag || null;
     if (pld && typeof pld.pointerId === "number" && pld.pointerId === e.pointerId) {
@@ -6048,46 +9273,10 @@ function initDP2CanvasEvents() {
       return;
     }
 
-    // Curseur "move" au survol d'une étiquette de mesure ou d'une cote de parcelle (outil Sélection)
-    // DP4 : curseur ns-resize sur handle scale panneau/groupe
-    const tool = window.DP2_STATE?.currentTool || "select";
-    if (tool === "select" && !mld && !pld && !rld) {
-      const coords = getDP2CanvasCoords(canvas, e.clientX, e.clientY);
-      if (typeof dp2IsDP4RoofProfile === "function" && dp2IsDP4RoofProfile()) {
-        const groupHit = dp2HitTestPanelGroup(coords.x, coords.y);
-        if (groupHit && groupHit.part === "scale") {
-          canvas.style.cursor = "nwse-resize";
-        } else {
-          const hitPanel = dp2HitTestPanel(coords.x, coords.y);
-          if (hitPanel && hitPanel.part === "scale") {
-            canvas.style.cursor = "nwse-resize";
-          } else {
-            let showMove = false;
-            const hitLabel = dp2HitTestMeasureLabel(canvas, coords.x, coords.y);
-            if (hitLabel && hitLabel.kind === "measure_label" && !dp2IsAnyMeasureOverlayOpen()) {
-              const obj = window.DP2_STATE?.objects?.[hitLabel.index];
-              showMove = !dp2IsMeasureLineEditingActive(obj);
-            }
-            if (!showMove && dp2HitTestParcelSegmentLabel(canvas, coords.x, coords.y))
-              showMove = true;
-            if (!showMove && dp2HitTestRidgeLabel(canvas, coords.x, coords.y))
-              showMove = true;
-            canvas.style.cursor = showMove ? "move" : "";
-          }
-        }
-      } else {
-        let showMove = false;
-        const hitLabel = dp2HitTestMeasureLabel(canvas, coords.x, coords.y);
-        if (hitLabel && hitLabel.kind === "measure_label" && !dp2IsAnyMeasureOverlayOpen()) {
-          const obj = window.DP2_STATE?.objects?.[hitLabel.index];
-          showMove = !dp2IsMeasureLineEditingActive(obj);
-        }
-        if (!showMove && dp2HitTestParcelSegmentLabel(canvas, coords.x, coords.y))
-          showMove = true;
-        if (!showMove && dp2HitTestRidgeLabel(canvas, coords.x, coords.y))
-          showMove = true;
-        canvas.style.cursor = showMove ? "move" : "";
-      }
+    if (!mld && !pld && !rld) {
+      try {
+        dp2UpdateHoverFromPointerMove(canvas, e);
+      } catch (_) {}
     }
 
     // DP2 — Drag sommet contour de bâti (buildingContours)
@@ -6427,9 +9616,13 @@ function initDP2CanvasEvents() {
     }
 
     const inter = window.DP2_STATE?.businessInteraction || null;
-    if (!inter || !inter.id) return;
+    if (inter && inter.id) {
     const obj = getDP2BusinessObjectById(inter.id);
-    if (!obj || !obj.geometry) return;
+    if (obj && obj.geometry) {
+    if (inter.part === "move" || inter.part === "resize" || inter.part === "rotate") {
+      if (inter.part === "resize") canvas.style.cursor = "nwse-resize";
+      else canvas.style.cursor = "grabbing";
+    }
 
     const coords = getDP2CanvasCoords(canvas, e.clientX, e.clientY);
     const g = obj.geometry;
@@ -6473,22 +9666,23 @@ function initDP2CanvasEvents() {
           g.height = rect.height;
         }
       }
-      renderDP2FromState();
+      dp2ScheduleBusinessDragRender();
       return;
     }
 
-    if (inter.part === "body") {
-      const dx = coords.x - (getDP2CanvasCoords(canvas, inter.startClientX, inter.startClientY).x);
-      const dy = coords.y - (getDP2CanvasCoords(canvas, inter.startClientX, inter.startClientY).y);
+    if (inter.part === "move") {
+      const startCanvas = getDP2CanvasCoords(canvas, inter.startClientX, inter.startClientY);
+      const dx = coords.x - startCanvas.x;
+      const dy = coords.y - startCanvas.y;
+      const dist = Math.hypot(dx, dy);
       g.x = (inter.startX || 0) + dx;
       g.y = (inter.startY || 0) + dy;
-      inter.hasMoved = true;
-      renderDP2FromState();
+      if (dist > 2) inter.hasMoved = true;
+      dp2ScheduleBusinessDragRender();
       return;
     }
 
     if (inter.part === "resize") {
-      // Resize dans le repère local (inverse-rotation) basé sur la rotation au début
       const tmpObj = {
         geometry: {
           x: inter.startX,
@@ -6499,12 +9693,9 @@ function initDP2CanvasEvents() {
         }
       };
       const local = dp2BusinessWorldToLocal(tmpObj, coords.x, coords.y);
-      const minSize = 12;
-      g.x = inter.startX;
-      g.y = inter.startY;
-      g.width = Math.max(minSize, (local.x - inter.startX));
-      g.height = Math.max(minSize, (local.y - inter.startY));
-      renderDP2FromState();
+      dp2ApplyBusinessResizeFromLocal(inter, g, local.x, local.y);
+      inter.hasMoved = true;
+      dp2ScheduleBusinessDragRender();
       return;
     }
 
@@ -6514,14 +9705,29 @@ function initDP2CanvasEvents() {
       const angle = Math.atan2(coords.y - cy, coords.x - cx);
       const delta = angle - inter.startAngle;
       g.rotation = (inter.startRotation || 0) + delta;
-      renderDP2FromState();
+      inter.hasMoved = true;
+      dp2ScheduleBusinessDragRender();
+      return;
     }
+    }
+    }
+
+    try {
+      dp2FinalizeInteractionChrome();
+    } catch (_) {}
   });
 
   canvas.addEventListener("pointerup", (e) => {
     const cand = window.DP2_STATE?.measureLabelDragCandidate || null;
     if (cand && typeof cand.pointerId === "number" && cand.pointerId === e.pointerId) {
       window.DP2_STATE.measureLabelDragCandidate = null;
+      try { canvas.releasePointerCapture(e.pointerId); } catch (_) {}
+      renderDP2FromState();
+      return;
+    }
+    const bdcUp = window.DP2_STATE?.businessDragCandidate || null;
+    if (bdcUp && typeof bdcUp.pointerId === "number" && bdcUp.pointerId === e.pointerId) {
+      window.DP2_STATE.businessDragCandidate = null;
       try { canvas.releasePointerCapture(e.pointerId); } catch (_) {}
       renderDP2FromState();
       return;
@@ -6680,9 +9886,7 @@ function initDP2CanvasEvents() {
           dp2SetSelectedTextIds([created.id]);
           window.DP2_STATE._lastTextInteractionAt = Date.now();
 
-          // Création terminée : retour au mode neutre
-          dp2ResetActiveToolToNeutral({ preserveSelection: true, reason: "text_created" });
-          renderDP2FromState();
+          dp2AutoReturnToSelectIfCreationDone({ preserveSelection: true, reason: "text_created" });
           return;
         }
         renderDP2FromState();
@@ -6705,6 +9909,7 @@ function initDP2CanvasEvents() {
 
     const inter = window.DP2_STATE?.businessInteraction || null;
     if (!inter || !inter.id) return;
+    const wasBusinessCreate = inter.part === "create";
     const obj = getDP2BusinessObjectById(inter.id);
     if (obj && obj.geometry && inter.part === "create" && inter.hasMoved !== true) {
       if ((inter.createMode || "box") === "vector") {
@@ -6726,14 +9931,31 @@ function initDP2CanvasEvents() {
         obj.geometry.rotation = 0;
       }
     }
+    dp2CancelPendingBusinessDragRender();
+    if (!wasBusinessCreate) {
+      window.DP2_STATE._businessGripReleaseAt = Date.now();
+    }
     window.DP2_STATE.businessInteraction = null;
     try { canvas.releasePointerCapture(e.pointerId); } catch (_) {}
-    renderDP2FromState();
+    canvas.style.cursor = "";
+    if (wasBusinessCreate) {
+      dp2AutoReturnToSelectIfCreationDone({ preserveSelection: true, reason: "business_object_created" });
+    } else {
+      renderDP2FromState();
+    }
   });
 
   canvas.addEventListener("mousemove", (e) => {
     const tool = window.DP2_STATE?.currentTool || "select";
-    if (tool === "pan") return;
+    if (tool === "pan") {
+      canvas.style.cursor = "";
+      if (window.DP2_STATE?._businessHoverId != null) {
+        window.DP2_STATE._businessHoverId = null;
+        renderDP2FromState();
+      }
+      return;
+    }
+    dp2TryUpdateBusinessHoverCursor(canvas, e.clientX, e.clientY);
 
     const coords = getDP2CanvasCoords(canvas, e.clientX, e.clientY);
     const scale = window.DP2_STATE?.scale_m_per_px;
@@ -6859,6 +10081,12 @@ function initDP2CanvasEvents() {
   });
 
   canvas.addEventListener("mouseleave", () => {
+    const canvasEl = document.getElementById("dp2-draw-canvas");
+    if (canvasEl) canvasEl.style.cursor = "";
+    if (window.DP2_STATE?._businessHoverId != null) {
+      window.DP2_STATE._businessHoverId = null;
+      renderDP2FromState();
+    }
     if (window.DP2_STATE.drawingPreview != null) {
       window.DP2_STATE.drawingPreview = null;
       renderDP2FromState();
@@ -6916,6 +10144,20 @@ function initDP2CanvasEvents() {
         return;
       }
 
+      const hitBizClick = dp2HitTestBusiness(coords.x, coords.y);
+      if (hitBizClick && hitBizClick.id) {
+        const bizHitObj = getDP2BusinessObjectById(hitBizClick.id);
+        if (bizHitObj) {
+          dp2ClearSelectedPanels();
+          dp2ClearSelectedTexts();
+          window.DP2_STATE.selectedBuildingContourId = null;
+          window.DP2_STATE.selectedObjectId = null;
+          window.DP2_STATE.selectedBusinessObjectId = hitBizClick.id;
+          renderDP2FromState();
+          return;
+        }
+      }
+
       const hitAny = dp2HitTest(canvas, coords.x, coords.y);
       if (hitAny && hitAny.kind === "building_contour") {
         dp2SetSelectedBuildingContourId(hitAny.id || null);
@@ -6931,7 +10173,7 @@ function initDP2CanvasEvents() {
       return;
     }
 
-    // Trait de mesure : clic 1 = point A, clic 2 = point B (trait définitif), outil reste actif
+    // Trait de mesure : clic 1 = point A, clic 2 = point B (trait définitif) puis retour sélection
     if (tool === "measure_line") {
       if (window.DP2_STATE.measureLineStart == null) {
         window.DP2_STATE.measureLineStart = { x: coords.x, y: coords.y };
@@ -6948,11 +10190,11 @@ function initDP2CanvasEvents() {
       });
       window.DP2_STATE.measureLineStart = null;
       window.DP2_STATE.drawingPreview = null;
-      renderDP2FromState();
+      dp2AutoReturnToSelectIfCreationDone({ preserveSelection: true, reason: "measure_line_created" });
       return;
     }
 
-    // Faîtage : clic 1 = point A, clic 2 = point B (faîtage définitif), outil reste actif
+    // Faîtage : clic 1 = point A, clic 2 = point B (faîtage définitif)
     if (tool === "ridge_line") {
       if (window.DP2_STATE.ridgeLineStart == null) {
         window.DP2_STATE.ridgeLineStart = { x: coords.x, y: coords.y };
@@ -6974,7 +10216,7 @@ function initDP2CanvasEvents() {
 
       window.DP2_STATE.ridgeLineStart = null;
       window.DP2_STATE.drawingPreview = null;
-      renderDP2FromState();
+      dp2AutoReturnToSelectIfCreationDone({ preserveSelection: true, reason: "ridge_line_created" });
       return;
     }
 
@@ -7057,7 +10299,7 @@ function initDP2CanvasEvents() {
       });
       dp2SetSelectedPanelIds([id]);
       window.DP2_STATE.panelPlacementPreview = null; // recalcul immédiat au prochain move
-      renderDP2FromState();
+      dp2AutoReturnToSelectIfCreationDone({ preserveSelection: true, reason: "panel_placed" });
       return;
     }
 
@@ -7115,6 +10357,7 @@ function initDP2CanvasEvents() {
     const tool = window.DP2_STATE?.currentTool || "select";
     if (tool === "pan") return;
     const coords = getDP2CanvasCoords(canvas, e.clientX, e.clientY);
+    console.log("DP2 dblclick detected", coords);
     const objs = window.DP2_STATE?.objects || [];
 
     function openMeasureLineEdit(objectIndex) {
@@ -7137,6 +10380,23 @@ function initDP2CanvasEvents() {
         }
       }
       return false;
+    }
+
+    // PRIORITAIRE — double-clic sur le libellé de cote parcelle (chiffre affiché) → champ inline
+    const hitParcelLabel = dp2HitTestParcelLabelForDblClick(coords.x, coords.y);
+    if (hitParcelLabel && hitParcelLabel.contourId != null && typeof hitParcelLabel.segmentIndex === "number") {
+      window.DP2_STATE.objects.push({
+        type: "measure_line",
+        a: { x: hitParcelLabel.a.x, y: hitParcelLabel.a.y },
+        b: { x: hitParcelLabel.b.x, y: hitParcelLabel.b.y },
+        requestedLengthM: null,
+        resizeAnchor: null,
+        __parcelEdge: { contourId: hitParcelLabel.contourId, segmentIndex: hitParcelLabel.segmentIndex }
+      });
+      const newIdx = window.DP2_STATE.objects.length - 1;
+      dp2ShowParcelEdgeInlineInput(canvas, newIdx);
+      renderDP2FromState();
+      return;
     }
 
     // Double-clic sur l'étiquette de mesure (label) → édition valeur uniquement, puis choix explicite du point (overlay)
@@ -7163,23 +10423,6 @@ function initDP2CanvasEvents() {
         }
         return;
       }
-    }
-
-    // Double-clic sur une cote de parcelle (segment jaune) → measure_line TEMPORAIRE, champ inline (pas prompt), puis A/B sur le plan, valider
-    const hitParcelSegment = dp2HitTestParcelSegmentClosest(canvas, coords.x, coords.y);
-    if (hitParcelSegment && hitParcelSegment.contourId != null && typeof hitParcelSegment.segmentIndex === "number") {
-      window.DP2_STATE.objects.push({
-        type: "measure_line",
-        a: { x: hitParcelSegment.a.x, y: hitParcelSegment.a.y },
-        b: { x: hitParcelSegment.b.x, y: hitParcelSegment.b.y },
-        requestedLengthM: null,
-        resizeAnchor: null,
-        __parcelEdge: { contourId: hitParcelSegment.contourId, segmentIndex: hitParcelSegment.segmentIndex }
-      });
-      const newIdx = window.DP2_STATE.objects.length - 1;
-      dp2ShowParcelEdgeInlineInput(canvas, newIdx);
-      renderDP2FromState();
-      return;
     }
 
     // 1) Contour bâti : double-clic = fermeture (comportement existant)
@@ -7274,6 +10517,7 @@ function renderDP2FromState() {
   const contours = dp2GetBuildingContours();
   const activeId = window.DP2_STATE?.selectedBuildingContourId || null;
   const isDP4Roof = typeof dp2IsDP4RoofProfile === "function" && dp2IsDP4RoofProfile();
+  const hideIndividualPanels = dp2GetDisplayMode() === "simple";
 
   for (const c of contours) {
     renderDP2BuildingContour(ctx, c, {
@@ -7296,7 +10540,7 @@ function renderDP2FromState() {
         renderRectangle(ctx, obj);
         break;
       case "pv_panel":
-        renderPvPanel(ctx, obj);
+        if (!hideIndividualPanels) renderPvPanel(ctx, obj);
         break;
       case "line":
         renderLine(ctx, obj);
@@ -7318,7 +10562,7 @@ function renderDP2FromState() {
         if (!obj.__parcelEdge) renderMeasureLine(ctx, obj, i);
         break;
       case "ridge_line":
-        renderRidgeLine(ctx, obj);
+        renderRidgeLine(ctx, obj, i);
         break;
       default:
         console.warn("[DP2] Type d'objet non supporté :", obj.type);
@@ -7327,14 +10571,27 @@ function renderDP2FromState() {
 
   // Panneaux PV (calepinage simple) : source de vérité dédiée DP2_STATE.panels[]
   const panels = window.DP2_STATE.panels || [];
-  for (const panel of panels) {
-    renderDP2Panel(ctx, panel);
+  if (hideIndividualPanels) {
+    const roofBBox = computePanelsBoundingBox(panels);
+    if (roofBBox) renderRoofAreaRect(ctx, roofBBox);
+  } else {
+    for (const panel of panels) {
+      renderDP2Panel(ctx, panel);
+    }
   }
 
   // Formes métier (ÉTAPE 6) : calque au-dessus des objets existants
   const businessObjects = window.DP2_STATE.businessObjects || [];
   for (const obj of businessObjects) {
     renderDP2BusinessObject(ctx, obj);
+  }
+
+  const hoverBizId = window.DP2_STATE._businessHoverId;
+  const pendingSelBizId = window.DP2_STATE.selectedBusinessObjectId;
+  if (hoverBizId && hoverBizId !== pendingSelBizId) {
+    const ho = getDP2BusinessObjectById(hoverBizId);
+    const hb = dp2BizUiBlend01(window.DP2_STATE._bizHoverChromeAt, 100);
+    if (ho) renderDP2BusinessHoverHighlight(ctx, ho, hb);
   }
 
   // Textes (annotations) : calque au-dessus (hors légende)
@@ -7349,17 +10606,26 @@ function renderDP2FromState() {
     renderSelectionHighlight(ctx, objects[selectedId]);
   }
 
-  // Sélection + handles (panneaux PV)
-  const selectedPanelIds = dp2GetEffectiveSelectedPanelIds();
-  if (selectedPanelIds.length >= 2) {
-    renderDP2PanelGroupSelection(ctx, selectedPanelIds);
-  } else if (selectedPanelIds.length === 1) {
-    const selPanel = dp2GetPanelById(selectedPanelIds[0]);
-    if (selPanel) renderDP2PanelSelection(ctx, selPanel);
+  // Sélection + handles (panneaux PV) — masqué en mode emprise simple (données / interactions inchangées)
+  if (!hideIndividualPanels) {
+    const selectedPanelIds = dp2GetEffectiveSelectedPanelIds();
+    if (selectedPanelIds.length >= 2) {
+      renderDP2PanelGroupSelection(ctx, selectedPanelIds);
+    } else if (selectedPanelIds.length === 1) {
+      const selPanel = dp2GetPanelById(selectedPanelIds[0]);
+      if (selPanel) renderDP2PanelSelection(ctx, selPanel);
+    }
   }
 
   // Sélection + handles (formes métier)
   const selectedBizId = window.DP2_STATE.selectedBusinessObjectId;
+  if (window.DP2_STATE) {
+    const st = window.DP2_STATE;
+    if (st._bizUiPrevSelBizId !== selectedBizId) {
+      st._bizUiPrevSelBizId = selectedBizId;
+      st._bizSelChromeAt = selectedBizId ? Date.now() : null;
+    }
+  }
   if (selectedBizId) {
     const sel = getDP2BusinessObjectById(selectedBizId);
     if (sel) renderDP2BusinessSelection(ctx, sel);
@@ -7473,9 +10739,15 @@ function renderDP2FromState() {
       dp4SyncRoofGeometryFromDP2State();
     }
   } catch (_) {}
+  dp2TryScheduleBizUiChromeFrame();
   syncDP2LegendOverlayUI();
   syncDP2DrawActionsUI();
   dp2SyncMeasureResizePreviewOverlay();
+  try {
+    dp2FinalizeInteractionChrome();
+    dp2SyncMapAnchoredOverlays();
+  } catch (_) {}
+  syncDP2DisplayModeToolbarUI();
 }
 
 // --------------------------
@@ -7709,59 +10981,125 @@ function dp2SyncMeasureAnchorChoiceOverlay() {
   dp2RemoveMeasureAnchorChoiceOverlay();
 }
 
-// DP2 — Édition inline de la cote de parcelle (remplace le prompt) : input DOM positionné sur le segment
+function dp2TeardownParcelInlineOutsideHandler() {
+  if (window._dp2ParcelInlineOutsideDown) {
+    document.removeEventListener("pointerdown", window._dp2ParcelInlineOutsideDown, true);
+    window._dp2ParcelInlineOutsideDown = null;
+  }
+}
+
+function dp2RemoveParcelEdgeInlineInput(committedValue) {
+  dp2TeardownParcelInlineOutsideHandler();
+  const input = document.getElementById("dp2-parcel-edge-inline-input");
+  const objs = window.DP2_STATE?.objects || [];
+  const ix = objs.findIndex(o => o && o.__parcelEdge);
+  const obj = ix >= 0 ? objs[ix] : null;
+
+  let didCommit = false;
+  if (obj && obj.type === "measure_line" && obj.__parcelEdge && committedValue !== undefined) {
+    const normalized = String(committedValue).trim().replace(",", ".");
+    const num = parseFloat(normalized);
+    if (!Number.isNaN(num) && num >= 0) {
+      obj.requestedLengthM = num;
+      didCommit = true;
+    }
+  }
+
+  if (input && input.parentNode) input.parentNode.removeChild(input);
+  if (window.dp2InteractionState) {
+    window.dp2InteractionState.editingFeatureId = null;
+    try {
+      dp2FinalizeInteractionChrome();
+    } catch (_) {}
+  }
+
+  if (didCommit && typeof renderDP2FromState === "function") renderDP2FromState();
+}
+
+// DP2 — Édition inline cote parcelle : #dp2-overlay-layer sous #dp2-captured-image-wrap (hors zoom transform)
 function dp2ShowParcelEdgeInlineInput(canvas, objectIndex) {
+  dp2EnsureOverlayLayer();
+  const layer = document.getElementById("dp2-overlay-layer");
   const objs = window.DP2_STATE?.objects || [];
   const obj = objs[objectIndex];
-  if (!obj || obj.type !== "measure_line" || !obj.a || !obj.b || !obj.__parcelEdge) return;
-  const container = document.getElementById("dp2-zoom-container");
-  if (!container) return;
+  if (!obj || obj.type !== "measure_line" || !obj.a || !obj.b || !obj.__parcelEdge || !layer || !canvas) return;
+
+  if (document.getElementById("dp2-parcel-edge-inline-input")) dp2RemoveParcelEdgeInlineInput();
+
+  const pe = obj.__parcelEdge;
   const scale = window.DP2_STATE?.scale_m_per_px;
   const lengthPx = Math.hypot(obj.b.x - obj.a.x, obj.b.y - obj.a.y);
   const lengthM = typeof scale === "number" && scale > 0 ? lengthPx * scale : 0;
   const currentStr = lengthM.toFixed(2).replace(".", ",");
-  const midX = (obj.a.x + obj.b.x) / 2;
-  const midY = (obj.a.y + obj.b.y) / 2;
-  const pt = getDP2CanvasToClient(canvas, midX, midY);
-  const containerRect = container.getBoundingClientRect();
-  const leftPx = pt.clientX - containerRect.left;
-  const topPx = pt.clientY - containerRect.top;
+
+  if (window.dp2InteractionState) {
+    window.dp2InteractionState.editingFeatureId = "parcelSeg:" + pe.contourId + ":" + pe.segmentIndex;
+  }
+
   const input = document.createElement("input");
   input.id = "dp2-parcel-edge-inline-input";
+  input.className = "dp2-parcel-edge-inline-input";
   input.type = "text";
+  input.inputMode = "decimal";
+  input.autocomplete = "off";
+  input.setAttribute("aria-label", "Longueur du segment (mètres)");
   input.value = currentStr;
-  input.style.cssText = "position:absolute;left:" + (leftPx - 32) + "px;top:" + (topPx - 10) + "px;width:64px;height:22px;padding:0 4px;background:#fff;border:1px solid #9ca3af;border-radius:4px;font:12px system-ui,sans-serif;color:#1f2937;z-index:55;box-sizing:border-box;";
-  container.appendChild(input);
+  dp2LayoutParcelEdgeInlineInputInLayer(canvas, input);
+  layer.appendChild(input);
+  dp2SyncMapAnchoredOverlays();
+  try {
+    dp2FinalizeInteractionChrome();
+  } catch (_) {}
+
   input.focus();
   input.select();
-  function commit(val) {
-    const normalized = String(val).trim().replace(",", ".");
-    const num = parseFloat(normalized);
-    if (!Number.isNaN(num) && num >= 0) {
-      obj.requestedLengthM = num;
-      if (typeof renderDP2FromState === "function") renderDP2FromState();
-    }
-  }
+
   function cancel() {
-    if (input.parentNode) input.parentNode.removeChild(input);
+    dp2TeardownParcelInlineOutsideHandler();
+    const inputEl = document.getElementById("dp2-parcel-edge-inline-input");
+    if (inputEl && inputEl.parentNode) inputEl.parentNode.removeChild(inputEl);
+    if (window.dp2InteractionState) window.dp2InteractionState.editingFeatureId = null;
     const idx = (window.DP2_STATE?.objects || []).indexOf(obj);
     if (idx >= 0) window.DP2_STATE.objects.splice(idx, 1);
+    try {
+      dp2FinalizeInteractionChrome();
+    } catch (_) {}
     if (typeof renderDP2FromState === "function") renderDP2FromState();
   }
+
   input.addEventListener("keydown", (e) => {
     if (e.key === "Enter") {
       e.preventDefault();
-      commit(input.value);
-      if (input.parentNode) input.parentNode.removeChild(input);
+      dp2RemoveParcelEdgeInlineInput(input.value);
     } else if (e.key === "Escape") {
       e.preventDefault();
       cancel();
     }
   });
-  input.addEventListener("blur", () => {
-    commit(input.value);
-    if (input.parentNode) input.parentNode.removeChild(input);
-  });
+
+  window._dp2ParcelInlineOutsideDown = function parcelInlineOutside(ev) {
+    if (!document.getElementById("dp2-parcel-edge-inline-input")) return;
+    if (input.contains(ev.target)) return;
+    if (ev.target.closest && ev.target.closest("#dp2-toolbar")) return;
+    if (ev.target.closest && ev.target.closest("#dp2-settings-panel")) return;
+    dp2RemoveParcelEdgeInlineInput(input.value);
+  };
+  // Deux rAF : évite que le pointerdown du double-clic d’ouverture ferme / valide tout de suite
+  if (typeof requestAnimationFrame === "function") {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (document.getElementById("dp2-parcel-edge-inline-input") && window._dp2ParcelInlineOutsideDown) {
+          document.addEventListener("pointerdown", window._dp2ParcelInlineOutsideDown, true);
+        }
+      });
+    });
+  } else {
+    setTimeout(() => {
+      if (document.getElementById("dp2-parcel-edge-inline-input") && window._dp2ParcelInlineOutsideDown) {
+        document.addEventListener("pointerdown", window._dp2ParcelInlineOutsideDown, true);
+      }
+    }, 0);
+  }
 }
 
 function dp2ShowMeasureAnchorChoiceOverlay(canvas, objectIndex) {
@@ -7945,6 +11283,25 @@ function renderDP2PanelRect(ctx, geom, style) {
   ctx.fill();
   if (st.stroke) ctx.stroke();
 
+  ctx.restore();
+}
+
+/** Emprise PV type « plan simple » : rectangle axe-aligned, style distinct des panneaux (aucun lien DP2_PANEL_STYLE). */
+function renderRoofAreaRect(ctx, rect) {
+  const r = rect || null;
+  const rw = r?.width || 0;
+  const rh = r?.height || 0;
+  if (!r || !(rw > 0) || !(rh > 0)) return;
+  const rx = r.x || 0;
+  const ry = r.y || 0;
+  ctx.save();
+  ctx.fillStyle = "rgba(185, 28, 28, 0.14)";
+  ctx.strokeStyle = "#991b1b";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.rect(rx, ry, rw, rh);
+  ctx.fill();
+  ctx.stroke();
   ctx.restore();
 }
 
@@ -8293,6 +11650,8 @@ function renderMeasureLine(ctx, obj, objectIndex) {
     ctx.fillStyle = "#1f2937";
     ctx.fillText(text, midX + off.x, midY + off.y);
   } else {
+    const mfid = typeof objectIndex === "number" ? "measure:" + objectIndex : null;
+    const mtier = mfid ? dp2InteractionTierForFeature(mfid) : null;
     // Comportement normal (pas de prévisualisation) — points comme contour de bâti (6px, blanc, stroke)
     ctx.strokeStyle = "#2ecc71";
     ctx.lineWidth = 1.5;
@@ -8301,6 +11660,7 @@ function renderMeasureLine(ctx, obj, objectIndex) {
     ctx.moveTo(obj.a.x, obj.a.y);
     ctx.lineTo(obj.b.x, obj.b.y);
     ctx.stroke();
+    dp2DrawCoteSegmentTier(ctx, obj.a, obj.b, mtier);
     dp2DrawLinePoint(ctx, obj.a.x, obj.a.y, DP2_MEASURE_POINT_STROKE);
     dp2DrawLinePoint(ctx, obj.b.x, obj.b.y, DP2_MEASURE_POINT_STROKE);
 
@@ -8320,7 +11680,7 @@ function renderMeasureLine(ctx, obj, objectIndex) {
       ctx.fillStyle = "#1f2937";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText(text, midX + off.x, midY + off.y);
+      dp2FillCoteLabelWithTier(ctx, text, midX + off.x, midY + off.y, mtier);
     }
   }
   ctx.restore();
@@ -8345,9 +11705,11 @@ function dp2DrawLinePoint(ctx, x, y, strokeColor) {
 // Objet : { type: "ridge_line", a: { x, y }, b: { x, y }, labelOffset?: { x, y } }
 // Points comme contour de bâti ; mesure dynamique (longueur en m) + label déplaçable.
 // --------------------------
-function renderRidgeLine(ctx, obj) {
+function renderRidgeLine(ctx, obj, objectIndex) {
   if (!obj.a || !obj.b) return;
   const scale = window.DP2_STATE?.scale_m_per_px;
+  const rfid = typeof objectIndex === "number" ? "ridge:" + objectIndex : null;
+  const rtier = rfid ? dp2InteractionTierForFeature(rfid) : null;
   ctx.save();
   ctx.strokeStyle = "#0b6e4f";
   ctx.lineWidth = 3;
@@ -8356,6 +11718,7 @@ function renderRidgeLine(ctx, obj) {
   ctx.moveTo(obj.a.x, obj.a.y);
   ctx.lineTo(obj.b.x, obj.b.y);
   ctx.stroke();
+  dp2DrawCoteSegmentTier(ctx, obj.a, obj.b, rtier);
   dp2DrawLinePoint(ctx, obj.a.x, obj.a.y, DP2_RIDGE_POINT_STROKE);
   dp2DrawLinePoint(ctx, obj.b.x, obj.b.y, DP2_RIDGE_POINT_STROKE);
   if (typeof scale === "number" && scale > 0) {
@@ -8367,7 +11730,7 @@ function renderRidgeLine(ctx, obj) {
     ctx.fillStyle = "#1f2937";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText(lengthM.toFixed(2).replace(".", ",") + " m", midX + off.x, midY + off.y);
+    dp2FillCoteLabelWithTier(ctx, lengthM.toFixed(2).replace(".", ",") + " m", midX + off.x, midY + off.y, rtier);
   }
   ctx.restore();
 }
@@ -8512,13 +11875,19 @@ function renderDP2BuildingContour(ctx, contour, options) {
     for (let i = 0; i < segments; i++) {
       const p1 = pts[i];
       const p2 = pts[(i + 1) % pts.length];
+      const fidSeg = "parcelSeg:" + contour.id + ":" + i;
+      const editingThisSeg =
+        window.dp2InteractionState &&
+        window.dp2InteractionState.editingFeatureId === fidSeg;
+      const tierSeg = dp2InteractionTierForFeature(fidSeg);
       const parcelEdgeML = objects.find(
         o => o && o.type === "measure_line" && o.__parcelEdge && o.__parcelEdge.contourId === contour.id && o.__parcelEdge.segmentIndex === i
       );
       const parcelEdgeEditing = !!parcelEdgeML;
 
+      // __parcelEdge : surcouches A/B + prévisualisation resize. Pendant édition inline (editingFeatureId),
+      // le texte des cotes est volontairement omis sur le canvas — seul l’input DOM affiche la valeur.
       if (parcelEdgeEditing) {
-        // Après validation de la valeur : repères A/B sur les deux sommets (plan uniquement, pas d'overlay)
         const hasValue = typeof parcelEdgeML.requestedLengthM === "number";
         const noAnchorYet = parcelEdgeML.resizeAnchor !== "A" && parcelEdgeML.resizeAnchor !== "B";
         if (hasValue && noAnchorYet) {
@@ -8547,10 +11916,10 @@ function renderDP2BuildingContour(ctx, contour, options) {
           ctx.fillText("B", p2.x, p2.y);
           ctx.restore();
         }
-        // Prévisualisation édition contour : pointillé + flèche + UN SEUL label sur le segment jaune (pas de segment vert)
-        const preview = parcelEdgeML && typeof parcelEdgeML.requestedLengthM === "number" && (parcelEdgeML.resizeAnchor === "A" || parcelEdgeML.resizeAnchor === "B")
-          ? getMeasureLinePreviewPoints(parcelEdgeML)
-          : null;
+        const preview =
+          parcelEdgeML && typeof parcelEdgeML.requestedLengthM === "number" && (parcelEdgeML.resizeAnchor === "A" || parcelEdgeML.resizeAnchor === "B")
+            ? getMeasureLinePreviewPoints(parcelEdgeML)
+            : null;
         if (preview) {
           ctx.save();
           ctx.setLineDash([6, 4]);
@@ -8595,16 +11964,16 @@ function renderDP2BuildingContour(ctx, contour, options) {
           ctx.fillStyle = "#1f2937";
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
-          ctx.fillText(text, midX, midY);
+          if (!editingThisSeg) ctx.fillText(text, midX, midY);
           ctx.restore();
         }
-        continue;
       }
 
       const offMap = contour.labelOffsets && typeof contour.labelOffsets === "object" ? contour.labelOffsets : {};
       const segOff = offMap[i] && typeof offMap[i].x === "number" && typeof offMap[i].y === "number" ? offMap[i] : { x: 0, y: 0 };
       const cutParts = contour.cuts && contour.cuts[i];
       if (Array.isArray(cutParts) && cutParts.length === 2 && cutParts[0]?.a && cutParts[0]?.b && cutParts[1]?.a && cutParts[1]?.b) {
+        const tierDrawCuts = tierSeg || (parcelEdgeEditing ? "editing" : null);
         for (const part of cutParts) {
           const a = part.a;
           const b = part.b;
@@ -8621,7 +11990,8 @@ function renderDP2BuildingContour(ctx, contour, options) {
           ctx.fillStyle = "#1f2937";
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
-          ctx.fillText(text, midX, midY);
+          dp2DrawCoteSegmentTier(ctx, a, b, tierDrawCuts);
+          if (!editingThisSeg) dp2FillCoteLabelWithTier(ctx, text, midX, midY, tierDrawCuts);
         }
         continue;
       }
@@ -8629,7 +11999,10 @@ function renderDP2BuildingContour(ctx, contour, options) {
       const dx = p2.x - p1.x;
       const dy = p2.y - p1.y;
       const lengthPx = Math.sqrt(dx * dx + dy * dy);
-      const lengthM = lengthPx * scale;
+      let lengthM = lengthPx * scale;
+      if (parcelEdgeML && typeof parcelEdgeML.requestedLengthM === "number") {
+        lengthM = parcelEdgeML.requestedLengthM;
+      }
       let midX = (p1.x + p2.x) / 2;
       let midY = (p1.y + p2.y) / 2;
       midX += segOff.x;
@@ -8639,7 +12012,9 @@ function renderDP2BuildingContour(ctx, contour, options) {
       ctx.fillStyle = "#1f2937";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText(text, midX, midY);
+      const tierDraw = tierSeg || (parcelEdgeEditing ? "editing" : null);
+      dp2DrawCoteSegmentTier(ctx, p1, p2, tierDraw);
+      if (!editingThisSeg) dp2FillCoteLabelWithTier(ctx, text, midX, midY, tierDraw);
     }
   }
 
@@ -9158,6 +12533,35 @@ function renderDP2BusinessObject(ctx, obj) {
   ctx.restore();
 }
 
+/** Survol d’une forme métier non sélectionnée (léger + transition d’apparition). */
+function renderDP2BusinessHoverHighlight(ctx, obj, alphaBlend) {
+  if (!obj || obj.visible !== true || !obj.geometry) return;
+  const ab = typeof alphaBlend === "number" ? alphaBlend : 1;
+  const g = obj.geometry;
+  const w = g.width || 0;
+  const h = g.height || 0;
+  if (!(w > 0) || !(h > 0)) return;
+
+  const cx = g.x + w / 2;
+  const cy = g.y + h / 2;
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(g.rotation || 0);
+  const x = -w / 2;
+  const y = -h / 2;
+
+  ctx.globalAlpha = ab;
+  ctx.fillStyle = "rgba(79, 70, 229, 0.055)";
+  ctx.fillRect(x, y, w, h);
+  ctx.strokeStyle = "rgba(79, 70, 229, 0.36)";
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4, 3]);
+  ctx.strokeRect(x, y, w, h);
+  ctx.setLineDash([]);
+  ctx.globalAlpha = 1;
+  ctx.restore();
+}
+
 function renderDP2BusinessSelection(ctx, obj) {
   if (!obj || obj.visible !== true || !obj.geometry) return;
   const g = obj.geometry;
@@ -9167,45 +12571,92 @@ function renderDP2BusinessSelection(ctx, obj) {
 
   const cx = g.x + w / 2;
   const cy = g.y + h / 2;
-  const rotateHandleOffset = 18;
+  const m = dp2GetBusinessSelectionMetrics();
+  const { visualHalf, rotLine, rotVisR, sc } = m;
   const tool = window.DP2_STATE?.currentTool || "select";
-  const allowHandles = isDP2BusinessTool(tool);
+  const allowHandles = isDP2BusinessTool(tool) || tool === "select";
+  const st = window.DP2_STATE;
+  const flash = !!(st && st._businessSelectionFlashPhase);
+  const selBlend = st && st._bizSelChromeAt != null ? dp2BizUiBlend01(st._bizSelChromeAt, 100) : 1;
+  const grip = dp2BizSelectionGripBlend(st, obj.id);
+
+  const H = "#4f46e5";
+  const H_DIM = "rgba(79, 70, 229, 0.92)";
+  const lw = 1.22;
 
   ctx.save();
   ctx.translate(cx, cy);
+  const gScale = 1 + 0.0065 * grip;
+  ctx.scale(gScale, gScale);
   ctx.rotate(g.rotation || 0);
 
   const x = -w / 2;
   const y = -h / 2;
 
-  // Bounding box
-  ctx.setLineDash([6, 4]);
-  ctx.strokeStyle = "#6366f1";
-  ctx.lineWidth = 2;
-  ctx.strokeRect(x, y, w, h);
+  const fillA = (0.065 + 0.035 * selBlend) * (1 + 0.35 * grip);
+  ctx.fillStyle = flash ? `rgba(99, 102, 241, ${0.1 + 0.06 * grip})` : `rgba(79, 70, 229, ${fillA})`;
+  ctx.fillRect(x, y, w, h);
+  ctx.shadowColor = "rgba(55, 48, 163, 0.08)";
+  ctx.shadowBlur = flash ? 3 : 1 + grip * 2;
+  ctx.strokeStyle = flash ? "#4338ca" : H;
+  ctx.lineWidth = (flash ? 2.1 : 1.45) + grip * 0.65;
+  ctx.globalAlpha = 0.88 + 0.12 * selBlend + 0.08 * grip;
   ctx.setLineDash([]);
+  ctx.strokeRect(x, y, w, h);
+  ctx.shadowBlur = 0;
+  ctx.globalAlpha = 1;
 
-  // En mode "Sélection" (neutre), on cache les handles : move-only.
   if (allowHandles) {
-    // Resize handle (bas-droit)
-    ctx.fillStyle = "#ffffff";
-    ctx.strokeStyle = "#6366f1";
-    ctx.lineWidth = 2;
+    const rCy = y - rotLine;
+    const vh = visualHalf * 0.76;
+
+    ctx.lineJoin = "miter";
+    ctx.lineCap = "butt";
+
+    // Resize : discret (hit inchangée côté métrique)
+    ctx.fillStyle = "rgba(255, 255, 255, 0.55)";
+    ctx.strokeStyle = "rgba(79, 70, 229, 0.34)";
+    ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.rect(x + w - 6, y + h - 6, 12, 12);
+    ctx.rect(x + w - vh, y + h - vh, vh * 2, vh * 2);
     ctx.fill();
     ctx.stroke();
 
-    // Rotation handle (haut-centre, hors bbox)
+    // Rotation : tige + arc fin + pointe nette
+    ctx.strokeStyle = H_DIM;
+    ctx.lineWidth = lw;
     ctx.beginPath();
     ctx.moveTo(0, y);
-    ctx.lineTo(0, y - rotateHandleOffset);
+    ctx.lineTo(0, rCy + rotVisR);
     ctx.stroke();
 
-    ctx.fillStyle = "#ffffff";
+    const startA = -Math.PI * 0.52;
+    const sweep = Math.PI * 1.48;
+    const endA = startA + sweep;
+    ctx.lineWidth = Math.max(0.75, lw * 0.62);
+    ctx.strokeStyle = H;
     ctx.beginPath();
-    ctx.arc(0, y - rotateHandleOffset, 8, 0, Math.PI * 2);
+    ctx.arc(0, rCy, rotVisR, startA, endA, false);
+    ctx.stroke();
+
+    const ax = rotVisR * Math.cos(endA);
+    const ay = rCy + rotVisR * Math.sin(endA);
+    const tx = -Math.sin(endA);
+    const ty = Math.cos(endA);
+    const nx = Math.cos(endA);
+    const ny = Math.sin(endA);
+    const al = Math.max(3.4, 3.6 * sc);
+    const aw = Math.max(1.45, 1.65 * sc);
+    ctx.lineWidth = lw;
+    ctx.fillStyle = H;
+    ctx.beginPath();
+    ctx.moveTo(ax, ay);
+    ctx.lineTo(ax + tx * al + nx * aw, ay + ty * al + ny * aw);
+    ctx.lineTo(ax + tx * al - nx * aw, ay + ty * al - ny * aw);
+    ctx.closePath();
     ctx.fill();
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.5)";
+    ctx.lineWidth = 0.45;
     ctx.stroke();
   }
 
@@ -9276,15 +12727,169 @@ function waitMvtTilesIdle(timeoutMs) {
 const DP2_CADASTRE_MVT_URL = "https://openmaptiles.data.gouv.fr/data/cadastre/{z}/{x}/{y}.pbf";
 
 // --------------------------
-// DP2 — STYLE MVT CADASTRE (contours uniquement, pas de texte custom)
-// Parcelles : traits fins gris foncé. Bâtiments : remplissage gris clair. Sections : trait léger.
-// Numéros natifs MVT (si présents dans la source) restent gérés par la tuile.
+// DP2 — STYLE MVT CADASTRE (style bureau d’étude, 100 % côté client — pas de cadastre raster IGN violet)
+// Bâtiments : non dessinés en MVT (le plan IGN les porte déjà).
 // --------------------------
-function styleCadastreMVT(feature) {
-  if (!dp2MvtFeatureLogged) {
+function dp2MvtParcelLabelText(feature) {
+  const p = feature.getProperties ? feature.getProperties() : {};
+  const n =
+    p.numero != null && String(p.numero).trim()
+      ? String(p.numero).trim()
+      : p.NUMERO != null && String(p.NUMERO).trim()
+        ? String(p.NUMERO).trim()
+        : p.parcelle != null && String(p.parcelle).trim()
+          ? String(p.parcelle).trim()
+          : "";
+  const s =
+    p.section != null && String(p.section).trim()
+      ? String(p.section).trim()
+      : p.SECTION != null && String(p.SECTION).trim()
+        ? String(p.SECTION).trim()
+        : "";
+  const joined = [s, n].filter(Boolean).join(" ");
+  if (joined) return joined;
+  if (p.id != null && String(p.id).trim()) return String(p.id).trim();
+  return "";
+}
+
+/** Aligne une parcelle MVT avec DP1_STATE.selectedParcel (évite doublon bleu sous la surcouche dorée). */
+function dp2MvtFeatureMatchesSelectedParcel(feature) {
+  const sel = window.DP1_STATE?.selectedParcel;
+  if (!sel) return false;
+  const fe = feature.getProperties ? feature.getProperties() : {};
+  const fSec = String(fe.section != null ? fe.section : fe.SECTION != null ? fe.SECTION : "")
+    .trim()
+    .toUpperCase();
+  const fNum = String(
+    fe.numero != null ? fe.numero : fe.NUMERO != null ? fe.NUMERO : fe.parcelle != null ? fe.parcelle : ""
+  ).trim();
+  const sSec = String(sel.section != null ? sel.section : "")
+    .trim()
+    .toUpperCase();
+  const sNum = String(sel.numero != null ? sel.numero : "").trim();
+  if (fSec && sSec && fNum && sNum) {
+    return fSec === sSec && fNum === sNum;
+  }
+  const parcelField = sel.parcel != null ? String(sel.parcel).trim() : "";
+  const mvtLabel = dp2MvtParcelLabelText(feature);
+  if (parcelField && mvtLabel) {
+    const norm = (s) => s.replace(/\s+/g, " ").trim();
+    return norm(parcelField) === norm(mvtLabel);
+  }
+  return false;
+}
+
+/** Aire absolue (anneau fermé, coordonnées projetées). */
+function dp2PolygonRingAbsArea(ring) {
+  if (!ring || ring.length < 3) return 0;
+  let n = ring.length;
+  if (ring[0][0] === ring[n - 1][0] && ring[0][1] === ring[n - 1][1]) n--;
+  if (n < 3) return 0;
+  let twice = 0;
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    twice += ring[i][0] * ring[j][1] - ring[j][0] * ring[i][1];
+  }
+  return Math.abs(twice / 2);
+}
+
+/** Centroïde 2D d’un anneau polygonal (formule classique, anneau extérieur). */
+function dp2PolygonRingCentroidCoords(ring) {
+  if (!ring || ring.length < 3) return null;
+  let n = ring.length;
+  if (ring[0][0] === ring[n - 1][0] && ring[0][1] === ring[n - 1][1]) n--;
+  if (n < 3) return null;
+  let twice = 0;
+  let cx = 0;
+  let cy = 0;
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    const xi = ring[i][0];
+    const yi = ring[i][1];
+    const xj = ring[j][0];
+    const yj = ring[j][1];
+    const cross = xi * yj - xj * yi;
+    twice += cross;
+    cx += (xi + xj) * cross;
+    cy += (yi + yj) * cross;
+  }
+  if (Math.abs(twice) < 1e-30) return null;
+  const factor = 1 / (3 * twice);
+  return [cx * factor, cy * factor];
+}
+
+/** Point centroïde pour géométrie parcelle (Polygon / MultiPolygon). */
+function dp2OlGeometryCentroidPoint(geom) {
+  if (!geom || !geom.getType) return null;
+  const typ = geom.getType();
+  if (typ === "Polygon") {
+    const coords = geom.getCoordinates();
+    if (!coords || !coords[0]) return null;
+    const c = dp2PolygonRingCentroidCoords(coords[0]);
+    return c ? new ol.geom.Point(c) : null;
+  }
+  if (typ === "MultiPolygon") {
+    const mp = geom.getCoordinates();
+    if (!mp || !mp.length) return null;
+    let bestA = -1;
+    let best = null;
+    for (let i = 0; i < mp.length; i++) {
+      const outer = mp[i] && mp[i][0];
+      if (!outer) continue;
+      const c = dp2PolygonRingCentroidCoords(outer);
+      if (!c) continue;
+      const area = dp2PolygonRingAbsArea(outer);
+      if (area > bestA) {
+        bestA = area;
+        best = c;
+      }
+    }
+    return best ? new ol.geom.Point(best) : null;
+  }
+  return null;
+}
+
+function dp2MvtParcelLabelFontCSS(resolution) {
+  let px = 13;
+  if (resolution != null && Number.isFinite(resolution)) {
+    if (resolution > 2.5) px = 12;
+    else if (resolution < 0.3) px = 14;
+    else px = 13;
+  }
+  return (
+    "500 " +
+    px +
+    "px ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif"
+  );
+}
+
+/** Libellé parcelle principale DP2 (plan cadastral propre) — 14–16px, graisse 600. */
+function dp2ParcelPrimaryLabelFontCSS(resolution) {
+  let px = 15;
+  if (resolution != null && Number.isFinite(resolution)) {
+    if (resolution > 2.5) px = 14;
+    else if (resolution < 0.3) px = 16;
+    else px = 15;
+  }
+  return (
+    "600 " +
+    px +
+    "px ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif"
+  );
+}
+
+function dp2MvtCentroidPointForLabel(feature) {
+  const g = feature.getGeometry && feature.getGeometry();
+  return dp2OlGeometryCentroidPoint(g);
+}
+
+function styleCadastreMVT(feature, resolution) {
+  if (!dp2MvtFeatureLogged && window.__SN_DP_DEV_MODE === true) {
     dp2MvtFeatureLogged = true;
-    const props = feature.getProperties();
-    console.log("[DP2 MVT] Première feature — layer:", feature.get("layer"), "keys:", Object.keys(props));
+    try {
+      const props = feature.getProperties();
+      console.log("[DP2 MVT] Première feature — layer:", feature.get("layer"), "keys:", Object.keys(props || {}));
+    } catch (_) {}
   }
 
   const layer = feature.get("layer");
@@ -9294,40 +12899,168 @@ function styleCadastreMVT(feature) {
   const geom = feature.getGeometry();
   if (!geom) return null;
 
-  // Détection robuste du type (parcelles, batiments, sections — openmaptiles.data.gouv.fr)
   const isParcelle = layer === "parcelles" || type === "parcelle" || kind === "parcel" || nature === "parcelle";
   const isBatiment = layer === "batiments" || type === "building" || kind === "building" || nature === "batiment";
   const isSection = layer === "sections";
 
-  // ——— Bâtiments : remplissage gris clair discret, contour fin ———
   if (isBatiment) {
-    return new ol.style.Style({
-      fill: new ol.style.Fill({ color: "rgba(0,0,0,0.06)" }),
-      stroke: new ol.style.Stroke({ color: "rgba(0,0,0,0.12)", width: 1 })
-    });
+    return null;
   }
 
-  // ——— Sections (optionnel) : trait très léger ———
   if (isSection) {
     return new ol.style.Style({
       fill: new ol.style.Fill({ color: "transparent" }),
-      stroke: new ol.style.Stroke({ color: "rgba(0,0,0,0.08)", width: 1 })
+      stroke: new ol.style.Stroke({
+        color: "rgba(148, 163, 184, 0.45)",
+        width: 0.75,
+        lineJoin: "round"
+      })
     });
   }
 
-  // ——— Parcelles : contour fin gris foncé, pas de texte custom ———
   if (isParcelle) {
-    return new ol.style.Style({
-      fill: new ol.style.Fill({ color: "transparent" }),
-      stroke: new ol.style.Stroke({ color: "#374151", width: 1 })
+    if (dp2MvtFeatureMatchesSelectedParcel(feature)) {
+      return null;
+    }
+    const label = dp2MvtParcelLabelText(feature);
+    const fillPoly = new ol.style.Style({
+      fill: new ol.style.Fill({ color: "rgba(37, 99, 235, 0.04)" }),
+      stroke: new ol.style.Stroke({
+        color: "rgba(37, 99, 235, 0.8)",
+        width: 1,
+        lineJoin: "round",
+        lineCap: "round"
+      })
     });
+    if (!label) return fillPoly;
+    return [
+      fillPoly,
+      new ol.style.Style({
+        geometry: function (feat) {
+          return dp2MvtCentroidPointForLabel(feat);
+        },
+        text: new ol.style.Text({
+          text: label,
+          font: dp2MvtParcelLabelFontCSS(resolution),
+          fill: new ol.style.Fill({ color: "#1f2937" }),
+          stroke: new ol.style.Stroke({ color: "rgba(255,255,255,0.92)", width: 2.5 }),
+          overflow: true,
+          textAlign: "center",
+          textBaseline: "middle"
+        })
+      })
+    ];
   }
 
-  // Fallback (autres layers ou schéma inconnu)
   return new ol.style.Style({
     fill: new ol.style.Fill({ color: "transparent" }),
-    stroke: new ol.style.Stroke({ color: "#374151", width: 1 })
+    stroke: new ol.style.Stroke({ color: "rgba(148, 163, 184, 0.5)", width: 0.75, lineJoin: "round" })
   });
+}
+
+// Attente tuiles WMTS (fond PLAN DP2) — même principe que DP1 waitTilesIdle.
+async function dp2WaitWmtsSourcesIdle(map, wmtsSources, timeoutMs) {
+  const sources = (wmtsSources || []).filter(Boolean);
+  if (!map || !sources.length) return;
+  let pending = 0;
+  let resolved = false;
+  const cleanupFns = [];
+  function finish(resolve) {
+    if (resolved) return;
+    resolved = true;
+    cleanupFns.forEach((fn) => {
+      try {
+        fn();
+      } catch (_) {}
+    });
+    resolve();
+  }
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => finish(resolve), timeoutMs != null ? timeoutMs : 2800);
+    sources.forEach((src) => {
+      const onStart = function () {
+        pending++;
+      };
+      const onEnd = function () {
+        pending = Math.max(0, pending - 1);
+        if (pending === 0) {
+          requestAnimationFrame(() =>
+            requestAnimationFrame(() => {
+              clearTimeout(timer);
+              finish(resolve);
+            })
+          );
+        }
+      };
+      src.on("tileloadstart", onStart);
+      src.on("tileloadend", onEnd);
+      src.on("tileloaderror", onEnd);
+      cleanupFns.push(() => src.un("tileloadstart", onStart));
+      cleanupFns.push(() => src.un("tileloadend", onEnd));
+      cleanupFns.push(() => src.un("tileloaderror", onEnd));
+    });
+    try {
+      map.renderSync();
+    } catch (_) {}
+    requestAnimationFrame(() => {
+      if (pending === 0) {
+        clearTimeout(timer);
+        finish(resolve);
+      }
+    });
+  });
+}
+
+function dp2GetWmtsLayerId(source) {
+  if (!source || typeof source.getLayer !== "function") return "";
+  try {
+    return String(source.getLayer() || "");
+  } catch (_) {
+    return "";
+  }
+}
+
+/** DP2 : retire toute tuile IGN interdite (cadastre raster, ortho satellite). Les couches vectorielles ne sont pas touchées. */
+function dp2SanitizeDp2BaseLayers(map) {
+  if (!map || !map.getLayers) return;
+  map
+    .getLayers()
+    .getArray()
+    .slice()
+    .forEach((layer) => {
+      const src = layer.getSource && layer.getSource();
+      if (!src) return;
+      const lid = dp2GetWmtsLayerId(src);
+      let urlStr = "";
+      if (typeof src.getUrls === "function") {
+        const u = src.getUrls();
+        urlStr = u && u[0] != null ? String(u[0]) : "";
+      } else if (typeof src.getUrl === "function") {
+        urlStr = String(src.getUrl() || "");
+      }
+      const badCadUrl = urlStr.indexOf("CADASTRALPARCELS") >= 0;
+      const badCadLayer = lid.indexOf("CADASTRALPARCELS") >= 0;
+      const isOrtho = lid === "ORTHOIMAGERY.ORTHOPHOTOS";
+      if (badCadUrl || badCadLayer || isOrtho) {
+        map.removeLayer(layer);
+        console.warn(
+          "[DP2] Couche IGN retirée (cadastre raster ou orthophoto — attendu : PLANIGNV2 uniquement)"
+        );
+      }
+    });
+}
+
+function dp2LogDp2LayerAudit(map) {
+  if (!map || !map.getLayers) return;
+  try {
+    const parts = [];
+    map.getLayers().forEach((lyr, i) => {
+      const s = lyr.getSource && lyr.getSource();
+      const lid = dp2GetWmtsLayerId(s);
+      parts.push("[" + i + "] " + (lid || (lyr.constructor && lyr.constructor.name) || "layer"));
+    });
+    console.info("[DP2] Audit couches carte :", parts.join(" ; "));
+  } catch (_) {}
 }
 
 // Forcer un premier rendu utile des couches WMTS à l'ouverture des modals DP2/DP4 (évite écran gris jusqu'au micro zoom).
@@ -9383,12 +13116,31 @@ function forceFirstPaintWMTS(map, wmtsSource, wmtsResolutions) {
 // --------------------------
 // DP2 — INIT GLOBAL (CAPTURE MODE)
 // Source de vérité UNIQUE : window.DP1_STATE.selectedParcel (geometry, section, parcelle).
-// DP2 utilise volontairement la même pile cartographique IGN que DP1 afin de garantir un rendu conforme Géoportail et DP mairie.
+// Fond : WMTS PLAN IGN (PLANIGNV2) uniquement. Parcelle + libellé = vectoriel (pas de MVT / pas de cadastre raster IGN).
 // --------------------------
 async function initDP2() {
   setDP2ModeCapture();
   dp2MvtTilesLoadingCount = 0;
   dp2MvtFeatureLogged = false;
+
+  try {
+    dp2SanitizeVersionsInPlace();
+    if (typeof dp2PruneRedundantEmptyVersionsInPlace === "function" && dp2PruneRedundantEmptyVersionsInPlace()) {
+      if (typeof window.__snDpPersistDebounced === "function") window.__snDpPersistDebounced("fast");
+    }
+  } catch (_) {}
+
+  try {
+    if (typeof window.snDpVSetupPageUi === "function") {
+      window.snDpVSetupPageUi("dp2", {
+        onAfter: function () {
+          try {
+            if (typeof dp2RenderEntryPanel === "function") dp2RenderEntryPanel();
+          } catch (_) {}
+        },
+      });
+    }
+  } catch (_) {}
 
   // UI DP2 (bouton Télécharger DP2) — même pattern que DP1
   initDP2_UIStates();
@@ -9406,7 +13158,6 @@ async function initDP2() {
   const mapEl = document.getElementById("dp2-ign-map");
   const scaleEl = document.getElementById("dp2-scale");
   const captureBtn = document.getElementById("dp2-capture-btn");
-  const openBtn = document.getElementById("dp2-open-editor");
 
   if (!mapEl) {
     console.warn("[DP2] dp2-ign-map introuvable (page non prête).");
@@ -9418,9 +13169,6 @@ async function initDP2() {
 
   if (captureBtn) {
     captureBtn.addEventListener("click", async () => {
-      if (window.DP2_MAP && window.DP2_MAP.mvtSource) {
-        await waitMvtTilesIdle(2500);
-      }
       await captureDP2Map();
     });
   }
@@ -9431,14 +13179,26 @@ async function initDP2() {
   initDP2DrawActions();
 
   function closeDP2Modal() {
+    try {
+      dp2SyncActiveVersionBeforeDraft();
+    } catch (_) {}
     modal.setAttribute("aria-hidden", "true");
     document.body.classList.remove("dp-lock-scroll");
     if (document.activeElement) {
       try { document.activeElement.blur(); } catch (_) {}
     }
+    try {
+      dp2RenderEntryPanel();
+    } catch (_) {}
+    try {
+      if (typeof window.__snDpPersistDebounced === "function") window.__snDpPersistDebounced("fast");
+    } catch (_) {}
   }
 
+  window.dp2CloseMapModal = closeDP2Modal;
+
   function openDP2Modal() {
+    dp2EnsureVersionRowBeforeEdit();
     modal.setAttribute("aria-hidden", "false");
     document.body.classList.add("dp-lock-scroll");
 
@@ -9446,17 +13206,18 @@ async function initDP2() {
     requestAnimationFrame(async () => {
       await ensureDP2MapReady();
       if (window.DP2_MAP?.map) {
-        window.DP2_MAP.map.updateSize();
-        window.DP2_MAP.map.renderSync();
+        await dp2SyncOpenLayersSizeToContainer(window.DP2_MAP.map);
       }
       try {
         const m = window.DP2_MAP?.map || null;
-        const src = window.DP2_MAP?.mvtSource || null;
-        forceFirstPaintWMTS(m, src, window.__DP_WMTS_RESOLUTIONS_PM);
+        const planSrc = window.DP2_MAP?.planSource || null;
+        forceFirstPaintWMTS(m, planSrc, window.__DP_WMTS_RESOLUTIONS_PM);
       } catch (_) {}
       syncDP2LegendOverlayUI();
     });
   }
+
+  window.dp2OpenMapModal = openDP2Modal;
 
   async function ensureDP2MapReady() {
     if (window.__DP2_INIT_DONE === true && window.DP2_MAP?.map) return;
@@ -9468,7 +13229,7 @@ async function initDP2() {
       return; // Ne pas poser __DP2_INIT_DONE : ré-init possible après validation DP1
     }
 
-    // ——— Pile cartographique STRICTEMENT identique à DP1 (1:650, Géoportail + filtre Cadastre) ———
+    // ——— Grille WMTS PM (alignée DP1 / DP4) + fond PLAN IGN ———
     const WMTS_ORIGIN = [-20037508, 20037508];
     const WMTS_RESOLUTIONS = [
       156543.03392804103, 78271.51696402051, 39135.75848201024,
@@ -9479,60 +13240,54 @@ async function initDP2() {
       4.777314267823516, (2.3 + 0.088657133911758), 1.194328566955879,
       0.5971642834779395, 0.29858214173896974, 0.14929107086948487
     ];
-    window.__DP_WMTS_RESOLUTIONS_PM = WMTS_RESOLUTIONS;
     const WMTS_MATRIX_IDS = WMTS_RESOLUTIONS.map((_, i) => String(i));
     const wmtsGridPM = new ol.tilegrid.WMTS({
       origin: WMTS_ORIGIN,
       resolutions: WMTS_RESOLUTIONS,
       matrixIds: WMTS_MATRIX_IDS
     });
+    window.__DP_WMTS_RESOLUTIONS_PM = WMTS_RESOLUTIONS;
 
+    const centerParis = fromLonLat([2.3488, 48.8534]);
     const view = new ol.View({
-      center: [0, 0],
+      projection: "EPSG:3857",
+      center: centerParis,
       resolutions: WMTS_RESOLUTIONS,
       constrainResolution: true,
       enableRotation: false
     });
 
+    const planSource = new ol.source.WMTS({
+      url: "https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile",
+      layer: "GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2",
+      matrixSet: "PM",
+      format: "image/png",
+      style: "normal",
+      tileGrid: wmtsGridPM,
+      wrapX: false,
+      crossOrigin: "anonymous"
+    });
+    const planLayer = new ol.layer.Tile({
+      opacity: 1,
+      transition: 0,
+      preload: 2,
+      zIndex: 0,
+      source: planSource
+    });
+
     const map = new ol.Map({
       target: mapEl,
-      layers: [],
-      view
+      layers: [planLayer],
+      view,
+      pixelRatio: Math.min(2, window.devicePixelRatio || 1),
+      moveTolerance: 2,
+      maxTilesLoading: 16
     });
 
-    // DP2 utilise volontairement la même pile cartographique IGN que DP1 afin de garantir un rendu conforme Géoportail et DP mairie.
-    // 1) FOND IGN — WMTS Géoportail PLANIGNV2 (zIndex 0, tileGrid identique DP1) — invisible en DP2 : affichage cadastre seul (référence réglementaire)
-    const ignLayerDP2 = new ol.layer.Tile({
-      zIndex: 0,
-      visible: false,
-      source: new ol.source.WMTS({
-        url: "https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile",
-        layer: "GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2",
-        matrixSet: "PM",
-        format: "image/png",
-        style: "normal",
-        tileGrid: wmtsGridPM,
-        wrapX: false,
-        crossOrigin: "anonymous"
-      })
-    });
-    map.addLayer(ignLayerDP2);
-
-    // 2) FILTRE CADASTRE IGN — WMTS Géoportail PARCELLAIRE_EXPRESS (zIndex 50, tileGrid identique DP1)
-    const cadastreLayerDP2 = new ol.layer.Tile({
-      zIndex: 50,
-      source: new ol.source.WMTS({
-        url: "https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile",
-        layer: "CADASTRALPARCELS.PARCELLAIRE_EXPRESS",
-        matrixSet: "PM",
-        format: "image/png",
-        style: "normal",
-        tileGrid: wmtsGridPM,
-        wrapX: false,
-        crossOrigin: "anonymous"
-      })
-    });
-    map.addLayer(cadastreLayerDP2);
+    try {
+      dp2SanitizeDp2BaseLayers(map);
+      dp2LogDp2LayerAudit(map);
+    } catch (_) {}
 
     // ——— 1) GeoJSON → ol.geom.Geometry, extent, zoom automatique strict ———
     let geom = null;
@@ -9554,30 +13309,75 @@ async function initDP2() {
       return;
     }
 
-    window.DP2_MAP = { map };
+    try {
+      applySafeInitialResolution(map, view.getResolution(), WMTS_RESOLUTIONS);
+    } catch (_) {}
 
-    const targetResolution = view.getResolution();
-    applySafeInitialResolution(
-      window.DP2_MAP.map,
-      targetResolution,
-      window.__DP_WMTS_RESOLUTIONS_PM
-    );
+    const dp2NeighborParcelsSource = new ol.source.Vector();
+    window.DP2_MAP = {
+      map,
+      planSource,
+      mvtSource: null,
+      neighborParcelsSource: dp2NeighborParcelsSource
+    };
 
-    // ——— 3) Surbillance parcelle DP1 : halo blanc fin + contour bleu (pas de remplissage, pas de texte ; numéro affiché par le cadastre IGN) ———
+    // ——— Parcelle sélectionnée (DP1) : seule surcouche parcelle + libellé maison (pas de numéros IGN) ———
+    var __dp2ParcelLabel =
+      selectedParcel.parcel != null && String(selectedParcel.parcel).trim()
+        ? String(selectedParcel.parcel).trim()
+        : [selectedParcel.section, selectedParcel.numero].filter(Boolean).join(" ").trim();
+
+    function __dp2ParcelCentroidPointGeometry(feature) {
+      var g = feature.getGeometry();
+      return dp2OlGeometryCentroidPoint(g);
+    }
+
     const parcelSource = new ol.source.Vector();
     const parcelFeature = new ol.Feature({ geometry: geom });
     parcelSource.addFeature(parcelFeature);
     const parcelVectorLayer = new ol.layer.Vector({
       source: parcelSource,
       zIndex: 200,
-      style: [
-        new ol.style.Style({
-          stroke: new ol.style.Stroke({ color: "rgba(255,255,255,0.95)", width: 4 })
-        }),
-        new ol.style.Style({
-          stroke: new ol.style.Stroke({ color: "#2563eb", width: 4 })
-        })
-      ]
+      style: function (feature, resolution) {
+        var styles = [
+          new ol.style.Style({
+            fill: new ol.style.Fill({ color: "rgba(180, 83, 9, 0.14)" }),
+            stroke: new ol.style.Stroke({
+              color: "rgba(255,255,255,0.95)",
+              width: 4,
+              lineJoin: "round",
+              lineCap: "round"
+            })
+          }),
+          new ol.style.Style({
+            stroke: new ol.style.Stroke({
+              color: "#b45309",
+              width: 2.5,
+              lineJoin: "round",
+              lineCap: "round"
+            })
+          })
+        ];
+        if (__dp2ParcelLabel) {
+          styles.push(
+            new ol.style.Style({
+              geometry: function (feat) {
+                return __dp2ParcelCentroidPointGeometry(feat);
+              },
+              text: new ol.style.Text({
+                text: __dp2ParcelLabel,
+                font: dp2ParcelPrimaryLabelFontCSS(resolution),
+                fill: new ol.style.Fill({ color: "#1f2937" }),
+                stroke: new ol.style.Stroke({ color: "rgba(255,255,255,0.95)", width: 3 }),
+                overflow: true,
+                textAlign: "center",
+                textBaseline: "middle"
+              })
+            })
+          );
+        }
+        return styles;
+      }
     });
     map.addLayer(parcelVectorLayer);
 
@@ -9594,16 +13394,48 @@ async function initDP2() {
       }
     });
 
-    window.__DP2_INIT_DONE = true; // Uniquement après map IGN + parcelle cible + view.fit() réussis
-    console.log("[DP2] Mode CAPTURE prêt (pile IGN identique DP1).");
+    try {
+      if (window.__dp2MapResizeObs) {
+        window.__dp2MapResizeObs.disconnect();
+        window.__dp2MapResizeObs = null;
+      }
+      if (typeof ResizeObserver !== "undefined" && mapEl) {
+        window.__dp2MapResizeObs = new ResizeObserver(function () {
+          if (window.DP2_MAP && window.DP2_MAP.map) {
+            try {
+              window.DP2_MAP.map.updateSize();
+            } catch (_) {}
+          }
+        });
+        window.__dp2MapResizeObs.observe(mapEl);
+      }
+    } catch (_) {}
+
+    window.__DP2_INIT_DONE = true; // PLAN IGN + parcelle cible (+ neighborParcelsSource réservé)
+    console.log("[DP2] Mode CAPTURE prêt (PLAN IGN + parcelle sélectionnée, style cadastral propre).");
   }
 
-  // Bind open depuis la page (pattern DP1 : page -> overlay)
-  if (openBtn) {
-    openBtn.addEventListener("click", (e) => {
+  const dp2PageEl = document.getElementById("dp2-page");
+  if (dp2PageEl && dp2PageEl.dataset.dp2EntryBound !== "1") {
+    dp2PageEl.dataset.dp2EntryBound = "1";
+    document.getElementById("dp2-btn-create-plan")?.addEventListener("click", dp2OnEntryCreateFirstPlan);
+    document.getElementById("dp2-btn-continue")?.addEventListener("click", dp2OnEntryContinue);
+    document.getElementById("dp2-btn-collapse-versions")?.addEventListener("click", function (e) {
       e.preventDefault();
-      openDP2Modal();
+      if (
+        !window.confirm(
+          "Toutes les versions du menu seront supprimées sauf celle qui correspond au plan actuellement affiché à l’écran. Continuer ?"
+        )
+      ) {
+        return;
+      }
+      if (typeof window.dp2CollapseVersionsToSingleActive === "function") {
+        void window.dp2CollapseVersionsToSingleActive();
+      }
     });
+    try {
+      dp2UpdateRepairHintVisibility();
+    } catch (_) {}
   }
 
   // Fermeture identique DP1 : X / bouton / backdrop
@@ -9629,18 +13461,51 @@ async function initDP2() {
       if (!m || m.getAttribute("aria-hidden") !== "false") return;
       e.preventDefault();
       e.stopPropagation();
-      m.setAttribute("aria-hidden", "true");
-      document.body.classList.remove("dp-lock-scroll");
-      if (document.activeElement) {
-        try { document.activeElement.blur(); } catch (_) {}
+      if (typeof window.dp2CloseMapModal === "function") {
+        window.dp2CloseMapModal();
+      } else {
+        m.setAttribute("aria-hidden", "true");
+        document.body.classList.remove("dp-lock-scroll");
+        if (document.activeElement) {
+          try { document.activeElement.blur(); } catch (_) {}
+        }
       }
     });
+  }
+
+  try {
+    dp2RenderEntryPanel();
+  } catch (_) {}
+  if (window.DP2_UI?.setState) {
+    window.DP2_UI.setState(window.DP2_STATE?.capture?.imageBase64 ? "GENERATED" : "EMPTY");
+  }
+  if (window.DP2_STATE?.capture?.imageBase64) {
+    dp2BootstrapEditorDomFromWorking();
   }
 }
 
 // --------------------------
 // DP2 — CAPTURE MAP (PLAN DE MASSE)
 // --------------------------
+/** Aligne map.getSize() sur la boîte réelle du conteneur (#dp2-ign-map) puis attend un rendu stable. */
+async function dp2SyncOpenLayersSizeToContainer(map) {
+  const el = map.getTargetElement();
+  if (!el) return;
+  map.updateSize();
+  await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+  const w = Math.max(1, Math.round(el.clientWidth));
+  const h = Math.max(1, Math.round(el.clientHeight));
+  const sz = map.getSize();
+  if (!sz || sz[0] !== w || sz[1] !== h) {
+    map.setSize([w, h]);
+  }
+  map.renderSync();
+  await new Promise((resolve) => {
+    map.once("rendercomplete", resolve);
+    map.renderSync();
+  });
+}
+
 async function captureDP2Map() {
   if (!window.DP2_MAP || !window.DP2_MAP.map) {
     console.warn("[DP2] Map DP2 introuvable pour capture");
@@ -9653,14 +13518,37 @@ async function captureDP2Map() {
 
   lockDPView({ map });
 
-  // Attendre fin de rendu
+  await dp2SyncOpenLayersSizeToContainer(map);
+
+  const planSrc = window.DP2_MAP.planSource;
+  if (planSrc) {
+    await dp2WaitWmtsSourcesIdle(map, [planSrc], 3200);
+  }
+  if (window.DP2_MAP.mvtSource) {
+    await waitMvtTilesIdle(2800);
+  }
+
+  await dp2SyncOpenLayersSizeToContainer(map);
+
   await new Promise((resolve) => {
     map.once("rendercomplete", resolve);
     map.renderSync();
   });
+  await new Promise((r) => requestAnimationFrame(() => r()));
 
-  const size = map.getSize();
-  if (!size) {
+  const wPx = Math.max(1, Math.round(mapEl.clientWidth));
+  const hPx = Math.max(1, Math.round(mapEl.clientHeight));
+  let size = map.getSize();
+  if (!size || size[0] !== wPx || size[1] !== hPx) {
+    map.setSize([wPx, hPx]);
+    map.renderSync();
+    await new Promise((resolve) => {
+      map.once("rendercomplete", resolve);
+      map.renderSync();
+    });
+    size = map.getSize();
+  }
+  if (!size || size[0] < 1 || size[1] < 1) {
     console.warn("[DP2] Taille de map inconnue");
     return;
   }
@@ -9670,20 +13558,28 @@ async function captureDP2Map() {
   canvas.height = size[1];
   const ctx = canvas.getContext("2d");
 
+  // Fond blanc (comme DP1) : évite transparence / halos si une couche WMTS a des zones vides.
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
   const canvases = mapEl.querySelectorAll(".ol-layer canvas");
   canvases.forEach((c) => {
     if (c.width > 0 && c.height > 0) {
+      ctx.save();
       const opacity = c.parentNode.style.opacity;
       ctx.globalAlpha = opacity === "" ? 1 : Number(opacity);
       const transform = c.style.transform;
       if (transform) {
-        const matrix = transform
-          .match(/^matrix\(([^\(]*)\)$/)[1]
-          .split(",")
-          .map(Number);
-        ctx.setTransform(matrix[0], matrix[1], matrix[2], matrix[3], matrix[4], matrix[5]);
+        const m = transform.match(/^matrix\(([^\(]*)\)$/);
+        if (m) {
+          const matrix = m[1].split(",").map(Number);
+          ctx.setTransform(matrix[0], matrix[1], matrix[2], matrix[3], matrix[4], matrix[5]);
+        }
       }
       ctx.drawImage(c, 0, 0);
+      ctx.restore();
     }
   });
 
@@ -9809,27 +13705,56 @@ async function captureDP2Map() {
   if (window.DP2_UI?.setState) {
     window.DP2_UI.setState("GENERATED");
   }
+  if (typeof window.__snDpAfterCaptureDp2 === "function") {
+    try {
+      window.__snDpAfterCaptureDp2();
+    } catch (err) {
+      console.warn("[DP2] draft hook", err);
+    }
+  }
+
+  try {
+    dp2EnsureVersionRowBeforeEdit();
+    dp2SyncActiveVersionBeforeDraft();
+    dp2RenderEntryPanel();
+  } catch (_) {}
 }
 
 // ======================================================
 // DP3 — PLAN DE COUPE (FRONTEND)
 // ======================================================
 (function () {
-  const DP3_LS_KEY = "DP3_STATE_V1";
+  function DP3_getLsKey() {
+    return __solarnextScopedStorageKey("DP3_STATE_V1");
+  }
 
   // non persisté (mémoire uniquement)
   let DP3_SELECTED_ID = null;
   let DP3_EDITOR_OPEN = false;
   let DP3_EDITOR_KEY_HANDLER = null;
 
+  /** Aligné produit : SOL | INTEGRATION | SURIMPOSITION | TOIT_PLAT */
+  const DP3_TYPE_KEY_TO_POSE = {
+    sol: "SOL",
+    integration: "INTEGRATION",
+    surimposition: "SURIMPOSITION",
+    toit_terrasse: "TOIT_PLAT",
+  };
+
+  function DP3_poseTypeFromTypeKey(typeKey) {
+    return typeKey && DP3_TYPE_KEY_TO_POSE[typeKey] ? DP3_TYPE_KEY_TO_POSE[typeKey] : null;
+  }
+
   function DP3_defaultState() {
     return {
       hasDP3: false,
       typeKey: null, // "surimposition"|"integration"|"toit_terrasse"|"sol"
-      baseImage: null, // "photos/xxx.png"
+      /** @type {"SOL"|"INTEGRATION"|"SURIMPOSITION"|"TOIT_PLAT"|null} */
+      poseType: null,
+      baseImage: null, // URL résolue ou "photos/xxx.png"
       // "portrait" | "paysage" (utilisé plus tard dans le PDF DP3)
       installationOrientation: "portrait",
-      module: null, // module PV sélectionné (objet issu de DP2_PANEL_CATALOG) ou null
+      module: null, // module PV (même forme que DP2_STATE.panelModel, API pv_panels) ou null
       manualImageName: null,
       textBoxes: [
         // { id, x, y, w, h, text, fontSize }
@@ -9840,12 +13765,16 @@ async function captureDP2Map() {
 
   function DP3_loadState() {
     try {
-      const raw = localStorage.getItem(DP3_LS_KEY);
+      const raw = localStorage.getItem(DP3_getLsKey());
       if (!raw) return DP3_defaultState();
       const parsed = JSON.parse(raw);
       const s = { ...DP3_defaultState(), ...(parsed || {}) };
       // compat champs potentiellement manquants
       if (!Array.isArray(s.textBoxes)) s.textBoxes = [];
+      if (s.poseType == null && s.typeKey) {
+        const p = DP3_poseTypeFromTypeKey(s.typeKey);
+        if (p) s.poseType = p;
+      }
       // compat/validation
       if (s.installationOrientation !== "portrait" && s.installationOrientation !== "paysage") {
         s.installationOrientation = "portrait";
@@ -9858,8 +13787,18 @@ async function captureDP2Map() {
 
   function DP3_saveState(state) {
     try {
-      localStorage.setItem(DP3_LS_KEY, JSON.stringify(state));
+      localStorage.setItem(DP3_getLsKey(), JSON.stringify(state));
     } catch (e) {}
+    try {
+      if (typeof window.__snDpPersistDebounced === "function") window.__snDpPersistDebounced("fast");
+    } catch (_) {}
+  }
+
+  /** Source initiale : mémoire (hydratation serveur) ; localStorage uniquement sans brouillon CRM. */
+  function DP3_ensureState() {
+    if (window.DP3_STATE) return window.DP3_STATE;
+    if (!window.__SN_DP_SERVER_DRAFT_ACTIVE) return DP3_loadState();
+    return DP3_defaultState();
   }
 
   function DP3_clamp01(v) {
@@ -9878,6 +13817,13 @@ async function captureDP2Map() {
       toit_terrasse: "photos/Toiture plate - toit terrasse.png",
       sol: "photos/pose au sol.png",
     };
+  }
+
+  function DP3_resolveImageSrc(relativePath) {
+    if (!relativePath || typeof relativePath !== "string") return "";
+    return typeof __solarnextDpResolveAssetUrl === "function"
+      ? __solarnextDpResolveAssetUrl(relativePath)
+      : relativePath;
   }
 
   function DP3_ensureModalNotDuplicated(modalId) {
@@ -10008,7 +13954,7 @@ async function captureDP2Map() {
   }
 
   async function DP3_downloadPDF() {
-    const state = window.DP3_STATE || DP3_loadState();
+    const state = DP3_ensureState();
     window.DP3_STATE = state;
 
     if (!state || !state.hasDP3) {
@@ -10029,39 +13975,25 @@ async function captureDP2Map() {
     const dp3Data = {
       client: buildPdfClientFromDP1Context(),
       typeKey: state.typeKey ?? null,
+      poseType: state.poseType ?? null,
       installationOrientation: state.installationOrientation === "paysage" ? "paysage" : "portrait",
       module: state.module ?? null,
       baseImage,
       textBoxes: Array.isArray(state.textBoxes) ? state.textBoxes : [],
     };
 
-    const res = await fetch("http://localhost:3000/pdf/render/dp3/pdf", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ dp3Data })
-    });
-
-    if (!res.ok) {
-      alert("Erreur PDF DP3");
-      return;
-    }
-
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    window.open(url, "_blank");
-
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "DP3_Plan_de_coupe.pdf";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-
-    setTimeout(() => URL.revokeObjectURL(url), 3000);
+    await __solarnextDpFetchPdfWithReplace(
+      "/pdf/render/dp3/pdf",
+      function () {
+        return { dp3Data: dp3Data };
+      },
+      "dp3"
+    );
   }
 
   function DP3_openTypeModal() {
-    const state = window.DP3_STATE || DP3_loadState();
+    console.log("DP3_OVERLAY_OPEN");
+    const state = DP3_ensureState();
     window.DP3_STATE = state;
 
     const typeMap = DP3_getTypeMap();
@@ -10075,26 +14007,30 @@ async function captureDP2Map() {
     const body = modal.querySelector(".dp-modal-body");
     const footer = modal.querySelector(".dp-modal-footer");
 
-    let DP3_TEMP = { typeKey: null, baseImage: null };
+    let DP3_TEMP = { typeKey: null, baseImage: null, poseType: null };
+
+    const typeRows = [
+      { key: "sol", label: "Pose au sol", rel: typeMap.sol },
+      { key: "integration", label: "Intégration", rel: typeMap.integration },
+      { key: "surimposition", label: "Surimposition", rel: typeMap.surimposition },
+      { key: "toit_terrasse", label: "Toit terrasse", rel: typeMap.toit_terrasse },
+    ];
 
     if (body) {
       body.classList.add("dp3-type-body");
       body.innerHTML = `
         <div class="dp3-type-grid" role="list">
-          ${[
-            { key: "surimposition", label: "Surimposition", img: typeMap.surimposition },
-            { key: "integration", label: "Intégration", img: typeMap.integration },
-            { key: "toit_terrasse", label: "Toit terrasse", img: typeMap.toit_terrasse },
-            { key: "sol", label: "Pose au sol", img: typeMap.sol },
-          ]
-            .map(
-              (t) => `
-            <button type="button" class="dp3-type-card" data-type="${t.key}" role="listitem">
-              <img class="dp3-type-card-img" alt="${t.label}" src="${t.img}">
+          ${typeRows
+            .map((t) => {
+              const src = DP3_resolveImageSrc(t.rel);
+              const pose = DP3_poseTypeFromTypeKey(t.key);
+              return `
+            <button type="button" class="dp3-type-card" data-type="${t.key}" data-pose="${pose || ""}" role="listitem">
+              <img class="dp3-type-card-img" alt="${t.label}" src="${src.replace(/"/g, "&quot;")}">
               <div class="dp3-type-card-label">${t.label}</div>
             </button>
-          `
-            )
+          `;
+            })
             .join("")}
         </div>
       `;
@@ -10104,7 +14040,7 @@ async function captureDP2Map() {
       footer.classList.add("dp3-type-footer");
       footer.innerHTML = `
         <button class="dp-btn dp-btn-outline" type="button" id="dp3-type-cancel">Annuler</button>
-        <button class="dp-btn dp-btn-primary" type="button" id="dp3-type-confirm" disabled>Confirmer</button>
+        <button class="dp-btn dp-btn-primary" type="button" id="dp3-type-validate" disabled>Valider</button>
       `;
     }
 
@@ -10114,8 +14050,8 @@ async function captureDP2Map() {
         const isSel = c.dataset.type === DP3_TEMP.typeKey;
         c.classList.toggle("selected", !!isSel);
       });
-      const btnConfirm = modal.querySelector("#dp3-type-confirm");
-      if (btnConfirm) btnConfirm.disabled = !DP3_TEMP.typeKey;
+      const btnVal = modal.querySelector("#dp3-type-validate");
+      if (btnVal) btnVal.disabled = !DP3_TEMP.typeKey;
     }
 
     modal.addEventListener("click", (e) => {
@@ -10124,31 +14060,45 @@ async function captureDP2Map() {
       const typeKey = card.dataset.type;
       if (!typeKey || !typeMap[typeKey]) return;
       DP3_TEMP.typeKey = typeKey;
-      DP3_TEMP.baseImage = typeMap[typeKey];
+      DP3_TEMP.baseImage = DP3_resolveImageSrc(typeMap[typeKey]);
+      DP3_TEMP.poseType = DP3_poseTypeFromTypeKey(typeKey);
+      console.log("DP3_SELECTION", { typeKey, poseType: DP3_TEMP.poseType });
       refreshSelectionUI();
     });
 
     const btnCancel = modal.querySelector("#dp3-type-cancel");
-    const btnConfirm = modal.querySelector("#dp3-type-confirm");
+    const btnValidate = modal.querySelector("#dp3-type-validate");
     if (btnCancel) {
       btnCancel.addEventListener("click", () => DP3_closeTypeModal());
     }
-    if (btnConfirm) {
-      btnConfirm.addEventListener("click", () => {
+    if (btnValidate) {
+      btnValidate.addEventListener("click", () => {
         if (!DP3_TEMP.typeKey || !DP3_TEMP.baseImage) return;
 
-        // "Créer nouvelle DP3" => reset soft, puis ouvrir l’éditeur
         window.DP3_STATE.typeKey = DP3_TEMP.typeKey;
         window.DP3_STATE.baseImage = DP3_TEMP.baseImage;
-        window.DP3_STATE.hasDP3 = false;
-        window.DP3_STATE.validatedAt = null;
+        window.DP3_STATE.poseType = DP3_TEMP.poseType;
+        window.DP3_STATE.hasDP3 = true;
+        window.DP3_STATE.validatedAt = Date.now();
         window.DP3_STATE.installationOrientation = "portrait";
         window.DP3_STATE.module = null;
         window.DP3_STATE.textBoxes = [];
         DP3_saveState(window.DP3_STATE);
 
+        console.log("DP3_VALIDATED", {
+          poseType: window.DP3_STATE.poseType,
+          typeKey: window.DP3_STATE.typeKey,
+        });
+        if (typeof window.__snDpAfterDp3Validated === "function") {
+          try {
+            window.__snDpAfterDp3Validated();
+          } catch (err) {
+            console.warn("[DP3] draft hook", err);
+          }
+        }
+
         DP3_closeTypeModal();
-        DP3_openEditor();
+        DP3_renderHome();
       });
     }
 
@@ -10166,7 +14116,7 @@ async function captureDP2Map() {
   }
 
   function DP3_openEditor() {
-    const state = window.DP3_STATE || DP3_loadState();
+    const state = DP3_ensureState();
     window.DP3_STATE = state;
 
     if (!state.typeKey || !state.baseImage) {
@@ -10201,8 +14151,6 @@ async function captureDP2Map() {
             <label class="dp2-label">Module photovoltaïque</label>
             <select id="dp3-panel-select" class="dp2-select">
               <option value="">— Sélectionner un module —</option>
-              <option value="longi_x10_artist">LONGi Hi-MO X10 Artist — 485 W</option>
-              <option value="longi_x10_explorer">LONGi Hi-MO X10 Explorer — 485 W</option>
             </select>
           </div>
 
@@ -10507,27 +14455,30 @@ async function captureDP2Map() {
         dimensionsEl.textContent = h && w ? `${h} × ${w} m` : "—";
       }
 
-      // Modules PV (DP3) — même logique DP2, mais stockage DP3_STATE.module et aucun rendu image
+      // Modules PV (DP3) — catalogue API (identique DP2), stockage DP3_STATE.module
       if (panelSelect) {
-        // sync état -> UI si déjà défini (on tente de retrouver la key via reference)
-        if (window.DP3_STATE?.module) {
-          const currentRef = window.DP3_STATE.module.reference;
-          const key = Object.keys(DP2_PANEL_CATALOG).find((k) => DP2_PANEL_CATALOG[k]?.reference === currentRef);
-          if (key) panelSelect.value = key;
-        } else {
-          // sync UI -> état au chargement UNIQUEMENT si l'état n'est pas déjà défini
-          const initialKey = panelSelect.value || "";
-          window.DP3_STATE.module = DP2_PANEL_CATALOG[initialKey] || null;
-          DP3_saveState(window.DP3_STATE);
-        }
-        syncDP3PanelMetadataUI();
+        dpEnsurePvPanelsLoaded()
+          .then((cache) => {
+            window.DP3_STATE.module = dpReconcilePanelModel(window.DP3_STATE.module, cache);
+            DP3_saveState(window.DP3_STATE);
+            const selId = window.DP3_STATE.module?.panel_id || null;
+            dpPopulatePvPanelSelectOptions(panelSelect, selId);
+            syncDP3PanelMetadataUI();
 
-        panelSelect.addEventListener("change", (e) => {
-          const value = e.target?.value || "";
-          window.DP3_STATE.module = DP2_PANEL_CATALOG[value] || null;
-          DP3_saveState(window.DP3_STATE);
-          syncDP3PanelMetadataUI();
-        });
+            if (panelSelect.dataset.dpPvPanelBound !== "1") {
+              panelSelect.dataset.dpPvPanelBound = "1";
+              panelSelect.addEventListener("change", (e) => {
+                const value = e.target?.value || "";
+                window.DP3_STATE.module = dpModelFromPanelSelectValue(value);
+                DP3_saveState(window.DP3_STATE);
+                syncDP3PanelMetadataUI();
+              });
+            }
+          })
+          .catch(() => {
+            dpPopulatePvPanelSelectOptions(panelSelect, null);
+            syncDP3PanelMetadataUI();
+          });
       }
 
       const btnAdd = modal.querySelector("#dp3-add-textbox");
@@ -10563,9 +14514,20 @@ async function captureDP2Map() {
         });
       }
 
-      const btnDelete = modal.querySelector("#dp3-delete-textbox");
-      if (btnDelete) {
-        btnDelete.addEventListener("click", () => deleteSelectedBox());
+      if (modal.dataset.dp3DeleteCaptureBound !== "1") {
+        modal.dataset.dp3DeleteCaptureBound = "1";
+        modal.addEventListener(
+          "click",
+          function dp3DeleteBtnCapture(e) {
+            const raw = e.target;
+            const el = raw && raw.nodeType === 1 ? raw : raw && raw.parentElement;
+            const del = el && el.closest("#dp3-delete-textbox");
+            if (!del || del.disabled) return;
+            e.preventDefault();
+            deleteSelectedBox();
+          },
+          true
+        );
       }
 
       const btnCancel = modal.querySelector("#dp3-editor-cancel");
@@ -10576,6 +14538,13 @@ async function captureDP2Map() {
           window.DP3_STATE.hasDP3 = true;
           window.DP3_STATE.validatedAt = Date.now();
           DP3_saveState(window.DP3_STATE);
+          if (typeof window.__snDpAfterDp3Validated === "function") {
+            try {
+              window.__snDpAfterDp3Validated();
+            } catch (errDp) {
+              console.warn("[DP3] draft hook", errDp);
+            }
+          }
           DP3_closeEditor(true);
         });
       }
@@ -10633,7 +14602,22 @@ async function captureDP2Map() {
     const root = document.getElementById("dp3-root");
     if (!root) return;
 
-    window.DP3_STATE = DP3_loadState();
+    window.DP3_STATE = DP3_ensureState();
+
+    try {
+      if (window.snDpV && typeof window.snDpV.migrateKind === "function") {
+        window.snDpV.migrateKind("dp3");
+      }
+      if (typeof window.snDpVSetupPageUi === "function") {
+        window.snDpVSetupPageUi("dp3", {
+          onAfter: function () {
+            try {
+              if (typeof window.DP3_renderHome === "function") window.DP3_renderHome();
+            } catch (_) {}
+          },
+        });
+      }
+    } catch (_) {}
 
     // Bind boutons
     const btnCreate = document.getElementById("dp3-create-btn");
@@ -10641,7 +14625,10 @@ async function captureDP2Map() {
     const btnDownload = document.getElementById("dp3-download-btn");
 
     if (btnCreate) {
-      btnCreate.addEventListener("click", () => DP3_openTypeModal());
+      btnCreate.addEventListener("click", () => {
+        console.log("DP3_CLICK");
+        DP3_openTypeModal();
+      });
     }
     if (btnImport) {
       btnImport.addEventListener("click", () => console.log("DP3 import stub"));
@@ -10682,6 +14669,8 @@ async function captureDP2Map() {
 
     DP3_renderHome();
   };
+
+  window.DP3_renderHome = DP3_renderHome;
 })();
 
 // ======================================================
@@ -10746,7 +14735,9 @@ function dp4SyncRoofGeometryFromDP2State() {
 // - Un seul moteur DP4 / un seul canvas
 // - La catégorie active AU MOMENT DU SAVE décide de tout
 // ======================================================
-const DP4_LS_KEY = "DP4_STATE_V1";
+function dp4SessionStateKey() {
+  return __solarnextSessionScopedKey("DP4_STATE_V1");
+}
 // ======================================================
 // DP4 — RENDU FINAL (NETTOYAGE VISUEL) — PERSISTENCE SÉPARÉE
 // Objectif :
@@ -10755,7 +14746,9 @@ const DP4_LS_KEY = "DP4_STATE_V1";
 //   - miniatures
 //   - base future PDF DP4
 // ======================================================
-const DP4_FINAL_LS_KEY = "DP4_FINAL_RENDER_V1";
+function dp4FinalRenderKey() {
+  return __solarnextScopedStorageKey("DP4_FINAL_RENDER_V1");
+}
 
 function dp4FinalDefaultStore() {
   return {
@@ -10766,7 +14759,7 @@ function dp4FinalDefaultStore() {
 
 function dp4FinalLoadStore() {
   try {
-    const raw = localStorage.getItem(DP4_FINAL_LS_KEY);
+    const raw = localStorage.getItem(dp4FinalRenderKey());
     if (!raw) return dp4FinalDefaultStore();
     const parsed = JSON.parse(raw);
     const base = dp4FinalDefaultStore();
@@ -10785,9 +14778,36 @@ function dp4FinalLoadStore() {
 
 function dp4FinalSaveStore(store) {
   try {
-    localStorage.setItem(DP4_FINAL_LS_KEY, JSON.stringify(store || dp4FinalDefaultStore()));
+    localStorage.setItem(dp4FinalRenderKey(), JSON.stringify(store || dp4FinalDefaultStore()));
   } catch (_) {}
 }
+
+/** Snapshots DP4 pour lead_dp.state_json (état + rendus finaux cache navigateur). */
+window.__snDpGetDp4SnapshotForDraft = function __snDpGetDp4SnapshotForDraft() {
+  try {
+    return {
+      state: dp4NormalizeLoadedState(window.DP4_STATE || dp4DefaultState()),
+      finalRenders: dp4FinalLoadStore(),
+    };
+  } catch (e) {
+    return null;
+  }
+};
+
+window.__snHydrateDp4FromDraft = function __snHydrateDp4FromDraft(payload) {
+  if (!payload || typeof payload !== "object") return;
+  try {
+    var rawState = payload.state != null ? payload.state : payload;
+    window.DP4_STATE = dp4NormalizeLoadedState(rawState);
+    if (payload.finalRenders && typeof payload.finalRenders === "object") {
+      var def = dp4FinalDefaultStore();
+      var merged = { ...def, ...payload.finalRenders };
+      dp4FinalSaveStore(merged);
+    }
+  } catch (e) {
+    console.warn("[DP] __snHydrateDp4FromDraft", e);
+  }
+};
 
 function dp4GetFinalRenderFor(category) {
   const cat = category === "before" || category === "after" ? category : null;
@@ -10865,17 +14885,18 @@ async function dp4BuildFinalRenderImageBase64FromCurrentDom() {
         }
       }
       // 2) Lignes de mesure + faîtage
-      for (const obj of objects) {
+      for (let i = 0; i < objects.length; i++) {
+        const obj = objects[i];
         if (!obj || !obj.type) continue;
         if (obj.type === "measure_line" && typeof renderMeasureLine === "function") {
           const prevMeasureWidth = sctx.lineWidth;
           sctx.lineWidth = 1.2;
-          renderMeasureLine(sctx, obj);
+          renderMeasureLine(sctx, obj, i);
           sctx.lineWidth = prevMeasureWidth;
         } else if (obj.type === "ridge_line" && typeof renderRidgeLine === "function") {
           const prevRidgeWidth = sctx.lineWidth;
           sctx.lineWidth = 2;
-          renderRidgeLine(sctx, obj);
+          renderRidgeLine(sctx, obj, i);
           sctx.lineWidth = prevRidgeWidth;
         }
       }
@@ -11078,11 +15099,12 @@ function dp4NormalizeLoadedState(raw) {
 }
 
 function dp4LoadState() {
+  if (window.__SN_DP_SERVER_DRAFT_ACTIVE) {
+    return dp4DefaultState();
+  }
   try {
-    // DP4 = session-only : ne survit pas à Ctrl+R
-    const raw = sessionStorage.getItem(DP4_LS_KEY);
-    // Purge legacy : supprimer l'ancien état DP4 persistant (localStorage) une fois
-    try { localStorage.removeItem(DP4_LS_KEY); } catch (_) {}
+    const raw = sessionStorage.getItem(dp4SessionStateKey());
+    try { localStorage.removeItem(__solarnextScopedStorageKey("DP4_STATE_V1")); } catch (_) {}
     if (!raw) return dp4DefaultState();
     return dp4NormalizeLoadedState(JSON.parse(raw));
   } catch (_) {
@@ -11093,14 +15115,21 @@ function dp4LoadState() {
 function dp4SaveState(state) {
   try {
     const normalized = dp4NormalizeLoadedState(state);
-    // DP4 = session-only : stockage temporaire
-    sessionStorage.setItem(DP4_LS_KEY, JSON.stringify(normalized));
+    // Cache session (non source de vérité — aligné sur state_json via DpDraftStore)
+    sessionStorage.setItem(dp4SessionStateKey(), JSON.stringify(normalized));
+  } catch (_) {}
+  try {
+    if (typeof window.__snDpPersistDebounced === "function") window.__snDpPersistDebounced(false);
   } catch (_) {}
 }
 
 function dp4EnsureStateLoadedOnce() {
   if (window.__DP4_LS_LOADED === true) return;
   window.__DP4_LS_LOADED = true;
+  if (window.__SN_DP_SERVER_DRAFT_ACTIVE) {
+    window.DP4_STATE = dp4NormalizeLoadedState(window.DP4_STATE || dp4DefaultState());
+    return;
+  }
   window.DP4_STATE = dp4NormalizeLoadedState(dp4LoadState());
 }
 
@@ -11312,58 +15341,125 @@ function dpGetProjectCenterForGoogleMaps() {
   return { center: { lat: 48.8566, lng: 2.3522 }, zoom: 18 };
 }
 
-function dpLoadGoogleMapsJsOnce() {
-  // Copie stricte DP4 : même sentinelle globale et même callback.
-  if (window.google && window.google.maps) return Promise.resolve();
-  if (window.__DP4_GOOGLE_MAPS_PROMISE) return window.__DP4_GOOGLE_MAPS_PROMISE;
-
-  window.__DP4_GOOGLE_MAPS_PROMISE = new Promise((resolve, reject) => {
-    let done = false;
-    const safeResolve = () => {
-      if (done) return;
-      done = true;
-      resolve();
-    };
-    const safeReject = (err) => {
-      if (done) return;
-      done = true;
-      reject(err);
-    };
-
-    const callbackName = "__dp4_googleMapsInit";
-    // Si une tentative précédente a laissé le callback, on le remplace.
-    window[callbackName] = () => {
+/**
+ * Carte 2D optionnelle sur #dp6-gmap-debug-map (DP6) pour vérifier que l’API Google charge bien les tuiles
+ * (distinct du panorama Street View). Activer en affichant #dp6-gmap-debug (retirer hidden).
+ */
+function dpMaybeAttachDp6VerifyMap2D() {
+  if (window.__dpGoogleVerifyMapInstance) return;
+  try {
+    const g = window.google;
+    if (!g || !g.maps) return;
+    const el = document.getElementById("dp6-gmap-debug-map");
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    if (r.width < 16 || r.height < 16) return;
+    const { center } = dpGetProjectCenterForGoogleMaps();
+    window.__dpGoogleVerifyMapInstance = new g.maps.Map(el, {
+      center: center || { lat: 48.8566, lng: 2.3522 },
+      zoom: 18,
+      mapTypeControl: false,
+      streetViewControl: false,
+    });
+    setTimeout(() => {
       try {
-        if (window.google && window.google.maps) safeResolve();
-        else safeReject(new Error("Google Maps JS API chargée mais indisponible"));
-      } finally {
-        try {
-          delete window[callbackName];
-        } catch (_) {}
+        g.maps.event.trigger(window.__dpGoogleVerifyMapInstance, "resize");
+      } catch (_) {}
+    }, 300);
+    console.log("MAP VERIFY 2D OK");
+  } catch (e) {
+    console.warn("[DP6] diagnostic carte 2D impossible", e);
+  }
+}
+
+/**
+ * Charge l’API Google Maps une seule fois (sans callback=initMap dans l’URL).
+ * Réutilise un script maps.googleapis.com déjà présent (Calpinage / autre) via polling.
+ * @returns {Promise<typeof window.google>}
+ */
+function dpLoadGoogleMapsJsOnce() {
+  if (window.google && window.google.maps) {
+    console.log("GOOGLE ALREADY LOADED");
+    return Promise.resolve(window.google);
+  }
+  if (window.__dpGoogleMapsLoadPromise) {
+    return window.__dpGoogleMapsLoadPromise;
+  }
+
+  const GOOGLE_MAPS_API_KEY = "AIzaSyDQMAe4zNsipMna3Ph1ANhJLMpZcdAWC1M";
+
+  window.__dpGoogleMapsLoadPromise = new Promise((resolve, reject) => {
+    const existingScript = document.querySelector('script[src*="maps.googleapis.com"]');
+    if (existingScript) {
+      console.log("GOOGLE SCRIPT EXISTS, WAITING");
+      let intervalId = null;
+      let timeoutId = null;
+      const tryResolve = () => {
+        if (window.google && window.google.maps) {
+          if (intervalId) clearInterval(intervalId);
+          if (timeoutId) clearTimeout(timeoutId);
+          console.log("GOOGLE READY (EXISTING)");
+          resolve(window.google);
+          return true;
+        }
+        return false;
+      };
+      intervalId = setInterval(tryResolve, 100);
+      existingScript.addEventListener("load", () => {
+        tryResolve();
+      });
+      tryResolve();
+      timeoutId = setTimeout(() => {
+        if (intervalId) clearInterval(intervalId);
+        window.__dpGoogleMapsLoadPromise = null;
+        reject(new Error("GOOGLE LOAD TIMEOUT"));
+      }, 30000);
+      return;
+    }
+
+    console.log("LOADING GOOGLE SCRIPT");
+    const script = document.createElement("script");
+    script.dataset.dpToolGoogleMaps = "1";
+    script.src =
+      "https://maps.googleapis.com/maps/api/js?v=weekly" +
+      "&libraries=geometry" +
+      "&key=" +
+      encodeURIComponent(GOOGLE_MAPS_API_KEY);
+    script.async = true;
+    script.defer = true;
+
+    let loadTimeoutId = setTimeout(() => {
+      loadTimeoutId = null;
+      window.__dpGoogleMapsLoadPromise = null;
+      reject(new Error("GOOGLE LOAD TIMEOUT"));
+    }, 15000);
+
+    script.onload = () => {
+      console.log("GOOGLE LOADED");
+      if (window.google && window.google.maps) {
+        if (loadTimeoutId) clearTimeout(loadTimeoutId);
+        resolve(window.google);
+      } else {
+        if (loadTimeoutId) clearTimeout(loadTimeoutId);
+        window.__dpGoogleMapsLoadPromise = null;
+        reject(new Error("google absent après chargement du script"));
       }
     };
+    script.onerror = () => {
+      if (loadTimeoutId) clearTimeout(loadTimeoutId);
+      window.__dpGoogleMapsLoadPromise = null;
+      reject(new Error("Échec chargement script Google Maps"));
+    };
 
-    let src = `https://maps.googleapis.com/maps/api/js?v=weekly&callback=${encodeURIComponent(callbackName)}`;
-
-    const GOOGLE_MAPS_API_KEY = "AIzaSyDQMAe4zNsipMna3Ph1ANhJLMpZcdAWC1M";
-    src += `&key=${encodeURIComponent(GOOGLE_MAPS_API_KEY)}`;
-
-    const s = document.createElement("script");
-    s.src = src;
-    s.async = true;
-    s.defer = true;
-    s.onerror = () => safeReject(new Error("Chargement Google Maps JS API impossible"));
-    document.head.appendChild(s);
-
-    // Timeout de sécurité : évite une promesse bloquée si callback non appelé.
-    setTimeout(() => {
-      if (window.google && window.google.maps) safeResolve();
-      else safeReject(new Error("Timeout chargement Google Maps JS API"));
-    }, 15000);
+    document.head.appendChild(script);
   });
 
-  return window.__DP4_GOOGLE_MAPS_PROMISE;
+  return window.__dpGoogleMapsLoadPromise;
 }
+
+window.dpLoadGoogleMapsJsOnce = dpLoadGoogleMapsJsOnce;
+window.dpGetProjectCenterForGoogleMaps = dpGetProjectCenterForGoogleMaps;
+window.dpMaybeAttachDp6VerifyMap2D = dpMaybeAttachDp6VerifyMap2D;
 
 async function dpCaptureElementAsPngDataUrl(host) {
   if (!host) return null;
@@ -11701,6 +15797,63 @@ function dp4InitIgnOrthoMap(onReady) {
   }
 }
 
+/** Listener moveend pour repositionner le hint (démonté avant destroy map) */
+window.DP4_MAP_HINT_MOVE_END = null;
+
+function dp4UnbindMapCursorHintMoveEnd() {
+  const map = window.DP4_OL_MAP;
+  const handler = window.DP4_MAP_HINT_MOVE_END;
+  if (handler) {
+    if (map) {
+      try {
+        map.un("moveend", handler);
+      } catch (_) {}
+    }
+    window.DP4_MAP_HINT_MOVE_END = null;
+  }
+}
+
+function dp4HideMapCursorHint() {
+  dp4UnbindMapCursorHintMoveEnd();
+  const hint = document.getElementById("dp4-cursor-hint");
+  if (hint) {
+    hint.dataset.dismissed = "1";
+    hint.setAttribute("hidden", "");
+    hint.style.display = "none";
+    console.log("DP4_CURSOR_HIDE");
+  }
+}
+
+function dp4ShowMapCursorHint() {
+  const hint = document.getElementById("dp4-cursor-hint");
+  const map = window.DP4_OL_MAP;
+  if (!hint || !map) return;
+  try {
+    delete hint.dataset.dismissed;
+  } catch (_) {}
+  dp4UnbindMapCursorHintMoveEnd();
+
+  function updatePos() {
+    if (!hint || hint.dataset.dismissed === "1" || !window.DP4_OL_MAP) return;
+    const view = map.getView();
+    if (!view) return;
+    const pix = map.getPixelFromCoordinate(view.getCenter());
+    if (!pix || pix.length < 2) return;
+    hint.style.display = "block";
+    hint.removeAttribute("hidden");
+    hint.style.left = `${pix[0]}px`;
+    hint.style.top = `${pix[1]}px`;
+  }
+
+  const onMoveEnd = function () {
+    updatePos();
+  };
+  window.DP4_MAP_HINT_MOVE_END = onMoveEnd;
+  map.on("moveend", onMoveEnd);
+  console.log("DP4_CURSOR_SHOW");
+  updatePos();
+}
+
 // ======================================================
 // DP4 — SUPPRESSION PLAN
 // ======================================================
@@ -11744,6 +15897,20 @@ function initDP4() {
 
   // Charger l'état DP4 (2 plans) au montage de la page
   dp4EnsureStateLoadedOnce();
+  try {
+    if (window.snDpV && typeof window.snDpV.migrateKind === "function") {
+      window.snDpV.migrateKind("dp4");
+    }
+    if (typeof window.snDpVSetupPageUi === "function") {
+      window.snDpVSetupPageUi("dp4", {
+        onAfter: function () {
+          try {
+            dp4RenderEntryMiniatures();
+          } catch (_) {}
+        },
+      });
+    }
+  } catch (_) {}
   dp4RenderEntryMiniatures();
   try { initDP4_UIStates(); } catch (_) {}
 
@@ -11888,7 +16055,7 @@ function initDP4() {
     let createdToolbar = false;
     let createdActions = false;
     try {
-      const res = await fetch("pages/dp2.html", { cache: "no-store" });
+      const res = await fetch(__solarnextDpResolveAssetUrl("pages/dp2.html"), { cache: "no-store" });
       const html = await res.text();
       const doc = new DOMParser().parseFromString(html, "text/html");
 
@@ -11925,89 +16092,74 @@ function initDP4() {
     // Même structure visuelle que la carte (colonne aide + zone canvas).
     // IMPORTANT : on réutilise le moteur DP2 (canvas) avec un profil DP4_ROOF.
     bodyEl.innerHTML = `
-      <aside class="dp-map-help" id="dp4-settings-panel">
-        <h3>Paramètres du plan</h3>
-
-        <div class="dp-hint" style="margin-top: 10px;">
-          <!-- DP4 : masqué (remplacé par le repère métrique sur le plan) -->
+      <aside class="dp-map-help dp2-settings-rail" id="dp4-settings-panel">
+        <section class="card dp2-settings-card" aria-labelledby="dp4-roof-heading-plan">
+          <h3 class="dp2-card-heading" id="dp4-roof-heading-plan">Paramètres du plan</h3>
           <span id="dp4-scale" hidden></span>
-          <div class="dp2-field" style="margin-top: 10px;">
-            <label class="dp2-label">Hauteur de vue</label>
+          <div class="dp2-field">
+            <div class="dp2-label">Hauteur de vue</div>
             <div class="dp2-panel-readonly">
               <span id="dp4-view-height">Hauteur de vue : —</span>
             </div>
           </div>
-        </div>
-
-        <!-- Catégorie photo -->
-        <div class="dp2-field" style="margin-top: 14px;">
-          <label class="dp2-label">Catégorie</label>
-          <select id="dp4-photo-category" class="dp2-select">
-            <option value="">— Sélectionner —</option>
-            <option value="before">Avant travaux</option>
-            <option value="after">Après travaux</option>
-          </select>
-        </div>
-
-        <hr />
-
-        <!-- Modules PV -->
-        <div class="dp2-field">
-          <label class="dp2-label">Module photovoltaïque</label>
-          <select id="dp4-panel-select" class="dp2-select">
-            <option value="">— Sélectionner un module —</option>
-            <option value="longi_x10_artist">LONGi Hi-MO X10 Artist — 485 W</option>
-            <option value="longi_x10_explorer">LONGi Hi-MO X10 Explorer — 485 W</option>
-          </select>
-        </div>
-
-        <div class="dp2-panel-readonly">
-          <div><strong>Fabricant :</strong> <span id="dp4-panel-manufacturer">—</span></div>
-          <div><strong>Référence :</strong> <span id="dp4-panel-reference">—</span></div>
-          <div><strong>Puissance :</strong> <span id="dp4-panel-power">—</span></div>
-          <div><strong>Dimensions :</strong> <span id="dp4-panel-dimensions">—</span></div>
-        </div>
-
-        <hr />
-
-        <!-- DP4 UNIQUEMENT : type de toit -->
-        <div class="dp2-field">
-          <label class="dp2-label">Type de toit</label>
-          <select id="dp4-roof-type" class="dp2-select">
-            <option value="">— Sélectionner —</option>
-            <option value="tuile">tuile</option>
-            <option value="ardoise">ardoise</option>
-            <option value="bac_acier">Bac acier</option>
-            <option value="autre">autre</option>
-          </select>
-        </div>
-
-        <hr />
-
-        <!-- Légende (lecture seule) : reflète exactement la légende PDF DP2 -->
-        <div class="dp2-field dp2-legend-field">
-          <div class="dp2-label">Légende</div>
-          <div id="dp4-legend-empty" class="dp2-legend-empty" hidden>
-            Aucun objet métier sur le plan.
+          <div class="dp2-field">
+            <label class="dp2-label" for="dp4-photo-category">Catégorie</label>
+            <select id="dp4-photo-category" class="dp2-select">
+              <option value="">— Sélectionner —</option>
+              <option value="before">Avant travaux</option>
+              <option value="after">Après travaux</option>
+            </select>
           </div>
-          <div id="dp4-legend-list" class="dp2-legend-list" aria-label="Légende du plan"></div>
-        </div>
+        </section>
 
-        <hr />
-
-        <!-- ACTION FINALE DP4 (rendu mairie) -->
-        <div class="dp2-field" style="margin-top: 10px;">
-          <button class="dp-btn dp-btn-primary" type="button" id="dp4-finalize-plan">
-            Valider le plan
-          </button>
-          <div class="dp-hint" style="margin-top: 8px;">
-            Le rendu final supprime le fond satellite et normalise les traits (gris/noir).
+        <section class="card dp2-settings-card" aria-labelledby="dp4-roof-heading-pv">
+          <h3 class="dp2-card-heading" id="dp4-roof-heading-pv">Module photovoltaïque</h3>
+          <div class="dp2-field">
+            <label class="dp2-label" for="dp4-panel-select">Module</label>
+            <select id="dp4-panel-select" class="dp2-select">
+              <option value="">— Sélectionner un module —</option>
+            </select>
           </div>
-        </div>
+        </section>
+
+        <section class="card dp2-settings-card" aria-labelledby="dp4-roof-heading-roof">
+          <h3 class="dp2-card-heading" id="dp4-roof-heading-roof">Type de toit</h3>
+          <div class="dp2-field">
+            <label class="dp2-label" for="dp4-roof-type">Type</label>
+            <select id="dp4-roof-type" class="dp2-select">
+              <option value="">— Sélectionner —</option>
+              <option value="tuile">tuile</option>
+              <option value="ardoise">ardoise</option>
+              <option value="bac_acier">Bac acier</option>
+              <option value="autre">autre</option>
+            </select>
+          </div>
+        </section>
+
+        <section class="card dp2-settings-card" aria-labelledby="dp4-roof-heading-legend">
+          <h3 class="dp2-card-heading" id="dp4-roof-heading-legend">Légende</h3>
+          <div class="dp2-field dp2-legend-field">
+            <div id="dp4-legend-empty" class="dp2-legend-empty" hidden>
+              Aucun objet métier sur le plan.
+            </div>
+            <div id="dp4-legend-list" class="dp2-legend-list" aria-label="Légende du plan"></div>
+          </div>
+        </section>
+
+        <section class="card dp2-settings-card" aria-labelledby="dp4-roof-heading-final">
+          <h3 class="dp2-card-heading" id="dp4-roof-heading-final">Finalisation</h3>
+          <div class="dp2-field">
+            <button class="dp-btn dp-btn-primary" type="button" id="dp4-finalize-plan">
+              Valider le plan
+            </button>
+            <div class="dp-hint" style="margin-top: 8px;">
+              Le rendu final supprime le fond satellite et normalise les traits (gris/noir).
+            </div>
+          </div>
+        </section>
       </aside>
 
-      <div class="dp-map-pane">
-        <div class="dp-map-canvas" style="position: relative;">
+      <div class="dp-map-canvas" style="position: relative;">
           <!-- DP2 engine mount (IDs DP2, dédiés à cette page DP4) -->
           <div id="dp2-captured-image-wrap" style="display:block; position:absolute; inset:0;">
             <!-- DP2 toolbar + draw actions (HTML réutilisé depuis pages/dp2.html) -->
@@ -12017,17 +16169,16 @@ function initDP4() {
             </div>
           </div>
         </div>
-      </div>
     `;
 
     // Monter la toolbar DP2 (DOM) puis initialiser la logique DP2 standard.
     // Remarque : initDP2Toolbar() suppose que le DOM existe déjà.
-    dp4EnsureDP2ToolbarAndActionsMounted().then(({ createdToolbar, createdActions }) => {
+    dp4EnsureDP2ToolbarAndActionsMounted().then(({ createdToolbar }) => {
       try {
         if (createdToolbar) initDP2Toolbar();
       } catch (_) {}
       try {
-        if (createdActions) initDP2DrawActions();
+        initDP2DrawActions();
       } catch (_) {}
     });
 
@@ -12178,24 +16329,24 @@ function initDP4() {
       category === "before" ? "Avant travaux" : category === "after" ? "Après travaux" : "—";
 
     bodyEl.innerHTML = `
-      <aside class="dp-map-help" id="dp4-final-panel">
-        <h3>Plan finalisé</h3>
-        <div class="dp-hint" style="margin-top: 10px;">
-          Catégorie : <strong>${catLabel}</strong>
-        </div>
-        <div class="dp-hint" style="margin-top: 10px;">
-          Fond blanc, traits normalisés (gris/noir).
-        </div>
-      </aside>
-      <div class="dp-map-pane">
-        <div class="dp-map-canvas" style="position: relative;">
-          <div style="position:absolute; inset:0; background:#fff; display:flex; align-items:center; justify-content:center;">
-            <img
-              alt="DP4 — rendu final"
-              src="${imageBase64}"
-              style="max-width:100%; max-height:100%; object-fit:contain; background:#fff;"
-            />
+      <aside class="dp-map-help dp2-settings-rail" id="dp4-final-panel">
+        <section class="card dp2-settings-card" aria-labelledby="dp4-final-heading">
+          <h3 class="dp2-card-heading" id="dp4-final-heading">Plan finalisé</h3>
+          <div class="dp2-field">
+            <div class="dp2-panel-readonly">
+              <div>Catégorie : <strong>${catLabel}</strong></div>
+              <div>Fond blanc, traits normalisés (gris/noir).</div>
+            </div>
           </div>
+        </section>
+      </aside>
+      <div class="dp-map-canvas" style="position: relative;">
+        <div style="position:absolute; inset:0; background:#fff; display:flex; align-items:center; justify-content:center;">
+          <img
+            alt="DP4 — rendu final"
+            src="${imageBase64}"
+            style="max-width:100%; max-height:100%; object-fit:contain; background:#fff;"
+          />
         </div>
       </div>
     `;
@@ -12204,6 +16355,9 @@ function initDP4() {
   async function dp4CloseModal() {
     // Ne plus auto-sauvegarder à la fermeture : la sauvegarde DP4 est explicite (bouton "Valider le plan" uniquement).
 
+    try {
+      dp4HideMapCursorHint();
+    } catch (_) {}
     dp4RestoreMovedDP2Ui();
     modal.setAttribute("aria-hidden", "true");
     dp4SetValidateVisible(false);
@@ -12345,6 +16499,9 @@ function initDP4() {
       dp4InitIgnOrthoMap(() => {
         if (modal.getAttribute("aria-hidden") === "true") return;
         dp4SetValidateVisible(true);
+        try {
+          dp4ShowMapCursorHint();
+        } catch (_) {}
       });
       if (window.DP4_OL_MAP) {
         window.DP4_OL_MAP.updateSize();
@@ -12412,6 +16569,10 @@ function initDP4() {
     validateBtn.dataset.bound = "1";
     validateBtn.addEventListener("click", (e) => {
       e.preventDefault();
+      try {
+        dp4HideMapCursorHint();
+      } catch (_) {}
+      console.log("DP4_MAP_VALIDATED");
       if (window.DP4_IMPORT_OVERLAY_CANVAS) {
         dp4RemoveScreenOverlayCanvas();
       }
@@ -12438,12 +16599,17 @@ function initDP6() {
   const page = document.getElementById("dp6-page");
   if (!page) return;
 
+  window.DP6_STATE = window.DP6_STATE || {};
+
   const btnBefore = document.getElementById("dp6-create-before");
   const btnAfter = document.getElementById("dp6-create-after");
   const modal = document.getElementById("dp6-photo-modal");
   const streetBtn = document.getElementById("dp6-use-street");
   const uploadBtn = document.getElementById("dp6-use-upload");
+  const useCurrentViewBtn = document.getElementById("dp6-use-current-view");
   const workspace = document.getElementById("dp6-photo-workspace");
+  /** Alignée sur `dpLoadGoogleMapsJsOnce` (Street View Static + JS). */
+  const DP6_GOOGLE_MAPS_API_KEY_STATIC = "AIzaSyDQMAe4zNsipMna3Ph1ANhJLMpZcdAWC1M";
   const zoomInBtn = document.getElementById("dp6-zoom-in");
   const zoomOutBtn = document.getElementById("dp6-zoom-out");
   const zoomResetBtn = document.getElementById("dp6-zoom-reset");
@@ -12676,6 +16842,29 @@ function initDP6() {
     canvas.style.zIndex = "10";
 
     return canvas;
+  }
+
+  /** Conteneur fixe Street View (id #map) — ne pas supprimer du DOM entre import / Google. */
+  function dp6EnsureWorkspaceMapHost() {
+    if (!workspace) return null;
+    const struct = dp6CropEnsureWorkspaceStructure();
+    if (!struct?.content) return null;
+    let el = struct.content.querySelector("#map");
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "map";
+      el.className = "dp6-streetview-host";
+      el.setAttribute("aria-hidden", "true");
+      struct.content.insertBefore(el, struct.content.firstChild);
+    }
+    el.style.position = "absolute";
+    el.style.inset = "0";
+    el.style.width = "100%";
+    el.style.height = "100%";
+    el.style.minHeight = "400px";
+    el.style.zIndex = "20";
+    el.style.boxSizing = "border-box";
+    return el;
   }
 
   function dp6EnsureLoadedImage(src) {
@@ -13083,10 +17272,8 @@ function initDP6() {
     referenceEl.textContent = model.reference || "—";
     powerEl.textContent = typeof model.puissance === "number" ? `${model.puissance} Wc` : "—";
 
-    // ✅ DP6 : dimensions informatives uniquement (source de vérité unique)
-    const dims = window.PANEL_DIMENSIONS || null;
-    const hmm = typeof dims?.height_mm === "number" && Number.isFinite(dims.height_mm) ? dims.height_mm : null;
-    const wmm = typeof dims?.width_mm === "number" && Number.isFinite(dims.width_mm) ? dims.width_mm : null;
+    const hmm = typeof model.height_mm === "number" && Number.isFinite(model.height_mm) ? model.height_mm : null;
+    const wmm = typeof model.width_mm === "number" && Number.isFinite(model.width_mm) ? model.width_mm : null;
     if (hmm == null || wmm == null) {
       dimensionsEl.textContent = "—";
       return;
@@ -13094,38 +17281,39 @@ function initDP6() {
 
     const hm = (hmm / 1000).toFixed(2).replace(".", ",");
     const wm = (wmm / 1000).toFixed(2).replace(".", ",");
-    // ✅ Affichage utilisateur imposé
     dimensionsEl.textContent = `${hm} m × ${wm} m`;
   }
 
-  function dp6SetModuleFromKey(key) {
-    const k = String(key || "");
-    const catalog = typeof DP4_PANEL_CATALOG === "object" && DP4_PANEL_CATALOG ? DP4_PANEL_CATALOG : {};
-    const entry = k ? catalog[k] : null;
-
+  function dp6SetModuleFromPanelId(panelId) {
+    const k = String(panelId || "");
     try {
       window.DP6_STATE = window.DP6_STATE || {};
     } catch (_) {}
 
-    if (!entry) {
+    const byId = (window.DP_PV_PANELS_CACHE && window.DP_PV_PANELS_CACHE.byId) || {};
+    const row = k ? byId[k] : null;
+
+    if (!row) {
       try { window.DP6_STATE.module = null; } catch (_) {}
       dp6SyncPanelMetadataUI();
       return;
     }
 
-    // ✅ DP6 : dimensions figées SolarGlobe (source de vérité unique)
-    const dims = window.PANEL_DIMENSIONS || null;
-    const width_mm = typeof dims?.width_mm === "number" && Number.isFinite(dims.width_mm) ? dims.width_mm : null;
-    const height_mm = typeof dims?.height_mm === "number" && Number.isFinite(dims.height_mm) ? dims.height_mm : null;
-    const puissance = typeof entry.power_w === "number" ? entry.power_w : null;
+    const wmm = Number(row.width_mm);
+    const hmm = Number(row.height_mm);
+    const pw = Number(row.power_wc);
+    const width_mm = Number.isFinite(wmm) && wmm > 0 ? wmm : null;
+    const height_mm = Number.isFinite(hmm) && hmm > 0 ? hmm : null;
+    const puissance = Number.isFinite(pw) ? pw : null;
 
     window.DP6_STATE.module = {
       id: k,
+      panel_id: k,
       width_mm,
       height_mm,
-      texture: entry.texture || null,
-      fabricant: entry.manufacturer || "",
-      reference: entry.reference || "",
+      texture: null,
+      fabricant: String(row.brand || "").trim(),
+      reference: String(row.model_ref || "").trim(),
       puissance,
     };
 
@@ -13155,29 +17343,56 @@ function initDP6() {
   dp6SyncCategoryUI();
   dp6RenderEntryMiniatures();
 
-  // Sync état -> UI / UI -> état (module PV)
+  // Sync état -> UI / UI -> état (module PV) — catalogue API
   if (panelSelect) {
-    if (window.DP6_STATE?.module) {
-      const currentId = window.DP6_STATE.module.id || "";
-      const currentRef = window.DP6_STATE.module.reference || "";
-      const catalog = typeof DP4_PANEL_CATALOG === "object" && DP4_PANEL_CATALOG ? DP4_PANEL_CATALOG : {};
-      const keyByRef = currentRef
-        ? Object.keys(catalog).find((k) => catalog[k]?.reference === currentRef)
-        : null;
-      const key = currentId || keyByRef || "";
-      if (key) panelSelect.value = key;
-      dp6SetModuleFromKey(panelSelect.value || "");
-    } else {
-      dp6SetModuleFromKey(panelSelect.value || "");
-    }
+    dpEnsurePvPanelsLoaded()
+      .then((cache) => {
+        const mod = window.DP6_STATE?.module || null;
+        const asPanel = mod
+          ? {
+              panel_id: mod.panel_id || mod.id,
+              manufacturer: mod.fabricant != null ? mod.fabricant : mod.manufacturer,
+              reference: mod.reference,
+              power_w: mod.puissance,
+              width_m:
+                typeof mod.width_mm === "number"
+                  ? mod.width_mm / 1000
+                  : typeof mod.width_m === "number"
+                    ? mod.width_m
+                    : null,
+              height_m:
+                typeof mod.height_mm === "number"
+                  ? mod.height_mm / 1000
+                  : typeof mod.height_m === "number"
+                    ? mod.height_m
+                    : null
+            }
+          : null;
+        const reconciled = dpReconcilePanelModel(asPanel, cache);
+        const selId = reconciled?.panel_id || null;
+        dpPopulatePvPanelSelectOptions(panelSelect, selId);
 
-    if (panelSelect.dataset.bound !== "1") {
-      panelSelect.dataset.bound = "1";
-      panelSelect.addEventListener("change", (e) => {
-        const value = e.target?.value || "";
-        dp6SetModuleFromKey(value);
+        if (selId) {
+          dp6SetModuleFromPanelId(selId);
+        } else if (mod && Number(mod.width_mm) > 0 && Number(mod.height_mm) > 0) {
+          dp6SyncPanelMetadataUI();
+        } else {
+          try { window.DP6_STATE.module = null; } catch (_) {}
+          dp6SyncPanelMetadataUI();
+        }
+
+        if (panelSelect.dataset.bound !== "1") {
+          panelSelect.dataset.bound = "1";
+          panelSelect.addEventListener("change", (e) => {
+            const value = e.target?.value || "";
+            dp6SetModuleFromPanelId(value);
+          });
+        }
+      })
+      .catch(() => {
+        dpPopulatePvPanelSelectOptions(panelSelect, null);
+        dp6SyncPanelMetadataUI();
       });
-    }
   } else {
     dp6SyncPanelMetadataUI();
   }
@@ -13813,11 +18028,11 @@ function initDP6() {
   // Google Street View (DP6) : instance temporaire (aucune persistance)
   let dp6Panorama = null;
   let dp6StreetHost = null;
+  let dp6StreetViewLayoutAttempts = 0;
 
   function dp6SetSourceMessage(text) {
     // Message UX (simple, robuste) affiché dans la colonne gauche
-    // - Street View = positionnement uniquement
-    // - Capture = manuelle (outil OS), puis import
+    // - Street View : « Utiliser cette vue » (Static API) ou import fichier
     const aside = modal ? modal.querySelector(".dp-map-help") : null;
     if (!aside) return;
     let box = aside.querySelector("#dp6-source-message");
@@ -13869,7 +18084,7 @@ function initDP6() {
         canvas.setAttribute("aria-label", altText || "Image source DP6");
         // Nettoyer la zone (StreetView / legacy) sans supprimer le canvas
         Array.from(struct.content.children || []).forEach((ch) => {
-          if (ch !== canvas) {
+          if (ch !== canvas && ch.id !== "map") {
             try { ch.parentNode && ch.parentNode.removeChild(ch); } catch (_) {}
           }
         });
@@ -13884,81 +18099,314 @@ function initDP6() {
     dp6RenderEntryMiniatures();
   }
 
+  function dp6StreetViewZoomToFov(zoom) {
+    const z = Number(zoom);
+    const zz = Number.isFinite(z) ? z : 1;
+    const f = 126 * Math.pow(0.62, zz);
+    return Math.round(Math.min(120, Math.max(10, f)));
+  }
+
+  async function dp6UseCurrentStreetViewAsImage() {
+    if (!dp6Panorama || !window.google?.maps) {
+      alert("Street View n’est pas prêt. Patientez quelques secondes puis réessayez.");
+      return;
+    }
+    const pano = dp6Panorama;
+    const pos = pano.getPosition && pano.getPosition();
+    const pov = pano.getPov && pano.getPov();
+    const panoId = pano.getPano && pano.getPano();
+    const zoom = pano.getZoom && pano.getZoom();
+    if (!pos || !pov) {
+      alert("Impossible de lire la vue Street View actuelle.");
+      return;
+    }
+    const lat = typeof pos.lat === "function" ? pos.lat() : pos.lat;
+    const lng = typeof pos.lng === "function" ? pos.lng() : pos.lng;
+    const fov = dp6StreetViewZoomToFov(zoom);
+    const params = new URLSearchParams();
+    params.set("size", "640x640");
+    params.set("key", DP6_GOOGLE_MAPS_API_KEY_STATIC);
+    params.set("heading", String(pov.heading ?? 0));
+    params.set("pitch", String(pov.pitch ?? 0));
+    params.set("fov", String(fov));
+    if (panoId) {
+      params.set("pano", String(panoId));
+    } else {
+      params.set("location", `${lat},${lng}`);
+    }
+    const url = `https://maps.googleapis.com/maps/api/streetview?${params.toString()}`;
+    try {
+      if (useCurrentViewBtn) {
+        useCurrentViewBtn.disabled = true;
+        useCurrentViewBtn.textContent = "Chargement…";
+      }
+      const res = await fetch(url);
+      if (!res.ok) {
+        throw new Error(`Street View Static HTTP ${res.status}`);
+      }
+      const blob = await res.blob();
+      if (!blob || blob.size < 64) {
+        throw new Error("Image Street View vide ou indisponible");
+      }
+      const dataUrl = await new Promise((resolve, reject) => {
+        const fr = new FileReader();
+        fr.onload = () => resolve(fr.result);
+        fr.onerror = reject;
+        fr.readAsDataURL(blob);
+      });
+      dp6DisplayImportedImage(String(dataUrl), "Vue Street View — DP6");
+      dp6SetSourceMessage(
+        "Vue sélectionnée : placez les zones panneaux sur l’image, puis validez le photomontage."
+      );
+    } catch (e) {
+      console.error("[DP6] Street View Static", e);
+      alert(
+        "Impossible de récupérer l’image Street View (couverture, quota ou clé API). Réessayez ou importez une photo."
+      );
+    } finally {
+      if (useCurrentViewBtn) {
+        useCurrentViewBtn.disabled = false;
+        useCurrentViewBtn.textContent = "Utiliser cette vue";
+      }
+    }
+  }
+
   function dp6DestroyGoogleView() {
-    // Nettoyage strict : listeners + références + DOM
     const ev = window.google?.maps?.event;
-    if (ev?.clearInstanceListeners) {
-      try { if (dp6Panorama) ev.clearInstanceListeners(dp6Panorama); } catch (_) {}
+    if (ev?.clearInstanceListeners && dp6Panorama) {
+      try {
+        ev.clearInstanceListeners(dp6Panorama);
+      } catch (_) {}
     }
     try {
       if (dp6Panorama?.setVisible) dp6Panorama.setVisible(false);
     } catch (_) {}
     dp6Panorama = null;
-    try {
-      if (dp6StreetHost && dp6StreetHost.parentNode) dp6StreetHost.parentNode.removeChild(dp6StreetHost);
-    } catch (_) {}
     dp6StreetHost = null;
-    // Restaurer l'affichage du canvas si présent
+    if (useCurrentViewBtn) {
+      useCurrentViewBtn.hidden = true;
+      useCurrentViewBtn.disabled = true;
+      useCurrentViewBtn.textContent = "Utiliser cette vue";
+    }
+    const mapEl = workspace ? workspace.querySelector("#map") : document.getElementById("map");
+    if (mapEl) {
+      try {
+        mapEl.innerHTML = "";
+      } catch (_) {}
+      mapEl.setAttribute("hidden", "");
+      mapEl.setAttribute("aria-hidden", "true");
+      mapEl.style.display = "none";
+    }
     try {
       const c = workspace ? workspace.querySelector(`#${DP6_CANVAS_ID}`) : null;
       if (c) c.style.display = "block";
     } catch (_) {}
   }
 
-  async function openDP6StreetView() {
-    if (!workspace) return;
-    // StreetView : éviter un stage déjà zoomé/panné (sinon UX bizarre)
-    try { dp6ResetView(); } catch (_) {}
-
-    const struct = dp6CropEnsureWorkspaceStructure();
-    if (!struct) return;
-    // StreetView : garder le canvas existant (ne jamais le supprimer du DOM)
-    const canvas = dp6EnsureWorkspaceCanvas();
-    if (canvas) canvas.style.display = "none";
+  /**
+   * Charge Google puis crée le Street View sur #map.
+   * Attend un conteneur dimensionné (modal visible) ; sinon nouvelle tentative.
+   */
+  async function initDP6Map() {
+    console.log("DP6 INIT MAP START");
     try {
-      Array.from(struct.content.children || []).forEach((ch) => {
-        if (ch !== canvas) {
-          try { ch.parentNode && ch.parentNode.removeChild(ch); } catch (_) {}
+      const modalEl = document.getElementById("dp6-photo-modal");
+      if (modalEl && modalEl.getAttribute("aria-hidden") === "true") {
+        return;
+      }
+
+      const el = document.getElementById("map");
+      if (!el) {
+        console.error("DP6 MAP NOT FOUND");
+        return;
+      }
+
+      el.removeAttribute("hidden");
+      el.setAttribute("aria-hidden", "false");
+      if (el.style.display === "none") el.style.display = "block";
+
+      const rect = el.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) {
+        dp6StreetViewLayoutAttempts += 1;
+        if (dp6StreetViewLayoutAttempts > 24) {
+          console.warn("DP6 MAP SIZE INVALID — abandon", rect);
+          dp6StreetViewLayoutAttempts = 0;
+          return;
         }
-      });
-    } catch (_) {}
-    try { struct.layer.style.width = "0px"; struct.layer.style.height = "0px"; } catch (_) {}
+        console.warn("DP6 MAP SIZE INVALID", rect);
+        setTimeout(() => {
+          void initDP6Map();
+        }, 300);
+        return;
+      }
+      dp6StreetViewLayoutAttempts = 0;
 
-    dp6SetSourceMessage(
-      "Positionnez-vous correctement, puis faites une capture écran avec l’outil système et importez-la."
-    );
+      const google = await dpLoadGoogleMapsJsOnce();
+      if (!google || !google.maps) {
+        console.error("DP6: Google Maps indisponible après chargement");
+        return;
+      }
+      console.log("GOOGLE READY IN DP6");
 
-    const host = document.createElement("div");
-    host.id = "dp6-streetview";
-    host.style.width = "100%";
-    host.style.height = "100%";
-    host.style.flex = "1";
-    host.style.position = "relative";
-    dp6StreetHost = host;
-    struct.content.appendChild(host);
+      if (dp6Panorama && window.google?.maps?.event) {
+        try {
+          window.google.maps.event.clearInstanceListeners(dp6Panorama);
+        } catch (_) {}
+      }
+      dp6Panorama = null;
 
-    await dpLoadGoogleMapsJsOnce();
+      const br = el.getBoundingClientRect();
+      const wr = workspace ? workspace.getBoundingClientRect() : { width: 0, height: 0 };
+      console.log(
+        "MAP CONTAINER OK",
+        "workspace",
+        Math.round(wr.width),
+        Math.round(wr.height),
+        "map",
+        Math.round(br.width),
+        Math.round(br.height)
+      );
 
-    const { center } = dpGetProjectCenterForGoogleMaps();
+      const { center: c0 } = dpGetProjectCenterForGoogleMaps();
+      const center = c0 || { lat: 48.8395, lng: 2.5728 };
 
-    requestAnimationFrame(() => {
-      const panorama = new google.maps.StreetViewPanorama(host, {
-        position: center,
+      const panoBaseOpts = {
         pov: { heading: 0, pitch: 0 },
         zoom: 1,
+        visible: true,
         addressControl: false,
         linksControl: true,
         panControl: true,
         enableCloseButton: false,
         fullscreenControl: false,
-      });
-      dp6Panorama = panorama;
-      try { google.maps.event.trigger(panorama, "resize"); } catch (_) {}
+      };
+
+      function dp6TriggerPanoramaResize(panorama) {
+        try {
+          google.maps.event.trigger(panorama, "resize");
+        } catch (_) {}
+      }
+
+      function dp6AttachPanoramaLifecycle(panorama) {
+        dp6Panorama = panorama;
+        dp6StreetHost = el;
+        if (useCurrentViewBtn) {
+          useCurrentViewBtn.hidden = false;
+          useCurrentViewBtn.disabled = false;
+          useCurrentViewBtn.textContent = "Utiliser cette vue";
+        }
+        google.maps.event.addListenerOnce(panorama, "status_changed", () => {
+          try {
+            const st = panorama.getStatus && panorama.getStatus();
+            if (st === google.maps.StreetViewStatus.OK) {
+              console.log("MAP DISPLAY OK");
+            }
+          } catch (_) {}
+          dp6TriggerPanoramaResize(panorama);
+        });
+        dp6TriggerPanoramaResize(panorama);
+        requestAnimationFrame(() => {
+          dp6TriggerPanoramaResize(panorama);
+          setTimeout(() => dp6TriggerPanoramaResize(panorama), 300);
+        });
+      }
+
+      const svService = new google.maps.StreetViewService();
+      const radiiM = [120, 280, 600];
+      let radiusIdx = 0;
+
+      function tryNearestPano() {
+        const radius = radiiM[Math.min(radiusIdx, radiiM.length - 1)];
+        const req = { location: center, radius };
+        if (google.maps.StreetViewPreference && google.maps.StreetViewPreference.NEAREST != null) {
+          req.preference = google.maps.StreetViewPreference.NEAREST;
+        }
+        svService.getPanorama(req, (data, status) => {
+          if (status === google.maps.StreetViewStatus.OK && data && data.location && data.location.pano) {
+            const panorama = new google.maps.StreetViewPanorama(el, {
+              ...panoBaseOpts,
+              pano: data.location.pano,
+            });
+            dp6AttachPanoramaLifecycle(panorama);
+            console.log("STREETVIEW CREATED");
+            return;
+          }
+          radiusIdx += 1;
+          if (radiusIdx < radiiM.length) {
+            tryNearestPano();
+            return;
+          }
+          console.warn("[DP6] Aucune imagery Street View proche — fallback position");
+          const panorama = new google.maps.StreetViewPanorama(el, {
+            ...panoBaseOpts,
+            position: center,
+          });
+          dp6AttachPanoramaLifecycle(panorama);
+          console.log("STREETVIEW CREATED");
+        });
+      }
+
+      tryNearestPano();
+
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
-          try { google.maps.event.trigger(panorama, "resize"); } catch (_) {}
+          try {
+            dpMaybeAttachDp6VerifyMap2D();
+          } catch (_) {}
         });
       });
+    } catch (e) {
+      console.error("initDP6Map", e);
+    }
+  }
+
+  function openDP6StreetView() {
+    if (!workspace) return;
+    dp6StreetViewLayoutAttempts = 0;
+    try {
+      dp6ResetView();
+    } catch (_) {}
+
+    const struct = dp6CropEnsureWorkspaceStructure();
+    if (!struct) return;
+
+    const canvas = dp6EnsureWorkspaceCanvas();
+    const mapHost = dp6EnsureWorkspaceMapHost();
+    if (canvas) canvas.style.display = "none";
+    if (mapHost) {
+      mapHost.removeAttribute("hidden");
+      mapHost.setAttribute("aria-hidden", "false");
+      mapHost.style.display = "block";
+    }
+
+    try {
+      Array.from(struct.content.children || []).forEach((ch) => {
+        if (ch !== canvas && ch.id !== "map") {
+          try {
+            ch.parentNode && ch.parentNode.removeChild(ch);
+          } catch (_) {}
+        }
+      });
+    } catch (_) {}
+    try {
+      struct.layer.style.width = "0px";
+      struct.layer.style.height = "0px";
+    } catch (_) {}
+
+    dp6SetSourceMessage(
+      "Cadrez la rue dans Street View, puis cliquez sur « Utiliser cette vue » pour charger l’image."
+    );
+
+    if (useCurrentViewBtn) {
+      useCurrentViewBtn.hidden = true;
+      useCurrentViewBtn.disabled = true;
+      useCurrentViewBtn.textContent = "Utiliser cette vue";
+    }
+
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        void initDP6Map();
+      }, 300);
     });
   }
 
@@ -13984,9 +18432,16 @@ function initDP6() {
 
   // Binding bouton "Utiliser Google Street View"
   if (streetBtn) {
-    streetBtn.addEventListener("click", async (e) => {
+    streetBtn.addEventListener("click", (e) => {
       e.preventDefault();
-      await openDP6StreetView();
+      openDP6StreetView();
+    });
+  }
+
+  if (useCurrentViewBtn) {
+    useCurrentViewBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      void dp6UseCurrentStreetViewAsImage();
     });
   }
 
@@ -14062,6 +18517,23 @@ function initDP6() {
   function openDP6Modal() {
     modal.setAttribute("aria-hidden", "false");
     document.body.classList.add("dp-lock-scroll");
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const ws = document.getElementById("dp6-photo-workspace");
+        const mc = modal ? modal.querySelector(".dp-map-canvas") : null;
+        const wr = ws ? ws.getBoundingClientRect() : { width: 0, height: 0 };
+        const mr = mc ? mc.getBoundingClientRect() : { width: 0, height: 0 };
+        console.log(
+          "MAP CONTAINER OK",
+          "modal workspace",
+          Math.round(wr.width),
+          Math.round(wr.height),
+          "mapCanvas",
+          Math.round(mr.width),
+          Math.round(mr.height)
+        );
+      });
+    });
     // Par défaut, ré-ouvrir au zoom 100% (évite des surprises)
     try { dp6ResetView(); } catch (_) {}
     // UX : ne jamais ré-ouvrir un modal directement en mode édition
@@ -14180,6 +18652,24 @@ function initDP6() {
   // Brancher le bouton d’export PDF (présent dans pages/dp6.html)
   try { if (typeof window.bindDP6ExportPdfButton === "function") window.bindDP6ExportPdfButton(); } catch (_) {}
 
+  try {
+    if (window.snDpV && typeof window.snDpV.migrateKind === "function") {
+      window.snDpV.migrateKind("dp6");
+    }
+    if (typeof window.snDpVSetupPageUi === "function") {
+      window.snDpVSetupPageUi("dp6", {
+        onAfter: function () {
+          try {
+            renderDP6Canvas();
+          } catch (_) {}
+          try {
+            dp6RenderEntryMiniatures();
+          } catch (_) {}
+        },
+      });
+    }
+  } catch (_) {}
+
   console.log("[DP6] init ok");
 }
 
@@ -14225,29 +18715,13 @@ window.bindDP6ExportPdfButton = window.bindDP6ExportPdfButton || function bindDP
       SMARTPITCH_CTX: sp,
     };
 
-    const res = await fetch("http://localhost:3000/pdf/render/dp6/pdf", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ dp6Data }),
-    });
-
-    if (!res.ok) {
-      alert("Erreur PDF DP6");
-      return;
-    }
-
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    window.open(url, "_blank");
-
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "dp6-insertion-projet.pdf";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-
-    setTimeout(() => URL.revokeObjectURL(url), 3000);
+    await __solarnextDpFetchPdfWithReplace(
+      "/pdf/render/dp6/pdf",
+      function () {
+        return { dp6Data: dp6Data };
+      },
+      "dp6"
+    );
   }
 
   btn.addEventListener("click", async (e) => {
@@ -14302,29 +18776,13 @@ window.bindDP7ExportPdfButton = window.bindDP7ExportPdfButton || function bindDP
       },
     };
 
-    const res = await fetch("http://localhost:3000/pdf/render/dp7/pdf", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ dp7Data }),
-    });
-
-    if (!res.ok) {
-      alert("Erreur PDF DP7");
-      return;
-    }
-
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    window.open(url, "_blank");
-
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "DP7 - Environnement proche.pdf";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-
-    setTimeout(() => URL.revokeObjectURL(url), 3000);
+    await __solarnextDpFetchPdfWithReplace(
+      "/pdf/render/dp7/pdf",
+      function () {
+        return { dp7Data: dp7Data };
+      },
+      "dp7"
+    );
   }
 
   btn.addEventListener("click", async (e) => {
@@ -14368,29 +18826,16 @@ window.bindDP8ExportPdfButton = window.bindDP8ExportPdfButton || function bindDP
       },
     };
 
-    const res = await fetch("http://localhost:3000/pdf/render/dp8/pdf", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ dp8Data }),
-    });
-
-    if (!res.ok) {
-      alert("Erreur PDF DP8");
-      return;
-    }
-
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    window.open(url, "_blank");
-
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = window.DP8_EXPORT_FILENAME || "DP8 - Environnement lointain.pdf";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-
-    setTimeout(() => URL.revokeObjectURL(url), 3000);
+    await __solarnextDpFetchPdfWithReplace(
+      "/pdf/render/dp8/pdf",
+      function () {
+        return { dp8Data: dp8Data };
+      },
+      "dp8",
+      function () {
+        return window.DP8_EXPORT_FILENAME || __solarnextDpFallbackPdfName("dp8");
+      }
+    );
   }
 
   btn.addEventListener("click", async (e) => {
@@ -14402,3 +18847,11 @@ window.bindDP8ExportPdfButton = window.bindDP8ExportPdfButton || function bindDP
     }
   });
 };
+
+try {
+  if (window.DpDraftStore && typeof window.DpDraftStore.hydrateFromDraft === "function") {
+    window.DpDraftStore.hydrateFromDraft();
+  }
+} catch (e) {
+  console.warn("[DP] hydrateFromDraft", e);
+}

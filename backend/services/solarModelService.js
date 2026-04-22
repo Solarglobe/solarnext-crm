@@ -3,6 +3,22 @@
 // Service de modélisation PV horaire à partir du PV mensuel
 // V3 — variabilité journalière déterministe (lognormale)
 // ============================================================
+
+import {
+  SOLAR_MODEL_DAYS_IN_MONTH,
+  SOLAR_MODEL_DAILY_SIGMA,
+  SOLAR_MODEL_FNV_OFFSET_BASIS,
+  SOLAR_MODEL_FNV_PRIME,
+  SOLAR_MODEL_MULBERRY_ADD,
+  SOLAR_MODEL_DAILY_SEED_SALT,
+  SOLAR_MODEL_SHAPE_SEED_SALT,
+  SOLAR_MODEL_DEFAULT_LAT,
+  SOLAR_MODEL_DEFAULT_LON,
+  SOLAR_MODEL_HOURLY_SHAPE_NOISE,
+  SOLAR_MODEL_SHAPE_MORNING_POW,
+  SOLAR_MODEL_SHAPE_EVENING_POW,
+  SOLAR_MODEL_SUN_TIMES,
+} from "./core/engineConstants.js";
 // Améliorations v3 vs v2 :
 //   ✔ Chaque jour a son propre facteur énergétique (distribution lognormale)
 //   ✔ Chaque jour a sa propre forme horaire (bruit de forme individualisé)
@@ -11,7 +27,7 @@
 //   ✔ Aucun Math.random() — reproductibilité garantie
 // ============================================================
 
-const DAYS_IN_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+const DAYS_IN_MONTH = SOLAR_MODEL_DAYS_IN_MONTH;
 
 // ============================================================
 // PRNG — mulberry32 (rapide, qualité suffisante pour simulation PV)
@@ -20,7 +36,7 @@ const DAYS_IN_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
 function mulberry32(seed) {
   let s = seed >>> 0;
   return function () {
-    s = (s + 0x6d2b79f5) | 0;
+    s = (s + SOLAR_MODEL_MULBERRY_ADD) | 0;
     let t = Math.imul(s ^ (s >>> 15), 1 | s);
     t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
@@ -33,16 +49,16 @@ function mulberry32(seed) {
 // les coordonnées GPS + mois.
 // ============================================================
 function fnv1aSeed(...nums) {
-  let h = 2166136261; // FNV offset basis
+  let h = SOLAR_MODEL_FNV_OFFSET_BASIS; // FNV offset basis
   for (const n of nums) {
     // Encode en 3 octets (précision × 1000, borne à ±10M)
     const v =
       Math.round(
         (typeof n === "number" && Number.isFinite(n) ? n : 0) * 1000
       ) | 0;
-    h = Math.imul(h ^ (v & 0xff), 16777619);
-    h = Math.imul(h ^ ((v >> 8) & 0xff), 16777619);
-    h = Math.imul(h ^ ((v >> 16) & 0xff), 16777619);
+    h = Math.imul(h ^ (v & 0xff), SOLAR_MODEL_FNV_PRIME);
+    h = Math.imul(h ^ ((v >> 8) & 0xff), SOLAR_MODEL_FNV_PRIME);
+    h = Math.imul(h ^ ((v >> 16) & 0xff), SOLAR_MODEL_FNV_PRIME);
   }
   return h >>> 0;
 }
@@ -60,14 +76,14 @@ function fnv1aSeed(...nums) {
 //   dayEnergy[d] = (monthEnergy / N) × facteur[d]
 //   Σ dayEnergy = (monthEnergy / N) × Σfacteur = monthEnergy × N/N = monthEnergy ✓
 // ============================================================
-const DAILY_SIGMA = 0.40;
+const DAILY_SIGMA = SOLAR_MODEL_DAILY_SIGMA;
 
 function buildDailyFactors(daysInMonth, monthIndex, lat, lon) {
   const seed = fnv1aSeed(
-    lat != null && Number.isFinite(lat) ? lat : 48.8,
-    lon != null && Number.isFinite(lon) ? lon : 2.35,
+    lat != null && Number.isFinite(lat) ? lat : SOLAR_MODEL_DEFAULT_LAT,
+    lon != null && Number.isFinite(lon) ? lon : SOLAR_MODEL_DEFAULT_LON,
     monthIndex,
-    9371 // sel fixe
+    SOLAR_MODEL_DAILY_SEED_SALT // sel fixe
   );
   const rng = mulberry32(seed);
 
@@ -90,24 +106,11 @@ function buildDailyFactors(daysInMonth, monthIndex, lat, lon) {
 // Chaque jour a sa propre variante de la courbe en cloche,
 // simulant les effets de diffusion atmosphérique.
 // ============================================================
-const SUN_TIMES = [
-  { rise: 8,   set: 17   }, // Jan
-  { rise: 7.5, set: 18   }, // Fév
-  { rise: 7,   set: 19   }, // Mar
-  { rise: 6.5, set: 20   }, // Avr
-  { rise: 6,   set: 21   }, // Mai
-  { rise: 6,   set: 22   }, // Juin
-  { rise: 6.5, set: 21.5 }, // Juil
-  { rise: 7,   set: 20.5 }, // Août
-  { rise: 7.5, set: 19   }, // Sep
-  { rise: 8,   set: 18   }, // Oct
-  { rise: 8.5, set: 17   }, // Nov
-  { rise: 9,   set: 17   }, // Déc
-];
+const SUN_TIMES = SOLAR_MODEL_SUN_TIMES;
 
 function buildDailyShape(monthIndex, dayIndex) {
   // Graine unique par (mois, jour de l'année) — bruit de forme reproductible
-  const seed = fnv1aSeed(monthIndex, dayIndex, 4217);
+  const seed = fnv1aSeed(monthIndex, dayIndex, SOLAR_MODEL_SHAPE_SEED_SALT);
   const rng = mulberry32(seed);
 
   const weights = new Array(24).fill(0);
@@ -122,12 +125,12 @@ function buildDailyShape(monthIndex, dayIndex) {
     const x = (h - start) / duration;
 
     // Courbe asymétrique : montée lente (matin), descente rapide (soir)
-    const morning = Math.pow(x, 1.8);
-    const evening = Math.pow(1 - x, 3.2);
+    const morning = Math.pow(x, SOLAR_MODEL_SHAPE_MORNING_POW);
+    const evening = Math.pow(1 - x, SOLAR_MODEL_SHAPE_EVENING_POW);
     let w = morning * evening;
 
     // Bruit de forme déterministe ±8 % — modélise la diffusion atmosphérique heure par heure
-    const noise = 1 + (rng() - 0.5) * 0.16;
+    const noise = 1 + (rng() - 0.5) * SOLAR_MODEL_HOURLY_SHAPE_NOISE;
     w *= noise;
 
     weights[h] = w > 0 ? w : 0;

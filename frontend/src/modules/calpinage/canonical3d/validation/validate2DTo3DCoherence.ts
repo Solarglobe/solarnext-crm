@@ -25,6 +25,7 @@ import {
   COHERENCE_MIN_PATCH_AREA_M2,
   COHERENCE_MIN_VOLUME_HEIGHT_M,
 } from "./coherenceConstants";
+import { polygonHorizontalAreaM2FromImagePx } from "../builder/worldMapping";
 import { appendUnifiedBusinessSceneIssues } from "./validateUnifiedBusinessScene";
 import { appendUnifiedWorldAlignmentIssues } from "./validateUnifiedWorldAlignment";
 import {
@@ -546,29 +547,56 @@ function validateSourceFidelity(scene: SolarScene3D, issues: CoherenceIssue[]): 
 
   const mpp = scene.worldConfig?.metersPerPixel;
   const areaPx = st.metrics?.roofOutlineArea2DPx;
+  const areaM2FromTrace = st.metrics?.roofOutlineHorizontalAreaM2;
+  let expectedFootprintM2: number | undefined;
+  let footprintExpectedFrom: "trace_m2" | "contour_world_m2" | "px_mpp2_fallback" | undefined;
+  if (typeof areaM2FromTrace === "number" && Number.isFinite(areaM2FromTrace) && areaM2FromTrace > 0) {
+    expectedFootprintM2 = areaM2FromTrace;
+    footprintExpectedFrom = "trace_m2";
+  } else if (typeof mpp === "number" && Number.isFinite(mpp) && mpp > 0) {
+    const contourPx = st.roofOutline2D?.contourPx;
+    if (Array.isArray(contourPx) && contourPx.length >= 3) {
+      const wc = scene.worldConfig;
+      const north =
+        wc && typeof wc.northAngleDeg === "number" && Number.isFinite(wc.northAngleDeg) ? wc.northAngleDeg : 0;
+      const aContour = polygonHorizontalAreaM2FromImagePx(contourPx, mpp, north);
+      if (aContour > 0) {
+        expectedFootprintM2 = aContour;
+        footprintExpectedFrom = "contour_world_m2";
+      }
+    }
+  }
   if (
+    expectedFootprintM2 == null &&
     typeof mpp === "number" &&
     Number.isFinite(mpp) &&
     mpp > 0 &&
     typeof areaPx === "number" &&
-    areaPx > 0 &&
-    patches.length > 0
+    areaPx > 0
   ) {
-    const expectedFootprintM2 = areaPx * mpp * mpp;
+    expectedFootprintM2 = areaPx * mpp * mpp;
+    footprintExpectedFrom = "px_mpp2_fallback";
+  }
+  if (expectedFootprintM2 != null && expectedFootprintM2 > 0 && patches.length > 0) {
     let sumPatch = 0;
     for (const p of patches) {
       const a = p.surface?.areaM2;
       if (typeof a === "number" && Number.isFinite(a)) sumPatch += a;
     }
-    const ratio = expectedFootprintM2 > 0 ? sumPatch / expectedFootprintM2 : 0;
+    const ratio = sumPatch / expectedFootprintM2;
     if (ratio < FIDELITY_ROOF_AREA_RATIO_MIN || ratio > FIDELITY_ROOF_AREA_RATIO_MAX) {
       issues.push({
         code: "ROOF_OUTLINE_AREA_MISMATCH",
         severity: "WARNING",
         scope: "SOURCE",
         message:
-          "Somme des aires pans 3D vs emprise contour 2D (×mpp²) — écart global suspect (heuristique).",
-        details: { sumPatchAreaM2: sumPatch, expectedFootprintM2, ratio },
+          "Somme des aires pans 3D vs emprise contour (aire horizontale monde : trace, contour via mapping officiel, ou repli px×mpp²) — écart global suspect (heuristique).",
+        details: {
+          sumPatchAreaM2: sumPatch,
+          expectedFootprintM2,
+          ratio,
+          expectedFrom: footprintExpectedFrom ?? "unknown",
+        },
       });
     }
   }

@@ -3,7 +3,7 @@
  * CRUD + affectations teams/agencies
  */
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "../../components/ui/Button";
 import { ConfirmModal } from "../../components/ui/ConfirmModal";
 import { ModalShell } from "../../components/ui/ModalShell";
@@ -24,6 +24,7 @@ import {
   type AdminTeam,
   type AdminAgency,
 } from "../../services/admin.api";
+import { useOrganization } from "../../contexts/OrganizationContext";
 import "./admin-tab-users.css";
 
 type UserMemberships = Record<
@@ -37,6 +38,8 @@ type UserMemberships = Record<
 type UserFormState = {
   email: string;
   password: string;
+  first_name: string;
+  last_name: string;
   status: string;
   roleIds: string[];
   teamIds: string[];
@@ -63,6 +66,8 @@ function serializeForm(f: UserFormState): string {
   return JSON.stringify({
     email: f.email,
     password: f.password,
+    first_name: f.first_name,
+    last_name: f.last_name,
     status: f.status,
     roleIds: [...f.roleIds].sort(),
     teamIds: [...f.teamIds].sort(),
@@ -71,13 +76,17 @@ function serializeForm(f: UserFormState): string {
 }
 
 function displayPrimaryName(u: AdminUser): string {
+  const fromParts = [u.first_name?.trim(), u.last_name?.trim()].filter(Boolean).join(" ").trim();
+  if (fromParts) return fromParts;
   const n = u.name?.trim();
   if (n) return n;
   return u.email || "—";
 }
 
 function UserNameCell({ u }: { u: AdminUser }) {
-  const hasName = Boolean(u.name?.trim());
+  const hasName = Boolean(
+    [u.first_name?.trim(), u.last_name?.trim()].filter(Boolean).join(" ").trim() || u.name?.trim()
+  );
   const primary = displayPrimaryName(u);
   const email = u.email || "";
   return (
@@ -89,19 +98,19 @@ function UserNameCell({ u }: { u: AdminUser }) {
 }
 
 function RoleBadges({ codes }: { codes: string[] }) {
-  if (!codes.length) return <span className="sn-badge crm-badge-muted">—</span>;
+  if (!codes.length) return <span className="admin-users-pill admin-users-pill--muted">—</span>;
   const visible = codes.slice(0, 2);
   const rest = codes.length - 2;
   const fullList = codes.join(", ");
   return (
-    <span title={codes.length > 2 ? fullList : undefined} style={{ display: "inline-flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
+    <span className="admin-users-pill-row" title={codes.length > 2 ? fullList : undefined}>
       {visible.map((r) => (
-        <span key={r} className="sn-badge crm-badge-project">
+        <span key={r} className="admin-users-pill admin-users-pill--role">
           {r}
         </span>
       ))}
       {rest > 0 ? (
-        <span className="sn-badge crm-badge-muted" title={fullList}>
+        <span className="admin-users-pill admin-users-pill--muted" title={fullList}>
           +{rest}
         </span>
       ) : null}
@@ -111,19 +120,15 @@ function RoleBadges({ codes }: { codes: string[] }) {
 
 function TeamAgencyCell({ names }: { names: string[] | undefined }) {
   if (names === undefined) {
-    return <span className="sn-badge crm-badge-muted">—</span>;
+    return <span className="admin-users-pill admin-users-pill--muted">—</span>;
   }
   if (names.length === 0) {
-    return <span className="sn-badge crm-badge-muted">Aucune</span>;
+    return <span className="admin-users-pill admin-users-pill--muted">Aucune</span>;
   }
   return (
-    <span style={{ display: "inline-flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
+    <span className="admin-users-pill-row">
       {names.map((n, idx) => (
-        <span
-          key={`${n}-${idx}`}
-          className="sn-badge"
-          style={{ background: "var(--surface-2)", color: "var(--text-primary)" }}
-        >
+        <span key={`${n}-${idx}`} className="admin-users-pill admin-users-pill--tag">
           {n}
         </span>
       ))}
@@ -191,9 +196,54 @@ function IconUsersEmpty() {
   );
 }
 
+function IconSearchFin({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <circle cx="11" cy="11" r="7" />
+      <path d="M21 21l-4.3-4.3" />
+    </svg>
+  );
+}
+
+function IconCheck({ className }: { className?: string }) {
+  return (
+    <svg className={className} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <polyline points="20 6 9 17 4 12" />
+    </svg>
+  );
+}
+
+type UserStatusFilter = "all" | "active" | "inactive";
+
+function normSearch(s: string) {
+  return s.trim().toLowerCase();
+}
+
+function normRoleCode(code: string | undefined) {
+  return (code || "").trim().toUpperCase();
+}
+
+function isRoleCodeSelected(roleIds: string[], orgRolesList: AdminRole[], code: string) {
+  const n = normRoleCode(code);
+  return orgRolesList.some((r) => normRoleCode(r.code) === n && roleIds.includes(r.id));
+}
+
 const emptyForm = (): UserFormState => ({
   email: "",
   password: "",
+  first_name: "",
+  last_name: "",
   status: "active",
   roleIds: [],
   teamIds: [],
@@ -201,6 +251,7 @@ const emptyForm = (): UserFormState => ({
 });
 
 export function AdminTabUsers() {
+  const { isSuperAdmin: viewerIsSuperAdmin } = useOrganization();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [roles, setRoles] = useState<AdminRole[]>([]);
   const [teams, setTeams] = useState<AdminTeam[]>([]);
@@ -214,6 +265,8 @@ export function AdminTabUsers() {
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
   const [form, setForm] = useState<UserFormState>(emptyForm);
   const formSnapshotRef = useRef<string>("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<UserStatusFilter>("all");
 
   const load = async () => {
     setLoading(true);
@@ -289,6 +342,8 @@ export function AdminTabUsers() {
     const base: UserFormState = {
       email: user.email,
       password: "",
+      first_name: user.first_name?.trim() ?? "",
+      last_name: user.last_name?.trim() ?? "",
       status: user.status || "active",
       roleIds,
       teamIds: [],
@@ -322,6 +377,8 @@ export function AdminTabUsers() {
         await adminUpdateUser(editingUser.id, {
           email: form.email,
           status: form.status,
+          first_name: form.first_name.trim() || null,
+          last_name: form.last_name.trim() || null,
           ...(form.password ? { password: form.password } : {}),
           roleIds: form.roleIds,
         });
@@ -333,6 +390,8 @@ export function AdminTabUsers() {
         const created = await adminCreateUser({
           email: form.email,
           password: form.password,
+          first_name: form.first_name.trim() || undefined,
+          last_name: form.last_name.trim() || undefined,
           roleIds: form.roleIds,
         });
         if (form.teamIds.length > 0 || form.agencyIds.length > 0) {
@@ -364,13 +423,6 @@ export function AdminTabUsers() {
     }
   };
 
-  const toggleRole = (id: string) => {
-    setForm((f) => ({
-      ...f,
-      roleIds: f.roleIds.includes(id) ? f.roleIds.filter((x) => x !== id) : [...f.roleIds, id],
-    }));
-  };
-
   const toggleTeam = (id: string) => {
     setForm((f) => ({
       ...f,
@@ -385,7 +437,70 @@ export function AdminTabUsers() {
     }));
   };
 
-  const orgRoles = roles.filter((ro) => ro.organization_id != null || ro.is_system);
+  const orgRoles = roles.filter((ro) => {
+    if (!viewerIsSuperAdmin && normRoleCode(ro.code) === "SUPER_ADMIN") return false;
+    return ro.organization_id != null || ro.is_system;
+  });
+
+  const orgRolesUnique = useMemo(() => {
+    const seen = new Set<string>();
+    const out: AdminRole[] = [];
+    for (const ro of orgRoles) {
+      const k = normRoleCode(ro.code);
+      if (!k || seen.has(k)) continue;
+      seen.add(k);
+      out.push(ro);
+    }
+    return out;
+  }, [orgRoles]);
+
+  const toggleRoleByCode = useCallback(
+    (code: string) => {
+      const same = orgRoles.filter((r) => normRoleCode(r.code) === normRoleCode(code));
+      if (!same.length) return;
+      const canonical = same[0];
+      const dropIds = new Set(same.map((r) => r.id));
+      setForm((f) => {
+        const has = same.some((r) => f.roleIds.includes(r.id));
+        const next = f.roleIds.filter((id) => !dropIds.has(id));
+        if (has) return { ...f, roleIds: next };
+        return { ...f, roleIds: [...next, canonical.id] };
+      });
+    },
+    [orgRoles],
+  );
+
+  const filteredUsers = useMemo(() => {
+    let list = users;
+    const q = normSearch(searchQuery);
+    if (q) {
+      list = list.filter((u) => {
+        const name = normSearch(displayPrimaryName(u));
+        const email = normSearch(u.email || "");
+        const rolesStr = (u.roles || []).join(" ").toLowerCase();
+        const m = userMemberships[u.id];
+        const teams = (m?.teamNames || []).join(" ").toLowerCase();
+        const agencies = (m?.agencyNames || []).join(" ").toLowerCase();
+        return (
+          name.includes(q) ||
+          email.includes(q) ||
+          rolesStr.includes(q) ||
+          teams.includes(q) ||
+          agencies.includes(q) ||
+          String(u.id).toLowerCase().includes(q)
+        );
+      });
+    }
+    if (statusFilter !== "all") {
+      list = list.filter((u) => (u.status || "active") === statusFilter);
+    }
+    return list;
+  }, [users, userMemberships, searchQuery, statusFilter]);
+
+  const resetListFilters = useCallback(() => {
+    setSearchQuery("");
+    setStatusFilter("all");
+  }, []);
 
   if (loading) {
     return (
@@ -399,19 +514,7 @@ export function AdminTabUsers() {
 
   return (
     <div className="admin-tab-users">
-      <header className="admin-users-header">
-        <div className="admin-users-header-text">
-          <h2 className="admin-users-title">Utilisateurs</h2>
-          <p className="admin-users-subtitle">Gérez les accès, rôles et la structure de votre entreprise</p>
-        </div>
-        <Button variant="primary" onClick={openCreate}>
-          Nouvel utilisateur
-        </Button>
-      </header>
-
-      {error && (
-        <p style={{ color: "var(--danger)", marginBottom: "var(--spacing-16)" }}>{error}</p>
-      )}
+      {error ? <p className="admin-users-error">{error}</p> : null}
 
       {showEmpty ? (
         <div className="admin-users-empty">
@@ -423,72 +526,128 @@ export function AdminTabUsers() {
           </Button>
         </div>
       ) : users.length === 0 ? null : (
-        <div className="admin-users-table-wrap">
-          <table className="admin-users-table">
-            <thead>
-              <tr>
-                <th>Nom</th>
-                <th>Rôles RBAC</th>
-                <th>Équipes</th>
-                <th>Agences</th>
-                <th>Statut</th>
-                <th style={{ width: 100 }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {users.map((u) => {
-                const m = userMemberships[u.id];
-                return (
-                  <tr key={u.id}>
-                    <td>
-                      <UserNameCell u={u} />
-                    </td>
-                    <td>
-                      <RoleBadges codes={u.roles ?? []} />
-                    </td>
-                    <td>
-                      <TeamAgencyCell names={m?.teamNames} />
-                    </td>
-                    <td>
-                      <TeamAgencyCell names={m?.agencyNames} />
-                    </td>
-                    <td>
-                      <StatusBadge status={u.status} />
-                    </td>
-                    <td>
-                      <div className="admin-users-actions">
-                        <button
-                          type="button"
-                          className="admin-users-icon-btn"
-                          onClick={() => openEdit(u)}
-                          aria-label={`Modifier ${displayPrimaryName(u)}`}
-                        >
-                          <IconEdit />
-                        </button>
-                        <button
-                          type="button"
-                          className="admin-users-icon-btn admin-users-icon-btn--danger"
-                          onClick={() => setDeleteConfirmUser(u)}
-                          aria-label={`Supprimer ${displayPrimaryName(u)}`}
-                        >
-                          <IconTrash />
-                        </button>
-                      </div>
-                    </td>
+        <>
+          <div className="sn-leads-toolbar-wrap">
+            <div className="sn-leads-filters-card" role="search" aria-label="Filtres utilisateurs">
+              <div className="sn-leads-filters-primary">
+                <div className="sn-leads-filters-search">
+                  <IconSearchFin className="sn-leads-filters-search__icon" />
+                  <input
+                    id="admin-users-search"
+                    type="search"
+                    className="sn-leads-filters-search__input"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Rechercher nom, email, rôle, équipe…"
+                    aria-label="Rechercher un utilisateur"
+                    autoComplete="off"
+                  />
+                </div>
+                <div className="sn-leads-filters-field">
+                  <label htmlFor="admin-users-status-filter" className="sn-leads-filters-field__label">
+                    Statut
+                  </label>
+                  <select
+                    id="admin-users-status-filter"
+                    className="sn-leads-filters-select"
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value as UserStatusFilter)}
+                  >
+                    <option value="all">Tous</option>
+                    <option value="active">Actif</option>
+                    <option value="inactive">Inactif</option>
+                  </select>
+                </div>
+                <div className="admin-users-toolbar-tail">
+                  <button type="button" className="sn-leads-filters-reset" onClick={resetListFilters}>
+                    Réinitialiser
+                  </button>
+                  <Button variant="primary" size="sm" type="button" onClick={openCreate}>
+                    Nouvel utilisateur
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {filteredUsers.length === 0 ? (
+            <p className="admin-users-filter-empty">Aucun utilisateur ne correspond à ces filtres.</p>
+          ) : (
+            <div className="admin-users-table-wrap admin-users-table-wrap--saas">
+              <table className="admin-users-table admin-users-table--saas">
+                <thead>
+                  <tr>
+                    <th>Nom</th>
+                    <th>Rôles RBAC</th>
+                    <th>Équipes</th>
+                    <th>Agences</th>
+                    <th>Statut</th>
+                    <th className="admin-users-th-actions">Actions</th>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                </thead>
+                <tbody>
+                  {filteredUsers.map((u) => {
+                    const m = userMemberships[u.id];
+                    return (
+                      <tr key={u.id}>
+                        <td>
+                          <UserNameCell u={u} />
+                        </td>
+                        <td>
+                          <RoleBadges
+                            codes={
+                              viewerIsSuperAdmin
+                                ? (u.roles ?? [])
+                                : (u.roles ?? []).filter((c) => normRoleCode(c) !== "SUPER_ADMIN")
+                            }
+                          />
+                        </td>
+                        <td>
+                          <TeamAgencyCell names={m?.teamNames} />
+                        </td>
+                        <td>
+                          <TeamAgencyCell names={m?.agencyNames} />
+                        </td>
+                        <td>
+                          <StatusBadge status={u.status} />
+                        </td>
+                        <td>
+                          <div className="admin-users-actions">
+                            <button
+                              type="button"
+                              className="admin-users-icon-btn"
+                              onClick={() => openEdit(u)}
+                              aria-label={`Modifier ${displayPrimaryName(u)}`}
+                            >
+                              <IconEdit />
+                            </button>
+                            <button
+                              type="button"
+                              className="admin-users-icon-btn admin-users-icon-btn--danger"
+                              onClick={() => setDeleteConfirmUser(u)}
+                              aria-label={`Supprimer ${displayPrimaryName(u)}`}
+                            >
+                              <IconTrash />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
       )}
 
       <ModalShell
         open={modalOpen}
         onClose={requestCloseModal}
         closeOnBackdropClick={false}
-        size="lg"
-        panelClassName="admin-users-modal-shell"
+        size="xl"
+        backdropClassName="admin-users-modal-backdrop-premium"
+        panelClassName="admin-users-modal-shell admin-users-modal-shell--premium"
         title={editingUser ? "Modifier l'utilisateur" : "Nouvel utilisateur"}
         subtitle={
           editingUser
@@ -496,127 +655,190 @@ export function AdminTabUsers() {
             : "Créez un compte avec un mot de passe initial, puis assignez les rôles et la structure."
         }
         footer={
-          <>
-            <Button variant="ghost" type="button" onClick={requestCloseModal}>
+          <div className="admin-users-modal-footer-actions">
+            <Button variant="ghost" type="button" size="lg" onClick={requestCloseModal}>
               Annuler
             </Button>
-            <Button variant="primary" type="submit" form="admin-user-form">
+            <Button variant="primary" type="submit" size="lg" form="admin-user-form">
               {editingUser ? "Enregistrer" : "Créer"}
             </Button>
-          </>
+          </div>
         }
-        bodyClassName="sn-modal-shell-body--flush"
+        bodyClassName="admin-users-modal-shell-body"
       >
-            <form id="admin-user-form" onSubmit={handleSubmit}>
-              <div className="admin-users-modal-body">
-                <div className="admin-users-modal-section">
-                  <h3 className="admin-users-modal-section-title">Informations</h3>
-                  <div style={{ marginBottom: "var(--spacing-16)" }}>
-                    <label className="admin-users-field-label" htmlFor="admin-user-email">
-                      Email
+        <form id="admin-user-form" onSubmit={handleSubmit}>
+          <div className="admin-users-modal-stack">
+            <section className="admin-users-modal-block" aria-labelledby="admin-user-block-info">
+              <h3 id="admin-user-block-info" className="admin-users-modal-block-title">
+                Informations
+              </h3>
+              <div className="admin-users-modal-fields">
+                <div className="admin-users-modal-field admin-users-modal-field--full">
+                  <label className="admin-users-modal-label" htmlFor="admin-user-email">
+                    Email
+                  </label>
+                  <input
+                    id="admin-user-email"
+                    type="email"
+                    value={form.email}
+                    onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+                    required
+                    className="sn-input admin-users-modal-input"
+                    autoComplete="email"
+                  />
+                </div>
+                <div className="admin-users-modal-field-row">
+                  <div className="admin-users-modal-field">
+                    <label className="admin-users-modal-label" htmlFor="admin-user-first-name">
+                      Prénom
                     </label>
                     <input
-                      id="admin-user-email"
-                      type="email"
-                      value={form.email}
-                      onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-                      required
-                      className="sn-input"
-                      style={{ width: "100%", height: 44, boxSizing: "border-box" }}
-                      autoComplete="email"
+                      id="admin-user-first-name"
+                      type="text"
+                      value={form.first_name}
+                      onChange={(e) => setForm((f) => ({ ...f, first_name: e.target.value }))}
+                      className="sn-input admin-users-modal-input"
+                      autoComplete="given-name"
+                      placeholder="Optionnel"
                     />
                   </div>
-                  {!editingUser && (
-                    <div style={{ marginBottom: 0 }}>
-                      <label className="admin-users-field-label" htmlFor="admin-user-password">
-                        Mot de passe
-                      </label>
-                      <input
-                        id="admin-user-password"
-                        type="password"
-                        value={form.password}
-                        onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
-                        required={!editingUser}
-                        className="sn-input"
-                        style={{ width: "100%", height: 44, boxSizing: "border-box" }}
-                        autoComplete="new-password"
-                      />
-                    </div>
-                  )}
-                  {editingUser && (
-                    <>
-                      <div style={{ marginBottom: "var(--spacing-16)" }}>
-                        <label className="admin-users-field-label" htmlFor="admin-user-new-password">
-                          Nouveau mot de passe (optionnel)
-                        </label>
-                        <input
-                          id="admin-user-new-password"
-                          type="password"
-                          value={form.password}
-                          onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
-                          className="sn-input"
-                          style={{ width: "100%", height: 44, boxSizing: "border-box" }}
-                          autoComplete="new-password"
-                        />
-                      </div>
-                      <div style={{ marginBottom: 0 }}>
-                        <label className="admin-users-field-label" htmlFor="admin-user-status">
-                          Statut
-                        </label>
-                        <select
-                          id="admin-user-status"
-                          value={form.status}
-                          onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
-                          className="sn-input"
-                          style={{ width: "100%", height: 44, boxSizing: "border-box" }}
-                        >
-                          <option value="active">Actif</option>
-                          <option value="inactive">Inactif</option>
-                        </select>
-                      </div>
-                    </>
-                  )}
-                </div>
-
-                <div className="admin-users-modal-section">
-                  <h3 className="admin-users-modal-section-title">Rôles</h3>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                    {orgRoles.map((ro) => (
-                      <label key={ro.id} style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: "var(--font-size-body)" }}>
-                        <input type="checkbox" checked={form.roleIds.includes(ro.id)} onChange={() => toggleRole(ro.id)} />
-                        {ro.code}
-                      </label>
-                    ))}
+                  <div className="admin-users-modal-field">
+                    <label className="admin-users-modal-label" htmlFor="admin-user-last-name">
+                      Nom
+                    </label>
+                    <input
+                      id="admin-user-last-name"
+                      type="text"
+                      value={form.last_name}
+                      onChange={(e) => setForm((f) => ({ ...f, last_name: e.target.value }))}
+                      className="sn-input admin-users-modal-input"
+                      autoComplete="family-name"
+                      placeholder="Optionnel"
+                    />
                   </div>
                 </div>
+                {!editingUser ? (
+                  <div className="admin-users-modal-field admin-users-modal-field--full">
+                    <label className="admin-users-modal-label" htmlFor="admin-user-password">
+                      Mot de passe
+                    </label>
+                    <input
+                      id="admin-user-password"
+                      type="password"
+                      value={form.password}
+                      onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
+                      required={!editingUser}
+                      className="sn-input admin-users-modal-input"
+                      autoComplete="new-password"
+                    />
+                  </div>
+                ) : (
+                  <div className="admin-users-modal-field admin-users-modal-field--full">
+                    <label className="admin-users-modal-label" htmlFor="admin-user-new-password">
+                      Nouveau mot de passe (optionnel)
+                    </label>
+                    <input
+                      id="admin-user-new-password"
+                      type="password"
+                      value={form.password}
+                      onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
+                      className="sn-input admin-users-modal-input"
+                      autoComplete="new-password"
+                    />
+                  </div>
+                )}
+              </div>
+            </section>
 
-                <div className="admin-users-modal-section">
-                  <h3 className="admin-users-modal-section-title">Équipes &amp; agences</h3>
-                  <div style={{ marginBottom: "var(--spacing-16)" }}>
-                    <label className="admin-users-field-label">Équipes</label>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                      {teams.map((tm) => (
-                        <label key={tm.id} style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: "var(--font-size-body)" }}>
-                          <input type="checkbox" checked={form.teamIds.includes(tm.id)} onChange={() => toggleTeam(tm.id)} />
-                          {tm.name} {tm.agency_name ? `(${tm.agency_name})` : ""}
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                  <div style={{ marginBottom: 0 }}>
-                    <label className="admin-users-field-label">Agences</label>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                      {agencies.map((ag) => (
-                        <label key={ag.id} style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: "var(--font-size-body)" }}>
-                          <input type="checkbox" checked={form.agencyIds.includes(ag.id)} onChange={() => toggleAgency(ag.id)} />
-                          {ag.name}
-                        </label>
-                      ))}
-                    </div>
-                  </div>
+            {editingUser ? (
+              <section className="admin-users-modal-block" aria-labelledby="admin-user-block-status">
+                <h3 id="admin-user-block-status" className="admin-users-modal-block-title">
+                  Statut
+                </h3>
+                <div className="admin-users-modal-field admin-users-modal-field--full">
+                  <label className="admin-users-modal-label" htmlFor="admin-user-status">
+                    État du compte
+                  </label>
+                  <select
+                    id="admin-user-status"
+                    value={form.status}
+                    onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
+                    className="sn-input admin-users-modal-input admin-users-modal-select"
+                  >
+                    <option value="active">Actif</option>
+                    <option value="inactive">Inactif</option>
+                  </select>
+                </div>
+              </section>
+            ) : null}
+
+            <section className="admin-users-modal-block" aria-labelledby="admin-user-block-roles">
+              <h3 id="admin-user-block-roles" className="admin-users-modal-block-title">
+                Rôles
+              </h3>
+              <p className="admin-users-modal-block-hint">Sélectionnez un ou plusieurs rôles appliqués à ce compte.</p>
+              <div className="admin-users-role-grid" role="group" aria-label="Rôles RBAC">
+                {orgRolesUnique.map((ro) => {
+                  const selected = isRoleCodeSelected(form.roleIds, orgRoles, ro.code);
+                  const labelPrimary = ro.name?.trim() || ro.code;
+                  const showCode = Boolean(ro.name?.trim());
+                  return (
+                    <button
+                      key={ro.id}
+                      type="button"
+                      className={`admin-users-role-card${selected ? " admin-users-role-card--selected" : ""}`}
+                      onClick={() => toggleRoleByCode(ro.code)}
+                      aria-pressed={selected}
+                    >
+                      <span className="admin-users-role-card__check" aria-hidden>
+                        {selected ? <IconCheck className="admin-users-role-card__check-icon" /> : null}
+                      </span>
+                      <span className="admin-users-role-card__text">
+                        <span className="admin-users-role-card__title">{labelPrimary}</span>
+                        {showCode ? <span className="admin-users-role-card__code">{ro.code}</span> : null}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+
+            <section className="admin-users-modal-block" aria-labelledby="admin-user-block-teams">
+              <h3 id="admin-user-block-teams" className="admin-users-modal-block-title">
+                Équipes &amp; agences
+              </h3>
+              <div className="admin-users-modal-subsection">
+                <span className="admin-users-modal-subsection-label" id="admin-user-teams-label">
+                  Équipes
+                </span>
+                <div className="admin-users-checkbox-grid" role="group" aria-labelledby="admin-user-teams-label">
+                  {teams.map((tm) => (
+                    <label key={tm.id} className="admin-users-struct-option">
+                      <input type="checkbox" className="admin-users-struct-option__input" checked={form.teamIds.includes(tm.id)} onChange={() => toggleTeam(tm.id)} />
+                      <span className="admin-users-struct-option__text">
+                        {tm.name}
+                        {tm.agency_name ? <span className="admin-users-struct-option__meta"> ({tm.agency_name})</span> : null}
+                      </span>
+                    </label>
+                  ))}
                 </div>
               </div>
-            </form>
+              <div className="admin-users-modal-subsection">
+                <span className="admin-users-modal-subsection-label" id="admin-user-agencies-label">
+                  Agences
+                </span>
+                <div className="admin-users-checkbox-grid" role="group" aria-labelledby="admin-user-agencies-label">
+                  {agencies.map((ag) => (
+                    <label key={ag.id} className="admin-users-struct-option">
+                      <input type="checkbox" className="admin-users-struct-option__input" checked={form.agencyIds.includes(ag.id)} onChange={() => toggleAgency(ag.id)} />
+                      <span className="admin-users-struct-option__text">{ag.name}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </section>
+          </div>
+        </form>
       </ModalShell>
 
       <ConfirmModal

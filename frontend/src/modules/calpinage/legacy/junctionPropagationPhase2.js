@@ -198,6 +198,12 @@ export function propagateRoofContourEdgeJunctionAfterContourEdit(contours, trait
  */
 export function fixContourVertexDeleteAttaches(contours, traits, ridges, contourId, deletedIndex) {
   if (typeof contourId !== "string" || typeof deletedIndex !== "number") return;
+  /* Taille du contour AVANT suppression (appelé avant splice) → n sommets = n segments. */
+  var _delC = (contours || []).find(function (x) { return x && x.id === contourId; });
+  var _delN = _delC && _delC.points ? _delC.points.length : 0;
+  /* Segment précédent qui disparaît : [deletedIndex-1, deletedIndex].
+   * Cas deletedIndex=0 : ce segment est [n-1, 0] (bouclant) → index n-1. */
+  var _prevSegIdx = deletedIndex === 0 ? (_delN - 1) : (deletedIndex - 1);
   function fixEp(ep) {
     if (!ep || typeof ep !== "object") return;
     var att = ep.attach;
@@ -213,8 +219,10 @@ export function fixContourVertexDeleteAttaches(contours, traits, ridges, contour
     if (att.type === "roof_contour_edge" && att.contourId === contourId) {
       var si = att.segmentIndex;
       if (typeof si === "number") {
-        /* Le segment [deletedIndex-1, deletedIndex] et [deletedIndex, deletedIndex+1] disparaissent. */
-        if (si === deletedIndex || si === deletedIndex - 1) {
+        /* Les deux segments incidents au sommet supprimé disparaissent :
+         * [deletedIndex, deletedIndex+1] (si = deletedIndex)
+         * [deletedIndex-1, deletedIndex]  (si = _prevSegIdx, gère le cas bouclant deletedIndex=0). */
+        if (si === deletedIndex || si === _prevSegIdx) {
           ep.attach = null;
         } else if (si > deletedIndex) {
           att.segmentIndex -= 1;

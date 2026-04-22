@@ -35,6 +35,8 @@ interface ClientsFiltersProps {
   onFiltersChange: (f: LeadsFilters) => void;
   users: { id: string; email?: string }[];
   onReset: () => void;
+  /** Nombre de dossiers après filtres (liste courante) */
+  resultCount?: number;
 }
 
 export function ClientsFilters({
@@ -42,7 +44,19 @@ export function ClientsFilters({
   onFiltersChange,
   users,
   onReset,
+  resultCount,
 }: ClientsFiltersProps) {
+  const marketingVal =
+    filters.marketing_opt_in === true
+      ? "yes"
+      : filters.marketing_opt_in === false
+        ? "no"
+        : "";
+
+  const archiveScope: "active" | "archived" | "all" =
+    filters.archive_scope ??
+    (filters.include_archived === true ? "all" : "active");
+
   const sortValue = useMemo((): SortPreset => {
     const s = filters.sort ?? "updated_at";
     const o = filters.order ?? "desc";
@@ -60,6 +74,7 @@ export function ClientsFilters({
   };
 
   return (
+    <div className="clients-filters-wrap-inner">
     <div
       className="clients-filters-bar"
       role="search"
@@ -145,7 +160,7 @@ export function ClientsFilters({
 
       <div
         className="filter-period"
-        title="Période (filtre sur les mises à jour)"
+        title="Période d’activité (mises à jour du dossier)"
       >
         <input
           id="sn-clients-from"
@@ -180,6 +195,85 @@ export function ClientsFilters({
         />
       </div>
 
+      <div
+        className="filter-period"
+        title="Date de création du dossier (lead converti / fiche client)"
+      >
+        <input
+          id="sn-clients-created-from"
+          className="clients-filters-bar__date"
+          type="date"
+          aria-label="Créé à partir du"
+          value={filters.created_from ?? ""}
+          onChange={(e) =>
+            onFiltersChange({
+              ...filters,
+              created_from: e.target.value || undefined,
+              page: 1,
+            })
+          }
+        />
+        <span className="filter-period__sep" aria-hidden>
+          –
+        </span>
+        <input
+          id="sn-clients-created-to"
+          className="clients-filters-bar__date"
+          type="date"
+          aria-label="Créé jusqu’au"
+          value={filters.created_to ?? ""}
+          onChange={(e) =>
+            onFiltersChange({
+              ...filters,
+              created_to: e.target.value || undefined,
+              page: 1,
+            })
+          }
+        />
+      </div>
+
+      <select
+        id="sn-clients-marketing"
+        className="clients-filters-bar__select clients-filters-bar__select--marketing"
+        title="Filtrer par opt-in marketing"
+        aria-label="Marketing opt-in"
+        value={marketingVal}
+        onChange={(e) => {
+          const v = e.target.value;
+          onFiltersChange({
+            ...filters,
+            marketing_opt_in:
+              v === "yes" ? true : v === "no" ? false : undefined,
+            page: 1,
+          });
+        }}
+      >
+        <option value="">Marketing</option>
+        <option value="yes">Opt-in oui</option>
+        <option value="no">Opt-in non</option>
+      </select>
+
+      <select
+        id="sn-clients-archive-scope"
+        className="clients-filters-bar__select"
+        title="Actifs, archivés ou tous les dossiers"
+        aria-label="Archivage"
+        value={archiveScope}
+        onChange={(e) => {
+          const v = e.target.value as "active" | "archived" | "all";
+          onFiltersChange({
+            ...filters,
+            archive_scope: v,
+            include_archived: undefined,
+            page: 1,
+          });
+        }}
+      >
+        <option value="active">Actifs</option>
+        <option value="archived">Archivés</option>
+        <option value="all">Tous</option>
+      </select>
+
       <button
         type="button"
         className="filter-reset"
@@ -188,6 +282,21 @@ export function ClientsFilters({
       >
         Réinitialiser
       </button>
+    </div>
+    {typeof resultCount === "number" ? (
+      <div className="clients-filters-footer" role="status">
+        <p className="clients-filters-footer__count">
+          <strong>{resultCount}</strong> résultat{resultCount !== 1 ? "s" : ""}
+        </p>
+        <button
+          type="button"
+          className="sn-btn sn-btn-outline sn-btn-sm clients-filters-footer__reset"
+          onClick={onReset}
+        >
+          Réinitialiser les filtres
+        </button>
+      </div>
+    ) : null}
     </div>
   );
 }

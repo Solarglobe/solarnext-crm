@@ -16,10 +16,12 @@ import { withPgRetryOnce } from "../utils/pgRetry.js";
 import {
   resolvePanelPowerWc,
   isInstalledKwcDivergent,
-  LEGACY_FALLBACK_PANEL_WC,
 } from "../utils/resolvePanelPowerWc.js";
+import { DEFAULT_PANEL_POWER_WC } from "../services/core/engineConstants.js";
 import { fetchPvPanelRowById } from "../services/pv/resolvePanelFromDb.service.js";
 import { fetchPvInverterRowById } from "../services/pv/resolveInverterFromDb.service.js";
+import { logAuditEvent } from "../services/audit/auditLog.service.js";
+import { AuditActions } from "../services/audit/auditActions.js";
 
 function assignPanelPatchFromDb(patch, dbPanel) {
   if (!dbPanel || typeof dbPanel !== "object") return;
@@ -259,8 +261,8 @@ export async function upsertCalpinage(req, res) {
         totalPowerKwc = recomputed;
       }
     } else if (totalPowerKwc == null && totalPanels > 0) {
-      // Compat : aucune puissance panneau dans la géométrie — dernier recours historique (documenté dans resolvePanelPowerWc.js)
-      totalPowerKwc = (totalPanels * LEGACY_FALLBACK_PANEL_WC) / 1000;
+      // Compat : aucune puissance panneau dans la géométrie — dernier recours (DEFAULT_PANEL_POWER_WC moteur)
+      totalPowerKwc = (totalPanels * DEFAULT_PANEL_POWER_WC) / 1000;
     }
 
     const row = await withPgRetryOnce(() =>
@@ -313,6 +315,22 @@ export async function upsertCalpinage(req, res) {
         return r.rows[0];
       })
     );
+    const uid = req.user?.userId ?? req.user?.id ?? null;
+    void logAuditEvent({
+      action: AuditActions.CALPINAGE_SAVED,
+      entityType: "study_version",
+      entityId: studyVersionId,
+      organizationId: org,
+      userId: uid,
+      req,
+      statusCode: 200,
+      metadata: {
+        study_id: studyId,
+        version_number: versionNum,
+        total_panels: row.total_panels,
+        total_power_kwc: row.total_power_kwc != null ? Number(row.total_power_kwc) : null,
+      },
+    });
     res.json({
       ok: true,
       calpinageData: {

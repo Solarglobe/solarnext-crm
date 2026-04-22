@@ -286,7 +286,6 @@ function initDP1_MapModal() {
   let map = null;
 
   let ignLayer = null;
-  let cadastreLayer = null;
 
   let viewStrict = null;
   let viewLibre = null;
@@ -350,12 +349,9 @@ function initDP1_MapModal() {
   // ✅ FIX ALL BROWSERS : attendre que les tuiles WMTS soient réellement chargées/dessinées
   // (rendercomplete n’est pas suffisant sur Firefox/Edge -> écran gris jusqu’à interaction)
   async function waitTilesIdle(timeoutMs = 2500) {
-    if (!map || !ignLayer || !cadastreLayer) return;
+    if (!map || !ignLayer) return;
 
-    const sources = [
-      ignLayer.getSource && ignLayer.getSource(),
-      cadastreLayer.getSource && cadastreLayer.getSource()
-    ].filter(Boolean);
+    const sources = [ignLayer.getSource && ignLayer.getSource()].filter(Boolean);
 
     if (!sources.length) return;
 
@@ -446,20 +442,6 @@ function initDP1_MapModal() {
         crossOrigin: "anonymous"
       })
     });
-
-    cadastreLayer = new ol.layer.Tile({
-      opacity: 1,
-      source: new ol.source.WMTS({
-        url: "https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile",
-        layer: "CADASTRALPARCELS.PARCELLAIRE_EXPRESS",
-        matrixSet: "PM",
-        format: "image/png",
-        style: "normal",
-        tileGrid: wmtsGridPM,
-        wrapX: false,
-        crossOrigin: "anonymous"
-      })
-    });
   }
 
   // --------------------------
@@ -487,26 +469,6 @@ function initDP1_MapModal() {
       constrainResolution: false,
       enableRotation: false
     });
-  }
-
-  // --------------------------
-  // CADASTRE AUTO — OFF quand trop dézoomé
-  // --------------------------
-  function updateCadastreVisibility() {
-    if (!map || !cadastreLayer) return;
-    const resolution = map.getView().getResolution();
-
-    // ✅ ton seuil d’origine conservé (tu dis qu’il est bon)
-    const CADASTRE_MAX_RESOLUTION = 1.4; // ~1:5000 (approx)
-    cadastreLayer.setVisible(resolution < CADASTRE_MAX_RESOLUTION);
-  }
-
-  function bindResolutionListenerToCurrentView() {
-    if (!map) return;
-    const v = map.getView();
-    v.un("change:resolution", updateCadastreVisibility);
-    v.on("change:resolution", updateCadastreVisibility);
-    updateCadastreVisibility();
   }
 
   // --------------------------
@@ -592,7 +554,7 @@ function initDP1_MapModal() {
 
    map = new ol.Map({
   target,
-  layers: [ignLayer, cadastreLayer],
+  layers: [ignLayer],
   view: viewStrict,
   pixelRatio: window.devicePixelRatio || 1,
   controls: [
@@ -604,9 +566,6 @@ function initDP1_MapModal() {
 
     initParcelleMarkerLayer();
     currentMode = "strict";
-
-    // ✅ bind sur la view active
-    bindResolutionListenerToCurrentView();
 
     // API exposée
     window.DP1_MAP = {
@@ -636,7 +595,6 @@ function initDP1_MapModal() {
 
     if (mode === "strict") {
       map.setView(viewStrict);
-      bindResolutionListenerToCurrentView();
 
       if (c) viewStrict.setCenter(c);
       if (typeof z === "number") viewStrict.setZoom(Math.min(20, Math.max(12, z)));
@@ -646,7 +604,6 @@ function initDP1_MapModal() {
     }
 
     map.setView(viewLibre);
-    bindResolutionListenerToCurrentView();
 
     if (c) viewLibre.setCenter(c);
     if (typeof z === "number") viewLibre.setZoom(Math.min(23, Math.max(12, z)));
@@ -687,8 +644,6 @@ function setDP1Scale(scale) {
   // 🔁 Phase 2 — retour sur la cible (comme l’utilisateur)
   view.setResolution(targetResolution);
   map.renderSync();
-
-  updateCadastreVisibility();
 }
 
 // --------------------------
@@ -832,9 +787,6 @@ async function openModal() {
   // 6) Rendu stable
   map.renderSync();
   await waitRenderComplete(1200);
-
-  // 7) Cadastre auto
-  updateCadastreVisibility();
 }
 
  // --------------------------

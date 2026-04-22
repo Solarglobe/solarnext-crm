@@ -54,6 +54,16 @@
     </div>
   </div>
 
+  <div class="dp-doc-version-strip">
+    <div class="dp-doc-version" id="dp7-doc-version" data-dp-doc-version="dp7">
+      <button type="button" class="dp-doc-version__trigger" id="dp7-doc-version-trigger" aria-expanded="false" aria-haspopup="menu" aria-controls="dp7-doc-version-menu">
+        <span class="dp-doc-version__label" id="dp7-doc-version-label">Version 1</span>
+        <span class="dp-doc-version__chevron" aria-hidden="true">▾</span>
+      </button>
+      <div class="dp-doc-version__dropdown" id="dp7-doc-version-menu" hidden role="menu" aria-label="Versions du document"></div>
+    </div>
+  </div>
+
   <hr class="dp-sep" />
 
   <div class="dp-hint">
@@ -152,12 +162,15 @@
           <button id="dp7-use-upload" class="dp-btn dp-btn-outline" type="button">
             Importer une photo
           </button>
+          <button id="dp7-use-current-view" class="dp-btn dp-btn-primary" type="button" hidden disabled>
+            Utiliser cette vue
+          </button>
         </div>
 
         <hr />
 
         <div class="dp-map-note">
-          Positionnez-vous correctement (si Street View), puis faites une capture écran avec l’outil système et importez-la.
+          En Street View : cadrez la scène, puis cliquez sur « Utiliser cette vue » pour charger l’image dans le plan de travail. Vous pouvez aussi importer une photo depuis votre appareil.
         </div>
       </aside>
 

@@ -22,24 +22,7 @@ import {
   type MySmartBatteryConfig,
 } from "../../types/pvVirtualBatterySettings";
 import { getVirtualBatteryTariffs2026 } from "../../data/virtualBatteryTariffs2026";
-
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  padding: "var(--spacing-6) var(--spacing-8)",
-  borderRadius: "var(--radius-btn)",
-  border: "1px solid var(--sn-border-soft)",
-  background: "var(--bg-surface)",
-  color: "var(--text-primary)",
-  fontSize: "var(--font-size-body-sm)",
-};
-
-const labelStyle: React.CSSProperties = {
-  display: "block",
-  fontSize: "var(--font-size-body-sm)",
-  color: "var(--text-secondary)",
-  marginBottom: "var(--spacing-4)",
-  fontWeight: 500,
-};
+import "../../pages/pv-settings-page.css";
 
 function showToast(message: string, type: "success" | "error" = "success") {
   const toast = document.createElement("div");
@@ -154,31 +137,29 @@ export default function VirtualBatterySettings() {
   };
 
   if (loading) {
-    return (
-      <div className="panel" style={{ padding: "var(--spacing-24)", color: "var(--text-muted)" }}>
-        Chargement…
-      </div>
-    );
+    return <div className="pv-cat-empty">Chargement…</div>;
   }
 
   const providers = data.providers || {};
   const orderedProviders = PROVIDER_ORDER.filter((code) => providers[code]);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "var(--spacing-24)" }}>
-      <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: "var(--spacing-12)" }}>
-        <h2 style={{ margin: 0, fontSize: 18 }}>Batterie virtuelle — Tarifs 2026</h2>
-        <div style={{ display: "flex", gap: "var(--spacing-8)", alignItems: "center" }}>
+    <div className="pv-virtual-root">
+      <div className="pv-virtual-head">
+        <div className="sn-saas-tab-inner-header" style={{ marginBottom: 0 }}>
+          <h2 className="sn-saas-tab-inner-header__title">Batterie virtuelle — Tarifs 2026</h2>
+          <p className="sn-saas-tab-inner-header__lead">Grilles par fournisseur et segment (accordéons). Une action primaire : enregistrer.</p>
+        </div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
           <Button
-            variant="ghost"
+            variant={confirmReset ? "danger" : "secondary"}
             size="sm"
             onClick={handleFill2026}
-            style={confirmReset ? { outline: "2px solid var(--danger)" } : undefined}
           >
-            {confirmReset ? "Confirmer : Remplir valeurs 2026" : "Remplir valeurs 2026 (reset)"}
+            {confirmReset ? "Confirmer : réinitialiser sur 2026" : "Remplir valeurs 2026"}
           </Button>
           <Button variant="primary" size="sm" onClick={handleSave} disabled={saving}>
-            {saving ? "Enregistrement…" : "Enregistrer la grille"}
+            {saving ? "Enregistrement…" : "Enregistrer"}
           </Button>
         </div>
       </div>
@@ -190,11 +171,11 @@ export default function VirtualBatterySettings() {
       )}
 
       {orderedProviders.length === 0 ? (
-        <div className="panel sg-card" style={{ padding: "var(--spacing-24)" }}>
-          <p style={{ margin: 0, color: "var(--text-muted)" }}>
-            Aucune grille. Cliquez sur « Remplir valeurs 2026 » pour charger les tarifs par défaut.
+        <section className="sn-saas-form-section">
+          <p className="pv-cat-empty" style={{ padding: "20px 12px" }}>
+            Aucune grille. Utilisez « Remplir valeurs 2026 » pour charger les tarifs par défaut.
           </p>
-        </div>
+        </section>
       ) : (
         orderedProviders.map((providerCode) => {
           const provider = providers[providerCode] as ProviderConfig;
@@ -202,8 +183,8 @@ export default function VirtualBatterySettings() {
           const isMySmart = isMySmartBatteryConfig(provider);
 
           return (
-            <div key={providerCode} className="panel sg-card" style={{ padding: "var(--spacing-24)" }}>
-              <h3 style={{ margin: "0 0 var(--spacing-16)", fontSize: 16 }}>{provider.label}</h3>
+            <div key={providerCode} className="pv-virtual-provider-card">
+              <h3>{provider.label}</h3>
 
               {isMySmart && (
                 <CapacityTiersBlock
@@ -241,68 +222,51 @@ function CapacityTiersBlock({
 }) {
   const [open, setOpen] = useState(true);
   return (
-    <div style={{ marginBottom: "var(--spacing-16)", border: "1px solid var(--sn-border-soft)", borderRadius: "var(--radius-btn)", overflow: "hidden" }}>
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        style={{
-          width: "100%",
-          padding: "var(--spacing-12) var(--spacing-16)",
-          background: "var(--bg-muted)",
-          border: "none",
-          cursor: "pointer",
-          textAlign: "left",
-          fontSize: "var(--font-size-body)",
-          fontWeight: 500,
-          color: "var(--text-primary)",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}
-      >
+    <div className="pv-vb-accordion" style={{ marginBottom: 16 }}>
+      <button type="button" className="pv-vb-accordion__btn" onClick={() => setOpen(!open)}>
         <span>Capacité batterie (kWh) → Abonnement mensuel HT</span>
-        <span style={{ fontSize: 18 }}>{open ? "▼" : "▶"}</span>
+        <span aria-hidden>{open ? "▼" : "▶"}</span>
       </button>
-      {open && (
-        <div style={{ padding: "var(--spacing-12)", overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+      {open ? (
+        <div className="pv-vb-accordion__body">
+          <table className="pv-vb-table">
             <thead>
               <tr>
-                <th style={{ textAlign: "left", padding: "var(--spacing-8)", borderBottom: "1px solid var(--sn-border-soft)" }}>kWh</th>
-                <th style={{ textAlign: "right", padding: "var(--spacing-8)", borderBottom: "1px solid var(--sn-border-soft)" }}>Abonnement €/mois HT</th>
+                <th>kWh</th>
+                <th style={{ textAlign: "right" }}>Abonnement €/mois HT</th>
               </tr>
             </thead>
             <tbody>
               {tiers.map((tier, i) => (
-                <tr key={i} style={{ borderBottom: "1px solid var(--sn-border-soft)" }}>
-                  <td style={{ padding: "var(--spacing-4)" }}>
+                <tr key={i}>
+                  <td>
                     <input
                       type="number"
                       min={0}
                       value={tier.kwh}
                       onChange={(e) => onUpdate(i, "kwh", Number(e.target.value) || 0)}
-                      style={{ ...inputStyle, padding: "var(--spacing-4)", width: 100, textAlign: "right" }}
+                      className="pv-vb-input pv-vb-input--w100"
                     />
                   </td>
-                  <td style={{ padding: "var(--spacing-4)" }}>
+                  <td style={{ textAlign: "right" }}>
                     <input
                       type="number"
                       min={0}
                       step={0.01}
                       value={tier.abonnement_month_ht}
                       onChange={(e) => onUpdate(i, "abonnement_month_ht", Number(e.target.value) || 0)}
-                      style={{ ...inputStyle, padding: "var(--spacing-4)", width: 120, textAlign: "right" }}
+                      className="pv-vb-input pv-vb-input--w120"
                     />
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-          <p style={{ margin: "var(--spacing-8) 0 0", fontSize: 12, color: "var(--text-muted)" }}>
+          <p className="pv-eco-hint" style={{ margin: "10px 0 0" }}>
             Contribution autoproducteur 2026 : {contributionRule.a} × kVA €/an HT
           </p>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
@@ -322,51 +286,34 @@ function SegmentAccordion({
   const isHphc = isHphcSegment(segmentKey);
 
   return (
-    <div style={{ marginBottom: "var(--spacing-12)", border: "1px solid var(--sn-border-soft)", borderRadius: "var(--radius-btn)", overflow: "hidden" }}>
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        style={{
-          width: "100%",
-          padding: "var(--spacing-12) var(--spacing-16)",
-          background: "var(--bg-muted)",
-          border: "none",
-          cursor: "pointer",
-          textAlign: "left",
-          fontSize: "var(--font-size-body)",
-          fontWeight: 500,
-          color: "var(--text-primary)",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}
-      >
+    <div className="pv-vb-accordion">
+      <button type="button" className="pv-vb-accordion__btn" onClick={() => setOpen(!open)}>
         <span>{SEGMENT_LABELS[segmentKey]}</span>
-        <span style={{ fontSize: 18 }}>{open ? "▼" : "▶"}</span>
+        <span aria-hidden>{open ? "▼" : "▶"}</span>
       </button>
-      {open && (
-        <div style={{ padding: "var(--spacing-12)", overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+      {open ? (
+        <div className="pv-vb-accordion__body">
+          <table className="pv-vb-table">
             <thead>
               <tr>
-                <th style={{ textAlign: "left", padding: "var(--spacing-8)", borderBottom: "1px solid var(--sn-border-soft)" }}>kVA</th>
-                <th style={{ textAlign: "right", padding: "var(--spacing-8)", borderBottom: "1px solid var(--sn-border-soft)" }}>Abo €/kWc/mois</th>
-                <th style={{ textAlign: "right", padding: "var(--spacing-8)", borderBottom: "1px solid var(--sn-border-soft)" }}>Abo fixe €/mois</th>
+                <th>kVA</th>
+                <th style={{ textAlign: "right" }}>Abo €/kWc/mois</th>
+                <th style={{ textAlign: "right" }}>Abo fixe €/mois</th>
                 {isHphc ? (
                   <>
-                    <th style={{ textAlign: "right", padding: "var(--spacing-8)", borderBottom: "1px solid var(--sn-border-soft)" }}>Restitution HP €/kWh</th>
-                    <th style={{ textAlign: "right", padding: "var(--spacing-8)", borderBottom: "1px solid var(--sn-border-soft)" }}>Restitution HC €/kWh</th>
-                    <th style={{ textAlign: "right", padding: "var(--spacing-8)", borderBottom: "1px solid var(--sn-border-soft)" }}>Réseau HP €/kWh</th>
-                    <th style={{ textAlign: "right", padding: "var(--spacing-8)", borderBottom: "1px solid var(--sn-border-soft)" }}>Réseau HC €/kWh</th>
+                    <th style={{ textAlign: "right" }}>Restit. HP</th>
+                    <th style={{ textAlign: "right" }}>Restit. HC</th>
+                    <th style={{ textAlign: "right" }}>Réseau HP</th>
+                    <th style={{ textAlign: "right" }}>Réseau HC</th>
                   </>
                 ) : (
                   <>
-                    <th style={{ textAlign: "right", padding: "var(--spacing-8)", borderBottom: "1px solid var(--sn-border-soft)" }}>Restitution €/kWh</th>
-                    <th style={{ textAlign: "right", padding: "var(--spacing-8)", borderBottom: "1px solid var(--sn-border-soft)" }}>Réseau €/kWh</th>
+                    <th style={{ textAlign: "right" }}>Restit. €/kWh</th>
+                    <th style={{ textAlign: "right" }}>Réseau €/kWh</th>
                   </>
                 )}
-                <th style={{ textAlign: "right", padding: "var(--spacing-8)", borderBottom: "1px solid var(--sn-border-soft)" }}>Contribution €/an</th>
-                <th style={{ textAlign: "center", padding: "var(--spacing-8)", borderBottom: "1px solid var(--sn-border-soft)" }}>Activation</th>
+                <th style={{ textAlign: "right" }}>Contrib. €/an</th>
+                <th style={{ textAlign: "center" }}>Actif</th>
               </tr>
             </thead>
             <tbody>
@@ -378,106 +325,106 @@ function SegmentAccordion({
                   enabled: true,
                 };
                 return (
-                  <tr key={kva} style={{ borderBottom: "1px solid var(--sn-border-soft)" }}>
-                    <td style={{ padding: "var(--spacing-8)" }}>{kva}</td>
-                    <td style={{ padding: "var(--spacing-4)" }}>
+                  <tr key={kva}>
+                    <td>{kva}</td>
+                    <td style={{ textAlign: "right" }}>
                       <input
                         type="number"
                         min={0}
                         step={0.01}
                         value={row.abonnement_per_kwc_month || ""}
                         onChange={(e) => onUpdateRow(providerCode, segmentKey, kva, "abonnement_per_kwc_month", Number(e.target.value) || 0)}
-                        style={{ ...inputStyle, padding: "var(--spacing-4)", width: 90, textAlign: "right" }}
+                        className="pv-vb-input pv-vb-input--w90"
                       />
                     </td>
-                    <td style={{ padding: "var(--spacing-4)" }}>
+                    <td style={{ textAlign: "right" }}>
                       <input
                         type="number"
                         min={0}
                         step={0.01}
                         value={row.abonnement_fixed_month || ""}
                         onChange={(e) => onUpdateRow(providerCode, segmentKey, kva, "abonnement_fixed_month", Number(e.target.value) || 0)}
-                        style={{ ...inputStyle, padding: "var(--spacing-4)", width: 90, textAlign: "right" }}
+                        className="pv-vb-input pv-vb-input--w90"
                       />
                     </td>
                     {isHphc ? (
                       <>
-                        <td style={{ padding: "var(--spacing-4)" }}>
+                        <td style={{ textAlign: "right" }}>
                           <input
                             type="number"
                             min={0}
                             step={0.0001}
                             value={row.restitution_hp_eur_per_kwh ?? ""}
                             onChange={(e) => onUpdateRow(providerCode, segmentKey, kva, "restitution_hp_eur_per_kwh", Number(e.target.value) || 0)}
-                            style={{ ...inputStyle, padding: "var(--spacing-4)", width: 90, textAlign: "right" }}
+                            className="pv-vb-input pv-vb-input--w90"
                           />
                         </td>
-                        <td style={{ padding: "var(--spacing-4)" }}>
+                        <td style={{ textAlign: "right" }}>
                           <input
                             type="number"
                             min={0}
                             step={0.0001}
                             value={row.restitution_hc_eur_per_kwh ?? ""}
                             onChange={(e) => onUpdateRow(providerCode, segmentKey, kva, "restitution_hc_eur_per_kwh", Number(e.target.value) || 0)}
-                            style={{ ...inputStyle, padding: "var(--spacing-4)", width: 90, textAlign: "right" }}
+                            className="pv-vb-input pv-vb-input--w90"
                           />
                         </td>
-                        <td style={{ padding: "var(--spacing-4)" }}>
+                        <td style={{ textAlign: "right" }}>
                           <input
                             type="number"
                             min={0}
                             step={0.0001}
                             value={row.reseau_hp_eur_per_kwh ?? ""}
                             onChange={(e) => onUpdateRow(providerCode, segmentKey, kva, "reseau_hp_eur_per_kwh", Number(e.target.value) || 0)}
-                            style={{ ...inputStyle, padding: "var(--spacing-4)", width: 90, textAlign: "right" }}
+                            className="pv-vb-input pv-vb-input--w90"
                           />
                         </td>
-                        <td style={{ padding: "var(--spacing-4)" }}>
+                        <td style={{ textAlign: "right" }}>
                           <input
                             type="number"
                             min={0}
                             step={0.0001}
                             value={row.reseau_hc_eur_per_kwh ?? ""}
                             onChange={(e) => onUpdateRow(providerCode, segmentKey, kva, "reseau_hc_eur_per_kwh", Number(e.target.value) || 0)}
-                            style={{ ...inputStyle, padding: "var(--spacing-4)", width: 90, textAlign: "right" }}
+                            className="pv-vb-input pv-vb-input--w90"
                           />
                         </td>
                       </>
                     ) : (
                       <>
-                        <td style={{ padding: "var(--spacing-4)" }}>
+                        <td style={{ textAlign: "right" }}>
                           <input
                             type="number"
                             min={0}
                             step={0.0001}
                             value={row.restitution_energy_eur_per_kwh ?? ""}
                             onChange={(e) => onUpdateRow(providerCode, segmentKey, kva, "restitution_energy_eur_per_kwh", Number(e.target.value) || 0)}
-                            style={{ ...inputStyle, padding: "var(--spacing-4)", width: 90, textAlign: "right" }}
+                            className="pv-vb-input pv-vb-input--w90"
                           />
                         </td>
-                        <td style={{ padding: "var(--spacing-4)" }}>
+                        <td style={{ textAlign: "right" }}>
                           <input
                             type="number"
                             min={0}
                             step={0.0001}
                             value={row.reseau_eur_per_kwh ?? ""}
                             onChange={(e) => onUpdateRow(providerCode, segmentKey, kva, "reseau_eur_per_kwh", Number(e.target.value) || 0)}
-                            style={{ ...inputStyle, padding: "var(--spacing-4)", width: 90, textAlign: "right" }}
+                            className="pv-vb-input pv-vb-input--w90"
                           />
                         </td>
                       </>
                     )}
-                    <td style={{ padding: "var(--spacing-4)" }}>
+                    <td style={{ textAlign: "right" }}>
                       <input
                         type="number"
                         min={0}
                         step={0.01}
                         value={row.contribution_eur_per_year ?? ""}
                         onChange={(e) => onUpdateRow(providerCode, segmentKey, kva, "contribution_eur_per_year", Number(e.target.value) || 0)}
-                        style={{ ...inputStyle, padding: "var(--spacing-4)", width: 90, textAlign: "right" }}
+                        className="pv-vb-input pv-vb-input--w90"
                       />
                     </td>
-                    <td style={{ padding: "var(--spacing-4)", textAlign: "center" }}>
+                    <td style={{ textAlign: "center" }}>
                       <input
                         type="checkbox"
                         checked={row.enabled !== false}
@@ -490,7 +437,7 @@ function SegmentAccordion({
             </tbody>
           </table>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

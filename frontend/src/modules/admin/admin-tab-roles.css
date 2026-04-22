@@ -194,20 +194,55 @@
 
 /* —— Modal phase 2 : résumé, niveau, recherche —— */
 
+.admin-roles-modal-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.admin-roles-modal-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+}
+
+.admin-roles-modal-empty {
+  margin: 0;
+  padding: 20px 16px;
+  text-align: center;
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+  border-radius: 10px;
+  border: 1px dashed var(--border-soft);
+  background: color-mix(in srgb, var(--text-primary) 2%, transparent);
+}
+
 .admin-roles-modal-search {
-  margin-bottom: var(--spacing-20);
+  margin-bottom: 0;
 }
 
 .admin-roles-modal-search input {
   width: 100%;
-  height: 44px;
+  height: 40px;
   box-sizing: border-box;
-  padding: 0 var(--spacing-12);
-  border-radius: var(--radius-input);
-  border: 1px solid var(--input-border);
-  background: var(--input-bg);
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid var(--input-border, var(--border-soft));
+  background: var(--input-bg, var(--surface-card));
   color: var(--text-primary);
-  font-size: var(--font-size-body);
+  font-size: 0.875rem;
+}
+
+.admin-roles-modal-search input:focus {
+  outline: none;
+}
+
+.admin-roles-modal-search input:focus-visible {
+  border-color: color-mix(in srgb, var(--primary) 40%, var(--border-soft));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 15%, transparent);
 }
 
 .admin-roles-modal-search input::placeholder {
@@ -215,11 +250,11 @@
 }
 
 .admin-roles-modal-summary {
-  margin-bottom: var(--spacing-20);
-  padding: var(--spacing-16);
-  border-radius: var(--radius-12, 12px);
+  margin-bottom: 0;
+  padding: 14px 16px;
+  border-radius: 12px;
   border: 1px solid var(--border-soft);
-  background: linear-gradient(180deg, var(--surface-2) 0%, rgba(124, 58, 237, 0.04) 100%);
+  background: color-mix(in srgb, var(--text-primary) 3%, var(--surface-card, #fff));
 }
 
 .admin-roles-modal-summary-top {

@@ -47,8 +47,10 @@ export type Pan = {
   id: string;
   /** Sommets du pan (x, y, h). En runtime legacy, peut être dérivé de .polygon via ensurePansHavePoints. */
   points: Point2D[];
+  /** Anneau image dérivé / compat (ordre de lecture secondaire après points — voir panVertexContract). */
+  polygonPx?: { x: number; y: number; h?: number; heightM?: number; id?: string }[];
   /** Contour 2D legacy (liste de { x, y }). Utilisé si .points absent. */
-  polygon?: { x: number; y: number }[];
+  polygon?: { x: number; y: number; h?: number }[];
 
   // propriétés physiques (conservées pour compatibilité)
   azimuthDeg: number | null; // orientation réelle (0 = Nord, 90 = Est)

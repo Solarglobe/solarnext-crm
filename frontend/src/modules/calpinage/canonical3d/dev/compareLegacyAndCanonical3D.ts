@@ -19,6 +19,7 @@ import {
 import { houseModelV2 } from "../../geometry/houseModelV2";
 import { buildSolarScene3DFromCalpinageRuntime } from "../buildSolarScene3DFromCalpinageRuntime";
 import type { SolarScene3D } from "../types/solarScene3d";
+import { runtimeFixtureWithStrictRootPans } from "./runtime3DFixtureBattery";
 
 const HEIGHT_TOL_M = 0.25;
 const BASE_Z_TOL_M = 0.35;
@@ -289,7 +290,9 @@ export function compareLegacyAndCanonical3D(input: CompareLegacyCanonical3DInput
   const { sceneId, runtime, getAllPanels } = input;
   const { state: legacyState, roofPansPromotedToPans } = prepareCalpinageStateForLegacyParityProbe(runtime);
 
-  const normalized = normalizeCalpinageGeometry3DReady(legacyState, undefined, { getAllPanels });
+  const normalized = normalizeCalpinageGeometry3DReady(legacyState, undefined, {
+    getAllPanels: getAllPanels ? () => getAllPanels() ?? [] : undefined,
+  });
   const entities = normalized.entities;
   const mpp =
     (legacyState.roof && typeof legacyState.roof === "object"
@@ -303,7 +306,10 @@ export function compareLegacyAndCanonical3D(input: CompareLegacyCanonical3DInput
   const legacyShadow = entitiesOfType(entities, "SHADOW_VOLUME");
   const legacyExt = entitiesOfType(entities, "ROOF_EXTENSION");
 
-  const canonicalRes = buildSolarScene3DFromCalpinageRuntime(runtime, { getAllPanels });
+  const canonicalRes = buildSolarScene3DFromCalpinageRuntime(
+    runtimeFixtureWithStrictRootPans(runtime as Record<string, unknown>),
+    { getAllPanels },
+  );
   const scene = canonicalRes.scene;
 
   const legacyPanIds = new Set(legacyPans.map((p) => String(p.id)));

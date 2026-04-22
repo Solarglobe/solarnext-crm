@@ -9,6 +9,7 @@ import type { Vector3 } from "../types/primitives";
 import type { HeightResolutionTrace } from "./heightConstraints";
 import { structuralHeightUnifyWeight } from "./heightConstraints";
 import type { LegacyPanInput } from "./legacyInput";
+import { legacyPanRawCornerHasExplicitHeightM } from "./explicitLegacyPanCornerZ";
 import { isRoofZPipelineDevTraceEnabled, roofZTraceLogUnifyCluster, roofZTraceRecordStep } from "./roofZPipelineDevTrace";
 
 /** Tolérance image (px) : même ordre que Phase 2 pour les points « même coin » dessinés sur deux pans. */
@@ -75,16 +76,36 @@ function unifiedZForCluster(
   return wSum > 0 ? zSum / wSum : zs[0] ?? 0;
 }
 
+export type UnifyLegacyPanCornerZOptions = {
+  /**
+   * Si true : n’unifie pas un cluster si au moins un sommet a une cote explicite sur le polygone pan
+   * (`explicit_polygon_vertex`) — règle d’or « compléter sans corriger l’existant ».
+   */
+  readonly skipClusterIfAnyExplicitPolygonVertex?: boolean;
+  /**
+   * Mode toiture fidèle : ignore le cluster si **chaque** sommet a `heightM` explicite sur le polygone raw
+   * (aucune moyenne inter-pans sur ces points).
+   */
+  readonly skipClusterIfAllRawCornersExplicit?: boolean;
+};
+
 /**
  * Mutateur : impose le même Z sur les coins de clusters multi-pans (proximité image).
  */
 export function unifyLegacyPanCornerZAcrossPans(
   phases: LegacyPanCornerPhase[],
   tolPx: number = LEGACY_SHARED_CORNER_CLUSTER_TOL_PX,
-): { readonly adjustedClusterCount: number; readonly diagnostics: GeometryDiagnostic[] } {
+  opts?: UnifyLegacyPanCornerZOptions,
+): {
+  readonly adjustedClusterCount: number;
+  readonly diagnostics: GeometryDiagnostic[];
+  /** Pans ayant eu au moins un Z modifié par unify. */
+  readonly touchedPanIds: ReadonlySet<string>;
+} {
   const diagnostics: GeometryDiagnostic[] = [];
+  const touchedPanIds = new Set<string>();
   if (phases.length < 2) {
-    return { adjustedClusterCount: 0, diagnostics };
+    return { adjustedClusterCount: 0, diagnostics, touchedPanIds };
   }
 
   const refs: Ref[] = [];
@@ -100,6 +121,36 @@ export function unifyLegacyPanCornerZAcrossPans(
     if (cl.length < 2) continue;
     const panIndices = new Set(cl.map((r) => r.pi));
     if (panIndices.size < 2) continue;
+
+    if (opts?.skipClusterIfAllRawCornersExplicit) {
+      const allRawExplicit = cl.every((r) => legacyPanRawCornerHasExplicitHeightM(phases[r.pi].raw, r.ci));
+      if (allRawExplicit) {
+        diagnostics.push({
+          code: "INTERPAN_UNIFY_SKIPPED_ALL_EXPLICIT_RAW_HEIGHT",
+          severity: "info",
+          message:
+            "Unification Z ignorée : tous les sommets du cluster ont heightM explicite sur le polygone (mode toiture fidèle).",
+          context: { clusterSize: cl.length },
+        });
+        continue;
+      }
+    }
+
+    if (opts?.skipClusterIfAnyExplicitPolygonVertex) {
+      const touchesExplicit = cl.some(
+        (r) => phases[r.pi].cornerTraces[r.ci]?.source === "explicit_polygon_vertex",
+      );
+      if (touchesExplicit) {
+        diagnostics.push({
+          code: "INTERPAN_UNIFY_SKIPPED_EXPLICIT_VERTEX",
+          severity: "info",
+          message:
+            "Unification Z inter-pans ignorée pour un cluster contenant au moins une cote explicite sur sommet pan (mode fidélité).",
+          context: { clusterSize: cl.length },
+        });
+        continue;
+      }
+    }
 
     const zs = cl.map((r) => phases[r.pi].cornersWorld[r.ci].z);
     const traces = cl.map((r) => phases[r.pi].cornerTraces[r.ci]);
@@ -132,10 +183,22 @@ export function unifyLegacyPanCornerZAcrossPans(
         traces: traces.map((t) => t.source),
       });
     }
+    let wroteAny = false;
     for (const r of cl) {
+      const rawPan = phases[r.pi].raw;
+      if (legacyPanRawCornerHasExplicitHeightM(rawPan, r.ci)) {
+        continue;
+      }
       const p = phases[r.pi].cornersWorld[r.ci];
       phases[r.pi].cornersWorld[r.ci] = { x: p.x, y: p.y, z: zU };
       roofZTraceRecordStep(phases[r.pi].pan.id, r.ci, "I", zU, { unifyUsedRidgePriority });
+      wroteAny = true;
+    }
+
+    if (!wroteAny) continue;
+
+    for (const r of cl) {
+      touchedPanIds.add(phases[r.pi].pan.id);
     }
 
     adjustedClusterCount++;
@@ -156,5 +219,5 @@ export function unifyLegacyPanCornerZAcrossPans(
     });
   }
 
-  return { adjustedClusterCount, diagnostics };
+  return { adjustedClusterCount, diagnostics, touchedPanIds };
 }

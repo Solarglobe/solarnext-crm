@@ -1,0 +1,10 @@
+---
+description: Règles migrations PostgreSQL (node-pg-migrate)
+globs: backend/migrations/**/*.js
+---
+
+# Migrations immuables
+
+- Une migration **déjà exécutée en base** (présente dans `pgmigrations`) est **IMMUTABLE** : ne jamais en modifier le fichier `.js`.
+- Tout correctif de schéma, données ou checksum → **nouvelle** migration avec un **timestamp supérieur** dans `backend/migrations/`.
+- Ne pas désactiver `verifyChecksums` ni modifier `migrationManager.service.js` pour contourner une erreur.

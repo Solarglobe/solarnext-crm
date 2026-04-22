@@ -268,11 +268,12 @@ const multiPanLShaped: Runtime3DFixtureBundle = {
   ],
 };
 
-/** CAS 4 — monde incomplet (pas de contrat 3D explicite) : doit échouer proprement. */
+/** CAS 4 — contrat 3D absent en persistance : le build runtime le matérialise (scale + nord valides). */
 const partialMissingWorldContract: Runtime3DFixtureBundle = {
   id: "partial-missing-world-contract",
-  title: "Partiel — contrat monde absent",
-  description: "Géométrie présente mais sans canonical3DWorldContract : pas de faux succès 3D.",
+  title: "Partiel — contrat monde absent avant build",
+  description:
+    "Miroir roof.roofPans + échelle/nord OK sans bloc canonical3DWorldContract : alignement au même titre que sync roofPans.",
   runtime: {
     roof: {
       scale: { metersPerPixel: MPP },
@@ -806,6 +807,22 @@ const denseLoadedCase: Runtime3DFixtureBundle = {
     makeSyntheticPanel("pv-d-14", "pan-d3", 660, 350, 9),
   ],
 };
+
+/**
+ * Duplique `roof.roofPans` → racine `pans` si absent — aligné sur `CALPINAGE_STATE.pans` en produit.
+ * Les fixtures historiques ne portaient que le miroir.
+ */
+export function runtimeFixtureWithStrictRootPans(runtime: Record<string, unknown>): Record<string, unknown> {
+  if (Array.isArray(runtime.pans) && runtime.pans.length > 0) return runtime;
+  const roof = runtime.roof;
+  if (!roof || typeof roof !== "object") return runtime;
+  const rp = (roof as Record<string, unknown>).roofPans;
+  if (!Array.isArray(rp) || rp.length === 0) return runtime;
+  const pans = rp.map((item) =>
+    item && typeof item === "object" ? { ...(item as Record<string, unknown>) } : item,
+  );
+  return { ...runtime, pans };
+}
 
 /** Point d’entrée unique : clé → bundle (ordre stable pour docs / tests). */
 export const RUNTIME_3D_FIXTURE_BATTERY: Readonly<Record<string, Runtime3DFixtureBundle>> = {

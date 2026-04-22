@@ -19,6 +19,11 @@ const SECTION_UI: Record<DocumentSectionKey, { title: string; empty: string; kic
     empty: "Aucune proposition commerciale",
     kicker: "Études & propositions",
   },
+  DP: {
+    title: "DP",
+    empty: "Aucun document DP",
+    kicker: "Déclaration préalable & pièces générées",
+  },
   DP_MAIRIE: { title: "DP Mairie", empty: "Aucun DP mairie", kicker: "Dossier municipal" },
   ADMINISTRATIVE: {
     title: "Documents administratifs",
@@ -32,13 +37,14 @@ const CATEGORY_OPTIONS: { value: DocumentCategory; label: string }[] = [
   { value: "QUOTE", label: "Devis" },
   { value: "INVOICE", label: "Facture" },
   { value: "COMMERCIAL_PROPOSAL", label: "Proposition commerciale" },
+  { value: "DP", label: "DP (déclaration préalable)" },
   { value: "DP_MAIRIE", label: "DP Mairie" },
   { value: "ADMINISTRATIVE", label: "Document administratif" },
   { value: "OTHER", label: "Autre" },
 ];
 
 function defaultVisibilityForCategory(cat: DocumentCategory): boolean {
-  return cat === "QUOTE" || cat === "INVOICE" || cat === "COMMERCIAL_PROPOSAL";
+  return cat === "QUOTE" || cat === "INVOICE" || cat === "COMMERCIAL_PROPOSAL" || cat === "DP";
 }
 
 function isSystemGenerated(doc: EntityDocument): boolean {

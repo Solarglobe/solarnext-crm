@@ -64,7 +64,7 @@ export const PERMISSION_UI: Record<string, Entry> = {
   },
   "org.settings.manage": {
     label: "Paramètres organisation",
-    description: "Modifier l’identité légale, la facturation et les réglages org.",
+    description: "Configurer l’entreprise (identité, documents, numérotation) dans Équipes & entreprise.",
     domain: "org",
   },
   "lead.read.self": {

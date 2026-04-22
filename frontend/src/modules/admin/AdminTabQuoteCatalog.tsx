@@ -304,7 +304,7 @@ export function AdminTabQuoteCatalog() {
 
   if (loading) {
     return (
-      <div className="admin-tab-quote-catalog">
+      <div className="admin-tab-quote-catalog org-structure-tab">
         <SkeletonLines count={8} />
       </div>
     );
@@ -313,63 +313,76 @@ export function AdminTabQuoteCatalog() {
   const showEmpty = items.length === 0 && !error;
 
   return (
-    <div className="admin-tab-quote-catalog">
-      {/* Toolbar structurée */}
-      <div className="admin-catalog-toolbar">
-        <div className="admin-catalog-toolbar-left">
-          <input
-            type="text"
-            placeholder="Rechercher par nom…"
-            value={searchQ}
-            onChange={(e) => setSearchQ(e.target.value)}
-            className="admin-catalog-input sn-input"
-          />
-          <select
-            value={filterCategory}
-            onChange={(e) => setFilterCategory(e.target.value)}
-            className="admin-catalog-select sn-input"
-          >
-            <option value="">Toutes catégories</option>
-            {CATEGORIES.map((c) => (
-              <option key={c} value={c}>
-                {CATEGORY_LABELS[c]}
-              </option>
-            ))}
-          </select>
-          <label className="admin-catalog-checkbox-wrap">
-            <input
-              type="checkbox"
-              checked={includeInactive}
-              onChange={(e) => setIncludeInactive(e.target.checked)}
-              style={{ width: 18, height: 18 }}
-            />
-            <span>Inclure inactifs</span>
-          </label>
-        </div>
-        <div className="admin-catalog-toolbar-right">
-          <Button variant="primary" onClick={openCreate}>
-            Nouveau panneau
-          </Button>
-        </div>
-      </div>
+    <div className="admin-tab-quote-catalog org-structure-tab">
+      <header className="sn-saas-tab-inner-header">
+        <h2 className="sn-saas-tab-inner-header__title">Lignes catalogue</h2>
+        <p className="sn-saas-tab-inner-header__lead">
+          Matériel, prestations et services : chaque ligne alimente le monteur de devis avec tarifs, TVA et indicateur de marge.
+        </p>
+      </header>
 
-      {error && (
-        <p style={{ color: "var(--danger)", marginBottom: "var(--spacing-16)" }}>{error}</p>
-      )}
+      <div className="sn-saas-stack">
+        {error ? (
+          <div className="sn-saas-form-section sn-saas-callout-error" role="alert">
+            <p className="sn-saas-callout-error__text">{error}</p>
+          </div>
+        ) : null}
 
-      {showEmpty ? (
-        <div className="admin-catalog-empty">
-          <h3 className="admin-catalog-empty-title">Aucun panneau</h3>
-          <p className="admin-catalog-empty-desc">
-            Ajoutez votre premier panneau au catalogue pour monter vos devis.
-          </p>
-          <Button variant="primary" onClick={openCreate}>
-            Nouveau panneau
-          </Button>
-        </div>
-      ) : (
-        <div className="admin-catalog-table-wrap">
-          <table className="admin-catalog-table">
+        <section className="sn-saas-form-section" aria-labelledby="catalog-lines-section-title">
+          <div className="sn-saas-form-section__head">
+            <h3 id="catalog-lines-section-title" className="sn-saas-form-section__title">
+              Catalogue
+            </h3>
+            <Button variant="primary" size="sm" type="button" onClick={openCreate}>
+              Ajouter une ligne
+            </Button>
+          </div>
+
+          <div className="sn-saas-toolbar admin-catalog-filters-toolbar">
+            <div className="sn-saas-toolbar__main">
+              <input
+                type="text"
+                placeholder="Rechercher par nom…"
+                value={searchQ}
+                onChange={(e) => setSearchQ(e.target.value)}
+                className="admin-catalog-input sn-saas-input"
+                aria-label="Rechercher par nom"
+              />
+              <select
+                value={filterCategory}
+                onChange={(e) => setFilterCategory(e.target.value)}
+                className="admin-catalog-select sn-saas-input"
+                aria-label="Filtrer par catégorie"
+              >
+                <option value="">Toutes catégories</option>
+                {CATEGORIES.map((c) => (
+                  <option key={c} value={c}>
+                    {CATEGORY_LABELS[c]}
+                  </option>
+                ))}
+              </select>
+              <label className="admin-catalog-checkbox-wrap">
+                <input
+                  type="checkbox"
+                  checked={includeInactive}
+                  onChange={(e) => setIncludeInactive(e.target.checked)}
+                  className="admin-catalog-checkbox"
+                />
+                <span>Inclure inactifs</span>
+              </label>
+            </div>
+          </div>
+
+          {showEmpty ? (
+            <div className="admin-catalog-empty admin-catalog-empty--inline">
+              <h3 className="admin-catalog-empty-title">Aucune ligne</h3>
+              <p className="admin-catalog-empty-desc">
+                Ajoutez votre première ligne au catalogue pour monter vos devis — bouton « Ajouter une ligne » ci-dessus.
+              </p>
+            </div>
+          ) : (
+            <div className="sn-saas-table-wrap admin-catalog-table-outer">
+              <table className="sn-saas-table sn-saas-table--dense admin-catalog-table">
             <thead>
               <tr>
                 <th className="admin-catalog-col-nom">Nom</th>
@@ -495,8 +508,10 @@ export function AdminTabQuoteCatalog() {
               })}
             </tbody>
           </table>
-        </div>
-      )}
+            </div>
+          )}
+        </section>
+      </div>
 
       <ModalShell
         open={modalOpen}
@@ -504,12 +519,17 @@ export function AdminTabQuoteCatalog() {
         onEscape={handleModalEscape}
         closeOnBackdropClick
         size="lg"
-        title={editingItem ? "Modifier le panneau" : "Nouveau panneau"}
-        subtitle={editingItem ? "Informations et tarifs" : "Nouvelle ligne catalogue"}
-        panelClassName="admin-catalog-modal"
+        title={editingItem ? "Modifier la ligne" : "Nouvelle ligne catalogue"}
+        subtitle={
+          editingItem
+            ? "Mettez à jour les blocs ci-dessous — chaque section est indépendante."
+            : "Trois blocs : produit, tarifs, puis marge calculée. Champs compacts, fond clair."
+        }
+        panelClassName="admin-catalog-modal qc-modal-panel"
+        bodyClassName="qc-modal-shell-body"
         footer={
           <>
-            <Button variant="ghost" type="button" size="sm" onClick={requestClose}>
+            <Button variant="secondary" type="button" size="sm" onClick={requestClose}>
               Annuler
             </Button>
             <Button variant="primary" type="submit" size="sm" form="quote-catalog-form">
@@ -518,132 +538,150 @@ export function AdminTabQuoteCatalog() {
           </>
         }
       >
-        <form id="quote-catalog-form" onSubmit={handleSubmit}>
-              <div className="admin-catalog-modal-section">
-                <h3 className="admin-catalog-modal-section-title">Produit</h3>
-                <div className="admin-catalog-modal-fields">
-                  <div className="admin-catalog-modal-field">
-                    <label className="admin-catalog-field-label" htmlFor="qc-name">Nom *</label>
-                    <input
-                      id="qc-name"
-                      type="text"
-                      value={formName}
-                      onChange={(e) => setFormName(e.target.value)}
-                      required
-                      minLength={2}
-                      maxLength={120}
-                      className="admin-catalog-modal-input"
-                    />
-                  </div>
-                  <div className="admin-catalog-modal-field-row">
-                    <div className="admin-catalog-modal-field">
-                      <label className="admin-catalog-field-label">Catégorie</label>
-                      <select
-                        value={formCategory}
-                        onChange={(e) => setFormCategory(e.target.value as QuoteCatalogCategory)}
-                        className="admin-catalog-modal-input"
-                      >
-                        {CATEGORIES.map((c) => (
-                          <option key={c} value={c}>
-                            {CATEGORY_LABELS[c]}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="admin-catalog-modal-field">
-                      <label className="admin-catalog-field-label">Mode tarif</label>
-                      <select
-                        value={formPricingMode}
-                        onChange={(e) => setFormPricingMode(e.target.value as QuoteCatalogPricingMode)}
-                        className="admin-catalog-modal-input"
-                      >
-                        {PRICING_MODES.map((m) => (
-                          <option key={m} value={m}>
-                            {PRICING_LABELS[m]}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                  <div className="admin-catalog-modal-field admin-catalog-field-optional">
-                    <label className="admin-catalog-field-label admin-catalog-field-label-optional" htmlFor="qc-desc">
-                      Description (texte commercial, multi-lignes)
-                    </label>
-                    <textarea
-                      id="qc-desc"
-                      value={formDescription}
-                      onChange={(e) => setFormDescription(e.target.value)}
-                      maxLength={QUOTE_CATALOG_DESCRIPTION_MAX_CHARS}
-                      rows={10}
-                      className="admin-catalog-modal-input admin-catalog-modal-input-optional admin-catalog-modal-textarea"
-                      placeholder="Optionnel — détail commercial affiché sur le devis et le PDF"
-                      aria-describedby="qc-desc-counter"
-                    />
-                    <p id="qc-desc-counter" className="admin-catalog-desc-counter">
-                      {formDescription.length} / {QUOTE_CATALOG_DESCRIPTION_MAX_CHARS}
-                    </p>
-                  </div>
-                </div>
+        <form id="quote-catalog-form" className="qc-modal-form" onSubmit={handleSubmit}>
+          <section className="qc-modal-section" aria-labelledby="qc-sec-produit">
+            <h3 id="qc-sec-produit" className="qc-modal-section__title">
+              Produit
+            </h3>
+            <div className="qc-modal-field-grid qc-modal-field-grid--2">
+              <div className="qc-modal-field-span-2">
+                <label className="qc-modal-label" htmlFor="qc-name">
+                  Nom *
+                </label>
+                <input
+                  id="qc-name"
+                  type="text"
+                  value={formName}
+                  onChange={(e) => setFormName(e.target.value)}
+                  required
+                  minLength={2}
+                  maxLength={120}
+                  className="qc-modal-input"
+                  autoComplete="off"
+                />
               </div>
-
-              <div className="admin-catalog-modal-section">
-                <h3 className="admin-catalog-modal-section-title">Prix</h3>
-                <div className="admin-catalog-modal-fields">
-                  <div className="admin-catalog-modal-field-row admin-catalog-modal-field-row--3">
-                    <div className="admin-catalog-modal-field">
-                      <label className="admin-catalog-field-label">Vente HT (€)</label>
-                      <input
-                        type="number"
-                        step={0.01}
-                        value={formSaleCents / 100}
-                        onChange={(e) => setFormSaleCents(Math.round(parseFloat(e.target.value || "0") * 100))}
-                        className="admin-catalog-modal-input"
-                        title="Valeur négative autorisée pour une remise (catégorie Remise)"
-                      />
-                    </div>
-                    <div className="admin-catalog-modal-field">
-                      <label className="admin-catalog-field-label">Achat HT (€)</label>
-                      <input
-                        type="number"
-                        step={0.01}
-                        value={formPurchaseCents / 100}
-                        onChange={(e) => setFormPurchaseCents(Math.round(parseFloat(e.target.value || "0") * 100))}
-                        className="admin-catalog-modal-input"
-                        title="Valeur négative autorisée si besoin métier"
-                      />
-                    </div>
-                    <div className="admin-catalog-modal-field">
-                      <label className="admin-catalog-field-label" htmlFor="qc-vat">TVA (%)</label>
-                      <input
-                        id="qc-vat"
-                        type="number"
-                        min={0}
-                        max={300}
-                        step={0.01}
-                        value={formVatPercent}
-                        onChange={(e) => setFormVatPercent(parseFloat(e.target.value) ?? 0)}
-                        className="admin-catalog-modal-input"
-                      />
-                    </div>
-                  </div>
-                  {(formVatPercent < 0 || formVatPercent > 300) && (
-                    <span className="admin-catalog-field-error">TVA : 0 à 300</span>
-                  )}
-                </div>
+              <div>
+                <label className="qc-modal-label" htmlFor="qc-category">
+                  Catégorie
+                </label>
+                <select
+                  id="qc-category"
+                  value={formCategory}
+                  onChange={(e) => setFormCategory(e.target.value as QuoteCatalogCategory)}
+                  className="qc-modal-input"
+                >
+                  {CATEGORIES.map((c) => (
+                    <option key={c} value={c}>
+                      {CATEGORY_LABELS[c]}
+                    </option>
+                  ))}
+                </select>
               </div>
-
-              <div className="admin-catalog-modal-section">
-                <h3 className="admin-catalog-modal-section-title">Résultat</h3>
-                <div className="admin-catalog-modal-marge">
-                  <span className={`admin-catalog-marge-value admin-catalog-marge--${marginLevel(marginPctVal)}`}>
-                    {marginEurVal.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
-                    <span className="admin-catalog-marge-sep">|</span>
-                    {marginPctVal == null ? "—" : `${marginPctVal.toFixed(1)} %`}
-                  </span>
-                </div>
+              <div>
+                <label className="qc-modal-label" htmlFor="qc-pricing">
+                  Mode tarif
+                </label>
+                <select
+                  id="qc-pricing"
+                  value={formPricingMode}
+                  onChange={(e) => setFormPricingMode(e.target.value as QuoteCatalogPricingMode)}
+                  className="qc-modal-input"
+                >
+                  {PRICING_MODES.map((m) => (
+                    <option key={m} value={m}>
+                      {PRICING_LABELS[m]}
+                    </option>
+                  ))}
+                </select>
               </div>
+              <div className="qc-modal-field-span-2">
+                <label className="qc-modal-label" htmlFor="qc-desc">
+                  Description (texte commercial)
+                </label>
+                <textarea
+                  id="qc-desc"
+                  value={formDescription}
+                  onChange={(e) => setFormDescription(e.target.value)}
+                  maxLength={QUOTE_CATALOG_DESCRIPTION_MAX_CHARS}
+                  rows={6}
+                  className="qc-modal-textarea"
+                  placeholder="Optionnel — détail affiché sur le devis et le PDF"
+                  aria-describedby="qc-desc-counter"
+                />
+                <p id="qc-desc-counter" className="qc-modal-desc-counter">
+                  {formDescription.length} / {QUOTE_CATALOG_DESCRIPTION_MAX_CHARS}
+                </p>
+              </div>
+            </div>
+          </section>
 
-            </form>
+          <section className="qc-modal-section" aria-labelledby="qc-sec-tarif">
+            <h3 id="qc-sec-tarif" className="qc-modal-section__title">
+              Tarification
+            </h3>
+            <div className="qc-modal-field-grid qc-modal-field-grid--3">
+              <div>
+                <label className="qc-modal-label" htmlFor="qc-sale">
+                  Vente HT (€)
+                </label>
+                <input
+                  id="qc-sale"
+                  type="number"
+                  step={0.01}
+                  value={formSaleCents / 100}
+                  onChange={(e) => setFormSaleCents(Math.round(parseFloat(e.target.value || "0") * 100))}
+                  className="qc-modal-input"
+                  title="Valeur négative autorisée pour une remise (catégorie Remise)"
+                />
+              </div>
+              <div>
+                <label className="qc-modal-label" htmlFor="qc-purchase">
+                  Achat HT (€)
+                </label>
+                <input
+                  id="qc-purchase"
+                  type="number"
+                  step={0.01}
+                  value={formPurchaseCents / 100}
+                  onChange={(e) => setFormPurchaseCents(Math.round(parseFloat(e.target.value || "0") * 100))}
+                  className="qc-modal-input"
+                  title="Valeur négative autorisée si besoin métier"
+                />
+              </div>
+              <div>
+                <label className="qc-modal-label" htmlFor="qc-vat">
+                  TVA (%)
+                </label>
+                <input
+                  id="qc-vat"
+                  type="number"
+                  min={0}
+                  max={300}
+                  step={0.01}
+                  value={formVatPercent}
+                  onChange={(e) => setFormVatPercent(parseFloat(e.target.value) ?? 0)}
+                  className="qc-modal-input"
+                />
+              </div>
+            </div>
+            {(formVatPercent < 0 || formVatPercent > 300) ? (
+              <span className="qc-modal-field-error">TVA : 0 à 300</span>
+            ) : null}
+          </section>
+
+          <section className="qc-modal-section qc-modal-section--highlight" aria-labelledby="qc-sec-marge">
+            <h3 id="qc-sec-marge" className="qc-modal-section__title">
+              Marge indicative
+            </h3>
+            <div className="qc-modal-marge">
+              <span className={`qc-modal-marge-value admin-catalog-marge--${marginLevel(marginPctVal)}`}>
+                {marginEurVal.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
+                <span className="qc-modal-marge-sep">|</span>
+                {marginPctVal == null ? "—" : `${marginPctVal.toFixed(1)} %`}
+              </span>
+            </div>
+          </section>
+        </form>
       </ModalShell>
 
       <ConfirmModal
@@ -662,9 +700,9 @@ export function AdminTabQuoteCatalog() {
         open={Boolean(confirmItem)}
         title={
           confirmItem?.action === "deactivate"
-            ? "Désactiver ce panneau ?"
+            ? "Désactiver cette ligne ?"
             : confirmItem
-              ? "Activer ce panneau ?"
+              ? "Activer cette ligne ?"
               : ""
         }
         message={

@@ -36,7 +36,7 @@ describe("StudyPdfActions", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText("PDF SolarNext")).toBeInTheDocument();
+      expect(screen.getByText("PDF d'étude")).toBeInTheDocument();
     });
     expect(screen.getByText("Aucun PDF généré")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Générer le PDF/i })).toBeInTheDocument();

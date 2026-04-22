@@ -47,8 +47,8 @@ export async function archiveEntity(tableName, entityId, organizationId, userId)
   );
 
   const updated = await pool.query(
-    `SELECT * FROM ${tableName} WHERE id = $1`,
-    [entityId]
+    `SELECT * FROM ${tableName} WHERE id = $1 AND organization_id = $2`,
+    [entityId, organizationId]
   );
   return updated.rows[0] || null;
 }
@@ -82,8 +82,8 @@ export async function restoreEntity(tableName, entityId, organizationId) {
   );
 
   const updated = await pool.query(
-    `SELECT * FROM ${tableName} WHERE id = $1`,
-    [entityId]
+    `SELECT * FROM ${tableName} WHERE id = $1 AND organization_id = $2`,
+    [entityId, organizationId]
   );
   return updated.rows[0] || null;
 }

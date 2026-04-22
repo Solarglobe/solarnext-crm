@@ -63,16 +63,18 @@ export function calculateInactivityLevel(lastActivityAt) {
 }
 
 /**
- * Recalcule et met à jour score, potential_revenue, inactivity_level pour un lead
+ * Recalcule et met à jour score, potential_revenue, inactivity_level pour un lead.
+ * `organizationId` est requis : filtre SQL (défense multi-tenant sur les écritures).
  * @param {string} leadId
+ * @param {string} organizationId
  * @returns {Promise<{score: number, potential_revenue: number, inactivity_level: string}>}
  */
-export async function recalculateLeadScore(leadId) {
+export async function recalculateLeadScore(leadId, organizationId) {
   const res = await pool.query(
     `SELECT id, is_owner, consumption, surface_m2, project_delay_months,
             budget_validated, phone, roof_exploitable, estimated_kw, last_activity_at
-     FROM leads WHERE id = $1`,
-    [leadId]
+     FROM leads WHERE id = $1 AND organization_id = $2`,
+    [leadId, organizationId]
   );
   if (res.rows.length === 0) {
     throw new Error("Lead non trouvé");
@@ -85,8 +87,8 @@ export async function recalculateLeadScore(leadId) {
 
   await pool.query(
     `UPDATE leads SET score = $1, potential_revenue = $2, inactivity_level = $3, updated_at = now()
-     WHERE id = $4`,
-    [score, potential_revenue, inactivity_level, leadId]
+     WHERE id = $4 AND organization_id = $5`,
+    [score, potential_revenue, inactivity_level, leadId, organizationId]
   );
 
   return { score, potential_revenue, inactivity_level };

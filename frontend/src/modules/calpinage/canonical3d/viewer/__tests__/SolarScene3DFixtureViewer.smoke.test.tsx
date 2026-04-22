@@ -8,6 +8,7 @@ import { buildSolarScene3DFromCalpinageRuntime } from "../../buildSolarScene3DFr
 import {
   RUNTIME_3D_FIXTURE_BATTERY,
   RUNTIME_3D_OFFICIAL_FAMILY_FIXTURE_IDS,
+  runtimeFixtureWithStrictRootPans,
 } from "../../dev/runtime3DFixtureBattery";
 import { SolarScene3DViewer } from "../SolarScene3DViewer";
 
@@ -88,9 +89,12 @@ describe("SolarScene3DViewer — smoke fixtures officielles", () => {
     "monte avec inspectMode + shading pour fixture %s",
     async (fixtureId) => {
       const bundle = RUNTIME_3D_FIXTURE_BATTERY[fixtureId]!;
-      const res = buildSolarScene3DFromCalpinageRuntime(bundle.runtime, {
-        getAllPanels: () => bundle.panels,
-      });
+      const res = buildSolarScene3DFromCalpinageRuntime(
+        runtimeFixtureWithStrictRootPans(bundle.runtime as Record<string, unknown>),
+        {
+          getAllPanels: () => bundle.panels,
+        },
+      );
       expect(res.ok, JSON.stringify(res.diagnostics.errors)).toBe(true);
       expect(res.scene).not.toBeNull();
       const scene = res.scene!;

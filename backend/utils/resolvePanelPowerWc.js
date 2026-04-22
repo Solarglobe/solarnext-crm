@@ -1,12 +1,13 @@
 /**
  * Résolution unique de la puissance unitaire d'un panneau (Wc) — variantes legacy snake_case / camelCase.
- * Ne renvoie jamais de valeur magique type 485 : null si non résolvable.
+ * Retourne null si non résolvable (pas de valeur par défaut ici).
  *
  * Ordre de lecture : power_wc → powerWc → power_w → powerWp
  */
 
-/** Dernier recours historique (kit org) — à n'utiliser que si aucune donnée panneau exploitable. */
-export const LEGACY_FALLBACK_PANEL_WC = 485;
+/** Message d'erreur moteur — panneau obligatoire pour le calcul kWc / production. */
+export const ENGINE_ERROR_PANEL_REQUIRED =
+  "[ENGINE ERROR] Panel is required to compute production";
 
 /**
  * @param {unknown} panel

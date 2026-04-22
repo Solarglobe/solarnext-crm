@@ -24,7 +24,11 @@ import {
   buildStateFromApi,
   type QuoteBuilderState,
 } from "./QuoteBuilderStore";
-import { fetchQuotePrepEconomicItems, quotePrepItemsToQuoteLines } from "./quotePrepImport";
+import {
+  enrichPrepItemsWithCatalogDescriptions,
+  fetchQuotePrepEconomicItems,
+  quotePrepItemsToQuoteLines,
+} from "./quotePrepImport";
 import QuoteToolbar from "./QuoteToolbar";
 import QuoteWorkflowPanel from "./QuoteWorkflowPanel";
 import {
@@ -53,7 +57,10 @@ import {
   postQuoteAddToDocuments,
   type QuoteInvoiceBillingContext,
 } from "../../services/financial.api";
+import { getComplementaryLegalDocsStatus } from "../../services/legalCgv.api";
 import { showCrmInlineToast } from "../../components/ui/crmInlineToast";
+import type { MailComposerInitialPrefill } from "../../pages/mail/MailComposer";
+import { useSuperAdminReadOnly } from "../../contexts/OrganizationContext";
 import "./quote-builder.css";
 
 const API_BASE = import.meta.env?.VITE_API_URL || "";
@@ -94,12 +101,23 @@ export default function QuoteBuilderPage() {
   const [hasOfficialSnapshot, setHasOfficialSnapshot] = useState(false);
   const [statusBusy, setStatusBusy] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
+  const [complementaryDocStatus, setComplementaryDocStatus] = useState<{
+    rge: { configured: boolean; file_name: string | null };
+    decennale: { configured: boolean; file_name: string | null };
+  } | null>(null);
   const [addToDocumentsBusy, setAddToDocumentsBusy] = useState(false);
+  const [leadDocConflict, setLeadDocConflict] = useState<{
+    existing_document_id: string;
+    is_signed: boolean;
+    message: string;
+  } | null>(null);
   const [linkedDocuments, setLinkedDocuments] = useState<QuoteDocumentListRow[]>([]);
   const [docBlobBusyId, setDocBlobBusyId] = useState<string | null>(null);
   const [signedSavedBanner, setSignedSavedBanner] = useState(false);
 
   const canEdit = state.header ? quoteIsContentEditableStatus(state.header.status) : false;
+  const isReadOnly = useSuperAdminReadOnly();
+  const canEditMutations = canEdit && !isReadOnly;
 
   useEffect(() => {
     if (!lastSavedAt) return;
@@ -115,8 +133,13 @@ export default function QuoteBuilderPage() {
   }, [location.pathname, location.search, location.state, navigate]);
 
   const totals = useMemo(
-    () => computeQuoteTotals(state.lines, state.meta.global_discount_percent),
-    [state.lines, state.meta.global_discount_percent]
+    () =>
+      computeQuoteTotals(
+        state.lines,
+        state.meta.global_discount_percent,
+        state.meta.global_discount_amount_ht
+      ),
+    [state.lines, state.meta.global_discount_percent, state.meta.global_discount_amount_ht]
   );
 
   const latestLinkedPdf = useMemo(() => pickLatestQuotePdf(linkedDocuments), [linkedDocuments]);
@@ -140,6 +163,32 @@ export default function QuoteBuilderPage() {
       setDocBlobBusyId(null);
     }
   }, []);
+
+  const handleSendQuoteByMail = useCallback(() => {
+    if (isReadOnly) return;
+    const doc = latestLinkedSignedPdf || latestLinkedPdf;
+    if (!doc) {
+      window.alert("Aucun PDF de devis disponible.");
+      return;
+    }
+    const clientName = (state.header?.client_display ?? "").trim();
+    const prefill: MailComposerInitialPrefill = {
+      crmLeadId: state.header?.lead_id ?? null,
+      crmClientId: state.header?.client_id ?? null,
+      subject: clientName ? `Votre devis solaire — ${clientName}` : "Votre devis solaire",
+      documents: [{ id: doc.id, filename: doc.file_name }],
+      composePresentation: "overlay",
+    };
+    navigate("/mail", { state: { mailComposePrefill: prefill } });
+  }, [
+    latestLinkedPdf,
+    latestLinkedSignedPdf,
+    navigate,
+    state.header?.client_display,
+    state.header?.client_id,
+    state.header?.lead_id,
+    isReadOnly,
+  ]);
 
   const downloadQuoteDocument = async (doc: QuoteDocumentListRow) => {
     if (!getAuthToken()) return;
@@ -210,6 +259,14 @@ export default function QuoteBuilderPage() {
           items: (json.items || []) as Record<string, unknown>[],
         }),
       });
+      void getComplementaryLegalDocsStatus()
+        .then((d) =>
+          setComplementaryDocStatus({
+            rge: d.rge,
+            decennale: d.decennale,
+          })
+        )
+        .catch(() => setComplementaryDocStatus(null));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur");
     } finally {
@@ -248,6 +305,7 @@ export default function QuoteBuilderPage() {
   }, [id]);
 
   const save = useCallback(async () => {
+    if (isReadOnly) return;
     if (!id || !state.header || !canEdit) return;
     setSaving(true);
     setError(null);
@@ -256,6 +314,7 @@ export default function QuoteBuilderPage() {
       const body: Record<string, unknown> = {
         items: linesToSaveItems(state.lines),
         global_discount_percent: state.meta.global_discount_percent,
+        global_discount_amount_ht: state.meta.global_discount_amount_ht,
         validity_days: state.meta.validity_days,
         deposit: {
           type: dep.type,
@@ -267,6 +326,7 @@ export default function QuoteBuilderPage() {
         technical_notes: state.meta.technical_notes,
         payment_terms: state.meta.payment_terms,
         pdf_show_line_pricing: state.meta.pdf_show_line_pricing,
+        legal_documents: state.meta.legal_documents,
       };
       if (state.header.study_id) body.study_id = state.header.study_id;
       if (state.header.study_version_id) body.study_version_id = state.header.study_version_id;
@@ -291,10 +351,11 @@ export default function QuoteBuilderPage() {
     } finally {
       setSaving(false);
     }
-  }, [id, state, canEdit, load]);
+  }, [id, state, canEdit, isReadOnly, load]);
 
   const changeQuoteStatus = useCallback(
     async (next: string, confirmMsg?: string) => {
+      if (isReadOnly) return;
       if (!id) return;
       if (state.dirty) {
         setError("Enregistrez vos modifications avant de changer le statut du devis.");
@@ -313,10 +374,11 @@ export default function QuoteBuilderPage() {
         setStatusBusy(false);
       }
     },
-    [id, state.dirty, load]
+    [id, state.dirty, isReadOnly, load]
   );
 
   const markAsSigned = useCallback(async () => {
+    if (isReadOnly) return;
     if (!id || !state.header) return;
     if (state.dirty) {
       setError("Enregistrez vos modifications avant de marquer le devis comme signé.");
@@ -356,7 +418,7 @@ export default function QuoteBuilderPage() {
     } finally {
       setStatusBusy(false);
     }
-  }, [id, state.dirty, state.header, load]);
+  }, [id, state.dirty, state.header, isReadOnly, load]);
 
   useEffect(() => {
     const leadId = state.header?.lead_id;
@@ -380,6 +442,7 @@ export default function QuoteBuilderPage() {
   }, [id, state.header?.status]);
 
   const openCatalog = async () => {
+    if (isReadOnly) return;
     setCatalogOpen(true);
     try {
       const { items } = await adminGetQuoteCatalog({ q: catalogQ || undefined });
@@ -390,6 +453,7 @@ export default function QuoteBuilderPage() {
   };
 
   const addCatalogLine = (c: QuoteCatalogItem) => {
+    if (isReadOnly) return;
     const unitHt = (Number(c.sale_price_ht_cents) || 0) / 100;
     const vat = (Number(c.default_vat_rate_bps) || 2000) / 100;
     const line: QuoteLine = {
@@ -411,6 +475,7 @@ export default function QuoteBuilderPage() {
   };
 
   const addFreeLine = () => {
+    if (isReadOnly) return;
     dispatch({
       type: "ADD_LINE",
       line: {
@@ -429,18 +494,23 @@ export default function QuoteBuilderPage() {
   };
 
   const importFromTechnicalQuote = async () => {
-    const sid = state.header?.study_id;
-    const vid = state.header?.study_version_id;
+    if (isReadOnly) return;
+    if (!id || !state.header || !canEdit) return;
+    const sid = state.header.study_id;
+    const vid = state.header.study_version_id;
     if (!sid || !vid) {
       window.alert("Liez une étude avec version pour importer le chiffrage technique.");
       return;
     }
+    setSaving(true);
+    setError(null);
     try {
-      const { items } = await fetchQuotePrepEconomicItems(sid, vid);
-      if (!items.length) {
+      const prep = await fetchQuotePrepEconomicItems(sid, vid);
+      if (!prep.items.length) {
         window.alert("Aucune ligne matériel dans le devis technique (quote-prep).");
         return;
       }
+      const enriched = await enrichPrepItemsWithCatalogDescriptions(prep.items);
       const manual = state.lines.filter((l) => l.line_source !== "study_prep");
       if (manual.length > 0 && !hasStudyPrepLines) {
         const ok = window.confirm(
@@ -448,20 +518,51 @@ export default function QuoteBuilderPage() {
         );
         if (!ok) return;
       }
-      const studyLines = quotePrepItemsToQuoteLines(items);
+      const studyLines = quotePrepItemsToQuoteLines(enriched);
       const merged = [...manual, ...studyLines];
-      dispatch({ type: "SET_LINES", lines: merged });
-      dispatch({
-        type: "SET_META",
-        payload: {
-          study_import: {
-            last_at: new Date().toISOString(),
-            study_version_id: vid,
-          },
+      const dep = state.meta.deposit;
+      const body: Record<string, unknown> = {
+        items: linesToSaveItems(merged),
+        global_discount_percent: prep.conditions.discount_percent,
+        global_discount_amount_ht: prep.conditions.discount_amount_ht,
+        study_import: {
+          last_at: new Date().toISOString(),
+          study_version_id: vid,
         },
+        validity_days: state.meta.validity_days,
+        deposit: {
+          type: dep.type,
+          value: dep.value,
+          ...(dep.note?.trim() ? { note: dep.note.trim() } : {}),
+        },
+        notes: state.meta.notes,
+        commercial_notes: state.meta.commercial_notes,
+        technical_notes: state.meta.technical_notes,
+        payment_terms: state.meta.payment_terms,
+        pdf_show_line_pricing: state.meta.pdf_show_line_pricing,
+        legal_documents: state.meta.legal_documents,
+      };
+      if (state.header.study_id) body.study_id = state.header.study_id;
+      if (state.header.study_version_id) body.study_version_id = state.header.study_version_id;
+
+      const res = await apiFetch(`${API_BASE}/api/quotes/${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
       });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error((err as { error?: string }).error || `Erreur ${res.status}`);
+      }
+      dispatch({ type: "MARK_CLEAN" });
+      await load();
+      setLastSavedAt(new Date());
     } catch (e) {
-      window.alert(e instanceof Error ? e.message : "Erreur import");
+      const msg = e instanceof Error ? e.message : "Erreur import";
+      setError(msg);
+      window.alert(msg);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -480,6 +581,7 @@ export default function QuoteBuilderPage() {
   };
 
   const linkStudy = async (study: Study) => {
+    if (isReadOnly) return;
     if (!id) return;
     try {
       const res = await apiFetch(`${API_BASE}/api/quotes/${encodeURIComponent(id)}`, {
@@ -502,6 +604,7 @@ export default function QuoteBuilderPage() {
   };
 
   const duplicate = async () => {
+    if (isReadOnly) return;
     if (!id) return;
     try {
       const res = await apiFetch(`${API_BASE}/api/quotes/${encodeURIComponent(id)}/duplicate`, { method: "POST" });
@@ -516,6 +619,17 @@ export default function QuoteBuilderPage() {
 
   const handlePdf = useCallback(async () => {
     if (!id || !state.header) return;
+    if (isReadOnly) {
+      const signed = pickLatestSignedQuotePdf(linkedDocuments);
+      const plain = pickLatestQuotePdf(linkedDocuments);
+      const doc = signed || plain;
+      if (doc) {
+        await openQuoteDocument(doc);
+        return;
+      }
+      window.alert("Mode support lecture seule : aucun PDF enregistré à ouvrir. Activez l’édition pour générer un PDF.");
+      return;
+    }
     if (state.dirty) {
       setError("Enregistrez vos modifications avant de créer le PDF.");
       return;
@@ -531,6 +645,7 @@ export default function QuoteBuilderPage() {
         await openQuoteDocument(signed);
         return true;
       }
+      /** Devis accepté sans PDF signé en base : secours non signé (edge). Sinon le non signé n’est pas proposé si un signé existe. */
       if (plain) {
         await openQuoteDocument(plain);
         return true;
@@ -539,6 +654,19 @@ export default function QuoteBuilderPage() {
     };
 
     const postPdfAndOpen = async () => {
+      const ld = state.meta.legal_documents ?? { include_rge: false, include_decennale: false };
+      if (complementaryDocStatus) {
+        if (ld.include_rge && !complementaryDocStatus.rge.configured) {
+          throw new Error(
+            "Document RGE non configuré pour cette organisation. Ajoutez le PDF dans Équipes & entreprise → Documents légaux."
+          );
+        }
+        if (ld.include_decennale && !complementaryDocStatus.decennale.configured) {
+          throw new Error(
+            "Document assurance décennale non configuré pour cette organisation. Ajoutez le PDF dans Équipes & entreprise → Documents légaux."
+          );
+        }
+      }
       const res = await apiFetch(`${API_BASE}/api/quotes/${encodeURIComponent(id)}/pdf`, { method: "POST" });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -618,9 +746,21 @@ export default function QuoteBuilderPage() {
     } finally {
       setPdfBusy(false);
     }
-  }, [id, state.dirty, state.header, hasOfficialSnapshot, linkedDocuments, load, openQuoteDocument]);
+  }, [
+    id,
+    isReadOnly,
+    state.dirty,
+    state.header,
+    state.meta.legal_documents,
+    hasOfficialSnapshot,
+    linkedDocuments,
+    load,
+    openQuoteDocument,
+    complementaryDocStatus,
+  ]);
 
   const handleAddToDocuments = useCallback(async () => {
+    if (isReadOnly) return;
     if (!id || !state.header?.lead_id) return;
     if (state.dirty) {
       showCrmInlineToast("Enregistrez d’abord vos modifications.", "error");
@@ -629,8 +769,16 @@ export default function QuoteBuilderPage() {
     setAddToDocumentsBusy(true);
     try {
       const data = await postQuoteAddToDocuments(id);
-      if (data.alreadyExists) {
-        showCrmInlineToast("Déjà présent dans Documents.", "success");
+      if (data.status === "conflict") {
+        setLeadDocConflict({
+          existing_document_id: data.existing_document_id,
+          is_signed: data.is_signed,
+          message: data.message,
+        });
+        return;
+      }
+      if (data.status === "replaced") {
+        showCrmInlineToast("Document remplacé dans Documents > Devis.", "success");
       } else {
         showCrmInlineToast("Devis ajouté dans Documents > Devis.", "success");
       }
@@ -639,9 +787,35 @@ export default function QuoteBuilderPage() {
     } finally {
       setAddToDocumentsBusy(false);
     }
-  }, [id, state.dirty, state.header?.lead_id]);
+  }, [id, state.dirty, state.header?.lead_id, isReadOnly]);
+
+  const confirmReplaceLeadDocument = useCallback(async () => {
+    if (isReadOnly) return;
+    if (!id || !leadDocConflict) return;
+    setAddToDocumentsBusy(true);
+    try {
+      const data = await postQuoteAddToDocuments(id, { force_replace: true });
+      setLeadDocConflict(null);
+      if (data.status === "conflict") {
+        setLeadDocConflict({
+          existing_document_id: data.existing_document_id,
+          is_signed: data.is_signed,
+          message: data.message,
+        });
+        return;
+      }
+      if (data.status === "replaced" || data.status === "created") {
+        showCrmInlineToast("Document remplacé dans Documents > Devis.", "success");
+      }
+    } catch (e) {
+      showCrmInlineToast(e instanceof Error ? e.message : "Erreur", "error");
+    } finally {
+      setAddToDocumentsBusy(false);
+    }
+  }, [id, leadDocConflict, isReadOnly]);
 
   const removeQuote = async () => {
+    if (isReadOnly) return;
     if (!id || !window.confirm("Supprimer définitivement ce devis ?")) return;
     try {
       const res = await apiFetch(`${API_BASE}/api/quotes/${encodeURIComponent(id)}`, { method: "DELETE" });
@@ -678,6 +852,9 @@ export default function QuoteBuilderPage() {
   if (!state.header) return null;
 
   const stUpper = String(state.header.status).toUpperCase();
+  /** PDF non signé masqué pour un devis ACCEPTÉ dès qu’un PDF signé existe. */
+  const showUnsignedPdfActions =
+    Boolean(latestLinkedPdf) && (stUpper !== "ACCEPTED" || !latestLinkedSignedPdf);
   const isDraftForDelete = stUpper === "DRAFT";
   const uxLabel = quoteStatusToUiLabel(state.header.status);
   const uxClass = quoteUiStatusBadgeClass(state.header.status);
@@ -692,7 +869,12 @@ export default function QuoteBuilderPage() {
     markSignedTitle = "Rattachez une fiche client ou un dossier lead.";
   }
   const markSignedDisabled =
-    !canOfferMarkSigned || state.dirty || saving || statusBusy || (markSignedNeedsRecipient && !hasLeadOrClient);
+    !canOfferMarkSigned ||
+    state.dirty ||
+    saving ||
+    statusBusy ||
+    isReadOnly ||
+    (markSignedNeedsRecipient && !hasLeadOrClient);
 
   return (
     <div className="qb-page">
@@ -701,7 +883,7 @@ export default function QuoteBuilderPage() {
         quoteNumberTitle={quoteBuilderTitleTechHint(state.header.quote_number, state.header.status)}
         uxStatusLabel={uxLabel}
         uxStatusClass={uxClass}
-        canEdit={canEdit}
+        canEdit={canEditMutations}
         saving={saving}
         studyLabel={studyLabel}
         onBack={() => navigate(-1)}
@@ -716,7 +898,7 @@ export default function QuoteBuilderPage() {
         markSignedTitle={markSignedTitle}
         statusBusy={statusBusy}
         onDuplicate={() => void duplicate()}
-        onLinkStudy={canEdit ? openStudyModal : undefined}
+        onLinkStudy={canEditMutations ? openStudyModal : undefined}
         onDelete={isDraftForDelete ? () => void removeQuote() : undefined}
         onMarkRejected={() =>
           void changeQuoteStatus("REJECTED", "Marquer ce devis comme refusé par le client ?")
@@ -730,7 +912,7 @@ export default function QuoteBuilderPage() {
 
       <QuoteWorkflowPanel
         backendStatus={state.header.status}
-        canEditContent={canEdit}
+        canEditContent={canEditMutations}
         dirty={state.dirty}
         saving={saving}
         lastSavedAt={lastSavedAt}
@@ -792,14 +974,14 @@ export default function QuoteBuilderPage() {
                 </Button>
               </>
             ) : null}
-            {latestLinkedPdf ? (
+            {showUnsignedPdfActions ? (
               <>
                 <Button
                   type="button"
                   variant={latestLinkedSignedPdf ? "outlineGold" : "primary"}
                   size="sm"
-                  disabled={docBlobBusyId === latestLinkedPdf.id}
-                  onClick={() => void openQuoteDocument(latestLinkedPdf)}
+                  disabled={docBlobBusyId === latestLinkedPdf!.id}
+                  onClick={() => void openQuoteDocument(latestLinkedPdf!)}
                 >
                   {latestLinkedSignedPdf ? "Ouvrir le PDF (non signé)" : "Ouvrir le PDF"}
                 </Button>
@@ -807,20 +989,30 @@ export default function QuoteBuilderPage() {
                   type="button"
                   variant="outlineGold"
                   size="sm"
-                  disabled={docBlobBusyId === latestLinkedPdf.id}
-                  onClick={() => void downloadQuoteDocument(latestLinkedPdf)}
+                  disabled={docBlobBusyId === latestLinkedPdf!.id}
+                  onClick={() => void downloadQuoteDocument(latestLinkedPdf!)}
                 >
                   {latestLinkedSignedPdf ? "Télécharger le PDF (non signé)" : "Télécharger le PDF"}
                 </Button>
               </>
             ) : null}
+            <Button
+              type="button"
+              variant="outlineGold"
+              size="sm"
+              disabled={state.dirty || isReadOnly}
+              title={state.dirty ? "Enregistrez d’abord vos modifications." : undefined}
+              onClick={() => void handleSendQuoteByMail()}
+            >
+              📧 Envoyer par mail
+            </Button>
             {state.header.lead_id ? (
               <Button
                 type="button"
                 variant="outlineGold"
                 size="sm"
                 className="qb-linked-docs__btn-add-documents"
-                disabled={addToDocumentsBusy || state.dirty}
+                disabled={addToDocumentsBusy || state.dirty || isReadOnly}
                 title={state.dirty ? "Enregistrez d’abord vos modifications." : undefined}
                 onClick={() => void handleAddToDocuments()}
               >
@@ -894,8 +1086,18 @@ export default function QuoteBuilderPage() {
           status={state.header.status}
           clientDisplay={state.header.client_display ?? null}
           pdfShowLinePricing={state.meta.pdf_show_line_pricing}
-          canEdit={canEdit}
+          canEdit={canEditMutations}
           onPdfShowLinePricingChange={(v) => dispatch({ type: "SET_META", payload: { pdf_show_line_pricing: v } })}
+          legalDocuments={state.meta.legal_documents}
+          onLegalDocumentsChange={(patch) => dispatch({ type: "SET_META", payload: { legal_documents: patch } })}
+          complementaryConfigured={
+            complementaryDocStatus
+              ? {
+                  rge: complementaryDocStatus.rge.configured,
+                  decennale: complementaryDocStatus.decennale.configured,
+                }
+              : null
+          }
           studyId={state.header.study_id}
           studyVersionId={state.header.study_version_id}
           studyLabel={studyLabel}
@@ -918,7 +1120,7 @@ export default function QuoteBuilderPage() {
                   className="qb-lines-btn qb-lines-btn--secondary"
                   variant="ghost"
                   size="sm"
-                  disabled={!canEdit}
+                  disabled={!canEditMutations}
                   onClick={() => void openCatalog()}
                 >
                   Catalogue
@@ -928,7 +1130,7 @@ export default function QuoteBuilderPage() {
                   className="qb-lines-btn qb-lines-btn--secondary"
                   variant="ghost"
                   size="sm"
-                  disabled={!canEdit}
+                  disabled={!canEditMutations}
                   onClick={addFreeLine}
                 >
                   Ligne libre
@@ -938,7 +1140,7 @@ export default function QuoteBuilderPage() {
                   className="qb-lines-btn qb-lines-btn--tertiary"
                   variant="ghost"
                   size="sm"
-                  disabled={!canEdit || !canImportFromStudy}
+                  disabled={!canEditMutations || !canImportFromStudy}
                   title={
                     canImportFromStudy
                       ? "Remplace uniquement les lignes marquées « étude » ; conserve catalogue et lignes libres ajoutées manuellement."
@@ -952,7 +1154,7 @@ export default function QuoteBuilderPage() {
             </header>
             <QuoteLinesTable
               lines={state.lines}
-              canEdit={canEdit}
+              canEdit={canEditMutations}
               docShowLinePricing={state.meta.pdf_show_line_pricing}
               onChangeLine={(lid, patch) => dispatch({ type: "UPDATE_LINE", id: lid, patch })}
               onRemoveLine={(lid) => dispatch({ type: "REMOVE_LINE", id: lid })}
@@ -965,6 +1167,7 @@ export default function QuoteBuilderPage() {
           <QuoteSummaryPanel
             totals={totals}
             globalDiscountPercent={state.meta.global_discount_percent}
+            globalDiscountAmountHt={state.meta.global_discount_amount_ht}
             validityDays={state.meta.validity_days}
             deposit={state.meta.deposit}
             linesCount={state.lines.length}
@@ -986,16 +1189,20 @@ export default function QuoteBuilderPage() {
                 </h2>
                 <p className="qb-section-hint">Acompte, validité du devis et remise sur le document (HT).</p>
                 <QuoteCommercialSection
-                  canEdit={canEdit}
+                  canEdit={canEditMutations}
                   deposit={state.meta.deposit}
                   onDepositChange={(patch) =>
                     dispatch({ type: "SET_META", payload: { deposit: { ...state.meta.deposit, ...patch } } })
                   }
                   validityDays={state.meta.validity_days}
                   globalDiscountPercent={state.meta.global_discount_percent}
+                  globalDiscountAmountHt={state.meta.global_discount_amount_ht}
                   onValidityDaysChange={(n) => dispatch({ type: "SET_META", payload: { validity_days: n } })}
                   onGlobalDiscountPercentChange={(n) =>
                     dispatch({ type: "SET_META", payload: { global_discount_percent: n } })
+                  }
+                  onGlobalDiscountAmountHtChange={(n) =>
+                    dispatch({ type: "SET_META", payload: { global_discount_amount_ht: n } })
                   }
                 />
               </section>
@@ -1008,7 +1215,7 @@ export default function QuoteBuilderPage() {
                 </h2>
                 <p className="qb-section-hint">Textes visibles côté client sur le devis PDF.</p>
                 <QuoteClientContentSection
-                  canEdit={canEdit}
+                  canEdit={canEditMutations}
                   commercialNotes={state.meta.commercial_notes}
                   technicalNotes={state.meta.technical_notes}
                   paymentTerms={state.meta.payment_terms}
@@ -1029,7 +1236,7 @@ export default function QuoteBuilderPage() {
                 </h2>
                 <p className="qb-section-hint qb-section-hint--internal">Hors PDF client — usage interne.</p>
                 <QuoteInternalNotesSection
-                  canEdit={canEdit}
+                  canEdit={canEditMutations}
                   notes={state.meta.notes}
                   onNotesChange={(v) => dispatch({ type: "SET_META", payload: { notes: v } })}
                 />
@@ -1073,6 +1280,32 @@ export default function QuoteBuilderPage() {
               </button>
             ))}
         </div>
+      </ModalShell>
+
+      <ModalShell
+        open={leadDocConflict != null}
+        onClose={() => setLeadDocConflict(null)}
+        title="Document déjà existant"
+        size="sm"
+        footer={
+          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", flexWrap: "wrap" }}>
+            <Button type="button" variant="ghost" onClick={() => setLeadDocConflict(null)} disabled={addToDocumentsBusy}>
+              Annuler
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              onClick={() => void confirmReplaceLeadDocument()}
+              disabled={addToDocumentsBusy}
+            >
+              {addToDocumentsBusy ? "Remplacement…" : "Remplacer"}
+            </Button>
+          </div>
+        }
+      >
+        <p style={{ margin: 0, lineHeight: 1.5 }}>
+          Un document pour ce devis est déjà enregistré. Voulez-vous le remplacer par la version actuelle (signée) ?
+        </p>
       </ModalShell>
 
       <ModalShell

@@ -22,6 +22,7 @@ import {
   type PermissionDomainKey,
 } from "./rbacPermissionLabels";
 import "./admin-tab-roles.css";
+import { OrgIconShield } from "./orgStructureTableIcons";
 
 function AdminRolesSkeleton() {
   return (
@@ -202,7 +203,7 @@ export function AdminTabRoles() {
 
   if (loading) {
     return (
-      <div className="admin-tab-roles">
+      <div className="admin-tab-roles org-structure-tab">
         <AdminRolesSkeleton />
       </div>
     );
@@ -220,18 +221,22 @@ export function AdminTabRoles() {
   const searchActive = permSearch.trim().length > 0;
 
   return (
-    <div className="admin-tab-roles">
-      <div style={{ marginBottom: "var(--spacing-24)" }}>
-        <span style={{ color: "var(--text-muted)", fontSize: "var(--font-size-body)" }}>
-          {roles.length} rôle(s)
-        </span>
-      </div>
+    <div className="admin-tab-roles org-structure-tab">
+      <header className="org-tab-hero">
+        <div className="org-tab-hero__text">
+          <h2 className="org-tab-hero__title">Rôles &amp; permissions</h2>
+          <p className="org-tab-hero__lead">
+            Consultez les rôles de votre organisation et ouvrez l’éditeur de permissions pour ajuster finement l’accès aux modules (hors rôles système globaux).
+          </p>
+          <span className="org-tab-hero__meta">
+            {roles.length} rôle{roles.length !== 1 ? "s" : ""} · {totalPerms} permission{totalPerms !== 1 ? "s" : ""} dans le catalogue
+          </span>
+        </div>
+      </header>
 
       {infoNotice && <NoticeCallout message={infoNotice} variant="info" />}
 
-      {error && !modalOpen && (
-        <p style={{ color: "var(--danger)", marginBottom: "var(--spacing-16)" }}>{error}</p>
-      )}
+      {error && !modalOpen ? <p className="org-tab-alert">{error}</p> : null}
 
       {noPermissions && (
         <div className="admin-roles-empty" style={{ marginBottom: "var(--spacing-24)" }}>
@@ -239,20 +244,20 @@ export function AdminTabRoles() {
         </div>
       )}
 
-      <div style={{ overflowX: "auto" }}>
-        <table className="sn-table sn-leads-table" style={{ width: "100%" }}>
+      <div className="org-tab-table-wrap">
+        <table className="org-tab-table">
           <thead>
             <tr>
               <th>Code</th>
               <th>Nom</th>
               <th>Type</th>
-              <th>Actions</th>
+              <th className="org-tab-table__cell--right">Actions</th>
             </tr>
           </thead>
           <tbody>
             {roles.length === 0 ? (
               <tr>
-                <td colSpan={4} style={{ color: "var(--text-muted)", padding: "var(--spacing-24)", textAlign: "center" }}>
+                <td colSpan={4} className="org-tab-table__empty">
                   Aucun rôle à afficher.
                 </td>
               </tr>
@@ -261,21 +266,32 @@ export function AdminTabRoles() {
                 const isGlobalSystem = r.is_system && r.organization_id == null;
                 return (
                   <tr key={r.id}>
-                    <td>{r.code}</td>
+                    <td className="org-tab-table__cell--strong">
+                      <code style={{ fontSize: 12, fontFamily: "ui-monospace, monospace" }}>{r.code}</code>
+                    </td>
                     <td>{r.name}</td>
                     <td>
                       {isGlobalSystem ? (
-                        <span className="admin-roles-type-badge--system">Système</span>
+                        <span className="org-tab-badge org-tab-badge--system">Système</span>
                       ) : (
-                        <span className="admin-roles-type-badge--custom">Personnalisé</span>
+                        <span className="org-tab-badge org-tab-badge--custom">Personnalisé</span>
                       )}
                     </td>
-                    <td>
+                    <td className="org-tab-table__cell--right">
                       {isGlobalSystem ? (
-                        <span style={{ color: "var(--text-muted)", fontSize: 13 }}>—</span>
+                        <span className="org-tab-table__cell--muted">—</span>
                       ) : (
-                        <Button variant="ghost" size="sm" onClick={() => openPermissions(r)} disabled={noPermissions}>
-                          Permissions
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          type="button"
+                          onClick={() => openPermissions(r)}
+                          disabled={noPermissions}
+                        >
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                            <OrgIconShield />
+                            Permissions
+                          </span>
                         </Button>
                       )}
                     </td>
@@ -297,11 +313,11 @@ export function AdminTabRoles() {
         size="lg"
         title={editingRole ? `Permissions — ${editingRole.name || editingRole.code}` : ""}
         subtitle="Activez les droits par domaine métier. Les libellés décrivent l’effet concret dans l’application."
-        bodyClassName="sn-modal-shell-body--flush"
         footer={
           <>
             <Button
-              variant="ghost"
+              variant="secondary"
+              size="sm"
               type="button"
               onClick={() => {
                 setModalOpen(false);
@@ -310,17 +326,16 @@ export function AdminTabRoles() {
             >
               Annuler
             </Button>
-            <Button variant="primary" onClick={handleSave} disabled={saving}>
+            <Button variant="primary" size="sm" onClick={handleSave} disabled={saving}>
               {saving ? "Enregistrement…" : "Sauvegarder"}
             </Button>
           </>
         }
       >
-            {error && (
-              <p style={{ color: "var(--danger)", marginBottom: "var(--spacing-16)", padding: "0 var(--spacing-24)" }}>{error}</p>
-            )}
+        <div className="admin-roles-modal-stack">
+            {error ? <div className="org-tab-alert" role="alert">{error}</div> : null}
 
-            <div className="admin-roles-modal-summary" aria-live="polite" style={{ marginLeft: "var(--spacing-24)", marginRight: "var(--spacing-24)" }}>
+            <div className="admin-roles-modal-summary" aria-live="polite">
               <div className="admin-roles-modal-summary-top">
                 <p className="admin-roles-modal-summary-count">{activeSummaryText}</p>
                 {roleLevel && (
@@ -358,7 +373,10 @@ export function AdminTabRoles() {
               )}
             </div>
 
-            <div className="admin-roles-modal-search" style={{ padding: "0 var(--spacing-24)" }}>
+            <div className="admin-roles-modal-search">
+              <label id="admin-roles-perm-search-label" className="sn-visually-hidden" htmlFor="admin-roles-perm-search">
+                Rechercher une permission
+              </label>
               <input
                 id="admin-roles-perm-search"
                 type="search"
@@ -366,13 +384,13 @@ export function AdminTabRoles() {
                 onChange={(e) => setPermSearch(e.target.value)}
                 placeholder="Rechercher par nom ou description…"
                 autoComplete="off"
-                aria-label="Rechercher une permission"
+                aria-labelledby="admin-roles-perm-search-label"
               />
             </div>
 
-            <div style={{ marginBottom: "var(--spacing-24)", padding: "0 var(--spacing-24)" }}>
+            <div className="admin-roles-modal-list">
               {searchActive && !hasSearchResults ? (
-                <p style={{ color: "var(--text-muted)", textAlign: "center", padding: "var(--spacing-24)" }}>
+                <p className="admin-roles-modal-empty">
                   Aucune permission ne correspond à votre recherche.
                 </p>
               ) : null}
@@ -431,6 +449,7 @@ export function AdminTabRoles() {
                 );
               })}
             </div>
+        </div>
       </ModalShell>
     </div>
   );

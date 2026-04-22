@@ -11,6 +11,7 @@ function asCategory(v: unknown): DocumentCategory | null {
     "QUOTE",
     "INVOICE",
     "COMMERCIAL_PROPOSAL",
+    "DP",
     "DP_MAIRIE",
     "ADMINISTRATIVE",
     "OTHER",

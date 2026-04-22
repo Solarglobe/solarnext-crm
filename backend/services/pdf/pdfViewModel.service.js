@@ -8,6 +8,19 @@ import { pool } from "../../config/db.js";
 import { getPdfViewModelRow } from "../../routes/studies/service.js";
 import { getLogoPath } from "../orgLogo.service.js";
 import { mapSelectedScenarioSnapshotToPdfViewModel } from "./pdfViewModel.mapper.js";
+import { getLegalCgvForPdfRender } from "../legalCgv.service.js";
+
+/** Première série ≥ 8760 points trouvée sous les clés données (kW ou kWc selon le champ). */
+function firstHourlyArray8760(obj, keys) {
+  if (!obj || typeof obj !== "object") return null;
+  for (const k of keys) {
+    const v = obj[k];
+    if (Array.isArray(v) && v.length >= 8760) {
+      return v.map((x) => (Number.isFinite(Number(x)) ? Number(x) : 0));
+    }
+  }
+  return null;
+}
 
 /**
  * Récupère le ViewModel PDF pour une version d'étude.
@@ -18,17 +31,10 @@ import { mapSelectedScenarioSnapshotToPdfViewModel } from "./pdfViewModel.mapper
  * @returns {Promise<{ viewModel: object } | { error: string, orgActual?: string }>}
  */
 export async function getPdfViewModelForVersion(studyId, versionId, organizationId, previewOptions = null) {
-  const row = await getPdfViewModelRow(versionId);
+  const row = await getPdfViewModelRow(versionId, organizationId);
 
   if (!row) {
     return { error: "STUDY_VERSION_NOT_FOUND" };
-  }
-
-  if (row.organization_id !== organizationId) {
-    return {
-      error: "FORBIDDEN_CROSS_ORG",
-      orgActual: row.organization_id,
-    };
   }
 
   if (row.study_id !== studyId) {
@@ -42,6 +48,17 @@ export async function getPdfViewModelForVersion(studyId, versionId, organization
   if (snapshot == null || typeof snapshot !== "object") {
     return { error: "SNAPSHOT_NOT_FOUND" };
   }
+
+  const orgRowForPdf = await pool.query(
+    `SELECT settings_json, pdf_cover_image_key, name, legal_name, trade_name, pdf_primary_color
+     FROM organizations WHERE id = $1`,
+    [organizationId]
+  );
+  const orgRowPdf = orgRowForPdf.rows[0] ?? {};
+  const settingsJson =
+    orgRowPdf.settings_json && typeof orgRowPdf.settings_json === "object" ? orgRowPdf.settings_json : {};
+  const orgEconomics =
+    settingsJson.economics && typeof settingsJson.economics === "object" ? settingsJson.economics : null;
 
   const selectedScenarioIdForMap =
     previewOptions && previewOptions.scenarioId != null ? previewOptions.scenarioId : row.selected_scenario_id;
@@ -79,6 +96,21 @@ export async function getPdfViewModelForVersion(studyId, versionId, organization
     economicSnapshotConfig = null;
   }
 
+  const dj = row.data_json && typeof row.data_json === "object" ? row.data_json : {};
+  const p5HourlyOpts = {
+    p5_pv_hourly_kw_8760: firstHourlyArray8760(dj, ["pv_hourly_kw"]),
+    p5_pv_hourly_shape_per_kwc_8760: firstHourlyArray8760(dj, [
+      "pv_hourly_shape_per_kwc",
+      "pv_hourly_1kwc",
+      "pv_hourly_shape_1kwc",
+    ]),
+    p5_conso_hourly_kw_8760: firstHourlyArray8760(dj, [
+      "conso_hourly_kw",
+      "conso_p_pilotee_hourly",
+      "conso_hourly",
+    ]),
+  };
+
   const viewModel = mapSelectedScenarioSnapshotToPdfViewModel(snapshot, {
     studyId,
     versionId,
@@ -87,23 +119,34 @@ export async function getPdfViewModelForVersion(studyId, versionId, organization
     selected_scenario_id: selectedScenarioIdForMap ?? null,
     calpinage_layout_snapshot: calpinageLayoutSnapshot,
     economic_snapshot_config: economicSnapshotConfig,
+    org_economics: orgEconomics,
+    ...p5HourlyOpts,
   });
 
   viewModel.selected_scenario_snapshot = snapshot;
 
-  const orgRes = await pool.query(
-    "SELECT settings_json, pdf_cover_image_key FROM organizations WHERE id = $1",
-    [organizationId]
-  );
-  const settings = orgRes.rows[0]?.settings_json ?? {};
-  const pdfCoverKey = settings.pdf_cover_image_key || orgRes.rows[0]?.pdf_cover_image_key;
+  const orgRow = orgRowPdf;
+  const settings = settingsJson;
+  const pdfCoverKey = settings.pdf_cover_image_key || orgRow.pdf_cover_image_key;
   const logoKey = settings.logo_image_key || null;
   const hasLegacyLogo = !logoKey && (await getLogoPath(organizationId));
 
+  let legal_cgv = null;
+  try {
+    legal_cgv = await getLegalCgvForPdfRender(organizationId);
+  } catch {
+    legal_cgv = null;
+  }
+
   viewModel.organization = {
     id: organizationId,
+    name: orgRow.name ?? null,
+    legal_name: orgRow.legal_name ?? null,
+    trade_name: orgRow.trade_name ?? null,
+    pdf_primary_color: orgRow.pdf_primary_color ?? null,
     logo_image_key: logoKey || (hasLegacyLogo ? "legacy" : null),
     pdf_cover_image_key: pdfCoverKey || null,
+    legal_cgv,
   };
 
   if (process.env.NODE_ENV !== "production") {

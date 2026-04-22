@@ -103,8 +103,8 @@ async function run() {
     });
     docIds.push(docQ.id);
 
-    const first = await addQuotePdfToDocuments(quoteId, orgId, null);
-    if (first.alreadyExists !== false) throw new Error("TEST1 alreadyExists devrait être false");
+    const first = await addQuotePdfToDocuments(quoteId, orgId, null, {});
+    if (first.status !== "created") throw new Error(`TEST1 status devrait être created, reçu ${first.status}`);
     if (!first.document?.id) throw new Error("TEST1 document manquant");
     docIds.push(first.document.id);
 
@@ -123,10 +123,20 @@ async function run() {
     if (String(row1.metadata_json?.quote_id) !== String(quoteId)) throw new Error("TEST1 metadata quote_id");
     ok("TEST 1 — ajout simple (QUOTE, SYSTEM_GENERATED, visible, display_name, metadata quote_id)");
 
-    const second = await addQuotePdfToDocuments(quoteId, orgId, null);
-    if (second.alreadyExists !== true) throw new Error("TEST2 alreadyExists devrait être true");
-    if (String(second.document?.id) !== String(first.document.id)) {
-      throw new Error("TEST2 devrait retourner le même document");
+    const second = await addQuotePdfToDocuments(quoteId, orgId, null, {});
+    if (second.status !== "conflict") throw new Error(`TEST2 status devrait être conflict, reçu ${second.status}`);
+    if (!second.existing_document_id) throw new Error("TEST2 existing_document_id manquant");
+    const third = await addQuotePdfToDocuments(quoteId, orgId, null, { force_replace: true });
+    if (third.status !== "replaced") throw new Error(`TEST3 status devrait être replaced, reçu ${third.status}`);
+    if (String(third.document?.id) === String(first.document.id)) {
+      throw new Error("TEST3 devrait créer un nouveau document lead");
+    }
+    docIds.push(third.document.id);
+    const meta3 = (
+      await pool.query(`SELECT metadata_json FROM entity_documents WHERE id = $1`, [third.document.id])
+    ).rows[0]?.metadata_json;
+    if (!meta3?.replaced_at || String(meta3?.replaced_previous_document_id) !== String(first.document.id)) {
+      throw new Error("TEST3 metadata remplacement attendu (replaced_at, replaced_previous_document_id)");
     }
     const cnt = (
       await pool.query(
@@ -138,7 +148,8 @@ async function run() {
       )
     ).rows[0].c;
     if (cnt !== 1) throw new Error(`TEST2 doublon ? count=${cnt}`);
-    ok("TEST 2 — second appel sans doublon");
+    ok("TEST 2 — second appel → conflict (409 côté HTTP)");
+    ok("TEST 2b — force_replace → replaced, nouveau fichier");
 
     ok("TEST 3 — présence onglet Documents lead : vérifier manuellement /api/leads/:id/documents si besoin");
     ok("TEST 4 — is_client_visible (vérifié TEST1)");

@@ -79,6 +79,38 @@ describe("mapCalpinageRoofToLegacyRoofGeometryInput", () => {
     expect(legacy!.pans[0]!.polygonPx[0]!.heightM).toBe(4.2);
   });
 
+  it("state.pans prioritaire sur roof.roofPans (lecture officielle runtime)", () => {
+    const runtime = {
+      pans: [
+        {
+          id: "from-state",
+          polygonPx: [
+            { x: 0, y: 0 },
+            { x: 10, y: 0 },
+            { x: 5, y: 8 },
+          ],
+        },
+      ],
+      roof: {
+        scale: { metersPerPixel: 0.02 },
+        roof: { north: { angleDeg: 0 } },
+        roofPans: [
+          {
+            id: "from-mirror",
+            polygonPx: [
+              { x: 100, y: 100 },
+              { x: 110, y: 100 },
+              { x: 105, y: 108 },
+            ],
+          },
+        ],
+      },
+    };
+    const legacy = mapCalpinageRoofToLegacyRoofGeometryInput(runtime.roof, null, runtime);
+    expect(legacy).not.toBeNull();
+    expect(legacy!.pans[0]!.id).toBe("from-state");
+  });
+
   it("Cas C — hints physical transmis via chemin riche", () => {
     const rich = {
       metersPerPixel: 0.02,

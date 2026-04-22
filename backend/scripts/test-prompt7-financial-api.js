@@ -109,9 +109,12 @@ async function main() {
     qSent = afterSent.quote;
     if (!qSent.sent_at) fail("7) SENT sans sent_at", new Error("sent_at manquant"));
     else ok("7) READY_TO_SEND → SENT (sent_at)");
-    if (!/^[A-Z0-9]+-DEV-\d{4}-\d{4}$/.test(String(qSent.quote_number).trim())) {
-      fail("8) numéro officiel *-DEV-AAAA-NNNN", new Error(qSent.quote_number));
-    } else ok("8) numéro officiel …-DEV-…");
+    const qn = String(qSent.quote_number).trim();
+    const okOfficial =
+      /^[A-Z0-9]+-\d{4}-\d{4}$/.test(qn) || /^[A-Z0-9]+-DEV-\d{4}-\d{4}$/.test(qn);
+    if (!okOfficial) {
+      fail("8) numéro officiel PREFIX-AAAA-NNNN ou *-DEV-AAAA-NNNN", new Error(qSent.quote_number));
+    } else ok("8) numéro officiel …");
     if (!qSent.issuer_snapshot || Object.keys(qSent.issuer_snapshot).length === 0) {
       fail("8) issuer_snapshot", new Error("vide"));
     } else ok("8) issuer_snapshot rempli");

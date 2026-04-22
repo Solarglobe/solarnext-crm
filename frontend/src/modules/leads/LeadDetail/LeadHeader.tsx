@@ -4,6 +4,7 @@
 
 import React from "react";
 import { CYCLE_PROJECT_SELECT_OPTIONS } from "./constants";
+import { CrmLeadStatusBadge } from "../../../components/crm/CrmLeadStatusBadge";
 
 export type LeadSaveSyncState = "idle" | "pending" | "saving" | "saved" | "error";
 
@@ -28,6 +29,10 @@ interface LeadHeaderProps {
   onStatusChange: (status: string) => void;
   /** Afficher le sélecteur de cycle projet (clients convertis uniquement) */
   showProjectCycle?: boolean;
+  /** Afficher « Revenir en lead » (clients actifs) */
+  showRevertToLead?: boolean;
+  onRevertToLead?: () => void;
+  revertSaving?: boolean;
   onRdvClick: () => void;
   statusSaving: boolean;
   saveSyncState: LeadSaveSyncState;
@@ -36,6 +41,14 @@ interface LeadHeaderProps {
   actions?: React.ReactNode;
   /** Lead archivé — badge + désactivation des sélecteurs type */
   isArchived?: boolean;
+  /** CP-078B — SUPER_ADMIN mode support lecture seule */
+  readOnly?: boolean;
+  /** E-mail : ouvrir le composeur CRM (si boîte connectée) ou mailto — défini par la page */
+  onWriteEmail?: () => void;
+  /** Statut CRM API + pipeline — badge couleur unifié */
+  leadStatusCode?: string | null;
+  stageName?: string | null;
+  stageCode?: string | null;
 }
 
 export default function LeadHeader({
@@ -55,12 +68,20 @@ export default function LeadHeader({
   onProjectStatusIntent,
   onStatusChange,
   showProjectCycle,
+  showRevertToLead = false,
+  onRevertToLead,
+  revertSaving = false,
   onRdvClick,
   statusSaving,
   saveSyncState,
   onRetrySave,
   actions,
   isArchived = false,
+  readOnly = false,
+  onWriteEmail,
+  leadStatusCode,
+  stageName,
+  stageCode,
 }: LeadHeaderProps) {
   const isPro = customerType === "PRO";
   const telHref = phone.replace(/\s/g, "");
@@ -106,13 +127,14 @@ export default function LeadHeader({
             ) : null}
           </h1>
           {isArchived ? (
-            <span className="crm-lead-badge crm-lead-badge--compact badge-archived">Archivé</span>
+            <span className="crm-lead-badge crm-lead-badge--compact badge-archived">ARCHIVÉ</span>
           ) : (
-            <span
-              className={`crm-lead-badge crm-lead-badge--compact ${status === "CLIENT" ? "crm-lead-badge-client" : "crm-lead-badge-lead"}`}
-            >
-              {status === "CLIENT" ? "Client" : "Lead"}
-            </span>
+            <CrmLeadStatusBadge
+              status={leadStatusCode ?? (status === "CLIENT" ? "CLIENT" : "LEAD")}
+              stageName={stageName}
+              stageCode={stageCode}
+              className="crm-status-badge--in-header"
+            />
           )}
           {isPro ? (
             <span className="crm-lead-badge-pro">PRO</span>
@@ -121,7 +143,15 @@ export default function LeadHeader({
             <span className="crm-lead-save-dot" aria-hidden />
             <span className="crm-lead-save-label">{saveLabel}</span>
             {saveSyncState === "error" && onRetrySave ? (
-              <button type="button" className="crm-lead-save-retry" onClick={onRetrySave}>
+              <button
+                type="button"
+                className="crm-lead-save-retry"
+                disabled={readOnly}
+                onClick={() => {
+                  if (readOnly) return;
+                  onRetrySave();
+                }}
+              >
                 Réessayer
               </button>
             ) : null}
@@ -142,7 +172,7 @@ export default function LeadHeader({
               className="crm-lead-header-select-inline crm-lead-header-select-inline--pipeline"
               value={projectStatus}
               onChange={(e) => onProjectStatusIntent(e.target.value)}
-              disabled={isArchived}
+              disabled={isArchived || readOnly}
               aria-label="Cycle projet"
               title="Cycle projet"
             >
@@ -153,12 +183,23 @@ export default function LeadHeader({
               ))}
             </select>
           ) : null}
+          {showRevertToLead && onRevertToLead && !isArchived ? (
+            <button
+              type="button"
+              className="sn-btn sn-btn-ghost sn-btn-sm"
+              onClick={() => onRevertToLead()}
+              disabled={revertSaving || readOnly}
+              title="Remettre le dossier en lead (liste Leads uniquement)"
+            >
+              {revertSaving ? "Rétablissement…" : "Revenir en lead"}
+            </button>
+          ) : null}
           {isLead && !isArchived ? (
             <button
               type="button"
               className="crm-lead-header-convert-btn"
               onClick={() => onStatusChange("CLIENT")}
-              disabled={statusSaving}
+              disabled={statusSaving || readOnly}
               title="Convertir ce lead en client"
             >
               {statusSaving ? "Conversion…" : "Convertir en client"}
@@ -169,7 +210,7 @@ export default function LeadHeader({
 
       <div className="crm-lead-header-v4-sub">
         <div className="crm-lead-header-v4-contacts">
-          <div className="crm-lead-header-v4-contacts-row">
+          <div className="crm-lead-header-v4-contacts-row crm-lead-header-v4-contacts-row--mail">
             {phone ? (
               <a className="crm-lead-header-contact-link" href={`tel:${telHref}`}>
                 {phone}
@@ -179,13 +220,31 @@ export default function LeadHeader({
             )}
             <span className="crm-lead-header-v4-sep" aria-hidden>|</span>
             {email ? (
-              <a className="crm-lead-header-contact-link" href={`mailto:${email}`}>
-                {email}
-              </a>
+              <>
+                <span className="crm-lead-header-contact-text" title={email}>
+                  {email}
+                </span>
+                {onWriteEmail ? (
+                  <button
+                    type="button"
+                    className="sn-btn sn-btn-primary sn-btn-sm crm-lead-header-write-btn"
+                    disabled={readOnly}
+                    onClick={() => {
+                      if (readOnly) return;
+                      onWriteEmail();
+                    }}
+                  >
+                    📨 Écrire
+                  </button>
+                ) : null}
+              </>
             ) : (
               <span className="crm-lead-header-contact-muted">—</span>
             )}
           </div>
+          {email && onWriteEmail ? (
+            <p className="crm-lead-header-mail-hint">Envoyer depuis votre boîte CRM</p>
+          ) : null}
           <div className="crm-lead-header-v4-contacts-row">
             <span className="crm-lead-header-contact-meta">
               <span className="crm-lead-header-contact-label">Commercial</span> {commercialEmail || "—"}
@@ -197,7 +256,15 @@ export default function LeadHeader({
           </div>
         </div>
         {hasClientId ? (
-          <button type="button" className="sn-btn sn-btn-outline sn-btn-sm crm-lead-header-v4-rdv" onClick={onRdvClick}>
+          <button
+            type="button"
+            className="sn-btn sn-btn-outline sn-btn-sm crm-lead-header-v4-rdv"
+            disabled={readOnly}
+            onClick={() => {
+              if (readOnly) return;
+              onRdvClick();
+            }}
+          >
             RDV
           </button>
         ) : null}

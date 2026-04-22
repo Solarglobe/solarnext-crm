@@ -16,6 +16,20 @@ config({ path: resolve(__dirname, "../.env"), override: false });
 
 const BASE = process.env.API_BASE || "http://localhost:3000";
 
+async function authHeaderForInternalPdf() {
+  const email = process.env.TEST_ADMIN_EMAIL || process.env.TEST_LOGIN_EMAIL || process.env.CP077_ADMIN_EMAIL;
+  const password = process.env.TEST_ADMIN_PASSWORD || process.env.TEST_LOGIN_PASSWORD || process.env.CP077_ADMIN_PASSWORD;
+  if (!email || !password) return {};
+  const r = await fetch(`${BASE}/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok || !j.token) return {};
+  return { Authorization: `Bearer ${j.token}` };
+}
+
 async function run() {
   console.log("\n=== Test HTTP /internal/pdf/horizon-mask ===\n");
 
@@ -39,7 +53,14 @@ async function run() {
   const url = `${BASE}/internal/pdf/horizon-mask/${studyId}?orgId=${orgId}&version=1`;
   console.log("GET", url);
 
-  const res = await fetch(url);
+  const auth = await authHeaderForInternalPdf();
+  if (!auth.Authorization) {
+    console.log("⚠ TEST_ADMIN_EMAIL + TEST_ADMIN_PASSWORD (ou équivalent) requis pour JWT — skip test HTTP");
+    await pool.end();
+    return;
+  }
+
+  const res = await fetch(url, { headers: auth });
   const contentType = res.headers.get("content-type") || "";
   const buf = await res.arrayBuffer();
   const size = buf.byteLength;

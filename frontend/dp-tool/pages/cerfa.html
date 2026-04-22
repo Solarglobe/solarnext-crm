@@ -122,6 +122,50 @@
 
     <hr class="dp-sep" />
 
+    <!-- SECTION : Cases CERFA (règles métier explicites — pas de coches imposées par défaut côté PDF sans état) -->
+    <div class="cerfa-section">
+      <h3 class="cerfa-section-title">Cohérence formulaire (cases à cocher)</h3>
+      <p class="dp-lead" style="font-size:13px;margin:0 0 12px;color:#444">
+        Ces choix alimentent uniquement le PDF CERFA (travaux sur construction neuve ou existante, occupation, résidence).
+        Laissez « Non renseigné » si vous compléterez le papier à la main.
+      </p>
+      <div class="cerfa-fields">
+        <div class="cerfa-field">
+          <label class="cerfa-label">Nature des travaux (construction)</label>
+          <div class="cerfa-toggle-group" role="group">
+            <button type="button" class="cerfa-toggle-btn" data-value="" id="cerfa-construction-unset">Non renseigné</button>
+            <button type="button" class="cerfa-toggle-btn" data-value="existing" id="cerfa-construction-existing">Sur construction existante</button>
+            <button type="button" class="cerfa-toggle-btn" data-value="new" id="cerfa-construction-new">Construction neuve</button>
+          </div>
+        </div>
+        <div class="cerfa-field">
+          <label class="cerfa-label">Mode d’occupation par le déclarant</label>
+          <div class="cerfa-toggle-group" role="group">
+            <button type="button" class="cerfa-toggle-btn" data-value="" id="cerfa-occupation-unset">Non renseigné</button>
+            <button type="button" class="cerfa-toggle-btn" data-value="personnel" id="cerfa-occupation-personnel">Occupation personnelle</button>
+            <button type="button" class="cerfa-toggle-btn" data-value="vente" id="cerfa-occupation-vente">Vente</button>
+            <button type="button" class="cerfa-toggle-btn" data-value="location" id="cerfa-occupation-location">Location</button>
+          </div>
+        </div>
+        <div class="cerfa-field">
+          <label class="cerfa-label">Résidence concernée</label>
+          <div class="cerfa-toggle-group" role="group">
+            <button type="button" class="cerfa-toggle-btn" data-value="" id="cerfa-residence-unset">Non renseigné</button>
+            <button type="button" class="cerfa-toggle-btn" data-value="principale" id="cerfa-residence-main">Résidence principale</button>
+            <button type="button" class="cerfa-toggle-btn" data-value="secondaire" id="cerfa-residence-sec">Résidence secondaire</button>
+          </div>
+        </div>
+        <div class="cerfa-field">
+          <label class="cerfa-label" style="display:flex;align-items:center;gap:8px;cursor:pointer">
+            <input type="checkbox" id="cerfa-email-consent" style="width:auto" />
+            J’accepte d’être contacté par courriel (case D5A du CERFA)
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <hr class="dp-sep" />
+
     <!-- SECTION : Gestion de l'énergie -->
     <div class="cerfa-section">
       <h3 class="cerfa-section-title">Gestion de l'énergie</h3>

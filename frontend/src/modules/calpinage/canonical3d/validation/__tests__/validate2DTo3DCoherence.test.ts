@@ -139,6 +139,74 @@ describe("validate2DTo3DCoherence", () => {
     expect(r.issues.some((i) => i.code === "SHADOW_VOLUME_DEGENERATE_MESH")).toBe(true);
   });
 
+  it("Cas 5b — ROOF_OUTLINE_AREA_MISMATCH si roofOutlineHorizontalAreaM2 incompatible avec somme pans", () => {
+    const scene = sceneSimpleValide();
+    const st = scene.sourceTrace!;
+    const withFootprint: SolarScene3D = {
+      ...scene,
+      sourceTrace: {
+        ...st,
+        metrics: {
+          ...st.metrics,
+          roofOutlineHorizontalAreaM2: 1,
+          roofOutlineArea2DPx: 2500,
+        },
+      },
+    };
+    const r = validate2DTo3DCoherence(withFootprint);
+    expect(r.issues.some((i) => i.code === "ROOF_OUTLINE_AREA_MISMATCH")).toBe(true);
+    const issue = r.issues.find((i) => i.code === "ROOF_OUTLINE_AREA_MISMATCH");
+    expect(issue?.details?.expectedFrom).toBe("trace_m2");
+  });
+
+  it("Cas 5c — emprise depuis contour + polygonHorizontalAreaM2FromImagePx si roofOutlineHorizontalAreaM2 absent (Niveau 3)", () => {
+    const scene = sceneSimpleValide();
+    const st = scene.sourceTrace!;
+    const withContourOnly: SolarScene3D = {
+      ...scene,
+      sourceTrace: {
+        ...st,
+        roofOutline2D: {
+          contourPx: [
+            { x: 0, y: 0 },
+            { x: 50, y: 0 },
+            { x: 50, y: 50 },
+            { x: 0, y: 50 },
+          ],
+          vertexCount: 4,
+        },
+        metrics: {
+          ...st.metrics,
+          roofOutlineArea2DPx: 2500,
+        },
+      },
+    };
+    const r = validate2DTo3DCoherence(withContourOnly);
+    expect(r.issues.some((i) => i.code === "ROOF_OUTLINE_AREA_MISMATCH")).toBe(true);
+    const issue = r.issues.find((i) => i.code === "ROOF_OUTLINE_AREA_MISMATCH");
+    expect(issue?.details?.expectedFrom).toBe("contour_world_m2");
+  });
+
+  it("Cas 5d — repli px×mpp² seulement sans contour ni aire m² trace", () => {
+    const scene = sceneSimpleValide();
+    const st = scene.sourceTrace!;
+    const withPxOnly: SolarScene3D = {
+      ...scene,
+      sourceTrace: {
+        ...st,
+        metrics: {
+          ...st.metrics,
+          roofOutlineArea2DPx: 1,
+        },
+      },
+    };
+    delete (withPxOnly.sourceTrace!.metrics as { roofOutlineHorizontalAreaM2?: number }).roofOutlineHorizontalAreaM2;
+    const r = validate2DTo3DCoherence(withPxOnly);
+    expect(r.issues.some((i) => i.code === "ROOF_OUTLINE_AREA_MISMATCH")).toBe(true);
+    const issue = r.issues.find((i) => i.code === "ROOF_OUTLINE_AREA_MISMATCH");
+    expect(issue?.details?.expectedFrom).toBe("px_mpp2_fallback");
+  });
+
   it("Cas 5 — monde invalide (mpp ≤ 0)", () => {
     const scene = sceneSimpleValide();
     const broken: SolarScene3D = {

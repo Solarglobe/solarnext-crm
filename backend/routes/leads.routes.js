@@ -12,15 +12,27 @@ import * as controller from "../controllers/leads.controller.js";
 import { patchConsumption } from "../controllers/leads.consumption.controller.js";
 import { getDetail, patchStage, deleteEnergyProfile } from "./leads/detail.js";
 import { convertLead } from "./leads/convert.js";
+import { revertLeadToLead } from "./leads/revertToLead.js";
 import { leadActivitiesRouter } from "../modules/activities/activity.routes.js";
 import * as leadMetersController from "../controllers/leadMeters.controller.js";
+import {
+  postCreateClientPortalToken,
+  getClientPortalTokenForLead,
+} from "../controllers/clientPortal.controller.js";
+import { getLeadDp, putLeadDp } from "../controllers/leadDp.controller.js";
+import { exportLeadsCsv } from "../controllers/crmExport.controller.js";
 
 const router = express.Router();
 
+/** Export CSV marketing — avant routes /:id */
+const EXPORT_LEADS_PERMS = ["org.settings.manage", "lead.read.all"];
+
 router.get("/", verifyJWT, requireAnyPermission(["lead.read.all", "lead.read.self"]), controller.getAll);
+router.get("/quick-search", verifyJWT, requireAnyPermission(["lead.read.all", "lead.read.self"]), controller.quickSearch);
 router.get("/kanban", verifyJWT, requireAnyPermission(["lead.read.all", "lead.read.self"]), controller.getKanban);
 router.get("/me", verifyJWT, requirePermission("lead.read.self"), controller.getSelf);
 router.get("/meta", verifyJWT, requireAnyPermission(["lead.read.all", "lead.read.self"]), controller.getMeta);
+router.get("/export", verifyJWT, requireAnyPermission(EXPORT_LEADS_PERMS), exportLeadsCsv);
 
 /** Multi-compteurs — avant GET /:id (segment unique) */
 router.get(
@@ -60,6 +72,33 @@ router.delete(
   leadMetersController.removeMeter
 );
 
+router.post(
+  "/:id/client-portal-token",
+  verifyJWT,
+  requireAnyPermission(["lead.update.all", "lead.update.self"]),
+  postCreateClientPortalToken
+);
+router.get(
+  "/:id/client-portal-token",
+  verifyJWT,
+  requireAnyPermission(["lead.read.all", "lead.read.self"]),
+  getClientPortalTokenForLead
+);
+
+/** Dossier DP (brouillon) — avant GET /:id */
+router.get(
+  "/:id/dp",
+  verifyJWT,
+  requireAnyPermission(["lead.read.all", "lead.read.self"]),
+  getLeadDp
+);
+router.put(
+  "/:id/dp",
+  verifyJWT,
+  requireAnyPermission(["lead.update.all", "lead.update.self"]),
+  putLeadDp
+);
+
 router.get("/:id", verifyJWT, requireAnyPermission(["lead.read.all", "lead.read.self"]), getDetail);
 router.delete(
   "/:id/energy-profile",
@@ -86,12 +125,6 @@ router.patch(
   requireAnyPermission(["lead.update.all", "lead.update.self"]),
   controller.patchUnarchive
 );
-router.delete(
-  "/:id",
-  verifyJWT,
-  requirePermission("lead.delete"),
-  controller.deleteLeadHard
-);
 router.patch(
   "/:id/stage",
   verifyJWT,
@@ -103,6 +136,12 @@ router.post(
   verifyJWT,
   requireAnyPermission(["lead.update.all", "lead.update.self"]),
   convertLead
+);
+router.post(
+  "/:id/revert-to-lead",
+  verifyJWT,
+  requireAnyPermission(["lead.update.all", "lead.update.self"]),
+  revertLeadToLead
 );
 router.post("/", verifyJWT, requirePermission("lead.create"), controller.create);
 router.put("/:id", verifyJWT, requireAnyPermission(["lead.update.all", "lead.update.self"]), controller.update);

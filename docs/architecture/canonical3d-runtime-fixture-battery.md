@@ -2,6 +2,8 @@
 
 Objectif : prouver la **chaîne réelle** (runtime calpinage → adapter canonical 3D → `buildSolarScene3D` → scène → viewer) sur des cas nommés, proches produit, sans backend ni pixels WebGL.
 
+**Cadrage produit / critères d’acceptation (Niveau 0) :** [calpinage-2d-3d-fidelity-level0-charter.md](./calpinage-2d-3d-fidelity-level0-charter.md).
+
 ## Où vivent les cas
 
 | Emplacement | Rôle |
@@ -33,7 +35,7 @@ Constante TypeScript : `RUNTIME_3D_OFFICIAL_FAMILY_FIXTURE_IDS`.
 | `mono-pan-nominal` | 1 pan, obstacle, 2 panneaux |
 | `dual-pan-ridge` | 2 pans, faîtage, panneaux sur chaque pan |
 | `multi-pan-l-shaped` | Même runtime que `multi_pan_complex` (id historique) |
-| `partial-missing-world-contract` | Sans `canonical3DWorldContract` → échec explicite |
+| `partial-missing-world-contract` | Sans `canonical3DWorldContract` **persisté** mais scale + nord OK → contrat matérialisé au build, chaîne OK (voir tests intégration batterie) |
 | `tense-small-dual-pan` | Petits pans, 8 panneaux, obstacle proche |
 
 **Important :** `ridges` / `traits` sont à la **racine** du state runtime, pas sous `roof` (voir `resolveCalpinageStructuralRoofForCanonicalChain`).

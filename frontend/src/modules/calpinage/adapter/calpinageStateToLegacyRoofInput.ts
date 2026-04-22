@@ -39,12 +39,21 @@ import type {
   LegacyRoofGeometryInput,
   LegacyStructuralLine2D,
 } from "../canonical3d/builder/legacyInput";
+import { extractHeightStateContextFromCalpinageState } from "../canonical3d/adapters/buildCanonicalPans3DFromRuntime";
 import { isRuntimeHeightResolverAvailable } from "./resolveHeightsFromRuntime";
-import { resolveHeightAtPxRuntime } from "../core/heightResolver";
+import { resolveHeightAtPxRuntime, type HeightStateContext } from "../core/heightResolver";
 import {
   DEFAULT_MIN_STRUCTURAL_SEGMENT_PX,
   structuralRoofLineRawUsable,
 } from "../integration/calpinageStructuralRoofFromRuntime";
+import {
+  readOfficialRoofPanRecordsForCanonical3D,
+  readStrictStatePansForProduct3D,
+} from "../integration/readOfficialCalpinageGeometryForCanonical3D";
+import { resolvePanPolygonFor3D } from "../integration/resolvePanPolygonFor3D";
+import { coerceFiniteRoofHeightMInput, finiteRoofHeightMOrUndefined } from "../core/vertexHeightSemantics";
+import { legacySharedCornerClusterTolPx } from "../canonical3d/builder/legacyRoofPixelTolerances";
+import { snapLegacyPanPolygonVerticesInPlace } from "../canonical3d/builder/snapLegacyPanPolygonVertices";
 
 // ─── Options ───────────────────────────────────────────────────────────────
 
@@ -61,20 +70,55 @@ export interface CalpinageRoofAdapterOptions {
    * @default true
    */
   warnIfNoRuntime?: boolean;
+  /**
+   * Produit : liste pans uniquement depuis `state.pans` (racine runtime), jamais `roof.roofPans`.
+   */
+  productStrictStatePansOnly?: boolean;
+  /**
+   * Si true : ne rapproche pas les sommets 2D entre pans distincts (`snapLegacyPanPolygonVerticesInPlace`).
+   * Recommandé pour un **seul bâtiment** avec relevé précis (évite tout déplacement px des coins partagés).
+   */
+  skipInterPanVertexSnap?: boolean;
 }
 
 // ─── Helpers internes ──────────────────────────────────────────────────────
 
 /**
- * Hauteur injectable dans le legacy : uniquement si le moteur canonique l’accepte (isValidH).
- * Aucun repli vers `resolveHeightAtPx` (contournait le filtre et laissait passer des Z aberrants).
+ * Runtime officiel 3D : même extrait contours / ridges / traits que `buildCanonicalPans3DFromRuntime`.
+ * Fusionne `structural` passé en paramètre si le root n’expose pas encore ridges/traits.
+ */
+function buildHeightStateContextForLegacyAdapter(
+  roof: unknown,
+  structural: { ridges?: unknown[]; traits?: unknown[] } | null | undefined,
+  runtimeRootForOfficialPans: unknown | undefined,
+): HeightStateContext | null {
+  const baseRoot: Record<string, unknown> =
+    runtimeRootForOfficialPans !== undefined && runtimeRootForOfficialPans !== null && typeof runtimeRootForOfficialPans === "object"
+      ? { ...(runtimeRootForOfficialPans as Record<string, unknown>) }
+      : { roof };
+  const r = baseRoot;
+  const ridgeList = Array.isArray(r.ridges) ? (r.ridges as unknown[]) : [];
+  const traitList = Array.isArray(r.traits) ? (r.traits as unknown[]) : [];
+  if (ridgeList.length === 0 && Array.isArray(structural?.ridges) && structural.ridges.length > 0) {
+    r.ridges = structural.ridges;
+  }
+  if (traitList.length === 0 && Array.isArray(structural?.traits) && structural.traits.length > 0) {
+    r.traits = structural.traits;
+  }
+  return extractHeightStateContextFromCalpinageState(r);
+}
+
+/**
+ * Hauteur injectable dans le legacy : P1 (heightState) puis P2/P3 getHeightAtXY.
+ * `heightState` doit être l’extrait CALPINAGE_STATE pour activer `getExplicitHeightAtPoint`.
  */
 function legacyHeightMFromValidatedRuntime(
   panId: string,
   xPx: number,
   yPx: number,
+  heightState: HeightStateContext | null,
 ): number | undefined {
-  const hRuntime = resolveHeightAtPxRuntime(panId, xPx, yPx);
+  const hRuntime = resolveHeightAtPxRuntime(panId, xPx, yPx, heightState);
   if (import.meta.env.DEV && !Number.isFinite(hRuntime)) {
     console.warn("[HEIGHT_REJECTED]", { panId, xPx, yPx });
   }
@@ -82,68 +126,65 @@ function legacyHeightMFromValidatedRuntime(
 }
 
 /**
- * Mappe un point d'extrémité de ligne structurante vers `LegacyImagePoint2D`
- * en résolvant la hauteur via le runtime si possible.
- *
- * `panIdHint` : ID du pan le plus proche (approximation pour le ridge/trait).
- * Les faîtages sont partagés entre deux pans — on passe l'ID du ridge lui-même
- * car `window.getHeightAtXY` accepte des IDs non-pan (retourne undefined → fallback OK).
+ * Extrémité ridge/trait / point générique : priorité `h` / `heightM` explicites, sinon résolveur avec heightState.
  */
 function mapEndpointWithHeight(
-  raw: { x?: unknown; y?: unknown } | null | undefined,
+  raw: { x?: unknown; y?: unknown; h?: unknown; heightM?: unknown } | null | undefined,
   panIdHint: string,
+  heightState: HeightStateContext | null,
 ): LegacyImagePoint2D {
   const xPx = typeof raw?.x === "number" ? raw.x : 0;
   const yPx = typeof raw?.y === "number" ? raw.y : 0;
-  const heightM = legacyHeightMFromValidatedRuntime(panIdHint, xPx, yPx);
+  const pr = raw as Record<string, unknown> | null | undefined;
+  const explicitH = pr ? finiteRoofHeightMOrUndefined(pr.h ?? pr.heightM) : undefined;
+  const heightM =
+    explicitH !== undefined
+      ? explicitH
+      : legacyHeightMFromValidatedRuntime(panIdHint, xPx, yPx, heightState);
   return { xPx, yPx, ...(heightM !== undefined ? { heightM } : {}) };
 }
 
-/**
- * Mappe les faîtages/arêtiers legacy → `LegacyStructuralLine2D[]`.
- * Filtre `roofRole === "chienAssis"` (extensions, pas de l'enveloppe principale).
- * Les extrémités reçoivent un `heightM` résolu si disponible.
- */
-function mapRidgesWithHeights(ridges: unknown[] | undefined): LegacyStructuralLine2D[] {
+function mapRidgesWithHeights(
+  ridges: unknown[] | undefined,
+  heightState: HeightStateContext | null,
+): LegacyStructuralLine2D[] {
   if (!Array.isArray(ridges)) return [];
   const out: LegacyStructuralLine2D[] = [];
   for (let i = 0; i < ridges.length; i++) {
     const raw = ridges[i];
     if (!structuralRoofLineRawUsable(raw, DEFAULT_MIN_STRUCTURAL_SEGMENT_PX)) continue;
     const rec = raw as Record<string, unknown>;
-    const a = rec.a as { x?: number; y?: number };
-    const b = rec.b as { x?: number; y?: number };
+    const a = rec.a as { x?: number; y?: number; h?: number; heightM?: number };
+    const b = rec.b as { x?: number; y?: number; h?: number; heightM?: number };
     const id = rec.id != null ? String(rec.id) : `ridge-${i}`;
     out.push({
       id,
       kind: "ridge",
-      a: mapEndpointWithHeight(a, id),
-      b: mapEndpointWithHeight(b, id),
+      a: mapEndpointWithHeight(a, id, heightState),
+      b: mapEndpointWithHeight(b, id, heightState),
     });
   }
   return out;
 }
 
-/**
- * Mappe les traits / cassures legacy → `LegacyStructuralLine2D[]`.
- * Filtre `roofRole === "chienAssis"`.
- * Les extrémités reçoivent un `heightM` résolu si disponible.
- */
-function mapTraitsWithHeights(traits: unknown[] | undefined): LegacyStructuralLine2D[] {
+function mapTraitsWithHeights(
+  traits: unknown[] | undefined,
+  heightState: HeightStateContext | null,
+): LegacyStructuralLine2D[] {
   if (!Array.isArray(traits)) return [];
   const out: LegacyStructuralLine2D[] = [];
   for (let i = 0; i < traits.length; i++) {
     const raw = traits[i];
     if (!structuralRoofLineRawUsable(raw, DEFAULT_MIN_STRUCTURAL_SEGMENT_PX)) continue;
     const rec = raw as Record<string, unknown>;
-    const a = rec.a as { x?: number; y?: number };
-    const b = rec.b as { x?: number; y?: number };
+    const a = rec.a as { x?: number; y?: number; h?: number; heightM?: number };
+    const b = rec.b as { x?: number; y?: number; h?: number; heightM?: number };
     const id = rec.id != null ? String(rec.id) : `trait-${i}`;
     out.push({
       id,
       kind: "trait",
-      a: mapEndpointWithHeight(a, id),
-      b: mapEndpointWithHeight(b, id),
+      a: mapEndpointWithHeight(a, id, heightState),
+      b: mapEndpointWithHeight(b, id, heightState),
     });
   }
   return out;
@@ -177,8 +218,18 @@ export function calpinageStateToLegacyRoofInput(
   roof: unknown,
   structural?: { ridges?: unknown[]; traits?: unknown[] } | null,
   options: CalpinageRoofAdapterOptions = {},
+  /**
+   * `CALPINAGE_STATE` racine : permet `state.pans` **avant** `roof.roofPans`.
+   * Si omis : équivalent `{ roof }` (tests / appels historiques).
+   */
+  runtimeRootForOfficialPans?: unknown,
 ): LegacyRoofGeometryInput | null {
-  const { defaultHeightM = 5.5, warnIfNoRuntime = true } = options;
+  const {
+    defaultHeightM = 5.5,
+    warnIfNoRuntime = true,
+    productStrictStatePansOnly = false,
+    skipInterPanVertexSnap = false,
+  } = options ?? {};
 
   if (!roof || typeof roof !== "object") return null;
   const r = roof as Record<string, unknown>;
@@ -204,21 +255,24 @@ export function calpinageStateToLegacyRoofInput(
     );
   }
 
-  // ── Pans ──────────────────────────────────────────────────────────────────
-  const pansRaw = r.roofPans;
+  const heightState = buildHeightStateContextForLegacyAdapter(roof, structural, runtimeRootForOfficialPans);
+
+  // ── Pans (officiel compat : state.pans puis miroir ; produit strict : state.pans seul) ──
+  const panRoot = runtimeRootForOfficialPans !== undefined ? runtimeRootForOfficialPans : { roof };
+  const panRead = productStrictStatePansOnly
+    ? readStrictStatePansForProduct3D(panRoot)
+    : readOfficialRoofPanRecordsForCanonical3D(panRoot);
+  const pansRaw = panRead.pans;
   if (!Array.isArray(pansRaw) || pansRaw.length === 0) return null;
 
   const pans: LegacyPanInput[] = [];
   for (let i = 0; i < pansRaw.length; i++) {
     const pan = pansRaw[i] as Record<string, unknown>;
 
-    // Lecture défensive du polygone (3 noms possibles selon version legacy)
-    const poly: Array<{ x: number; y: number }> | undefined =
-      (pan.polygonPx as Array<{ x: number; y: number }> | undefined) ||
-      (pan.points as Array<{ x: number; y: number }> | undefined) ||
-      (pan.contour as { points?: Array<{ x: number; y: number }> } | undefined)?.points;
-
-    if (!Array.isArray(poly) || poly.length < 3) continue;
+    // Lecture défensive — `resolvePanPolygonFor3D` (polygonPx → points → polygon → contour.points).
+    const resolved = resolvePanPolygonFor3D(pan);
+    const poly = resolved.raw as Array<{ x: number; y: number; h?: number; heightM?: number }> | undefined;
+    if (!poly || poly.length < 3) continue;
 
     const panId = pan.id != null ? String(pan.id) : `pan-${i}`;
 
@@ -228,7 +282,12 @@ export function calpinageStateToLegacyRoofInput(
     const polygonPx: LegacyImagePoint2D[] = poly.map((pt) => {
       const xPx = typeof pt.x === "number" ? pt.x : 0;
       const yPx = typeof pt.y === "number" ? pt.y : 0;
-      const heightM = legacyHeightMFromValidatedRuntime(panId, xPx, yPx);
+      const pr = pt as Record<string, unknown>;
+      const explicitH = finiteRoofHeightMOrUndefined(
+        coerceFiniteRoofHeightMInput(pr.h ?? pr.heightM),
+      );
+      const heightM =
+        explicitH !== undefined ? explicitH : legacyHeightMFromValidatedRuntime(panId, xPx, yPx, heightState);
       return { xPx, yPx, ...(heightM !== undefined ? { heightM } : {}) };
     });
 
@@ -252,9 +311,17 @@ export function calpinageStateToLegacyRoofInput(
 
   if (pans.length === 0) return null;
 
+  if (pans.length >= 2 && !skipInterPanVertexSnap) {
+    const snapTolPx = legacySharedCornerClusterTolPx(mpp);
+    const snapWrites = snapLegacyPanPolygonVerticesInPlace(pans, snapTolPx);
+    if (import.meta.env.DEV && snapWrites > 0) {
+      console.info("[CALPINAGE-2D][SNAP]", { mergedVertexWrites: snapWrites, tolPx: snapTolPx });
+    }
+  }
+
   // ── Lignes structurantes ──────────────────────────────────────────────────
-  const ridges = mapRidgesWithHeights(structural?.ridges);
-  const traits = mapTraitsWithHeights(structural?.traits);
+  const ridges = mapRidgesWithHeights(structural?.ridges, heightState);
+  const traits = mapTraitsWithHeights(structural?.traits, heightState);
 
   return {
     metersPerPixel: mpp,

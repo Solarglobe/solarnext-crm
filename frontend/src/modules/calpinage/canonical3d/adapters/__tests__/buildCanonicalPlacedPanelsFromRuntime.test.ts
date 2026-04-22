@@ -10,6 +10,7 @@ import {
   inferModuleDimsFromProjectionQuadPx,
   mapPvEnginePanelsToPanelInputs,
 } from "../buildCanonicalPlacedPanelsFromRuntime";
+import { segmentHorizontalLengthMFromImagePx } from "../../builder/worldMapping";
 import type { HeightResolverContext } from "../../../core/heightResolver";
 
 function minimalLegacyRoof(panId = "pan-a") {
@@ -43,6 +44,24 @@ describe("inferModuleDimsFromProjectionQuadPx", () => {
     const { widthM, heightM } = inferModuleDimsFromProjectionQuadPx(poly, 0.01);
     expect(widthM).toBeCloseTo(1);
     expect(heightM).toBeCloseTo(0.5);
+  });
+
+  it("nord explicite : cohérent avec segmentHorizontalLengthMFromImagePx sur chaque arête (Niveau 3)", () => {
+    const mpp = 0.01;
+    const north = 40;
+    const poly = [
+      { x: 0, y: 0 },
+      { x: 100, y: 0 },
+      { x: 100, y: 50 },
+      { x: 0, y: 50 },
+    ];
+    const { widthM, heightM } = inferModuleDimsFromProjectionQuadPx(poly, mpp, north);
+    const wTop = segmentHorizontalLengthMFromImagePx(poly[0]!, poly[1]!, mpp, north);
+    const wBot = segmentHorizontalLengthMFromImagePx(poly[3]!, poly[2]!, mpp, north);
+    const hRight = segmentHorizontalLengthMFromImagePx(poly[1]!, poly[2]!, mpp, north);
+    const hLeft = segmentHorizontalLengthMFromImagePx(poly[0]!, poly[3]!, mpp, north);
+    expect(widthM).toBeCloseTo((wTop + wBot) / 2, 8);
+    expect(heightM).toBeCloseTo((hRight + hLeft) / 2, 8);
   });
 });
 
@@ -115,6 +134,7 @@ describe("buildCanonicalPlacedPanelsFromRuntime", () => {
     });
 
     expect(res.ok).toBe(true);
+    expect(res.rawEnginePanelCount).toBe(1);
     expect(res.placementInputs.length).toBe(1);
     expect(res.placementInputs[0].roofPlanePatchId).toBe("pan-a");
     expect(res.rows[0].zResolutionOk).toBe(true);

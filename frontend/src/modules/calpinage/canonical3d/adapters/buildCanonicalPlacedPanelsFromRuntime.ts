@@ -27,6 +27,7 @@ import {
   type HeightResolverContext,
 } from "../../core/heightResolver";
 import { extractHeightStateContextFromCalpinageState } from "./buildCanonicalPans3DFromRuntime";
+import { segmentHorizontalLengthMFromImagePx } from "../builder/worldMapping";
 
 // ─── Résultat ───────────────────────────────────────────────────────────────
 
@@ -43,6 +44,8 @@ export type CanonicalPlacedPanelsResult = {
   readonly placementInputs: readonly PvPanelPlacementInput[];
   readonly rows: readonly CanonicalPlacedPanelRow[];
   readonly diagnostics: readonly string[];
+  /** Panneaux moteur bruts (enabled) avant rebind officiel — pour diagnostics Prompt 5. */
+  readonly rawEnginePanelCount: number;
 };
 
 // ─── Entrée ─────────────────────────────────────────────────────────────────
@@ -81,19 +84,18 @@ export interface BuildCanonicalPlacedPanelsFromRuntimeInput {
 
 /**
  * Estime largeur / hauteur module (m) à partir d’un quad image (4 sommets) et du mpp.
- * Moyenne des longueurs d’arêtes opposées.
+ * Moyenne des longueurs d’arêtes opposées en **plan horizontal monde** (`segmentHorizontalLengthMFromImagePx`, Niveau 3).
  */
 export function inferModuleDimsFromProjectionQuadPx(
   poly: ReadonlyArray<{ x: number; y: number }>,
   metersPerPixel: number,
+  northAngleDeg: number = 0,
 ): { widthM: number; heightM: number } {
+  const north = Number.isFinite(northAngleDeg) ? northAngleDeg : 0;
   if (!poly.length) return { widthM: 1, heightM: 1.7 };
   if (poly.length === 4) {
     const edgeLen = (i: number) =>
-      Math.hypot(
-        poly[(i + 1) % 4]!.x - poly[i]!.x,
-        poly[(i + 1) % 4]!.y - poly[i]!.y,
-      ) * metersPerPixel;
+      segmentHorizontalLengthMFromImagePx(poly[i]!, poly[(i + 1) % 4]!, metersPerPixel, north);
     const e0 = edgeLen(0);
     const e1 = edgeLen(1);
     const e2 = edgeLen(2);
@@ -112,8 +114,8 @@ export function inferModuleDimsFromProjectionQuadPx(
     minY = Math.min(minY, p.y);
     maxY = Math.max(maxY, p.y);
   }
-  const w = (maxX - minX) * metersPerPixel;
-  const h = (maxY - minY) * metersPerPixel;
+  const w = segmentHorizontalLengthMFromImagePx({ x: minX, y: minY }, { x: maxX, y: minY }, metersPerPixel, north);
+  const h = segmentHorizontalLengthMFromImagePx({ x: minX, y: minY }, { x: minX, y: maxY }, metersPerPixel, north);
   return { widthM: Math.max(w, 0.05), heightM: Math.max(h, 0.05) };
 }
 
@@ -132,6 +134,7 @@ export function mapPvEnginePanelsToPanelInputs(
   rawPanels: readonly unknown[],
   placementEngine: PlacementEngineLike | null | undefined,
   metersPerPixel: number,
+  northAngleDeg: number = 0,
 ): PanelInput[] {
   const out: PanelInput[] = [];
   for (let i = 0; i < rawPanels.length; i++) {
@@ -151,7 +154,7 @@ export function mapPvEnginePanelsToPanelInputs(
         ? { x: (p.center as { x: number }).x, y: (p.center as { y: number }).y }
         : undefined;
 
-    const inferred = inferModuleDimsFromProjectionQuadPx(poly, metersPerPixel);
+    const inferred = inferModuleDimsFromProjectionQuadPx(poly, metersPerPixel, northAngleDeg);
     let orientation: string | undefined;
     if (placementEngine && typeof placementEngine.getBlockById === "function") {
       const parsed = parsePanelCompositeId(id);
@@ -191,18 +194,36 @@ export function buildCanonicalPlacedPanelsFromRuntime(
   const diag: string[] = [];
 
   if (!patches.length) {
-    return { ok: false, placementInputs: [], rows: [], diagnostics: ["NO_ROOF_PLANE_PATCHES"] };
+    return { ok: false, placementInputs: [], rows: [], diagnostics: ["NO_ROOF_PLANE_PATCHES"], rawEnginePanelCount: 0 };
   }
 
   const rawList =
     input.rawPanels ??
     (typeof input.getAllPanels === "function" ? input.getAllPanels() ?? [] : []);
 
+  const rawEnginePanelCount = Array.isArray(rawList)
+    ? rawList.filter((raw) => {
+        if (!raw || typeof raw !== "object") return false;
+        return (raw as Record<string, unknown>).enabled !== false;
+      }).length
+    : 0;
+
   if (!rawList.length) {
-    return { ok: false, placementInputs: [], rows: [], diagnostics: ["NO_PLACEMENT_PANELS"] };
+    return {
+      ok: false,
+      placementInputs: [],
+      rows: [],
+      diagnostics: ["NO_PLACEMENT_PANELS"],
+      rawEnginePanelCount: 0,
+    };
   }
 
-  let panelInputs = mapPvEnginePanelsToPanelInputs(rawList, input.placementEngine ?? null, input.metersPerPixel);
+  let panelInputs = mapPvEnginePanelsToPanelInputs(
+    rawList,
+    input.placementEngine ?? null,
+    input.metersPerPixel,
+    input.northAngleDeg,
+  );
   panelInputs = enrichPanelsForCanonicalShading(panelInputs, input.placementEngine ?? null);
 
   const heightState = extractHeightStateContextFromCalpinageState(input.state ?? null);
@@ -218,7 +239,7 @@ export function buildCanonicalPlacedPanelsFromRuntime(
               panId: panId ?? undefined,
               defaultHeightM: defaultZFallbackM,
             });
-            return r.heightM;
+            return r.heightM !== undefined && Number.isFinite(r.heightM) ? r.heightM : defaultZFallbackM;
           },
         }
       : undefined;
@@ -264,8 +285,9 @@ export function buildCanonicalPlacedPanelsFromRuntime(
         panId: panId ?? undefined,
         defaultHeightM: defaultZFallbackM,
       });
-      zCenter = r.heightM;
-      zOk = r.ok;
+      zCenter =
+        r.heightM !== undefined && Number.isFinite(r.heightM) ? r.heightM : defaultZFallbackM;
+      zOk = r.ok && r.heightM !== undefined && Number.isFinite(r.heightM);
     } else if (typeof input.getHeightAtImagePoint === "function" && src?.center) {
       zCenter = input.getHeightAtImagePoint({ x: src.center.x, y: src.center.y });
       zOk = true;
@@ -286,5 +308,6 @@ export function buildCanonicalPlacedPanelsFromRuntime(
     placementInputs: inputs,
     rows,
     diagnostics: diag,
+    rawEnginePanelCount,
   };
 }

@@ -8,6 +8,7 @@ import React, { useMemo } from "react";
 import ChartP4Production from "./ChartP4Production";
 import PdfPageLayout from "../PdfEngine/PdfPageLayout";
 import PdfHeader from "../../../components/pdf/PdfHeader";
+import { usePdfOrgBranding } from "./pdfOrgBrandingContext";
 
 const API_BASE = import.meta.env?.VITE_API_URL || (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000");
 const PLACEHOLDER_LOGO = "/pdf-assets/images/logo-solarglobe-rect.png";
@@ -105,6 +106,8 @@ export default function PdfPage4({
 
   const hasData = prodAnnuelle > 0 || consoAnnuelle > 0;
 
+  const { brandHex } = usePdfOrgBranding();
+
   return (
     <PdfPageLayout
       legacyPort={{
@@ -187,7 +190,7 @@ export default function PdfPage4({
         }}
       >
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: "2.4mm", flexShrink: 0 }}>
-          <h3 style={{ margin: 0, color: "#C39847", fontSize: "4.4mm", fontWeight: 800, letterSpacing: "0.02em" }}>Répartition mensuelle</h3>
+          <h3 style={{ margin: 0, color: brandHex, fontSize: "4.4mm", fontWeight: 800, letterSpacing: "0.02em" }}>Répartition mensuelle</h3>
         </div>
 
         <div style={{ height: "74mm", position: "relative", flexShrink: 0 }}>

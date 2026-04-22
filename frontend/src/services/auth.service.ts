@@ -4,7 +4,12 @@ const TOKEN_KEY = "solarnext_token";
 
 export interface LoginResponse {
   token: string;
-  user: { id: number; email: string; role: string; organizationId: number };
+  user: {
+    id: string;
+    email: string;
+    role: string;
+    organizationId: string;
+  };
 }
 
 export async function login(
@@ -37,6 +42,9 @@ export async function login(
 
 export function logout(): void {
   localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem("solarnext_current_organization_id");
+  localStorage.removeItem("solarnext_super_admin");
+  localStorage.removeItem("solarnext_super_admin_edit_mode");
   window.location.href = "/crm.html/login";
 }
 
@@ -44,23 +52,57 @@ export function logout(): void {
  * Décode le payload d'un JWT sans vérifier la signature (côté client uniquement).
  * Retourne null si le token est malformé.
  */
-function decodeJwtPayload(token: string): { exp?: number } | null {
+function decodeJwtPayloadRaw(token: string): Record<string, unknown> | null {
   try {
     const parts = token.split(".");
     if (parts.length !== 3) return null;
     const payload = parts[1];
-    // Base64url → base64 standard
     const base64 = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const padLen = (4 - (base64.length % 4)) % 4;
+    const padded = base64 + "=".repeat(padLen);
     const json = decodeURIComponent(
-      atob(base64)
+      atob(padded)
         .split("")
         .map((c) => "%" + c.charCodeAt(0).toString(16).padStart(2, "0"))
         .join("")
     );
-    return JSON.parse(json) as { exp?: number };
+    return JSON.parse(json) as Record<string, unknown>;
   } catch {
     return null;
   }
+}
+
+function decodeJwtPayload(token: string): { exp?: number } | null {
+  const raw = decodeJwtPayloadRaw(token);
+  if (!raw) return null;
+  return { exp: typeof raw.exp === "number" ? raw.exp : undefined };
+}
+
+/**
+ * Payload JWT (CP-078 : organisation / rôle) — ne pas utiliser pour des décisions de sécurité critiques.
+ */
+export function decodeJwtPayloadUnsafe(token: string): {
+  exp?: number;
+  organizationId?: string;
+  role?: string;
+  userId?: string;
+} | null {
+  const raw = decodeJwtPayloadRaw(token);
+  if (!raw) return null;
+  const organizationId =
+    (typeof raw.organizationId === "string" && raw.organizationId) ||
+    (typeof raw.organization_id === "string" && raw.organization_id) ||
+    undefined;
+  const userId =
+    (typeof raw.userId === "string" && raw.userId) ||
+    (typeof raw.id === "string" && raw.id) ||
+    undefined;
+  return {
+    exp: typeof raw.exp === "number" ? raw.exp : undefined,
+    organizationId,
+    role: typeof raw.role === "string" ? raw.role : undefined,
+    userId,
+  };
 }
 
 /**
@@ -80,6 +122,10 @@ export interface CurrentUser {
   id: string;
   email: string;
   organizationId: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  /** Prénom + nom ou email */
+  name?: string;
 }
 
 export async function getCurrentUser(): Promise<CurrentUser> {

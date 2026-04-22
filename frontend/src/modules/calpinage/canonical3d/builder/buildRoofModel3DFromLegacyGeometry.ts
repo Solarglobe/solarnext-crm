@@ -54,10 +54,13 @@ import {
   buildInterPanRelationReports,
 } from "./interPanSharedEdges";
 import {
+  LEGACY_SHARED_CORNER_CLUSTER_TOL_PX,
   unifyLegacyPanCornerZAcrossPans,
   type LegacyPanCornerPhase,
 } from "./unifyLegacyPanSharedCornersZ";
 import { imposeLegacyPanPlanesThroughSharedEdges } from "./imposeLegacySharedEdgePlanes";
+import { legacyPanRawCornerHasExplicitHeightM } from "./explicitLegacyPanCornerZ";
+import { legacyMinSharedEdgeLenPx, legacySharedCornerClusterTolPx } from "./legacyRoofPixelTolerances";
 import type { InterPanRelationReport } from "./interPanTypes";
 import type { LegacyPanInput, LegacyRoofGeometryInput } from "./legacyInput";
 import { imagePxToWorldHorizontalM } from "./worldMapping";
@@ -85,6 +88,16 @@ import {
   roofZTraceRecordStep,
   roofZTraceReset,
 } from "./roofZPipelineDevTrace";
+import {
+  computeRoofHeightSignalFromLegacyCornerTraces,
+  emptyRoofHeightSignalDiagnostics,
+  type RoofHeightSignalDiagnostics,
+} from "./roofHeightSignalDiagnostics";
+import {
+  computeRoofReconstructionQualityDiagnostics,
+  emptyRoofReconstructionQualityDiagnostics,
+  type RoofReconstructionQualityDiagnostics,
+} from "./roofReconstructionQuality";
 
 const POS_KEY_PRECISION = 1e5;
 const RESIDUAL_HIGH = 0.05;
@@ -149,6 +162,20 @@ function shoelaceXYSigned(pts: readonly Vector3[]): number {
   return s * 0.5;
 }
 
+/**
+ * - reconstruction : comportement historique (unify, impose, anti-spike, raffinement normales).
+ * - fidelity : règle « compléter ce qui manque, ne pas corriger l’existant » pour les Z explicites sur sommets pan.
+ * - hybrid : comme fidélité pour unify/impose/spike, mais **avec** raffinement des normales sur arêtes structurantes (niveau 2).
+ */
+export type RoofGeometryFidelityMode = "reconstruction" | "fidelity" | "hybrid";
+
+/** Pipeline produit `buildSolarScene3DFromCalpinageRuntime` : défaut si `roofGeometryFidelityMode` est omis. Réversible via l’option explicite `roofGeometryFidelityMode: "hybrid"`. */
+export const DEFAULT_PRODUCT_ROOF_GEOMETRY_FIDELITY_MODE: RoofGeometryFidelityMode = "fidelity";
+
+export interface BuildRoofModel3DFromLegacyGeometryOptions {
+  readonly roofGeometryFidelityMode?: RoofGeometryFidelityMode;
+}
+
 export interface BuildRoofModel3DResult {
   readonly model: RoofModel3D;
   /** Relations inter-pans (arêtes communes, angles, continuité) — audit solver. */
@@ -166,13 +193,22 @@ export interface BuildRoofModel3DResult {
     readonly ridgeLineCount: number;
     readonly interPanRelationCount: number;
   };
+  /** Signal hauteur agrégé (coins avant translation Z monde). */
+  readonly roofHeightSignal: RoofHeightSignalDiagnostics;
+  /** Qualité reconstruction toiture 3D (Prompt 4) — vérité géométrique vs fallback. */
+  readonly roofReconstructionQuality: RoofReconstructionQualityDiagnostics;
 }
 
 /**
  * Reconstruit un `RoofModel3D` à partir d’entrée legacy normalisée.
  * Pur : ne modifie pas l’entrée ; ne touche pas au runtime calpinage.
+ *
+ * @param buildOptions.roofGeometryFidelityMode — `reconstruction` par défaut si omis (compat tests / appels historiques).
  */
-export function buildRoofModel3DFromLegacyGeometry(input: LegacyRoofGeometryInput): BuildRoofModel3DResult {
+export function buildRoofModel3DFromLegacyGeometry(
+  input: LegacyRoofGeometryInput,
+  buildOptions?: BuildRoofModel3DFromLegacyGeometryOptions,
+): BuildRoofModel3DResult {
   const upWorld = vec3(0, 0, 1);
   const mpp = input.metersPerPixel;
   if (!Number.isFinite(mpp) || mpp <= 0) {
@@ -201,11 +237,22 @@ export function buildRoofModel3DFromLegacyGeometry(input: LegacyRoofGeometryInpu
       interPanReports: [],
       worldZOriginShiftM: 0,
       stats: { panCount: 0, vertexCount: 0, edgeCount: 0, ridgeLineCount: 0, interPanRelationCount: 0 },
+      roofHeightSignal: emptyRoofHeightSignalDiagnostics(),
+      roofReconstructionQuality: emptyRoofReconstructionQualityDiagnostics(),
     };
   }
 
   const base = createEmptyRoofModel3D(CANONICAL_ROOF_MODEL_SCHEMA_VERSION);
   const createdAt = input.createdAtIso ?? new Date().toISOString();
+  const fidelityMode: RoofGeometryFidelityMode = buildOptions?.roofGeometryFidelityMode ?? "reconstruction";
+  const isFidelity = fidelityMode === "fidelity";
+  const isHybrid = fidelityMode === "hybrid";
+  /** Unify/impose « prudents » comme en fidélité (cotes explicites). */
+  const fidelityCornerBehavior = isFidelity || isHybrid;
+  /** Raffinement normales ridges (désactivé seulement en fidélité pure). */
+  const runStructuralRefinement = fidelityMode === "reconstruction" || isHybrid;
+
+  const cornerTolPx = legacySharedCornerClusterTolPx(mpp);
 
   const vertexMap = new Map<string, { id: string; position: Vector3 }>();
   let vertexCounter = 0;
@@ -251,6 +298,25 @@ export function buildRoofModel3DFromLegacyGeometry(input: LegacyRoofGeometryInpu
   }
 
   const heightBundle = buildHeightConstraintBundle(input, input.ridges, input.traits);
+
+  if (isFidelity) {
+    globalDiagnostics.push({
+      code: "ROOF_GEOMETRY_FIDELITY_MODE_ACTIVE",
+      severity: "info",
+      message:
+        "Mode fidélité métier : anti-spike sans aplatissement si déclenché ; unify/impose contournent les sommets à cote explicite ; pas de raffinement des normales sur arêtes structurantes.",
+      context: { roofGeometryFidelityMode: fidelityMode },
+    });
+  }
+  if (isHybrid) {
+    globalDiagnostics.push({
+      code: "ROOF_GEOMETRY_HYBRID_MODE_ACTIVE",
+      severity: "info",
+      message:
+        "Mode hybride : discipline Z proche de la fidélité (unify/impose/spike) avec raffinement des normales sur arêtes structurantes pour limiter les fissures inter-pans.",
+      context: { roofGeometryFidelityMode: fidelityMode },
+    });
+  }
 
   roofZTraceReset();
 
@@ -298,21 +364,33 @@ export function buildRoofModel3DFromLegacyGeometry(input: LegacyRoofGeometryInpu
       let spikeApplied = false;
       if (xyDiag > SPIKE_MIN_XY_DIAG_M && zRange / xyDiag > SPIKE_RATIO_THRESHOLD) {
         spikeApplied = true;
-        const meanZ = zs.reduce((s, v) => s + v, 0) / zs.length;
-        for (let k = 0; k < cornersWorld.length; k++) {
-          cornersWorld[k] = { ...cornersWorld[k], z: meanZ };
-        }
-        if (isRoofZPipelineDevTraceEnabled()) {
+        if (fidelityCornerBehavior) {
+          globalDiagnostics.push({
+            code: "PAN_SPIKE_DETECTED_FIDELITY_NO_CLAMP",
+            severity: "warning",
+            message: `Pan ${pan.id} : spike détecté (zRange=${zRange.toFixed(2)}m, xyDiag=${xyDiag.toFixed(2)}m, ratio=${(zRange / xyDiag).toFixed(2)}). Mode fidélité : Z non aplati — vérifier les cotes ou passer en mode reconstruction.`,
+            context: { panId: pan.id, zRange, xyDiag, ratio: zRange / xyDiag },
+          });
+        } else {
+          const meanZ = zs.reduce((s, v) => s + v, 0) / zs.length;
           for (let k = 0; k < cornersWorld.length; k++) {
-            roofZTraceRecordStep(pan.id, k, "H", meanZ, { spikeMeanZ: meanZ });
+            if (legacyPanRawCornerHasExplicitHeightM(raw, k)) {
+              continue;
+            }
+            cornersWorld[k] = { ...cornersWorld[k], z: meanZ };
           }
+          if (isRoofZPipelineDevTraceEnabled()) {
+            for (let k = 0; k < cornersWorld.length; k++) {
+              roofZTraceRecordStep(pan.id, k, "H", meanZ, { spikeMeanZ: meanZ });
+            }
+          }
+          globalDiagnostics.push({
+            code: "PAN_SPIKE_CLAMPED",
+            severity: "warning",
+            message: `Pan ${pan.id} : spike détecté (zRange=${zRange.toFixed(2)}m, xyDiag=${xyDiag.toFixed(2)}m, ratio=${(zRange / xyDiag).toFixed(2)}). Z aplati à ${meanZ.toFixed(2)}m.`,
+            context: { panId: pan.id, zRange, xyDiag, meanZ },
+          });
         }
-        globalDiagnostics.push({
-          code: "PAN_SPIKE_CLAMPED",
-          severity: "warning",
-          message: `Pan ${pan.id} : spike détecté (zRange=${zRange.toFixed(2)}m, xyDiag=${xyDiag.toFixed(2)}m, ratio=${(zRange / xyDiag).toFixed(2)}). Z aplati à ${meanZ.toFixed(2)}m.`,
-          context: { panId: pan.id, zRange, xyDiag, meanZ },
-        });
       }
       if (isRoofZPipelineDevTraceEnabled()) {
         roofZTraceLogAntiSpike({
@@ -333,7 +411,14 @@ export function buildRoofModel3DFromLegacyGeometry(input: LegacyRoofGeometryInpu
   }
 
   if (cornerPhases.length >= 2) {
-    const uz = unifyLegacyPanCornerZAcrossPans(cornerPhases);
+    const unifyOpts =
+      fidelityCornerBehavior
+        ? {
+            skipClusterIfAnyExplicitPolygonVertex: true as const,
+            ...(fidelityMode === "fidelity" ? { skipClusterIfAllRawCornersExplicit: true as const } : {}),
+          }
+        : undefined;
+    const uz = unifyLegacyPanCornerZAcrossPans(cornerPhases, cornerTolPx, unifyOpts);
     globalDiagnostics.push(...uz.diagnostics);
     if (isRoofZPipelineDevTraceEnabled()) {
       for (const ph of cornerPhases) {
@@ -352,8 +437,41 @@ export function buildRoofModel3DFromLegacyGeometry(input: LegacyRoofGeometryInpu
         }
       }
     }
-    const pl = imposeLegacyPanPlanesThroughSharedEdges(cornerPhases, upWorld);
+    const pl = imposeLegacyPanPlanesThroughSharedEdges(
+      cornerPhases,
+      upWorld,
+      cornerTolPx,
+      {
+        ...(fidelityCornerBehavior
+          ? {
+              skipIfEitherPanHasExplicitVertex: true,
+              ...(fidelityMode === "fidelity" ? { skipPairIfSharedEdgeEndpointsFullyExplicit: true } : {}),
+            }
+          : {}),
+        minSharedEdgeLenPx: legacyMinSharedEdgeLenPx(cornerTolPx),
+      },
+    );
     globalDiagnostics.push(...pl.diagnostics);
+
+    if (import.meta.env.DEV && fidelityMode === "fidelity") {
+      for (const ph of cornerPhases) {
+        const raw = ph.raw;
+        const nV = raw.length;
+        let explicitN = 0;
+        for (let vi = 0; vi < nV; vi++) {
+          if (legacyPanRawCornerHasExplicitHeightM(raw, vi)) explicitN++;
+        }
+        const explicitPct = nV > 0 ? Math.round((100 * explicitN) / nV) : 0;
+        const unifyTouched = uz.touchedPanIds.has(String(ph.pan.id));
+        const imposeTouched = pl.touchedPanIds.has(String(ph.pan.id));
+        console.info("[FAITHFUL-ROOF][pan]", {
+          panId: ph.pan.id,
+          explicitHeightMPercent: explicitPct,
+          unifyAdjustedThisPan: unifyTouched,
+          imposeAdjustedThisPan: imposeTouched,
+        });
+      }
+    }
     if (isRoofZPipelineDevTraceEnabled()) {
       for (const ph of cornerPhases) {
         const c1 = centroid3(ph.cornersWorld);
@@ -638,18 +756,28 @@ export function buildRoofModel3DFromLegacyGeometry(input: LegacyRoofGeometryInpu
     return { ...e, semantic: ann.semantic, ridgeLineId: ann.ridgeLineId };
   });
 
-  applyStructuralSharedEdgePlaneRefinement(
-    panWorks.map((w) => ({
-      planePatch: w.planePatch,
-      cornersWorld: w.cornersWorld,
-      boundaryVertexIds: w.boundaryVertexIds,
-      tiltDegHint: w.pan.tiltDegHint,
-      azimuthDegHint: w.pan.azimuthDegHint,
-    })),
-    roofEdgesWithRidges,
-    upWorld,
-    globalDiagnostics
-  );
+  if (runStructuralRefinement) {
+    applyStructuralSharedEdgePlaneRefinement(
+      panWorks.map((w) => ({
+        planePatch: w.planePatch,
+        cornersWorld: w.cornersWorld,
+        boundaryVertexIds: w.boundaryVertexIds,
+        tiltDegHint: w.pan.tiltDegHint,
+        azimuthDegHint: w.pan.azimuthDegHint,
+      })),
+      roofEdgesWithRidges,
+      upWorld,
+      globalDiagnostics,
+    );
+  } else {
+    globalDiagnostics.push({
+      code: "ROOF_SHARED_EDGE_NORMAL_REFINEMENT_SKIPPED_FIDELITY",
+      severity: "info",
+      message:
+        "Raffinement des normales sur arêtes structurantes partagées désactivé en mode fidélité métier (pur).",
+      context: {},
+    });
+  }
 
   for (const w of panWorks) {
     const n = w.boundaryVertexIds.length;
@@ -748,6 +876,28 @@ export function buildRoofModel3DFromLegacyGeometry(input: LegacyRoofGeometryInpu
   if (roofPlanePatches.some((p) => p.quality.confidence === "low") && globalDiagnostics.length > 0)
     globalConf = "low";
 
+  const roofHeightSignal =
+    cornerPhases.length > 0
+      ? computeRoofHeightSignalFromLegacyCornerTraces(
+          input,
+          cornerPhases.map((ph) => ph.cornerTraces),
+        )
+      : emptyRoofHeightSignalDiagnostics();
+
+  if (!roofHeightSignal.inclinedRoofGeometryTruthful) {
+    globalDiagnostics.push({
+      code: "ROOF_HEIGHT_SIGNAL_NOT_TRUTHFUL_FOR_MEASURED_SLOPE",
+      severity: "info",
+      message:
+        "Signal hauteur partiel ou repli defaultHeightM : ne pas interpréter la pente 3D comme entièrement issue de cotes mesurées.",
+      context: {
+        heightSignalStatus: roofHeightSignal.heightSignalStatus,
+        explicitVertexHeightCount: roofHeightSignal.explicitVertexHeightCount,
+        fallbackVertexHeightCount: roofHeightSignal.fallbackVertexHeightCount,
+      },
+    });
+  }
+
   const model: RoofModel3D = {
     ...base,
     metadata: {
@@ -783,6 +933,13 @@ export function buildRoofModel3DFromLegacyGeometry(input: LegacyRoofGeometryInpu
     },
   };
 
+  const roofReconstructionQuality = computeRoofReconstructionQualityDiagnostics({
+    legacyInput: input,
+    model,
+    roofHeightSignal,
+    interPanReports,
+  });
+
   return {
     model,
     interPanReports,
@@ -794,5 +951,7 @@ export function buildRoofModel3DFromLegacyGeometry(input: LegacyRoofGeometryInpu
       ridgeLineCount: ridgeAssembly.roofRidges.length,
       interPanRelationCount: interPanReports.length,
     },
+    roofHeightSignal,
+    roofReconstructionQuality,
   };
 }

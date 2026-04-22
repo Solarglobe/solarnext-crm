@@ -30,7 +30,6 @@ const AZIMUTH_MAX = 360;
 const TILT_MIN = 0;
 const TILT_MAX = 90;
 const TILT_SLIDER_MAX = 60;
-const TILT_DEFAULT_HINT = 30;
 
 function clampAzimuth(v: number): number {
   return Math.max(AZIMUTH_MIN, Math.min(AZIMUTH_MAX, Math.round(v)));
@@ -72,15 +71,61 @@ export function renderPanPropertiesPanel(options: PanPropertiesPanelOptions): {
   }
 
   function syncAzimuthFromPan(pan: Pan) {
-    const v = pan.physical?.orientation?.azimuthDeg ?? pan.azimuthDeg ?? 0;
-    if (azimuthSlider) azimuthSlider.value = String(clampAzimuth(v));
-    if (azimuthInput) azimuthInput.value = String(clampAzimuth(v));
+    const raw =
+      pan.physical?.orientation?.azimuthDeg != null
+        ? pan.physical.orientation.azimuthDeg
+        : pan.azimuthDeg != null
+          ? pan.azimuthDeg
+          : null;
+    if (raw != null && Number.isFinite(Number(raw))) {
+      const v = clampAzimuth(Number(raw));
+      if (azimuthSlider) {
+        azimuthSlider.disabled = false;
+        azimuthSlider.value = String(v);
+      }
+      if (azimuthInput) {
+        azimuthInput.value = String(v);
+        azimuthInput.placeholder = "";
+      }
+    } else {
+      if (azimuthSlider) {
+        azimuthSlider.disabled = true;
+        azimuthSlider.value = String(AZIMUTH_MIN);
+      }
+      if (azimuthInput) {
+        azimuthInput.value = "";
+        azimuthInput.placeholder = "\u2014";
+      }
+    }
   }
 
   function syncTiltFromPan(pan: Pan) {
-    const v = pan.physical?.slope?.valueDeg ?? pan.tiltDeg ?? TILT_DEFAULT_HINT;
-    if (tiltSlider) tiltSlider.value = String(clampTilt(v));
-    if (tiltInput) tiltInput.value = String(clampTilt(v));
+    const slope = pan.physical?.slope;
+    let raw: number | null = null;
+    if (slope?.valueDeg != null && Number.isFinite(Number(slope.valueDeg))) raw = Number(slope.valueDeg);
+    else if (slope && slope.mode !== "manual" && slope.computedDeg != null && Number.isFinite(Number(slope.computedDeg)))
+      raw = Number(slope.computedDeg);
+    else if (pan.tiltDeg != null && Number.isFinite(Number(pan.tiltDeg))) raw = Number(pan.tiltDeg);
+    if (raw != null && Number.isFinite(raw)) {
+      const v = clampTilt(raw);
+      if (tiltSlider) {
+        tiltSlider.disabled = false;
+        tiltSlider.value = String(v);
+      }
+      if (tiltInput) {
+        tiltInput.value = String(v);
+        tiltInput.placeholder = "";
+      }
+    } else {
+      if (tiltSlider) {
+        tiltSlider.disabled = true;
+        tiltSlider.value = String(TILT_MIN);
+      }
+      if (tiltInput) {
+        tiltInput.value = "";
+        tiltInput.placeholder = "\u2014";
+      }
+    }
   }
 
   function getActivePoint(): { pan: Pan; point: Point2D; index: number } | null {
@@ -311,22 +356,44 @@ export function renderPanPropertiesPanel(options: PanPropertiesPanelOptions): {
       const v = clampAzimuth(Number(azimuthSlider!.value));
       pan.azimuthDeg = v;
       if (azimuthInput) azimuthInput.value = String(v);
+      if (azimuthSlider) azimuthSlider.disabled = false;
       onRedraw();
     });
     azimuthInput.addEventListener("input", () => {
       const pan = getActivePan();
       if (!pan) return;
-      const v = clampAzimuth(Number(azimuthInput!.value));
+      const rawAz = (azimuthInput!.value || "").trim();
+      if (rawAz === "") return;
+      const v = clampAzimuth(Number(rawAz));
+      if (!Number.isFinite(v)) return;
       pan.azimuthDeg = v;
-      if (azimuthSlider) azimuthSlider.value = String(v);
+      if (azimuthSlider) {
+        azimuthSlider.disabled = false;
+        azimuthSlider.value = String(v);
+      }
       onRedraw();
     });
     azimuthInput.addEventListener("change", () => {
       const pan = getActivePan();
       if (!pan) return;
-      const v = clampAzimuth(Number(azimuthInput!.value));
+      const rawAz = (azimuthInput!.value || "").trim();
+      if (rawAz === "") {
+        pan.azimuthDeg = null;
+        syncAzimuthFromPan(pan);
+        onRedraw();
+        return;
+      }
+      const v = clampAzimuth(Number(rawAz));
+      if (!Number.isFinite(v)) {
+        syncAzimuthFromPan(pan);
+        onRedraw();
+        return;
+      }
       pan.azimuthDeg = v;
-      if (azimuthSlider) azimuthSlider.value = String(v);
+      if (azimuthSlider) {
+        azimuthSlider.disabled = false;
+        azimuthSlider.value = String(v);
+      }
       if (azimuthInput) azimuthInput.value = String(v);
       onRedraw();
     });
@@ -342,7 +409,7 @@ export function renderPanPropertiesPanel(options: PanPropertiesPanelOptions): {
     tiltNote.style.fontSize = "11px";
     tiltNote.style.color = "var(--muted, #6b7280)";
     tiltNote.style.marginBottom = "8px";
-    tiltNote.textContent = "0° plat, 90° vertical. Recommandé : 30° si non défini.";
+    tiltNote.textContent = "0° = plat. Laisser vide tant que la pente n'est pas calculée ou saisie.";
     controlsWrap.appendChild(tiltNote);
 
     const tiltRow = document.createElement("div");
@@ -371,6 +438,7 @@ export function renderPanPropertiesPanel(options: PanPropertiesPanelOptions): {
     tiltSlider.addEventListener("input", () => {
       const pan = getActivePan();
       if (!pan) return;
+      if (tiltSlider) tiltSlider.disabled = false;
       const v = clampTilt(Number(tiltSlider!.value));
       if (onApplyManualSlope) {
         onApplyManualSlope(pan, v);
@@ -387,7 +455,10 @@ export function renderPanPropertiesPanel(options: PanPropertiesPanelOptions): {
     tiltInput.addEventListener("input", () => {
       const pan = getActivePan();
       if (!pan) return;
-      const v = clampTilt(Number(tiltInput!.value));
+      const rawT = (tiltInput!.value || "").trim();
+      if (rawT === "") return;
+      const v = clampTilt(Number(rawT));
+      if (!Number.isFinite(v)) return;
       if (onApplyManualSlope) {
         onApplyManualSlope(pan, v);
       } else {
@@ -397,13 +468,33 @@ export function renderPanPropertiesPanel(options: PanPropertiesPanelOptions): {
           pan.physical.slope.valueDeg = v;
         }
       }
-      if (tiltSlider) tiltSlider.value = String(Math.min(v, TILT_SLIDER_MAX));
+      if (tiltSlider) {
+        tiltSlider.disabled = false;
+        tiltSlider.value = String(Math.min(v, TILT_SLIDER_MAX));
+      }
       onRedraw();
     });
     tiltInput.addEventListener("change", () => {
       const pan = getActivePan();
       if (!pan) return;
-      const v = clampTilt(Number(tiltInput!.value));
+      const rawT = (tiltInput!.value || "").trim();
+      if (rawT === "") {
+        pan.tiltDeg = null;
+        if (pan.physical?.slope) {
+          pan.physical.slope.mode = "auto";
+          pan.physical.slope.valueDeg = null;
+        }
+        onHeightsChanged?.(pan);
+        syncTiltFromPan(pan);
+        onRedraw();
+        return;
+      }
+      const v = clampTilt(Number(rawT));
+      if (!Number.isFinite(v)) {
+        syncTiltFromPan(pan);
+        onRedraw();
+        return;
+      }
       if (onApplyManualSlope) {
         onApplyManualSlope(pan, v);
       } else {
@@ -413,7 +504,10 @@ export function renderPanPropertiesPanel(options: PanPropertiesPanelOptions): {
           pan.physical.slope.valueDeg = v;
         }
       }
-      if (tiltSlider) tiltSlider.value = String(Math.min(v, TILT_SLIDER_MAX));
+      if (tiltSlider) {
+        tiltSlider.disabled = false;
+        tiltSlider.value = String(Math.min(v, TILT_SLIDER_MAX));
+      }
       if (tiltInput) tiltInput.value = String(v);
       onRedraw();
     });

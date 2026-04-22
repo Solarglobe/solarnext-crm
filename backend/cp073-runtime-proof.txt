@@ -1,0 +1,147 @@
+CP-073 RUNTIME PROOF — 2026-04-16T13:17:32.852Z
+BACKEND_ROOT=
+C:\Users\Benoit\Desktop\Solarnext-crm\backend
+
+=== ÉTAPE 1 — pg_dump / psql (preuve disponibilité) ===
+Commande: pg_dump --version
+ERREUR: spawnSync pg_dump ENOENT
+Commande: pg_dump.exe --version
+ERREUR: spawnSync pg_dump.exe ENOENT
+(pg_dump non trouvé sur le PATH hôte — le backup peut utiliser Docker ci-dessous)
+Commande: psql --version
+ERREUR: spawnSync psql ENOENT
+Commande: psql.exe --version
+ERREUR: spawnSync psql.exe ENOENT
+(psql non trouvé sur le PATH hôte — restore peut utiliser Docker ci-dessous)
+
+Docker : disponible. Conteneur Postgres détecté :
+solarglobe_db
+Commande: docker.exe exec solarglobe_db pg_dump --version
+pg_dump (PostgreSQL) 15.16 (Debian 15.16-1.pgdg13+1)
+Commande: docker.exe exec solarglobe_db psql --version
+psql (PostgreSQL) 15.16 (Debian 15.16-1.pgdg13+1)
+
+Mode effectif (selon PATH + Docker + env) :
+  backup (pg_dump) :
+docker
+  restore (psql)   :
+docker
+  docker binaire   :
+docker.exe
+
+=== db-backup-check-env.mjs ===
+
+--- check-env ---
+[dotenv@17.3.1] injecting env (0) from ..\.env.dev -- tip: 🛠️  run anywhere with `dotenvx run -- yourcommand`
+[dotenv@17.3.1] injecting env (0) from .env -- tip: 🛡️ auth for agents: https://vestauth.com
+[dotenv@17.3.1] injecting env (0) from ..\.env.dev -- tip: ⚡️ secrets for agents: https://dotenvx.com/as2
+[dotenv@17.3.1] injecting env (0) from .env -- tip: ⚙️  write to custom object with { processEnv: myObject }
+=== CP-073 — Vérification environnement ===
+OS : Windows_NT 10.0.26200 win32
+
+1) pg_dump
+   NON trouvé dans le PATH — le backup utilisera le fallback Docker si possible.
+
+2) psql
+   NON trouvé dans le PATH — restore utilisera le fallback Docker si possible.
+
+3) Docker
+   DISPONIBLE
+   Conteneur Postgres détecté : solarglobe_db
+
+4) DATABASE_URL (sans mot de passe)
+    host=localhost port=5432 db=solarnext user=postgres
+   Catégorie cible : local
+
+Installation rapide des outils client :
+  Windows : https://www.postgresql.org/download/windows/ (Command Line Tools)
+  macOS   : brew install libpq && brew link --force libpq
+  Debian  : sudo apt install postgresql-client
+
+[exit: 0]
+
+=== ÉTAPE 2 — db-backup.js ===
+
+--- db-backup.js ---
+[dotenv@17.3.1] injecting env (0) from ..\.env.dev -- tip: ⚙️  override existing env vars with { override: true }
+[dotenv@17.3.1] injecting env (0) from .env -- tip: ⚡️ secrets for agents: https://dotenvx.com/as2
+[dotenv@17.3.1] injecting env (0) from ..\.env.dev -- tip: ⚙️  enable debug logging with { debug: true }
+[dotenv@17.3.1] injecting env (0) from .env -- tip: 🤖 agentic secret storage: https://dotenvx.com/as2
+[db-backup] Connexion : host=localhost port=5432 db=solarnext user=postgres
+[db-backup] Cible : backups\2026-04\solarnext_backup_2026-04-16_14-45.sql.gz
+[db-backup] Mode exécution : docker (cible : local)
+[pg-tools] pg_dump absent du PATH — utilisation du fallback Docker (conteneur : solarglobe_db).
+[db-backup] Timeout 3600000ms — arrêt forcé.
+
+[exit: 0]
+
+--- Fichier backup ---
+CHEMIN_ABS:
+C:\Users\Benoit\Desktop\Solarnext-crm\backend\backups\2026-04\solarnext_backup_2026-04-16_15-43.sql.gz
+NOM:
+solarnext_backup_2026-04-16_15-43.sql.gz
+TAILLE_OCTETS:
+276787501
+MAGIC_GZIP_1f8b:
+oui
+
+=== ÉTAPE 3 — restore manuel (test_cp073_manual) ===
+(sortie affichée sur stdout/stderr du processus parent — non capturée dans ce fichier)
+[exit: 1]
+
+=== ÉTAPE 5 — rétention ===
+
+--- retention ---
+(sortie affichée sur stdout/stderr du processus parent — non capturée dans ce fichier)
+[exit: 0]
+
+=== Docker (noms conteneurs) ===
+
+--- docker ps ---
+solarglobe_frontend
+solarglobe_backend
+solarglobe_db
+
+[exit: 0]
+
+========================================
+VERDICT:
+CP-073 NON VALIDÉ
+========================================
+(sortie affichée sur stdout/stderr du processus parent — non capturée dans ce fichier)
+[exit: 1]
+
+=== ÉTAPE 5 — rétention ===
+
+--- retention ---
+(sortie affichée sur stdout/stderr du processus parent — non capturée dans ce fichier)
+[exit: 0]
+
+=== Docker (noms conteneurs) ===
+
+--- docker ps ---
+solarglobe_frontend
+solarglobe_backend
+solarglobe_db
+
+[exit: 0]
+
+========================================
+VERDICT:
+CP-073 NON VALIDÉ
+========================================
+(sortie affichée sur stdout/stderr du processus parent — non capturée dans ce fichier)
+[exit: 0]
+
+--- Fichier backup ---
+CHEMIN_ABS:
+C:\Users\Benoit\Desktop\Solarnext-crm\backend\backups\2026-04\solarnext_backup_2026-04-16_15-43.sql.gz
+NOM:
+solarnext_backup_2026-04-16_15-43.sql.gz
+TAILLE_OCTETS:
+276787501
+MAGIC_GZIP_1f8b:
+oui
+Pool Node : preferIpv4LocalhostUrl (alignement Docker / Windows si localhost).
+
+=== ÉTAPE 3 — restore manuel (test_cp073_manual) ===

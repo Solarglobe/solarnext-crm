@@ -6,6 +6,7 @@ import { runNearShadingSeries, runNearShadingTimeStep } from "../../nearShading3
 import { DEFAULT_NEAR_SHADING_RAYCAST_PARAMS } from "../../nearShading3d/nearShadingParams";
 import { buildClearZenithScene, buildZenithOcclusionScene, SUN_ZENITH } from "./hardeningSceneFactories";
 import { assertAnnualAggregateInvariants } from "./nearShadingInvariantAsserts";
+import { buildRoofModel3DFromLegacyGeometry } from "../../builder/buildRoofModel3DFromLegacyGeometry";
 import { runCanonicalNearShadingPipeline } from "../../../integration/runCanonicalNearShadingPipeline";
 import type { LegacyRoofGeometryInput } from "../../builder/legacyInput";
 import type { ObstacleInput, PanelInput } from "../../../shading/shadingInputTypes";
@@ -71,8 +72,9 @@ describe("hardening — robustesse", () => {
       },
     ];
     const obstacles: ObstacleInput[] = [];
+    const officialRoofModelResult = buildRoofModel3DFromLegacyGeometry(legacyRoof);
     const r = runCanonicalNearShadingPipeline({
-      legacyRoof,
+      officialRoofModelResult,
       obstacles,
       panels,
       metersPerPixel: 1,

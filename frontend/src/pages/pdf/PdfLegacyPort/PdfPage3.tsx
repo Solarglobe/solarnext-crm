@@ -8,6 +8,7 @@
 import React, { useMemo, useEffect } from "react";
 import PdfPageLayout from "../PdfEngine/PdfPageLayout";
 import PdfHeader from "../../../components/pdf/PdfHeader";
+import { usePdfOrgBranding } from "./pdfOrgBrandingContext";
 
 const API_BASE = import.meta.env?.VITE_API_URL || (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000");
 
@@ -87,6 +88,8 @@ export default function PdfPage3({
     }
   }, [viewModel]);
 
+  const { brandHex } = usePdfOrgBranding();
+
   return (
     <PdfPageLayout
       legacyPort={{
@@ -146,7 +149,7 @@ export default function PdfPage3({
             className="card soft"
             style={{ padding: "4mm 5mm", display: "flex", flexDirection: "column", gap: "3mm" }}
           >
-            <h3 style={{ margin: "0 0 2mm 0", color: "#C39847", fontWeight: 700 }}>Plan de pose (vue calepinage)</h3>
+            <h3 style={{ margin: "0 0 2mm 0", color: brandHex, fontWeight: 700 }}>Plan de pose (vue calepinage)</h3>
             <div
               id="p3b_photo"
               style={{
@@ -177,7 +180,7 @@ export default function PdfPage3({
                 </div>
               )}
             </div>
-            <h4 style={{ margin: "3mm 0 2mm 0", fontSize: "3.6mm", color: "#C39847", fontWeight: 700 }}>
+            <h4 style={{ margin: "3mm 0 2mm 0", fontSize: "3.6mm", color: brandHex, fontWeight: 700 }}>
               Caractéristiques de l&apos;installation
             </h4>
             <div
@@ -216,14 +219,14 @@ export default function PdfPage3({
         </div>
         <div className="col-6" style={{ display: "flex", flexDirection: "column", gap: "3.5mm", minHeight: 0 }}>
           <div className="card soft" style={{ padding: "4mm 5mm" }}>
-            <h3 style={{ margin: "0 0 2mm 0", color: "#C39847", fontWeight: 700 }}>Validation technique de l&apos;implantation</h3>
+            <h3 style={{ margin: "0 0 2mm 0", color: brandHex, fontWeight: 700 }}>Validation technique de l&apos;implantation</h3>
             <p style={{ margin: 0, fontSize: "3.4mm", lineHeight: 1.45, color: "#374151" }}>
               Le calepinage valide la faisabilité technique de l&apos;implantation sur le bâtiment support.
               Chaque module est positionné selon la pente, l&apos;orientation, les règles de sécurité et
               la surface réellement exploitable.
               Le schéma garantit une pose conforme, optimisée et alignée sur la géométrie réelle du site.
             </p>
-            <h4 style={{ margin: "3mm 0 1mm 0", fontSize: "3.6mm", color: "#C39847" }}>Points techniques vérifiés :</h4>
+            <h4 style={{ margin: "3mm 0 1mm 0", fontSize: "3.6mm", color: brandHex }}>Points techniques vérifiés :</h4>
             <ul style={{ margin: "0 0 3mm 3mm", padding: 0, fontSize: "3.3mm", color: "#4b5563", lineHeight: 1.4 }}>
               <li>Inclinaison réelle : impact direct sur la production.</li>
               <li>Orientation : optimise la captation solaire.</li>
@@ -236,7 +239,7 @@ export default function PdfPage3({
             </p>
           </div>
           <div className="card soft" style={{ padding: "4mm 5mm" }}>
-            <h3 style={{ margin: "0 0 2mm 0", color: "#C39847", fontWeight: 700 }}>Impact du générateur sur la consommation du site</h3>
+            <h3 style={{ margin: "0 0 2mm 0", color: brandHex, fontWeight: 700 }}>Impact du générateur sur la consommation du site</h3>
             <p style={{ margin: "0 0 3mm 0", fontSize: "3.4mm", lineHeight: 1.45, color: "#374151" }}>
               Le dimensionnement vise une part significative de la consommation annuelle du site.
               L&apos;orientation et l&apos;implantation optimisent la production sur le bâtiment support.

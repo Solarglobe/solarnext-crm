@@ -1,0 +1,56 @@
+.mail-settings {
+  padding: var(--spacing-16, 1rem) var(--spacing-24, 1.5rem);
+  max-width: 1200px;
+}
+
+.mail-settings__head {
+  margin-bottom: var(--spacing-16, 1rem);
+}
+
+.mail-settings__title {
+  font-size: var(--font-size-xl, 1.25rem);
+  font-weight: 600;
+  margin: 0 0 var(--spacing-8, 0.5rem);
+}
+
+.mail-settings__sub {
+  margin: 0;
+  color: var(--sn-text-muted, #64748b);
+  font-size: var(--font-size-sm, 0.875rem);
+}
+
+.mail-settings__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-4, 0.25rem);
+  border-bottom: 1px solid var(--sn-border, #e2e8f0);
+  margin-bottom: var(--spacing-24, 1.5rem);
+}
+
+.mail-settings__tab {
+  appearance: none;
+  background: transparent;
+  border: none;
+  font: inherit;
+  cursor: pointer;
+  padding: var(--spacing-10, 0.625rem) var(--spacing-12, 0.75rem);
+  margin-bottom: -1px;
+  color: var(--sn-text-muted, #64748b);
+  border-bottom: 2px solid transparent;
+  border-radius: var(--radius-sm, 4px) var(--radius-sm, 4px) 0 0;
+}
+
+.mail-settings__tab:hover {
+  color: var(--sn-text, #0f172a);
+  background: var(--sn-surface-hover, rgba(0, 0, 0, 0.04));
+}
+
+.mail-settings__tab--active {
+  color: var(--sn-primary, #2563eb);
+  font-weight: 600;
+  border-bottom-color: var(--sn-primary, #2563eb);
+}
+
+.mail-settings__panel {
+  min-height: 200px;
+}

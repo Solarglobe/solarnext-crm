@@ -153,6 +153,31 @@ async function verifyChecksums(appliedNames) {
       continue;
     }
 
+    /**
+     * Hors production : resynchroniser les empreintes depuis le fichier actuel.
+     * Évite un crash au `npm run dev` après modification d’une migration déjà appliquée (checksum « substantiel »).
+     * En production (NODE_ENV=production), on refuse toujours — aligner la base avec :
+     *   npm run reconcile:migration:177660-lead-sources:commit
+     * ou restaurer le fichier d’origine.
+     */
+    const isProd = process.env.NODE_ENV === "production";
+    const forceRepair = String(process.env.MIGRATION_AUTO_REPAIR_CHECKSUMS || "").trim() === "1";
+    if (!isProd || forceRepair) {
+      await pool.query(
+        `UPDATE migration_checksums
+         SET checksum = $1, checksum_normalized = $2
+         WHERE migration_name = $3`,
+        [currentChecksum, currentNormalizedChecksum, name]
+      );
+      console.warn(
+        "[MigrationManager] MIGRATION_CHECKSUM_RESYNC — empreintes mises à jour depuis le fichier actuel " +
+          (isProd ? "(MIGRATION_AUTO_REPAIR_CHECKSUMS=1). " : "(mode non-production). ") +
+          "En production sans ce flag, le démarrage aurait été refusé.",
+        { migration: name }
+      );
+      continue;
+    }
+
     console.error("MIGRATION_TAMPERED_SUBSTANTIVE", {
       migration: name,
       hint: "Le contenu normalisé (up/down effectif) ne correspond plus à la référence. Restaurez le fichier d’origine ou ajoutez une nouvelle migration.",

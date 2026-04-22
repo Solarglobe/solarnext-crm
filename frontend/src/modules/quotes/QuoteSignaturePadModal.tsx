@@ -6,19 +6,21 @@ import {
   QUOTE_SIGNATURE_PAD_LOGICAL_W,
   quoteSignaturePadLogicalPoint,
 } from "./quoteSignaturePadCoords";
+import { SIGNATURE_READ_ACCEPTANCE_LABEL_FR, type SignaturePadConfirmPayload } from "./signatureReadAcceptance";
 import "./quote-signature-pad.css";
 
 export interface QuoteSignaturePadModalProps {
   open: boolean;
   onClose: () => void;
   title: string;
-  onConfirm: (dataUrlPng: string) => void;
+  onConfirm: (payload: SignaturePadConfirmPayload) => void;
 }
 
 export function QuoteSignaturePadModal({ open, onClose, title, onConfirm }: QuoteSignaturePadModalProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const drawing = useRef(false);
   const [hasInk, setHasInk] = useState(false);
+  const [readAccepted, setReadAccepted] = useState(false);
 
   const layoutCanvas = useCallback(() => {
     const canvas = canvasRef.current;
@@ -41,6 +43,7 @@ export function QuoteSignaturePadModal({ open, onClose, title, onConfirm }: Quot
 
   useEffect(() => {
     if (!open) return;
+    setReadAccepted(false);
     let id0 = 0;
     let id1 = 0;
     id0 = requestAnimationFrame(() => {
@@ -105,10 +108,14 @@ export function QuoteSignaturePadModal({ open, onClose, title, onConfirm }: Quot
 
   const confirm = () => {
     const canvas = canvasRef.current;
-    if (!canvas || !hasInk) return;
+    if (!canvas || !hasInk || !readAccepted) return;
     try {
       const dataUrl = canvas.toDataURL("image/png");
-      onConfirm(dataUrl);
+      onConfirm({
+        dataUrl,
+        accepted: true,
+        acceptedLabel: SIGNATURE_READ_ACCEPTANCE_LABEL_FR,
+      });
       onClose();
     } catch {
       /* */
@@ -129,7 +136,7 @@ export function QuoteSignaturePadModal({ open, onClose, title, onConfirm }: Quot
           <Button type="button" variant="ghost" size="sm" onClick={onClose}>
             Annuler
           </Button>
-          <Button type="button" variant="primary" size="sm" disabled={!hasInk} onClick={confirm}>
+          <Button type="button" variant="primary" size="sm" disabled={!hasInk || !readAccepted} onClick={confirm}>
             Valider la signature
           </Button>
         </div>
@@ -149,6 +156,14 @@ export function QuoteSignaturePadModal({ open, onClose, title, onConfirm }: Quot
           onPointerCancel={endDraw}
         />
       </div>
+      <label className="quote-signature-read-accept">
+        <input
+          type="checkbox"
+          checked={readAccepted}
+          onChange={(e) => setReadAccepted(e.target.checked)}
+        />
+        <span>{SIGNATURE_READ_ACCEPTANCE_LABEL_FR}</span>
+      </label>
     </ModalShell>
   );
 }

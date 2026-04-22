@@ -37,6 +37,7 @@ export function buildQuotePdfPayloadFromSnapshot(snapshot) {
     deposit: snapshot.deposit ?? null,
     deposit_display: snapshot.deposit_display ?? null,
     pdf_display: snapshot.pdf_display ?? { show_line_pricing: true },
+    legal_documents: snapshot.legal_documents ?? { include_rge: false, include_decennale: false },
     frozen_at: snapshot.frozen_at,
   };
 }

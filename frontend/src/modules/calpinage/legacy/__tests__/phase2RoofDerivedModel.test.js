@@ -35,4 +35,42 @@ describe("phase2RoofDerivedModel", () => {
     expect(state.roof.roofPans.length).toBe(1);
     expect(state.roof.roofPans[0].polygonPx.length).toBe(3);
   });
+
+  it("deriveRoofPlanesFromPans utilise polygonPx si points absents", () => {
+    var state = {
+      pans: [
+        {
+          id: "p-polypx",
+          polygonPx: [
+            { x: 0, y: 0 },
+            { x: 10, y: 0 },
+            { x: 5, y: 8 },
+          ],
+        },
+      ],
+    };
+    deriveRoofPlanesFromPans(state);
+    expect(state.planes.length).toBe(1);
+    expect(state.planes[0].points.length).toBe(3);
+  });
+
+  it("syncRoofPansMirrorFromPans : polygonPx source officielle si seul polygonPx sur le pan", () => {
+    var state = {
+      roof: {},
+      pans: [
+        {
+          id: "p1",
+          polygonPx: [
+            { x: 10, y: 20, h: 3 },
+            { x: 30, y: 20 },
+            { x: 30, y: 40 },
+          ],
+        },
+      ],
+    };
+    syncRoofPansMirrorFromPans(state);
+    expect(state.roof.roofPans[0].polygonPx.length).toBe(3);
+    expect(state.roof.roofPans[0].polygonPx[0].x).toBe(10);
+    expect(state.roof.roofPans[0].polygonPx[0].h).toBe(3);
+  });
 });

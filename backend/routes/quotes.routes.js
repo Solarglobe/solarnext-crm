@@ -14,6 +14,9 @@ import path from "path";
 import { resolveOrgLogoAbsolutePath } from "../services/orgLogo.service.js";
 import { computeVirtualBatteryQuoteFromGrid } from "../services/virtualBatteryQuoteCalculator.service.js";
 import * as invoiceService from "../services/invoices.service.js";
+import { heavyUserRateLimiter } from "../middleware/security/rateLimit.presets.js";
+import { logAuditEvent } from "../services/audit/auditLog.service.js";
+import { AuditActions } from "../services/audit/auditActions.js";
 
 const router = express.Router();
 const orgId = (req) => req.user.organizationId ?? req.user.organization_id;
@@ -185,6 +188,7 @@ router.post(
   "/:id/finalize-signed",
   verifyJWT,
   requirePermission("quote.manage"),
+  heavyUserRateLimiter,
   async (req, res) => {
     try {
       const org = orgId(req);
@@ -235,6 +239,7 @@ router.post(
   "/:id/pdf",
   verifyJWT,
   requirePermission("quote.manage"),
+  heavyUserRateLimiter,
   async (req, res) => {
     try {
       const org = orgId(req);
@@ -252,12 +257,19 @@ router.post(
   "/:id/add-to-documents",
   verifyJWT,
   requirePermission("quote.manage"),
+  heavyUserRateLimiter,
   async (req, res) => {
     try {
       const org = orgId(req);
       const uid = userId(req);
-      const data = await service.addQuotePdfToDocuments(req.params.id, org, uid);
-      res.status(data.alreadyExists ? 200 : 201).json(data);
+      const data = await service.addQuotePdfToDocuments(req.params.id, org, uid, req.body || {});
+      if (data.status === "conflict") {
+        return res.status(409).json(data);
+      }
+      if (data.status === "replaced") {
+        return res.status(200).json(data);
+      }
+      return res.status(201).json(data);
     } catch (e) {
       const code = e.statusCode === 404 ? 404 : e.statusCode === 400 ? 400 : 500;
       res.status(code).json({ error: e.message });
@@ -272,7 +284,7 @@ router.post(
   async (req, res) => {
     try {
       const org = orgId(req);
-      const data = await service.createQuote(org, req.body);
+      const data = await service.createQuote(org, req.body, { req, userId: userId(req) });
       res.status(201).json(data);
     } catch (e) {
       res.status(400).json({ error: e.message });
@@ -341,7 +353,10 @@ router.post(
 async function handleQuoteUpdate(req, res) {
   try {
     const org = orgId(req);
-    const data = await service.updateQuote(req.params.id, org, req.body);
+    const data = await service.updateQuote(req.params.id, org, req.body, {
+      req,
+      userId: userId(req),
+    });
     if (!data) return res.status(404).json({ error: "Devis non trouvé" });
     res.json(data);
   } catch (e) {
@@ -391,8 +406,30 @@ router.delete(
   async (req, res) => {
     try {
       const org = orgId(req);
-      const ok = await service.deleteQuote(req.params.id, org);
+      const qid = req.params.id;
+      const qnumRes = await pool.query(
+        `SELECT quote_number, status FROM quotes WHERE id = $1 AND organization_id = $2 AND (archived_at IS NULL)`,
+        [qid, org]
+      );
+      const quoteNumber = qnumRes.rows[0]?.quote_number ?? null;
+      const ok = await service.deleteQuote(qid, org);
       if (!ok) return res.status(404).json({ error: "Devis non trouvé" });
+      void logAuditEvent({
+        action: AuditActions.QUOTE_DELETED,
+        entityType: "quote",
+        entityId: qid,
+        organizationId: org,
+        userId: userId(req),
+        targetLabel: quoteNumber != null ? String(quoteNumber) : undefined,
+        req,
+        statusCode: 204,
+        metadata: {
+          hard_delete: true,
+          draft_only: true,
+          quote_number: quoteNumber,
+          status_before: qnumRes.rows[0]?.status ?? null,
+        },
+      });
       res.status(204).send();
     } catch (e) {
       const status = e.message?.includes("interdite") ? 403 : 400;

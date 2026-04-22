@@ -1,0 +1,118 @@
+.lead-client-portal {
+  margin-bottom: var(--spacing-16, 16px);
+  padding: var(--spacing-16, 16px);
+  border-radius: var(--radius-md, 10px);
+  border: 1px solid var(--color-border-subtle, rgba(0, 0, 0, 0.08));
+  background: var(--color-surface-raised, #fff);
+}
+
+.lead-client-portal--embedded {
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+
+.theme-dark .lead-client-portal {
+  background: var(--color-surface-raised, #1e293b);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.theme-dark .lead-client-portal--embedded {
+  background: transparent;
+  border: none;
+}
+
+.lead-client-portal__title {
+  margin: 0 0 12px;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-text-primary, #0f172a);
+}
+
+.theme-dark .lead-client-portal__title {
+  color: var(--color-text-primary, #f8fafc);
+}
+
+.lead-client-portal__mail-hint {
+  margin: 8px 0 0;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-text-muted, #64748b);
+  opacity: 0.9;
+}
+
+.lead-client-portal__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.lead-client-portal__url {
+  flex: 1 1 220px;
+  min-width: 0;
+  padding: 8px 12px;
+  font-size: 13px;
+  word-break: break-all;
+  border-radius: 8px;
+  background: var(--color-surface-muted, #f1f5f9);
+  color: var(--color-text-secondary, #334155);
+  border: 1px solid var(--color-border-subtle, rgba(0, 0, 0, 0.06));
+}
+
+.lead-client-portal__url-link {
+  display: block;
+  text-decoration: none;
+  cursor: pointer;
+  color: #92400e;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.theme-dark .lead-client-portal__url-link {
+  color: #c39847;
+}
+
+.lead-client-portal__url-link:hover {
+  border-color: rgba(195, 152, 71, 0.45);
+  background: rgba(195, 152, 71, 0.06);
+}
+
+.theme-dark .lead-client-portal__url {
+  background: rgba(0, 0, 0, 0.2);
+  color: #e2e8f0;
+}
+
+.theme-dark .lead-client-portal__url-link:hover {
+  border-color: rgba(195, 152, 71, 0.4);
+  background: rgba(195, 152, 71, 0.08);
+}
+
+.lead-client-portal__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.lead-client-portal__feedback {
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--color-success-text, #15803d);
+}
+
+.theme-dark .lead-client-portal__feedback {
+  color: #86efac;
+}
+
+.lead-client-portal__error {
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--color-danger-text, #b91c1c);
+}
+
+.lead-client-portal__hint {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--color-text-muted, #64748b);
+  line-height: 1.45;
+}

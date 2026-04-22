@@ -1,0 +1,76 @@
+/**
+ * CP-072 — Codes d’action stables (colonne audit_logs.action)
+ */
+
+export const AuditActions = {
+  AUTH_LOGIN_SUCCESS: "AUTH_LOGIN_SUCCESS",
+  AUTH_LOGIN_FAILURE: "AUTH_LOGIN_FAILURE",
+  RBAC_DENIED: "RBAC_DENIED",
+  /** Permission manquante en mode RBAC_ENFORCE=warn (laissé passer) */
+  RBAC_WARN_MISSING_PERMISSION: "RBAC_WARN_MISSING_PERMISSION",
+  /** SUPER_ADMIN a contourné le contrôle RBAC (requirePermission) */
+  SUPER_ADMIN_RBAC_BYPASS: "SUPER_ADMIN_RBAC_BYPASS",
+
+  /** CP-078 — SUPER_ADMIN : organisation effective via en-tête x-organization-id (≠ JWT) */
+  ORG_SUPER_ADMIN_CONTEXT: "ORG_SUPER_ADMIN_CONTEXT",
+  /** SUPER_ADMIN : bascule explicite vers un compte client (page /admin/organizations) */
+  SUPER_ADMIN_ORG_SWITCH: "SUPER_ADMIN_ORG_SWITCH",
+
+  /** CP-078B — SUPER_ADMIN : écriture refusée (mode support lecture seule) */
+  SUPER_ADMIN_READ_ONLY_BLOCK: "SUPER_ADMIN_READ_ONLY_BLOCK",
+  /** CP-078B — SUPER_ADMIN : écriture autorisée (en-tête x-super-admin-edit) */
+  SUPER_ADMIN_EDIT_MODE_ENABLED: "SUPER_ADMIN_EDIT_MODE_ENABLED",
+
+  USER_CREATED: "USER_CREATED",
+  USER_UPDATED: "USER_UPDATED",
+  USER_DELETED: "USER_DELETED",
+  USER_ROLE_UPDATED: "USER_ROLE_UPDATED",
+
+  LEAD_CREATED: "LEAD_CREATED",
+  LEAD_UPDATED: "LEAD_UPDATED",
+  LEAD_STAGE_CHANGED: "LEAD_STAGE_CHANGED",
+  LEAD_CONVERTED_TO_CLIENT: "LEAD_CONVERTED_TO_CLIENT",
+  /** Retour statut CLIENT → LEAD (suppression fiche client si conditions) */
+  LEAD_REVERTED_TO_LEAD: "LEAD_REVERTED_TO_LEAD",
+  /** Opt-in marketing (email / pub) — fiche lead */
+  LEAD_MARKETING_OPT_IN_UPDATED: "LEAD_MARKETING_OPT_IN_UPDATED",
+
+  CLIENT_CREATED: "CLIENT_CREATED",
+  CLIENT_UPDATED: "CLIENT_UPDATED",
+  /** Opt-in marketing — fiche client (table clients) */
+  CLIENT_MARKETING_OPT_IN_UPDATED: "CLIENT_MARKETING_OPT_IN_UPDATED",
+
+  STUDY_CREATED: "STUDY_CREATED",
+  /** Suppression définitive (DELETE HTTP) */
+  STUDY_DELETED: "STUDY_DELETED",
+  STUDY_VERSION_CREATED: "STUDY_VERSION_CREATED",
+  STUDY_CALC_LAUNCHED: "STUDY_CALC_LAUNCHED",
+  STUDY_SCENARIO_SELECTED: "STUDY_SCENARIO_SELECTED",
+
+  CALPINAGE_SAVED: "CALPINAGE_SAVED",
+  CALPINAGE_VALIDATED: "CALPINAGE_VALIDATED",
+
+  QUOTE_CREATED: "QUOTE_CREATED",
+  /** Suppression définitive — brouillon uniquement */
+  QUOTE_DELETED: "QUOTE_DELETED",
+  QUOTE_UPDATED: "QUOTE_UPDATED",
+  QUOTE_STATUS_UPDATED: "QUOTE_STATUS_UPDATED",
+  QUOTE_PDF_GENERATED: "QUOTE_PDF_GENERATED",
+  DOCUMENT_REPLACED: "DOCUMENT_REPLACED",
+  /** PDF devis ajouté au dossier Documents du lead (première fois) */
+  DOCUMENT_ATTACHED: "DOCUMENT_ATTACHED",
+
+  EMAIL_SENT: "EMAIL_SENT",
+  /** Envoi groupé marketing depuis segment leads (file d’attente mail) */
+  BULK_EMAIL_SENT: "BULK_EMAIL_SENT",
+  EMAIL_TEMPLATE_UPDATED: "EMAIL_TEMPLATE_UPDATED",
+
+  ORG_SETTINGS_UPDATED: "ORG_SETTINGS_UPDATED",
+
+  /** Suppression définitive facture (DELETE HTTP, hors factures acompte/solde workflow) */
+  INVOICE_DELETED: "INVOICE_DELETED",
+
+  /** CP-075 — RGPD */
+  RGPD_EXPORT_REQUESTED: "RGPD_EXPORT_REQUESTED",
+  RGPD_DELETE_REQUESTED: "RGPD_DELETE_REQUESTED",
+};

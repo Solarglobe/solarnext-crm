@@ -9,7 +9,7 @@ const path = require("path");
 const frontendRoot = path.join(__dirname, "..");
 const sharedRoot = path.join(frontendRoot, "..", "shared", "shading");
 const calpinageShading = path.join(frontendRoot, "calpinage", "shading");
-const publicShading = path.join(frontendRoot, "public", "calpinage", "shading");
+const legacyAssetsShading = path.join(frontendRoot, "..", "backend", "calpinage-legacy-assets", "shading");
 
 /** Préfixe obligatoire des artefacts .js synchronisés (verify le retire avant comparaison à shared). */
 const SHADING_SYNC_BANNER =
@@ -40,11 +40,14 @@ function copyExact(src, dest) {
   fs.copyFileSync(src, dest);
 }
 
-// 1) near → public
+// 1) near (navigateur + Node) → backend legacy + frontend/calpinage (Vite bypass dev)
 const nearSrc = path.join(sharedRoot, "nearShadingCore.cjs");
-const nearDest = path.join(publicShading, "nearShadingCore.cjs");
+const nearDest = path.join(legacyAssetsShading, "nearShadingCore.cjs");
 copyExact(nearSrc, nearDest);
-console.log("[sync-calpinage-shading] nearShadingCore.cjs → public/calpinage/shading/");
+console.log("[sync-calpinage-shading] nearShadingCore.cjs → backend/calpinage-legacy-assets/shading/");
+const nearDestFront = path.join(calpinageShading, "nearShadingCore.cjs");
+copyExact(nearSrc, nearDestFront);
+console.log("[sync-calpinage-shading] nearShadingCore.cjs → calpinage/shading/ (bundle navigateur, pas de stub require)");
 
 // 2) solarPosition (+ bannière « ne pas éditer »)
 writeGeneratedJs(
@@ -67,10 +70,10 @@ const frontEngine = shadingEngineSourceForFrontend(coreSrc);
 writeGeneratedJs(path.join(calpinageShading, "shadingEngine.js"), frontEngine);
 console.log("[sync-calpinage-shading] shadingEngineCore.cjs → calpinage/shading/shadingEngine.js (requires adaptés)");
 
-// 5) public copies pour scripts legacy (même contenu que calpinage après prebuild habituel)
-copyExact(path.join(calpinageShading, "shadingEngine.js"), path.join(publicShading, "shadingEngine.js"));
-copyExact(path.join(calpinageShading, "solarPosition.js"), path.join(publicShading, "solarPosition.js"));
-copyExact(path.join(calpinageShading, "horizonMaskSampler.js"), path.join(publicShading, "horizonMaskSampler.js"));
-console.log("[sync-calpinage-shading] shadingEngine.js, solarPosition.js, horizonMaskSampler.js → public/calpinage/shading/");
+// 5) copies backend/calpinage-legacy-assets pour scripts legacy (servis avec JWT / renderToken)
+copyExact(path.join(calpinageShading, "shadingEngine.js"), path.join(legacyAssetsShading, "shadingEngine.js"));
+copyExact(path.join(calpinageShading, "solarPosition.js"), path.join(legacyAssetsShading, "solarPosition.js"));
+copyExact(path.join(calpinageShading, "horizonMaskSampler.js"), path.join(legacyAssetsShading, "horizonMaskSampler.js"));
+console.log("[sync-calpinage-shading] shadingEngine.js, solarPosition.js, horizonMaskSampler.js → backend/calpinage-legacy-assets/shading/");
 
 console.log("[sync-calpinage-shading] OK");

@@ -1,18 +1,16 @@
-/* SolarNext — confirmations CRM (Lot 1) : défaut = CRM clair, theme-dark en surcharge */
+/* Confirmations CRM — compact, icône discrète, aligné modales SaaS */
 
 :root {
   --sn-z-confirm: 1000;
   --sn-z-confirm-stacked: 1100;
-  --sn-confirm-backdrop: rgba(15, 23, 42, 0.42);
-  --sn-confirm-panel-border: rgba(15, 23, 42, 0.1);
-  --sn-confirm-panel-bg: linear-gradient(
-    165deg,
-    rgba(255, 255, 255, 0.98) 0%,
-    rgba(248, 250, 252, 0.96) 100%
-  );
-  --sn-confirm-panel-shadow: 0 20px 40px rgba(15, 23, 42, 0.12), 0 0 0 1px rgba(15, 23, 42, 0.04);
+  --sn-confirm-backdrop: rgba(15, 23, 42, 0.38);
+  --sn-confirm-panel-border: rgba(15, 23, 42, 0.08);
+  --sn-confirm-panel-bg: #ffffff;
+  --sn-confirm-panel-shadow:
+    0 12px 40px rgba(15, 23, 42, 0.1),
+    0 2px 8px rgba(15, 23, 42, 0.04);
   --sn-confirm-text: #0f172a;
-  --sn-confirm-text-muted: #475569;
+  --sn-confirm-text-muted: #64748b;
 }
 
 .sn-confirm-modal-backdrop {
@@ -22,11 +20,12 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 1.25rem;
+  padding: 16px;
   background: var(--sn-confirm-backdrop);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  animation: sn-confirm-backdrop-in 0.22s ease-out;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  box-sizing: border-box;
+  animation: sn-confirm-backdrop-in 0.18s ease-out both;
 }
 
 .sn-confirm-modal-backdrop--stacked {
@@ -44,39 +43,80 @@
 
 .sn-confirm-modal-panel {
   width: min(420px, 100%);
-  border-radius: 14px;
+  border-radius: 12px;
   border: 1px solid var(--sn-confirm-panel-border);
   background: var(--sn-confirm-panel-bg);
   box-shadow: var(--sn-confirm-panel-shadow);
   color: var(--sn-confirm-text);
-  transform: translateY(0);
-  animation: sn-confirm-panel-in 0.26s cubic-bezier(0.22, 1, 0.36, 1);
+  overflow: hidden;
+  animation: sn-confirm-panel-in 0.18s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 @keyframes sn-confirm-panel-in {
   from {
     opacity: 0;
-    transform: translateY(10px);
+    transform: scale(0.98) translateY(6px);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: scale(1) translateY(0);
   }
 }
 
+.sn-confirm-modal-body {
+  display: flex;
+  gap: 14px;
+  padding: 18px 20px 4px;
+  align-items: flex-start;
+}
+
+.sn-confirm-modal-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+}
+
+.sn-confirm-modal-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.sn-confirm-modal-icon--default {
+  background: color-mix(in srgb, var(--primary, #7c3aed) 10%, transparent);
+  color: var(--primary, #7c3aed);
+}
+
+.sn-confirm-modal-icon--warning {
+  background: color-mix(in srgb, #d97706 12%, transparent);
+  color: #b45309;
+}
+
+.sn-confirm-modal-icon--danger {
+  background: color-mix(in srgb, #dc2626 10%, transparent);
+  color: #dc2626;
+}
+
+.sn-confirm-modal-text {
+  min-width: 0;
+  flex: 1;
+}
+
 .sn-confirm-modal-title {
-  margin: 0;
-  padding: 1.25rem 1.25rem 0.4rem;
-  font-size: 1.05rem;
+  margin: 0 0 6px;
+  font-size: 1rem;
   font-weight: 600;
-  letter-spacing: 0.02em;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
   color: var(--sn-confirm-text);
 }
 
 .sn-confirm-modal-message {
   margin: 0;
-  padding: 0 1.25rem 1.2rem;
-  font-size: 0.9rem;
+  font-size: 0.8125rem;
   line-height: 1.5;
   color: var(--sn-confirm-text-muted);
   white-space: pre-line;
@@ -87,82 +127,96 @@
   justify-content: flex-end;
   align-items: center;
   flex-wrap: wrap;
-  gap: 0.65rem;
-  padding: 0 1.25rem 1.25rem;
+  gap: 8px;
+  padding: 14px 20px 16px;
 }
 
 .sn-confirm-modal-btn {
   appearance: none;
-  border-radius: 9px;
+  border-radius: 10px;
   border: 1px solid transparent;
-  padding: 0.5rem 1rem;
-  font-size: 0.875rem;
+  padding: 0 14px;
+  height: 36px;
+  font-size: 0.8125rem;
   font-weight: 600;
   cursor: pointer;
   transition:
-    opacity 0.15s ease,
-    transform 0.12s ease;
+    background 0.15s ease,
+    border-color 0.15s ease,
+    opacity 0.15s ease;
+}
+
+.sn-confirm-modal-btn:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--primary, #7c3aed) 45%, transparent);
+  outline-offset: 2px;
 }
 
 .sn-confirm-modal-btn:hover:not(:disabled) {
-  transform: translateY(-1px);
+  filter: brightness(0.98);
 }
 
 .sn-confirm-modal-btn:active:not(:disabled) {
-  transform: translateY(0);
+  filter: brightness(0.94);
 }
 
 .sn-confirm-modal-btn:disabled {
   opacity: 0.55;
   cursor: not-allowed;
-  transform: none;
 }
 
-/* Secondaire — aligné tokens CRM clair */
+/* Annuler — secondaire bordure (+ alias .sn-confirm-modal-btn--ghost) */
+.sn-confirm-modal-btn--secondary,
 .sn-confirm-modal-btn--ghost {
-  background: rgba(15, 23, 42, 0.06);
-  border-color: rgba(15, 23, 42, 0.12);
+  background: var(--sn-confirm-panel-bg);
+  border-color: color-mix(in srgb, var(--sn-confirm-text) 14%, transparent);
   color: var(--sn-confirm-text);
 }
 
+.sn-confirm-modal-btn--secondary:hover:not(:disabled),
+.sn-confirm-modal-btn--ghost:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--sn-confirm-text) 5%, var(--sn-confirm-panel-bg));
+}
+
+/* Confirmer — défaut (action positive) */
 .sn-confirm-modal-btn--default {
-  background: linear-gradient(135deg, #38bdf8 0%, #0ea5e9 100%);
-  color: #0b1220;
+  background: color-mix(in srgb, var(--primary, #7c3aed) 92%, #1e1b4b);
+  color: #fff;
+  border-color: transparent;
 }
 
 .sn-confirm-modal-btn--warning {
-  background: linear-gradient(135deg, #fb923c 0%, #ea580c 100%);
-  color: #0b1220;
-}
-
-.sn-confirm-modal-btn--danger {
-  background: linear-gradient(135deg, #f87171 0%, #dc2626 100%);
+  background: #d97706;
   color: #fff;
 }
 
-/* ========== Mode sombre (optionnel) ========== */
+.sn-confirm-modal-btn--danger {
+  background: #dc2626;
+  color: #fff;
+}
 
 html.theme-dark {
-  --sn-confirm-backdrop: rgba(8, 12, 22, 0.55);
+  --sn-confirm-backdrop: rgba(8, 12, 22, 0.48);
   --sn-confirm-panel-border: rgba(255, 255, 255, 0.1);
-  --sn-confirm-panel-bg: linear-gradient(
-    145deg,
-    rgba(22, 32, 52, 0.94) 0%,
-    rgba(14, 20, 36, 0.9) 100%
-  );
+  --sn-confirm-panel-bg: rgba(22, 32, 52, 0.98);
   --sn-confirm-panel-shadow:
-    0 24px 48px rgba(0, 0, 0, 0.45),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    0 16px 48px rgba(0, 0, 0, 0.4),
+    0 0 0 1px rgba(255, 255, 255, 0.06);
   --sn-confirm-text: rgba(248, 250, 252, 0.96);
   --sn-confirm-text-muted: rgba(226, 232, 240, 0.82);
 }
 
+html.theme-dark .sn-confirm-modal-btn--secondary,
 html.theme-dark .sn-confirm-modal-btn--ghost {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.14);
   color: rgba(248, 250, 252, 0.95);
 }
 
+html.theme-dark .sn-confirm-modal-btn--secondary:hover:not(:disabled),
+html.theme-dark .sn-confirm-modal-btn--ghost:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+}
+
 html.theme-dark .sn-confirm-modal-btn--danger {
-  color: #0b1220;
+  color: #fff;
 }

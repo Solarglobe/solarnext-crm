@@ -1,10 +1,12 @@
 /**
- * Chaîne unique : toiture 3D → volumes → panneaux 3D → near shading raycast (canonical3d).
+ * Chaîne unique : toiture 3D (pré-construite) → volumes → panneaux 3D → near shading raycast (canonical3d).
  * V1 SAFE : mapping panneau→pan, gate horizon, pondération dz, per-panel physique.
+ *
+ * La toiture ne doit pas être reconstruite ici : passer `officialRoofModelResult` issu du pipeline
+ * officiel ou du cache near (`officialRoofModelNearShadingCache`).
  */
 
-import { buildRoofModel3DFromLegacyGeometry } from "../canonical3d/builder/buildRoofModel3DFromLegacyGeometry";
-import type { LegacyRoofGeometryInput } from "../canonical3d/builder/legacyInput";
+import type { BuildRoofModel3DResult } from "../canonical3d/builder/buildRoofModel3DFromLegacyGeometry";
 import { DEFAULT_NEAR_SHADING_RAYCAST_PARAMS } from "../canonical3d/nearShading3d/nearShadingParams";
 import { runNearShadingSeriesHorizonWeighted } from "../canonical3d/nearShading3d/nearShadingHorizonWeighted";
 import type { NearShadingAnnualAggregate } from "../canonical3d/types/near-shading-3d";
@@ -24,7 +26,8 @@ export interface CanonicalNearShadingPerPanelRow {
 }
 
 export interface RunCanonicalNearShadingPipelineOptions {
-  readonly legacyRoof: LegacyRoofGeometryInput;
+  /** Sortie `buildRoofModel3DFromLegacyGeometry` — même instance que le pipeline 3D officiel lorsque possible. */
+  readonly officialRoofModelResult: BuildRoofModel3DResult;
   readonly obstacles: readonly ObstacleInput[];
   readonly panels: readonly PanelInput[];
   readonly metersPerPixel: number;
@@ -52,7 +55,7 @@ export function runCanonicalNearShadingPipeline(
   opts: RunCanonicalNearShadingPipelineOptions
 ): CanonicalNearShadingPipelineResult {
   const diag: string[] = [];
-  const roofRes = buildRoofModel3DFromLegacyGeometry(opts.legacyRoof);
+  const roofRes = opts.officialRoofModelResult;
   const patches = roofRes.model.roofPlanePatches;
   if (!patches.length) {
     return {

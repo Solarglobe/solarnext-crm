@@ -117,3 +117,29 @@ export function inactivityLabelHybrid(
       return `Actif${dayPart}`;
   }
 }
+
+/** Badges très discrets — vue liste uniquement (ne pas utiliser sur cartes Kanban). */
+export function listRowScoreClass(score: number): string {
+  if (score >= 70) return "sn-leads-list-badge sn-leads-list-badge--score-high";
+  if (score >= 40) return "sn-leads-list-badge sn-leads-list-badge--score-mid";
+  return "sn-leads-list-badge sn-leads-list-badge--score-low";
+}
+
+export function listRowStageClass(stageIndex: number): string {
+  const i = Math.min(5, Math.max(1, Math.floor(stageIndex)));
+  return `sn-leads-list-badge sn-leads-list-badge--stage sn-leads-list-badge--stage-${i}`;
+}
+
+export function listRowInactivityClass(level: string): string {
+  switch (level) {
+    case "warning":
+      return "sn-leads-list-badge sn-leads-list-badge--inact-warn";
+    case "danger":
+      return "sn-leads-list-badge sn-leads-list-badge--inact-attn";
+    case "critical":
+      return "sn-leads-list-badge sn-leads-list-badge--inact-crit";
+    case "none":
+    default:
+      return "sn-leads-list-badge sn-leads-list-badge--inact-ok";
+  }
+}

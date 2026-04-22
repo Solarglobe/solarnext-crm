@@ -15,6 +15,7 @@ import {
   type AdminTeam,
   type AdminAgency,
 } from "../../services/admin.api";
+import { OrgIconEdit, OrgIconTrash } from "./orgStructureTableIcons";
 
 export function AdminTabTeams() {
   const [teams, setTeams] = useState<AdminTeam[]>([]);
@@ -88,62 +89,74 @@ export function AdminTabTeams() {
   };
 
   if (loading) {
-    return <p style={{ color: "var(--text-muted)" }}>Chargement…</p>;
+    return <p className="org-tab-loading">Chargement des équipes…</p>;
   }
 
   return (
-    <div className="admin-tab-teams">
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: "var(--spacing-24)",
-        }}
-      >
-        <span style={{ color: "var(--text-muted)", fontSize: "var(--font-size-body)" }}>
-          {teams.length} équipe(s)
-        </span>
-        <Button variant="primary" onClick={openCreate}>
-          Nouvelle équipe
-        </Button>
-      </div>
+    <div className="admin-tab-teams org-structure-tab">
+      <header className="org-tab-hero">
+        <div className="org-tab-hero__text">
+          <h2 className="org-tab-hero__title">Équipes</h2>
+          <p className="org-tab-hero__lead">
+            Regroupez les utilisateurs par équipe et rattachez-les à une agence pour la structure commerciale et les droits.
+          </p>
+          <span className="org-tab-hero__meta">{teams.length} équipe{teams.length !== 1 ? "s" : ""}</span>
+        </div>
+        <div className="org-tab-hero__actions">
+          <Button variant="primary" size="md" type="button" onClick={openCreate}>
+            Nouvelle équipe
+          </Button>
+        </div>
+      </header>
 
-      {error && (
-        <p style={{ color: "var(--danger)", marginBottom: "var(--spacing-16)" }}>{error}</p>
-      )}
+      {error ? <p className="org-tab-alert">{error}</p> : null}
 
-      <div style={{ overflowX: "auto" }}>
-        <table className="sn-table sn-leads-table" style={{ width: "100%" }}>
+      <div className="org-tab-table-wrap">
+        <table className="org-tab-table">
           <thead>
             <tr>
               <th>Nom</th>
               <th>Agence</th>
-              <th>Nombre de membres</th>
-              <th>Actions</th>
+              <th>Membres</th>
+              <th className="org-tab-table__cell--right">Actions</th>
             </tr>
           </thead>
           <tbody>
-            {teams.map((t) => (
-              <tr key={t.id}>
-                <td>{t.name}</td>
-                <td>{t.agency_name || "-"}</td>
-                <td>-</td>
-                <td>
-                  <Button variant="ghost" size="sm" onClick={() => openEdit(t)}>
-                    Éditer
-                  </Button>
-                  <Button
-                    variant="danger"
-                    size="sm"
-                    onClick={() => handleDelete(t)}
-                    style={{ marginLeft: 8 }}
-                  >
-                    Supprimer
-                  </Button>
+            {teams.length === 0 ? (
+              <tr>
+                <td colSpan={4} className="org-tab-table__empty">
+                  Aucune équipe pour le moment. Créez une équipe pour commencer.
                 </td>
               </tr>
-            ))}
+            ) : (
+              teams.map((t) => (
+                <tr key={t.id}>
+                  <td className="org-tab-table__cell--strong">{t.name}</td>
+                  <td>{t.agency_name || <span className="org-tab-table__cell--muted">—</span>}</td>
+                  <td className="org-tab-table__cell--muted">—</td>
+                  <td className="org-tab-table__cell--right">
+                    <div className="org-tab-row-actions">
+                      <button
+                        type="button"
+                        className="org-tab-icon-btn"
+                        onClick={() => openEdit(t)}
+                        aria-label={`Modifier ${t.name}`}
+                      >
+                        <OrgIconEdit />
+                      </button>
+                      <button
+                        type="button"
+                        className="org-tab-icon-btn org-tab-icon-btn--danger"
+                        onClick={() => void handleDelete(t)}
+                        aria-label={`Supprimer ${t.name}`}
+                      >
+                        <OrgIconTrash />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
@@ -151,51 +164,59 @@ export function AdminTabTeams() {
       <ModalShell
         open={modalOpen}
         onClose={() => setModalOpen(false)}
-        size="sm"
+        size="md"
         title={editingTeam ? "Modifier l'équipe" : "Nouvelle équipe"}
+        subtitle="Nom affiché dans l’admin et rattachement optionnel à une agence."
         footer={
           <>
-            <Button variant="ghost" type="button" onClick={() => setModalOpen(false)}>
+            <Button variant="secondary" size="sm" type="button" onClick={() => setModalOpen(false)}>
               Annuler
             </Button>
-            <Button variant="primary" type="submit" form="admin-team-form">
+            <Button variant="primary" size="sm" type="submit" form="admin-team-form">
               {editingTeam ? "Enregistrer" : "Créer"}
             </Button>
           </>
         }
       >
         <form id="admin-team-form" onSubmit={handleSubmit}>
-          <div style={{ marginBottom: "var(--spacing-16)" }}>
-            <label style={{ display: "block", marginBottom: 4, fontSize: 13, color: "var(--text-muted)" }}>
-              Nom
-            </label>
-            <input
-              type="text"
-              value={form.name}
-              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-              required
-              className="sn-input"
-              style={{ height: 44, width: "100%", boxSizing: "border-box" }}
-            />
-          </div>
-          <div style={{ marginBottom: 0 }}>
-            <label style={{ display: "block", marginBottom: 4, fontSize: 13, color: "var(--text-muted)" }}>
-              Agence
-            </label>
-            <select
-              value={form.agency_id}
-              onChange={(e) => setForm((f) => ({ ...f, agency_id: e.target.value || undefined }))}
-              className="sn-input"
-              style={{ height: 44, width: "100%", boxSizing: "border-box" }}
-            >
-              <option value="">— Aucune —</option>
-              {agencies.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          <section className="sn-saas-form-section">
+            <h3 className="sn-saas-form-section__title">Informations</h3>
+            <div className="sn-saas-field-grid sn-saas-field-grid--2">
+              <div>
+                <label className="sn-saas-label" htmlFor="admin-team-name">
+                  Nom de l&apos;équipe
+                </label>
+                <input
+                  id="admin-team-name"
+                  type="text"
+                  value={form.name}
+                  onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                  required
+                  className="sn-saas-input"
+                  autoComplete="off"
+                  placeholder="Ex. Commercial Sud"
+                />
+              </div>
+              <div>
+                <label className="sn-saas-label" htmlFor="admin-team-agency">
+                  Agence
+                </label>
+                <select
+                  id="admin-team-agency"
+                  value={form.agency_id}
+                  onChange={(e) => setForm((f) => ({ ...f, agency_id: e.target.value || undefined }))}
+                  className="sn-saas-input"
+                >
+                  <option value="">— Aucune —</option>
+                  {agencies.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </section>
         </form>
       </ModalShell>
     </div>

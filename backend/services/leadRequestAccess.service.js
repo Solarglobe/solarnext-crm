@@ -1,9 +1,12 @@
 /**
- * Vérité d'accès unique pour les routes lead / meters / consumption (runtime uniquement).
+ * Vérité d'accès unique pour les routes lead / meters / consumption / activités (runtime uniquement).
  * Statuts : 404 si inconnu pour l'org, 403 si accès refusé ou lead archivé en écriture « métier ».
+ * Aucun accès org-wide implicite : il faut explicitement lead.read.all/self ou lead.update.all/self
+ * (sauf SUPER_ADMIN avec bypass, aligné sur rbac.middleware).
  */
 
 import { getUserPermissions } from "../rbac/rbac.service.js";
+import { isSuperAdminBypassEnabled } from "../config/rbacMode.js";
 
 const LOG_PREFIX = "[lead-access]";
 
@@ -26,7 +29,7 @@ function accessLog(context, fields) {
  */
 export async function fetchLeadAccessRow(pool, leadId, organizationId) {
   const r = await pool.query(
-    `SELECT id, organization_id, archived_at, assigned_to, assigned_salesperson_user_id
+    `SELECT id, organization_id, archived_at, assigned_user_id
      FROM leads
      WHERE id = $1 AND organization_id = $2`,
     [leadId, organizationId]
@@ -50,14 +53,60 @@ function idMatchesRowColumn(cell, userId) {
 }
 
 function assignedToUser(row, userId) {
-  return (
-    idMatchesRowColumn(row.assigned_salesperson_user_id, userId) ||
-    idMatchesRowColumn(row.assigned_to, userId)
-  );
+  return idMatchesRowColumn(row.assigned_user_id, userId);
 }
 
 function isArchived(row) {
   return row.archived_at != null;
+}
+
+/**
+ * SUPER_ADMIN avec bypass RBAC : accès complet aux leads de l’org (comme requirePermission).
+ */
+export function effectiveSuperAdminLeadBypass(req) {
+  return !!(req?.user?.role === "SUPER_ADMIN" && isSuperAdminBypassEnabled());
+}
+
+/**
+ * @param {import("express").Request | null | undefined} req
+ * @param {Set<string>} perms
+ */
+export function hasEffectiveLeadReadScope(req, perms) {
+  if (effectiveSuperAdminLeadBypass(req)) return true;
+  return perms.has("lead.read.all") || perms.has("lead.read.self");
+}
+
+/**
+ * @param {import("express").Request | null | undefined} req
+ * @param {Set<string>} perms
+ */
+export function hasEffectiveLeadUpdateScope(req, perms) {
+  if (effectiveSuperAdminLeadBypass(req)) return true;
+  return perms.has("lead.update.all") || perms.has("lead.update.self");
+}
+
+/**
+ * Filtres SQL `assigned_user_id` (PATCH lead, patch stage) : aligné sur assertLeadApiAccess write.
+ * @param {Set<string>} perms
+ */
+export function leadUpdateFlagsForQuery(req, perms) {
+  const sa = effectiveSuperAdminLeadBypass(req);
+  return {
+    canUpdateAll: sa || perms.has("lead.update.all"),
+    canUpdateSelf: sa || perms.has("lead.update.self"),
+  };
+}
+
+/**
+ * Filtres listes leads (getAll, kanban, quickSearch) — alignés sur la lecture détail.
+ * @param {Set<string>} perms
+ */
+export function leadReadFlagsForQuery(req, perms) {
+  const sa = effectiveSuperAdminLeadBypass(req);
+  return {
+    readAll: sa || perms.has("lead.read.all"),
+    readSelf: sa || perms.has("lead.read.self"),
+  };
 }
 
 /**
@@ -74,6 +123,7 @@ function isArchived(row) {
  *   mode: 'read' | 'write',
  *   forbidArchivedWrite?: boolean,
  *   logContext: string,
+ *   req?: import("express").Request | null,
  * }} opts
  * @returns {Promise<LeadAccessOk | LeadAccessFail>}
  */
@@ -85,6 +135,7 @@ export async function assertLeadApiAccess(pool, opts) {
     mode,
     forbidArchivedWrite = false,
     logContext,
+    req = null,
   } = opts;
 
   const lead = await fetchLeadAccessRow(pool, leadId, organizationId);
@@ -106,25 +157,18 @@ export async function assertLeadApiAccess(pool, opts) {
   }
 
   const perms = await getUserPermissions({ userId, organizationId });
-  const readAll = perms.has("lead.read.all");
-  const readSelf = perms.has("lead.read.self");
-  const updateAll = perms.has("lead.update.all");
-  const updateSelf = perms.has("lead.update.self");
+  const readAll = effectiveSuperAdminLeadBypass(req) || perms.has("lead.read.all");
+  const readSelf = effectiveSuperAdminLeadBypass(req) || perms.has("lead.read.self");
+  const updateAll = effectiveSuperAdminLeadBypass(req) || perms.has("lead.update.all");
+  const updateSelf = effectiveSuperAdminLeadBypass(req) || perms.has("lead.update.self");
   const assignedOk = assignedToUser(lead, userId);
 
   if (mode === "read") {
-    /**
-     * Alignement listes (`getAll`, `getKanban`) : si l’utilisateur n’a ni `lead.read.all`
-     * ni `lead.read.self` dans le Set RBAC, aucun filtre d’assignation n’est appliqué en SQL
-     * → il voit tous les leads de l’org. Le détail doit suivre la même règle (sinon 403 fantôme).
-     */
-    const implicitOrgWideRead = !readAll && !readSelf;
-    if (readAll || (readSelf && assignedOk) || implicitOrgWideRead) {
+    if (readAll || (readSelf && assignedOk)) {
       accessLog(logContext, {
         leadId,
         user: userId,
         result: "OK_READ",
-        implicitOrgWideRead: implicitOrgWideRead ? 1 : 0,
       });
       return { ok: true, lead };
     }
@@ -147,14 +191,7 @@ export async function assertLeadApiAccess(pool, opts) {
   }
 
   if (mode === "write") {
-    /**
-     * Alignement `PATCH /api/leads/:id` (`leads.controller.update`) : sans `lead.update.all`
-     * ni `lead.update.self` dans le Set RBAC, aucune contrainte d’assignation n’est ajoutée au WHERE
-     * → modification de tout lead de l’org. Même règle que la lecture implicite (RBAC vide / dev).
-     */
-    const implicitOrgWideWrite = !updateAll && !updateSelf;
-    const writeAllowed =
-      updateAll || (updateSelf && assignedOk) || implicitOrgWideWrite;
+    const writeAllowed = updateAll || (updateSelf && assignedOk);
 
     if (!writeAllowed) {
       accessLog(logContext, {
@@ -190,7 +227,6 @@ export async function assertLeadApiAccess(pool, opts) {
       leadId,
       user: userId,
       result: "OK_WRITE",
-      implicitOrgWideWrite: implicitOrgWideWrite ? 1 : 0,
     });
     return { ok: true, lead };
   }

@@ -23,6 +23,24 @@ if (!fs.existsSync(filePath)) {
 }
 const content = fs.readFileSync(filePath, "utf8");
 const checksum = crypto.createHash("sha256").update(content).digest("hex");
+
+/** Aligné sur migrationManager.service.js — fond effectif up/down. */
+function normalizeMigrationContent(fileContent) {
+  let s = String(fileContent).replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  s = s.replace(/\/\*[\s\S]*?\*\//g, "");
+  const out = [];
+  for (const line of s.split("\n")) {
+    const t = line.trim();
+    if (t === "" || /^\/\//.test(t)) continue;
+    out.push(line.replace(/\s+$/g, ""));
+  }
+  return out.join("\n").trim();
+}
+
+const checksumNormalized = crypto
+  .createHash("sha256")
+  .update(normalizeMigrationContent(content))
+  .digest("hex");
 const url = process.env.DATABASE_URL;
 if (!url) {
   console.error("DATABASE_URL manquant");
@@ -34,17 +52,30 @@ if (!url) {
   await client.connect();
   try {
     const r = await client.query(
-      "UPDATE migration_checksums SET checksum = $1 WHERE migration_name = $2 RETURNING migration_name",
-      [checksum, name]
+      `UPDATE migration_checksums
+       SET checksum = $1, checksum_normalized = $2
+       WHERE migration_name = $3
+       RETURNING migration_name`,
+      [checksum, checksumNormalized, name]
     );
     if (r.rowCount === 0) {
       await client.query(
-        "INSERT INTO migration_checksums (migration_name, checksum) VALUES ($1, $2) ON CONFLICT (migration_name) DO UPDATE SET checksum = EXCLUDED.checksum",
-        [name, checksum]
+        `INSERT INTO migration_checksums (migration_name, checksum, checksum_normalized)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (migration_name) DO UPDATE SET
+           checksum = EXCLUDED.checksum,
+           checksum_normalized = EXCLUDED.checksum_normalized`,
+        [name, checksum, checksumNormalized]
       );
       console.log("INSERT/UPSERT OK", name);
     } else {
-      console.log("UPDATE OK", name, checksum.slice(0, 16) + "…");
+      console.log(
+        "UPDATE OK",
+        name,
+        checksum.slice(0, 16) + "…",
+        "norm:",
+        checksumNormalized.slice(0, 16) + "…"
+      );
     }
   } finally {
     await client.end();

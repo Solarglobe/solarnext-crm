@@ -38,6 +38,8 @@ export type Scene2DSourceTrace = {
   readonly expectedRoofPlanePatchIds?: readonly string[];
   readonly metrics?: {
     readonly roofOutlineArea2DPx?: number;
+    /** Aire horizontale monde (m²) du contour — `polygonHorizontalAreaM2FromImagePx` (trace Niveau 4 ; chaîne Niveau 3). */
+    readonly roofOutlineHorizontalAreaM2?: number;
     readonly roofOutlineBBox2D?: { readonly minX: number; readonly minY: number; readonly maxX: number; readonly maxY: number };
     readonly sourcePanCount?: number;
     readonly sourceObstacleCount?: number;

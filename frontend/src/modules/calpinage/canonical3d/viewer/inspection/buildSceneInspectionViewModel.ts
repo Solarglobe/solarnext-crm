@@ -156,6 +156,17 @@ export function buildSceneInspectionViewModel(
     rows.push({ label: "Confiance géométrique", value: formatConfidenceFr(patch.quality.confidence) });
     rows.push({ label: "Statut cohérence scène", value: scene.coherence?.isCoherent === true ? "OK" : "À vérifier" });
 
+    if (selection.roofVertexIndexInPatch != null) {
+      rows.push({ label: "Sommet (index patch)", value: String(selection.roofVertexIndexInPatch) });
+      const cv = patch.cornersWorld[selection.roofVertexIndexInPatch];
+      if (cv) {
+        rows.push({
+          label: "Position sommet (monde)",
+          value: `${formatLengthM(cv.x)}, ${formatLengthM(cv.y)}, ${formatLengthM(cv.z)}`,
+        });
+      }
+    }
+
     for (const d of patch.quality.diagnostics) {
       warnings.push(`[${d.severity}] ${d.code} : ${d.message}`);
     }
@@ -282,6 +293,44 @@ export function buildSceneInspectionViewModel(
     warnings.push(...collectCoherenceForObstacle(scene, String(v.id)));
 
     return { title: "Inspection — obstacle", rows, warnings };
+  }
+
+  if (selection.kind === "SHELL") {
+    const sh = scene.buildingShell;
+    const sid = String(selection.id);
+    if (!sh || String(sh.id) !== sid) {
+      return {
+        title: "Enveloppe introuvable",
+        rows: [{ label: "ID", value: selection.id }],
+        warnings: [
+          sh && String(sh.id) !== sid
+            ? "ID enveloppe ≠ modèle courant."
+            : "Aucune enveloppe bâtiment dans cette scène.",
+        ],
+      };
+    }
+
+    rows.push({ label: "Type", value: "Enveloppe bâtiment (shell)" });
+    rows.push({ label: "ID", value: String(sh.id) });
+    rows.push({ label: "Sommets", value: String(sh.vertices.length) });
+    rows.push({ label: "Élévation base", value: formatLengthM(sh.baseElevationM) });
+    rows.push({ label: "Z couronne max", value: formatLengthM(sh.topElevationM) });
+    rows.push({ label: "Hauteur murs (indic.)", value: formatLengthM(sh.wallHeightM) });
+
+    if (selection.shellVertexIndex != null) {
+      rows.push({ label: "Sommet (index)", value: String(selection.shellVertexIndex) });
+      const vv = sh.vertices[selection.shellVertexIndex];
+      if (vv?.position) {
+        const { x, y, z } = vv.position;
+        rows.push({
+          label: "Position monde (X,Y,Z)",
+          value: `${formatLengthM(x)}, ${formatLengthM(y)}, ${formatLengthM(z)}`,
+        });
+        rows.push({ label: "ID sommet", value: String(vv.id) });
+      }
+    }
+
+    return { title: "Inspection — enveloppe", rows, warnings };
   }
 
   /* EXTENSION */

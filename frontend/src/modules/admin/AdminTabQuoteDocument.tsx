@@ -63,66 +63,59 @@ export function AdminTabQuoteDocument() {
 
   if (loading) {
     return (
-      <div className="admin-tab-quote-catalog">
-        <p className="admin-catalog-empty-desc">Chargement…</p>
+      <div className="admin-tab-quote-catalog org-structure-tab">
+        <p className="sn-saas-muted">Chargement…</p>
       </div>
     );
   }
 
   return (
-    <div className="admin-tab-quote-catalog">
-      <div className="admin-catalog-toolbar" style={{ marginBottom: "var(--spacing-16)" }}>
-        <div className="admin-catalog-toolbar-left" style={{ flexDirection: "column", alignItems: "flex-start", gap: 8 }}>
-          <h2 className="admin-catalog-empty-title" style={{ margin: 0 }}>
-            Document PDF devis
-          </h2>
-          <p className="admin-catalog-empty-desc" style={{ maxWidth: 640, margin: 0 }}>
-            Ce texte apparaît dans le bloc « Informations réglementaires &amp; conformité » sur tous les devis (PDF et page
-            Présenter). Saut de ligne double = nouveau paragraphe.
+    <div className="admin-tab-quote-catalog org-structure-tab">
+      <header className="sn-saas-tab-inner-header">
+        <h2 className="sn-saas-tab-inner-header__title">Document PDF devis</h2>
+        <p className="sn-saas-tab-inner-header__lead">
+          Bloc « Informations réglementaires &amp; conformité » sur tous les devis (PDF et présentation). Saut de ligne
+          double = nouveau paragraphe.
+        </p>
+      </header>
+
+      <div className="sn-saas-stack">
+        {error ? (
+          <div className="sn-saas-form-section sn-saas-callout-error" role="alert">
+            <p className="sn-saas-callout-error__text">{error}</p>
+          </div>
+        ) : null}
+        {savedOk ? (
+          <p className="sn-saas-callout-success" role="status">
+            Paramètres enregistrés.
           </p>
-        </div>
-        <div className="admin-catalog-toolbar-right">
-          <Button type="button" variant="primary" size="sm" disabled={saving} onClick={() => void save()}>
-            {saving ? "Enregistrement…" : "Enregistrer"}
-          </Button>
-        </div>
+        ) : null}
+
+        <section className="sn-saas-form-section">
+          <div className="sn-saas-form-section__head">
+            <h3 className="sn-saas-form-section__title">Texte réglementaire &amp; conformité</h3>
+            <Button type="button" variant="primary" size="sm" disabled={saving} onClick={() => void save()}>
+              {saving ? "Enregistrement…" : "Enregistrer"}
+            </Button>
+          </div>
+          <div>
+            <label className="sn-saas-label" htmlFor="quote-regulatory-text">
+              Contenu affiché sur le PDF
+            </label>
+            <textarea
+              id="quote-regulatory-text"
+              value={text}
+              onChange={(e) => {
+                setText(e.target.value);
+                setSavedOk(false);
+              }}
+              rows={14}
+              className="sn-saas-textarea admin-quote-doc-textarea"
+              placeholder="Ex. Mentions légales, assurance décennale, labels, normes…"
+            />
+          </div>
+        </section>
       </div>
-
-      {error ? (
-        <p className="admin-catalog-empty-desc" style={{ color: "var(--sn-danger, #c62828)" }}>
-          {error}
-        </p>
-      ) : null}
-      {savedOk ? (
-        <p className="admin-catalog-empty-desc" style={{ color: "var(--sn-success, #2e7d32)" }}>
-          Paramètres enregistrés.
-        </p>
-      ) : null}
-
-      <label className="admin-catalog-empty-desc" htmlFor="quote-regulatory-text" style={{ display: "block", marginBottom: 8 }}>
-        Texte réglementaire &amp; conformité
-      </label>
-      <textarea
-        id="quote-regulatory-text"
-        value={text}
-        onChange={(e) => {
-          setText(e.target.value);
-          setSavedOk(false);
-        }}
-        rows={14}
-        style={{
-          width: "100%",
-          maxWidth: 720,
-          fontFamily: "inherit",
-          fontSize: "0.95rem",
-          lineHeight: 1.45,
-          padding: "12px 14px",
-          borderRadius: 8,
-          border: "1px solid var(--border-soft, rgba(0,0,0,0.12))",
-          resize: "vertical",
-        }}
-        placeholder="Ex. Mentions légales, assurance décennale, labels, normes…"
-      />
     </div>
   );
 }

@@ -14,6 +14,7 @@ import {
   formatVatRateDisplay,
 } from "./financialPdfFormat";
 import "./financial-invoice-pdf.css";
+import { resolvePdfPrimaryColor } from "./pdfBrand";
 
 const API_BASE = import.meta.env?.VITE_API_URL || (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000");
 
@@ -132,7 +133,7 @@ export default function FinancialInvoicePdfPage() {
   const brandColor = useMemo(() => {
     const iss = payload?.issuer as Record<string, unknown> | undefined;
     const b = iss?.branding as Record<string, string | null> | undefined;
-    return b?.pdf_primary_color?.trim() || "#6b5b3a";
+    return resolvePdfPrimaryColor(b?.pdf_primary_color ?? undefined);
   }, [payload]);
 
   const logoUrl = useMemo(() => {
@@ -194,7 +195,7 @@ export default function FinancialInvoicePdfPage() {
           {logoUrl ? (
             <img src={logoUrl} alt="" onLoad={() => setLogoOk(true)} onError={() => setLogoOk(true)} />
           ) : (
-            <span className="fi-brand-fallback">{String(issuer.display_name || "SolarNext")}</span>
+            <span className="fi-brand-fallback">{String(issuer.display_name || "").trim() || "—"}</span>
           )}
         </div>
         <div className="fi-doc-head">

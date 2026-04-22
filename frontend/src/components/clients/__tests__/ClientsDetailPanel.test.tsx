@@ -5,9 +5,14 @@ import React from "react";
 import "@testing-library/jest-dom/vitest";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { ClientsDetailPanel } from "../ClientsDetailPanel";
 import * as leadsService from "../../../services/leads.service";
 import type { Lead } from "../../../services/leads.service";
+
+vi.mock("../../../contexts/OrganizationContext", () => ({
+  useSuperAdminReadOnly: () => false,
+}));
 
 const minimalLead = (over: Partial<Lead> = {}): Lead => ({
   id: "lead-1",
@@ -34,13 +39,15 @@ describe("ClientsDetailPanel — stepper statut projet", () => {
     const onLeadUpdated = vi.fn();
 
     render(
-      <ClientsDetailPanel
-        lead={minimalLead()}
-        canArchive={false}
-        canEditProjectStatus
-        onOpenFull={() => {}}
-        onLeadUpdated={onLeadUpdated}
-      />
+      <MemoryRouter>
+        <ClientsDetailPanel
+          lead={minimalLead()}
+          canArchive={false}
+          canEditProjectStatus
+          onOpenFull={() => {}}
+          onLeadUpdated={onLeadUpdated}
+        />
+      </MemoryRouter>
     );
 
     fireEvent.click(screen.getByRole("button", { name: /DP à déposer/i }));
@@ -63,12 +70,14 @@ describe("ClientsDetailPanel — stepper statut projet", () => {
 
   it("désactive le stepper si canEditProjectStatus est false", () => {
     render(
-      <ClientsDetailPanel
-        lead={minimalLead()}
-        canArchive={false}
-        canEditProjectStatus={false}
-        onOpenFull={() => {}}
-      />
+      <MemoryRouter>
+        <ClientsDetailPanel
+          lead={minimalLead()}
+          canArchive={false}
+          canEditProjectStatus={false}
+          onOpenFull={() => {}}
+        />
+      </MemoryRouter>
     );
     const current = document.querySelector(
       ".project-status-stepper .step.current"
@@ -77,5 +86,33 @@ describe("ClientsDetailPanel — stepper statut projet", () => {
     expect(
       screen.getByRole("button", { name: /Signé/i })
     ).toBeDisabled();
+  });
+
+  it("affiche la date de naissance (JJ/MM/AAAA) en lecture seule", async () => {
+    render(
+      <MemoryRouter>
+        <ClientsDetailPanel
+          lead={minimalLead({ birth_date: "1990-05-15" })}
+          canArchive={false}
+          canEditProjectStatus={false}
+          onOpenFull={() => {}}
+        />
+      </MemoryRouter>
+    );
+    expect(await screen.findByText("15/05/1990")).toBeInTheDocument();
+  });
+
+  it("affiche « Non renseignée » sans date de naissance en lecture seule", async () => {
+    render(
+      <MemoryRouter>
+        <ClientsDetailPanel
+          lead={minimalLead({ birth_date: null })}
+          canArchive={false}
+          canEditProjectStatus={false}
+          onOpenFull={() => {}}
+        />
+      </MemoryRouter>
+    );
+    expect(await screen.findByText("Non renseignée")).toBeInTheDocument();
   });
 });

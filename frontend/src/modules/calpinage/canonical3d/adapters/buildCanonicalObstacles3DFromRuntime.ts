@@ -521,6 +521,8 @@ export function buildCanonicalObstacles3DFromRuntime(
         panId: panIdForZ,
         defaultHeightM: defaultBaseFallback,
       });
+      const zBase =
+        hz.heightM !== undefined && Number.isFinite(hz.heightM) ? hz.heightM : defaultBaseFallback;
       zBaseSources.push(hz.source);
       confMin = Math.min(confMin, hz.confidence);
       confSum += hz.confidence;
@@ -532,7 +534,7 @@ export function buildCanonicalObstacles3DFromRuntime(
         yPx: y,
         xWorldM: xyW.x,
         yWorldM: xyW.y,
-        zWorldM: hz.heightM,
+        zWorldM: zBase,
       });
     }
 
@@ -562,10 +564,14 @@ export function buildCanonicalObstacles3DFromRuntime(
       panId: panIdForZ,
       defaultHeightM: defaultBaseFallback,
     });
+    const czNum =
+      czBase.heightM !== undefined && Number.isFinite(czBase.heightM)
+        ? czBase.heightM
+        : defaultBaseFallback;
     const centroid3D = {
       xWorldM: cxW.x,
       yWorldM: cxW.y,
-      zWorldM: czBase.heightM + heightM * 0.5,
+      zWorldM: czNum + heightM * 0.5,
     };
 
     const uniqueBaseZ = new Set(zBaseSources);

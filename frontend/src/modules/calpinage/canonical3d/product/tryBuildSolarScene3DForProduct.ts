@@ -10,9 +10,44 @@ import {
   buildSolarScene3DFromCalpinageRuntime,
   type BuildSolarScene3DFromCalpinageRuntimeOptions,
 } from "../buildSolarScene3DFromCalpinageRuntime";
+import type { ProductPipeline3DDiagnostics } from "../buildSolarScene3DFromCalpinageRuntimeCore";
 import { isCanonical3DProductMountAllowed } from "../featureFlags";
+import { computeMinimalHouse3DEligibility, type MinimalHouse3DBuildDiagnostics } from "../fallback/fallbackMinimalHouse3D";
+import {
+  emptyCanonical3DGeometryProvenance,
+  type Canonical3DGeometryProvenanceDiagnostics,
+} from "../../integration/readOfficialCalpinageGeometryForCanonical3D";
 
-export type BuildSolarScene3DForProductResult = ReturnType<typeof buildSolarScene3DFromCalpinageRuntime> & {
+const PRODUCT_CTX = { productStrictStatePans: true } as const;
+import { emptyRoofHeightSignalDiagnostics, type RoofHeightSignalDiagnostics } from "../builder/roofHeightSignalDiagnostics";
+import { emptyRoofReconstructionQualityDiagnostics, type RoofReconstructionQualityDiagnostics } from "../builder/roofReconstructionQuality";
+import { emptyPvBindingDiagnostics, type PvBindingDiagnostics } from "../pvPanels/pvBindingDiagnostics";
+import type { Validate2DTo3DCoherenceResult } from "../types/scene2d3dCoherence";
+import type { CanonicalSceneValidationResult } from "../validation/validateCanonicalScene3DInput";
+import type { SolarScene3D } from "../types/solarScene3d";
+
+function emptyProductPipelineDiagnostics(): ProductPipeline3DDiagnostics {
+  return {
+    messages: [],
+    panSource: "STATE_PANS_STRICT",
+    legacyInputMode: "LEGACY_RICH_INPUT_NOT_USED",
+    buildingFallbackUsed: false,
+  };
+}
+
+/** Résultat produit : même cœur que le builder + champs optionnels lorsque le flag coupe la 3D. */
+export type BuildSolarScene3DForProductResult = {
+  readonly ok: boolean;
+  readonly is3DEligible: boolean;
+  readonly scene: SolarScene3D | null;
+  readonly coherence: Validate2DTo3DCoherenceResult | null;
+  readonly diagnostics: CanonicalSceneValidationResult["diagnostics"];
+  readonly minimalHouse3DDiagnostics?: MinimalHouse3DBuildDiagnostics;
+  readonly geometryProvenance?: Canonical3DGeometryProvenanceDiagnostics;
+  readonly roofHeightSignal?: RoofHeightSignalDiagnostics;
+  readonly roofReconstructionQuality?: RoofReconstructionQualityDiagnostics;
+  readonly pvBindingDiagnostics?: PvBindingDiagnostics;
+  readonly productPipeline3DDiagnostics?: ProductPipeline3DDiagnostics;
   readonly disabledByFlag?: boolean;
 };
 
@@ -21,6 +56,7 @@ export function tryBuildSolarScene3DForProduct(
   options?: BuildSolarScene3DFromCalpinageRuntimeOptions,
 ): BuildSolarScene3DForProductResult {
   if (!isCanonical3DProductMountAllowed()) {
+    const e = computeMinimalHouse3DEligibility({ state: runtime, worldResolved: false });
     return {
       ok: false,
       is3DEligible: false,
@@ -44,6 +80,16 @@ export function tryBuildSolarScene3DForProduct(
           invalidPanels: 0,
         },
       },
+      minimalHouse3DDiagnostics: {
+        ...e,
+        roofGeometrySource: "REAL_ROOF_PANS",
+        fallbackReason: null,
+      },
+      geometryProvenance: emptyCanonical3DGeometryProvenance(runtime, 0, PRODUCT_CTX),
+      roofHeightSignal: emptyRoofHeightSignalDiagnostics(),
+      roofReconstructionQuality: emptyRoofReconstructionQualityDiagnostics(),
+      pvBindingDiagnostics: emptyPvBindingDiagnostics(),
+      productPipeline3DDiagnostics: emptyProductPipelineDiagnostics(),
       disabledByFlag: true,
     };
   }

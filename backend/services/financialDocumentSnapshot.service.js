@@ -102,6 +102,18 @@ function parseJsonb(val) {
   }
 }
 
+/** Annexes légales optionnelles figées dans le snapshot (metadata_json.legal_documents au gel). */
+function parseLegalDocumentsFromMeta(meta) {
+  const ld = meta?.legal_documents;
+  if (!ld || typeof ld !== "object") {
+    return { include_rge: false, include_decennale: false };
+  }
+  return {
+    include_rge: Boolean(ld.include_rge),
+    include_decennale: Boolean(ld.include_decennale),
+  };
+}
+
 function mapQuoteLine(row) {
   const snap = parseJsonb(row.snapshot_json);
   const refRaw = snap?.reference ?? snap?.product_reference ?? null;
@@ -157,6 +169,7 @@ export function buildOfficialQuoteDocumentSnapshot(opts) {
   const meta = parseJsonb(quoteRow.metadata_json);
   const { deposit, deposit_display } = buildQuoteDepositFreeze(meta, quoteRow.total_ttc);
   const showLinePricing = meta.pdf_show_line_pricing !== false;
+  const legal_documents = parseLegalDocumentsFromMeta(meta);
 
   const body = {
     schema_version: FINANCIAL_DOCUMENT_SNAPSHOT_SCHEMA_VERSION,
@@ -191,6 +204,7 @@ export function buildOfficialQuoteDocumentSnapshot(opts) {
     pdf_display: {
       show_line_pricing: showLinePricing,
     },
+    legal_documents,
     refs: {
       lead_id: quoteRow.lead_id ?? null,
       client_id: quoteRow.client_id ?? null,
@@ -444,6 +458,7 @@ export function buildQuotePdfPayloadForLivePreview(
   const meta = parseJsonb(quoteRow.metadata_json);
   const { deposit, deposit_display } = buildQuoteDepositFreeze(meta, num(quoteRow.total_ttc));
   const showLinePricing = meta.pdf_show_line_pricing !== false;
+  const legal_documents = parseLegalDocumentsFromMeta(meta);
 
   const body = {
     schema_version: FINANCIAL_DOCUMENT_SNAPSHOT_SCHEMA_VERSION,
@@ -475,6 +490,7 @@ export function buildQuotePdfPayloadForLivePreview(
     pdf_display: {
       show_line_pricing: showLinePricing,
     },
+    legal_documents,
     refs: {
       lead_id: quoteRow.lead_id ?? null,
       client_id: quoteRow.client_id ?? null,

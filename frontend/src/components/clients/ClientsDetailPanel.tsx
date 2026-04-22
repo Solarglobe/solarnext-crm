@@ -3,6 +3,7 @@
  */
 
 import React, { useCallback, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import type { Lead } from "../../services/leads.service";
 import {
   getLeadFullAddress,
@@ -14,7 +15,9 @@ import {
 import {
   CYCLE_PROJECT_SELECT_OPTIONS,
   PROJECT_CYCLE_LABELS,
+  isLeadDpFolderAccessible,
 } from "../../modules/leads/LeadDetail/constants";
+import { CrmLeadStatusBadge } from "../crm/CrmLeadStatusBadge";
 import { ConfirmModal } from "../ui/ConfirmModal";
 import { UndoToast } from "../ui/UndoToast";
 import { useUndoAction } from "../../hooks/useUndoAction";
@@ -31,6 +34,13 @@ import {
   getProjectTracking,
   isMairieOrDpPending,
 } from "./projectPvTracking";
+import { formatDateFR } from "../../utils/date.utils";
+import { VisiteTechniqueModal } from "../visiteTechnique/VisiteTechniqueModal";
+import { useSuperAdminReadOnly } from "../../contexts/OrganizationContext";
+import { fetchStudiesByLeadId } from "../../services/studies.service";
+import { fetchQuotesList } from "../../services/financial.api";
+import { fetchMissionsByClientId } from "../../services/missions.service";
+import { getInbox } from "../../services/mailApi";
 
 const STATUS_LIST = CYCLE_PROJECT_SELECT_OPTIONS;
 
@@ -124,6 +134,52 @@ function ClientsDetailPanelBody({
   const [pendingStatus, setPendingStatus] = useState<string | null>(null);
   const [dpOpen, setDpOpen] = useState(false);
   const [dpBusy, setDpBusy] = useState(false);
+  const [birthSaving, setBirthSaving] = useState(false);
+  const [isVisiteOpen, setIsVisiteOpen] = useState(false);
+  const [quickStats, setQuickStats] = useState<{
+    studies: number;
+    quotes: number;
+    emails: number;
+    rdv: number;
+  } | null>(null);
+  const [quickStatsLoading, setQuickStatsLoading] = useState(true);
+  const navigate = useNavigate();
+  const isReadOnly = useSuperAdminReadOnly();
+
+  const openVisiteTechnique = useCallback(() => setIsVisiteOpen(true), []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const id = lead.id;
+    const cid = lead.client_id ?? null;
+    setQuickStatsLoading(true);
+    (async () => {
+      try {
+        const [studiesR, quotesR, missionsR, inboxR] = await Promise.allSettled([
+          fetchStudiesByLeadId(id),
+          fetchQuotesList({ lead_id: id, limit: 500 }),
+          cid ? fetchMissionsByClientId(cid) : Promise.resolve([]),
+          getInbox({ leadId: id, limit: 1 }),
+        ]);
+        if (cancelled) return;
+        const studies = studiesR.status === "fulfilled" ? studiesR.value.length : 0;
+        const quotes = quotesR.status === "fulfilled" ? quotesR.value.length : 0;
+        const rdv = missionsR.status === "fulfilled" ? missionsR.value.length : 0;
+        const emails = inboxR.status === "fulfilled" ? inboxR.value.total : 0;
+        setQuickStats({ studies, quotes, emails, rdv });
+      } catch {
+        if (!cancelled) {
+          setQuickStats({ studies: 0, quotes: 0, emails: 0, rdv: 0 });
+        }
+      } finally {
+        if (!cancelled) setQuickStatsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [lead.id, lead.client_id]);
+  const closeVisiteTechnique = useCallback(() => setIsVisiteOpen(false), []);
 
   const statusKey = normalizeStatusKey(ps);
   const currentIndex = STATUS_LIST.findIndex((s) => s.value === statusKey);
@@ -136,8 +192,32 @@ function ClientsDetailPanelBody({
     setErr(null);
   }, [lead.id]);
 
+  const handleBirthDateChange = useCallback(
+    async (value: string) => {
+      if (isReadOnly) return;
+      const next = value ? value : null;
+      const prev = lead.birth_date ?? null;
+      if (next === prev) return;
+      setErr(null);
+      setBirthSaving(true);
+      try {
+        const updated = await updateLead({
+          id: lead.id,
+          birth_date: next,
+        });
+        onLeadUpdated?.(updated);
+      } catch (e) {
+        setErr(e instanceof Error ? e.message : "Erreur de mise à jour");
+      } finally {
+        setBirthSaving(false);
+      }
+    },
+    [isReadOnly, lead.birth_date, lead.id, onLeadUpdated]
+  );
+
   const handleStepClick = useCallback(
     (newStatus: string) => {
+      if (isReadOnly) return;
       const u = newStatus.trim().toUpperCase();
       if (u === statusKey) return;
       if (u === "DP_REFUSED") {
@@ -147,10 +227,11 @@ function ClientsDetailPanelBody({
       setPendingStatus(u);
       setConfirmOpen(true);
     },
-    [statusKey]
+    [isReadOnly, statusKey]
   );
 
   const applyPendingStatus = useCallback(async () => {
+    if (isReadOnly) return;
     if (!pendingStatus) return;
     const prev = statusKey;
     const next = pendingStatus;
@@ -182,10 +263,11 @@ function ClientsDetailPanelBody({
     } finally {
       setSaving(false);
     }
-  }, [pendingStatus, statusKey, lead.id, onLeadUpdated, scheduleUndo]);
+  }, [isReadOnly, pendingStatus, statusKey, lead.id, onLeadUpdated, scheduleUndo]);
 
   const handleDpRefusedChoose = useCallback(
     async (choice: DPRefusedChoice) => {
+      if (isReadOnly) return;
       setDpBusy(true);
       setErr(null);
       try {
@@ -231,14 +313,52 @@ function ClientsDetailPanelBody({
         setDpBusy(false);
       }
     },
-    [lead, onLeadUpdated, scheduleUndo]
+    [isReadOnly, lead, onLeadUpdated, scheduleUndo]
   );
 
   return (
     <div className="clients-detail clients-detail-panel">
+      <div
+        className="clients-detail-quick-stats"
+        role="region"
+        aria-label="Synthèse du dossier"
+      >
+        <div className="clients-detail-quick-stats__item">
+          <span className="clients-detail-quick-stats__n" aria-hidden={quickStatsLoading}>
+            {quickStatsLoading ? "…" : (quickStats?.studies ?? "—")}
+          </span>
+          <span className="clients-detail-quick-stats__lbl">Études</span>
+        </div>
+        <div className="clients-detail-quick-stats__item">
+          <span className="clients-detail-quick-stats__n" aria-hidden={quickStatsLoading}>
+            {quickStatsLoading ? "…" : (quickStats?.quotes ?? "—")}
+          </span>
+          <span className="clients-detail-quick-stats__lbl">Devis</span>
+        </div>
+        <div className="clients-detail-quick-stats__item">
+          <span className="clients-detail-quick-stats__n" aria-hidden={quickStatsLoading}>
+            {quickStatsLoading ? "…" : (quickStats?.emails ?? "—")}
+          </span>
+          <span className="clients-detail-quick-stats__lbl">E-mails</span>
+        </div>
+        <div className="clients-detail-quick-stats__item">
+          <span className="clients-detail-quick-stats__n" aria-hidden={quickStatsLoading}>
+            {quickStatsLoading ? "…" : (quickStats?.rdv ?? "—")}
+          </span>
+          <span className="clients-detail-quick-stats__lbl">RDV</span>
+        </div>
+      </div>
+
       <div className="clients-detail__section clients-detail__section--identity">
         <div className="clients-detail__title-row">
-          <h2 className="clients-detail__title">{name}</h2>
+          <div className="clients-detail__title-inner">
+            <h2 className="clients-detail__title">{name}</h2>
+            <CrmLeadStatusBadge
+              status={lead.status}
+              stageName={lead.stage_name}
+              className="crm-status-badge--in-header"
+            />
+          </div>
           {onClose && (
             <button
               type="button"
@@ -264,6 +384,29 @@ function ClientsDetailPanelBody({
               <dd>{email}</dd>
             </div>
           ) : null}
+          <div className="clients-detail__row clients-detail__row--birth">
+            <dt title="Mandat de représentation (DP)">Naissance</dt>
+            <dd>
+              {canEditProjectStatus ? (
+                <input
+                  type="date"
+                  className="sn-input clients-detail__birth-input"
+                  disabled={birthSaving || saving || isReadOnly}
+                  value={
+                    lead.birth_date
+                      ? String(lead.birth_date).slice(0, 10)
+                      : ""
+                  }
+                  onChange={(e) => {
+                    void handleBirthDateChange(e.target.value);
+                  }}
+                  aria-label="Date de naissance pour le mandat de représentation"
+                />
+              ) : (
+                formatDateFR(lead.birth_date) ?? "Non renseignée"
+              )}
+            </dd>
+          </div>
           {address ? (
             <div className="clients-detail__row">
               <dt>Chantier</dt>
@@ -299,7 +442,7 @@ function ClientsDetailPanelBody({
               const isCurrent =
                 currentIndex >= 0 && s.value === statusKey;
               const isPast = currentIndex >= 0 && stepIndex < currentIndex;
-              const editable = canEditProjectStatus && !saving;
+              const editable = canEditProjectStatus && !saving && !isReadOnly;
 
               return (
                 <button
@@ -372,6 +515,30 @@ function ClientsDetailPanelBody({
       </div>
 
       <div className="clients-detail__actions">
+        {isLeadDpFolderAccessible(lead) ? (
+          <button
+            type="button"
+            className="sn-btn sn-btn-primary sn-btn-sm"
+            disabled={isReadOnly}
+            onClick={() => {
+              if (isReadOnly) return;
+              navigate(`/leads/${lead.id}/dp`);
+            }}
+          >
+            Créer / Continuer le dossier DP
+          </button>
+        ) : null}
+        <button
+          type="button"
+          className="sn-btn sn-btn-primary sn-btn-sm"
+          disabled={isReadOnly}
+          onClick={() => {
+            if (isReadOnly) return;
+            openVisiteTechnique();
+          }}
+        >
+          Visite technique
+        </button>
         <button
           type="button"
           className="sn-btn sn-btn-primary sn-btn-sm"
@@ -383,7 +550,11 @@ function ClientsDetailPanelBody({
           <button
             type="button"
             className="sn-btn sn-btn-ghost sn-btn-sm clients-detail__archive"
-            onClick={() => onArchive(lead.id)}
+            disabled={isReadOnly}
+            onClick={() => {
+              if (isReadOnly) return;
+              onArchive(lead.id);
+            }}
           >
             Archiver le dossier
           </button>
@@ -423,6 +594,13 @@ function ClientsDetailPanelBody({
           onPauseChange={activeToast.onHoverPause}
         />
       ) : null}
+
+      <VisiteTechniqueModal
+        key={String(lead.id)}
+        open={isVisiteOpen}
+        onClose={closeVisiteTechnique}
+        clientId={String(lead.id)}
+      />
     </div>
   );
 }

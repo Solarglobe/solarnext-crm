@@ -28,6 +28,16 @@
     </div>
   </div>
 
+  <div class="dp-doc-version-strip">
+    <div class="dp-doc-version" id="dp1-doc-version" data-dp-doc-version="dp1">
+      <button type="button" class="dp-doc-version__trigger" id="dp1-doc-version-trigger" aria-expanded="false" aria-haspopup="menu" aria-controls="dp1-doc-version-menu">
+        <span class="dp-doc-version__label" id="dp1-doc-version-label">Version 1</span>
+        <span class="dp-doc-version__chevron" aria-hidden="true">▾</span>
+      </button>
+      <div class="dp-doc-version__dropdown" id="dp1-doc-version-menu" hidden role="menu" aria-label="Versions du document"></div>
+    </div>
+  </div>
+
   <hr class="dp-sep" />
 
   <!-- CONTENU -->
@@ -52,7 +62,7 @@
 <!-- Cartes 2–4 : vues DP1 -->
 
 <div class="dp-view">
-  <div class="dp-card dp-card-placeholder" data-slot="dp1-view-1">
+  <div class="dp-card dp-card-placeholder" data-slot="dp1-view-1" data-dp1-view="20000">
     <div class="dp-placeholder">
       <div class="dp-placeholder-title">Vue large</div>
       <div class="dp-placeholder-sub">Échelle : 1 / 20 000</div>
@@ -66,7 +76,7 @@
 </div>
 
 <div class="dp-view">
-  <div class="dp-card dp-card-placeholder" data-slot="dp1-view-2">
+  <div class="dp-card dp-card-placeholder" data-slot="dp1-view-2" data-dp1-view="5000">
     <div class="dp-placeholder">
       <div class="dp-placeholder-title">Vue intermédiaire</div>
       <div class="dp-placeholder-sub">Échelle : 1 / 5 000</div>
@@ -80,7 +90,7 @@
 </div>
 
 <div class="dp-view">
-  <div class="dp-card dp-card-placeholder" data-slot="dp1-view-3">
+  <div class="dp-card dp-card-placeholder" data-slot="dp1-view-3" data-dp1-view="650">
     <div class="dp-placeholder">
       <div class="dp-placeholder-title">Vue proche</div>
       <div class="dp-placeholder-sub">Échelle : 1 / 650</div>
@@ -110,9 +120,9 @@
   <h3>Parcelle validée</h3>
 
   <ul class="dp-parcelle-list">
-    <li><strong>Section :</strong> <span id="dp1-info-section">—</span></li>
-    <li><strong>Parcelle :</strong> <span id="dp1-info-parcelle">—</span></li>
-    <li><strong>Surface :</strong> <span id="dp1-info-surface">—</span></li>
+    <li><strong>Section :</strong> <span id="dp1-info-section" data-field="section">—</span></li>
+    <li><strong>Parcelle :</strong> <span id="dp1-info-parcelle" data-field="parcel">—</span></li>
+    <li><strong>Surface :</strong> <span id="dp1-info-surface" data-field="surface">—</span></li>
   </ul>
 
   <div class="dp-parcelle-actions">

@@ -104,7 +104,10 @@ export async function generatePdfFromScenario(req, res) {
         if (!leadId) {
           payload.leadDocument = { status: "skipped", reason: "NO_LEAD" };
         } else {
-          const skRes = await pool.query(`SELECT storage_key FROM entity_documents WHERE id = $1`, [doc.id]);
+          const skRes = await pool.query(
+            `SELECT storage_key FROM entity_documents WHERE id = $1 AND organization_id = $2`,
+            [doc.id, org]
+          );
           const storageKey = skRes.rows[0]?.storage_key;
           if (!storageKey) {
             payload.leadDocument = { status: "error", reason: "STORAGE_KEY_MISSING" };

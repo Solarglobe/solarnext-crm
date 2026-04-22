@@ -6,6 +6,7 @@
 import React, { useMemo } from "react";
 import PdfPageLayout from "../PdfEngine/PdfPageLayout";
 import PdfHeader from "../../../components/pdf/PdfHeader";
+import { usePdfOrgBranding } from "./pdfOrgBrandingContext";
 
 const API_BASE = import.meta.env?.VITE_API_URL || (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000");
 const PLACEHOLDER_LOGO = "/pdf-assets/images/logo-solarglobe-rect.png";
@@ -115,6 +116,8 @@ export default function PdfPage7({
   const gridKwh = p7.c_grid ?? 0;
 
   const hasData = autonomie > 0 || cGrid > 0 || pSurplusPct > 0 || autoconsommation > 0;
+
+  const { brandHex } = usePdfOrgBranding();
 
   return (
     <PdfPageLayout
@@ -313,7 +316,7 @@ export default function PdfPage7({
                 boxShadow: "0 0.75mm 2.2mm rgba(0,0,0,.04)",
               }}
             >
-              <div style={{ fontWeight: 700, marginBottom: "1.15mm", fontSize: "3.2mm", color: "#C39847" }}>
+              <div style={{ fontWeight: 700, marginBottom: "1.15mm", fontSize: "3.2mm", color: brandHex }}>
                 Autoconsommation
               </div>
               <div style={{ fontSize: "7mm", lineHeight: 1, fontWeight: 800, color: "#1a1a1a", letterSpacing: "-0.02em" }}>
@@ -334,7 +337,7 @@ export default function PdfPage7({
                 boxShadow: "0 0.75mm 2.2mm rgba(0,0,0,.04)",
               }}
             >
-              <div style={{ fontWeight: 700, marginBottom: "1.15mm", fontSize: "3.2mm", color: "#C39847" }}>
+              <div style={{ fontWeight: 700, marginBottom: "1.15mm", fontSize: "3.2mm", color: brandHex }}>
                 Autonomie
               </div>
               <div style={{ fontSize: "7mm", lineHeight: 1, fontWeight: 800, color: "#1a1a1a", letterSpacing: "-0.02em" }}>
@@ -355,7 +358,7 @@ export default function PdfPage7({
                 boxShadow: "0 0.75mm 2.2mm rgba(0,0,0,.04)",
               }}
             >
-              <div style={{ fontWeight: 700, marginBottom: "1.15mm", fontSize: "3.2mm", color: "#C39847" }}>
+              <div style={{ fontWeight: 700, marginBottom: "1.15mm", fontSize: "3.2mm", color: brandHex }}>
                 Surplus injecté
               </div>
               <div style={{ fontSize: "7mm", lineHeight: 1, fontWeight: 800, color: "#1a1a1a", letterSpacing: "-0.02em" }}>
@@ -383,7 +386,7 @@ export default function PdfPage7({
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4.5mm", alignItems: "stretch" }}>
                 {/* Colonne gauche — Consommation annuelle */}
                 <div style={{ display: "flex", flexDirection: "column", gap: "1mm" }}>
-                  <div style={{ fontWeight: 700, marginBottom: "0.25mm", fontSize: "3.2mm", color: "#C39847" }}>
+                  <div style={{ fontWeight: 700, marginBottom: "0.25mm", fontSize: "3.2mm", color: brandHex }}>
                     Consommation annuelle
                   </div>
                   <div style={{ fontSize: "3.12mm", color: "#444", lineHeight: 1.42 }}>
@@ -394,7 +397,7 @@ export default function PdfPage7({
                 </div>
                 {/* Colonne droite — Production annuelle */}
                 <div style={{ display: "flex", flexDirection: "column", gap: "1mm", borderLeft: "0.3mm solid rgba(195,152,71,.2)", paddingLeft: "4mm" }}>
-                  <div style={{ fontWeight: 700, marginBottom: "0.25mm", fontSize: "3.2mm", color: "#C39847" }}>
+                  <div style={{ fontWeight: 700, marginBottom: "0.25mm", fontSize: "3.2mm", color: brandHex }}>
                     Production annuelle
                   </div>
                   <div style={{ fontSize: "3.12mm", color: "#444", lineHeight: 1.42 }}>
@@ -432,7 +435,7 @@ export default function PdfPage7({
               }}
             >
               <div style={{ display: "flex", flexDirection: "column", justifyContent: "flex-start" }}>
-                <div style={{ fontWeight: 700, marginBottom: "1mm", fontSize: "3.28mm", color: "#C39847" }}>
+                <div style={{ fontWeight: 700, marginBottom: "1mm", fontSize: "3.28mm", color: brandHex }}>
                   Lecture du bilan énergétique
                 </div>
                 <p style={{ margin: "0 0 1mm 0", fontSize: "3.05mm", color: "#444", lineHeight: 1.44 }}>

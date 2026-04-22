@@ -34,10 +34,33 @@ function hasFrozenBlocks(geometryJson) {
   return Array.isArray(blocks);
 }
 
-function hasShadingNormalized(geometryJson) {
+/**
+ * Ombrage « calculé » au sens snapshot : soit legacy (normalized / KPIs numériques),
+ * soit enveloppe V2 complète (near/far/combined/shadingQuality) telle que sortie
+ * normalizeCalpinageShading — y compris lorsque combined.totalLossPct est null
+ * (GPS manquant, masque indisponible : KPI non chiffrable mais pipeline exécuté).
+ */
+export function hasShadingNormalized(geometryJson) {
   const shading = geometryJson?.shading;
   if (!shading || typeof shading !== "object") return false;
-  return shading.normalized != null || typeof shading.totalLossPct === "number" || (shading.combined && typeof shading.combined.totalLossPct === "number");
+  if (shading.normalized != null) return true;
+  if (typeof shading.totalLossPct === "number") return true;
+  if (shading.combined && typeof shading.combined.totalLossPct === "number") return true;
+  // V2 : présence de l'enveloppe produit même si les pertes globales sont null
+  if (
+    shading.near &&
+    typeof shading.near === "object" &&
+    shading.far &&
+    typeof shading.far === "object" &&
+    shading.combined &&
+    typeof shading.combined === "object" &&
+    Object.prototype.hasOwnProperty.call(shading.combined, "totalLossPct") &&
+    shading.shadingQuality &&
+    typeof shading.shadingQuality === "object"
+  ) {
+    return true;
+  }
+  return false;
 }
 
 /**

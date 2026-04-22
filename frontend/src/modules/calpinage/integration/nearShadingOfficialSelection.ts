@@ -27,6 +27,8 @@ import {
 
 import { mapCalpinageRoofToLegacyRoofGeometryInput } from "./mapCalpinageToCanonicalNearShading";
 
+import { buildOfficialRoofModelForNearShadingOnly } from "./buildOfficialRoofModelForNearShadingBridge";
+import { getCachedOfficialRoofModelForNearShading } from "./officialRoofModelNearShadingCache";
 import { runCanonicalNearShadingPipeline } from "./runCanonicalNearShadingPipeline";
 
 import type {
@@ -226,11 +228,9 @@ export function attemptCanonicalNearShading(
 
 
   const legacyRoof = mapCalpinageRoofToLegacyRoofGeometryInput(
-
     params.calpinageRoofState,
-
-    params.calpinageStructural ?? null
-
+    params.calpinageStructural ?? null,
+    params.calpinageRuntimeRoot,
   );
 
   if (!legacyRoof) {
@@ -319,11 +319,49 @@ export function attemptCanonicalNearShading(
 
   const panelsEnriched = enrichPanelsForCanonicalShading(params.panels, eng ?? null);
 
+  const runtimeRootUnknown =
+    params.calpinageRuntimeRoot ??
+    (typeof rt?.getState === "function" ? rt.getState() : null);
+  if (runtimeRootUnknown == null || typeof runtimeRootUnknown !== "object") {
+    return {
+      type: "skipped",
+      reasonCode: "NO_RUNTIME_ROOT",
+      diagnostics: ["Runtime calpinage racine indisponible pour résoudre la toiture 3D officielle."],
+    };
+  }
+  const runtimeRoot = runtimeRootUnknown;
 
+  const getAllPanelsForSignature = (): unknown[] => {
+    try {
+      const w = typeof window !== "undefined" ? (window as unknown as { pvPlacementEngine?: { getAllPanels?: () => unknown[] } }) : null;
+      if (w?.pvPlacementEngine && typeof w.pvPlacementEngine.getAllPanels === "function") {
+        return w.pvPlacementEngine.getAllPanels() ?? [];
+      }
+    } catch {
+      /* ignore */
+    }
+    return [];
+  };
+
+  let officialRoofModelResult = getCachedOfficialRoofModelForNearShading(runtimeRoot, getAllPanelsForSignature);
+  if (!officialRoofModelResult) {
+    officialRoofModelResult = buildOfficialRoofModelForNearShadingOnly(runtimeRoot, {
+      getAllPanels: getAllPanelsForSignature,
+      placementEngine: eng ?? null,
+    });
+  }
+  if (!officialRoofModelResult) {
+    return {
+      type: "skipped",
+      reasonCode: "NO_OFFICIAL_ROOF_MODEL",
+      diagnostics: [
+        "Toiture 3D officielle indisponible (pas de cache et reconstruction échouée) — near canonical ignoré.",
+      ],
+    };
+  }
 
   const canon = runCanonicalNearShadingPipeline({
-
-    legacyRoof,
+    officialRoofModelResult,
 
     obstacles: params.obstacles,
 

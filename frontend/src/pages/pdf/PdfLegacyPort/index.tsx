@@ -1,11 +1,13 @@
 /**
  * CP-PDF-V2-020 — Portage fidèle du PDF legacy Solarglobe
  * Remplace FullReport : structure DOM, IDs, couleurs legacy conservés.
- * P3, P3B, P4, P5 : engines legacy (engine-bridge + engine-p3/p3b/p4/p5) hydratent le DOM.
+ * P3, P3B, P4 : engines legacy (engine-bridge + engine-p3/p3b) ; P4/P5/P7 en React depuis le view model.
  * Ordre fin : … P11 → p-methodology-solarglobe (avant-dernière) → P12 (clôture, dernière).
  */
 
 import React from "react";
+import { resolvePdfPrimaryColor } from "../pdfBrand";
+import { PdfOrgBrandingProvider } from "./pdfOrgBrandingContext";
 import { useLegacyPdfEngine } from "../hooks/useLegacyPdfEngine";
 import PdfPage1 from "./PdfPage1";
 import PdfPage2 from "./PdfPage2";
@@ -38,13 +40,28 @@ export default function PdfLegacyPort({ viewModel, onP10Ready }: PdfLegacyPortPr
   useLegacyPdfEngine(viewModel ?? null);
   const organization = (viewModel?.organization ?? {}) as {
     id?: string;
+    name?: string | null;
+    legal_name?: string | null;
+    trade_name?: string | null;
+    pdf_primary_color?: string | null;
     logo_image_key?: string | null;
     logo_url?: string | null;
     pdf_cover_image_key?: string | null;
   };
 
+  const brandHex = resolvePdfPrimaryColor(organization.pdf_primary_color);
+
   return (
-    <div className="pdf-legacy-port">
+    <PdfOrgBrandingProvider pdfPrimaryColor={organization.pdf_primary_color} organization={organization}>
+      <div
+        className="pdf-legacy-port"
+        style={
+          {
+            ["--brand" as string]: brandHex,
+            ["--bar-gradient" as string]: `linear-gradient(90deg, ${brandHex}, color-mix(in srgb, ${brandHex} 72%, #ffffff))`,
+          } as React.CSSProperties
+        }
+      >
       <PdfPage1 organization={organization} viewModel={viewModel} />
       <PdfPage2 organization={organization} viewModel={viewModel} />
       <PdfPage3 organization={organization} viewModel={viewModel} />
@@ -55,8 +72,9 @@ export default function PdfLegacyPort({ viewModel, onP10Ready }: PdfLegacyPortPr
       {Boolean(fr.p9) && <PdfPage8 organization={organization} viewModel={viewModel} />}
       <PdfPage10 organization={organization} viewModel={viewModel} onReady={onP10Ready} />
       <PdfPage11 />
-      <PdfPageMethodologySolarGlobe viewModel={viewModel} />
+      <PdfPageMethodologySolarGlobe viewModel={viewModel} organization={organization} />
       <PdfPage12 />
-    </div>
+      </div>
+    </PdfOrgBrandingProvider>
   );
 }

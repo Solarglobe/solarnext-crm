@@ -5,8 +5,8 @@ import {
   isInstalledKwcDivergent,
   computeInstalledKwcRounded2,
   computeInstalledKwcRounded3,
-  LEGACY_FALLBACK_PANEL_WC,
 } from "../utils/resolvePanelPowerWc.js";
+import { DEFAULT_PANEL_POWER_WC } from "../services/core/engineConstants.js";
 
 test("TEST 1 DMEGC-like: 61 × 500 Wc → 30.5 kWc (2 déc.)", () => {
   const w = resolvePanelPowerWc({ brand: "DMEGC", power_wc: 500 });
@@ -32,7 +32,7 @@ test("TEST 5 dégradé: aucune puissance → null, pas de 485 dans resolve", () 
   assert.equal(resolvePanelPowerWc(null), null);
   assert.equal(resolvePanelPowerWc({}), null);
   assert.equal(resolvePanelPowerWc({ power_wc: 40 }), null);
-  assert.equal(LEGACY_FALLBACK_PANEL_WC, 485);
+  assert.equal(DEFAULT_PANEL_POWER_WC, 485);
 });
 
 test("sanity: 29.585 vs 30.5 divergent", () => {

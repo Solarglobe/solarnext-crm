@@ -4,6 +4,7 @@
  */
 
 import type { CanonicalScene3DInput } from "../adapters/buildCanonicalScene3DInput";
+import { polygonHorizontalAreaM2FromImagePx } from "../builder/worldMapping";
 import type { Scene2DSourceTrace } from "../types/scene2d3dCoherence";
 
 const TRACE_SCHEMA = "scene-2d-source-trace-v1" as const;
@@ -83,12 +84,20 @@ export function buildScene2DSourceTraceFromCalpinage(input: BuildScene2DSourceTr
 
   const contourPx = extractRoofOutlineContourPx(runtime);
   let roofOutlineArea2DPx: number | undefined;
+  let roofOutlineHorizontalAreaM2: number | undefined;
   let roofOutlineBBox2D:
     | { minX: number; minY: number; maxX: number; maxY: number }
     | undefined;
+  const mppW = canonicalScene.world.metersPerPixel;
+  const northW = canonicalScene.world.northAngleDeg;
   if (contourPx && contourPx.length >= 3) {
     roofOutlineArea2DPx = polygonArea2DPx(contourPx);
     roofOutlineBBox2D = bbox2D(contourPx);
+    if (typeof mppW === "number" && Number.isFinite(mppW) && mppW > 0) {
+      const north = typeof northW === "number" && Number.isFinite(northW) ? northW : 0;
+      const aM2 = polygonHorizontalAreaM2FromImagePx(contourPx, mppW, north);
+      if (aM2 > 0) roofOutlineHorizontalAreaM2 = aM2;
+    }
   }
 
   return {
@@ -108,6 +117,9 @@ export function buildScene2DSourceTraceFromCalpinage(input: BuildScene2DSourceTr
     metrics: {
       ...(typeof roofOutlineArea2DPx === "number" && roofOutlineArea2DPx > 0
         ? { roofOutlineArea2DPx }
+        : {}),
+      ...(typeof roofOutlineHorizontalAreaM2 === "number" && roofOutlineHorizontalAreaM2 > 0
+        ? { roofOutlineHorizontalAreaM2 }
         : {}),
       ...(roofOutlineBBox2D != null ? { roofOutlineBBox2D } : {}),
       sourcePanCount: sourcePanIds.length,

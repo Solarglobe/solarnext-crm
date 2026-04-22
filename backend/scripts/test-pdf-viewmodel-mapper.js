@@ -195,5 +195,45 @@ try {
   console.log("TEST FAILED — Null snapshot:", e.message);
 }
 
+// ——— TEST 6 — P5 : profil journalier non plat (écart min/max > 0) ———
+try {
+  const snapshot = buildFullSnapshot();
+  const vm = mapSelectedScenarioSnapshotToPdfViewModel(snapshot);
+  const p5 = vm.fullReport?.p5;
+  const prod = p5?.production_kw ?? [];
+  const conso = p5?.consommation_kw ?? [];
+  const spread = (arr) => Math.max(...arr) - Math.min(...arr);
+  const sum = (arr) => arr.reduce((a, b) => a + b, 0);
+  const eDayP = (snapshot.production.annual_kwh || 0) / 365;
+  const eDayC = (snapshot.energy.consumption_kwh || 0) / 365;
+  const ok =
+    prod.length === 24 &&
+    conso.length === 24 &&
+    spread(prod) > 1e-6 &&
+    spread(conso) > 1e-6 &&
+    Math.abs(sum(prod) - eDayP) < 0.02 &&
+    Math.abs(sum(conso) - eDayC) < 0.02 &&
+    p5?.profile_notes?.production &&
+    p5?.profile_notes?.consumption;
+  if (ok) {
+    passed++;
+    console.log("TEST PASSED — P5 daily profile (non-flat, energy coherent)");
+  } else {
+    failed++;
+    console.log("TEST FAILED — P5 daily profile", {
+      spreadP: spread(prod),
+      spreadC: spread(conso),
+      sumP: sum(prod),
+      eDayP,
+      sumC: sum(conso),
+      eDayC,
+      notes: p5?.profile_notes,
+    });
+  }
+} catch (e) {
+  failed++;
+  console.log("TEST FAILED — P5 daily profile:", e.message);
+}
+
 console.log("\nRésultat :", passed, "passés,", failed, "échoués");
 process.exit(failed > 0 ? 1 : 0);

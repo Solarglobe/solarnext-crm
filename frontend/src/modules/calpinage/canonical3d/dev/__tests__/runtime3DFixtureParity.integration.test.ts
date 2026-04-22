@@ -28,14 +28,15 @@ describe("runtime3DFixtureParity — intégration", () => {
     },
   );
 
-  it("partial-missing-world-contract : canonical KO explicite", () => {
+  it("partial-missing-world-contract : contrat matérialisé au build, canonical OK", () => {
     const b = RUNTIME_3D_FIXTURE_BATTERY["partial-missing-world-contract"]!;
     const r = compareLegacyAndCanonical3D({
       sceneId: b.id,
       runtime: b.runtime,
       getAllPanels: () => b.panels,
     });
-    expect(r.meta.canonicalBuildOk).toBe(false);
-    expect(r.overall.status).toBe("DEGRADED");
+    expect(r.meta.canonicalBuildOk).toBe(true);
+    expect(r.meta.canonical3DEligible).toBe(true);
+    expect(r.sceneGlobal.canonicalScenePresent).toBe(true);
   });
 });

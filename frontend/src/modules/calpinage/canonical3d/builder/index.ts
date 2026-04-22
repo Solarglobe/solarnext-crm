@@ -9,7 +9,16 @@ export type {
   LegacyRoofGeometryInput,
   LegacyStructuralLine2D,
 } from "./legacyInput";
-export { imagePxToWorldHorizontalM } from "./worldMapping";
+export {
+  imagePxToWorldHorizontalM,
+  polygonHorizontalAreaM2FromImagePx,
+  segmentHorizontalLengthMFromImagePx,
+  worldHorizontalMToImagePx,
+} from "./worldMapping";
+export {
+  resolveOfficialShellFootprintRingWorld,
+  type OfficialShellFootprintRingWorld,
+} from "./officialShellFootprintRing";
 export type {
   InterPanContinuityGrade,
   InterPanRelationReport,
@@ -21,4 +30,17 @@ export {
   collectStructuralSharedEdgeConstraintsByPan,
   projectNormalOrthogonalToEdgeDirections,
 } from "./interPanSharedEdges";
-export { buildRoofModel3DFromLegacyGeometry, type BuildRoofModel3DResult } from "./buildRoofModel3DFromLegacyGeometry";
+export {
+  buildRoofModel3DFromLegacyGeometry,
+  type BuildRoofModel3DFromLegacyGeometryOptions,
+  type BuildRoofModel3DResult,
+  type RoofGeometryFidelityMode,
+} from "./buildRoofModel3DFromLegacyGeometry";
+export {
+  computeRoofReconstructionQualityDiagnostics,
+  countWorldXYCornerZClusterViolations,
+  emptyRoofReconstructionQualityDiagnostics,
+  type RoofPatchTruthClass,
+  type RoofReconstructionQualityDiagnostics,
+  type RoofReconstructionQualityLevel,
+} from "./roofReconstructionQuality";

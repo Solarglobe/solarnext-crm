@@ -1,46 +1,91 @@
 /**
  * CP-026 RBAC — Middleware requirePermission
+ * Modes : off | enforce | warn (RBAC_ENFORCE)
  */
 
 import { getUserPermissions } from "./rbac.service.js";
+import { logAuditEvent } from "../services/audit/auditLog.service.js";
+import { AuditActions } from "../services/audit/auditActions.js";
+import { getRbacMode, isSuperAdminBypassEnabled } from "../config/rbacMode.js";
+import logger from "../app/core/logger.js";
 
-const RBAC_ENFORCE = process.env.RBAC_ENFORCE === "1" || process.env.RBAC_ENFORCE === "true";
+function logSuperAdminBypass(req, permissionLabel) {
+  const payload = {
+    permission: permissionLabel,
+    path: req?.path,
+    method: req?.method,
+    userId: req.user?.userId ?? req.user?.id,
+    organizationId: req.user?.organizationId ?? req.user?.organization_id,
+  };
+  logger.warn("RBAC_SUPER_ADMIN_BYPASS", payload);
+  if (process.env.AUDIT_SUPER_ADMIN_RBAC === "1" || process.env.AUDIT_SUPER_ADMIN_RBAC === "true") {
+    void logAuditEvent({
+      action: AuditActions.SUPER_ADMIN_RBAC_BYPASS,
+      entityType: "system",
+      organizationId: payload.organizationId ?? null,
+      userId: payload.userId ?? null,
+      req,
+      statusCode: 200,
+      metadata: { permission: permissionLabel },
+    });
+  }
+}
 
 export function requirePermission(code) {
   return async (req, res, next) => {
     try {
-      const enforce = process.env.RBAC_ENFORCE === "1";
+      const mode = getRbacMode();
 
-      // SUPER_ADMIN bypass
-      if (req.user?.role === "SUPER_ADMIN") {
+      if (req.user?.role === "SUPER_ADMIN" && isSuperAdminBypassEnabled()) {
+        logSuperAdminBypass(req, code);
         return next();
       }
 
-      // Si enforcement désactivé → laisser passer
-      if (!enforce) {
+      if (mode === "off") {
         return next();
       }
 
       const userId = req.user?.userId ?? req.user?.id;
-      const organizationId = req.user?.organizationId;
+      const organizationId = req.user?.organizationId ?? req.user?.organization_id;
 
       if (!userId || !organizationId) {
         return res.status(403).json({
           error: "FORBIDDEN",
-          code: "INVALID_USER_CONTEXT"
+          code: "INVALID_USER_CONTEXT",
         });
       }
 
       const perms = await getUserPermissions({
         userId,
-        organizationId
+        organizationId,
       });
 
       if (!perms.has(code)) {
+        if (mode === "warn") {
+          void logAuditEvent({
+            action: AuditActions.RBAC_WARN_MISSING_PERMISSION,
+            entityType: "system",
+            organizationId,
+            userId,
+            req,
+            statusCode: 200,
+            metadata: { permission: code, rbac_mode: "warn" },
+          });
+          return next();
+        }
+        void logAuditEvent({
+          action: AuditActions.RBAC_DENIED,
+          entityType: "system",
+          organizationId,
+          userId,
+          req,
+          statusCode: 403,
+          metadata: { permission: code },
+        });
         return res.status(403).json({
           error: "FORBIDDEN",
           code: "MISSING_PERMISSION",
-          permission: code
+          permission: code,
         });
       }
 
@@ -48,7 +93,7 @@ export function requirePermission(code) {
     } catch (err) {
       console.error("RBAC middleware error:", err);
       return res.status(500).json({
-        error: "RBAC_ERROR"
+        error: "RBAC_ERROR",
       });
     }
   };
@@ -56,45 +101,67 @@ export function requirePermission(code) {
 
 /**
  * Middleware : exige AU MOINS UNE des permissions pour continuer.
- * Utile pour les routes self/all (ex: lead.update.self OU lead.update.all).
  *
  * @param {string[]} codes — codes permission (ex: ['lead.update.self', 'lead.update.all'])
  */
 export function requireAnyPermission(codes) {
   return async (req, res, next) => {
-    if (!req.user) {
-      return res.status(401).json({ error: "Non authentifié" });
-    }
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Non authentifié" });
+      }
 
-    if (req.user.role === "SUPER_ADMIN") {
-      return next();
-    }
+      const mode = getRbacMode();
 
-    if (!RBAC_ENFORCE) {
-      return next();
-    }
+      if (req.user.role === "SUPER_ADMIN" && isSuperAdminBypassEnabled()) {
+        logSuperAdminBypass(req, codes.join("|"));
+        return next();
+      }
 
-    const userId = req.user.userId ?? req.user.id;
-    const organizationId = req.user.organizationId ?? req.user.organization_id;
+      if (mode === "off") {
+        return next();
+      }
 
-    if (!organizationId) {
-      return res.status(403).json({
-        error: "FORBIDDEN",
-        code: "MISSING_ORGANIZATION",
-        permission: codes.join("|")
+      const userId = req.user.userId ?? req.user.id;
+      const organizationId = req.user.organizationId ?? req.user.organization_id;
+
+      if (!organizationId) {
+        return res.status(403).json({
+          error: "FORBIDDEN",
+          code: "MISSING_ORGANIZATION",
+          permission: codes.join("|"),
+        });
+      }
+
+      const perms = await getUserPermissions({ userId, organizationId });
+      const hasAny = codes.some((c) => perms.has(c));
+      if (!hasAny) {
+        if (mode === "warn") {
+          void logAuditEvent({
+            action: AuditActions.RBAC_WARN_MISSING_PERMISSION,
+            entityType: "system",
+            organizationId,
+            userId,
+            req,
+            statusCode: 200,
+            metadata: { permission: codes.join("|"), rbac_mode: "warn" },
+          });
+          return next();
+        }
+        return res.status(403).json({
+          error: "FORBIDDEN",
+          code: "MISSING_PERMISSION",
+          permission: codes.join("|"),
+        });
+      }
+
+      next();
+    } catch (err) {
+      console.error("RBAC requireAnyPermission error:", err);
+      return res.status(500).json({
+        error: "RBAC_ERROR",
+        message: process.env.NODE_ENV === "production" ? undefined : err?.message,
       });
     }
-
-    const perms = await getUserPermissions({ userId, organizationId });
-    const hasAny = codes.some((c) => perms.has(c));
-    if (!hasAny) {
-      return res.status(403).json({
-        error: "FORBIDDEN",
-        code: "MISSING_PERMISSION",
-        permission: codes.join("|")
-      });
-    }
-
-    next();
   };
 }

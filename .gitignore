@@ -4,15 +4,18 @@
 # =============================================================================
 
 # --- Secrets & environnements locaux (jamais versionner) ---
+# Node + Vite : ne jamais pousser de secrets
 .env
+.env.*
+backend/.env
+frontend/.env
+frontend/.env.local
+# Variantes explicites (redondant avec .env.* mais explicite)
 .env.dev
 .env.prod
-.env.local
 .env.*.local
-backend/.env
 frontend/.env.development
 frontend/.env.production
-frontend/.env.local
 
 # Gabarits d'environnement (à versionner)
 !.env.example
@@ -101,3 +104,7 @@ backend/data/dsm/**/cache/*.asc
 
 # --- Backend : sorties de scripts debug / audits visuels (régénérables) ---
 backend/scripts/output/
+
+# --- CP-073 : sauvegardes PostgreSQL locales (ne pas versionner les dumps) ---
+backend/backups/*
+!backend/backups/.gitkeep

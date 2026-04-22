@@ -29,7 +29,7 @@ if (container) {
   const root = createRoot(container);
   root.render(
     <React.StrictMode>
-      <BrowserRouter>
+      <BrowserRouter future={{ v7_startTransition: true }}>
         <PdfRenderRoot />
       </BrowserRouter>
     </React.StrictMode>

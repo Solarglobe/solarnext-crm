@@ -4,15 +4,15 @@
 
 import { describe, it, expect } from "vitest";
 import { buildSolarScene3DFromCalpinageRuntime } from "../../buildSolarScene3DFromCalpinageRuntime";
-import { CANONICAL_SCENE_VALIDATION_CODES } from "../../validation/validateCanonicalScene3DInput";
 import {
   RUNTIME_3D_FIXTURE_BATTERY,
   RUNTIME_3D_FIXTURE_KEYS,
+  runtimeFixtureWithStrictRootPans,
 } from "../runtime3DFixtureBattery";
 import { summarizeSolarRuntimeBuild } from "../summarizeSolarRuntimeBuild";
 
 function buildWithBatteryPanels(runtime: Record<string, unknown>, panels: unknown[]) {
-  return buildSolarScene3DFromCalpinageRuntime(runtime, {
+  return buildSolarScene3DFromCalpinageRuntime(runtimeFixtureWithStrictRootPans(runtime), {
     getAllPanels: () => panels,
   });
 }
@@ -69,17 +69,18 @@ describe("runtime3DFixtureBattery — intégration chaîne canonical", () => {
     expect(q.validationStatsObstacleCount).toBeGreaterThan(0);
   });
 
-  it("CAS 4 partiel (sans contrat monde) : échec explicite, pas de scène, pas de succès silencieux", () => {
+  it("CAS 4 partiel (contrat monde matérialisé au build) : chaîne OK, scène officielle", () => {
     const b = RUNTIME_3D_FIXTURE_BATTERY["partial-missing-world-contract"]!;
     const res = buildWithBatteryPanels(b.runtime, b.panels);
     const q = summarizeSolarRuntimeBuild(b.id, res);
 
-    expect(res.ok).toBe(false);
-    expect(res.is3DEligible).toBe(false);
-    expect(res.scene).toBeNull();
-    expect(q.scenePresent).toBe(false);
-    expect(q.validationErrorCodes).toContain(CANONICAL_SCENE_VALIDATION_CODES.WORLD_REFERENCE_FRAME_MISSING);
-    expect(q.validationErrorCodes).toContain(CANONICAL_SCENE_VALIDATION_CODES.SCENE_INCOHERENT);
+    expect(res.ok, JSON.stringify(res.diagnostics.errors)).toBe(true);
+    expect(res.is3DEligible).toBe(true);
+    expect(res.scene).not.toBeNull();
+    expect(q.scenePresent).toBe(true);
+    expect(q.validationErrorCodes.length).toBe(0);
+    const roof = (b.runtime as Record<string, unknown>).roof as Record<string, unknown>;
+    expect(roof.canonical3DWorldContract).toBeDefined();
   });
 
   it("CAS 5 tendu : chaîne OK, nombreux panneaux, obstacle présent, warnings tolérés", () => {

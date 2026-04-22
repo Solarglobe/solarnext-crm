@@ -9,11 +9,12 @@ import { buildSceneInspectionViewModel } from "../../viewer/inspection/buildScen
 import {
   RUNTIME_3D_FIXTURE_BATTERY,
   RUNTIME_3D_OFFICIAL_FAMILY_FIXTURE_IDS,
+  runtimeFixtureWithStrictRootPans,
 } from "../runtime3DFixtureBattery";
 import { summarizeFixture3DReadiness } from "../summarizeFixture3DReadiness";
 
 function buildWithBatteryPanels(runtime: Record<string, unknown>, panels: unknown[]) {
-  return buildSolarScene3DFromCalpinageRuntime(runtime, {
+  return buildSolarScene3DFromCalpinageRuntime(runtimeFixtureWithStrictRootPans(runtime), {
     getAllPanels: () => panels,
   });
 }

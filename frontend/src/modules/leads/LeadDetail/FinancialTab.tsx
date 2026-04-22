@@ -12,7 +12,10 @@ import {
   createQuoteDraft,
   type InvoiceListRow,
 } from "../../../services/financial.api";
-import { fetchQuotePrepEconomicItems, mapEconomicItemsToStudyQuoteItems } from "../../quotes/quotePrepImport";
+import {
+  buildQuoteCreatePayloadFromQuotePrep,
+  fetchQuotePrepEconomicItems,
+} from "../../quotes/quotePrepImport";
 import {
   deriveFinancialKpi,
   deriveQuotePortfolioSummary,
@@ -134,26 +137,28 @@ export default function FinancialTab({
           window.alert("Aucune version d’étude pour pré-remplir le devis.");
           return;
         }
-        let draftItems: ReturnType<typeof mapEconomicItemsToStudyQuoteItems> = [];
-        try {
-          const { items } = await fetchQuotePrepEconomicItems(study.id, vid);
-          if (items.length) draftItems = mapEconomicItemsToStudyQuoteItems(items);
-        } catch {
-          /* devis créé sans lignes si quote-prep indisponible */
-        }
+        const studyImportOnly = {
+          study_import: {
+            last_at: new Date().toISOString(),
+            study_version_id: vid,
+          },
+        };
         const body: Parameters<typeof createQuoteDraft>[0] = {
           lead_id: leadId,
           study_id: study.id,
           study_version_id: vid,
-          items: draftItems,
-          metadata: {
-            study_import: {
-              last_at: new Date().toISOString(),
-              study_version_id: vid,
-            },
-          },
+          items: [],
+          metadata: studyImportOnly,
         };
         if (clientId) body.client_id = clientId;
+        try {
+          const prep = await fetchQuotePrepEconomicItems(study.id, vid);
+          const { items, metadata } = buildQuoteCreatePayloadFromQuotePrep(vid, prep);
+          body.items = items;
+          body.metadata = metadata;
+        } catch {
+          /* devis créé sans lignes si quote-prep indisponible */
+        }
         const { quote } = await createQuoteDraft(body);
         navigate(`/quotes/${quote.id}`);
       } catch (e) {

@@ -108,6 +108,7 @@ export const COLORS = {
   borderGold:  "rgba(195,152,71,0.45)",
   textPrimary: "#E8ECF8",
   textSecond:  "#9FA8C7",
+  /** Défaut historique ; les PDF étude injectent `--brand` / `issuer.branding.pdf_primary_color` côté UI. */
   accentGold:  "#C39847",
   accentGreen: "#4ade80",
   accentBlue:  "#4A90E2",

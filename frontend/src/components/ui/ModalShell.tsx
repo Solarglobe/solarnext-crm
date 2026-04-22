@@ -25,6 +25,8 @@ export interface ModalShellProps {
   showCloseButton?: boolean;
   /** Classes sur le panneau (ex. layout métier existant). */
   panelClassName?: string;
+  /** Classes sur le backdrop (plein écran mobile, overlay renforcé, etc.). */
+  backdropClassName?: string;
   /** Classes sur la zone body scrollable. */
   bodyClassName?: string;
 }
@@ -41,6 +43,7 @@ export function ModalShell({
   onEscape,
   showCloseButton = true,
   panelClassName = "",
+  backdropClassName = "",
   bodyClassName = "",
 }: ModalShellProps) {
   const titleId = useId();
@@ -83,7 +86,7 @@ export function ModalShell({
 
   return createPortal(
     <div
-      className="sn-modal-shell-backdrop"
+      className={`sn-modal-shell-backdrop ${backdropClassName}`.trim()}
       role="presentation"
       onMouseDown={(e) => {
         if (closeOnBackdropClick && e.target === e.currentTarget) onClose();
@@ -91,7 +94,7 @@ export function ModalShell({
     >
       <div
         ref={panelRef}
-        className={`sn-card sn-card-premium sn-modal-shell-panel ${sizeClass} ${panelClassName}`.trim()}
+        className={`sn-modal-shell-panel ${sizeClass} ${panelClassName}`.trim()}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
@@ -113,7 +116,9 @@ export function ModalShell({
               onClick={onClose}
               aria-label="Fermer"
             >
-              ×
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+                <path d="M18 6L6 18M6 6l12 12" />
+              </svg>
             </button>
           ) : null}
         </div>

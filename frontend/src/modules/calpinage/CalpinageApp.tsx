@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { installEmitOfficialRuntimeStructuralChangeOnWindow } from "./runtime/emitOfficialRuntimeStructuralChange";
+import { installRoofModelingHistoryOnWindow } from "./runtime/roofModelingHistory";
 import { initCalpinage } from "./legacy/calpinage.module.js";
 import { ensureCalpinageDeps, resetCalpinageDepsCache } from "./legacy/loadCalpinageDeps";
 import { getUiShadingSnapshot } from "./shading/getUiShadingSnapshot";
@@ -7,6 +9,12 @@ import { Phase2SidebarBridge } from "./components/Phase2SidebarBridge";
 import { Phase3SidebarBridge } from "./components/Phase3SidebarBridge";
 import { Inline3DViewerBridge } from "./components/Inline3DViewerBridge";
 import { logCanonical3DFlagResolutionOnce } from "./canonical3d/featureFlags";
+import {
+  getPvLayout3dProductRolloutResolution,
+  getPvPlaceProbeRolloutResolution,
+  logPvLayout3dRolloutOnce,
+} from "./runtime/pvLayout3dRollout";
+import { emitRoofVertexZTelemetry } from "./runtime/roofVertexZEditTelemetry";
 import { ConfirmProvider } from "./ui/ConfirmProvider";
 import { ToastProvider } from "./ui/ToastProvider";
 
@@ -39,6 +47,70 @@ export default function CalpinageApp({
     logCanonical3DFlagResolutionOnce();
   }, []);
 
+  useLayoutEffect(() => installEmitOfficialRuntimeStructuralChangeOnWindow(), []);
+  useLayoutEffect(() => {
+    const off = installRoofModelingHistoryOnWindow();
+    return () => off();
+  }, []);
+
+  /**
+   * Mode édition sommet toiture en 3D (Z / XY) — flags globaux pour le bridge + viewer.
+   * Priorité : localStorage (`calpinage_3d_vertex_z` / `calpinage_3d_vertex_xy`, valeurs "0"|"1")
+   * puis VITE_* ; défaut Z activé (produit), XY désactivé sauf override.
+   */
+  useLayoutEffect(() => {
+    type W = Window & {
+      __CALPINAGE_3D_VERTEX_Z_EDIT__?: boolean;
+      __CALPINAGE_3D_VERTEX_XY_EDIT__?: boolean;
+      __CALPINAGE_3D_RIDGE_HEIGHT_EDIT__?: boolean;
+      /** Pass 4 — sonde technique pose PV 3D → Phase 3 (désactivé par défaut). */
+      __CALPINAGE_3D_PV_PLACE_PROBE__?: boolean;
+      /** Pass 5 — pose / déplacement PV en 3D (produit, phase PV_LAYOUT). */
+      __CALPINAGE_3D_PV_LAYOUT_MODE__?: boolean;
+    };
+    const w = window as W;
+    const readTri = (lsKey: string, envKey: string, defaultOn: boolean): boolean => {
+      try {
+        const ls = localStorage.getItem(lsKey);
+        if (ls === "0") return false;
+        if (ls === "1") return true;
+      } catch {
+        /* ignore */
+      }
+      const env = import.meta.env as Record<string, string | boolean | undefined>;
+      const raw = env[envKey];
+      if (raw === "false" || raw === false) return false;
+      if (raw === "true" || raw === true) return true;
+      return defaultOn;
+    };
+    w.__CALPINAGE_3D_VERTEX_Z_EDIT__ = readTri("calpinage_3d_vertex_z", "VITE_CALPINAGE_3D_VERTEX_Z_EDIT", true);
+    w.__CALPINAGE_3D_VERTEX_XY_EDIT__ = readTri("calpinage_3d_vertex_xy", "VITE_CALPINAGE_3D_VERTEX_XY_EDIT", false);
+    w.__CALPINAGE_3D_RIDGE_HEIGHT_EDIT__ = readTri("calpinage_3d_ridge_h", "VITE_CALPINAGE_3D_RIDGE_HEIGHT_EDIT", false);
+    const probeRes = getPvPlaceProbeRolloutResolution();
+    w.__CALPINAGE_3D_PV_PLACE_PROBE__ = probeRes.value;
+    const pvLayoutRes = getPvLayout3dProductRolloutResolution();
+    logPvLayout3dRolloutOnce(pvLayoutRes);
+    w.__CALPINAGE_3D_PV_LAYOUT_MODE__ = pvLayoutRes.value;
+    return () => {
+      delete w.__CALPINAGE_3D_VERTEX_Z_EDIT__;
+      delete w.__CALPINAGE_3D_VERTEX_XY_EDIT__;
+      delete w.__CALPINAGE_3D_RIDGE_HEIGHT_EDIT__;
+      delete w.__CALPINAGE_3D_PV_PLACE_PROBE__;
+      delete w.__CALPINAGE_3D_PV_LAYOUT_MODE__;
+    };
+  }, []);
+
+  /** Vérif télémétrie Z : dans la console, `__CALPINAGE_ROOF_Z_TELEMETRY_PING__()` → une ligne `[CALPINAGE][ROOF_Z_TELEMETRY]`. */
+  useLayoutEffect(() => {
+    const w = window as Window & { __CALPINAGE_ROOF_Z_TELEMETRY_PING__?: () => void };
+    w.__CALPINAGE_ROOF_Z_TELEMETRY_PING__ = () => {
+      emitRoofVertexZTelemetry({ event: "roof_vertex_z_diagnostic_ping" });
+    };
+    return () => {
+      delete w.__CALPINAGE_ROOF_Z_TELEMETRY_PING__;
+    };
+  }, []);
+
   /** Parité UI ↔ serveur : lecture seule, appelable depuis la console ou un POST /calc avec body JSON. */
   useEffect(() => {
     const w = window as Window & {
@@ -54,6 +126,8 @@ export default function CalpinageApp({
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  /** Synchronise le bridge 3D (createRoot) avec les mutations `CALPINAGE_STATE` hors React. */
+  const [calpinageRuntimeNotifyEpoch, setCalpinageRuntimeNotifyEpoch] = useState(0);
 
   const runInit = useCallback(async (isRetry = false) => {
     if (initInFlightRef.current) {
@@ -163,7 +237,11 @@ export default function CalpinageApp({
         <>
           <Phase2SidebarBridge containerRef={containerRef} />
           <Phase3SidebarBridge containerRef={containerRef} />
-          <Inline3DViewerBridge containerRef={containerRef} />
+          <Inline3DViewerBridge
+            containerRef={containerRef}
+            runtimeNotifyEpoch={calpinageRuntimeNotifyEpoch}
+            setCalpinageState={() => setCalpinageRuntimeNotifyEpoch((n) => n + 1)}
+          />
         </>
       )}
       {loading && (

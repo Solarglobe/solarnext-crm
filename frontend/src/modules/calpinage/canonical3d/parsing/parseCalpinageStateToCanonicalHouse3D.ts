@@ -39,6 +39,7 @@ import type {
   ParseDiagnostic,
 } from "./canonicalHouse3DParseDiagnostics";
 import { computeEligibility } from "./canonicalHouse3DParseDiagnostics";
+import { resolvePanPolygonFor3D } from "../../integration/resolvePanPolygonFor3D";
 
 export type { CanonicalHouse3DParseResult, CanonicalHouse3DDocument } from "./canonicalHouse3DParseDiagnostics";
 
@@ -125,13 +126,10 @@ function selectPansSource(
   return { pans: [], label: "none", priority: 9 };
 }
 
-/** Même règle de choix que `polygonFromPan` : polygon si ≥3 sommets, sinon points. */
+/** Contour pan : aligné `resolvePanPolygonFor3D` (polygonPx → points → polygon → contour.points). */
 function panVertexSourceArray(pan: Record<string, unknown>): unknown[] | null {
-  const poly = pan.polygon;
-  const pts = pan.points;
-  if (Array.isArray(poly) && poly.length >= 3) return poly;
-  if (Array.isArray(pts) && pts.length >= 3) return pts;
-  return null;
+  const { raw } = resolvePanPolygonFor3D(pan);
+  return raw ? (raw as unknown[]) : null;
 }
 
 function polygonFromPan(pan: Record<string, unknown>): Readonly<{ x: number; y: number }>[] | null {
@@ -315,7 +313,7 @@ export function parseCalpinageStateToCanonicalHouse3D(
     notes: "Z=0 base locale officielle (modèle 2A).",
   });
 
-  const contours = filterChienAssis(asArray(state.contours) as { roofRole?: string }[]);
+  const contours = filterChienAssis(asArray(state.contours) as Record<string, unknown>[]);
   let footprintPx: Polygon2DLocal = [];
   let footprintSource = "none";
   for (let ci = 0; ci < contours.length; ci++) {
@@ -451,7 +449,7 @@ export function parseCalpinageStateToCanonicalHouse3D(
     }
   });
 
-  const ridges = filterChienAssis(asArray(state.ridges) as { roofRole?: string }[]);
+  const ridges = filterChienAssis(asArray(state.ridges) as Record<string, unknown>[]);
   ridges.forEach((r, ri) => {
     if (!isRecord(r)) return;
     const a = r.a;
@@ -484,7 +482,7 @@ export function parseCalpinageStateToCanonicalHouse3D(
     missingReason: ridges.length === 0 ? "NO_RIDGES" : undefined,
   });
 
-  const traits = filterChienAssis(asArray(state.traits) as { roofRole?: string }[]);
+  const traits = filterChienAssis(asArray(state.traits) as Record<string, unknown>[]);
   traits.forEach((t, ti) => {
     if (!isRecord(t)) return;
     const a = t.a;
@@ -657,7 +655,7 @@ export function parseCalpinageStateToCanonicalHouse3D(
     if (ambiguous) obstacleAmbiguous++;
     const oid = typeof raw.id === "string" ? raw.id : `obs-${oi}`;
     const pts = asArray(raw.points);
-    const footprint: Polygon2DLocal = [];
+    const footprintBuf: Array<{ x: number; y: number }> = [];
     if (pts.length >= 3 && mpp !== null && mpp > 0) {
       for (const p of pts) {
         if (!isRecord(p)) continue;
@@ -665,9 +663,10 @@ export function parseCalpinageStateToCanonicalHouse3D(
         const y = finiteNum(p.y);
         if (x === null || y === null) continue;
         const w = pxToHorizontalM(x, y, mpp, northDeg);
-        footprint.push({ x: w.x, y: w.y });
+        footprintBuf.push({ x: w.x, y: w.y });
       }
     }
+    const footprint = footprintBuf as Polygon2DLocal;
     const hEx = readExplicitHeightM(raw);
     let zBottomId = "hq-z-base-convention";
     let zTopId = "hq-z-base-convention";
@@ -760,7 +759,7 @@ export function parseCalpinageStateToCanonicalHouse3D(
         const ry = cy + lx * sin + ly * cos;
         const w = pxToHorizontalM(rx, ry, mpp, northDeg);
         return { x: w.x, y: w.y };
-      });
+      }) as Polygon2DLocal;
     }
     annexes.push({
       annexId: `annex-sv-${svid}`,
@@ -786,7 +785,7 @@ export function parseCalpinageStateToCanonicalHouse3D(
     const rxid = typeof raw.id === "string" ? raw.id : `rx-${ri}`;
     const contour = raw.contour;
     const cpts = isRecord(contour) ? asArray(contour.points) : [];
-    const footprint: Polygon2DLocal = [];
+    const footprintBufRx: Array<{ x: number; y: number }> = [];
     if (mpp !== null && mpp > 0) {
       for (const p of cpts) {
         if (!isRecord(p)) continue;
@@ -794,9 +793,10 @@ export function parseCalpinageStateToCanonicalHouse3D(
         const y = finiteNum(p.y);
         if (x === null || y === null) continue;
         const w = pxToHorizontalM(x, y, mpp, northDeg);
-        footprint.push({ x: w.x, y: w.y });
+        footprintBufRx.push({ x: w.x, y: w.y });
       }
     }
+    const footprint = footprintBufRx as Polygon2DLocal;
     const hRel = finiteNum(raw.ridgeHeightRelM);
     const zB = "hq-z-base-convention";
     const zT = hRel !== null ? `hq-rx-${rxid}-ridge` : zB;

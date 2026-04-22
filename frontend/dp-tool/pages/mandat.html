@@ -1,7 +1,6 @@
 <!-- ======================================================
      pages/mandat.html
-     Page d’introduction — Mandat de représentation
-     (LAYOUT uniquement, PAS exportable)
+     Mandat de représentation — signature obligatoire avant PDF
 ====================================================== -->
 
 <section class="dp-page">
@@ -33,7 +32,7 @@
 
     <div class="dp-mandat-item">
       <strong>Document officiel prêt à signature</strong>
-      <span>Généré automatiquement à partir des données ERPNext.</span>
+      <span>Généré automatiquement à partir des données du dossier.</span>
     </div>
   </div>
 </div>
@@ -42,24 +41,66 @@
   <hr class="dp-divider">
 
   <div class="dp-section">
-    <h2>Étape suivante</h2>
+    <h2>Signature et export</h2>
     <p>
-      Cliquez sur le bouton ci-dessous pour ouvrir le mandat complet,
-      le vérifier avec le client, puis l’exporter en PDF.
+      Signez le mandat (même principe que sur le devis), puis téléchargez le PDF officiel.
     </p>
   </div>
 
-  <div class="dp-section" style="margin-top:28px;">
-<button
-  type="button"
-  class="btn-mandat-primary"
-  onclick="generateMandatPDF()"
->
-  Générer le mandat
-</button>
-
-
-
+  <div class="dp-section dp-mandat-actions" style="margin-top:28px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;">
+    <button
+      type="button"
+      id="mandat-btn-sign"
+      class="btn-mandat-primary"
+    >
+      Signer le mandat
+    </button>
+    <button
+      type="button"
+      id="mandat-btn-pdf"
+      class="btn-mandat-primary"
+      style="display:none;"
+    >
+      Voir / Télécharger le mandat signé
+    </button>
   </div>
 
 </section>
+
+<!-- Modal signature — logique mandat-signature.js (pad aligné devis) -->
+<div id="mandat-sign-modal" class="mandat-sign-modal" hidden aria-labelledby="mandat-sign-title">
+  <div class="mandat-sign-modal__backdrop" aria-hidden="true"></div>
+  <div class="mandat-sign-modal__panel" role="dialog" aria-modal="true">
+    <div class="mandat-sign-modal__head">
+      <h2 id="mandat-sign-title">Signature du mandant</h2>
+      <button type="button" class="mandat-sign-modal__close" id="mandat-sign-close-x" aria-label="Fermer">×</button>
+    </div>
+    <div class="mandat-sign-modal__body">
+      <div class="mandat-sign-name-row">
+        <label>
+          Prénom
+          <input type="text" id="mandat-sign-prenom" name="mandat_prenom" autocomplete="given-name" />
+        </label>
+        <label>
+          Nom
+          <input type="text" id="mandat-sign-nom" name="mandat_nom" autocomplete="family-name" />
+        </label>
+      </div>
+      <p class="mandat-sign-hint">
+        Signez dans le cadre ci-dessous (souris, stylet ou doigt). Le tracé sera intégré au PDF du mandat.
+      </p>
+      <div class="quote-signature-pad-canvas-wrap">
+        <canvas id="mandat-signature-canvas" class="quote-signature-pad-canvas" width="720" height="320"></canvas>
+      </div>
+      <label class="mandat-sign-read-accept" for="mandat-sign-read-approve">
+        <input type="checkbox" id="mandat-sign-read-approve" autocomplete="off" />
+        <span>Je reconnais avoir lu et accepté ce document</span>
+      </label>
+    </div>
+    <div class="mandat-sign-modal__footer">
+      <button type="button" class="mandat-sign-modal__btn-ghost" id="mandat-sign-clear">Effacer</button>
+      <button type="button" class="mandat-sign-modal__btn-ghost" id="mandat-sign-cancel">Annuler</button>
+      <button type="button" class="mandat-sign-modal__btn-primary" id="mandat-sign-confirm" disabled>Valider la signature</button>
+    </div>
+  </div>
+</div>

@@ -8,7 +8,7 @@ const path = require("path");
 const frontendRoot = path.join(__dirname, "..");
 const sharedRoot = path.join(frontendRoot, "..", "shared", "shading");
 const calpinageShading = path.join(frontendRoot, "calpinage", "shading");
-const publicShading = path.join(frontendRoot, "public", "calpinage", "shading");
+const legacyAssetsShading = path.join(frontendRoot, "..", "backend", "calpinage-legacy-assets", "shading");
 
 // Bannière sync : du début du commentaire bloc jusqu’au premier fermant (inclus).
 const BANNER_RE = /^\/\* === SHADING_SYNC_GENERATED_BEGIN ===[\s\S]*?\*\/\s*/;
@@ -65,10 +65,10 @@ function mustEqualUtf8(label, expectedUtf8, actualPath) {
 
 mustEqualUtf8("solarPosition", fs.readFileSync(path.join(sharedRoot, "solarPosition.cjs"), "utf8"), path.join(calpinageShading, "solarPosition.js"));
 mustEqualUtf8("horizonMaskSampler", fs.readFileSync(path.join(sharedRoot, "horizonMaskSampler.cjs"), "utf8"), path.join(calpinageShading, "horizonMaskSampler.js"));
-mustEqualBytes("nearShadingCore public", path.join(sharedRoot, "nearShadingCore.cjs"), path.join(publicShading, "nearShadingCore.cjs"));
+mustEqualBytes("nearShadingCore legacy-assets", path.join(sharedRoot, "nearShadingCore.cjs"), path.join(legacyAssetsShading, "nearShadingCore.cjs"));
 
-mustEqualBytes("shadingEngine public", path.join(calpinageShading, "shadingEngine.js"), path.join(publicShading, "shadingEngine.js"));
-mustEqualBytes("solarPosition public", path.join(calpinageShading, "solarPosition.js"), path.join(publicShading, "solarPosition.js"));
-mustEqualBytes("horizonMaskSampler public", path.join(calpinageShading, "horizonMaskSampler.js"), path.join(publicShading, "horizonMaskSampler.js"));
+mustEqualBytes("shadingEngine legacy-assets", path.join(calpinageShading, "shadingEngine.js"), path.join(legacyAssetsShading, "shadingEngine.js"));
+mustEqualBytes("solarPosition legacy-assets", path.join(calpinageShading, "solarPosition.js"), path.join(legacyAssetsShading, "solarPosition.js"));
+mustEqualBytes("horizonMaskSampler legacy-assets", path.join(calpinageShading, "horizonMaskSampler.js"), path.join(legacyAssetsShading, "horizonMaskSampler.js"));
 
 console.log("[verify-calpinage-shading] Tout aligné.");

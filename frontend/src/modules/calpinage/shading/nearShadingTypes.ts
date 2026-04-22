@@ -25,6 +25,10 @@ export interface ComputeNearShadingFrontendParams {
   debug?: boolean;
   calpinageRoofState?: unknown;
   /**
+   * `CALPINAGE_STATE` racine (optionnel) : priorise `state.pans` sur `roof.roofPans` pour le legacy 3D.
+   */
+  calpinageRuntimeRoot?: unknown;
+  /**
    * Lignes structurantes résolues (XY image) — même lecture que Phase 2 / pans.
    * Optionnel : si absent, le pipeline 3D canonical n’a pas les ridges/traits pour Z.
    */

@@ -14,6 +14,7 @@ import type { NearShadingSeriesResult } from "./near-shading-3d";
 import type { QualityBlock } from "./quality";
 import type { Scene2DSourceTrace, Validate2DTo3DCoherenceResult } from "./scene2d3dCoherence";
 import type { PanelVisualShading } from "./panelVisualShading";
+import type { BuildingShell3D } from "./building-shell-3d";
 
 /** Version du schéma d’export `SolarScene3D` (distinct du schéma `RoofModel3D`). */
 export const SOLAR_SCENE_3D_SCHEMA_VERSION = "solar-scene-3d-v1" as const;
@@ -31,6 +32,8 @@ export const SOLAR_SCENE_RENDER_CONVENTIONS = {
     obstacles:
       "obstacleVolumes[] : maillage volumique (faces triangulées via cycles de sommets), AABB dans bounds",
     extensions: "extensionVolumes[] : même structure que obstacles",
+    buildingShell:
+      "buildingShell : volume emprise (base + couronne haute suivant les plans toit), repère monde identique à la toiture — optionnel",
   },
   panels: {
     quads: "pvPanels[].corners3D (quad planaire), outwardNormal, localFrame pour pose",
@@ -50,6 +53,69 @@ export type SolarSceneGenerator =
   | "replay"
   | "manual";
 
+/** Source de la géométrie toiture dans la scène assemblée (produit / debug). */
+export type SolarSceneRoofGeometrySource = "REAL_ROOF_PANS" | "FALLBACK_BUILDING_CONTOUR";
+
+/** Niveau 0 calpinage 3D — garde-fous / honnêteté géométrique (pas une correction silencieuse). */
+export type SolarSceneBuildGuardSeverity = "info" | "warning";
+
+export interface SolarSceneBuildGuard {
+  readonly code: string;
+  readonly severity: SolarSceneBuildGuardSeverity;
+  readonly message: string;
+}
+
+/** Plan d’action Phase A — correctifs 2D suggérés (FR) à partir de `roofReconstructionQuality`. */
+export type SolarSceneRoofQualityPhaseA = {
+  readonly quality: "TRUTHFUL" | "PARTIAL" | "FALLBACK" | "INCOHERENT";
+  readonly topologyWarnings: readonly string[];
+  readonly panChecks: readonly {
+    readonly panId: string;
+    readonly truthClass: "TRUTHFUL" | "PARTIAL" | "FALLBACK" | "INCOHERENT";
+    readonly hintFr: string;
+  }[];
+  readonly stepsFr: readonly string[];
+};
+
+/** Mesures et synthèse support (phase B) — lecture seule, dérivée du modèle + diagnostics agrégés. */
+export type SolarSceneRoofQualityPhaseBPanTechnical = {
+  readonly panId: string;
+  readonly truthClass: "TRUTHFUL" | "PARTIAL" | "FALLBACK" | "INCOHERENT";
+  /** Codes `GeometryDiagnostic` du patch (triés, uniques). */
+  readonly diagnosticCodes: readonly string[];
+  /** Écart RMS des sommets au plan du patch, en millimètres. */
+  readonly planeResidualRmsMm: number;
+  /** (max Z − min Z) sur les coins du patch, en millimètres. */
+  readonly cornerZSpanMm: number;
+  readonly tiltDeg: number | null;
+  readonly azimuthDeg: number | null;
+};
+
+export type SolarSceneRoofQualityPhaseB = {
+  readonly heightSignal: {
+    readonly status: "SUFFICIENT" | "PARTIAL" | "MISSING" | "INVALID";
+    readonly explicitVertexHeightCount: number;
+    readonly interpolatedVertexHeightCount: number;
+    readonly fallbackVertexHeightCount: number;
+    readonly usedSyntheticZeroHeight: boolean;
+    readonly inclinedRoofGeometryTruthful: boolean;
+    readonly heightWarnings: readonly string[];
+  };
+  readonly aggregateCounts: {
+    readonly panCount: number;
+    readonly solvedPanCount: number;
+    readonly partiallySolvedPanCount: number;
+    readonly fallbackPanCount: number;
+    readonly incoherentPanCount: number;
+    readonly sharedEdgeResolvedCount: number;
+    readonly sharedEdgeConflictCount: number;
+    readonly structuralConstraintCount: number;
+  };
+  readonly panTechnical: readonly SolarSceneRoofQualityPhaseBPanTechnical[];
+  /** Texte prêt à coller (ticket / support). */
+  readonly supportLinesFr: readonly string[];
+};
+
 export interface SolarScene3DMetadata {
   readonly schemaVersion: typeof SOLAR_SCENE_3D_SCHEMA_VERSION;
   readonly createdAtIso: string;
@@ -58,6 +124,25 @@ export interface SolarScene3DMetadata {
   readonly studyRef?: string;
   /** Piste d’audit : chaîne canonical3d + intégration shading. */
   readonly integrationNotes?: string;
+  /** Présent si le pipeline runtime a posé la provenance toiture (Prompt maison minimale). */
+  readonly roofGeometrySource?: SolarSceneRoofGeometrySource;
+  /** Motif du repli `FALLBACK_BUILDING_CONTOUR` — sinon omis / null. */
+  readonly roofGeometryFallbackReason?: string | null;
+  /**
+   * Diagnostics explicites (niveau 0) : shell omis, qualité toit, conflits d’arêtes, etc.
+   * @see `buildCalpinageLevel0Guards`
+   */
+  readonly buildGuards?: readonly SolarSceneBuildGuard[];
+  /**
+   * Plan d’action utilisateur (Phase A) — étapes pour corriger la saisie 2D lorsque la qualité toiture n’est pas TRUTHFUL.
+   * @see `buildRoofQualityPhaseAActionPlan`
+   */
+  readonly roofQualityPhaseA?: SolarSceneRoofQualityPhaseA;
+  /**
+   * Détail technique + export support (Phase B) — métriques par pan, signal hauteur, lignes copiables.
+   * @see `buildRoofQualityPhaseBTechnicalProof`
+   */
+  readonly roofQualityPhaseB?: SolarSceneRoofQualityPhaseB;
 }
 
 /**
@@ -103,6 +188,11 @@ export interface SolarScene3D {
   readonly sourceTrace?: Scene2DSourceTrace;
   /** Toiture canonique : pans, arêtes, faîtages, sommets (vérité géométrique toiture). */
   readonly roofModel: RoofModel3D;
+  /**
+   * Enveloppe bâtiment minimale (emprise + extrusion murs) — même repère que `roofModel`.
+   * Absente si aucun contour / emprise exploitable au moment du build.
+   */
+  readonly buildingShell?: BuildingShell3D;
   readonly obstacleVolumes: readonly RoofObstacleVolume3D[];
   readonly extensionVolumes: readonly RoofExtensionVolume3D[];
   readonly pvPanels: readonly PvPanelSurface3D[];

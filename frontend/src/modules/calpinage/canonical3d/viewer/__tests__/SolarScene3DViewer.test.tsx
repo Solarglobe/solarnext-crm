@@ -117,6 +117,26 @@ describe("SolarScene3DViewer", () => {
     cleanup();
   });
 
+  it("panSelection3DMode : panneau latéral invite + provenance vide tant que pas de pick", async () => {
+    const scene = buildDemoSolarScene3D();
+    const { unmount } = render(
+      <SolarScene3DViewer scene={scene} height={200} showSun={false} panSelection3DMode />,
+    );
+    await vi.waitFor(
+      () => {
+        expect(document.querySelector("canvas")).toBeTruthy();
+      },
+      { timeout: 4000 },
+    );
+    const root = screen.getByTestId("solar-scene-3d-viewer-root");
+    expect(root).toHaveAttribute("data-pan-selection-3d", "on");
+    expect(root).toHaveAttribute("data-selected-hit-kind", "");
+    expect(screen.getByTestId("scene-inspection-panel-3d")).toBeTruthy();
+    expect(screen.getByText(/Aucun pan sélectionné/i)).toBeTruthy();
+    unmount();
+    cleanup();
+  });
+
   it("inspectMode affiche le panneau d’inspection (sans sélection initiale)", async () => {
     const scene = buildDemoSolarScene3D();
     const { unmount } = render(
@@ -152,4 +172,5 @@ describe("SolarScene3DViewer", () => {
     unmount();
     cleanup();
   });
+
 });

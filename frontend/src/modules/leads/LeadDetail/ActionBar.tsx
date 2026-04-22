@@ -20,6 +20,8 @@ interface ActionBarProps {
   currentStageId?: string;
   onStageChange?: (stageId: string) => void;
   stageChanging?: boolean;
+  /** CP-078B — SUPER_ADMIN mode support lecture seule */
+  readOnly?: boolean;
 }
 
 export default function ActionBar({
@@ -36,6 +38,7 @@ export default function ActionBar({
   currentStageId = "",
   onStageChange,
   stageChanging = false,
+  readOnly = false,
 }: ActionBarProps) {
   const hasLeftActions =
     (isLead && onStudyClick) || (showStudyButtons && (onCreateStudy || onRunCalc));
@@ -57,7 +60,7 @@ export default function ActionBar({
               stages={stages}
               currentStageId={currentStageId}
               onStageChange={onStageChange}
-              disabled={stageChanging}
+              disabled={stageChanging || readOnly}
             />
           </div>
         ) : null}
@@ -74,7 +77,7 @@ export default function ActionBar({
                 <button
                   type="button"
                   className="sn-btn sn-btn-primary sn-btn-sm"
-                  disabled={createStudyLoading}
+                  disabled={createStudyLoading || readOnly}
                   onClick={onCreateStudy}
                   title="Créer une nouvelle étude et ouvrir le calpinage"
                 >
@@ -85,7 +88,7 @@ export default function ActionBar({
                 <button
                   type="button"
                   className="sn-btn sn-btn-outline-gold sn-btn-sm"
-                  disabled={studiesCount === 0 || !!calcLoading}
+                  disabled={studiesCount === 0 || !!calcLoading || readOnly}
                   onClick={onRunCalc}
                   title={studiesCount === 0 ? "Créer une étude d'abord" : undefined}
                 >

@@ -5,6 +5,7 @@
  */
 
 import * as pvgisService from "./pvgisService.js";
+import { ENGINE_ERROR_PANEL_REQUIRED } from "../utils/resolvePanelPowerWc.js";
 
 const DEV_LOG = process.env.NODE_ENV !== "production";
 
@@ -15,13 +16,13 @@ const DEV_LOG = process.env.NODE_ENV !== "production";
  * @param {object} opts.site - { lat, lon }
  * @param {object} opts.settings - settings (pricing, pvtech, components)
  * @param {Array<{ id: string, azimuth: number, tilt: number, panelCount: number, shadingCombinedPct?: number }>} opts.pans - roof.pans (structure officielle)
- * @param {number} [opts.moduleWp] - Puissance module Wc (défaut: settings.pricing.kit_panel_power_w ou 485)
+ * @param {number} opts.moduleWp - Puissance module Wc (obligatoire si pans non vides — issu du panneau catalogue / panel_input)
  * @param {object} [opts.pv_inverter] - Même bloc que form.pv_inverter (euro_efficiency_pct pour factorAC / pvgisService)
  * @returns {Promise<{ byPan: Array<{ panId: string, annualKwh: number, monthlyKwh: number[], annualKwhBeforeShading?: number, monthlyBeforeShading?: number[] }>, annualKwh: number, monthlyKwh: number[] }>}
  */
 export async function computeProductionMultiPan(opts) {
   const { site, settings = {}, pans } = opts;
-  const moduleWp = Number(opts.moduleWp ?? settings.pricing?.kit_panel_power_w ?? 485) || 485;
+  const moduleWp = Number(opts.moduleWp);
   const pvInverter = opts.pv_inverter && typeof opts.pv_inverter === "object" ? opts.pv_inverter : null;
 
   if (!Array.isArray(pans) || pans.length === 0) {
@@ -31,6 +32,11 @@ export async function computeProductionMultiPan(opts) {
       annualKwh: 0,
       monthlyKwh: empty12,
     };
+  }
+
+  if (!Number.isFinite(moduleWp) || moduleWp <= 50) {
+    console.error("[ENGINE ERROR] Missing panel in study");
+    throw new Error(ENGINE_ERROR_PANEL_REQUIRED);
   }
 
   const ctx = {

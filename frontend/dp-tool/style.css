@@ -177,10 +177,52 @@ body {
 
 /* ================= LAYOUT ================= */
 
+/* Embed CRM : chaîne de hauteur jusqu’aux modales (DP6 Street View, etc.) */
+#dp-tool-root.dp-tool-embed-root {
+  min-height: 100%;
+  /* Même « papier » que body (standalone) — évite trous sombres si le parent overlay n’est pas peint */
+  background: radial-gradient(
+    circle at top left,
+    #fbf7ee 0%,
+    #f3efe5 32%,
+    #f4f1e9 55%,
+    #f0ece2 100%
+  );
+  color: var(--ink);
+}
+
 .layout {
   display: grid;
   grid-template-columns: 260px 1fr;
+  grid-template-rows: auto 1fr;
   min-height: calc(100vh - 70px);
+}
+
+.dp-draft-save-status--bar {
+  grid-column: 1 / -1;
+  text-align: right;
+  font-size: 12px;
+  padding: 6px 12px;
+  min-height: 1.25em;
+  color: var(--muted, #6b7280);
+}
+
+.dp-draft-save-status--saving {
+  color: #b45309;
+}
+
+.dp-draft-save-status--saved {
+  color: #047857;
+}
+
+.dp-draft-save-status--error {
+  color: #b91c1c;
+}
+
+.dp-draft-save-status--blocked {
+  color: #92400e;
+  background: rgba(251, 191, 36, 0.12);
+  border-radius: 6px;
 }
 
 /* ================= SIDEBAR ================= */
@@ -244,6 +286,26 @@ body {
   box-shadow: var(--shadow-soft);
   padding: 28px;
   min-height: 400px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Vues DP shell : une seule vue visible (pas de pile / scroll entre DP1–DP8) */
+.dp-views-root {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Uniquement les slots racine (#view-dp1 …) — pas les .dp-view imbriqués dans les pages */
+#dp-views-root > .dp-view {
+  display: none;
+}
+
+#dp-views-root > .dp-view.dp-view--active {
+  display: block;
 }
 
 /* ================= DP CONTENT ================= */
@@ -859,7 +921,8 @@ body {
 .dp-modal {
   position: fixed;
   inset: 0;
-  z-index: 1000;
+  /* Au-dessus de DpOverlay CRM (z-index 999999) pour que les modales DP restent visibles en embed */
+  z-index: 1100000;
   display: none;
 }
 
@@ -942,11 +1005,21 @@ body {
   color: #6b7280;
 }
 
+/* Colonne carte : flex pour donner une hauteur réelle au canvas (sinon #dp1-ign-map en absolute → 0px, carte invisible). */
+.dp-map-pane {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+}
+
 /* ===== MAP ===== */
 .dp-map-canvas {
   position: relative;
+  flex: 1 1 auto;
+  min-height: min(52vh, 520px);
   height: 100%;
-  min-height: 0;
+  min-width: 0;
   background: #f3f4f6;
 }
 
@@ -974,9 +1047,6 @@ body {
 /* ===============================
    DP1 — Flèche Nord (overlay carte)
 =============================== */
-.dp-map-canvas {
-  position: relative;
-}
 
 .dp1-north-arrow {
   position: absolute;
@@ -1015,8 +1085,8 @@ body {
   display: block;
 }
 
-/* Wrapper vue (carte + légende) */
-.dp-view {
+/* Wrapper carte + légende (vues imbriquées dans une grille DP, ex. DP1 / DP3) */
+.dp-grid-4 > .dp-view {
   display: flex;
   flex-direction: column;
 }
@@ -1236,16 +1306,16 @@ body.dp-lock-scroll {
   color: #111827;
 }
 
-/* BUG FIX : Le canvas #dp2-draw-canvas est en position:absolute top:0 left:0
-   (défini en JS) et recouvre tout #dp2-captured-image-wrap, y compris la toolbar.
-   En DOM la toolbar est avant le canvas, donc le canvas est peint au-dessus et
-   intercepte tous les clics. On place la toolbar au-dessus du canvas en stacking
-   pour qu’elle reçoive les clics sans toucher au JS. */
+/* Hiérarchie z-index DP2 (une seule règle à respecter) :
+   menus déroulants > barre d’outils > actions flottantes > overlay mesures > canvas > bandeau mode > carte
+   Cause du bug : .dp2-mode-strip et .dp2-toolbar avaient le même z-index (1) ; le strip est après la toolbar
+   en DOM, donc il recouvrait visuellement les listes absolues des dropdowns. */
 .dp2-toolbar {
   position: relative;
-  z-index: 1;
+  z-index: var(--dp2-z-toolbar, 15);
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 6px;
   padding: 8px 10px;
   background: #fff;
@@ -1253,6 +1323,47 @@ body.dp-lock-scroll {
   border-bottom: none;
   border-radius: 10px 10px 0 0;
   box-shadow: 0 -1px 0 0 #e5e7eb;
+}
+
+.dp2-toolbar-spacer {
+  flex: 1 1 12px;
+  min-width: 8px;
+  pointer-events: none;
+}
+
+.dp2-toolbar-history {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.dp2-toolbar-display-mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.dp2-history-toolbar-btn .dp2-tool-label {
+  font-size: 12px;
+}
+
+@media (max-width: 1100px) {
+  .dp2-history-toolbar-btn .dp2-tool-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+  .dp2-history-toolbar-btn {
+    position: relative;
+    min-width: 38px;
+    padding: 8px 10px;
+  }
 }
 
 .dp2-tool-btn {
@@ -1288,6 +1399,13 @@ body.dp-lock-scroll {
   cursor: not-allowed;
 }
 
+/* Undo / redo : état « disponible » lisible (historique non vide) */
+.dp2-tool-btn.dp2-history-can:not(:disabled) {
+  border-color: #a5b4fc;
+  background: #eef2ff;
+  color: #3730a3;
+}
+
 .dp2-tool-icon {
   font-size: 16px;
   line-height: 1;
@@ -1310,46 +1428,216 @@ body.dp-lock-scroll {
    DP2 — MODAL (hérite du style standard)
 ========================================================= */
 
-/* Colonne gauche un peu plus large pour les champs DP2 */
-#dp2-map-modal .dp-modal-body {
+/* Colonne gauche un peu plus large pour les champs DP2 / DP4 (même grille) */
+#dp2-map-modal .dp-modal-body,
+#dp4-map-modal .dp-modal-body {
   grid-template-columns: 360px 1fr;
 }
 
 /* ======================================================
-   DP2 — Panel gauche (SolarGlobe)
+   DP2 / DP4 — Panel gauche (cartes premium SolarGlobe)
 ====================================================== */
-#dp2-settings-panel {
-  background: #fcfbf7; /* blanc cassé / beige très léger */
-  border-right: 1px solid rgba(195,152,71,0.35);
+#dp2-settings-panel.dp2-settings-rail,
+#dp4-settings-panel.dp2-settings-rail,
+#dp4-final-panel.dp2-settings-rail,
+#dp6-settings-panel.dp2-settings-rail {
+  background: #f3f4f6;
+  border-right: 1px solid #e5e7eb;
+  padding: 12px;
 }
 
-#dp2-settings-panel h3 {
-  font-weight: 600;
-  color: #111827;
-  letter-spacing: -0.2px;
-}
-
-.dp2-label {
-  color: #6b7280; /* gris moyen (labels) */
-}
-
-.dp2-select {
-  border-color: rgba(195,152,71,0.25);
+#dp2-settings-panel .card,
+#dp4-settings-panel .card,
+#dp4-final-panel .card,
+#dp6-settings-panel .card {
   background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 12px;
 }
 
-.dp2-panel-readonly {
-  color: rgba(17,24,39,0.70);
+#dp2-settings-panel .card:last-child,
+#dp4-settings-panel .card:last-child,
+#dp4-final-panel .card:last-child,
+#dp6-settings-panel .card:last-child {
+  margin-bottom: 0;
 }
 
-.dp2-panel-readonly strong {
+#dp2-settings-panel .dp2-card-heading,
+#dp4-settings-panel .dp2-card-heading,
+#dp4-final-panel .dp2-card-heading,
+#dp6-settings-panel .dp2-card-heading {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #6b7280;
+  font-weight: 600;
+  margin: 0 0 12px 0;
+}
+
+#dp2-settings-panel .dp2-scale-line,
+#dp4-settings-panel .dp2-scale-line,
+#dp4-final-panel .dp2-scale-line,
+#dp6-settings-panel .dp2-scale-line {
+  margin: 0 0 12px 0;
+  font-size: 13px;
+  color: #374151;
+  line-height: 1.4;
+}
+
+#dp2-settings-panel .dp2-field,
+#dp4-settings-panel .dp2-field,
+#dp4-final-panel .dp2-field,
+#dp6-settings-panel .dp2-field {
+  margin-bottom: 12px;
+}
+
+#dp2-settings-panel .dp2-field:last-child,
+#dp4-settings-panel .dp2-field:last-child,
+#dp4-final-panel .dp2-field:last-child,
+#dp6-settings-panel .dp2-field:last-child {
+  margin-bottom: 0;
+}
+
+#dp2-settings-panel .dp2-label,
+#dp4-settings-panel .dp2-label,
+#dp4-final-panel .dp2-label,
+#dp6-settings-panel .dp2-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+#dp2-settings-panel .dp2-select,
+#dp4-settings-panel .dp2-select,
+#dp4-final-panel .dp2-select,
+#dp6-settings-panel .dp2-select {
+  appearance: none;
+  width: 100%;
+  height: 44px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+  background: #ffffff;
   color: #111827;
+  font-size: 13px;
+  font-weight: 600;
+  outline: none;
+  box-sizing: border-box;
 }
 
-/* La zone de travail DP2 ne doit pas créer de scroll horizontal */
-#dp2-map-modal .dp-map-canvas {
+#dp2-settings-panel .dp2-select:focus,
+#dp4-settings-panel .dp2-select:focus,
+#dp4-final-panel .dp2-select:focus,
+#dp6-settings-panel .dp2-select:focus {
+  border-color: rgba(195, 152, 71, 0.75);
+  box-shadow: 0 0 0 3px rgba(195, 152, 71, 0.18);
+}
+
+#dp2-settings-panel .dp2-panel-readonly,
+#dp4-settings-panel .dp2-panel-readonly,
+#dp4-final-panel .dp2-panel-readonly,
+#dp6-settings-panel .dp2-panel-readonly {
+  display: grid;
+  gap: 10px;
+  padding-top: 0;
+  border-top: none;
+  color: rgba(17, 24, 39, 0.75);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+#dp2-settings-panel .dp2-panel-readonly strong,
+#dp4-settings-panel .dp2-panel-readonly strong,
+#dp4-final-panel .dp2-panel-readonly strong,
+#dp6-settings-panel .dp2-panel-readonly strong {
+  color: #111827;
+  font-weight: 600;
+}
+
+/* La zone de travail DP2 / DP4 ne doit pas créer de scroll horizontal */
+#dp2-map-modal .dp-map-canvas,
+#dp4-map-modal .dp-map-canvas {
   overflow-x: hidden;
   overflow-y: auto;
+}
+
+/*
+ * DP2 — Colonne carte : doit occuper toute la hauteur utile du body (entre header et footer).
+ * Cause du vide en bas : .dp2-map-wrap avait aspect-ratio 16/10 + height:auto → hauteur fixée
+ * par la largeur seulement ; le parent .dp-map-canvas (plus haut) laissait une bande vide.
+ */
+#dp2-map-modal .dp-map-canvas {
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  align-self: stretch;
+  /* Surcharge .dp-map-canvas { min-height: min(52vh, 520px) } : hauteur = cellule grille / flex body */
+  min-height: 0;
+  height: 100%;
+  max-height: 100%;
+  overflow: hidden;
+}
+
+/* Le wrap remplit la colonne ; on retire le ratio 16:10 dans le modal pour coller au viewport */
+#dp2-map-modal .dp2-map-wrap {
+  position: relative;
+  flex: 1 1 0;
+  min-height: 0;
+  width: 100%;
+  height: auto;
+  max-height: none;
+  aspect-ratio: unset;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  overflow: hidden;
+  background: #ffffff;
+  align-self: stretch;
+}
+
+/* DP4 — carte OpenLayers : conteneur pour overlay curseur d’aide */
+.dp4-map-ol-wrap {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* Curseur d’aide « cliquez pour valider » — avant validation vue */
+.dp4-cursor-hint {
+  position: absolute;
+  z-index: 40;
+  width: 44px;
+  height: 44px;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  display: none;
+}
+
+.dp4-cursor-hint-pulse {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  border: 2px solid rgba(195, 152, 71, 0.92);
+  box-shadow: 0 0 0 4px rgba(195, 152, 71, 0.12);
+  animation: dp4-cursor-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes dp4-cursor-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.85;
+  }
+  50% {
+    transform: scale(1.12);
+    opacity: 1;
+  }
 }
 
 /* ======================================================
@@ -1448,7 +1736,7 @@ body.dp-lock-scroll {
 
 .dp2-dropdown-menu {
   position: absolute;
-  z-index: 5; /* au-dessus du canvas (toolbar z-index:1) */
+  z-index: var(--dp2-z-dropdown, 20);
   margin: 0;
   padding: 6px;
   list-style: none;
@@ -1494,7 +1782,8 @@ body.dp-lock-scroll {
   position: absolute;
   top: 10px;
   right: 10px;
-  z-index: 6; /* au-dessus du canvas + au-dessus des dropdowns */
+  z-index: var(--dp2-z-draw-actions, 130);
+  pointer-events: auto;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -1538,20 +1827,27 @@ body.dp-lock-scroll {
   cursor: not-allowed;
 }
 
+.dp2-action-btn.dp2-history-can:not(:disabled) {
+  border-color: #c7d2fe;
+  background: #eef2ff;
+  color: #312e81;
+}
+
 /* ======================================================
-   DP2 — Surface de travail 16:10 (plan de masse / capture)
-   Objectif: ratio fixe sur la zone "carte + dessins + rose des vents + objets"
-   sans toucher à la logique OpenLayers / capture.
+   DP2 — Surface de travail (plan de masse / capture)
+   Défaut historique : ratio 16:10 — surchargé dans #dp2-map-modal pour hauteur 100 %.
 ====================================================== */
 .dp2-map-wrap {
-  /* Conteneur principal (zone blanche) */
   position: relative;
   width: 100%;
-  height: auto;            /* override .dp-map-canvas { height: 100% } */
-  aspect-ratio: 16 / 10;   /* ratio documentaire */
-  margin: 0 auto;
-  overflow: hidden;        /* rien ne déborde du cadre 16:10 */
-  background: #fff;
+  height: auto;
+  aspect-ratio: 16 / 10;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  overflow: hidden;
+  background: #ffffff;
+  flex-shrink: 0;
 }
 
 /* ======================================================
@@ -1566,7 +1862,7 @@ body.dp-lock-scroll {
   width: 78px;  /* 62px → 78px (+25.8%) */
 }
 
-/* Les deux modes (carte OU capture) doivent remplir le cadre 16:10 */
+/* Les deux modes (carte OU capture) remplissent le wrap */
 .dp2-map-wrap > #dp2-ign-map,
 .dp2-map-wrap > #dp2-captured-image-wrap {
   position: absolute;
@@ -1578,6 +1874,11 @@ body.dp-lock-scroll {
 /* OpenLayers attend une cible dimensionnée par le DOM */
 #dp2-ign-map {
   min-height: 0;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  /* Fond blanc : évite bande grise dans la capture si une tuile est absente */
+  background: #ffffff;
 }
 
 /* DP2 — Zoom visuel : conteneur image + canvas (transform scale uniquement, sans modifier scale_m_per_px) */
@@ -1585,6 +1886,11 @@ body.dp-lock-scroll {
   /* Devient un calque plein cadre (et reste un parent "positionné" pour #dp2-zoom-container) */
   position: absolute;
   overflow: hidden;
+  /* overlay mesures (100) < toolbar (140) / menus (145) / actions (130) — les boutons doivent rester au-dessus du calque plein écran */
+  --dp2-z-toolbar: 140;
+  --dp2-z-dropdown: 145;
+  --dp2-z-draw-actions: 130;
+  --dp2-z-mode-strip: 0;
 }
 
 #dp2-zoom-container {
@@ -1593,6 +1899,9 @@ body.dp-lock-scroll {
   inset: 0;
   width: 100%;
   height: 100%;
+  /* 12 > .dp2-draw-actions (11) : calque plan + overlay au-dessus des boutons undo/redo ; < toolbar (15) */
+  z-index: 12;
+  isolation: isolate;
   transform-origin: 0 0;
   /* transform translate() scale() est appliqué en JS depuis initDP2Editor/initDP2ViewZoom */
 }
@@ -1610,14 +1919,168 @@ body.dp-lock-scroll {
   pointer-events: auto;
 }
 
-/* DP2 — Curseur Pan (outil déplacement visuel) */
-#dp2-captured-image-wrap.dp2-tool-pan {
+/* DP2 — Curseurs 100 % CSS (dp2InteractionState.mode sur #dp2-captured-image-wrap)
+   Idle : default (lisible sur fond blanc) — pas de "main" grab trop claire sur blanc */
+#dp2-captured-image-wrap.dp2-mode-idle {
+  cursor: default;
+}
+
+/* Outil Pan : grab explicite (attendu pour déplacer la vue) */
+#dp2-captured-image-wrap.dp2-tool-pan.dp2-mode-idle {
   cursor: grab;
+}
+
+#dp2-captured-image-wrap.dp2-mode-draw {
+  cursor: crosshair;
+}
+
+#dp2-captured-image-wrap.dp2-mode-hover {
+  cursor: pointer;
+}
+
+#dp2-captured-image-wrap.dp2-mode-active {
+  cursor: move;
+}
+
+#dp2-captured-image-wrap.dp2-mode-editing {
+  cursor: text;
+}
+
+#dp2-captured-image-wrap.dp2-cursor-resize {
+  cursor: nwse-resize !important;
 }
 
 #dp2-captured-image-wrap.dp2-tool-pan.dp2-panning,
 body.dp2-panning #dp2-captured-image-wrap {
-  cursor: grabbing;
+  cursor: grabbing !important;
+}
+
+/* Bandeau contextuel sous la toolbar (mode actif) — sous la toolbar et ses dropdowns */
+.dp2-mode-strip {
+  position: relative;
+  z-index: var(--dp2-z-mode-strip, 0);
+  margin: 0;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #3730a3;
+  background: linear-gradient(90deg, #eef2ff 0%, #f8fafc 100%);
+  border: 1px solid #e5e7eb;
+  border-top: none;
+  border-bottom: none;
+  line-height: 1.4;
+}
+
+/* Champ inline cote parcelle — ancré au segment (position JS) */
+input.dp2-parcel-edge-inline-input {
+  position: absolute;
+  width: 72px;
+  height: 26px;
+  padding: 0 6px;
+  z-index: 1;
+  pointer-events: auto;
+  box-sizing: border-box;
+  background-color: #ffffff;
+  border: 2px solid #c39847;
+  border-radius: 6px;
+  font: 12px system-ui, sans-serif;
+  color: #1f2937;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
+  opacity: 1;
+  visibility: visible;
+}
+
+input.dp2-parcel-edge-inline-input:-webkit-autofill,
+input.dp2-parcel-edge-inline-input:-webkit-autofill:hover,
+input.dp2-parcel-edge-inline-input:-webkit-autofill:focus {
+  -webkit-text-fill-color: #1f2937;
+  transition: background-color 99999s ease-out;
+  -webkit-box-shadow: 0 0 0 32px #ffffff inset;
+  box-shadow: 0 0 0 32px #ffffff inset, 0 2px 10px rgba(0, 0, 0, 0.18);
+}
+
+input.dp2-parcel-edge-inline-input:focus {
+  outline: none;
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.22), 0 2px 10px rgba(0, 0, 0, 0.15);
+}
+
+/* Calque overlay : hors #dp2-zoom-container (pas de transform) — au-dessus du canvas et de la toolbar */
+.dp2-overlay-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 100;
+  pointer-events: none;
+  min-width: 0;
+  min-height: 0;
+}
+
+.dp2-overlay-layer .dp2-parcel-edge-inline-input {
+  pointer-events: auto;
+}
+
+/* =========================================================
+   DP2 — Portail versions (aperçu + actions avant éditeur)
+========================================================= */
+.dp2-entry-panel {
+  margin-top: 18px;
+  padding: 18px 20px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: var(--shadow-subtle, 0 6px 20px rgba(15, 23, 42, 0.06));
+}
+
+.dp2-entry-preview-wrap {
+  margin-bottom: 16px;
+  min-height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f9fafb;
+  border: 1px dashed #d1d5db;
+  border-radius: 10px;
+  padding: 12px;
+}
+
+.dp2-entry-preview {
+  max-width: 100%;
+  max-height: min(42vh, 360px);
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  border-radius: 8px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+}
+
+.dp2-entry-preview-empty {
+  margin: 0;
+  font-size: 13px;
+  color: #6b7280;
+  text-align: center;
+}
+
+.dp2-entry-actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.dp2-entry-actions-row--split {
+  justify-content: flex-start;
+}
+
+.dp2-entry-btn-danger {
+  color: #b91c1c;
+  border-color: #fecaca;
+}
+
+.dp2-entry-btn-danger:hover {
+  background: #fef2f2;
 }
 
 /* =========================================================
@@ -1849,25 +2312,64 @@ body.dp2-panning #dp2-captured-image-wrap {
 /* ======================================================
    DP6 — FIX HAUTEUR WORKSPACE (Street View / Import)
    Objectif: garantir une chaîne de hauteur non nulle
+   (même grille 360px que DP2 / DP4)
 ====================================================== */
 
 #dp6-photo-modal .dp-modal-body {
+  grid-template-columns: 360px 1fr;
   min-height: 0; /* sécurité : permet aux enfants de shrink/fill */
+  align-items: stretch;
+}
+
+/* Modale DP6 : hauteur réelle pour la chaîne jusqu’à #map (Street View) */
+#dp6-photo-modal .dp-modal-panel {
+  min-height: min(88vh, 920px);
 }
 
 #dp6-photo-modal .dp-map-canvas {
+  flex: 1 1 auto;
   height: 100%;
-  min-height: 0;
+  min-height: min(52vh, 560px);
   display: flex;
   flex-direction: column;
+}
+
+#dp6-photo-modal .dp6-gmap-debug {
+  flex: 0 0 auto;
+  width: 100%;
+  border-bottom: 1px solid #e5e7eb;
+  background: #fafafa;
+}
+
+#dp6-photo-modal .dp6-gmap-debug-label {
+  font-size: 11px;
+  color: #6b7280;
+  padding: 6px 10px 0;
+}
+
+#dp6-photo-modal .dp6-gmap-debug-map {
+  width: 100%;
+  height: 200px;
+  min-height: 200px;
 }
 
 #dp6-photo-workspace {
   position: relative;   /* nécessaire pour bouton capture en absolute */
   flex: 1;              /* prend toute la hauteur dispo de dp-map-canvas */
-  min-height: 0;        /* évite la résolution à 0 dans certains layouts */
+  min-height: min(48vh, 480px);
   overflow: hidden;     /* évite scroll interne qui casse la capture */
   background: #f3f4f6;  /* optionnel : même fond que les autres maps */
+}
+
+/* Conteneur Street View (API Google : id #map) — taille forcée pour éviter hauteur 0 */
+#dp6-photo-content #map.dp6-streetview-host {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 400px;
+  z-index: 20;
+  box-sizing: border-box;
 }
 
 #dp6-streetview {
@@ -2079,4 +2581,132 @@ body.dp2-panning #dp2-captured-image-wrap {
 
 .cerfa-description::placeholder {
   color: var(--muted);
+}
+
+/* ======================================================
+   Document — sélecteur de versions (DP3–DP8, sobre)
+====================================================== */
+
+.dp-doc-version-strip {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.dp-doc-version {
+  position: relative;
+  display: inline-block;
+}
+
+.dp-doc-version__trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px 6px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.dp-doc-version__trigger:hover {
+  background: rgba(255, 255, 255, 0.65);
+  color: var(--ink);
+}
+
+.dp-doc-version__trigger:focus-visible {
+  outline: 2px solid rgba(201, 164, 73, 0.45);
+  outline-offset: 2px;
+}
+
+.dp-doc-version__trigger[aria-expanded="true"] {
+  background: rgba(255, 255, 255, 0.75);
+}
+
+.dp-doc-version__label {
+  letter-spacing: 0.01em;
+}
+
+.dp-doc-version__chevron {
+  font-size: 10px;
+  color: var(--muted);
+  line-height: 1;
+  transform: translateY(1px);
+}
+
+.dp-doc-version__dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 260px;
+  max-width: min(100vw - 24px, 340px);
+  padding: 6px 0;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-subtle);
+  z-index: 60;
+}
+
+.dp-doc-version__item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 9px 14px;
+  font-size: 13px;
+  color: var(--ink);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.dp-doc-version__item:hover,
+.dp-doc-version__item:focus-visible {
+  background: var(--bg-soft);
+}
+
+.dp-doc-version__item--active {
+  font-weight: 600;
+  background: rgba(201, 164, 73, 0.08);
+}
+
+.dp-doc-version__sep {
+  height: 1px;
+  margin: 6px 10px;
+  background: var(--line);
+  border: none;
+}
+
+.dp-doc-version__action {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.dp-doc-version__action:hover {
+  background: var(--bg-soft);
+  color: var(--ink);
+}
+
+.dp-doc-version__action--danger {
+  color: #b45309;
+}
+
+.dp-doc-version__action--danger:hover {
+  color: #92400e;
+  background: rgba(251, 191, 36, 0.12);
 }

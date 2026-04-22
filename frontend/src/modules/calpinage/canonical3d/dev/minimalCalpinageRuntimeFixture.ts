@@ -4,6 +4,18 @@
  */
 
 export const minimalCalpinageRuntimeFixture = {
+  /** Source officielle toiture (prioritaire sur `roof.roofPans`). */
+  pans: [
+    {
+      id: "pan-a",
+      polygonPx: [
+        { x: 100, y: 100 },
+        { x: 200, y: 100 },
+        { x: 200, y: 200 },
+        { x: 100, y: 200 },
+      ],
+    },
+  ],
   roof: {
     scale: { metersPerPixel: 0.02 },
     roof: { north: { angleDeg: 0 } },
@@ -29,10 +41,10 @@ export const minimalCalpinageRuntimeFixture = {
     {
       roofRole: "contour",
       points: [
-        { x: 100, y: 100, h: 5 },
-        { x: 200, y: 100, h: 5 },
-        { x: 200, y: 200, h: 5 },
-        { x: 100, y: 200, h: 5 },
+        { x: 100, y: 100 },
+        { x: 200, y: 100 },
+        { x: 200, y: 200 },
+        { x: 100, y: 200 },
       ],
     },
   ],

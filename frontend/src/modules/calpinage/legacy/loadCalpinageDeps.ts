@@ -9,6 +9,8 @@
  */
 
 import html2canvas from "html2canvas";
+import { getCrmApiBase } from "../../../config/crmApiBase";
+import { apiFetch, getAuthToken } from "../../../services/api";
 
 const scriptCache = new Map<string, Promise<void>>();
 const cssCache = new Map<string, Promise<void>>();
@@ -83,14 +85,33 @@ export function resetCalpinageDepsCache(): void {
 }
 
 /**
- * Construit une URL absolue à partir du BASE_URL Vite.
- * Garantit qu'aucun chemin relatif ne soit utilisé (évite /crm.html/leads/calpinage/...).
+ * URL vers un fichier sous /calpinage/ sur le backend (JWT ou renderToken).
+ * En dev : toujours URL relative `/calpinage/...` (même origine que Vite) pour que les bundles
+ * présents dans `frontend/calpinage/**` soient servis par le bypass Vite (sans 404 si l’API
+ * n’expose pas `/calpinage` ou CALPINAGE désactivé). En prod : `VITE_API_URL` si défini.
  */
-function withBase(path: string): string {
-  const base = import.meta.env.BASE_URL || "/";
-  const b = base.endsWith("/") ? base : base + "/";
-  const p = path.startsWith("/") ? path.slice(1) : path;
-  return b + p; // ex: "/calpinage/canvas-bundle.js" ou "/app/calpinage/canvas-bundle.js"
+function calpinageLegacyAssetUrl(relativeUnderCalpinage: string): string {
+  const pathPart = relativeUnderCalpinage.replace(/^calpinage\//, "");
+  const apiBase = getCrmApiBase();
+  const isDev =
+    typeof import.meta !== "undefined" && import.meta.env?.DEV === true;
+  let url =
+    (isDev ? `/calpinage` : apiBase ? `${apiBase}/calpinage` : `/calpinage`) +
+    `/${pathPart}`;
+  if (getAuthToken()) {
+    return url;
+  }
+  if (typeof window === "undefined") {
+    return url;
+  }
+  const params = new URLSearchParams(window.location.search);
+  const rt = params.get("renderToken");
+  const sid = params.get("studyId");
+  const vid = params.get("versionId");
+  if (rt && sid && vid) {
+    url += `?${new URLSearchParams({ renderToken: rt, studyId: sid, versionId: vid }).toString()}`;
+  }
+  return url;
 }
 
 /**
@@ -114,6 +135,66 @@ export function loadScriptOnce(src: string): Promise<void> {
   });
 
   scriptCache.set(src, p);
+  return p;
+}
+
+/**
+ * Charge un script servi sur /calpinage/* (protégé) via fetch + blob (Bearer ou renderToken en query).
+ */
+export function loadProtectedCalpinageScriptOnce(relativeCalpinagePath: string): Promise<void> {
+  const url = calpinageLegacyAssetUrl(relativeCalpinagePath);
+  let p = scriptCache.get(url);
+  if (p) return p;
+
+  p = (async () => {
+    const token = getAuthToken();
+    const hasRender =
+      typeof window !== "undefined" &&
+      (() => {
+        const q = new URLSearchParams(window.location.search);
+        return !!(q.get("renderToken") && q.get("studyId") && q.get("versionId"));
+      })();
+    if (!token && !hasRender) {
+      throw new Error(
+        `[CALPINAGE] Connexion requise pour charger les moteurs (ou page calpinage-render avec renderToken). URL=${url.split("?")[0]}`
+      );
+    }
+
+    if (import.meta.env?.DEV) {
+      console.debug("[CalpinageDeps] fetch bundle", { url: url.split("?")[0], hasBearer: !!token, hasRender: hasRender });
+    }
+
+    const res = token
+      ? await apiFetch(url)
+      : await fetch(url, { credentials: "include" });
+
+    if (import.meta.env?.DEV) {
+      console.debug("[CalpinageDeps] bundle response", { path: relativeCalpinagePath, status: res.status, ok: res.ok });
+    }
+
+    if (!res.ok) {
+      throw new Error(
+        `[CALPINAGE] Bundle refusé ${res.status}: ${url.split("?")[0]}`
+      );
+    }
+
+    const blobUrl = URL.createObjectURL(await res.blob());
+    await new Promise<void>((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = blobUrl;
+      script.onload = () => {
+        URL.revokeObjectURL(blobUrl);
+        resolve();
+      };
+      script.onerror = () => {
+        URL.revokeObjectURL(blobUrl);
+        reject(new Error(`[CALPINAGE] Échec exécution script (blob): ${relativeCalpinagePath}`));
+      };
+      document.head.appendChild(script);
+    });
+  })();
+
+  scriptCache.set(url, p);
   return p;
 }
 
@@ -147,20 +228,20 @@ const LEAFLET_CSS = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
 const LEAFLET_JS = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
 
 /** Scripts legacy à charger (ordre calpinage.html). Leaflet doit être chargé avant map-selector-bundle. */
-const LEGACY_SCRIPTS = [
-  withBase("calpinage/canvas-bundle.js"),
-  withBase("calpinage/map-selector-bundle.js"),
-  withBase("calpinage/pans-bundle.js"),
-  withBase("calpinage/panelProjection.js"),
-  withBase("calpinage/state/activePlacementBlock.js"),
-  withBase("calpinage/engine/pvPlacementEngine.js"),
-  withBase("calpinage/shading/horizonMaskEngine.js"),
-  withBase("calpinage/shading/nearShadingCore.cjs"),
-  withBase("calpinage/shading/solarPosition.js"),
-  withBase("calpinage/shading/horizonMaskSampler.js"),
-  withBase("calpinage/shading/shadingEngine.js"),
-  withBase("calpinage/tools/calpinage-panels-adapter.js"),
-  withBase("calpinage/tools/calpinage-dp2-behavior.js"),
+const LEGACY_SCRIPTS_RELATIVE = [
+  "calpinage/canvas-bundle.js",
+  "calpinage/map-selector-bundle.js",
+  "calpinage/pans-bundle.js",
+  "calpinage/panelProjection.js",
+  "calpinage/state/activePlacementBlock.js",
+  "calpinage/engine/pvPlacementEngine.js",
+  "calpinage/shading/horizonMaskEngine.js",
+  "calpinage/shading/nearShadingCore.cjs",
+  "calpinage/shading/solarPosition.js",
+  "calpinage/shading/horizonMaskSampler.js",
+  "calpinage/shading/shadingEngine.js",
+  "calpinage/tools/calpinage-panels-adapter.js",
+  "calpinage/tools/calpinage-dp2-behavior.js",
 ];
 
 /**
@@ -187,18 +268,21 @@ export async function ensureCalpinageDeps(): Promise<void> {
     // 3. Leaflet JS (avant map-selector-bundle, requis pour initGeoportailMap)
     await loadScriptOnce(LEAFLET_JS);
 
-    // 4. Bundles legacy (ordre calpinage.html)
-    for (const src of LEGACY_SCRIPTS) {
-      await loadScriptOnce(src);
+    // 4. Bundles legacy (ordre calpinage.html) — backend /calpinage/* + JWT ou renderToken
+    for (const rel of LEGACY_SCRIPTS_RELATIVE) {
+      await loadProtectedCalpinageScriptOnce(rel);
     }
 
-    // 5. Diagnostic et vérification des globals
+    // 5. Diagnostic et vérification des globals (+ moteurs ombrage : sinon computeCalpinageShading → NO_DEPENDENCIES)
     const win = window as unknown as {
       CalpinageCanvas?: unknown;
       CalpinageMap?: unknown;
       CalpinagePans?: unknown;
       L?: unknown;
       html2canvas?: unknown;
+      computeAnnualShadingLoss?: unknown;
+      getAnnualSunVectors?: unknown;
+      nearShadingCore?: { computeNearShading?: unknown };
     };
     const status = {
       CalpinageCanvas: !!win.CalpinageCanvas,
@@ -206,6 +290,11 @@ export async function ensureCalpinageDeps(): Promise<void> {
       CalpinagePans: !!win.CalpinagePans,
       Leaflet: !!win.L,
       html2canvas: !!win.html2canvas,
+      shadingEngine:
+        typeof win.computeAnnualShadingLoss === "function" &&
+        typeof win.getAnnualSunVectors === "function",
+      nearShadingCore:
+        !!win.nearShadingCore && typeof win.nearShadingCore.computeNearShading === "function",
     };
 
     console.info("[CalpinageDeps] OK", status);
@@ -214,7 +303,7 @@ export async function ensureCalpinageDeps(): Promise<void> {
       .filter(([, v]) => !v)
       .map(([k]) => k);
     if (missing.length > 0) {
-      const msg = `[CALPINAGE] Dépendances manquantes: ${missing.join(", ")}. Vérifiez que les bundles ${LEGACY_SCRIPTS.join(", ")} sont servis (status 200). Aucune requête vers /crm.html/leads/calpinage/...`;
+      const msg = `[CALPINAGE] Dépendances manquantes: ${missing.join(", ")}. Vérifiez que le backend sert /calpinage/* (JWT ou renderToken), CALPINAGE_ENABLED, et en dev Vite : ne pas servir le stub Node shading/nearShadingCore.cjs (proxy backend).`;
       console.error(msg, { missing, status });
       throw new Error(msg);
     }

@@ -37,16 +37,13 @@ function isNonEmptyString(v) {
  */
 async function persistLeadConsumptionCsv(leadId, loadCurveCsv, organizationId) {
   const leadRow = await pool.query(
-    "SELECT organization_id FROM leads WHERE id = $1 AND (archived_at IS NULL) LIMIT 1",
-    [leadId]
+    "SELECT organization_id FROM leads WHERE id = $1 AND organization_id = $2 AND (archived_at IS NULL) LIMIT 1",
+    [leadId, organizationId]
   );
   if (leadRow.rows.length === 0) {
     return { ok: false, error: "lead_not_found" };
   }
   const orgId = leadRow.rows[0].organization_id;
-  if (String(orgId) !== String(organizationId)) {
-    return { ok: false, error: "org_mismatch" };
-  }
   const buffer = Buffer.from(loadCurveCsv, "utf8");
   const { storage_path } = await localStorageUpload(buffer, orgId, "lead", leadId, "loadcurve.csv");
   const bm = resolveSystemDocumentMetadata("consumption_csv", {});
@@ -142,7 +139,11 @@ function validateBody(body) {
 /**
  * POST /api/energy/profile
  */
-router.post("/profile", async (req, res) => {
+router.post(
+  "/profile",
+  verifyJWT,
+  requireAnyPermission(["lead.read.all", "lead.read.self", "lead.update.all", "lead.update.self"]),
+  async (req, res) => {
   const validation = validateBody(req.body);
   if (!validation.ok) {
     res.status(validation.status).json({ error: validation.message });
@@ -150,6 +151,12 @@ router.post("/profile", async (req, res) => {
   }
 
   const { source, payload } = validation;
+
+  const org = orgIdFromReq(req);
+  if (!org) {
+    res.status(401).json({ error: "Organisation manquante" });
+    return;
+  }
 
   try {
     if (source === "enedis") {
@@ -164,22 +171,62 @@ router.post("/profile", async (req, res) => {
     }
 
     if (source === "switchgrid") {
+      const leadId = typeof payload.lead_id === "string" ? payload.lead_id.trim() : null;
+      if (leadId) {
+        const uid = req.user.userId ?? req.user.id;
+        const perms = await getUserPermissions({ userId: uid, organizationId: org });
+        const canReadAll = perms.has("lead.read.all");
+        const canUpdateAll = perms.has("lead.update.all");
+        const canReadSelf = perms.has("lead.read.self");
+        const canUpdateSelf = perms.has("lead.update.self");
+
+        const leadRes = await pool.query(
+          `SELECT id, organization_id, assigned_user_id
+           FROM leads WHERE id = $1 AND organization_id = $2 AND (archived_at IS NULL)`,
+          [leadId, org]
+        );
+        if (leadRes.rows.length === 0) {
+          res.status(404).json({ error: "Lead non trouvé" });
+          return;
+        }
+        const lead = leadRes.rows[0];
+
+        const uidStr = String(uid);
+        const assignedToSelf = String(lead.assigned_user_id ?? "") === uidStr;
+        const isSuperAdmin = req.user?.role === "SUPER_ADMIN";
+        const canAccessLead =
+          canReadAll ||
+          canUpdateAll ||
+          ((canReadSelf || canUpdateSelf) && assignedToSelf);
+        const allowLead = !RBAC_ENFORCE || isSuperAdmin || canAccessLead;
+        if (!allowLead) {
+          res.status(403).json({ error: "Accès refusé" });
+          return;
+        }
+
+        if (payload.loadCurveCsv && RBAC_ENFORCE && !isSuperAdmin) {
+          if (!canUpdateAll && !canUpdateSelf) {
+            res.status(403).json({ error: "Permission de mise à jour requise pour importer un CSV" });
+            return;
+          }
+          if (!canUpdateAll && canUpdateSelf && !assignedToSelf) {
+            res.status(403).json({ error: "Accès refusé pour l’import sur ce lead" });
+            return;
+          }
+        }
+      }
+
       const profile = await buildSwitchGridEnergyProfile({
         pdlJson: payload.pdlJson,
         loadCurveCsv: payload.loadCurveCsv,
         r65Csv: payload.r65Csv ?? "",
       });
 
-      const leadId = typeof payload.lead_id === "string" ? payload.lead_id.trim() : null;
       if (payload.loadCurveCsv && leadId) {
         try {
-          const leadRow = await pool.query(
-            "SELECT organization_id FROM leads WHERE id = $1 AND (archived_at IS NULL) LIMIT 1",
-            [leadId]
-          );
-          if (leadRow.rows.length > 0) {
-            const orgId = leadRow.rows[0].organization_id;
-            await persistLeadConsumptionCsv(leadId, payload.loadCurveCsv, orgId);
+          const persist = await persistLeadConsumptionCsv(leadId, payload.loadCurveCsv, org);
+          if (!persist.ok) {
+            console.warn("CSV_PROFILE_PERSISTED failed", persist.error || "");
           }
         } catch (persistErr) {
           console.warn("CSV_PROFILE_PERSISTED failed", persistErr.message);
@@ -195,7 +242,8 @@ router.post("/profile", async (req, res) => {
     const message = err instanceof Error ? err.message : String(err);
     res.status(400).json({ error: "Échec construction profil", message });
   }
-});
+  }
+);
 
 /**
  * POST /api/energy/compute-from-csv
@@ -237,7 +285,7 @@ router.post(
     const leadRes = await pool.query(
       `SELECT id, organization_id, meter_power_kva, grid_type, consumption_profile,
               equipement_actuel, equipement_actuel_params, equipements_a_venir,
-              assigned_to, assigned_salesperson_user_id
+              assigned_user_id
        FROM leads WHERE id = $1 AND organization_id = $2 AND (archived_at IS NULL)`,
       [leadId, org]
     );
@@ -248,9 +296,7 @@ router.post(
     const lead = leadRes.rows[0];
 
     const uidStr = String(uid);
-    const assignedToSelf =
-      String(lead.assigned_to ?? "") === uidStr ||
-      String(lead.assigned_salesperson_user_id ?? "") === uidStr;
+    const assignedToSelf = String(lead.assigned_user_id ?? "") === uidStr;
 
     const isSuperAdmin = req.user?.role === "SUPER_ADMIN";
 

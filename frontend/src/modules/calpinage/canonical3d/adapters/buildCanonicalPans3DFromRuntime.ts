@@ -1,9 +1,13 @@
 /**
- * Adaptateur officiel : pans runtime 2D → géométrie pans 3D canonique (vérité géométrique).
+ * Pans runtime 2D → `CanonicalPan3D` via résolveur Z (hauteurs state) — **chemin hors produit 3D officiel**
+ * ou debug / validations locales (ex. après édition toit).
  *
- * - Z : loi Prompt 21/22 via `resolvePanVertexZ` (`explicit_pan_vertex_h` puis `resolveHeightAtXY`) + unification sommets partagés.
- * - Monde horizontal : `imagePxToWorldHorizontalM` (convention ENU Z↑, doc 3d-world-convention).
- * - Normale / pente / azimut : alignés sur `buildRoofModel3DFromLegacyGeometry` (Newell + ciel + azimuthDegEnuHorizontalNormal).
+ * **Pipeline produit** (`buildSolarScene3DFromCalpinageRuntime`) : les pans affichés en scène viennent de
+ * `deriveCanonicalPans3DFromRoofPlanePatches` (vue dérivée du RoofTruth), pas de ce fichier.
+ *
+ * - Z : Prompt 21/22 via `resolvePanVertexZ` + unification sommets partagés.
+ * - Monde horizontal : `imagePxToWorldHorizontalM` (ENU Z↑).
+ * - Normale / pente / azimut : `computeOfficialPanPhysicsFromCornersWorld`.
  *
  * Ne modifie pas le runtime, ne persiste rien, pas de rendu Three.js.
  */
@@ -11,18 +15,11 @@
 import type { Vector3 } from "../types/primitives";
 import { normalize3, vec3 } from "../utils/math3";
 import { imagePxToWorldHorizontalM } from "../builder/worldMapping";
-import {
-  azimuthDegEnuHorizontalNormal,
-  centroid3,
-  newellNormalUnnormalized,
-  orientExteriorNormalTowardSky,
-  planeFitResidualRms,
-  polygonArea3dIntrinsic,
-  polygonProjectedHorizontalAreaXY,
-  tiltDegFromNormalAndUp,
-} from "../builder/planePolygon3d";
+import { polygonArea3dIntrinsic, polygonProjectedHorizontalAreaXY } from "../builder/planePolygon3d";
+import { computeOfficialPanPhysicsFromCornersWorld } from "../builder/officialPanPhysics";
 import {
   buildRuntimeContext,
+  HEIGHT_SOURCE_CONFIDENCE,
   type HeightResolverContext,
   type HeightSource,
   type HeightStateContext,
@@ -34,6 +31,12 @@ import {
   type MutablePanVertexBuild,
 } from "../resolution/unifySharedPanVerticesZ";
 import { auditStructuralLinesAgainstCanonicalPans } from "../resolution/auditStructuralLines3D";
+import {
+  readOfficialRoofPanRecordsForCanonical3D,
+  readStrictStatePansForProduct3D,
+} from "../../integration/readOfficialCalpinageGeometryForCanonical3D";
+import { resolvePanPolygonFor3D } from "../../integration/resolvePanPolygonFor3D";
+import { finiteRoofHeightMOrUndefined } from "../../core/vertexHeightSemantics";
 
 // ─── Sortie ─────────────────────────────────────────────────────────────────
 
@@ -64,6 +67,11 @@ export type CanonicalPan3DDiagnostics = {
   readonly insufficientHeightSignal: boolean;
   readonly heterogeneousZSources: boolean;
   readonly planeResidualRmsM: number | null;
+  /**
+   * false si la pente / géométrie 3D ne doit pas être lue comme « reconstruite depuis cotes mesurées »
+   * (repli Z global, signal hauteur insuffisant).
+   */
+  readonly inclinedRoofGeometryTruthful: boolean;
 };
 
 /** Arête de bord du pan dans le repère monde (sommets réels). */
@@ -141,6 +149,10 @@ export interface BuildCanonicalPans3DFromRuntimeInput {
    */
   readonly heightResolverContext?: HeightResolverContext;
   readonly options?: BuildCanonicalPans3DFromRuntimeOptions;
+  /**
+   * Produit : lecture pans **uniquement** depuis `state.pans` (jamais `roof.roofPans`).
+   */
+  readonly productStrictStatePansOnly?: boolean;
 }
 
 // ─── Constantes ─────────────────────────────────────────────────────────────
@@ -213,12 +225,9 @@ export function extractHeightStateContextFromCalpinageState(state: unknown): Hei
 }
 
 function readPanPolygon2D(pan: Record<string, unknown>): { x: number; y: number }[] | null {
-  const poly =
-    (pan.polygonPx as { x: number; y: number }[] | undefined) ||
-    (pan.points as { x: number; y: number }[] | undefined) ||
-    (pan.polygon as { x: number; y: number }[] | undefined) ||
-    (pan.contour as { points?: { x: number; y: number }[] } | undefined)?.points;
-  if (!Array.isArray(poly) || poly.length < 2) return null;
+  const resolved = resolvePanPolygonFor3D(pan);
+  const poly = resolved.raw;
+  if (!poly || poly.length < 2) return null;
   const out: { x: number; y: number }[] = [];
   for (const pt of poly) {
     const x = typeof pt?.x === "number" ? pt.x : 0;
@@ -233,20 +242,15 @@ function readPanPolygon2D(pan: Record<string, unknown>): { x: number; y: number 
 function readPanPolygon2DWithHeights(
   pan: Record<string, unknown>,
 ): Array<{ x: number; y: number; h?: number }> | null {
-  const poly =
-    (pan.polygonPx as Record<string, unknown>[] | undefined) ||
-    (pan.points as Record<string, unknown>[] | undefined) ||
-    (pan.polygon as Record<string, unknown>[] | undefined) ||
-    (pan.contour as { points?: Record<string, unknown>[] } | undefined)?.points;
-  if (!Array.isArray(poly) || poly.length < 2) return null;
+  const resolved = resolvePanPolygonFor3D(pan);
+  const poly = resolved.raw;
+  if (!poly || poly.length < 2) return null;
   const out: Array<{ x: number; y: number; h?: number }> = [];
   for (const pt of poly) {
     if (!pt || typeof pt !== "object") continue;
     const x = typeof pt.x === "number" ? pt.x : 0;
     const y = typeof pt.y === "number" ? pt.y : 0;
-    let h: number | undefined;
-    if (typeof pt.h === "number" && Number.isFinite(pt.h)) h = pt.h;
-    else if (typeof pt.heightM === "number" && Number.isFinite(pt.heightM)) h = pt.heightM;
+    const h = finiteRoofHeightMOrUndefined(pt.h ?? pt.heightM);
     out.push(h !== undefined ? { x, y, h } : { x, y });
   }
   const stripped = stripClosingDuplicate2D(out.map((p) => ({ x: p.x, y: p.y })));
@@ -263,22 +267,20 @@ function readPanPolygon2DWithHeights(
   return aligned.length >= 3 ? aligned : null;
 }
 
-function readRoofPansList(state: unknown): { pans: Record<string, unknown>[]; source: "roofPans" | "pans" } | null {
+function readRoofPansList(
+  state: unknown,
+  productStrictStatePansOnly?: boolean,
+): {
+  pans: Record<string, unknown>[];
+  source: "state.pans" | "roof.roofPans_compatibility";
+} | null {
   if (!state || typeof state !== "object") return null;
-  const s = state as Record<string, unknown>;
-  const roof = s.roof;
-  if (roof && typeof roof === "object") {
-    const r = roof as Record<string, unknown>;
-    const roofPans = r.roofPans;
-    if (Array.isArray(roofPans) && roofPans.length > 0) {
-      return { pans: roofPans as Record<string, unknown>[], source: "roofPans" };
-    }
-  }
-  const live = s.pans;
-  if (Array.isArray(live) && live.length > 0) {
-    return { pans: live as Record<string, unknown>[], source: "pans" };
-  }
-  return null;
+  const p = productStrictStatePansOnly ? readStrictStatePansForProduct3D(state) : readOfficialRoofPanRecordsForCanonical3D(state);
+  if (p.pans.length === 0) return null;
+  return {
+    pans: [...p.pans],
+    source: p.primaryField === "state.pans" ? "state.pans" : "roof.roofPans_compatibility",
+  };
 }
 
 function readMppAndNorth(state: unknown, mppOverride?: number, northOverride?: number): { mpp: number; north: number } | null {
@@ -372,7 +374,7 @@ function finalizeCanonicalPan3DFromMutable(
   const fallbackCount = vertices3D.filter(
     (v) =>
       v.source === "fallback_default" ||
-      v.source === "fallback_zero" ||
+      v.source === "insufficient_height_signal" ||
       String(v.source).startsWith("fallback"),
   ).length;
   const heights = vertices3D.map((v) => v.heightM);
@@ -385,22 +387,15 @@ function finalizeCanonicalPan3DFromMutable(
   const heterogeneousZSources = uniqueSources.size > 1;
 
   const cornersWorld: Vector3[] = vertices3D.map((v) => ({ x: v.xWorldM, y: v.yWorldM, z: v.zWorldM }));
-  const nRaw = newellNormalUnnormalized(cornersWorld);
-  const nLen = Math.hypot(nRaw.x, nRaw.y, nRaw.z);
-  const isTinyNormal = nLen < 1e-12;
-  const exterior = isTinyNormal ? null : orientExteriorNormalTowardSky(nRaw, upWorld);
-  const exteriorU = exterior ? normalize3(exterior) : null;
-
-  let planeResidualRmsM: number | null = null;
-  if (exteriorU && nVert >= 3) {
-    const c = centroid3(cornersWorld);
-    planeResidualRmsM = planeFitResidualRms(cornersWorld, exteriorU, c);
-  }
+  const official = computeOfficialPanPhysicsFromCornersWorld(cornersWorld, upWorld);
+  const geometryOk = official.source === "newell_corners_world";
+  const exteriorU = geometryOk ? normalize3(official.normal) : null;
+  const planeResidualRmsM = geometryOk ? official.planeResidualRmsM : null;
+  const slopeGeom = geometryOk ? official.slopeDeg : null;
 
   const areaPlanM2 = nVert >= 3 ? polygonProjectedHorizontalAreaXY(cornersWorld) : null;
   const area3DM2 = nVert >= 3 ? polygonArea3dIntrinsic(cornersWorld) : null;
 
-  const slopeGeom = exteriorU ? tiltDegFromNormalAndUp(exteriorU, upWorld) : null;
   const { tiltDegHint, azimuthDegHint } = readPhysicalHints(pan);
 
   let slopeDeg: number | null = slopeGeom;
@@ -409,10 +404,7 @@ function finalizeCanonicalPan3DFromMutable(
     if (delta <= 2.5) slopeDeg = tiltDegHint;
   }
 
-  let azimuthDeg: number | null = null;
-  if (exteriorU) {
-    azimuthDeg = azimuthDegEnuHorizontalNormal(exteriorU);
-  }
+  let azimuthDeg: number | null = geometryOk ? official.azimuthDeg : null;
   if (azimuthDeg != null && azimuthDegHint != null && Number.isFinite(azimuthDegHint)) {
     const dg = Math.abs((((azimuthDeg - azimuthDegHint + 540) % 360) - 180) as number);
     if (dg <= 15) azimuthDeg = azimuthDegHint;
@@ -421,7 +413,7 @@ function finalizeCanonicalPan3DFromMutable(
   const isDegenerate =
     nVert < 3 ||
     area2d < 1e-9 ||
-    isTinyNormal ||
+    !geometryOk ||
     (planeResidualRmsM != null && planeResidualRmsM > 0.25 && !allHeightsEqual);
 
   const isFlatLike =
@@ -443,6 +435,8 @@ function finalizeCanonicalPan3DFromMutable(
   }
   if (heterogeneousZSources) warnings.push("HETEROGENEOUS_Z_SOURCES");
   if (insufficientHeightSignal) warnings.push("INSUFFICIENT_HEIGHT_SIGNAL");
+
+  const inclinedRoofGeometryTruthful = !insufficientHeightSignal;
   if (planeResidualRmsM != null && planeResidualRmsM > 0.05) warnings.push("HIGH_PLANE_RESIDUAL");
   if (usedFallbackForAllVertices && planeResidualRmsM != null && planeResidualRmsM > 0.05) {
     warnings.push("PAN_PLANE_FROM_INSUFFICIENT_HEIGHTS");
@@ -518,6 +512,7 @@ function finalizeCanonicalPan3DFromMutable(
       insufficientHeightSignal,
       heterogeneousZSources,
       planeResidualRmsM,
+      inclinedRoofGeometryTruthful,
     },
   };
 }
@@ -559,9 +554,11 @@ export function buildCanonicalPans3DFromRuntime(
   const resolverBase: HeightResolverContext =
     input.heightResolverContext ?? buildRuntimeContext(heightState);
 
-  const listPack = readRoofPansList(rawState);
+  const listPack = readRoofPansList(rawState, input.productStrictStatePansOnly === true);
   if (!listPack || listPack.pans.length === 0) {
-    globalWarnings.push("NO_PANS_IN_STATE");
+    globalWarnings.push(
+      input.productStrictStatePansOnly === true ? "NO_PANS_IN_STATE_STRICT_ROOT_PANS" : "NO_PANS_IN_STATE",
+    );
     return {
       ok: false,
       pans: [],
@@ -615,6 +612,16 @@ export function buildCanonicalPans3DFromRuntime(
         context: resolver,
         options: { defaultHeightM },
       });
+      const zResolved =
+        hz.heightM !== undefined && Number.isFinite(hz.heightM) ? hz.heightM : defaultHeightM;
+      const sourceUsed: HeightSource | string =
+        hz.heightM !== undefined && Number.isFinite(hz.heightM)
+          ? hz.source
+          : "fallback_default";
+      const confUsed =
+        hz.heightM !== undefined && Number.isFinite(hz.heightM)
+          ? hz.confidence
+          : HEIGHT_SOURCE_CONFIDENCE.fallback_default;
       const xyW = imagePxToWorldHorizontalM(x, y, mpp, north);
       vertices.push({
         vertexId: `${stableId}:v${vi}`,
@@ -622,10 +629,10 @@ export function buildCanonicalPans3DFromRuntime(
         yPx: y,
         xWorldM: xyW.x,
         yWorldM: xyW.y,
-        zWorldM: hz.heightM,
-        heightM: hz.heightM,
-        source: hz.source,
-        confidence: hz.confidence,
+        zWorldM: zResolved,
+        heightM: zResolved,
+        source: sourceUsed,
+        confidence: confUsed,
       });
     }
 

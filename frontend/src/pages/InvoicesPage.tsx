@@ -3,7 +3,7 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Button } from "../components/ui/Button";
 import { ModalShell } from "../components/ui/ModalShell";
 import {
@@ -18,6 +18,7 @@ import { InvoiceStatusBadge } from "../modules/leads/LeadDetail/financial/financ
 import "../modules/quotes/quote-builder.css";
 import "../modules/invoices/invoice-builder.css";
 import "../modules/leads/LeadDetail/financial/financial-tab.css";
+import "../modules/finance/financial-list-saas.css";
 
 function eur(v: unknown) {
   const n = Number(v);
@@ -157,6 +158,26 @@ function matchesInvoiceDateRange(
   return false;
 }
 
+function IconSearchFin({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <circle cx="11" cy="11" r="7" />
+      <path d="M21 21l-4.3-4.3" />
+    </svg>
+  );
+}
+
 function formatQuoteLine(q: QuoteListRow): string {
   const num = q.quote_number || q.id.slice(0, 8);
   const contact =
@@ -169,7 +190,6 @@ function formatQuoteLine(q: QuoteListRow): string {
 
 export default function InvoicesPage() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
   const [rows, setRows] = useState<InvoiceListRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -178,6 +198,7 @@ export default function InvoicesPage() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [dateRangeBasis, setDateRangeBasis] = useState<InvDateRangeBasis>("EITHER");
+  const [search, setSearch] = useState("");
   const [quoteModal, setQuoteModal] = useState(false);
   const [quotesForPicker, setQuotesForPicker] = useState<QuoteListRow[]>([]);
   const [quotesLoading, setQuotesLoading] = useState(false);
@@ -233,13 +254,30 @@ export default function InvoicesPage() {
 
   const useCustomDateRange = Boolean(dateFrom.trim() || dateTo.trim());
 
+  const handleResetFilters = useCallback(() => {
+    setStatusFilter("ALL");
+    setPeriodFilter("ALL");
+    setDateFrom("");
+    setDateTo("");
+    setDateRangeBasis("EITHER");
+    setSearch("");
+  }, []);
+
   const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
     const custom = Boolean(dateFrom.trim() || dateTo.trim());
     return rows
       .filter((r) => matchesInvoiceStatus(r, statusFilter))
       .filter((r) =>
         custom ? matchesInvoiceDateRange(r, dateFrom, dateTo, dateRangeBasis) : matchesInvoicePeriod(r, periodFilter)
       )
+      .filter((r) => {
+        if (!q) return true;
+        const num = String(r.invoice_number || "").toLowerCase();
+        const contact = formatInvoiceClient(r).toLowerCase();
+        const id = String(r.id || "").toLowerCase();
+        return num.includes(q) || contact.includes(q) || id.includes(q);
+      })
       .sort((a, b) => {
         const oa = isInvoiceOverdue(a) ? 0 : 1;
         const ob = isInvoiceOverdue(b) ? 0 : 1;
@@ -251,7 +289,7 @@ export default function InvoicesPage() {
         }
         return invoiceRowDateMs(b) - invoiceRowDateMs(a);
       });
-  }, [rows, statusFilter, periodFilter, dateFrom, dateTo, dateRangeBasis]);
+  }, [rows, statusFilter, periodFilter, dateFrom, dateTo, dateRangeBasis, search]);
 
   const quotePickerOptions = useMemo(() => {
     const q = quoteSearch.trim().toLowerCase();
@@ -306,65 +344,107 @@ export default function InvoicesPage() {
         </div>
       </div>
 
-      <div className="fin-saas-filters" style={{ marginBottom: 16 }}>
-        <label className="fin-saas-filter-field">
-          <span className="fin-saas-filter-label">Statut</span>
-          <select className="sn-input" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as InvStatusFilter)}>
-            <option value="ALL">Tous</option>
-            <option value="DRAFT">Brouillon</option>
-            <option value="ISSUED">Émise</option>
-            <option value="PARTIAL">Partiellement payée</option>
-            <option value="PAID">Payée</option>
-            <option value="OVERDUE">En retard</option>
-          </select>
-        </label>
-        <label className="fin-saas-filter-field" title={useCustomDateRange ? "Désactivé tant qu’un intervalle Du/Au est renseigné" : undefined}>
-          <span className="fin-saas-filter-label">Période rapide</span>
-          <select
-            className="sn-input"
-            value={periodFilter}
-            disabled={useCustomDateRange}
-            onChange={(e) => setPeriodFilter(e.target.value as InvPeriodFilter)}
-          >
-            <option value="ALL">Toutes</option>
-            <option value="WEEK">Semaine glissante</option>
-            <option value="MONTH">Mois en cours</option>
-            <option value="YEAR">Année en cours</option>
-          </select>
-        </label>
-        <label className="fin-saas-filter-field fin-saas-filter-field--date">
-          <span className="fin-saas-filter-label">Du</span>
-          <input
-            type="date"
-            className="sn-input"
-            value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
-            aria-label="Date de début (filtre)"
-          />
-        </label>
-        <label className="fin-saas-filter-field fin-saas-filter-field--date">
-          <span className="fin-saas-filter-label">Au</span>
-          <input
-            type="date"
-            className="sn-input"
-            value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
-            aria-label="Date de fin (filtre)"
-          />
-        </label>
-        <label className="fin-saas-filter-field fin-saas-filter-field--basis">
-          <span className="fin-saas-filter-label">Filtrer sur</span>
-          <select
-            className="sn-input"
-            value={dateRangeBasis}
-            onChange={(e) => setDateRangeBasis(e.target.value as InvDateRangeBasis)}
-            aria-label="Critère de dates"
-          >
-            <option value="EITHER">Création ou dernière modification</option>
-            <option value="CREATED">Date de création</option>
-            <option value="UPDATED">Dernière modification</option>
-          </select>
-        </label>
+      <div className="sn-leads-toolbar-wrap">
+        <div className="sn-leads-filters-card" role="search" aria-label="Filtres factures">
+          <div className="sn-leads-filters-primary">
+            <div className="sn-leads-filters-search">
+              <IconSearchFin className="sn-leads-filters-search__icon" />
+              <input
+                id="fin-invoices-search"
+                type="search"
+                className="sn-leads-filters-search__input"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Rechercher n°, client, contact…"
+                aria-label="Rechercher une facture"
+                autoComplete="off"
+              />
+            </div>
+            <div className="sn-leads-filters-field">
+              <label htmlFor="fin-inv-status" className="sn-leads-filters-field__label">
+                Statut
+              </label>
+              <select
+                id="fin-inv-status"
+                className="sn-leads-filters-select"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as InvStatusFilter)}
+              >
+                <option value="ALL">Tous</option>
+                <option value="DRAFT">Brouillon</option>
+                <option value="ISSUED">Émise</option>
+                <option value="PARTIAL">Partiellement payée</option>
+                <option value="PAID">Payée</option>
+                <option value="OVERDUE">En retard</option>
+              </select>
+            </div>
+            <div className="sn-leads-filters-field sn-leads-filters-field--daterange">
+              <span className="sn-leads-filters-field__label">Plage de dates</span>
+              <div className="sn-leads-filters-daterange">
+                <input
+                  type="date"
+                  className="sn-leads-filters-input sn-leads-filters-input--date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  aria-label="Date de début (filtre)"
+                />
+                <span className="sn-leads-filters-daterange__sep" aria-hidden>
+                  –
+                </span>
+                <input
+                  type="date"
+                  className="sn-leads-filters-input sn-leads-filters-input--date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  aria-label="Date de fin (filtre)"
+                />
+              </div>
+            </div>
+            <div className="sn-leads-filters-primary__reset">
+              <button type="button" className="sn-leads-filters-reset" onClick={handleResetFilters}>
+                Réinitialiser
+              </button>
+            </div>
+          </div>
+          <div className="sn-leads-filters-secondary" aria-label="Filtres dates">
+            <div
+              className="sn-leads-filters-field sn-leads-filters-field--subtle"
+              title={useCustomDateRange ? "Désactivé tant qu’une plage Du/Au est renseignée" : undefined}
+            >
+              <label htmlFor="fin-inv-period" className="sn-leads-filters-field__label">
+                Période rapide
+              </label>
+              <select
+                id="fin-inv-period"
+                className="sn-leads-filters-select sn-leads-filters-select--subtle"
+                value={periodFilter}
+                disabled={useCustomDateRange}
+                onChange={(e) => setPeriodFilter(e.target.value as InvPeriodFilter)}
+              >
+                <option value="ALL">Toutes</option>
+                <option value="WEEK">Semaine glissante</option>
+                <option value="MONTH">Mois en cours</option>
+                <option value="YEAR">Année en cours</option>
+              </select>
+            </div>
+            <div className="sn-leads-filters-field sn-leads-filters-field--subtle fin-list-field--wide">
+              <label htmlFor="fin-inv-basis" className="sn-leads-filters-field__label">
+                Filtrer sur
+              </label>
+              <select
+                id="fin-inv-basis"
+                className="sn-leads-filters-select sn-leads-filters-select--subtle"
+                value={dateRangeBasis}
+                onChange={(e) => setDateRangeBasis(e.target.value as InvDateRangeBasis)}
+                aria-label="Critère de dates"
+              >
+                <option value="EITHER">Création ou dernière modification</option>
+                <option value="CREATED">Date de création</option>
+                <option value="UPDATED">Dernière modification</option>
+              </select>
+            </div>
+          </div>
+        </div>
       </div>
 
       {error ? <p className="qb-error-inline">{error}</p> : null}
@@ -375,8 +455,8 @@ export default function InvoicesPage() {
       ) : null}
 
       {!loading && filtered.length > 0 ? (
-        <div className="qb-table-wrap">
-          <table className="qb-table">
+        <div className="qb-table-wrap qb-table-wrap--list-saas">
+          <table className="qb-table qb-table--list-saas">
             <thead>
               <tr>
                 <th>Numéro</th>
@@ -472,17 +552,7 @@ export default function InvoicesPage() {
             <p className="qb-muted">Aucun devis accepté trouvé.</p>
           ) : null}
           {!quotesLoading && quotePickerOptions.length > 0 ? (
-            <div
-              className="fin-saas-quote-ac"
-              role="listbox"
-              aria-label="Sélection de devis"
-              style={{
-                maxHeight: 280,
-                overflow: "auto",
-                border: "1px solid var(--border, rgba(255,255,255,0.1))",
-                borderRadius: 8,
-              }}
-            >
+            <div className="fin-saas-quote-ac" role="listbox" aria-label="Sélection de devis">
               {quotePickerOptions.map((q) => {
                 const sel = selectedQuote?.id === q.id;
                 return (
@@ -510,63 +580,6 @@ export default function InvoicesPage() {
         </div>
       </ModalShell>
 
-      <style>{`
-        .fin-saas-filters {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 12px 16px;
-          align-items: flex-end;
-        }
-        .fin-saas-filter-field {
-          display: flex;
-          flex-direction: column;
-          gap: 4px;
-          min-width: 160px;
-        }
-        .fin-saas-filter-field--date {
-          min-width: 148px;
-          max-width: 168px;
-        }
-        .fin-saas-filter-field--basis {
-          min-width: 200px;
-          flex: 1 1 220px;
-          max-width: 320px;
-        }
-        .fin-saas-filter-label {
-          font-size: 11px;
-          font-weight: 700;
-          text-transform: uppercase;
-          letter-spacing: 0.05em;
-          color: var(--text-muted);
-        }
-        .fin-saas-row-overdue {
-          box-shadow: inset 3px 0 0 var(--sg-error, #dc2626);
-        }
-        .fin-saas-quote-ac-row {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 8px 12px;
-          align-items: center;
-          width: 100%;
-          text-align: left;
-          padding: 10px 12px;
-          border: none;
-          border-bottom: 1px solid var(--border, rgba(255,255,255,0.08));
-          background: transparent;
-          color: inherit;
-          cursor: pointer;
-          font: inherit;
-        }
-        .fin-saas-quote-ac-row:last-child {
-          border-bottom: none;
-        }
-        .fin-saas-quote-ac-row:hover {
-          background: color-mix(in srgb, var(--sg-brand, #c39847) 12%, transparent);
-        }
-        .fin-saas-quote-ac-row--sel {
-          background: color-mix(in srgb, var(--sg-brand, #c39847) 22%, transparent);
-        }
-      `}</style>
     </div>
   );
 }

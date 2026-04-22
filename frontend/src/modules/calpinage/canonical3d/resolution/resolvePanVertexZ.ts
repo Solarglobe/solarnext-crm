@@ -28,7 +28,8 @@ export type ResolvePanVertexZParams = {
  */
 export function resolvePanVertexZ(params: ResolvePanVertexZParams): HeightResolutionResult {
   const { xPx, yPx, explicitPanVertexH, panId, context, options } = params;
-  if (explicitPanVertexH !== undefined && isValidBuildingHeightM(explicitPanVertexH)) {
+  /** null = explicitement non disponible (même sémantique qu’absent). */
+  if (explicitPanVertexH !== undefined && explicitPanVertexH !== null && isValidBuildingHeightM(explicitPanVertexH)) {
     return {
       ok: true,
       heightM: explicitPanVertexH,

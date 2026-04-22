@@ -1,7 +1,5 @@
 // ============================================================================
-// ENGINE-P5 — Journée annuelle moyenne + OPTION A++
-// Solarglobe 2025 — Version ULTRA PREMIUM DOUCE
-// (PV réel + conso/auto/batt amplifiés + courbes ultra arrondies)
+// ENGINE-P5 — Journée type (24 h), données backend en kW sans déformation d’échelle.
 // ============================================================================
 
 (function(){
@@ -96,7 +94,7 @@
 })();
 
 // ============================================================================
-// 6) DRAW CHART — ENERGY-TECH PREMIUM (P5)
+// 6) DRAW CHART — P5 (échelle kW honnête)
 // ============================================================================
 
 (function(){
@@ -116,26 +114,13 @@
     const W=2000, H=560;
     const PAD_L=70, PAD_R=50, PAD_T=25, PAD_B=70;
 
-    // Max réels
-    let maxProd=0, maxConso=0, maxBatt=0;
-    for(const s of series){
-      if(s.prod > maxProd) maxProd = s.prod;
-      if(s.conso> maxConso) maxConso = s.conso;
-      if(s.batt > maxBatt) maxBatt = s.batt;
-    }
-
-    // OPTION A++ (inchangé)
-    const scalePV = 1;
-    const scaleConso = 4 / Math.max(0.1, maxConso);
-    const scaleAuto  = scaleConso;
-    const scaleBatt  = 2.5 / Math.max(0.1, maxBatt);
-
+    // Échelle Y unique (kW) : prod, conso, auto et batterie sur la même base — pas de rescaling
+    // indépendant qui fausserait le croisement visuel ni min(prod, conso).
     const visual = series.map(s => ({
-      prod_real : s.prod,
-      prod      : s.prod * scalePV,
-      conso     : s.conso * scaleConso,
-      auto      : Math.min(s.prod, s.conso) * scaleAuto,
-      batt      : s.batt * scaleBatt
+      prod: safeNum(s.prod),
+      conso: safeNum(s.conso),
+      auto: Math.min(safeNum(s.prod), safeNum(s.conso)),
+      batt: safeNum(s.batt),
     }));
 
     const maxY = Math.max(

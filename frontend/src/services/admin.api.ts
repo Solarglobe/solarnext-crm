@@ -20,6 +20,8 @@ async function handleResponse<T>(res: Response): Promise<T> {
 export interface AdminUser {
   id: string;
   email: string;
+  first_name?: string | null;
+  last_name?: string | null;
   /** Présent si le backend expose un nom affichable (sinon utiliser email côté UI). */
   name?: string | null;
   status: string;
@@ -36,6 +38,8 @@ export async function adminGetUsers(): Promise<AdminUser[]> {
 export async function adminCreateUser(body: {
   email: string;
   password: string;
+  first_name?: string | null;
+  last_name?: string | null;
   roleIds?: string[];
 }): Promise<AdminUser> {
   const res = await apiFetch(`${BASE}/users`, {
@@ -47,7 +51,14 @@ export async function adminCreateUser(body: {
 
 export async function adminUpdateUser(
   id: string,
-  body: { email?: string; status?: string; roleIds?: string[] }
+  body: {
+    email?: string;
+    password?: string;
+    status?: string;
+    first_name?: string | null;
+    last_name?: string | null;
+    roleIds?: string[];
+  }
 ): Promise<AdminUser> {
   const res = await apiFetch(`${BASE}/users/${id}`, {
     method: "PUT",
@@ -267,8 +278,8 @@ export interface AdminOrg {
   invoice_prefix?: string;
   logo_url?: string;
   logo_dark_url?: string;
-  pdf_primary_color?: string;
-  pdf_secondary_color?: string;
+  pdf_primary_color?: string | null;
+  pdf_secondary_color?: string | null;
   pdf_cover_image_key?: string;
 }
 
@@ -360,6 +371,9 @@ export interface OrgPvSettings {
     /** Dégradation annuelle contribution batterie physique dans les cashflows (%) */
     battery_degradation_pct?: number;
   };
+  /**
+   * @deprecated Persisté pour rétrocompatibilité ; non branché au moteur PV (voir backend `orgSettingsDeprecated.js`).
+   */
   pvtech?: {
     system_yield_pct?: number;
     panel_surface_m2?: number;
@@ -385,6 +399,9 @@ export interface OrgPvSettings {
     micro_dc_w?: number;
     standard_loss_pct?: number;
   };
+  /**
+   * @deprecated Persisté pour rétrocompatibilité ; non branché au moteur (voir backend `orgSettingsDeprecated.js`).
+   */
   ai?: {
     use_enedis_first?: boolean;
     use_pvgis?: boolean;
@@ -501,19 +518,37 @@ export interface SmartpitchSettingsResponse {
   economics: SmartpitchEconomics;
 }
 
-export async function getOrganizationsSettings(): Promise<SmartpitchSettingsResponse> {
-  const res = await apiFetch("/api/organizations/settings");
-  return handleResponse<SmartpitchSettingsResponse>(res);
+/** CP-080 — réponse étendue (economics + quote + finance) */
+export interface OrgQuoteSettings {
+  prefix: string;
+  next_number: number;
 }
 
-export async function putOrganizationsSettings(
-  body: { economics: Partial<SmartpitchEconomics> }
-): Promise<SmartpitchSettingsResponse> {
+export interface OrgFinanceSettings {
+  default_vat_rate: number;
+}
+
+export interface OrganizationsFullSettingsResponse extends SmartpitchSettingsResponse {
+  quote: OrgQuoteSettings;
+  finance: OrgFinanceSettings;
+  settings_json?: Record<string, unknown>;
+}
+
+export async function getOrganizationsSettings(): Promise<OrganizationsFullSettingsResponse> {
+  const res = await apiFetch("/api/organizations/settings");
+  return handleResponse<OrganizationsFullSettingsResponse>(res);
+}
+
+export async function putOrganizationsSettings(body: {
+  economics?: Partial<SmartpitchEconomics>;
+  quote?: { prefix?: string | null; next_number?: number };
+  finance?: Partial<OrgFinanceSettings>;
+}): Promise<OrganizationsFullSettingsResponse> {
   const res = await apiFetch("/api/organizations/settings", {
     method: "PUT",
     body: JSON.stringify(body),
   });
-  return handleResponse<SmartpitchSettingsResponse>(res);
+  return handleResponse<OrganizationsFullSettingsResponse>(res);
 }
 
 // --- CP-QUOTE-002 Catalogue devis ---

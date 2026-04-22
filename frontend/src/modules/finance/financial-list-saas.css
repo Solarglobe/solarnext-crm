@@ -1,0 +1,238 @@
+/**
+ * Listes Devis / Factures — toolbar + tableau alignés sur le SaaS Leads (violet / or).
+ */
+
+/* ——— Table liste (hors éditeur de lignes) ——— */
+.qb-table-wrap--list-saas {
+  margin-top: 4px;
+  border-radius: 14px;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.theme-dark .qb-table-wrap--list-saas,
+[data-theme="dark"] .qb-table-wrap--list-saas {
+  background: var(--surface-elevated);
+  border-color: var(--border-subtle);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.qb-table.qb-table--list-saas {
+  min-width: 960px;
+  font-size: 13px;
+}
+
+.qb-table.qb-table--list-saas thead {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(8px);
+}
+
+.theme-dark .qb-table.qb-table--list-saas thead,
+[data-theme="dark"] .qb-table.qb-table--list-saas thead {
+  background: color-mix(in srgb, var(--surface-elevated) 92%, transparent);
+}
+
+.qb-table.qb-table--list-saas th {
+  padding: 8px 10px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--primary) 16%, var(--text-muted));
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  white-space: nowrap;
+}
+
+.qb-table.qb-table--list-saas td {
+  padding: 7px 10px;
+  vertical-align: middle;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+.theme-dark .qb-table.qb-table--list-saas th,
+[data-theme="dark"] .qb-table.qb-table--list-saas th {
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+
+.theme-dark .qb-table.qb-table--list-saas td,
+[data-theme="dark"] .qb-table.qb-table--list-saas td {
+  border-bottom-color: rgba(255, 255, 255, 0.06);
+}
+
+.qb-table.qb-table--list-saas tbody tr {
+  transition: background-color 0.15s ease;
+}
+
+.qb-table.qb-table--list-saas tbody tr:hover {
+  background: rgba(15, 23, 42, 0.03);
+}
+
+.theme-light .qb-table.qb-table--list-saas tbody tr:hover {
+  background: rgba(15, 23, 42, 0.035);
+}
+
+.qb-table.qb-table--list-saas tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* Retard facture — accent cohérent */
+.qb-table--list-saas tbody tr.fin-saas-row-overdue {
+  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--danger, #dc2626) 88%, var(--primary));
+}
+
+/* Actions devis — liens compacts */
+.qb-table--list-saas .fin-list-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  justify-content: flex-end;
+}
+
+.qb-table--list-saas .fin-link-btn {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 8px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: color-mix(in srgb, var(--primary) 35%, var(--text-secondary));
+  cursor: pointer;
+  transition:
+    color 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.qb-table--list-saas .fin-link-btn:hover:not(:disabled) {
+  color: var(--primary);
+  background: var(--gold-soft);
+}
+
+.qb-table--list-saas .fin-link-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.qb-table--list-saas .fin-link-btn--accent {
+  color: var(--primary);
+}
+
+.qb-table--list-saas .fin-link-btn--accent:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--violet-glow) 40%, transparent);
+}
+
+/* Icône PDF liste */
+.fin-saas-pdf-ic {
+  position: relative;
+  display: inline-flex;
+  color: color-mix(in srgb, var(--primary) 38%, var(--text-muted));
+  vertical-align: middle;
+}
+
+.fin-saas-pdf-dot {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 2px solid var(--surface-elevated, #1e1a28);
+}
+
+.theme-light .fin-saas-pdf-dot {
+  border-color: #fff;
+}
+
+.fin-saas-pdf-dot--ok {
+  background: var(--success, #16a34a);
+}
+
+.fin-saas-pdf-dot--off {
+  background: color-mix(in srgb, var(--text-muted) 45%, transparent);
+}
+
+/* Suppression devis — même esprit que liste leads */
+.fin-quote-list-delete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  margin-left: 2px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  vertical-align: middle;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.fin-quote-list-delete:hover:not(:disabled) {
+  background: rgba(220, 38, 38, 0.1);
+  color: #b91c1c;
+}
+
+.fin-quote-list-delete:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--violet-glow);
+}
+
+.fin-quote-list-delete:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Sélecteur devis — modal création facture */
+.fin-saas-quote-ac-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border: none;
+  border-bottom: 1px solid var(--border, rgba(255, 255, 255, 0.08));
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+}
+
+.fin-saas-quote-ac-row:last-child {
+  border-bottom: none;
+}
+
+.fin-saas-quote-ac-row:hover {
+  background: color-mix(in srgb, var(--gold-soft) 90%, transparent);
+}
+
+.fin-saas-quote-ac-row--sel {
+  background: color-mix(in srgb, var(--primary) 12%, var(--gold-soft));
+}
+
+.fin-saas-quote-ac {
+  max-height: 280px;
+  overflow: auto;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+  border-radius: 10px;
+}
+
+/* Champ « Filtrer sur » plus large en ligne secondaire */
+.sn-leads-filters-secondary .fin-list-field--wide.sn-leads-filters-field--subtle {
+  width: auto;
+  min-width: 200px;
+  max-width: 400px;
+  flex: 1 1 220px;
+  opacity: 0.94;
+}

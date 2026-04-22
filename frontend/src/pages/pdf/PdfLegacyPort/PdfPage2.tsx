@@ -5,6 +5,7 @@ import React, { useMemo } from "react";
 import PdfPageLayout from "../PdfEngine/PdfPageLayout";
 import PdfHeader from "../../../components/pdf/PdfHeader";
 import { BLOCK_GAP_PX } from "../PdfEngine/pdfLayout";
+import { usePdfOrgBranding } from "./pdfOrgBrandingContext";
 
 const API_BASE =
   import.meta.env?.VITE_API_URL ||
@@ -53,6 +54,8 @@ export default function PdfPage2({
     organization?.logo_url,
     viewModel?.meta,
   ]);
+
+  const { brandHex } = usePdfOrgBranding();
 
   return (
     <PdfPageLayout
@@ -133,7 +136,7 @@ export default function PdfPage2({
           <h2
             style={{
               margin: "0 0 2.35mm",
-              color: "#C39847",
+              color: brandHex,
               fontWeight: 700,
               fontSize: "5mm",
               textAlign: "center",
@@ -158,7 +161,7 @@ export default function PdfPage2({
               style={{ margin: 0, fontSize: "3.9mm", fontWeight: 700, color: "#333" }}
             >
               Sur 25 ans, le projet permet d&apos;éviter plus de{" "}
-              <strong style={{ color: "#C39847" }}>
+              <strong style={{ color: brandHex }}>
                 <span id="p2_eco_25_hero">—</span>
               </strong>{" "}
               de dépenses d&apos;électricité.
@@ -229,7 +232,7 @@ export default function PdfPage2({
                     </th>
                     <th
                       align="right"
-                      style={{ padding: "1.45mm 2mm 1.55mm", fontWeight: 700, color: "#C39847" }}
+                      style={{ padding: "1.45mm 2mm 1.55mm", fontWeight: 700, color: brandHex }}
                     >
                       Avec solaire
                     </th>
@@ -258,7 +261,7 @@ export default function PdfPage2({
                     <td
                       id="p2_avec_5"
                       align="right"
-                      style={{ padding: "1.32mm 2mm", fontWeight: 600, color: "#C39847" }}
+                      style={{ padding: "1.32mm 2mm", fontWeight: 600, color: brandHex }}
                     >
                       —
                     </td>
@@ -282,7 +285,7 @@ export default function PdfPage2({
                     <td
                       id="p2_avec_10"
                       align="right"
-                      style={{ padding: "1.32mm 2mm", fontWeight: 600, color: "#C39847" }}
+                      style={{ padding: "1.32mm 2mm", fontWeight: 600, color: brandHex }}
                     >
                       —
                     </td>
@@ -306,7 +309,7 @@ export default function PdfPage2({
                     <td
                       id="p2_avec_15"
                       align="right"
-                      style={{ padding: "1.32mm 2mm", fontWeight: 600, color: "#C39847" }}
+                      style={{ padding: "1.32mm 2mm", fontWeight: 600, color: brandHex }}
                     >
                       —
                     </td>
@@ -330,7 +333,7 @@ export default function PdfPage2({
                     <td
                       id="p2_avec_20"
                       align="right"
-                      style={{ padding: "1.32mm 2mm", fontWeight: 600, color: "#C39847" }}
+                      style={{ padding: "1.32mm 2mm", fontWeight: 600, color: brandHex }}
                     >
                       —
                     </td>
@@ -364,7 +367,7 @@ export default function PdfPage2({
                     <td
                       id="p2_avec_25"
                       align="right"
-                      style={{ padding: "1.42mm 2mm", fontWeight: 600, color: "#C39847" }}
+                      style={{ padding: "1.42mm 2mm", fontWeight: 600, color: brandHex }}
                     >
                       —
                     </td>
@@ -395,7 +398,7 @@ export default function PdfPage2({
               <h3
                 style={{
                   margin: "0 0 1.25mm",
-                  color: "#C39847",
+                  color: brandHex,
                   fontWeight: 600,
                   fontSize: "3.52mm",
                 }}
@@ -434,7 +437,7 @@ export default function PdfPage2({
                 marginTop: 0,
                 background: "rgba(251, 246, 236, 0.65)",
                 border: "0.35mm solid rgba(195, 152, 71, 0.22)",
-                borderLeft: "0.7mm solid #C39847",
+                borderLeft: `0.7mm solid ${brandHex}`,
                 borderRadius: "2.6mm",
                 flexShrink: 0,
                 boxShadow: "0 0.55mm 1.65mm rgba(15, 23, 42, 0.038)",
@@ -443,7 +446,7 @@ export default function PdfPage2({
               <h3
                 style={{
                   margin: "0 0 1mm",
-                  color: "#C39847",
+                  color: brandHex,
                   fontWeight: 700,
                   fontSize: "3.48mm",
                 }}
@@ -525,7 +528,7 @@ export default function PdfPage2({
                 <h3
                   style={{
                     margin: 0,
-                    color: "#C39847",
+                    color: brandHex,
                     fontWeight: 800,
                     fontSize: "3.4mm",
                     letterSpacing: "0.02em",
@@ -575,7 +578,7 @@ export default function PdfPage2({
                         padding: "1.45mm 2.35mm 1.5mm",
                         background: "rgba(251, 246, 236, 0.95)",
                         borderRadius: "2.1mm",
-                        borderLeft: "0.48mm solid #C39847",
+                        borderLeft: `0.48mm solid ${brandHex}`,
                         boxShadow: "inset 0 1px 0 rgba(255,255,255,0.65)",
                       }}
                     >
@@ -687,7 +690,7 @@ export default function PdfPage2({
                       maxWidth: "none",
                       height: "50%",
                       borderRadius: "2.5mm",
-                      background: "linear-gradient(180deg, #d4ae5e 0%, #C39847 45%, #a67d35 100%)",
+                      background: `linear-gradient(180deg, color-mix(in srgb, ${brandHex} 78%, #ffffff) 0%, ${brandHex} 45%, color-mix(in srgb, ${brandHex} 55%, #000000) 100%)`,
                       boxShadow: "0 0.6mm 2.2mm rgba(195, 152, 71, 0.35), inset 0 1px 0 rgba(255,255,255,0.35)",
                       display: "flex",
                       flexDirection: "column",

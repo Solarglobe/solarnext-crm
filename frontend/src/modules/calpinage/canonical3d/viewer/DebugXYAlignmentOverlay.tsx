@@ -1,15 +1,16 @@
 /**
- * Preuve visuelle produit : contour 2D réellement lu par le pipeline (ROUGE)
- * vs contour au sol du mesh 3D rendu (VERT).
- *
- * Le ROUGE utilise `state.roof.roofPans` (même source que l’adaptateur après sync),
- * pas une reconstitution théorique.
+ * Preuve visuelle produit :
+ * - **VERT** : arêtes des patches 3D (plan horizontal au zLevel).
+ * - **ROUGE** : polygones `roof.roofPans` projetés par `imagePxToWorldHorizontalM` (miroir après sync).
+ * - **CYAN** : **emprise officielle du shell** (`resolveOfficialShellFootprintRingWorld`) — contour bâti uniquement ; absent si pas de contour.
  */
 
 import { useMemo } from "react";
 import * as THREE from "three";
 import type { SolarScene3D } from "../types/solarScene3d";
 import { imagePxToWorldHorizontalM } from "../builder/worldMapping";
+import { resolveOfficialShellFootprintRingWorld } from "../builder/officialShellFootprintRing";
+import { resolvePanPolygonFor3D } from "../../integration/resolvePanPolygonFor3D";
 
 interface Props {
   readonly scene: SolarScene3D;
@@ -17,15 +18,14 @@ interface Props {
   readonly runtime?: unknown;
 }
 
-/** Même ordre de champs que `calpinageStateToLegacyRoofInput`. */
+/** Aligné `resolvePanPolygonFor3D`. */
 function extractPolygonFromRoofPan(pan: Record<string, unknown>): Array<{ x: number; y: number }> | null {
-  const poly =
-    (pan.polygonPx as Array<{ x: number; y: number }> | undefined) ||
-    (pan.points as Array<{ x: number; y: number }> | undefined) ||
-    (pan.polygon as Array<{ x: number; y: number }> | undefined) ||
-    (pan.contour as { points?: Array<{ x: number; y: number }> } | undefined)?.points;
-  if (!Array.isArray(poly) || poly.length < 3) return null;
-  return poly.map((pt) => ({ x: Number(pt.x) || 0, y: Number(pt.y) || 0 }));
+  const { raw } = resolvePanPolygonFor3D(pan);
+  if (!raw || raw.length < 3) return null;
+  return raw.map((pt) => {
+    const p = pt as { x?: unknown; y?: unknown };
+    return { x: Number(p.x) || 0, y: Number(p.y) || 0 };
+  });
 }
 
 /**
@@ -52,14 +52,15 @@ export function DebugXYAlignmentOverlay({ scene, zLevel, runtime }: Props) {
   const mpp = wc?.metersPerPixel;
   const north = wc?.northAngleDeg ?? 0;
 
-  const { redGeo, greenGeo } = useMemo(() => {
+  const { redGeo, greenGeo, cyanGeo } = useMemo(() => {
     if (!mpp || !Number.isFinite(mpp) || mpp <= 0) {
-      return { redGeo: null, greenGeo: null };
+      return { redGeo: null, greenGeo: null, cyanGeo: null };
     }
 
     const patches = scene.roofModel.roofPlanePatches;
     const dzRed = zLevel + 0.06;
     const dzGreen = zLevel + 0.03;
+    const dzCyan = zLevel + 0.09;
 
     const greenPositions: number[] = [];
     for (const patch of patches) {
@@ -132,7 +133,35 @@ export function DebugXYAlignmentOverlay({ scene, zLevel, runtime }: Props) {
       };
     }
 
+    const officialFp = resolveOfficialShellFootprintRingWorld({
+      runtime,
+      roofPlanePatches: patches,
+      metersPerPixel: mpp,
+      northAngleDeg: north,
+    });
+    const cyanPositions: number[] = [];
+    if (officialFp && officialFp.ringXY.length >= 3) {
+      const ring = officialFp.ringXY;
+      const nRing = ring.length;
+      for (let i = 0; i < nRing; i++) {
+        const a = ring[i]!;
+        const b = ring[(i + 1) % nRing]!;
+        cyanPositions.push(a.x, a.y, dzCyan, b.x, b.y, dzCyan);
+      }
+    }
+    const cGeo =
+      cyanPositions.length > 0
+        ? (() => {
+            const g = new THREE.BufferGeometry();
+            g.setAttribute("position", new THREE.Float32BufferAttribute(cyanPositions, 3));
+            return g;
+          })()
+        : null;
+
     const verdictObj = {
+      officialShellFootprint: officialFp
+        ? { contourSource: officialFp.contourSource, vertexCount: officialFp.ringXY.length }
+        : null,
       roofPansCount: source2D.length,
       patches3DCount: patches.length,
       matchedPansVertexCount: matched,
@@ -159,6 +188,7 @@ export function DebugXYAlignmentOverlay({ scene, zLevel, runtime }: Props) {
     return {
       redGeo: rGeo,
       greenGeo: gGeo,
+      cyanGeo: cGeo,
     };
   }, [scene, mpp, north, zLevel, runtime]);
 
@@ -174,6 +204,11 @@ export function DebugXYAlignmentOverlay({ scene, zLevel, runtime }: Props) {
       <lineSegments geometry={redGeo}>
         <lineBasicMaterial color="#ff0000" linewidth={2} />
       </lineSegments>
+      {cyanGeo ? (
+        <lineSegments geometry={cyanGeo}>
+          <lineBasicMaterial color="#00ffff" linewidth={2} />
+        </lineSegments>
+      ) : null}
     </group>
   );
 }

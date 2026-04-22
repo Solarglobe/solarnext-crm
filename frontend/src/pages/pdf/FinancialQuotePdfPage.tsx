@@ -7,6 +7,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { QuoteDocumentView } from "../../modules/quotes/QuoteDocumentView";
 import type { QuotePdfPayload } from "../../modules/quotes/quoteDocumentTypes";
 import { quoteShowsOfficialNumber } from "../../modules/quotes/quoteUiStatus";
+import { resolvePdfPrimaryColor } from "./pdfBrand";
 
 const API_BASE = import.meta.env?.VITE_API_URL || (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000");
 
@@ -75,7 +76,7 @@ export default function FinancialQuotePdfPage() {
 
   const brandColor = useMemo(() => {
     const b = payload?.issuer?.branding as Record<string, string | null> | undefined;
-    return b?.pdf_primary_color?.trim() || "#c39847";
+    return resolvePdfPrimaryColor(b?.pdf_primary_color ?? undefined);
   }, [payload]);
 
   const logoUrl = useMemo(() => {
@@ -95,7 +96,7 @@ export default function FinancialQuotePdfPage() {
 
   const issuerFallbackName = useMemo(() => {
     const iss = (payload?.issuer || {}) as Record<string, unknown>;
-    return String(iss.display_name || "SolarNext");
+    return String(iss.display_name || "").trim() || "—";
   }, [payload]);
 
   const showOfficialQuoteNumber = quoteShowsOfficialNumber(quoteRowStatus, {

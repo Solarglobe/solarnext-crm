@@ -34,6 +34,18 @@ export async function assertLeadBelongsToOrg(leadId, organizationId) {
 }
 
 /**
+ * Résout le lead d’une activité (pour assertLeadApiAccess sur PATCH/DELETE /api/activities/:id).
+ */
+export async function fetchActivityLeadId(activityId, organizationId) {
+  const r = await pool.query(
+    `SELECT lead_id FROM lead_activities
+     WHERE id = $1 AND organization_id = $2 AND (is_deleted IS NOT TRUE)`,
+    [activityId, organizationId]
+  );
+  return r.rows[0]?.lead_id ?? null;
+}
+
+/**
  * Lister les activités d'un lead avec filtres
  */
 export async function listActivities(leadId, organizationId, options = {}) {
@@ -139,7 +151,7 @@ export async function createActivity(leadId, organizationId, userId, body) {
      WHERE id = $1 AND organization_id = $2`,
     [leadId, organizationId]
   );
-  await recalculateLeadScore(leadId).catch(() => {});
+  await recalculateLeadScore(leadId, organizationId).catch(() => {});
 
   const userRes = await pool.query(
     "SELECT email FROM users WHERE id = $1",
@@ -269,7 +281,7 @@ export async function createAutoActivity(organizationId, leadId, userId, type, t
         [leadId, organizationId]
       )
       .catch(() => {});
-    await recalculateLeadScore(leadId).catch(() => {});
+    await recalculateLeadScore(leadId, organizationId).catch(() => {});
   }
 
   return result.rows[0]?.id;

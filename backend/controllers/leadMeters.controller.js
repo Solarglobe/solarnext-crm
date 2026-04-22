@@ -32,6 +32,7 @@ function gateMeters(req, leadId, mode) {
     mode,
     forbidArchivedWrite: mode === "write",
     logContext: req.method + " " + req.path,
+    req,
   });
 }
 

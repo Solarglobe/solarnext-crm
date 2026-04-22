@@ -31,7 +31,9 @@ export default function PdfPage6({ data }: { data?: P6Data }) {
   const bat = p6.bat ?? [];
   const grid = p6.grid ?? [];
   const tot = p6.tot ?? [];
-  const price = p6.price ?? 0.18;
+  const rawPrice = p6.price;
+  const price =
+    typeof rawPrice === "number" && Number.isFinite(rawPrice) ? rawPrice : null;
 
   const totDir = dir.reduce((a, b) => a + b, 0);
   const totBat = bat.reduce((a, b) => a + b, 0);
@@ -39,7 +41,7 @@ export default function PdfPage6({ data }: { data?: P6Data }) {
   const totConso = tot.reduce((a, b) => a + b, 0) || 1;
   const autonomiePct = totConso > 0 ? Math.round((1 - totGrid / totConso) * 100) : 0;
   const autoPct = totConso > 0 ? Math.round(((totDir + totBat) / totConso) * 100) : 0;
-  const gridEur = (totGrid * price).toFixed(0);
+  const gridEur = price != null ? (totGrid * price).toFixed(0) : "—";
 
   return (
     <div className="pdf-page">

@@ -1,10 +1,20 @@
 /**
- * CP-PDF — Page 5 Journée type simplifiée (projection client)
- * Graphique dessiné par engine-p5.js. Structure et textes alignés P4.
+ * CP-PDF — Page 5 Journée type (projection client)
+ * Graphique : même famille visuelle que P4 (`ChartP4Production`) — `ChartP5DayProfile`, données `fullReport.p5`.
  */
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo } from "react";
 import PdfPageLayout from "../PdfEngine/PdfPageLayout";
 import PdfHeader from "../../../components/pdf/PdfHeader";
+import { hexToRgba } from "../pdfBrand";
+import { usePdfOrgBranding } from "./pdfOrgBrandingContext";
+import ChartP5DayProfile from "./ChartP5DayProfile";
+
+function as24(arr: unknown): number[] {
+  if (!Array.isArray(arr)) return Array(24).fill(0);
+  const out = arr.slice(0, 24).map((x) => (Number.isFinite(Number(x)) ? Number(x) : 0));
+  while (out.length < 24) out.push(0);
+  return out;
+}
 
 const API_BASE = import.meta.env?.VITE_API_URL || (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000");
 const PLACEHOLDER_LOGO = "/pdf-assets/images/logo-solarglobe-rect.png";
@@ -26,7 +36,26 @@ export default function PdfPage5({
   organization?: { id?: string; logo_image_key?: string | null; logo_url?: string | null };
   viewModel?: { fullReport?: Record<string, unknown>; meta?: { studyId?: string; versionId?: string }; [key: string]: unknown };
 }) {
-  const [hasBattery, setHasBattery] = useState(false);
+  const fr = viewModel?.fullReport as Record<string, unknown> | undefined;
+  const p5 = fr?.p5 as
+    | {
+        meta?: { client?: string; ref?: string; date?: string };
+        production_kw?: number[];
+        consommation_kw?: number[];
+        batterie_kw?: number[];
+        profile_notes?: { production?: string; consumption?: string };
+      }
+    | undefined;
+
+  const prod24 = useMemo(() => as24(p5?.production_kw), [p5?.production_kw]);
+  const conso24 = useMemo(() => as24(p5?.consommation_kw), [p5?.consommation_kw]);
+  const batt24 = useMemo(() => as24(p5?.batterie_kw), [p5?.batterie_kw]);
+  const metaP5 = p5?.meta ?? {};
+  const hasBatteryChart = useMemo(() => batt24.some((x) => Math.abs(x) > 1e-9), [batt24]);
+  const hasChartData = useMemo(
+    () => prod24.some((x) => x > 0) || conso24.some((x) => x > 0),
+    [prod24, conso24]
+  );
 
   const logoUrl = useMemo(() => {
     const logoDirect = organization?.logo_url;
@@ -45,26 +74,7 @@ export default function PdfPage5({
     return hasLogo ? getStorageUrl(orgId, "logo", renderToken, studyId, versionId) : PLACEHOLDER_LOGO;
   }, [organization?.id, organization?.logo_image_key, organization?.logo_url, viewModel?.meta]);
 
-  // Détection batterie via légende (engine-p5 affiche #p5_leg_batt si batterie > 0)
-  useEffect(() => {
-    const check = () => {
-      const el = document.getElementById("p5_leg_batt");
-      if (el) {
-        const display = el.style.display ?? window.getComputedStyle(el).display;
-        if (display !== "none") setHasBattery(true);
-      }
-    };
-    const t1 = setTimeout(check, 200);
-    const t2 = setTimeout(check, 600);
-    const observer = new MutationObserver(check);
-    const zone = document.getElementById("p5_chart_zone");
-    if (zone) observer.observe(zone, { attributes: true, subtree: true, attributeFilter: ["style"] });
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-      observer.disconnect();
-    };
-  }, []);
+  const { brandHex } = usePdfOrgBranding();
 
   return (
     <PdfPageLayout
@@ -116,13 +126,13 @@ export default function PdfPage5({
                 }}
               >
                 <div>
-                  <b>Client</b> : <span id="p5_client">—</span>
+                  <b>Client</b> : <span id="p5_client">{metaP5.client != null && metaP5.client !== "" ? String(metaP5.client) : "—"}</span>
                 </div>
                 <div>
-                  <b>Réf.</b> : <span id="p5_ref">—</span>
+                  <b>Réf.</b> : <span id="p5_ref">{metaP5.ref != null && metaP5.ref !== "" ? String(metaP5.ref) : "—"}</span>
                 </div>
                 <div>
-                  <b>Date</b> : <span id="p5_date">—</span>
+                  <b>Date</b> : <span id="p5_date">{metaP5.date != null && metaP5.date !== "" ? String(metaP5.date) : "—"}</span>
                 </div>
               </div>
             }
@@ -156,59 +166,107 @@ export default function PdfPage5({
         En journée, les modules couvrent en direct une large part de la demande instantanée du site, ce qui limite fortement les prélèvements sur le réseau.
       </p>
 
-      {/* 3. Zone graphique (engine-p5.js dessine dans #p5-chart) */}
+      {/* 3. Graphique — même cadrage / légende que P4 (répartition mensuelle → journée 24 h) */}
       <div
         id="p5_chart_zone"
         className="card soft chart-card premium"
         style={{
-          padding: "5mm 3mm 5mm 3mm",
-          border: "0.5mm solid rgba(195,152,71,.25)",
-          borderRadius: "6mm",
-          display: "none",
+          padding: "5.2mm 3.2mm 5.4mm",
+          border: "0.45mm solid rgba(195,152,71,.24)",
+          borderRadius: "5.5mm",
+          display: p5 && hasChartData ? "flex" : "none",
+          flexDirection: "column",
+          flex: "1 1 auto",
+          minHeight: 0,
         }}
       >
-        <div style={{ marginBottom: "2mm", flexShrink: 0 }}>
-          <h3 style={{ margin: 0, color: "#C39847", fontSize: "4.5mm" }}>
-            Production et consommation sur une journée type
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: "2.4mm", flexShrink: 0 }}>
+          <h3 style={{ margin: 0, color: brandHex, fontSize: "4.4mm", fontWeight: 800, letterSpacing: "0.02em" }}>
+            Puissance sur une journée type (kW)
           </h3>
-          <p
+        </div>
+
+        <div style={{ height: "74mm", position: "relative", flexShrink: 0 }}>
+          {hasChartData && (
+            <ChartP5DayProfile production_kw={prod24} consommation_kw={conso24} batterie_kw={batt24} />
+          )}
+        </div>
+
+        <div className="legend legend-row" style={{ marginTop: "2.8mm", flexShrink: 0 }}>
+          <span className="pill pill-violet" />
+          <div className="legend-text">
+            <b>Consommation du site</b>
+            <br />
+            <span className="sub">besoins instantanés</span>
+          </div>
+          <span className="pill pill-gold" />
+          <div className="legend-text">
+            <b>Production PV</b>
+            <br />
+            <span className="sub">générateur posé</span>
+          </div>
+          <span className="pill pill-cyan" />
+          <div className="legend-text">
+            <b>Énergie utilisée directement</b>
+            <br />
+            <span className="sub">sans passer par le réseau</span>
+          </div>
+          {hasBatteryChart && (
+            <>
+              <span className="pill pill-green" />
+              <div className="legend-text">
+                <b>Énergie stockée</b>
+                <br />
+                <span className="sub">batterie (charge)</span>
+              </div>
+            </>
+          )}
+        </div>
+
+        {(p5?.profile_notes?.production || p5?.profile_notes?.consumption) && (
+          <div
             style={{
-              margin: "1mm 0 0 0",
-              fontSize: "3.1mm",
-              lineHeight: 1.35,
-              color: "#6b6b6b",
-              fontWeight: 400,
+              marginTop: "2.2mm",
+              fontSize: "2.85mm",
+              lineHeight: 1.45,
+              color: "#64748b",
+              flexShrink: 0,
             }}
           >
-            Focus sur la période active de production et d&apos;usage solaire (5h–22h).
-          </p>
-          {/* Span caché pour engine-p5 (évite crash si #p5_month absent) */}
-          <span id="p5_month" style={{ position: "absolute", left: "-9999px", visibility: "hidden" }} aria-hidden="true" />
-        </div>
-
-        <div style={{ height: "75mm", position: "relative" }}>
-          <svg id="p5-chart" viewBox="0 0 2000 560" style={{ width: "100%", height: "100%", display: "block" }} />
-        </div>
-
-        <div className="legend legend-row" style={{ marginTop: "3mm" }}>
-          <span className="pill pill-gold" />
-          <div className="legend-text"><b>Production solaire</b><br /><span className="sub">Puissance PV (kW)</span></div>
-          <span className="pill pill-gray" />
-          <div className="legend-text"><b>Consommation</b><br /><span className="sub">Besoins instantanés</span></div>
-          <span className="pill pill-cyan" />
-          <div className="legend-text"><b>Autoconsommation</b><br /><span className="sub">Utilisation directe</span></div>
-          <span className="pill pill-green" id="p5_leg_batt" style={{ display: "none" }} />
-          <div className="legend-text" id="p5_leg_batt_text" style={{ display: "none" }}>
-            <b>Batterie</b><br /><span className="sub">charge / décharge</span>
+            {p5.profile_notes?.production ? (
+              <div>
+                <b>Production</b> : {p5.profile_notes.production}
+              </div>
+            ) : null}
+            {p5.profile_notes?.consumption ? (
+              <div style={{ marginTop: "0.8mm" }}>
+                <b>Consommation</b> : {p5.profile_notes.consumption}
+              </div>
+            ) : null}
           </div>
-        </div>
+        )}
       </div>
+
+      {p5 && !hasChartData && (
+        <div
+          className="card soft"
+          style={{
+            padding: "6mm",
+            border: "0.5mm solid rgba(195,152,71,.25)",
+            textAlign: "center",
+            color: "#666",
+            fontSize: "3.6mm",
+          }}
+        >
+          Aucune donnée de puissance disponible pour la journée type.
+        </div>
+      )}
 
       {/* 4. Blocs messages (cœur P5) */}
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: hasBattery ? "repeat(4, 1fr)" : "repeat(3, 1fr)",
+          gridTemplateColumns: hasBatteryChart ? "repeat(4, 1fr)" : "repeat(3, 1fr)",
           gap: "3mm",
           marginTop: "2mm",
           flexShrink: 0,
@@ -219,11 +277,11 @@ export default function PdfPage5({
           className="card soft"
           style={{
             padding: "3.5mm",
-            border: "0.5mm solid rgba(195,152,71,.25)",
+            border: `0.5mm solid ${hexToRgba(brandHex, 0.25)}`,
             borderRadius: "4mm",
           }}
         >
-          <div style={{ fontSize: "3.2mm", fontWeight: 600, color: "#C39847", marginBottom: "1.5mm" }}>
+          <div style={{ fontSize: "3.2mm", fontWeight: 600, color: brandHex, marginBottom: "1.5mm" }}>
             Production en journée
           </div>
           <div style={{ fontSize: "3mm", lineHeight: 1.35, color: "#444" }}>
@@ -236,11 +294,11 @@ export default function PdfPage5({
           className="card soft"
           style={{
             padding: "3.5mm",
-            border: "0.5mm solid rgba(195,152,71,.25)",
+            border: `0.5mm solid ${hexToRgba(brandHex, 0.25)}`,
             borderRadius: "4mm",
           }}
         >
-          <div style={{ fontSize: "3.2mm", fontWeight: 600, color: "#C39847", marginBottom: "1.5mm" }}>
+          <div style={{ fontSize: "3.2mm", fontWeight: 600, color: brandHex, marginBottom: "1.5mm" }}>
             Énergie utilisée directement
           </div>
           <div style={{ fontSize: "3mm", lineHeight: 1.35, color: "#444" }}>
@@ -249,17 +307,17 @@ export default function PdfPage5({
         </div>
 
         {/* Bloc 3 — Batterie (conditionnel) */}
-        {hasBattery && (
+        {hasBatteryChart && (
           <div
             className="card soft"
             style={{
               padding: "3.5mm",
-              border: "0.5mm solid rgba(195,152,71,.25)",
+              border: `0.5mm solid ${hexToRgba(brandHex, 0.25)}`,
               borderRadius: "4mm",
             }}
           >
-            <div style={{ fontSize: "3.2mm", fontWeight: 600, color: "#C39847", marginBottom: "1.5mm" }}>
-              Stockage de l&apos;énergie
+            <div style={{ fontSize: "3.2mm", fontWeight: 600, color: brandHex, marginBottom: "1.5mm" }}>
+              {"Stockage de l'énergie"}
             </div>
             <div style={{ fontSize: "3mm", lineHeight: 1.35, color: "#444" }}>
               Le surplus est stocké en batterie pour être restitué ultérieurement (soirée, creux solaire).
@@ -272,15 +330,15 @@ export default function PdfPage5({
           className="card soft"
           style={{
             padding: "3.5mm",
-            border: "0.5mm solid rgba(195,152,71,.25)",
+            border: `0.5mm solid ${hexToRgba(brandHex, 0.25)}`,
             borderRadius: "4mm",
           }}
         >
-          <div style={{ fontSize: "3.2mm", fontWeight: 600, color: "#C39847", marginBottom: "1.5mm" }}>
-            {hasBattery ? "Autonomie renforcée" : "Moins d&apos;électricité achetée"}
+          <div style={{ fontSize: "3.2mm", fontWeight: 600, color: brandHex, marginBottom: "1.5mm" }}>
+            {hasBatteryChart ? "Autonomie renforcée" : "Moins d'électricité achetée"}
           </div>
           <div style={{ fontSize: "3mm", lineHeight: 1.35, color: "#444" }}>
-            {hasBattery
+            {hasBatteryChart
               ? "Les prélèvements réseau diminuent encore, y compris hors fenêtre de production."
               : "Les achats sur le réseau sont fortement réduits grâce à la production locale."}
           </div>

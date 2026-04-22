@@ -1,5 +1,6 @@
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
+import { JWT_SECRET } from "../config/auth.js";
 
 const SALT_ROUNDS = 12;
 
@@ -17,7 +18,5 @@ export function generateJWT(user) {
     organizationId: user.organization_id,
     role: user.role
   };
-  const secret = process.env.JWT_SECRET || process.env.JWT_SECRET_KEY;
-  if (!secret) throw new Error("JWT_SECRET manquant");
-  return jwt.sign(payload, secret, { expiresIn: "7d" });
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: "7d" });
 }

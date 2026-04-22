@@ -22,7 +22,9 @@ import {
 } from "./quoteWorkflow";
 import { QuoteDocumentView } from "./QuoteDocumentView";
 import { QuoteSignaturePadModal } from "./QuoteSignaturePadModal";
+import { SIGNATURE_READ_ACCEPTANCE_LABEL_FR } from "./signatureReadAcceptance";
 import type { QuotePdfPayload } from "./quoteDocumentTypes";
+import { resolvePdfPrimaryColor } from "../../pages/pdf/pdfBrand";
 import { quoteShowsOfficialNumber, quoteStatusToUiLabel } from "./quoteUiStatus";
 import "./quote-present.css";
 
@@ -325,12 +327,12 @@ export default function QuotePresentPage() {
 
   const brandColor = useMemo(() => {
     const b = payload?.issuer?.branding as Record<string, string | null> | undefined;
-    return b?.pdf_primary_color?.trim() || "#c39847";
+    return resolvePdfPrimaryColor(b?.pdf_primary_color ?? undefined);
   }, [payload]);
 
   const issuerFallbackName = useMemo(() => {
     const iss = (payload?.issuer || {}) as Record<string, unknown>;
-    return String(iss.display_name || "SolarNext");
+    return String(iss.display_name || "").trim() || "—";
   }, [payload]);
 
   const refs = (payload?.refs || {}) as Record<string, unknown>;
@@ -363,6 +365,8 @@ export default function QuotePresentPage() {
         client_read_approved: true,
         signature_client_data_url: sigClient,
         signature_company_data_url: sigCompany,
+        signature_client_acceptance: { accepted: true, acceptedLabel: SIGNATURE_READ_ACCEPTANCE_LABEL_FR },
+        signature_company_acceptance: { accepted: true, acceptedLabel: SIGNATURE_READ_ACCEPTANCE_LABEL_FR },
       });
       navigate(`/quotes/${id}`, { state: { quoteSignedSaved: true } });
     } catch (e) {
@@ -577,9 +581,9 @@ export default function QuotePresentPage() {
         open={padRole !== null}
         onClose={() => setPadRole(null)}
         title={padRole === "company" ? "Signature entreprise" : "Signature client"}
-        onConfirm={(dataUrl) => {
-          if (padTargetRef.current === "company") setSigCompany(dataUrl);
-          else setSigClient(dataUrl);
+        onConfirm={(payload) => {
+          if (padTargetRef.current === "company") setSigCompany(payload.dataUrl);
+          else setSigClient(payload.dataUrl);
         }}
       />
     </div>

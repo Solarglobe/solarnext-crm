@@ -6,6 +6,8 @@
 import React, { useMemo } from "react";
 import PdfPageLayout from "../PdfEngine/PdfPageLayout";
 import PdfHeader from "../../../components/pdf/PdfHeader";
+import { hexToRgba } from "../pdfBrand";
+import { usePdfOrgBranding } from "./pdfOrgBrandingContext";
 
 const API_BASE = import.meta.env?.VITE_API_URL || (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000");
 const PLACEHOLDER_LOGO = "/pdf-assets/images/logo-solarglobe-rect.png";
@@ -43,6 +45,8 @@ export default function PdfPage6({
     const hasLogo = !!organization?.logo_image_key;
     return hasLogo ? getStorageUrl(orgId, "logo", renderToken, studyId, versionId) : PLACEHOLDER_LOGO;
   }, [organization?.id, organization?.logo_image_key, organization?.logo_url, viewModel?.meta]);
+
+  const { brandHex } = usePdfOrgBranding();
 
   return (
     <PdfPageLayout
@@ -138,13 +142,13 @@ export default function PdfPage6({
         style={{
           display: "none",
           padding: "4mm 3mm 4mm 3mm",
-          border: "0.5mm solid rgba(195,152,71,.25)",
+          border: `0.5mm solid ${hexToRgba(brandHex, 0.25)}`,
           boxShadow: "0 8px 24px rgba(0,0,0,.06)",
           borderRadius: "6mm",
         }}
       >
         <div style={{ marginBottom: "2mm", flexShrink: 0 }}>
-          <h3 style={{ margin: 0, color: "#C39847", fontWeight: 800, fontSize: "4.5mm" }}>
+          <h3 style={{ margin: 0, color: brandHex, fontWeight: 800, fontSize: "4.5mm" }}>
             Autonomie énergétique et prélèvements réseau sur l&apos;année
           </h3>
         </div>
@@ -227,11 +231,11 @@ export default function PdfPage6({
           className="card soft"
           style={{
             padding: "3mm",
-            border: "0.5mm solid rgba(195,152,71,.25)",
+            border: `0.5mm solid ${hexToRgba(brandHex, 0.25)}`,
             borderRadius: "4mm",
           }}
         >
-          <div style={{ fontSize: "3.1mm", fontWeight: 600, color: "#C39847", marginBottom: "1.2mm" }}>
+          <div style={{ fontSize: "3.1mm", fontWeight: 600, color: brandHex, marginBottom: "1.2mm" }}>
             Une production locale significative
           </div>
           <div style={{ fontSize: "2.9mm", lineHeight: 1.35, color: "#444" }}>
@@ -244,11 +248,11 @@ export default function PdfPage6({
           className="card soft"
           style={{
             padding: "3mm",
-            border: "0.5mm solid rgba(195,152,71,.25)",
+            border: `0.5mm solid ${hexToRgba(brandHex, 0.25)}`,
             borderRadius: "4mm",
           }}
         >
-          <div style={{ fontSize: "3.1mm", fontWeight: 600, color: "#C39847", marginBottom: "1.2mm" }}>
+          <div style={{ fontSize: "3.1mm", fontWeight: 600, color: brandHex, marginBottom: "1.2mm" }}>
             Une dépendance au réseau maîtrisée
           </div>
           <div style={{ fontSize: "2.9mm", lineHeight: 1.35, color: "#444" }}>
@@ -261,11 +265,11 @@ export default function PdfPage6({
           className="card soft"
           style={{
             padding: "3mm",
-            border: "0.5mm solid rgba(195,152,71,.25)",
+            border: `0.5mm solid ${hexToRgba(brandHex, 0.25)}`,
             borderRadius: "4mm",
           }}
         >
-          <div style={{ fontSize: "3.1mm", fontWeight: 600, color: "#C39847", marginBottom: "1.2mm" }}>
+          <div style={{ fontSize: "3.1mm", fontWeight: 600, color: brandHex, marginBottom: "1.2mm" }}>
             Des marges d&apos;optimisation possibles
           </div>
           <div style={{ fontSize: "2.9mm", lineHeight: 1.35, color: "#444" }}>

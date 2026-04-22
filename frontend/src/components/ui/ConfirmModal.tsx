@@ -37,6 +37,34 @@ function confirmClass(variant: ConfirmModalVariant): string {
   }
 }
 
+function iconClass(variant: ConfirmModalVariant): string {
+  switch (variant) {
+    case "danger":
+      return "sn-confirm-modal-icon--danger";
+    case "warning":
+      return "sn-confirm-modal-icon--warning";
+    default:
+      return "sn-confirm-modal-icon--default";
+  }
+}
+
+function ConfirmIcon({ variant }: { variant: ConfirmModalVariant }) {
+  if (variant === "danger" || variant === "warning") {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+        <path d="M12 9v4M12 17h.01" />
+      </svg>
+    );
+  }
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <circle cx="12" cy="12" r="10" />
+      <path d="M12 16v-4M12 8h.01" />
+    </svg>
+  );
+}
+
 export function ConfirmModal({
   open,
   title,
@@ -78,7 +106,7 @@ export function ConfirmModal({
   useEffect(() => {
     if (!open || !panelRef.current) return;
     const buttons = panelRef.current.querySelectorAll<HTMLButtonElement>(
-      ".sn-confirm-modal-actions button",
+      ".sn-confirm-modal-actions .sn-confirm-modal-btn",
     );
     const firstEnabled = Array.from(buttons).find((b) => !b.disabled);
     firstEnabled?.focus();
@@ -106,14 +134,21 @@ export function ConfirmModal({
         aria-modal="true"
         aria-labelledby={titleId}
       >
-        <h2 id={titleId} className="sn-confirm-modal-title">
-          {title}
-        </h2>
-        <p className="sn-confirm-modal-message">{message}</p>
+        <div className="sn-confirm-modal-body">
+          <div className={`sn-confirm-modal-icon ${iconClass(variant)}`} aria-hidden>
+            <ConfirmIcon variant={variant} />
+          </div>
+          <div className="sn-confirm-modal-text">
+            <h2 id={titleId} className="sn-confirm-modal-title">
+              {title}
+            </h2>
+            <p className="sn-confirm-modal-message">{message}</p>
+          </div>
+        </div>
         <div className="sn-confirm-modal-actions">
           <button
             type="button"
-            className="sn-confirm-modal-btn sn-confirm-modal-btn--ghost"
+            className="sn-confirm-modal-btn sn-confirm-modal-btn--secondary"
             onClick={onCancel}
             disabled={cancelDisabled}
           >

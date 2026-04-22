@@ -60,21 +60,23 @@ describe("CAS 1 — getHeightAtImgPoint : comportement attendu via le moteur", (
     expect(result.heightM).toBeCloseTo(5.2);
   });
 
-  it("retourne 0 (fallback) si aucune source disponible — compatibilité getHeightAtImgPoint", () => {
+  it("defaultHeightM: 0 explicite → fallback_default (0 métier assumé par l’appelant)", () => {
     const result = resolveHeightAtXY(500, 500, {}, { defaultHeightM: 0 });
     expect(result.ok).toBe(false);
-    expect(result.heightM).toBe(0); // identique au retour legacy "0 si hors pan"
+    expect(result.source).toBe("fallback_default");
+    expect(result.heightM).toBe(0);
   });
 
-  it("contrat public préservé : heightM est toujours un nombre fini", () => {
-    const results = [
-      resolveHeightAtXY(100, 100, {}),
-      resolveHeightAtXY(150, 120, { state: stateWithRidge }, { epsilonPx: 15 }),
-      resolveHeightAtXY(100, 100, { state: stateEmpty }, { defaultHeightM: 5.5 }),
-    ];
-    for (const r of results) {
-      expect(Number.isFinite(r.heightM)).toBe(true);
-    }
+  it("sans defaultHeightM : signal insuffisant sans cote ; avec default ou P1 : nombre fini", () => {
+    const insufficient = resolveHeightAtXY(100, 100, {});
+    expect(insufficient.source).toBe("insufficient_height_signal");
+    expect(insufficient.heightM).toBeUndefined();
+
+    const p1 = resolveHeightAtXY(150, 120, { state: stateWithRidge }, { epsilonPx: 15 });
+    expect(Number.isFinite(p1.heightM)).toBe(true);
+
+    const fb = resolveHeightAtXY(100, 100, { state: stateEmpty }, { defaultHeightM: 5.5 });
+    expect(Number.isFinite(fb.heightM)).toBe(true);
   });
 });
 
@@ -106,7 +108,9 @@ describe("CAS 2 — hitTestPan injecté : P3 pan_plane_fit_hittest réellement a
     const result = resolveHeightAtXY(200, 200, ctx);
     // Sans panId et sans hitTestPan, aucun fitPlane possible → fallback
     expect(result.ok).toBe(false);
-    expect(result.source).toMatch(/^fallback/);
+    expect(
+      result.source === "fallback_default" || result.source === "insufficient_height_signal",
+    ).toBe(true);
   });
 
   it("hitTestPan qui retourne null → fallback propre sans exception", () => {
@@ -217,10 +221,11 @@ describe("CAS 4 — getBaseZWorldM : stabilité et nouvelles priorités", () => 
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe("CAS 5 — Données runtime dégradées : robustesse totale", () => {
-  it("résolution avec state vide + pas de context → fallback sans crash", () => {
+  it("résolution avec state vide + pas de context → insufficient_height_signal sans crash", () => {
     expect(() => resolveHeightAtXY(0, 0, { state: {} })).not.toThrow();
     const r = resolveHeightAtXY(0, 0, { state: {} });
-    expect(Number.isFinite(r.heightM)).toBe(true);
+    expect(r.source).toBe("insufficient_height_signal");
+    expect(r.heightM).toBeUndefined();
   });
 
   it("getHeightAtXY qui jette → absorbé, fallback retourné", () => {
@@ -264,7 +269,7 @@ describe("CAS 6 — Non-régression : contrats publics préservés", () => {
     const sources = [
       "explicit_pan_vertex_h",
       "explicit_vertex_ridge", "explicit_vertex_contour", "explicit_vertex_trait",
-      "pan_plane_fit", "pan_plane_fit_hittest", "fallback_default", "fallback_zero",
+      "pan_plane_fit", "pan_plane_fit_hittest", "fallback_default", "insufficient_height_signal",
     ] as const;
     for (const s of sources) {
       expect(typeof HEIGHT_SOURCE_CONFIDENCE[s]).toBe("number");

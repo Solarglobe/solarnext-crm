@@ -11,19 +11,30 @@ import { createPdfRenderToken } from "../services/pdfRenderToken.service.js";
 import { putEphemeralSnapshot } from "../services/pdfEphemeralSnapshot.service.js";
 import { saveStudyPdfDocument } from "../services/documents.service.js";
 import { buildStudyPdfFileName } from "../services/studyPdfFileName.util.js";
+import { mergeOrganizationCgvPdfAppend } from "../services/legalCgvPdfMerge.service.js";
+import { FINANCIAL_DOCUMENT_PDF_KIND } from "../constants/financialDocumentPdfKind.js";
 
 const orgId = (req) => req.user?.organizationId ?? req.user?.organization_id;
 const userId = (req) => req.user?.userId ?? req.user?.id ?? null;
 
 /**
  * Génère le PDF pour une version (logique interne). Utilisé par generatePdf, selectScenario, generatePdfFromScenario.
- * @param {object} params - { studyId, versionId, organizationId, userId, ephemeralSnapshot?, scenarioIdForPdf? }
+ * @param {object} params - { studyId, versionId, organizationId, userId, ephemeralSnapshot?, scenarioIdForPdf?, documentPdfKind? }
+ *   documentPdfKind : défaut `PROPOSAL` (PDF étude sans CGV). `QUOTE` ajouterait la fusion CGV (non utilisé par ce flux devis).
  * @param {object} [options] - { generatePdfFromRendererUrl, getRendererUrl } pour tests
  * @returns {Promise<{ id: string, file_name: string }>} document créé
  * @throws {Error} code PDF_RENDER_TIMEOUT | PDF_RENDER_FAILED | SCENARIO_SNAPSHOT_REQUIRED | VERSION_NOT_FOUND
  */
 export async function generatePdfForVersion(params, options = {}) {
-  const { studyId, versionId, organizationId, userId: uid, ephemeralSnapshot, scenarioIdForPdf } = params;
+  const {
+    studyId,
+    versionId,
+    organizationId,
+    userId: uid,
+    ephemeralSnapshot,
+    scenarioIdForPdf,
+    documentPdfKind = FINANCIAL_DOCUMENT_PDF_KIND.PROPOSAL,
+  } = params;
   const generatePdfFromRendererUrl =
     options.generatePdfFromRendererUrl ?? pdfGenService.generatePdfFromRendererUrl;
   const getRendererUrl = options.getRendererUrl ?? pdfGenService.getRendererUrl;
@@ -61,7 +72,10 @@ export async function generatePdfForVersion(params, options = {}) {
   const rendererUrl = getRendererUrl(studyId, versionId, renderToken);
   logger.info("PDF generation started", { rendererUrl, studyId, versionId, ephemeral: !!ephemeralSnapshot });
 
-  const pdfBuffer = await generatePdfFromRendererUrl(rendererUrl);
+  let pdfBuffer = await generatePdfFromRendererUrl(rendererUrl);
+  if (documentPdfKind === FINANCIAL_DOCUMENT_PDF_KIND.QUOTE) {
+    pdfBuffer = await mergeOrganizationCgvPdfAppend(pdfBuffer, organizationId);
+  }
 
   const { clientName, studyName } = await studiesService.getStudyPdfDisplayNameParts(studyId, organizationId);
   const pdfDisplayName = buildStudyPdfFileName(

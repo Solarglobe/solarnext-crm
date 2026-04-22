@@ -1,6 +1,5 @@
 /**
- * Bloc unique « Conditions commerciales » : acompte + validité + remise document (%).
- * Logique inchangée — présentation regroupée pour la phase workbench premium.
+ * Bloc unique « Conditions commerciales » : acompte + validité + remise document (% + € HT).
  */
 
 import React from "react";
@@ -14,8 +13,10 @@ export interface QuoteCommercialSectionProps {
   onDepositChange: (patch: Partial<QuoteDeposit>) => void;
   validityDays: number;
   globalDiscountPercent: number;
+  globalDiscountAmountHt: number;
   onValidityDaysChange: (n: number) => void;
   onGlobalDiscountPercentChange: (n: number) => void;
+  onGlobalDiscountAmountHtChange: (n: number) => void;
 }
 
 export default function QuoteCommercialSection({
@@ -24,14 +25,16 @@ export default function QuoteCommercialSection({
   onDepositChange,
   validityDays,
   globalDiscountPercent,
+  globalDiscountAmountHt,
   onValidityDaysChange,
   onGlobalDiscountPercentChange,
+  onGlobalDiscountAmountHtChange,
 }: QuoteCommercialSectionProps) {
   return (
     <div className="qb-commercial-inner">
       <QuoteDepositSection canEdit={canEdit} deposit={deposit} onChange={onDepositChange} />
       <div className="qb-commercial-grid">
-        <label className="qb-field">
+        <label className="qb-field" style={{ gridColumn: "1 / -1" }}>
           <span>Validité du devis (jours)</span>
           <LocaleNumberInput
             className="sn-input qb-field-input"
@@ -56,6 +59,19 @@ export default function QuoteCommercialSection({
             onChange={onGlobalDiscountPercentChange}
             maximumFractionDigits={2}
             aria-label="Remise globale sur le document en pourcent"
+          />
+        </label>
+        <label className="qb-field">
+          <span>Remise fixe sur le document (€ HT)</span>
+          <LocaleNumberInput
+            className="sn-input qb-field-input"
+            min={0}
+            disabled={!canEdit}
+            value={globalDiscountAmountHt}
+            onChange={onGlobalDiscountAmountHtChange}
+            minimumFractionDigits={2}
+            maximumFractionDigits={2}
+            aria-label="Remise globale sur le document en euros hors taxes"
           />
         </label>
       </div>

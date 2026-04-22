@@ -5,10 +5,10 @@
 
 /* Variables legacy */
 .pdf-legacy-port {
-  --brand: #C39847;
+  --brand: var(--brand);
   background: #f5f6f8;
   color: #0F172A;
-  --bar-gradient: linear-gradient(90deg, #C39847, #d4af63);
+  --bar-gradient: linear-gradient(90deg, var(--brand), color-mix(in srgb, var(--brand) 72%, #ffffff));
   --card-border: #e6e8ee;
   --card-soft-bg: #faf9f6;
   --card-soft-border: #efe7d7;
@@ -24,7 +24,7 @@
 }
 
 #p2 .p2-table-head-row {
-  border-bottom: 0.35mm solid rgba(195, 152, 71, 0.55);
+  border-bottom: 0.35mm solid rgb(from var(--brand) r g b / 0.55);
 }
 
 #p2 tbody .p2-table-body-row:nth-child(odd) {
@@ -46,7 +46,7 @@
 }
 
 #p2 .p2-table-compact td:nth-child(3) {
-  color: #C39847;
+  color: var(--brand);
   font-weight: 600;
 }
 
@@ -59,7 +59,7 @@
 #p2 .p2-highlight-row td {
   font-weight: 700;
   font-size: 1.15em;
-  background: rgba(195, 152, 71, 0.08);
+  background: rgb(from var(--brand) r g b / 0.08);
 }
 
 /* En-têtes tableau */
@@ -90,7 +90,7 @@
 #p2 .p2-hero strong {
   font-size: 1.15em;
   font-weight: 700;
-  color: #C39847;
+  color: var(--brand);
 }
 
 #p2 .p2-hero strong span {
@@ -146,7 +146,7 @@
 }
 
 #p2 .p2-bar-reduced {
-  background: linear-gradient(180deg, #d4ae5e 0%, #c39847 45%, #a67d35 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--brand) 78%, #ffffff) 0%, var(--brand) 45%, color-mix(in srgb, var(--brand) 55%, #000000) 100%);
 }
 
 #p2 .p2-bar span {
@@ -185,13 +185,13 @@
 /* Barre dorée */
 .pdf-legacy-port .bar {
   height: 1.6mm;
-  background: linear-gradient(90deg, #C39847, #e8d2a5);
+  background: linear-gradient(90deg, var(--brand), #e8d2a5);
   border-radius: 3mm;
 }
 
 .pdf-legacy-port .bar.thin {
   height: 1mm;
-  background: linear-gradient(90deg, #C39847, #d4af63);
+  background: linear-gradient(90deg, var(--brand), #d4af63);
   border-radius: 999mm;
 }
 
@@ -206,8 +206,8 @@
 /* Badge */
 .pdf-legacy-port .badge {
   font-size: 3.1mm;
-  border: 0.3mm solid #C39847;
-  color: #C39847;
+  border: 0.3mm solid var(--brand);
+  color: var(--brand);
   border-radius: 999mm;
   padding: 0.8mm 2.8mm;
 }
@@ -264,9 +264,9 @@
   align-items: center;
   padding: 2.8mm 3.2mm;
   margin-top: 2.4mm;
-  border: 0.3mm solid rgba(195, 152, 71, 0.25);
+  border: 0.3mm solid rgb(from var(--brand) r g b / 0.25);
   border-radius: 3mm;
-  background: linear-gradient(90deg, rgba(195, 152, 71, 0.06), rgba(250, 249, 246, 1));
+  background: linear-gradient(90deg, rgb(from var(--brand) r g b / 0.06), rgba(250, 249, 246, 1));
   font-size: 3.4mm;
   column-gap: 1.2mm;
 }
@@ -293,7 +293,7 @@
 }
 
 .pdf-legacy-port .kpi-item.highlight strong {
-  color: #C39847;
+  color: var(--brand);
 }
 
 /* P7 — Schéma flux : traitement distinct de P6 (graphique courbe + légende) */
@@ -305,7 +305,7 @@
   border-radius: 4.6mm;
   background: linear-gradient(165deg, #fffefb 0%, #ffffff 55%, #faf8f5 100%);
   box-shadow:
-    inset 0 0 0 0.38mm rgba(195, 152, 71, 0.34),
+    inset 0 0 0 0.38mm rgb(from var(--brand) r g b / 0.34),
     0 1.35mm 4.2mm rgba(15, 23, 42, 0.048);
 }
 
@@ -317,14 +317,14 @@
   bottom: 2.65mm;
   width: 0.5mm;
   border-radius: 1mm;
-  background: linear-gradient(180deg, #d4af63, #c39847);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--brand) 72%, #ffffff), var(--brand));
   opacity: 0.95;
 }
 
 .pdf-legacy-port #p7 .p7-lecture-card.card.soft {
   border-style: dashed;
   border-width: 0.4mm;
-  border-color: rgba(195, 152, 71, 0.32);
+  border-color: rgb(from var(--brand) r g b / 0.32);
   background: rgba(255, 252, 248, 0.92);
 }
 
@@ -420,7 +420,7 @@
   letter-spacing: 0.06em;
   text-align: center;
   background: linear-gradient(180deg, #fafaf9, #fff);
-  border: 0.35mm dashed rgba(195, 152, 71, 0.35);
+  border: 0.35mm dashed rgb(from var(--brand) r g b / 0.35);
   border-radius: 5mm;
 }
 
@@ -465,7 +465,7 @@
   text-align: center;
   padding: 2.2mm 3.2mm 0.65mm;
   margin: 0 -0.5mm 0.35mm;
-  background: radial-gradient(ellipse 120% 80% at 50% 0%, rgba(195, 152, 71, 0.08), transparent 55%);
+  background: radial-gradient(ellipse 120% 80% at 50% 0%, rgb(from var(--brand) r g b / 0.08), transparent 55%);
 }
 
 .pdf-legacy-port #p9 .p9-hero-caption {
@@ -486,7 +486,7 @@
   line-height: 1.02;
   color: #6b5220;
   letter-spacing: -0.04em;
-  text-shadow: 0 0.12mm 0 rgba(255, 255, 255, 1), 0 0.2mm 0.6mm rgba(195, 152, 71, 0.22);
+  text-shadow: 0 0.12mm 0 rgba(255, 255, 255, 1), 0 0.2mm 0.6mm rgb(from var(--brand) r g b / 0.22);
 }
 
 .pdf-legacy-port #p9 .p9-scenario-line {
@@ -532,7 +532,7 @@
   display: flex;
   flex-direction: column;
   background: linear-gradient(180deg, #fffdf9 0%, #ffffff 50%, #fafbfc 100%);
-  border: 0.3mm solid rgba(195, 152, 71, 0.28);
+  border: 0.3mm solid rgb(from var(--brand) r g b / 0.28);
   border-radius: 4mm;
   flex-shrink: 0;
   overflow: hidden;
@@ -562,7 +562,7 @@
 
 /* Bandeau indicateurs : ~ −1/3 sur hauteur & typo (chiffres foncés) */
 .pdf-legacy-port #p9 .p9-kpi-cell {
-  border: 0.38mm solid rgba(195, 152, 71, 0.3);
+  border: 0.38mm solid rgb(from var(--brand) r g b / 0.3);
   border-radius: 2.7mm;
   padding: 0.7mm 1mm 0.75mm;
   min-height: 12mm;
@@ -674,8 +674,8 @@
   margin: 5.25mm 0 0;
   padding: 2.35mm 3.5mm;
   border-radius: 2.6mm;
-  background: linear-gradient(135deg, rgba(195, 152, 71, 0.18) 0%, rgba(26, 32, 44, 0.06) 100%);
-  border: 0.35mm solid rgba(195, 152, 71, 0.45);
+  background: linear-gradient(135deg, rgb(from var(--brand) r g b / 0.18) 0%, rgba(26, 32, 44, 0.06) 100%);
+  border: 0.35mm solid rgb(from var(--brand) r g b / 0.45);
   box-shadow: 0 0.5mm 2mm rgba(15, 23, 42, 0.12);
 }
 
@@ -697,7 +697,7 @@
   margin-top: 0.85mm;
   font-size: 3.55mm;
   font-weight: 700;
-  color: #c39847;
+  color: var(--brand);
   line-height: 1.22;
 }
 
@@ -729,7 +729,7 @@
 }
 
 #p8 .p8-schema-icon--sun {
-  color: #C39847;
+  color: var(--brand);
 }
 
 #p8 .p8-schema-icon--bat {
@@ -775,8 +775,8 @@
 }
 
 #p8 .p8-compare-col--bat {
-  background: linear-gradient(180deg, rgba(195, 152, 71, 0.14) 0%, rgba(255, 255, 255, 0.95) 55%);
-  border-color: rgba(195, 152, 71, 0.4);
+  background: linear-gradient(180deg, rgb(from var(--brand) r g b / 0.14) 0%, rgba(255, 255, 255, 0.95) 55%);
+  border-color: rgb(from var(--brand) r g b / 0.4);
 }
 
 #p8 .p8-compare-title {
@@ -792,7 +792,7 @@
 
 #p8 .p8-compare-col--bat .p8-compare-title {
   color: #92400e;
-  border-bottom-color: rgba(195, 152, 71, 0.35);
+  border-bottom-color: rgb(from var(--brand) r g b / 0.35);
 }
 
 #p8 .p8-compare-row {
@@ -844,20 +844,20 @@
 
 #p8 .p8-battery-card--virt {
   background: linear-gradient(180deg, #fffdfb 0%, #fff 100%);
-  border-color: rgba(195, 152, 71, 0.35);
+  border-color: rgb(from var(--brand) r g b / 0.35);
 }
 
 #p8 .p8-battery-title {
   font-size: 3.65mm;
   font-weight: 800;
-  color: #C39847;
+  color: var(--brand);
   margin-bottom: 2mm;
   line-height: 1.18;
   flex-shrink: 0;
 }
 
 #p8 .p8-battery-card--virt .p8-battery-title {
-  color: #C39847;
+  color: var(--brand);
 }
 
 #p8 .p8-battery-grid {
@@ -897,7 +897,7 @@
   padding: 0;
   font-size: 3.35mm;
   font-weight: 800;
-  color: #c39847;
+  color: var(--brand);
   line-height: 1.28;
   text-align: left;
   letter-spacing: -0.01em;
@@ -977,7 +977,7 @@
 }
 
 #p8 .p8-battery-aside {
-  border-left: 0.45mm solid rgba(195, 152, 71, 0.42);
+  border-left: 0.45mm solid rgb(from var(--brand) r g b / 0.42);
   padding: 0 0 0 3.6mm;
   margin: 0;
   min-width: 0;
@@ -993,7 +993,7 @@
 }
 
 #p8 .p8-battery-card--virt .p8-battery-aside {
-  border-left-color: rgba(195, 152, 71, 0.45);
+  border-left-color: rgb(from var(--brand) r g b / 0.45);
 }
 
 #p8 .p8-battery-aside-title {
@@ -1049,8 +1049,8 @@
 }
 
 #p8 .p8-battery-card--virt .p8-battery-highlights {
-  background: rgba(195, 152, 71, 0.1);
-  border-color: rgba(195, 152, 71, 0.28);
+  background: rgb(from var(--brand) r g b / 0.1);
+  border-color: rgb(from var(--brand) r g b / 0.28);
 }
 
 #p8 .p8-battery-highlights li {

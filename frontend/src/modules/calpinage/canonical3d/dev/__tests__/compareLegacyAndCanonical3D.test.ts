@@ -37,16 +37,16 @@ describe("prepareCalpinageStateForLegacyParityProbe", () => {
 });
 
 describe("compareLegacyAndCanonical3D — scénarios ciblés", () => {
-  it("dossier sans contrat monde : canonical KO, rapport DEGRADED", () => {
+  it("dossier sans contrat persisté : matérialisation scale/nord au build, canonical OK (batterie CAS 4)", () => {
     const b = RUNTIME_3D_FIXTURE_BATTERY["partial-missing-world-contract"]!;
     const r = compareLegacyAndCanonical3D({
       sceneId: b.id,
       runtime: b.runtime,
       getAllPanels: () => b.panels,
     });
-    expect(r.meta.canonicalBuildOk).toBe(false);
-    expect(r.overall.status).toBe("DEGRADED");
-    expect(r.sceneGlobal.canonicalScenePresent).toBe(false);
+    expect(r.meta.canonicalBuildOk).toBe(true);
+    expect(r.meta.canonical3DEligible).toBe(true);
+    expect(r.sceneGlobal.canonicalScenePresent).toBe(true);
   });
 
   it("simple_gable_clean : build OK, pans/panels/obstacles alignés (ids stricts)", () => {

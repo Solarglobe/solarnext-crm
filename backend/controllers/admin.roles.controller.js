@@ -5,6 +5,11 @@
  */
 
 import { pool } from "../config/db.js";
+import {
+  isJwtSuperAdmin,
+  sendForbiddenSuperAdminRole,
+  SUPER_ADMIN_ROLE_CODE,
+} from "../lib/superAdminUserGuards.js";
 
 const orgId = (req) => req.user.organizationId ?? req.user.organization_id;
 
@@ -22,7 +27,12 @@ export async function list(req, res) {
        ORDER BY organization_id NULLS LAST, code`,
       [org]
     );
-    res.json(result.rows);
+    const rows = isJwtSuperAdmin(req)
+      ? result.rows
+      : result.rows.filter(
+          (r) => String(r.code || "").toUpperCase() !== SUPER_ADMIN_ROLE_CODE
+        );
+    res.json(rows);
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -47,6 +57,9 @@ export async function getPermissions(req, res) {
     const r = role.rows[0];
     if (r.organization_id !== org && r.organization_id !== null) {
       return res.status(404).json({ error: "Rôle non trouvé ou hors organisation" });
+    }
+    if (!isJwtSuperAdmin(req) && String(r.code || "").toUpperCase() === SUPER_ADMIN_ROLE_CODE) {
+      return sendForbiddenSuperAdminRole(res);
     }
 
     const perms = await pool.query(

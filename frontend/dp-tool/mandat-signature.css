@@ -1,0 +1,194 @@
+/* Aligné sur quote-signature-pad.css + ModalShell CRM (visuel devis) */
+
+.mandat-sign-modal[hidden] {
+  display: none !important;
+}
+
+.mandat-sign-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+.mandat-sign-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.mandat-sign-modal__panel {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 640px;
+  max-height: min(92vh, 900px);
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border-radius: var(--sg-radius-lg, 12px);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+}
+
+.mandat-sign-modal__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.mandat-sign-modal__head h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #111827;
+}
+
+.mandat-sign-modal__close {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 4px 8px;
+  font-size: 1.25rem;
+  line-height: 1;
+  color: #6b7280;
+  border-radius: 8px;
+}
+
+.mandat-sign-modal__close:hover {
+  background: #f3f4f6;
+  color: #111827;
+}
+
+.mandat-sign-modal__body {
+  padding: 14px 18px;
+  overflow: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+.mandat-sign-name-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.mandat-sign-name-row label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.mandat-sign-name-row input {
+  padding: 8px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.mandat-sign-hint {
+  margin: 0 0 10px;
+  font-size: 13px;
+  color: #6b7280;
+  line-height: 1.45;
+}
+
+.mandat-sign-read-accept {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  max-width: 720px;
+  margin: 12px auto 0;
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.35;
+  color: #1f2937;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+.mandat-sign-read-accept input {
+  margin-top: 3px;
+  flex-shrink: 0;
+}
+
+/* Même dimensions logiques que le pad devis (QuoteSignaturePadModal) */
+.quote-signature-pad-canvas-wrap {
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.quote-signature-pad-canvas {
+  display: block;
+  width: 100%;
+  max-width: 720px;
+  height: auto;
+  aspect-ratio: 720 / 320;
+  box-sizing: border-box;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  border: 1px solid #333;
+  background: #fff;
+  cursor: crosshair;
+}
+
+.mandat-sign-modal__footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+  padding: 12px 18px;
+  border-top: 1px solid #e5e7eb;
+  background: #fafafa;
+}
+
+.mandat-sign-modal__footer button {
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.mandat-sign-modal__btn-ghost {
+  background: transparent;
+  border-color: #e5e7eb !important;
+  color: #374151;
+}
+
+.mandat-sign-modal__btn-ghost:hover {
+  background: #f3f4f6;
+}
+
+.mandat-sign-modal__btn-primary {
+  background: linear-gradient(135deg, #7c3aed, #6d28d9);
+  color: #fff;
+}
+
+.mandat-sign-modal__btn-primary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+@media (max-width: 520px) {
+  .mandat-sign-name-row {
+    grid-template-columns: 1fr;
+  }
+}

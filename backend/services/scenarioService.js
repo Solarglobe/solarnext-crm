@@ -12,6 +12,10 @@
 
 import { simulateBattery8760 } from "./batteryService.js";
 import { aggregateMonthly } from "./monthlyAggregator.js";
+import {
+  SCENARIO_HOURS_PER_YEAR,
+  SCENARIO_MONTHLY_BATTERY_AUTO_BOOST,
+} from "./core/engineConstants.js";
 
 
 // ======================================================================
@@ -33,7 +37,7 @@ function simulateDirect8760(pv, load, ctx) {
   // Limite injection réseau
   const injection_max = kva > 0 ? kva : Infinity;
 
-  for (let i = 0; i < 8760; i++) {
+  for (let i = 0; i < SCENARIO_HOURS_PER_YEAR; i++) {
     const p = pv[i] || 0;
     const l = load[i] || 0;
 
@@ -54,7 +58,7 @@ function simulateDirect8760(pv, load, ctx) {
 
   // import réseau
   const import_hourly = [];
-  for (let i = 0; i < 8760; i++) {
+  for (let i = 0; i < SCENARIO_HOURS_PER_YEAR; i++) {
     import_hourly.push(Math.max(0, load[i] - auto_hourly[i]));
   }
 
@@ -117,25 +121,25 @@ function simulateEnergyAnnual(ctx, name, kwc, production, consumption, hasBatter
   // --------------------------------------------------------------------
   // 1) MODE PREMIUM 8760h (PV = ctx.pv.hourly * kWc, conso = profil piloté)
 // --------------------------------------------------------------------
-  const have8760PV = Array.isArray(ctx?.pv?.hourly) && ctx.pv.hourly.length === 8760;
+  const have8760PV = Array.isArray(ctx?.pv?.hourly) && ctx.pv.hourly.length === SCENARIO_HOURS_PER_YEAR;
 
   // On récupère la conso pilotée 8760h dans l'ordre de priorité :
   //  - ctx.conso_p_pilotee (nom utilisé dans calc.controller.js)
   //  - ctx.conso_pilotee (au cas où)
   //  - ctx.conso.hourly (fallback ultime)
-const loadHourly = Array.isArray(ctx?.conso?.clamped) && ctx.conso.clamped.length === 8760
+const loadHourly = Array.isArray(ctx?.conso?.clamped) && ctx.conso.clamped.length === SCENARIO_HOURS_PER_YEAR
   ? ctx.conso.clamped
   : ctx.conso.hourly;
 
 
-  const have8760Conso = Array.isArray(loadHourly) && loadHourly.length === 8760;
+  const have8760Conso = Array.isArray(loadHourly) && loadHourly.length === SCENARIO_HOURS_PER_YEAR;
 
   if (have8760PV && have8760Conso) {
     // PV réel du scénario = profil 1 kWc × kWc
 const pv = ctx.pv.hourly.map(v => (v || 0) * kwc);
 
 // PATCH SECURITE : garantie pipeline unifié même en mode forcé
-if (!Array.isArray(pv) || pv.length !== 8760) {
+if (!Array.isArray(pv) || pv.length !== SCENARIO_HOURS_PER_YEAR) {
   throw new Error("PV 8760 invalide dans simulateEnergyAnnual");
 }
 
@@ -247,7 +251,7 @@ const load = loadHourly;
       const autoDirect = Math.min(prod, conso);
 
       // petit bonus d'autoconsommation (max +10%), borné physiquement
-      const autoBoost = autoDirect * 1.1;
+      const autoBoost = autoDirect * SCENARIO_MONTHLY_BATTERY_AUTO_BOOST;
       auto = Math.min(prod, conso, autoBoost);
       surplus = Math.max(0, prod - auto);
     }

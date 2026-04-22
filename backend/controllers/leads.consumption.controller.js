@@ -45,6 +45,7 @@ export async function patchConsumption(req, res) {
       mode: "write",
       forbidArchivedWrite: true,
       logContext: "PATCH /api/leads/:id/consumption",
+      req,
     });
     if (!gate.ok) {
       return res.status(gate.status).json(gate.body);

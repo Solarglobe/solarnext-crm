@@ -35,7 +35,20 @@ export const EXPECTED_SCHEMA = {
     "consumption_mode",
     "consumption_annual_kwh",
     "consumption_annual_calculated_kwh",
+    "birth_date",
     "created_at",
+  ],
+
+  client_portal_tokens: [
+    "id",
+    "organization_id",
+    "lead_id",
+    "token_hash",
+    "token_secret",
+    "created_at",
+    "expires_at",
+    "revoked_at",
+    "last_used_at",
   ],
 
   lead_meters: [
@@ -46,5 +59,14 @@ export const EXPECTED_SCHEMA = {
     "is_default",
     "consumption_mode",
     "created_at",
+  ],
+
+  lead_dp: [
+    "id",
+    "organization_id",
+    "lead_id",
+    "state_json",
+    "created_at",
+    "updated_at",
   ],
 };

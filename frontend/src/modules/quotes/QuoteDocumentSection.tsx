@@ -13,6 +13,11 @@ export interface QuoteDocumentSectionProps {
   pdfShowLinePricing: boolean;
   canEdit: boolean;
   onPdfShowLinePricingChange: (value: boolean) => void;
+  /** Annexes légales PDF (fusion serveur). */
+  legalDocuments: { include_rge: boolean; include_decennale: boolean };
+  onLegalDocumentsChange: (patch: Partial<{ include_rge: boolean; include_decennale: boolean }>) => void;
+  /** Présence des fichiers côté organisation (aperçu validation). */
+  complementaryConfigured?: { rge: boolean; decennale: boolean } | null;
   studyId?: string | null;
   studyVersionId?: string | null;
   studyLabel?: string | null;
@@ -25,6 +30,9 @@ export default function QuoteDocumentSection({
   pdfShowLinePricing,
   canEdit,
   onPdfShowLinePricingChange,
+  legalDocuments,
+  onLegalDocumentsChange,
+  complementaryConfigured,
   studyId,
   studyVersionId,
   studyLabel,
@@ -91,6 +99,55 @@ export default function QuoteDocumentSection({
             <span className="qb-doc-radio__hint">Libellé, référence, description — totaux HT / TVA / TTC en bas</span>
           </label>
         </div>
+      </fieldset>
+
+      <fieldset className="qb-doc-fieldset" disabled={!canEdit}>
+        <legend className="qb-doc-fieldset__legend">Documents inclus dans le devis (PDF)</legend>
+        <p className="qb-doc-card__subtitle" style={{ marginTop: 0, marginBottom: 12 }}>
+          Les conditions générales (CGV) sont toujours jointes automatiquement. Les attestations ci-dessous sont ajoutées en
+          fin de PDF si vous les cochez (fichiers configurés dans Équipes &amp; entreprise → Documents légaux).
+        </p>
+        <ul className="qb-legal-docs-list" style={{ listStyle: "none", padding: 0, margin: 0 }}>
+          <li style={{ marginBottom: 10 }}>
+            <span className="qb-muted">CGV — inclus automatiquement</span>
+          </li>
+          <li style={{ marginBottom: 10 }}>
+            <label style={{ display: "flex", alignItems: "flex-start", gap: 8, cursor: canEdit ? "pointer" : "default" }}>
+              <input
+                type="checkbox"
+                checked={legalDocuments.include_rge}
+                onChange={(e) => onLegalDocumentsChange({ include_rge: e.target.checked })}
+              />
+              <span>
+                Attestation RGE
+                {complementaryConfigured && legalDocuments.include_rge && !complementaryConfigured.rge ? (
+                  <span className="qb-error" style={{ display: "block", fontSize: 13, marginTop: 4 }}>
+                    Document non configuré — la génération PDF sera refusée tant qu&apos;un fichier RGE n&apos;est pas
+                    enregistré pour l&apos;organisation.
+                  </span>
+                ) : null}
+              </span>
+            </label>
+          </li>
+          <li>
+            <label style={{ display: "flex", alignItems: "flex-start", gap: 8, cursor: canEdit ? "pointer" : "default" }}>
+              <input
+                type="checkbox"
+                checked={legalDocuments.include_decennale}
+                onChange={(e) => onLegalDocumentsChange({ include_decennale: e.target.checked })}
+              />
+              <span>
+                Assurance décennale
+                {complementaryConfigured && legalDocuments.include_decennale && !complementaryConfigured.decennale ? (
+                  <span className="qb-error" style={{ display: "block", fontSize: 13, marginTop: 4 }}>
+                    Document non configuré — la génération PDF sera refusée tant qu&apos;un fichier n&apos;est pas
+                    enregistré pour l&apos;organisation.
+                  </span>
+                ) : null}
+              </span>
+            </label>
+          </li>
+        </ul>
       </fieldset>
 
       {!pdfShowLinePricing ? (

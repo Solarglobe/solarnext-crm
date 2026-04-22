@@ -6,9 +6,8 @@
  */
 
 import type { PvPanelPlacementInput } from "../pvPanels/pvPanelInput";
-import { buildRoofModel3DFromLegacyGeometry } from "../builder/buildRoofModel3DFromLegacyGeometry";
-import { mapCalpinageRoofToLegacyRoofGeometryInput } from "../../integration/mapCalpinageToCanonicalNearShading";
 import { resolveCalpinageStructuralRoofForCanonicalChain } from "../../integration/calpinageStructuralRoofFromRuntime";
+import type { RoofPlanePatch3D } from "../types/roof-surface";
 import type { CalpinageStructuralRoofSource } from "../../integration/calpinageStructuralRoofFromRuntime";
 import { prepareCanonicalPans3DFromCalpinageState } from "../../integration/prepareCanonicalPans3D";
 import { prepareCanonicalObstacles3DFromCalpinageState } from "../../integration/prepareCanonicalObstacles3D";
@@ -21,7 +20,17 @@ import {
   peekCalpinageRuntimeWorldFrame,
   WorldConfigError,
 } from "../world/normalizeWorldConfig";
+import { resolvePanPolygonFor3D } from "../../integration/resolvePanPolygonFor3D";
 import { canonicalSceneWorldFromConfig, type CanonicalWorldConfig } from "../world/worldConvention";
+import type { RoofGeometrySource } from "../fallback/fallbackMinimalHouse3D";
+import {
+  buildFallbackCanonicalPan3DFromContourPx,
+  calpinageProductRoofPanIntent,
+  calpinageRoofMirrorHasPansButStatePansEmpty,
+  calpinageStateHasRoofPanArrays,
+  extractBuildingContourPolygonPx,
+  FALLBACK_MINIMAL_WALL_HEIGHT_M,
+} from "../fallback/fallbackMinimalHouse3D";
 
 // ─── Types publics ───────────────────────────────────────────────────────────
 
@@ -73,6 +82,10 @@ export type CanonicalScene3DDiagnostics = {
     readonly ridgeDropped: number;
     readonly traitDropped: number;
   };
+  /** Origine géométrique toiture / emprise — absent si assembleur antérieur. */
+  readonly roofGeometrySource?: RoofGeometrySource;
+  /** Si `FALLBACK_BUILDING_CONTOUR`, motif du repli (sinon null). */
+  readonly fallbackReason?: string | null;
 };
 
 export type CanonicalScene3DInput = {
@@ -109,9 +122,36 @@ export type BuildCanonicalScene3DInput = {
   /** Prioritaire sur `globalThis.pvPlacementEngine` pour la reconstruction depuis `state`. */
   readonly placementEngine?: PlacementEngineLike | null;
   readonly getAllPanels?: () => unknown[] | null | undefined;
-  /** Pass-through `mapCalpinageRoofToLegacyRoofGeometryInput` (ridges / traits). */
-  readonly structural?: { ridges?: unknown[]; traits?: unknown[] } | null;
+  /**
+   * Patches toit officiels (`buildRoofModel3DFromLegacyGeometry` ou équivalent), **obligatoires** pour charger
+   * les panneaux depuis `state` lorsque `panels` est absent et `deferPlacedPanels` est false.
+   * Aucun rebuild implicite de la toiture dans `loadPanelsFromCalpinageState`.
+   */
+  readonly roofPlanePatches?: readonly RoofPlanePatch3D[];
+  readonly structural?: {
+    readonly ridges?: readonly unknown[];
+    readonly traits?: readonly unknown[];
+  } | null;
   readonly options?: BuildCanonicalScene3DInputOptions;
+  /**
+   * Si true : ne charge pas les panneaux depuis `state` ici (le pipeline appelle ensuite
+   * `loadPanelsFromCalpinageState` avec `roofPlanePatches` déjà résolus).
+   */
+  readonly deferPlacedPanels?: boolean;
+  /**
+   * Produit : ne construit pas les pans via `prepareCanonicalPans3DFromCalpinageState` (résolveur Z).
+   * Les `CanonicalPan3D` sont injectés après le RoofTruth (`deriveCanonicalPans3DFromRoofPlanePatches`).
+   */
+  readonly deferCanonicalPansForOfficialRoof?: boolean;
+  /**
+   * `buildSolarScene3DFromCalpinageRuntime` : lecture stricte `state.pans`, pas de repli silencieux.
+   */
+  readonly productPipeline?: boolean;
+  /**
+   * Si true : autorise le repli emprise `contours` quand aucun pan canonique valide.
+   * Produit : par défaut **false** lorsque `productPipeline` est true.
+   */
+  readonly allowBuildingContourFallback?: boolean;
 };
 
 // ─── Hash déterministe (FNV-1a 32 bits, même famille que pans / obstacles) ───
@@ -144,7 +184,9 @@ export function computeCanonicalScene3DId(
   return `scene3d-${fnv1a32Hex(`${a}\u241e${b}\u241e${c}`)}`;
 }
 
-function resolvePlacementEngine(explicit: PlacementEngineLike | null | undefined): PlacementEngineLike | null {
+export function resolvePlacementEngineForCalpinage3D(
+  explicit: PlacementEngineLike | null | undefined,
+): PlacementEngineLike | null {
   if (explicit !== undefined && explicit !== null) return explicit;
   if (typeof globalThis !== "undefined") {
     const w = globalThis as Record<string, unknown>;
@@ -154,18 +196,55 @@ function resolvePlacementEngine(explicit: PlacementEngineLike | null | undefined
   return null;
 }
 
+function resolvePlacementEngine(explicit: PlacementEngineLike | null | undefined): PlacementEngineLike | null {
+  return resolvePlacementEngineForCalpinage3D(explicit);
+}
+
 function normalIsFinite(n: { readonly x: number; readonly y: number; readonly z: number } | undefined): boolean {
   if (!n) return false;
   return [n.x, n.y, n.z].every((v) => typeof v === "number" && Number.isFinite(v));
 }
 
-function loadPanelsFromCalpinageState(args: {
+/**
+ * Sans pipeline `prepareCanonicalPans3D` : vérifie qu’au moins un enregistrement `state.pans` a un polygone ≥3 sommets.
+ * Utilisé quand `deferCanonicalPansForOfficialRoof` pour conserver les garde-fous produit (pans invalides / repli contour).
+ */
+function statePansHaveAtLeastOnePolygonWithThreePlusPoints(state: unknown): boolean {
+  if (!state || typeof state !== "object") return false;
+  const pans = (state as Record<string, unknown>).pans;
+  if (!Array.isArray(pans)) return false;
+  for (const raw of pans) {
+    if (!raw || typeof raw !== "object") continue;
+    const pan = raw as Record<string, unknown>;
+    const resolved = resolvePanPolygonFor3D(pan);
+    const poly = resolved.raw;
+    if (!Array.isArray(poly)) continue;
+    let count = 0;
+    for (const pt of poly) {
+      if (
+        pt &&
+        typeof pt === "object" &&
+        typeof (pt as { x?: unknown }).x === "number" &&
+        typeof (pt as { y?: unknown }).y === "number"
+      ) {
+        count++;
+      }
+    }
+    if (count >= 3) return true;
+  }
+  return false;
+}
+
+export function loadPanelsFromCalpinageState(args: {
   readonly state: unknown;
   readonly metersPerPixel: number;
   readonly northAngleDeg: number;
   readonly placementEngine: PlacementEngineLike | null;
   readonly getAllPanels?: () => unknown[] | null | undefined;
-  readonly structural?: { ridges?: unknown[]; traits?: unknown[] } | null;
+  /**
+   * Obligatoire et non vide : patches issus d’une toiture **déjà** construite (pas de rebuild ici).
+   */
+  readonly roofPlanePatches: readonly RoofPlanePatch3D[];
 }): { readonly panels: CanonicalPlacedPanel3D[]; readonly notes: string[] } {
   const notes: string[] = [];
   if (!args.state || typeof args.state !== "object") {
@@ -177,14 +256,14 @@ function loadPanelsFromCalpinageState(args: {
     notes.push("PANELS_ROOF_MISSING");
     return { panels: [], notes };
   }
-  const legacy = mapCalpinageRoofToLegacyRoofGeometryInput(roof, args.structural ?? undefined);
-  if (!legacy) {
-    notes.push("PANELS_LEGACY_ROOF_MAP_FAILED");
+  if (!Array.isArray(args.roofPlanePatches) || args.roofPlanePatches.length === 0) {
+    notes.push("PANELS_OFFICIAL_ROOF_PLANE_PATCHES_REQUIRED_NON_EMPTY");
     return { panels: [], notes };
   }
-  const { model } = buildRoofModel3DFromLegacyGeometry(legacy);
+  const patches = args.roofPlanePatches;
+  notes.push("PANELS_USED_OFFICIAL_ROOF_PLANE_PATCHES");
   const placRes = prepareCanonicalPlacedPanelsFromCalpinageState({
-    roofPlanePatches: model.roofPlanePatches,
+    roofPlanePatches: patches,
     metersPerPixel: args.metersPerPixel,
     northAngleDeg: args.northAngleDeg,
     state: args.state,
@@ -196,6 +275,32 @@ function loadPanelsFromCalpinageState(args: {
     notes.push("PLACED_PANELS_BUILD_NOT_OK");
   }
   return { panels: [...placRes.placementInputs], notes };
+}
+
+/**
+ * Fusionne les panneaux posés après le build toiture officiel unique (pipeline produit).
+ */
+export function mergePlacedPanelsIntoCanonicalScene3DInput(
+  scene: CanonicalScene3DInput,
+  panels: readonly CanonicalPlacedPanel3D[],
+  placementDiagnosticsNotes: readonly string[],
+): CanonicalScene3DInput {
+  return {
+    ...scene,
+    sceneId: computeCanonicalScene3DId(scene.roof.pans, scene.obstacles.items, panels),
+    panels: { items: [...panels] },
+    diagnostics: {
+      ...scene.diagnostics,
+      warnings: [
+        ...scene.diagnostics.warnings,
+        ...placementDiagnosticsNotes.map((n) => `PANEL_PLACEMENT:${n}`),
+      ],
+      stats: {
+        ...scene.diagnostics.stats,
+        panelCount: panels.length,
+      },
+    },
+  };
 }
 
 /**
@@ -263,12 +368,18 @@ export function buildCanonicalScene3DInput(input: BuildCanonicalScene3DInput): C
   const northFinal = worldConfigResolved?.northAngleDeg ?? Number.NaN;
   const canPrepareFromState = worldConfigResolved !== null;
 
+  const isProductPipeline = input.productPipeline === true;
+  const allowContourFallback = input.allowBuildingContourFallback ?? !isProductPipeline;
+
   let pans: CanonicalPan3D[] = input.pans !== undefined ? [...input.pans] : [];
   if (input.pans === undefined && input.state !== undefined) {
-    if (canPrepareFromState) {
+    if (input.deferCanonicalPansForOfficialRoof === true) {
+      warnings.push("DEFERRED_CANONICAL_PANS_OFFICIAL_ROOF_TRUTH");
+    } else if (canPrepareFromState) {
       const panRes = prepareCanonicalPans3DFromCalpinageState(input.state, {
         metersPerPixel: mppFinal,
         northAngleDeg: northFinal,
+        productStrictStatePansOnly: isProductPipeline,
       });
       pans = [...panRes.pans];
       warnings.push(...panRes.diagnostics.warnings);
@@ -299,20 +410,133 @@ export function buildCanonicalScene3DInput(input: BuildCanonicalScene3DInput): C
 
   let panels: CanonicalPlacedPanel3D[] = input.panels !== undefined ? [...input.panels] : [];
   if (input.panels === undefined && input.state !== undefined) {
-    if (canPrepareFromState) {
-      const eng = resolvePlacementEngine(input.placementEngine);
-      const loaded = loadPanelsFromCalpinageState({
-        state: input.state,
-        metersPerPixel: mppFinal,
-        northAngleDeg: northFinal,
-        placementEngine: eng,
-        getAllPanels: input.getAllPanels,
-        structural: structuralResolution.payload,
-      });
-      panels = loaded.panels;
-      warnings.push(...loaded.notes);
+    if (input.deferPlacedPanels === true) {
+      warnings.push("DEFERRED_PANEL_PLACEMENT:single_roof_model_product_pipeline");
+    } else if (canPrepareFromState) {
+      const patches = input.roofPlanePatches;
+      if (!patches || patches.length === 0) {
+        errors.push("PANEL_PLACEMENT_REQUIRES_OFFICIAL_ROOF_PLANE_PATCHES");
+        warnings.push(
+          "PANEL_PLACEMENT_SKIPPED: fournir roofPlanePatches (toit officiel résolu) ou deferPlacedPanels:true",
+        );
+      } else {
+        const eng = resolvePlacementEngine(input.placementEngine);
+        const loaded = loadPanelsFromCalpinageState({
+          state: input.state,
+          metersPerPixel: mppFinal,
+          northAngleDeg: northFinal,
+          placementEngine: eng,
+          getAllPanels: input.getAllPanels,
+          roofPlanePatches: patches,
+        });
+        panels = loaded.panels;
+        warnings.push(...loaded.notes);
+      }
     } else {
       warnings.push("CANNOT_PREPARE_PANELS_FROM_STATE: invalid world frame");
+    }
+  }
+
+  let strippedPans = 0;
+  let strippedObstacles = 0;
+  let strippedPanels = 0;
+  let roofGeometrySource: RoofGeometrySource = "REAL_ROOF_PANS";
+  let fallbackReason: string | null = null;
+
+  if (opt.stripInvalidItems) {
+    const pansKept = pans.filter((pan) => {
+      const bad =
+        pan.vertices3D.length < 3 ||
+        !normalIsFinite(pan.normal) ||
+        pan.diagnostics.isDegenerate;
+      if (bad) strippedPans++;
+      return !bad;
+    });
+    const panIdsKept = new Set(pansKept.map((p) => p.panId));
+    const obstaclesKept = obstacles.filter((o) => {
+      const bad =
+        !Number.isFinite(o.baseZWorldM) ||
+        !Number.isFinite(o.topZWorldM) ||
+        o.topZWorldM + 1e-6 < o.baseZWorldM;
+      if (bad) strippedObstacles++;
+      return !bad;
+    });
+    const panelsKept = panels.filter((p) => {
+      const pid = String(p.roofPlanePatchId ?? "");
+      const bad = !pid || !panIdsKept.has(pid);
+      if (bad) strippedPanels++;
+      return !bad;
+    });
+    pans = pansKept;
+    obstacles = obstaclesKept;
+    panels = panelsKept;
+    if (strippedPans || strippedObstacles || strippedPanels) {
+      warnings.push(
+        `STRIPPED_INVALID_ITEMS: pans=${strippedPans}, obstacles=${strippedObstacles}, panels=${strippedPanels}`,
+      );
+    }
+  }
+
+  if (strippedPans || strippedObstacles || strippedPanels) {
+    if (pans.length === 0) {
+      errors.push("NO_PANS_AFTER_STRIP");
+    }
+  }
+
+  if (pans.length === 0 && canPrepareFromState && input.state !== undefined && input.pans === undefined) {
+    const deferRoof = input.deferCanonicalPansForOfficialRoof === true;
+    const panIntent = isProductPipeline && calpinageProductRoofPanIntent(input.state);
+    const hasViableStatePanOutline = statePansHaveAtLeastOnePolygonWithThreePlusPoints(input.state);
+
+    if (isProductPipeline && calpinageRoofMirrorHasPansButStatePansEmpty(input.state)) {
+      errors.push(
+        "PRODUCT_STATE_PANS_REQUIRED: roof.roofPans has entries but state.pans is empty — fill state.pans (product chain does not read the mirror)",
+      );
+    } else if (
+      panIntent &&
+      !allowContourFallback &&
+      (!deferRoof || !hasViableStatePanOutline)
+    ) {
+      errors.push(
+        "PRODUCT_ROOF_PAN_INTENT_BUT_NO_VALID_CANONICAL_PANS_AND_CONTOUR_FALLBACK_DISABLED",
+      );
+    } else if (allowContourFallback) {
+      if (isProductPipeline && calpinageProductRoofPanIntent(input.state)) {
+        warnings.push(
+          "PRODUCT_ASSUMED_BUILDING_CONTOUR_FALLBACK: roof pan data existed or was attempted but no valid canonical pans — contour fallback is explicit",
+        );
+      }
+      const ext = extractBuildingContourPolygonPx(input.state);
+      if (ext) {
+        pans = [
+          buildFallbackCanonicalPan3DFromContourPx({
+            contourPx: ext.points,
+            metersPerPixel: mppFinal,
+            northAngleDeg: northFinal,
+            wallHeightM: FALLBACK_MINIMAL_WALL_HEIGHT_M,
+          }),
+        ];
+        roofGeometrySource = "FALLBACK_BUILDING_CONTOUR";
+        const hadArrays = calpinageStateHasRoofPanArrays(input.state);
+        fallbackReason = hadArrays
+          ? "no_valid_roof_pans_after_prepare_or_strip_used_closed_building_contour"
+          : "no_roof_pans_in_state_used_closed_building_contour";
+        warnings.push(`FALLBACK_MINIMAL_HOUSE_3D:${fallbackReason}`);
+        const ix = errors.indexOf("NO_PANS_AFTER_STRIP");
+        if (ix >= 0) errors.splice(ix, 1);
+      }
+    } else if (isProductPipeline) {
+      if (!deferRoof) {
+        errors.push("PRODUCT_NO_VALID_PANS_AND_BUILDING_CONTOUR_FALLBACK_DISABLED");
+      } else if (pans.length === 0 && !hasViableStatePanOutline) {
+        errors.push("PRODUCT_NO_VALID_PANS_AND_BUILDING_CONTOUR_FALLBACK_DISABLED");
+      }
+    }
+  }
+
+  if (pans.length === 0) {
+    if (!errors.includes("NO_PANS_AFTER_STRIP") && input.deferCanonicalPansForOfficialRoof !== true) {
+      errors.push("NO_PANS_IN_SCENE");
     }
   }
 
@@ -354,61 +578,12 @@ export function buildCanonicalScene3DInput(input: BuildCanonicalScene3DInput): C
     }
   }
 
-  if (pans.length === 0) {
-    errors.push("NO_PANS_IN_SCENE");
-  }
-
-  let strippedPans = 0;
-  let strippedObstacles = 0;
-  let strippedPanels = 0;
-
-  if (opt.stripInvalidItems) {
-    const pansKept = pans.filter((pan) => {
-      const bad =
-        pan.vertices3D.length < 3 ||
-        !normalIsFinite(pan.normal) ||
-        pan.diagnostics.isDegenerate;
-      if (bad) strippedPans++;
-      return !bad;
-    });
-    const panIdsKept = new Set(pansKept.map((p) => p.panId));
-    const obstaclesKept = obstacles.filter((o) => {
-      const bad =
-        !Number.isFinite(o.baseZWorldM) ||
-        !Number.isFinite(o.topZWorldM) ||
-        o.topZWorldM + 1e-6 < o.baseZWorldM;
-      if (bad) strippedObstacles++;
-      return !bad;
-    });
-    const panelsKept = panels.filter((p) => {
-      const pid = String(p.roofPlanePatchId ?? "");
-      const bad = !pid || !panIdsKept.has(pid);
-      if (bad) strippedPanels++;
-      return !bad;
-    });
-    pans = pansKept;
-    obstacles = obstaclesKept;
-    panels = panelsKept;
-    panIds.clear();
-    for (const p of pans) panIds.add(p.panId);
-    if (strippedPans || strippedObstacles || strippedPanels) {
-      warnings.push(
-        `STRIPPED_INVALID_ITEMS: pans=${strippedPans}, obstacles=${strippedObstacles}, panels=${strippedPanels}`,
-      );
-    }
-  }
-
-  if (strippedPans || strippedObstacles || strippedPanels) {
-    if (pans.length === 0) {
-      errors.push("NO_PANS_AFTER_STRIP");
-    }
-  }
-
   if (opt.failOnInvalid && warnings.length > 0) {
     errors.push("FAIL_ON_INVALID: warnings present");
   }
 
-  const isValid = errors.length === 0 && pans.length > 0;
+  const isValid =
+    errors.length === 0 && (pans.length > 0 || input.deferCanonicalPansForOfficialRoof === true);
   const is3DEligible = worldConfigResolved !== null && isValid;
 
   const sceneId = computeCanonicalScene3DId(pans, obstacles, panels);
@@ -457,6 +632,8 @@ export function buildCanonicalScene3DInput(input: BuildCanonicalScene3DInput): C
         ridgeDropped: structuralResolution.stats.ridgeDropped,
         traitDropped: structuralResolution.stats.traitDropped,
       },
+      roofGeometrySource,
+      fallbackReason,
     },
   };
 }

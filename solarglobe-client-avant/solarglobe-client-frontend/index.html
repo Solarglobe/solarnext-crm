@@ -1,0 +1,1048 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <title>SolarGlobe — Espace client</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- FONT -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- ===== CSS GLOBAL MINIMAL ===== -->
+  <style>
+    :root{
+      --gold:#C39847;
+      --bg:#0b0d11;
+      --panel:#141821;
+      --panel-soft:#1a2030;
+      --text:#e6e6e6;
+      --muted:rgba(255,255,255,.65);
+      --border:rgba(255,255,255,.08);
+    }
+
+    *{box-sizing:border-box}
+    html,body{margin:0;padding:0}
+    body{
+      font-family:'Montserrat',system-ui,sans-serif;
+      background:var(--bg);
+      color:var(--text);
+      line-height:1.55;
+    }
+
+    img{display:block;max-width:100%}
+    a{color:var(--gold);text-decoration:none}
+  </style>
+</head>
+
+<body>
+<!-- ======================================================
+     HERO — ESPACE PROJET CLIENT SOLARGLOBE
+====================================================== -->
+<header class="hero">
+
+  <!-- IMAGE -->
+  <div class="hero-bg"></div>
+  <div class="hero-overlay"></div>
+
+  <!-- ZONE MARQUE -->
+  <div class="brand-zone">
+    <div class="brand-halo"></div>
+    <img src="assets/logo-solarglobe.png" alt="SolarGlobe" class="brand-logo">
+    <span class="brand-label">Espace client</span>
+  </div>
+
+  <!-- CONTENU CLIENT -->
+  <div class="hero-content">
+    <span class="hero-line"></span>
+
+    <!-- NOM CLIENT -->
+    <h1 class="hero-name" data-client-nom>
+      <!-- inject&eacute; par app.js -->
+    </h1>
+
+    <!-- SOUS-TITRE PROJET -->
+    <p class="hero-sub">
+      <span data-projet-type></span>
+      &middot;
+      <span data-projet-ville></span>
+      &middot;
+      <span data-projet-bien></span>
+    </p>
+
+    <!-- META -->
+    <div class="hero-meta">
+
+      <!-- R&Eacute;F&Eacute;RENCE DOSSIER -->
+      <span class="hero-ref">
+        Dossier <strong data-reference></strong>
+      </span>
+
+      <!-- BADGE STATUT -->
+      <span class="hero-badge" data-statut-badge>
+        <!-- inject&eacute; par app.js -->
+      </span>
+
+    </div>
+  </div>
+
+</header>
+
+
+  <style>
+    .hero{
+      position:relative;
+      height:420px;
+      overflow:hidden;
+      color:#fff;
+    }
+    .hero-bg{
+      position:absolute;
+      inset:0;
+      background:url("assets/bg-solarglobe-client.webp") center/cover no-repeat;
+      transform:scale(1.05);
+    }
+    .hero-overlay{
+      position:absolute;
+      inset:0;
+      background:linear-gradient(
+        90deg,
+        rgba(5,6,10,.92) 0%,
+        rgba(5,6,10,.7) 40%,
+        rgba(5,6,10,.35) 65%,
+        rgba(5,6,10,.15) 100%
+      );
+    }
+
+    .brand-zone{
+      position:absolute;
+      top:36px;
+      left:36px;
+      z-index:3;
+      display:flex;
+      align-items:center;
+      gap:22px;
+      padding:14px 34px;
+      background:rgba(8,10,14,.6);
+      backdrop-filter:blur(8px);
+      border-radius:8px;
+    }
+    .brand-halo{
+      position:absolute;
+      top:-90px;
+      left:-160px;
+      width:460px;
+      height:300px;
+      background:radial-gradient(
+        ellipse at top left,
+        rgba(195,152,71,.45),
+        rgba(195,152,71,.25),
+        transparent 65%
+      );
+      filter:blur(40px);
+      z-index:-1;
+    }
+    .brand-logo{
+      height:110px;
+      filter:drop-shadow(0 10px 28px rgba(0,0,0,.9));
+    }
+    .brand-label{
+      text-transform:uppercase;
+      font-size:14px;
+      letter-spacing:.6px;
+      opacity:.75;
+    }
+
+    .hero-content{
+      position:relative;
+      z-index:2;
+      max-width:820px;
+      margin-left:36px;
+      margin-top:210px;
+    }
+    .hero-line{
+      position:absolute;
+      top:-120px;
+      left:6px;
+      width:1px;
+      height:110px;
+      background:linear-gradient(
+        to bottom,
+        #C39847,
+        rgba(195,152,71,.35),
+        transparent
+      );
+    }
+    .hero-name{
+      margin:0 0 6px;
+      font-size:36px;
+      font-weight:700;
+    }
+    .hero-sub{
+      margin:0 0 26px;
+      font-size:16px;
+      opacity:.8;
+    }
+    .hero-meta{
+      display:flex;
+      gap:20px;
+      align-items:center;
+      flex-wrap:wrap;
+      font-size:14px;
+    }
+    .hero-badge{
+      padding:8px 18px;
+      border:1px solid rgba(195,152,71,.65);
+      background:rgba(195,152,71,.12);
+      color:#C39847;
+      font-weight:600;
+    }
+
+    @media(max-width:768px){
+      .hero{height:360px}
+      .brand-logo{height:82px}
+      .hero-content{margin-top:170px}
+      .hero-name{font-size:26px}
+      .hero-line{display:none}
+    }
+  </style>
+
+<!-- ======================================================
+     DOSSIER CLIENT — SYNTH&Egrave;SE &amp; AVANCEMENT
+====================================================== -->
+<section class="project-overview">
+
+  <!-- CONTENEUR DOSSIER (LARGEUR UNIQUE) -->
+  <div class="project-container">
+
+    <!-- =========================
+         SYNTH&Egrave;SE + TEXTE (GRILLE)
+    ========================== -->
+    <div class="project-grid">
+
+      <!-- =========================
+           SYNTH&Egrave;SE
+      ========================== -->
+      <div class="project-summary">
+        <h2>Synth&egrave;se de votre projet</h2>
+
+        <div class="summary-grid">
+
+          <div>
+            <span class="label">Adresse du projet</span>
+            <span class="value">
+              <span data-adresse></span><br>
+              <span data-code-postal></span>
+              <span data-ville></span>
+            </span>
+          </div>
+
+          <div>
+            <span class="label">Type de bien</span>
+            <span class="value" data-type-bien></span>
+          </div>
+
+          <div>
+            <span class="label">Type de toiture</span>
+            <span class="value" data-type-toiture></span>
+          </div>
+
+          <div>
+            <span class="label">Orientation principale</span>
+            <span class="value" data-orientation></span>
+          </div>
+
+          <div>
+            <span class="label">Nombre de panneaux max</span>
+            <span class="value" data-panneaux></span>
+          </div>
+
+          <div>
+            <span class="label">Pr&eacute;sence d&rsquo;ombrage</span>
+            <span class="value" data-ombrage></span>
+          </div>
+
+        </div>
+
+        <div class="summary-highlight">
+          <span class="label">Consommation annuelle estim&eacute;e</span>
+          <span class="value big">
+            <span data-consommation></span>
+          </span>
+        </div>
+
+        <p class="summary-note">
+          Les hypoth&egrave;ses de calcul et les d&eacute;tails techniques figurent
+          dans l&rsquo;&eacute;tude mise &agrave; votre disposition.
+        </p>
+      </div>
+
+      <!-- =========================
+           TEXTE HUMAIN
+      ========================== -->
+      <div class="project-text">
+        <h2>Votre espace projet <span>SolarGlobe</span></h2>
+
+        <p>
+          Cet espace s&eacute;curis&eacute; vous permet de consulter, &agrave; tout moment,
+          les informations et documents li&eacute;s &agrave; votre projet photovolta&iuml;que.
+        </p>
+
+        <p>
+          SolarGlobe intervient en tant que
+          <strong>bureau d&rsquo;&eacute;tude ind&eacute;pendant</strong>
+          et assure la coordination globale de votre projet&nbsp;:
+          &eacute;tude technique, d&eacute;marches administratives,
+          suivi de l&rsquo;installation et mise en service.
+        </p>
+
+        <p class="emphasis">
+          Vous n&rsquo;avez aucune action particuli&egrave;re &agrave; effectuer.
+          Nous pilotons les diff&eacute;rentes &eacute;tapes et vous informons
+          &agrave; chaque jalon important.
+        </p>
+      </div>
+
+    </div>
+    <!-- ===== FIN GRILLE ===== -->
+
+
+<!-- =========================
+     AVANCEMENT DU PROJET
+     (PLEINE LARGEUR DOSSIER)
+========================== -->
+<div class="project-pipeline">
+
+  <!-- TITRE + INTRO -->
+  <div class="pipeline-header">
+    <h3>
+      Avancement de <span>votre projet</span>
+    </h3>
+
+    <p class="pipeline-lead">
+      Une vision claire, sans complexit&eacute;.
+    </p>
+
+    <p class="pipeline-desc">
+      Votre projet suit un d&eacute;roulement structur&eacute; et ma&icirc;tris&eacute;.
+      SolarGlobe prend en charge l&rsquo;ensemble des &eacute;tapes techniques
+      et administratives, en lien avec les diff&eacute;rents acteurs du projet.
+    </p>
+  </div>
+
+  <!-- TIMELINE -->
+  <div class="pipeline" data-pipeline>
+
+    <div class="pipeline-track"></div>
+
+    <div class="pipeline-step" data-step="signed">
+      Devis sign&eacute;
+    </div>
+
+    <div class="pipeline-step" data-step="prepared">
+      D&eacute;marches pr&eacute;par&eacute;es
+    </div>
+
+    <div class="pipeline-step" data-step="dp_submitted">
+      D&eacute;claration pr&eacute;alable d&eacute;pos&eacute;e
+    </div>
+
+    <div class="pipeline-step" data-step="dp_accepted">
+      D&eacute;claration pr&eacute;alable accept&eacute;e
+    </div>
+
+    <div class="pipeline-step" data-step="install_planned">
+      Installation planifi&eacute;e
+    </div>
+
+    <div class="pipeline-step" data-step="install_done">
+      Installation r&eacute;alis&eacute;e
+    </div>
+
+    <div class="pipeline-step" data-step="consuel_pending">
+      Consuel en attente
+    </div>
+
+    <div class="pipeline-step" data-step="consuel_ok">
+      Consuel obtenu
+    </div>
+
+    <div class="pipeline-step" data-step="commissioning">
+      Mise en service
+    </div>
+
+    <div class="pipeline-step" data-step="completed">
+      Projet termin&eacute;
+    </div>
+
+  </div>
+
+  <!-- TEXTE CONTEXTUEL -->
+  <div class="pipeline-context">
+
+    <p data-pipeline-context>
+      <!-- inject&eacute; par app.js -->
+    </p>
+
+    <p class="muted" data-pipeline-note>
+      <!-- inject&eacute; par app.js -->
+    </p>
+
+  </div>
+
+</div>
+<!-- ===== FIN PIPELINE ===== -->
+
+<!-- ======================================================
+     DOCUMENTS — SOUS-PARTIE DOSSIER CLIENT
+====================================================== -->
+<div class="project-documents">
+
+  <!-- INTRO -->
+  <div class="documents-header">
+    <h3>
+      Vos propositions &amp; <span>documents</span>
+    </h3>
+
+    <p class="documents-lead">
+      L&rsquo;ensemble de vos documents, centralis&eacute;s et accessibles &agrave; tout moment.
+    </p>
+
+    <p class="documents-intro">
+      Vous trouverez ci-dessous les documents constituant votre projet.
+      Ces documents font foi et peuvent &ecirc;tre consult&eacute;s ou t&eacute;l&eacute;charg&eacute;s librement,
+      &agrave; tout moment.
+    </p>
+  </div>
+
+  <!-- =========================
+       PROPOSITION
+  ========================== -->
+  <div class="proposal-card" data-proposal>
+
+    <div class="proposal-header">
+      <span class="proposal-icon">📁</span>
+      <span class="proposal-title">
+        Proposition personnalis&eacute;e —
+        <strong data-proposal-title></strong>
+      </span>
+    </div>
+
+    <!-- DOCUMENTS -->
+    <div class="documents-list" data-documents-list>
+
+      <!-- DOCUMENT TEMPLATE -->
+      <div class="document-item document-devis" data-document>
+
+        <div class="document-meta">
+          <span class="document-type" data-document-label></span>
+          <span class="document-file">
+            Fichier :
+            <strong data-document-filename></strong>
+          </span>
+        </div>
+
+        <div class="document-actions">
+          <button class="btn-doc" data-action-open>Ouvrir</button>
+          <button class="btn-doc outline" data-action-download>T&eacute;l&eacute;charger</button>
+        </div>
+
+      </div>
+      <!-- FIN DOCUMENT TEMPLATE -->
+
+    </div>
+
+    <!-- TEXTE RASSURANT -->
+    <div class="proposal-note" data-proposal-note>
+      <!-- inject&eacute; par app.js -->
+    </div>
+
+  </div>
+
+</div>
+<!-- ======================================================
+     INTERLOCUTEUR — SOUS-PARTIE DOSSIER CLIENT
+====================================================== -->
+<div class="project-advisor">
+
+  <!-- INTRO -->
+  <div class="advisor-header">
+    <h3>
+      Votre interlocuteur <span>SolarGlobe</span>
+    </h3>
+
+    <p class="advisor-lead">
+      Un point de contact unique, &agrave; votre &eacute;coute.
+    </p>
+  </div>
+
+  <!-- INFOS CONSEILLER -->
+  <div class="advisor-card">
+
+    <div class="advisor-identity">
+      <span class="advisor-name" data-conseiller-nom></span>
+      <span class="advisor-role">Bureau d&rsquo;&eacute;tude SolarGlobe</span>
+    </div>
+
+    <div class="advisor-contact">
+      <span class="advisor-phone">&#128222; 01&nbsp;72&nbsp;99&nbsp;47&nbsp;53</span>
+      <span class="advisor-email">&#9993; <span data-conseiller-email></span></span>
+    </div>
+
+  </div>
+
+  <!-- TEXTE DE CL&Ocirc;TURE -->
+  <div class="advisor-note">
+    <p>
+      Votre conseiller reste disponible pour toute question relative
+      &agrave; votre projet ou &agrave; son avancement.
+    </p>
+
+    <p class="muted">
+      L&rsquo;installation sera r&eacute;alis&eacute;e par un partenaire certifi&eacute; et assur&eacute;,
+      s&eacute;lectionn&eacute; selon les exigences SolarGlobe.
+    </p>
+  </div>
+
+</div>
+
+<footer class="project-footer">
+  <span class="footer-main">
+    SolarGlobe &mdash; Bureau d&rsquo;&eacute;tude photovolta&iuml;que
+  </span>
+  <span class="footer-sep">&middot;</span>
+  <span class="footer-sub">
+    Espace client s&eacute;curis&eacute; &middot; Donn&eacute;es et documents confidentiels &middot; Acc&egrave;s r&eacute;serv&eacute; au titulaire du dossier
+  </span>
+</footer>
+
+
+
+  <!-- =========================
+       STYLES
+  ========================== -->
+  <style>
+    .project-overview{
+      background:#0b0e13;
+      padding:64px 0 96px;
+      color:#fff;
+    }
+
+    .project-container{
+      max-width:1440px;
+      margin:auto;
+      padding:0 36px;
+    }
+
+    /* ===== GRILLE SYNTHÈSE ===== */
+    .project-grid{
+      display:grid;
+      grid-template-columns:1.5fr 1fr;
+      gap:64px;
+      align-items:start;
+      margin-bottom:88px;
+    }
+
+    .project-summary{
+      padding:28px 30px;
+      background:rgba(255,255,255,.035);
+      border:1px solid rgba(195,152,71,.35);
+      border-radius:12px;
+    }
+
+    .project-summary h2{
+      margin:0 0 20px;
+      font-size:20px;
+      color:#C39847;
+    }
+
+    .summary-grid{
+      display:grid;
+      grid-template-columns:repeat(3,1fr);
+      gap:20px 28px;
+      margin-bottom:20px;
+    }
+
+    .label{
+      font-size:12px;
+      text-transform:uppercase;
+      letter-spacing:.45px;
+      opacity:.7;
+      display:block;
+      margin-bottom:4px;
+    }
+
+    .value{
+      font-size:15px;
+      font-weight:500;
+    }
+
+    .value.big{
+      font-size:24px;
+      font-weight:700;
+      color:#C39847;
+    }
+
+    .summary-note{
+      font-size:13px;
+      opacity:.65;
+      margin-top:10px;
+    }
+
+    /* ===== TEXTE ===== */
+    .project-text h2{
+      font-size:26px;
+      margin-bottom:16px;
+    }
+
+    .project-text h2 span{
+      color:#C39847;
+    }
+
+    .project-text p{
+      font-size:14.5px;
+      line-height:1.65;
+      color:rgba(255,255,255,.8);
+      margin-bottom:14px;
+    }
+
+    .project-text .emphasis{
+      font-weight:600;
+      color:#C39847;
+      text-shadow:0 0 8px rgba(195,152,71,.25);
+    }
+
+    /* ===== PIPELINE ===== */
+    .project-pipeline{
+      max-width:100%;
+    }
+
+    .pipeline-header{
+      max-width:900px;
+      margin-bottom:56px;
+    }
+
+    .pipeline-header h3{
+      font-size:24px;
+      margin-bottom:8px;
+    }
+
+    .pipeline-header h3 span{
+      color:#C39847;
+    }
+
+    .pipeline-lead{
+      font-size:15px;
+      font-weight:600;
+      color:#C39847;
+      margin-bottom:12px;
+    }
+
+    .pipeline-desc{
+      color:rgba(255,255,255,.72);
+      max-width:760px;
+    }
+
+    .pipeline{
+      position:relative;
+      display:flex;
+      justify-content:space-between;
+      gap:24px;
+      padding-top:32px;
+    }
+
+    .pipeline-track{
+      position:absolute;
+      top:18px;
+      left:0;
+      right:0;
+      height:2.5px;
+      background:rgba(255,255,255,.22);
+    }
+
+    .pipeline-step{
+      position:relative;
+      font-size:13px;
+      text-align:center;
+      color:rgba(255,255,255,.45);
+      max-width:110px;
+    }
+
+    .pipeline-step::before{
+      content:"";
+      display:block;
+      width:10px;
+      height:10px;
+      margin:0 auto 10px;
+      border-radius:50%;
+      background:rgba(255,255,255,.25);
+    }
+
+    .pipeline-step.done{
+      color:#C39847;
+    }
+
+    .pipeline-step.done::before{
+      background:#C39847;
+    }
+
+    .pipeline-step.active{
+      color:#fff;
+      font-weight:600;
+    }
+
+    .pipeline-step.active::before{
+      width:14px;
+      height:14px;
+      background:#C39847;
+      box-shadow:0 0 0 6px rgba(195,152,71,.25);
+    }
+
+    .pipeline-context{
+      max-width:760px;
+      margin-top:36px;
+      color:rgba(255,255,255,.8);
+    }
+
+   .pipeline-context .muted{
+  margin-top:8px;
+  font-size:13.5px;
+  color:#C39847;
+  opacity:.9;
+  text-shadow:0 0 6px rgba(195,152,71,.25);
+}
+
+
+    /* ===== RESPONSIVE ===== */
+    @media(max-width:1100px){
+      .project-grid{
+        grid-template-columns:1fr;
+        gap:40px;
+      }
+      .summary-grid{
+        grid-template-columns:1fr;
+      }
+      .pipeline{
+        overflow-x:auto;
+        padding-bottom:20px;
+      }
+      .pipeline-step{
+        min-width:120px;
+      }
+    }
+
+/* ======================================================
+   DOCUMENTS — DOSSIER CLIENT
+====================================================== */
+
+.project-documents{
+  margin-top:88px;
+}
+
+/* ----- HEADER ----- */
+.documents-header{
+  max-width:980px;
+  margin-bottom:48px;
+}
+
+.documents-header h3{
+  font-size:24px;
+  margin-bottom:10px;
+}
+
+.documents-header h3 span{
+  color:#C39847;
+}
+
+.documents-lead{
+  font-size:15px;
+  font-weight:600;
+  color:#C39847;
+  margin-bottom:12px;
+}
+
+.documents-intro{
+  max-width:760px;
+  font-size:14.5px;
+  line-height:1.65;
+  color:rgba(255,255,255,.75);
+}
+
+/* ----- PROPOSITION CARD ----- */
+.proposal-card{
+  max-width:1100px;
+  padding:28px 32px;
+  background:rgba(255,255,255,.035);
+  border:1px solid rgba(195,152,71,.25);
+  border-radius:12px;
+}
+
+/* ----- HEADER PROPOSITION ----- */
+.proposal-header{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  margin-bottom:24px;
+  font-size:15px;
+  font-weight:600;
+}
+
+.proposal-icon{
+  font-size:18px;
+}
+
+.proposal-title strong{
+  color:#C39847;
+}
+
+/* ----- DOCUMENTS LIST ----- */
+.documents-list{
+  display:flex;
+  flex-direction:column;
+  gap:20px;
+}
+
+/* ----- DOCUMENT ITEM ----- */
+.document-item{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:24px;
+  padding-bottom:20px;
+  border-bottom:1px solid rgba(255,255,255,.06);
+}
+
+.document-item:last-child{
+  border-bottom:none;
+  padding-bottom:0;
+}
+
+.document-meta{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  font-size:14px;
+}
+
+.document-type{
+  font-weight:600;
+}
+
+.document-file{
+  font-size:13.5px;
+  color:rgba(255,255,255,.65);
+}
+
+/* ----- ACTIONS ----- */
+.document-actions{
+  display:flex;
+  gap:10px;
+}
+
+.btn-doc{
+  padding:8px 14px;
+  font-size:13px;
+  font-weight:600;
+  border-radius:6px;
+  border:1px solid #C39847;
+  background:#C39847;
+  color:#0b0e13;
+  cursor:pointer;
+}
+
+.btn-doc.outline{
+  background:transparent;
+  color:#C39847;
+}
+
+.btn-doc:hover{
+  opacity:.9;
+}
+
+/* ----- NOTE ----- */
+.proposal-note{
+  margin-top:24px;
+  max-width:760px;
+  font-size:14px;
+  line-height:1.6;
+  color:rgba(255,255,255,.75);
+}
+
+/* ----- RESPONSIVE ----- */
+@media(max-width:900px){
+  .document-item{
+    flex-direction:column;
+    gap:14px;
+  }
+  .document-actions{
+    align-self:flex-start;
+  }
+}
+
+/* ----- DOCUMENT DEVIS (ACCENT OR) ----- */
+.document-devis .document-type{
+  color:#C39847;
+  font-weight:700;
+  text-shadow:0 0 6px rgba(195,152,71,.25);
+}
+
+/* ======================================================
+   INTERLOCUTEUR — DOSSIER CLIENT
+====================================================== */
+
+.project-advisor{
+  margin-top:88px;
+}
+
+/* ----- HEADER ----- */
+.advisor-header{
+  max-width:760px;
+  margin-bottom:40px;
+}
+
+.advisor-header h3{
+  font-size:24px;
+  margin-bottom:10px;
+}
+
+.advisor-header h3 span{
+  color:#C39847;
+}
+
+.advisor-lead{
+  font-size:15px;
+  font-weight:600;
+  color:#C39847;
+}
+
+/* ----- CARD CONSEILLER ----- */
+.advisor-card{
+  max-width:760px;
+  padding:22px 26px;
+  background:rgba(255,255,255,.035);
+  border:1px solid rgba(195,152,71,.25);
+  border-radius:10px;
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:24px;
+  margin-bottom:28px;
+}
+
+.advisor-identity{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+}
+
+.advisor-name{
+  font-size:16px;
+  font-weight:700;
+  color:#fff;
+}
+
+.advisor-role{
+  font-size:13.5px;
+  color:rgba(255,255,255,.65);
+}
+
+.advisor-contact{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  font-size:14px;
+}
+
+.advisor-phone,
+.advisor-email{
+  color:#C39847;
+  font-weight:600;
+}
+
+/* ----- NOTE ----- */
+.advisor-note{
+  max-width:760px;
+  font-size:14.5px;
+  line-height:1.6;
+  color:rgba(255,255,255,.8);
+}
+
+.advisor-note .muted{
+  margin-top:8px;
+  font-size:13.5px;
+  color:rgba(255,255,255,.65);
+}
+
+/* ----- RESPONSIVE ----- */
+@media(max-width:900px){
+  .advisor-card{
+    flex-direction:column;
+    gap:16px;
+  }
+}
+/* ----- TEXTE CLÔTURE CONSEILLER (ACCENT OR) ----- */
+.project-advisor .advisor-note .muted{
+  color:#C39847;
+  opacity:.9;
+  font-weight:600;
+  text-shadow:0 0 6px rgba(195,152,71,.25);
+}
+
+
+/* ======================================================
+   FOOTER — SIGNATURE INSTITUTIONNELLE (COMPACT)
+====================================================== */
+
+.project-footer{
+  margin-top:48px;               /* 👈 beaucoup plus proche */
+  padding:16px 36px;
+  background:#090b0f;
+
+  display:flex;
+  align-items:center;
+  gap:12px;
+
+  font-size:13px;
+  line-height:1.4;
+}
+
+/* Texte principal */
+.footer-main{
+  font-weight:600;
+  color:#fff;
+  white-space:nowrap;
+}
+
+/* Séparateur discret */
+.footer-sep{
+  color:#C39847;
+  opacity:.6;
+}
+
+/* Texte secondaire */
+.footer-sub{
+  color:rgba(255,255,255,.55);
+  flex:1;
+}
+
+/* Responsive */
+@media(max-width:900px){
+  .project-footer{
+    flex-wrap:wrap;
+    row-gap:6px;
+  }
+  .footer-main{
+    width:100%;
+  }
+}
+
+  </style>
+
+</section>
+
+<script src="src/app.js" defer></script>
+
+
+</body>
+</html>

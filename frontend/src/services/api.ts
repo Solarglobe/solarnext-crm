@@ -1,13 +1,17 @@
+import { applyOrganizationHeaders } from "./orgContextStorage";
+
 export function getAuthToken(): string | null {
   return localStorage.getItem("solarnext_token");
 }
 
 export function authHeaders(): HeadersInit {
   const token = getAuthToken();
-  return {
+  const base: Record<string, string> = {
     "Content-Type": "application/json",
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
+  applyOrganizationHeaders(base);
+  return base;
 }
 
 /**
@@ -20,6 +24,7 @@ function handleSessionExpired(): void {
   _sessionExpiredPending = true;
 
   localStorage.removeItem("solarnext_token");
+  localStorage.removeItem("solarnext_super_admin_edit_mode");
 
   // Affichage d'un message léger sans dépendre d'un composant React
   const banner = document.createElement("div");

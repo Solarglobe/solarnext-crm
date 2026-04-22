@@ -17,12 +17,14 @@ La convention **canonique** est celle implémentée aujourd’hui par `canonical
 
 ### Séparation stricte
 
-| Espace | Rôle |
-|--------|------|
-| **Image space** | Pixels du dessin / overlay 2D (`xPx`, `yPx`). |
-| **World space** | Repère cartésien unique du modèle canonique, **longueurs en mètres**. |
-| **Viewer space** | Pour le viewer officiel : **même coordonnées numériques** que le world (pas de changement d’axes dans `solarSceneThreeGeometry.ts`). |
-| **Plan pan (UV)** | Coordonnées `(u, v)` **dans le repère tangent du pan** — pas confondues avec le plan horizontal monde ni avec les pixels. |
+
+| Espace            | Rôle                                                                                                                                 |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| **Image space**   | Pixels du dessin / overlay 2D (`xPx`, `yPx`).                                                                                        |
+| **World space**   | Repère cartésien unique du modèle canonique, **longueurs en mètres**.                                                                |
+| **Viewer space**  | Pour le viewer officiel : **même coordonnées numériques** que le world (pas de changement d’axes dans `solarSceneThreeGeometry.ts`). |
+| **Plan pan (UV)** | Coordonnées `(u, v)` **dans le repère tangent du pan** — pas confondues avec le plan horizontal monde ni avec les pixels.            |
+
 
 Voir aussi `frontend/src/modules/calpinage/canonical3d/types/coordinates.ts`.
 
@@ -51,13 +53,15 @@ Le mapping **image → plan horizontal monde** (avant ajout de l’altitude Z) e
 
 ## 4. Unités officielles
 
-| Couche | Unité |
-|--------|--------|
-| Image | **Pixels** (`px`). |
-| World (canonique) | **Mètres** (`m`) pour toutes les positions / distances 3D. |
-| Angles (métadonnées modèle) | **Degrés** (`deg`) où le schéma l’indique. |
-| Viewer officiel | **Même unité que le world** (m) — pas de mise à l’échelle métier dans le viewer. |
-| UV pan | **Mètres** dans le repère tangent du pan (`PlaneFrameUv2D`). |
+
+| Couche                      | Unité                                                                            |
+| --------------------------- | -------------------------------------------------------------------------------- |
+| Image                       | **Pixels** (`px`).                                                               |
+| World (canonique)           | **Mètres** (`m`) pour toutes les positions / distances 3D.                       |
+| Angles (métadonnées modèle) | **Degrés** (`deg`) où le schéma l’indique.                                       |
+| Viewer officiel             | **Même unité que le world** (m) — pas de mise à l’échelle métier dans le viewer. |
+| UV pan                      | **Mètres** dans le repère tangent du pan (`PlaneFrameUv2D`).                     |
+
 
 Aucune logique physique canonique ne doit dépendre directement du pixel **sans** passer par `metersPerPixel` et les helpers centralisés.
 
@@ -85,11 +89,11 @@ Aucune logique physique canonique ne doit dépendre directement du pixel **sans*
 
 1. **Entrée** : `xPx`, `yPx`, `metersPerPixel`, `northAngleDeg` (angle nord calpinage / toiture, en degrés).
 2. **Sortie plan horizontal** : `imagePxToWorldHorizontalM` → `{ x, y }` en mètres dans le plan horizontal monde (Z à fixer séparément).
-3. **Champs / modules** :  
-   - `buildRoofModel3DFromLegacyGeometry.ts`  
-   - `volumes/footprintWorld.ts`  
-   - `assembleRoofRidges3D.ts`  
-4. **Échelle** : `metersPerPixel`.  
+3. **Champs / modules** :
+  - `buildRoofModel3DFromLegacyGeometry.ts`  
+  - `volumes/footprintWorld.ts`  
+  - `assembleRoofRidges3D.ts`
+4. **Échelle** : `metersPerPixel`.
 5. **Orientation** : `northAngleDeg` (rotation autour de l’axe vertical monde après le mapping de base).
 
 Point d’ancrage code unique : `frontend/src/modules/calpinage/canonical3d/builder/worldMapping.ts` et `canonical3d/core/worldConvention.ts`.
@@ -116,7 +120,7 @@ Point d’ancrage code unique : `frontend/src/modules/calpinage/canonical3d/buil
 ## 8. Règles strictes
 
 1. Aucun module ne doit redéfinir ses propres axes implicites pour le **chemin canonique**.
-2. Aucun module ne doit convertir pixels ↔ monde « à sa sauce » sur le pipeline officiel : utiliser **`imagePxToWorldHorizontalM`** ou **`worldConvention.ts`**.
+2. Aucun module ne doit convertir pixels ↔ monde « à sa sauce » sur le pipeline officiel : utiliser `**imagePxToWorldHorizontalM`** ou `**worldConvention.ts`**.
 3. Toute logique 3D **nouvelle** doit respecter cette convention et `types/coordinates.ts` (WORLD vs UV pan).
 4. Les directions **vers le soleil** suivent la convention documentée du near shading 3D (`directionTowardSunWorld`).
 
@@ -124,7 +128,7 @@ Point d’ancrage code unique : `frontend/src/modules/calpinage/canonical3d/buil
 
 ## 9. Legacy / compatibilité
 
-- **`phase3Viewer.js` + `houseModelV2`** : repère **approximation** pour aperçu historique (origine `originPx`, axe vertical Three.js **Y**, horizontal **X/Z** dérivés des pixels). **Gelé** — ne pas étendre comme référence métier.
+- `**phase3Viewer.js` + `houseModelV2`** : repère **approximation** pour aperçu historique (origine `originPx`, axe vertical Three.js **Y**, horizontal **X/Z** dérivés des pixels). **Gelé** — ne pas étendre comme référence métier.
 - Le **chemin canonique** reste la référence pour shading réel, exports, et `SolarScene3DViewer`.
 - Migration future : réduire l’écart en réutilisant les mêmes helpers que le builder quand c’est possible, sans casser le rendu legacy tant qu’il est en service.
 
@@ -139,6 +143,9 @@ Chaîne cible cohérente :
 Références code :
 
 - `docs/architecture/3d-world-convention.md` (ce document)
+- `docs/architecture/calpinage-2d-3d-fidelity-level0-charter.md` (cadrage produit A vs B, témoins, critères d’acceptation)
+- `docs/architecture/calpinage-2d-3d-fidelity-level4-implementation.md` (trace audit : emprise contour en m² monde dans `sourceTrace`)
 - `frontend/src/modules/calpinage/canonical3d/core/worldConvention.ts`
 - `frontend/src/modules/calpinage/canonical3d/types/coordinates.ts`
 - `frontend/src/modules/calpinage/canonical3d/builder/worldMapping.ts`
+

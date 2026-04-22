@@ -1,0 +1,284 @@
+.mail-perm {
+  max-width: 100%;
+  padding: 1rem 1.25rem 2rem;
+}
+
+.mail-perm__header {
+  margin-bottom: 1.25rem;
+}
+
+.mail-perm__header h1,
+.mail-perm__header h2 {
+  font-size: 1.35rem;
+  font-weight: 600;
+  margin: 0 0 0.35rem;
+}
+
+.mail-perm--tab {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.mail-perm__header p {
+  margin: 0;
+  color: var(--sn-text-muted, #64748b);
+  font-size: 0.9rem;
+}
+
+.mail-perm__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.mail-perm__filters input {
+  min-width: 200px;
+  padding: 0.45rem 0.65rem;
+  border-radius: 8px;
+  border: 1px solid var(--sn-border, #e2e8f0);
+  background: var(--sn-surface, #fff);
+  color: inherit;
+}
+
+.mail-perm__scroll {
+  overflow: auto;
+  max-height: calc(100vh - 220px);
+  border: 1px solid var(--sn-border, #e2e8f0);
+  border-radius: 10px;
+  background: var(--sn-surface, #fff);
+}
+
+.mail-perm__table {
+  border-collapse: separate;
+  border-spacing: 0;
+  width: 100%;
+  min-width: 480px;
+}
+
+.mail-perm__table th,
+.mail-perm__table td {
+  padding: 0.5rem 0.65rem;
+  border-bottom: 1px solid var(--sn-border, #e2e8f0);
+  border-right: 1px solid var(--sn-border, #e2e8f0);
+  vertical-align: middle;
+  font-size: 0.85rem;
+}
+
+.mail-perm__table th:last-child,
+.mail-perm__table td:last-child {
+  border-right: none;
+}
+
+.mail-perm__table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--sn-surface-elevated, #f8fafc);
+  font-weight: 600;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.mail-perm__corner {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  min-width: 200px;
+  max-width: 280px;
+  background: var(--sn-surface-elevated, #f8fafc);
+  box-shadow: 2px 0 4px rgba(15, 23, 42, 0.06);
+}
+
+.mail-perm__account-cell {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--sn-surface, #fff);
+  box-shadow: 2px 0 4px rgba(15, 23, 42, 0.06);
+  max-width: 280px;
+}
+
+.mail-perm__table tbody tr:hover .mail-perm__account-cell {
+  background: var(--sn-row-hover, #f1f5f9);
+}
+
+.mail-perm__account-title {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mail-perm__account-sub {
+  font-size: 0.75rem;
+  color: var(--sn-text-muted, #64748b);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mail-perm__user-head {
+  text-align: center;
+  min-width: 120px;
+}
+
+.mail-perm__user-label {
+  display: block;
+  font-weight: 600;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0 auto;
+}
+
+.mail-perm__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  justify-content: center;
+  margin-top: 0.25rem;
+}
+
+.mail-perm__badge {
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.mail-perm__badge--manage {
+  background: #ede9fe;
+  color: #5b21b6;
+}
+
+.mail-perm__cell {
+  text-align: center;
+  cursor: default;
+  user-select: none;
+}
+
+.mail-perm__cell--interactive {
+  cursor: pointer;
+}
+
+.mail-perm__cell--interactive:hover {
+  filter: brightness(0.97);
+}
+
+.mail-perm__cell--locked {
+  cursor: not-allowed;
+  opacity: 0.95;
+}
+
+.mail-perm__cell-inner {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem;
+  min-height: 2rem;
+  padding: 0.2rem 0.35rem;
+  border-radius: 8px;
+  transition: background 0.12s ease;
+}
+
+.mail-perm__cell--on .mail-perm__cell-inner {
+  background: rgba(34, 197, 94, 0.18);
+}
+
+.mail-perm__cell--off .mail-perm__cell-inner {
+  background: rgba(148, 163, 184, 0.2);
+}
+
+.mail-perm__cell-icon {
+  font-size: 1rem;
+  line-height: 1;
+  opacity: 0.35;
+}
+
+.mail-perm__cell--on .mail-perm__cell-icon--on {
+  opacity: 1;
+}
+
+.mail-perm__cell-btn {
+  margin-left: 0.15rem;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 0.1rem 0.2rem;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  line-height: 1;
+  color: var(--sn-text-muted, #64748b);
+}
+
+.mail-perm__cell-btn:hover {
+  background: rgba(148, 163, 184, 0.25);
+  color: inherit;
+}
+
+.mail-perm__popover {
+  position: fixed;
+  z-index: 50;
+  min-width: 200px;
+  padding: 0.75rem;
+  background: var(--sn-surface, #fff);
+  border: 1px solid var(--sn-border, #e2e8f0);
+  border-radius: 10px;
+  box-shadow: 0 10px 40px rgba(15, 23, 42, 0.15);
+}
+
+.mail-perm__popover h4 {
+  margin: 0 0 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.mail-perm__popover label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  margin-bottom: 0.35rem;
+  cursor: pointer;
+}
+
+.mail-perm__popover-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.65rem;
+}
+
+.mail-perm__popover-actions button {
+  padding: 0.35rem 0.65rem;
+  border-radius: 6px;
+  border: 1px solid var(--sn-border, #e2e8f0);
+  background: var(--sn-surface, #fff);
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
+.mail-perm__popover-actions button.primary {
+  background: #2563eb;
+  color: #fff;
+  border-color: #2563eb;
+}
+
+.mail-perm__alert {
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  background: #fef3c7;
+  color: #92400e;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}
+
+.mail-perm__error {
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  background: #fee2e2;
+  color: #991b1b;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}

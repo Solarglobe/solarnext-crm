@@ -8,7 +8,14 @@ import type { CanonicalHouseDocument } from "../model/canonicalHouse3DModel";
 /** Document canonique — alias officiel demandé (prompt 2B). */
 export type CanonicalHouse3DDocument = CanonicalHouseDocument;
 
-export type ParseSourceKind = "primary" | "mirror" | "ignored" | "fallback_legacy" | "cache_forbidden" | "external";
+export type ParseSourceKind =
+  | "primary"
+  | "mirror"
+  | "derived"
+  | "ignored"
+  | "fallback_legacy"
+  | "cache_forbidden"
+  | "external";
 
 export interface FieldProvenance {
   readonly sourcePath: string;

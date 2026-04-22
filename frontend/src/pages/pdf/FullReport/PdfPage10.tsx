@@ -74,6 +74,31 @@ export default function PdfPage10({ data }: { data?: P10Data }) {
         <div className="pdf-value">Modules : {val(best.modules_label)}</div>
         <div className="pdf-value">Onduleur : {val(best.inverter_label)}</div>
       </div>
+      {data?.hyp && Object.keys(data.hyp).length > 0 ? (
+        <div className="pdf-section">
+          <div className="pdf-section-title">Hypothèses (moteur)</div>
+          {num(data.hyp.pv_degrad) != null ? (
+            <div className="pdf-value">Dégradation PV : {num(data.hyp.pv_degrad)} % / an</div>
+          ) : null}
+          {num(data.hyp.elec_infl) != null ? (
+            <div className="pdf-value">Inflation électricité : {num(data.hyp.elec_infl)} % / an</div>
+          ) : null}
+          {num(data.hyp.oa_price) != null ? (
+            <div className="pdf-value">Rachat surplus (OA) : {num(data.hyp.oa_price)?.toFixed(4)} €/kWh</div>
+          ) : null}
+          {num(data.hyp.price_kwh) != null ? (
+            <div className="pdf-value">Prix kWh : {num(data.hyp.price_kwh)?.toFixed(4)} €/kWh</div>
+          ) : null}
+          {num(data.hyp.horizon_years) != null ? (
+            <div className="pdf-value">Horizon : {num(data.hyp.horizon_years)} ans</div>
+          ) : null}
+          {num(data.hyp.prime_autoconso_eur) != null ? (
+            <div className="pdf-value">
+              Prime autoconsommation (affichage) : {num(data.hyp.prime_autoconso_eur)?.toLocaleString("fr-FR")} €
+            </div>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }

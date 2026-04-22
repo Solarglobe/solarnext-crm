@@ -73,6 +73,11 @@ export type ValidateCanonicalScene3DInputOptions = {
    * Retire les entités invalides (copie profonde légère de la scène) ; chaque suppression est journalisée en warning.
    */
   readonly autoFilter?: boolean;
+  /**
+   * Pipeline produit : scène sans pans avant dérivation RoofTruth — pas d’erreur « no pans » ni
+   * contrainte `relatedPanId` / panneaux vs pans tant que `roof.pans` est vide.
+   */
+  readonly allowEmptyRoofPansPendingDerivation?: boolean;
 };
 
 function isFiniteNum(n: unknown): n is number {
@@ -150,6 +155,7 @@ type PanelFlags = { invalid: boolean };
 
 function runValidationPass(
   scene: CanonicalScene3DInput,
+  options?: ValidateCanonicalScene3DInputOptions,
 ): {
   errors: CanonicalSceneValidationIssue[];
   warnings: CanonicalSceneValidationIssue[];
@@ -165,6 +171,14 @@ function runValidationPass(
       code: CANONICAL_SCENE_VALIDATION_CODES.SCENE_ASSEMBLER_WARNING,
       message: msg,
       context: { origin: "CanonicalScene3DInput.diagnostics" },
+    });
+  }
+
+  for (const msg of scene.diagnostics.errors) {
+    errors.push({
+      code: CANONICAL_SCENE_VALIDATION_CODES.SCENE_INCOHERENT,
+      message: msg,
+      context: { origin: "CanonicalScene3DInput.diagnostics.errors" },
     });
   }
 
@@ -214,6 +228,8 @@ function runValidationPass(
   const pans = scene.roof.pans;
   const panIds = new Set<string>();
   const panFlags: PanFlags[] = pans.map(() => ({ invalid: false }));
+  const pendingRoofTruthPans =
+    options?.allowEmptyRoofPansPendingDerivation === true && pans.length === 0;
 
   for (let i = 0; i < pans.length; i++) {
     const pan = pans[i]!;
@@ -353,7 +369,7 @@ function runValidationPass(
     }
 
     const rid = o.relatedPanId;
-    if (rid && !panIds.has(rid)) {
+    if (rid && !panIds.has(rid) && !pendingRoofTruthPans) {
       errors.push({
         code: CANONICAL_SCENE_VALIDATION_CODES.SCENE_INCOHERENT,
         message: `Obstacle ${o.obstacleId}: relatedPanId "${rid}" not found among pans`,
@@ -389,7 +405,7 @@ function runValidationPass(
         context: { panelId: p.id },
       });
       panelFlags[i]!.invalid = true;
-    } else if (!panIds.has(patchId)) {
+    } else if (!panIds.has(patchId) && !pendingRoofTruthPans) {
       errors.push({
         code: CANONICAL_SCENE_VALIDATION_CODES.PANEL_ORPHAN,
         message: `Panel ${p.id}: roofPlanePatchId "${patchId}" does not match any pan`,
@@ -404,7 +420,7 @@ function runValidationPass(
     }
   }
 
-  if (pans.length === 0) {
+  if (pans.length === 0 && !pendingRoofTruthPans) {
     errors.push({
       code: CANONICAL_SCENE_VALIDATION_CODES.SCENE_INCOHERENT,
       message: "Scene has no pans",
@@ -480,6 +496,57 @@ function applyStrict(errors: CanonicalSceneValidationIssue[], warnings: Canonica
   warnings.length = 0;
 }
 
+function inferOfficialFailDomain(code: string): string {
+  if (code.startsWith("WORLD_")) return "world_frame";
+  if (code.startsWith("PAN_")) return "roof_pans";
+  if (code.startsWith("OBSTACLE_")) return "obstacles";
+  if (code.startsWith("PANEL_")) return "panels";
+  if (code === CANONICAL_SCENE_VALIDATION_CODES.DUPLICATE_ID) return "duplicate_id";
+  if (
+    code === CANONICAL_SCENE_VALIDATION_CODES.SCENE_INCOHERENT ||
+    code === CANONICAL_SCENE_VALIDATION_CODES.NO_PANS_REMAINING
+  ) {
+    return "scene_assembler_or_topology";
+  }
+  return "other";
+}
+
+/** Logs DEV : premier rejet exact + détail de chaque erreur (pipeline officiel). */
+function logOfficialValidationFailureInDev(result: CanonicalSceneValidationResult): void {
+  try {
+    if (typeof import.meta === "undefined" || !import.meta.env?.DEV) return;
+    if (result.ok) return;
+    const { errors, warnings, stats } = result.diagnostics;
+    console.warn("[3D-OFFICIAL-FAIL][VALIDATION]", {
+      ok: result.ok,
+      is3DEligible: result.is3DEligible,
+      errorCount: errors.length,
+      warningCount: warnings.length,
+      stats,
+    });
+    for (let i = 0; i < errors.length; i++) {
+      const e = errors[i]!;
+      console.warn("[3D-OFFICIAL-FAIL][ITEM]", {
+        index: i,
+        code: e.code,
+        message: e.message,
+        context: e.context,
+      });
+    }
+    const first = errors[0];
+    const domain = first ? inferOfficialFailDomain(first.code) : "unknown";
+    console.warn("[3D-OFFICIAL-FAIL][SUMMARY]", {
+      firstBlockingCode: first?.code,
+      firstBlockingMessage: first?.message,
+      firstBlockingContext: first?.context,
+      inferredDomain: domain,
+      totalErrors: errors.length,
+    });
+  } catch {
+    /* ignore logging failures */
+  }
+}
+
 /**
  * Valide une scène assemblée. Ne modifie pas `scene` ; retourne une copie filtrée seulement si `autoFilter` et `ok`.
  */
@@ -490,7 +557,7 @@ export function validateCanonicalScene3DInput(
   const strict = options?.strict === true;
   const autoFilter = options?.autoFilter === true;
 
-  const pass1 = runValidationPass(scene);
+  const pass1 = runValidationPass(scene, options);
   const filterLog: CanonicalSceneValidationIssue[] = [];
 
   let errors: CanonicalSceneValidationIssue[] = [...pass1.errors];
@@ -534,7 +601,10 @@ export function validateCanonicalScene3DInput(
     workingScene = built.scene;
     warnings = [...warnings, ...filterLog, ...built.orphanPanelRemovals];
 
-    const pass2 = runValidationPass(workingScene);
+    const pass2 = runValidationPass(workingScene, {
+      strict: options?.strict,
+      allowEmptyRoofPansPendingDerivation: false,
+    });
     errors = [...pass2.errors];
     warnings = [...warnings, ...pass2.warnings];
 
@@ -565,7 +635,7 @@ export function validateCanonicalScene3DInput(
 
   const sceneOut = ok ? (autoFilter ? workingScene : scene) : null;
 
-  return {
+  const out: CanonicalSceneValidationResult = {
     ok,
     is3DEligible,
     scene: sceneOut,
@@ -575,4 +645,6 @@ export function validateCanonicalScene3DInput(
       stats,
     },
   };
+  logOfficialValidationFailureInDev(out);
+  return out;
 }

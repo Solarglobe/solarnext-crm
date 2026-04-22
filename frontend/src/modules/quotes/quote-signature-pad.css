@@ -20,3 +20,25 @@
   background: #fff;
   cursor: crosshair;
 }
+
+.quote-signature-read-accept {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  max-width: 720px;
+  margin: 12px auto 0;
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.35;
+  color: #1f2937;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+.quote-signature-read-accept input {
+  margin-top: 3px;
+  flex-shrink: 0;
+}

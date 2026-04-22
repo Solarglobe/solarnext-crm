@@ -1,6 +1,6 @@
 /**
  * PDF V2 — CRM Document Access and Actions
- * Bloc PDF SolarNext : Générer / Voir / Télécharger / Régénérer
+ * Bloc PDF d’étude : Générer / Voir / Télécharger / Régénérer
  * APIs : POST generate-pdf, GET documents/study_version/:versionId, GET documents/:id/download
  */
 
@@ -169,7 +169,7 @@ export default function StudyPdfActions({
   if (loading) {
     return (
       <div className="study-pdf-actions">
-        <h3 className="study-pdf-title">PDF SolarNext</h3>
+        <h3 className="study-pdf-title">PDF d&apos;étude</h3>
         <p className="study-pdf-status">Chargement…</p>
       </div>
     );
@@ -177,7 +177,7 @@ export default function StudyPdfActions({
 
   return (
     <div className="study-pdf-actions">
-      <h3 className="study-pdf-title">PDF SolarNext</h3>
+      <h3 className="study-pdf-title">PDF d&apos;étude</h3>
       {latestPdf ? (
         <>
           <p className="study-pdf-status">

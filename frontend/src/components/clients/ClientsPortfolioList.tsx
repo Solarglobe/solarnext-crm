@@ -2,19 +2,27 @@
  * Liste compacte portefeuille dossiers PV — ordre = API (pas de tri local).
  */
 
-import React, { useCallback } from "react";
+import React, { useCallback, useMemo } from "react";
 import type { Lead } from "../../services/leads.service";
 import { getLeadName, getLeadPhoneDisplay } from "../../services/leads.service";
 import {
   formatUpdatedAtRelative,
   getProjectTracking,
 } from "./projectPvTracking";
+import { isLeadArchivedRecord } from "../../services/leads.service";
+import { CrmLeadStatusBadge } from "../crm/CrmLeadStatusBadge";
 
 export interface ClientsPortfolioListProps {
   leads: Lead[];
   selectedId: string | null;
   onSelect: (id: string) => void;
   onOpenFull: (id: string) => void;
+  /** Sélection pour envoi groupé (cases à cocher). */
+  selectedIds?: string[];
+  onToggleBulkSelect?: (id: string) => void;
+  onSelectAllOnPage?: () => void;
+  /** Liste vide : bouton pour effacer les filtres */
+  onResetFilters?: () => void;
 }
 
 export function ClientsPortfolioList({
@@ -22,6 +30,10 @@ export function ClientsPortfolioList({
   selectedId,
   onSelect,
   onOpenFull,
+  selectedIds = [],
+  onToggleBulkSelect,
+  onSelectAllOnPage,
+  onResetFilters,
 }: ClientsPortfolioListProps) {
   const onRowClick = useCallback(
     (e: React.MouseEvent, id: string) => {
@@ -39,20 +51,60 @@ export function ClientsPortfolioList({
     [onOpenFull]
   );
 
+  const bulkEnabled = Boolean(onToggleBulkSelect && onSelectAllOnPage);
+  const idSet = useMemo(() => new Set(selectedIds.map(String)), [selectedIds]);
+  const pageIds = useMemo(() => leads.map((l) => String(l.id)), [leads]);
+  const allOnPageSelected =
+    bulkEnabled && pageIds.length > 0 && pageIds.every((id) => idSet.has(id));
+  const someOnPageSelected =
+    bulkEnabled && pageIds.some((id) => idSet.has(id)) && !allOnPageSelected;
+
   if (!leads || leads.length === 0) {
     return (
       <div className="clients-portfolio-empty">
-        <p className="clients-portfolio-empty__title">Aucun dossier</p>
+        <p className="clients-portfolio-empty__title">Aucun dossier trouvé</p>
         <p className="clients-portfolio-empty__text">
           Ajustez les filtres ou vérifiez que des projets signés sont présents.
         </p>
+        {onResetFilters ? (
+          <button
+            type="button"
+            className="sn-btn sn-btn-outline sn-btn-sm clients-portfolio-empty__reset"
+            onClick={onResetFilters}
+          >
+            Réinitialiser les filtres
+          </button>
+        ) : null}
       </div>
     );
   }
 
   return (
-    <div className="clients-portfolio-list" role="grid" aria-label="Portefeuille dossiers">
+    <div
+      className={`clients-portfolio-list${bulkEnabled ? " clients-portfolio-list--bulk" : ""}`}
+      role="grid"
+      aria-label="Portefeuille dossiers"
+    >
       <div className="clients-portfolio-list__head" role="row">
+        {bulkEnabled ? (
+          <div
+            className="clients-portfolio-list__th clients-portfolio-list__th--check"
+            role="columnheader"
+          >
+            <input
+              type="checkbox"
+              className="clients-portfolio-list__bulk-check"
+              checked={allOnPageSelected}
+              ref={(el) => {
+                if (el) el.indeterminate = someOnPageSelected;
+              }}
+              onChange={() => onSelectAllOnPage?.()}
+              aria-label="Tout sélectionner sur cette page"
+              title="Tout sélectionner"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+        ) : null}
         <div className="clients-portfolio-list__th" role="columnheader">
           Dossier
         </div>
@@ -60,10 +112,7 @@ export function ClientsPortfolioList({
           Statut
         </div>
         <div className="clients-portfolio-list__th" role="columnheader">
-          Avancement
-        </div>
-        <div className="clients-portfolio-list__th" role="columnheader">
-          Prochaine étape
+          Avancement / prochaine étape
         </div>
         <div className="clients-portfolio-list__th" role="columnheader">
           Activité
@@ -80,6 +129,8 @@ export function ClientsPortfolioList({
           const rowId = String(lead.id);
           const isSelected =
             selectedId != null && String(selectedId) === rowId;
+          const isBulkSelected = idSet.has(rowId);
+          const rowArchived = isLeadArchivedRecord(lead);
 
           return (
             <div
@@ -97,8 +148,32 @@ export function ClientsPortfolioList({
                 }
               }}
             >
+              {bulkEnabled ? (
+                <div
+                  className="clients-portfolio-list__cell clients-portfolio-list__cell--check"
+                  onClick={(e) => e.stopPropagation()}
+                  onKeyDown={(e) => e.stopPropagation()}
+                >
+                  <input
+                    type="checkbox"
+                    className="clients-portfolio-list__bulk-check"
+                    checked={isBulkSelected}
+                    onChange={() => onToggleBulkSelect?.(rowId)}
+                    aria-label={`Sélectionner ${name}`}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                </div>
+              ) : null}
               <div className="clients-portfolio-list__cell clients-portfolio-list__cell--name">
-                <span className="clients-portfolio-list__name">{name}</span>
+                <span className="clients-portfolio-list__name-row">
+                  <span className="clients-portfolio-list__name">{name}</span>
+                  <CrmLeadStatusBadge status={lead.status} stageName={lead.stage_name} />
+                  {rowArchived ? (
+                    <span className="clients-portfolio-archive-badge" title="Dossier archivé">
+                      ARCHIVÉ
+                    </span>
+                  ) : null}
+                </span>
                 {tel ? (
                   <span className="clients-portfolio-list__sub">{tel}</span>
                 ) : null}

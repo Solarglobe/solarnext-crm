@@ -14,16 +14,25 @@ import {
   overlayFormEconomics,
   DEFAULT_ECONOMICS_FALLBACK,
 } from "./economicsResolve.service.js";
+import {
+  IMPACT_FACTOR_CO2_AUTO_KG_PER_KWH,
+  IMPACT_FACTOR_CO2_SURPLUS_KG_PER_KWH,
+  IMPACT_TREE_CO2_KG_PER_YEAR,
+  IMPACT_CAR_CO2_KG_PER_KM,
+  IMPACT_SMARTPHONE_KWH_PER_CHARGE,
+  IMPACT_FOYER_CO2_KG_PER_YEAR,
+  IMPACT_PARIS_MARSEILLE_KM_REF,
+} from "./core/engineConstants.js";
 
 // ======================================================================
 // FACTEURS ENVIRONNEMENTAUX (ADEME 2025)
 // ======================================================================
-const FACTOR_CO2_AUTO = 0.081;      // kg CO₂/kWh autoconsommé
-const FACTOR_CO2_SURPLUS = 0.048;   // kg CO₂/kWh injecté
-const TREE_CO2 = 25;                // kg/an/arbre
-const CAR_CO2_PER_KM = 0.192;       // kg CO₂/km
-const SMARTPHONE_KWH = 0.0035;      // kWh par charge
-const FOYER_CO2_YEAR = 950;         // kg CO₂/an foyer FR
+const FACTOR_CO2_AUTO = IMPACT_FACTOR_CO2_AUTO_KG_PER_KWH;      // kg CO₂/kWh autoconsommé
+const FACTOR_CO2_SURPLUS = IMPACT_FACTOR_CO2_SURPLUS_KG_PER_KWH;   // kg CO₂/kWh injecté
+const TREE_CO2 = IMPACT_TREE_CO2_KG_PER_YEAR;                // kg/an/arbre
+const CAR_CO2_PER_KM = IMPACT_CAR_CO2_KG_PER_KM;       // kg CO₂/km
+const SMARTPHONE_KWH = IMPACT_SMARTPHONE_KWH_PER_CHARGE;      // kWh par charge
+const FOYER_CO2_YEAR = IMPACT_FOYER_CO2_KG_PER_YEAR;         // kg CO₂/an foyer FR
 
 // ======================================================================
 // IMPACT ENVIRONNEMENTAL
@@ -62,7 +71,7 @@ export function computeImpact(ctx, scenarios) {
     const km_eq = Math.round(co2_total / CAR_CO2_PER_KM);
     const foyers_eq = round(co2_total / FOYER_CO2_YEAR, 2);
     const smartphone_charges = Math.round((auto + surplus) * horizon / SMARTPHONE_KWH);
-    const trajets_paris_marseille = Math.round(km_eq / 775);
+    const trajets_paris_marseille = Math.round(km_eq / IMPACT_PARIS_MARSEILLE_KM_REF);
 
     par_scenario[id] = {
       co2_kg_25a: round(co2_total, 0),

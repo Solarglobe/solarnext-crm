@@ -28,4 +28,21 @@ describe("buildSceneInspectionViewModel", () => {
     const m = buildSceneInspectionViewModel(scene, { kind: "PV_PANEL", id: "nope" });
     expect(m.title).toContain("introuvable");
   });
+
+  it("enveloppe sans buildingShell → introuvable", () => {
+    const m = buildSceneInspectionViewModel(scene, {
+      kind: "SHELL",
+      id: "calpinage-building-shell",
+    });
+    expect(m.title).toContain("introuvable");
+  });
+
+  it("pan avec index sommet affiche une ligne dédiée", () => {
+    const m = buildSceneInspectionViewModel(scene, {
+      kind: "PAN",
+      id: "roof-h",
+      roofVertexIndexInPatch: 0,
+    });
+    expect(m.rows.some((r) => r.label === "Sommet (index patch)" && r.value === "0")).toBe(true);
+  });
 });

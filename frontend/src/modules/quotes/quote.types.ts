@@ -60,6 +60,8 @@ export interface QuoteBuilderMeta {
   validity_days: number;
   deposit: QuoteDeposit;
   global_discount_percent: number;
+  /** Remise document fixe en € HT (s’ajoute à la remise en % sur le sous-total HT lignes). */
+  global_discount_amount_ht: number;
   notes: string;
   commercial_notes: string;
   technical_notes: string;
@@ -68,6 +70,11 @@ export interface QuoteBuilderMeta {
   study_import?: QuoteStudyImportMeta | null;
   /** metadata_json.pdf_show_line_pricing — défaut true. */
   pdf_show_line_pricing: boolean;
+  /** Annexes légales PDF (metadata_json.legal_documents) — fusion serveur si coché. */
+  legal_documents: {
+    include_rge: boolean;
+    include_decennale: boolean;
+  };
 }
 
 export interface QuoteHeaderSnapshot {

@@ -538,6 +538,15 @@
   padding: 4px;
 }
 
+.fq-signature-read-ack {
+  margin: 3px 0 0;
+  padding: 0;
+  font-size: 7.5pt;
+  line-height: 1.35;
+  color: var(--fq-muted);
+  font-style: italic;
+}
+
 .fq-signature-box--interactive .fq-signature-canvas-area {
   cursor: pointer;
 }
@@ -680,4 +689,34 @@ button.fq-signature-canvas-area.fq-signature-touch-target {
     height: auto !important;
     max-height: none !important;
   }
+}
+
+/* CGV — fin de devis (QuoteDocumentView) */
+.fq-root .pdf-cgv {
+  page-break-before: always;
+  font-size: 10px;
+  line-height: 1.4;
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--fq-border);
+  color: var(--fq-ink);
+}
+
+.fq-root .pdf-cgv__title {
+  font-size: 11pt;
+  margin: 0 0 0.6em;
+  color: var(--fq-ink);
+}
+
+.fq-root .pdf-cgv__html {
+  color: var(--fq-muted);
+}
+
+.fq-root .pdf-cgv--url .pdf-cgv__url a {
+  color: var(--fq-accent);
+  word-break: break-all;
+}
+
+.fq-root .pdf-cgv__qr-wrap {
+  margin-top: 10px;
 }

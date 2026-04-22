@@ -162,4 +162,36 @@ describe("QuoteDocumentView", () => {
     expect(screen.getByRole("checkbox", { name: /bon pour accord/i })).toBeInTheDocument();
     expect(document.querySelector(".fq-approval-draft-hint")).toBeTruthy();
   });
+
+  it("affiche le bloc CGV HTML lorsque legal_cgv.mode est html", () => {
+    const { container } = render(
+      <QuoteDocumentView
+        payload={{
+          ...basePayload,
+          legal_cgv: { mode: "html", html: "<p>Clause test</p>" },
+        }}
+        variant="pdf"
+        legalMode="official"
+        brandColor="#c39847"
+        logoSrc={null}
+        issuerFallbackName="X"
+      />
+    );
+    expect(screen.getByRole("region", { name: /conditions générales de vente/i })).toBeInTheDocument();
+    expect(container.querySelector(".pdf-cgv__html")?.innerHTML).toContain("Clause test");
+  });
+
+  it("n’affiche pas de bloc CGV lorsque mode pdf (fusion serveur)", () => {
+    const { container } = render(
+      <QuoteDocumentView
+        payload={{ ...basePayload, legal_cgv: { mode: "pdf" } }}
+        variant="pdf"
+        legalMode="official"
+        brandColor="#c39847"
+        logoSrc={null}
+        issuerFallbackName="X"
+      />
+    );
+    expect(container.querySelector(".pdf-cgv")).toBeNull();
+  });
 });

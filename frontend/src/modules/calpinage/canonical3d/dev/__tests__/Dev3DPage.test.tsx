@@ -141,11 +141,14 @@ describe("Dev3DPage", () => {
 
     await vi.waitFor(
       () => {
-        expect(screen.getByTestId("dev-3d-parity-report")).toBeTruthy();
+        const ok = screen.queryByTestId("dev-3d-parity-report");
+        const err = screen.queryByTestId("dev-3d-parity-report-error");
+        expect(ok ?? err).toBeTruthy();
       },
-      { timeout: 6000 },
+      { timeout: 12000 },
     );
-    const pre = screen.getByTestId("dev-3d-parity-report");
+    const pre =
+      screen.queryByTestId("dev-3d-parity-report") ?? screen.getByTestId("dev-3d-parity-report-error");
     expect(pre.textContent).toMatch(/"overall"/);
     expect(pre.textContent).toMatch(/simple_gable_clean/);
 

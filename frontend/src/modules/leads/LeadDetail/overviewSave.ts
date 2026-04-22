@@ -23,13 +23,14 @@ export interface OverviewLeadSnapshot {
   contact_last_name?: string;
   /** PRO : numéro SIRET */
   siret?: string | null;
+  /** ISO YYYY-MM-DD */
+  birth_date?: string | null;
   phone_mobile?: string;
   email?: string;
   phone_landline?: string;
-  assigned_salesperson_user_id?: string;
-  assigned_to?: string;
+  assigned_user_id?: string;
   customer_type?: "PERSON" | "PRO";
-  lead_source?: string;
+  source_id?: string;
   property_type?: string;
   household_size?: number;
   construction_year?: number;
@@ -52,6 +53,8 @@ export interface OverviewLeadSnapshot {
   equipement_actuel?: string | null;
   equipement_actuel_params?: EquipementActuelParams | EquipmentV2 | null;
   equipements_a_venir?: EquipementsAVenir | EquipmentV2 | null;
+  rgpd_consent?: boolean;
+  marketing_opt_in?: boolean;
 }
 
 export function buildLeadPatch(
@@ -71,13 +74,13 @@ export function buildLeadPatch(
     contact_first_name: formLead.contact_first_name,
     contact_last_name: formLead.contact_last_name,
     siret: formLead.siret,
+    birth_date: formLead.birth_date === "" ? null : formLead.birth_date,
     phone_mobile: formLead.phone_mobile,
     email: formLead.email,
     phone_landline: formLead.phone_landline,
-    assigned_salesperson_user_id: formLead.assigned_salesperson_user_id,
-    assigned_to: formLead.assigned_salesperson_user_id ?? formLead.assigned_to,
+    assigned_user_id: formLead.assigned_user_id,
     customer_type: formLead.customer_type,
-    lead_source: formLead.lead_source,
+    source_id: formLead.source_id,
     property_type: formLead.property_type,
     household_size: formLead.household_size,
     construction_year: formLead.construction_year,
@@ -86,6 +89,8 @@ export function buildLeadPatch(
     frame_type: formLead.frame_type,
     project_status: formLead.project_status,
     ...(opts?.omitEnergyProfile ? {} : { energy_profile: formLead.energy_profile }),
+    rgpd_consent: formLead.rgpd_consent,
+    marketing_opt_in: formLead.marketing_opt_in,
   };
 }
 
@@ -126,6 +131,24 @@ export function buildMeterAutosavePayload(
   };
 }
 
+/** kWh/an issu du moteur CSV (profil energy_profile.engine ou summary + hourly). */
+function pdlAnnualKwhFromEnergyProfile(energy_profile: unknown): number | undefined {
+  if (!energy_profile || typeof energy_profile !== "object") return undefined;
+  const ep = energy_profile as {
+    engine?: { annual_kwh?: number };
+    summary?: { annual_kwh?: number };
+  };
+  const fromEngine = ep.engine?.annual_kwh;
+  if (typeof fromEngine === "number" && Number.isFinite(fromEngine)) {
+    return Math.round(fromEngine);
+  }
+  const fromSummary = ep.summary?.annual_kwh;
+  if (typeof fromSummary === "number" && Number.isFinite(fromSummary)) {
+    return Math.round(fromSummary);
+  }
+  return undefined;
+}
+
 export function buildConsumptionPayload(
   formLead: OverviewLeadSnapshot,
   monthlyLocal: { month: number; kwh: number }[]
@@ -146,6 +169,10 @@ export function buildConsumptionPayload(
   }
   if (mode === "PDL") {
     consPayload.consumption_pdl = formLead.consumption_pdl;
+    const csvAnnual = pdlAnnualKwhFromEnergyProfile(formLead.energy_profile);
+    if (csvAnnual != null) {
+      consPayload.consumption_annual_kwh = csvAnnual;
+    }
   }
   if (mode === "MONTHLY") {
     const months =

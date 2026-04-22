@@ -4,6 +4,7 @@ export const SECTION_ORDER: DocumentSectionKey[] = [
   "QUOTE",
   "INVOICE",
   "COMMERCIAL_PROPOSAL",
+  "DP",
   "DP_MAIRIE",
   "ADMINISTRATIVE",
   "OTHER",
@@ -15,6 +16,7 @@ export function resolveSectionKey(doc: EntityDocument): DocumentSectionKey {
     c === "QUOTE" ||
     c === "INVOICE" ||
     c === "COMMERCIAL_PROPOSAL" ||
+    c === "DP" ||
     c === "DP_MAIRIE" ||
     c === "ADMINISTRATIVE" ||
     c === "OTHER"

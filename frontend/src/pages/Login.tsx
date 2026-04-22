@@ -22,7 +22,7 @@ export default function Login() {
 
   useEffect(() => {
     if (isAuthenticated()) {
-      navigate("/leads", { replace: true });
+      navigate("/dashboard", { replace: true });
     }
   }, [navigate]);
 
@@ -32,7 +32,7 @@ export default function Login() {
     setLoading(true);
     try {
       await login(email, password);
-      navigate("/leads", { replace: true });
+      navigate("/dashboard", { replace: true });
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Identifiants invalides"

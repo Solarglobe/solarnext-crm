@@ -657,6 +657,32 @@
   border-bottom-color: var(--violet-strong);
 }
 
+.crm-lead-header-contact-text {
+  color: var(--text-primary);
+  font-weight: 500;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: min(100%, 360px);
+}
+
+.crm-lead-header-v4-contacts-row--mail {
+  align-items: center;
+}
+
+.crm-lead-header-write-btn {
+  flex-shrink: 0;
+}
+
+.crm-lead-header-mail-hint {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  opacity: 0.88;
+}
+
 .crm-lead-header-contact-muted {
   color: var(--text-muted);
   opacity: 0.8;
@@ -981,8 +1007,17 @@
   align-items: end;
 }
 
+/** Conseiller commercial + source acquisition — deux colonnes égales, alignées comme Email / téléphone */
+.crm-lead-identity-row--advisor-source {
+  grid-template-columns: 1fr 1fr;
+}
+
 @media (max-width: 767px) {
   .crm-lead-identity-row {
+    grid-template-columns: 1fr;
+  }
+
+  .crm-lead-identity-row--advisor-source {
     grid-template-columns: 1fr;
   }
 }
@@ -1225,6 +1260,19 @@
   flex-direction: column;
   gap: 10px;
   padding: 8px 14px 12px;
+}
+
+/**
+ * Page de suivi client uniquement : contenu variable ; `1fr` peut rogner — piste en max-content
+ * à l’ouverture seulement (les autres sections gardent 0fr → 1fr inchangé).
+ */
+.crm-lead-overview-section--client-portal.crm-lead-overview-section--open .crm-lead-overview-section-body-wrap {
+  grid-template-rows: max-content;
+}
+
+.crm-lead-overview-section--client-portal.crm-lead-overview-section--open .crm-lead-overview-section-body {
+  overflow: visible;
+  min-height: auto;
 }
 
 /**
@@ -2768,6 +2816,58 @@
 
 .crm-lead-meter-modal__form {
   padding-bottom: 4px;
+}
+
+/* CP-MAIRIES-004-CLEAN — bloc mairie fiche lead (compact, consultation) */
+.lead-mairie-section {
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  border-radius: var(--radius-md, 10px);
+  border: 1px solid var(--color-border-subtle, rgba(0, 0, 0, 0.08));
+}
+.lead-mairie-section--clean {
+  padding: 8px 12px 10px;
+  margin-bottom: 8px;
+}
+.lead-mairie-section__title {
+  margin: 0 0 6px;
+  font-size: 0.8125rem;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text-muted, #64748b);
+}
+.lead-mairie-section__body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.lead-mairie-section__body--clean {
+  gap: 6px;
+}
+.lead-mairie-section__headline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+}
+.lead-mairie-section__name {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.35;
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+.lead-mairie-section__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+.lead-mairie-section__actions--clean {
+  margin-top: 2px;
+  gap: 6px;
 }
 
 @media (max-width: 900px) {

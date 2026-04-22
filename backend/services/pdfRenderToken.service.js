@@ -5,6 +5,7 @@
 
 import jwt from "jsonwebtoken";
 import logger from "../app/core/logger.js";
+import { JWT_SECRET } from "../config/auth.js";
 
 const USAGE = "pdf-render";
 /** Jeton pour le renderer PDF devis (Playwright) — sans studyId/versionId */
@@ -21,10 +22,6 @@ const EXPIRES_IN = "5m";
  * @returns {string} token JWT
  */
 export function createPdfRenderToken(studyId, versionId, organizationId, extra = {}) {
-  const secret = process.env.JWT_SECRET || process.env.JWT_SECRET_KEY;
-  if (!secret) {
-    throw new Error("JWT_SECRET manquant — impossible de créer le renderToken");
-  }
   const payload = {
     studyId,
     versionId,
@@ -34,7 +31,7 @@ export function createPdfRenderToken(studyId, versionId, organizationId, extra =
       ? { snapshotPreviewKey: extra.snapshotPreviewKey }
       : {}),
   };
-  const token = jwt.sign(payload, secret, { expiresIn: EXPIRES_IN });
+  const token = jwt.sign(payload, JWT_SECRET, { expiresIn: EXPIRES_IN });
   logger.info("PDF_RENDER_TOKEN_CREATED", { studyId, versionId, organizationId, hasPreview: !!payload.snapshotPreviewKey });
   return token;
 }
@@ -53,15 +50,9 @@ export function verifyPdfRenderToken(token, studyId, versionId) {
     e.code = "RENDER_TOKEN_INVALID";
     throw e;
   }
-  const secret = process.env.JWT_SECRET || process.env.JWT_SECRET_KEY;
-  if (!secret) {
-    const e = new Error("JWT_SECRET manquant");
-    e.code = "RENDER_TOKEN_INVALID";
-    throw e;
-  }
   let decoded;
   try {
-    decoded = jwt.verify(token, secret);
+    decoded = jwt.verify(token, JWT_SECRET);
   } catch (err) {
     if (err.name === "TokenExpiredError") {
       logger.warn("PDF_RENDER_INTERNAL_VIEWMODEL_FAIL", { reason: "token_expired" });
@@ -105,16 +96,12 @@ export function verifyPdfRenderToken(token, studyId, versionId) {
  * @returns {string}
  */
 export function createFinancialQuoteRenderToken(quoteId, organizationId) {
-  const secret = process.env.JWT_SECRET || process.env.JWT_SECRET_KEY;
-  if (!secret) {
-    throw new Error("JWT_SECRET manquant — impossible de créer le renderToken devis");
-  }
   const payload = {
     quoteId,
     organizationId,
     usage: USAGE_FINANCIAL_QUOTE,
   };
-  const token = jwt.sign(payload, secret, { expiresIn: EXPIRES_IN });
+  const token = jwt.sign(payload, JWT_SECRET, { expiresIn: EXPIRES_IN });
   logger.info("PDF_QUOTE_RENDER_TOKEN_CREATED", { quoteId, organizationId });
   return token;
 }
@@ -130,15 +117,9 @@ export function verifyFinancialQuoteRenderToken(token, quoteId) {
     e.code = "RENDER_TOKEN_INVALID";
     throw e;
   }
-  const secret = process.env.JWT_SECRET || process.env.JWT_SECRET_KEY;
-  if (!secret) {
-    const e = new Error("JWT_SECRET manquant");
-    e.code = "RENDER_TOKEN_INVALID";
-    throw e;
-  }
   let decoded;
   try {
-    decoded = jwt.verify(token, secret);
+    decoded = jwt.verify(token, JWT_SECRET);
   } catch (err) {
     if (err.name === "TokenExpiredError") {
       const e = new Error("renderToken expiré");
@@ -171,16 +152,12 @@ export function verifyFinancialQuoteRenderToken(token, quoteId) {
  * @returns {string}
  */
 export function createFinancialInvoiceRenderToken(invoiceId, organizationId) {
-  const secret = process.env.JWT_SECRET || process.env.JWT_SECRET_KEY;
-  if (!secret) {
-    throw new Error("JWT_SECRET manquant — impossible de créer le renderToken facture");
-  }
   const payload = {
     invoiceId,
     organizationId,
     usage: USAGE_FINANCIAL_INVOICE,
   };
-  const token = jwt.sign(payload, secret, { expiresIn: EXPIRES_IN });
+  const token = jwt.sign(payload, JWT_SECRET, { expiresIn: EXPIRES_IN });
   logger.info("PDF_INVOICE_RENDER_TOKEN_CREATED", { invoiceId, organizationId });
   return token;
 }
@@ -196,15 +173,9 @@ export function verifyFinancialInvoiceRenderToken(token, invoiceId) {
     e.code = "RENDER_TOKEN_INVALID";
     throw e;
   }
-  const secret = process.env.JWT_SECRET || process.env.JWT_SECRET_KEY;
-  if (!secret) {
-    const e = new Error("JWT_SECRET manquant");
-    e.code = "RENDER_TOKEN_INVALID";
-    throw e;
-  }
   let decoded;
   try {
-    decoded = jwt.verify(token, secret);
+    decoded = jwt.verify(token, JWT_SECRET);
   } catch (err) {
     if (err.name === "TokenExpiredError") {
       const e = new Error("renderToken expiré");

@@ -60,6 +60,18 @@ export function parseDocumentPrefixForStorage(input) {
 }
 
 /**
+ * Devis officiels — format compact multi-org : {PREFIX}-{YYYY}-{NNNN} (ex. SG-2026-0001).
+ * Factures / avoirs conservent le format à segment FACT / AVR (buildOfficialDocumentNumber).
+ * @param {string} orgPrefix
+ * @param {number} year
+ * @param {number} seq
+ */
+export function buildQuoteCompactOfficialNumber(orgPrefix, year, seq) {
+  const p = resolveDocumentPrefixForNumbering(orgPrefix);
+  return `${p}-${year}-${String(seq).padStart(4, "0")}`;
+}
+
+/**
  * @param {string} orgPrefix
  * @param {'QUOTE'|'INVOICE'|'CREDIT_NOTE'} documentKind
  * @param {number} year
@@ -90,6 +102,12 @@ export function extractAnnualSequenceFromStoredNumber(numberStr, documentKind, y
 
   m = s.match(new RegExp(`^[A-Za-z0-9]+-${seg}-${y}-(\\d+)$`));
   if (m) return parseInt(m[1], 10);
+
+  // Devis : format compact PREFIX-YEAR-SEQ (CP-080), sans segment DEV
+  if (documentKind === "QUOTE") {
+    m = s.match(/^([A-Za-z0-9]+)-(\d{4})-(\d+)$/);
+    if (m && m[2] === y) return parseInt(m[3], 10);
+  }
 
   return 0;
 }

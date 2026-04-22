@@ -6,6 +6,7 @@ export type DocumentCategory =
   | "QUOTE"
   | "INVOICE"
   | "COMMERCIAL_PROPOSAL"
+  | "DP"
   | "DP_MAIRIE"
   | "ADMINISTRATIVE"
   | "OTHER";

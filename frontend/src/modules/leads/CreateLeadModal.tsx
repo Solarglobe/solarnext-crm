@@ -10,6 +10,7 @@ import { useNavigate } from "react-router-dom";
 import { createLead } from "../../services/leads.service";
 import { Button } from "../../components/ui/Button";
 import { ModalShell } from "../../components/ui/ModalShell";
+import { useSuperAdminReadOnly } from "../../contexts/OrganizationContext";
 import "./create-lead-modal.css";
 
 interface CreateLeadModalProps {
@@ -20,6 +21,7 @@ type CustomerType = "PERSON" | "PRO";
 
 export default function CreateLeadModal({ onClose }: CreateLeadModalProps) {
   const navigate = useNavigate();
+  const readOnly = useSuperAdminReadOnly();
   const firstInputRef = useRef<HTMLInputElement>(null);
 
   const [customerType, setCustomerType] = useState<CustomerType>("PERSON");
@@ -46,6 +48,7 @@ export default function CreateLeadModal({ onClose }: CreateLeadModalProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (readOnly) return;
     setError(null);
 
     const ph = phone.trim();
@@ -114,7 +117,12 @@ export default function CreateLeadModal({ onClose }: CreateLeadModalProps) {
           <Button variant="ghost" type="button" onClick={onClose}>
             Annuler
           </Button>
-          <Button variant="primary" type="submit" form="create-lead-form" disabled={saving}>
+          <Button
+            variant="primary"
+            type="submit"
+            form="create-lead-form"
+            disabled={saving || readOnly}
+          >
             {saving ? "Création…" : "Créer"}
           </Button>
         </>
@@ -125,6 +133,7 @@ export default function CreateLeadModal({ onClose }: CreateLeadModalProps) {
           type="button"
           className={`create-lead-type-btn${customerType === "PERSON" ? " active" : ""}`}
           onClick={() => { setCustomerType("PERSON"); setError(null); }}
+          disabled={readOnly}
         >
           Particulier
         </button>
@@ -132,10 +141,17 @@ export default function CreateLeadModal({ onClose }: CreateLeadModalProps) {
           type="button"
           className={`create-lead-type-btn${customerType === "PRO" ? " active" : ""}`}
           onClick={() => { setCustomerType("PRO"); setError(null); }}
+          disabled={readOnly}
         >
           Professionnel
         </button>
       </div>
+
+      {readOnly && (
+        <p className="create-lead-error" role="alert">
+          Mode support lecture seule : activez l’édition dans le bandeau pour créer un lead.
+        </p>
+      )}
 
       <form id="create-lead-form" onSubmit={handleSubmit}>
         {customerType === "PERSON" ? (
@@ -151,6 +167,7 @@ export default function CreateLeadModal({ onClose }: CreateLeadModalProps) {
                 onChange={(e) => setFirstName(e.target.value)}
                 placeholder="Prénom"
                 autoComplete="given-name"
+                disabled={readOnly}
                 style={{ width: "100%", boxSizing: "border-box" }}
               />
             </div>
@@ -164,6 +181,7 @@ export default function CreateLeadModal({ onClose }: CreateLeadModalProps) {
                 onChange={(e) => setLastName(e.target.value)}
                 placeholder="Nom"
                 autoComplete="family-name"
+                disabled={readOnly}
                 style={{ width: "100%", boxSizing: "border-box" }}
               />
             </div>
@@ -181,6 +199,7 @@ export default function CreateLeadModal({ onClose }: CreateLeadModalProps) {
                 onChange={(e) => setCompanyName(e.target.value)}
                 placeholder="Raison sociale"
                 autoComplete="organization"
+                disabled={readOnly}
                 style={{ width: "100%", boxSizing: "border-box" }}
               />
             </div>
@@ -195,6 +214,7 @@ export default function CreateLeadModal({ onClose }: CreateLeadModalProps) {
                   onChange={(e) => setContactFirstName(e.target.value)}
                   placeholder="Prénom"
                   autoComplete="given-name"
+                  disabled={readOnly}
                   style={{ width: "100%", boxSizing: "border-box" }}
                 />
               </div>
@@ -208,6 +228,7 @@ export default function CreateLeadModal({ onClose }: CreateLeadModalProps) {
                   onChange={(e) => setContactLastName(e.target.value)}
                   placeholder="Nom"
                   autoComplete="family-name"
+                  disabled={readOnly}
                   style={{ width: "100%", boxSizing: "border-box" }}
                 />
               </div>
@@ -225,6 +246,7 @@ export default function CreateLeadModal({ onClose }: CreateLeadModalProps) {
             onChange={(e) => setPhone(e.target.value)}
             placeholder="06 12 34 56 78"
             autoComplete="tel"
+            disabled={readOnly}
             style={{ width: "100%", boxSizing: "border-box" }}
           />
         </div>
@@ -238,6 +260,7 @@ export default function CreateLeadModal({ onClose }: CreateLeadModalProps) {
             onChange={(e) => setEmail(e.target.value)}
             placeholder="email@exemple.fr"
             autoComplete="email"
+            disabled={readOnly}
             style={{ width: "100%", boxSizing: "border-box" }}
           />
         </div>

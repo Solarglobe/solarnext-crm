@@ -100,7 +100,12 @@ export type {
   LegacyRoofGeometryInput,
   LegacyStructuralLine2D,
 } from "./builder/legacyInput";
-export { imagePxToWorldHorizontalM, worldHorizontalMToImagePx } from "./builder/worldMapping";
+export {
+  imagePxToWorldHorizontalM,
+  polygonHorizontalAreaM2FromImagePx,
+  segmentHorizontalLengthMFromImagePx,
+  worldHorizontalMToImagePx,
+} from "./builder/worldMapping";
 
 // ——— Contrat monde verrouillé (ENU / Z-up / LOCAL_IMAGE_ENU) ———
 export * from "./world/worldConvention";
@@ -130,7 +135,25 @@ export {
   collectStructuralSharedEdgeConstraintsByPan,
   projectNormalOrthogonalToEdgeDirections,
 } from "./builder/interPanSharedEdges";
-export { buildRoofModel3DFromLegacyGeometry, type BuildRoofModel3DResult } from "./builder/buildRoofModel3DFromLegacyGeometry";
+export {
+  buildRoofModel3DFromLegacyGeometry,
+  type BuildRoofModel3DFromLegacyGeometryOptions,
+  type BuildRoofModel3DResult,
+  type RoofGeometryFidelityMode,
+} from "./builder/buildRoofModel3DFromLegacyGeometry";
+export {
+  legacyMinSharedEdgeLenPx,
+  legacySharedCornerClusterTolPx,
+} from "./builder/legacyRoofPixelTolerances";
+export { snapLegacyPanPolygonVerticesInPlace } from "./builder/snapLegacyPanPolygonVertices";
+export {
+  computeRoofReconstructionQualityDiagnostics,
+  countWorldXYCornerZClusterViolations,
+  emptyRoofReconstructionQualityDiagnostics,
+  type RoofPatchTruthClass,
+  type RoofReconstructionQualityDiagnostics,
+  type RoofReconstructionQualityLevel,
+} from "./builder/roofReconstructionQuality";
 
 // ——— Volumes 3D obstacles / extensions (non branché runtime) ———
 export type { RoofVolumeStructuralRole } from "./types/roof-volume-common";
@@ -209,6 +232,15 @@ export type {
   StructuralLineSegment3D,
 } from "./pvPanels/pvPanelInput";
 export { buildPvPanels3D } from "./pvPanels/buildPvPanels3D";
+export {
+  computePvBindingDiagnostics,
+  emptyPvBindingDiagnostics,
+  filterPvPlacementInputsForOfficialBinding,
+  type PvBindingDiagnostics,
+  type PvBindingQualityLevel,
+  type PvPanelBindingRow,
+  type PvPanelBindingStatus,
+} from "./pvPanels/pvBindingDiagnostics";
 export { computePvPanelSpatialContext, type PanelContextBuildOptions } from "./pvPanels/panelContextComputer";
 export {
   moduleDimsAlongPatchUv,
@@ -246,13 +278,39 @@ export type {
 export type {
   SolarScene3D,
   SolarScene3DMetadata,
+  SolarSceneBuildGuard,
+  SolarSceneBuildGuardSeverity,
   SolarSceneGenerator,
   SolarScenePanelShadingSummary,
   SolarSceneShadingSnapshot3D,
   SolarSceneSolarContext3D,
 } from "./types/solarScene3d";
 export { SOLAR_SCENE_3D_SCHEMA_VERSION, SOLAR_SCENE_RENDER_CONVENTIONS } from "./types/solarScene3d";
+export type { BuildingShell3D, BuildingShellContourSource } from "./types/building-shell-3d";
+export {
+  buildBuildingShell3DFromCalpinageRuntime,
+  WALL_HEIGHT_DEFAULT_M,
+  WALL_TOP_CLEARANCE_M,
+} from "./builder/buildBuildingShell3DFromCalpinageRuntime";
+export {
+  resolveOfficialShellFootprintRingWorld,
+  type OfficialShellFootprintRingWorld,
+} from "./builder/officialShellFootprintRing";
+export {
+  clipBuildingContourRingXYToRoofCoverageWorld,
+  tryUnionRoofPatchFootprintsWorldXY,
+} from "./builder/shellFootprintUnionWorldXY";
 export { buildSolarScene3D, exportCanonicalScene3D, type BuildSolarScene3DInput } from "./scene/buildSolarScene3D";
+export {
+  computeRoofShellAlignmentDiagnostics,
+  computeShellTopRingMidEdgeRoofChordErrorMaxM,
+  formatRoofShellAlignmentOneLine,
+  roofShellAlignmentDiagnosticsToDebugPayload,
+  type ComputeRoofShellAlignmentDiagnosticsOptions,
+  type RoofShellAlignmentDiagnostics,
+  type RoofShellVerticalGapStatsM,
+} from "./diagnostics/computeRoofShellAlignmentDiagnostics";
+export { buildCalpinageLevel0Guards } from "./scene/calpinageLevel0BuildGuards";
 export {
   deriveUnifiedRoofSceneReadModel,
   type UnifiedRoofSceneReadModel,
@@ -275,6 +333,7 @@ export {
   type CanonicalPanVertex3D,
   type CanonicalPans3DResult,
 } from "./adapters/buildCanonicalPans3DFromRuntime";
+export { deriveCanonicalPans3DFromRoofPlanePatches } from "./adapters/deriveCanonicalPans3DFromRoofPlanePatches";
 
 // ——— Adaptateur runtime → obstacles / extensions / volumes 3D (Prompt 4 — pas de rendu) ———
 export {
@@ -362,8 +421,80 @@ export {
 } from "./validation/coherenceGradeConstants";
 export { buildCoherenceSummary, computeSceneQualityGrade } from "./validation/coherenceDerive";
 
-// ——— Runtime calpinage → SolarScene3D (Prompt 8 — assemblage + validation) ———
+// ——— Validation géométrique / topologique Maison 3D (Prompt 9) ———
+export {
+  validateCanonicalHouse3DGeometry,
+  type ValidateCanonicalHouse3DGeometryInput,
+} from "./validation/validateCanonicalHouse3DGeometry";
+export type {
+  CanonicalHouse3DQualityLevel,
+  CanonicalHouse3DValidationBlockReport,
+  CanonicalHouse3DValidationDiagnostic,
+  CanonicalHouse3DValidationReport,
+  ValidateCanonicalHouse3DGeometryOptions,
+  ValidationBlockStatus,
+} from "./validation/canonicalHouse3DValidationModel";
+export type { CanonicalHouse3DValidationCode } from "./validation/canonicalHouse3DValidationCodes";
+export { CANONICAL_HOUSE_3D_VALIDATION_REPORT_SCHEMA_ID } from "./validation/canonicalHouse3DValidationCodes";
+
+// ——— Annexes toiture 3D canoniques (binding pans + volumes, Prompt 8) ———
+export {
+  attachRoofAnnexesLayerToCanonicalDocument,
+  buildCanonicalRoofAnnexesLayer3D,
+  type BuildCanonicalRoofAnnexesLayer3DInput,
+} from "./builders/buildCanonicalRoofAnnexesLayer3D";
+export {
+  bindRoofAnnexesToRoofPatches,
+  type BindRoofAnnexesToRoofPatchesInput,
+  type BindRoofAnnexesToRoofPatchesResult,
+  type RoofAnnexBindingWorkItem,
+} from "./builders/bindRoofAnnexesToRoofPatches";
+export {
+  buildRoofAnnexVolumes3D,
+  type BuildRoofAnnexVolumes3DInput,
+} from "./builders/buildRoofAnnexVolumes3D";
+export { mapAnnexFamilyToOfficial } from "./builders/mapAnnexFamilyToOfficial";
+export {
+  azimuthDegOfFallDirectionEnu,
+  computeOfficialPanPhysicsFromCornersWorld,
+  type OfficialPanPhysicsModel,
+  type OfficialPanPhysicsSource,
+} from "./builder/officialPanPhysics";
+export {
+  buildCornersWorldFromImageVertices,
+  collectPartialWorldHeightSamplesFromImage,
+  computeOfficialPanPhysicsFromImageVertices,
+  fitPlaneWorldLeastSquares,
+  tryPanPhysicsFromWorldHeightSamples,
+} from "./builder/computeOfficialPanPhysicsFromImageVertices";
+
+// ——— Runtime calpinage → SolarScene3D (assemblage + validation) ———
 export * from "./buildSolarScene3DFromCalpinageRuntime";
+export {
+  clearOfficialSolarScene3DCache,
+  getOrBuildOfficialSolarScene3DFromCalpinageRuntime,
+  type BuildSolarScene3DFromCalpinageRuntimeWithSyncResult,
+  type OfficialSolarSceneGatewayOptions,
+  type SceneSyncDiagnostics,
+  type SceneSyncStatus,
+} from "./scene/officialSolarScene3DGateway";
+export {
+  resolveOfficialRoofTruthFromRuntime,
+  type OfficialRoofTruthBuildLegacyNull,
+  type OfficialRoofTruthBuildOk,
+  type OfficialRoofTruthPrepareOk,
+  type ResolveOfficialRoofTruthArgs,
+  type ResolveOfficialRoofTruthBuildPhase,
+  type ResolveOfficialRoofTruthPreparePhase,
+  type ResolveOfficialRoofTruthResult,
+} from "./scene/resolveOfficialRoofTruthFromRuntime";
+export {
+  CALPINAGE_OFFICIAL_RUNTIME_STRUCTURAL_CHANGE,
+  computeRuntimeSceneStructuralSignatures,
+  extractStructuralRuntimeSnapshot,
+  stableStringifyForSignature,
+  type RuntimeSceneStructuralSignatures,
+} from "./scene/sceneRuntimeStructuralSignature";
 
 // ——— Feature flag 3D canonical (Prompt 17 — interrupteur produit) ———
 export {
@@ -387,6 +518,16 @@ export {
 // Note : le viewer séparé est supprimé. SolarScene3DViewer sera réutilisé
 // pour le rendu 3D inline dans #zone-c (même surface que le plan 2D).
 export { SolarScene3DViewer, type SolarScene3DViewerProps } from "./viewer/SolarScene3DViewer";
+export { buildPremiumHouse3DScene, type BuildPremiumHouse3DSceneInput } from "./viewer/premium/buildPremiumHouse3DScene";
+export type {
+  PremiumHouse3DLayerFlags,
+  PremiumHouse3DSceneAssembly,
+  PremiumHouse3DValidationPresentation,
+  PremiumPbrMaterialToken,
+} from "./viewer/premium/premiumHouse3DSceneTypes";
+export { PREMIUM_HOUSE_3D_SCENE_ASSEMBLY_SCHEMA_ID } from "./viewer/premium/premiumHouse3DSceneTypes";
+export type { PremiumHouse3DViewMode } from "./viewer/premium/premiumHouse3DViewModes";
+export { isPremiumHouse3DViewMode, PREMIUM_HOUSE_3D_VIEW_MODES } from "./viewer/premium/premiumHouse3DViewModes";
 export {
   CAMERA_VIEW_MODES,
   DEFAULT_CAMERA_VIEW_MODE,
@@ -398,6 +539,17 @@ export { computePlanOrthographicFraming, type PlanOrthographicFraming } from "./
 export type {
   SceneInspectableKind,
   SceneInspectionSelection,
+  SceneInspectMeshRole,
   SceneInspectUserData,
+  PickProvenance2DViewModel,
+  ScenePickHit,
 } from "./viewer/inspection/sceneInspectionTypes";
+export {
+  buildPickProvenance2DViewModel,
+  type CalpinagePanProvenanceEntry,
+} from "./viewer/inspection/buildPickProvenance2DViewModel";
+export {
+  pickSceneHitFromIntersections,
+  scenePickHitToInspectionSelection,
+} from "./viewer/inspection/pickInspectableIntersection";
 export { buildDemoSolarScene3D } from "./viewer/demoSolarScene3d";

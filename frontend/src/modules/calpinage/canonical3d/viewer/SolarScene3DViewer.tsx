@@ -16,15 +16,53 @@
  * Coloration panneaux : lecture `panelVisualShadingByPanelId` (runtime `shading.perPanel`) ou, à défaut,
  * agrégat déjà présent sur `nearShadingSnapshot` — aucun moteur ombrage dans le viewer.
  *
- * Mode `inspectMode` : sélection clic + panneau métadonnées — strictement lecture, pas d’édition.
+ * Mode `inspectMode` : sélection clic + panneau métadonnées — lecture seule, sauf édition Z sommet si
+ * `enableRoofVertexZEdit` + `onRoofVertexHeightCommit` (mutation côté parent, phase B4), et XY si
+ * `enableRoofVertexXYEdit` + `onRoofVertexXYCommit` (phase B5).
+ *
+ * Mode `panSelection3DMode` : sélection locale pan / sommet (surbrillance + marqueur) — pas d’écriture interne ;
+ * mêmes hooks B4 / B5 possibles via les props ci-dessus.
  *
  * Prompt 34 — `cameraViewMode` : même `scene`, projection plan orthographique (dessus) ou perspective (orbite).
+ *
+ * Pass 4–5 — pose PV 3D : sonde `window.__CALPINAGE_3D_PV_PLACE_PROBE__` ou produit `pvLayout3DInteractionMode`
+ * (`__CALPINAGE_3D_PV_LAYOUT_MODE__` + phase `PV_LAYOUT`) — clic toiture → `tryCommitPvPlacementFrom3dRoofHit` ;
+ * clic panneau → manipulation (finalize = chaîne Phase 3 / `pvSyncSaveRender`).
  */
 
-import { Canvas, type ThreeEvent } from "@react-three/fiber";
+import { Canvas, type ThreeEvent, useThree } from "@react-three/fiber";
 import { Grid, Outlines } from "@react-three/drei";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useId,
+  useRef,
+  useState,
+} from "react";
+import { flushSync } from "react-dom";
 import * as THREE from "three";
+import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
+import { isCalpinage3DRuntimeDebugEnabled } from "../../core/calpinage3dRuntimeDebug";
+import { isValidBuildingHeightM } from "../../core/heightResolver";
+import type { RoofVertexHeightEdit } from "../../runtime/applyRoofVertexHeightEdit";
+import type { StructuralHeightEdit } from "../../runtime/applyStructuralRidgeHeightEdit";
+import {
+  readCalpinageStructuralHeightM,
+  resolveNearestStructuralHeightSelectionFromImagePx,
+  type LegacyStructuralHeightSelection,
+} from "../../runtime/structuralRidgeHeightSelection";
+import { emitRoofVertexZTelemetry, generateRoofZDragSessionId } from "../../runtime/roofVertexZEditTelemetry";
+import {
+  ROOF_VERTEX_XY_EDIT_DEFAULT_MAX_DISPLACEMENT_PX,
+  type RoofVertexXYEdit,
+} from "../../runtime/applyRoofVertexXYEdit";
+import { worldHorizontalMToImagePx } from "../builder/worldMapping";
+import {
+  computeRoofShellAlignmentDiagnostics,
+  formatRoofShellAlignmentOneLine,
+} from "../diagnostics/computeRoofShellAlignmentDiagnostics";
 import type { SolarScene3D } from "../types/solarScene3d";
 import {
   computeSolarSceneBoundingBox,
@@ -33,10 +71,28 @@ import {
 import { CameraFramingRig } from "./CameraFramingRig";
 import { logIfGeometryNormalsSuspect } from "./geometryNormalsAudit";
 import { ShadingLegend3D } from "./ShadingLegend3D";
-import { SceneInspectionPanel3D } from "./SceneInspectionPanel3D";
+import {
+  SceneInspectionPanel3D,
+  type RoofModelingHistoryUiModel,
+  type StructuralRidgeHeightEditUiModel,
+} from "./SceneInspectionPanel3D";
+import {
+  buildPickProvenance2DViewModel,
+  type CalpinagePanProvenanceEntry,
+} from "./inspection/buildPickProvenance2DViewModel";
 import { buildSceneInspectionViewModel } from "./inspection/buildSceneInspectionViewModel";
-import { INSPECT_USERDATA_KEY, type SceneInspectionSelection, type SceneInspectableKind } from "./inspection/sceneInspectionTypes";
-import { pickInspectableIntersection } from "./inspection/pickInspectableIntersection";
+import {
+  INSPECT_USERDATA_KEY,
+  type SceneInspectableKind,
+  type SceneInspectionSelection,
+  type SceneInspectMeshRole,
+  type SceneInspectUserData,
+  type ScenePickHit,
+} from "./inspection/sceneInspectionTypes";
+import { pickInspectableIntersection, pickSceneHitFromIntersections } from "./inspection/pickInspectableIntersection";
+import { pickSceneHitForRoofVertexModeling } from "./inspection/pickRoofVertexModelingPick";
+import { RoofVertexZDragController, type RoofZDragSession } from "./RoofVertexZDragController";
+import { worldZFromPointerOnVerticalThroughXY } from "./roofVertexVerticalPointerMath";
 import {
   GROUND_PLANE_CONTACT_OFFSET_M,
   VIEWER_AMBIENT_INTENSITY,
@@ -48,12 +104,48 @@ import {
   VIEWER_SHADOW_NORMAL_BIAS,
 } from "./viewerConstants";
 import {
+  applyCanonicalViewerGlOutput,
+  getViewerPanVertexSelectionMarkerGeometry,
+  viewerFallbackGridProps,
+  VIEWER_INSPECT_OUTLINE_HEX,
+  VIEWER_OUTLINE_THICKNESS_FACTOR,
+  VIEWER_PV_OUTLINE_IDLE_HEX,
+  VIEWER_SHELL_MESH_HEX,
+} from "./viewerVisualTokens";
+import {
+  buildingShellGeometry,
   extensionVolumeGeometry,
   obstacleVolumeGeometry,
   panelQuadGeometry,
+  roofClosureFacadeGeometry,
   roofEdgesLineGeometry,
   roofPatchGeometry,
+  roofRidgesLineGeometry,
 } from "./solarSceneThreeGeometry";
+import { isValidCanonicalWorldConfig } from "../world/worldConvention";
+import {
+  buildDormerEdgesGeometry,
+  buildDormerMesh,
+  type DormerRuntimeExtensionInput,
+} from "./dormer/buildDormerMesh";
+import { extractRuntimeRoofExtensions } from "./dormer/extractRuntimeRoofExtensions";
+import { buildPremiumHouse3DScene } from "./premium/buildPremiumHouse3DScene";
+import type { PremiumHouse3DSceneAssembly } from "./premium/premiumHouse3DSceneTypes";
+import { PremiumGeometryTrustStripe } from "./premium/PremiumGeometryTrustStripe";
+import type { PremiumHouse3DViewMode } from "./premium/premiumHouse3DViewModes";
+
+/** En mode édition sommet toit : laisse le rayon atteindre le maillage toiture (ignore PV / obstacles / extensions). */
+function roofModelingSkipOccluderRaycast(
+  this: THREE.Object3D,
+  _raycaster: THREE.Raycaster,
+  _intersects: THREE.Intersection[],
+): void {
+  void this;
+  void _raycaster;
+  void _intersects;
+}
+import { PREMIUM_HOUSE_3D_VIEW_MODES } from "./premium/premiumHouse3DViewModes";
+import type { CanonicalHouse3DValidationReport } from "../validation/canonicalHouse3DValidationModel";
 import { GroundPlaneTexture, type GroundPlaneImageData } from "./GroundPlaneTexture";
 import { DebugXYAlignmentOverlay } from "./DebugXYAlignmentOverlay";
 import { blendPvSurfaceColor, premiumTintHexForQualityScore } from "./visualShading/premiumVisualShadingColors";
@@ -66,9 +158,44 @@ import {
   DEFAULT_CAMERA_VIEW_MODE,
   type CameraViewMode,
 } from "./cameraViewMode";
+import { worldPointToImage } from "../world/worldToImage";
+import { tryCommitPvPlacementFrom3dRoofHit } from "../../runtime/pvPlacementFrom3dWorldHit";
+import {
+  applyPvMoveLiveFrom3d,
+  beginPvMoveFrom3d,
+  cancelPvMoveFrom3d,
+  finalizePvMoveFrom3d,
+  hitTestPvBlockPanelFromImagePoint,
+} from "../../runtime/pvPlacement3dProduct";
+import { PvLayout3dDragController, type PvLayout3dDragSession } from "./PvLayout3dDragController";
+import {
+  compute3DRuntimeVerdict,
+  dump3DRuntimeViewerGeoCompare,
+  getLastAutopsySnapshot,
+  log3DRuntimeVerdictFinal,
+  type AutopsyLegacyRoofPath,
+} from "../dev/runtime3DAutopsy";
+
+/** Audit runtime temporaire — activer : `window.__CALPINAGE_DORMER_AUDIT__ = true` puis recharger. */
+function dormerPremiumAuditLog(msg: string, detail?: Record<string, unknown>): void {
+  if (typeof window === "undefined") return;
+  const w = window as unknown as { __CALPINAGE_DORMER_AUDIT__?: boolean };
+  if (w.__CALPINAGE_DORMER_AUDIT__ !== true) return;
+  if (detail && Object.keys(detail).length > 0) {
+    console.log("[DORMER_AUDIT]", msg, detail);
+  } else {
+    console.log("[DORMER_AUDIT]", msg);
+  }
+}
 
 export interface SolarScene3DViewerProps {
-  readonly scene: SolarScene3D;
+  /**
+   * Scène canonique `SolarScene3D` — **ou** `runtimeScene` si vous préférez ce nom côté appelant.
+   * Au moins l’un des deux doit être fourni.
+   */
+  readonly scene?: SolarScene3D;
+  /** Alias de `scene` (même type). Si `scene` est défini, il prime. */
+  readonly runtimeScene?: SolarScene3D;
   readonly className?: string;
   readonly height?: number | string;
   readonly showRoof?: boolean;
@@ -85,6 +212,15 @@ export interface SolarScene3DViewerProps {
    * `false` : aucune surcharge UX, pas de sélection.
    */
   readonly inspectMode?: boolean;
+  /**
+   * Surbrillance locale pan ou sommet de pan au clic (`ScenePickHit` roof_* uniquement).
+   * État `selectedHit` interne au viewer — pas de persistance CRM / calpinage.
+   */
+  readonly panSelection3DMode?: boolean;
+  /**
+   * Snapshot `CALPINAGE_STATE.pans` (id + polygonPx) pour le panneau provenance 2D — lecture seule.
+   */
+  readonly calpinagePansForProvenance?: ReadonlyArray<CalpinagePanProvenanceEntry>;
   readonly showSun?: boolean;
   readonly sunDirectionIndex?: number;
   /** Affiche axes ENU, bbox filaire et stats scène (vérification orientation / cadrage). */
@@ -100,14 +236,52 @@ export interface SolarScene3DViewerProps {
    */
   readonly groundImage?: GroundPlaneImageData;
   /**
-   * Runtime CALPINAGE_STATE brut — utilisé UNIQUEMENT par le debug overlay XY
-   * pour extraire les polygones 2D source et les comparer aux contours 3D.
+   * Runtime CALPINAGE_STATE brut — overlay XY debug + **aperçu live drag Z** (clone JSON + rebuild scène, sans commit).
    */
   readonly debugRuntime?: unknown;
   readonly cameraViewMode?: CameraViewMode;
   readonly onCameraViewModeChange?: (mode: CameraViewMode) => void;
   readonly defaultCameraViewMode?: CameraViewMode;
   readonly showCameraViewModeToggle?: boolean;
+  /** Mode lecture premium (Prompt 10) — matériaux, arêtes, disclosure validation. */
+  readonly premiumViewMode?: PremiumHouse3DViewMode;
+  readonly onPremiumViewModeChange?: (mode: PremiumHouse3DViewMode) => void;
+  /** Rapport `validateCanonicalHouse3DGeometry` — honnêteté géométrique sans recalcul. */
+  readonly geometryValidationReport?: CanonicalHouse3DValidationReport | null;
+  /** Surcharge tests / story : contourne `buildPremiumHouse3DScene`. */
+  readonly premiumAssemblyOverride?: PremiumHouse3DSceneAssembly | null;
+  /**
+   * Barre / texte de confiance géométrique.
+   * `undefined` : affiché si rapport fourni ou `premiumViewMode === "validation"`.
+   */
+  readonly showPremiumGeometryTrustStripe?: boolean;
+  /** Toolbar modes premium (dev / QA). */
+  readonly showPremiumViewModeToolbar?: boolean;
+  /**
+   * Phase B4 — édition Z d’un sommet de pan (mutation `state.pans` côté parent après commit).
+   * Activer avec `window.__CALPINAGE_3D_VERTEX_Z_EDIT__` dans le bridge inline.
+   */
+  readonly enableRoofVertexZEdit?: boolean;
+  readonly onRoofVertexHeightCommit?: (edit: RoofVertexHeightEdit) => void;
+  /**
+   * Phase B5 — édition XY d’un sommet (`polygonPx`), clamp px + validation polygone simple.
+   * Activer avec `window.__CALPINAGE_3D_VERTEX_XY_EDIT__` dans le bridge inline.
+   */
+  readonly enableRoofVertexXYEdit?: boolean;
+  readonly onRoofVertexXYCommit?: (edit: RoofVertexXYEdit) => void;
+  /** Phase B7 — undo/redo `state.pans` (mémoire, pas de disque). */
+  readonly roofModelingHistory?: RoofModelingHistoryUiModel | null;
+  /**
+   * Pass 3 — clic toiture ou ligne de faîtage → point structurel (contour / faîtage / trait) le plus proche en px image,
+   * puis `applyHeightToSelectedPoints` legacy. Désactivé par défaut (`CalpinageApp` / `localStorage` `calpinage_3d_ridge_h`).
+   */
+  readonly enableStructuralRidgeHeightEdit?: boolean;
+  readonly onStructuralRidgeHeightCommit?: (edit: StructuralHeightEdit) => void;
+  /**
+   * Pass 5 — interaction pose / déplacement PV en 3D (phase `PV_LAYOUT`, vue 3D, flag `__CALPINAGE_3D_PV_LAYOUT_MODE__`).
+   * Même chaîne legacy que le 2D (`pvSyncSaveRender`).
+   */
+  readonly pvLayout3DInteractionMode?: boolean;
 }
 
 function formatPanelTooltip(panelId: string, scene: SolarScene3D): string {
@@ -131,6 +305,7 @@ function panelSurfaceMaterial(
   panelId: string,
   showShading: boolean,
   inspectSelected: boolean,
+  emissiveBonus: number,
 ): { color: number; emissive: number; emissiveIntensity: number } {
   if (!showShading) {
     const c = blendPvSurfaceColor(premiumTintHexForQualityScore(null), 0.2);
@@ -138,7 +313,7 @@ function panelSurfaceMaterial(
     return {
       color: c,
       emissive: em.getHex(),
-      emissiveIntensity: 0.02 + (inspectSelected ? 0.06 : 0),
+      emissiveIntensity: 0.02 + emissiveBonus + (inspectSelected ? 0.06 : 0),
     };
   }
   const eff = getEffectivePanelVisualShading(panelId, scene);
@@ -150,12 +325,28 @@ function panelSurfaceMaterial(
   return {
     color,
     emissive: em.getHex(),
-    emissiveIntensity: (eff.state === "AVAILABLE" ? 0.05 : 0.028) + (inspectSelected ? 0.07 : 0),
+    emissiveIntensity:
+      (eff.state === "AVAILABLE" ? 0.05 : 0.028) + emissiveBonus + (inspectSelected ? 0.07 : 0),
   };
 }
 
-function inspectData(kind: SceneInspectableKind, id: string): Record<string, unknown> {
-  return { [INSPECT_USERDATA_KEY]: { kind, id: String(id) } };
+function inspectData(kind: SceneInspectableKind, id: string, meshRole?: SceneInspectMeshRole): Record<string, unknown> {
+  const payload: SceneInspectUserData =
+    meshRole != null ? { kind, id: String(id), meshRole } : { kind, id: String(id) };
+  return { [INSPECT_USERDATA_KEY]: payload };
+}
+
+/** Pass 4 — résout l’id pan depuis le maillage `roof_tessellation` (intersections rayon). */
+function pickRoofTessellationPanIdFromIntersections(
+  intersections: ReadonlyArray<{ object?: { userData?: Record<string, unknown> } }>,
+): string | null {
+  for (const inter of intersections) {
+    const payload = inter.object?.userData?.[INSPECT_USERDATA_KEY] as SceneInspectUserData | undefined;
+    if (payload?.kind === "PAN" && payload.meshRole === "roof_tessellation") {
+      return String(payload.id);
+    }
+  }
+  return null;
 }
 
 function isInspectSelected(
@@ -166,13 +357,202 @@ function isInspectSelected(
   return sel != null && sel.kind === kind && String(sel.id) === String(id);
 }
 
+function isPanHittingPatchId(hit: ScenePickHit | null, panId: string): boolean {
+  if (hit == null) return false;
+  if (hit.kind === "roof_patch") return String(hit.roofPlanePatchId) === String(panId);
+  if (hit.kind === "roof_vertex") return String(hit.roofPlanePatchId) === String(panId);
+  return false;
+}
+
+function roofVertexWorldFromScene(scene: SolarScene3D, hit: ScenePickHit): THREE.Vector3 | null {
+  if (hit.kind !== "roof_vertex") return null;
+  const patch = scene.roofModel.roofPlanePatches.find((p) => String(p.id) === String(hit.roofPlanePatchId));
+  const c = patch?.cornersWorld[hit.vertexIndexInPatch];
+  return c ? new THREE.Vector3(c.x, c.y, c.z) : null;
+}
+
+/** Plage alignée sur `isValidBuildingHeightM` (heightResolver). */
+const ROOF_VERTEX_EDIT_MIN_M = -2;
+const ROOF_VERTEX_EDIT_MAX_M = 30;
+/** Aligné sur `commitRoofVertexHeightLike2D` (proximité point structurel, px image). */
+const STRUCTURAL_RIDGE_RESOLVE_MAX_DIST_IMG_PX = 56;
+const STRUCTURAL_RIDGE_HEIGHT_MIN_M = 0;
+
+function getActiveRoofVertexModelingTarget(
+  inspectMode: boolean,
+  panSelection3DMode: boolean,
+  inspectionSelection: SceneInspectionSelection | null,
+  selectedHit: ScenePickHit | null,
+): { readonly patchId: string; readonly vertexIndex: number } | null {
+  if (inspectMode && inspectionSelection?.kind === "PAN" && inspectionSelection.roofVertexIndexInPatch != null) {
+    return { patchId: String(inspectionSelection.id), vertexIndex: inspectionSelection.roofVertexIndexInPatch };
+  }
+  if (panSelection3DMode && selectedHit?.kind === "roof_vertex") {
+    return { patchId: selectedHit.roofPlanePatchId, vertexIndex: selectedHit.vertexIndexInPatch };
+  }
+  return null;
+}
+
+function readVertexReferenceHeightM(
+  pans: ReadonlyArray<CalpinagePanProvenanceEntry> | undefined,
+  panId: string,
+  vertexIndex: number,
+  worldZFallbackM: number,
+): number {
+  const p = pans?.find((x) => String(x.id) === String(panId));
+  const poly = p?.polygonPx;
+  if (poly && vertexIndex >= 0 && vertexIndex < poly.length) {
+    const pt = poly[vertexIndex];
+    const h = pt && typeof pt === "object" && "h" in pt ? (pt as { h?: unknown }).h : undefined;
+    if (typeof h === "number" && isValidBuildingHeightM(h)) return h;
+  }
+  if (isValidBuildingHeightM(worldZFallbackM)) return worldZFallbackM;
+  return 0;
+}
+
+function readVertexReferencePx(
+  pans: ReadonlyArray<CalpinagePanProvenanceEntry> | undefined,
+  panId: string,
+  vertexIndex: number,
+  worldXYFallback: { readonly x: number; readonly y: number } | null,
+  scene: SolarScene3D,
+): { readonly xPx: number; readonly yPx: number } | null {
+  const p = pans?.find((x) => String(x.id) === String(panId));
+  const poly = p?.polygonPx;
+  if (poly && vertexIndex >= 0 && vertexIndex < poly.length) {
+    const pt = poly[vertexIndex];
+    if (pt && typeof pt === "object") {
+      const x = Number((pt as { x?: unknown }).x);
+      const y = Number((pt as { y?: unknown }).y);
+      if (Number.isFinite(x) && Number.isFinite(y)) return { xPx: x, yPx: y };
+    }
+  }
+  const wc = scene.worldConfig;
+  if (
+    worldXYFallback &&
+    Number.isFinite(worldXYFallback.x) &&
+    Number.isFinite(worldXYFallback.y) &&
+    wc &&
+    typeof wc.metersPerPixel === "number" &&
+    wc.metersPerPixel > 0
+  ) {
+    const north = typeof wc.northAngleDeg === "number" && Number.isFinite(wc.northAngleDeg) ? wc.northAngleDeg : 0;
+    const { xPx, yPx } = worldHorizontalMToImagePx(
+      worldXYFallback.x,
+      worldXYFallback.y,
+      wc.metersPerPixel,
+      north,
+    );
+    if (Number.isFinite(xPx) && Number.isFinite(yPx)) return { xPx, yPx };
+  }
+  return null;
+}
+
+/**
+ * Marqueur sommet : sphère **centrée sur le coin 3D exact** (`cornersWorld`).
+ * Si `pickPosition` est fourni (drag Z), le raycast va sur une sphère invisible décalée le long de la normale
+ * pour ne pas voler le hit au pan tout en gardant l’orange collé au sommet.
+ */
+function PanVertexSelectionMarkerMesh({
+  position,
+  pickPosition,
+  pickHitRadius,
+  radius,
+  interactive,
+  onPointerDown,
+}: {
+  readonly position: readonly [number, number, number];
+  /** Centre monde de la hitbox (souvent légèrement au-dessus du plan) ; absent → pas de drag séparé. */
+  readonly pickPosition?: readonly [number, number, number];
+  readonly pickHitRadius?: number;
+  readonly radius: number;
+  readonly interactive?: boolean;
+  readonly onPointerDown?: (e: ThreeEvent<PointerEvent>) => void;
+}) {
+  const visualRef = useRef<THREE.Mesh>(null);
+  const pickRef = useRef<THREE.Mesh>(null);
+  const usePickHelper = !!(interactive && pickPosition != null && pickHitRadius != null && pickHitRadius > 0);
+
+  useLayoutEffect(() => {
+    const vis = visualRef.current;
+    if (!vis) return;
+    if (interactive && !usePickHelper) {
+      vis.raycast = THREE.Mesh.prototype.raycast.bind(vis);
+    } else {
+      vis.raycast = (): void => {
+        /* Hitbox drag sur sphère invisible ; visuel au sommet exact sans bloquer le pan. */
+      };
+    }
+  }, [interactive, usePickHelper]);
+
+  useLayoutEffect(() => {
+    const pick = pickRef.current;
+    if (!pick) return;
+    if (usePickHelper) {
+      pick.raycast = THREE.Mesh.prototype.raycast.bind(pick);
+    } else {
+      pick.raycast = (): void => {};
+    }
+  }, [usePickHelper]);
+
+  const hitR = usePickHelper ? pickHitRadius! : radius;
+
+  return (
+    <>
+      <mesh
+        ref={visualRef}
+        position={position}
+        scale={[radius, radius, radius]}
+        geometry={getViewerPanVertexSelectionMarkerGeometry()}
+        renderOrder={interactive ? 24 : 8}
+        onPointerDown={interactive && !usePickHelper ? onPointerDown : undefined}
+        onClick={interactive ? (e) => e.stopPropagation() : undefined}
+      >
+        <meshStandardMaterial
+          color="#ffb74d"
+          emissive="#ff9800"
+          emissiveIntensity={interactive ? 0.72 : 0.55}
+          metalness={0.12}
+          roughness={0.4}
+          toneMapped
+          depthTest
+          polygonOffset
+          polygonOffsetFactor={-1}
+          polygonOffsetUnits={-1}
+        />
+      </mesh>
+      {usePickHelper ? (
+        <mesh
+          ref={pickRef}
+          position={pickPosition}
+          scale={[hitR, hitR, hitR]}
+          geometry={getViewerPanVertexSelectionMarkerGeometry()}
+          renderOrder={25}
+          onPointerDown={onPointerDown}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <meshStandardMaterial transparent opacity={0} depthWrite={false} depthTest={false} toneMapped={false} />
+        </mesh>
+      ) : null}
+    </>
+  );
+}
+
 /** Lumières : racine séparée du contenu géométrique. */
 function CanonicalViewerLights({
   center,
   maxDim,
+  ambientScale,
+  keyScale,
+  fillScale,
+  shadowMapSize,
 }: {
   readonly center: THREE.Vector3;
   readonly maxDim: number;
+  readonly ambientScale: number;
+  readonly keyScale: number;
+  readonly fillScale: number;
+  readonly shadowMapSize: number;
 }) {
   const cx = center.x;
   const cy = center.y;
@@ -181,28 +561,68 @@ function CanonicalViewerLights({
 
   return (
     <>
-      <ambientLight intensity={VIEWER_AMBIENT_INTENSITY} />
+      <ambientLight intensity={VIEWER_AMBIENT_INTENSITY * ambientScale} />
       <directionalLight
         position={[cx + m * 1.65, cy + m * 1.35, cz + m * 2.15]}
-        intensity={VIEWER_KEY_LIGHT_INTENSITY}
+        intensity={VIEWER_KEY_LIGHT_INTENSITY * keyScale}
         castShadow
-        shadow-mapSize={[VIEWER_SHADOW_MAP_SIZE, VIEWER_SHADOW_MAP_SIZE]}
+        shadow-mapSize={[shadowMapSize, shadowMapSize]}
         shadow-bias={VIEWER_SHADOW_BIAS}
         shadow-normalBias={VIEWER_SHADOW_NORMAL_BIAS}
       />
-      <directionalLight position={[cx - m * 1.25, cy - m * 0.95, cz + m * 0.55]} intensity={VIEWER_FILL_LIGHT_INTENSITY} />
+      <directionalLight
+        position={[cx - m * 1.25, cy - m * 0.95, cz + m * 0.55]}
+        intensity={VIEWER_FILL_LIGHT_INTENSITY * fillScale}
+      />
     </>
   );
 }
 
 type PanelHover = { readonly panelId: string; readonly clientX: number; readonly clientY: number } | null;
 
-const OUTLINE_THICKNESS_FACTOR = 0.001;
+type RoofModelingPointerUi =
+  | null
+  | {
+      readonly clientX: number;
+      readonly clientY: number;
+      readonly label: string;
+      readonly cursor?: string;
+    };
+
+/** Synchronise le curseur du canvas WebGL (hors DOM overlay). */
+function GlCursorBinder({ cursor }: { readonly cursor: string }) {
+  const gl = useThree((s) => s.gl);
+  useLayoutEffect(() => {
+    const el = gl.domElement;
+    const prev = el.style.cursor;
+    el.style.cursor = cursor || "";
+    return () => {
+      el.style.cursor = prev;
+    };
+  }, [gl, cursor]);
+  return null;
+}
+
+/** Facilite le picking des `LineSegments` (faîtages) en monde 3D. */
+function LineRaycastThreshold({ maxDim, enabled }: { readonly maxDim: number; readonly enabled: boolean }) {
+  const raycaster = useThree((s) => s.raycaster);
+  useLayoutEffect(() => {
+    if (!enabled) return;
+    const t = Math.max(0.05, maxDim * 0.002);
+    const prev = raycaster.params.Line;
+    raycaster.params.Line = { threshold: t };
+    return () => {
+      raycaster.params.Line = prev;
+    };
+  }, [enabled, maxDim, raycaster]);
+  return null;
+}
 
 /** Contenu géométrique + soleil — dispose explicite des BufferGeometry créées ici. */
 function ViewerSceneContent({
   scene,
   box,
+  assembly,
   showRoof,
   showRoofEdges,
   showObstacles,
@@ -213,9 +633,24 @@ function ViewerSceneContent({
   sunDirectionIndex,
   onPanelHover,
   inspectMode,
+  panSelection3DMode,
+  enableRoofVertexZEdit,
+  enableRoofVertexXYEdit,
+  selectedHit,
   inspectionSelection,
   onInspectClick,
+  onRoofMeshClick,
+  onRoofModelingPointerUi,
+  roofModelingSurfaceUx,
+  roofModelingPassThroughOccluders,
   maxDim,
+  roofVertexMarker,
+  enableStructuralRidgeHeightEdit = false,
+  onStructuralRidgeLinePointerDown,
+  onRoofTessellationPv3dProbePointerDown,
+  pvLayout3DInteractionMode = false,
+  onPvPanelPvLayout3dPointerDown,
+  debugRuntime,
 }: Required<
   Pick<
     SolarScene3DViewerProps,
@@ -228,15 +663,42 @@ function ViewerSceneContent({
     | "showPanelShading"
     | "showSun"
     | "inspectMode"
+    | "panSelection3DMode"
+    | "enableRoofVertexZEdit"
+    | "enableRoofVertexXYEdit"
   >
 > & {
+  readonly roofModelingSurfaceUx: boolean;
+  /** Raycast désactivé sur PV / obstacles / extensions pour atteindre la toiture sous le curseur. */
+  readonly roofModelingPassThroughOccluders: boolean;
+  readonly assembly: PremiumHouse3DSceneAssembly;
   readonly box: THREE.Box3;
   sunDirectionIndex: number;
   readonly onPanelHover?: (h: PanelHover) => void;
+  readonly selectedHit: ScenePickHit | null;
   readonly inspectionSelection: SceneInspectionSelection | null;
   readonly onInspectClick: (e: ThreeEvent<MouseEvent>) => void;
+  readonly onRoofMeshClick?: (e: ThreeEvent<MouseEvent>) => void;
+  readonly onRoofModelingPointerUi?: (p: RoofModelingPointerUi) => void;
   readonly maxDim: number;
+  readonly roofVertexMarker: {
+    readonly position: readonly [number, number, number];
+    readonly pickPosition?: readonly [number, number, number];
+    readonly pickHitRadius?: number;
+    readonly radius: number;
+    readonly interactiveZDrag: boolean;
+    readonly onMarkerPointerDown?: (e: ThreeEvent<PointerEvent>) => void;
+  } | null;
+  readonly enableStructuralRidgeHeightEdit?: boolean;
+  readonly onStructuralRidgeLinePointerDown?: (e: ThreeEvent<PointerEvent>) => void;
+  /** Pass 4 — sonde technique pose PV (flag `window.__CALPINAGE_3D_PV_PLACE_PROBE__`). */
+  readonly onRoofTessellationPv3dProbePointerDown?: (e: ThreeEvent<PointerEvent>) => void;
+  readonly pvLayout3DInteractionMode?: boolean;
+  readonly onPvPanelPvLayout3dPointerDown?: (e: ThreeEvent<PointerEvent>, panelId: string) => void;
+  /** Runtime brut (ex. CALPINAGE_STATE) — champs 2D lucarne pour rendu dormer premium (couche visuelle). */
+  readonly debugRuntime?: unknown;
 }) {
+  const pvPanelRaycastPassThrough = roofModelingPassThroughOccluders && !pvLayout3DInteractionMode;
   const center = useMemo(() => box.getCenter(new THREE.Vector3()).clone(), [box]);
   const maxDimLocal = useMemo(() => {
     const s = new THREE.Vector3();
@@ -244,7 +706,18 @@ function ViewerSceneContent({
     return Math.max(s.x, s.y, s.z, 1);
   }, [box]);
 
-  const outlineThickness = Math.max(0.0008, maxDim * OUTLINE_THICKNESS_FACTOR);
+  const outlineThickness = Math.max(0.0008, maxDim * VIEWER_OUTLINE_THICKNESS_FACTOR);
+
+  const autopsyDevColors =
+    import.meta.env.DEV &&
+    typeof window !== "undefined" &&
+    (window as unknown as { __CALPINAGE_3D_AUTOPSY_COLORS__?: boolean }).__CALPINAGE_3D_AUTOPSY_COLORS__ === true;
+
+  const shellGeo = useMemo(() => {
+    const sh = scene.buildingShell;
+    if (!sh) return null;
+    return buildingShellGeometry(sh);
+  }, [scene.buildingShell]);
 
   const roofGeos = useMemo(() => {
     return scene.roofModel.roofPlanePatches.map((p) => ({
@@ -253,15 +726,130 @@ function ViewerSceneContent({
     }));
   }, [scene.roofModel.roofPlanePatches]);
 
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    console.log("[3D DRAG] mesh build from scene", {
+      sceneCreatedAt: scene.metadata.createdAtIso,
+      patchCount: scene.roofModel.roofPlanePatches.length,
+    });
+  }, [scene]);
+
+  const roofClosureGeo = useMemo(
+    () => roofClosureFacadeGeometry(scene.roofModel),
+    [scene.roofModel],
+  );
+
   const edgeGeo = useMemo(() => roofEdgesLineGeometry(scene.roofModel), [scene.roofModel]);
+
+  const ridgeGeo = useMemo(() => roofRidgesLineGeometry(scene.roofModel), [scene.roofModel]);
 
   const obsGeos = useMemo(() => {
     return scene.obstacleVolumes.map((v) => ({ id: v.id, geo: obstacleVolumeGeometry(v) }));
   }, [scene.obstacleVolumes]);
 
+  const dormerPremiumLayer = useMemo(() => {
+    const wc = scene.worldConfig;
+    const patches = scene.roofModel.roofPlanePatches;
+    const volumeRows = scene.extensionVolumes.map((v, index) => ({
+      index,
+      id: String(v.id),
+    }));
+    dormerPremiumAuditLog("canonical extensionVolumes[]", { volumes: volumeRows });
+
+    if (!wc || !isValidCanonicalWorldConfig(wc) || !patches?.length) {
+      dormerPremiumAuditLog("premium layer early_exit", {
+        hasWc: !!wc,
+        wcValid: !!(wc && isValidCanonicalWorldConfig(wc)),
+        patchCount: patches?.length ?? 0,
+      });
+      return {
+        meshes: [] as { id: string; geo: THREE.BufferGeometry; edges: THREE.BufferGeometry | null }[],
+        replaceKey: "",
+        premiumIds: new Set<string>(),
+      };
+    }
+    const roofModel = { world: wc, roofPlanePatches: patches };
+    const rawList = extractRuntimeRoofExtensions(debugRuntime);
+    dormerPremiumAuditLog("roofExtensions[] count", { count: rawList.length });
+    const volIdSet = new Set(scene.extensionVolumes.map((v) => String(v.id)));
+    const volIdsArr = [...volIdSet];
+    const replaceIds: string[] = [];
+    const meshes: { id: string; geo: THREE.BufferGeometry; edges: THREE.BufferGeometry | null }[] = [];
+
+    for (let ri = 0; ri < rawList.length; ri++) {
+      const raw = rawList[ri];
+      if (!raw || typeof raw !== "object") continue;
+      const rec = raw as Record<string, unknown>;
+      const id = rec.id != null ? String(rec.id) : "";
+      const ridge = rec.ridge as { a?: unknown; b?: unknown } | undefined;
+      const ridgePresent =
+        !!ridge?.a &&
+        !!ridge?.b &&
+        typeof (ridge.a as { x?: number })?.x === "number" &&
+        typeof (ridge.a as { y?: number })?.y === "number" &&
+        typeof (ridge.b as { x?: number })?.x === "number" &&
+        typeof (ridge.b as { y?: number })?.y === "number";
+      const contourPts = (rec.contour as { points?: unknown[] } | undefined)?.points;
+      const contourCount = Array.isArray(contourPts) ? contourPts.length : 0;
+      dormerPremiumAuditLog("roofExtension candidate", {
+        index: ri,
+        runtimeId: id || "(empty)",
+        type: rec.type,
+        kind: rec.kind,
+        dormerType: rec.dormerType,
+        ridgeHeightRelM: rec.ridgeHeightRelM,
+        contourPointsCount: contourCount,
+        ridgePresent: ridgePresent ? "OUI" : "NON",
+      });
+
+      if (!id) {
+        dormerPremiumAuditLog("MATCH FAIL: empty runtime id", {
+          index: ri,
+          volumeIds: volIdsArr,
+        });
+        continue;
+      }
+      if (!volIdSet.has(id)) {
+        dormerPremiumAuditLog("MATCH FAIL: runtime id not in extensionVolumes", {
+          runtimeId: id,
+          volumeIds: volIdsArr,
+        });
+        continue;
+      }
+      dormerPremiumAuditLog("MATCH OK", { id });
+      dormerPremiumAuditLog("CALLED buildDormerMesh", { id });
+      const geo = buildDormerMesh(rec as DormerRuntimeExtensionInput, roofModel);
+      if (!geo) {
+        dormerPremiumAuditLog("RESULT: null (voir GUARD [DORMER_AUDIT] ci-dessus dans buildDormerMesh)", {
+          id,
+        });
+        continue;
+      }
+      dormerPremiumAuditLog("RESULT: geometry (viewer)", { id });
+      const edges = buildDormerEdgesGeometry(geo);
+      replaceIds.push(id);
+      meshes.push({ id, geo, edges });
+    }
+    replaceIds.sort();
+    const premiumIds = new Set(meshes.map((m) => String(m.id)));
+    return { meshes, replaceKey: replaceIds.join("|"), premiumIds };
+  }, [debugRuntime, scene.worldConfig, scene.roofModel.roofPlanePatches, scene.extensionVolumes]);
+
   const extGeos = useMemo(() => {
-    return scene.extensionVolumes.map((v) => ({ id: v.id, geo: extensionVolumeGeometry(v) }));
-  }, [scene.extensionVolumes]);
+    const premiumIds = dormerPremiumLayer.premiumIds;
+    if (typeof window !== "undefined") {
+      const w = window as unknown as { __CALPINAGE_DORMER_AUDIT__?: boolean };
+      if (w.__CALPINAGE_DORMER_AUDIT__ === true) {
+        console.log("[DORMER_REPLACE]", {
+          premiumIds: Array.from(premiumIds),
+          extensionVolumes: scene.extensionVolumes.map((v) => v.id),
+        });
+      }
+    }
+    return scene.extensionVolumes
+      .filter((v) => !premiumIds.has(String(v.id)))
+      .map((v) => ({ id: v.id, geo: extensionVolumeGeometry(v) }));
+  }, [scene.extensionVolumes, dormerPremiumLayer.premiumIds]);
 
   const panelGeos = useMemo(() => {
     return scene.pvPanels.map((p) => ({
@@ -272,23 +860,65 @@ function ViewerSceneContent({
 
   const allGeos = useMemo(
     () => [
+      ...(shellGeo ? [shellGeo] : []),
       ...roofGeos.map((x) => x.geo),
+      ...(roofClosureGeo ? [roofClosureGeo] : []),
       ...(edgeGeo ? [edgeGeo] : []),
+      ...(ridgeGeo ? [ridgeGeo] : []),
+      ...dormerPremiumLayer.meshes.flatMap((m) => [m.geo, ...(m.edges ? [m.edges] : [])]),
       ...obsGeos.map((x) => x.geo),
       ...extGeos.map((x) => x.geo),
       ...panelGeos.map((x) => x.geo),
     ],
-    [roofGeos, edgeGeo, obsGeos, extGeos, panelGeos],
+    [shellGeo, roofGeos, roofClosureGeo, edgeGeo, ridgeGeo, dormerPremiumLayer.meshes, obsGeos, extGeos, panelGeos],
   );
 
   const solidGeosForNormalsAudit = useMemo(
-    () => [...roofGeos.map((x) => x.geo), ...obsGeos.map((x) => x.geo), ...extGeos.map((x) => x.geo), ...panelGeos.map((x) => x.geo)],
-    [roofGeos, obsGeos, extGeos, panelGeos],
+    () => [
+      ...(shellGeo ? [shellGeo] : []),
+      ...roofGeos.map((x) => x.geo),
+      ...(roofClosureGeo ? [roofClosureGeo] : []),
+      ...dormerPremiumLayer.meshes.map((m) => m.geo),
+      ...obsGeos.map((x) => x.geo),
+      ...extGeos.map((x) => x.geo),
+      ...panelGeos.map((x) => x.geo),
+    ],
+    [shellGeo, roofGeos, roofClosureGeo, dormerPremiumLayer.meshes, obsGeos, extGeos, panelGeos],
   );
 
   useEffect(() => {
     logIfGeometryNormalsSuspect(solidGeosForNormalsAudit, "viewer-meshes");
   }, [solidGeosForNormalsAudit]);
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    const cmp = dump3DRuntimeViewerGeoCompare(scene, shellGeo, roofGeos);
+    const snap = getLastAutopsySnapshot();
+    const bridge = (window as unknown as { __LAST_3D_BRIDGE__?: Record<string, unknown> }).__LAST_3D_BRIDGE__ ?? {};
+    const bridgeMode = bridge.mode === "emergency" ? "emergency" : "official";
+    const legFromBridge = bridge.autopsyLegacyPath;
+    const legacyPath: AutopsyLegacyRoofPath =
+      (snap?.legacyPath as AutopsyLegacyRoofPath) ??
+      (typeof legFromBridge === "string" ? (legFromBridge as AutopsyLegacyRoofPath) : "unknown");
+    const v = compute3DRuntimeVerdict({
+      bridgeMode,
+      officialOk: bridge.officialOk !== false,
+      viewerMismatch: cmp.viewerMismatch,
+      legacyPath,
+      shellPresent: snap?.shellPresent ?? !!scene.buildingShell,
+      patchCount: snap?.patchCount ?? scene.roofModel.roofPlanePatches.length,
+      allPatchesFlatZ: snap?.allPatchesFlatZ ?? false,
+      anyPatchHighZRatio: snap?.anyPatchHighZRatio ?? false,
+      shellWallSuspect: snap?.shellWallSuspect ?? false,
+    });
+    log3DRuntimeVerdictFinal({
+      verdict: v.verdict,
+      reason: v.reason,
+      bridgeMode,
+      legacyPath,
+      viewerMismatch: cmp.viewerMismatch,
+    });
+  }, [scene, shellGeo, roofGeos]);
 
   useEffect(() => {
     return () => {
@@ -301,6 +931,33 @@ function ViewerSceneContent({
     y: 0,
     z: 1,
   };
+
+  const L = assembly.layers;
+  const visRoof = showRoof && L.showRoof;
+  const visRoofEdges = showRoofEdges && L.showRoofEdges;
+  const visRidges = L.showStructuralRidgeLines && ridgeGeo != null;
+  const visObs = showObstacles && L.showObstacles;
+  const visExt = showExtensions && L.showExtensions;
+  const visDormerPremium = visExt && dormerPremiumLayer.meshes.length > 0;
+  const showDormerDebugWire =
+    typeof window !== "undefined" &&
+    (window as unknown as { __CALPINAGE_DORMER_DEBUG__?: boolean }).__CALPINAGE_DORMER_DEBUG__ === true;
+  const visPanels = showPanels && L.showPanels;
+  const visPanelShading = showPanelShading && L.showPanelShading;
+  const visSun = showSun && L.showSun;
+
+  const mRoof = assembly.materials.roof;
+  const mObs = assembly.materials.obstacle;
+  const mExt = assembly.materials.extension;
+  const shellIdForInspect = scene.buildingShell?.id ?? "calpinage-building-shell";
+  const shellInspectSelected =
+    shellGeo != null && isInspectSelected(inspectionSelection, "SHELL", shellIdForInspect);
+  const mEdge = assembly.materials.roofEdgeLine;
+  const mRidge = assembly.materials.structuralRidgeLine;
+  const pvB = assembly.pvBoost;
+
+  const showRoofModelingHoverUx =
+    roofModelingSurfaceUx && (inspectMode || panSelection3DMode) && onRoofModelingPointerUi != null;
 
   const arrowRef = useMemo(() => {
     const dir = new THREE.Vector3(sunUnit.x, sunUnit.y, sunUnit.z).normalize();
@@ -315,43 +972,227 @@ function ViewerSceneContent({
     };
   }, [arrowRef]);
 
+  const panVertexSelectionMarker = useMemo(() => {
+    if (!roofVertexMarker) return null;
+    return (
+      <PanVertexSelectionMarkerMesh
+        position={roofVertexMarker.position}
+        pickPosition={roofVertexMarker.pickPosition}
+        pickHitRadius={roofVertexMarker.pickHitRadius}
+        radius={roofVertexMarker.radius}
+        interactive={roofVertexMarker.interactiveZDrag}
+        onPointerDown={roofVertexMarker.onMarkerPointerDown}
+      />
+    );
+  }, [roofVertexMarker]);
+
   return (
     <>
-      <CanonicalViewerLights center={center} maxDim={maxDimLocal} />
-      {showRoof &&
+      <CanonicalViewerLights
+        center={center}
+        maxDim={maxDimLocal}
+        ambientScale={assembly.lighting.ambientScale}
+        keyScale={assembly.lighting.keyScale}
+        fillScale={assembly.lighting.fillScale}
+        shadowMapSize={assembly.lighting.shadowMapSize}
+      />
+      {shellGeo && (
+        <mesh
+          geometry={shellGeo}
+          castShadow
+          receiveShadow
+          position={[0, 0, 0]}
+          userData={inspectData("SHELL", shellIdForInspect, "shell_tessellation")}
+          onClick={inspectMode ? onInspectClick : undefined}
+        >
+          <meshStandardMaterial
+            color={autopsyDevColors ? "#ff00ff" : VIEWER_SHELL_MESH_HEX}
+            metalness={0.05}
+            roughness={0.88}
+            side={THREE.DoubleSide}
+            polygonOffset
+            polygonOffsetFactor={1}
+            polygonOffsetUnits={1}
+            emissive={shellInspectSelected ? "#4a3f6b" : "#000000"}
+            emissiveIntensity={shellInspectSelected ? 0.12 : 0}
+          />
+          {inspectMode && shellInspectSelected && (
+            <Outlines
+              thickness={outlineThickness}
+              color={VIEWER_INSPECT_OUTLINE_HEX.shell}
+              opacity={0.95}
+              toneMapped={false}
+            />
+          )}
+        </mesh>
+      )}
+      {visRoof &&
         roofGeos.map(({ id, geo }) => {
           const sid = String(id);
-          const sel = isInspectSelected(inspectionSelection, "PAN", sid);
+          const inspectPan = inspectMode && isInspectSelected(inspectionSelection, "PAN", sid);
+          const pan3d = panSelection3DMode && isPanHittingPatchId(selectedHit, sid);
+          const panHighlighted = inspectPan || pan3d;
+          const emissiveHex = inspectPan ? "#3d5a80" : pan3d ? "#6a4c9c" : "#000000";
+          const emissiveIntensity = panHighlighted ? (inspectPan ? 0.22 : 0.2) : 0;
+          const outlineHex = inspectPan ? VIEWER_INSPECT_OUTLINE_HEX.pan : VIEWER_INSPECT_OUTLINE_HEX.panSelection3d;
           return (
             <mesh
               key={`roof-${id}`}
-              userData={inspectData("PAN", sid)}
+              userData={inspectData("PAN", sid, "roof_tessellation")}
               geometry={geo}
               castShadow
               receiveShadow
               position={[0, 0, 0]}
-              onClick={inspectMode ? onInspectClick : undefined}
+              onClick={onRoofMeshClick ?? (inspectMode ? onInspectClick : undefined)}
+              onPointerMove={
+                showRoofModelingHoverUx
+                  ? (e) => {
+                      e.stopPropagation();
+                      const ne = e.nativeEvent;
+                      const gl = e.gl;
+                      const cam = e.camera;
+                      let hit = null as ReturnType<typeof pickSceneHitFromIntersections>;
+                      if (panSelection3DMode && cam && gl?.domElement) {
+                        hit = pickSceneHitForRoofVertexModeling(e.intersections, {
+                          camera: cam,
+                          canvasRect: gl.domElement.getBoundingClientRect(),
+                          clientX: ne.clientX,
+                          clientY: ne.clientY,
+                        });
+                        if (!hit) {
+                          onRoofModelingPointerUi!(null);
+                          return;
+                        }
+                      } else {
+                        hit = pickSceneHitFromIntersections(e.intersections);
+                        if (!hit || (hit.kind !== "roof_patch" && hit.kind !== "roof_vertex")) {
+                          onRoofModelingPointerUi!(null);
+                          return;
+                        }
+                      }
+                      const label =
+                        hit.kind === "roof_vertex"
+                          ? "Sommet — glisser le point orange (vertical) ou panneau pour la hauteur"
+                          : "Pan toiture — clic pour sélectionner";
+                      onRoofModelingPointerUi!({
+                        clientX: ne.clientX,
+                        clientY: ne.clientY,
+                        label,
+                        cursor: "pointer",
+                      });
+                    }
+                  : undefined
+              }
+              onPointerOut={showRoofModelingHoverUx ? () => onRoofModelingPointerUi!(null) : undefined}
+              onPointerDown={onRoofTessellationPv3dProbePointerDown}
             >
               <meshStandardMaterial
-                color="#5c6b7a"
-                metalness={0.12}
-                roughness={0.78}
+                color={autopsyDevColors ? "#00ffff" : mRoof.color}
+                metalness={mRoof.metalness}
+                roughness={mRoof.roughness}
+                flatShading={mRoof.flatShading ?? false}
                 side={THREE.DoubleSide}
-                emissive={sel ? "#3d5a80" : "#000000"}
-                emissiveIntensity={sel ? 0.22 : 0}
+                polygonOffset
+                polygonOffsetFactor={-1}
+                polygonOffsetUnits={-1}
+                emissive={emissiveHex}
+                emissiveIntensity={emissiveIntensity}
               />
-              {inspectMode && sel && (
-                <Outlines thickness={outlineThickness} color="#d6c28a" opacity={0.95} toneMapped={false} />
+              {panHighlighted && (
+                <Outlines
+                  thickness={outlineThickness}
+                  color={outlineHex}
+                  opacity={0.95}
+                  toneMapped={false}
+                />
               )}
             </mesh>
           );
         })}
-      {showRoofEdges && edgeGeo && (
+      {panVertexSelectionMarker}
+      {visRoof && roofClosureGeo && (
+        <mesh geometry={roofClosureGeo} castShadow receiveShadow position={[0, 0, 0]}>
+          <meshStandardMaterial
+            color={autopsyDevColors ? "#6666ee" : mRoof.color}
+            metalness={mRoof.metalness}
+            roughness={Math.min(1, (mRoof.roughness ?? 0.7) + 0.06)}
+            flatShading={mRoof.flatShading ?? false}
+            side={THREE.DoubleSide}
+            polygonOffset
+            polygonOffsetFactor={-1}
+            polygonOffsetUnits={-1}
+          />
+        </mesh>
+      )}
+      {visRoofEdges && edgeGeo && (
         <lineSegments geometry={edgeGeo}>
-          <lineBasicMaterial color="#ffcc80" />
+          <lineBasicMaterial
+            color={mEdge.color}
+            transparent={mEdge.opacity < 1}
+            opacity={mEdge.opacity}
+          />
         </lineSegments>
       )}
-      {showObstacles &&
+      {visRidges && ridgeGeo && (
+        <lineSegments
+          geometry={ridgeGeo}
+          onPointerDown={
+            enableStructuralRidgeHeightEdit && onStructuralRidgeLinePointerDown
+              ? (e) => {
+                  e.stopPropagation();
+                  onStructuralRidgeLinePointerDown(e);
+                }
+              : undefined
+          }
+        >
+          <lineBasicMaterial
+            color={mRidge.color}
+            transparent={mRidge.opacity < 1}
+            opacity={mRidge.opacity}
+          />
+        </lineSegments>
+      )}
+      {visDormerPremium &&
+        dormerPremiumLayer.meshes.map(({ id, geo, edges }) => {
+          const sid = String(id);
+          const sel = isInspectSelected(inspectionSelection, "EXTENSION", sid);
+          return (
+            <group key={`dormer-premium-${id}`}>
+              <mesh
+                userData={inspectData("EXTENSION", sid, "volume_surface")}
+                geometry={geo}
+                castShadow
+                receiveShadow
+                raycast={roofModelingPassThroughOccluders ? roofModelingSkipOccluderRaycast : undefined}
+                onClick={inspectMode ? onInspectClick : undefined}
+              >
+                <meshStandardMaterial
+                  color={mExt.color}
+                  metalness={mExt.metalness}
+                  roughness={mExt.roughness}
+                  flatShading={mExt.flatShading ?? false}
+                  side={THREE.DoubleSide}
+                  emissive={sel ? "#33691e" : "#000000"}
+                  emissiveIntensity={sel ? 0.32 : 0}
+                />
+                {inspectMode && sel && (
+                  <Outlines
+                    thickness={outlineThickness}
+                    color={VIEWER_INSPECT_OUTLINE_HEX.extension}
+                    opacity={0.95}
+                    toneMapped={false}
+                  />
+                )}
+              </mesh>
+              {showDormerDebugWire && edges && (
+                <lineSegments geometry={edges}>
+                  <lineBasicMaterial color="#33e6ff" toneMapped={false} depthTest />
+                </lineSegments>
+              )}
+            </group>
+          );
+        })}
+      {visObs &&
         obsGeos.map(({ id, geo }) => {
           const sid = String(id);
           const sel = isInspectSelected(inspectionSelection, "OBSTACLE", sid);
@@ -362,23 +1203,29 @@ function ViewerSceneContent({
               geometry={geo}
               castShadow
               receiveShadow
+              raycast={roofModelingPassThroughOccluders ? roofModelingSkipOccluderRaycast : undefined}
               onClick={inspectMode ? onInspectClick : undefined}
             >
               <meshStandardMaterial
-                color="#8d6e63"
-                metalness={0.05}
-                roughness={0.9}
-                flatShading
+                color={mObs.color}
+                metalness={mObs.metalness}
+                roughness={mObs.roughness}
+                flatShading={mObs.flatShading ?? false}
                 emissive={sel ? "#6d4c41" : "#000000"}
                 emissiveIntensity={sel ? 0.35 : 0}
               />
               {inspectMode && sel && (
-                <Outlines thickness={outlineThickness} color="#e8c4a0" opacity={0.95} toneMapped={false} />
+                <Outlines
+                  thickness={outlineThickness}
+                  color={VIEWER_INSPECT_OUTLINE_HEX.obstacle}
+                  opacity={0.95}
+                  toneMapped={false}
+                />
               )}
             </mesh>
           );
         })}
-      {showExtensions &&
+      {visExt &&
         extGeos.map(({ id, geo }) => {
           const sid = String(id);
           const sel = isInspectSelected(inspectionSelection, "EXTENSION", sid);
@@ -389,25 +1236,41 @@ function ViewerSceneContent({
               geometry={geo}
               castShadow
               receiveShadow
+              raycast={roofModelingPassThroughOccluders ? roofModelingSkipOccluderRaycast : undefined}
               onClick={inspectMode ? onInspectClick : undefined}
             >
               <meshStandardMaterial
-                color="#558b2f"
-                metalness={0.05}
-                roughness={0.85}
-                flatShading
+                color={mExt.color}
+                metalness={mExt.metalness}
+                roughness={mExt.roughness}
+                flatShading={mExt.flatShading ?? false}
                 emissive={sel ? "#33691e" : "#000000"}
                 emissiveIntensity={sel ? 0.32 : 0}
               />
               {inspectMode && sel && (
-                <Outlines thickness={outlineThickness} color="#c5e1a5" opacity={0.95} toneMapped={false} />
+                <Outlines
+                  thickness={outlineThickness}
+                  color={VIEWER_INSPECT_OUTLINE_HEX.extension}
+                  opacity={0.95}
+                  toneMapped={false}
+                />
               )}
             </mesh>
           );
         })}
-      {showPanels &&
+      {visPanels &&
         panelGeos.map(({ id, geo }) => {
-          const mat = panelSurfaceMaterial(scene, id, showPanelShading, isInspectSelected(inspectionSelection, "PV_PANEL", id));
+          const pvSel = isInspectSelected(inspectionSelection, "PV_PANEL", id);
+          const mat = panelSurfaceMaterial(scene, id, visPanelShading, pvSel, pvB.panelEmissiveIntensityBonus);
+          const thinOutline =
+            pvB.outlinePanelsWhenNotInspecting && !inspectMode ? (
+              <Outlines
+                thickness={outlineThickness * 0.85}
+                color={VIEWER_PV_OUTLINE_IDLE_HEX}
+                opacity={0.35}
+                toneMapped={false}
+              />
+            ) : null;
           return (
             <mesh
               key={`pv-${id}`}
@@ -415,7 +1278,15 @@ function ViewerSceneContent({
               geometry={geo}
               castShadow
               receiveShadow
+              raycast={pvPanelRaycastPassThrough ? roofModelingSkipOccluderRaycast : undefined}
               onClick={inspectMode ? onInspectClick : undefined}
+              onPointerDown={
+                pvLayout3DInteractionMode && onPvPanelPvLayout3dPointerDown
+                  ? (e) => {
+                      onPvPanelPvLayout3dPointerDown(e, String(id));
+                    }
+                  : undefined
+              }
               onPointerOver={(e) => {
                 e.stopPropagation();
                 onPanelHover?.({ panelId: id, clientX: e.clientX, clientY: e.clientY });
@@ -433,17 +1304,23 @@ function ViewerSceneContent({
                 color={mat.color}
                 emissive={mat.emissive}
                 emissiveIntensity={mat.emissiveIntensity}
-                metalness={0.22}
-                roughness={0.48}
+                metalness={pvB.panelMetalness}
+                roughness={pvB.panelRoughness}
                 side={THREE.DoubleSide}
               />
-              {inspectMode && isInspectSelected(inspectionSelection, "PV_PANEL", id) && (
-                <Outlines thickness={outlineThickness} color="#f0e6c8" opacity={0.9} toneMapped={false} />
+              {thinOutline}
+              {inspectMode && pvSel && (
+                <Outlines
+                  thickness={outlineThickness}
+                  color={VIEWER_INSPECT_OUTLINE_HEX.pvPanelSelected}
+                  opacity={0.9}
+                  toneMapped={false}
+                />
               )}
             </mesh>
           );
         })}
-      {showSun && <primitive object={arrowRef} />}
+      {visSun && <primitive object={arrowRef} />}
     </>
   );
 }
@@ -535,7 +1412,21 @@ function DebugStatsOverlay({
       data-testid="viewer-debug-stats"
     >
       <div><strong>DEBUG 3D</strong></div>
-      <div>Pans: {patches} | Panels: {panels} | Obs: {obs} | Ext: {ext}</div>
+      <div>
+        Pans: {patches} | Shell: {scene.buildingShell ? 1 : 0} | Panels: {panels} | Obs: {obs} | Ext: {ext}
+      </div>
+      {scene.metadata.buildGuards != null && scene.metadata.buildGuards.length > 0 ? (
+        <div style={{ marginTop: 6, borderTop: "1px solid rgba(255,180,0,0.25)", paddingTop: 6 }}>
+          <div>
+            <strong>NIVEAU 0</strong>
+          </div>
+          {scene.metadata.buildGuards.map((g) => (
+            <div key={g.code} style={{ marginTop: 3, fontSize: 10, opacity: 0.9 }}>
+              [{g.severity}] {g.code}: {g.message}
+            </div>
+          ))}
+        </div>
+      ) : null}
       <div>Edges: {edges} | Ridges: {ridges}</div>
       <div>BBox size: {s.x.toFixed(1)}×{s.y.toFixed(1)}×{s.z.toFixed(1)} m</div>
       <div>Z range: {zRange} m</div>
@@ -564,7 +1455,8 @@ function DebugStatsOverlay({
 }
 
 function SolarScene3DViewer({
-  scene,
+  scene: sceneProp,
+  runtimeScene,
   className,
   height = 420,
   showRoof = true,
@@ -575,6 +1467,8 @@ function SolarScene3DViewer({
   showPanelShading = true,
   showShadingLegend = true,
   inspectMode = false,
+  panSelection3DMode = false,
+  calpinagePansForProvenance,
   showSun = true,
   sunDirectionIndex = 0,
   showDebugOverlay = false,
@@ -585,7 +1479,35 @@ function SolarScene3DViewer({
   onCameraViewModeChange,
   defaultCameraViewMode = DEFAULT_CAMERA_VIEW_MODE,
   showCameraViewModeToggle = false,
+  premiumViewMode: premiumViewModeControlled,
+  onPremiumViewModeChange,
+  geometryValidationReport = null,
+  premiumAssemblyOverride = null,
+  showPremiumGeometryTrustStripe,
+  showPremiumViewModeToolbar = false,
+  enableRoofVertexZEdit = false,
+  onRoofVertexHeightCommit,
+  enableRoofVertexXYEdit = false,
+  onRoofVertexXYCommit,
+  roofModelingHistory = null,
+  enableStructuralRidgeHeightEdit = false,
+  onStructuralRidgeHeightCommit,
+  pvLayout3DInteractionMode = false,
 }: SolarScene3DViewerProps) {
+  const baseScene = sceneProp ?? runtimeScene;
+  if (baseScene == null) {
+    throw new Error("[SolarScene3DViewer] Fournir `scene` ou `runtimeScene` (SolarScene3D).");
+  }
+  const scene = baseScene;
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    console.log("[3D DRAG] displayedScene", {
+      sceneCreatedAt: scene.metadata.createdAtIso,
+      patchCount: scene.roofModel.roofPlanePatches.length,
+    });
+  }, [scene]);
+
   const [internalViewMode, setInternalViewMode] = useState<CameraViewMode>(defaultCameraViewMode);
   const cameraViewMode = cameraViewModeControlled ?? internalViewMode;
   const setCameraViewMode = useCallback(
@@ -594,6 +1516,27 @@ function SolarScene3DViewer({
       if (cameraViewModeControlled === undefined) setInternalViewMode(m);
     },
     [cameraViewModeControlled, onCameraViewModeChange],
+  );
+
+  const [internalPremiumMode, setInternalPremiumMode] = useState<PremiumHouse3DViewMode>("presentation");
+  const premiumMode = premiumViewModeControlled ?? internalPremiumMode;
+  const setPremiumMode = useCallback(
+    (m: PremiumHouse3DViewMode) => {
+      onPremiumViewModeChange?.(m);
+      if (premiumViewModeControlled === undefined) setInternalPremiumMode(m);
+    },
+    [premiumViewModeControlled, onPremiumViewModeChange],
+  );
+
+  const premiumAssembly = useMemo(
+    () =>
+      premiumAssemblyOverride ??
+      buildPremiumHouse3DScene({
+        scene,
+        viewMode: premiumMode,
+        geometryValidationReport,
+      }),
+    [premiumAssemblyOverride, scene, premiumMode, geometryValidationReport],
   );
 
   const geometryBox = useMemo(() => computeSolarSceneBoundingBox(scene), [scene]);
@@ -633,10 +1576,79 @@ function SolarScene3DViewer({
 
   const [panelHover, setPanelHover] = useState<PanelHover>(null);
   const [inspectionSelection, setInspectionSelection] = useState<SceneInspectionSelection | null>(null);
+  const [selectedHit, setSelectedHit] = useState<ScenePickHit | null>(null);
+  const [orbitSuppressed, setOrbitSuppressed] = useState(false);
+  const [roofPickHover, setRoofPickHover] = useState<{
+    readonly clientX: number;
+    readonly clientY: number;
+    readonly label: string;
+  } | null>(null);
+  const [glCursor, setGlCursor] = useState("");
+  const [roofZDragSession, setRoofZDragSession] = useState<RoofZDragSession | null>(null);
+  const [roofZDragPreviewM, setRoofZDragPreviewM] = useState<number | null>(null);
+  const [structuralHeightSelection, setStructuralHeightSelection] = useState<LegacyStructuralHeightSelection | null>(
+    null,
+  );
+  const zDragSessionRef = useRef<RoofZDragSession | null>(null);
+  const zDragSessionImmediateRef = useRef<RoofZDragSession | null>(null);
+  const zDragGestureActiveRef = useRef(false);
+  const [pv3dDragSession, setPv3dDragSession] = useState<PvLayout3dDragSession | null>(null);
+  const pv3dDragSessionRef = useRef<PvLayout3dDragSession | null>(null);
+  useEffect(() => {
+    pv3dDragSessionRef.current = pv3dDragSession;
+  }, [pv3dDragSession]);
+  const zDragLiveCommitRafRef = useRef<number | null>(null);
+  const zDragLivePendingHeightRef = useRef<number | null>(null);
+  const zEditUnarmedLoggedRef = useRef(false);
+  const zDragCommitTargetRef = useRef<{ readonly panId: string; readonly vertexIndex: number } | null>(
+    null,
+  );
+  const orbitControlsRef = useRef<OrbitControlsImpl | null>(null);
+  const onRoofVertexHeightCommitRef = useRef(onRoofVertexHeightCommit);
+  onRoofVertexHeightCommitRef.current = onRoofVertexHeightCommit;
+  const zDragTelemetrySessionIdRef = useRef<string | null>(null);
+  const zDragTelemetryStartMsRef = useRef(0);
+  const zDragViewerCommitInvocationCountRef = useRef(0);
+
+  useEffect(() => {
+    if (!import.meta.env.DEV || zEditUnarmedLoggedRef.current) return;
+    const misconfigured =
+      (enableRoofVertexZEdit && !onRoofVertexHeightCommit) ||
+      (!enableRoofVertexZEdit && !!onRoofVertexHeightCommit);
+    if (misconfigured) {
+      zEditUnarmedLoggedRef.current = true;
+      console.warn("[3D DRAG] Z edit disabled or unarmed", {
+        enableRoofVertexZEdit,
+        hasOnCommit: !!onRoofVertexHeightCommit,
+      });
+    }
+  }, [enableRoofVertexZEdit, onRoofVertexHeightCommit]);
+
+  const onRoofModelingPointerUi = useCallback((p: RoofModelingPointerUi) => {
+    if (!p) {
+      setRoofPickHover(null);
+      setGlCursor("");
+      return;
+    }
+    setRoofPickHover({ clientX: p.clientX, clientY: p.clientY, label: p.label });
+    setGlCursor(p.cursor ?? "pointer");
+  }, []);
 
   useEffect(() => {
     if (!inspectMode) setInspectionSelection(null);
   }, [inspectMode]);
+
+  useEffect(() => {
+    if (!panSelection3DMode) setSelectedHit(null);
+  }, [panSelection3DMode]);
+
+  useEffect(() => {
+    if (!inspectMode && !panSelection3DMode) {
+      setOrbitSuppressed(false);
+      setRoofPickHover(null);
+      setGlCursor("");
+    }
+  }, [inspectMode, panSelection3DMode]);
 
   const onInspectClick = useCallback(
     (e: ThreeEvent<MouseEvent>) => {
@@ -648,10 +1660,623 @@ function SolarScene3DViewer({
     [inspectMode],
   );
 
+  const onRoofMeshClick = useCallback(
+    (e: ThreeEvent<MouseEvent>) => {
+      const allowStructuralPick = enableStructuralRidgeHeightEdit && onStructuralRidgeHeightCommit;
+      if (!inspectMode && !panSelection3DMode && !allowStructuralPick) return;
+      e.stopPropagation();
+
+      const wc = scene.worldConfig;
+      if (allowStructuralPick && wc) {
+        const p = e.point;
+        const img = worldPointToImage({ x: p.x, y: p.y, z: p.z }, wc);
+        const rt =
+          debugRuntime ??
+          (typeof window !== "undefined"
+            ? (window as unknown as { CALPINAGE_STATE?: unknown }).CALPINAGE_STATE
+            : null);
+        const sel = resolveNearestStructuralHeightSelectionFromImagePx(
+          rt,
+          { x: img.x, y: img.y },
+          STRUCTURAL_RIDGE_RESOLVE_MAX_DIST_IMG_PX,
+        );
+        if (sel) {
+          setSelectedHit(null);
+          setInspectionSelection(null);
+          setStructuralHeightSelection(sel);
+          setOrbitSuppressed(true);
+          return;
+        }
+      }
+
+      if (inspectMode) {
+        const picked = pickInspectableIntersection(e.intersections);
+        if (picked) setInspectionSelection(picked);
+      }
+      if (panSelection3DMode) {
+        const cam = e.camera;
+        const gl = e.gl;
+        const ne = e.nativeEvent;
+        let hit: ScenePickHit | null = null;
+        if (cam && gl?.domElement) {
+          hit = pickSceneHitForRoofVertexModeling(e.intersections, {
+            camera: cam,
+            canvasRect: gl.domElement.getBoundingClientRect(),
+            clientX: ne.clientX,
+            clientY: ne.clientY,
+          });
+        }
+        if (hit?.kind === "roof_vertex") {
+          setSelectedHit(hit);
+        } else {
+          setSelectedHit(null);
+        }
+      }
+    },
+    [
+      debugRuntime,
+      enableStructuralRidgeHeightEdit,
+      inspectMode,
+      onStructuralRidgeHeightCommit,
+      panSelection3DMode,
+      scene.worldConfig,
+    ],
+  );
+
+  const finalizeRoofZDrag = useCallback(() => {
+    zDragGestureActiveRef.current = false;
+    zDragSessionImmediateRef.current = null;
+    if (zDragLiveCommitRafRef.current != null) {
+      cancelAnimationFrame(zDragLiveCommitRafRef.current);
+      zDragLiveCommitRafRef.current = null;
+    }
+    const pendingH = zDragLivePendingHeightRef.current;
+    const tgt = zDragCommitTargetRef.current;
+    const commit = onRoofVertexHeightCommitRef.current;
+    const dragSid = zDragTelemetrySessionIdRef.current;
+    const markerTrace: RoofVertexHeightEdit["trace"] | undefined =
+      dragSid != null ? { dragSessionId: dragSid, source: "3d_marker_drag" } : undefined;
+    if (pendingH != null && tgt && commit) {
+      commit({
+        panId: tgt.panId,
+        vertexIndex: tgt.vertexIndex,
+        heightM: pendingH,
+        ...(markerTrace ? { trace: markerTrace } : {}),
+      });
+      if (dragSid != null) zDragViewerCommitInvocationCountRef.current += 1;
+    }
+    zDragLivePendingHeightRef.current = null;
+    const invocations = zDragViewerCommitInvocationCountRef.current;
+    const startMs = zDragTelemetryStartMsRef.current;
+    flushSync(() => {
+      setRoofZDragSession(null);
+      setRoofZDragPreviewM(null);
+      zDragSessionRef.current = null;
+      zDragCommitTargetRef.current = null;
+      setOrbitSuppressed(false);
+    });
+    if (dragSid != null) {
+      emitRoofVertexZTelemetry({
+        event: "roof_vertex_z_drag_end",
+        dragSessionId: dragSid,
+        durationMs: Math.max(0, performance.now() - startMs),
+        viewerCommitInvocationCount: invocations,
+        source: "3d_marker",
+      });
+      zDragTelemetrySessionIdRef.current = null;
+    }
+    const oc = orbitControlsRef.current;
+    if (oc) oc.enabled = true;
+  }, []);
+
+  const finalizeRoofZDragRef = useRef(finalizeRoofZDrag);
+  finalizeRoofZDragRef.current = finalizeRoofZDrag;
+
+  /** Même callback métier que le slider ± / curseur de l’overlay ; throttle 1× par frame. */
+  const liveRoofZCommitFromDrag = useCallback((z: number) => {
+    setRoofZDragPreviewM(z);
+    zDragLivePendingHeightRef.current = z;
+    if (zDragLiveCommitRafRef.current != null) return;
+    zDragLiveCommitRafRef.current = requestAnimationFrame(() => {
+      zDragLiveCommitRafRef.current = null;
+      const h = zDragLivePendingHeightRef.current;
+      const target = zDragCommitTargetRef.current;
+      const commit = onRoofVertexHeightCommitRef.current;
+      if (h == null || !target || !commit) return;
+      const dragSid = zDragTelemetrySessionIdRef.current;
+      const markerTrace: RoofVertexHeightEdit["trace"] | undefined =
+        dragSid != null ? { dragSessionId: dragSid, source: "3d_marker_drag" } : undefined;
+      commit({
+        panId: target.panId,
+        vertexIndex: target.vertexIndex,
+        heightM: h,
+        ...(markerTrace ? { trace: markerTrace } : {}),
+      });
+      if (dragSid != null) zDragViewerCommitInvocationCountRef.current += 1;
+      zDragLivePendingHeightRef.current = null;
+    });
+  }, []);
+
+  const onRoofVertexMarkerPointerDown = useCallback(
+    (e: ThreeEvent<PointerEvent>) => {
+      if (!enableRoofVertexZEdit || !onRoofVertexHeightCommit) return;
+      if (e.button !== 0) return;
+      const t = getActiveRoofVertexModelingTarget(
+        inspectMode,
+        panSelection3DMode,
+        inspectionSelection,
+        selectedHit,
+      );
+      if (!t) return;
+      const hit: ScenePickHit = {
+        kind: "roof_vertex",
+        roofPlanePatchId: t.patchId,
+        vertexIndexInPatch: t.vertexIndex,
+      };
+      const wPos = roofVertexWorldFromScene(baseScene, hit);
+      if (!wPos) return;
+      const h0 = readVertexReferenceHeightM(calpinagePansForProvenance, t.patchId, t.vertexIndex, wPos.z);
+      e.stopPropagation();
+      const oc = orbitControlsRef.current;
+      if (oc) oc.enabled = false;
+      flushSync(() => {
+        setOrbitSuppressed(true);
+      });
+      const gl = e.gl;
+      const cam = e.camera;
+      const rect = gl.domElement.getBoundingClientRect();
+      const zb = worldZFromPointerOnVerticalThroughXY(
+        cam,
+        e.nativeEvent.clientX,
+        e.nativeEvent.clientY,
+        rect,
+        wPos.x,
+        wPos.y,
+      );
+      const useScreenOnly = cameraViewMode === "PLAN_2D" || !Number.isFinite(zb);
+      const rayZBaseline = Number.isFinite(zb) ? zb : null;
+      try {
+        gl.domElement.setPointerCapture(e.pointerId);
+      } catch {
+        /* ignore */
+      }
+      const session: RoofZDragSession = {
+        panId: t.patchId,
+        vertexIndex: t.vertexIndex,
+        anchorXM: wPos.x,
+        anchorYM: wPos.y,
+        heightMStart: h0,
+        rayZBaseline,
+        useScreenOnly,
+        startClientY: e.nativeEvent.clientY,
+        pointerId: e.pointerId,
+        minM: ROOF_VERTEX_EDIT_MIN_M,
+        maxM: ROOF_VERTEX_EDIT_MAX_M,
+      };
+      zDragGestureActiveRef.current = true;
+      const dragSid = generateRoofZDragSessionId();
+      zDragTelemetrySessionIdRef.current = dragSid;
+      zDragTelemetryStartMsRef.current = performance.now();
+      zDragViewerCommitInvocationCountRef.current = 0;
+      emitRoofVertexZTelemetry({
+        event: "roof_vertex_z_drag_start",
+        dragSessionId: dragSid,
+        panId: t.patchId,
+        vertexIndex: t.vertexIndex,
+        startHeightM: h0,
+        source: "3d_marker",
+      });
+      zDragCommitTargetRef.current = { panId: t.patchId, vertexIndex: t.vertexIndex };
+      zDragSessionImmediateRef.current = session;
+      zDragSessionRef.current = session;
+      setRoofZDragSession(session);
+      setRoofZDragPreviewM(h0);
+      if (import.meta.env.DEV) {
+        console.log("[3D DRAG] start", { panId: t.patchId, vertexIndex: t.vertexIndex, startHeight: h0, dragSid });
+      }
+    },
+    [
+      enableRoofVertexZEdit,
+      onRoofVertexHeightCommit,
+      inspectMode,
+      panSelection3DMode,
+      inspectionSelection,
+      selectedHit,
+      baseScene,
+      calpinagePansForProvenance,
+      cameraViewMode,
+    ],
+  );
+
+  useEffect(() => {
+    zDragSessionRef.current = roofZDragSession;
+  }, [roofZDragSession]);
+
+  useEffect(() => {
+    if (zDragGestureActiveRef.current) return;
+    if (zDragLiveCommitRafRef.current != null) {
+      cancelAnimationFrame(zDragLiveCommitRafRef.current);
+      zDragLiveCommitRafRef.current = null;
+    }
+    zDragLivePendingHeightRef.current = null;
+    setRoofZDragSession(null);
+    setRoofZDragPreviewM(null);
+    zDragSessionRef.current = null;
+    zDragSessionImmediateRef.current = null;
+    zDragCommitTargetRef.current = null;
+    setOrbitSuppressed(false);
+    const oc = orbitControlsRef.current;
+    if (oc) oc.enabled = true;
+  }, [inspectionSelection, selectedHit]);
+
+  const roofVertexMarker = useMemo(() => {
+    const allowVertex =
+      (enableRoofVertexZEdit || enableRoofVertexXYEdit) && (inspectMode || panSelection3DMode);
+    if (!allowVertex) return null;
+    const t = getActiveRoofVertexModelingTarget(
+      inspectMode,
+      panSelection3DMode,
+      inspectionSelection,
+      selectedHit,
+    );
+    if (!t) return null;
+    const hit: ScenePickHit = {
+      kind: "roof_vertex",
+      roofPlanePatchId: t.patchId,
+      vertexIndexInPatch: t.vertexIndex,
+    };
+    const wPos = roofVertexWorldFromScene(scene, hit);
+    if (!wPos) return null;
+    const r = Math.max(0.036, maxDim * 0.016);
+    const interactiveZDrag = !!(enableRoofVertexZEdit && onRoofVertexHeightCommit);
+    const patch = scene.roofModel.roofPlanePatches.find((p) => String(p.id) === t.patchId);
+    const n = patch?.normal;
+    /** Sommet 3D exact (pas de décalage : l’orange est collé au coin du plan). */
+    const position = [wPos.x, wPos.y, wPos.z] as const;
+    let pickPosition: readonly [number, number, number] | undefined;
+    let pickHitRadius: number | undefined;
+    if (
+      interactiveZDrag &&
+      n &&
+      typeof n.x === "number" &&
+      Number.isFinite(n.x) &&
+      Number.isFinite(n.y) &&
+      Number.isFinite(n.z)
+    ) {
+      const off = Math.max(r * 2.2, maxDim * 0.014);
+      pickPosition = [wPos.x + n.x * off, wPos.y + n.y * off, wPos.z + n.z * off] as const;
+      pickHitRadius = Math.max(r * 2.4, maxDim * 0.018);
+    }
+    return {
+      position,
+      pickPosition,
+      pickHitRadius,
+      radius: r,
+      interactiveZDrag,
+      onMarkerPointerDown: interactiveZDrag ? onRoofVertexMarkerPointerDown : undefined,
+    };
+  }, [
+    enableRoofVertexZEdit,
+    enableRoofVertexXYEdit,
+    onRoofVertexHeightCommit,
+    inspectMode,
+    panSelection3DMode,
+    inspectionSelection,
+    selectedHit,
+    scene,
+    maxDim,
+    onRoofVertexMarkerPointerDown,
+  ]);
+
   const inspectionModel = useMemo(() => {
     if (!inspectMode || !inspectionSelection) return null;
     return buildSceneInspectionViewModel(scene, inspectionSelection);
   }, [inspectMode, inspectionSelection, scene]);
+
+  const pickProvenance2DModel = useMemo(() => {
+    if (!inspectMode && !panSelection3DMode) return null;
+    if (inspectMode && inspectionSelection != null && inspectionSelection.kind !== "PAN") {
+      return null;
+    }
+    let patchId: string | null = null;
+    let highlightVi: number | null = null;
+    if (inspectMode && inspectionSelection?.kind === "PAN") {
+      patchId = String(inspectionSelection.id);
+      highlightVi = inspectionSelection.roofVertexIndexInPatch ?? null;
+    } else if (panSelection3DMode && selectedHit?.kind === "roof_patch") {
+      patchId = selectedHit.roofPlanePatchId;
+      highlightVi = null;
+    } else if (panSelection3DMode && selectedHit?.kind === "roof_vertex") {
+      patchId = selectedHit.roofPlanePatchId;
+      highlightVi = selectedHit.vertexIndexInPatch;
+    } else {
+      return null;
+    }
+    const imageSizePx =
+      groundImage?.widthPx != null && groundImage?.heightPx != null
+        ? { width: groundImage.widthPx, height: groundImage.heightPx }
+        : undefined;
+    return buildPickProvenance2DViewModel({
+      scene,
+      roofPlanePatchId: patchId,
+      highlightVertexIndex: highlightVi,
+      calpinagePans: calpinagePansForProvenance,
+      imageSizePx,
+    });
+  }, [
+    inspectMode,
+    panSelection3DMode,
+    selectedHit,
+    inspectionSelection,
+    scene,
+    groundImage?.widthPx,
+    groundImage?.heightPx,
+    calpinagePansForProvenance,
+  ]);
+
+  const roofVertexHeightEdit = useMemo(() => {
+    if (!enableRoofVertexZEdit || !onRoofVertexHeightCommit) return null;
+    let patchId: string;
+    let vi: number;
+    if (inspectMode && inspectionSelection?.kind === "PAN" && inspectionSelection.roofVertexIndexInPatch != null) {
+      patchId = String(inspectionSelection.id);
+      vi = inspectionSelection.roofVertexIndexInPatch;
+    } else if (panSelection3DMode && selectedHit?.kind === "roof_vertex") {
+      patchId = selectedHit.roofPlanePatchId;
+      vi = selectedHit.vertexIndexInPatch;
+    } else {
+      return null;
+    }
+    const wPos = roofVertexWorldFromScene(scene, {
+      kind: "roof_vertex",
+      roofPlanePatchId: patchId,
+      vertexIndexInPatch: vi,
+    });
+    if (!wPos) return null;
+    const referenceHeightM = readVertexReferenceHeightM(
+      calpinagePansForProvenance,
+      patchId,
+      vi,
+      wPos.z,
+    );
+    return {
+      panId: patchId,
+      vertexIndex: vi,
+      referenceHeightM,
+      dragLiveHeightM: roofZDragPreviewM,
+      heightMinM: ROOF_VERTEX_EDIT_MIN_M,
+      heightMaxM: ROOF_VERTEX_EDIT_MAX_M,
+      worldPositionM: { x: wPos.x, y: wPos.y, z: wPos.z },
+      onApplyHeightM: (heightM: number) =>
+        onRoofVertexHeightCommit({
+          panId: patchId,
+          vertexIndex: vi,
+          heightM,
+          trace: { source: "3d_inspection_overlay" },
+        }),
+    };
+  }, [
+    enableRoofVertexZEdit,
+    onRoofVertexHeightCommit,
+    inspectMode,
+    inspectionSelection,
+    panSelection3DMode,
+    selectedHit,
+    scene,
+    calpinagePansForProvenance,
+    roofZDragPreviewM,
+  ]);
+
+  const roofVertexXYEdit = useMemo(() => {
+    if (!enableRoofVertexXYEdit || !onRoofVertexXYCommit) return null;
+    let patchId: string;
+    let vi: number;
+    if (inspectMode && inspectionSelection?.kind === "PAN" && inspectionSelection.roofVertexIndexInPatch != null) {
+      patchId = String(inspectionSelection.id);
+      vi = inspectionSelection.roofVertexIndexInPatch;
+    } else if (panSelection3DMode && selectedHit?.kind === "roof_vertex") {
+      patchId = selectedHit.roofPlanePatchId;
+      vi = selectedHit.vertexIndexInPatch;
+    } else {
+      return null;
+    }
+    const wPos = roofVertexWorldFromScene(scene, {
+      kind: "roof_vertex",
+      roofPlanePatchId: patchId,
+      vertexIndexInPatch: vi,
+    });
+    const refPx = readVertexReferencePx(
+      calpinagePansForProvenance,
+      patchId,
+      vi,
+      wPos ? { x: wPos.x, y: wPos.y } : null,
+      scene,
+    );
+    if (!refPx) return null;
+    return {
+      panId: patchId,
+      vertexIndex: vi,
+      referenceXPx: refPx.xPx,
+      referenceYPx: refPx.yPx,
+      maxDisplacementPx: ROOF_VERTEX_XY_EDIT_DEFAULT_MAX_DISPLACEMENT_PX,
+      onApplyDeltaWorldM: (dxM: number, dyM: number) =>
+        onRoofVertexXYCommit({ panId: patchId, vertexIndex: vi, mode: "deltaWorldM", dxM, dyM }),
+      onApplyImagePx: (xPx: number, yPx: number) =>
+        onRoofVertexXYCommit({ panId: patchId, vertexIndex: vi, mode: "imagePx", xPx, yPx }),
+    };
+  }, [
+    enableRoofVertexXYEdit,
+    onRoofVertexXYCommit,
+    inspectMode,
+    inspectionSelection,
+    panSelection3DMode,
+    selectedHit,
+    scene,
+    calpinagePansForProvenance,
+  ]);
+
+  const onStructuralRidgeLinePointerDown = useCallback(
+    (e: ThreeEvent<PointerEvent>) => {
+      const wc = scene.worldConfig;
+      if (!wc) return;
+      const p = e.point;
+      const img = worldPointToImage({ x: p.x, y: p.y, z: p.z }, wc);
+      const rt =
+        debugRuntime ??
+        (typeof window !== "undefined"
+          ? (window as unknown as { CALPINAGE_STATE?: unknown }).CALPINAGE_STATE
+          : null);
+      const sel = resolveNearestStructuralHeightSelectionFromImagePx(
+        rt,
+        { x: img.x, y: img.y },
+        STRUCTURAL_RIDGE_RESOLVE_MAX_DIST_IMG_PX,
+      );
+      if (!sel) return;
+      setSelectedHit(null);
+      setInspectionSelection(null);
+      setStructuralHeightSelection(sel);
+      setOrbitSuppressed(true);
+    },
+    [debugRuntime, scene.worldConfig],
+  );
+
+  const calpinageRuntimeForPv = useMemo(
+    () =>
+      debugRuntime ??
+      (typeof window !== "undefined" ? (window as { CALPINAGE_STATE?: unknown }).CALPINAGE_STATE : null),
+    [debugRuntime],
+  );
+
+  const pvRoofPlacementEnabled = useMemo(() => {
+    const probe =
+      typeof window !== "undefined" &&
+      (window as unknown as { __CALPINAGE_3D_PV_PLACE_PROBE__?: boolean }).__CALPINAGE_3D_PV_PLACE_PROBE__ === true;
+    const rt = calpinageRuntimeForPv;
+    const phaseOk =
+      rt != null && typeof rt === "object" && (rt as { currentPhase?: string }).currentPhase === "PV_LAYOUT";
+    return (probe || pvLayout3DInteractionMode) && phaseOk;
+  }, [calpinageRuntimeForPv, pvLayout3DInteractionMode]);
+
+  const onPv3dLiveOffsetImg = useCallback((dxImg: number, dyImg: number) => {
+    applyPvMoveLiveFrom3d(dxImg, dyImg);
+  }, []);
+
+  const endPv3dDragSession = useCallback(() => {
+    const s = pv3dDragSessionRef.current;
+    finalizePvMoveFrom3d({ pointerId: s?.pointerId ?? null, releaseCaptureEl: null });
+    setPv3dDragSession(null);
+    setOrbitSuppressed(false);
+  }, []);
+
+  const onPvPanelPvLayout3dPointerDown = useCallback(
+    (e: ThreeEvent<PointerEvent>, _panelIdFromMesh: string) => {
+      if (!pvLayout3DInteractionMode) return;
+      if (e.button !== 0) return;
+      const wc = scene.worldConfig;
+      if (!wc) return;
+      const rt =
+        debugRuntime ??
+        (typeof window !== "undefined"
+          ? (window as unknown as { CALPINAGE_STATE?: unknown }).CALPINAGE_STATE
+          : null);
+      if (!rt || typeof rt !== "object" || (rt as { currentPhase?: string }).currentPhase !== "PV_LAYOUT") {
+        return;
+      }
+      const img = worldPointToImage({ x: e.point.x, y: e.point.y, z: e.point.z }, wc);
+      const hit = hitTestPvBlockPanelFromImagePoint(img);
+      if (!hit) return;
+      const ptr = (e.nativeEvent as PointerEvent).pointerId ?? 0;
+      const r = beginPvMoveFrom3d(hit.blockId, img, ptr);
+      if (!r.ok) {
+        if (import.meta.env.DEV) console.warn("[CALPINAGE][PV_3D_MOVE]", r);
+        return;
+      }
+      setPv3dDragSession({ blockId: hit.blockId, pointerId: ptr, startImg: { x: img.x, y: img.y } });
+      setOrbitSuppressed(true);
+      e.stopPropagation();
+    },
+    [pvLayout3DInteractionMode, scene.worldConfig, debugRuntime],
+  );
+
+  /** Pass 4–5 — toit : sonde (`__CALPINAGE_3D_PV_PLACE_PROBE__`) ou produit (`pvLayout3DInteractionMode`) en phase PV_LAYOUT. */
+  const onRoofTessellationPv3dProbePointerDown = useCallback(
+    (e: ThreeEvent<PointerEvent>) => {
+      if (!pvRoofPlacementEnabled) return;
+      if (e.button !== 0) return;
+      const wc = scene.worldConfig;
+      if (!wc) return;
+      const panId = pickRoofTessellationPanIdFromIntersections(e.intersections);
+      if (!panId) return;
+      const r = tryCommitPvPlacementFrom3dRoofHit({
+        panId,
+        worldPointM: { x: e.point.x, y: e.point.y, z: e.point.z },
+        worldConfig: wc,
+      });
+      if (import.meta.env.DEV) {
+        if (r.ok) console.info("[CALPINAGE][PV_3D_ROOF]", r);
+        else console.warn("[CALPINAGE][PV_3D_ROOF]", r);
+      }
+      if (r.ok) {
+        e.stopPropagation();
+      }
+    },
+    [scene.worldConfig, pvRoofPlacementEnabled],
+  );
+
+  const structuralRidgeHeightEditPanel = useMemo((): StructuralRidgeHeightEditUiModel | null => {
+    if (!enableStructuralRidgeHeightEdit || !onStructuralRidgeHeightCommit || structuralHeightSelection == null) {
+      return null;
+    }
+    const rt =
+      debugRuntime ??
+      (typeof window !== "undefined"
+        ? (window as unknown as { CALPINAGE_STATE?: unknown }).CALPINAGE_STATE
+        : null);
+    const refH = readCalpinageStructuralHeightM(rt, structuralHeightSelection) ?? 7;
+    const pointLabel =
+      structuralHeightSelection.type === "contour"
+        ? String(structuralHeightSelection.pointIndex)
+        : structuralHeightSelection.pointIndex === 0
+          ? "a"
+          : "b";
+    return {
+      structuralKind: structuralHeightSelection.type,
+      structuralIndexFiltered: structuralHeightSelection.index,
+      pointLabel,
+      referenceHeightM: refH,
+      heightMinM: STRUCTURAL_RIDGE_HEIGHT_MIN_M,
+      heightMaxM: ROOF_VERTEX_EDIT_MAX_M,
+      onApplyHeightM: (heightM: number) => {
+        onStructuralRidgeHeightCommit({ selection: structuralHeightSelection, heightM });
+      },
+    };
+  }, [
+    enableStructuralRidgeHeightEdit,
+    onStructuralRidgeHeightCommit,
+    structuralHeightSelection,
+    debugRuntime,
+  ]);
+
+  useEffect(() => {
+    if (panSelection3DMode && (selectedHit?.kind === "roof_vertex" || selectedHit?.kind === "roof_patch")) {
+      setStructuralHeightSelection(null);
+    }
+  }, [panSelection3DMode, selectedHit]);
+
+  useEffect(() => {
+    if (
+      inspectMode &&
+      inspectionSelection?.kind === "PAN" &&
+      inspectionSelection.roofVertexIndexInPatch != null
+    ) {
+      setStructuralHeightSelection(null);
+    }
+  }, [inspectMode, inspectionSelection]);
+
+  const roofShellAlignmentLine = useMemo(() => {
+    if (!inspectMode || !isCalpinage3DRuntimeDebugEnabled()) return null;
+    return formatRoofShellAlignmentOneLine(computeRoofShellAlignmentDiagnostics(scene));
+  }, [inspectMode, scene]);
 
   const diagKey = useMemo(
     () =>
@@ -663,12 +2288,108 @@ function SolarScene3DViewer({
     logVisualShadingDevDiagnosticsOnce(scene, diagKey);
   }, [scene, diagKey]);
 
+  useEffect(() => {
+    if (!roofModelingHistory) return;
+    if (!inspectMode && !panSelection3DMode) return;
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target;
+      if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement) {
+        return;
+      }
+      if (e.defaultPrevented) return;
+      const mod = e.ctrlKey || e.metaKey;
+      if (!mod) return;
+      const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+      if (key === "z") {
+        if (e.shiftKey) {
+          if (roofModelingHistory.canRedo) {
+            e.preventDefault();
+            roofModelingHistory.onRedo();
+          }
+        } else if (roofModelingHistory.canUndo) {
+          e.preventDefault();
+          roofModelingHistory.onUndo();
+        }
+        return;
+      }
+      if (key === "y" && roofModelingHistory.canRedo) {
+        e.preventDefault();
+        roofModelingHistory.onRedo();
+      }
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [inspectMode, panSelection3DMode, roofModelingHistory]);
+
+  useEffect(() => {
+    if (
+      !inspectMode &&
+      !panSelection3DMode &&
+      !(enableStructuralRidgeHeightEdit && structuralHeightSelection != null) &&
+      !pvLayout3DInteractionMode &&
+      pv3dDragSession == null
+    ) {
+      return;
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if (pv3dDragSessionRef.current) {
+        e.preventDefault();
+        cancelPvMoveFrom3d();
+        setPv3dDragSession(null);
+        setOrbitSuppressed(false);
+        return;
+      }
+      if (zDragGestureActiveRef.current) {
+        e.preventDefault();
+        finalizeRoofZDragRef.current();
+        return;
+      }
+      if (orbitSuppressed) {
+        e.preventDefault();
+        setOrbitSuppressed(false);
+        return;
+      }
+      const el = e.target;
+      if (el instanceof HTMLInputElement) {
+        const t = el.type;
+        if (t === "text" || t === "number" || t === "search" || t === "email" || t === "url" || t === "tel") {
+          return;
+        }
+      }
+      if (el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement) return;
+      e.preventDefault();
+      setInspectionSelection(null);
+      setSelectedHit(null);
+      setStructuralHeightSelection(null);
+      setRoofPickHover(null);
+      setGlCursor("");
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [
+    inspectMode,
+    panSelection3DMode,
+    orbitSuppressed,
+    enableStructuralRidgeHeightEdit,
+    structuralHeightSelection,
+    pvLayout3DInteractionMode,
+    pv3dDragSession,
+  ]);
+
   const legendMode = useMemo(() => {
     if (!showShadingLegend || !showPanelShading) return null;
     return sceneHasAnyPanelVisualShadingData(scene) ? ("active" as const) : ("unavailable" as const);
   }, [showPanelShading, showShadingLegend, scene]);
 
-  const effectiveShowSun = showSun && cameraViewMode !== "PLAN_2D";
+  const effectiveShowSun =
+    showSun && cameraViewMode !== "PLAN_2D" && premiumAssembly.layers.showSun;
+
+  const showTrustStripe =
+    showPremiumGeometryTrustStripe !== false &&
+    (geometryValidationReport != null ||
+      premiumMode === "validation" ||
+      showPremiumViewModeToolbar);
 
   const groundZ = useMemo(
     () => geometryBox.min.z - GROUND_PLANE_CONTACT_OFFSET_M,
@@ -678,6 +2399,8 @@ function SolarScene3DViewer({
   const tooltipText = panelHover ? formatPanelTooltip(panelHover.panelId, scene) : null;
 
   const sceneStableKey = `${scene.metadata.schemaVersion}|${scene.metadata.createdAtIso}|${scene.metadata.integrationNotes ?? ""}`;
+
+  const pvLayout3dA11yDescId = useId();
 
   return (
     <div
@@ -690,10 +2413,46 @@ function SolarScene3DViewer({
         overflow: "hidden",
         position: "relative",
       }}
+      aria-label={pvLayout3DInteractionMode ? "Vue solaire — implantation photovoltaïque" : undefined}
+      aria-describedby={pvLayout3DInteractionMode ? pvLayout3dA11yDescId : undefined}
       data-testid="solar-scene-3d-viewer-root"
       data-canonical-scene-key={sceneStableKey}
       data-camera-view-mode={cameraViewMode}
+      data-premium-view-mode={premiumMode}
+      data-premium-assembly-schema={premiumAssembly.schemaId}
+      data-pan-selection-3d={panSelection3DMode ? "on" : "off"}
+      data-selected-hit-kind={panSelection3DMode && selectedHit ? selectedHit.kind : ""}
+      data-roof-vertex-z-edit={enableRoofVertexZEdit ? "on" : "off"}
+      data-roof-vertex-xy-edit={enableRoofVertexXYEdit ? "on" : "off"}
+      data-structural-ridge-height-edit={enableStructuralRidgeHeightEdit ? "on" : "off"}
+      data-pv-layout-3d={pvLayout3DInteractionMode ? "on" : "off"}
     >
+      {pvLayout3DInteractionMode ? (
+        <div
+          id={pvLayout3dA11yDescId}
+          style={{
+            position: "absolute",
+            width: 1,
+            height: 1,
+            padding: 0,
+            margin: -1,
+            overflow: "hidden",
+            clip: "rect(0, 0, 0, 0)",
+            whiteSpace: "nowrap",
+            border: 0,
+          }}
+        >
+          Implantation PV en trois dimensions : clic sur la surface du pan pour placer un bloc, clic sur un panneau
+          solaire pour le déplacer. Touche Échap pour annuler un déplacement en cours.
+        </div>
+      ) : null}
+      {showTrustStripe ? (
+        <PremiumGeometryTrustStripe
+          validation={premiumAssembly.validation}
+          showDiagnosticExcerpt={premiumMode === "validation"}
+          compact={!showPremiumViewModeToolbar}
+        />
+      ) : null}
       {showDebugOverlay && (
         <DebugStatsOverlay
           scene={scene}
@@ -703,10 +2462,28 @@ function SolarScene3DViewer({
         />
       )}
       {legendMode != null && <ShadingLegend3D mode={legendMode} />}
-      {inspectMode && (
+      {(inspectMode ||
+        panSelection3DMode ||
+        (enableStructuralRidgeHeightEdit && structuralHeightSelection != null)) && (
         <SceneInspectionPanel3D
-          model={inspectionModel}
-          onDismiss={() => setInspectionSelection(null)}
+          model={inspectMode ? inspectionModel : null}
+          pickProvenance2D={pickProvenance2DModel}
+          showInspectionEmptyPlaceholder={inspectMode}
+          showPanSelectionEmptyPlaceholder={panSelection3DMode && !inspectMode}
+          roofShellAlignmentLine={roofShellAlignmentLine}
+          roofVertexHeightEdit={roofVertexHeightEdit}
+          roofVertexXYEdit={roofVertexXYEdit}
+          structuralRidgeHeightEdit={structuralRidgeHeightEditPanel}
+          roofModelingHistory={roofModelingHistory}
+          onVertexModelingPointerActiveChange={setOrbitSuppressed}
+          onDismiss={() => {
+            setInspectionSelection(null);
+            setSelectedHit(null);
+            setStructuralHeightSelection(null);
+            setOrbitSuppressed(false);
+            setRoofPickHover(null);
+            setGlCursor("");
+          }}
         />
       )}
       {showCameraViewModeToggle && (
@@ -762,6 +2539,73 @@ function SolarScene3DViewer({
           </button>
         </div>
       )}
+      {showPremiumViewModeToolbar && (
+        <div
+          role="toolbar"
+          aria-label="Mode rendu premium"
+          style={{
+            position: "absolute",
+            top: 8,
+            right: 8,
+            zIndex: 5,
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 4,
+            maxWidth: 280,
+            justifyContent: "flex-end",
+            background: "rgba(15,18,24,0.82)",
+            borderRadius: 6,
+            padding: 4,
+            border: "1px solid rgba(255,255,255,0.12)",
+          }}
+        >
+          {PREMIUM_HOUSE_3D_VIEW_MODES.map((m) => (
+            <button
+              key={m}
+              type="button"
+              data-testid={`premium-view-mode-${m}`}
+              aria-pressed={premiumMode === m}
+              onClick={() => setPremiumMode(m)}
+              style={{
+                fontSize: 10,
+                padding: "5px 8px",
+                borderRadius: 4,
+                border: "none",
+                cursor: "pointer",
+                background: premiumMode === m ? "rgba(195,152,71,0.35)" : "transparent",
+                color: "rgba(248,250,252,0.92)",
+              }}
+            >
+              {m}
+            </button>
+          ))}
+        </div>
+      )}
+      {roofPickHover != null && panelHover == null && (
+        <div
+          role="tooltip"
+          data-testid="roof-modeling-hover-tooltip"
+          style={{
+            position: "fixed",
+            left: roofPickHover.clientX + 14,
+            top: roofPickHover.clientY + 14,
+            zIndex: 10000,
+            pointerEvents: "none",
+            padding: "8px 10px",
+            borderRadius: 6,
+            background: "rgba(15,18,24,0.92)",
+            border: "1px solid rgba(255,255,255,0.1)",
+            color: "rgba(248,250,252,0.95)",
+            fontSize: 12,
+            lineHeight: 1.4,
+            maxWidth: 280,
+            boxShadow: "0 8px 24px rgba(0,0,0,0.35)",
+            fontFamily: "system-ui, sans-serif",
+          }}
+        >
+          {roofPickHover.label}
+        </div>
+      )}
       {tooltipText != null && panelHover != null && (
         <div
           role="tooltip"
@@ -811,18 +2655,32 @@ function SolarScene3DViewer({
               }
         }
         onCreated={({ gl }) => {
-          gl.shadowMap.enabled = true;
-          gl.shadowMap.type = THREE.PCFSoftShadowMap;
+          applyCanonicalViewerGlOutput(gl);
         }}
         onPointerMissed={() => {
+          if (zDragGestureActiveRef.current) return;
           if (inspectMode) setInspectionSelection(null);
+          if (panSelection3DMode) setSelectedHit(null);
+          if (enableStructuralRidgeHeightEdit) setStructuralHeightSelection(null);
+          setRoofPickHover(null);
+          setGlCursor("");
         }}
       >
-        <color attach="background" args={["#12151c"]} />
-        <CameraFramingRig box={framingBox} mode={cameraViewMode} />
+        <color attach="background" args={[premiumAssembly.backgroundHex]} />
+        <GlCursorBinder cursor={glCursor} />
+        <LineRaycastThreshold maxDim={maxDim} enabled={enableStructuralRidgeHeightEdit} />
+        <CameraFramingRig
+          box={framingBox}
+          mode={cameraViewMode}
+          framingMargin={premiumAssembly.framingMargin}
+          orbitEnabled={!orbitSuppressed}
+          orbitControlsInstanceRef={orbitControlsRef}
+        />
         <ViewerSceneContent
+          key={scene.metadata.createdAtIso}
           scene={scene}
           box={geometryBox}
+          assembly={premiumAssembly}
           showRoof={showRoof}
           showRoofEdges={showRoofEdges}
           showObstacles={showObstacles}
@@ -833,10 +2691,59 @@ function SolarScene3DViewer({
           sunDirectionIndex={sunDirectionIndex}
           onPanelHover={setPanelHover}
           inspectMode={inspectMode}
+          panSelection3DMode={panSelection3DMode}
+          enableRoofVertexZEdit={enableRoofVertexZEdit}
+          enableRoofVertexXYEdit={enableRoofVertexXYEdit}
+          roofModelingSurfaceUx={enableRoofVertexZEdit || enableRoofVertexXYEdit}
+          roofModelingPassThroughOccluders={
+            panSelection3DMode && (enableRoofVertexZEdit || enableRoofVertexXYEdit)
+          }
+          selectedHit={selectedHit}
           inspectionSelection={inspectionSelection}
           onInspectClick={onInspectClick}
+          onRoofMeshClick={
+            inspectMode || panSelection3DMode || (enableStructuralRidgeHeightEdit && onStructuralRidgeHeightCommit)
+              ? onRoofMeshClick
+              : undefined
+          }
+          onRoofModelingPointerUi={
+            (inspectMode || panSelection3DMode) && (enableRoofVertexZEdit || enableRoofVertexXYEdit)
+              ? onRoofModelingPointerUi
+              : undefined
+          }
           maxDim={maxDim}
+          roofVertexMarker={roofVertexMarker}
+          enableStructuralRidgeHeightEdit={enableStructuralRidgeHeightEdit}
+          onStructuralRidgeLinePointerDown={
+            enableStructuralRidgeHeightEdit && onStructuralRidgeHeightCommit
+              ? onStructuralRidgeLinePointerDown
+              : undefined
+          }
+          onRoofTessellationPv3dProbePointerDown={
+            scene.worldConfig ? onRoofTessellationPv3dProbePointerDown : undefined
+          }
+          pvLayout3DInteractionMode={pvLayout3DInteractionMode}
+          onPvPanelPvLayout3dPointerDown={onPvPanelPvLayout3dPointerDown}
+          debugRuntime={debugRuntime}
         />
+        {pvLayout3DInteractionMode && scene.worldConfig && pv3dDragSession ? (
+          <PvLayout3dDragController
+            session={pv3dDragSession}
+            worldConfig={scene.worldConfig}
+            onLiveOffsetImg={onPv3dLiveOffsetImg}
+            onSessionEnd={endPv3dDragSession}
+          />
+        ) : null}
+        {enableRoofVertexZEdit && onRoofVertexHeightCommit ? (
+          <RoofVertexZDragController
+            session={roofZDragSession}
+            gestureSessionRef={zDragSessionImmediateRef}
+            plan2dMode={cameraViewMode === "PLAN_2D"}
+            sceneMaxDim={maxDim}
+            onLiveHeightM={liveRoofZCommitFromDrag}
+            onSessionEnd={finalizeRoofZDrag}
+          />
+        ) : null}
         {groundPlaneConfig ? (
           <GroundPlaneTexture
             config={groundPlaneConfig}
@@ -846,15 +2753,7 @@ function SolarScene3DViewer({
         ) : (
           <Grid
             position={[center.x, center.y, Math.min(geometryBox.min.z - 0.15, 0)]}
-            args={[maxDim * 4, maxDim * 4]}
-            cellSize={maxDim * 0.05}
-            cellThickness={0.6}
-            sectionSize={maxDim * 0.25}
-            sectionThickness={1}
-            fadeDistance={maxDim * 10}
-            infiniteGrid
-            cellColor="#334155"
-            sectionColor="#475569"
+            {...viewerFallbackGridProps(maxDim)}
           />
         )}
         {showDebugOverlay && (
@@ -869,3 +2768,4 @@ function SolarScene3DViewer({
 }
 
 export { SolarScene3DViewer };
+export default SolarScene3DViewer;

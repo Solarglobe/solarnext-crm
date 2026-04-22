@@ -3,7 +3,7 @@
  * Prompt 34 — même géométrie, autre projection selon `mode`.
  */
 
-import { useLayoutEffect, useMemo, useRef } from "react";
+import { useLayoutEffect, useMemo, useRef, type MutableRefObject } from "react";
 import { useThree } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
@@ -16,6 +16,7 @@ import {
 import type { CameraViewMode } from "./cameraViewMode";
 import {
   VIEWER_CAMERA_FOV_DEG,
+  VIEWER_FRAMING_MARGIN,
   VIEWER_ORBIT_DAMPING,
   VIEWER_ORBIT_DAMPING_FACTOR,
   VIEWER_ORBIT_MAX_POLAR_ANGLE,
@@ -28,9 +29,21 @@ import { isCalpinage3DRuntimeDebugEnabled, logCalpinage3DDebug } from "../../cor
 export function CameraFramingRig({
   box,
   mode,
+  framingMargin,
+  /** Si false : orbite / zoom / pan désactivés (ex. drag sur curseur d’édition sommet). */
+  orbitEnabled = true,
+  /**
+   * Référence vers l’instance `OrbitControls` (three-stdlib) — pour couper l’orbite **de façon synchrone**
+   * au `pointerdown` (avant que React n’ait re-rendu), ex. drag Z sur sommet.
+   */
+  orbitControlsInstanceRef,
 }: {
   readonly box: THREE.Box3;
   readonly mode: CameraViewMode;
+  /** Marge premium (défaut `VIEWER_FRAMING_MARGIN`). */
+  readonly framingMargin?: number;
+  readonly orbitEnabled?: boolean;
+  readonly orbitControlsInstanceRef?: MutableRefObject<OrbitControlsImpl | null>;
 }) {
   const camera = useThree((s) => s.camera);
   const size = useThree((s) => s.size);
@@ -44,8 +57,10 @@ export function CameraFramingRig({
       const aspect = size.width / Math.max(size.height, 1);
       const ctrl = controlsRef.current;
 
+      const margin = framingMargin ?? VIEWER_FRAMING_MARGIN;
+
       if (mode === "PLAN_2D") {
-        const f = computePlanOrthographicFraming(box, aspect);
+        const f = computePlanOrthographicFraming(box, aspect, margin);
 
         if (camera instanceof THREE.OrthographicCamera) {
           camera.left   = f.left;
@@ -95,7 +110,7 @@ export function CameraFramingRig({
       if (!(camera instanceof THREE.PerspectiveCamera)) return;
       camera.fov = VIEWER_CAMERA_FOV_DEG;
       camera.up.set(0, 0, 1);
-      const f3 = computeViewerFraming(box, aspect);
+      const f3 = computeViewerFraming(box, aspect, margin);
       camera.near = f3.near;
       camera.far  = f3.far;
       camera.position.copy(f3.position);
@@ -118,13 +133,23 @@ export function CameraFramingRig({
     };
 
     run();
-  }, [sig, mode, size.width, size.height, camera, invalidate]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [sig, mode, framingMargin, size.width, size.height, camera, invalidate]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const bindControlsRef = (node: OrbitControlsImpl | null) => {
+    controlsRef.current = node;
+    if (orbitControlsInstanceRef) {
+      orbitControlsInstanceRef.current = node;
+    }
+  };
 
   return (
     <OrbitControls
-      ref={controlsRef}
+      ref={bindControlsRef}
       enableDamping={VIEWER_ORBIT_DAMPING}
       dampingFactor={VIEWER_ORBIT_DAMPING_FACTOR}
+      enableRotate={orbitEnabled}
+      enableZoom={orbitEnabled}
+      enablePan={orbitEnabled}
       makeDefault
     />
   );

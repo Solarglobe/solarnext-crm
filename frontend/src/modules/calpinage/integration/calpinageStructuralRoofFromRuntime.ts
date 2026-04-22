@@ -89,9 +89,14 @@ function filterStructuralLines(
  * - `explicit === null` : forcer l’absence de lignes (override tests / appelant).
  * - `explicit` objet : priorité absolue (sous-ensembles `ridges` / `traits` optionnels).
  */
+export type CalpinageStructuralRoofExplicitInput =
+  | { readonly ridges?: readonly unknown[]; readonly traits?: readonly unknown[] }
+  | null
+  | undefined;
+
 export function resolveCalpinageStructuralRoofForCanonicalChain(
   state: unknown | undefined,
-  explicit: { ridges?: unknown[]; traits?: unknown[] } | null | undefined,
+  explicit: CalpinageStructuralRoofExplicitInput,
   options?: { minSegmentLenPx?: number },
 ): CalpinageStructuralRoofResolution {
   const minPx = options?.minSegmentLenPx ?? DEFAULT_MIN_STRUCTURAL_SEGMENT_PX;
@@ -107,8 +112,8 @@ export function resolveCalpinageStructuralRoofForCanonicalChain(
     traitRaw = [];
   } else if (explicit !== undefined) {
     source = "explicit";
-    ridgeRaw = asArray(explicit.ridges);
-    traitRaw = asArray(explicit.traits);
+    ridgeRaw = explicit.ridges ? [...explicit.ridges] : [];
+    traitRaw = explicit.traits ? [...explicit.traits] : [];
   } else if (state && typeof state === "object") {
     source = "runtime_state";
     const s = state as Record<string, unknown>;

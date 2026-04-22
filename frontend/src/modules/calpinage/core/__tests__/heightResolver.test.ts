@@ -205,11 +205,11 @@ describe("CAS 3 — Résolution via hit-test pan automatique", () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe("CAS 4 — Fallback propre quand aucune source disponible", () => {
-  it("retourne fallback_zero si aucun contexte n'est fourni", () => {
+  it("retourne insufficient_height_signal si aucun contexte ni defaultHeightM", () => {
     const result = resolveHeightAtXY(100, 100, {});
     expect(result.ok).toBe(false);
-    expect(result.heightM).toBe(0);
-    expect(result.source).toBe("fallback_zero");
+    expect(result.heightM).toBeUndefined();
+    expect(result.source).toBe("insufficient_height_signal");
     expect(result.confidence).toBeLessThan(0.30);
     expect(result.warning).toBeTruthy();
   });
@@ -297,7 +297,7 @@ describe("CAS 5 — Données legacy incomplètes et robustesse", () => {
     const ctx: HeightResolverContext = { state: emptyState };
     const result = resolveHeightAtXY(100, 100, ctx);
     expect(result.ok).toBe(false);
-    expect(result.source).toMatch(/^fallback/);
+    expect(result.source === "insufficient_height_signal" || result.source === "fallback_default").toBe(true);
   });
 });
 
@@ -335,7 +335,7 @@ describe("CAS 6 — Non-régression et ordre de priorité", () => {
       "pan_plane_fit",
       "pan_plane_fit_hittest",
       "fallback_default",
-      "fallback_zero",
+      "insufficient_height_signal",
     ] as const;
     for (let i = 0; i < sources.length - 1; i++) {
       expect(HEIGHT_SOURCE_CONFIDENCE[sources[i]])
@@ -349,7 +349,7 @@ describe("CAS 6 — Non-régression et ordre de priorité", () => {
     expect(result.debug!.method).toBeTruthy();
   });
 
-  it("heightM est toujours un nombre fini dans le résultat", () => {
+  it("heightM est fini sauf insufficient_height_signal (pas de 0 silencieux)", () => {
     const contexts: Array<[HeightResolverContext, ResolveHeightOptions]> = [
       [{}, {}],
       [{ state: emptyState }, {}],
@@ -359,7 +359,12 @@ describe("CAS 6 — Non-régression et ordre de priorité", () => {
     ];
     for (const [ctx, opts] of contexts) {
       const r = resolveHeightAtXY(100, 100, ctx, opts);
-      expect(Number.isFinite(r.heightM)).toBe(true);
+      if (r.source === "insufficient_height_signal") {
+        expect(r.heightM).toBeUndefined();
+      } else {
+        expect(r.heightM).toBeDefined();
+        expect(Number.isFinite(r.heightM!)).toBe(true);
+      }
     }
   });
 });
@@ -373,15 +378,35 @@ describe("helpers purs", () => {
     expect(getExplicitHeightAtPoint(100, 100, {})).toBeNull();
   });
 
+  it("getExplicitHeightAtPoint interpole h sur l’arête du contour (pas seulement les sommets)", () => {
+    const state = {
+      contours: [
+        {
+          roofRole: "main",
+          points: [
+            { x: 0, y: 0, h: 4 },
+            { x: 100, y: 0, h: 8 },
+            { x: 100, y: 100, h: 4 },
+            { x: 0, y: 100, h: 4 },
+          ],
+        },
+      ],
+    };
+    const r = getExplicitHeightAtPoint(50, 3, state, 15);
+    expect(r).not.toBeNull();
+    expect(r!.source).toBe("explicit_vertex_contour");
+    expect(r!.heightM).toBeCloseTo(6, 5);
+  });
+
   it("resolveHeightFromPanPlane retourne null si getHeightAtXY retourne undefined", () => {
     const result = resolveHeightFromPanPlane("p1", 10, 10, () => undefined, false);
     expect(result).toBeNull();
   });
 
-  it("resolveHeightFallback retourne fallback_zero si defaultHeightM absent", () => {
+  it("resolveHeightFallback retourne insufficient_height_signal si defaultHeightM absent", () => {
     const r = resolveHeightFallback(undefined);
-    expect(r.source).toBe("fallback_zero");
-    expect(r.heightM).toBe(0);
+    expect(r.source).toBe("insufficient_height_signal");
+    expect(r.heightM).toBeUndefined();
   });
 
   it("resolveHeightFallback retourne fallback_default avec la valeur fournie", () => {

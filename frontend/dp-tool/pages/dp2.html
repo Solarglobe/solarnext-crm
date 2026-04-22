@@ -12,17 +12,46 @@
     <div class="dp-page-actions"></div>
   </div>
 
+  <div class="dp-doc-version-strip">
+    <div class="dp-doc-version" id="dp2-doc-version" data-dp-doc-version="dp2">
+      <button type="button" class="dp-doc-version__trigger" id="dp2-doc-version-trigger" aria-expanded="false" aria-haspopup="menu" aria-controls="dp2-doc-version-menu">
+        <span class="dp-doc-version__label" id="dp2-doc-version-label">Version 1</span>
+        <span class="dp-doc-version__chevron" aria-hidden="true">▾</span>
+      </button>
+      <div class="dp-doc-version__dropdown" id="dp2-doc-version-menu" hidden role="menu" aria-label="Versions du document"></div>
+    </div>
+  </div>
+
   <hr class="dp-sep" />
 
   <div class="dp-hint" id="dp2-hint">
-    <strong>Process :</strong> cliquez sur <em>Éditer le plan de masse</em> pour ouvrir l’éditeur plein écran,
-    capturer le plan, puis dessiner/ajouter les objets métier.
+    <strong>Process :</strong> créez ou reprenez un plan de masse, puis capturez et complétez le dessin dans l’éditeur plein écran.
   </div>
 
-  <div class="dp-page-actions" style="margin-top: 14px;">
-    <button id="dp2-open-editor" class="dp-btn dp-btn-primary" type="button">
-      Éditer le plan de masse
+  <p class="dp-hint" id="dp2-versions-repair" hidden style="font-size:13px;margin-top:6px">
+    Beaucoup de versions listées (ancien brouillon) : vous pouvez les fusionner.
+    <button type="button" class="dp-btn dp-btn-outline" id="dp2-btn-collapse-versions" style="font-size:12px;padding:6px 12px;margin-left:8px">
+      Ne garder que la version affichée à l’écran
     </button>
+  </p>
+
+  <div id="dp2-entry-panel" class="dp2-entry-panel" hidden>
+    <div class="dp2-entry-preview-wrap">
+      <img id="dp2-entry-preview" class="dp2-entry-preview" alt="Aperçu du plan de masse" hidden />
+      <p id="dp2-entry-preview-empty" class="dp2-entry-preview-empty">Aucun aperçu pour cette version.</p>
+    </div>
+    <div class="dp2-entry-actions">
+      <div id="dp2-entry-actions-empty" class="dp2-entry-actions-row" hidden>
+        <button id="dp2-btn-create-plan" class="dp-btn dp-btn-primary" type="button">
+          Créer un plan de masse
+        </button>
+      </div>
+      <div id="dp2-entry-actions-has-versions" class="dp2-entry-actions-row dp2-entry-actions-row--split" hidden>
+        <button id="dp2-btn-continue" class="dp-btn dp-btn-primary" type="button">
+          Continuer l’édition
+        </button>
+      </div>
+    </div>
   </div>
 
 </section>
@@ -44,52 +73,51 @@
     <!-- Body -->
     <div class="dp-modal-body">
       <!-- Colonne gauche (paramètres DP2, toujours visible) -->
-      <aside class="dp-map-help" id="dp2-settings-panel">
-        <h3>Paramètres du plan</h3>
-
-        <div class="dp-hint" style="margin-top: 10px;">
-          <span id="dp2-scale">Échelle : —</span>
-        </div>
-
-        <!-- Catégorie photo -->
-        <div class="dp2-field" style="margin-top: 14px;">
-          <label class="dp2-label">Catégorie</label>
-          <select id="dp2-photo-category" class="dp2-select">
-            <option value="">— Sélectionner —</option>
-            <option value="before">Avant travaux</option>
-            <option value="after">Après travaux</option>
-          </select>
-        </div>
-
-        <hr />
-
-        <!-- Modules PV -->
-        <div class="dp2-field">
-          <label class="dp2-label">Module photovoltaïque</label>
-          <select id="dp2-panel-select" class="dp2-select">
-            <option value="">— Sélectionner un module —</option>
-            <option value="longi_x10_artist">LONGi Hi-MO X10 Artist — 485 W</option>
-            <option value="longi_x10_explorer">LONGi Hi-MO X10 Explorer — 485 W</option>
-          </select>
-        </div>
-
-        <div class="dp2-panel-readonly">
-          <div><strong>Fabricant :</strong> <span id="dp2-panel-manufacturer">—</span></div>
-          <div><strong>Référence :</strong> <span id="dp2-panel-reference">—</span></div>
-          <div><strong>Puissance :</strong> <span id="dp2-panel-power">—</span></div>
-          <div><strong>Dimensions :</strong> <span id="dp2-panel-dimensions">—</span></div>
-        </div>
-
-        <hr />
-
-        <!-- Légende (lecture seule) : reflète exactement la légende PDF DP2 -->
-        <div class="dp2-field dp2-legend-field">
-          <div class="dp2-label">Légende</div>
-          <div id="dp2-legend-empty" class="dp2-legend-empty" hidden>
-            Aucun objet métier sur le plan.
+      <aside class="dp-map-help dp2-settings-rail" id="dp2-settings-panel">
+        <section class="card dp2-settings-card" aria-labelledby="dp2-heading-plan-params">
+          <h3 class="dp2-card-heading" id="dp2-heading-plan-params">Paramètres du plan</h3>
+          <p class="dp2-scale-line">
+            <span id="dp2-scale">Échelle : —</span>
+          </p>
+          <div class="dp2-field">
+            <label class="dp2-label" for="dp2-photo-category">Catégorie</label>
+            <select id="dp2-photo-category" class="dp2-select">
+              <option value="">— Sélectionner —</option>
+              <option value="before">Avant travaux</option>
+              <option value="after">Après travaux</option>
+            </select>
           </div>
-          <div id="dp2-legend-list" class="dp2-legend-list" aria-label="Légende du plan"></div>
-        </div>
+        </section>
+
+        <section class="card dp2-settings-card" aria-labelledby="dp2-heading-pv-module">
+          <h3 class="dp2-card-heading" id="dp2-heading-pv-module">Module photovoltaïque</h3>
+          <div class="dp2-field">
+            <label class="dp2-label" for="dp2-panel-select">Module</label>
+            <select id="dp2-panel-select" class="dp2-select">
+              <option value="">— Sélectionner un module —</option>
+            </select>
+          </div>
+        </section>
+
+        <section class="card dp2-settings-card" aria-labelledby="dp2-heading-module-info">
+          <h3 class="dp2-card-heading" id="dp2-heading-module-info">Informations module</h3>
+          <div class="dp2-panel-readonly">
+            <div><strong>Fabricant :</strong> <span id="dp2-panel-manufacturer">—</span></div>
+            <div><strong>Référence :</strong> <span id="dp2-panel-reference">—</span></div>
+            <div><strong>Puissance :</strong> <span id="dp2-panel-power">—</span></div>
+            <div><strong>Dimensions :</strong> <span id="dp2-panel-dimensions">—</span></div>
+          </div>
+        </section>
+
+        <section class="card dp2-settings-card" aria-labelledby="dp2-heading-legend">
+          <h3 class="dp2-card-heading" id="dp2-heading-legend">Légende</h3>
+          <div class="dp2-field dp2-legend-field">
+            <div id="dp2-legend-empty" class="dp2-legend-empty" hidden>
+              Aucun objet métier sur le plan.
+            </div>
+            <div id="dp2-legend-list" class="dp2-legend-list" aria-label="Légende du plan"></div>
+          </div>
+        </section>
       </aside>
 
       <!-- Colonne droite (surface de travail DP2) -->
@@ -113,6 +141,17 @@
                 <span class="dp2-tool-icon" aria-hidden="true">▭</span>
                 <span class="dp2-tool-label">Panneaux</span>
               </button>
+
+              <div class="dp2-toolbar-display-mode" role="group" aria-label="Affichage champs photovoltaïques">
+                <button type="button" class="dp2-tool-btn" id="dp2-display-mode-detailed" title="Mode détaillé (panneaux)" aria-pressed="true">
+                  <span class="dp2-tool-icon" aria-hidden="true">▦</span>
+                  <span class="dp2-tool-label">Détaillé</span>
+                </button>
+                <button type="button" class="dp2-tool-btn" id="dp2-display-mode-simple" title="Mode DP (emprise simple)" aria-pressed="false">
+                  <span class="dp2-tool-icon" aria-hidden="true">▣</span>
+                  <span class="dp2-tool-label">Emprise DP</span>
+                </button>
+              </div>
 
               <button id="dp2-tool-text" type="button" class="dp2-tool-btn dp2-dropdown-btn" aria-haspopup="menu" aria-expanded="false" title="Texte (annotations)">
                 <span class="dp2-tool-icon" aria-hidden="true">T</span>
@@ -157,17 +196,33 @@
                 <li role="menuitem" data-tool="triangle">△ Triangle libre</li>
                 <li role="menuitem" data-tool="arrow">➤ Flèche libre</li>
               </ul>
+
+              <span class="dp2-toolbar-spacer" aria-hidden="true"></span>
+              <div class="dp2-toolbar-history" role="group" aria-label="Historique et suppression">
+                <button type="button" class="dp2-tool-btn dp2-history-toolbar-btn" id="dp2-toolbar-undo" data-dp2-action="undo" title="Annuler (Ctrl+Z)" aria-label="Annuler" disabled>
+                  <span class="dp2-tool-icon" aria-hidden="true">↶</span>
+                  <span class="dp2-tool-label">Annuler</span>
+                </button>
+                <button type="button" class="dp2-tool-btn dp2-history-toolbar-btn" id="dp2-toolbar-redo" data-dp2-action="redo" title="Rétablir (Ctrl+Y)" aria-label="Rétablir" disabled>
+                  <span class="dp2-tool-icon" aria-hidden="true">↷</span>
+                  <span class="dp2-tool-label">Rétablir</span>
+                </button>
+                <button type="button" class="dp2-tool-btn dp2-history-toolbar-btn" id="dp2-toolbar-delete" data-dp2-action="delete" title="Supprimer la sélection (Suppr)" aria-label="Supprimer" disabled>
+                  <span class="dp2-tool-icon" aria-hidden="true">🗑</span>
+                  <span class="dp2-tool-label">Supprimer</span>
+                </button>
+              </div>
             </div>
 
             <!-- Barre d’actions DESSIN (flottante, au-dessus du canvas) -->
             <div class="dp2-draw-actions" id="dp2-draw-actions" role="toolbar" aria-label="Actions dessin">
-              <button type="button" class="dp2-action-btn" id="dp2-action-undo" title="Undo" aria-label="Undo">
+              <button type="button" class="dp2-action-btn" id="dp2-action-undo" data-dp2-action="undo" title="Annuler (Ctrl+Z)" aria-label="Annuler">
                 ↶
               </button>
-              <button type="button" class="dp2-action-btn" id="dp2-action-redo" title="Redo" aria-label="Redo">
+              <button type="button" class="dp2-action-btn" id="dp2-action-redo" data-dp2-action="redo" title="Rétablir (Ctrl+Y ou Ctrl+Maj+Z)" aria-label="Rétablir">
                 ↷
               </button>
-              <button type="button" class="dp2-action-btn" id="dp2-action-delete" title="Supprimer" aria-label="Supprimer" disabled>
+              <button type="button" class="dp2-action-btn" id="dp2-action-delete" data-dp2-action="delete" title="Supprimer la sélection (Suppr)" aria-label="Supprimer" disabled>
                 🗑
               </button>
             </div>
@@ -177,6 +232,8 @@
               <img id="dp2-captured-image" alt="Plan de masse capturé" style="pointer-events: none;" />
               <canvas id="dp2-draw-canvas" style="pointer-events: auto; z-index: 2;"></canvas>
             </div>
+            <!-- Hors #dp2-zoom-container : pas de transform → pas de stacking context qui masque l’input -->
+            <div id="dp2-overlay-layer"></div>
           </div>
 
           <!-- Flèche Nord (même asset + même style que DP1) -->

@@ -1,10 +1,10 @@
 /**
  * CP-ADMIN-ORG-04 — Tab Entreprise
- * Formulaire structuré : Identité, Adresse, Contact, Facturation, Logo
+ * Source unique UX : identité, facturation, numérotation (devis + documents), apparence PDF (couleur, logo, couverture).
  * Cards premium, sections séparées, responsive
  */
 
-import React, { useEffect, useState, useCallback, useRef } from "react";
+import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { Button } from "../../components/ui/Button";
 import {
   adminGetOrg,
@@ -15,12 +15,23 @@ import {
   adminDeletePdfCover,
   adminGetOrgSettings,
   adminPostOrgSettings,
+  getOrganizationsSettings,
+  putOrganizationsSettings,
   type AdminOrg,
 } from "../../services/admin.api";
 import { getAuthToken, apiFetch } from "../../services/api";
 import { showCrmInlineToast } from "../../components/ui/crmInlineToast";
+import { DEFAULT_PDF_PRIMARY_COLOR, normalizePdfPrimaryForApi, resolvePdfPrimaryColor } from "../../pages/pdf/pdfBrand";
 
 const API_BASE = import.meta.env?.VITE_API_URL || "";
+
+/** Même priorité que l’émetteur sur les PDF (devis, factures) : juridique → commercial → nom entreprise. */
+function computeDocumentDisplayNamePreview(p: { legal_name: string; trade_name: string; name: string }): string {
+  const legal = String(p.legal_name ?? "").trim();
+  const trade = String(p.trade_name ?? "").trim();
+  const n = String(p.name ?? "").trim();
+  return legal || trade || n || "—";
+}
 
 function useImageUrl(apiPath: string | undefined) {
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
@@ -59,6 +70,7 @@ function Field({
   type = "text",
   placeholder,
   rows,
+  className = "",
 }: {
   label: string;
   value: string;
@@ -66,9 +78,10 @@ function Field({
   type?: string;
   placeholder?: string;
   rows?: number;
+  className?: string;
 }) {
   return (
-    <div className="admin-org-field">
+    <div className={`admin-org-field ${className}`.trim()}>
       <label>{label}</label>
       {rows ? (
         <textarea
@@ -91,11 +104,20 @@ function Field({
   );
 }
 
-function Block({ title, children }: { title: string; children: React.ReactNode }) {
+function OrgSection({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description?: string;
+  children: React.ReactNode;
+}) {
   return (
-    <section className="admin-org-block">
-      <h3 className="admin-org-block-title">{title}</h3>
-      <div className="admin-org-block-content">{children}</div>
+    <section className="org-org-section">
+      <h3 className="org-org-section__title">{title}</h3>
+      {description ? <p className="org-org-section__desc">{description}</p> : null}
+      <div className="org-org-fields">{children}</div>
     </section>
   );
 }
@@ -132,14 +154,30 @@ export function AdminTabOrg() {
     default_quote_validity_days: "30",
     default_invoice_due_days: "30",
     default_vat_rate: "20",
-    /** Préfixe unique (settings_json.documents) — numérotation devis / factures / avoirs */
+    /** Préfixe factures / avoirs (settings_json.documents.document_prefix) */
     document_prefix: "",
+    /** Préfixe devis (settings_json.quote.prefix) — voir aussi document_prefix */
+    quote_prefix: "",
+    /** Prochain numéro devis (settings_json.quote.next_number) */
+    quote_next_number: "1",
+    /** Couleur d’accent PDF (organizations.pdf_primary_color) */
+    pdf_primary_color: "",
   });
 
   const logoBlobUrl = useImageUrl(org?.logo_url);
   const [settingsPdfCover, setSettingsPdfCover] = useState<string | null>(null);
   const pdfCoverBlobUrl = useImageUrl(
     settingsPdfCover || org?.pdf_cover_image_key ? "/api/admin/org/pdf-cover" : undefined
+  );
+
+  const documentDisplayNamePreview = useMemo(
+    () => computeDocumentDisplayNamePreview(form),
+    [form.legal_name, form.trade_name, form.name]
+  );
+
+  const pdfColorPickerValue = useMemo(
+    () => resolvePdfPrimaryColor(form.pdf_primary_color),
+    [form.pdf_primary_color]
   );
 
   const load = useCallback(async () => {
@@ -149,12 +187,21 @@ export function AdminTabOrg() {
       const o = await adminGetOrg();
       setOrg(o);
       let docPrefix = "";
+      let quotePrefix = "";
+      let quoteNext = "1";
       try {
         const settings = await adminGetOrgSettings();
         setSettingsPdfCover(settings.pdf_cover_image_key ?? null);
         docPrefix = settings.documents?.document_prefix != null ? String(settings.documents.document_prefix) : "";
       } catch {
         setSettingsPdfCover(null);
+      }
+      try {
+        const full = await getOrganizationsSettings();
+        quotePrefix = String(full.quote?.prefix ?? "ORG");
+        quoteNext = String(full.quote?.next_number ?? 1);
+      } catch {
+        /* ignore — champs restent à défaut */
       }
       setForm({
         name: o.name || "",
@@ -181,6 +228,9 @@ export function AdminTabOrg() {
         default_invoice_due_days: String(o.default_invoice_due_days ?? 30),
         default_vat_rate: String(o.default_vat_rate ?? 20),
         document_prefix: docPrefix,
+        quote_prefix: quotePrefix,
+        quote_next_number: quoteNext,
+        pdf_primary_color: o.pdf_primary_color || "",
       });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur chargement");
@@ -223,6 +273,7 @@ export function AdminTabOrg() {
         default_quote_validity_days: parseInt(form.default_quote_validity_days, 10) || 30,
         default_invoice_due_days: parseInt(form.default_invoice_due_days, 10) || 30,
         default_vat_rate: parseFloat(form.default_vat_rate) || 20,
+        pdf_primary_color: normalizePdfPrimaryForApi(form.pdf_primary_color),
       });
       const rawPrefix = form.document_prefix.trim();
       const sanitizedPrefix = rawPrefix
@@ -243,6 +294,25 @@ export function AdminTabOrg() {
           document_prefix: sanitizedPrefix.length === 0 ? "" : sanitizedPrefix,
         },
       });
+
+      const qp = form.quote_prefix.trim().toUpperCase().replace(/\s+/g, "").replace(/[^A-Z0-9]/g, "");
+      if (qp.length > 0 && (qp.length < 2 || qp.length > 10)) {
+        const msg = "Le préfixe devis doit contenir entre 2 et 10 caractères (lettres et chiffres), ou être vide pour le défaut ORG.";
+        setError(msg);
+        showCrmInlineToast(msg, "error", 4500);
+        setSaving(false);
+        return;
+      }
+      const nextN = Math.max(1, Math.floor(Number(form.quote_next_number)) || 1);
+      const vatForSettings = parseFloat(form.default_vat_rate) || 20;
+      await putOrganizationsSettings({
+        quote: {
+          prefix: qp.length >= 2 ? qp : null,
+          next_number: nextN,
+        },
+        finance: { default_vat_rate: Math.max(0, Math.min(100, vatForSettings)) },
+      });
+
       setOrg(updated);
       setError("");
       showCrmInlineToast("Paramètres enregistrés", "success", 3200);
@@ -314,100 +384,209 @@ export function AdminTabOrg() {
   };
 
   if (loading) {
-    return <p style={{ color: "var(--text-muted)" }}>Chargement…</p>;
+    return <p className="org-tab-loading">Chargement des informations entreprise…</p>;
   }
 
   if (!org) {
-    return <p style={{ color: "var(--danger)" }}>Entreprise non trouvée</p>;
+    return <p className="org-tab-alert">Entreprise non trouvée</p>;
   }
 
   return (
-    <div className="admin-tab-org">
-      <form onSubmit={handleSubmit} aria-busy={saving}>
-        <div className="admin-org-grid">
-          <Block title="Identité entreprise">
-            <Field label="Nom de l'entreprise" value={form.name} onChange={(v) => setForm((f) => ({ ...f, name: v }))} />
-            <Field label="Nom juridique" value={form.legal_name} onChange={(v) => setForm((f) => ({ ...f, legal_name: v }))} />
-            <Field label="Nom commercial" value={form.trade_name} onChange={(v) => setForm((f) => ({ ...f, trade_name: v }))} />
-            <Field label="SIRET" value={form.siret} onChange={(v) => setForm((f) => ({ ...f, siret: v }))} />
-            <Field label="TVA" value={form.vat_number} onChange={(v) => setForm((f) => ({ ...f, vat_number: v }))} />
-            <Field label="RCS" value={form.rcs} onChange={(v) => setForm((f) => ({ ...f, rcs: v }))} />
-            <Field label="Capital" value={form.capital_amount} onChange={(v) => setForm((f) => ({ ...f, capital_amount: v }))} />
-          </Block>
+    <div className="admin-tab-org org-structure-tab">
+      <p className="org-org-page-intro">
+        <strong>Paramètres entreprise</strong> — identité sur les documents, coordonnées, facturation, numérotation et
+        apparence des PDF (devis, factures, études).
+      </p>
+      <form className="org-org-page" onSubmit={handleSubmit} aria-busy={saving}>
+        <OrgSection
+          title="Identité, adresse et contact"
+          description="Données juridiques et coordonnées utilisées sur vos documents et échanges."
+        >
+          <div className="admin-org-field org-org-field--full">
+            <label htmlFor="admin-org-name">Nom de l&apos;entreprise (visible sur documents)</label>
+            <input
+              id="admin-org-name"
+              type="text"
+              className="sn-input"
+              value={form.name}
+              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+              autoComplete="organization"
+            />
+            <p className="admin-org-field-hint" style={{ margin: "6px 0 0", fontSize: 12, lineHeight: 1.45, color: "var(--text-muted)" }}>
+              Affiché sur devis, factures et documents clients.
+            </p>
+            <div className="org-org-preview-box">
+              <div className="org-org-preview-box__label">Aperçu du nom sur les documents</div>
+              <div className="org-org-preview-box__value">{documentDisplayNamePreview}</div>
+              <p style={{ margin: "8px 0 0", fontSize: 11, lineHeight: 1.4, color: "var(--text-muted)" }}>
+                Ordre : nom juridique → nom commercial → nom ci-dessus.
+              </p>
+            </div>
+          </div>
+          <Field label="Nom juridique" value={form.legal_name} onChange={(v) => setForm((f) => ({ ...f, legal_name: v }))} />
+          <Field label="Nom commercial" value={form.trade_name} onChange={(v) => setForm((f) => ({ ...f, trade_name: v }))} />
+          <Field label="SIRET" value={form.siret} onChange={(v) => setForm((f) => ({ ...f, siret: v }))} />
+          <Field label="TVA" value={form.vat_number} onChange={(v) => setForm((f) => ({ ...f, vat_number: v }))} />
+          <Field label="RCS" value={form.rcs} onChange={(v) => setForm((f) => ({ ...f, rcs: v }))} />
+          <Field label="Capital" value={form.capital_amount} onChange={(v) => setForm((f) => ({ ...f, capital_amount: v }))} />
+          <Field label="Adresse ligne 1" value={form.address_line1} onChange={(v) => setForm((f) => ({ ...f, address_line1: v }))} />
+          <Field label="Adresse ligne 2" value={form.address_line2} onChange={(v) => setForm((f) => ({ ...f, address_line2: v }))} />
+          <Field label="Code postal" value={form.postal_code} onChange={(v) => setForm((f) => ({ ...f, postal_code: v }))} />
+          <Field label="Ville" value={form.city} onChange={(v) => setForm((f) => ({ ...f, city: v }))} />
+          <Field label="Pays" value={form.country} onChange={(v) => setForm((f) => ({ ...f, country: v }))} />
+          <Field label="Téléphone" value={form.phone} onChange={(v) => setForm((f) => ({ ...f, phone: v }))} type="tel" />
+          <Field label="Email" value={form.email} onChange={(v) => setForm((f) => ({ ...f, email: v }))} type="email" />
+          <Field label="Site web" value={form.website} onChange={(v) => setForm((f) => ({ ...f, website: v }))} type="url" placeholder="https://" />
+        </OrgSection>
 
-          <Block title="Adresse">
-            <Field label="Adresse ligne 1" value={form.address_line1} onChange={(v) => setForm((f) => ({ ...f, address_line1: v }))} />
-            <Field label="Adresse ligne 2" value={form.address_line2} onChange={(v) => setForm((f) => ({ ...f, address_line2: v }))} />
-            <Field label="Code postal" value={form.postal_code} onChange={(v) => setForm((f) => ({ ...f, postal_code: v }))} />
-            <Field label="Ville" value={form.city} onChange={(v) => setForm((f) => ({ ...f, city: v }))} />
-            <Field label="Pays" value={form.country} onChange={(v) => setForm((f) => ({ ...f, country: v }))} />
-          </Block>
+        <OrgSection
+          title="Facturation et numérotation"
+          description="RIB, délais, TVA par défaut, préfixes et compteurs de documents."
+        >
+          <Field label="IBAN" value={form.iban} onChange={(v) => setForm((f) => ({ ...f, iban: v }))} />
+          <Field label="BIC" value={form.bic} onChange={(v) => setForm((f) => ({ ...f, bic: v }))} />
+          <Field label="Banque" value={form.bank_name} onChange={(v) => setForm((f) => ({ ...f, bank_name: v }))} />
+          <Field
+            label="Conditions de paiement"
+            value={form.default_payment_terms}
+            onChange={(v) => setForm((f) => ({ ...f, default_payment_terms: v }))}
+            rows={2}
+            className="org-org-field--full"
+          />
+          <Field
+            label="Notes facture par défaut"
+            value={form.default_invoice_notes}
+            onChange={(v) => setForm((f) => ({ ...f, default_invoice_notes: v }))}
+            rows={2}
+            className="org-org-field--full"
+          />
+          <Field
+            label="Validité devis (jours)"
+            value={form.default_quote_validity_days}
+            onChange={(v) => setForm((f) => ({ ...f, default_quote_validity_days: v }))}
+            type="number"
+          />
+          <Field
+            label="Échéance facture (jours)"
+            value={form.default_invoice_due_days}
+            onChange={(v) => setForm((f) => ({ ...f, default_invoice_due_days: v }))}
+            type="number"
+          />
+          <Field
+            label="TVA par défaut (%)"
+            value={form.default_vat_rate}
+            onChange={(v) => setForm((f) => ({ ...f, default_vat_rate: v }))}
+            type="number"
+          />
+          <Field
+            label="Préfixe devis"
+            value={form.quote_prefix}
+            onChange={(v) =>
+              setForm((f) => ({
+                ...f,
+                quote_prefix: v.replace(/\s+/g, "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10),
+              }))
+            }
+            placeholder="ORG"
+          />
+          <Field
+            label="Prochain numéro devis"
+            value={form.quote_next_number}
+            onChange={(v) => {
+              const d = v.replace(/[^\d]/g, "");
+              setForm((f) => ({ ...f, quote_next_number: d === "" ? "" : d }));
+            }}
+            type="number"
+          />
+          <div className="admin-org-field org-org-field--full">
+            <label htmlFor="admin-org-doc-prefix">Préfixe factures et avoirs</label>
+            <input
+              id="admin-org-doc-prefix"
+              type="text"
+              className="sn-input"
+              value={form.document_prefix}
+              placeholder="Ex. SG"
+              maxLength={10}
+              autoComplete="off"
+              onChange={(e) => {
+                const v = e.target.value
+                  .replace(/\s+/g, "")
+                  .toUpperCase()
+                  .replace(/[^A-Z0-9]/g, "")
+                  .slice(0, 10);
+                setForm((f) => ({ ...f, document_prefix: v }));
+              }}
+            />
+            <p className="admin-org-pdf-cover-desc" style={{ marginTop: 8, marginBottom: 4 }}>
+              Devis : {`{PRÉFIXE}-{ANNÉE}-{NNNN}`}. Factures / avoirs : ex. {`{PRÉFIXE}-FACT-2026-0042`}. Vide ={" "}
+              <strong>ORG</strong>.
+            </p>
+            <p
+              className="admin-org-pdf-cover-desc"
+              style={{ marginTop: 0, fontFamily: "ui-monospace, monospace", fontSize: 12, color: "var(--text-secondary)" }}
+            >
+              Aperçu :{" "}
+              {(() => {
+                const p =
+                  form.document_prefix.trim().length >= 2 ? form.document_prefix.trim().toUpperCase() : "ORG";
+                const y = new Date().getFullYear();
+                return (
+                  <>
+                    {p}-FACT-{y}-0067 · {p}-AVR-{y}-0003
+                  </>
+                );
+              })()}
+            </p>
+          </div>
+        </OrgSection>
 
-          <Block title="Contact">
-            <Field label="Téléphone" value={form.phone} onChange={(v) => setForm((f) => ({ ...f, phone: v }))} type="tel" />
-            <Field label="Email" value={form.email} onChange={(v) => setForm((f) => ({ ...f, email: v }))} type="email" />
-            <Field label="Site web" value={form.website} onChange={(v) => setForm((f) => ({ ...f, website: v }))} type="url" placeholder="https://" />
-          </Block>
-
-          <Block title="Facturation">
-            <Field label="IBAN" value={form.iban} onChange={(v) => setForm((f) => ({ ...f, iban: v }))} />
-            <Field label="BIC" value={form.bic} onChange={(v) => setForm((f) => ({ ...f, bic: v }))} />
-            <Field label="Banque" value={form.bank_name} onChange={(v) => setForm((f) => ({ ...f, bank_name: v }))} />
-            <Field label="Conditions de paiement" value={form.default_payment_terms} onChange={(v) => setForm((f) => ({ ...f, default_payment_terms: v }))} rows={2} />
-            <Field label="Notes facture par défaut" value={form.default_invoice_notes} onChange={(v) => setForm((f) => ({ ...f, default_invoice_notes: v }))} rows={2} />
-            <Field label="Validité devis (jours)" value={form.default_quote_validity_days} onChange={(v) => setForm((f) => ({ ...f, default_quote_validity_days: v }))} type="number" />
-            <Field label="Échéance facture (jours)" value={form.default_invoice_due_days} onChange={(v) => setForm((f) => ({ ...f, default_invoice_due_days: v }))} type="number" />
-            <Field label="TVA par défaut (%)" value={form.default_vat_rate} onChange={(v) => setForm((f) => ({ ...f, default_vat_rate: v }))} type="number" />
-            <div className="admin-org-field" style={{ gridColumn: "1 / -1" }}>
-              <label>Préfixe documents</label>
+        <OrgSection
+          title="Apparence des PDF"
+          description="Couleur d’accent, logo et couverture pour les PDF devis, factures et études."
+        >
+          <div className="admin-org-field org-org-field--full">
+            <label htmlFor="admin-org-pdf-color">Couleur d’accent</label>
+            <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12 }}>
+              <input
+                id="admin-org-pdf-color"
+                type="color"
+                value={pdfColorPickerValue}
+                onChange={(e) => setForm((f) => ({ ...f, pdf_primary_color: e.target.value }))}
+                style={{
+                  width: 44,
+                  height: 36,
+                  padding: 0,
+                  border: "1px solid var(--sn-border-soft)",
+                  borderRadius: 8,
+                  cursor: "pointer",
+                  background: "var(--surface)",
+                }}
+              />
               <input
                 type="text"
                 className="sn-input"
-                value={form.document_prefix}
-                placeholder="Ex. SG"
-                maxLength={10}
+                style={{ maxWidth: 140, height: 40 }}
+                value={form.pdf_primary_color}
+                placeholder={DEFAULT_PDF_PRIMARY_COLOR}
+                onChange={(e) => setForm((f) => ({ ...f, pdf_primary_color: e.target.value }))}
+                spellCheck={false}
                 autoComplete="off"
-                onChange={(e) => {
-                  const v = e.target.value
-                    .replace(/\s+/g, "")
-                    .toUpperCase()
-                    .replace(/[^A-Z0-9]/g, "")
-                    .slice(0, 10);
-                  setForm((f) => ({ ...f, document_prefix: v }));
-                }}
+                aria-label="Code couleur hexadécimal"
               />
-              <p className="admin-org-pdf-cover-desc" style={{ marginTop: 8, marginBottom: 4 }}>
-                Utilisé pour la numérotation des devis, factures et avoirs. Laisser vide pour le préfixe par défaut{" "}
-                <strong>ORG</strong> (ex. ORG-DEV-2026-0047).
-              </p>
-              <p
-                className="admin-org-pdf-cover-desc"
-                style={{ marginTop: 0, fontFamily: "monospace", fontSize: 13, color: "var(--text-secondary)" }}
-              >
-                Aperçu :{" "}
-                {(() => {
-                  const p =
-                    form.document_prefix.trim().length >= 2
-                      ? form.document_prefix.trim().toUpperCase()
-                      : "ORG";
-                  const y = new Date().getFullYear();
-                  return (
-                    <>
-                      {p}-DEV-{y}-0047 · {p}-FACT-{y}-0067
-                    </>
-                  );
-                })()}
-              </p>
             </div>
-          </Block>
+            <p className="admin-org-pdf-cover-desc" style={{ marginTop: 8 }}>
+              Défaut si vide : {DEFAULT_PDF_PRIMARY_COLOR}.
+            </p>
+          </div>
 
-          <Block title="Logo">
+          <div className="admin-org-field org-org-field--full">
+            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: "var(--text-primary)" }}>Logo</div>
             <div className="admin-org-logo-zone">
               {logoBlobUrl ? (
                 <div className="admin-org-logo-preview">
                   <img src={logoBlobUrl} alt="Logo" />
                   <Button type="button" variant="ghost" size="sm" onClick={handleLogoDelete}>
-                    Supprimer logo
+                    Supprimer
                   </Button>
                 </div>
               ) : (
@@ -422,38 +601,39 @@ export function AdminTabOrg() {
                   />
                   <label htmlFor="org-logo-input" style={{ cursor: uploadingLogo ? "not-allowed" : "pointer" }}>
                     <span
-                      className="sn-btn sn-btn-outline-gold"
+                      className="sn-btn sn-btn-secondary"
                       style={{
                         display: "inline-flex",
+                        height: 40,
+                        padding: "0 16px",
                         alignItems: "center",
-                        justifyContent: "center",
-                        height: 44,
-                        padding: "0 var(--spacing-24)",
-                        borderRadius: "var(--radius-btn)",
+                        borderRadius: 10,
                         pointerEvents: uploadingLogo ? "none" : "auto",
+                        fontSize: 13,
                       }}
                     >
-                      {uploadingLogo ? "Upload…" : "Choisir un logo"}
+                      {uploadingLogo ? "Téléversement…" : "Choisir un fichier"}
                     </span>
                   </label>
                   <span className="admin-org-logo-hint">PNG, JPG ou SVG — max 2 Mo</span>
                 </div>
               )}
             </div>
-          </Block>
+          </div>
 
-          <Block title="Téléverser l'image de couverture du PDF">
-            <p className="admin-org-pdf-cover-desc">
-              Image utilisée sur la page de couverture du PDF d'étude.
-              <br />
-              Format recommandé : 16:9 (1920×1080 ou plus).
+          <div className="admin-org-field org-org-field--full">
+            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, color: "var(--text-primary)" }}>
+              Couverture PDF étude
+            </div>
+            <p className="admin-org-pdf-cover-desc" style={{ marginTop: 0, marginBottom: 10 }}>
+              16:9 recommandé (ex. 1920×1080).
             </p>
             <div className="admin-org-logo-zone">
               {pdfCoverBlobUrl ? (
                 <div className="admin-org-logo-preview">
                   <img src={pdfCoverBlobUrl} alt="Couverture PDF" className="sg-image-preview" />
                   <Button type="button" variant="ghost" size="sm" onClick={handlePdfCoverDelete}>
-                    Supprimer image
+                    Supprimer
                   </Button>
                 </div>
               ) : (
@@ -468,29 +648,27 @@ export function AdminTabOrg() {
                   />
                   <label htmlFor="org-pdf-cover-input" style={{ cursor: uploadingPdfCover ? "not-allowed" : "pointer" }}>
                     <span
-                      className="sn-btn sn-btn-outline-gold"
+                      className="sn-btn sn-btn-secondary"
                       style={{
                         display: "inline-flex",
+                        height: 40,
+                        padding: "0 16px",
                         alignItems: "center",
-                        justifyContent: "center",
-                        height: 44,
-                        padding: "0 var(--spacing-24)",
-                        borderRadius: "var(--radius-btn)",
+                        borderRadius: 10,
                         pointerEvents: uploadingPdfCover ? "none" : "auto",
+                        fontSize: 13,
                       }}
                     >
-                      {uploadingPdfCover ? "Upload…" : "Importer une image"}
+                      {uploadingPdfCover ? "Téléversement…" : "Importer une image"}
                     </span>
                   </label>
                 </div>
               )}
             </div>
-          </Block>
-        </div>
+          </div>
+        </OrgSection>
 
-        {error && (
-          <p style={{ color: "var(--danger)", marginBottom: "var(--spacing-16)" }}>{error}</p>
-        )}
+        {error ? <p className="org-tab-alert">{error}</p> : null}
 
         <div className="admin-org-actions">
           <Button variant="primary" type="submit" disabled={saving || loading}>

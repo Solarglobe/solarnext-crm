@@ -21,6 +21,7 @@ function basePanDiagnostics(overrides: Partial<CanonicalPan3D["diagnostics"]> = 
     insufficientHeightSignal: false,
     heterogeneousZSources: false,
     planeResidualRmsM: null,
+    inclinedRoofGeometryTruthful: true,
     ...overrides,
   };
 }
@@ -237,6 +238,7 @@ describe("buildCanonicalScene3DInput", () => {
     buildCanonicalScene3DInput({
       state,
       getAllPanels: () => [],
+      deferPlacedPanels: true,
     });
     expect(JSON.stringify(state.roof.roofPans)).toBe(roofPansSnap);
     expect(JSON.stringify(state.contours)).toBe(contoursSnap);
@@ -335,7 +337,11 @@ describe("buildCanonicalScene3DInput", () => {
         { id: "r1", a: { x: 150, y: 100 }, b: { x: 150, y: 200 }, roofRole: "main" },
       ],
     };
-    const scene = buildCanonicalScene3DInput({ state, getAllPanels: () => [] });
+    const scene = buildCanonicalScene3DInput({
+      state,
+      getAllPanels: () => [],
+      deferPlacedPanels: true,
+    });
     expect(scene.diagnostics.structuralRoof?.source).toBe("runtime_state");
     expect(scene.diagnostics.structuralRoof?.ridgeKept).toBe(1);
     expect(scene.diagnostics.structuralRoof?.traitKept).toBe(0);
@@ -353,5 +359,45 @@ describe("buildCanonicalScene3DInput", () => {
     const scene = buildCanonicalScene3DInput({ state });
     expect(scene.diagnostics.is3DEligible).toBe(false);
     expect(scene.diagnostics.errors.some((e) => e.includes("WORLD_NORTH_MISSING"))).toBe(true);
+  });
+
+  it("runtime monde résolu sans roofPlanePatches ni defer → erreur explicite, aucun panneau chargé", () => {
+    const state = {
+      roof: {
+        scale: { metersPerPixel: 0.02 },
+        roof: { north: { angleDeg: 0 } },
+        canonical3DWorldContract: {
+          schemaVersion: 1,
+          metersPerPixel: 0.02,
+          northAngleDeg: 0,
+          referenceFrame: "LOCAL_IMAGE_ENU",
+        },
+        roofPans: [
+          {
+            id: "pan-a",
+            polygonPx: [
+              { x: 100, y: 100 },
+              { x: 200, y: 100 },
+              { x: 200, y: 200 },
+              { x: 100, y: 200 },
+            ],
+          },
+        ],
+      },
+      contours: [
+        {
+          roofRole: "contour",
+          points: [
+            { x: 100, y: 100, h: 5 },
+            { x: 200, y: 100, h: 5 },
+            { x: 200, y: 200, h: 5 },
+            { x: 100, y: 200, h: 5 },
+          ],
+        },
+      ],
+    };
+    const scene = buildCanonicalScene3DInput({ state, getAllPanels: () => [] });
+    expect(scene.diagnostics.errors).toContain("PANEL_PLACEMENT_REQUIRES_OFFICIAL_ROOF_PLANE_PATCHES");
+    expect(scene.panels.items).toHaveLength(0);
   });
 });

@@ -10,6 +10,7 @@ import { mergeQuoteOrgDocumentFieldsIntoPayload } from "../services/quoteDocumen
 import {
   QUOTE_DOC_SIGNATURE_CLIENT,
   QUOTE_DOC_SIGNATURE_COMPANY,
+  fetchQuoteSignatureReadAcceptances,
 } from "../services/documents.service.js";
 
 export async function getInternalFinancialQuotePdfPayload(req, res) {
@@ -68,6 +69,10 @@ export async function getInternalFinancialQuotePdfPayload(req, res) {
           error: "Signatures client et entreprise requises pour le PDF signé",
         });
       }
+      const acc = await fetchQuoteSignatureReadAcceptances(decoded.organizationId, quoteId);
+      payload = { ...payload };
+      if (acc.client) payload.signature_client_read_acceptance = acc.client;
+      if (acc.company) payload.signature_company_read_acceptance = acc.company;
     }
 
     return res.json({

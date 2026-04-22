@@ -13,12 +13,24 @@ import {
   formatTodayFrNumeric,
   quoteValidityHintFr,
 } from "../../pages/pdf/financialPdfFormat";
-import type { QuotePdfPayload } from "./quoteDocumentTypes";
+import type { QuotePdfPayload, QuoteSignatureReadAcceptance } from "./quoteDocumentTypes";
+import PdfCgvSection from "../../pages/pdf/PdfLegacyPort/PdfCgvSection";
 import { QUOTE_PDF_WORK_NUMBER_LABEL } from "./quoteUiStatus";
 import "../../pages/pdf/financial-quote-pdf.css";
 
 export type QuoteDocumentLegalMode = "official" | "draft";
 export type QuoteDocumentVariant = "standard" | "signed_final";
+
+function formatSignatureReadAckLine(ack: QuoteSignatureReadAcceptance | null | undefined): string | null {
+  if (!ack || ack.accepted !== true) return null;
+  const label = (ack.acceptedLabel && String(ack.acceptedLabel).trim()) || "Lu et accepté";
+  const officialIso = (ack.signedAtServer && String(ack.signedAtServer).trim()) || (ack.recordedAt && String(ack.recordedAt).trim()) || "";
+  if (officialIso) {
+    const d = formatDateFrLong(officialIso);
+    if (d && d !== "—") return `${label} — ${d}`;
+  }
+  return label;
+}
 
 export interface QuoteDocumentViewProps {
   payload: QuotePdfPayload;
@@ -60,6 +72,7 @@ function SignatureBlock({
   onClick,
   emptyHint,
   openPadAriaLabel,
+  readAckLine,
 }: {
   label: string;
   interactive?: boolean;
@@ -70,6 +83,8 @@ function SignatureBlock({
   emptyHint: string;
   /** Libellé du bouton zone signature (modal agrandie) */
   openPadAriaLabel?: string;
+  /** Mention « lu et accepté » sous le cadre (PDF signé / payload enrichi) */
+  readAckLine?: string | null;
 }) {
   const areaContent = (
     <>
@@ -96,6 +111,11 @@ function SignatureBlock({
       ) : (
         <div className="fq-signature-canvas-area">{areaContent}</div>
       )}
+      {readAckLine ? (
+        <p className="fq-signature-read-ack" role="note">
+          {readAckLine}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -132,7 +152,7 @@ export function QuoteDocumentView({
   const currency = (payload.currency as string) || "EUR";
   const showLinePricing = payload.pdf_display?.show_line_pricing !== false;
 
-  const companyName = String(issuer.display_name || issuer.legal_name || issuer.trade_name || "SolarNext").trim();
+  const companyName = String(issuer.display_name || issuer.legal_name || issuer.trade_name || "").trim() || "—";
 
   const showOfficial = showOfficialQuoteNumber !== false;
   const docNumberDisplayed = showOfficial ? (payload.number?.trim() || "—") : QUOTE_PDF_WORK_NUMBER_LABEL;
@@ -172,6 +192,10 @@ export function QuoteDocumentView({
   const showApprovalBlock =
     legalMode === "official" || (variant === "present" && legalMode === "draft");
   const approvalInteractive = Boolean(onClientReadApprovedChange);
+
+  const showSigReadAck = documentVariant === "signed_final";
+  const clientSigAckLine = showSigReadAck ? formatSignatureReadAckLine(payload.signature_client_read_acceptance) : null;
+  const companySigAckLine = showSigReadAck ? formatSignatureReadAckLine(payload.signature_company_read_acceptance) : null;
 
   const lineTbodies = (condensed: boolean) =>
     lines.map((row, idx) => {
@@ -461,6 +485,7 @@ export function QuoteDocumentView({
                       onClick={onSignatureClientClick}
                       emptyHint={interactiveSignatures ? "Cliquer pour ouvrir la signature" : " "}
                       openPadAriaLabel="Ouvrir la zone de signature agrandie — signature client"
+                      readAckLine={clientSigAckLine}
                     />
                     <SignatureBlock
                       label={`Signature / cachet — ${companyName}`}
@@ -471,6 +496,7 @@ export function QuoteDocumentView({
                       onClick={onSignatureCompanyClick}
                       emptyHint={interactiveSignatures ? "Cliquer pour ouvrir la signature" : " "}
                       openPadAriaLabel="Ouvrir la zone de signature agrandie — signature entreprise"
+                      readAckLine={companySigAckLine}
                     />
                   </div>
                   {variant === "present" && interactiveSignatures ? (
@@ -486,6 +512,8 @@ export function QuoteDocumentView({
           </div>
         </section>
       </div>
+
+      <PdfCgvSection legalCgv={payload.legal_cgv} />
 
       {variant === "pdf" ? (
         <div id="pdf-ready" data-status={pdfReadyMarker ? "ready" : "pending"} aria-hidden="true" />

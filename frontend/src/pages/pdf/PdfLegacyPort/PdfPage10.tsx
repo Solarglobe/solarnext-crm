@@ -6,6 +6,8 @@
 import React, { useLayoutEffect, useMemo } from "react";
 import PdfPageLayout from "../PdfEngine/PdfPageLayout";
 import PdfHeader from "../../../components/pdf/PdfHeader";
+import { hexToRgba, pdfBrandGoldLight } from "../pdfBrand";
+import { usePdfOrgBranding } from "./pdfOrgBrandingContext";
 
 const API_BASE = import.meta.env?.VITE_API_URL || (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000");
 const PLACEHOLDER_LOGO = "/pdf-assets/images/logo-solarglobe-rect.png";
@@ -103,7 +105,7 @@ export default function PdfPage10({
     return () => cancelAnimationFrame(id);
   }, [onReady, viewModel]);
 
-  const gold = "#C39847";
+  const { brandHex: gold } = usePdfOrgBranding();
   const ink = "#0a0a0a";
   const titleInk = "#111827";
   const subInk = "#374151";
@@ -117,8 +119,8 @@ export default function PdfPage10({
       line: `${fmtKwc(kwc)} kWc`,
       sub: "Installation photovoltaïque",
       accent: gold,
-      bg: "linear-gradient(155deg, rgba(195,152,71,0.22) 0%, rgba(255,255,255,0.98) 55%, #fff 100%)",
-      border: "0.4mm solid rgba(195,152,71,0.55)",
+      bg: `linear-gradient(155deg, ${hexToRgba(gold, 0.22)} 0%, rgba(255,255,255,0.98) 55%, #fff 100%)`,
+      border: `0.4mm solid ${hexToRgba(gold, 0.55)}`,
     },
     {
       label: "Économie annuelle",
@@ -155,7 +157,6 @@ export default function PdfPage10({
         header: (
           <PdfHeader
             headerStyle={{
-              ["--brand" as string]: gold,
               ["--logoW" as string]: logoUrl ? "22mm" : "0",
               ["--metaW" as string]: "110mm",
               flexShrink: 0,
@@ -224,9 +225,9 @@ export default function PdfPage10({
             textAlign: "left",
             padding: "2.05mm 3.1mm 1.75mm",
             flexShrink: 0,
-            background: "linear-gradient(180deg, rgba(195,152,71,0.18) 0%, rgba(255,255,255,0.96) 48%, #fff 100%)",
+            background: `linear-gradient(180deg, ${hexToRgba(gold, 0.18)} 0%, rgba(255,255,255,0.96) 48%, #fff 100%)`,
             borderRadius: "3.5mm",
-            border: "0.38mm solid rgba(195,152,71,0.38)",
+            border: `0.38mm solid ${hexToRgba(gold, 0.38)}`,
             boxShadow: "0 1.4mm 5mm rgba(15,23,42,0.09)",
           }}
         >
@@ -337,7 +338,7 @@ export default function PdfPage10({
                 unit: "ans",
                 val: roi != null && Number.isFinite(roi) ? `${Math.round(roi)}` : "—",
                 w: roiBarPct,
-                grad: "linear-gradient(90deg,#E4C98B,#C39847)",
+                grad: `linear-gradient(90deg, ${pdfBrandGoldLight(gold)}, ${gold})`,
               },
               {
                 lab: "TRI",
@@ -440,9 +441,9 @@ export default function PdfPage10({
             style={{
               padding: "3mm 3.2mm",
               borderRadius: "4mm",
-              background: "linear-gradient(165deg, rgba(195,152,71,0.12) 0%, #fff 52%)",
-              border: "0.42mm solid rgba(195,152,71,0.38)",
-              boxShadow: "0 1.2mm 4mm rgba(195,152,71,0.14)",
+              background: `linear-gradient(165deg, ${hexToRgba(gold, 0.12)} 0%, #fff 52%)`,
+              border: `0.42mm solid ${hexToRgba(gold, 0.38)}`,
+              boxShadow: `0 1.2mm 4mm ${hexToRgba(gold, 0.14)}`,
               minHeight: 0,
               alignSelf: "stretch",
               display: "flex",
@@ -475,7 +476,7 @@ export default function PdfPage10({
                     alignItems: "flex-start",
                     paddingBottom: idx < 2 ? "1.15mm" : "0.4mm",
                     marginBottom: idx < 2 ? "1.15mm" : 0,
-                    borderBottom: idx < 2 ? "0.25mm solid rgba(195,152,71,0.28)" : "none",
+                    borderBottom: idx < 2 ? `0.25mm solid ${hexToRgba(gold, 0.28)}` : "none",
                     flexShrink: 0,
                   }}
                 >
@@ -492,7 +493,7 @@ export default function PdfPage10({
                       fontWeight: 900,
                       display: "flex",
                       alignItems: "center",
-                      boxShadow: "0 0.5mm 1.4mm rgba(195,152,71,0.45)",
+                      boxShadow: `0 0.5mm 1.4mm ${hexToRgba(gold, 0.45)}`,
                     }}
                   >
                     {x.icon}
@@ -509,7 +510,7 @@ export default function PdfPage10({
               style={{
                 flexShrink: 0,
                 padding: "1.45mm 0 0",
-                borderTop: "0.4mm solid rgba(195,152,71,0.42)",
+                borderTop: `0.4mm solid ${hexToRgba(gold, 0.42)}`,
                 textAlign: "left",
               }}
             >

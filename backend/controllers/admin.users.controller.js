@@ -10,42 +10,48 @@
 
 import { pool } from "../config/db.js";
 import { hashPassword } from "../auth/auth.service.js";
+import { logAuditEvent } from "../services/audit/auditLog.service.js";
+import { AuditActions } from "../services/audit/auditActions.js";
+import {
+  isJwtSuperAdmin,
+  rbacRoleIdsIncludeSuperAdmin,
+  userHasSuperAdminRbacRole,
+  sendForbiddenSuperAdminRole,
+  SUPER_ADMIN_ROLE_CODE,
+} from "../lib/superAdminUserGuards.js";
+import {
+  ensureAdminRbacConsistentAfterUserCreate,
+} from "../rbac/rbac.service.js";
+import { ensureLegacyRoleAndUserBridge } from "../services/rbac/legacyRoleBridge.service.js";
+import { respondIfDeletingOwnAccount } from "../services/rbac/userSelfDeleteGuard.js";
 
 const orgId = (req) => req.user.organizationId ?? req.user.organization_id;
 
-/** Rôles RBAC critiques pour lesquels on doit garantir un legacy role (login JWT) */
-const RBAC_CRITICAL_CODES = [
-  "ADMIN",
-  "SALES",
-  "SALES_MANAGER",
-  "TECHNICIEN",
-  "ASSISTANTE",
-  "APPORTEUR",
-  "SUPER_ADMIN"
-];
+/** @param {unknown} v */
+function normOptName(v) {
+  if (v == null) return null;
+  const t = String(v).trim();
+  return t === "" ? null : t;
+}
+
+async function ensureLegacyRoleAndSync(pool, userId, rbacCode) {
+  await ensureLegacyRoleAndUserBridge(pool, userId, rbacCode);
+}
 
 /**
- * Garantit l'existence du legacy role et l'entrée user_roles.
- * Crée le role legacy si absent (idempotent).
+ * @param {import("express").Request} req
+ * @param {import("express").Response} res
+ * @param {string} targetUserId
+ * @param {{ forbiddenSuperAdminMessage?: string }} [options]
  */
-async function ensureLegacyRoleAndSync(pool, userId, rbacCode) {
-  if (!RBAC_CRITICAL_CODES.includes(rbacCode)) return;
-  let roleRes = await pool.query("SELECT id FROM roles WHERE name = $1 LIMIT 1", [rbacCode]);
-  if (roleRes.rows.length === 0) {
-    await pool.query(
-      `INSERT INTO roles (id, name, description)
-       SELECT gen_random_uuid(), $1, $2
-       WHERE NOT EXISTS (SELECT 1 FROM roles WHERE name = $1)`,
-      [rbacCode, rbacCode]
-    );
-    roleRes = await pool.query("SELECT id FROM roles WHERE name = $1 LIMIT 1", [rbacCode]);
+async function assertCallerMayAccessTargetUser(req, res, targetUserId, options = {}) {
+  const org = orgId(req);
+  if (isJwtSuperAdmin(req)) return true;
+  if (await userHasSuperAdminRbacRole(pool, targetUserId, org)) {
+    sendForbiddenSuperAdminRole(res, options.forbiddenSuperAdminMessage);
+    return false;
   }
-  if (roleRes.rows.length > 0) {
-    await pool.query(
-      "INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2) ON CONFLICT (user_id, role_id) DO NOTHING",
-      [userId, roleRes.rows[0].id]
-    );
-  }
+  return true;
 }
 
 /**
@@ -57,6 +63,8 @@ export async function list(req, res) {
     const org = orgId(req);
     const result = await pool.query(
       `SELECT u.id, u.email, u.status, u.last_login, u.created_at,
+              u.first_name, u.last_name,
+              NULLIF(TRIM(CONCAT_WS(' ', u.first_name, u.last_name)), '') AS name,
               COALESCE(
                 (SELECT array_agg(r.code) FROM rbac_user_roles ur
                  JOIN rbac_roles r ON r.id = ur.role_id
@@ -68,7 +76,20 @@ export async function list(req, res) {
        ORDER BY u.email`,
       [org]
     );
-    res.json(result.rows);
+    const requesterSuper = isJwtSuperAdmin(req);
+    const rows = result.rows
+      .filter((row) => {
+        const codes = row.roles || [];
+        if (requesterSuper) return true;
+        return !codes.some((c) => String(c).toUpperCase() === SUPER_ADMIN_ROLE_CODE);
+      })
+      .map((row) => {
+        if (requesterSuper) return row;
+        const codes = row.roles || [];
+        const filtered = codes.filter((c) => String(c).toUpperCase() !== SUPER_ADMIN_ROLE_CODE);
+        return { ...row, roles: filtered };
+      });
+    res.json(rows);
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -77,12 +98,14 @@ export async function list(req, res) {
 /**
  * POST /api/admin/users
  * Crée un utilisateur dans l'organisation courante.
- * Body: { email, password, roleIds?: string[] }
+ * Body: { email, password, first_name?, last_name?, roleIds?: string[] }
  */
 export async function create(req, res) {
   try {
     const org = orgId(req);
     const { email, password, roleIds = [] } = req.body;
+    const firstName = normOptName(req.body.first_name);
+    const lastName = normOptName(req.body.last_name);
 
     if (!email || !password) {
       return res.status(400).json({ error: "email et password requis" });
@@ -97,12 +120,17 @@ export async function create(req, res) {
       return res.status(409).json({ error: "Un utilisateur avec cet email existe déjà" });
     }
 
+    if (!isJwtSuperAdmin(req) && (await rbacRoleIdsIncludeSuperAdmin(pool, roleIds))) {
+      return sendForbiddenSuperAdminRole(res);
+    }
+
     const passwordHash = await hashPassword(password);
     const insert = await pool.query(
-      `INSERT INTO users (organization_id, email, password_hash, status)
-       VALUES ($1, $2, $3, 'active')
-       RETURNING id, email, status, created_at`,
-      [org, emailNorm, passwordHash]
+      `INSERT INTO users (organization_id, email, password_hash, status, first_name, last_name)
+       VALUES ($1, $2, $3, 'active', $4, $5)
+       RETURNING id, email, status, created_at, first_name, last_name,
+         NULLIF(TRIM(CONCAT_WS(' ', first_name, last_name)), '') AS name`,
+      [org, emailNorm, passwordHash, firstName, lastName]
     );
     const user = insert.rows[0];
 
@@ -121,6 +149,20 @@ export async function create(req, res) {
       await ensureLegacyRoleAndSync(pool, user.id, r.code);
     }
 
+    await ensureAdminRbacConsistentAfterUserCreate(pool, user.id, org, roleIds);
+
+    const actorId = req.user?.userId ?? req.user?.id ?? null;
+    void logAuditEvent({
+      action: AuditActions.USER_CREATED,
+      entityType: "user",
+      entityId: user.id,
+      organizationId: org,
+      userId: actorId,
+      targetLabel: user.email,
+      req,
+      statusCode: 201,
+      metadata: { role_ids: roleIds },
+    });
     res.status(201).json(user);
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -137,6 +179,7 @@ export async function update(req, res) {
     const org = orgId(req);
     const { id } = req.params;
     const { email, password, status, roleIds } = req.body;
+    const actorId = req.user?.userId ?? req.user?.id ?? null;
 
     const existing = await pool.query(
       "SELECT id FROM users WHERE id = $1 AND organization_id = $2",
@@ -145,6 +188,8 @@ export async function update(req, res) {
     if (existing.rows.length === 0) {
       return res.status(404).json({ error: "Utilisateur non trouvé ou hors organisation" });
     }
+
+    if (!(await assertCallerMayAccessTargetUser(req, res, id))) return;
 
     const updates = [];
     const values = [];
@@ -171,6 +216,14 @@ export async function update(req, res) {
       updates.push(`status = $${idx++}`);
       values.push(status);
     }
+    if (req.body.first_name !== undefined) {
+      updates.push(`first_name = $${idx++}`);
+      values.push(normOptName(req.body.first_name));
+    }
+    if (req.body.last_name !== undefined) {
+      updates.push(`last_name = $${idx++}`);
+      values.push(normOptName(req.body.last_name));
+    }
 
     if (updates.length > 0) {
       values.push(id);
@@ -181,6 +234,9 @@ export async function update(req, res) {
     }
 
     if (roleIds !== undefined) {
+      if (!isJwtSuperAdmin(req) && (await rbacRoleIdsIncludeSuperAdmin(pool, roleIds))) {
+        return sendForbiddenSuperAdminRole(res);
+      }
       await pool.query("DELETE FROM rbac_user_roles WHERE user_id = $1", [id]);
       await pool.query("DELETE FROM user_roles WHERE user_id = $1", [id]);
       for (const roleId of roleIds) {
@@ -201,6 +257,8 @@ export async function update(req, res) {
 
     const updated = await pool.query(
       `SELECT u.id, u.email, u.status, u.last_login, u.created_at,
+              u.first_name, u.last_name,
+              NULLIF(TRIM(CONCAT_WS(' ', u.first_name, u.last_name)), '') AS name,
               COALESCE(
                 (SELECT array_agg(r.code) FROM rbac_user_roles ur
                  JOIN rbac_roles r ON r.id = ur.role_id
@@ -211,7 +269,41 @@ export async function update(req, res) {
        WHERE u.id = $1`,
       [id]
     );
-    res.json(updated.rows[0] || {});
+    const row = updated.rows[0] || {};
+    const changed = [];
+    if (email !== undefined) changed.push("email");
+    if (password !== undefined && password !== "") changed.push("password");
+    if (status !== undefined) changed.push("status");
+    if (req.body.first_name !== undefined) changed.push("first_name");
+    if (req.body.last_name !== undefined) changed.push("last_name");
+    const changedNoRoles = changed.filter((c) => c !== "roles");
+    if (changedNoRoles.length > 0) {
+      void logAuditEvent({
+        action: AuditActions.USER_UPDATED,
+        entityType: "user",
+        entityId: id,
+        organizationId: org,
+        userId: actorId,
+        targetLabel: row.email,
+        req,
+        statusCode: 200,
+        metadata: { changed_fields: changedNoRoles },
+      });
+    }
+    if (roleIds !== undefined) {
+      void logAuditEvent({
+        action: AuditActions.USER_ROLE_UPDATED,
+        entityType: "user",
+        entityId: id,
+        organizationId: org,
+        userId: actorId,
+        targetLabel: row.email,
+        req,
+        statusCode: 200,
+        metadata: { role_ids: roleIds },
+      });
+    }
+    res.json(row);
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -233,6 +325,8 @@ export async function getUserTeams(req, res) {
     if (userCheck.rows.length === 0) {
       return res.status(404).json({ error: "Utilisateur non trouvé ou hors organisation" });
     }
+
+    if (!(await assertCallerMayAccessTargetUser(req, res, id))) return;
 
     const result = await pool.query(
       `SELECT ut.id, ut.team_id, t.name as team_name, t.agency_id, a.name as agency_name
@@ -267,6 +361,8 @@ export async function putUserTeams(req, res) {
     if (userCheck.rows.length === 0) {
       return res.status(404).json({ error: "Utilisateur non trouvé ou hors organisation" });
     }
+
+    if (!(await assertCallerMayAccessTargetUser(req, res, id))) return;
 
     const client = await pool.connect();
     try {
@@ -327,6 +423,8 @@ export async function getUserAgencies(req, res) {
       return res.status(404).json({ error: "Utilisateur non trouvé ou hors organisation" });
     }
 
+    if (!(await assertCallerMayAccessTargetUser(req, res, id))) return;
+
     const result = await pool.query(
       `SELECT ua.id, ua.agency_id, a.name as agency_name
        FROM user_agency ua
@@ -359,6 +457,8 @@ export async function putUserAgencies(req, res) {
     if (userCheck.rows.length === 0) {
       return res.status(404).json({ error: "Utilisateur non trouvé ou hors organisation" });
     }
+
+    if (!(await assertCallerMayAccessTargetUser(req, res, id))) return;
 
     const client = await pool.connect();
     try {
@@ -411,6 +511,22 @@ export async function remove(req, res) {
     const org = orgId(req);
     const { id } = req.params;
 
+    const actorId = req.user?.userId ?? req.user?.id ?? null;
+    if (respondIfDeletingOwnAccount(res, actorId, id)) return;
+
+    if (
+      !(await assertCallerMayAccessTargetUser(req, res, id, {
+        forbiddenSuperAdminMessage: "Seul un super administrateur peut supprimer cet utilisateur",
+      }))
+    ) {
+      return;
+    }
+
+    if (respondIfDeletingOwnAccount(res, actorId, id)) return;
+
+    const before = await pool.query("SELECT email FROM users WHERE id = $1 AND organization_id = $2", [id, org]);
+    const deletedEmail = before.rows[0]?.email ?? null;
+
     const result = await pool.query(
       "DELETE FROM users WHERE id = $1 AND organization_id = $2 RETURNING id",
       [id, org]
@@ -418,8 +534,24 @@ export async function remove(req, res) {
     if (result.rows.length === 0) {
       return res.status(404).json({ error: "Utilisateur non trouvé ou hors organisation" });
     }
+    void logAuditEvent({
+      action: AuditActions.USER_DELETED,
+      entityType: "user",
+      entityId: id,
+      organizationId: org,
+      userId: actorId,
+      targetLabel: deletedEmail != null ? String(deletedEmail) : undefined,
+      req,
+      statusCode: 204,
+      metadata: { deleted_user_email: deletedEmail },
+    });
     res.status(204).send();
-  } catch (e) {
-    res.status(500).json({ error: e.message });
+  } catch (error) {
+    console.error("DELETE USER ERROR", error);
+    if (res.headersSent) return;
+    return res.status(500).json({
+      error: "Internal error",
+      code: "DELETE_USER_FAILED",
+    });
   }
 }

@@ -119,6 +119,7 @@
       const validateBtn = document.getElementById("dp8-validate");
       const categoryLabelEl = document.getElementById("dp8-photo-category-label");
       const arrowToolBtn = document.getElementById("dp8-tool-arrow");
+      const useCurrentViewBtn = document.getElementById("dp8-use-current-view");
 
       if (!modal || (!btnBefore && !btnAfter) || !workspace) return;
 
@@ -510,9 +511,80 @@
         renderDP8Canvas();
       }
 
-      // Google Street View (DP8) : instance temporaire (aucune persistance)
+      // Google Street View (DP8) : panorama interactif ; image figée via Street View Static API (aligné DP6)
       let dp8Panorama = null;
       let dp8StreetHost = null;
+
+      function dp8StreetViewZoomToFov(zoom) {
+        const z = Number(zoom);
+        const zz = Number.isFinite(z) ? z : 1;
+        const f = 126 * Math.pow(0.62, zz);
+        return Math.round(Math.min(120, Math.max(10, f)));
+      }
+
+      const DP8_GOOGLE_MAPS_API_KEY_STATIC = "AIzaSyDQMAe4zNsipMna3Ph1ANhJLMpZcdAWC1M";
+
+      async function dp8UseCurrentStreetViewAsImage() {
+        if (!dp8Panorama || !window.google?.maps) {
+          alert("Street View n’est pas prêt. Patientez quelques secondes puis réessayez.");
+          return;
+        }
+        const pano = dp8Panorama;
+        const pos = pano.getPosition && pano.getPosition();
+        const pov = pano.getPov && pano.getPov();
+        const panoId = pano.getPano && pano.getPano();
+        const zoom = pano.getZoom && pano.getZoom();
+        if (!pos || !pov) {
+          alert("Impossible de lire la vue Street View actuelle.");
+          return;
+        }
+        const lat = typeof pos.lat === "function" ? pos.lat() : pos.lat;
+        const lng = typeof pos.lng === "function" ? pos.lng() : pos.lng;
+        const fov = dp8StreetViewZoomToFov(zoom);
+        const params = new URLSearchParams();
+        params.set("size", "640x640");
+        params.set("key", DP8_GOOGLE_MAPS_API_KEY_STATIC);
+        params.set("heading", String(pov.heading ?? 0));
+        params.set("pitch", String(pov.pitch ?? 0));
+        params.set("fov", String(fov));
+        if (panoId) {
+          params.set("pano", String(panoId));
+        } else {
+          params.set("location", `${lat},${lng}`);
+        }
+        const url = `https://maps.googleapis.com/maps/api/streetview?${params.toString()}`;
+        try {
+          if (useCurrentViewBtn) {
+            useCurrentViewBtn.disabled = true;
+            useCurrentViewBtn.textContent = "Chargement…";
+          }
+          const res = await fetch(url);
+          if (!res.ok) {
+            throw new Error(`Street View Static HTTP ${res.status}`);
+          }
+          const blob = await res.blob();
+          if (!blob || blob.size < 64) {
+            throw new Error("Image Street View vide ou indisponible");
+          }
+          const dataUrl = await new Promise((resolve, reject) => {
+            const fr = new FileReader();
+            fr.onload = () => resolve(fr.result);
+            fr.onerror = reject;
+            fr.readAsDataURL(blob);
+          });
+          dp8DisplayImportedImage(String(dataUrl));
+        } catch (e) {
+          console.error("[DP8] Street View Static", e);
+          alert(
+            "Impossible de récupérer l’image Street View (couverture, quota ou clé API). Réessayez ou importez une photo."
+          );
+        } finally {
+          if (useCurrentViewBtn) {
+            useCurrentViewBtn.disabled = false;
+            useCurrentViewBtn.textContent = "Utiliser cette vue";
+          }
+        }
+      }
 
       function dp8DestroyGoogleView() {
         const ev = window.google?.maps?.event;
@@ -529,6 +601,11 @@
           if (dp8StreetHost && dp8StreetHost.parentNode) dp8StreetHost.parentNode.removeChild(dp8StreetHost);
         } catch (_) {}
         dp8StreetHost = null;
+        if (useCurrentViewBtn) {
+          useCurrentViewBtn.hidden = true;
+          useCurrentViewBtn.disabled = true;
+          useCurrentViewBtn.textContent = "Utiliser cette vue";
+        }
         // Restaurer le canvas si présent
         try {
           const c = workspace.querySelector("#dp8-canvas");
@@ -537,6 +614,12 @@
       }
 
       async function openDP8StreetView() {
+        if (useCurrentViewBtn) {
+          useCurrentViewBtn.hidden = true;
+          useCurrentViewBtn.disabled = true;
+          useCurrentViewBtn.textContent = "Utiliser cette vue";
+        }
+
         // StreetView : éviter un stage déjà zoomé (UX stable)
         try {
           dp8ResetView();
@@ -572,7 +655,8 @@
           return;
         }
 
-        await window.dpLoadGoogleMapsJsOnce();
+        const google = await window.dpLoadGoogleMapsJsOnce();
+        if (!google || !google.maps) return;
         const { center } = window.dpGetProjectCenterForGoogleMaps();
 
         requestAnimationFrame(() => {
@@ -587,6 +671,11 @@
             fullscreenControl: false,
           });
           dp8Panorama = panorama;
+          if (useCurrentViewBtn) {
+            useCurrentViewBtn.hidden = false;
+            useCurrentViewBtn.disabled = false;
+            useCurrentViewBtn.textContent = "Utiliser cette vue";
+          }
           try {
             google.maps.event.trigger(panorama, "resize");
           } catch (_) {}
@@ -636,6 +725,17 @@
           await openDP8StreetView();
         });
       }
+
+      if (useCurrentViewBtn) {
+        useCurrentViewBtn.addEventListener("click", (e) => {
+          e.preventDefault();
+          void dp8UseCurrentStreetViewAsImage();
+        });
+      }
+
+      try {
+        window.dp8UseCurrentStreetViewAsImage = dp8UseCurrentStreetViewAsImage;
+      } catch (_) {}
 
       // ==============================
       // Toolbar : outil unique "flèche"
@@ -890,6 +990,27 @@
           { passive: false }
         );
       }
+
+      try {
+        if (window.snDpV && typeof window.snDpV.migrateKind === "function") {
+          window.snDpV.migrateKind("dp8");
+        }
+        if (typeof window.snDpVSetupPageUi === "function") {
+          window.snDpVSetupPageUi("dp8", {
+            onAfter: function () {
+              try {
+                dp8RenderEntryMiniatures("");
+              } catch (_) {}
+              try {
+                renderDP8Canvas();
+              } catch (_) {}
+              try {
+                dp8SyncValidateButtonUI();
+              } catch (_) {}
+            },
+          });
+        }
+      } catch (_) {}
 
       // ==============================
       // Modal open / close + validation

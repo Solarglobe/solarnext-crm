@@ -6,8 +6,14 @@
 import type { CSSProperties } from "react";
 import { useEffect, useMemo } from "react";
 import { Navigate, useSearchParams } from "react-router-dom";
+import { isCalpinage3DRuntimeDebugEnabled } from "../../core/calpinage3dRuntimeDebug";
+import {
+  computeRoofShellAlignmentDiagnostics,
+  formatRoofShellAlignmentOneLine,
+} from "../diagnostics/computeRoofShellAlignmentDiagnostics";
 import type { SolarScene3D } from "../types/solarScene3d";
 import { SolarScene3DViewer } from "../viewer/SolarScene3DViewer";
+import { isPremiumHouse3DViewMode } from "../viewer/premium/premiumHouse3DViewModes";
 import { compareLegacyAndCanonical3D } from "./compareLegacyAndCanonical3D";
 import { useDev3DScene } from "./useDev3DScene";
 
@@ -45,10 +51,12 @@ function DebugStrip({
   mode,
   runtimeSource,
   scene,
+  roofShellAlignLine,
 }: {
   readonly mode: string;
   readonly runtimeSource: string;
   readonly scene: SolarScene3D;
+  readonly roofShellAlignLine: string | null;
 }) {
   const c = scene.coherence;
   const pans = scene.roofModel.roofPlanePatches.length;
@@ -70,8 +78,14 @@ function DebugStrip({
       <span>
         sourceTrace={trace ? "yes" : "no"} · grade={grade} · geometryConfidence={geom}
       </span>
+      {roofShellAlignLine != null ? (
+        <span style={{ width: "100%", opacity: 0.92, fontSize: 11, color: "#a5b4fc" }} data-testid="dev-3d-shell-align">
+          {roofShellAlignLine}
+        </span>
+      ) : null}
       <span style={{ opacity: 0.75 }}>
-        Query · demo | runtime · inspect=1 · parity=1 · sessionStorage « solarnext_dev_3d_runtime_json »
+        Query · demo | runtime · inspect=1 · parity=1 · view=presentation|technical|validation|pv · sessionStorage «
+        solarnext_dev_3d_runtime_json »
       </span>
     </header>
   );
@@ -100,6 +114,8 @@ export default function Dev3DPage() {
   const inspectMode = params.get("inspect") === "1";
   const debugOverlay = params.get("debug") !== "0";
   const parity = params.get("parity") === "1";
+  const viewParam = params.get("view");
+  const premiumViewMode = isPremiumHouse3DViewMode(viewParam) ? viewParam : undefined;
 
   const state = useDev3DScene();
 
@@ -110,6 +126,11 @@ export default function Dev3DPage() {
     return compareLegacyAndCanonical3D(state.runtimeBuildInput);
   }, [parity, state]);
 
+  const roofShellAlignLine = useMemo(() => {
+    if (!isCalpinage3DRuntimeDebugEnabled() || state.status !== "ok") return null;
+    return formatRoofShellAlignmentOneLine(computeRoofShellAlignmentDiagnostics(state.scene));
+  }, [state]);
+
   useEffect(() => {
     if (!parityReport) return;
     console.info("[dev/3d parity]", parityReport.overall.status, parityReport.overall.summary);
@@ -119,7 +140,12 @@ export default function Dev3DPage() {
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", width: "100%", overflow: "hidden" }}>
       {state.status === "ok" ? (
         <>
-          <DebugStrip mode={state.mode} runtimeSource={state.runtimeSource} scene={state.scene} />
+          <DebugStrip
+            mode={state.mode}
+            runtimeSource={state.runtimeSource}
+            scene={state.scene}
+            roofShellAlignLine={roofShellAlignLine}
+          />
           {parity && parityReport ? (
             <pre style={parityPreStyle} data-testid="dev-3d-parity-report">
               {JSON.stringify(parityReport, null, 2)}
@@ -142,6 +168,9 @@ export default function Dev3DPage() {
                 showSun
                 inspectMode={inspectMode}
                 showDebugOverlay={debugOverlay}
+                premiumViewMode={premiumViewMode}
+                showPremiumViewModeToolbar
+                showCameraViewModeToggle
               />
             </div>
           </main>

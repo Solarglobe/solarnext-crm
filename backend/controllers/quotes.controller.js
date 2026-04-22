@@ -5,6 +5,7 @@
 
 import { pool } from "../config/db.js";
 import * as quoteService from "../routes/quotes/service.js";
+import { assertOrgOwnership } from "../services/security/assertOrgOwnership.js";
 import { normalizeQuoteStatusForDb } from "../utils/financialDocumentStatus.js";
 
 const orgId = (req) => req.user.organizationId ?? req.user.organization_id;
@@ -30,8 +31,11 @@ export async function getById(req, res) {
       [id, org]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: "Devis non trouvé" });
+    assertOrgOwnership(result.rows[0].organization_id, org);
     res.json(result.rows[0]);
   } catch (e) {
+    const code = e?.statusCode;
+    if (code === 403) return res.status(403).json({ error: e.message, code: e.code });
     res.status(500).json({ error: e.message });
   }
 }

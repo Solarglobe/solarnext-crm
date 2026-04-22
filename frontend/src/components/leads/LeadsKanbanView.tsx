@@ -54,14 +54,14 @@ interface Stage {
 interface LeadsKanbanViewProps {
   leads: Lead[];
   stages: Stage[];
+  /** CP-078B — SUPER_ADMIN mode support : désactive drag + menus d’écriture */
+  readOnly?: boolean;
   onLeadMoved: (
     leadId: string,
     newStageId: string
   ) => void | Promise<void>;
-  /** Menu carte — archivage / suppression (stopPropagation pour ne pas casser le DnD) */
+  /** Menu carte — archivage (stopPropagation pour ne pas casser le DnD) */
   onArchiveLead?: (leadId: string) => void;
-  onDeleteLead?: (leadId: string) => void;
-  canDeleteLead?: boolean;
 }
 
 function getColumnClass(stage: Stage, index: number): string {
@@ -336,15 +336,13 @@ function SortableLeadCard({
   stageIndex,
   pipelineCode,
   onArchive,
-  onDelete,
-  canDelete,
+  readOnly,
 }: {
   lead: Lead;
   stageIndex: number;
   pipelineCode: string | null;
   onArchive?: () => void;
-  onDelete?: () => void;
-  canDelete?: boolean;
+  readOnly?: boolean;
 }) {
   const {
     attributes,
@@ -356,6 +354,7 @@ function SortableLeadCard({
   } = useSortable({
     id: lead.id,
     data: { type: "lead", leadId: lead.id },
+    disabled: Boolean(readOnly),
   });
 
   const style: React.CSSProperties = {
@@ -379,8 +378,6 @@ function SortableLeadCard({
         stageIndex={stageIndex}
         pipelineCode={pipelineCode}
         onArchive={onArchive}
-        onDelete={onDelete}
-        canDelete={canDelete}
       />
     </div>
   );
@@ -398,10 +395,9 @@ const kanbanDropAnimation = {
 export function LeadsKanbanView({
   leads,
   stages,
+  readOnly = false,
   onLeadMoved,
   onArchiveLead,
-  onDeleteLead,
-  canDeleteLead = false,
 }: LeadsKanbanViewProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [optimistic, setOptimistic] = useState<Record<string, string>>({});
@@ -464,10 +460,7 @@ export function LeadsKanbanView({
   );
 
   const activeLeads = useMemo(
-    () =>
-      leads.filter(
-        (l) => l.status === "LEAD" || l.status === "active" || !l.status
-      ),
+    () => leads.filter((l) => l.status !== "CLIENT"),
     [leads]
   );
 
@@ -544,6 +537,15 @@ export function LeadsKanbanView({
 
   const handleDragEnd = useCallback(
     async (event: DragEndEvent) => {
+      if (readOnly) {
+        const snap0 = dragStartSnapshotRef.current;
+        dragStartSnapshotRef.current = null;
+        pendingInsertionRef.current = null;
+        setActiveId(null);
+        setDragHighlightStageId(null);
+        if (snap0) setItemsByStage(cloneItemsByStage(snap0));
+        return;
+      }
       const snap = dragStartSnapshotRef.current;
       dragStartSnapshotRef.current = null;
 
@@ -610,10 +612,11 @@ export function LeadsKanbanView({
         stageCode: tgtMeta ? inferStageCode(tgtMeta) : null,
       });
     },
-    [leads, orderedStages]
+    [readOnly, leads, orderedStages]
   );
 
   const confirmKanbanMove = useCallback(async () => {
+    if (readOnly) return;
     if (!pendingKanbanMove) return;
     const { leadId, targetStageId, sourceStageId, snap, next, stageCode } = pendingKanbanMove;
     const isConversion = stageCode === "SIGNED";
@@ -650,7 +653,7 @@ export function LeadsKanbanView({
       });
       setItemsByStage(cloneItemsByStage(snap));
     }
-  }, [pendingKanbanMove, onLeadMoved, scheduleUndo]);
+  }, [readOnly, pendingKanbanMove, onLeadMoved, scheduleUndo]);
 
   const cancelKanbanMove = useCallback(() => {
     setPendingKanbanMove(null);
@@ -877,15 +880,10 @@ export function LeadsKanbanView({
                         lead={lead}
                         stageIndex={idx + 1}
                         pipelineCode={pipelineCode}
+                        readOnly={readOnly}
                         onArchive={
                           onArchiveLead ? () => onArchiveLead(lead.id) : undefined
                         }
-                        onDelete={
-                          onDeleteLead && canDeleteLead
-                            ? () => onDeleteLead(lead.id)
-                            : undefined
-                        }
-                        canDelete={canDeleteLead}
                       />
                     ))}
                   </SortableContext>

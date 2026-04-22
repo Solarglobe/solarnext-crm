@@ -27,6 +27,7 @@ function basePanDiagnostics(overrides: Partial<CanonicalPan3D["diagnostics"]> = 
     insufficientHeightSignal: false,
     heterogeneousZSources: false,
     planeResidualRmsM: null,
+    inclinedRoofGeometryTruthful: true,
     ...overrides,
   };
 }

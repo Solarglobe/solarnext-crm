@@ -170,14 +170,16 @@ async function testSales(token, { leadId, clientId, leadNotOwnedBySales }) {
     throw new Error(`SALES client.read attendu 200, reçu ${r4.status}`);
   }
 
-  // client.update — PUT /api/clients/:id → 403 attendu (SALES limité)
+  // client.update — PUT /api/clients/:id — client test sans lead lié → hors périmètre .self (404)
   const r5 = await api(token, "PUT", `/api/clients/${clientId}`, { notes: "Hack" });
   if (r5.status === 403) {
     fail("client.update", "403");
     results.push({ name: "client.update", ok: true, expected403: true });
+  } else if (r5.status === 404) {
+    ok("client.update (404 — client hors périmètre self / sans lien lead)");
+    results.push({ name: "client.update", ok: true, expected404: true });
   } else if (r5.status === 200) {
-    // SALES a client.update.self dans le seed RBAC → 200 (comportement alternatif)
-    ok("client.update (200 - SALES a update.self)");
+    ok("client.update (200 — périmètre self + lien lead)");
     results.push({ name: "client.update", ok: true });
   } else {
     throw new Error(`SALES client.update inattendu: ${r5.status}`);
@@ -293,11 +295,18 @@ async function ensureTestData(pool) {
 
     let leadId, leadNotOwnedBySales, clientId;
 
+    const srcRes = await client.query(
+      `SELECT id FROM lead_sources WHERE organization_id = $1 AND slug = 'autre' LIMIT 1`,
+      [orgId]
+    );
+    const sourceId = srcRes.rows[0]?.id;
+    if (!sourceId) throw new Error("lead_sources « Autre » manquant — exécutez les migrations.");
+
     // Lead assigné à l'admin — pour test "SALES PUT pas owner" (SALES ne doit pas pouvoir le modifier)
     const leadIns = await client.query(
-      `INSERT INTO leads (organization_id, stage_id, first_name, last_name, email, assigned_to)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-      [orgId, stageId, "RBAC", "Test", "rbac-lead@test.local", adminUserId]
+      `INSERT INTO leads (organization_id, stage_id, status, full_name, first_name, last_name, email, source_id, assigned_user_id)
+       VALUES ($1, $2, 'LEAD', $3, $4, $5, $6, $7, $8) RETURNING id`,
+      [orgId, stageId, "RBAC Test", "RBAC", "Test", "rbac-lead@test.local", sourceId, adminUserId]
     );
     leadId = leadIns.rows[0].id;
     leadNotOwnedBySales = leadId; // Ce lead appartient à admin, pas à SALES

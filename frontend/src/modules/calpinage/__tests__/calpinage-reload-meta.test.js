@@ -148,14 +148,14 @@ function normalizeTrait(t, idx) {
         attach: (t.b.attach && typeof t.b.attach === "object") ? t.b.attach : null,
         h: typeof t.b.h === "number" ? t.b.h : undefined }
     : { x: 0, y: 0 };
-  return { id: (t && t.id) ? t.id : "t-" + idx, a, b, roofRole: "main" };
+  return { id: (t && t.id) ? t.id : "trait-restored-" + idx, a, b, roofRole: "main" };
 }
 
 function normalizeRidge(r, idx) {
   const a = r.a || { x: 0, y: 0 };
   const b = r.b || { x: 0, y: 0 };
   return {
-    id: (r && r.id) ? r.id : "r-" + idx,
+    id: (r && r.id) ? r.id : "ridge-restored-" + idx,
     a: { x: a.x, y: a.y, attach: a.attach || null, h: typeof a.h === "number" ? a.h : undefined },
     b: { x: b.x, y: b.y, attach: b.attach || null, h: typeof b.h === "number" ? b.h : undefined },
     roofRole: "main",

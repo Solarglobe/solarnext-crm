@@ -17,6 +17,7 @@ type PrepareCanonicalPans3DOptions = BuildCanonicalPans3DFromRuntimeOptions & {
   readonly metersPerPixel?: number;
   readonly northAngleDeg?: number;
   readonly heightResolverContext?: BuildCanonicalPans3DFromRuntimeInput["heightResolverContext"];
+  readonly productStrictStatePansOnly?: boolean;
 };
 
 /**
@@ -27,12 +28,14 @@ export function prepareCanonicalPans3DFromCalpinageState(
   state: unknown,
   options?: PrepareCanonicalPans3DOptions,
 ): CanonicalPans3DResult {
-  const { metersPerPixel, northAngleDeg, heightResolverContext, ...innerOptions } = options ?? {};
+  const { metersPerPixel, northAngleDeg, heightResolverContext, productStrictStatePansOnly, ...innerOptions } =
+    options ?? {};
   return buildCanonicalPans3DFromRuntime({
     state,
     metersPerPixel,
     northAngleDeg,
     heightResolverContext,
+    productStrictStatePansOnly,
     options: innerOptions,
   });
 }

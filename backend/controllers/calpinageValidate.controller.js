@@ -14,6 +14,8 @@ import { persistGeometryHashForStudyVersion } from "../services/calpinage/calpin
 import { lockCalpinageVersion } from "../services/calpinage/calpinageDataConcurrency.js";
 import { withPgRetryOnce } from "../utils/pgRetry.js";
 import * as studiesService from "../routes/studies/service.js";
+import { logAuditEvent } from "../services/audit/auditLog.service.js";
+import { AuditActions } from "../services/audit/auditActions.js";
 
 const orgId = (req) => req.user?.organizationId ?? req.user?.organization_id;
 const userId = (req) => req.user?.id ?? req.user?.userId ?? null;
@@ -116,6 +118,19 @@ export async function validateCalpinage(req, res) {
       console.log("[calpinageValidate] studyId=" + studyId + " studyVersionId=" + studyVersionId + " ok=1");
     }
     console.log("VALIDATE_RETURN_200");
+    void logAuditEvent({
+      action: AuditActions.CALPINAGE_VALIDATED,
+      entityType: "study_version",
+      entityId: studyVersionId,
+      organizationId: org,
+      userId: userId(req),
+      req,
+      statusCode: 200,
+      metadata: {
+        study_id: studyId,
+        snapshot_id: result.snapshotId,
+      },
+    });
     return res.status(200).json({
       snapshotId: result.snapshotId,
       version_number: result.version_number,

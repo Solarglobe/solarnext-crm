@@ -59,3 +59,15 @@ export const CYCLE_PROJECT_SELECT_OPTIONS = [
   { value: "FACTURATION_TERMINEE", label: "Facturation terminée" },
   { value: "CLOTURE", label: "Clôturé" },
 ];
+
+/**
+ * Accès route dossier DP (`/leads/:id/dp`) — aligné règle backend `isDpAccessEligible`.
+ */
+export function isLeadDpFolderAccessible(lead: {
+  status?: string;
+  project_status?: string | null;
+}): boolean {
+  if (lead.status === "CLIENT") return true;
+  const ps = lead.project_status;
+  return ps === "SIGNE" || ps === "DP_A_DEPOSER";
+}

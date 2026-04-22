@@ -7,13 +7,18 @@
 
 import React from "react";
 import { FOOTER_H_PX, CONTENT_W_PX, COLORS, FONT } from "./pdfLayout";
+import { resolvePdfPrimaryColor } from "../pdfBrand";
 
 interface PdfFooterProps {
   pageNumber?: number;
   totalPages?: number;
+  /** Ligne gauche (ex. nom entreprise + mention confidentielle). */
+  footerLeftText?: string;
+  /** Couleur d’accent pour le texte du pied (optionnel). */
+  accentColor?: string;
 }
 
-export default function PdfFooter({ pageNumber, totalPages }: PdfFooterProps) {
+export default function PdfFooter({ pageNumber, totalPages, footerLeftText, accentColor }: PdfFooterProps) {
   const pageLabel =
     pageNumber != null
       ? totalPages != null
@@ -40,12 +45,12 @@ export default function PdfFooter({ pageNumber, totalPages }: PdfFooterProps) {
         style={{
           fontFamily: FONT.family,
           fontSize: "7.5pt",
-          color: COLORS.textSecond,
-          opacity: 0.5,
+          color: accentColor ? resolvePdfPrimaryColor(accentColor) : COLORS.textSecond,
+          opacity: 0.55,
           letterSpacing: "0.04em",
         }}
       >
-        SolarGlobe — Étude photovoltaïque confidentielle
+        {footerLeftText ?? "Étude photovoltaïque confidentielle"}
       </span>
 
       {/* Numéro de page droite */}

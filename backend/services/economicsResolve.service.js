@@ -2,7 +2,7 @@
  * Hypothèses économiques globales — priorité officielle (SolarNext) :
  * 1) Surcharges explicites côté projet (form.params.*, form.economics partiel, profil énergie, snapshot métier)
  * 2) settings_json.economics (org / parameters_snapshot après merge défaut)
- * 3) DEFAULT_ECONOMICS_FALLBACK (legacy CP-5)
+ * 3) DEFAULT_ECONOMICS_FALLBACK (= ORG_ECONOMICS_ENGINE_DEFAULTS, module commun)
  *
  * Dégradation PV : fiche panneau (panel_input) > params.degradation > form.economics > admin > défaut
  * (voir financeService.pickEconomics).
@@ -11,24 +11,15 @@
  * Défaut moteur 2 % si absent partout.
  */
 
-export const DEFAULT_ECONOMICS_FALLBACK = {
-  price_eur_kwh: 0.1952,
-  elec_growth_pct: 5,
-  pv_degradation_pct: 0.5,
-  oa_rate_lt_9: 0.04,
-  oa_rate_gte_9: 0.0617,
-  prime_lt9: 80,
-  prime_gte9: 180,
-  horizon_years: 25,
-  maintenance_pct: 0,
-  onduleur_year: 15,
-  onduleur_cost_pct: 12,
-  battery_degradation_pct: 2,
-};
+import { ORG_ECONOMICS_ENGINE_DEFAULTS, ORG_ECONOMICS_NUMERIC_KEYS } from "../config/orgEconomics.common.js";
+
+/** @deprecated Import direct préféré : `ORG_ECONOMICS_ENGINE_DEFAULTS` depuis `config/orgEconomics.common.js` */
+export const DEFAULT_ECONOMICS_FALLBACK = { ...ORG_ECONOMICS_ENGINE_DEFAULTS };
 
 /** Merge shallow : org partiel + défauts (même logique que loadOrgParams). */
 export function mergeOrgEconomicsPartial(orgEconomics) {
   if (!orgEconomics || typeof orgEconomics !== "object") {
+    console.warn("[ENGINE WARNING] Using default economics fallback");
     return { ...DEFAULT_ECONOMICS_FALLBACK };
   }
   return { ...DEFAULT_ECONOMICS_FALLBACK, ...orgEconomics };
@@ -40,7 +31,7 @@ export function mergeOrgEconomicsPartial(orgEconomics) {
 export function overlayFormEconomics(base, formEconomics) {
   if (!formEconomics || typeof formEconomics !== "object") return { ...base };
   const out = { ...base };
-  for (const k of Object.keys(DEFAULT_ECONOMICS_FALLBACK)) {
+  for (const k of ORG_ECONOMICS_NUMERIC_KEYS) {
     if (!Object.prototype.hasOwnProperty.call(formEconomics, k)) continue;
     const v = formEconomics[k];
     if (v != null && Number.isFinite(Number(v))) out[k] = Number(v);
