@@ -2,6 +2,6 @@
   "name": "solarnext-crm",
   "private": true,
   "scripts": {
-    "start": "cd backend && node bootstrap.js"
+    "start": "cd backend && npm install && node server.js"
   }
 }
