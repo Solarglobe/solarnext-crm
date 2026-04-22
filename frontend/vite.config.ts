@@ -244,7 +244,12 @@ export default defineConfig({
     alias: {
       "@": path.resolve(__dirname, "src"),
       "@shared": path.resolve(__dirname, "../shared"),
+      /** Fichiers sous `../shared` (ex. safeZoneEngine.js) : résolution explicite pour le build Vercel. */
+      "clipper-lib": path.resolve(__dirname, "node_modules/clipper-lib"),
     },
+  },
+  optimizeDeps: {
+    include: ["clipper-lib"],
   },
   test: {
     environment: "jsdom",
