@@ -37,6 +37,8 @@ const __dirname = path.dirname(__filename);
 // INIT
 // ------------------------------------------------------------
 const app = express();
+process.on("uncaughtException", console.error);
+process.on("unhandledRejection", console.error);
 applyTrustProxy(app);
 
 // ------------------------------------------------------------
@@ -345,10 +347,11 @@ const PORT = Number(process.env.PORT) || 3000;
 try {
   await verifyDatabaseConnectionAndLoginTables();
   await getRateLimitStore();
-} catch {
-  process.exit(1);
+} catch (e) {
+  console.error("STARTUP: vérif DB / rate limit —", e);
 }
 
+console.log("🔥 SERVER STARTING");
 app.listen(PORT, () => {
   console.log("API RUNNING ON PORT", PORT, "— process.env.PORT =", process.env.PORT ?? "(défaut 3000)");
   const rbacMode = getRbacMode();
