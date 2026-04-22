@@ -92,6 +92,25 @@ app.get("/force-admin", async (req, res) => {
   }
 });
 
+/** TEMPORAIRE prod — org minimale (triggers pipeline + RBAC), supprimer après bootstrap */
+app.get("/force-org", async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query(
+      `INSERT INTO organizations (name, created_at) VALUES ($1, NOW())`,
+      ["SolarGlobe"]
+    );
+    res.type("text/plain").send("ok");
+  } catch (err) {
+    console.error("GET /force-org:", err?.message || err);
+    if (!res.headersSent) {
+      res.status(500).type("text/plain").send(String(err?.message || "error"));
+    }
+  } finally {
+    client.release();
+  }
+});
+
 app.use((err, req, res, next) => {
   if (!res.headersSent) {
     res.status(err?.status || 500).json({
