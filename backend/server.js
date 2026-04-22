@@ -81,8 +81,12 @@ app.get("/admin/run-migrations", async (req, res) => {
 
     return res.json({ status: "migrations executed" });
   } catch (e) {
-    console.error("MIGRATION ERROR:", e);
-    return res.status(500).json({ error: e?.message ?? String(e) });
+    console.error("MIGRATION ERROR FULL:", e);
+
+    return res.status(500).json({
+      error: e.message,
+      stack: e.stack,
+    });
   }
 });
 
