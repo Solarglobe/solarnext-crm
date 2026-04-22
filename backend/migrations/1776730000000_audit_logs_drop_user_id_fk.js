@@ -63,10 +63,14 @@ export const down = (pgm) => {
       ) THEN
         RETURN;
       END IF;
-      ALTER TABLE audit_logs
-        ADD CONSTRAINT audit_logs_user_id_fkey
-        FOREIGN KEY (user_id) REFERENCES users(id)
-        ON DELETE NO ACTION;
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'audit_logs_user_id_fkey'
+      ) THEN
+        ALTER TABLE audit_logs
+          ADD CONSTRAINT audit_logs_user_id_fkey
+          FOREIGN KEY (user_id) REFERENCES users(id)
+          ON DELETE NO ACTION;
+      END IF;
     END
     $$;
   `);

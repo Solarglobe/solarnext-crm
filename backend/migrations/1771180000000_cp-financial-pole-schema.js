@@ -7,6 +7,8 @@
  * Non destructif : backfill données existantes, pas de suppression de tables.
  */
 
+import { addConstraintIdempotent } from "./lib/addConstraintIdempotent.js";
+
 export const shorthands = undefined;
 
 /** @param {import("node-pg-migrate").MigrationBuilder} pgm */
@@ -30,15 +32,24 @@ export const up = (pgm) => {
       default: pgm.func("now()"),
     },
   });
-  pgm.addConstraint("document_sequences", "document_sequences_org_kind_year_unique", {
-    unique: ["organization_id", "document_kind", "year"],
-  });
-  pgm.addConstraint("document_sequences", "document_sequences_kind_check", {
-    check: "document_kind IN ('QUOTE','INVOICE','CREDIT_NOTE')",
-  });
-  pgm.addConstraint("document_sequences", "document_sequences_year_check", {
-    check: "year >= 2000 AND year <= 2100",
-  });
+  addConstraintIdempotent(
+    pgm,
+    "document_sequences",
+    "document_sequences_org_kind_year_unique",
+    "UNIQUE (organization_id, document_kind, year)"
+  );
+  addConstraintIdempotent(
+    pgm,
+    "document_sequences",
+    "document_sequences_kind_check",
+    "CHECK (document_kind IN ('QUOTE','INVOICE','CREDIT_NOTE'))"
+  );
+  addConstraintIdempotent(
+    pgm,
+    "document_sequences",
+    "document_sequences_year_check",
+    "CHECK (year >= 2000 AND year <= 2100)"
+  );
   pgm.createIndex("document_sequences", ["organization_id"], {
     name: "idx_document_sequences_org",
   });
@@ -300,50 +311,64 @@ export const up = (pgm) => {
   // 8) Contraintes CHECK statuts + quotes (client requis si envoyé+)
   // -------------------------------------------------------------------------
   pgm.sql(`ALTER TABLE quotes DROP CONSTRAINT IF EXISTS quotes_client_or_lead_check;`);
-  pgm.sql(`
-    ALTER TABLE quotes ADD CONSTRAINT quotes_client_or_lead_check
-    CHECK (client_id IS NOT NULL OR lead_id IS NOT NULL);
-  `);
-  pgm.sql(`
-    ALTER TABLE quotes ADD CONSTRAINT quotes_sent_requires_client_check
-    CHECK (
+  addConstraintIdempotent(
+    pgm,
+    "quotes",
+    "quotes_client_or_lead_check",
+    "CHECK (client_id IS NOT NULL OR lead_id IS NOT NULL)"
+  );
+  addConstraintIdempotent(
+    pgm,
+    "quotes",
+    "quotes_sent_requires_client_check",
+    `CHECK (
       NOT (
         status IN ('READY_TO_SEND','SENT','ACCEPTED','REJECTED','EXPIRED')
         AND client_id IS NULL
       )
-    );
-  `);
-  pgm.sql(`
-    ALTER TABLE quotes ADD CONSTRAINT quotes_status_check
-    CHECK (
+    )`
+  );
+  addConstraintIdempotent(
+    pgm,
+    "quotes",
+    "quotes_status_check",
+    `CHECK (
       status IN (
         'DRAFT','READY_TO_SEND','SENT','ACCEPTED','REJECTED','EXPIRED','CANCELLED'
       )
-    );
-  `);
+    )`
+  );
 
-  pgm.sql(`
-    ALTER TABLE invoices ADD CONSTRAINT invoices_status_check
-    CHECK (
+  addConstraintIdempotent(
+    pgm,
+    "invoices",
+    "invoices_status_check",
+    `CHECK (
       status IN ('DRAFT','ISSUED','PARTIALLY_PAID','PAID','CANCELLED')
-    );
-  `);
-  pgm.sql(`
-    ALTER TABLE invoices ADD CONSTRAINT invoices_amounts_non_negative_check
-    CHECK (
+    )`
+  );
+  addConstraintIdempotent(
+    pgm,
+    "invoices",
+    "invoices_amounts_non_negative_check",
+    `CHECK (
       total_ht >= 0 AND total_vat >= 0 AND total_ttc >= 0
       AND total_paid >= 0 AND total_credited >= 0 AND amount_due >= 0
-    );
-  `);
+    )`
+  );
 
-  pgm.sql(`
-    ALTER TABLE payments ADD CONSTRAINT payments_status_check
-    CHECK (status IN ('RECORDED','CANCELLED'));
-  `);
-  pgm.sql(`
-    ALTER TABLE payments ADD CONSTRAINT payments_amount_positive_check
-    CHECK (amount > 0);
-  `);
+  addConstraintIdempotent(
+    pgm,
+    "payments",
+    "payments_status_check",
+    "CHECK (status IN ('RECORDED','CANCELLED'))"
+  );
+  addConstraintIdempotent(
+    pgm,
+    "payments",
+    "payments_amount_positive_check",
+    "CHECK (amount > 0)"
+  );
 
   // -------------------------------------------------------------------------
   // 9) credit_notes + credit_note_lines
@@ -418,17 +443,24 @@ export const up = (pgm) => {
       onDelete: "SET NULL",
     },
   });
-  pgm.addConstraint("credit_notes", "credit_notes_unique_number_per_org", {
-    unique: ["organization_id", "credit_note_number"],
-  });
-  pgm.sql(`
-    ALTER TABLE credit_notes ADD CONSTRAINT credit_notes_status_check
-    CHECK (status IN ('DRAFT','ISSUED','CANCELLED'));
-  `);
-  pgm.sql(`
-    ALTER TABLE credit_notes ADD CONSTRAINT credit_notes_totals_non_negative_check
-    CHECK (total_ht >= 0 AND total_vat >= 0 AND total_ttc >= 0);
-  `);
+  addConstraintIdempotent(
+    pgm,
+    "credit_notes",
+    "credit_notes_unique_number_per_org",
+    "UNIQUE (organization_id, credit_note_number)"
+  );
+  addConstraintIdempotent(
+    pgm,
+    "credit_notes",
+    "credit_notes_status_check",
+    "CHECK (status IN ('DRAFT','ISSUED','CANCELLED'))"
+  );
+  addConstraintIdempotent(
+    pgm,
+    "credit_notes",
+    "credit_notes_totals_non_negative_check",
+    "CHECK (total_ht >= 0 AND total_vat >= 0 AND total_ttc >= 0)"
+  );
   pgm.createIndex("credit_notes", ["organization_id"]);
   pgm.createIndex("credit_notes", ["client_id"]);
   pgm.createIndex("credit_notes", ["invoice_id"]);
@@ -479,19 +511,26 @@ export const up = (pgm) => {
       default: pgm.func("now()"),
     },
   });
-  pgm.addConstraint("credit_note_lines", "credit_note_lines_position_unique", {
-    unique: ["credit_note_id", "position"],
-  });
-  pgm.sql(`
-    ALTER TABLE credit_note_lines ADD CONSTRAINT credit_note_lines_qty_non_negative_check
-    CHECK (quantity >= 0);
-  `);
-  pgm.sql(`
-    ALTER TABLE credit_note_lines ADD CONSTRAINT credit_note_lines_amounts_non_negative_check
-    CHECK (
+  addConstraintIdempotent(
+    pgm,
+    "credit_note_lines",
+    "credit_note_lines_position_unique",
+    "UNIQUE (credit_note_id, position)"
+  );
+  addConstraintIdempotent(
+    pgm,
+    "credit_note_lines",
+    "credit_note_lines_qty_non_negative_check",
+    "CHECK (quantity >= 0)"
+  );
+  addConstraintIdempotent(
+    pgm,
+    "credit_note_lines",
+    "credit_note_lines_amounts_non_negative_check",
+    `CHECK (
       total_line_ht >= 0 AND total_line_vat >= 0 AND total_line_ttc >= 0
-    );
-  `);
+    )`
+  );
   pgm.createIndex("credit_note_lines", ["organization_id"]);
   pgm.createIndex("credit_note_lines", ["credit_note_id"]);
 
@@ -531,10 +570,12 @@ export const up = (pgm) => {
       default: pgm.func("now()"),
     },
   });
-  pgm.sql(`
-    ALTER TABLE invoice_reminders ADD CONSTRAINT invoice_reminders_channel_check
-    CHECK (channel IN ('PHONE','EMAIL','LETTER','OTHER'));
-  `);
+  addConstraintIdempotent(
+    pgm,
+    "invoice_reminders",
+    "invoice_reminders_channel_check",
+    "CHECK (channel IN ('PHONE','EMAIL','LETTER','OTHER'))"
+  );
   pgm.createIndex("invoice_reminders", ["organization_id"]);
   pgm.createIndex("invoice_reminders", ["invoice_id"]);
   pgm.createIndex("invoice_reminders", ["next_action_at"]);
@@ -625,10 +666,12 @@ export const up = (pgm) => {
   // -------------------------------------------------------------------------
   // 13) entity_documents — types PDF financiers
   // -------------------------------------------------------------------------
-  pgm.sql(`
-    ALTER TABLE entity_documents DROP CONSTRAINT IF EXISTS entity_documents_document_type_check;
-    ALTER TABLE entity_documents ADD CONSTRAINT entity_documents_document_type_check
-    CHECK (
+  pgm.sql(`ALTER TABLE entity_documents DROP CONSTRAINT IF EXISTS entity_documents_document_type_check;`);
+  addConstraintIdempotent(
+    pgm,
+    "entity_documents",
+    "entity_documents_document_type_check",
+    `CHECK (
       document_type IS NULL
       OR document_type IN (
         'consumption_csv',
@@ -640,16 +683,18 @@ export const up = (pgm) => {
         'invoice_pdf',
         'credit_note_pdf'
       )
-    );
-  `);
+    )`
+  );
 };
 
 /** @param {import("node-pg-migrate").MigrationBuilder} pgm */
 export const down = (pgm) => {
-  pgm.sql(`
-    ALTER TABLE entity_documents DROP CONSTRAINT IF EXISTS entity_documents_document_type_check;
-    ALTER TABLE entity_documents ADD CONSTRAINT entity_documents_document_type_check
-    CHECK (
+  pgm.sql(`ALTER TABLE entity_documents DROP CONSTRAINT IF EXISTS entity_documents_document_type_check;`);
+  addConstraintIdempotent(
+    pgm,
+    "entity_documents",
+    "entity_documents_document_type_check",
+    `CHECK (
       document_type IS NULL
       OR document_type IN (
         'consumption_csv',
@@ -658,8 +703,8 @@ export const down = (pgm) => {
         'study_pdf',
         'organization_pdf_cover'
       )
-    );
-  `);
+    )`
+  );
 
   pgm.sql(`DROP TRIGGER IF EXISTS credit_notes_sync_invoice_totals ON credit_notes;`);
   pgm.sql(`DROP FUNCTION IF EXISTS sg_credit_notes_sync_invoice_totals();`);
@@ -714,10 +759,12 @@ export const down = (pgm) => {
   pgm.sql(`ALTER TABLE quotes DROP CONSTRAINT IF EXISTS quotes_status_check;`);
   pgm.sql(`ALTER TABLE quotes DROP CONSTRAINT IF EXISTS quotes_sent_requires_client_check;`);
   pgm.sql(`ALTER TABLE quotes DROP CONSTRAINT IF EXISTS quotes_client_or_lead_check;`);
-  pgm.sql(`
-    ALTER TABLE quotes ADD CONSTRAINT quotes_client_or_lead_check
-    CHECK (client_id IS NOT NULL OR lead_id IS NOT NULL);
-  `);
+  addConstraintIdempotent(
+    pgm,
+    "quotes",
+    "quotes_client_or_lead_check",
+    "CHECK (client_id IS NOT NULL OR lead_id IS NOT NULL)"
+  );
 
   pgm.dropColumn("quotes", "recipient_snapshot", { ifExists: true });
   pgm.dropColumn("quotes", "issuer_snapshot", { ifExists: true });

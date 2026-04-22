@@ -4,6 +4,8 @@
  * (préfixe rbac_ pour éviter conflit avec roles/user_roles existants)
  */
 
+import { addConstraintIdempotent } from "./lib/addConstraintIdempotent.js";
+
 export const shorthands = undefined;
 
 /**
@@ -92,10 +94,11 @@ export const up = (pgm) => {
     }
   });
 
-  pgm.addConstraint(
+  addConstraintIdempotent(
+    pgm,
     "rbac_role_permissions",
     "rbac_role_permissions_pk",
-    { primaryKey: ["role_id", "permission_id"] }
+    "PRIMARY KEY (role_id, permission_id)"
   );
   pgm.createIndex("rbac_role_permissions", ["permission_id"]);
 
@@ -114,10 +117,11 @@ export const up = (pgm) => {
     }
   });
 
-  pgm.addConstraint(
+  addConstraintIdempotent(
+    pgm,
     "rbac_user_roles",
     "rbac_user_roles_pk",
-    { primaryKey: ["user_id", "role_id"] }
+    "PRIMARY KEY (user_id, role_id)"
   );
   pgm.createIndex("rbac_user_roles", ["role_id"]);
 

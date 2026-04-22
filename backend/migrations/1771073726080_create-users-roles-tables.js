@@ -1,3 +1,5 @@
+import { addConstraintIdempotent } from "./lib/addConstraintIdempotent.js";
+
 /**
  * @type {import('node-pg-migrate').ColumnDefinitions | undefined}
  */
@@ -94,12 +96,11 @@ export const up = (pgm) => {
     }
   });
 
-  pgm.addConstraint(
+  addConstraintIdempotent(
+    pgm,
     "user_roles",
     "user_roles_pk",
-    {
-      primaryKey: ["user_id", "role_id"]
-    }
+    "PRIMARY KEY (user_id, role_id)"
   );
 };
 

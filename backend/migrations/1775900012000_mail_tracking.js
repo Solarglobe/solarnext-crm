@@ -4,6 +4,8 @@
  * Ici : table d’événements + index unique sur tracking_id (non nul).
  */
 
+import { addConstraintIdempotent } from "./lib/addConstraintIdempotent.js";
+
 export const shorthands = undefined;
 
 /** @param {import("node-pg-migrate").MigrationBuilder} pgm */
@@ -44,9 +46,12 @@ export const up = (pgm) => {
     },
   });
 
-  pgm.addConstraint("mail_tracking_events", "mail_tracking_events_type_chk", {
-    check: "type IN ('OPEN', 'CLICK')",
-  });
+  addConstraintIdempotent(
+    pgm,
+    "mail_tracking_events",
+    "mail_tracking_events_type_chk",
+    "CHECK (type IN ('OPEN', 'CLICK'))"
+  );
 
   pgm.createIndex("mail_tracking_events", ["mail_message_id"], { name: "idx_mail_tracking_events_message" });
   pgm.createIndex("mail_tracking_events", ["type"], { name: "idx_mail_tracking_events_type" });

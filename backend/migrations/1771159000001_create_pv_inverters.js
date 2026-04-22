@@ -2,6 +2,8 @@
  * CP-002 — Table pv_inverters (micro + string)
  */
 
+import { addConstraintIdempotent } from "./lib/addConstraintIdempotent.js";
+
 export const shorthands = undefined;
 
 export const up = (pgm) => {
@@ -30,11 +32,24 @@ export const up = (pgm) => {
     created_at: { type: "timestamptz", notNull: true, default: pgm.func("now()") },
     updated_at: { type: "timestamptz", notNull: true, default: pgm.func("now()") },
   });
-  pgm.addConstraint("pv_inverters", "pv_inverters_brand_model_ref_unique", {
-    unique: ["brand", "model_ref"],
-  });
-  pgm.sql("ALTER TABLE pv_inverters ADD CONSTRAINT pv_inverters_inverter_type_check CHECK (inverter_type IN ('micro', 'string'))");
-  pgm.sql("ALTER TABLE pv_inverters ADD CONSTRAINT pv_inverters_phases_check CHECK (phases IS NULL OR phases IN ('1P', '3P'))");
+  addConstraintIdempotent(
+    pgm,
+    "pv_inverters",
+    "pv_inverters_brand_model_ref_unique",
+    "UNIQUE (brand, model_ref)"
+  );
+  addConstraintIdempotent(
+    pgm,
+    "pv_inverters",
+    "pv_inverters_inverter_type_check",
+    "CHECK (inverter_type IN ('micro', 'string'))"
+  );
+  addConstraintIdempotent(
+    pgm,
+    "pv_inverters",
+    "pv_inverters_phases_check",
+    "CHECK (phases IS NULL OR phases IN ('1P', '3P'))"
+  );
 };
 
 export const down = (pgm) => {

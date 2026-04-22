@@ -4,6 +4,8 @@
  * Multi-tenant par organization_id. Soft delete via is_active.
  */
 
+import { addConstraintIdempotent } from "./lib/addConstraintIdempotent.js";
+
 export const shorthands = undefined;
 
 /** @param {import('node-pg-migrate').MigrationBuilder} pgm */
@@ -86,9 +88,12 @@ export const up = (pgm) => {
     }
   });
 
-  pgm.addConstraint("quote_catalog_items", "uq_quote_catalog_items_org_name", {
-    unique: ["organization_id", "name"]
-  });
+  addConstraintIdempotent(
+    pgm,
+    "quote_catalog_items",
+    "uq_quote_catalog_items_org_name",
+    "UNIQUE (organization_id, name)"
+  );
 
   pgm.createIndex("quote_catalog_items", ["organization_id"], {
     name: "idx_quote_catalog_items_org_id"

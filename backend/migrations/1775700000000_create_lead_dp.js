@@ -2,6 +2,8 @@
  * Dossier DP (déclaration préalable) — 1 brouillon max par (organization_id, lead_id)
  */
 
+import { addConstraintIdempotent } from "./lib/addConstraintIdempotent.js";
+
 export const shorthands = undefined;
 
 export const up = (pgm) => {
@@ -42,9 +44,12 @@ export const up = (pgm) => {
     },
   });
 
-  pgm.addConstraint("lead_dp", "lead_dp_unique_org_lead", {
-    unique: ["organization_id", "lead_id"],
-  });
+  addConstraintIdempotent(
+    pgm,
+    "lead_dp",
+    "lead_dp_unique_org_lead",
+    "UNIQUE (organization_id, lead_id)"
+  );
 
   pgm.createIndex("lead_dp", ["organization_id"]);
   pgm.createIndex("lead_dp", ["lead_id"]);

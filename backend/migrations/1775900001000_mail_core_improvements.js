@@ -3,6 +3,8 @@
  * Uniquement ADD / ALTER — pas de suppression ni renommage.
  */
 
+import { addConstraintIdempotent } from "./lib/addConstraintIdempotent.js";
+
 export const shorthands = undefined;
 
 /** @param {import('node-pg-migrate').MigrationBuilder} pgm */
@@ -86,23 +88,26 @@ export const up = (pgm) => {
     FOR EACH ROW EXECUTE PROCEDURE sg_mail_participants_set_email_normalized();
   `);
 
-  pgm.sql(`
-    ALTER TABLE mail_threads
-      ADD CONSTRAINT fk_mail_threads_lead_id
-      FOREIGN KEY (lead_id) REFERENCES leads(id) ON DELETE SET NULL;
-  `);
+  addConstraintIdempotent(
+    pgm,
+    "mail_threads",
+    "fk_mail_threads_lead_id",
+    "FOREIGN KEY (lead_id) REFERENCES leads(id) ON DELETE SET NULL"
+  );
 
-  pgm.sql(`
-    ALTER TABLE mail_threads
-      ADD CONSTRAINT fk_mail_threads_client_id
-      FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE SET NULL;
-  `);
+  addConstraintIdempotent(
+    pgm,
+    "mail_threads",
+    "fk_mail_threads_client_id",
+    "FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE SET NULL"
+  );
 
-  pgm.sql(`
-    ALTER TABLE mail_threads
-      ADD CONSTRAINT fk_mail_threads_last_message_id
-      FOREIGN KEY (last_message_id) REFERENCES mail_messages(id) ON DELETE SET NULL;
-  `);
+  addConstraintIdempotent(
+    pgm,
+    "mail_threads",
+    "fk_mail_threads_last_message_id",
+    "FOREIGN KEY (last_message_id) REFERENCES mail_messages(id) ON DELETE SET NULL"
+  );
 
   pgm.sql(`
     CREATE INDEX idx_mail_messages_references_ids ON mail_messages USING GIN (references_ids);

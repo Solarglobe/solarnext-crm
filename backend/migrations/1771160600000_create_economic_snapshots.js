@@ -3,6 +3,8 @@
  * Préparation devis technique (draft). Ne modifie pas calpinage_snapshots.
  */
 
+import { addConstraintIdempotent } from "./lib/addConstraintIdempotent.js";
+
 export const up = (pgm) => {
   pgm.createTable("economic_snapshots", {
     id: {
@@ -63,13 +65,19 @@ export const up = (pgm) => {
     },
   });
 
-  pgm.addConstraint("economic_snapshots", "economic_snapshots_config_json_not_null", {
-    check: "config_json IS NOT NULL",
-  });
+  addConstraintIdempotent(
+    pgm,
+    "economic_snapshots",
+    "economic_snapshots_config_json_not_null",
+    "CHECK (config_json IS NOT NULL)"
+  );
 
-  pgm.addConstraint("economic_snapshots", "economic_snapshots_study_version_unique", {
-    unique: ["study_id", "version_number"],
-  });
+  addConstraintIdempotent(
+    pgm,
+    "economic_snapshots",
+    "economic_snapshots_study_version_unique",
+    "UNIQUE (study_id, version_number)"
+  );
 
   pgm.createIndex("economic_snapshots", ["study_id"]);
   pgm.createIndex("economic_snapshots", ["study_version_id"]);

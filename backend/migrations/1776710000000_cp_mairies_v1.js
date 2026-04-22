@@ -20,6 +20,8 @@
 
 /** @param {import("node-pg-migrate").MigrationBuilder} pgm */
 
+import { addConstraintIdempotent } from "./lib/addConstraintIdempotent.js";
+
 export const shorthands = undefined;
 
 
@@ -152,17 +154,19 @@ export const up = (pgm) => {
 
 
 
-  pgm.addConstraint("mairies", "mairies_portal_type_check", {
+  addConstraintIdempotent(
+    pgm,
+    "mairies",
+    "mairies_portal_type_check",
+    "CHECK (portal_type IN ('online', 'email', 'paper'))"
+  );
 
-    check: "portal_type IN ('online', 'email', 'paper')",
-
-  });
-
-  pgm.addConstraint("mairies", "mairies_account_status_check", {
-
-    check: "account_status IN ('none', 'to_create', 'created')",
-
-  });
+  addConstraintIdempotent(
+    pgm,
+    "mairies",
+    "mairies_account_status_check",
+    "CHECK (account_status IN ('none', 'to_create', 'created'))"
+  );
 
 
 

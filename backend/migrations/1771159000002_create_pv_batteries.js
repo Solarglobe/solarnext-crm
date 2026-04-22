@@ -2,6 +2,8 @@
  * CP-002 — Table pv_batteries (catalogue batteries enrichi)
  */
 
+import { addConstraintIdempotent } from "./lib/addConstraintIdempotent.js";
+
 export const shorthands = undefined;
 
 export const up = (pgm) => {
@@ -28,9 +30,12 @@ export const up = (pgm) => {
     created_at: { type: "timestamptz", notNull: true, default: pgm.func("now()") },
     updated_at: { type: "timestamptz", notNull: true, default: pgm.func("now()") },
   });
-  pgm.addConstraint("pv_batteries", "pv_batteries_brand_model_ref_unique", {
-    unique: ["brand", "model_ref"],
-  });
+  addConstraintIdempotent(
+    pgm,
+    "pv_batteries",
+    "pv_batteries_brand_model_ref_unique",
+    "UNIQUE (brand, model_ref)"
+  );
 };
 
 export const down = (pgm) => {

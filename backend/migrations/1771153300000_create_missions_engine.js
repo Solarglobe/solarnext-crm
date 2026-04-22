@@ -3,6 +3,8 @@
  * Prérequis: agencies, teams (créés si absents)
  */
 
+import { addConstraintIdempotent } from "./lib/addConstraintIdempotent.js";
+
 export const shorthands = undefined;
 
 /** @param {import("node-pg-migrate").MigrationBuilder} pgm */
@@ -179,9 +181,12 @@ export const up = async (pgm) => {
   });
   pgm.createIndex("mission_assignments", ["mission_id"]);
   pgm.createIndex("mission_assignments", ["user_id"]);
-  pgm.addConstraint("mission_assignments", "mission_assignments_unique_mission_user", {
-    unique: ["mission_id", "user_id"],
-  });
+  addConstraintIdempotent(
+    pgm,
+    "mission_assignments",
+    "mission_assignments_unique_mission_user",
+    "UNIQUE (mission_id, user_id)"
+  );
 };
 
 /** @param {import("node-pg-migrate").MigrationBuilder} pgm */

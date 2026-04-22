@@ -2,12 +2,16 @@
  * PDF dossier DP (mandat, DP1–DP8, CERFA généré, etc.) — entity_documents.document_type.
  */
 
+import { addConstraintIdempotent } from "./lib/addConstraintIdempotent.js";
+
 /** @param {import("node-pg-migrate").MigrationBuilder} pgm */
 export const up = (pgm) => {
-  pgm.sql(`
-    ALTER TABLE entity_documents DROP CONSTRAINT IF EXISTS entity_documents_document_type_check;
-    ALTER TABLE entity_documents ADD CONSTRAINT entity_documents_document_type_check
-    CHECK (
+  pgm.sql(`ALTER TABLE entity_documents DROP CONSTRAINT IF EXISTS entity_documents_document_type_check;`);
+  addConstraintIdempotent(
+    pgm,
+    "entity_documents",
+    "entity_documents_document_type_check",
+    `CHECK (
       document_type IS NULL
       OR document_type IN (
         'consumption_csv',
@@ -23,16 +27,18 @@ export const up = (pgm) => {
         'credit_note_pdf',
         'dp_pdf'
       )
-    );
-  `);
+    )`
+  );
 };
 
 /** @param {import("node-pg-migrate").MigrationBuilder} pgm */
 export const down = (pgm) => {
-  pgm.sql(`
-    ALTER TABLE entity_documents DROP CONSTRAINT IF EXISTS entity_documents_document_type_check;
-    ALTER TABLE entity_documents ADD CONSTRAINT entity_documents_document_type_check
-    CHECK (
+  pgm.sql(`ALTER TABLE entity_documents DROP CONSTRAINT IF EXISTS entity_documents_document_type_check;`);
+  addConstraintIdempotent(
+    pgm,
+    "entity_documents",
+    "entity_documents_document_type_check",
+    `CHECK (
       document_type IS NULL
       OR document_type IN (
         'consumption_csv',
@@ -47,6 +53,6 @@ export const down = (pgm) => {
         'invoice_pdf',
         'credit_note_pdf'
       )
-    );
-  `);
+    )`
+  );
 };

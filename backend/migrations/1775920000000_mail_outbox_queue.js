@@ -2,6 +2,8 @@
  * File d’envoi mail (queue persistante, retry, statuts).
  */
 
+import { addConstraintIdempotent } from "./lib/addConstraintIdempotent.js";
+
 export const shorthands = undefined;
 
 /** @param {import('node-pg-migrate').MigrationBuilder} pgm */
@@ -90,9 +92,12 @@ export const up = (pgm) => {
     },
   });
 
-  pgm.addConstraint("mail_outbox", "uq_mail_outbox_mail_message_id", {
-    unique: ["mail_message_id"],
-  });
+  addConstraintIdempotent(
+    pgm,
+    "mail_outbox",
+    "uq_mail_outbox_mail_message_id",
+    "UNIQUE (mail_message_id)"
+  );
 
   pgm.createIndex("mail_outbox", ["organization_id"], { name: "idx_mail_outbox_organization_id" });
   pgm.createIndex("mail_outbox", ["mail_account_id"], { name: "idx_mail_outbox_mail_account_id" });

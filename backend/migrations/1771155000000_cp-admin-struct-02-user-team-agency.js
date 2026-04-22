@@ -8,6 +8,8 @@
  * (via triggers)
  */
 
+import { addConstraintIdempotent } from "./lib/addConstraintIdempotent.js";
+
 export const shorthands = undefined;
 
 /** @param {import("node-pg-migrate").MigrationBuilder} pgm */
@@ -68,9 +70,12 @@ export const up = async (pgm) => {
       default: pgm.func("now()"),
     },
   });
-  pgm.addConstraint("user_team", "user_team_unique_user_team", {
-    unique: ["user_id", "team_id"],
-  });
+  addConstraintIdempotent(
+    pgm,
+    "user_team",
+    "user_team_unique_user_team",
+    "UNIQUE (user_id, team_id)"
+  );
   pgm.createIndex("user_team", ["organization_id"]);
   pgm.createIndex("user_team", ["user_id"]);
   pgm.createIndex("user_team", ["team_id"]);
@@ -106,9 +111,12 @@ export const up = async (pgm) => {
       default: pgm.func("now()"),
     },
   });
-  pgm.addConstraint("user_agency", "user_agency_unique_user_agency", {
-    unique: ["user_id", "agency_id"],
-  });
+  addConstraintIdempotent(
+    pgm,
+    "user_agency",
+    "user_agency_unique_user_agency",
+    "UNIQUE (user_id, agency_id)"
+  );
   pgm.createIndex("user_agency", ["organization_id"]);
   pgm.createIndex("user_agency", ["user_id"]);
   pgm.createIndex("user_agency", ["agency_id"]);

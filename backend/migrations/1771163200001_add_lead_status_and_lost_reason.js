@@ -7,6 +7,8 @@
  * - Index perf (IF NOT EXISTS)
  */
 
+import { addConstraintIdempotent } from "./lib/addConstraintIdempotent.js";
+
 export const shorthands = undefined;
 
 /** Statuts autorisés après migration (LEAD/CLIENT conservés pour l’existant) */
@@ -31,23 +33,22 @@ export const up = (pgm) => {
 
   pgm.sql(`ALTER TABLE leads DROP CONSTRAINT IF EXISTS leads_status_check`);
   const statusList = LEAD_STATUS_VALUES.map((s) => `'${s}'`).join(", ");
-  pgm.sql(
-    `ALTER TABLE leads ADD CONSTRAINT leads_status_check CHECK (status IN (${statusList}))`
+  addConstraintIdempotent(
+    pgm,
+    "leads",
+    "leads_status_check",
+    `CHECK (status IN (${statusList}))`
   );
 
-  pgm.sql(`
-    DO $$
-    BEGIN
-      IF NOT EXISTS (
-        SELECT 1 FROM pg_constraint WHERE conname = 'check_lost_reason'
-      ) THEN
-        ALTER TABLE leads ADD CONSTRAINT check_lost_reason CHECK (
+  addConstraintIdempotent(
+    pgm,
+    "leads",
+    "check_lost_reason",
+    `CHECK (
           status <> 'LOST'
           OR (lost_reason IS NOT NULL AND length(trim(lost_reason)) > 0)
-        );
-      END IF;
-    END $$;
-  `);
+        )`
+  );
 
   pgm.sql(`CREATE INDEX IF NOT EXISTS idx_leads_status ON leads(status)`);
   pgm.sql(`CREATE INDEX IF NOT EXISTS idx_leads_archived_at ON leads(archived_at)`);
@@ -64,7 +65,12 @@ export const down = (pgm) => {
   `);
 
   pgm.sql(`ALTER TABLE leads DROP CONSTRAINT IF EXISTS leads_status_check`);
-  pgm.sql(`ALTER TABLE leads ADD CONSTRAINT leads_status_check CHECK (status IN ('LEAD','CLIENT'))`);
+  addConstraintIdempotent(
+    pgm,
+    "leads",
+    "leads_status_check",
+    "CHECK (status IN ('LEAD','CLIENT'))"
+  );
 
   pgm.sql(`ALTER TABLE leads DROP COLUMN IF EXISTS lost_reason`);
 };

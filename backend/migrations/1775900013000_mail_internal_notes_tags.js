@@ -2,6 +2,8 @@
  * CP-084 — Notes internes équipe + tags métier sur fils mail (hors contenu email).
  */
 
+import { addConstraintIdempotent } from "./lib/addConstraintIdempotent.js";
+
 export const shorthands = undefined;
 
 /** @param {import("node-pg-migrate").MigrationBuilder} pgm */
@@ -87,9 +89,12 @@ export const up = (pgm) => {
     },
   });
 
-  pgm.addConstraint("mail_thread_tag_links", "mail_thread_tag_links_pkey", {
-    primaryKey: ["thread_id", "tag_id"],
-  });
+  addConstraintIdempotent(
+    pgm,
+    "mail_thread_tag_links",
+    "mail_thread_tag_links_pkey",
+    "PRIMARY KEY (thread_id, tag_id)"
+  );
 
   pgm.createIndex("mail_thread_tag_links", ["thread_id"], { name: "idx_mail_thread_tag_links_thread" });
 

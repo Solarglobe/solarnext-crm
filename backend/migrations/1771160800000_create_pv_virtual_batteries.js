@@ -3,6 +3,8 @@
  * Table pv_virtual_batteries, multi-tenant par organization_id.
  */
 
+import { addConstraintIdempotent } from "./lib/addConstraintIdempotent.js";
+
 export const shorthands = undefined;
 
 /** @param {import('node-pg-migrate').MigrationBuilder} pgm */
@@ -78,8 +80,11 @@ export const up = (pgm) => {
     },
   });
 
-  pgm.sql(
-    `ALTER TABLE pv_virtual_batteries ADD CONSTRAINT pv_virtual_batteries_pricing_model_check CHECK (pricing_model IN ('per_kwc', 'per_capacity', 'per_kwc_with_variable', 'custom'))`
+  addConstraintIdempotent(
+    pgm,
+    "pv_virtual_batteries",
+    "pv_virtual_batteries_pricing_model_check",
+    "CHECK (pricing_model IN ('per_kwc', 'per_capacity', 'per_kwc_with_variable', 'custom'))"
   );
 
   pgm.createIndex("pv_virtual_batteries", ["organization_id"], {

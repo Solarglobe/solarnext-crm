@@ -4,6 +4,8 @@
  * Toutes les lignes existantes reçoivent automatiquement 'CENTRAL' via DEFAULT.
  */
 
+import { addConstraintIdempotent } from "./lib/addConstraintIdempotent.js";
+
 /** @param {import("node-pg-migrate").MigrationBuilder} pgm */
 export const up = async (pgm) => {
   pgm.sql(`
@@ -14,11 +16,12 @@ export const up = async (pgm) => {
     ALTER TABLE pv_inverters
     DROP CONSTRAINT IF EXISTS pv_inverters_inverter_family_check
   `);
-  pgm.sql(`
-    ALTER TABLE pv_inverters
-    ADD CONSTRAINT pv_inverters_inverter_family_check
-    CHECK (inverter_family IN ('CENTRAL', 'MICRO'))
-  `);
+  addConstraintIdempotent(
+    pgm,
+    "pv_inverters",
+    "pv_inverters_inverter_family_check",
+    "CHECK (inverter_family IN ('CENTRAL', 'MICRO'))"
+  );
   pgm.sql(`
     UPDATE pv_inverters SET inverter_family = 'CENTRAL' WHERE inverter_family IS NULL
   `);

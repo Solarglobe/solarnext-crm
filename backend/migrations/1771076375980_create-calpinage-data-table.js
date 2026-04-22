@@ -5,6 +5,8 @@
  * Non-destructive
  */
 
+import { addConstraintIdempotent } from "./lib/addConstraintIdempotent.js";
+
 export const up = (pgm) => {
   pgm.sql('CREATE EXTENSION IF NOT EXISTS "pgcrypto";');
 
@@ -73,12 +75,11 @@ export const up = (pgm) => {
   /*
     1 version = 1 calpinage
   */
-  pgm.addConstraint(
+  addConstraintIdempotent(
+    pgm,
     "calpinage_data",
     "calpinage_data_unique_version",
-    {
-      unique: ["study_version_id"]
-    }
+    "UNIQUE (study_version_id)"
   );
 
   pgm.createIndex("calpinage_data", ["organization_id"]);

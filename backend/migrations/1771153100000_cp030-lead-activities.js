@@ -3,6 +3,8 @@
  * Activités CRM liées à une fiche Lead/Client : notes, appels, RDV, emails, auto-logs
  */
 
+import { addConstraintIdempotent } from "./lib/addConstraintIdempotent.js";
+
 export const shorthands = undefined;
 
 export const up = (pgm) => {
@@ -73,7 +75,8 @@ export const up = (pgm) => {
     }
   });
 
-  pgm.addConstraint(
+  addConstraintIdempotent(
+    pgm,
     "lead_activities",
     "lead_activities_type_check",
     `CHECK (type IN (

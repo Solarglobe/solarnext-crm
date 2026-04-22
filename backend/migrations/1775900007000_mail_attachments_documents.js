@@ -2,6 +2,8 @@
  * CP-075 — Pièces jointes mail ↔ entity_documents (lien + dédup SHA256).
  */
 
+import { addConstraintIdempotent } from "./lib/addConstraintIdempotent.js";
+
 /** @param {import("node-pg-migrate").MigrationBuilder} pgm */
 export const up = (pgm) => {
   pgm.addColumn("mail_attachments", {
@@ -23,10 +25,12 @@ export const up = (pgm) => {
     WHERE content_sha256 IS NOT NULL;
   `);
 
-  pgm.sql(`
-    ALTER TABLE entity_documents DROP CONSTRAINT IF EXISTS entity_documents_document_type_check;
-    ALTER TABLE entity_documents ADD CONSTRAINT entity_documents_document_type_check
-    CHECK (
+  pgm.sql(`ALTER TABLE entity_documents DROP CONSTRAINT IF EXISTS entity_documents_document_type_check;`);
+  addConstraintIdempotent(
+    pgm,
+    "entity_documents",
+    "entity_documents_document_type_check",
+    `CHECK (
       document_type IS NULL
       OR document_type IN (
         'consumption_csv',
@@ -43,16 +47,18 @@ export const up = (pgm) => {
         'dp_pdf',
         'mail_attachment'
       )
-    );
-  `);
+    )`
+  );
 };
 
 /** @param {import("node-pg-migrate").MigrationBuilder} pgm */
 export const down = (pgm) => {
-  pgm.sql(`
-    ALTER TABLE entity_documents DROP CONSTRAINT IF EXISTS entity_documents_document_type_check;
-    ALTER TABLE entity_documents ADD CONSTRAINT entity_documents_document_type_check
-    CHECK (
+  pgm.sql(`ALTER TABLE entity_documents DROP CONSTRAINT IF EXISTS entity_documents_document_type_check;`);
+  addConstraintIdempotent(
+    pgm,
+    "entity_documents",
+    "entity_documents_document_type_check",
+    `CHECK (
       document_type IS NULL
       OR document_type IN (
         'consumption_csv',
@@ -68,8 +74,8 @@ export const down = (pgm) => {
         'credit_note_pdf',
         'dp_pdf'
       )
-    );
-  `);
+    )`
+  );
 
   pgm.sql(`DROP INDEX IF EXISTS uq_mail_attachments_message_sha;`);
   pgm.sql(`DROP INDEX IF EXISTS idx_mail_attachments_document_id;`);

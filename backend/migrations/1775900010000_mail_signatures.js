@@ -2,6 +2,8 @@
  * CP-080 — Signatures mail (org / utilisateur / compte), HTML riche, défaut par scope.
  */
 
+import { addConstraintIdempotent } from "./lib/addConstraintIdempotent.js";
+
 export const shorthands = undefined;
 
 /** @param {import("node-pg-migrate").MigrationBuilder} pgm */
@@ -44,13 +46,16 @@ export const up = (pgm) => {
     },
   });
 
-  pgm.addConstraint("mail_signatures", "mail_signatures_scope_chk", {
-    check: `(
+  addConstraintIdempotent(
+    pgm,
+    "mail_signatures",
+    "mail_signatures_scope_chk",
+    `CHECK ((
       (mail_account_id IS NOT NULL)
       OR (user_id IS NOT NULL AND mail_account_id IS NULL)
       OR (user_id IS NULL AND mail_account_id IS NULL)
-    )`,
-  });
+    ))`
+  );
 
   pgm.createIndex("mail_signatures", ["organization_id"], { name: "idx_mail_signatures_org" });
   pgm.createIndex("mail_signatures", ["user_id"], { name: "idx_mail_signatures_user" });

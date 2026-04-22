@@ -3,6 +3,8 @@
  * Table pour les consommations mensuelles (12 mois)
  */
 
+import { addConstraintIdempotent } from "./lib/addConstraintIdempotent.js";
+
 export const shorthands = undefined;
 
 export const up = (pgm) => {
@@ -48,9 +50,24 @@ export const up = (pgm) => {
     }
   });
 
-  pgm.sql(`ALTER TABLE lead_consumption_monthly ADD CONSTRAINT lcm_month_check CHECK (month >= 1 AND month <= 12)`);
-  pgm.sql(`ALTER TABLE lead_consumption_monthly ADD CONSTRAINT lcm_kwh_check CHECK (kwh >= 0)`);
-  pgm.sql(`ALTER TABLE lead_consumption_monthly ADD CONSTRAINT lcm_lead_year_month_unique UNIQUE (lead_id, year, month)`);
+  addConstraintIdempotent(
+    pgm,
+    "lead_consumption_monthly",
+    "lcm_month_check",
+    "CHECK (month >= 1 AND month <= 12)"
+  );
+  addConstraintIdempotent(
+    pgm,
+    "lead_consumption_monthly",
+    "lcm_kwh_check",
+    "CHECK (kwh >= 0)"
+  );
+  addConstraintIdempotent(
+    pgm,
+    "lead_consumption_monthly",
+    "lcm_lead_year_month_unique",
+    "UNIQUE (lead_id, year, month)"
+  );
   pgm.createIndex("lead_consumption_monthly", ["organization_id"]);
   pgm.createIndex("lead_consumption_monthly", ["lead_id"]);
 };

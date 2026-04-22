@@ -3,6 +3,8 @@
  * Multi-tenant strict (organization_id + triggers anti cross-org).
  */
 
+import { addConstraintIdempotent } from "./lib/addConstraintIdempotent.js";
+
 export const shorthands = undefined;
 
 /** @param {import('node-pg-migrate').MigrationBuilder} pgm */
@@ -55,9 +57,12 @@ export const up = (pgm) => {
     },
   });
 
-  pgm.addConstraint("mail_accounts", "uq_mail_accounts_org_email", {
-    unique: ["organization_id", "email"],
-  });
+  addConstraintIdempotent(
+    pgm,
+    "mail_accounts",
+    "uq_mail_accounts_org_email",
+    "UNIQUE (organization_id, email)"
+  );
   pgm.createIndex("mail_accounts", ["organization_id"], { name: "idx_mail_accounts_organization_id" });
   pgm.createIndex("mail_accounts", ["user_id"], { name: "idx_mail_accounts_user_id" });
 
@@ -172,9 +177,12 @@ export const up = (pgm) => {
     },
   });
 
-  pgm.addConstraint("mail_messages", "uq_mail_messages_account_message_id", {
-    unique: ["mail_account_id", "message_id"],
-  });
+  addConstraintIdempotent(
+    pgm,
+    "mail_messages",
+    "uq_mail_messages_account_message_id",
+    "UNIQUE (mail_account_id, message_id)"
+  );
   pgm.createIndex("mail_messages", ["mail_thread_id"], { name: "idx_mail_messages_mail_thread_id" });
   pgm.createIndex("mail_messages", ["mail_account_id"], { name: "idx_mail_messages_mail_account_id" });
   pgm.sql(`
@@ -277,9 +285,12 @@ export const up = (pgm) => {
     },
   });
 
-  pgm.addConstraint("mail_account_permissions", "uq_mail_account_permissions_account_user", {
-    unique: ["mail_account_id", "user_id"],
-  });
+  addConstraintIdempotent(
+    pgm,
+    "mail_account_permissions",
+    "uq_mail_account_permissions_account_user",
+    "UNIQUE (mail_account_id, user_id)"
+  );
   pgm.createIndex("mail_account_permissions", ["user_id"], { name: "idx_mail_account_permissions_user_id" });
   pgm.createIndex("mail_account_permissions", ["mail_account_id"], {
     name: "idx_mail_account_permissions_mail_account_id",

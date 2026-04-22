@@ -3,6 +3,8 @@
  * Table addresses avec champs EXACTS (spec V1)
  */
 
+import { addConstraintIdempotent } from "./lib/addConstraintIdempotent.js";
+
 export const shorthands = undefined;
 
 export const up = (pgm) => {
@@ -106,41 +108,46 @@ export const up = (pgm) => {
   pgm.createIndex("addresses", ["lat", "lon"]);
 
   // Contraintes CHECK
-  pgm.sql(`
-    ALTER TABLE addresses
-    ADD CONSTRAINT addresses_lat_range
-    CHECK (lat IS NULL OR (lat >= -90 AND lat <= 90));
-  `);
+  addConstraintIdempotent(
+    pgm,
+    "addresses",
+    "addresses_lat_range",
+    "CHECK (lat IS NULL OR (lat >= -90 AND lat <= 90))"
+  );
 
-  pgm.sql(`
-    ALTER TABLE addresses
-    ADD CONSTRAINT addresses_lon_range
-    CHECK (lon IS NULL OR (lon >= -180 AND lon <= 180));
-  `);
+  addConstraintIdempotent(
+    pgm,
+    "addresses",
+    "addresses_lon_range",
+    "CHECK (lon IS NULL OR (lon >= -180 AND lon <= 180))"
+  );
 
-  pgm.sql(`
-    ALTER TABLE addresses
-    ADD CONSTRAINT addresses_geo_confidence_range
-    CHECK (geo_confidence IS NULL OR (geo_confidence >= 0 AND geo_confidence <= 100));
-  `);
+  addConstraintIdempotent(
+    pgm,
+    "addresses",
+    "addresses_geo_confidence_range",
+    "CHECK (geo_confidence IS NULL OR (geo_confidence >= 0 AND geo_confidence <= 100))"
+  );
 
-  pgm.sql(`
-    ALTER TABLE addresses
-    ADD CONSTRAINT addresses_geo_precision_level_values
-    CHECK (geo_precision_level IS NULL OR geo_precision_level IN (
+  addConstraintIdempotent(
+    pgm,
+    "addresses",
+    "addresses_geo_precision_level_values",
+    `CHECK (geo_precision_level IS NULL OR geo_precision_level IN (
       'UNKNOWN', 'COUNTRY', 'CITY', 'POSTAL_CODE', 'STREET',
       'HOUSE_NUMBER_INTERPOLATED', 'ROOFTOP_BUILDING', 'MANUAL_PIN_BUILDING'
-    ));
-  `);
+    ))`
+  );
 
-  pgm.sql(`
-    ALTER TABLE addresses
-    ADD CONSTRAINT addresses_rooftop_pin_requires_coords
-    CHECK (
+  addConstraintIdempotent(
+    pgm,
+    "addresses",
+    "addresses_rooftop_pin_requires_coords",
+    `CHECK (
       (geo_precision_level NOT IN ('ROOFTOP_BUILDING', 'MANUAL_PIN_BUILDING'))
       OR (lat IS NOT NULL AND lon IS NOT NULL)
-    );
-  `);
+    )`
+  );
 };
 
 export const down = (pgm) => {

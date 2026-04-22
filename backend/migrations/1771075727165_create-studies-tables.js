@@ -7,6 +7,8 @@
  * Non-destructive
  */
 
+import { addConstraintIdempotent } from "./lib/addConstraintIdempotent.js";
+
 /** @param {import("node-pg-migrate").MigrationBuilder} pgm */
 export const up = (pgm) => {
   // Dependencies
@@ -61,12 +63,11 @@ export const up = (pgm) => {
   });
 
   // Enforce unique version per study (and per org)
-  pgm.addConstraint(
+  addConstraintIdempotent(
+    pgm,
     "study_versions",
     "study_versions_study_id_version_number_unique",
-    {
-      unique: ["study_id", "version_number"],
-    }
+    "UNIQUE (study_id, version_number)"
   );
 
   // Indexes study_versions

@@ -4,6 +4,8 @@
  * Si certains champs existent déjà, alter only (ADD COLUMN IF NOT EXISTS)
  */
 
+import { addConstraintIdempotent } from "./lib/addConstraintIdempotent.js";
+
 export const shorthands = undefined;
 
 export const up = (pgm) => {
@@ -29,7 +31,12 @@ export const up = (pgm) => {
   pgm.sql(`ALTER TABLE leads ALTER COLUMN status SET DEFAULT 'LEAD'`);
   pgm.sql(`ALTER TABLE leads ALTER COLUMN status SET NOT NULL`);
   pgm.sql(`ALTER TABLE leads DROP CONSTRAINT IF EXISTS leads_status_check`);
-  pgm.sql(`ALTER TABLE leads ADD CONSTRAINT leads_status_check CHECK (status IN ('LEAD','CLIENT'))`);
+  addConstraintIdempotent(
+    pgm,
+    "leads",
+    "leads_status_check",
+    "CHECK (status IN ('LEAD','CLIENT'))"
+  );
 
   // 4. Remplir full_name depuis first_name + last_name
   pgm.sql(`
@@ -48,13 +55,28 @@ export const up = (pgm) => {
   // 7. Bien / foyer
   pgm.sql(`ALTER TABLE leads ADD COLUMN IF NOT EXISTS property_type varchar(30) NULL`);
   pgm.sql(`ALTER TABLE leads ADD COLUMN IF NOT EXISTS household_size int NULL`);
-  pgm.sql(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'leads_household_size_check') THEN ALTER TABLE leads ADD CONSTRAINT leads_household_size_check CHECK (household_size IS NULL OR household_size >= 0); END IF; END $$`);
+  addConstraintIdempotent(
+    pgm,
+    "leads",
+    "leads_household_size_check",
+    "CHECK (household_size IS NULL OR household_size >= 0)"
+  );
 
   // 8. Conso électrique
   pgm.sql(`ALTER TABLE leads ADD COLUMN IF NOT EXISTS consumption_mode varchar(20) NULL`);
-  pgm.sql(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'leads_consumption_mode_check') THEN ALTER TABLE leads ADD CONSTRAINT leads_consumption_mode_check CHECK (consumption_mode IS NULL OR consumption_mode IN ('ANNUAL','MONTHLY','PDL')); END IF; END $$`);
+  addConstraintIdempotent(
+    pgm,
+    "leads",
+    "leads_consumption_mode_check",
+    "CHECK (consumption_mode IS NULL OR consumption_mode IN ('ANNUAL','MONTHLY','PDL'))"
+  );
   pgm.sql(`ALTER TABLE leads ADD COLUMN IF NOT EXISTS consumption_annual_kwh int NULL`);
-  pgm.sql(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'leads_consumption_annual_kwh_check') THEN ALTER TABLE leads ADD CONSTRAINT leads_consumption_annual_kwh_check CHECK (consumption_annual_kwh IS NULL OR consumption_annual_kwh >= 0); END IF; END $$`);
+  addConstraintIdempotent(
+    pgm,
+    "leads",
+    "leads_consumption_annual_kwh_check",
+    "CHECK (consumption_annual_kwh IS NULL OR consumption_annual_kwh >= 0)"
+  );
   pgm.sql(`ALTER TABLE leads ADD COLUMN IF NOT EXISTS consumption_pdl varchar(50) NULL`);
   pgm.sql(`ALTER TABLE leads ADD COLUMN IF NOT EXISTS hp_hc boolean NOT NULL DEFAULT false`);
   pgm.sql(`ALTER TABLE leads ADD COLUMN IF NOT EXISTS supplier_name varchar(80) NULL`);
@@ -62,20 +84,40 @@ export const up = (pgm) => {
   pgm.sql(`ALTER TABLE leads ADD COLUMN IF NOT EXISTS tariff_type varchar(20) NULL`);
   pgm.sql(`ALTER TABLE leads ADD COLUMN IF NOT EXISTS grid_type varchar(20) NULL`);
   pgm.sql(`ALTER TABLE leads ADD COLUMN IF NOT EXISTS meter_power_kva int NULL`);
-  pgm.sql(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'leads_meter_power_kva_check') THEN ALTER TABLE leads ADD CONSTRAINT leads_meter_power_kva_check CHECK (meter_power_kva IS NULL OR meter_power_kva >= 0); END IF; END $$`);
+  addConstraintIdempotent(
+    pgm,
+    "leads",
+    "leads_meter_power_kva_check",
+    "CHECK (meter_power_kva IS NULL OR meter_power_kva >= 0)"
+  );
   pgm.sql(`ALTER TABLE leads ADD COLUMN IF NOT EXISTS consumption_annual_calculated_kwh int NULL`);
-  pgm.sql(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'leads_consumption_annual_calculated_check') THEN ALTER TABLE leads ADD CONSTRAINT leads_consumption_annual_calculated_check CHECK (consumption_annual_calculated_kwh IS NULL OR consumption_annual_calculated_kwh >= 0); END IF; END $$`);
+  addConstraintIdempotent(
+    pgm,
+    "leads",
+    "leads_consumption_annual_calculated_check",
+    "CHECK (consumption_annual_calculated_kwh IS NULL OR consumption_annual_calculated_kwh >= 0)"
+  );
 
   // 9. Maison / toiture
   pgm.sql(`ALTER TABLE leads ADD COLUMN IF NOT EXISTS construction_year int NULL`);
-  pgm.sql(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'leads_construction_year_check') THEN ALTER TABLE leads ADD CONSTRAINT leads_construction_year_check CHECK (construction_year IS NULL OR (construction_year >= 1800 AND construction_year <= 2100)); END IF; END $$`);
+  addConstraintIdempotent(
+    pgm,
+    "leads",
+    "leads_construction_year_check",
+    "CHECK (construction_year IS NULL OR (construction_year >= 1800 AND construction_year <= 2100))"
+  );
   pgm.sql(`ALTER TABLE leads ADD COLUMN IF NOT EXISTS insulation_level varchar(20) NULL`);
   pgm.sql(`ALTER TABLE leads ADD COLUMN IF NOT EXISTS roof_type varchar(20) NULL`);
   pgm.sql(`ALTER TABLE leads ADD COLUMN IF NOT EXISTS frame_type varchar(20) NULL`);
 
   // 10. Business
   pgm.sql(`ALTER TABLE leads ADD COLUMN IF NOT EXISTS estimated_budget_eur int NULL`);
-  pgm.sql(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'leads_estimated_budget_check') THEN ALTER TABLE leads ADD CONSTRAINT leads_estimated_budget_check CHECK (estimated_budget_eur IS NULL OR estimated_budget_eur >= 0); END IF; END $$`);
+  addConstraintIdempotent(
+    pgm,
+    "leads",
+    "leads_estimated_budget_check",
+    "CHECK (estimated_budget_eur IS NULL OR estimated_budget_eur >= 0)"
+  );
   pgm.sql(`ALTER TABLE leads ADD COLUMN IF NOT EXISTS financing_mode varchar(20) NULL`);
   pgm.sql(`ALTER TABLE leads ADD COLUMN IF NOT EXISTS project_timing varchar(20) NULL`);
 

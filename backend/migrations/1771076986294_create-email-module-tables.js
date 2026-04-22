@@ -5,6 +5,8 @@
  * Non-destructive
  */
 
+import { addConstraintIdempotent } from "./lib/addConstraintIdempotent.js";
+
 export const up = (pgm) => {
   pgm.sql(`CREATE EXTENSION IF NOT EXISTS "pgcrypto";`);
 
@@ -82,9 +84,12 @@ export const up = (pgm) => {
     },
   });
 
-  pgm.addConstraint("email_accounts", "email_accounts_unique_per_org", {
-    unique: ["organization_id", "email_address"],
-  });
+  addConstraintIdempotent(
+    pgm,
+    "email_accounts",
+    "email_accounts_unique_per_org",
+    "UNIQUE (organization_id, email_address)"
+  );
 
   pgm.createIndex("email_accounts", ["organization_id"]);
   pgm.createIndex("email_accounts", ["user_id"]);
