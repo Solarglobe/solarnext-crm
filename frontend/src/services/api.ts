@@ -14,6 +14,21 @@ export function authHeaders(): HeadersInit {
   return base;
 }
 
+export type ApiFetchOptions = RequestInit & { skipAuth?: boolean };
+
+function pathnameOnly(url: string): string {
+  try {
+    if (/^https?:\/\//i.test(url)) {
+      return new URL(url).pathname;
+    }
+  } catch {
+    /* ignore */
+  }
+  const s = url.startsWith("/") ? url : `/${url}`;
+  const q = s.indexOf("?");
+  return q === -1 ? s : s.slice(0, q);
+}
+
 /**
  * Affiche un toast "Session expirée" puis redirige vers /login après un court délai.
  * Appel idempotent : si une redirection est déjà en cours, ne fait rien.
@@ -54,28 +69,71 @@ function handleSessionExpired(): void {
   }, 2200);
 }
 
-export async function apiFetch(
-  url: string,
-  options: RequestInit = {}
-): Promise<Response> {
-  let base = authHeaders() as Record<string, string>;
-  if (options.body instanceof FormData) {
-    const { "Content-Type": _, ...rest } = base;
-    base = rest;
+function redirectToLoginIfNeeded(): void {
+  if (typeof window === "undefined") return;
+  const p = window.location.pathname || "";
+  if (p === "/login" || p.startsWith("/login/")) return;
+  window.location.href = "/login";
+}
+
+/**
+ * Client HTTP unique CRM : en-têtes JSON + org + **Authorization Bearer** obligatoire
+ * (sauf `skipAuth: true`, réservé aux cas publics éventuels).
+ */
+export async function apiFetch(url: string, options: ApiFetchOptions = {}): Promise<Response> {
+  const { skipAuth = false, headers: optionHeaders, ...rest } = options;
+
+  if (!skipAuth && typeof window !== "undefined") {
+    const tokenRaw = getAuthToken();
+    const token = tokenRaw != null ? String(tokenRaw).trim() : "";
+    if (!token) {
+      redirectToLoginIfNeeded();
+      return Promise.reject(new Error("Token manquant — redirection vers /login"));
+    }
+    // Debug temporaire — retirer une fois le flux auth validé
+    console.log("[apiFetch] JWT (debug)", `${token.slice(0, 28)}…`);
   }
-  const headers = {
-    ...base,
-    ...(options.headers || {}),
-  };
+
+  let baseRecord: Record<string, string> = { ...(authHeaders() as Record<string, string>) };
+  if (rest.body instanceof FormData) {
+    const { "Content-Type": _ct, ...r } = baseRecord;
+    baseRecord = r;
+  }
+
+  const headers = new Headers();
+  for (const [k, v] of Object.entries(baseRecord)) {
+    if (v != null && String(v) !== "") {
+      headers.set(k, String(v));
+    }
+  }
+  if (optionHeaders != null) {
+    new Headers(optionHeaders as HeadersInit).forEach((value, key) => {
+      if (value != null && String(value) !== "") {
+        headers.set(key, String(value));
+      }
+    });
+  }
+
+  if (!skipAuth) {
+    const token = String(getAuthToken() ?? "").trim();
+    if (token) {
+      headers.set("Authorization", `Bearer ${token}`);
+    }
+  }
 
   const response = await fetch(url, {
-    ...options,
+    ...rest,
     headers,
   });
 
   // Intercepteur global 401 — session expirée ou token invalide
   if (response.status === 401) {
-    handleSessionExpired();
+    const path = pathnameOnly(url);
+    const isPublic =
+      path.startsWith("/api/client-portal") || path.startsWith("/api/public/");
+    if (!skipAuth && !isPublic) {
+      handleSessionExpired();
+    }
   }
 
   return response;

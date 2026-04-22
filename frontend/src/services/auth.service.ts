@@ -1,5 +1,5 @@
 import { buildApiUrl } from "@/config/crmApiBase";
-import { getAuthToken } from "./api";
+import { apiFetch, getAuthToken } from "./api";
 
 const TOKEN_KEY = "solarnext_token";
 
@@ -130,11 +130,7 @@ export interface CurrentUser {
 }
 
 export async function getCurrentUser(): Promise<CurrentUser> {
-  const res = await fetch(buildApiUrl("/auth/me"), {
-    headers: {
-      Authorization: `Bearer ${getAuthToken()}`,
-    },
-  });
+  const res = await apiFetch(buildApiUrl("/auth/me"));
   if (!res.ok) throw new Error("Non authentifié");
   return res.json();
 }
@@ -145,11 +141,7 @@ export interface UserPermissions {
 }
 
 export async function getUserPermissions(): Promise<UserPermissions> {
-  const res = await fetch(buildApiUrl("/auth/permissions"), {
-    headers: {
-      Authorization: `Bearer ${getAuthToken()}`,
-    },
-  });
+  const res = await apiFetch(buildApiUrl("/auth/permissions"));
   if (!res.ok) throw new Error("Non authentifié");
   return res.json();
 }
