@@ -18,11 +18,19 @@ if (process.env.NODE_ENV === "production" && process.env.RBAC_ENFORCE === undefi
   process.env.RBAC_ENFORCE = "1";
 }
 
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import express from "express";
 import cors from "cors";
 import { applyTrustProxy } from "./middleware/security/trustProxy.js";
 import { securityHeadersMiddleware } from "./middleware/security/securityHeaders.middleware.js";
 import authRouter from "./routes/auth.routes.js";
+
+const execFileAsync = promisify(execFile);
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // import logger from "./app/core/logger.js";
 // import { httpLogger } from "./app/core/httpLogger.js";
@@ -61,6 +69,32 @@ app.get("/", (req, res) => {
 
 // Authentification uniquement
 app.use("/auth", authRouter);
+
+// TEMPORAIRE : migrations PostgreSQL via HTTP (désactiver / sécuriser ensuite)
+app.post("/admin/run-migrations", async (req, res) => {
+  try {
+    const script = path.join(__dirname, "scripts", "run-pg-migrate.cjs");
+    const { stdout, stderr } = await execFileAsync(process.execPath, [script, "up"], {
+      cwd: __dirname,
+      env: process.env,
+      maxBuffer: 20 * 1024 * 1024,
+    });
+    if (stdout) console.log("[run-migrations] stdout:\n", stdout);
+    if (stderr) console.log("[run-migrations] stderr:\n", stderr);
+    res.json({ status: "migrations executed" });
+  } catch (e) {
+    console.error("MIGRATIONS HTTP FAILED", e);
+    const msg = e?.message || String(e);
+    const out = e?.stdout ? String(e.stdout) : "";
+    const err = e?.stderr ? String(e.stderr) : "";
+    res.status(500).json({
+      status: "migrations failed",
+      error: msg,
+      stdout: out.slice(0, 8000),
+      stderr: err.slice(0, 8000),
+    });
+  }
+});
 
 // --- Routes masquées temporairement (restauration progressive) ---
 // Voir commit historique 7f5e4cc pour le fichier complet (calc, calpinage, PDF, mail, etc.)
