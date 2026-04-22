@@ -16,8 +16,7 @@
 </head>
 <body>
   <div id="root"></div>
-  <!-- Chemin absolu : avec une URL profonde (/crm.html/client-portal/...), un src relatif
-       pointerait vers .../client-portal/src/main.tsx (404) et l’app ne se charge pas. -->
+  <!-- src absolu : avec une URL profonde (/client-portal/...), un src relatif vers main.tsx se résoudrait mal. -->
   <script type="module" src="/src/main.tsx"></script>
 </body>
 </html>

@@ -57,22 +57,6 @@ import MailOutboxPage from "./pages/mail/MailOutboxPage";
 import MailSettingsPage from "./pages/settings/MailSettingsPage";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 
-/**
- * Le routeur utilise basename `/crm.html`. Une URL du type `/client-portal/:token`
- * (sans ce préfixe) ne correspond à aucune route → écran blanc. On corrige l’URL avant le 1er rendu.
- */
-if (typeof window !== "undefined") {
-  const p = window.location.pathname;
-  if (p === "/client-portal" || p.startsWith("/client-portal/")) {
-    const suffix = p === "/client-portal" ? "/client-portal/" : p;
-    window.history.replaceState(
-      window.history.state,
-      "",
-      `/crm.html${suffix}${window.location.search}${window.location.hash}`
-    );
-  }
-}
-
 const router = createBrowserRouter(
   [
     {
@@ -204,7 +188,6 @@ const router = createBrowserRouter(
       ]
     }
   ],
-  { basename: "/crm.html" }
 );
 
 const root = document.getElementById("root");

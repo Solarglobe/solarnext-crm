@@ -259,7 +259,7 @@ test.describe('EXPORT-JSON', () => {
     // -----------------------------
     // 1) Boot CRM → Lead → Calpinage
     // -----------------------------
-    await page.goto('/crm.html', { waitUntil: 'domcontentloaded' });
+    await page.goto("/", { waitUntil: "domcontentloaded" });
     await page.waitForSelector('#root', { timeout: 20000 });
     await page.waitForLoadState('networkidle');
 

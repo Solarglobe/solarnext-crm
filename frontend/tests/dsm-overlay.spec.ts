@@ -26,7 +26,7 @@ test.describe('DSM Overlay — Preuve réelle', () => {
 
   test('Radar DSM — injection directe (preuve drawRadar + pixels)', async ({ page }) => {
     test.setTimeout(30000);
-    await page.goto('/crm.html', { waitUntil: 'domcontentloaded' });
+    await page.goto("/", { waitUntil: "domcontentloaded" });
     await page.waitForSelector('#root', { timeout: 15000 });
 
     const result = await page.evaluate(async (maskJson) => {
@@ -99,7 +99,7 @@ test.describe('DSM Overlay — Preuve réelle', () => {
 
   test('Shading summary — bloc Analyse d’ombrage + buildShadingSummary + JSON', async ({ page }) => {
     test.setTimeout(30000);
-    await page.goto('/crm.html', { waitUntil: 'domcontentloaded' });
+    await page.goto("/", { waitUntil: "domcontentloaded" });
     await page.waitForSelector('#root', { timeout: 15000 });
 
     const result = await page.evaluate(async (maskJson) => {
@@ -197,7 +197,7 @@ test.describe('DSM Overlay — Preuve réelle', () => {
 
   test('Radar DSM — sans #canvas-wrapper (fallback canvas parent)', async ({ page }) => {
     test.setTimeout(30000);
-    await page.goto('/crm.html', { waitUntil: 'domcontentloaded' });
+    await page.goto("/", { waitUntil: "domcontentloaded" });
     await page.waitForSelector('#root', { timeout: 15000 });
 
     const result = await page.evaluate(async (maskJson) => {
@@ -267,7 +267,7 @@ test.describe('DSM Overlay — Preuve réelle', () => {
 
   test('Panneaux colorés par perte — rouge si > 10%, restauration à la désactivation', async ({ page }) => {
     test.setTimeout(30000);
-    await page.goto('/crm.html', { waitUntil: 'domcontentloaded' });
+    await page.goto("/", { waitUntil: "domcontentloaded" });
     await page.waitForSelector('#root', { timeout: 15000 });
 
     await page.evaluate(async (maskJson) => {
@@ -382,7 +382,7 @@ test.describe('DSM Overlay — Preuve réelle', () => {
 
   test('Direction dominante — obstacle 60° secteur NE → Nord-Est, energyLossSharePct > 50%', async ({ page }) => {
     test.setTimeout(30000);
-    await page.goto('/crm.html', { waitUntil: 'domcontentloaded' });
+    await page.goto("/", { waitUntil: "domcontentloaded" });
     await page.waitForSelector('#root', { timeout: 15000 });
 
     // Obstacle artificiel à 60° d'élévation dans secteur Nord-Est (az 40–70°)
@@ -567,7 +567,7 @@ test.describe('DSM Overlay — Preuve réelle', () => {
       localStorage.setItem('solarnext_token', 'E2E_FAKE_TOKEN');
     });
 
-    await page.goto('/crm.html', { waitUntil: 'domcontentloaded' });
+    await page.goto("/", { waitUntil: "domcontentloaded" });
     await page.waitForSelector('#root', { timeout: 20000 });
     await page.waitForLoadState('networkidle');
 

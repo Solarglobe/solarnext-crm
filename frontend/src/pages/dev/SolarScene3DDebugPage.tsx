@@ -1,6 +1,6 @@
 /**
  * Point d’entrée debug — visualisation SolarScene3D (dev uniquement recommandé).
- * Route : /dev/solar-scene-3d (basename /crm.html)
+ * Route : /dev/solar-scene-3d
  */
 
 import { Box, FormControlLabel, Stack, Switch, Typography } from "@mui/material";

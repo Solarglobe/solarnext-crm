@@ -56,7 +56,7 @@ export default function AdminOrganizationsPage() {
       await postSuperAdminOrgSwitchAudit(org.id);
       localStorage.setItem(LS_ORG, org.id);
       localStorage.setItem(LS_SUPER_EDIT, "0");
-      window.location.href = "/crm.html/dashboard";
+      window.location.href = "/dashboard";
     } catch (e) {
       window.alert(e instanceof Error ? e.message : "Erreur lors de l’accès au compte");
       setBusyId(null);

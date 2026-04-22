@@ -46,7 +46,7 @@ export function logout(): void {
   localStorage.removeItem("solarnext_current_organization_id");
   localStorage.removeItem("solarnext_super_admin");
   localStorage.removeItem("solarnext_super_admin_edit_mode");
-  window.location.href = "/crm.html/login";
+  window.location.href = "/login";
 }
 
 /**

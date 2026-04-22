@@ -39,7 +39,7 @@ function resolvePortalUrl(data: CreateResponse): string {
     return data.portal_url.trim();
   }
   const origin = typeof window !== "undefined" ? window.location.origin.replace(/\/$/, "") : "";
-  return `${origin}/crm.html/client-portal/${encodeURIComponent(data.token)}`;
+  return `${origin}/client-portal/${encodeURIComponent(data.token)}`;
 }
 
 async function copyTextToClipboard(text: string): Promise<boolean> {

@@ -167,14 +167,32 @@ export default defineConfig({
   plugins: [
     dpToolStaticPlugin(),
     {
-      name: "crm-html-spa-fallback",
+      name: "index-html-spa-fallback",
       configureServer(server) {
+        const isSpaIndexPath = (p: string): boolean => {
+          if (p === "/" || p === "/index.html") return false;
+          if (p.startsWith("/@") || p.startsWith("/node_modules/") || p.startsWith("/src/")) return false;
+          if (p.startsWith("/assets/")) return false;
+          if (p === "/dp-tool" || p.startsWith("/dp-tool/")) return false;
+          if (p.startsWith("/config/") || p.startsWith("/calpinage/") || p.startsWith("/shared/")) return false;
+          if (/\.(ico|png|jpe?g|gif|svg|webp|css|mjs?|map|json|woff2?|ttf|eot|pdf|html?)$/i.test(p)) return false;
+          if (p.startsWith("/api") || p.startsWith("/auth") || p.startsWith("/pdf-assets")) return false;
+          if (p.startsWith("/financial-quote-pdf-render") || p.startsWith("/pdf-render") || p.startsWith("/calpinage-render"))
+            return false;
+          if (p.startsWith("/_")) return false;
+          return true;
+        };
         const fallback = (req: import("connect").IncomingMessage, res: import("http").ServerResponse, next: (err?: unknown) => void) => {
           if (!req.url) return next();
-          const pathname = req.url.split("?")[0];
-          if (req.url.startsWith("/crm.html/")) {
-            req.url = "/crm.html";
-            return next();
+          const pathname = req.url.split("?")[0] ?? "";
+          if (req.method === "GET" && (pathname === "/crm.html" || pathname.startsWith("/crm.html/"))) {
+            const u = new URL(req.url, "http://dev.local");
+            const pth = u.pathname;
+            const tail = pth === "/crm.html" || pth === "/crm.html/" ? "/" : pth.startsWith("/crm.html/") ? pth.slice("/crm.html".length) || "/" : "/";
+            res.statusCode = 302;
+            res.setHeader("Location", tail + (u.search || "") + (u.hash || ""));
+            res.end();
+            return;
           }
           if (pathname === "/financial-quote-pdf-render" || req.url.startsWith("/financial-quote-pdf-render?")) {
             const url =
@@ -231,6 +249,11 @@ export default defineConfig({
             req.url = "/calpinage-render.html";
             return next();
           }
+          if (req.method === "GET" && isSpaIndexPath(pathname)) {
+            const q = req.url.includes("?") ? "?" + req.url.split("?").slice(1).join("?") : "";
+            req.url = "/index.html" + q;
+            return next();
+          }
           next();
         };
         return () => {
@@ -262,7 +285,7 @@ export default defineConfig({
     emptyOutDir: true,
     rollupOptions: {
       input: {
-        crm: "./crm.html",
+        index: "./index.html",
         "pdf-render": "./pdf-render.html",
         "financial-quote-pdf-render": "./financial-quote-pdf-render.html",
         "calpinage-render": "./calpinage-render.html",

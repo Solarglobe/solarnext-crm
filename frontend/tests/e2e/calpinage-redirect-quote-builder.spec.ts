@@ -1,6 +1,6 @@
 /**
  * E2E — Redirection Quote Builder après "Valider le calpinage".
- * Vérifie que la navigation vers /crm.html/studies/:id/quote-builder est bien effectuée.
+ * Vérifie que la navigation vers /studies/:id/quote-builder est bien effectuée.
  *
  * Fixture : study ID e2e-study-1 (même que navigation.spec, export-json.spec).
  * Les mocks fournissent une étude + versions ; l’overlay reçoit un état minimal pour activer le bouton Valider.
@@ -11,7 +11,7 @@ import { test, expect } from '@playwright/test';
 const STUDY_ID = 'e2e-study-1';
 
 test.describe('Calpinage — Redirection Quote Builder', () => {
-  test('après "Valider le calpinage", l’URL doit être /crm.html/studies/:id/quote-builder', async ({
+  test('après "Valider le calpinage", l’URL doit être /studies/:id/quote-builder', async ({
     page,
     context,
   }) => {
@@ -33,7 +33,7 @@ test.describe('Calpinage — Redirection Quote Builder', () => {
       });
     });
 
-    // ——— Mocks leads (pour le premier chargement /crm.html) ———
+    // ——— Mocks leads (pour le premier chargement) ———
     await context.route('**/api/leads/kanban', async (route) => {
       return route.fulfill({
         status: 200,
@@ -171,9 +171,9 @@ test.describe('Calpinage — Redirection Quote Builder', () => {
       localStorage.setItem('solarnext_token', 'E2E_FAKE_TOKEN');
     });
 
-    // ——— Aller sur le CRM puis naviguer en client vers l’étude (évite que Vite serve index.html pour /crm.html/studies/…) ———
+    // ——— Aller sur le CRM puis naviguer en client vers l’étude ———
     page.setDefaultNavigationTimeout(30000);
-    await page.goto('/crm.html', { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await page.goto("/", { waitUntil: "domcontentloaded", timeout: 30000 });
     await page.waitForSelector('#root', { timeout: 15000 });
     await page.waitForLoadState('networkidle').catch(() => {});
 
@@ -280,10 +280,10 @@ test.describe('Calpinage — Redirection Quote Builder', () => {
     await validateBtn.click({ force: true });
 
     // ——— Attendre la navigation vers quote-builder ———
-    await page.waitForURL(/\/crm\.html\/studies\/.+\/quote-builder/, { timeout: 15000 });
+    await page.waitForURL(/\/studies\/.+\/quote-builder/, { timeout: 15000 });
 
     // ——— Assert URL finale ———
-    await expect(page).toHaveURL(/\/crm\.html\/studies\/.+\/quote-builder/);
+    await expect(page).toHaveURL(/\/studies\/.+\/quote-builder/);
   });
 
   test('Validate succeeds even without shading (shading: null, geometry3d: null, no require crash)', async ({ page, context }) => {
@@ -341,7 +341,7 @@ test.describe('Calpinage — Redirection Quote Builder', () => {
     await context.route('**/api/public/pv/**', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: '[]' }));
 
     await page.addInitScript(() => localStorage.setItem('solarnext_token', 'E2E_FAKE_TOKEN'));
-    await page.goto('/crm.html', { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await page.goto("/", { waitUntil: "domcontentloaded", timeout: 30000 });
     await page.waitForSelector('#root', { timeout: 15000 });
     await page.waitForLoadState('networkidle').catch(() => {});
     await page.waitForFunction(() => document.querySelectorAll('.sn-leads-card').length > 0 || document.querySelectorAll('table tbody tr').length > 0 || document.querySelector('.sn-leads-page-error') !== null, { timeout: 15000 });
@@ -378,9 +378,9 @@ test.describe('Calpinage — Redirection Quote Builder', () => {
     await page.waitForTimeout(1500);
 
     await page.locator('button:has-text("Valider le calpinage")').click({ force: true });
-    await page.waitForURL(/\/crm\.html\/studies\/.+\/quote-builder/, { timeout: 15000 });
+    await page.waitForURL(/\/studies\/.+\/quote-builder/, { timeout: 15000 });
 
-    await expect(page).toHaveURL(/\/crm\.html\/studies\/.+\/quote-builder/);
+    await expect(page).toHaveURL(/\/studies\/.+\/quote-builder/);
     const requireError = consoleErrors.find((t) => t.includes('require is not defined'));
     expect(requireError, 'No "require is not defined" during validate').toBeUndefined();
     if (postCalpinageBody && postCalpinageBody.geometry_json && typeof postCalpinageBody.geometry_json === 'object') {
@@ -429,7 +429,7 @@ test.describe('Calpinage — Redirection Quote Builder', () => {
     await context.route('**/api/public/pv/**', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: '[]' }));
 
     await page.addInitScript(() => localStorage.setItem('solarnext_token', 'E2E_FAKE_TOKEN'));
-    await page.goto('/crm.html', { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await page.goto("/", { waitUntil: "domcontentloaded", timeout: 30000 });
     await page.waitForSelector('#root', { timeout: 15000 });
     await page.waitForLoadState('networkidle').catch(() => {});
     await page.waitForFunction(() => document.querySelectorAll('.sn-leads-card').length > 0 || document.querySelectorAll('table tbody tr').length > 0 || document.querySelector('.sn-leads-page-error') !== null, { timeout: 15000 });
@@ -471,9 +471,9 @@ test.describe('Calpinage — Redirection Quote Builder', () => {
     if ((await confirmModal.count()) > 0) {
       await confirmModal.locator('button:has-text("Valider"), button:has-text("Confirmer"), button:has-text("OK")').first().click();
     }
-    await page.waitForURL(/\/crm\.html\/studies\/.+\/quote-builder/, { timeout: 15000 });
+    await page.waitForURL(/\/studies\/.+\/quote-builder/, { timeout: 15000 });
 
-    await expect(page).toHaveURL(/\/crm\.html\/studies\/.+\/quote-builder/);
+    await expect(page).toHaveURL(/\/studies\/.+\/quote-builder/);
     if (postCalpinageBody?.geometry_json && typeof postCalpinageBody.geometry_json === 'object') {
       const sh = (postCalpinageBody.geometry_json as Record<string, unknown>).shading;
       const totalLossPct = sh && typeof sh === 'object' && sh !== null && 'totalLossPct' in sh ? (sh as { totalLossPct?: number }).totalLossPct : (sh && typeof sh === 'object' && sh !== null && 'combined' in sh && (sh as { combined?: { totalLossPct?: number } }).combined ? ((sh as { combined: { totalLossPct?: number } }).combined.totalLossPct) : undefined);
@@ -513,7 +513,7 @@ test.describe('Calpinage — Redirection Quote Builder', () => {
     await context.route('**/api/public/pv/**', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: '[]' }));
 
     await page.addInitScript(() => localStorage.setItem('solarnext_token', 'E2E_FAKE_TOKEN'));
-    await page.goto('/crm.html', { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await page.goto("/", { waitUntil: "domcontentloaded", timeout: 30000 });
     await page.waitForSelector('#root', { timeout: 15000 });
     await page.waitForLoadState('networkidle').catch(() => {});
     await page.waitForFunction(() => document.querySelectorAll('.sn-leads-card').length > 0 || document.querySelectorAll('table tbody tr').length > 0 || document.querySelector('.sn-leads-page-error') !== null, { timeout: 15000 });
@@ -565,7 +565,7 @@ test.describe('Calpinage — Redirection Quote Builder', () => {
     });
 
     await page.locator('button:has-text("Valider le calpinage")').click({ force: true });
-    await page.waitForURL(/\/crm\.html\/studies\/.+\/quote-builder/, { timeout: 15000 });
+    await page.waitForURL(/\/studies\/.+\/quote-builder/, { timeout: 15000 });
 
     const count = await page.evaluate(() => (window as unknown as { __shadingComputeCount?: number }).__shadingComputeCount ?? -1);
     expect(count).toBe(0);

@@ -149,7 +149,7 @@ test.describe('PROVIDER-STRESS', () => {
     // -----------------------------
     // Boot CRM
     // -----------------------------
-    await page.goto('/crm.html', { waitUntil: 'domcontentloaded' });
+    await page.goto("/", { waitUntil: "domcontentloaded" });
     await page.waitForSelector('#root', { timeout: 20000 });
     await page.waitForLoadState('networkidle');
 

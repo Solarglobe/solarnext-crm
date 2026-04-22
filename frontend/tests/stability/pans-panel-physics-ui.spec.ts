@@ -223,7 +223,7 @@ test.describe('PANS_PANEL_PHYSICS_UI', () => {
       localStorage.setItem('solarnext_token', token);
     });
 
-    await page.goto(new URL('crm.html/leads', base).href, { waitUntil: 'domcontentloaded' });
+    await page.goto(new URL("leads", base).href, { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('#root', { timeout: 25000 });
     await page.waitForLoadState('networkidle');
 

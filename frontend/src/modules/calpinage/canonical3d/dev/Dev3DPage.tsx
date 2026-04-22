@@ -1,6 +1,6 @@
 /**
  * Sandbox 3D canonical — plein écran, hors UX métier.
- * Route : /dev/3d (basename /crm.html), active uniquement si `import.meta.env.DEV`.
+ * Route : /dev/3d (active uniquement si `import.meta.env.DEV`).
  */
 
 import type { CSSProperties } from "react";

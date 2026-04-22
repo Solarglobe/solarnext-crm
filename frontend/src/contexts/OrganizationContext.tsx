@@ -163,7 +163,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
     }
     localStorage.setItem(LS_ORG, home);
     localStorage.setItem(LS_SUPER_EDIT, "0");
-    window.location.href = "/crm.html/dashboard";
+    window.location.href = "/dashboard";
   }, [isSuperAdmin, jwtHomeOrganizationId]);
 
   const setSuperAdminEditMode = useCallback((enabled: boolean) => {

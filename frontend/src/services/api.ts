@@ -50,7 +50,7 @@ function handleSessionExpired(): void {
   document.body.appendChild(banner);
 
   setTimeout(() => {
-    window.location.href = "/crm.html/login";
+    window.location.href = "/login";
   }, 2200);
 }
 

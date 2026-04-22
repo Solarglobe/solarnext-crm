@@ -17,7 +17,7 @@ export default defineConfig({
     ignoreHTTPSErrors: true,
     actionTimeout: 15000,
     navigationTimeout: 30000,
-    baseURL: process.env.E2E_BASE_URL || 'http://localhost:5173/crm.html/',
+    baseURL: process.env.E2E_BASE_URL || 'http://localhost:5173/',
     trace: 'retain-on-failure',
     video: 'off',
     screenshot: 'only-on-failure',

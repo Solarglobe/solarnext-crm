@@ -2,7 +2,7 @@
  * Loader unique pour les dépendances legacy du Calpinage.
  * Cache global (Promise) pour éviter double chargement si overlay réouvert.
  * Tous les scripts locaux utilisent withBase() pour éviter les chemins relatifs
- * cassés par crm.html#/leads/...
+ * (historique) hash ou routes /leads/…
  *
  * html2canvas : requis pour la capture Phase 1/2 (toiture satellite) — map-selector-bundle.js.
  * Non utilisé pour le snapshot PDF (Playwright côté serveur).
