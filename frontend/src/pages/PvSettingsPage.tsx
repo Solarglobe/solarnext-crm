@@ -294,7 +294,7 @@ export default function PvSettingsPage() {
         />
       </div>
 
-      <div className="pv-settings-page__scroll">
+      <div className="pv-settings-page__body">
 
       {pvTab === "economie" && (
         <div className="pv-eco-stack">

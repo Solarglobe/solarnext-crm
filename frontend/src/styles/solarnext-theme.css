@@ -1058,11 +1058,11 @@ a.sn-btn {
 }
 
 /* ========== App Layout ========== */
-/* CP-LAYOUT-FIX — height: 100vh (pas min-height) pour borner le flex container.
-   min-height laissait l'élément croître librement → scrollHeight page = contenu onglet */
+/* Scroll principal = document (body). Shell CRM en flux naturel, sidebar sticky. */
 .sn-app-root {
   display: flex;
-  height: 100vh;
+  flex-direction: column;
+  min-height: 100vh;
   width: 100%;
 }
 
@@ -1071,8 +1071,12 @@ a.sn-btn {
   flex-direction: column;
   width: 260px;
   flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  max-height: 100vh;
   min-height: 0;
-  height: 100%;
+  height: auto;
   background: var(--bg-muted);
   border-right: 1px solid var(--border);
   color: var(--text);
@@ -1382,51 +1386,43 @@ a.sn-btn {
   color: var(--text-muted);
 }
 
-/* Colonne flex : le contenu (Outlet) peut occuper toute la hauteur utile (pages shell Clients / Leads) */
+/* Colonne contenu : pas de scroll interne — le document porte le défilement vertical */
 .sn-main {
-  flex: 1;
+  flex: 1 1 auto;
   display: flex;
   flex-direction: column;
-  min-height: 0;
-  height: 100%;
   padding: var(--spacing-32);
-  overflow: auto;
   width: 100%;
   box-sizing: border-box;
-}
-
-/* Une seule racine (page) : remplit la zone main pour les vues outil pleine hauteur */
-.sn-main > .sn-leads-page--shell {
-  flex: 1 1 auto;
-  min-height: 0;
-  /* height calc(100vh-64px) empêche le flex de distribuer l’espace ; on laisse le flux flex */
-  height: auto !important;
-  max-height: none !important;
+  min-width: 0;
 }
 
 /* =====================================================
    HALOS : Auth (Login) + App (dark only) — JAMAIS sur body
    ===================================================== */
 
-html, body {
-  height: 100%;
+html {
+  min-height: 100%;
 }
 
-/* CP-LAYOUT-FIX — #root doit être borné à la hauteur viewport
-   Sans height: 100%, #root croît librement avec le contenu → la page entière
-   change de taille selon l'onglet actif (cf. bug "taille de page variable") */
 #root {
   position: relative;
   z-index: 1;
-  height: 100%;
+  min-height: 100%;
 }
 
 /* sn-app-bg — Halos App (plus discrets que Login) */
-/* CP-LAYOUT-FIX — height: 100% (de .sn-app-root / #root) au lieu de min-height */
 .sn-app-bg {
   position: relative;
-  height: 100%;
-  overflow: hidden;
+  min-height: 100%;
+  overflow-x: hidden;
+  overflow-y: visible;
+}
+
+@supports (overflow: clip) {
+  .sn-app-bg {
+    overflow-x: clip;
+  }
 }
 
 .sn-app-bg::before {
@@ -2119,37 +2115,29 @@ html, body {
 }
 
 .sn-leads-page__main {
-  min-height: 0;
   border-radius: 16px;
   padding: 0;
 }
 
-/* Shell : Kanban + Liste — même viewport, pas de scroll page sur les données */
+/* Shell : Kanban + Liste — flux document, sans cage scroll interne */
 .sn-leads-page--shell {
   display: flex;
   flex-direction: column;
-  min-height: 0;
-  height: calc(100vh - 64px);
-  max-height: calc(100dvh - 64px);
-  overflow: hidden;
+  width: 100%;
   box-sizing: border-box;
 }
 
 .sn-leads-page__data-pane {
-  flex: 1 1 auto;
-  min-height: 0;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  width: 100%;
 }
 
-/* Conteneur vue Liste / Kanban — remplit la zone données + léger fade au changement de mode */
+/* Conteneur vue Liste / Kanban + léger fade au changement de mode */
 .sn-leads-page__view-root {
-  flex: 1 1 auto;
-  min-height: 0;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  width: 100%;
   animation: sn-leads-view-enter 0.2s ease-out;
 }
 
@@ -2254,14 +2242,12 @@ html, body {
 
 /* ——— Kanban — pipeline visuel fort ——— */
 .sn-leads-kanban-host {
-  flex: 1 1 auto;
   display: flex;
   flex-direction: column;
-  min-height: 0;
-  overflow: hidden;
+  width: 100%;
 }
 
-/* Scrollbars discrets — Kanban H, colonnes V, liste */
+/* Scrollbars discrets — Kanban H, tableaux larges (liste) */
 .sn-leads-scrollbar {
   scrollbar-width: thin;
   scrollbar-color: rgba(100, 116, 139, 0.35) transparent;
@@ -2294,12 +2280,10 @@ html, body {
 }
 
 .sn-leads-kanban-scroll {
-  flex: 1 1 auto;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
+  display: block;
+  width: 100%;
   overflow-x: auto;
-  overflow-y: hidden;
+  overflow-y: visible;
   cursor: grab;
   overscroll-behavior-x: contain;
   scrollbar-gutter: auto;
@@ -2342,16 +2326,13 @@ html, body {
   /* Densité type ERPNext : colonnes plus étroites, plus visibles */
   --sn-kanban-col-w: clamp(200px, 3.5vw + 160px, 260px);
   display: flex;
-  flex: 1 1 0;
-  align-self: flex-start; /* sinon stretch horizontal casse overflow-x */
+  flex: 0 0 auto;
+  align-self: flex-start;
   gap: 8px;
-  align-items: stretch;
-  align-content: stretch;
+  align-items: flex-start;
+  align-content: flex-start;
   width: max-content;
   min-width: 100%;
-  min-height: 0;
-  max-height: 100%;
-  height: 100%;
   box-sizing: border-box;
 }
 
@@ -2365,9 +2346,9 @@ html, body {
   border: 1px solid var(--kanban-col-border);
   display: flex;
   flex-direction: column;
-  align-self: stretch;
-  height: 100%;
-  max-height: 100%;
+  align-self: flex-start;
+  height: auto;
+  max-height: none;
   min-height: 0;
   /* Clip strict du dégradé + enfants (évite fuites aux coins, surtout avec backdrop-filter) */
   overflow: hidden;
@@ -2576,18 +2557,14 @@ html, body {
 }
 
 .sn-leads-kanban-col__body {
-  flex: 1 1 auto;
-  min-height: 0;
+  flex: 0 0 auto;
   display: flex;
   flex-direction: column;
   gap: 6px;
   padding: 6px 7px 6px;
   border-radius: 0 0 16px 16px;
   overflow-x: hidden;
-  overflow-y: auto;
-  overscroll-behavior-y: contain;
-  touch-action: pan-y;
-  -webkit-overflow-scrolling: touch;
+  overflow-y: visible;
 }
 
 .sn-leads-kanban-col__empty {
@@ -3213,11 +3190,8 @@ html, body {
 
 /* ——— Liste premium (grille, pas tableau générique) ——— */
 .sn-leads-list-host {
-  flex: 1 1 auto;
-  min-height: 0;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
   width: 100%;
 }
 
@@ -3228,11 +3202,10 @@ html, body {
 }
 
 .sn-leads-list-card--fill {
-  flex: 1 1 auto;
-  min-height: 0;
   display: flex !important;
   flex-direction: column;
-  overflow: hidden !important;
+  width: 100%;
+  overflow: visible !important;
 }
 
 .sn-leads-list-shell {
@@ -3240,7 +3213,7 @@ html, body {
 }
 
 .sn-leads-list-card {
-  overflow: hidden;
+  overflow: visible;
   border-radius: 16px !important;
   border: 1px solid var(--border-soft) !important;
 }
@@ -3250,10 +3223,8 @@ html, body {
 }
 
 .sn-leads-premium-scroll {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow: auto;
-  -webkit-overflow-scrolling: touch;
+  width: 100%;
+  min-width: 0;
 }
 
 .sn-leads-premium {

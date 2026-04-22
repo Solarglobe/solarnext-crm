@@ -5,8 +5,6 @@
 .pv-settings-page {
   display: flex;
   flex-direction: column;
-  flex: 1 1 auto;
-  min-height: 0;
   padding: clamp(16px, 2.5vw, 24px);
   width: 100%;
   margin: 0;
@@ -19,10 +17,8 @@
   margin-bottom: 16px;
 }
 
-.pv-settings-page__scroll {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
+.pv-settings-page__body {
+  width: 100%;
   padding-top: 4px;
 }
 

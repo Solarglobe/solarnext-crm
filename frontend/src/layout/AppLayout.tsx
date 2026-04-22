@@ -397,7 +397,7 @@ export function AppLayout() {
   return (
     <div className="sn-app-root sn-app-bg" style={{ flexDirection: "column" }}>
       <SuperAdminSupportBanner />
-      <div style={{ display: "flex", flex: 1, minHeight: 0, width: "100%" }}>
+      <div style={{ display: "flex", alignItems: "flex-start", width: "100%" }}>
       <aside className="sn-sidebar">
         <div className="sn-sidebar-header">
           <div className="sn-sidebar-header-brand">
@@ -524,7 +524,7 @@ export function AppLayout() {
           ) : null}
         </nav>
       </aside>
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
+      <div style={{ flex: "1 1 auto", display: "flex", flexDirection: "column", minWidth: 0 }}>
         <GlobalSearchBar />
         <main className="sn-main">
           <Outlet />

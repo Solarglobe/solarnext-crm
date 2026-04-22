@@ -100,16 +100,6 @@ function isCardOrInteractiveTarget(target: EventTarget | null): boolean {
   );
 }
 
-function columnBodyCanScrollVertically(el: HTMLElement): boolean {
-  return el.scrollHeight > el.clientHeight + 1;
-}
-
-function getColumnBodyFromTarget(target: EventTarget | null): HTMLElement | null {
-  const el = target as HTMLElement | null;
-  if (!el) return null;
-  return el.closest(".sn-leads-kanban-col__body") as HTMLElement | null;
-}
-
 function findStageForLeadId(
   itemsByStage: Record<string, string[]>,
   leadId: string
@@ -669,31 +659,23 @@ export function LeadsKanbanView({
     return () => window.removeEventListener("pointermove", onMove);
   }, [activeId]);
 
-  /** Molette → scroll horizontal (sans Shift) ; laisse le scroll vertical dans les colonnes. */
+  /**
+   * Molette : horizontal du board si Shift, ou si le geste est clairement horizontal (trackpad).
+   * Sinon le vertical reste natif → scroll du document.
+   */
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
 
     const onWheel = (e: WheelEvent) => {
-      const colBody = getColumnBodyFromTarget(e.target);
-      if (colBody && columnBodyCanScrollVertically(colBody)) {
-        const { scrollTop, scrollHeight, clientHeight } = colBody;
-        const atTop = scrollTop <= 0;
-        const atBottom = scrollTop + clientHeight >= scrollHeight - 1;
-        const dy = e.deltaY;
-        if ((dy < 0 && !atTop) || (dy > 0 && !atBottom)) {
-          return;
-        }
+      if (e.shiftKey) {
+        e.preventDefault();
+        el.scrollLeft += e.deltaY + e.deltaX;
+        return;
       }
-
       if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
         e.preventDefault();
         el.scrollLeft += e.deltaX;
-        return;
-      }
-      if (e.deltaY) {
-        e.preventDefault();
-        el.scrollLeft += e.deltaY;
       }
     };
 

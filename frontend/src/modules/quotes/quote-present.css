@@ -144,8 +144,8 @@
   }
 
   /**
-   * Impression depuis /quotes/:id/present : la mise en page CRM (.sn-main overflow:auto + 100vh)
-   * ne montre qu’une « fenêtre » au navigateur — on force tout le flux à être visible pour plusieurs pages A4.
+   * Impression depuis /quotes/:id/present : forcer tout le flux visible pour plusieurs pages A4
+   * (le shell CRM utilise le scroll document ; ces règles restent une sécurité pour l’aperçu).
    */
   html body.qp-print-quote-present {
     height: auto !important;
