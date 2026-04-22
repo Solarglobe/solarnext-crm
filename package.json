@@ -1,0 +1,7 @@
+{
+  "name": "solarnext-crm",
+  "private": true,
+  "scripts": {
+    "start": "cd backend && node bootstrap.js"
+  }
+}
