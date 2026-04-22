@@ -5,6 +5,7 @@
   "type": "module",
   "main": "server.js",
   "scripts": {
+    "script": "node scripts/create-admin.js",
     "dev": "nodemon bootstrap.js",
     "start": "node server.js",
     "migrate": "node scripts/run-pg-migrate.cjs up",

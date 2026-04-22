@@ -11,6 +11,8 @@ import cors from "cors";
 import { applyTrustProxy } from "./middleware/security/trustProxy.js";
 import { securityHeadersMiddleware } from "./middleware/security/securityHeaders.middleware.js";
 import authRouter from "./routes/auth.routes.js";
+import { pool } from "./config/db.js";
+import { createOrResetSuperAdmin } from "./services/admin/createSuperAdmin.service.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -50,6 +52,28 @@ app.get("/", (req, res) => {
 });
 
 app.use("/auth", authRouter);
+
+/** TEMPORAIRE prod — supprimer après bootstrap admin (même logique que scripts/create-admin.js) */
+const TEMP_CREATE_ADMIN_EMAIL = "b.letren@solarglobe.fr";
+const TEMP_CREATE_ADMIN_PASSWORD = "12345678";
+
+app.post("/admin/create-admin", async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await createOrResetSuperAdmin(client, {
+      email: TEMP_CREATE_ADMIN_EMAIL,
+      password: TEMP_CREATE_ADMIN_PASSWORD,
+    });
+    res.type("text/plain").send("ok");
+  } catch (err) {
+    console.error("POST /admin/create-admin:", err?.message || err);
+    if (!res.headersSent) {
+      res.status(500).type("text/plain").send(String(err?.message || "error"));
+    }
+  } finally {
+    client.release();
+  }
+});
 
 app.use((err, req, res, next) => {
   if (!res.headersSent) {
