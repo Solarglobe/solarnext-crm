@@ -6,7 +6,7 @@
   "main": "server.js",
   "scripts": {
     "dev": "nodemon bootstrap.js",
-    "start": "node server.js",
+    "start": "npm run migrate && node server.js",
     "migrate": "node scripts/run-pg-migrate.cjs up",
     "migrate:create": "node scripts/run-pg-migrate.cjs create",
     "migrate:up": "node scripts/run-pg-migrate.cjs up",
