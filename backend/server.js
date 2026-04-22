@@ -38,41 +38,35 @@ const __dirname = path.dirname(__filename);
 // ------------------------------------------------------------
 const app = express();
 applyTrustProxy(app);
-app.use(securityHeadersMiddleware);
 
 // ------------------------------------------------------------
-// MIDDLEWARES OBLIGATOIRES
-// CORS : variables chargées par ./config/load-env.js (dotenv, sans doublon ici)
-// CORS_ORIGIN = une origine, ou plusieurs séparées par des virgules (pas de "*" avec credentials: true)
-// Doit figurer sur Railway, ex. : CORS_ORIGIN=https://solarnext-crm.vercel.app
+// CORS — en premier (avant JSON et routes) : Vercel + CORS_ORIGIN (optionnel, virgules)
+// Sans CORS_ORIGIN, l'app reste autorisée depuis https://solarnext-crm.vercel.app
 // ------------------------------------------------------------
-const corsRaw = process.env.CORS_ORIGIN;
-const corsList =
-  typeof corsRaw === "string" && corsRaw.trim()
-    ? corsRaw
-        .split(",")
-        .map((o) => o.trim())
-        .filter(Boolean)
-    : [];
-const corsOrigin =
-  corsList.length === 0 ? false : corsList.length === 1 ? corsList[0] : corsList;
+const allowedOrigins = [
+  ...new Set([
+    "https://solarnext-crm.vercel.app",
+    ...(process.env.CORS_ORIGIN
+      ? String(process.env.CORS_ORIGIN)
+          .split(",")
+          .map((o) => o.trim())
+          .filter(Boolean)
+      : []),
+  ]),
+];
 
-if (!corsRaw?.trim()) {
-  logger.warn(
-    "[CORS] CORS_ORIGIN indéfini — origin désactivé (false). En prod, définir CORS_ORIGIN (ex. https://solarnext-crm.vercel.app) sur Railway.",
-  );
-}
+console.log("CORS ENABLED FOR:", allowedOrigins);
 
-// Journalisation temporaire (vérif chargement sur Railway)
-logger.info(
-  { CORS_ORIGIN: corsRaw ?? null, originResolved: corsOrigin },
-  "[CORS] CORS configuration au démarrage",
-);
-
-const corsConfig = {
-  origin: corsOrigin,
+const corsHandler = cors({
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error("Not allowed by CORS"));
+  },
   credentials: true,
-  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"],
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: [
     "Content-Type",
     "Authorization",
@@ -81,12 +75,16 @@ const corsConfig = {
     "x-super-admin-edit",
     "X-Super-Admin-Edit",
   ],
-};
+});
 
-const corsHandler = cors(corsConfig);
 app.use(corsHandler);
-// Preflight (OPTIONS) — exigence: route explicite ; même config que app.use (pas cors() nu, incompatible avec credentials)
 app.options("*", corsHandler);
+
+app.use(securityHeadersMiddleware);
+
+// ------------------------------------------------------------
+// MIDDLEWARES OBLIGATOIRES
+// ------------------------------------------------------------
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 app.use(httpLogger);
