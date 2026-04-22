@@ -44,5 +44,5 @@ module.exports = {
   getConnectionString,
   databaseUrl: getConnectionString(),
   dir: "migrations",
-  migrationsTable: "pg_migrations",
+  migrationsTable: "pgmigrations",
 };
