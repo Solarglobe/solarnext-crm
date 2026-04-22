@@ -23,14 +23,7 @@ function normalizeApiOrigin(raw: string): string {
 }
 
 export function getCrmApiBase(): string {
-  const fromEnv = import.meta.env.VITE_API_URL;
-  if (fromEnv != null && String(fromEnv).trim() !== "") {
-    return normalizeApiOrigin(String(fromEnv));
-  }
-  if (import.meta.env.DEV) {
-    return "";
-  }
-  return PRODUCTION_RAILWAY_ORIGIN;
+  return "https://solarnext-crm-production.up.railway.app";
 }
 
 /**

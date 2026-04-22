@@ -44,10 +44,18 @@ applyTrustProxy(app);
 // (même config pour preflight OPTIONS + requêtes : credentials: true)
 // ------------------------------------------------------------
 const corsConfig = {
-  origin: [
-    "https://solarnext-crm.vercel.app",
-    "http://localhost:5173",
-  ],
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+
+    if (
+      origin.includes("vercel.app") ||
+      origin.includes("localhost")
+    ) {
+      return callback(null, true);
+    }
+
+    return callback(new Error("Not allowed by CORS"));
+  },
   credentials: true,
 };
 
