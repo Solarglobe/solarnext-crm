@@ -7,9 +7,8 @@ FROM node:22-bookworm-slim
 WORKDIR /app
 
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev
-# Binaires Chromium pour Playwright (PDF études, devis, factures) — requis en prod
-RUN npx playwright install --with-deps chromium
+# Même logique que Nixpacks/Railway : `npm run build` installe uniquement Chromium (+ deps OS via --with-deps)
+RUN npm ci --omit=dev && npm run build && (ls -la /root/.cache/ms-playwright/ 2>/dev/null; npx playwright --version)
 
 COPY . .
 

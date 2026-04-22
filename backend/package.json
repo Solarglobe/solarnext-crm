@@ -8,6 +8,7 @@
     "script": "node scripts/create-admin.js",
     "dev": "nodemon bootstrap.js",
     "start": "node server.js",
+    "build": "npx playwright install --with-deps chromium",
     "migrate": "node scripts/run-pg-migrate.cjs up",
     "migrate:create": "node scripts/run-pg-migrate.cjs create",
     "migrate:up": "node scripts/run-pg-migrate.cjs up",
