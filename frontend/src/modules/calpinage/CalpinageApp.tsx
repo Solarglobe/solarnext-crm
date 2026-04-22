@@ -286,7 +286,9 @@ export default function CalpinageApp({
             }}
           >
             <h2 style={{ margin: "0 0 12px 0", fontSize: "18px", fontWeight: 600, color: "#b91c1c" }}>
-              Erreur chargement Calpinage
+              {/clé Google Maps|VITE_GOOGLE_MAPS_API_KEY/.test(error.message)
+                ? "Configuration Calpinage (Google Maps)"
+                : "Erreur chargement Calpinage"}
             </h2>
             <p style={{ margin: "0 0 20px 0", fontSize: "14px", color: "var(--muted, #94a3b8)", lineHeight: 1.5 }}>
               {error.message}

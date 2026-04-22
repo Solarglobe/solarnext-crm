@@ -190,6 +190,8 @@ export default defineConfig(({ mode }) => {
   };
 
   return {
+  /** Même racine que `loadEnv(..., repoRoot, "VITE_")` : `.env` à la racine du dépôt (monorepo) + parité Vercel. */
+  envDir: repoRoot,
   plugins: [
     dpToolStaticPlugin({ makeVitePublicRuntimeJs }),
     {

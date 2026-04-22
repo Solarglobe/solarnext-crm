@@ -56,12 +56,9 @@ function ensureGoogleMapsLoaded(): Promise<void> {
 
     const apiKey = getGoogleMapsApiKey();
     if (!apiKey) {
-      googleMapsPromise = null;
-      reject(
-        new Error(
-          "[CALPINAGE] VITE_GOOGLE_MAPS_API_KEY manquante — définir la variable dans .env (racine ou frontend) puis relancer Vite."
-        )
-      );
+      (win as unknown as { __CALPINAGE_GOOGLE_MAPS_KEY_MISSING__?: boolean }).__CALPINAGE_GOOGLE_MAPS_KEY_MISSING__ =
+        true;
+      resolve();
       return;
     }
 
@@ -90,6 +87,10 @@ function ensureGoogleMapsLoaded(): Promise<void> {
 export function resetCalpinageDepsCache(): void {
   ensureCalpinageDepsPromise = null;
   googleMapsPromise = null;
+  if (typeof window !== "undefined") {
+    delete (window as unknown as { __CALPINAGE_GOOGLE_MAPS_KEY_MISSING__?: boolean })
+      .__CALPINAGE_GOOGLE_MAPS_KEY_MISSING__;
+  }
 }
 
 /**
@@ -265,7 +266,16 @@ export async function ensureCalpinageDeps(): Promise<void> {
   ensureCalpinageDepsPromise = (async () => {
     // 0. Google Maps (garantir window.google avant initCalpinage)
     await ensureGoogleMapsLoaded();
-    console.log("[GoogleMaps] ready =", !!(window as unknown as { google?: { maps?: unknown } }).google?.maps);
+    const gmaps = window as unknown as {
+      google?: { maps?: unknown };
+      __CALPINAGE_GOOGLE_MAPS_KEY_MISSING__?: boolean;
+    };
+    if (gmaps.__CALPINAGE_GOOGLE_MAPS_KEY_MISSING__) {
+      throw new Error(
+        "Calpinage : clé Google Maps absente. Ajoutez VITE_GOOGLE_MAPS_API_KEY dans Vercel (Project → Settings → Environment Variables), pour tous les environnements ciblés, puis redéployez. En local : .env à la racine du dépôt ou frontend/.env, puis relancez Vite."
+      );
+    }
+    console.log("[GoogleMaps] ready =", !!gmaps.google?.maps);
 
     // 1. html2canvas (capture Phase 1/2 — map-selector-bundle attend window.html2canvas)
     (window as unknown as { html2canvas?: typeof html2canvas }).html2canvas = html2canvas;
