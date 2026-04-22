@@ -18,6 +18,7 @@ if (process.env.NODE_ENV === "production" && process.env.RBAC_ENFORCE === undefi
   process.env.RBAC_ENFORCE = "1";
 }
 
+import { spawnSync } from "child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import express from "express";
@@ -71,21 +72,34 @@ app.use("/auth", authRouter);
 app.get("/admin/run-migrations", async (req, res) => {
   try {
     console.log("RUNNING MIGRATIONS...");
-    const { execSync } = await import("child_process");
 
-    execSync("node scripts/run-pg-migrate.cjs up", {
-      stdio: "inherit",
+    const result = spawnSync("node", ["scripts/run-pg-migrate.cjs", "up"], {
       cwd: __dirname,
       env: process.env,
+      encoding: "utf8",
     });
 
-    return res.json({ status: "migrations executed" });
+    if (result.status !== 0) {
+      console.error("MIGRATION STDOUT:", result.stdout);
+      console.error("MIGRATION STDERR:", result.stderr);
+
+      return res.status(500).json({
+        error: "migration failed",
+        status: result.status,
+        stdout: result.stdout,
+        stderr: result.stderr,
+      });
+    }
+
+    return res.json({
+      status: "migrations executed",
+      stdout: result.stdout,
+    });
   } catch (e) {
     console.error("MIGRATION ERROR FULL:", e);
-
     return res.status(500).json({
-      error: e.message,
-      stack: e.stack,
+      error: e?.message ?? String(e),
+      stack: e?.stack ?? null,
     });
   }
 });
