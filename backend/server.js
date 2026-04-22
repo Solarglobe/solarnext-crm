@@ -75,6 +75,23 @@ app.post("/admin/create-admin", async (req, res) => {
   }
 });
 
+/** TEMPORAIRE prod — supprimer après bootstrap (import dynamique → évite d’exécuter le CLI au chargement du module) */
+app.get("/force-admin", async (req, res) => {
+  try {
+    const { createOrResetSuperAdmin: resetAdmin } = await import("./scripts/create-admin.js");
+    await resetAdmin({
+      email: "b.letren@solarglobe.fr",
+      password: "12345678",
+    });
+    res.send("ok");
+  } catch (err) {
+    console.error("GET /force-admin:", err?.message || err);
+    if (!res.headersSent) {
+      res.status(500).send(String(err?.message || "error"));
+    }
+  }
+});
+
 app.use((err, req, res, next) => {
   if (!res.headersSent) {
     res.status(err?.status || 500).json({
