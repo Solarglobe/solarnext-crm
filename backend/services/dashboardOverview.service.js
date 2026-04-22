@@ -60,6 +60,16 @@ const QUOTE_FILTERS = `
   AND ($4::uuid IS NULL OR lq.assigned_user_id = $4)
   AND ($5::uuid IS NULL OR lq.source_id = $5)`;
 
+/** invoices n’a pas lead_id : lien lead via quotes (i.quote_id → quotes.lead_id). */
+const INVOICE_LEAD_JOINS = `
+         LEFT JOIN quotes iq ON iq.id = i.quote_id AND iq.organization_id = i.organization_id
+         LEFT JOIN leads li ON li.id = iq.lead_id AND li.organization_id = i.organization_id`;
+
+/** Même logique lorsque la facture est aliasée `inv` (sous-requêtes timeline). */
+const INVOICE_INV_LEAD_JOINS = `
+         LEFT JOIN quotes iq ON iq.id = inv.quote_id AND iq.organization_id = inv.organization_id
+         LEFT JOIN leads li ON li.id = iq.lead_id AND li.organization_id = inv.organization_id`;
+
 const PARAMS = (org, p, assignId, sourceId) => [org, p.startIso, p.endIso, assignId, sourceId];
 
 /** Filtres quote←lead sans fenêtre de dates ($1=org, $2=assign, $3=source) */
@@ -209,7 +219,7 @@ export async function buildDashboardOverview(input) {
     (
       await pool.query(
         `SELECT COALESCE(SUM(i.total_ttc), 0)::numeric AS s FROM invoices i
-         LEFT JOIN leads li ON li.id = i.lead_id AND li.organization_id = i.organization_id
+${INVOICE_LEAD_JOINS}
          WHERE i.organization_id = $1 AND i.archived_at IS NULL
            AND COALESCE(i.issue_date, i.created_at::date)::timestamp >= $2::timestamptz
            AND COALESCE(i.issue_date, i.created_at::date)::timestamp <= $3::timestamptz
@@ -225,7 +235,7 @@ export async function buildDashboardOverview(input) {
       await pool.query(
         `SELECT COALESCE(SUM(p.amount), 0)::numeric AS s FROM payments p
          INNER JOIN invoices i ON i.id = p.invoice_id AND i.organization_id = p.organization_id
-         LEFT JOIN leads li ON li.id = i.lead_id AND li.organization_id = i.organization_id
+${INVOICE_LEAD_JOINS}
          WHERE p.organization_id = $1 AND p.status = 'RECORDED'
            AND p.payment_date >= $2::date AND p.payment_date <= $3::date
            AND ($4::uuid IS NULL OR li.assigned_user_id = $4)
@@ -239,7 +249,7 @@ export async function buildDashboardOverview(input) {
     (
       await pool.query(
         `SELECT COALESCE(SUM(i.amount_due), 0)::numeric AS s FROM invoices i
-         LEFT JOIN leads li ON li.id = i.lead_id AND li.organization_id = i.organization_id
+${INVOICE_LEAD_JOINS}
          WHERE i.organization_id = $1 AND i.archived_at IS NULL
            AND ($2::uuid IS NULL OR li.assigned_user_id = $2)
            AND ($3::uuid IS NULL OR li.source_id = $3)`,
@@ -637,7 +647,7 @@ export async function buildDashboardOverview(input) {
   const invoices_issued_7d = (
     await pool.query(
       `SELECT COUNT(*)::int AS c FROM invoices i
-       LEFT JOIN leads li ON li.id = i.lead_id AND li.organization_id = i.organization_id
+${INVOICE_LEAD_JOINS}
        WHERE i.organization_id = $1 AND i.archived_at IS NULL
          AND COALESCE(i.issue_date, i.created_at::date) >= $2::date
          AND ($3::uuid IS NULL OR li.assigned_user_id = $3)
@@ -651,7 +661,7 @@ export async function buildDashboardOverview(input) {
       await pool.query(
         `SELECT COALESCE(SUM(p.amount), 0)::numeric AS s FROM payments p
          INNER JOIN invoices i ON i.id = p.invoice_id AND i.organization_id = p.organization_id
-         LEFT JOIN leads li ON li.id = i.lead_id AND li.organization_id = i.organization_id
+${INVOICE_LEAD_JOINS}
          WHERE p.organization_id = $1 AND p.status = 'RECORDED' AND p.payment_date >= $2::date
            AND ($3::uuid IS NULL OR li.assigned_user_id = $3)
            AND ($4::uuid IS NULL OR li.source_id = $4)`,
@@ -682,14 +692,14 @@ export async function buildDashboardOverview(input) {
        (SELECT COUNT(*)::int FROM quotes q ${QUOTE_LEAD_JOIN}
          WHERE q.organization_id = $1 AND q.archived_at IS NULL AND q.status = 'ACCEPTED' AND q.accepted_at::date = days.d ${QUOTE_FILTERS}) AS quotes_signed,
        (SELECT COUNT(*)::int FROM invoices i
-         LEFT JOIN leads li ON li.id = i.lead_id AND li.organization_id = i.organization_id
+${INVOICE_LEAD_JOINS}
          WHERE i.organization_id = $1 AND i.archived_at IS NULL
            AND COALESCE(i.issue_date, i.created_at::date) = days.d
            AND ($4::uuid IS NULL OR li.assigned_user_id = $4)
            AND ($5::uuid IS NULL OR li.source_id = $5)) AS invoices_issued,
        (SELECT COALESCE(SUM(p.amount), 0)::numeric FROM payments p
          INNER JOIN invoices inv ON inv.id = p.invoice_id AND inv.organization_id = p.organization_id
-         LEFT JOIN leads li ON li.id = inv.lead_id AND li.organization_id = inv.organization_id
+${INVOICE_INV_LEAD_JOINS}
          WHERE p.organization_id = $1 AND p.status = 'RECORDED' AND p.payment_date = days.d
            AND ($4::uuid IS NULL OR li.assigned_user_id = $4)
            AND ($5::uuid IS NULL OR li.source_id = $5)) AS cash_collected
@@ -725,7 +735,7 @@ export async function buildDashboardOverview(input) {
     (
       await pool.query(
         `SELECT COALESCE(SUM(i.amount_due), 0)::numeric AS s FROM invoices i
-         LEFT JOIN leads li ON li.id = i.lead_id AND li.organization_id = i.organization_id
+${INVOICE_LEAD_JOINS}
          WHERE i.organization_id = $1 AND i.archived_at IS NULL
            AND i.status NOT IN ('PAID', 'CANCELLED', 'DRAFT')
            AND i.due_date IS NOT NULL AND i.due_date < CURRENT_DATE AND i.amount_due > 0
@@ -740,7 +750,7 @@ export async function buildDashboardOverview(input) {
     (
       await pool.query(
         `SELECT COALESCE(SUM(i.amount_due), 0)::numeric AS s FROM invoices i
-         LEFT JOIN leads li ON li.id = i.lead_id AND li.organization_id = i.organization_id
+${INVOICE_LEAD_JOINS}
          WHERE i.organization_id = $1 AND i.archived_at IS NULL
            AND i.status NOT IN ('PAID', 'CANCELLED')
            AND i.due_date IS NOT NULL
