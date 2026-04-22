@@ -22,10 +22,12 @@ export const up = (pgm) => {
     DO $$
     BEGIN
       IF NOT EXISTS (
-        SELECT 1 FROM pg_constraint WHERE conname = 'calpinage_snapshots_snapshot_json_not_null'
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'calpinage_snapshots_snapshot_json_not_null'
       ) THEN
-        ALTER TABLE calpinage_snapshots
-          ADD CONSTRAINT calpinage_snapshots_snapshot_json_not_null CHECK (snapshot_json IS NOT NULL);
+        ALTER TABLE "calpinage_snapshots"
+        ADD CONSTRAINT "calpinage_snapshots_snapshot_json_not_null"
+        CHECK (snapshot_json IS NOT NULL);
       END IF;
     END $$;
   `);

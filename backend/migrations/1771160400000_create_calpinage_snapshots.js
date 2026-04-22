@@ -53,15 +53,24 @@ export const up = (pgm) => {
     },
   });
 
-  pgm.addConstraint("calpinage_snapshots", "calpinage_snapshots_snapshot_json_not_null", {
-    check: "snapshot_json IS NOT NULL",
-  });
+  // snapshot_json : NOT NULL sur la colonne (pas de contrainte CHECK nommée ici) — 1771160500000 ajoute
+  // calpinage_snapshots_snapshot_json_not_null en idempotent si besoin (schémas legacy).
 
   pgm.createIndex("calpinage_snapshots", ["study_id"]);
   pgm.createIndex("calpinage_snapshots", ["study_version_id"]);
-  pgm.addConstraint("calpinage_snapshots", "calpinage_snapshots_study_version_unique", {
-    unique: ["study_id", "version_number"],
-  });
+  pgm.sql(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'calpinage_snapshots_study_version_unique'
+      ) THEN
+        ALTER TABLE "calpinage_snapshots"
+        ADD CONSTRAINT "calpinage_snapshots_study_version_unique"
+        UNIQUE (study_id, version_number);
+      END IF;
+    END $$;
+  `);
 };
 
 export const down = (pgm) => {
