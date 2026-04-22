@@ -42,34 +42,51 @@ app.use(securityHeadersMiddleware);
 
 // ------------------------------------------------------------
 // MIDDLEWARES OBLIGATOIRES
-// CORS : origin exact requis pour credentials: "include" (export PDF DSM, etc.)
-// Access-Control-Allow-Origin: "*" interdit avec credentials
+// CORS : variables chargées par ./config/load-env.js (dotenv, sans doublon ici)
+// CORS_ORIGIN = une origine, ou plusieurs séparées par des virgules (pas de "*" avec credentials: true)
+// Doit figurer sur Railway, ex. : CORS_ORIGIN=https://solarnext-crm.vercel.app
 // ------------------------------------------------------------
-const allowedOrigins = [
-  "http://localhost:5173",
-  ...(process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(",").map((o) => o.trim()) : []),
-];
-app.use(
-  cors({
-    origin(origin, callback) {
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, origin || allowedOrigins[0]);
-      } else {
-        callback(new Error("CORS not allowed"));
-      }
-    },
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: [
-      "Content-Type",
-      "Authorization",
-      "x-organization-id",
-      "X-Organization-Id",
-      "x-super-admin-edit",
-      "X-Super-Admin-Edit",
-    ],
-  })
+const corsRaw = process.env.CORS_ORIGIN;
+const corsList =
+  typeof corsRaw === "string" && corsRaw.trim()
+    ? corsRaw
+        .split(",")
+        .map((o) => o.trim())
+        .filter(Boolean)
+    : [];
+const corsOrigin =
+  corsList.length === 0 ? false : corsList.length === 1 ? corsList[0] : corsList;
+
+if (!corsRaw?.trim()) {
+  logger.warn(
+    "[CORS] CORS_ORIGIN indéfini — origin désactivé (false). En prod, définir CORS_ORIGIN (ex. https://solarnext-crm.vercel.app) sur Railway.",
+  );
+}
+
+// Journalisation temporaire (vérif chargement sur Railway)
+logger.info(
+  { CORS_ORIGIN: corsRaw ?? null, originResolved: corsOrigin },
+  "[CORS] CORS configuration au démarrage",
 );
+
+const corsConfig = {
+  origin: corsOrigin,
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"],
+  allowedHeaders: [
+    "Content-Type",
+    "Authorization",
+    "x-organization-id",
+    "X-Organization-Id",
+    "x-super-admin-edit",
+    "X-Super-Admin-Edit",
+  ],
+};
+
+const corsHandler = cors(corsConfig);
+app.use(corsHandler);
+// Preflight (OPTIONS) — exigence: route explicite ; même config que app.use (pas cors() nu, incompatible avec credentials)
+app.options("*", corsHandler);
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 app.use(httpLogger);
