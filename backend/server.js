@@ -1,3 +1,4 @@
+console.log("🔥 REAL BACKEND STARTED 🔥");
 // ======================================================================
 // SMARTPITCH V8 — SERVER.JS
 // ======================================================================
@@ -42,8 +43,6 @@ applyTrustProxy(app);
 // ------------------------------------------------------------
 // CORS — avant express.json() et toutes les routes (Vercel → Railway)
 // ------------------------------------------------------------
-console.log("CORS ACTIVE");
-
 const corsHandler = cors({
   origin: "https://solarnext-crm.vercel.app",
   credentials: true,
@@ -51,6 +50,8 @@ const corsHandler = cors({
 
 app.use(corsHandler);
 app.options("*", corsHandler);
+
+console.log("✅ CORS ENABLED");
 
 app.use(securityHeadersMiddleware);
 
