@@ -24,6 +24,12 @@
   const DP8_HANDLE_R = 8;
   const DP8_MIN_ARROW_LEN = 10;
 
+  function __snGoogleMapsPublicKey() {
+    var w = typeof window !== "undefined" ? window : {};
+    var k = w.__VITE_GOOGLE_MAPS_API_KEY__;
+    return k && String(k).trim() ? String(k).trim() : "";
+  }
+
   function dp8CoerceDataUrl(v) {
     const s = typeof v === "string" ? v : v == null ? "" : String(v);
     return s.startsWith("data:image") ? s : "";
@@ -522,7 +528,7 @@
         return Math.round(Math.min(120, Math.max(10, f)));
       }
 
-      const DP8_GOOGLE_MAPS_API_KEY_STATIC = "AIzaSyDQMAe4zNsipMna3Ph1ANhJLMpZcdAWC1M";
+      const DP8_GOOGLE_MAPS_API_KEY_STATIC = __snGoogleMapsPublicKey();
 
       async function dp8UseCurrentStreetViewAsImage() {
         if (!dp8Panorama || !window.google?.maps) {

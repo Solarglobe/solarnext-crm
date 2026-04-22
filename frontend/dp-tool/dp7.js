@@ -21,6 +21,12 @@
   const DP7_HANDLE_R = 8;
   const DP7_MIN_ARROW_LEN = 10;
 
+  function __snGoogleMapsPublicKey() {
+    var w = typeof window !== "undefined" ? window : {};
+    var k = w.__VITE_GOOGLE_MAPS_API_KEY__;
+    return k && String(k).trim() ? String(k).trim() : "";
+  }
+
   function dp7CoerceDataUrl(v) {
     const s = typeof v === "string" ? v : v == null ? "" : String(v);
     return s.startsWith("data:image") ? s : "";
@@ -518,7 +524,7 @@
       }
 
       /** Clé Static API — alignée sur DP6 (dp-app.js), sans dépendre de ce fichier */
-      const DP7_GOOGLE_MAPS_API_KEY_STATIC = "AIzaSyDQMAe4zNsipMna3Ph1ANhJLMpZcdAWC1M";
+      const DP7_GOOGLE_MAPS_API_KEY_STATIC = __snGoogleMapsPublicKey();
 
       async function dp7UseCurrentStreetViewAsImage() {
         if (!dp7Panorama || !window.google?.maps) {

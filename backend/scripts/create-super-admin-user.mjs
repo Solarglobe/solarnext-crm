@@ -3,7 +3,7 @@
  *
  * Usage (PowerShell) :
  *   cd backend
- *   $env:SUPER_ADMIN_PASSWORD="VotreMotDePasse"; node scripts/create-super-admin-user.mjs letren.benoit@icloud.com
+ *   $env:SUPER_ADMIN_PASSWORD="VotreMotDePasse"; node scripts/create-super-admin-user.mjs admin@example.com
  *
  * Variables optionnelles :
  *   SUPER_ADMIN_EMAIL   — sinon 1er argument positionnel

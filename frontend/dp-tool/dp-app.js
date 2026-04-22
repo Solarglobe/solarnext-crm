@@ -30,6 +30,13 @@ function __solarnextDpApiOrigin() {
   return "";
 }
 
+/** Clé publique Google Maps : `window.__VITE_GOOGLE_MAPS_API_KEY__` (voir `/config/vite-public-runtime.js`). */
+function __snGoogleMapsPublicKey() {
+  var w = typeof window !== "undefined" ? window : {};
+  var k = w.__VITE_GOOGLE_MAPS_API_KEY__;
+  return k && String(k).trim() ? String(k).trim() : "";
+}
+
 /** Équiv. `import { fromLonLat } from "ol/proj"` — WGS84 [lon, lat] → EPSG:3857 (bundle ol global). */
 function fromLonLat(coord) {
   if (typeof ol === "undefined" || !ol.proj || typeof ol.proj.fromLonLat !== "function") {
@@ -15386,7 +15393,7 @@ function dpLoadGoogleMapsJsOnce() {
     return window.__dpGoogleMapsLoadPromise;
   }
 
-  const GOOGLE_MAPS_API_KEY = "AIzaSyDQMAe4zNsipMna3Ph1ANhJLMpZcdAWC1M";
+  const GOOGLE_MAPS_API_KEY = __snGoogleMapsPublicKey();
 
   window.__dpGoogleMapsLoadPromise = new Promise((resolve, reject) => {
     const existingScript = document.querySelector('script[src*="maps.googleapis.com"]');
@@ -16609,7 +16616,7 @@ function initDP6() {
   const useCurrentViewBtn = document.getElementById("dp6-use-current-view");
   const workspace = document.getElementById("dp6-photo-workspace");
   /** Alignée sur `dpLoadGoogleMapsJsOnce` (Street View Static + JS). */
-  const DP6_GOOGLE_MAPS_API_KEY_STATIC = "AIzaSyDQMAe4zNsipMna3Ph1ANhJLMpZcdAWC1M";
+  const DP6_GOOGLE_MAPS_API_KEY_STATIC = __snGoogleMapsPublicKey();
   const zoomInBtn = document.getElementById("dp6-zoom-in");
   const zoomOutBtn = document.getElementById("dp6-zoom-out");
   const zoomResetBtn = document.getElementById("dp6-zoom-reset");

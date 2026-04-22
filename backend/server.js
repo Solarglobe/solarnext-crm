@@ -1,24 +1,9 @@
-console.log("STEP 1");
-console.log("SERVER START WITHOUT MIGRATIONS");
-console.log("🔥 REAL BACKEND STARTED 🔥");
 // ======================================================================
-// SMARTPITCH V8 — SERVER.JS (build diagnostic : routes minimales)
-// Migrations : désactivées au start (package.json) — lancer manuellement si besoin.
-// Réactiver progressivement : DB verify, rate limit, routes, calpinage, PDF, mail…
+// SMARTPITCH — SERVER (prod / Railway) : migrations au boot puis Express
 // ======================================================================
 import "./config/load-env.js";
-console.log("STEP 2");
 
-// import { registerCoreEventHandlers } from "./services/core/eventHandlers.js";
-// import { getRbacMode, isSuperAdminBypassEnabled } from "./config/rbacMode.js";
-// registerCoreEventHandlers();
-
-// CP-ADMIN-ARCH-01 : En prod, RBAC_ENFORCE forcé à 1 si non défini
-if (process.env.NODE_ENV === "production" && process.env.RBAC_ENFORCE === undefined) {
-  process.env.RBAC_ENFORCE = "1";
-}
-
-import { spawnSync } from "child_process";
+import { execSync } from "child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import express from "express";
@@ -30,84 +15,42 @@ import authRouter from "./routes/auth.routes.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// import logger from "./app/core/logger.js";
-// import { httpLogger } from "./app/core/httpLogger.js";
-// import { attachAuditRequestId } from "./services/audit/auditLog.service.js";
-// import { startInactivityScheduler } from "./services/inactivityScheduler.js";
-// import { pool } from "./config/db.js";
-// import { getRateLimitStore } from "./middleware/security/rateLimitStore.factory.js";
+// CP-ADMIN-ARCH-01 : En prod, RBAC_ENFORCE forcé à 1 si non défini
+if (process.env.NODE_ENV === "production" && process.env.RBAC_ENFORCE === undefined) {
+  process.env.RBAC_ENFORCE = "1";
+}
 
-// ------------------------------------------------------------
-// INIT
-// ------------------------------------------------------------
+console.log("RUN MIGRATIONS...");
+execSync("node scripts/run-pg-migrate.cjs up", {
+  stdio: "inherit",
+  cwd: __dirname,
+  env: process.env,
+});
+console.log("MIGRATIONS DONE");
+
+const { verifyDatabaseSchema } = await import("./services/system/schemaGuard.service.js");
+await verifyDatabaseSchema();
+
 const app = express();
 applyTrustProxy(app);
 
-// ------------------------------------------------------------
-// CORS (Vercel)
-// ------------------------------------------------------------
 const corsHandler = cors({
   origin: "https://solarnext-crm.vercel.app",
   credentials: true,
 });
 app.use(corsHandler);
 app.options("*", corsHandler);
-console.log("✅ CORS ENABLED");
 
 app.use(securityHeadersMiddleware);
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
-// app.use(httpLogger);
-// app.use(attachAuditRequestId);
 
-// Route santé
 app.get("/", (req, res) => {
   res.json({ status: "SmartPitch backend actif (diagnostic minimal) ✅" });
 });
 
-// Authentification uniquement
 app.use("/auth", authRouter);
 
-// TEMPORAIRE : migrations PostgreSQL via navigateur (désactiver / sécuriser ensuite)
-app.get("/admin/run-migrations", async (req, res) => {
-  try {
-    console.log("RUNNING MIGRATIONS...");
-
-    const result = spawnSync("node", ["scripts/run-pg-migrate.cjs", "up"], {
-      cwd: __dirname,
-      env: process.env,
-      encoding: "utf8",
-    });
-
-    if (result.status !== 0) {
-      console.error("MIGRATION STDOUT:", result.stdout);
-      console.error("MIGRATION STDERR:", result.stderr);
-
-      return res.status(500).json({
-        error: "migration failed",
-        status: result.status,
-        stdout: result.stdout,
-        stderr: result.stderr,
-      });
-    }
-
-    return res.json({
-      status: "migrations executed",
-      stdout: result.stdout,
-    });
-  } catch (e) {
-    console.error("MIGRATION ERROR FULL:", e);
-    return res.status(500).json({
-      error: e?.message ?? String(e),
-      stack: e?.stack ?? null,
-    });
-  }
-});
-
-// --- Routes masquées temporairement (restauration progressive) ---
-// Voir commit historique 7f5e4cc pour le fichier complet (calc, calpinage, PDF, mail, etc.)
-
-// Gestionnaire d'erreurs
 app.use((err, req, res, next) => {
   if (!res.headersSent) {
     res.status(err?.status || 500).json({
@@ -117,14 +60,10 @@ app.use((err, req, res, next) => {
   }
 });
 
-// ------------------------------------------------------------
-// DÉMARRAGE (pas de vérification DB / pas de getRateLimitStore au boot)
-// ------------------------------------------------------------
 const PORT = Number(process.env.PORT) || 3000;
 try {
   app.listen(PORT, () => {
-    console.log("SERVER START OK");
-    console.log("API RUNNING ON PORT", PORT, "— process.env.PORT =", process.env.PORT ?? "(défaut 3000)");
+    console.log("SERVER START OK — port", PORT);
   });
 } catch (e) {
   console.error("SERVER CRASH:", e);

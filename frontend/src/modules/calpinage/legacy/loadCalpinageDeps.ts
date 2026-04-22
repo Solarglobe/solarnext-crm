@@ -10,6 +10,7 @@
 
 import html2canvas from "html2canvas";
 import { getCrmApiBase } from "../../../config/crmApiBase";
+import { getGoogleMapsApiKey } from "../../../config/googleMapsPublic";
 import { apiFetch, getAuthToken } from "../../../services/api";
 
 const scriptCache = new Map<string, Promise<void>>();
@@ -53,9 +54,16 @@ function ensureGoogleMapsLoaded(): Promise<void> {
       return;
     }
 
-    const apiKey =
-      import.meta.env?.VITE_GOOGLE_MAPS_API_KEY ||
-      "AIzaSyDQMAe4zNsipMna3Ph1ANhJLMpZcdAWC1M";
+    const apiKey = getGoogleMapsApiKey();
+    if (!apiKey) {
+      googleMapsPromise = null;
+      reject(
+        new Error(
+          "[CALPINAGE] VITE_GOOGLE_MAPS_API_KEY manquante — définir la variable dans .env (racine ou frontend) puis relancer Vite."
+        )
+      );
+      return;
+    }
 
     (win as unknown as { __calpinageGoogleInit?: () => void }).__calpinageGoogleInit = function () {
       (win as unknown as { __CALPINAGE_GOOGLE_READY__?: boolean }).__CALPINAGE_GOOGLE_READY__ = true;

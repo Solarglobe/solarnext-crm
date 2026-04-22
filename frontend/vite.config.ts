@@ -2,7 +2,7 @@
 import path from "path";
 import fs from "fs";
 import type { Plugin } from "vite";
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 
 const pdfRenderPath = path.resolve(__dirname, "pdf-render.html");
@@ -79,11 +79,17 @@ function copyDpToolTree(srcDir: string, destDir: string): void {
   }
 }
 
+type DpToolStaticPluginOpts = {
+  /** Corps JS : définit `window.__VITE_GOOGLE_MAPS_API_KEY__` (clé publique Vite uniquement). */
+  makeVitePublicRuntimeJs: () => string;
+};
+
 /**
  * Dev : sert `/dp-tool/**`, `/shared/panel-dimensions.js` uniquement, `/config/**` (frontend/config).
  * Build : copie les mêmes arbres dans `dist-crm/` pour alignement avec `getDefaultDpAssetBase()` du loader.
  */
-function dpToolStaticPlugin(): Plugin {
+function dpToolStaticPlugin(opts: DpToolStaticPluginOpts): Plugin {
+  const { makeVitePublicRuntimeJs } = opts;
   return {
     name: "dp-tool-static-and-deps",
     configureServer(server) {
@@ -112,6 +118,11 @@ function dpToolStaticPlugin(): Plugin {
           }
           filePath = resolved;
         } else if (pathname.startsWith("/config/")) {
+          if (pathname === "/config/vite-public-runtime.js") {
+            res.setHeader("Content-Type", "application/javascript; charset=utf-8");
+            res.end(makeVitePublicRuntimeJs());
+            return;
+          }
           const resolved = path.resolve(DP_CONFIG_ROOT, pathname.slice("/config/".length));
           if (!dpPathInsideDir(resolved, DP_CONFIG_ROOT)) {
             return next();
@@ -159,13 +170,28 @@ function dpToolStaticPlugin(): Plugin {
       if (fs.existsSync(ffSrc)) {
         fs.copyFileSync(ffSrc, path.join(destConfig, "featureFlags.js"));
       }
+      fs.writeFileSync(
+        path.join(destConfig, "vite-public-runtime.js"),
+        makeVitePublicRuntimeJs(),
+        "utf-8"
+      );
     },
   };
 }
 
-export default defineConfig({
+export default defineConfig(({ mode }) => {
+  const repoRoot = path.resolve(__dirname, "..");
+  const makeVitePublicRuntimeJs = () => {
+    const env = loadEnv(mode, repoRoot, "VITE_");
+    const key =
+      env.VITE_GOOGLE_MAPS_API_KEY ??
+      (process.env.VITE_GOOGLE_MAPS_API_KEY || "");
+    return `(()=>{var k=${JSON.stringify(key)};if(typeof window!=="undefined"){window.__VITE_GOOGLE_MAPS_API_KEY__=k;}})();`;
+  };
+
+  return {
   plugins: [
-    dpToolStaticPlugin(),
+    dpToolStaticPlugin({ makeVitePublicRuntimeJs }),
     {
       name: "index-html-spa-fallback",
       configureServer(server) {
@@ -320,4 +346,5 @@ export default defineConfig({
       },
     },
   },
+};
 });

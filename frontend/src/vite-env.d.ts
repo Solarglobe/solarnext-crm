@@ -6,6 +6,8 @@ interface ImportMetaEnv {
    * Si absent en prod, défaut = Railway dans `getCrmApiBase`.
    */
   readonly VITE_API_URL?: string;
+  /** Clé publique Google Maps (Calpinage, DP tool) — restreindre par référent côté Google Cloud. */
+  readonly VITE_GOOGLE_MAPS_API_KEY?: string;
   /** Opt-in explicite : near shading 3D canonique (raycast). Valeur attendue : `"true"`. */
   readonly VITE_CANONICAL_3D_NEAR_SHADING?: string;
   /**
@@ -17,6 +19,8 @@ interface ImportMetaEnv {
 
 declare global {
   interface Window {
+    /** Injecté par `/config/vite-public-runtime.js` (build Vite) pour scripts non bundlés (dp-tool). */
+    __VITE_GOOGLE_MAPS_API_KEY__?: string;
     Engine?: unknown;
     __pdf_render_ready?: boolean;
     /** Override feature flag 3D canonical (priorité sur `VITE_CALPINAGE_CANONICAL_3D`). */
