@@ -40,41 +40,13 @@ const app = express();
 applyTrustProxy(app);
 
 // ------------------------------------------------------------
-// CORS — en premier (avant JSON et routes) : Vercel + CORS_ORIGIN (optionnel, virgules)
-// Sans CORS_ORIGIN, l'app reste autorisée depuis https://solarnext-crm.vercel.app
+// CORS — avant express.json() et toutes les routes (Vercel → Railway)
 // ------------------------------------------------------------
-const allowedOrigins = [
-  ...new Set([
-    "https://solarnext-crm.vercel.app",
-    ...(process.env.CORS_ORIGIN
-      ? String(process.env.CORS_ORIGIN)
-          .split(",")
-          .map((o) => o.trim())
-          .filter(Boolean)
-      : []),
-  ]),
-];
-
-console.log("CORS ENABLED FOR:", allowedOrigins);
+console.log("CORS ACTIVE");
 
 const corsHandler = cors({
-  origin: function (origin, callback) {
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
-    return callback(new Error("Not allowed by CORS"));
-  },
+  origin: "https://solarnext-crm.vercel.app",
   credentials: true,
-  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: [
-    "Content-Type",
-    "Authorization",
-    "x-organization-id",
-    "X-Organization-Id",
-    "x-super-admin-edit",
-    "X-Super-Admin-Edit",
-  ],
 });
 
 app.use(corsHandler);
