@@ -166,7 +166,8 @@
     overflow: visible !important;
   }
 
-  body.qp-print-quote-present .sn-app-root > div {
+  body.qp-print-quote-present .sn-app-root > div,
+  body.qp-print-quote-present .sn-app-shell {
     display: block !important;
     height: auto !important;
     max-height: none !important;

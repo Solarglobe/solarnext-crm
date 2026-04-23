@@ -1066,17 +1066,22 @@ a.sn-btn {
   width: 100%;
 }
 
+/* Rangée principale : occupe l’espace sous les bandeaux, colonnes étirées sur toute la hauteur (sidebar beige pleine hauteur). */
+.sn-app-shell {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: stretch;
+  width: 100%;
+  min-height: 0;
+}
+
 .sn-sidebar {
   display: flex;
   flex-direction: column;
   width: 260px;
   flex-shrink: 0;
-  position: sticky;
-  top: 0;
-  align-self: flex-start;
-  max-height: 100vh;
-  min-height: 0;
-  height: auto;
+  align-self: stretch;
+  min-height: 100%;
   background: var(--bg-muted);
   border-right: 1px solid var(--border);
   color: var(--text);

@@ -519,7 +519,7 @@ export function AppLayout() {
         </div>
       )}
       <SuperAdminSupportBanner />
-      <div style={{ display: "flex", alignItems: "flex-start", width: "100%" }}>
+      <div className="sn-app-shell">
       <aside className="sn-sidebar">
         <div className="sn-sidebar-header">
           <div className="sn-sidebar-header-brand">
