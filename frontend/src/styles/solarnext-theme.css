@@ -1088,17 +1088,26 @@ a.sn-btn {
   padding: var(--spacing-16) 0;
 }
 
-/* Sidebar header : logo + actions (thème, profil) */
+/* Sidebar header : logo pleine largeur, puis ligne org + actions */
 .sn-sidebar-header {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--spacing-12);
   flex-shrink: 0;
   padding: var(--spacing-16) 18px;
   margin-bottom: var(--spacing-8);
 }
 
-/* Colonne titre + org : espace uniquement sous le bloc titre (trait doré ::after), pas entre le titre et le trait */
+.sn-sidebar-header-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-8);
+  min-width: 0;
+}
+
+/* Colonne org (ellipsis) à gauche des boutons */
 .sn-sidebar-header-brand {
   display: flex;
   flex-direction: column;
@@ -1107,22 +1116,23 @@ a.sn-btn {
   flex: 1;
 }
 
-.sn-sidebar-header-brand > * + * {
-  margin-top: var(--spacing-12);
-}
-
 .sn-sidebar-brand {
   font-size: 20px;
   font-weight: 600;
   color: var(--text);
+  min-width: 0;
+  align-self: flex-start;
+  max-width: 100%;
 }
 
 .sn-sidebar-brand-logo {
   display: block;
-  height: 28px;
   width: auto;
-  max-width: min(160px, 100%);
+  max-width: 100%;
+  height: auto;
+  max-height: 52px;
   object-fit: contain;
+  object-position: left center;
 }
 
 .sn-sidebar-actions {

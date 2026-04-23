@@ -522,13 +522,14 @@ export function AppLayout() {
       <div className="sn-app-shell">
       <aside className="sn-sidebar">
         <div className="sn-sidebar-header">
-          <div className="sn-sidebar-header-brand">
-            <div className="sn-sidebar-brand sidebar-brand">
-              <img src="/logo.png" alt="SolarNext" className="sn-sidebar-brand-logo" />
-            </div>
-            <OrganizationSwitcher />
+          <div className="sn-sidebar-brand sidebar-brand">
+            <img src="/logo.png" alt="SolarNext" className="sn-sidebar-brand-logo" />
           </div>
-          <div className="sn-sidebar-actions">
+          <div className="sn-sidebar-header-toolbar">
+            <div className="sn-sidebar-header-brand">
+              <OrganizationSwitcher />
+            </div>
+            <div className="sn-sidebar-actions">
             <button
               type="button"
               onClick={() => {
@@ -595,6 +596,7 @@ export function AppLayout() {
                 </div>
               )}
             </div>
+          </div>
           </div>
         </div>
         <nav className="sn-sidebar-nav" aria-label="Navigation principale">
