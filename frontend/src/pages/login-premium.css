@@ -128,7 +128,7 @@ html.sn-auth-page body {
 .login-logo {
   display: block;
   margin-top: 0;
-  margin-bottom: 10px;
+  margin-bottom: -36px;
   max-width: 560px;
   width: 95%;
   height: auto;
@@ -141,7 +141,7 @@ html.sn-auth-page body {
   z-index: 2;
   width: 100%;
   max-width: 480px;
-  margin: 0 auto;
+  margin: -20px auto 0;
   background: rgba(255, 255, 255, 0.78);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
@@ -336,12 +336,13 @@ html.sn-auth-page body {
 
   .login-logo {
     margin-top: 0;
-    margin-bottom: 8px;
+    margin-bottom: -22px;
     max-width: min(560px, 100%);
     width: 92%;
   }
 
   .login-card {
+    margin-top: -14px;
     padding: 28px 22px;
   }
 
