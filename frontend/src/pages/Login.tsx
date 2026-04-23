@@ -7,7 +7,7 @@ import {
 } from "../services/auth.service";
 import "./login-premium.css";
 
-const LOGO_SRC = "/logo.png";
+const LOGO_SRC = "/assets/branding/logo-solarnext.png";
 
 function IconMail() {
   return (
@@ -169,15 +169,18 @@ export default function Login() {
     <div className="login-page">
       <div className="login-bg" aria-hidden />
       <div className="login-content">
-        <img
-          src={LOGO_SRC}
-          alt="SolarNext"
-          className="login-logo"
-          decoding="async"
-        />
+        <div className="login-wrapper">
+          <div className="logo-container">
+            <img
+              src={LOGO_SRC}
+              alt="SolarNext"
+              className="logo"
+              decoding="async"
+            />
+          </div>
 
-        <div className="login-card">
-          <header className="login-card-header">
+          <div className="login-card">
+            <header className="login-card-header">
             <span className="login-badge">CRM photovoltaïque</span>
             <h1>
               <span className="login-title-muted">Bienvenue sur </span>
@@ -188,10 +191,10 @@ export default function Login() {
               Accédez à votre espace de pilotage : leads, études et suivi
               opérationnel, au même endroit.
             </p>
-          </header>
+            </header>
 
-          <form onSubmit={handleSubmit} className="login-form" noValidate>
-            <div className="login-field">
+            <form onSubmit={handleSubmit} className="login-form" noValidate>
+              <div className="login-field">
               <label htmlFor="email">Adresse e-mail</label>
               <div className="login-input-wrap">
                 <span className="login-input-icon" aria-hidden>
@@ -277,6 +280,7 @@ export default function Login() {
               ) : null}
             </button>
           </form>
+          </div>
         </div>
 
         <footer className="login-footer">

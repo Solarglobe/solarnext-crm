@@ -79,28 +79,44 @@ html.sn-auth-page body {
   align-items: center;
   justify-content: flex-start;
   width: 100%;
-  max-width: 520px;
   min-height: 100vh;
   flex: 1 0 auto;
   box-sizing: border-box;
-  padding: 0 20px 48px;
+  padding: 24px 20px 48px;
 }
 
-.login-logo {
-  display: block;
-  width: 220px;
+/* Bloc logo + card : même largeur, centré (pas text-align seul) */
+.login-wrapper {
+  width: 480px;
+  max-width: 90vw;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  box-sizing: border-box;
+}
+
+.logo-container {
+  width: 100%;
+  margin: 0 auto 8px;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+.login-wrapper .logo {
+  width: 480px;
   max-width: 100%;
   height: auto;
+  display: block;
+  margin: 0 auto;
   object-fit: contain;
   object-position: center;
-  margin: 60px 0 0;
-  flex-shrink: 0;
 }
 
 .login-card {
   width: 100%;
-  max-width: 480px;
-  margin-top: 40px;
+  max-width: 100%;
+  margin: 0;
   background: #ffffff;
   border-radius: 16px;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
@@ -355,22 +371,24 @@ html.sn-auth-page[data-theme="dark"] .login-card select:focus {
 }
 
 .login-footer {
+  width: 480px;
+  max-width: 90vw;
+  margin: 30px auto 0;
   text-align: center;
-  margin-top: 30px;
   font-size: 12px;
   color: #9a9a9a;
   line-height: 1.5;
   flex-shrink: 0;
+  box-sizing: border-box;
 }
 
 @media (max-width: 520px) {
   .login-content {
-    padding: 40px 16px 32px;
+    padding: 16px 16px 32px;
   }
 
   .login-card {
     padding: 32px 24px;
-    margin-top: 32px;
   }
 
   .login-card h1 {
