@@ -98,7 +98,7 @@ html.sn-auth-page body {
 
 .logo-container {
   width: 100%;
-  margin: 0 auto 4px;
+  margin: 0 auto -20px;
   padding: 0;
   box-sizing: border-box;
 }
@@ -122,6 +122,10 @@ html.sn-auth-page body {
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
   padding: 40px 36px;
   box-sizing: border-box;
+}
+
+.login-wrapper .login-card {
+  margin-top: -14px;
 }
 
 .login-card-header {
