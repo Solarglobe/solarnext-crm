@@ -22,6 +22,8 @@ export type EconomicPrepItem = {
   /** Texte libre éventuel (hors snapshot catalogue). */
   description?: string | null;
   product_snapshot?: { description?: string | null } | null;
+  /** Prix d'achat HT centimes (devis technique) — aligné marge matériel. */
+  purchase_price_ht_cents?: number | null;
 };
 
 /** Aligné sur `EconomicData.conditions` (devis technique / quote-prep). */
@@ -183,20 +185,27 @@ export function mapEconomicItemsToStudyQuoteItems(items: EconomicPrepItem[]): Qu
 /** Lignes prêtes pour le state builder (remplace uniquement les lignes `study_prep` lors d’un refresh). */
 export function quotePrepItemsToQuoteLines(items: EconomicPrepItem[]): QuoteLine[] {
   const mapped = mapEconomicItemsToStudyQuoteItems(items);
-  return mapped.map((it, i) => ({
-    id: crypto.randomUUID(),
-    type: it.catalog_item_id ? "catalog" : "custom",
-    catalog_item_id: it.catalog_item_id ?? null,
-    line_source: "study_prep",
-    label: it.label,
-    description: it.description,
-    reference: "",
-    quantity: it.quantity,
-    unit_price_ht: it.unit_price_ht,
-    tva_percent: it.tva_rate,
-    line_discount_percent: 0,
-    position: i + 1,
-  }));
+  return mapped.map((it, i) => {
+    const prep = items[i];
+    const pc = prep?.purchase_price_ht_cents;
+    const purchase_unit_price_ht_cents =
+      pc != null && Number.isFinite(Number(pc)) && Number(pc) > 0 ? Math.floor(Number(pc)) : undefined;
+    return {
+      id: crypto.randomUUID(),
+      type: it.catalog_item_id ? "catalog" : "custom",
+      catalog_item_id: it.catalog_item_id ?? null,
+      line_source: "study_prep",
+      label: it.label,
+      description: it.description,
+      reference: "",
+      quantity: it.quantity,
+      unit_price_ht: it.unit_price_ht,
+      tva_percent: it.tva_rate,
+      line_discount_percent: 0,
+      position: i + 1,
+      ...(purchase_unit_price_ht_cents != null ? { purchase_unit_price_ht_cents } : {}),
+    };
+  });
 }
 
 /**

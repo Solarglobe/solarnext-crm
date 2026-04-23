@@ -107,3 +107,36 @@ export function discountPercentFromHt(grossHt: number, discountHt: number): numb
   if (grossHt <= 0) return 0;
   return round2(Math.min(100, (Math.max(0, discountHt) / grossHt) * 100));
 }
+
+/** Ligne éligible « matériel » : prix d'achat unitaire HT en centimes strictement > 0. */
+export type MaterialMarginLineInput = {
+  quantity: number;
+  unit_price_ht: number;
+  purchase_price_ht_cents?: number | null;
+};
+
+/**
+ * Marge matériel HT — uniquement lignes avec coût d'achat renseigné (> 0 côté centimes).
+ * Vente HT = Σ(qty × PU HT) ; achat HT = Σ((centimes/100) × qty) ; marge = vente − achat ;
+ * taux = marge / achat (si achat > 0).
+ */
+export function computeMaterialMarginFromLines(lines: MaterialMarginLineInput[]): {
+  venteMaterialHt: number;
+  achatMaterialHt: number;
+  margeHt: number;
+  tauxMargeSurAchatPct: number | null;
+} {
+  let vente = 0;
+  let achat = 0;
+  for (const l of lines) {
+    const c = l.purchase_price_ht_cents;
+    if (c == null || !Number.isFinite(Number(c)) || Number(c) <= 0) continue;
+    const qty = Math.max(0, round2(Number(l.quantity) || 0));
+    const up = Math.max(0, round2(Number(l.unit_price_ht) || 0));
+    vente = round2(vente + round2(qty * up));
+    achat = round2(achat + round2((Number(c) / 100) * qty));
+  }
+  const marge = round2(vente - achat);
+  const taux = achat > 0 ? round2((marge / achat) * 100) : null;
+  return { venteMaterialHt: vente, achatMaterialHt: achat, margeHt: marge, tauxMargeSurAchatPct: taux };
+}

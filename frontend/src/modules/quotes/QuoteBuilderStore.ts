@@ -148,6 +148,9 @@ export function mapApiItemsToLines(rows: Record<string, unknown>[]): QuoteLine[]
     const id = String(row.id ?? `tmp-${i}`);
     const catalogId = row.catalog_item_id != null ? String(row.catalog_item_id) : null;
     const lineSource = lineSourceFromSnapshot(row);
+    const puCents = row.purchase_unit_price_ht_cents;
+    const purchase_unit_price_ht_cents =
+      puCents != null && Number.isFinite(Number(puCents)) ? Math.floor(Number(puCents)) : undefined;
     return {
       id,
       type: catalogId ? "catalog" : "custom",
@@ -161,6 +164,7 @@ export function mapApiItemsToLines(rows: Record<string, unknown>[]): QuoteLine[]
       tva_percent: Number(row.vat_rate) || 0,
       line_discount_percent: discountPercentFromHt(gross, discHt),
       position: Number(row.position) || i + 1,
+      ...(purchase_unit_price_ht_cents !== undefined ? { purchase_unit_price_ht_cents } : {}),
     };
   });
 }

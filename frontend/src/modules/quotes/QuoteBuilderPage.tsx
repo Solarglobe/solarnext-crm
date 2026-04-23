@@ -16,7 +16,7 @@ import {
 import { ModalShell } from "../../components/ui/ModalShell";
 import { Button } from "../../components/ui/Button";
 import type { QuoteLine } from "./quote.types";
-import { computeQuoteTotals } from "./quoteCalc";
+import { computeMaterialMarginFromLines, computeQuoteTotals } from "./quoteCalc";
 import {
   quoteBuilderReducer,
   linesToSaveItems,
@@ -142,6 +142,18 @@ export default function QuoteBuilderPage() {
         state.meta.global_discount_amount_ht
       ),
     [state.lines, state.meta.global_discount_percent, state.meta.global_discount_amount_ht]
+  );
+
+  const materialMargin = useMemo(
+    () =>
+      computeMaterialMarginFromLines(
+        state.lines.map((l) => ({
+          quantity: l.quantity,
+          unit_price_ht: l.unit_price_ht,
+          purchase_price_ht_cents: l.purchase_unit_price_ht_cents,
+        }))
+      ),
+    [state.lines]
   );
 
   const latestLinkedPdf = useMemo(() => pickLatestQuotePdf(linkedDocuments), [linkedDocuments]);
@@ -460,6 +472,7 @@ export default function QuoteBuilderPage() {
     if (isReadOnly) return;
     const unitHt = (Number(c.sale_price_ht_cents) || 0) / 100;
     const vat = (Number(c.default_vat_rate_bps) || 2000) / 100;
+    const pCents = Number(c.purchase_price_ht_cents);
     const line: QuoteLine = {
       id: crypto.randomUUID(),
       type: "catalog",
@@ -473,6 +486,7 @@ export default function QuoteBuilderPage() {
       tva_percent: vat,
       line_discount_percent: 0,
       position: state.lines.length + 1,
+      ...(Number.isFinite(pCents) && pCents > 0 ? { purchase_unit_price_ht_cents: Math.floor(pCents) } : {}),
     };
     dispatch({ type: "ADD_LINE", line });
     setCatalogOpen(false);
@@ -1189,6 +1203,8 @@ export default function QuoteBuilderPage() {
             studyLinked={canImportFromStudy}
             studyLabel={studyLabel}
             validUntil={state.header.valid_until}
+            materialMarginMargeHt={materialMargin.margeHt}
+            materialMarginTauxSurAchatPct={materialMargin.tauxMargeSurAchatPct}
           />
 
           <div className="qb-divider" role="presentation" />

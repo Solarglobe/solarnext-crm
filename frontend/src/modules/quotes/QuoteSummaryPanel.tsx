@@ -23,6 +23,10 @@ export interface QuoteSummaryPanelProps {
   studyLinked?: boolean;
   studyLabel?: string | null;
   validUntil?: string | null;
+  /** Marge matériel HT (lignes avec coût d'achat &gt; 0 uniquement). */
+  materialMarginMargeHt?: number;
+  /** % = marge / achat matériel HT ; null si aucun achat matériel. */
+  materialMarginTauxSurAchatPct?: number | null;
 }
 
 /**
@@ -38,6 +42,8 @@ export default function QuoteSummaryPanel({
   studyLinked = false,
   studyLabel = null,
   validUntil = null,
+  materialMarginMargeHt = 0,
+  materialMarginTauxSurAchatPct = null,
 }: QuoteSummaryPanelProps) {
   const expectedTtc = computeExpectedDepositTtc(deposit, totals.total_ttc);
   const hasDeposit = deposit.value > 0 && Number.isFinite(deposit.value);
@@ -95,6 +101,16 @@ export default function QuoteSummaryPanel({
               <dd>{eur(totals.total_tva)}</dd>
             </div>
           </dl>
+          <p className="qb-pricing-material-margin-line" role="status">
+            Marge matériel : {eur(materialMarginMargeHt)} (
+            {materialMarginTauxSurAchatPct != null
+              ? `${materialMarginTauxSurAchatPct.toLocaleString("fr-FR", {
+                  minimumFractionDigits: 1,
+                  maximumFractionDigits: 1,
+                })} %`
+              : "— %"}
+            )
+          </p>
         </div>
 
         <div className="qb-pricing-panel__hero">

@@ -21,6 +21,7 @@ import StudyMeterSelector from "../../modules/studies/components/StudyMeterSelec
 import LocaleNumberInput from "../../modules/quotes/LocaleNumberInput";
 import "./study-quote-builder.css";
 import { getCrmApiBaseWithWindowFallback } from "@/config/crmApiBase";
+import { computeMaterialMarginFromLines, round2 } from "../../modules/quotes/quoteCalc";
 
 const API_BASE = getCrmApiBaseWithWindowFallback();
 
@@ -244,6 +245,53 @@ function computeTotals(data: EconomicData): { ht: number; tva: number; ttc: numb
     : 0;
   const ttc = Math.round((ht + tva) * 100) / 100;
   return { ht, tva, ttc, net: ttc };
+}
+
+function studyMaterialMarginBundle(
+  data: EconomicData,
+  pvBatteriesList: PvBattery[]
+): {
+  sans: ReturnType<typeof computeMaterialMarginFromLines>;
+  avec: ReturnType<typeof computeMaterialMarginFromLines>;
+  batteryMaterialEligible: boolean;
+  internalWithBatteryReady: boolean;
+} {
+  const sans = computeMaterialMarginFromLines(
+    data.items.map((it) => ({
+      quantity: it.quantity,
+      unit_price_ht: it.unit_price,
+      purchase_price_ht_cents: it.purchase_price_ht_cents,
+    }))
+  );
+  const physicalBat = data.batteries.physical;
+  const physicalUnitHt = physicalBat.price ?? 0;
+  const qtyBat = physicalBat.qty ?? 1;
+  const catalogBatteryForInternal =
+    physicalBat.batteryId != null
+      ? pvBatteriesList.find((b) => b.id === physicalBat.batteryId)
+      : undefined;
+  const batteryPurchaseUnitHt = physicalBatteryPurchaseUnitHtFromSnapshot(
+    physicalBat,
+    catalogBatteryForInternal
+  );
+  const internalWithBatteryReady = physicalBat.enabled && physicalUnitHt > 0;
+  const batteryMaterialEligible =
+    physicalBat.enabled && physicalUnitHt > 0 && batteryPurchaseUnitHt > 0;
+  const avec = batteryMaterialEligible
+    ? (() => {
+        const ev = round2(sans.venteMaterialHt + round2(qtyBat * physicalUnitHt));
+        const ea = round2(sans.achatMaterialHt + round2(qtyBat * batteryPurchaseUnitHt));
+        const m = round2(ev - ea);
+        const t = ea > 0 ? round2((m / ea) * 100) : null;
+        return {
+          venteMaterialHt: ev,
+          achatMaterialHt: ea,
+          margeHt: m,
+          tauxMargeSurAchatPct: t,
+        };
+      })()
+    : sans;
+  return { sans, avec, batteryMaterialEligible, internalWithBatteryReady };
 }
 
 type StudyQuoteToastOptions = { variant?: "premium"; durationMs?: number };
@@ -934,25 +982,17 @@ export default function StudyQuoteBuilder() {
   /**
    * Gate marge négative : calcule la marge courante et affiche la confirmation
    * si elle est négative, sinon valide directement.
-   * Calcul inline pour éviter la dépendance temporelle avec marginPercent.
+   * Calcul inline (marge matériel) sans dépendre des valeurs d’affichage du rendu.
    */
   const handleValidateDevisTechnique = useCallback(() => {
-    const currentTotals = computeTotals(economic);
-    const currentPurchaseHt = economic.items.reduce(
-      (sum, l) => sum + ((l.purchase_price_ht_cents ?? 0) * l.quantity),
-      0
-    ) / 100;
-    const currentMarginPct =
-      currentTotals.ht > 0
-        ? ((currentTotals.ht - currentPurchaseHt) / currentTotals.ht) * 100
-        : 0;
-
-    if (currentMarginPct < 0) {
+    const { sans, avec, batteryMaterialEligible } = studyMaterialMarginBundle(economic, pvBatteriesList);
+    const gateMargeHt = batteryMaterialEligible ? avec.margeHt : sans.margeHt;
+    if (gateMargeHt < 0) {
       setNegativeMarginConfirmOpen(true);
     } else {
       doValidateDevisTechnique();
     }
-  }, [economic, doValidateDevisTechnique]);
+  }, [economic, doValidateDevisTechnique, pvBatteriesList]);
 
   const handleFork = useCallback(async () => {
     if (!studyId || !versionId) return;
@@ -1104,12 +1144,12 @@ export default function StudyQuoteBuilder() {
 
   const totals = computeTotals(economic);
 
-  const totalPurchaseHt = economic.items.reduce(
-    (sum, l) => sum + ((l.purchase_price_ht_cents ?? 0) * l.quantity),
-    0
-  ) / 100;
-  const marginHt = totals.ht - totalPurchaseHt;
-  const marginPercent = totals.ht > 0 ? (marginHt / totals.ht) * 100 : 0;
+  const {
+    sans: materialSansBattery,
+    avec: materialAvecBattery,
+    batteryMaterialEligible,
+    internalWithBatteryReady,
+  } = studyMaterialMarginBundle(economic, pvBatteriesList);
   const finRaw = { ...DEFAULT_FINANCING, ...economic.financing };
 
   const physicalBat = economic.batteries.physical;
@@ -1119,24 +1159,13 @@ export default function StudyQuoteBuilder() {
       ? Math.round(physicalBatteryUnitHtToTtc(physicalUnitHt) * (physicalBat.qty ?? 1) * 100) / 100
       : null;
 
-  const catalogBatteryForInternal =
-    physicalBat.batteryId != null
-      ? pvBatteriesList.find((b) => b.id === physicalBat.batteryId)
-      : undefined;
-  const batteryPurchaseUnitHt = physicalBatteryPurchaseUnitHtFromSnapshot(physicalBat, catalogBatteryForInternal);
-  const qtyBat = physicalBat.qty ?? 1;
-  const batterySaleHtTotal =
-    physicalBat.enabled && physicalUnitHt > 0 ? Math.round(qtyBat * physicalUnitHt * 100) / 100 : 0;
-  const batteryPurchaseHtTotal =
-    physicalBat.enabled && physicalUnitHt > 0
-      ? Math.round(qtyBat * batteryPurchaseUnitHt * 100) / 100
-      : 0;
-  const internalWithBatteryReady = physicalBat.enabled && physicalUnitHt > 0;
-  const costHtWithBattery = Math.round((totalPurchaseHt + batteryPurchaseHtTotal) * 100) / 100;
-  const venteHtWithBattery = Math.round((totals.ht + batterySaleHtTotal) * 100) / 100;
-  const marginHtWithBattery = Math.round((venteHtWithBattery - costHtWithBattery) * 100) / 100;
-  const marginPctWithBattery =
-    venteHtWithBattery > 0 ? Math.round((marginHtWithBattery / venteHtWithBattery) * 10000) / 100 : 0;
+  const materialMarginNegative =
+    materialSansBattery.margeHt < 0 ||
+    (batteryMaterialEligible && internalWithBatteryReady && materialAvecBattery.margeHt < 0);
+  const materialWarnTauxPct =
+    batteryMaterialEligible && internalWithBatteryReady && materialAvecBattery.margeHt < 0
+      ? materialAvecBattery.tauxMargeSurAchatPct
+      : materialSansBattery.tauxMargeSurAchatPct;
 
   if (loading) {
     return (
@@ -1568,11 +1597,15 @@ export default function StudyQuoteBuilder() {
           </section>
 
           {/* ⚠️ Bandeau marge négative — visible dès que la marge passe sous 0 */}
-          {marginPercent < 0 && !locked && (
+          {materialMarginNegative && !locked && (
             <div className="sqb-negative-margin-banner" role="alert">
               <span className="sqb-negative-margin-banner__icon">⚠️</span>
               <span className="sqb-negative-margin-banner__text">
-                <strong>Attention — marge négative ({fmtPctFr(marginPercent, 1, 1)} %)</strong>
+                <strong>
+                  Attention — marge matériel négative (
+                  {materialWarnTauxPct != null ? `${fmtPctFr(materialWarnTauxPct, 1, 1)} %` : "—"}
+                  )
+                </strong>
                 <span> : ce devis est vendu en dessous du prix de revient. Une confirmation sera demandée avant validation.</span>
               </span>
             </div>
@@ -1581,7 +1614,8 @@ export default function StudyQuoteBuilder() {
           <section className="sqb-section sqb-section--internal-analysis sqb-internal-analysis" aria-label="Analyse interne">
             <h2 className="sqb-h2 sqb-h2--internal-analysis">Analyse interne</h2>
             <p className="sqb-helper sqb-internal-analysis-hint">
-              Marges HT (matériel) — la colonne « Avec batterie » inclut la batterie physique sélectionnée (coût catalogue + vente saisie).
+              Marge matériel HT : uniquement les lignes avec prix d&apos;achat &gt; 0 ; % = marge HT / achat matériel HT.
+              « Avec batterie » : + vente / coût batterie physique si coût d&apos;achat catalogue &gt; 0.
             </p>
             <div className="sqb-internal-compare">
               <div className="sqb-internal-compare__grid sqb-internal-compare__grid--head">
@@ -1591,29 +1625,39 @@ export default function StudyQuoteBuilder() {
               </div>
               <div className="sqb-internal-compare__grid">
                 <span className="sqb-text sqb-muted sqb-text--small">Coût achat HT</span>
-                <span className="sqb-text sqb-internal-compare__val">{fmtEur2(totalPurchaseHt)}</span>
+                <span className="sqb-text sqb-internal-compare__val">{fmtEur2(materialSansBattery.achatMaterialHt)}</span>
                 <span className="sqb-text sqb-internal-compare__val">
-                  {internalWithBatteryReady ? fmtEur2(costHtWithBattery) : "—"}
+                  {internalWithBatteryReady ? fmtEur2(materialAvecBattery.achatMaterialHt) : "—"}
                 </span>
               </div>
               <div className="sqb-internal-compare__grid">
                 <span className="sqb-text sqb-muted sqb-text--small">Marge HT</span>
-                <span className="sqb-text sqb-internal-compare__val">{fmtEur2(marginHt)}</span>
+                <span className="sqb-text sqb-internal-compare__val">{fmtEur2(materialSansBattery.margeHt)}</span>
                 <span className="sqb-text sqb-internal-compare__val">
-                  {internalWithBatteryReady ? fmtEur2(marginHtWithBattery) : "—"}
+                  {internalWithBatteryReady ? fmtEur2(materialAvecBattery.margeHt) : "—"}
                 </span>
               </div>
               <div className="sqb-internal-compare__grid">
                 <span className="sqb-text sqb-muted sqb-text--small">% marge</span>
-                <span className={`sqb-text sqb-internal-compare__val ${marginPercent < 0 ? "sqb-text--danger" : ""}`}>
-                  {fmtPctFr(marginPercent, 2, 2)} %
+                <span
+                  className={`sqb-text sqb-internal-compare__val ${
+                    materialSansBattery.margeHt < 0 ? "sqb-text--danger" : ""
+                  }`}
+                >
+                  {materialSansBattery.tauxMargeSurAchatPct != null
+                    ? `${fmtPctFr(materialSansBattery.tauxMargeSurAchatPct, 2, 2)} %`
+                    : "—"}
                 </span>
                 <span
                   className={`sqb-text sqb-internal-compare__val ${
-                    internalWithBatteryReady && marginPctWithBattery < 0 ? "sqb-text--danger" : ""
+                    internalWithBatteryReady && materialAvecBattery.margeHt < 0 ? "sqb-text--danger" : ""
                   }`}
                 >
-                  {internalWithBatteryReady ? `${fmtPctFr(marginPctWithBattery, 2, 2)} %` : "—"}
+                  {internalWithBatteryReady
+                    ? materialAvecBattery.tauxMargeSurAchatPct != null
+                      ? `${fmtPctFr(materialAvecBattery.tauxMargeSurAchatPct, 2, 2)} %`
+                      : "—"
+                    : "—"}
                 </span>
               </div>
             </div>
@@ -1685,7 +1729,9 @@ export default function StudyQuoteBuilder() {
       <ConfirmModal
         open={negativeMarginConfirmOpen}
         title="Marge négative"
-        message={`Ce devis présente une marge de ${fmtPctFr(marginPercent, 1, 1)} %.\n\nVous vendez en dessous du prix de revient.\n\nVoulez-vous valider quand même ?`}
+        message={`Ce devis présente une marge matériel de ${
+          materialWarnTauxPct != null ? `${fmtPctFr(materialWarnTauxPct, 1, 1)} %` : "—"
+        } (taux sur achat matériel HT).\n\nVous vendez en dessous du prix de revient.\n\nVoulez-vous valider quand même ?`}
         confirmLabel="Valider malgré tout"
         cancelLabel="Annuler"
         variant="warning"
