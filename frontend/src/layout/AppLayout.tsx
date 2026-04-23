@@ -523,7 +523,9 @@ export function AppLayout() {
       <aside className="sn-sidebar">
         <div className="sn-sidebar-header">
           <div className="sn-sidebar-header-brand">
-            <div className="sn-sidebar-brand sidebar-brand">SolarNext</div>
+            <div className="sn-sidebar-brand sidebar-brand">
+              <img src="/logo.png" alt="SolarNext" className="sn-sidebar-brand-logo" />
+            </div>
             <OrganizationSwitcher />
           </div>
           <div className="sn-sidebar-actions">

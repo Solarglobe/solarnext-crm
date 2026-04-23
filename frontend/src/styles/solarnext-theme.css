@@ -1117,6 +1117,14 @@ a.sn-btn {
   color: var(--text);
 }
 
+.sn-sidebar-brand-logo {
+  display: block;
+  height: 28px;
+  width: auto;
+  max-width: min(160px, 100%);
+  object-fit: contain;
+}
+
 .sn-sidebar-actions {
   display: flex;
   gap: var(--spacing-8);
