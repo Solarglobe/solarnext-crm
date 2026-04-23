@@ -574,16 +574,6 @@ body {
   margin-bottom: 10px;
 }
 
-/* Logo en-tête : taille dominante (identité SolarNext), sans déborder la carte */
-.sn-auth-brand-mark {
-  display: block;
-  width: clamp(168px, 72vw, 300px);
-  max-width: 100%;
-  height: auto;
-  object-fit: contain;
-  filter: drop-shadow(0 6px 20px rgba(109, 40, 217, 0.14));
-}
-
 .sn-auth-badge {
   display: inline-flex;
   align-items: center;
@@ -1441,22 +1431,52 @@ a.sn-btn {
 }
 
 .sn-sidebar-brand {
-  font-size: 20px;
-  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 32px 20px 24px 20px;
+  position: relative;
   color: var(--text);
   min-width: 0;
   align-self: stretch;
   max-width: 100%;
 }
 
-/* PNG rogné (trim) : occupe toute la largeur utile, hauteur lisible dans la sidebar */
-.sn-sidebar-brand-logo {
+/* Trait doré sous le logo (prioritaire sur .sidebar-brand::after générique titres) */
+.sn-sidebar-brand.sidebar-brand::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 20px;
+  width: 60px;
+  height: 3px;
+  background: linear-gradient(90deg, #c39847, transparent);
+  border-radius: 2px;
+  opacity: 0.9;
+}
+
+.logo-solarnext {
   display: block;
-  width: 100%;
-  height: auto;
-  max-height: 76px;
+  height: 110px;
+  width: auto;
+  max-width: 100%;
   object-fit: contain;
   object-position: left center;
+  flex-shrink: 0;
+}
+
+.sn-sidebar-nav.sidebar-menu {
+  margin-top: 10px;
+}
+
+@media (max-width: 768px) {
+  .logo-solarnext {
+    height: 70px;
+  }
+
+  .sn-sidebar-brand {
+    padding: 20px 16px;
+  }
 }
 
 .sn-sidebar-actions {
@@ -4781,7 +4801,6 @@ html {
 
 .sidebar-brand {
   position: relative;
-  display: inline-block;
 }
 /* Trait doré : réutilise .sidebar-brand::after (défini avec les titres de page, section Doré STRUCTUREL) */
 

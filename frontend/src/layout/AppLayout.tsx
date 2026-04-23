@@ -523,7 +523,7 @@ export function AppLayout() {
       <aside className="sn-sidebar">
         <div className="sn-sidebar-header">
           <div className="sn-sidebar-brand sidebar-brand">
-            <img src="/logo.png" alt="SolarNext" className="sn-sidebar-brand-logo" />
+            <img src="/logo.png" alt="SolarNext" className="logo-solarnext" />
           </div>
           <div className="sn-sidebar-header-toolbar">
             <div className="sn-sidebar-header-brand">
@@ -599,7 +599,7 @@ export function AppLayout() {
           </div>
           </div>
         </div>
-        <nav className="sn-sidebar-nav" aria-label="Navigation principale">
+        <nav className="sn-sidebar-nav sidebar-menu" aria-label="Navigation principale">
           <SidebarCollapsibleSection
             sectionId="principal"
             title="Principal"

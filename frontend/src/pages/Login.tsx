@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Card } from "../components/ui/Card";
-import { Button } from "../components/ui/Button";
 import {
   login,
   isAuthenticated,
   LoginAmbiguousError,
 } from "../services/auth.service";
+import "./login-premium.css";
 
 const LOGO_SRC = "/logo.png";
 
@@ -108,129 +107,109 @@ export default function Login() {
     }
   };
 
+  const year = new Date().getFullYear();
+
   return (
-    <div className="sn-auth-bg">
-      <div className="sn-auth-watermark" aria-hidden>
-        <img src={LOGO_SRC} alt="" draggable={false} />
-      </div>
-      <div className="sn-auth-center">
-        <div className="sn-auth-card-shell">
-          <Card variant="premium" padding="none" className="sn-auth-login-card">
-            <div className="sn-auth-card-inner">
-              <header className="sn-auth-header">
-                <div className="sn-auth-brand-row">
-                  <img
-                    src={LOGO_SRC}
-                    alt="SolarNext"
-                    className="sn-auth-brand-mark"
-                    decoding="async"
-                  />
-                  <span className="sn-auth-badge sn-auth-badge-gold">
-                    CRM photovoltaïque
-                  </span>
-                </div>
-                <h1 className="sn-auth-headline">
-                  <span className="sn-auth-headline-brand">SolarNext</span>
-                  <span className="sn-auth-headline-crm">CRM</span>
-                </h1>
-                <p className="sn-auth-tagline">
-                  Accédez à votre espace de pilotage : leads, études et suivi
-                  opérationnel, au même endroit.
-                </p>
-              </header>
+    <div className="login-page">
+      <div className="login-bg" aria-hidden />
+      <div className="login-content">
+        <img
+          src={LOGO_SRC}
+          alt="SolarNext"
+          className="login-logo"
+          decoding="async"
+        />
 
-              <form onSubmit={handleSubmit} className="sn-auth-form" noValidate>
-                <div className="sn-auth-field">
-                  <label htmlFor="email" className="sn-auth-label">
-                    Adresse e-mail
-                  </label>
-                  <input
-                    id="email"
-                    type="email"
-                    value={email}
-                    onChange={(e) => {
-                      setEmail(e.target.value);
-                      setOrgChoices(null);
-                      setSelectedOrgId("");
-                    }}
-                    required
-                    autoComplete="email"
-                    placeholder="vous@entreprise.fr"
-                    className="sn-input sn-auth-input"
-                  />
-                </div>
+        <div className="login-card">
+          <header className="login-card-header">
+            <span className="login-badge">CRM photovoltaïque</span>
+            <h1>
+              <span className="login-title-brand">SolarNext</span>
+              <span className="login-title-crm">CRM</span>
+            </h1>
+            <p className="login-tagline">
+              Accédez à votre espace de pilotage : leads, études et suivi
+              opérationnel, au même endroit.
+            </p>
+          </header>
 
-                <div className="sn-auth-field">
-                  <label htmlFor="password" className="sn-auth-label">
-                    Mot de passe
-                  </label>
-                  <div className="sn-auth-password-wrap">
-                    <input
-                      id="password"
-                      type={showPassword ? "text" : "password"}
-                      value={password}
-                      onChange={(e) => {
-                        setPassword(e.target.value);
-                        setOrgChoices(null);
-                        setSelectedOrgId("");
-                      }}
-                      required
-                      autoComplete="current-password"
-                      placeholder="••••••••"
-                      className="sn-input sn-auth-input"
-                    />
-                    <button
-                      type="button"
-                      className="sn-auth-password-toggle"
-                      onClick={() => setShowPassword(!showPassword)}
-                      aria-label={
-                        showPassword
-                          ? "Masquer le mot de passe"
-                          : "Afficher le mot de passe"
-                      }
-                    >
-                      <IconEye visible={showPassword} />
-                    </button>
-                  </div>
-                </div>
-
-                {orgChoices && orgChoices.length > 0 && (
-                  <div className="sn-auth-field">
-                    <label htmlFor="organization" className="sn-auth-label">
-                      Organisation
-                    </label>
-                    <select
-                      id="organization"
-                      value={selectedOrgId}
-                      onChange={(e) => setSelectedOrgId(e.target.value)}
-                      className="sn-input sn-auth-input"
-                    >
-                      {orgChoices.map((o) => (
-                        <option key={o.id} value={o.id}>
-                          {o.name?.trim() ? o.name : o.id}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-
-                {error ? <p className="sn-auth-error">{error}</p> : null}
-
-                <div className="sn-auth-submit">
-                  <Button
-                    type="submit"
-                    variant="primary"
-                    size="lg"
-                    disabled={loading}
-                    fullWidth
-                  >
-                    {loading ? "Connexion…" : "Se connecter"}
-                  </Button>
-                </div>
-              </form>
+          <form onSubmit={handleSubmit} className="login-form" noValidate>
+            <div className="login-field">
+              <label htmlFor="email">Adresse e-mail</label>
+              <input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  setOrgChoices(null);
+                  setSelectedOrgId("");
+                }}
+                required
+                autoComplete="email"
+                placeholder="vous@entreprise.fr"
+              />
             </div>
-          </Card>
+
+            <div className="login-field">
+              <label htmlFor="password">Mot de passe</label>
+              <div className="login-password-wrap">
+                <input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    setOrgChoices(null);
+                    setSelectedOrgId("");
+                  }}
+                  required
+                  autoComplete="current-password"
+                  placeholder="••••••••"
+                />
+                <button
+                  type="button"
+                  className="login-password-toggle"
+                  onClick={() => setShowPassword(!showPassword)}
+                  aria-label={
+                    showPassword
+                      ? "Masquer le mot de passe"
+                      : "Afficher le mot de passe"
+                  }
+                >
+                  <IconEye visible={showPassword} />
+                </button>
+              </div>
+            </div>
+
+            {orgChoices && orgChoices.length > 0 && (
+              <div className="login-field">
+                <label htmlFor="organization">Organisation</label>
+                <select
+                  id="organization"
+                  value={selectedOrgId}
+                  onChange={(e) => setSelectedOrgId(e.target.value)}
+                >
+                  {orgChoices.map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {o.name?.trim() ? o.name : o.id}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {error ? <p className="login-error">{error}</p> : null}
+
+            <button type="submit" className="login-submit" disabled={loading}>
+              {loading ? "Connexion…" : "Se connecter"}
+            </button>
+          </form>
         </div>
+
+        <footer className="login-footer">
+          © {year} SolarNext. Tous droits réservés.
+        </footer>
       </div>
     </div>
   );
