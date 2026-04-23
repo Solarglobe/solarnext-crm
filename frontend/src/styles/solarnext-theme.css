@@ -181,8 +181,82 @@
 }
 
 /* Route-based body background (Login vs App) */
+/* Login : shell clair premium forcé (identité SolarNext), indépendant du thème CRM */
 .sn-auth-page {
+  --bg-auth: linear-gradient(
+    165deg,
+    #f9f8fc 0%,
+    #f4f1f8 38%,
+    #faf9f6 72%,
+    #f6f4fb 100%
+  );
   --bg: var(--bg-auth);
+  --bg-page: #f4f2f8;
+
+  --sn-bg-main: #f9f8fc;
+  --sn-bg-elevated: #ffffff;
+  --sn-bg-surface: #ffffff;
+  --sn-bg-hover: #f0eef6;
+  --sn-border-soft: rgba(26, 22, 40, 0.09);
+  --sn-border-strong: rgba(26, 22, 40, 0.14);
+  --sn-text-primary: #17131f;
+  --sn-text-secondary: #5b5568;
+  --sn-accent-violet: #6d28d9;
+  --sn-accent-violet-glow: rgba(109, 40, 217, 0.22);
+  --sn-accent-gold: #a67c2a;
+  --sn-accent-gold-soft: rgba(166, 124, 42, 0.1);
+
+  --halo-1: radial-gradient(
+    circle,
+    rgba(109, 40, 217, 0.14) 0%,
+    rgba(109, 40, 217, 0.05) 42%,
+    transparent 72%
+  );
+  --halo-2: radial-gradient(
+    circle,
+    rgba(139, 92, 246, 0.1) 0%,
+    rgba(139, 92, 246, 0.04) 45%,
+    transparent 70%
+  );
+
+  --surface: #ffffff;
+  --surface-2: rgba(26, 22, 40, 0.045);
+  --surface-app: rgba(255, 255, 255, 0.97);
+  --surface-card: #ffffff;
+  --surface-elevated: #ffffff;
+  --surface-soft: #ebe8f2;
+
+  --border: rgba(26, 22, 40, 0.08);
+  --border-2: rgba(26, 22, 40, 0.11);
+  --border-subtle: rgba(26, 22, 40, 0.07);
+  --border-strong: rgba(26, 22, 40, 0.14);
+  --border-soft: rgba(26, 22, 40, 0.1);
+
+  --text: #17131f;
+  --text-muted: #5b5568;
+  --text-primary: #17131f;
+  --text-secondary: #5b5568;
+
+  --primary: #6d28d9;
+  --violet-strong: #6d28d9;
+  --violet-glow: rgba(109, 40, 217, 0.22);
+  --gold: #9a7348;
+  --gold-soft: rgba(154, 115, 72, 0.09);
+  --gold-glow: rgba(154, 115, 72, 0.06);
+
+  --input-bg: rgba(255, 255, 255, 0.92);
+  --input-border: var(--border-2);
+  --input-placeholder: rgba(26, 22, 40, 0.38);
+
+  --ring: rgba(109, 40, 217, 0.28);
+  --ring-strong: rgba(109, 40, 217, 0.4);
+
+  --shadow-1: 0 12px 40px rgba(15, 10, 40, 0.07);
+  --shadow-2: 0 24px 56px rgba(15, 10, 40, 0.1);
+  --shadow-card: var(--shadow-1);
+  --shadow-card-elevated: 0 20px 50px rgba(15, 10, 40, 0.08), 0 0 0 1px rgba(26, 22, 40, 0.06);
+  --shadow-sm: var(--shadow-1);
+  --shadow-md: var(--shadow-2);
 }
 .sn-app-page {
   --bg: var(--bg-app);
@@ -350,43 +424,76 @@ body {
   position: relative;
 }
 
-/* ========== sn-auth-bg — Login : fond + halos propres (identique au rendu actuel) ========== */
+/* ========== sn-auth-bg — Login : fond clair premium + halos discrets ========== */
 .sn-auth-bg {
   position: relative;
+  isolation: isolate;
   min-height: 100vh;
+  min-height: 100dvh;
   background: var(--bg-auth) !important;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: var(--spacing-32);
+  padding: clamp(20px, 4vw, 40px);
+  padding-bottom: max(clamp(20px, 4vw, 40px), env(safe-area-inset-bottom, 0px));
   overflow: hidden;
 }
 
-/* Halos Login — tokens (identique visuellement) */
 .sn-auth-bg::before {
   content: "";
   position: absolute;
-  width: 700px;
-  height: 700px;
-  top: -300px;
-  left: -300px;
+  width: min(720px, 110vw);
+  height: min(720px, 110vw);
+  top: -18%;
+  left: -14%;
   background: var(--halo-1);
-  filter: blur(120px);
+  filter: blur(100px);
   pointer-events: none;
   z-index: 0;
+  opacity: 0.85;
 }
 
 .sn-auth-bg::after {
   content: "";
   position: absolute;
-  width: 600px;
-  height: 600px;
-  bottom: -280px;
-  right: -280px;
+  width: min(640px, 100vw);
+  height: min(640px, 100vw);
+  bottom: -16%;
+  right: -12%;
   background: var(--halo-2);
-  filter: blur(110px);
+  filter: blur(96px);
   pointer-events: none;
   z-index: 0;
+  opacity: 0.9;
+}
+
+/* Filigrane logo — asset /logo.png (référence AppLayout) */
+.sn-auth-watermark {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.sn-auth-watermark img {
+  width: min(92vw, 820px);
+  max-width: none;
+  height: auto;
+  opacity: 0.038;
+  filter: blur(1.5px);
+  transform: translate(2%, -5%) scale(1.02);
+  user-select: none;
+}
+
+@media (max-width: 520px) {
+  .sn-auth-watermark img {
+    width: min(118vw, 640px);
+    opacity: 0.032;
+  }
 }
 
 .sn-auth-center {
@@ -395,26 +502,257 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 100vh;
-  padding: var(--spacing-24);
-}
-
-.sn-auth-card {
   width: 100%;
-  max-width: unset;
+  max-width: 440px;
 }
 
-/* Login inchangé : pas de hover doré sur la carte */
-.sn-auth-bg .sn-card:hover,
-.sn-auth-bg .sn-card-premium:hover {
-  border-color: var(--border-soft);
-  box-shadow: var(--shadow-card-elevated), 0 0 0 1px var(--border-subtle);
+.sn-auth-card-shell {
+  position: relative;
+  width: 100%;
+}
+
+/* Halo violet très diffus derrière la carte */
+.sn-auth-card-shell::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 42%;
+  transform: translate(-50%, -50%);
+  width: 118%;
+  height: 88%;
+  max-width: 520px;
+  background: radial-gradient(
+    ellipse 70% 55% at 50% 45%,
+    rgba(109, 40, 217, 0.11) 0%,
+    rgba(109, 40, 217, 0.03) 55%,
+    transparent 72%
+  );
+  filter: blur(36px);
+  pointer-events: none;
+  z-index: -1;
+}
+
+.sn-auth-login-card.sn-card {
+  width: 100%;
+  max-width: 440px;
+  margin: 0 auto;
+  border-radius: 20px;
+  border: 1px solid rgba(26, 22, 40, 0.07);
+  background: linear-gradient(180deg, #ffffff 0%, #fcfbff 100%);
+  box-shadow: var(--shadow-card-elevated);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+.sn-auth-login-card.sn-card-premium {
+  border-radius: 20px;
+  border: 1px solid rgba(26, 22, 40, 0.08);
+  background: linear-gradient(180deg, #ffffff 0%, #faf9fd 100%);
+  box-shadow: 0 22px 48px rgba(15, 10, 40, 0.09), 0 0 0 1px rgba(109, 40, 217, 0.04);
+}
+
+.sn-auth-login-card.sn-card:hover,
+.sn-auth-login-card.sn-card-premium:hover {
+  border-color: rgba(26, 22, 40, 0.1);
+  box-shadow: 0 26px 56px rgba(15, 10, 40, 0.1), 0 0 0 1px rgba(109, 40, 217, 0.06);
+}
+
+.sn-auth-card-inner {
+  padding: clamp(28px, 5vw, 40px) clamp(24px, 4.5vw, 36px);
 }
 
 .sn-auth-header {
-  margin-bottom: var(--spacing-24);
+  margin-bottom: 0;
+  text-align: center;
 }
 
+.sn-auth-brand-row {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 8px;
+}
+
+.sn-auth-brand-mark {
+  width: 52px;
+  height: 52px;
+  object-fit: contain;
+  filter: drop-shadow(0 4px 14px rgba(109, 40, 217, 0.15));
+}
+
+.sn-auth-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 11px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  border: 1px solid rgba(26, 22, 40, 0.1);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.75);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.9) inset;
+}
+
+.sn-auth-badge-gold {
+  color: #7a6239;
+  border-color: rgba(154, 115, 72, 0.22);
+  background: linear-gradient(180deg, rgba(255, 253, 248, 0.95) 0%, rgba(250, 247, 240, 0.85) 100%);
+}
+
+.sn-auth-headline {
+  font-weight: 700;
+  font-size: clamp(1.35rem, 4vw, 1.55rem);
+  margin: 0;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+  color: var(--text-primary);
+}
+
+.sn-auth-headline-brand {
+  color: var(--primary);
+}
+
+.sn-auth-headline-crm {
+  font-weight: 600;
+  font-size: 0.72em;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #8a734f;
+  margin-left: 0.35em;
+  vertical-align: 0.08em;
+}
+
+.sn-auth-tagline {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-muted);
+  margin: 12px 0 0;
+  max-width: 32em;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.sn-auth-form {
+  margin-top: 28px;
+}
+
+.sn-auth-field {
+  margin-bottom: 18px;
+}
+
+.sn-auth-field:last-of-type {
+  margin-bottom: 0;
+}
+
+.sn-auth-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+  letter-spacing: 0.01em;
+}
+
+.sn-auth-input {
+  height: 48px !important;
+  padding: 0 16px !important;
+  border-radius: 12px !important;
+  font-size: 15px !important;
+}
+
+.sn-auth-password-wrap {
+  position: relative;
+}
+
+.sn-auth-password-wrap .sn-input {
+  padding-right: 48px !important;
+}
+
+.sn-auth-password-toggle {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background var(--ease), color var(--ease);
+}
+
+.sn-auth-password-toggle:hover {
+  background: rgba(109, 40, 217, 0.06);
+  color: var(--primary);
+}
+
+.sn-auth-password-toggle:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--ring);
+}
+
+.sn-auth-error {
+  color: var(--danger);
+  font-size: 13px;
+  line-height: 1.45;
+  margin: 14px 0 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(220, 38, 38, 0.06);
+  border: 1px solid rgba(220, 38, 38, 0.12);
+}
+
+.sn-auth-submit {
+  margin-top: 22px;
+}
+
+.sn-auth-submit .sn-btn-primary {
+  height: 48px !important;
+  border-radius: 12px !important;
+  font-size: 15px !important;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  box-shadow: 0 4px 14px rgba(109, 40, 217, 0.28), 0 1px 0 rgba(255, 255, 255, 0.12) inset;
+}
+
+.sn-auth-submit .sn-btn-primary:hover:not(:disabled) {
+  box-shadow: 0 8px 22px rgba(109, 40, 217, 0.32), 0 1px 0 rgba(255, 255, 255, 0.14) inset;
+}
+
+/* Login clair : le sélecteur org doit rester lisible même si le CRM est en theme-dark */
+html.sn-auth-page select,
+html.sn-auth-page.theme-dark select,
+html.sn-auth-page[data-theme="dark"] select {
+  background: var(--input-bg) !important;
+  color: var(--text-primary) !important;
+  border: 1px solid var(--border-soft) !important;
+}
+
+html.sn-auth-page select option,
+html.sn-auth-page.theme-dark select option,
+html.sn-auth-page[data-theme="dark"] select option {
+  background: #ffffff !important;
+  color: #17131f !important;
+}
+
+html.sn-auth-page select:focus,
+html.sn-auth-page.theme-dark select:focus,
+html.sn-auth-page[data-theme="dark"] select:focus {
+  border-color: var(--violet-strong) !important;
+  box-shadow: 0 0 0 3px var(--violet-glow) !important;
+}
+
+/* Compat : anciennes classes titre (si référencées ailleurs) */
 .sn-auth-title {
   font-weight: 700;
   font-size: 22px;
@@ -433,26 +771,9 @@ body {
   margin: var(--spacing-8) 0 0;
 }
 
-.sn-auth-field {
-  margin-bottom: var(--spacing-16);
-}
-
-.sn-auth-label {
-  display: block;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text);
-  margin-bottom: var(--spacing-8);
-}
-
-.sn-auth-error {
-  color: var(--danger);
-  font-size: 13px;
-  margin: var(--spacing-8) 0 0;
-}
-
-.sn-auth-submit {
-  margin-top: var(--spacing-16);
+.sn-auth-card {
+  width: 100%;
+  max-width: unset;
 }
 
 /* ========== Cards ========== */
