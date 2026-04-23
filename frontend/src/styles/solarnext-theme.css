@@ -1093,7 +1093,7 @@ a.sn-btn {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: var(--spacing-12);
+  gap: var(--spacing-8);
   flex-shrink: 0;
   padding: var(--spacing-16) 18px;
   margin-bottom: var(--spacing-8);
@@ -1121,16 +1121,16 @@ a.sn-btn {
   font-weight: 600;
   color: var(--text);
   min-width: 0;
-  align-self: flex-start;
+  align-self: stretch;
   max-width: 100%;
 }
 
+/* PNG rogné (trim) : occupe toute la largeur utile, hauteur lisible dans la sidebar */
 .sn-sidebar-brand-logo {
   display: block;
-  width: auto;
-  max-width: 100%;
+  width: 100%;
   height: auto;
-  max-height: 52px;
+  max-height: 76px;
   object-fit: contain;
   object-position: left center;
 }
