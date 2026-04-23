@@ -1,7 +1,7 @@
 {
   "outputDirectory": "dist-crm",
   "redirects": [
-    { "source": "/favicon.ico", "destination": "/favicon.svg" },
+    { "source": "/favicon.ico", "destination": "/favicon-solarnext.png" },
     { "source": "/crm.html", "destination": "/" },
     { "source": "/crm.html/:path*", "destination": "/:path*" }
   ],

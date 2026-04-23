@@ -551,7 +551,7 @@ export default function MairiesPage() {
                         </span>
                       </td>
                       <td>{row.city ?? "—"}</td>
-                      <td className="qb-mono">{row.postal_code}</td>
+                      <td className="mairies-page__cp-cell">{row.postal_code}</td>
                       <td>{formatMairiePortalTypeLabel(row.portal_type)}</td>
                       <td onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
                         {canWrite ? (
@@ -608,10 +608,8 @@ export default function MairiesPage() {
                       <td className="mairies-page__actions-cell">
                         <div className="mairies-page__actions-row">
                           {openHref ? (
-                            <Button
+                            <button
                               type="button"
-                              variant="primary"
-                              size="lg"
                               className="mairies-page__open-portal-btn"
                               title={getOpenPortalTooltip(openHref)}
                               aria-label={getOpenPortalTooltip(openHref)}
@@ -622,10 +620,10 @@ export default function MairiesPage() {
                               }}
                             >
                               <span className="mairies-page__open-icon" aria-hidden>
-                                ↗
-                              </span>{" "}
+                                →
+                              </span>
                               Ouvrir
-                            </Button>
+                            </button>
                           ) : (
                             <span className="qb-muted" style={{ fontSize: 13 }}>
                               —
@@ -634,7 +632,7 @@ export default function MairiesPage() {
                           {canWrite ? (
                             <button
                               type="button"
-                              className="fin-link-btn fin-link-btn--accent mairies-page__row-action"
+                              className="mairies-page__action-link"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 cancelScheduledRowNav();
@@ -647,8 +645,7 @@ export default function MairiesPage() {
                           {canWrite ? (
                             <button
                               type="button"
-                              className="fin-link-btn mairies-page__row-action"
-                              style={{ color: "var(--color-danger, #b91c1c)", minHeight: 44 }}
+                              className="mairies-page__action-link mairies-page__action-link--danger"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 cancelScheduledRowNav();
