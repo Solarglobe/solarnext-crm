@@ -64,7 +64,7 @@ export async function respondWithDpPdfOrJson(req, res, meta) {
   if (user.role === "SUPER_ADMIN" || user.role === SUPER_ADMIN_IMPERSONATION_ROLE_CODE) {
     const uid = user.userId ?? user.id;
     if (!uid || !(await userIsLiveSuperAdminByDb(pool, uid))) {
-      return sendSuperAdminJwtStale(res);
+      return sendSuperAdminJwtStale(res, req);
     }
   }
 

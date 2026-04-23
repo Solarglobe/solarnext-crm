@@ -51,7 +51,7 @@ async function assertCallerMayAccessTargetUser(req, res, targetUserId, options =
   const org = orgId(req);
   if (isJwtSuperAdmin(req)) return true;
   if (await userHasSuperAdminRbacRole(pool, targetUserId, org)) {
-    sendForbiddenSuperAdminRole(res, options.forbiddenSuperAdminMessage);
+    sendForbiddenSuperAdminRole(res, options.forbiddenSuperAdminMessage, req);
     return false;
   }
   return true;
@@ -124,7 +124,7 @@ export async function create(req, res) {
     }
 
     if (!isJwtSuperAdmin(req) && (await rbacRoleIdsIncludeSuperAdmin(pool, roleIds))) {
-      return sendForbiddenSuperAdminRole(res);
+      return sendForbiddenSuperAdminRole(res, undefined, req);
     }
 
     const passwordHash = await hashPassword(password);
@@ -260,7 +260,7 @@ export async function update(req, res) {
 
     if (roleIds !== undefined) {
       if (!isJwtSuperAdmin(req) && (await rbacRoleIdsIncludeSuperAdmin(pool, roleIds))) {
-        return sendForbiddenSuperAdminRole(res);
+        return sendForbiddenSuperAdminRole(res, undefined, req);
       }
       await pool.query("DELETE FROM rbac_user_roles WHERE user_id = $1", [id]);
       await pool.query("DELETE FROM user_roles WHERE user_id = $1", [id]);

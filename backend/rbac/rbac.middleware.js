@@ -50,6 +50,16 @@ export function requirePermission(code) {
       const organizationId = req.user?.organizationId ?? req.user?.organization_id;
 
       if (!userId || !organizationId) {
+        console.error("[403 DEBUG]", {
+          code: "INVALID_USER_CONTEXT",
+          user: req.user,
+          userId,
+          organizationId,
+          headers: {
+            org: req.headers["x-organization-id"] ?? req.headers["X-Organization-Id"],
+            superAdminEdit: req.headers["x-super-admin-edit"] ?? req.headers["X-Super-Admin-Edit"],
+          },
+        });
         return res.status(403).json({
           error: "FORBIDDEN",
           code: "INVALID_USER_CONTEXT",
@@ -82,6 +92,21 @@ export function requirePermission(code) {
           req,
           statusCode: 403,
           metadata: { permission: code },
+        });
+        console.log("[RBAC DEBUG]", {
+          userPermissions: Array.from(perms),
+          required: code,
+          userId,
+          organizationId,
+        });
+        console.error("[403 DEBUG]", {
+          code: "MISSING_PERMISSION",
+          permission: code,
+          user: req.user,
+          headers: {
+            org: req.headers["x-organization-id"] ?? req.headers["X-Organization-Id"],
+            superAdminEdit: req.headers["x-super-admin-edit"] ?? req.headers["X-Super-Admin-Edit"],
+          },
         });
         return res.status(403).json({
           error: "FORBIDDEN",
@@ -127,6 +152,16 @@ export function requireAnyPermission(codes) {
       const organizationId = req.user.organizationId ?? req.user.organization_id;
 
       if (!organizationId) {
+        console.error("[403 DEBUG]", {
+          code: "MISSING_ORGANIZATION",
+          user: req.user,
+          userId,
+          organizationId,
+          headers: {
+            org: req.headers["x-organization-id"] ?? req.headers["X-Organization-Id"],
+            superAdminEdit: req.headers["x-super-admin-edit"] ?? req.headers["X-Super-Admin-Edit"],
+          },
+        });
         return res.status(403).json({
           error: "FORBIDDEN",
           code: "MISSING_ORGANIZATION",
@@ -149,6 +184,21 @@ export function requireAnyPermission(codes) {
           });
           return next();
         }
+        console.log("[RBAC DEBUG]", {
+          userPermissions: Array.from(perms),
+          requiredAny: codes,
+          userId,
+          organizationId,
+        });
+        console.error("[403 DEBUG]", {
+          code: "MISSING_PERMISSION",
+          permission: codes.join("|"),
+          user: req.user,
+          headers: {
+            org: req.headers["x-organization-id"] ?? req.headers["X-Organization-Id"],
+            superAdminEdit: req.headers["x-super-admin-edit"] ?? req.headers["X-Super-Admin-Edit"],
+          },
+        });
         return res.status(403).json({
           error: "FORBIDDEN",
           code: "MISSING_PERMISSION",

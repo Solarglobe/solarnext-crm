@@ -165,7 +165,17 @@ export async function userHasSuperAdminRbacRole(
  * @param {import("express").Response} res
  * @param {string} [message]
  */
-export function sendForbiddenSuperAdminRole(res, message) {
+export function sendForbiddenSuperAdminRole(res, message, req) {
+  if (req) {
+    console.error("[403 DEBUG]", {
+      code: "FORBIDDEN_SUPER_ADMIN_ROLE",
+      user: req.user,
+      headers: {
+        org: req.headers["x-organization-id"] ?? req.headers["X-Organization-Id"],
+        superAdminEdit: req.headers["x-super-admin-edit"] ?? req.headers["X-Super-Admin-Edit"],
+      },
+    });
+  }
   return res.status(403).json({
     error:
       message ||
@@ -178,7 +188,17 @@ export function sendForbiddenSuperAdminRole(res, message) {
  * JWT annonce SUPER_ADMIN mais la base ne le confirme plus (rétrogradation, réparation rôles).
  * @param {import("express").Response} res
  */
-export function sendSuperAdminJwtStale(res) {
+export function sendSuperAdminJwtStale(res, req) {
+  if (req) {
+    console.error("[403 DEBUG]", {
+      code: "SUPER_ADMIN_JWT_STALE",
+      user: req.user,
+      headers: {
+        org: req.headers["x-organization-id"] ?? req.headers["X-Organization-Id"],
+        superAdminEdit: req.headers["x-super-admin-edit"] ?? req.headers["X-Super-Admin-Edit"],
+      },
+    });
+  }
   return res.status(403).json({
     error:
       "Session super administrateur invalide ou expirée. Déconnectez-vous et reconnectez-vous.",
