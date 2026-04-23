@@ -1403,14 +1403,14 @@ a.sn-btn {
   padding: var(--spacing-16) 0;
 }
 
-/* Sidebar header : logo pleine largeur, puis ligne org + actions */
+/* Sidebar header : colonne dense, logo centré, barre outils pleine largeur */
 .sn-sidebar-header {
   display: flex;
   flex-direction: column;
-  align-items: stretch;
-  gap: var(--spacing-8);
+  align-items: center;
+  gap: 6px;
   flex-shrink: 0;
-  padding: 8px 12px 8px 12px !important;
+  padding: 4px 10px !important;
   margin-bottom: var(--spacing-8);
 }
 
@@ -1420,6 +1420,8 @@ a.sn-btn {
   justify-content: space-between;
   gap: var(--spacing-8);
   min-width: 0;
+  align-self: stretch;
+  width: 100%;
 }
 
 /* Colonne org (ellipsis) à gauche des boutons */
@@ -1437,7 +1439,7 @@ a.sn-btn {
   justify-content: center;
   padding: 0 !important;
   margin-top: 0 !important;
-  margin-bottom: 8px;
+  margin-bottom: 4px;
   position: relative;
   overflow: visible;
   color: var(--text);
@@ -1462,9 +1464,10 @@ a.sn-btn {
 
 .logo-solarnext {
   display: block;
-  width: 240px !important;
-  height: auto !important;
-  max-width: none !important;
+  width: 100%;
+  max-width: 240px;
+  height: auto;
+  margin: 0 auto;
   object-fit: contain;
   object-position: center;
   flex-shrink: 0;
@@ -1477,8 +1480,8 @@ a.sn-btn {
   }
 
   .logo-solarnext {
-    width: min(240px, calc(100vw - 48px)) !important;
-    max-width: none !important;
+    width: 100%;
+    max-width: min(240px, calc(100vw - 48px));
   }
 }
 
