@@ -8,6 +8,7 @@ import {
   getCalpinageItem,
   setCalpinageItem,
 } from "../calpinageStorage";
+import { apiFetch } from "@/services/api";
 import { loadScriptOnce } from "./loadCalpinageDeps";
 import {
   normalizeCalpinageGeometry3DReady,
@@ -2602,11 +2603,8 @@ export function initCalpinage(container, options = {}) {
       async function loadLeadGpsContext(studyId) {
         if (!studyId) return null;
         try {
-          var apiBase = (window.CALPINAGE_API_BASE != null ? window.CALPINAGE_API_BASE : (window.location && window.location.origin)) || "";
-          var token = localStorage.getItem("solarnext_token");
-          var headers = { "Content-Type": "application/json" };
-          if (token) headers["Authorization"] = "Bearer " + token;
-          var res = await fetch(apiBase + "/api/studies/" + encodeURIComponent(studyId), { headers });
+          var apiRoot = (window.CALPINAGE_API_BASE != null ? window.CALPINAGE_API_BASE : (window.location && window.location.origin)) || "";
+          var res = await apiFetch(apiRoot + "/api/studies/" + encodeURIComponent(studyId));
           if (!res.ok) return null;
           var data = await res.json();
           var lead = data && data.lead;
@@ -10928,11 +10926,10 @@ updateValidateButton();
           var serverGeom = null;
           if (studyId && versionId) {
             try {
-              var apiBase = (window.CALPINAGE_API_BASE != null ? window.CALPINAGE_API_BASE : (window.location && window.location.origin)) || "";
-              var token = localStorage.getItem("solarnext_token");
-              var headers = { "Content-Type": "application/json" };
-              if (token) headers["Authorization"] = "Bearer " + token;
-              var res = await fetch(apiBase + "/api/studies/" + encodeURIComponent(studyId) + "/versions/" + encodeURIComponent(versionId) + "/calpinage", { headers });
+              var apiRoot = (window.CALPINAGE_API_BASE != null ? window.CALPINAGE_API_BASE : (window.location && window.location.origin)) || "";
+              var res = await apiFetch(
+                apiRoot + "/api/studies/" + encodeURIComponent(studyId) + "/versions/" + encodeURIComponent(versionId) + "/calpinage"
+              );
               if (res.ok) {
                 var json = await res.json();
                 if (json.ok && json.calpinageData && json.calpinageData.geometry_json) {
@@ -11304,10 +11301,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                   var panelWp = resolvedWp != null ? resolvedWp : (panelCount > 0 ? LEGACY_FALLBACK_PANEL_WC : null);
                   var totalPowerKwc = panelCount > 0 && panelWp != null ? (panelCount * panelWp) / 1000 : null;
                   var gps = (CALPINAGE_STATE && CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.gps) ? CALPINAGE_STATE.roof.gps : null;
-                  var apiBase = (window.location && window.location.origin) || "";
-                  var token = localStorage.getItem("solarnext_token");
-                  var headers = { "Content-Type": "application/json" };
-                  if (token) headers["Authorization"] = "Bearer " + token;
+                  var apiRoot = (window.CALPINAGE_API_BASE != null ? window.CALPINAGE_API_BASE : (window.location && window.location.origin)) || "";
                   var body = {
                     geometry_json: geometryJson,
                     total_panels: panelCount,
@@ -11324,16 +11318,15 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                     debugStringifyError(body, "body");
                     throw e;
                   }
-                  var res = await fetch(apiBase + "/api/studies/" + encodeURIComponent(studyId) + "/versions/" + encodeURIComponent(versionId) + "/calpinage", {
-                    method: "POST",
-                    headers: headers,
-                    body: bodyJson
-                  });
+                  var res = await apiFetch(
+                    apiRoot + "/api/studies/" + encodeURIComponent(studyId) + "/versions/" + encodeURIComponent(versionId) + "/calpinage",
+                    { method: "POST", body: bodyJson }
+                  );
                   if (res.ok) {
-                    console.log("[CALPINAGE] Sauvegarde API OK");
+                    console.log("Calpinage saved OK");
                   } else {
-                    var errJson = await res.json().catch(function() { return {}; });
-                    console.warn("[CALPINAGE] Sauvegarde API échouée:", errJson.error || res.status);
+                    var err = await res.json().catch(function() { return null; });
+                    console.error("Calpinage save failed:", err || res.status);
                   }
                 }
               } catch (e) {
