@@ -9,6 +9,48 @@ import "./login-premium.css";
 
 const LOGO_SRC = "/logo.png";
 
+function IconMail() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M4 7h16v10H4V7z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M4 7l8 5 8-5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function IconLock() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <rect
+        x="5"
+        y="11"
+        width="14"
+        height="10"
+        rx="2"
+        stroke="currentColor"
+        strokeWidth="1.5"
+      />
+      <path
+        d="M8 11V8a4 4 0 018 0v3"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
 function IconEye({ visible }: { visible: boolean }) {
   if (visible) {
     return (
@@ -43,6 +85,20 @@ function IconEye({ visible }: { visible: boolean }) {
         cx="12"
         cy="12"
         r="3"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function IconArrowRight() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M5 12h14M13 6l6 6-6 6"
         stroke="currentColor"
         strokeWidth="1.75"
         strokeLinecap="round"
@@ -124,8 +180,9 @@ export default function Login() {
           <header className="login-card-header">
             <span className="login-badge">CRM photovoltaïque</span>
             <h1>
-              <span className="login-title-brand">SolarNext</span>
-              <span className="login-title-crm">CRM</span>
+              <span className="login-title-muted">Bienvenue sur </span>
+              <span className="login-title-solar">Solar</span>
+              <span className="login-title-next">Next</span>
             </h1>
             <p className="login-tagline">
               Accédez à votre espace de pilotage : leads, études et suivi
@@ -136,24 +193,32 @@ export default function Login() {
           <form onSubmit={handleSubmit} className="login-form" noValidate>
             <div className="login-field">
               <label htmlFor="email">Adresse e-mail</label>
-              <input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => {
-                  setEmail(e.target.value);
-                  setOrgChoices(null);
-                  setSelectedOrgId("");
-                }}
-                required
-                autoComplete="email"
-                placeholder="vous@entreprise.fr"
-              />
+              <div className="login-input-wrap">
+                <span className="login-input-icon" aria-hidden>
+                  <IconMail />
+                </span>
+                <input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    setOrgChoices(null);
+                    setSelectedOrgId("");
+                  }}
+                  required
+                  autoComplete="email"
+                  placeholder="vous@entreprise.fr"
+                />
+              </div>
             </div>
 
             <div className="login-field">
               <label htmlFor="password">Mot de passe</label>
               <div className="login-password-wrap">
+                <span className="login-input-icon--left" aria-hidden>
+                  <IconLock />
+                </span>
                 <input
                   id="password"
                   type={showPassword ? "text" : "password"}
@@ -202,7 +267,14 @@ export default function Login() {
             {error ? <p className="login-error">{error}</p> : null}
 
             <button type="submit" className="login-submit" disabled={loading}>
-              {loading ? "Connexion…" : "Se connecter"}
+              <span className="login-submit-label">
+                {loading ? "Connexion…" : "Se connecter"}
+              </span>
+              {!loading ? (
+                <span className="login-submit-arrow">
+                  <IconArrowRight />
+                </span>
+              ) : null}
             </button>
           </form>
         </div>
