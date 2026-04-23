@@ -1614,7 +1614,7 @@ export default function StudyQuoteBuilder() {
           <section className="sqb-section sqb-section--internal-analysis sqb-internal-analysis" aria-label="Analyse interne">
             <h2 className="sqb-h2 sqb-h2--internal-analysis">Analyse interne</h2>
             <p className="sqb-helper sqb-internal-analysis-hint">
-              Marge matériel HT : uniquement les lignes avec prix d&apos;achat &gt; 0 ; % = marge HT / achat matériel HT.
+              Marge matériel HT : uniquement les lignes avec prix d&apos;achat &gt; 0 ; % = marge HT / prix de vente matériel HT.
               « Avec batterie » : + vente / coût batterie physique si coût d&apos;achat catalogue &gt; 0.
             </p>
             <div className="sqb-internal-compare">
@@ -1731,7 +1731,7 @@ export default function StudyQuoteBuilder() {
         title="Marge négative"
         message={`Ce devis présente une marge matériel de ${
           materialWarnTauxPct != null ? `${fmtPctFr(materialWarnTauxPct, 1, 1)} %` : "—"
-        } (taux sur achat matériel HT).\n\nVous vendez en dessous du prix de revient.\n\nVoulez-vous valider quand même ?`}
+        } (taux sur prix de vente matériel HT).\n\nVous vendez en dessous du prix de revient.\n\nVoulez-vous valider quand même ?`}
         confirmLabel="Valider malgré tout"
         cancelLabel="Annuler"
         variant="warning"

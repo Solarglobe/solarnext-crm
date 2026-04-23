@@ -110,18 +110,6 @@ export function enforceSuperAdminWriteAccess(req, res) {
     return false;
   }
 
-  console.error("[403 DEBUG]", {
-    code: "SUPER_ADMIN_READ_ONLY",
-    user: u,
-    superAdminEditRaw: v,
-    superAdminEditType: typeof v,
-    superAdminEditAccepted: editOn,
-    headers: {
-      org: req.headers["x-organization-id"] ?? req.headers["X-Organization-Id"],
-      superAdminEdit: req.headers["x-super-admin-edit"] ?? req.headers["X-Super-Admin-Edit"],
-    },
-  });
-
   void logAuditEvent({
     action: AuditActions.SUPER_ADMIN_READ_ONLY_BLOCK,
     entityType: "system",
@@ -165,28 +153,10 @@ export async function verifyJWT(req, res, next) {
       jwt_organization_id: organizationId,
     };
 
-    const _urlForAuthDbg = String(req.originalUrl || req.url || "");
-    if (
-      process.env.SN_403_DEBUG === "1" ||
-      process.env.SN_403_DEBUG === "true" ||
-      _urlForAuthDbg.includes("calpinage")
-    ) {
-      console.log("[AUTH DEBUG]", {
-        role: req.user?.role,
-        organizationId: req.user?.organizationId,
-        path: _urlForAuthDbg,
-        headers: {
-          org: req.headers["x-organization-id"] ?? req.headers["X-Organization-Id"],
-          superAdminEdit: req.headers["x-super-admin-edit"] ?? req.headers["X-Super-Admin-Edit"],
-          authorizationPresent: !!(req.headers.authorization && String(req.headers.authorization).startsWith("Bearer ")),
-        },
-      });
-    }
-
     if (req.user?.role === "SUPER_ADMIN") {
       const uid = req.user.userId ?? req.user.id;
       if (!uid || !(await userIsLiveSuperAdminByDb(pool, uid))) {
-        return sendSuperAdminJwtStale(res, req);
+        return sendSuperAdminJwtStale(res);
       }
     }
 
@@ -199,7 +169,7 @@ export async function verifyJWT(req, res, next) {
       }
       const oid = String(orig).trim();
       if (!(await userIsLiveSuperAdminByDb(pool, oid))) {
-        return sendSuperAdminJwtStale(res, req);
+        return sendSuperAdminJwtStale(res);
       }
       req.user.originalAdminId = oid;
     }

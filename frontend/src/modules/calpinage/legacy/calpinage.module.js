@@ -4163,12 +4163,10 @@ export function initCalpinage(container, options = {}) {
           if (!res.ok) throw new Error("Erreur " + res.status + " : " + (res.statusText || "Chargement catalogue impossible"));
           var list = await res.json();
           if (!Array.isArray(list)) {
-            console.error("PV panels API returned non-array:", list);
             window.SOLARNEXT_PANELS = [];
           } else {
             window.SOLARNEXT_PANELS = list;
           }
-          console.log("Loaded PV panels:", window.SOLARNEXT_PANELS);
           if (typeof window.syncPhase3LayoutUI === "function") {
             window.syncPhase3LayoutUI();
           }
@@ -11318,16 +11316,10 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                     debugStringifyError(body, "body");
                     throw e;
                   }
-                  var res = await apiFetch(
+                  await apiFetch(
                     apiRoot + "/api/studies/" + encodeURIComponent(studyId) + "/versions/" + encodeURIComponent(versionId) + "/calpinage",
                     { method: "POST", body: bodyJson }
                   );
-                  if (res.ok) {
-                    console.log("Calpinage saved OK");
-                  } else {
-                    var err = await res.json().catch(function() { return null; });
-                    console.error("Calpinage save failed:", err || res.status);
-                  }
                 }
               } catch (e) {
                 console.warn("[CALPINAGE] Sauvegarde API erreur:", e);

@@ -25,7 +25,7 @@ export interface QuoteSummaryPanelProps {
   validUntil?: string | null;
   /** Marge matériel HT (lignes avec coût d'achat &gt; 0 uniquement). */
   materialMarginMargeHt?: number;
-  /** % = marge / achat matériel HT ; null si aucun achat matériel. */
+  /** % = marge / prix de vente matériel HT ; null si aucune vente matériel sur lignes avec achat. */
   materialMarginTauxSurAchatPct?: number | null;
 }
 

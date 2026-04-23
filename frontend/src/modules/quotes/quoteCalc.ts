@@ -118,7 +118,7 @@ export type MaterialMarginLineInput = {
 /**
  * Marge matériel HT — uniquement lignes avec coût d'achat renseigné (> 0 côté centimes).
  * Vente HT = Σ(qty × PU HT) ; achat HT = Σ((centimes/100) × qty) ; marge = vente − achat ;
- * taux = marge / achat (si achat > 0).
+ * taux marge commerciale (%) = marge / prix de vente matériel HT = marge / vente (si vente > 0).
  */
 export function computeMaterialMarginFromLines(lines: MaterialMarginLineInput[]): {
   venteMaterialHt: number;
@@ -137,6 +137,6 @@ export function computeMaterialMarginFromLines(lines: MaterialMarginLineInput[])
     achat = round2(achat + round2((Number(c) / 100) * qty));
   }
   const marge = round2(vente - achat);
-  const taux = achat > 0 ? round2((marge / achat) * 100) : null;
+  const taux = vente > 0 ? round2((marge / vente) * 100) : null;
   return { venteMaterialHt: vente, achatMaterialHt: achat, margeHt: marge, tauxMargeSurAchatPct: taux };
 }

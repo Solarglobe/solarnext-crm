@@ -59,7 +59,7 @@ export async function getPermissions(req, res) {
       return res.status(404).json({ error: "Rôle non trouvé ou hors organisation" });
     }
     if (!isJwtSuperAdmin(req) && String(r.code || "").toUpperCase() === SUPER_ADMIN_ROLE_CODE) {
-      return sendForbiddenSuperAdminRole(res, undefined, req);
+      return sendForbiddenSuperAdminRole(res);
     }
 
     const perms = await pool.query(

@@ -41,30 +41,6 @@ function pathnameOnly(url: string): string {
   return q === -1 ? s : s.slice(0, q);
 }
 
-function isStudyCalpinagePersistPost(url: string, method: string): boolean {
-  if (method.toUpperCase() !== "POST") return false;
-  const p = pathnameOnly(url);
-  return (
-    p.includes("/api/studies/") &&
-    p.includes("/versions/") &&
-    p.endsWith("/calpinage")
-  );
-}
-
-/**
- * Diagnostic POST persist calpinage : log le corps 403 sans consommer le body de `res`.
- */
-export async function logCalpinagePersist403Response(res: Response): Promise<void> {
-  if (res.status !== 403) return;
-  const body = await res.clone().json().catch(() => null);
-  const text = await res.clone().text().catch(() => null);
-  console.error("[CALPINAGE 403 RESPONSE]", {
-    status: res.status,
-    body,
-    text,
-  });
-}
-
 /**
  * Affiche un toast "Session expirée" puis redirige vers /login après un court délai.
  * Appel idempotent : si une redirection est déjà en cours, ne fait rien.
@@ -166,11 +142,6 @@ export async function apiFetch(url: string, options: ApiFetchOptions = {}): Prom
     ...rest,
     headers,
   });
-
-  const methodForLog = String(rest.method || "GET");
-  if (response.status === 403 && isStudyCalpinagePersistPost(url, methodForLog)) {
-    await logCalpinagePersist403Response(response);
-  }
 
   // Intercepteur global 401 — session expirée ou token invalide
   if (response.status === 401) {
