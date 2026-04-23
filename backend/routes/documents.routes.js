@@ -375,6 +375,18 @@ router.post(
         document_type: documentType,
       };
       if (row.storage_key) payload.storage_key = row.storage_key;
+      logger.info(
+        {
+          event: "document_upload_ok",
+          organizationId: org,
+          entityType,
+          entityId,
+          documentId: row.id,
+          documentType,
+          storageKey: row.storage_key,
+        },
+        "POST /api/documents OK"
+      );
       res.status(201).json(addDocumentApiAliases({ ...payload, ...row }));
     } catch (e) {
       res.status(400).json({ error: e.message || "Erreur upload" });

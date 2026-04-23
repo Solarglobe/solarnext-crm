@@ -22,9 +22,7 @@ import {
 import { getAuthToken, apiFetch } from "../../services/api";
 import { showCrmInlineToast } from "../../components/ui/crmInlineToast";
 import { DEFAULT_PDF_PRIMARY_COLOR, normalizePdfPrimaryForApi, resolvePdfPrimaryColor } from "../../pages/pdf/pdfBrand";
-import { getCrmApiBase } from "@/config/crmApiBase";
-
-const API_BASE = getCrmApiBase();
+import { buildApiUrl } from "@/config/crmApiBase";
 
 /** Même priorité que l’émetteur sur les PDF (devis, factures) : juridique → commercial → nom entreprise. */
 function computeDocumentDisplayNamePreview(p: { legal_name: string; trade_name: string; name: string }): string {
@@ -44,7 +42,7 @@ function useImageUrl(apiPath: string | undefined) {
       setBlobUrl(null);
       return;
     }
-    const url = `${API_BASE || ""}${apiPath}`;
+    const url = buildApiUrl(apiPath);
     const token = getAuthToken();
     if (!token) return;
     apiFetch(url)
@@ -55,7 +53,12 @@ function useImageUrl(apiPath: string | undefined) {
         prevRef.current = u;
         setBlobUrl(u);
       })
-      .catch(() => setBlobUrl(null));
+      .catch((err) => {
+        if (import.meta.env.DEV) {
+          console.warn("[AdminTabOrg] prévisualisation image:", url, err);
+        }
+        setBlobUrl(null);
+      });
     return () => {
       if (prevRef.current) URL.revokeObjectURL(prevRef.current);
       prevRef.current = null;
@@ -337,8 +340,11 @@ export function AdminTabOrg() {
     try {
       const { logo_url } = await adminUploadLogo(file);
       setOrg((prev) => (prev ? { ...prev, logo_url } : null));
+      showCrmInlineToast("Logo enregistré", "success", 3200);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Erreur upload logo");
+      const msg = e instanceof Error ? e.message : "Erreur upload logo";
+      setError(msg);
+      showCrmInlineToast(msg, "error", 5000);
     } finally {
       setUploadingLogo(false);
       e.target.value = "";
@@ -351,8 +357,11 @@ export function AdminTabOrg() {
     try {
       await adminDeleteLogo();
       setOrg((prev) => (prev ? { ...prev, logo_url: undefined } : null));
+      showCrmInlineToast("Logo supprimé", "success", 2800);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Erreur suppression logo");
+      const msg = e instanceof Error ? e.message : "Erreur suppression logo";
+      setError(msg);
+      showCrmInlineToast(msg, "error", 5000);
     }
   };
 
@@ -365,8 +374,11 @@ export function AdminTabOrg() {
       const { storage_key } = await adminUploadPdfCover(file, org.id);
       await adminPostOrgSettings({ pdf_cover_image_key: storage_key });
       setSettingsPdfCover(storage_key);
+      showCrmInlineToast("Image de couverture PDF enregistrée", "success", 3200);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Erreur upload image couverture");
+      const msg = e instanceof Error ? e.message : "Erreur upload image couverture";
+      setError(msg);
+      showCrmInlineToast(msg, "error", 5000);
     } finally {
       setUploadingPdfCover(false);
       e.target.value = "";
@@ -379,8 +391,11 @@ export function AdminTabOrg() {
     try {
       await adminDeletePdfCover();
       setSettingsPdfCover(null);
+      showCrmInlineToast("Image de couverture supprimée", "success", 2800);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Erreur suppression image couverture");
+      const msg = e instanceof Error ? e.message : "Erreur suppression image couverture";
+      setError(msg);
+      showCrmInlineToast(msg, "error", 5000);
     }
   };
 

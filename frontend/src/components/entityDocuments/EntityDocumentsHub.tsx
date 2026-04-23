@@ -3,15 +3,14 @@
  */
 
 import { useCallback, useMemo, useRef, useState, type ChangeEvent } from "react";
-import { getCrmApiBase } from "@/config/crmApiBase";
+import { buildApiUrl } from "@/config/crmApiBase";
 import { apiFetch, getAuthToken } from "../../services/api";
+import { showCrmInlineToast } from "../../components/ui/crmInlineToast";
 import type { DocumentCategory, DocumentSectionKey, EntityDocument } from "./entityDocumentTypes";
 import { resolveDocumentLifecycleBadge } from "./documentLifecycleBadge";
 import { groupDocumentsBySection, SECTION_ORDER } from "./groupDocumentsBySection";
 import styles from "./EntityDocumentsHub.module.css";
 import { assertDocumentDownloadOk } from "@/utils/documentDownload";
-
-const API_BASE = getCrmApiBase();
 
 const SECTION_UI: Record<DocumentSectionKey, { title: string; empty: string; kicker: string }> = {
   QUOTE: { title: "Devis", empty: "Aucun devis", kicker: "Offres & PDF devis" },
@@ -172,7 +171,7 @@ export default function EntityDocumentsHub({
       if (description.trim()) {
         formData.append("description", description.trim());
       }
-      const res = await apiFetch(`${API_BASE}/api/documents`, {
+      const res = await apiFetch(buildApiUrl("/api/documents"), {
         method: "POST",
         body: formData,
       });
@@ -186,8 +185,11 @@ export default function EntityDocumentsHub({
       setDisplayName("");
       setDescription("");
       onRefresh();
+      showCrmInlineToast("Document enregistré", "success", 3200);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Erreur upload");
+      const msg = e instanceof Error ? e.message : "Erreur upload";
+      setError(msg);
+      showCrmInlineToast(msg, "error", 5500);
     } finally {
       setUploading(false);
       setProgress(0);
@@ -199,7 +201,7 @@ export default function EntityDocumentsHub({
     setDownloadingId(doc.id);
     setError(null);
     try {
-      const res = await apiFetch(`${API_BASE}/api/documents/${doc.id}/download`);
+      const res = await apiFetch(buildApiUrl(`/api/documents/${doc.id}/download`));
       assertDocumentDownloadOk(res, doc.id);
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
@@ -223,7 +225,7 @@ export default function EntityDocumentsHub({
     setDeletingId(docId);
     setError(null);
     try {
-      const res = await apiFetch(`${API_BASE}/api/documents/${docId}`, { method: "DELETE" });
+      const res = await apiFetch(buildApiUrl(`/api/documents/${docId}`), { method: "DELETE" });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error((err as { error?: string }).error || "Erreur suppression");
@@ -242,7 +244,7 @@ export default function EntityDocumentsHub({
     setArchivingId(docId);
     setError(null);
     try {
-      const res = await apiFetch(`${API_BASE}/api/documents/${docId}/archive`, { method: "PATCH" });
+      const res = await apiFetch(buildApiUrl(`/api/documents/${docId}/archive`), { method: "PATCH" });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error((err as { error?: string }).error || "Erreur archivage");
@@ -261,7 +263,7 @@ export default function EntityDocumentsHub({
     setVisibilityBusyId(doc.id);
     setError(null);
     try {
-      const res = await apiFetch(`${API_BASE}/api/documents/${doc.id}`, {
+      const res = await apiFetch(buildApiUrl(`/api/documents/${doc.id}`), {
         method: "PATCH",
         body: JSON.stringify({ is_client_visible: next }),
       });

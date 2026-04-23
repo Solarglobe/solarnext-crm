@@ -7,6 +7,7 @@ import path from "path";
 import { pool } from "../config/db.js";
 import { getAbsolutePath } from "../services/localStorage.service.js";
 import { deleteDocument } from "../services/documents.service.js";
+import logger from "../app/core/logger.js";
 
 const orgId = (req) => req.user.organizationId ?? req.user.organization_id;
 
@@ -179,6 +180,7 @@ export async function uploadLogo(req, res) {
       [logoUrl, org]
     );
 
+    logger.info({ event: "org_logo_upload_ok", organizationId: org }, "POST /api/admin/org/logo OK");
     res.json({ logo_url: logoUrl });
   } catch (e) {
     res.status(400).json({ error: e.message });
