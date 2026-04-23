@@ -123,8 +123,7 @@ export default function Login() {
                     src={LOGO_SRC}
                     alt="SolarNext"
                     className="sn-auth-brand-mark"
-                    width={52}
-                    height={52}
+                    decoding="async"
                   />
                   <span className="sn-auth-badge sn-auth-badge-gold">
                     CRM photovoltaïque
