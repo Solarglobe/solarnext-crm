@@ -1017,6 +1017,7 @@ html.sn-auth-page[data-theme="dark"] select:focus {
   overscroll-behavior: contain;
   padding: 0 var(--spacing-12) var(--spacing-16);
   -webkit-overflow-scrolling: touch;
+  margin-top: 4px;
 }
 
 .sn-sidebar-nav-group {
@@ -1434,21 +1435,23 @@ a.sn-btn {
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  padding: 32px 20px 24px 20px;
+  padding: 12px 16px 8px 16px;
   position: relative;
+  height: 80px;
+  overflow: visible;
   color: var(--text);
   min-width: 0;
   align-self: stretch;
   max-width: 100%;
 }
 
-/* Trait doré sous le logo (prioritaire sur .sidebar-brand::after générique titres) */
-.sn-sidebar-brand.sidebar-brand::after {
+/* Trait doré collé au logo (prioritaire sur .sidebar-brand::after des titres) */
+.sn-sidebar-brand::after {
   content: "";
   position: absolute;
   bottom: 0;
-  left: 20px;
-  width: 60px;
+  left: 16px;
+  width: 50px;
   height: 3px;
   background: linear-gradient(90deg, #c39847, transparent);
   border-radius: 2px;
@@ -1457,25 +1460,24 @@ a.sn-btn {
 
 .logo-solarnext {
   display: block;
-  height: 110px;
+  height: 120px;
   width: auto;
   max-width: 100%;
   object-fit: contain;
   object-position: left center;
   flex-shrink: 0;
-}
-
-.sn-sidebar-nav.sidebar-menu {
-  margin-top: 10px;
+  transform: translateY(4px);
 }
 
 @media (max-width: 768px) {
-  .logo-solarnext {
-    height: 70px;
+  .sn-sidebar-brand {
+    height: 60px;
+    padding: 10px 12px;
   }
 
-  .sn-sidebar-brand {
-    padding: 20px 16px;
+  .logo-solarnext {
+    height: 80px;
+    transform: translateY(2px);
   }
 }
 

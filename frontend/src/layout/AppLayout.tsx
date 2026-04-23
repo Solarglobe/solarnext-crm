@@ -599,7 +599,7 @@ export function AppLayout() {
           </div>
           </div>
         </div>
-        <nav className="sn-sidebar-nav sidebar-menu" aria-label="Navigation principale">
+        <nav className="sn-sidebar-nav" aria-label="Navigation principale">
           <SidebarCollapsibleSection
             sectionId="principal"
             title="Principal"

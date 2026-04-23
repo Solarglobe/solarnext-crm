@@ -4,12 +4,16 @@
  */
 
 html.sn-auth-page {
-  min-height: 100vh;
+  height: 100%;
+  min-height: 100%;
+  overflow: hidden;
 }
 
 html.sn-auth-page body {
-  min-height: 100vh;
+  height: 100%;
+  min-height: 100%;
   margin: 0;
+  overflow: hidden;
   /* Fond proche du shell login (évite flash sous la page) */
   background: #e9e1ef;
 }
@@ -18,8 +22,45 @@ html.sn-auth-page body {
   position: relative;
   isolation: isolate;
   min-height: 100vh;
+  height: 100vh;
+  max-height: 100vh;
   overflow: hidden;
   background: radial-gradient(circle at 20% 20%, #f3edf7, #e9e1ef 60%, #ddd4e8);
+}
+
+/* Halos or discrets — coins (sous le contenu, z-index bas) */
+.login-page::before {
+  content: "";
+  position: absolute;
+  top: -200px;
+  right: -200px;
+  width: 600px;
+  height: 600px;
+  z-index: 0;
+  background: radial-gradient(
+    circle,
+    rgba(195, 152, 71, 0.25) 0%,
+    rgba(195, 152, 71, 0.08) 40%,
+    transparent 70%
+  );
+  pointer-events: none;
+}
+
+.login-page::after {
+  content: "";
+  position: absolute;
+  bottom: -200px;
+  left: -200px;
+  width: 600px;
+  height: 600px;
+  z-index: 0;
+  background: radial-gradient(
+    circle,
+    rgba(195, 152, 71, 0.2) 0%,
+    rgba(195, 152, 71, 0.06) 40%,
+    transparent 70%
+  );
+  pointer-events: none;
 }
 
 .login-bg {
@@ -29,38 +70,22 @@ html.sn-auth-page body {
   pointer-events: none;
 }
 
-.login-bg::before,
+/* Courbes / anneaux dorés très légers — coin haut droit */
 .login-bg::after {
   content: "";
   position: absolute;
-  width: 800px;
-  height: 800px;
-  border-radius: 50%;
-  pointer-events: none;
-}
-
-.login-bg::before {
-  top: -200px;
-  right: -200px;
-  background: radial-gradient(circle, rgba(195, 152, 71, 0.15), transparent 70%);
-}
-
-.login-bg::after {
-  bottom: -200px;
-  left: -200px;
-  background: radial-gradient(circle, rgba(195, 152, 71, 0.12), transparent 70%);
-}
-
-.login-page::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  background-image:
-    radial-gradient(circle at 100% 0%, rgba(195, 152, 71, 0.22) 1px, transparent 1px),
-    linear-gradient(120deg, rgba(195, 152, 71, 0.18) 1px, transparent 1px);
-  background-size: 56px 56px, 88px 88px;
-  opacity: 0.14;
+  top: 0;
+  right: 0;
+  width: 400px;
+  height: 400px;
+  background: repeating-radial-gradient(
+    circle at top right,
+    rgba(195, 152, 71, 0.25),
+    rgba(195, 152, 71, 0.25) 1px,
+    transparent 1px,
+    transparent 14px
+  );
+  opacity: 0.15;
   pointer-events: none;
 }
 
@@ -69,18 +94,21 @@ html.sn-auth-page body {
   z-index: 1;
   display: flex;
   flex-direction: column;
+  justify-content: center;
   align-items: center;
   width: 100%;
-  min-height: 100vh;
-  padding: 0 20px 48px;
+  height: 100%;
+  min-height: 0;
+  padding: 0 20px;
   box-sizing: border-box;
 }
 
 .login-logo {
   display: block;
-  margin: 60px auto 40px;
-  max-width: 520px;
-  width: min(90%, 520px);
+  margin-top: 0;
+  margin-bottom: 20px;
+  max-width: 420px;
+  width: min(90%, 420px);
   height: auto;
   object-fit: contain;
   filter: drop-shadow(0 10px 32px rgba(91, 50, 168, 0.1));
@@ -270,7 +298,8 @@ html.sn-auth-page body {
 
 .login-footer {
   text-align: center;
-  margin-top: 36px;
+  margin-top: 24px;
+  flex-shrink: 0;
   color: #8e889f;
   font-size: 13px;
   line-height: 1.5;
@@ -278,10 +307,15 @@ html.sn-auth-page body {
 
 @media (max-width: 768px) {
   .login-logo {
-    margin: 40px auto 28px;
+    margin-top: 0;
+    margin-bottom: 16px;
   }
 
   .login-card {
     padding: 28px 22px;
+  }
+
+  .login-footer {
+    margin-top: 16px;
   }
 }
