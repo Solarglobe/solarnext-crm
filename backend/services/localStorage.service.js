@@ -7,12 +7,8 @@
 import fs from "fs/promises";
 import path from "path";
 import { randomUUID } from "crypto";
-import { fileURLToPath } from "url";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const STORAGE_ROOT = path.join(__dirname, "..", "storage");
+const STORAGE_ROOT = "/app/storage";
 
 /**
  * Nettoie le nom de fichier (caractères sûrs uniquement)
@@ -40,6 +36,7 @@ export async function uploadFile(buffer, organizationId, entityType, entityId, o
   await fs.mkdir(dirPath, { recursive: true });
 
   const filePath = path.join(dirPath, fileName);
+  console.log("[STORAGE FIX] filePath:", filePath);
   await fs.writeFile(filePath, buffer);
 
   const storage_path = [organizationId, entityType, entityId, fileName].join("/");
@@ -64,6 +61,7 @@ export async function uploadMailAttachmentFile(buffer, organizationId, originalN
   const dirPath = path.join(STORAGE_ROOT, organizationId, "mail", yyyy, mm);
   await fs.mkdir(dirPath, { recursive: true });
   const filePath = path.join(dirPath, fileName);
+  console.log("[STORAGE FIX] filePath:", filePath);
   await fs.writeFile(filePath, buffer);
   const storage_path = [organizationId, "mail", yyyy, mm, fileName].join("/");
   return { storage_path, file_name: fileName };
@@ -83,6 +81,7 @@ export async function deleteFile(storagePath) {
   if (!resolved.startsWith(path.resolve(STORAGE_ROOT))) {
     throw new Error("Chemin invalide (path traversal)");
   }
+  console.log("[STORAGE FIX] filePath:", resolved);
   try {
     await fs.unlink(resolved);
   } catch (err) {
@@ -105,5 +104,6 @@ export function getAbsolutePath(storagePath) {
   if (!resolved.startsWith(path.resolve(STORAGE_ROOT))) {
     throw new Error("Chemin invalide (path traversal)");
   }
+  console.log("[STORAGE FIX] filePath:", resolved);
   return resolved;
 }
