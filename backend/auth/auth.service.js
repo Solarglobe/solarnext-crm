@@ -20,3 +20,43 @@ export function generateJWT(user) {
   };
   return jwt.sign(payload, JWT_SECRET, { expiresIn: "7d" });
 }
+
+/**
+ * Session super admin connecté « en tant que » une organisation (courte durée).
+ * @param {{ originalAdminId: string, targetOrganizationId: string, originalAdminOrganizationId: string }} p
+ */
+export function generateImpersonationJWT({ originalAdminId, targetOrganizationId, originalAdminOrganizationId }) {
+  const payload = {
+    userId: originalAdminId,
+    organizationId: targetOrganizationId,
+    role: "SUPER_ADMIN_IMPERSONATION",
+    originalAdminId,
+    originalAdminOrganizationId,
+    impersonation: true,
+    impersonationType: "ORG",
+  };
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: "2h" });
+}
+
+/**
+ * Impersonation d’un utilisateur réel (RBAC effectif, pas de bypass super admin).
+ * @param {{ userId: string, organizationId: string, role: string, originalAdminId: string, originalAdminOrganizationId: string }} p
+ */
+export function generateUserImpersonationJWT({
+  userId,
+  organizationId,
+  role,
+  originalAdminId,
+  originalAdminOrganizationId,
+}) {
+  const payload = {
+    userId,
+    organizationId,
+    role,
+    impersonation: true,
+    impersonationType: "USER",
+    originalAdminId,
+    originalAdminOrganizationId,
+  };
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: "2h" });
+}

@@ -2,6 +2,7 @@
   "name": "solarnext-crm",
   "private": true,
   "scripts": {
-    "start": "cd backend && npm install && npm start"
+    "start": "cd backend && npm install && npm start",
+    "restore:storage:railway": "node backend/scripts/railway-restore-storage.mjs"
   }
 }

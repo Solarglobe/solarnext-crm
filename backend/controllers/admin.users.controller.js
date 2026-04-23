@@ -9,7 +9,7 @@
  */
 
 import { pool } from "../config/db.js";
-import { hashPassword } from "../auth/auth.service.js";
+import { hashPassword, generateUserImpersonationJWT } from "../auth/auth.service.js";
 import { logAuditEvent } from "../services/audit/auditLog.service.js";
 import { AuditActions } from "../services/audit/auditActions.js";
 import {
@@ -18,6 +18,9 @@ import {
   userHasSuperAdminRbacRole,
   sendForbiddenSuperAdminRole,
   SUPER_ADMIN_ROLE_CODE,
+  resolveEffectiveHighestRole,
+  isUserImpersonationRequest,
+  SUPER_ADMIN_IMPERSONATION_ROLE_CODE,
 } from "../lib/superAdminUserGuards.js";
 import {
   ensureAdminRbacConsistentAfterUserCreate,
@@ -180,6 +183,28 @@ export async function update(req, res) {
     const { id } = req.params;
     const { email, password, status, roleIds } = req.body;
     const actorId = req.user?.userId ?? req.user?.id ?? null;
+
+    if (isUserImpersonationRequest(req)) {
+      if (Object.prototype.hasOwnProperty.call(req.body ?? {}, "originalAdminId")) {
+        return res.status(400).json({
+          error: "Le champ originalAdminId ne peut pas être modifié via l’API utilisateur",
+          code: "IMPERSONATION_ORIGINAL_ADMIN_ID_BODY_FORBIDDEN",
+        });
+      }
+      if (String(id) === String(actorId)) {
+        return res.status(400).json({
+          error: "Impossible de modifier ce compte en mode impersonation utilisateur",
+          code: "IMPERSONATION_SELF_EDIT_FORBIDDEN",
+        });
+      }
+      const orig = req.user.originalAdminId;
+      if (orig && String(id) === String(orig)) {
+        return res.status(400).json({
+          error: "Impossible de modifier le compte super administrateur pendant une impersonation",
+          code: "IMPERSONATION_ADMIN_EDIT_FORBIDDEN",
+        });
+      }
+    }
 
     const existing = await pool.query(
       "SELECT id FROM users WHERE id = $1 AND organization_id = $2",
@@ -512,6 +537,12 @@ export async function remove(req, res) {
     const { id } = req.params;
 
     const actorId = req.user?.userId ?? req.user?.id ?? null;
+    if (isUserImpersonationRequest(req) && String(id) === String(actorId)) {
+      return res.status(400).json({
+        error: "Impossible de supprimer ce compte en mode impersonation utilisateur",
+        code: "IMPERSONATION_SELF_EDIT_FORBIDDEN",
+      });
+    }
     if (respondIfDeletingOwnAccount(res, actorId, id)) return;
 
     if (
@@ -553,5 +584,116 @@ export async function remove(req, res) {
       error: "Internal error",
       code: "DELETE_USER_FAILED",
     });
+  }
+}
+
+/**
+ * POST /api/admin/users/:id/impersonate
+ * Super admin (JWT) uniquement — jeton cible = utilisateur réel (RBAC, pas de bypass).
+ */
+export async function impersonateUser(req, res) {
+  try {
+    if (
+      req.user?.impersonation === true ||
+      req.user?.impersonation === "true" ||
+      String(req.user?.role) === SUPER_ADMIN_IMPERSONATION_ROLE_CODE
+    ) {
+      return res.status(400).json({
+        error: "Session d’impersonation déjà active — reconnectez-vous en super administrateur",
+        code: "IMPERSONATION_CHAIN_FORBIDDEN",
+      });
+    }
+    if (String(req.user?.role) !== SUPER_ADMIN_ROLE_CODE) {
+      return res.status(403).json({ error: "Accès réservé au super administrateur" });
+    }
+
+    const targetId = String(req.params.id || "").trim();
+    const adminId = String(req.user.userId ?? req.user.id ?? "");
+    if (!adminId) {
+      return res.status(401).json({ error: "Utilisateur non identifié" });
+    }
+    if (targetId === adminId) {
+      return res.status(400).json({ error: "Vous ne pouvez pas vous impersoner vous-même", code: "IMPERSONATE_SELF" });
+    }
+
+    const u = await pool.query(
+      `SELECT u.id, u.status, u.organization_id, u.first_name, u.last_name, u.email,
+              o.name AS organization_name, COALESCE(o.is_archived, false) AS org_archived
+       FROM users u
+       JOIN organizations o ON o.id = u.organization_id
+       WHERE u.id = $1`,
+      [targetId]
+    );
+    if (u.rows.length === 0) {
+      return res.status(404).json({ error: "Utilisateur non trouvé" });
+    }
+    const row = u.rows[0];
+    if (row.status !== "active") {
+      return res.status(400).json({ error: "Utilisateur inactif ou indisponible", code: "USER_NOT_ACTIVE" });
+    }
+    if (row.org_archived) {
+      return res.status(400).json({ error: "Organisation archivée", code: "ORG_ARCHIVED" });
+    }
+
+    const effRole = await resolveEffectiveHighestRole(pool, targetId);
+    if (!effRole) {
+      return res.status(400).json({ error: "Aucun rôle effectif pour cet utilisateur" });
+    }
+    if (String(effRole).toUpperCase() === SUPER_ADMIN_ROLE_CODE) {
+      return res.status(400).json({
+        error: "Impersonation d’un super administrateur interdite",
+        code: "IMPERSONATE_SUPER_FORBIDDEN",
+      });
+    }
+
+    const originalAdminOrg = String(
+      req.user.jwtOrganizationId ?? req.user.jwt_organization_id ?? req.user.organizationId ?? ""
+    );
+    const displayName =
+      [row.first_name, row.last_name].filter(Boolean).join(" ").trim() || String(row.email || "");
+
+    const token = generateUserImpersonationJWT({
+      userId: String(row.id),
+      organizationId: String(row.organization_id),
+      role: effRole,
+      originalAdminId: adminId,
+      originalAdminOrganizationId: originalAdminOrg,
+    });
+
+    void logAuditEvent({
+      action: AuditActions.SUPER_ADMIN_USER_IMPERSONATE,
+      entityType: "user",
+      entityId: row.id,
+      organizationId: row.organization_id,
+      userId: adminId,
+      req,
+      statusCode: 200,
+      metadata: {
+        originalAdminId: adminId,
+        impersonatedUserId: row.id,
+        organizationId: row.organization_id,
+        timestamp: new Date().toISOString(),
+      },
+    });
+    console.log("[admin.users] user impersonation issued", {
+      adminId,
+      targetUserId: row.id,
+      orgId: row.organization_id,
+    });
+
+    return res.json({
+      token,
+      expiresInSec: 7200,
+      user: {
+        id: row.id,
+        name: displayName,
+        email: row.email,
+        organizationId: row.organization_id,
+        organizationName: row.organization_name,
+      },
+    });
+  } catch (e) {
+    console.error("[admin.users] impersonateUser", e);
+    return res.status(500).json({ error: e?.message || "Erreur serveur" });
   }
 }

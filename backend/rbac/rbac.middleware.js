@@ -6,7 +6,8 @@
 import { getUserPermissions } from "./rbac.service.js";
 import { logAuditEvent } from "../services/audit/auditLog.service.js";
 import { AuditActions } from "../services/audit/auditActions.js";
-import { getRbacMode, isSuperAdminBypassEnabled } from "../config/rbacMode.js";
+import { getRbacMode } from "../config/rbacMode.js";
+import { effectiveSuperAdminRequestBypass } from "../lib/superAdminUserGuards.js";
 import logger from "../app/core/logger.js";
 
 function logSuperAdminBypass(req, permissionLabel) {
@@ -36,7 +37,7 @@ export function requirePermission(code) {
     try {
       const mode = getRbacMode();
 
-      if (req.user?.role === "SUPER_ADMIN" && isSuperAdminBypassEnabled()) {
+      if (effectiveSuperAdminRequestBypass(req)) {
         logSuperAdminBypass(req, code);
         return next();
       }
@@ -113,7 +114,7 @@ export function requireAnyPermission(codes) {
 
       const mode = getRbacMode();
 
-      if (req.user.role === "SUPER_ADMIN" && isSuperAdminBypassEnabled()) {
+      if (effectiveSuperAdminRequestBypass(req)) {
         logSuperAdminBypass(req, codes.join("|"));
         return next();
       }

@@ -15,6 +15,7 @@ import { resolveConsumptionCsv } from "../services/consumptionCsvResolver.servic
 import { loadConsumption, applyEquipmentShape } from "../services/consumptionService.js";
 import { mergeLeadEquipmentIntoConsoLayer } from "../services/leadEquipmentMerge.service.js";
 import { resolveSystemDocumentMetadata } from "../services/documentMetadata.service.js";
+import { isSuperAdminLikeRole } from "../lib/superAdminUserGuards.js";
 
 const router = express.Router();
 
@@ -193,7 +194,7 @@ router.post(
 
         const uidStr = String(uid);
         const assignedToSelf = String(lead.assigned_user_id ?? "") === uidStr;
-        const isSuperAdmin = req.user?.role === "SUPER_ADMIN";
+        const isSuperAdmin = isSuperAdminLikeRole(req.user?.role);
         const canAccessLead =
           canReadAll ||
           canUpdateAll ||
@@ -298,7 +299,7 @@ router.post(
     const uidStr = String(uid);
     const assignedToSelf = String(lead.assigned_user_id ?? "") === uidStr;
 
-    const isSuperAdmin = req.user?.role === "SUPER_ADMIN";
+    const isSuperAdmin = isSuperAdminLikeRole(req.user?.role);
 
     const canAccessLead =
       canReadAll ||

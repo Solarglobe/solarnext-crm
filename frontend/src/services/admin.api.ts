@@ -77,6 +77,24 @@ export async function adminDeleteUser(id: string): Promise<void> {
   }
 }
 
+export type AdminUserImpersonateResponse = {
+  token: string;
+  expiresInSec: number;
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    organizationId: string;
+    organizationName: string;
+  };
+};
+
+/** SUPER_ADMIN — jeton d’impersonation « en tant que » utilisateur (RBAC réel). */
+export async function adminImpersonateUser(userId: string): Promise<AdminUserImpersonateResponse> {
+  const res = await apiFetch(apiUrl(`${BASE}/users/${userId}/impersonate`), { method: "POST" });
+  return handleResponse<AdminUserImpersonateResponse>(res);
+}
+
 export interface UserTeam {
   id: string;
   team_id: string;

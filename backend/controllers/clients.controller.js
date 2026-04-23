@@ -8,7 +8,7 @@ import { logAuditEvent } from "../services/audit/auditLog.service.js";
 import { AuditActions } from "../services/audit/auditActions.js";
 import { assertOrgOwnership } from "../services/security/assertOrgOwnership.js";
 import { getUserPermissions } from "../rbac/rbac.service.js";
-import { isSuperAdminBypassEnabled } from "../config/rbacMode.js";
+import { effectiveSuperAdminRequestBypass } from "../lib/superAdminUserGuards.js";
 import { archiveEntity, restoreEntity } from "../services/archive.service.js";
 import {
   assertClientApiAccess,
@@ -221,7 +221,7 @@ export async function update(req, res) {
     const { canUpdateAll, canUpdateSelf } = clientUpdateFlagsForQuery(req, perms);
 
     if (body.marketing_opt_in !== undefined || body.rgpd_consent !== undefined) {
-      const superOk = req.user?.role === "SUPER_ADMIN" && isSuperAdminBypassEnabled();
+      const superOk = effectiveSuperAdminRequestBypass(req);
       const canConsent =
         superOk ||
         perms.has("org.settings.manage") ||

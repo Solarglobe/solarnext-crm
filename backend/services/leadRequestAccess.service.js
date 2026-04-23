@@ -6,7 +6,7 @@
  */
 
 import { getUserPermissions } from "../rbac/rbac.service.js";
-import { isSuperAdminBypassEnabled } from "../config/rbacMode.js";
+import { effectiveSuperAdminRequestBypass } from "../lib/superAdminUserGuards.js";
 
 const LOG_PREFIX = "[lead-access]";
 
@@ -64,7 +64,7 @@ function isArchived(row) {
  * SUPER_ADMIN avec bypass RBAC : accès complet aux leads de l’org (comme requirePermission).
  */
 export function effectiveSuperAdminLeadBypass(req) {
-  return !!(req?.user?.role === "SUPER_ADMIN" && isSuperAdminBypassEnabled());
+  return !!effectiveSuperAdminRequestBypass(req);
 }
 
 /**

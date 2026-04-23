@@ -1,6 +1,16 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { Outlet, NavLink, useLocation } from "react-router-dom";
 import { logout } from "../services/auth.service";
+import {
+  exitAdminImpersonationSession,
+  wasImpersonationTokenExpiredAndCleared,
+} from "../services/organizations.service";
+import {
+  AUTH_TOKEN_STORAGE_KEY,
+  AUTH_TOKEN_PRE_IMPERSONATION_KEY,
+  IMPERSONATION_BANNER_KEY,
+  IMPERSONATION_META_KEY,
+} from "../services/api";
 import CreateLeadModal from "../modules/leads/CreateLeadModal";
 import { OrganizationSwitcher } from "../components/organization/OrganizationSwitcher";
 import { SuperAdminSupportBanner } from "../components/support/SuperAdminSupportBanner";
@@ -12,6 +22,50 @@ const THEME_KEY = "solarnext_theme";
 function getStoredTheme(): "light" | "dark" {
   const stored = localStorage.getItem(THEME_KEY);
   return stored === "dark" ? "dark" : "light";
+}
+
+export type ImpersonationMetaState =
+  | { type: "ORG"; organizationName: string; organizationId: string }
+  | { type: "USER"; userName: string; organizationName: string; userId?: string; organizationId?: string };
+
+function readImpersonationMetaState(): ImpersonationMetaState | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(IMPERSONATION_META_KEY);
+    if (raw) {
+      const j = JSON.parse(raw) as Record<string, unknown>;
+      if (j.type === "ORG" && typeof j.organizationName === "string") {
+        return {
+          type: "ORG",
+          organizationName: j.organizationName,
+          organizationId: String(j.organizationId ?? ""),
+        };
+      }
+      if (
+        j.type === "USER" &&
+        typeof j.userName === "string" &&
+        typeof j.organizationName === "string"
+      ) {
+        return {
+          type: "USER",
+          userName: j.userName,
+          organizationName: j.organizationName,
+          userId: typeof j.userId === "string" ? j.userId : undefined,
+          organizationId: typeof j.organizationId === "string" ? j.organizationId : undefined,
+        };
+      }
+    }
+    const legacy = localStorage.getItem(IMPERSONATION_BANNER_KEY);
+    if (legacy) {
+      const j = JSON.parse(legacy) as { orgName?: string; orgId?: string };
+      if (j.orgName && j.orgId) {
+        return { type: "ORG", organizationName: j.orgName, organizationId: j.orgId };
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+  return null;
 }
 
 function setStoredTheme(theme: "light" | "dark") {
@@ -333,6 +387,9 @@ export function AppLayout() {
   const [theme, setTheme] = useState<"light" | "dark">(getStoredTheme);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [isCreateLeadOpen, setIsCreateLeadOpen] = useState(false);
+  const [impersonationMeta, setImpersonationMeta] = useState<ImpersonationMetaState | null>(() =>
+    readImpersonationMetaState()
+  );
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const [sectionOpen, setSectionOpen] = useState<Record<SidebarSectionId, boolean>>({
@@ -394,8 +451,73 @@ export function AppLayout() {
 
   const superAdminReadOnly = useSuperAdminReadOnly();
 
+  useEffect(() => {
+    setImpersonationMeta(readImpersonationMetaState());
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === IMPERSONATION_META_KEY || e.key === IMPERSONATION_BANNER_KEY) {
+        setImpersonationMeta(readImpersonationMetaState());
+      }
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, [pathname]);
+
+  /** Jeton d’impersonation expiré : nettoyage et retour admin orgs */
+  useEffect(() => {
+    if (wasImpersonationTokenExpiredAndCleared()) {
+      window.location.href = "/admin/organizations";
+    }
+  }, []);
+
   return (
     <div className="sn-app-root sn-app-bg" style={{ flexDirection: "column" }}>
+      {impersonationMeta && (
+        <div
+          role="status"
+          className="sn-impersonation-banner"
+          style={{
+            width: "100%",
+            boxSizing: "border-box",
+            background: "#b91c1c",
+            color: "#fef2f2",
+            padding: "10px 16px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: 10,
+            fontSize: 14,
+            zIndex: 200,
+          }}
+        >
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <span>
+              <strong>MODE ADMIN</strong>
+            </span>
+            {impersonationMeta.type === "USER" ? (
+              <>
+                <span>Utilisateur : {impersonationMeta.userName}</span>
+                <span>Organisation : {impersonationMeta.organizationName}</span>
+              </>
+            ) : (
+              <span>Organisation : {impersonationMeta.organizationName}</span>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => exitAdminImpersonationSession()}
+            className="sn-btn sn-btn-sm"
+            style={{
+              background: "#fff",
+              color: "#991b1b",
+              border: "none",
+              fontWeight: 600,
+            }}
+          >
+            Quitter
+          </button>
+        </div>
+      )}
       <SuperAdminSupportBanner />
       <div style={{ display: "flex", alignItems: "flex-start", width: "100%" }}>
       <aside className="sn-sidebar">

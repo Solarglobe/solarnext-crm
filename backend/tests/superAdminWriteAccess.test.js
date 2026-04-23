@@ -60,6 +60,18 @@ test("SUPER_ADMIN POST avec x-super-admin-edit: 1 → pas de blocage", () => {
   assert.equal(res.getStatus(), undefined);
 });
 
+test("SUPER_ADMIN PATCH /api/admin/organizations → pas de blocage (gestion orgs super admin)", () => {
+  const req = {
+    method: "PATCH",
+    headers: {},
+    originalUrl: "/api/admin/organizations/00000000-0000-4000-8000-000000000000/archive",
+    user: { role: "SUPER_ADMIN", userId: null, organizationId: null },
+  };
+  const res = mockRes();
+  assert.equal(enforceSuperAdminWriteAccess(req, res), false);
+  assert.equal(res.getStatus(), undefined);
+});
+
 test("Utilisateur non SUPER_ADMIN POST → pas de blocage", () => {
   const req = {
     method: "POST",

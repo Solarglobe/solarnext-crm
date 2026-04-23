@@ -8,6 +8,7 @@ import { pool } from "../config/db.js";
 import {
   userIsLiveSuperAdminByDb,
   sendSuperAdminJwtStale,
+  SUPER_ADMIN_IMPERSONATION_ROLE_CODE,
 } from "../lib/superAdminUserGuards.js";
 import {
   assertLeadBelongsToOrganization,
@@ -60,7 +61,7 @@ export async function respondWithDpPdfOrJson(req, res, meta) {
     return res.status(401).json({ error: "Authentification requise pour enregistrer le PDF sur le dossier" });
   }
 
-  if (user.role === "SUPER_ADMIN") {
+  if (user.role === "SUPER_ADMIN" || user.role === SUPER_ADMIN_IMPERSONATION_ROLE_CODE) {
     const uid = user.userId ?? user.id;
     if (!uid || !(await userIsLiveSuperAdminByDb(pool, uid))) {
       return sendSuperAdminJwtStale(res);

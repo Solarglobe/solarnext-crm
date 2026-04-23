@@ -99,7 +99,10 @@ export async function buildDashboardOverview(input) {
   const effective = await resolveEffectiveHighestRole(pool, uid);
   let canReadAll = false;
   let canReadSelf = false;
-  if (effective === SUPER_ADMIN_ROLE_CODE && isSuperAdminBypassEnabled()) {
+  if (input.superAdminContext === true) {
+    canReadAll = true;
+    canReadSelf = true;
+  } else if (effective === SUPER_ADMIN_ROLE_CODE && isSuperAdminBypassEnabled()) {
     canReadAll = true;
     canReadSelf = true;
   } else {

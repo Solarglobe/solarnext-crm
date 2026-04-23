@@ -2,6 +2,12 @@ import { applyOrganizationHeaders } from "./orgContextStorage";
 
 /** Même clé que `auth.service` — seul stockage du JWT côté client. */
 export const AUTH_TOKEN_STORAGE_KEY = "solarnext_token";
+/** Jeton super-admin sauvegardé avant impersonation (restauration « Quitter »). */
+export const AUTH_TOKEN_PRE_IMPERSONATION_KEY = "solarnext_token_pre_impersonation";
+/** Métadonnées bannière / session impersonation (JSON) */
+export const IMPERSONATION_META_KEY = "solarnext_impersonation_meta";
+/** @deprecated utiliser IMPERSONATION_META_KEY */
+export const IMPERSONATION_BANNER_KEY = "solarnext_impersonation_banner";
 
 export function getAuthToken(): string | null {
   if (typeof window === "undefined") return null;

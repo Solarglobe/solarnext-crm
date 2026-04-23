@@ -25,6 +25,9 @@ import {
   type AdminAgency,
 } from "../../services/admin.api";
 import { useOrganization } from "../../contexts/OrganizationContext";
+import { getAuthToken } from "../../services/api";
+import { decodeJwtPayloadUnsafe } from "../../services/auth.service";
+import { adminUserImpersonateAndEnterSession } from "../../services/organizations.service";
 import "./admin-tab-users.css";
 
 type UserMemberships = Record<
@@ -251,7 +254,7 @@ const emptyForm = (): UserFormState => ({
 });
 
 export function AdminTabUsers() {
-  const { isSuperAdmin: viewerIsSuperAdmin } = useOrganization();
+  const { isSuperAdmin: viewerIsSuperAdmin, currentOrganization } = useOrganization();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [roles, setRoles] = useState<AdminRole[]>([]);
   const [teams, setTeams] = useState<AdminTeam[]>([]);
@@ -267,6 +270,34 @@ export function AdminTabUsers() {
   const formSnapshotRef = useRef<string>("");
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<UserStatusFilter>("all");
+  const [impersonateBusyId, setImpersonateBusyId] = useState<string | null>(null);
+
+  const handleImpersonateUser = useCallback(
+    async (u: AdminUser) => {
+      const orgName = currentOrganization?.name?.trim();
+      if (!orgName) {
+        window.alert("Nom d’organisation indisponible.");
+        return;
+      }
+      const selfId = decodeJwtPayloadUnsafe(getAuthToken() || "")?.userId;
+      if (selfId && u.id === selfId) {
+        window.alert("Vous ne pouvez pas vous impersoner vous-même.");
+        return;
+      }
+      setImpersonateBusyId(u.id);
+      try {
+        await adminUserImpersonateAndEnterSession(u.id, {
+          userName: displayPrimaryName(u),
+          organizationName: orgName,
+        });
+        window.location.href = "/crm";
+      } catch (e) {
+        window.alert(e instanceof Error ? e.message : "Impersonation impossible");
+        setImpersonateBusyId(null);
+      }
+    },
+    [currentOrganization?.name]
+  );
 
   const load = async () => {
     setLoading(true);
@@ -588,6 +619,12 @@ export function AdminTabUsers() {
                 <tbody>
                   {filteredUsers.map((u) => {
                     const m = userMemberships[u.id];
+                    const selfId = decodeJwtPayloadUnsafe(getAuthToken() || "")?.userId;
+                    const canImpersonate =
+                      viewerIsSuperAdmin &&
+                      u.status === "active" &&
+                      (!selfId || u.id !== selfId) &&
+                      !(u.roles || []).some((c) => String(c).toUpperCase() === "SUPER_ADMIN");
                     return (
                       <tr key={u.id}>
                         <td>
@@ -629,6 +666,16 @@ export function AdminTabUsers() {
                             >
                               <IconTrash />
                             </button>
+                            {canImpersonate && (
+                              <button
+                                type="button"
+                                className="admin-users-impersonate-link"
+                                disabled={impersonateBusyId !== null}
+                                onClick={() => void handleImpersonateUser(u)}
+                              >
+                                {impersonateBusyId === u.id ? "…" : "Se connecter en tant que cet utilisateur"}
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>

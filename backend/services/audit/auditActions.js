@@ -15,6 +15,10 @@ export const AuditActions = {
   ORG_SUPER_ADMIN_CONTEXT: "ORG_SUPER_ADMIN_CONTEXT",
   /** SUPER_ADMIN : bascule explicite vers un compte client (page /admin/organizations) */
   SUPER_ADMIN_ORG_SWITCH: "SUPER_ADMIN_ORG_SWITCH",
+  /** SUPER_ADMIN : jeton d’impersonation émis pour agir en contexte organisation cible (durée courte) */
+  SUPER_ADMIN_ORG_IMPERSONATE: "SUPER_ADMIN_ORG_IMPERSONATE",
+  /** SUPER_ADMIN : jeton d’impersonation pour agir en tant qu’un utilisateur précis (RBAC effectif) */
+  SUPER_ADMIN_USER_IMPERSONATE: "SUPER_ADMIN_USER_IMPERSONATE",
 
   /** CP-078B — SUPER_ADMIN : écriture refusée (mode support lecture seule) */
   SUPER_ADMIN_READ_ONLY_BLOCK: "SUPER_ADMIN_READ_ONLY_BLOCK",

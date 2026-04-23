@@ -3,10 +3,7 @@ import { JWT_SECRET } from "../config/auth.js";
 import { pool } from "../config/db.js";
 import { logAuditEvent } from "../services/audit/auditLog.service.js";
 import { AuditActions } from "../services/audit/auditActions.js";
-import {
-  userIsLiveSuperAdminByDb,
-  sendSuperAdminJwtStale,
-} from "../lib/superAdminUserGuards.js";
+import { userIsLiveSuperAdminByDb, sendSuperAdminJwtStale } from "../lib/superAdminUserGuards.js";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -76,6 +73,12 @@ export function enforceSuperAdminWriteAccess(req, res) {
 
   const url = String(req.originalUrl || req.url || "");
   if (url.includes("/api/organizations/super-admin/org-switch-audit")) {
+    return false;
+  }
+  if (url.includes("/api/admin/organizations")) {
+    return false;
+  }
+  if (/\/api\/admin\/users\/[^/]+\/impersonate(\?|$)/.test(url)) {
     return false;
   }
 
@@ -155,6 +158,20 @@ export async function verifyJWT(req, res, next) {
       if (!uid || !(await userIsLiveSuperAdminByDb(pool, uid))) {
         return sendSuperAdminJwtStale(res);
       }
+    }
+
+    const isImpersonationJwt =
+      req.user?.impersonation === true || req.user?.impersonation === "true";
+    if (isImpersonationJwt) {
+      const orig = req.user.originalAdminId;
+      if (orig == null || String(orig).trim() === "") {
+        return res.status(401).json({ error: "Jeton d’impersonation invalide", code: "IMPERSONATION_JWT_INVALID" });
+      }
+      const oid = String(orig).trim();
+      if (!(await userIsLiveSuperAdminByDb(pool, oid))) {
+        return sendSuperAdminJwtStale(res);
+      }
+      req.user.originalAdminId = oid;
     }
 
     await applySuperAdminOrganizationOverride(req);

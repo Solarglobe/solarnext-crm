@@ -1,5 +1,12 @@
 import { buildApiUrl } from "@/config/crmApiBase";
-import { apiFetch, AUTH_TOKEN_STORAGE_KEY, getAuthToken } from "./api";
+import {
+  apiFetch,
+  AUTH_TOKEN_STORAGE_KEY,
+  AUTH_TOKEN_PRE_IMPERSONATION_KEY,
+  getAuthToken,
+  IMPERSONATION_BANNER_KEY,
+  IMPERSONATION_META_KEY,
+} from "./api";
 
 export interface LoginResponse {
   token: string;
@@ -86,6 +93,9 @@ export async function login(
 
 export function logout(): void {
   localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
+  localStorage.removeItem(AUTH_TOKEN_PRE_IMPERSONATION_KEY);
+  localStorage.removeItem(IMPERSONATION_BANNER_KEY);
+  localStorage.removeItem(IMPERSONATION_META_KEY);
   localStorage.removeItem("solarnext_current_organization_id");
   localStorage.removeItem("solarnext_super_admin");
   localStorage.removeItem("solarnext_super_admin_edit_mode");
@@ -130,6 +140,8 @@ export function decodeJwtPayloadUnsafe(token: string): {
   organizationId?: string;
   role?: string;
   userId?: string;
+  impersonation?: boolean;
+  impersonationType?: string;
 } | null {
   const raw = decodeJwtPayloadRaw(token);
   if (!raw) return null;
@@ -146,6 +158,8 @@ export function decodeJwtPayloadUnsafe(token: string): {
     organizationId,
     role: typeof raw.role === "string" ? raw.role : undefined,
     userId,
+    impersonation: raw.impersonation === true,
+    impersonationType: typeof raw.impersonationType === "string" ? raw.impersonationType : undefined,
   };
 }
 
@@ -181,6 +195,9 @@ export async function getCurrentUser(): Promise<CurrentUser> {
 export interface UserPermissions {
   permissions: string[];
   superAdmin?: boolean;
+  /** Jeton d’impersonation org (super admin) */
+  impersonation?: boolean;
+  impersonationType?: "ORG" | "USER" | string;
 }
 
 export async function getUserPermissions(): Promise<UserPermissions> {

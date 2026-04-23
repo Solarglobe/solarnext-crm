@@ -1,8 +1,46 @@
 /**
  * Garde-fous SUPER_ADMIN : assignation RBAC, cohérence JWT↔DB, filtrage listes techniques.
  */
+import { isSuperAdminBypassEnabled } from "../config/rbacMode.js";
 
 export const SUPER_ADMIN_ROLE_CODE = "SUPER_ADMIN";
+/** Session JWT d’impersonation d’organisation (super admin) — organisationId = cible, userId = admin d’origine. */
+export const SUPER_ADMIN_IMPERSONATION_ROLE_CODE = "SUPER_ADMIN_IMPERSONATION";
+export const USER_IMPERSONATION_TYPE = "USER";
+export const ORG_IMPERSONATION_TYPE = "ORG";
+
+/**
+ * @param {import("express").Request | null | undefined} req
+ * @returns {boolean}
+ */
+export function isUserImpersonationRequest(req) {
+  return String(req?.user?.impersonationType ?? "") === USER_IMPERSONATION_TYPE;
+}
+
+/**
+ * Rôle super-admin classique ou session d’impersonation.
+ * @param {string | null | undefined} role
+ * @returns {boolean}
+ */
+export function isSuperAdminLikeRole(role) {
+  return (
+    String(role || "").toUpperCase() === SUPER_ADMIN_ROLE_CODE ||
+    String(role || "").toUpperCase() === SUPER_ADMIN_IMPERSONATION_ROLE_CODE
+  );
+}
+
+/**
+ * Bypass accès / RBAC de type super-admin (leads, clients, requirePermission) :
+ * - impersonation org : toujours
+ * - SUPER_ADMIN : si ENABLE_SUPER_ADMIN_BYPASS
+ * @param {import("express").Request | null | undefined} req
+ */
+export function effectiveSuperAdminRequestBypass(req) {
+  if (isUserImpersonationRequest(req)) return false;
+  const role = req?.user?.role;
+  if (String(role || "").toUpperCase() === SUPER_ADMIN_IMPERSONATION_ROLE_CODE) return true;
+  return role === SUPER_ADMIN_ROLE_CODE && isSuperAdminBypassEnabled();
+}
 
 /** Aligné sur `auth.controller.js` — rôle effectif unique (priorité la plus forte). */
 const ROLE_PRIORITY_ORDER_SQL = `

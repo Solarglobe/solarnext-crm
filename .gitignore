@@ -93,6 +93,13 @@ Desktop.ini
 backend/storage/*
 !backend/storage/.gitkeep
 
+# --- Racine dépôt : extraits / dumps locaux (restauration, ne pas versionner) ---
+/storage/
+storage.tar.gz
+storage_tar_parts/
+backend/dump.sql
+verify-out.json
+
 # --- Backend : téléversements & données utilisateur locales ---
 backend/backend/data/uploads/
 backend/data/uploads/

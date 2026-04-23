@@ -8,6 +8,7 @@
 import { pool } from "../config/db.js";
 import { withTx } from "../db/tx.js";
 import { logAuditEvent } from "../services/audit/auditLog.service.js";
+import { listSuperAdminOrganizations } from "../services/admin/adminOrganizations.service.js";
 import { AuditActions } from "../services/audit/auditActions.js";
 import { parseDocumentPrefixForStorage } from "../utils/documentPrefix.js";
 import {
@@ -292,36 +293,17 @@ export async function put(req, res) {
 
 /**
  * CP-078 — GET /api/organizations : toutes les orgs si SUPER_ADMIN, sinon uniquement celle du JWT.
- * SUPER_ADMIN : inclut created_at, leads_count, clients_count (actifs).
+ * SUPER_ADMIN : inclut created_at, leads_count, clients_count, is_archived — masque les archivées sauf ?includeArchived=true.
  */
 export async function listOrganizations(req, res) {
   try {
     const role = req.user?.role;
     if (role === "SUPER_ADMIN") {
-      const r = await pool.query(`
-        SELECT o.id,
-               o.name,
-               o.created_at,
-               (SELECT COUNT(*)::int FROM leads l
-                 WHERE l.organization_id = o.id
-                   AND l.status <> 'CLIENT'
-                   AND l.archived_at IS NULL) AS leads_count,
-               (SELECT COUNT(*)::int FROM leads l
-                 WHERE l.organization_id = o.id
-                   AND l.status = 'CLIENT'
-                   AND l.archived_at IS NULL) AS clients_count
-        FROM organizations o
-        ORDER BY o.name ASC
-      `);
-      return res.json(
-        r.rows.map((row) => ({
-          id: row.id,
-          name: row.name,
-          created_at: row.created_at,
-          leads_count: row.leads_count ?? 0,
-          clients_count: row.clients_count ?? 0,
-        }))
-      );
+      const raw = req.query?.includeArchived;
+      const includeArchived =
+        raw === "true" || raw === "1" || raw === true || (Array.isArray(raw) && raw[0] === "true");
+      const rows = await listSuperAdminOrganizations({ includeArchived });
+      return res.json(rows);
     }
     const oid = req.user?.organizationId ?? req.user?.organization_id;
     if (!oid) {

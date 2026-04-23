@@ -7,7 +7,7 @@
  */
 
 import { getUserPermissions } from "../rbac/rbac.service.js";
-import { isSuperAdminBypassEnabled } from "../config/rbacMode.js";
+import { effectiveSuperAdminRequestBypass } from "../lib/superAdminUserGuards.js";
 
 const LOG_PREFIX = "[client-access]";
 
@@ -19,7 +19,7 @@ function accessLog(context, fields) {
 }
 
 export function effectiveSuperAdminClientBypass(req) {
-  return !!(req?.user?.role === "SUPER_ADMIN" && isSuperAdminBypassEnabled());
+  return !!effectiveSuperAdminRequestBypass(req);
 }
 
 /**

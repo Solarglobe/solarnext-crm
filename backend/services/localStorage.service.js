@@ -8,7 +8,8 @@ import fs from "fs/promises";
 import path from "path";
 import { randomUUID } from "crypto";
 
-const STORAGE_ROOT = "/app/storage";
+/** Racine volume disque (Railway : `/app/storage`). Surcharge locale : `STORAGE_ROOT`. */
+export const STORAGE_ROOT = path.resolve(process.env.STORAGE_ROOT || "/app/storage");
 
 /**
  * Nettoie le nom de fichier (caractères sûrs uniquement)

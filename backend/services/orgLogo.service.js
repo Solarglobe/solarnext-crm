@@ -6,14 +6,11 @@
 
 import fs from "fs/promises";
 import path from "path";
-import { fileURLToPath } from "url";
 import { pool } from "../config/db.js";
-import { getAbsolutePath } from "./localStorage.service.js";
+import { getAbsolutePath, STORAGE_ROOT } from "./localStorage.service.js";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const ORG_UPLOADS_ROOT = path.join(__dirname, "..", "storage", "org");
+/** Même racine que `getAbsolutePath` — plus de `backend/storage` relatif au code. */
+const ORG_UPLOADS_ROOT = path.join(STORAGE_ROOT, "org");
 const MAX_SIZE = 2 * 1024 * 1024; // 2MB
 const ALLOWED_EXT = [".png", ".jpg", ".jpeg", ".svg"];
 const ALLOWED_MIME = ["image/png", "image/jpeg", "image/jpg", "image/svg+xml"];

@@ -3,6 +3,7 @@
  */
 
 import { buildDashboardOverview } from "../services/dashboardOverview.service.js";
+import { effectiveSuperAdminRequestBypass } from "../lib/superAdminUserGuards.js";
 
 const orgId = (req) => req.user.organizationId ?? req.user.organization_id;
 const userId = (req) => req.user.userId ?? req.user.id;
@@ -13,6 +14,7 @@ export async function getOverview(req, res) {
     const data = await buildDashboardOverview({
       organizationId: orgId(req),
       userId: userId(req),
+      superAdminContext: effectiveSuperAdminRequestBypass(req),
       range: q.range,
       date_from: q.date_from,
       date_to: q.date_to,

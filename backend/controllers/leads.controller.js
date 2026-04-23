@@ -16,9 +16,12 @@ import {
 import { logAuditEvent } from "../services/audit/auditLog.service.js";
 import { AuditActions } from "../services/audit/auditActions.js";
 import { assertOrgOwnership } from "../services/security/assertOrgOwnership.js";
-import { isSuperAdminBypassEnabled } from "../config/rbacMode.js";
 import { resolveArchiveScopeFromQuery } from "../services/leadsListFilterSql.service.js";
-import { isJwtSuperAdmin, sqlAndUserNotSuperAdmin } from "../lib/superAdminUserGuards.js";
+import {
+  isJwtSuperAdmin,
+  sqlAndUserNotSuperAdmin,
+  effectiveSuperAdminRequestBypass,
+} from "../lib/superAdminUserGuards.js";
 import {
   hasEffectiveLeadReadScope,
   hasEffectiveLeadUpdateScope,
@@ -687,7 +690,7 @@ export async function update(req, res) {
     const { canUpdateAll, canUpdateSelf } = leadUpdateFlagsForQuery(req, perms);
 
     if (marketing_opt_in !== undefined) {
-      const superOk = req.user?.role === "SUPER_ADMIN" && isSuperAdminBypassEnabled();
+      const superOk = effectiveSuperAdminRequestBypass(req);
       const canMarketing =
         superOk ||
         perms.has("org.settings.manage") ||
