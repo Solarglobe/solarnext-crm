@@ -7,16 +7,19 @@
 import fs from "fs/promises";
 import path from "path";
 import { randomUUID } from "crypto";
+import { normalizeMultipartFilename } from "../utils/multipartFilenameUtf8.js";
 
 /** Racine volume disque (Railway : `/app/storage`). Surcharge locale : `STORAGE_ROOT`. */
 export const STORAGE_ROOT = path.resolve(process.env.STORAGE_ROOT || "/app/storage");
 
 /**
- * Nettoie le nom de fichier (caractères sûrs uniquement)
+ * Nom sûr pour segment de chemin disque : pas de séparateurs / contrôle,
+ * conserve les lettres Unicode (accents, etc.).
  */
 function sanitizeFileName(originalName) {
-  const base = originalName.replace(/[^a-zA-Z0-9._-]/g, "_");
-  return base || "document";
+  const base = path.basename(String(originalName || "document").trim() || "document");
+  const cleaned = base.replace(/\0/g, "").replace(/[/\\]/g, "_");
+  return cleaned || "document";
 }
 
 /**
@@ -30,7 +33,10 @@ function sanitizeFileName(originalName) {
  */
 export async function uploadFile(buffer, organizationId, entityType, entityId, originalName) {
   const uuid = randomUUID();
-  const safeName = sanitizeFileName(originalName || "document");
+  const rawIn = String(originalName ?? "").trim();
+  const normalized = normalizeMultipartFilename(rawIn);
+  const decoded = (normalized || rawIn || "document").trim() || "document";
+  const safeName = sanitizeFileName(decoded);
   const fileName = `${uuid}_${safeName}`;
 
   const dirPath = path.join(STORAGE_ROOT, organizationId, entityType, entityId);
@@ -54,7 +60,10 @@ export async function uploadFile(buffer, organizationId, entityType, entityId, o
  */
 export async function uploadMailAttachmentFile(buffer, organizationId, originalName) {
   const uuid = randomUUID();
-  const safeName = sanitizeFileName(originalName || "attachment");
+  const rawIn = String(originalName ?? "").trim();
+  const normalized = normalizeMultipartFilename(rawIn);
+  const decoded = (normalized || rawIn || "attachment").trim() || "attachment";
+  const safeName = sanitizeFileName(decoded);
   const fileName = `${uuid}_${safeName}`;
   const now = new Date();
   const yyyy = String(now.getFullYear());

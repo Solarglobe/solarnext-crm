@@ -9,7 +9,8 @@
  */
 
 import express from "express";
-import { existsSync } from "fs";
+import { existsSync, createReadStream } from "fs";
+import path from "path";
 import multer from "multer";
 import logger from "../app/core/logger.js";
 import { verifyJWT } from "../middleware/auth.middleware.js";
@@ -27,6 +28,7 @@ import {
   resolveManualUploadDocumentMeta,
 } from "../services/documentMetadata.service.js";
 import { sensitiveUserRateLimiter } from "../middleware/security/rateLimit.presets.js";
+import { normalizeMultipartFilename } from "../utils/multipartFilenameUtf8.js";
 
 const router = express.Router();
 const orgId = (req) => req.user.organizationId ?? req.user.organization_id;
@@ -159,7 +161,7 @@ router.get(
       const { id } = req.params;
 
       const doc = await pool.query(
-        `SELECT id, storage_key, file_name, organization_id FROM entity_documents WHERE id = $1 AND (archived_at IS NULL)`,
+        `SELECT id, storage_key, file_name, organization_id, mime_type FROM entity_documents WHERE id = $1 AND (archived_at IS NULL)`,
         [id]
       );
 
@@ -171,7 +173,8 @@ router.get(
       }
 
       const storageKey = doc.rows[0].storage_key;
-      const displayName = doc.rows[0].file_name;
+      const displayName = path.basename(String(doc.rows[0].file_name || "document"));
+      const mimeType = String(doc.rows[0].mime_type || "").trim() || "application/octet-stream";
       const filePath = getAbsolutePath(storageKey);
 
       logger.info("DOCUMENT_DOWNLOAD_START", {
@@ -192,7 +195,14 @@ router.get(
         return res.status(404).json({ error: "Fichier non trouvé sur le disque" });
       }
 
-      res.download(filePath, displayName);
+      res.setHeader("Content-Type", mimeType);
+      res.setHeader("Content-Disposition", `attachment; filename*=UTF-8''${encodeURIComponent(displayName)}`);
+
+      const stream = createReadStream(filePath);
+      stream.on("error", () => {
+        if (!res.headersSent) res.status(500).end();
+      });
+      stream.pipe(res);
     } catch (e) {
       if (e.code === "ENOENT") {
         return res.status(404).json({ error: "Fichier non trouvé sur le disque" });
@@ -229,7 +239,9 @@ router.post(
       if (!req.file || !req.file.buffer) {
         return res.status(400).json({ error: "Fichier requis" });
       }
-      const originalName = req.file.originalname || "document";
+      const rawName = String(req.file.originalname || "").trim();
+      const originalName =
+        normalizeMultipartFilename(rawName) || rawName || "document";
 
       if (isForbiddenExtension(originalName)) {
         return res.status(400).json({ error: "Extension de fichier non autorisée" });

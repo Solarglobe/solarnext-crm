@@ -167,11 +167,9 @@ export async function uploadLogo(req, res) {
     }
 
     const { validateLogoFile, saveLogo, deleteLogo } = await import("../services/orgLogo.service.js");
-    validateLogoFile(file);
+    const ext = validateLogoFile(file);
 
     await deleteLogo(org);
-    const raw = file.originalname || "logo.png";
-    const ext = raw.includes(".") ? raw.slice(raw.lastIndexOf(".")).toLowerCase() : ".png";
     await saveLogo(file.buffer, org, ext);
 
     const logoUrl = "/api/admin/org/logo";

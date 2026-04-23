@@ -8,6 +8,7 @@ import fs from "fs/promises";
 import path from "path";
 import { pool } from "../config/db.js";
 import { getAbsolutePath, STORAGE_ROOT } from "./localStorage.service.js";
+import { normalizeMultipartFilename } from "../utils/multipartFilenameUtf8.js";
 
 /** Même racine que `getAbsolutePath` — plus de `backend/storage` relatif au code. */
 const ORG_UPLOADS_ROOT = path.join(STORAGE_ROOT, "org");
@@ -23,7 +24,9 @@ function getExt(filename) {
 export function validateLogoFile(file) {
   if (!file || !file.buffer) throw new Error("Fichier manquant");
   if (file.size > MAX_SIZE) throw new Error("Fichier trop volumineux (max 2 Mo)");
-  const ext = getExt(file.originalname || file.name || "");
+  const rawName = String(file.originalname || file.name || "").trim();
+  const decoded = normalizeMultipartFilename(rawName) || rawName;
+  const ext = getExt(decoded || "logo.png");
   if (!ALLOWED_EXT.includes(ext)) throw new Error("Format non autorisé (png, jpg, svg)");
   if (file.mimetype && !ALLOWED_MIME.includes(file.mimetype)) {
     throw new Error("Type MIME non autorisé");

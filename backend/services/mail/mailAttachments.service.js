@@ -4,6 +4,7 @@
 
 import { createHash } from "crypto";
 import { uploadMailAttachmentFile } from "../localStorage.service.js";
+import { normalizeMultipartFilename } from "../../utils/multipartFilenameUtf8.js";
 import { resolveSystemDocumentMetadata } from "../documentMetadata.service.js";
 
 /** ~20 Mo — au-delà : ignoré (log), pas de stockage. */
@@ -21,7 +22,8 @@ function attachmentFileName(att, index) {
     (a.contentDisposition && typeof a.contentDisposition === "object" && a.contentDisposition.params?.filename) ||
     "";
   const t = String(raw).trim();
-  return t || `attachment-${index + 1}`;
+  if (!t) return `attachment-${index + 1}`;
+  return normalizeMultipartFilename(t) || t;
 }
 
 /**
