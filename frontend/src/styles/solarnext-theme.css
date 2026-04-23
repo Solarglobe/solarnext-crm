@@ -1435,9 +1435,8 @@ a.sn-btn {
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  padding: 12px 16px 8px 16px;
+  padding: 12px 20px 16px 20px;
   position: relative;
-  height: 80px;
   overflow: visible;
   color: var(--text);
   min-width: 0;
@@ -1445,13 +1444,13 @@ a.sn-btn {
   max-width: 100%;
 }
 
-/* Trait doré collé au logo (prioritaire sur .sidebar-brand::after des titres) */
+/* Trait doré aligné au bloc logo (prioritaire sur .sidebar-brand::after des titres) */
 .sn-sidebar-brand::after {
   content: "";
   position: absolute;
   bottom: 0;
-  left: 16px;
-  width: 50px;
+  left: 20px;
+  width: 70px;
   height: 3px;
   background: linear-gradient(90deg, #c39847, transparent);
   border-radius: 2px;
@@ -1460,24 +1459,21 @@ a.sn-btn {
 
 .logo-solarnext {
   display: block;
-  height: 120px;
+  height: 140px;
   width: auto;
   max-width: 100%;
   object-fit: contain;
   object-position: left center;
   flex-shrink: 0;
-  transform: translateY(4px);
 }
 
 @media (max-width: 768px) {
   .sn-sidebar-brand {
-    height: 60px;
-    padding: 10px 12px;
+    padding: 10px 16px;
   }
 
   .logo-solarnext {
-    height: 80px;
-    transform: translateY(2px);
+    height: 90px;
   }
 }
 

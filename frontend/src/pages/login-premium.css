@@ -21,46 +21,48 @@ html.sn-auth-page body {
 .login-page {
   position: relative;
   isolation: isolate;
-  min-height: 100vh;
   height: 100vh;
   max-height: 100vh;
+  min-height: 100vh;
   overflow: hidden;
   background: radial-gradient(circle at 20% 20%, #f3edf7, #e9e1ef 60%, #ddd4e8);
 }
 
-/* Halos or discrets — coins (sous le contenu, z-index bas) */
+/* Arrondis dorés premium — anneaux visibles aux coins (sous le contenu) */
 .login-page::before {
   content: "";
   position: absolute;
-  top: -200px;
-  right: -200px;
-  width: 600px;
-  height: 600px;
+  top: -150px;
+  right: -150px;
+  width: 500px;
+  height: 500px;
   z-index: 0;
-  background: radial-gradient(
-    circle,
-    rgba(195, 152, 71, 0.25) 0%,
-    rgba(195, 152, 71, 0.08) 40%,
-    transparent 70%
-  );
+  border-radius: 50%;
+  border: 2px solid rgba(195, 152, 71, 0.4);
+  box-shadow:
+    0 0 80px rgba(195, 152, 71, 0.15),
+    0 0 160px rgba(195, 152, 71, 0.08);
+  opacity: 0.6;
   pointer-events: none;
+  background: transparent;
 }
 
 .login-page::after {
   content: "";
   position: absolute;
-  bottom: -200px;
-  left: -200px;
-  width: 600px;
-  height: 600px;
+  bottom: -150px;
+  left: -150px;
+  width: 500px;
+  height: 500px;
   z-index: 0;
-  background: radial-gradient(
-    circle,
-    rgba(195, 152, 71, 0.2) 0%,
-    rgba(195, 152, 71, 0.06) 40%,
-    transparent 70%
-  );
+  border-radius: 50%;
+  border: 2px solid rgba(195, 152, 71, 0.35);
+  box-shadow:
+    0 0 80px rgba(195, 152, 71, 0.12),
+    0 0 140px rgba(195, 152, 71, 0.06);
+  opacity: 0.5;
   pointer-events: none;
+  background: transparent;
 }
 
 .login-bg {
@@ -70,20 +72,39 @@ html.sn-auth-page body {
   pointer-events: none;
 }
 
-/* Courbes / anneaux dorés très légers — coin haut droit */
+/* Courbes dorées fines — haut droite */
 .login-bg::after {
   content: "";
   position: absolute;
   top: 0;
   right: 0;
-  width: 400px;
-  height: 400px;
+  width: 450px;
+  height: 450px;
   background: repeating-radial-gradient(
     circle at top right,
-    rgba(195, 152, 71, 0.25),
-    rgba(195, 152, 71, 0.25) 1px,
+    rgba(195, 152, 71, 0.35),
+    rgba(195, 152, 71, 0.35) 1px,
     transparent 1px,
-    transparent 14px
+    transparent 18px
+  );
+  opacity: 0.18;
+  pointer-events: none;
+}
+
+/* Courbes dorées fines — bas gauche */
+.login-bg::before {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 450px;
+  height: 450px;
+  background: repeating-radial-gradient(
+    circle at bottom left,
+    rgba(195, 152, 71, 0.3),
+    rgba(195, 152, 71, 0.3) 1px,
+    transparent 1px,
+    transparent 18px
   );
   opacity: 0.15;
   pointer-events: none;
@@ -101,20 +122,23 @@ html.sn-auth-page body {
   min-height: 0;
   padding: 0 20px;
   box-sizing: border-box;
+  transform: translateY(-40px);
 }
 
 .login-logo {
   display: block;
   margin-top: 0;
-  margin-bottom: 20px;
-  max-width: 420px;
-  width: min(90%, 420px);
+  margin-bottom: 10px;
+  max-width: 560px;
+  width: 95%;
   height: auto;
   object-fit: contain;
-  filter: drop-shadow(0 10px 32px rgba(91, 50, 168, 0.1));
+  filter: drop-shadow(0 8px 24px rgba(91, 50, 168, 0.08));
 }
 
 .login-card {
+  position: relative;
+  z-index: 2;
   width: 100%;
   max-width: 480px;
   margin: 0 auto;
@@ -306,9 +330,15 @@ html.sn-auth-page body {
 }
 
 @media (max-width: 768px) {
+  .login-content {
+    transform: translateY(-24px);
+  }
+
   .login-logo {
     margin-top: 0;
-    margin-bottom: 16px;
+    margin-bottom: 8px;
+    max-width: min(560px, 100%);
+    width: 92%;
   }
 
   .login-card {
