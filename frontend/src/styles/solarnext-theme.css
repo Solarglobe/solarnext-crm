@@ -1400,17 +1400,17 @@ a.sn-btn {
   background: var(--bg-muted);
   border-right: 1px solid var(--border);
   color: var(--text);
-  padding: var(--spacing-16) 0;
+  padding: 4px 0 var(--spacing-16);
 }
 
-/* Sidebar header : colonne dense, logo centré, barre outils pleine largeur */
+/* Header : logo collé au-dessus du nom d’entreprise, aligné à gauche, sans vide */
 .sn-sidebar-header {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 6px;
+  align-items: stretch;
+  gap: 0;
   flex-shrink: 0;
-  padding: 4px 10px !important;
+  padding: 0 10px 6px !important;
   margin-bottom: var(--spacing-8);
 }
 
@@ -1422,6 +1422,7 @@ a.sn-btn {
   min-width: 0;
   align-self: stretch;
   width: 100%;
+  padding-top: 2px;
 }
 
 /* Colonne org (ellipsis) à gauche des boutons */
@@ -1436,10 +1437,9 @@ a.sn-btn {
 .sn-sidebar-brand {
   display: flex;
   align-items: center;
-  justify-content: center;
-  padding: 0 !important;
-  margin-top: 0 !important;
-  margin-bottom: 4px;
+  justify-content: flex-start;
+  padding: 0 0 5px !important;
+  margin: 0 !important;
   position: relative;
   overflow: visible;
   color: var(--text);
@@ -1448,17 +1448,18 @@ a.sn-btn {
   max-width: 100%;
 }
 
-/* Trait doré — centré sous le logo (prioritaire sur .sidebar-brand::after des titres) */
+/* Trait doré — aligné à gauche, pleine largeur utile (prioritaire sur .sidebar-brand::after des titres) */
 .sn-sidebar-brand::after {
   content: "";
   position: absolute;
-  bottom: 0;
-  left: 50%;
-  width: 80px;
-  height: 3px;
-  margin-left: -40px;
-  background: linear-gradient(90deg, #c39847, transparent);
-  border-radius: 2px;
+  bottom: 1px;
+  left: 0;
+  right: 0;
+  width: auto;
+  height: 2px;
+  margin: 0;
+  background: linear-gradient(90deg, #c39847, rgba(200, 169, 106, 0.12) 55%, transparent);
+  border-radius: 1px;
   opacity: 0.9;
 }
 
@@ -1467,21 +1468,22 @@ a.sn-btn {
   width: 100%;
   max-width: 240px;
   height: auto;
-  margin: 0 auto;
+  margin: 0;
   object-fit: contain;
-  object-position: center;
+  object-position: left center;
   flex-shrink: 0;
 }
 
 @media (max-width: 768px) {
   .sn-sidebar-brand {
-    padding: 0 !important;
-    margin-top: 0 !important;
+    padding: 0 0 5px !important;
+    margin: 0 !important;
   }
 
   .logo-solarnext {
     width: 100%;
     max-width: min(240px, calc(100vw - 48px));
+    margin: 0;
   }
 }
 
