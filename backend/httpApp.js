@@ -2,6 +2,7 @@
  * Application HTTP Express sans écoute réseau (server.js + tests supertest).
  */
 import express from "express";
+import fs from "fs";
 import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -247,15 +248,28 @@ export function buildHttpApp() {
     res.json({ calpinageEnabled: isCalpinageEnabled() });
   });
 
+  /**
+   * Bundles legacy (canvas-bundle.js, …) : toujours montés si présents sur disque.
+   * Ne pas les lier à CALPINAGE_ENABLED : sinon 404 en prod si le flag API est oublié,
+   * alors que le front / Playwright chargent quand même /calpinage/* (JWT ou renderToken).
+   * `CALPINAGE_ENABLED` ne contrôle que les routes `/api/calpinage`.
+   */
+  const calpinageLegacyRoot = path.resolve(__dirname, "calpinage-legacy-assets");
+  if (!fs.existsSync(path.join(calpinageLegacyRoot, "canvas-bundle.js"))) {
+    console.warn(
+      "[CALPINAGE] calpinage-legacy-assets/canvas-bundle.js absent — exécuter le prebuild frontend (copie vers backend) ou vérifier le dépôt / image Docker."
+    );
+  }
+  app.use(
+    "/calpinage",
+    calpinageLegacyAssetsAuth,
+    express.static(calpinageLegacyRoot, {
+      index: false,
+    })
+  );
+
   if (isCalpinageEnabled()) {
     app.use("/api/calpinage", calpinageRouter);
-    app.use(
-      "/calpinage",
-      calpinageLegacyAssetsAuth,
-      express.static(path.resolve(__dirname, "calpinage-legacy-assets"), {
-        index: false,
-      })
-    );
   }
 
   app.use(pdfRenderRoutes);
