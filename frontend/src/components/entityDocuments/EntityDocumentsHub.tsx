@@ -9,6 +9,7 @@ import type { DocumentCategory, DocumentSectionKey, EntityDocument } from "./ent
 import { resolveDocumentLifecycleBadge } from "./documentLifecycleBadge";
 import { groupDocumentsBySection, SECTION_ORDER } from "./groupDocumentsBySection";
 import styles from "./EntityDocumentsHub.module.css";
+import { assertDocumentDownloadOk } from "@/utils/documentDownload";
 
 const API_BASE = getCrmApiBase();
 
@@ -199,10 +200,7 @@ export default function EntityDocumentsHub({
     setError(null);
     try {
       const res = await apiFetch(`${API_BASE}/api/documents/${doc.id}/download`);
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error((err as { error?: string }).error || "Erreur téléchargement");
-      }
+      assertDocumentDownloadOk(res, doc.id);
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");

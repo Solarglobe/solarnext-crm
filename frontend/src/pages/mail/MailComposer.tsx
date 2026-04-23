@@ -33,6 +33,7 @@ import {
 } from "./mailSignatureHtml";
 import { apiFetch } from "../../services/api";
 import { getCrmApiBase } from "../../config/crmApiBase";
+import { assertDocumentDownloadOk, DOCUMENT_DOWNLOAD_UNAVAILABLE } from "../../utils/documentDownload";
 
 function mailApiRoot(): string {
   const b = getCrmApiBase();
@@ -608,16 +609,20 @@ export const MailComposer = React.memo(function MailComposer({
       const additions: LocalAttachment[] = [];
       for (const d of docs) {
         if (!d.id?.trim()) continue;
+        if (cancelled) break;
+        const id = d.id.trim();
         try {
-          const url = `${mailApiRoot()}/api/documents/${encodeURIComponent(d.id.trim())}/download`;
+          const url = `${mailApiRoot()}/api/documents/${encodeURIComponent(id)}/download`;
           const res = await apiFetch(url);
-          if (!res.ok || cancelled) continue;
+          if (cancelled) break;
+          assertDocumentDownloadOk(res, id);
           const blob = await res.blob();
           const name = d.filename?.trim() || "document";
           const file = new File([blob], name, { type: blob.type || "application/octet-stream" });
           additions.push({ id: randomId(), file });
-        } catch {
-          /* ignore une pièce */
+        } catch (e) {
+          window.alert(e instanceof Error ? e.message : DOCUMENT_DOWNLOAD_UNAVAILABLE);
+          break;
         }
       }
       if (!cancelled && additions.length) {

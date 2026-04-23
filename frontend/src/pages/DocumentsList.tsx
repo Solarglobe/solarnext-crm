@@ -13,6 +13,7 @@ import {
   type OrganizationDocumentListItem,
 } from "../services/documentsList.api";
 import type { MailComposerInitialPrefill } from "./mail/MailComposer";
+import { assertDocumentDownloadOk } from "../utils/documentDownload";
 import "./documents-page.css";
 
 const PAGE_SIZE = 50;
@@ -172,10 +173,7 @@ export default function DocumentsList() {
     try {
       const url = `${apiBase()}/api/documents/${encodeURIComponent(doc.id)}/download`;
       const res = await apiFetch(url);
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error((err as { error?: string }).error || "Téléchargement impossible");
-      }
+      assertDocumentDownloadOk(res, doc.id);
       const blob = await res.blob();
       const href = window.URL.createObjectURL(blob);
       const a = document.createElement("a");

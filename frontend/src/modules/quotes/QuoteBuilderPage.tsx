@@ -62,6 +62,7 @@ import { showCrmInlineToast } from "../../components/ui/crmInlineToast";
 import type { MailComposerInitialPrefill } from "../../pages/mail/MailComposer";
 import { useSuperAdminReadOnly } from "../../contexts/OrganizationContext";
 import { getCrmApiBase } from "@/config/crmApiBase";
+import { assertDocumentDownloadOk, DOCUMENT_DOWNLOAD_UNAVAILABLE } from "../../utils/documentDownload";
 import "./quote-builder.css";
 
 const API_BASE = getCrmApiBase();
@@ -153,13 +154,13 @@ export default function QuoteBuilderPage() {
     setDocBlobBusyId(doc.id);
     try {
       const res = await apiFetch(`${API_BASE}/api/documents/${encodeURIComponent(doc.id)}/download`);
-      if (!res.ok) throw new Error("Erreur");
+      assertDocumentDownloadOk(res, doc.id);
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
       window.open(url, "_blank", "noopener,noreferrer");
       window.setTimeout(() => window.URL.revokeObjectURL(url), 60000);
-    } catch {
-      window.alert("Impossible d’ouvrir le document.");
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : DOCUMENT_DOWNLOAD_UNAVAILABLE);
     } finally {
       setDocBlobBusyId(null);
     }

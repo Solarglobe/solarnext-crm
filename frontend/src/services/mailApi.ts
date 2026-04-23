@@ -4,6 +4,7 @@
 
 import { apiFetch } from "./api";
 import { getCrmApiBase } from "../config/crmApiBase";
+import { assertDocumentDownloadOk } from "../utils/documentDownload";
 
 /** ID document CRM pour GET /api/documents/:id/download (Bearer). */
 export function getDocumentDownloadPath(documentId: string): string {
@@ -14,10 +15,7 @@ export function getDocumentDownloadPath(documentId: string): string {
 
 export async function fetchDocumentBlob(documentId: string): Promise<Blob> {
   const res = await apiFetch(getDocumentDownloadPath(documentId));
-  if (!res.ok) {
-    const t = await res.text();
-    throw new Error(t || `document ${res.status}`);
-  }
+  assertDocumentDownloadOk(res, documentId);
   return res.blob();
 }
 

@@ -21,6 +21,7 @@ import {
 import { getCurrentUser } from "../../services/auth.service";
 import { apiFetch } from "../../services/api";
 import { getCrmApiBase } from "../../config/crmApiBase";
+import { DOCUMENT_DOWNLOAD_UNAVAILABLE } from "../../utils/documentDownload";
 import { MailComposer } from "./MailComposer";
 import type { ComposerMode } from "./mailComposerLogic";
 import { MailThreadMessage } from "./MailThreadMessage";
@@ -325,6 +326,7 @@ export const MailThreadViewer = React.memo(function MailThreadViewer({
       window.setTimeout(() => URL.revokeObjectURL(url), 120_000);
     } catch (e) {
       console.error(e);
+      window.alert(e instanceof Error ? e.message : DOCUMENT_DOWNLOAD_UNAVAILABLE);
     }
   }, []);
 

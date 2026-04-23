@@ -7,6 +7,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { getCrmApiBase } from "@/config/crmApiBase";
 import { apiFetch, getAuthToken } from "../../services/api";
+import { assertDocumentDownloadOk, DOCUMENT_DOWNLOAD_UNAVAILABLE } from "../../utils/documentDownload";
 
 const API_BASE = getCrmApiBase();
 
@@ -124,13 +125,13 @@ export default function StudyPdfActions({
     setDownloadingId(doc.id);
     try {
       const res = await apiFetch(getDownloadUrl(doc.id));
-      if (!res.ok) throw new Error("Erreur chargement");
+      assertDocumentDownloadOk(res, doc.id);
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
       window.open(url, "_blank", "noopener,noreferrer");
       setTimeout(() => window.URL.revokeObjectURL(url), 60000);
-    } catch {
-      showToast("Impossible d'ouvrir le PDF", false);
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : DOCUMENT_DOWNLOAD_UNAVAILABLE, false);
     } finally {
       setDownloadingId(null);
     }
@@ -141,7 +142,7 @@ export default function StudyPdfActions({
     setDownloadingId(doc.id);
     try {
       const res = await apiFetch(getDownloadUrl(doc.id));
-      if (!res.ok) throw new Error("Erreur téléchargement");
+      assertDocumentDownloadOk(res, doc.id);
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -151,8 +152,8 @@ export default function StudyPdfActions({
       a.click();
       a.remove();
       window.URL.revokeObjectURL(url);
-    } catch {
-      showToast("Impossible de télécharger le PDF", false);
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : DOCUMENT_DOWNLOAD_UNAVAILABLE, false);
     } finally {
       setDownloadingId(null);
     }

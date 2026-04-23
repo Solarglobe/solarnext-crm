@@ -17,6 +17,7 @@ import {
 } from "../../../quotes/quoteWorkflow";
 import { formatQuoteNumberDisplay } from "../../../finance/documentDisplay";
 import { getCrmApiBase } from "@/config/crmApiBase";
+import { assertDocumentDownloadOk } from "../../../../utils/documentDownload";
 
 const API_BASE = getCrmApiBase();
 function eur(v: unknown) {
@@ -97,7 +98,7 @@ export default function FinancialHeroQuote({
     const signed = pickLatestSignedQuotePdf(data.documents ?? []);
     if (!signed) throw new Error("Aucun PDF signé disponible.");
     const res2 = await apiFetch(`${API_BASE}/api/documents/${encodeURIComponent(signed.id)}/download`);
-    if (!res2.ok) throw new Error("Téléchargement du PDF signé impossible");
+    assertDocumentDownloadOk(res2, signed.id);
     const blob = await res2.blob();
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement("a");

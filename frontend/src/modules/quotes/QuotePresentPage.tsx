@@ -28,6 +28,7 @@ import { resolvePdfPrimaryColor } from "../../pages/pdf/pdfBrand";
 import { quoteShowsOfficialNumber, quoteStatusToUiLabel } from "./quoteUiStatus";
 import "./quote-present.css";
 import { getCrmApiBase } from "@/config/crmApiBase";
+import { assertDocumentDownloadOk, DOCUMENT_DOWNLOAD_UNAVAILABLE } from "../../utils/documentDownload";
 
 const API_BASE = getCrmApiBase();
 
@@ -235,7 +236,8 @@ export default function QuotePresentPage() {
           `${API_BASE}/api/documents/${encodeURIComponent(documentId)}/download`;
         const [r1, r2] = await Promise.all([apiFetch(u(clientSigDoc.id)), apiFetch(u(companySigDoc.id))]);
         if (cancelled) return;
-        if (!r1.ok || !r2.ok) throw new Error("fetch");
+        assertDocumentDownloadOk(r1, clientSigDoc.id);
+        assertDocumentDownloadOk(r2, companySigDoc.id);
         const [b1, b2] = await Promise.all([r1.blob(), r2.blob()]);
         if (cancelled) return;
         const u1 = URL.createObjectURL(b1);
@@ -281,13 +283,13 @@ export default function QuotePresentPage() {
     setBlobBusyId(doc.id);
     try {
       const res = await apiFetch(downloadUrl(doc.id));
-      if (!res.ok) throw new Error("Erreur chargement");
+      assertDocumentDownloadOk(res, doc.id);
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
       window.open(url, "_blank", "noopener,noreferrer");
       window.setTimeout(() => window.URL.revokeObjectURL(url), 60000);
-    } catch {
-      window.alert("Impossible d’ouvrir le PDF.");
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : DOCUMENT_DOWNLOAD_UNAVAILABLE);
     } finally {
       setBlobBusyId(null);
     }
@@ -298,7 +300,7 @@ export default function QuotePresentPage() {
     setBlobBusyId(doc.id);
     try {
       const res = await apiFetch(downloadUrl(doc.id));
-      if (!res.ok) throw new Error("Erreur téléchargement");
+      assertDocumentDownloadOk(res, doc.id);
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -308,8 +310,8 @@ export default function QuotePresentPage() {
       a.click();
       a.remove();
       window.URL.revokeObjectURL(url);
-    } catch {
-      window.alert("Impossible de télécharger le PDF.");
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : DOCUMENT_DOWNLOAD_UNAVAILABLE);
     } finally {
       setBlobBusyId(null);
     }
