@@ -28,6 +28,55 @@
     return global.__SN_DP_DEV_MODE === true;
   }
 
+  /** Trace exécutable PUT DP : activer `window.__SN_DP_PUT_TRACE__ = true` ou `window.__SN_DP_TRACE__ = true` puis reproduire. */
+  function dpPutTraceEnabled() {
+    return global.__SN_DP_PUT_TRACE__ === true || global.__SN_DP_TRACE__ === true;
+  }
+
+  function emitDpPutTrace(event, payload) {
+    if (!dpPutTraceEnabled()) return;
+    try {
+      var row = { ts: new Date().toISOString(), event: String(event || "") };
+      if (payload && typeof payload === "object") {
+        var k;
+        for (k in payload) {
+          if (Object.prototype.hasOwnProperty.call(payload, k)) row[k] = payload[k];
+        }
+      }
+      console.warn("[SN-DP-PUT-TRACE]", JSON.stringify(row));
+      global.__SN_DP_PUT_TRACE_LOG__ = global.__SN_DP_PUT_TRACE_LOG__ || [];
+      global.__SN_DP_PUT_TRACE_LOG__.push(row);
+      if (global.__SN_DP_PUT_TRACE_LOG__.length > 100) global.__SN_DP_PUT_TRACE_LOG__.shift();
+    } catch (_) {}
+  }
+
+  function summarizeDraftForTrace(d) {
+    try {
+      if (!d || typeof d !== "object") return { draftType: typeof d };
+      var d1 = d.dp1;
+      var im = d1 && d1.images;
+      return {
+        schemaVersion: d.schemaVersion,
+        sectionKeys: Object.keys(d).filter(function (x) {
+          return x !== "meta" && x !== "timestamps" && x !== "progression";
+        }),
+        dp1HasImages: !!(
+          im &&
+          (im.view_20000 || im.view_5000 || im.view_650)
+        ),
+        dp1ImageLens: im
+          ? {
+              view_20000: im.view_20000 ? String(im.view_20000).length : 0,
+              view_5000: im.view_5000 ? String(im.view_5000).length : 0,
+              view_650: im.view_650 ? String(im.view_650).length : 0,
+            }
+          : null,
+      };
+    } catch (e) {
+      return { summarizeError: String(e && e.message) };
+    }
+  }
+
   function devLog() {
     if (!isDevMode()) return;
     try {
@@ -68,6 +117,19 @@
     clearPersistTimer();
     isSaving = false;
     pendingSave = false;
+    try {
+      global.__SN_DP_TRACE_LAST_DISABLE__ = {
+        at: new Date().toISOString(),
+        reason: reason != null ? String(reason) : null,
+        code: code != null ? String(code) : null,
+      };
+    } catch (_) {}
+    emitDpPutTrace("persistence_disabled", {
+      reason: reason != null ? String(reason) : null,
+      code: code != null ? String(code) : null,
+      leadId: global.__SOLARNEXT_DP_CONTEXT__ && global.__SOLARNEXT_DP_CONTEXT__.leadId,
+      source: "disablePersistence",
+    });
     console.warn(
       "[DP ACCESS BLOCKED] Persistance arrêtée" + (code ? " — " + code : "") + (reason ? " — " + reason : "")
     );
@@ -200,6 +262,12 @@
         if (typeof u === "string" && u.indexOf("data:image") === 0 && u.length > MAX_DP1_DATA_URL_CHARS) {
           im[kk] = null;
           devWarn("[dp-draft] image DP1 trop volumineuse — omise du PUT", kk, u.length);
+          emitDpPutTrace("dp1_image_stripped_oversize", {
+            slot: kk,
+            previousChars: u.length,
+            maxChars: MAX_DP1_DATA_URL_CHARS,
+            leadId: global.__SOLARNEXT_DP_CONTEXT__ && global.__SOLARNEXT_DP_CONTEXT__.leadId,
+          });
         }
       }
     } catch (e) {
@@ -877,6 +945,15 @@
     syncRuntimeIntoDraft();
     var safeDraft = sanitizeDraftForPut(DP_DRAFT);
     var body = JSON.stringify({ draft: safeDraft });
+    var ctx = global.__SOLARNEXT_DP_CONTEXT__ || {};
+    emitDpPutTrace("put_request", {
+      attempt: attempt,
+      leadId: ctx.leadId || null,
+      url: url,
+      bodyBytes: body.length,
+      draftSummary: summarizeDraftForTrace(safeDraft),
+      persistenceDisabledBefore: !!global.__SN_DP_PERSISTENCE_DISABLED,
+    });
     var ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
     var tid = null;
     if (ctrl) {
@@ -903,12 +980,25 @@
             try {
               j = JSON.parse(txt);
             } catch (_) {}
+            emitDpPutTrace("put_response_error", {
+              leadId: ctx.leadId || null,
+              url: url,
+              httpStatus: res.status,
+              bodyError: j && j.error != null ? String(j.error) : null,
+              bodyCode: j && j.code != null ? String(j.code) : null,
+              responseTextHead: txt ? String(txt).slice(0, 400) : "",
+            });
             var err = new Error((j && j.error) || "PUT " + res.status);
             err.status = res.status;
             err.code = j && j.code;
             throw err;
           });
         }
+        emitDpPutTrace("put_response_ok", {
+          leadId: ctx.leadId || null,
+          url: url,
+          httpStatus: res.status,
+        });
         return res.json();
       });
   }
@@ -1359,6 +1449,18 @@
     }
     global.__SN_DP_INIT_BLOCKED = true;
     global.__SN_DP_PERSISTENCE_DISABLED = true;
+    emitDpPutTrace("persistence_disabled_init", {
+      source: "dp-draft-store.js crmGateOk",
+      reason: !global.__SOLARNEXT_DP_CONTEXT__ || !global.__SOLARNEXT_DP_CONTEXT__.leadId ? "NO_LEAD_CONTEXT" : "NOT_CRM_EMBED",
+      leadId: global.__SOLARNEXT_DP_CONTEXT__ && global.__SOLARNEXT_DP_CONTEXT__.leadId,
+    });
+    try {
+      global.__SN_DP_TRACE_LAST_DISABLE__ = {
+        at: new Date().toISOString(),
+        reason: !global.__SOLARNEXT_DP_CONTEXT__ || !global.__SOLARNEXT_DP_CONTEXT__.leadId ? "NO_LEAD_CONTEXT" : "NOT_CRM_EMBED",
+        code: "INIT_GATE_DRAFT_STORE",
+      };
+    } catch (_) {}
     wireDraftStoreStubs();
   } else if (global.__SOLARNEXT_DP_CONTEXT__ && global.__SOLARNEXT_DP_CONTEXT__.leadId) {
     initDraftFromServer(global.__SOLARNEXT_DP_CONTEXT__.draft);
@@ -1370,6 +1472,18 @@
     console.error("[DP INIT BLOCKED — NO CRM CONTEXT]");
     global.__SN_DP_INIT_BLOCKED = true;
     global.__SN_DP_PERSISTENCE_DISABLED = true;
+    emitDpPutTrace("persistence_disabled_init", {
+      source: "dp-draft-store.js final branch",
+      reason: "NO_CRM_CONTEXT_FINAL",
+      leadId: null,
+    });
+    try {
+      global.__SN_DP_TRACE_LAST_DISABLE__ = {
+        at: new Date().toISOString(),
+        reason: "NO_CRM_CONTEXT_FINAL",
+        code: "INIT_GATE_DRAFT_STORE",
+      };
+    } catch (_) {}
     wireDraftStoreStubs();
   }
 })(typeof window !== "undefined" ? window : globalThis);

@@ -384,6 +384,25 @@ function solarnextDpInstallCrmRequiredBlock(message) {
     console.error("[DP INIT BLOCKED — NO CRM CONTEXT]");
     w.__SN_DP_INIT_BLOCKED = true;
     w.__SN_DP_PERSISTENCE_DISABLED = true;
+    if (w.__SN_DP_PUT_TRACE__ === true || w.__SN_DP_TRACE__ === true) {
+      console.warn(
+        "[SN-DP-PUT-TRACE]",
+        JSON.stringify({
+          ts: new Date().toISOString(),
+          event: "persistence_disabled_init",
+          source: "dp-app.js solarnextDpRunCrmEntryGate",
+          reason: "NO_CRM_CONTEXT",
+          leadId: null,
+        })
+      );
+      try {
+        w.__SN_DP_TRACE_LAST_DISABLE__ = {
+          at: new Date().toISOString(),
+          reason: "NO_CRM_CONTEXT",
+          code: "INIT_GATE",
+        };
+      } catch (_) {}
+    }
     solarnextDpInstallCrmRequiredBlock("Ce module doit être utilisé depuis le CRM");
     return;
   }
@@ -391,6 +410,25 @@ function solarnextDpInstallCrmRequiredBlock(message) {
     console.error("[DP INIT BLOCKED — NOT CRM EMBED]");
     w.__SN_DP_INIT_BLOCKED = true;
     w.__SN_DP_PERSISTENCE_DISABLED = true;
+    if (w.__SN_DP_PUT_TRACE__ === true || w.__SN_DP_TRACE__ === true) {
+      console.warn(
+        "[SN-DP-PUT-TRACE]",
+        JSON.stringify({
+          ts: new Date().toISOString(),
+          event: "persistence_disabled_init",
+          source: "dp-app.js solarnextDpRunCrmEntryGate",
+          reason: "NOT_CRM_EMBED",
+          leadId: ctx.leadId || null,
+        })
+      );
+      try {
+        w.__SN_DP_TRACE_LAST_DISABLE__ = {
+          at: new Date().toISOString(),
+          reason: "NOT_CRM_EMBED",
+          code: "INIT_GATE",
+        };
+      } catch (_) {}
+    }
     solarnextDpInstallCrmRequiredBlock("Ce module doit être utilisé depuis le CRM");
   }
 })();

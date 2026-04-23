@@ -23,6 +23,30 @@ import { fetchPvInverterRowById } from "../services/pv/resolveInverterFromDb.ser
 import { logAuditEvent } from "../services/audit/auditLog.service.js";
 import { AuditActions } from "../services/audit/auditActions.js";
 
+function traceCalpinageEnabled() {
+  return process.env.SN_CALPINAGE_TRACE === "1";
+}
+
+function traceCalpinageLog(event, fields) {
+  if (!traceCalpinageEnabled()) return;
+  console.warn("[SN-CALPINAGE-TRACE]", JSON.stringify({ ts: new Date().toISOString(), event, ...fields }));
+}
+
+function snapMeta(label, geometryJson) {
+  if (!geometryJson || typeof geometryJson !== "object") {
+    return { label, hasLayoutSnapshot: false, layoutSnapshotLen: 0, hasGeometryHash: false };
+  }
+  const s = geometryJson.layout_snapshot;
+  const h = geometryJson.geometry_hash;
+  return {
+    label,
+    hasLayoutSnapshot: typeof s === "string" && s.length > 0,
+    layoutSnapshotLen: typeof s === "string" ? s.length : 0,
+    hasGeometryHash: typeof h === "string" && h.length > 0,
+    geometryHashHead: typeof h === "string" ? h.slice(0, 16) : null,
+  };
+}
+
 function assignPanelPatchFromDb(patch, dbPanel) {
   if (!dbPanel || typeof dbPanel !== "object") return;
   if (dbPanel.brand != null && String(dbPanel.brand).trim() !== "") {
@@ -299,6 +323,19 @@ export async function upsertCalpinage(req, res) {
           mergedGeometry.geometry_hash = newHash;
         }
 
+        traceCalpinageLog("upsert_before_persist", {
+          studyId,
+          versionNum,
+          studyVersionId,
+          organizationId: org,
+          invalidated,
+          existingHash: existingHash ?? null,
+          newHash,
+          existingSnap: snapMeta("existing_row", existingGeometry),
+          workingSnap: snapMeta("working_after_strip", working),
+          mergedSnap: snapMeta("mergedGeometry", mergedGeometry),
+        });
+
         const r = await client.query(
           `INSERT INTO calpinage_data (organization_id, study_version_id, geometry_json, total_panels, total_power_kwc, annual_production_kwh, total_loss_pct)
            VALUES ($1, $2, $3::jsonb, $4, $5, $6, $7)
@@ -312,7 +349,14 @@ export async function upsertCalpinage(req, res) {
            RETURNING id, geometry_json, total_panels, total_power_kwc, annual_production_kwh, total_loss_pct, created_at`,
           [org, studyVersionId, JSON.stringify(mergedGeometry), totalPanels, totalPowerKwc, annualProductionKwh, totalLossPct]
         );
-        return r.rows[0];
+        const persisted = r.rows[0];
+        traceCalpinageLog("upsert_after_returning", {
+          studyId,
+          versionNum,
+          studyVersionId,
+          persistedSnap: snapMeta("returned_row", persisted?.geometry_json),
+        });
+        return persisted;
       })
     );
     const uid = req.user?.userId ?? req.user?.id ?? null;

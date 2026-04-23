@@ -18,11 +18,26 @@ import { setCalpinageItem } from "../modules/calpinage/calpinageStorage";
 
 const MAX_SNAPSHOT_WIDTH = 2200;
 
+function calpinageTraceEnabled(): boolean {
+  return typeof window !== "undefined" && (window as unknown as { __SN_CALPINAGE_TRACE__?: boolean }).__SN_CALPINAGE_TRACE__ === true;
+}
+
+function emitCalpinageTrace(event: string, payload: Record<string, unknown>) {
+  if (!calpinageTraceEnabled()) return;
+  const row = { ts: new Date().toISOString(), event, ...payload };
+  console.warn("[SN-CALPINAGE-TRACE]", JSON.stringify(row));
+  const w = window as unknown as { __SN_CALPINAGE_TRACE_LOG__?: unknown[] };
+  w.__SN_CALPINAGE_TRACE_LOG__ = w.__SN_CALPINAGE_TRACE_LOG__ || [];
+  w.__SN_CALPINAGE_TRACE_LOG__.push(row);
+  if (w.__SN_CALPINAGE_TRACE_LOG__.length > 80) w.__SN_CALPINAGE_TRACE_LOG__.shift();
+}
+
 /**
  * Capture du canvas de dessin calpinage uniquement (pas Google Maps — évite canvas « tainted » / CORS).
  * Ordre : #calpinage-canvas-el, puis canvas sous #calpinage-render-root (hors carte).
  */
 async function captureCalpinageSnapshot(): Promise<string | null> {
+  emitCalpinageTrace("capture_called", {});
   const canvas =
     document.querySelector<HTMLCanvasElement>("#calpinage-canvas-el") ??
     document.querySelector<HTMLCanvasElement>("#calpinage-render-root canvas");
@@ -36,12 +51,19 @@ async function captureCalpinageSnapshot(): Promise<string | null> {
   }
 
   if (!canvas) {
+    emitCalpinageTrace("capture_canvas_missing", {
+      selectorTried: "#calpinage-canvas-el | #calpinage-render-root canvas",
+    });
     console.error(
       "[CalpinageOverlay] CALPINAGE_SNAPSHOT_CANVAS_MISSING — canvas de dessin introuvable (#calpinage-canvas-el ou #calpinage-render-root canvas)"
     );
     return null;
   }
   if (canvas.width === 0 || canvas.height === 0) {
+    emitCalpinageTrace("capture_canvas_invalid_dims", {
+      width: canvas.width,
+      height: canvas.height,
+    });
     console.error("[CalpinageOverlay] CALPINAGE_SNAPSHOT_CANVAS_INVALID — largeur ou hauteur nulle", {
       width: canvas.width,
       height: canvas.height,
@@ -49,10 +71,23 @@ async function captureCalpinageSnapshot(): Promise<string | null> {
     return null;
   }
 
+  emitCalpinageTrace("capture_canvas_found", {
+    width: canvas.width,
+    height: canvas.height,
+    id: canvas.id || null,
+  });
+
   let snapshot: string;
   try {
     snapshot = canvas.toDataURL("image/png");
+    emitCalpinageTrace("capture_toDataURL_ok", {
+      dataUrlChars: snapshot.length,
+      head: snapshot.slice(0, 32),
+    });
   } catch (e) {
+    emitCalpinageTrace("capture_toDataURL_error", {
+      error: e instanceof Error ? e.message : String(e),
+    });
     console.error("[CalpinageOverlay] CANVAS_TAINTED", e);
     return null;
   }
@@ -69,8 +104,12 @@ async function captureCalpinageSnapshot(): Promise<string | null> {
       if (ctx) {
         ctx.drawImage(canvas, 0, 0, w, h);
         snapshot = optimizedCanvas.toDataURL("image/png");
+        emitCalpinageTrace("capture_resized", { dataUrlChars: snapshot.length, w, h });
       }
     } catch (e) {
+      emitCalpinageTrace("capture_resize_error", {
+        error: e instanceof Error ? e.message : String(e),
+      });
       console.error("[CalpinageOverlay] CANVAS_TAINTED", e);
       return null;
     }
@@ -293,6 +332,7 @@ export default function CalpinageOverlay({
         /* 2. Capture canvas de dessin calpinage (pas la carte — requis pour le PDF) */
         const layoutSnapshotBase64 = await captureCalpinageSnapshot();
         if (!layoutSnapshotBase64) {
+          emitCalpinageTrace("validate_aborted_no_snapshot", { studyId, versionId });
           showToast(
             "Impossible de capturer le plan du calpinage pour le PDF. Attendez le chargement complet de l’affichage puis réessayez.",
             false
@@ -311,6 +351,13 @@ export default function CalpinageOverlay({
         if (layoutSnapshotBase64) {
           body.layout_snapshot_base64 = layoutSnapshotBase64;
         }
+        emitCalpinageTrace("validate_post_body", {
+          studyId,
+          studyVersionId: studyVersionId ?? null,
+          versionId: body.versionId ?? null,
+          hasLayoutSnapshotBase64: !!body.layout_snapshot_base64,
+          layoutSnapshotBase64Chars: body.layout_snapshot_base64?.length ?? 0,
+        });
         if (debugValidate) {
           console.groupCollapsed("[VALIDATE] validate endpoint start");
           console.log("URL", `${API_BASE}/api/studies/${encodeURIComponent(studyId)}/calpinage/validate`);
@@ -324,6 +371,11 @@ export default function CalpinageOverlay({
             body: JSON.stringify(body),
           }
         );
+        emitCalpinageTrace("validate_response", {
+          studyId,
+          httpStatus: res.status,
+          ok: res.ok,
+        });
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
           const errMsg = (err as { error?: string }).error || `Erreur ${res.status}`;

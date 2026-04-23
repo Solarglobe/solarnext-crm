@@ -22,6 +22,16 @@ const DP_FORBIDDEN_BODY = {
   code: "DP_LEAD_NOT_CLIENT",
 };
 
+function traceDpPutEnabled() {
+  return process.env.SN_DP_PUT_TRACE === "1";
+}
+
+function traceDpPut(event, fields) {
+  if (!traceDpPutEnabled()) return;
+  const row = { ts: new Date().toISOString(), event, ...fields };
+  console.warn("[SN-DP-PUT-TRACE]", JSON.stringify(row));
+}
+
 /**
  * GET /api/leads/:id/dp
  */
@@ -40,6 +50,13 @@ export async function getLeadDp(req, res) {
       req,
     });
     if (!gate.ok) {
+      traceDpPut("get_blocked_assertLeadApiAccess", {
+        leadId: id,
+        organizationId: org,
+        httpStatus: gate.status,
+        bodyCode: gate.body?.code,
+        bodyError: gate.body?.error,
+      });
       return res.status(gate.status).json(gate.body);
     }
 
@@ -51,7 +68,22 @@ export async function getLeadDp(req, res) {
       });
     }
 
-    if (!isDpAccessEligible(row)) {
+    const eligibleGet = isDpAccessEligible(row);
+    traceDpPut("get_lead_row", {
+      leadId: id,
+      organizationId: org,
+      leadStatus: row.status ?? null,
+      projectStatus: row.project_status ?? null,
+      isDpAccessEligible: eligibleGet,
+    });
+
+    if (!eligibleGet) {
+      traceDpPut("get_blocked_not_dp_eligible", {
+        leadId: id,
+        organizationId: org,
+        leadStatus: row.status ?? null,
+        projectStatus: row.project_status ?? null,
+      });
       return res.status(403).json(DP_FORBIDDEN_BODY);
     }
 
@@ -98,22 +130,52 @@ export async function putLeadDp(req, res) {
       req,
     });
     if (!gate.ok) {
+      traceDpPut("put_blocked_assertLeadApiAccess", {
+        leadId: id,
+        organizationId: org,
+        httpStatus: gate.status,
+        bodyCode: gate.body?.code,
+        bodyError: gate.body?.error,
+      });
       return res.status(gate.status).json(gate.body);
     }
 
     const row = await fetchLeadRowForDpContext(pool, id, org);
     if (!row) {
+      traceDpPut("put_not_found_lead", { leadId: id, organizationId: org });
       return res.status(404).json({
         error: "Aucun lead ne correspond à cet identifiant pour votre organisation.",
         code: "LEAD_NOT_FOUND",
       });
     }
 
-    if (!isDpAccessEligible(row)) {
+    const eligible = isDpAccessEligible(row);
+    traceDpPut("put_lead_row", {
+      leadId: id,
+      organizationId: org,
+      leadStatus: row.status ?? null,
+      projectStatus: row.project_status ?? null,
+      isDpAccessEligible: eligible,
+    });
+
+    if (!eligible) {
+      traceDpPut("put_blocked_not_dp_eligible", {
+        leadId: id,
+        organizationId: org,
+        leadStatus: row.status ?? null,
+        projectStatus: row.project_status ?? null,
+        bodyReturned: DP_FORBIDDEN_BODY,
+      });
       return res.status(403).json(DP_FORBIDDEN_BODY);
     }
 
     const saved = await upsertLeadDpDraft(pool, id, org, draft);
+
+    traceDpPut("put_ok", {
+      leadId: id,
+      organizationId: org,
+      draftBytes: JSON.stringify(draft).length,
+    });
 
     const context = buildDpContextFromLeadRow(row);
 

@@ -4158,11 +4158,22 @@ export function initCalpinage(container, options = {}) {
         if (selectEl) selectEl.disabled = true;
         window.SOLARNEXT_PANELS = [];
         try {
-          var apiBase = (window.location && window.location.origin) || "";
+          var apiBase = (window.CALPINAGE_API_BASE != null
+            ? window.CALPINAGE_API_BASE
+            : (window.location && window.location.origin)) || "";
           var res = await fetch(apiBase + "/api/public/pv/panels");
           if (!res.ok) throw new Error("Erreur " + res.status + " : " + (res.statusText || "Chargement catalogue impossible"));
           var list = await res.json();
-          window.SOLARNEXT_PANELS = Array.isArray(list) ? list : [];
+          if (!Array.isArray(list)) {
+            console.error("PV panels API returned non-array:", list);
+            window.SOLARNEXT_PANELS = [];
+          } else {
+            window.SOLARNEXT_PANELS = list;
+          }
+          console.log("Loaded PV panels:", window.SOLARNEXT_PANELS);
+          if (typeof window.syncPhase3LayoutUI === "function") {
+            window.syncPhase3LayoutUI();
+          }
           if (errorEl) {
             if (window.SOLARNEXT_PANELS.length === 0) {
               errorEl.textContent = "Aucun panneau actif dans le catalogue";
@@ -4200,7 +4211,9 @@ export function initCalpinage(container, options = {}) {
         if (selectMicro) selectMicro.disabled = true;
         window.SOLARNEXT_INVERTERS = [];
         try {
-          var apiBase = (window.location && window.location.origin) || "";
+          var apiBase = (window.CALPINAGE_API_BASE != null
+            ? window.CALPINAGE_API_BASE
+            : (window.location && window.location.origin)) || "";
           var res = await fetch(apiBase + "/api/public/pv/inverters");
           if (!res.ok) throw new Error("Erreur " + res.status + " : " + (res.statusText || "Chargement catalogue impossible"));
           var list = await res.json();

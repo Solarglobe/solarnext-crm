@@ -22,6 +22,15 @@ const userId = (req) => req.user?.id ?? req.user?.userId ?? null;
 
 const DEBUG = process.env.DEBUG_CALPINAGE_VALIDATE === "1";
 
+function traceCalpinageEnabled() {
+  return process.env.SN_CALPINAGE_TRACE === "1";
+}
+
+function traceCalpinageLog(event, fields) {
+  if (!traceCalpinageEnabled()) return;
+  console.warn("[SN-CALPINAGE-TRACE]", JSON.stringify({ ts: new Date().toISOString(), event, ...fields }));
+}
+
 /**
  * POST /api/studies/:studyId/calpinage/validate
  * Body: { studyVersionId: UUID } — id de la version (study_versions.id)
@@ -55,6 +64,16 @@ export async function validateCalpinage(req, res) {
     }
 
     const layoutSnapshotBase64 = body.layout_snapshot_base64;
+    const snapIn =
+      layoutSnapshotBase64 && typeof layoutSnapshotBase64 === "string"
+        ? layoutSnapshotBase64.length
+        : 0;
+    traceCalpinageLog("validate_request", {
+      studyId,
+      studyVersionId: studyVersionIdIn || null,
+      hasLayoutSnapshotBase64: !!(layoutSnapshotBase64 && typeof layoutSnapshotBase64 === "string"),
+      layoutSnapshotBase64Chars: snapIn,
+    });
 
     const committedGeometryJson = await withPgRetryOnce(() =>
       withTx(pool, async (client) => {
@@ -73,7 +92,7 @@ export async function validateCalpinage(req, res) {
         if (layoutSnapshotBase64 && typeof layoutSnapshotBase64 === "string") {
           const snapshot =
             layoutSnapshotBase64.startsWith("data:") ? layoutSnapshotBase64 : `data:image/png;base64,${layoutSnapshotBase64}`;
-          await client.query(
+          const upd = await client.query(
             `UPDATE calpinage_data
              SET geometry_json = jsonb_set(
                COALESCE(geometry_json, '{}'::jsonb),
@@ -83,6 +102,18 @@ export async function validateCalpinage(req, res) {
              WHERE study_version_id = $2 AND organization_id = $3`,
             [snapshot, studyVersionId, org]
           );
+          traceCalpinageLog("validate_layout_jsonb_set", {
+            studyId,
+            studyVersionId,
+            rowCount: upd.rowCount,
+            snapshotDataUrlChars: snapshot.length,
+          });
+        } else {
+          traceCalpinageLog("validate_layout_skipped", {
+            studyId,
+            studyVersionId,
+            reason: "no_layout_snapshot_base64_string",
+          });
         }
 
         await persistGeometryHashForStudyVersion(studyVersionId, org, client);
