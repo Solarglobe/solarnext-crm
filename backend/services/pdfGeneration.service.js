@@ -111,10 +111,8 @@ export async function generatePdfFromRendererUrl(rendererUrl) {
     const page = await context.newPage();
 
     try {
-      await page.goto(rendererUrl, {
-        waitUntil: "networkidle",
-        timeout: PAGE_LOAD_TIMEOUT,
-      });
+      await page.goto(rendererUrl, { waitUntil: "load", timeout: 60000 });
+      await page.waitForTimeout(2000);
       logger.info("Renderer loaded", { rendererUrl });
 
       await waitForPdfPageReady(page, rendererUrl, "study");
@@ -253,10 +251,8 @@ export async function generatePdfFromPortraitFinanceUrl(rendererUrl, logLabel = 
     const page = await context.newPage();
 
     try {
-      await page.goto(rendererUrl, {
-        waitUntil: "networkidle",
-        timeout: PAGE_LOAD_TIMEOUT,
-      });
+      await page.goto(rendererUrl, { waitUntil: "load", timeout: 60000 });
+      await page.waitForTimeout(2000);
       logger.info(`${logLabel} renderer loaded`, { rendererUrl });
 
       await waitForPdfPageReady(page, rendererUrl, logLabel);
