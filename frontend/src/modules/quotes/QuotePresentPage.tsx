@@ -304,7 +304,9 @@ export default function QuotePresentPage() {
       const a = document.createElement("a");
       a.href = url;
       a.download = doc.file_name || "devis.pdf";
+      document.body.appendChild(a);
       a.click();
+      a.remove();
       window.URL.revokeObjectURL(url);
     } catch {
       window.alert("Impossible de télécharger le PDF.");

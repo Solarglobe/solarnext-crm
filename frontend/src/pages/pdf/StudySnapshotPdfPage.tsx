@@ -2,10 +2,10 @@
  * PDF V2 — Page React standalone de rendu PDF
  * CP-PDF-V2-019 : si renderToken dans l'URL → route interne (Playwright).
  * Sinon → GET /api/studies/:studyId/versions/:versionId/pdf-view-model (JWT CRM).
- * Signal de readiness strict : __pdf_render_ready et #pdf-ready[data-status="ready"]
+ * Signal de readiness : __pdf_render_ready et #pdf-ready[data-status="ready"] dès view-model chargé (P10 ne bloque plus).
  */
 
-import React, { useEffect, useState, useMemo, useCallback } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { apiFetch } from "../../services/api";
 import PdfLegacyPort from "./PdfLegacyPort";
@@ -45,8 +45,6 @@ export default function StudySnapshotPdfPage(props?: { studyId?: string; version
   const renderToken = urlIds.renderToken;
   const [status, setStatus] = useState<Status>("loading");
   const [viewModel, setViewModel] = useState<PdfViewModel | null>(null);
-  const [p10Ready, setP10Ready] = useState(false);
-  const onP10Ready = useCallback(() => setP10Ready(true), []);
 
   // Reset readiness au montage (aucun fallback temporel)
   useEffect(() => {
@@ -117,10 +115,10 @@ export default function StudySnapshotPdfPage(props?: { studyId?: string; version
   const vm = (viewModel ?? {}) as { fullReport?: { p3b?: { p3b_auto?: { layout_snapshot?: string } } }; [key: string]: unknown };
   return (
     <div id="pdf-root">
-      <PdfLegacyPort viewModel={vm} onP10Ready={onP10Ready} />
+      <PdfLegacyPort viewModel={vm} />
       <div
         id="pdf-ready"
-        data-status={status === "success" && viewModel != null && p10Ready ? "ready" : "pending"}
+        data-status={status === "success" && viewModel != null ? "ready" : "pending"}
         aria-hidden="true"
       />
     </div>

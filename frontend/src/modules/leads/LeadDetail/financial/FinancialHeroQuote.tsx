@@ -103,7 +103,9 @@ export default function FinancialHeroQuote({
     const a = document.createElement("a");
     a.href = url;
     a.download = signed.file_name || "devis-signé.pdf";
+    document.body.appendChild(a);
     a.click();
+    a.remove();
     window.URL.revokeObjectURL(url);
   };
 

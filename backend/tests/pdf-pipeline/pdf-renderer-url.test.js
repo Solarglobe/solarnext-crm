@@ -44,15 +44,15 @@ export function runUrlTests() {
       else delete process.env.NODE_ENV;
     };
 
-    // ——— buildRendererUrl retourne /pdf-render?studyId=...&versionId=... ———
+    // ——— buildRendererUrl retourne /pdf-render.html?studyId=...&versionId=... ———
     const url = buildRendererUrl("study-123", "version-456");
     if (
-      url.includes("/pdf-render?studyId=") &&
+      url.includes("/pdf-render.html?studyId=") &&
       url.includes("&versionId=") &&
       url.includes("studyId=study-123") &&
       url.includes("versionId=version-456")
     ) {
-      pass("buildRendererUrl retourne /pdf-render?studyId=...&versionId=...");
+      pass("buildRendererUrl retourne /pdf-render.html?studyId=...&versionId=...");
     } else {
       fail("buildRendererUrl format", `Reçu: ${url}`);
     }

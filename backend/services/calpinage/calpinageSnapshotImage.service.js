@@ -41,7 +41,7 @@ export async function generateCalpinageSnapshotForVersion(studyId, studyVersionI
 
   const renderToken = createPdfRenderToken(studyId, studyVersionId, organizationId);
   const base = getPdfRendererBaseUrl();
-  const renderUrl = `${base}/calpinage-render?studyId=${encodeURIComponent(studyId)}&versionId=${encodeURIComponent(studyVersionId)}&renderToken=${encodeURIComponent(renderToken)}`;
+  const renderUrl = `${base}/calpinage-render.html?studyId=${encodeURIComponent(studyId)}&versionId=${encodeURIComponent(studyVersionId)}&renderToken=${encodeURIComponent(renderToken)}`;
 
   let browser;
   try {

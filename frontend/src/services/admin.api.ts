@@ -483,7 +483,9 @@ export async function adminExportArchivesCsv(): Promise<void> {
   const a = document.createElement("a");
   a.href = url;
   a.download = "archives-export.csv";
+  document.body.appendChild(a);
   a.click();
+  a.remove();
   URL.revokeObjectURL(url);
 }
 

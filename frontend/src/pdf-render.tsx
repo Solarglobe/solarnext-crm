@@ -3,7 +3,7 @@
  * Monte StudySnapshotPdfPage directement (pas LegacyPdfTemplate, pas smartpitch HTML).
  * studyId et versionId lus depuis les query params (?studyId=...&versionId=...).
  * Appelle GET /api/studies/:studyId/versions/:versionId/pdf-view-model.
- * URL : /pdf-render?studyId=...&versionId=...
+ * URL : /pdf-render.html?studyId=...&versionId=... (fichier d’entrée : pdf-render.html)
  */
 
 import React from "react";

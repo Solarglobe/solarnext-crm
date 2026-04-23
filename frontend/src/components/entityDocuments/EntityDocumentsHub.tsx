@@ -208,7 +208,9 @@ export default function EntityDocumentsHub({
       const a = document.createElement("a");
       a.href = url;
       a.download = doc.displayName?.trim() || doc.file_name;
+      document.body.appendChild(a);
       a.click();
+      a.remove();
       window.URL.revokeObjectURL(url);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur téléchargement");

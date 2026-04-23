@@ -42,20 +42,34 @@ process.on("unhandledRejection", console.error);
 applyTrustProxy(app);
 
 // ------------------------------------------------------------
-// CORS — strictement avant express.json() et toutes les routes
+// CORS — allowlist explicite via CORS_ORIGIN (virgules). Avant express.json() et les routes.
 // (même config pour preflight OPTIONS + requêtes : credentials: true)
+// Requêtes sans en-tête Origin (ex. curl, healthchecks) : autorisées.
 // ------------------------------------------------------------
+const allowedCorsOrigins = String(process.env.CORS_ORIGIN ?? "")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+
+if (allowedCorsOrigins.length === 0) {
+  console.warn(
+    "[CORS] CORS_ORIGIN est vide — aucun navigateur cross-origin ne sera autorisé (définir ex. http://localhost:5173,https://votre-app.vercel.app en dev/prod)"
+  );
+} else {
+  console.log("[CORS] allowlist (origines autorisées) :", allowedCorsOrigins);
+}
+
 const corsConfig = {
   origin: (origin, callback) => {
-    if (!origin) return callback(null, true);
-
-    if (
-      origin.includes("vercel.app") ||
-      origin.includes("localhost")
-    ) {
+    if (!origin) {
       return callback(null, true);
     }
-
+    if (allowedCorsOrigins.length === 0) {
+      return callback(new Error("CORS: CORS_ORIGIN non configuré"));
+    }
+    if (allowedCorsOrigins.includes(origin)) {
+      return callback(null, true);
+    }
     return callback(new Error("Not allowed by CORS"));
   },
   credentials: true,

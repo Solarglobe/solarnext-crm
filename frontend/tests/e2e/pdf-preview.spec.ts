@@ -1,6 +1,6 @@
 /**
  * E2E — Page PDF V2 (entrée autonome pdf-render.html)
- * URL : /pdf-render?studyId=test&versionId=test
+ * URL : /pdf-render.html?studyId=test&versionId=test
  * Pas de CRM, pas de router, pas d’auth. Mock uniquement l’API pdf-view-model.
  *
  * TEST 1 — Route accessible
@@ -12,7 +12,7 @@
 import { test, expect } from '@playwright/test';
 
 const BASE = process.env.E2E_BASE_URL?.replace(/\/crm\.html\/?$/, '') || 'http://localhost:5173';
-const PDF_URL = `${BASE}/pdf-render?studyId=test&versionId=test`;
+const PDF_URL = `${BASE}/pdf-render.html?studyId=test&versionId=test`;
 
 const viewModelOk = {
   ok: true,

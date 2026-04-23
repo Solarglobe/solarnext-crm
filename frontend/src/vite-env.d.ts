@@ -2,8 +2,9 @@
 
 interface ImportMetaEnv {
   /**
-   * Origine du backend (sans chemin, sans /api/v1) — ex. `https://xxx.up.railway.app`
-   * Si absent en prod, défaut = Railway dans `getCrmApiBase`.
+   * Origine du backend (sans chemin, sans /api/v1) — ex. `https://xxx.up.railway.app`.
+   * Build prod (Vercel) : **à définir** pour que `apiFetch` cible le backend ; sans cela, seules les URLs relatives s’appliquent (même hôte).
+   * Dev (Vite) : souvent omis (proxy) ; pour forcer un backend distant, la renseigner.
    */
   readonly VITE_API_URL?: string;
   /** Clé publique Google Maps (Calpinage, DP tool) — restreindre par référent côté Google Cloud. */

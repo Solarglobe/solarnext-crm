@@ -9,6 +9,12 @@ import { JWT_SECRET } from "../config/auth.js";
 
 const PAGE_LOAD_TIMEOUT = 30000;
 
+/** Railway / Linux container : sandbox souvent indisponible. */
+const CHROMIUM_LAUNCH_OPTIONS = {
+  headless: true,
+  args: ["--no-sandbox", "--disable-setuid-sandbox"],
+};
+
 /**
  * Délai d’attente du signal ready côté renderer (ms).
  * @returns {number}
@@ -31,7 +37,7 @@ export function getPdfRendererBaseUrl() {
   if (!raw) {
     throw new Error(
       isProd
-        ? "PDF impossible en production : définir PDF_RENDERER_BASE_URL ou FRONTEND_URL (URL absolue du front Vercel, ex. https://votre-projet.vercel.app). Le backend appelle ce domaine en Playwright pour /pdf-render, /financial-quote-pdf-render, etc."
+        ? "PDF impossible en production : définir PDF_RENDERER_BASE_URL ou FRONTEND_URL (URL absolue du front Vercel, ex. https://votre-projet.vercel.app). Le backend appelle ce domaine en Playwright pour les entrées HTML pdf-render / financial-quote-pdf-render / calpinage-render (.html)."
         : "PDF impossible : URL du renderer vide. Définir PDF_RENDERER_BASE_URL ou FRONTEND_URL (ex. https://crm.example.com)."
     );
   }
@@ -87,7 +93,7 @@ async function waitForPdfPageReady(page, rendererUrl, logLabel) {
 
 /**
  * Génère un buffer PDF à partir de l'URL du renderer.
- * @param {string} rendererUrl - URL complète (ex: http://localhost:5173/pdf-render?studyId=...&versionId=...)
+ * @param {string} rendererUrl - URL complète (ex: http://localhost:5173/pdf-render.html?studyId=...&versionId=...)
  * @returns {Promise<Buffer>} buffer PDF
  * @throws {Error} code PDF_RENDER_TIMEOUT | PDF_RENDER_FAILED
  */
@@ -100,7 +106,7 @@ export async function generatePdfFromRendererUrl(rendererUrl) {
 
   let browser;
   try {
-    browser = await chromium.launch({ headless: true });
+    browser = await chromium.launch(CHROMIUM_LAUNCH_OPTIONS);
     const context = await browser.newContext();
     const page = await context.newPage();
 
@@ -154,7 +160,7 @@ export async function generatePdfFromRendererUrl(rendererUrl) {
  */
 export function buildRendererUrl(studyId, versionId, renderToken) {
   const base = getPdfRendererBaseUrl();
-  let url = `${base}/pdf-render?studyId=${encodeURIComponent(studyId)}&versionId=${encodeURIComponent(versionId)}`;
+  let url = `${base}/pdf-render.html?studyId=${encodeURIComponent(studyId)}&versionId=${encodeURIComponent(versionId)}`;
   if (renderToken) {
     url += `&renderToken=${encodeURIComponent(renderToken)}`;
   }
@@ -188,7 +194,7 @@ export function getRendererUrl(studyId, versionId, renderToken) {
  */
 export function buildFinancialQuoteRendererUrl(quoteId, renderToken, opts = {}) {
   const base = getPdfRendererBaseUrl();
-  let url = `${base}/financial-quote-pdf-render?financialQuoteId=${encodeURIComponent(quoteId)}&renderToken=${encodeURIComponent(renderToken)}`;
+  let url = `${base}/financial-quote-pdf-render.html?financialQuoteId=${encodeURIComponent(quoteId)}&renderToken=${encodeURIComponent(renderToken)}`;
   if (opts.quoteSigned === true) {
     url += "&quoteSigned=1";
   }
@@ -204,7 +210,7 @@ export function buildFinancialQuoteRendererUrl(quoteId, renderToken, opts = {}) 
  */
 export function buildFinancialInvoiceRendererUrl(invoiceId, renderToken) {
   const base = getPdfRendererBaseUrl();
-  const url = `${base}/pdf-render?financialInvoiceId=${encodeURIComponent(invoiceId)}&renderToken=${encodeURIComponent(renderToken)}`;
+  const url = `${base}/pdf-render.html?financialInvoiceId=${encodeURIComponent(invoiceId)}&renderToken=${encodeURIComponent(renderToken)}`;
   console.log("[PDF] rendererUrl:", url);
   logger.info("PDF_INVOICE_RENDER_URL", { invoiceId, rendererBase: base });
   return url;
@@ -242,7 +248,7 @@ export async function generatePdfFromPortraitFinanceUrl(rendererUrl, logLabel = 
 
   let browser;
   try {
-    browser = await chromium.launch({ headless: true });
+    browser = await chromium.launch(CHROMIUM_LAUNCH_OPTIONS);
     const context = await browser.newContext();
     const page = await context.newPage();
 

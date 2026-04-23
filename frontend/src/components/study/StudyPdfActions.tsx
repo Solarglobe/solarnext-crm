@@ -147,7 +147,9 @@ export default function StudyPdfActions({
       const a = document.createElement("a");
       a.href = url;
       a.download = doc.file_name;
+      document.body.appendChild(a);
       a.click();
+      a.remove();
       window.URL.revokeObjectURL(url);
     } catch {
       showToast("Impossible de télécharger le PDF", false);

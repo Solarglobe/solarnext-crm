@@ -9,6 +9,8 @@ const pdfRenderPath = path.resolve(__dirname, "pdf-render.html");
 const financialQuotePdfRenderPath = path.resolve(__dirname, "financial-quote-pdf-render.html");
 const calpinageRenderPath = path.resolve(__dirname, "calpinage-render.html");
 
+/** Parité prod (Vercel) : rewrites `/{nom}` → `/{nom}.html` — le backend Playwright ouvre des URLs en `.html`. */
+
 /** Sources ES sous `frontend/calpinage/` — ne pas envoyer au backend (bundles protégés sous `calpinage-legacy-assets`). */
 const CALPINAGE_SRC_ROOT = path.resolve(__dirname, "calpinage");
 

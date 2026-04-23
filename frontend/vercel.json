@@ -6,6 +6,18 @@
   ],
   "rewrites": [
     {
+      "source": "/pdf-render",
+      "destination": "/pdf-render.html"
+    },
+    {
+      "source": "/financial-quote-pdf-render",
+      "destination": "/financial-quote-pdf-render.html"
+    },
+    {
+      "source": "/calpinage-render",
+      "destination": "/calpinage-render.html"
+    },
+    {
       "source": "/((?!assets|.*\\..*).*)",
       "destination": "/index.html"
     }

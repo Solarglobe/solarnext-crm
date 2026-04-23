@@ -2,14 +2,13 @@
  * Base URL d’origine de l’API (sans /api, sans /api/v1).
  * Le code compose ensuite `${base}/api/...` ou `${base}/auth/...` comme sur Express.
  *
- * - Dev (Vite) : par défaut chaîne vide → requêtes relatives vers le proxy 5173.
- * - Prod (build) : VITE_API_URL si défini, sinon origine Railway.
+ * - `VITE_API_URL` (build) : origine explicite du backend (ex. `https://xxx.up.railway.app`).
+ * - Dev (Vite) : si absent, chaîne vide → requêtes relatives via le proxy (`/api`, `/auth`).
+ * - Build prod : définir `VITE_API_URL` sur l’hébergeur front (Vercel) ; sans cela, les URLs
+ *   relatives ne pointent pas vers le backend Railway.
  *
- * Si VITE_API_URL se termine par /api/v1 (erreur courante), on la retire car le
- * backend n’expose pas ce préfixe.
+ * Si `VITE_API_URL` se termine par `/api/v1` (erreur courante), on le retire.
  */
-const PRODUCTION_RAILWAY_ORIGIN = "https://solarnext-crm-production.up.railway.app";
-
 function normalizeApiOrigin(raw: string): string {
   let s = String(raw).trim();
   if (!s) {
@@ -22,8 +21,15 @@ function normalizeApiOrigin(raw: string): string {
   return s;
 }
 
+/**
+ * @returns origine normalisée, ou `""` pour URLs relatives (dev avec proxy, ou build sans `VITE_API_URL`).
+ */
 export function getCrmApiBase(): string {
-  return "https://solarnext-crm-production.up.railway.app";
+  return normalizeApiOrigin(
+    String(
+      (import.meta.env.VITE_API_URL || import.meta.env.API_URL) ?? ""
+    )
+  );
 }
 
 /**
@@ -34,23 +40,24 @@ export function getApiOrigin(): string {
 }
 
 /**
- * Dev sans VITE : base vide + navigateur → origine (ex. Vite 5173).
- * Pas de window (pré-rendu) → Railway par défaut.
+ * Si `VITE_API_URL` / `API_URL` est vide : en **dev** seulement, repli sur l’origine de la page (proxy Vite).
+ * En **prod** sans env, ne replie pas sur `window` (hébergeur front ≠ API Railway) : retourne `""` pour forcer
+ * la config explicite ou des URLs relatives explicites.
  */
 export function getCrmApiBaseWithWindowFallback(): string {
   const b = getCrmApiBase();
   if (b) {
     return b;
   }
-  if (typeof window !== "undefined" && window.location?.origin) {
+  if (import.meta.env.DEV && typeof window !== "undefined" && window.location?.origin) {
     return window.location.origin;
   }
-  return PRODUCTION_RAILWAY_ORIGIN;
+  return "";
 }
 
 /**
- * Préfixe une URL de chemin (`/api/...`, `/auth/...`) avec l’origine API en prod ;
- * en dev, chaîne vide → URL relative (proxy Vite).
+ * Préfixe un chemin (`/api/...`, `/auth/...`) avec l’origine API si `VITE_API_URL` est défini ;
+ * sinon retourne le chemin seul (relatif à l’hôte courant).
  */
 export function buildApiUrl(path: string): string {
   const base = getCrmApiBase();
@@ -58,5 +65,5 @@ export function buildApiUrl(path: string): string {
   if (!base) {
     return p;
   }
-  return `${base}${p}`;
+  return `${base.replace(/\/$/, "")}${p}`;
 }

@@ -1,6 +1,6 @@
 /**
  * E2E — PDF Renderer V2 (StudySnapshotPdfPage natif)
- * URL : /pdf-render?studyId=XXX&versionId=YYY
+ * URL : /pdf-render.html?studyId=XXX&versionId=YYY
  *
  * Vérifie que le renderer monte StudySnapshotPdfPage directement, sans LegacyPdfTemplate.
  * Mock de l'API pdf-view-model uniquement.
@@ -9,7 +9,7 @@
 import { test, expect } from '@playwright/test';
 
 const PDF_RENDERER_BASE = process.env.E2E_BASE_URL?.replace(/\/crm\.html\/?$/, '') || 'http://localhost:5173';
-const PDF_URL = `${PDF_RENDERER_BASE}/pdf-render?studyId=test-study&versionId=test-version`;
+const PDF_URL = `${PDF_RENDERER_BASE}/pdf-render.html?studyId=test-study&versionId=test-version`;
 
 /** fullReport minimal pour legacyPdfViewModelMapper + P10 (signal __pdf_render_ready). */
 const fullReportStub = {
@@ -56,7 +56,7 @@ const viewModelOk = {
   },
 };
 
-test.describe('PDF Renderer V2 — /pdf-render?studyId=&versionId=', () => {
+test.describe('PDF Renderer V2 — /pdf-render.html?studyId=&versionId=', () => {
   test('Charge StudySnapshotPdfPage (pas LegacyPdfTemplate)', async ({ page }) => {
     await page.route(/pdf-view-model/, (r) =>
       r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(viewModelOk) })
@@ -111,7 +111,7 @@ test.describe('PDF Renderer V2 — /pdf-render?studyId=&versionId=', () => {
   });
 
   test('studyId/versionId manquants → #pdf-error avec message explicite', async ({ page }) => {
-    const urlWithoutParams = `${PDF_RENDERER_BASE}/pdf-render`;
+    const urlWithoutParams = `${PDF_RENDERER_BASE}/pdf-render.html`;
     await page.goto(urlWithoutParams, { waitUntil: 'networkidle', timeout: 20000 });
     await expect(page.locator('#pdf-error')).toBeVisible({ timeout: 10000 });
     await expect(page.getByText(/studyId|versionId|paramètres/i)).toBeVisible();
@@ -139,7 +139,7 @@ test.describe('PDF Renderer V2 — /pdf-render?studyId=&versionId=', () => {
   });
 
   test('CP-PDF-V2-014 — studyId/versionId manquants : pas de ready', async ({ page }) => {
-    await page.goto(`${PDF_RENDERER_BASE}/pdf-render`, { waitUntil: 'networkidle', timeout: 20000 });
+    await page.goto(`${PDF_RENDERER_BASE}/pdf-render.html`, { waitUntil: 'networkidle', timeout: 20000 });
     await expect(page.locator('#pdf-error')).toBeVisible({ timeout: 10000 });
     await page.waitForTimeout(500);
     const ready = await page.evaluate(() => (window as unknown as { __pdf_render_ready?: boolean }).__pdf_render_ready);

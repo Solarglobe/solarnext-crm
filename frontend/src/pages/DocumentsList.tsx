@@ -181,7 +181,9 @@ export default function DocumentsList() {
       const a = document.createElement("a");
       a.href = href;
       a.download = resolveDisplayName(doc);
+      document.body.appendChild(a);
       a.click();
+      a.remove();
       window.URL.revokeObjectURL(href);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Téléchargement impossible");

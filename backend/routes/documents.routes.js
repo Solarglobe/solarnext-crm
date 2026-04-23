@@ -9,7 +9,9 @@
  */
 
 import express from "express";
+import { existsSync } from "fs";
 import multer from "multer";
+import logger from "../app/core/logger.js";
 import { verifyJWT } from "../middleware/auth.middleware.js";
 import { requireAnyPermission } from "../rbac/rbac.middleware.js";
 import { pool } from "../config/db.js";
@@ -171,6 +173,24 @@ router.get(
       const storageKey = doc.rows[0].storage_key;
       const displayName = doc.rows[0].file_name;
       const filePath = getAbsolutePath(storageKey);
+
+      logger.info("DOCUMENT_DOWNLOAD_START", {
+        documentId: id,
+        storageKey,
+        filePath,
+        organizationId: org,
+        fileName: displayName,
+      });
+
+      if (!existsSync(filePath)) {
+        logger.error("DOCUMENT_DOWNLOAD_FILE_MISSING", {
+          documentId: id,
+          storageKey,
+          filePath,
+          organizationId: org,
+        });
+        return res.status(404).json({ error: "Fichier non trouvé sur le disque" });
+      }
 
       res.download(filePath, displayName);
     } catch (e) {
