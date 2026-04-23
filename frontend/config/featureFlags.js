@@ -12,9 +12,10 @@
    */
   function getFeatureFlags() {
     if (cache) return Promise.resolve(cache);
-    var base = typeof window !== "undefined" && window.SMARTPITCH_API_BASE != null
-      ? window.SMARTPITCH_API_BASE
-      : "";
+    var base =
+      typeof window !== "undefined" && window.__VITE_API_URL__ != null
+        ? String(window.__VITE_API_URL__).trim().replace(/\/$/, "")
+        : "";
     var url = base + "/api/feature-flags";
     return fetch(url)
       .then(function (r) { return r.ok ? r.json() : { calpinageEnabled: false }; })

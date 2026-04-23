@@ -188,7 +188,10 @@ export default defineConfig(({ mode }) => {
     const key =
       env.VITE_GOOGLE_MAPS_API_KEY ??
       (process.env.VITE_GOOGLE_MAPS_API_KEY || "");
-    return `(()=>{var k=${JSON.stringify(key)};if(typeof window!=="undefined"){window.__VITE_GOOGLE_MAPS_API_KEY__=k;}})();`;
+    const apiUrl = String(
+      env.VITE_API_URL ?? process.env.VITE_API_URL ?? ""
+    ).trim();
+    return `(()=>{var k=${JSON.stringify(key)};var a=${JSON.stringify(apiUrl)};if(typeof window!=="undefined"){window.__VITE_GOOGLE_MAPS_API_KEY__=k;window.__VITE_API_URL__=a;}})();`;
   };
 
   return {

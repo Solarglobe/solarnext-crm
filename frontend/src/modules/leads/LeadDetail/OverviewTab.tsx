@@ -441,7 +441,7 @@ interface OverviewTabProps {
   onDeleteEnergyProfile?: () => Promise<void>;
   /** Message de succès après suppression (ex. "Profil énergie supprimé") */
   energyProfileSuccessMessage?: string | null;
-  /** Base URL API (ex: http://localhost:3000) pour Auth Enedis et Import CSV */
+  /** Base URL API (`VITE_API_URL` via `getCrmApiBase`) pour Auth Enedis et import CSV */
   apiBase?: string;
   /** Études / activités — pour le bandeau résumé (optionnel) */
   leadOverview?: LeadOverviewSummaryProps | null;

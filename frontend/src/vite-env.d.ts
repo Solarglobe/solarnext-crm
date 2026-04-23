@@ -2,7 +2,7 @@
 
 interface ImportMetaEnv {
   /**
-   * Origine du backend (sans chemin, sans /api/v1) — ex. `https://xxx.up.railway.app`.
+   * Origine du backend (sans chemin, sans /api/v1).
    * Build prod (Vercel) : **à définir** pour que `apiFetch` cible le backend ; sans cela, seules les URLs relatives s’appliquent (même hôte).
    * Dev (Vite) : souvent omis (proxy) ; pour forcer un backend distant, la renseigner.
    */
@@ -20,6 +20,8 @@ interface ImportMetaEnv {
 
 declare global {
   interface Window {
+    /** Injecté par `/config/vite-public-runtime.js` depuis `VITE_API_URL` (scripts non bundlés : PDF engines, featureFlags). */
+    __VITE_API_URL__?: string;
     /** Injecté par `/config/vite-public-runtime.js` (build Vite) pour scripts non bundlés (dp-tool). */
     __VITE_GOOGLE_MAPS_API_KEY__?: string;
     Engine?: unknown;

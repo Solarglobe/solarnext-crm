@@ -2371,7 +2371,7 @@ function initDP1_MapModal() {
 // DP1 — ACTION : RECALCUL PARCELLE (API cadastre)
 // ===============================
 
-// Priorité : CADASTRE_POINT_API > SMARTPITCH_API_BASE | __SOLARNEXT_API_BASE__ > origine courante > chemin relatif
+// Priorité : CADASTRE_POINT_API > __VITE_API_URL__ | __SOLARNEXT_API_BASE__ > origine courante > chemin relatif
 // Contrat : base = origine sans /api ; on ajoute une seule fois "/api/cadastre/by-point". Tout suffixe /api résiduel est retiré.
 function __solarnextStripTrailingApiSegments(originOrBase) {
   let s = String(originOrBase).trim().replace(/\/+$/, "");
@@ -2387,7 +2387,11 @@ function joinCadastreByPointUrl(originOrBase) {
 }
 function getCadastreApiBase() {
   if (window.CADASTRE_POINT_API) return window.CADASTRE_POINT_API;
-  const base = window.SMARTPITCH_API_BASE || window.__SOLARNEXT_API_BASE__ || "";
+  var viteOrigin =
+    typeof window !== "undefined" && window.__VITE_API_URL__ != null
+      ? String(window.__VITE_API_URL__).trim().replace(/\/$/, "")
+      : "";
+  const base = viteOrigin || window.__SOLARNEXT_API_BASE__ || "";
   if (base && String(base).trim()) return joinCadastreByPointUrl(String(base));
   const o = __solarnextDpApiOrigin();
   if (o) return joinCadastreByPointUrl(o);

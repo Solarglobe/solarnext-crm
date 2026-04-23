@@ -37,6 +37,7 @@
     "test:finance": "node tests/financialEngine.test.js",
     "test:super-admin-guards": "node --test tests/superAdminUserGuards.test.js tests/rbacHardening.test.js",
     "test:impersonation-http": "node --test tests/impersonation.http.integration.test.mjs",
+    "test:cors": "node --test tests/cors.http.test.mjs",
     "test:dashboard-kpi": "node --test tests/dashboardOverview.kpi.test.js",
     "test:finalize-signed": "node --test tests/finalizeSignedApproval.test.js tests/entityDocumentsQuoteSignedTypes.migration-alignment.test.js",
     "backfill:entity-documents": "node --env-file=../.env.dev scripts/backfill-entity-documents-metadata.js",

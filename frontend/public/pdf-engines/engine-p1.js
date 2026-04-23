@@ -98,7 +98,16 @@
 
     console.log("📤 Envoi conso annuelle ERPNext", { lead, conso });
 
-    fetch("https://solarnext-crm.fr/api/method/receive_smartpitch_conso", {
+    var apiOrigin =
+      typeof window !== "undefined" && window.__VITE_API_URL__
+        ? String(window.__VITE_API_URL__).trim().replace(/\/$/, "")
+        : "";
+    if (!apiOrigin) {
+      console.warn("⚠ Envoi ERPNext ignoré : window.__VITE_API_URL__ absent (définir VITE_API_URL au build)");
+      return;
+    }
+
+    fetch(apiOrigin + "/api/method/receive_smartpitch_conso", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

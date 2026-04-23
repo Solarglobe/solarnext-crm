@@ -71,16 +71,53 @@ import pdfRenderRoutes from "./routes/pdfRender.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+/** Toujours autorisées (prod SolarNext) — en plus de `CORS_ORIGIN`. Inclut l’API sur domaine custom (pas seulement *.railway.app). */
+const CORS_ORIGINS_ALWAYS = Object.freeze([
+  "https://solarnext-crm.fr",
+  "https://api.solarnext-crm.fr",
+]);
+
+function mergeUniqueOrigins(primary, extra) {
+  const out = [];
+  const seen = new Set();
+  for (const o of [...primary, ...extra]) {
+    if (!o || seen.has(o)) continue;
+    seen.add(o);
+    out.push(o);
+  }
+  return out;
+}
+
+/** Canonise une origine pour comparaison (schéma + host en minuscules, port si non défaut). */
+function normalizeCanonicalOrigin(raw) {
+  const s = String(raw ?? "").trim();
+  if (!s) return "";
+  try {
+    const u = new URL(s);
+    if (u.protocol !== "http:" && u.protocol !== "https:") return "";
+    const host = u.hostname.toLowerCase();
+    const port = u.port ? `:${u.port}` : "";
+    return `${u.protocol}//${host}${port}`;
+  } catch {
+    return "";
+  }
+}
+
 export function buildHttpApp() {
   const app = express();
   applyTrustProxy(app);
 
-  const allowedCorsOrigins = String(process.env.CORS_ORIGIN ?? "")
+  const fromEnv = String(process.env.CORS_ORIGIN ?? "")
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
 
-  const allowAllVercelAppOrigins = allowedCorsOrigins.some((o) => {
+  const allowedCorsOrigins = mergeUniqueOrigins(CORS_ORIGINS_ALWAYS, fromEnv);
+  const allowedOriginNormalized = new Set(
+    allowedCorsOrigins.map((o) => normalizeCanonicalOrigin(o)).filter(Boolean)
+  );
+
+  const allowAllVercelAppOrigins = fromEnv.some((o) => {
     try {
       return new URL(o).hostname.endsWith(".vercel.app");
     } catch {
@@ -97,36 +134,47 @@ export function buildHttpApp() {
     }
   }
 
-  if (allowedCorsOrigins.length === 0) {
-    console.warn(
-      "[CORS] CORS_ORIGIN est vide — aucun navigateur cross-origin ne sera autorisé (définir ex. http://localhost:5173,https://votre-app.vercel.app en dev/prod)"
-    );
+  console.log("[CORS] origines fixes (toujours) :", [...CORS_ORIGINS_ALWAYS]);
+  if (fromEnv.length) {
+    console.log("[CORS] + CORS_ORIGIN :", fromEnv);
   } else {
-    console.log("[CORS] allowlist (origines autorisées) :", allowedCorsOrigins);
-    if (allowAllVercelAppOrigins) {
-      console.log("[CORS] toutes les origines https://*.vercel.app sont aussi autorisées (previews / déploiements Vercel).");
-    }
+    console.warn(
+      "[CORS] CORS_ORIGIN est vide — seules les origines fixes prod + éventuel repli Vercel (si une URL .vercel.app est ajoutée) s’appliquent. En dev local, ajouter http://localhost:5173 dans CORS_ORIGIN."
+    );
+  }
+  if (allowAllVercelAppOrigins) {
+    console.log("[CORS] toutes les origines https://*.vercel.app sont aussi autorisées (previews / déploiements Vercel).");
   }
 
   const corsConfig = {
-    origin: (origin, callback) => {
-      if (!origin) {
+    origin: (originHeader, callback) => {
+      if (!originHeader) {
         return callback(null, true);
       }
-      if (allowedCorsOrigins.length === 0) {
-        return callback(new Error("CORS: CORS_ORIGIN non configuré"));
-      }
-      if (allowedCorsOrigins.includes(origin)) {
+      const n = normalizeCanonicalOrigin(originHeader);
+      if (n && allowedOriginNormalized.has(n)) {
         return callback(null, true);
       }
-      if (allowAllVercelAppOrigins && isHttpsVercelAppOrigin(origin)) {
+      if (allowAllVercelAppOrigins && isHttpsVercelAppOrigin(originHeader)) {
         return callback(null, true);
       }
       return callback(new Error("Not allowed by CORS"));
     },
     credentials: true,
+    optionsSuccessStatus: 204,
+    methods: ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE", "OPTIONS"],
+    allowedHeaders: [
+      "Accept",
+      "Authorization",
+      "Content-Type",
+      "Origin",
+      "X-Requested-With",
+      "x-organization-id",
+      "x-super-admin-edit",
+    ],
   };
 
+  // CORS en premier : avant parsers JSON, logs, en-têtes sécurité, et avant tout `app.use` de routes (/api, /auth, …).
   app.use(cors(corsConfig));
   app.options("*", cors(corsConfig));
 

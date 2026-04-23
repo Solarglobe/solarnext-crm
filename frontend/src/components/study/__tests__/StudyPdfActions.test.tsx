@@ -6,8 +6,6 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import StudyPdfActions from "../StudyPdfActions";
 
-const API_BASE = "http://localhost:3000";
-
 describe("StudyPdfActions", () => {
   const mockStudyId = "study-123";
   const mockVersionId = "version-456";

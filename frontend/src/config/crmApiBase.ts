@@ -2,10 +2,10 @@
  * Base URL d’origine de l’API (sans /api, sans /api/v1).
  * Le code compose ensuite `${base}/api/...` ou `${base}/auth/...` comme sur Express.
  *
- * - `VITE_API_URL` (build) : origine explicite du backend (ex. `https://xxx.up.railway.app`).
+ * - `VITE_API_URL` (build) : origine explicite du backend (HTTPS, sans chemin `/api`).
  * - Dev (Vite) : si absent, chaîne vide → requêtes relatives via le proxy (`/api`, `/auth`).
  * - Build prod : définir `VITE_API_URL` sur l’hébergeur front (Vercel) ; sans cela, les URLs
- *   relatives ne pointent pas vers le backend Railway.
+ *   relatives ne pointent pas vers le backend API.
  *
  * Si `VITE_API_URL` se termine par `/api/v1` (erreur courante), on le retire.
  */
@@ -25,11 +25,7 @@ function normalizeApiOrigin(raw: string): string {
  * @returns origine normalisée, ou `""` pour URLs relatives (dev avec proxy, ou build sans `VITE_API_URL`).
  */
 export function getCrmApiBase(): string {
-  return normalizeApiOrigin(
-    String(
-      (import.meta.env.VITE_API_URL || import.meta.env.API_URL) ?? ""
-    )
-  );
+  return normalizeApiOrigin(String(import.meta.env.VITE_API_URL ?? ""));
 }
 
 /**
@@ -40,8 +36,8 @@ export function getApiOrigin(): string {
 }
 
 /**
- * Si `VITE_API_URL` / `API_URL` est vide : en **dev** seulement, repli sur l’origine de la page (proxy Vite).
- * En **prod** sans env, ne replie pas sur `window` (hébergeur front ≠ API Railway) : retourne `""` pour forcer
+ * Si `VITE_API_URL` est vide : en **dev** seulement, repli sur l’origine de la page (proxy Vite).
+ * En **prod** sans env, ne replie pas sur `window` (hébergeur front ≠ API) : retourne `""` pour forcer
  * la config explicite ou des URLs relatives explicites.
  */
 export function getCrmApiBaseWithWindowFallback(): string {

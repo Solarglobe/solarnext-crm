@@ -208,8 +208,8 @@ export async function loadDpTool(options: DpToolLoaderOptions): Promise<DpToolLo
     await loadScriptSequential(CDN.html2canvas, ac.signal);
     await loadScriptSequential(CDN.pdfLib, ac.signal);
     await loadScriptSequential(resolveFromAssetBase(assetBase, "../../shared/panel-dimensions.js"), ac.signal);
-    await loadScriptSequential(resolveFromAssetBase(assetBase, "../config/featureFlags.js"), ac.signal);
     await loadScriptSequential(resolveFromAssetBase(assetBase, "../config/vite-public-runtime.js"), ac.signal);
+    await loadScriptSequential(resolveFromAssetBase(assetBase, "../config/featureFlags.js"), ac.signal);
     await loadScriptSequential(resolveFromAssetBase(assetBase, "dp-versions-shared.js"), ac.signal);
     await loadScriptSequential(resolveFromAssetBase(assetBase, "dp-draft-store.js"), ac.signal);
     await loadScriptSequential(resolveFromAssetBase(assetBase, "dp-app.js"), ac.signal);

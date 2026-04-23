@@ -9,14 +9,17 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import StudyQuoteBuilder from "../StudyQuoteBuilder";
 
-const API_BASE = "http://localhost:3000";
-
 describe("StudyQuoteBuilder", () => {
   const mockStudyId = "study-123";
   const mockVersionId = "version-456";
 
   beforeEach(() => {
     vi.stubGlobal("fetch", vi.fn());
+    vi.stubGlobal("localStorage", {
+      getItem: vi.fn(() => "fake-token"),
+      setItem: vi.fn(),
+      removeItem: vi.fn(),
+    });
   });
 
   it("affiche le titre Préparation du devis technique après chargement", async () => {
