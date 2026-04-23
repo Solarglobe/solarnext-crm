@@ -51,12 +51,33 @@ const allowedCorsOrigins = String(process.env.CORS_ORIGIN ?? "")
   .map((s) => s.trim())
   .filter(Boolean);
 
+/** Si la allowlist contient déjà un host *.vercel.app, on accepte toutes les origines https://*.vercel.app (previews, branches). */
+const allowAllVercelAppOrigins = allowedCorsOrigins.some((o) => {
+  try {
+    return new URL(o).hostname.endsWith(".vercel.app");
+  } catch {
+    return false;
+  }
+});
+
+function isHttpsVercelAppOrigin(origin) {
+  try {
+    const u = new URL(origin);
+    return u.protocol === "https:" && u.hostname.endsWith(".vercel.app");
+  } catch {
+    return false;
+  }
+}
+
 if (allowedCorsOrigins.length === 0) {
   console.warn(
     "[CORS] CORS_ORIGIN est vide — aucun navigateur cross-origin ne sera autorisé (définir ex. http://localhost:5173,https://votre-app.vercel.app en dev/prod)"
   );
 } else {
   console.log("[CORS] allowlist (origines autorisées) :", allowedCorsOrigins);
+  if (allowAllVercelAppOrigins) {
+    console.log("[CORS] toutes les origines https://*.vercel.app sont aussi autorisées (previews / déploiements Vercel).");
+  }
 }
 
 const corsConfig = {
@@ -68,6 +89,9 @@ const corsConfig = {
       return callback(new Error("CORS: CORS_ORIGIN non configuré"));
     }
     if (allowedCorsOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    if (allowAllVercelAppOrigins && isHttpsVercelAppOrigin(origin)) {
       return callback(null, true);
     }
     return callback(new Error("Not allowed by CORS"));
