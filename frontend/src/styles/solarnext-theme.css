@@ -1450,14 +1450,14 @@ a.sn-btn {
   max-width: 100%;
 }
 
-/* Trait sous le logo — fin, collé, pleine largeur (écrase .sidebar-brand::after groupé) */
+/* Trait sous le logo — 1px net, collé au pixel (écrase .sidebar-brand::after groupé) */
 .sn-sidebar-brand::after {
   content: "";
   position: absolute;
   left: 0;
   right: 0;
-  bottom: -1px;
-  height: 1.5px;
+  bottom: 0;
+  height: 1px;
   background: linear-gradient(
     to right,
     #c8a96a 0%,
@@ -1471,6 +1471,7 @@ a.sn-btn {
 .logo-solarnext {
   display: block;
   line-height: 0;
+  vertical-align: top;
   width: 180px;
   height: auto;
   max-width: 100%;
