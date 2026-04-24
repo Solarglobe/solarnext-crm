@@ -200,6 +200,9 @@
         typeof global.localStorage !== "undefined" && global.localStorage.getItem("solarnext_token");
       if (stampTok) stampHeaders.Authorization = "Bearer " + stampTok;
     } catch (_authE) {}
+    if (typeof global.__solarnextDpApplySuperAdminContextHeaders === "function") {
+      global.__solarnextDpApplySuperAdminContextHeaders(stampHeaders);
+    }
     global
       .fetch(stampUrl, {
         method: "POST",

@@ -161,6 +161,9 @@
       typeof localStorage !== "undefined" ? localStorage.getItem("solarnext_token") : null;
     var h = { "Content-Type": "application/json" };
     if (token) h.Authorization = "Bearer " + token;
+    if (typeof global.__solarnextDpApplySuperAdminContextHeaders === "function") {
+      global.__solarnextDpApplySuperAdminContextHeaders(h);
+    }
     return h;
   }
 
@@ -1087,10 +1090,17 @@
     var safeUnload = sanitizeDraftForPut(DP_DRAFT);
     var body = JSON.stringify({ draft: safeUnload });
     try {
+      var hdrs = { "Content-Type": "application/json" };
+      if (token) hdrs.Authorization = "Bearer " + token;
+      if (typeof global.__solarnextDpApplySuperAdminContextHeaders === "function") {
+        global.__solarnextDpApplySuperAdminContextHeaders(hdrs);
+      }
       var xhr = new XMLHttpRequest();
       xhr.open("PUT", url, false);
-      xhr.setRequestHeader("Content-Type", "application/json");
-      if (token) xhr.setRequestHeader("Authorization", "Bearer " + token);
+      if (hdrs["Content-Type"]) xhr.setRequestHeader("Content-Type", hdrs["Content-Type"]);
+      if (hdrs.Authorization) xhr.setRequestHeader("Authorization", hdrs.Authorization);
+      if (hdrs["x-organization-id"]) xhr.setRequestHeader("x-organization-id", hdrs["x-organization-id"]);
+      if (hdrs["x-super-admin-edit"]) xhr.setRequestHeader("x-super-admin-edit", hdrs["x-super-admin-edit"]);
       xhr.send(body);
       if (xhr.status >= 200 && xhr.status < 300) {
         devLog("[DP SAVE OK] unload");

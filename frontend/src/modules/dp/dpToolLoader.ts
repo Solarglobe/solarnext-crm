@@ -211,6 +211,7 @@ export async function loadDpTool(options: DpToolLoaderOptions): Promise<DpToolLo
     await loadScriptSequential(resolveFromAssetBase(assetBase, "../config/vite-public-runtime.js"), ac.signal);
     await loadScriptSequential(resolveFromAssetBase(assetBase, "../config/featureFlags.js"), ac.signal);
     await loadScriptSequential(resolveFromAssetBase(assetBase, "dp-versions-shared.js"), ac.signal);
+    await loadScriptSequential(resolveFromAssetBase(assetBase, "dp-super-admin-headers.js"), ac.signal);
     await loadScriptSequential(resolveFromAssetBase(assetBase, "dp-draft-store.js"), ac.signal);
     await loadScriptSequential(resolveFromAssetBase(assetBase, "dp-app.js"), ac.signal);
     await loadScriptSequential(resolveFromAssetBase(assetBase, "dp-versions-register.js"), ac.signal);

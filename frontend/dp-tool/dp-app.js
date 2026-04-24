@@ -129,12 +129,28 @@ function __solarnextDpAbsApiUrl(tail) {
   return base + "/" + t;
 }
 
+/**
+ * En-têtes super-admin / org — implémentation partagée : `dp-super-admin-headers.js` (window.__solarnextDpApplySuperAdminContextHeaders).
+ * @param {Record<string, string>} headers
+ */
+function __solarnextDpMergeCrmAuthHeaders(headers) {
+  try {
+    var w = typeof window !== "undefined" ? window : null;
+    if (w && typeof w.__solarnextDpApplySuperAdminContextHeaders === "function") {
+      w.__solarnextDpApplySuperAdminContextHeaders(headers);
+    }
+  } catch (e) {
+    /* ignore */
+  }
+}
+
 function __solarnextDpAuthHeadersJson() {
   var h = { "Content-Type": "application/json" };
   try {
     var token = typeof localStorage !== "undefined" && localStorage.getItem("solarnext_token");
     if (token) h.Authorization = "Bearer " + token;
   } catch (e) {}
+  __solarnextDpMergeCrmAuthHeaders(h);
   return h;
 }
 
@@ -144,6 +160,7 @@ function __solarnextDpAuthHeadersBearerOnly() {
     var token = typeof localStorage !== "undefined" && localStorage.getItem("solarnext_token");
     if (token) h.Authorization = "Bearer " + token;
   } catch (e) {}
+  __solarnextDpMergeCrmAuthHeaders(h);
   return h;
 }
 
@@ -341,7 +358,7 @@ async function __solarnextDpPersistCerfaPdfBytes(pdfBytes) {
     );
     var r = await fetch(__solarnextDpAbsApiUrl("documents"), {
       method: "POST",
-      headers: { Authorization: "Bearer " + token },
+      headers: __solarnextDpAuthHeadersBearerOnly(),
       body: fd,
     });
     if (!r.ok) {
@@ -2468,9 +2485,7 @@ async function fetchCadastreByPoint(lat, lon) {
     `${base}?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`;
   console.log("[DP1][CADASTRE] calling", url);
 
-  const headers = {};
-  const token = typeof localStorage !== "undefined" && localStorage.getItem("solarnext_token");
-  if (token) headers.Authorization = "Bearer " + token;
+  const headers = __solarnextDpAuthHeadersBearerOnly();
 
   const res = await fetch(url, { method: "GET", headers });
   if (!res.ok) throw new Error(`CADASTRE API HTTP ${res.status}`);
@@ -5031,7 +5046,11 @@ async function dpFetchPvPanelsCatalog() {
   let rows = null;
   let source = "auth";
   try {
-    const res = await fetch(authUrl, { credentials: "include", cache: "no-store" });
+    const res = await fetch(authUrl, {
+      credentials: "include",
+      cache: "no-store",
+      headers: __solarnextDpAuthHeadersBearerOnly(),
+    });
     if (res.ok) {
       rows = await res.json();
     }
