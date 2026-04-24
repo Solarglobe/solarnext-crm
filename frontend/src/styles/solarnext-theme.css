@@ -266,6 +266,18 @@
   --bg: var(--bg-app);
 }
 
+/* CRM (AppLayout) : hauteur limitée au viewport — scroll dans la sidebar et la colonne principale, pas sur le body */
+html.sn-app-page.crm-app,
+html.sn-app-page.crm-app body {
+  height: 100%;
+  overflow: hidden;
+}
+
+html.sn-app-page.crm-app #root {
+  height: 100%;
+  min-height: 0;
+}
+
 /* ========== .theme-light (secondaire) ========== */
 .theme-light {
   --bg-app: #FBF8F3;
@@ -1025,6 +1037,24 @@ html.sn-auth-page[data-theme="dark"] select:focus {
   padding: 0 0 8px;
   -webkit-overflow-scrolling: touch;
   margin-top: 0 !important;
+  scrollbar-width: thin;
+}
+
+.sn-sidebar-nav::-webkit-scrollbar {
+  width: 6px;
+}
+
+.sn-sidebar-nav::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 10px;
+}
+
+.sn-sidebar-nav::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.theme-light .sn-sidebar-nav::-webkit-scrollbar-thumb {
+  background: rgba(15, 23, 42, 0.22);
 }
 
 /* Entre sections nav : même barre dorée que sous les titres CRM (80×3, dégradé) */
@@ -1401,12 +1431,19 @@ a.sn-btn {
 }
 
 /* ========== App Layout ========== */
-/* Scroll principal = document (body). Shell CRM en flux naturel, sidebar sticky. */
+/* CRM : scroll confiné (.sn-sidebar + colonne principale). Hors CRM, flux document inchangé. */
 .sn-app-root {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
   width: 100%;
+}
+
+html.sn-app-page.crm-app .sn-app-root.sn-app-bg {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+  max-height: 100%;
 }
 
 /* Rangée principale : occupe l’espace sous les bandeaux, colonnes étirées sur toute la hauteur (sidebar beige pleine hauteur). */
@@ -1416,6 +1453,7 @@ a.sn-btn {
   align-items: stretch;
   width: 100%;
   min-height: 0;
+  overflow: hidden;
 }
 
 .sn-sidebar {
@@ -1424,13 +1462,42 @@ a.sn-btn {
   width: 280px;
   flex-shrink: 0;
   align-self: stretch;
-  min-height: 100%;
+  min-height: 0;
+  max-height: 100%;
+  overflow: hidden;
   background: var(--bg-muted);
   /* Bord droit : même ADN que le trait sous titres (or, lisible sur toute la hauteur) */
   border-right: 2px solid rgba(195, 152, 71, 0.38);
   color: var(--text);
   padding: 8px 12px 0 !important;
   box-sizing: border-box;
+}
+
+/* Colonne recherche + .sn-main : scroll vertical propre (complément de la sidebar) */
+.sn-app-shell > aside.sn-sidebar + div {
+  min-height: 0;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.sn-app-shell > aside.sn-sidebar + div::-webkit-scrollbar {
+  width: 8px;
+}
+
+.sn-app-shell > aside.sn-sidebar + div::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.18);
+  border-radius: 10px;
+}
+
+.sn-app-shell > aside.sn-sidebar + div::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.theme-light .sn-app-shell > aside.sn-sidebar + div::-webkit-scrollbar-thumb {
+  background: rgba(15, 23, 42, 0.2);
 }
 
 .theme-light .sn-sidebar {
@@ -1798,7 +1865,7 @@ a.sn-btn {
   color: var(--text-muted);
 }
 
-/* Colonne contenu : pas de scroll interne — le document porte le défilement vertical */
+/* Colonne contenu : dans le CRM le défilement est porté par le parent (.sn-app-shell > aside + div) */
 .sn-main {
   flex: 1 1 auto;
   display: flex;
@@ -1807,6 +1874,7 @@ a.sn-btn {
   width: 100%;
   box-sizing: border-box;
   min-width: 0;
+  min-height: 0;
 }
 
 /* Tableau de bord : éviter double couche 32px + wrap — densité premium */
