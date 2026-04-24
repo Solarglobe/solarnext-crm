@@ -12,7 +12,7 @@ import {
   fetchLeadsMeta,
   archiveLead,
   unarchiveLead,
-  convertLead,
+  convertLeadToClient,
   revertLeadToLead,
   type LeadsMeta,
 } from "../services/leads.service";
@@ -67,6 +67,7 @@ import {
   FinancialTab,
 } from "../modules/leads/LeadDetail";
 import LeadDetailStickyBar from "../modules/leads/LeadDetail/LeadDetailStickyBar";
+import LeadClientAssociationCard from "../modules/leads/LeadDetail/LeadClientAssociationCard";
 import LeadMetersBar, {
   type LeadMeterListItem,
   annualKwhForCard,
@@ -327,6 +328,7 @@ export default function LeadDetail() {
   const [revertConfirmOpen, setRevertConfirmOpen] = useState(false);
   const [revertSaving, setRevertSaving] = useState(false);
   const [convertConfirmOpen, setConvertConfirmOpen] = useState(false);
+  const [convertBusy, setConvertBusy] = useState(false);
 
   /** Brouillon Vue générale — autosave debounced */
   const [formLead, setFormLead] = useState<Lead | null>(null);
@@ -1522,23 +1524,25 @@ export default function LeadDetail() {
     }
   };
 
-  const performConvertToClient = async () => {
+  const runConvertToClientCore = async (closeModal: boolean) => {
     if (isReadOnly || !id || !data) return;
     const flushed = await flushOverviewSave();
     if (!flushed) return;
-    setStatusSaving(true);
+    setConvertBusy(true);
     setError(null);
     try {
-      await convertLead(id);
-      setConvertConfirmOpen(false);
-      showLeadSuccessToast("Lead converti en client — visible dans l’onglet Clients.");
-      setTimeout(() => navigate("/clients"), 800);
+      await convertLeadToClient(id);
+      if (closeModal) setConvertConfirmOpen(false);
+      showLeadSuccessToast("Client créé avec succès");
+      await fetchLead();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur");
     } finally {
-      setStatusSaving(false);
+      setConvertBusy(false);
     }
   };
+
+  const performConvertToClient = () => void runConvertToClientCore(true);
 
   const performRevertToLead = async () => {
     if (isReadOnly || !id) return;
@@ -1888,6 +1892,16 @@ export default function LeadDetail() {
           </div>
         )}
 
+        {id ? (
+          <LeadClientAssociationCard
+            leadId={id}
+            clientId={data.lead.client_id}
+            readOnly={isReadOnly || isArchived}
+            convertLoading={convertBusy}
+            onConvertToClient={() => void runConvertToClientCore(false)}
+          />
+        ) : null}
+
         <ActionBar
           isLead={isLead}
           showStudyButtons={isLead && data.stage?.code !== "SIGNED"}
@@ -2122,13 +2136,13 @@ export default function LeadDetail() {
       <ConfirmModal
         open={convertConfirmOpen}
         title="Convertir en client ?"
-        message="Ce lead apparaîtra dans la liste Clients. Vous pourrez revenir en arrière."
+        message="Une fiche client CRM sera créée et liée à ce dossier. Vous pourrez revenir en lead si aucune facture ni avoir n’est associé."
         confirmLabel="Confirmer"
         cancelLabel="Annuler"
         variant="default"
-        confirmDisabled={statusSaving}
-        cancelDisabled={statusSaving}
-        onCancel={() => !statusSaving && setConvertConfirmOpen(false)}
+        confirmDisabled={convertBusy}
+        cancelDisabled={convertBusy}
+        onCancel={() => !convertBusy && setConvertConfirmOpen(false)}
         onConfirm={() => void performConvertToClient()}
       />
 

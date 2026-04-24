@@ -1,8 +1,8 @@
 /**
  * CP-028 — Conversion Lead → Client
  * CP-032C — withTx + assertOrgEntity
- * POST /api/leads/:id/convert
- * Transaction atomique : client créé, lead mis à jour, historique inséré
+ * POST /api/leads/:id/convert — refuse si déjà converti
+ * POST /api/leads/:id/convert-to-client — idempotent : retourne client + lead existants si déjà lié
  */
 
 import { pool } from "../../config/db.js";
@@ -16,7 +16,13 @@ import { createClientAndLinkLead } from "../../services/leadClientConversion.ser
 const orgId = (req) => req.user.organizationId ?? req.user.organization_id;
 const userId = (req) => req.user.userId ?? req.user.id;
 
-export async function convertLead(req, res) {
+/**
+ * @param {import("express").Request} req
+ * @param {import("express").Response} res
+ * @param {{ idempotent: boolean }} opts
+ */
+async function runConvert(req, res, opts) {
+  const { idempotent } = opts;
   try {
     const org = orgId(req);
     const uid = userId(req);
@@ -29,7 +35,7 @@ export async function convertLead(req, res) {
     const canUpdateAll = perms.has("lead.update.all");
     const canUpdateSelf = perms.has("lead.update.self");
 
-    const { client, lead: updatedLead } = await withTx(pool, async (dbClient) => {
+    const { client, lead: updatedLead, alreadyConverted } = await withTx(pool, async (dbClient) => {
       await assertOrgEntity(dbClient, "leads", leadId, org);
       const leadFullRes = await dbClient.query(
         `SELECT * FROM leads WHERE id = $1 AND organization_id = $2 AND (archived_at IS NULL)`,
@@ -47,7 +53,31 @@ export async function convertLead(req, res) {
         err.statusCode = 404;
         throw err;
       }
+
       if (lead.client_id) {
+        if (idempotent) {
+          const cr = await dbClient.query(
+            `SELECT * FROM clients WHERE id = $1 AND organization_id = $2 AND (archived_at IS NULL)`,
+            [lead.client_id, org]
+          );
+          const clientRow = cr.rows[0];
+          if (!clientRow) {
+            const err = new Error("Client lié introuvable — contactez le support.");
+            err.statusCode = 409;
+            throw err;
+          }
+          const updatedLeadResult = await dbClient.query(
+            `SELECT l.*, ps.name as stage_name FROM leads l
+             LEFT JOIN pipeline_stages ps ON ps.id = l.stage_id
+             WHERE l.id = $1 AND l.organization_id = $2`,
+            [leadId, org]
+          );
+          return {
+            client: clientRow,
+            lead: updatedLeadResult.rows[0],
+            alreadyConverted: true,
+          };
+        }
         const err = new Error("Lead déjà converti en client");
         err.statusCode = 400;
         throw err;
@@ -76,30 +106,42 @@ export async function convertLead(req, res) {
       return {
         client: newClient,
         lead: updatedLeadResult.rows[0],
+        alreadyConverted: false,
       };
     });
 
-    void logAuditEvent({
-      action: AuditActions.LEAD_CONVERTED_TO_CLIENT,
-      entityType: "lead",
-      entityId: leadId,
-      organizationId: org,
-      userId: uid,
-      targetLabel: updatedLead?.full_name || client?.email || undefined,
-      req,
-      statusCode: 200,
-      metadata: {
-        client_id: client?.id,
-        client_number: client?.client_number,
-      },
-    });
+    if (!alreadyConverted) {
+      void logAuditEvent({
+        action: AuditActions.LEAD_CONVERTED_TO_CLIENT,
+        entityType: "lead",
+        entityId: leadId,
+        organizationId: org,
+        userId: uid,
+        targetLabel: updatedLead?.full_name || client?.email || undefined,
+        req,
+        statusCode: 200,
+        metadata: {
+          client_id: client?.id,
+          client_number: client?.client_number,
+        },
+      });
+    }
 
     res.json({
       client,
       lead: updatedLead,
+      ...(idempotent ? { already_converted: Boolean(alreadyConverted) } : {}),
     });
   } catch (e) {
     const code = e.statusCode || 500;
     res.status(code).json({ error: e.message });
   }
+}
+
+export async function convertLead(req, res) {
+  return runConvert(req, res, { idempotent: false });
+}
+
+export async function convertLeadToClient(req, res) {
+  return runConvert(req, res, { idempotent: true });
 }

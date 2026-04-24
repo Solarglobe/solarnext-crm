@@ -11,7 +11,7 @@ import { requirePermission, requireAnyPermission } from "../rbac/rbac.middleware
 import * as controller from "../controllers/leads.controller.js";
 import { patchConsumption } from "../controllers/leads.consumption.controller.js";
 import { getDetail, patchStage, deleteEnergyProfile } from "./leads/detail.js";
-import { convertLead } from "./leads/convert.js";
+import { convertLead, convertLeadToClient } from "./leads/convert.js";
 import { revertLeadToLead } from "./leads/revertToLead.js";
 import { leadActivitiesRouter } from "../modules/activities/activity.routes.js";
 import * as leadMetersController from "../controllers/leadMeters.controller.js";
@@ -130,6 +130,12 @@ router.patch(
   verifyJWT,
   requireAnyPermission(["lead.update.all", "lead.update.self"]),
   patchStage
+);
+router.post(
+  "/:id/convert-to-client",
+  verifyJWT,
+  requireAnyPermission(["lead.update.all", "lead.update.self"]),
+  convertLeadToClient
 );
 router.post(
   "/:id/convert",

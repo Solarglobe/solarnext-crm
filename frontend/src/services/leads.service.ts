@@ -461,9 +461,21 @@ export async function createLead(payload: CreateLeadPayload): Promise<Lead> {
   return res.json();
 }
 
-/** CP-CONVERT — Convertit un lead en client (crée l'enregistrement client, génère SG-YYYY-XXXX) */
+/** CP-CONVERT — Convertit un lead en client (crée l'enregistrement client, génère SG-YYYY-XXXX). Refuse si déjà lié. */
 export async function convertLead(id: string): Promise<{ client: unknown; lead: Lead }> {
-  const res = await apiFetch(`${API_BASE}/api/leads/${id}/convert`, { method: "POST" });
+  const res = await apiFetch(`${API_BASE}/api/leads/${encodeURIComponent(id)}/convert`, { method: "POST" });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { error?: string }).error || `Erreur ${res.status}`);
+  }
+  return res.json();
+}
+
+/** Conversion manuelle idempotente : crée le client si besoin, sinon renvoie le client déjà lié. */
+export async function convertLeadToClient(
+  id: string
+): Promise<{ client: unknown; lead: Lead; already_converted?: boolean }> {
+  const res = await apiFetch(`${API_BASE}/api/leads/${encodeURIComponent(id)}/convert-to-client`, { method: "POST" });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error((err as { error?: string }).error || `Erreur ${res.status}`);

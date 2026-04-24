@@ -14,6 +14,8 @@ export interface Client {
   last_name?: string;
   company_name?: string;
   email?: string;
+  phone?: string | null;
+  mobile?: string | null;
   /** ISO date — aligné fiche lead / mandat DP */
   birth_date?: string | null;
   rgpd_consent?: boolean;

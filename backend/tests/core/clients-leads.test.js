@@ -58,3 +58,32 @@ test("lead : création + MAJ + conversion → client (organization_id cohérent)
   });
   assert.ok([200].includes(put.status), `PUT client ${put.status}`);
 });
+
+test("POST /api/leads/:id/convert-to-client — création puis idempotent", async (t) => {
+  if (!canRun || !ctx) {
+    t.skip("intégration indisponible");
+    return;
+  }
+  const suffix = Date.now();
+  const email = `cp077-conv2-${suffix}@test.local`;
+
+  const create = await api(ctx.token, "POST", "/api/leads", {
+    first_name: "Convert2",
+    last_name: "Client",
+    email,
+    customer_type: "PERSON",
+  });
+  assert.equal(create.status, 201, JSON.stringify(create.data));
+  const leadId = create.data?.id;
+  assert.ok(leadId);
+
+  const conv1 = await api(ctx.token, "POST", `/api/leads/${leadId}/convert-to-client`, {});
+  assert.equal(conv1.status, 200, JSON.stringify(conv1.data));
+  assert.ok(conv1.data?.client?.id);
+  assert.equal(conv1.data?.already_converted, false);
+
+  const conv2 = await api(ctx.token, "POST", `/api/leads/${leadId}/convert-to-client`, {});
+  assert.equal(conv2.status, 200, JSON.stringify(conv2.data));
+  assert.equal(conv2.data?.client?.id, conv1.data?.client?.id);
+  assert.equal(conv2.data?.already_converted, true);
+});

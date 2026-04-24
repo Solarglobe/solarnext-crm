@@ -6,7 +6,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "../components/ui/Button";
 import { fetchClients, type Client } from "../services/clients.service";
-import { fetchLeads } from "../services/leads.service";
+import { fetchLeads, convertLeadToClient } from "../services/leads.service";
 import { createInvoiceDraft, createInvoiceFromQuote } from "../services/financial.api";
 import "../modules/invoices/invoice-builder.css";
 
@@ -25,6 +25,7 @@ export default function InvoiceCreatePage() {
   const [clientId, setClientId] = useState("");
   const [leadId, setLeadId] = useState("");
   const [loading, setLoading] = useState(false);
+  const [convertFromLeadBusy, setConvertFromLeadBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const fromQuote = searchParams.get("fromQuote");
@@ -128,6 +129,25 @@ export default function InvoiceCreatePage() {
 
   const generalMode = !clientLockedFromUrl && !leadLockedFromUrl;
 
+  const handleCreateClientFromLead = async () => {
+    if (!urlLeadId) return;
+    setConvertFromLeadBusy(true);
+    setError(null);
+    try {
+      const out = await convertLeadToClient(urlLeadId);
+      const cid = (out.client as { id?: string } | null)?.id;
+      if (!cid) throw new Error("Réponse conversion invalide (client id manquant).");
+      const params = new URLSearchParams();
+      params.set("clientId", cid);
+      params.set("leadId", urlLeadId);
+      navigate(`/invoices/new?${params.toString()}`, { replace: true });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erreur");
+    } finally {
+      setConvertFromLeadBusy(false);
+    }
+  };
+
   return (
     <div className="qb-page">
       <h1 className="sg-title">Nouvelle facture</h1>
@@ -170,6 +190,23 @@ export default function InvoiceCreatePage() {
               premiers leads du pipeline chargés ici).
             </p>
           ) : null}
+          {!clientLockedFromUrl ? (
+            <>
+              <p style={{ margin: "14px 0 10px", fontSize: 13 }}>
+                Vous créez une facture depuis un lead. Vous pouvez continuer ou créer un client CRM pour ce dossier (recommandé
+                pour la facturation liée devis / acomptes).
+              </p>
+              <Button
+                type="button"
+                variant="outlineGold"
+                size="sm"
+                disabled={convertFromLeadBusy}
+                onClick={() => void handleCreateClientFromLead()}
+              >
+                {convertFromLeadBusy ? "Création du client…" : "Créer client maintenant"}
+              </Button>
+            </>
+          ) : null}
         </div>
       ) : null}
 
@@ -203,7 +240,7 @@ export default function InvoiceCreatePage() {
       </div>
 
       <div style={{ display: "flex", gap: 12, marginTop: 16 }}>
-        <Button type="button" variant="primary" disabled={loading} onClick={() => void submit()}>
+        <Button type="button" variant="primary" disabled={loading || convertFromLeadBusy} onClick={() => void submit()}>
           {loading ? "Création…" : "Créer la facture"}
         </Button>
         <Button type="button" variant="ghost" onClick={() => navigate("/invoices")}>
