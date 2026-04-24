@@ -82,7 +82,7 @@ html.sn-auth-page body {
   min-height: 100vh;
   flex: 1 0 auto;
   box-sizing: border-box;
-  padding: 12px 16px 20px;
+  padding: 6px 16px 16px;
 }
 
 /* Bloc logo + card : même largeur, dense, logo quasi collé à la card */
@@ -94,11 +94,12 @@ html.sn-auth-page body {
   flex-direction: column;
   align-items: stretch;
   box-sizing: border-box;
+  gap: 0;
 }
 
 .logo-container {
   width: 100%;
-  margin-bottom: 0;
+  margin: 0 0 -10px;
   padding: 0;
   line-height: 0;
   box-sizing: border-box;
@@ -117,6 +118,8 @@ html.sn-auth-page body {
   width: 100%;
   max-width: 100%;
   margin: 0;
+  position: relative;
+  z-index: 1;
   background: #ffffff;
   border-radius: 16px;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);

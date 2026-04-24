@@ -1022,21 +1022,37 @@ html.sn-auth-page[data-theme="dark"] select:focus {
   overflow-y: auto;
   overflow-x: hidden;
   overscroll-behavior: contain;
-  padding: 0 10px 8px;
+  padding: 0 0 8px;
   -webkit-overflow-scrolling: touch;
   margin-top: 0 !important;
 }
 
+/* Entre sections nav : même barre dorée que sous les titres CRM (80×3, dégradé) */
 .sn-sidebar-nav-group {
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: var(--separator-thickness) solid var(--separator-color);
+  position: relative;
+  margin-top: 5px;
+  padding-top: 5px;
+  border-top: none;
 }
 
 .sn-sidebar-nav > .sn-sidebar-nav-group:first-child {
   margin-top: 0;
   padding-top: 0;
-  border-top: none;
+}
+
+.sn-sidebar-nav-group:not(:first-child)::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 80px;
+  height: 3px;
+  border-radius: 2px;
+  background: linear-gradient(
+    90deg,
+    var(--sn-accent-gold, var(--gold)),
+    rgba(200, 155, 60, 0.2)
+  );
 }
 
 /* Filet de section réutilisable (même rythme que les groupes nav) */
@@ -1050,7 +1066,7 @@ html.sn-auth-page[data-theme="dark"] select:focus {
   text-transform: uppercase;
   letter-spacing: 0.07em;
   color: var(--gold);
-  padding: 0 10px;
+  padding: 0 2px;
   margin-bottom: 4px;
   opacity: 0.55;
 }
@@ -1410,9 +1426,15 @@ a.sn-btn {
   align-self: stretch;
   min-height: 100%;
   background: var(--bg-muted);
-  border-right: var(--separator-thickness) solid var(--separator-color);
+  /* Bord droit : même ADN que le trait sous titres (or, lisible sur toute la hauteur) */
+  border-right: 2px solid rgba(195, 152, 71, 0.38);
   color: var(--text);
-  padding: 8px 0 0 !important;
+  padding: 8px 12px 0 !important;
+  box-sizing: border-box;
+}
+
+.theme-light .sn-sidebar {
+  border-right-color: rgba(154, 115, 72, 0.36);
 }
 
 /* Header : logo + barre outils — colonne structurée */
@@ -1445,11 +1467,21 @@ a.sn-btn {
   flex: 1;
 }
 
-/* Logo CRM : aucun pseudo-trait — filet = border-bottom sur .sn-sidebar-brand */
-.sn-sidebar-brand::after,
-.sn-sidebar .sidebar-brand::after {
-  display: none !important;
-  content: none !important;
+/* Logo CRM : trait identique à .sn-main h1::after / titres (écrase le groupe .sidebar-brand::after) */
+.sn-sidebar-brand.sidebar-brand::after {
+  content: "" !important;
+  display: block !important;
+  position: absolute;
+  left: 0;
+  bottom: -4px;
+  width: 80px !important;
+  height: 3px !important;
+  border-radius: 2px !important;
+  background: linear-gradient(
+    90deg,
+    var(--sn-accent-gold, var(--gold)),
+    rgba(200, 155, 60, 0.2)
+  ) !important;
 }
 
 .sn-sidebar-brand {
@@ -1457,13 +1489,12 @@ a.sn-btn {
   justify-content: flex-start;
   align-items: flex-start;
   padding-bottom: 6px;
-  margin: 0 0 10px 0;
+  margin: 0 0 12px 0;
   position: relative;
   overflow: visible;
   color: var(--text);
   min-width: 0;
   align-self: stretch;
-  border-bottom: var(--separator-thickness) solid var(--separator-color);
   box-sizing: border-box;
 }
 
@@ -1483,7 +1514,7 @@ a.sn-btn {
 @media (max-width: 768px) {
   .sn-sidebar-brand {
     padding-bottom: 6px;
-    margin: 0 0 10px 0;
+    margin: 0 0 12px 0;
   }
 
   .logo-solarnext {
@@ -5380,11 +5411,11 @@ html {
 }
 
 .sn-sidebar-header {
-  padding: 0 8px 4px 8px !important;
+  padding: 0 0 4px 0 !important;
 }
 
 .sn-sidebar-brand {
-  margin-bottom: 10px !important;
+  margin-bottom: 12px !important;
   overflow: visible !important;
 }
 
