@@ -103,7 +103,7 @@
 .sn-dashboard-filters--compact {
   gap: 4px;
   padding-top: 2px;
-  border-top: var(--separator-thickness, 1.5px) solid var(--separator-color, var(--border, rgba(0, 0, 0, 0.08)));
+  border-top: var(--separator-thickness, 1px) solid var(--separator-color, var(--border, rgba(0, 0, 0, 0.08)));
 }
 
 .sn-dashboard-filters label {
@@ -236,7 +236,7 @@
   gap: 4px;
   margin-bottom: 8px;
   padding-bottom: 4px;
-  border-bottom: var(--separator-thickness, 1.5px) solid var(--separator-color, var(--border, rgba(255, 255, 255, 0.06)));
+  border-bottom: var(--separator-thickness, 1px) solid var(--separator-color, var(--border, rgba(255, 255, 255, 0.06)));
 }
 
 .sn-dashboard-action-link {
@@ -588,7 +588,7 @@
 .sn-dashboard-table td {
   padding: 10px 12px;
   text-align: left;
-  border-bottom: var(--separator-thickness, 1.5px) solid var(--separator-color, var(--border, rgba(0, 0, 0, 0.06)));
+  border-bottom: var(--separator-thickness, 1px) solid var(--separator-color, var(--border, rgba(0, 0, 0, 0.06)));
   vertical-align: middle;
 }
 
@@ -1273,7 +1273,7 @@
 .sn-dashboard-forecast-foot {
   margin: 8px 0 0;
   padding-top: 8px;
-  border-top: var(--separator-thickness, 1.5px) solid var(--separator-color, var(--border, rgba(255, 255, 255, 0.08)));
+  border-top: var(--separator-thickness, 1px) solid var(--separator-color, var(--border, rgba(255, 255, 255, 0.08)));
   font-size: 12px;
   color: var(--text-secondary);
   line-height: 1.45;
