@@ -5,6 +5,9 @@
  *
  * Logs : détail via devLog/devWarn uniquement si window.__SN_DP_DEV_MODE === true.
  * En prod : console.warn réservé aux échecs persistants de sauvegarde et à l’arrêt d’accès (403).
+ *
+ * Images DP1 : voir dp1-image-persist.js (compression + conversion blob → JPEG avant PUT).
+ * Échec sérialisation / préparation images : sauvegarde bloquée (jamais brouillon minimal envoyé au serveur).
  */
 (function (global) {
   /** @type {object | null} */
@@ -21,9 +24,6 @@
   var MAX_RETRIES = 2;
   /** Timeout réseau PUT (ms) — pas de blocage UI : fetch async + AbortController. */
   var PUT_TIMEOUT_MS = 8000;
-  /** Au-delà de ce poids, les data URL DP1 sont retirées du payload (évite PUT géants). */
-  var MAX_DP1_DATA_URL_CHARS = 900000;
-
   function isDevMode() {
     return global.__SN_DP_DEV_MODE === true;
   }
@@ -144,7 +144,10 @@
         "[DP] Sauvegarde brouillon désactivée jusqu’au rechargement de la page. Un PUT /api/leads/:id/dp a été refusé (403). Vérifier l’onglet Réseau → réponse JSON (error, code). Si code « DP_LEAD_NOT_CLIENT » : le lead n’est pas éligible au dossier DP (backend : status CLIENT ou project_status SIGNE | DP_A_DEPOSER). Sinon : auth, organisation, ou en-têtes super-admin."
       );
     }
-    setSaveUi("blocked");
+    setSaveUi(
+      "blocked",
+      "Sauvegarde désactivée — rechargez la page ou vérifiez les droits."
+    );
     try {
       var root = document.getElementById("dp-tool-root");
       if (root) root.setAttribute("data-dp-persistence", "blocked");
@@ -260,40 +263,17 @@
   }
 
   /**
-   * Copie sûre pour le réseau : pas de undefined, pas de fonctions, pas de clés _ ;
-   * images data URL trop lourdes retirées ; corruption → brouillon minimal.
+   * Clone JSON pour PUT : pas de undefined, pas de fonctions, pas de clés _.
+   * Ne renvoie jamais un brouillon minimal en cas d’erreur (bloquer la sauvegarde à la place).
+   * @returns {{ ok: true, draft: object } | { ok: false, error: string, code: string }}
    */
-  function stripHeavyDataUrlsInDraft(d) {
-    if (!d || typeof d !== "object") return;
-    try {
-      var d1 = d.dp1;
-      if (!d1 || typeof d1 !== "object" || !d1.images || typeof d1.images !== "object") return;
-      var im = d1.images;
-      var keys = ["view_20000", "view_5000", "view_650"];
-      for (var ki = 0; ki < keys.length; ki++) {
-        var kk = keys[ki];
-        var u = im[kk];
-        if (typeof u === "string" && u.indexOf("data:image") === 0 && u.length > MAX_DP1_DATA_URL_CHARS) {
-          im[kk] = null;
-          devWarn("[dp-draft] image DP1 trop volumineuse — omise du PUT", kk, u.length);
-          emitDpPutTrace("dp1_image_stripped_oversize", {
-            slot: kk,
-            previousChars: u.length,
-            maxChars: MAX_DP1_DATA_URL_CHARS,
-            leadId: global.__SOLARNEXT_DP_CONTEXT__ && global.__SOLARNEXT_DP_CONTEXT__.leadId,
-          });
-        }
-      }
-    } catch (e) {
-      devWarn("[dp-draft] stripHeavyDataUrlsInDraft", e);
-    }
-  }
-
-  function sanitizeDraftForPut(input) {
-    if (!input || typeof input !== "object") {
-      var fb = createMinimalDraft();
-      ensureDraftShape(fb);
-      return fb;
+  function sanitizeDraftForPersist(input) {
+    if (!input || typeof input !== "object" || Array.isArray(input)) {
+      return {
+        ok: false,
+        error: "Brouillon absent ou invalide — impossible d’enregistrer.",
+        code: "DP_DRAFT_MISSING",
+      };
     }
     try {
       var cleaned = JSON.parse(
@@ -305,13 +285,45 @@
         })
       );
       ensureDraftShape(cleaned);
-      stripHeavyDataUrlsInDraft(cleaned);
-      return cleaned;
+      var blobCheck = rejectBlobUrlsInDraftForPut(cleaned);
+      if (!blobCheck.ok) return blobCheck;
+      return { ok: true, draft: cleaned };
     } catch (e) {
-      devWarn("[dp-draft] sanitizeDraftForPut — brouillon minimal", e);
-      var m = createMinimalDraft();
-      ensureDraftShape(m);
-      return m;
+      devWarn("[dp-draft] sanitizeDraftForPersist — échec sérialisation", e);
+      return {
+        ok: false,
+        error:
+          "Impossible de préparer le brouillon pour le serveur (données non sérialisables). Vérifiez les pièces jointes ou rechargez la page.",
+        code: "DP_DRAFT_SERIALIZE_FAILED",
+      };
+    }
+  }
+
+  /**
+   * blob: ne doit jamais être envoyé au backend (URLs invalides après reload).
+   */
+  function rejectBlobUrlsInDraftForPut(d) {
+    try {
+      var d1 = d && d.dp1;
+      if (!d1 || typeof d1 !== "object" || !d1.images || typeof d1.images !== "object") {
+        return { ok: true };
+      }
+      var im = d1.images;
+      var keys = ["view_20000", "view_5000", "view_650"];
+      for (var ki = 0; ki < keys.length; ki++) {
+        var u = im[keys[ki]];
+        if (typeof u === "string" && u.indexOf("blob:") === 0) {
+          return {
+            ok: false,
+            error:
+              "Une image DP1 est encore une URL temporaire (blob). Patientez la fin de la préparation ou ouvrez l’étape DP1 puis enregistrez à nouveau.",
+            code: "DP1_BLOB_IN_DRAFT",
+          };
+        }
+      }
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: String(e && e.message ? e.message : e), code: "DP1_BLOB_CHECK_FAILED" };
     }
   }
 
@@ -441,7 +453,7 @@
     } catch (_) {}
   }
 
-  function setSaveUi(kind) {
+  function setSaveUi(kind, message) {
     var el = document.getElementById("dp-draft-save-status");
     if (!el) return;
     el.classList.remove(
@@ -450,6 +462,7 @@
       "dp-draft-save-status--error",
       "dp-draft-save-status--blocked"
     );
+    var msg = message != null && String(message).trim() ? String(message).trim() : "";
     if (kind === "saving") {
       el.textContent = "Enregistrement…";
       el.classList.add("dp-draft-save-status--saving");
@@ -457,10 +470,12 @@
       el.textContent = "Enregistré";
       el.classList.add("dp-draft-save-status--saved");
     } else if (kind === "error") {
-      el.textContent = "Erreur d’enregistrement";
+      el.textContent = msg || "Erreur d’enregistrement";
       el.classList.add("dp-draft-save-status--error");
     } else if (kind === "blocked") {
-      el.textContent = "Sauvegarde CRM indisponible (éligibilité projet)";
+      el.textContent =
+        msg ||
+        "Sauvegarde désactivée — rechargez la page ou vérifiez les droits.";
       el.classList.add("dp-draft-save-status--blocked");
     } else {
       el.textContent = "";
@@ -612,6 +627,18 @@
           if (newState.dp1ActiveVersionId == null && prevState.dp1ActiveVersionId != null) {
             mergedState.dp1ActiveVersionId = prevState.dp1ActiveVersionId;
           }
+        }
+        try {
+          if (global.DP1_STATE && Object.prototype.hasOwnProperty.call(global.DP1_STATE, "selectedParcel")) {
+            var liveSp = global.DP1_STATE.selectedParcel;
+            if (liveSp === null) {
+              mergedState.selectedParcel = null;
+            } else if (liveSp != null && typeof liveSp === "object") {
+              mergedState.selectedParcel = JSON.parse(JSON.stringify(liveSp));
+            }
+          }
+        } catch (spE) {
+          devWarn("[dp-draft] snapshot dp1 selectedParcel runtime", spE);
         }
         DP_DRAFT.dp1 = {
           state: mergedState,
@@ -787,7 +814,12 @@
     mergeLocalDraftSnapshotIfNeeded();
     syncContextWindowDraft();
     writeDraftMirrorLocal();
-    if (!isPersistenceDisabled()) {
+    if (isPersistenceDisabled()) {
+      setSaveUi(
+        "blocked",
+        "Sauvegarde désactivée — rechargez la page ou vérifiez les droits."
+      );
+    } else {
       setSaveUi("idle");
     }
   }
@@ -946,6 +978,14 @@
     var st = err && err.status;
     var code = err && err.code;
     if (st === 403 || code === "DP_LEAD_NOT_CLIENT") return false;
+    if (
+      code === "DP1_IMAGE_PREP_FAILED" ||
+      code === "DP_DRAFT_SERIALIZE_FAILED" ||
+      code === "DP1_BLOB_IN_DRAFT" ||
+      code === "DP1_BLOB_CHECK_FAILED"
+    ) {
+      return false;
+    }
     if (err && err.name === "AbortError") return true;
     if (st >= 400 && st < 500 && st !== 408 && st !== 429) return false;
     return true;
@@ -957,64 +997,84 @@
       return Promise.reject(new Error("no_url"));
     }
     syncRuntimeIntoDraft();
-    var safeDraft = sanitizeDraftForPut(DP_DRAFT);
-    var body = JSON.stringify({ draft: safeDraft });
-    var ctx = global.__SOLARNEXT_DP_CONTEXT__ || {};
-    emitDpPutTrace("put_request", {
-      attempt: attempt,
-      leadId: ctx.leadId || null,
-      url: url,
-      bodyBytes: body.length,
-      draftSummary: summarizeDraftForTrace(safeDraft),
-      persistenceDisabledBefore: !!global.__SN_DP_PERSISTENCE_DISABLED,
-    });
-    var ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
-    var tid = null;
-    if (ctrl) {
-      tid = setTimeout(function () {
-        try {
-          ctrl.abort();
-        } catch (_) {}
-      }, PUT_TIMEOUT_MS);
-    }
-    return fetch(url, {
-      method: "PUT",
-      headers: getAuthHeaders(),
-      credentials: "include",
-      body: body,
-      signal: ctrl ? ctrl.signal : undefined,
-    })
-      .finally(function () {
-        if (tid) clearTimeout(tid);
-      })
-      .then(function (res) {
-        if (!res.ok) {
-          return res.text().then(function (txt) {
-            var j = {};
-            try {
-              j = JSON.parse(txt);
-            } catch (_) {}
-            emitDpPutTrace("put_response_error", {
-              leadId: ctx.leadId || null,
-              url: url,
-              httpStatus: res.status,
-              bodyError: j && j.error != null ? String(j.error) : null,
-              bodyCode: j && j.code != null ? String(j.code) : null,
-              responseTextHead: txt ? String(txt).slice(0, 400) : "",
-            });
-            var err = new Error((j && j.error) || "PUT " + res.status);
-            err.status = res.status;
-            err.code = j && j.code;
-            throw err;
-          });
-        }
-        emitDpPutTrace("put_response_ok", {
-          leadId: ctx.leadId || null,
-          url: url,
-          httpStatus: res.status,
-        });
-        return res.json();
+    var persistPrep =
+      global.__solarnextDp1ImagePersist &&
+      typeof global.__solarnextDp1ImagePersist.normalizeDraftImagesAsync === "function"
+        ? global.__solarnextDp1ImagePersist.normalizeDraftImagesAsync(DP_DRAFT)
+        : Promise.resolve({ ok: true });
+    return persistPrep.then(function (norm) {
+      if (!norm || !norm.ok) {
+        var ex = new Error(
+          (norm && norm.error) || "Impossible de préparer les images DP1 pour la sauvegarde."
+        );
+        ex.code = "DP1_IMAGE_PREP_FAILED";
+        throw ex;
+      }
+      var san = sanitizeDraftForPersist(DP_DRAFT);
+      if (!san.ok) {
+        var ex2 = new Error(san.error || "Brouillon invalide.");
+        ex2.code = san.code || "DP_DRAFT_SERIALIZE_FAILED";
+        throw ex2;
+      }
+      var safeDraft = san.draft;
+      var body = JSON.stringify({ draft: safeDraft });
+      var ctx = global.__SOLARNEXT_DP_CONTEXT__ || {};
+      emitDpPutTrace("put_request", {
+        attempt: attempt,
+        leadId: ctx.leadId || null,
+        url: url,
+        bodyBytes: body.length,
+        draftSummary: summarizeDraftForTrace(safeDraft),
+        persistenceDisabledBefore: !!global.__SN_DP_PERSISTENCE_DISABLED,
       });
+      var ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
+      var tid = null;
+      if (ctrl) {
+        tid = setTimeout(function () {
+          try {
+            ctrl.abort();
+          } catch (_) {}
+        }, PUT_TIMEOUT_MS);
+      }
+      return fetch(url, {
+        method: "PUT",
+        headers: getAuthHeaders(),
+        credentials: "include",
+        body: body,
+        signal: ctrl ? ctrl.signal : undefined,
+      })
+        .finally(function () {
+          if (tid) clearTimeout(tid);
+        })
+        .then(function (res) {
+          if (!res.ok) {
+            return res.text().then(function (txt) {
+              var j = {};
+              try {
+                j = JSON.parse(txt);
+              } catch (_) {}
+              emitDpPutTrace("put_response_error", {
+                leadId: ctx.leadId || null,
+                url: url,
+                httpStatus: res.status,
+                bodyError: j && j.error != null ? String(j.error) : null,
+                bodyCode: j && j.code != null ? String(j.code) : null,
+                responseTextHead: txt ? String(txt).slice(0, 400) : "",
+              });
+              var err = new Error((j && j.error) || "PUT " + res.status);
+              err.status = res.status;
+              err.code = j && j.code;
+              throw err;
+            });
+          }
+          emitDpPutTrace("put_response_ok", {
+            leadId: ctx.leadId || null,
+            url: url,
+            httpStatus: res.status,
+          });
+          return res.json();
+        });
+    });
   }
 
   function saveDraft() {
@@ -1073,9 +1133,25 @@
             return runPutWithRetries(attempt + 1);
           });
         }
+        if (
+          code === "DP1_IMAGE_PREP_FAILED" ||
+          code === "DP_DRAFT_SERIALIZE_FAILED" ||
+          code === "DP1_BLOB_IN_DRAFT" ||
+          code === "DP1_BLOB_CHECK_FAILED"
+        ) {
+          console.warn("[DP SAVE FAILED]", err && err.message ? err.message : err);
+          saveState = "error";
+          setSaveUi("error", err && err.message ? String(err.message) : "Enregistrement impossible.");
+          isSaving = false;
+          if (pendingSave) {
+            pendingSave = false;
+            schedulePersist(false);
+          }
+          return Promise.resolve(null);
+        }
         console.warn("[DP SAVE FAILED]", err);
         saveState = "error";
-        setSaveUi("error");
+        setSaveUi("error", err && err.message ? String(err.message) : "");
         isSaving = false;
         if (pendingSave) {
           pendingSave = false;
@@ -1098,8 +1174,30 @@
     } catch (_) {}
     var token =
       typeof localStorage !== "undefined" ? localStorage.getItem("solarnext_token") : null;
-    var safeUnload = sanitizeDraftForPut(DP_DRAFT);
-    var body = JSON.stringify({ draft: safeUnload });
+    var body;
+    try {
+      if (
+        global.__solarnextDp1ImagePersist &&
+        typeof global.__solarnextDp1ImagePersist.syncNormalizeFromDom === "function"
+      ) {
+        var sn = global.__solarnextDp1ImagePersist.syncNormalizeFromDom(DP_DRAFT);
+        if (!sn.ok) {
+          console.warn("[DP SAVE unload skipped]", sn.error || "");
+          devWarn("[DP SAVE unload skipped]", sn.error);
+          return;
+        }
+      }
+      var sanu = sanitizeDraftForPersist(DP_DRAFT);
+      if (!sanu.ok) {
+        console.warn("[DP SAVE unload skipped]", sanu.error || "");
+        devWarn("[DP SAVE unload skipped]", sanu.error);
+        return;
+      }
+      body = JSON.stringify({ draft: sanu.draft });
+    } catch (prep) {
+      devWarn("[DP SAVE unload prep failed]", prep);
+      return;
+    }
     try {
       var hdrs = { "Content-Type": "application/json" };
       if (token) hdrs.Authorization = "Bearer " + token;

@@ -1860,9 +1860,6 @@ function draftDp1IndicatesRestore() {
 
 function hydrateDP1(data) {
   if (!data || typeof data !== "object") return;
-  try {
-    console.log("HYDRATE DP1 DATA:", data);
-  } catch (_) {}
 
   var s = data.state && typeof data.state === "object" ? data.state : {};
   var selectedParcel = null;
@@ -1888,6 +1885,15 @@ function hydrateDP1(data) {
     }
     if (s.dp1SnapshotImages && typeof s.dp1SnapshotImages === "object") {
       window.DP1_STATE.dp1SnapshotImages = JSON.parse(JSON.stringify(s.dp1SnapshotImages));
+    }
+  } catch (_) {}
+  try {
+    if (data.images && typeof data.images === "object") {
+      window.DP1_STATE.dp1SnapshotImages = Object.assign(
+        {},
+        window.DP1_STATE.dp1SnapshotImages || {},
+        data.images
+      );
     }
   } catch (_) {}
   if (data.context && typeof data.context === "object") {
