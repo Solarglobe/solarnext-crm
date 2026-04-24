@@ -130,9 +130,20 @@
       leadId: global.__SOLARNEXT_DP_CONTEXT__ && global.__SOLARNEXT_DP_CONTEXT__.leadId,
       source: "disablePersistence",
     });
+    var codeStr = code != null ? String(code) : "";
+    var reasonStr = reason != null ? String(reason) : "";
     console.warn(
-      "[DP ACCESS BLOCKED] Persistance arrêtée" + (code ? " — " + code : "") + (reason ? " — " + reason : "")
+      "[DP ACCESS BLOCKED] Persistance arrêtée" + (codeStr ? " — " + codeStr : "") + (reasonStr ? " — " + reasonStr : "")
     );
+    if (
+      codeStr === "HTTP_403" ||
+      codeStr === "DP_LEAD_NOT_CLIENT" ||
+      codeStr === "SUPER_ADMIN_READ_ONLY"
+    ) {
+      console.warn(
+        "[DP] Sauvegarde brouillon désactivée jusqu’au rechargement de la page. Un PUT /api/leads/:id/dp a été refusé (403). Vérifier l’onglet Réseau → réponse JSON (error, code). Si code « DP_LEAD_NOT_CLIENT » : le lead n’est pas éligible au dossier DP (backend : status CLIENT ou project_status SIGNE | DP_A_DEPOSER). Sinon : auth, organisation, ou en-têtes super-admin."
+      );
+    }
     setSaveUi("blocked");
     try {
       var root = document.getElementById("dp-tool-root");

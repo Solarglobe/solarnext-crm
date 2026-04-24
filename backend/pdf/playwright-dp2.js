@@ -8,6 +8,8 @@ export async function generateDP2PDF(dp2Data) {
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();
 
+  const port = process.env.PORT || 3000;
+
   // ======================================================
   // INJECTION DES DONNÉES AVANT CHARGEMENT (COMME DP1)
   // ======================================================
@@ -19,10 +21,7 @@ export async function generateDP2PDF(dp2Data) {
   // CHARGEMENT DE LA PAGE HTML DP2
   // ⚠️ networkidle ≠ images base64 décodées
   // ======================================================
-  await page.goto(
-    "http://localhost:3000/pdf/render/dp2.html",
-    { waitUntil: "domcontentloaded" }
-  );
+  await page.goto(`http://127.0.0.1:${port}/pdf/render/dp2.html`, { waitUntil: "domcontentloaded" });
 
   // ======================================================
   // ⏳ ATTENTE RÉELLE DES IMAGES BASE64 (POINT CLÉ)

@@ -7,6 +7,14 @@
  * - Build prod : définir `VITE_API_URL` sur l’hébergeur front (Vercel) ; sans cela, les URLs
  *   relatives ne pointent pas vers le backend API.
  *
+ * --- Vercel (front) + API Railway (exemple) ---
+ * Si `VITE_API_URL` est absent ou vide en production, le bundle ne connaît pas l’origine du backend :
+ * le module DP (`loadDpTool` sans `apiBase`) retombe sur `window.location.origin` (souvent le domaine Vercel),
+ * ce qui casse `PUT /api/leads/:id/dp`, PDF, cadastre, etc.
+ * À ajouter dans Vercel → Project → Settings → Environment Variables → Production :
+ *   VITE_API_URL=https://api.solarnext-crm.fr
+ * (origine seule, sans suffixe `/api` ; adapter à l’URL HTTPS réelle de l’API déployée.)
+ *
  * Si `VITE_API_URL` se termine par `/api/v1` (erreur courante), on le retire.
  */
 function normalizeApiOrigin(raw: string): string {

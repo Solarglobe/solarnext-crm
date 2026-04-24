@@ -43,6 +43,14 @@ export default function LeadDpPage() {
   const [hostPayload, setHostPayload] = useState<LeadDpApiBody | null>(null);
 
   useEffect(() => {
+    if (!import.meta.env.PROD) return;
+    if (String(API_BASE || "").trim()) return;
+    console.warn(
+      "[DP] VITE_API_URL est absent ou vide pour ce build : le module DP utilisera l’origine de la page (ex. domaine Vercel) pour les requêtes API, ce qui casse la persistance et les PDF. Sur Vercel → Environment Variables (Production), ajoutez par exemple : VITE_API_URL=https://api.solarnext-crm.fr"
+    );
+  }, []);
+
+  useEffect(() => {
     if (!leadId) {
       setError("Paramètre d’URL manquant");
       setLoading(false);

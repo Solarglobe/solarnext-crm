@@ -8,6 +8,8 @@ export async function generateDP4PDF(dp4Data) {
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();
 
+  const port = process.env.PORT || 3000;
+
   // ======================================================
   // INJECTION DES DONNÉES AVANT CHARGEMENT (COMME DP2/DP3)
   // ======================================================
@@ -19,7 +21,7 @@ export async function generateDP4PDF(dp4Data) {
   // CHARGEMENT DE LA PAGE HTML DP4
   // ⚠️ networkidle ≠ images base64 décodées
   // ======================================================
-  await page.goto("http://localhost:3000/pdf/render/dp4.html", {
+  await page.goto(`http://127.0.0.1:${port}/pdf/render/dp4.html`, {
     waitUntil: "domcontentloaded",
   });
 

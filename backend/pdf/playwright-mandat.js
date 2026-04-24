@@ -28,6 +28,8 @@ export async function generateMandatPDF(mandatData) {
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();
 
+  const port = process.env.PORT || 3000;
+
   const payload = normalizeMandatPayloadForRender(mandatData);
 
   // 👉 on injecte les données AVANT le chargement
@@ -35,7 +37,7 @@ export async function generateMandatPDF(mandatData) {
     window.__MANDAT_DATA__ = data;
   }, payload);
 
- await page.goto("http://localhost:3000/pdf/render/mandat.html", { waitUntil: "networkidle" });
+  await page.goto(`http://127.0.0.1:${port}/pdf/render/mandat.html`, { waitUntil: "networkidle" });
 
   const pdfBuffer = await page.pdf({
     format: "A4",

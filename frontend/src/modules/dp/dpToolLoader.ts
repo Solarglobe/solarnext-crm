@@ -22,7 +22,11 @@ export type DpToolLoaderOptions = {
    * Défaut : résolu depuis ce module vers `../../../dp-tool/`
    */
   assetBaseUrl?: string;
-  /** Base API CRM optionnelle (JWT, PDF, cadastre) */
+  /**
+   * Origine API CRM sans « /api » final (ex. `https://api.solarnext-crm.fr`).
+   * Doit refléter `import.meta.env.VITE_API_URL` au build : `LeadDpPage` transmet `getCrmApiBase()`.
+   * Si omis en prod, `dp-app.js` utilise `window.location.origin` → risque d’appeler le front au lieu du backend.
+   */
   apiBase?: string;
 };
 

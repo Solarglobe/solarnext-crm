@@ -8,6 +8,9 @@ export async function generateDP1PDF(dp1Data) {
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();
 
+  // NOTE : 127.0.0.1 + PORT du processus Express (aligné playwright-dp6.js / dp7.js) — évite localhost:3000 figé en prod.
+  const port = process.env.PORT || 3000;
+
   // ======================================================
   // INJECTION DES DONNÉES AVANT CHARGEMENT (COMME MANDAT)
   // ======================================================
@@ -19,10 +22,7 @@ export async function generateDP1PDF(dp1Data) {
   // CHARGEMENT DE LA PAGE HTML DP1
   // ⚠️ networkidle ≠ images base64 décodées
   // ======================================================
-  await page.goto(
-    "http://localhost:3000/pdf/render/dp1.html",
-    { waitUntil: "domcontentloaded" }
-  );
+  await page.goto(`http://127.0.0.1:${port}/pdf/render/dp1.html`, { waitUntil: "domcontentloaded" });
 
   // ======================================================
   // ⏳ ATTENTE RÉELLE DES IMAGES BASE64 (POINT CLÉ)
