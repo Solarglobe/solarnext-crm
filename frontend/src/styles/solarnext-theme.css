@@ -1450,7 +1450,7 @@ a.sn-btn {
   max-width: 100%;
 }
 
-/* Trait sous le logo — 1px net, collé au pixel (écrase .sidebar-brand::after groupé) */
+/* Trait sous le logo — même rendu que les séparateurs UI (token --border, pas de gradient) */
 .sn-sidebar-brand::after {
   content: "";
   position: absolute;
@@ -1458,12 +1458,7 @@ a.sn-btn {
   right: 0;
   bottom: 0;
   height: 1px;
-  background: linear-gradient(
-    to right,
-    #c8a96a 0%,
-    rgba(200, 169, 106, 0.35) 40%,
-    transparent 100%
-  );
+  background: var(--border);
   width: 100% !important;
   border-radius: 0 !important;
 }
