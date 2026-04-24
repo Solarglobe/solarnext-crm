@@ -1450,26 +1450,27 @@ a.sn-btn {
   max-width: 100%;
 }
 
-/* Trait sous le logo — collé, pleine largeur (écrase width:80px de .sidebar-brand::after groupé) */
+/* Trait sous le logo — fin, collé, pleine largeur (écrase .sidebar-brand::after groupé) */
 .sn-sidebar-brand::after {
   content: "";
   position: absolute;
   left: 0;
   right: 0;
-  bottom: -2px;
-  width: auto;
-  height: 2px;
-  border-radius: 0;
+  bottom: -1px;
+  height: 1.5px;
   background: linear-gradient(
     to right,
     #c8a96a 0%,
-    rgba(200, 169, 106, 0.3) 50%,
+    rgba(200, 169, 106, 0.35) 40%,
     transparent 100%
   );
+  width: 100% !important;
+  border-radius: 0 !important;
 }
 
 .logo-solarnext {
   display: block;
+  line-height: 0;
   width: 180px;
   height: auto;
   max-width: 100%;
