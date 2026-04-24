@@ -1403,7 +1403,7 @@ a.sn-btn {
   padding: 8px 0 0 !important;
 }
 
-/* Header : logo + barre outils — zéro marge décorative */
+/* Header : logo + barre outils — colonne structurée */
 .sn-sidebar-header {
   display: flex;
   flex-direction: column;
@@ -1422,8 +1422,8 @@ a.sn-btn {
   min-width: 0;
   align-self: stretch;
   width: 100%;
-  padding: 6px 0 0;
-  margin: 0 !important;
+  margin: 4px 0 0 !important;
+  padding: 10px 0 0;
 }
 
 /* Colonne org (ellipsis) à gauche des boutons */
@@ -1466,7 +1466,7 @@ a.sn-btn {
   display: block;
   line-height: 0;
   vertical-align: top;
-  width: 220px;
+  width: 240px;
   height: auto;
   max-width: 100%;
   margin: 0 !important;
@@ -1483,8 +1483,8 @@ a.sn-btn {
   }
 
   .logo-solarnext {
-    width: 220px;
-    max-width: min(220px, calc(100vw - 48px));
+    width: 240px;
+    max-width: min(240px, calc(100vw - 48px));
     margin: 0 !important;
     padding: 0 !important;
   }
