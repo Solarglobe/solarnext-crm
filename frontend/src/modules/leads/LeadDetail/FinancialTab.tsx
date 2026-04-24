@@ -224,6 +224,8 @@ export default function FinancialTab({
           loading={invoicesLoading}
           onOpenDetail={(id) => navigate(`/invoices/${id}`)}
           onRefresh={() => void loadInvoices()}
+          clientId={clientId}
+          leadId={leadId}
         />
       </div>
 

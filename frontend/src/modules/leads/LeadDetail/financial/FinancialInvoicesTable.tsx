@@ -30,15 +30,37 @@ function isOverdueRow(row: InvoiceListRow): boolean {
   return d < today;
 }
 
+/** Lien « Nouvelle facture » depuis l’onglet Financier : propage le contexte dossier. */
+export function buildManualInvoiceNewHref(clientId?: string | null, leadId?: string | null): string {
+  const c = (clientId ?? "").trim();
+  const l = (leadId ?? "").trim();
+  if (c && l) return `/invoices/new?clientId=${encodeURIComponent(c)}&leadId=${encodeURIComponent(l)}`;
+  if (c) return `/invoices/new?clientId=${encodeURIComponent(c)}`;
+  if (l) return `/invoices/new?leadId=${encodeURIComponent(l)}`;
+  return "/invoices/new";
+}
+
 interface FinancialInvoicesTableProps {
   invoices: InvoiceListRow[];
   loading: boolean;
   onOpenDetail: (invoiceId: string) => void;
   onRefresh: () => void;
+  /** Contexte fiche (préremplissage création facture manuelle). */
+  clientId?: string | null;
+  leadId?: string | null;
 }
 
-export default function FinancialInvoicesTable({ invoices, loading, onOpenDetail, onRefresh }: FinancialInvoicesTableProps) {
+export default function FinancialInvoicesTable({
+  invoices,
+  loading,
+  onOpenDetail,
+  onRefresh,
+  clientId = null,
+  leadId = null,
+}: FinancialInvoicesTableProps) {
   const [busyId, setBusyId] = React.useState<string | null>(null);
+
+  const newInvoiceHref = buildManualInvoiceNewHref(clientId, leadId);
 
   const pdf = async (id: string) => {
     setBusyId(id);
@@ -59,9 +81,14 @@ export default function FinancialInvoicesTable({ invoices, loading, onOpenDetail
           <h3 className="fin-section-title">Facturation & documents</h3>
           <p className="fin-section-sub">Factures émises et PDF — le détail se pilote dans le builder.</p>
         </div>
-        <Link to="/invoices" className="fin-link-btn fin-link-btn--nav" style={{ fontSize: 13 }}>
-          Toutes les factures
-        </Link>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+          <Link to={newInvoiceHref} className="fin-link-btn fin-link-btn--nav" style={{ fontSize: 13 }}>
+            Nouvelle facture
+          </Link>
+          <Link to="/invoices" className="fin-link-btn fin-link-btn--nav" style={{ fontSize: 13 }}>
+            Toutes les factures
+          </Link>
+        </div>
       </div>
       {loading ? (
         <p className="crm-lead-empty">Chargement des factures…</p>
@@ -74,7 +101,7 @@ export default function FinancialInvoicesTable({ invoices, loading, onOpenDetail
           </p>
           <div className="fin-empty-actions">
             <Link
-              to="/invoices/new"
+              to={newInvoiceHref}
               className="sn-btn sn-btn-outline-gold sn-btn-sm fin-empty-invoice-cta"
               style={{ textDecoration: "none" }}
             >
