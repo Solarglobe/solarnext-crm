@@ -26,6 +26,43 @@
   gap: 1.125rem;
 }
 
+/* Regroupement DP + dossier mairie — titre global */
+.dpCluster {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.dpClusterHead {
+  padding: 2px 2px 8px;
+  border-bottom: 1px solid var(--ed-border-subtle);
+}
+
+.dpClusterTitle {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 0.9375rem;
+  font-weight: 650;
+  color: var(--ed-text);
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+}
+
+.dpClusterTitleIcon {
+  flex-shrink: 0;
+  font-size: 1.125rem;
+  line-height: 1;
+}
+
+.dpClusterSections {
+  display: flex;
+  flex-direction: column;
+  gap: 1.125rem;
+}
+
 /* ——— Upload ——— */
 .uploadPanel {
   border-radius: 12px;
@@ -357,11 +394,21 @@
 
 .sectionTitle {
   margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
   font-size: 0.9375rem;
   font-weight: 650;
   color: var(--ed-text);
   letter-spacing: -0.02em;
   line-height: 1.25;
+}
+
+.sectionTitleIcon {
+  flex-shrink: 0;
+  font-size: 1.125rem;
+  line-height: 1;
 }
 
 .sectionSubtitle {
@@ -371,6 +418,30 @@
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--ed-text-muted);
+}
+
+/* Sous-titres « prose » (DP / dossier mairie) — phrase lisible, pas tout-caps */
+.sectionSubtitleProse {
+  text-transform: none;
+  letter-spacing: 0.01em;
+  font-size: 0.8125rem;
+  font-weight: 450;
+  color: var(--ed-text-secondary);
+  line-height: 1.45;
+  max-width: 52rem;
+}
+
+/* Séparation visuelle légère entre blocs DP généré vs dossier mairie */
+.sectionToneDpGen {
+  background: linear-gradient(180deg, #f8fafc 0%, #fafaf9 38%, var(--ed-surface-raised) 100%);
+  border-color: #e2e8f0;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+}
+
+.sectionToneDpMairie {
+  background: linear-gradient(180deg, #fffbeb 0%, #fafaf9 38%, var(--ed-surface-raised) 100%);
+  border-color: color-mix(in srgb, var(--gold, #c39847) 42%, var(--ed-border));
+  box-shadow: 0 1px 3px rgba(120, 53, 15, 0.06);
 }
 
 .sectionActions {

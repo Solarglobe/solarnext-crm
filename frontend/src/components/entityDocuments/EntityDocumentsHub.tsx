@@ -12,7 +12,10 @@ import { groupDocumentsBySection, SECTION_ORDER } from "./groupDocumentsBySectio
 import styles from "./EntityDocumentsHub.module.css";
 import { assertDocumentDownloadOk } from "@/utils/documentDownload";
 
-const SECTION_UI: Record<DocumentSectionKey, { title: string; empty: string; kicker: string }> = {
+const SECTION_UI: Record<
+  DocumentSectionKey,
+  { title: string; empty: string; kicker: string; icon?: string; proseSubtitle?: boolean; sectionTone?: "dpGen" | "dpMairie" }
+> = {
   QUOTE: { title: "Devis", empty: "Aucun devis", kicker: "Offres & PDF devis" },
   INVOICE: { title: "Factures", empty: "Aucune facture", kicker: "Facturation & avoirs" },
   COMMERCIAL_PROPOSAL: {
@@ -21,11 +24,23 @@ const SECTION_UI: Record<DocumentSectionKey, { title: string; empty: string; kic
     kicker: "Études & propositions",
   },
   DP: {
-    title: "DP",
-    empty: "Aucun document DP",
-    kicker: "Déclaration préalable & pièces générées",
+    title: "DP générés",
+    empty: "Aucun document généré pour la DP",
+    kicker:
+      "Pièces générées automatiquement pour la déclaration préalable (DP1, DP2, mandat, etc.)",
+    icon: "⚙️",
+    proseSubtitle: true,
+    sectionTone: "dpGen",
   },
-  DP_MAIRIE: { title: "DP Mairie", empty: "Aucun DP mairie", kicker: "Dossier municipal" },
+  DP_MAIRIE: {
+    title: "Dossier mairie",
+    empty: "Aucun document mairie",
+    kicker:
+      "Documents officiels liés à la mairie (récépissé, accord, refus, pièces tamponnées)",
+    icon: "🏛️",
+    proseSubtitle: true,
+    sectionTone: "dpMairie",
+  },
   ADMINISTRATIVE: {
     title: "Documents administratifs",
     empty: "Aucun document administratif",
@@ -38,8 +53,8 @@ const CATEGORY_OPTIONS: { value: DocumentCategory; label: string }[] = [
   { value: "QUOTE", label: "Devis" },
   { value: "INVOICE", label: "Facture" },
   { value: "COMMERCIAL_PROPOSAL", label: "Proposition commerciale" },
-  { value: "DP", label: "DP (déclaration préalable)" },
-  { value: "DP_MAIRIE", label: "DP Mairie" },
+  { value: "DP", label: "DP générés" },
+  { value: "DP_MAIRIE", label: "Dossier mairie" },
   { value: "ADMINISTRATIVE", label: "Document administratif" },
   { value: "OTHER", label: "Autre" },
 ];
@@ -279,6 +294,170 @@ export default function EntityDocumentsHub({
     }
   };
 
+  const dpIdx = SECTION_ORDER.indexOf("DP");
+  const mairieIdx = SECTION_ORDER.indexOf("DP_MAIRIE");
+  const sectionsBeforeDp =
+    dpIdx >= 0 && mairieIdx >= 0 && mairieIdx > dpIdx ? SECTION_ORDER.slice(0, dpIdx) : SECTION_ORDER;
+  const sectionsAfterMairie =
+    dpIdx >= 0 && mairieIdx >= 0 && mairieIdx > dpIdx ? SECTION_ORDER.slice(mairieIdx + 1) : [];
+  const useDpCluster = dpIdx >= 0 && mairieIdx >= 0 && mairieIdx > dpIdx;
+
+  function renderDocumentSection(key: DocumentSectionKey) {
+    const meta = SECTION_UI[key];
+    const list = buckets[key];
+    const toneClass =
+      meta.sectionTone === "dpGen"
+        ? styles.sectionToneDpGen
+        : meta.sectionTone === "dpMairie"
+          ? styles.sectionToneDpMairie
+          : "";
+    return (
+      <section
+        key={key}
+        className={`${styles.section}${toneClass ? ` ${toneClass}` : ""}`}
+        aria-labelledby={`edoc-sec-${key}`}
+      >
+        <div className={styles.sectionInner}>
+          <div className={styles.sectionBar} aria-hidden />
+          <div className={styles.sectionMain}>
+            <div className={styles.sectionHead}>
+              <div className={styles.sectionTitleBlock}>
+                <h3 className={styles.sectionTitle} id={`edoc-sec-${key}`}>
+                  {meta.icon ? (
+                    <span className={styles.sectionTitleIcon} aria-hidden>
+                      {meta.icon}
+                    </span>
+                  ) : null}
+                  {meta.title}
+                </h3>
+                <p
+                  className={`${styles.sectionSubtitle}${
+                    meta.proseSubtitle ? ` ${styles.sectionSubtitleProse}` : ""
+                  }`}
+                >
+                  {meta.kicker}
+                </p>
+              </div>
+              <div className={styles.sectionActions}>
+                <span className={styles.sectionCount} aria-label={`${list.length} document(s)`}>
+                  {list.length}
+                </span>
+                <button
+                  type="button"
+                  className={styles.btnAddSection}
+                  onClick={() => openUploadWithCategory(key)}
+                >
+                  + Ajouter
+                </button>
+              </div>
+            </div>
+            {list.length === 0 ? (
+              <p className={styles.sectionEmpty}>{meta.empty}</p>
+            ) : (
+              <div className={styles.cardList}>
+                {list.map((doc) => {
+                  const title = doc.displayName?.trim() || doc.file_name;
+                  const sys = isSystemGenerated(doc);
+                  const isRecent = doc.id === newestDocumentId;
+                  const lifecycle = resolveDocumentLifecycleBadge(doc.document_type);
+                  return (
+                    <article
+                      key={doc.id}
+                      className={`${styles.card} ${isRecent ? styles.cardRecent : ""}`}
+                    >
+                      <div className={styles.cardRow1}>
+                        <h4 className={styles.cardTitle}>{title}</h4>
+                        <div className={styles.badgeGroup}>
+                          {lifecycle ? (
+                            <span
+                              className={`${styles.badge} ${
+                                lifecycle.variant === "signed"
+                                  ? styles.badgeLifecycleSigned
+                                  : styles.badgeLifecycleDraft
+                              }`}
+                            >
+                              {lifecycle.label}
+                            </span>
+                          ) : null}
+                          <button
+                            type="button"
+                            className={`${styles.badge} ${styles.badgeClickable} ${
+                              doc.isClientVisible ? styles.badgeVisibleOn : styles.badgeVisibleOff
+                            }`}
+                            onClick={() => void handleToggleClientVisible(doc)}
+                            disabled={visibilityBusyId === doc.id}
+                            aria-pressed={doc.isClientVisible}
+                            title="Cliquer pour basculer la visibilité sur l’espace client"
+                          >
+                            {visibilityBusyId === doc.id
+                              ? "…"
+                              : doc.isClientVisible
+                                ? "Visible client"
+                                : "Non visible client"}
+                          </button>
+                          <span
+                            className={`${styles.badge} ${
+                              sys ? styles.badgeSourceAuto : styles.badgeSourceManual
+                            }`}
+                          >
+                            {sys ? "GÉNÉRÉ" : "AJOUTÉ"}
+                          </span>
+                        </div>
+                      </div>
+                      <div className={styles.cardMeta}>
+                        <span>{formatDate(doc.created_at)}</span>
+                        <span className={styles.metaSep}>·</span>
+                        <span>{formatSize(doc.file_size)}</span>
+                        <span className={styles.metaSep}>·</span>
+                        <span>{mimeLabel(doc.mime_type)}</span>
+                        {doc.document_type ? (
+                          <>
+                            <span className={styles.metaSep}>·</span>
+                            <span className={styles.metaTechnical}>{doc.document_type}</span>
+                          </>
+                        ) : null}
+                      </div>
+                      {doc.description ? <p className={styles.cardDesc}>{doc.description}</p> : null}
+                      <div className={styles.cardActions}>
+                        <button
+                          type="button"
+                          className={styles.btnDownload}
+                          onClick={() => void handleDownload(doc)}
+                          disabled={downloadingId === doc.id}
+                        >
+                          {downloadingId === doc.id ? "Téléchargement…" : "Télécharger"}
+                        </button>
+                        {sys ? (
+                          <button
+                            type="button"
+                            className={styles.btnArchiveDoc}
+                            onClick={() => void handleArchive(doc.id)}
+                            disabled={archivingId === doc.id}
+                          >
+                            {archivingId === doc.id ? "Archivage…" : "Archiver"}
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            className={styles.btnDeleteDoc}
+                            onClick={() => void handleDelete(doc.id)}
+                            disabled={deletingId === doc.id}
+                          >
+                            {deletingId === doc.id ? "Suppression…" : "Supprimer"}
+                          </button>
+                        )}
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <div className={styles.hub}>
       <div ref={uploadAnchorRef} className={styles.uploadPanel}>
@@ -401,142 +580,28 @@ export default function EntityDocumentsHub({
         ) : null}
       </div>
 
-      {SECTION_ORDER.map((key) => {
-        const meta = SECTION_UI[key];
-        const list = buckets[key];
-        return (
-          <section key={key} className={styles.section} aria-labelledby={`edoc-sec-${key}`}>
-            <div className={styles.sectionInner}>
-              <div className={styles.sectionBar} aria-hidden />
-              <div className={styles.sectionMain}>
-                <div className={styles.sectionHead}>
-                  <div className={styles.sectionTitleBlock}>
-                    <h3 className={styles.sectionTitle} id={`edoc-sec-${key}`}>
-                      {meta.title}
-                    </h3>
-                    <p className={styles.sectionSubtitle}>{meta.kicker}</p>
-                  </div>
-                  <div className={styles.sectionActions}>
-                    <span className={styles.sectionCount} aria-label={`${list.length} document(s)`}>
-                      {list.length}
-                    </span>
-                    <button
-                      type="button"
-                      className={styles.btnAddSection}
-                      onClick={() => openUploadWithCategory(key)}
-                    >
-                      + Ajouter
-                    </button>
-                  </div>
-                </div>
-                {list.length === 0 ? (
-                  <p className={styles.sectionEmpty}>{meta.empty}</p>
-                ) : (
-                  <div className={styles.cardList}>
-                    {list.map((doc) => {
-                      const title = doc.displayName?.trim() || doc.file_name;
-                      const sys = isSystemGenerated(doc);
-                      const isRecent = doc.id === newestDocumentId;
-                      const lifecycle = resolveDocumentLifecycleBadge(doc.document_type);
-                      return (
-                        <article
-                          key={doc.id}
-                          className={`${styles.card} ${isRecent ? styles.cardRecent : ""}`}
-                        >
-                          <div className={styles.cardRow1}>
-                            <h4 className={styles.cardTitle}>{title}</h4>
-                            <div className={styles.badgeGroup}>
-                              {lifecycle ? (
-                                <span
-                                  className={`${styles.badge} ${
-                                    lifecycle.variant === "signed"
-                                      ? styles.badgeLifecycleSigned
-                                      : styles.badgeLifecycleDraft
-                                  }`}
-                                >
-                                  {lifecycle.label}
-                                </span>
-                              ) : null}
-                              <button
-                                type="button"
-                                className={`${styles.badge} ${styles.badgeClickable} ${
-                                  doc.isClientVisible ? styles.badgeVisibleOn : styles.badgeVisibleOff
-                                }`}
-                                onClick={() => void handleToggleClientVisible(doc)}
-                                disabled={visibilityBusyId === doc.id}
-                                aria-pressed={doc.isClientVisible}
-                                title="Cliquer pour basculer la visibilité sur l’espace client"
-                              >
-                                {visibilityBusyId === doc.id
-                                  ? "…"
-                                  : doc.isClientVisible
-                                    ? "Visible client"
-                                    : "Non visible client"}
-                              </button>
-                              <span
-                                className={`${styles.badge} ${
-                                  sys ? styles.badgeSourceAuto : styles.badgeSourceManual
-                                }`}
-                              >
-                                {sys ? "Auto" : "Manuel"}
-                              </span>
-                            </div>
-                          </div>
-                          <div className={styles.cardMeta}>
-                            <span>{formatDate(doc.created_at)}</span>
-                            <span className={styles.metaSep}>·</span>
-                            <span>{formatSize(doc.file_size)}</span>
-                            <span className={styles.metaSep}>·</span>
-                            <span>{mimeLabel(doc.mime_type)}</span>
-                            {doc.document_type ? (
-                              <>
-                                <span className={styles.metaSep}>·</span>
-                                <span className={styles.metaTechnical}>{doc.document_type}</span>
-                              </>
-                            ) : null}
-                          </div>
-                          {doc.description ? (
-                            <p className={styles.cardDesc}>{doc.description}</p>
-                          ) : null}
-                          <div className={styles.cardActions}>
-                            <button
-                              type="button"
-                              className={styles.btnDownload}
-                              onClick={() => void handleDownload(doc)}
-                              disabled={downloadingId === doc.id}
-                            >
-                              {downloadingId === doc.id ? "Téléchargement…" : "Télécharger"}
-                            </button>
-                            {sys ? (
-                              <button
-                                type="button"
-                                className={styles.btnArchiveDoc}
-                                onClick={() => void handleArchive(doc.id)}
-                                disabled={archivingId === doc.id}
-                              >
-                                {archivingId === doc.id ? "Archivage…" : "Archiver"}
-                              </button>
-                            ) : (
-                              <button
-                                type="button"
-                                className={styles.btnDeleteDoc}
-                                onClick={() => void handleDelete(doc.id)}
-                                disabled={deletingId === doc.id}
-                              >
-                                {deletingId === doc.id ? "Suppression…" : "Supprimer"}
-                              </button>
-                            )}
-                          </div>
-                        </article>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
+      {useDpCluster ? (
+        <>
+          {sectionsBeforeDp.map((key) => renderDocumentSection(key))}
+          <div className={styles.dpCluster} role="group" aria-labelledby="edoc-dp-cluster-title">
+            <header className={styles.dpClusterHead}>
+              <h2 className={styles.dpClusterTitle} id="edoc-dp-cluster-title">
+                <span className={styles.dpClusterTitleIcon} aria-hidden>
+                  📁
+                </span>
+                Gestion de la déclaration préalable
+              </h2>
+            </header>
+            <div className={styles.dpClusterSections}>
+              {renderDocumentSection("DP")}
+              {renderDocumentSection("DP_MAIRIE")}
             </div>
-          </section>
-        );
-      })}
+          </div>
+          {sectionsAfterMairie.map((key) => renderDocumentSection(key))}
+        </>
+      ) : (
+        SECTION_ORDER.map((key) => renderDocumentSection(key))
+      )}
     </div>
   );
 }
