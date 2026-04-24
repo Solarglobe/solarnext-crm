@@ -33,6 +33,8 @@
     "reconcile:migration:177660-lead-sources": "node scripts/reconcile-177660-lead-sources-migration-checksum.mjs",
     "reconcile:migration:177660-lead-sources:commit": "node scripts/reconcile-177660-lead-sources-migration-checksum.mjs --commit",
     "purge:leads-test-name": "node scripts/purge-leads-name-contains-test.js",
+    "cleanup:test-clients": "node scripts/cleanup-test-clients.mjs",
+    "test:cleanup-test-clients-cli": "node --test tests/scripts/cleanup-test-clients-cli.test.mjs",
     "test:pilotage": "node services/pilotage/tests/buildPilotedProfile.test.js",
     "test:finance": "node tests/financialEngine.test.js",
     "test:super-admin-guards": "node --test tests/superAdminUserGuards.test.js tests/rbacHardening.test.js",
