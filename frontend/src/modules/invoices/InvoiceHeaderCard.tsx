@@ -5,6 +5,7 @@
 import React from "react";
 import type { InvoiceStatusUi } from "./invoice.types";
 import { invoiceStatusClass, invoiceStatusLabel } from "./invoiceStatusUi";
+import { formatInvoiceTypeHeaderLine } from "./invoiceBillingLabels";
 
 export interface InvoiceHeaderCardProps {
   invoiceNumberDisplay: string;
@@ -17,14 +18,6 @@ export interface InvoiceHeaderCardProps {
   quoteBillingRole?: string | null;
   hasQuote: boolean;
   isOverdue: boolean;
-}
-
-function billingTypeLabel(role: string | null | undefined, hasQuote: boolean): string {
-  if (!hasQuote) return "Facture libre / standard";
-  const r = String(role || "STANDARD").toUpperCase();
-  if (r === "DEPOSIT") return "Acompte";
-  if (r === "BALANCE") return "Solde";
-  return "Standard (lignes devis)";
 }
 
 function sourceLabel(hasQuote: boolean): string {
@@ -81,7 +74,7 @@ export default function InvoiceHeaderCard({
         </div>
         <div className="ib-header-kv">
           <span className="ib-header-kv__l">Type de facture</span>
-          <span className="ib-header-kv__v">{billingTypeLabel(quoteBillingRole, hasQuote)}</span>
+          <span className="ib-header-kv__v">{formatInvoiceTypeHeaderLine(quoteBillingRole, hasQuote)}</span>
         </div>
         <div className="ib-header-kv">
           <span className="ib-header-kv__l">Source</span>

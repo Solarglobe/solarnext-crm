@@ -4,6 +4,7 @@
 
 import React from "react";
 import { Link } from "react-router-dom";
+import { formatInvoiceOriginQuoteType } from "./invoiceBillingLabels";
 
 export interface QuoteSummary {
   id: string;
@@ -15,13 +16,6 @@ export interface InvoiceBillingOriginSectionProps {
   quoteId: string | null;
   quote: QuoteSummary | null | undefined;
   quoteBillingRole?: string | null;
-}
-
-function roleFr(role: string | null | undefined): string {
-  const r = String(role || "STANDARD").toUpperCase();
-  if (r === "DEPOSIT") return "Acompte";
-  if (r === "BALANCE") return "Solde";
-  return "Standard (facture complète depuis le devis)";
 }
 
 export default function InvoiceBillingOriginSection({ quoteId, quote, quoteBillingRole }: InvoiceBillingOriginSectionProps) {
@@ -54,7 +48,7 @@ export default function InvoiceBillingOriginSection({ quoteId, quote, quoteBilli
           </p>
           <p className="ib-origin-card__line">
             <span className="ib-origin-label">Type depuis le devis</span>
-            <span>{roleFr(quoteBillingRole)}</span>
+            <span>{formatInvoiceOriginQuoteType(quoteBillingRole)}</span>
           </p>
         </div>
       )}

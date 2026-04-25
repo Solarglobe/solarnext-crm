@@ -4,6 +4,7 @@
 
 import { getCrmApiBase } from "@/config/crmApiBase";
 import { apiFetch } from "./api";
+import { billingRoleParamToApi } from "@/modules/invoices/invoiceBillingLabels";
 import type { QuotePdfPayload } from "../modules/quotes/quoteDocumentTypes";
 
 const API_BASE = getCrmApiBase();
@@ -462,7 +463,10 @@ export interface QuoteInvoiceBillingContext {
   quote_total_ttc: number;
   /** Total devis nul ou négligeable — pas de facturation acompte/solde/complète depuis ce devis. */
   quote_zero_total?: boolean;
+  /** TTC engagé (brouillons inclus, hors annulées). */
   invoiced_ttc: number;
+  /** TTC factures émises (hors brouillon / annulée). */
+  invoiced_issued_ttc?: number;
   remaining_ttc: number;
   has_structured_deposit: boolean;
   deposit_ttc: number | null;
@@ -488,10 +492,16 @@ export async function fetchQuoteInvoiceBillingContext(quoteId: string): Promise<
 
 export async function createInvoiceFromQuote(
   quoteId: string,
-  options?: { billingRole?: QuoteBillingRole | string }
+  options?: { billingRole?: QuoteBillingRole | string; billingAmountTtc?: number }
 ): Promise<InvoiceDetail> {
-  const body: Record<string, string> = {};
-  if (options?.billingRole) body.billingRole = String(options.billingRole).toUpperCase();
+  const body: Record<string, string | number> = {};
+  if (options?.billingRole) {
+    const apiRole = billingRoleParamToApi(String(options.billingRole));
+    if (apiRole) body.billingRole = apiRole;
+  }
+  if (options?.billingAmountTtc != null && Number.isFinite(Number(options.billingAmountTtc))) {
+    body.billingAmountTtc = Number(options.billingAmountTtc);
+  }
   const res = await apiFetch(`${API_BASE}/api/invoices/from-quote/${encodeURIComponent(quoteId)}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

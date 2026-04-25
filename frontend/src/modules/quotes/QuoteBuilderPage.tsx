@@ -1062,14 +1062,38 @@ export default function QuoteBuilderPage() {
                     Total devis nul : facturation depuis ce devis (acompte, solde ou facture complète) indisponible.
                   </span>
                 ) : null}
+                {billCtx && !billCtx.quote_zero_total ? (
+                  <span className="qb-muted" style={{ display: "block", marginBottom: "0.35rem" }}>
+                    Total devis{" "}
+                    {(billCtx.quote_total_ttc ?? 0).toLocaleString("fr-FR", {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}{" "}
+                    € · Déjà engagé{" "}
+                    {(billCtx.invoiced_ttc ?? 0).toLocaleString("fr-FR", {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}{" "}
+                    € · Reste{" "}
+                    {(billCtx.remaining_ttc ?? 0).toLocaleString("fr-FR", {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}{" "}
+                    €
+                  </span>
+                ) : null}
                 {billCtx?.can_create_deposit ? (
                   <Link to={`/invoices/new?fromQuote=${encodeURIComponent(id)}&billingRole=DEPOSIT`}>
-                    Facturer l&apos;acompte
+                    Créer acompte
                   </Link>
                 ) : null}
                 {billCtx?.can_create_balance ? (
-                  <Link to={`/invoices/new?fromQuote=${encodeURIComponent(id)}&billingRole=BALANCE`}>
-                    Facturer le solde
+                  <Link
+                    to={`/invoices/new?fromQuote=${encodeURIComponent(id)}&billingRole=solde&amountTtc=${encodeURIComponent(
+                      String(billCtx.remaining_ttc ?? 0)
+                    )}`}
+                  >
+                    Créer facture solde
                   </Link>
                 ) : null}
                 {billCtx?.can_create_standard_full ? (
