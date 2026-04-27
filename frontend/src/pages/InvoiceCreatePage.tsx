@@ -330,8 +330,11 @@ export default function InvoiceCreatePage() {
   const leadInList = Boolean(urlLeadId && leads.some((l) => l.id === urlLeadId));
 
   const submit = async () => {
-    const outClient = (urlClientId || clientId || "").trim() || null;
-    const outLead = (urlLeadId || leadId || "").trim() || null;
+    let outClient = (urlClientId || clientId || "").trim() || null;
+    let outLead = (urlLeadId || leadId || "").trim() || null;
+    if (outClient && outLead) {
+      outLead = null;
+    }
     if (!outClient && !outLead) {
       setError("Sélectionnez au minimum un client ou un lead.");
       return;

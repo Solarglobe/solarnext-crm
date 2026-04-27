@@ -112,6 +112,15 @@ export default function InvoiceBuilderPage() {
 
   const canEdit = state.header ? String(state.header.status).toUpperCase() === "DRAFT" : false;
 
+  const isClientLocked = useMemo(
+    () => Boolean(state.header?.client_id) || Boolean(state.header?.quote_id),
+    [state.header?.client_id, state.header?.quote_id]
+  );
+  const isLeadLocked = useMemo(
+    () => Boolean(state.header?.lead_id) || Boolean(state.header?.quote_id),
+    [state.header?.lead_id, state.header?.quote_id]
+  );
+
   const computedTotals = useMemo(() => computeInvoiceTotalsFromLines(state.lines), [state.lines]);
 
   const statusUi = useMemo(() => {
@@ -535,7 +544,7 @@ export default function InvoiceBuilderPage() {
         ) : null}
         <InvoiceBillingEntityCombobox
           label="Client"
-          disabled={!canEdit}
+          disabled={!canEdit || isClientLocked}
           value={state.header.client_id}
           rows={billingClients}
           onChange={(id) => dispatch({ type: "SET_HEADER", payload: { client_id: id } })}
@@ -552,7 +561,7 @@ export default function InvoiceBuilderPage() {
         />
         <InvoiceBillingEntityCombobox
           label="Lead"
-          disabled={!canEdit}
+          disabled={!canEdit || isLeadLocked}
           value={state.header.lead_id}
           rows={billingLeads}
           onChange={(id) => dispatch({ type: "SET_HEADER", payload: { lead_id: id } })}

@@ -39,8 +39,10 @@ export async function create(req, res) {
     const data = await invoiceService.createInvoice(org, req.body);
     res.status(201).json(data);
   } catch (e) {
-    const code = e.message?.includes("obligatoire") ? 400 : 500;
-    res.status(code).json({ error: e.message });
+    const msg = e.message || "";
+    const code =
+      msg.includes("obligatoire") || msg.includes("Invoice cannot have both client and lead") ? 400 : 500;
+    res.status(code).json({ error: msg });
   }
 }
 

@@ -235,6 +235,7 @@ export async function createInvoice(organizationId, body) {
   } = body || {};
 
   if (!client_id && !lead_id) throw new Error("client_id ou lead_id obligatoire pour une facture");
+  if (client_id && lead_id) throw new Error("Invoice cannot have both client and lead");
   if (client_id) await assertClientInOrg(client_id, organizationId);
   if (lead_id) await assertLeadInOrg(lead_id, organizationId);
 
@@ -372,6 +373,16 @@ export async function updateInvoice(invoiceId, organizationId, body) {
     }
 
     const { lines, client_id, lead_id, quote_id, due_date, notes, payment_terms, issue_date, metadata_json, currency } = body;
+
+    if (row.quote_id) {
+      const norm = (v) => (v != null && String(v).trim() !== "" ? String(v) : null);
+      if (client_id !== undefined && norm(client_id) !== norm(row.client_id)) {
+        throw new Error("Le rattachement client ne peut pas être modifié pour une facture liée à un devis.");
+      }
+      if (lead_id !== undefined && norm(lead_id) !== norm(row.lead_id)) {
+        throw new Error("Le rattachement lead ne peut pas être modifié pour une facture liée à un devis.");
+      }
+    }
 
     if (client_id !== undefined) {
       if (client_id) await assertClientInOrg(client_id, organizationId);
@@ -758,6 +769,9 @@ export async function createInvoiceFromQuote(quoteId, organizationId, options = 
     }
     const resolvedClientId = await ensureClientForQuote(client, quote, organizationId);
     quote.client_id = resolvedClientId;
+    const invoiceClientId = String(resolvedClientId);
+    const invoiceLeadId =
+      quote.lead_id != null && String(quote.lead_id).trim() !== "" ? String(quote.lead_id) : null;
 
     const meta = quote.metadata_json && typeof quote.metadata_json === "object" ? quote.metadata_json : {};
     const { deposit_display } = buildQuoteDepositFreeze(meta, quote.total_ttc);
@@ -865,8 +879,8 @@ export async function createInvoiceFromQuote(quoteId, organizationId, options = 
       RETURNING id`,
       [
         organizationId,
-        quote.client_id,
-        quote.lead_id || null,
+        invoiceClientId,
+        invoiceLeadId,
         quoteId,
         draftNum,
         quote.notes ?? null,
@@ -910,9 +924,12 @@ export async function duplicateInvoice(invoiceId, organizationId) {
   const meta =
     rawMeta && typeof rawMeta === "object" && !Array.isArray(rawMeta) ? { ...rawMeta } : {};
   meta.duplicated_from_invoice_id = inv.id;
+  let dupClient = inv.client_id || null;
+  let dupLead = inv.lead_id || null;
+  if (dupClient && dupLead) dupLead = null;
   return createInvoice(organizationId, {
-    client_id: inv.client_id || null,
-    lead_id: inv.lead_id || null,
+    client_id: dupClient,
+    lead_id: dupLead,
     quote_id: null,
     due_date: inv.due_date,
     notes: inv.notes,

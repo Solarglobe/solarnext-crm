@@ -34,7 +34,7 @@ function isOverdueRow(row: InvoiceListRow): boolean {
 export function buildManualInvoiceNewHref(clientId?: string | null, leadId?: string | null): string {
   const c = (clientId ?? "").trim();
   const l = (leadId ?? "").trim();
-  if (c && l) return `/invoices/new?clientId=${encodeURIComponent(c)}&leadId=${encodeURIComponent(l)}`;
+  if (c && l) return `/invoices/new?clientId=${encodeURIComponent(c)}`;
   if (c) return `/invoices/new?clientId=${encodeURIComponent(c)}`;
   if (l) return `/invoices/new?leadId=${encodeURIComponent(l)}`;
   return "/invoices/new";
