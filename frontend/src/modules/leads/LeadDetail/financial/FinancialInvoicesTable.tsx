@@ -40,6 +40,11 @@ export function buildManualInvoiceNewHref(clientId?: string | null, leadId?: str
   return "/invoices/new";
 }
 
+/** Création facture rattachée au client CRM uniquement (pas de select client sur /invoices/new). */
+export function buildClientOnlyInvoiceNewHref(clientId: string): string {
+  return `/invoices/new?clientId=${encodeURIComponent(clientId.trim())}`;
+}
+
 interface FinancialInvoicesTableProps {
   invoices: InvoiceListRow[];
   loading: boolean;
@@ -61,6 +66,8 @@ export default function FinancialInvoicesTable({
   const [busyId, setBusyId] = React.useState<string | null>(null);
 
   const newInvoiceHref = buildManualInvoiceNewHref(clientId, leadId);
+  const clientOnlyInvoiceHref =
+    clientId && String(clientId).trim() !== "" ? buildClientOnlyInvoiceNewHref(String(clientId)) : null;
 
   const pdf = async (id: string) => {
     setBusyId(id);
@@ -82,6 +89,11 @@ export default function FinancialInvoicesTable({
           <p className="fin-section-sub">Factures émises et PDF — le détail se pilote dans le builder.</p>
         </div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+          {clientOnlyInvoiceHref ? (
+            <Link to={clientOnlyInvoiceHref} className="fin-link-btn fin-link-btn--nav" style={{ fontSize: 13 }}>
+              Créer une facture
+            </Link>
+          ) : null}
           <Link to={newInvoiceHref} className="fin-link-btn fin-link-btn--nav" style={{ fontSize: 13 }}>
             Nouvelle facture
           </Link>
@@ -100,6 +112,15 @@ export default function FinancialInvoicesTable({
             une facture manuelle sans lien devis.
           </p>
           <div className="fin-empty-actions">
+            {clientOnlyInvoiceHref ? (
+              <Link
+                to={clientOnlyInvoiceHref}
+                className="sn-btn sn-btn-outline-gold sn-btn-sm fin-empty-invoice-cta"
+                style={{ textDecoration: "none" }}
+              >
+                Créer une facture
+              </Link>
+            ) : null}
             <Link
               to={newInvoiceHref}
               className="sn-btn sn-btn-outline-gold sn-btn-sm fin-empty-invoice-cta"

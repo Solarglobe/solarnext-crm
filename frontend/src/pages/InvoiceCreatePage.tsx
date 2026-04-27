@@ -68,6 +68,7 @@ export default function InvoiceCreatePage() {
     return "FREE" as const;
   }, [urlClientId, urlLeadId]);
 
+  /** Picks client/lead : uniquement sans `clientId` ni `leadId` en URL (= !clientLockedFromUrl && !leadLockedFromUrl). */
   const isFreeContext = billingUiMode === "FREE";
 
   const apiRole = useMemo(

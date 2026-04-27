@@ -9,4 +9,5 @@ import { CLIENT_BILLING_SELECT_QUERY } from "../services/billingSelectSql.js";
 test("CLIENT_BILLING_SELECT_QUERY — client_number dans full_name et critère WHERE", () => {
   assert.match(CLIENT_BILLING_SELECT_QUERY, /NULLIF\(TRIM\(client_number\)/);
   assert.match(CLIENT_BILLING_SELECT_QUERY, /OR NULLIF\(TRIM\(client_number\)/);
+  assert.match(CLIENT_BILLING_SELECT_QUERY, /\('Client — ' \|\| TRIM\(client_number\)\)/);
 });

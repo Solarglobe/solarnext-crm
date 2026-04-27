@@ -12,9 +12,12 @@ SELECT id,
       NULLIF(TRIM(COALESCE(first_name, '') || ' ' || COALESCE(last_name, '')), ''),
       NULLIF(TRIM(email), ''),
       CASE
-        WHEN NULLIF(TRIM(client_number), '') IS NOT NULL
-        THEN ('Client sans nom — ' || TRIM(client_number))
-        ELSE ''
+        WHEN NULLIF(TRIM(company_name), '') IS NULL
+         AND NULLIF(TRIM(COALESCE(first_name, '') || ' ' || COALESCE(last_name, '')), '') IS NULL
+         AND NULLIF(TRIM(email), '') IS NULL
+         AND NULLIF(TRIM(client_number), '') IS NOT NULL
+        THEN ('Client — ' || TRIM(client_number))
+        ELSE NULLIF(TRIM(client_number), '')
       END
     )
   ) AS full_name,

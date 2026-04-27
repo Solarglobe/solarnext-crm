@@ -180,7 +180,7 @@ export default function FinancialTab({
 
   return (
     <div className="fin-cockpit">
-      <FinancialTabHeader onCreateQuote={() => void handleCreateQuote()} />
+      <FinancialTabHeader onCreateQuote={() => void handleCreateQuote()} clientId={clientId} />
 
       <FinancialPilotKpi
         isLead={isLead}

@@ -16,7 +16,7 @@ const fetchQuotesListMock = vi.hoisted(() =>
 vi.mock("../../services/billingContacts.api", () => ({
   fetchClientsBillingSelect: vi.fn(() =>
     Promise.resolve([
-      { id: "c-1", full_name: "Client sans nom — SG-2026-0001", email: null },
+      { id: "c-1", full_name: "Client — SG-2026-0001", email: null },
     ])
   ),
   fetchLeadsBillingSelect: vi.fn(() =>
@@ -101,7 +101,7 @@ describe("InvoiceCreatePage — contexte client / lead / libre", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByRole("option", { name: /Client sans nom — SG-2026-0001/ })).toBeInTheDocument();
+      expect(screen.getByRole("option", { name: /Client — SG-2026-0001/ })).toBeInTheDocument();
     });
   });
 
