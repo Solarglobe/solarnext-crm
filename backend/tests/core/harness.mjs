@@ -74,7 +74,7 @@ export async function ensureAdminContext() {
     }
   }
 
-  const permCodes = ["org.settings.manage", "lead.create", "quote.manage"];
+  const permCodes = ["org.settings.manage", "lead.create", "lead.read.all", "lead.update.all", "quote.manage"];
   for (const code of permCodes) {
     const permRes = await pool.query("SELECT id FROM rbac_permissions WHERE code = $1", [code]);
     if (permRes.rows.length === 0) continue;

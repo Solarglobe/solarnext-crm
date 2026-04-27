@@ -27,12 +27,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS as DndCss } from "@dnd-kit/utilities";
 import { LeadCard } from "./LeadCard";
-import {
-  getLeadName,
-  updateLeadStage,
-  convertLead,
-  type Lead,
-} from "../../services/leads.service";
+import { getLeadName, updateLeadStage, type Lead } from "../../services/leads.service";
 import { ConfirmModal } from "../ui/ConfirmModal";
 import { UndoToast } from "../ui/UndoToast";
 import { useUndoAction } from "../../hooks/useUndoAction";
@@ -618,9 +613,6 @@ export function LeadsKanbanView({
         previousState: snap,
         execute: async () => {
           await updateLeadStage(leadId, targetStageId);
-          if (isConversion) {
-            await convertLead(leadId);
-          }
           await Promise.resolve(onLeadMoved(leadId, targetStageId));
         },
         rollback: async () => {
@@ -633,7 +625,7 @@ export function LeadsKanbanView({
           setItemsByStage(cloneItemsByStage(snap));
           await Promise.resolve(onLeadMoved(leadId, sourceStageId));
         },
-        message: isConversion ? "Lead converti en client" : "Carte déplacée",
+        message: isConversion ? "Déplacement vers Signé enregistré" : "Carte déplacée",
       });
     } catch {
       setOptimistic((o) => {
@@ -887,17 +879,17 @@ export function LeadsKanbanView({
         open={Boolean(pendingKanbanMove)}
         title={
           pendingKanbanMove?.stageCode === "SIGNED"
-            ? "Convertir en client"
+            ? "Passer en Signé"
             : "Déplacer la carte"
         }
         message={
           pendingKanbanMove
             ? pendingKanbanMove.stageCode === "SIGNED"
-              ? `Convertir « ${pendingKanbanMove.leadName} » en client ? Un dossier client sera créé automatiquement et le lead disparaîtra de la liste des leads.`
+              ? `Placer « ${pendingKanbanMove.leadName} » sur « Signé » ? La fiche client CRM sera créée et le dossier passera en client.`
               : `Envoyer « ${pendingKanbanMove.leadName} » vers « ${pendingKanbanMove.stageName} » ?`
             : ""
         }
-        confirmLabel={pendingKanbanMove?.stageCode === "SIGNED" ? "Convertir en client" : "Confirmer"}
+        confirmLabel={pendingKanbanMove?.stageCode === "SIGNED" ? "Confirmer" : "Confirmer"}
         cancelLabel="Annuler"
         variant="default"
         onCancel={cancelKanbanMove}

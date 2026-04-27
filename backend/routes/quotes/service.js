@@ -1,7 +1,8 @@
 /**
  * CP-031 — Moteur Devis V1
  * CP-032C — withTx + assertOrgEntity + assertStatus
- * CP-036 — Automatisation devis signé : lead.status=CLIENT, project_status=SIGNE, activité DEVIS_SIGNE
+ * CP-036 — Devis ACCEPTED : intention commerciale uniquement (pas de conversion lead→client ici).
+ * Fiche client : uniquement passage pipeline étape Signé (ensureClientWhenSignedStage).
  */
 
 import { pool } from "../../config/db.js";
@@ -901,27 +902,25 @@ export async function patchQuoteStatus(quoteId, organizationId, newStatus, userI
         generatedFrom: "PATCH_QUOTE_STATUS_SENT",
       });
     } else if (normalized === "ACCEPTED") {
-      /** Si client_id absent : copier leads.client_id (meme org, client actif) pour facturation from-quote. */
+      /** Rattachement au client existant (devis ou lead) — jamais de création fiche client ici (réservé étape Signé). */
       let clientIdForAccept = quote.client_id || null;
       if (!clientIdForAccept && quote.lead_id) {
         const leadRes = await client.query(
-          `SELECT client_id FROM leads WHERE id = $1 AND organization_id = $2 AND (archived_at IS NULL)`,
+          `SELECT client_id FROM leads WHERE id = $1 AND organization_id = $2 AND (archived_at IS NULL) FOR UPDATE`,
           [quote.lead_id, organizationId]
         );
-        const cid = leadRes.rows[0]?.client_id;
+        const cid = leadRes.rows[0]?.client_id ?? null;
         if (cid) {
           const okClient = await client.query(
             `SELECT 1 FROM clients WHERE id = $1 AND organization_id = $2 AND (archived_at IS NULL)`,
             [cid, organizationId]
           );
-          if (okClient.rows.length > 0) {
-            clientIdForAccept = cid;
-          }
+          if (okClient.rows.length > 0) clientIdForAccept = cid;
         }
       }
       if (!clientIdForAccept) {
         console.warn(
-          `[quotes] Devis ${quoteId} → ACCEPTED sans client_id réutilisable (lead_id=${quote.lead_id ?? "none"})`
+          `[quotes] Devis ${quoteId} → ACCEPTED sans client_id (lead_id=${quote.lead_id ?? "none"}) — fiche client après étape Signé`
         );
       }
       await client.query(
@@ -959,44 +958,21 @@ export async function patchQuoteStatus(quoteId, organizationId, newStatus, userI
         await pool.query("SELECT * FROM quotes WHERE id = $1", [qid])
       ).rows[0];
       if (quote?.lead_id) {
-        const leadRes = await pool.query(
-          "SELECT id, status, project_status FROM leads WHERE id = $1 AND organization_id = $2 AND (archived_at IS NULL)",
-          [quote.lead_id, org]
-        );
-        if (leadRes.rows.length > 0) {
-          const lead = leadRes.rows[0];
-          const updates = [];
-          const values = [];
-          let idx = 1;
-          if (lead.status !== "CLIENT") {
-            updates.push(`status = $${idx++}`);
-            values.push("CLIENT");
-          }
-          if (lead.project_status !== "SIGNE") {
-            updates.push(`project_status = $${idx++}`);
-            values.push("SIGNE");
-          }
-          if (updates.length > 0) {
-            values.push(quote.lead_id, org);
-            await pool.query(
-              `UPDATE leads SET ${updates.join(", ")}, updated_at = now() WHERE id = $${idx++} AND organization_id = $${idx++}`,
-              values
-            );
-          }
-          try {
-            await createAutoActivity(
-              org,
-              quote.lead_id,
-              uid,
-              "DEVIS_SIGNE",
-              "Devis signé",
-              { quote_id: qid, total_ttc: quote.total_ttc }
-            );
-          } catch (_) {}
-        }
+        try {
+          await createAutoActivity(
+            org,
+            quote.lead_id,
+            uid,
+            "DEVIS_SIGNE",
+            "Devis accepté",
+            { quote_id: qid, total_ttc: quote.total_ttc }
+          );
+        } catch (_) {}
       }
     }
-    return getQuoteDetail(qid, org);
+    const detail = await getQuoteDetail(qid, org);
+    if (!detail) return null;
+    return { ...detail, client_auto_created: false };
   }).then((detail) => {
     void logAuditEvent({
       action: AuditActions.QUOTE_STATUS_UPDATED,

@@ -1,8 +1,7 @@
 /**
- * CP-028 — Conversion Lead → Client
- * CP-032C — withTx + assertOrgEntity
- * POST /api/leads/:id/convert — refuse si déjà converti
- * POST /api/leads/:id/convert-to-client — idempotent : retourne client + lead existants si déjà lié
+ * CP-028 — Conversion Lead → Client (historique)
+ * La fiche `clients` est créée uniquement via l’étape pipeline « Signé » (ensureClientWhenSignedStage).
+ * Ces routes ne font plus de création : elles retournent la fiche existante si déjà liée (idempotent), sinon 400.
  */
 
 import { pool } from "../../config/db.js";
@@ -11,7 +10,6 @@ import { assertOrgEntity } from "../../services/guards.service.js";
 import { getUserPermissions } from "../../rbac/rbac.service.js";
 import { logAuditEvent } from "../../services/audit/auditLog.service.js";
 import { AuditActions } from "../../services/audit/auditActions.js";
-import { createClientAndLinkLead } from "../../services/leadClientConversion.service.js";
 
 const orgId = (req) => req.user.organizationId ?? req.user.organization_id;
 const userId = (req) => req.user.userId ?? req.user.id;
@@ -83,31 +81,12 @@ async function runConvert(req, res, opts) {
         throw err;
       }
 
-      const { client: newClient } = await createClientAndLinkLead(dbClient, lead, org, {});
-
-      await dbClient.query(
-        `INSERT INTO lead_stage_history (
-          lead_id,
-          from_stage_id,
-          to_stage_id,
-          changed_by,
-          note
-        ) VALUES ($1, $2, $2, $3, $4)`,
-        [leadId, lead.stage_id, uid, "Lead converti en client"]
+      const err = new Error(
+        "La fiche client est créée en déplaçant le dossier vers l'étape « Signé » du pipeline (plus de conversion manuelle ici)."
       );
-
-      const updatedLeadResult = await dbClient.query(
-        `SELECT l.*, ps.name as stage_name FROM leads l
-         LEFT JOIN pipeline_stages ps ON ps.id = l.stage_id
-         WHERE l.id = $1 AND l.organization_id = $2`,
-        [leadId, org]
-      );
-
-      return {
-        client: newClient,
-        lead: updatedLeadResult.rows[0],
-        alreadyConverted: false,
-      };
+      err.statusCode = 400;
+      err.code = "CLIENT_REQUIRES_PIPELINE_SIGNED";
+      throw err;
     });
 
     if (!alreadyConverted) {
@@ -134,7 +113,7 @@ async function runConvert(req, res, opts) {
     });
   } catch (e) {
     const code = e.statusCode || 500;
-    res.status(code).json({ error: e.message });
+    res.status(code).json({ error: e.message, ...(e.code ? { code: e.code } : {}) });
   }
 }
 

@@ -1,6 +1,6 @@
 /**
  * Conversion lead → client : création fiche `clients` + lien `leads.client_id`.
- * Utilisé par POST /convert, POST /convert-to-client et PATCH /stage (étape SIGNED).
+ * Point d’entrée métier : passage pipeline étape Signé (ensureClientWhenSignedStage).
  */
 
 /**

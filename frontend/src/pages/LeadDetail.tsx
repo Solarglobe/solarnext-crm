@@ -12,7 +12,6 @@ import {
   fetchLeadsMeta,
   archiveLead,
   unarchiveLead,
-  convertLeadToClient,
   revertLeadToLead,
   type LeadsMeta,
 } from "../services/leads.service";
@@ -327,9 +326,6 @@ export default function LeadDetail() {
   const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false);
   const [revertConfirmOpen, setRevertConfirmOpen] = useState(false);
   const [revertSaving, setRevertSaving] = useState(false);
-  const [convertConfirmOpen, setConvertConfirmOpen] = useState(false);
-  const [convertBusy, setConvertBusy] = useState(false);
-
   /** Brouillon Vue générale — autosave debounced */
   const [formLead, setFormLead] = useState<Lead | null>(null);
   const [overviewDirty, setOverviewDirty] = useState(false);
@@ -1506,7 +1502,9 @@ export default function LeadDetail() {
     if (isReadOnly) return;
     if (!id || !data || newStatus === data.lead.status) return;
     if (newStatus === "CLIENT") {
-      setConvertConfirmOpen(true);
+      setError(
+        "Le statut « client » est appliqué automatiquement lorsque le dossier est placé sur l'étape « Signé » du pipeline. Un devis accepté seul ne suffit pas."
+      );
       return;
     }
     const flushed = await flushOverviewSave();
@@ -1523,26 +1521,6 @@ export default function LeadDetail() {
       setStatusSaving(false);
     }
   };
-
-  const runConvertToClientCore = async (closeModal: boolean) => {
-    if (isReadOnly || !id || !data) return;
-    const flushed = await flushOverviewSave();
-    if (!flushed) return;
-    setConvertBusy(true);
-    setError(null);
-    try {
-      await convertLeadToClient(id);
-      if (closeModal) setConvertConfirmOpen(false);
-      showLeadSuccessToast("Client créé avec succès");
-      await fetchLead();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Erreur");
-    } finally {
-      setConvertBusy(false);
-    }
-  };
-
-  const performConvertToClient = () => void runConvertToClientCore(true);
 
   const performRevertToLead = async () => {
     if (isReadOnly || !id) return;
@@ -1834,8 +1812,6 @@ export default function LeadDetail() {
           onStudyClick={() => setActiveTab("studies")}
           onCreateStudy={handleCreateStudy}
           createStudyLoading={createStudyLoading}
-          showConvert={isLead && !isArchived}
-          onConvert={() => setConvertConfirmOpen(true)}
           showRevertToLead={isClient && !isArchived}
           onRevertToLead={() => setRevertConfirmOpen(true)}
           revertSaving={revertSaving}
@@ -1893,13 +1869,7 @@ export default function LeadDetail() {
         )}
 
         {id ? (
-          <LeadClientAssociationCard
-            leadId={id}
-            clientId={data.lead.client_id}
-            readOnly={isReadOnly || isArchived}
-            convertLoading={convertBusy}
-            onConvertToClient={() => void runConvertToClientCore(false)}
-          />
+          <LeadClientAssociationCard leadId={id} clientId={data.lead.client_id} readOnly={isReadOnly || isArchived} />
         ) : null}
 
         <ActionBar
@@ -2131,19 +2101,6 @@ export default function LeadDetail() {
         variant="default"
         onCancel={() => setArchiveConfirmOpen(false)}
         onConfirm={() => void performArchiveLead()}
-      />
-
-      <ConfirmModal
-        open={convertConfirmOpen}
-        title="Convertir en client ?"
-        message="Une fiche client CRM sera créée et liée à ce dossier. Vous pourrez revenir en lead si aucune facture ni avoir n’est associé."
-        confirmLabel="Confirmer"
-        cancelLabel="Annuler"
-        variant="default"
-        confirmDisabled={convertBusy}
-        cancelDisabled={convertBusy}
-        onCancel={() => !convertBusy && setConvertConfirmOpen(false)}
-        onConfirm={() => void performConvertToClient()}
       />
 
       <ConfirmModal

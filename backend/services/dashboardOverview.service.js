@@ -330,10 +330,7 @@ ${INVOICE_LEAD_JOINS}
       `SELECT
          COUNT(*) FILTER (WHERE l.status <> 'CLIENT' AND l.archived_at IS NULL)::int AS open_leads,
          COUNT(*) FILTER (WHERE l.status = 'LOST')::int AS lost,
-         COUNT(*) FILTER (WHERE EXISTS (
-           SELECT 1 FROM quotes qx WHERE qx.lead_id = l.id AND qx.organization_id = l.organization_id
-             AND qx.status = 'ACCEPTED' AND qx.archived_at IS NULL
-         ))::int AS signed_leads,
+         COUNT(*) FILTER (WHERE l.status = 'CLIENT' AND l.archived_at IS NULL)::int AS clients_active,
          COUNT(*) FILTER (WHERE l.archived_at IS NOT NULL)::int AS archived
        FROM leads l WHERE l.organization_id = $1
          AND ($2::uuid IS NULL OR l.assigned_user_id = $2)
@@ -342,10 +339,14 @@ ${INVOICE_LEAD_JOINS}
     )
   ).rows[0];
 
+  const clientsActive = pipeRow.clients_active ?? 0;
   const pipeline_summary = {
     open_leads_count: pipeRow.open_leads ?? 0,
     lost_leads_count: pipeRow.lost ?? 0,
-    signed_leads_count: pipeRow.signed_leads ?? 0,
+    /** Dossiers client actifs (aligné liste Clients), pas « devis ACCEPTED ». */
+    clients_active_count: clientsActive,
+    /** @deprecated Utiliser clients_active_count — conservé pour compat. */
+    signed_leads_count: clientsActive,
     archived_leads_count: pipeRow.archived ?? 0,
   };
 
@@ -831,7 +832,7 @@ ${INVOICE_LEAD_JOINS}
         potential_revenue:
           "Somme des champs « potentiel » sur les leads ouverts à l’étape (estimation interne, non contractuelle).",
         summary_badges:
-          "Perdus / Signés (au moins un devis accepté) / Archivés : tous leads confondus sur le périmètre filtre, hors timeline.",
+          "Perdus / Clients actifs (statut CLIENT non archivé) / Archivés : périmètre filtre commercial & source, hors timeline.",
       },
     },
     commercial_performance,

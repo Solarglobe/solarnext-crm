@@ -57,7 +57,10 @@ export interface DashboardOverview {
     pipeline_summary: {
       open_leads_count: number;
       lost_leads_count: number;
-      signed_leads_count: number;
+      /** Dossiers client actifs (statut CLIENT) */
+      clients_active_count: number;
+      /** @deprecated alias de clients_active_count */
+      signed_leads_count?: number;
       archived_leads_count: number;
     };
     lead_conversion_summary: {

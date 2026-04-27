@@ -3,10 +3,10 @@
  */
 
 import React, { useEffect, useMemo, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "../components/ui/Button";
 import { fetchClients, type Client } from "../services/clients.service";
-import { fetchLeads, convertLeadToClient } from "../services/leads.service";
+import { fetchLeads } from "../services/leads.service";
 import { createInvoiceDraft, createInvoiceFromQuote } from "../services/financial.api";
 import "../modules/invoices/invoice-builder.css";
 
@@ -25,11 +25,11 @@ export default function InvoiceCreatePage() {
   const [clientId, setClientId] = useState("");
   const [leadId, setLeadId] = useState("");
   const [loading, setLoading] = useState(false);
-  const [convertFromLeadBusy, setConvertFromLeadBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const fromQuote = searchParams.get("fromQuote");
   const billingRoleParam = searchParams.get("billingRole") || searchParams.get("billing_role");
+  const billingAmountParam = searchParams.get("amountTtc") || searchParams.get("billing_amount_ttc");
 
   const urlClientId = useMemo(() => (searchParams.get("clientId") ?? "").trim(), [searchParams]);
   const urlLeadId = useMemo(() => (searchParams.get("leadId") ?? "").trim(), [searchParams]);
@@ -62,9 +62,14 @@ export default function InvoiceCreatePage() {
     let cancelled = false;
     setLoading(true);
     setError(null);
+    const amtRaw = (billingAmountParam ?? "").trim().replace(",", ".");
+    const billingAmountTtc = amtRaw ? Number(amtRaw) : undefined;
     void createInvoiceFromQuote(
       fromQuote,
-      billingRoleParam?.trim() ? { billingRole: billingRoleParam.trim() } : undefined
+      {
+        ...(billingRoleParam?.trim() ? { billingRole: billingRoleParam.trim() } : {}),
+        ...(billingAmountTtc != null && Number.isFinite(billingAmountTtc) ? { billingAmountTtc } : {}),
+      }
     )
       .then((inv) => {
         if (!cancelled && inv?.id) navigate(`/invoices/${inv.id}`, { replace: true });
@@ -78,7 +83,7 @@ export default function InvoiceCreatePage() {
     return () => {
       cancelled = true;
     };
-  }, [fromQuote, billingRoleParam, navigate]);
+  }, [fromQuote, billingRoleParam, billingAmountParam, navigate]);
 
   const clientRowForSummary = useMemo(
     () => (urlClientId ? clients.find((c) => c.id === urlClientId) : undefined),
@@ -129,25 +134,6 @@ export default function InvoiceCreatePage() {
 
   const generalMode = !clientLockedFromUrl && !leadLockedFromUrl;
 
-  const handleCreateClientFromLead = async () => {
-    if (!urlLeadId) return;
-    setConvertFromLeadBusy(true);
-    setError(null);
-    try {
-      const out = await convertLeadToClient(urlLeadId);
-      const cid = (out.client as { id?: string } | null)?.id;
-      if (!cid) throw new Error("Réponse conversion invalide (client id manquant).");
-      const params = new URLSearchParams();
-      params.set("clientId", cid);
-      params.set("leadId", urlLeadId);
-      navigate(`/invoices/new?${params.toString()}`, { replace: true });
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Erreur");
-    } finally {
-      setConvertFromLeadBusy(false);
-    }
-  };
-
   return (
     <div className="qb-page">
       <h1 className="sg-title">Nouvelle facture</h1>
@@ -191,21 +177,13 @@ export default function InvoiceCreatePage() {
             </p>
           ) : null}
           {!clientLockedFromUrl ? (
-            <>
-              <p style={{ margin: "14px 0 10px", fontSize: 13 }}>
-                Vous créez une facture depuis un lead. Vous pouvez continuer ou créer un client CRM pour ce dossier (recommandé
-                pour la facturation liée devis / acomptes).
-              </p>
-              <Button
-                type="button"
-                variant="outlineGold"
-                size="sm"
-                disabled={convertFromLeadBusy}
-                onClick={() => void handleCreateClientFromLead()}
-              >
-                {convertFromLeadBusy ? "Création du client…" : "Créer client maintenant"}
-              </Button>
-            </>
+            <p style={{ margin: "14px 0 0", fontSize: 13, lineHeight: 1.45 }}>
+              Pour disposer d&apos;une fiche client CRM (recommandé pour devis / acomptes), ouvrez le dossier et placez-le sur
+              l&apos;étape <strong>Signé</strong> du pipeline.{" "}
+              <Link to={`/leads/${encodeURIComponent(urlLeadId)}`} style={{ color: "var(--accent, #eab308)" }}>
+                Ouvrir le dossier
+              </Link>
+            </p>
           ) : null}
         </div>
       ) : null}
@@ -240,7 +218,7 @@ export default function InvoiceCreatePage() {
       </div>
 
       <div style={{ display: "flex", gap: 12, marginTop: 16 }}>
-        <Button type="button" variant="primary" disabled={loading || convertFromLeadBusy} onClick={() => void submit()}>
+        <Button type="button" variant="primary" disabled={loading} onClick={() => void submit()}>
           {loading ? "Création…" : "Créer la facture"}
         </Button>
         <Button type="button" variant="ghost" onClick={() => navigate("/invoices")}>

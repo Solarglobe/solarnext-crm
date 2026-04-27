@@ -621,8 +621,10 @@ export default function DashboardPage() {
             </span>
             <span className="sn-dashboard-pipeline-summary__sep">·</span>
             <span className="sn-dashboard-pipeline-summary__muted">
-              {data.pipeline.pipeline_summary.lost_leads_count} perdus · {data.pipeline.pipeline_summary.signed_leads_count}{" "}
-              signés · {data.pipeline.pipeline_summary.archived_leads_count} archivés
+              {data.pipeline.pipeline_summary.lost_leads_count} perdus ·{" "}
+              {data.pipeline.pipeline_summary.clients_active_count ??
+                data.pipeline.pipeline_summary.signed_leads_count}{" "}
+              clients actifs · {data.pipeline.pipeline_summary.archived_leads_count} archivés
             </span>
           </p>
           <div className="sn-dashboard-summary-badges">
@@ -633,7 +635,11 @@ export default function DashboardPage() {
               Perdus <strong>{data.pipeline.pipeline_summary.lost_leads_count}</strong>
             </span>
             <span className="sn-dashboard-summary-badges__item sn-dashboard-summary-badges__item--signed">
-              Signés <strong>{data.pipeline.pipeline_summary.signed_leads_count}</strong>
+              Clients{" "}
+              <strong>
+                {data.pipeline.pipeline_summary.clients_active_count ??
+                  data.pipeline.pipeline_summary.signed_leads_count}
+              </strong>
             </span>
             <span className="sn-dashboard-summary-badges__item sn-dashboard-summary-badges__item--arch">
               Archivés <strong>{data.pipeline.pipeline_summary.archived_leads_count}</strong>

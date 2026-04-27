@@ -1,5 +1,5 @@
 /**
- * CP-077 — Leads + clients (création, MAJ, conversion).
+ * CP-077 — Leads + clients (création via étape Signé, MAJ, convert idempotent).
  */
 import { test, before } from "node:test";
 import assert from "node:assert/strict";
@@ -20,7 +20,18 @@ before(async () => {
   }
 });
 
-test("lead : création + MAJ + conversion → client (organization_id cohérent)", async (t) => {
+/** @param {string} orgId */
+async function signedStageId(orgId) {
+  const pool = getPool();
+  assert.ok(pool, "pool");
+  const r = await pool.query(
+    `SELECT id FROM pipeline_stages WHERE organization_id = $1 AND code = 'SIGNED' LIMIT 1`,
+    [orgId]
+  );
+  return r.rows[0]?.id ?? null;
+}
+
+test("lead : création + étape Signé → fiche client (organization_id cohérent)", async (t) => {
   if (!canRun || !ctx) {
     t.skip("intégration indisponible");
     return;
@@ -43,11 +54,15 @@ test("lead : création + MAJ + conversion → client (organization_id cohérent)
   });
   assert.ok([200, 204].includes(patch.status), `PATCH lead ${patch.status}`);
 
-  const conv = await api(ctx.token, "POST", `/api/leads/${leadId}/convert`, {});
-  assert.equal(conv.status, 200, JSON.stringify(conv.data));
-  const clientId = conv.data?.client?.id;
-  assert.ok(clientId);
-  assert.equal(conv.data?.client?.organization_id ?? conv.data?.client?.organizationId, ctx.orgId);
+  const stageId = await signedStageId(ctx.orgId);
+  assert.ok(stageId, "étape SIGNED introuvable pour l’org (seed pipeline)");
+  const st = await api(ctx.token, "PATCH", `/api/leads/${leadId}/stage`, { stageId });
+  assert.equal(st.status, 200, JSON.stringify(st.data));
+
+  const det = await api(ctx.token, "GET", `/api/leads/${leadId}`);
+  assert.equal(det.status, 200, JSON.stringify(det.data));
+  const clientId = det.data?.lead?.client_id;
+  assert.ok(clientId, JSON.stringify(det.data));
 
   const pool = getPool();
   const row = await pool.query(`SELECT organization_id FROM clients WHERE id = $1`, [clientId]);
@@ -59,7 +74,7 @@ test("lead : création + MAJ + conversion → client (organization_id cohérent)
   assert.ok([200].includes(put.status), `PUT client ${put.status}`);
 });
 
-test("POST /api/leads/:id/convert-to-client — création puis idempotent", async (t) => {
+test("POST /convert interdit sans Signé ; convert-to-client idempotent après Signé", async (t) => {
   if (!canRun || !ctx) {
     t.skip("intégration indisponible");
     return;
@@ -77,10 +92,19 @@ test("POST /api/leads/:id/convert-to-client — création puis idempotent", asyn
   const leadId = create.data?.id;
   assert.ok(leadId);
 
+  const conv0 = await api(ctx.token, "POST", `/api/leads/${leadId}/convert`, {});
+  assert.equal(conv0.status, 400, JSON.stringify(conv0.data));
+  assert.equal(conv0.data?.code, "CLIENT_REQUIRES_PIPELINE_SIGNED");
+
+  const stageId = await signedStageId(ctx.orgId);
+  assert.ok(stageId);
+  const st = await api(ctx.token, "PATCH", `/api/leads/${leadId}/stage`, { stageId });
+  assert.equal(st.status, 200, JSON.stringify(st.data));
+
   const conv1 = await api(ctx.token, "POST", `/api/leads/${leadId}/convert-to-client`, {});
   assert.equal(conv1.status, 200, JSON.stringify(conv1.data));
   assert.ok(conv1.data?.client?.id);
-  assert.equal(conv1.data?.already_converted, false);
+  assert.equal(conv1.data?.already_converted, true);
 
   const conv2 = await api(ctx.token, "POST", `/api/leads/${leadId}/convert-to-client`, {});
   assert.equal(conv2.status, 200, JSON.stringify(conv2.data));

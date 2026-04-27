@@ -629,6 +629,19 @@ export async function update(req, res) {
       return res.status(404).json({ error: "Lead non trouvé" });
     }
 
+    if (
+      status !== undefined &&
+      status === "CLIENT" &&
+      existingLead.status !== "CLIENT" &&
+      (existingLead.client_id == null || existingLead.client_id === "")
+    ) {
+      return res.status(400).json({
+        error:
+          "La fiche client est créée uniquement en déplaçant le dossier vers l'étape « Signé » du pipeline. Un devis accepté ou un changement de statut manuel ne suffit pas.",
+        code: "CLIENT_REQUIRES_PIPELINE_SIGNED",
+      });
+    }
+
     // CP-028 : validation org pour adresses
     if (site_address_id !== undefined) {
       const ok = await validateAddressForLead(org, site_address_id);

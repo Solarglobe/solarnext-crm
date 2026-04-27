@@ -1,11 +1,10 @@
 /**
- * Bloc « client CRM » sur la fiche lead — conversion manuelle ou affichage du client lié.
+ * Bloc « client CRM » sur la fiche lead — fiche créée via étape pipeline Signé uniquement.
  */
 
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { fetchClientById, type Client } from "../../../services/clients.service";
-import { Button } from "../../../components/ui/Button";
 
 function formatClientName(c: Client): string {
   const n = (c.company_name || "").trim();
@@ -19,16 +18,12 @@ interface LeadClientAssociationCardProps {
   leadId: string;
   clientId: string | null | undefined;
   readOnly?: boolean;
-  convertLoading?: boolean;
-  onConvertToClient: () => void | Promise<void>;
 }
 
 export default function LeadClientAssociationCard({
   leadId,
   clientId,
   readOnly = false,
-  convertLoading = false,
-  onConvertToClient,
 }: LeadClientAssociationCardProps) {
   const [client, setClient] = useState<Client | null>(null);
   const [loadErr, setLoadErr] = useState<string | null>(null);
@@ -115,13 +110,14 @@ export default function LeadClientAssociationCard({
         border: "1px dashed var(--border, rgba(148, 163, 184, 0.35))",
       }}
     >
-      <p style={{ margin: "0 0 12px", color: "var(--text-muted)", fontSize: 14 }}>
+      <p style={{ margin: "0 0 10px", color: "var(--text-muted)", fontSize: 14 }}>
         Ce dossier n&apos;est pas encore un client CRM.
       </p>
       {!readOnly ? (
-        <Button type="button" variant="outlineGold" size="sm" disabled={convertLoading} onClick={() => void onConvertToClient()}>
-          {convertLoading ? "Création…" : "Créer un client à partir de ce lead"}
-        </Button>
+        <p style={{ margin: 0, fontSize: 13, color: "var(--text-muted)", lineHeight: 1.45 }}>
+          La fiche client est créée lorsque vous placez le dossier sur l&apos;étape <strong>Signé</strong> du pipeline
+          (barre d&apos;actions ou vue Kanban). Un devis accepté seul ne crée pas la fiche client.
+        </p>
       ) : null}
     </section>
   );
