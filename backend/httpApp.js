@@ -46,6 +46,7 @@ import rgpdRouter from "./routes/rgpd.routes.js";
 import organizationRouter from "./routes/organization.routes.js";
 import organizationsSettingsRouter from "./routes/organizations.settings.routes.js";
 import documentsRouter from "./routes/documents.routes.js";
+import ficheTechniquesRouter from "./routes/ficheTechniques.routes.js";
 import clientPortalRouter from "./routes/clientPortal.routes.js";
 import mailAccountsRouter from "./routes/mailAccounts.routes.js";
 import mailApiRouter from "./routes/mail.routes.js";
@@ -225,6 +226,7 @@ export function buildHttpApp() {
   app.use("/api/organization", organizationRouter);
   app.use("/api/organizations", organizationsSettingsRouter);
   app.use("/api/documents", documentsRouter);
+  app.use("/api/fiche-techniques", ficheTechniquesRouter);
 
   app.use("/api/mail", mailAccountsRouter);
   app.use("/api/mail", mailApiRouter);

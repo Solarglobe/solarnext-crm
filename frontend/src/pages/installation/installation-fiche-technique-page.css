@@ -1,0 +1,784 @@
+/* Fiches techniques — liste CRM (API paginée, UX premium) */
+.installation-ft-page {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.installation-ft-page__header-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: var(--spacing-20, 20px);
+}
+
+.installation-ft-page__header-row h1 {
+  margin: 0;
+}
+
+.installation-ft-page__lead {
+  color: var(--text-muted, #64748b);
+  font-size: var(--font-size-body, 14px);
+  margin: 8px 0 0;
+  max-width: 520px;
+}
+
+.installation-ft-page__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+  margin-bottom: 16px;
+}
+
+.installation-ft-page__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 140px;
+}
+
+.installation-ft-page__field--grow {
+  flex: 1 1 220px;
+}
+
+.installation-ft-page__label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted, #64748b);
+}
+
+.installation-ft-page__input,
+.installation-ft-page__select {
+  height: 40px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle, #e2e8f0);
+  background: var(--surface, #fff);
+  color: var(--text, #0f172a);
+  font-size: 14px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.installation-ft-page__tabs-wrap {
+  margin-bottom: 4px;
+}
+
+.installation-ft-page__count-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 28px;
+}
+
+.installation-ft-page__count {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+  margin: 0 0 12px;
+  letter-spacing: 0.01em;
+}
+
+.installation-ft-page__panel {
+  position: relative;
+  min-height: 120px;
+}
+
+/* Skeletons */
+.installation-ft-page__tabs-skeleton {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 8px 0 16px;
+}
+
+.installation-ft-page__skeleton-tab {
+  width: 96px;
+  height: 32px;
+  border-radius: 8px;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--text-muted) 12%, transparent) 0%,
+    color-mix(in srgb, var(--text-muted) 22%, transparent) 50%,
+    color-mix(in srgb, var(--text-muted) 12%, transparent) 100%
+  );
+  background-size: 200% 100%;
+  animation: installation-ft-shimmer 1.2s ease-in-out infinite;
+}
+
+.installation-ft-page__table-skeleton {
+  border: 1px solid var(--border-subtle, #e2e8f0);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--surface, #fff);
+  margin-bottom: 16px;
+}
+
+.installation-ft-page__table-skeleton--light {
+  opacity: 0.92;
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--text-primary) 4%, transparent);
+}
+
+.installation-ft-page__table-skeleton-head {
+  display: grid;
+  grid-template-columns: 48px 1.4fr 1fr 0.8fr 0.9fr 0.9fr 1fr;
+  gap: 8px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: color-mix(in srgb, var(--surface-2) 55%, transparent);
+}
+
+.installation-ft-page__table-skeleton--light .installation-ft-page__table-skeleton-head {
+  grid-template-columns: 48px 1.4fr 1fr 0.8fr 1fr;
+}
+
+.installation-ft-page__table-skeleton-row {
+  display: grid;
+  grid-template-columns: 48px 1.4fr 1fr 0.8fr 0.9fr 0.9fr 1fr;
+  gap: 8px;
+  padding: 12px 14px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border-subtle) 80%, transparent);
+}
+
+.installation-ft-page__table-skeleton--light .installation-ft-page__table-skeleton-row {
+  grid-template-columns: 48px 1.4fr 1fr 0.8fr 1fr;
+}
+
+.installation-ft-page__table-skeleton-row:last-child {
+  border-bottom: none;
+}
+
+.installation-ft-page__skeleton-block {
+  height: 14px;
+  border-radius: 6px;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--text-muted) 10%, transparent) 0%,
+    color-mix(in srgb, var(--text-muted) 20%, transparent) 45%,
+    color-mix(in srgb, var(--text-muted) 10%, transparent) 100%
+  );
+  background-size: 200% 100%;
+  animation: installation-ft-shimmer 1.1s ease-in-out infinite;
+}
+
+.installation-ft-page__skeleton-block--head {
+  height: 11px;
+  opacity: 0.85;
+}
+
+@keyframes installation-ft-shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+
+/* Empty state */
+.installation-ft-page__empty-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 28px 22px;
+  border-radius: 12px;
+  border: 1px solid var(--border-subtle);
+  background: color-mix(in srgb, var(--surface-2) 35%, var(--surface));
+  margin-bottom: 8px;
+}
+
+.installation-ft-page__empty-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  max-width: 420px;
+  line-height: 1.45;
+}
+
+/* Liste */
+.installation-ft-page__table-wrap {
+  position: relative;
+  border-radius: 10px;
+}
+
+/* Bandeau au-dessus du tableau */
+.installation-ft-page__table-pro-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  margin-bottom: 10px;
+  padding: 2px 2px 0;
+}
+
+.installation-ft-page__table-pro-head-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 10px 18px;
+}
+
+.installation-ft-page__total-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: 0.01em;
+}
+
+.installation-ft-page__range-label {
+  font-size: 13px;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.installation-ft-page__filters-pill {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, #c39847 45%, var(--border-subtle));
+  color: #92400e;
+  background: color-mix(in srgb, #c39847 10%, transparent);
+}
+
+.installation-ft-page__th-actions-inner {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  width: 100%;
+}
+
+.installation-ft-page__inline-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid color-mix(in srgb, var(--text-muted) 22%, transparent);
+  border-top-color: #c39847;
+  border-radius: 50%;
+  animation: installation-ft-spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+.installation-ft-page__tbody-skel-tr td {
+  padding: 10px 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border-subtle) 70%, transparent);
+}
+
+.installation-ft-page__tbody-skel-bar {
+  height: 14px;
+  border-radius: 6px;
+  max-width: 100%;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--text-muted) 10%, transparent) 0%,
+    color-mix(in srgb, var(--text-muted) 18%, transparent) 50%,
+    color-mix(in srgb, var(--text-muted) 10%, transparent) 100%
+  );
+  background-size: 200% 100%;
+  animation: installation-ft-shimmer 1.1s ease-in-out infinite;
+}
+
+.installation-ft-page__data-row {
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.installation-ft-page__data-row:hover {
+  background: color-mix(in srgb, var(--text-primary) 3%, transparent);
+}
+
+.installation-ft-page__row--selected > td {
+  background: color-mix(in srgb, var(--text-primary) 5%, transparent);
+}
+
+.installation-ft-page__row--highlight > td {
+  background: rgba(195, 152, 71, 0.12);
+  transition: background 2s ease;
+}
+
+/* Pagination */
+.installation-ft-page__pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 14px;
+  padding-top: 2px;
+}
+
+.installation-ft-page__pagination-btn--busy {
+  position: relative;
+}
+
+.installation-ft-page__btn-spinner--subtle {
+  width: 12px;
+  height: 12px;
+  border-width: 2px;
+  border-color: color-mix(in srgb, #c39847 35%, transparent);
+  border-top-color: #c39847;
+}
+
+/* Boutons formulaire — spinner inline */
+.installation-ft-page__btn-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.installation-ft-page__btn-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid color-mix(in srgb, currentColor 28%, transparent);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: installation-ft-spin 0.65s linear infinite;
+}
+
+.installation-ft-page__btn--working.sn-btn-primary .installation-ft-page__btn-spinner {
+  border-color: color-mix(in srgb, #fff 25%, transparent);
+  border-top-color: #fff;
+}
+
+@keyframes installation-ft-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Champs modales */
+.installation-ft-page__req {
+  color: #b45309;
+  font-weight: 600;
+}
+
+.installation-ft-page__hint {
+  font-weight: 400;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.installation-ft-page__field-hint {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: #b45309;
+}
+
+.installation-ft-page__input--invalid {
+  border-color: color-mix(in srgb, #b91c1c 55%, var(--border-subtle)) !important;
+}
+
+.installation-ft-page__error--inline {
+  margin-bottom: 14px;
+}
+
+/* Preview modale */
+.installation-ft-page__preview-modal-panel.sn-modal-shell-panel--xl {
+  max-width: min(1080px, 96vw);
+  width: min(1080px, 96vw);
+}
+
+.installation-ft-page__preview-modal-body {
+  padding-top: 0;
+  min-height: min(78vh, 720px);
+  display: flex;
+  flex-direction: column;
+}
+
+.installation-ft-page__preview-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: min(72vh, 640px);
+  gap: 12px;
+}
+
+.installation-ft-page__preview-loader {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  min-height: 240px;
+  color: var(--text-muted);
+}
+
+.installation-ft-page__preview-spinner {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 3px solid color-mix(in srgb, var(--text-muted) 18%, transparent);
+  border-top-color: #c39847;
+  animation: installation-ft-spin 0.7s linear infinite;
+}
+
+.installation-ft-page__preview-loader-text {
+  margin: 0;
+  font-size: 14px;
+}
+
+.installation-ft-page__preview-error {
+  padding: 16px;
+  border-radius: 10px;
+  background: color-mix(in srgb, #b91c1c 10%, transparent);
+  color: #991b1b;
+  font-size: 14px;
+}
+
+.installation-ft-page__empty {
+  padding: 32px 16px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 14px;
+  border: 1px dashed var(--border-soft);
+  border-radius: 10px;
+}
+
+.installation-ft-page__error {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: color-mix(in srgb, #b91c1c 12%, transparent);
+  color: #991b1b;
+  margin-bottom: 12px;
+  font-size: 14px;
+}
+
+.installation-ft-page__preview-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 0 0 8px;
+  border-bottom: 1px solid var(--border-subtle);
+  margin-bottom: 4px;
+}
+
+.installation-ft-page__preview-zoom-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-right: 4px;
+}
+
+.installation-ft-page__preview-zoom-value {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  min-width: 40px;
+  text-align: center;
+}
+
+.installation-ft-page__zoom-btn.sn-btn {
+  min-width: 36px;
+  padding: 0 8px;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.installation-ft-page__preview-zoom-outer {
+  flex: 1;
+  overflow: auto;
+  min-height: min(64vh, 560px);
+  border-radius: 10px;
+  border: 1px solid var(--border-soft);
+  background: var(--surface-2);
+}
+
+.installation-ft-page__preview-zoom-inner {
+  width: 100%;
+  min-height: min(70vh, 620px);
+  will-change: transform;
+}
+
+.installation-ft-page__preview-frame {
+  display: block;
+  width: 100%;
+  min-height: min(70vh, 620px);
+  height: min(70vh, 620px);
+  border: none;
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+
+.installation-ft-page__footer-btn-inner {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Mail modale */
+.installation-ft-page__mail-fiche {
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border-subtle);
+  background: color-mix(in srgb, var(--surface-2) 50%, transparent);
+  margin-bottom: 4px;
+}
+
+.installation-ft-page__mail-fiche-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.installation-ft-page__mail-fiche-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.installation-ft-page__mail-fiche-ref {
+  margin: 4px 0 0;
+  font-size: 13px;
+  font-family: ui-monospace, monospace;
+  color: var(--text-muted);
+}
+
+.installation-ft-page__mail-success {
+  padding: 18px 16px;
+  text-align: center;
+  font-size: 15px;
+  font-weight: 600;
+  color: #15803d;
+  border-radius: 10px;
+  background: color-mix(in srgb, #16a34a 12%, transparent);
+}
+
+/* Badges statut */
+.ft-status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.ft-status-badge--active {
+  background: color-mix(in srgb, #16a34a 18%, transparent);
+  color: #15803d;
+}
+
+.ft-status-badge--obsolete {
+  background: color-mix(in srgb, var(--text-muted) 16%, transparent);
+  color: var(--text-muted);
+}
+
+.ft-status-badge--recommended {
+  background: color-mix(in srgb, #c39847 22%, transparent);
+  color: #92400e;
+}
+
+.theme-dark .ft-status-badge--active,
+[data-theme="dark"] .ft-status-badge--active {
+  background: color-mix(in srgb, #4ade80 15%, transparent);
+  color: #86efac;
+}
+
+.theme-dark .ft-status-badge--recommended,
+[data-theme="dark"] .ft-status-badge--recommended {
+  background: color-mix(in srgb, #c39847 20%, transparent);
+  color: #fcd34d;
+}
+
+/* Favori */
+.ft-star-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.12s ease, background 0.12s ease;
+}
+
+.ft-star-btn:hover {
+  background: color-mix(in srgb, var(--text-primary) 6%, transparent);
+  color: #c39847;
+}
+
+.ft-star-btn--on {
+  color: #c39847;
+  filter: drop-shadow(0 0 0.5px color-mix(in srgb, #c39847 40%, transparent));
+}
+
+.ft-star-btn:focus-visible {
+  outline: 2px solid var(--accent, #b45309);
+  outline-offset: 2px;
+}
+
+/* Actions icônes */
+.ft-icon-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  opacity: 1;
+  transition: opacity 0.15s ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .installation-ft-page__data-table .ft-icon-actions {
+    opacity: 0;
+  }
+
+  .installation-ft-page__data-table tr:hover .ft-icon-actions {
+    opacity: 1;
+  }
+}
+
+.ft-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: var(--surface-card, #fff);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition:
+    background 0.12s ease,
+    color 0.12s ease,
+    border-color 0.12s ease;
+}
+
+.ft-icon-btn:hover {
+  color: var(--text-primary);
+  border-color: color-mix(in srgb, var(--border-soft) 70%, var(--text-primary));
+  background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+}
+
+.ft-icon-btn:focus-visible {
+  outline: 2px solid var(--accent, #b45309);
+  outline-offset: 1px;
+}
+
+.ft-icon-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Zone drag & drop modale */
+.ft-dropzone {
+  margin-top: 8px;
+  padding: 24px 16px;
+  border: 2px dashed var(--border-soft);
+  border-radius: 10px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--surface-2) 40%, transparent);
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+
+.ft-dropzone--active {
+  border-color: #c39847;
+  background: color-mix(in srgb, #c39847 12%, transparent);
+  color: var(--text-primary);
+}
+
+.ft-dropzone__hint {
+  margin: 0;
+  font-size: 12px;
+}
+
+.ft-dropzone__file {
+  margin-top: 8px;
+  font-weight: 600;
+  color: var(--text-primary);
+  word-break: break-all;
+}
+
+/* Tablette */
+@media (max-width: 900px) {
+  .installation-ft-page__table-skeleton-head,
+  .installation-ft-page__table-skeleton-row {
+    grid-template-columns: 40px 1.2fr 1fr 0.7fr 0.8fr 0.8fr 88px;
+  }
+
+  .installation-ft-page__table-skeleton--light .installation-ft-page__table-skeleton-head,
+  .installation-ft-page__table-skeleton--light .installation-ft-page__table-skeleton-row {
+    grid-template-columns: 40px 1.2fr 1fr 0.8fr 88px;
+  }
+}
+
+/* Mobile */
+@media (max-width: 640px) {
+  .installation-ft-page__header-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .installation-ft-page__header-row .sn-btn {
+    align-self: flex-start;
+  }
+
+  .installation-ft-page__toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .installation-ft-page__field--grow {
+    flex: 1 1 auto;
+  }
+
+  .installation-ft-page__count-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .installation-ft-page__pagination {
+    justify-content: space-between;
+    width: 100%;
+  }
+
+  .installation-ft-page__preview-modal-panel.sn-modal-shell-panel--xl {
+    max-width: 100vw;
+    width: 100vw;
+    min-height: 88vh;
+  }
+
+  .installation-ft-page__preview-frame {
+    min-height: 55vh;
+    height: 55vh;
+  }
+
+  .installation-ft-page__table-skeleton-head,
+  .installation-ft-page__table-skeleton-row {
+    grid-template-columns: 1fr 1fr;
+    row-gap: 10px;
+  }
+
+  .installation-ft-page__table-skeleton-head .installation-ft-page__skeleton-block:nth-child(n + 3),
+  .installation-ft-page__table-skeleton-row .installation-ft-page__skeleton-block:nth-child(n + 3) {
+    display: none;
+  }
+}

@@ -29,15 +29,23 @@ function sanitizeFileName(originalName) {
  * @param {string} entityType - lead|client|study|quote
  * @param {string} entityId - UUID entité
  * @param {string} originalName - Nom original du fichier
+ * @param {{ diskFileName?: string | null }} [options] — si défini, nom disque exact (déjà sécurisé, ex. fiches techniques)
  * @returns {{ storage_path: string, file_name: string }}
  */
-export async function uploadFile(buffer, organizationId, entityType, entityId, originalName) {
-  const uuid = randomUUID();
-  const rawIn = String(originalName ?? "").trim();
-  const normalized = normalizeMultipartFilename(rawIn);
-  const decoded = (normalized || rawIn || "document").trim() || "document";
-  const safeName = sanitizeFileName(decoded);
-  const fileName = `${uuid}_${safeName}`;
+export async function uploadFile(buffer, organizationId, entityType, entityId, originalName, options = {}) {
+  const forcedRaw = options?.diskFileName != null ? String(options.diskFileName).trim() : "";
+  let fileName;
+  if (forcedRaw) {
+    const forced = sanitizeFileName(forcedRaw.replace(/\0/g, "")) || `${randomUUID()}_document`;
+    fileName = forced;
+  } else {
+    const uuid = randomUUID();
+    const rawIn = String(originalName ?? "").trim();
+    const normalized = normalizeMultipartFilename(rawIn);
+    const decoded = (normalized || rawIn || "document").trim() || "document";
+    const safeName = sanitizeFileName(decoded);
+    fileName = `${uuid}_${safeName}`;
+  }
 
   const dirPath = path.join(STORAGE_ROOT, organizationId, entityType, entityId);
   await fs.mkdir(dirPath, { recursive: true });
