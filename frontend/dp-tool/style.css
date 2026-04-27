@@ -703,6 +703,17 @@ body {
   border-color: #9ca3af;
 }
 
+/* DP6 photomontage — Supprimer (léger) / Annuler action (neutre) */
+.dp-modal-footer .dp6-btn-delete:not(:disabled) {
+  color: #b91c1c;
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+.dp-modal-footer .dp6-btn-delete:not(:disabled):hover {
+  background: #fee2e2;
+  border-color: #f87171;
+}
+
 .dp-btn-secondary {
   background: #f3f4f6;
   color: #374151;

@@ -17158,6 +17158,7 @@ function initDP6() {
   if (!page) return;
 
   window.DP6_STATE = window.DP6_STATE || {};
+  window.DP6_UNDO_STACK = window.DP6_UNDO_STACK || [];
 
   const btnBefore = document.getElementById("dp6-create-before");
   const btnAfter = document.getElementById("dp6-create-after");
@@ -17176,6 +17177,8 @@ function initDP6() {
   const editSelectionBtn = document.getElementById("dp6-edit-selection");
   const revalidateSelectionBtn = document.getElementById("dp6-revalidate-selection");
   const validateBtn = document.getElementById("dp6-validate");
+  const deleteBtn = document.getElementById("dp6-delete");
+  const undoBtn = document.getElementById("dp6-undo");
   const panelSelect = document.getElementById("dp6-panel-select");
   const orientationPortrait = document.getElementById("dp6-orientation-portrait");
   const orientationPaysage = document.getElementById("dp6-orientation-paysage");
@@ -17700,10 +17703,53 @@ function initDP6() {
     // (évite toute "pollution graphique" dans le rendu final).
   }
 
+  function dp6PushUndoState() {
+    const state = window.DP6_STATE;
+    if (!state) return;
+    const patches = Array.isArray(state.patches) ? state.patches : [];
+    window.DP6_UNDO_STACK.push(JSON.stringify(patches));
+    if (window.DP6_UNDO_STACK.length > 50) {
+      window.DP6_UNDO_STACK.shift();
+    }
+  }
+
+  function dp6Undo() {
+    const state = window.DP6_STATE;
+    if (!state) return;
+    const stack = window.DP6_UNDO_STACK;
+    if (!stack || !stack.length) return;
+    const prev = stack.pop();
+    try {
+      state.patches = JSON.parse(prev);
+      try { dp6SetActivePatchIndex(null); } catch (_) {}
+      try { dp6CropClearSelection(); } catch (_) {}
+      try { renderDP6Canvas(); } catch (_) {}
+      try { dp6EnsureSelectionEditor(); } catch (_) {}
+      try { dp6SyncValidateButtonUI(); } catch (_) {}
+    } catch (_) {}
+  }
+
+  function dp6DeleteActivePatch() {
+    const state = window.DP6_STATE;
+    if (!state) return;
+    const patches = Array.isArray(state.patches) ? state.patches : [];
+    const rawIdx = state.activePatchIndex;
+    const idx = typeof rawIdx === "number" ? rawIdx : Number(rawIdx);
+    if (!Number.isFinite(idx) || idx < 0 || idx >= patches.length) return;
+    dp6PushUndoState();
+    patches.splice(idx, 1);
+    try { dp6SetActivePatchIndex(null); } catch (_) {}
+    try { dp6CropClearSelection(); } catch (_) {}
+    try { renderDP6Canvas(); } catch (_) {}
+    try { dp6EnsureSelectionEditor(); } catch (_) {}
+    try { dp6SyncValidateButtonUI(); } catch (_) {}
+  }
+
   function dp6SyncValidateButtonUI() {
     const okImage = dp6HasSourceImage();
     const patches = dp6EnsurePatchState();
-    const okPatches = Array.isArray(patches) && patches.length > 0;
+    const isBefore = window.DP6_STATE?.category === "BEFORE";
+    const hasPanels = Array.isArray(patches) && patches.length > 0;
 
     // DP6 UX : suppression totale de la validation/manipulation via boutons de sélection.
     // (Les zones sont créées et modifiées directement par interaction.)
@@ -17720,9 +17766,9 @@ function initDP6() {
       revalidateSelectionBtn.disabled = true;
     }
 
-    // Bouton "Valider le photomontage" : valide le rendu final (tous patches), sans exiger une sélection active
+    // Bouton "Valider le photomontage" : BEFORE = image seule OK ; AFTER = au moins un patch
     if (validateBtn) {
-      validateBtn.disabled = !(okImage && okPatches);
+      validateBtn.disabled = !(okImage && (isBefore || hasPanels));
     }
 
     // UX curseur : dessin (crosshair) + clic pour activer une zone existante.
@@ -17730,6 +17776,30 @@ function initDP6() {
       const layer = workspace ? workspace.querySelector("#dp6-selection-layer") : null;
       if (layer) layer.style.cursor = okImage ? "crosshair" : "default";
     } catch (_) {}
+
+    try {
+      dp6SyncActionButtons();
+    } catch (_) {}
+  }
+
+  function dp6SyncActionButtons() {
+    const state = window.DP6_STATE;
+    const delEl = document.getElementById("dp6-delete");
+    const undoEl = document.getElementById("dp6-undo");
+    if (!state) {
+      if (delEl) delEl.disabled = true;
+      if (undoEl) undoEl.disabled = true;
+      return;
+    }
+
+    const patches = Array.isArray(state.patches) ? state.patches : [];
+    const rawIdx = state.activePatchIndex;
+    const idx = typeof rawIdx === "number" ? rawIdx : Number(rawIdx);
+    const hasSelection = Number.isFinite(idx) && idx >= 0 && idx < patches.length;
+    const hasUndo = !!(window.DP6_UNDO_STACK && window.DP6_UNDO_STACK.length > 0);
+
+    if (delEl) delEl.disabled = !hasSelection;
+    if (undoEl) undoEl.disabled = !hasUndo;
   }
 
   function dp6RenderEntryMiniatures() {
@@ -17762,6 +17832,8 @@ function initDP6() {
   function dp6ValidateActiveSelectionAsPatch() {
     const pts = window.DP6_STATE?.selection?.points;
     if (!dp6NormalizeQuadPoints(pts)) return false;
+
+    dp6PushUndoState();
 
     const copy = (pts || []).slice(0, 4).map((p) => ({
       x: +Number(p?.x || 0).toFixed(2),
@@ -18558,6 +18630,7 @@ function initDP6() {
         if (!Number.isFinite(idx) || idx < 0 || idx > 3) return;
         e.preventDefault();
         e.stopPropagation();
+        dp6PushUndoState();
         beginInteraction();
         active = { type: "handle", idx, startMouse: p, startPoints: pts };
         document.addEventListener("mousemove", onDocMove, true);
@@ -18567,6 +18640,7 @@ function initDP6() {
 
       if (isPoly && pts) {
         e.preventDefault();
+        dp6PushUndoState();
         beginInteraction();
         active = { type: "translate", startMouse: p, startPoints: pts };
         document.addEventListener("mousemove", onDocMove, true);
@@ -18622,6 +18696,7 @@ function initDP6() {
       window.DP6_STATE.beforeImage = String(dataURL);
       // Changer la photo invalide forcément les patches + le rendu après
       window.DP6_STATE.patches = [];
+      window.DP6_UNDO_STACK = [];
       window.DP6_STATE.afterImage = "";
       window.DP6_STATE.selectionUIMode = DP6_SELECTION_UI_MODE_DRAW;
       window.DP6_STATE.activePatchIndex = null;
@@ -19068,6 +19143,63 @@ function initDP6() {
     });
   }
 
+  window.__snDp6UndoImpl = dp6Undo;
+  window.__snDp6DeleteActivePatchImpl = dp6DeleteActivePatch;
+
+  if (deleteBtn && deleteBtn.dataset.dp6Bound !== "1") {
+    deleteBtn.dataset.dp6Bound = "1";
+    deleteBtn.addEventListener("click", () => {
+      if (typeof window.__snDp6DeleteActivePatchImpl === "function") {
+        window.__snDp6DeleteActivePatchImpl();
+      }
+    });
+  }
+  if (undoBtn && undoBtn.dataset.dp6Bound !== "1") {
+    undoBtn.dataset.dp6Bound = "1";
+    undoBtn.addEventListener("click", () => {
+      if (typeof window.__snDp6UndoImpl === "function") {
+        window.__snDp6UndoImpl();
+      }
+    });
+  }
+
+  if (!window.__snDp6UndoKeydownBound) {
+    window.__snDp6UndoKeydownBound = true;
+    document.addEventListener(
+      "keydown",
+      (e) => {
+        const modalEl = document.getElementById("dp6-photo-modal");
+        if (!modalEl || modalEl.getAttribute("aria-hidden") !== "false") return;
+
+        const st = window.DP6_STATE;
+        if (!st) return;
+
+        const el = e.target;
+        const tag = el && el.nodeType === 1 ? String(el.tagName || "").toUpperCase() : "";
+        const typing = tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || (el && el.isContentEditable);
+        if (typing) return;
+
+        if ((e.ctrlKey || e.metaKey) && String(e.key || "").toLowerCase() === "z") {
+          if (e.shiftKey) return;
+          const stack = window.DP6_UNDO_STACK;
+          if (!stack || !stack.length) return;
+          e.preventDefault();
+          if (typeof window.__snDp6UndoImpl === "function") window.__snDp6UndoImpl();
+          return;
+        }
+
+        if (e.key === "Delete" || e.key === "Backspace") {
+          const rawIdx = st.activePatchIndex;
+          const idx = typeof rawIdx === "number" ? rawIdx : Number(rawIdx);
+          if (!Number.isFinite(idx) || idx < 0) return;
+          e.preventDefault();
+          if (typeof window.__snDp6DeleteActivePatchImpl === "function") window.__snDp6DeleteActivePatchImpl();
+        }
+      },
+      true
+    );
+  }
+
   const bindHost = btnBefore || btnAfter;
   if (bindHost.dataset.bound === "1") return;
   bindHost.dataset.bound = "1";
@@ -19157,7 +19289,9 @@ function initDP6() {
       e.preventDefault();
       if (!dp6HasSourceImage()) return;
       const patches = Array.isArray(window.DP6_STATE?.patches) ? window.DP6_STATE.patches : [];
-      if (!patches.length) return;
+      const isBefore = window.DP6_STATE?.category === "BEFORE";
+      const hasPanels = Array.isArray(patches) && patches.length > 0;
+      if (!isBefore && !hasPanels) return;
 
       // Garantir un export "final" : ne pas inclure la sélection active
       try { dp6CropClearSelection(); } catch (_) {}
