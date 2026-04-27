@@ -276,7 +276,7 @@ export async function createInvoice(organizationId, body) {
     await replaceInvoiceLines(client, organizationId, id, lines);
 
     await recalcInvoiceTotals(client, organizationId, id);
-    if (quote_id) await assertQuoteLinkedInvoicesWithinCap(client, quote_id, organizationId);
+    if (quote_id) await assertQuoteLinkedInvoicesWithinCap(client, quote_id, organizationId, id);
     return id;
   });
   return getInvoiceDetail(newId, organizationId);
@@ -464,7 +464,7 @@ export async function patchInvoiceStatus(invoiceId, organizationId, newStatusRaw
       );
       if (lc.rows[0].n < 1) throw new Error("Au moins une ligne est requise pour émettre la facture");
 
-      if (row.quote_id) await assertQuoteLinkedInvoicesWithinCap(client, row.quote_id, organizationId);
+      if (row.quote_id) await assertQuoteLinkedInvoicesWithinCap(client, row.quote_id, organizationId, invoiceId);
 
       const { fullNumber } = await allocateNextDocumentNumber(client, organizationId, "INVOICE");
 
@@ -556,20 +556,47 @@ async function sumQuoteInvoiceTtcNonCancelled(client, quoteId, organizationId) {
 }
 
 /**
+ * Plafond TTC des factures liées au devis (hors annulées, brouillons inclus).
+ * Si aucune facture « préexistante » (hors `excludeInvoiceId`), le plafond n’est pas appliqué — permet la 1ʳᵉ facture quand les lignes dépassent l’en-tête du devis.
  * @param {import("pg").PoolClient} client
+ * @param {string|null} [excludeInvoiceId] — facture courante à exclure du calcul « déjà facturé avant » (création / émission).
  */
-async function assertQuoteLinkedInvoicesWithinCap(client, quoteId, organizationId) {
+async function assertQuoteLinkedInvoicesWithinCap(client, quoteId, organizationId, excludeInvoiceId = null) {
   if (!quoteId) return;
+  const agg = await client.query(
+    `SELECT COALESCE(SUM(CASE WHEN UPPER(COALESCE(status, '')) != 'CANCELLED' THEN total_ttc ELSE 0 END), 0)::numeric AS full_sum,
+            COALESCE(SUM(CASE WHEN UPPER(COALESCE(status, '')) != 'CANCELLED'
+              AND ($3::uuid IS NULL OR id IS DISTINCT FROM $3::uuid) THEN total_ttc ELSE 0 END), 0)::numeric AS prior_sum
+     FROM invoices
+     WHERE quote_id = $1 AND organization_id = $2`,
+    [quoteId, organizationId, excludeInvoiceId ?? null]
+  );
+  const fullSum = roundMoney2(Number(agg.rows[0]?.full_sum) || 0);
+  const priorSum = roundMoney2(Number(agg.rows[0]?.prior_sum) || 0);
+
   const q = await client.query(
     `SELECT COALESCE(total_ttc, 0)::numeric AS ttc FROM quotes WHERE id = $1 AND organization_id = $2 AND (archived_at IS NULL)`,
     [quoteId, organizationId]
   );
   if (q.rows.length === 0) return;
   const quoteTtc = roundMoney2(Number(q.rows[0]?.ttc) || 0);
-  const sumTtc = await sumQuoteInvoiceTtcNonCancelled(client, quoteId, organizationId);
-  if (sumTtc > quoteTtc + QUOTE_INVOICE_SUM_TOLERANCE_TTC) {
+
+  /* Équivalent « sumTtc === 0 » pour les autres factures : aucune facture liée avant la courante (exclue). */
+  if (priorSum <= 0.0001) {
+    if (fullSum > quoteTtc + QUOTE_INVOICE_SUM_TOLERANCE_TTC) {
+      console.warn("[INVOICE_CAP_BYPASS] First invoice allowed despite quote mismatch", {
+        quoteId,
+        quoteTtc,
+        sumTtc: fullSum,
+        priorSum,
+      });
+    }
+    return;
+  }
+
+  if (fullSum > quoteTtc + QUOTE_INVOICE_SUM_TOLERANCE_TTC) {
     throw new Error(
-      `Montant total des factures liées au devis (${sumTtc} € TTC) dépasse le total du devis (${quoteTtc} €) au-delà de la tolérance autorisée (${QUOTE_INVOICE_SUM_TOLERANCE_TTC} €).`
+      `Montant total des factures liées au devis (${fullSum} € TTC) dépasse le total du devis (${quoteTtc} €) au-delà de la tolérance autorisée (${QUOTE_INVOICE_SUM_TOLERANCE_TTC} €).`
     );
   }
 }
@@ -871,7 +898,7 @@ export async function createInvoiceFromQuote(quoteId, organizationId, options = 
 
     await replaceInvoiceLines(client, organizationId, invoiceId, lines);
     await recalcInvoiceTotals(client, organizationId, invoiceId);
-    await assertQuoteLinkedInvoicesWithinCap(client, quoteId, organizationId);
+    await assertQuoteLinkedInvoicesWithinCap(client, quoteId, organizationId, invoiceId);
 
     return invoiceId;
   });
