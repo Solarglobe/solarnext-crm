@@ -109,9 +109,28 @@ export async function createClientAndLinkLead(dbClient, lead, organizationId, op
 
   const clientNumber = await generateClientNumber(dbClient, organizationId);
   const isPro = (lead.customer_type ?? "PERSON") === "PRO";
-  const clientFirstName = isPro ? (lead.contact_first_name ?? null) : (lead.first_name ?? null);
-  const clientLastName = isPro ? (lead.contact_last_name ?? null) : (lead.last_name ?? null);
-  const clientCompanyName = isPro ? (lead.company_name ?? null) : null;
+  let clientFirstName = isPro ? (lead.contact_first_name ?? null) : (lead.first_name ?? null);
+  let clientLastName = isPro ? (lead.contact_last_name ?? null) : (lead.last_name ?? null);
+  let clientCompanyName = isPro ? (lead.company_name ?? null) : null;
+
+  /* Particulier : si prénom/nom vides mais full_name sur le lead, dériver pour éviter une fiche client « invisible » au select facturation. */
+  if (
+    !isPro &&
+    (!clientFirstName || !String(clientFirstName).trim()) &&
+    (!clientLastName || !String(clientLastName).trim()) &&
+    lead.full_name != null &&
+    String(lead.full_name).trim() !== ""
+  ) {
+    const raw = String(lead.full_name).trim();
+    const tokens = raw.split(/\s+/).filter(Boolean);
+    if (tokens.length >= 2) {
+      clientFirstName = tokens[0];
+      clientLastName = tokens.slice(1).join(" ");
+    } else {
+      clientFirstName = raw;
+      clientLastName = "";
+    }
+  }
   const resolvedPhone = resolveLeadPhoneForClient(lead);
   const resolvedMobile = resolveLeadMobileForClient(lead);
 

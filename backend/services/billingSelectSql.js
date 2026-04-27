@@ -9,7 +9,8 @@ SELECT id,
   TRIM(COALESCE(
     NULLIF(TRIM(company_name), ''),
     NULLIF(TRIM(COALESCE(first_name, '') || ' ' || COALESCE(last_name, '')), ''),
-    NULLIF(TRIM(email), '')
+    NULLIF(TRIM(email), ''),
+    NULLIF(TRIM(client_number), '')
   )) AS full_name,
   NULLIF(TRIM(company_name), '') AS company_name,
   NULLIF(TRIM(first_name), '') AS first_name,
@@ -22,6 +23,7 @@ WHERE organization_id = $1
     NULLIF(TRIM(company_name), '') IS NOT NULL
     OR NULLIF(TRIM(COALESCE(first_name, '') || ' ' || COALESCE(last_name, '')), '') IS NOT NULL
     OR NULLIF(TRIM(email), '') IS NOT NULL
+    OR NULLIF(TRIM(client_number), '') IS NOT NULL
   )
 ORDER BY created_at DESC
 `;
