@@ -536,8 +536,10 @@ window.DP4_CAPTURE_IMAGE = null;
 // Import DP2 → DP4 (overlay screen-space canvas, PAS layer OpenLayers)
 window.DP4_IMPORT_OVERLAY_CANVAS = null;
 window.DP4_IMPORT_DP2_ACTIVE = false;
-/** Handler moveend pour redessiner l’overlay après pan/zoom (réf. handler pour un() uniquement). */
-window.DP4_IMPORT_OVERLAY_MOVEEND_HANDLER = null;
+/** Snapshot vue au moment « Importer DP2 » (aperçu figé ; pan/zoom invalide l’aperçu). */
+window.DP4_IMPORT_VIEW_SNAPSHOT = null;
+/** moveend : invalider aperçu si la vue change (pas de recalcul géo automatique). */
+window.DP4_IMPORT_STALE_MOVEEND_HANDLER = null;
 
 function lockDPView({ map }) {
   const view = map.getView();
@@ -14325,7 +14327,7 @@ async function captureDP2Map() {
   const center = view.getCenter();
   const zoom = view.getZoom();
 
-  // ✅ OBLIGATOIRE : width/height pour import DP2→DP4 (dp4DrawDP2ContourOnScreenOverlay, dp4TransformDP2ToDP4PixelsFromCurrentMapView)
+  // ✅ OBLIGATOIRE : width/height pour import DP2→DP4 (dp4DrawDP2ContourOnScreenOverlay, dp4TransformDP2GeometryToMapPixels)
   // Sans eux : w2/h2 = 0 → retour anticipé silencieux, contour invisible, transform inopérant
   window.DP2_STATE.capture = {
     imageBase64,
@@ -16265,6 +16267,27 @@ function dp4ProjectDP2PointToCurrentMapPixel(point) {
   return { x: pix[0], y: pix[1] };
 }
 
+/**
+ * Pixel image plan masse (DP2) → pixel de la capture carte DP4 (repère du canvas composite / image finale).
+ * @param {{ x: number, y: number }} point
+ * @param {object} originalDP2Capture — clone de la capture DP2 (plan masse), jamais écrasé avant projection.
+ * @param {*} map — instance OpenLayers Map au moment de la capture (getPixelFromCoordinate).
+ */
+function dp4ProjectDP2PointToFinalCapturePixel(point, originalDP2Capture, map) {
+  if (!point || typeof point.x !== "number" || typeof point.y !== "number") return null;
+  if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) return null;
+  if (!originalDP2Capture || !map) return null;
+  const w2 = originalDP2Capture.width ?? 0;
+  const h2 = originalDP2Capture.height ?? 0;
+  if (!(w2 > 0) || !(h2 > 0)) return null;
+  const v = dp4ValidateDP2CaptureForImport(originalDP2Capture);
+  if (!v.ok) return null;
+  const coord = dp2PixelToMapCoord(point.x, point.y, originalDP2Capture, w2, h2);
+  const pix = map.getPixelFromCoordinate(coord);
+  if (!pix || pix.length < 2) return null;
+  return { x: pix[0], y: pix[1] };
+}
+
 function dp4EnsureScreenOverlayCanvas() {
   if (window.DP4_IMPORT_OVERLAY_CANVAS) {
     const c = window.DP4_IMPORT_OVERLAY_CANVAS;
@@ -16304,44 +16327,104 @@ function dp4EnsureScreenOverlayCanvas() {
   return canvas;
 }
 
-function dp4UnbindDP2ImportOverlayOnMapMove() {
+function dp4CloneCaptureForTransform(obj) {
+  try {
+    if (typeof structuredClone === "function") return structuredClone(obj);
+  } catch (_) {}
+  try {
+    return JSON.parse(JSON.stringify(obj));
+  } catch (_) {
+    return null;
+  }
+}
+
+function dp4ImportViewSnapshotDiffersFromMap(snap, map) {
+  if (!snap || !map || !map.getView) return false;
+  const v = map.getView();
+  if (!v) return false;
+  const c = v.getCenter();
+  const r = v.getResolution();
+  const rot = v.getRotation();
+  const EPS_C = 1e-3;
+  const EPS_R = 1e-9;
+  if (!Array.isArray(c) || !Array.isArray(snap.center) || c.length < 2 || snap.center.length < 2) return true;
+  if (Math.abs(c[0] - snap.center[0]) > EPS_C || Math.abs(c[1] - snap.center[1]) > EPS_C) return true;
+  if (!(typeof r === "number" && Number.isFinite(r) && typeof snap.resolution === "number" && Number.isFinite(snap.resolution))) {
+    return true;
+  }
+  if (Math.abs(r - snap.resolution) > EPS_R * Math.max(1, Math.abs(snap.resolution))) return true;
+  const ra = typeof rot === "number" && Number.isFinite(rot) ? rot : 0;
+  const rb = typeof snap.rotation === "number" && Number.isFinite(snap.rotation) ? snap.rotation : 0;
+  if (Math.abs(ra - rb) > 1e-5) return true;
+  return false;
+}
+
+function dp4EnsureImportStaleHintEl() {
+  const host = document.getElementById("dp4-ign-map");
+  const wrap = host && host.parentNode ? host.parentNode : null;
+  if (!wrap) return null;
+  let el = document.getElementById("dp4-import-stale-hint");
+  if (el) return el;
+  el = document.createElement("div");
+  el.id = "dp4-import-stale-hint";
+  el.setAttribute("role", "status");
+  el.style.cssText =
+    "position:absolute;left:8px;right:8px;bottom:8px;z-index:8;background:rgba(17,24,39,0.92);color:#fef3c7;padding:8px 10px;border-radius:6px;font-size:13px;display:none;pointer-events:none;";
+  el.textContent = "Carte modifiée : recliquez sur Importer DP2 pour mettre à jour l’aperçu.";
+  wrap.appendChild(el);
+  return el;
+}
+
+function dp4ShowImportStaleMessage() {
+  const el = dp4EnsureImportStaleHintEl();
+  if (el) el.style.display = "block";
+}
+
+function dp4HideImportStaleMessage() {
+  const el = document.getElementById("dp4-import-stale-hint");
+  if (el) el.style.display = "none";
+}
+
+function dp4ClearImportOverlayPixelsOnly() {
+  const c = window.DP4_IMPORT_OVERLAY_CANVAS;
+  if (!c) return;
+  const ctx = c.getContext("2d");
+  if (ctx) ctx.clearRect(0, 0, c.width, c.height);
+}
+
+function dp4UnbindImportStaleGuardOnMapMove() {
   const map = window.DP4_OL_MAP;
-  const h = window.DP4_IMPORT_OVERLAY_MOVEEND_HANDLER;
+  const h = window.DP4_IMPORT_STALE_MOVEEND_HANDLER;
   if (map && typeof map.un === "function" && typeof h === "function") {
     try {
       map.un("moveend", h);
     } catch (_) {}
   }
-  window.DP4_IMPORT_OVERLAY_MOVEEND_HANDLER = null;
+  window.DP4_IMPORT_STALE_MOVEEND_HANDLER = null;
 }
 
-/** Après pan/zoom : même projection que la validation (dp4ProjectDP2PointToCurrentMapPixel). */
-function dp4RefreshDP2ImportOverlayAfterMapMove() {
-  if (!window.DP4_IMPORT_DP2_ACTIVE) return;
-  if (!window.DP4_IMPORT_OVERLAY_CANVAS || !window.DP4_OL_MAP) return;
-  const v = dp4ValidateDP2CaptureForImport(window.DP2_STATE?.capture);
-  if (!v.ok) return;
-  try {
-    dp4EnsureScreenOverlayCanvas();
-    dp4DrawDP2ContourOnScreenOverlay();
-  } catch (err) {
-    console.warn("[DP4][IMPORT_OVERLAY_REFRESH]", err);
-  }
-}
-
-function dp4BindDP2ImportOverlayOnMapMove() {
-  dp4UnbindDP2ImportOverlayOnMapMove();
+function dp4BindImportStaleGuardOnMapMove() {
+  dp4UnbindImportStaleGuardOnMapMove();
   const map = window.DP4_OL_MAP;
   if (!map || typeof map.on !== "function") return;
   const handler = function () {
-    dp4RefreshDP2ImportOverlayAfterMapMove();
+    if (!window.DP4_IMPORT_DP2_ACTIVE) return;
+    if (!window.DP4_IMPORT_OVERLAY_CANVAS) return;
+    if (!dp4ImportViewSnapshotDiffersFromMap(window.DP4_IMPORT_VIEW_SNAPSHOT, map)) return;
+    window.DP4_IMPORT_DP2_ACTIVE = false;
+    window.DP4_IMPORT_VIEW_SNAPSHOT = null;
+    dp4ClearImportOverlayPixelsOnly();
+    dp4ShowImportStaleMessage();
+    console.warn("[DP4][IMPORT] aperçu figé invalidé (carte déplacée)");
   };
-  window.DP4_IMPORT_OVERLAY_MOVEEND_HANDLER = handler;
+  window.DP4_IMPORT_STALE_MOVEEND_HANDLER = handler;
   map.on("moveend", handler);
 }
 
 function dp4RemoveScreenOverlayCanvas() {
-  dp4UnbindDP2ImportOverlayOnMapMove();
+  dp4UnbindImportStaleGuardOnMapMove();
+  window.DP4_IMPORT_VIEW_SNAPSHOT = null;
+  dp4HideImportStaleMessage();
   if (window.DP4_IMPORT_OVERLAY_CANVAS) {
     try {
       window.DP4_IMPORT_OVERLAY_CANVAS.remove();
@@ -16405,43 +16488,35 @@ function dp4DrawDP2ContourOnScreenOverlay() {
 }
 
 /**
- * Reprojette toute la géométrie DP2 des pixels plan masse → pixels carte DP4 courante.
- * @param {{ force?: boolean }} [opts] — force=true : appel depuis validation carte même si l'utilisateur n'a pas cliqué « Importer DP2 » (évite coordonnées brutes).
+ * Reprojette toute la géométrie : pixels image plan masse (originalDP2Capture) → pixels repère carte / capture (map).
+ * @returns {boolean} false si interruption (alert déjà affichée).
  */
-function dp4TransformDP2ToDP4PixelsFromCurrentMapView(opts) {
-  const force = !!(opts && opts.force);
-  if (!force && !window.DP4_IMPORT_DP2_ACTIVE) return;
-  const cat = window.DP4_STATE?.photoCategory ?? null;
-  if (cat !== "before" && cat !== "after") return;
-
-  const dp2Cap = window.DP2_STATE?.capture;
-  const vCap = dp4ValidateDP2CaptureForImport(dp2Cap);
+function dp4TransformDP2GeometryToMapPixels(originalDP2Capture, map) {
+  if (!originalDP2Capture || !map) return false;
+  const vCap = dp4ValidateDP2CaptureForImport(originalDP2Capture);
   if (!vCap.ok) {
     const msg =
       "Impossible d'importer DP2 : capture DP2 incomplète.\nChamps manquants : " + vCap.missing.join(", ");
-    console.error("[DP4][IMPORT]", msg, { missing: vCap.missing, capture: dp2Cap });
+    console.error("[DP4][IMPORT]", msg, { missing: vCap.missing, capture: originalDP2Capture });
     alert(msg);
-    return;
+    return false;
   }
 
-  const map = window.DP4_OL_MAP;
-  if (!map) return;
-
   const size = map.getSize();
-  if (!size || size[0] <= 0 || size[1] <= 0) return;
+  if (!size || size[0] <= 0 || size[1] <= 0) return false;
 
-  const w2 = dp2Cap.width ?? window.DP2_STATE?.backgroundImage?.width ?? 0;
-  const h2 = dp2Cap.height ?? window.DP2_STATE?.backgroundImage?.height ?? 0;
+  const w2 = originalDP2Capture.width ?? 0;
+  const h2 = originalDP2Capture.height ?? 0;
   if (w2 <= 0 || h2 <= 0) {
     console.error("[DP4][IMPORT] width/height invalides", { w2, h2 });
     alert("Impossible d'importer DP2 : largeur ou hauteur de capture DP2 invalides.");
-    return;
+    return false;
   }
 
   function convertPoint(p) {
-    const out = dp4ProjectDP2PointToCurrentMapPixel(p);
+    const out = dp4ProjectDP2PointToFinalCapturePixel(p, originalDP2Capture, map);
     if (!out) {
-      console.error("[DP4][IMPORT] dp4ProjectDP2PointToCurrentMapPixel a échoué pour", p);
+      console.error("[DP4][IMPORT] dp4ProjectDP2PointToFinalCapturePixel a échoué pour", p);
     }
     return out;
   }
@@ -16456,7 +16531,7 @@ function dp4TransformDP2ToDP4PixelsFromCurrentMapView(opts) {
         const g = convertPoint(contour.points[pi]);
         if (!g) {
           alert("Impossible de projeter un sommet du contour DP2. Vérifiez la carte et la capture DP2.");
-          return;
+          return false;
         }
         nextPts.push(g);
       }
@@ -16475,7 +16550,7 @@ function dp4TransformDP2ToDP4PixelsFromCurrentMapView(opts) {
           const g = convertPoint(obj.points[pi]);
           if (!g) {
             alert("Impossible de projeter un point d'objet DP2.");
-            return;
+            return false;
           }
           np.push(g);
         }
@@ -16485,7 +16560,7 @@ function dp4TransformDP2ToDP4PixelsFromCurrentMapView(opts) {
         const ga = convertPoint(obj.a);
         if (!ga) {
           alert("Impossible de projeter le point A d'un objet DP2.");
-          return;
+          return false;
         }
         obj.a = ga;
       }
@@ -16493,7 +16568,7 @@ function dp4TransformDP2ToDP4PixelsFromCurrentMapView(opts) {
         const gb = convertPoint(obj.b);
         if (!gb) {
           alert("Impossible de projeter le point B d'un objet DP2.");
-          return;
+          return false;
         }
         obj.b = gb;
       }
@@ -16501,7 +16576,7 @@ function dp4TransformDP2ToDP4PixelsFromCurrentMapView(opts) {
         const g = convertPoint(obj.geometry);
         if (!g) {
           alert("Impossible de projeter la géométrie d'un objet DP2.");
-          return;
+          return false;
         }
         obj.geometry.x = g.x;
         obj.geometry.y = g.y;
@@ -16517,7 +16592,7 @@ function dp4TransformDP2ToDP4PixelsFromCurrentMapView(opts) {
       const g = convertPoint(p.geometry);
       if (!g) {
         alert("Impossible de projeter un panneau DP2.");
-        return;
+        return false;
       }
       p.geometry.x = g.x;
       p.geometry.y = g.y;
@@ -16532,7 +16607,7 @@ function dp4TransformDP2ToDP4PixelsFromCurrentMapView(opts) {
       const g = convertPoint(t.geometry);
       if (!g) {
         alert("Impossible de projeter un texte DP2.");
-        return;
+        return false;
       }
       t.geometry.x = g.x;
       t.geometry.y = g.y;
@@ -16547,7 +16622,7 @@ function dp4TransformDP2ToDP4PixelsFromCurrentMapView(opts) {
       const g = convertPoint(b.geometry);
       if (!g) {
         alert("Impossible de projeter un objet métier DP2.");
-        return;
+        return false;
       }
       b.geometry.x = g.x;
       b.geometry.y = g.y;
@@ -16587,6 +16662,41 @@ function dp4TransformDP2ToDP4PixelsFromCurrentMapView(opts) {
       dp4SyncRoofGeometryFromDP2State();
     }
   } catch (_) {}
+  return true;
+}
+
+/** @deprecated Préférer dp4TransformDP2GeometryToMapPixels(clone, map) depuis le pipeline capture. */
+function dp4TransformDP2ToDP4PixelsFromCurrentMapView(opts) {
+  const force = !!(opts && opts.force);
+  if (!force && !window.DP4_IMPORT_DP2_ACTIVE) return;
+  const cat = window.DP4_STATE?.photoCategory ?? null;
+  if (cat !== "before" && cat !== "after") return;
+  const map = window.DP4_OL_MAP;
+  if (!map || !window.DP2_STATE?.capture) return;
+  dp4TransformDP2GeometryToMapPixels(window.DP2_STATE.capture, map);
+}
+
+/** Heuristique : composite probablement vide / tuiles grises non chargées. */
+function dp4RasterCompositeProbablyBlank(ctx, w, h) {
+  if (!(w > 1 && h > 1) || !ctx || !ctx.getImageData) return true;
+  const stepX = Math.max(1, Math.floor(w / 10));
+  const stepY = Math.max(1, Math.floor(h / 10));
+  const lums = [];
+  for (let y = 0; y < h; y += stepY) {
+    for (let x = 0; x < w; x += stepX) {
+      let d;
+      try {
+        d = ctx.getImageData(x, y, 1, 1).data;
+      } catch (_) {
+        return false;
+      }
+      lums.push((d[0] + d[1] + d[2]) / 3);
+    }
+  }
+  if (!lums.length) return true;
+  const mean = lums.reduce((a, b) => a + b, 0) / lums.length;
+  const variance = lums.reduce((a, v) => a + (v - mean) * (v - mean), 0) / lums.length;
+  return variance < 25 && mean > 90 && mean < 220;
 }
 
 // ======================================================
@@ -17298,29 +17408,46 @@ function initDP4() {
   }
 
   async function dp4CaptureMapContainer() {
-    // Capture OpenLayers (canvas des couches), comme DP2 — pas html2canvas.
+    // Capture OpenLayers puis transformation une seule fois (repère pixels = image capturée).
+    // Tant que la capture n’est pas valide : ne pas détruire la carte ni passer à l’étape toiture.
     if (!window.DP4_OL_MAP) return;
 
     dp4SetValidateEnabled(false);
 
     try {
       const map = window.DP4_OL_MAP;
-      const view = map.getView();
       const mapEl = map.getTargetElement();
-      if (!mapEl) return;
+      if (!mapEl) {
+        console.error("[DP4] capture: mapEl absent");
+        alert("Capture DP4 impossible : carte non affichée.");
+        return;
+      }
 
       await new Promise((resolve) => {
         map.once("rendercomplete", resolve);
         map.renderSync();
       });
+      await new Promise((r) => setTimeout(r, 300));
+      try {
+        map.renderSync();
+      } catch (_) {}
 
       const size = map.getSize();
-      if (!size) return;
+      if (!size || size[0] <= 0 || size[1] <= 0) {
+        console.error("[DP4] capture: taille carte invalide", size);
+        alert("Capture DP4 impossible : taille de la carte invalide.");
+        return;
+      }
 
       const canvas = document.createElement("canvas");
       canvas.width = size[0];
       canvas.height = size[1];
       const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        console.error("[DP4] capture: contexte 2D absent");
+        alert("Capture DP4 impossible.");
+        return;
+      }
 
       const canvases = mapEl.querySelectorAll(".ol-layer canvas");
       canvases.forEach((c) => {
@@ -17339,14 +17466,46 @@ function initDP4() {
         }
       });
 
-      const imageBase64 = canvas.toDataURL("image/png");
+      if (dp4RasterCompositeProbablyBlank(ctx, size[0], size[1])) {
+        console.error("[DP4] capture: image vide ou grise (tuiles non prêtes ?)");
+        alert("La capture est vide ou encore grise. Attendez le chargement des images puis réessayez.");
+        return;
+      }
 
+      const imageBase64 = canvas.toDataURL("image/png");
+      const view = map.getView();
       const scale_m_per_px = ol.proj.getPointResolution(
         view.getProjection(),
         view.getResolution(),
         view.getCenter(),
         "m"
       );
+
+      const hasDp2ContourImportable =
+        (Array.isArray(window.DP2_STATE?.buildingContours) && window.DP2_STATE.buildingContours.length > 0) ||
+        (window.DP2_STATE?.objects || []).some((o) => o && o.type === "building_outline");
+
+      if (hasDp2ContourImportable || window.DP4_IMPORT_DP2_ACTIVE === true) {
+        const originalDP2Capture = dp4CloneCaptureForTransform(window.DP2_STATE.capture);
+        if (!originalDP2Capture) {
+          console.error("[DP4] capture: copie capture DP2 impossible");
+          alert("Erreur interne : copie de la capture DP2 impossible.");
+          return;
+        }
+        const vCap = dp4ValidateDP2CaptureForImport(originalDP2Capture);
+        if (!vCap.ok) {
+          const msg =
+            "Impossible d'importer DP2 : capture DP2 incomplète.\nChamps manquants : " + vCap.missing.join(", ");
+          console.error("[DP4][VALIDATE]", msg, { missing: vCap.missing, capture: originalDP2Capture });
+          alert(msg);
+          return;
+        }
+        if (hasDp2ContourImportable && window.DP4_IMPORT_DP2_ACTIVE !== true) {
+          console.log("[DP4][VALIDATE] transformation automatique (contours DP2, vue courante → pixels capture)");
+        }
+        const okGeom = dp4TransformDP2GeometryToMapPixels(originalDP2Capture, map);
+        if (!okGeom) return;
+      }
 
       window.DP4_STATE = window.DP4_STATE || dp4DefaultState();
       window.DP4_STATE.capture = {
@@ -17362,12 +17521,19 @@ function initDP4() {
       };
 
       window.DP4_CAPTURE_IMAGE = imageBase64;
-      try { syncDP4MetricMarkerOverlayUI(); } catch (_) {}
+      try {
+        syncDP4MetricMarkerOverlayUI();
+      } catch (_) {}
 
       dp4DestroyMap();
+
+      window.DP2_STATE = window.DP2_STATE || {};
+      window.DP2_STATE.capture = dp2CloneForHistory(window.DP4_STATE.capture || { imageBase64: null });
+
       dp4RenderRoofDrawingStep();
     } catch (e) {
       console.error("[DP4] Capture impossible", e);
+      alert("Capture DP4 impossible (voir la console).");
     } finally {
       dp4SetValidateEnabled(true);
     }
@@ -17498,13 +17664,25 @@ function initDP4() {
     dp4EnsureScreenOverlayCanvas();
     dp4DrawDP2ContourOnScreenOverlay();
     window.DP4_IMPORT_DP2_ACTIVE = true;
-    dp4BindDP2ImportOverlayOnMapMove();
+    dp4HideImportStaleMessage();
+    const vImp = window.DP4_OL_MAP && window.DP4_OL_MAP.getView();
+    if (vImp) {
+      const c0 = vImp.getCenter();
+      window.DP4_IMPORT_VIEW_SNAPSHOT = {
+        center: c0 ? c0.slice() : null,
+        resolution: vImp.getResolution(),
+        rotation: vImp.getRotation()
+      };
+    } else {
+      window.DP4_IMPORT_VIEW_SNAPSHOT = null;
+    }
+    dp4BindImportStaleGuardOnMapMove();
   });
 
-  // Capture (validation vue) : ordre STRICT — overlay → transform → capture
+  // Capture (validation vue) : retirer l’aperçu → capture carte (tuiles + anti-gris) → transformation → destroy → toiture
   if (validateBtn && validateBtn.dataset.bound !== "1") {
     validateBtn.dataset.bound = "1";
-    validateBtn.addEventListener("click", (e) => {
+    validateBtn.addEventListener("click", async (e) => {
       e.preventDefault();
       try {
         dp4HideMapCursorHint();
@@ -17514,26 +17692,7 @@ function initDP4() {
         dp4RemoveScreenOverlayCanvas();
       }
 
-      const hasDp2ContourImportable =
-        (Array.isArray(window.DP2_STATE?.buildingContours) && window.DP2_STATE.buildingContours.length > 0) ||
-        (window.DP2_STATE?.objects || []).some((o) => o && o.type === "building_outline");
-
-      if (hasDp2ContourImportable || window.DP4_IMPORT_DP2_ACTIVE === true) {
-        const vCap = dp4ValidateDP2CaptureForImport(window.DP2_STATE?.capture);
-        if (!vCap.ok) {
-          const msg =
-            "Impossible d'importer DP2 : capture DP2 incomplète.\nChamps manquants : " + vCap.missing.join(", ");
-          console.error("[DP4][VALIDATE]", msg, { missing: vCap.missing, capture: window.DP2_STATE?.capture });
-          alert(msg);
-          return;
-        }
-        if (hasDp2ContourImportable && window.DP4_IMPORT_DP2_ACTIVE !== true) {
-          console.log("[DP4][VALIDATE] contours DP2 présents sans clic « Importer » : transformation automatique (évite coordonnées brutes)");
-        }
-        dp4TransformDP2ToDP4PixelsFromCurrentMapView({ force: true });
-      }
-
-      dp4CaptureMapContainer();
+      await dp4CaptureMapContainer();
     });
   }
 
