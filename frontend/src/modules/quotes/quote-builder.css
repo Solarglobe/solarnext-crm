@@ -1144,6 +1144,74 @@
   text-decoration: underline;
 }
 
+/* Bloc facturation (devis accepté) */
+.qb-billing-block {
+  margin: 0 0 20px;
+  padding: 16px 18px 18px;
+}
+
+.qb-billing-block__title {
+  margin: 0 0 12px;
+  font-size: 0.8125rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-primary);
+}
+
+.qb-billing-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px 20px;
+  margin-bottom: 14px;
+}
+
+.qb-billing-metric__label {
+  display: block;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 2px;
+}
+
+.qb-billing-metric__value {
+  font-size: 1.1rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.qb-billing-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.qb-billing-fallback-link {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.qb-client-auto-banner {
+  margin-bottom: 1rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid rgba(33, 150, 83, 0.35);
+  background: rgba(46, 125, 50, 0.08);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.qb-client-auto-banner__text {
+  margin: 0.35rem 0 0;
+}
+
+.qb-client-auto-banner__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  align-items: center;
+}
+
 /* ——— Document commercial (en-tête builder) ——— */
 .qb-doc-card {
   padding: 20px 22px 22px;

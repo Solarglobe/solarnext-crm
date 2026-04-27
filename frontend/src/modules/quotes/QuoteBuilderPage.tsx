@@ -67,6 +67,14 @@ import "./quote-builder.css";
 
 const API_BASE = getCrmApiBase();
 
+function readClientAutoCreated(payload: unknown): boolean {
+  return Boolean(
+    payload &&
+      typeof payload === "object" &&
+      (payload as { client_auto_created?: boolean }).client_auto_created
+  );
+}
+
 const EMPTY_TEXT_TEMPLATES: {
   commercial_notes: QuoteTextTemplateItem[];
   technical_details: QuoteTextTemplateItem[];
@@ -116,6 +124,7 @@ export default function QuoteBuilderPage() {
   const [linkedDocuments, setLinkedDocuments] = useState<QuoteDocumentListRow[]>([]);
   const [docBlobBusyId, setDocBlobBusyId] = useState<string | null>(null);
   const [signedSavedBanner, setSignedSavedBanner] = useState(false);
+  const [clientAutoCreatedBanner, setClientAutoCreatedBanner] = useState(false);
 
   const canEdit = state.header ? quoteIsContentEditableStatus(state.header.status) : false;
   const isReadOnly = useSuperAdminReadOnly();
@@ -381,7 +390,10 @@ export default function QuoteBuilderPage() {
       setStatusBusy(true);
       setError(null);
       try {
-        await patchQuoteStatus(id, next);
+        const data = await patchQuoteStatus(id, next);
+        if (String(next).toUpperCase() === "ACCEPTED" && readClientAutoCreated(data)) {
+          setClientAutoCreatedBanner(true);
+        }
         await load();
         setLastSavedAt(new Date());
       } catch (e) {
@@ -421,11 +433,13 @@ export default function QuoteBuilderPage() {
     setError(null);
     try {
       if (st === "SENT") {
-        await patchQuoteStatus(id, "ACCEPTED");
+        const r = await patchQuoteStatus(id, "ACCEPTED");
+        if (readClientAutoCreated(r)) setClientAutoCreatedBanner(true);
       } else {
         await patchQuoteStatus(id, "SENT");
         await load();
-        await patchQuoteStatus(id, "ACCEPTED");
+        const r = await patchQuoteStatus(id, "ACCEPTED");
+        if (readClientAutoCreated(r)) setClientAutoCreatedBanner(true);
       }
       await load();
       setLastSavedAt(new Date());
@@ -961,6 +975,47 @@ export default function QuoteBuilderPage() {
         </div>
       ) : null}
 
+      {clientAutoCreatedBanner ? (
+        <div
+          className="sn-card qb-client-auto-banner"
+          role="status"
+        >
+          <strong>Client créé automatiquement — vérifiez les informations</strong>
+          <p className="qb-client-auto-banner__text">
+            Une fiche client a été générée à partir du dossier. Contrôlez les coordonnées avant d&apos;émettre une facture.
+          </p>
+          <div className="qb-client-auto-banner__actions">
+            {id ? (
+              <Button
+                type="button"
+                variant="primary"
+                size="sm"
+                onClick={() =>
+                  navigate(
+                    `/invoices/new?fromQuote=${encodeURIComponent(id)}&billingRole=STANDARD`
+                  )
+                }
+              >
+                Facturer ce devis
+              </Button>
+            ) : null}
+            {state.header?.client_id ? (
+              <Button
+                type="button"
+                variant="outlineGold"
+                size="sm"
+                onClick={() => navigate(`/clients/${String(state.header?.client_id)}`)}
+              >
+                Ouvrir la fiche client
+              </Button>
+            ) : null}
+            <Button type="button" variant="ghost" size="sm" onClick={() => setClientAutoCreatedBanner(false)}>
+              Fermer
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
       {latestLinkedPdf || latestLinkedSignedPdf ? (
         <section className="qb-linked-docs sn-card" aria-labelledby="qb-linked-pdf-title">
           <h2 id="qb-linked-pdf-title" className="qb-section-title qb-section-title--muted">
@@ -1051,76 +1106,108 @@ export default function QuoteBuilderPage() {
           <Link to={`/studies/${state.header.study_id}/versions/${state.header.study_version_id}`}>Étude liée</Link>
         ) : null}
         {state.header.client_id ? <Link to={`/clients/${state.header.client_id}`}>Fiche client</Link> : null}
-        {String(state.header.status).toUpperCase() === "ACCEPTED" && id ? (
-          <>
-            {billLoading ? (
-              <span className="qb-muted">Facturation…</span>
-            ) : (
-              <>
-                {billCtx?.quote_zero_total ? (
-                  <span className="qb-muted" role="status">
-                    Total devis nul : facturation depuis ce devis (acompte, solde ou facture complète) indisponible.
-                  </span>
-                ) : null}
-                {billCtx && !billCtx.quote_zero_total ? (
-                  <span className="qb-muted" style={{ display: "block", marginBottom: "0.35rem" }}>
-                    Total devis{" "}
+        <Link to="/quotes">Liste des devis</Link>
+        <Link to="/finance">Vue d&apos;ensemble</Link>
+      </nav>
+
+      {String(state.header.status).toUpperCase() === "ACCEPTED" && id ? (
+        <section className="sn-card qb-billing-block" aria-labelledby="qb-billing-title">
+          <h2 id="qb-billing-title" className="qb-billing-block__title">
+            Facturation
+          </h2>
+          {billLoading ? (
+            <p className="qb-muted" role="status">
+              Chargement des montants facturés…
+            </p>
+          ) : null}
+          {!billLoading && billCtx?.quote_zero_total ? (
+            <p className="qb-muted" role="status">
+              Total devis nul : acompte, solde et prélignement des lignes du devis ne sont pas proposés ici.
+            </p>
+          ) : null}
+          {!billLoading && billCtx && !billCtx.quote_zero_total ? (
+            <>
+              <div className="qb-billing-grid" role="group" aria-label="Synthèse facturation devis">
+                <div className="qb-billing-metric">
+                  <span className="qb-billing-metric__label">Total</span>
+                  <span className="qb-billing-metric__value">
                     {(billCtx.quote_total_ttc ?? 0).toLocaleString("fr-FR", {
                       minimumFractionDigits: 2,
                       maximumFractionDigits: 2,
                     })}{" "}
-                    € · Déjà engagé{" "}
+                    €
+                  </span>
+                </div>
+                <div className="qb-billing-metric" title="Montant TTC des factures liées, brouillons inclus.">
+                  <span className="qb-billing-metric__label">Déjà facturé</span>
+                  <span className="qb-billing-metric__value">
                     {(billCtx.invoiced_ttc ?? 0).toLocaleString("fr-FR", {
                       minimumFractionDigits: 2,
                       maximumFractionDigits: 2,
                     })}{" "}
-                    € · Reste{" "}
+                    €
+                  </span>
+                </div>
+                <div className="qb-billing-metric">
+                  <span className="qb-billing-metric__label">Reste</span>
+                  <span className="qb-billing-metric__value">
                     {(billCtx.remaining_ttc ?? 0).toLocaleString("fr-FR", {
                       minimumFractionDigits: 2,
                       maximumFractionDigits: 2,
                     })}{" "}
                     €
                   </span>
-                ) : null}
-                {billCtx?.can_create_deposit ? (
-                  <Link to={`/invoices/new?fromQuote=${encodeURIComponent(id)}&billingRole=DEPOSIT`}>
+                </div>
+              </div>
+              <div className="qb-billing-actions" role="group" aria-label="Actions facturation">
+                {billCtx.can_create_deposit ? (
+                  <Link
+                    to={`/invoices/new?fromQuote=${encodeURIComponent(id)}&billingRole=DEPOSIT`}
+                    className="sn-btn sn-btn-primary sn-btn-sm"
+                    style={{ textDecoration: "none" }}
+                  >
                     Créer acompte
                   </Link>
                 ) : null}
-                {billCtx?.can_create_balance ? (
+                {billCtx.can_create_balance ? (
                   <Link
-                    to={`/invoices/new?fromQuote=${encodeURIComponent(id)}&billingRole=solde&amountTtc=${encodeURIComponent(
-                      String(billCtx.remaining_ttc ?? 0)
-                    )}`}
+                    to={`/invoices/new?fromQuote=${encodeURIComponent(
+                      id
+                    )}&billingRole=solde&amountTtc=${encodeURIComponent(String(billCtx.remaining_ttc ?? 0))}`}
+                    className="sn-btn sn-btn-primary sn-btn-sm"
+                    style={{ textDecoration: "none" }}
                   >
-                    Créer facture solde
+                    Créer solde
                   </Link>
                 ) : null}
-                {billCtx?.can_create_standard_full ? (
-                  <Link to={`/invoices/new?fromQuote=${encodeURIComponent(id)}&billingRole=STANDARD`}>
-                    Facture complète (lignes devis)
+                {billCtx.can_create_standard_full ? (
+                  <Link
+                    to={`/invoices/new?fromQuote=${encodeURIComponent(id)}&billingRole=STANDARD`}
+                    className="sn-btn sn-btn-outline-gold sn-btn-sm"
+                    style={{ textDecoration: "none" }}
+                  >
+                    Facture libre
                   </Link>
                 ) : null}
-                {!billCtx?.can_create_deposit &&
-                !billCtx?.can_create_balance &&
-                !billCtx?.can_create_standard_full &&
-                billCtx ? (
-                  <span className="qb-muted" title="Création de facture depuis la liste ou le hub si besoin.">
-                    Facturation à jour pour ce devis
-                  </span>
+                {!billCtx.can_create_deposit && !billCtx.can_create_balance && !billCtx.can_create_standard_full ? (
+                  <p className="qb-muted" style={{ margin: 0 }}>
+                    Facturation à jour pour ce devis.
+                  </p>
                 ) : null}
-                {!billLoading && !billCtx && id && String(state.header.status).toUpperCase() === "ACCEPTED" ? (
-                  <Link to={`/invoices/new?fromQuote=${encodeURIComponent(id)}&billingRole=STANDARD`}>
-                    Créer une facture (complet)
-                  </Link>
-                ) : null}
-              </>
-            )}
-          </>
-        ) : null}
-        <Link to="/quotes">Liste des devis</Link>
-        <Link to="/finance">Vue d&apos;ensemble</Link>
-      </nav>
+              </div>
+            </>
+          ) : null}
+          {!billLoading && !billCtx && id ? (
+            <p className="qb-muted" role="status">
+              Impossible de charger le suivi des factures. Vous pouvez quand même{" "}
+              <Link to={`/invoices/new?fromQuote=${encodeURIComponent(id)}&billingRole=STANDARD`} className="qb-billing-fallback-link">
+                préparer une facture depuis ce devis
+              </Link>
+              .
+            </p>
+          ) : null}
+        </section>
+      ) : null}
 
       <div className="qb-workbench">
         <QuoteDocumentSection

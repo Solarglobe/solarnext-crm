@@ -35,6 +35,7 @@ import searchRouter from "./routes/search.routes.js";
 import mairiesRouter from "./routes/mairies.routes.js";
 import leadsRouter from "./routes/leads.routes.js";
 import clientsRouter from "./routes/clients.routes.js";
+import contactsRouter from "./routes/contacts.routes.js";
 import missionsRouter from "./routes/missions.routes.js";
 import quotesRouter from "./routes/quotes.routes.js";
 import studiesRouter from "./routes/studies.routes.js";
@@ -213,6 +214,7 @@ export function buildHttpApp() {
   app.use("/api/mairies", mairiesRouter);
   app.use("/api/leads", leadsRouter);
   app.use("/api/clients", clientsRouter);
+  app.use("/api/contacts", contactsRouter);
   app.use("/api/missions", missionsRouter);
   app.use("/api/quotes", quotesRouter);
   app.use("/api/studies", studiesRouter);

@@ -214,7 +214,12 @@ export default function FinancialHubPage() {
         <Link to="/invoices?status=OVERDUE" className="sn-btn sn-btn-ghost" style={{ textDecoration: "none" }}>
           Factures en retard
         </Link>
-        <Link to="/invoices/new" className="sn-btn sn-btn-ghost" style={{ textDecoration: "none" }}>
+        <Link
+          to="/invoices/new"
+          className="sn-btn sn-btn-ghost"
+          style={{ textDecoration: "none", opacity: 0.9 }}
+          title="Facture vierge — la facturation courante part du devis accepté"
+        >
           Nouvelle facture
         </Link>
         <Button type="button" variant="ghost" size="sm" onClick={() => void load()}>
@@ -352,7 +357,12 @@ export default function FinancialHubPage() {
               <Link to="/invoices" className="sn-btn sn-btn-ghost" style={{ textDecoration: "none" }}>
                 Liste complète
               </Link>
-              <Link to="/invoices/new" className="sn-btn sn-btn-outline-gold" style={{ textDecoration: "none" }}>
+              <Link
+                to="/invoices/new"
+                className="sn-btn sn-btn-ghost"
+                style={{ textDecoration: "none" }}
+                title="Facture vierge"
+              >
                 Nouvelle facture
               </Link>
             </div>

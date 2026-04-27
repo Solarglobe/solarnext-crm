@@ -7,15 +7,20 @@ import React, { useCallback, useEffect, useMemo, useReducer, useState } from "re
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { apiFetch } from "../../services/api";
 import { adminGetQuoteCatalog, type QuoteCatalogItem } from "../../services/admin.api";
-import { fetchClients, type Client } from "../../services/clients.service";
-import { fetchLeads } from "../../services/leads.service";
+import {
+  fetchClientsBillingSelect,
+  fetchLeadsBillingSelect,
+  type BillingSelectRow,
+} from "../../services/billingContacts.api";
 import {
   duplicateInvoiceApi,
   patchInvoice,
   patchInvoiceStatus,
   postGenerateInvoicePdf,
   fetchInvoiceDetail,
+  fetchQuoteInvoiceBillingContext,
   type InvoiceDetail,
+  type QuoteInvoiceBillingContext,
 } from "../../services/financial.api";
 import { Button } from "../../components/ui/Button";
 import { ModalShell } from "../../components/ui/ModalShell";
@@ -90,8 +95,9 @@ export default function InvoiceBuilderPage() {
   const [catalogOpen, setCatalogOpen] = useState(false);
   const [catalogItems, setCatalogItems] = useState<QuoteCatalogItem[]>([]);
   const [catalogQ, setCatalogQ] = useState("");
-  const [clients, setClients] = useState<Client[]>([]);
-  const [leadsOpts, setLeadsOpts] = useState<{ id: string; label: string }[]>([]);
+  const [billingClients, setBillingClients] = useState<BillingSelectRow[]>([]);
+  const [billingLeads, setBillingLeads] = useState<BillingSelectRow[]>([]);
+  const [contactsSelectError, setContactsSelectError] = useState<string | null>(null);
   const [detailExtras, setDetailExtras] = useState<{
     total_paid: number;
     amount_due: number;
@@ -101,6 +107,7 @@ export default function InvoiceBuilderPage() {
     total_ttc: number;
   }>({ total_paid: 0, amount_due: 0, is_overdue: false, total_ht: 0, total_vat: 0, total_ttc: 0 });
   const [invoiceDetail, setInvoiceDetail] = useState<InvoiceDetail | null>(null);
+  const [quoteBillCtx, setQuoteBillCtx] = useState<QuoteInvoiceBillingContext | null>(null);
 
   const canEdit = state.header ? String(state.header.status).toUpperCase() === "DRAFT" : false;
 
@@ -147,19 +154,17 @@ export default function InvoiceBuilderPage() {
   }, [load]);
 
   useEffect(() => {
-    void fetchClients()
-      .then(setClients)
-      .catch(() => setClients([]));
-    void fetchLeads({ limit: 400 })
-      .then((rows) =>
-        setLeadsOpts(
-          rows.map((l) => ({
-            id: l.id,
-            label: l.full_name || [l.first_name, l.last_name].filter(Boolean).join(" ") || l.id,
-          }))
-        )
-      )
-      .catch(() => setLeadsOpts([]));
+    setContactsSelectError(null);
+    void Promise.all([fetchClientsBillingSelect(), fetchLeadsBillingSelect()])
+      .then(([cRows, lRows]) => {
+        setBillingClients(cRows);
+        setBillingLeads(lRows);
+      })
+      .catch((e: unknown) => {
+        setBillingClients([]);
+        setBillingLeads([]);
+        setContactsSelectError(e instanceof Error ? e.message : "Impossible de charger les listes client / lead.");
+      });
   }, []);
 
   const save = useCallback(async () => {
@@ -309,6 +314,26 @@ export default function InvoiceBuilderPage() {
   }, [invoiceDetail]);
 
   const invoiceStatusUpper = state.header ? String(state.header.status).toUpperCase() : "";
+
+  useEffect(() => {
+    const qid = state.header?.quote_id;
+    if (!qid || invoiceStatusUpper !== "DRAFT") {
+      setQuoteBillCtx(null);
+      return;
+    }
+    let cancelled = false;
+    void fetchQuoteInvoiceBillingContext(qid)
+      .then((ctx) => {
+        if (!cancelled) setQuoteBillCtx(ctx);
+      })
+      .catch(() => {
+        if (!cancelled) setQuoteBillCtx(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [state.header?.quote_id, invoiceStatusUpper]);
+
   const paymentsList = invoiceDetail?.payments ?? [];
   const creditNotesList = invoiceDetail?.credit_notes ?? [];
   const remindersList = invoiceDetail?.reminders ?? invoiceDetail?.invoice_reminders ?? [];
@@ -443,6 +468,32 @@ export default function InvoiceBuilderPage() {
           currency={state.header.currency}
         />
 
+        {quoteBillCtx && !quoteBillCtx.quote_zero_total ? (
+          <div className="ib-quote-billing-hint" style={{ marginTop: "0.5rem" }}>
+            <p className="ib-muted-title" style={{ margin: "0 0 0.25rem", fontWeight: 600 }}>
+              Synthèse devis (facturation)
+            </p>
+            <p className="qb-muted" style={{ margin: 0 }}>
+              Total devis{" "}
+              {(quoteBillCtx.quote_total_ttc ?? 0).toLocaleString("fr-FR", {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}{" "}
+              {state.header.currency} · Déjà engagé{" "}
+              {(quoteBillCtx.invoiced_ttc ?? 0).toLocaleString("fr-FR", {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}{" "}
+              {state.header.currency} · Reste à facturer{" "}
+              {(quoteBillCtx.remaining_ttc ?? 0).toLocaleString("fr-FR", {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}{" "}
+              {state.header.currency}
+            </p>
+          </div>
+        ) : null}
+
         <div className="ib-doc-origin-row">
           <InvoiceDocumentBlock
             apiBase={API_BASE}
@@ -470,6 +521,11 @@ export default function InvoiceBuilderPage() {
       </nav>
 
       <section className="ib-links-bar">
+        {contactsSelectError ? (
+          <p className="qb-error-inline" role="alert" style={{ width: "100%", marginBottom: 8 }}>
+            {contactsSelectError}
+          </p>
+        ) : null}
         <label>
           Client
           <select
@@ -482,9 +538,13 @@ export default function InvoiceBuilderPage() {
             }}
           >
             <option value="">—</option>
-            {clients.map((c) => (
+            {state.header.client_id &&
+            !billingClients.some((c) => c.id === state.header.client_id) ? (
+              <option value={state.header.client_id}>Rattachement actuel (hors liste)</option>
+            ) : null}
+            {billingClients.map((c) => (
               <option key={c.id} value={c.id}>
-                {c.company_name || [c.first_name, c.last_name].filter(Boolean).join(" ") || c.id}
+                {c.full_name}
               </option>
             ))}
           </select>
@@ -501,9 +561,12 @@ export default function InvoiceBuilderPage() {
             }}
           >
             <option value="">—</option>
-            {leadsOpts.map((l) => (
+            {state.header.lead_id && !billingLeads.some((l) => l.id === state.header.lead_id) ? (
+              <option value={state.header.lead_id}>Rattachement actuel (hors liste)</option>
+            ) : null}
+            {billingLeads.map((l) => (
               <option key={l.id} value={l.id}>
-                {l.label}
+                {l.full_name}
               </option>
             ))}
           </select>

@@ -45,10 +45,17 @@ export default function InvoiceCreditsPanel({
   };
 
   return (
-    <div className="if-panel">
+    <div className="if-panel if-panel--credits-subtle">
       <div className="if-panel-head">
-        <h3 className="if-panel-title">Avoirs</h3>
-        <Button type="button" variant="outlineGold" size="sm" disabled={!canCreate || maxCreditTtc <= 0.009} onClick={() => setOpen(true)}>
+        <h3 className="if-panel-title if-panel-title--subtle">Avoirs</h3>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          disabled={!canCreate || maxCreditTtc <= 0.009}
+          onClick={() => setOpen(true)}
+          title="Créer un avoir sur cette facture"
+        >
           + Avoir
         </Button>
       </div>

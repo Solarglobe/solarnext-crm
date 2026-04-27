@@ -2,8 +2,12 @@ const path = require("path");
 const fs = require("fs");
 
 // Même ordre que bootstrap.js / load-env.js : racine .env.dev puis backend/.env
-require("dotenv").config({ path: path.resolve(__dirname, "../../.env.dev"), override: false });
-require("dotenv").config({ path: path.resolve(__dirname, "../.env"), override: false });
+// Ne pas charger les fichiers si DATABASE_URL est déjà défini (ex. Railway) : évite
+// PGHOST/DB_HOST locaux qui réécriraient l’hôte via resolveHostname().
+if (!process.env.DATABASE_URL) {
+  require("dotenv").config({ path: path.resolve(__dirname, "../../.env.dev"), override: false });
+  require("dotenv").config({ path: path.resolve(__dirname, "../.env"), override: false });
+}
 
 /**
  * Backend dans un conteneur Linux : /.dockerenv est présent.

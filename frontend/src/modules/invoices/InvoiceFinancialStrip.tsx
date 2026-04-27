@@ -34,7 +34,7 @@ export default function InvoiceFinancialStrip({ balance, currency, draftMode }: 
         <div className="if-strip-label">Encaissé</div>
         <div className="if-strip-value">{eur(total_paid)}</div>
       </div>
-      <div className="if-strip-cell">
+      <div className="if-strip-cell if-strip-cell--subtle">
         <div className="if-strip-label">Avoirs (TTC)</div>
         <div className="if-strip-value">{eur(total_credited)}</div>
       </div>

@@ -256,7 +256,7 @@ export default function FinancialHeroQuote({
                     )
                   }
                 >
-                  Créer facture solde
+                  Créer solde
                 </Button>
               ) : null}
               {billCtx?.can_create_standard_full ? (
@@ -275,14 +275,15 @@ export default function FinancialHeroQuote({
               {!billCtx ? (
                 <Button
                   type="button"
-                  variant="outlineGold"
+                  variant="ghost"
                   size="sm"
                   disabled={busy}
+                  title="Préférez l’ouverture du devis pour voir acompte, solde et reste"
                   onClick={() => void run(async () => {
                     await createInvoiceFromQuote(primary.id);
                   })}
                 >
-                  Facture depuis devis
+                  Facture libre
                 </Button>
               ) : null}
             </>

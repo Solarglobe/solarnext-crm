@@ -111,3 +111,38 @@ test("POST /convert interdit sans Signé ; convert-to-client idempotent après S
   assert.equal(conv2.data?.client?.id, conv1.data?.client?.id);
   assert.equal(conv2.data?.already_converted, true);
 });
+
+test("GET /api/clients/select + /api/leads/select + /api/contacts/select — forme et 200", async (t) => {
+  if (!canRun || !ctx) {
+    t.skip("intégration indisponible");
+    return;
+  }
+  const cs = await api(ctx.token, "GET", "/api/clients/select");
+  assert.equal(cs.status, 200, JSON.stringify(cs.data));
+  assert.ok(Array.isArray(cs.data), "clients/select doit renvoyer un tableau");
+  if (cs.data.length) {
+    const row = cs.data[0];
+    assert.ok(row.id && row.full_name, JSON.stringify(row));
+    assert.equal(Object.keys(row).length, 2, "colonnes strictes id + full_name");
+  }
+
+  const ls = await api(ctx.token, "GET", "/api/leads/select");
+  assert.equal(ls.status, 200, JSON.stringify(ls.data));
+  assert.ok(Array.isArray(ls.data));
+  if (ls.data.length) {
+    const row = ls.data[0];
+    assert.ok(row.id && row.full_name);
+    assert.equal(Object.keys(row).length, 2);
+  }
+
+  const bundle = await api(ctx.token, "GET", "/api/contacts/select");
+  assert.equal(bundle.status, 200, JSON.stringify(bundle.data));
+  assert.ok(Array.isArray(bundle.data?.clients));
+  assert.ok(Array.isArray(bundle.data?.leads));
+  if (bundle.data.clients.length) {
+    assert.equal(bundle.data.clients[0].type, "CLIENT");
+  }
+  if (bundle.data.leads.length) {
+    assert.equal(bundle.data.leads[0].type, "LEAD");
+  }
+});

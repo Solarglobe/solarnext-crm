@@ -335,10 +335,10 @@ export default function InvoicesPage() {
           <Link to="/quotes" className="sn-btn sn-btn-ghost sn-btn-sm">
             Devis
           </Link>
-          <Button type="button" variant="outlineGold" size="sm" onClick={() => setQuoteModal(true)}>
+          <Button type="button" variant="primary" size="sm" onClick={() => setQuoteModal(true)}>
             Créer depuis devis
           </Button>
-          <Button type="button" variant="primary" size="sm" onClick={() => navigate("/invoices/new")}>
+          <Button type="button" variant="ghost" size="sm" onClick={() => navigate("/invoices/new")} title="Facture vierge — préférez un devis accepté pour préremplir.">
             Nouvelle facture
           </Button>
         </div>

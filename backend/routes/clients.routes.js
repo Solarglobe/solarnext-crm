@@ -7,6 +7,7 @@ import express from "express";
 import { verifyJWT } from "../middleware/auth.middleware.js";
 import { requirePermission, requireAnyPermission } from "../rbac/rbac.middleware.js";
 import * as controller from "../controllers/clients.controller.js";
+import * as billingContacts from "../controllers/billingContacts.controller.js";
 import clientsMissionsRouter from "./clients.missions.routes.js";
 import { exportClientsCsv } from "../controllers/crmExport.controller.js";
 
@@ -15,6 +16,8 @@ const router = express.Router();
 const EXPORT_CLIENTS_PERMS = ["org.settings.manage", "client.read.all"];
 
 router.get("/", verifyJWT, requirePermission("client.read.all"), controller.getAll);
+/** Liste facturation — table `clients` uniquement (id + full_name), avant /:id */
+router.get("/select", verifyJWT, requirePermission("client.read.all"), billingContacts.getClientsSelect);
 router.get("/quick-search", verifyJWT, requirePermission("client.read.all"), controller.quickSearch);
 router.get("/export", verifyJWT, requireAnyPermission(EXPORT_CLIENTS_PERMS), exportClientsCsv);
 router.get(

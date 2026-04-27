@@ -84,6 +84,23 @@
   letter-spacing: 0.04em;
 }
 
+.if-panel--credits-subtle {
+  border-style: dashed;
+  opacity: 0.95;
+}
+
+.if-panel-title--subtle {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0.02em;
+  color: var(--text-muted, #94a3b8);
+}
+
+.if-strip-cell--subtle {
+  opacity: 0.88;
+}
+
 .if-panel-sub {
   margin: 0 0 10px;
   padding: 0 14px;

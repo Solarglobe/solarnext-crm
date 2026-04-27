@@ -74,8 +74,17 @@ export async function createFromQuote(req, res) {
   try {
     const org = orgId(req);
     const billingRole = req.body?.billingRole ?? req.body?.billing_role;
+    const rawAmt = req.body?.billingAmountTtc ?? req.body?.billing_amount_ttc;
+    let billingAmountTtc;
+    if (rawAmt != null && rawAmt !== "") {
+      billingAmountTtc = Number(rawAmt);
+      if (!Number.isFinite(billingAmountTtc)) {
+        return res.status(400).json({ error: "billing_amount_ttc invalide" });
+      }
+    }
     const data = await invoiceService.createInvoiceFromQuote(req.params.quoteId, org, {
       ...(billingRole ? { billingRole } : {}),
+      ...(billingAmountTtc !== undefined ? { billingAmountTtc } : {}),
     });
     res.status(201).json(data);
   } catch (e) {
@@ -88,8 +97,12 @@ export async function createFromQuote(req, res) {
       msg.includes("déjà") ||
       msg.includes("Rien") ||
       msg.includes("billingRole") ||
+      msg.includes("billing_amount") ||
       msg.includes("lignes") ||
       msg.includes("TTC") ||
+      msg.includes("dépasser") ||
+      msg.includes("Impossible") ||
+      msg.includes("Montant") ||
       msg.includes("non significatif") ||
       msg.includes("total TTC du devis est nul")
         ? 400

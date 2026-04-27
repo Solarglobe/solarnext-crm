@@ -9,6 +9,7 @@ import express from "express";
 import { verifyJWT } from "../middleware/auth.middleware.js";
 import { requirePermission, requireAnyPermission } from "../rbac/rbac.middleware.js";
 import * as controller from "../controllers/leads.controller.js";
+import * as billingContacts from "../controllers/billingContacts.controller.js";
 import { patchConsumption } from "../controllers/leads.consumption.controller.js";
 import { getDetail, patchStage, deleteEnergyProfile } from "./leads/detail.js";
 import { convertLead, convertLeadToClient } from "./leads/convert.js";
@@ -33,6 +34,13 @@ router.get("/kanban", verifyJWT, requireAnyPermission(["lead.read.all", "lead.re
 router.get("/me", verifyJWT, requirePermission("lead.read.self"), controller.getSelf);
 router.get("/meta", verifyJWT, requireAnyPermission(["lead.read.all", "lead.read.self"]), controller.getMeta);
 router.get("/export", verifyJWT, requireAnyPermission(EXPORT_LEADS_PERMS), exportLeadsCsv);
+/** Liste facturation — table `leads` uniquement (id + full_name), avant /:id */
+router.get(
+  "/select",
+  verifyJWT,
+  requireAnyPermission(["lead.read.all", "lead.read.self"]),
+  billingContacts.getLeadsSelect
+);
 
 /** Multi-compteurs — avant GET /:id (segment unique) */
 router.get(

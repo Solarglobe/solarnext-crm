@@ -47,6 +47,7 @@
     "test:cp080": "node --test tests/cp080-document-prefix.test.js",
     "test:cp080:concurrency": "node --test tests/documentSequence.concurrency.test.js",
     "test:prompt7": "node scripts/test-prompt7-financial-api.js",
+    "test:invoice-flex-quote": "node --env-file=../.env.dev --test tests/invoice-quote-billing-flex.test.mjs",
     "test:financial-pdf-pipeline": "node scripts/test-pdf-pipeline.js",
     "test:cp026": "node scripts/test-cp026-triggers.js",
     "test:cp028": "node scripts/test-cp028-addresses.js",

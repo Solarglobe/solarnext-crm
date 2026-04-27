@@ -443,7 +443,12 @@ export async function deleteQuote(quoteId: string): Promise<void> {
   throw new Error((err as { error?: string }).error || `Erreur ${res.status}`);
 }
 
-export async function patchQuoteStatus(quoteId: string, status: string): Promise<unknown> {
+/** Réponse PATCH /quotes/:id/status — détail devis enrichi + indicateur création auto client (ACCEPTED + lead sans client). */
+export type PatchQuoteStatusResult = Record<string, unknown> & {
+  client_auto_created?: boolean;
+};
+
+export async function patchQuoteStatus(quoteId: string, status: string): Promise<PatchQuoteStatusResult> {
   const res = await apiFetch(`${API_BASE}/api/quotes/${encodeURIComponent(quoteId)}/status`, {
     method: "PATCH",
     body: JSON.stringify({ status }),
@@ -452,7 +457,7 @@ export async function patchQuoteStatus(quoteId: string, status: string): Promise
     const err = await res.json().catch(() => ({}));
     throw new Error((err as { error?: string }).error || `Erreur ${res.status}`);
   }
-  return res.json();
+  return (await res.json()) as PatchQuoteStatusResult;
 }
 
 export type QuoteBillingRole = "STANDARD" | "DEPOSIT" | "BALANCE";
