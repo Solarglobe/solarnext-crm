@@ -93,3 +93,22 @@ test("mergeLiveOrganizationBankIntoInvoicePdfPayload — issuer absent reste obj
   assert.ok(merged.issuer);
   assert.equal(merged.issuer.bank.iban, "FR99");
 });
+
+test("mergeLiveOrganizationBankIntoInvoicePdfPayload — bank snapshot tableau ignoré, merge live OK", () => {
+  const snap = {
+    ...minimalInvoiceSnapshot,
+    issuer_snapshot: {
+      display_name: "X",
+      bank: [],
+    },
+  };
+  const payload = buildInvoicePdfPayloadFromSnapshot(snap);
+  const merged = mergeLiveOrganizationBankIntoInvoicePdfPayload(payload, {
+    iban: "FR7630001007941234567890185",
+    bic: "BNPAFRPPXXX",
+    bank_name: "BNP",
+  });
+  assert.equal(merged.issuer.bank.iban, "FR7630001007941234567890185");
+  assert.equal(merged.issuer.bank.bic, "BNPAFRPPXXX");
+  assert.equal(merged.issuer.bank.bank_name, "BNP");
+});

@@ -83,9 +83,10 @@ export function mergeLiveOrganizationBankIntoInvoicePdfPayload(payload, orgRow) 
     payload.issuer !== null && payload.issuer !== undefined && typeof payload.issuer === "object"
       ? payload.issuer
       : {};
+  const rawSnapBank = issuerSrc.bank;
   const snapBank =
-    issuerSrc.bank !== null && issuerSrc.bank !== undefined && typeof issuerSrc.bank === "object"
-      ? issuerSrc.bank
+    rawSnapBank != null && typeof rawSnapBank === "object" && !Array.isArray(rawSnapBank)
+      ? rawSnapBank
       : {};
   const issuer = {
     ...issuerSrc,

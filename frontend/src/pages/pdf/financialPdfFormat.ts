@@ -179,11 +179,16 @@ export function buildIssuerLines(
   if (issuer.email) lines.push(String(issuer.email));
   if (issuer.website) lines.push(String(issuer.website));
   if (opts.includeBank) {
-    const bank = issuer.bank as Record<string, unknown> | undefined;
-    if (bank && typeof bank === "object") {
+    const rawBank = issuer.bank as unknown;
+    const bank =
+      rawBank != null && typeof rawBank === "object" && !Array.isArray(rawBank)
+        ? (rawBank as Record<string, unknown>)
+        : null;
+    if (bank) {
       const nameOk = bankPdfFieldPresent(bank.bank_name);
       const ibanOk = bankPdfFieldPresent(bank.iban);
       const bicOk = bankPdfFieldPresent(bank.bic);
+      // Garde-fou : aucune ligne banque si bank_name, iban et bic sont tous vides / null / undefined.
       if (nameOk || ibanOk || bicOk) {
         if (nameOk) lines.push(`Banque : ${String(bank.bank_name).trim()}`);
         if (ibanOk) lines.push(`IBAN ${String(bank.iban).trim()}`);

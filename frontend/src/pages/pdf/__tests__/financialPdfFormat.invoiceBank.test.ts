@@ -50,4 +50,17 @@ describe("buildIssuerLines — includeBank (facture PDF)", () => {
     expect(lines.some((l) => l.startsWith("Banque :"))).toBe(false);
     expect(lines.filter((l) => l.startsWith("IBAN ") || l.startsWith("BIC "))).toEqual(["IBAN FR76"]);
   });
+
+  it("n’ajoute aucune ligne banque si issuer.bank est absent", () => {
+    const lines = buildIssuerLines({ display_name: "ACME" } as Record<string, unknown>, { includeBank: true });
+    expect(lines.filter((l) => l.startsWith("Banque :") || l.startsWith("IBAN ") || l.startsWith("BIC "))).toEqual([]);
+  });
+
+  it("n’ajoute aucune ligne banque si issuer.bank n’est pas un objet plat (tableau)", () => {
+    const lines = buildIssuerLines(
+      { display_name: "ACME", bank: [] as unknown as Record<string, unknown> },
+      { includeBank: true }
+    );
+    expect(lines.filter((l) => l.startsWith("Banque :") || l.startsWith("IBAN ") || l.startsWith("BIC "))).toEqual([]);
+  });
 });
