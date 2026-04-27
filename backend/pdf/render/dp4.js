@@ -138,9 +138,10 @@
       label: "Faîtage",
       svg: `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 11l5-6 5 6" fill="none" stroke="#111827" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`
     },
+    /** Symbole ↕ aligné rendu canvas / DP2 (légende plan). */
     HAUTEUR_GOUTTIERE: {
       label: "Hauteur gouttière",
-      svg: `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5v11" stroke="#0d9488" stroke-width="1.35" stroke-linecap="round"/><path d="M5.2 4.5L8 2l2.8 2.5" fill="none" stroke="#0d9488" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.2 11.5L8 14l2.8-2.5" fill="none" stroke="#0d9488" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"/></svg>`
+      svg: `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5v11" stroke="#0f766e" stroke-width="1.35" stroke-linecap="round"/><path d="M5.2 4.5L8 2l2.8 2.5" fill="none" stroke="#0f766e" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.2 11.5L8 14l2.8-2.5" fill="none" stroke="#0f766e" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"/></svg>`
     }
   };
 
