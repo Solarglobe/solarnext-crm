@@ -625,6 +625,11 @@
   color: var(--text-primary);
 }
 
+.qb-col-ttc--primary {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
 .qb-col-act {
   text-align: center;
   vertical-align: middle;
@@ -888,6 +893,10 @@
   font-variant-numeric: tabular-nums;
   color: var(--text-primary);
   line-height: 1.15;
+}
+
+.qb-pricing-hero-value--primary {
+  color: var(--accent-strong, var(--text-primary));
 }
 
 .qb-pricing-hero-deposit {

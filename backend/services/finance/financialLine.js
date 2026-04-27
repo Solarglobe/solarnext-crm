@@ -31,6 +31,7 @@ import { clamp, roundMoney2, toFiniteNumber } from "./moneyRounding.js";
 
 /**
  * Calcule les montants d'une ligne document (HT / TVA / TTC).
+ * Règle stricte : base HT nette → TVA = HT × taux (arrondi 2 déc.) → TTC = HT + TVA (aucun calcul depuis le TTC).
  * Quantité ≥ 0. Prix unitaire HT peut être négatif (ex. ligne « remise »).
  * Remise ligne (discount_ht) : appliquée seulement sur base HT positive.
  *

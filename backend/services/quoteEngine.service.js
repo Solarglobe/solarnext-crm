@@ -144,7 +144,8 @@ export async function recomputeAndPersistQuoteTotals(params) {
   return computeQuoteTotalsFromLines(params);
 }
 
-const QUOTE_HEADER_LINE_TOLERANCE = 0.02;
+/** Tolérance cohérence en-tête vs Σ lignes (€, après recalcul moteur). */
+const QUOTE_HEADER_LINE_TOLERANCE = 0.01;
 
 /**
  * Après computeQuoteTotalsFromLines : vérifie cohérence Σ lignes (montants persistés) vs en-tête.

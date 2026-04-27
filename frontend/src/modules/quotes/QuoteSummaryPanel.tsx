@@ -81,7 +81,7 @@ export default function QuoteSummaryPanel({
         <div className="qb-pricing-panel__hero">
           <div className="qb-pricing-hero-card">
             <p className="qb-pricing-hero-label">Total TTC</p>
-            <p className="qb-pricing-hero-value">{eur(totals.total_ttc)}</p>
+            <p className="qb-pricing-hero-value qb-pricing-hero-value--primary">{eur(totals.total_ttc)}</p>
             {hasDeposit ? (
               <div className="qb-pricing-hero-deposit">
                 <span className="qb-pricing-hero-deposit-label">Acompte estimé (TTC)</span>

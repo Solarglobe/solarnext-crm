@@ -112,6 +112,7 @@ function SortableRow({
           aria-label="Remise ligne %"
         />
       </td>
+      <td className={`qb-col-ttc qb-num qb-col-ttc--primary${hidePrices}`}>{eur(a.total_ttc)}</td>
       <td className={`qb-col-tvasel${hidePrices}`}>
         <select
           className="sn-input qb-line-input qb-line-input--tva"
@@ -126,7 +127,6 @@ function SortableRow({
           ))}
         </select>
       </td>
-      <td className={`qb-col-ttc qb-num${hidePrices}`}>{eur(a.total_ttc)}</td>
       <td className="qb-col-act">
         <button
           type="button"
@@ -206,8 +206,8 @@ export default function QuoteLinesTable({
             <col className="qb-col-qty" />
             <col className="qb-col-pu" />
             <col className="qb-col-rem" />
-            <col className="qb-col-tvasel" />
             <col className="qb-col-ttc" />
+            <col className="qb-col-tvasel" />
             <col className="qb-col-act" />
           </colgroup>
           <thead>
@@ -219,8 +219,8 @@ export default function QuoteLinesTable({
               <th className="qb-th-num">Qté</th>
               <th className="qb-th-num">PU HT</th>
               <th className="qb-th-num">Rem. %</th>
-              <th>TVA</th>
               <th className="qb-th-num">TTC ligne</th>
+              <th>TVA</th>
               <th className="qb-th-actions" />
             </tr>
           </thead>

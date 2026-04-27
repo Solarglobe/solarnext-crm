@@ -439,12 +439,113 @@ function computeDocumentDiscountHtFromSources(metaLike, subtotalHtPositive) {
   return Math.min(docDiscHt, th);
 }
 
-function weightedVatPercentForDiscountLine(totalHt, totalVat, defaultVatPercent) {
-  if (totalHt > 0.00001) {
-    const implicit = roundMoney2((Number(totalVat) / Number(totalHt)) * 100);
-    return Math.max(0, Math.min(100, implicit));
+/**
+ * Regroupe les bases HT (centimes) par taux TVA pour répartition de remise document (sans moyenne TVA).
+ * @param {{ vatRatePercent: number, lineHtCents: number }[]} contributions
+ */
+function mergeHtCentsByVatRate(contributions) {
+  const m = new Map();
+  for (const { vatRatePercent, lineHtCents } of contributions) {
+    const r = roundMoney2(Number(vatRatePercent) || 0);
+    const k = String(r);
+    const c = Math.max(0, Math.round(Number(lineHtCents) || 0));
+    if (c <= 0) continue;
+    m.set(k, (m.get(k) || 0) + c);
   }
-  return Math.max(0, Math.min(100, Number(defaultVatPercent) || 0));
+  return [...m.entries()].map(([k, cents]) => ({ vatRatePercent: Number(k), lineHtCents: cents }));
+}
+
+/**
+ * Répartit la remise document totale (HT) en centimes par tranche TVA (plus grands restes) ; somme exacte.
+ * @param {{ vatRatePercent: number, lineHtCents: number }[]} groups
+ * @param {number} discountHtTotalEuro
+ * @returns {{ vatRatePercent: number, discountHtCents: number }[]}
+ */
+function allocateDiscountHtCentsByVatGroups(groups, discountHtTotalEuro) {
+  const targetCents = Math.max(0, Math.round(roundMoney2(Number(discountHtTotalEuro) || 0) * 100));
+  if (targetCents === 0 || groups.length === 0) return [];
+  const totalHtCents = groups.reduce((s, g) => s + g.lineHtCents, 0);
+  if (totalHtCents <= 0) return [];
+
+  const raw = groups.map((g) => ({
+    vatRatePercent: g.vatRatePercent,
+    lineHtCents: g.lineHtCents,
+    rawShare: (targetCents * g.lineHtCents) / totalHtCents,
+  }));
+  const floors = raw.map((x) => Math.floor(x.rawShare));
+  const add = new Array(raw.length).fill(0);
+  let allocated = floors.reduce((s, v) => s + v, 0);
+  const rem = targetCents - allocated;
+  const order = raw
+    .map((x, i) => ({ i, frac: x.rawShare - Math.floor(x.rawShare) }))
+    .sort((a, b) => b.frac - a.frac || a.i - b.i);
+  for (let k = 0; k < rem; k++) add[order[k].i]++;
+
+  /** @type {{ vatRatePercent: number, discountHtCents: number }[]} */
+  const out = [];
+  for (let i = 0; i < raw.length; i++) {
+    const dc = floors[i] + add[i];
+    out.push({ vatRatePercent: raw[i].vatRatePercent, discountHtCents: dc });
+  }
+  let sumOut = out.reduce((s, x) => s + x.discountHtCents, 0);
+  const diff = targetCents - sumOut;
+  if (diff !== 0 && out.length > 0) {
+    out[out.length - 1].discountHtCents += diff;
+  }
+  const filtered = out.filter((x) => x.discountHtCents > 0);
+  let s = filtered.reduce((acc, x) => acc + x.discountHtCents, 0);
+  if (s !== targetCents && filtered.length > 0) {
+    filtered[filtered.length - 1].discountHtCents += targetCents - s;
+    s = filtered.reduce((acc, x) => acc + x.discountHtCents, 0);
+  }
+  if (s !== targetCents) {
+    const err = new Error(`Répartition remise multi-TVA : somme ${s} ≠ cible ${targetCents} centimes`);
+    err.statusCode = 500;
+    throw err;
+  }
+  return filtered;
+}
+
+/**
+ * @param {import("pg").PoolClient} client
+ * @param {{ vatRatePercent: number, lineHtCents: number }[]} vatContributionRows — lignes « produit » positives uniquement
+ * @param {number} [defaultVatPercent] — si aucune base HT répartissable (ex. tout PERCENT_TOTAL), une ligne remise à ce taux
+ */
+async function insertQuoteDocumentDiscountLinesFromVatContributions(
+  client,
+  organizationId,
+  quoteId,
+  startPosition,
+  discountHtTotalEuro,
+  vatContributionRows,
+  defaultVatPercent = 20
+) {
+  const groups = mergeHtCentsByVatRate(vatContributionRows);
+  if (groups.length === 0) {
+    if (Number(discountHtTotalEuro) > 0.00001) {
+      await insertQuoteDocumentDiscountLine(
+        client,
+        organizationId,
+        quoteId,
+        startPosition,
+        discountHtTotalEuro,
+        Math.max(0, Math.min(100, Number(defaultVatPercent) || 20))
+      );
+    }
+    return;
+  }
+  const alloc = allocateDiscountHtCentsByVatGroups(groups, discountHtTotalEuro);
+  let pos = startPosition;
+  for (const { vatRatePercent, discountHtCents } of alloc) {
+    await insertQuoteDocumentDiscountLine(
+      client,
+      organizationId,
+      quoteId,
+      pos++,
+      discountHtCents / 100,
+      vatRatePercent
+    );
+  }
 }
 
 /**
@@ -565,6 +666,8 @@ export async function createQuote(organizationId, body, auditContext = null) {
     let subHt = 0;
     let subVat = 0;
     let subTtc = 0;
+    /** @type {{ vatRatePercent: number, lineHtCents: number }[]} */
+    const vatContributionRows = [];
 
     for (let i = 0; i < items.length; i++) {
       const it = items[i];
@@ -572,6 +675,7 @@ export async function createQuote(organizationId, body, auditContext = null) {
       const up = Number(it.unit_price_ht) || 0;
       const rate = resolveLineVatRate(it, defaultVat);
       const discHt = Number(it.discount_ht) || 0;
+      const pm = String(it.pricing_mode || "FIXED").toUpperCase();
       const { total_line_ht: th, total_line_vat: tv, total_line_ttc: tt } = computeFinancialLineDbFields({
         quantity: qty,
         unit_price_ht: up,
@@ -581,6 +685,9 @@ export async function createQuote(organizationId, body, auditContext = null) {
       subHt += th;
       subVat += tv;
       subTtc += tt;
+      if (pm !== PRICING_MODE_PERCENT_TOTAL && th > 0.00001) {
+        vatContributionRows.push({ vatRatePercent: rate, lineHtCents: Math.round(th * 100) });
+      }
 
       const snapJson = buildQuoteLineSnapshotJsonForWrite(it);
 
@@ -613,14 +720,14 @@ export async function createQuote(organizationId, body, auditContext = null) {
     if (!payloadItemsHaveDocumentDiscountLine(items)) {
       const docDiscHt = computeDocumentDiscountHtFromSources(metaForDiscount, subHt);
       if (docDiscHt > 0) {
-        const vatDisc = weightedVatPercentForDiscountLine(subHt, subVat, defaultVat);
-        await insertQuoteDocumentDiscountLine(
+        await insertQuoteDocumentDiscountLinesFromVatContributions(
           client,
           organizationId,
           quoteId,
           items.length + 1,
           docDiscHt,
-          vatDisc
+          vatContributionRows,
+          defaultVat
         );
       }
     }
@@ -866,12 +973,15 @@ export async function updateQuote(quoteId, organizationId, body, auditContext = 
     let subHt = 0;
     let subVat = 0;
     let subTtc = 0;
+    /** @type {{ vatRatePercent: number, lineHtCents: number }[]} */
+    const vatContributionRows = [];
 
     for (let i = 0; i < items.length; i++) {
       const it = items[i];
       const qty = Number(it.quantity) || 0;
       const up = Number(it.unit_price_ht) || 0;
       const rate = resolveLineVatRate(it, defaultVat);
+      const pm = String(it.pricing_mode || "FIXED").toUpperCase();
       const { total_line_ht: th, total_line_vat: tv, total_line_ttc: tt } = computeFinancialLineDbFields({
         quantity: qty,
         unit_price_ht: up,
@@ -881,6 +991,9 @@ export async function updateQuote(quoteId, organizationId, body, auditContext = 
       subHt += th;
       subVat += tv;
       subTtc += tt;
+      if (pm !== PRICING_MODE_PERCENT_TOTAL && th > 0.00001) {
+        vatContributionRows.push({ vatRatePercent: rate, lineHtCents: Math.round(th * 100) });
+      }
 
       const snapJson = buildQuoteLineSnapshotJsonForWrite(it);
       await client.query(
@@ -912,14 +1025,14 @@ export async function updateQuote(quoteId, organizationId, body, auditContext = 
     if (!payloadItemsHaveDocumentDiscountLine(items) && wantsBodyDocDiscount) {
       const docDiscHt = computeDocumentDiscountHtFromSources(mergedForDiscount, subHt);
       if (docDiscHt > 0) {
-        const vatDisc = weightedVatPercentForDiscountLine(subHt, subVat, defaultVat);
-        await insertQuoteDocumentDiscountLine(
+        await insertQuoteDocumentDiscountLinesFromVatContributions(
           client,
           organizationId,
           quoteId,
           items.length + 1,
           docDiscHt,
-          vatDisc
+          vatContributionRows,
+          defaultVat
         );
       }
     }
@@ -1027,6 +1140,7 @@ export async function patchQuoteStatus(quoteId, organizationId, newStatus, userI
           `[quotes] Devis ${quoteId} → ACCEPTED sans client_id sur le devis ni sur le lead (lead_id=${quote.lead_id ?? "none"}) — la création de facture pourra créer/rattacher la fiche client automatiquement`
         );
       }
+      /* Source de vérité lignes : recalcul en-tête puis blocage si écart (aucun ACCEPTED incohérent). */
       await computeQuoteTotalsFromLines({ quoteId, orgId: organizationId, client });
       await assertQuoteLinesMatchHeaderOrThrow(client, quoteId, organizationId);
       await client.query(
