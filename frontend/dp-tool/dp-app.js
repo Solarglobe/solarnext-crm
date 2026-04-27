@@ -5944,7 +5944,13 @@ function syncDP4LegendOverlayUI() {
 
   const host = modal || listEl;
   const getLegend = window.getDP2GlobalLegendForPdf;
-  const legendItems = typeof getLegend === "function" ? (getLegend() || []) : [];
+  let legendItems = typeof getLegend === "function" ? (getLegend() || []).slice() : [];
+  if (typeof dp2IsDP4RoofProfile === "function" && dp2IsDP4RoofProfile()) {
+    const objs = window.DP2_STATE?.objects || [];
+    if (objs.some((o) => o && o.type === "gutter_height_dimension") && !legendItems.some((it) => it && it.legendKey === "HAUTEUR_GOUTTIERE")) {
+      legendItems.push({ legendKey: "HAUTEUR_GOUTTIERE", count: 1 });
+    }
+  }
 
   const signature = Array.isArray(legendItems)
     ? legendItems.map((it) => `${it?.legendKey || ""}:${typeof it?.count === "number" ? it.count : 0}`).join("|")
@@ -5972,7 +5978,9 @@ function syncDP4LegendOverlayUI() {
     const label =
       legendKey === "PANNEAUX_PV"
         ? "Panneaux photovoltaïques"
-        : (meta?.label || String(legendKey));
+        : legendKey === "HAUTEUR_GOUTTIERE"
+          ? "Hauteur gouttière"
+          : (meta?.label || String(legendKey));
 
     const row = document.createElement("div");
     row.className = "dp2-legend-row";
@@ -6015,6 +6023,39 @@ function syncDP4LegendOverlayUI() {
         ctx.scale(scale, scale);
         renderDP2PanelRect(ctx, { x: 0, y: 0, width: bw, height: bh, rotation: 0 }, DP2_PANEL_STYLE);
         ctx.restore();
+        continue;
+      }
+
+      if (legendKey === "HAUTEUR_GOUTTIERE") {
+        const x0 = miniCanvas.width / 2;
+        const y1 = 14;
+        const y2 = miniCanvas.height - 14;
+        ctx.strokeStyle = "#0f766e";
+        ctx.lineWidth = 2;
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.moveTo(x0, y1);
+        ctx.lineTo(x0, y2);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(x0 - 7, y1);
+        ctx.lineTo(x0 + 7, y1);
+        ctx.moveTo(x0 - 7, y2);
+        ctx.lineTo(x0 + 7, y2);
+        ctx.stroke();
+        ctx.fillStyle = "#0f766e";
+        ctx.beginPath();
+        ctx.moveTo(x0, y1 - 7);
+        ctx.lineTo(x0 - 4, y1);
+        ctx.lineTo(x0 + 4, y1);
+        ctx.closePath();
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(x0, y2 + 7);
+        ctx.lineTo(x0 - 4, y2);
+        ctx.lineTo(x0 + 4, y2);
+        ctx.closePath();
+        ctx.fill();
         continue;
       }
 
@@ -7717,12 +7758,14 @@ function initDP2Toolbar() {
 
       const toolbarEl = document.getElementById("dp2-toolbar");
       const settingsPanelEl = document.getElementById("dp2-settings-panel");
+      const dp4SettingsPanelEl = document.getElementById("dp4-settings-panel");
 
       const target = e.target;
       const inWrap = wrap.contains(target);
       const inToolbar = toolbarEl ? toolbarEl.contains(target) : false;
       const inSettingsPanel = settingsPanelEl ? settingsPanelEl.contains(target) : false;
-      if (inWrap || inToolbar || inSettingsPanel) return;
+      const inDp4SettingsPanel = dp4SettingsPanelEl ? dp4SettingsPanelEl.contains(target) : false;
+      if (inWrap || inToolbar || inSettingsPanel || inDp4SettingsPanel) return;
 
       dp2ResetActiveToolToNeutral({ preserveSelection: false, reason: "outside_canvas_click" });
     }, true);
@@ -7730,6 +7773,9 @@ function initDP2Toolbar() {
 
   setActiveTool(window.DP2_STATE.currentTool || "select");
   updateToolbarState();
+  try {
+    if (typeof dp2SyncDp4RoofMeasuresMenuVisibility === "function") dp2SyncDp4RoofMeasuresMenuVisibility();
+  } catch (_) {}
 }
 
 // --------------------------
@@ -8993,6 +9039,31 @@ function initDP2CanvasEvents() {
       }
     }
 
+    if (tool === "select") {
+      const hitGh = dp2HitTestGutterHeightLabel(canvas, coords.x, coords.y);
+      if (hitGh && hitGh.kind === "gutter_height_label" && typeof hitGh.index === "number") {
+        const obj = window.DP2_STATE?.objects?.[hitGh.index];
+        if (obj && obj.type === "gutter_height_dimension") {
+          const offset = obj.labelOffset && typeof obj.labelOffset.x === "number" && typeof obj.labelOffset.y === "number"
+            ? { x: obj.labelOffset.x, y: obj.labelOffset.y }
+            : { x: 0, y: 0 };
+          dp2CommitHistoryPoint();
+          window.DP2_STATE.gutterHeightLabelDrag = {
+            objectIndex: hitGh.index,
+            pointerId: e.pointerId,
+            startCanvasX: coords.x,
+            startCanvasY: coords.y,
+            startOffsetX: offset.x,
+            startOffsetY: offset.y
+          };
+          try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
+          e.preventDefault();
+          renderDP2FromState();
+          return;
+        }
+      }
+    }
+
     // 0) DP2 — Contours de bâti : sélection + drag d'un sommet (uniquement en mode Sélection)
     if (tool === "select") {
       const hitAny = dp2HitTest(canvas, coords.x, coords.y);
@@ -9029,7 +9100,7 @@ function initDP2CanvasEvents() {
       const hitLine = dp2HitTest(canvas, coords.x, coords.y);
       if (hitLine && hitLine.kind === "object" && (hitLine.vertexAnchor === "A" || hitLine.vertexAnchor === "B")) {
         const obj = window.DP2_STATE?.objects?.[hitLine.index];
-        if (obj && (obj.type === "ridge_line" || obj.type === "measure_line") && obj.a && obj.b) {
+        if (obj && (obj.type === "ridge_line" || obj.type === "measure_line" || obj.type === "gutter_height_dimension") && obj.a && obj.b) {
           const pt = hitLine.vertexAnchor === "A" ? obj.a : obj.b;
           dp2CommitHistoryPoint();
           window.DP2_STATE.lineVertexInteraction = {
@@ -9435,7 +9506,23 @@ function initDP2CanvasEvents() {
       return;
     }
 
-    if (!mld && !pld && !rld) {
+    const ghld = window.DP2_STATE?.gutterHeightLabelDrag || null;
+    if (ghld && typeof ghld.pointerId === "number" && ghld.pointerId === e.pointerId) {
+      const obj = window.DP2_STATE?.objects?.[ghld.objectIndex];
+      if (obj && obj.type === "gutter_height_dimension") {
+        const coords = getDP2CanvasCoords(canvas, e.clientX, e.clientY);
+        const dx = coords.x - (ghld.startCanvasX || 0);
+        const dy = coords.y - (ghld.startCanvasY || 0);
+        obj.labelOffset = {
+          x: (ghld.startOffsetX || 0) + dx,
+          y: (ghld.startOffsetY || 0) + dy
+        };
+        renderDP2FromState();
+      }
+      return;
+    }
+
+    if (!mld && !pld && !rld && !ghld) {
       try {
         dp2UpdateHoverFromPointerMove(canvas, e);
       } catch (_) {}
@@ -9466,6 +9553,22 @@ function initDP2CanvasEvents() {
       const coords = getDP2CanvasCoords(canvas, e.clientX, e.clientY);
       const objs = window.DP2_STATE?.objects || [];
       const obj = objs[lvi.objectIndex];
+      if (obj && obj.type === "gutter_height_dimension" && obj.a && obj.b) {
+        const nx = coords.x - (lvi.offsetX || 0);
+        const ny = coords.y - (lvi.offsetY || 0);
+        const pt = lvi.anchor === "A" ? obj.a : obj.b;
+        if (Math.abs(nx - (pt.x || 0)) > 1 || Math.abs(ny - (pt.y || 0)) > 1) lvi.hasMoved = true;
+        const xLock = lvi.anchor === "A" ? obj.b.x : obj.a.x;
+        if (lvi.anchor === "A") {
+          obj.a.x = xLock;
+          obj.a.y = ny;
+        } else {
+          obj.b.x = xLock;
+          obj.b.y = ny;
+        }
+        renderDP2FromState();
+        return;
+      }
       if (obj && (obj.type === "ridge_line" || obj.type === "measure_line") && obj.a && obj.b) {
         const pt = lvi.anchor === "A" ? obj.a : obj.b;
         const nx = coords.x - (lvi.offsetX || 0);
@@ -9919,6 +10022,14 @@ function initDP2CanvasEvents() {
       return;
     }
 
+    const ghldUp = window.DP2_STATE?.gutterHeightLabelDrag || null;
+    if (ghldUp && typeof ghldUp.pointerId === "number" && ghldUp.pointerId === e.pointerId) {
+      window.DP2_STATE.gutterHeightLabelDrag = null;
+      try { canvas.releasePointerCapture(e.pointerId); } catch (_) {}
+      renderDP2FromState();
+      return;
+    }
+
     const bci = window.DP2_STATE?.buildingContourInteraction || null;
     if (bci && typeof bci.pointerId === "number" && bci.pointerId === e.pointerId) {
       window.DP2_STATE.buildingContourInteraction = null;
@@ -10211,6 +10322,30 @@ function initDP2CanvasEvents() {
       return;
     }
 
+    // Hauteur gouttière (DP4) : prévisualisation verticale (abscisse figée au 1er clic)
+    if (tool === "gutter_height_dimension" && window.DP2_STATE.gutterHeightStart) {
+      const from = window.DP2_STATE.gutterHeightStart;
+      const xLock = from.x;
+      const y2 = coords.y;
+      const lengthPx = Math.abs(y2 - from.y);
+      const lengthM = typeof scale === "number" && scale > 0 ? lengthPx * scale : 0;
+      window.DP2_STATE.drawingPreview = {
+        from: { x: xLock, y: from.y },
+        to: { x: xLock, y: y2 },
+        lengthM,
+        previewType: "gutter_height_dimension"
+      };
+      renderDP2FromState();
+      return;
+    }
+    if (tool === "gutter_height_dimension") {
+      if (window.DP2_STATE.drawingPreview != null) {
+        window.DP2_STATE.drawingPreview = null;
+        renderDP2FromState();
+      }
+      return;
+    }
+
     const outline = dp2GetActiveBuildingOutlineForDrawing();
     if (tool !== "building_outline" || !outline || outline.closed || !outline.points || outline.points.length < 1) {
       if (window.DP2_STATE.drawingPreview != null) {
@@ -10332,6 +10467,29 @@ function initDP2CanvasEvents() {
         window.DP2_STATE.selectedBusinessObjectId = null;
       }
       renderDP2FromState();
+      return;
+    }
+
+    // Hauteur gouttière (DP4) : deux clics, cote strictement verticale
+    if (tool === "gutter_height_dimension") {
+      if (window.DP2_STATE.gutterHeightStart == null) {
+        window.DP2_STATE.gutterHeightStart = { x: coords.x, y: coords.y };
+        window.DP2_STATE.drawingPreview = null;
+        renderDP2FromState();
+        return;
+      }
+      const a = window.DP2_STATE.gutterHeightStart;
+      const xLock = a.x;
+      dp2CommitHistoryPoint();
+      window.DP2_STATE.objects.push({
+        type: "gutter_height_dimension",
+        a: { x: xLock, y: a.y },
+        b: { x: xLock, y: coords.y },
+        labelOffset: { x: 0, y: 0 }
+      });
+      window.DP2_STATE.gutterHeightStart = null;
+      window.DP2_STATE.drawingPreview = null;
+      dp2AutoReturnToSelectIfCreationDone({ preserveSelection: true, reason: "gutter_height_dimension_created" });
       return;
     }
 
@@ -15150,6 +15308,11 @@ async function dp4BuildFinalRenderImageBase64FromCurrentDom() {
           sctx.lineWidth = 2;
           renderRidgeLine(sctx, obj, i);
           sctx.lineWidth = prevRidgeWidth;
+        } else if (obj.type === "gutter_height_dimension" && typeof renderGutterHeightDimension === "function") {
+          const prevGw = sctx.lineWidth;
+          sctx.lineWidth = 1.5;
+          renderGutterHeightDimension(sctx, obj, i);
+          sctx.lineWidth = prevGw;
         }
       }
 
@@ -15174,7 +15337,7 @@ async function dp4BuildFinalRenderImageBase64FromCurrentDom() {
       for (const obj of objects) {
         if (!obj || !obj.type) continue;
         // Exclure les éléments structurels (déjà rendus + normalisés)
-        if (obj.type === "building_outline" || obj.type === "measure_line" || obj.type === "ridge_line") continue;
+        if (obj.type === "building_outline" || obj.type === "measure_line" || obj.type === "ridge_line" || obj.type === "gutter_height_dimension") continue;
 
         switch (obj.type) {
           case "rectangle":
@@ -15933,6 +16096,9 @@ function dp4TransformDP2ToDP4PixelsFromCurrentMapView() {
 
   try {
     window.DP2_STATE.editorProfile = "DP4_ROOF";
+    try {
+      if (typeof dp2SyncDp4RoofMeasuresMenuVisibility === "function") dp2SyncDp4RoofMeasuresMenuVisibility();
+    } catch (_) {}
     if (typeof dp4SyncRoofGeometryFromDP2State === "function") {
       dp4SyncRoofGeometryFromDP2State();
     }
@@ -16428,6 +16594,7 @@ function initDP4() {
     dp4EnsureDP2ToolbarAndActionsMounted().then(({ createdToolbar }) => {
       try {
         if (createdToolbar) initDP2Toolbar();
+        else if (typeof dp2SyncDp4RoofMeasuresMenuVisibility === "function") dp2SyncDp4RoofMeasuresMenuVisibility();
       } catch (_) {}
       try {
         initDP2DrawActions();
@@ -16469,7 +16636,7 @@ function initDP4() {
       }));
       window.DP2_STATE.buildingContours = contoursConstruits;
 
-      // C. Construire DP2_STATE.objects SANS building_outline (ridge_line, measure_line uniquement)
+      // C. Construire DP2_STATE.objects SANS building_outline (ridge_line, measure_line, gutter_height_dimension…)
       window.DP2_STATE.objects = roofGeometry.filter((o) => o && o.type !== "building_outline");
 
       // D. Safety : ne jamais laisser building_outline dans objects en DP4
@@ -16506,6 +16673,7 @@ function initDP4() {
     window.DP2_STATE.drawingPreview = null;
     window.DP2_STATE.measureLineStart = null;
     window.DP2_STATE.ridgeLineStart = null;
+    window.DP2_STATE.gutterHeightStart = null;
 
     // Bind UI paramètres DP4 (menu gauche)
     try { initDP4MetadataUI(); } catch (_) {}
