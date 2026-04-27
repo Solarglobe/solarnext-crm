@@ -1,11 +1,10 @@
-import dotenv from "dotenv";
+import "../config/register-local-env.js";
 import { fileURLToPath } from "url";
 import { dirname, resolve } from "path";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-dotenv.config({ path: resolve(__dirname, "../../.env.dev") });
 
 async function run() {
   const { pool } = await import("../config/db.js");

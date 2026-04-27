@@ -4,15 +4,12 @@
  * Prérequis: backend tourne sur port 3000, DB avec au moins 1 study+lead+address (lat/lon)
  */
 
-import "dotenv/config";
-import { config } from "dotenv";
-import { resolve, dirname } from "path";
+import "../config/register-local-env.js";
+import { dirname } from "path";
 import { fileURLToPath } from "url";
 import { pool } from "../config/db.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-config({ path: resolve(__dirname, "../../.env.dev"), override: false });
-config({ path: resolve(__dirname, "../.env"), override: false });
 
 const BASE = process.env.API_BASE || "http://localhost:3000";
 

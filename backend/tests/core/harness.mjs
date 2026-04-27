@@ -4,9 +4,9 @@
  * Désactiver : CP077_SKIP_INTEGRATION=1
  */
 
+import "../../config/register-local-env.js";
 import { fileURLToPath } from "url";
 import { dirname, resolve } from "path";
-import dotenv from "dotenv";
 import fetch from "node-fetch";
 import pg from "pg";
 
@@ -14,8 +14,6 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const BACKEND_DIR = resolve(__dirname, "../..");
 const ROOT = resolve(BACKEND_DIR, "..");
 
-dotenv.config({ path: resolve(ROOT, ".env.dev"), override: false });
-dotenv.config({ path: resolve(BACKEND_DIR, ".env"), override: false });
 
 export const BASE_URL = process.env.TEST_BASE_URL || process.env.BASE_URL || "http://localhost:3000";
 

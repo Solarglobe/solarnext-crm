@@ -1,4 +1,4 @@
-import dotenv from "dotenv";
+import "../config/register-local-env.js";
 import { fileURLToPath } from "url";
 import { dirname, resolve } from "path";
 import fetch from "node-fetch";
@@ -6,7 +6,6 @@ import fetch from "node-fetch";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-dotenv.config({ path: resolve(__dirname, "../../.env.dev") });
 
 const BASE_URL = "http://localhost:3000";
 

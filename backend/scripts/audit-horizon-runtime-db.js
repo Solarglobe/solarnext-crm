@@ -4,7 +4,7 @@
  * Ou: node scripts/audit-horizon-runtime-db.js <studyId> <orgId> [version]
  */
 
-import "dotenv/config";
+import "../config/register-local-env.js";
 import { writeFileSync, mkdirSync } from "fs";
 import { join } from "path";
 import { createHash } from "crypto";

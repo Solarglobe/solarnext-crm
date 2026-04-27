@@ -3,12 +3,11 @@
  * Usage (serveur sur PORT 3000) : node --env-file=./.env scripts/test-lead-status-api.js
  */
 
-import dotenv from "dotenv";
+import "../config/register-local-env.js";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-dotenv.config({ path: resolve(__dirname, "../.env") });
 
 const BASE_URL = process.env.TEST_BASE_URL || "http://localhost:3000";
 

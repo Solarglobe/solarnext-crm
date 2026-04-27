@@ -9,15 +9,13 @@
  * Usage: depuis backend/ → node scripts/validate-enedis-oauth-full.js
  */
 
-import dotenv from "dotenv";
+import "../config/register-local-env.js";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const BACKEND_DIR = resolve(__dirname, "..");
 
-dotenv.config({ path: resolve(BACKEND_DIR, "../.env.dev"), override: false });
-dotenv.config({ path: resolve(BACKEND_DIR, ".env"), override: false });
 
 const ENEDIS_SCOPE = "openid consommation_linky";
 const SANDBOX_AUTH = "https://mon-compte-particulier-sandbox.enedis.fr/oauth2/v3/authorize";

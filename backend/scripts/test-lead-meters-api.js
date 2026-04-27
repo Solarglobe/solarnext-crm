@@ -4,14 +4,12 @@
  * Prérequis: backend sur TEST_API_URL (défaut http://127.0.0.1:3000), .env.dev + utilisateur admin
  */
 
-import dotenv from "dotenv";
+import "../config/register-local-env.js";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 import pg from "pg";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-dotenv.config({ path: resolve(__dirname, "../../.env.dev") });
-dotenv.config({ path: resolve(__dirname, "../.env") });
 
 const BASE_URL = process.env.TEST_API_URL || "http://127.0.0.1:3000";
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });

@@ -4,14 +4,11 @@
  * Exit 0 si OK, 1 si au moins une colonne manque.
  */
 
-import dotenv from "dotenv";
+import "../config/register-local-env.js";
 import path from "path";
 import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-// Même ordre que bootstrap : .env.dev à la racine projet puis .env backend
-dotenv.config({ path: path.resolve(__dirname, "../../.env.dev"), override: false });
-dotenv.config({ path: path.resolve(__dirname, "../.env"), override: false });
 
 const { pool } = await import("../config/db.js");
 const { EXPECTED_SCHEMA } = await import("../config/schemaDefinition.js");

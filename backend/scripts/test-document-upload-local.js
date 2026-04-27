@@ -11,12 +11,12 @@
  * - Vérification suppression disque + DB
  */
 
+import "../config/register-local-env.js";
 import { spawn } from "child_process";
 import { fileURLToPath } from "url";
 import path from "path";
 import { execSync } from "child_process";
 import fs from "fs/promises";
-import dotenv from "dotenv";
 import fetch from "node-fetch";
 import FormData from "form-data";
 import pg from "pg";
@@ -29,7 +29,6 @@ const STORAGE_ROOT = path.resolve(BACKEND_DIR, "storage");
 const BASE_URL = "http://localhost:3000";
 const PORT = 3000;
 
-dotenv.config({ path: path.resolve(__dirname, "../../.env.dev"), override: false });
 
 const SUPER_ADMIN = {
   email: (process.env.TEST_SUPER_ADMIN_EMAIL || process.env.TEST_EMAIL || "b.letren@solarglobe.fr").trim(),

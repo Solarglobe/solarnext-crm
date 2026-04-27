@@ -1,16 +1,13 @@
 /**
  * PDF Pipeline — Fixtures partagées pour les tests
  */
+import "../../config/register-local-env.js";
 import { pool } from "../../config/db.js";
 import { fileURLToPath } from "url";
-import { dirname, resolve } from "path";
-import { config } from "dotenv";
+import { dirname } from "path";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-
-config({ path: resolve(__dirname, "../../.env.dev"), override: false });
-config({ path: resolve(__dirname, "../../.env"), override: false });
 
 const SCENARIOS_V2 = [
   {

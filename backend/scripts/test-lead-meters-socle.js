@@ -4,8 +4,8 @@
  * Prérequis: DATABASE_URL, migrations 1775000000000 appliquées
  */
 
+import "../config/register-local-env.js";
 import pg from "pg";
-import dotenv from "dotenv";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 import {
@@ -15,8 +15,6 @@ import {
 } from "../services/leadMeters.service.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-dotenv.config({ path: resolve(__dirname, "../../.env.dev") });
-dotenv.config({ path: resolve(__dirname, "../.env") });
 
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
 

@@ -1,25 +1,13 @@
 /**
  * Source unique de vérité pour le chargement des variables d’environnement (serveur, scripts, tests DB).
- * Ordre fixe : racine `.env.dev` puis `backend/.env`, `override: false` → la première valeur lue gagne
- * (évite deux JWT_SECRET actifs : ne pas préfixer les scripts par `dotenv/config` qui charge `.env` en premier).
+ * Fichiers locaux chargés seulement si `DATABASE_URL` est absent (Railway / shells injectés prioritaires).
+ * Ordre : racine `.env.dev` puis `backend/.env`, `override: false` entre les deux fichiers.
+ * Ne pas préfixer les scripts par `dotenv/config` (ordre et cwd imprévisibles).
  * Obligatoire pour `node server.js` / `npm start` (sans bootstrap.js).
  */
-import dotenv from "dotenv";
-import path from "path";
-import { fileURLToPath } from "url";
+import { loadBackendLocalEnvFiles } from "./load-local-env.js";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const backendRoot = path.resolve(__dirname, "..");
-
-dotenv.config({
-  path: path.resolve(backendRoot, "../.env.dev"),
-  override: false,
-});
-dotenv.config({
-  path: path.resolve(backendRoot, ".env"),
-  override: false,
-});
+loadBackendLocalEnvFiles();
 
 const { applyResolvedDatabaseUrl } = await import("./database-url.js");
 applyResolvedDatabaseUrl();

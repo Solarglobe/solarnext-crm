@@ -4,16 +4,15 @@
  * Prérequis: Backend lancé (port 3000), DATABASE_URL, JWT_SECRET dans .env.dev
  */
 
+import "../config/register-local-env.js";
 import path from "path";
 import { fileURLToPath } from "url";
-import dotenv from "dotenv";
 import jwt from "jsonwebtoken";
 import fetch from "node-fetch";
 import pg from "pg";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-dotenv.config({ path: path.resolve(__dirname, "../../.env.dev") });
 
 const BASE_URL = "http://localhost:3000";
 let token = null;

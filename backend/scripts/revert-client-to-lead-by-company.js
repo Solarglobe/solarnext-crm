@@ -16,15 +16,13 @@
  * Prérequis : .env.dev ou DATABASE_URL (voir seed-virtual-batteries.js)
  */
 
+import "../config/register-local-env.js";
 import { fileURLToPath } from "url";
 import { dirname, resolve } from "path";
-import dotenv from "dotenv";
 import pg from "pg";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "..");
-dotenv.config({ path: resolve(ROOT, "..", ".env.dev"), override: false });
-dotenv.config({ path: resolve(ROOT, ".env.dev"), override: false });
 
 let databaseUrl = process.env.DATABASE_URL || "";
 if (databaseUrl && databaseUrl.includes("@db:")) {

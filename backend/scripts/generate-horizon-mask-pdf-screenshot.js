@@ -3,7 +3,7 @@
  * Usage: cd backend && node scripts/generate-horizon-mask-pdf-screenshot.js
  */
 
-import "dotenv/config";
+import "../config/register-local-env.js";
 import { chromium } from "playwright";
 import { buildHorizonMaskSinglePageHtml } from "../pdf/horizonMaskHtmlBuilder.js";
 import { generatePdfFromHtml } from "../pdf/playwright-dsm-analysis.js";

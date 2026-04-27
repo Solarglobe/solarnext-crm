@@ -3,7 +3,7 @@
  * Usage: cd backend && node scripts/audit-find-study-chelles.js
  */
 
-import "dotenv/config";
+import "../config/register-local-env.js";
 import { pool } from "../config/db.js";
 
 const CHELLES_ADDRESS = "19 Avenue Pierre Curie 77500 Chelles";

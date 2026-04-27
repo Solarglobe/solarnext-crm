@@ -13,7 +13,7 @@
  *   node backend/scripts/migrate-discount-to-lines.mjs --apply
  */
 
-import dotenv from "dotenv";
+import "../config/register-local-env.js";
 import path from "path";
 import { fileURLToPath } from "url";
 import { pool } from "../config/db.js";
@@ -22,10 +22,6 @@ import { computeFinancialLineDbFields } from "../services/finance/financialLine.
 import { QUOTE_DOC_PDF_SIGNED } from "../constants/entityDocumentsRowTypes.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-if (!process.env.DATABASE_URL) {
-  dotenv.config({ path: path.resolve(__dirname, "../../.env.dev"), override: false });
-  dotenv.config({ path: path.resolve(__dirname, "../.env"), override: false });
-}
 
 const APPLY = process.argv.includes("--apply");
 const TOL = 0.02;

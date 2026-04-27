@@ -17,8 +17,8 @@
  *   cd backend && node scripts/cleanup-test-clients.mjs --org=<ORGANIZATION_UUID>
  *   cd backend && node scripts/cleanup-test-clients.mjs --org=<UUID> --apply
  */
+import "../config/register-local-env.js";
 import { writeSync } from "fs";
-import dotenv from "dotenv";
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -26,8 +26,6 @@ import { fileURLToPath } from "url";
 writeSync(1, `[cleanup-test-clients] SCRIPT START ${new Date().toISOString()}\n`);
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-dotenv.config({ path: path.resolve(__dirname, "../../.env.dev"), override: false });
-dotenv.config({ path: path.resolve(__dirname, "../.env"), override: false });
 
 import { applyResolvedDatabaseUrl } from "../config/database-url.js";
 applyResolvedDatabaseUrl();

@@ -13,16 +13,12 @@
  * Prérequis : .env ou .env.dev avec DATABASE_URL, migrations à jour.
  */
 
-import "dotenv/config";
+import "../config/register-local-env.js";
 import { fileURLToPath } from "url";
-import { dirname, resolve } from "path";
-import { config } from "dotenv";
+import { dirname } from "path";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-
-config({ path: resolve(__dirname, "../../.env.dev"), override: false });
-config({ path: resolve(__dirname, "../.env"), override: false });
 
 import { pool } from "../config/db.js";
 import { buildSelectedScenarioSnapshot } from "../services/selectedScenarioSnapshot.service.js";

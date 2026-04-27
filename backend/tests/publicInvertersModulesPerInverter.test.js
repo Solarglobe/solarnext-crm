@@ -9,9 +9,9 @@
  * 3) Si pas de micro actif : insert temporaire (rollback) avec modules_per_inverter=2
  */
 
+import "../config/register-local-env.js";
 import { fileURLToPath } from "url";
 import { dirname, resolve } from "path";
-import dotenv from "dotenv";
 import fetch from "node-fetch";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -20,7 +20,6 @@ const __dirname = dirname(__filename);
 const ROOT = resolve(__dirname, "../..");
 const BASE_URL = process.env.BASE_URL || "http://localhost:3000";
 
-dotenv.config({ path: resolve(ROOT, ".env.dev"), override: false });
 
 const { pool } = await import("../config/db.js");
 

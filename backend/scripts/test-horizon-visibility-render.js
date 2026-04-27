@@ -4,7 +4,7 @@
  * Usage: cd backend && node scripts/test-horizon-visibility-render.js
  */
 
-import "dotenv/config";
+import "../config/register-local-env.js";
 import { writeFileSync, mkdirSync } from "fs";
 import { join } from "path";
 import { buildPremiumHorizonMaskSvg } from "../pdf/horizonMaskPremiumChart.js";

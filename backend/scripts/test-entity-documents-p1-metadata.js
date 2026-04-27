@@ -6,15 +6,13 @@
  * Usage : cd backend && node --env-file=../.env.dev scripts/test-entity-documents-p1-metadata.js
  */
 
-import dotenv from "dotenv";
+import "../config/register-local-env.js";
 import path from "path";
 import { fileURLToPath } from "url";
 import { randomUUID } from "crypto";
 import fs from "fs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-dotenv.config({ path: path.resolve(__dirname, "../../.env.dev"), override: false });
-dotenv.config({ path: path.resolve(__dirname, "../.env"), override: false });
 
 const { pool } = await import("../config/db.js");
 const {

@@ -1,11 +1,10 @@
+import "../config/register-local-env.js";
 import pg from "pg";
-import dotenv from "dotenv";
 import { fileURLToPath } from "url";
 import { dirname, resolve } from "path";
 import { getConnectionString } from "../config/database-url.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-dotenv.config({ path: resolve(__dirname, "../../.env.dev") });
 
 const { Pool } = pg;
 

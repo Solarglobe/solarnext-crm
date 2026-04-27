@@ -4,9 +4,9 @@
  * Usage : node --env-file=../.env.dev scripts/test-rgpd-e2e.js
  */
 
+import "../config/register-local-env.js";
 import { fileURLToPath } from "url";
 import { dirname, resolve } from "path";
-import dotenv from "dotenv";
 import fetch from "node-fetch";
 import pg from "pg";
 
@@ -15,7 +15,6 @@ const __dirname = dirname(__filename);
 const BACKEND_DIR = resolve(__dirname, "..");
 const ROOT = resolve(BACKEND_DIR, "..");
 
-dotenv.config({ path: resolve(ROOT, ".env.dev"), override: false });
 
 const BASE_URL = process.env.BASE_URL || "http://localhost:3000";
 

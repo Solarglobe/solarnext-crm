@@ -9,9 +9,9 @@
  * 4) Vérifie isolation multi-organisation
  */
 
+import "../config/register-local-env.js";
 import { fileURLToPath } from "url";
 import { dirname, resolve } from "path";
-import dotenv from "dotenv";
 import fetch from "node-fetch";
 import pg from "pg";
 
@@ -22,7 +22,6 @@ const BACKEND_DIR = resolve(__dirname, "..");
 const ROOT = resolve(BACKEND_DIR, "..");
 const BASE_URL = process.env.BASE_URL || "http://localhost:3000";
 
-dotenv.config({ path: resolve(ROOT, ".env.dev"), override: false });
 
 function assert(cond, msg) {
   if (!cond) throw new Error(msg);

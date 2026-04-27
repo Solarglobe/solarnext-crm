@@ -10,16 +10,12 @@
  * Prérequis: DATABASE_URL (.env.dev), migrations à jour (dont 1771162300000_study_versions_locked_at)
  */
 
-import "dotenv/config";
+import "../config/register-local-env.js";
 import { fileURLToPath } from "url";
-import { dirname, resolve } from "path";
-import { config } from "dotenv";
+import { dirname } from "path";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-
-config({ path: resolve(__dirname, "../../.env.dev"), override: false });
-config({ path: resolve(__dirname, "../.env"), override: false });
 
 process.env.SKIP_PDF_IN_SELECT_SCENARIO = "1";
 

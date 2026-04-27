@@ -3,16 +3,14 @@
  * Usage : cd backend && node --env-file=../.env.dev scripts/test-entity-documents-p2-backfill.js
  */
 
+import "../config/register-local-env.js";
 import { spawnSync } from "child_process";
 import path from "path";
 import { fileURLToPath } from "url";
-import dotenv from "dotenv";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const backendRoot = path.join(__dirname, "..");
 
-dotenv.config({ path: path.join(backendRoot, "..", ".env.dev"), override: false });
-dotenv.config({ path: path.join(backendRoot, ".env"), override: false });
 
 function runNodeTest() {
   const r = spawnSync(process.execPath, ["--test", "tests/entityDocumentsMetadataBackfill.test.js"], {

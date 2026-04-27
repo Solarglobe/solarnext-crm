@@ -5,13 +5,11 @@
  *         ou ORG_ID=xxx LEAD_ID=xxx node backend/tests/consumptionCsvResolver.e2e.test.js
  */
 
-import dotenv from "dotenv";
+import "../config/register-local-env.js";
 import path from "path";
 import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-dotenv.config({ path: path.resolve(__dirname, "../../.env.dev"), override: false });
-dotenv.config({ path: path.resolve(__dirname, "../.env"), override: false });
 
 import fs from "fs";
 import { randomUUID } from "crypto";

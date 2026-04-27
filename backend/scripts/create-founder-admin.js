@@ -8,15 +8,14 @@
 const ADMIN_EMAIL = "b.letren@solarglobe.fr";
 const ADMIN_PASSWORD = "@Goofy29041997";
 
+import "../config/register-local-env.js";
 import pg from "pg";
 import { fileURLToPath } from "url";
 import { dirname, resolve } from "path";
-import dotenv from "dotenv";
 import { hashPassword } from "../auth/auth.service.js";
 import { getConnectionString } from "../config/database-url.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-dotenv.config({ path: resolve(__dirname, "../../.env.dev") });
 
 if (!process.env.DATABASE_URL) {
   console.error("DATABASE_URL manquant. Vérifiez .env.dev");

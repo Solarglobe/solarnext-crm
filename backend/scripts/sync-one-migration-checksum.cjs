@@ -8,8 +8,10 @@ const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 const { Client } = require("pg");
-require("dotenv").config({ path: path.join(__dirname, "../../.env.dev") });
-require("dotenv").config({ path: path.join(__dirname, "../.env") });
+if (!process.env.DATABASE_URL) {
+  require("dotenv").config({ path: path.join(__dirname, "../../.env.dev"), override: false });
+  require("dotenv").config({ path: path.join(__dirname, "../.env"), override: false });
+}
 
 const name = process.argv[2];
 if (!name) {

@@ -9,11 +9,11 @@
  * 7) En cas d’échec, corrige (port redirect_uri) et relance
  */
 
+import "../config/register-local-env.js";
 import { readFileSync, writeFileSync } from "fs";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 import { spawn } from "child_process";
-import dotenv from "dotenv";
 import { chromium } from "playwright";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -26,8 +26,6 @@ const NAVIGATION_TIMEOUT_MS = 15000;
 const ENEDIS_HOST = "mon-compte-particulier.enedis.fr";
 const MAX_RETRIES = 2;
 
-dotenv.config({ path: resolve(BACKEND_DIR, "../.env.dev"), override: false });
-dotenv.config({ path: ENV_PATH, override: false });
 
 function parseEnvFile(path) {
   const content = readFileSync(path, "utf-8");

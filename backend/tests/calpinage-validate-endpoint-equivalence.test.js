@@ -7,16 +7,12 @@
  * Usage: cd backend && node tests/calpinage-validate-endpoint-equivalence.test.js
  */
 
-import "dotenv/config";
+import "../config/register-local-env.js";
 import { fileURLToPath } from "url";
-import { dirname, resolve } from "path";
-import { config } from "dotenv";
+import { dirname } from "path";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-
-config({ path: resolve(__dirname, "../../.env.dev"), override: false });
-config({ path: resolve(__dirname, "../.env"), override: false });
 
 import { pool } from "../config/db.js";
 import { validateCalpinage } from "../controllers/calpinageValidate.controller.js";

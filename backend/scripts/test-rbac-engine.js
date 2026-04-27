@@ -8,14 +8,13 @@
  *   node scripts/test-rbac-engine.js  (dans un autre)
  */
 
-import dotenv from "dotenv";
+import "../config/register-local-env.js";
 import { fileURLToPath } from "url";
 import { dirname, resolve } from "path";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-dotenv.config({ path: resolve(__dirname, "../../.env.dev") });
 
 import fetch from "node-fetch";
 import pg from "pg";

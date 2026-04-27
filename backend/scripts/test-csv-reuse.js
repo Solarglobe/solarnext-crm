@@ -10,16 +10,12 @@
  *        (versionId = study_versions.id UUID ; si omis, utilise la dernière study_version de l'org)
  */
 
-import "dotenv/config";
+import "../config/register-local-env.js";
 import { fileURLToPath } from "url";
-import { dirname, resolve } from "path";
-import { config } from "dotenv";
+import { dirname } from "path";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-
-config({ path: resolve(__dirname, "../../.env.dev"), override: false });
-config({ path: resolve(__dirname, "../.env"), override: false });
 
 const { pool } = await import("../config/db.js");
 const { validateDevisTechnique } = await import("../controllers/validateDevisTechnique.controller.js");

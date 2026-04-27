@@ -19,17 +19,13 @@
  * 3) Diff + assertions : PHYSICAL.energy ≠ BASE.energy ; VIRTUAL.finance ≠ BASE.finance.
  */
 
-import "dotenv/config";
+import "../config/register-local-env.js";
 import { fileURLToPath } from "url";
 import { dirname, resolve } from "path";
 import { mkdirSync, writeFileSync } from "fs";
-import { config } from "dotenv";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-
-config({ path: resolve(__dirname, "../../.env.dev"), override: false });
-config({ path: resolve(__dirname, "../.env"), override: false });
 
 import { pool } from "../config/db.js";
 import { getVersionById } from "../routes/studies/service.js";

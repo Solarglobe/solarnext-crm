@@ -2,13 +2,11 @@
  * Usage: node scripts/query-leads-by-display-name.mjs "Quote Cp077"
  * Affiche id, created_at, address, organization_id (+ colonnes nom pour audit).
  */
-import dotenv from "dotenv";
+import "../config/register-local-env.js";
 import path from "path";
 import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-dotenv.config({ path: path.resolve(__dirname, "../../.env.dev"), override: false });
-dotenv.config({ path: path.resolve(__dirname, "../.env"), override: false });
 
 import { applyResolvedDatabaseUrl } from "../config/database-url.js";
 applyResolvedDatabaseUrl();

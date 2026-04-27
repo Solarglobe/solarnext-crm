@@ -5,12 +5,11 @@
  * Usage: node scripts/test-horizon-dsm-real.js
  */
 
-import dotenv from "dotenv";
+import "../config/register-local-env.js";
 import path from "path";
 import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-dotenv.config({ path: path.resolve(__dirname, "../../.env.dev"), override: false });
 
 const { computeHorizonMaskAuto } = await import("../services/horizon/providers/horizonProviderSelector.js");
 

@@ -10,13 +10,11 @@
  *   node scripts/purge-leads-name-contains-test.js --execute --exact-names="BENOIT LETREN,SARL AUDIT PRO"
  */
 
-import dotenv from "dotenv";
+import "../config/register-local-env.js";
 import path from "path";
 import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-dotenv.config({ path: path.resolve(__dirname, "../../.env.dev"), override: false });
-dotenv.config({ path: path.resolve(__dirname, "../.env"), override: false });
 
 const { applyResolvedDatabaseUrl } = await import("../config/database-url.js");
 applyResolvedDatabaseUrl();

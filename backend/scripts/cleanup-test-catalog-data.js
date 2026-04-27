@@ -11,8 +11,8 @@
  *   DRY_RUN=false node scripts/cleanup-test-catalog-data.js
  */
 
-import "./config/load-env.js";
-import { pool } from "./config/db.js";
+import "../config/register-local-env.js";
+import { pool } from "../config/db.js";
 
 const DRY_RUN = process.env.DRY_RUN !== "false";
 

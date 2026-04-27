@@ -14,11 +14,11 @@
  * - Stoppe serveur
  */
 
+import "../config/register-local-env.js";
 import { spawn } from "child_process";
 import { fileURLToPath } from "url";
 import { dirname, resolve } from "path";
 import { execSync } from "child_process";
-import dotenv from "dotenv";
 import fetch from "node-fetch";
 import pg from "pg";
 
@@ -29,7 +29,6 @@ const BACKEND_DIR = resolve(__dirname, "..");
 const BASE_URL = "http://localhost:3000";
 const PORT = 3000;
 
-dotenv.config({ path: resolve(__dirname, "../../.env.dev"), override: false });
 
 const ADMIN = {
   email: process.env.TEST_ADMIN_EMAIL || "rbac-test-admin@test.local",

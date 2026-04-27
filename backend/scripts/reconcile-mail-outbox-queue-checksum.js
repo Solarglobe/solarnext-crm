@@ -11,16 +11,13 @@
  *   node scripts/reconcile-mail-outbox-queue-checksum.js --commit-checksum
  */
 
-import dotenv from "dotenv";
+import "../config/register-local-env.js";
 import path from "path";
 import fs from "fs";
 import crypto from "crypto";
 import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
-dotenv.config({ path: path.resolve(__dirname, "../../.env.dev"), override: false });
-dotenv.config({ path: path.resolve(__dirname, "../.env"), override: false });
 
 const MIGRATION_NAME = "1775920000000_mail_outbox_queue";
 const MIGRATIONS_DIR = path.resolve(__dirname, "../migrations");

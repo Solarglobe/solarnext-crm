@@ -4,8 +4,8 @@
  * Prérequis: DATABASE_URL, migrations lead_meters.
  */
 
+import "../config/register-local-env.js";
 import pg from "pg";
-import dotenv from "dotenv";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 import { resolveStudyVersionMeterContext } from "../services/solarnextPayloadBuilder.service.js";
@@ -13,8 +13,6 @@ import * as studiesService from "../routes/studies/service.js";
 import { buildMeterSnapshotRecord } from "../services/studyMeterSnapshot.service.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-dotenv.config({ path: resolve(__dirname, "../../.env.dev") });
-dotenv.config({ path: resolve(__dirname, "../.env") });
 
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
 const PREFIX = "MMFIN";

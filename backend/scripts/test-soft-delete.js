@@ -5,12 +5,11 @@
  * ou: node -r dotenv/config scripts/test-soft-delete.js dotenv_config_path=./.env
  */
 
+import "../config/register-local-env.js";
 import path from "path";
 import { fileURLToPath } from "url";
-import dotenv from "dotenv";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-dotenv.config({ path: path.resolve(__dirname, "../.env") });
 
 import pg from "pg";
 import { archiveEntity, restoreEntity } from "../services/archive.service.js";

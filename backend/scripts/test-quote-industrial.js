@@ -4,11 +4,11 @@
  * Usage: cd backend && node scripts/test-quote-industrial.js
  */
 
+import "../config/register-local-env.js";
 import { fileURLToPath } from "url";
 import { dirname, resolve } from "path";
 import { spawn } from "child_process";
 import { execSync } from "child_process";
-import dotenv from "dotenv";
 import fetch from "node-fetch";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -20,8 +20,6 @@ const TEST_PORT_QUOTE_ENGINE = 5056;
 const TEST_PORT_SNAPSHOT = 5057;
 const TEST_PORT_INDUSTRIAL = 5058;
 
-dotenv.config({ path: resolve(BACKEND_DIR, "../.env.dev"), override: false });
-dotenv.config({ path: resolve(BACKEND_DIR, ".env"), override: false });
 
 process.env.PGHOST = process.env.PGHOST || "localhost";
 let dbHost = process.env.PGHOST;

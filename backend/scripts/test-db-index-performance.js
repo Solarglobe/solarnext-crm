@@ -3,14 +3,12 @@
  * Insert 5000 leads, requête org + archived_at IS NULL, EXPLAIN ANALYZE
  */
 
+import "../config/register-local-env.js";
 import path from "path";
 import { fileURLToPath } from "url";
-import dotenv from "dotenv";
 import pg from "pg";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-dotenv.config({ path: path.resolve(__dirname, "../.env") });
-dotenv.config({ path: path.resolve(__dirname, "../../.env.dev") });
 
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
 

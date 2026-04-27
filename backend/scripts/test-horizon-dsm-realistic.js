@@ -5,7 +5,7 @@
  *   ou: STUDY_ID=xxx ORG_ID=yyy node scripts/test-horizon-dsm-realistic.js
  */
 
-import "dotenv/config";
+import "../config/register-local-env.js";
 import { writeFileSync, mkdirSync } from "fs";
 import { join } from "path";
 import { getOrComputeHorizonMask } from "../services/horizon/horizonMaskCache.js";

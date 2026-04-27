@@ -3,13 +3,11 @@
  * Usage: cd backend && node scripts/prove-bv-flow-real.js
  */
 
-import { resolve, dirname } from "path";
+import "../config/register-local-env.js";
+import { dirname } from "path";
 import { fileURLToPath } from "url";
-import { config } from "dotenv";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-config({ path: resolve(__dirname, "../../.env.dev"), override: false });
-config({ path: resolve(__dirname, "../.env"), override: false });
 
 process.env.DEBUG_BV_CALC = "1";
 process.env.LOG_STUDY_CALC_PERSIST = "1";

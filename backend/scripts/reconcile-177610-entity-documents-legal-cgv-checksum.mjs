@@ -16,17 +16,14 @@
  *   node scripts/reconcile-177610-entity-documents-legal-cgv-checksum.mjs --commit-checksum
  */
 
+import "../config/register-local-env.js";
 import crypto from "crypto";
-import dotenv from "dotenv";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { pool } from "../config/db.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
-dotenv.config({ path: path.resolve(__dirname, "../../.env.dev"), override: false });
-dotenv.config({ path: path.resolve(__dirname, "../.env"), override: false });
 
 const MIGRATION_NAME = "1776100000000_entity_documents_legal_cgv";
 const MIGRATIONS_DIR = path.resolve(__dirname, "../migrations");

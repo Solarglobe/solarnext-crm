@@ -5,13 +5,11 @@
  * Ou:   ORG_ID=... STUDY_ID=... VERSION_ID=1 node backend/scripts/smoke-calc-csv.js
  */
 
-import dotenv from "dotenv";
+import "../config/register-local-env.js";
 import path from "path";
 import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-dotenv.config({ path: path.resolve(__dirname, "../../.env.dev"), override: false });
-dotenv.config({ path: path.resolve(__dirname, "../.env"), override: false });
 
 const { pool } = await import("../config/db.js");
 const { resolveConsumptionCsv } = await import("../services/consumptionCsvResolver.service.js");

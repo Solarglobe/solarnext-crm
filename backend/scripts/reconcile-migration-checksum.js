@@ -14,16 +14,13 @@
  * de backend/migrations/1775000000000_lead_meters_multimeter.js
  */
 
-import dotenv from "dotenv";
+import "../config/register-local-env.js";
 import path from "path";
 import fs from "fs";
 import crypto from "crypto";
 import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
-dotenv.config({ path: path.resolve(__dirname, "../../.env.dev"), override: false });
-dotenv.config({ path: path.resolve(__dirname, "../.env"), override: false });
 
 const MIGRATION_NAME = "1775000000000_lead_meters_multimeter";
 const MIGRATIONS_DIR = path.resolve(__dirname, "../migrations");

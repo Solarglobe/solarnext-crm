@@ -4,16 +4,14 @@
  * Usage: node scripts/audit-catalogue-pv-complet.js (depuis backend/)
  */
 
+import "../config/register-local-env.js";
 import { fileURLToPath } from "url";
 import { dirname, resolve } from "path";
-import dotenv from "dotenv";
 import pg from "pg";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-dotenv.config({ path: resolve(__dirname, "../../.env"), override: false });
-dotenv.config({ path: resolve(__dirname, "../../.env.dev"), override: false });
 
 const { Pool } = pg;
 

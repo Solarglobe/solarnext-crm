@@ -11,7 +11,7 @@
  * - Non-régression: leads list, lead detail, planning, admin
  */
 
-import dotenv from "dotenv";
+import "../config/register-local-env.js";
 import fetch from "node-fetch";
 import { fileURLToPath } from "url";
 import { dirname, resolve } from "path";
@@ -19,7 +19,6 @@ import { dirname, resolve } from "path";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-dotenv.config({ path: resolve(__dirname, "../../.env.dev"), override: false });
 
 const BASE_URL = process.env.API_URL || "http://localhost:3000";
 let passed = 0;

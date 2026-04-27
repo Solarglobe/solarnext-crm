@@ -13,11 +13,11 @@
  * 9) Cleanup final
  */
 
+import "../config/register-local-env.js";
 import { spawn } from "child_process";
 import { fileURLToPath } from "url";
 import { dirname, resolve } from "path";
 import { execSync } from "child_process";
-import dotenv from "dotenv";
 import fetch from "node-fetch";
 import pg from "pg";
 
@@ -28,7 +28,6 @@ const BACKEND_DIR = resolve(__dirname, "..");
 const BASE_URL = "http://localhost:3000";
 const PORT = 3000;
 
-dotenv.config({ path: resolve(__dirname, "../../.env.dev"), override: false });
 
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));

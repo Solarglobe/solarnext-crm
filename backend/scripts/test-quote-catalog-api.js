@@ -8,16 +8,15 @@
  * Les JWT sont générés en local (generateJWT) pour ne pas dépendre du login serveur / même DB.
  */
 
+import "../config/register-local-env.js";
 import { spawn } from "child_process";
 import { fileURLToPath } from "url";
 import { dirname, resolve } from "path";
 import { execSync } from "child_process";
-import dotenv from "dotenv";
 import fetch from "node-fetch";
 import pg from "pg";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-dotenv.config({ path: resolve(__dirname, "../../.env.dev") });
 
 function getConnectionString() {
   const url = process.env.DATABASE_URL;

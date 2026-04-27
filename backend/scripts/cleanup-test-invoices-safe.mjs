@@ -26,18 +26,15 @@
  *   cd backend && node scripts/cleanup-test-invoices-safe.mjs --org=<UUID> --ids=a,b --apply
  *   cd backend && node scripts/cleanup-test-invoices-safe.mjs --org=<UUID> --stamp-notes --apply
  */
+import "../config/register-local-env.js";
 import { writeSync } from "fs";
-import dotenv from "dotenv";
 import path from "path";
 import { fileURLToPath } from "url";
+import { applyResolvedDatabaseUrl } from "../config/database-url.js";
 
 writeSync(1, `[cleanup-test-invoices-safe] START ${new Date().toISOString()}\n`);
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-dotenv.config({ path: path.resolve(__dirname, "../../.env.dev"), override: false });
-dotenv.config({ path: path.resolve(__dirname, "../.env"), override: false });
-
-import { applyResolvedDatabaseUrl } from "../config/database-url.js";
 applyResolvedDatabaseUrl();
 
 const UUID_RE =

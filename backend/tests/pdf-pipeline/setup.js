@@ -1,15 +1,12 @@
 /**
  * Setup PDF Pipeline tests — mock renderer pour CI/CD
  */
+import "../../config/register-local-env.js";
 import { fileURLToPath } from "url";
-import { dirname, resolve } from "path";
-import { config } from "dotenv";
+import { dirname } from "path";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-
-config({ path: resolve(__dirname, "../../.env.dev"), override: false });
-config({ path: resolve(__dirname, "../../.env"), override: false });
 
 if (!process.env.PDF_RENDERER_TEST_URL) {
   const mockHtml = [

@@ -5,17 +5,13 @@
  *   railway run --service solarnext-crm node backend/scripts/recompute-quote-headers-from-line-sums.mjs
  */
 
-import dotenv from "dotenv";
+import "../config/register-local-env.js";
 import path from "path";
 import { fileURLToPath } from "url";
 import { pool } from "../config/db.js";
 import { computeQuoteTotalsFromLines } from "../services/quoteEngine.service.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-if (!process.env.DATABASE_URL) {
-  dotenv.config({ path: path.resolve(__dirname, "../../.env.dev"), override: false });
-  dotenv.config({ path: path.resolve(__dirname, "../.env"), override: false });
-}
 
 const r = await pool.query(
   `SELECT id, organization_id FROM quotes WHERE archived_at IS NULL ORDER BY organization_id, id`

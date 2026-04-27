@@ -5,16 +5,12 @@
  * Prérequis: DATABASE_URL (.env ou .env.dev), migrations à jour (npm run migrate:up) pour calpinage_snapshots
  */
 
-import "dotenv/config";
+import "../config/register-local-env.js";
 import { fileURLToPath } from "url";
-import { dirname, resolve } from "path";
-import { config } from "dotenv";
+import { dirname } from "path";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-
-config({ path: resolve(__dirname, "../../.env.dev"), override: false });
-config({ path: resolve(__dirname, "../.env"), override: false });
 
 import { pool } from "../config/db.js";
 import { createCalpinageSnapshot, ERROR_CODES } from "../services/calpinage/calpinageSnapshot.service.js";

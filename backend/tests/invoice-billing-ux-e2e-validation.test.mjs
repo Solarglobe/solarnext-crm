@@ -11,13 +11,11 @@
 
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { dirname, resolve } from "node:path";
+import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { config } from "dotenv";
+import "../config/register-local-env.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-config({ path: resolve(__dirname, "../../.env.dev"), override: false });
-config({ path: resolve(__dirname, "../.env"), override: false });
 
 import { pool } from "../config/db.js";
 import * as quoteService from "../routes/quotes/service.js";

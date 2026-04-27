@@ -6,15 +6,13 @@
  * Prérequis : backend lancé sur le port défini dans ENEDIS_REDIRECT_URI (ex: PORT=4000 npm run dev).
  */
 
-import dotenv from "dotenv";
+import "../config/register-local-env.js";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const BACKEND_DIR = resolve(__dirname, "..");
 
-dotenv.config({ path: resolve(BACKEND_DIR, "../.env.dev"), override: false });
-dotenv.config({ path: resolve(BACKEND_DIR, ".env"), override: false });
 
 const REDIRECT_URI = process.env.ENEDIS_REDIRECT_URI || "";
 

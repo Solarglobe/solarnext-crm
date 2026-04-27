@@ -4,11 +4,11 @@
  * Usage: cd backend && node scripts/test-quote-engine.js
  */
 
+import "../config/register-local-env.js";
 import { fileURLToPath } from "url";
 import { dirname, resolve } from "path";
 import { spawn } from "child_process";
 import { execSync } from "child_process";
-import dotenv from "dotenv";
 import fetch from "node-fetch";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -17,8 +17,6 @@ const __dirname = dirname(__filename);
 const BACKEND_DIR = resolve(__dirname, "..");
 
 // --- Charger env AVANT tout accès DB ---
-dotenv.config({ path: resolve(BACKEND_DIR, "../.env.dev"), override: false });
-dotenv.config({ path: resolve(BACKEND_DIR, ".env"), override: false });
 
 // --- ÉTAPE 1 : DB test autonome (uniquement dans ce script) ---
 process.env.PGHOST = process.env.PGHOST || "localhost";

@@ -6,15 +6,12 @@
  * Exemple: node scripts/validate-battery-virtual-persistence.js 4e17c052-6bb8-48e2-bb75-3d2d3bc85620
  */
 
-import "dotenv/config";
-import { resolve, dirname } from "path";
+import "../config/register-local-env.js";
+import { dirname } from "path";
 import { fileURLToPath } from "url";
-import { config } from "dotenv";
 import { pool } from "../config/db.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-config({ path: resolve(__dirname, "../../.env.dev"), override: false });
-config({ path: resolve(__dirname, "../.env"), override: false });
 
 const versionId = process.argv[2];
 if (!versionId) {

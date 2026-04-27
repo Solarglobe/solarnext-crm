@@ -6,13 +6,12 @@
  * Prérequis: DATABASE_URL dans .env.dev
  */
 
+import "../config/register-local-env.js";
 import pg from "pg";
 import { fileURLToPath } from "url";
 import { dirname, resolve } from "path";
-import dotenv from "dotenv";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-dotenv.config({ path: resolve(__dirname, "../../.env.dev") });
 
 if (!process.env.DATABASE_URL) {
   console.error("❌ DATABASE_URL manquant. Vérifiez .env.dev");

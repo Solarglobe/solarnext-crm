@@ -20,16 +20,11 @@
  * pour forcer explicitement la cible (logs « OVERRIDE utilisé : oui »).
  */
 
-import dotenv from "dotenv";
+import "../config/register-local-env.js";
 import path from "path";
 import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-// Ne jamais écraser DATABASE_URL déjà défini (ex. injection Railway via `railway run`).
-if (!process.env.DATABASE_URL) {
-  dotenv.config({ path: path.resolve(__dirname, "../../.env.dev"), override: false });
-  dotenv.config({ path: path.resolve(__dirname, "../.env"), override: false });
-}
 
 const argvEarly = process.argv.slice(2);
 const dbUrlArg = argvEarly.find((a) => a.startsWith("--database-url="));
