@@ -10726,6 +10726,9 @@ function renderDP2FromState() {
       case "ridge_line":
         renderRidgeLine(ctx, obj, i);
         break;
+      case "gutter_height_dimension":
+        if (typeof renderGutterHeightDimension === "function") renderGutterHeightDimension(ctx, obj, i);
+        break;
       default:
         console.warn("[DP2] Type d'objet non supporté :", obj.type);
     }
@@ -10805,25 +10808,34 @@ function renderDP2FromState() {
   // Prévisualisation dynamique : contour bâti (segment temporaire) ou trait de mesure (A → souris)
   const preview = window.DP2_STATE.drawingPreview;
   if (preview && preview.from && preview.to) {
-    ctx.save();
-    ctx.setLineDash([6, 4]);
-    // Contraste : mesure = vert clair discret, faîtage = vert plus sombre et plus épais
-    ctx.strokeStyle = preview.previewType === "ridge_line" ? "#0b6e4f" : "#2ecc71";
-    ctx.lineWidth = preview.previewType === "ridge_line" ? 3 : 1.5;
-    ctx.beginPath();
-    ctx.moveTo(preview.from.x, preview.from.y);
-    ctx.lineTo(preview.to.x, preview.to.y);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    const midX = (preview.from.x + preview.to.x) / 2;
-    const midY = (preview.from.y + preview.to.y) / 2;
-    const text = (preview.lengthM != null ? preview.lengthM.toFixed(2) : "0,00").replace(".", ",") + " m";
-    ctx.font = "12px system-ui, sans-serif";
-    ctx.fillStyle = "#1f2937";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(text, midX, midY);
-    ctx.restore();
+    if (preview.previewType === "gutter_height_dimension" && typeof renderGutterHeightDimension === "function") {
+      renderGutterHeightDimension(ctx, {
+        type: "gutter_height_dimension",
+        a: preview.from,
+        b: preview.to,
+        labelOffset: { x: 0, y: 0 }
+      }, null);
+    } else {
+      ctx.save();
+      ctx.setLineDash([6, 4]);
+      // Contraste : mesure = vert clair discret, faîtage = vert plus sombre et plus épais
+      ctx.strokeStyle = preview.previewType === "ridge_line" ? "#0b6e4f" : "#2ecc71";
+      ctx.lineWidth = preview.previewType === "ridge_line" ? 3 : 1.5;
+      ctx.beginPath();
+      ctx.moveTo(preview.from.x, preview.from.y);
+      ctx.lineTo(preview.to.x, preview.to.y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      const midX = (preview.from.x + preview.to.x) / 2;
+      const midY = (preview.from.y + preview.to.y) / 2;
+      const text = (preview.lengthM != null ? preview.lengthM.toFixed(2) : "0,00").replace(".", ",") + " m";
+      ctx.font = "12px system-ui, sans-serif";
+      ctx.fillStyle = "#1f2937";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(text, midX, midY);
+      ctx.restore();
+    }
   }
 
   // Trait de mesure : point A seul (en attente du clic B)
@@ -10839,6 +10851,13 @@ function renderDP2FromState() {
   if (window.DP2_STATE.currentTool === "ridge_line" && ridgeLineStart) {
     ctx.save();
     dp2DrawLinePoint(ctx, ridgeLineStart.x, ridgeLineStart.y, DP2_RIDGE_POINT_STROKE);
+    ctx.restore();
+  }
+
+  const gutterHeightStart = window.DP2_STATE.gutterHeightStart;
+  if (window.DP2_STATE.currentTool === "gutter_height_dimension" && gutterHeightStart) {
+    ctx.save();
+    dp2DrawLinePoint(ctx, gutterHeightStart.x, gutterHeightStart.y, "#0f766e");
     ctx.restore();
   }
 
@@ -11893,6 +11912,77 @@ function renderRidgeLine(ctx, obj, objectIndex) {
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     dp2FillCoteLabelWithTier(ctx, lengthM.toFixed(2).replace(".", ",") + " m", midX + off.x, midY + off.y, rtier);
+  }
+  ctx.restore();
+}
+
+// DP2 / DP4 — Cote verticale « Hauteur gouttière » (double flèche, m)
+// Objet : { type: "gutter_height_dimension", a: {x,y}, b: {x,y}, labelOffset?: {x,y} }
+// --------------------------
+function renderGutterHeightDimension(ctx, obj, objectIndex) {
+  if (!obj || !obj.a || !obj.b) return;
+  const scale = window.DP2_STATE?.scale_m_per_px;
+  const x0 = (obj.a.x + obj.b.x) / 2;
+  const yTop = Math.min(obj.a.y, obj.b.y);
+  const yBot = Math.max(obj.a.y, obj.b.y);
+  const gfid = typeof objectIndex === "number" ? "gutter:" + objectIndex : null;
+  const gtier = gfid ? dp2InteractionTierForFeature(gfid) : null;
+  const stroke = "#0f766e";
+  const cap = 7;
+  const ah = 9;
+
+  ctx.save();
+  ctx.strokeStyle = stroke;
+  ctx.lineWidth = 1.5;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.moveTo(x0, yTop);
+  ctx.lineTo(x0, yBot);
+  ctx.stroke();
+  dp2DrawCoteSegmentTier(ctx, { x: x0, y: yTop }, { x: x0, y: yBot }, gtier);
+  ctx.strokeStyle = stroke;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(x0 - cap, yTop);
+  ctx.lineTo(x0 + cap, yTop);
+  ctx.moveTo(x0 - cap, yBot);
+  ctx.lineTo(x0 + cap, yBot);
+  ctx.stroke();
+  ctx.fillStyle = stroke;
+  ctx.beginPath();
+  ctx.moveTo(x0, yTop - ah);
+  ctx.lineTo(x0 - 5, yTop);
+  ctx.lineTo(x0 + 5, yTop);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(x0, yBot + ah);
+  ctx.lineTo(x0 - 5, yBot);
+  ctx.lineTo(x0 + 5, yBot);
+  ctx.closePath();
+  ctx.fill();
+
+  dp2DrawLinePoint(ctx, obj.a.x, obj.a.y, stroke);
+  dp2DrawLinePoint(ctx, obj.b.x, obj.b.y, stroke);
+
+  const midY = (yTop + yBot) / 2;
+  const off = obj.labelOffset && typeof obj.labelOffset.x === "number" && typeof obj.labelOffset.y === "number" ? obj.labelOffset : { x: 0, y: 0 };
+  const labelX = x0 + 14 + off.x;
+  const labelY = midY + off.y;
+  ctx.textAlign = "left";
+  ctx.textBaseline = "middle";
+  ctx.font = "11px system-ui, sans-serif";
+  ctx.fillStyle = "#134e4a";
+  if (typeof scale === "number" && scale > 0) {
+    const lengthPx = Math.abs(yBot - yTop);
+    const lengthM = lengthPx * scale;
+    const valStr = lengthM.toFixed(2).replace(".", ",") + " m";
+    dp2FillCoteLabelWithTier(ctx, "Hauteur gouttière", labelX, labelY - 9, gtier);
+    ctx.font = "12px system-ui, sans-serif";
+    dp2FillCoteLabelWithTier(ctx, valStr, labelX, labelY + 9, gtier);
+  } else {
+    dp2FillCoteLabelWithTier(ctx, "Hauteur gouttière", labelX, labelY - 9, gtier);
+    dp2FillCoteLabelWithTier(ctx, "—", labelX, labelY + 9, gtier);
   }
   ctx.restore();
 }
