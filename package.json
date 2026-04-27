@@ -3,6 +3,8 @@
   "private": true,
   "scripts": {
     "start": "cd backend && npm install && npm start",
-    "restore:storage:railway": "node backend/scripts/railway-restore-storage.mjs"
+    "restore:storage:railway": "node backend/scripts/railway-restore-storage.mjs",
+    "push:github": "git push -u origin HEAD",
+    "push:github:tags": "git push origin --tags"
   }
 }
