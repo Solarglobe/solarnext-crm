@@ -70,6 +70,36 @@ export function buildInvoicePdfPayloadFromSnapshot(snapshot) {
 }
 
 /**
+ * Rendu PDF facture uniquement (ne persiste rien) : surcharge issuer.bank avec les colonnes
+ * live `organizations` — la valeur live prime si elle est truthy, sinon repli sur le snapshot figé.
+ * @param {object} payload — sortie de {@link buildInvoicePdfPayloadFromSnapshot}
+ * @param {{ iban?: string|null, bic?: string|null, bank_name?: string|null }} orgRow — ligne organizations
+ * @returns {object}
+ */
+export function mergeLiveOrganizationBankIntoInvoicePdfPayload(payload, orgRow) {
+  if (!payload || typeof payload !== "object") return payload;
+  const org = orgRow && typeof orgRow === "object" ? orgRow : {};
+  const issuerSrc =
+    payload.issuer !== null && payload.issuer !== undefined && typeof payload.issuer === "object"
+      ? payload.issuer
+      : {};
+  const snapBank =
+    issuerSrc.bank !== null && issuerSrc.bank !== undefined && typeof issuerSrc.bank === "object"
+      ? issuerSrc.bank
+      : {};
+  const issuer = {
+    ...issuerSrc,
+    bank: {
+      ...snapBank,
+      iban: org.iban || snapBank.iban || null,
+      bic: org.bic || snapBank.bic || null,
+      bank_name: org.bank_name || snapBank.bank_name || null,
+    },
+  };
+  return { ...payload, issuer };
+}
+
+/**
  * @param {object} snapshot
  */
 export function buildCreditNotePdfPayloadFromSnapshot(snapshot) {

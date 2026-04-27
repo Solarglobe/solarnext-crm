@@ -125,6 +125,12 @@ function issuerWebsiteDisplay(raw: string): string {
   return s;
 }
 
+/** Champ banque exploitable pour le PDF (hors chaîne vide / espaces). */
+function bankPdfFieldPresent(v: unknown): boolean {
+  if (v == null) return false;
+  return String(v).trim() !== "";
+}
+
 export function buildIssuerLines(
   issuer: Record<string, unknown> | undefined,
   opts: IssuerLinesOptions = {}
@@ -173,9 +179,17 @@ export function buildIssuerLines(
   if (issuer.email) lines.push(String(issuer.email));
   if (issuer.website) lines.push(String(issuer.website));
   if (opts.includeBank) {
-    const bank = issuer.bank as Record<string, string | null> | undefined;
-    if (bank?.iban) lines.push(`IBAN ${bank.iban}`);
-    if (bank?.bic) lines.push(`BIC ${bank.bic}`);
+    const bank = issuer.bank as Record<string, unknown> | undefined;
+    if (bank && typeof bank === "object") {
+      const nameOk = bankPdfFieldPresent(bank.bank_name);
+      const ibanOk = bankPdfFieldPresent(bank.iban);
+      const bicOk = bankPdfFieldPresent(bank.bic);
+      if (nameOk || ibanOk || bicOk) {
+        if (nameOk) lines.push(`Banque : ${String(bank.bank_name).trim()}`);
+        if (ibanOk) lines.push(`IBAN ${String(bank.iban).trim()}`);
+        if (bicOk) lines.push(`BIC ${String(bank.bic).trim()}`);
+      }
+    }
   }
   return lines;
 }

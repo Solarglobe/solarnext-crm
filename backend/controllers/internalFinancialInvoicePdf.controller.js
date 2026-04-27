@@ -5,7 +5,10 @@
 
 import { pool } from "../config/db.js";
 import { verifyFinancialInvoiceRenderToken } from "../services/pdfRenderToken.service.js";
-import { buildInvoicePdfPayloadFromSnapshot } from "../services/financialDocumentPdfPayload.service.js";
+import {
+  buildInvoicePdfPayloadFromSnapshot,
+  mergeLiveOrganizationBankIntoInvoicePdfPayload,
+} from "../services/financialDocumentPdfPayload.service.js";
 
 function num(v) {
   const n = Number(v);
@@ -80,10 +83,13 @@ export async function getInternalFinancialInvoicePdfPayload(req, res) {
       [invoiceId, decoded.organizationId]
     );
 
-    const orgRes = await pool.query(`SELECT default_invoice_notes FROM organizations WHERE id = $1`, [
-      decoded.organizationId,
-    ]);
-    const defaultInvoiceNotes = orgRes.rows[0]?.default_invoice_notes ?? null;
+    const orgRes = await pool.query(
+      `SELECT default_invoice_notes, iban, bic, bank_name FROM organizations WHERE id = $1`,
+      [decoded.organizationId]
+    );
+    const orgRow = orgRes.rows[0] ?? {};
+    payload = mergeLiveOrganizationBankIntoInvoicePdfPayload(payload, orgRow);
+    const defaultInvoiceNotes = orgRow.default_invoice_notes ?? null;
 
     return res.json({
       ok: true,
@@ -97,6 +103,7 @@ export async function getInternalFinancialInvoicePdfPayload(req, res) {
         lines_and_line_totals: "snapshot_at_issuance",
         header_amounts_and_balance: "live_at_pdf_generation",
         payments_list: "live_at_pdf_generation",
+        issuer_bank_coordinates: "live_at_pdf_generation",
       },
     });
   } catch (e) {
