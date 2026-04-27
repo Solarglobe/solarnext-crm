@@ -131,6 +131,84 @@ test("ACCEPTED : lead sans client_id, email unique → création client + factur
   assert.equal(String(lr2.rows[0].client_id), String(qCid));
 });
 
+test("ACCEPTED seul (sans createInvoice) : lead sans client_id → clients + lead.client_id + lead.status CLIENT + quote.client_id", async () => {
+  const email = `${PREFIX}-accept-inline@ecfq.test`;
+  const lr = await pool.query(
+    `INSERT INTO leads (organization_id, stage_id, status, full_name, first_name, last_name, email, source_id, customer_type)
+     VALUES ($1, $2, 'LEAD', 'Kim Girard', 'Kim', 'Girard', $3, $4, 'PERSON') RETURNING id`,
+    [orgId, stageId, email, sourceId]
+  );
+  const leadId = lr.rows[0].id;
+  toDelete.leadIds.push(leadId);
+
+  const q = await quoteService.createQuote(orgId, {
+    lead_id: leadId,
+    items: [{ label: "L1", description: "", quantity: 1, unit_price_ht: 200, tva_rate: 20 }],
+  });
+  const qid = q.quote.id;
+  toDelete.quoteIds.push(qid);
+  await quoteService.patchQuoteStatus(qid, orgId, "READY_TO_SEND", null);
+  await quoteService.patchQuoteStatus(qid, orgId, "SENT", null);
+  await quoteService.patchQuoteStatus(qid, orgId, "ACCEPTED", null);
+
+  const qr = await pool.query(`SELECT client_id FROM quotes WHERE id = $1`, [qid]);
+  const qCid = qr.rows[0].client_id;
+  assert.ok(qCid, "quote.client_id après ACCEPTED");
+  toDelete.clientIds.push(qCid);
+
+  const lr2 = await pool.query(`SELECT client_id, status FROM leads WHERE id = $1`, [leadId]);
+  assert.ok(lr2.rows[0].client_id);
+  assert.equal(String(lr2.rows[0].client_id), String(qCid));
+  assert.equal(String(lr2.rows[0].status).toUpperCase(), "CLIENT");
+
+  const cnt = await pool.query(
+    `SELECT count(*)::int AS c FROM clients WHERE organization_id = $1 AND id = $2`,
+    [orgId, qCid]
+  );
+  assert.equal(cnt.rows[0].c, 1);
+});
+
+test("ACCEPTED seul : lead déjà lié à un client → un seul client pour l’email, pas de doublon", async () => {
+  const email = `${PREFIX}-accept-dup@ecfq.test`;
+  const cr = await pool.query(
+    `INSERT INTO clients (organization_id, client_number, first_name, last_name, email)
+     VALUES ($1, $2, 'Exi', 'Sting', $3) RETURNING id`,
+    [orgId, `CLI-${PREFIX}-EX`, email]
+  );
+  const existingId = cr.rows[0].id;
+  toDelete.clientIds.push(existingId);
+
+  const lr = await pool.query(
+    `INSERT INTO leads (organization_id, stage_id, status, full_name, first_name, last_name, email, source_id, customer_type, client_id)
+     VALUES ($1, $2, 'LEAD', 'Exi Lead', 'Exi', 'Lead', $3, $4, 'PERSON', $5) RETURNING id`,
+    [orgId, stageId, email, sourceId, existingId]
+  );
+  const leadId = lr.rows[0].id;
+  toDelete.leadIds.push(leadId);
+
+  const q = await quoteService.createQuote(orgId, {
+    lead_id: leadId,
+    items: [{ label: "L1", description: "", quantity: 1, unit_price_ht: 50, tva_rate: 20 }],
+  });
+  const qid = q.quote.id;
+  toDelete.quoteIds.push(qid);
+  await quoteService.patchQuoteStatus(qid, orgId, "READY_TO_SEND", null);
+  await quoteService.patchQuoteStatus(qid, orgId, "SENT", null);
+  await quoteService.patchQuoteStatus(qid, orgId, "ACCEPTED", null);
+
+  const cnt = await pool.query(
+    `SELECT count(*)::int AS c FROM clients WHERE organization_id = $1 AND LOWER(TRIM(email)) = $2`,
+    [orgId, email.toLowerCase()]
+  );
+  assert.equal(cnt.rows[0].c, 1);
+
+  const qr = await pool.query(`SELECT client_id FROM quotes WHERE id = $1`, [qid]);
+  assert.equal(String(qr.rows[0].client_id), String(existingId));
+
+  const lrSt = await pool.query(`SELECT status FROM leads WHERE id = $1`, [leadId]);
+  assert.equal(String(lrSt.rows[0].status).toUpperCase(), "CLIENT");
+});
+
 test("ACCEPTED : lead sans client mais email déjà client existant → rattachement sans doublon", async () => {
   const email = `${PREFIX}-c@ecfq.test`;
   const cr = await pool.query(

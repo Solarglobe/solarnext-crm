@@ -44,6 +44,7 @@ import { toInvoiceStatusUi } from "./invoiceStatusUi";
 import InvoicePaymentsPanel from "./InvoicePaymentsPanel";
 import InvoiceCreditsPanel from "./InvoiceCreditsPanel";
 import InvoiceRemindersPanel from "./InvoiceRemindersPanel";
+import { InvoiceBillingEntityCombobox } from "./InvoiceBillingEntityCombobox";
 import "../quotes/quote-builder.css";
 import "./invoice-builder.css";
 import "./invoice-financial.css";
@@ -532,51 +533,40 @@ export default function InvoiceBuilderPage() {
             {contactsSelectError}
           </p>
         ) : null}
-        <label>
-          Client
-          <select
-            className="sn-input"
-            disabled={!canEdit}
-            value={state.header.client_id || ""}
-            onChange={(e) => {
-              const v = e.target.value || null;
-              dispatch({ type: "SET_HEADER", payload: { client_id: v } });
-            }}
-          >
-            <option value="">—</option>
-            {state.header!.client_id &&
-            !billingClients.some((c) => c.id === state.header!.client_id) ? (
-              <option value={state.header!.client_id}>Rattachement actuel (hors liste)</option>
-            ) : null}
-            {billingClients.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.full_name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Lead
-          <select
-            className="sn-input"
-            disabled={!canEdit}
-            value={state.header.lead_id || ""}
-            onChange={(e) => {
-              const v = e.target.value || null;
-              dispatch({ type: "SET_HEADER", payload: { lead_id: v } });
-            }}
-          >
-            <option value="">—</option>
-            {state.header!.lead_id && !billingLeads.some((l) => l.id === state.header!.lead_id) ? (
-              <option value={state.header!.lead_id}>Rattachement actuel (hors liste)</option>
-            ) : null}
-            {billingLeads.map((l) => (
-              <option key={l.id} value={l.id}>
-                {l.full_name}
-              </option>
-            ))}
-          </select>
-        </label>
+        <InvoiceBillingEntityCombobox
+          label="Client"
+          disabled={!canEdit}
+          value={state.header.client_id}
+          rows={billingClients}
+          onChange={(id) => dispatch({ type: "SET_HEADER", payload: { client_id: id } })}
+          fallbackId={
+            state.header!.client_id && !billingClients.some((c) => c.id === state.header!.client_id)
+              ? state.header!.client_id
+              : null
+          }
+          fallbackLabel={
+            state.header!.client_id && !billingClients.some((c) => c.id === state.header!.client_id)
+              ? state.header!.client_label || "Rattachement actuel (hors liste)"
+              : null
+          }
+        />
+        <InvoiceBillingEntityCombobox
+          label="Lead"
+          disabled={!canEdit}
+          value={state.header.lead_id}
+          rows={billingLeads}
+          onChange={(id) => dispatch({ type: "SET_HEADER", payload: { lead_id: id } })}
+          fallbackId={
+            state.header!.lead_id && !billingLeads.some((l) => l.id === state.header!.lead_id)
+              ? state.header!.lead_id
+              : null
+          }
+          fallbackLabel={
+            state.header!.lead_id && !billingLeads.some((l) => l.id === state.header!.lead_id)
+              ? state.header!.lead_label || "Rattachement actuel (hors liste)"
+              : null
+          }
+        />
       </section>
 
       <div className="qb-workbench ib-workbench">

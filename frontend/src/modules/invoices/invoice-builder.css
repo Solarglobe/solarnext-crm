@@ -206,6 +206,12 @@
   min-width: 220px;
 }
 
+.ib-links-bar .ib-billing-combo {
+  flex: 1 1 220px;
+  min-width: 220px;
+  max-width: 420px;
+}
+
 .ib-quote-ref {
   font-size: 13px;
   color: var(--text-muted);
@@ -677,4 +683,80 @@
 
 .ib-invoice-lines-table .qb-line-input--tva {
   min-width: 92px;
+}
+
+/* Combobox client / lead facturation */
+.ib-billing-combo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ib-billing-combo-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted, #64748b);
+}
+
+.ib-billing-combo-field-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.ib-billing-combo-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.ib-billing-combo-clear {
+  flex-shrink: 0;
+  padding: 6px 10px;
+  font-size: 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border, rgba(148, 163, 184, 0.45));
+  background: var(--surface-2, rgba(15, 23, 42, 0.04));
+  cursor: pointer;
+}
+
+.ib-billing-combo-clear:hover {
+  background: var(--surface-3, rgba(15, 23, 42, 0.08));
+}
+
+.ib-billing-combo-menu {
+  position: absolute;
+  z-index: 40;
+  left: 0;
+  right: 0;
+  top: 100%;
+  margin: 4px 0 0;
+  padding: 4px 0;
+  max-height: 280px;
+  overflow-y: auto;
+  list-style: none;
+  border-radius: 10px;
+  border: 1px solid var(--border, rgba(148, 163, 184, 0.35));
+  background: var(--surface-elevated, #fff);
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);
+}
+
+.ib-billing-combo-option {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 8px 12px;
+  font-size: 13px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.ib-billing-combo-option:hover {
+  background: rgba(59, 130, 246, 0.08);
+}
+
+.ib-billing-combo-empty {
+  padding: 10px 12px;
+  font-size: 13px;
+  color: var(--text-muted, #64748b);
 }

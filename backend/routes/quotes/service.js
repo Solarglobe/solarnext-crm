@@ -1,8 +1,8 @@
 /**
  * CP-031 — Moteur Devis V1
  * CP-032C — withTx + assertOrgEntity + assertStatus
- * CP-036 — Devis ACCEPTED : intention commerciale uniquement (pas de conversion lead→client ici).
- * Fiche client : uniquement passage pipeline étape Signé (ensureClientWhenSignedStage).
+ * CP-036 — Devis ACCEPTED : rattachement / création fiche client via ensureClientForQuote (lead lié).
+ * Pipeline étape Signé (ensureClientWhenSignedStage) reste un chemin complémentaire inchangé.
  */
 
 import { pool } from "../../config/db.js";
@@ -53,6 +53,7 @@ import {
   persistQuoteOfficialDocumentSnapshot,
   buildQuotePdfPayloadForLivePreview,
 } from "../../services/financialDocumentSnapshot.service.js";
+import { ensureClientForQuote } from "../../services/ensureClientForQuote.service.js";
 import { mergeQuoteOrgDocumentFieldsIntoPayload } from "../../services/quoteDocumentOrgSettings.service.js";
 import { buildQuotePdfPayloadFromSnapshot } from "../../services/financialDocumentPdfPayload.service.js";
 import { normalizeQuoteStatusInput } from "../../utils/financialDocumentStatus.js";
@@ -1062,7 +1063,7 @@ export async function updateQuote(quoteId, organizationId, body, auditContext = 
 
 /**
  * Changer statut devis — transitions métier + gel à l'envoi (SENT).
- * CP-036 : Si ACCEPTED → lead + activité
+ * CP-036 : Si ACCEPTED → ensureClientForQuote (client/lead) + activité sur le lead si présent.
  */
 export async function patchQuoteStatus(quoteId, organizationId, newStatus, userId = null) {
   const normalized = normalizeQuoteStatusInput(newStatus);
@@ -1115,29 +1116,13 @@ export async function patchQuoteStatus(quoteId, organizationId, newStatus, userI
         generatedFrom: "PATCH_QUOTE_STATUS_SENT",
       });
     } else if (normalized === "ACCEPTED") {
-      /** Rattachement au client existant (devis ou lead) — jamais de création fiche client ici (réservé étape Signé). */
+      /** Rattachement / création fiche client (ensureClientForQuote) si devis lié à un client ou à un lead. */
       let clientIdForAccept = quote.client_id || null;
-      if (!clientIdForAccept && quote.lead_id) {
-        const leadRes = await client.query(
-          `SELECT client_id FROM leads WHERE id = $1 AND organization_id = $2 AND (archived_at IS NULL) FOR UPDATE`,
-          [quote.lead_id, organizationId]
-        );
-        const cid = leadRes.rows[0]?.client_id ?? null;
-        if (cid) {
-          const okClient = await client.query(
-            `SELECT 1 FROM clients WHERE id = $1 AND organization_id = $2 AND (archived_at IS NULL)`,
-            [cid, organizationId]
-          );
-          if (okClient.rows.length > 0) clientIdForAccept = cid;
-        }
-      }
-      if (clientIdForAccept && !quote.client_id) {
-        console.warn(
-          `[quotes] Devis ${quoteId} → ACCEPTED : synchronisation quote.client_id depuis le lead (client_id=${clientIdForAccept})`
-        );
+      if (quote.client_id || quote.lead_id) {
+        clientIdForAccept = await ensureClientForQuote(client, quote, organizationId);
       } else if (!clientIdForAccept) {
         console.warn(
-          `[quotes] Devis ${quoteId} → ACCEPTED sans client_id sur le devis ni sur le lead (lead_id=${quote.lead_id ?? "none"}) — la création de facture pourra créer/rattacher la fiche client automatiquement`
+          `[quotes] Devis ${quoteId} → ACCEPTED sans client ni lead — pas de fiche client créée`
         );
       }
       /* Source de vérité lignes : recalcul en-tête puis blocage si écart (aucun ACCEPTED incohérent). */

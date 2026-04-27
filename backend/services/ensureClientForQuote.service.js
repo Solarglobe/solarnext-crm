@@ -64,6 +64,11 @@ export async function ensureClientForQuote(dbClient, quoteRow, organizationId) {
       `UPDATE quotes SET client_id = $1, updated_at = now() WHERE id = $2 AND organization_id = $3`,
       [lead.client_id, qid, org]
     );
+    await dbClient.query(
+      `UPDATE leads SET status = 'CLIENT', updated_at = now()
+       WHERE id = $1 AND organization_id = $2 AND (archived_at IS NULL)`,
+      [leadId, org]
+    );
     return String(lead.client_id);
   }
 
@@ -85,7 +90,7 @@ export async function ensureClientForQuote(dbClient, quoteRow, organizationId) {
     if (byEmail.rows.length === 1) {
       const foundId = byEmail.rows[0].id;
       await dbClient.query(
-        `UPDATE leads SET client_id = $1, updated_at = now() WHERE id = $2 AND organization_id = $3`,
+        `UPDATE leads SET client_id = $1, status = 'CLIENT', updated_at = now() WHERE id = $2 AND organization_id = $3`,
         [foundId, leadId, org]
       );
       await dbClient.query(
@@ -123,7 +128,7 @@ export async function ensureClientForQuote(dbClient, quoteRow, organizationId) {
     if (byPhone.rows.length === 1) {
       const foundId = byPhone.rows[0].id;
       await dbClient.query(
-        `UPDATE leads SET client_id = $1, updated_at = now() WHERE id = $2 AND organization_id = $3`,
+        `UPDATE leads SET client_id = $1, status = 'CLIENT', updated_at = now() WHERE id = $2 AND organization_id = $3`,
         [foundId, leadId, org]
       );
       await dbClient.query(

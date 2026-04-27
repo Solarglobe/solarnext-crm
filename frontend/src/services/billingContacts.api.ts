@@ -6,7 +6,15 @@ import { apiFetch } from "./api";
 
 const API_BASE = getCrmApiBase();
 
-export type BillingSelectRow = { id: string; full_name: string };
+/** Champs optionnels pour recherche locale (facturation). */
+export type BillingSelectRow = {
+  id: string;
+  full_name: string;
+  company_name?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  email?: string | null;
+};
 
 export type BillingSelectClientRow = BillingSelectRow & { type: "CLIENT" };
 export type BillingSelectLeadRow = BillingSelectRow & { type: "LEAD" };

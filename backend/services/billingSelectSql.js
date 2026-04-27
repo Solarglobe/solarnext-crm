@@ -10,7 +10,11 @@ SELECT id,
     NULLIF(TRIM(company_name), ''),
     NULLIF(TRIM(COALESCE(first_name, '') || ' ' || COALESCE(last_name, '')), ''),
     NULLIF(TRIM(email), '')
-  )) AS full_name
+  )) AS full_name,
+  NULLIF(TRIM(company_name), '') AS company_name,
+  NULLIF(TRIM(first_name), '') AS first_name,
+  NULLIF(TRIM(last_name), '') AS last_name,
+  NULLIF(TRIM(email), '') AS email
 FROM clients
 WHERE organization_id = $1
   AND (archived_at IS NULL)
@@ -36,7 +40,11 @@ SELECT l.id,
     NULLIF(TRIM(COALESCE(l.company_name, '')), ''),
     NULLIF(TRIM(COALESCE(l.first_name, '') || ' ' || COALESCE(l.last_name, '')), ''),
     NULLIF(TRIM(l.email), '')
-  )) AS full_name
+  )) AS full_name,
+  NULLIF(TRIM(l.company_name), '') AS company_name,
+  NULLIF(TRIM(l.first_name), '') AS first_name,
+  NULLIF(TRIM(l.last_name), '') AS last_name,
+  NULLIF(TRIM(l.email), '') AS email
 FROM leads l
 WHERE l.organization_id = $1
   AND (l.archived_at IS NULL)
