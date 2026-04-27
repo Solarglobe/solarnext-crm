@@ -49,6 +49,7 @@
     "test:cp080:concurrency": "node --test tests/documentSequence.concurrency.test.js",
     "test:prompt7": "node scripts/test-prompt7-financial-api.js",
     "test:invoice-flex-quote": "node --env-file=../.env.dev --test tests/invoice-quote-billing-flex.test.mjs",
+    "test:invoice-billing-ux-e2e": "node --env-file=../.env.dev --test tests/invoice-billing-ux-e2e-validation.test.mjs",
     "test:ensure-client-quote": "node --env-file=../.env.dev --test tests/ensure-client-from-quote.test.mjs",
     "test:financial-pdf-pipeline": "node scripts/test-pdf-pipeline.js",
     "test:cp026": "node scripts/test-cp026-triggers.js",
