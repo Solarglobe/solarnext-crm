@@ -1332,18 +1332,18 @@
     var D = DP_DRAFT;
 
     var d1 = D.dp1 || (D.dp && D.dp.dp1);
-    if (d1 && typeof global.hydrateDP1 === "function") {
+    if (typeof global.hydrateDP1 === "function") {
       try {
-        global.hydrateDP1(d1);
+        global.hydrateDP1(d1 || {});
       } catch (e) {
         devWarn("[dp-draft] hydrateDP1", e);
       }
     }
 
     var d2 = D.dp2 || (D.dp && D.dp.dp2);
-    if (d2 && typeof global.hydrateDP2 === "function") {
+    if (typeof global.hydrateDP2 === "function") {
       try {
-        global.hydrateDP2(d2);
+        global.hydrateDP2(d2 || {});
       } catch (e) {
         devWarn("[dp-draft] hydrateDP2", e);
       }
@@ -1358,9 +1358,10 @@
       }
     }
 
+    var d4 = D.dp4 || (D.dp && D.dp.dp4);
     if (typeof global.__snHydrateDp4FromDraft === "function") {
       try {
-        global.__snHydrateDp4FromDraft(D.dp4 || (D.dp && D.dp.dp4));
+        global.__snHydrateDp4FromDraft(d4 || {});
       } catch (e) {
         devWarn("[dp-draft] hydrate dp4", e);
       }

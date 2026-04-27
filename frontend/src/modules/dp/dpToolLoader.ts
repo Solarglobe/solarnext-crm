@@ -60,6 +60,25 @@ function resolveFromAssetBase(assetBase: string, relative: string): string {
   return new URL(relative.replace(/^\//, ""), withTrailingSlash(assetBase)).href;
 }
 
+/** Réinitialise les globaux runtime DP avant chargement / ré-entrée lead (SPA). */
+function solarnextDpResetWindowGlobals(win: Window): void {
+  const inj = (win as Window & { __SOLARNEXT_DP_CONTEXT__?: { leadId?: string } }).__SOLARNEXT_DP_CONTEXT__;
+  console.log("[DP RESET] leadId =", inj?.leadId);
+  const x = win as Window & Record<string, unknown>;
+  try {
+    delete x.DP1_STATE;
+    delete x.DP2_STATE;
+    delete x.DP4_STATE;
+    delete x.DP1_CONTEXT;
+    delete x.SMARTPITCH_CTX;
+    delete x.__DP4_LS_LOADED;
+    delete x.DP4_IMPORT_VIEW_SNAPSHOT;
+    delete x.DP4_CAPTURE_IMAGE;
+  } catch {
+    /* ignore */
+  }
+}
+
 function injectShellMarkup(container: HTMLElement): void {
   container.innerHTML = "";
   const root = document.createElement("div");
@@ -199,6 +218,8 @@ export async function loadDpTool(options: DpToolLoaderOptions): Promise<DpToolLo
   }
   w.__SOLARNEXT_DP_ASSET_BASE__ = assetBase;
 
+  solarnextDpResetWindowGlobals(w);
+
   const ac = new AbortController();
 
   linkStylesheetOnce(CDN.olCss, "dp-tool-embed-ol-css");
@@ -225,6 +246,28 @@ export async function loadDpTool(options: DpToolLoaderOptions): Promise<DpToolLo
     await loadScriptSequential(resolveFromAssetBase(assetBase, "dp8.js"), ac.signal);
   } finally {
     delete w.__SOLARNEXT_DP_EMBED_LOADER__;
+  }
+
+  const win = w as Window &
+    Record<string, unknown> & {
+      __solarnextHydrateSmartpitchFromDpContext?: () => void;
+      DpDraftStore?: { initDraftFromServer?: (d: unknown) => void; hydrateFromDraft?: () => void };
+      __snDpLoadInjectedDp1Context?: () => Promise<unknown>;
+      __SN_DP_INIT_BLOCKED?: boolean;
+    };
+  if (!win.__SN_DP_INIT_BLOCKED && typeof win.__solarnextHydrateSmartpitchFromDpContext === "function") {
+    win.__solarnextHydrateSmartpitchFromDpContext();
+  }
+  try {
+    win.DpDraftStore?.initDraftFromServer?.(hostPayload.draft ?? null);
+    win.DpDraftStore?.hydrateFromDraft?.();
+  } catch {
+    /* ignore */
+  }
+  try {
+    await win.__snDpLoadInjectedDp1Context?.();
+  } catch {
+    /* ignore */
   }
 
   if (gen !== loadGeneration) {

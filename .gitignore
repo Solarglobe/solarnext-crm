@@ -66,6 +66,8 @@ temp/
 *.tmp
 *.bak
 **/.~lock*
+# Word : fichiers de verrouillage Office (~$document.docx)
+~$*.docx
 
 # --- Python (backend/app, scripts utilitaires) ---
 __pycache__/
