@@ -4831,7 +4831,7 @@ async function generateDP4PDF() {
         break;
       }
     }
-    if (hasGutterInRoof) counts["HAUTEUR_GOUTTIERE"] = 1;
+    if (hasGutterInRoof) counts["HAUTEUR_EGOUT"] = 1;
 
     const orderedKeys = [];
     try {
@@ -4844,7 +4844,7 @@ async function generateDP4PDF() {
     } catch (_) {}
 
     if (panelCount > 0) orderedKeys.push("PANNEAUX_PV");
-    if (hasGutterInRoof && !orderedKeys.includes("HAUTEUR_GOUTTIERE")) orderedKeys.push("HAUTEUR_GOUTTIERE");
+    if (hasGutterInRoof && !orderedKeys.includes("HAUTEUR_EGOUT")) orderedKeys.push("HAUTEUR_EGOUT");
 
     for (const k of Object.keys(counts)) {
       if (!orderedKeys.includes(k)) orderedKeys.push(k);
@@ -5158,12 +5158,12 @@ const DP2_LEGEND_ICON_REGISTRY = {
   PANNEAUX_PV: { label: "Panneaux photovoltaïques", kind: "panels" },
   COTES: { label: "Cotes", kind: "cotes" },
   FAITAGE: { label: "Faîtage", kind: "faitage" },
-  HAUTEUR_GOUTTIERE: { label: "Hauteur gouttière", kind: "gutter_height" }
+  HAUTEUR_EGOUT: { label: "Hauteur égout", kind: "gutter_height" }
 };
 
 const DP2_LEGEND_ICON_CANVAS_W = 104;
 const DP2_LEGEND_ICON_CANVAS_H = 68;
-/** Taille fixe (px canvas) du symbole ↕ « hauteur gouttière » — annotation métier, pas cote. */
+/** Taille fixe (px canvas) du symbole ↕ « hauteur égout » — annotation métier, pas cote. */
 const DP2_GUTTER_HEIGHT_ICON_PX = 40;
 const DP2_GUTTER_HEIGHT_ICON_HALF_PX = DP2_GUTTER_HEIGHT_ICON_PX / 2;
 /** Échelle graphique pure (ne modifie jamais heightM). */
@@ -5219,7 +5219,7 @@ function dp2DrawLegendMiniatureToContext(ctx, legendKey, cw, ch) {
     return;
   }
 
-  if (key === "HAUTEUR_GOUTTIERE") {
+  if (key === "HAUTEUR_EGOUT" || key === "HAUTEUR_GOUTTIERE") {
     const gh = {
       type: "gutter_height_dimension",
       x: cw / 2,
@@ -5253,8 +5253,9 @@ function dp2DrawLegendMiniatureToContext(ctx, legendKey, cw, ch) {
 }
 
 function dp2GetLegendIconRegistryEntry(legendKey) {
-  const k = legendKey != null ? String(legendKey) : "";
+  let k = legendKey != null ? String(legendKey) : "";
   if (!k) return null;
+  if (k === "HAUTEUR_GOUTTIERE") k = "HAUTEUR_EGOUT";
   if (DP2_LEGEND_ICON_REGISTRY[k]) return DP2_LEGEND_ICON_REGISTRY[k];
   const biz = DP2_BUSINESS_LEGEND_BY_KEY[k];
   if (biz && biz.type && biz.meta) return { label: biz.meta.label, kind: "business", businessType: biz.type, meta: biz.meta };
@@ -5288,6 +5289,7 @@ function buildDP2LegendIconDataUrl(legendKey) {
       key === "PANNEAUX_PV" ||
       key === "COTES" ||
       key === "FAITAGE" ||
+      key === "HAUTEUR_EGOUT" ||
       key === "HAUTEUR_GOUTTIERE";
     if (!hasDraw) return null;
     return c.toDataURL("image/png");
@@ -5315,7 +5317,7 @@ function enrichLegendItemsWithIconDataUrls(items) {
 }
 
 /**
- * Extras légende toiture (DP4) : COTES, FAITAGE, HAUTEUR_GOUTTIERE — aligné PDF / UI.
+ * Extras légende toiture (DP4) : COTES, FAITAGE, HAUTEUR_EGOUT — aligné PDF / UI.
  * @param {Array<{legendKey?: string, key?: string, count?: number}>} baseLegendItems
  * @param {object|null} plan
  */
@@ -5343,8 +5345,12 @@ function dp4AppendPlanLegendExtras(baseLegendItems, plan) {
   if (hasLineTypeInRoofGeometry(plan, "ridge_line") && !hasKey("FAITAGE")) {
     legend.push({ key: "FAITAGE", legendKey: "FAITAGE", count: 1 });
   }
-  if (hasLineTypeInRoofGeometry(plan, "gutter_height_dimension") && !hasKey("HAUTEUR_GOUTTIERE")) {
-    legend.push({ key: "HAUTEUR_GOUTTIERE", legendKey: "HAUTEUR_GOUTTIERE", count: 1 });
+  if (
+    hasLineTypeInRoofGeometry(plan, "gutter_height_dimension") &&
+    !hasKey("HAUTEUR_EGOUT") &&
+    !hasKey("HAUTEUR_GOUTTIERE")
+  ) {
+    legend.push({ key: "HAUTEUR_EGOUT", legendKey: "HAUTEUR_EGOUT", count: 1 });
   }
   return legend;
 }
@@ -5402,7 +5408,7 @@ window.DP2_STATE = window.DP2_STATE || {
   measureLineStart: null, // { x, y } | null
   // Faîtage en cours : point A posé, en attente du clic B
   ridgeLineStart: null,   // { x, y } | null
-  // Hauteur gouttière (DP4) : drag annotation { x, y } en cours
+  // Hauteur égout (DP4) : drag annotation { x, y } en cours
   gutterHeightDrag: null,
   /** Drag poignée visualScale (facteur graphique uniquement, ne touche pas heightM). */
   gutterHeightVisualScaleDrag: null,
@@ -5707,7 +5713,7 @@ window.getDP2GlobalLegendForPdf = function getDP2GlobalLegendForPdf() {
   if (panelCount > 0) {
     counts["PANNEAUX_PV"] = panelCount;
   }
-  // Hauteur gouttière (roofGeometry / objects) — une seule entrée légende si ≥1 annotation
+  // Hauteur égout (roofGeometry / objects) — une seule entrée légende si ≥1 annotation
   const roofObjs = window.DP2_STATE?.objects || [];
   let hasGutterHeight = false;
   for (const o of roofObjs) {
@@ -5716,7 +5722,7 @@ window.getDP2GlobalLegendForPdf = function getDP2GlobalLegendForPdf() {
       break;
     }
   }
-  if (hasGutterHeight) counts["HAUTEUR_GOUTTIERE"] = 1;
+  if (hasGutterHeight) counts["HAUTEUR_EGOUT"] = 1;
   // Ordonner de façon stable selon l'ordre officiel des types
   const orderedKeys = [];
   for (const t of DP2_BUSINESS_OBJECT_TYPES_ORDER) {
@@ -5724,7 +5730,7 @@ window.getDP2GlobalLegendForPdf = function getDP2GlobalLegendForPdf() {
     if (k && counts[k]) orderedKeys.push(k);
   }
   if (panelCount > 0) orderedKeys.push("PANNEAUX_PV");
-  if (hasGutterHeight && !orderedKeys.includes("HAUTEUR_GOUTTIERE")) orderedKeys.push("HAUTEUR_GOUTTIERE");
+  if (hasGutterHeight && !orderedKeys.includes("HAUTEUR_EGOUT")) orderedKeys.push("HAUTEUR_EGOUT");
   // Ajouter d'éventuelles clés restantes (fallback)
   for (const k of Object.keys(counts)) {
     if (!orderedKeys.includes(k)) orderedKeys.push(k);
@@ -6210,7 +6216,7 @@ function dp2IsDP4RoofProfile() {
   return window.DP2_STATE?.editorProfile === "DP4_ROOF";
 }
 
-/** Affiche l’entrée « Hauteur gouttière » du menu Mesures uniquement en profil toiture DP4. */
+/** Affiche l’entrée « Hauteur égout » du menu Mesures uniquement en profil toiture DP4. */
 function dp2SyncDp4RoofMeasuresMenuVisibility() {
   const menu = document.getElementById("dp2-measures-menu");
   if (!menu) return;
@@ -7397,13 +7403,13 @@ function refreshDP2ModeStrip() {
   } else if (tool === "ridge_line") {
     text = "Faîtage — deux clics pour définir l’arête.";
   } else if (tool === "gutter_height_dimension") {
-    text = "Hauteur gouttière — 1 clic sur le plan, puis saisir la hauteur en mètres (symbole ↕ fixe, pas de mesure au trait).";
+    text = "Hauteur égout — 1 clic sur le plan, puis saisir la hauteur en mètres (symbole ↕ fixe, pas de mesure au trait).";
   } else if (tool === "pan") {
     text = "Pan — glisser pour déplacer la vue (molette : zoom).";
   } else if (tool === "panels") {
     text = "Pose de panneaux — le fantôme indique où le module sera posé.";
   } else {
-    text = "Sélection — double-clic sur une cote jaune pour modifier la longueur ; double-clic sur « Hauteur gouttière » pour saisir la hauteur en m ; glisser une cote pour la déplacer.";
+    text = "Sélection — double-clic sur une cote jaune pour modifier la longueur ; double-clic sur « Hauteur égout » pour saisir la hauteur en m ; glisser une cote pour la déplacer.";
   }
   el.textContent = text;
 }
@@ -7435,7 +7441,7 @@ function initDP2Toolbar() {
     building_outline: { icon: "⬛", label: "Contour bâti" },
     measure_line: { icon: "↔", label: "Trait de mesure" },
     ridge_line: { icon: "▲", label: "Faîtage" },
-    gutter_height_dimension: { icon: "↕", label: "Hauteur gouttière" }
+    gutter_height_dimension: { icon: "↕", label: "Hauteur égout" }
   };
   const TEXT_TOOL_META = {
     text_free: { icon: "T", label: "Texte libre" },
@@ -9172,7 +9178,7 @@ function initDP2CanvasEvents() {
       }
     }
 
-    // DP2 — Drag annotation « Hauteur gouttière » (icône + texte déplacent x,y)
+    // DP2 — Drag annotation « Hauteur égout » (icône + texte déplacent x,y)
     if (tool === "select") {
       const ghIdx = dp2HitTestGutterHeightForPointer(canvas, coords.x, coords.y);
       if (typeof ghIdx === "number") {
@@ -9229,7 +9235,7 @@ function initDP2CanvasEvents() {
       }
     }
 
-    // DP2 — Drag sommet faitage ou mesure (même logique que contour de bâti) — sans hauteur gouttière
+    // DP2 — Drag sommet faitage ou mesure (même logique que contour de bâti) — sans hauteur égout
     if (tool === "select") {
       const hitLine = dp2HitTest(canvas, coords.x, coords.y);
       if (hitLine && hitLine.kind === "object" && (hitLine.vertexAnchor === "A" || hitLine.vertexAnchor === "B")) {
@@ -10458,7 +10464,7 @@ function initDP2CanvasEvents() {
       return;
     }
 
-    // Hauteur gouttière (DP4) : prévisualisation = symbole fixe sous la souris (1 clic — pas de segment)
+    // Hauteur égout (DP4) : prévisualisation = symbole fixe sous la souris (1 clic — pas de segment)
     if (tool === "gutter_height_dimension") {
       window.DP2_STATE.drawingPreview = {
         previewType: "gutter_height_dimension",
@@ -10594,10 +10600,10 @@ function initDP2CanvasEvents() {
       return;
     }
 
-    // Hauteur gouttière (DP4) : 1 clic → saisie ; annuler = aucun objet
+    // Hauteur égout (DP4) : 1 clic → saisie ; annuler = aucun objet
     if (tool === "gutter_height_dimension") {
       const raw = window.prompt(
-        "Hauteur gouttière (m) — saisir la valeur (annotation métier, symbole fixe à l’écran).",
+        "Hauteur égout (m) — saisir la valeur (annotation métier, symbole fixe à l’écran).",
         "3,00"
       );
       if (raw == null) {
@@ -12300,7 +12306,7 @@ function dp2OpenGutterHeightDimensionEdit(objectIndex) {
   dp2MigrateGutterHeightDimensionIfNeeded(obj);
   const cur = typeof obj.heightM === "number" && Number.isFinite(obj.heightM) ? obj.heightM : 0;
   const currentStr = cur.toFixed(2).replace(".", ",");
-  const raw = window.prompt("Hauteur gouttière (m) :", currentStr);
+  const raw = window.prompt("Hauteur égout (m) :", currentStr);
   if (raw == null) return false;
   const normalized = String(raw).trim().replace(",", ".");
   const num = parseFloat(normalized);
@@ -12311,7 +12317,7 @@ function dp2OpenGutterHeightDimensionEdit(objectIndex) {
   return true;
 }
 
-/** Facteur graphique pur (annotation hauteur gouttière) — clamp [0.5, 3]. */
+/** Facteur graphique pur (annotation hauteur égout) — clamp [0.5, 3]. */
 function dp2ClampGutterHeightVisualScale(v) {
   if (typeof v !== "number" || !Number.isFinite(v)) return 1;
   return Math.min(DP2_GUTTER_HEIGHT_VISUAL_SCALE_MAX, Math.max(DP2_GUTTER_HEIGHT_VISUAL_SCALE_MIN, v));
@@ -15392,7 +15398,7 @@ function dp4SyncRoofGeometryFromDP2State() {
       closed: true
     }));
 
-  // B. Conserver roofFromObjects : cotes / faîtage (segments) + hauteur gouttière (annotation x,y,heightM)
+  // B. Conserver roofFromObjects : cotes / faîtage (segments) + hauteur égout (annotation x,y,heightM)
   const roofFromObjects = objects.filter((o) => {
     if (!o || typeof o.type !== "string") return false;
     if (o.type === "gutter_height_dimension") {
