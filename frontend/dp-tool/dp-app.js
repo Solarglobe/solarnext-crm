@@ -13663,7 +13663,7 @@ function styleCadastreMVT(feature, resolution) {
   });
 }
 
-// Attente tuiles WMTS (fond PLAN DP2) — même principe que DP1 waitTilesIdle.
+// Attente tuiles WMTS (fond ortho DP2) — même principe que DP1 waitTilesIdle.
 async function dp2WaitWmtsSourcesIdle(map, wmtsSources, timeoutMs) {
   const sources = (wmtsSources || []).filter(Boolean);
   if (!map || !sources.length) return;
@@ -13725,7 +13725,7 @@ function dp2GetWmtsLayerId(source) {
   }
 }
 
-/** DP2 : retire toute tuile IGN interdite (cadastre raster, ortho satellite). Les couches vectorielles ne sont pas touchées. */
+/** DP2 : retire uniquement le cadastre raster IGN indésirable. Orthophoto ORTHOPHOTOS = fond aligné DP4 ; vectoriel inchangé. */
 function dp2SanitizeDp2BaseLayers(map) {
   if (!map || !map.getLayers) return;
   map
@@ -13745,12 +13745,9 @@ function dp2SanitizeDp2BaseLayers(map) {
       }
       const badCadUrl = urlStr.indexOf("CADASTRALPARCELS") >= 0;
       const badCadLayer = lid.indexOf("CADASTRALPARCELS") >= 0;
-      const isOrtho = lid === "ORTHOIMAGERY.ORTHOPHOTOS";
-      if (badCadUrl || badCadLayer || isOrtho) {
+      if (badCadUrl || badCadLayer) {
         map.removeLayer(layer);
-        console.warn(
-          "[DP2] Couche IGN retirée (cadastre raster ou orthophoto — attendu : PLANIGNV2 uniquement)"
-        );
+        console.warn("[DP2] Couche IGN retirée (cadastre raster CADASTRALPARCELS — interdit sur fond ortho DP2)");
       }
     });
 }
@@ -13821,7 +13818,7 @@ function forceFirstPaintWMTS(map, wmtsSource, wmtsResolutions) {
 // --------------------------
 // DP2 — INIT GLOBAL (CAPTURE MODE)
 // Source de vérité UNIQUE : window.DP1_STATE.selectedParcel (geometry, section, parcelle).
-// Fond : WMTS PLAN IGN (PLANIGNV2) uniquement. Parcelle + libellé = vectoriel (pas de MVT / pas de cadastre raster IGN).
+// Fond : WMTS orthophoto IGN (ORTHOIMAGERY.ORTHOPHOTOS), aligné DP4. Parcelle + libellé = vectoriel (pas de cadastre raster IGN).
 // --------------------------
 async function initDP2() {
   setDP2ModeCapture();
@@ -13934,7 +13931,7 @@ async function initDP2() {
       return; // Ne pas poser __DP2_INIT_DONE : ré-init possible après validation DP1
     }
 
-    // ——— Grille WMTS PM (alignée DP1 / DP4) + fond PLAN IGN ———
+    // ——— Grille WMTS PM (alignée DP4) + orthophoto IGN ———
     const WMTS_ORIGIN = [-20037508, 20037508];
     const WMTS_RESOLUTIONS = [
       156543.03392804103, 78271.51696402051, 39135.75848201024,
@@ -13964,9 +13961,9 @@ async function initDP2() {
 
     const planSource = new ol.source.WMTS({
       url: "https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile",
-      layer: "GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2",
+      layer: "ORTHOIMAGERY.ORTHOPHOTOS",
       matrixSet: "PM",
-      format: "image/png",
+      format: "image/jpeg",
       style: "normal",
       tileGrid: wmtsGridPM,
       wrapX: false,
@@ -14116,8 +14113,8 @@ async function initDP2() {
       }
     } catch (_) {}
 
-    window.__DP2_INIT_DONE = true; // PLAN IGN + parcelle cible (+ neighborParcelsSource réservé)
-    console.log("[DP2] Mode CAPTURE prêt (PLAN IGN + parcelle sélectionnée, style cadastral propre).");
+    window.__DP2_INIT_DONE = true; // Ortho IGN + parcelle cible (+ neighborParcelsSource réservé)
+    console.log("[DP2] Mode CAPTURE prêt (orthophoto IGN + parcelle sélectionnée, aligné DP4).");
   }
 
   const dp2PageEl = document.getElementById("dp2-page");
@@ -16699,6 +16696,75 @@ function dp4RasterCompositeProbablyBlank(ctx, w, h) {
   return variance < 25 && mean > 90 && mean < 220;
 }
 
+/**
+ * Test console temporaire : centre + 4 coins DP2 → coord monde → pixel DP4 ; delta vs centre/coins carte DP4.
+ * Exposer `window.__DP4_DEBUG_ALIGN_DP2_DP4()` pour relancer après resize.
+ */
+function dp4DebugPixelAlignmentDp2ToDp4Once(map) {
+  const cap = window.DP2_STATE && window.DP2_STATE.capture;
+  const v = dp4ValidateDP2CaptureForImport(cap);
+  if (!v.ok || !map || typeof map.getSize !== "function") {
+    console.log("[DP4][ALIGN_TEST] skip", { ok: v.ok, missing: v.missing, hasMap: !!map });
+    return;
+  }
+  const w = cap.width;
+  const h = cap.height;
+  const size = map.getSize();
+  if (!size || !(size[0] > 0) || !(size[1] > 0)) {
+    console.log("[DP4][ALIGN_TEST] skip (map sans taille)");
+    return;
+  }
+  const sw = size[0];
+  const sh = size[1];
+  if (Math.abs(sw - w) > 1 || Math.abs(sh - h) > 1) {
+    console.warn("[DP4][ALIGN_TEST] tailles DP2 capture vs DP4 map différentes", { dp2Wh: [w, h], dp4Wh: [sw, sh] });
+  }
+  const refCenter = { x: sw / 2, y: sh / 2 };
+  const refCorners = [
+    { name: "TL", x: 0, y: 0 },
+    { name: "TR", x: sw, y: 0 },
+    { name: "BR", x: sw, y: sh },
+    { name: "BL", x: 0, y: sh }
+  ];
+  const dp2Pts = [
+    { name: "center", x: w / 2, y: h / 2 },
+    { name: "TL", x: 0, y: 0 },
+    { name: "TR", x: w, y: 0 },
+    { name: "BR", x: w, y: h },
+    { name: "BL", x: 0, y: h }
+  ];
+  const refList = [
+    { name: "center", ...refCenter },
+    ...refCorners
+  ];
+  const deltas = [];
+  for (let i = 0; i < dp2Pts.length; i++) {
+    const p = dp2Pts[i];
+    const ref = refList[i];
+    const coord = dp2PixelToMapCoord(p.x, p.y, cap, w, h);
+    const pix = map.getPixelFromCoordinate(coord);
+    if (!pix || pix.length < 2) {
+      deltas.push({ name: p.name, err: "no_pixel" });
+      continue;
+    }
+    const dx = pix[0] - ref.x;
+    const dy = pix[1] - ref.y;
+    deltas.push({
+      name: p.name,
+      dp2Px: [p.x, p.y],
+      dp4Px: [pix[0], pix[1]],
+      refPx: [ref.x, ref.y],
+      deltaPx: [dx, dy],
+      deltaLen: Math.hypot(dx, dy)
+    });
+  }
+  console.log("[DP4][ALIGN_TEST] centre + coins (delta px, objectif ~0)", deltas);
+}
+
+window.__DP4_DEBUG_ALIGN_DP2_DP4 = function () {
+  if (window.DP4_OL_MAP) dp4DebugPixelAlignmentDp2ToDp4Once(window.DP4_OL_MAP);
+};
+
 // ======================================================
 // DP4 — OPENLAYERS IGN ORTHO (remplace Google Maps)
 // Même mécanisme WMTS que DP2 (Géoportail data.geopf.fr), couche ORTHO.
@@ -16746,20 +16812,45 @@ function dp4InitIgnOrthoMap(onReady) {
     window.DP2_STATE.capture &&
     Array.isArray(window.DP2_STATE.capture.center);
 
+  function dp4ExactWmtsResolutionIndex(dp2Res, list) {
+    if (!(typeof dp2Res === "number" && Number.isFinite(dp2Res) && dp2Res > 0) || !list || !list.length) {
+      return -1;
+    }
+    const strict = list.indexOf(dp2Res);
+    if (strict >= 0) return strict;
+    for (let i = 0; i < list.length; i++) {
+      const ri = list[i];
+      if (Math.abs(ri - dp2Res) <= 1e-8 * Math.max(Math.abs(ri), Math.abs(dp2Res), 1e-12)) return i;
+    }
+    return -1;
+  }
+
   let center, resolution, rotation;
   if (hasDP2Capture) {
     center = window.DP2_STATE.capture.center;
     rotation = window.DP2_STATE.capture.rotation || 0;
     const dp2Res = window.DP2_STATE.capture.resolution;
-    resolution = nearestWmtsResolution(dp2Res);
+    const cranIdx = dp4ExactWmtsResolutionIndex(dp2Res, WMTS_RESOLUTIONS);
+    if (cranIdx >= 0) {
+      resolution = WMTS_RESOLUTIONS[cranIdx];
+    } else {
+      resolution = nearestWmtsResolution(dp2Res);
+    }
+    const exactCran = cranIdx >= 0;
+    console.log("[DP4][WMTS_RES]", {
+      dp2Resolution: dp2Res,
+      dp4Resolution: resolution,
+      exactWmtsCran: exactCran,
+      cranIdx: cranIdx >= 0 ? cranIdx : null
+    });
     if (
+      !exactCran &&
       typeof dp2Res === "number" &&
       Number.isFinite(dp2Res) &&
       dp2Res > 0 &&
       typeof resolution === "number" &&
       Number.isFinite(resolution) &&
-      resolution > 0 &&
-      dp2Res !== resolution
+      resolution > 0
     ) {
       const deltaPct = (Math.abs(resolution - dp2Res) / dp2Res) * 100;
       console.log("[DP4][WMTS_RES_SNAP]", {
@@ -16803,7 +16894,8 @@ function dp4InitIgnOrthoMap(onReady) {
   window.DP4_OL_MAP = new ol.Map({
     target: "dp4-ign-map",
     layers: [orthoLayer],
-    view: view
+    view: view,
+    pixelRatio: Math.min(2, window.devicePixelRatio || 1)
   });
 
   applySafeInitialResolution(
@@ -16820,9 +16912,14 @@ function dp4InitIgnOrthoMap(onReady) {
     );
   } catch (_) {}
 
-  if (typeof onReady === "function") {
-    window.DP4_OL_MAP.once("rendercomplete", onReady);
-  }
+  window.DP4_OL_MAP.once("rendercomplete", function dp4FirstRenderAlignTest() {
+    try {
+      if (hasDP2Capture) dp4DebugPixelAlignmentDp2ToDp4Once(window.DP4_OL_MAP);
+    } catch (e) {
+      console.warn("[DP4][ALIGN_TEST]", e);
+    }
+    if (typeof onReady === "function") onReady();
+  });
 }
 
 /** Listener moveend pour repositionner le hint (démonté avant destroy map) */
