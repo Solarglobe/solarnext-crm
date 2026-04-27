@@ -6,7 +6,8 @@
  *   node scripts/repair-rbac-users.js
  */
 async function main() {
-  await import("../config/load-env.js");
+  await import("../config/register-local-env.js");
+  await import("../config/script-env-tail.js");
   const { pool } = await import("../config/db.js");
   const { repairAllUsersAdminRbac } = await import("../rbac/rbac.service.js");
 

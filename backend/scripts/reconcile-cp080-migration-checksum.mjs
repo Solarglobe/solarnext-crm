@@ -9,7 +9,8 @@
  *   MIGRATION_RECONCILE_CP080=1 node scripts/reconcile-cp080-migration-checksum.mjs
  */
 
-import "../config/load-env.js";
+import "../config/register-local-env.js";
+import "../config/script-env-tail.js";
 import crypto from "crypto";
 import fs from "fs";
 import path from "path";

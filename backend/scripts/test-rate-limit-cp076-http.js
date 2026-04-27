@@ -8,7 +8,8 @@
  * 4) GET / : pas de rate limit agressif
  */
 
-import "../config/load-env.js";
+import "../config/register-local-env.js";
+import "../config/script-env-tail.js";
 import fetch from "node-fetch";
 
 const BASE = process.env.BASE_URL || "http://localhost:3000";

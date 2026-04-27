@@ -1,4 +1,7 @@
 #!/usr/bin/env node
+import "../config/register-local-env.js";
+import "../config/script-env-tail.js";
+
 /**
  * Nettoyage « factures test » en production — SANS DELETE, SANS modification des montants ni des lignes.
  *
@@ -26,16 +29,13 @@
  *   cd backend && node scripts/cleanup-test-invoices-safe.mjs --org=<UUID> --ids=a,b --apply
  *   cd backend && node scripts/cleanup-test-invoices-safe.mjs --org=<UUID> --stamp-notes --apply
  */
-import "../config/register-local-env.js";
 import { writeSync } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import { applyResolvedDatabaseUrl } from "../config/database-url.js";
 
 writeSync(1, `[cleanup-test-invoices-safe] START ${new Date().toISOString()}\n`);
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-applyResolvedDatabaseUrl();
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;

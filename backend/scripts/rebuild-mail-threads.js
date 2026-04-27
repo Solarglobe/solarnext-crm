@@ -4,7 +4,8 @@
  * Usage : node --env-file=./.env scripts/rebuild-mail-threads.js
  */
 
-import "../config/load-env.js";
+import "../config/register-local-env.js";
+import "../config/script-env-tail.js";
 import { rebuildAllThreads } from "../services/mail/mailThreading.service.js";
 
 async function main() {

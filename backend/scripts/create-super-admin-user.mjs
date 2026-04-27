@@ -10,7 +10,8 @@
  *   SUPER_ADMIN_PASSWORD — obligatoire (jamais en dur dans le dépôt)
  */
 
-import "../config/load-env.js";
+import "../config/register-local-env.js";
+import "../config/script-env-tail.js";
 import pg from "pg";
 import { hashPassword } from "../auth/auth.service.js";
 

@@ -4,7 +4,8 @@
  *
  * Usage : node scripts/test-pv-battery-purchase-price-api.js
  */
-import "../config/load-env.js";
+import "../config/register-local-env.js";
+import "../config/script-env-tail.js";
 
 const BASE = process.env.TEST_API_BASE || "http://127.0.0.1:3000";
 const EMAIL = process.env.TEST_LOGIN_EMAIL || "";

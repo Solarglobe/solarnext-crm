@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Affiche DATABASE_URL / PG* avant dotenv, après load-env, et teste des candidates (count leads).
+ * Affiche DATABASE_URL / PG* avant chargement env, puis après register + résolution URL.
  */
 import pg from "pg";
 import path from "path";
@@ -38,14 +38,15 @@ async function tryUrl(label, connectionString, ssl) {
   }
 }
 
-console.log("=== Avant import load-env ===");
+console.log("=== Avant import config env ===");
 console.log("DATABASE_URL=", process.env.DATABASE_URL ? mask(process.env.DATABASE_URL) : "(absent)");
 console.log("PGHOST=", process.env.PGHOST ?? "(absent)");
 console.log("PGPORT=", process.env.PGPORT ?? "(absent)");
 
-await import("../config/load-env.js");
+await import("../config/register-local-env.js");
+await import("../config/script-env-tail.js");
 
-console.log("\n=== Après load-env.js (applyResolvedDatabaseUrl) ===");
+console.log("\n=== Après register-local-env + script-env-tail ===");
 console.log("DATABASE_URL=", process.env.DATABASE_URL ? mask(process.env.DATABASE_URL) : "(absent)");
 console.log("PGHOST=", process.env.PGHOST ?? "(absent)");
 
@@ -78,7 +79,7 @@ const candidates = [];
 
 if (process.env.DATABASE_URL) {
   candidates.push({
-    label: "process.env.DATABASE_URL (après load-env)",
+    label: "process.env.DATABASE_URL (après env config)",
     url: process.env.DATABASE_URL,
     ssl: /proxy\.rlwy\.net|rlwy\.net/i.test(process.env.DATABASE_URL),
   });

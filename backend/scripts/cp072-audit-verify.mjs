@@ -2,7 +2,8 @@
  * CP-072 — Vérifie colonnes audit_logs + insertion résiliente (optionnel).
  * Usage : node --env-file=.env scripts/cp072-audit-verify.mjs
  */
-import "../config/load-env.js";
+import "../config/register-local-env.js";
+import "../config/script-env-tail.js";
 import { pool } from "../config/db.js";
 import { logAuditEvent } from "../services/audit/auditLog.service.js";
 import { AuditActions } from "../services/audit/auditActions.js";

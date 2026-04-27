@@ -3,7 +3,8 @@
  * Usage: cd backend && node scripts/test-prompt9-financial-documents.js
  */
 
-import "../config/load-env.js";
+import "../config/register-local-env.js";
+import "../config/script-env-tail.js";
 
 import { pool } from "../config/db.js";
 import * as quoteService from "../routes/quotes/service.js";

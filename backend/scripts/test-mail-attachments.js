@@ -6,7 +6,8 @@
 
 import assert from "assert";
 import { simpleParser } from "mailparser";
-import "../config/load-env.js";
+import "../config/register-local-env.js";
+import "../config/script-env-tail.js";
 import { pool } from "../config/db.js";
 import {
   extractAttachmentsFromParsedEmail,

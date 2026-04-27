@@ -15,7 +15,8 @@
 
 import fs from "fs/promises";
 import path from "path";
-import "../config/load-env.js";
+import "../config/register-local-env.js";
+import "../config/script-env-tail.js";
 
 const DEFAULT_TARGET = process.env.STORAGE_TARGET || process.env.RAILWAY_VOLUME_MOUNT_PATH || "/app/storage";
 

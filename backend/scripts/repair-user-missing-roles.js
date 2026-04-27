@@ -3,7 +3,8 @@
  * Usage : node scripts/repair-user-missing-roles.js <email> [ROLE_CODE]
  * Ex. : node scripts/repair-user-missing-roles.js b.letren@solarglobe.fr ADMIN
  */
-import "../config/load-env.js";
+import "../config/register-local-env.js";
+import "../config/script-env-tail.js";
 import pg from "pg";
 
 const RBAC_CRITICAL_CODES = [

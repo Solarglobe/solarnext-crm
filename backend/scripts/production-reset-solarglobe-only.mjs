@@ -9,7 +9,8 @@
  *   --skip-storage        Ne touche pas au disque (uniquement SQL + RBAC)
  *   --dry-run             Affiche le chemin SQL et les contrôles sans exécuter le SQL
  */
-import "../config/load-env.js";
+import "../config/register-local-env.js";
+import "../config/script-env-tail.js";
 import fs from "fs/promises";
 import fsSync from "fs";
 import path from "path";

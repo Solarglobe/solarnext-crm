@@ -17,7 +17,8 @@ import fs from "fs";
 import { fileURLToPath } from "url";
 import pg from "pg";
 
-import "../config/load-env.js";
+import "../config/register-local-env.js";
+import "../config/script-env-tail.js";
 import { getConnectionString } from "../config/database-url.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));

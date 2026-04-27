@@ -4,7 +4,8 @@
  * Usage : cd backend && npm run test:financial-pdf-pipeline
  *           ou   node scripts/test-pdf-pipeline.js
  */
-import "../config/load-env.js";
+import "../config/register-local-env.js";
+import "../config/script-env-tail.js";
 import { pool } from "../config/db.js";
 import * as quoteService from "../routes/quotes/service.js";
 import * as invoiceService from "../services/invoices.service.js";

@@ -4,7 +4,8 @@
  * Usage : node --env-file=./.env scripts/run-mail-sync.js
  */
 
-import "../config/load-env.js";
+import "../config/register-local-env.js";
+import "../config/script-env-tail.js";
 import { runMailSyncJob } from "../workers/mailSync.worker.js";
 
 async function main() {

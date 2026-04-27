@@ -4,7 +4,8 @@
  *
  * Usage : node scripts/verify-pv-battery-purchase-price-chain.js
  */
-import "../config/load-env.js";
+import "../config/register-local-env.js";
+import "../config/script-env-tail.js";
 import { pool } from "../config/db.js";
 
 async function columnInfo() {

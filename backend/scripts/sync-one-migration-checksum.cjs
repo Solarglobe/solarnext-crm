@@ -1,55 +1,54 @@
 /**
  * Met à jour migration_checksums pour un nom de migration donné (hash du fichier actuel).
  * Usage : node scripts/sync-one-migration-checksum.cjs 1774600000000_cp-invoice-lead-payment-terms
- * (DATABASE_URL via .env.dev / .env)
+ * (DATABASE_URL via Railway ou fichiers locaux via register-local-env)
  */
 
 const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 const { Client } = require("pg");
-if (!process.env.DATABASE_URL) {
-  require("dotenv").config({ path: path.join(__dirname, "../../.env.dev"), override: false });
-  require("dotenv").config({ path: path.join(__dirname, "../.env"), override: false });
-}
-
-const name = process.argv[2];
-if (!name) {
-  console.error("Usage: node scripts/sync-one-migration-checksum.cjs <migration_name_without_js>");
-  process.exit(1);
-}
-const filePath = path.join(__dirname, "../migrations", `${name}.js`);
-if (!fs.existsSync(filePath)) {
-  console.error("Fichier introuvable:", filePath);
-  process.exit(1);
-}
-const content = fs.readFileSync(filePath, "utf8");
-const checksum = crypto.createHash("sha256").update(content).digest("hex");
-
-/** Aligné sur migrationManager.service.js — fond effectif up/down. */
-function normalizeMigrationContent(fileContent) {
-  let s = String(fileContent).replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-  s = s.replace(/\/\*[\s\S]*?\*\//g, "");
-  const out = [];
-  for (const line of s.split("\n")) {
-    const t = line.trim();
-    if (t === "" || /^\/\//.test(t)) continue;
-    out.push(line.replace(/\s+$/g, ""));
-  }
-  return out.join("\n").trim();
-}
-
-const checksumNormalized = crypto
-  .createHash("sha256")
-  .update(normalizeMigrationContent(content))
-  .digest("hex");
-const url = process.env.DATABASE_URL;
-if (!url) {
-  console.error("DATABASE_URL manquant");
-  process.exit(1);
-}
 
 (async () => {
+  await import(path.join(__dirname, "../config/register-local-env.js"));
+  await import(path.join(__dirname, "../config/script-env-tail.js"));
+
+  const name = process.argv[2];
+  if (!name) {
+    console.error("Usage: node scripts/sync-one-migration-checksum.cjs <migration_name_without_js>");
+    process.exit(1);
+  }
+  const filePath = path.join(__dirname, "../migrations", `${name}.js`);
+  if (!fs.existsSync(filePath)) {
+    console.error("Fichier introuvable:", filePath);
+    process.exit(1);
+  }
+  const content = fs.readFileSync(filePath, "utf8");
+  const checksum = crypto.createHash("sha256").update(content).digest("hex");
+
+  /** Aligné sur migrationManager.service.js — fond effectif up/down. */
+  function normalizeMigrationContent(fileContent) {
+    let s = String(fileContent).replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+    s = s.replace(/\/\*[\s\S]*?\*\//g, "");
+    const out = [];
+    for (const line of s.split("\n")) {
+      const t = line.trim();
+      if (t === "" || /^\/\//.test(t)) continue;
+      out.push(line.replace(/\s+$/g, ""));
+    }
+    return out.join("\n").trim();
+  }
+
+  const checksumNormalized = crypto
+    .createHash("sha256")
+    .update(normalizeMigrationContent(content))
+    .digest("hex");
+  const url = process.env.DATABASE_URL;
+  if (!url) {
+    console.error("DATABASE_URL manquant");
+    process.exit(1);
+  }
+
   const client = new Client({ connectionString: url });
   await client.connect();
   try {

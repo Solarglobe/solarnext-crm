@@ -6,7 +6,8 @@
 import os from "os";
 import { execFileSync } from "child_process";
 
-import "../config/load-env.js";
+import "../config/register-local-env.js";
+import "../config/script-env-tail.js";
 import { applyResolvedDatabaseUrl } from "../config/database-url.js";
 import {
   getPgConnectionFromEnv,

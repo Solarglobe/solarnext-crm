@@ -3,7 +3,8 @@
  * Usage (depuis la racine repo ou backend, avec .env.dev / backend/.env chargés) :
  *   node scripts/diagnose-auth-user.js b.letren@solarglobe.fr
  */
-import "../config/load-env.js";
+import "../config/register-local-env.js";
+import "../config/script-env-tail.js";
 import pg from "pg";
 
 const emailArg = process.argv[2] || process.env.DIAGNOSE_AUTH_EMAIL;

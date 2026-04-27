@@ -6,8 +6,9 @@
  * SMTP_TEST_PASSWORD, SMTP_TEST_TO — crée un compte test puis envoie puis supprime.
  */
 
+import "../config/register-local-env.js";
+import "../config/script-env-tail.js";
 import crypto from "crypto";
-import "../config/load-env.js";
 import { encrypt, decrypt, encryptJson } from "../services/security/encryption.service.js";
 import {
   createSmtpTransport,

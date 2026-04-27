@@ -8,7 +8,8 @@
  * Email par défaut : b.letren@solarglobe.fr — mot de passe toujours réinitialisé à 12345678.
  */
 
-import "../config/load-env.js";
+import "../config/register-local-env.js";
+import "../config/script-env-tail.js";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import pg from "pg";

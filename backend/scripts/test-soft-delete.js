@@ -2,7 +2,7 @@
  * CP-032A — Test Soft Delete & Archivage
  * Vérifie : création client, archive, GET 404, restore, GET OK
  * Lancer avec: node --env-file=./.env scripts/test-soft-delete.js
- * ou: node -r dotenv/config scripts/test-soft-delete.js dotenv_config_path=./.env
+ * ou: node avec variables d’environnement explicites (DATABASE_URL, etc.).
  */
 
 import "../config/register-local-env.js";

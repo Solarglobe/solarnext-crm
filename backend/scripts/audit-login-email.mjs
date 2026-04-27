@@ -2,7 +2,8 @@
  * Usage : railway run node scripts/audit-login-email.mjs <email>
  * Local : node --env-file=.env scripts/audit-login-email.mjs <email>
  */
-import "../config/load-env.js";
+import "../config/register-local-env.js";
+import "../config/script-env-tail.js";
 import { pool } from "../config/db.js";
 
 const email = process.argv[2];

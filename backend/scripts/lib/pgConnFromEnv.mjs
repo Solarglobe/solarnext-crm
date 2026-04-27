@@ -3,10 +3,8 @@
  * Parsing robuste : sslmode, mots de passe encodés (%), caractères spéciaux.
  */
 
-import "../../config/load-env.js";
-import { applyResolvedDatabaseUrl } from "../../config/database-url.js";
-
-applyResolvedDatabaseUrl();
+import "../../config/register-local-env.js";
+import "../../config/script-env-tail.js";
 
 /**
  * Parse DATABASE_URL (postgresql:// et postgres://).

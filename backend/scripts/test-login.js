@@ -2,7 +2,8 @@
  * Test manuel POST /auth/login (npm run test-login)
  * Variables : TEST_LOGIN_EMAIL, TEST_LOGIN_PASSWORD (backend/.env ou env)
  */
-import "../config/load-env.js";
+import "../config/register-local-env.js";
+import "../config/script-env-tail.js";
 import fetch from "node-fetch";
 
 const BASE_URL = process.env.TEST_LOGIN_BASE_URL || "http://localhost:3000";

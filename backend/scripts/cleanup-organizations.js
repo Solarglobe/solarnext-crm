@@ -6,7 +6,8 @@
  *   node scripts/cleanup-organizations.js
  *   (depuis backend/, avec DATABASE_URL ou .env)
  */
-import "../config/load-env.js";
+import "../config/register-local-env.js";
+import "../config/script-env-tail.js";
 import { pool } from "../config/db.js";
 import { ORG_NAME_SOLAR_GLOBE } from "../services/admin/adminOrganizations.service.js";
 

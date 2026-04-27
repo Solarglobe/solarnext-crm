@@ -12,7 +12,7 @@
  */
 
 import "../config/register-local-env.js";
-import dotenv from "dotenv";
+import "../config/script-env-tail.js";
 import path from "path";
 import { fileURLToPath } from "url";
 import jwt from "jsonwebtoken";
@@ -21,18 +21,6 @@ import pg from "pg";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
-// Chemin vers la RACINE du projet (2 niveaux au-dessus)
-const rootEnvPath = path.resolve(__dirname, "../../.env.dev");
-
-if (!process.env.DATABASE_URL || !process.env.JWT_SECRET) {
-  const result = dotenv.config({ path: rootEnvPath, override: false });
-  if (result.error) {
-    console.error("❌ Impossible de charger .env.dev à :", rootEnvPath);
-    throw result.error;
-  }
-  console.log("✅ .env chargé depuis :", rootEnvPath);
-}
 
 if (!process.env.DATABASE_URL) {
   throw new Error("DATABASE_URL manquant — vérifier backend/.env.dev");

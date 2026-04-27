@@ -5,7 +5,8 @@
  */
 
 import assert from "assert";
-import "../config/load-env.js";
+import "../config/register-local-env.js";
+import "../config/script-env-tail.js";
 import { pool } from "../config/db.js";
 import {
   applyTrackingToHtml,

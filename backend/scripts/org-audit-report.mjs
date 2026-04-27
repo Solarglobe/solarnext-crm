@@ -8,7 +8,8 @@
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import "../config/load-env.js";
+import "../config/register-local-env.js";
+import "../config/script-env-tail.js";
 import pg from "pg";
 import { applyResolvedDatabaseUrl } from "../config/database-url.js";
 

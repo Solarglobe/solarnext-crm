@@ -15,11 +15,9 @@
  * ou npm run équivalent selon votre procédure interne) — aucun backup automatique ici.
  */
 
-import "../config/load-env.js";
+import "../config/register-local-env.js";
+import "../config/script-env-tail.js";
 import pg from "pg";
-import { applyResolvedDatabaseUrl } from "../config/database-url.js";
-
-applyResolvedDatabaseUrl();
 
 const METIER_SUM_SQL = `
   (SELECT count(*)::int FROM leads WHERE organization_id = o.id)

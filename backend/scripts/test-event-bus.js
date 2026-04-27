@@ -5,7 +5,8 @@
  */
 
 import assert from "assert";
-import "../config/load-env.js";
+import "../config/register-local-env.js";
+import "../config/script-env-tail.js";
 import { pool } from "../config/db.js";
 import { emitEvent, registerHandler } from "../services/core/eventBus.service.js";
 import { logEvent } from "../services/core/eventLog.service.js";
