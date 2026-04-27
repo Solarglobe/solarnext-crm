@@ -18,6 +18,8 @@ export interface InvoiceHeaderCardProps {
   quoteBillingRole?: string | null;
   hasQuote: boolean;
   isOverdue: boolean;
+  /** metadata_json.is_test — facture marquée test (cleanup prod). */
+  isTestInvoice?: boolean;
 }
 
 function sourceLabel(hasQuote: boolean): string {
@@ -35,6 +37,7 @@ export default function InvoiceHeaderCard({
   quoteBillingRole,
   hasQuote,
   isOverdue,
+  isTestInvoice = false,
 }: InvoiceHeaderCardProps) {
   const st = String(statusRaw).toUpperCase();
   const showOverdueBadge =
@@ -50,6 +53,11 @@ export default function InvoiceHeaderCard({
           <p className="ib-header-card__number">{invoiceNumberDisplay}</p>
         </div>
         <div className="ib-header-card__badges">
+          {isTestInvoice ? (
+            <span className="ib-header-card__badge-test" title="Marquée comme facture test (ne pas utiliser en comptabilité réelle)">
+              FACTURE TEST
+            </span>
+          ) : null}
           <span className={invoiceStatusClass(statusUi)}>{invoiceStatusLabel(statusUi)}</span>
           {showOverdueBadge ? <span className="ib-status ib-status--overdue">En retard</span> : null}
         </div>

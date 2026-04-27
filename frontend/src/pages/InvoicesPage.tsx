@@ -73,6 +73,23 @@ function norm(s: string | undefined) {
     .toUpperCase();
 }
 
+function invoiceRowIsTest(r: InvoiceListRow): boolean {
+  const raw = r.metadata_json;
+  if (raw == null) return false;
+  if (typeof raw === "object" && raw !== null && "is_test" in raw) {
+    return (raw as { is_test?: unknown }).is_test === true;
+  }
+  if (typeof raw === "string") {
+    try {
+      const p = JSON.parse(raw) as { is_test?: unknown };
+      return p?.is_test === true;
+    } catch {
+      return false;
+    }
+  }
+  return false;
+}
+
 function matchesInvoiceStatus(row: InvoiceListRow, f: InvStatusFilter): boolean {
   if (f === "ALL") return true;
   const st = norm(row.status);
@@ -500,7 +517,16 @@ export default function InvoicesPage() {
                     style={{ cursor: "pointer" }}
                     onClick={() => navigate(`/invoices/${r.id}`)}
                   >
-                    <td className="qb-mono">{formatInvoiceNumberDisplay(r.invoice_number, r.status)}</td>
+                    <td className="qb-mono">
+                      <span style={{ display: "inline-flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
+                        {formatInvoiceNumberDisplay(r.invoice_number, r.status)}
+                        {invoiceRowIsTest(r) ? (
+                          <span className="ib-header-card__badge-test" title="Facture test">
+                            TEST
+                          </span>
+                        ) : null}
+                      </span>
+                    </td>
                     <td>{formatInvoiceClient(r)}</td>
                     <td className="qb-num">{eur(r.total_ttc)}</td>
                     <td className="qb-num">{eur(r.total_paid)}</td>

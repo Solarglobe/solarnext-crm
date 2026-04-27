@@ -297,6 +297,11 @@ export default function InvoiceBuilderPage() {
     }
   };
 
+  const isTestInvoice = useMemo(() => {
+    const m = invoiceDetail?.metadata_json as { is_test?: unknown } | undefined;
+    return Boolean(m && typeof m === "object" && m.is_test === true);
+  }, [invoiceDetail?.metadata_json]);
+
   const quoteBillingRole = (invoiceDetail?.metadata_json as { quote_billing_role?: string } | undefined)
     ?.quote_billing_role;
 
@@ -455,6 +460,7 @@ export default function InvoiceBuilderPage() {
           quoteBillingRole={quoteBillingRole}
           hasQuote={!!state.header.quote_id}
           isOverdue={!!detailExtras.is_overdue}
+          isTestInvoice={isTestInvoice}
         />
 
         <InvoicePaymentSituationCard

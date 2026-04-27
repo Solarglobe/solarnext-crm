@@ -33,6 +33,8 @@ export interface InvoiceListRow {
   created_at?: string;
   /** Présent sur GET /api/invoices (colonne invoices.updated_at) */
   updated_at?: string;
+  /** Colonne invoices.metadata_json (ex. is_test après cleanup prod). */
+  metadata_json?: Record<string, unknown> | string | null;
 }
 
 export interface InvoicePaymentRow {
