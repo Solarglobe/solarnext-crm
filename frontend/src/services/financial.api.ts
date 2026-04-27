@@ -139,6 +139,10 @@ export interface QuoteListRow {
   last_name?: string | null;
   /** Nom affichable du lead si pas de client */
   lead_full_name?: string | null;
+  /** Nom client dérivé (société ou prénom + nom) — liste GET /api/quotes */
+  client_name?: string | null;
+  /** Nom du lead (équivalent lead_full_name) — liste GET /api/quotes */
+  lead_name?: string | null;
   has_pdf?: boolean;
   has_signed_pdf?: boolean;
 }

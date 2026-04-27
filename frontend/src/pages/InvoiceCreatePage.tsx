@@ -35,6 +35,28 @@ function roundMoney2(n: number): number {
   return Math.round(x * 100) / 100;
 }
 
+/** Libellé option « Devis optionnel » : numéro + statut + contact si connu. */
+function quoteOptionalSelectLabel(q: QuoteListRow): string {
+  const num = q.quote_number || q.id;
+  const statusPart = q.status ? ` — ${q.status}` : "";
+  const base = `${num}${statusPart}`;
+
+  const clientDisp =
+    (typeof q.client_name === "string" && q.client_name.trim()) ||
+    (typeof q.company_name === "string" && q.company_name.trim()) ||
+    [q.first_name, q.last_name].filter(Boolean).join(" ").trim() ||
+    "";
+
+  const leadDisp =
+    (typeof q.lead_name === "string" && q.lead_name.trim()) ||
+    (typeof q.lead_full_name === "string" && q.lead_full_name.trim()) ||
+    "";
+
+  if (q.client_id && clientDisp) return `${base} — ${clientDisp}`;
+  if (q.lead_id && leadDisp) return `${base} — ${leadDisp}`;
+  return base;
+}
+
 export default function InvoiceCreatePage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -567,7 +589,7 @@ export default function InvoiceCreatePage() {
                 <option value="">— Aucun —</option>
                 {quoteRows.map((q) => (
                   <option key={q.id} value={q.id}>
-                    {(q.quote_number || q.id) + (q.status ? ` — ${q.status}` : "")}
+                    {quoteOptionalSelectLabel(q)}
                   </option>
                 ))}
               </select>

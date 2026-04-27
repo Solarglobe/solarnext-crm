@@ -178,7 +178,12 @@ export async function listQuotes(organizationId, query = {}) {
 
   let sql = `
     SELECT q.*, c.company_name, c.first_name, c.last_name,
+           COALESCE(
+             NULLIF(TRIM(c.company_name), ''),
+             NULLIF(TRIM(CONCAT_WS(' ', c.first_name, c.last_name)), '')
+           ) AS client_name,
            l.full_name AS lead_full_name,
+           l.full_name AS lead_name,
            (EXISTS (
              SELECT 1 FROM entity_documents ed
              WHERE ed.organization_id = q.organization_id

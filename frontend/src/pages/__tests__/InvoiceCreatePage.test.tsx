@@ -172,4 +172,34 @@ describe("InvoiceCreatePage — contexte client / lead / libre", () => {
       );
     });
   });
+
+  it("sans params : libellé devis optionnel inclut le nom client (API client_name)", async () => {
+    fetchQuotesListMock.mockResolvedValueOnce([
+      {
+        id: "q-1",
+        quote_number: "SG-2026-0029",
+        status: "ACCEPTED",
+        client_id: "c-1",
+        lead_id: null,
+        client_name: "KIM GIRARD",
+      },
+    ]);
+
+    render(
+      <MemoryRouter initialEntries={["/invoices/new"]}>
+        <Routes>
+          <Route path="/invoices/new" element={<InvoiceCreatePage />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await waitFor(() => expect(screen.getByLabelText(/Choisir un client/i)).toBeInTheDocument());
+    fireEvent.change(screen.getByLabelText(/Choisir un client/i), { target: { value: "c-1" } });
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("option", { name: "SG-2026-0029 — ACCEPTED — KIM GIRARD" })
+      ).toBeInTheDocument();
+    });
+  });
 });
