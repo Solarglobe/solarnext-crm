@@ -102,7 +102,6 @@ const principalModules = [
   { path: "/clients", label: "Clients", icon: ClientIcon },
   { path: "/planning", label: "Planning", icon: CalendarIcon, end: true },
   { path: "/documents", label: "Documents", icon: DocumentIcon, end: true },
-  { path: "/mairies", label: "Mairies", icon: MairiesNavIcon, end: true },
 ];
 
 const mailModules = [
@@ -242,6 +241,12 @@ function UsersIcon() {
   );
 }
 
+const installationModules = [
+  { path: "/mairies", label: "Mairie", icon: MairiesNavIcon, end: true },
+  { path: "/installation/fiche-technique", label: "Fiche technique", icon: DocumentIcon, end: true },
+  { path: "/installation/installateur", label: "Installateur / Sous-traitant", icon: UsersIcon, end: true },
+];
+
 function StructureIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -275,7 +280,14 @@ function MoonIcon() {
   );
 }
 
-type SidebarSectionId = "principal" | "mail" | "finance" | "entreprise" | "technical" | "superadmin";
+type SidebarSectionId =
+  | "principal"
+  | "installation"
+  | "mail"
+  | "finance"
+  | "entreprise"
+  | "technical"
+  | "superadmin";
 
 function pathMatchesSection(pathname: string, id: SidebarSectionId): boolean {
   if (id === "principal") {
@@ -284,9 +296,11 @@ function pathMatchesSection(pathname: string, id: SidebarSectionId): boolean {
       pathname.startsWith("/leads") ||
       pathname.startsWith("/clients") ||
       pathname.startsWith("/planning") ||
-      pathname.startsWith("/documents") ||
-      pathname.startsWith("/mairies")
+      pathname.startsWith("/documents")
     );
+  }
+  if (id === "installation") {
+    return pathname.startsWith("/mairies") || pathname.startsWith("/installation");
   }
   if (id === "mail") {
     return pathname.startsWith("/mail") || pathname.startsWith("/settings/mail");
@@ -394,6 +408,7 @@ export function AppLayout() {
 
   const [sectionOpen, setSectionOpen] = useState<Record<SidebarSectionId, boolean>>({
     principal: true,
+    installation: false,
     mail: false,
     finance: false,
     entreprise: false,
@@ -409,7 +424,17 @@ export function AppLayout() {
     setSectionOpen((prev) => {
       let changed = false;
       const next = { ...prev };
-      (["principal", "mail", "finance", "entreprise", "technical", "superadmin"] as SidebarSectionId[]).forEach((id) => {
+      (
+        [
+          "principal",
+          "installation",
+          "mail",
+          "finance",
+          "entreprise",
+          "technical",
+          "superadmin",
+        ] as SidebarSectionId[]
+      ).forEach((id) => {
         if (pathMatchesSection(pathname, id) && !next[id]) {
           next[id] = true;
           changed = true;
@@ -606,6 +631,14 @@ export function AppLayout() {
             expanded={sectionOpen.principal}
             onToggle={() => toggleSection("principal")}
             navLinks={principalModules}
+          />
+          <SidebarCollapsibleSection
+            sectionId="installation"
+            title="Installation"
+            expanded={sectionOpen.installation}
+            onToggle={() => toggleSection("installation")}
+            navLinks={installationModules}
+            linkClassName="sn-sidebar-link-nested"
           />
           <SidebarCollapsibleSection
             sectionId="mail"

@@ -40,6 +40,8 @@ import InvoiceBuilderPage from "./modules/invoices/InvoiceBuilderPage";
 import FinancialHubPage from "./pages/FinancialHubPage";
 import DocumentsList from "./pages/DocumentsList";
 import MairiesPage from "./pages/MairiesPage";
+import InstallationFicheTechniquePage from "./pages/installation/InstallationFicheTechniquePage";
+import InstallationInstallateurPage from "./pages/installation/InstallationInstallateurPage";
 import PvSettingsPage from "./pages/PvSettingsPage";
 import AdminSmartpitchSettings from "./pages/AdminSmartpitchSettings";
 import StudySnapshotPdfPage from "./pages/pdf/StudySnapshotPdfPage";
@@ -117,6 +119,8 @@ const router = createBrowserRouter(
         { path: "mairies/new", element: <Navigate to="/mairies" replace /> },
         { path: "mairies/:id", element: <MairiesPage /> },
         { path: "mairies", element: <MairiesPage /> },
+        { path: "installation/fiche-technique", element: <InstallationFicheTechniquePage /> },
+        { path: "installation/installateur", element: <InstallationInstallateurPage /> },
         { path: "mail", element: <MailInboxPage /> },
         { path: "mail/accounts", element: <Navigate to="/settings/mail?tab=accounts" replace /> },
         { path: "mail/signatures", element: <Navigate to="/settings/mail?tab=signatures" replace /> },
