@@ -96,47 +96,33 @@ export function computeQuoteTotals(items) {
  */
 export async function computeQuoteTotalsFromLines({ quoteId, orgId, client = null }) {
   const q = client || pool;
+  /** Source de vérité : montants persistés par ligne (incl. remise ligne discount_ht → total_line_*). */
   const res = await q.query(
-    `SELECT id, quantity, unit_price_ht, vat_rate, vat_rate_bps, pricing_mode, is_active
+    `SELECT
+       COALESCE(SUM(total_line_ht) FILTER (WHERE is_active IS DISTINCT FROM false), 0)::float8 AS th,
+       COALESCE(SUM(total_line_vat) FILTER (WHERE is_active IS DISTINCT FROM false), 0)::float8 AS tv,
+       COALESCE(SUM(total_line_ttc) FILTER (WHERE is_active IS DISTINCT FROM false), 0)::float8 AS ttc
      FROM quote_lines
-     WHERE quote_id = $1 AND organization_id = $2
-     ORDER BY position`,
+     WHERE quote_id = $1 AND organization_id = $2`,
     [quoteId, orgId]
   );
-
-  const items = res.rows.map((row) => {
-    const qty = Math.max(0, Number(row.quantity) ?? 0);
-    const unitCents = Math.round(Number(row.unit_price_ht ?? 0) * 100);
-    const vatBps =
-      row.vat_rate_bps != null
-        ? Number(row.vat_rate_bps)
-        : Math.round(Number(row.vat_rate ?? 0) * 100);
-    const pricingMode = row.pricing_mode || "FIXED";
-    return {
-      qty,
-      unit_price_ht_cents: unitCents,
-      vat_rate_bps: vatBps,
-      pricing_mode: pricingMode,
-      is_active: row.is_active !== false
-    };
-  });
-
-  const totals = computeQuoteTotals(items);
+  const row = res.rows[0] || { th: 0, tv: 0, ttc: 0 };
+  const th = Number(row.th) || 0;
+  const tv = Number(row.tv) || 0;
+  const ttc = Number(row.ttc) || 0;
 
   await q.query(
     `UPDATE quotes
      SET total_ht = $1, total_vat = $2, total_ttc = $3, discount_ht = 0, updated_at = now()
      WHERE id = $4 AND organization_id = $5`,
-    [
-      totals.total_ht_cents / 100,
-      totals.total_vat_cents / 100,
-      totals.total_ttc_cents / 100,
-      quoteId,
-      orgId
-    ]
+    [th, tv, ttc, quoteId, orgId]
   );
 
-  return totals;
+  return {
+    total_ht_cents: Math.round(th * 100),
+    total_vat_cents: Math.round(tv * 100),
+    total_ttc_cents: Math.round(ttc * 100),
+  };
 }
 
 /** @deprecated Utiliser computeQuoteTotalsFromLines — alias conservé pour imports existants. */

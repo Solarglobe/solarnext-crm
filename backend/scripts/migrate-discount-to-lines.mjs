@@ -3,9 +3,10 @@
  * Répartition « Remise migrée » par tranche TVA (HT en centimes, somme exacte), puis computeQuoteTotalsFromLines.
  *
  * SKIP (log MIGRATION_SKIPPED_PROTECTED_QUOTE) si :
- * - status = ACCEPTED
- * - PDF devis ou PDF signé présent (entity_documents)
- * - facture liée non annulée
+ * - facture liée non annulée (TYPE C)
+ * - PDF devis ou PDF signé présent (TYPE B — montants figés)
+ *
+ * Aligné classification audit MISSION 5 : TYPE A (sans facture, sans PDF) est migré même si ACCEPTED.
  *
  * Usage :
  *   node backend/scripts/migrate-discount-to-lines.mjs
@@ -88,7 +89,7 @@ function allocateDiscountHtCentsByVatGroups(groups, discountHtTotalEuro) {
 
 async function getSkipReason(client, quoteId, orgId) {
   const q = await client.query(
-    `SELECT q.status,
+    `SELECT
       EXISTS (
         SELECT 1 FROM entity_documents ed
         WHERE ed.organization_id = q.organization_id AND ed.entity_type = 'quote' AND ed.entity_id = q.id
@@ -104,16 +105,14 @@ async function getSkipReason(client, quoteId, orgId) {
   );
   const row = q.rows[0];
   if (!row) return "NOT_FOUND";
-  const st = String(row.status || "").toUpperCase();
-  if (st === "ACCEPTED") return "ACCEPTED";
-  if (row.has_signed_pdf) return "HAS_SIGNED_PDF";
-  if (row.has_pdf) return "HAS_PDF";
   const inv = await client.query(
     `SELECT 1 FROM invoices WHERE quote_id = $1 AND organization_id = $2
      AND UPPER(COALESCE(status, '')) != 'CANCELLED' LIMIT 1`,
     [quoteId, orgId]
   );
   if (inv.rows.length > 0) return "HAS_INVOICE";
+  if (row.has_signed_pdf) return "HAS_SIGNED_PDF";
+  if (row.has_pdf) return "HAS_PDF";
   return null;
 }
 
