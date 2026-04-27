@@ -687,9 +687,32 @@ export async function getQuoteInvoiceBillingContext(quoteId, organizationId) {
   const accepted = String(quote.status).toUpperCase() === "ACCEPTED";
   const hasClient = !!quote.client_id;
 
+  const quoteHt = roundMoney2(Number(quote.total_ht) || 0);
+  const quoteVat = roundMoney2(Number(quote.total_vat) || 0);
+
+  const invListRes = await pool.query(
+    `SELECT id, invoice_number, total_ttc, total_ht, status,
+            COALESCE(metadata_json->>'quote_billing_role', '') AS quote_billing_role
+     FROM invoices
+     WHERE quote_id = $1 AND organization_id = $2
+       AND UPPER(COALESCE(status, '')) != 'CANCELLED'
+     ORDER BY created_at ASC`,
+    [quoteId, organizationId]
+  );
+  const linked_invoices = invListRes.rows.map((row) => ({
+    id: row.id,
+    invoice_number: row.invoice_number,
+    total_ttc: roundMoney2(Number(row.total_ttc) || 0),
+    total_ht: roundMoney2(Number(row.total_ht) || 0),
+    status: String(row.status || ""),
+    quote_billing_role: String(row.quote_billing_role || "STANDARD").toUpperCase(),
+  }));
+
   return {
     quote_id: quoteId,
     quote_total_ttc: quoteTtc,
+    quote_total_ht: quoteHt,
+    quote_total_vat: quoteVat,
     quote_zero_total: quoteZeroTotal,
     /** TTC engagé sur le devis (brouillons inclus, hors annulées) — pour « déjà facturé / réservé ». */
     invoiced_ttc: invoicedCommitted,
@@ -705,6 +728,7 @@ export async function getQuoteInvoiceBillingContext(quoteId, organizationId) {
     can_create_deposit: accepted && hasClient && !quoteZeroTotal && remaining > 0.02,
     can_create_balance: accepted && hasClient && !quoteZeroTotal && remaining > 0.02,
     can_create_standard_full: accepted && hasClient && !quoteZeroTotal && invoicedCommitted <= 0.02,
+    linked_invoices,
   };
 }
 

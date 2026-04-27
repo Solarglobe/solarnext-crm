@@ -49,6 +49,7 @@ import QuoteDocumentSection from "./QuoteDocumentSection";
 import QuoteLinesTable from "./QuoteLinesTable";
 import QuoteSummaryPanel from "./QuoteSummaryPanel";
 import QuoteCommercialSection from "./QuoteCommercialSection";
+import QuoteBillingUxPanel from "./QuoteBillingUxPanel";
 import QuoteClientContentSection from "./QuoteClientContentSection";
 import QuoteInternalNotesSection from "./QuoteInternalNotesSection";
 import {
@@ -175,6 +176,70 @@ export default function QuoteBuilderPage() {
     }
     return null;
   }, [billCtx, depositModalTtc, depositModalPct]);
+
+  const depositModalTtcExceedsRemain = useMemo(() => {
+    if (!billCtx) return false;
+    const rem = billCtx.remaining_ttc ?? 0;
+    const raw = Number(String(depositModalTtc).trim().replace(",", "."));
+    if (!Number.isFinite(raw) || !String(depositModalTtc).trim()) return false;
+    return raw > rem + 0.001;
+  }, [billCtx, depositModalTtc]);
+
+  const depositModalFullRemainHint = useMemo(() => {
+    if (!billCtx || depositModalComputedTtc == null) return false;
+    const rem = billCtx.remaining_ttc ?? 0;
+    const inv = billCtx.invoiced_ttc ?? 0;
+    return inv <= 0.02 && rem > 0.02 && depositModalComputedTtc >= rem - 0.02;
+  }, [billCtx, depositModalComputedTtc]);
+
+  const onChangeDepositModalTtc = useCallback(
+    (raw: string) => {
+      setDepositModalTtc(raw);
+      if (!billCtx) {
+        setDepositModalPct("");
+        return;
+      }
+      const v = Number(String(raw).trim().replace(",", "."));
+      const q = billCtx.quote_total_ttc ?? 0;
+      const rem = billCtx.remaining_ttc ?? 0;
+      if (!String(raw).trim() || !Number.isFinite(v) || v < 0) {
+        setDepositModalPct("");
+        return;
+      }
+      const clamped = qbRoundMoney2(Math.min(Math.max(0, v), rem));
+      if (q > 0.0001) {
+        const pct = qbRoundMoney2((clamped / q) * 100);
+        setDepositModalPct(pct > 0 && pct <= 100 ? String(pct) : "");
+      } else {
+        setDepositModalPct("");
+      }
+    },
+    [billCtx]
+  );
+
+  const onChangeDepositModalPct = useCallback(
+    (raw: string) => {
+      setDepositModalPct(raw);
+      if (!billCtx) {
+        setDepositModalTtc("");
+        return;
+      }
+      const p = Number(String(raw).trim().replace(",", "."));
+      const q = billCtx.quote_total_ttc ?? 0;
+      const rem = billCtx.remaining_ttc ?? 0;
+      if (!String(raw).trim() || !Number.isFinite(p) || p <= 0) {
+        setDepositModalTtc("");
+        return;
+      }
+      const fromPct = qbRoundMoney2(Math.min((q * Math.min(100, p)) / 100, rem));
+      setDepositModalTtc(
+        fromPct >= 0.01
+          ? fromPct.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+          : ""
+      );
+    },
+    [billCtx]
+  );
 
   const openDepositInvoiceModal = useCallback(() => {
     setDepositModalError(null);
@@ -1188,95 +1253,14 @@ export default function QuoteBuilderPage() {
           <h2 id="qb-billing-title" className="qb-billing-block__title">
             Facturation
           </h2>
-          {billLoading ? (
-            <p className="qb-muted" role="status">
-              Chargement des montants facturés…
-            </p>
-          ) : null}
-          {!billLoading && billCtx?.quote_zero_total ? (
-            <p className="qb-muted" role="status">
-              Total devis nul : acompte, solde et prélignement des lignes du devis ne sont pas proposés ici.
-            </p>
-          ) : null}
-          {!billLoading && billCtx && !billCtx.quote_zero_total ? (
-            <>
-              <div className="qb-billing-grid" role="group" aria-label="Synthèse facturation devis">
-                <div className="qb-billing-metric">
-                  <span className="qb-billing-metric__label">Total</span>
-                  <span className="qb-billing-metric__value">
-                    {(billCtx.quote_total_ttc ?? 0).toLocaleString("fr-FR", {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}{" "}
-                    €
-                  </span>
-                </div>
-                <div className="qb-billing-metric" title="Montant TTC des factures liées, brouillons inclus.">
-                  <span className="qb-billing-metric__label">Déjà facturé</span>
-                  <span className="qb-billing-metric__value">
-                    {(billCtx.invoiced_ttc ?? 0).toLocaleString("fr-FR", {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}{" "}
-                    €
-                  </span>
-                </div>
-                <div className="qb-billing-metric">
-                  <span className="qb-billing-metric__label">Reste</span>
-                  <span className="qb-billing-metric__value">
-                    {(billCtx.remaining_ttc ?? 0).toLocaleString("fr-FR", {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}{" "}
-                    €
-                  </span>
-                </div>
-              </div>
-              <div className="qb-billing-actions" role="group" aria-label="Actions facturation">
-                {billCtx.can_create_deposit ? (
-                  <button
-                    type="button"
-                    className="sn-btn sn-btn-primary sn-btn-sm"
-                    onClick={() => openDepositInvoiceModal()}
-                  >
-                    Créer acompte
-                  </button>
-                ) : null}
-                {billCtx.can_create_balance ? (
-                  <Link
-                    to={`/invoices/new?fromQuote=${encodeURIComponent(id)}&billingRole=solde`}
-                    className="sn-btn sn-btn-primary sn-btn-sm"
-                    style={{ textDecoration: "none" }}
-                  >
-                    Créer solde
-                  </Link>
-                ) : null}
-                {billCtx.can_create_standard_full ? (
-                  <Link
-                    to={`/invoices/new?fromQuote=${encodeURIComponent(id)}&billingRole=STANDARD`}
-                    className="sn-btn sn-btn-outline-gold sn-btn-sm"
-                    style={{ textDecoration: "none" }}
-                  >
-                    Facture libre
-                  </Link>
-                ) : null}
-                {!billCtx.can_create_deposit && !billCtx.can_create_balance && !billCtx.can_create_standard_full ? (
-                  <p className="qb-muted" style={{ margin: 0 }}>
-                    Facturation à jour pour ce devis.
-                  </p>
-                ) : null}
-              </div>
-            </>
-          ) : null}
-          {!billLoading && !billCtx && id ? (
-            <p className="qb-muted" role="status">
-              Impossible de charger le suivi des factures. Vous pouvez quand même{" "}
-              <Link to={`/invoices/new?fromQuote=${encodeURIComponent(id)}&billingRole=STANDARD`} className="qb-billing-fallback-link">
-                préparer une facture depuis ce devis
-              </Link>
-              .
-            </p>
-          ) : null}
+          <QuoteBillingUxPanel
+            quoteId={id}
+            billCtx={billCtx}
+            billLoading={billLoading}
+            onOpenDepositModal={() => openDepositInvoiceModal()}
+            balanceHref={`/invoices/new?fromQuote=${encodeURIComponent(id)}&billingRole=solde`}
+            standardFullHref={`/invoices/new?fromQuote=${encodeURIComponent(id)}&billingRole=STANDARD`}
+          />
         </section>
       ) : null}
 
@@ -1580,14 +1564,11 @@ export default function QuoteBuilderPage() {
             Montant TTC
           </span>
           <input
-            className="sn-input"
+            className={`sn-input${depositModalTtcExceedsRemain ? " qb-billing-modal-input--warn" : ""}`}
             type="text"
             inputMode="decimal"
             value={depositModalTtc}
-            onChange={(e) => {
-              setDepositModalTtc(e.target.value);
-              if (e.target.value.trim()) setDepositModalPct("");
-            }}
+            onChange={(e) => onChangeDepositModalTtc(e.target.value)}
             placeholder="ex. 3000"
             style={{ width: "100%" }}
           />
@@ -1601,20 +1582,28 @@ export default function QuoteBuilderPage() {
             type="text"
             inputMode="decimal"
             value={depositModalPct}
-            onChange={(e) => {
-              setDepositModalPct(e.target.value);
-              if (e.target.value.trim()) setDepositModalTtc("");
-            }}
+            onChange={(e) => onChangeDepositModalPct(e.target.value)}
             placeholder="ex. 30"
             style={{ width: "100%" }}
           />
         </label>
         {depositModalComputedTtc != null && depositModalComputedTtc >= 0.01 ? (
           <p className="qb-muted" style={{ margin: "0 0 8px" }}>
-            Montant retenu :{" "}
+            Montant retenu (plafonné au reste) :{" "}
             <strong>
               {depositModalComputedTtc.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € TTC
             </strong>
+          </p>
+        ) : null}
+        {depositModalTtcExceedsRemain ? (
+          <p className="qb-billing-modal-warn" role="alert">
+            Ce montant dépasse le reste à facturer : il sera plafonné automatiquement à la création.
+          </p>
+        ) : null}
+        {depositModalFullRemainHint ? (
+          <p className="qb-billing-modal-info">
+            Vous couvrez tout le reste à facturer. Pour reprendre les <strong>lignes du devis</strong> telles quelles,
+            utilisez plutôt « Facture complète » sur le devis.
           </p>
         ) : null}
         {depositModalError ? <p className="qb-error-inline">{depositModalError}</p> : null}

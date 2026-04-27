@@ -462,10 +462,23 @@ export async function patchQuoteStatus(quoteId: string, status: string): Promise
 
 export type QuoteBillingRole = "STANDARD" | "DEPOSIT" | "BALANCE";
 
+/** Facture liée au devis (liste synthèse). */
+export interface QuoteLinkedInvoiceSummary {
+  id: string;
+  invoice_number: string;
+  total_ttc: number;
+  total_ht: number;
+  status: string;
+  quote_billing_role: string;
+}
+
 /** Contexte facturation depuis devis accepté (acompte / solde / complète). */
 export interface QuoteInvoiceBillingContext {
   quote_id: string;
   quote_total_ttc: number;
+  quote_total_ht?: number;
+  quote_total_vat?: number;
+  linked_invoices?: QuoteLinkedInvoiceSummary[];
   /** Total devis nul ou négligeable — pas de facturation acompte/solde/complète depuis ce devis. */
   quote_zero_total?: boolean;
   /** TTC engagé (brouillons inclus, hors annulées). */

@@ -8,10 +8,10 @@ import { QuoteStatusBadge } from "./financialStatusBadges";
 import {
   duplicateQuote,
   postGenerateQuotePdf,
-  createInvoiceFromQuote,
   fetchQuoteInvoiceBillingContext,
   type QuoteInvoiceBillingContext,
 } from "../../../../services/financial.api";
+import QuoteBillingUxPanel from "../../../quotes/QuoteBillingUxPanel";
 import {
   canOfferOfficialQuotePdfFromListRow,
   pickLatestSignedQuotePdf,
@@ -70,19 +70,25 @@ export default function FinancialHeroQuote({
   const navigate = useNavigate();
   const [busy, setBusy] = React.useState(false);
   const [billCtx, setBillCtx] = React.useState<QuoteInvoiceBillingContext | null>(null);
+  const [billCtxLoading, setBillCtxLoading] = React.useState(false);
 
   React.useEffect(() => {
     if (isLead || !clientId || String(primary.status).toUpperCase() !== "ACCEPTED") {
       setBillCtx(null);
+      setBillCtxLoading(false);
       return;
     }
     let cancelled = false;
+    setBillCtxLoading(true);
     void fetchQuoteInvoiceBillingContext(primary.id)
       .then((ctx) => {
         if (!cancelled) setBillCtx(ctx);
       })
       .catch(() => {
         if (!cancelled) setBillCtx(null);
+      })
+      .finally(() => {
+        if (!cancelled) setBillCtxLoading(false);
       });
     return () => {
       cancelled = true;
@@ -174,6 +180,19 @@ export default function FinancialHeroQuote({
             </div>
           )}
         </dl>
+        {!isLead && clientId && String(primary.status).toUpperCase() === "ACCEPTED" ? (
+          <div className="fin-hero-billing-wrap">
+            <QuoteBillingUxPanel
+              quoteId={primary.id}
+              billCtx={billCtx}
+              billLoading={billCtxLoading}
+              layout="compact"
+              depositHref={`/invoices/new?fromQuote=${encodeURIComponent(primary.id)}&billingRole=DEPOSIT`}
+              balanceHref={`/invoices/new?fromQuote=${encodeURIComponent(primary.id)}&billingRole=solde`}
+              standardFullHref={`/invoices/new?fromQuote=${encodeURIComponent(primary.id)}&billingRole=STANDARD`}
+            />
+          </div>
+        ) : null}
         <div className="fin-hero-actions">
           <Button type="button" variant="primary" size="sm" disabled={busy} onClick={() => navigate(`/quotes/${primary.id}`)}>
             Ouvrir le devis
@@ -226,67 +245,17 @@ export default function FinancialHeroQuote({
           >
             Dupliquer
           </Button>
-          {!isLead && clientId && String(primary.status).toUpperCase() === "ACCEPTED" ? (
-            <>
-              {billCtx && !billCtx.quote_zero_total ? (
-                <span className="fin-hero-bill-hint" style={{ fontSize: "0.8rem", opacity: 0.85 }}>
-                  Engagé {eur(billCtx.invoiced_ttc)} · Reste {eur(billCtx.remaining_ttc)}
-                </span>
-              ) : null}
-              {billCtx?.can_create_deposit ? (
-                <Button
-                  type="button"
-                  variant="outlineGold"
-                  size="sm"
-                  disabled={busy}
-                  onClick={() =>
-                    navigate(`/invoices/new?fromQuote=${encodeURIComponent(primary.id)}&billingRole=DEPOSIT`)
-                  }
-                >
-                  Créer acompte
-                </Button>
-              ) : null}
-              {billCtx?.can_create_balance ? (
-                <Button
-                  type="button"
-                  variant="outlineGold"
-                  size="sm"
-                  disabled={busy}
-                  onClick={() =>
-                    navigate(`/invoices/new?fromQuote=${encodeURIComponent(primary.id)}&billingRole=solde`)
-                  }
-                >
-                  Créer solde
-                </Button>
-              ) : null}
-              {billCtx?.can_create_standard_full ? (
-                <Button
-                  type="button"
-                  variant="outlineGold"
-                  size="sm"
-                  disabled={busy}
-                  onClick={() => void run(async () => {
-                    await createInvoiceFromQuote(primary.id);
-                  })}
-                >
-                  Facture complète
-                </Button>
-              ) : null}
-              {!billCtx ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  disabled={busy}
-                  title="Préférez l’ouverture du devis pour voir acompte, solde et reste"
-                  onClick={() => void run(async () => {
-                    await createInvoiceFromQuote(primary.id);
-                  })}
-                >
-                  Facture libre
-                </Button>
-              ) : null}
-            </>
+          {!isLead && clientId && String(primary.status).toUpperCase() === "ACCEPTED" && !billCtx ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={busy}
+              title="Ouvrir le devis pour le détail facturation"
+              onClick={() => navigate(`/quotes/${primary.id}`)}
+            >
+              Facturation (devis)
+            </Button>
           ) : null}
         </div>
       </div>

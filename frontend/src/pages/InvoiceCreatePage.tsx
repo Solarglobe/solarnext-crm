@@ -3,7 +3,7 @@
  * Listes : GET /api/clients/select et GET /api/leads/select (tables strictes).
  */
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "../components/ui/Button";
 import {
@@ -18,6 +18,7 @@ import {
   type QuoteInvoiceBillingContext,
 } from "../services/financial.api";
 import { billingRoleParamToApi } from "../modules/invoices/invoiceBillingLabels";
+import QuoteBillingUxPanel from "../modules/quotes/QuoteBillingUxPanel";
 import "../modules/invoices/invoice-builder.css";
 
 function roundMoney2(n: number): number {
@@ -167,6 +168,53 @@ export default function InvoiceCreatePage() {
     return null;
   }, [depositTtcInput, depositPctInput, billCtx]);
 
+  const onChangeDepositTtc = useCallback(
+    (raw: string) => {
+      setDepositTtcInput(raw);
+      if (!billCtx) {
+        setDepositPctInput("");
+        return;
+      }
+      const v = Number(String(raw).trim().replace(",", "."));
+      const q = billCtx.quote_total_ttc ?? 0;
+      const rem = billCtx.remaining_ttc ?? 0;
+      if (!String(raw).trim() || !Number.isFinite(v) || v < 0) {
+        setDepositPctInput("");
+        return;
+      }
+      const clamped = roundMoney2(Math.min(Math.max(0, v), rem));
+      if (q > 0.0001) {
+        const pct = roundMoney2((clamped / q) * 100);
+        setDepositPctInput(pct > 0 && pct <= 100 ? String(pct) : "");
+      } else setDepositPctInput("");
+    },
+    [billCtx]
+  );
+
+  const onChangeDepositPct = useCallback(
+    (raw: string) => {
+      setDepositPctInput(raw);
+      if (!billCtx) {
+        setDepositTtcInput("");
+        return;
+      }
+      const p = Number(String(raw).trim().replace(",", "."));
+      const q = billCtx.quote_total_ttc ?? 0;
+      const rem = billCtx.remaining_ttc ?? 0;
+      if (!String(raw).trim() || !Number.isFinite(p) || p <= 0) {
+        setDepositTtcInput("");
+        return;
+      }
+      const fromPct = roundMoney2(Math.min((q * Math.min(100, p)) / 100, rem));
+      setDepositTtcInput(
+        fromPct >= 0.01
+          ? fromPct.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+          : ""
+      );
+    },
+    [billCtx]
+  );
+
   const submitDepositFromForm = async () => {
     if (!fromQuote) return;
     const amt = computedDepositTtc;
@@ -232,28 +280,18 @@ export default function InvoiceCreatePage() {
         </p>
         {ctxLoading ? (
           <p className="qb-muted">Chargement du contexte devis…</p>
-        ) : billCtx && !billCtx.quote_zero_total ? (
-          <div className="ib-quote-billing-hint" style={{ marginBottom: 20 }}>
-            <p className="qb-muted" style={{ margin: 0 }}>
-              Total devis{" "}
-              {(billCtx.quote_total_ttc ?? 0).toLocaleString("fr-FR", {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-              })}{" "}
-              € · Déjà facturé{" "}
-              {(billCtx.invoiced_ttc ?? 0).toLocaleString("fr-FR", {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-              })}{" "}
-              € · Reste{" "}
-              {(billCtx.remaining_ttc ?? 0).toLocaleString("fr-FR", {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-              })}{" "}
-              €
-            </p>
+        ) : (
+          <div style={{ marginBottom: 20 }}>
+            <QuoteBillingUxPanel
+              quoteId={fromQuote}
+              billCtx={billCtx}
+              billLoading={false}
+              showActions={false}
+              balanceHref={`/invoices/new?fromQuote=${encodeURIComponent(fromQuote)}&billingRole=solde`}
+              standardFullHref={`/invoices/new?fromQuote=${encodeURIComponent(fromQuote)}&billingRole=STANDARD`}
+            />
           </div>
-        ) : null}
+        )}
 
         <label style={{ display: "block", marginBottom: 12 }}>
           <span className="qb-muted" style={{ display: "block", marginBottom: 4 }}>
@@ -264,10 +302,7 @@ export default function InvoiceCreatePage() {
             type="text"
             inputMode="decimal"
             value={depositTtcInput}
-            onChange={(e) => {
-              setDepositTtcInput(e.target.value);
-              if (e.target.value.trim()) setDepositPctInput("");
-            }}
+            onChange={(e) => onChangeDepositTtc(e.target.value)}
             placeholder="ex. 3000"
             style={{ width: "100%" }}
           />
@@ -281,10 +316,7 @@ export default function InvoiceCreatePage() {
             type="text"
             inputMode="decimal"
             value={depositPctInput}
-            onChange={(e) => {
-              setDepositPctInput(e.target.value);
-              if (e.target.value.trim()) setDepositTtcInput("");
-            }}
+            onChange={(e) => onChangeDepositPct(e.target.value)}
             placeholder="ex. 30"
             style={{ width: "100%" }}
           />

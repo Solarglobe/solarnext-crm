@@ -538,9 +538,9 @@ export default function InvoiceBuilderPage() {
             }}
           >
             <option value="">—</option>
-            {state.header.client_id &&
-            !billingClients.some((c) => c.id === state.header.client_id) ? (
-              <option value={state.header.client_id}>Rattachement actuel (hors liste)</option>
+            {state.header!.client_id &&
+            !billingClients.some((c) => c.id === state.header!.client_id) ? (
+              <option value={state.header!.client_id}>Rattachement actuel (hors liste)</option>
             ) : null}
             {billingClients.map((c) => (
               <option key={c.id} value={c.id}>
@@ -561,8 +561,8 @@ export default function InvoiceBuilderPage() {
             }}
           >
             <option value="">—</option>
-            {state.header.lead_id && !billingLeads.some((l) => l.id === state.header.lead_id) ? (
-              <option value={state.header.lead_id}>Rattachement actuel (hors liste)</option>
+            {state.header!.lead_id && !billingLeads.some((l) => l.id === state.header!.lead_id) ? (
+              <option value={state.header!.lead_id}>Rattachement actuel (hors liste)</option>
             ) : null}
             {billingLeads.map((l) => (
               <option key={l.id} value={l.id}>

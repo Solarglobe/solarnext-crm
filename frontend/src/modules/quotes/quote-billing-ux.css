@@ -1,0 +1,278 @@
+/* Facturation devis — résumé TTC / liste / actions (importé par QuoteBillingUxPanel) */
+
+.qb-billing-ux {
+  margin-top: 4px;
+}
+
+.qb-billing-ux__loading {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.qb-billing-ux__hero {
+  padding: 14px 16px 12px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--border, rgba(255, 255, 255, 0.12)) 85%, transparent);
+  background: linear-gradient(
+    165deg,
+    color-mix(in srgb, var(--accent, #eab308) 12%, transparent) 0%,
+    rgba(15, 23, 42, 0.35) 48%,
+    rgba(15, 23, 42, 0.2) 100%
+  );
+  margin-bottom: 14px;
+}
+
+.theme-light .qb-billing-ux__hero {
+  background: linear-gradient(165deg, rgba(234, 179, 8, 0.12) 0%, #fff 55%, #f8fafc 100%);
+}
+
+.qb-billing-ux__kicker {
+  margin: 0 0 10px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.qb-billing-ux__ttc-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px 16px;
+}
+
+@media (max-width: 560px) {
+  .qb-billing-ux__ttc-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.qb-billing-ux__ttc-block {
+  min-width: 0;
+}
+
+.qb-billing-ux__ttc-block--accent .qb-billing-ux__ttc-value {
+  color: var(--accent, #eab308);
+}
+
+.qb-billing-ux__label {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.qb-billing-ux__ttc-value {
+  display: block;
+  font-size: clamp(1.35rem, 3.5vw, 1.85rem);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.qb-billing-ux__ttc-value--muted {
+  font-size: clamp(1.1rem, 2.8vw, 1.45rem);
+  font-weight: 700;
+  opacity: 0.88;
+}
+
+.qb-billing-ux__ht-sub {
+  margin: 12px 0 0;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.qb-billing-ux__ht-hint {
+  font-size: 0.72rem;
+  opacity: 0.85;
+}
+
+.qb-billing-ux__list-wrap {
+  margin-bottom: 14px;
+}
+
+.qb-billing-ux__list-title {
+  margin: 0 0 8px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.qb-billing-ux__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.qb-billing-ux__list-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.9fr) auto auto minmax(0, 0.9fr);
+  gap: 8px 12px;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--border, rgba(255, 255, 255, 0.1)) 90%, transparent);
+  background: color-mix(in srgb, var(--surface-elevated, #1e1a28) 92%, transparent);
+  font-size: 0.875rem;
+}
+
+@media (max-width: 720px) {
+  .qb-billing-ux__list-row {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto auto;
+  }
+  .qb-billing-ux__list-type {
+    grid-column: 1;
+  }
+  .qb-billing-ux__list-status {
+    grid-column: 2;
+    justify-self: end;
+  }
+  .qb-billing-ux__list-link {
+    grid-column: 1 / -1;
+  }
+  .qb-billing-ux__list-amt {
+    grid-column: 1;
+  }
+  .qb-billing-ux__list-ht-sub {
+    grid-column: 2;
+    justify-self: end;
+  }
+}
+
+.qb-billing-ux__list-link {
+  font-weight: 700;
+  color: var(--text-primary);
+  text-decoration: none;
+}
+
+.qb-billing-ux__list-link:hover {
+  text-decoration: underline;
+  color: var(--accent, #eab308);
+}
+
+.qb-billing-ux__list-type {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.qb-billing-ux__list-amt {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  justify-self: end;
+}
+
+.qb-billing-ux__list-ht-sub {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  justify-self: end;
+}
+
+.qb-billing-ux__list-status {
+  font-size: 0.72rem;
+  font-weight: 700;
+  justify-self: end;
+  padding: 2px 8px;
+  border-radius: 999px;
+  width: fit-content;
+}
+
+.qb-billing-ux__list-status.ib-status--draft {
+  background: rgba(100, 116, 139, 0.25);
+  color: var(--text-muted);
+}
+.qb-billing-ux__list-status.ib-status--sent {
+  background: rgba(59, 130, 246, 0.2);
+  color: #93c5fd;
+}
+.qb-billing-ux__list-status.ib-status--partial {
+  background: rgba(245, 158, 11, 0.2);
+  color: #fcd34d;
+}
+.qb-billing-ux__list-status.ib-status--paid {
+  background: rgba(34, 197, 94, 0.2);
+  color: #86efac;
+}
+.qb-billing-ux__list-status.ib-status--cancelled {
+  background: rgba(148, 163, 184, 0.2);
+  color: #94a3b8;
+}
+.qb-billing-ux__list-status.ib-status--overdue {
+  background: rgba(239, 68, 68, 0.22);
+  color: #fecaca;
+}
+
+.qb-billing-ux__empty-list {
+  margin: 0 0 12px;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.qb-billing-ux__hint {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+  border: 1px solid color-mix(in srgb, var(--accent, #eab308) 28%, transparent);
+  background: color-mix(in srgb, var(--accent, #eab308) 8%, transparent);
+}
+
+.qb-billing-ux__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.qb-billing-ux--compact .qb-billing-ux__hero {
+  padding: 12px 14px 10px;
+  margin-bottom: 10px;
+}
+
+.qb-billing-ux--compact .qb-billing-ux__ttc-value {
+  font-size: clamp(1.1rem, 2.6vw, 1.45rem);
+}
+
+.qb-billing-ux--compact .qb-billing-ux__list-row {
+  padding: 8px 10px;
+  font-size: 0.8125rem;
+}
+
+.qb-billing-modal-input--warn {
+  border-color: rgba(248, 113, 113, 0.65) !important;
+  box-shadow: 0 0 0 1px rgba(248, 113, 113, 0.25);
+}
+
+.qb-billing-modal-warn {
+  margin: 0 0 8px;
+  font-size: 0.82rem;
+  color: #fecaca;
+}
+
+.theme-light .qb-billing-modal-warn {
+  color: #b91c1c;
+}
+
+.qb-billing-modal-info {
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+}

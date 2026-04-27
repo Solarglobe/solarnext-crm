@@ -637,6 +637,16 @@
   font-weight: 500;
 }
 
+.fin-hero-billing-wrap {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid color-mix(in srgb, var(--border, rgba(255, 255, 255, 0.1)) 90%, transparent);
+}
+
+.fin-hero-billing-wrap .qb-billing-ux {
+  margin-top: 0;
+}
+
 .fin-hero-actions {
   display: flex;
   flex-wrap: wrap;
