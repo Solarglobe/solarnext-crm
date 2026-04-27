@@ -633,14 +633,6 @@ export function AppLayout() {
             navLinks={principalModules}
           />
           <SidebarCollapsibleSection
-            sectionId="installation"
-            title="Installation"
-            expanded={sectionOpen.installation}
-            onToggle={() => toggleSection("installation")}
-            navLinks={installationModules}
-            linkClassName="sn-sidebar-link-nested"
-          />
-          <SidebarCollapsibleSection
             sectionId="mail"
             title="Mail"
             expanded={sectionOpen.mail}
@@ -662,6 +654,14 @@ export function AppLayout() {
             onToggle={() => toggleSection("entreprise")}
             navLinks={organizationNavItems}
             linkClassName="sn-sidebar-link-org"
+          />
+          <SidebarCollapsibleSection
+            sectionId="installation"
+            title="Installation"
+            expanded={sectionOpen.installation}
+            onToggle={() => toggleSection("installation")}
+            navLinks={installationModules}
+            linkClassName="sn-sidebar-link-nested"
           />
           <SidebarCollapsibleSection
             sectionId="technical"
