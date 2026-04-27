@@ -32,6 +32,7 @@ import {
   generatePdfFromFinancialInvoiceUrl,
 } from "./pdfGeneration.service.js";
 import { removeInvoicePdfDocuments, saveInvoicePdfDocument } from "./documents.service.js";
+import { ensureClientForQuote } from "./ensureClientForQuote.service.js";
 
 /** Tolérance TTC (€) : somme des factures liées au devis (hors annulées, brouillons inclus) ne doit pas dépasser total devis + cette marge. */
 const QUOTE_INVOICE_SUM_TOLERANCE_TTC = 5;
@@ -728,7 +729,7 @@ export async function createInvoiceFromQuote(quoteId, organizationId, options = 
 
   const newInvoiceId = await withTx(pool, async (client) => {
     const qres = await client.query(
-      `SELECT * FROM quotes WHERE id = $1 AND organization_id = $2 AND (archived_at IS NULL)`,
+      `SELECT * FROM quotes WHERE id = $1 AND organization_id = $2 AND (archived_at IS NULL) FOR UPDATE`,
       [quoteId, organizationId]
     );
     if (qres.rows.length === 0) throw new Error("Devis non trouvé");
@@ -736,9 +737,8 @@ export async function createInvoiceFromQuote(quoteId, organizationId, options = 
     if (String(quote.status).toUpperCase() !== "ACCEPTED") {
       throw new Error("Le devis doit être accepté pour générer une facture");
     }
-    if (!quote.client_id) {
-      throw new Error("Le devis doit être associé à un client pour facturer");
-    }
+    const resolvedClientId = await ensureClientForQuote(client, quote, organizationId);
+    quote.client_id = resolvedClientId;
 
     const meta = quote.metadata_json && typeof quote.metadata_json === "object" ? quote.metadata_json : {};
     const { deposit_display } = buildQuoteDepositFreeze(meta, quote.total_ttc);

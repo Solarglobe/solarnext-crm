@@ -188,6 +188,16 @@ function formatQuoteLine(q: QuoteListRow): string {
   return `${num} — ${contact}`;
 }
 
+function quoteRowCanInvoice(q: QuoteListRow): boolean {
+  const hasClient = Boolean(q.client_id && String(q.client_id).trim());
+  const hasLead = Boolean(q.lead_id && String(q.lead_id).trim());
+  return hasClient || hasLead;
+}
+
+function quoteRowInvoiceBlockedReason(q: QuoteListRow): string {
+  return "Ce devis accepté n’a ni fiche client ni dossier (lead) : facturation impossible. Corrigez le rattachement du devis.";
+}
+
 export default function InvoicesPage() {
   const navigate = useNavigate();
   const [rows, setRows] = useState<InvoiceListRow[]>([]);
@@ -205,6 +215,7 @@ export default function InvoicesPage() {
   const [quoteSearch, setQuoteSearch] = useState("");
   const [selectedQuote, setSelectedQuote] = useState<QuoteListRow | null>(null);
   const [creating, setCreating] = useState(false);
+  const [quoteModalError, setQuoteModalError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -225,6 +236,7 @@ export default function InvoicesPage() {
 
   useEffect(() => {
     if (!quoteModal) return;
+    setQuoteModalError(null);
     let cancelled = false;
     setQuotesLoading(true);
     void fetchQuotesList({ limit: 500 })
@@ -249,6 +261,7 @@ export default function InvoicesPage() {
     if (!quoteModal) {
       setQuoteSearch("");
       setSelectedQuote(null);
+      setQuoteModalError(null);
     }
   }, [quoteModal]);
 
@@ -306,13 +319,18 @@ export default function InvoicesPage() {
 
   const createFromSelectedQuote = async () => {
     if (!selectedQuote) return;
+    if (!quoteRowCanInvoice(selectedQuote)) {
+      setQuoteModalError(quoteRowInvoiceBlockedReason(selectedQuote));
+      return;
+    }
     setCreating(true);
+    setQuoteModalError(null);
     try {
       const inv = await createInvoiceFromQuote(selectedQuote.id);
       setQuoteModal(false);
       if (inv?.id) navigate(`/invoices/${inv.id}`);
     } catch (e) {
-      window.alert(e instanceof Error ? e.message : "Erreur");
+      setQuoteModalError(e instanceof Error ? e.message : "Erreur lors de la création de la facture.");
     } finally {
       setCreating(false);
     }
@@ -518,7 +536,7 @@ export default function InvoicesPage() {
         open={quoteModal}
         onClose={() => setQuoteModal(false)}
         title="Créer depuis un devis"
-        subtitle="Seuls les devis acceptés sont proposés. Pour acompte ou solde, ouvrez le devis et utilisez les liens Facturation."
+        subtitle="Seuls les devis acceptés sont proposés. Si le devis n’a pas encore de fiche client mais un dossier (lead) est rattaché, un client sera créé ou rattaché automatiquement à la création de la facture. Pour acompte ou solde, ouvrez le devis et utilisez les liens Facturation."
         size="md"
         footer={
           <>
@@ -528,7 +546,11 @@ export default function InvoicesPage() {
             <Button
               type="button"
               variant="primary"
-              disabled={creating || !selectedQuote}
+              disabled={
+                creating ||
+                !selectedQuote ||
+                !quoteRowCanInvoice(selectedQuote)
+              }
               onClick={() => void createFromSelectedQuote()}
             >
               {creating ? "Création…" : "Créer la facture"}
@@ -548,6 +570,11 @@ export default function InvoicesPage() {
             />
           </label>
           {quotesLoading ? <p className="qb-muted">Chargement des devis acceptés…</p> : null}
+          {quoteModalError ? (
+            <p className="qb-error-inline" role="alert">
+              {quoteModalError}
+            </p>
+          ) : null}
           {!quotesLoading && quotesForPicker.length === 0 ? (
             <p className="qb-muted">Aucun devis accepté trouvé.</p>
           ) : null}
@@ -555,20 +582,36 @@ export default function InvoicesPage() {
             <div className="fin-saas-quote-ac" role="listbox" aria-label="Sélection de devis">
               {quotePickerOptions.map((q) => {
                 const sel = selectedQuote?.id === q.id;
+                const blocked = !quoteRowCanInvoice(q);
+                const reason = quoteRowInvoiceBlockedReason(q);
                 return (
                   <button
                     key={q.id}
                     type="button"
                     role="option"
                     aria-selected={sel}
-                    className={`fin-saas-quote-ac-row${sel ? " fin-saas-quote-ac-row--sel" : ""}`}
-                    onClick={() => setSelectedQuote(q)}
+                    disabled={blocked}
+                    title={blocked ? reason : undefined}
+                    className={`fin-saas-quote-ac-row${sel ? " fin-saas-quote-ac-row--sel" : ""}${blocked ? " fin-saas-quote-ac-row--disabled" : ""}`}
+                    onClick={() => {
+                      if (blocked) {
+                        setQuoteModalError(reason);
+                        return;
+                      }
+                      setQuoteModalError(null);
+                      setSelectedQuote(q);
+                    }}
                   >
                     <span className="qb-mono" style={{ fontSize: 13 }}>
                       {q.quote_number || q.id.slice(0, 8)}
                     </span>
                     <span style={{ color: "var(--text-muted)", fontSize: 13 }}>{formatQuoteContact(q)}</span>
                     <span style={{ marginLeft: "auto", fontSize: 12 }}>{eur(q.total_ttc)}</span>
+                    {blocked ? (
+                      <span className="fin-saas-quote-ac-row__hint" style={{ flexBasis: "100%", fontSize: 11 }}>
+                        {reason}
+                      </span>
+                    ) : null}
                   </button>
                 );
               })}

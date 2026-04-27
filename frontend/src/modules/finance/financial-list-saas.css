@@ -221,6 +221,17 @@
   background: color-mix(in srgb, var(--primary) 12%, var(--gold-soft));
 }
 
+.fin-saas-quote-ac-row--disabled,
+.fin-saas-quote-ac-row:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.fin-saas-quote-ac-row--disabled:hover,
+.fin-saas-quote-ac-row:disabled:hover {
+  background: transparent;
+}
+
 .fin-saas-quote-ac {
   max-height: 280px;
   overflow: auto;

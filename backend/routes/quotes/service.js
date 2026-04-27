@@ -918,9 +918,13 @@ export async function patchQuoteStatus(quoteId, organizationId, newStatus, userI
           if (okClient.rows.length > 0) clientIdForAccept = cid;
         }
       }
-      if (!clientIdForAccept) {
+      if (clientIdForAccept && !quote.client_id) {
         console.warn(
-          `[quotes] Devis ${quoteId} → ACCEPTED sans client_id (lead_id=${quote.lead_id ?? "none"}) — fiche client après étape Signé`
+          `[quotes] Devis ${quoteId} → ACCEPTED : synchronisation quote.client_id depuis le lead (client_id=${clientIdForAccept})`
+        );
+      } else if (!clientIdForAccept) {
+        console.warn(
+          `[quotes] Devis ${quoteId} → ACCEPTED sans client_id sur le devis ni sur le lead (lead_id=${quote.lead_id ?? "none"}) — la création de facture pourra créer/rattacher la fiche client automatiquement`
         );
       }
       await client.query(
