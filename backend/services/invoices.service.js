@@ -585,18 +585,6 @@ async function assertQuoteLinkedInvoicesWithinCap(client, quoteId, organizationI
   }
 }
 
-async function hasBillingRoleInvoice(client, quoteId, organizationId, role) {
-  const r = await client.query(
-    `SELECT id FROM invoices
-     WHERE quote_id = $1 AND organization_id = $2
-       AND UPPER(COALESCE(status, '')) != 'CANCELLED'
-       AND COALESCE(metadata_json->>'quote_billing_role', '') = $3
-     LIMIT 1`,
-    [quoteId, organizationId, role]
-  );
-  return r.rows.length > 0;
-}
-
 function quoteRoleToBillingMode(role) {
   const r = String(role || "").toUpperCase();
   if (r === "STANDARD") return "FREE";
@@ -716,20 +704,16 @@ export async function getQuoteInvoiceBillingContext(quoteId, organizationId) {
     has_balance_issued: hasBalanceIssued,
     can_create_deposit: accepted && hasClient && !quoteZeroTotal && remaining > 0.02,
     can_create_balance: accepted && hasClient && !quoteZeroTotal && remaining > 0.02,
-    can_create_standard_full:
-      accepted &&
-      hasClient &&
-      !quoteZeroTotal &&
-      invoicedCommitted <= 0.02 &&
-      !hasDepositInvoice &&
-      !hasBalanceInvoice,
+    can_create_standard_full: accepted && hasClient && !quoteZeroTotal && invoicedCommitted <= 0.02,
   };
 }
 
 /**
  * @param {string} quoteId
  * @param {string} organizationId
- * @param {{ billingRole?: string, billingAmountTtc?: number }} [options] — STANDARD (défaut) | DEPOSIT | BALANCE ; `billingAmountTtc` optionnel (acompte / solde partiel).
+ * @param {{ billingRole?: string, billingAmountTtc?: number }} [options] — STANDARD (défaut) | DEPOSIT | BALANCE.
+ *   DEPOSIT : priorité à `billingAmountTtc` (acompte libre) ; sinon acompte structuré sur le devis ; sinon erreur « Veuillez saisir un montant d'acompte ».
+ *   BALANCE : toujours le **reste à facturer** (TTC), le montant passé est ignoré.
  */
 export async function createInvoiceFromQuote(quoteId, organizationId, options = {}) {
   const billingRoleRaw = options.billingRole ?? options.billing_role ?? "STANDARD";
@@ -770,8 +754,6 @@ export async function createInvoiceFromQuote(quoteId, organizationId, options = 
       );
     }
 
-    const hasDep = await hasBillingRoleInvoice(client, quoteId, organizationId, "DEPOSIT");
-
     let lines = [];
     let metaJson = {};
 
@@ -779,11 +761,6 @@ export async function createInvoiceFromQuote(quoteId, organizationId, options = 
       if (reservedTtc > 0.02) {
         throw new Error(
           "Une facture ou un brouillon existe déjà pour ce devis. Utilisez acompte / solde ou supprimez les brouillons inutiles."
-        );
-      }
-      if (deposit_display && hasDep) {
-        throw new Error(
-          "Une facture d'acompte existe déjà sur ce devis. Utilisez le solde ou des acomptes complémentaires pour le reste."
         );
       }
       const linesRes = await client.query(
@@ -810,17 +787,13 @@ export async function createInvoiceFromQuote(quoteId, organizationId, options = 
         );
       }
       let sliceTtc;
-      if (deposit_display) {
-        const depTtc = roundMoney2(Number(deposit_display.amount_ttc) || 0);
-        const base = requestedOpt != null ? requestedOpt : depTtc;
-        sliceTtc = roundMoney2(Math.min(Math.max(0, base), remainingBefore));
-      } else {
-        if (requestedOpt == null || requestedOpt < 0.01) {
-          throw new Error(
-            "Aucun acompte structuré sur ce devis : indiquez un montant TTC (billing_amount_ttc) ou définissez l'acompte sur le devis."
-          );
-        }
+      if (requestedOpt != null && requestedOpt >= 0.01) {
         sliceTtc = roundMoney2(Math.min(requestedOpt, remainingBefore));
+      } else if (deposit_display) {
+        const depTtc = roundMoney2(Number(deposit_display.amount_ttc) || 0);
+        sliceTtc = roundMoney2(Math.min(Math.max(0, depTtc), remainingBefore));
+      } else {
+        throw new Error("Veuillez saisir un montant d'acompte");
       }
       if (sliceTtc < 0.01) {
         throw new Error("Montant d'acompte nul ou supérieur au reste à facturer.");
@@ -834,15 +807,14 @@ export async function createInvoiceFromQuote(quoteId, organizationId, options = 
       lines = [proportionalSliceLineFromQuote(quote, label, sliceTtc)];
       metaJson = buildMetadataQuoteBilling("DEPOSIT", quote, {
         deposit_ttc_planned: deposit_display ? roundMoney2(Number(deposit_display.amount_ttc) || 0) : sliceTtc,
-        deposit_mode: deposit_display?.mode ?? "CUSTOM",
+        deposit_mode: deposit_display?.mode ?? (requestedOpt != null ? "FREE" : "CUSTOM"),
         billing_amount_requested_ttc: requestedOpt,
       });
     } else if (billingRole === "BALANCE") {
       if (remainingBefore <= 0.02) {
         throw new Error("Rien à facturer : le devis est déjà couvert par les factures existantes.");
       }
-      const baseBal = requestedOpt != null ? requestedOpt : remainingBefore;
-      const sliceTtc = roundMoney2(Math.min(Math.max(0, baseBal), remainingBefore));
+      const sliceTtc = roundMoney2(Math.max(0, remainingBefore));
       if (sliceTtc < 0.01) {
         throw new Error("Montant de solde nul ou non utilisable.");
       }

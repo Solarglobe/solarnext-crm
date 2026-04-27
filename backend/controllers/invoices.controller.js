@@ -104,7 +104,8 @@ export async function createFromQuote(req, res) {
       msg.includes("Impossible") ||
       msg.includes("Montant") ||
       msg.includes("non significatif") ||
-      msg.includes("total TTC du devis est nul")
+      msg.includes("total TTC du devis est nul") ||
+      msg.includes("Veuillez saisir")
         ? 400
         : 500;
     res.status(code).json({ error: e.message });

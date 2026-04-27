@@ -11,8 +11,20 @@ import {
   fetchLeadsBillingSelect,
   type BillingSelectRow,
 } from "../services/billingContacts.api";
-import { createInvoiceDraft, createInvoiceFromQuote } from "../services/financial.api";
+import {
+  createInvoiceDraft,
+  createInvoiceFromQuote,
+  fetchQuoteInvoiceBillingContext,
+  type QuoteInvoiceBillingContext,
+} from "../services/financial.api";
+import { billingRoleParamToApi } from "../modules/invoices/invoiceBillingLabels";
 import "../modules/invoices/invoice-builder.css";
+
+function roundMoney2(n: number): number {
+  const x = Number(n);
+  if (!Number.isFinite(x)) return 0;
+  return Math.round(x * 100) / 100;
+}
 
 export default function InvoiceCreatePage() {
   const navigate = useNavigate();
@@ -22,6 +34,7 @@ export default function InvoiceCreatePage() {
   const [listsError, setListsError] = useState<string | null>(null);
   const [clientId, setClientId] = useState("");
   const [leadId, setLeadId] = useState("");
+  /** Faux au chargement initial : évite un flash « Création… » sur le formulaire acompte. */
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -33,6 +46,24 @@ export default function InvoiceCreatePage() {
   const urlLeadId = useMemo(() => (searchParams.get("leadId") ?? "").trim(), [searchParams]);
   const clientLockedFromUrl = Boolean(urlClientId);
   const leadLockedFromUrl = Boolean(urlLeadId);
+
+  const apiRole = useMemo(
+    () => billingRoleParamToApi(billingRoleParam?.trim() || "") ?? "STANDARD",
+    [billingRoleParam]
+  );
+
+  const amtRaw = (billingAmountParam ?? "").trim().replace(",", ".");
+  const billingAmountFromUrl = amtRaw ? Number(amtRaw) : undefined;
+  const hasValidUrlAmount =
+    billingAmountFromUrl != null && Number.isFinite(billingAmountFromUrl) && billingAmountFromUrl >= 0.01;
+
+  const needsDepositForm =
+    Boolean(fromQuote) && apiRole === "DEPOSIT" && !hasValidUrlAmount;
+
+  const [billCtx, setBillCtx] = useState<QuoteInvoiceBillingContext | null>(null);
+  const [ctxLoading, setCtxLoading] = useState(false);
+  const [depositTtcInput, setDepositTtcInput] = useState("");
+  const [depositPctInput, setDepositPctInput] = useState("");
 
   useEffect(() => {
     setListsError(null);
@@ -54,17 +85,45 @@ export default function InvoiceCreatePage() {
   }, [urlClientId, urlLeadId]);
 
   useEffect(() => {
+    if (!fromQuote || !needsDepositForm) return;
+    let cancelled = false;
+    setCtxLoading(true);
+    void fetchQuoteInvoiceBillingContext(fromQuote)
+      .then((ctx) => {
+        if (!cancelled) {
+          setBillCtx(ctx);
+          if (ctx?.has_structured_deposit && ctx.deposit_ttc != null && ctx.remaining_ttc != null) {
+            const hint = roundMoney2(Math.min(ctx.deposit_ttc, ctx.remaining_ttc));
+            setDepositTtcInput(hint >= 0.01 ? String(hint) : "");
+          }
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setBillCtx(null);
+      })
+      .finally(() => {
+        if (!cancelled) setCtxLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [fromQuote, needsDepositForm]);
+
+  useEffect(() => {
     if (!fromQuote) return;
+    if (needsDepositForm) {
+      setLoading(false);
+      return;
+    }
     let cancelled = false;
     setLoading(true);
     setError(null);
-    const amtRaw = (billingAmountParam ?? "").trim().replace(",", ".");
-    const billingAmountTtc = amtRaw ? Number(amtRaw) : undefined;
+    const billingAmountTtc = hasValidUrlAmount ? billingAmountFromUrl : undefined;
     void createInvoiceFromQuote(
       fromQuote,
       {
         ...(billingRoleParam?.trim() ? { billingRole: billingRoleParam.trim() } : {}),
-        ...(billingAmountTtc != null && Number.isFinite(billingAmountTtc) ? { billingAmountTtc } : {}),
+        ...(billingAmountTtc != null ? { billingAmountTtc } : {}),
       }
     )
       .then((inv) => {
@@ -79,7 +138,56 @@ export default function InvoiceCreatePage() {
     return () => {
       cancelled = true;
     };
-  }, [fromQuote, billingRoleParam, billingAmountParam, navigate]);
+  }, [
+    fromQuote,
+    billingRoleParam,
+    billingAmountParam,
+    needsDepositForm,
+    hasValidUrlAmount,
+    billingAmountFromUrl,
+    navigate,
+  ]);
+
+  const computedDepositTtc = useMemo(() => {
+    const rem = billCtx?.remaining_ttc ?? 0;
+    const qTot = billCtx?.quote_total_ttc ?? 0;
+    const ttcStr = depositTtcInput.trim().replace(",", ".");
+    if (ttcStr) {
+      const v = Number(ttcStr);
+      if (!Number.isFinite(v) || v < 0) return null;
+      return roundMoney2(Math.min(v, rem));
+    }
+    const pctStr = depositPctInput.trim().replace(",", ".");
+    if (pctStr && qTot > 0) {
+      const p = Number(pctStr);
+      if (!Number.isFinite(p) || p <= 0) return null;
+      const raw = roundMoney2((qTot * Math.min(100, p)) / 100);
+      return roundMoney2(Math.min(raw, rem));
+    }
+    return null;
+  }, [depositTtcInput, depositPctInput, billCtx]);
+
+  const submitDepositFromForm = async () => {
+    if (!fromQuote) return;
+    const amt = computedDepositTtc;
+    if (amt == null || amt < 0.01) {
+      setError("Indiquez un montant TTC (> 0) ou un pourcentage du total devis.");
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const inv = await createInvoiceFromQuote(fromQuote, {
+        billingRole: "DEPOSIT",
+        billingAmountTtc: amt,
+      });
+      if (inv?.id) navigate(`/invoices/${inv.id}`, { replace: true });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erreur");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const clientRowForSummary = useMemo(
     () => (urlClientId ? clients.find((c) => c.id === urlClientId) : undefined),
@@ -114,6 +222,93 @@ export default function InvoiceCreatePage() {
       setLoading(false);
     }
   };
+
+  if (fromQuote && needsDepositForm) {
+    return (
+      <div className="qb-page" style={{ maxWidth: 520 }}>
+        <h1 className="sg-title">Acompte sur devis</h1>
+        <p style={{ color: "var(--text-muted)", marginBottom: 16 }}>
+          Saisissez le montant TTC à facturer (plafonné au reste à facturer sur le devis). Le devis n&apos;est pas modifié.
+        </p>
+        {ctxLoading ? (
+          <p className="qb-muted">Chargement du contexte devis…</p>
+        ) : billCtx && !billCtx.quote_zero_total ? (
+          <div className="ib-quote-billing-hint" style={{ marginBottom: 20 }}>
+            <p className="qb-muted" style={{ margin: 0 }}>
+              Total devis{" "}
+              {(billCtx.quote_total_ttc ?? 0).toLocaleString("fr-FR", {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}{" "}
+              € · Déjà facturé{" "}
+              {(billCtx.invoiced_ttc ?? 0).toLocaleString("fr-FR", {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}{" "}
+              € · Reste{" "}
+              {(billCtx.remaining_ttc ?? 0).toLocaleString("fr-FR", {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}{" "}
+              €
+            </p>
+          </div>
+        ) : null}
+
+        <label style={{ display: "block", marginBottom: 12 }}>
+          <span className="qb-muted" style={{ display: "block", marginBottom: 4 }}>
+            Montant TTC de l&apos;acompte
+          </span>
+          <input
+            className="sn-input"
+            type="text"
+            inputMode="decimal"
+            value={depositTtcInput}
+            onChange={(e) => {
+              setDepositTtcInput(e.target.value);
+              if (e.target.value.trim()) setDepositPctInput("");
+            }}
+            placeholder="ex. 3000"
+            style={{ width: "100%" }}
+          />
+        </label>
+        <label style={{ display: "block", marginBottom: 16 }}>
+          <span className="qb-muted" style={{ display: "block", marginBottom: 4 }}>
+            Ou % du total devis TTC
+          </span>
+          <input
+            className="sn-input"
+            type="text"
+            inputMode="decimal"
+            value={depositPctInput}
+            onChange={(e) => {
+              setDepositPctInput(e.target.value);
+              if (e.target.value.trim()) setDepositTtcInput("");
+            }}
+            placeholder="ex. 30"
+            style={{ width: "100%" }}
+          />
+        </label>
+        {computedDepositTtc != null && computedDepositTtc >= 0.01 ? (
+          <p className="qb-muted" style={{ marginTop: 0 }}>
+            Montant retenu (après plafond reste) :{" "}
+            <strong>
+              {computedDepositTtc.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € TTC
+            </strong>
+          </p>
+        ) : null}
+        {error ? <p className="qb-error-inline">{error}</p> : null}
+        <div style={{ display: "flex", gap: 12, marginTop: 16 }}>
+          <Button type="button" variant="primary" disabled={loading} onClick={() => void submitDepositFromForm()}>
+            {loading ? "Création…" : "Créer la facture d'acompte"}
+          </Button>
+          <Button type="button" variant="ghost" onClick={() => navigate(-1)}>
+            Annuler
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   if (fromQuote) {
     return (

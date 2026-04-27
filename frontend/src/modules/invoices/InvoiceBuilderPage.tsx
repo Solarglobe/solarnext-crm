@@ -317,7 +317,7 @@ export default function InvoiceBuilderPage() {
 
   useEffect(() => {
     const qid = state.header?.quote_id;
-    if (!qid || invoiceStatusUpper !== "DRAFT") {
+    if (!qid || invoiceStatusUpper === "CANCELLED") {
       setQuoteBillCtx(null);
       return;
     }

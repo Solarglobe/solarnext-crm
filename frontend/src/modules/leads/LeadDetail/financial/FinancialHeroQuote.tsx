@@ -239,7 +239,9 @@ export default function FinancialHeroQuote({
                   variant="outlineGold"
                   size="sm"
                   disabled={busy}
-                  onClick={() => navigate(`/invoices/new?fromQuote=${encodeURIComponent(primary.id)}&billingRole=DEPOSIT`)}
+                  onClick={() =>
+                    navigate(`/invoices/new?fromQuote=${encodeURIComponent(primary.id)}&billingRole=DEPOSIT`)
+                  }
                 >
                   Créer acompte
                 </Button>
@@ -251,9 +253,7 @@ export default function FinancialHeroQuote({
                   size="sm"
                   disabled={busy}
                   onClick={() =>
-                    navigate(
-                      `/invoices/new?fromQuote=${encodeURIComponent(primary.id)}&billingRole=solde&amountTtc=${encodeURIComponent(String(billCtx.remaining_ttc ?? 0))}`
-                    )
+                    navigate(`/invoices/new?fromQuote=${encodeURIComponent(primary.id)}&billingRole=solde`)
                   }
                 >
                   Créer solde

@@ -52,6 +52,7 @@ import QuoteCommercialSection from "./QuoteCommercialSection";
 import QuoteClientContentSection from "./QuoteClientContentSection";
 import QuoteInternalNotesSection from "./QuoteInternalNotesSection";
 import {
+  createInvoiceFromQuote,
   fetchQuoteInvoiceBillingContext,
   patchQuoteStatus,
   postQuoteAddToDocuments,
@@ -66,6 +67,12 @@ import { assertDocumentDownloadOk, DOCUMENT_DOWNLOAD_UNAVAILABLE } from "../../u
 import "./quote-builder.css";
 
 const API_BASE = getCrmApiBase();
+
+function qbRoundMoney2(n: number): number {
+  const x = Number(n);
+  if (!Number.isFinite(x)) return 0;
+  return Math.round(x * 100) / 100;
+}
 
 function readClientAutoCreated(payload: unknown): boolean {
   return Boolean(
@@ -105,6 +112,11 @@ export default function QuoteBuilderPage() {
   const [studies, setStudies] = useState<Study[]>([]);
   const [billCtx, setBillCtx] = useState<QuoteInvoiceBillingContext | null>(null);
   const [billLoading, setBillLoading] = useState(false);
+  const [depositInvoiceModalOpen, setDepositInvoiceModalOpen] = useState(false);
+  const [depositModalTtc, setDepositModalTtc] = useState("");
+  const [depositModalPct, setDepositModalPct] = useState("");
+  const [depositModalBusy, setDepositModalBusy] = useState(false);
+  const [depositModalError, setDepositModalError] = useState<string | null>(null);
   const [textTemplates, setTextTemplates] = useState(EMPTY_TEXT_TEMPLATES);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [relativeTick, setRelativeTick] = useState(0);
@@ -144,6 +156,58 @@ export default function QuoteBuilderPage() {
   }, [location.pathname, location.search, location.state, navigate]);
 
   const totals = useMemo(() => computeQuoteTotals(state.lines), [state.lines]);
+
+  const depositModalComputedTtc = useMemo(() => {
+    if (!billCtx) return null;
+    const rem = billCtx.remaining_ttc ?? 0;
+    const qTot = billCtx.quote_total_ttc ?? 0;
+    const ttcStr = depositModalTtc.trim().replace(",", ".");
+    if (ttcStr) {
+      const v = Number(ttcStr);
+      if (!Number.isFinite(v) || v < 0) return null;
+      return qbRoundMoney2(Math.min(v, rem));
+    }
+    const pctStr = depositModalPct.trim().replace(",", ".");
+    if (pctStr && qTot > 0) {
+      const p = Number(pctStr);
+      if (!Number.isFinite(p) || p <= 0) return null;
+      return qbRoundMoney2(Math.min(qbRoundMoney2((qTot * Math.min(100, p)) / 100), rem));
+    }
+    return null;
+  }, [billCtx, depositModalTtc, depositModalPct]);
+
+  const openDepositInvoiceModal = useCallback(() => {
+    setDepositModalError(null);
+    setDepositModalPct("");
+    if (billCtx?.has_structured_deposit && billCtx.deposit_ttc != null && billCtx.remaining_ttc != null) {
+      const h = qbRoundMoney2(Math.min(billCtx.deposit_ttc, billCtx.remaining_ttc));
+      setDepositModalTtc(h >= 0.01 ? String(h) : "");
+    } else {
+      setDepositModalTtc("");
+    }
+    setDepositInvoiceModalOpen(true);
+  }, [billCtx]);
+
+  const submitDepositInvoiceFromModal = useCallback(async () => {
+    if (!id || depositModalComputedTtc == null || depositModalComputedTtc < 0.01) {
+      setDepositModalError("Indiquez un montant TTC ou un pourcentage valide.");
+      return;
+    }
+    setDepositModalBusy(true);
+    setDepositModalError(null);
+    try {
+      const inv = await createInvoiceFromQuote(id, {
+        billingRole: "DEPOSIT",
+        billingAmountTtc: depositModalComputedTtc,
+      });
+      setDepositInvoiceModalOpen(false);
+      if (inv?.id) navigate(`/invoices/${inv.id}`);
+    } catch (e) {
+      setDepositModalError(e instanceof Error ? e.message : "Erreur");
+    } finally {
+      setDepositModalBusy(false);
+    }
+  }, [id, depositModalComputedTtc, navigate]);
 
   const materialMargin = useMemo(
     () =>
@@ -1170,19 +1234,17 @@ export default function QuoteBuilderPage() {
               </div>
               <div className="qb-billing-actions" role="group" aria-label="Actions facturation">
                 {billCtx.can_create_deposit ? (
-                  <Link
-                    to={`/invoices/new?fromQuote=${encodeURIComponent(id)}&billingRole=DEPOSIT`}
+                  <button
+                    type="button"
                     className="sn-btn sn-btn-primary sn-btn-sm"
-                    style={{ textDecoration: "none" }}
+                    onClick={() => openDepositInvoiceModal()}
                   >
                     Créer acompte
-                  </Link>
+                  </button>
                 ) : null}
                 {billCtx.can_create_balance ? (
                   <Link
-                    to={`/invoices/new?fromQuote=${encodeURIComponent(
-                      id
-                    )}&billingRole=solde&amountTtc=${encodeURIComponent(String(billCtx.remaining_ttc ?? 0))}`}
+                    to={`/invoices/new?fromQuote=${encodeURIComponent(id)}&billingRole=solde`}
                     className="sn-btn sn-btn-primary sn-btn-sm"
                     style={{ textDecoration: "none" }}
                   >
@@ -1458,6 +1520,104 @@ export default function QuoteBuilderPage() {
         <p style={{ margin: 0, lineHeight: 1.5 }}>
           Un document pour ce devis est déjà enregistré. Voulez-vous le remplacer par la version actuelle (signée) ?
         </p>
+      </ModalShell>
+
+      <ModalShell
+        open={depositInvoiceModalOpen}
+        onClose={() => {
+          setDepositInvoiceModalOpen(false);
+          setDepositModalError(null);
+        }}
+        title="Montant de l'acompte"
+        subtitle="Le devis reste inchangé. Montant plafonné au reste à facturer."
+        size="sm"
+        footer={
+          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", flexWrap: "wrap" }}>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => {
+                setDepositInvoiceModalOpen(false);
+                setDepositModalError(null);
+              }}
+              disabled={depositModalBusy}
+            >
+              Annuler
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              disabled={depositModalBusy || depositModalComputedTtc == null || depositModalComputedTtc < 0.01}
+              onClick={() => void submitDepositInvoiceFromModal()}
+            >
+              {depositModalBusy ? "Création…" : "Créer la facture"}
+            </Button>
+          </div>
+        }
+      >
+        {billCtx && !billCtx.quote_zero_total ? (
+          <p className="qb-muted" style={{ margin: "0 0 12px", lineHeight: 1.45 }}>
+            Total devis{" "}
+            {(billCtx.quote_total_ttc ?? 0).toLocaleString("fr-FR", {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })}{" "}
+            € · Déjà facturé{" "}
+            {(billCtx.invoiced_ttc ?? 0).toLocaleString("fr-FR", {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })}{" "}
+            € · Reste{" "}
+            {(billCtx.remaining_ttc ?? 0).toLocaleString("fr-FR", {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })}{" "}
+            €
+          </p>
+        ) : null}
+        <label style={{ display: "block", marginBottom: 10 }}>
+          <span className="qb-muted" style={{ display: "block", marginBottom: 4 }}>
+            Montant TTC
+          </span>
+          <input
+            className="sn-input"
+            type="text"
+            inputMode="decimal"
+            value={depositModalTtc}
+            onChange={(e) => {
+              setDepositModalTtc(e.target.value);
+              if (e.target.value.trim()) setDepositModalPct("");
+            }}
+            placeholder="ex. 3000"
+            style={{ width: "100%" }}
+          />
+        </label>
+        <label style={{ display: "block", marginBottom: 10 }}>
+          <span className="qb-muted" style={{ display: "block", marginBottom: 4 }}>
+            Ou % du total devis TTC
+          </span>
+          <input
+            className="sn-input"
+            type="text"
+            inputMode="decimal"
+            value={depositModalPct}
+            onChange={(e) => {
+              setDepositModalPct(e.target.value);
+              if (e.target.value.trim()) setDepositModalTtc("");
+            }}
+            placeholder="ex. 30"
+            style={{ width: "100%" }}
+          />
+        </label>
+        {depositModalComputedTtc != null && depositModalComputedTtc >= 0.01 ? (
+          <p className="qb-muted" style={{ margin: "0 0 8px" }}>
+            Montant retenu :{" "}
+            <strong>
+              {depositModalComputedTtc.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € TTC
+            </strong>
+          </p>
+        ) : null}
+        {depositModalError ? <p className="qb-error-inline">{depositModalError}</p> : null}
       </ModalShell>
 
       <ModalShell
