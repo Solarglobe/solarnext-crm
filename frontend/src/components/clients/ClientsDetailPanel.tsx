@@ -41,6 +41,7 @@ import { fetchStudiesByLeadId } from "../../services/studies.service";
 import { fetchQuotesList } from "../../services/financial.api";
 import { fetchMissionsByClientId } from "../../services/missions.service";
 import { getInbox } from "../../services/mailApi";
+import { Button } from "../ui/Button";
 
 const STATUS_LIST = CYCLE_PROJECT_SELECT_OPTIONS;
 
@@ -347,6 +348,24 @@ function ClientsDetailPanelBody({
           </span>
           <span className="clients-detail-quick-stats__lbl">RDV</span>
         </div>
+      </div>
+
+      <div className="clients-detail__section" style={{ paddingTop: 0, paddingBottom: 4 }}>
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          disabled={isReadOnly}
+          title={isReadOnly ? "Lecture seule" : undefined}
+          onClick={() => {
+            const href = lead.client_id
+              ? `/invoices/new?clientId=${encodeURIComponent(lead.client_id)}`
+              : `/invoices/new?leadId=${encodeURIComponent(lead.id)}`;
+            navigate(href);
+          }}
+        >
+          Créer une facture
+        </Button>
       </div>
 
       <div className="clients-detail__section clients-detail__section--identity">

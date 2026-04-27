@@ -1,6 +1,12 @@
 /**
  * Création facture — rattachement client et/ou lead, option depuis devis (query).
  * Listes : GET /api/clients/select et GET /api/leads/select (tables strictes).
+ *
+ * Contextes UI (hors flux `fromQuote` géré en amont = QUOTE_CONTEXT) :
+ * - CLIENT_CONTEXT : `clientId` en query
+ * - LEAD_CONTEXT : `leadId` seul en query
+ * - CLIENT_AND_LEAD : les deux en query (pas de selects ; devis filtrés sur client_id)
+ * - FREE_CONTEXT : aucun paramètre — choix exclusif client ou lead, devis après choix
  */
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
@@ -15,7 +21,9 @@ import {
   createInvoiceDraft,
   createInvoiceFromQuote,
   fetchQuoteInvoiceBillingContext,
+  fetchQuotesList,
   type QuoteInvoiceBillingContext,
+  type QuoteListRow,
 } from "../services/financial.api";
 import { billingRoleParamToApi } from "../modules/invoices/invoiceBillingLabels";
 import QuoteBillingUxPanel from "../modules/quotes/QuoteBillingUxPanel";
@@ -35,6 +43,10 @@ export default function InvoiceCreatePage() {
   const [listsError, setListsError] = useState<string | null>(null);
   const [clientId, setClientId] = useState("");
   const [leadId, setLeadId] = useState("");
+  const [optionalQuoteId, setOptionalQuoteId] = useState("");
+  const [quoteRows, setQuoteRows] = useState<QuoteListRow[]>([]);
+  const [quotesLoading, setQuotesLoading] = useState(false);
+  const [quotesError, setQuotesError] = useState<string | null>(null);
   /** Faux au chargement initial : évite un flash « Création… » sur le formulaire acompte. */
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -45,8 +57,18 @@ export default function InvoiceCreatePage() {
 
   const urlClientId = useMemo(() => (searchParams.get("clientId") ?? "").trim(), [searchParams]);
   const urlLeadId = useMemo(() => (searchParams.get("leadId") ?? "").trim(), [searchParams]);
-  const clientLockedFromUrl = Boolean(urlClientId);
-  const leadLockedFromUrl = Boolean(urlLeadId);
+
+  /** Contexte formulaire manuel (QUOTE_CONTEXT = `fromQuote`, traité plus haut). */
+  const billingUiMode = useMemo(() => {
+    const c = Boolean(urlClientId);
+    const l = Boolean(urlLeadId);
+    if (c && l) return "CLIENT_AND_LEAD" as const;
+    if (c) return "CLIENT" as const;
+    if (l) return "LEAD" as const;
+    return "FREE" as const;
+  }, [urlClientId, urlLeadId]);
+
+  const isFreeContext = billingUiMode === "FREE";
 
   const apiRole = useMemo(
     () => billingRoleParamToApi(billingRoleParam?.trim() || "") ?? "STANDARD",
@@ -81,9 +103,69 @@ export default function InvoiceCreatePage() {
   }, []);
 
   useEffect(() => {
-    if (urlLeadId) setLeadId(urlLeadId);
-    if (urlClientId) setClientId(urlClientId);
+    setClientId(urlClientId || "");
+    setLeadId(urlLeadId || "");
   }, [urlClientId, urlLeadId]);
+
+  /** Filtre liste devis : une seule dimension (client_id ou lead_id), jamais mélangée. */
+  const quoteListFilter = useMemo((): { type: "client" | "lead"; id: string } | null => {
+    if (fromQuote) return null;
+    if (billingUiMode === "FREE") {
+      const c = clientId.trim();
+      const l = leadId.trim();
+      if (c && l) return { type: "client", id: c };
+      if (c) return { type: "client", id: c };
+      if (l) return { type: "lead", id: l };
+      return null;
+    }
+    if (billingUiMode === "CLIENT_AND_LEAD") {
+      return { type: "client", id: urlClientId };
+    }
+    if (billingUiMode === "CLIENT") {
+      return { type: "client", id: urlClientId };
+    }
+    if (billingUiMode === "LEAD") {
+      return { type: "lead", id: urlLeadId };
+    }
+    return null;
+  }, [fromQuote, billingUiMode, clientId, leadId, urlClientId, urlLeadId]);
+
+  useEffect(() => {
+    if (!quoteListFilter) {
+      setQuoteRows([]);
+      setOptionalQuoteId("");
+      setQuotesError(null);
+      setQuotesLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setQuotesLoading(true);
+    setQuotesError(null);
+    const params =
+      quoteListFilter.type === "client"
+        ? { client_id: quoteListFilter.id, limit: 200 }
+        : { lead_id: quoteListFilter.id, limit: 200 };
+    void fetchQuotesList(params)
+      .then((rows) => {
+        if (!cancelled) {
+          setQuoteRows(rows);
+          setOptionalQuoteId((prev) => (rows.some((r) => r.id === prev) ? prev : ""));
+        }
+      })
+      .catch((e: unknown) => {
+        if (!cancelled) {
+          setQuoteRows([]);
+          setOptionalQuoteId("");
+          setQuotesError(e instanceof Error ? e.message : "Impossible de charger les devis.");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setQuotesLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [quoteListFilter]);
 
   useEffect(() => {
     if (!fromQuote || !needsDepositForm) return;
@@ -259,6 +341,7 @@ export default function InvoiceCreatePage() {
       const inv = await createInvoiceDraft({
         client_id: outClient,
         lead_id: outLead,
+        ...(optionalQuoteId.trim() ? { quote_id: optionalQuoteId.trim() } : {}),
         lines: [],
         notes: "",
         payment_terms: "",
@@ -355,15 +438,13 @@ export default function InvoiceCreatePage() {
     );
   }
 
-  const generalMode = !clientLockedFromUrl && !leadLockedFromUrl;
-
   return (
     <div className="qb-page">
       <h1 className="sg-title">Nouvelle facture</h1>
-      {generalMode ? (
+      {isFreeContext ? (
         <p style={{ color: "var(--text-muted)", marginBottom: 20 }}>
-          Rattachez la facture à un client et/ou un lead (au moins un des deux). Les lignes et conditions se saisissent ensuite
-          dans l&apos;éditeur.
+          Choisissez <strong>un client</strong> <em>ou</em> <strong>un lead</strong> (un seul à la fois). Les lignes et
+          conditions se saisissent ensuite dans l&apos;éditeur.
         </p>
       ) : (
         <p style={{ color: "var(--text-muted)", marginBottom: 20 }}>
@@ -379,9 +460,9 @@ export default function InvoiceCreatePage() {
         </p>
       ) : null}
 
-      {clientLockedFromUrl ? (
+      {urlClientId ? (
         <div className="ib-quote-billing-hint" style={{ marginBottom: 16, maxWidth: 560 }}>
-          <strong style={{ color: "var(--text, #e2e8f0)" }}>Facture rattachée à ce client</strong>
+          <strong style={{ color: "var(--text, #e2e8f0)" }}>Facture rattachée au client :</strong>
           <div style={{ marginTop: 6 }}>
             {clientRowForSummary ? clientRowForSummary.full_name : "Client fourni par l’URL (hors liste affichée)"}
           </div>
@@ -394,9 +475,9 @@ export default function InvoiceCreatePage() {
         </div>
       ) : null}
 
-      {leadLockedFromUrl ? (
+      {urlLeadId ? (
         <div className="ib-quote-billing-hint" style={{ marginBottom: 16, maxWidth: 560 }}>
-          <strong style={{ color: "var(--text, #e2e8f0)" }}>Facture rattachée à ce lead</strong>
+          <strong style={{ color: "var(--text, #e2e8f0)" }}>Facture rattachée au lead :</strong>
           <div style={{ marginTop: 6 }}>
             {leadRowForSummary ? leadRowForSummary.full_name : "Lead fourni par l’URL (hors liste affichée)"}
           </div>
@@ -405,7 +486,7 @@ export default function InvoiceCreatePage() {
               Lead déjà fourni par le dossier ; il peut être absent de la liste (périmètre commercial ou libellé non éligible).
             </p>
           ) : null}
-          {!clientLockedFromUrl ? (
+          {!urlClientId ? (
             <p style={{ margin: "14px 0 0", fontSize: 13, lineHeight: 1.45 }}>
               Pour disposer d&apos;une fiche client CRM (recommandé pour devis / acomptes), ouvrez le dossier et placez-le sur
               l&apos;étape <strong>Signé</strong> du pipeline.{" "}
@@ -417,11 +498,20 @@ export default function InvoiceCreatePage() {
         </div>
       ) : null}
 
-      <div className="ib-links-bar" style={{ maxWidth: 560 }}>
-        {!clientLockedFromUrl ? (
+      {isFreeContext ? (
+        <div className="ib-links-bar" style={{ maxWidth: 560 }}>
           <label>
-            Client
-            <select className="sn-input" value={clientId} onChange={(e) => setClientId(e.target.value)}>
+            Choisir un client
+            <select
+              className="sn-input"
+              value={clientId}
+              onChange={(e) => {
+                const v = e.target.value;
+                setClientId(v);
+                setLeadId("");
+                setOptionalQuoteId("");
+              }}
+            >
               <option value="">—</option>
               {clients.map((c) => (
                 <option key={c.id} value={c.id}>
@@ -430,11 +520,18 @@ export default function InvoiceCreatePage() {
               ))}
             </select>
           </label>
-        ) : null}
-        {!leadLockedFromUrl ? (
           <label>
-            Lead
-            <select className="sn-input" value={leadId} onChange={(e) => setLeadId(e.target.value)}>
+            Ou choisir un lead
+            <select
+              className="sn-input"
+              value={leadId}
+              onChange={(e) => {
+                const v = e.target.value;
+                setLeadId(v);
+                setClientId("");
+                setOptionalQuoteId("");
+              }}
+            >
               <option value="">—</option>
               {leads.map((l) => (
                 <option key={l.id} value={l.id}>
@@ -443,8 +540,37 @@ export default function InvoiceCreatePage() {
               ))}
             </select>
           </label>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
+
+      {quoteListFilter ? (
+        <div style={{ maxWidth: 560, marginTop: 16 }}>
+          <label style={{ display: "block" }}>
+            <span className="qb-muted" style={{ display: "block", marginBottom: 6 }}>
+              Devis optionnel (filtré sur le dossier — {quoteListFilter.type === "client" ? "client" : "lead"})
+            </span>
+            {quotesLoading ? (
+              <p className="qb-muted">Chargement des devis…</p>
+            ) : quotesError ? (
+              <p className="qb-error-inline">{quotesError}</p>
+            ) : (
+              <select
+                className="sn-input"
+                style={{ width: "100%" }}
+                value={optionalQuoteId}
+                onChange={(e) => setOptionalQuoteId(e.target.value)}
+              >
+                <option value="">— Aucun —</option>
+                {quoteRows.map((q) => (
+                  <option key={q.id} value={q.id}>
+                    {(q.quote_number || q.id) + (q.status ? ` — ${q.status}` : "")}
+                  </option>
+                ))}
+              </select>
+            )}
+          </label>
+        </div>
+      ) : null}
 
       <div style={{ display: "flex", gap: 12, marginTop: 16 }}>
         <Button type="button" variant="primary" disabled={loading} onClick={() => void submit()}>
