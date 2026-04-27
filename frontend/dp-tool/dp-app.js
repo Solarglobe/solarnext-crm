@@ -536,6 +536,8 @@ window.DP4_CAPTURE_IMAGE = null;
 // Import DP2 → DP4 (overlay screen-space canvas, PAS layer OpenLayers)
 window.DP4_IMPORT_OVERLAY_CANVAS = null;
 window.DP4_IMPORT_DP2_ACTIVE = false;
+/** Handler moveend pour redessiner l’overlay après pan/zoom (réf. handler pour un() uniquement). */
+window.DP4_IMPORT_OVERLAY_MOVEEND_HANDLER = null;
 
 function lockDPView({ map }) {
   const view = map.getView();
@@ -16302,7 +16304,44 @@ function dp4EnsureScreenOverlayCanvas() {
   return canvas;
 }
 
+function dp4UnbindDP2ImportOverlayOnMapMove() {
+  const map = window.DP4_OL_MAP;
+  const h = window.DP4_IMPORT_OVERLAY_MOVEEND_HANDLER;
+  if (map && typeof map.un === "function" && typeof h === "function") {
+    try {
+      map.un("moveend", h);
+    } catch (_) {}
+  }
+  window.DP4_IMPORT_OVERLAY_MOVEEND_HANDLER = null;
+}
+
+/** Après pan/zoom : même projection que la validation (dp4ProjectDP2PointToCurrentMapPixel). */
+function dp4RefreshDP2ImportOverlayAfterMapMove() {
+  if (!window.DP4_IMPORT_DP2_ACTIVE) return;
+  if (!window.DP4_IMPORT_OVERLAY_CANVAS || !window.DP4_OL_MAP) return;
+  const v = dp4ValidateDP2CaptureForImport(window.DP2_STATE?.capture);
+  if (!v.ok) return;
+  try {
+    dp4EnsureScreenOverlayCanvas();
+    dp4DrawDP2ContourOnScreenOverlay();
+  } catch (err) {
+    console.warn("[DP4][IMPORT_OVERLAY_REFRESH]", err);
+  }
+}
+
+function dp4BindDP2ImportOverlayOnMapMove() {
+  dp4UnbindDP2ImportOverlayOnMapMove();
+  const map = window.DP4_OL_MAP;
+  if (!map || typeof map.on !== "function") return;
+  const handler = function () {
+    dp4RefreshDP2ImportOverlayAfterMapMove();
+  };
+  window.DP4_IMPORT_OVERLAY_MOVEEND_HANDLER = handler;
+  map.on("moveend", handler);
+}
+
 function dp4RemoveScreenOverlayCanvas() {
+  dp4UnbindDP2ImportOverlayOnMapMove();
   if (window.DP4_IMPORT_OVERLAY_CANVAS) {
     try {
       window.DP4_IMPORT_OVERLAY_CANVAS.remove();
@@ -17459,6 +17498,7 @@ function initDP4() {
     dp4EnsureScreenOverlayCanvas();
     dp4DrawDP2ContourOnScreenOverlay();
     window.DP4_IMPORT_DP2_ACTIVE = true;
+    dp4BindDP2ImportOverlayOnMapMove();
   });
 
   // Capture (validation vue) : ordre STRICT — overlay → transform → capture
