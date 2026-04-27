@@ -1017,6 +1017,23 @@
         throw ex2;
       }
       var safeDraft = san.draft;
+      if (global.__SN_DP_DP2_AUDIT__ === true) {
+        try {
+          var d2put = safeDraft && safeDraft.dp2;
+          var d2s = d2put && typeof d2put === "object" ? JSON.stringify(d2put).length : 0;
+          console.warn("[DP2-AUDIT] PUT bodyBytes", JSON.stringify({ draft: safeDraft }).length, "dp2.json.length", d2s);
+          console.warn(
+            "[DP2-AUDIT] PUT dp2 keys",
+            d2put && typeof d2put === "object" ? Object.keys(d2put).slice(0, 40) : d2put
+          );
+          if (d2put && typeof d2put === "object") {
+            console.warn("[DP2-AUDIT] PUT dp2.capture_plan?", !!(d2put.capture_plan && d2put.capture_plan.imageBase64));
+            console.warn("[DP2-AUDIT] PUT dp2.dp2Versions len", Array.isArray(d2put.dp2Versions) ? d2put.dp2Versions.length : null);
+          }
+        } catch (e2) {
+          console.warn("[DP2-AUDIT] log error", e2);
+        }
+      }
       var body = JSON.stringify({ draft: safeDraft });
       var ctx = global.__SOLARNEXT_DP_CONTEXT__ || {};
       emitDpPutTrace("put_request", {
@@ -1343,6 +1360,15 @@
     var d2 = D.dp2 || (D.dp && D.dp.dp2);
     if (typeof global.hydrateDP2 === "function") {
       try {
+        if (global.__SN_DP_DP2_AUDIT__ === true) {
+          try {
+            console.warn(
+              "[DP2-AUDIT] hydrate d2",
+              d2 == null ? "null/undefined" : typeof d2,
+              d2 && typeof d2 === "object" ? "keys:" + Object.keys(d2).slice(0, 30).join(",") : ""
+            );
+          } catch (_) {}
+        }
         global.hydrateDP2(d2 || {});
       } catch (e) {
         devWarn("[dp-draft] hydrateDP2", e);
@@ -1553,7 +1579,19 @@
     schedulePersist(false);
   };
   global.__snDpAfterCaptureDp2 = function () {
-    schedulePersist(false);
+    try {
+      if (typeof global.__snDpForceFlush === "function") {
+        global.__snDpForceFlush();
+      } else if (global.DpDraftStore && typeof global.DpDraftStore.forceSaveDraft === "function") {
+        global.DpDraftStore.forceSaveDraft();
+      } else {
+        schedulePersist("fast");
+      }
+      if (global.__SN_DP_DP2_AUDIT__ === true) {
+        var d2a = DP_DRAFT && DP_DRAFT.dp2;
+        console.warn("[DP2-AUDIT] afterCapture flush; draft.dp2 keys", d2a && typeof d2a === "object" ? Object.keys(d2a) : d2a);
+      }
+    } catch (_) {}
   };
   global.__snDpAfterDp3Validated = function () {
     schedulePersist(false);

@@ -13973,7 +13973,13 @@ async function initDP2() {
       dp2RenderEntryPanel();
     } catch (_) {}
     try {
-      if (typeof window.__snDpPersistDebounced === "function") window.__snDpPersistDebounced("fast");
+      if (typeof window.__snDpForceFlush === "function") {
+        void window.__snDpForceFlush();
+      } else if (typeof window.DpDraftStore?.forceSaveDraft === "function") {
+        void window.DpDraftStore.forceSaveDraft();
+      } else if (typeof window.__snDpPersistDebounced === "function") {
+        window.__snDpPersistDebounced("fast");
+      }
     } catch (_) {}
   }
 
