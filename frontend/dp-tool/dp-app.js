@@ -4152,6 +4152,7 @@ function dp2ResetWorkingEditorFieldsPreservingVersions() {
     viewPanY: 0,
     measureLineStart: null,
     ridgeLineStart: null,
+    gutterHeightStart: null,
     capture: null,
     editorProfile: null,
     dp2Versions: versions,
@@ -4837,11 +4838,15 @@ async function generateDP4PDF() {
 
   function addLegendExtras(baseLegend, plan) {
     const legend = Array.isArray(baseLegend) ? [...baseLegend] : [];
+    const hasKey = (k) => legend.some((it) => it && it.key === k);
     if (hasLineTypeInRoofGeometry(plan, "measure_line")) {
       legend.push({ key: "COTES", count: 1 });
     }
     if (hasLineTypeInRoofGeometry(plan, "ridge_line")) {
       legend.push({ key: "FAITAGE", count: 1 });
+    }
+    if (hasLineTypeInRoofGeometry(plan, "gutter_height_dimension") && !hasKey("HAUTEUR_GOUTTIERE")) {
+      legend.push({ key: "HAUTEUR_GOUTTIERE", count: 1 });
     }
     return legend;
   }
@@ -5157,13 +5162,13 @@ window.DP2_STATE = window.DP2_STATE || {
   // Textes (annotations) — stockage dédié (modèle imposé)
   textObjects: [],
   history: [],            // historique pour undo/redo
-  currentTool: "select",  // "select" | "pan" | "building_outline" | "measure_line" | "ridge_line"
+  currentTool: "select",  // "select" | "pan" | "building_outline" | "measure_line" | "ridge_line" | "gutter_height_dimension"
   selectedObjectId: null, // index dans objects[] pour sélection visuelle uniquement
   selectedPanelId: null,  // id string (DP2_STATE.panels)
   selectedPanelIds: [],   // multi-sélection temporaire (panneaux uniquement)
   selectedTextId: null,   // id string (DP2_STATE.textObjects)
   selectedTextIds: [],    // multi-sélection temporaire (textes uniquement)
-  drawingPreview: null,   // { from: {x,y}, to: {x,y}, lengthM: number, isClosing?: boolean, previewType?: "building_outline"|"measure_line"|"ridge_line" } — segment temporaire (non stocké dans objects[])
+  drawingPreview: null,   // { from: {x,y}, to: {x,y}, lengthM: number, isClosing?: boolean, previewType?: "building_outline"|"measure_line"|"ridge_line"|"gutter_height_dimension" } — segment temporaire (non stocké dans objects[])
   // Formes métier (ÉTAPE 6) — objets normalisés (modèle imposé)
   businessObjects: [],            // tableau d'objets métier
   selectedBusinessObjectId: null, // id string (pas un index)
@@ -5191,6 +5196,8 @@ window.DP2_STATE = window.DP2_STATE || {
   measureLineStart: null, // { x, y } | null
   // Faîtage en cours : point A posé, en attente du clic B
   ridgeLineStart: null,   // { x, y } | null
+  // Hauteur gouttière (DP4) : premier point vertical posé, en attente du second clic (même abscisse)
+  gutterHeightStart: null, // { x, y } | null
   /** Historique des plans (persisté dans le brouillon dp2). */
   dp2Versions: [],
   /** id de la ligne de dp2Versions en cours d’édition. */
@@ -5320,6 +5327,7 @@ function dp2ResetActiveToolToNeutral(options) {
   state.selectionRect = null;
   state.measureLineStart = null;
   state.ridgeLineStart = null;
+  state.gutterHeightStart = null;
   state.panelPlacementPreview = null;
 
   const parcelIdx = (state.objects || []).findIndex(o => o && o.__parcelEdge);
@@ -5421,6 +5429,7 @@ function dp2AutoReturnToSelectIfCreationDone(options) {
   if (typeof hasDP2OpenBuildingOutline === "function" && hasDP2OpenBuildingOutline()) return;
   if (state.currentTool === "measure_line" && state.measureLineStart) return;
   if (state.currentTool === "ridge_line" && state.ridgeLineStart) return;
+  if (state.currentTool === "gutter_height_dimension" && state.gutterHeightStart) return;
 
   dp2ResetActiveToolToNeutral({
     preserveSelection: opts.preserveSelection !== false,
@@ -6052,6 +6061,16 @@ function getDP2BuildingOutline() {
 // Profil éditeur : DP2 (plan de masse) vs DP4 (toiture)
 function dp2IsDP4RoofProfile() {
   return window.DP2_STATE?.editorProfile === "DP4_ROOF";
+}
+
+/** Affiche l’entrée « Hauteur gouttière » du menu Mesures uniquement en profil toiture DP4. */
+function dp2SyncDp4RoofMeasuresMenuVisibility() {
+  const menu = document.getElementById("dp2-measures-menu");
+  if (!menu) return;
+  const show = typeof dp2IsDP4RoofProfile === "function" && dp2IsDP4RoofProfile();
+  menu.querySelectorAll("li[data-dp4-roof-only='1']").forEach((li) => {
+    li.hidden = !show;
+  });
 }
 
 // DP4 : plusieurs polygones possibles. Helpers dédiés (sans casser DP2 historique).
@@ -6941,6 +6960,7 @@ function dp2SyncInteractionToolFromDp2State() {
     building_outline: "contour",
     measure_line: "measure",
     ridge_line: "ridge",
+    gutter_height_dimension: "gutter",
     panels: "pv"
   };
   is.tool = map[ct] || "select";
@@ -6956,6 +6976,7 @@ function dp2InteractionDragActive() {
     s.measureLabelDrag ||
     s.measureLabelDragCandidate ||
     s.ridgeLabelDrag ||
+    s.gutterHeightLabelDrag ||
     s.panelInteraction ||
     s.panelGroupInteraction ||
     (s.textInteraction && typeof s.textInteraction.pointerId === "number") ||
@@ -6986,6 +7007,10 @@ function dp2PickHoverFeatureId(canvas, x, y) {
 
     const hitRidgeLbl = dp2HitTestRidgeLabel(canvas, x, y);
     if (hitRidgeLbl && typeof hitRidgeLbl.index === "number") return "ridge:" + hitRidgeLbl.index;
+
+    const hitGutterLbl = dp2HitTestGutterHeightLabel(canvas, x, y);
+    if (hitGutterLbl && hitGutterLbl.kind === "gutter_height_label" && typeof hitGutterLbl.index === "number")
+      return "gutterLbl:" + hitGutterLbl.index;
   }
 
   const ht = dp2HitTest(canvas, x, y);
@@ -7024,6 +7049,20 @@ function dp2PickHoverFeatureId(canvas, x, y) {
       const px = obj.a.x + t * dx;
       const py = obj.a.y + t * dy;
       if (Math.hypot(x - px, y - py) <= 12) return "ridge:" + i;
+    }
+    for (let i = (window.DP2_STATE?.objects || []).length - 1; i >= 0; i--) {
+      const obj = window.DP2_STATE.objects[i];
+      if (!obj || obj.type !== "gutter_height_dimension" || !obj.a || !obj.b) continue;
+      const dA = Math.hypot((obj.a.x || 0) - x, (obj.a.y || 0) - y);
+      const dB = Math.hypot((obj.b.x || 0) - x, (obj.b.y || 0) - y);
+      if (dA <= 12 || dB <= 12) return "gutter:" + i;
+      const dx = obj.b.x - obj.a.x;
+      const dy = obj.b.y - obj.a.y;
+      const lenSq = dx * dx + dy * dy || 1;
+      const t = Math.max(0, Math.min(1, ((x - obj.a.x) * dx + (y - obj.a.y) * dy) / lenSq));
+      const px = obj.a.x + t * dx;
+      const py = obj.a.y + t * dy;
+      if (Math.hypot(x - px, y - py) <= 12) return "gutter:" + i;
     }
   }
 
@@ -7211,6 +7250,8 @@ function refreshDP2ModeStrip() {
     text = "Trait de mesure — 1er clic : point A, 2e clic : point B. Double-clic sur une cote pour la modifier.";
   } else if (tool === "ridge_line") {
     text = "Faîtage — deux clics pour définir l’arête.";
+  } else if (tool === "gutter_height_dimension") {
+    text = "Hauteur gouttière — 1er clic : premier point, 2e clic : second point (cote verticale).";
   } else if (tool === "pan") {
     text = "Pan — glisser pour déplacer la vue (molette : zoom).";
   } else if (tool === "panels") {
@@ -7247,7 +7288,8 @@ function initDP2Toolbar() {
   const MEASURES_TOOL_META = {
     building_outline: { icon: "⬛", label: "Contour bâti" },
     measure_line: { icon: "↔", label: "Trait de mesure" },
-    ridge_line: { icon: "▲", label: "Faîtage" }
+    ridge_line: { icon: "▲", label: "Faîtage" },
+    gutter_height_dimension: { icon: "↕", label: "Hauteur gouttière" }
   };
   const TEXT_TOOL_META = {
     text_free: { icon: "T", label: "Texte libre" },
@@ -7257,7 +7299,7 @@ function initDP2Toolbar() {
   };
 
   function isMeasuresTool(tool) {
-    return tool === "building_outline" || tool === "measure_line" || tool === "ridge_line";
+    return tool === "building_outline" || tool === "measure_line" || tool === "ridge_line" || tool === "gutter_height_dimension";
   }
 
   function isBusinessTool(tool) {
@@ -7419,6 +7461,9 @@ function initDP2Toolbar() {
     }
     if (tool !== "ridge_line") {
       window.DP2_STATE.ridgeLineStart = null;
+    }
+    if (tool !== "gutter_height_dimension") {
+      window.DP2_STATE.gutterHeightStart = null;
     }
     window.DP2_STATE.drawingPreview = null;
     if (tool !== "panels") {
@@ -7605,7 +7650,7 @@ function initDP2Toolbar() {
     const tool = li.getAttribute("data-tool");
     if (tool === "building_outline") {
       tryActivateBuildingOutline();
-    } else if (tool === "measure_line" || tool === "ridge_line") {
+    } else if (tool === "measure_line" || tool === "ridge_line" || tool === "gutter_height_dimension") {
       setActiveTool(tool);
     }
     closeMeasuresMenu();
@@ -7711,6 +7756,12 @@ function dp2HitTest(canvas, x, y) {
       const dB = Math.hypot((obj.b.x || 0) - x, (obj.b.y || 0) - y);
       if (dB <= threshold) return { kind: "object", index: i, vertexAnchor: "B" };
     }
+    if (obj.type === "gutter_height_dimension" && obj.a && obj.b) {
+      const dA = Math.hypot((obj.a.x || 0) - x, (obj.a.y || 0) - y);
+      if (dA <= threshold) return { kind: "object", index: i, vertexAnchor: "A" };
+      const dB = Math.hypot((obj.b.x || 0) - x, (obj.b.y || 0) - y);
+      if (dB <= threshold) return { kind: "object", index: i, vertexAnchor: "B" };
+    }
   }
 
   // ----- PASS 2 : hit-test historique (contour bâti + reste des objets)
@@ -7784,6 +7835,21 @@ function dp2HitTest(canvas, x, y) {
     }
     // measure_line (hors __parcelEdge) : sommets A/B puis segment (même logique que contour)
     if (obj.type === "measure_line" && obj.a && obj.b && !obj.__parcelEdge) {
+      const dA = Math.hypot((obj.a.x || 0) - x, (obj.a.y || 0) - y);
+      if (dA <= threshold) return { kind: "object", index: i, vertexAnchor: "A" };
+      const dB = Math.hypot((obj.b.x || 0) - x, (obj.b.y || 0) - y);
+      if (dB <= threshold) return { kind: "object", index: i, vertexAnchor: "B" };
+      const ax = obj.a.x || 0;
+      const ay = obj.a.y || 0;
+      const dx = (obj.b.x || 0) - ax;
+      const dy = (obj.b.y || 0) - ay;
+      const len = Math.hypot(dx, dy) || 1;
+      const t = Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / (len * len)));
+      const projX = ax + t * dx;
+      const projY = ay + t * dy;
+      if (Math.hypot(x - projX, y - projY) <= threshold) return { kind: "object", index: i };
+    }
+    if (obj.type === "gutter_height_dimension" && obj.a && obj.b) {
       const dA = Math.hypot((obj.a.x || 0) - x, (obj.a.y || 0) - y);
       if (dA <= threshold) return { kind: "object", index: i, vertexAnchor: "A" };
       const dB = Math.hypot((obj.b.x || 0) - x, (obj.b.y || 0) - y);
@@ -8008,6 +8074,27 @@ function dp2HitTestRidgeLabel(canvas, x, y) {
     const ly = midY + offset.y;
     if (x >= lx - halfW && x <= lx + halfW && y >= ly - halfH && y <= ly + halfH)
       return { kind: "ridge_label", index: i };
+  }
+  return null;
+}
+
+// DP2 — Hit-test libellé « Hauteur gouttière » (2 lignes) : zone élargie vs cote simple.
+function dp2HitTestGutterHeightLabel(canvas, x, y) {
+  const objects = window.DP2_STATE?.objects || [];
+  const halfW = 70;
+  const halfH = 22;
+  for (let i = objects.length - 1; i >= 0; i--) {
+    const obj = objects[i];
+    if (!obj || obj.type !== "gutter_height_dimension" || !obj.a || !obj.b) continue;
+    const midX = (obj.a.x + obj.b.x) / 2;
+    const midY = (obj.a.y + obj.b.y) / 2;
+    const offset = obj.labelOffset && typeof obj.labelOffset.x === "number" && typeof obj.labelOffset.y === "number"
+      ? obj.labelOffset
+      : { x: 0, y: 0 };
+    const lx = midX + 14 + offset.x;
+    const ly = midY + offset.y;
+    if (x >= lx - halfW && x <= lx + halfW && y >= ly - halfH && y <= ly + halfH)
+      return { kind: "gutter_height_label", index: i };
   }
   return null;
 }
@@ -8719,7 +8806,7 @@ function dp2TryScheduleBizUiChromeFrame() {
 function dp2TryUpdateBusinessHoverCursor(canvas, clientX, clientY) {
   if (!canvas || window.DP2_STATE?.mode !== "EDITION") return;
   const tool = window.DP2_STATE?.currentTool || "select";
-  if (tool === "pan" || tool === "panels" || tool === "measure_line" || tool === "ridge_line" || tool === "building_outline") {
+  if (tool === "pan" || tool === "panels" || tool === "measure_line" || tool === "ridge_line" || tool === "gutter_height_dimension" || tool === "building_outline") {
     canvas.style.cursor = "";
     return;
   }
@@ -8735,7 +8822,8 @@ function dp2TryUpdateBusinessHoverCursor(canvas, clientX, clientY) {
     window.DP2_STATE?.textInteraction ||
     window.DP2_STATE?.selectionRect ||
     window.DP2_STATE?.measureLabelDrag ||
-    window.DP2_STATE?.measureLabelDragCandidate
+    window.DP2_STATE?.measureLabelDragCandidate ||
+    window.DP2_STATE?.gutterHeightLabelDrag
   ) {
     return;
   }
@@ -14774,7 +14862,7 @@ function dp4SyncRoofGeometryFromDP2State() {
   // B. Conserver roofFromObjects pour ridge/measure uniquement
   const roofFromObjects = objects.filter((o) => {
     if (!o || typeof o.type !== "string") return false;
-    if (o.type === "measure_line" || o.type === "ridge_line") {
+    if (o.type === "measure_line" || o.type === "ridge_line" || o.type === "gutter_height_dimension") {
       if (Array.isArray(o.points) && o.points.length >= 2) return true;
       return o.a && o.b && typeof o.a.x === "number" && typeof o.a.y === "number" && typeof o.b.x === "number" && typeof o.b.y === "number";
     }

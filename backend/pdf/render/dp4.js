@@ -137,6 +137,10 @@
     FAITAGE: {
       label: "Faîtage",
       svg: `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 11l5-6 5 6" fill="none" stroke="#111827" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`
+    },
+    HAUTEUR_GOUTTIERE: {
+      label: "Hauteur gouttière",
+      svg: `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2v12" stroke="#0d9488" stroke-width="1.6" stroke-linecap="round"/><path d="M5 3.5L8 1l3 2.5" fill="none" stroke="#0d9488" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 12.5L8 15l3-2.5" fill="none" stroke="#0d9488" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M4.5 4h3M4.5 12h3" stroke="#0d9488" stroke-width="1.2" stroke-linecap="round"/></svg>`
     }
   };
 
