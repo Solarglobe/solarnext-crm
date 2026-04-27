@@ -99,8 +99,6 @@ export function createEmptyMeta(): QuoteBuilderMeta {
   return {
     validity_days: 30,
     deposit: { type: "PERCENT", value: 0 },
-    global_discount_percent: 0,
-    global_discount_amount_ht: 0,
     notes: "",
     commercial_notes: "",
     technical_notes: "",
@@ -160,7 +158,8 @@ export function mapApiItemsToLines(rows: Record<string, unknown>[]): QuoteLine[]
       description: String(row.description ?? ""),
       reference: lineReferenceFromSnapshot(row),
       quantity: Number(row.quantity) || 0,
-      unit_price_ht: Number(row.unit_price_ht) || 0,
+      unit_price_ht:
+        row.unit_price_ht != null && row.unit_price_ht !== "" ? Number(row.unit_price_ht) : 0,
       tva_percent: Number(row.vat_rate) || 0,
       line_discount_percent: discountPercentFromHt(gross, discHt),
       position: Number(row.position) || i + 1,
@@ -175,7 +174,8 @@ export function linesToSaveItems(lines: QuoteLine[]) {
     .map((l) => {
       const gross = grossHtFromLine(l);
       const pct = Math.max(0, Math.min(100, l.line_discount_percent));
-      const discount_ht = Math.min(roundMoney(gross * (pct / 100)), gross);
+      const discount_ht =
+        gross > 0 ? Math.min(roundMoney(gross * (pct / 100)), gross) : 0;
       const line_source = l.line_source === "study_prep" ? "study_prep" : "manual";
       const ref = (l.reference ?? "").trim().slice(0, 120);
       return {
@@ -235,8 +235,6 @@ export function buildStateFromApi(data: { quote: Record<string, unknown>; items:
     meta: {
       validity_days: Number(metaRaw.validity_days) || 30,
       deposit: parseDepositFromMeta(metaRaw),
-      global_discount_percent: Number(metaRaw.global_discount_percent) || 0,
-      global_discount_amount_ht: Math.max(0, Number(metaRaw.global_discount_amount_ht) || 0),
       notes: String(metaRaw.notes ?? ""),
       commercial_notes: String(metaRaw.commercial_notes ?? ""),
       technical_notes: String(metaRaw.technical_notes ?? ""),

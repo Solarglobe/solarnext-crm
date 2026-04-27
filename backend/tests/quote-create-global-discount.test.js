@@ -1,5 +1,5 @@
 /**
- * createQuote + metadata global_discount_* : totaux alignés applyDocumentDiscountHt.
+ * createQuote + metadata global_discount_* : remise matérialisée en ligne négative + totaux = Σ lignes.
  * Usage: cd backend && node tests/quote-create-global-discount.test.js
  */
 
@@ -59,8 +59,31 @@ async function createLead(orgId) {
   return { leadId: leadRes.rows[0].id, addressId: addrRes.rows[0].id };
 }
 
+async function assertSumLinesEqualsHeader(quoteId) {
+  const r = await pool.query(
+    `SELECT q.total_ht::float8 AS th, q.total_vat::float8 AS tv, q.total_ttc::float8 AS ttc,
+            COALESCE(SUM(ql.total_line_ht),0)::float8 AS sht,
+            COALESCE(SUM(ql.total_line_vat),0)::float8 AS sv,
+            COALESCE(SUM(ql.total_line_ttc),0)::float8 AS sttc
+     FROM quotes q
+     LEFT JOIN quote_lines ql ON ql.quote_id = q.id AND ql.organization_id = q.organization_id AND ql.is_active IS DISTINCT FROM false
+     WHERE q.id = $1
+     GROUP BY q.id, q.total_ht, q.total_vat, q.total_ttc`,
+    [quoteId]
+  );
+  const row = r.rows[0];
+  const tol = 0.03;
+  if (
+    Math.abs(Number(row.th) - Number(row.sht)) > tol ||
+    Math.abs(Number(row.tv) - Number(row.sv)) > tol ||
+    Math.abs(Number(row.ttc) - Number(row.sttc)) > tol
+  ) {
+    throw new Error(`Σ lignes ≠ en-tête: ${JSON.stringify(row)}`);
+  }
+}
+
 async function run() {
-  console.log("\n=== createQuote + remise document (metadata) ===\n");
+  console.log("\n=== createQuote + remise document (ligne négative) ===\n");
   let quoteId = null;
   let leadId = null;
   let addressId = null;
@@ -86,7 +109,6 @@ async function run() {
     });
     const sub = { total_ht: th, total_vat: tv, total_ttc: tt };
 
-    // % seul
     const dataPct = await quoteService.createQuote(orgId, {
       lead_id: leadId,
       items: [{ label: "L1", description: "", quantity: qty, unit_price_ht: unit, tva_rate: vat }],
@@ -97,19 +119,21 @@ async function run() {
     });
     quoteId = dataPct.quote.id;
     const expPct = applyDocumentDiscountHt(sub, sub.total_ht * 0.1);
-    if (
-      Math.abs(Number(dataPct.quote.total_ht) - expPct.total_ht) > 0.02 ||
-      Math.abs(Number(dataPct.quote.discount_ht) - expPct.applied_document_discount_ht) > 0.02
-    ) {
-      fail("remise % : totaux ou discount_ht incorrects", new Error(JSON.stringify(dataPct.quote)));
+    const linesPct = dataPct.items || [];
+    if (linesPct.length !== 2) {
+      fail("remise % : attend 2 lignes (produit + remise)", new Error(String(linesPct.length)));
+    } else if (Math.abs(Number(dataPct.quote.discount_ht) || 0) > 0.001) {
+      fail("remise % : quotes.discount_ht doit être 0");
+    } else if (Math.abs(Number(dataPct.quote.total_ht) - expPct.total_ht) > 0.02) {
+      fail("remise % : total_ht incorrect", new Error(JSON.stringify(dataPct.quote)));
     } else {
-      ok("createQuote + 10 % HT : total_ht / discount_ht cohérents");
+      await assertSumLinesEqualsHeader(quoteId);
+      ok("createQuote + 10 % HT : ligne remise + totaux = Σ lignes");
     }
     await pool.query("DELETE FROM quote_lines WHERE quote_id = $1", [quoteId]);
     await pool.query("DELETE FROM quotes WHERE id = $1", [quoteId]);
     quoteId = null;
 
-    // montant fixe
     const dataAmt = await quoteService.createQuote(orgId, {
       lead_id: leadId,
       items: [{ label: "L1", description: "", quantity: qty, unit_price_ht: unit, tva_rate: vat }],
@@ -120,19 +144,16 @@ async function run() {
     });
     quoteId = dataAmt.quote.id;
     const expAmt = applyDocumentDiscountHt(sub, 25);
-    if (
-      Math.abs(Number(dataAmt.quote.total_ht) - expAmt.total_ht) > 0.02 ||
-      Math.abs(Number(dataAmt.quote.discount_ht) - expAmt.applied_document_discount_ht) > 0.02
-    ) {
-      fail("remise montant HT : totaux incorrects");
+    if (Math.abs(Number(dataAmt.quote.total_ht) - expAmt.total_ht) > 0.02) {
+      fail("remise montant HT : total_ht incorrect");
     } else {
+      await assertSumLinesEqualsHeader(quoteId);
       ok("createQuote + 25 € HT fixe : totaux cohérents");
     }
     await pool.query("DELETE FROM quote_lines WHERE quote_id = $1", [quoteId]);
     await pool.query("DELETE FROM quotes WHERE id = $1", [quoteId]);
     quoteId = null;
 
-    // % + montant
     const dataBoth = await quoteService.createQuote(orgId, {
       lead_id: leadId,
       items: [{ label: "L1", description: "", quantity: qty, unit_price_ht: unit, tva_rate: vat }],
@@ -144,12 +165,10 @@ async function run() {
     quoteId = dataBoth.quote.id;
     const docDisc = Math.round((sub.total_ht * 0.05 + 10) * 100) / 100;
     const expBoth = applyDocumentDiscountHt(sub, docDisc);
-    if (
-      Math.abs(Number(dataBoth.quote.total_ht) - expBoth.total_ht) > 0.02 ||
-      Math.abs(Number(dataBoth.quote.discount_ht) - expBoth.applied_document_discount_ht) > 0.02
-    ) {
-      fail("remise % + montant : totaux incorrects");
+    if (Math.abs(Number(dataBoth.quote.total_ht) - expBoth.total_ht) > 0.02) {
+      fail("remise % + montant : total_ht incorrect");
     } else {
+      await assertSumLinesEqualsHeader(quoteId);
       ok("createQuote + 5 % + 10 € HT : totaux cohérents");
     }
   } catch (e) {

@@ -1,5 +1,6 @@
 /**
- * Bloc unique « Conditions commerciales » : acompte + validité + remise document (% + € HT).
+ * Bloc unique « Conditions commerciales » : acompte + validité.
+ * Remise commerciale : ligne au PU HT négatif (tableau des lignes).
  */
 
 import React from "react";
@@ -12,11 +13,7 @@ export interface QuoteCommercialSectionProps {
   deposit: QuoteDeposit;
   onDepositChange: (patch: Partial<QuoteDeposit>) => void;
   validityDays: number;
-  globalDiscountPercent: number;
-  globalDiscountAmountHt: number;
   onValidityDaysChange: (n: number) => void;
-  onGlobalDiscountPercentChange: (n: number) => void;
-  onGlobalDiscountAmountHtChange: (n: number) => void;
 }
 
 export default function QuoteCommercialSection({
@@ -24,11 +21,7 @@ export default function QuoteCommercialSection({
   deposit,
   onDepositChange,
   validityDays,
-  globalDiscountPercent,
-  globalDiscountAmountHt,
   onValidityDaysChange,
-  onGlobalDiscountPercentChange,
-  onGlobalDiscountAmountHtChange,
 }: QuoteCommercialSectionProps) {
   return (
     <div className="qb-commercial-inner">
@@ -48,32 +41,10 @@ export default function QuoteCommercialSection({
             aria-label="Validité du devis en jours"
           />
         </label>
-        <label className="qb-field">
-          <span>Remise sur le document (HT, %)</span>
-          <LocaleNumberInput
-            className="sn-input qb-field-input"
-            min={0}
-            max={100}
-            disabled={!canEdit}
-            value={globalDiscountPercent}
-            onChange={onGlobalDiscountPercentChange}
-            maximumFractionDigits={2}
-            aria-label="Remise globale sur le document en pourcent"
-          />
-        </label>
-        <label className="qb-field">
-          <span>Remise fixe sur le document (€ HT)</span>
-          <LocaleNumberInput
-            className="sn-input qb-field-input"
-            min={0}
-            disabled={!canEdit}
-            value={globalDiscountAmountHt}
-            onChange={onGlobalDiscountAmountHtChange}
-            minimumFractionDigits={2}
-            maximumFractionDigits={2}
-            aria-label="Remise globale sur le document en euros hors taxes"
-          />
-        </label>
+        <p className="qb-section-hint" style={{ gridColumn: "1 / -1", margin: 0 }}>
+          Remise sur le montant du devis : ajoutez une ligne libre avec un prix unitaire HT négatif (ex. remise
+          commerciale).
+        </p>
       </div>
     </div>
   );

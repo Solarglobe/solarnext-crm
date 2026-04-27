@@ -92,7 +92,6 @@ function SortableRow({
       <td className={`qb-col-pu qb-col-num${hidePrices}`}>
         <LocaleNumberInput
           className="sn-input qb-line-input qb-line-input--num"
-          min={0}
           disabled={!canEdit}
           value={line.unit_price_ht}
           onChange={(n) => onChange(line.id, { unit_price_ht: n })}

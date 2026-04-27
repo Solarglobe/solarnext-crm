@@ -61,9 +61,6 @@ export interface QuoteStudyImportMeta {
 export interface QuoteBuilderMeta {
   validity_days: number;
   deposit: QuoteDeposit;
-  global_discount_percent: number;
-  /** Remise document fixe en € HT (s’ajoute à la remise en % sur le sous-total HT lignes). */
-  global_discount_amount_ht: number;
   notes: string;
   commercial_notes: string;
   technical_notes: string;

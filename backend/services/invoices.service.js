@@ -557,22 +557,19 @@ async function sumQuoteInvoiceTtcNonCancelled(client, quoteId, organizationId) {
 
 /**
  * Plafond TTC des factures liées au devis (hors annulées, brouillons inclus).
- * Si aucune facture « préexistante » (hors `excludeInvoiceId`), le plafond n’est pas appliqué — permet la 1ʳᵉ facture quand les lignes dépassent l’en-tête du devis.
  * @param {import("pg").PoolClient} client
- * @param {string|null} [excludeInvoiceId] — facture courante à exclure du calcul « déjà facturé avant » (création / émission).
+ * @param {string|null} [excludeInvoiceId] — réservé (cohérence API) ; le plafond compare la somme TTC des factures actives au total TTC du devis.
  */
 async function assertQuoteLinkedInvoicesWithinCap(client, quoteId, organizationId, excludeInvoiceId = null) {
   if (!quoteId) return;
+  void excludeInvoiceId;
   const agg = await client.query(
-    `SELECT COALESCE(SUM(CASE WHEN UPPER(COALESCE(status, '')) != 'CANCELLED' THEN total_ttc ELSE 0 END), 0)::numeric AS full_sum,
-            COALESCE(SUM(CASE WHEN UPPER(COALESCE(status, '')) != 'CANCELLED'
-              AND ($3::uuid IS NULL OR id IS DISTINCT FROM $3::uuid) THEN total_ttc ELSE 0 END), 0)::numeric AS prior_sum
+    `SELECT COALESCE(SUM(CASE WHEN UPPER(COALESCE(status, '')) != 'CANCELLED' THEN total_ttc ELSE 0 END), 0)::numeric AS full_sum
      FROM invoices
      WHERE quote_id = $1 AND organization_id = $2`,
-    [quoteId, organizationId, excludeInvoiceId ?? null]
+    [quoteId, organizationId]
   );
   const fullSum = roundMoney2(Number(agg.rows[0]?.full_sum) || 0);
-  const priorSum = roundMoney2(Number(agg.rows[0]?.prior_sum) || 0);
 
   const q = await client.query(
     `SELECT COALESCE(total_ttc, 0)::numeric AS ttc FROM quotes WHERE id = $1 AND organization_id = $2 AND (archived_at IS NULL)`,
@@ -580,19 +577,6 @@ async function assertQuoteLinkedInvoicesWithinCap(client, quoteId, organizationI
   );
   if (q.rows.length === 0) return;
   const quoteTtc = roundMoney2(Number(q.rows[0]?.ttc) || 0);
-
-  /* Équivalent « sumTtc === 0 » pour les autres factures : aucune facture liée avant la courante (exclue). */
-  if (priorSum <= 0.0001) {
-    if (fullSum > quoteTtc + QUOTE_INVOICE_SUM_TOLERANCE_TTC) {
-      console.warn("[INVOICE_CAP_BYPASS] First invoice allowed despite quote mismatch", {
-        quoteId,
-        quoteTtc,
-        sumTtc: fullSum,
-        priorSum,
-      });
-    }
-    return;
-  }
 
   if (fullSum > quoteTtc + QUOTE_INVOICE_SUM_TOLERANCE_TTC) {
     throw new Error(

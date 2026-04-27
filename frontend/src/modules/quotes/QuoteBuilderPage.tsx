@@ -143,15 +143,7 @@ export default function QuoteBuilderPage() {
     navigate(`${location.pathname}${location.search}`, { replace: true, state: {} });
   }, [location.pathname, location.search, location.state, navigate]);
 
-  const totals = useMemo(
-    () =>
-      computeQuoteTotals(
-        state.lines,
-        state.meta.global_discount_percent,
-        state.meta.global_discount_amount_ht
-      ),
-    [state.lines, state.meta.global_discount_percent, state.meta.global_discount_amount_ht]
-  );
+  const totals = useMemo(() => computeQuoteTotals(state.lines), [state.lines]);
 
   const materialMargin = useMemo(
     () =>
@@ -338,8 +330,6 @@ export default function QuoteBuilderPage() {
       const dep = state.meta.deposit;
       const body: Record<string, unknown> = {
         items: linesToSaveItems(state.lines),
-        global_discount_percent: state.meta.global_discount_percent,
-        global_discount_amount_ht: state.meta.global_discount_amount_ht,
         validity_days: state.meta.validity_days,
         deposit: {
           type: dep.type,
@@ -507,13 +497,32 @@ export default function QuoteBuilderPage() {
   };
 
   const addFreeLine = () => {
-    if (isReadOnly) return;
+    if (!canEditMutations) return;
     dispatch({
       type: "ADD_LINE",
       line: {
         id: crypto.randomUUID(),
         type: "custom",
         label: "Prestation",
+        description: "",
+        reference: "",
+        quantity: 1,
+        unit_price_ht: 0,
+        tva_percent: 20,
+        line_discount_percent: 0,
+        position: state.lines.length + 1,
+      },
+    });
+  };
+
+  const addDiscountLine = () => {
+    if (!canEditMutations) return;
+    dispatch({
+      type: "ADD_LINE",
+      line: {
+        id: crypto.randomUUID(),
+        type: "custom",
+        label: "Remise commerciale",
         description: "",
         reference: "",
         quantity: 1,
@@ -1277,6 +1286,17 @@ export default function QuoteBuilderPage() {
                 </Button>
                 <Button
                   type="button"
+                  className="qb-lines-btn qb-lines-btn--secondary"
+                  variant="ghost"
+                  size="sm"
+                  disabled={!canEditMutations}
+                  title="Ligne au prix unitaire HT négatif (ex. −100 pour 100 € HT de remise)"
+                  onClick={addDiscountLine}
+                >
+                  Ligne remise
+                </Button>
+                <Button
+                  type="button"
                   className="qb-lines-btn qb-lines-btn--tertiary"
                   variant="ghost"
                   size="sm"
@@ -1306,8 +1326,6 @@ export default function QuoteBuilderPage() {
 
           <QuoteSummaryPanel
             totals={totals}
-            globalDiscountPercent={state.meta.global_discount_percent}
-            globalDiscountAmountHt={state.meta.global_discount_amount_ht}
             validityDays={state.meta.validity_days}
             deposit={state.meta.deposit}
             linesCount={state.lines.length}
@@ -1329,7 +1347,7 @@ export default function QuoteBuilderPage() {
                 <h2 id="qb-commercial-title" className="qb-section-title">
                   Conditions commerciales
                 </h2>
-                <p className="qb-section-hint">Acompte, validité du devis et remise sur le document (HT).</p>
+                <p className="qb-section-hint">Acompte et validité du devis.</p>
                 <QuoteCommercialSection
                   canEdit={canEditMutations}
                   deposit={state.meta.deposit}
@@ -1337,15 +1355,7 @@ export default function QuoteBuilderPage() {
                     dispatch({ type: "SET_META", payload: { deposit: { ...state.meta.deposit, ...patch } } })
                   }
                   validityDays={state.meta.validity_days}
-                  globalDiscountPercent={state.meta.global_discount_percent}
-                  globalDiscountAmountHt={state.meta.global_discount_amount_ht}
                   onValidityDaysChange={(n) => dispatch({ type: "SET_META", payload: { validity_days: n } })}
-                  onGlobalDiscountPercentChange={(n) =>
-                    dispatch({ type: "SET_META", payload: { global_discount_percent: n } })
-                  }
-                  onGlobalDiscountAmountHtChange={(n) =>
-                    dispatch({ type: "SET_META", payload: { global_discount_amount_ht: n } })
-                  }
                 />
               </section>
 

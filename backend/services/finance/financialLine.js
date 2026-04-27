@@ -31,19 +31,20 @@ import { clamp, roundMoney2, toFiniteNumber } from "./moneyRounding.js";
 
 /**
  * Calcule les montants d'une ligne document (HT / TVA / TTC).
- * Quantités et prix négatifs sont traités comme 0 pour la base (robustesse saisie).
+ * Quantité ≥ 0. Prix unitaire HT peut être négatif (ex. ligne « remise »).
+ * Remise ligne (discount_ht) : appliquée seulement sur base HT positive.
  *
  * @param {FinancialLineInput} input
  * @returns {FinancialLineAmounts}
  */
 export function computeFinancialLineAmounts(input) {
   const qty = Math.max(0, roundMoney2(toFiniteNumber(input?.quantity)));
-  const unitHt = Math.max(0, roundMoney2(toFiniteNumber(input?.unit_price_ht)));
+  const unitHt = roundMoney2(toFiniteNumber(input?.unit_price_ht));
   const discRaw = Math.max(0, roundMoney2(toFiniteNumber(input?.discount_ht)));
   const vatRate = clamp(toFiniteNumber(input?.vat_rate), 0, 100);
 
   const grossHt = roundMoney2(qty * unitHt);
-  const lineDiscountHt = Math.min(discRaw, grossHt);
+  const lineDiscountHt = grossHt > 0 ? Math.min(discRaw, grossHt) : 0;
   const netHt = roundMoney2(grossHt - lineDiscountHt);
   const totalLineVat = roundMoney2((netHt * vatRate) / 100);
   const totalLineTtc = roundMoney2(netHt + totalLineVat);

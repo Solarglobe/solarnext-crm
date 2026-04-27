@@ -13,10 +13,11 @@ import { getQuoteCatalogItemById } from "../../services/quoteCatalog.service.js"
 import { buildQuoteMarginKpi } from "../../services/quoteMarginReliability.service.js";
 import {
   buildQuoteItemSnapshotFromCatalogItem,
-  recomputeAndPersistQuoteTotals,
+  computeQuoteTotalsFromLines,
+  assertQuoteLinesMatchHeaderOrThrow,
   PRICING_MODE_PERCENT_TOTAL,
 } from "../../services/quoteEngine.service.js";
-import { computeFinancialLineDbFields, applyDocumentDiscountHt } from "../../services/finance/financialLine.js";
+import { computeFinancialLineDbFields } from "../../services/finance/financialLine.js";
 import { roundMoney2 } from "../../services/finance/moneyRounding.js";
 import { isQuoteEditable } from "../../services/finance/financialImmutability.js";
 import { allocateNextDocumentNumber } from "../../services/documentSequence.service.js";
@@ -389,6 +390,103 @@ async function ensureQuoteRecipientForOfficialFreeze(client, quoteId, organizati
   throw err;
 }
 
+/** Ligne remise document (négative HT) — traçabilité snapshot / migrations. */
+export const QUOTE_LINE_KIND_DOCUMENT_DISCOUNT = "DOCUMENT_DISCOUNT";
+
+function stripDocumentDiscountKeysFromMeta(meta) {
+  if (!meta || typeof meta !== "object") return {};
+  const next = { ...meta };
+  delete next.global_discount_percent;
+  delete next.global_discount_amount_ht;
+  return next;
+}
+
+function snapshotHasDocumentDiscountLine(snapshotJson) {
+  if (snapshotJson == null) return false;
+  try {
+    const s = typeof snapshotJson === "string" ? JSON.parse(snapshotJson) : snapshotJson;
+    return s?.line_kind === QUOTE_LINE_KIND_DOCUMENT_DISCOUNT || s?.document_discount_line === true;
+  } catch {
+    return false;
+  }
+}
+
+function payloadItemsHaveDocumentDiscountLine(items) {
+  if (!Array.isArray(items)) return false;
+  return items.some((it) => it.line_kind === QUOTE_LINE_KIND_DOCUMENT_DISCOUNT || it.document_discount_line === true);
+}
+
+/**
+ * Remise document HT à matérialiser en ligne (payload metadata / body uniquement).
+ * @param {object} metaLike — peut inclure global_discount_* ou discount_ht (€ HT)
+ * @param {number} subtotalHtPositive — Σ HT lignes « produit » avant ligne remise
+ */
+function computeDocumentDiscountHtFromSources(metaLike, subtotalHtPositive) {
+  const th = Math.max(0, roundMoney2(Number(subtotalHtPositive) || 0));
+  if (th <= 0) return 0;
+  const gPct = metaLike?.global_discount_percent;
+  const gAmt = metaLike?.global_discount_amount_ht;
+  const hasPct = gPct != null && gPct !== undefined && gPct !== "";
+  const hasAmtHt = gAmt != null && gAmt !== undefined && gAmt !== "";
+  let docDiscHt = 0;
+  if (hasPct || hasAmtHt) {
+    const pct = hasPct ? Math.max(0, Math.min(100, Number(gPct))) : 0;
+    const amtHt = hasAmtHt ? Math.max(0, roundMoney2(Number(gAmt))) : 0;
+    docDiscHt = roundMoney2(th * (pct / 100) + amtHt);
+  } else if (metaLike?.discount_ht != null && metaLike.discount_ht !== undefined && metaLike.discount_ht !== "") {
+    docDiscHt = Math.max(0, roundMoney2(Number(metaLike.discount_ht)));
+  }
+  return Math.min(docDiscHt, th);
+}
+
+function weightedVatPercentForDiscountLine(totalHt, totalVat, defaultVatPercent) {
+  if (totalHt > 0.00001) {
+    const implicit = roundMoney2((Number(totalVat) / Number(totalHt)) * 100);
+    return Math.max(0, Math.min(100, implicit));
+  }
+  return Math.max(0, Math.min(100, Number(defaultVatPercent) || 0));
+}
+
+/**
+ * @param {import("pg").PoolClient} client
+ */
+async function insertQuoteDocumentDiscountLine(client, organizationId, quoteId, position, discountHtToApply, vatRatePercent) {
+  const discHt = Math.max(0, roundMoney2(Number(discountHtToApply) || 0));
+  if (discHt <= 0.00001) return;
+  const rate = Math.max(0, Math.min(100, Number(vatRatePercent) || 0));
+  const unitHt = roundMoney2(-discHt);
+  const { total_line_ht: th, total_line_vat: tv, total_line_ttc: tt } = computeFinancialLineDbFields({
+    quantity: 1,
+    unit_price_ht: unitHt,
+    discount_ht: 0,
+    vat_rate: rate,
+  });
+  const it = {
+    label: "Remise commerciale",
+    description: "",
+    line_source: "manual",
+    line_kind: QUOTE_LINE_KIND_DOCUMENT_DISCOUNT,
+  };
+  const snapJson = buildQuoteLineSnapshotJsonForWrite(it);
+  await client.query(
+    `INSERT INTO quote_lines (organization_id, quote_id, catalog_item_id, label, description, quantity, unit_price_ht, discount_ht, vat_rate, total_line_ht, total_line_vat, total_line_ttc, position, snapshot_json)
+     VALUES ($1,$2,NULL,$3,$4,1,$5,0,$6,$7,$8,$9,$10,$11::jsonb)`,
+    [
+      organizationId,
+      quoteId,
+      it.label,
+      it.description,
+      unitHt,
+      rate,
+      th,
+      tv,
+      tt,
+      position,
+      snapJson,
+    ]
+  );
+}
+
 /** Snapshot JSON ligne — line_source study_prep | manual ; reference figée pour PDF mode condensé (sans catalogue live). */
 function buildQuoteLineSnapshotJsonForWrite(it) {
   const lineSource = it.line_source === "study_prep" ? "study_prep" : "manual";
@@ -401,6 +499,7 @@ function buildQuoteLineSnapshotJsonForWrite(it) {
     category: "OTHER",
     line_source: lineSource,
     source: it.catalog_item_id ? { catalogItemId: it.catalog_item_id } : {},
+    ...(it.line_kind ? { line_kind: it.line_kind } : {}),
   };
   return JSON.stringify(snapObj);
 }
@@ -452,18 +551,20 @@ export async function createQuote(organizationId, body, auditContext = null) {
     if (metadataJson.pdf_show_line_pricing === undefined) {
       metadataJson.pdf_show_line_pricing = true;
     }
+    const metaForDiscount = { ...metadataJson };
+    metadataJson = stripDocumentDiscountKeysFromMeta(metadataJson);
 
     const insQuote = await client.query(
-      `INSERT INTO quotes (organization_id, client_id, lead_id, study_id, study_version_id, quote_number, status, total_ht, total_vat, total_ttc, metadata_json)
-       VALUES ($1, $2, $3, $4, $5, $6, 'DRAFT', 0, 0, 0, $7::jsonb) RETURNING *`,
+      `INSERT INTO quotes (organization_id, client_id, lead_id, study_id, study_version_id, quote_number, status, total_ht, total_vat, total_ttc, metadata_json, discount_ht)
+       VALUES ($1, $2, $3, $4, $5, $6, 'DRAFT', 0, 0, 0, $7::jsonb, 0) RETURNING *`,
       [organizationId, clientIdVal, leadIdVal, studyIdVal, studyVersionVal, quoteNumber, JSON.stringify(metadataJson)]
     );
     const quote = insQuote.rows[0];
     const quoteId = quote.id;
 
-    let totalHt = 0;
-    let totalTva = 0;
-    let totalTtc = 0;
+    let subHt = 0;
+    let subVat = 0;
+    let subTtc = 0;
 
     for (let i = 0; i < items.length; i++) {
       const it = items[i];
@@ -477,9 +578,9 @@ export async function createQuote(organizationId, body, auditContext = null) {
         discount_ht: discHt,
         vat_rate: rate,
       });
-      totalHt += th;
-      totalTva += tv;
-      totalTtc += tt;
+      subHt += th;
+      subVat += tv;
+      subTtc += tt;
 
       const snapJson = buildQuoteLineSnapshotJsonForWrite(it);
 
@@ -505,27 +606,26 @@ export async function createQuote(organizationId, body, auditContext = null) {
       );
     }
 
-    totalHt = roundMoney2(totalHt);
-    totalTva = roundMoney2(totalTva);
-    totalTtc = roundMoney2(totalTtc);
+    subHt = roundMoney2(subHt);
+    subVat = roundMoney2(subVat);
+    subTtc = roundMoney2(subTtc);
 
-    const subtotals = { total_ht: totalHt, total_vat: totalTva, total_ttc: totalTtc };
-    let docDiscHt = 0;
-    const gPct = metadataJson?.global_discount_percent;
-    const gAmt = metadataJson?.global_discount_amount_ht;
-    const hasPct = gPct != null && gPct !== undefined && gPct !== "";
-    const hasAmtHt = gAmt != null && gAmt !== undefined && gAmt !== "";
-    if (hasPct || hasAmtHt) {
-      const pct = hasPct ? Math.max(0, Math.min(100, Number(gPct))) : 0;
-      const amtHt = hasAmtHt ? Math.max(0, roundMoney2(Number(gAmt))) : 0;
-      docDiscHt = roundMoney2(totalHt * (pct / 100) + amtHt);
+    if (!payloadItemsHaveDocumentDiscountLine(items)) {
+      const docDiscHt = computeDocumentDiscountHtFromSources(metaForDiscount, subHt);
+      if (docDiscHt > 0) {
+        const vatDisc = weightedVatPercentForDiscountLine(subHt, subVat, defaultVat);
+        await insertQuoteDocumentDiscountLine(
+          client,
+          organizationId,
+          quoteId,
+          items.length + 1,
+          docDiscHt,
+          vatDisc
+        );
+      }
     }
-    const final = applyDocumentDiscountHt(subtotals, docDiscHt);
 
-    await client.query(
-      `UPDATE quotes SET total_ht = $1, total_vat = $2, total_ttc = $3, discount_ht = $4, updated_at = now() WHERE id = $5`,
-      [final.total_ht, final.total_vat, final.total_ttc, final.applied_document_discount_ht, quoteId]
-    );
+    await computeQuoteTotalsFromLines({ quoteId, orgId: organizationId, client });
 
     const [quoteRow] = (
       await client.query(
@@ -681,25 +781,21 @@ export async function updateQuote(quoteId, organizationId, body, auditContext = 
     }
     if (notes !== undefined) {
       const cur = await client.query("SELECT metadata_json FROM quotes WHERE id = $1", [quoteId]);
-      const meta = { ...(cur.rows[0]?.metadata_json || {}), notes };
+      const meta = stripDocumentDiscountKeysFromMeta({ ...(cur.rows[0]?.metadata_json || {}), notes });
       await client.query(`UPDATE quotes SET metadata_json = $1::jsonb, updated_at = now() WHERE id = $2`, [
         JSON.stringify(meta),
         quoteId,
       ]);
     }
     if (metadata_json !== undefined) {
+      const cleaned = stripDocumentDiscountKeysFromMeta(metadata_json);
       await client.query(`UPDATE quotes SET metadata_json = $1::jsonb, updated_at = now() WHERE id = $2`, [
-        JSON.stringify(metadata_json),
+        JSON.stringify(cleaned),
         quoteId,
       ]);
     }
-    if (discount_ht !== undefined && !Array.isArray(items)) {
-      await client.query(`UPDATE quotes SET discount_ht = $1, updated_at = now() WHERE id = $2`, [discount_ht, quoteId]);
-    }
 
     if (
-      global_discount_percent !== undefined ||
-      global_discount_amount_ht !== undefined ||
       commercial_notes !== undefined ||
       technical_notes !== undefined ||
       payment_terms !== undefined ||
@@ -712,12 +808,6 @@ export async function updateQuote(quoteId, organizationId, body, auditContext = 
     ) {
       const cur = await client.query("SELECT metadata_json FROM quotes WHERE id = $1", [quoteId]);
       const meta = { ...(cur.rows[0]?.metadata_json || {}) };
-      if (global_discount_percent !== undefined) {
-        meta.global_discount_percent = Math.max(0, Math.min(100, Number(global_discount_percent)));
-      }
-      if (global_discount_amount_ht !== undefined) {
-        meta.global_discount_amount_ht = Math.max(0, roundMoney2(Number(global_discount_amount_ht)));
-      }
       if (commercial_notes !== undefined) meta.commercial_notes = commercial_notes;
       if (technical_notes !== undefined) meta.technical_notes = technical_notes;
       if (payment_terms !== undefined) meta.payment_terms = payment_terms;
@@ -745,8 +835,9 @@ export async function updateQuote(quoteId, organizationId, body, auditContext = 
           include_decennale: Boolean(legal_documents?.include_decennale),
         };
       }
+      const cleanedMeta = stripDocumentDiscountKeysFromMeta(meta);
       await client.query(`UPDATE quotes SET metadata_json = $1::jsonb, updated_at = now() WHERE id = $2`, [
-        JSON.stringify(meta),
+        JSON.stringify(cleanedMeta),
         quoteId,
       ]);
     }
@@ -755,14 +846,26 @@ export async function updateQuote(quoteId, organizationId, body, auditContext = 
       return;
     }
 
+    const curMetaRes = await client.query("SELECT metadata_json FROM quotes WHERE id = $1", [quoteId]);
+    const dbMeta = curMetaRes.rows[0]?.metadata_json || {};
+    const mergedForDiscount = { ...dbMeta };
+    if (global_discount_percent !== undefined) mergedForDiscount.global_discount_percent = global_discount_percent;
+    if (global_discount_amount_ht !== undefined) mergedForDiscount.global_discount_amount_ht = global_discount_amount_ht;
+    if (discount_ht !== undefined) mergedForDiscount.discount_ht = discount_ht;
+
+    const wantsBodyDocDiscount =
+      global_discount_percent !== undefined ||
+      global_discount_amount_ht !== undefined ||
+      discount_ht !== undefined;
+
     await client.query("DELETE FROM quote_lines WHERE quote_id = $1 AND organization_id = $2", [
       quoteId,
       organizationId,
     ]);
 
-    let totalHt = 0;
-    let totalTva = 0;
-    let totalTtc = 0;
+    let subHt = 0;
+    let subVat = 0;
+    let subTtc = 0;
 
     for (let i = 0; i < items.length; i++) {
       const it = items[i];
@@ -775,9 +878,9 @@ export async function updateQuote(quoteId, organizationId, body, auditContext = 
         discount_ht: Number(it.discount_ht) || 0,
         vat_rate: rate,
       });
-      totalHt += th;
-      totalTva += tv;
-      totalTtc += tt;
+      subHt += th;
+      subVat += tv;
+      subTtc += tt;
 
       const snapJson = buildQuoteLineSnapshotJsonForWrite(it);
       await client.query(
@@ -802,29 +905,26 @@ export async function updateQuote(quoteId, organizationId, body, auditContext = 
       );
     }
 
-    totalHt = roundMoney2(totalHt);
-    totalTva = roundMoney2(totalTva);
-    totalTtc = roundMoney2(totalTtc);
+    subHt = roundMoney2(subHt);
+    subVat = roundMoney2(subVat);
+    subTtc = roundMoney2(subTtc);
 
-    const subtotals = { total_ht: totalHt, total_vat: totalTva, total_ttc: totalTtc };
-    let docDiscHt = 0;
-    const hasPct =
-      global_discount_percent != null && global_discount_percent !== undefined && global_discount_percent !== "";
-    const hasAmtHt =
-      global_discount_amount_ht != null && global_discount_amount_ht !== undefined && global_discount_amount_ht !== "";
-    if (hasPct || hasAmtHt) {
-      const pct = hasPct ? Math.max(0, Math.min(100, Number(global_discount_percent))) : 0;
-      const amtHt = hasAmtHt ? Math.max(0, roundMoney2(Number(global_discount_amount_ht))) : 0;
-      docDiscHt = roundMoney2(totalHt * (pct / 100) + amtHt);
-    } else if (discount_ht !== undefined) {
-      docDiscHt = Math.max(0, roundMoney2(Number(discount_ht)));
+    if (!payloadItemsHaveDocumentDiscountLine(items) && wantsBodyDocDiscount) {
+      const docDiscHt = computeDocumentDiscountHtFromSources(mergedForDiscount, subHt);
+      if (docDiscHt > 0) {
+        const vatDisc = weightedVatPercentForDiscountLine(subHt, subVat, defaultVat);
+        await insertQuoteDocumentDiscountLine(
+          client,
+          organizationId,
+          quoteId,
+          items.length + 1,
+          docDiscHt,
+          vatDisc
+        );
+      }
     }
-    const final = applyDocumentDiscountHt(subtotals, docDiscHt);
 
-    await client.query(
-      `UPDATE quotes SET total_ht = $1, total_vat = $2, total_ttc = $3, discount_ht = $4, updated_at = now() WHERE id = $5`,
-      [final.total_ht, final.total_vat, final.total_ttc, final.applied_document_discount_ht, quoteId]
-    );
+    await computeQuoteTotalsFromLines({ quoteId, orgId: organizationId, client });
   });
   return getQuoteById(quoteId, organizationId).then((detail) => {
     if (auditContext && detail?.quote) {
@@ -927,6 +1027,8 @@ export async function patchQuoteStatus(quoteId, organizationId, newStatus, userI
           `[quotes] Devis ${quoteId} → ACCEPTED sans client_id sur le devis ni sur le lead (lead_id=${quote.lead_id ?? "none"}) — la création de facture pourra créer/rattacher la fiche client automatiquement`
         );
       }
+      await computeQuoteTotalsFromLines({ quoteId, orgId: organizationId, client });
+      await assertQuoteLinesMatchHeaderOrThrow(client, quoteId, organizationId);
       await client.query(
         `UPDATE quotes SET
           status = 'ACCEPTED',
@@ -1036,11 +1138,14 @@ export async function duplicateQuote(quoteId, organizationId) {
   const newNumber = draftQuoteNumber();
 
   const newId = await withTx(pool, async (client) => {
+    const dupMeta = stripDocumentDiscountKeysFromMeta(
+      typeof q.metadata_json === "object" && q.metadata_json !== null ? { ...q.metadata_json } : {}
+    );
     const ins = await client.query(
       `INSERT INTO quotes (
         organization_id, client_id, lead_id, study_id, study_version_id, quote_number, status,
         total_ht, total_vat, total_ttc, valid_until, metadata_json, currency, discount_ht
-      ) VALUES ($1,$2,$3,$4,$5,$6,'DRAFT',$7,$8,$9,$10,$11::jsonb, COALESCE($12,'EUR'), COALESCE($13,0))
+      ) VALUES ($1,$2,$3,$4,$5,$6,'DRAFT',0,0,0,$7,$8::jsonb, COALESCE($9,'EUR'), 0)
       RETURNING id`,
       [
         organizationId,
@@ -1049,13 +1154,9 @@ export async function duplicateQuote(quoteId, organizationId) {
         q.study_id,
         q.study_version_id,
         newNumber,
-        q.total_ht,
-        q.total_vat,
-        q.total_ttc,
         q.valid_until ?? null,
-        JSON.stringify(q.metadata_json || {}),
+        JSON.stringify(dupMeta),
         q.currency || "EUR",
-        q.discount_ht ?? 0,
       ]
     );
     const nid = ins.rows[0].id;
@@ -1096,7 +1197,7 @@ export async function duplicateQuote(quoteId, organizationId) {
       );
     }
 
-    await recomputeAndPersistQuoteTotals({ quoteId: nid, orgId: organizationId });
+    await computeQuoteTotalsFromLines({ quoteId: nid, orgId: organizationId, client });
     return nid;
   });
   return getQuoteById(newId, organizationId);
@@ -1813,7 +1914,7 @@ export async function addItemFromCatalog(quoteId, organizationId, body) {
   );
   const item = ins.rows[0];
 
-  const totals = await recomputeAndPersistQuoteTotals({ quoteId, orgId: organizationId });
+  const totals = await computeQuoteTotalsFromLines({ quoteId, orgId: organizationId });
   return {
     item: { ...item, unit_price_ht_cents: unitPriceHtCents, vat_rate_bps: vatRateBps },
     totals: {
@@ -1892,7 +1993,15 @@ export async function patchQuoteLine(quoteId, itemId, organizationId, body) {
     }
     qty = Math.floor(qtyVal);
   }
-  if (body.unitPriceHtCents !== undefined) unitPriceHtCents = Math.max(0, Number(body.unitPriceHtCents));
+  if (body.unitPriceHtCents !== undefined) {
+    const upv = Number(body.unitPriceHtCents);
+    if (!Number.isFinite(upv)) {
+      const err = new Error("Prix unitaire HT invalide");
+      err.statusCode = 400;
+      throw err;
+    }
+    unitPriceHtCents = Math.round(upv);
+  }
   if (body.purchaseUnitPriceHtCents !== undefined) purchaseUnitPriceHtCents = Math.max(0, Number(body.purchaseUnitPriceHtCents));
   if (body.vatRateBps !== undefined) {
     const vatVal = Number(body.vatRateBps);
@@ -1942,7 +2051,7 @@ export async function patchQuoteLine(quoteId, itemId, organizationId, body) {
     throw err;
   }
 
-  const totals = await recomputeAndPersistQuoteTotals({ quoteId, orgId: organizationId });
+  const totals = await computeQuoteTotalsFromLines({ quoteId, orgId: organizationId });
   return {
     item: { ...item, unit_price_ht_cents: unitPriceHtCents, vat_rate_bps: vatRateBps },
     totals: {
@@ -1980,7 +2089,7 @@ export async function deactivateQuoteLine(quoteId, itemId, organizationId) {
     throw err;
   }
 
-  const totals = await recomputeAndPersistQuoteTotals({ quoteId, orgId: organizationId });
+  const totals = await computeQuoteTotalsFromLines({ quoteId, orgId: organizationId });
   return {
     totals: {
       total_ht_cents: totals.total_ht_cents,

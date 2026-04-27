@@ -77,7 +77,7 @@ test("deux acomptes DEPOSIT successifs puis solde BALANCE", async () => {
   assert.ok(meta?.billing_mode === "BALANCE" || meta?.quote_billing_role === "BALANCE");
 });
 
-test("createInvoiceFromQuote STANDARD : 1ʳᵉ facture OK si lignes > en-tête (bypass plafond)", async () => {
+test("createInvoiceFromQuote STANDARD : plafond TTC aligné devis (lignes = en-tête)", async () => {
   const q = await quoteService.createQuote(orgId, {
     client_id: clientId,
     items: [{ label: "L1", description: "", quantity: 1, unit_price_ht: 100, tva_rate: 20 }],
@@ -88,14 +88,10 @@ test("createInvoiceFromQuote STANDARD : 1ʳᵉ facture OK si lignes > en-tête (
     await quoteService.patchQuoteStatus(qid, orgId, "READY_TO_SEND", null);
     await quoteService.patchQuoteStatus(qid, orgId, "SENT", null);
     await quoteService.patchQuoteStatus(qid, orgId, "ACCEPTED", null);
-    await pool.query(
-      `UPDATE quotes SET total_ht = 50, total_vat = 10, total_ttc = 60, updated_at = now() WHERE id = $1`,
-      [qid]
-    );
     const inv = await invoiceService.createInvoiceFromQuote(qid, orgId, { billingRole: "STANDARD" });
     invId = inv.id;
     assert.ok(inv.id);
-    assert.ok(Number(inv.total_ttc) > 60);
+    assert.equal(Number(inv.total_ttc), 120);
   } finally {
     if (invId) {
       await pool.query("DELETE FROM invoice_lines WHERE invoice_id = $1", [invId]);
