@@ -1933,7 +1933,13 @@ function mergeDp1ContextFromDraft() {
     var c = d1 && d1.context;
     if (!c || typeof c !== "object") return;
     if (!window.DP1_CONTEXT) window.DP1_CONTEXT = {};
-    Object.assign(window.DP1_CONTEXT, c);
+    var forbidden = ["adresse", "cp", "ville", "lat", "lon"];
+    var k;
+    for (k in c) {
+      if (!Object.prototype.hasOwnProperty.call(c, k)) continue;
+      if (forbidden.indexOf(k) !== -1) continue;
+      window.DP1_CONTEXT[k] = c[k];
+    }
     __solarnextWriteScopedStorage("dp1_context", JSON.stringify(window.DP1_CONTEXT));
   } catch (_) {}
 }
@@ -2335,6 +2341,7 @@ async function loadDP1LeadContext() {
   const injected = typeof window !== "undefined" ? window.__SOLARNEXT_DP_CONTEXT__ : null;
 
   if (injected && typeof injected === "object") {
+    if (!window.DP1_STATE) window.DP1_STATE = __snDpFreshDp1State();
     const leadId = injected.leadId ?? null;
     const c = injected.context;
     const d = c && typeof c.dp1 === "object" && c.dp1 ? c.dp1 : {};
@@ -2390,6 +2397,7 @@ async function loadDP1LeadContext() {
   } catch (_) {}
 
   if (window.DP1_CONTEXT && (window.DP1_CONTEXT.nom || window.DP1_CONTEXT.adresse)) {
+    if (!window.DP1_STATE) window.DP1_STATE = __snDpFreshDp1State();
     if (
       window.DP1_CONTEXT.lat != null &&
       window.DP1_CONTEXT.lon != null &&
@@ -2414,6 +2422,7 @@ async function loadDP1LeadContext() {
   return null;
 }
 try {
+  window.loadDP1LeadContext = loadDP1LeadContext;
   window.__snDpLoadInjectedDp1Context = loadDP1LeadContext;
 } catch (_) {}
 
@@ -4148,6 +4157,23 @@ function dp2TeardownMapIfAny() {
   } catch (_) {}
   window.DP2_MAP = null;
   window.__DP2_INIT_DONE = false;
+}
+
+/** Centre la vue DP2 sur lat/lon WGS84 (EPSG:4326) — fallback sans géométrie parcelle. */
+function dp2CenterMapViewOnLatLon(view, lat, lon, WMTS_RESOLUTIONS) {
+  if (lat == null || lon == null) return false;
+  const la = Number(lat);
+  const lo = Number(lon);
+  if (!isFinite(la) || !isFinite(lo)) return false;
+  try {
+    view.setCenter(fromLonLat([lo, la]));
+    const len = WMTS_RESOLUTIONS && WMTS_RESOLUTIONS.length ? WMTS_RESOLUTIONS.length : 0;
+    const idx = len ? Math.min(16, Math.max(8, len - 6)) : 14;
+    if (WMTS_RESOLUTIONS && WMTS_RESOLUTIONS[idx] != null) view.setResolution(WMTS_RESOLUTIONS[idx]);
+    return true;
+  } catch (_) {
+    return false;
+  }
 }
 
 function dp2ResetWorkingEditorFieldsPreservingVersions() {
@@ -13914,9 +13940,8 @@ async function initDP2() {
     return;
   }
 
-  // Anti double-binding (lié au modal DOM)
-  if (modal.dataset.bound === "1") return;
-  modal.dataset.bound = "1";
+  modal.dataset.bound = "0";
+  dp2TeardownMapIfAny();
 
   const mapEl = document.getElementById("dp2-ign-map");
   const scaleEl = document.getElementById("dp2-scale");
@@ -13929,12 +13954,6 @@ async function initDP2() {
 
   // UI Métadonnées DP2 (passif) : binds select catégorie + module PV
   initDP2MetadataUI();
-
-  if (captureBtn) {
-    captureBtn.addEventListener("click", async () => {
-      await captureDP2Map();
-    });
-  }
 
   // Toolbar = DOM-only : initialisée dès l'injection de la page (boutons cliquables immédiatement).
   // Canvas = image-dependent : initialisé uniquement dans img.onload via initDP2Editor().
@@ -13964,6 +13983,12 @@ async function initDP2() {
     dp2EnsureVersionRowBeforeEdit();
     modal.setAttribute("aria-hidden", "false");
     document.body.classList.add("dp-lock-scroll");
+    try {
+      const mapWrap = document.getElementById("dp2-ign-map");
+      const imgWrap = document.getElementById("dp2-captured-image-wrap");
+      if (mapWrap) mapWrap.style.display = "";
+      if (imgWrap) imgWrap.style.display = "none";
+    } catch (_) {}
 
     // Créer la map uniquement après que le modal soit visible (conteneur avec taille réelle)
     requestAnimationFrame(async () => {
@@ -13985,12 +14010,9 @@ async function initDP2() {
   async function ensureDP2MapReady() {
     if (window.__DP2_INIT_DONE === true && window.DP2_MAP?.map) return;
 
-    // ——— Source de vérité UNIQUE : DP1_STATE.selectedParcel ———
     const selectedParcel = window.DP1_STATE?.selectedParcel || null;
-    if (!selectedParcel || !selectedParcel.geometry) {
-      console.warn("[DP2] selectedParcel.geometry absente. Aucun affichage.");
-      return; // Ne pas poser __DP2_INIT_DONE : ré-init possible après validation DP1
-    }
+    let usedParcelGeometry = false;
+    let geom = null;
 
     // ——— Grille WMTS PM + fond IGN Plan (PLANIGNV2), même grille que DP4 pour cohérence d’échelle ———
     const WMTS_ORIGIN = [-20037508, 20037508];
@@ -14052,24 +14074,36 @@ async function initDP2() {
       dp2LogDp2LayerAudit(map);
     } catch (_) {}
 
-    // ——— 1) GeoJSON → ol.geom.Geometry, extent, zoom automatique strict ———
-    let geom = null;
-    let extent = null;
-    try {
-      const geoJsonFormat = new ol.format.GeoJSON();
-      geom = geoJsonFormat.readGeometry(selectedParcel.geometry, {
-        dataProjection: "EPSG:4326",
-        featureProjection: "EPSG:3857"
-      });
-      if (!geom) throw new Error("readGeometry retourne null");
-      extent = geom.getExtent();
-      view.fit(extent, {
-        padding: [40, 40, 40, 40],
-        maxZoom: 20
-      });
-    } catch (e) {
-      console.warn("[DP2] Géométrie parcelle invalide", e);
-      return;
+    if (selectedParcel && selectedParcel.geometry) {
+      try {
+        const geoJsonFormat = new ol.format.GeoJSON();
+        geom = geoJsonFormat.readGeometry(selectedParcel.geometry, {
+          dataProjection: "EPSG:4326",
+          featureProjection: "EPSG:3857"
+        });
+        if (!geom) throw new Error("readGeometry retourne null");
+        const extent = geom.getExtent();
+        view.fit(extent, {
+          padding: [40, 40, 40, 40],
+          maxZoom: 20
+        });
+        usedParcelGeometry = true;
+      } catch (e) {
+        console.warn("[DP2] Géométrie parcelle invalide", e);
+        geom = null;
+        usedParcelGeometry = false;
+      }
+    }
+
+    if (!usedParcelGeometry) {
+      if (!selectedParcel || !selectedParcel.geometry) {
+        console.warn("[DP2] Parcelle absente → fallback carte centrée sur adresse");
+      }
+      const d1 = window.DP1_CONTEXT;
+      const ok = d1 && dp2CenterMapViewOnLatLon(view, d1.lat, d1.lon, WMTS_RESOLUTIONS);
+      if (!ok) {
+        console.warn("[DP2] Pas de coordonnées CRM — centre par défaut (Île-de-France).");
+      }
     }
 
     try {
@@ -14084,78 +14118,89 @@ async function initDP2() {
       neighborParcelsSource: dp2NeighborParcelsSource
     };
 
-    // ——— Parcelle sélectionnée (DP1) : seule surcouche parcelle + libellé maison (pas de numéros IGN) ———
-    var __dp2ParcelLabel =
-      selectedParcel.parcel != null && String(selectedParcel.parcel).trim()
-        ? String(selectedParcel.parcel).trim()
-        : [selectedParcel.section, selectedParcel.numero].filter(Boolean).join(" ").trim();
+    if (usedParcelGeometry && geom && selectedParcel) {
+      var __dp2ParcelLabel =
+        selectedParcel.parcel != null && String(selectedParcel.parcel).trim()
+          ? String(selectedParcel.parcel).trim()
+          : [selectedParcel.section, selectedParcel.numero].filter(Boolean).join(" ").trim();
 
-    function __dp2ParcelCentroidPointGeometry(feature) {
-      var g = feature.getGeometry();
-      return dp2OlGeometryCentroidPoint(g);
-    }
+      function __dp2ParcelCentroidPointGeometry(feature) {
+        var g = feature.getGeometry();
+        return dp2OlGeometryCentroidPoint(g);
+      }
 
-    const parcelSource = new ol.source.Vector();
-    const parcelFeature = new ol.Feature({ geometry: geom });
-    parcelSource.addFeature(parcelFeature);
-    const parcelVectorLayer = new ol.layer.Vector({
-      source: parcelSource,
-      zIndex: 200,
-      style: function (feature, resolution) {
-        var styles = [
-          new ol.style.Style({
-            fill: new ol.style.Fill({ color: "rgba(180, 83, 9, 0.14)" }),
-            stroke: new ol.style.Stroke({
-              color: "rgba(255,255,255,0.95)",
-              width: 4,
-              lineJoin: "round",
-              lineCap: "round"
-            })
-          }),
-          new ol.style.Style({
-            stroke: new ol.style.Stroke({
-              color: "#b45309",
-              width: 2.5,
-              lineJoin: "round",
-              lineCap: "round"
-            })
-          })
-        ];
-        if (__dp2ParcelLabel) {
-          styles.push(
+      const parcelSource = new ol.source.Vector();
+      const parcelFeature = new ol.Feature({ geometry: geom });
+      parcelSource.addFeature(parcelFeature);
+      const parcelVectorLayer = new ol.layer.Vector({
+        source: parcelSource,
+        zIndex: 200,
+        style: function (feature, resolution) {
+          var styles = [
             new ol.style.Style({
-              geometry: function (feat) {
-                return __dp2ParcelCentroidPointGeometry(feat);
-              },
-              text: new ol.style.Text({
-                text: __dp2ParcelLabel,
-                font: dp2ParcelPrimaryLabelFontCSS(resolution),
-                fill: new ol.style.Fill({ color: "#1f2937" }),
-                stroke: new ol.style.Stroke({ color: "rgba(255,255,255,0.95)", width: 3 }),
-                overflow: true,
-                textAlign: "center",
-                textBaseline: "middle"
+              fill: new ol.style.Fill({ color: "rgba(180, 83, 9, 0.14)" }),
+              stroke: new ol.style.Stroke({
+                color: "rgba(255,255,255,0.95)",
+                width: 4,
+                lineJoin: "round",
+                lineCap: "round"
+              })
+            }),
+            new ol.style.Style({
+              stroke: new ol.style.Stroke({
+                color: "#b45309",
+                width: 2.5,
+                lineJoin: "round",
+                lineCap: "round"
               })
             })
-          );
+          ];
+          if (__dp2ParcelLabel) {
+            styles.push(
+              new ol.style.Style({
+                geometry: function (feat) {
+                  return __dp2ParcelCentroidPointGeometry(feat);
+                },
+                text: new ol.style.Text({
+                  text: __dp2ParcelLabel,
+                  font: dp2ParcelPrimaryLabelFontCSS(resolution),
+                  fill: new ol.style.Fill({ color: "#1f2937" }),
+                  stroke: new ol.style.Stroke({ color: "rgba(255,255,255,0.95)", width: 3 }),
+                  overflow: true,
+                  textAlign: "center",
+                  textBaseline: "middle"
+                })
+              })
+            );
+          }
+          return styles;
         }
-        return styles;
-      }
-    });
-    map.addLayer(parcelVectorLayer);
+      });
+      map.addLayer(parcelVectorLayer);
 
-    // Échelle (résolution) + forcer réévaluation du style parcelle à chaque zoom
-    if (scaleEl) {
-      const res = view.getResolution();
-      scaleEl.textContent = res ? `Échelle : résolution ${res.toFixed(2)}` : "Échelle : —";
-    }
-    view.on("change:resolution", () => {
-      parcelVectorLayer.changed();
       if (scaleEl) {
         const res = view.getResolution();
         scaleEl.textContent = res ? `Échelle : résolution ${res.toFixed(2)}` : "Échelle : —";
       }
-    });
+      view.on("change:resolution", () => {
+        parcelVectorLayer.changed();
+        if (scaleEl) {
+          const res = view.getResolution();
+          scaleEl.textContent = res ? `Échelle : résolution ${res.toFixed(2)}` : "Échelle : —";
+        }
+      });
+    } else {
+      if (scaleEl) {
+        const res = view.getResolution();
+        scaleEl.textContent = res ? `Échelle : résolution ${res.toFixed(2)}` : "Échelle : —";
+      }
+      view.on("change:resolution", () => {
+        if (scaleEl) {
+          const res = view.getResolution();
+          scaleEl.textContent = res ? `Échelle : résolution ${res.toFixed(2)}` : "Échelle : —";
+        }
+      });
+    }
 
     try {
       if (window.__dp2MapResizeObs) {
@@ -14174,8 +14219,33 @@ async function initDP2() {
       }
     } catch (_) {}
 
-    window.__DP2_INIT_DONE = true; // Plan IGN V2 + parcelle cible vectorielle (+ neighborParcelsSource réservé)
-    console.log("[DP2] Mode CAPTURE prêt (IGN Plan PLANIGNV2 + parcelle sélectionnée vectorielle).");
+    window.__DP2_INIT_DONE = true;
+    console.log(
+      "[DP2] Mode CAPTURE prêt (IGN Plan PLANIGNV2" +
+        (usedParcelGeometry ? " + parcelle vectorielle" : " — vue sans parcelle (fallback adresse CRM)") +
+        ")."
+    );
+  }
+
+  if (modal.dataset.dp2ModalChromeBound !== "1") {
+    modal.dataset.dp2ModalChromeBound = "1";
+    modal.dataset.bound = "1";
+    if (captureBtn) {
+      captureBtn.addEventListener("click", async () => {
+        await captureDP2Map();
+      });
+    }
+    modal.addEventListener("click", (e) => {
+      if (
+        e.target.closest(".dp-modal-close") ||
+        e.target.closest("#dp2-map-cancel") ||
+        e.target.classList?.contains?.("dp-modal-backdrop")
+      ) {
+        e.preventDefault();
+        closeDP2Modal();
+        return;
+      }
+    });
   }
 
   const dp2PageEl = document.getElementById("dp2-page");
@@ -14200,19 +14270,6 @@ async function initDP2() {
       dp2UpdateRepairHintVisibility();
     } catch (_) {}
   }
-
-  // Fermeture identique DP1 : X / bouton / backdrop
-  modal.addEventListener("click", (e) => {
-    if (
-      e.target.closest(".dp-modal-close") ||
-      e.target.closest("#dp2-map-cancel") ||
-      e.target.classList?.contains?.("dp-modal-backdrop")
-    ) {
-      e.preventDefault();
-      closeDP2Modal();
-      return;
-    }
-  });
 
   // ESC : fermeture overlay DP2 (ne pas toucher aux autres ESC, ex: menus)
   if (window.__DP2_MODAL_ESC_BOUND !== true) {

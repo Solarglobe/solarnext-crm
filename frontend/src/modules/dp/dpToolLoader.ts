@@ -60,10 +60,11 @@ function resolveFromAssetBase(assetBase: string, relative: string): string {
   return new URL(relative.replace(/^\//, ""), withTrailingSlash(assetBase)).href;
 }
 
-/** Réinitialise les globaux runtime DP avant chargement / ré-entrée lead (SPA). */
-function solarnextDpResetWindowGlobals(win: Window): void {
-  const inj = (win as Window & { __SOLARNEXT_DP_CONTEXT__?: { leadId?: string } }).__SOLARNEXT_DP_CONTEXT__;
-  console.log("[DP RESET] leadId =", inj?.leadId);
+/**
+ * Supprime les globaux runtime DP (ré-entrée SPA / changement de lead).
+ * À appeler avant chargement des scripts et hydratation — évite qu’un état (ex. nom client) d’un lead précédent persiste.
+ */
+function solarnextDpClearLeakingDpGlobals(win: Window): void {
   const x = win as Window & Record<string, unknown>;
   try {
     delete x.DP1_STATE;
@@ -183,6 +184,8 @@ export async function loadDpTool(options: DpToolLoaderOptions): Promise<DpToolLo
 
   const { container, hostPayload, storageKey, apiBase } = options;
 
+  solarnextDpClearLeakingDpGlobals(window);
+
   injectShellMarkup(container);
 
   const w = window as Window &
@@ -218,7 +221,8 @@ export async function loadDpTool(options: DpToolLoaderOptions): Promise<DpToolLo
   }
   w.__SOLARNEXT_DP_ASSET_BASE__ = assetBase;
 
-  solarnextDpResetWindowGlobals(w);
+  solarnextDpClearLeakingDpGlobals(w);
+  console.log("[DP RESET] leadId =", w.__SOLARNEXT_DP_CONTEXT__?.leadId);
 
   const ac = new AbortController();
 
@@ -252,6 +256,7 @@ export async function loadDpTool(options: DpToolLoaderOptions): Promise<DpToolLo
     Record<string, unknown> & {
       __solarnextHydrateSmartpitchFromDpContext?: () => void;
       DpDraftStore?: { initDraftFromServer?: (d: unknown) => void; hydrateFromDraft?: () => void };
+      loadDP1LeadContext?: () => Promise<unknown>;
       __snDpLoadInjectedDp1Context?: () => Promise<unknown>;
       __SN_DP_INIT_BLOCKED?: boolean;
     };
@@ -265,7 +270,8 @@ export async function loadDpTool(options: DpToolLoaderOptions): Promise<DpToolLo
     /* ignore */
   }
   try {
-    await win.__snDpLoadInjectedDp1Context?.();
+    const loadCtx = win.loadDP1LeadContext ?? win.__snDpLoadInjectedDp1Context;
+    if (typeof loadCtx === "function") await loadCtx();
   } catch {
     /* ignore */
   }
