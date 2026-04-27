@@ -5143,6 +5143,14 @@ const DP2_LEGEND_ICON_REGISTRY = {
 
 const DP2_LEGEND_ICON_CANVAS_W = 104;
 const DP2_LEGEND_ICON_CANVAS_H = 68;
+/** Hauteur visuelle fixe du repère « hauteur gouttière » (px canvas), inverse du zoom vue pour rester lisible à l’écran. */
+const DP2_GUTTER_HEIGHT_SYMBOL_PX = 40;
+
+function dp2GutterHeightSymbolHalfPx() {
+  const z = window.DP2_STATE?.viewZoom;
+  const vz = typeof z === "number" && z > 0 ? z : 1;
+  return DP2_GUTTER_HEIGHT_SYMBOL_PX / 2 / vz;
+}
 
 /**
  * Dessine une miniature de légende dans ctx (0,0,cw,ch) — même logique que le plan.
@@ -5193,15 +5201,14 @@ function dp2DrawLegendMiniatureToContext(ctx, legendKey, cw, ch) {
   }
 
   if (key === "HAUTEUR_GOUTTIERE") {
-    const x0 = cw / 2;
-    const y1 = 14;
-    const y2 = ch - 14;
     const gh = {
       type: "gutter_height_dimension",
-      a: { x: x0, y: y1 },
-      b: { x: x0, y: y2 },
-      labelOffset: { x: 0, y: 0 }
+      gutterAnchorX: cw / 2,
+      gutterAnchorY: ch / 2,
+      labelOffset: { x: 0, y: 0 },
+      heightM: 2.8
     };
+    dp2ApplyGutterHeightSymbolGeometry(gh);
     if (typeof renderGutterHeightDimension === "function") renderGutterHeightDimension(ctx, gh, 0);
     return;
   }
@@ -5377,7 +5384,7 @@ window.DP2_STATE = window.DP2_STATE || {
   measureLineStart: null, // { x, y } | null
   // Faîtage en cours : point A posé, en attente du clic B
   ridgeLineStart: null,   // { x, y } | null
-  // Hauteur gouttière (DP4) : premier point vertical posé, en attente du second clic (même abscisse)
+  // Hauteur gouttière (DP4) : gutterAnchor* + symbole fixe ; heightM = seule valeur métier
   gutterHeightStart: null, // { x, y } | null
   /** Historique des plans (persisté dans le brouillon dp2). */
   dp2Versions: [],
@@ -5509,6 +5516,7 @@ function dp2ResetActiveToolToNeutral(options) {
   state.measureLineStart = null;
   state.ridgeLineStart = null;
   state.gutterHeightStart = null;
+  state.gutterHeightBodyDrag = null;
   state.panelPlacementPreview = null;
 
   const parcelIdx = (state.objects || []).findIndex(o => o && o.__parcelEdge);
@@ -6981,6 +6989,7 @@ function initDP2ViewZoom() {
     window.DP2_STATE.viewZoom = newZoom;
     zoomContainerEl.style.transformOrigin = originX + "px " + originY + "px";
     applyDP2ViewTransform();
+    if (typeof renderDP2FromState === "function") renderDP2FromState();
     e.preventDefault();
   }, { passive: false });
 
@@ -7086,6 +7095,7 @@ function dp2InteractionDragActive() {
     s.measureLabelDragCandidate ||
     s.ridgeLabelDrag ||
     s.gutterHeightLabelDrag ||
+    s.gutterHeightBodyDrag ||
     s.panelInteraction ||
     s.panelGroupInteraction ||
     (s.textInteraction && typeof s.textInteraction.pointerId === "number") ||
@@ -7162,9 +7172,6 @@ function dp2PickHoverFeatureId(canvas, x, y) {
     for (let i = (window.DP2_STATE?.objects || []).length - 1; i >= 0; i--) {
       const obj = window.DP2_STATE.objects[i];
       if (!obj || obj.type !== "gutter_height_dimension" || !obj.a || !obj.b) continue;
-      const dA = Math.hypot((obj.a.x || 0) - x, (obj.a.y || 0) - y);
-      const dB = Math.hypot((obj.b.x || 0) - x, (obj.b.y || 0) - y);
-      if (dA <= 12 || dB <= 12) return "gutter:" + i;
       const dx = obj.b.x - obj.a.x;
       const dy = obj.b.y - obj.a.y;
       const lenSq = dx * dx + dy * dy || 1;
@@ -7360,13 +7367,13 @@ function refreshDP2ModeStrip() {
   } else if (tool === "ridge_line") {
     text = "Faîtage — deux clics pour définir l’arête.";
   } else if (tool === "gutter_height_dimension") {
-    text = "Hauteur gouttière — 1er clic : premier point, 2e clic : second point (cote verticale).";
+    text = "Hauteur gouttière — 2 clics pour positionner le repère (symbole fixe) ; saisir la hauteur en m (aucun lien avec la taille du symbole).";
   } else if (tool === "pan") {
     text = "Pan — glisser pour déplacer la vue (molette : zoom).";
   } else if (tool === "panels") {
     text = "Pose de panneaux — le fantôme indique où le module sera posé.";
   } else {
-    text = "Sélection — double-clic sur une cote jaune pour modifier la longueur ; glisser une cote pour la déplacer.";
+    text = "Sélection — double-clic sur une cote jaune pour modifier la longueur ; double-clic sur « Hauteur gouttière » pour saisir la hauteur en m ; glisser une cote pour la déplacer.";
   }
   el.textContent = text;
 }
@@ -7870,12 +7877,6 @@ function dp2HitTest(canvas, x, y) {
       const dB = Math.hypot((obj.b.x || 0) - x, (obj.b.y || 0) - y);
       if (dB <= threshold) return { kind: "object", index: i, vertexAnchor: "B" };
     }
-    if (obj.type === "gutter_height_dimension" && obj.a && obj.b) {
-      const dA = Math.hypot((obj.a.x || 0) - x, (obj.a.y || 0) - y);
-      if (dA <= threshold) return { kind: "object", index: i, vertexAnchor: "A" };
-      const dB = Math.hypot((obj.b.x || 0) - x, (obj.b.y || 0) - y);
-      if (dB <= threshold) return { kind: "object", index: i, vertexAnchor: "B" };
-    }
   }
 
   // ----- PASS 2 : hit-test historique (contour bâti + reste des objets)
@@ -7964,10 +7965,6 @@ function dp2HitTest(canvas, x, y) {
       if (Math.hypot(x - projX, y - projY) <= threshold) return { kind: "object", index: i };
     }
     if (obj.type === "gutter_height_dimension" && obj.a && obj.b) {
-      const dA = Math.hypot((obj.a.x || 0) - x, (obj.a.y || 0) - y);
-      if (dA <= threshold) return { kind: "object", index: i, vertexAnchor: "A" };
-      const dB = Math.hypot((obj.b.x || 0) - x, (obj.b.y || 0) - y);
-      if (dB <= threshold) return { kind: "object", index: i, vertexAnchor: "B" };
       const ax = obj.a.x || 0;
       const ay = obj.a.y || 0;
       const dx = (obj.b.x || 0) - ax;
@@ -8192,11 +8189,11 @@ function dp2HitTestRidgeLabel(canvas, x, y) {
   return null;
 }
 
-// DP2 — Hit-test libellé « Hauteur gouttière » (2 lignes) : zone élargie vs cote simple.
+// DP2 — Hit-test libellé « Hauteur gouttière : x,xx m » (une ligne) : zone élargie.
 function dp2HitTestGutterHeightLabel(canvas, x, y) {
   const objects = window.DP2_STATE?.objects || [];
-  const halfW = 70;
-  const halfH = 22;
+  const halfW = 130;
+  const halfH = 14;
   for (let i = objects.length - 1; i >= 0; i--) {
     const obj = objects[i];
     if (!obj || obj.type !== "gutter_height_dimension" || !obj.a || !obj.b) continue;
@@ -8937,7 +8934,8 @@ function dp2TryUpdateBusinessHoverCursor(canvas, clientX, clientY) {
     window.DP2_STATE?.selectionRect ||
     window.DP2_STATE?.measureLabelDrag ||
     window.DP2_STATE?.measureLabelDragCandidate ||
-    window.DP2_STATE?.gutterHeightLabelDrag
+    window.DP2_STATE?.gutterHeightLabelDrag ||
+    window.DP2_STATE?.gutterHeightBodyDrag
   ) {
     return;
   }
@@ -9163,12 +9161,43 @@ function initDP2CanvasEvents() {
       }
     }
 
-    // DP2 — Drag sommet faitage ou mesure (même logique que contour de bâti)
+    // DP2 — Drag corps « Hauteur gouttière » (déplace le repère ; ne modifie pas heightM)
+    if (tool === "select") {
+      const hitGutterBody = dp2HitTest(canvas, coords.x, coords.y);
+      if (
+        hitGutterBody &&
+        hitGutterBody.kind === "object" &&
+        typeof hitGutterBody.index === "number" &&
+        !hitGutterBody.vertexAnchor
+      ) {
+        const go = window.DP2_STATE?.objects?.[hitGutterBody.index];
+        if (go && go.type === "gutter_height_dimension" && go.a && go.b) {
+          const onLabel = dp2HitTestGutterHeightLabel(canvas, coords.x, coords.y);
+          if (!(onLabel && onLabel.index === hitGutterBody.index)) {
+            dp2CommitHistoryPoint();
+            window.DP2_STATE.gutterHeightBodyDrag = {
+              objectIndex: hitGutterBody.index,
+              pointerId: e.pointerId,
+              startCanvasX: coords.x,
+              startCanvasY: coords.y,
+              startAnchorX: typeof go.gutterAnchorX === "number" ? go.gutterAnchorX : (go.a.x + go.b.x) / 2,
+              startAnchorY: typeof go.gutterAnchorY === "number" ? go.gutterAnchorY : (go.a.y + go.b.y) / 2
+            };
+            try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
+            e.preventDefault();
+            renderDP2FromState();
+            return;
+          }
+        }
+      }
+    }
+
+    // DP2 — Drag sommet faitage ou mesure (même logique que contour de bâti) — sans hauteur gouttière
     if (tool === "select") {
       const hitLine = dp2HitTest(canvas, coords.x, coords.y);
       if (hitLine && hitLine.kind === "object" && (hitLine.vertexAnchor === "A" || hitLine.vertexAnchor === "B")) {
         const obj = window.DP2_STATE?.objects?.[hitLine.index];
-        if (obj && (obj.type === "ridge_line" || obj.type === "measure_line" || obj.type === "gutter_height_dimension") && obj.a && obj.b) {
+        if (obj && (obj.type === "ridge_line" || obj.type === "measure_line") && obj.a && obj.b) {
           const pt = hitLine.vertexAnchor === "A" ? obj.a : obj.b;
           dp2CommitHistoryPoint();
           window.DP2_STATE.lineVertexInteraction = {
@@ -9590,7 +9619,22 @@ function initDP2CanvasEvents() {
       return;
     }
 
-    if (!mld && !pld && !rld && !ghld) {
+    const ghbd = window.DP2_STATE?.gutterHeightBodyDrag || null;
+    if (ghbd && typeof ghbd.pointerId === "number" && ghbd.pointerId === e.pointerId) {
+      const obj = window.DP2_STATE?.objects?.[ghbd.objectIndex];
+      if (obj && obj.type === "gutter_height_dimension") {
+        const coords = getDP2CanvasCoords(canvas, e.clientX, e.clientY);
+        const dx = coords.x - (ghbd.startCanvasX || 0);
+        const dy = coords.y - (ghbd.startCanvasY || 0);
+        obj.gutterAnchorX = (ghbd.startAnchorX || 0) + dx;
+        obj.gutterAnchorY = (ghbd.startAnchorY || 0) + dy;
+        dp2ApplyGutterHeightSymbolGeometry(obj);
+        renderDP2FromState();
+      }
+      return;
+    }
+
+    if (!mld && !pld && !rld && !ghld && !ghbd) {
       try {
         dp2UpdateHoverFromPointerMove(canvas, e);
       } catch (_) {}
@@ -9621,22 +9665,6 @@ function initDP2CanvasEvents() {
       const coords = getDP2CanvasCoords(canvas, e.clientX, e.clientY);
       const objs = window.DP2_STATE?.objects || [];
       const obj = objs[lvi.objectIndex];
-      if (obj && obj.type === "gutter_height_dimension" && obj.a && obj.b) {
-        const nx = coords.x - (lvi.offsetX || 0);
-        const ny = coords.y - (lvi.offsetY || 0);
-        const pt = lvi.anchor === "A" ? obj.a : obj.b;
-        if (Math.abs(nx - (pt.x || 0)) > 1 || Math.abs(ny - (pt.y || 0)) > 1) lvi.hasMoved = true;
-        const xLock = lvi.anchor === "A" ? obj.b.x : obj.a.x;
-        if (lvi.anchor === "A") {
-          obj.a.x = xLock;
-          obj.a.y = ny;
-        } else {
-          obj.b.x = xLock;
-          obj.b.y = ny;
-        }
-        renderDP2FromState();
-        return;
-      }
       if (obj && (obj.type === "ridge_line" || obj.type === "measure_line") && obj.a && obj.b) {
         const pt = lvi.anchor === "A" ? obj.a : obj.b;
         const nx = coords.x - (lvi.offsetX || 0);
@@ -10098,6 +10126,14 @@ function initDP2CanvasEvents() {
       return;
     }
 
+    const ghbdUp = window.DP2_STATE?.gutterHeightBodyDrag || null;
+    if (ghbdUp && typeof ghbdUp.pointerId === "number" && ghbdUp.pointerId === e.pointerId) {
+      window.DP2_STATE.gutterHeightBodyDrag = null;
+      try { canvas.releasePointerCapture(e.pointerId); } catch (_) {}
+      renderDP2FromState();
+      return;
+    }
+
     const bci = window.DP2_STATE?.buildingContourInteraction || null;
     if (bci && typeof bci.pointerId === "number" && bci.pointerId === e.pointerId) {
       window.DP2_STATE.buildingContourInteraction = null;
@@ -10390,17 +10426,16 @@ function initDP2CanvasEvents() {
       return;
     }
 
-    // Hauteur gouttière (DP4) : prévisualisation verticale (abscisse figée au 1er clic)
+    // Hauteur gouttière (DP4) : prévisualisation = repère visuel taille fixe (position = milieu des 2 clics)
     if (tool === "gutter_height_dimension" && window.DP2_STATE.gutterHeightStart) {
       const from = window.DP2_STATE.gutterHeightStart;
       const xLock = from.x;
-      const y2 = coords.y;
-      const lengthPx = Math.abs(y2 - from.y);
-      const lengthM = typeof scale === "number" && scale > 0 ? lengthPx * scale : 0;
+      const yMid = (from.y + coords.y) / 2;
+      const half = dp2GutterHeightSymbolHalfPx();
       window.DP2_STATE.drawingPreview = {
-        from: { x: xLock, y: from.y },
-        to: { x: xLock, y: y2 },
-        lengthM,
+        from: { x: xLock, y: yMid - half },
+        to: { x: xLock, y: yMid + half },
+        lengthM: 0,
         previewType: "gutter_height_dimension"
       };
       renderDP2FromState();
@@ -10538,7 +10573,7 @@ function initDP2CanvasEvents() {
       return;
     }
 
-    // Hauteur gouttière (DP4) : deux clics, cote strictement verticale
+    // Hauteur gouttière (DP4) : 2 clics = position du repère uniquement ; heightM = saisie (jamais depuis la flèche)
     if (tool === "gutter_height_dimension") {
       if (window.DP2_STATE.gutterHeightStart == null) {
         window.DP2_STATE.gutterHeightStart = { x: coords.x, y: coords.y };
@@ -10548,13 +10583,29 @@ function initDP2CanvasEvents() {
       }
       const a = window.DP2_STATE.gutterHeightStart;
       const xLock = a.x;
+      const yMid = (a.y + coords.y) / 2;
       dp2CommitHistoryPoint();
-      window.DP2_STATE.objects.push({
+      const newObj = {
         type: "gutter_height_dimension",
-        a: { x: xLock, y: a.y },
-        b: { x: xLock, y: coords.y },
+        gutterAnchorX: xLock,
+        gutterAnchorY: yMid,
         labelOffset: { x: 0, y: 0 }
-      });
+      };
+      dp2ApplyGutterHeightSymbolGeometry(newObj);
+      window.DP2_STATE.objects.push(newObj);
+      const raw = window.prompt(
+        "Hauteur gouttière (m) — valeur métier uniquement (la double flèche est un symbole fixe, sans lien avec cette valeur).",
+        "3,00"
+      );
+      if (raw != null) {
+        const normalized = String(raw).trim().replace(",", ".");
+        const num = parseFloat(normalized);
+        if (!Number.isNaN(num) && num >= 0) newObj.heightM = num;
+      }
+      if (!(typeof newObj.heightM === "number" && Number.isFinite(newObj.heightM) && newObj.heightM >= 0)) {
+        newObj.heightM = 0;
+      }
+      dp2ApplyGutterHeightSymbolGeometry(newObj);
       window.DP2_STATE.gutterHeightStart = null;
       window.DP2_STATE.drawingPreview = null;
       dp2AutoReturnToSelectIfCreationDone({ preserveSelection: true, reason: "gutter_height_dimension_created" });
@@ -10745,7 +10796,6 @@ function initDP2CanvasEvents() {
     const tool = window.DP2_STATE?.currentTool || "select";
     if (tool === "pan") return;
     const coords = getDP2CanvasCoords(canvas, e.clientX, e.clientY);
-    console.log("DP2 dblclick detected", coords);
     const objs = window.DP2_STATE?.objects || [];
 
     function openMeasureLineEdit(objectIndex) {
@@ -10785,6 +10835,18 @@ function initDP2CanvasEvents() {
       dp2ShowParcelEdgeInlineInput(canvas, newIdx);
       renderDP2FromState();
       return;
+    }
+
+    const hitGhLblDbl = dp2HitTestGutterHeightLabel(canvas, coords.x, coords.y);
+    if (hitGhLblDbl && hitGhLblDbl.kind === "gutter_height_label" && typeof hitGhLblDbl.index === "number") {
+      if (dp2OpenGutterHeightDimensionEdit(hitGhLblDbl.index)) return;
+    }
+    const hitGhSegDbl = dp2HitTest(canvas, coords.x, coords.y);
+    if (hitGhSegDbl && hitGhSegDbl.kind === "object" && typeof hitGhSegDbl.index === "number" && !hitGhSegDbl.vertexAnchor) {
+      const ogh = objs[hitGhSegDbl.index];
+      if (ogh && ogh.type === "gutter_height_dimension" && ogh.a && ogh.b) {
+        if (dp2OpenGutterHeightDimensionEdit(hitGhSegDbl.index)) return;
+      }
     }
 
     // Double-clic sur l'étiquette de mesure (label) → édition valeur uniquement, puis choix explicite du point (overlay)
@@ -11083,7 +11145,7 @@ function renderDP2FromState() {
   const gutterHeightStart = window.DP2_STATE.gutterHeightStart;
   if (window.DP2_STATE.currentTool === "gutter_height_dimension" && gutterHeightStart) {
     ctx.save();
-    dp2DrawLinePoint(ctx, gutterHeightStart.x, gutterHeightStart.y, "#0f766e");
+    dp2DrawGutterHeightAnchorMarker(ctx, gutterHeightStart.x, gutterHeightStart.y);
     ctx.restore();
   }
 
@@ -12142,24 +12204,111 @@ function renderRidgeLine(ctx, obj, objectIndex) {
   ctx.restore();
 }
 
-// DP2 / DP4 — Cote verticale « Hauteur gouttière » (double flèche, m)
-// Objet : { type: "gutter_height_dimension", a: {x,y}, b: {x,y}, labelOffset?: {x,y} }
-// --------------------------
+// DP2 / DP4 — Symbole « hauteur gouttière » : géométrie décorative fixe (dp2Apply…) ; seule heightM est métier.
+function dp2ApplyGutterHeightSymbolGeometry(obj) {
+  if (!obj || obj.type !== "gutter_height_dimension") return;
+  const ax = obj.gutterAnchorX;
+  const ay = obj.gutterAnchorY;
+  if (typeof ax !== "number" || !Number.isFinite(ax) || typeof ay !== "number" || !Number.isFinite(ay)) return;
+  const half = dp2GutterHeightSymbolHalfPx();
+  obj.a = { x: ax, y: ay - half };
+  obj.b = { x: ax, y: ay + half };
+}
+
+/**
+ * Migration / normalisation : heightM absent → une seule fois depuis l’ancienne portée pixel ;
+ * ancrage absent → centre des a/b ; puis géométrie visuelle verrouillée (sans lien heightM ↔ pixels).
+ */
+function dp2MigrateGutterHeightDimensionIfNeeded(obj) {
+  if (!obj || obj.type !== "gutter_height_dimension") return;
+
+  const hadAnchors =
+    typeof obj.gutterAnchorX === "number" &&
+    Number.isFinite(obj.gutterAnchorX) &&
+    typeof obj.gutterAnchorY === "number" &&
+    Number.isFinite(obj.gutterAnchorY);
+
+  if (!(typeof obj.heightM === "number" && Number.isFinite(obj.heightM) && obj.heightM >= 0)) {
+    const scale = window.DP2_STATE?.scale_m_per_px;
+    if (!hadAnchors && obj.a && obj.b && typeof scale === "number" && scale > 0) {
+      const legacyPx = Math.abs((obj.b.y || 0) - (obj.a.y || 0));
+      obj.heightM = legacyPx > 0 ? legacyPx * scale : 0;
+    } else {
+      obj.heightM = 0;
+    }
+  }
+
+  if (!hadAnchors) {
+    if (!obj.a || !obj.b) return;
+    obj.gutterAnchorX = (obj.a.x + obj.b.x) / 2;
+    obj.gutterAnchorY = (obj.a.y + obj.b.y) / 2;
+  }
+
+  dp2ApplyGutterHeightSymbolGeometry(obj);
+}
+
+function dp2GutterHeightDisplayM(obj) {
+  if (!obj || obj.type !== "gutter_height_dimension") return null;
+  if (typeof obj.heightM === "number" && Number.isFinite(obj.heightM) && obj.heightM >= 0) return obj.heightM;
+  return null;
+}
+
+function dp2OpenGutterHeightDimensionEdit(objectIndex) {
+  const objs = window.DP2_STATE?.objects || [];
+  const obj = objs[objectIndex];
+  if (!obj || obj.type !== "gutter_height_dimension") return false;
+  dp2MigrateGutterHeightDimensionIfNeeded(obj);
+  const cur = typeof obj.heightM === "number" && Number.isFinite(obj.heightM) ? obj.heightM : 0;
+  const currentStr = cur.toFixed(2).replace(".", ",");
+  const raw = window.prompt("Hauteur gouttière (m) :", currentStr);
+  if (raw == null) return false;
+  const normalized = String(raw).trim().replace(",", ".");
+  const num = parseFloat(normalized);
+  if (Number.isNaN(num) || num < 0) return false;
+  dp2CommitHistoryPoint();
+  obj.heightM = num;
+  dp2ApplyGutterHeightSymbolGeometry(obj);
+  renderDP2FromState();
+  return true;
+}
+
+function dp2DrawGutterHeightAnchorMarker(ctx, x, y) {
+  ctx.save();
+  ctx.fillStyle = "#0f766e";
+  ctx.globalAlpha = 0.9;
+  ctx.beginPath();
+  ctx.arc(x, y, 3.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+// DP2 / DP4 — « Hauteur gouttière » : double flèche verticale décorative (taille fixe) ; texte = heightM uniquement.
+// Objet : { type, gutterAnchorX, gutterAnchorY, a, b (dérivés), labelOffset?, heightM? }
 function renderGutterHeightDimension(ctx, obj, objectIndex) {
-  if (!obj || !obj.a || !obj.b) return;
-  const scale = window.DP2_STATE?.scale_m_per_px;
+  if (!obj || obj.type !== "gutter_height_dimension") return;
+  if (objectIndex != null) {
+    dp2MigrateGutterHeightDimensionIfNeeded(obj);
+  } else if (
+    typeof obj.gutterAnchorX === "number" &&
+    Number.isFinite(obj.gutterAnchorX) &&
+    typeof obj.gutterAnchorY === "number" &&
+    Number.isFinite(obj.gutterAnchorY)
+  ) {
+    dp2ApplyGutterHeightSymbolGeometry(obj);
+  }
+  if (!obj.a || !obj.b) return;
   const x0 = (obj.a.x + obj.b.x) / 2;
   const yTop = Math.min(obj.a.y, obj.b.y);
   const yBot = Math.max(obj.a.y, obj.b.y);
   const gfid = typeof objectIndex === "number" ? "gutter:" + objectIndex : null;
   const gtier = gfid ? dp2InteractionTierForFeature(gfid) : null;
   const stroke = "#0f766e";
-  const cap = 7;
-  const ah = 9;
+  const cap = 5.5;
+  const ah = 7;
 
   ctx.save();
   ctx.strokeStyle = stroke;
-  ctx.lineWidth = 1.5;
+  ctx.lineWidth = 1.25;
   ctx.lineCap = "round";
   ctx.beginPath();
   ctx.moveTo(x0, yTop);
@@ -12167,7 +12316,7 @@ function renderGutterHeightDimension(ctx, obj, objectIndex) {
   ctx.stroke();
   dp2DrawCoteSegmentTier(ctx, { x: x0, y: yTop }, { x: x0, y: yBot }, gtier);
   ctx.strokeStyle = stroke;
-  ctx.lineWidth = 1.5;
+  ctx.lineWidth = 1.25;
   ctx.beginPath();
   ctx.moveTo(x0 - cap, yTop);
   ctx.lineTo(x0 + cap, yTop);
@@ -12177,19 +12326,16 @@ function renderGutterHeightDimension(ctx, obj, objectIndex) {
   ctx.fillStyle = stroke;
   ctx.beginPath();
   ctx.moveTo(x0, yTop - ah);
-  ctx.lineTo(x0 - 5, yTop);
-  ctx.lineTo(x0 + 5, yTop);
+  ctx.lineTo(x0 - 4.2, yTop);
+  ctx.lineTo(x0 + 4.2, yTop);
   ctx.closePath();
   ctx.fill();
   ctx.beginPath();
   ctx.moveTo(x0, yBot + ah);
-  ctx.lineTo(x0 - 5, yBot);
-  ctx.lineTo(x0 + 5, yBot);
+  ctx.lineTo(x0 - 4.2, yBot);
+  ctx.lineTo(x0 + 4.2, yBot);
   ctx.closePath();
   ctx.fill();
-
-  dp2DrawLinePoint(ctx, obj.a.x, obj.a.y, stroke);
-  dp2DrawLinePoint(ctx, obj.b.x, obj.b.y, stroke);
 
   const midY = (yTop + yBot) / 2;
   const off = obj.labelOffset && typeof obj.labelOffset.x === "number" && typeof obj.labelOffset.y === "number" ? obj.labelOffset : { x: 0, y: 0 };
@@ -12197,19 +12343,11 @@ function renderGutterHeightDimension(ctx, obj, objectIndex) {
   const labelY = midY + off.y;
   ctx.textAlign = "left";
   ctx.textBaseline = "middle";
-  ctx.font = "11px system-ui, sans-serif";
+  ctx.font = "12px system-ui, sans-serif";
   ctx.fillStyle = "#134e4a";
-  if (typeof scale === "number" && scale > 0) {
-    const lengthPx = Math.abs(yBot - yTop);
-    const lengthM = lengthPx * scale;
-    const valStr = lengthM.toFixed(2).replace(".", ",") + " m";
-    dp2FillCoteLabelWithTier(ctx, "Hauteur gouttière", labelX, labelY - 9, gtier);
-    ctx.font = "12px system-ui, sans-serif";
-    dp2FillCoteLabelWithTier(ctx, valStr, labelX, labelY + 9, gtier);
-  } else {
-    dp2FillCoteLabelWithTier(ctx, "Hauteur gouttière", labelX, labelY - 9, gtier);
-    dp2FillCoteLabelWithTier(ctx, "—", labelX, labelY + 9, gtier);
-  }
+  const hm = dp2GutterHeightDisplayM(obj);
+  const valStr = hm != null && Number.isFinite(hm) ? hm.toFixed(2).replace(".", ",") + " m" : "—";
+  dp2FillCoteLabelWithTier(ctx, "Hauteur gouttière : " + valStr, labelX, labelY, gtier);
   ctx.restore();
 }
 
