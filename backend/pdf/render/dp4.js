@@ -174,7 +174,17 @@
 
       const icon = document.createElement("span");
       icon.className = "legend-icon";
-      if (meta?.svg) icon.innerHTML = meta.svg;
+      const iconUrl = it?.iconDataUrl;
+      if (typeof iconUrl === "string" && iconUrl.startsWith("data:image")) {
+        const img = document.createElement("img");
+        img.className = "legend-icon-img";
+        img.src = iconUrl;
+        img.alt = "";
+        img.decoding = "async";
+        icon.appendChild(img);
+      } else if (meta?.svg) {
+        icon.innerHTML = meta.svg;
+      }
 
       const text = document.createElement("span");
       text.className = "legend-text";

@@ -4701,10 +4701,14 @@ async function generateDP2PDF() {
       count: panelCount
     };
 
-  const legend =
+  const legendRaw =
     typeof window.getDP2GlobalLegendForPdf === "function"
       ? (window.getDP2GlobalLegendForPdf() || [])
       : [];
+  const legend =
+    typeof enrichLegendItemsWithIconDataUrls === "function"
+      ? enrichLegendItemsWithIconDataUrls(legendRaw)
+      : legendRaw;
 
   const dp2Data = {
     client: buildPdfClientFromDP1Context(),
@@ -4752,14 +4756,6 @@ async function generateDP4PDF() {
 
   const pages = [];
 
-  function hasLineTypeInRoofGeometry(plan, type) {
-    const arr = Array.isArray(plan?.roofGeometry) ? plan.roofGeometry : [];
-    for (const o of arr) {
-      if (o && o.type === type) return true;
-    }
-    return false;
-  }
-
   function computeBaseLegendFromPlan(plan) {
     // Réutiliser au maximum la logique DP2 :
     // - base via window.getDP2GlobalLegendForPdf() si disponible
@@ -4782,6 +4778,7 @@ async function generateDP4PDF() {
           ? base
               .map((it) => ({
                 key: it?.legendKey,
+                legendKey: it?.legendKey,
                 count: typeof it?.count === "number" ? it.count : 0,
               }))
               .filter((it) => !!it.key)
@@ -4833,22 +4830,7 @@ async function generateDP4PDF() {
       if (!orderedKeys.includes(k)) orderedKeys.push(k);
     }
 
-    return orderedKeys.map((key) => ({ key, count: counts[key] || 0 }));
-  }
-
-  function addLegendExtras(baseLegend, plan) {
-    const legend = Array.isArray(baseLegend) ? [...baseLegend] : [];
-    const hasKey = (k) => legend.some((it) => it && it.key === k);
-    if (hasLineTypeInRoofGeometry(plan, "measure_line")) {
-      legend.push({ key: "COTES", count: 1 });
-    }
-    if (hasLineTypeInRoofGeometry(plan, "ridge_line")) {
-      legend.push({ key: "FAITAGE", count: 1 });
-    }
-    if (hasLineTypeInRoofGeometry(plan, "gutter_height_dimension") && !hasKey("HAUTEUR_GOUTTIERE")) {
-      legend.push({ key: "HAUTEUR_GOUTTIERE", count: 1 });
-    }
-    return legend;
+    return orderedKeys.map((key) => ({ key, legendKey: key, count: counts[key] || 0 }));
   }
 
   function getScaleMPerPx(plan) {
@@ -4884,7 +4866,14 @@ async function generateDP4PDF() {
         : null;
 
     const baseLegend = computeBaseLegendFromPlan(plan);
-    const legend = addLegendExtras(baseLegend, plan);
+    const legendWithExtras =
+      typeof dp4AppendPlanLegendExtras === "function"
+        ? dp4AppendPlanLegendExtras(baseLegend, plan)
+        : baseLegend;
+    const legend =
+      typeof enrichLegendItemsWithIconDataUrls === "function"
+        ? enrichLegendItemsWithIconDataUrls(legendWithExtras)
+        : legendWithExtras;
 
     return {
       category,
@@ -5142,6 +5131,198 @@ const DP2_BUSINESS_LEGEND_BY_KEY = (() => {
   }
   return map;
 })();
+
+// Registre minimal légende (clés hors meta métier + panneaux / cotes toiture)
+// kind: panels | cotes | faitage | gutter_height | business (via DP2_BUSINESS_LEGEND_BY_KEY)
+const DP2_LEGEND_ICON_REGISTRY = {
+  PANNEAUX_PV: { label: "Panneaux photovoltaïques", kind: "panels" },
+  COTES: { label: "Cotes", kind: "cotes" },
+  FAITAGE: { label: "Faîtage", kind: "faitage" },
+  HAUTEUR_GOUTTIERE: { label: "Hauteur gouttière", kind: "gutter_height" }
+};
+
+const DP2_LEGEND_ICON_CANVAS_W = 104;
+const DP2_LEGEND_ICON_CANVAS_H = 68;
+
+/**
+ * Dessine une miniature de légende dans ctx (0,0,cw,ch) — même logique que le plan.
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {string} legendKey
+ * @param {number} cw
+ * @param {number} ch
+ */
+function dp2DrawLegendMiniatureToContext(ctx, legendKey, cw, ch) {
+  const key = legendKey != null ? String(legendKey) : "";
+  if (!ctx || !key || !(cw > 0) || !(ch > 0)) return;
+
+  if (key === "PANNEAUX_PV") {
+    const bw = 90;
+    const bh = 55;
+    const pad = 10;
+    const sc = Math.max(0.01, Math.min((cw - pad * 2) / bw, (ch - pad * 2) / bh));
+    ctx.save();
+    ctx.translate((cw - bw * sc) / 2, (ch - bh * sc) / 2);
+    ctx.scale(sc, sc);
+    if (typeof renderDP2PanelRect === "function") {
+      renderDP2PanelRect(ctx, { x: 0, y: 0, width: bw, height: bh, rotation: 0 }, DP2_PANEL_STYLE);
+    }
+    ctx.restore();
+    return;
+  }
+
+  if (key === "COTES") {
+    const ml = {
+      type: "measure_line",
+      a: { x: 18, y: Math.round(ch / 2) },
+      b: { x: cw - 18, y: Math.round(ch / 2) },
+      labelOffset: { x: 0, y: 0 }
+    };
+    if (typeof renderMeasureLine === "function") renderMeasureLine(ctx, ml, 0);
+    return;
+  }
+
+  if (key === "FAITAGE") {
+    const rl = {
+      type: "ridge_line",
+      a: { x: 18, y: ch - 16 },
+      b: { x: cw - 18, y: 16 },
+      labelOffset: { x: 0, y: 0 }
+    };
+    if (typeof renderRidgeLine === "function") renderRidgeLine(ctx, rl, 0);
+    return;
+  }
+
+  if (key === "HAUTEUR_GOUTTIERE") {
+    const x0 = cw / 2;
+    const y1 = 14;
+    const y2 = ch - 14;
+    const gh = {
+      type: "gutter_height_dimension",
+      a: { x: x0, y: y1 },
+      b: { x: x0, y: y2 },
+      labelOffset: { x: 0, y: 0 }
+    };
+    if (typeof renderGutterHeightDimension === "function") renderGutterHeightDimension(ctx, gh, 0);
+    return;
+  }
+
+  const entry = DP2_BUSINESS_LEGEND_BY_KEY[key];
+  if (entry && entry.type && entry.meta && typeof renderDP2BusinessObject === "function") {
+    const meta = entry.meta;
+    const bw = meta.defaultW || 80;
+    const bh = meta.defaultH || 50;
+    const pad = 10;
+    const sc = Math.max(0.01, Math.min((cw - pad * 2) / bw, (ch - pad * 2) / bh));
+    ctx.save();
+    ctx.translate((cw - bw * sc) / 2, (ch - bh * sc) / 2);
+    ctx.scale(sc, sc);
+    renderDP2BusinessObject(ctx, {
+      id: "legend_icon_dummy",
+      type: entry.type,
+      legendKey: key,
+      geometry: { x: 0, y: 0, width: bw, height: bh, rotation: 0 },
+      visible: true
+    });
+    ctx.restore();
+  }
+}
+
+function dp2GetLegendIconRegistryEntry(legendKey) {
+  const k = legendKey != null ? String(legendKey) : "";
+  if (!k) return null;
+  if (DP2_LEGEND_ICON_REGISTRY[k]) return DP2_LEGEND_ICON_REGISTRY[k];
+  const biz = DP2_BUSINESS_LEGEND_BY_KEY[k];
+  if (biz && biz.type && biz.meta) return { label: biz.meta.label, kind: "business", businessType: biz.type, meta: biz.meta };
+  return null;
+}
+
+function dp2GetLegendLabelForKey(legendKey) {
+  const entry = dp2GetLegendIconRegistryEntry(legendKey);
+  if (entry && entry.label) return entry.label;
+  return legendKey != null ? String(legendKey) : "";
+}
+
+/**
+ * PNG data URL pour une entrée de légende PDF — même rendu canvas que le plan (symboles métier, panneaux, cotes DP4).
+ * @param {string} legendKey ex. COMPTEUR_ELECTRIQUE, PANNEAUX_PV, COTES
+ * @returns {string|null}
+ */
+function buildDP2LegendIconDataUrl(legendKey) {
+  const key = legendKey != null ? String(legendKey) : "";
+  if (!key) return null;
+  try {
+    const c = document.createElement("canvas");
+    c.width = DP2_LEGEND_ICON_CANVAS_W;
+    c.height = DP2_LEGEND_ICON_CANVAS_H;
+    const ctx = c.getContext("2d");
+    if (!ctx) return null;
+    if (typeof dp2DrawLegendMiniatureToContext !== "function") return null;
+    dp2DrawLegendMiniatureToContext(ctx, key, c.width, c.height);
+    const hasDraw =
+      DP2_BUSINESS_LEGEND_BY_KEY[key] ||
+      key === "PANNEAUX_PV" ||
+      key === "COTES" ||
+      key === "FAITAGE" ||
+      key === "HAUTEUR_GOUTTIERE";
+    if (!hasDraw) return null;
+    return c.toDataURL("image/png");
+  } catch (e) {
+    console.warn("[DP2] buildDP2LegendIconDataUrl", key, e);
+    return null;
+  }
+}
+
+window.buildDP2LegendIconDataUrl = buildDP2LegendIconDataUrl;
+
+function enrichLegendItemsWithIconDataUrls(items) {
+  if (!Array.isArray(items)) return [];
+  return items.map((it) => {
+    const legendKey = it && (it.legendKey != null ? String(it.legendKey) : it.key != null ? String(it.key) : "");
+    const count = typeof it?.count === "number" ? it.count : 0;
+    const iconDataUrl =
+      legendKey && typeof buildDP2LegendIconDataUrl === "function" ? buildDP2LegendIconDataUrl(legendKey) : null;
+    const out = { ...it, legendKey: legendKey || it.legendKey, count };
+    if (it && it.key != null) out.key = it.key;
+    else if (legendKey) out.key = legendKey;
+    if (iconDataUrl) out.iconDataUrl = iconDataUrl;
+    return out;
+  });
+}
+
+/**
+ * Extras légende toiture (DP4) : COTES, FAITAGE, HAUTEUR_GOUTTIERE — aligné PDF / UI.
+ * @param {Array<{legendKey?: string, key?: string, count?: number}>} baseLegendItems
+ * @param {object|null} plan
+ */
+function dp4AppendPlanLegendExtras(baseLegendItems, plan) {
+  const legend = Array.isArray(baseLegendItems)
+    ? baseLegendItems.map((it) => ({
+        legendKey: it.legendKey || it.key,
+        key: it.key || it.legendKey,
+        count: typeof it.count === "number" ? it.count : 0
+      }))
+    : [];
+  const hasKey = (k) => legend.some((it) => it && (it.key === k || it.legendKey === k));
+
+  function hasLineTypeInRoofGeometry(p, type) {
+    const arr = Array.isArray(p?.roofGeometry) ? p.roofGeometry : [];
+    for (const o of arr) {
+      if (o && o.type === type) return true;
+    }
+    return false;
+  }
+
+  if (hasLineTypeInRoofGeometry(plan, "measure_line") && !hasKey("COTES")) {
+    legend.push({ key: "COTES", legendKey: "COTES", count: 1 });
+  }
+  if (hasLineTypeInRoofGeometry(plan, "ridge_line") && !hasKey("FAITAGE")) {
+    legend.push({ key: "FAITAGE", legendKey: "FAITAGE", count: 1 });
+  }
+  if (hasLineTypeInRoofGeometry(plan, "gutter_height_dimension") && !hasKey("HAUTEUR_GOUTTIERE")) {
+    legend.push({ key: "HAUTEUR_GOUTTIERE", legendKey: "HAUTEUR_GOUTTIERE", count: 1 });
+  }
+  return legend;
+}
 
 window.DP2_STATE = window.DP2_STATE || {
   mode: "CAPTURE",        // "CAPTURE" | "EDITION"
@@ -5551,13 +5732,10 @@ function syncDP2LegendOverlayUI() {
     const count = typeof item?.count === "number" ? item.count : 0;
     if (!legendKey) continue;
 
-    const entry = DP2_BUSINESS_LEGEND_BY_KEY[legendKey] || null;
-    const type = entry?.type || null;
-    const meta = entry?.meta || null;
     const label =
-      legendKey === "PANNEAUX_PV"
-        ? "Panneaux photovoltaïques"
-        : (meta?.label || String(legendKey));
+      typeof dp2GetLegendLabelForKey === "function"
+        ? dp2GetLegendLabelForKey(legendKey)
+        : String(legendKey);
 
     const row = document.createElement("div");
     row.className = "dp2-legend-row";
@@ -5568,8 +5746,8 @@ function syncDP2LegendOverlayUI() {
     const miniCanvas = document.createElement("canvas");
     miniCanvas.className = "dp2-legend-mini-canvas";
     // Taille interne (buffer) : un peu plus grande que le CSS pour netteté
-    miniCanvas.width = 104;
-    miniCanvas.height = 68;
+    miniCanvas.width = DP2_LEGEND_ICON_CANVAS_W;
+    miniCanvas.height = DP2_LEGEND_ICON_CANVAS_H;
     miniCanvas.setAttribute("aria-hidden", "true");
     miniWrap.appendChild(miniCanvas);
 
@@ -5586,48 +5764,11 @@ function syncDP2LegendOverlayUI() {
     row.appendChild(countEl);
     listEl.appendChild(row);
 
-    // Dessiner la miniature (après insertion DOM ok aussi, mais pas requis)
     try {
       const ctx = miniCanvas.getContext("2d");
-      if (!ctx) continue;
+      if (!ctx || typeof dp2DrawLegendMiniatureToContext !== "function") continue;
       ctx.clearRect(0, 0, miniCanvas.width, miniCanvas.height);
-      if (legendKey === "PANNEAUX_PV") {
-        const bw = 90;
-        const bh = 55;
-        const pad = 10;
-        const scale = Math.max(0.01, Math.min((miniCanvas.width - pad * 2) / bw, (miniCanvas.height - pad * 2) / bh));
-        const dx = (miniCanvas.width - bw * scale) / 2;
-        const dy = (miniCanvas.height - bh * scale) / 2;
-        ctx.save();
-        ctx.translate(dx, dy);
-        ctx.scale(scale, scale);
-        renderDP2PanelRect(ctx, { x: 0, y: 0, width: bw, height: bh, rotation: 0 }, DP2_PANEL_STYLE);
-        ctx.restore();
-        continue;
-      }
-
-      if (typeof renderDP2BusinessObject !== "function") continue;
-      if (!type || !meta) continue;
-
-      const bw = meta.defaultW || 80;
-      const bh = meta.defaultH || 50;
-      const pad = 10;
-      const scale = Math.max(0.01, Math.min((miniCanvas.width - pad * 2) / bw, (miniCanvas.height - pad * 2) / bh));
-      const dx = (miniCanvas.width - bw * scale) / 2;
-      const dy = (miniCanvas.height - bh * scale) / 2;
-
-      ctx.save();
-      ctx.translate(dx, dy);
-      ctx.scale(scale, scale);
-      const dummy = {
-        id: "legend_dummy",
-        type,
-        legendKey,
-        geometry: { x: 0, y: 0, width: bw, height: bh, rotation: 0 },
-        visible: true
-      };
-      renderDP2BusinessObject(ctx, dummy);
-      ctx.restore();
+      dp2DrawLegendMiniatureToContext(ctx, legendKey, miniCanvas.width, miniCanvas.height);
     } catch (_) {}
   }
 }
@@ -5945,15 +6086,16 @@ function syncDP4LegendOverlayUI() {
   const host = modal || listEl;
   const getLegend = window.getDP2GlobalLegendForPdf;
   let legendItems = typeof getLegend === "function" ? (getLegend() || []).slice() : [];
-  if (typeof dp2IsDP4RoofProfile === "function" && dp2IsDP4RoofProfile()) {
-    const objs = window.DP2_STATE?.objects || [];
-    if (objs.some((o) => o && o.type === "gutter_height_dimension") && !legendItems.some((it) => it && it.legendKey === "HAUTEUR_GOUTTIERE")) {
-      legendItems.push({ legendKey: "HAUTEUR_GOUTTIERE", count: 1 });
-    }
+  const cat = window.DP4_STATE?.photoCategory;
+  const plan = cat && window.DP4_STATE?.plans ? window.DP4_STATE.plans[cat] : null;
+  if (plan && typeof dp4AppendPlanLegendExtras === "function") {
+    legendItems = dp4AppendPlanLegendExtras(legendItems, plan);
   }
 
   const signature = Array.isArray(legendItems)
-    ? legendItems.map((it) => `${it?.legendKey || ""}:${typeof it?.count === "number" ? it.count : 0}`).join("|")
+    ? legendItems
+        .map((it) => `${it?.legendKey || it?.key || ""}:${typeof it?.count === "number" ? it.count : 0}`)
+        .join("|")
     : "invalid";
   if (host.dataset && host.dataset.dp4LegendSig === signature) return;
   if (host.dataset) host.dataset.dp4LegendSig = signature;
@@ -5968,19 +6110,14 @@ function syncDP4LegendOverlayUI() {
   listEl.innerHTML = "";
 
   for (const item of legendItems) {
-    const legendKey = item?.legendKey;
+    const legendKey = item?.legendKey || item?.key;
     const count = typeof item?.count === "number" ? item.count : 0;
     if (!legendKey) continue;
 
-    const entry = DP2_BUSINESS_LEGEND_BY_KEY[legendKey] || null;
-    const type = entry?.type || null;
-    const meta = entry?.meta || null;
     const label =
-      legendKey === "PANNEAUX_PV"
-        ? "Panneaux photovoltaïques"
-        : legendKey === "HAUTEUR_GOUTTIERE"
-          ? "Hauteur gouttière"
-          : (meta?.label || String(legendKey));
+      typeof dp2GetLegendLabelForKey === "function"
+        ? dp2GetLegendLabelForKey(legendKey)
+        : String(legendKey);
 
     const row = document.createElement("div");
     row.className = "dp2-legend-row";
@@ -5989,8 +6126,8 @@ function syncDP4LegendOverlayUI() {
     miniWrap.className = "dp2-legend-mini";
     const miniCanvas = document.createElement("canvas");
     miniCanvas.className = "dp2-legend-mini-canvas";
-    miniCanvas.width = 104;
-    miniCanvas.height = 68;
+    miniCanvas.width = DP2_LEGEND_ICON_CANVAS_W;
+    miniCanvas.height = DP2_LEGEND_ICON_CANVAS_H;
     miniCanvas.setAttribute("aria-hidden", "true");
     miniWrap.appendChild(miniCanvas);
 
@@ -6009,78 +6146,9 @@ function syncDP4LegendOverlayUI() {
 
     try {
       const ctx = miniCanvas.getContext("2d");
-      if (!ctx) continue;
+      if (!ctx || typeof dp2DrawLegendMiniatureToContext !== "function") continue;
       ctx.clearRect(0, 0, miniCanvas.width, miniCanvas.height);
-      if (legendKey === "PANNEAUX_PV") {
-        const bw = 90;
-        const bh = 55;
-        const pad = 10;
-        const scale = Math.max(0.01, Math.min((miniCanvas.width - pad * 2) / bw, (miniCanvas.height - pad * 2) / bh));
-        const dx = (miniCanvas.width - bw * scale) / 2;
-        const dy = (miniCanvas.height - bh * scale) / 2;
-        ctx.save();
-        ctx.translate(dx, dy);
-        ctx.scale(scale, scale);
-        renderDP2PanelRect(ctx, { x: 0, y: 0, width: bw, height: bh, rotation: 0 }, DP2_PANEL_STYLE);
-        ctx.restore();
-        continue;
-      }
-
-      if (legendKey === "HAUTEUR_GOUTTIERE") {
-        const x0 = miniCanvas.width / 2;
-        const y1 = 14;
-        const y2 = miniCanvas.height - 14;
-        ctx.strokeStyle = "#0f766e";
-        ctx.lineWidth = 2;
-        ctx.lineCap = "round";
-        ctx.beginPath();
-        ctx.moveTo(x0, y1);
-        ctx.lineTo(x0, y2);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(x0 - 7, y1);
-        ctx.lineTo(x0 + 7, y1);
-        ctx.moveTo(x0 - 7, y2);
-        ctx.lineTo(x0 + 7, y2);
-        ctx.stroke();
-        ctx.fillStyle = "#0f766e";
-        ctx.beginPath();
-        ctx.moveTo(x0, y1 - 7);
-        ctx.lineTo(x0 - 4, y1);
-        ctx.lineTo(x0 + 4, y1);
-        ctx.closePath();
-        ctx.fill();
-        ctx.beginPath();
-        ctx.moveTo(x0, y2 + 7);
-        ctx.lineTo(x0 - 4, y2);
-        ctx.lineTo(x0 + 4, y2);
-        ctx.closePath();
-        ctx.fill();
-        continue;
-      }
-
-      if (typeof renderDP2BusinessObject !== "function") continue;
-      if (!type || !meta) continue;
-
-      const bw = meta.defaultW || 80;
-      const bh = meta.defaultH || 50;
-      const pad = 10;
-      const scale = Math.max(0.01, Math.min((miniCanvas.width - pad * 2) / bw, (miniCanvas.height - pad * 2) / bh));
-      const dx = (miniCanvas.width - bw * scale) / 2;
-      const dy = (miniCanvas.height - bh * scale) / 2;
-
-      ctx.save();
-      ctx.translate(dx, dy);
-      ctx.scale(scale, scale);
-      const dummy = {
-        id: "legend_dummy",
-        type,
-        legendKey,
-        geometry: { x: 0, y: 0, width: bw, height: bh, rotation: 0 },
-        visible: true
-      };
-      renderDP2BusinessObject(ctx, dummy);
-      ctx.restore();
+      dp2DrawLegendMiniatureToContext(ctx, legendKey, miniCanvas.width, miniCanvas.height);
     } catch (_) {}
   }
 }
