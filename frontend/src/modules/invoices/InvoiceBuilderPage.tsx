@@ -50,6 +50,7 @@ import "./invoice-builder.css";
 import "./invoice-financial.css";
 import { formatInvoiceNumberDisplay } from "../finance/documentDisplay";
 import { getCrmApiBase } from "@/config/crmApiBase";
+import { openAuthenticatedDocumentInNewTab } from "@/utils/documentDownload";
 
 const API_BASE = getCrmApiBase();
 
@@ -360,9 +361,8 @@ export default function InvoiceBuilderPage() {
     try {
       const data = await postGenerateInvoicePdf(id);
       await load();
-      const base = API_BASE.replace(/\/$/, "");
       if (data.downloadUrl) {
-        window.open(`${base}${data.downloadUrl}`, "_blank", "noopener,noreferrer");
+        await openAuthenticatedDocumentInNewTab(data.downloadUrl);
       }
       window.alert("PDF facture généré. Téléchargement ouvert dans un nouvel onglet si votre navigateur l’autorise.");
     } catch (e) {

@@ -2,8 +2,9 @@
  * Bloc document PDF — état clair + actions (sans modifier le pipeline génération).
  */
 
-import React from "react";
+import React, { useCallback, useState } from "react";
 import { Button } from "../../components/ui/Button";
+import { DOCUMENT_ACCESS_DENIED, openAuthenticatedDocumentInNewTab } from "@/utils/documentDownload";
 
 export interface InvoiceDocumentRow {
   document_type?: string;
@@ -34,18 +35,29 @@ export interface InvoiceDocumentBlockProps {
 }
 
 export default function InvoiceDocumentBlock({
-  apiBase,
+  apiBase: _apiBase,
   documents,
   onGeneratePdf,
   canGenerate,
   generateDisabledReason,
 }: InvoiceDocumentBlockProps) {
+  const [openingPdf, setOpeningPdf] = useState(false);
   const pdfList = (documents || []).filter((d) => String(d.document_type || "") === "invoice_pdf");
   const latest = pdfList[0];
   const hasPdf = !!latest?.url;
-  const fullUrl =
-    latest?.url &&
-    (String(latest.url).startsWith("http") ? String(latest.url) : `${apiBase.replace(/\/$/, "")}${latest.url}`);
+  const downloadPath = latest?.url ? String(latest.url).trim() : "";
+
+  const handleOpenPdf = useCallback(async () => {
+    if (!downloadPath) return;
+    setOpeningPdf(true);
+    try {
+      await openAuthenticatedDocumentInNewTab(downloadPath);
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : DOCUMENT_ACCESS_DENIED);
+    } finally {
+      setOpeningPdf(false);
+    }
+  }, [downloadPath]);
 
   return (
     <section className="ib-doc-block sn-card" aria-labelledby="ib-doc-block-title">
@@ -60,16 +72,16 @@ export default function InvoiceDocumentBlock({
           <Button type="button" variant="ghost" size="sm" disabled={!canGenerate} onClick={() => onGeneratePdf()}>
             Régénérer le PDF
           </Button>
-          {hasPdf && fullUrl ? (
-            <a
-              className="sn-btn sn-btn-ghost sn-btn-sm"
-              href={fullUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{ textDecoration: "none", display: "inline-flex", alignItems: "center" }}
+          {hasPdf && downloadPath ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={openingPdf}
+              onClick={() => void handleOpenPdf()}
             >
-              Ouvrir le PDF
-            </a>
+              {openingPdf ? "Ouverture…" : "Ouvrir le PDF"}
+            </Button>
           ) : null}
         </div>
       </div>

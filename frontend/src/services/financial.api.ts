@@ -558,3 +558,10 @@ export async function createQuoteDraft(body: {
   }
   return res.json();
 }
+
+/** Ouverture PDF/document CRM avec JWT — préférer à window.open sur `/api/documents/.../download`. */
+export {
+  DOCUMENT_ACCESS_DENIED,
+  openAuthenticatedDocumentInNewTab,
+  resolveCrmApiAbsoluteUrl,
+} from "@/utils/documentDownload";
