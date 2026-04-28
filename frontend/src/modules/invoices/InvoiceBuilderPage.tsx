@@ -60,6 +60,13 @@ function normalizeId(value: string | null | undefined): string | null {
   return s === "" ? null : s;
 }
 
+/** Statut facture comparable au backend (trim + majuscules). */
+function normalizeInvoiceStatusRaw(status: unknown): string {
+  return String(status ?? "")
+    .trim()
+    .toUpperCase();
+}
+
 function buildStateFromApi(inv: InvoiceDetail & Record<string, unknown>): InvoiceBuilderState {
   const clientLabel = inv.company_name
     ? String(inv.company_name)
@@ -74,7 +81,7 @@ function buildStateFromApi(inv: InvoiceDetail & Record<string, unknown>): Invoic
       quote_id: (inv.quote_id as string) ?? null,
       issue_date: inv.issue_date ? String(inv.issue_date).slice(0, 10) : null,
       due_date: inv.due_date ? String(inv.due_date).slice(0, 10) : null,
-      status: String(inv.status ?? "DRAFT"),
+      status: normalizeInvoiceStatusRaw(inv.status ?? "DRAFT") || "DRAFT",
       currency: String(inv.currency ?? "EUR"),
       client_label: clientLabel,
       lead_label: leadLabel,
@@ -122,7 +129,7 @@ export default function InvoiceBuilderPage() {
   const initialClientIdRef = useRef<string | null>(null);
   const initialLeadIdRef = useRef<string | null>(null);
 
-  const canEdit = state.header ? String(state.header.status).toUpperCase() === "DRAFT" : false;
+  const canEdit = state.header ? normalizeInvoiceStatusRaw(state.header.status) === "DRAFT" : false;
 
   const isClientLocked = useMemo(
     () => Boolean(state.header?.client_id) || Boolean(state.header?.quote_id),
@@ -211,7 +218,20 @@ export default function InvoiceBuilderPage() {
   }, []);
 
   const save = useCallback(async () => {
-    if (!id || !state.header || !canEdit) return;
+    if (!id) {
+      setError("Identifiant de facture manquant dans l’URL.");
+      return;
+    }
+    if (!state.header) {
+      setError("Facture non chargée. Réessayez ou rechargez la page.");
+      return;
+    }
+    if (normalizeInvoiceStatusRaw(state.header.status) !== "DRAFT") {
+      setError(
+        `Seuls les brouillons peuvent être modifiés (statut actuel : ${state.header.status || "—"}).`
+      );
+      return;
+    }
     if (!state.header.client_id && !state.header.lead_id) {
       setError("Rattachez au moins un client ou un lead.");
       return;
@@ -275,7 +295,7 @@ export default function InvoiceBuilderPage() {
     } finally {
       setSaving(false);
     }
-  }, [id, state, canEdit, load]);
+  }, [id, state, load]);
 
   const openCatalog = async () => {
     setCatalogOpen(true);

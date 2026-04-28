@@ -68,7 +68,18 @@ export default function InvoiceToolbar({
           </Button>
         ) : null}
         <span className="ib-toolbar-save-wrap">
-          <Button type="button" variant="primary" size="sm" disabled={!canEdit || saving} onClick={onSave}>
+          <Button
+            type="button"
+            variant="primary"
+            size="sm"
+            disabled={saving}
+            title={
+              canEdit
+                ? "Enregistrer les modifications du brouillon"
+                : "Seuls les brouillons sont modifiables — utilisez Dupliquer ou consultez la facture émise."
+            }
+            onClick={onSave}
+          >
             {saving ? "Enregistrement…" : "Enregistrer le brouillon"}
           </Button>
           {saveSuccess ? (
