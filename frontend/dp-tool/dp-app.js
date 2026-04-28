@@ -4277,7 +4277,8 @@ function dp2ResetWorkingEditorFieldsPreservingVersions() {
     capture: null,
     editorProfile: null,
     dp2Versions: versions,
-    dp2ActiveVersionId: activeId
+    dp2ActiveVersionId: activeId,
+    parcelEdgeEdit: null
   };
   Object.keys(s).forEach((k) => {
     delete s[k];
@@ -4300,6 +4301,7 @@ function dp2ApplyStateJsonToWorking(stateJson) {
   Object.assign(s, copy);
   s.dp2Versions = versions;
   s.dp2ActiveVersionId = activeId;
+  if (s.parcelEdgeEdit === undefined) s.parcelEdgeEdit = null;
   // Migration : ancien state_json avec `capture` seul → `capture_plan`
   if (s.capture && s.capture.imageBase64 && !(s.capture_plan && s.capture_plan.imageBase64)) {
     try {
@@ -5579,7 +5581,9 @@ function __snDpFreshDp2State() {
     capture_preview: null,
     dp2Versions: [],
     dp2ActiveVersionId: null,
-    displayMode: "detailed"
+    displayMode: "detailed",
+    /** Édition cote segment contour (sans measure_line __parcelEdge dans objects[]). */
+    parcelEdgeEdit: null
   };
 }
 
@@ -5710,9 +5714,20 @@ function dp2ResetActiveToolToNeutral(options) {
   state.gutterHeightVisualScaleDrag = null;
   state.panelPlacementPreview = null;
 
+  if (state.parcelEdgeEdit != null) {
+    state.parcelEdgeEdit = null;
+    try {
+      if (typeof dp2RemoveParcelEdgeInlineInput === "function") dp2RemoveParcelEdgeInlineInput();
+    } catch (_) {}
+    try {
+      if (typeof dp2RemoveMeasureResizePreviewOverlay === "function") dp2RemoveMeasureResizePreviewOverlay();
+    } catch (_) {}
+  }
   const parcelIdx = (state.objects || []).findIndex(o => o && o.__parcelEdge);
-  if (parcelIdx >= 0 && typeof dp2RemoveParcelEdgeInlineInput === "function") {
-    dp2RemoveParcelEdgeInlineInput();
+  if (parcelIdx >= 0) {
+    try {
+      if (typeof dp2RemoveParcelEdgeInlineInput === "function") dp2RemoveParcelEdgeInlineInput();
+    } catch (_) {}
     state.objects.splice(parcelIdx, 1);
   }
 
@@ -8331,8 +8346,19 @@ function initDP2Toolbar() {
 
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
+      if (window.DP2_STATE?.parcelEdgeEdit != null) {
+        if (typeof dp2RemoveParcelEdgeInlineInput === "function") dp2RemoveParcelEdgeInlineInput();
+        dp2ClearParcelEdgeEdit();
+        if (typeof dp2RemoveMeasureResizePreviewOverlay === "function") dp2RemoveMeasureResizePreviewOverlay();
+        const objs = window.DP2_STATE?.objects || [];
+        const idx = objs.findIndex((o) => o && o.__parcelEdge);
+        if (idx >= 0) objs.splice(idx, 1);
+        if (typeof renderDP2FromState === "function") renderDP2FromState();
+        e.preventDefault();
+        return;
+      }
       const objs = window.DP2_STATE?.objects || [];
-      const idx = objs.findIndex(o => o && o.__parcelEdge);
+      const idx = objs.findIndex((o) => o && o.__parcelEdge);
       if (idx >= 0) {
         if (typeof dp2RemoveParcelEdgeInlineInput === "function") dp2RemoveParcelEdgeInlineInput();
         objs.splice(idx, 1);
@@ -8346,8 +8372,28 @@ function initDP2Toolbar() {
       closeTextMenu();
     }
     if (e.key === "Enter") {
+      const pe = window.DP2_STATE?.parcelEdgeEdit;
+      if (
+        pe &&
+        typeof pe.requestedLengthM === "number" &&
+        (pe.anchor === "A" || pe.anchor === "B")
+      ) {
+        if (typeof dp2CommitParcelSegmentResize === "function") {
+          dp2CommitParcelSegmentResize({
+            contourId: pe.contourId,
+            segmentIndex: pe.segmentIndex,
+            requestedLengthM: pe.requestedLengthM,
+            anchor: pe.anchor
+          });
+        }
+        dp2ClearParcelEdgeEdit();
+        if (typeof dp2RemoveMeasureResizePreviewOverlay === "function") dp2RemoveMeasureResizePreviewOverlay();
+        if (typeof renderDP2FromState === "function") renderDP2FromState();
+        e.preventDefault();
+        return;
+      }
       const objs = window.DP2_STATE?.objects || [];
-      const obj = objs.find(o => o && o.type === "measure_line" && typeof o.resizeAnchor === "string");
+      const obj = objs.find((o) => o && o.type === "measure_line" && typeof o.resizeAnchor === "string");
       if (obj) {
         if (typeof dp2CommitMeasureResize === "function") dp2CommitMeasureResize(obj);
         if (typeof dp2RemoveMeasureResizePreviewOverlay === "function") dp2RemoveMeasureResizePreviewOverlay();
@@ -8579,7 +8625,6 @@ const DP2_PARCEL_LABEL_DBLCLICK_HIT_PX = 25;
 
 function dp2HitTestParcelLabelForDblClick(canvasX, canvasY) {
   const contours = dp2GetBuildingContours();
-  const objects = window.DP2_STATE?.objects || [];
   let best = null;
   let bestD = Infinity;
   for (let c = 0; c < contours.length; c++) {
@@ -8588,10 +8633,7 @@ function dp2HitTestParcelLabelForDblClick(canvasX, canvasY) {
     const pts = contour.points;
     const segments = contour.closed ? pts.length : pts.length - 1;
     for (let i = 0; i < segments; i++) {
-      const parcelEdgeML = objects.find(
-        o => o && o.type === "measure_line" && o.__parcelEdge && o.__parcelEdge.contourId === contour.id && o.__parcelEdge.segmentIndex === i
-      );
-      if (parcelEdgeML) continue;
+      if (dp2ParcelEdgeEditBlocksSegment(contour.id, i)) continue;
       const pt = dp2ComputeParcelSegmentLabelCanvasPoint(contour, i);
       if (!pt) continue;
       const d = Math.hypot(canvasX - pt.x, canvasY - pt.y);
@@ -8613,7 +8655,6 @@ function dp2HitTestParcelLabelForDblClick(canvasX, canvasY) {
 // DP2 — Hit-test étiquette de cote (texte "X,XX m") sur un segment de contour jaune. Pour drag visuel uniquement.
 function dp2HitTestParcelSegmentLabel(canvas, x, y) {
   const contours = dp2GetBuildingContours();
-  const objects = window.DP2_STATE?.objects || [];
   const halfW = 32;
   const halfH = 12;
   for (let c = contours.length - 1; c >= 0; c--) {
@@ -8624,10 +8665,7 @@ function dp2HitTestParcelSegmentLabel(canvas, x, y) {
     if (pts.length < 2 || typeof scale !== "number" || scale <= 0) continue;
     const segments = contour.closed ? pts.length : pts.length - 1;
     for (let i = segments - 1; i >= 0; i--) {
-      const parcelEdgeML = objects.find(
-        o => o && o.type === "measure_line" && o.__parcelEdge && o.__parcelEdge.contourId === contour.id && o.__parcelEdge.segmentIndex === i
-      );
-      if (parcelEdgeML) continue;
+      if (dp2ParcelEdgeEditBlocksSegment(contour.id, i)) continue;
       const pt = dp2ComputeParcelSegmentLabelCanvasPoint(contour, i);
       if (!pt) continue;
       if (x >= pt.x - halfW && x <= pt.x + halfW && y >= pt.y - halfH && y <= pt.y + halfH)
@@ -8637,19 +8675,86 @@ function dp2HitTestParcelSegmentLabel(canvas, x, y) {
   return null;
 }
 
-// DP2 — Hit-test repères A/B (measure_line avec requestedLengthM, sans resizeAnchor). Rayon ~11px. Inclut __parcelEdge (clic A/B sur le plan).
+function dp2ClearParcelEdgeEdit() {
+  if (window.DP2_STATE) window.DP2_STATE.parcelEdgeEdit = null;
+}
+
+function dp2ParcelEdgeEditMatchesSegment(peEdit, contourId, segmentIndex) {
+  return !!(
+    peEdit &&
+    peEdit.contourId != null &&
+    typeof peEdit.segmentIndex === "number" &&
+    String(peEdit.contourId) === String(contourId) &&
+    peEdit.segmentIndex === segmentIndex
+  );
+}
+
+function dp2ParcelEdgeEditBlocksSegment(contourId, segmentIndex) {
+  if (dp2ParcelEdgeEditMatchesSegment(window.DP2_STATE?.parcelEdgeEdit, contourId, segmentIndex)) return true;
+  const objects = window.DP2_STATE?.objects || [];
+  return !!objects.find(
+    (o) =>
+      o &&
+      o.type === "measure_line" &&
+      o.__parcelEdge &&
+      String(o.__parcelEdge.contourId) === String(contourId) &&
+      o.__parcelEdge.segmentIndex === segmentIndex
+  );
+}
+
+/** Stub measure_line pour getMeasureLinePreviewPoints — points toujours lus depuis le contour courant. */
+function dp2BuildParcelEdgeMeasureStub(peEdit, contour, segmentIndex) {
+  if (!peEdit || !contour || !Array.isArray(contour.points)) return null;
+  if (!dp2ParcelEdgeEditMatchesSegment(peEdit, contour.id, segmentIndex)) return null;
+  const pts = contour.points;
+  const n = pts.length;
+  const p1 = pts[segmentIndex];
+  const p2 = pts[(segmentIndex + 1) % n];
+  if (!p1 || !p2) return null;
+  const anchor = peEdit.anchor === "A" || peEdit.anchor === "B" ? peEdit.anchor : null;
+  return {
+    type: "measure_line",
+    a: { x: p1.x, y: p1.y },
+    b: { x: p2.x, y: p2.y },
+    requestedLengthM: typeof peEdit.requestedLengthM === "number" ? peEdit.requestedLengthM : null,
+    resizeAnchor: anchor
+  };
+}
+
+// DP2 — Hit-test repères A/B (measure_line avec requestedLengthM, sans resizeAnchor). Rayon ~11px.
 function dp2HitTestMeasureLineAnchor(canvas, x, y) {
   const objects = window.DP2_STATE?.objects || [];
   const R = 11;
   for (let i = objects.length - 1; i >= 0; i--) {
     const obj = objects[i];
-    if (!obj || obj.type !== "measure_line" || !obj.a || !obj.b) continue;
+    if (!obj || obj.type !== "measure_line" || !obj.a || !obj.b || obj.__parcelEdge) continue;
     if (typeof obj.requestedLengthM !== "number" || (obj.resizeAnchor === "A" || obj.resizeAnchor === "B")) continue;
     const dA = Math.hypot(x - obj.a.x, y - obj.a.y);
     const dB = Math.hypot(x - obj.b.x, y - obj.b.y);
     if (dA <= R && dA <= dB) return { objectIndex: i, anchor: "A" };
     if (dB <= R) return { objectIndex: i, anchor: "B" };
   }
+  return null;
+}
+
+/** Clic sur les pastilles A/B du segment en édition (parcelEdgeEdit, après saisie longueur). */
+function dp2HitTestParcelEdgeAnchorChoice(canvas, x, y) {
+  const pe = window.DP2_STATE?.parcelEdgeEdit;
+  if (!pe || pe.contourId == null || typeof pe.segmentIndex !== "number") return null;
+  if (typeof pe.requestedLengthM !== "number") return null;
+  if (pe.anchor === "A" || pe.anchor === "B") return null;
+  const contour = dp2GetBuildingContourById(pe.contourId);
+  if (!contour || !Array.isArray(contour.points)) return null;
+  const pts = contour.points;
+  const n = pts.length;
+  const p1 = pts[pe.segmentIndex];
+  const p2 = pts[(pe.segmentIndex + 1) % n];
+  if (!p1 || !p2) return null;
+  const R = 11;
+  const dA = Math.hypot(x - p1.x, y - p1.y);
+  const dB = Math.hypot(x - p2.x, y - p2.y);
+  if (dA <= R && dA <= dB) return { anchor: "A" };
+  if (dB <= R) return { anchor: "B" };
   return null;
 }
 
@@ -10958,6 +11063,15 @@ function initDP2CanvasEvents() {
     const coords = getDP2CanvasCoords(canvas, e.clientX, e.clientY);
 
     if (tool === "select") {
+      const hitParcelAnchor = dp2HitTestParcelEdgeAnchorChoice(canvas, coords.x, coords.y);
+      if (hitParcelAnchor && (hitParcelAnchor.anchor === "A" || hitParcelAnchor.anchor === "B")) {
+        e.preventDefault();
+        e.stopPropagation();
+        const pe = window.DP2_STATE?.parcelEdgeEdit;
+        if (pe) pe.anchor = hitParcelAnchor.anchor;
+        renderDP2FromState();
+        return;
+      }
       // Choix A/B sur le plan : clic sur repère A ou B = définir resizeAnchor puis prévisualisation
       const hitAnchor = dp2HitTestMeasureLineAnchor(canvas, coords.x, coords.y);
       if (hitAnchor && typeof hitAnchor.objectIndex === "number" && (hitAnchor.anchor === "A" || hitAnchor.anchor === "B")) {
@@ -11237,19 +11351,18 @@ function initDP2CanvasEvents() {
       return false;
     }
 
-    // PRIORITAIRE — double-clic sur le libellé de cote parcelle (chiffre affiché) → champ inline
+    // PRIORITAIRE — double-clic sur le libellé de cote parcelle (chiffre affiché) → champ inline (état dédié, pas objects[])
     const hitParcelLabel = dp2HitTestParcelLabelForDblClick(coords.x, coords.y);
     if (hitParcelLabel && hitParcelLabel.contourId != null && typeof hitParcelLabel.segmentIndex === "number") {
-      window.DP2_STATE.objects.push({
-        type: "measure_line",
-        a: { x: hitParcelLabel.a.x, y: hitParcelLabel.a.y },
-        b: { x: hitParcelLabel.b.x, y: hitParcelLabel.b.y },
+      e.preventDefault();
+      e.stopPropagation();
+      window.DP2_STATE.parcelEdgeEdit = {
+        contourId: hitParcelLabel.contourId,
+        segmentIndex: hitParcelLabel.segmentIndex,
         requestedLengthM: null,
-        resizeAnchor: null,
-        __parcelEdge: { contourId: hitParcelLabel.contourId, segmentIndex: hitParcelLabel.segmentIndex }
-      });
-      const newIdx = window.DP2_STATE.objects.length - 1;
-      dp2ShowParcelEdgeInlineInput(canvas, newIdx);
+        anchor: null
+      };
+      dp2ShowParcelSegmentInlineInput(canvas);
       renderDP2FromState();
       return;
     }
@@ -11731,6 +11844,64 @@ function renderDP2FromState() {
 // DP2 — COMMIT GÉOMÉTRIQUE D'UNE MESURE (PROMPT 5)
 // Applique réellement requestedLengthM sur obj.a ou obj.b
 // --------------------------
+function dp2CommitParcelSegmentResize(params) {
+  const p = params || {};
+  const contourId = p.contourId;
+  const segmentIndex = p.segmentIndex;
+  const requestedLengthM = p.requestedLengthM;
+  const anchor = p.anchor;
+  if (contourId == null || typeof segmentIndex !== "number" || typeof requestedLengthM !== "number") return;
+  if (anchor !== "A" && anchor !== "B") return;
+  const scale = window.DP2_STATE?.scale_m_per_px;
+  if (!scale || scale <= 0) return;
+  const contour = dp2GetBuildingContourById(contourId);
+  if (!contour || !Array.isArray(contour.points) || contour.points.length < 2) return;
+  const pts = contour.points;
+  const n = pts.length;
+  const segIdx = segmentIndex;
+  const p1 = pts[segIdx];
+  const p2 = pts[(segIdx + 1) % n];
+  if (!p1 || !p2) return;
+  const ax = p1.x;
+  const ay = p1.y;
+  const bx = p2.x;
+  const by = p2.y;
+  const dx = bx - ax;
+  const dy = by - ay;
+  const lengthPx = Math.sqrt(dx * dx + dy * dy);
+  if (lengthPx <= 0) return;
+  const lengthM = lengthPx * scale;
+  const deltaM = requestedLengthM - lengthM;
+  const deltaPx = deltaM / scale;
+  const ux = dx / lengthPx;
+  const uy = dy / lengthPx;
+
+  dp2CommitHistoryPoint();
+  if (anchor === "A") {
+    pts[segIdx].x = ax - ux * deltaPx;
+    pts[segIdx].y = ay - uy * deltaPx;
+  } else {
+    const idx2 = (segIdx + 1) % n;
+    pts[idx2].x = bx + ux * deltaPx;
+    pts[idx2].y = by + uy * deltaPx;
+  }
+  const featPe = dp2FindPolygonFeatureById(contourId);
+  if (featPe && Array.isArray(featPe.coordinates)) {
+    for (let ii = 0; ii < pts.length && ii < featPe.coordinates.length; ii++) {
+      const mc = dp2PixelToMapCoord(pts[ii].x, pts[ii].y);
+      if (mc) featPe.coordinates[ii] = mc;
+    }
+    try {
+      delete featPe.cuts;
+    } catch (_) {
+      featPe.cuts = undefined;
+    }
+  }
+  try {
+    dp2RebuildContourDisplayCacheFromFeatures();
+  } catch (_) {}
+}
+
 function dp2CommitMeasureResize(obj) {
   if (
     !obj ||
@@ -11742,58 +11913,17 @@ function dp2CommitMeasureResize(obj) {
   const scale = window.DP2_STATE?.scale_m_per_px;
   if (!scale || scale <= 0) return;
 
-  // Branche __parcelEdge : appliquer la longueur au segment du contour puis supprimer la measure_line temporaire
   const parcelEdge = obj.__parcelEdge;
   if (parcelEdge && parcelEdge.contourId != null && typeof parcelEdge.segmentIndex === "number") {
-    const contour = dp2GetBuildingContourById(parcelEdge.contourId);
-    if (!contour || !Array.isArray(contour.points) || contour.points.length < 2) return;
-    const pts = contour.points;
-    const n = pts.length;
-    const segIdx = parcelEdge.segmentIndex;
-    const p1 = pts[segIdx];
-    const p2 = pts[(segIdx + 1) % n];
-    if (!p1 || !p2) return;
-    const ax = p1.x;
-    const ay = p1.y;
-    const bx = p2.x;
-    const by = p2.y;
-    const dx = bx - ax;
-    const dy = by - ay;
-    const lengthPx = Math.sqrt(dx * dx + dy * dy);
-    if (lengthPx <= 0) return;
-    const lengthM = lengthPx * scale;
-    const deltaM = obj.requestedLengthM - lengthM;
-    const deltaPx = deltaM / scale;
-    const ux = dx / lengthPx;
-    const uy = dy / lengthPx;
-
-    dp2CommitHistoryPoint();
-    if (obj.resizeAnchor === "A") {
-      pts[segIdx].x = ax - ux * deltaPx;
-      pts[segIdx].y = ay - uy * deltaPx;
-    } else {
-      const idx2 = (segIdx + 1) % n;
-      pts[idx2].x = bx + ux * deltaPx;
-      pts[idx2].y = by + uy * deltaPx;
-    }
-    const featPe = dp2FindPolygonFeatureById(parcelEdge.contourId);
-    if (featPe && Array.isArray(featPe.coordinates)) {
-      for (let ii = 0; ii < pts.length && ii < featPe.coordinates.length; ii++) {
-        const mc = dp2PixelToMapCoord(pts[ii].x, pts[ii].y);
-        if (mc) featPe.coordinates[ii] = mc;
-      }
-      try {
-        delete featPe.cuts;
-      } catch (_) {
-        featPe.cuts = undefined;
-      }
-    }
+    dp2CommitParcelSegmentResize({
+      contourId: parcelEdge.contourId,
+      segmentIndex: parcelEdge.segmentIndex,
+      requestedLengthM: obj.requestedLengthM,
+      anchor: obj.resizeAnchor
+    });
     const objects = window.DP2_STATE?.objects || [];
     const idx = objects.indexOf(obj);
     if (idx >= 0) objects.splice(idx, 1);
-    try {
-      dp2RebuildContourDisplayCacheFromFeatures();
-    } catch (_) {}
     return;
   }
 
@@ -11847,13 +11977,41 @@ function dp2SyncMeasureResizePreviewOverlay() {
   const objects = window.DP2_STATE?.objects || [];
   let previewObj = null;
   let previewIndex = -1;
-  for (let i = 0; i < objects.length; i++) {
-    const obj = objects[i];
-    if (obj && obj.type === "measure_line" && obj.a && obj.b &&
-        typeof obj.requestedLengthM === "number" && (obj.resizeAnchor === "A" || obj.resizeAnchor === "B")) {
-      previewObj = obj;
-      previewIndex = i;
-      break;
+  const pe = window.DP2_STATE?.parcelEdgeEdit;
+  let parcelPreviewMid = null;
+  if (
+    pe &&
+    pe.contourId != null &&
+    typeof pe.segmentIndex === "number" &&
+    typeof pe.requestedLengthM === "number" &&
+    (pe.anchor === "A" || pe.anchor === "B")
+  ) {
+    const contourPe = dp2GetBuildingContourById(pe.contourId);
+    const stubPe = contourPe ? dp2BuildParcelEdgeMeasureStub(pe, contourPe, pe.segmentIndex) : null;
+    const prevPe = stubPe ? getMeasureLinePreviewPoints(stubPe) : null;
+    if (prevPe) {
+      parcelPreviewMid = {
+        midX: (prevPe.aPreview.x + prevPe.bPreview.x) / 2,
+        midY: (prevPe.aPreview.y + prevPe.bPreview.y) / 2
+      };
+    }
+  }
+
+  if (!parcelPreviewMid) {
+    for (let i = 0; i < objects.length; i++) {
+      const obj = objects[i];
+      if (
+        obj &&
+        obj.type === "measure_line" &&
+        obj.a &&
+        obj.b &&
+        typeof obj.requestedLengthM === "number" &&
+        (obj.resizeAnchor === "A" || obj.resizeAnchor === "B")
+      ) {
+        previewObj = obj;
+        previewIndex = i;
+        break;
+      }
     }
   }
 
@@ -11861,13 +12019,20 @@ function dp2SyncMeasureResizePreviewOverlay() {
   const container = document.getElementById("dp2-zoom-container");
   if (!canvas || !container) return;
 
-  if (!previewObj || previewIndex < 0) {
+  if (!previewObj && !parcelPreviewMid) {
     dp2RemoveMeasureResizePreviewOverlay();
     return;
   }
 
-  const midX = (previewObj.a.x + previewObj.b.x) / 2;
-  const midY = (previewObj.a.y + previewObj.b.y) / 2;
+  let midX;
+  let midY;
+  if (parcelPreviewMid) {
+    midX = parcelPreviewMid.midX;
+    midY = parcelPreviewMid.midY;
+  } else {
+    midX = (previewObj.a.x + previewObj.b.x) / 2;
+    midY = (previewObj.a.y + previewObj.b.y) / 2;
+  }
   const labelY = midY + 22;
   const pt = getDP2CanvasToClient(canvas, midX, labelY);
   const containerRect = container.getBoundingClientRect();
@@ -11880,50 +12045,42 @@ function dp2SyncMeasureResizePreviewOverlay() {
     overlay.id = "dp2-measure-resize-preview-overlay";
     overlay.setAttribute("role", "dialog");
     overlay.setAttribute("aria-label", "Valider la modification");
-    overlay.style.cssText = "position:absolute;z-index:51;display:flex;flex-direction:column;gap:6px;padding:8px;background:rgba(17,24,39,0.95);color:#f3f4f6;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.3);font:13px system-ui,sans-serif;";
+    overlay.style.cssText =
+      "position:absolute;z-index:51;display:flex;flex-direction:column;gap:6px;padding:8px;background:rgba(17,24,39,0.95);color:#f3f4f6;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.3);font:13px system-ui,sans-serif;";
     const title = document.createElement("div");
     title.textContent = "Prévisualisation — aucun changement appliqué tant que vous ne validez pas";
     title.style.cssText = "font-weight:600;margin-bottom:2px;";
     overlay.appendChild(title);
     const btnValider = document.createElement("button");
     btnValider.type = "button";
+    btnValider.id = "dp2-measure-resize-preview-validate-btn";
     btnValider.textContent = "Valider la modification";
-    btnValider.style.cssText = "padding:6px 10px;border:1px solid rgba(255,255,255,0.3);border-radius:6px;background:#059669;color:#fff;cursor:pointer;font:inherit;";
+    btnValider.style.cssText =
+      "padding:6px 10px;border:1px solid rgba(255,255,255,0.3);border-radius:6px;background:#059669;color:#fff;cursor:pointer;font:inherit;";
     overlay.appendChild(btnValider);
-
-    btnValider.onclick = () => {
-      const objects = window.DP2_STATE?.objects || [];
-      const obj = objects.find(
-        o => o && o.type === "measure_line" && typeof o.resizeAnchor === "string"
-      );
-
-      if (obj) {
-        dp2CommitMeasureResize(obj);
-      }
-
-      dp2RemoveMeasureResizePreviewOverlay();
-      if (window._dp2MeasureResizePreviewOutsideHandler) {
-        document.removeEventListener("click", window._dp2MeasureResizePreviewOutsideHandler);
-        window._dp2MeasureResizePreviewOutsideHandler = null;
-      }
-      renderDP2FromState();
-    };
-
     overlay.addEventListener("click", (e) => e.stopPropagation());
     container.appendChild(overlay);
   }
+
   function cancelPreview() {
-    const objects = window.DP2_STATE?.objects || [];
-    const obj = objects.find(
-      o => o && o.type === "measure_line" && typeof o.resizeAnchor === "string"
-    );
-    if (obj) {
-      if (obj.__parcelEdge != null) {
-        const idx = objects.indexOf(obj);
-        if (idx >= 0) objects.splice(idx, 1);
-      } else {
-        delete obj.requestedLengthM;
-        delete obj.resizeAnchor;
+    const peLive = window.DP2_STATE?.parcelEdgeEdit;
+    if (
+      peLive &&
+      typeof peLive.requestedLengthM === "number" &&
+      (peLive.anchor === "A" || peLive.anchor === "B")
+    ) {
+      dp2ClearParcelEdgeEdit();
+    } else {
+      const objs = window.DP2_STATE?.objects || [];
+      const obj = objs.find((o) => o && o.type === "measure_line" && typeof o.resizeAnchor === "string");
+      if (obj) {
+        if (obj.__parcelEdge != null) {
+          const idx = objs.indexOf(obj);
+          if (idx >= 0) objs.splice(idx, 1);
+        } else {
+          delete obj.requestedLengthM;
+          delete obj.resizeAnchor;
+        }
       }
     }
     dp2RemoveMeasureResizePreviewOverlay();
@@ -11933,6 +12090,39 @@ function dp2SyncMeasureResizePreviewOverlay() {
     }
     renderDP2FromState();
   }
+
+  let btnValider = document.getElementById("dp2-measure-resize-preview-validate-btn");
+  if (!btnValider && overlay) btnValider = overlay.querySelector("button");
+  if (btnValider && !btnValider.id) btnValider.id = "dp2-measure-resize-preview-validate-btn";
+  if (btnValider) {
+    btnValider.onclick = () => {
+      const peNow = window.DP2_STATE?.parcelEdgeEdit;
+      if (
+        peNow &&
+        typeof peNow.requestedLengthM === "number" &&
+        (peNow.anchor === "A" || peNow.anchor === "B")
+      ) {
+        dp2CommitParcelSegmentResize({
+          contourId: peNow.contourId,
+          segmentIndex: peNow.segmentIndex,
+          requestedLengthM: peNow.requestedLengthM,
+          anchor: peNow.anchor
+        });
+        dp2ClearParcelEdgeEdit();
+      } else {
+        const objs = window.DP2_STATE?.objects || [];
+        const obj = objs.find((o) => o && o.type === "measure_line" && typeof o.resizeAnchor === "string");
+        if (obj) dp2CommitMeasureResize(obj);
+      }
+      dp2RemoveMeasureResizePreviewOverlay();
+      if (window._dp2MeasureResizePreviewOutsideHandler) {
+        document.removeEventListener("click", window._dp2MeasureResizePreviewOutsideHandler);
+        window._dp2MeasureResizePreviewOutsideHandler = null;
+      }
+      renderDP2FromState();
+    };
+  }
+
   if (!window._dp2MeasureResizePreviewOutsideHandler) {
     window._dp2MeasureResizePreviewOutsideHandler = function outsidePreview(e) {
       if (overlay && overlay.contains(e.target)) return;
@@ -11980,12 +12170,21 @@ function dp2TeardownParcelInlineOutsideHandler() {
 function dp2RemoveParcelEdgeInlineInput(committedValue) {
   dp2TeardownParcelInlineOutsideHandler();
   const input = document.getElementById("dp2-parcel-edge-inline-input");
+  const pe = window.DP2_STATE?.parcelEdgeEdit;
   const objs = window.DP2_STATE?.objects || [];
-  const ix = objs.findIndex(o => o && o.__parcelEdge);
+  const ix = objs.findIndex((o) => o && o.__parcelEdge);
   const obj = ix >= 0 ? objs[ix] : null;
 
   let didCommit = false;
-  if (obj && obj.type === "measure_line" && obj.__parcelEdge && committedValue !== undefined) {
+  if (pe && pe.contourId != null && typeof pe.segmentIndex === "number" && committedValue !== undefined) {
+    const normalized = String(committedValue).trim().replace(",", ".");
+    const num = parseFloat(normalized);
+    if (!Number.isNaN(num) && num >= 0) {
+      pe.requestedLengthM = num;
+      pe.anchor = null;
+      didCommit = true;
+    }
+  } else if (obj && obj.type === "measure_line" && obj.__parcelEdge && committedValue !== undefined) {
     const normalized = String(committedValue).trim().replace(",", ".");
     const num = parseFloat(normalized);
     if (!Number.isNaN(num) && num >= 0) {
@@ -12005,19 +12204,31 @@ function dp2RemoveParcelEdgeInlineInput(committedValue) {
   if (didCommit && typeof renderDP2FromState === "function") renderDP2FromState();
 }
 
-// DP2 — Édition inline cote parcelle : #dp2-overlay-layer sous #dp2-captured-image-wrap (hors zoom transform)
-function dp2ShowParcelEdgeInlineInput(canvas, objectIndex) {
+// DP2 — Édition inline cote parcelle : #dp2-overlay-layer (parcelEdgeEdit, pas de measure_line temporaire)
+function dp2ShowParcelSegmentInlineInput(canvas) {
   dp2EnsureOverlayLayer();
   const layer = document.getElementById("dp2-overlay-layer");
-  const objs = window.DP2_STATE?.objects || [];
-  const obj = objs[objectIndex];
-  if (!obj || obj.type !== "measure_line" || !obj.a || !obj.b || !obj.__parcelEdge || !layer || !canvas) return;
+  const pe = window.DP2_STATE?.parcelEdgeEdit;
+  if (!pe || pe.contourId == null || typeof pe.segmentIndex !== "number" || !layer || !canvas) return;
 
   if (document.getElementById("dp2-parcel-edge-inline-input")) dp2RemoveParcelEdgeInlineInput();
 
-  const pe = obj.__parcelEdge;
+  const contour = dp2GetBuildingContourById(pe.contourId);
+  if (!contour || !Array.isArray(contour.points)) {
+    dp2ClearParcelEdgeEdit();
+    return;
+  }
+  const pts = contour.points;
+  const n = pts.length;
+  const p1 = pts[pe.segmentIndex];
+  const p2 = pts[(pe.segmentIndex + 1) % n];
+  if (!p1 || !p2) {
+    dp2ClearParcelEdgeEdit();
+    return;
+  }
+
   const scale = window.DP2_STATE?.scale_m_per_px;
-  const lengthPx = Math.hypot(obj.b.x - obj.a.x, obj.b.y - obj.a.y);
+  const lengthPx = Math.hypot(p2.x - p1.x, p2.y - p1.y);
   const lengthM = typeof scale === "number" && scale > 0 ? lengthPx * scale : 0;
   const currentStr = lengthM.toFixed(2).replace(".", ",");
 
@@ -12048,7 +12259,8 @@ function dp2ShowParcelEdgeInlineInput(canvas, objectIndex) {
     const inputEl = document.getElementById("dp2-parcel-edge-inline-input");
     if (inputEl && inputEl.parentNode) inputEl.parentNode.removeChild(inputEl);
     if (window.dp2InteractionState) window.dp2InteractionState.editingFeatureId = null;
-    const idx = (window.DP2_STATE?.objects || []).indexOf(obj);
+    dp2ClearParcelEdgeEdit();
+    const idx = (window.DP2_STATE?.objects || []).findIndex((o) => o && o.__parcelEdge);
     if (idx >= 0) window.DP2_STATE.objects.splice(idx, 1);
     try {
       dp2FinalizeInteractionChrome();
@@ -12073,7 +12285,6 @@ function dp2ShowParcelEdgeInlineInput(canvas, objectIndex) {
     if (ev.target.closest && ev.target.closest("#dp2-settings-panel")) return;
     dp2RemoveParcelEdgeInlineInput(input.value);
   };
-  // Deux rAF : évite que le pointerdown du double-clic d’ouverture ferme / valide tout de suite
   if (typeof requestAnimationFrame === "function") {
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
@@ -13075,6 +13286,7 @@ function renderDP2BuildingContour(ctx, contour, options) {
   if (pts.length >= 2 && typeof scale === "number" && scale > 0) {
     const segments = contour.closed ? pts.length : pts.length - 1;
     const objects = window.DP2_STATE?.objects || [];
+    const peEdit = window.DP2_STATE?.parcelEdgeEdit;
     for (let i = 0; i < segments; i++) {
       const p1 = pts[i];
       const p2 = pts[(i + 1) % pts.length];
@@ -13083,16 +13295,38 @@ function renderDP2BuildingContour(ctx, contour, options) {
         window.dp2InteractionState &&
         window.dp2InteractionState.editingFeatureId === fidSeg;
       const tierSeg = dp2InteractionTierForFeature(fidSeg);
-      const parcelEdgeML = objects.find(
-        o => o && o.type === "measure_line" && o.__parcelEdge && o.__parcelEdge.contourId === contour.id && o.__parcelEdge.segmentIndex === i
+      const legacyML = objects.find(
+        (o) =>
+          o &&
+          o.type === "measure_line" &&
+          o.__parcelEdge &&
+          o.__parcelEdge.contourId === contour.id &&
+          o.__parcelEdge.segmentIndex === i
       );
-      const parcelEdgeEditing = !!parcelEdgeML;
+      const parcelEdgeEditing =
+        dp2ParcelEdgeEditMatchesSegment(peEdit, contour.id, i) || !!legacyML;
+      let previewStub = null;
+      if (dp2ParcelEdgeEditMatchesSegment(peEdit, contour.id, i)) {
+        previewStub = dp2BuildParcelEdgeMeasureStub(peEdit, contour, i);
+      } else if (legacyML) {
+        previewStub = legacyML;
+      }
 
-      // __parcelEdge : surcouches A/B + prévisualisation resize. Pendant édition inline (editingFeatureId),
-      // le texte des cotes est volontairement omis sur le canvas — seul l’input DOM affiche la valeur.
+      // Édition segment contour : surcouches A/B + prévisualisation (parcelEdgeEdit ou brouillon __parcelEdge).
       if (parcelEdgeEditing) {
-        const hasValue = typeof parcelEdgeML.requestedLengthM === "number";
-        const noAnchorYet = parcelEdgeML.resizeAnchor !== "A" && parcelEdgeML.resizeAnchor !== "B";
+        let noAnchorYet = false;
+        if (dp2ParcelEdgeEditMatchesSegment(peEdit, contour.id, i)) {
+          noAnchorYet =
+            typeof peEdit.requestedLengthM === "number" &&
+            peEdit.anchor !== "A" &&
+            peEdit.anchor !== "B";
+        } else if (legacyML) {
+          noAnchorYet =
+            typeof legacyML.requestedLengthM === "number" &&
+            legacyML.resizeAnchor !== "A" &&
+            legacyML.resizeAnchor !== "B";
+        }
+        const hasValue = previewStub && typeof previewStub.requestedLengthM === "number";
         if (hasValue && noAnchorYet) {
           const R = 11;
           ctx.save();
@@ -13120,8 +13354,10 @@ function renderDP2BuildingContour(ctx, contour, options) {
           ctx.restore();
         }
         const preview =
-          parcelEdgeML && typeof parcelEdgeML.requestedLengthM === "number" && (parcelEdgeML.resizeAnchor === "A" || parcelEdgeML.resizeAnchor === "B")
-            ? getMeasureLinePreviewPoints(parcelEdgeML)
+          previewStub &&
+          typeof previewStub.requestedLengthM === "number" &&
+          (previewStub.resizeAnchor === "A" || previewStub.resizeAnchor === "B")
+            ? getMeasureLinePreviewPoints(previewStub)
             : null;
         if (preview) {
           ctx.save();
@@ -13133,8 +13369,8 @@ function renderDP2BuildingContour(ctx, contour, options) {
           ctx.lineTo(preview.bPreview.x, preview.bPreview.y);
           ctx.stroke();
           ctx.setLineDash([]);
-          const anchor = parcelEdgeML.resizeAnchor;
-          const from = anchor === "A" ? parcelEdgeML.a : parcelEdgeML.b;
+          const anchor = previewStub.resizeAnchor;
+          const from = anchor === "A" ? p1 : p2;
           const to = anchor === "A" ? preview.aPreview : preview.bPreview;
           const dist = Math.hypot(to.x - from.x, to.y - from.y);
           if (dist > 2) {
@@ -13162,7 +13398,10 @@ function renderDP2BuildingContour(ctx, contour, options) {
           }
           const midX = (preview.aPreview.x + preview.bPreview.x) / 2;
           const midY = (preview.aPreview.y + preview.bPreview.y) / 2;
-          const text = (typeof parcelEdgeML.requestedLengthM === "number" ? parcelEdgeML.requestedLengthM : 0).toFixed(2).replace(".", ",") + " m";
+          const text =
+            (typeof previewStub.requestedLengthM === "number" ? previewStub.requestedLengthM : 0)
+              .toFixed(2)
+              .replace(".", ",") + " m";
           ctx.font = "12px system-ui, sans-serif";
           ctx.fillStyle = "#1f2937";
           ctx.textAlign = "center";
@@ -13203,8 +13442,8 @@ function renderDP2BuildingContour(ctx, contour, options) {
       const dy = p2.y - p1.y;
       const lengthPx = Math.sqrt(dx * dx + dy * dy);
       let lengthM = lengthPx * scale;
-      if (parcelEdgeML && typeof parcelEdgeML.requestedLengthM === "number") {
-        lengthM = parcelEdgeML.requestedLengthM;
+      if (previewStub && typeof previewStub.requestedLengthM === "number") {
+        lengthM = previewStub.requestedLengthM;
       }
       let midX = (p1.x + p2.x) / 2;
       let midY = (p1.y + p2.y) / 2;
