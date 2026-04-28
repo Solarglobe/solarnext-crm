@@ -100,6 +100,87 @@ export function mergeLiveOrganizationBankIntoInvoicePdfPayload(payload, orgRow) 
   return { ...payload, issuer };
 }
 
+function trimOrNull(v) {
+  if (v == null) return null;
+  const s = String(v).trim();
+  return s === "" ? null : s;
+}
+
+/**
+ * Adresse fiche client → format attendu par le renderer PDF (objet line1 / line2 / …).
+ * @param {object|null|undefined} row — ligne `clients`
+ * @returns {object|null}
+ */
+export function clientRowToInvoicePdfAddressShape(row) {
+  if (!row || typeof row !== "object") return null;
+  const line1 = trimOrNull(row.address_line_1);
+  const line2 = trimOrNull(row.address_line_2);
+  const postal_code = trimOrNull(row.postal_code);
+  const city = trimOrNull(row.city);
+  const country = trimOrNull(row.country);
+  if (!line1 && !line2 && !postal_code && !city && !country) return null;
+  return { line1, line2, postal_code, city, country };
+}
+
+/**
+ * Ligne `addresses` → même forme que {@link clientRowToInvoicePdfAddressShape}.
+ * @param {object|null|undefined} row
+ * @returns {object|null}
+ */
+export function addressesTableRowToInvoicePdfAddressShape(row) {
+  if (!row || typeof row !== "object") return null;
+  const line1 = trimOrNull(row.address_line1);
+  const line2 = trimOrNull(row.address_line2);
+  const postal_code = trimOrNull(row.postal_code);
+  const city = trimOrNull(row.city);
+  const country = trimOrNull(row.country_code);
+  if (!line1 && !line2 && !postal_code && !city && !country) return null;
+  return { line1, line2, postal_code, city, country };
+}
+
+/**
+ * Rendu PDF facture uniquement : injecte l’adresse lue sur les fiches client / lead (sans persister le snapshot).
+ * Priorité : client si données présentes ; sinon adresse facturation lead → site → champ texte legacy `leads.address`.
+ * @param {object} payload
+ * @param {{ clientRow?: object|null, leadRow?: object|null }} enrich
+ * @returns {object}
+ */
+export function mergeLiveBillingAddressIntoInvoicePdfPayload(payload, enrich) {
+  if (!payload || typeof payload !== "object") return payload;
+  const clientShape = clientRowToInvoicePdfAddressShape(enrich?.clientRow);
+  let address = null;
+  if (clientShape) {
+    address = clientShape;
+  } else if (enrich?.leadRow && typeof enrich.leadRow === "object") {
+    const lr = enrich.leadRow;
+    const billing = addressesTableRowToInvoicePdfAddressShape({
+      address_line1: lr.b_line1,
+      address_line2: lr.b_line2,
+      postal_code: lr.b_postal,
+      city: lr.b_city,
+      country_code: lr.b_country,
+    });
+    const site = addressesTableRowToInvoicePdfAddressShape({
+      address_line1: lr.s_line1,
+      address_line2: lr.s_line2,
+      postal_code: lr.s_postal,
+      city: lr.s_city,
+      country_code: lr.s_country,
+    });
+    const legacy = trimOrNull(lr.legacy_address);
+    if (billing) address = billing;
+    else if (site) address = site;
+    else if (legacy) address = legacy;
+  }
+  if (address == null) return payload;
+  const recipientSrc =
+    payload.recipient !== null && payload.recipient !== undefined && typeof payload.recipient === "object"
+      ? payload.recipient
+      : {};
+  const recipient = { ...recipientSrc, address };
+  return { ...payload, recipient };
+}
+
 /**
  * @param {object} snapshot
  */

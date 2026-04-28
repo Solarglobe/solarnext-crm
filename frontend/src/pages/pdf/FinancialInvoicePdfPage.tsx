@@ -275,10 +275,7 @@ export default function FinancialInvoicePdfPage() {
           </div>
         </div>
         {sourceQuote?.quote_number ? (
-          <p className="fi-ref-quote">
-            Réf. devis : {String(sourceQuote.quote_number)}
-            {sourceQuote.quote_id ? ` (${String(sourceQuote.quote_id).slice(0, 8)}…)` : null}
-          </p>
+          <p className="fi-ref-quote">Réf. devis : {String(sourceQuote.quote_number)}</p>
         ) : null}
       </section>
 
