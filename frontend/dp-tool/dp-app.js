@@ -7910,34 +7910,77 @@ function dp2SegmentReadableAngle(p1, p2) {
   return angle;
 }
 
-function dp2FillAlignedCoteLabel(ctx, text, p1, p2, offset, tier) {
-  if (!ctx || !p1 || !p2 || !text) return;
+function dp2ManualCoteOffset(offset) {
   const off = offset && typeof offset.x === "number" && typeof offset.y === "number" ? offset : { x: 0, y: 0 };
-  const midX = ((p1.x || 0) + (p2.x || 0)) / 2 + off.x;
-  const midY = ((p1.y || 0) + (p2.y || 0)) / 2 + off.y;
+  return { x: off.x || 0, y: off.y || 0 };
+}
+
+function dp2ContourCentroidForLabels(contour) {
+  const pts = Array.isArray(contour?.points) ? contour.points : [];
+  if (!pts.length) return null;
+  let sx = 0;
+  let sy = 0;
+  let n = 0;
+  for (const p of pts) {
+    if (!p || typeof p.x !== "number" || typeof p.y !== "number") continue;
+    sx += p.x;
+    sy += p.y;
+    n += 1;
+  }
+  return n > 0 ? { x: sx / n, y: sy / n } : null;
+}
+
+function dp2CoteLabelAutoOffset(p1, p2, options) {
+  const opts = options || {};
+  const dx = (p2?.x || 0) - (p1?.x || 0);
+  const dy = (p2?.y || 0) - (p1?.y || 0);
+  const len = Math.hypot(dx, dy);
+  if (len < 0.001) return { x: 0, y: 0 };
+  const dist = typeof opts.distance === "number" ? opts.distance : 13;
+  const n1 = { x: -dy / len, y: dx / len };
+  const n2 = { x: dy / len, y: -dx / len };
+  const mid = { x: ((p1.x || 0) + (p2.x || 0)) / 2, y: ((p1.y || 0) + (p2.y || 0)) / 2 };
+  let n = n1;
+
+  if (opts.exteriorOf) {
+    const center = dp2ContourCentroidForLabels(opts.exteriorOf);
+    if (center) {
+      const toCenter = { x: center.x - mid.x, y: center.y - mid.y };
+      n = (n1.x * toCenter.x + n1.y * toCenter.y) <= 0 ? n1 : n2;
+    }
+  } else {
+    n = Math.abs(n1.y) >= 0.15
+      ? (n1.y >= 0 ? n1 : n2)
+      : (n1.x >= 0 ? n1 : n2);
+  }
+
+  return { x: n.x * dist, y: n.y * dist };
+}
+
+function dp2ComputeCoteLabelPoint(p1, p2, offset, options) {
+  if (!p1 || !p2) return null;
+  const off = dp2ManualCoteOffset(offset);
+  const auto = dp2CoteLabelAutoOffset(p1, p2, options);
+  return {
+    x: ((p1.x || 0) + (p2.x || 0)) / 2 + auto.x + off.x,
+    y: ((p1.y || 0) + (p2.y || 0)) / 2 + auto.y + off.y
+  };
+}
+
+function dp2FillAlignedCoteLabel(ctx, text, p1, p2, offset, tier, options) {
+  if (!ctx || !p1 || !p2 || !text) return;
+  const pt = dp2ComputeCoteLabelPoint(p1, p2, offset, options);
+  if (!pt) return;
   const angle = dp2SegmentReadableAngle(p1, p2);
-  const fontSize = tier === "editing" ? 10 : 9;
-  const padX = 4;
-  const padY = 2;
+  const fontSize = tier === "editing" ? 9 : 8;
 
   ctx.save();
-  ctx.translate(midX, midY);
+  ctx.translate(pt.x, pt.y);
   ctx.rotate(angle);
   ctx.font = `${fontSize}px system-ui, sans-serif`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  const metrics = ctx.measureText(text);
-  const boxW = Math.max(26, metrics.width + padX * 2);
-  const boxH = fontSize + padY * 2;
-  ctx.fillStyle = tier === "editing" ? "rgba(255,255,255,0.96)" : "rgba(255,255,255,0.86)";
-  ctx.strokeStyle = tier === "editing" ? "rgba(37, 99, 235, 0.42)" : "rgba(15, 23, 42, 0.14)";
-  ctx.lineWidth = 0.75;
-  ctx.beginPath();
-  if (typeof ctx.roundRect === "function") ctx.roundRect(-boxW / 2, -boxH / 2, boxW, boxH, 3);
-  else ctx.rect(-boxW / 2, -boxH / 2, boxW, boxH);
-  ctx.fill();
-  ctx.stroke();
-  ctx.fillStyle = "#1f2937";
+  ctx.fillStyle = tier === "editing" ? "#111827" : "#1f2937";
   ctx.fillText(text, 0, 0);
   ctx.restore();
 }
@@ -8693,19 +8736,18 @@ function dp2ComputeParcelSegmentLabelCanvasPoint(contour, segmentIndex) {
   const offMap = contour.labelOffsets && typeof contour.labelOffsets === "object" ? contour.labelOffsets : {};
   const segOff = offMap[i] && typeof offMap[i].x === "number" && typeof offMap[i].y === "number" ? offMap[i] : { x: 0, y: 0 };
   const cutParts = contour.cuts && contour.cuts[i];
-  let midX; let midY;
+  let pt = null;
   if (Array.isArray(cutParts) && cutParts.length === 2 && cutParts[0]?.a && cutParts[0]?.b && cutParts[1]?.a && cutParts[1]?.b) {
     const m0x = (cutParts[0].a.x + cutParts[0].b.x) / 2;
     const m0y = (cutParts[0].a.y + cutParts[0].b.y) / 2;
     const m1x = (cutParts[1].a.x + cutParts[1].b.x) / 2;
     const m1y = (cutParts[1].a.y + cutParts[1].b.y) / 2;
-    midX = (m0x + m1x) / 2;
-    midY = (m0y + m1y) / 2;
+    const auto = dp2CoteLabelAutoOffset(p1, p2, { exteriorOf: contour });
+    pt = { x: (m0x + m1x) / 2 + auto.x + segOff.x, y: (m0y + m1y) / 2 + auto.y + segOff.y };
   } else {
-    midX = (p1.x + p2.x) / 2;
-    midY = (p1.y + p2.y) / 2;
+    pt = dp2ComputeCoteLabelPoint(p1, p2, segOff, { exteriorOf: contour });
   }
-  return { x: midX + segOff.x, y: midY + segOff.y };
+  return pt;
 }
 
 /** Double-clic édition cote parcelle : hit sur le libellé affiché (pas sur l’arête brute). */
@@ -8851,19 +8893,19 @@ function dp2HitTestParcelEdgeAnchorChoice(canvas, x, y) {
 // En mode prévisualisation (resizeAnchor A/B) on ne propose pas le drag d’étiquette.
 function dp2HitTestMeasureLabel(canvas, x, y) {
   const objects = window.DP2_STATE?.objects || [];
-  const halfW = 32;
-  const halfH = 12;
+  const halfW = 34;
+  const halfH = 14;
   for (let i = objects.length - 1; i >= 0; i--) {
     const obj = objects[i];
     if (!obj || obj.type !== "measure_line" || !obj.a || !obj.b || obj.__parcelEdge) continue;
     if (getMeasureLinePreviewPoints(obj)) continue;
-    const midX = (obj.a.x + obj.b.x) / 2;
-    const midY = (obj.a.y + obj.b.y) / 2;
     const offset = obj.labelOffset && typeof obj.labelOffset.x === "number" && typeof obj.labelOffset.y === "number"
       ? obj.labelOffset
       : { x: 0, y: 0 };
-    const lx = midX + offset.x;
-    const ly = midY + offset.y;
+    const pt = dp2ComputeCoteLabelPoint(obj.a, obj.b, offset);
+    if (!pt) continue;
+    const lx = pt.x;
+    const ly = pt.y;
     if (x >= lx - halfW && x <= lx + halfW && y >= ly - halfH && y <= ly + halfH)
       return { kind: "measure_label", index: i };
   }
@@ -8873,18 +8915,18 @@ function dp2HitTestMeasureLabel(canvas, x, y) {
 // DP2 — Hit-test étiquette faîtage (label longueur) : même zone 64×24 que mesure, pour drag.
 function dp2HitTestRidgeLabel(canvas, x, y) {
   const objects = window.DP2_STATE?.objects || [];
-  const halfW = 32;
-  const halfH = 12;
+  const halfW = 34;
+  const halfH = 14;
   for (let i = objects.length - 1; i >= 0; i--) {
     const obj = objects[i];
     if (!obj || obj.type !== "ridge_line" || !obj.a || !obj.b) continue;
-    const midX = (obj.a.x + obj.b.x) / 2;
-    const midY = (obj.a.y + obj.b.y) / 2;
     const offset = obj.labelOffset && typeof obj.labelOffset.x === "number" && typeof obj.labelOffset.y === "number"
       ? obj.labelOffset
       : { x: 0, y: 0 };
-    const lx = midX + offset.x;
-    const ly = midY + offset.y;
+    const pt = dp2ComputeCoteLabelPoint(obj.a, obj.b, offset);
+    if (!pt) continue;
+    const lx = pt.x;
+    const ly = pt.y;
     if (x >= lx - halfW && x <= lx + halfW && y >= ly - halfH && y <= ly + halfH)
       return { kind: "ridge_label", index: i };
   }
@@ -11462,23 +11504,7 @@ function initDP2CanvasEvents() {
     function openMeasureLineEdit(objectIndex) {
       const obj = objs[objectIndex];
       if (!obj || obj.type !== "measure_line" || !obj.a || !obj.b) return false;
-      const scale = window.DP2_STATE?.scale_m_per_px;
-      const lengthPx = Math.hypot(obj.b.x - obj.a.x, obj.b.y - obj.a.y);
-      const lengthM = typeof scale === "number" && scale > 0 ? lengthPx * scale : 0;
-      const currentStr = lengthM.toFixed(2).replace(".", ",");
-      const raw = window.prompt("Longueur (m) :", currentStr);
-      if (raw != null) {
-        const normalized = String(raw).trim().replace(",", ".");
-        const num = parseFloat(normalized);
-        if (!Number.isNaN(num) && num >= 0) {
-          // __parcelEdge : commit uniquement à la validation, pas à la saisie
-          if (!obj.__parcelEdge) dp2CommitHistoryPoint();
-          obj.requestedLengthM = num;
-          renderDP2FromState();
-          return true;
-        }
-      }
-      return false;
+      return dp2ShowMeasureLineInlineInput(canvas, objectIndex);
     }
 
     // PRIORITAIRE — double-clic sur le libellé de cote parcelle (chiffre affiché) → champ inline (état dédié, pas objects[])
@@ -11506,9 +11532,7 @@ function initDP2CanvasEvents() {
         window.DP2_STATE.measureLabelDragCandidate = null;
         const lastDrag = window.DP2_STATE._lastMeasureLabelDragAt || 0;
         if (Date.now() - lastDrag > 300) {
-          if (openMeasureLineEdit(hitLabel.index)) {
-            dp2ShowMeasureAnchorChoiceOverlay(canvas, hitLabel.index);
-          }
+          openMeasureLineEdit(hitLabel.index);
         }
         return;
       }
@@ -11526,9 +11550,7 @@ function initDP2CanvasEvents() {
           window.DP2_STATE.measureLabelDragCandidate = null;
           const lastDrag2 = window.DP2_STATE._lastMeasureLabelDragAt || 0;
           if (Date.now() - lastDrag2 > 300) {
-            if (openMeasureLineEdit(hitMeasDbl.index)) {
-              dp2ShowMeasureAnchorChoiceOverlay(canvas, hitMeasDbl.index);
-            }
+            openMeasureLineEdit(hitMeasDbl.index);
           }
           return;
         }
@@ -12380,8 +12402,8 @@ function dp2ShowParcelSegmentInlineInput(canvas) {
   input.autocomplete = "off";
   input.setAttribute("aria-label", "Longueur du segment (mètres)");
   input.value = currentStr;
-  input.style.background = "rgba(255,0,0,0.2)";
-  input.style.border = "2px solid yellow";
+  input.style.cssText =
+    "position:absolute;z-index:54;width:72px;height:24px;padding:2px 6px;box-sizing:border-box;background:#fff;color:#111827;border:1px solid rgba(17,24,39,0.28);border-radius:3px;box-shadow:0 2px 8px rgba(15,23,42,0.16);font:11px system-ui,sans-serif;text-align:center;outline:none;";
   dp2LayoutParcelEdgeInlineInputInLayer(canvas, input);
   layer.appendChild(input);
   dp2SyncMapAnchoredOverlays();
@@ -12438,6 +12460,114 @@ function dp2ShowParcelSegmentInlineInput(canvas) {
       }
     }, 0);
   }
+}
+
+function dp2RemoveMeasureLineInlineInput(committedValue) {
+  if (window._dp2MeasureLineInlineOutsideDown) {
+    document.removeEventListener("pointerdown", window._dp2MeasureLineInlineOutsideDown, true);
+    window._dp2MeasureLineInlineOutsideDown = null;
+  }
+  const input = document.getElementById("dp2-measure-line-inline-input");
+  const objectIndex = input ? parseInt(input.dataset.objectIndex || "-1", 10) : -1;
+  const obj = window.DP2_STATE?.objects?.[objectIndex];
+  let didCommit = false;
+
+  if (obj && obj.type === "measure_line" && obj.a && obj.b && committedValue !== undefined) {
+    const normalized = String(committedValue).trim().replace(",", ".");
+    const num = parseFloat(normalized);
+    if (!Number.isNaN(num) && num >= 0) {
+      dp2CommitHistoryPoint();
+      obj.requestedLengthM = num;
+      delete obj.resizeAnchor;
+      didCommit = true;
+    }
+  }
+
+  if (input && input.parentNode) input.parentNode.removeChild(input);
+  if (didCommit && typeof renderDP2FromState === "function") renderDP2FromState();
+  if (didCommit && typeof dp2ShowMeasureAnchorChoiceOverlay === "function") {
+    const canvas = document.getElementById("dp2-draw-canvas");
+    if (canvas) dp2ShowMeasureAnchorChoiceOverlay(canvas, objectIndex);
+  }
+}
+
+function dp2ShowMeasureLineInlineInput(canvas, objectIndex) {
+  dp2EnsureOverlayLayer();
+  const layer = document.getElementById("dp2-overlay-layer");
+  const obj = window.DP2_STATE?.objects?.[objectIndex];
+  if (!layer || !canvas || !obj || obj.type !== "measure_line" || !obj.a || !obj.b) return false;
+  if (document.getElementById("dp2-measure-line-inline-input")) dp2RemoveMeasureLineInlineInput();
+
+  const scale = window.DP2_STATE?.scale_m_per_px;
+  const lengthPx = Math.hypot(obj.b.x - obj.a.x, obj.b.y - obj.a.y);
+  const lengthM = typeof scale === "number" && scale > 0 ? lengthPx * scale : 0;
+  const currentStr = lengthM.toFixed(2).replace(".", ",");
+  const offset = dp2ManualCoteOffset(obj.labelOffset);
+  const labelPt = dp2ComputeCoteLabelPoint(obj.a, obj.b, offset);
+  if (!labelPt) return false;
+
+  const input = document.createElement("input");
+  input.id = "dp2-measure-line-inline-input";
+  input.dataset.objectIndex = String(objectIndex);
+  input.type = "text";
+  input.inputMode = "decimal";
+  input.autocomplete = "off";
+  input.setAttribute("aria-label", "Longueur du trait de mesure (metres)");
+  input.value = currentStr;
+  input.style.cssText =
+    "position:absolute;z-index:54;width:72px;height:24px;padding:2px 6px;box-sizing:border-box;background:#fff;color:#111827;border:1px solid rgba(17,24,39,0.28);border-radius:3px;box-shadow:0 2px 8px rgba(15,23,42,0.16);font:11px system-ui,sans-serif;text-align:center;outline:none;";
+
+  const wrap = document.getElementById("dp2-captured-image-wrap");
+  const wrapperRect = wrap ? wrap.getBoundingClientRect() : null;
+  const client = getDP2CanvasToClient(canvas, labelPt.x, labelPt.y);
+  const w = 72;
+  const h = 24;
+  let left = wrapperRect ? client.clientX - wrapperRect.left - w / 2 : 0;
+  let top = wrapperRect ? client.clientY - wrapperRect.top - h / 2 : 0;
+  const pad = 8;
+  if (wrapperRect) {
+    left = Math.min(Math.max(pad, left), Math.max(pad, wrapperRect.width - w - pad));
+    top = Math.min(Math.max(pad, top), Math.max(pad, wrapperRect.height - h - pad));
+  }
+  input.style.left = `${left}px`;
+  input.style.top = `${top}px`;
+
+  layer.appendChild(input);
+  input.focus();
+  input.select();
+
+  function cancel() {
+    if (window._dp2MeasureLineInlineOutsideDown) {
+      document.removeEventListener("pointerdown", window._dp2MeasureLineInlineOutsideDown, true);
+      window._dp2MeasureLineInlineOutsideDown = null;
+    }
+    const inputEl = document.getElementById("dp2-measure-line-inline-input");
+    if (inputEl && inputEl.parentNode) inputEl.parentNode.removeChild(inputEl);
+  }
+
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      dp2RemoveMeasureLineInlineInput(input.value);
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      cancel();
+    }
+  });
+
+  window._dp2MeasureLineInlineOutsideDown = function measureLineInlineOutside(ev) {
+    if (!document.getElementById("dp2-measure-line-inline-input")) return;
+    if (input.contains(ev.target)) return;
+    if (ev.target.closest && ev.target.closest("#dp2-toolbar")) return;
+    if (ev.target.closest && ev.target.closest("#dp2-settings-panel")) return;
+    dp2RemoveMeasureLineInlineInput(input.value);
+  };
+  setTimeout(() => {
+    if (document.getElementById("dp2-measure-line-inline-input") && window._dp2MeasureLineInlineOutsideDown) {
+      document.addEventListener("pointerdown", window._dp2MeasureLineInlineOutsideDown, true);
+    }
+  }, 0);
+  return true;
 }
 
 function dp2ShowMeasureAnchorChoiceOverlay(canvas, objectIndex) {
@@ -13506,7 +13636,7 @@ function renderDP2BuildingContour(ctx, contour, options) {
             (typeof previewStub.requestedLengthM === "number" ? previewStub.requestedLengthM : 0)
               .toFixed(2)
               .replace(".", ",") + " m";
-          if (!editingThisSeg) dp2FillAlignedCoteLabel(ctx, text, preview.aPreview, preview.bPreview, null, "editing");
+          if (!editingThisSeg) dp2FillAlignedCoteLabel(ctx, text, preview.aPreview, preview.bPreview, null, "editing", { exteriorOf: contour });
           ctx.restore();
         }
       }
@@ -13525,7 +13655,7 @@ function renderDP2BuildingContour(ctx, contour, options) {
               : Math.hypot(b.x - a.x, b.y - a.y) * scale;
           const text = lenM.toFixed(2).replace(".", ",") + " m";
           dp2DrawCoteSegmentTier(ctx, a, b, tierDrawCuts);
-          if (!editingThisSeg) dp2FillAlignedCoteLabel(ctx, text, a, b, segOff, tierDrawCuts);
+          if (!editingThisSeg) dp2FillAlignedCoteLabel(ctx, text, a, b, segOff, tierDrawCuts, { exteriorOf: contour });
         }
         continue;
       }
@@ -13540,7 +13670,7 @@ function renderDP2BuildingContour(ctx, contour, options) {
       const text = lengthM.toFixed(2).replace(".", ",") + " m";
       const tierDraw = tierSeg || (parcelEdgeEditing ? "editing" : null);
       dp2DrawCoteSegmentTier(ctx, p1, p2, tierDraw);
-      if (!editingThisSeg) dp2FillAlignedCoteLabel(ctx, text, p1, p2, segOff, tierDraw);
+      if (!editingThisSeg) dp2FillAlignedCoteLabel(ctx, text, p1, p2, segOff, tierDraw, { exteriorOf: contour });
     }
   }
 
