@@ -15,6 +15,7 @@ function formatValidUntilIso(iso: string | null | undefined): string | null {
 
 export interface QuoteSummaryPanelProps {
   totals: QuoteTotals;
+  totalDiscountFromLines?: number;
   validityDays: number;
   deposit: QuoteDeposit;
   linesCount?: number;
@@ -32,6 +33,7 @@ export interface QuoteSummaryPanelProps {
  */
 export default function QuoteSummaryPanel({
   totals,
+  totalDiscountFromLines = 0,
   validityDays,
   deposit,
   linesCount = 0,
@@ -61,6 +63,12 @@ export default function QuoteSummaryPanel({
               <dt>Total HT</dt>
               <dd>{eur(totals.total_ht)}</dd>
             </div>
+            {totalDiscountFromLines > 0.0001 ? (
+              <div className="qb-pricing-row">
+                <dt>Remise</dt>
+                <dd>− {eur(totalDiscountFromLines)}</dd>
+              </div>
+            ) : null}
             <div className="qb-pricing-row">
               <dt>Total TVA</dt>
               <dd>{eur(totals.total_tva)}</dd>

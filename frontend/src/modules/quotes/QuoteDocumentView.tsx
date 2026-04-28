@@ -186,6 +186,13 @@ export function QuoteDocumentView({
     Boolean(payload.notes?.trim());
 
   const hasPaymentBlock = Boolean(payload.deposit_display) || Boolean(payload.payment_terms?.trim());
+  const totalDiscountFromLines = lines.reduce((sum, row) => {
+    const kind = String(row.line_kind ?? "").trim().toUpperCase();
+    if (kind !== "DOCUMENT_DISCOUNT") return sum;
+    const lineHt = Number(row.total_line_ht);
+    if (!Number.isFinite(lineHt) || lineHt >= 0) return sum;
+    return sum + Math.abs(lineHt);
+  }, 0);
 
   const tvaLabel = formatTvaRowLabelFromTotals(totals.total_ht, totals.total_vat);
   const todayFr = formatTodayFrNumeric();
@@ -367,10 +374,10 @@ export function QuoteDocumentView({
                   <span>Total HT</span>
                   <span>{formatEurLeading(totals.total_ht)}</span>
                 </div>
-                {Number(totals.discount_ht) > 0.0001 ? (
+                {totalDiscountFromLines > 0.0001 ? (
                   <div className="fq-totals-row">
                     <span>Remise</span>
-                    <span>− {formatEurLeading(totals.discount_ht)}</span>
+                    <span>− {formatEurLeading(totalDiscountFromLines)}</span>
                   </div>
                 ) : null}
                 <div className="fq-totals-row">

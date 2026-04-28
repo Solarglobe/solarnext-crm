@@ -179,7 +179,7 @@ export function mapApiItemsToLines(rows: Record<string, unknown>[]): QuoteLine[]
       position: Number(row.position) || i + 1,
       ...(purchase_unit_price_ht_cents !== undefined ? { purchase_unit_price_ht_cents } : {}),
     };
-    (line as QuoteLine & { line_kind?: string | null }).line_kind = lineKindFromSnapshot(row);
+    line.line_kind = lineKindFromSnapshot(row);
     return line;
   });
 }
@@ -194,7 +194,7 @@ export function linesToSaveItems(lines: QuoteLine[]) {
         gross > 0 ? Math.min(roundMoney(gross * (pct / 100)), gross) : 0;
       const line_source = l.line_source === "study_prep" ? "study_prep" : "manual";
       const ref = (l.reference ?? "").trim().slice(0, 120);
-      const lineKind = (l as QuoteLine & { line_kind?: string | null }).line_kind;
+      const lineKind = l.line_kind;
       return {
         label: l.label,
         description: (l.description ?? "").trim(),

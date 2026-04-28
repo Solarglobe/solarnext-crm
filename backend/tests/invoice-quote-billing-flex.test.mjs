@@ -350,12 +350,13 @@ test("createInvoiceFromQuote STANDARD : divergence forte => warning + total snap
   }
 });
 
-test("createInvoiceFromQuote STANDARD : snapshot incoherent => erreur SNAPSHOT_INCONSISTENT", async () => {
+test("createInvoiceFromQuote STANDARD : snapshot incoherent + live disponible => fallback live non bloquant", async () => {
   const q = await quoteService.createQuote(orgId, {
     client_id: clientId,
     items: [{ label: "Live-L1", description: "", quantity: 1, unit_price_ht: 100, tva_rate: 20 }],
   });
   const qid = q.quote.id;
+  let invId;
   try {
     const snapshot = {
       notes: "Snapshot incoherent",
@@ -382,11 +383,16 @@ test("createInvoiceFromQuote STANDARD : snapshot incoherent => erreur SNAPSHOT_I
     await quoteService.patchQuoteStatus(qid, orgId, "READY_TO_SEND", null);
     await quoteService.patchQuoteStatus(qid, orgId, "SENT", null);
     await quoteService.patchQuoteStatus(qid, orgId, "ACCEPTED", null);
-    await assert.rejects(
-      () => invoiceService.createInvoiceFromQuote(qid, orgId, { billingRole: "STANDARD" }),
-      /SNAPSHOT_INCONSISTENT/i
-    );
+    const inv = await invoiceService.createInvoiceFromQuote(qid, orgId, { billingRole: "STANDARD" });
+    invId = inv.id;
+    assert.ok(inv.id);
+    // Fallback live attendu (ligne live initiale 100 HT / 20 TVA).
+    assert.ok(Math.abs(Number(inv.total_ttc) - 120) <= 0.01);
   } finally {
+    if (invId) {
+      await pool.query("DELETE FROM invoice_lines WHERE invoice_id = $1", [invId]);
+      await pool.query("DELETE FROM invoices WHERE id = $1", [invId]);
+    }
     await pool.query("DELETE FROM invoice_lines WHERE invoice_id IN (SELECT id FROM invoices WHERE quote_id = $1)", [qid]);
     await pool.query("DELETE FROM invoices WHERE quote_id = $1", [qid]);
     await pool.query("DELETE FROM quote_lines WHERE quote_id = $1", [qid]);
@@ -521,7 +527,7 @@ test("createInvoiceFromQuote STANDARD : mapping snapshot vers colonnes invoice_l
   }
 });
 
-test("createInvoiceFromQuote STANDARD : erreur SNAPSHOT_INCONSISTENT structuree", async () => {
+test("createInvoiceFromQuote STANDARD : snapshot incoherent + live indisponible => erreur SNAPSHOT_INCONSISTENT", async () => {
   const q = await quoteService.createQuote(orgId, {
     client_id: clientId,
     items: [{ label: "Live-L1", description: "", quantity: 1, unit_price_ht: 100, tva_rate: 20 }],
@@ -549,6 +555,8 @@ test("createInvoiceFromQuote STANDARD : erreur SNAPSHOT_INCONSISTENT structuree"
       },
     };
     await pool.query(`UPDATE quotes SET document_snapshot_json = $1::jsonb WHERE id = $2`, [JSON.stringify(snapshot), qid]);
+    // Simule ancien devis sans lignes live exploitables.
+    await pool.query(`DELETE FROM quote_lines WHERE quote_id = $1`, [qid]);
     await quoteService.patchQuoteStatus(qid, orgId, "READY_TO_SEND", null);
     await quoteService.patchQuoteStatus(qid, orgId, "SENT", null);
     await quoteService.patchQuoteStatus(qid, orgId, "ACCEPTED", null);

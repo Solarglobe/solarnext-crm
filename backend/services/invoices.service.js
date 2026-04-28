@@ -768,12 +768,37 @@ function validateStandardSnapshotOrThrow(snapshot, quoteId) {
  * @param {string} organizationId
  */
 export async function getQuoteInvoiceBillingContext(quoteId, organizationId) {
-  const qres = await pool.query(
+  let qres = await pool.query(
     `SELECT * FROM quotes WHERE id = $1 AND organization_id = $2 AND (archived_at IS NULL)`,
     [quoteId, organizationId]
   );
   if (qres.rows.length === 0) return null;
-  const quote = qres.rows[0];
+  let quote = qres.rows[0];
+  const quoteStatus = String(quote.status || "").toUpperCase();
+  if (!quote.client_id && quote.lead_id && quoteStatus === "ACCEPTED") {
+    try {
+      await withTx(pool, async (client) => {
+        const locked = await client.query(
+          `SELECT * FROM quotes WHERE id = $1 AND organization_id = $2 AND (archived_at IS NULL) FOR UPDATE`,
+          [quoteId, organizationId]
+        );
+        const row = locked.rows[0];
+        if (!row || row.client_id || !row.lead_id || String(row.status || "").toUpperCase() !== "ACCEPTED") return;
+        await ensureClientForQuote(client, row, organizationId);
+      });
+      qres = await pool.query(
+        `SELECT * FROM quotes WHERE id = $1 AND organization_id = $2 AND (archived_at IS NULL)`,
+        [quoteId, organizationId]
+      );
+      quote = qres.rows[0] ?? quote;
+    } catch (e) {
+      console.warn("[invoices] billing context client resolution failed", {
+        quote_id: quoteId,
+        organization_id: organizationId,
+        error: e?.message || String(e),
+      });
+    }
+  }
   const meta = quote.metadata_json && typeof quote.metadata_json === "object" ? quote.metadata_json : {};
   const { deposit_display } = buildQuoteDepositFreeze(meta, quote.total_ttc);
 
@@ -917,6 +942,7 @@ export async function createInvoiceFromQuote(quoteId, organizationId, options = 
     let standardCapTtc = quoteTtc;
     let standardSource = "live";
     let standardSnapshotTotals = null;
+    let standardSnapshotValidationError = null;
 
     if (billingRole === "STANDARD") {
       if (reservedTtc > 0.02) {
@@ -925,7 +951,24 @@ export async function createInvoiceFromQuote(quoteId, organizationId, options = 
         );
       }
       const quoteSnapshot = asObjectJson(quote.document_snapshot_json);
-      const validatedSnapshot = validateStandardSnapshotOrThrow(quoteSnapshot, quoteId);
+      let validatedSnapshot;
+      try {
+        validatedSnapshot = validateStandardSnapshotOrThrow(quoteSnapshot, quoteId);
+      } catch (e) {
+        standardSnapshotValidationError = e;
+        const snapshotTotals = {
+          total_ht: parseFiniteNumber(quoteSnapshot?.totals?.total_ht),
+          total_vat: parseFiniteNumber(quoteSnapshot?.totals?.total_vat),
+          total_ttc: parseFiniteNumber(quoteSnapshot?.totals?.total_ttc),
+        };
+        console.warn("[invoices] snapshot_inconsistent_fallback_live", {
+          event: "snapshot_inconsistent_fallback_live",
+          quote_id: quoteId,
+          snapshot_totals: snapshotTotals,
+          reason: e?.code || e?.message || "SNAPSHOT_INCONSISTENT",
+        });
+        validatedSnapshot = { usable: false };
+      }
       const selectedSource = validatedSnapshot.usable ? "snapshot" : "live";
       standardSource = selectedSource;
       console.info("[invoices] createInvoiceFromQuote source_selected", {
@@ -943,7 +986,9 @@ export async function createInvoiceFromQuote(quoteId, organizationId, options = 
         console.warn("[invoices] createInvoiceFromQuote fallback_live", {
           quote_id: quoteId,
           quote_billing_role: billingRole,
-          reason: "missing_or_unusable_document_snapshot_lines",
+          reason: standardSnapshotValidationError
+            ? "snapshot_inconsistent_fallback_live"
+            : "missing_or_unusable_document_snapshot_lines",
         });
         const linesRes = await client.query(
           `SELECT label, description, quantity, unit_price_ht, discount_ht, vat_rate, snapshot_json
@@ -962,7 +1007,12 @@ export async function createInvoiceFromQuote(quoteId, organizationId, options = 
         }));
       }
 
-      if (lines.length < 1) throw new Error("Le devis n'a pas de lignes à facturer");
+      if (lines.length < 1) {
+        if (standardSnapshotValidationError?.code === "SNAPSHOT_INCONSISTENT") {
+          throw standardSnapshotValidationError;
+        }
+        throw new Error("Le devis n'a pas de lignes à facturer");
+      }
       metaJson = buildMetadataQuoteBilling("STANDARD", quote);
     } else if (billingRole === "DEPOSIT") {
       if (remainingBefore <= 0.02) {
@@ -1040,24 +1090,42 @@ export async function createInvoiceFromQuote(quoteId, organizationId, options = 
     await recalcInvoiceTotals(client, organizationId, invoiceId);
     if (billingRole === "STANDARD" && standardSource === "snapshot" && standardSnapshotTotals) {
       const totalsCheck = await client.query(
-        `SELECT COALESCE(SUM(total_line_ttc), 0)::numeric AS recomputed_total
+        `SELECT
+           COALESCE(SUM(total_line_ht), 0)::numeric AS recomputed_total_ht,
+           COALESCE(SUM(total_line_vat), 0)::numeric AS recomputed_total_vat,
+           COALESCE(SUM(total_line_ttc), 0)::numeric AS recomputed_total_ttc
          FROM invoice_lines
          WHERE invoice_id = $1 AND organization_id = $2`,
         [invoiceId, organizationId]
       );
-      const recomputedTotal = roundMoney2(Number(totalsCheck.rows[0]?.recomputed_total) || 0);
-      const snapshotTotal = roundMoney2(Number(standardSnapshotTotals.total_ttc) || 0);
-      if (Math.abs(recomputedTotal - snapshotTotal) > 0.01) {
-        console.warn("[invoices] snapshot_total_mismatch", {
-          event: "snapshot_total_mismatch",
+      const recomputedTotals = {
+        total_ht: roundMoney2(Number(totalsCheck.rows[0]?.recomputed_total_ht) || 0),
+        total_vat: roundMoney2(Number(totalsCheck.rows[0]?.recomputed_total_vat) || 0),
+        total_ttc: roundMoney2(Number(totalsCheck.rows[0]?.recomputed_total_ttc) || 0),
+      };
+      const snapshotTotals = {
+        total_ht: roundMoney2(Number(standardSnapshotTotals.total_ht) || 0),
+        total_vat: roundMoney2(Number(standardSnapshotTotals.total_vat) || 0),
+        total_ttc: roundMoney2(Number(standardSnapshotTotals.total_ttc) || 0),
+      };
+      const snapshotMatchesRecomputed =
+        Math.abs(recomputedTotals.total_ht - snapshotTotals.total_ht) <= 0.01 &&
+        Math.abs(recomputedTotals.total_vat - snapshotTotals.total_vat) <= 0.01 &&
+        Math.abs(recomputedTotals.total_ttc - snapshotTotals.total_ttc) <= 0.01;
+      if (!snapshotMatchesRecomputed) {
+        console.warn("[invoices] invoice_snapshot_mismatch", {
+          event: "invoice_snapshot_mismatch",
           quote_id: quoteId,
-          snapshot_total: snapshotTotal,
-          recomputed_total: recomputedTotal,
+          snapshot_totals: snapshotTotals,
+          recomputed_totals: recomputedTotals,
         });
       }
+      if (!snapshotMatchesRecomputed) {
+        // Snapshot non aligné: on garde les totaux recalculés depuis les lignes.
+      } else {
       const forcedHt = roundMoney2(Number(standardSnapshotTotals.total_ht) || 0);
       const forcedVat = roundMoney2(Number(standardSnapshotTotals.total_vat) || 0);
-      const forcedTtc = snapshotTotal;
+      const forcedTtc = snapshotTotals.total_ttc;
       await client.query(
         `UPDATE invoices
          SET total_ht = $1,
@@ -1071,6 +1139,7 @@ export async function createInvoiceFromQuote(quoteId, organizationId, options = 
          WHERE id = $4 AND organization_id = $5`,
         [forcedHt, forcedVat, forcedTtc, invoiceId, organizationId]
       );
+      }
     }
     if (billingRole === "STANDARD") {
       const fullSum = await sumQuoteInvoiceTtcNonCancelled(client, quoteId, organizationId);

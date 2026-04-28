@@ -96,38 +96,6 @@ export function computeQuoteTotals(items) {
  */
 export async function computeQuoteTotalsFromLines({ quoteId, orgId, client = null }) {
   const q = client || pool;
-  const legacyGuard = await q.query(
-    `SELECT
-       COALESCE(quotes.discount_ht, 0)::float8 AS discount_ht,
-       EXISTS (
-         SELECT 1
-         FROM quote_lines ql
-         WHERE ql.quote_id = quotes.id
-           AND ql.organization_id = quotes.organization_id
-           AND ql.is_active IS DISTINCT FROM false
-           AND (ql.snapshot_json::jsonb->>'line_kind') = 'DOCUMENT_DISCOUNT'
-       ) AS has_document_discount_line
-     FROM quotes
-     WHERE quotes.id = $1 AND quotes.organization_id = $2
-     LIMIT 1`,
-    [quoteId, orgId]
-  );
-  const guardRow = legacyGuard.rows[0];
-  const discountHeader = Number(guardRow?.discount_ht) || 0;
-  const hasDocumentDiscountLine = Boolean(guardRow?.has_document_discount_line);
-  if (discountHeader > 0 && !hasDocumentDiscountLine) {
-    console.warn("[quote_engine] missing_document_discount_line", {
-      event: "missing_document_discount_line",
-      quote_id: quoteId,
-    });
-    const err = new Error(
-      "Le devis contient une remise en en-tête sans ligne DOCUMENT_DISCOUNT. Migration requise."
-    );
-    err.code = "MISSING_DOCUMENT_DISCOUNT_LINE";
-    err.quote_id = quoteId;
-    throw err;
-  }
-
   /** Source de vérité : montants persistés par ligne (incl. remise ligne discount_ht → total_line_*). */
   const res = await q.query(
     `SELECT
@@ -145,7 +113,7 @@ export async function computeQuoteTotalsFromLines({ quoteId, orgId, client = nul
 
   await q.query(
     `UPDATE quotes
-     SET total_ht = $1, total_vat = $2, total_ttc = $3, discount_ht = 0, updated_at = now()
+     SET total_ht = $1, total_vat = $2, total_ttc = $3, updated_at = now()
      WHERE id = $4 AND organization_id = $5`,
     [th, tv, ttc, quoteId, orgId]
   );

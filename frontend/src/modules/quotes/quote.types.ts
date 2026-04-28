@@ -28,6 +28,8 @@ export interface QuoteLine {
   position: number;
   /** Centimes HT / unité — présent si ligne catalogue avec coût (GET quote_lines). */
   purchase_unit_price_ht_cents?: number | null;
+  /** Type métier snapshot (ex. DOCUMENT_DISCOUNT). */
+  line_kind?: string | null;
 }
 
 export interface QuoteTotals {

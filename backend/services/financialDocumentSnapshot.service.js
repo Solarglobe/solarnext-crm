@@ -119,10 +119,14 @@ function mapQuoteLine(row) {
   const refRaw = snap?.reference ?? snap?.product_reference ?? null;
   const reference =
     typeof refRaw === "string" && refRaw.trim() ? refRaw.trim().slice(0, 120) : null;
+  const rawLineKind = snap?.line_kind;
+  const line_kind =
+    typeof rawLineKind === "string" && rawLineKind.trim() ? rawLineKind.trim() : null;
   return {
     label: row.label ?? null,
     description: row.description ?? null,
     reference,
+    line_kind,
     quantity: num(row.quantity),
     unit_price_ht: num(row.unit_price_ht),
     discount_ht: num(row.discount_ht),
@@ -153,6 +157,57 @@ function mapCreditNoteLine(row) {
   return mapInvoiceLine(row);
 }
 
+function computeQuoteTotalsFromSnapshotLines(lines) {
+  let totalHt = 0;
+  let totalVat = 0;
+  let totalTtc = 0;
+  for (const line of lines || []) {
+    totalHt = roundMoney2(totalHt + num(line?.total_line_ht));
+    totalVat = roundMoney2(totalVat + num(line?.total_line_vat));
+    totalTtc = roundMoney2(totalTtc + num(line?.total_line_ttc));
+  }
+  return {
+    total_ht: totalHt,
+    total_vat: totalVat,
+    total_ttc: totalTtc,
+  };
+}
+
+function computeDocumentDiscountHtFromSnapshotLines(lines) {
+  let discount = 0;
+  for (const line of lines || []) {
+    const kind = String(line?.line_kind || "").trim().toUpperCase();
+    if (kind !== "DOCUMENT_DISCOUNT") continue;
+    const lineHt = Number(line?.total_line_ht);
+    if (!Number.isFinite(lineHt) || lineHt >= 0) continue;
+    discount = roundMoney2(discount + Math.abs(lineHt));
+  }
+  return discount;
+}
+
+function warnIfQuoteSnapshotTotalsInconsistent(context, lines, totals) {
+  const calc = computeQuoteTotalsFromSnapshotLines(lines);
+  const dtH = roundMoney2(Math.abs(roundMoney2(Number(totals?.total_ht) || 0) - calc.total_ht));
+  const dtV = roundMoney2(Math.abs(roundMoney2(Number(totals?.total_vat) || 0) - calc.total_vat));
+  const dtT = roundMoney2(Math.abs(roundMoney2(Number(totals?.total_ttc) || 0) - calc.total_ttc));
+  const ttcFromHv = roundMoney2((Number(totals?.total_ht) || 0) + (Number(totals?.total_vat) || 0));
+  const ttcDelta = roundMoney2(Math.abs(ttcFromHv - roundMoney2(Number(totals?.total_ttc) || 0)));
+  if (dtH > 0.01 || dtV > 0.01 || dtT > 0.01 || ttcDelta > 0.01) {
+    console.warn("[financial_snapshot] quote_snapshot_inconsistent", {
+      event: "quote_snapshot_inconsistent",
+      ...context,
+      totals,
+      lines_totals: calc,
+      deltas: {
+        total_ht: dtH,
+        total_vat: dtV,
+        total_ttc: dtT,
+        ttc_vs_ht_plus_vat: ttcDelta,
+      },
+    });
+  }
+}
+
 /**
  * @param {object} opts
  * @param {object} opts.quoteRow
@@ -167,7 +222,10 @@ export function buildOfficialQuoteDocumentSnapshot(opts) {
   const issuer = parseJsonb(quoteRow.issuer_snapshot);
   const recipient = parseJsonb(quoteRow.recipient_snapshot);
   const meta = parseJsonb(quoteRow.metadata_json);
-  const { deposit, deposit_display } = buildQuoteDepositFreeze(meta, quoteRow.total_ttc);
+  const mappedLines = (lineRows || []).map(mapQuoteLine);
+  const computedTotals = computeQuoteTotalsFromSnapshotLines(mappedLines);
+  const computedDiscountHt = computeDocumentDiscountHtFromSnapshotLines(mappedLines);
+  const { deposit, deposit_display } = buildQuoteDepositFreeze(meta, computedTotals.total_ttc);
   const showLinePricing = meta.pdf_show_line_pricing !== false;
   const legal_documents = parseLegalDocumentsFromMeta(meta);
 
@@ -186,15 +244,15 @@ export function buildOfficialQuoteDocumentSnapshot(opts) {
     commercial_notes: meta.commercial_notes ?? null,
     technical_notes: meta.technical_notes ?? null,
     payment_terms: meta.payment_terms ?? null,
-    discount_ht: num(quoteRow.discount_ht),
+    discount_ht: computedDiscountHt,
     issuer_snapshot: issuer,
     recipient_snapshot: recipient,
-    lines: (lineRows || []).map(mapQuoteLine),
+    lines: mappedLines,
     totals: {
-      total_ht: num(quoteRow.total_ht),
-      total_vat: num(quoteRow.total_vat),
-      total_ttc: num(quoteRow.total_ttc),
-      discount_ht: num(quoteRow.discount_ht),
+      total_ht: computedTotals.total_ht,
+      total_vat: computedTotals.total_vat,
+      total_ttc: computedTotals.total_ttc,
+      discount_ht: computedDiscountHt,
     },
     /** Acompte structuré figé (même source que metadata_json.deposit au moment du gel). */
     deposit,
@@ -216,6 +274,15 @@ export function buildOfficialQuoteDocumentSnapshot(opts) {
     frozen_by: frozenBy ?? null,
     generated_from: generatedFrom ?? null,
   };
+  warnIfQuoteSnapshotTotalsInconsistent(
+    {
+      quote_id: quoteRow.id ?? null,
+      organization_id: organizationId ?? null,
+      generated_from: generatedFrom ?? null,
+    },
+    mappedLines,
+    body.totals
+  );
   return { ...body, snapshot_checksum: computeSnapshotChecksum(body) };
 }
 
@@ -456,7 +523,10 @@ export function buildQuotePdfPayloadForLivePreview(
   recipientSnapshot
 ) {
   const meta = parseJsonb(quoteRow.metadata_json);
-  const { deposit, deposit_display } = buildQuoteDepositFreeze(meta, num(quoteRow.total_ttc));
+  const mappedLines = (lineRows || []).map(mapQuoteLine);
+  const computedTotals = computeQuoteTotalsFromSnapshotLines(mappedLines);
+  const computedDiscountHt = computeDocumentDiscountHtFromSnapshotLines(mappedLines);
+  const { deposit, deposit_display } = buildQuoteDepositFreeze(meta, computedTotals.total_ttc);
   const showLinePricing = meta.pdf_show_line_pricing !== false;
   const legal_documents = parseLegalDocumentsFromMeta(meta);
 
@@ -475,15 +545,15 @@ export function buildQuotePdfPayloadForLivePreview(
     commercial_notes: meta.commercial_notes ?? null,
     technical_notes: meta.technical_notes ?? null,
     payment_terms: meta.payment_terms ?? null,
-    discount_ht: num(quoteRow.discount_ht),
+    discount_ht: computedDiscountHt,
     issuer_snapshot: issuerSnapshot,
     recipient_snapshot: recipientSnapshot,
-    lines: (lineRows || []).map(mapQuoteLine),
+    lines: mappedLines,
     totals: {
-      total_ht: num(quoteRow.total_ht),
-      total_vat: num(quoteRow.total_vat),
-      total_ttc: num(quoteRow.total_ttc),
-      discount_ht: num(quoteRow.discount_ht),
+      total_ht: computedTotals.total_ht,
+      total_vat: computedTotals.total_vat,
+      total_ttc: computedTotals.total_ttc,
+      discount_ht: computedDiscountHt,
     },
     deposit,
     deposit_display,
@@ -502,6 +572,15 @@ export function buildQuotePdfPayloadForLivePreview(
     frozen_by: null,
     generated_from: "LIVE_PREVIEW",
   };
+  warnIfQuoteSnapshotTotalsInconsistent(
+    {
+      quote_id: quoteRow.id ?? null,
+      organization_id: organizationId ?? null,
+      generated_from: "LIVE_PREVIEW",
+    },
+    mappedLines,
+    body.totals
+  );
   const withChecksum = { ...body, snapshot_checksum: computeSnapshotChecksum(body) };
   return buildQuotePdfPayloadFromSnapshot(withChecksum);
 }

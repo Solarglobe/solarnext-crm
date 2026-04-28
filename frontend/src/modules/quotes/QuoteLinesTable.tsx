@@ -32,6 +32,7 @@ function SortableRow({
   onChange: (id: string, patch: Partial<QuoteLine>) => void;
   onRemove: (id: string) => void;
 }) {
+  const isDocumentDiscount = String(line.line_kind || "").toUpperCase() === "DOCUMENT_DISCOUNT";
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: line.id });
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -41,7 +42,7 @@ function SortableRow({
   const a = computeLineAmounts(line);
   const hidePrices = !docShowLinePricing ? " qb-line-cell--doc-hidden" : "";
   return (
-    <tr ref={setNodeRef} style={style} className="qb-line">
+    <tr ref={setNodeRef} style={style} className={`qb-line${isDocumentDiscount ? " qb-line--document-discount" : ""}`}>
       <td className="qb-col-drag">
         <button type="button" className="qb-drag-handle" disabled={!canEdit} {...attributes} {...listeners} aria-label="Déplacer la ligne">
           ⋮⋮
@@ -82,9 +83,9 @@ function SortableRow({
         <LocaleNumberInput
           className="sn-input qb-line-input qb-line-input--num"
           min={0}
-          disabled={!canEdit}
+          disabled={!canEdit || isDocumentDiscount}
           value={line.quantity}
-          onChange={(n) => onChange(line.id, { quantity: n })}
+          onChange={(n) => onChange(line.id, { quantity: isDocumentDiscount ? 1 : n })}
           maximumFractionDigits={2}
           aria-label="Quantité"
         />
@@ -94,7 +95,7 @@ function SortableRow({
           className="sn-input qb-line-input qb-line-input--num"
           disabled={!canEdit}
           value={line.unit_price_ht}
-          onChange={(n) => onChange(line.id, { unit_price_ht: n })}
+          onChange={(n) => onChange(line.id, { unit_price_ht: isDocumentDiscount ? -Math.abs(n) : n })}
           minimumFractionDigits={2}
           maximumFractionDigits={2}
           aria-label="Prix unitaire HT"

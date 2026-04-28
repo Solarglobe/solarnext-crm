@@ -157,6 +157,18 @@ export default function QuoteBuilderPage() {
   }, [location.pathname, location.search, location.state, navigate]);
 
   const totals = useMemo(() => computeQuoteTotals(state.lines), [state.lines]);
+  const totalDocumentDiscountFromLines = useMemo(
+    () =>
+      Math.round(
+        state.lines
+          .filter((line) => String(line.line_kind || "").toUpperCase() === "DOCUMENT_DISCOUNT")
+          .reduce((sum, line) => {
+            const ht = Number(line.unit_price_ht) * Number(line.quantity);
+            return sum + (ht < 0 ? Math.abs(ht) : 0);
+          }, 0) * 100
+      ) / 100,
+    [state.lines]
+  );
 
   const depositModalComputedTtc = useMemo(() => {
     if (!billCtx) return null;
@@ -646,21 +658,44 @@ export default function QuoteBuilderPage() {
 
   const addDiscountLine = () => {
     if (!canEditMutations) return;
+    const raw = window.prompt("Montant de la remise HT (en euros, valeur positive) :", "100");
+    if (raw == null) return;
+    const parsed = Number(String(raw).replace(",", "."));
+    const discountAbs = Number.isFinite(parsed) ? Math.abs(parsed) : 0;
+    if (discountAbs <= 0) return;
     dispatch({
       type: "ADD_LINE",
       line: {
         id: crypto.randomUUID(),
         type: "custom",
-        label: "Remise commerciale",
+        label: "Remise",
         description: "",
         reference: "",
         quantity: 1,
-        unit_price_ht: 0,
+        unit_price_ht: -discountAbs,
         tva_percent: 20,
         line_discount_percent: 0,
         position: state.lines.length + 1,
+        line_kind: "DOCUMENT_DISCOUNT",
       },
     });
+  };
+
+  const handleChangeLine = (lid: string, patch: Partial<QuoteLine>) => {
+    const current = state.lines.find((l) => l.id === lid);
+    if (!current) {
+      dispatch({ type: "UPDATE_LINE", id: lid, patch });
+      return;
+    }
+    if (String(current.line_kind || "").toUpperCase() !== "DOCUMENT_DISCOUNT") {
+      dispatch({ type: "UPDATE_LINE", id: lid, patch });
+      return;
+    }
+    const nextPatch: Partial<QuoteLine> = { ...patch, quantity: 1 };
+    if (patch.unit_price_ht !== undefined) {
+      nextPatch.unit_price_ht = -Math.abs(Number(patch.unit_price_ht) || 0);
+    }
+    dispatch({ type: "UPDATE_LINE", id: lid, patch: nextPatch });
   };
 
   const importFromTechnicalQuote = async () => {
@@ -1336,10 +1371,10 @@ export default function QuoteBuilderPage() {
                   variant="ghost"
                   size="sm"
                   disabled={!canEditMutations}
-                  title="Ligne au prix unitaire HT négatif (ex. −100 pour 100 € HT de remise)"
+                  title="Ajoute une ligne DOCUMENT_DISCOUNT au prix négatif"
                   onClick={addDiscountLine}
                 >
-                  Ligne remise
+                  Ajouter une remise
                 </Button>
                 <Button
                   type="button"
@@ -1362,7 +1397,7 @@ export default function QuoteBuilderPage() {
               lines={state.lines}
               canEdit={canEditMutations}
               docShowLinePricing={state.meta.pdf_show_line_pricing}
-              onChangeLine={(lid, patch) => dispatch({ type: "UPDATE_LINE", id: lid, patch })}
+              onChangeLine={handleChangeLine}
               onRemoveLine={(lid) => dispatch({ type: "REMOVE_LINE", id: lid })}
               onReorder={(a, b) => dispatch({ type: "REORDER", activeId: a, overId: b })}
             />
@@ -1372,6 +1407,7 @@ export default function QuoteBuilderPage() {
 
           <QuoteSummaryPanel
             totals={totals}
+            totalDiscountFromLines={totalDocumentDiscountFromLines}
             validityDays={state.meta.validity_days}
             deposit={state.meta.deposit}
             linesCount={state.lines.length}

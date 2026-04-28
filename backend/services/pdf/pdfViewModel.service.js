@@ -3,10 +3,13 @@
  * Source unique : study_versions.selected_scenario_snapshot.
  */
 
+import { readFileSync } from "fs";
+import path from "path";
 import logger from "../../app/core/logger.js";
 import { pool } from "../../config/db.js";
 import { getPdfViewModelRow } from "../../routes/studies/service.js";
 import { getLogoPath } from "../orgLogo.service.js";
+import { getAbsolutePath } from "../localStorage.service.js";
 import { mapSelectedScenarioSnapshotToPdfViewModel } from "./pdfViewModel.mapper.js";
 import { getLegalCgvForPdfRender } from "../legalCgv.service.js";
 
@@ -131,6 +134,32 @@ export async function getPdfViewModelForVersion(studyId, versionId, organization
   const logoKey = settings.logo_image_key || null;
   const hasLegacyLogo = !logoKey && (await getLogoPath(organizationId));
 
+  // Encode le logo en data URL pour éviter toute requête réseau depuis Playwright.
+  // Sans ça, Playwright peut capturer le PDF avant que les img tags aient fini de charger.
+  let logoDataUrl = null;
+  try {
+    let logoFilePath = null;
+    if (logoKey) {
+      logoFilePath = path.resolve(getAbsolutePath(logoKey));
+    } else if (hasLegacyLogo) {
+      const legacyPath = await getLogoPath(organizationId);
+      if (legacyPath) logoFilePath = path.resolve(legacyPath);
+    }
+    if (logoFilePath) {
+      const ext = path.extname(logoFilePath).toLowerCase();
+      const mime =
+        ext === ".png" ? "image/png"
+        : ext === ".jpg" || ext === ".jpeg" ? "image/jpeg"
+        : ext === ".svg" ? "image/svg+xml"
+        : ext === ".webp" ? "image/webp"
+        : "image/png";
+      const buf = readFileSync(logoFilePath);
+      logoDataUrl = `data:${mime};base64,${buf.toString("base64")}`;
+    }
+  } catch (_) {
+    logoDataUrl = null;
+  }
+
   let legal_cgv = null;
   try {
     legal_cgv = await getLegalCgvForPdfRender(organizationId);
@@ -145,6 +174,7 @@ export async function getPdfViewModelForVersion(studyId, versionId, organization
     trade_name: orgRow.trade_name ?? null,
     pdf_primary_color: orgRow.pdf_primary_color ?? null,
     logo_image_key: logoKey || (hasLegacyLogo ? "legacy" : null),
+    logo_url: logoDataUrl,
     pdf_cover_image_key: pdfCoverKey || null,
     legal_cgv,
   };

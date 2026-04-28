@@ -422,6 +422,40 @@ function payloadItemsHaveDocumentDiscountLine(items) {
   return items.some((it) => it.line_kind === QUOTE_LINE_KIND_DOCUMENT_DISCOUNT || it.document_discount_line === true);
 }
 
+function isDocumentDiscountItem(it) {
+  return it?.line_kind === QUOTE_LINE_KIND_DOCUMENT_DISCOUNT || it?.document_discount_line === true;
+}
+
+function normalizeQuotePayloadItemForWrite(it) {
+  const normalized = { ...(it || {}) };
+  if (!isDocumentDiscountItem(normalized)) return normalized;
+  const rawUp = Number(normalized.unit_price_ht);
+  const discAbs = Math.abs(roundMoney2(Number.isFinite(rawUp) ? rawUp : 0));
+  normalized.quantity = 1;
+  normalized.discount_ht = 0;
+  normalized.unit_price_ht = -discAbs;
+  normalized.line_kind = QUOTE_LINE_KIND_DOCUMENT_DISCOUNT;
+  normalized.document_discount_line = true;
+  if (!normalized.label || String(normalized.label).trim() === "") {
+    normalized.label = "Remise";
+  }
+  return normalized;
+}
+
+/**
+ * Supprime toutes les lignes DOCUMENT_DISCOUNT persistées pour un devis.
+ * @param {import("pg").PoolClient} client
+ */
+async function deleteQuoteDocumentDiscountLines(client, organizationId, quoteId) {
+  await client.query(
+    `DELETE FROM quote_lines
+     WHERE quote_id = $1
+       AND organization_id = $2
+       AND (snapshot_json::jsonb->>'line_kind') = $3`,
+    [quoteId, organizationId, QUOTE_LINE_KIND_DOCUMENT_DISCOUNT]
+  );
+}
+
 /**
  * Remise document HT à matérialiser en ligne (payload metadata / body uniquement).
  * @param {object} metaLike — peut inclure global_discount_* ou discount_ht (€ HT)
@@ -676,7 +710,7 @@ export async function createQuote(organizationId, body, auditContext = null) {
     const vatContributionRows = [];
 
     for (let i = 0; i < items.length; i++) {
-      const it = items[i];
+      const it = normalizeQuotePayloadItemForWrite(items[i]);
       const qty = Number(it.quantity) || 0;
       const up = Number(it.unit_price_ht) || 0;
       const rate = resolveLineVatRate(it, defaultVat);
@@ -723,7 +757,12 @@ export async function createQuote(organizationId, body, auditContext = null) {
     subVat = roundMoney2(subVat);
     subTtc = roundMoney2(subTtc);
 
-    if (!payloadItemsHaveDocumentDiscountLine(items)) {
+    const hasPayloadDiscountSource =
+      metaForDiscount?.global_discount_percent != null ||
+      metaForDiscount?.global_discount_amount_ht != null ||
+      metaForDiscount?.discount_ht != null;
+    if (hasPayloadDiscountSource) {
+      await deleteQuoteDocumentDiscountLines(client, organizationId, quoteId);
       const docDiscHt = computeDocumentDiscountHtFromSources(metaForDiscount, subHt);
       if (docDiscHt > 0) {
         await insertQuoteDocumentDiscountLinesFromVatContributions(
@@ -736,6 +775,21 @@ export async function createQuote(organizationId, body, auditContext = null) {
           defaultVat
         );
       }
+    } else if (payloadItemsHaveDocumentDiscountLine(items)) {
+      await client.query(
+        `UPDATE quote_lines
+         SET quantity = 1,
+             discount_ht = 0,
+             unit_price_ht = -ABS(unit_price_ht),
+             total_line_ht = -ABS(total_line_ht),
+             total_line_vat = -ABS(total_line_vat),
+             total_line_ttc = -ABS(total_line_ttc),
+             updated_at = now()
+         WHERE quote_id = $1
+           AND organization_id = $2
+           AND (snapshot_json::jsonb->>'line_kind') = $3`,
+        [quoteId, organizationId, QUOTE_LINE_KIND_DOCUMENT_DISCOUNT]
+      );
     }
 
     await computeQuoteTotalsFromLines({ quoteId, orgId: organizationId, client });
@@ -983,7 +1037,7 @@ export async function updateQuote(quoteId, organizationId, body, auditContext = 
     const vatContributionRows = [];
 
     for (let i = 0; i < items.length; i++) {
-      const it = items[i];
+      const it = normalizeQuotePayloadItemForWrite(items[i]);
       const qty = Number(it.quantity) || 0;
       const up = Number(it.unit_price_ht) || 0;
       const rate = resolveLineVatRate(it, defaultVat);
@@ -1028,7 +1082,8 @@ export async function updateQuote(quoteId, organizationId, body, auditContext = 
     subVat = roundMoney2(subVat);
     subTtc = roundMoney2(subTtc);
 
-    if (!payloadItemsHaveDocumentDiscountLine(items) && wantsBodyDocDiscount) {
+    if (wantsBodyDocDiscount) {
+      await deleteQuoteDocumentDiscountLines(client, organizationId, quoteId);
       const docDiscHt = computeDocumentDiscountHtFromSources(mergedForDiscount, subHt);
       if (docDiscHt > 0) {
         await insertQuoteDocumentDiscountLinesFromVatContributions(
@@ -1041,6 +1096,21 @@ export async function updateQuote(quoteId, organizationId, body, auditContext = 
           defaultVat
         );
       }
+    } else if (payloadItemsHaveDocumentDiscountLine(items)) {
+      await client.query(
+        `UPDATE quote_lines
+         SET quantity = 1,
+             discount_ht = 0,
+             unit_price_ht = -ABS(unit_price_ht),
+             total_line_ht = -ABS(total_line_ht),
+             total_line_vat = -ABS(total_line_vat),
+             total_line_ttc = -ABS(total_line_ttc),
+             updated_at = now()
+         WHERE quote_id = $1
+           AND organization_id = $2
+           AND (snapshot_json::jsonb->>'line_kind') = $3`,
+        [quoteId, organizationId, QUOTE_LINE_KIND_DOCUMENT_DISCOUNT]
+      );
     }
 
     await computeQuoteTotalsFromLines({ quoteId, orgId: organizationId, client });

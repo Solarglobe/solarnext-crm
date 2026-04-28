@@ -69,7 +69,6 @@ function SortableRow({
         <input
           className="sn-input qb-line-input qb-line-input--num"
           type="number"
-          min={0}
           step={0.01}
           disabled={!canEdit}
           value={line.unit_price_ht}

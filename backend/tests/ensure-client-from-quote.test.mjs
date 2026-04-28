@@ -5,11 +5,7 @@
 
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { dirname } from "node:path";
-import { fileURLToPath } from "node:url";
 import "../config/register-local-env.js";
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
 
 import { pool } from "../config/db.js";
 import * as quoteService from "../routes/quotes/service.js";
@@ -367,4 +363,67 @@ test("ensureClientForQuote: lead deja CLIENT => idempotent", async () => {
 
   const leadAfter = await pool.query(`SELECT status FROM leads WHERE id = $1`, [leadId]);
   assert.equal(String(leadAfter.rows[0]?.status || "").toUpperCase(), "CLIENT");
+});
+
+test("getQuoteInvoiceBillingContext: ACCEPTED sans client_id rattache/cree client", async () => {
+  const email = `${PREFIX}-ctx-accepted@ecfq.test`;
+  const lr = await pool.query(
+    `INSERT INTO leads (organization_id, stage_id, status, full_name, first_name, last_name, email, source_id, customer_type)
+     VALUES ($1, $2, 'CLIENT', 'Ctx Accepted', 'Ctx', 'Accepted', $3, $4, 'PERSON') RETURNING id`,
+    [orgId, stageId, email, sourceId]
+  );
+  const leadId = lr.rows[0].id;
+  toDelete.leadIds.push(leadId);
+
+  const q = await quoteService.createQuote(orgId, {
+    lead_id: leadId,
+    items: [{ label: "L1", description: "", quantity: 1, unit_price_ht: 100, tva_rate: 20 }],
+  });
+  const quoteId = q.quote.id;
+  toDelete.quoteIds.push(quoteId);
+  await quoteService.patchQuoteStatus(quoteId, orgId, "READY_TO_SEND", null);
+  await quoteService.patchQuoteStatus(quoteId, orgId, "SENT", null);
+  await quoteService.patchQuoteStatus(quoteId, orgId, "ACCEPTED", null);
+  await pool.query(`UPDATE quotes SET client_id = NULL WHERE id = $1`, [quoteId]);
+  await pool.query(`UPDATE leads SET client_id = NULL WHERE id = $1`, [leadId]);
+
+  const ctx = await invoiceService.getQuoteInvoiceBillingContext(quoteId, orgId);
+  assert.ok(ctx);
+  assert.equal(ctx.can_create_standard_full, true);
+
+  const qAfter = await pool.query(`SELECT client_id FROM quotes WHERE id = $1`, [quoteId]);
+  const lAfter = await pool.query(`SELECT client_id FROM leads WHERE id = $1`, [leadId]);
+  assert.ok(qAfter.rows[0]?.client_id, "quote.client_id doit etre renseigne");
+  assert.ok(lAfter.rows[0]?.client_id, "lead.client_id doit etre renseigne");
+  assert.equal(String(qAfter.rows[0].client_id), String(lAfter.rows[0].client_id));
+  toDelete.clientIds.push(qAfter.rows[0].client_id);
+});
+
+test("getQuoteInvoiceBillingContext: DRAFT sans client_id ne cree pas de client", async () => {
+  const email = `${PREFIX}-ctx-draft@ecfq.test`;
+  const lr = await pool.query(
+    `INSERT INTO leads (organization_id, stage_id, status, full_name, first_name, last_name, email, source_id, customer_type)
+     VALUES ($1, $2, 'CLIENT', 'Ctx Draft', 'Ctx', 'Draft', $3, $4, 'PERSON') RETURNING id`,
+    [orgId, stageId, email, sourceId]
+  );
+  const leadId = lr.rows[0].id;
+  toDelete.leadIds.push(leadId);
+
+  const q = await quoteService.createQuote(orgId, {
+    lead_id: leadId,
+    items: [{ label: "L1", description: "", quantity: 1, unit_price_ht: 90, tva_rate: 20 }],
+  });
+  const quoteId = q.quote.id;
+  toDelete.quoteIds.push(quoteId);
+  await pool.query(`UPDATE quotes SET client_id = NULL WHERE id = $1`, [quoteId]);
+  await pool.query(`UPDATE leads SET client_id = NULL WHERE id = $1`, [leadId]);
+
+  const ctx = await invoiceService.getQuoteInvoiceBillingContext(quoteId, orgId);
+  assert.ok(ctx);
+  assert.equal(ctx.can_create_standard_full, false);
+
+  const qAfter = await pool.query(`SELECT client_id FROM quotes WHERE id = $1`, [quoteId]);
+  const lAfter = await pool.query(`SELECT client_id FROM leads WHERE id = $1`, [leadId]);
+  assert.equal(qAfter.rows[0]?.client_id, null);
+  assert.equal(lAfter.rows[0]?.client_id, null);
 });
