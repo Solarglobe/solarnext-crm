@@ -8,6 +8,7 @@ import react from "@vitejs/plugin-react";
 const pdfRenderPath = path.resolve(__dirname, "pdf-render.html");
 const financialQuotePdfRenderPath = path.resolve(__dirname, "financial-quote-pdf-render.html");
 const calpinageRenderPath = path.resolve(__dirname, "calpinage-render.html");
+const dp2DevHtmlPath = path.resolve(__dirname, "dp2.html");
 
 /** Parité prod (Vercel) : rewrites `/{nom}` → `/{nom}.html` — le backend Playwright ouvre des URLs en `.html`. */
 
@@ -210,7 +211,12 @@ export default defineConfig(({ mode }) => {
           if (p.startsWith("/config/") || p.startsWith("/calpinage/") || p.startsWith("/shared/")) return false;
           if (/\.(ico|png|jpe?g|gif|svg|webp|css|mjs?|map|json|woff2?|ttf|eot|pdf|html?)$/i.test(p)) return false;
           if (p.startsWith("/api") || p.startsWith("/auth") || p.startsWith("/pdf-assets")) return false;
-          if (p.startsWith("/financial-quote-pdf-render") || p.startsWith("/pdf-render") || p.startsWith("/calpinage-render"))
+          if (
+            p.startsWith("/financial-quote-pdf-render") ||
+            p.startsWith("/pdf-render") ||
+            p.startsWith("/calpinage-render") ||
+            p.startsWith("/dp2")
+          )
             return false;
           if (p.startsWith("/_")) return false;
           return true;
@@ -270,6 +276,26 @@ export default defineConfig(({ mode }) => {
             }
             return;
           }
+          if (pathname === "/dp2" || req.url.startsWith("/dp2?")) {
+            res.statusCode = 302;
+            res.setHeader("Location", "/dp2.html" + (req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : ""));
+            res.end();
+            return;
+          }
+          if (pathname === "/dp2.html" || req.url.startsWith("/dp2.html?")) {
+            const url = "/dp2.html" + (req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : "");
+            try {
+              const html = fs.readFileSync(dp2DevHtmlPath, "utf-8");
+              server.transformIndexHtml(url, html).then((transformed) => {
+                res.setHeader("Content-Type", "text/html; charset=utf-8");
+                res.statusCode = 200;
+                res.end(transformed);
+              }).catch((err) => next(err));
+            } catch (err) {
+              next(err);
+            }
+            return;
+          }
           if (req.url.startsWith("/financial-quote-pdf-render/")) {
             req.url = "/financial-quote-pdf-render.html";
             return next();
@@ -280,6 +306,10 @@ export default defineConfig(({ mode }) => {
           }
           if (req.url.startsWith("/calpinage-render/")) {
             req.url = "/calpinage-render.html";
+            return next();
+          }
+          if (req.url.startsWith("/dp2.html/")) {
+            req.url = "/dp2.html";
             return next();
           }
           if (req.method === "GET" && isSpaIndexPath(pathname)) {
@@ -322,6 +352,7 @@ export default defineConfig(({ mode }) => {
         "pdf-render": "./pdf-render.html",
         "financial-quote-pdf-render": "./financial-quote-pdf-render.html",
         "calpinage-render": "./calpinage-render.html",
+        dp2: "./dp2.html",
       },
     },
   },

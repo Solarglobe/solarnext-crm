@@ -120,6 +120,12 @@ export async function putLeadDp(req, res) {
       });
     }
 
+    if (traceDpPutEnabled()) {
+      try {
+        console.log("DP2 RECEIVED:", draft?.dp2);
+      } catch (_) {}
+    }
+
     const gate = await assertLeadApiAccess(pool, {
       leadId: id,
       organizationId: org,

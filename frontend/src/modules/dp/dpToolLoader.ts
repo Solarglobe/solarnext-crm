@@ -3,6 +3,9 @@
  * Contrat window : Lot 2 + __SOLARNEXT_DP_ASSET_BASE__, __SOLARNEXT_DP_EMBED_LOADER__ (interne).
  */
 
+/** Lead fictif : `dp-draft-store.js` simule le PUT (pas de fetch). — garder la même valeur des deux côtés. */
+export const SN_DP_DEV_TEST_LEAD_ID = "DEV-TEST-DP2";
+
 export type DpToolHostContext = {
   leadId: string;
   clientId?: string | null;
@@ -51,6 +54,34 @@ const CDN = {
 } as const;
 
 let loadGeneration = 0;
+
+/** Standalone audit DP2 : http://localhost:5173/dp2.html (ne pas activer sur /crm/… pour ne pas écraser un vrai lead). */
+export function isDpLocalStandaloneDevHost(): boolean {
+  if (typeof window === "undefined") return false;
+  const h = window.location.hostname;
+  if (h !== "localhost" && h !== "127.0.0.1") return false;
+  const path = (window.location.pathname || "/").replace(/\/$/, "") || "/";
+  return path.endsWith("/dp2.html") || path === "/dp2.html";
+}
+
+function buildDpLocalDevHostPayload(): DpToolHostContext {
+  return {
+    leadId: SN_DP_DEV_TEST_LEAD_ID,
+    clientId: null,
+    context: {
+      identity: { nom: "TEST DEV" },
+      site: {
+        address: "1 rue test",
+        postalCode: "75000",
+        city: "Paris",
+        lat: 48.8566,
+        lon: 2.3522,
+      },
+    },
+    draft: null,
+    updatedAt: null,
+  };
+}
 
 function withTrailingSlash(base: string): string {
   return base.endsWith("/") ? base : `${base}/`;
@@ -182,7 +213,16 @@ export async function loadDpTool(options: DpToolLoaderOptions): Promise<DpToolLo
   const gen = ++loadGeneration;
   const assetBase = withTrailingSlash(options.assetBaseUrl ?? getDefaultDpAssetBase());
 
-  const { container, hostPayload, storageKey, apiBase } = options;
+  let { container, hostPayload, storageKey, apiBase } = options;
+  const devStandalone = isDpLocalStandaloneDevHost();
+  if (devStandalone) {
+    (window as Window & { __SN_DP_DP2_AUDIT__?: boolean }).__SN_DP_DP2_AUDIT__ = true;
+    (window as Window & { __SN_DP_BOOT_PAGE_PATH__?: string }).__SN_DP_BOOT_PAGE_PATH__ = "pages/dp2.html";
+    hostPayload = buildDpLocalDevHostPayload();
+    if (!String(storageKey ?? "").trim()) {
+      storageKey = SN_DP_DEV_TEST_LEAD_ID;
+    }
+  }
 
   solarnextDpClearLeakingDpGlobals(window);
 
@@ -204,13 +244,24 @@ export async function loadDpTool(options: DpToolLoaderOptions): Promise<DpToolLo
       __SOLARNEXT_DP_STYLE_DP_MAIN__?: boolean;
     };
 
-  w.__SOLARNEXT_DP_CONTEXT__ = {
+  const baseCtx = {
     leadId: hostPayload.leadId,
     clientId: hostPayload.clientId ?? null,
     context: hostPayload.context,
     draft: hostPayload.draft ?? null,
     updatedAt: hostPayload.updatedAt ?? null,
   };
+  w.__SOLARNEXT_DP_CONTEXT__ = devStandalone
+    ? {
+        ...baseCtx,
+        nom: "TEST DEV",
+        adresse: "1 rue test",
+        cp: "75000",
+        ville: "Paris",
+        lat: 48.8566,
+        lon: 2.3522,
+      }
+    : baseCtx;
   w.__SOLARNEXT_DP_CRM_EMBED = true;
   w.__SOLARNEXT_DP_DRAFT_SERVER__ = hostPayload.draft ?? null;
   w.__SOLARNEXT_DP_STORAGE_KEY__ = storageKey;
