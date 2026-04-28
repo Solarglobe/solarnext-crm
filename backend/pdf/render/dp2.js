@@ -102,7 +102,7 @@
       },
       DISJONCTEUR: {
         label: "Disjoncteur",
-        svg: `<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="3" width="10" height="10" rx="2" fill="#ef4444" fill-opacity="0.18" stroke="#ef4444" stroke-width="1.6"/><path d="M5 5l6 6M11 5L5 11" stroke="#ef4444" stroke-width="1.6" stroke-linecap="round"/></svg>`
+        svg: `<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="4.5" y="4.5" width="7" height="7" rx="0.8" fill="#dc2626" stroke="#dc2626" stroke-width="1.4"/></svg>`
       },
       BATTERIE_STOCKAGE: {
         label: "Batterie de stockage",

@@ -5289,9 +5289,9 @@ function dpEnsurePvPanelsLoaded() {
 // --------------------------
 const DP2_BUSINESS_OBJECT_META = {
   // IMPORTANT : types et legendKey figés (ne pas modifier)
-  compteur: { legendKey: "COMPTEUR_ELECTRIQUE", label: "Compteur électrique", icon: "🔌", defaultW: 80, defaultH: 50 },
-  disjoncteur: { legendKey: "DISJONCTEUR", label: "Disjoncteur", icon: "⛔", defaultW: 80, defaultH: 50 },
-  batterie: { legendKey: "BATTERIE_STOCKAGE", label: "Batterie de stockage", icon: "🔋", defaultW: 90, defaultH: 55 },
+  compteur: { legendKey: "COMPTEUR_ELECTRIQUE", label: "Compteur électrique", icon: "■", defaultW: 34, defaultH: 34 },
+  disjoncteur: { legendKey: "DISJONCTEUR", label: "Disjoncteur", icon: "■", defaultW: 26, defaultH: 26 },
+  batterie: { legendKey: "BATTERIE_STOCKAGE", label: "Batterie de stockage", icon: "▬", defaultW: 44, defaultH: 28 },
   sens_pente: { legendKey: "SENS_PENTE", label: "Sens de la pente", icon: "↘", defaultW: 90, defaultH: 50 },
   voie_acces: { legendKey: "VOIE_ACCES", label: "Voie d’accès", icon: "🛣", defaultW: 140, defaultH: 40 },
   angle_vue: { legendKey: "ANGLE_PRISE_VUE", label: "Angle de prise de vue", icon: "📷", defaultW: 110, defaultH: 80 },
@@ -5997,6 +5997,20 @@ function syncDP2LegendOverlayUI() {
   }
 }
 
+function syncDP2BusinessMenuLabels() {
+  const labels = {
+    compteur: "■ Compteur électrique",
+    disjoncteur: "■ Disjoncteur",
+    batterie: "▬ Batterie de stockage"
+  };
+  const menu = document.getElementById("dp2-business-menu");
+  if (!menu) return;
+  for (const key of Object.keys(labels)) {
+    const item = menu.querySelector(`[data-tool="${key}"]`);
+    if (item) item.textContent = labels[key];
+  }
+}
+
 let dp2ToastTimer = null;
 function showDP2Toast(message) {
   const toolbar = document.getElementById("dp2-toolbar");
@@ -6045,6 +6059,7 @@ function syncDP2PanelMetadataUI() {
 }
 
 function initDP2MetadataUI() {
+  syncDP2BusinessMenuLabels();
   // Catégorie Avant / Après (DP2)
   const photoCategorySelect = document.getElementById("dp2-photo-category");
   if (photoCategorySelect) {
@@ -7849,23 +7864,23 @@ function dp2DrawCoteSegmentTier(ctx, p1, p2, tier) {
   ctx.beginPath();
   ctx.moveTo(p1.x, p1.y);
   ctx.lineTo(p2.x, p2.y);
-  const gold = "#C39847";
+  const guideBlue = "#2563eb";
   if (tier === "hover") {
-    ctx.strokeStyle = gold;
+    ctx.strokeStyle = guideBlue;
     ctx.globalAlpha = 0.6;
     ctx.lineWidth = 1.75;
-    ctx.shadowColor = "rgba(195, 152, 71, 0.4)";
+    ctx.shadowColor = "rgba(37, 99, 235, 0.32)";
     ctx.shadowBlur = 8;
   } else if (tier === "active") {
-    ctx.strokeStyle = gold;
+    ctx.strokeStyle = guideBlue;
     ctx.globalAlpha = 1;
     ctx.lineWidth = 2.75;
   } else if (tier === "editing") {
-    ctx.strokeStyle = gold;
+    ctx.strokeStyle = guideBlue;
     ctx.globalAlpha = 1;
     ctx.lineWidth = 3.2;
     ctx.setLineDash([5, 4]);
-    ctx.shadowColor = "rgba(195, 152, 71, 0.55)";
+    ctx.shadowColor = "rgba(37, 99, 235, 0.42)";
     ctx.shadowBlur = 12;
   }
   ctx.stroke();
@@ -7881,11 +7896,80 @@ function dp2FillCoteLabelWithTier(ctx, text, midX, midY, tier) {
     ctx.translate(-midX, -midY);
   }
   if (tier === "hover" || tier === "editing") {
-    ctx.shadowColor = "rgba(195, 152, 71, 0.45)";
+    ctx.shadowColor = "rgba(37, 99, 235, 0.35)";
     ctx.shadowBlur = tier === "editing" ? 10 : 6;
   }
   ctx.fillText(text, midX, midY);
   ctx.restore();
+}
+
+function dp2SegmentReadableAngle(p1, p2) {
+  let angle = Math.atan2((p2?.y || 0) - (p1?.y || 0), (p2?.x || 0) - (p1?.x || 0));
+  if (angle > Math.PI / 2) angle -= Math.PI;
+  if (angle < -Math.PI / 2) angle += Math.PI;
+  return angle;
+}
+
+function dp2FillAlignedCoteLabel(ctx, text, p1, p2, offset, tier) {
+  if (!ctx || !p1 || !p2 || !text) return;
+  const off = offset && typeof offset.x === "number" && typeof offset.y === "number" ? offset : { x: 0, y: 0 };
+  const midX = ((p1.x || 0) + (p2.x || 0)) / 2 + off.x;
+  const midY = ((p1.y || 0) + (p2.y || 0)) / 2 + off.y;
+  const angle = dp2SegmentReadableAngle(p1, p2);
+  const fontSize = tier === "editing" ? 10 : 9;
+  const padX = 4;
+  const padY = 2;
+
+  ctx.save();
+  ctx.translate(midX, midY);
+  ctx.rotate(angle);
+  ctx.font = `${fontSize}px system-ui, sans-serif`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  const metrics = ctx.measureText(text);
+  const boxW = Math.max(26, metrics.width + padX * 2);
+  const boxH = fontSize + padY * 2;
+  ctx.fillStyle = tier === "editing" ? "rgba(255,255,255,0.96)" : "rgba(255,255,255,0.86)";
+  ctx.strokeStyle = tier === "editing" ? "rgba(37, 99, 235, 0.42)" : "rgba(15, 23, 42, 0.14)";
+  ctx.lineWidth = 0.75;
+  ctx.beginPath();
+  if (typeof ctx.roundRect === "function") ctx.roundRect(-boxW / 2, -boxH / 2, boxW, boxH, 3);
+  else ctx.rect(-boxW / 2, -boxH / 2, boxW, boxH);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = "#1f2937";
+  ctx.fillText(text, 0, 0);
+  ctx.restore();
+}
+
+function dp2SnapPointForDrawing(from, to, opts) {
+  if (!from || !to) return to;
+  const options = opts || {};
+  const dx = (to.x || 0) - (from.x || 0);
+  const dy = (to.y || 0) - (from.y || 0);
+  const len = Math.hypot(dx, dy);
+  if (len < 2) return to;
+  const snapAngles = Array.isArray(options.angles) && options.angles.length
+    ? options.angles
+    : [0, Math.PI / 4, Math.PI / 2, (3 * Math.PI) / 4, Math.PI, -Math.PI / 4, -Math.PI / 2, (-3 * Math.PI) / 4];
+  const threshold = typeof options.threshold === "number" ? options.threshold : (options.force ? Math.PI / 8 : Math.PI / 18);
+  const angle = Math.atan2(dy, dx);
+  let best = null;
+  let bestDelta = Infinity;
+  for (const a of snapAngles) {
+    const delta = Math.abs(Math.atan2(Math.sin(angle - a), Math.cos(angle - a)));
+    if (delta < bestDelta) {
+      bestDelta = delta;
+      best = a;
+    }
+  }
+  if (best == null || bestDelta > threshold) return { x: to.x, y: to.y, snapped: false };
+  return {
+    x: from.x + Math.cos(best) * len,
+    y: from.y + Math.sin(best) * len,
+    snapped: true,
+    snapAngle: best
+  };
 }
 
 function dp2EnsureModeStrip() {
@@ -11009,14 +11093,17 @@ function initDP2CanvasEvents() {
     // Trait de mesure : preview A → souris (mesure en temps réel)
     if (tool === "measure_line" && window.DP2_STATE.measureLineStart) {
       const from = window.DP2_STATE.measureLineStart;
-      const dx = coords.x - from.x;
-      const dy = coords.y - from.y;
+      const snapped = dp2SnapPointForDrawing(from, coords, { force: e.shiftKey });
+      const to = { x: snapped.x, y: snapped.y };
+      const dx = to.x - from.x;
+      const dy = to.y - from.y;
       const lengthPx = Math.hypot(dx, dy);
       const lengthM = typeof scale === "number" && scale > 0 ? lengthPx * scale : 0;
       window.DP2_STATE.drawingPreview = {
         from: { x: from.x, y: from.y },
-        to: { x: coords.x, y: coords.y },
-        lengthM
+        to,
+        lengthM,
+        snapped: snapped.snapped === true
       };
       renderDP2FromState();
       return;
@@ -11032,15 +11119,18 @@ function initDP2CanvasEvents() {
     // Faîtage : preview A → souris (mesure en temps réel)
     if (tool === "ridge_line" && window.DP2_STATE.ridgeLineStart) {
       const from = window.DP2_STATE.ridgeLineStart;
-      const dx = coords.x - from.x;
-      const dy = coords.y - from.y;
+      const snapped = dp2SnapPointForDrawing(from, coords, { force: e.shiftKey });
+      const to = { x: snapped.x, y: snapped.y };
+      const dx = to.x - from.x;
+      const dy = to.y - from.y;
       const lengthPx = Math.hypot(dx, dy);
       const lengthM = typeof scale === "number" && scale > 0 ? lengthPx * scale : 0;
       window.DP2_STATE.drawingPreview = {
         from: { x: from.x, y: from.y },
-        to: { x: coords.x, y: coords.y },
+        to,
         lengthM,
-        previewType: "ridge_line"
+        previewType: "ridge_line",
+        snapped: snapped.snapped === true
       };
       renderDP2FromState();
       return;
@@ -11228,11 +11318,12 @@ function initDP2CanvasEvents() {
         return;
       }
       const a = window.DP2_STATE.measureLineStart;
+      const snapped = dp2SnapPointForDrawing(a, coords, { force: e.shiftKey });
       dp2CommitHistoryPoint();
       window.DP2_STATE.objects.push({
         type: "measure_line",
         a: { x: a.x, y: a.y },
-        b: { x: coords.x, y: coords.y }
+        b: { x: snapped.x, y: snapped.y }
       });
       window.DP2_STATE.measureLineStart = null;
       window.DP2_STATE.drawingPreview = null;
@@ -11250,7 +11341,8 @@ function initDP2CanvasEvents() {
       }
       const a = window.DP2_STATE.ridgeLineStart;
       const ridgeA = { x: a.x, y: a.y };
-      const ridgeB = { x: coords.x, y: coords.y };
+      const snapped = dp2SnapPointForDrawing(a, coords, { force: e.shiftKey });
+      const ridgeB = { x: snapped.x, y: snapped.y };
       dp2CommitHistoryPoint();
       window.DP2_STATE.objects.push({
         type: "ridge_line",
@@ -11774,14 +11866,20 @@ function renderDP2FromState() {
       ctx.lineTo(preview.to.x, preview.to.y);
       ctx.stroke();
       ctx.setLineDash([]);
-      const midX = (preview.from.x + preview.to.x) / 2;
-      const midY = (preview.from.y + preview.to.y) / 2;
+      if (preview.snapped) {
+        ctx.strokeStyle = "rgba(37, 99, 235, 0.58)";
+        ctx.lineWidth = 1;
+        ctx.setLineDash([3, 5]);
+        ctx.beginPath();
+        ctx.moveTo(preview.to.x - 14, preview.to.y);
+        ctx.lineTo(preview.to.x + 14, preview.to.y);
+        ctx.moveTo(preview.to.x, preview.to.y - 14);
+        ctx.lineTo(preview.to.x, preview.to.y + 14);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
       const text = (preview.lengthM != null ? preview.lengthM.toFixed(2) : "0,00").replace(".", ",") + " m";
-      ctx.font = "12px system-ui, sans-serif";
-      ctx.fillStyle = "#1f2937";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(text, midX, midY);
+      dp2FillAlignedCoteLabel(ctx, text, preview.from, preview.to, null, preview.snapped ? "active" : null);
     ctx.restore();
   }
 
@@ -12850,15 +12948,9 @@ function renderMeasureLine(ctx, obj, objectIndex) {
     ctx.arc(movedPreview.x, movedPreview.y, 6, 0, Math.PI * 2);
     ctx.fill();
 
-    const midX = (preview.aPreview.x + preview.bPreview.x) / 2;
-    const midY = (preview.aPreview.y + preview.bPreview.y) / 2;
     const off = obj.labelOffset && typeof obj.labelOffset.x === "number" && typeof obj.labelOffset.y === "number" ? obj.labelOffset : { x: 0, y: 0 };
     const text = (typeof obj.requestedLengthM === "number" ? obj.requestedLengthM : 0).toFixed(2).replace(".", ",") + " m";
-    ctx.font = "12px system-ui, sans-serif";
-    ctx.fillStyle = "#1f2937";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(text, midX + off.x, midY + off.y);
+    dp2FillAlignedCoteLabel(ctx, text, preview.aPreview, preview.bPreview, off, "editing");
   } else if (typeof obj.requestedLengthM === "number" && obj.requestedLengthM >= 0 && obj.resizeAnchor !== "A" && obj.resizeAnchor !== "B") {
     // Choix du point à déplacer : segment + repères A (vert) et B (bleu) sur le plan, label
     ctx.strokeStyle = "#2ecc71";
@@ -12884,13 +12976,9 @@ function renderMeasureLine(ctx, obj, objectIndex) {
     ctx.fill();
     ctx.fillStyle = "#fff";
     ctx.fillText("B", obj.b.x, obj.b.y);
-    const midX = (obj.a.x + obj.b.x) / 2;
-    const midY = (obj.a.y + obj.b.y) / 2;
     const off = obj.labelOffset && typeof obj.labelOffset.x === "number" && typeof obj.labelOffset.y === "number" ? obj.labelOffset : { x: 0, y: 0 };
     const text = obj.requestedLengthM.toFixed(2).replace(".", ",") + " m";
-    ctx.font = "12px system-ui, sans-serif";
-    ctx.fillStyle = "#1f2937";
-    ctx.fillText(text, midX + off.x, midY + off.y);
+    dp2FillAlignedCoteLabel(ctx, text, obj.a, obj.b, off, null);
   } else {
     const mfid = typeof objectIndex === "number" ? "measure:" + objectIndex : null;
     const mtier = mfid ? dp2InteractionTierForFeature(mfid) : null;
@@ -12911,18 +12999,12 @@ function renderMeasureLine(ctx, obj, objectIndex) {
       const dy = obj.b.y - obj.a.y;
       const lengthPx = Math.hypot(dx, dy);
       const lengthM = lengthPx * scale;
-      const midX = (obj.a.x + obj.b.x) / 2;
-      const midY = (obj.a.y + obj.b.y) / 2;
       const requested = typeof obj.requestedLengthM === "number" && obj.requestedLengthM >= 0 ? obj.requestedLengthM : null;
       const text = requested != null
         ? requested.toFixed(2).replace(".", ",") + " m"
         : lengthM.toFixed(2).replace(".", ",") + " m";
       const off = obj.labelOffset && typeof obj.labelOffset.x === "number" && typeof obj.labelOffset.y === "number" ? obj.labelOffset : { x: 0, y: 0 };
-      ctx.font = "12px system-ui, sans-serif";
-      ctx.fillStyle = "#1f2937";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      dp2FillCoteLabelWithTier(ctx, text, midX + off.x, midY + off.y, mtier);
+      dp2FillAlignedCoteLabel(ctx, text, obj.a, obj.b, off, mtier);
     }
   }
   ctx.restore();
@@ -12965,14 +13047,8 @@ function renderRidgeLine(ctx, obj, objectIndex) {
   dp2DrawLinePoint(ctx, obj.b.x, obj.b.y, DP2_RIDGE_POINT_STROKE);
   if (typeof scale === "number" && scale > 0) {
     const lengthM = Math.hypot(obj.b.x - obj.a.x, obj.b.y - obj.a.y) * scale;
-    const midX = (obj.a.x + obj.b.x) / 2;
-    const midY = (obj.a.y + obj.b.y) / 2;
     const off = obj.labelOffset && typeof obj.labelOffset.x === "number" && typeof obj.labelOffset.y === "number" ? obj.labelOffset : { x: 0, y: 0 };
-    ctx.font = "12px system-ui, sans-serif";
-    ctx.fillStyle = "#1f2937";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    dp2FillCoteLabelWithTier(ctx, lengthM.toFixed(2).replace(".", ",") + " m", midX + off.x, midY + off.y, rtier);
+    dp2FillAlignedCoteLabel(ctx, lengthM.toFixed(2).replace(".", ",") + " m", obj.a, obj.b, off, rtier);
   }
   ctx.restore();
 }
@@ -13249,11 +13325,7 @@ function renderBuildingOutline(ctx, obj) {
               ? part.lengthM
               : Math.hypot(b.x - a.x, b.y - a.y) * scale;
           const text = lenM.toFixed(2).replace(".", ",") + " m";
-          ctx.font = "12px system-ui, sans-serif";
-          ctx.fillStyle = "#1f2937";
-          ctx.textAlign = "center";
-          ctx.textBaseline = "middle";
-          ctx.fillText(text, midX, midY);
+          dp2FillAlignedCoteLabel(ctx, text, a, b, null, null);
         }
         continue;
       }
@@ -13262,14 +13334,8 @@ function renderBuildingOutline(ctx, obj) {
       const dy = p2.y - p1.y;
       const lengthPx = Math.sqrt(dx * dx + dy * dy);
       const lengthM = lengthPx * scale;
-      const midX = (p1.x + p2.x) / 2;
-      const midY = (p1.y + p2.y) / 2;
       const text = lengthM.toFixed(2).replace(".", ",") + " m";
-      ctx.font = "12px system-ui, sans-serif";
-      ctx.fillStyle = "#1f2937";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(text, midX, midY);
+      dp2FillAlignedCoteLabel(ctx, text, p1, p2, null, null);
     }
   }
 
@@ -13279,8 +13345,8 @@ function renderBuildingOutline(ctx, obj) {
 // --------------------------
 // DP2 — RENDU CONTOURS DE BÂTI (multi, éditables) — DP2 UNIQUEMENT
 // --------------------------
-const DP2_BUILDING_CONTOUR_ACTIVE_STROKE = "#C39847";
-const DP2_BUILDING_CONTOUR_INACTIVE_STROKE = "#6b7280";
+const DP2_BUILDING_CONTOUR_ACTIVE_STROKE = "#1e40af";
+const DP2_BUILDING_CONTOUR_INACTIVE_STROKE = "#1e40af";
 
 function renderDP2BuildingContour(ctx, contour, options) {
   if (!contour || !Array.isArray(contour.points) || contour.points.length < 1) return;
@@ -13299,11 +13365,11 @@ function renderDP2BuildingContour(ctx, contour, options) {
     for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
     if (contour.closed) ctx.closePath();
     ctx.strokeStyle = active ? DP2_BUILDING_CONTOUR_ACTIVE_STROKE : DP2_BUILDING_CONTOUR_INACTIVE_STROKE;
-    ctx.lineWidth = active ? 2.5 : 2;
+    ctx.lineWidth = active ? 2.4 : 2;
     ctx.setLineDash([]);
     ctx.stroke();
     if (contour.closed) {
-      ctx.fillStyle = active ? "rgba(195, 152, 71, 0.10)" : "rgba(107, 114, 128, 0.06)";
+      ctx.fillStyle = active ? "rgba(30, 64, 175, 0.10)" : "rgba(30, 64, 175, 0.05)";
       ctx.fill();
     }
   }
@@ -13436,17 +13502,11 @@ function renderDP2BuildingContour(ctx, contour, options) {
             ctx.fill();
             ctx.stroke();
           }
-          const midX = (preview.aPreview.x + preview.bPreview.x) / 2;
-          const midY = (preview.aPreview.y + preview.bPreview.y) / 2;
           const text =
             (typeof previewStub.requestedLengthM === "number" ? previewStub.requestedLengthM : 0)
               .toFixed(2)
               .replace(".", ",") + " m";
-          ctx.font = "12px system-ui, sans-serif";
-          ctx.fillStyle = "#1f2937";
-          ctx.textAlign = "center";
-          ctx.textBaseline = "middle";
-          if (!editingThisSeg) ctx.fillText(text, midX, midY);
+          if (!editingThisSeg) dp2FillAlignedCoteLabel(ctx, text, preview.aPreview, preview.bPreview, null, "editing");
           ctx.restore();
         }
       }
@@ -13459,21 +13519,13 @@ function renderDP2BuildingContour(ctx, contour, options) {
         for (const part of cutParts) {
           const a = part.a;
           const b = part.b;
-          let midX = (a.x + b.x) / 2;
-          let midY = (a.y + b.y) / 2;
-          midX += segOff.x;
-          midY += segOff.y;
           const lenM =
             typeof part.lengthM === "number"
               ? part.lengthM
               : Math.hypot(b.x - a.x, b.y - a.y) * scale;
           const text = lenM.toFixed(2).replace(".", ",") + " m";
-          ctx.font = "12px system-ui, sans-serif";
-          ctx.fillStyle = "#1f2937";
-          ctx.textAlign = "center";
-          ctx.textBaseline = "middle";
           dp2DrawCoteSegmentTier(ctx, a, b, tierDrawCuts);
-          if (!editingThisSeg) dp2FillCoteLabelWithTier(ctx, text, midX, midY, tierDrawCuts);
+          if (!editingThisSeg) dp2FillAlignedCoteLabel(ctx, text, a, b, segOff, tierDrawCuts);
         }
         continue;
       }
@@ -13485,18 +13537,10 @@ function renderDP2BuildingContour(ctx, contour, options) {
       if (previewStub && typeof previewStub.requestedLengthM === "number") {
         lengthM = previewStub.requestedLengthM;
       }
-      let midX = (p1.x + p2.x) / 2;
-      let midY = (p1.y + p2.y) / 2;
-      midX += segOff.x;
-      midY += segOff.y;
       const text = lengthM.toFixed(2).replace(".", ",") + " m";
-      ctx.font = "12px system-ui, sans-serif";
-      ctx.fillStyle = "#1f2937";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
       const tierDraw = tierSeg || (parcelEdgeEditing ? "editing" : null);
       dp2DrawCoteSegmentTier(ctx, p1, p2, tierDraw);
-      if (!editingThisSeg)       dp2FillCoteLabelWithTier(ctx, text, midX, midY, tierDraw);
+      if (!editingThisSeg) dp2FillAlignedCoteLabel(ctx, text, p1, p2, segOff, tierDraw);
     }
   }
 
@@ -13743,6 +13787,25 @@ function dp2SyncBuildingOlInteractions() {
   try {
     snap.setActive(isOutline || tool === "select");
   } catch (_) {}
+}
+
+function dp2ApplyRightAngleSnapToOlPolygonCoords(coordinates) {
+  if (!Array.isArray(coordinates) || !Array.isArray(coordinates[0])) return coordinates;
+  const ring = coordinates[0];
+  if (!Array.isArray(ring) || ring.length < 2) return coordinates;
+  const lastIdx = ring.length - 1;
+  const prev = ring[lastIdx - 1];
+  const cur = ring[lastIdx];
+  if (!Array.isArray(prev) || !Array.isArray(cur)) return coordinates;
+  const snapped = dp2SnapPointForDrawing(
+    { x: prev[0], y: prev[1] },
+    { x: cur[0], y: cur[1] },
+    { angles: [0, Math.PI / 2, Math.PI, -Math.PI / 2], threshold: Math.PI / 16 }
+  );
+  if (snapped && snapped.snapped === true) {
+    ring[lastIdx] = [snapped.x, snapped.y];
+  }
+  return coordinates;
 }
 
 // --------------------------
@@ -14066,20 +14129,20 @@ function renderDP2BusinessObject(ctx, obj) {
 
     // Disjoncteur : symbole "interdiction" vectoriel (sans emoji)
     case "disjoncteur": {
-      // Règles : sens interdit ⛔, ROUGE, aucun fond supplémentaire
+      // Symbole métier volontairement sobre : petit carré rouge, lisible sur le plan et en PDF.
       const red = "#dc2626";
-      const rr = Math.min(w, h) * 0.5;
+      const pad = Math.max(2, Math.min(5, Math.min(w, h) * 0.16));
+      const size = Math.max(1, Math.min(w, h) - pad * 2);
+      const sx = -size / 2;
+      const sy = -size / 2;
 
       ctx.setLineDash([]);
       ctx.strokeStyle = red;
-      ctx.fillStyle = "transparent";
-      ctx.lineWidth = 2.2;
+      ctx.fillStyle = red;
+      ctx.lineWidth = 1.6;
       ctx.beginPath();
-      ctx.arc(0, 0, rr, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(-rr * 0.72, rr * 0.72);
-      ctx.lineTo(rr * 0.72, -rr * 0.72);
+      ctx.rect(sx, sy, size, size);
+      ctx.fill();
       ctx.stroke();
       break;
     }
@@ -15038,11 +15101,11 @@ async function initDP2() {
           return [
             new ol.style.Style({
               fill: new ol.style.Fill({
-                color: active ? "rgba(195, 152, 71, 0.10)" : "rgba(107, 114, 128, 0.06)"
+                color: active ? "rgba(30, 64, 175, 0.10)" : "rgba(30, 64, 175, 0.05)"
               }),
               stroke: new ol.style.Stroke({
-                color: active ? "#C39847" : "#6b7280",
-                width: active ? 2.5 : 2
+                color: "#1e40af",
+                width: active ? 2.4 : 2
               })
             })
           ];
@@ -15051,8 +15114,8 @@ async function initDP2() {
           return [
             new ol.style.Style({
               stroke: new ol.style.Stroke({
-                color: "#C39847",
-                width: 2.5,
+                color: "#1e40af",
+                width: 2.4,
                 lineDash: [10, 8]
               })
             })
@@ -15219,7 +15282,22 @@ async function initDP2() {
 
     const dp2BuildingDraw = new ol.interaction.Draw({
       source: dp2BuildingVectorSource,
-      type: "Polygon"
+      type: "Polygon",
+      geometryFunction: function (coordinates, geometry) {
+        const snappedCoords = dp2ApplyRightAngleSnapToOlPolygonCoords(coordinates);
+        if (!geometry) geometry = new ol.geom.Polygon(snappedCoords);
+        else geometry.setCoordinates(snappedCoords);
+        return geometry;
+      },
+      style: new ol.style.Style({
+        fill: new ol.style.Fill({ color: "rgba(30, 64, 175, 0.08)" }),
+        stroke: new ol.style.Stroke({ color: "#1e40af", width: 2.4, lineDash: [8, 6] }),
+        image: new ol.style.Circle({
+          radius: 4,
+          fill: new ol.style.Fill({ color: "#ffffff" }),
+          stroke: new ol.style.Stroke({ color: "#1e40af", width: 2 })
+        })
+      })
     });
     dp2BuildingDraw.setActive(false);
     dp2BuildingDraw.on("drawend", function (evt) {
