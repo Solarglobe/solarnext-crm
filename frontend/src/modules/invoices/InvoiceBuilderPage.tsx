@@ -3,7 +3,7 @@
  * Route : /invoices/:id
  */
 
-import React, { useCallback, useEffect, useMemo, useReducer, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { apiFetch } from "../../services/api";
 import { adminGetQuoteCatalog, type QuoteCatalogItem } from "../../services/admin.api";
@@ -52,6 +52,13 @@ import { formatInvoiceNumberDisplay } from "../finance/documentDisplay";
 import { getCrmApiBase } from "@/config/crmApiBase";
 
 const API_BASE = getCrmApiBase();
+
+/** Aligné sur la comparaison backend : null si vide / absent après trim. */
+function normalizeId(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const s = String(value).trim();
+  return s === "" ? null : s;
+}
 
 function buildStateFromApi(inv: InvoiceDetail & Record<string, unknown>): InvoiceBuilderState {
   const clientLabel = inv.company_name
@@ -109,6 +116,9 @@ export default function InvoiceBuilderPage() {
   }>({ total_paid: 0, amount_due: 0, is_overdue: false, total_ht: 0, total_vat: 0, total_ttc: 0 });
   const [invoiceDetail, setInvoiceDetail] = useState<InvoiceDetail | null>(null);
   const [quoteBillCtx, setQuoteBillCtx] = useState<QuoteInvoiceBillingContext | null>(null);
+  /** Valeurs DB après dernier chargement — pour n’envoyer client_id / lead_id au PATCH que si modifiés. */
+  const initialClientIdRef = useRef<string | null>(null);
+  const initialLeadIdRef = useRef<string | null>(null);
 
   const canEdit = state.header ? String(state.header.status).toUpperCase() === "DRAFT" : false;
 
@@ -141,6 +151,8 @@ export default function InvoiceBuilderPage() {
     setError(null);
     try {
       const inv = await fetchInvoiceDetail(id);
+      initialClientIdRef.current = normalizeId(inv.client_id as string | null | undefined);
+      initialLeadIdRef.current = normalizeId(inv.lead_id as string | null | undefined);
       setInvoiceDetail(inv);
       dispatch({ type: "HYDRATE", payload: buildStateFromApi(inv) });
       const bal = inv.balance as { amount_due?: number; total_paid?: number } | undefined;
@@ -193,10 +205,14 @@ export default function InvoiceBuilderPage() {
         issue_date: state.header.issue_date || null,
         due_date: state.header.due_date || null,
       };
-      if (state.header.client_id) body.client_id = state.header.client_id;
-      else body.client_id = null;
-      if (state.header.lead_id) body.lead_id = state.header.lead_id;
-      else body.lead_id = null;
+      const curClient = normalizeId(state.header.client_id);
+      const curLead = normalizeId(state.header.lead_id);
+      if (curClient !== initialClientIdRef.current) {
+        body.client_id = state.header.client_id ?? null;
+      }
+      if (curLead !== initialLeadIdRef.current) {
+        body.lead_id = state.header.lead_id ?? null;
+      }
       if (state.header.quote_id) body.quote_id = state.header.quote_id;
 
       await patchInvoice(id, body);
