@@ -643,6 +643,125 @@ function proportionalSliceLineFromQuote(quote, label, sliceTtc) {
   };
 }
 
+function asObjectJson(raw) {
+  if (!raw) return null;
+  if (typeof raw === "object" && !Array.isArray(raw)) return raw;
+  try {
+    const parsed = JSON.parse(String(raw));
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function parseFiniteNumber(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function computeLineTtcFallback(quantity, unitPriceHt, discountHt, vatRate) {
+  const baseHt = Number(quantity) * Number(unitPriceHt) - Number(discountHt);
+  const ttc = baseHt * (1 + Number(vatRate) / 100);
+  return roundMoney2(ttc);
+}
+
+function buildSnapshotInconsistentError({ quoteId, reason, delta = null }) {
+  const err = new Error(`SNAPSHOT_INCONSISTENT: snapshot devis incoherent (${reason})`);
+  err.code = "SNAPSHOT_INCONSISTENT";
+  err.quote_id = quoteId;
+  err.delta = delta;
+  return err;
+}
+
+function buildStandardSnapshotLines(snapshotLines) {
+  return snapshotLines.map((line, index) => ({
+    label: line?.label ?? null,
+    description: line?.description ?? line?.label ?? "",
+    quantity: Number(line.quantity),
+    unit_price_ht: Number(line.unit_price_ht),
+    discount_ht: Number(line.discount_ht ?? 0),
+    vat_rate: Number(line.vat_rate),
+    snapshot_json: {
+      ...(line?.reference != null ? { reference: line.reference } : {}),
+      source_position: line?.position != null ? Number(line.position) : index + 1,
+      source: "quote_document_snapshot",
+      line_kind: line?.line_kind ?? null,
+    },
+  }));
+}
+
+function validateStandardSnapshotOrThrow(snapshot, quoteId) {
+  const linesRaw = Array.isArray(snapshot?.lines) ? snapshot.lines : [];
+  if (linesRaw.length < 1) return { usable: false };
+
+  const totalTtc = parseFiniteNumber(snapshot?.totals?.total_ttc);
+  if (totalTtc == null) {
+    console.warn("[invoices] snapshot_inconsistent", {
+      quote_id: quoteId,
+      reason: "missing_or_invalid_totals_total_ttc",
+    });
+    throw buildSnapshotInconsistentError({
+      quoteId,
+      reason: "missing_or_invalid_totals_total_ttc",
+      delta: null,
+    });
+  }
+
+  let sumTtc = 0;
+  for (let i = 0; i < linesRaw.length; i++) {
+    const line = linesRaw[i];
+    const qty = parseFiniteNumber(line?.quantity);
+    const up = parseFiniteNumber(line?.unit_price_ht);
+    const vat = parseFiniteNumber(line?.vat_rate);
+    const lineTtcRaw = parseFiniteNumber(line?.total_line_ttc);
+    const discount = parseFiniteNumber(line?.discount_ht ?? 0);
+    if (qty == null || up == null || vat == null || discount == null) {
+      console.warn("[invoices] snapshot_inconsistent", {
+        quote_id: quoteId,
+        reason: "invalid_line_numeric_fields",
+        line_index: i,
+      });
+      throw buildSnapshotInconsistentError({
+        quoteId,
+        reason: "invalid_line_numeric_fields",
+        delta: null,
+      });
+    }
+    const lineTtc =
+      lineTtcRaw != null ? roundMoney2(lineTtcRaw) : computeLineTtcFallback(qty, up, discount, vat);
+    sumTtc += lineTtc;
+  }
+
+  const roundedSum = roundMoney2(sumTtc);
+  const roundedTotal = roundMoney2(totalTtc);
+  if (Math.abs(roundedSum - roundedTotal) > 0.01) {
+    const delta = roundMoney2(roundedSum - roundedTotal);
+    console.warn("[invoices] snapshot_inconsistent", {
+      quote_id: quoteId,
+      reason: "line_sum_ttc_mismatch",
+      lines_total_ttc: roundedSum,
+      snapshot_total_ttc: roundedTotal,
+      delta,
+    });
+    throw buildSnapshotInconsistentError({
+      quoteId,
+      reason: "line_sum_ttc_mismatch",
+      delta,
+    });
+  }
+
+  return {
+    usable: true,
+    lines: buildStandardSnapshotLines(linesRaw),
+    totals: {
+      total_ht: parseFiniteNumber(snapshot?.totals?.total_ht),
+      total_vat: parseFiniteNumber(snapshot?.totals?.total_vat),
+      total_ttc: roundedTotal,
+    },
+    notes: snapshot?.notes ?? null,
+  };
+}
+
 /**
  * Contexte facturation pour un devis (acompte / solde / complète).
  * @param {string} quoteId
@@ -794,6 +913,10 @@ export async function createInvoiceFromQuote(quoteId, organizationId, options = 
 
     let lines = [];
     let metaJson = {};
+    let notesForInvoice = quote.notes ?? null;
+    let standardCapTtc = quoteTtc;
+    let standardSource = "live";
+    let standardSnapshotTotals = null;
 
     if (billingRole === "STANDARD") {
       if (reservedTtc > 0.02) {
@@ -801,21 +924,44 @@ export async function createInvoiceFromQuote(quoteId, organizationId, options = 
           "Une facture ou un brouillon existe déjà pour ce devis. Utilisez acompte / solde ou supprimez les brouillons inutiles."
         );
       }
-      const linesRes = await client.query(
-        `SELECT label, description, quantity, unit_price_ht, discount_ht, vat_rate, snapshot_json
-         FROM quote_lines WHERE quote_id = $1 AND organization_id = $2 AND (is_active IS DISTINCT FROM false)
-         ORDER BY position`,
-        [quoteId, organizationId]
-      );
-      lines = linesRes.rows.map((row) => ({
-        label: row.label,
-        description: row.description || row.label || "",
-        quantity: row.quantity,
-        unit_price_ht: row.unit_price_ht,
-        discount_ht: row.discount_ht ?? 0,
-        vat_rate: row.vat_rate,
-        snapshot_json: row.snapshot_json,
-      }));
+      const quoteSnapshot = asObjectJson(quote.document_snapshot_json);
+      const validatedSnapshot = validateStandardSnapshotOrThrow(quoteSnapshot, quoteId);
+      const selectedSource = validatedSnapshot.usable ? "snapshot" : "live";
+      standardSource = selectedSource;
+      console.info("[invoices] createInvoiceFromQuote source_selected", {
+        quote_id: quoteId,
+        quote_billing_role: billingRole,
+        source: selectedSource,
+      });
+
+      if (selectedSource === "snapshot") {
+        lines = validatedSnapshot.lines;
+        notesForInvoice = validatedSnapshot.notes ?? quote.notes ?? null;
+        standardCapTtc = validatedSnapshot.totals.total_ttc;
+        standardSnapshotTotals = validatedSnapshot.totals;
+      } else {
+        console.warn("[invoices] createInvoiceFromQuote fallback_live", {
+          quote_id: quoteId,
+          quote_billing_role: billingRole,
+          reason: "missing_or_unusable_document_snapshot_lines",
+        });
+        const linesRes = await client.query(
+          `SELECT label, description, quantity, unit_price_ht, discount_ht, vat_rate, snapshot_json
+           FROM quote_lines WHERE quote_id = $1 AND organization_id = $2 AND (is_active IS DISTINCT FROM false)
+           ORDER BY position`,
+          [quoteId, organizationId]
+        );
+        lines = linesRes.rows.map((row) => ({
+          label: row.label,
+          description: row.description || row.label || "",
+          quantity: row.quantity,
+          unit_price_ht: row.unit_price_ht,
+          discount_ht: row.discount_ht ?? 0,
+          vat_rate: row.vat_rate,
+          snapshot_json: row.snapshot_json,
+        }));
+      }
+
       if (lines.length < 1) throw new Error("Le devis n'a pas de lignes à facturer");
       metaJson = buildMetadataQuoteBilling("STANDARD", quote);
     } else if (billingRole === "DEPOSIT") {
@@ -883,7 +1029,7 @@ export async function createInvoiceFromQuote(quoteId, organizationId, options = 
         invoiceLeadId,
         quoteId,
         draftNum,
-        quote.notes ?? null,
+        notesForInvoice,
         JSON.stringify(metaJson),
         quote.currency || "EUR",
       ]
@@ -892,7 +1038,50 @@ export async function createInvoiceFromQuote(quoteId, organizationId, options = 
 
     await replaceInvoiceLines(client, organizationId, invoiceId, lines);
     await recalcInvoiceTotals(client, organizationId, invoiceId);
-    await assertQuoteLinkedInvoicesWithinCap(client, quoteId, organizationId, invoiceId);
+    if (billingRole === "STANDARD" && standardSource === "snapshot" && standardSnapshotTotals) {
+      const totalsCheck = await client.query(
+        `SELECT COALESCE(SUM(total_line_ttc), 0)::numeric AS recomputed_total
+         FROM invoice_lines
+         WHERE invoice_id = $1 AND organization_id = $2`,
+        [invoiceId, organizationId]
+      );
+      const recomputedTotal = roundMoney2(Number(totalsCheck.rows[0]?.recomputed_total) || 0);
+      const snapshotTotal = roundMoney2(Number(standardSnapshotTotals.total_ttc) || 0);
+      if (Math.abs(recomputedTotal - snapshotTotal) > 0.01) {
+        console.warn("[invoices] snapshot_total_mismatch", {
+          event: "snapshot_total_mismatch",
+          quote_id: quoteId,
+          snapshot_total: snapshotTotal,
+          recomputed_total: recomputedTotal,
+        });
+      }
+      const forcedHt = roundMoney2(Number(standardSnapshotTotals.total_ht) || 0);
+      const forcedVat = roundMoney2(Number(standardSnapshotTotals.total_vat) || 0);
+      const forcedTtc = snapshotTotal;
+      await client.query(
+        `UPDATE invoices
+         SET total_ht = $1,
+             total_vat = $2,
+             total_ttc = $3,
+             amount_due = GREATEST(
+               0,
+               round(($3::numeric - COALESCE(total_paid, 0) - COALESCE(total_credited, 0))::numeric, 2)
+             ),
+             updated_at = now()
+         WHERE id = $4 AND organization_id = $5`,
+        [forcedHt, forcedVat, forcedTtc, invoiceId, organizationId]
+      );
+    }
+    if (billingRole === "STANDARD") {
+      const fullSum = await sumQuoteInvoiceTtcNonCancelled(client, quoteId, organizationId);
+      if (fullSum > standardCapTtc + QUOTE_INVOICE_SUM_TOLERANCE_TTC) {
+        throw new Error(
+          `Montant total des factures liées au devis (${fullSum} € TTC) dépasse le total du devis (${standardCapTtc} €) au-delà de la tolérance autorisée (${QUOTE_INVOICE_SUM_TOLERANCE_TTC} €).`
+        );
+      }
+    } else {
+      await assertQuoteLinkedInvoicesWithinCap(client, quoteId, organizationId, invoiceId);
+    }
 
     return invoiceId;
   });

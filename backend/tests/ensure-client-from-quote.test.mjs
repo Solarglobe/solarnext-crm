@@ -14,6 +14,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 import { pool } from "../config/db.js";
 import * as quoteService from "../routes/quotes/service.js";
 import * as invoiceService from "../services/invoices.service.js";
+import { ensureClientForQuote } from "../services/ensureClientForQuote.service.js";
 
 const PREFIX = `ECFQ-${Date.now()}`;
 let orgId;
@@ -246,4 +247,124 @@ test("ACCEPTED : lead sans client mais email déjà client existant → rattache
     [orgId, email.toLowerCase()]
   );
   assert.equal(cnt.rows[0].c, 1, "un seul client pour cet email");
+});
+
+test("ensureClientForQuote: quote.client_id + quote.lead_id => lead.status passe CLIENT", async () => {
+  const email = `${PREFIX}-lead-client-1@ecfq.test`;
+  const cr = await pool.query(
+    `INSERT INTO clients (organization_id, client_number, first_name, last_name, email)
+     VALUES ($1, $2, 'Lead', 'Client', $3) RETURNING id`,
+    [orgId, `CLI-${PREFIX}-LC1`, email]
+  );
+  const clientId = cr.rows[0].id;
+  toDelete.clientIds.push(clientId);
+
+  const lr = await pool.query(
+    `INSERT INTO leads (organization_id, stage_id, status, full_name, first_name, last_name, email, source_id, customer_type)
+     VALUES ($1, $2, 'PROSPECT', 'Lead Client', 'Lead', 'Client', $3, $4, 'PERSON') RETURNING id`,
+    [orgId, stageId, email, sourceId]
+  );
+  const leadId = lr.rows[0].id;
+  toDelete.leadIds.push(leadId);
+
+  const q = await quoteService.createQuote(orgId, {
+    lead_id: leadId,
+    items: [{ label: "L1", description: "", quantity: 1, unit_price_ht: 100, tva_rate: 20 }],
+  });
+  const quoteId = q.quote.id;
+  toDelete.quoteIds.push(quoteId);
+  await pool.query(`UPDATE quotes SET client_id = $1 WHERE id = $2`, [clientId, quoteId]);
+
+  const dbClient = await pool.connect();
+  try {
+    await dbClient.query("BEGIN");
+    const quoteRowRes = await dbClient.query(`SELECT * FROM quotes WHERE id = $1 AND organization_id = $2 FOR UPDATE`, [quoteId, orgId]);
+    const resolved = await ensureClientForQuote(dbClient, quoteRowRes.rows[0], orgId);
+    assert.equal(String(resolved), String(clientId));
+    await dbClient.query("COMMIT");
+  } catch (e) {
+    await dbClient.query("ROLLBACK");
+    throw e;
+  } finally {
+    dbClient.release();
+  }
+
+  const leadAfter = await pool.query(`SELECT status FROM leads WHERE id = $1`, [leadId]);
+  assert.equal(String(leadAfter.rows[0]?.status || "").toUpperCase(), "CLIENT");
+});
+
+test("ensureClientForQuote: quote.client_id seul => pas de crash", async () => {
+  const email = `${PREFIX}-client-only@ecfq.test`;
+  const cr = await pool.query(
+    `INSERT INTO clients (organization_id, client_number, first_name, last_name, email)
+     VALUES ($1, $2, 'Client', 'Only', $3) RETURNING id`,
+    [orgId, `CLI-${PREFIX}-CO`, email]
+  );
+  const clientId = cr.rows[0].id;
+  toDelete.clientIds.push(clientId);
+
+  const q = await quoteService.createQuote(orgId, {
+    client_id: clientId,
+    items: [{ label: "L1", description: "", quantity: 1, unit_price_ht: 80, tva_rate: 20 }],
+  });
+  const quoteId = q.quote.id;
+  toDelete.quoteIds.push(quoteId);
+
+  const dbClient = await pool.connect();
+  try {
+    await dbClient.query("BEGIN");
+    const quoteRowRes = await dbClient.query(`SELECT * FROM quotes WHERE id = $1 AND organization_id = $2 FOR UPDATE`, [quoteId, orgId]);
+    const resolved = await ensureClientForQuote(dbClient, quoteRowRes.rows[0], orgId);
+    assert.equal(String(resolved), String(clientId));
+    await dbClient.query("COMMIT");
+  } catch (e) {
+    await dbClient.query("ROLLBACK");
+    throw e;
+  } finally {
+    dbClient.release();
+  }
+});
+
+test("ensureClientForQuote: lead deja CLIENT => idempotent", async () => {
+  const email = `${PREFIX}-lead-already-client@ecfq.test`;
+  const cr = await pool.query(
+    `INSERT INTO clients (organization_id, client_number, first_name, last_name, email)
+     VALUES ($1, $2, 'Lead', 'Already', $3) RETURNING id`,
+    [orgId, `CLI-${PREFIX}-LAC`, email]
+  );
+  const clientId = cr.rows[0].id;
+  toDelete.clientIds.push(clientId);
+
+  const lr = await pool.query(
+    `INSERT INTO leads (organization_id, stage_id, status, full_name, first_name, last_name, email, source_id, customer_type)
+     VALUES ($1, $2, 'CLIENT', 'Lead Already Client', 'Lead', 'Already', $3, $4, 'PERSON') RETURNING id`,
+    [orgId, stageId, email, sourceId]
+  );
+  const leadId = lr.rows[0].id;
+  toDelete.leadIds.push(leadId);
+
+  const q = await quoteService.createQuote(orgId, {
+    lead_id: leadId,
+    items: [{ label: "L1", description: "", quantity: 1, unit_price_ht: 60, tva_rate: 20 }],
+  });
+  const quoteId = q.quote.id;
+  toDelete.quoteIds.push(quoteId);
+  await pool.query(`UPDATE quotes SET client_id = $1 WHERE id = $2`, [clientId, quoteId]);
+
+  const dbClient = await pool.connect();
+  try {
+    await dbClient.query("BEGIN");
+    const quoteRowRes = await dbClient.query(`SELECT * FROM quotes WHERE id = $1 AND organization_id = $2 FOR UPDATE`, [quoteId, orgId]);
+    const resolved = await ensureClientForQuote(dbClient, quoteRowRes.rows[0], orgId);
+    assert.equal(String(resolved), String(clientId));
+    await dbClient.query("COMMIT");
+  } catch (e) {
+    await dbClient.query("ROLLBACK");
+    throw e;
+  } finally {
+    dbClient.release();
+  }
+
+  const leadAfter = await pool.query(`SELECT status FROM leads WHERE id = $1`, [leadId]);
+  assert.equal(String(leadAfter.rows[0]?.status || "").toUpperCase(), "CLIENT");
 });

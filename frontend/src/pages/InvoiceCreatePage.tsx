@@ -364,14 +364,16 @@ export default function InvoiceCreatePage() {
     setLoading(true);
     setError(null);
     try {
-      const inv = await createInvoiceDraft({
-        client_id: outClient,
-        lead_id: outLead,
-        ...(optionalQuoteId.trim() ? { quote_id: optionalQuoteId.trim() } : {}),
-        lines: [],
-        notes: "",
-        payment_terms: "",
-      });
+      const quoteId = optionalQuoteId.trim();
+      const inv = quoteId
+        ? await createInvoiceFromQuote(quoteId)
+        : await createInvoiceDraft({
+            client_id: outClient,
+            lead_id: outLead,
+            lines: [],
+            notes: "",
+            payment_terms: "",
+          });
       if (inv?.id) navigate(`/invoices/${inv.id}`, { replace: true });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur");

@@ -29,6 +29,14 @@ export async function ensureClientForQuote(dbClient, quoteRow, organizationId) {
     if (ok.rows.length === 0) {
       throw new Error("Le devis référence un client introuvable ou archivé.");
     }
+    if (quoteRow.lead_id) {
+      await dbClient.query(
+        `UPDATE leads
+         SET status = 'CLIENT', updated_at = now()
+         WHERE id = $1 AND organization_id = $2 AND (archived_at IS NULL)`,
+        [quoteRow.lead_id, org]
+      );
+    }
     return String(cid);
   }
 

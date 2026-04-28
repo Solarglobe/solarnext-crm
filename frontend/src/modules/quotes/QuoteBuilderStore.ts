@@ -136,6 +136,20 @@ function lineReferenceFromSnapshot(row: Record<string, unknown>): string {
   }
 }
 
+function lineKindFromSnapshot(row: Record<string, unknown>): string | null {
+  const raw = row.snapshot_json;
+  if (raw == null) return null;
+  try {
+    const snap = typeof raw === "string" ? (JSON.parse(raw) as Record<string, unknown>) : (raw as Record<string, unknown>);
+    const kind = snap?.line_kind;
+    if (kind == null) return null;
+    const normalized = String(kind).trim();
+    return normalized ? normalized : null;
+  } catch {
+    return null;
+  }
+}
+
 export function mapApiItemsToLines(rows: Record<string, unknown>[]): QuoteLine[] {
   return rows.map((row, i) => {
     const gross = grossHtFromLine({
@@ -149,7 +163,7 @@ export function mapApiItemsToLines(rows: Record<string, unknown>[]): QuoteLine[]
     const puCents = row.purchase_unit_price_ht_cents;
     const purchase_unit_price_ht_cents =
       puCents != null && Number.isFinite(Number(puCents)) ? Math.floor(Number(puCents)) : undefined;
-    return {
+    const line = {
       id,
       type: catalogId ? "catalog" : "custom",
       catalog_item_id: catalogId,
@@ -165,6 +179,8 @@ export function mapApiItemsToLines(rows: Record<string, unknown>[]): QuoteLine[]
       position: Number(row.position) || i + 1,
       ...(purchase_unit_price_ht_cents !== undefined ? { purchase_unit_price_ht_cents } : {}),
     };
+    (line as QuoteLine & { line_kind?: string | null }).line_kind = lineKindFromSnapshot(row);
+    return line;
   });
 }
 
@@ -178,6 +194,7 @@ export function linesToSaveItems(lines: QuoteLine[]) {
         gross > 0 ? Math.min(roundMoney(gross * (pct / 100)), gross) : 0;
       const line_source = l.line_source === "study_prep" ? "study_prep" : "manual";
       const ref = (l.reference ?? "").trim().slice(0, 120);
+      const lineKind = (l as QuoteLine & { line_kind?: string | null }).line_kind;
       return {
         label: l.label,
         description: (l.description ?? "").trim(),
@@ -188,6 +205,7 @@ export function linesToSaveItems(lines: QuoteLine[]) {
         line_source,
         catalog_item_id: l.type === "catalog" ? l.catalog_item_id ?? undefined : undefined,
         ...(ref ? { reference: ref } : {}),
+        ...(lineKind ? { line_kind: lineKind } : {}),
       };
     });
 }

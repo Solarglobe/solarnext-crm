@@ -12,6 +12,12 @@ import InvoiceCreatePage from "../InvoiceCreatePage";
 const fetchQuotesListMock = vi.hoisted(() =>
   vi.fn(() => Promise.resolve<{ id: string; quote_number: string; status: string }[]>([]))
 );
+const createInvoiceDraftMock = vi.hoisted(() =>
+  vi.fn(() => Promise.resolve({ id: "inv-draft-1" }))
+);
+const createInvoiceFromQuoteMock = vi.hoisted(() =>
+  vi.fn(() => Promise.resolve({ id: "inv-quote-1" }))
+);
 
 vi.mock("../../services/billingContacts.api", () => ({
   fetchClientsBillingSelect: vi.fn(() =>
@@ -31,6 +37,8 @@ vi.mock("../../services/financial.api", async () => {
   return {
     ...actual,
     fetchQuotesList: fetchQuotesListMock,
+    createInvoiceDraft: createInvoiceDraftMock,
+    createInvoiceFromQuote: createInvoiceFromQuoteMock,
   };
 });
 
@@ -201,5 +209,63 @@ describe("InvoiceCreatePage — contexte client / lead / libre", () => {
         screen.getByRole("option", { name: "SG-2026-0029 — ACCEPTED — KIM GIRARD" })
       ).toBeInTheDocument();
     });
+  });
+
+  it("avec optionalQuoteId : utilise createInvoiceFromQuote (pas createInvoiceDraft)", async () => {
+    fetchQuotesListMock.mockResolvedValueOnce([
+      {
+        id: "q-1",
+        quote_number: "SG-2026-0031",
+        status: "ACCEPTED",
+        client_id: "c-1",
+      },
+    ]);
+    render(
+      <MemoryRouter initialEntries={["/invoices/new"]}>
+        <Routes>
+          <Route path="/invoices/new" element={<InvoiceCreatePage />} />
+          <Route path="/invoices/:id" element={<div>Invoice detail</div>} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await waitFor(() => expect(screen.getByLabelText(/Choisir un client/i)).toBeInTheDocument());
+    fireEvent.change(screen.getByLabelText(/Choisir un client/i), { target: { value: "c-1" } });
+    await waitFor(() =>
+      expect(screen.getByRole("option", { name: /SG-2026-0031/i })).toBeInTheDocument()
+    );
+    fireEvent.change(screen.getByDisplayValue("— Aucun —"), { target: { value: "q-1" } });
+    fireEvent.click(screen.getByRole("button", { name: /Créer la facture/i }));
+
+    await waitFor(() => {
+      expect(createInvoiceFromQuoteMock).toHaveBeenCalledWith("q-1");
+    });
+    expect(createInvoiceDraftMock).not.toHaveBeenCalled();
+  });
+
+  it("sans optionalQuoteId : conserve createInvoiceDraft", async () => {
+    render(
+      <MemoryRouter initialEntries={["/invoices/new"]}>
+        <Routes>
+          <Route path="/invoices/new" element={<InvoiceCreatePage />} />
+          <Route path="/invoices/:id" element={<div>Invoice detail</div>} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await waitFor(() => expect(screen.getByLabelText(/Choisir un client/i)).toBeInTheDocument());
+    fireEvent.change(screen.getByLabelText(/Choisir un client/i), { target: { value: "c-1" } });
+    fireEvent.click(screen.getByRole("button", { name: /Créer la facture/i }));
+
+    await waitFor(() => {
+      expect(createInvoiceDraftMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          client_id: "c-1",
+          lead_id: null,
+          lines: [],
+        })
+      );
+    });
+    expect(createInvoiceFromQuoteMock).not.toHaveBeenCalled();
   });
 });
