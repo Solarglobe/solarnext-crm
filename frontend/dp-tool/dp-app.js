@@ -13332,9 +13332,8 @@ function dp2SyncBuildingOlPointerPassThrough() {
   const zig = document.getElementById("dp2-zoom-container");
   if (!zig) return;
   const tool = window.DP2_STATE && window.DP2_STATE.currentTool;
-  /* Dessin bâti : Draw/Snap. En « select » avec __DP2_BUILDING_MODIFY_MODE__ : Modify OL reçoit les pointer events (canvas en none). */
-  const modifyMode = window.__DP2_BUILDING_MODIFY_MODE__ === true;
-  const pass = tool === "building_outline" || (tool === "select" && modifyMode);
+  /* Priorité OpenLayers uniquement pendant l’outil contour bâti (Draw/Snap) ; en Sélection le canvas reçoit les événements. */
+  const pass = tool === "building_outline";
   zig.classList.toggle("dp2-building-ol-priority", pass);
 }
 
