@@ -7427,6 +7427,39 @@ function dp2FindPolygonFeatureById(id) {
   return null;
 }
 
+/** Persiste `buildingContours[].labelOffsets` sur le feature polygon (sinon rebuild écrase le cache à chaque frame). */
+function dp2SyncContourLabelOffsetsToFeature(contourId) {
+  if (contourId == null) return;
+  const contour = dp2GetBuildingContourById(contourId);
+  const feat = dp2FindPolygonFeatureById(contourId);
+  if (!feat) return;
+  const raw = contour && contour.labelOffsets && typeof contour.labelOffsets === "object" ? contour.labelOffsets : null;
+  if (!raw) {
+    try {
+      delete feat.labelOffsets;
+    } catch (_) {
+      feat.labelOffsets = undefined;
+    }
+    return;
+  }
+  const next = {};
+  for (const k in raw) {
+    if (!Object.prototype.hasOwnProperty.call(raw, k)) continue;
+    const o = raw[k];
+    if (!o || typeof o.x !== "number" || typeof o.y !== "number") continue;
+    next[k] = { x: o.x, y: o.y };
+  }
+  if (Object.keys(next).length === 0) {
+    try {
+      delete feat.labelOffsets;
+    } catch (_) {
+      feat.labelOffsets = undefined;
+    }
+  } else {
+    feat.labelOffsets = next;
+  }
+}
+
 /** True si le rendu bâti doit lire DP2_STATE.features (polygones) plutôt que buildingContours seuls. */
 function dp2BuildingRenderUsesFeatures() {
   const feats = window.DP2_STATE?.features || [];
@@ -9516,32 +9549,7 @@ function initDP2CanvasEvents() {
       dp2SetActiveFeatureFromPointerDown(canvas, e);
     } catch (_) {}
 
-    // 0) Étiquette de mesure (label) : candidat au drag (seuil 4px en pointermove) — uniquement outil Sélection, avant tout autre hit
-    if (tool === "select") {
-      const hitLabel = dp2HitTestMeasureLabel(canvas, coords.x, coords.y);
-      if (hitLabel && hitLabel.kind === "measure_label" && typeof hitLabel.index === "number") {
-        const obj = window.DP2_STATE?.objects?.[hitLabel.index];
-        if (!dp2IsAnyMeasureOverlayOpen() && !dp2IsMeasureLineEditingActive(obj)) {
-          const offset = obj?.labelOffset && typeof obj.labelOffset.x === "number" && typeof obj.labelOffset.y === "number"
-            ? { x: obj.labelOffset.x, y: obj.labelOffset.y }
-            : { x: 0, y: 0 };
-          window.DP2_STATE.measureLabelDragCandidate = {
-            objectIndex: hitLabel.index,
-            pointerId: e.pointerId,
-            startCanvasX: coords.x,
-            startCanvasY: coords.y,
-            startOffsetX: offset.x,
-            startOffsetY: offset.y
-          };
-          try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
-          e.preventDefault();
-          renderDP2FromState();
-          return;
-        }
-      }
-    }
-
-    // 0) DP2 — Drag étiquette de cote (segment jaune) : déplacement visuel uniquement
+    // 0) DP2 — Libellés de cote sur segments du contour (priorité max sur les autres hits Sélection)
     if (tool === "select") {
       const hitParcelLabel = dp2HitTestParcelSegmentLabel(canvas, coords.x, coords.y);
       if (hitParcelLabel && hitParcelLabel.contourId != null && typeof hitParcelLabel.segmentIndex === "number") {
@@ -9562,6 +9570,34 @@ function initDP2CanvasEvents() {
             startCanvasY: coords.y,
             startOffsetX: ox,
             startOffsetY: oy
+          };
+          try {
+            dp2SyncContourLabelOffsetsToFeature(hitParcelLabel.contourId);
+          } catch (_) {}
+          try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
+          e.preventDefault();
+          renderDP2FromState();
+          return;
+        }
+      }
+    }
+
+    // 0bis) Étiquette de mesure (measure_line) : candidat au drag — après libellés segments contour
+    if (tool === "select") {
+      const hitLabel = dp2HitTestMeasureLabel(canvas, coords.x, coords.y);
+      if (hitLabel && hitLabel.kind === "measure_label" && typeof hitLabel.index === "number") {
+        const obj = window.DP2_STATE?.objects?.[hitLabel.index];
+        if (!dp2IsAnyMeasureOverlayOpen() && !dp2IsMeasureLineEditingActive(obj)) {
+          const offset = obj?.labelOffset && typeof obj.labelOffset.x === "number" && typeof obj.labelOffset.y === "number"
+            ? { x: obj.labelOffset.x, y: obj.labelOffset.y }
+            : { x: 0, y: 0 };
+          window.DP2_STATE.measureLabelDragCandidate = {
+            objectIndex: hitLabel.index,
+            pointerId: e.pointerId,
+            startCanvasX: coords.x,
+            startCanvasY: coords.y,
+            startOffsetX: offset.x,
+            startOffsetY: offset.y
           };
           try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
           e.preventDefault();
@@ -10039,6 +10075,9 @@ function initDP2CanvasEvents() {
           x: (pld.startOffsetX || 0) + dx,
           y: (pld.startOffsetY || 0) + dy
         };
+        try {
+          dp2SyncContourLabelOffsetsToFeature(pld.contourId);
+        } catch (_) {}
         renderDP2FromState();
       }
       return;
@@ -10555,6 +10594,9 @@ function initDP2CanvasEvents() {
 
     const pld = window.DP2_STATE?.parcelLabelDrag || null;
     if (pld && typeof pld.pointerId === "number" && pld.pointerId === e.pointerId) {
+      try {
+        dp2SyncContourLabelOffsetsToFeature(pld.contourId);
+      } catch (_) {}
       window.DP2_STATE.parcelLabelDrag = null;
       try { canvas.releasePointerCapture(e.pointerId); } catch (_) {}
       renderDP2FromState();
