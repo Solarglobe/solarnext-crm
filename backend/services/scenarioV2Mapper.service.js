@@ -130,6 +130,12 @@ export function mapScenarioToV2(scenario, ctx) {
   const energy = {
     ...energyBase,
     energy_independence_pct: scenario.energy_independence_pct ?? null,
+    direct_self_consumption_kwh: scenario.energy?.direct_self_consumption_kwh ?? null,
+    battery_discharge_kwh: scenario.energy?.battery_discharge_kwh ?? null,
+    total_pv_used_on_site_kwh: scenario.energy?.total_pv_used_on_site_kwh ?? null,
+    exported_kwh: scenario.energy?.exported_kwh ?? null,
+    pv_self_consumption_pct: scenario.energy?.pv_self_consumption_pct ?? null,
+    site_autonomy_pct: scenario.energy?.site_autonomy_pct ?? null,
   };
 
   const financeBase = {
@@ -264,6 +270,9 @@ export function mapScenarioToV2(scenario, ctx) {
         : null,
     virtual_battery_8760:
       id === "BATTERY_VIRTUAL" ? (scenario._virtualBattery8760 ?? null) : null,
+    ...(id === "BATTERY_VIRTUAL" && scenario.virtual_battery_finance && typeof scenario.virtual_battery_finance === "object"
+      ? { virtual_battery_finance: scenario.virtual_battery_finance }
+      : {}),
     ...batteryPhysicalMetrics,
   };
   if (mappedScenario.id === "BATTERY_VIRTUAL" && process.env.NODE_ENV !== "production" && process.env.DEBUG_BV_MAPPER === "1") {

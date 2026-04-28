@@ -39,6 +39,7 @@ import {
   resolveP2ContractType,
 } from "../services/virtualBatteryP2Finance.service.js";
 import { mapScenarioToV2 } from "../services/scenarioV2Mapper.service.js";
+import { attachNormalizedEnergyKpiFields } from "../services/energyKpisNormalize.service.js";
 import * as financeService from "../services/financeService.js";
 import * as impactService from "../services/impactService.js";
 import {
@@ -843,8 +844,6 @@ if (devLog) {
           const remaining_credit_kwh = creditResult.remaining_credit_kwh ?? 0;
 
           const autoproduction_kwh = autoBase + used_credit_kwh;
-          const autoconsumption_kwh = autoBase;
-          const self_consumption_pct = production > 0 ? (autoconsumption_kwh / production) * 100 : 0;
           const self_production_pct = consumption > 0 ? (autoproduction_kwh / consumption) * 100 : 0;
 
           const contractType = resolveP2ContractType(vbInput, ctx);
@@ -871,7 +870,11 @@ if (devLog) {
             hourly: null,
             production_kwh: production,
             consumption_kwh: consumption,
-            autoconsumption_kwh: autoconsumption_kwh,
+            autoconsumption_kwh: vbSim.auto_kwh,
+            direct_self_consumption_kwh: autoBase,
+            battery_discharge_kwh: used_credit_kwh,
+            total_pv_used_on_site_kwh: vbSim.auto_kwh,
+            exported_kwh: vbSim.surplus_kwh,
             autoproduction_kwh: autoproduction_kwh,
             import_kwh: billable_import_kwh,
             surplus_kwh: vbSim.surplus_kwh,
@@ -894,8 +897,9 @@ if (devLog) {
           virtualScenario.billable_monthly = creditResult.billable_monthly;
           virtualScenario.import_kwh = billable_import_kwh;
           virtualScenario.autoproduction_kwh = autoproduction_kwh;
-          virtualScenario.autoconsumption_kwh = autoconsumption_kwh;
-          virtualScenario.self_consumption_pct = Math.round(self_consumption_pct * 100) / 100;
+          virtualScenario.autoconsumption_kwh = vbSim.auto_kwh;
+          virtualScenario.self_consumption_pct =
+            production > 0 ? Math.round((vbSim.auto_kwh / production) * 10000) / 100 : Math.round(self_consumption_pct * 100) / 100;
           virtualScenario.self_production_pct = Math.round(self_production_pct * 100) / 100;
           virtualScenario.prod_kwh = baseScenario.energy.prod;
           virtualScenario.auto_kwh = vbSim.auto_kwh;
@@ -1079,6 +1083,10 @@ if (devLog) {
     console.log("[D3] battery capacity =", ctx.battery_input?.capacity_kwh);
     console.log("[D3] virtual battery =", ctx.virtual_battery_input?.enabled);
     console.log("[D3] scenarios generated =", Object.keys(scenarios));
+
+    for (const _sk of Object.keys(scenarios)) {
+      attachNormalizedEnergyKpiFields(scenarios[_sk]);
+    }
 
     // ------------------------------------------------------------
     // 6) FINANCE (CAPEX 100 % devis / finance_input, pas de pricing moteur)

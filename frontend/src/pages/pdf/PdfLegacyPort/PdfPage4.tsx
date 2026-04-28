@@ -230,8 +230,8 @@ export default function PdfPage4({
             <div className="kpi-item"><span>Consommation</span><strong>{fmtKwh(consoAnnuelle)}</strong></div>
             <div className="kpi-item"><span>Utilisé</span><strong>{fmtKwh(autoAnnuelle)}</strong></div>
             <div className="kpi-item"><span>Injecté</span><strong>{fmtKwh(surplusAnnuelle)}</strong></div>
-            <div className="kpi-item"><span>Couverture</span><strong>{fmtPct(couverture)}</strong></div>
-            <div className="kpi-item highlight"><span>Autoconsommation</span><strong>{fmtPct(tauxAuto)}</strong></div>
+            <div className="kpi-item"><span>Autonomie site</span><strong>{fmtPct(couverture)}</strong></div>
+            <div className="kpi-item highlight"><span>Autoconsommation PV</span><strong>{fmtPct(tauxAuto)}</strong></div>
             <div className="kpi-item highlight"><span>Économies</span><strong>{fmtEur(economieAn1)}</strong></div>
           </div>
         </div>

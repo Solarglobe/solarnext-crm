@@ -56,6 +56,11 @@ function fmtLcoe(n: number | null | undefined): string {
   return `${Number(n).toFixed(3).replace(".", ",")} €/kWh`;
 }
 
+function num(v: unknown): number | null {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
 export default function PdfPage10({
   organization = {},
   viewModel,
@@ -68,7 +73,9 @@ export default function PdfPage10({
   const fr = (viewModel?.fullReport?.p10 ?? {}) as {
     meta?: { client?: string; ref?: string; date?: string };
     best?: Record<string, unknown>;
+    residual_bill_virtual?: Record<string, unknown> | null;
   };
+  const rv = fr.residual_bill_virtual;
   const meta = fr.meta ?? {};
   const best = fr.best ?? {};
 
@@ -140,9 +147,9 @@ export default function PdfPage10({
       border: "0.4mm solid rgba(17,24,39,0.35)",
     },
     {
-      label: "Autonomie",
+      label: "Autonomie site",
       line: fmtPct(indep),
-      sub: "Part couverte sans réseau",
+      sub: "Part des besoins sans achat réseau",
       accent: "#0047AB",
       bg: "linear-gradient(155deg, rgba(0,71,171,0.14) 0%, rgba(255,255,255,0.98) 55%, #fff 100%)",
       border: "0.4mm solid rgba(0,71,171,0.38)",
@@ -307,6 +314,43 @@ export default function PdfPage10({
             </div>
           ))}
         </div>
+
+        {rv && typeof rv === "object" && Object.keys(rv).length > 0 ? (
+          <div
+            style={{
+              width: "100%",
+              alignSelf: "stretch",
+              borderRadius: "3mm",
+              padding: "2mm 2.6mm",
+              border: "0.35mm solid rgba(195,152,71,0.35)",
+              background: "rgba(255,251,235,0.9)",
+              fontSize: "2.65mm",
+              color: subInk,
+              lineHeight: 1.45,
+            }}
+          >
+            <div style={{ fontWeight: 800, marginBottom: "1mm", color: titleInk }}>Poste annuel batterie virtuelle (TTC)</div>
+            {num(rv.energy_purchase_from_grid_eur) != null ? (
+              <div>Achat réseau (énergie, {fmtInt(rv.grid_import_kwh as number)} kWh) : {fmtEUR(rv.energy_purchase_from_grid_eur as number)}</div>
+            ) : null}
+            {num(rv.virtual_battery_subscription_ttc) != null && Number(rv.virtual_battery_subscription_ttc) > 0 ? (
+              <div>Abonnement stockage virtuel : {fmtEUR(rv.virtual_battery_subscription_ttc as number)}</div>
+            ) : null}
+            {num(rv.virtual_battery_autoproducer_contribution_ttc) != null &&
+            Number(rv.virtual_battery_autoproducer_contribution_ttc) > 0 ? (
+              <div>Contribution autoproducteur : {fmtEUR(rv.virtual_battery_autoproducer_contribution_ttc as number)}</div>
+            ) : null}
+            {num(rv.virtual_battery_discharge_fees_ttc) != null && Number(rv.virtual_battery_discharge_fees_ttc) > 0 ? (
+              <div>Restitution / déstockage (€/kWh restitués) : {fmtEUR(rv.virtual_battery_discharge_fees_ttc as number)}</div>
+            ) : null}
+            {num(rv.virtual_battery_activation_ttc) != null && Number(rv.virtual_battery_activation_ttc) > 0 ? (
+              <div>Frais d&apos;activation (année 1) : {fmtEUR(rv.virtual_battery_activation_ttc as number)}</div>
+            ) : null}
+            {typeof rv.supplier_subscription_note === "string" && rv.supplier_subscription_note ? (
+              <div style={{ marginTop: "0.6mm", fontSize: "2.35mm", color: softSub }}>{String(rv.supplier_subscription_note)}</div>
+            ) : null}
+          </div>
+        ) : null}
 
         <div
           style={{

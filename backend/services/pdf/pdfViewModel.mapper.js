@@ -82,6 +82,74 @@ function numOrZero(v) {
   return n != null ? n : 0;
 }
 
+function clampPctVal(x) {
+  if (x == null || !Number.isFinite(Number(x))) return null;
+  return Math.max(0, Math.min(100, Number(x)));
+}
+
+/** Autonomie site : 1 − import / conso (sans fallback auto/prod). */
+function resolveSiteAutonomyPct(energy) {
+  const preset = clampPctVal(num(energy?.site_autonomy_pct));
+  if (preset != null) return preset;
+  const conso = num(energy?.consumption_kwh ?? energy?.conso);
+  const imp = num(
+    energy?.import_kwh ?? energy?.import ?? energy?.billable_import_kwh ?? energy?.grid_import_kwh
+  );
+  if (conso == null || conso <= 0 || imp == null || !Number.isFinite(imp)) return null;
+  return clampPctVal((1 - imp / conso) * 100);
+}
+
+/** Autoconsommation PV : part de la production valorisée sur site. */
+function resolvePvSelfConsumptionPct(energy) {
+  const preset = clampPctVal(num(energy?.pv_self_consumption_pct));
+  if (preset != null) return preset;
+  const prod = num(energy?.production_kwh ?? energy?.prod);
+  const total = num(energy?.total_pv_used_on_site_kwh ?? energy?.autoconsumption_kwh ?? energy?.auto);
+  if (prod == null || prod <= 0 || total == null || !Number.isFinite(total)) return null;
+  return clampPctVal((total / prod) * 100);
+}
+
+/** Couverture besoins via PV (+ batterie) : total utilisé / conso. */
+function resolveSiteCoverageFromPvPct(energy) {
+  const conso = num(energy?.consumption_kwh ?? energy?.conso);
+  const total = num(energy?.total_pv_used_on_site_kwh ?? energy?.autoconsumption_kwh ?? energy?.auto);
+  if (conso == null || conso <= 0 || total == null || !Number.isFinite(total)) return null;
+  return clampPctVal((total / conso) * 100);
+}
+
+/** Détail facture résiduelle BV (TTC) — même logique que selectedScenarioSnapshot. */
+function buildResidualBillVirtualVmFromScenario(scenario) {
+  const sid = scenario?.id ?? scenario?.scenario_type;
+  if (sid !== "BATTERY_VIRTUAL") return null;
+  const vf = scenario.virtual_battery_finance;
+  if (!vf || typeof vf !== "object") return null;
+  const e = scenario.energy || {};
+  const impKwh = Number(e.import_kwh ?? e.import ?? e.grid_import_kwh);
+  const residualBill = scenario.finance?.residual_bill_eur;
+  const priceImplied =
+    impKwh > 0 && residualBill != null && Number.isFinite(Number(residualBill))
+      ? Number(residualBill) / impKwh
+      : null;
+  return {
+    grid_import_kwh: Number.isFinite(impKwh) ? impKwh : null,
+    energy_purchase_from_grid_eur:
+      impKwh > 0 && priceImplied != null ? Math.round(impKwh * priceImplied * 100) / 100 : null,
+    virtual_battery_subscription_ttc: vf.annual_subscription_ttc ?? null,
+    virtual_battery_autoproducer_contribution_ttc: vf.annual_autoproducer_contribution_ttc ?? null,
+    virtual_battery_discharge_fees_ttc: vf.annual_virtual_discharge_cost_ttc ?? null,
+    virtual_battery_activation_ttc: vf.annual_activation_fee_ttc ?? null,
+    activation_applies_note:
+      (vf.annual_activation_fee_ttc ?? 0) > 0
+        ? "Frais d'activation : première année contractuelle (TTC), si applicable."
+        : null,
+    supplier_subscription_eur: null,
+    supplier_subscription_note:
+      "Abonnement fournisseur (accès réseau, puissance souscrite) : non ventilé dans le moteur (hors hypothèse kWh projet).",
+    discharge_fees_note:
+      "Ligne « restitution stockage virtuel » : coûts associés aux kWh restitués (composantes fournisseur agrégées TTC).",
+  };
+}
+
 /**
  * Prime à l'autoconsommation (PDF P2) — même règle que financeService :
  * priorité au montant d'année 1 dans les flux du scénario si présent, sinon
@@ -433,13 +501,8 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
   const onduleur = equipment.onduleur && typeof equipment.onduleur === "object" ? equipment.onduleur : {};
 
   const systemPowerKw = num(hardware.kwc) ?? num(installation.puissance_kwc) ?? 0;
-  const annualKwh = num(production.annual_kwh) ?? num(installation.production_annuelle_kwh) ?? 0;
-  let monthly = normalizeMonthlyProduction(production.monthly_kwh);
-  const monthlyProdSum = monthly.reduce((a, b) => a + numOrZero(b), 0);
-  if (monthlyProdSum < 0.01 && annualKwh > 0.01) {
-    monthly = uniformMonthly12FromTotal(annualKwh);
-  }
-  const specificYield = systemPowerKw > 0 && annualKwh > 0 ? annualKwh / systemPowerKw : 0;
+  const annualKwhFallbackSnapshot =
+    num(production.annual_kwh) ?? num(installation.production_annuelle_kwh) ?? 0;
 
   const pdfEconomicsCtx = {
     settings: { economics: mergeOrgEconomicsPartial(options.org_economics ?? null) },
@@ -476,6 +539,32 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
     pdfBatteryType = "PHYSICAL";
   }
 
+  const canonicalAnnualProductionKwh =
+    num(selectedScenario?.production?.annual_kwh) ??
+    num(selectedScenario?.energy?.production_kwh) ??
+    num(energy.production_kwh) ??
+    annualKwhFallbackSnapshot;
+
+  let annualKwh = canonicalAnnualProductionKwh;
+  let monthly = normalizeMonthlyProduction(
+    Array.isArray(selectedScenario?.production?.monthly_kwh)
+      ? selectedScenario.production.monthly_kwh
+      : production.monthly_kwh
+  );
+  const monthlyProdSumInit = monthly.reduce((a, b) => a + numOrZero(b), 0);
+  if (monthlyProdSumInit < 0.01 && annualKwh > 0.01) {
+    monthly = uniformMonthly12FromTotal(annualKwh);
+  } else if (annualKwh > 0.01 && monthlyProdSumInit > 0.01) {
+    const diff = Math.abs(monthlyProdSumInit - annualKwh);
+    if (diff > 1 && diff / annualKwh > 0.02) {
+      const scale = annualKwh / monthlyProdSumInit;
+      monthly = monthly.map((m) => Math.round(numOrZero(m) * scale));
+      const s2 = monthly.reduce((a, b) => a + b, 0);
+      monthly[MONTHS_COUNT - 1] = Math.round(monthly[MONTHS_COUNT - 1] + (annualKwh - s2));
+    }
+  }
+  const specificYield = systemPowerKw > 0 && annualKwh > 0 ? annualKwh / systemPowerKw : 0;
+
   const scenarioForFinance = selectedScenario ?? baseFromV2;
   const financeActive =
     scenarioForFinance && typeof scenarioForFinance.finance === "object" && scenarioForFinance.finance !== null
@@ -485,10 +574,17 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
   const clientName = str(meta.client_nom) || [str(client.prenom), str(client.nom)].filter(Boolean).join(" ") || "";
   const ref = options.studyNumber || "—";
   const dateDisplay = formatDateFr(snapshot.computed_at) || formatDateFr(snapshot.created_at) || "";
-  const autonomyPct = num(energy.energy_independence_pct) ?? num(energy.independence_pct) ?? (energy.autoconsumption_kwh != null && energy.production_kwh != null && energy.production_kwh > 0
-    ? Math.min(100, (num(energy.autoconsumption_kwh) / num(energy.production_kwh)) * 100) : null);
-  const selfConsumptionPct = num(energy.autoconsumption_kwh) != null && num(energy.production_kwh) != null && num(energy.production_kwh) > 0
-    ? Math.min(100, (num(energy.autoconsumption_kwh) / num(energy.production_kwh)) * 100) : null;
+  const energyForKpis =
+    scenarioForFinance?.energy && typeof scenarioForFinance.energy === "object"
+      ? { ...energy, ...scenarioForFinance.energy }
+      : energy;
+  const autonomyPct =
+    num(energyForKpis.site_autonomy_pct) ??
+    num(energyForKpis.energy_independence_pct) ??
+    num(energyForKpis.independence_pct) ??
+    resolveSiteAutonomyPct(energyForKpis);
+  const pvSelfConsumptionPct = resolvePvSelfConsumptionPct(energyForKpis);
+  const selfConsumptionPct = pvSelfConsumptionPct;
 
   const puissanceKva = num(formParams.puissance_kva) ?? num(site.puissance_compteur_kva);
   const reseauType = str(formParams.reseau_type) || str(site.type_reseau) || "";
@@ -615,19 +711,11 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
       ? scenarioForFinance.energy
       : energy;
   const autonomyPctP10 =
+    num(energyP10.site_autonomy_pct) ??
     num(energyP10.energy_independence_pct) ??
     num(energyP10.independence_pct) ??
-    (energyP10.autoconsumption_kwh != null &&
-    energyP10.production_kwh != null &&
-    num(energyP10.production_kwh) > 0
-      ? Math.min(100, (num(energyP10.autoconsumption_kwh) / num(energyP10.production_kwh)) * 100)
-      : null);
-  const selfConsumptionPctP10 =
-    num(energyP10.autoconsumption_kwh) != null &&
-    num(energyP10.production_kwh) != null &&
-    num(energyP10.production_kwh) > 0
-      ? Math.min(100, (num(energyP10.autoconsumption_kwh) / num(energyP10.production_kwh)) * 100)
-      : null;
+    resolveSiteAutonomyPct(energyP10);
+  const selfConsumptionPctP10 = resolvePvSelfConsumptionPct(energyP10);
 
   // P4 mensuel : priorité energy.monthly du scénario (scenarios_v2), sinon répartition uniforme (somme = annuel)
   let consoMonthly;
@@ -658,14 +746,40 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
   const totMonthly = consoMonthly;
   const price = econDisplay.price_eur_kwh;
 
-  // P4 — synthèse annuelle (données réelles energy/finance)
-  const prodAnnuelle = num(energy.production_kwh) ?? annualKwh;
-  const consoAnnuelleP4 = num(energy.consumption_kwh) ?? consumptionKwh;
-  const autoAnnuelle = num(energy.autoconsumption_kwh) ?? autoMonthly.reduce((a, b) => a + b, 0);
-  const surplusAnnuelle = num(energy.surplus_kwh) ?? (surplusMonthly ? surplusMonthly.reduce((a, b) => a + b, 0) : Math.max(0, prodAnnuelle - autoAnnuelle));
-  const importAnnuelle = num(energy.import_kwh) ?? numOrZero(energy.import_kwh);
-  const couverturePct = consoAnnuelleP4 > 0 ? Math.min(100, Math.round((autoAnnuelle / consoAnnuelleP4) * 100)) : null;
-  const tauxAutoPct = prodAnnuelle > 0 ? Math.min(100, Math.round((autoAnnuelle / prodAnnuelle) * 100)) : (selfConsumptionPct != null ? Math.round(selfConsumptionPct) : null);
+  // P4 — synthèse annuelle (scénario retenu scenarios_v2 en priorité)
+  const energyP4 =
+    scenarioForFinance?.energy && typeof scenarioForFinance.energy === "object"
+      ? { ...energy, ...scenarioForFinance.energy }
+      : energy;
+  const prodAnnuelle = num(energyP4.production_kwh) ?? annualKwh;
+  const consoAnnuelleP4 = num(energyP4.consumption_kwh) ?? consumptionKwh;
+  const totalPvUsedP4 =
+    num(energyP4.total_pv_used_on_site_kwh) ??
+    num(energyP4.autoconsumption_kwh) ??
+    autoMonthly.reduce((a, b) => a + b, 0);
+  const autoAnnuelle = totalPvUsedP4;
+  const surplusAnnuelle =
+    num(energyP4.exported_kwh) ??
+    num(energyP4.surplus_kwh) ??
+    (surplusMonthly ? surplusMonthly.reduce((a, b) => a + b, 0) : Math.max(0, prodAnnuelle - autoAnnuelle));
+  const importAnnuelle =
+    num(energyP4.import_kwh) ?? num(energyP4.import) ?? num(energyP4.grid_import_kwh) ?? numOrZero(energy.import_kwh);
+  const couvertureResolved = resolveSiteCoverageFromPvPct(energyP4);
+  const couverturePct =
+    couvertureResolved != null
+      ? Math.round(couvertureResolved)
+      : consoAnnuelleP4 > 0
+        ? Math.min(100, Math.round((autoAnnuelle / consoAnnuelleP4) * 100))
+        : null;
+  const pvSelfResolvedP4 = resolvePvSelfConsumptionPct(energyP4);
+  const tauxAutoPct =
+    pvSelfResolvedP4 != null
+      ? Math.round(pvSelfResolvedP4)
+      : prodAnnuelle > 0
+        ? Math.min(100, Math.round((autoAnnuelle / prodAnnuelle) * 100))
+        : selfConsumptionPct != null
+          ? Math.round(selfConsumptionPct)
+          : null;
 
   let pvHourlyKw8760 = null;
   const shapePerKwc = options.p5_pv_hourly_shape_per_kwc_8760;
@@ -732,8 +846,16 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
     delai: "À définir",
   };
 
-  const autoKwhCo2 = num(energy.autoconsumption_kwh) ?? num(selectedScenario?.energy?.autoconsumption_kwh) ?? 0;
-  const surplusKwhCo2 = num(energy.surplus_kwh) ?? num(selectedScenario?.energy?.surplus_kwh) ?? 0;
+  const autoKwhCo2 =
+    num(energyForKpis.total_pv_used_on_site_kwh) ??
+    num(energyForKpis.autoconsumption_kwh) ??
+    num(energyForKpis.auto) ??
+    0;
+  const surplusKwhCo2 =
+    num(energyForKpis.exported_kwh) ??
+    num(energyForKpis.surplus_kwh) ??
+    num(energyForKpis.surplus) ??
+    0;
   const co2Evite = Math.round(
     autoKwhCo2 * IMPACT_FACTOR_CO2_AUTO_KG_PER_KWH + surplusKwhCo2 * IMPACT_FACTOR_CO2_SURPLUS_KG_PER_KWH
   );
@@ -794,17 +916,17 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
     },
     financing: financingVm,
     savings: {
-      gridImportBefore: num(energy.consumption_kwh),
-      gridImportAfter: num(energy.import_kwh),
-      selfConsumptionRate: (() => {
-        const prod = num(energy.production_kwh);
-        const auto = num(energy.autoconsumption_kwh);
-        if (prod == null || prod <= 0 || auto == null) return null;
-        return Math.min(100, (auto / prod) * 100);
-      })(),
-      autonomyRate: num(energy.independence_pct),
+      gridImportBefore: num(energyForKpis.consumption_kwh ?? energyForKpis.conso),
+      gridImportAfter: num(
+        energyForKpis.import_kwh ?? energyForKpis.import ?? energyForKpis.grid_import_kwh
+      ),
+      selfConsumptionRate: pvSelfConsumptionPct,
+      autonomyRate: autonomyPct,
       annualElectricityBillBefore: null,
       annualElectricityBillAfter: num(financeActive.facture_restante ?? finance.facture_restante),
+      residual_bill_virtual_breakdown:
+        finance.residual_bill_virtual_breakdown ??
+        buildResidualBillVirtualVmFromScenario(selectedScenario),
     },
     selectedScenario: {
       scenarioType: str(selectedKey),
@@ -848,6 +970,12 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
         couverture_besoins_pct: couverturePct,
         autonomie_pct: autonomyPct,
         economie_annee_1: economieAn1,
+        kpi_labels: {
+          pv_self_consumption: "Autoconsommation PV",
+          site_autonomy: "Autonomie site",
+          grid_import: "Import réseau",
+          battery_restored: "Énergie restituée batterie",
+        },
       },
       p5: {
         meta: { client: clientName, ref, date: dateDisplay },
@@ -871,15 +999,32 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
       // Origine consommation : c_pv+c_bat = autonomie (sans réseau), c_grid = part réseau
       // Destination production : p_auto = autoconsommation, p_surplus = injecté
       p7: (() => {
-        const energyP7 = selectedScenario?.energy ?? energy;
-        const prodP7 = num(energyP7.production_kwh) ?? annualKwh;
-        const consoP7 = num(energyP7.consumption_kwh) ?? consumptionKwh;
-        const autoP7 = num(energyP7.autoconsumption_kwh) ?? autoMonthly.reduce((a, b) => a + b, 0);
-        const surplusP7 = num(energyP7.surplus_kwh) ?? Math.max(0, prodP7 - autoP7);
-        const importP7 = num(energyP7.import_kwh) ?? Math.max(0, consoP7 - autoP7);
-        const selfConsP7 = prodP7 > 0 && autoP7 != null ? Math.min(100, (autoP7 / prodP7) * 100) : null;
-        const autonomyP7 = num(energyP7.energy_independence_pct) ?? num(energyP7.independence_pct)
-          ?? (consoP7 > 0 && importP7 != null ? Math.max(0, 100 - (importP7 / consoP7) * 100) : null);
+        const energyP7 =
+          selectedScenario?.energy && typeof selectedScenario.energy === "object"
+            ? { ...energy, ...selectedScenario.energy }
+            : energy;
+        const prodP7 = num(energyP7.production_kwh ?? energyP7.prod) ?? annualKwh;
+        const consoP7 = num(energyP7.consumption_kwh ?? energyP7.conso) ?? consumptionKwh;
+        const autoP7 =
+          num(energyP7.total_pv_used_on_site_kwh) ??
+          num(energyP7.autoconsumption_kwh) ??
+          num(energyP7.auto) ??
+          autoMonthly.reduce((a, b) => a + b, 0);
+        const surplusP7 =
+          num(energyP7.exported_kwh) ??
+          num(energyP7.surplus_kwh ?? energyP7.surplus) ??
+          Math.max(0, prodP7 - autoP7);
+        const importP7 =
+          num(energyP7.import_kwh) ??
+          num(energyP7.import) ??
+          num(energyP7.grid_import_kwh) ??
+          Math.max(0, consoP7 - autoP7);
+        const selfConsP7 = resolvePvSelfConsumptionPct(energyP7);
+        const autonomyP7 =
+          num(energyP7.site_autonomy_pct) ??
+          num(energyP7.energy_independence_pct) ??
+          num(energyP7.independence_pct) ??
+          resolveSiteAutonomyPct(energyP7);
         const partReseauP7 = autonomyP7 != null ? Math.round(100 - autonomyP7) : (consoP7 > 0 && importP7 != null ? Math.round((importP7 / consoP7) * 100) : 0);
         const surplusPctP7 = prodP7 > 0 && surplusP7 != null ? Math.min(100, (surplusP7 / prodP7) * 100) : (selfConsP7 != null ? 100 - selfConsP7 : 0);
         const autonomiePct = autonomyP7 != null ? Math.round(autonomyP7) : (partReseauP7 > 0 ? Math.max(0, 100 - partReseauP7) : 0);
@@ -956,8 +1101,10 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
         const B = batteryScenario.energy || {};
         const financeB = batteryScenario.finance || {};
 
-        const autonomieA = num(A.energy_independence_pct) ?? num(A.independence_pct) ?? 0;
-        const autonomieB = num(B.energy_independence_pct) ?? num(B.independence_pct) ?? 0;
+        const autonomieA =
+          resolveSiteAutonomyPct(A) ?? num(A.energy_independence_pct) ?? num(A.independence_pct) ?? 0;
+        const autonomieB =
+          resolveSiteAutonomyPct(B) ?? num(B.energy_independence_pct) ?? num(B.independence_pct) ?? 0;
         const gainAutonomie = autonomieB - autonomieA;
         const gridImportA = p8AnnualGridImportKwh(A, null);
         const gridImportB = p8AnnualGridImportKwh(B, batteryType);
@@ -1266,11 +1413,14 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
           horizon_years: econDisplay.horizon_years,
           prime_autoconso_eur: primeAmount,
         },
+        residual_bill_virtual:
+          finance.residual_bill_virtual_breakdown ??
+          buildResidualBillVirtualVmFromScenario(selectedScenario),
       },
       p11: p11Section,
       p12: {
         meta: { client: clientName, ref, date: dateDisplay },
-        env: { autocons_pct: selfConsumptionPct ?? 0 },
+        env: { autocons_pct: pvSelfConsumptionPct ?? selfConsumptionPct ?? 0 },
         v_co2: `${co2Evite.toLocaleString("fr-FR")} kg`,
         v_trees: treesEquiv.toString(),
         v_cars: carsEquiv.toString(),
@@ -1368,7 +1518,7 @@ function buildEmptyFullReport() {
       error: null,
       warnings: [],
     },
-    p10: { meta: emptyMeta, best: {}, hyp: {} },
+    p10: { meta: emptyMeta, best: {}, hyp: {}, residual_bill_virtual: null },
     p11: {
       meta: emptyMeta,
       data: {

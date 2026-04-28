@@ -43,7 +43,7 @@ describe("PdfLegacyPort — harmonisation narrative / lexique", () => {
     const { container } = render(<PdfLegacyPort viewModel={viewModelWithP8} />);
     const p10 = container.querySelector("#p10");
     expect(p10?.textContent).not.toMatch(/Indépendance énergétique/);
-    expect(p10?.textContent).toMatch(/Autonomie/);
+    expect(p10?.textContent).toMatch(/Autonomie site/);
   });
 
   it("P8 : badge et libellés gains nets / projection patrimoniale", () => {

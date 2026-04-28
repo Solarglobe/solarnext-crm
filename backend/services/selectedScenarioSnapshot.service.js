@@ -239,7 +239,44 @@ export async function buildSelectedScenarioSnapshot({
     import_kwh: scenario.energy?.import_kwh ?? null,
     billable_import_kwh: scenario.energy?.billable_import_kwh ?? null,
     independence_pct: scenario.energy?.energy_independence_pct ?? null,
+    direct_self_consumption_kwh: scenario.energy?.direct_self_consumption_kwh ?? null,
+    battery_discharge_kwh: scenario.energy?.battery_discharge_kwh ?? null,
+    total_pv_used_on_site_kwh: scenario.energy?.total_pv_used_on_site_kwh ?? null,
+    exported_kwh: scenario.energy?.exported_kwh ?? null,
+    pv_self_consumption_pct: scenario.energy?.pv_self_consumption_pct ?? null,
+    site_autonomy_pct: scenario.energy?.site_autonomy_pct ?? null,
   };
+
+  const vf = scenario.virtual_battery_finance && typeof scenario.virtual_battery_finance === "object"
+    ? scenario.virtual_battery_finance
+    : null;
+  const impKwh = Number(energy.import_kwh);
+  const residualBill = scenario.finance?.residual_bill_eur ?? scenario.residual_bill_eur;
+  const priceImplied =
+    impKwh > 0 && residualBill != null && Number.isFinite(Number(residualBill))
+      ? Number(residualBill) / impKwh
+      : null;
+  const residualBillVirtualBreakdown =
+    scenarioId === "BATTERY_VIRTUAL" && vf
+      ? {
+          grid_import_kwh: Number.isFinite(impKwh) ? impKwh : null,
+          energy_purchase_from_grid_eur:
+            impKwh > 0 && priceImplied != null ? Math.round(impKwh * priceImplied * 100) / 100 : null,
+          virtual_battery_subscription_ttc: vf.annual_subscription_ttc ?? null,
+          virtual_battery_autoproducer_contribution_ttc: vf.annual_autoproducer_contribution_ttc ?? null,
+          virtual_battery_discharge_fees_ttc: vf.annual_virtual_discharge_cost_ttc ?? null,
+          virtual_battery_activation_ttc: vf.annual_activation_fee_ttc ?? null,
+          activation_applies_note:
+            (vf.annual_activation_fee_ttc ?? 0) > 0
+              ? "Frais d'activation : première année contractuelle (TTC), si applicable."
+              : null,
+          supplier_subscription_eur: null,
+          supplier_subscription_note:
+            "Abonnement fournisseur (accès réseau, puissance souscrite) : non ventilé dans le moteur (hors hypothèse kWh projet).",
+          discharge_fees_note:
+            "Ligne « restitution stockage virtuel » : coûts associés aux kWh restitués (composantes fournisseur agrégées TTC).",
+        }
+      : null;
 
   const finance = {
     capex_ttc: scenario.finance?.capex_ttc ?? null,
@@ -249,6 +286,7 @@ export async function buildSelectedScenarioSnapshot({
     irr_pct: scenario.finance?.irr_pct ?? null,
     facture_restante: scenario.finance?.residual_bill_eur ?? null,
     revenu_surplus: scenario.finance?.surplus_revenue_eur ?? null,
+    residual_bill_virtual_breakdown: residualBillVirtualBreakdown,
   };
 
   const production = {
