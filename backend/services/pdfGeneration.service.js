@@ -297,5 +297,5 @@ export async function generatePdfFromFinancialQuoteUrl(rendererUrl) {
  * @returns {Promise<Buffer>}
  */
 export async function generatePdfFromFinancialInvoiceUrl(rendererUrl) {
-  return generatePdfFromPortraitFinanceUrl(rendererUrl, "invoice");
+  return generatePdfFromPortraitFinanceUrl(rendererUrl, "invoice", { useCssPageMargins: true });
 }

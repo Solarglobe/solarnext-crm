@@ -84,12 +84,15 @@ export async function getInternalFinancialInvoicePdfPayload(req, res) {
     );
 
     const orgRes = await pool.query(
-      `SELECT default_invoice_notes, iban, bic, bank_name FROM organizations WHERE id = $1`,
+      `SELECT default_invoice_notes, default_invoice_due_days, iban, bic, bank_name FROM organizations WHERE id = $1`,
       [decoded.organizationId]
     );
     const orgRow = orgRes.rows[0] ?? {};
     payload = mergeLiveOrganizationBankIntoInvoicePdfPayload(payload, orgRow);
     const defaultInvoiceNotes = orgRow.default_invoice_notes ?? null;
+    const rawDueDays = orgRow.default_invoice_due_days;
+    const defaultInvoiceDueDays =
+      rawDueDays != null && Number.isFinite(Number(rawDueDays)) ? Number(rawDueDays) : 30;
 
     return res.json({
       ok: true,
@@ -98,6 +101,7 @@ export async function getInternalFinancialInvoicePdfPayload(req, res) {
       liveTotals,
       payments: payRes.rows,
       defaultInvoiceNotes,
+      defaultInvoiceDueDays,
       /** Contrat documentaire assumé : lignes figées (snapshot) + état financier à jour (live). */
       documentContract: {
         lines_and_line_totals: "snapshot_at_issuance",

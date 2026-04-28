@@ -1,18 +1,13 @@
-/* PDF Facture — plus administratif / officiel que le devis */
+/* PDF Facture — A4 portrait, marges @page (cohérent avec Playwright preferCSSPageSize) */
 
-.fi-doc-contract {
-  margin: 14px 0 12px;
-  padding: 8px 10px;
-  font-size: 8.5pt;
-  line-height: 1.4;
-  color: var(--fi-muted);
-  border: 1px dashed var(--fi-line);
-  border-radius: 4px;
-  background: rgba(18, 16, 24, 0.02);
+@page {
+  size: A4 portrait;
+  margin: 20mm 15mm 20mm 15mm;
 }
 
-.fi-doc-contract p {
-  margin: 0;
+.page-break {
+  page-break-before: always;
+  break-before: page;
 }
 
 .fi-root {
@@ -23,9 +18,9 @@
   --fi-panel: #f6f5f8;
   box-sizing: border-box;
   width: 100%;
-  max-width: 190mm;
-  margin: 0 auto;
-  padding: 0 4mm;
+  max-width: none;
+  margin: 0;
+  padding: 0;
   font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
   font-size: 10pt;
   line-height: 1.45;
@@ -39,20 +34,42 @@
   box-sizing: border-box;
 }
 
-.fi-topbar {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
+.fi-no-break {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.fi-section {
+  margin-bottom: 14px;
+}
+
+.fi-section-title,
+.fi-block-label {
+  margin: 0 0 8px;
+  font-size: 7.5pt;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--fi-muted);
+}
+
+/* --- 1. Header entreprise --- */
+
+.fi-section--org {
   padding-bottom: 12px;
-  border-bottom: 3px solid var(--fi-ink);
-  margin-bottom: 16px;
+  border-bottom: 2px solid var(--fi-ink);
+}
+
+.fi-org-header-inner {
+  display: grid;
+  grid-template-columns: minmax(0, 42mm) 1fr;
+  gap: 16px;
+  align-items: start;
 }
 
 .fi-logo-wrap {
-  flex: 0 0 auto;
-  max-width: 50mm;
-  min-height: 20mm;
+  max-width: 42mm;
+  min-height: 18mm;
   display: flex;
   align-items: center;
 }
@@ -63,27 +80,86 @@
   object-fit: contain;
 }
 
-.fi-brand-fallback {
-  font-size: 12pt;
-  font-weight: 800;
-  letter-spacing: 0.06em;
+.fi-org-lines p {
+  margin: 0 0 4px;
+  font-size: 9pt;
+  line-height: 1.4;
 }
 
-.fi-doc-head {
-  text-align: right;
+.fi-org-lines p:first-child {
+  font-weight: 700;
+  font-size: 10pt;
 }
 
-.fi-doc-head h1 {
+/* --- 2. Client --- */
+
+.fi-section--client {
+  padding: 12px 14px;
+  border: 1px solid var(--fi-line);
+  border-radius: 4px;
+  background: #fafafa;
+}
+
+.fi-recipient-stack {
   margin: 0;
-  font-size: 20pt;
-  font-weight: 800;
-  letter-spacing: 0.18em;
+}
+
+.fi-recipient-primary {
+  margin: 0 0 4px;
+  font-weight: 700;
+  font-size: 11pt;
+}
+
+.fi-recipient-secondary {
+  margin: 0 0 8px;
+  font-size: 10pt;
   color: var(--fi-ink);
+}
+
+.fi-recipient-line {
+  margin: 0 0 3px;
+  font-size: 9.5pt;
+}
+
+.fi-recipient-fallback {
+  margin: 0 0 8px;
+  font-size: 9pt;
+  font-style: italic;
+  color: var(--fi-muted);
+}
+
+.fi-recipient-contact {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--fi-line);
+}
+
+/* --- 3. Infos facture --- */
+
+.fi-section--invoice-meta {
+  padding: 12px 14px;
+  border: 1px solid var(--fi-line);
+  border-radius: 4px;
+}
+
+.fi-invoice-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.fi-invoice-h1 {
+  margin: 0;
+  font-size: 18pt;
+  font-weight: 800;
+  letter-spacing: 0.16em;
 }
 
 .fi-status-pill {
   display: inline-block;
-  margin-top: 8px;
   padding: 4px 10px;
   font-size: 8pt;
   font-weight: 700;
@@ -95,48 +171,19 @@
   color: var(--fi-muted);
 }
 
-.fi-columns {
+.fi-meta-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 16px;
-  margin-bottom: 16px;
+  gap: 10px 16px;
 }
 
-.fi-block h2 {
-  margin: 0 0 6px;
-  font-size: 7.5pt;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--fi-muted);
+.fi-meta-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
-.fi-block p {
-  margin: 0 0 3px;
-}
-
-.fi-recipient-name {
-  font-weight: 700;
-  font-size: 10.5pt;
-}
-
-.fi-meta {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin-bottom: 14px;
-}
-
-.fi-meta-box {
-  padding: 10px 12px;
-  border: 1px solid var(--fi-line);
-  border-radius: 6px;
-  background: var(--fi-panel);
-  font-size: 9.5pt;
-}
-
-.fi-meta-box dt {
-  margin: 0 0 2px;
+.fi-meta-k {
   font-size: 7pt;
   font-weight: 700;
   letter-spacing: 0.1em;
@@ -144,22 +191,27 @@
   color: var(--fi-muted);
 }
 
-.fi-meta-box dd {
-  margin: 0;
+.fi-meta-v {
+  font-size: 10.5pt;
   font-weight: 600;
 }
 
 .fi-ref-quote {
+  margin: 12px 0 0;
   font-size: 8.5pt;
   color: var(--fi-muted);
+}
+
+/* --- 4. Tableau --- */
+
+.fi-section--lines {
   margin-bottom: 12px;
 }
 
 .fi-table-wrap {
   border: 1px solid var(--fi-line);
-  border-radius: 4px;
-  overflow: hidden;
-  margin-bottom: 12px;
+  border-radius: 2px;
+  overflow: visible;
 }
 
 .fi-table {
@@ -169,30 +221,39 @@
 }
 
 .fi-table thead {
-  background: rgba(18, 16, 24, 0.06);
+  display: table-header-group;
+}
+
+.fi-table thead th {
+  border-bottom: 1px solid var(--fi-line);
 }
 
 .fi-table th {
   text-align: left;
-  padding: 7px 8px;
+  padding: 8px 7px;
   font-weight: 700;
   font-size: 7.5pt;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--fi-muted);
+  background: rgba(18, 16, 24, 0.07);
+}
+
+.fi-table td {
+  padding: 8px 7px;
   border-bottom: 1px solid var(--fi-line);
+  vertical-align: top;
+}
+
+.fi-table tbody tr.fi-tr-line {
+  break-inside: avoid;
+  page-break-inside: avoid;
 }
 
 .fi-table th.fi-num,
 .fi-table td.fi-num {
   text-align: right;
   white-space: nowrap;
-}
-
-.fi-table td {
-  padding: 7px 8px;
-  border-bottom: 1px solid var(--fi-line);
-  vertical-align: top;
 }
 
 .fi-table tbody tr:last-child td {
@@ -205,38 +266,33 @@
 
 .fi-line-desc small {
   display: block;
-  margin-top: 2px;
+  margin-top: 3px;
   font-weight: 400;
   color: var(--fi-muted);
   font-size: 8pt;
+  line-height: 1.35;
 }
 
-.fi-summary {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  margin-bottom: 14px;
-  align-items: start;
-}
+/* --- 5. Totaux --- */
 
-.fi-totals {
+.fi-section--totals .fi-totals {
   border: 1px solid var(--fi-line);
-  border-radius: 6px;
-  padding: 10px 12px;
+  border-radius: 4px;
+  padding: 12px 14px;
   background: #fff;
 }
 
 .fi-totals-row {
   display: flex;
   justify-content: space-between;
-  gap: 12px;
-  padding: 3px 0;
+  gap: 16px;
+  padding: 4px 0;
   font-size: 9.5pt;
 }
 
 .fi-totals-row--due {
-  margin-top: 8px;
-  padding-top: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
   border-top: 2px solid var(--fi-ink);
   font-size: 12pt;
   font-weight: 800;
@@ -246,26 +302,36 @@
   color: var(--fi-brand);
 }
 
+/* --- 6. Paiements --- */
+
 .fi-pay-panel {
   border: 1px solid var(--fi-line);
-  border-radius: 6px;
-  padding: 10px 12px;
+  border-radius: 4px;
+  padding: 12px 14px;
   background: var(--fi-panel);
   font-size: 9pt;
 }
 
-.fi-pay-panel h3 {
-  margin: 0 0 8px;
+.fi-subtitle {
+  margin: 0 0 10px;
   font-size: 7.5pt;
+  font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
+  color: var(--fi-muted);
+}
+
+.fi-pay-empty {
+  margin: 0;
+  font-size: 9pt;
   color: var(--fi-muted);
 }
 
 .fi-pay-row {
   display: flex;
   justify-content: space-between;
-  padding: 2px 0;
+  gap: 12px;
+  padding: 4px 0;
   border-bottom: 1px dashed var(--fi-line);
 }
 
@@ -273,25 +339,39 @@
   border-bottom: none;
 }
 
+.fi-pre {
+  margin: 0;
+  white-space: pre-wrap;
+  font-size: 9pt;
+  line-height: 1.45;
+}
+
 .fi-terms {
-  margin-bottom: 12px;
-  padding: 10px 12px;
+  padding: 10px 14px;
   border-left: 3px solid var(--fi-ink);
   background: rgba(18, 16, 24, 0.03);
-  border-radius: 0 6px 6px 0;
-  font-size: 9pt;
+  border-radius: 0 4px 4px 0;
 }
 
-.fi-terms h3 {
-  margin: 0 0 6px;
-  font-size: 7.5pt;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+/* Document mixte + légal */
+
+.fi-doc-contract {
+  margin: 12px 0;
+  padding: 8px 10px;
+  font-size: 8.5pt;
+  line-height: 1.4;
   color: var(--fi-muted);
+  border: 1px dashed var(--fi-line);
+  border-radius: 4px;
+  background: rgba(18, 16, 24, 0.02);
 }
 
-.fi-legal {
-  margin-top: 14px;
+.fi-doc-contract p {
+  margin: 0;
+}
+
+.fi-section--legal.fi-legal {
+  margin-top: 12px;
   padding-top: 12px;
   border-top: 1px solid var(--fi-line);
   font-size: 7.5pt;
@@ -299,12 +379,12 @@
   line-height: 1.45;
 }
 
-.fi-legal h3 {
-  margin: 0 0 6px;
-  font-size: 7.5pt;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--fi-ink);
+.fi-section--legal.fi-legal p {
+  margin: 0;
+}
+
+.fi-legal-gap {
+  margin-top: 6px;
 }
 
 .fi-loading,

@@ -116,6 +116,8 @@ export default function InvoiceBuilderPage() {
   const [billingClients, setBillingClients] = useState<BillingSelectRow[]>([]);
   const [billingLeads, setBillingLeads] = useState<BillingSelectRow[]>([]);
   const [contactsSelectError, setContactsSelectError] = useState<string | null>(null);
+  const [invoiceDueDaysDefault, setInvoiceDueDaysDefault] = useState(30);
+
   const [detailExtras, setDetailExtras] = useState<{
     total_paid: number;
     amount_due: number;
@@ -164,6 +166,9 @@ export default function InvoiceBuilderPage() {
       initialClientIdRef.current = normalizeId(inv.client_id as string | null | undefined);
       initialLeadIdRef.current = normalizeId(inv.lead_id as string | null | undefined);
       setInvoiceDetail(inv);
+      const rawDueDays = inv.org_default_invoice_due_days;
+      const parsedDue = Number(rawDueDays);
+      setInvoiceDueDaysDefault(Number.isFinite(parsedDue) && parsedDue >= 0 ? parsedDue : 30);
       dispatch({ type: "HYDRATE", payload: buildStateFromApi(inv) });
       const bal = inv.balance as { amount_due?: number; total_paid?: number } | undefined;
       setDetailExtras({
@@ -705,8 +710,18 @@ export default function InvoiceBuilderPage() {
               onChange={(field, value) => {
                 if (field === "notes") dispatch({ type: "SET_META", payload: { notes: value } });
                 else if (field === "payment_terms") dispatch({ type: "SET_META", payload: { payment_terms: value } });
-                else if (field === "issue_date") dispatch({ type: "SET_HEADER", payload: { issue_date: value || null } });
-                else if (field === "due_date") dispatch({ type: "SET_HEADER", payload: { due_date: value || null } });
+                else if (field === "issue_date") {
+                  const nextIssue = value || null;
+                  const patch: { issue_date: string | null; due_date?: string | null } = {
+                    issue_date: nextIssue,
+                  };
+                  if (nextIssue && !state.header?.due_date) {
+                    const d = new Date(`${nextIssue}T12:00:00`);
+                    d.setDate(d.getDate() + invoiceDueDaysDefault);
+                    patch.due_date = d.toISOString().slice(0, 10);
+                  }
+                  dispatch({ type: "SET_HEADER", payload: patch });
+                } else if (field === "due_date") dispatch({ type: "SET_HEADER", payload: { due_date: value || null } });
               }}
               onDuePreset={setDueFromIssue}
             />

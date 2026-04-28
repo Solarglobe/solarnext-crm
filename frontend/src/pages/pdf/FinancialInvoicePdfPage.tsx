@@ -6,12 +6,16 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import {
+  buildInvoiceRecipientAddressLines,
+  buildInvoiceRecipientContactLines,
+  buildInvoiceRecipientIdentity,
   buildIssuerLines,
-  buildRecipientLines,
-  buildRecipientTitle,
   formatDateFrLong,
+  formatDateFrSlash,
   formatEurUnknown,
   formatVatRateDisplay,
+  invoiceRecipientHasAddressLines,
+  resolveInvoiceDueDateForPdf,
 } from "./financialPdfFormat";
 import "./financial-invoice-pdf.css";
 import { resolvePdfPrimaryColor } from "./pdfBrand";
@@ -61,14 +65,14 @@ function statusLabel(st: string | undefined | null): string {
 
 function LegalMentionsBlock() {
   return (
-    <section className="fi-legal">
-      <h3>Mentions légales</h3>
+    <section className="fi-no-break fi-section fi-section--legal fi-legal">
+      <h3 className="fi-section-title">Mentions légales</h3>
       <p>
         En cas de retard de paiement, des pénalités de retard au taux légal en vigueur pourront être appliquées, ainsi
         qu&apos;une indemnité forfaitaire pour frais de recouvrement de 40 € pour les professionnels, conformément aux
         articles L.441-6 et D.441-5 du Code de commerce lorsque les conditions légales sont réunies.
       </p>
-      <p style={{ marginTop: "6px" }}>
+      <p className="fi-legal-gap">
         TVA sur encaissements ou exonération : selon le régime applicable au souscripteur. En cas de litige, compétence
         des tribunaux du siège social de l&apos;émetteur, sauf disposition contraire.
       </p>
@@ -85,6 +89,7 @@ export default function FinancialInvoicePdfPage() {
   const [liveTotals, setLiveTotals] = useState<LiveTotals | null>(null);
   const [payments, setPayments] = useState<PaymentRow[]>([]);
   const [defaultInvoiceNotes, setDefaultInvoiceNotes] = useState<string | null>(null);
+  const [defaultInvoiceDueDays, setDefaultInvoiceDueDays] = useState<number>(30);
   const [logoOk, setLogoOk] = useState(false);
 
   useEffect(() => {
@@ -106,25 +111,30 @@ export default function FinancialInvoicePdfPage() {
         if (!res.ok) throw new Error("Chargement impossible");
         return res.json();
       })
-      .then((data: {
-        ok?: boolean;
-        payload?: Record<string, unknown>;
-        organizationId?: string;
-        liveTotals?: LiveTotals;
-        payments?: PaymentRow[];
-        defaultInvoiceNotes?: string | null;
-      }) => {
-        if (data?.ok === true && data.payload) {
-          setPayload(data.payload);
-          setOrganizationId(data.organizationId ?? null);
-          setLiveTotals(data.liveTotals ?? null);
-          setPayments(Array.isArray(data.payments) ? data.payments : []);
-          setDefaultInvoiceNotes(data.defaultInvoiceNotes ?? null);
-          setStatus("ready");
-        } else {
-          throw new Error("Réponse invalide");
+      .then(
+        (data: {
+          ok?: boolean;
+          payload?: Record<string, unknown>;
+          organizationId?: string;
+          liveTotals?: LiveTotals;
+          payments?: PaymentRow[];
+          defaultInvoiceNotes?: string | null;
+          defaultInvoiceDueDays?: number;
+        }) => {
+          if (data?.ok === true && data.payload) {
+            setPayload(data.payload);
+            setOrganizationId(data.organizationId ?? null);
+            setLiveTotals(data.liveTotals ?? null);
+            setPayments(Array.isArray(data.payments) ? data.payments : []);
+            setDefaultInvoiceNotes(data.defaultInvoiceNotes ?? null);
+            const d = data.defaultInvoiceDueDays;
+            setDefaultInvoiceDueDays(d != null && Number.isFinite(Number(d)) ? Number(d) : 30);
+            setStatus("ready");
+          } else {
+            throw new Error("Réponse invalide");
+          }
         }
-      })
+      )
       .catch(() => {
         setErrMsg("Impossible de charger la facture figée.");
         setStatus("error");
@@ -171,6 +181,11 @@ export default function FinancialInvoicePdfPage() {
 
   const issuer = (payload.issuer || {}) as Record<string, unknown>;
   const recipient = (payload.recipient || {}) as Record<string, unknown>;
+  const identity = buildInvoiceRecipientIdentity(recipient);
+  const hasAddr = invoiceRecipientHasAddressLines(recipient);
+  const addressLines = buildInvoiceRecipientAddressLines(recipient);
+  const contactLines = buildInvoiceRecipientContactLines(recipient);
+
   const lines = Array.isArray(payload.lines) ? (payload.lines as Record<string, unknown>[]) : [];
   const snapTotals = (payload.totals || {}) as Record<string, unknown>;
   const currency = (payload.currency as string) || "EUR";
@@ -184,106 +199,130 @@ export default function FinancialInvoicePdfPage() {
     amount_due: live?.amount_due ?? Number(snapTotals.amount_due),
   };
   const issueDate = live?.issue_date ?? (payload.issue_date as string | null);
-  const dueDate = live?.due_date ?? (payload.due_date as string | null);
+  const snapDue = payload.due_date as string | null | undefined;
+  const liveDue = live?.due_date ?? null;
+  const displayDueDate = resolveInvoiceDueDateForPdf(liveDue, snapDue, issueDate, defaultInvoiceDueDays);
   const payTerms = live?.payment_terms ?? (payload.payment_terms as string | null);
   const invStatus = live?.status ?? (payload.status as string | null);
   const sourceQuote = payload.source_quote as Record<string, unknown> | undefined;
 
+  const issuerLines = buildIssuerLines(issuer, { includeBank: true });
+
   return (
     <div className="fi-root" id="pdf-root" style={{ "--fi-brand": brandColor } as React.CSSProperties}>
-      <header className="fi-topbar">
-        <div className="fi-logo-wrap">
-          {logoUrl ? (
-            <img src={logoUrl} alt="" onLoad={() => setLogoOk(true)} onError={() => setLogoOk(true)} />
-          ) : (
-            <span className="fi-brand-fallback">{String(issuer.display_name || "").trim() || "—"}</span>
-          )}
-        </div>
-        <div className="fi-doc-head">
-          <h1>FACTURE</h1>
-          <span className="fi-status-pill">{statusLabel(invStatus)}</span>
+      {/* 1. Header entreprise */}
+      <header className="fi-no-break fi-section fi-section--org">
+        <div className="fi-org-header-inner">
+          <div className="fi-logo-wrap">
+            {logoUrl ? (
+              <img src={logoUrl} alt="" onLoad={() => setLogoOk(true)} onError={() => setLogoOk(true)} />
+            ) : null}
+          </div>
+          <div className="fi-org-lines">
+            {issuerLines.map((line, i) => (
+              <p key={i}>{line}</p>
+            ))}
+          </div>
         </div>
       </header>
 
-      <section className="fi-columns">
-        <div className="fi-block">
-          <h2>Émetteur</h2>
-          {buildIssuerLines(issuer, { includeBank: true }).map((line, i) => (
-            <p key={i}>{line}</p>
+      {/* 2. Bloc client */}
+      <section className="fi-no-break fi-section fi-section--client">
+        <h2 className="fi-block-label">Facturation</h2>
+        <div className="fi-recipient-stack">
+          <p className="fi-recipient-primary">{identity.primary}</p>
+          {identity.secondary ? <p className="fi-recipient-secondary">{identity.secondary}</p> : null}
+          {addressLines.map((line, i) => (
+            <p key={`a-${i}`} className="fi-recipient-line">
+              {line}
+            </p>
           ))}
-        </div>
-        <div className="fi-block">
-          <h2>Facturation</h2>
-          <p className="fi-recipient-name">{buildRecipientTitle(recipient)}</p>
-          {buildRecipientLines(recipient).map((line, i) => (
-            <p key={i}>{line}</p>
-          ))}
+          {!hasAddr ? <p className="fi-recipient-fallback">Adresse non renseignée</p> : null}
+          {contactLines.length > 0 ? (
+            <div className="fi-recipient-contact">
+              {contactLines.map((line, i) => (
+                <p key={`c-${i}`} className="fi-recipient-line">
+                  {line}
+                </p>
+              ))}
+            </div>
+          ) : null}
         </div>
       </section>
 
-      <div className="fi-meta">
-        <div className="fi-meta-box">
-          <dl style={{ margin: 0 }}>
-            <dt>N° de facture</dt>
-            <dd>{payload.number != null && payload.number !== "" ? String(payload.number) : "—"}</dd>
-            <dt style={{ marginTop: 8 }}>Date d&apos;émission</dt>
-            <dd>{formatDateFrLong(issueDate)}</dd>
-          </dl>
+      {/* 3. Infos facture */}
+      <section className="fi-no-break fi-section fi-section--invoice-meta">
+        <div className="fi-invoice-title-row">
+          <h1 className="fi-invoice-h1">FACTURE</h1>
+          <span className="fi-status-pill">{statusLabel(invStatus)}</span>
         </div>
-        <div className="fi-meta-box">
-          <dl style={{ margin: 0 }}>
-            <dt>Date d&apos;échéance</dt>
-            <dd>{formatDateFrLong(dueDate)}</dd>
-            <dt style={{ marginTop: 8 }}>Devise</dt>
-            <dd>{currency}</dd>
-          </dl>
+        <div className="fi-meta-grid">
+          <div className="fi-meta-field">
+            <span className="fi-meta-k">N° de facture</span>
+            <span className="fi-meta-v">{payload.number != null && payload.number !== "" ? String(payload.number) : "—"}</span>
+          </div>
+          <div className="fi-meta-field">
+            <span className="fi-meta-k">Devise</span>
+            <span className="fi-meta-v">{currency}</span>
+          </div>
+          <div className="fi-meta-field">
+            <span className="fi-meta-k">Date d&apos;émission</span>
+            <span className="fi-meta-v">{formatDateFrSlash(issueDate)}</span>
+          </div>
+          <div className="fi-meta-field">
+            <span className="fi-meta-k">Date d&apos;échéance</span>
+            <span className="fi-meta-v">{formatDateFrSlash(displayDueDate)}</span>
+          </div>
         </div>
-      </div>
+        {sourceQuote?.quote_number ? (
+          <p className="fi-ref-quote">
+            Réf. devis : {String(sourceQuote.quote_number)}
+            {sourceQuote.quote_id ? ` (${String(sourceQuote.quote_id).slice(0, 8)}…)` : null}
+          </p>
+        ) : null}
+      </section>
 
-      {sourceQuote?.quote_number ? (
-        <p className="fi-ref-quote">
-          Réf. devis : {String(sourceQuote.quote_number)}
-          {sourceQuote.quote_id ? ` (${String(sourceQuote.quote_id).slice(0, 8)}…)` : null}
-        </p>
-      ) : null}
+      {/* 4. Tableau lignes */}
+      <section className="fi-section fi-section--lines">
+        <div className="fi-table-wrap">
+          <table className="fi-table">
+            <thead>
+              <tr>
+                <th>Désignation</th>
+                <th className="fi-num">Qté</th>
+                <th className="fi-num">PU HT</th>
+                <th className="fi-num">TVA</th>
+                <th className="fi-num">Total HT</th>
+                <th className="fi-num">Total TTC</th>
+              </tr>
+            </thead>
+            <tbody>
+              {lines.map((row, idx) => {
+                const label = String(row.label ?? "—");
+                const desc = row.description ? String(row.description) : "";
+                return (
+                  <tr key={idx} className="fi-tr-line">
+                    <td>
+                      <div className="fi-line-desc">
+                        {label}
+                        {desc ? <small>{desc}</small> : null}
+                      </div>
+                    </td>
+                    <td className="fi-num">{row.quantity != null ? Number(row.quantity).toLocaleString("fr-FR") : "—"}</td>
+                    <td className="fi-num">{formatEurUnknown(row.unit_price_ht)}</td>
+                    <td className="fi-num">{formatVatRateDisplay(row.vat_rate)}</td>
+                    <td className="fi-num">{formatEurUnknown(row.total_line_ht)}</td>
+                    <td className="fi-num">{formatEurUnknown(row.total_line_ttc)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </section>
 
-      <div className="fi-table-wrap">
-        <table className="fi-table">
-          <thead>
-            <tr>
-              <th>Désignation</th>
-              <th className="fi-num">Qté</th>
-              <th className="fi-num">PU HT</th>
-              <th className="fi-num">TVA</th>
-              <th className="fi-num">Total HT</th>
-              <th className="fi-num">Total TTC</th>
-            </tr>
-          </thead>
-          <tbody>
-            {lines.map((row, idx) => {
-              const label = String(row.label ?? "—");
-              const desc = row.description ? String(row.description) : "";
-              return (
-                <tr key={idx}>
-                  <td>
-                    <div className="fi-line-desc">
-                      {label}
-                      {desc ? <small>{desc}</small> : null}
-                    </div>
-                  </td>
-                  <td className="fi-num">{row.quantity != null ? Number(row.quantity).toLocaleString("fr-FR") : "—"}</td>
-                  <td className="fi-num">{formatEurUnknown(row.unit_price_ht)}</td>
-                  <td className="fi-num">{formatVatRateDisplay(row.vat_rate)}</td>
-                  <td className="fi-num">{formatEurUnknown(row.total_line_ht)}</td>
-                  <td className="fi-num">{formatEurUnknown(row.total_line_ttc)}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="fi-summary">
+      {/* 5. Totaux */}
+      <section className="fi-no-break fi-section fi-section--totals">
         <div className="fi-totals">
           <div className="fi-totals-row">
             <span>Total HT</span>
@@ -312,11 +351,14 @@ export default function FinancialInvoicePdfPage() {
             <span>{formatEurUnknown(totals.amount_due)}</span>
           </div>
         </div>
+      </section>
 
+      {/* 6. Paiements */}
+      <section className="fi-no-break fi-section fi-section--payments">
         <div className="fi-pay-panel">
-          <h3>Paiements enregistrés</h3>
+          <h3 className="fi-subtitle">Paiements enregistrés</h3>
           {payments.length === 0 ? (
-            <p style={{ margin: 0, fontSize: "9pt", color: "var(--fi-muted)" }}>Aucun paiement pour l&apos;instant.</p>
+            <p className="fi-pay-empty">Aucun paiement pour l&apos;instant.</p>
           ) : (
             payments.map((p, i) => (
               <div key={i} className="fi-pay-row">
@@ -330,30 +372,30 @@ export default function FinancialInvoicePdfPage() {
             ))
           )}
         </div>
-      </div>
+      </section>
 
       {payTerms ? (
-        <div className="fi-terms">
-          <h3>Conditions de règlement</h3>
-          <p style={{ margin: 0, whiteSpace: "pre-wrap" }}>{payTerms}</p>
+        <div className="fi-no-break fi-section fi-terms">
+          <h3 className="fi-subtitle">Conditions de règlement</h3>
+          <p className="fi-pre">{payTerms}</p>
         </div>
       ) : null}
 
       {payload.notes ? (
-        <div className="fi-terms">
-          <h3>Notes</h3>
-          <p style={{ margin: 0, whiteSpace: "pre-wrap" }}>{String(payload.notes)}</p>
+        <div className="fi-no-break fi-section fi-terms">
+          <h3 className="fi-subtitle">Notes</h3>
+          <p className="fi-pre">{String(payload.notes)}</p>
         </div>
       ) : null}
 
       {defaultInvoiceNotes ? (
-        <div className="fi-terms">
-          <h3>Conditions générales (émetteur)</h3>
-          <p style={{ margin: 0, whiteSpace: "pre-wrap" }}>{defaultInvoiceNotes}</p>
+        <div className="fi-no-break fi-section fi-terms">
+          <h3 className="fi-subtitle">Conditions générales (émetteur)</h3>
+          <p className="fi-pre">{defaultInvoiceNotes}</p>
         </div>
       ) : null}
 
-      <section className="fi-doc-contract" aria-label="Méthode documentaire">
+      <section className="fi-no-break fi-doc-contract" aria-label="Méthode documentaire">
         <p>
           <strong>Document mixte (figé + à jour)</strong> : les lignes et les montants HT/TTC reproduisent la facture
           telle qu&apos;émise. Les paiements listés, les avoirs imputés et le reste à payer reflètent l&apos;état
@@ -361,6 +403,7 @@ export default function FinancialInvoicePdfPage() {
         </p>
       </section>
 
+      {/* 7. Mentions légales */}
       <LegalMentionsBlock />
 
       <div id="pdf-ready" data-status={status === "ready" ? "ready" : "pending"} aria-hidden="true" />

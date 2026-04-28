@@ -99,6 +99,8 @@ export interface InvoiceDetail extends Record<string, unknown> {
   last_reminder_at?: string | null;
   is_overdue?: boolean;
   needs_followup?: boolean;
+  /** Paramètre org « Échéance facture (jours) » — pour préremplissage échéance à l’édition. */
+  org_default_invoice_due_days?: number | null;
 }
 
 export async function fetchInvoicesByClientId(clientId: string): Promise<InvoiceListRow[]> {

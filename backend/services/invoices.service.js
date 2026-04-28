@@ -101,10 +101,12 @@ export async function listInvoices(organizationId, query = {}) {
 export async function getInvoiceDetail(invoiceId, organizationId) {
   const invRes = await pool.query(
     `SELECT i.*, c.company_name, c.first_name, c.last_name, c.email, c.siret, c.phone,
-            ld.first_name AS lead_first_name, ld.last_name AS lead_last_name, ld.email AS lead_email
+            ld.first_name AS lead_first_name, ld.last_name AS lead_last_name, ld.email AS lead_email,
+            o.default_invoice_due_days AS org_default_invoice_due_days
      FROM invoices i
      LEFT JOIN clients c ON c.id = i.client_id
      LEFT JOIN leads ld ON ld.id = i.lead_id AND ld.organization_id = i.organization_id AND (ld.archived_at IS NULL)
+     LEFT JOIN organizations o ON o.id = i.organization_id
      WHERE i.id = $1 AND i.organization_id = $2 AND (i.archived_at IS NULL)`,
     [invoiceId, organizationId]
   );

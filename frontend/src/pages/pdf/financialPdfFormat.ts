@@ -108,6 +108,122 @@ export function buildRecipientLines(rec: Record<string, unknown> | undefined): s
   return lines;
 }
 
+/** Identité facture PDF — sans répétition avec les lignes adresse / contact. */
+export interface InvoiceRecipientIdentity {
+  primary: string;
+  secondary: string | null;
+}
+
+export function buildInvoiceRecipientIdentity(rec: Record<string, unknown> | undefined): InvoiceRecipientIdentity {
+  if (!rec) return { primary: "Destinataire", secondary: null };
+  const company = rec.company_name ? String(rec.company_name).trim() : "";
+  const fn = [rec.first_name, rec.last_name].filter(Boolean).join(" ").trim();
+  if (company && fn) return { primary: company, secondary: fn };
+  if (company) return { primary: company, secondary: null };
+  if (fn) return { primary: fn, secondary: null };
+  return { primary: "Destinataire", secondary: null };
+}
+
+function extractRecipientAddressParts(rec: Record<string, unknown> | undefined): {
+  streetLines: string[];
+  postalCity: string | null;
+  country: string | null;
+  hasStructuredAddress: boolean;
+} {
+  if (!rec) return { streetLines: [], postalCity: null, country: null, hasStructuredAddress: false };
+  const addr = rec.address;
+  if (addr != null && typeof addr === "object" && !Array.isArray(addr)) {
+    const o = addr as Record<string, unknown>;
+    const l1 = [o.line1, o.line2].filter(Boolean).map((x) => String(x).trim()).join(", ").trim();
+    const streetLines = l1 ? [l1] : [];
+    const pc = [o.postal_code, o.city].filter(Boolean).map((x) => String(x).trim()).join(" ").trim();
+    const postalCity = pc || null;
+    const country = o.country ? String(o.country).trim() : null;
+    return {
+      streetLines,
+      postalCity,
+      country,
+      hasStructuredAddress: true,
+    };
+  }
+  if (typeof addr === "string" && addr.trim()) {
+    const parts = addr
+      .split(/\n/)
+      .map((x) => x.trim())
+      .filter(Boolean);
+    return { streetLines: parts, postalCity: null, country: null, hasStructuredAddress: false };
+  }
+  return { streetLines: [], postalCity: null, country: null, hasStructuredAddress: false };
+}
+
+/**
+ * PDF facture : adresse + pays uniquement (pas de nom / société — déjà dans {@link buildInvoiceRecipientIdentity}).
+ */
+export function buildInvoiceRecipientAddressLines(rec: Record<string, unknown> | undefined): string[] {
+  const { streetLines, postalCity, country } = extractRecipientAddressParts(rec);
+  const out: string[] = [];
+  for (const s of streetLines) out.push(s);
+  if (postalCity) out.push(postalCity);
+  if (country) out.push(country);
+  return out;
+}
+
+/** Email et téléphone — après le bloc adresse. */
+export function buildInvoiceRecipientContactLines(rec: Record<string, unknown> | undefined): string[] {
+  const out: string[] = [];
+  if (rec?.email) out.push(String(rec.email));
+  if (rec?.phone) out.push(String(rec.phone));
+  return out;
+}
+
+/** True si au moins une ligne d’adresse exploitable (hors email/téléphone). */
+export function invoiceRecipientHasAddressLines(rec: Record<string, unknown> | undefined): boolean {
+  const { streetLines, postalCity, country } = extractRecipientAddressParts(rec);
+  return streetLines.length > 0 || !!postalCity || !!country;
+}
+
+/** Date JJ/MM/AAAA — libellés PDF facture (émission / échéance). */
+export function formatDateFrSlash(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  try {
+    const d = new Date(String(iso).slice(0, 10) + "T12:00:00");
+    if (Number.isNaN(d.getTime())) return "—";
+    return d.toLocaleDateString("fr-FR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+  } catch {
+    return "—";
+  }
+}
+
+/** Ajoute des jours calendaires à une date ISO YYYY-MM-DD (locale alignée facture builder). */
+export function addDaysToIsoDate(issueIso: string, days: number): string {
+  const d = new Date(String(issueIso).slice(0, 10) + "T12:00:00");
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Échéance affichée : date live ou snapshot si présente ; sinon issue + jours (paramètre org).
+ */
+export function resolveInvoiceDueDateForPdf(
+  liveDue: string | null | undefined,
+  snapshotDue: string | null | undefined,
+  issueIso: string | null | undefined,
+  defaultDueDays: number | null | undefined
+): string | null {
+  const explicit = liveDue ?? snapshotDue;
+  if (explicit != null && String(explicit).trim() !== "") {
+    return String(explicit).slice(0, 10);
+  }
+  const raw = defaultDueDays != null ? Number(defaultDueDays) : 30;
+  const days = Number.isFinite(raw) && raw >= 0 ? raw : 30;
+  if (!issueIso || String(issueIso).trim() === "") return null;
+  return addDaysToIsoDate(String(issueIso).slice(0, 10), days);
+}
+
 export interface IssuerLinesOptions {
   /** IBAN / BIC — pertinent surtout pour la facture */
   includeBank?: boolean;
