@@ -6481,11 +6481,17 @@ function dp2SetSelectedBuildingContourId(id) {
   window.DP2_STATE.selectedBusinessObjectId = null;
   dp2ClearSelectedPanels();
   dp2ClearSelectedTexts();
+  try {
+    window.__DP2_BUILDING_MODIFY_MODE__ = id ? true : false;
+  } catch (_) {}
 }
 
 function dp2ClearSelectedBuildingContour() {
   dp2EnsureBuildingContoursState();
   window.DP2_STATE.selectedBuildingContourId = null;
+  try {
+    window.__DP2_BUILDING_MODIFY_MODE__ = false;
+  } catch (_) {}
 }
 
 // --------------------------
@@ -8053,6 +8059,11 @@ function initDP2Toolbar() {
 
   function setActiveTool(tool) {
     window.DP2_STATE.currentTool = tool;
+    if (tool !== "select" && tool !== "building_outline") {
+      try {
+        window.__DP2_BUILDING_MODIFY_MODE__ = false;
+      } catch (_) {}
+    }
     // Changement d'outil : annuler la sélection groupée temporaire (panneaux uniquement)
     if (Array.isArray(window.DP2_STATE.selectedPanelIds) && window.DP2_STATE.selectedPanelIds.length >= 2) {
       window.DP2_STATE.selectedPanelIds = [];
@@ -9636,19 +9647,6 @@ function initDP2CanvasEvents() {
       }
     }
 
-    // 0) DP2 — Bâti : sélection via OpenLayers uniquement (mode Sélection)
-    if (tool === "select" && typeof dp2PickDp2BuildingOlFeatureAtCanvasPixel === "function") {
-      const olFeat = dp2PickDp2BuildingOlFeatureAtCanvasPixel(canvas, coords.x, coords.y);
-      if (olFeat) {
-        const fid = olFeat.getId() != null ? olFeat.getId() : olFeat.get("dp2FeatureId");
-        if (fid != null) {
-          dp2SetSelectedBuildingContourId(String(fid));
-          renderDP2FromState();
-          return;
-        }
-      }
-    }
-
     // DP2 — Drag sommet faitage ou mesure (même logique que contour de bâti) — sans hauteur égout
     if (tool === "select") {
       const hitLine = dp2HitTest(canvas, coords.x, coords.y);
@@ -9667,6 +9665,23 @@ function initDP2CanvasEvents() {
           };
           try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
           e.preventDefault();
+          renderDP2FromState();
+          return;
+        }
+      }
+    }
+
+    // 0) DP2 — Bâti : pick OpenLayers en dernier (après sommets mesure/faîtage ; pas si hit segment mesure etc. sur le polygone)
+    if (
+      tool === "select" &&
+      typeof dp2PickDp2BuildingOlFeatureAtCanvasPixel === "function" &&
+      !dp2PointerDownDeferBuildingOlPick(canvas, coords.x, coords.y)
+    ) {
+      const olFeat = dp2PickDp2BuildingOlFeatureAtCanvasPixel(canvas, coords.x, coords.y);
+      if (olFeat) {
+        const fid = olFeat.getId() != null ? olFeat.getId() : olFeat.get("dp2FeatureId");
+        if (fid != null) {
+          dp2SetSelectedBuildingContourId(String(fid));
           renderDP2FromState();
           return;
         }
@@ -9750,6 +9765,9 @@ function initDP2CanvasEvents() {
       dp2ClearSelectedPanels();
       dp2ClearSelectedTexts();
       window.DP2_STATE.selectedBuildingContourId = null;
+      try {
+        window.__DP2_BUILDING_MODIFY_MODE__ = false;
+      } catch (_) {}
       window.DP2_STATE.selectedBusinessObjectId = obj.id;
 
       const g = obj.geometry;
@@ -10941,6 +10959,9 @@ function initDP2CanvasEvents() {
           dp2ClearSelectedPanels();
           dp2ClearSelectedTexts();
           window.DP2_STATE.selectedBuildingContourId = null;
+          try {
+            window.__DP2_BUILDING_MODIFY_MODE__ = false;
+          } catch (_) {}
           window.DP2_STATE.selectedObjectId = null;
           window.DP2_STATE.selectedBusinessObjectId = hitBizClick.id;
           renderDP2FromState();
@@ -11191,6 +11212,44 @@ function initDP2CanvasEvents() {
       return;
     }
 
+    // Mesures : étiquette puis segment (avant égout / texte) — stopPropagation pour limiter les doubles clics carte OL
+    if (tool === "select") {
+      const hitLabel = dp2HitTestMeasureLabel(canvas, coords.x, coords.y);
+      if (hitLabel && hitLabel.kind === "measure_label" && typeof hitLabel.index === "number") {
+        e.stopPropagation();
+        window.DP2_STATE.measureLabelDrag = null;
+        window.DP2_STATE.measureLabelDragCandidate = null;
+        const lastDrag = window.DP2_STATE._lastMeasureLabelDragAt || 0;
+        if (Date.now() - lastDrag > 300) {
+          if (openMeasureLineEdit(hitLabel.index)) {
+            dp2ShowMeasureAnchorChoiceOverlay(canvas, hitLabel.index);
+          }
+        }
+        return;
+      }
+      const hitMeasDbl = dp2HitTest(canvas, coords.x, coords.y);
+      if (hitMeasDbl && hitMeasDbl.kind === "object" && typeof hitMeasDbl.index === "number") {
+        const objM = objs[hitMeasDbl.index];
+        if (objM && objM.type === "measure_line") {
+          e.stopPropagation();
+          if (window.__SN_DP_DP2_AUDIT__ === true) {
+            try {
+              console.log("[DP2 MEASURE EDIT]", hitMeasDbl);
+            } catch (_) {}
+          }
+          window.DP2_STATE.measureLabelDrag = null;
+          window.DP2_STATE.measureLabelDragCandidate = null;
+          const lastDrag2 = window.DP2_STATE._lastMeasureLabelDragAt || 0;
+          if (Date.now() - lastDrag2 > 300) {
+            if (openMeasureLineEdit(hitMeasDbl.index)) {
+              dp2ShowMeasureAnchorChoiceOverlay(canvas, hitMeasDbl.index);
+            }
+          }
+          return;
+        }
+      }
+    }
+
     const hitGhLblDbl = dp2HitTestGutterHeightLabel(canvas, coords.x, coords.y);
     if (hitGhLblDbl && hitGhLblDbl.kind === "gutter_height_label" && typeof hitGhLblDbl.index === "number") {
       if (dp2OpenGutterHeightDimensionEdit(hitGhLblDbl.index)) return;
@@ -11203,32 +11262,6 @@ function initDP2CanvasEvents() {
         if (typeof ogh.x === "number" && typeof ogh.y === "number") {
           if (dp2OpenGutterHeightDimensionEdit(hitGhSegDbl.index)) return;
         }
-      }
-    }
-
-    // Double-clic sur l'étiquette de mesure (label) → édition valeur uniquement, puis choix explicite du point (overlay)
-    const hitLabel = dp2HitTestMeasureLabel(canvas, coords.x, coords.y);
-    if (hitLabel && hitLabel.kind === "measure_label" && typeof hitLabel.index === "number") {
-      window.DP2_STATE.measureLabelDrag = null;
-      window.DP2_STATE.measureLabelDragCandidate = null;
-      const lastDrag = window.DP2_STATE._lastMeasureLabelDragAt || 0;
-      if (Date.now() - lastDrag > 300) {
-        if (openMeasureLineEdit(hitLabel.index)) {
-          dp2ShowMeasureAnchorChoiceOverlay(canvas, hitLabel.index);
-        }
-        return;
-      }
-    }
-
-    // Double-clic sur un measure_line existant (segment) → édition longueur puis choix A/B (overlay)
-    const hitAny = dp2HitTest(canvas, coords.x, coords.y);
-    if (hitAny && hitAny.kind === "object" && typeof hitAny.index === "number") {
-      const obj = objs[hitAny.index];
-      if (obj && obj.type === "measure_line") {
-        if (openMeasureLineEdit(hitAny.index)) {
-          dp2ShowMeasureAnchorChoiceOverlay(canvas, hitAny.index);
-        }
-        return;
       }
     }
 
@@ -13284,6 +13317,9 @@ function dp2EnterSelectToolAfterBuildingOlComplete() {
   const imgWrap = document.getElementById("dp2-captured-image-wrap");
   if (imgWrap) imgWrap.classList.remove("dp2-tool-pan");
   try {
+    window.__DP2_BUILDING_MODIFY_MODE__ = true;
+  } catch (_) {}
+  try {
     dp2SyncInteractionToolFromDp2State();
     dp2FinalizeInteractionChrome();
   } catch (_) {}
@@ -13296,9 +13332,23 @@ function dp2SyncBuildingOlPointerPassThrough() {
   const zig = document.getElementById("dp2-zoom-container");
   if (!zig) return;
   const tool = window.DP2_STATE && window.DP2_STATE.currentTool;
-  /* Uniquement en dessin bâti : laisser Draw/Snap recevoir les événements. En « select » le canvas reste prioritaire pour panneaux / textes. */
-  const pass = tool === "building_outline";
+  /* Dessin bâti : Draw/Snap. En « select » avec __DP2_BUILDING_MODIFY_MODE__ : Modify OL reçoit les pointer events (canvas en none). */
+  const modifyMode = window.__DP2_BUILDING_MODIFY_MODE__ === true;
+  const pass = tool === "building_outline" || (tool === "select" && modifyMode);
   zig.classList.toggle("dp2-building-ol-priority", pass);
+}
+
+/** true si un hit canvas (mesure / faîtage / …) doit passer avant le pick bâti OpenLayers en pointerdown. */
+function dp2PointerDownDeferBuildingOlPick(canvas, x, y) {
+  const hit = dp2HitTest(canvas, x, y);
+  if (!hit || hit.kind !== "object" || typeof hit.index !== "number") return false;
+  const obj = window.DP2_STATE?.objects?.[hit.index];
+  if (!obj || !obj.type) return false;
+  if (obj.type === "measure_line" || obj.type === "ridge_line") return true;
+  if (obj.type === "gutter_height_dimension") return true;
+  if (obj.type === "pv_panel") return true;
+  if (obj.type === "circle" || obj.type === "rectangle") return true;
+  return false;
 }
 
 function dp2SyncBuildingOlInteractions() {
