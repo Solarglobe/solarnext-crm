@@ -154,6 +154,10 @@
     } catch (_) {}
   }
 
+  /** Même valeur que `SN_DP_DEV_TEST_LEAD_ID` dans `dpToolLoader.ts` — PUT simulé (console), pas de fetch. */
+  var SN_DP_DEV_TEST_LEAD_ID = "DEV-TEST-DP2";
+  var SN_DP_DEV_PUT_URL_SENTINEL = "__SN_DP_DEV_PUT__";
+
   var SCHEMA_VERSION = 2;
 
   var SECTION_KEYS = [
@@ -184,6 +188,9 @@
   function resolvePutUrl() {
     var ctx = global.__SOLARNEXT_DP_CONTEXT__;
     if (!ctx || !ctx.leadId) return null;
+    if (String(ctx.leadId) === SN_DP_DEV_TEST_LEAD_ID) {
+      return SN_DP_DEV_PUT_URL_SENTINEL;
+    }
     var origin = "";
     if (global.__SOLARNEXT_API_BASE__ != null && String(global.__SOLARNEXT_API_BASE__).trim()) {
       origin = String(global.__SOLARNEXT_API_BASE__).replace(/\/$/, "");
@@ -779,6 +786,27 @@
       var loc = JSON.parse(raw);
       if (!loc || typeof loc !== "object") return;
       ensureDraftShape(loc);
+      var lidDev =
+        global.__SOLARNEXT_DP_CONTEXT__ && global.__SOLARNEXT_DP_CONTEXT__.leadId != null
+          ? String(global.__SOLARNEXT_DP_CONTEXT__.leadId)
+          : "";
+      if (lidDev === SN_DP_DEV_TEST_LEAD_ID) {
+        if (loc.dp2 != null && typeof loc.dp2 === "object" && !Array.isArray(loc.dp2)) {
+          DP_DRAFT.dp2 = loc.dp2;
+        }
+        if (loc.progression && typeof loc.progression === "object") {
+          if (typeof loc.progression.currentPageId === "string") {
+            DP_DRAFT.progression.currentPageId = loc.progression.currentPageId;
+          }
+          if (Array.isArray(loc.progression.visitedPageIds)) {
+            DP_DRAFT.progression.visitedPageIds = loc.progression.visitedPageIds.slice();
+          }
+        }
+        ensureDraftShape(DP_DRAFT);
+        syncContextWindowDraft();
+        writeDraftMirrorLocal();
+        return;
+      }
       if (!draftHasDp1Content(loc)) return;
       if (draftHasDp1Content(DP_DRAFT)) return;
       if (loc.dp1) DP_DRAFT.dp1 = loc.dp1;
@@ -996,7 +1024,20 @@
     if (!url) {
       return Promise.reject(new Error("no_url"));
     }
+    var devMockPut = url === SN_DP_DEV_PUT_URL_SENTINEL;
+    if (global.__SN_DP_DP2_AUDIT__ === true) {
+      try {
+        console.log("[DP2 STATE]", global.DP2_STATE);
+      } catch (_) {}
+    }
     syncRuntimeIntoDraft();
+    if (global.__SN_DP_DP2_AUDIT__ === true) {
+      try {
+        console.log("[DP2 AFTER_SYNC]", DP_DRAFT && DP_DRAFT.dp2);
+      } catch (e0) {
+        console.warn("[DP2 AFTER_SYNC] log error", e0);
+      }
+    }
     var persistPrep =
       global.__solarnextDp1ImagePersist &&
       typeof global.__solarnextDp1ImagePersist.normalizeDraftImagesAsync === "function"
@@ -1019,23 +1060,34 @@
       var safeDraft = san.draft;
       if (global.__SN_DP_DP2_AUDIT__ === true) {
         try {
-          var d2put = safeDraft && safeDraft.dp2;
-          var d2s = d2put && typeof d2put === "object" ? JSON.stringify(d2put).length : 0;
-          console.warn("[DP2-AUDIT] PUT bodyBytes", JSON.stringify({ draft: safeDraft }).length, "dp2.json.length", d2s);
-          console.warn(
-            "[DP2-AUDIT] PUT dp2 keys",
-            d2put && typeof d2put === "object" ? Object.keys(d2put).slice(0, 40) : d2put
-          );
-          if (d2put && typeof d2put === "object") {
-            console.warn("[DP2-AUDIT] PUT dp2.capture_plan?", !!(d2put.capture_plan && d2put.capture_plan.imageBase64));
-            console.warn("[DP2-AUDIT] PUT dp2.dp2Versions len", Array.isArray(d2put.dp2Versions) ? d2put.dp2Versions.length : null);
-          }
+          console.log("[DP2 PUT PAYLOAD]", safeDraft.dp2);
         } catch (e2) {
-          console.warn("[DP2-AUDIT] log error", e2);
+          console.warn("[DP2 PUT PAYLOAD] log error", e2);
         }
       }
       var body = JSON.stringify({ draft: safeDraft });
       var ctx = global.__SOLARNEXT_DP_CONTEXT__ || {};
+      if (devMockPut) {
+        console.log("[DP DEV PUT — no fetch] simulated URL", "PUT /api/leads/" + SN_DP_DEV_TEST_LEAD_ID + "/dp");
+        console.log("[DP DEV PUT — payload]", JSON.parse(body));
+        emitDpPutTrace("put_request", {
+          attempt: attempt,
+          leadId: ctx.leadId || null,
+          url: "DEV_MOCK_PUT",
+          bodyBytes: body.length,
+          draftSummary: summarizeDraftForTrace(safeDraft),
+          persistenceDisabledBefore: !!global.__SN_DP_PERSISTENCE_DISABLED,
+        });
+        emitDpPutTrace("put_response_ok", {
+          leadId: ctx.leadId || null,
+          url: "DEV_MOCK_PUT",
+          httpStatus: 200,
+        });
+        return Promise.resolve({
+          draft: JSON.parse(JSON.stringify(safeDraft)),
+          updatedAt: nowIso(),
+        });
+      }
       emitDpPutTrace("put_request", {
         attempt: attempt,
         leadId: ctx.leadId || null,
@@ -1186,6 +1238,32 @@
     if (isPersistenceDisabled()) return;
     var url = resolvePutUrl();
     if (!url || !DP_DRAFT) return;
+    if (url === SN_DP_DEV_PUT_URL_SENTINEL) {
+      try {
+        syncRuntimeIntoDraft();
+      } catch (_) {}
+      try {
+        if (
+          global.__solarnextDp1ImagePersist &&
+          typeof global.__solarnextDp1ImagePersist.syncNormalizeFromDom === "function"
+        ) {
+          var sn = global.__solarnextDp1ImagePersist.syncNormalizeFromDom(DP_DRAFT);
+          if (!sn.ok) {
+            console.warn("[DP DEV unload PUT mock skipped]", sn.error || "");
+            return;
+          }
+        }
+        var sanu = sanitizeDraftForPersist(DP_DRAFT);
+        if (!sanu.ok) {
+          console.warn("[DP DEV unload PUT mock skipped]", sanu.error || "");
+          return;
+        }
+        console.log("[DP DEV unload PUT — no XHR] payload", { draft: sanu.draft });
+      } catch (prep) {
+        devWarn("[DP DEV unload PUT mock prep failed]", prep);
+      }
+      return;
+    }
     try {
       syncRuntimeIntoDraft();
     } catch (_) {}
@@ -1363,17 +1441,13 @@
         console.log("[DP2 DEBUG] hydrate d2 =", d2);
       } catch (_) {}
     }
+    if (global.__SN_DP_DP2_AUDIT__ === true) {
+      try {
+        console.log("[DP2 GET]", d2);
+      } catch (_) {}
+    }
     if (typeof global.hydrateDP2 === "function") {
       try {
-        if (global.__SN_DP_DP2_AUDIT__ === true) {
-          try {
-            console.warn(
-              "[DP2-AUDIT] hydrate d2",
-              d2 == null ? "null/undefined" : typeof d2,
-              d2 && typeof d2 === "object" ? "keys:" + Object.keys(d2).slice(0, 30).join(",") : ""
-            );
-          } catch (_) {}
-        }
         global.hydrateDP2(d2 || {});
       } catch (e) {
         devWarn("[dp-draft] hydrateDP2", e);
@@ -1593,8 +1667,10 @@
         schedulePersist("fast");
       }
       if (global.__SN_DP_DP2_AUDIT__ === true) {
-        var d2a = DP_DRAFT && DP_DRAFT.dp2;
-        console.warn("[DP2-AUDIT] afterCapture flush; draft.dp2 keys", d2a && typeof d2a === "object" ? Object.keys(d2a) : d2a);
+        try {
+          var d2a = DP_DRAFT && DP_DRAFT.dp2;
+          console.log("[DP2 AFTER_CAPTURE]", d2a);
+        } catch (_) {}
       }
     } catch (_) {}
   };
