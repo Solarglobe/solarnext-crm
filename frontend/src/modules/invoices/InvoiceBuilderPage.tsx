@@ -165,7 +165,20 @@ export default function InvoiceBuilderPage() {
         total_ttc: Number(inv.total_ttc ?? 0) || 0,
       });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Erreur");
+      const msg = e instanceof Error ? e.message : "Erreur";
+      setError(msg);
+      dispatch({ type: "CLEAR" });
+      setInvoiceDetail(null);
+      initialClientIdRef.current = null;
+      initialLeadIdRef.current = null;
+      setDetailExtras({
+        total_paid: 0,
+        amount_due: 0,
+        is_overdue: false,
+        total_ht: 0,
+        total_vat: 0,
+        total_ttc: 0,
+      });
     } finally {
       setLoading(false);
     }
@@ -219,7 +232,22 @@ export default function InvoiceBuilderPage() {
       dispatch({ type: "MARK_CLEAN" });
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Erreur enregistrement");
+      const msg = e instanceof Error ? e.message : "Erreur enregistrement";
+      setError(msg);
+      if (/facture non trouvée/i.test(msg)) {
+        dispatch({ type: "CLEAR" });
+        setInvoiceDetail(null);
+        initialClientIdRef.current = null;
+        initialLeadIdRef.current = null;
+        setDetailExtras({
+          total_paid: 0,
+          amount_due: 0,
+          is_overdue: false,
+          total_ht: 0,
+          total_vat: 0,
+          total_ttc: 0,
+        });
+      }
     } finally {
       setSaving(false);
     }

@@ -372,7 +372,12 @@ function normalizeId(value) {
  * @param {object} body
  */
 export async function updateInvoice(invoiceId, organizationId, body) {
-  return withTx(pool, async (client) => {
+  console.info({
+    event: "invoice_update_attempt",
+    invoice_id: invoiceId,
+    organization_id: organizationId,
+  });
+  await withTx(pool, async (client) => {
     const row = await assertOrgEntity(client, "invoices", invoiceId, organizationId);
     if (!isInvoiceEditable(row.status)) {
       throw new Error("Modification interdite : facture déjà émise ou soldée");
@@ -443,7 +448,15 @@ export async function updateInvoice(invoiceId, organizationId, body) {
     const qid = qRow.rows[0]?.quote_id;
     if (qid) await assertQuoteLinkedInvoicesWithinCap(client, qid, organizationId);
   });
-  return getInvoiceDetail(invoiceId, organizationId);
+  const detail = await getInvoiceDetail(invoiceId, organizationId);
+  console.info({
+    event: "invoice_lookup_after_update",
+    found: !!detail,
+    invoice_id: invoiceId,
+    organization_id: organizationId,
+    archived_at: detail?.archived_at ?? null,
+  });
+  return detail;
 }
 
 const INVOICE_TRANSITIONS = {

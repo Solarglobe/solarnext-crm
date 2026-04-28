@@ -10,6 +10,7 @@ export interface InvoiceBuilderState {
 
 export type InvoiceBuilderAction =
   | { type: "HYDRATE"; payload: InvoiceBuilderState }
+  | { type: "CLEAR" }
   | { type: "SET_META"; payload: Partial<InvoiceBuilderMeta> }
   | { type: "SET_HEADER"; payload: Partial<InvoiceHeaderSnapshot> }
   | { type: "ADD_LINE"; line: InvoiceLine }
@@ -32,6 +33,13 @@ export function invoiceBuilderReducer(state: InvoiceBuilderState, action: Invoic
   switch (action.type) {
     case "HYDRATE":
       return { ...action.payload, dirty: false };
+    case "CLEAR":
+      return {
+        header: null,
+        lines: [],
+        meta: createEmptyMeta(),
+        dirty: false,
+      };
     case "SET_META":
       return { ...state, meta: { ...state.meta, ...action.payload }, dirty: true };
     case "SET_HEADER":

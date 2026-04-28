@@ -7999,15 +7999,18 @@ function dp2FillAlignedCoteLabel(ctx, text, p1, p2, offset, tier, options) {
   const pt = dp2ComputeCoteLabelPoint(p1, p2, offset, options);
   if (!pt) return;
   const angle = dp2SegmentReadableAngle(p1, p2);
-  const fontSize = tier === "editing" ? 9 : 8;
+  const fontSize = tier === "editing" ? 9.5 : 8.8;
 
   ctx.save();
   ctx.translate(pt.x, pt.y);
   ctx.rotate(angle);
-  ctx.font = `${fontSize}px system-ui, sans-serif`;
+  ctx.font = `500 ${fontSize}px system-ui, sans-serif`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillStyle = tier === "editing" ? "#111827" : "#1f2937";
+  ctx.lineWidth = 2.4;
+  ctx.strokeStyle = "rgba(255,255,255,0.72)";
+  ctx.strokeText(text, 0, 0);
+  ctx.fillStyle = tier === "editing" ? "#111827" : DP2_COTE_TEXT;
   ctx.fillText(text, 0, 0);
   ctx.restore();
 }
@@ -8897,6 +8900,11 @@ function dp2BuildParcelEdgeMeasureStub(peEdit, contour, segmentIndex) {
 
 const DP2_MEASURE_ANCHOR_CHOICE_HIT_PX = 30;
 const DP2_MEASURE_ANCHOR_CHOICE_VISUAL_PX = 12;
+const DP2_TECH_BLUE = "#1e40af";
+const DP2_MEASURE_GREEN = "#15803d";
+const DP2_RIDGE_GREEN = "#0f766e";
+const DP2_COTE_TEXT = "#1f2937";
+const DP2_PREVIEW_STROKE = "#2563eb";
 
 // DP2 — Hit-test repères A/B (measure_line avec requestedLengthM, sans resizeAnchor).
 function dp2HitTestMeasureLineAnchor(canvas, x, y) {
