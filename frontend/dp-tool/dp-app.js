@@ -5292,9 +5292,9 @@ const DP2_BUSINESS_OBJECT_META = {
   compteur: { legendKey: "COMPTEUR_ELECTRIQUE", label: "Compteur électrique", icon: "■", defaultW: 34, defaultH: 34 },
   disjoncteur: { legendKey: "DISJONCTEUR", label: "Disjoncteur", icon: "■", defaultW: 26, defaultH: 26 },
   batterie: { legendKey: "BATTERIE_STOCKAGE", label: "Batterie de stockage", icon: "▬", defaultW: 44, defaultH: 28 },
-  sens_pente: { legendKey: "SENS_PENTE", label: "Sens de la pente", icon: "↘", defaultW: 90, defaultH: 50 },
+  sens_pente: { legendKey: "SENS_PENTE", label: "Sens de la pente", icon: "↘", defaultW: 68, defaultH: 36 },
   voie_acces: { legendKey: "VOIE_ACCES", label: "Voie d’accès", icon: "🛣", defaultW: 140, defaultH: 40 },
-  angle_vue: { legendKey: "ANGLE_PRISE_VUE", label: "Angle de prise de vue", icon: "📷", defaultW: 110, defaultH: 80 },
+  angle_vue: { legendKey: "ANGLE_PRISE_VUE", label: "Angle de prise de vue", icon: "△", defaultW: 74, defaultH: 54 },
   nord: { legendKey: "NORD", label: "Flèche Nord", icon: "🧭", defaultW: 70, defaultH: 90 },
   rect: { legendKey: "ANNOTATION_RECTANGLE", label: "Rectangle libre", icon: "▭", defaultW: 120, defaultH: 70 },
   circle: { legendKey: "ANNOTATION_CERCLE", label: "Cercle libre", icon: "◯", defaultW: 90, defaultH: 90 },
@@ -6565,18 +6565,12 @@ function dp2SegmentIntersection(p, p2, q, q2) {
 function applyRidgeLineCutsToBuildingOutline(ridgeA, ridgeB) {
   // DP2 / DP4 : contour actif = sélection id ou premier feature polygon dans DP2_STATE.features
   const id = window.DP2_STATE?.selectedBuildingContourId || null;
-  let outline = id ? dp2GetBuildingContourById(id) : null;
-  if (!outline) {
-    const list = dp2GetBuildingContours();
-    if (list.length === 1) outline = list[0];
-  }
-  if (!outline || !Array.isArray(outline.points) || outline.points.length < 2) return;
+  const allContours = dp2GetBuildingContours();
+  const targetContours = id ? allContours.filter((c) => c && String(c.id) === String(id)) : allContours;
+  if (!targetContours.length) return;
 
   const scale = window.DP2_STATE?.scale_m_per_px;
   if (typeof scale !== "number" || scale <= 0) return;
-
-  const points = outline.points;
-  const segments = outline.closed ? points.length : points.length - 1;
 
   const dx = ridgeB.x - ridgeA.x;
   const dy = ridgeB.y - ridgeA.y;
@@ -6585,6 +6579,10 @@ function applyRidgeLineCutsToBuildingOutline(ridgeA, ridgeB) {
 
   const ux = dx / len;
   const uy = dy / len;
+  for (const outline of targetContours) {
+    if (!outline || !Array.isArray(outline.points) || outline.points.length < 2) continue;
+    const points = outline.points;
+    const segments = outline.closed ? points.length : points.length - 1;
   let minX = points[0].x, maxX = points[0].x, minY = points[0].y, maxY = points[0].y;
   for (let k = 1; k < points.length; k++) {
     const pt = points[k];
@@ -6596,7 +6594,7 @@ function applyRidgeLineCutsToBuildingOutline(ridgeA, ridgeB) {
   const ridgeExtA = { x: ridgeA.x - ux * extend, y: ridgeA.y - uy * extend };
   const ridgeExtB = { x: ridgeB.x + ux * extend, y: ridgeB.y + uy * extend };
 
-  const EPS_T = 1e-6;
+  const EPS_T = 0.015;
   const intersections = [];
   for (let i = 0; i < segments; i++) {
     const p1 = points[i];
@@ -6618,8 +6616,7 @@ function applyRidgeLineCutsToBuildingOutline(ridgeA, ridgeB) {
   }
 
   if (intersections.length < 2) {
-    outline.cuts = {};
-    return;
+    continue;
   }
 
   const s = (inter, extA) => (inter.x - extA.x) * ux + (inter.y - extA.y) * uy;
@@ -6627,7 +6624,7 @@ function applyRidgeLineCutsToBuildingOutline(ridgeA, ridgeB) {
   const first = intersections[0];
   const last = intersections[intersections.length - 1];
 
-  outline.cuts = {};
+  if (!outline.cuts || typeof outline.cuts !== "object") outline.cuts = {};
   for (const entry of [first, last]) {
     const { inter, i, p1, p2 } = entry;
     const I = { x: inter.x, y: inter.y };
@@ -6637,6 +6634,32 @@ function applyRidgeLineCutsToBuildingOutline(ridgeA, ridgeB) {
       { a: { x: p1.x, y: p1.y }, b: { x: I.x, y: I.y }, lengthM: dp2Round2(l1Px * scale) },
       { a: { x: I.x, y: I.y }, b: { x: p2.x, y: p2.y }, lengthM: dp2Round2(l2Px * scale) }
     ];
+  }
+    const feat = dp2FindPolygonFeatureById(outline.id);
+    if (feat) {
+      if (outline.cuts && Object.keys(outline.cuts).length) feat.cuts = outline.cuts;
+      else {
+        try { delete feat.cuts; } catch (_) { feat.cuts = undefined; }
+      }
+    }
+  }
+}
+
+function dp2RebuildRidgeCutsForAllContours() {
+  const contours = dp2GetBuildingContours();
+  for (const contour of contours) {
+    if (!contour) continue;
+    contour.cuts = {};
+    const feat = dp2FindPolygonFeatureById(contour.id);
+    if (feat) {
+      try { delete feat.cuts; } catch (_) { feat.cuts = undefined; }
+    }
+  }
+  const objects = window.DP2_STATE?.objects || [];
+  for (const obj of objects) {
+    if (obj && obj.type === "ridge_line" && obj.a && obj.b) {
+      applyRidgeLineCutsToBuildingOutline(obj.a, obj.b);
+    }
   }
 }
 
@@ -7085,7 +7108,11 @@ function dp2DeleteSelected() {
   // Sinon : objet "classique" (objects[])
   const objs = state.objects || [];
   if (typeof objIdx === "number" && objIdx >= 0 && objIdx < objs.length) {
+    const removed = objs[objIdx];
     objs.splice(objIdx, 1);
+    if (removed && removed.type === "ridge_line" && typeof dp2RebuildRidgeCutsForAllContours === "function") {
+      dp2RebuildRidgeCutsForAllContours();
+    }
     state.selectedObjectId = null;
     renderDP2FromState();
   }
@@ -8476,6 +8503,23 @@ function initDP2Toolbar() {
   });
 
   document.addEventListener("keydown", (e) => {
+    if (e.key === "Delete" || e.key === "Backspace") {
+      const tag = String(e.target?.tagName || "").toLowerCase();
+      if (tag === "input" || tag === "textarea" || e.target?.isContentEditable) return;
+      const state = window.DP2_STATE;
+      if (
+        state &&
+        (state.selectedObjectId != null ||
+          state.selectedBuildingContourId ||
+          state.selectedBusinessObjectId ||
+          (Array.isArray(state.selectedPanelIds) && state.selectedPanelIds.length) ||
+          (Array.isArray(state.selectedTextIds) && state.selectedTextIds.length))
+      ) {
+        e.preventDefault();
+        dp2DeleteSelected();
+        return;
+      }
+    }
     if (e.key === "Escape") {
       if (window.DP2_STATE?.parcelEdgeEdit != null) {
         if (typeof dp2RemoveParcelEdgeInlineInput === "function") dp2RemoveParcelEdgeInlineInput();
@@ -10937,7 +10981,7 @@ function initDP2CanvasEvents() {
     if (lvi && typeof lvi.pointerId === "number" && lvi.pointerId === e.pointerId) {
       const obj = window.DP2_STATE?.objects?.[lvi.objectIndex];
       if (obj && obj.type === "ridge_line" && obj.a && obj.b) {
-        applyRidgeLineCutsToBuildingOutline(obj.a, obj.b);
+        dp2RebuildRidgeCutsForAllContours();
       }
       window.DP2_STATE.lineVertexInteraction = null;
       window.DP2_STATE._lastLineVertexInteractionAt = Date.now();
@@ -11442,7 +11486,7 @@ function initDP2CanvasEvents() {
         b: ridgeB
       });
       // Application structurante sur les COTES du contour bâti (sans toucher aux points)
-      applyRidgeLineCutsToBuildingOutline(ridgeA, ridgeB);
+      dp2RebuildRidgeCutsForAllContours();
 
       window.DP2_STATE.ridgeLineStart = null;
       window.DP2_STATE.drawingPreview = null;
@@ -13435,10 +13479,26 @@ function renderGutterHeightDimension(ctx, obj, objectIndex) {
   const valStr = hm != null && Number.isFinite(hm) ? hm.toFixed(2).replace(".", ",") + " m" : "—";
   ctx.save();
   ctx.globalAlpha = isPreview ? 0.72 : 1;
-  ctx.font = 12 * sc + "px system-ui, sans-serif";
-  ctx.fillStyle = "#134e4a";
+  const fontPx = 11 * sc;
+  ctx.font = fontPx + "px system-ui, sans-serif";
   ctx.textAlign = "left";
   ctx.textBaseline = "middle";
+  const tw = ctx.measureText(valStr).width;
+  const padX = 5 * sc;
+  const padY = 3 * sc;
+  const boxX = labelX - padX;
+  const boxY = labelY - fontPx / 2 - padY;
+  const boxW = tw + padX * 2;
+  const boxH = fontPx + padY * 2;
+  ctx.fillStyle = "rgba(255,255,255,0.88)";
+  ctx.strokeStyle = "rgba(15,118,110,0.22)";
+  ctx.lineWidth = Math.max(0.75, 0.75 * sc);
+  ctx.beginPath();
+  if (typeof ctx.roundRect === "function") ctx.roundRect(boxX, boxY, boxW, boxH, 3 * sc);
+  else ctx.rect(boxX, boxY, boxW, boxH);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = "#134e4a";
   ctx.fillText(valStr, labelX, labelY);
   const showScaleHandle = !isPreview && typeof objectIndex === "number" && objectIndex >= 0;
   if (showScaleHandle) {
@@ -14024,29 +14084,18 @@ function dp2RightAngleSketchStyles(feature) {
   if (l1 < 0.001 || l2 < 0.001) return null;
   const dot = (v1.x * v2.x + v1.y * v2.y) / (l1 * l2);
   const angleDeg = Math.acos(Math.max(-1, Math.min(1, dot))) * 180 / Math.PI;
-  if (Math.abs(angleDeg - 90) > 4) return null;
+  if (Math.abs(angleDeg - 90) > 3) return null;
   const resolution = window.DP2_MAP?.map?.getView?.().getResolution?.() || 1;
-  const size = resolution * 18;
+  const size = resolution * 12;
   const u1 = { x: v1.x / l1, y: v1.y / l1 };
   const u2 = { x: v2.x / l2, y: v2.y / l2 };
   const pA = [b[0] + u1.x * size, b[1] + u1.y * size];
   const pB = [pA[0] + u2.x * size, pA[1] + u2.y * size];
   const pC = [b[0] + u2.x * size, b[1] + u2.y * size];
-  const textPoint = [b[0] + (u1.x + u2.x) * size * 1.35, b[1] + (u1.y + u2.y) * size * 1.35];
   return [
     new ol.style.Style({
       geometry: new ol.geom.LineString([pA, pB, pC]),
-      stroke: new ol.style.Stroke({ color: "#16a34a", width: 2.4 })
-    }),
-    new ol.style.Style({
-      geometry: new ol.geom.Point(textPoint),
-      text: new ol.style.Text({
-        text: "90°",
-        font: "600 12px system-ui, sans-serif",
-        fill: new ol.style.Fill({ color: "#16a34a" }),
-        stroke: new ol.style.Stroke({ color: "rgba(255,255,255,0.95)", width: 3 }),
-        overflow: true
-      })
+      stroke: new ol.style.Stroke({ color: "rgba(37, 99, 235, 0.72)", width: 1.25 })
     })
   ];
 }
@@ -14438,14 +14487,14 @@ function renderDP2BusinessObject(ctx, obj) {
 
     // Sens de la pente : ROUGE, flèche fine, pointe fine et allongée (évoque la gravité)
     case "sens_pente": {
-      const red = "rgba(220, 38, 38, 0.98)";
-      const x1 = -w / 2;
-      const x2 = w / 2;
+      const red = "rgba(185, 28, 28, 0.9)";
+      const x1 = -w * 0.38;
+      const x2 = w * 0.38;
       // Légère diagonale descendante pour évoquer clairement la pente / gravité
-      const yOffset = Math.min(12, Math.max(4, h * 0.22));
+      const yOffset = Math.min(8, Math.max(3, h * 0.18));
       const y1 = -yOffset;
       const y2 = yOffset;
-      ctx.lineWidth = 1.6;
+      ctx.lineWidth = 1.15;
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
       ctx.setLineDash([]);
@@ -14455,8 +14504,8 @@ function renderDP2BusinessObject(ctx, obj) {
       ctx.lineTo(x2, y2);
       ctx.stroke();
       // Pointe : chevron long et étroit (pas un triangle "massif")
-      const headLen = Math.max(14, Math.min(26, w / 2.8));
-      const headHalfWidth = Math.max(3.5, Math.min(7.5, headLen * 0.22));
+      const headLen = Math.max(10, Math.min(18, w / 3.6));
+      const headHalfWidth = Math.max(2.5, Math.min(5, headLen * 0.2));
       ctx.beginPath();
       // Construire la pointe autour de la direction du segment (x1,y1)->(x2,y2)
       const dx = x2 - x1;
@@ -14523,14 +14572,14 @@ function renderDP2BusinessObject(ctx, obj) {
     // Angle de prise de vue : cône ouvert (2 lignes divergentes) + arc intérieur (style "Solteo")
     case "angle_vue": {
       const a = Math.PI / 6; // ouverture ~30°
-      const baseX = 0;
+      const baseX = x + Math.max(4, Math.min(8, Math.min(w, h) * 0.10));
       const baseY = 0;
       // Rayon borné pour rester strictement dans le bbox
       const pad = Math.max(6, Math.min(12, Math.min(w, h) * 0.12));
-      const r = Math.max(10, Math.min((Math.min(w, h) / 2) - pad, Math.min(w, h) * 0.45));
+      const r = Math.max(10, Math.min(w - pad * 2, (h / 2 - pad) / Math.sin(a)));
       // Règles : NOIR/GRIS FONCÉ, traits fins, aucune icône appareil photo
       const dark = "#111827";
-      ctx.lineWidth = 1.6;
+      ctx.lineWidth = 1.25;
       ctx.setLineDash([]);
       ctx.strokeStyle = dark;
       ctx.fillStyle = "transparent";
@@ -14545,7 +14594,7 @@ function renderDP2BusinessObject(ctx, obj) {
       ctx.lineTo(ex2, ey2);
       ctx.stroke();
       // Arc intérieur
-      const rArc = r * 0.75;
+      const rArc = r * 0.72;
       ctx.beginPath();
       ctx.arc(baseX, baseY, rArc, -a, a);
       ctx.stroke();
@@ -15600,7 +15649,8 @@ async function initDP2() {
 
     const dp2BuildingModify = new ol.interaction.Modify({
       source: dp2BuildingVectorSource,
-      pixelTolerance: 10
+      pixelTolerance: 6,
+      snapToPointer: false
     });
     dp2BuildingModify.on("modifyend", function (evt) {
       try {
@@ -15671,6 +15721,9 @@ async function initDP2() {
         } catch (_) {}
         try {
           dp2RebuildContourDisplayCacheFromFeatures();
+        } catch (_) {}
+        try {
+          dp2RebuildRidgeCutsForAllContours();
         } catch (_) {}
         try {
           renderDP2FromState();
