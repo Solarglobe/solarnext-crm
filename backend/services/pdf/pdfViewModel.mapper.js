@@ -303,6 +303,13 @@ function formatPctOneDec(v) {
   return `${Number(v).toFixed(1).replace(".", ",")} %`;
 }
 
+function safeRatio(numerator, denominator) {
+  const n = num(numerator);
+  const d = num(denominator);
+  if (n == null || d == null || d <= 0) return null;
+  return n / d;
+}
+
 /**
  * Série des gains € / an sur 25 ans depuis finance.annual_cashflows (moteur — total_eur par année,
  * inflation prix élec et dégradation PV déjà intégrées dans les flux).
@@ -1086,6 +1093,106 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
           production_kwh: numOrZero(prodP7),
         };
       })(),
+      p7_virtual_battery: (() => {
+        // Affichage strictement réservé au scénario sélectionné BATTERY_VIRTUAL.
+        const selectedScenarioType = selectedScenario?.scenario_type ?? selectedScenario?.id ?? null;
+        if (selectedScenarioType !== "BATTERY_VIRTUAL") return null;
+        if (!selectedScenario || typeof selectedScenario !== "object") return null;
+
+        const baseScenario = baseFromV2;
+        if (!baseScenario || typeof baseScenario !== "object") return null;
+
+        const baseEnergy = baseScenario.energy && typeof baseScenario.energy === "object" ? baseScenario.energy : {};
+        const vbEnergy =
+          selectedScenario.energy && typeof selectedScenario.energy === "object"
+            ? selectedScenario.energy
+            : {};
+
+        const consumptionKwh = num(vbEnergy.consumption_kwh);
+        const productionKwh = num(vbEnergy.production_kwh);
+        const baseDirectSelfKwh =
+          num(baseEnergy.direct_self_consumption_kwh) ??
+          num(baseEnergy.autoconsumption_kwh) ??
+          num(baseEnergy.auto);
+        const baseGridImportKwh =
+          num(baseEnergy.grid_import_kwh) ??
+          num(baseEnergy.import_kwh) ??
+          num(baseEnergy.import);
+        const vbDirectSelfKwh = num(vbEnergy.direct_self_consumption_kwh);
+        const vbBatteryDischargeKwh = num(vbEnergy.battery_discharge_kwh);
+        const vbTotalPvUsedKwh =
+          num(vbEnergy.total_pv_used_on_site_kwh) ??
+          num(vbEnergy.autoconsumption_kwh) ??
+          num(vbEnergy.auto);
+        const vbGridImportKwh =
+          num(vbEnergy.grid_import_kwh) ??
+          num(vbEnergy.import_kwh) ??
+          num(vbEnergy.import);
+        const vbExportedKwh =
+          num(vbEnergy.exported_kwh) ??
+          num(vbEnergy.surplus_kwh) ??
+          num(vbEnergy.surplus);
+
+        const autonomyBaseRatio = safeRatio(baseDirectSelfKwh, consumptionKwh);
+        const autonomyWithBatteryRatio = safeRatio(vbTotalPvUsedKwh, consumptionKwh);
+        const autonomyGainRatio =
+          autonomyWithBatteryRatio != null && autonomyBaseRatio != null
+            ? autonomyWithBatteryRatio - autonomyBaseRatio
+            : null;
+        const maxTheoreticalRatio = safeRatio(productionKwh, consumptionKwh);
+        const gridBoughtLessKwh =
+          baseGridImportKwh != null && vbGridImportKwh != null
+            ? baseGridImportKwh - vbGridImportKwh
+            : null;
+
+        return {
+          meta: {
+            client: clientName,
+            ref,
+            date: dateDisplay,
+          },
+          title: "Impact réel de votre batterie virtuelle",
+          subtitle:
+            "Comprendre précisément ce qu’elle change dans votre projet solaire",
+          source: {
+            consumption_kwh: consumptionKwh,
+            production_kwh: productionKwh,
+            direct_self_consumption_kwh: vbDirectSelfKwh,
+            battery_discharge_kwh: vbBatteryDischargeKwh,
+            total_pv_used_on_site_kwh: vbTotalPvUsedKwh,
+            grid_import_kwh: vbGridImportKwh,
+            exported_kwh: vbExportedKwh,
+            site_autonomy_pct: num(vbEnergy.site_autonomy_pct),
+            pv_self_consumption_pct: num(vbEnergy.pv_self_consumption_pct),
+          },
+          without_battery: {
+            autonomie_ratio: autonomyBaseRatio,
+            pv_used_kwh: baseDirectSelfKwh,
+            grid_import_kwh: baseGridImportKwh,
+          },
+          with_virtual_battery: {
+            autonomie_ratio: autonomyWithBatteryRatio,
+            pv_total_used_kwh: vbTotalPvUsedKwh,
+            battery_discharged_kwh: vbBatteryDischargeKwh,
+            grid_import_kwh: vbGridImportKwh,
+          },
+          max_theoretical: {
+            production_kwh: productionKwh,
+            consumption_kwh: consumptionKwh,
+            autonomy_ratio: maxTheoreticalRatio,
+          },
+          contribution: {
+            recovered_kwh: vbBatteryDischargeKwh,
+            grid_bought_less_kwh: gridBoughtLessKwh,
+            autonomy_gain_ratio: autonomyGainRatio,
+          },
+          limits: [
+            "La production solaire reste inférieure à la consommation annuelle.",
+            "La production et la consommation ne sont pas alignées en continu.",
+            "Une partie du surplus reste non récupérable selon les périodes.",
+          ],
+        };
+      })(),
       // P8 — source UNIQUE = scenarios_v2, JAMAIS snapshot. Conditionnel : null si pas de batterie.
       p8: (() => {
         const base = baseFromV2;
@@ -1511,6 +1618,7 @@ function buildEmptyFullReport() {
     },
     p6: { p6: { meta: emptyMeta, price: 0, dir: emptyMonthly, bat: emptyMonthly, grid: emptyMonthly, tot: emptyMonthly } },
     p7: { meta: emptyMeta, pct: {}, c_grid: 0, p_surplus: 0 },
+    p7_virtual_battery: null,
     p8: null,
     p9: {
       meta: emptyMeta,

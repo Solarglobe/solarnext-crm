@@ -12,7 +12,7 @@ import { getCrmApiBaseWithWindowFallback } from "@/config/crmApiBase";
 
 const API_BASE = getCrmApiBaseWithWindowFallback();
 const PLACEHOLDER_COVER = "/pdf-assets/images/accueil-pdf.png";
-const PLACEHOLDER_LOGO = "/pdf-assets/images/logo-solarglobe-rect.png";
+const PLACEHOLDER_LOGO = "/client-portal/logo-solarglobe.png";
 
 function getStorageUrl(
   orgId: string,

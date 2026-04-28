@@ -2,12 +2,43 @@
  * CP-PDF — Page 12 — Clôture impact & accompagnement (alignée P7/P11)
  * Fond standard PDF, cartes premium beige/doré. Meta #p12_* pour engine-p12.js.
  */
-import React from "react";
+import React, { useMemo } from "react";
 import PdfPageLayout from "../PdfEngine/PdfPageLayout";
 import PdfHeader from "../../../components/pdf/PdfHeader";
+import { getCrmApiBaseWithWindowFallback } from "@/config/crmApiBase";
 import "./pdf-page12-closing.css";
 
-export default function PdfPage12() {
+const API_BASE = getCrmApiBaseWithWindowFallback();
+const PLACEHOLDER_LOGO = "/client-portal/logo-solarglobe.png";
+
+function getStorageUrl(
+  orgId: string,
+  type: "logo" | "pdf-cover",
+  renderToken: string,
+  studyId: string,
+  versionId: string
+): string {
+  return `${API_BASE}/api/internal/pdf-asset/${orgId}/${type}?renderToken=${encodeURIComponent(renderToken)}&studyId=${encodeURIComponent(studyId)}&versionId=${encodeURIComponent(versionId)}`;
+}
+
+export default function PdfPage12({
+  organization = {},
+  viewModel,
+}: {
+  organization?: { id?: string; logo_image_key?: string | null; logo_url?: string | null };
+  viewModel?: { meta?: { studyId?: string; versionId?: string } };
+}) {
+  const logoUrl = useMemo(() => {
+    if (organization?.logo_url) return organization.logo_url;
+    const params = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+    const renderToken = params?.get("renderToken") ?? "";
+    const studyId = params?.get("studyId") ?? (viewModel?.meta as { studyId?: string } | undefined)?.studyId ?? "";
+    const versionId = params?.get("versionId") ?? (viewModel?.meta as { versionId?: string } | undefined)?.versionId ?? "";
+    const orgId = organization?.id;
+    if (!orgId || !renderToken || !studyId || !versionId) return PLACEHOLDER_LOGO;
+    return organization?.logo_image_key ? getStorageUrl(orgId, "logo", renderToken, studyId, versionId) : PLACEHOLDER_LOGO;
+  }, [organization?.id, organization?.logo_image_key, organization?.logo_url, viewModel?.meta]);
+
   return (
     <PdfPageLayout
       className="p12-closing-page"
@@ -27,9 +58,12 @@ export default function PdfPage12() {
             }}
             logo={
               <img
-                src="/pdf-assets/images/logo-solarglobe-rect.png"
+                src={logoUrl}
                 alt="Solarglobe"
                 style={{ position: "absolute", left: 0, top: 0, height: "16mm", objectFit: "contain" }}
+                onError={(e) => {
+                  e.currentTarget.src = PLACEHOLDER_LOGO;
+                }}
               />
             }
             badge="Les étapes du projet"

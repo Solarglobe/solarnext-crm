@@ -16,6 +16,7 @@ import PdfPage4 from "./PdfPage4";
 import PdfPage5 from "./PdfPage5";
 import PdfPage6 from "./PdfPage6";
 import PdfPage7 from "./PdfPage7";
+import PdfPage7VirtualBattery from "../FullReport/PdfPage7VirtualBattery";
 import PdfPage8 from "./PdfPage8";
 import PdfPage10 from "./PdfPage10";
 import PdfPage11 from "./PdfPage11";
@@ -37,6 +38,10 @@ export interface PdfLegacyPortProps {
 
 export default function PdfLegacyPort({ viewModel, onP10Ready }: PdfLegacyPortProps) {
   const fr = (viewModel?.fullReport ?? {}) as Record<string, unknown>;
+  const selectedScenario = (viewModel?.selected_scenario_snapshot ?? null) as
+    | { scenario_type?: string }
+    | null;
+  const showVirtualBatteryPage = selectedScenario?.scenario_type === "BATTERY_VIRTUAL";
   useLegacyPdfEngine(viewModel ?? null);
   const organization = (viewModel?.organization ?? {}) as {
     id?: string;
@@ -69,11 +74,20 @@ export default function PdfLegacyPort({ viewModel, onP10Ready }: PdfLegacyPortPr
       <PdfPage5 organization={organization} viewModel={viewModel} />
       <PdfPage6 organization={organization} viewModel={viewModel} />
       <PdfPage7 organization={organization} viewModel={viewModel} />
+      {showVirtualBatteryPage ? (
+        <PdfPage7VirtualBattery
+          data={
+            (fr.p7_virtual_battery ?? null) as React.ComponentProps<
+              typeof PdfPage7VirtualBattery
+            >["data"]
+          }
+        />
+      ) : null}
       {Boolean(fr.p9) && <PdfPage8 organization={organization} viewModel={viewModel} />}
       <PdfPage10 organization={organization} viewModel={viewModel} onReady={onP10Ready} />
-      <PdfPage11 />
+      <PdfPage11 organization={organization} viewModel={viewModel} />
       <PdfPageMethodologySolarGlobe viewModel={viewModel} organization={organization} />
-      <PdfPage12 />
+      <PdfPage12 organization={organization} viewModel={viewModel} />
       </div>
     </PdfOrgBrandingProvider>
   );

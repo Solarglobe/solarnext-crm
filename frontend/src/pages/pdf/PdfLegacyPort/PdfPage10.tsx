@@ -11,7 +11,7 @@ import { usePdfOrgBranding } from "./pdfOrgBrandingContext";
 import { getCrmApiBaseWithWindowFallback } from "@/config/crmApiBase";
 
 const API_BASE = getCrmApiBaseWithWindowFallback();
-const PLACEHOLDER_LOGO = "/pdf-assets/images/logo-solarglobe-rect.png";
+const PLACEHOLDER_LOGO = "/client-portal/logo-solarglobe.png";
 
 /** Plafonds barres rentabilité (alignés engine-p10 legacy) */
 const MAX = { ROI: 20, TRI: 20, LCOE: 0.25 };

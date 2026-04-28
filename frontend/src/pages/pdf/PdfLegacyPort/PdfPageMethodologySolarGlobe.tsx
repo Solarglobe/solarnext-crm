@@ -136,7 +136,7 @@ const NE_PRETEND_PAS = [
 ];
 
 const API_BASE = getCrmApiBaseWithWindowFallback();
-const PLACEHOLDER_LOGO = "/pdf-assets/images/logo-solarglobe-rect.png";
+const PLACEHOLDER_LOGO = "/client-portal/logo-solarglobe.png";
 
 function getLogoUrl(
   organization: { id?: string; logo_image_key?: string | null } | undefined,
