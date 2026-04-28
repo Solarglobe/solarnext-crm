@@ -33,7 +33,6 @@ import {
 } from "./pdfGeneration.service.js";
 import { removeInvoicePdfDocuments, saveInvoicePdfDocument } from "./documents.service.js";
 import { ensureClientForQuote } from "./ensureClientForQuote.service.js";
-import logger from "../app/core/logger.js";
 
 /** Tolérance TTC (€) : somme des factures liées au devis (hors annulées, brouillons inclus) ne doit pas dépasser total devis + cette marge. */
 const QUOTE_INVOICE_SUM_TOLERANCE_TTC = 5;
@@ -572,7 +571,7 @@ async function sumQuoteInvoiceTtcNonCancelled(client, quoteId, organizationId) {
  * @param {import("pg").PoolClient} client
  * @param {string|null} [excludeInvoiceId] — réservé (cohérence API) ; le plafond compare la somme TTC des factures actives au total TTC du devis.
  */
-async function assertQuoteLinkedInvoicesWithinCap(client, quoteId, organizationId, excludeInvoiceId = null, quoteTtcCapOverride = null) {
+async function assertQuoteLinkedInvoicesWithinCap(client, quoteId, organizationId, excludeInvoiceId = null) {
   if (!quoteId) return;
   void excludeInvoiceId;
   const agg = await client.query(
@@ -583,18 +582,12 @@ async function assertQuoteLinkedInvoicesWithinCap(client, quoteId, organizationI
   );
   const fullSum = roundMoney2(Number(agg.rows[0]?.full_sum) || 0);
 
-  /* P0-1 : si un plafond explicite est fourni (ex. total figé du snapshot officiel), on l'utilise au lieu de quote.total_ttc live. */
-  let quoteTtc;
-  if (quoteTtcCapOverride != null && Number.isFinite(Number(quoteTtcCapOverride))) {
-    quoteTtc = roundMoney2(Number(quoteTtcCapOverride));
-  } else {
-    const q = await client.query(
-      `SELECT COALESCE(total_ttc, 0)::numeric AS ttc FROM quotes WHERE id = $1 AND organization_id = $2 AND (archived_at IS NULL)`,
-      [quoteId, organizationId]
-    );
-    if (q.rows.length === 0) return;
-    quoteTtc = roundMoney2(Number(q.rows[0]?.ttc) || 0);
-  }
+  const q = await client.query(
+    `SELECT COALESCE(total_ttc, 0)::numeric AS ttc FROM quotes WHERE id = $1 AND organization_id = $2 AND (archived_at IS NULL)`,
+    [quoteId, organizationId]
+  );
+  if (q.rows.length === 0) return;
+  const quoteTtc = roundMoney2(Number(q.rows[0]?.ttc) || 0);
 
   if (fullSum > quoteTtc + QUOTE_INVOICE_SUM_TOLERANCE_TTC) {
     throw new Error(
@@ -757,93 +750,6 @@ export async function getQuoteInvoiceBillingContext(quoteId, organizationId) {
  *   DEPOSIT : priorité à `billingAmountTtc` (acompte libre) ; sinon acompte structuré sur le devis ; sinon erreur « Veuillez saisir un montant d'acompte ».
  *   BALANCE : toujours le **reste à facturer** (TTC), le montant passé est ignoré.
  */
-/* P0-1 : tolérance de cohérence entre Σ snapshot.lines.total_line_ttc et snapshot.totals.total_ttc (€). */
-const SNAPSHOT_LINE_SUM_TOLERANCE_TTC = 0.01;
-
-/**
- * Parse robuste de quotes.document_snapshot_json (JSONB côté DB peut arriver objet ou string).
- * @param {unknown} rawSnapshot
- * @returns {object|null} objet snapshot ou null si absent / invalide / vide
- */
-function parseQuoteDocumentSnapshot(rawSnapshot) {
-  if (rawSnapshot == null) return null;
-  if (typeof rawSnapshot === "object") {
-    if (Array.isArray(rawSnapshot)) return null;
-    if (Object.keys(rawSnapshot).length === 0) return null;
-    return rawSnapshot;
-  }
-  if (typeof rawSnapshot === "string") {
-    const s = rawSnapshot.trim();
-    if (!s) return null;
-    try {
-      const obj = JSON.parse(s);
-      return obj && typeof obj === "object" && !Array.isArray(obj) && Object.keys(obj).length > 0 ? obj : null;
-    } catch {
-      return null;
-    }
-  }
-  return null;
-}
-
-/**
- * P0-1 : construit les invoice_lines (mode STANDARD) depuis le snapshot officiel figé.
- * - Retourne null si le snapshot est inexploitable (lines manquantes, champs manquants, totals absents) :
- *   le caller doit fallback sur la source live et logger un warning.
- * - Throw (statusCode 422) si le snapshot existe mais est INCOHÉRENT (Σ lignes ≠ totals.total_ttc) :
- *   on refuse de générer une facture fausse silencieusement.
- *
- * @param {object} snapshot — document_snapshot_json déjà parsé
- * @param {string} quoteId — pour le message d'erreur
- * @returns {Array<object>|null}
- */
-function buildStandardInvoiceLinesFromSnapshot(snapshot, quoteId) {
-  const lines = Array.isArray(snapshot.lines) ? snapshot.lines : null;
-  if (!lines || lines.length === 0) return null;
-
-  for (const ln of lines) {
-    if (
-      ln == null ||
-      typeof ln !== "object" ||
-      ln.label == null ||
-      !Number.isFinite(Number(ln.quantity)) ||
-      !Number.isFinite(Number(ln.unit_price_ht)) ||
-      !Number.isFinite(Number(ln.vat_rate))
-    ) {
-      return null;
-    }
-  }
-
-  const totals = snapshot.totals && typeof snapshot.totals === "object" ? snapshot.totals : null;
-  if (totals == null) return null;
-  const totalTtcSnap = Number(totals.total_ttc);
-  if (!Number.isFinite(totalTtcSnap)) return null;
-
-  let sumTtc = 0;
-  for (const ln of lines) {
-    const v = Number(ln.total_line_ttc);
-    if (Number.isFinite(v)) sumTtc += v;
-  }
-  sumTtc = roundMoney2(sumTtc);
-  const totalTtcSnapRounded = roundMoney2(totalTtcSnap);
-  if (Math.abs(sumTtc - totalTtcSnapRounded) > SNAPSHOT_LINE_SUM_TOLERANCE_TTC) {
-    const err = new Error(
-      `Snapshot incohérent (devis ${quoteId}) : somme des lignes (${sumTtc} € TTC) ≠ totals.total_ttc (${totalTtcSnapRounded} €) au-delà de la tolérance ${SNAPSHOT_LINE_SUM_TOLERANCE_TTC} €. Génération facture STANDARD impossible depuis le snapshot ; correction data requise.`
-    );
-    err.statusCode = 422;
-    throw err;
-  }
-
-  return lines.map((ln) => ({
-    label: ln.label,
-    description: (ln.description != null && String(ln.description) !== "") ? ln.description : (ln.label ?? ""),
-    quantity: Number(ln.quantity),
-    unit_price_ht: Number(ln.unit_price_ht),
-    discount_ht: Number.isFinite(Number(ln.discount_ht)) ? Number(ln.discount_ht) : 0,
-    vat_rate: Number(ln.vat_rate),
-    snapshot_json: null,
-  }));
-}
-
 export async function createInvoiceFromQuote(quoteId, organizationId, options = {}) {
   const billingRoleRaw = options.billingRole ?? options.billing_role ?? "STANDARD";
   const billingRole = String(billingRoleRaw).toUpperCase();
@@ -888,9 +794,6 @@ export async function createInvoiceFromQuote(quoteId, organizationId, options = 
 
     let lines = [];
     let metaJson = {};
-    /* P0-1 : valeurs calculées en mode STANDARD/snapshot, propagées aux étapes ultérieures (INSERT facture, plafond cap). */
-    let notesOverride = null;
-    let snapshotTotalTtcForCap = null;
 
     if (billingRole === "STANDARD") {
       if (reservedTtc > 0.02) {
@@ -898,64 +801,22 @@ export async function createInvoiceFromQuote(quoteId, organizationId, options = 
           "Une facture ou un brouillon existe déjà pour ce devis. Utilisez acompte / solde ou supprimez les brouillons inutiles."
         );
       }
-
-      /*
-       * P0-1 : source de vérité pour la facture STANDARD = document_snapshot_json (figé à l'envoi/signature).
-       * - Si snapshot exploitable → on l'utilise (lignes, total cap, notes).
-       * - Si snapshot incohérent (Σ lignes ≠ totals) → throw bloquant (sécurité explicite).
-       * - Si snapshot absent / vide / structurellement invalide → fallback sur quote_lines (live) + log warning.
-       */
-      const parsedSnapshot = parseQuoteDocumentSnapshot(quote.document_snapshot_json);
-      let standardSource = "live";
-      let snapshotLines = null;
-      if (parsedSnapshot) {
-        snapshotLines = buildStandardInvoiceLinesFromSnapshot(parsedSnapshot, quoteId);
-        if (!snapshotLines) {
-          logger.warn({
-            message: "createInvoiceFromQuote: document_snapshot_json présent mais lines absentes/invalides — fallback sur quote_lines (live)",
-            quote_id: quoteId,
-            organization_id: organizationId,
-            billing_role: "STANDARD",
-          });
-        }
-      }
-
-      if (snapshotLines) {
-        lines = snapshotLines;
-        standardSource = "snapshot";
-        const snapNotes = parsedSnapshot.notes;
-        if (snapNotes != null && String(snapNotes).length > 0) {
-          notesOverride = snapNotes;
-        }
-        snapshotTotalTtcForCap = roundMoney2(Number(parsedSnapshot.totals.total_ttc) || 0);
-      } else {
-        const linesRes = await client.query(
-          `SELECT label, description, quantity, unit_price_ht, discount_ht, vat_rate, snapshot_json
-           FROM quote_lines WHERE quote_id = $1 AND organization_id = $2 AND (is_active IS DISTINCT FROM false)
-           ORDER BY position`,
-          [quoteId, organizationId]
-        );
-        lines = linesRes.rows.map((row) => ({
-          label: row.label,
-          description: row.description || row.label || "",
-          quantity: row.quantity,
-          unit_price_ht: row.unit_price_ht,
-          discount_ht: row.discount_ht ?? 0,
-          vat_rate: row.vat_rate,
-          snapshot_json: row.snapshot_json,
-        }));
-      }
-
+      const linesRes = await client.query(
+        `SELECT label, description, quantity, unit_price_ht, discount_ht, vat_rate, snapshot_json
+         FROM quote_lines WHERE quote_id = $1 AND organization_id = $2 AND (is_active IS DISTINCT FROM false)
+         ORDER BY position`,
+        [quoteId, organizationId]
+      );
+      lines = linesRes.rows.map((row) => ({
+        label: row.label,
+        description: row.description || row.label || "",
+        quantity: row.quantity,
+        unit_price_ht: row.unit_price_ht,
+        discount_ht: row.discount_ht ?? 0,
+        vat_rate: row.vat_rate,
+        snapshot_json: row.snapshot_json,
+      }));
       if (lines.length < 1) throw new Error("Le devis n'a pas de lignes à facturer");
-
-      logger.info({
-        message: "createInvoiceFromQuote: STANDARD — source des lignes résolue",
-        quote_id: quoteId,
-        organization_id: organizationId,
-        source: standardSource,
-        line_count: lines.length,
-      });
-
       metaJson = buildMetadataQuoteBilling("STANDARD", quote);
     } else if (billingRole === "DEPOSIT") {
       if (remainingBefore <= 0.02) {
@@ -1032,165 +893,6 @@ export async function createInvoiceFromQuote(quoteId, organizationId, options = 
     await replaceInvoiceLines(client, organizationId, invoiceId, lines);
     await recalcInvoiceTotals(client, organizationId, invoiceId);
     await assertQuoteLinkedInvoicesWithinCap(client, quoteId, organizationId, invoiceId);
-
-    return invoiceId;
-  });
-  return getInvoiceDetail(newInvoiceId, organizationId);
-}
-
-/**
- * Duplique une facture (brouillon indépendant, sans lien devis).
- * @param {string} invoiceId
- * @param {string} organizationId
- */
-export async function duplicateInvoice(invoiceId, organizationId) {
-  const inv = await getInvoiceDetail(invoiceId, organizationId);
-  if (!inv) {
-    const err = new Error("Facture non trouvée");
-    err.statusCode = 404;
-    throw err;
-  }
-  const lines = (inv.lines || []).map((row) => ({
-    label: row.label ?? row.description,
-    description: row.description ?? row.label ?? "",
-    quantity: row.quantity,
-    unit_price_ht: row.unit_price_ht,
-    discount_ht: row.discount_ht ?? 0,
-    vat_rate: row.vat_rate,
-    snapshot_json: row.snapshot_json,
-  }));
-  const rawMeta = inv.metadata_json;
-  const meta =
-    rawMeta && typeof rawMeta === "object" && !Array.isArray(rawMeta) ? { ...rawMeta } : {};
-  meta.duplicated_from_invoice_id = inv.id;
-  let dupClient = inv.client_id || null;
-  let dupLead = inv.lead_id || null;
-  if (dupClient && dupLead) dupLead = null;
-  return createInvoice(organizationId, {
-    client_id: dupClient,
-    lead_id: dupLead,
-    quote_id: null,
-    due_date: inv.due_date,
-    notes: inv.notes,
-    payment_terms: inv.payment_terms ?? null,
-    issue_date: new Date().toISOString().slice(0, 10),
-    lines,
-    currency: inv.currency || "EUR",
-    metadata_json: meta,
-  });
-}
-
-/**
- * @param {string} invoiceId
- * @param {string} organizationId
- * @param {string|null} userId
- */
-export async function generateInvoicePdfRecord(invoiceId, organizationId, userId) {
-  const r = await pool.query(
-    "SELECT invoice_number, document_snapshot_json, status FROM invoices WHERE id = $1 AND organization_id = $2 AND (archived_at IS NULL)",
-    [invoiceId, organizationId]
-  );
-  if (r.rows.length === 0) {
-    const err = new Error("Facture non trouvée");
-    err.statusCode = 404;
-    throw err;
-  }
-  const row = r.rows[0];
-  const snapRaw = row.document_snapshot_json;
-  if (snapRaw == null || (typeof snapRaw === "object" && snapRaw !== null && Object.keys(snapRaw).length === 0)) {
-    const err = new Error(
-      "PDF impossible : le document doit être émis (statut ISSUED) avant génération — aucun snapshot documentaire figé."
-    );
-    err.statusCode = 400;
-    throw err;
-  }
-  const snapshot = typeof snapRaw === "string" ? JSON.parse(snapRaw) : snapRaw;
-  const pdfPayload = buildInvoicePdfPayloadFromSnapshot(snapshot);
-  const num = row.invoice_number || invoiceId;
-
-  const renderToken = createFinancialInvoiceRenderToken(invoiceId, organizationId);
-  const rendererUrl = buildFinancialInvoiceRendererUrl(invoiceId, renderToken);
-  const pdfBuffer = await generatePdfFromFinancialInvoiceUrl(rendererUrl);
-
-  await removeInvoicePdfDocuments(organizationId, invoiceId);
-  const doc = await saveInvoicePdfDocument(pdfBuffer, organizationId, invoiceId, userId, {
-    fileName: `facture-${num}.pdf`,
-    invoiceNumber: row.invoice_number ?? null,
-    metadata: {
-      source: "document_snapshot_json",
-      snapshot_checksum: pdfPayload.snapshot_checksum,
-      business_document_type: "INVOICE_PDF",
-    },
-  });
-
-  return {
-    document: doc,
-    pdf_payload: pdfPayload,
-    downloadUrl: `/api/documents/${doc.id}/download`,
-    message: "PDF facture généré et enregistré (rendu client depuis le snapshot figé, paiements à jour).",
-  };
-}
-
-/**
- * Snapshot documentaire officiel (lecture seule).
- */
-export async function getInvoiceDocumentSnapshot(invoiceId, organizationId) {
-  const r = await pool.query(
-    `SELECT document_snapshot_json FROM invoices WHERE id = $1 AND organization_id = $2 AND (archived_at IS NULL)`,
-    [invoiceId, organizationId]
-  );
-  if (r.rows.length === 0) return null;
-  const s = r.rows[0].document_snapshot_json;
-  if (s == null) return null;
-  return typeof s === "string" ? JSON.parse(s) : s;
-}
-
-/**
- * Suppression physique — refusée pour factures d'acompte / solde liées au workflow devis.
- * @param {string} invoiceId
- * @param {string} organizationId
- */
-export async function deleteInvoiceHard(invoiceId, organizationId) {
-  const r = await pool.query(
-    `SELECT id, quote_id, metadata_json FROM invoices
-     WHERE id = $1 AND organization_id = $2 AND (archived_at IS NULL)`,
-    [invoiceId, organizationId]
-  );
-  if (r.rows.length === 0) {
-    const err = new Error("Facture non trouvée");
-    err.statusCode = 404;
-    throw err;
-  }
-  const row = r.rows[0];
-  const meta = row.metadata_json && typeof row.metadata_json === "object" ? row.metadata_json : {};
-  const role = String(meta.quote_billing_role ?? "").toUpperCase();
-  if (row.quote_id && (role === "DEPOSIT" || role === "BALANCE")) {
-    const err = new Error(
-      "Suppression interdite : les factures d'acompte et de solde liées au devis ne peuvent pas être supprimées (traçabilité du workflow). Annulez la facture ou utilisez un avoir si applicable."
-    );
-    err.statusCode = 403;
-    throw err;
-  }
-  await pool.query(`DELETE FROM invoices WHERE id = $1 AND organization_id = $2`, [invoiceId, organizationId]);
-}
-      [
-        organizationId,
-        invoiceClientId,
-        invoiceLeadId,
-        quoteId,
-        draftNum,
-        /* P0-1 : si la facture STANDARD est dérivée du snapshot officiel, les notes proviennent du snapshot figé (et non du live). */
-        notesOverride ?? quote.notes ?? null,
-        JSON.stringify(metaJson),
-        quote.currency || "EUR",
-      ]
-    );
-    const invoiceId = ins.rows[0].id;
-
-    await replaceInvoiceLines(client, organizationId, invoiceId, lines);
-    await recalcInvoiceTotals(client, organizationId, invoiceId);
-    /* P0-1 : plafond cohérent avec la source utilisée (snapshot.totals.total_ttc en mode snapshot, sinon quote.total_ttc live via le default). */
-    await assertQuoteLinkedInvoicesWithinCap(client, quoteId, organizationId, invoiceId, snapshotTotalTtcForCap);
 
     return invoiceId;
   });
