@@ -38,10 +38,9 @@ export interface PdfLegacyPortProps {
 
 export default function PdfLegacyPort({ viewModel, onP10Ready }: PdfLegacyPortProps) {
   const fr = (viewModel?.fullReport ?? {}) as Record<string, unknown>;
-  const selectedScenario = (viewModel?.selected_scenario_snapshot ?? null) as
-    | { scenario_type?: string }
-    | null;
-  const showVirtualBatteryPage = selectedScenario?.scenario_type === "BATTERY_VIRTUAL";
+  const isVirtualBattery = ((viewModel?.meta as { scenarioType?: string } | undefined)?.scenarioType ?? "")
+    .toUpperCase()
+    .includes("VIRTUAL");
   useLegacyPdfEngine(viewModel ?? null);
   const organization = (viewModel?.organization ?? {}) as {
     id?: string;
@@ -74,7 +73,7 @@ export default function PdfLegacyPort({ viewModel, onP10Ready }: PdfLegacyPortPr
       <PdfPage5 organization={organization} viewModel={viewModel} />
       <PdfPage6 organization={organization} viewModel={viewModel} />
       <PdfPage7 organization={organization} viewModel={viewModel} />
-      {showVirtualBatteryPage ? (
+      {isVirtualBattery ? (
         <PdfPage7VirtualBattery
           data={
             (fr.p7_virtual_battery ?? null) as React.ComponentProps<

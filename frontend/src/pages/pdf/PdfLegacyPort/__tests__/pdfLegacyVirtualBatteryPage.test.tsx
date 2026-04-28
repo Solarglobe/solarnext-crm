@@ -6,7 +6,7 @@ import PdfLegacyPort from "../index";
 
 function vmForScenario(scenarioType: "BASE" | "BATTERY_VIRTUAL") {
   return {
-    selected_scenario_snapshot: { scenario_type: scenarioType },
+    meta: { scenarioType },
     fullReport: {
       p9: { _present: true },
       p7_virtual_battery:

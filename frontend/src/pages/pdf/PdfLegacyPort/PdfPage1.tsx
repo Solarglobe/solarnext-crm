@@ -11,7 +11,7 @@ import "./pdf-page1-premium.css";
 import { getCrmApiBaseWithWindowFallback } from "@/config/crmApiBase";
 
 const API_BASE = getCrmApiBaseWithWindowFallback();
-const PLACEHOLDER_COVER = "/pdf-assets/images/accueil-pdf.png";
+const PLACEHOLDER_COVER = "/client-portal/logo-solarglobe.png";
 const PLACEHOLDER_LOGO = "/client-portal/logo-solarglobe.png";
 
 function getStorageUrl(
