@@ -106,13 +106,13 @@ function trimOrNull(v) {
   return s === "" ? null : s;
 }
 
-/**
- * Adresse fiche client → format attendu par le renderer PDF (objet line1 / line2 / …).
- * @param {object|null|undefined} row — ligne `clients`
- * @returns {object|null}
- */
-export function clientRowToInvoicePdfAddressShape(row) {
-  if (!row || typeof row !== "object") return null;
+/** Au moins une ligne utile hors seul pays (évite « France » seul sans rue). */
+function invoicePdfAddressShapeHasStreetOrCity(shape) {
+  if (!shape || typeof shape !== "object") return false;
+  return !!(shape.line1 || shape.line2 || shape.postal_code || shape.city);
+}
+
+function clientBillingToInvoicePdfShape(row) {
   const line1 = trimOrNull(row.address_line_1);
   const line2 = trimOrNull(row.address_line_2);
   const postal_code = trimOrNull(row.postal_code);
@@ -122,56 +122,134 @@ export function clientRowToInvoicePdfAddressShape(row) {
   return { line1, line2, postal_code, city, country };
 }
 
+/** Adresse chantier / installation sur la fiche client (souvent remplie quand le siège est vide). */
+function clientInstallationToInvoicePdfShape(row) {
+  const line1 = trimOrNull(row.installation_address_line_1);
+  const postal_code = trimOrNull(row.installation_postal_code);
+  const city = trimOrNull(row.installation_city);
+  const country = trimOrNull(row.country);
+  if (!line1 && !postal_code && !city && !country) return null;
+  return { line1, line2: null, postal_code, city, country };
+}
+
 /**
- * Ligne `addresses` → même forme que {@link clientRowToInvoicePdfAddressShape}.
- * @param {object|null|undefined} row
+ * Adresse fiche client → format attendu par le renderer PDF (objet line1 / line2 / …).
+ * Priorité : adresse postale « siège » ; sinon adresse d’installation (alignée conversion lead → client).
+ * @param {object|null|undefined} row — ligne `clients` (colonnes billing + installation_*)
+ * @returns {object|null}
+ */
+export function clientRowToInvoicePdfAddressShape(row) {
+  if (!row || typeof row !== "object") return null;
+  const billing = clientBillingToInvoicePdfShape(row);
+  if (billing && invoicePdfAddressShapeHasStreetOrCity(billing)) return billing;
+  const inst = clientInstallationToInvoicePdfShape(row);
+  if (inst && invoicePdfAddressShapeHasStreetOrCity(inst)) return inst;
+  return null;
+}
+
+/**
+ * Ligne `addresses` (+ formatted éventuel) → même forme que {@link clientRowToInvoicePdfAddressShape}.
+ * Utilise `formatted_address` pour retrouver n° de rue lorsque `address_line1` est sans numéro.
+ * @param {object|null|undefined} row — attend address_line1, address_line2, postal_code, city, country_code, formatted_address?
  * @returns {object|null}
  */
 export function addressesTableRowToInvoicePdfAddressShape(row) {
   if (!row || typeof row !== "object") return null;
-  const line1 = trimOrNull(row.address_line1);
-  const line2 = trimOrNull(row.address_line2);
-  const postal_code = trimOrNull(row.postal_code);
-  const city = trimOrNull(row.city);
-  const country = trimOrNull(row.country_code);
-  if (!line1 && !line2 && !postal_code && !city && !country) return null;
-  return { line1, line2, postal_code, city, country };
+  return addressPartsToInvoicePdfShape({
+    address_line1: row.address_line1,
+    address_line2: row.address_line2,
+    postal_code: row.postal_code,
+    city: row.city,
+    country_code: row.country_code,
+    formatted_address: row.formatted_address,
+  });
 }
 
 /**
- * Rendu PDF facture uniquement : injecte l’adresse lue sur les fiches client / lead (sans persister le snapshot).
- * Priorité : client si données présentes ; sinon adresse facturation lead → site → champ texte legacy `leads.address`.
+ * @param {object} parts
+ * @returns {object|null}
+ */
+function addressPartsToInvoicePdfShape(parts) {
+  const line1Plain = trimOrNull(parts.address_line1);
+  const line2 = trimOrNull(parts.address_line2);
+  const postal_code = trimOrNull(parts.postal_code);
+  const city = trimOrNull(parts.city);
+  const country = trimOrNull(parts.country_code);
+  const formatted = trimOrNull(parts.formatted_address);
+
+  if (formatted && postal_code && formatted.includes(postal_code)) {
+    const idx = formatted.indexOf(postal_code);
+    const streetPart = formatted.slice(0, idx).trim();
+    const afterPostal = formatted.slice(idx + String(postal_code).length).trim();
+    const line1 = streetPart || line1Plain || formatted;
+    if (!invoicePdfAddressShapeHasStreetOrCity({ line1, line2, postal_code, city, country })) return null;
+    return {
+      line1,
+      line2,
+      postal_code,
+      city: city || afterPostal || null,
+      country,
+    };
+  }
+
+  if (formatted && (!line1Plain || (formatted.length > line1Plain.length && /\d/.test(formatted) && !/\d/.test(line1Plain)))) {
+    const shape = {
+      line1: formatted,
+      line2,
+      postal_code,
+      city,
+      country,
+    };
+    if (!invoicePdfAddressShapeHasStreetOrCity(shape)) return null;
+    return shape;
+  }
+
+  const line1 = line1Plain;
+  if (!line1 && !line2 && !postal_code && !city && !country) return null;
+  const shape = { line1, line2, postal_code, city, country };
+  if (!invoicePdfAddressShapeHasStreetOrCity(shape)) return null;
+  return shape;
+}
+
+/**
+ * Rendu PDF facture uniquement : injecte l’adresse lue sur les fiches (sans persister le snapshot).
+ * Priorité : **lead** (facturation → site → texte) pour coller à la fiche dossier ; sinon client (siège → installation).
  * @param {object} payload
  * @param {{ clientRow?: object|null, leadRow?: object|null }} enrich
  * @returns {object}
  */
 export function mergeLiveBillingAddressIntoInvoicePdfPayload(payload, enrich) {
   if (!payload || typeof payload !== "object") return payload;
-  const clientShape = clientRowToInvoicePdfAddressShape(enrich?.clientRow);
   let address = null;
-  if (clientShape) {
-    address = clientShape;
-  } else if (enrich?.leadRow && typeof enrich.leadRow === "object") {
+
+  if (enrich?.leadRow && typeof enrich.leadRow === "object") {
     const lr = enrich.leadRow;
-    const billing = addressesTableRowToInvoicePdfAddressShape({
+    const billing = addressPartsToInvoicePdfShape({
       address_line1: lr.b_line1,
       address_line2: lr.b_line2,
       postal_code: lr.b_postal,
       city: lr.b_city,
       country_code: lr.b_country,
+      formatted_address: lr.b_formatted,
     });
-    const site = addressesTableRowToInvoicePdfAddressShape({
+    const site = addressPartsToInvoicePdfShape({
       address_line1: lr.s_line1,
       address_line2: lr.s_line2,
       postal_code: lr.s_postal,
       city: lr.s_city,
       country_code: lr.s_country,
+      formatted_address: lr.s_formatted,
     });
     const legacy = trimOrNull(lr.legacy_address);
     if (billing) address = billing;
     else if (site) address = site;
     else if (legacy) address = legacy;
   }
+
+  if (!address) {
+    address = clientRowToInvoicePdfAddressShape(enrich?.clientRow);
+  }
+
   if (address == null) return payload;
   const recipientSrc =
     payload.recipient !== null && payload.recipient !== undefined && typeof payload.recipient === "object"

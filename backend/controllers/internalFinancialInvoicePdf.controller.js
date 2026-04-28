@@ -7,7 +7,6 @@ import { pool } from "../config/db.js";
 import { verifyFinancialInvoiceRenderToken } from "../services/pdfRenderToken.service.js";
 import {
   buildInvoicePdfPayloadFromSnapshot,
-  clientRowToInvoicePdfAddressShape,
   mergeLiveBillingAddressIntoInvoicePdfPayload,
   mergeLiveOrganizationBankIntoInvoicePdfPayload,
 } from "../services/financialDocumentPdfPayload.service.js";
@@ -103,14 +102,14 @@ export async function getInternalFinancialInvoicePdfPayload(req, res) {
     let leadRow = null;
     if (cid) {
       const cr = await pool.query(
-        `SELECT address_line_1, address_line_2, postal_code, city, country
+        `SELECT address_line_1, address_line_2, postal_code, city, country,
+                installation_address_line_1, installation_postal_code, installation_city
          FROM clients WHERE id = $1 AND organization_id = $2 AND (archived_at IS NULL)`,
         [cid, decoded.organizationId]
       );
       clientRow = cr.rows[0] ?? null;
     }
-    const hasClientAddr = clientRowToInvoicePdfAddressShape(clientRow) != null;
-    if (!hasClientAddr && lid) {
+    if (lid) {
       const lr = await pool.query(
         `SELECT l.address AS legacy_address,
                 b.address_line1 AS b_line1,
@@ -118,11 +117,13 @@ export async function getInternalFinancialInvoicePdfPayload(req, res) {
                 b.postal_code AS b_postal,
                 b.city AS b_city,
                 b.country_code AS b_country,
+                b.formatted_address AS b_formatted,
                 s.address_line1 AS s_line1,
                 s.address_line2 AS s_line2,
                 s.postal_code AS s_postal,
                 s.city AS s_city,
-                s.country_code AS s_country
+                s.country_code AS s_country,
+                s.formatted_address AS s_formatted
          FROM leads l
          LEFT JOIN addresses b ON b.id = l.billing_address_id AND b.organization_id = l.organization_id
          LEFT JOIN addresses s ON s.id = l.site_address_id AND s.organization_id = l.organization_id
