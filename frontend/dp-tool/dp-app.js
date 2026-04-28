@@ -4109,7 +4109,12 @@ function dp2RehydrateWorkingFromActiveVersionIfNeeded() {
   const v = id ? versions.find((x) => x && x.id === id) : null;
   const target = v || versions[versions.length - 1];
   const sj = target && target.state_json;
-  if (sj && typeof sj === "object" && sj.capture && sj.capture.imageBase64) {
+  if (
+    sj &&
+    typeof sj === "object" &&
+    typeof dp2WorkingHasPlanContent === "function" &&
+    dp2WorkingHasPlanContent(sj)
+  ) {
     dp2ApplyStateJsonToWorking(sj);
   }
 }
@@ -4393,7 +4398,10 @@ function dp2BootstrapEditorDomFromWorking() {
   const imgWrapR = document.getElementById("dp2-captured-image-wrap");
   const imgElR = document.getElementById("dp2-captured-image");
   if (imgWrapR && imgElR) {
+    var __dp2BootOnce = false;
     const runEditor = function () {
+      if (__dp2BootOnce) return;
+      __dp2BootOnce = true;
       try {
         initDP2Editor();
         if (typeof window.renderDP2FromState === "function") window.renderDP2FromState();
@@ -4441,6 +4449,17 @@ function dp2OnEntryContinue(e) {
   dp2RestoreDomForWorkingState();
   const planCont =
     typeof dp2GetCapturePlan === "function" ? dp2GetCapturePlan() : window.DP2_STATE?.capture;
+  if (window.__SN_DP_DP2_DEBUG__ === true) {
+    try {
+      var _s = window.DP2_STATE;
+      console.log("[DP2 DEBUG] continue DP2_STATE", _s);
+      console.log("[DP2 DEBUG] continue capture_plan", _s && _s.capture_plan);
+      console.log("[DP2 DEBUG] continue buildingContours", _s && _s.buildingContours);
+      console.log("[DP2 DEBUG] continue objects len", _s && _s.objects && _s.objects.length);
+      console.log("[DP2 DEBUG] continue dp2Versions", _s && _s.dp2Versions);
+      console.log("[DP2 DEBUG] continue dp2ActiveVersionId", _s && _s.dp2ActiveVersionId);
+    } catch (_) {}
+  }
   if (planCont?.imageBase64) {
     dp2BootstrapEditorDomFromWorking();
   } else {

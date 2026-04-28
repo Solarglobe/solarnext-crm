@@ -1358,6 +1358,11 @@
     }
 
     var d2 = D.dp2 || (D.dp && D.dp.dp2);
+    if (global.__SN_DP_DP2_DEBUG__ === true) {
+      try {
+        console.log("[DP2 DEBUG] hydrate d2 =", d2);
+      } catch (_) {}
+    }
     if (typeof global.hydrateDP2 === "function") {
       try {
         if (global.__SN_DP_DP2_AUDIT__ === true) {
