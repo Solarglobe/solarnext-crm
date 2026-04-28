@@ -8084,6 +8084,42 @@ function dp2SnapPointForDrawing(from, to, opts) {
   };
 }
 
+function dp2SnapRidgePointForDrawing(from, to, opts) {
+  const options = opts || {};
+  const contourSnap = dp2NearestPointOnBuildingContours(to.x, to.y, options.contourTolerancePx || 18);
+  let target = contourSnap ? { x: contourSnap.x, y: contourSnap.y } : { x: to.x, y: to.y };
+  let snapped = !!contourSnap;
+  let segmentAngle = contourSnap?.segmentAngle;
+
+  if (from && (options.force || contourSnap)) {
+    const dx = target.x - from.x;
+    const dy = target.y - from.y;
+    const len = Math.hypot(dx, dy);
+    if (len > 2) {
+      const angles = [0, Math.PI / 2, Math.PI, -Math.PI / 2];
+      if (typeof segmentAngle === "number") {
+        angles.push(segmentAngle, segmentAngle + Math.PI / 2, segmentAngle - Math.PI / 2);
+      }
+      const angular = dp2SnapPointForDrawing(from, target, {
+        angles,
+        threshold: options.force ? Math.PI / 12 : Math.PI / 30
+      });
+      if (angular && angular.snapped) {
+        target = { x: angular.x, y: angular.y };
+        snapped = true;
+      }
+    }
+  }
+
+  return {
+    x: target.x,
+    y: target.y,
+    snapped,
+    contourSnap,
+    segmentAngle
+  };
+}
+
 function dp2EnsureModeStrip() {
   const wrap = document.getElementById("dp2-captured-image-wrap");
   if (!wrap || document.getElementById("dp2-mode-strip")) return;
@@ -9638,6 +9674,45 @@ function dp2PointToSegmentDistance(px, py, ax, ay, bx, by) {
   return Math.hypot(px - x, py - y);
 }
 
+function dp2ProjectPointToSegment(px, py, ax, ay, bx, by) {
+  const vx = bx - ax;
+  const vy = by - ay;
+  const len2 = vx * vx + vy * vy;
+  if (!(len2 > 0)) return { x: ax, y: ay, t: 0, distance: Math.hypot(px - ax, py - ay) };
+  const t = Math.max(0, Math.min(1, ((px - ax) * vx + (py - ay) * vy) / len2));
+  const x = ax + vx * t;
+  const y = ay + vy * t;
+  return { x, y, t, distance: Math.hypot(px - x, py - y), segmentAngle: Math.atan2(vy, vx) };
+}
+
+function dp2NearestPointOnBuildingContours(x, y, maxDistancePx) {
+  const tol = typeof maxDistancePx === "number" ? maxDistancePx : 18;
+  const contours = typeof dp2GetBuildingContours === "function" ? dp2GetBuildingContours() : [];
+  let best = null;
+  for (const contour of contours) {
+    if (!contour || !Array.isArray(contour.points) || contour.points.length < 2) continue;
+    const pts = contour.points;
+    const segments = contour.closed ? pts.length : pts.length - 1;
+    for (let i = 0; i < segments; i++) {
+      const a = pts[i];
+      const b = pts[(i + 1) % pts.length];
+      if (!a || !b) continue;
+      const p = dp2ProjectPointToSegment(x, y, a.x, a.y, b.x, b.y);
+      if (!best || p.distance < best.distance) {
+        best = {
+          x: p.x,
+          y: p.y,
+          distance: p.distance,
+          contourId: contour.id,
+          segmentIndex: i,
+          segmentAngle: p.segmentAngle
+        };
+      }
+    }
+  }
+  return best && best.distance <= tol ? best : null;
+}
+
 function dp2IsVectorCreateBusinessType(type) {
   return type === "sens_pente" || type === "voie_acces" || type === "arrow" || type === "angle_vue";
 }
@@ -10651,11 +10726,18 @@ function initDP2CanvasEvents() {
       const obj = objs[lvi.objectIndex];
       if (obj && (obj.type === "ridge_line" || obj.type === "measure_line") && obj.a && obj.b) {
         const pt = lvi.anchor === "A" ? obj.a : obj.b;
-        const nx = coords.x - (lvi.offsetX || 0);
-        const ny = coords.y - (lvi.offsetY || 0);
+        let nx = coords.x - (lvi.offsetX || 0);
+        let ny = coords.y - (lvi.offsetY || 0);
+        if (obj.type === "ridge_line") {
+          const other = lvi.anchor === "A" ? obj.b : obj.a;
+          const snapped = dp2SnapRidgePointForDrawing(other, { x: nx, y: ny }, { force: e.shiftKey });
+          nx = snapped.x;
+          ny = snapped.y;
+        }
         if (Math.abs(nx - (pt.x || 0)) > 1 || Math.abs(ny - (pt.y || 0)) > 1) lvi.hasMoved = true;
         pt.x = nx;
         pt.y = ny;
+        if (obj.type === "ridge_line") dp2RebuildRidgeCutsForAllContours();
         renderDP2FromState();
         return;
       }
@@ -11394,7 +11476,7 @@ function initDP2CanvasEvents() {
     // Faîtage : preview A → souris (mesure en temps réel)
     if (tool === "ridge_line" && window.DP2_STATE.ridgeLineStart) {
       const from = window.DP2_STATE.ridgeLineStart;
-      const snapped = dp2SnapPointForDrawing(from, coords, { force: e.shiftKey });
+      const snapped = dp2SnapRidgePointForDrawing(from, coords, { force: e.shiftKey });
       const to = { x: snapped.x, y: snapped.y };
       const dx = to.x - from.x;
       const dy = to.y - from.y;
@@ -11405,7 +11487,9 @@ function initDP2CanvasEvents() {
         to,
         lengthM,
         previewType: "ridge_line",
-        snapped: snapped.snapped === true
+        snapped: snapped.snapped === true,
+        ridgeSnap: snapped.contourSnap || null,
+        segmentAngle: snapped.segmentAngle
       };
       renderDP2FromState();
       return;
@@ -11541,6 +11625,17 @@ function initDP2CanvasEvents() {
         }
       }
 
+      const hitAnyObject = dp2HitTest(canvas, coords.x, coords.y);
+      if (hitAnyObject && hitAnyObject.kind === "object") {
+        window.DP2_STATE.selectedObjectId = hitAnyObject.index;
+        dp2ClearSelectedBuildingContour();
+        dp2ClearSelectedPanels();
+        dp2ClearSelectedTexts();
+        window.DP2_STATE.selectedBusinessObjectId = null;
+        renderDP2FromState();
+        return;
+      }
+
       const olB =
         typeof dp2PickDp2BuildingOlFeatureAtCanvasPixel === "function"
           ? dp2PickDp2BuildingOlFeatureAtCanvasPixel(canvas, coords.x, coords.y)
@@ -11622,14 +11717,15 @@ function initDP2CanvasEvents() {
     // Faîtage : clic 1 = point A, clic 2 = point B (faîtage définitif)
     if (tool === "ridge_line") {
       if (window.DP2_STATE.ridgeLineStart == null) {
-        window.DP2_STATE.ridgeLineStart = { x: coords.x, y: coords.y };
+        const startSnap = dp2NearestPointOnBuildingContours(coords.x, coords.y, 18);
+        window.DP2_STATE.ridgeLineStart = startSnap ? { x: startSnap.x, y: startSnap.y } : { x: coords.x, y: coords.y };
         window.DP2_STATE.drawingPreview = null;
         renderDP2FromState();
         return;
       }
       const a = window.DP2_STATE.ridgeLineStart;
       const ridgeA = { x: a.x, y: a.y };
-      const snapped = dp2SnapPointForDrawing(a, coords, { force: e.shiftKey });
+      const snapped = dp2SnapRidgePointForDrawing(a, coords, { force: e.shiftKey });
       const ridgeB = { x: snapped.x, y: snapped.y };
       dp2CommitHistoryPoint();
       window.DP2_STATE.objects.push({
@@ -12144,6 +12240,29 @@ function renderDP2FromState() {
         ctx.lineTo(preview.to.x, preview.to.y + 14);
         ctx.stroke();
         ctx.setLineDash([]);
+      }
+      if (preview.previewType === "ridge_line" && preview.ridgeSnap) {
+        const snap = preview.ridgeSnap;
+        dp2DrawTransparentPoint(ctx, snap.x, snap.y, DP2_PREVIEW_STROKE, 4.5, 1.2);
+        if (typeof snap.segmentAngle === "number") {
+          const ridgeAngle = Math.atan2(preview.to.y - preview.from.y, preview.to.x - preview.from.x);
+          const diff = Math.abs(Math.atan2(Math.sin(ridgeAngle - snap.segmentAngle), Math.cos(ridgeAngle - snap.segmentAngle)));
+          const right = Math.min(Math.abs(diff - Math.PI / 2), Math.abs(diff + Math.PI / 2));
+          if (right < Math.PI / 22) {
+            const s = 11;
+            const ux = Math.cos(snap.segmentAngle);
+            const uy = Math.sin(snap.segmentAngle);
+            const vx = -uy;
+            const vy = ux;
+            ctx.strokeStyle = "rgba(37, 99, 235, 0.7)";
+            ctx.lineWidth = 1.15;
+            ctx.beginPath();
+            ctx.moveTo(snap.x + ux * s, snap.y + uy * s);
+            ctx.lineTo(snap.x + ux * s + vx * s, snap.y + uy * s + vy * s);
+            ctx.lineTo(snap.x + vx * s, snap.y + vy * s);
+            ctx.stroke();
+          }
+        }
       }
       const text = (preview.lengthM != null ? preview.lengthM.toFixed(2) : "0,00").replace(".", ",") + " m";
       dp2FillAlignedCoteLabel(ctx, text, preview.from, preview.to, null, preview.snapped ? "active" : null);
@@ -13378,17 +13497,23 @@ function renderRidgeLine(ctx, obj, objectIndex) {
   const scale = window.DP2_STATE?.scale_m_per_px;
   const rfid = typeof objectIndex === "number" ? "ridge:" + objectIndex : null;
   const rtier = rfid ? dp2InteractionTierForFeature(rfid) : null;
+  const selected = typeof objectIndex === "number" && window.DP2_STATE?.selectedObjectId === objectIndex;
+  const lvi = window.DP2_STATE?.lineVertexInteraction;
+  const editing = !!(lvi && lvi.objectIndex === objectIndex);
+  const showPoints = selected || editing || rtier === "hover" || rtier === "active" || rtier === "editing";
   ctx.save();
   ctx.strokeStyle = DP2_RIDGE_GREEN;
-  ctx.lineWidth = 2;
+  ctx.lineWidth = showPoints ? 2.15 : 1.8;
   ctx.setLineDash([]);
   ctx.beginPath();
   ctx.moveTo(obj.a.x, obj.a.y);
   ctx.lineTo(obj.b.x, obj.b.y);
   ctx.stroke();
   dp2DrawCoteSegmentTier(ctx, obj.a, obj.b, rtier);
-  dp2DrawLinePoint(ctx, obj.a.x, obj.a.y, DP2_RIDGE_POINT_STROKE);
-  dp2DrawLinePoint(ctx, obj.b.x, obj.b.y, DP2_RIDGE_POINT_STROKE);
+  if (showPoints) {
+    dp2DrawLinePoint(ctx, obj.a.x, obj.a.y, DP2_RIDGE_POINT_STROKE);
+    dp2DrawLinePoint(ctx, obj.b.x, obj.b.y, DP2_RIDGE_POINT_STROKE);
+  }
   if (typeof scale === "number" && scale > 0) {
     const lengthM = Math.hypot(obj.b.x - obj.a.x, obj.b.y - obj.a.y) * scale;
     const off = obj.labelOffset && typeof obj.labelOffset.x === "number" && typeof obj.labelOffset.y === "number" ? obj.labelOffset : { x: 0, y: 0 };
@@ -13873,6 +13998,7 @@ function renderDP2BuildingContour(ctx, contour, options) {
 function dp2RenderFeaturesOL() {
   const pkg = window.DP2_MAP;
   if (!pkg || !pkg.dp2BuildingVectorSource || typeof ol === "undefined") return;
+  if (window.__DP2_SUPPRESS_OL_RERENDER__ === true) return;
   const source = pkg.dp2BuildingVectorSource;
   source.clear();
   const feats = window.DP2_STATE?.features || [];
@@ -13917,6 +14043,30 @@ function dp2RenderFeaturesOL() {
   try {
     pkg.dp2BuildingVectorLayer?.changed();
   } catch (_) {}
+}
+
+function dp2SyncBuildingFeatureGeometryToState(feature) {
+  if (!feature || !feature.getGeometry || !window.DP2_STATE) return false;
+  const geom = feature.getGeometry();
+  if (!geom) return false;
+  const gt = geom.getType();
+  let coords = null;
+  if (gt === "Polygon") coords = geom.getCoordinates()?.[0];
+  else if (gt === "LineString") coords = geom.getCoordinates();
+  if (!Array.isArray(coords)) return false;
+  const id0 = feature.getId() != null ? feature.getId() : feature.get("dp2FeatureId");
+  if (id0 == null) return false;
+  const id = String(id0);
+  const target = (window.DP2_STATE.features || []).find((x) => x && String(x.id) === id);
+  if (!target) return false;
+  target.coordinates = coords.map((c) => [c[0], c[1]]);
+  if (gt === "Polygon") target.closed = true;
+  try {
+    delete target.cuts;
+  } catch (_) {
+    target.cuts = undefined;
+  }
+  return true;
 }
 
 /**
@@ -14142,30 +14292,34 @@ function dp2RightAngleSketchStyles(feature) {
     pts.push(c);
   }
   if (pts.length < 3) return null;
-  const a = pts[pts.length - 3];
-  const b = pts[pts.length - 2];
-  const c = pts[pts.length - 1];
-  const v1 = { x: a[0] - b[0], y: a[1] - b[1] };
-  const v2 = { x: c[0] - b[0], y: c[1] - b[1] };
-  const l1 = Math.hypot(v1.x, v1.y);
-  const l2 = Math.hypot(v2.x, v2.y);
-  if (l1 < 0.001 || l2 < 0.001) return null;
-  const dot = (v1.x * v2.x + v1.y * v2.y) / (l1 * l2);
-  const angleDeg = Math.acos(Math.max(-1, Math.min(1, dot))) * 180 / Math.PI;
-  if (Math.abs(angleDeg - 90) > 3) return null;
   const resolution = window.DP2_MAP?.map?.getView?.().getResolution?.() || 1;
   const size = resolution * 12;
-  const u1 = { x: v1.x / l1, y: v1.y / l1 };
-  const u2 = { x: v2.x / l2, y: v2.y / l2 };
-  const pA = [b[0] + u1.x * size, b[1] + u1.y * size];
-  const pB = [pA[0] + u2.x * size, pA[1] + u2.y * size];
-  const pC = [b[0] + u2.x * size, b[1] + u2.y * size];
-  return [
-    new ol.style.Style({
-      geometry: new ol.geom.LineString([pA, pB, pC]),
-      stroke: new ol.style.Stroke({ color: "rgba(37, 99, 235, 0.72)", width: 1.25 })
-    })
-  ];
+  const styles = [];
+  for (let i = 1; i < pts.length - 1; i++) {
+    const a = pts[i - 1];
+    const b = pts[i];
+    const c = pts[i + 1];
+    const v1 = { x: a[0] - b[0], y: a[1] - b[1] };
+    const v2 = { x: c[0] - b[0], y: c[1] - b[1] };
+    const l1 = Math.hypot(v1.x, v1.y);
+    const l2 = Math.hypot(v2.x, v2.y);
+    if (l1 < 0.001 || l2 < 0.001) continue;
+    const dot = (v1.x * v2.x + v1.y * v2.y) / (l1 * l2);
+    const angleDeg = Math.acos(Math.max(-1, Math.min(1, dot))) * 180 / Math.PI;
+    if (Math.abs(angleDeg - 90) > 3) continue;
+    const u1 = { x: v1.x / l1, y: v1.y / l1 };
+    const u2 = { x: v2.x / l2, y: v2.y / l2 };
+    const pA = [b[0] + u1.x * size, b[1] + u1.y * size];
+    const pB = [pA[0] + u2.x * size, pA[1] + u2.y * size];
+    const pC = [b[0] + u2.x * size, b[1] + u2.y * size];
+    styles.push(
+      new ol.style.Style({
+        geometry: new ol.geom.LineString([pA, pB, pC]),
+        stroke: new ol.style.Stroke({ color: "rgba(37, 99, 235, 0.62)", width: 1.15 })
+      })
+    );
+  }
+  return styles.length ? styles : null;
 }
 
 // --------------------------
@@ -15730,6 +15884,21 @@ async function initDP2() {
       source: dp2BuildingVectorSource,
       pixelTolerance: 6,
       snapToPointer: false
+    });
+    dp2BuildingVectorSource.on("changefeature", function (evt) {
+      if (window.__DP2_TEMP_OL_DRAG__ !== true) return;
+      try {
+        if (dp2SyncBuildingFeatureGeometryToState(evt.feature)) {
+          dp2RebuildContourDisplayCacheFromFeatures();
+          dp2RebuildRidgeCutsForAllContours();
+          window.__DP2_SUPPRESS_OL_RERENDER__ = true;
+          try {
+            renderDP2FromState();
+          } finally {
+            window.__DP2_SUPPRESS_OL_RERENDER__ = false;
+          }
+        }
+      } catch (_) {}
     });
     dp2BuildingModify.on("modifystart", function () {
       try {
@@ -17563,7 +17732,7 @@ async function dp4BuildFinalRenderImageBase64FromCurrentDom() {
         } else if (obj.type === "ridge_line" && typeof renderRidgeLine === "function") {
           const prevRidgeWidth = sctx.lineWidth;
           sctx.lineWidth = 2;
-          renderRidgeLine(sctx, obj, i);
+          renderRidgeLine(sctx, obj, null);
           sctx.lineWidth = prevRidgeWidth;
         } else if (obj.type === "gutter_height_dimension" && typeof renderGutterHeightDimension === "function") {
           const prevGw = sctx.lineWidth;
