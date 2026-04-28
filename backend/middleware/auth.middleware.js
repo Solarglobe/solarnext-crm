@@ -131,6 +131,10 @@ export function enforceSuperAdminWriteAccess(req, res) {
 }
 
 export async function verifyJWT(req, res, next) {
+  if ((req.method || "").toUpperCase() === "OPTIONS") {
+    return next();
+  }
+
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return res.status(401).json({ error: "Token manquant" });

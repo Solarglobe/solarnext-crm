@@ -35,6 +35,10 @@ function logSuperAdminBypass(req, permissionLabel) {
 export function requirePermission(code) {
   return async (req, res, next) => {
     try {
+      if ((req.method || "").toUpperCase() === "OPTIONS") {
+        return next();
+      }
+
       const mode = getRbacMode();
 
       if (effectiveSuperAdminRequestBypass(req)) {
@@ -108,6 +112,10 @@ export function requirePermission(code) {
 export function requireAnyPermission(codes) {
   return async (req, res, next) => {
     try {
+      if ((req.method || "").toUpperCase() === "OPTIONS") {
+        return next();
+      }
+
       if (!req.user) {
         return res.status(401).json({ error: "Non authentifié" });
       }

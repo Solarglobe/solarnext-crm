@@ -12,6 +12,8 @@ const { buildHttpApp } = await import("../httpApp.js");
 const app = buildHttpApp();
 /** Route publique GET sans JWT (réponse JSON stable). */
 const PUBLIC_GET = "/api/system/shading-capabilities";
+const QUOTE_PREP_PATH =
+  "/api/studies/11111111-1111-4111-8111-111111111111/versions/22222222-2222-4222-8222-222222222222/quote-prep";
 
 function assertCorsAllowlisted(res, expectedOrigin) {
   assert.equal(
@@ -42,6 +44,23 @@ describe("CORS (solarnext-crm.fr + api.solarnext-crm.fr)", () => {
         .set("Access-Control-Request-Headers", "content-type,authorization");
       assert.equal(res.status, 204);
       assertCorsAllowlisted(res, origin);
+    });
+
+    test(`OPTIONS preflight quote-prep PUT — ${origin}`, async () => {
+      const res = await request(app)
+        .options(QUOTE_PREP_PATH)
+        .set("Origin", origin)
+        .set("Access-Control-Request-Method", "PUT")
+        .set("Access-Control-Request-Headers", "content-type,authorization,x-organization-id,x-super-admin-edit");
+      assert.equal(res.status, 204);
+      assertCorsAllowlisted(res, origin);
+      const allowMethods = String(res.headers["access-control-allow-methods"] || "").toUpperCase();
+      const allowHeaders = String(res.headers["access-control-allow-headers"] || "").toLowerCase();
+      assert.ok(allowMethods.includes("PUT"), "Access-Control-Allow-Methods doit inclure PUT");
+      assert.ok(allowMethods.includes("OPTIONS"), "Access-Control-Allow-Methods doit inclure OPTIONS");
+      assert.ok(allowHeaders.includes("authorization"), "Access-Control-Allow-Headers doit inclure Authorization");
+      assert.ok(allowHeaders.includes("x-organization-id"), "Access-Control-Allow-Headers doit inclure x-organization-id");
+      assert.ok(allowHeaders.includes("x-super-admin-edit"), "Access-Control-Allow-Headers doit inclure x-super-admin-edit");
     });
 
     test(`POST /auth/login avec Origin — ${origin} (en-têtes CORS même si 401)`, async () => {
