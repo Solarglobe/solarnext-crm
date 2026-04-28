@@ -360,6 +360,12 @@ async function recalcInvoiceTotals(client, organizationId, invoiceId) {
   );
 }
 
+function normalizeId(value) {
+  if (value == null) return null;
+  const s = String(value).trim();
+  return s === "" ? null : s;
+}
+
 /**
  * @param {string} invoiceId
  * @param {string} organizationId
@@ -375,11 +381,10 @@ export async function updateInvoice(invoiceId, organizationId, body) {
     const { lines, client_id, lead_id, quote_id, due_date, notes, payment_terms, issue_date, metadata_json, currency } = body;
 
     if (row.quote_id) {
-      const norm = (v) => (v != null && String(v).trim() !== "" ? String(v) : null);
-      if (client_id !== undefined && norm(client_id) !== norm(row.client_id)) {
+      if (client_id !== undefined && normalizeId(client_id) !== normalizeId(row.client_id)) {
         throw new Error("Le rattachement client ne peut pas être modifié pour une facture liée à un devis.");
       }
-      if (lead_id !== undefined && norm(lead_id) !== norm(row.lead_id)) {
+      if (lead_id !== undefined && normalizeId(lead_id) !== normalizeId(row.lead_id)) {
         throw new Error("Le rattachement lead ne peut pas être modifié pour une facture liée à un devis.");
       }
     }

@@ -615,3 +615,63 @@ test("updateInvoice : refuse si total des factures liées > devis + tolérance",
     await pool.query("DELETE FROM quotes WHERE id = $1", [qid]);
   }
 });
+
+test("updateInvoice lié à un devis : même client_id normalisé => pas de faux positif", async () => {
+  const q = await quoteService.createQuote(orgId, {
+    client_id: clientId,
+    items: [{ label: "Norm", description: "", quantity: 1, unit_price_ht: 100, tva_rate: 20 }],
+  });
+  const qid = q.quote.id;
+  let invId;
+  try {
+    await quoteService.patchQuoteStatus(qid, orgId, "READY_TO_SEND", null);
+    await quoteService.patchQuoteStatus(qid, orgId, "SENT", null);
+    await quoteService.patchQuoteStatus(qid, orgId, "ACCEPTED", null);
+    const inv = await invoiceService.createInvoiceFromQuote(qid, orgId, { billingRole: "STANDARD" });
+    invId = inv.id;
+    const updated = await invoiceService.updateInvoice(invId, orgId, { client_id: ` ${clientId} ` });
+    assert.equal(String(updated.client_id), String(clientId));
+  } finally {
+    if (invId) {
+      await pool.query("DELETE FROM invoice_lines WHERE invoice_id = $1", [invId]);
+      await pool.query("DELETE FROM invoices WHERE id = $1", [invId]);
+    }
+    await pool.query("DELETE FROM quote_lines WHERE quote_id = $1", [qid]);
+    await pool.query("DELETE FROM quotes WHERE id = $1", [qid]);
+  }
+});
+
+test("updateInvoice lié à un devis : vraie modification client_id reste bloquée", async () => {
+  const q = await quoteService.createQuote(orgId, {
+    client_id: clientId,
+    items: [{ label: "Norm2", description: "", quantity: 1, unit_price_ht: 100, tva_rate: 20 }],
+  });
+  const qid = q.quote.id;
+  let invId;
+  let otherClientId;
+  try {
+    const cr = await pool.query(
+      `INSERT INTO clients (organization_id, client_number, first_name, last_name, email)
+       VALUES ($1, $2, 'Iflex', 'Other', $3) RETURNING id`,
+      [orgId, `CLI-${PREFIX}-B`, `${PREFIX}-b@test.local`]
+    );
+    otherClientId = cr.rows[0].id;
+    await quoteService.patchQuoteStatus(qid, orgId, "READY_TO_SEND", null);
+    await quoteService.patchQuoteStatus(qid, orgId, "SENT", null);
+    await quoteService.patchQuoteStatus(qid, orgId, "ACCEPTED", null);
+    const inv = await invoiceService.createInvoiceFromQuote(qid, orgId, { billingRole: "STANDARD" });
+    invId = inv.id;
+    await assert.rejects(
+      () => invoiceService.updateInvoice(invId, orgId, { client_id: otherClientId }),
+      /rattachement client ne peut pas être modifié/i
+    );
+  } finally {
+    if (invId) {
+      await pool.query("DELETE FROM invoice_lines WHERE invoice_id = $1", [invId]);
+      await pool.query("DELETE FROM invoices WHERE id = $1", [invId]);
+    }
+    await pool.query("DELETE FROM quote_lines WHERE quote_id = $1", [qid]);
+    await pool.query("DELETE FROM quotes WHERE id = $1", [qid]);
+    if (otherClientId) await pool.query("DELETE FROM clients WHERE id = $1", [otherClientId]);
+  }
+});
