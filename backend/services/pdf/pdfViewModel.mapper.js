@@ -1095,8 +1095,9 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
       })(),
       p7_virtual_battery: (() => {
         // Affichage strictement réservé au scénario sélectionné BATTERY_VIRTUAL.
-        const selectedScenarioType = selectedScenario?.scenario_type ?? selectedScenario?.id ?? null;
-        if (selectedScenarioType !== "BATTERY_VIRTUAL") return null;
+        // On utilise selectedKey (déjà résolu) plutôt que selectedScenario?.scenario_type / .id
+        // qui peuvent être undefined si l'objet scénario n'expose pas ces champs explicitement.
+        if (selectedKey !== "BATTERY_VIRTUAL") return null;
         if (!selectedScenario || typeof selectedScenario !== "object") return null;
 
         const baseScenario = baseFromV2;

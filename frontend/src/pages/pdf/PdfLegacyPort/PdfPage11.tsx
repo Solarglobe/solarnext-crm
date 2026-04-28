@@ -50,6 +50,7 @@ export default function PdfPage11({
             headerStyle={{
               ["--logoW" as string]: "26mm",
               ["--metaW" as string]: "120mm",
+              flexShrink: 0,
             }}
             logo={
               <img
