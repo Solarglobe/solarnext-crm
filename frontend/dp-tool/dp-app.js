@@ -8507,6 +8507,27 @@ function initDP2Toolbar() {
       if (
         pe &&
         typeof pe.requestedLengthM === "number" &&
+        pe.anchor !== "A" &&
+        pe.anchor !== "B"
+      ) {
+        pe.anchor = "A";
+        if (typeof dp2CommitParcelSegmentResize === "function") {
+          dp2CommitParcelSegmentResize({
+            contourId: pe.contourId,
+            segmentIndex: pe.segmentIndex,
+            requestedLengthM: pe.requestedLengthM,
+            anchor: pe.anchor
+          });
+        }
+        dp2ClearParcelEdgeEdit();
+        if (typeof dp2RemoveMeasureResizePreviewOverlay === "function") dp2RemoveMeasureResizePreviewOverlay();
+        if (typeof renderDP2FromState === "function") renderDP2FromState();
+        e.preventDefault();
+        return;
+      }
+      if (
+        pe &&
+        typeof pe.requestedLengthM === "number" &&
         (pe.anchor === "A" || pe.anchor === "B")
       ) {
         if (typeof dp2CommitParcelSegmentResize === "function") {
@@ -8524,6 +8545,22 @@ function initDP2Toolbar() {
         return;
       }
       const objs = window.DP2_STATE?.objects || [];
+      const pendingObj = objs.find((o) =>
+        o &&
+        o.type === "measure_line" &&
+        typeof o.requestedLengthM === "number" &&
+        o.resizeAnchor !== "A" &&
+        o.resizeAnchor !== "B"
+      );
+      if (pendingObj) {
+        pendingObj.resizeAnchor = "A";
+        if (typeof dp2CommitMeasureResize === "function") dp2CommitMeasureResize(pendingObj);
+        if (typeof dp2RemoveMeasureAnchorChoiceOverlay === "function") dp2RemoveMeasureAnchorChoiceOverlay();
+        if (typeof dp2RemoveMeasureResizePreviewOverlay === "function") dp2RemoveMeasureResizePreviewOverlay();
+        if (typeof renderDP2FromState === "function") renderDP2FromState();
+        e.preventDefault();
+        return;
+      }
       const obj = objs.find((o) => o && o.type === "measure_line" && typeof o.resizeAnchor === "string");
       if (obj) {
         if (typeof dp2CommitMeasureResize === "function") dp2CommitMeasureResize(obj);
@@ -11238,7 +11275,17 @@ function initDP2CanvasEvents() {
         e.preventDefault();
         e.stopPropagation();
         const pe = window.DP2_STATE?.parcelEdgeEdit;
-        if (pe) pe.anchor = hitParcelAnchor.anchor;
+        if (pe) {
+          pe.anchor = hitParcelAnchor.anchor;
+          dp2CommitParcelSegmentResize({
+            contourId: pe.contourId,
+            segmentIndex: pe.segmentIndex,
+            requestedLengthM: pe.requestedLengthM,
+            anchor: pe.anchor
+          });
+          dp2ClearParcelEdgeEdit();
+          if (typeof dp2RemoveMeasureResizePreviewOverlay === "function") dp2RemoveMeasureResizePreviewOverlay();
+        }
         renderDP2FromState();
         return;
       }
@@ -11249,6 +11296,9 @@ function initDP2CanvasEvents() {
         const obj = objs[hitAnchor.objectIndex];
         if (obj && obj.type === "measure_line") {
           obj.resizeAnchor = hitAnchor.anchor;
+          dp2CommitMeasureResize(obj);
+          if (typeof dp2RemoveMeasureAnchorChoiceOverlay === "function") dp2RemoveMeasureAnchorChoiceOverlay();
+          if (typeof dp2RemoveMeasureResizePreviewOverlay === "function") dp2RemoveMeasureResizePreviewOverlay();
           renderDP2FromState();
           return;
         }
@@ -12620,8 +12670,10 @@ function dp2ShowMeasureAnchorChoiceOverlay(canvas, objectIndex) {
     const o = window.DP2_STATE?.objects?.[objectIndex];
     if (o && o.type === "measure_line") {
       o.resizeAnchor = anchor;
+      dp2CommitMeasureResize(o);
     }
     dp2RemoveMeasureAnchorChoiceOverlay();
+    if (typeof dp2RemoveMeasureResizePreviewOverlay === "function") dp2RemoveMeasureResizePreviewOverlay();
     renderDP2FromState();
   }
 
@@ -12641,10 +12693,20 @@ function dp2ShowMeasureAnchorChoiceOverlay(canvas, objectIndex) {
   btnAnnuler.onclick = (e) => { e.stopPropagation(); cancelChoice(); };
 
   overlay.addEventListener("click", (e) => e.stopPropagation());
+  overlay.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    e.stopPropagation();
+    const target = e.target;
+    if (target === btnB) applyChoice("B");
+    else if (target === btnAnnuler) cancelChoice();
+    else applyChoice("A");
+  });
 
   overlay.style.left = Math.max(4, left) + "px";
   overlay.style.top = Math.max(4, top) + "px";
   container.appendChild(overlay);
+  try { btnA.focus(); } catch (_) {}
 
   window._dp2MeasureAnchorChoiceOutsideHandler = function outsideHandler(e) {
     if (overlay.contains(e.target)) return;
@@ -13915,7 +13977,7 @@ function dp2SyncBuildingOlInteractions() {
     mod.setActive(tool === "select");
   } catch (_) {}
   try {
-    snap.setActive(isOutline || tool === "select");
+    snap.setActive(isOutline);
   } catch (_) {}
 }
 
@@ -13930,12 +13992,63 @@ function dp2ApplyRightAngleSnapToOlPolygonCoords(coordinates) {
   const snapped = dp2SnapPointForDrawing(
     { x: prev[0], y: prev[1] },
     { x: cur[0], y: cur[1] },
-    { angles: [0, Math.PI / 2, Math.PI, -Math.PI / 2], threshold: Math.PI / 16 }
+    { angles: [0, Math.PI / 2, Math.PI, -Math.PI / 2], threshold: Math.PI / 24 }
   );
   if (snapped && snapped.snapped === true) {
     ring[lastIdx] = [snapped.x, snapped.y];
   }
   return coordinates;
+}
+
+function dp2RightAngleSketchStyles(feature) {
+  if (typeof ol === "undefined" || !feature || !feature.getGeometry) return null;
+  const geom = feature.getGeometry();
+  if (!geom || geom.getType() !== "Polygon") return null;
+  const coords = geom.getCoordinates()?.[0];
+  if (!Array.isArray(coords) || coords.length < 3) return null;
+  const pts = [];
+  for (const c of coords) {
+    if (!Array.isArray(c) || typeof c[0] !== "number" || typeof c[1] !== "number") continue;
+    const prev = pts[pts.length - 1];
+    if (prev && Math.hypot(prev[0] - c[0], prev[1] - c[1]) < 0.001) continue;
+    pts.push(c);
+  }
+  if (pts.length < 3) return null;
+  const a = pts[pts.length - 3];
+  const b = pts[pts.length - 2];
+  const c = pts[pts.length - 1];
+  const v1 = { x: a[0] - b[0], y: a[1] - b[1] };
+  const v2 = { x: c[0] - b[0], y: c[1] - b[1] };
+  const l1 = Math.hypot(v1.x, v1.y);
+  const l2 = Math.hypot(v2.x, v2.y);
+  if (l1 < 0.001 || l2 < 0.001) return null;
+  const dot = (v1.x * v2.x + v1.y * v2.y) / (l1 * l2);
+  const angleDeg = Math.acos(Math.max(-1, Math.min(1, dot))) * 180 / Math.PI;
+  if (Math.abs(angleDeg - 90) > 4) return null;
+  const resolution = window.DP2_MAP?.map?.getView?.().getResolution?.() || 1;
+  const size = resolution * 18;
+  const u1 = { x: v1.x / l1, y: v1.y / l1 };
+  const u2 = { x: v2.x / l2, y: v2.y / l2 };
+  const pA = [b[0] + u1.x * size, b[1] + u1.y * size];
+  const pB = [pA[0] + u2.x * size, pA[1] + u2.y * size];
+  const pC = [b[0] + u2.x * size, b[1] + u2.y * size];
+  const textPoint = [b[0] + (u1.x + u2.x) * size * 1.35, b[1] + (u1.y + u2.y) * size * 1.35];
+  return [
+    new ol.style.Style({
+      geometry: new ol.geom.LineString([pA, pB, pC]),
+      stroke: new ol.style.Stroke({ color: "#16a34a", width: 2.4 })
+    }),
+    new ol.style.Style({
+      geometry: new ol.geom.Point(textPoint),
+      text: new ol.style.Text({
+        text: "90°",
+        font: "600 12px system-ui, sans-serif",
+        fill: new ol.style.Fill({ color: "#16a34a" }),
+        stroke: new ol.style.Stroke({ color: "rgba(255,255,255,0.95)", width: 3 }),
+        overflow: true
+      })
+    })
+  ];
 }
 
 // --------------------------
@@ -15419,15 +15532,22 @@ async function initDP2() {
         else geometry.setCoordinates(snappedCoords);
         return geometry;
       },
-      style: new ol.style.Style({
-        fill: new ol.style.Fill({ color: "rgba(30, 64, 175, 0.08)" }),
-        stroke: new ol.style.Stroke({ color: "#1e40af", width: 2.4, lineDash: [8, 6] }),
-        image: new ol.style.Circle({
-          radius: 4,
-          fill: new ol.style.Fill({ color: "#ffffff" }),
-          stroke: new ol.style.Stroke({ color: "#1e40af", width: 2 })
-        })
-      })
+      style: function (feature) {
+        const styles = [
+          new ol.style.Style({
+            fill: new ol.style.Fill({ color: "rgba(30, 64, 175, 0.08)" }),
+            stroke: new ol.style.Stroke({ color: "#1e40af", width: 2.4, lineDash: [8, 6] }),
+            image: new ol.style.Circle({
+              radius: 4,
+              fill: new ol.style.Fill({ color: "#ffffff" }),
+              stroke: new ol.style.Stroke({ color: "#1e40af", width: 2 })
+            })
+          })
+        ];
+        const rightAngleStyles = dp2RightAngleSketchStyles(feature);
+        if (rightAngleStyles) styles.push(...rightAngleStyles);
+        return styles;
+      }
     });
     dp2BuildingDraw.setActive(false);
     dp2BuildingDraw.on("drawend", function (evt) {
