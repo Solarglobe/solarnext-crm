@@ -2004,6 +2004,19 @@ body.dp2-panning #dp2-captured-image-wrap {
   line-height: 1.4;
 }
 
+/* Overlay parcel edge : au-dessus du canvas pour input + choix A/B visibles */
+#dp2-overlay-layer {
+  position: absolute;
+  z-index: 9999;
+  pointer-events: none;
+}
+
+#dp2-parcel-edge-inline-input {
+  position: absolute;
+  z-index: 10000;
+  pointer-events: auto;
+}
+
 /* Champ inline cote parcelle — ancré au segment (position JS) */
 input.dp2-parcel-edge-inline-input {
   position: absolute;

@@ -7817,8 +7817,12 @@ function dp2LayoutParcelEdgeInlineInputInLayer(canvas, input) {
   else if (left > maxLeft) left = maxLeft;
   if (top < pad) top = pad;
   else if (top > maxTop) top = maxTop;
-  input.style.left = left + "px";
-  input.style.top = top + "px";
+  if (!isFinite(left) || !isFinite(top)) {
+    left = 200;
+    top = 200;
+  }
+  input.style.left = `${left}px`;
+  input.style.top = `${top}px`;
 }
 
 function dp2SyncMapAnchoredOverlays() {
@@ -9605,6 +9609,8 @@ function dp2TryUpdateBusinessHoverCursor(canvas, clientX, clientY) {
 // Contour bâti : ajout de points, fermeture (clic proche premier point ou double-clic).
 // --------------------------
 const DP2_CLOSE_THRESHOLD_PX = 15;
+/** Hit-test sommet → handoff OpenLayers Modify (tolérance alignée sur `pixelTolerance` de l’interaction OL). */
+const DP2_BUILDING_VERTEX_OL_HANDOFF_TOL_PX = 10;
 
 function initDP2CanvasEvents() {
   const canvas = document.getElementById("dp2-draw-canvas");
@@ -9612,6 +9618,16 @@ function initDP2CanvasEvents() {
   // Anti double-binding (si le DOM est re-monté / réutilisé)
   if (canvas.dataset.dp2Bound === "1") return;
   canvas.dataset.dp2Bound = "1";
+
+  if (!window._dp2TempOlBuildingDragListenersBound) {
+    window._dp2TempOlBuildingDragListenersBound = true;
+    const onGlobalPointerEnd = () => {
+      dp2ClearTempOlBuildingDragIfNeeded();
+    };
+    window.addEventListener("pointerup", onGlobalPointerEnd, true);
+    window.addEventListener("pointercancel", onGlobalPointerEnd, true);
+    window.addEventListener("lostpointercapture", onGlobalPointerEnd, true);
+  }
 
   // Bind suppression clavier (une seule fois)
   if (window.DP2_STATE && window.DP2_STATE._businessKeyHandlerBound !== true) {
@@ -9809,6 +9825,26 @@ function initDP2CanvasEvents() {
           renderDP2FromState();
           return;
         }
+      }
+    }
+
+    // DP2 — Hybrid : sommet contour bâti (`buildingContours.points`) → priorité OL temporaire + pointerdown sur la carte (Modify)
+    if (tool === "select" && dp2HitTestBuildingContourVertexForOlHandoff(coords.x, coords.y, DP2_BUILDING_VERTEX_OL_HANDOFF_TOL_PX)) {
+      window.__DP2_TEMP_OL_DRAG__ = true;
+      try {
+        dp2SyncBuildingOlPointerPassThrough();
+      } catch (_) {}
+      let forwarded = false;
+      try {
+        forwarded = dp2ForwardPointerDownToBuildingOlMap(e);
+      } catch (_) {}
+      if (!forwarded) {
+        window.__DP2_TEMP_OL_DRAG__ = false;
+        try {
+          dp2SyncBuildingOlPointerPassThrough();
+        } catch (_) {}
+      } else {
+        return;
       }
     }
 
@@ -10674,6 +10710,8 @@ function initDP2CanvasEvents() {
   });
 
   canvas.addEventListener("pointerup", (e) => {
+    dp2ClearTempOlBuildingDragIfNeeded();
+
     const cand = window.DP2_STATE?.measureLabelDragCandidate || null;
     if (cand && typeof cand.pointerId === "number" && cand.pointerId === e.pointerId) {
       window.DP2_STATE.measureLabelDragCandidate = null;
@@ -12244,6 +12282,8 @@ function dp2ShowParcelSegmentInlineInput(canvas) {
   input.autocomplete = "off";
   input.setAttribute("aria-label", "Longueur du segment (mètres)");
   input.value = currentStr;
+  input.style.background = "rgba(255,0,0,0.2)";
+  input.style.border = "2px solid yellow";
   dp2LayoutParcelEdgeInlineInputInLayer(canvas, input);
   layer.appendChild(input);
   dp2SyncMapAnchoredOverlays();
@@ -13613,9 +13653,63 @@ function dp2SyncBuildingOlPointerPassThrough() {
   const zig = document.getElementById("dp2-zoom-container");
   if (!zig) return;
   const tool = window.DP2_STATE && window.DP2_STATE.currentTool;
-  /* Priorité OpenLayers uniquement pendant l’outil contour bâti (Draw/Snap) ; en Sélection le canvas reçoit les événements. */
-  const pass = tool === "building_outline";
+  /* Priorité OL : outil contour bâti, ou handoff temporaire (pointerdown sur sommet en Sélection). Sinon le canvas reçoit les événements. */
+  const pass =
+    tool === "building_outline" ||
+    (typeof window !== "undefined" && window.__DP2_TEMP_OL_DRAG__ === true);
   zig.classList.toggle("dp2-building-ol-priority", pass);
+}
+
+/** Hit-test sommets `buildingContours[].points` (pixels canvas) pour activer brièvement la priorité OL (drag Modify). */
+function dp2HitTestBuildingContourVertexForOlHandoff(canvasX, canvasY, tolPx) {
+  const tol = typeof tolPx === "number" && tolPx > 0 ? tolPx : DP2_BUILDING_VERTEX_OL_HANDOFF_TOL_PX;
+  const list = typeof dp2GetBuildingContours === "function" ? dp2GetBuildingContours() : [];
+  if (!list.length) return false;
+  let best = tol + 1;
+  for (let ci = 0; ci < list.length; ci++) {
+    const c = list[ci];
+    if (!c || !Array.isArray(c.points)) continue;
+    const pts = c.points;
+    for (let pi = 0; pi < pts.length; pi++) {
+      const p = pts[pi];
+      if (!p || typeof p.x !== "number" || typeof p.y !== "number") continue;
+      const d = Math.hypot(p.x - canvasX, p.y - canvasY);
+      if (d <= tol && d < best) best = d;
+    }
+  }
+  return best <= tol;
+}
+
+/** Après `dp2-building-ol-priority`, réinjecte le pointerdown sous le point pour OpenLayers (canvas au-dessus de la carte). */
+function dp2ForwardPointerDownToBuildingOlMap(e) {
+  const mapRoot = document.getElementById("dp2-ign-map");
+  if (!mapRoot || typeof PointerEvent === "undefined") return false;
+  const under = document.elementFromPoint(e.clientX, e.clientY);
+  if (!under || !mapRoot.contains(under)) return false;
+  try {
+    under.dispatchEvent(
+      new PointerEvent("pointerdown", {
+        bubbles: true,
+        cancelable: true,
+        clientX: e.clientX,
+        clientY: e.clientY,
+        pointerId: e.pointerId,
+        pointerType: e.pointerType,
+        isPrimary: e.isPrimary,
+        buttons: e.buttons
+      })
+    );
+  } catch (_) {
+    return false;
+  }
+  return true;
+}
+
+function dp2ClearTempOlBuildingDragIfNeeded() {
+  if (window.__DP2_TEMP_OL_DRAG__) {
+    window.__DP2_TEMP_OL_DRAG__ = false;
+    dp2SyncBuildingOlPointerPassThrough();
+  }
 }
 
 /** true si un hit canvas (mesure / faîtage / …) doit passer avant le pick bâti OpenLayers en pointerdown. */
