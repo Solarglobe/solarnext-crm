@@ -18,6 +18,21 @@
   align-items: center;
 }
 
+.ib-toolbar-save-wrap {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0;
+}
+
+.qb-save-success {
+  margin-left: 12px;
+  font-size: 13px;
+  color: #16a34a;
+  opacity: 0.9;
+  transition: opacity 0.3s ease;
+}
+
 .ib-workbench {
   display: grid;
   grid-template-columns: 1fr minmax(260px, 300px);

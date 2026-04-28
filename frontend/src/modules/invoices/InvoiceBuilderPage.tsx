@@ -100,6 +100,8 @@ export default function InvoiceBuilderPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const saveSuccessTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [catalogOpen, setCatalogOpen] = useState(false);
   const [catalogItems, setCatalogItems] = useState<QuoteCatalogItem[]>([]);
   const [catalogQ, setCatalogQ] = useState("");
@@ -189,6 +191,12 @@ export default function InvoiceBuilderPage() {
   }, [load]);
 
   useEffect(() => {
+    return () => {
+      if (saveSuccessTimerRef.current) clearTimeout(saveSuccessTimerRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
     setContactsSelectError(null);
     void Promise.all([fetchClientsBillingSelect(), fetchLeadsBillingSelect()])
       .then(([cRows, lRows]) => {
@@ -210,6 +218,11 @@ export default function InvoiceBuilderPage() {
     }
     setSaving(true);
     setError(null);
+    setSaveSuccess(false);
+    if (saveSuccessTimerRef.current) {
+      clearTimeout(saveSuccessTimerRef.current);
+      saveSuccessTimerRef.current = null;
+    }
     try {
       const body: Record<string, unknown> = {
         lines: invoiceLinesToSavePayload(state.lines),
@@ -231,7 +244,18 @@ export default function InvoiceBuilderPage() {
       await patchInvoice(id, body);
       dispatch({ type: "MARK_CLEAN" });
       await load();
+      setSaveSuccess(true);
+      if (saveSuccessTimerRef.current) clearTimeout(saveSuccessTimerRef.current);
+      saveSuccessTimerRef.current = setTimeout(() => {
+        setSaveSuccess(false);
+        saveSuccessTimerRef.current = null;
+      }, 2000);
     } catch (e) {
+      setSaveSuccess(false);
+      if (saveSuccessTimerRef.current) {
+        clearTimeout(saveSuccessTimerRef.current);
+        saveSuccessTimerRef.current = null;
+      }
       const msg = e instanceof Error ? e.message : "Erreur enregistrement";
       setError(msg);
       if (/facture non trouvée/i.test(msg)) {
@@ -491,6 +515,7 @@ export default function InvoiceBuilderPage() {
         statusUi={statusUi}
         canEdit={canEdit}
         saving={saving}
+        saveSuccess={saveSuccess}
         linkHint={null}
         onBack={() => navigate(-1)}
         onSave={() => void save()}

@@ -9,6 +9,8 @@ export interface InvoiceToolbarProps {
   statusUi: InvoiceStatusUi;
   canEdit: boolean;
   saving: boolean;
+  /** Feedback discret après sauvegarde réussie du brouillon */
+  saveSuccess?: boolean;
   linkHint?: string | null;
   onBack: () => void;
   onSave: () => void;
@@ -25,6 +27,7 @@ export default function InvoiceToolbar({
   statusUi,
   canEdit,
   saving,
+  saveSuccess = false,
   linkHint,
   onBack,
   onSave,
@@ -64,9 +67,16 @@ export default function InvoiceToolbar({
             Supprimer
           </Button>
         ) : null}
-        <Button type="button" variant="primary" size="sm" disabled={!canEdit || saving} onClick={onSave}>
-          {saving ? "Enregistrement…" : "Enregistrer"}
-        </Button>
+        <span className="ib-toolbar-save-wrap">
+          <Button type="button" variant="primary" size="sm" disabled={!canEdit || saving} onClick={onSave}>
+            {saving ? "Enregistrement…" : "Enregistrer le brouillon"}
+          </Button>
+          {saveSuccess ? (
+            <span className="qb-save-success" aria-live="polite">
+              ✔ Enregistré
+            </span>
+          ) : null}
+        </span>
       </div>
     </header>
   );
