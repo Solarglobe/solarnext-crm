@@ -8551,27 +8551,6 @@ function initDP2Toolbar() {
       if (
         pe &&
         typeof pe.requestedLengthM === "number" &&
-        pe.anchor !== "A" &&
-        pe.anchor !== "B"
-      ) {
-        pe.anchor = "A";
-        if (typeof dp2CommitParcelSegmentResize === "function") {
-          dp2CommitParcelSegmentResize({
-            contourId: pe.contourId,
-            segmentIndex: pe.segmentIndex,
-            requestedLengthM: pe.requestedLengthM,
-            anchor: pe.anchor
-          });
-        }
-        dp2ClearParcelEdgeEdit();
-        if (typeof dp2RemoveMeasureResizePreviewOverlay === "function") dp2RemoveMeasureResizePreviewOverlay();
-        if (typeof renderDP2FromState === "function") renderDP2FromState();
-        e.preventDefault();
-        return;
-      }
-      if (
-        pe &&
-        typeof pe.requestedLengthM === "number" &&
         (pe.anchor === "A" || pe.anchor === "B")
       ) {
         if (typeof dp2CommitParcelSegmentResize === "function") {
@@ -8589,22 +8568,6 @@ function initDP2Toolbar() {
         return;
       }
       const objs = window.DP2_STATE?.objects || [];
-      const pendingObj = objs.find((o) =>
-        o &&
-        o.type === "measure_line" &&
-        typeof o.requestedLengthM === "number" &&
-        o.resizeAnchor !== "A" &&
-        o.resizeAnchor !== "B"
-      );
-      if (pendingObj) {
-        pendingObj.resizeAnchor = "A";
-        if (typeof dp2CommitMeasureResize === "function") dp2CommitMeasureResize(pendingObj);
-        if (typeof dp2RemoveMeasureAnchorChoiceOverlay === "function") dp2RemoveMeasureAnchorChoiceOverlay();
-        if (typeof dp2RemoveMeasureResizePreviewOverlay === "function") dp2RemoveMeasureResizePreviewOverlay();
-        if (typeof renderDP2FromState === "function") renderDP2FromState();
-        e.preventDefault();
-        return;
-      }
       const obj = objs.find((o) => o && o.type === "measure_line" && typeof o.resizeAnchor === "string");
       if (obj) {
         if (typeof dp2CommitMeasureResize === "function") dp2CommitMeasureResize(obj);
@@ -9487,6 +9450,23 @@ function dp2BusinessWorldToLocal(obj, x, y) {
   };
 }
 
+function dp2BusinessLocalToWorld(obj, x, y) {
+  const g = obj?.geometry;
+  const w = g?.width || 0;
+  const h = g?.height || 0;
+  const cx = (g?.x || 0) + w / 2;
+  const cy = (g?.y || 0) + h / 2;
+  const rot = g?.rotation || 0;
+  const dx = x - cx;
+  const dy = y - cy;
+  const c = Math.cos(rot);
+  const s = Math.sin(rot);
+  return {
+    x: dx * c - dy * s + cx,
+    y: dx * s + dy * c + cy
+  };
+}
+
 function dp2TextWorldToLocal(textObj, x, y) {
   const g = textObj?.geometry;
   const w = g?.width || 0;
@@ -9597,8 +9577,23 @@ function dp2NormalizeRectFromDrag(ax, ay, bx, by, minSize) {
   return { x, y, width: w, height: h };
 }
 
+function dp2PointToSegmentDistance(px, py, ax, ay, bx, by) {
+  const vx = bx - ax;
+  const vy = by - ay;
+  const len2 = vx * vx + vy * vy;
+  if (!(len2 > 0)) return Math.hypot(px - ax, py - ay);
+  const t = Math.max(0, Math.min(1, ((px - ax) * vx + (py - ay) * vy) / len2));
+  const x = ax + vx * t;
+  const y = ay + vy * t;
+  return Math.hypot(px - x, py - y);
+}
+
 function dp2IsVectorCreateBusinessType(type) {
   return type === "sens_pente" || type === "voie_acces" || type === "arrow" || type === "angle_vue";
+}
+
+function dp2IsFramelessBusinessObject(type) {
+  return type === "sens_pente" || type === "angle_vue";
 }
 
 // Formes métier — resize + rotation (× viewZoom, ×0.8 visuel) ; déplacement = drag sur le corps
@@ -9641,6 +9636,33 @@ function dp2ApplyBusinessResizeFromLocal(inter, g, lx, ly) {
   g.height = Math.max(minSize, ly - sy);
 }
 
+function dp2ApplyFramelessBusinessResize(obj, inter, coords) {
+  const startObj = {
+    geometry: {
+      x: inter.startX,
+      y: inter.startY,
+      width: inter.startW,
+      height: inter.startH,
+      rotation: inter.startRotation
+    }
+  };
+  const anchor = dp2BusinessLocalToWorld(
+    startObj,
+    inter.startX,
+    inter.startY + (inter.startH || 0) / 2
+  );
+  const dx = coords.x - anchor.x;
+  const dy = coords.y - anchor.y;
+  const len = Math.max(16, Math.hypot(dx, dy));
+  const rot = Math.atan2(dy, dx);
+  const h = Math.max(12, inter.startH || obj.geometry.height || 24);
+  obj.geometry.width = len;
+  obj.geometry.height = h;
+  obj.geometry.rotation = rot;
+  obj.geometry.x = anchor.x + dx / 2 - len / 2;
+  obj.geometry.y = anchor.y + dy / 2 - h / 2;
+}
+
 function dp2HitTestBusiness(x, y) {
   const items = window.DP2_STATE?.businessObjects || [];
   const m = dp2GetBusinessSelectionMetrics();
@@ -9677,24 +9699,41 @@ function dp2HitTestBusiness(x, y) {
       ly <= g.y + h;
 
     if (canHitHandles) {
+      const frameless = dp2IsFramelessBusinessObject(obj.type);
       const rhX = g.x + w / 2;
       const rhY = g.y - rotLine;
       if (Math.hypot(lx - rhX, ly - rhY) <= rotHitR) {
         return { id: obj.id, part: "rotate" };
       }
 
-      const hx = g.x + w;
-      const hy = g.y + h;
+      const hx = frameless ? g.x + w * 0.88 : g.x + w;
+      const hy = frameless ? g.y + h / 2 : g.y + h;
       if (lx >= hx - hitResizeHalf && lx <= hx + hitResizeHalf && ly >= hy - hitResizeHalf && ly <= hy + hitResizeHalf) {
         return { id: obj.id, part: "resize", handle: "br" };
       }
 
-      if (strictIn) {
+      if (frameless) {
+        const ax = g.x + w * 0.12;
+        const ay = g.y + h * 0.5;
+        const bx = g.x + w * 0.88;
+        const by = g.y + h * 0.5;
+        const d = dp2PointToSegmentDistance(lx, ly, ax, ay, bx, by);
+        if (d <= Math.max(bodyPad + 3, 10 * m.sc)) return { id: obj.id, part: "body" };
+      } else if (strictIn) {
         return { id: obj.id, part: "body" };
       }
     }
 
-    if (inside) return { id: obj.id, part: "body" };
+    if (dp2IsFramelessBusinessObject(obj.type)) {
+      const ax = g.x + w * 0.12;
+      const ay = g.y + h * 0.5;
+      const bx = g.x + w * 0.88;
+      const by = g.y + h * 0.5;
+      const d = dp2PointToSegmentDistance(lx, ly, ax, ay, bx, by);
+      if (d <= Math.max(bodyPad + 3, 10 * m.sc)) return { id: obj.id, part: "body" };
+    } else if (inside) {
+      return { id: obj.id, part: "body" };
+    }
   }
   return null;
 }
@@ -10882,6 +10921,12 @@ function initDP2CanvasEvents() {
     }
 
     if (inter.part === "resize") {
+      if (dp2IsFramelessBusinessObject(obj.type)) {
+        dp2ApplyFramelessBusinessResize(obj, inter, coords);
+        inter.hasMoved = true;
+        dp2ScheduleBusinessDragRender();
+        return;
+      }
       const tmpObj = {
         geometry: {
           x: inter.startX,
@@ -14629,6 +14674,24 @@ function renderDP2BusinessHoverHighlight(ctx, obj, alphaBlend) {
   const x = -w / 2;
   const y = -h / 2;
 
+  if (dp2IsFramelessBusinessObject(obj.type)) {
+    const pad = Math.max(3, 5 * dp2GetBusinessSelectionUiScale());
+    const lineX1 = obj.type === "sens_pente" ? -w * 0.38 : x + pad;
+    const lineX2 = obj.type === "sens_pente" ? w * 0.38 : x + w - pad;
+    ctx.globalAlpha = Math.min(1, ab * 0.9);
+    ctx.strokeStyle = "rgba(79, 70, 229, 0.34)";
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 5]);
+    ctx.beginPath();
+    ctx.moveTo(lineX1, 0);
+    ctx.lineTo(lineX2, 0);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.globalAlpha = 1;
+    ctx.restore();
+    return;
+  }
+
   ctx.globalAlpha = ab;
   ctx.fillStyle = "rgba(79, 70, 229, 0.055)";
   ctx.fillRect(x, y, w, h);
@@ -14671,6 +14734,50 @@ function renderDP2BusinessSelection(ctx, obj) {
 
   const x = -w / 2;
   const y = -h / 2;
+
+  if (dp2IsFramelessBusinessObject(obj.type)) {
+    if (allowHandles) {
+      const rCy = y - rotLine;
+      const vh = visualHalf * 0.68;
+      const lineAlpha = 0.5 + 0.2 * selBlend + 0.12 * grip;
+      const pad = Math.max(3, 5 * sc);
+      const lineX1 = obj.type === "sens_pente" ? -w * 0.38 : x + pad;
+      const lineX2 = obj.type === "sens_pente" ? w * 0.38 : x + w - pad;
+
+      ctx.strokeStyle = flash ? "#4338ca" : `rgba(79, 70, 229, ${lineAlpha})`;
+      ctx.lineWidth = Math.max(1, 1.05 * sc) + grip * 0.25;
+      ctx.lineCap = "round";
+      ctx.setLineDash([4 * sc, 5 * sc]);
+      ctx.beginPath();
+      ctx.moveTo(lineX1, 0);
+      ctx.lineTo(lineX2, 0);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.fillStyle = "rgba(255, 255, 255, 0.92)";
+      ctx.strokeStyle = H;
+      ctx.lineWidth = Math.max(0.85, 1 * sc);
+      ctx.beginPath();
+      ctx.arc(lineX2, 0, Math.max(3.2, vh * 0.72), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.strokeStyle = H_DIM;
+      ctx.lineWidth = lw;
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(0, rCy + rotVisR);
+      ctx.stroke();
+
+      ctx.strokeStyle = H;
+      ctx.lineWidth = Math.max(0.75, lw * 0.62);
+      ctx.beginPath();
+      ctx.arc(0, rCy, rotVisR, -Math.PI * 0.35, Math.PI * 1.15, false);
+      ctx.stroke();
+    }
+    ctx.restore();
+    return;
+  }
 
   const fillA = (0.065 + 0.035 * selBlend) * (1 + 0.35 * grip);
   ctx.fillStyle = flash ? `rgba(99, 102, 241, ${0.1 + 0.06 * grip})` : `rgba(79, 70, 229, ${fillA})`;
@@ -15652,6 +15759,16 @@ async function initDP2() {
       pixelTolerance: 6,
       snapToPointer: false
     });
+    dp2BuildingModify.on("modifystart", function () {
+      try {
+        const snap = window.DP2_MAP?.dp2BuildingSnap;
+        if (snap && typeof snap.setActive === "function") snap.setActive(false);
+      } catch (_) {}
+      window.__DP2_TEMP_OL_DRAG__ = true;
+      try {
+        dp2SyncBuildingOlPointerPassThrough();
+      } catch (_) {}
+    });
     dp2BuildingModify.on("modifyend", function (evt) {
       try {
         const col = evt.features;
@@ -15730,6 +15847,14 @@ async function initDP2() {
         } catch (_) {}
       } catch (err2) {
         console.warn("[DP2] modifyend", err2);
+      } finally {
+        window.__DP2_TEMP_OL_DRAG__ = false;
+        try {
+          dp2SyncBuildingOlInteractions();
+        } catch (_) {}
+        try {
+          dp2SyncBuildingOlPointerPassThrough();
+        } catch (_) {}
       }
     });
 
