@@ -37,4 +37,18 @@ describe("PdfLegacyPort — page batterie virtuelle", () => {
     const { getByText } = render(<PdfLegacyPort viewModel={vmForScenario("BATTERY_VIRTUAL")} />);
     expect(getByText("Impact réel de votre batterie virtuelle")).toBeInTheDocument();
   });
+
+  it("affiche la page si le payload batterie virtuelle existe sans meta scenarioType", () => {
+    const virtualBatteryViewModel = vmForScenario("BATTERY_VIRTUAL");
+    const { getByText } = render(
+      <PdfLegacyPort
+        viewModel={{
+          fullReport: virtualBatteryViewModel.fullReport,
+          organization: {},
+        }}
+      />,
+    );
+
+    expect(getByText(/Impact.*batterie virtuelle/)).toBeInTheDocument();
+  });
 });
