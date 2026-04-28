@@ -48,19 +48,24 @@ export default function PdfPage11({
         header: (
           <PdfHeader
             headerStyle={{
-              ["--logoW" as string]: "26mm",
+              ["--logoW" as string]: logoUrl ? "22mm" : "0",
               ["--metaW" as string]: "120mm",
               flexShrink: 0,
             }}
             logo={
-              <img
-                src={logoUrl}
-                alt="Solarglobe"
-                style={{ position: "absolute", left: 0, top: 0, height: "16mm", objectFit: "contain" }}
-                onError={(e) => {
-                  e.currentTarget.src = PLACEHOLDER_LOGO;
-                }}
-              />
+              logoUrl ? (
+                <img
+                  src={logoUrl}
+                  alt="Solarglobe"
+                  style={{ position: "absolute", left: 0, top: 0, height: "18mm", objectFit: "contain" }}
+                  onError={(e) => {
+                    if (!e.currentTarget.dataset.fallbackApplied) {
+                      e.currentTarget.dataset.fallbackApplied = "true";
+                      e.currentTarget.src = PLACEHOLDER_LOGO;
+                    }
+                  }}
+                />
+              ) : null
             }
             badge="Financement"
             metaColumn={
