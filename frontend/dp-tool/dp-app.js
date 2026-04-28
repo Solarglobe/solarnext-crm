@@ -7914,6 +7914,45 @@ function dp2DrawCoteSegmentTier(ctx, p1, p2, tier) {
   ctx.restore();
 }
 
+function dp2DrawTransparentPoint(ctx, x, y, strokeColor, radius, lineWidth) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(x, y, radius || 6, 0, Math.PI * 2);
+  ctx.strokeStyle = strokeColor || DP2_TECH_BLUE;
+  ctx.lineWidth = lineWidth || 1.8;
+  ctx.stroke();
+  ctx.beginPath();
+  const s = Math.max(2.6, (radius || 6) * 0.48);
+  ctx.moveTo(x - s, y);
+  ctx.lineTo(x + s, y);
+  ctx.moveTo(x, y - s);
+  ctx.lineTo(x, y + s);
+  ctx.lineWidth = Math.max(0.85, (lineWidth || 1.8) * 0.55);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function dp2DrawAnchorChoice(ctx, x, y, label, color) {
+  const r = DP2_MEASURE_ANCHOR_CHOICE_VISUAL_PX;
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.fillStyle = "rgba(255,255,255,0.22)";
+  ctx.fill();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1.7;
+  ctx.stroke();
+  ctx.font = "600 10px system-ui, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.lineWidth = 2.2;
+  ctx.strokeStyle = "rgba(255,255,255,0.7)";
+  ctx.strokeText(label, x, y);
+  ctx.fillStyle = color;
+  ctx.fillText(label, x, y);
+  ctx.restore();
+}
+
 function dp2FillCoteLabelWithTier(ctx, text, midX, midY, tier) {
   const sc = tier === "hover" ? 1.05 : tier === "active" ? 1.04 : tier === "editing" ? 1.06 : 1;
   ctx.save();
@@ -9605,6 +9644,16 @@ function dp2IsVectorCreateBusinessType(type) {
 
 function dp2IsFramelessBusinessObject(type) {
   return type === "sens_pente" || type === "angle_vue" || type === "voie_acces";
+}
+
+function dp2BusinessFramelessActiveLevel(obj) {
+  if (!obj || !window.DP2_STATE) return 0;
+  const st = window.DP2_STATE;
+  if (st.businessInteraction && st.businessInteraction.id === obj.id) return 1;
+  if (st.businessDragCandidate && st.businessDragCandidate.id === obj.id) return 0.8;
+  if (st.selectedBusinessObjectId === obj.id) return 0.55;
+  if (st._businessHoverId === obj.id) return 0.35;
+  return 0;
 }
 
 // Formes métier — resize + rotation (× viewZoom, ×0.8 visuel) ; déplacement = drag sur le corps
@@ -12076,10 +12125,9 @@ function renderDP2FromState() {
     }
   } else if (preview && preview.from && preview.to) {
     ctx.save();
-      ctx.setLineDash([6, 4]);
-      // Contraste : mesure = vert clair discret, faîtage = vert plus sombre et plus épais
-      ctx.strokeStyle = preview.previewType === "ridge_line" ? "#0b6e4f" : "#2ecc71";
-      ctx.lineWidth = preview.previewType === "ridge_line" ? 3 : 1.5;
+      ctx.setLineDash([5, 4]);
+      ctx.strokeStyle = preview.previewType === "ridge_line" ? DP2_RIDGE_GREEN : DP2_MEASURE_GREEN;
+      ctx.lineWidth = preview.previewType === "ridge_line" ? 2 : 1.5;
       ctx.beginPath();
       ctx.moveTo(preview.from.x, preview.from.y);
       ctx.lineTo(preview.to.x, preview.to.y);
@@ -13236,9 +13284,9 @@ function renderMeasureLine(ctx, obj, objectIndex) {
   if (preview) {
     // Prévisualisation dynamique (requestedLengthM + resizeAnchor) : segment pointillés, flèche, longueur demandée. Aucun commit sur obj.a/obj.b.
     // On ne dessine que le preview (pas le segment obj.a→obj.b) pour éviter le dédoublement visuel du point déplacé.
-    ctx.strokeStyle = "#2ecc71";
-    ctx.lineWidth = 1.5;
-    ctx.setLineDash([6, 4]);
+    ctx.strokeStyle = DP2_PREVIEW_STROKE;
+    ctx.lineWidth = 1.6;
+    ctx.setLineDash([5, 4]);
     ctx.beginPath();
     ctx.moveTo(preview.aPreview.x, preview.aPreview.y);
     ctx.lineTo(preview.bPreview.x, preview.bPreview.y);
@@ -13249,68 +13297,35 @@ function renderMeasureLine(ctx, obj, objectIndex) {
     const to = anchor === "A" ? preview.aPreview : preview.bPreview;
     const dist = Math.hypot(to.x - from.x, to.y - from.y);
     if (dist > 2) {
-      const ax = (to.x - from.x) / dist;
-      const ay = (to.y - from.y) / dist;
-      const headLen = Math.min(12, dist * 0.4);
-      const tipX = to.x - ax * headLen;
-      const tipY = to.y - ay * headLen;
-      const perpX = -ay;
-      const perpY = ax;
-      ctx.strokeStyle = "#0f0";
-      ctx.lineWidth = 2;
+      ctx.strokeStyle = "rgba(37, 99, 235, 0.55)";
+      ctx.lineWidth = 1;
+      ctx.setLineDash([2, 3]);
       ctx.beginPath();
       ctx.moveTo(from.x, from.y);
       ctx.lineTo(to.x, to.y);
       ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(to.x, to.y);
-      ctx.lineTo(tipX + perpX * 4, tipY + perpY * 4);
-      ctx.lineTo(tipX - perpX * 4, tipY - perpY * 4);
-      ctx.closePath();
-      ctx.fillStyle = "#0f0";
-      ctx.fill();
-      ctx.stroke();
+      ctx.setLineDash([]);
     }
 
     const fixed = anchor === "A" ? obj.b : obj.a;
     const movedPreview = anchor === "A" ? preview.aPreview : preview.bPreview;
-    ctx.fillStyle = "rgba(150, 150, 150, 0.7)";
-    ctx.beginPath();
-    ctx.arc(fixed.x, fixed.y, 3, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = "#0f0";
-    ctx.beginPath();
-    ctx.arc(movedPreview.x, movedPreview.y, 6, 0, Math.PI * 2);
-    ctx.fill();
+    dp2DrawTransparentPoint(ctx, fixed.x, fixed.y, "rgba(107, 114, 128, 0.65)", 3.4, 1.2);
+    dp2DrawTransparentPoint(ctx, movedPreview.x, movedPreview.y, DP2_PREVIEW_STROKE, 6, 1.8);
 
     const off = obj.labelOffset && typeof obj.labelOffset.x === "number" && typeof obj.labelOffset.y === "number" ? obj.labelOffset : { x: 0, y: 0 };
     const text = (typeof obj.requestedLengthM === "number" ? obj.requestedLengthM : 0).toFixed(2).replace(".", ",") + " m";
     dp2FillAlignedCoteLabel(ctx, text, preview.aPreview, preview.bPreview, off, "editing");
   } else if (typeof obj.requestedLengthM === "number" && obj.requestedLengthM >= 0 && obj.resizeAnchor !== "A" && obj.resizeAnchor !== "B") {
     // Choix du point à déplacer : segment + repères A (vert) et B (bleu) sur le plan, label
-    ctx.strokeStyle = "#2ecc71";
+    ctx.strokeStyle = DP2_MEASURE_GREEN;
     ctx.lineWidth = 1.5;
     ctx.setLineDash([]);
     ctx.beginPath();
     ctx.moveTo(obj.a.x, obj.a.y);
     ctx.lineTo(obj.b.x, obj.b.y);
     ctx.stroke();
-    const r = DP2_MEASURE_ANCHOR_CHOICE_VISUAL_PX;
-    ctx.font = "11px system-ui, sans-serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillStyle = "#16a34a";
-    ctx.beginPath();
-    ctx.arc(obj.a.x, obj.a.y, r, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = "#fff";
-    ctx.fillText("A", obj.a.x, obj.a.y);
-    ctx.fillStyle = "#2563eb";
-    ctx.beginPath();
-    ctx.arc(obj.b.x, obj.b.y, r, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = "#fff";
-    ctx.fillText("B", obj.b.x, obj.b.y);
+    dp2DrawAnchorChoice(ctx, obj.a.x, obj.a.y, "A", DP2_MEASURE_GREEN);
+    dp2DrawAnchorChoice(ctx, obj.b.x, obj.b.y, "B", DP2_PREVIEW_STROKE);
     const off = obj.labelOffset && typeof obj.labelOffset.x === "number" && typeof obj.labelOffset.y === "number" ? obj.labelOffset : { x: 0, y: 0 };
     const text = obj.requestedLengthM.toFixed(2).replace(".", ",") + " m";
     dp2FillAlignedCoteLabel(ctx, text, obj.a, obj.b, off, null);
@@ -13318,7 +13333,7 @@ function renderMeasureLine(ctx, obj, objectIndex) {
     const mfid = typeof objectIndex === "number" ? "measure:" + objectIndex : null;
     const mtier = mfid ? dp2InteractionTierForFeature(mfid) : null;
     // Comportement normal (pas de prévisualisation) — points comme contour de bâti (6px, blanc, stroke)
-    ctx.strokeStyle = "#2ecc71";
+    ctx.strokeStyle = DP2_MEASURE_GREEN;
     ctx.lineWidth = 1.5;
     ctx.setLineDash([]);
     ctx.beginPath();
@@ -13346,17 +13361,11 @@ function renderMeasureLine(ctx, obj, objectIndex) {
 }
 
 // DP2 — Style des points faitage/mesure (aligné contour de bâti : 6px, blanc, stroke)
-const DP2_RIDGE_POINT_STROKE = "#0b6e4f";
-const DP2_MEASURE_POINT_STROKE = "#2ecc71";
+const DP2_RIDGE_POINT_STROKE = DP2_RIDGE_GREEN;
+const DP2_MEASURE_POINT_STROKE = DP2_MEASURE_GREEN;
 
 function dp2DrawLinePoint(ctx, x, y, strokeColor) {
-  ctx.beginPath();
-  ctx.arc(x, y, 6, 0, Math.PI * 2);
-  ctx.fillStyle = "#ffffff";
-  ctx.fill();
-  ctx.strokeStyle = strokeColor || "#C39847";
-  ctx.lineWidth = 2;
-  ctx.stroke();
+  dp2DrawTransparentPoint(ctx, x, y, strokeColor || "#C39847", 6, 1.8);
 }
 
 // --------------------------
@@ -13370,8 +13379,8 @@ function renderRidgeLine(ctx, obj, objectIndex) {
   const rfid = typeof objectIndex === "number" ? "ridge:" + objectIndex : null;
   const rtier = rfid ? dp2InteractionTierForFeature(rfid) : null;
   ctx.save();
-  ctx.strokeStyle = "#0b6e4f";
-  ctx.lineWidth = 3;
+  ctx.strokeStyle = DP2_RIDGE_GREEN;
+  ctx.lineWidth = 2;
   ctx.setLineDash([]);
   ctx.beginPath();
   ctx.moveTo(obj.a.x, obj.a.y);
@@ -13560,6 +13569,16 @@ function dp2DrawGutterHeightIcon(ctx, cx, cy, stroke, scale) {
   ctx.restore();
 }
 
+function dp2DrawTextWithHalo(ctx, text, x, y, fill, maxStroke) {
+  ctx.save();
+  ctx.lineWidth = maxStroke || 2.4;
+  ctx.strokeStyle = "rgba(255,255,255,0.72)";
+  ctx.strokeText(text, x, y);
+  ctx.fillStyle = fill || "#134e4a";
+  ctx.fillText(text, x, y);
+  ctx.restore();
+}
+
 // DP2 / DP4 — Annotation métier : icône ↕ + valeur « X,XX m ». Modèle : { type, x, y, heightM, visualScale? }.
 function renderGutterHeightDimension(ctx, obj, objectIndex) {
   if (!obj || obj.type !== "gutter_height_dimension") return;
@@ -13579,26 +13598,10 @@ function renderGutterHeightDimension(ctx, obj, objectIndex) {
   ctx.save();
   ctx.globalAlpha = isPreview ? 0.72 : 1;
   const fontPx = 11 * sc;
-  ctx.font = fontPx + "px system-ui, sans-serif";
+  ctx.font = "500 " + fontPx + "px system-ui, sans-serif";
   ctx.textAlign = "left";
   ctx.textBaseline = "middle";
-  const tw = ctx.measureText(valStr).width;
-  const padX = 5 * sc;
-  const padY = 3 * sc;
-  const boxX = labelX - padX;
-  const boxY = labelY - fontPx / 2 - padY;
-  const boxW = tw + padX * 2;
-  const boxH = fontPx + padY * 2;
-  ctx.fillStyle = "rgba(255,255,255,0.88)";
-  ctx.strokeStyle = "rgba(15,118,110,0.22)";
-  ctx.lineWidth = Math.max(0.75, 0.75 * sc);
-  ctx.beginPath();
-  if (typeof ctx.roundRect === "function") ctx.roundRect(boxX, boxY, boxW, boxH, 3 * sc);
-  else ctx.rect(boxX, boxY, boxW, boxH);
-  ctx.fill();
-  ctx.stroke();
-  ctx.fillStyle = "#134e4a";
-  ctx.fillText(valStr, labelX, labelY);
+  dp2DrawTextWithHalo(ctx, valStr, labelX, labelY, "#134e4a", 2.6 * sc);
   const showScaleHandle = !isPreview && typeof objectIndex === "number" && objectIndex >= 0;
   if (showScaleHandle) {
     const L = dp2GutterHeightVisualHandleLayout(obj);
@@ -13696,8 +13699,8 @@ function renderBuildingOutline(ctx, obj) {
 // --------------------------
 // DP2 — RENDU CONTOURS DE BÂTI (multi, éditables) — DP2 UNIQUEMENT
 // --------------------------
-const DP2_BUILDING_CONTOUR_ACTIVE_STROKE = "#1e40af";
-const DP2_BUILDING_CONTOUR_INACTIVE_STROKE = "#1e40af";
+const DP2_BUILDING_CONTOUR_ACTIVE_STROKE = DP2_TECH_BLUE;
+const DP2_BUILDING_CONTOUR_INACTIVE_STROKE = DP2_TECH_BLUE;
 
 function renderDP2BuildingContour(ctx, contour, options) {
   if (!contour || !Array.isArray(contour.points) || contour.points.length < 1) return;
@@ -13783,29 +13786,9 @@ function renderDP2BuildingContour(ctx, contour, options) {
         }
         const hasValue = previewStub && typeof previewStub.requestedLengthM === "number";
         if (hasValue && noAnchorYet) {
-          const R = DP2_MEASURE_ANCHOR_CHOICE_VISUAL_PX;
           ctx.save();
-          ctx.font = "bold 11px system-ui, sans-serif";
-          ctx.textAlign = "center";
-          ctx.textBaseline = "middle";
-          ctx.beginPath();
-          ctx.arc(p1.x, p1.y, R, 0, Math.PI * 2);
-          ctx.fillStyle = "#16a34a";
-          ctx.fill();
-          ctx.strokeStyle = "#0f766e";
-          ctx.lineWidth = 1.5;
-          ctx.stroke();
-          ctx.fillStyle = "#fff";
-          ctx.fillText("A", p1.x, p1.y);
-          ctx.beginPath();
-          ctx.arc(p2.x, p2.y, R, 0, Math.PI * 2);
-          ctx.fillStyle = "#2563eb";
-          ctx.fill();
-          ctx.strokeStyle = "#1d4ed8";
-          ctx.lineWidth = 1.5;
-          ctx.stroke();
-          ctx.fillStyle = "#fff";
-          ctx.fillText("B", p2.x, p2.y);
+          dp2DrawAnchorChoice(ctx, p1.x, p1.y, "A", DP2_MEASURE_GREEN);
+          dp2DrawAnchorChoice(ctx, p2.x, p2.y, "B", DP2_PREVIEW_STROKE);
           ctx.restore();
         }
         const preview =
@@ -13816,9 +13799,9 @@ function renderDP2BuildingContour(ctx, contour, options) {
             : null;
         if (preview) {
           ctx.save();
-          ctx.setLineDash([6, 4]);
-          ctx.strokeStyle = DP2_BUILDING_CONTOUR_ACTIVE_STROKE;
-          ctx.lineWidth = 2;
+          ctx.setLineDash([5, 4]);
+          ctx.strokeStyle = DP2_PREVIEW_STROKE;
+          ctx.lineWidth = 1.6;
           ctx.beginPath();
           ctx.moveTo(preview.aPreview.x, preview.aPreview.y);
           ctx.lineTo(preview.bPreview.x, preview.bPreview.y);
@@ -13829,27 +13812,14 @@ function renderDP2BuildingContour(ctx, contour, options) {
           const to = anchor === "A" ? preview.aPreview : preview.bPreview;
           const dist = Math.hypot(to.x - from.x, to.y - from.y);
           if (dist > 2) {
-            const ax = (to.x - from.x) / dist;
-            const ay = (to.y - from.y) / dist;
-            const headLen = Math.min(12, dist * 0.4);
-            const tipX = to.x - ax * headLen;
-            const tipY = to.y - ay * headLen;
-            const perpX = -ay;
-            const perpY = ax;
-            ctx.strokeStyle = "#1f2937";
-            ctx.lineWidth = 2;
+            ctx.strokeStyle = "rgba(37, 99, 235, 0.55)";
+            ctx.lineWidth = 1;
+            ctx.setLineDash([2, 3]);
             ctx.beginPath();
             ctx.moveTo(from.x, from.y);
             ctx.lineTo(to.x, to.y);
             ctx.stroke();
-            ctx.beginPath();
-            ctx.moveTo(to.x, to.y);
-            ctx.lineTo(tipX + perpX * 4, tipY + perpY * 4);
-            ctx.lineTo(tipX - perpX * 4, tipY - perpY * 4);
-            ctx.closePath();
-            ctx.fillStyle = "#1f2937";
-            ctx.fill();
-            ctx.stroke();
+            ctx.setLineDash([]);
           }
           const text =
             (typeof previewStub.requestedLengthM === "number" ? previewStub.requestedLengthM : 0)
@@ -14585,14 +14555,14 @@ function renderDP2BusinessObject(ctx, obj) {
 
     // Sens de la pente : ROUGE, flèche fine, pointe fine et allongée (évoque la gravité)
     case "sens_pente": {
-      const red = "rgba(185, 28, 28, 0.9)";
-      const x1 = -w * 0.38;
-      const x2 = w * 0.38;
-      // Légère diagonale descendante pour évoquer clairement la pente / gravité
-      const yOffset = Math.min(8, Math.max(3, h * 0.18));
+      const active = dp2BusinessFramelessActiveLevel(obj);
+      const red = active > 0 ? "rgba(153, 27, 27, 0.98)" : "rgba(153, 27, 27, 0.88)";
+      const x1 = -w * 0.42;
+      const x2 = w * 0.42;
+      const yOffset = Math.min(7, Math.max(2.5, h * 0.16));
       const y1 = -yOffset;
       const y2 = yOffset;
-      ctx.lineWidth = 1.15;
+      ctx.lineWidth = 1.25 + active * 0.35;
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
       ctx.setLineDash([]);
@@ -14601,9 +14571,8 @@ function renderDP2BusinessObject(ctx, obj) {
       ctx.moveTo(x1, y1);
       ctx.lineTo(x2, y2);
       ctx.stroke();
-      // Pointe : chevron long et étroit (pas un triangle "massif")
-      const headLen = Math.max(10, Math.min(18, w / 3.6));
-      const headHalfWidth = Math.max(2.5, Math.min(5, headLen * 0.2));
+      const headLen = Math.max(9, Math.min(15, w / 4.4));
+      const headHalfWidth = Math.max(2.4, Math.min(4.2, headLen * 0.22));
       ctx.beginPath();
       // Construire la pointe autour de la direction du segment (x1,y1)->(x2,y2)
       const dx = x2 - x1;
@@ -14628,15 +14597,15 @@ function renderDP2BusinessObject(ctx, obj) {
 
     // Voie d’accès : violet pointillé, style "chemin" (pas une flèche pleine)
     case "voie_acces": {
-      // Règles : ligne pointillée VIOLET, sans flèche / sans tête directionnelle
-      const violet = "#7c3aed";
+      const active = dp2BusinessFramelessActiveLevel(obj);
+      const access = active > 0 ? "rgba(30, 64, 175, 0.82)" : "rgba(75, 85, 99, 0.74)";
       const x1 = -w / 2;
       const x2 = w / 2;
       const yy = 0;
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = violet;
+      ctx.lineWidth = 1.25 + active * 0.3;
+      ctx.strokeStyle = access;
       ctx.fillStyle = "transparent";
-      ctx.setLineDash([8, 6]);
+      ctx.setLineDash([5, 5]);
       ctx.beginPath();
       ctx.moveTo(x1, yy);
       ctx.lineTo(x2, yy);
@@ -14669,15 +14638,14 @@ function renderDP2BusinessObject(ctx, obj) {
 
     // Angle de prise de vue : cône ouvert (2 lignes divergentes) + arc intérieur (style "Solteo")
     case "angle_vue": {
-      const a = Math.PI / 6; // ouverture ~30°
+      const active = dp2BusinessFramelessActiveLevel(obj);
+      const a = Math.PI / 7;
       const baseX = x + Math.max(4, Math.min(8, Math.min(w, h) * 0.10));
       const baseY = 0;
-      // Rayon borné pour rester strictement dans le bbox
       const pad = Math.max(6, Math.min(12, Math.min(w, h) * 0.12));
-      const r = Math.max(10, Math.min(w - pad * 2, (h / 2 - pad) / Math.sin(a)));
-      // Règles : NOIR/GRIS FONCÉ, traits fins, aucune icône appareil photo
-      const dark = "#111827";
-      ctx.lineWidth = 1.25;
+      const r = Math.max(9, Math.min(w - pad * 2, (h / 2 - pad) / Math.sin(a)));
+      const dark = active > 0 ? "rgba(17, 24, 39, 0.95)" : "rgba(17, 24, 39, 0.82)";
+      ctx.lineWidth = 1.05 + active * 0.25;
       ctx.setLineDash([]);
       ctx.strokeStyle = dark;
       ctx.fillStyle = "transparent";
@@ -14691,11 +14659,14 @@ function renderDP2BusinessObject(ctx, obj) {
       ctx.moveTo(baseX, baseY);
       ctx.lineTo(ex2, ey2);
       ctx.stroke();
-      // Arc intérieur
-      const rArc = r * 0.72;
+      const rArc = r * 0.66;
       ctx.beginPath();
       ctx.arc(baseX, baseY, rArc, -a, a);
       ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(baseX, baseY, Math.max(1.5, 2.2 + active), 0, Math.PI * 2);
+      ctx.fillStyle = dark;
+      ctx.fill();
       break;
     }
 
@@ -15501,7 +15472,7 @@ async function initDP2() {
           return [
             new ol.style.Style({
               fill: new ol.style.Fill({
-                color: active ? "rgba(30, 64, 175, 0.10)" : "rgba(30, 64, 175, 0.05)"
+                color: active ? "rgba(30, 64, 175, 0.08)" : "rgba(30, 64, 175, 0.04)"
               }),
               stroke: new ol.style.Stroke({
                 color: "#1e40af",
@@ -15692,11 +15663,11 @@ async function initDP2() {
       style: function (feature) {
         const styles = [
           new ol.style.Style({
-            fill: new ol.style.Fill({ color: "rgba(30, 64, 175, 0.08)" }),
+            fill: new ol.style.Fill({ color: "rgba(30, 64, 175, 0.06)" }),
             stroke: new ol.style.Stroke({ color: "#1e40af", width: 2.4, lineDash: [8, 6] }),
             image: new ol.style.Circle({
               radius: 4,
-              fill: new ol.style.Fill({ color: "#ffffff" }),
+              fill: new ol.style.Fill({ color: "rgba(255,255,255,0)" }),
               stroke: new ol.style.Stroke({ color: "#1e40af", width: 2 })
             })
           })
