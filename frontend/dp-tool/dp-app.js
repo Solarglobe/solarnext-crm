@@ -678,6 +678,9 @@ function initInjectedPage(page) {
   function resolveBootPagePath() {
     var boot = "pages/general.html";
     try {
+      if (window.__SN_DP_BOOT_PAGE_PATH__) {
+        return String(window.__SN_DP_BOOT_PAGE_PATH__);
+      }
       if (window.DpDraftStore && typeof window.DpDraftStore.getDraft === "function") {
         var d = window.DpDraftStore.getDraft();
         var pid = d && d.progression && d.progression.currentPageId;
@@ -2168,6 +2171,13 @@ function hydrateDP2(data) {
   try {
     if (typeof dp2RefreshDocVersionMenu === "function") dp2RefreshDocVersionMenu();
   } catch (_) {}
+  if (window.DP2_STATE) {
+    try {
+      dp2ApplyFeaturesHydrateSync();
+    } catch (e) {
+      console.warn("[DP2] sync features après hydrate", e);
+    }
+  }
 }
 
 function hydrateDP3(data) {
@@ -3934,6 +3944,20 @@ function collectDP2FinalPlanImageSync() {
   if (!ctx) return null;
 
   ctx.drawImage(imgEl, 0, 0, w, h);
+
+  try {
+    const map = window.DP2_MAP?.map;
+    const mapEl = map && typeof map.getTargetElement === "function" ? map.getTargetElement() : null;
+    if (map && mapEl && mapEl.isConnected) {
+      const olCanvases = mapEl.querySelectorAll(".ol-layer canvas");
+      olCanvases.forEach(function (c) {
+        if (c.width > 0 && c.height > 0) {
+          ctx.drawImage(c, 0, 0, c.width, c.height, 0, 0, w, h);
+        }
+      });
+    }
+  } catch (_) {}
+
   ctx.drawImage(overlayCanvas, 0, 0, w, h);
 
   return out.toDataURL("image/png");
@@ -4001,6 +4025,17 @@ function dp2CloneWorkingStateForVersionJson() {
     Object.keys(raw).forEach((k) => {
       if (k.indexOf("_") === 0) delete raw[k];
     });
+    /** Miroirs `dp2drv:` — jamais persistés. */
+    if (Array.isArray(raw.objects)) {
+      raw.objects = raw.objects.filter(function (o) {
+        if (!o) return false;
+        if (typeof o.dp2SyncKey === "string" && o.dp2SyncKey.indexOf("dp2drv:") === 0) return false;
+        if (o.type === "building_outline") return false;
+        return true;
+      });
+    }
+    /** Bâti : source de vérité = `features` (EPSG:3857). `buildingContours` = cache écran uniquement — non persisté. */
+    delete raw.buildingContours;
     return raw;
   } catch (e) {
     return null;
@@ -4014,6 +4049,8 @@ function dp2WorkingHasPlanContent(sIn) {
   if (s.capture && s.capture.imageBase64) return true;
   if (Array.isArray(s.panels) && s.panels.length) return true;
   if (Array.isArray(s.businessObjects) && s.businessObjects.length) return true;
+  if (Array.isArray(s.features) && s.features.some((f) => f && f.type === "polygon" && Array.isArray(f.coordinates) && f.coordinates.length)) return true;
+  /** Anciens state_json : périmètre encore sous `buildingContours` — migré au chargement. */
   if (Array.isArray(s.buildingContours) && s.buildingContours.length) return true;
   if (Array.isArray(s.textObjects) && s.textObjects.length) return true;
   if (Array.isArray(s.objects) && s.objects.length) return true;
@@ -4128,6 +4165,12 @@ function dp2FindVersionIndexById(id) {
 function dp2SyncActiveVersionBeforeDraft() {
   const s = window.DP2_STATE;
   if (!s) return;
+  try {
+    dp2MigrateFinalGeometryState();
+  } catch (_) {}
+  try {
+    dp2RebuildContourDisplayCacheFromFeatures();
+  } catch (_) {}
   const versions = dp2EnsureVersionsArray();
   let id = s.dp2ActiveVersionId;
   if (!id && versions.length) {
@@ -4162,6 +4205,9 @@ function dp2TeardownMapIfAny() {
   } catch (_) {}
   window.DP2_MAP = null;
   window.__DP2_INIT_DONE = false;
+  try {
+    dp2RestoreMapNodeToWrapForCapture();
+  } catch (_) {}
 }
 
 /** Centre la vue DP2 sur lat/lon WGS84 (EPSG:4326) — fallback sans géométrie parcelle. */
@@ -4193,8 +4239,8 @@ function dp2ResetWorkingEditorFieldsPreservingVersions() {
     backgroundImage: null,
     objects: [],
     buildingContours: [],
+    features: [],
     selectedBuildingContourId: null,
-    buildingContourInteraction: null,
     lineVertexInteraction: null,
     disjoncteurScale: 1,
     panels: [],
@@ -4227,6 +4273,7 @@ function dp2ResetWorkingEditorFieldsPreservingVersions() {
     gutterHeightDrag: null,
     gutterHeightVisualScaleDrag: null,
     capture_plan: null,
+    capture_preview: null,
     capture: null,
     editorProfile: null,
     dp2Versions: versions,
@@ -4261,6 +4308,9 @@ function dp2ApplyStateJsonToWorking(stateJson) {
       s.capture_plan = s.capture;
     }
   }
+  try {
+    dp2MigrateFinalGeometryState();
+  } catch (_) {}
 }
 
 function dp2RestoreDomForWorkingState() {
@@ -4271,12 +4321,18 @@ function dp2RestoreDomForWorkingState() {
   const arrow = modal ? modal.querySelector(".dp1-north-arrow") : null;
   const planCap = typeof dp2GetCapturePlan === "function" ? dp2GetCapturePlan() : window.DP2_STATE?.capture;
   if (planCap?.imageBase64) {
-    if (mapWrap) mapWrap.style.display = "none";
+    if (mapWrap) {
+      mapWrap.style.display = "";
+      mapWrap.style.pointerEvents = "none";
+    }
     if (imgWrap) imgWrap.style.display = "block";
     if (imgEl) imgEl.src = planCap.imageBase64;
     if (arrow) arrow.style.display = "";
   } else {
-    if (mapWrap) mapWrap.style.display = "";
+    if (mapWrap) {
+      mapWrap.style.display = "";
+      mapWrap.style.pointerEvents = "";
+    }
     if (imgWrap) imgWrap.style.display = "none";
     if (arrow) arrow.style.display = "";
   }
@@ -4394,7 +4450,10 @@ function dp2BootstrapEditorDomFromWorking() {
     typeof dp2GetCapturePlan === "function" ? dp2GetCapturePlan() : window.DP2_STATE?.capture;
   if (!planCap?.imageBase64) return;
   const mapWrapR = document.getElementById("dp2-ign-map");
-  if (mapWrapR) mapWrapR.style.display = "none";
+  if (mapWrapR) {
+    mapWrapR.style.display = "";
+    mapWrapR.style.pointerEvents = "none";
+  }
   const imgWrapR = document.getElementById("dp2-captured-image-wrap");
   const imgElR = document.getElementById("dp2-captured-image");
   if (imgWrapR && imgElR) {
@@ -4445,7 +4504,11 @@ function dp2OnEntryCreateFirstPlan(e) {
 function dp2OnEntryContinue(e) {
   if (e) e.preventDefault();
   dp2EnsureVersionRowBeforeEdit();
-  dp2TeardownMapIfAny();
+  const planContEarly =
+    typeof dp2GetCapturePlan === "function" ? dp2GetCapturePlan() : window.DP2_STATE?.capture;
+  if (!planContEarly?.imageBase64) {
+    dp2TeardownMapIfAny();
+  }
   dp2RestoreDomForWorkingState();
   const planCont =
     typeof dp2GetCapturePlan === "function" ? dp2GetCapturePlan() : window.DP2_STATE?.capture;
@@ -5472,10 +5535,11 @@ function __snDpFreshDp2State() {
     scale_m_per_px: null,   // valeur figée après capture (utiliser scale_m_per_px)
     orientation: "N",
     backgroundImage: null,  // { src, width, height } - indépendant du canvas
-    objects: [],            // tableau d'objets à dessiner (source de vérité unique)
-    buildingContours: [],
+    objects: [],            // mesures / faîtages / annotations (pas le périmètre bâti)
+    buildingContours: [],   // cache pixels dérivé de `features` (non persisté dans state_json)
+    /** Contours bâti EPSG:3857 — source de vérité persistée. */
+    features: [],
     selectedBuildingContourId: null,
-    buildingContourInteraction: null,
     lineVertexInteraction: null,
     disjoncteurScale: 1,
     panels: [],
@@ -5501,7 +5565,6 @@ function __snDpFreshDp2State() {
     _lastSelectionRectAt: 0,
     _lastPvPanelInteractionAt: 0,
     _lastTextInteractionAt: 0,
-    _lastBuildingContourInteractionAt: 0,
     _businessKeyHandlerBound: false,
     photoCategory: null,
     panelModel: null,
@@ -5513,6 +5576,7 @@ function __snDpFreshDp2State() {
     gutterHeightDrag: null,
     gutterHeightVisualScaleDrag: null,
     capture_plan: null,
+    capture_preview: null,
     dp2Versions: [],
     dp2ActiveVersionId: null,
     displayMode: "detailed"
@@ -6345,7 +6409,7 @@ function dp2GetOpenBuildingOutline() {
 }
 
 function dp2GetActiveBuildingOutlineForDrawing() {
-  // DP2 et DP4 : contour stocké dans buildingContours[]
+  // DP2/DP4 : périmètre bâti = DP2_STATE.features (EPSG:3857) ; buildingContours = cache pixels dérivé
   return dp2GetOpenBuildingContour();
 }
 
@@ -6363,7 +6427,6 @@ function dp2EnsureBuildingContoursState() {
   if (!s) return;
   if (!Array.isArray(s.buildingContours)) s.buildingContours = [];
   if (s.selectedBuildingContourId == null) s.selectedBuildingContourId = null;
-  if (s.buildingContourInteraction == null) s.buildingContourInteraction = null;
   if (s.lineVertexInteraction == null) s.lineVertexInteraction = null;
 }
 
@@ -6386,9 +6449,25 @@ function dp2GetBuildingContourById(id) {
 }
 
 function dp2GetOpenBuildingContour() {
+  dp2EnsureBuildingContoursState();
+  dp2EnsureFeaturesArray();
+  const feats = window.DP2_STATE?.features || [];
+  for (let i = feats.length - 1; i >= 0; i--) {
+    const f = feats[i];
+    if (f && f.type === "polygon" && f.closed === false && Array.isArray(f.coordinates) && f.coordinates.length >= 1) {
+      let c = dp2GetBuildingContourById(f.id);
+      if (!c || c.closed !== false) {
+        try {
+          dp2RebuildContourDisplayCacheFromFeatures();
+        } catch (_) {}
+        c = dp2GetBuildingContourById(f.id);
+      }
+      if (c && c.closed === false) return c;
+    }
+  }
   const list = dp2GetBuildingContours();
-  for (let i = list.length - 1; i >= 0; i--) {
-    const c = list[i];
+  for (let j = list.length - 1; j >= 0; j--) {
+    const c = list[j];
     if (c && c.closed === false && Array.isArray(c.points) && c.points.length >= 1) return c;
   }
   return null;
@@ -6448,7 +6527,7 @@ function dp2SegmentIntersection(p, p2, q, q2) {
 }
 
 function applyRidgeLineCutsToBuildingOutline(ridgeA, ridgeB) {
-  // DP2 / DP4 : même moteur — contour sélectionné ou premier de la liste (buildingContours)
+  // DP2 / DP4 : contour actif = sélection id ou premier feature polygon dans DP2_STATE.features
   const id = window.DP2_STATE?.selectedBuildingContourId || null;
   let outline = id ? dp2GetBuildingContourById(id) : null;
   if (!outline) {
@@ -6656,8 +6735,7 @@ function initDP2Editor() {
     if (kept.length !== objs.length) window.DP2_STATE.objects = kept;
   } catch (_) {}
 
-  // Migration douce (compat DP2) : anciens objets {type:"building_outline"} → DP2_STATE.buildingContours[]
-  // DP2 et DP4 utilisent le même moteur (buildingContours).
+  // Migration douce (compat DP2) : anciens objets {type:"building_outline"} → DP2_STATE.features (+ miroir buildingContours).
   try {
     dp2EnsureBuildingContoursState();
     const objs = window.DP2_STATE.objects || [];
@@ -6668,13 +6746,28 @@ function initDP2Editor() {
         const pts = Array.isArray(o.points) ? o.points : [];
         const id = (o.id && typeof o.id === "string") ? o.id : dp2NewBuildingContourId();
         // Éviter doublons si déjà migré
-        if (!dp2GetBuildingContourById(id)) {
-          window.DP2_STATE.buildingContours.push({
-            id,
-            points: pts.map((p) => ({ x: typeof p?.x === "number" ? p.x : 0, y: typeof p?.y === "number" ? p.y : 0 })),
-            closed: o.closed === true,
-            cuts: o.cuts && typeof o.cuts === "object" ? o.cuts : undefined
-          });
+        if (!dp2GetBuildingContourById(id) && !dp2FindPolygonFeatureById(id)) {
+          dp2EnsureFeaturesArray();
+          const canvasPts = pts.map((p) => ({
+            x: typeof p?.x === "number" ? p.x : 0,
+            y: typeof p?.y === "number" ? p.y : 0
+          }));
+          const coords = [];
+          for (let pi = 0; pi < canvasPts.length; pi++) {
+            const mc = dp2PixelToMapCoord(canvasPts[pi].x, canvasPts[pi].y);
+            if (mc && mc.length >= 2) coords.push(mc);
+          }
+          if (coords.length >= 1) {
+            const feat = {
+              id,
+              type: "polygon",
+              coordinates: coords,
+              closed: o.closed === true
+            };
+            if (o.cuts && typeof o.cuts === "object") feat.cuts = o.cuts;
+            window.DP2_STATE.features.push(feat);
+            dp2RebuildContourDisplayCacheFromFeatures();
+          }
         }
         // Si cet objet était sélectionné (ancienne sélection), migrer vers selectedBuildingContourId
         if (window.DP2_STATE.selectedObjectId === i) {
@@ -6700,6 +6793,15 @@ function initDP2Editor() {
     scale: window.DP2_STATE.scale_m_per_px,
     objects: window.DP2_STATE.objects.length
   });
+
+  try {
+    dp2ApplyFeaturesHydrateSync();
+  } catch (_) {}
+
+  try {
+    dp2MountOlMapUnderCanvasIfNeeded();
+    dp2SyncEditionOlMapLayoutSync();
+  } catch (_) {}
 
   // Rendu initial depuis l'état
   renderDP2FromState();
@@ -6738,10 +6840,16 @@ function dp2CloneForHistory(value) {
 function dp2SnapshotForHistory() {
   const state = window.DP2_STATE;
   if (!state) return null;
+  /** Ne pas stocker les miroirs `dp2drv:` ni les doublons `building_outline`. */
+  const objsRaw = state.objects || [];
+  const objsForHist = objsRaw.filter(
+    (o) =>
+      !(o && typeof o.dp2SyncKey === "string" && o.dp2SyncKey.indexOf("dp2drv:") === 0) &&
+      !(o && o.type === "building_outline")
+  );
   return {
-    objects: dp2CloneForHistory(state.objects || []),
-    // DP2 uniquement : contours de bâti (DP4 conserve l'ancien stockage dans objects[])
-    buildingContours: dp2CloneForHistory(Array.isArray(state.buildingContours) ? state.buildingContours : []),
+    objects: dp2CloneForHistory(objsForHist),
+    features: dp2CloneForHistory(Array.isArray(state.features) ? state.features : []),
     panels: dp2CloneForHistory(state.panels || []),
     textObjects: dp2CloneForHistory(state.textObjects || []),
     businessObjects: dp2CloneForHistory(state.businessObjects || []),
@@ -6759,7 +6867,16 @@ function dp2ApplyHistorySnapshot(snap) {
   const state = window.DP2_STATE;
   if (!state || !snap) return;
   state.objects = Array.isArray(snap.objects) ? snap.objects : [];
-  state.buildingContours = Array.isArray(snap.buildingContours) ? snap.buildingContours : [];
+  if (Array.isArray(snap.features)) {
+    state.features = dp2CloneForHistory(snap.features);
+  } else {
+    state.features = [];
+    if (Array.isArray(snap.buildingContours) && snap.buildingContours.length) {
+      state.buildingContours = dp2CloneForHistory(snap.buildingContours);
+      dp2LegacyContoursToFeaturesInPlace(state);
+    }
+  }
+  state.buildingContours = [];
   state.selectedBuildingContourId = snap.selectedBuildingContourId || null;
   state.panels = Array.isArray(snap.panels) ? snap.panels : [];
   state.textObjects = Array.isArray(snap.textObjects) ? snap.textObjects : [];
@@ -6781,7 +6898,6 @@ function dp2ApplyHistorySnapshot(snap) {
   state.panelGroupInteraction = null;
   state.textInteraction = null;
   state.selectionRect = null;
-  state.buildingContourInteraction = null;
   state.lineVertexInteraction = null;
   state._businessHoverId = null;
   state._businessSelectionFlashPhase = false;
@@ -6789,6 +6905,9 @@ function dp2ApplyHistorySnapshot(snap) {
   state._bizHoverChromeAt = null;
   state._bizSelChromeAt = null;
   state._bizUiPrevSelBizId = undefined;
+  try {
+    dp2RebuildContourDisplayCacheFromFeatures();
+  } catch (_) {}
   renderDP2FromState();
 }
 
@@ -6806,6 +6925,9 @@ function dp2TriggerBusinessSelectionHistoryFlash() {
 }
 
 function dp2CommitHistoryPoint() {
+  try {
+    dp2RebuildContourDisplayCacheFromFeatures();
+  } catch (_) {}
   const snap = dp2SnapshotForHistory();
   if (!snap) return;
   const { undo, redo } = dp2EnsureHistoryStacks();
@@ -6909,13 +7031,16 @@ function dp2DeleteSelected() {
     return;
   }
 
-  // Ensuite : contour de bâti (DP2 uniquement)
+  // Ensuite : contour de bâti (source = features uniquement ; cache contours recalculé)
   if (contourId) {
-    const list = Array.isArray(state.buildingContours) ? state.buildingContours : [];
-    const idx = list.findIndex((c) => c && c.id === contourId);
-    if (idx >= 0) list.splice(idx, 1);
+    dp2EnsureFeaturesArray();
+    const feats = state.features || [];
+    const fidx = feats.findIndex((f) => f && String(f.id) === String(contourId));
+    if (fidx >= 0) feats.splice(fidx, 1);
+    try {
+      dp2RebuildContourDisplayCacheFromFeatures();
+    } catch (_) {}
     state.selectedBuildingContourId = null;
-    state.buildingContourInteraction = null;
     state.lineVertexInteraction = null;
     renderDP2FromState();
     return;
@@ -7195,6 +7320,235 @@ function getDP2CanvasToClient(canvas, canvasX, canvasY) {
   };
 }
 
+/**
+ * Pixel canvas DP2 (repère image naturalWidth×naturalHeight) → coordonnée projetée (EPSG:3857).
+ * Utilise la carte OpenLayers si disponible (pixels courants mis à l’échelle depuis la capture) ;
+ * sinon retombe sur centre / résolution / rotation de capture_plan.
+ */
+function dp2PixelToMapCoord(x, y) {
+  const cap = typeof dp2GetCapturePlan === "function" ? dp2GetCapturePlan() : null;
+  const wCap =
+    (cap && typeof cap.width === "number" && cap.width > 0 ? cap.width : null) ??
+    (window.DP2_STATE && window.DP2_STATE.backgroundImage && window.DP2_STATE.backgroundImage.width) ??
+    0;
+  const hCap =
+    (cap && typeof cap.height === "number" && cap.height > 0 ? cap.height : null) ??
+    (window.DP2_STATE && window.DP2_STATE.backgroundImage && window.DP2_STATE.backgroundImage.height) ??
+    0;
+
+  const map = window.DP2_MAP && window.DP2_MAP.map;
+  if (map && cap && wCap > 0 && hCap > 0) {
+    const v = dp4ValidateDP2CaptureForImport(cap);
+    if (v.ok) {
+      const size = map.getSize();
+      if (size && size[0] > 0 && size[1] > 0) {
+        const mx = (x / wCap) * size[0];
+        const my = (y / hCap) * size[1];
+        try {
+          const c = map.getCoordinateFromPixel([mx, my]);
+          if (c && c.length >= 2 && Number.isFinite(c[0]) && Number.isFinite(c[1])) {
+            return c;
+          }
+        } catch (_) {}
+      }
+    }
+  }
+  if (!cap || !(wCap > 0) || !(hCap > 0)) return null;
+  const v2 = dp4ValidateDP2CaptureForImport(cap);
+  if (!v2.ok) return null;
+  return dp2Dp2ImagePixelTo3857Coord(x, y, cap, wCap, hCap);
+}
+
+/**
+ * Coordonnée carte (EPSG:3857) → pixel canvas DP2 (repère image).
+ * Préfère OpenLayers ; sinon inverse analytique depuis capture_plan.
+ */
+function dp2MapCoordToCanvasPoint(coord) {
+  if (!coord || coord.length < 2 || !Number.isFinite(coord[0]) || !Number.isFinite(coord[1])) return null;
+  const cap = typeof dp2GetCapturePlan === "function" ? dp2GetCapturePlan() : null;
+  const wCap =
+    (cap && typeof cap.width === "number" && cap.width > 0 ? cap.width : null) ??
+    (window.DP2_STATE && window.DP2_STATE.backgroundImage && window.DP2_STATE.backgroundImage.width) ??
+    0;
+  const hCap =
+    (cap && typeof cap.height === "number" && cap.height > 0 ? cap.height : null) ??
+    (window.DP2_STATE && window.DP2_STATE.backgroundImage && window.DP2_STATE.backgroundImage.height) ??
+    0;
+
+  const map = window.DP2_MAP && window.DP2_MAP.map;
+  if (map && cap && wCap > 0 && hCap > 0) {
+    const v = dp4ValidateDP2CaptureForImport(cap);
+    if (v.ok) {
+      try {
+        const pix = map.getPixelFromCoordinate(coord);
+        const size = map.getSize();
+        if (pix && pix.length >= 2 && size && size[0] > 0 && size[1] > 0) {
+          return {
+            x: (pix[0] / size[0]) * wCap,
+            y: (pix[1] / size[1]) * hCap
+          };
+        }
+      } catch (_) {}
+    }
+  }
+  if (!cap || !(wCap > 0) || !(hCap > 0)) return null;
+  const v2 = dp4ValidateDP2CaptureForImport(cap);
+  if (!v2.ok) return null;
+  return dp2Dp2Image3857CoordToPixel(coord[0], coord[1], cap, wCap, hCap);
+}
+
+/** @returns {number[]|null} [x,y] canvas ou null */
+function dp2MapCoordToPixel(coord) {
+  const p = dp2MapCoordToCanvasPoint(coord);
+  if (!p || !Number.isFinite(p.x) || !Number.isFinite(p.y)) return null;
+  return [p.x, p.y];
+}
+
+function dp2EnsureFeaturesArray() {
+  const s = window.DP2_STATE;
+  if (!s) return;
+  if (!Array.isArray(s.features)) s.features = [];
+}
+
+function dp2FindPolygonFeatureById(id) {
+  if (id == null) return null;
+  const sid = String(id);
+  const feats = window.DP2_STATE?.features || [];
+  for (let i = 0; i < feats.length; i++) {
+    const f = feats[i];
+    if (f && f.type === "polygon" && String(f.id) === sid) return f;
+  }
+  return null;
+}
+
+/** True si le rendu bâti doit lire DP2_STATE.features (polygones) plutôt que buildingContours seuls. */
+function dp2BuildingRenderUsesFeatures() {
+  const feats = window.DP2_STATE?.features || [];
+  for (let i = 0; i < feats.length; i++) {
+    const f = feats[i];
+    if (!f || f.type !== "polygon" || !Array.isArray(f.coordinates)) continue;
+    if (f.coordinates.length >= 2) return true;
+    if (f.closed === false && f.coordinates.length >= 1) return true;
+  }
+  return false;
+}
+
+/**
+ * Migration one-shot : anciens `buildingContours` / `building_outline` / `dp2drv:` → `features` seuls.
+ * `buildingContours` reste un cache d’affichage (pixels) reconstruit depuis `features`, jamais source persistée.
+ */
+function dp2MigrateFinalGeometryState(opts) {
+  const s = window.DP2_STATE;
+  if (!s) return false;
+  const force = !!(opts && opts.force);
+  let changed = false;
+  if (s.__dpGeometryMigrationFinalDone !== true || force) {
+    dp2EnsureFeaturesArray();
+    const feats = s.features || [];
+    const hasFeat = feats.some(
+      (f) => f && f.type === "polygon" && Array.isArray(f.coordinates) && f.coordinates.length >= 1
+    );
+    const bc = Array.isArray(s.buildingContours) ? s.buildingContours : [];
+    const hasBC = bc.length > 0;
+    if (Array.isArray(s.objects)) {
+      const n0 = s.objects.length;
+      s.objects = s.objects.filter((o) => {
+        if (!o) return false;
+        if (o.type === "building_outline") return false;
+        if (typeof o.dp2SyncKey === "string" && o.dp2SyncKey.indexOf("dp2drv:") === 0) return false;
+        return true;
+      });
+      if (s.objects.length !== n0) changed = true;
+    }
+    if (!hasFeat && hasBC) {
+      dp2LegacyContoursToFeaturesInPlace(s);
+      changed = true;
+    }
+    s.__dpGeometryMigrationFinalDone = true;
+    if (changed) {
+      if (window.__SN_DP_DP2_AUDIT__ === true) {
+        try {
+          console.log("[DP MIGRATION FINAL DONE]", { features: (s.features || []).length });
+        } catch (_) {}
+      }
+      try {
+        if (typeof window.__snDpPersistDebounced === "function") window.__snDpPersistDebounced("fast");
+      } catch (_) {}
+    }
+  }
+  dp2RebuildContourDisplayCacheFromFeatures();
+  return changed;
+}
+
+/** Hydrate / init : migration finale + cache contour écran. */
+function dp2ApplyFeaturesHydrateSync() {
+  try {
+    dp2MigrateFinalGeometryState();
+  } catch (e) {
+    console.warn("[DP2] migrate geometry", e);
+  }
+}
+
+/** Ancienne voie contours pixels → polygones carte (migration / historique uniquement). */
+function dp2LegacyContoursToFeaturesInPlace(state) {
+  const st = state || window.DP2_STATE;
+  if (!st) return;
+  if (!Array.isArray(st.features)) st.features = [];
+  const contours = Array.isArray(st.buildingContours) ? st.buildingContours : [];
+  const features = [];
+  contours.forEach((c, idx) => {
+    if (!c || !Array.isArray(c.points) || c.points.length < 1) return;
+    const coords = [];
+    for (let pi = 0; pi < c.points.length; pi++) {
+      const p = c.points[pi];
+      if (!p || typeof p.x !== "number" || typeof p.y !== "number") continue;
+      const coord = dp2PixelToMapCoord(p.x, p.y);
+      if (coord && coord.length >= 2) coords.push(coord);
+    }
+    if (coords.length < 1) return;
+    if (c.closed === true && coords.length < 3) return;
+    const id = c.id != null ? String(c.id) : "contour_" + idx;
+    const feat = {
+      id,
+      type: "polygon",
+      coordinates: coords,
+      closed: c.closed === true
+    };
+    if (c.cuts && typeof c.cuts === "object") feat.cuts = c.cuts;
+    if (c.labelOffsets && typeof c.labelOffsets === "object") feat.labelOffsets = c.labelOffsets;
+    features.push(feat);
+  });
+  st.features = features;
+}
+
+/** Reconstruit `buildingContours` (pixels canvas) depuis `features` (EPSG:3857) — cache d’affichage uniquement. */
+function dp2RebuildContourDisplayCacheFromFeatures() {
+  const s = window.DP2_STATE;
+  if (!s) return;
+  dp2EnsureFeaturesArray();
+  const feats = s.features || [];
+  const contours = [];
+  feats.forEach((f, idx) => {
+    if (!f || f.type !== "polygon" || !Array.isArray(f.coordinates)) return;
+    const points = [];
+    for (let ci = 0; ci < f.coordinates.length; ci++) {
+      const px = dp2MapCoordToPixel(f.coordinates[ci]);
+      if (!px || px.length < 2) continue;
+      points.push({ x: px[0], y: px[1] });
+    }
+    if (points.length < 1) return;
+    const c = {
+      id: f.id != null ? String(f.id) : "contour_" + idx,
+      points,
+      closed: f.closed === true
+    };
+    if (f.cuts && typeof f.cuts === "object") c.cuts = f.cuts;
+    if (f.labelOffsets && typeof f.labelOffsets === "object") c.labelOffsets = f.labelOffsets;
+    contours.push(c);
+  });
+  s.buildingContours = contours;
+}
+
 const DP2_IX_MODE_CLASSES = ["dp2-mode-idle", "dp2-mode-draw", "dp2-mode-hover", "dp2-mode-active", "dp2-mode-editing"];
 
 function dp2EnsureOverlayLayer() {
@@ -7231,7 +7585,6 @@ function dp2InteractionDragActive() {
   const s = window.DP2_STATE;
   if (!s) return false;
   return !!(
-    s.buildingContourInteraction ||
     s.lineVertexInteraction ||
     s.parcelLabelDrag ||
     s.measureLabelDrag ||
@@ -7277,10 +7630,6 @@ function dp2PickHoverFeatureId(canvas, x, y) {
     if (hitGutterLbl && hitGutterLbl.kind === "gutter_height_label" && typeof hitGutterLbl.index === "number")
       return "gutterLbl:" + hitGutterLbl.index;
   }
-
-  const ht = dp2HitTest(canvas, x, y);
-  if (ht && ht.kind === "building_contour" && ht.id != null && typeof ht.vertexIndex === "number")
-    return "contourVtx:" + ht.id + ":" + ht.vertexIndex;
 
   const segNear = dp2HitTestParcelSegmentClosest(canvas, x, y);
   if (segNear && segNear.contourId != null && typeof segNear.segmentIndex === "number")
@@ -7698,6 +8047,7 @@ function initDP2Toolbar() {
 
   function tryActivateBuildingOutline() {
     if (hasDP2OpenBuildingOutline()) return;
+    if (window.DP2_STATE?.currentTool === "building_outline") return;
     setActiveTool("building_outline");
   }
 
@@ -7996,7 +8346,7 @@ function initDP2Toolbar() {
 
 // --------------------------
 // DP2 — HIT-TEST (sélection : quel objet sous le clic ?)
-// Pour building_outline : distance au segment ou au sommet (seuil ~12 px).
+// Bâti multi-polygone : sélection via OpenLayers (dp2PickDp2BuildingOlFeatureAtCanvasPixel), pas ce hit-test.
 // --------------------------
 function dp2HitTest(canvas, x, y) {
   const objects = window.DP2_STATE?.objects || [];
@@ -8020,33 +8370,7 @@ function dp2HitTest(canvas, x, y) {
     }
   }
 
-  // ----- PASS 2 : hit-test historique (contour bâti + reste des objets)
-  // DP2 / DP4 : contours de bâti stockés dans DP2_STATE.buildingContours[]
-  const contours = dp2GetBuildingContours();
-  for (let i = contours.length - 1; i >= 0; i--) {
-    const c = contours[i];
-    if (!c || !Array.isArray(c.points) || c.points.length < 2) continue;
-    // Sommets
-    for (let p = 0; p < c.points.length; p++) {
-      const pt = c.points[p];
-      const d = Math.hypot((pt?.x || 0) - x, (pt?.y || 0) - y);
-      if (d <= threshold) return { kind: "building_contour", id: c.id, vertexIndex: p };
-    }
-    // Segments
-    const pts = c.points;
-    const n = c.closed ? pts.length : pts.length - 1;
-    for (let s = 0; s < n; s++) {
-      const p1 = pts[s];
-      const p2 = pts[(s + 1) % pts.length];
-      const dx = (p2?.x || 0) - (p1?.x || 0);
-      const dy = (p2?.y || 0) - (p1?.y || 0);
-      const len = Math.hypot(dx, dy) || 1;
-      const t = Math.max(0, Math.min(1, ((x - (p1?.x || 0)) * dx + (y - (p1?.y || 0)) * dy) / (len * len)));
-      const projX = (p1?.x || 0) + t * dx;
-      const projY = (p1?.y || 0) + t * dy;
-      if (Math.hypot(x - projX, y - projY) <= threshold) return { kind: "building_contour", id: c.id, vertexIndex: null };
-    }
-  }
+  // ----- PASS 2 : bâti = OpenLayers uniquement (pas de hit-test canvas sur buildingContours)
 
   for (let i = objects.length - 1; i >= 0; i--) {
     const obj = objects[i];
@@ -9312,34 +9636,16 @@ function initDP2CanvasEvents() {
       }
     }
 
-    // 0) DP2 — Contours de bâti : sélection + drag d'un sommet (uniquement en mode Sélection)
-    if (tool === "select") {
-      const hitAny = dp2HitTest(canvas, coords.x, coords.y);
-      if (hitAny && hitAny.kind === "building_contour" && hitAny.id) {
-        dp2SetSelectedBuildingContourId(hitAny.id);
-        // Drag seulement si on est sur un sommet
-        if (typeof hitAny.vertexIndex === "number") {
-          const contour = dp2GetBuildingContourById(hitAny.id);
-          const pt = contour?.points?.[hitAny.vertexIndex] || null;
-          if (contour && pt) {
-            dp2CommitHistoryPoint();
-            window.DP2_STATE.buildingContourInteraction = {
-              id: hitAny.id,
-              vertexIndex: hitAny.vertexIndex,
-              pointerId: e.pointerId,
-              offsetX: coords.x - (pt.x || 0),
-              offsetY: coords.y - (pt.y || 0),
-              hasMoved: false
-            };
-            try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
-            e.preventDefault();
-            renderDP2FromState();
-            return;
-          }
+    // 0) DP2 — Bâti : sélection via OpenLayers uniquement (mode Sélection)
+    if (tool === "select" && typeof dp2PickDp2BuildingOlFeatureAtCanvasPixel === "function") {
+      const olFeat = dp2PickDp2BuildingOlFeatureAtCanvasPixel(canvas, coords.x, coords.y);
+      if (olFeat) {
+        const fid = olFeat.getId() != null ? olFeat.getId() : olFeat.get("dp2FeatureId");
+        if (fid != null) {
+          dp2SetSelectedBuildingContourId(String(fid));
+          renderDP2FromState();
+          return;
         }
-        // Clic sur contour (pas sur sommet) = sélection simple
-        renderDP2FromState();
-        return;
       }
     }
 
@@ -9784,25 +10090,6 @@ function initDP2CanvasEvents() {
       try {
         dp2UpdateHoverFromPointerMove(canvas, e);
       } catch (_) {}
-    }
-
-    // DP2 — Drag sommet contour de bâti (buildingContours)
-    const bci = window.DP2_STATE?.buildingContourInteraction || null;
-    if (bci && bci.id && typeof bci.vertexIndex === "number") {
-      const coords = getDP2CanvasCoords(canvas, e.clientX, e.clientY);
-      const contour = dp2GetBuildingContourById(bci.id);
-      if (contour && Array.isArray(contour.points) && contour.points[bci.vertexIndex]) {
-        const pt = contour.points[bci.vertexIndex];
-        const nx = coords.x - (bci.offsetX || 0);
-        const ny = coords.y - (bci.offsetY || 0);
-        if (Math.abs(nx - (pt.x || 0)) > 1 || Math.abs(ny - (pt.y || 0)) > 1) bci.hasMoved = true;
-        pt.x = nx;
-        pt.y = ny;
-        // Les cuts (faîtage) deviennent invalides si un sommet bouge : purge sans recalcul
-        try { delete contour.cuts; } catch (_) { contour.cuts = undefined; }
-        renderDP2FromState();
-        return;
-      }
     }
 
     // DP2 — Drag sommet faitage ou mesure (même logique que contour)
@@ -10280,15 +10567,6 @@ function initDP2CanvasEvents() {
       return;
     }
 
-    const bci = window.DP2_STATE?.buildingContourInteraction || null;
-    if (bci && typeof bci.pointerId === "number" && bci.pointerId === e.pointerId) {
-      window.DP2_STATE.buildingContourInteraction = null;
-      window.DP2_STATE._lastBuildingContourInteractionAt = Date.now();
-      try { canvas.releasePointerCapture(e.pointerId); } catch (_) {}
-      renderDP2FromState();
-      return;
-    }
-
     const lvi = window.DP2_STATE?.lineVertexInteraction || null;
     if (lvi && typeof lvi.pointerId === "number" && lvi.pointerId === e.pointerId) {
       const obj = window.DP2_STATE?.objects?.[lvi.objectIndex];
@@ -10584,35 +10862,15 @@ function initDP2CanvasEvents() {
       return;
     }
 
-    const outline = dp2GetActiveBuildingOutlineForDrawing();
-    if (tool !== "building_outline" || !outline || outline.closed || !outline.points || outline.points.length < 1) {
+    // Contour bâti : prévisualisation segment → OpenLayers Draw (plus de rubber-band canvas)
+    if (tool === "building_outline") {
       if (window.DP2_STATE.drawingPreview != null) {
         window.DP2_STATE.drawingPreview = null;
         renderDP2FromState();
       }
       return;
     }
-    const pts = outline.points;
-    const last = pts[pts.length - 1];
-    const first = pts[0];
-    const distToFirst = Math.hypot(coords.x - first.x, coords.y - first.y);
-    let toPoint;
-    if (pts.length >= 3 && distToFirst <= DP2_CLOSE_THRESHOLD_PX) {
-      toPoint = { x: first.x, y: first.y };
-    } else {
-      toPoint = { x: coords.x, y: coords.y };
-    }
-    const dx = toPoint.x - last.x;
-    const dy = toPoint.y - last.y;
-    const lengthPx = Math.hypot(dx, dy);
-    const lengthM = typeof scale === "number" && scale > 0 ? lengthPx * scale : 0;
-    window.DP2_STATE.drawingPreview = {
-      from: { x: last.x, y: last.y },
-      to: toPoint,
-      lengthM,
-      isClosing: pts.length >= 3 && distToFirst <= DP2_CLOSE_THRESHOLD_PX
-    };
-    renderDP2FromState();
+
   });
 
   canvas.addEventListener("mouseleave", () => {
@@ -10657,9 +10915,6 @@ function initDP2CanvasEvents() {
       // Si un drag texte vient de se terminer, ignorer le click (évite d'écraser la sélection après move/resize/rotate)
       const lastText = window.DP2_STATE?._lastTextInteractionAt || 0;
       if (Date.now() - lastText < 250) return;
-      // Si un drag de sommet vient de se terminer, ignorer le click (évite une re-sélection "surprise")
-      const lastBct = window.DP2_STATE?._lastBuildingContourInteractionAt || 0;
-      if (Date.now() - lastBct < 250) return;
       const lastLvi = window.DP2_STATE?._lastLineVertexInteractionAt || 0;
       if (Date.now() - lastLvi < 250) return;
 
@@ -10693,17 +10948,26 @@ function initDP2CanvasEvents() {
         }
       }
 
-      const hitAny = dp2HitTest(canvas, coords.x, coords.y);
-      if (hitAny && hitAny.kind === "building_contour") {
-        dp2SetSelectedBuildingContourId(hitAny.id || null);
-      } else {
-        const idx = hitAny && hitAny.kind === "object" ? hitAny.index : null;
-        window.DP2_STATE.selectedObjectId = idx;
-        dp2ClearSelectedBuildingContour();
-        dp2ClearSelectedPanels();
-        dp2ClearSelectedTexts();
-        window.DP2_STATE.selectedBusinessObjectId = null;
+      const olB =
+        typeof dp2PickDp2BuildingOlFeatureAtCanvasPixel === "function"
+          ? dp2PickDp2BuildingOlFeatureAtCanvasPixel(canvas, coords.x, coords.y)
+          : null;
+      if (olB) {
+        const fid = olB.getId() != null ? olB.getId() : olB.get("dp2FeatureId");
+        if (fid != null) {
+          dp2SetSelectedBuildingContourId(String(fid));
+          renderDP2FromState();
+          return;
+        }
       }
+
+      const hitAny = dp2HitTest(canvas, coords.x, coords.y);
+      const idx = hitAny && hitAny.kind === "object" ? hitAny.index : null;
+      window.DP2_STATE.selectedObjectId = idx;
+      dp2ClearSelectedBuildingContour();
+      dp2ClearSelectedPanels();
+      dp2ClearSelectedTexts();
+      window.DP2_STATE.selectedBusinessObjectId = null;
       renderDP2FromState();
       return;
     }
@@ -10864,58 +11128,20 @@ function initDP2CanvasEvents() {
         lockedSize: true,
         visible: true
       });
+      if (typeof dp2IsDP4RoofProfile === "function" && dp2IsDP4RoofProfile() && typeof dp4Append3857PanelFromDp2Placement === "function") {
+        try {
+          dp4Append3857PanelFromDp2Placement(panels[panels.length - 1]);
+        } catch (_) {}
+      }
       dp2SetSelectedPanelIds([id]);
       window.DP2_STATE.panelPlacementPreview = null; // recalcul immédiat au prochain move
       dp2AutoReturnToSelectIfCreationDone({ preserveSelection: true, reason: "panel_placed" });
       return;
     }
 
+    // Contour bâti : création / fermeture 100 % OpenLayers (interaction Draw) — pas de clic canvas
     if (tool === "building_outline") {
-      let contour = dp2GetActiveBuildingOutlineForDrawing();
-      if (!contour) {
-        window.DP2_STATE.drawingPreview = null;
-        dp2CommitHistoryPoint();
-        dp2EnsureBuildingContoursState();
-        const id = dp2NewBuildingContourId();
-        contour = { id, points: [{ x: coords.x, y: coords.y }], closed: false };
-        window.DP2_STATE.buildingContours.push(contour);
-        window.DP2_STATE.selectedBuildingContourId = id;
-        renderDP2FromState();
-        return;
-      }
-
-      const pts = contour.points;
-      const first = pts[0];
-      const distToFirst = Math.hypot(coords.x - first.x, coords.y - first.y);
-      if (pts.length >= 3 && distToFirst <= DP2_CLOSE_THRESHOLD_PX) {
-        window.DP2_STATE.drawingPreview = null;
-        dp2CommitHistoryPoint();
-        contour.closed = true;
-        window.DP2_STATE.selectedBuildingContourId = contour.id;
-        window.DP2_STATE.currentTool = "select";
-        const selBtn = document.getElementById("dp2-tool-select");
-        const measuresBtn = document.getElementById("dp2-tool-measures");
-        const measuresIconEl = measuresBtn?.querySelector?.(".dp2-tool-icon") || null;
-        const measuresLabelEl = measuresBtn?.querySelector?.(".dp2-tool-label") || null;
-        selBtn?.classList.add("dp2-tool-active");
-        selBtn?.classList.remove("dp2-tool-btn-disabled");
-        if (selBtn) selBtn.disabled = false;
-        measuresBtn?.classList.remove("dp2-tool-active");
-        measuresBtn?.classList.remove("dp2-dropdown-open");
-        measuresBtn?.setAttribute("aria-pressed", "false");
-        measuresBtn?.setAttribute("aria-expanded", "false");
-        const measuresMenu = document.getElementById("dp2-measures-menu");
-        if (measuresMenu) measuresMenu.hidden = true;
-        if (measuresIconEl) measuresIconEl.textContent = "📐";
-        if (measuresLabelEl) measuresLabelEl.textContent = "Mesures";
-        renderDP2FromState();
-        return;
-      }
-
-      window.DP2_STATE.drawingPreview = null;
-      dp2CommitHistoryPoint();
-      contour.points.push({ x: coords.x, y: coords.y });
-      renderDP2FromState();
+      return;
     }
   });
 
@@ -11006,36 +11232,7 @@ function initDP2CanvasEvents() {
       }
     }
 
-    // 1) Contour bâti : double-clic = fermeture (comportement existant)
-    if (tool === "building_outline") {
-      const outline = dp2GetActiveBuildingOutlineForDrawing();
-      // Règle DP (plan de masse) : fermeture autorisée uniquement si au moins 3 points.
-      if (!outline || outline.closed || outline.points.length < 3) return;
-      window.DP2_STATE.drawingPreview = null;
-      dp2CommitHistoryPoint();
-      outline.closed = true;
-      if (outline.id) {
-        window.DP2_STATE.selectedBuildingContourId = outline.id;
-      }
-      window.DP2_STATE.currentTool = "select";
-      const selBtn = document.getElementById("dp2-tool-select");
-      const measuresBtn = document.getElementById("dp2-tool-measures");
-      const measuresIconEl = measuresBtn?.querySelector?.(".dp2-tool-icon") || null;
-      const measuresLabelEl = measuresBtn?.querySelector?.(".dp2-tool-label") || null;
-      selBtn?.classList.add("dp2-tool-active");
-      selBtn?.classList.remove("dp2-tool-btn-disabled");
-      if (selBtn) selBtn.disabled = false;
-      measuresBtn?.classList.remove("dp2-tool-active");
-      measuresBtn?.classList.remove("dp2-dropdown-open");
-      measuresBtn?.setAttribute("aria-pressed", "false");
-      measuresBtn?.setAttribute("aria-expanded", "false");
-      const measuresMenu = document.getElementById("dp2-measures-menu");
-      if (measuresMenu) measuresMenu.hidden = true;
-      if (measuresIconEl) measuresIconEl.textContent = "📐";
-      if (measuresLabelEl) measuresLabelEl.textContent = "Mesures";
-      renderDP2FromState();
-      return;
-    }
+    // 1) Contour bâti : fermeture via OpenLayers Draw (double-clic natif OL) — pas de handler canvas
 
     // 2) Texte libre : double-clic = édition simple (prompt)
     const hitText = dp2HitTestText(coords.x, coords.y);
@@ -11057,10 +11254,71 @@ function initDP2CanvasEvents() {
 
 // --------------------------
 // DP2 — MOTEUR DE RENDU PASSIF (ÉTAPE 3)
-// Source de vérité unique : DP2_STATE.objects[]
-// Efface le canvas et redessine tous les objets selon leur type
-// Aucun événement, aucun outil, aucun ajout automatique
+// Bâti : source DP2_STATE.features (EPSG:3857) + rendu / hit-test OpenLayers ; buildingContours = cache pixels (UI cotes / poignées canvas uniquement).
+// Miroirs dp2drv réservés aux formes métier (businessObjects) — plus de doublon contour bâti.
 // --------------------------
+/** Préfixe des objets miroir (synchronisation formes métier → objects ; pas le bâti). */
+var DP2_DRV_SYNC_PREFIX = "dp2drv:";
+
+/**
+ * Recolle dans DP2_STATE.objects des entrées dérivées des contours bâti et formes métier,
+ * afin que `objects` reflète aussi ce qui est tracé hors ce tableau (sans double rendu : dp2SyncKey).
+ */
+function dp2RebuildDerivedObjectsMirrors() {
+  const s = window.DP2_STATE;
+  if (!s) return;
+  if (!Array.isArray(s.objects)) s.objects = [];
+  const PREF = DP2_DRV_SYNC_PREFIX;
+  s.objects = s.objects.filter(function (o) {
+    return !(o && typeof o.dp2SyncKey === "string" && o.dp2SyncKey.indexOf(PREF) === 0);
+  });
+  /* Plus de miroir contour dans objects[] : bâti = DP2_STATE.features + cache buildingContours. */
+  const biz = s.businessObjects || [];
+  for (let bi = 0; bi < biz.length; bi++) {
+    const o = biz[bi];
+    if (!o || o.visible === false || !o.geometry) continue;
+    const g = o.geometry;
+    const gx = typeof g.x === "number" ? g.x : 0;
+    const gy = typeof g.y === "number" ? g.y : 0;
+    const gw = typeof g.width === "number" ? g.width : 0;
+    const gh = typeof g.height === "number" ? g.height : 0;
+    const rot = typeof g.rotation === "number" ? g.rotation : 0;
+    const key = PREF + "biz:" + String(o.id);
+    if (o.type === "circle") {
+      s.objects.push({
+        type: "circle",
+        x: gx + Math.max(1, gw) / 2,
+        y: gy + Math.max(1, gh) / 2,
+        radius: Math.max(1, Math.min(Math.max(1, gw), Math.max(1, gh)) / 2),
+        strokeStyle: "#111827",
+        lineWidth: 2,
+        dp2SyncKey: key,
+      });
+    } else {
+      s.objects.push({
+        type: "rectangle",
+        x: gx,
+        y: gy,
+        width: Math.max(1, gw),
+        height: Math.max(1, gh),
+        rotation: rot,
+        strokeStyle: "#111827",
+        lineWidth: 2,
+        dp2SyncKey: key,
+      });
+    }
+  }
+  if (window.__SN_DP_DP2_AUDIT__ === true) {
+    try {
+      const n = (s.objects || []).length;
+      if (s._dp2DbgObjLen !== n) {
+        s._dp2DbgObjLen = n;
+        console.log("[DP2 TEST OBJECTS]", n);
+      }
+    } catch (_) {}
+  }
+}
+
 function renderDP2FromState() {
   const canvas = document.getElementById("dp2-draw-canvas");
   if (!canvas) {
@@ -11080,12 +11338,32 @@ function renderDP2FromState() {
     return;
   }
 
-  if (dp2IsDP4RoofProfile()) {
-    const t = Date.now();
-    if (!window._dp4DebugLastLog || t - window._dp4DebugLastLog > 2000) {
-      window._dp4DebugLastLog = t;
-      console.log("[DP4][DEBUG] canvas: buildingContours=", (window.DP2_STATE.buildingContours || []).length);
-    }
+  try {
+    dp2RebuildContourDisplayCacheFromFeatures();
+  } catch (_) {}
+
+  try {
+    dp2RebuildDerivedObjectsMirrors();
+  } catch (e) {
+    console.warn("[DP2] dp2RebuildDerivedObjectsMirrors", e);
+  }
+
+  if (window.__SN_DP_DP2_AUDIT__ === true) {
+    try {
+      const bSrc = window.DP2_MAP && window.DP2_MAP.dp2BuildingVectorSource;
+      const olN = bSrc && typeof bSrc.getFeatures === "function" ? bSrc.getFeatures().length : null;
+      console.log("[DP2 SOURCE]", {
+        features: (window.DP2_STATE?.features || []).length,
+        contoursCache: (window.DP2_STATE?.buildingContours || []).length,
+        olLayerFeatures: olN
+      });
+      if (dp2IsDP4RoofProfile()) {
+        console.log("[DP4][AUDIT] canvas features count", (window.DP2_STATE?.features || []).length);
+      }
+      if (olN != null) {
+        console.log("[DP2 OL FEATURES]", olN);
+      }
+    } catch (_) {}
   }
 
   // Effacer le canvas (calque pur)
@@ -11094,17 +11372,33 @@ function renderDP2FromState() {
   // Parcourir tous les objets depuis la source de vérité unique
   const objects = window.DP2_STATE.objects || [];
 
-  // Contours de bâti : DP2 et DP4 utilisent buildingContours (source unique pendant l'édition)
-  const contours = dp2GetBuildingContours();
-  const activeId = window.DP2_STATE?.selectedBuildingContourId || null;
-  const isDP4Roof = typeof dp2IsDP4RoofProfile === "function" && dp2IsDP4RoofProfile();
   const hideIndividualPanels = dp2GetDisplayMode() === "simple";
 
-  for (const c of contours) {
-    renderDP2BuildingContour(ctx, c, {
-      // En DP4 édition : toujours doré
-      active: isDP4Roof ? true : !!(c && activeId && c.id === activeId)
-    });
+  if (typeof dp2BuildingRenderUsesFeatures === "function" && dp2BuildingRenderUsesFeatures()) {
+    try {
+      dp2RenderFeaturesOL();
+    } catch (e) {
+      console.warn("[DP2] dp2RenderFeaturesOL", e);
+    }
+    /* Canvas : poignées / cotes / surcouches uniquement — géométrie bâti = calque OL (pas de tracé poly ici). */
+    const contours = dp2GetBuildingContours();
+    const activeId = window.DP2_STATE?.selectedBuildingContourId || null;
+    const isDP4Roof = typeof dp2IsDP4RoofProfile === "function" && dp2IsDP4RoofProfile();
+    for (const c of contours) {
+      renderDP2BuildingContour(ctx, c, {
+        active: isDP4Roof ? true : !!(c && activeId && c.id === activeId),
+        skipBasics: true
+      });
+    }
+  } else {
+    const contours = dp2GetBuildingContours();
+    const activeId = window.DP2_STATE?.selectedBuildingContourId || null;
+    const isDP4Roof = typeof dp2IsDP4RoofProfile === "function" && dp2IsDP4RoofProfile();
+    for (const c of contours) {
+      renderDP2BuildingContour(ctx, c, {
+        active: isDP4Roof ? true : !!(c && activeId && c.id === activeId)
+      });
+    }
   }
 
   // Rendu standard (DP2) : une seule passe dans l'ordre des objets.
@@ -11112,6 +11406,9 @@ function renderDP2FromState() {
     const obj = objects[i];
     if (!obj || !obj.type) {
       console.warn("[DP2] Objet invalide ignoré", obj);
+      continue;
+    }
+    if (typeof obj.dp2SyncKey === "string" && obj.dp2SyncKey.indexOf(DP2_DRV_SYNC_PREFIX) === 0) {
       continue;
     }
 
@@ -11346,6 +11643,10 @@ function renderDP2FromState() {
     dp2SyncMapAnchoredOverlays();
   } catch (_) {}
   syncDP2DisplayModeToolbarUI();
+  try {
+    dp2SyncBuildingOlPointerPassThrough();
+    dp2SyncBuildingOlInteractions();
+  } catch (_) {}
 }
 
 // --------------------------
@@ -11400,9 +11701,24 @@ function dp2CommitMeasureResize(obj) {
       pts[idx2].x = bx + ux * deltaPx;
       pts[idx2].y = by + uy * deltaPx;
     }
+    const featPe = dp2FindPolygonFeatureById(parcelEdge.contourId);
+    if (featPe && Array.isArray(featPe.coordinates)) {
+      for (let ii = 0; ii < pts.length && ii < featPe.coordinates.length; ii++) {
+        const mc = dp2PixelToMapCoord(pts[ii].x, pts[ii].y);
+        if (mc) featPe.coordinates[ii] = mc;
+      }
+      try {
+        delete featPe.cuts;
+      } catch (_) {
+        featPe.cuts = undefined;
+      }
+    }
     const objects = window.DP2_STATE?.objects || [];
     const idx = objects.indexOf(obj);
     if (idx >= 0) objects.splice(idx, 1);
+    try {
+      dp2RebuildContourDisplayCacheFromFeatures();
+    } catch (_) {}
     return;
   }
 
@@ -12048,7 +12364,7 @@ function renderCircle(ctx, obj) {
 }
 
 function renderPolygon(ctx, obj) {
-  // obj: { type: "polygon", points: [{x, y}, ...], fillStyle?, strokeStyle?, lineWidth? }
+  // obj: { type: "polygon", points: [{x, y}, ...], fillStyle?, strokeStyle?, lineWidth?, closed?: bool }
   if (!obj.points || !Array.isArray(obj.points) || obj.points.length < 2) {
     return;
   }
@@ -12060,7 +12376,9 @@ function renderPolygon(ctx, obj) {
   for (let i = 1; i < obj.points.length; i++) {
     ctx.lineTo(obj.points[i].x || 0, obj.points[i].y || 0);
   }
-  ctx.closePath();
+  if (obj.closed !== false) {
+    ctx.closePath();
+  }
   
   if (obj.fillStyle) {
     ctx.fillStyle = obj.fillStyle;
@@ -12642,13 +12960,14 @@ function renderDP2BuildingContour(ctx, contour, options) {
   if (!contour || !Array.isArray(contour.points) || contour.points.length < 1) return;
   const opt = options || {};
   const active = opt.active === true;
+  const skipBasics = opt.skipBasics === true;
   const scale = window.DP2_STATE?.scale_m_per_px;
   const pts = contour.points;
 
   ctx.save();
 
-  // Polyligne / polygone
-  if (pts.length >= 2) {
+  // Polyligne / polygone (ignoré si rendu géométrique délégué à OpenLayers)
+  if (!skipBasics && pts.length >= 2) {
     ctx.beginPath();
     ctx.moveTo(pts[0].x, pts[0].y);
     for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
@@ -12823,11 +13142,183 @@ function renderDP2BuildingContour(ctx, contour, options) {
       ctx.textBaseline = "middle";
       const tierDraw = tierSeg || (parcelEdgeEditing ? "editing" : null);
       dp2DrawCoteSegmentTier(ctx, p1, p2, tierDraw);
-      if (!editingThisSeg) dp2FillCoteLabelWithTier(ctx, text, midX, midY, tierDraw);
+      if (!editingThisSeg)       dp2FillCoteLabelWithTier(ctx, text, midX, midY, tierDraw);
     }
   }
 
   ctx.restore();
+}
+
+/**
+ * Rendu bâti 100 % OpenLayers (EPSG:3857) depuis DP2_STATE.features.
+ * Polygone fermé → Polygon ; contour ouvert (dessin) → LineString.
+ */
+function dp2RenderFeaturesOL() {
+  const pkg = window.DP2_MAP;
+  if (!pkg || !pkg.dp2BuildingVectorSource || typeof ol === "undefined") return;
+  const source = pkg.dp2BuildingVectorSource;
+  source.clear();
+  const feats = window.DP2_STATE?.features || [];
+  feats.forEach(function (f) {
+    if (!f || f.type !== "polygon" || !Array.isArray(f.coordinates)) return;
+    const ring = [];
+    for (let i = 0; i < f.coordinates.length; i++) {
+      const c = f.coordinates[i];
+      if (!c || c.length < 2 || !Number.isFinite(c[0]) || !Number.isFinite(c[1])) continue;
+      ring.push([c[0], c[1]]);
+    }
+    if (ring.length < 2) return;
+    try {
+      if (f.closed === true && ring.length >= 3) {
+        const first = ring[0];
+        const last = ring[ring.length - 1];
+        if (first[0] !== last[0] || first[1] !== last[1]) ring.push([first[0], first[1]]);
+        if (ring.length >= 4) {
+          const feat = new ol.Feature({ geometry: new ol.geom.Polygon([ring]) });
+          if (f.id != null) {
+            try {
+              feat.setId(String(f.id));
+            } catch (_) {}
+            feat.set("dp2FeatureId", f.id);
+          }
+          source.addFeature(feat);
+        }
+      } else {
+        const feat = new ol.Feature({ geometry: new ol.geom.LineString(ring) });
+        if (f.id != null) {
+          try {
+            feat.setId(String(f.id));
+          } catch (_) {}
+          feat.set("dp2FeatureId", f.id);
+        }
+        source.addFeature(feat);
+      }
+    } catch (err) {
+      console.warn("[DP2] dp2RenderFeaturesOL skip", f && f.id, err);
+    }
+  });
+  try {
+    pkg.dp2BuildingVectorLayer?.changed();
+  } catch (_) {}
+}
+
+/**
+ * Pixel canvas (repère capture) → pixel interne OpenLayers pour forEachFeatureAtPixel.
+ */
+function dp2CanvasPixelToOlPixel(canvas, canvasX, canvasY) {
+  const map = window.DP2_MAP && window.DP2_MAP.map;
+  if (!map || !canvas) return null;
+  const cap = typeof dp2GetCapturePlan === "function" ? dp2GetCapturePlan() : null;
+  const wCap =
+    (cap && typeof cap.width === "number" && cap.width > 0 ? cap.width : null) ??
+    (window.DP2_STATE && window.DP2_STATE.backgroundImage && window.DP2_STATE.backgroundImage.width) ??
+    0;
+  const hCap =
+    (cap && typeof cap.height === "number" && cap.height > 0 ? cap.height : null) ??
+    (window.DP2_STATE && window.DP2_STATE.backgroundImage && window.DP2_STATE.backgroundImage.height) ??
+    0;
+  if (!cap || !(wCap > 0) || !(hCap > 0)) return null;
+  const v = typeof dp4ValidateDP2CaptureForImport === "function" ? dp4ValidateDP2CaptureForImport(cap) : { ok: true };
+  if (!v.ok) return null;
+  const size = map.getSize();
+  if (!size || size[0] <= 0 || size[1] <= 0) return null;
+  return [(canvasX / wCap) * size[0], (canvasY / hCap) * size[1]];
+}
+
+/** Sélection bâti : seule source = couche vectorielle OL (pas buildingContours / canvas). */
+function dp2PickDp2BuildingFeatureAtOlPixel(pixel) {
+  const map = window.DP2_MAP && window.DP2_MAP.map;
+  const layer = window.DP2_MAP && window.DP2_MAP.dp2BuildingVectorLayer;
+  if (!map || !layer || !pixel || pixel.length < 2) return null;
+  let found = null;
+  try {
+    map.forEachFeatureAtPixel(
+      pixel,
+      function (feat, lyr) {
+        if (lyr === layer) {
+          found = feat;
+          return true;
+        }
+      },
+      { hitTolerance: 8, layerFilter: function (ly) {
+        return ly === layer;
+      } }
+    );
+  } catch (_) {}
+  return found;
+}
+
+function dp2PickDp2BuildingOlFeatureAtCanvasPixel(canvas, canvasX, canvasY) {
+  const pix = dp2CanvasPixelToOlPixel(canvas, canvasX, canvasY);
+  if (!pix) return null;
+  return dp2PickDp2BuildingFeatureAtOlPixel(pix);
+}
+
+/** UI toolbar : retour outil Sélection après fin de polygone OL (équivalent ancien flux canvas). */
+function dp2EnterSelectToolAfterBuildingOlComplete() {
+  if (!window.DP2_STATE) return;
+  window.DP2_STATE.currentTool = "select";
+  const toolbar = document.getElementById("dp2-toolbar");
+  if (toolbar) {
+    toolbar.querySelectorAll(".dp2-tool-btn").forEach(function (btn) {
+      btn.classList.remove("dp2-tool-active");
+      btn.setAttribute("aria-pressed", "false");
+    });
+  }
+  const selBtn = document.getElementById("dp2-tool-select");
+  const measuresBtn = document.getElementById("dp2-tool-measures");
+  const measuresIconEl = measuresBtn && measuresBtn.querySelector ? measuresBtn.querySelector(".dp2-tool-icon") : null;
+  const measuresLabelEl = measuresBtn && measuresBtn.querySelector ? measuresBtn.querySelector(".dp2-tool-label") : null;
+  selBtn && selBtn.classList.add("dp2-tool-active");
+  selBtn && selBtn.classList.remove("dp2-tool-btn-disabled");
+  if (selBtn) selBtn.disabled = false;
+  selBtn && selBtn.setAttribute("aria-pressed", "true");
+  measuresBtn && measuresBtn.classList.remove("dp2-tool-active");
+  measuresBtn && measuresBtn.classList.remove("dp2-dropdown-open");
+  measuresBtn && measuresBtn.setAttribute("aria-pressed", "false");
+  measuresBtn && measuresBtn.setAttribute("aria-expanded", "false");
+  const measuresMenu = document.getElementById("dp2-measures-menu");
+  if (measuresMenu) measuresMenu.hidden = true;
+  if (measuresIconEl) measuresIconEl.textContent = "📐";
+  if (measuresLabelEl) measuresLabelEl.textContent = "Mesures";
+  const imgWrap = document.getElementById("dp2-captured-image-wrap");
+  if (imgWrap) imgWrap.classList.remove("dp2-tool-pan");
+  try {
+    dp2SyncInteractionToolFromDp2State();
+    dp2FinalizeInteractionChrome();
+  } catch (_) {}
+  try {
+    refreshDP2ModeStrip();
+  } catch (_) {}
+}
+
+function dp2SyncBuildingOlPointerPassThrough() {
+  const zig = document.getElementById("dp2-zoom-container");
+  if (!zig) return;
+  const tool = window.DP2_STATE && window.DP2_STATE.currentTool;
+  /* Uniquement en dessin bâti : laisser Draw/Snap recevoir les événements. En « select » le canvas reste prioritaire pour panneaux / textes. */
+  const pass = tool === "building_outline";
+  zig.classList.toggle("dp2-building-ol-priority", pass);
+}
+
+function dp2SyncBuildingOlInteractions() {
+  const pkg = window.DP2_MAP;
+  if (!pkg || !pkg.map) return;
+  const draw = pkg.dp2BuildingDraw;
+  const mod = pkg.dp2BuildingModify;
+  const snap = pkg.dp2BuildingSnap;
+  if (!draw || !mod || !snap) return;
+  const tool = (window.DP2_STATE && window.DP2_STATE.currentTool) || "select";
+  const isOutline = tool === "building_outline";
+  try {
+    draw.setActive(isOutline);
+  } catch (_) {}
+  try {
+    mod.setActive(tool === "select");
+  } catch (_) {}
+  try {
+    snap.setActive(isOutline || tool === "select");
+  } catch (_) {}
 }
 
 // --------------------------
@@ -14009,10 +14500,24 @@ async function initDP2() {
     modal.setAttribute("aria-hidden", "false");
     document.body.classList.add("dp-lock-scroll");
     try {
+      const planCap =
+        typeof dp2GetCapturePlan === "function" ? dp2GetCapturePlan() : window.DP2_STATE?.capture;
+      const hasPlan = !!(planCap && planCap.imageBase64);
       const mapWrap = document.getElementById("dp2-ign-map");
       const imgWrap = document.getElementById("dp2-captured-image-wrap");
-      if (mapWrap) mapWrap.style.display = "";
-      if (imgWrap) imgWrap.style.display = "none";
+      if (hasPlan) {
+        if (mapWrap) {
+          mapWrap.style.display = "";
+          mapWrap.style.pointerEvents = "none";
+        }
+        if (imgWrap) imgWrap.style.display = "block";
+      } else {
+        if (mapWrap) {
+          mapWrap.style.display = "";
+          mapWrap.style.pointerEvents = "";
+        }
+        if (imgWrap) imgWrap.style.display = "none";
+      }
     } catch (_) {}
 
     // Créer la map uniquement après que le modal soit visible (conteneur avec taille réelle)
@@ -14094,6 +14599,46 @@ async function initDP2() {
       maxTilesLoading: 16
     });
 
+    const dp2BuildingVectorSource = new ol.source.Vector({ wrapX: false });
+    const dp2BuildingVectorLayer = new ol.layer.Vector({
+      source: dp2BuildingVectorSource,
+      zIndex: 120,
+      style: function (feature) {
+        const g = feature.getGeometry();
+        if (!g) return [];
+        const gt = g.getType();
+        const fid = feature.get("dp2FeatureId");
+        const activeId = window.DP2_STATE?.selectedBuildingContourId;
+        const active = fid != null && activeId != null && String(fid) === String(activeId);
+        if (gt === "Polygon") {
+          return [
+            new ol.style.Style({
+              fill: new ol.style.Fill({
+                color: active ? "rgba(195, 152, 71, 0.10)" : "rgba(107, 114, 128, 0.06)"
+              }),
+              stroke: new ol.style.Stroke({
+                color: active ? "#C39847" : "#6b7280",
+                width: active ? 2.5 : 2
+              })
+            })
+          ];
+        }
+        if (gt === "LineString") {
+          return [
+            new ol.style.Style({
+              stroke: new ol.style.Stroke({
+                color: "#C39847",
+                width: 2.5,
+                lineDash: [10, 8]
+              })
+            })
+          ];
+        }
+        return [];
+      }
+    });
+    map.addLayer(dp2BuildingVectorLayer);
+
     try {
       dp2SanitizeDp2BaseLayers(map);
       dp2LogDp2LayerAudit(map);
@@ -14139,8 +14684,11 @@ async function initDP2() {
     window.DP2_MAP = {
       map,
       planSource,
+      planTileLayer: planLayer,
       mvtSource: null,
-      neighborParcelsSource: dp2NeighborParcelsSource
+      neighborParcelsSource: dp2NeighborParcelsSource,
+      dp2BuildingVectorSource,
+      dp2BuildingVectorLayer
     };
 
     if (usedParcelGeometry && geom && selectedParcel) {
@@ -14202,6 +14750,7 @@ async function initDP2() {
         }
       });
       map.addLayer(parcelVectorLayer);
+      window.DP2_MAP.parcelVectorLayer = parcelVectorLayer;
 
       if (scaleEl) {
         const res = view.getResolution();
@@ -14242,6 +14791,155 @@ async function initDP2() {
         });
         window.__dp2MapResizeObs.observe(mapEl);
       }
+    } catch (_) {}
+
+    const dp2BuildingDraw = new ol.interaction.Draw({
+      source: dp2BuildingVectorSource,
+      type: "Polygon"
+    });
+    dp2BuildingDraw.setActive(false);
+    dp2BuildingDraw.on("drawend", function (evt) {
+      try {
+        const geom = evt.feature && evt.feature.getGeometry();
+        if (!geom || geom.getType() !== "Polygon") return;
+        const ring = geom.getCoordinates()[0];
+        if (!Array.isArray(ring) || ring.length < 4) return;
+        dp2BuildingVectorSource.removeFeature(evt.feature);
+        window.DP2_STATE = window.DP2_STATE || {};
+        dp2EnsureFeaturesArray();
+        const id = typeof dp2NewBuildingContourId === "function" ? dp2NewBuildingContourId() : "f_" + Date.now();
+        window.DP2_STATE.features.push({
+          id,
+          type: "polygon",
+          closed: true,
+          coordinates: ring
+        });
+        window.DP2_STATE.selectedBuildingContourId = id;
+        if (window.__SN_DP_DP2_AUDIT__ === true) {
+          try {
+            console.log("[DP2 DRAW FEATURE]", { id: id, type: "polygon", closed: true, coordinates: ring });
+          } catch (_) {}
+        }
+        try {
+          if (typeof dp2CommitHistoryPoint === "function") dp2CommitHistoryPoint();
+        } catch (_) {}
+        try {
+          dp2RenderFeaturesOL();
+        } catch (_) {}
+        try {
+          dp2RebuildContourDisplayCacheFromFeatures();
+        } catch (_) {}
+        try {
+          dp2EnterSelectToolAfterBuildingOlComplete();
+        } catch (_) {}
+        try {
+          dp2SyncBuildingOlInteractions();
+        } catch (_) {}
+        try {
+          dp2SyncBuildingOlPointerPassThrough();
+        } catch (_) {}
+        try {
+          renderDP2FromState();
+        } catch (_) {}
+      } catch (err) {
+        console.warn("[DP2] drawend", err);
+      }
+    });
+
+    const dp2BuildingModify = new ol.interaction.Modify({
+      source: dp2BuildingVectorSource,
+      pixelTolerance: 10
+    });
+    dp2BuildingModify.on("modifyend", function (evt) {
+      try {
+        const col = evt.features;
+        if (!col) return;
+        const list = typeof col.getArray === "function" ? col.getArray() : Array.isArray(col) ? col : [];
+        for (let fi = 0; fi < list.length; fi++) {
+          const f = list[fi];
+          const geom = f.getGeometry();
+          if (!geom) continue;
+          const gt = geom.getType();
+          let coords = null;
+          if (gt === "Polygon") coords = geom.getCoordinates()[0];
+          else if (gt === "LineString") coords = geom.getCoordinates();
+          if (!coords) continue;
+          const id0 = f.getId() != null ? f.getId() : f.get("dp2FeatureId");
+          if (id0 == null) continue;
+          const id = String(id0);
+          const target = (window.DP2_STATE.features || []).find(function (x) {
+            return x && String(x.id) === id;
+          });
+          if (target) {
+            target.coordinates = coords;
+            if (gt === "Polygon") target.closed = true;
+            try {
+              delete target.cuts;
+            } catch (_) {
+              target.cuts = undefined;
+            }
+          }
+        }
+        if (list.length === 0 && typeof col.forEach === "function") {
+          col.forEach(function (f) {
+            const geom = f.getGeometry();
+            if (!geom) return;
+            const gt = geom.getType();
+            let coords = null;
+            if (gt === "Polygon") coords = geom.getCoordinates()[0];
+            else if (gt === "LineString") coords = geom.getCoordinates();
+            if (!coords) return;
+            const id0 = f.getId() != null ? f.getId() : f.get("dp2FeatureId");
+            if (id0 == null) return;
+            const id = String(id0);
+            const target = (window.DP2_STATE.features || []).find(function (x) {
+              return x && String(x.id) === id;
+            });
+            if (target) {
+              target.coordinates = coords;
+              if (gt === "Polygon") target.closed = true;
+              try {
+                delete target.cuts;
+              } catch (_) {
+                target.cuts = undefined;
+              }
+            }
+          });
+        }
+        if (window.__SN_DP_DP2_AUDIT__ === true) {
+          try {
+            console.log("[DP2 MODIFY]");
+          } catch (_) {}
+        }
+        try {
+          if (typeof dp2CommitHistoryPoint === "function") dp2CommitHistoryPoint();
+        } catch (_) {}
+        try {
+          dp2RenderFeaturesOL();
+        } catch (_) {}
+        try {
+          dp2RebuildContourDisplayCacheFromFeatures();
+        } catch (_) {}
+        try {
+          renderDP2FromState();
+        } catch (_) {}
+      } catch (err2) {
+        console.warn("[DP2] modifyend", err2);
+      }
+    });
+
+    const dp2BuildingSnap = new ol.interaction.Snap({ source: dp2BuildingVectorSource });
+
+    map.addInteraction(dp2BuildingDraw);
+    map.addInteraction(dp2BuildingModify);
+    map.addInteraction(dp2BuildingSnap);
+
+    window.DP2_MAP.dp2BuildingDraw = dp2BuildingDraw;
+    window.DP2_MAP.dp2BuildingModify = dp2BuildingModify;
+    window.DP2_MAP.dp2BuildingSnap = dp2BuildingSnap;
+
+    try {
+      dp2SyncBuildingOlInteractions();
     } catch (_) {}
 
     window.__DP2_INIT_DONE = true;
@@ -14339,6 +15037,10 @@ async function initDP2() {
 function dp2GetCapturePlan() {
   const s = window.DP2_STATE;
   if (!s || typeof s !== "object") return null;
+  if (s.editorProfile === "DP4_ROOF" && window.DP4_STATE) {
+    const ortho = window.DP4_STATE.capture_ortho || window.DP4_STATE.capture;
+    if (ortho && typeof ortho === "object" && ortho.imageBase64) return ortho;
+  }
   const plan = s.capture_plan;
   if (plan && typeof plan === "object" && plan.imageBase64) return plan;
   const legacy = s.capture;
@@ -14365,11 +15067,95 @@ async function dp2SyncOpenLayersSizeToContainer(map) {
   });
 }
 
+/** Remet #dp2-ign-map en frère de #dp2-captured-image-wrap (mode capture / teardown). */
+function dp2RestoreMapNodeToWrapForCapture() {
+  const mapEl = document.getElementById("dp2-ign-map");
+  const wrap = document.querySelector(".dp2-map-wrap");
+  const imgWrap = document.getElementById("dp2-captured-image-wrap");
+  if (!mapEl || !wrap) return;
+  if (mapEl.parentElement === wrap) return;
+  if (imgWrap && wrap.contains(imgWrap)) {
+    wrap.insertBefore(mapEl, imgWrap);
+  } else {
+    wrap.insertBefore(mapEl, wrap.firstChild);
+  }
+}
+
+/** Carte OpenLayers sous l’image + canvas (plan figé + bâti vectoriel). */
+function dp2MountOlMapUnderCanvasIfNeeded() {
+  const zig = document.getElementById("dp2-zoom-container");
+  const mapEl = document.getElementById("dp2-ign-map");
+  if (!zig || !mapEl || !window.DP2_MAP?.map) return;
+  if (!zig.contains(mapEl)) {
+    zig.insertBefore(mapEl, zig.firstChild);
+  }
+}
+
+function dp2ApplyCaptureViewToMapForEdition() {
+  const map = window.DP2_MAP?.map;
+  const cap = typeof dp2GetCapturePlan === "function" ? dp2GetCapturePlan() : null;
+  if (!map || !cap) return;
+  const view = map.getView();
+  if (!view) return;
+  try {
+    if (cap.rotation != null && Number.isFinite(cap.rotation)) view.setRotation(cap.rotation);
+  } catch (_) {}
+  if (cap.center != null) {
+    const c = cap.center;
+    const cx = Array.isArray(c) ? c[0] : c.x;
+    const cy = Array.isArray(c) ? c[1] : c.y;
+    if (Number.isFinite(cx) && Number.isFinite(cy)) view.setCenter([cx, cy]);
+  }
+  if (cap.resolution != null && Number.isFinite(cap.resolution)) {
+    try {
+      view.setResolution(cap.resolution);
+    } catch (_) {}
+  } else if (typeof cap.zoom === "number" && Number.isFinite(cap.zoom)) {
+    try {
+      view.setZoom(cap.zoom);
+    } catch (_) {}
+  }
+}
+
+/** Après capture ou init éditeur : taille OL, vue figée, tuiles masquées, bâti vectoriel. */
+function dp2SyncEditionOlMapLayoutSync() {
+  const map = window.DP2_MAP?.map;
+  const cap = typeof dp2GetCapturePlan === "function" ? dp2GetCapturePlan() : null;
+  if (!map || !cap?.imageBase64) return;
+  try {
+    dp2MountOlMapUnderCanvasIfNeeded();
+    map.updateSize();
+    map.renderSync();
+  } catch (_) {}
+  try {
+    dp2ApplyCaptureViewToMapForEdition();
+  } catch (_) {}
+  try {
+    if (window.DP2_MAP?.planTileLayer) window.DP2_MAP.planTileLayer.setVisible(false);
+  } catch (_) {}
+  try {
+    if (window.DP2_MAP?.parcelVectorLayer) window.DP2_MAP.parcelVectorLayer.setVisible(false);
+  } catch (_) {}
+  try {
+    dp2RenderFeaturesOL();
+  } catch (_) {}
+}
+
 async function captureDP2Map() {
   if (!window.DP2_MAP || !window.DP2_MAP.map) {
     console.warn("[DP2] Map DP2 introuvable pour capture");
     return;
   }
+
+  try {
+    dp2RestoreMapNodeToWrapForCapture();
+  } catch (_) {}
+  try {
+    if (window.DP2_MAP.planTileLayer) window.DP2_MAP.planTileLayer.setVisible(true);
+  } catch (_) {}
+  try {
+    if (window.DP2_MAP.parcelVectorLayer) window.DP2_MAP.parcelVectorLayer.setVisible(true);
+  } catch (_) {}
 
   const map = window.DP2_MAP.map;
   const view = map.getView();
@@ -14481,9 +15267,12 @@ async function captureDP2Map() {
   const center = view.getCenter();
   const zoom = view.getZoom();
 
-  // ✅ OBLIGATOIRE : width/height pour import DP2→DP4 (dp4DrawDP2ContourOnScreenOverlay, dp4TransformDP2GeometryToMapPixels)
-  // Sans eux : w2/h2 = 0 → retour anticipé silencieux, contour invisible, transform inopérant
-  // Ne pas utiliser DP2_STATE.capture pour l’ortho DP4 : uniquement capture_plan (plan de masse).
+  let extent3857 = null;
+  try {
+    extent3857 = view.calculateExtent(size);
+  } catch (_) {}
+
+  // ✅ OBLIGATOIRE : width/height + centre/zoom/rotation pour capture_preview (alignement vue DP4 sur DP2).
   window.DP2_STATE.capture_plan = {
     imageBase64,
     resolution,
@@ -14492,7 +15281,15 @@ async function captureDP2Map() {
     zoom,
     width: size[0],
     height: size[1],
+    extent3857,
     capturedAt: Date.now()
+  };
+
+  /** Aperçu figé de la vue (DP4 aligne la carte ortho sur ces valeurs). */
+  window.DP2_STATE.capture_preview = {
+    center: center ? center.slice() : null,
+    zoom: typeof zoom === "number" && Number.isFinite(zoom) ? zoom : null,
+    rotation: typeof rotation === "number" && Number.isFinite(rotation) ? rotation : 0
   };
 
   console.log("[DP2] Capture plan (masse) enregistrée", window.DP2_STATE.capture_plan);
@@ -14521,9 +15318,12 @@ async function captureDP2Map() {
   map.getInteractions().forEach(i => i.setActive(false));
   console.log("[DP2] Toutes les interactions OpenLayers désactivées");
 
-  // Masquer la carte
+  // Carte conservée (sous le canvas) : bâti vectoriel + getCoordinateFromPixel alignés sur la capture
   const mapWrap = document.getElementById("dp2-ign-map");
-  if (mapWrap) mapWrap.style.display = "none";
+  if (mapWrap) {
+    mapWrap.style.display = "";
+    mapWrap.style.pointerEvents = "none";
+  }
 
   // Éviter la double rose des vents : elle est maintenant "baked" dans l'image capturée
   try {
@@ -15547,15 +16347,44 @@ function dp4SyncRoofGeometryFromDP2State() {
   if (!stateCat) return;
   const objects = window.DP2_STATE?.objects || [];
 
-  // A. Construire roofFromContours TOUJOURS depuis dp2GetBuildingContours()
-  const contours = dp2GetBuildingContours();
-  const roofFromContours = contours
-    .filter((c) => c && c.closed === true && Array.isArray(c.points) && c.points.length >= 3)
-    .map((c) => ({
-      type: "building_outline",
-      points: (c.points || []).map((p) => ({ x: p?.x ?? 0, y: p?.y ?? 0 })),
-      closed: true
-    }));
+  // A. Contours bâti : priorité DP2_STATE.features (EPSG:3857 → pixels plan) ; fallback cache buildingContours
+  const feats3857 = Array.isArray(window.DP2_STATE?.features) ? window.DP2_STATE.features : [];
+  let roofFromContours = [];
+  if (feats3857.length && typeof dp2MapCoordToPixel === "function") {
+    roofFromContours = feats3857
+      .filter(
+        (f) =>
+          f &&
+          f.type === "polygon" &&
+          f.closed === true &&
+          Array.isArray(f.coordinates) &&
+          f.coordinates.length >= 3
+      )
+      .map((f) => {
+        const points = [];
+        for (let ci = 0; ci < f.coordinates.length; ci++) {
+          const c = f.coordinates[ci];
+          const px = dp2MapCoordToPixel(c);
+          if (px && px.length >= 2) points.push({ x: px[0], y: px[1] });
+        }
+        return {
+          type: "building_outline",
+          points,
+          closed: true
+        };
+      })
+      .filter((o) => o.points && o.points.length >= 3);
+  }
+  if (!roofFromContours.length) {
+    const contours = dp2GetBuildingContours();
+    roofFromContours = contours
+      .filter((c) => c && c.closed === true && Array.isArray(c.points) && c.points.length >= 3)
+      .map((c) => ({
+        type: "building_outline",
+        points: (c.points || []).map((p) => ({ x: p?.x ?? 0, y: p?.y ?? 0 })),
+        closed: true
+      }));
+  }
 
   // B. Conserver roofFromObjects : cotes / faîtage (segments) + hauteur égout (annotation x,y,heightM)
   const roofFromObjects = objects.filter((o) => {
@@ -15570,7 +16399,7 @@ function dp4SyncRoofGeometryFromDP2State() {
     return false;
   });
 
-  // C. Composer (contour depuis buildingContours, ridge/measure depuis objects)
+  // C. Composer (contour depuis features 3857 → roof_outline pixels, ridge/measure depuis objects)
   const roofObjects = [...roofFromContours, ...roofFromObjects];
   stateCat.roofGeometry = dp2CloneForHistory(roofObjects);
 
@@ -15584,8 +16413,10 @@ function dp4SyncRoofGeometryFromDP2State() {
     stateCat.history = dp2CloneForHistory(Array.isArray(window.DP2_STATE?.history) ? window.DP2_STATE.history : []);
   } catch (_) {}
 
-  if (dp2IsDP4RoofProfile()) {
-    console.log("[DP4][DEBUG] after dp4Sync: buildingContours=", (window.DP2_STATE.buildingContours || []).length);
+  if (dp2IsDP4RoofProfile() && window.__SN_DP_DP2_AUDIT__ === true) {
+    try {
+      console.log("[DP4][AUDIT] after dp4Sync: features=", (window.DP2_STATE?.features || []).length);
+    } catch (_) {}
   }
 
   // UI DP4 : lecture seule
@@ -15598,115 +16429,69 @@ function dp4SyncRoofGeometryFromDP2State() {
  */
 function dp4ApplyDp4CategoryGeometryToDp2Editor(cat) {
   if (!window.DP2_STATE) return;
+  dp2EnsureFeaturesArray();
   if (cat !== "before" && cat !== "after") {
-    window.DP2_STATE.buildingContours = [];
+    window.DP2_STATE.features = [];
     window.DP2_STATE.objects = [];
+    dp2RebuildContourDisplayCacheFromFeatures();
     return;
   }
   const stateCat = window.DP4_STATE?.[cat];
   if (!stateCat) {
-    window.DP2_STATE.buildingContours = [];
+    window.DP2_STATE.features = [];
     window.DP2_STATE.objects = [];
+    dp2RebuildContourDisplayCacheFromFeatures();
     return;
   }
   const roofGeometry = stateCat.roofGeometry || [];
   const outlinesFromRoof = roofGeometry.filter((o) => o && o.type === "building_outline");
+  const orthoCapForPts = typeof dp4GetCaptureOrtho === "function" ? dp4GetCaptureOrtho() : null;
+  const orthoPtsOk = orthoCapForPts && dp4ValidateDP2CaptureForImport(orthoCapForPts).ok;
   const contoursConstruits = outlinesFromRoof.map((o, index) => ({
     id: "dp4_contour_" + index,
     points: (o.points || []).map((p) => ({ x: typeof p?.x === "number" ? p.x : 0, y: typeof p?.y === "number" ? p.y : 0 })),
     closed: o.closed === true
   }));
-  window.DP2_STATE.buildingContours = contoursConstruits;
-  window.DP2_STATE.objects = roofGeometry.filter((o) => o && o.type !== "building_outline");
-  window.DP2_STATE.objects = (window.DP2_STATE.objects || []).filter((o) => o?.type !== "building_outline");
-  window.DP2_STATE.panels = dp2CloneForHistory(stateCat.panels || []);
-  window.DP2_STATE.textObjects = dp2CloneForHistory(stateCat.textObjects || []);
-  window.DP2_STATE.businessObjects = dp2CloneForHistory(stateCat.businessObjects || []);
-  window.DP2_STATE.history = dp2CloneForHistory(stateCat.history || []);
   const seen = new Set();
-  window.DP2_STATE.buildingContours = (window.DP2_STATE.buildingContours || []).filter((c) => {
+  const filtered = contoursConstruits.filter((c) => {
     if (!c || !Array.isArray(c.points) || c.points.length < 3) return false;
     const key = JSON.stringify(c.points.map((p) => ({ x: p.x, y: p.y })));
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
   });
-}
-
-function dp4CloneDp2GeometryForTransform() {
-  const s = window.DP2_STATE;
-  if (!s) return null;
-  try {
-    return {
-      buildingContours: dp2CloneForHistory(Array.isArray(s.buildingContours) ? s.buildingContours : []),
-      objects: dp2CloneForHistory(Array.isArray(s.objects) ? s.objects : []),
-      panels: dp2CloneForHistory(Array.isArray(s.panels) ? s.panels : []),
-      textObjects: dp2CloneForHistory(Array.isArray(s.textObjects) ? s.textObjects : []),
-      businessObjects: dp2CloneForHistory(Array.isArray(s.businessObjects) ? s.businessObjects : []),
-      history: dp2CloneForHistory(Array.isArray(s.history) ? s.history : [])
-    };
-  } catch (_) {
-    return null;
+  const features = [];
+  for (let ci = 0; ci < filtered.length; ci++) {
+    const c = filtered[ci];
+    const coords = [];
+    for (let pi = 0; pi < c.points.length; pi++) {
+      const p = c.points[pi];
+      const px = typeof p?.x === "number" ? p.x : 0;
+      const py = typeof p?.y === "number" ? p.y : 0;
+      let mc = null;
+      if (orthoPtsOk && Math.abs(px) > 1e5 && Math.abs(py) > 1e5) {
+        mc = [px, py];
+      } else {
+        mc = dp2PixelToMapCoord(px, py);
+      }
+      if (mc && mc.length >= 2) coords.push(mc);
+    }
+    if (coords.length < 3) continue;
+    features.push({
+      id: c.id,
+      type: "polygon",
+      closed: true,
+      coordinates: coords
+    });
   }
-}
-
-function dp4EnsureShellBuildingContours(shell) {
-  if (!shell || typeof shell !== "object") return;
-  if (!Array.isArray(shell.buildingContours)) shell.buildingContours = [];
-}
-
-/**
- * Après transformation des coordonnées sur `shell`, produit le payload catégorie DP4 (roofGeometry, etc.).
- */
-function dp4ComposeCategoryPayloadFromShell(shell) {
-  dp4EnsureShellBuildingContours(shell);
-  const objs = Array.isArray(shell.objects) ? shell.objects : [];
-  const outlines = objs.filter((o) => o && o.type === "building_outline" && Array.isArray(o.points));
-  if ((shell.buildingContours || []).length === 0 && outlines.length > 0) {
-    const o = outlines[0];
-    const pts = (o.points || [])
-      .map((p) => ({ x: Number(p.x), y: Number(p.y) }))
-      .filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y));
-    if (pts.length >= 3) {
-      shell.buildingContours = [
-        {
-          id: dp2NewBuildingContourId(),
-          points: pts,
-          closed: true
-        }
-      ];
-    }
-  }
-  shell.objects = objs.filter((o) => !o || o.type !== "building_outline");
-
-  const contours = Array.isArray(shell.buildingContours) ? shell.buildingContours : [];
-  const roofFromContours = contours
-    .filter((c) => c && c.closed === true && Array.isArray(c.points) && c.points.length >= 3)
-    .map((c) => ({
-      type: "building_outline",
-      points: (c.points || []).map((p) => ({ x: p?.x ?? 0, y: p?.y ?? 0 })),
-      closed: true
-    }));
-  const objects = Array.isArray(shell.objects) ? shell.objects : [];
-  const roofFromObjects = objects.filter((o) => {
-    if (!o || typeof o.type !== "string") return false;
-    if (o.type === "gutter_height_dimension") {
-      return typeof o.x === "number" && Number.isFinite(o.x) && typeof o.y === "number" && Number.isFinite(o.y);
-    }
-    if (o.type === "measure_line" || o.type === "ridge_line") {
-      if (Array.isArray(o.points) && o.points.length >= 2) return true;
-      return !!(o.a && o.b && typeof o.a.x === "number" && typeof o.a.y === "number" && typeof o.b.x === "number" && typeof o.b.y === "number");
-    }
-    return false;
-  });
-  const roofObjects = [...roofFromContours, ...roofFromObjects];
-  return {
-    roofGeometry: dp2CloneForHistory(roofObjects),
-    panels: dp2CloneForHistory(Array.isArray(shell.panels) ? shell.panels : []),
-    textObjects: dp2CloneForHistory(Array.isArray(shell.textObjects) ? shell.textObjects : []),
-    businessObjects: dp2CloneForHistory(Array.isArray(shell.businessObjects) ? shell.businessObjects : []),
-    history: dp2CloneForHistory(Array.isArray(shell.history) ? shell.history : [])
-  };
+  window.DP2_STATE.features = features;
+  window.DP2_STATE.objects = roofGeometry.filter((o) => o && o.type !== "building_outline");
+  window.DP2_STATE.objects = (window.DP2_STATE.objects || []).filter((o) => o?.type !== "building_outline");
+  window.DP2_STATE.panels = dp2CloneForHistory(stateCat.panels || []);
+  window.DP2_STATE.textObjects = dp2CloneForHistory(stateCat.textObjects || []);
+  window.DP2_STATE.businessObjects = dp2CloneForHistory(stateCat.businessObjects || []);
+  window.DP2_STATE.history = dp2CloneForHistory(stateCat.history || []);
+  dp2RebuildContourDisplayCacheFromFeatures();
 }
 
 // ======================================================
@@ -15854,7 +16639,7 @@ async function dp4BuildFinalRenderImageBase64FromCurrentDom() {
       const objects = window.DP2_STATE.objects || [];
       // Réduction légère des épaisseurs pour le rendu final
       const ORIGINAL_LINE_WIDTH = sctx.lineWidth;
-      // 1) Contours : DP2 et DP4 = buildingContours (source unique)
+      // 1) Contours bâti : cache pixels (dérivé de features) — même rendu que l’éditeur
       if (typeof renderDP2BuildingContour === "function") {
         const contours = dp2GetBuildingContours();
         for (const c of contours) {
@@ -16042,7 +16827,14 @@ function dp4DefaultState() {
     plans: {
       before: null,
       after: null
-    }
+    },
+
+    /** Copie figée des contours DP2 (EPSG:3857) — jamais réécrite depuis DP2 après scellement. */
+    baseFeatures: [],
+    /** Panneaux ajoutés en EPSG:3857 (couche OL au-dessus du bâti). */
+    panels: [],
+    /** True = baseFeatures provient déjà d’un gel DP2 (ne pas recloner). */
+    _dp4BaseFeaturesSealed: false
   };
 }
 
@@ -16086,6 +16878,9 @@ function dp4NormalizeLoadedState(raw) {
   }
   // Nettoyer l'ancien champ pour éviter toute utilisation accidentelle
   try { delete s.scaleGraphic; } catch (_) {}
+  if (!Array.isArray(s.baseFeatures)) s.baseFeatures = [];
+  if (!Array.isArray(s.panels)) s.panels = [];
+  if (typeof s._dp4BaseFeaturesSealed !== "boolean") s._dp4BaseFeaturesSealed = false;
   return s;
 }
 
@@ -16138,6 +16933,206 @@ function dp4EnsureStateLoadedOnce() {
   window.DP4_STATE = dp4NormalizeLoadedState(dp4LoadState());
 }
 
+function dp4ResetDp4BaseFeaturesSeal() {
+  const s = window.DP4_STATE;
+  if (!s || typeof s !== "object") return;
+  s._dp4BaseFeaturesSealed = false;
+  s.baseFeatures = [];
+  s.panels = [];
+}
+
+/**
+ * Gèle une copie profonde de DP2_STATE.features dans DP4_STATE.baseFeatures (une seule fois par cycle DP4).
+ * Ne modifie jamais DP2_STATE.
+ */
+function dp4EnsureBaseFeaturesFromDp2FrozenOnce() {
+  window.DP4_STATE = dp4NormalizeLoadedState(window.DP4_STATE || dp4DefaultState());
+  const s = window.DP4_STATE;
+  if (s._dp4BaseFeaturesSealed) return;
+  const src = Array.isArray(window.DP2_STATE?.features) ? window.DP2_STATE.features : [];
+  try {
+    s.baseFeatures = typeof dp2CloneForHistory === "function" ? dp2CloneForHistory(src) : JSON.parse(JSON.stringify(src));
+  } catch (_) {
+    s.baseFeatures = [];
+  }
+  s._dp4BaseFeaturesSealed = true;
+}
+
+function dp4GetDp2CapturePreviewForView() {
+  const pv = window.DP2_STATE?.capture_preview;
+  if (pv && Array.isArray(pv.center) && pv.center.length >= 2) return pv;
+  return typeof dp2GetCapturePlan === "function" ? dp2GetCapturePlan() : null;
+}
+
+/** Anneau linéaire EPSG:3857 fermé pour ol.geom.Polygon (à partir d’un feature DP2 type polygon). */
+function dp4Build3857RingFromPolygonFeature(f) {
+  if (!f || f.type !== "polygon" || !Array.isArray(f.coordinates)) return null;
+  const ring = [];
+  for (let i = 0; i < f.coordinates.length; i++) {
+    const c = f.coordinates[i];
+    if (!Array.isArray(c) || c.length < 2) continue;
+    if (!Number.isFinite(c[0]) || !Number.isFinite(c[1])) continue;
+    ring.push([c[0], c[1]]);
+  }
+  if (ring.length < 3) return null;
+  const a = ring[0];
+  const b = ring[ring.length - 1];
+  if (a[0] !== b[0] || a[1] !== b[1]) ring.push([a[0], a[1]]);
+  return ring;
+}
+
+function dp4ApplyCapturePreviewToMapView(map) {
+  if (!map || typeof ol === "undefined") return;
+  const pv = dp4GetDp2CapturePreviewForView();
+  if (!pv || !Array.isArray(pv.center) || pv.center.length < 2) return;
+  const view = map.getView();
+  if (!view) return;
+  try {
+    view.setCenter(pv.center.slice());
+  } catch (_) {}
+  try {
+    if (typeof pv.rotation === "number" && Number.isFinite(pv.rotation)) view.setRotation(pv.rotation);
+  } catch (_) {}
+  try {
+    if (typeof pv.zoom === "number" && Number.isFinite(pv.zoom)) view.setZoom(pv.zoom);
+  } catch (_) {}
+}
+
+function dp4MountVectorLayersFromState(map) {
+  if (!map || typeof ol === "undefined") return;
+  const toRemove = [];
+  try {
+    map.getLayers().forEach(function (ly) {
+      const p = ly && ly.get && ly.get("dp4Layer");
+      if (p === "base" || p === "panels") toRemove.push(ly);
+    });
+  } catch (_) {}
+  for (let ri = 0; ri < toRemove.length; ri++) {
+    try {
+      map.removeLayer(toRemove[ri]);
+    } catch (_) {}
+  }
+
+  const baseSrc = new ol.source.Vector();
+  const bf = window.DP4_STATE?.baseFeatures || [];
+  for (let bi = 0; bi < bf.length; bi++) {
+    const f = bf[bi];
+    const ring = dp4Build3857RingFromPolygonFeature(f);
+    if (!ring) continue;
+    const feat = new ol.Feature({ geometry: new ol.geom.Polygon([ring]) });
+    if (f && f.id != null) feat.setId(String(f.id));
+    baseSrc.addFeature(feat);
+  }
+  const baseLayer = new ol.layer.Vector({
+    source: baseSrc,
+    style: new ol.style.Style({
+      stroke: new ol.style.Stroke({ color: "rgba(195, 152, 71, 0.95)", width: 2.5 }),
+      fill: new ol.style.Fill({ color: "rgba(195, 152, 71, 0.14)" })
+    }),
+    zIndex: 10
+  });
+  baseLayer.set("dp4Layer", "base");
+
+  const panelSrc = new ol.source.Vector();
+  const panels = window.DP4_STATE?.panels || [];
+  for (let pi = 0; pi < panels.length; pi++) {
+    const p = panels[pi];
+    if (!p || p.type !== "panel") continue;
+    let ring = null;
+    if (Array.isArray(p.coordinates)) {
+      const head = p.coordinates[0];
+      if (Array.isArray(head) && typeof head[0] === "number") {
+        ring = dp4Build3857RingFromPolygonFeature({ type: "polygon", coordinates: p.coordinates });
+      } else if (Array.isArray(head) && Array.isArray(head[0])) {
+        ring = dp4Build3857RingFromPolygonFeature({ type: "polygon", coordinates: head });
+      }
+    }
+    if (!ring) continue;
+    const pf = new ol.Feature({ geometry: new ol.geom.Polygon([ring]) });
+    if (p.id != null) pf.setId(String(p.id));
+    panelSrc.addFeature(pf);
+  }
+  const panelLayer = new ol.layer.Vector({
+    source: panelSrc,
+    style: new ol.style.Style({
+      stroke: new ol.style.Stroke({ color: "rgba(37, 99, 235, 0.92)", width: 2 }),
+      fill: new ol.style.Fill({ color: "rgba(37, 99, 235, 0.12)" })
+    }),
+    zIndex: 20
+  });
+  panelLayer.set("dp4Layer", "panels");
+
+  map.addLayer(baseLayer);
+  map.addLayer(panelLayer);
+  map.set("dp4BaseVectorSource", baseSrc);
+  map.set("dp4PanelVectorSource", panelSrc);
+  try {
+    console.log("[DP4 BASE]", bf.length);
+    console.log("[DP4 PANELS]", panels.length);
+  } catch (_) {}
+}
+
+/**
+ * Enregistre un panneau posé sur l’ortho toiture dans DP4_STATE.panels (anneau EPSG:3857), pour la couche OL.
+ */
+function dp4Append3857PanelFromDp2Placement(panelEntry) {
+  if (!panelEntry || panelEntry.type !== "panel" || !panelEntry.geometry) return;
+  const g = panelEntry.geometry;
+  const x = g.x;
+  const y = g.y;
+  const w = g.width;
+  const h = g.height;
+  if (!(typeof x === "number" && typeof y === "number" && w > 0 && h > 0)) return;
+  const rotDeg = typeof g.rotation === "number" && Number.isFinite(g.rotation) ? g.rotation : 0;
+  const rad = (rotDeg * Math.PI) / 180;
+  const cx = x + w / 2;
+  const cy = y + h / 2;
+  const corners = [
+    { lx: -w / 2, ly: -h / 2 },
+    { lx: w / 2, ly: -h / 2 },
+    { lx: w / 2, ly: h / 2 },
+    { lx: -w / 2, ly: h / 2 }
+  ];
+  const ring = [];
+  for (let i = 0; i < corners.length; i++) {
+    const lx = corners[i].lx;
+    const ly = corners[i].ly;
+    const rx = lx * Math.cos(rad) - ly * Math.sin(rad);
+    const ry = lx * Math.sin(rad) + ly * Math.cos(rad);
+    const px = cx + rx;
+    const py = cy + ry;
+    const mc = typeof dp2PixelToMapCoord === "function" ? dp2PixelToMapCoord(px, py) : null;
+    if (mc && mc.length >= 2 && Number.isFinite(mc[0]) && Number.isFinite(mc[1])) ring.push([mc[0], mc[1]]);
+  }
+  if (ring.length < 3) return;
+  const a = ring[0];
+  const b = ring[ring.length - 1];
+  if (a[0] !== b[0] || a[1] !== b[1]) ring.push([a[0], a[1]]);
+
+  window.DP4_STATE = window.DP4_STATE || dp4DefaultState();
+  if (!Array.isArray(window.DP4_STATE.panels)) window.DP4_STATE.panels = [];
+  const pid = panelEntry.id != null ? String(panelEntry.id) : "panel_" + Date.now();
+  const next = window.DP4_STATE.panels.filter((p) => p && String(p.id) !== pid);
+  next.push({ type: "panel", id: panelEntry.id, coordinates: ring });
+  window.DP4_STATE.panels = next;
+  try {
+    console.log("[DP4 PANELS]", window.DP4_STATE.panels.length);
+  } catch (_) {}
+  try {
+    dp4RefreshPanelVectorLayerFromState();
+  } catch (_) {}
+}
+
+/** Après ajout d’un panneau EPSG:3857 dans DP4_STATE.panels. */
+function dp4RefreshPanelVectorLayerFromState() {
+  const map = window.DP4_OL_MAP;
+  if (!map) return;
+  try {
+    dp4MountVectorLayersFromState(map);
+    map.renderSync();
+  } catch (_) {}
+}
+
 function dp4GetStoredPlan(category) {
   const cat = category === "before" || category === "after" ? category : null;
   if (!cat) return null;
@@ -16168,6 +17163,9 @@ function dp4ApplyStoredPlanToActive(category) {
     window.DP4_STATE.roofType = null;
     window.DP4_STATE.scaleGraphicMeters = null;
     window.DP4_STATE.panelModel = null;
+    try {
+      dp4ResetDp4BaseFeaturesSeal();
+    } catch (_) {}
     return;
   }
 
@@ -16188,6 +17186,16 @@ function dp4ApplyStoredPlanToActive(category) {
         ? plan.scaleGraphicMeters
         : null;
     window.DP4_STATE.panelModel = plan.panelModel ?? null;
+    if (Array.isArray(plan.dp4BaseFeatures) && plan.dp4BaseFeatures.length > 0) {
+      window.DP4_STATE.baseFeatures = dp2CloneForHistory(plan.dp4BaseFeatures);
+      window.DP4_STATE._dp4BaseFeaturesSealed = true;
+    } else {
+      window.DP4_STATE.baseFeatures = [];
+      window.DP4_STATE._dp4BaseFeaturesSealed = false;
+    }
+    window.DP4_STATE.panels = Array.isArray(plan.dp4MapOverlayPanels)
+      ? dp2CloneForHistory(plan.dp4MapOverlayPanels)
+      : [];
   } catch (_) {
     // fallback sûr (sans déduction)
     window.DP4_STATE.capture = { imageBase64: null };
@@ -16329,7 +17337,9 @@ async function dp4SaveActivePlanToSelectedCategory() {
     businessObjects: dp2CloneForHistory(Array.isArray(stateCat.businessObjects) ? stateCat.businessObjects : []),
     history: dp2CloneForHistory(Array.isArray(stateCat.history) ? stateCat.history : []),
     thumbnailBase64,
-    savedAt: Date.now()
+    savedAt: Date.now(),
+    dp4BaseFeatures: dp2CloneForHistory(Array.isArray(window.DP4_STATE.baseFeatures) ? window.DP4_STATE.baseFeatures : []),
+    dp4MapOverlayPanels: dp2CloneForHistory(Array.isArray(window.DP4_STATE.panels) ? window.DP4_STATE.panels : [])
   };
 
   dp4SaveState(window.DP4_STATE);
@@ -16502,7 +17512,7 @@ async function dpCaptureElementAsPngDataUrl(host) {
 // DP4 — IMPORT DP2 (conversion mathématique pixel ↔ coordonnées)
 // Overlay = contour uniquement ; canvas = tout le dessin.
 // ======================================================
-function dp2PixelToMapCoord(px, py, capture, width, height) {
+function dp2Dp2ImagePixelTo3857Coord(px, py, capture, width, height) {
   const center = capture.center;
   const resolution = capture.resolution;
   const rotation = capture.rotation || 0;
@@ -16517,6 +17527,22 @@ function dp2PixelToMapCoord(px, py, capture, width, height) {
   const y = center[1] + sin * dx + cos * dy;
 
   return [x, y];
+}
+
+/** Inverse de dp2Dp2ImagePixelTo3857Coord : coordonnée EPSG:3857 → pixel image plan masse. */
+function dp2Dp2Image3857CoordToPixel(wx, wy, capture, width, height) {
+  const center = capture.center;
+  const resolution = capture.resolution;
+  const rotation = capture.rotation || 0;
+  const rdx = wx - center[0];
+  const rdy = wy - center[1];
+  const cos = Math.cos(rotation);
+  const sin = Math.sin(rotation);
+  const dx = cos * rdx + sin * rdy;
+  const dy = -sin * rdx + cos * rdy;
+  const px = dx / resolution + width / 2;
+  const py = -dy / resolution + height / 2;
+  return { x: px, y: py };
 }
 
 /** Vérifie que la capture DP2 contient tout le nécessaire pour projet DP2 → pixels carte DP4 (preview + validation). */
@@ -16563,7 +17589,7 @@ function dp4ProjectDP2PointToCurrentMapPixel(point) {
   if (!(w2 > 0) || !(h2 > 0)) return null;
   const v = dp4ValidateDP2CaptureForImport(cap);
   if (!v.ok) return null;
-  const coord = dp2PixelToMapCoord(point.x, point.y, cap, w2, h2);
+  const coord = dp2Dp2ImagePixelTo3857Coord(point.x, point.y, cap, w2, h2);
   const pix = map.getPixelFromCoordinate(coord);
   if (!pix || pix.length < 2) return null;
   return { x: pix[0], y: pix[1] };
@@ -16584,7 +17610,7 @@ function dp4ProjectDP2PointToFinalCapturePixel(point, originalDP2Capture, map) {
   if (!(w2 > 0) || !(h2 > 0)) return null;
   const v = dp4ValidateDP2CaptureForImport(originalDP2Capture);
   if (!v.ok) return null;
-  const coord = dp2PixelToMapCoord(point.x, point.y, originalDP2Capture, w2, h2);
+  const coord = dp2Dp2ImagePixelTo3857Coord(point.x, point.y, originalDP2Capture, w2, h2);
   const pix = map.getPixelFromCoordinate(coord);
   if (!pix || pix.length < 2) return null;
   return { x: pix[0], y: pix[1] };
@@ -16627,17 +17653,6 @@ function dp4EnsureScreenOverlayCanvas() {
   canvas.height = h;
   window.DP4_IMPORT_OVERLAY_CANVAS = canvas;
   return canvas;
-}
-
-function dp4CloneCaptureForTransform(obj) {
-  try {
-    if (typeof structuredClone === "function") return structuredClone(obj);
-  } catch (_) {}
-  try {
-    return JSON.parse(JSON.stringify(obj));
-  } catch (_) {
-    return null;
-  }
 }
 
 function dp4ImportViewSnapshotDiffersFromMap(snap, map) {
@@ -16736,217 +17751,63 @@ function dp4RemoveScreenOverlayCanvas() {
 }
 
 function dp4DrawDP2ContourOnScreenOverlay() {
-  const canvas = window.DP4_IMPORT_OVERLAY_CANVAS;
-  if (!canvas) return;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return;
-
-  let points = [];
-  if (Array.isArray(window.DP2_STATE?.buildingContours) && window.DP2_STATE.buildingContours.length > 0) {
-    const c = window.DP2_STATE.buildingContours[0];
-    if (Array.isArray(c?.points)) points = c.points;
-  } else {
-    const obj = (window.DP2_STATE?.objects || []).find((o) => o && o.type === "building_outline");
-    if (obj && Array.isArray(obj.points)) points = obj.points;
-  }
-  if (points.length < 2) return;
-
-  const cap = typeof dp2GetCapturePlan === "function" ? dp2GetCapturePlan() : window.DP2_STATE?.capture;
-  const vCap = dp4ValidateDP2CaptureForImport(cap);
-  if (!vCap.ok) {
-    const msg =
-      "Impossible d'importer DP2 : capture plan DP2 incomplète.\nChamps manquants : " + vCap.missing.join(", ");
-    console.error("[DP4][IMPORT]", msg, { missing: vCap.missing, capture: cap });
-    alert(msg);
-    return;
-  }
-
-  const vw = canvas.width;
-  const vh = canvas.height;
-  ctx.clearRect(0, 0, vw, vh);
-  ctx.save();
-  ctx.strokeStyle = "#C39847";
-  ctx.lineWidth = 3;
-  ctx.setLineDash([10, 10]);
-  ctx.beginPath();
-  let started = false;
-  for (let i = 0; i < points.length; i++) {
-    const proj = dp4ProjectDP2PointToCurrentMapPixel(points[i]);
-    if (!proj) continue;
-    if (!started) {
-      ctx.moveTo(proj.x, proj.y);
-      started = true;
-    } else {
-      ctx.lineTo(proj.x, proj.y);
-    }
-  }
-  if (!started) {
-    ctx.restore();
-    return;
-  }
-  ctx.closePath();
-  ctx.stroke();
-  ctx.restore();
+  /* DP4 : contour carte = baseFeatures (OpenLayers) uniquement — plus d’overlay import plan→carte. */
 }
 
 /**
- * Reprojette toute la géométrie : pixels image plan masse (originalDP2Capture) → pixels repère carte / capture (map).
- * Ne modifie pas DP2_STATE pendant le calcul : clone → DP4_STATE[cat] → réinjection éditeur via dp4ApplyDp4CategoryGeometryToDp2Editor.
- * @returns {boolean} false si interruption (alert déjà affichée).
+ * Remplit les `building_outline` de DP4_STATE[cat].roofGeometry depuis DP4_STATE.baseFeatures (EPSG:3857).
  */
-function dp4TransformDP2GeometryToMapPixels(originalDP2Capture, map) {
-  if (!originalDP2Capture || !map) return false;
-  const vCap = dp4ValidateDP2CaptureForImport(originalDP2Capture);
-  if (!vCap.ok) {
-    const msg =
-      "Impossible d'importer DP2 : capture DP2 incomplète.\nChamps manquants : " + vCap.missing.join(", ");
-    console.error("[DP4][IMPORT]", msg, { missing: vCap.missing, capture: originalDP2Capture });
-    alert(msg);
-    return false;
+function dp4SeedRoofGeometryFromBaseFeatures(cat) {
+  if (cat !== "before" && cat !== "after") return;
+  window.DP4_STATE = window.DP4_STATE || dp4DefaultState();
+  const stateCat = window.DP4_STATE[cat];
+  if (!stateCat) return;
+  const bf = Array.isArray(window.DP4_STATE.baseFeatures) ? window.DP4_STATE.baseFeatures : [];
+  const outlines = [];
+  for (let i = 0; i < bf.length; i++) {
+    const f = bf[i];
+    if (!f || f.type !== "polygon" || !Array.isArray(f.coordinates)) continue;
+    const pts = [];
+    for (let j = 0; j < f.coordinates.length; j++) {
+      const c = f.coordinates[j];
+      if (!Array.isArray(c) || c.length < 2) continue;
+      if (!Number.isFinite(c[0]) || !Number.isFinite(c[1])) continue;
+      pts.push({ x: c[0], y: c[1] });
+    }
+    if (pts.length < 3) continue;
+    outlines.push({
+      type: "building_outline",
+      closed: f.closed === true,
+      points: pts
+    });
   }
+  const rest = (stateCat.roofGeometry || []).filter((o) => o && o.type !== "building_outline");
+  stateCat.roofGeometry = outlines.concat(rest);
+}
 
-  const size = map.getSize();
-  if (!size || size[0] <= 0 || size[1] <= 0) return false;
-
-  const w2 = originalDP2Capture.width ?? 0;
-  const h2 = originalDP2Capture.height ?? 0;
-  if (w2 <= 0 || h2 <= 0) {
-    console.error("[DP4][IMPORT] width/height invalides", { w2, h2 });
-    alert("Impossible d'importer DP2 : largeur ou hauteur de capture DP2 invalides.");
-    return false;
-  }
-
-  const shell = dp4CloneDp2GeometryForTransform();
-  if (!shell) {
-    console.error("[DP4][IMPORT] clone géométrie DP2 impossible");
-    alert("Erreur interne : copie de la géométrie DP2 impossible.");
-    return false;
-  }
-
+/**
+ * Passage carte ortho → éditeur toiture : contours bâtiment uniquement via baseFeatures (pas d’import pixel).
+ * @param {object|null} _originalDP2Capture — ignoré (rétrocompat appelants)
+ * @param {import("ol/Map").default|null} map — carte DP4 (garde-fou taille)
+ */
+function dp4TransformDP2GeometryToMapPixels(_originalDP2Capture, map) {
+  void _originalDP2Capture;
   const catEarly = window.DP4_STATE?.photoCategory ?? null;
   if (catEarly !== "before" && catEarly !== "after") return false;
-
-  function convertPoint(p) {
-    const out = dp4ProjectDP2PointToFinalCapturePixel(p, originalDP2Capture, map);
-    if (!out) {
-      console.error("[DP4][IMPORT] dp4ProjectDP2PointToFinalCapturePixel a échoué pour", p);
-    }
-    return out;
-  }
-
-  if (Array.isArray(shell.buildingContours)) {
-    for (let ci = 0; ci < shell.buildingContours.length; ci++) {
-      const contour = shell.buildingContours[ci];
-      if (!contour || !Array.isArray(contour.points)) continue;
-      const nextPts = [];
-      for (let pi = 0; pi < contour.points.length; pi++) {
-        const g = convertPoint(contour.points[pi]);
-        if (!g) {
-          alert("Impossible de projeter un sommet du contour DP2. Vérifiez la carte et la capture DP2.");
-          return false;
-        }
-        nextPts.push(g);
-      }
-      contour.points = nextPts;
-    }
-  }
-
-  if (Array.isArray(shell.objects)) {
-    for (let oi = 0; oi < shell.objects.length; oi++) {
-      const obj = shell.objects[oi];
-      if (!obj) continue;
-      if (obj.points) {
-        const np = [];
-        for (let pi = 0; pi < obj.points.length; pi++) {
-          const g = convertPoint(obj.points[pi]);
-          if (!g) {
-            alert("Impossible de projeter un point d'objet DP2.");
-            return false;
-          }
-          np.push(g);
-        }
-        obj.points = np;
-      }
-      if (obj.a) {
-        const ga = convertPoint(obj.a);
-        if (!ga) {
-          alert("Impossible de projeter le point A d'un objet DP2.");
-          return false;
-        }
-        obj.a = ga;
-      }
-      if (obj.b) {
-        const gb = convertPoint(obj.b);
-        if (!gb) {
-          alert("Impossible de projeter le point B d'un objet DP2.");
-          return false;
-        }
-        obj.b = gb;
-      }
-      if (obj.geometry) {
-        const g = convertPoint(obj.geometry);
-        if (!g) {
-          alert("Impossible de projeter la géométrie d'un objet DP2.");
-          return false;
-        }
-        obj.geometry.x = g.x;
-        obj.geometry.y = g.y;
-      }
-    }
-  }
-
-  if (Array.isArray(shell.panels)) {
-    for (let pi = 0; pi < shell.panels.length; pi++) {
-      const p = shell.panels[pi];
-      if (!p?.geometry) continue;
-      const g = convertPoint(p.geometry);
-      if (!g) {
-        alert("Impossible de projeter un panneau DP2.");
-        return false;
-      }
-      p.geometry.x = g.x;
-      p.geometry.y = g.y;
-    }
-  }
-
-  if (Array.isArray(shell.textObjects)) {
-    for (let ti = 0; ti < shell.textObjects.length; ti++) {
-      const t = shell.textObjects[ti];
-      if (!t?.geometry) continue;
-      const g = convertPoint(t.geometry);
-      if (!g) {
-        alert("Impossible de projeter un texte DP2.");
-        return false;
-      }
-      t.geometry.x = g.x;
-      t.geometry.y = g.y;
-    }
-  }
-
-  if (Array.isArray(shell.businessObjects)) {
-    for (let bi = 0; bi < shell.businessObjects.length; bi++) {
-      const b = shell.businessObjects[bi];
-      if (!b?.geometry) continue;
-      const g = convertPoint(b.geometry);
-      if (!g) {
-        alert("Impossible de projeter un objet métier DP2.");
-        return false;
-      }
-      b.geometry.x = g.x;
-      b.geometry.y = g.y;
-    }
+  if (map) {
+    const size = map.getSize();
+    if (!size || size[0] <= 0 || size[1] <= 0) return false;
   }
 
   window.DP4_STATE = window.DP4_STATE || dp4DefaultState();
   const stateCat = window.DP4_STATE[catEarly];
   if (!stateCat) return false;
 
-  const payload = dp4ComposeCategoryPayloadFromShell(shell);
-  stateCat.roofGeometry = payload.roofGeometry;
-  stateCat.panels = payload.panels;
-  stateCat.textObjects = payload.textObjects;
-  stateCat.businessObjects = payload.businessObjects;
-  stateCat.history = payload.history;
+  try {
+    dp4SeedRoofGeometryFromBaseFeatures(catEarly);
+  } catch (e) {
+    console.warn("[DP4] seed roofGeometry depuis baseFeatures", e);
+  }
 
   window.DP4_IMPORT_DP2_ACTIVE = false;
 
@@ -16954,7 +17815,7 @@ function dp4TransformDP2GeometryToMapPixels(originalDP2Capture, map) {
     if (typeof dp4ApplyDp4CategoryGeometryToDp2Editor === "function") {
       dp4ApplyDp4CategoryGeometryToDp2Editor(catEarly);
     }
-    window.DP2_STATE.editorProfile = "DP4_ROOF";
+    if (window.DP2_STATE) window.DP2_STATE.editorProfile = "DP4_ROOF";
     try {
       if (typeof dp2SyncDp4RoofMeasuresMenuVisibility === "function") dp2SyncDp4RoofMeasuresMenuVisibility();
     } catch (_) {}
@@ -16962,16 +17823,15 @@ function dp4TransformDP2GeometryToMapPixels(originalDP2Capture, map) {
   return true;
 }
 
-/** @deprecated Préférer dp4TransformDP2GeometryToMapPixels(clone, map) depuis le pipeline capture. */
+/** @deprecated Conservé pour compat ; la géométrie toiture vient de baseFeatures, plus d’import plan→carte. */
 function dp4TransformDP2ToDP4PixelsFromCurrentMapView(opts) {
   const force = !!(opts && opts.force);
   if (!force && !window.DP4_IMPORT_DP2_ACTIVE) return;
   const cat = window.DP4_STATE?.photoCategory ?? null;
   if (cat !== "before" && cat !== "after") return;
   const map = window.DP4_OL_MAP;
-  const planCap = typeof dp2GetCapturePlan === "function" ? dp2GetCapturePlan() : window.DP2_STATE?.capture;
-  if (!map || !planCap) return;
-  dp4TransformDP2GeometryToMapPixels(planCap, map);
+  if (!map) return;
+  dp4TransformDP2GeometryToMapPixels(null, map);
 }
 
 /** Heuristique : composite probablement vide / tuiles grises non chargées. */
@@ -17044,7 +17904,7 @@ function dp4DebugPixelAlignmentDp2ToDp4Once(map) {
   for (let i = 0; i < dp2Pts.length; i++) {
     const p = dp2Pts[i];
     const ref = refList[i];
-    const coord = dp2PixelToMapCoord(p.x, p.y, cap, w, h);
+    const coord = dp2Dp2ImagePixelTo3857Coord(p.x, p.y, cap, w, h);
     const pix = map.getPixelFromCoordinate(coord);
     if (!pix || pix.length < 2) {
       deltas.push({ name: p.name, err: "no_pixel" });
@@ -17217,6 +18077,13 @@ function dp4InitIgnOrthoMap(onReady) {
 
   window.DP4_OL_MAP.once("rendercomplete", function dp4FirstRenderAlignTest() {
     try {
+      dp4EnsureBaseFeaturesFromDp2FrozenOnce();
+      dp4MountVectorLayersFromState(window.DP4_OL_MAP);
+      dp4ApplyCapturePreviewToMapView(window.DP4_OL_MAP);
+    } catch (e) {
+      console.warn("[DP4] couches vectorielles / vue capture_preview", e);
+    }
+    try {
       if (hasDP2Capture) dp4DebugPixelAlignmentDp2ToDp4Once(window.DP4_OL_MAP);
     } catch (e) {
       console.warn("[DP4][ALIGN_TEST]", e);
@@ -17290,6 +18157,10 @@ function dp4DeletePlan(category) {
   if (!cat) return;
 
   if (!confirm("Supprimer définitivement ce plan DP4 ?")) return;
+
+  try {
+    dp4ResetDp4BaseFeaturesSeal();
+  } catch (_) {}
 
   // 1️⃣ Supprimer plan actif
   if (window.DP4_STATE?.plans) {
@@ -17404,7 +18275,7 @@ function initDP4() {
     dp4SetValidateVisible(false);
     dp4SetValidateEnabled(true);
     const importBtn = document.getElementById("dp4-import-dp2-btn");
-    if (importBtn) importBtn.style.display = "inline-flex";
+    if (importBtn) importBtn.style.display = "none";
     // Menu gauche DP4 (copie DP2) : binds + affichages passifs
     try { initDP4MetadataUI(); } catch (_) {}
     try { syncDP4LegendOverlayUI(); } catch (_) {}
@@ -17634,8 +18505,11 @@ function initDP4() {
     if ((cat === "before" || cat === "after") && stateCat) {
       dp4ApplyDp4CategoryGeometryToDp2Editor(cat);
     } else {
-      window.DP2_STATE.buildingContours = [];
+      window.DP2_STATE.features = [];
       window.DP2_STATE.objects = [];
+      try {
+        dp2RebuildContourDisplayCacheFromFeatures();
+      } catch (_) {}
     }
 
     // Conserver le flow DP4 existant comme défaut
@@ -17840,33 +18714,8 @@ function initDP4() {
         "m"
       );
 
-      const hasDp2ContourImportable =
-        (Array.isArray(window.DP2_STATE?.buildingContours) && window.DP2_STATE.buildingContours.length > 0) ||
-        (window.DP2_STATE?.objects || []).some((o) => o && o.type === "building_outline");
-
-      if (hasDp2ContourImportable || window.DP4_IMPORT_DP2_ACTIVE === true) {
-        const planCap =
-          typeof dp2GetCapturePlan === "function" ? dp2GetCapturePlan() : window.DP2_STATE?.capture;
-        const originalDP2Capture = dp4CloneCaptureForTransform(planCap);
-        if (!originalDP2Capture) {
-          console.error("[DP4] capture: copie capture plan DP2 impossible");
-          alert("Erreur interne : copie de la capture plan DP2 impossible.");
-          return;
-        }
-        const vCap = dp4ValidateDP2CaptureForImport(originalDP2Capture);
-        if (!vCap.ok) {
-          const msg =
-            "Impossible d'importer DP2 : capture plan DP2 incomplète.\nChamps manquants : " + vCap.missing.join(", ");
-          console.error("[DP4][VALIDATE]", msg, { missing: vCap.missing, capture: originalDP2Capture });
-          alert(msg);
-          return;
-        }
-        if (hasDp2ContourImportable && window.DP4_IMPORT_DP2_ACTIVE !== true) {
-          console.log("[DP4][VALIDATE] transformation automatique (contours DP2, vue courante → pixels capture)");
-        }
-        const okGeom = dp4TransformDP2GeometryToMapPixels(originalDP2Capture, map);
-        if (!okGeom) return;
-      }
+      const okGeom = dp4TransformDP2GeometryToMapPixels(null, map);
+      if (!okGeom) return;
 
       window.DP4_STATE = window.DP4_STATE || dp4DefaultState();
       const captureOrthoPayload = {
@@ -18005,41 +18854,7 @@ function initDP4() {
     });
   }
 
-  // Import DP2 (overlay écran fixe) : bind une seule fois
-  document.getElementById("dp4-import-dp2-btn")?.addEventListener("click", () => {
-    const hasContour = (Array.isArray(window.DP2_STATE?.buildingContours) && window.DP2_STATE.buildingContours.length > 0) ||
-      (window.DP2_STATE?.objects || []).some((o) => o && o.type === "building_outline");
-    if (!hasContour) {
-      alert("Aucun contour DP2 disponible.");
-      return;
-    }
-    const planImp =
-      typeof dp2GetCapturePlan === "function" ? dp2GetCapturePlan() : window.DP2_STATE?.capture;
-    const vCap = dp4ValidateDP2CaptureForImport(planImp);
-    if (!vCap.ok) {
-      const msg =
-        "Impossible d'importer DP2 : capture plan DP2 incomplète.\nChamps manquants : " + vCap.missing.join(", ");
-      console.error("[DP4][IMPORT]", msg, { missing: vCap.missing, capture: planImp });
-      alert(msg);
-      return;
-    }
-    dp4EnsureScreenOverlayCanvas();
-    dp4DrawDP2ContourOnScreenOverlay();
-    window.DP4_IMPORT_DP2_ACTIVE = true;
-    dp4HideImportStaleMessage();
-    const vImp = window.DP4_OL_MAP && window.DP4_OL_MAP.getView();
-    if (vImp) {
-      const c0 = vImp.getCenter();
-      window.DP4_IMPORT_VIEW_SNAPSHOT = {
-        center: c0 ? c0.slice() : null,
-        resolution: vImp.getResolution(),
-        rotation: vImp.getRotation()
-      };
-    } else {
-      window.DP4_IMPORT_VIEW_SNAPSHOT = null;
-    }
-    dp4BindImportStaleGuardOnMapMove();
-  });
+  /* Import DP2 → overlay : retiré — le contour carte provient de DP2_STATE.features gelé dans baseFeatures. */
 
   // Capture (validation vue) : retirer l’aperçu → capture carte (tuiles + anti-gris) → transformation → destroy → toiture
   if (validateBtn && validateBtn.dataset.bound !== "1") {

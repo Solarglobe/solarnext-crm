@@ -1920,6 +1920,25 @@ body.dp-lock-scroll {
   /* transform translate() scale() est appliqué en JS depuis initDP2Editor/initDP2ViewZoom */
 }
 
+/* OpenLayers sous l’image : bâti vectoriel + même zoom visuel que le canvas (édition post-capture) */
+#dp2-zoom-container > #dp2-ign-map {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  pointer-events: none;
+  background: transparent;
+}
+
+/* Bâti DP2 : priorité OpenLayers (Draw / Modify / Snap) — le canvas ne capte plus les événements dans ce mode */
+#dp2-zoom-container.dp2-building-ol-priority #dp2-draw-canvas {
+  pointer-events: none !important;
+}
+#dp2-zoom-container.dp2-building-ol-priority #dp2-ign-map {
+  pointer-events: auto !important;
+}
+
 /* DP2 — Clic/double-clic sur les mesures (canvas) : le canvas doit recevoir les events, pas l’image */
 #dp2-captured-image {
   pointer-events: none;

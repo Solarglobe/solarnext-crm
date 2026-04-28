@@ -212,6 +212,8 @@
     try {
       var s = JSON.stringify(obj, function (key, val) {
         if (key.indexOf("_") === 0) return undefined;
+        /** Cache écran DP2 uniquement — source persistée = `features`. */
+        if (key === "buildingContours") return undefined;
         if (val === undefined) return undefined;
         if (typeof val === "function") return undefined;
         return val;
@@ -1060,7 +1062,10 @@
       var safeDraft = san.draft;
       if (global.__SN_DP_DP2_AUDIT__ === true) {
         try {
-          console.log("[DP2 PUT PAYLOAD]", safeDraft.dp2);
+          var d2s = safeDraft.dp2;
+          var fc = d2s && Array.isArray(d2s.features) ? d2s.features.length : 0;
+          console.log("[DP2 PUT PAYLOAD]", d2s);
+          console.log("[DP2 PUT PAYLOAD] features.len=", fc, "buildingContours stripped from persist");
         } catch (e2) {
           console.warn("[DP2 PUT PAYLOAD] log error", e2);
         }
@@ -1443,7 +1448,9 @@
     }
     if (global.__SN_DP_DP2_AUDIT__ === true) {
       try {
+        var d2f = d2 && Array.isArray(d2.features) ? d2.features.length : 0;
         console.log("[DP2 GET]", d2);
+        console.log("[DP2 GET] features.len=", d2f);
       } catch (_) {}
     }
     if (typeof global.hydrateDP2 === "function") {
