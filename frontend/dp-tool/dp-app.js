@@ -8895,10 +8895,13 @@ function dp2BuildParcelEdgeMeasureStub(peEdit, contour, segmentIndex) {
   };
 }
 
-// DP2 — Hit-test repères A/B (measure_line avec requestedLengthM, sans resizeAnchor). Rayon ~11px.
+const DP2_MEASURE_ANCHOR_CHOICE_HIT_PX = 30;
+const DP2_MEASURE_ANCHOR_CHOICE_VISUAL_PX = 12;
+
+// DP2 — Hit-test repères A/B (measure_line avec requestedLengthM, sans resizeAnchor).
 function dp2HitTestMeasureLineAnchor(canvas, x, y) {
   const objects = window.DP2_STATE?.objects || [];
-  const R = 11;
+  const R = DP2_MEASURE_ANCHOR_CHOICE_HIT_PX;
   for (let i = objects.length - 1; i >= 0; i--) {
     const obj = objects[i];
     if (!obj || obj.type !== "measure_line" || !obj.a || !obj.b || obj.__parcelEdge) continue;
@@ -8924,7 +8927,7 @@ function dp2HitTestParcelEdgeAnchorChoice(canvas, x, y) {
   const p1 = pts[pe.segmentIndex];
   const p2 = pts[(pe.segmentIndex + 1) % n];
   if (!p1 || !p2) return null;
-  const R = 11;
+  const R = DP2_MEASURE_ANCHOR_CHOICE_HIT_PX;
   const dA = Math.hypot(x - p1.x, y - p1.y);
   const dB = Math.hypot(x - p2.x, y - p2.y);
   if (dA <= R && dA <= dB) return { anchor: "A" };
@@ -9593,7 +9596,7 @@ function dp2IsVectorCreateBusinessType(type) {
 }
 
 function dp2IsFramelessBusinessObject(type) {
-  return type === "sens_pente" || type === "angle_vue";
+  return type === "sens_pente" || type === "angle_vue" || type === "voie_acces";
 }
 
 // Formes métier — resize + rotation (× viewZoom, ×0.8 visuel) ; déplacement = drag sur le corps
@@ -9700,10 +9703,12 @@ function dp2HitTestBusiness(x, y) {
 
     if (canHitHandles) {
       const frameless = dp2IsFramelessBusinessObject(obj.type);
-      const rhX = g.x + w / 2;
-      const rhY = g.y - rotLine;
-      if (Math.hypot(lx - rhX, ly - rhY) <= rotHitR) {
-        return { id: obj.id, part: "rotate" };
+      if (!frameless) {
+        const rhX = g.x + w / 2;
+        const rhY = g.y - rotLine;
+        if (Math.hypot(lx - rhX, ly - rhY) <= rotHitR) {
+          return { id: obj.id, part: "rotate" };
+        }
       }
 
       const hx = frameless ? g.x + w * 0.88 : g.x + w;
@@ -9916,6 +9921,44 @@ function initDP2CanvasEvents() {
       dp2SetActiveFeatureFromPointerDown(canvas, e);
     } catch (_) {}
 
+    if (tool === "select") {
+      const hitParcelAnchor = dp2HitTestParcelEdgeAnchorChoice(canvas, coords.x, coords.y);
+      if (hitParcelAnchor && (hitParcelAnchor.anchor === "A" || hitParcelAnchor.anchor === "B")) {
+        e.preventDefault();
+        e.stopPropagation();
+        const pe = window.DP2_STATE?.parcelEdgeEdit;
+        if (pe) {
+          pe.anchor = hitParcelAnchor.anchor;
+          dp2CommitParcelSegmentResize({
+            contourId: pe.contourId,
+            segmentIndex: pe.segmentIndex,
+            requestedLengthM: pe.requestedLengthM,
+            anchor: pe.anchor
+          });
+          dp2ClearParcelEdgeEdit();
+          if (typeof dp2RemoveMeasureResizePreviewOverlay === "function") dp2RemoveMeasureResizePreviewOverlay();
+          renderDP2FromState();
+          return;
+        }
+      }
+
+      const hitAnchor = dp2HitTestMeasureLineAnchor(canvas, coords.x, coords.y);
+      if (hitAnchor && typeof hitAnchor.objectIndex === "number" && (hitAnchor.anchor === "A" || hitAnchor.anchor === "B")) {
+        e.preventDefault();
+        e.stopPropagation();
+        const objs = window.DP2_STATE?.objects || [];
+        const obj = objs[hitAnchor.objectIndex];
+        if (obj && obj.type === "measure_line") {
+          obj.resizeAnchor = hitAnchor.anchor;
+          dp2CommitMeasureResize(obj);
+          if (typeof dp2RemoveMeasureAnchorChoiceOverlay === "function") dp2RemoveMeasureAnchorChoiceOverlay();
+          if (typeof dp2RemoveMeasureResizePreviewOverlay === "function") dp2RemoveMeasureResizePreviewOverlay();
+          renderDP2FromState();
+          return;
+        }
+      }
+    }
+
     // 0) DP2 — Libellés de cote sur segments du contour (priorité max sur les autres hits Sélection)
     if (tool === "select") {
       const hitParcelLabel = dp2HitTestParcelSegmentLabel(canvas, coords.x, coords.y);
@@ -10074,8 +10117,14 @@ function initDP2CanvasEvents() {
       }
     }
 
+    const hitBizBeforeBuilding = tool === "select" ? dp2HitTestBusiness(coords.x, coords.y) : null;
+
     // DP2 — Hybrid : sommet contour bâti (`buildingContours.points`) → priorité OL temporaire + pointerdown sur la carte (Modify)
-    if (tool === "select" && dp2HitTestBuildingContourVertexForOlHandoff(coords.x, coords.y, DP2_BUILDING_VERTEX_OL_HANDOFF_TOL_PX)) {
+    if (
+      tool === "select" &&
+      !hitBizBeforeBuilding &&
+      dp2HitTestBuildingContourVertexForOlHandoff(coords.x, coords.y, DP2_BUILDING_VERTEX_OL_HANDOFF_TOL_PX)
+    ) {
       window.__DP2_TEMP_OL_DRAG__ = true;
       try {
         dp2SyncBuildingOlPointerPassThrough();
@@ -10098,6 +10147,7 @@ function initDP2CanvasEvents() {
     if (
       tool === "select" &&
       typeof dp2PickDp2BuildingOlFeatureAtCanvasPixel === "function" &&
+      !hitBizBeforeBuilding &&
       !dp2PointerDownDeferBuildingOlPick(canvas, coords.x, coords.y)
     ) {
       const olFeat = dp2PickDp2BuildingOlFeatureAtCanvasPixel(canvas, coords.x, coords.y);
@@ -10178,7 +10228,7 @@ function initDP2CanvasEvents() {
       return;
     }
 
-    const hitBiz = dp2HitTestBusiness(coords.x, coords.y);
+    const hitBiz = hitBizBeforeBuilding || dp2HitTestBusiness(coords.x, coords.y);
 
     // 1) Priorité : objets métier (dessinés au-dessus des objets standards)
     if (hitBiz && hitBiz.id) {
@@ -12624,10 +12674,6 @@ function dp2RemoveMeasureLineInlineInput(committedValue) {
 
   if (input && input.parentNode) input.parentNode.removeChild(input);
   if (didCommit && typeof renderDP2FromState === "function") renderDP2FromState();
-  if (didCommit && typeof dp2ShowMeasureAnchorChoiceOverlay === "function") {
-    const canvas = document.getElementById("dp2-draw-canvas");
-    if (canvas) dp2ShowMeasureAnchorChoiceOverlay(canvas, objectIndex);
-  }
 }
 
 function dp2ShowMeasureLineInlineInput(canvas, objectIndex) {
@@ -13241,7 +13287,7 @@ function renderMeasureLine(ctx, obj, objectIndex) {
     ctx.moveTo(obj.a.x, obj.a.y);
     ctx.lineTo(obj.b.x, obj.b.y);
     ctx.stroke();
-    const r = 11;
+    const r = DP2_MEASURE_ANCHOR_CHOICE_VISUAL_PX;
     ctx.font = "11px system-ui, sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
@@ -13677,8 +13723,6 @@ function renderDP2BuildingContour(ctx, contour, options) {
       const p = pts[i];
       ctx.beginPath();
       ctx.arc(p.x, p.y, 6, 0, Math.PI * 2);
-      ctx.fillStyle = "#ffffff";
-      ctx.fill();
       ctx.strokeStyle = DP2_BUILDING_CONTOUR_ACTIVE_STROKE;
       ctx.lineWidth = 2;
       ctx.stroke();
@@ -13731,7 +13775,7 @@ function renderDP2BuildingContour(ctx, contour, options) {
         }
         const hasValue = previewStub && typeof previewStub.requestedLengthM === "number";
         if (hasValue && noAnchorYet) {
-          const R = 11;
+          const R = DP2_MEASURE_ANCHOR_CHOICE_VISUAL_PX;
           ctx.save();
           ctx.font = "bold 11px system-ui, sans-serif";
           ctx.textAlign = "center";
@@ -14055,6 +14099,7 @@ function dp2ClearTempOlBuildingDragIfNeeded() {
 
 /** true si un hit canvas (mesure / faîtage / …) doit passer avant le pick bâti OpenLayers en pointerdown. */
 function dp2PointerDownDeferBuildingOlPick(canvas, x, y) {
+  if (dp2HitTestBusiness(x, y)) return true;
   const hit = dp2HitTest(canvas, x, y);
   if (!hit || hit.kind !== "object" || typeof hit.index !== "number") return false;
   const obj = window.DP2_STATE?.objects?.[hit.index];
@@ -14675,19 +14720,6 @@ function renderDP2BusinessHoverHighlight(ctx, obj, alphaBlend) {
   const y = -h / 2;
 
   if (dp2IsFramelessBusinessObject(obj.type)) {
-    const pad = Math.max(3, 5 * dp2GetBusinessSelectionUiScale());
-    const lineX1 = obj.type === "sens_pente" ? -w * 0.38 : x + pad;
-    const lineX2 = obj.type === "sens_pente" ? w * 0.38 : x + w - pad;
-    ctx.globalAlpha = Math.min(1, ab * 0.9);
-    ctx.strokeStyle = "rgba(79, 70, 229, 0.34)";
-    ctx.lineWidth = 1;
-    ctx.setLineDash([3, 5]);
-    ctx.beginPath();
-    ctx.moveTo(lineX1, 0);
-    ctx.lineTo(lineX2, 0);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.globalAlpha = 1;
     ctx.restore();
     return;
   }
@@ -14736,45 +14768,6 @@ function renderDP2BusinessSelection(ctx, obj) {
   const y = -h / 2;
 
   if (dp2IsFramelessBusinessObject(obj.type)) {
-    if (allowHandles) {
-      const rCy = y - rotLine;
-      const vh = visualHalf * 0.68;
-      const lineAlpha = 0.5 + 0.2 * selBlend + 0.12 * grip;
-      const pad = Math.max(3, 5 * sc);
-      const lineX1 = obj.type === "sens_pente" ? -w * 0.38 : x + pad;
-      const lineX2 = obj.type === "sens_pente" ? w * 0.38 : x + w - pad;
-
-      ctx.strokeStyle = flash ? "#4338ca" : `rgba(79, 70, 229, ${lineAlpha})`;
-      ctx.lineWidth = Math.max(1, 1.05 * sc) + grip * 0.25;
-      ctx.lineCap = "round";
-      ctx.setLineDash([4 * sc, 5 * sc]);
-      ctx.beginPath();
-      ctx.moveTo(lineX1, 0);
-      ctx.lineTo(lineX2, 0);
-      ctx.stroke();
-      ctx.setLineDash([]);
-
-      ctx.fillStyle = "rgba(255, 255, 255, 0.92)";
-      ctx.strokeStyle = H;
-      ctx.lineWidth = Math.max(0.85, 1 * sc);
-      ctx.beginPath();
-      ctx.arc(lineX2, 0, Math.max(3.2, vh * 0.72), 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-
-      ctx.strokeStyle = H_DIM;
-      ctx.lineWidth = lw;
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(0, rCy + rotVisR);
-      ctx.stroke();
-
-      ctx.strokeStyle = H;
-      ctx.lineWidth = Math.max(0.75, lw * 0.62);
-      ctx.beginPath();
-      ctx.arc(0, rCy, rotVisR, -Math.PI * 0.35, Math.PI * 1.15, false);
-      ctx.stroke();
-    }
     ctx.restore();
     return;
   }
