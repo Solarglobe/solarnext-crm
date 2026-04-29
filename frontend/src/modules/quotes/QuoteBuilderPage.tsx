@@ -275,9 +275,21 @@ export default function QuoteBuilderPage() {
     setDepositModalBusy(true);
     setDepositModalError(null);
     try {
+      const preparedTotalTtc = Number(
+        billCtx?.billing_total_ttc ?? billCtx?.quote_total_ttc ?? 0
+      );
+      const preparedTotalHt = Number(
+        billCtx?.billing_total_ht ?? billCtx?.quote_total_ht ?? 0
+      );
+      const preparedTotalVat = Number(
+        billCtx?.billing_total_vat ?? billCtx?.quote_total_vat ?? 0
+      );
       const inv = await createInvoiceFromQuote(id, {
         billingRole: "DEPOSIT",
         billingAmountTtc: depositModalComputedTtc,
+        preparedTotalTtc,
+        preparedTotalHt,
+        preparedTotalVat,
       });
       setDepositInvoiceModalOpen(false);
       if (inv?.id) navigate(`/invoices/${inv.id}`);
@@ -286,7 +298,7 @@ export default function QuoteBuilderPage() {
     } finally {
       setDepositModalBusy(false);
     }
-  }, [id, depositModalComputedTtc, navigate]);
+  }, [id, depositModalComputedTtc, navigate, billCtx]);
 
   const materialMargin = useMemo(
     () =>

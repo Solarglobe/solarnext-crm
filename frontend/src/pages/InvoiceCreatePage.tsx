@@ -18,10 +18,12 @@ import {
   type BillingSelectRow,
 } from "../services/billingContacts.api";
 import {
+  createPreparedStandardInvoiceFromQuote,
   createInvoiceDraft,
   createInvoiceFromQuote,
   fetchQuoteInvoiceBillingContext,
   fetchQuotesList,
+  getQuoteDocumentViewModel,
   type QuoteInvoiceBillingContext,
   type QuoteListRow,
 } from "../services/financial.api";
@@ -33,6 +35,51 @@ function roundMoney2(n: number): number {
   const x = Number(n);
   if (!Number.isFinite(x)) return 0;
   return Math.round(x * 100) / 100;
+}
+
+function fmtDateFrShort(input: string | null | undefined): string {
+  if (!input) return "—";
+  const d = new Date(input);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("fr-FR");
+}
+
+type PreparedInvoiceLine = {
+  id: string;
+  label: string;
+  quantity: number;
+  unit_price_ht: number;
+  discount_ht: number;
+  vat_rate: number;
+};
+
+function computePreparedLineTotals(line: PreparedInvoiceLine) {
+  const baseHt = Number(line.quantity) * Number(line.unit_price_ht) - Number(line.discount_ht);
+  const totalHt = roundMoney2(baseHt);
+  const totalVat = roundMoney2(totalHt * (Number(line.vat_rate) / 100));
+  const totalTtc = roundMoney2(totalHt + totalVat);
+  return { totalHt, totalVat, totalTtc };
+}
+
+function normalizePreparedLines(rawLines: unknown[]): PreparedInvoiceLine[] {
+  return rawLines
+    .map((raw, idx) => {
+      const row = raw as Record<string, unknown>;
+      const label = String(row.label ?? row.description ?? "").trim();
+      const quantity = Number(row.quantity ?? 0);
+      const unitPrice = Number(row.unit_price_ht ?? 0);
+      const discount = Number(row.discount_ht ?? 0);
+      const vatRate = Number(row.vat_rate ?? row.tva_percent ?? 0);
+      return {
+        id: `line-${idx + 1}`,
+        label: label || `Ligne ${idx + 1}`,
+        quantity: Number.isFinite(quantity) ? quantity : 0,
+        unit_price_ht: Number.isFinite(unitPrice) ? unitPrice : 0,
+        discount_ht: Number.isFinite(discount) ? discount : 0,
+        vat_rate: Number.isFinite(vatRate) ? vatRate : 0,
+      };
+    })
+    .filter((line) => line.quantity > 0 || line.unit_price_ht > 0 || line.discount_ht > 0);
 }
 
 /** Libellé option « Devis optionnel » : numéro + statut + contact si connu. */
@@ -103,13 +150,13 @@ export default function InvoiceCreatePage() {
   const hasValidUrlAmount =
     billingAmountFromUrl != null && Number.isFinite(billingAmountFromUrl) && billingAmountFromUrl >= 0.01;
 
-  const needsDepositForm =
-    Boolean(fromQuote) && apiRole === "DEPOSIT" && !hasValidUrlAmount;
-
   const [billCtx, setBillCtx] = useState<QuoteInvoiceBillingContext | null>(null);
-  const [ctxLoading, setCtxLoading] = useState(false);
   const [depositTtcInput, setDepositTtcInput] = useState("");
   const [depositPctInput, setDepositPctInput] = useState("");
+  const [preparedLines, setPreparedLines] = useState<PreparedInvoiceLine[]>([]);
+  const [prepLoading, setPrepLoading] = useState(false);
+  const [prepReady, setPrepReady] = useState(false);
+  const [prepValidated, setPrepValidated] = useState(false);
 
   useEffect(() => {
     setListsError(null);
@@ -191,72 +238,67 @@ export default function InvoiceCreatePage() {
   }, [quoteListFilter]);
 
   useEffect(() => {
-    if (!fromQuote || !needsDepositForm) return;
+    if (!fromQuote) return;
     let cancelled = false;
-    setCtxLoading(true);
-    void fetchQuoteInvoiceBillingContext(fromQuote)
-      .then((ctx) => {
+    setPrepLoading(true);
+    setPrepReady(false);
+    setError(null);
+    setPrepValidated(false);
+    void Promise.all([getQuoteDocumentViewModel(fromQuote), fetchQuoteInvoiceBillingContext(fromQuote)])
+      .then(([vm, ctx]) => {
+        if (cancelled) return;
+        const vmLines = Array.isArray(vm?.payload?.lines) ? vm.payload.lines : [];
+        const normalizedLines = normalizePreparedLines(vmLines);
+        setPreparedLines(normalizedLines);
+        setBillCtx(ctx);
+        if (ctx?.has_structured_deposit && ctx.deposit_ttc != null && ctx.remaining_ttc != null) {
+          const hint = roundMoney2(Math.min(ctx.deposit_ttc, ctx.remaining_ttc));
+          setDepositTtcInput(hint >= 0.01 ? String(hint) : "");
+        }
+        setPrepReady(true);
+      })
+      .catch((e: unknown) => {
         if (!cancelled) {
-          setBillCtx(ctx);
-          if (ctx?.has_structured_deposit && ctx.deposit_ttc != null && ctx.remaining_ttc != null) {
-            const hint = roundMoney2(Math.min(ctx.deposit_ttc, ctx.remaining_ttc));
-            setDepositTtcInput(hint >= 0.01 ? String(hint) : "");
-          }
+          setError(e instanceof Error ? e.message : "Impossible de charger le devis pour préparation facture.");
         }
       })
-      .catch(() => {
-        if (!cancelled) setBillCtx(null);
-      })
       .finally(() => {
-        if (!cancelled) setCtxLoading(false);
+        if (!cancelled) setPrepLoading(false);
       });
     return () => {
       cancelled = true;
     };
-  }, [fromQuote, needsDepositForm]);
+  }, [fromQuote]);
 
-  useEffect(() => {
-    if (!fromQuote) return;
-    if (needsDepositForm) {
-      setLoading(false);
-      return;
-    }
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-    const billingAmountTtc = hasValidUrlAmount ? billingAmountFromUrl : undefined;
-    void createInvoiceFromQuote(
-      fromQuote,
-      {
-        ...(billingRoleParam?.trim() ? { billingRole: billingRoleParam.trim() } : {}),
-        ...(billingAmountTtc != null ? { billingAmountTtc } : {}),
-      }
-    )
-      .then((inv) => {
-        if (!cancelled && inv?.id) navigate(`/invoices/${inv.id}`, { replace: true });
-      })
-      .catch((e) => {
-        if (!cancelled) setError(e instanceof Error ? e.message : "Erreur");
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    fromQuote,
-    billingRoleParam,
-    billingAmountParam,
-    needsDepositForm,
-    hasValidUrlAmount,
-    billingAmountFromUrl,
-    navigate,
-  ]);
+  const preparedTotals = useMemo(() => {
+    return preparedLines.reduce(
+      (acc, line) => {
+        const t = computePreparedLineTotals(line);
+        acc.total_ht = roundMoney2(acc.total_ht + t.totalHt);
+        acc.total_vat = roundMoney2(acc.total_vat + t.totalVat);
+        acc.total_ttc = roundMoney2(acc.total_ttc + t.totalTtc);
+        return acc;
+      },
+      { total_ht: 0, total_vat: 0, total_ttc: 0 }
+    );
+  }, [preparedLines]);
+  const billingLocked = Boolean(billCtx?.billing_is_locked);
+  const projectGlobalTotal = billingLocked
+    ? roundMoney2(Number(billCtx?.billing_total_ttc ?? preparedTotals.total_ttc))
+    : preparedTotals.total_ttc;
+  const effectivePreparedTotals = {
+    total_ttc: projectGlobalTotal,
+    total_ht: billingLocked
+      ? roundMoney2(Number(billCtx?.billing_total_ht ?? preparedTotals.total_ht))
+      : preparedTotals.total_ht,
+    total_vat: billingLocked
+      ? roundMoney2(Number(billCtx?.billing_total_vat ?? preparedTotals.total_vat))
+      : preparedTotals.total_vat,
+  };
 
   const computedDepositTtc = useMemo(() => {
-    const rem = billCtx?.remaining_ttc ?? 0;
-    const qTot = billCtx?.quote_total_ttc ?? 0;
+    const rem = projectGlobalTotal;
+    const qTot = projectGlobalTotal;
     const ttcStr = depositTtcInput.trim().replace(",", ".");
     if (ttcStr) {
       const v = Number(ttcStr);
@@ -271,18 +313,18 @@ export default function InvoiceCreatePage() {
       return roundMoney2(Math.min(raw, rem));
     }
     return null;
-  }, [depositTtcInput, depositPctInput, billCtx]);
+  }, [depositTtcInput, depositPctInput, projectGlobalTotal]);
 
   const onChangeDepositTtc = useCallback(
     (raw: string) => {
       setDepositTtcInput(raw);
-      if (!billCtx) {
+      if (!prepReady) {
         setDepositPctInput("");
         return;
       }
       const v = Number(String(raw).trim().replace(",", "."));
-      const q = billCtx.quote_total_ttc ?? 0;
-      const rem = billCtx.remaining_ttc ?? 0;
+      const q = projectGlobalTotal;
+      const rem = projectGlobalTotal;
       if (!String(raw).trim() || !Number.isFinite(v) || v < 0) {
         setDepositPctInput("");
         return;
@@ -293,19 +335,19 @@ export default function InvoiceCreatePage() {
         setDepositPctInput(pct > 0 && pct <= 100 ? String(pct) : "");
       } else setDepositPctInput("");
     },
-    [billCtx]
+    [prepReady, projectGlobalTotal]
   );
 
   const onChangeDepositPct = useCallback(
     (raw: string) => {
       setDepositPctInput(raw);
-      if (!billCtx) {
+      if (!prepReady) {
         setDepositTtcInput("");
         return;
       }
       const p = Number(String(raw).trim().replace(",", "."));
-      const q = billCtx.quote_total_ttc ?? 0;
-      const rem = billCtx.remaining_ttc ?? 0;
+      const q = projectGlobalTotal;
+      const rem = projectGlobalTotal;
       if (!String(raw).trim() || !Number.isFinite(p) || p <= 0) {
         setDepositTtcInput("");
         return;
@@ -317,8 +359,58 @@ export default function InvoiceCreatePage() {
           : ""
       );
     },
-    [billCtx]
+    [prepReady, projectGlobalTotal]
   );
+
+  const updatePreparedLine = useCallback(
+    (id: string, patch: Partial<Omit<PreparedInvoiceLine, "id">>) => {
+      setPreparedLines((prev) => prev.map((line) => (line.id === id ? { ...line, ...patch } : line)));
+    },
+    []
+  );
+
+  const removePreparedLine = useCallback((id: string) => {
+    setPreparedLines((prev) => prev.filter((line) => line.id !== id));
+  }, []);
+
+  const submitPreparedStandard = async () => {
+    if (!fromQuote) return;
+    if (billingLocked) {
+      setError("Le montant global est déjà figé. Utilisez les flux acompte/solde basés sur ce montant.");
+      return;
+    }
+    const lines = preparedLines
+      .map((line) => ({
+        label: line.label,
+        description: line.label,
+        quantity: line.quantity,
+        unit_price_ht: line.unit_price_ht,
+        discount_ht: line.discount_ht,
+        vat_rate: line.vat_rate,
+      }))
+      .filter((line) => line.quantity > 0 && line.unit_price_ht >= 0 && line.vat_rate >= 0);
+    if (lines.length < 1) {
+      setError("Ajoutez au moins une ligne avant de créer la facture.");
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const inv = await createPreparedStandardInvoiceFromQuote(fromQuote, {
+        preparedLines: lines,
+        preparedTotals: {
+          total_ht: preparedTotals.total_ht,
+          total_vat: preparedTotals.total_vat,
+          total_ttc: preparedTotals.total_ttc,
+        },
+      });
+      if (inv?.id) navigate(`/invoices/${inv.id}`, { replace: true });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erreur");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const submitDepositFromForm = async () => {
     if (!fromQuote) return;
@@ -333,6 +425,28 @@ export default function InvoiceCreatePage() {
       const inv = await createInvoiceFromQuote(fromQuote, {
         billingRole: "DEPOSIT",
         billingAmountTtc: amt,
+        preparedTotalTtc: effectivePreparedTotals.total_ttc,
+        preparedTotalHt: effectivePreparedTotals.total_ht,
+        preparedTotalVat: effectivePreparedTotals.total_vat,
+      });
+      if (inv?.id) navigate(`/invoices/${inv.id}`, { replace: true });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erreur");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const submitPreparedBalance = async () => {
+    if (!fromQuote) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const inv = await createInvoiceFromQuote(fromQuote, {
+        billingRole: "BALANCE",
+        preparedTotalTtc: effectivePreparedTotals.total_ttc,
+        preparedTotalHt: effectivePreparedTotals.total_ht,
+        preparedTotalVat: effectivePreparedTotals.total_vat,
       });
       if (inv?.id) navigate(`/invoices/${inv.id}`, { replace: true });
     } catch (e) {
@@ -365,9 +479,14 @@ export default function InvoiceCreatePage() {
     setError(null);
     try {
       const quoteId = optionalQuoteId.trim();
-      const inv = quoteId
-        ? await createInvoiceFromQuote(quoteId)
-        : await createInvoiceDraft({
+      if (quoteId) {
+        navigate(
+          `/invoices/new?fromQuote=${encodeURIComponent(quoteId)}&billingRole=STANDARD`,
+          { replace: true }
+        );
+        return;
+      }
+      const inv = await createInvoiceDraft({
             client_id: outClient,
             lead_id: outLead,
             lines: [],
@@ -382,86 +501,185 @@ export default function InvoiceCreatePage() {
     }
   };
 
-  if (fromQuote && needsDepositForm) {
+  if (fromQuote) {
+    const canSubmitPrep = preparedLines.length > 0 && projectGlobalTotal > 0;
     return (
       <div className="qb-page" style={{ maxWidth: 520 }}>
-        <h1 className="sg-title">Acompte sur devis</h1>
+        <h1 className="sg-title">Préparation facture</h1>
         <p style={{ color: "var(--text-muted)", marginBottom: 16 }}>
-          Saisissez le montant TTC à facturer (plafonné au reste à facturer sur le devis). Le devis n&apos;est pas modifié.
+          Ajustez les lignes issues du devis avant création de la facture. Le devis accepté n&apos;est jamais modifié.
         </p>
-        {ctxLoading ? (
-          <p className="qb-muted">Chargement du contexte devis…</p>
+        {prepLoading ? (
+          <p className="qb-muted">Chargement de la préparation…</p>
         ) : (
-          <div style={{ marginBottom: 20 }}>
-            <QuoteBillingUxPanel
-              quoteId={fromQuote}
-              billCtx={billCtx}
-              billLoading={false}
-              showActions={false}
-              balanceHref={`/invoices/new?fromQuote=${encodeURIComponent(fromQuote)}&billingRole=solde`}
-              standardFullHref={`/invoices/new?fromQuote=${encodeURIComponent(fromQuote)}&billingRole=STANDARD`}
-            />
+          <div style={{ marginBottom: 20, overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: "left" }}>Libellé</th>
+                  <th>Qté</th>
+                  <th>PU HT</th>
+                  <th>Remise HT</th>
+                  <th>TVA %</th>
+                  <th>Total TTC</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {preparedLines.map((line) => {
+                  const totals = computePreparedLineTotals(line);
+                  return (
+                    <tr key={line.id}>
+                      <td style={{ minWidth: 180 }}>{line.label}</td>
+                      <td>
+                        <input className="sn-input" type="number" step="0.01" value={line.quantity} disabled={billingLocked} onChange={(e) => updatePreparedLine(line.id, { quantity: Number(e.target.value) })} />
+                      </td>
+                      <td>
+                        <input className="sn-input" type="number" step="0.01" value={line.unit_price_ht} disabled={billingLocked} onChange={(e) => updatePreparedLine(line.id, { unit_price_ht: Number(e.target.value) })} />
+                      </td>
+                      <td>
+                        <input className="sn-input" type="number" step="0.01" value={line.discount_ht} disabled={billingLocked} onChange={(e) => updatePreparedLine(line.id, { discount_ht: Number(e.target.value) })} />
+                      </td>
+                      <td>
+                        <input className="sn-input" type="number" step="0.01" value={line.vat_rate} disabled={billingLocked} onChange={(e) => updatePreparedLine(line.id, { vat_rate: Number(e.target.value) })} />
+                      </td>
+                      <td>{totals.totalTtc.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</td>
+                      <td>
+                        {!billingLocked ? (
+                          <button type="button" className="sn-btn sn-btn-ghost" onClick={() => removePreparedLine(line.id)}>
+                            Supprimer
+                          </button>
+                        ) : null}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            <p className="qb-muted" style={{ marginTop: 12 }}>
+              Totaux préparation: {preparedTotals.total_ht.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € HT · {preparedTotals.total_vat.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € TVA · <strong>{preparedTotals.total_ttc.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € TTC</strong>
+            </p>
+            <p className="qb-muted" style={{ marginTop: 4 }}>
+              Montant contractuel facturé :{" "}
+              <strong>
+                {projectGlobalTotal.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
+              </strong>{" "}
+              {billingLocked ? "(verrouillé) " : ""}
+              {billingLocked ? (
+                <span
+                  title="Ce montant correspond au total validé lors de la première facturation. Il ne peut plus être modifié."
+                  style={{
+                    display: "inline-block",
+                    padding: "2px 8px",
+                    borderRadius: 999,
+                    background: "rgba(148,163,184,.2)",
+                    color: "var(--text, #e2e8f0)",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    letterSpacing: ".02em",
+                    verticalAlign: "middle",
+                  }}
+                >
+                  VERROUILLÉ
+                </span>
+              ) : null}
+            </p>
+            {billingLocked ? (
+              <p className="qb-muted" style={{ marginTop: 4 }}>
+                Verrouillé le : {fmtDateFrShort(billCtx?.billing_locked_at)}
+              </p>
+            ) : (
+              <p className="qb-muted" style={{ marginTop: 4 }}>
+                Montant non encore validé (sera figé lors de la première facturation)
+              </p>
+            )}
           </div>
         )}
 
-        <label style={{ display: "block", marginBottom: 12 }}>
-          <span className="qb-muted" style={{ display: "block", marginBottom: 4 }}>
-            Montant TTC de l&apos;acompte
-          </span>
-          <input
-            className="sn-input"
-            type="text"
-            inputMode="decimal"
-            value={depositTtcInput}
-            onChange={(e) => onChangeDepositTtc(e.target.value)}
-            placeholder="ex. 3000"
-            style={{ width: "100%" }}
-          />
-        </label>
-        <label style={{ display: "block", marginBottom: 16 }}>
-          <span className="qb-muted" style={{ display: "block", marginBottom: 4 }}>
-            Ou % du total devis TTC
-          </span>
-          <input
-            className="sn-input"
-            type="text"
-            inputMode="decimal"
-            value={depositPctInput}
-            onChange={(e) => onChangeDepositPct(e.target.value)}
-            placeholder="ex. 30"
-            style={{ width: "100%" }}
-          />
-        </label>
-        {computedDepositTtc != null && computedDepositTtc >= 0.01 ? (
-          <p className="qb-muted" style={{ marginTop: 0 }}>
-            Montant retenu (après plafond reste) :{" "}
-            <strong>
-              {computedDepositTtc.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € TTC
-            </strong>
-          </p>
+        {apiRole === "DEPOSIT" && prepValidated ? (
+          <>
+            <div style={{ marginBottom: 20 }}>
+              <QuoteBillingUxPanel
+                quoteId={fromQuote}
+                billCtx={billCtx}
+                billLoading={false}
+                showActions={false}
+                balanceHref={`/invoices/new?fromQuote=${encodeURIComponent(fromQuote)}&billingRole=solde`}
+                standardFullHref={`/invoices/new?fromQuote=${encodeURIComponent(fromQuote)}&billingRole=STANDARD`}
+              />
+            </div>
+            <label style={{ display: "block", marginBottom: 12 }}>
+              <span className="qb-muted" style={{ display: "block", marginBottom: 4 }}>
+                Montant TTC de l&apos;acompte (base préparation)
+              </span>
+              <input
+                className="sn-input"
+                type="text"
+                inputMode="decimal"
+                value={depositTtcInput}
+                onChange={(e) => onChangeDepositTtc(e.target.value)}
+                placeholder="ex. 3000"
+                style={{ width: "100%" }}
+              />
+            </label>
+            <label style={{ display: "block", marginBottom: 16 }}>
+              <span className="qb-muted" style={{ display: "block", marginBottom: 4 }}>
+                Ou % du total préparé TTC
+              </span>
+              <input
+                className="sn-input"
+                type="text"
+                inputMode="decimal"
+                value={depositPctInput}
+                onChange={(e) => onChangeDepositPct(e.target.value)}
+                placeholder="ex. 30"
+                style={{ width: "100%" }}
+              />
+            </label>
+            {computedDepositTtc != null && computedDepositTtc >= 0.01 ? (
+              <p className="qb-muted" style={{ marginTop: 0 }}>
+                Montant retenu :{" "}
+                <strong>
+                  {computedDepositTtc.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
+                  TTC
+                </strong>
+              </p>
+            ) : null}
+          </>
         ) : null}
         {error ? <p className="qb-error-inline">{error}</p> : null}
         <div style={{ display: "flex", gap: 12, marginTop: 16 }}>
-          <Button type="button" variant="primary" disabled={loading} onClick={() => void submitDepositFromForm()}>
-            {loading ? "Création…" : "Créer la facture d'acompte"}
-          </Button>
+          {apiRole === "STANDARD" ? (
+            <Button type="button" variant="primary" disabled={loading || !canSubmitPrep} onClick={() => void submitPreparedStandard()}>
+              {loading ? "Création…" : "Valider préparation et créer brouillon"}
+            </Button>
+          ) : apiRole === "DEPOSIT" && !prepValidated ? (
+            <Button
+              type="button"
+              variant="primary"
+              disabled={loading || !canSubmitPrep}
+              onClick={() => {
+                setPrepValidated(true);
+                if (hasValidUrlAmount && billingAmountFromUrl != null) {
+                  setDepositTtcInput(String(roundMoney2(Math.min(billingAmountFromUrl, preparedTotals.total_ttc))));
+                }
+              }}
+            >
+              Valider préparation
+            </Button>
+          ) : apiRole === "BALANCE" ? (
+            <Button type="button" variant="primary" disabled={loading || !canSubmitPrep} onClick={() => void submitPreparedBalance()}>
+              {loading ? "Création…" : "Valider préparation et créer facture de solde"}
+            </Button>
+          ) : (
+            <Button type="button" variant="primary" disabled={loading || !canSubmitPrep} onClick={() => void submitDepositFromForm()}>
+              {loading ? "Création…" : "Créer la facture d'acompte"}
+            </Button>
+          )}
           <Button type="button" variant="ghost" onClick={() => navigate(-1)}>
             Annuler
           </Button>
         </div>
-      </div>
-    );
-  }
-
-  if (fromQuote) {
-    return (
-      <div className="ib-page-loading">
-        <p className="qb-muted">{error || "Création de la facture depuis le devis…"}</p>
-        {error ? (
-          <Button type="button" variant="primary" onClick={() => navigate("/invoices")}>
-            Retour
-          </Button>
-        ) : null}
       </div>
     );
   }

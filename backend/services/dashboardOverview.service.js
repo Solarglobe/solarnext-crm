@@ -225,6 +225,7 @@ export async function buildDashboardOverview(input) {
         `SELECT COALESCE(SUM(i.total_ttc), 0)::numeric AS s FROM invoices i
 ${INVOICE_LEAD_JOINS}
          WHERE i.organization_id = $1 AND i.archived_at IS NULL
+           AND i.status IN ('ISSUED', 'PARTIALLY_PAID', 'PAID')
            AND COALESCE(i.issue_date, i.created_at::date)::timestamp >= $2::timestamptz
            AND COALESCE(i.issue_date, i.created_at::date)::timestamp <= $3::timestamptz
            AND ($4::uuid IS NULL OR li.assigned_user_id = $4)
@@ -255,6 +256,7 @@ ${INVOICE_LEAD_JOINS}
         `SELECT COALESCE(SUM(i.amount_due), 0)::numeric AS s FROM invoices i
 ${INVOICE_LEAD_JOINS}
          WHERE i.organization_id = $1 AND i.archived_at IS NULL
+           AND i.status IN ('ISSUED', 'PARTIALLY_PAID', 'PAID')
            AND ($2::uuid IS NULL OR li.assigned_user_id = $2)
            AND ($3::uuid IS NULL OR li.source_id = $3)`,
         [org, assignId, sourceId]

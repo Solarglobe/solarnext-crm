@@ -22,6 +22,12 @@ router.post(
   requirePermission("invoice.manage"),
   controller.createFromQuote
 );
+router.post(
+  "/from-quote/:quoteId/prepared-standard",
+  verifyJWT,
+  requirePermission("invoice.manage"),
+  controller.createPreparedStandardFromQuote
+);
 
 router.post(
   "/:id/duplicate",

@@ -151,12 +151,33 @@ export interface QuoteListRow {
   has_signed_pdf?: boolean;
 }
 
+export interface QuoteDetailForBilling {
+  id: string;
+  client_id?: string | null;
+  lead_id?: string | null;
+  status?: string;
+  notes?: string | null;
+  billing_total_ttc?: number | null;
+  billing_total_ht?: number | null;
+  billing_total_vat?: number | null;
+  billing_locked_at?: string | null;
+}
+
 /** Liste devis (GET /api/quotes) — tri created_at DESC côté serveur */
 export async function fetchQuotesList(params?: { limit?: number; lead_id?: string; client_id?: string }): Promise<QuoteListRow[]> {
   const q = new URLSearchParams({ limit: String(Math.min(500, params?.limit ?? 100)) });
   if (params?.lead_id) q.set("lead_id", params.lead_id);
   if (params?.client_id) q.set("client_id", params.client_id);
   const res = await apiFetch(`${API_BASE}/api/quotes?${q.toString()}`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { error?: string }).error || `Erreur ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function fetchQuoteDetailForBilling(quoteId: string): Promise<QuoteDetailForBilling> {
+  const res = await apiFetch(`${API_BASE}/api/quotes/${encodeURIComponent(quoteId)}`);
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error((err as { error?: string }).error || `Erreur ${res.status}`);
@@ -502,6 +523,11 @@ export interface QuoteInvoiceBillingContext {
   quote_total_ttc: number;
   quote_total_ht?: number;
   quote_total_vat?: number;
+  billing_total_ttc?: number;
+  billing_total_ht?: number;
+  billing_total_vat?: number;
+  billing_locked_at?: string | null;
+  billing_is_locked?: boolean;
   linked_invoices?: QuoteLinkedInvoiceSummary[];
   /** Total devis nul ou négligeable — pas de facturation acompte/solde/complète depuis ce devis. */
   quote_zero_total?: boolean;
@@ -534,7 +560,13 @@ export async function fetchQuoteInvoiceBillingContext(quoteId: string): Promise<
 
 export async function createInvoiceFromQuote(
   quoteId: string,
-  options?: { billingRole?: QuoteBillingRole | string; billingAmountTtc?: number }
+  options?: {
+    billingRole?: QuoteBillingRole | string;
+    billingAmountTtc?: number;
+    preparedTotalTtc?: number;
+    preparedTotalHt?: number;
+    preparedTotalVat?: number;
+  }
 ): Promise<InvoiceDetail> {
   const body: Record<string, string | number> = {};
   if (options?.billingRole) {
@@ -544,11 +576,50 @@ export async function createInvoiceFromQuote(
   if (options?.billingAmountTtc != null && Number.isFinite(Number(options.billingAmountTtc))) {
     body.billingAmountTtc = Number(options.billingAmountTtc);
   }
+  if (options?.preparedTotalTtc != null && Number.isFinite(Number(options.preparedTotalTtc))) {
+    body.preparedTotalTtc = Number(options.preparedTotalTtc);
+  }
+  if (options?.preparedTotalHt != null && Number.isFinite(Number(options.preparedTotalHt))) {
+    body.preparedTotalHt = Number(options.preparedTotalHt);
+  }
+  if (options?.preparedTotalVat != null && Number.isFinite(Number(options.preparedTotalVat))) {
+    body.preparedTotalVat = Number(options.preparedTotalVat);
+  }
   const res = await apiFetch(`${API_BASE}/api/invoices/from-quote/${encodeURIComponent(quoteId)}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { error?: string }).error || `Erreur ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function createPreparedStandardInvoiceFromQuote(
+  quoteId: string,
+  body: {
+    preparedLines: Array<{
+      label?: string;
+      description?: string;
+      quantity: number;
+      unit_price_ht: number;
+      discount_ht?: number;
+      vat_rate: number;
+      snapshot_json?: Record<string, unknown>;
+    }>;
+    preparedTotals?: { total_ht?: number; total_vat?: number; total_ttc?: number };
+  }
+): Promise<InvoiceDetail> {
+  const res = await apiFetch(
+    `${API_BASE}/api/invoices/from-quote/${encodeURIComponent(quoteId)}/prepared-standard`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }
+  );
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error((err as { error?: string }).error || `Erreur ${res.status}`);

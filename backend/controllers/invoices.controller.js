@@ -78,16 +78,43 @@ export async function createFromQuote(req, res) {
     const org = orgId(req);
     const billingRole = req.body?.billingRole ?? req.body?.billing_role;
     const rawAmt = req.body?.billingAmountTtc ?? req.body?.billing_amount_ttc;
+    const rawPreparedTotal = req.body?.preparedTotalTtc ?? req.body?.prepared_total_ttc;
+    const rawPreparedHt = req.body?.preparedTotalHt ?? req.body?.prepared_total_ht;
+    const rawPreparedVat = req.body?.preparedTotalVat ?? req.body?.prepared_total_vat;
     let billingAmountTtc;
+    let preparedTotalTtc;
+    let preparedTotalHt;
+    let preparedTotalVat;
     if (rawAmt != null && rawAmt !== "") {
       billingAmountTtc = Number(rawAmt);
       if (!Number.isFinite(billingAmountTtc)) {
         return res.status(400).json({ error: "billing_amount_ttc invalide" });
       }
     }
+    if (rawPreparedTotal != null && rawPreparedTotal !== "") {
+      preparedTotalTtc = Number(rawPreparedTotal);
+      if (!Number.isFinite(preparedTotalTtc) || preparedTotalTtc < 0) {
+        return res.status(400).json({ error: "prepared_total_ttc invalide" });
+      }
+    }
+    if (rawPreparedHt != null && rawPreparedHt !== "") {
+      preparedTotalHt = Number(rawPreparedHt);
+      if (!Number.isFinite(preparedTotalHt) || preparedTotalHt < 0) {
+        return res.status(400).json({ error: "prepared_total_ht invalide" });
+      }
+    }
+    if (rawPreparedVat != null && rawPreparedVat !== "") {
+      preparedTotalVat = Number(rawPreparedVat);
+      if (!Number.isFinite(preparedTotalVat) || preparedTotalVat < 0) {
+        return res.status(400).json({ error: "prepared_total_vat invalide" });
+      }
+    }
     const data = await invoiceService.createInvoiceFromQuote(req.params.quoteId, org, {
       ...(billingRole ? { billingRole } : {}),
       ...(billingAmountTtc !== undefined ? { billingAmountTtc } : {}),
+      ...(preparedTotalTtc !== undefined ? { preparedTotalTtc } : {}),
+      ...(preparedTotalHt !== undefined ? { preparedTotalHt } : {}),
+      ...(preparedTotalVat !== undefined ? { preparedTotalVat } : {}),
     });
     res.status(201).json(data);
   } catch (e) {
@@ -108,7 +135,51 @@ export async function createFromQuote(req, res) {
       msg.includes("Montant") ||
       msg.includes("non significatif") ||
       msg.includes("total TTC du devis est nul") ||
-      msg.includes("Veuillez saisir")
+      msg.includes("Veuillez saisir") ||
+      msg.includes("Préparation obligatoire")
+        ? 400
+        : 500;
+    res.status(code).json({ error: e.message });
+  }
+}
+
+export async function createPreparedStandardFromQuote(req, res) {
+  try {
+    const org = orgId(req);
+    const preparedLinesRaw = req.body?.preparedLines ?? req.body?.prepared_lines;
+    const preparedTotalsRaw = req.body?.preparedTotals ?? req.body?.prepared_totals;
+    if (!Array.isArray(preparedLinesRaw) || preparedLinesRaw.length < 1) {
+      return res.status(400).json({ error: "prepared_lines requis (au moins une ligne)." });
+    }
+    const preparedLines = preparedLinesRaw.map((line) => ({
+      label: line?.label ?? line?.description ?? "",
+      description: line?.description ?? line?.label ?? "",
+      quantity: Number(line?.quantity) || 0,
+      unit_price_ht: Number(line?.unit_price_ht) || 0,
+      discount_ht: Number(line?.discount_ht) || 0,
+      vat_rate: Number(line?.vat_rate) || 0,
+      snapshot_json: line?.snapshot_json && typeof line.snapshot_json === "object" ? line.snapshot_json : {},
+    }));
+    const preparedTotals =
+      preparedTotalsRaw && typeof preparedTotalsRaw === "object"
+        ? {
+            total_ht: preparedTotalsRaw.total_ht != null ? Number(preparedTotalsRaw.total_ht) : undefined,
+            total_vat: preparedTotalsRaw.total_vat != null ? Number(preparedTotalsRaw.total_vat) : undefined,
+            total_ttc: preparedTotalsRaw.total_ttc != null ? Number(preparedTotalsRaw.total_ttc) : undefined,
+          }
+        : undefined;
+    const data = await invoiceService.createPreparedStandardInvoiceFromQuote(req.params.quoteId, org, {
+      preparedLines,
+      preparedTotals,
+    });
+    res.status(201).json(data);
+  } catch (e) {
+    const msg = e.message || "";
+    const code =
+      msg.includes("Préparation") ||
+      msg.includes("accepté") ||
+      msg.includes("devis") ||
+      msg.includes("lignes")
         ? 400
         : 500;
     res.status(code).json({ error: e.message });

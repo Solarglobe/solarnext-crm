@@ -204,6 +204,10 @@ export default function FinancialInvoicePdfPage() {
   const payTerms = live?.payment_terms ?? (payload.payment_terms as string | null);
   const invStatus = live?.status ?? (payload.status as string | null);
   const sourceQuote = payload.source_quote as Record<string, unknown> | undefined;
+  const sourceQuoteSnapshot = payload.source_quote_snapshot as Record<string, unknown> | undefined;
+  const contractualProjectAmount =
+    Number(sourceQuoteSnapshot?.billing_total_ttc ?? sourceQuote?.billing_total_ttc);
+  const hasContractualProjectAmount = Number.isFinite(contractualProjectAmount) && contractualProjectAmount > 0;
   const invoiceNumberDisplay = payload.number != null && payload.number !== "" ? String(payload.number) : "—";
   const issuerAddress = (issuer.address as Record<string, unknown> | undefined) ?? {};
   const issuerDisplayName = String(
@@ -360,6 +364,11 @@ export default function FinancialInvoicePdfPage() {
             <span>Total TTC</span>
             <span>{formatEurUnknown(totals.total_ttc)}</span>
           </div>
+          {hasContractualProjectAmount ? (
+            <p style={{ margin: "2px 0 8px", fontSize: 11, color: "var(--fi-text-muted, #64748b)" }}>
+              Montant contractuel du projet : {formatEurUnknown(contractualProjectAmount)}
+            </p>
+          ) : null}
           <div className="fi-totals-row">
             <span>Déjà réglé</span>
             <span>{formatEurUnknown(totals.total_paid)}</span>

@@ -7,7 +7,6 @@ import { Link, useNavigate } from "react-router-dom";
 import { Button } from "../components/ui/Button";
 import { ModalShell } from "../components/ui/ModalShell";
 import {
-  createInvoiceFromQuote,
   fetchInvoicesList,
   fetchQuotesList,
   type InvoiceListRow,
@@ -341,17 +340,11 @@ export default function InvoicesPage() {
       setQuoteModalError(quoteRowInvoiceBlockedReason(selectedQuote));
       return;
     }
-    setCreating(true);
     setQuoteModalError(null);
-    try {
-      const inv = await createInvoiceFromQuote(selectedQuote.id);
-      setQuoteModal(false);
-      if (inv?.id) navigate(`/invoices/${inv.id}`);
-    } catch (e) {
-      setQuoteModalError(e instanceof Error ? e.message : "Erreur lors de la création de la facture.");
-    } finally {
-      setCreating(false);
-    }
+    setQuoteModal(false);
+    navigate(
+      `/invoices/new?fromQuote=${encodeURIComponent(selectedQuote.id)}&billingRole=STANDARD`
+    );
   };
 
   return (

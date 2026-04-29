@@ -581,6 +581,84 @@ function roundMoney2(n) {
   return Math.round(x * 100) / 100;
 }
 
+function readLockedBillingTotals(quote) {
+  const ttc = Number(quote?.billing_total_ttc);
+  if (!Number.isFinite(ttc) || ttc <= 0) return null;
+  const ht = Number(quote?.billing_total_ht);
+  const vat = Number(quote?.billing_total_vat);
+  return {
+    total_ttc: roundMoney2(ttc),
+    total_ht: Number.isFinite(ht) ? roundMoney2(ht) : null,
+    total_vat: Number.isFinite(vat) ? roundMoney2(vat) : null,
+    locked_at: quote?.billing_locked_at ?? null,
+  };
+}
+
+/**
+ * Fige la base globale de facturation au premier acte (STANDARD/DEPOSIT).
+ * Si déjà verrouillée, renvoie la base existante et ignore toute nouvelle préparation.
+ * @param {import("pg").PoolClient} client
+ */
+async function resolveOrLockQuoteBillingTotals(client, quote, preparedTotals = null) {
+  const existing = readLockedBillingTotals(quote);
+  if (existing) return { ...existing, was_locked_before: true };
+
+  const preparedTtc = Number(preparedTotals?.total_ttc);
+  const liveTtc = roundMoney2(Number(quote.total_ttc) || 0);
+  const total_ttc = Number.isFinite(preparedTtc) && preparedTtc > 0 ? roundMoney2(preparedTtc) : liveTtc;
+  if (!Number.isFinite(total_ttc) || total_ttc <= 0) {
+    throw new Error("Base de facturation invalide (billing_total_ttc).");
+  }
+
+  const preparedHt = Number(preparedTotals?.total_ht);
+  const preparedVat = Number(preparedTotals?.total_vat);
+  const total_ht = Number.isFinite(preparedHt) ? roundMoney2(preparedHt) : roundMoney2(Number(quote.total_ht) || 0);
+  const total_vat = Number.isFinite(preparedVat)
+    ? roundMoney2(preparedVat)
+    : roundMoney2(Number(quote.total_vat) || Math.max(0, total_ttc - total_ht));
+
+  await client.query(
+    `UPDATE quotes
+     SET billing_total_ht = $1,
+         billing_total_vat = $2,
+         billing_total_ttc = $3,
+         billing_locked_at = COALESCE(billing_locked_at, now()),
+         updated_at = now()
+     WHERE id = $4 AND organization_id = $5`,
+    [total_ht, total_vat, total_ttc, quote.id, quote.organization_id]
+  );
+
+  return {
+    total_ht,
+    total_vat,
+    total_ttc,
+    locked_at: new Date().toISOString(),
+    was_locked_before: false,
+  };
+}
+
+/**
+ * Calcule les totaux à partir d'un payload de lignes préparées.
+ * @param {Array<{ quantity: number, unit_price_ht: number, discount_ht?: number, vat_rate: number }>} lines
+ */
+function computeTotalsFromPreparedLines(lines) {
+  let total_ht = 0;
+  let total_vat = 0;
+  let total_ttc = 0;
+  for (const row of lines || []) {
+    const db = computeFinancialLineDbFields({
+      quantity: Number(row.quantity) || 0,
+      unit_price_ht: Number(row.unit_price_ht) || 0,
+      discount_ht: Number(row.discount_ht) || 0,
+      vat_rate: Number(row.vat_rate) || 0,
+    });
+    total_ht = roundMoney2(total_ht + db.total_line_ht);
+    total_vat = roundMoney2(total_vat + db.total_line_vat);
+    total_ttc = roundMoney2(total_ttc + db.total_line_ttc);
+  }
+  return { total_ht, total_vat, total_ttc };
+}
+
 /**
  * Somme TTC des factures liées au devis (hors annulées), **brouillons inclus** — pour « reste à facturer » et plafond global.
  */
@@ -918,9 +996,11 @@ export async function getQuoteInvoiceBillingContext(quoteId, organizationId) {
     [quoteId, organizationId]
   );
   const invoicedIssuedOnly = roundMoney2(Number(sumIssuedRes.rows[0]?.s) || 0);
+  const locked = readLockedBillingTotals(quote);
   const quoteTtc = roundMoney2(Number(quote.total_ttc) || 0);
-  const remaining = roundMoney2(quoteTtc - invoicedCommitted);
-  const quoteZeroTotal = quoteTtc <= 0.0001;
+  const billingTotalTtc = locked ? locked.total_ttc : quoteTtc;
+  const remaining = roundMoney2(billingTotalTtc - invoicedCommitted);
+  const quoteZeroTotal = billingTotalTtc <= 0.0001;
 
   const rolesRes = await pool.query(
     `SELECT metadata_json->>'quote_billing_role' AS role
@@ -946,6 +1026,8 @@ export async function getQuoteInvoiceBillingContext(quoteId, organizationId) {
 
   const quoteHt = roundMoney2(Number(quote.total_ht) || 0);
   const quoteVat = roundMoney2(Number(quote.total_vat) || 0);
+  const billingTotalHt = locked?.total_ht ?? quoteHt;
+  const billingTotalVat = locked?.total_vat ?? quoteVat;
 
   const invListRes = await pool.query(
     `SELECT id, invoice_number, total_ttc, total_ht, status,
@@ -970,6 +1052,11 @@ export async function getQuoteInvoiceBillingContext(quoteId, organizationId) {
     quote_total_ttc: quoteTtc,
     quote_total_ht: quoteHt,
     quote_total_vat: quoteVat,
+    billing_total_ttc: billingTotalTtc,
+    billing_total_ht: billingTotalHt,
+    billing_total_vat: billingTotalVat,
+    billing_locked_at: locked?.locked_at ?? null,
+    billing_is_locked: Boolean(locked),
     quote_zero_total: quoteZeroTotal,
     /** TTC engagé sur le devis (brouillons inclus, hors annulées) — pour « déjà facturé / réservé ». */
     invoiced_ttc: invoicedCommitted,
@@ -1026,8 +1113,58 @@ export async function createInvoiceFromQuote(quoteId, organizationId, options = 
     const meta = quote.metadata_json && typeof quote.metadata_json === "object" ? quote.metadata_json : {};
     const { deposit_display } = buildQuoteDepositFreeze(meta, quote.total_ttc);
     const reservedTtc = await sumQuoteInvoiceTtcNonCancelled(client, quoteId, organizationId);
-    const quoteTtc = roundMoney2(Number(quote.total_ttc) || 0);
+    const quoteTtcLive = roundMoney2(Number(quote.total_ttc) || 0);
+    const preparedTotalOptRaw = options.preparedTotalTtc ?? options.prepared_total_ttc;
+    const preparedTotalOpt =
+      preparedTotalOptRaw != null && preparedTotalOptRaw !== ""
+        ? roundMoney2(Number(preparedTotalOptRaw))
+        : null;
+    if (preparedTotalOpt != null && (!Number.isFinite(preparedTotalOpt) || preparedTotalOpt < 0.01)) {
+      throw new Error("Montant préparé (prepared_total_ttc) invalide.");
+    }
+    const preparedHtRaw = options.preparedTotalHt ?? options.prepared_total_ht;
+    const preparedVatRaw = options.preparedTotalVat ?? options.prepared_total_vat;
+    const preparedHt = preparedHtRaw != null && preparedHtRaw !== "" ? roundMoney2(Number(preparedHtRaw)) : null;
+    const preparedVat = preparedVatRaw != null && preparedVatRaw !== "" ? roundMoney2(Number(preparedVatRaw)) : null;
+    if (preparedHt != null && (!Number.isFinite(preparedHt) || preparedHt < 0)) {
+      throw new Error("Montant préparé (prepared_total_ht) invalide.");
+    }
+    if (preparedVat != null && (!Number.isFinite(preparedVat) || preparedVat < 0)) {
+      throw new Error("Montant préparé (prepared_total_vat) invalide.");
+    }
+    const preparedTotals =
+      preparedTotalOpt != null
+        ? {
+            total_ttc: roundMoney2(Math.min(Math.max(0, preparedTotalOpt), quoteTtcLive + QUOTE_INVOICE_SUM_TOLERANCE_TTC)),
+            total_ht: preparedHt,
+            total_vat: preparedVat,
+          }
+        : null;
+    const shouldLockBillingTotal = billingRole === "STANDARD" || billingRole === "DEPOSIT";
+    const hasAnyInvoiceOnQuote = reservedTtc > 0.02;
+    if (!readLockedBillingTotals(quote) && !hasAnyInvoiceOnQuote && shouldLockBillingTotal && !preparedTotals) {
+      throw new Error(
+        "Préparation obligatoire: fournissez prepared_total_ttc (et totaux préparés) avant le premier acte de facturation."
+      );
+    }
+    const lockedBefore = readLockedBillingTotals(quote);
+    const billingTotals = shouldLockBillingTotal
+      ? await resolveOrLockQuoteBillingTotals(client, quote, preparedTotals)
+      : lockedBefore || {
+          total_ht: roundMoney2(Number(quote.total_ht) || 0),
+          total_vat: roundMoney2(Number(quote.total_vat) || 0),
+          total_ttc: quoteTtcLive,
+          locked_at: null,
+          was_locked_before: false,
+        };
+    const quoteTtc = roundMoney2(Number(billingTotals.total_ttc) || 0);
     const remainingBefore = roundMoney2(quoteTtc - reservedTtc);
+    const billingBase = {
+      ...quote,
+      total_ttc: quoteTtc,
+      total_ht: billingTotals.total_ht != null ? billingTotals.total_ht : quote.total_ht,
+      total_vat: billingTotals.total_vat != null ? billingTotals.total_vat : quote.total_vat,
+    };
 
     const rawAmt = options.billingAmountTtc ?? options.billing_amount_ttc;
     const requestedOpt =
@@ -1119,7 +1256,11 @@ export async function createInvoiceFromQuote(quoteId, organizationId, options = 
         }
         throw new Error("Le devis n'a pas de lignes à facturer");
       }
-      metaJson = buildMetadataQuoteBilling("STANDARD", quote);
+      metaJson = buildMetadataQuoteBilling("STANDARD", billingBase, {
+        prepared_total_ttc: preparedTotalOpt,
+        billing_total_locked_at: billingTotals.locked_at ?? null,
+        billing_total_was_locked_before: Boolean(billingTotals.was_locked_before),
+      });
     } else if (billingRole === "DEPOSIT") {
       if (remainingBefore <= 0.02) {
         throw new Error(
@@ -1144,11 +1285,14 @@ export async function createInvoiceFromQuote(quoteId, organizationId, options = 
         );
       }
       const label = `Acompte sur devis ${quote.quote_number || String(quoteId).slice(0, 8)}`;
-      lines = [proportionalSliceLineFromQuote(quote, label, sliceTtc)];
-      metaJson = buildMetadataQuoteBilling("DEPOSIT", quote, {
+      lines = [proportionalSliceLineFromQuote(billingBase, label, sliceTtc)];
+      metaJson = buildMetadataQuoteBilling("DEPOSIT", billingBase, {
         deposit_ttc_planned: deposit_display ? roundMoney2(Number(deposit_display.amount_ttc) || 0) : sliceTtc,
         deposit_mode: deposit_display?.mode ?? (requestedOpt != null ? "FREE" : "CUSTOM"),
         billing_amount_requested_ttc: requestedOpt,
+        prepared_total_ttc: preparedTotalOpt,
+        billing_total_locked_at: billingTotals.locked_at ?? null,
+        billing_total_was_locked_before: Boolean(billingTotals.was_locked_before),
       });
     } else if (billingRole === "BALANCE") {
       if (remainingBefore <= 0.02) {
@@ -1164,10 +1308,13 @@ export async function createInvoiceFromQuote(quoteId, organizationId, options = 
         );
       }
       const label = `Solde sur devis ${quote.quote_number || String(quoteId).slice(0, 8)}`;
-      lines = [proportionalSliceLineFromQuote(quote, label, sliceTtc)];
-      metaJson = buildMetadataQuoteBilling("BALANCE", quote, {
+      lines = [proportionalSliceLineFromQuote(billingBase, label, sliceTtc)];
+      metaJson = buildMetadataQuoteBilling("BALANCE", billingBase, {
         balance_ttc: sliceTtc,
         invoiced_before_ttc: reservedTtc,
+        prepared_total_ttc: preparedTotalOpt,
+        billing_total_locked_at: billingTotals.locked_at ?? null,
+        billing_total_was_locked_before: Boolean(billingTotals.was_locked_before),
       });
     }
 
@@ -1258,6 +1405,99 @@ export async function createInvoiceFromQuote(quoteId, organizationId, options = 
       await assertQuoteLinkedInvoicesWithinCap(client, quoteId, organizationId, invoiceId);
     }
 
+    return invoiceId;
+  });
+  return getInvoiceDetail(newInvoiceId, organizationId);
+}
+
+/**
+ * Flux transactionnel unique pour STANDARD préparé:
+ * préparation validée -> lock billing_total si absent -> création facture DRAFT.
+ * @param {string} quoteId
+ * @param {string} organizationId
+ * @param {{ preparedLines: Array<object>, preparedTotals?: { total_ht?: number, total_vat?: number, total_ttc?: number } }} options
+ */
+export async function createPreparedStandardInvoiceFromQuote(quoteId, organizationId, options = {}) {
+  const preparedLines = Array.isArray(options.preparedLines) ? options.preparedLines : [];
+  if (preparedLines.length < 1) {
+    throw new Error("Préparation invalide: au moins une ligne est requise.");
+  }
+  const normalizedLines = preparedLines.map((line) => ({
+    label: line.label ?? line.description ?? "",
+    description: line.description ?? line.label ?? "",
+    quantity: Number(line.quantity) || 0,
+    unit_price_ht: Number(line.unit_price_ht) || 0,
+    discount_ht: Number(line.discount_ht) || 0,
+    vat_rate: Number(line.vat_rate) || 0,
+    snapshot_json: line.snapshot_json && typeof line.snapshot_json === "object" ? line.snapshot_json : {},
+  }));
+  const computed = computeTotalsFromPreparedLines(normalizedLines);
+  if (computed.total_ttc <= 0.0001) {
+    throw new Error("Préparation invalide: total TTC nul.");
+  }
+  const rawTotals = options.preparedTotals || {};
+  const providedTtc = rawTotals.total_ttc != null ? roundMoney2(Number(rawTotals.total_ttc)) : null;
+  if (providedTtc != null && Number.isFinite(providedTtc) && Math.abs(providedTtc - computed.total_ttc) > 0.01) {
+    throw new Error("Préparation invalide: total TTC incohérent avec les lignes.");
+  }
+
+  const newInvoiceId = await withTx(pool, async (client) => {
+    const qres = await client.query(
+      `SELECT * FROM quotes WHERE id = $1 AND organization_id = $2 AND (archived_at IS NULL) FOR UPDATE`,
+      [quoteId, organizationId]
+    );
+    if (qres.rows.length === 0) throw new Error("Devis non trouvé");
+    const quote = qres.rows[0];
+    if (String(quote.status).toUpperCase() !== "ACCEPTED") {
+      throw new Error("Le devis doit être accepté pour générer une facture");
+    }
+    const resolvedClientId = await ensureClientForQuote(client, quote, organizationId);
+    const reservedTtc = await sumQuoteInvoiceTtcNonCancelled(client, quoteId, organizationId);
+    if (reservedTtc > 0.02) {
+      throw new Error(
+        "Une facture ou un brouillon existe déjà pour ce devis. Utilisez acompte / solde."
+      );
+    }
+    const invoiceClientId = String(resolvedClientId);
+    const invoiceLeadId =
+      quote.lead_id != null && String(quote.lead_id).trim() !== "" ? String(quote.lead_id) : null;
+
+    const locked = await resolveOrLockQuoteBillingTotals(client, quote, computed);
+    const billingBase = {
+      ...quote,
+      total_ht: locked.total_ht ?? computed.total_ht,
+      total_vat: locked.total_vat ?? computed.total_vat,
+      total_ttc: locked.total_ttc ?? computed.total_ttc,
+    };
+    const draftNum = `DRAFT-INV-${Date.now()}`;
+    const metaJson = buildMetadataQuoteBilling("STANDARD", billingBase, {
+      prepared_total_ttc: computed.total_ttc,
+      billing_total_locked_at: locked.locked_at ?? null,
+      billing_total_was_locked_before: Boolean(locked.was_locked_before),
+      created_from_prepared_standard: true,
+    });
+    const ins = await client.query(
+      `INSERT INTO invoices (
+        organization_id, client_id, lead_id, quote_id, invoice_number, status,
+        total_ht, total_vat, total_ttc, total_paid, total_credited, amount_due,
+        due_date, notes, payment_terms, issue_date, metadata_json, currency
+      ) VALUES ($1,$2,$3,$4,$5,'DRAFT',0,0,0,0,0,0,NULL,$6,NULL,CURRENT_DATE, COALESCE($7::jsonb, '{}'::jsonb), COALESCE($8, 'EUR'))
+      RETURNING id`,
+      [
+        organizationId,
+        invoiceClientId,
+        invoiceLeadId,
+        quoteId,
+        draftNum,
+        quote.notes ?? null,
+        JSON.stringify(metaJson),
+        quote.currency || "EUR",
+      ]
+    );
+    const invoiceId = ins.rows[0].id;
+    await replaceInvoiceLines(client, organizationId, invoiceId, normalizedLines);
+    await recalcInvoiceTotals(client, organizationId, invoiceId);
+    await assertQuoteLinkedInvoicesWithinCap(client, quoteId, organizationId, invoiceId);
     return invoiceId;
   });
   return getInvoiceDetail(newInvoiceId, organizationId);

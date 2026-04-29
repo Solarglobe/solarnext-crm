@@ -69,6 +69,13 @@ function normalizeInvoiceStatusRaw(status: unknown): string {
     .toUpperCase();
 }
 
+function fmtDateFrShort(input: string | null | undefined): string {
+  if (!input) return "—";
+  const d = new Date(input);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("fr-FR");
+}
+
 function buildStateFromApi(inv: InvoiceDetail & Record<string, unknown>): InvoiceBuilderState {
   const clientLabel = inv.company_name
     ? String(inv.company_name)
@@ -666,6 +673,43 @@ export default function InvoiceBuilderPage() {
             <p className="ib-muted-title" style={{ margin: "0 0 0.25rem", fontWeight: 600 }}>
               Synthèse devis (facturation)
             </p>
+            <p className="qb-muted" style={{ margin: "0 0 0.35rem" }}>
+              Montant contractuel facturé :{" "}
+              <strong>
+                {(quoteBillCtx.billing_total_ttc ?? quoteBillCtx.quote_total_ttc ?? 0).toLocaleString("fr-FR", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}{" "}
+                {state.header.currency}
+              </strong>{" "}
+              {quoteBillCtx.billing_locked_at ? "(verrouillé) " : ""}
+              {quoteBillCtx.billing_locked_at ? (
+                <span
+                  title="Ce montant correspond au total validé lors de la première facturation. Il ne peut plus être modifié."
+                  style={{
+                    display: "inline-block",
+                    padding: "2px 8px",
+                    borderRadius: 999,
+                    background: "rgba(148,163,184,.2)",
+                    color: "var(--text, #e2e8f0)",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    letterSpacing: ".02em",
+                  }}
+                >
+                  VERROUILLÉ
+                </span>
+              ) : null}
+            </p>
+            {quoteBillCtx.billing_locked_at ? (
+              <p className="qb-muted" style={{ margin: "0 0 0.35rem" }}>
+                Verrouillé le : {fmtDateFrShort(quoteBillCtx.billing_locked_at)}
+              </p>
+            ) : (
+              <p className="qb-muted" style={{ margin: "0 0 0.35rem" }}>
+                Montant non encore validé (sera figé lors de la première facturation)
+              </p>
+            )}
             <p className="qb-muted" style={{ margin: 0 }}>
               Total devis{" "}
               {(quoteBillCtx.quote_total_ttc ?? 0).toLocaleString("fr-FR", {

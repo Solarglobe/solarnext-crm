@@ -36,6 +36,13 @@ function fmtDate(s: string | undefined | null) {
   }
 }
 
+function fmtDateFrShort(input: string | null | undefined): string {
+  if (!input) return "—";
+  const d = new Date(input);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("fr-FR");
+}
+
 function heroContextLine(status: string, hasSignedPdf?: boolean): string {
   const u = String(status).toUpperCase();
   if (u === "DRAFT") return "Brouillon — complétez les lignes et les conditions avant envoi.";
@@ -183,6 +190,43 @@ export default function FinancialHeroQuote({
         </dl>
         {!isLead && clientId && String(primary.status).toUpperCase() === "ACCEPTED" ? (
           <div className="fin-hero-billing-wrap">
+            {billCtx ? (
+              <p className="qb-muted" style={{ margin: "0 0 8px" }}>
+                Montant contractuel facturé :{" "}
+                <strong>
+                  {(billCtx.billing_total_ttc ?? billCtx.quote_total_ttc ?? 0).toLocaleString("fr-FR", {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}{" "}
+                  €
+                </strong>{" "}
+                {billCtx.billing_locked_at ? "(verrouillé) " : ""}
+                {billCtx.billing_locked_at ? (
+                  <span
+                    title="Ce montant correspond au total validé lors de la première facturation. Il ne peut plus être modifié."
+                    style={{
+                      display: "inline-block",
+                      padding: "2px 8px",
+                      borderRadius: 999,
+                      background: "rgba(148,163,184,.2)",
+                      color: "var(--text, #e2e8f0)",
+                      fontSize: 12,
+                      fontWeight: 700,
+                      letterSpacing: ".02em",
+                    }}
+                  >
+                    VERROUILLÉ
+                  </span>
+                ) : null}
+              </p>
+            ) : null}
+            {billCtx ? (
+              <p className="qb-muted" style={{ margin: "0 0 8px" }}>
+                {billCtx.billing_locked_at
+                  ? `Verrouillé le : ${fmtDateFrShort(billCtx.billing_locked_at)}`
+                  : "Montant non encore validé (sera figé lors de la première facturation)"}
+              </p>
+            ) : null}
             <QuoteBillingUxPanel
               quoteId={primary.id}
               billCtx={billCtx}
