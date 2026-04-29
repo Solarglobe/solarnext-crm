@@ -97,7 +97,6 @@ export async function generatePdfFromRendererUrl(rendererUrl) {
 
   const readyTimeoutMs = getPdfRenderReadyTimeoutMs();
   console.log("[PDF] PDF_RENDER_READY_TIMEOUT ms:", readyTimeoutMs);
-  console.log("PLAYWRIGHT_PATH:", process.env.PLAYWRIGHT_BROWSERS_PATH);
 
   let browser;
   try {
@@ -227,7 +226,6 @@ export async function generatePdfFromPortraitFinanceUrl(rendererUrl, logLabel = 
 
   const readyTimeoutMs = getPdfRenderReadyTimeoutMs();
   console.log("[PDF] PDF_RENDER_READY_TIMEOUT ms:", readyTimeoutMs);
-  console.log("PLAYWRIGHT_PATH:", process.env.PLAYWRIGHT_BROWSERS_PATH);
 
   const useCssPageMargins = opts.useCssPageMargins === true;
   const footerTemplate = typeof opts.footerTemplate === "string" ? opts.footerTemplate : "";

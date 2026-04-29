@@ -7,7 +7,6 @@ FROM node:20-bookworm-slim
 WORKDIR /app
 
 COPY package.json package-lock.json ./
-ENV PLAYWRIGHT_BROWSERS_PATH=0
 
 RUN apt-get update && apt-get install -y \
   wget \
