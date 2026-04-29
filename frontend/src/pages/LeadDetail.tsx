@@ -307,6 +307,7 @@ export default function LeadDetail() {
   const [users, setUsers] = useState<{ id: string; email?: string }[]>([]);
   const [leadSources, setLeadSources] = useState<LeadsMeta["sources"]>([]);
   const [documents, setDocuments] = useState<Document[]>([]);
+  const [clientDocuments, setClientDocuments] = useState<Document[]>([]);
   const [studies, setStudies] = useState<Study[]>([]);
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [studiesLoading, setStudiesLoading] = useState(false);
@@ -685,7 +686,7 @@ export default function LeadDetail() {
     fetchLead();
   }, [fetchLead]);
 
-  const fetchDocuments = useCallback(async () => {
+  const fetchLeadDocuments = useCallback(async () => {
     if (!id || !getAuthToken()) return;
     try {
       const res = await apiFetch(`${API_BASE}/api/documents/lead/${id}`);
@@ -704,9 +705,43 @@ export default function LeadDetail() {
     }
   }, [id]);
 
+  const fetchClientDocuments = useCallback(async () => {
+    const clientId = data?.lead?.client_id;
+    if (!clientId || !getAuthToken()) {
+      setClientDocuments([]);
+      return;
+    }
+    try {
+      const res = await apiFetch(`${API_BASE}/api/documents/client/${clientId}`);
+      if (res.ok) {
+        const raw = await res.json();
+        setClientDocuments(
+          Array.isArray(raw)
+            ? raw.map((row: unknown) =>
+                normalizeEntityDocument(row as Record<string, unknown>)
+              )
+            : []
+        );
+      } else {
+        setClientDocuments([]);
+      }
+    } catch {
+      setClientDocuments([]);
+    }
+  }, [data?.lead?.client_id]);
+
+  const fetchDocuments = useCallback(async () => {
+    await fetchLeadDocuments();
+    await fetchClientDocuments();
+  }, [fetchLeadDocuments, fetchClientDocuments]);
+
   useEffect(() => {
-    if (data?.lead?.id) fetchDocuments();
-  }, [data?.lead?.id, fetchDocuments]);
+    if (data?.lead?.id) void fetchLeadDocuments();
+  }, [data?.lead?.id, fetchLeadDocuments]);
+
+  useEffect(() => {
+    void fetchClientDocuments();
+  }, [fetchClientDocuments]);
 
   const fetchStudies = useCallback(async () => {
     if (!id) return;
@@ -2015,8 +2050,10 @@ export default function LeadDetail() {
         )}
         {activeTab === "documents" && (
           <DocumentsTab
-            entityId={data.lead.id}
-            documents={documents}
+            leadId={data.lead.id}
+            leadDocuments={documents}
+            clientId={data.lead.client_id}
+            clientDocuments={clientDocuments}
             onRefresh={fetchDocuments}
           />
         )}

@@ -6,26 +6,53 @@ import React from "react";
 import DocumentUploader, { type Document } from "../../../components/DocumentUploader";
 
 interface DocumentsTabProps {
-  entityId: string;
-  documents: Document[];
+  leadId: string;
+  leadDocuments: Document[];
+  clientId?: string;
+  clientDocuments?: Document[];
   onRefresh: () => void;
 }
 
-export default function DocumentsTab({ entityId, documents, onRefresh }: DocumentsTabProps) {
+export default function DocumentsTab({
+  leadId,
+  leadDocuments,
+  clientId,
+  clientDocuments = [],
+  onRefresh,
+}: DocumentsTabProps) {
   return (
-    <section className="crm-lead-card">
-      <div className="crm-lead-card-head">
-        <h2 className="crm-lead-card-title">Documents</h2>
-        <p className="crm-lead-card-subtitle" style={{ margin: "6px 0 0", color: "#6b5530", fontSize: "0.9rem" }}>
-          Devis, factures, propositions et pièces classées par nature — prêt pour l’espace client.
-        </p>
+    <section style={{ display: "grid", gap: 16 }}>
+      {clientId ? (
+        <div className="crm-lead-card">
+          <div className="crm-lead-card-head">
+            <h2 className="crm-lead-card-title">Documents client</h2>
+            <p className="crm-lead-card-subtitle" style={{ margin: "6px 0 0", color: "#6b5530", fontSize: "0.9rem" }}>
+              Factures, devis et documents contractuels rattachés à l’entité client.
+            </p>
+          </div>
+          <DocumentUploader
+            entityType="client"
+            entityId={clientId}
+            documents={clientDocuments}
+            onRefresh={onRefresh}
+          />
+        </div>
+      ) : null}
+
+      <div className="crm-lead-card">
+        <div className="crm-lead-card-head">
+          <h2 className="crm-lead-card-title">{clientId ? "Documents du lead" : "Documents"}</h2>
+          <p className="crm-lead-card-subtitle" style={{ margin: "6px 0 0", color: "#6b5530", fontSize: "0.9rem" }}>
+            Devis, factures, propositions et pièces classées par nature — prêt pour l’espace client.
+          </p>
+        </div>
+        <DocumentUploader
+          entityType="lead"
+          entityId={leadId}
+          documents={leadDocuments}
+          onRefresh={onRefresh}
+        />
       </div>
-      <DocumentUploader
-        entityType="lead"
-        entityId={entityId}
-        documents={documents}
-        onRefresh={onRefresh}
-      />
     </section>
   );
 }

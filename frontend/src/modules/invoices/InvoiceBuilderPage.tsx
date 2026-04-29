@@ -111,6 +111,10 @@ export default function InvoiceBuilderPage() {
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [pdfDocHint, setPdfDocHint] = useState<{
+    message: string;
+    clientId: string | null;
+  } | null>(null);
   const saveSuccessTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [catalogOpen, setCatalogOpen] = useState(false);
   const [catalogItems, setCatalogItems] = useState<QuoteCatalogItem[]>([]);
@@ -366,6 +370,7 @@ export default function InvoiceBuilderPage() {
   const genPdf = async () => {
     if (!id || isGeneratingPdf) return;
     setIsGeneratingPdf(true);
+    setPdfDocHint(null);
     try {
       const data = await postGenerateInvoicePdf(id);
       await load();
@@ -375,7 +380,24 @@ export default function InvoiceBuilderPage() {
           alsoTriggerDownload: true,
         });
       }
-      showCrmInlineToast(data.replaced ? "✔ Facture mise à jour" : "✔ Facture générée", "success");
+      const mirrorEntityType = data.observability?.mirror?.entity_type ?? null;
+      const mirrorEntityId = data.observability?.mirror?.entity_id ?? null;
+      const docMessage = "PDF généré et enregistré dans les documents client.";
+      if (mirrorEntityType === "client") {
+        const clientId = typeof mirrorEntityId === "string" && mirrorEntityId.trim() ? mirrorEntityId : null;
+        setPdfDocHint({
+          message: clientId
+            ? "PDF généré et enregistré dans les documents client."
+            : "PDF généré et enregistré dans les documents client du dossier.",
+          clientId,
+        });
+      } else {
+        setPdfDocHint({
+          message: "PDF généré. Le document est consultable dans le bloc Documents client du dossier.",
+          clientId: null,
+        });
+      }
+      showCrmInlineToast(docMessage, "success");
     } catch (e) {
       showCrmInlineToast(e instanceof Error ? e.message : "Erreur lors de la génération du document", "error");
     } finally {
@@ -588,6 +610,30 @@ export default function InvoiceBuilderPage() {
       ) : null}
 
       {error ? <p className="qb-error-inline">{error}</p> : null}
+      {pdfDocHint ? (
+        <div
+          style={{
+            marginTop: 12,
+            padding: "10px 12px",
+            borderRadius: 10,
+            border: "1px solid #d6ecda",
+            background: "#f2fbf5",
+            color: "#1f5f33",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12,
+            flexWrap: "wrap",
+          }}
+        >
+          <span>{pdfDocHint.message}</span>
+          {pdfDocHint.clientId ? (
+            <Button type="button" variant="secondary" onClick={() => navigate(`/clients/${pdfDocHint.clientId}?tab=documents`)}>
+              Voir documents client
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="ib-page-hero-stack">
         <InvoiceHeaderCard
