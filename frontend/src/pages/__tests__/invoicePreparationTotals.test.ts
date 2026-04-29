@@ -95,4 +95,48 @@ describe("invoicePreparationTotals — snapshot & DOCUMENT_DISCOUNT", () => {
     const aggOne = aggregatePreparedTotals(lines.slice(0, 1));
     expect(aggOne.total_ttc).toBe(120);
   });
+
+  it("snapshot HT brut incohérent avec remise ligne : recalcul HT/TVA/TTC depuis qty/PU/remise", () => {
+    const raw = [
+      {
+        label: "Kit",
+        quantity: 1,
+        unit_price_ht: 1000,
+        discount_ht: 100,
+        vat_rate: 20,
+        total_line_ht: 1000,
+        total_line_vat: 200,
+        total_line_ttc: 1200,
+      },
+    ];
+    const lines = normalizePreparedLines(raw);
+    expect(lines[0].discount_percent).toBe(10);
+    const t = getPreparedLineMoneyTotals(lines[0]);
+    expect(t.totalHt).toBe(900);
+    expect(t.totalVat).toBe(180);
+    expect(t.totalTtc).toBe(1080);
+    expect(t.discountHt).toBe(100);
+  });
+
+  it("discount_ht absent mais total_line_ht net : déduit remise € et % pour l’UI", () => {
+    const raw = [
+      {
+        label: "Kit",
+        quantity: 2,
+        unit_price_ht: 500,
+        discount_ht: 0,
+        vat_rate: 20,
+        total_line_ht: 900,
+        total_line_vat: 180,
+        total_line_ttc: 1080,
+      },
+    ];
+    const lines = normalizePreparedLines(raw);
+    expect(lines[0].discount_ht).toBe(100);
+    expect(lines[0].discount_percent).toBe(10);
+    const t = getPreparedLineMoneyTotals(lines[0]);
+    expect(t.totalHt).toBe(900);
+    expect(t.totalVat).toBe(180);
+    expect(t.totalTtc).toBe(1080);
+  });
 });

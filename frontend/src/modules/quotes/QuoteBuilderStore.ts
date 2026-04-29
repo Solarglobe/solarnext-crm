@@ -1,4 +1,10 @@
-import type { QuoteHeaderSnapshot, QuoteLine, QuoteBuilderMeta, QuoteLineSource } from "./quote.types";
+import type {
+  QuoteHeaderSnapshot,
+  QuoteLine,
+  QuoteBuilderMeta,
+  QuoteLineSource,
+  QuoteLineType,
+} from "./quote.types";
 import { discountPercentFromHt, grossHtFromLine } from "./quoteCalc";
 import { parseDepositFromMeta } from "./quoteDeposit";
 
@@ -163,9 +169,9 @@ export function mapApiItemsToLines(rows: Record<string, unknown>[]): QuoteLine[]
     const puCents = row.purchase_unit_price_ht_cents;
     const purchase_unit_price_ht_cents =
       puCents != null && Number.isFinite(Number(puCents)) ? Math.floor(Number(puCents)) : undefined;
-    const line = {
+    const line: QuoteLine = {
       id,
-      type: catalogId ? "catalog" : "custom",
+      type: (catalogId ? "catalog" : "custom") as QuoteLineType,
       catalog_item_id: catalogId,
       line_source: lineSource,
       label: String(row.label ?? row.description ?? "Ligne"),
@@ -177,9 +183,9 @@ export function mapApiItemsToLines(rows: Record<string, unknown>[]): QuoteLine[]
       tva_percent: Number(row.vat_rate) || 0,
       line_discount_percent: discountPercentFromHt(gross, discHt),
       position: Number(row.position) || i + 1,
+      line_kind: lineKindFromSnapshot(row),
       ...(purchase_unit_price_ht_cents !== undefined ? { purchase_unit_price_ht_cents } : {}),
     };
-    line.line_kind = lineKindFromSnapshot(row);
     return line;
   });
 }
