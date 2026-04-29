@@ -16011,22 +16011,18 @@ async function initDP2() {
           source: dp2CadastreVectorTileSource,
           style: function (feature) {
             const layer = feature.get("layer");
-            const nature = feature.get("nature");
 
-            // garder uniquement les parcelles
-            if (layer === "parcelle" || nature === "parcelle") {
+            // garder uniquement contours principaux
+            if (layer === "parcelle" || layer === "building") {
               return new ol.style.Style({
                 stroke: new ol.style.Stroke({
                   color: "#2c3e50",
                   width: 1,
                 }),
-                fill: new ol.style.Fill({
-                  color: "rgba(0,0,0,0)",
-                }),
+                fill: null,
               });
             }
 
-            // ignorer tout le reste
             return null;
           },
           zIndex: 10,
