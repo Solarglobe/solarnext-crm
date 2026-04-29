@@ -208,6 +208,31 @@ function formatConsentDate(iso?: string | null): string {
   }
 }
 
+function ConsentToggle({
+  label,
+  checked,
+  disabled,
+  savedAt,
+  onChange,
+}: {
+  label: string;
+  checked: boolean;
+  disabled: boolean;
+  savedAt?: string | null;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <label className={`lead-consent-toggle${checked ? " lead-consent-toggle--on" : ""}`}>
+      <input type="checkbox" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
+      <span className="lead-consent-toggle__control" aria-hidden />
+      <span className="lead-consent-toggle__text">
+        <span className="lead-consent-toggle__label">{label}</span>
+        <span className="lead-consent-toggle__date">{formatConsentDate(savedAt)}</span>
+      </span>
+    </label>
+  );
+}
+
 function ClientTableConsentSection({
   clientId,
   readOnly,
@@ -248,47 +273,32 @@ function ClientTableConsentSection({
   };
 
   return (
-    <OverviewCardSection
-      index={100}
-      title="Consentements (fiche client CRM)"
-      defaultOpen
-      summary={row?.client_number ? `N° ${row.client_number}` : undefined}
-    >
+    <div className="lead-consent-source" data-consent-source="client">
+      <div className="lead-consent-source__head">
+        <span className="lead-consent-source__title">Client</span>
+        {row?.client_number ? <span className="lead-consent-source__ref">N° {row.client_number}</span> : null}
+      </div>
       {err ? <p className="crm-lead-warning">{err}</p> : null}
       {!row && !err ? <p className="sn-muted">Chargement…</p> : null}
       {row ? (
-        <div className="crm-lead-fields">
-          <div className="crm-lead-field">
-            <label>
-              <input
-                type="checkbox"
-                checked={Boolean(row.rgpd_consent)}
-                disabled={readOnly || busy}
-                onChange={(e) => void patch({ rgpd_consent: e.target.checked })}
-              />{" "}
-              Consentement RGPD (traitement des données)
-            </label>
-            <p className="sn-muted" style={{ marginTop: 4, fontSize: 12 }}>
-              Enregistré le {formatConsentDate(row.rgpd_consent_at)}
-            </p>
-          </div>
-          <div className="crm-lead-field" style={{ marginTop: 12 }}>
-            <label>
-              <input
-                type="checkbox"
-                checked={Boolean(row.marketing_opt_in)}
-                disabled={readOnly || busy}
-                onChange={(e) => void patch({ marketing_opt_in: e.target.checked })}
-              />{" "}
-              Autorisé marketing (e-mail, publicité)
-            </label>
-            <p className="sn-muted" style={{ marginTop: 4, fontSize: 12 }}>
-              Enregistré le {formatConsentDate(row.marketing_opt_in_at)}
-            </p>
-          </div>
+        <div className="lead-consent-actions">
+          <ConsentToggle
+            label="RGPD"
+            checked={Boolean(row.rgpd_consent)}
+            disabled={readOnly || busy}
+            savedAt={row.rgpd_consent_at}
+            onChange={(checked) => void patch({ rgpd_consent: checked })}
+          />
+          <ConsentToggle
+            label="Marketing"
+            checked={Boolean(row.marketing_opt_in)}
+            disabled={readOnly || busy}
+            savedAt={row.marketing_opt_in_at}
+            onChange={(checked) => void patch({ marketing_opt_in: checked })}
+          />
         </div>
       ) : null}
-    </OverviewCardSection>
+    </div>
   );
 }
 
@@ -986,41 +996,38 @@ export default function OverviewTab({
             }}
           />
         ) : null}
-        <OverviewCardSection index={99} title="Consentements (dossier lead)" defaultOpen>
-          <div className="crm-lead-fields">
-            <div className="crm-lead-field">
-              <label>
-                <input
-                  type="checkbox"
+        <section className="lead-consent-strip" aria-label="Consentements">
+          <div className="lead-consent-strip__label">
+            <span className="lead-consent-strip__eyebrow">Consentements</span>
+            <span className="lead-consent-strip__hint">RGPD et marketing</span>
+          </div>
+          <div className="lead-consent-strip__sources">
+            <div className="lead-consent-source">
+              <div className="lead-consent-source__head">
+                <span className="lead-consent-source__title">Lead</span>
+              </div>
+              <div className="lead-consent-actions">
+                <ConsentToggle
+                  label="RGPD"
                   checked={Boolean(lead.rgpd_consent)}
                   disabled={readOnlySuper}
-                  onChange={(e) => onLeadChange({ rgpd_consent: e.target.checked })}
-                />{" "}
-                Consentement RGPD (traitement des données)
-              </label>
-              <p className="sn-muted" style={{ marginTop: 4, fontSize: 12 }}>
-                Enregistré le {formatConsentDate(lead.rgpd_consent_at)}
-              </p>
-            </div>
-            <div className="crm-lead-field" style={{ marginTop: 12 }}>
-              <label>
-                <input
-                  type="checkbox"
+                  savedAt={lead.rgpd_consent_at}
+                  onChange={(checked) => onLeadChange({ rgpd_consent: checked })}
+                />
+                <ConsentToggle
+                  label="Marketing"
                   checked={Boolean(lead.marketing_opt_in)}
                   disabled={readOnlySuper}
-                  onChange={(e) => onLeadChange({ marketing_opt_in: e.target.checked })}
-                />{" "}
-                Autorisé marketing (e-mail, publicité)
-              </label>
-              <p className="sn-muted" style={{ marginTop: 4, fontSize: 12 }}>
-                Enregistré le {formatConsentDate(lead.marketing_opt_in_at)}
-              </p>
+                  savedAt={lead.marketing_opt_in_at}
+                  onChange={(checked) => onLeadChange({ marketing_opt_in: checked })}
+                />
+              </div>
             </div>
+            {lead.client_id ? (
+              <ClientTableConsentSection clientId={lead.client_id} readOnly={readOnlySuper} />
+            ) : null}
           </div>
-        </OverviewCardSection>
-        {lead.client_id ? (
-          <ClientTableConsentSection clientId={lead.client_id} readOnly={readOnlySuper} />
-        ) : null}
+        </section>
       </div>
       <div className="crm-lead-overview-surface">
       <div className="lead-overview-grid">

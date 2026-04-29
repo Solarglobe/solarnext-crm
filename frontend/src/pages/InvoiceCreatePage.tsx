@@ -30,6 +30,7 @@ import {
 import { billingRoleParamToApi } from "../modules/invoices/invoiceBillingLabels";
 import QuoteBillingUxPanel from "../modules/quotes/QuoteBillingUxPanel";
 import "../modules/invoices/invoice-builder.css";
+import "./InvoiceCreatePage.premium.css";
 
 function roundMoney2(n: number): number {
   const x = Number(n);
@@ -47,6 +48,7 @@ function fmtDateFrShort(input: string | null | undefined): string {
 type PreparedInvoiceLine = {
   id: string;
   label: string;
+  description: string;
   quantity: number;
   unit_price_ht: number;
   discount_ht: number;
@@ -73,6 +75,7 @@ function normalizePreparedLines(rawLines: unknown[]): PreparedInvoiceLine[] {
       return {
         id: `line-${idx + 1}`,
         label: label || `Ligne ${idx + 1}`,
+        description: String(row.description ?? "").trim(),
         quantity: Number.isFinite(quantity) ? quantity : 0,
         unit_price_ht: Number.isFinite(unitPrice) ? unitPrice : 0,
         discount_ht: Number.isFinite(discount) ? discount : 0,
@@ -102,6 +105,16 @@ function quoteOptionalSelectLabel(q: QuoteListRow): string {
   if (q.client_id && clientDisp) return `${base} — ${clientDisp}`;
   if (q.lead_id && leadDisp) return `${base} — ${leadDisp}`;
   return base;
+}
+
+function getLineBaseHt(line: PreparedInvoiceLine): number {
+  return Math.max(0, Number(line.quantity) * Number(line.unit_price_ht));
+}
+
+function getDiscountPercent(line: PreparedInvoiceLine): number {
+  const base = getLineBaseHt(line);
+  if (base <= 0) return 0;
+  return roundMoney2((Number(line.discount_ht) / base) * 100);
 }
 
 export default function InvoiceCreatePage() {
@@ -154,6 +167,7 @@ export default function InvoiceCreatePage() {
   const [depositTtcInput, setDepositTtcInput] = useState("");
   const [depositPctInput, setDepositPctInput] = useState("");
   const [preparedLines, setPreparedLines] = useState<PreparedInvoiceLine[]>([]);
+  const [activeLineId, setActiveLineId] = useState<string | null>(null);
   const [prepLoading, setPrepLoading] = useState(false);
   const [prepReady, setPrepReady] = useState(false);
   const [prepValidated, setPrepValidated] = useState(false);
@@ -504,154 +518,266 @@ export default function InvoiceCreatePage() {
   if (fromQuote) {
     const canSubmitPrep = preparedLines.length > 0 && projectGlobalTotal > 0;
     return (
-      <div className="qb-page" style={{ maxWidth: 520 }}>
-        <h1 className="sg-title">Préparation facture</h1>
-        <p style={{ color: "var(--text-muted)", marginBottom: 16 }}>
-          Ajustez les lignes issues du devis avant création de la facture. Le devis accepté n&apos;est jamais modifié.
-        </p>
+      <div className="icp-page">
+        <div className="icp-header">
+          <div className="icp-step-badge">Etape 1 : Preparation</div>
+          <h1 className="icp-title">Préparation de la facture</h1>
+          <p className="icp-subtitle">
+            Modifiez les lignes du devis avant validation. Le devis original ne sera jamais modifié.
+          </p>
+        </div>
         {prepLoading ? (
           <p className="qb-muted">Chargement de la préparation…</p>
         ) : (
-          <div style={{ marginBottom: 20, overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr>
-                  <th style={{ textAlign: "left" }}>Libellé</th>
-                  <th>Qté</th>
-                  <th>PU HT</th>
-                  <th>Remise HT</th>
-                  <th>TVA %</th>
-                  <th>Total TTC</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {preparedLines.map((line) => {
-                  const totals = computePreparedLineTotals(line);
-                  return (
-                    <tr key={line.id}>
-                      <td style={{ minWidth: 180 }}>{line.label}</td>
-                      <td>
-                        <input className="sn-input" type="number" step="0.01" value={line.quantity} disabled={billingLocked} onChange={(e) => updatePreparedLine(line.id, { quantity: Number(e.target.value) })} />
-                      </td>
-                      <td>
-                        <input className="sn-input" type="number" step="0.01" value={line.unit_price_ht} disabled={billingLocked} onChange={(e) => updatePreparedLine(line.id, { unit_price_ht: Number(e.target.value) })} />
-                      </td>
-                      <td>
-                        <input className="sn-input" type="number" step="0.01" value={line.discount_ht} disabled={billingLocked} onChange={(e) => updatePreparedLine(line.id, { discount_ht: Number(e.target.value) })} />
-                      </td>
-                      <td>
-                        <input className="sn-input" type="number" step="0.01" value={line.vat_rate} disabled={billingLocked} onChange={(e) => updatePreparedLine(line.id, { vat_rate: Number(e.target.value) })} />
-                      </td>
-                      <td>{totals.totalTtc.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</td>
-                      <td>
-                        {!billingLocked ? (
-                          <button type="button" className="sn-btn sn-btn-ghost" onClick={() => removePreparedLine(line.id)}>
-                            Supprimer
-                          </button>
-                        ) : null}
-                      </td>
+          <div className="icp-workbench">
+            <section className="icp-table-card">
+              <div className="icp-table-wrap">
+                <table className="icp-table">
+                  <thead>
+                    <tr>
+                      <th className="icp-col-label">Libellé / Description</th>
+                      <th>Quantité</th>
+                      <th>PU HT</th>
+                      <th>Remise %</th>
+                      <th>TVA %</th>
+                      <th>Total HT</th>
+                      <th>Total TTC</th>
+                      <th>Actions</th>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-            <p className="qb-muted" style={{ marginTop: 12 }}>
-              Totaux préparation: {preparedTotals.total_ht.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € HT · {preparedTotals.total_vat.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € TVA · <strong>{preparedTotals.total_ttc.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € TTC</strong>
-            </p>
-            <p className="qb-muted" style={{ marginTop: 4 }}>
-              Montant contractuel facturé :{" "}
-              <strong>
-                {projectGlobalTotal.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
-              </strong>{" "}
-              {billingLocked ? "(verrouillé) " : ""}
+                  </thead>
+                  <tbody>
+                    {preparedLines.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="icp-empty-state">
+                          Aucune ligne. Ajoutez ou revenez au devis.
+                        </td>
+                      </tr>
+                    ) : preparedLines.map((line) => {
+                      const totals = computePreparedLineTotals(line);
+                      const discountPercent = getDiscountPercent(line);
+                      return (
+                        <tr
+                          key={line.id}
+                          className={activeLineId === line.id ? "icp-row-active" : undefined}
+                        >
+                          <td className="icp-cell-label">
+                            <div className="icp-label-primary">{line.label}</div>
+                            <div className="icp-label-secondary">{line.description || "Sans description"}</div>
+                          </td>
+                          <td>
+                            <input
+                              className="icp-input"
+                              type="number"
+                              step="0.01"
+                              value={line.quantity === 0 ? "" : line.quantity}
+                              disabled={billingLocked}
+                              placeholder="0"
+                              onFocus={() => setActiveLineId(line.id)}
+                              onChange={(e) => updatePreparedLine(line.id, { quantity: Number(e.target.value) })}
+                            />
+                          </td>
+                          <td>
+                            <input
+                              className="icp-input"
+                              type="number"
+                              step="0.01"
+                              value={line.unit_price_ht === 0 ? "" : line.unit_price_ht}
+                              disabled={billingLocked}
+                              placeholder="0"
+                              onFocus={() => setActiveLineId(line.id)}
+                              onChange={(e) =>
+                                updatePreparedLine(line.id, { unit_price_ht: Number(e.target.value) })
+                              }
+                            />
+                          </td>
+                          <td>
+                            <input
+                              className="icp-input"
+                              type="number"
+                              step="0.01"
+                              value={discountPercent === 0 ? "" : discountPercent}
+                              disabled={billingLocked}
+                              placeholder="0"
+                              onFocus={() => setActiveLineId(line.id)}
+                              onChange={(e) => {
+                                const pct = Math.max(0, Number(e.target.value) || 0);
+                                const base = getLineBaseHt(line);
+                                const discountHt = roundMoney2((base * Math.min(100, pct)) / 100);
+                                updatePreparedLine(line.id, { discount_ht: discountHt });
+                              }}
+                            />
+                          </td>
+                          <td>
+                            <input
+                              className="icp-input"
+                              type="number"
+                              step="0.01"
+                              value={line.vat_rate === 0 ? "" : line.vat_rate}
+                              disabled={billingLocked}
+                              placeholder="0"
+                              onFocus={() => setActiveLineId(line.id)}
+                              onChange={(e) => updatePreparedLine(line.id, { vat_rate: Number(e.target.value) })}
+                            />
+                          </td>
+                          <td className="icp-amount">
+                            {totals.totalHt.toLocaleString("fr-FR", {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })}{" "}
+                            €
+                          </td>
+                          <td className="icp-amount icp-amount-strong">
+                            {totals.totalTtc.toLocaleString("fr-FR", {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })}{" "}
+                            €
+                          </td>
+                          <td>
+                            {!billingLocked ? (
+                              <button
+                                type="button"
+                                className="icp-delete-btn"
+                                aria-label="Supprimer la ligne"
+                                title="Supprimer la ligne"
+                                onClick={() => removePreparedLine(line.id)}
+                              >
+                                <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true">
+                                  <path
+                                    d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 7h2v8h-2v-8zm4 0h2v8h-2v-8zM7 10h2v8H7v-8z"
+                                    fill="currentColor"
+                                  />
+                                </svg>
+                              </button>
+                            ) : null}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            <aside className="icp-summary-card">
+              <h2 className="icp-summary-title">Récapitulatif</h2>
+              <dl className="icp-kv">
+                <dt>Total HT</dt>
+                <dd>
+                  {preparedTotals.total_ht.toLocaleString("fr-FR", {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}{" "}
+                  €
+                </dd>
+                <dt>TVA</dt>
+                <dd>
+                  {preparedTotals.total_vat.toLocaleString("fr-FR", {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}{" "}
+                  €
+                </dd>
+                <dt className="icp-kv-strong">Total TTC</dt>
+                <dd className="icp-kv-strong">
+                  {preparedTotals.total_ttc.toLocaleString("fr-FR", {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}{" "}
+                  €
+                </dd>
+              </dl>
+
+              <div className="icp-divider" />
+
+              <p className="icp-contract-line">
+                Montant contractuel :{" "}
+                <strong>
+                  {projectGlobalTotal.toLocaleString("fr-FR", {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}{" "}
+                  €
+                </strong>
+              </p>
               {billingLocked ? (
-                <span
-                  title="Ce montant correspond au total validé lors de la première facturation. Il ne peut plus être modifié."
-                  style={{
-                    display: "inline-block",
-                    padding: "2px 8px",
-                    borderRadius: 999,
-                    background: "rgba(148,163,184,.2)",
-                    color: "var(--text, #e2e8f0)",
-                    fontSize: 12,
-                    fontWeight: 700,
-                    letterSpacing: ".02em",
-                    verticalAlign: "middle",
-                  }}
-                >
-                  VERROUILLÉ
-                </span>
+                <>
+                  <span
+                    className="icp-lock-badge"
+                    title="Ce montant correspond au total validé lors de la première facturation. Il ne peut plus être modifié."
+                  >
+                    Verrouille
+                  </span>
+                  <p className="qb-muted" style={{ marginTop: 8 }}>
+                    Verrouillé le : {fmtDateFrShort(billCtx?.billing_locked_at)}
+                  </p>
+                </>
+              ) : (
+                <p className="qb-muted" style={{ marginTop: 8 }}>
+                  Non encore validé
+                </p>
+              )}
+
+              {apiRole === "DEPOSIT" && prepValidated ? (
+                <div className="icp-deposit-box">
+                  <div style={{ marginBottom: 12 }}>
+                    <QuoteBillingUxPanel
+                      quoteId={fromQuote}
+                      billCtx={billCtx}
+                      billLoading={false}
+                      showActions={false}
+                      balanceHref={`/invoices/new?fromQuote=${encodeURIComponent(fromQuote)}&billingRole=solde`}
+                      standardFullHref={`/invoices/new?fromQuote=${encodeURIComponent(fromQuote)}&billingRole=STANDARD`}
+                    />
+                  </div>
+                  <label className="icp-field">
+                    <span>Montant TTC de l&apos;acompte</span>
+                    <input
+                      className="icp-input"
+                      type="text"
+                      inputMode="decimal"
+                      value={depositTtcInput}
+                      onChange={(e) => onChangeDepositTtc(e.target.value)}
+                      placeholder="ex. 3000"
+                    />
+                  </label>
+                  <label className="icp-field">
+                    <span>Ou % du total préparé TTC</span>
+                    <input
+                      className="icp-input"
+                      type="text"
+                      inputMode="decimal"
+                      value={depositPctInput}
+                      onChange={(e) => onChangeDepositPct(e.target.value)}
+                      placeholder="ex. 30"
+                    />
+                  </label>
+                  {computedDepositTtc != null && computedDepositTtc >= 0.01 ? (
+                    <p className="qb-muted" style={{ marginTop: 8 }}>
+                      Montant retenu :{" "}
+                      <strong>
+                        {computedDepositTtc.toLocaleString("fr-FR", {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}{" "}
+                        € TTC
+                      </strong>
+                    </p>
+                  ) : null}
+                </div>
               ) : null}
-            </p>
-            {billingLocked ? (
-              <p className="qb-muted" style={{ marginTop: 4 }}>
-                Verrouillé le : {fmtDateFrShort(billCtx?.billing_locked_at)}
-              </p>
-            ) : (
-              <p className="qb-muted" style={{ marginTop: 4 }}>
-                Montant non encore validé (sera figé lors de la première facturation)
-              </p>
-            )}
+            </aside>
           </div>
         )}
 
-        {apiRole === "DEPOSIT" && prepValidated ? (
-          <>
-            <div style={{ marginBottom: 20 }}>
-              <QuoteBillingUxPanel
-                quoteId={fromQuote}
-                billCtx={billCtx}
-                billLoading={false}
-                showActions={false}
-                balanceHref={`/invoices/new?fromQuote=${encodeURIComponent(fromQuote)}&billingRole=solde`}
-                standardFullHref={`/invoices/new?fromQuote=${encodeURIComponent(fromQuote)}&billingRole=STANDARD`}
-              />
-            </div>
-            <label style={{ display: "block", marginBottom: 12 }}>
-              <span className="qb-muted" style={{ display: "block", marginBottom: 4 }}>
-                Montant TTC de l&apos;acompte (base préparation)
-              </span>
-              <input
-                className="sn-input"
-                type="text"
-                inputMode="decimal"
-                value={depositTtcInput}
-                onChange={(e) => onChangeDepositTtc(e.target.value)}
-                placeholder="ex. 3000"
-                style={{ width: "100%" }}
-              />
-            </label>
-            <label style={{ display: "block", marginBottom: 16 }}>
-              <span className="qb-muted" style={{ display: "block", marginBottom: 4 }}>
-                Ou % du total préparé TTC
-              </span>
-              <input
-                className="sn-input"
-                type="text"
-                inputMode="decimal"
-                value={depositPctInput}
-                onChange={(e) => onChangeDepositPct(e.target.value)}
-                placeholder="ex. 30"
-                style={{ width: "100%" }}
-              />
-            </label>
-            {computedDepositTtc != null && computedDepositTtc >= 0.01 ? (
-              <p className="qb-muted" style={{ marginTop: 0 }}>
-                Montant retenu :{" "}
-                <strong>
-                  {computedDepositTtc.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
-                  TTC
-                </strong>
-              </p>
-            ) : null}
-          </>
-        ) : null}
         {error ? <p className="qb-error-inline">{error}</p> : null}
-        <div style={{ display: "flex", gap: 12, marginTop: 16 }}>
+        <div className="icp-actions">
+          <Button type="button" variant="ghost" onClick={() => navigate(-1)}>
+            Annuler
+          </Button>
           {apiRole === "STANDARD" ? (
             <Button type="button" variant="primary" disabled={loading || !canSubmitPrep} onClick={() => void submitPreparedStandard()}>
-              {loading ? "Création…" : "Valider préparation et créer brouillon"}
+              {loading ? <span className="icp-btn-loading">Validation…</span> : "Valider et continuer"}
             </Button>
           ) : apiRole === "DEPOSIT" && !prepValidated ? (
             <Button
@@ -665,20 +791,17 @@ export default function InvoiceCreatePage() {
                 }
               }}
             >
-              Valider préparation
+              {loading ? <span className="icp-btn-loading">Validation…</span> : "Valider et continuer"}
             </Button>
           ) : apiRole === "BALANCE" ? (
             <Button type="button" variant="primary" disabled={loading || !canSubmitPrep} onClick={() => void submitPreparedBalance()}>
-              {loading ? "Création…" : "Valider préparation et créer facture de solde"}
+              {loading ? <span className="icp-btn-loading">Validation…</span> : "Valider et continuer"}
             </Button>
           ) : (
             <Button type="button" variant="primary" disabled={loading || !canSubmitPrep} onClick={() => void submitDepositFromForm()}>
-              {loading ? "Création…" : "Créer la facture d'acompte"}
+              {loading ? <span className="icp-btn-loading">Validation…</span> : "Valider et continuer"}
             </Button>
           )}
-          <Button type="button" variant="ghost" onClick={() => navigate(-1)}>
-            Annuler
-          </Button>
         </div>
       </div>
     );

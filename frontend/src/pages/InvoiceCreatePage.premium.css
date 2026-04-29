@@ -1,0 +1,369 @@
+.icp-page {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 28px 40px 36px;
+}
+
+.icp-header {
+  margin-bottom: 20px;
+}
+
+.icp-step-badge {
+  display: inline-flex;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: rgba(148, 163, 184, 0.16);
+  color: var(--text-muted, #94a3b8);
+}
+
+.icp-title {
+  margin: 10px 0 6px;
+  font-size: 2rem;
+  line-height: 1.2;
+}
+
+.icp-subtitle {
+  margin: 0;
+  color: var(--text-muted, #94a3b8);
+  font-size: 14px;
+}
+
+.icp-workbench {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 24px;
+  align-items: start;
+}
+
+.icp-table-card,
+.icp-summary-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  background: #fff;
+  color: #111827;
+}
+
+.icp-table-wrap {
+  overflow-x: auto;
+}
+
+.icp-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0 4px;
+  min-width: 1100px;
+}
+
+.icp-table th,
+.icp-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #e5e7eb;
+  vertical-align: middle;
+  min-height: 56px;
+  background: #fff;
+}
+
+.icp-table th {
+  font-size: 12px;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  text-align: left;
+  font-weight: 600;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.icp-col-label {
+  width: 40%;
+  min-width: 360px;
+}
+
+.icp-cell-label {
+  min-width: 320px;
+}
+
+.icp-label-primary {
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.35;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.icp-label-secondary {
+  margin-top: 4px;
+  color: #6b7280;
+  font-size: 11px;
+  line-height: 1.35;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.icp-table tbody tr:hover {
+  background: #f9fafb;
+}
+
+.icp-table tbody tr {
+  transition: background-color 150ms ease;
+}
+
+.icp-table tbody tr td:first-child {
+  border-left: 2px solid transparent;
+}
+
+.icp-row-active td {
+  background: #f8fbff;
+}
+
+.icp-row-active td:first-child {
+  border-left-color: #93c5fd !important;
+}
+
+.icp-table th:nth-child(2),
+.icp-table td:nth-child(2) {
+  width: 80px;
+  min-width: 80px;
+  text-align: right;
+}
+
+.icp-table th:nth-child(3),
+.icp-table td:nth-child(3) {
+  width: 120px;
+  min-width: 120px;
+  text-align: right;
+}
+
+.icp-table th:nth-child(4),
+.icp-table td:nth-child(4) {
+  width: 100px;
+  min-width: 100px;
+  text-align: right;
+}
+
+.icp-table th:nth-child(5),
+.icp-table td:nth-child(5) {
+  width: 90px;
+  min-width: 90px;
+  text-align: right;
+}
+
+.icp-table th:nth-child(6),
+.icp-table td:nth-child(6) {
+  width: 140px;
+  min-width: 140px;
+  text-align: right;
+}
+
+.icp-table th:nth-child(7),
+.icp-table td:nth-child(7) {
+  width: 160px;
+  min-width: 160px;
+  text-align: right;
+}
+
+.icp-table th:nth-child(8),
+.icp-table td:nth-child(8) {
+  width: 84px;
+  min-width: 84px;
+  text-align: center;
+}
+
+.icp-input {
+  width: 100%;
+  min-width: 88px;
+  border: 1px solid #d1d5db;
+  border-radius: 7px;
+  background: #fff;
+  color: #111827;
+  height: 40px;
+  padding: 0 10px;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.icp-input::placeholder {
+  color: #cbd5e1;
+}
+
+.icp-input:focus {
+  border-color: #93c5fd;
+  box-shadow: 0 0 0 3px rgba(147, 197, 253, 0.25);
+}
+
+.icp-amount {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  white-space: nowrap;
+  text-align: right;
+}
+
+.icp-amount-strong {
+  font-weight: 800;
+}
+
+.icp-delete-btn {
+  width: 30px;
+  height: 30px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted, #94a3b8);
+  cursor: pointer;
+  border-radius: 8px;
+  transition: color 150ms ease, background-color 150ms ease;
+}
+
+.icp-delete-btn:hover {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.icp-summary-card {
+  position: sticky;
+  top: 16px;
+  padding: 22px;
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.06);
+}
+
+.icp-summary-title {
+  margin: 0 0 12px;
+  font-size: 14px;
+}
+
+.icp-kv {
+  margin: 0;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px 12px;
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+
+.icp-kv dt,
+.icp-kv dd {
+  margin: 0;
+}
+
+.icp-kv dd {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.icp-kv-strong {
+  font-weight: 700;
+}
+
+.icp-divider {
+  margin: 16px 0;
+  height: 1px;
+  background: #e5e7eb;
+}
+
+.icp-contract-line {
+  margin: 0;
+  font-size: 19px;
+  line-height: 1.25;
+  font-weight: 600;
+  padding: 10px 12px;
+  border: 1px solid #eef2f7;
+  border-radius: 10px;
+  background: #f9fafb;
+}
+
+.icp-lock-badge {
+  margin-top: 8px;
+  display: inline-flex;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  background: #e5e7eb;
+  color: #374151;
+}
+
+.icp-deposit-box {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border, rgba(148, 163, 184, 0.2));
+}
+
+.icp-field {
+  display: block;
+  margin-bottom: 12px;
+}
+
+.icp-field span {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 12px;
+  color: var(--text-muted, #94a3b8);
+}
+
+.icp-actions {
+  margin-top: 18px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.icp-actions .sn-btn {
+  min-height: 42px;
+  padding: 0 16px;
+}
+
+.icp-empty-state {
+  text-align: center !important;
+  color: #6b7280;
+  font-size: 13px;
+  padding: 18px 12px !important;
+}
+
+.icp-btn-loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.icp-btn-loading::before {
+  content: "";
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: rgba(255, 255, 255, 0.95);
+  border-radius: 999px;
+  animation: icp-spin 0.8s linear infinite;
+}
+
+@keyframes icp-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 1100px) {
+  .icp-workbench {
+    grid-template-columns: 1fr;
+  }
+
+  .icp-summary-card {
+    position: static;
+  }
+}
+
+@media (max-width: 860px) {
+  .icp-page {
+    padding: 20px 16px 24px;
+  }
+
+  .icp-title {
+    font-size: 1.6rem;
+  }
+}
