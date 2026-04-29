@@ -5302,6 +5302,10 @@ const DP2_BUSINESS_OBJECT_META = {
   arrow: { legendKey: "ANNOTATION_FLECHE", label: "Flèche libre", icon: "➤", defaultW: 120, defaultH: 50 }
 };
 
+Object.assign(DP2_BUSINESS_OBJECT_META.compteur, { defaultW: 24, defaultH: 24 });
+Object.assign(DP2_BUSINESS_OBJECT_META.disjoncteur, { defaultW: 20, defaultH: 20 });
+Object.assign(DP2_BUSINESS_OBJECT_META.batterie, { defaultW: 30, defaultH: 20 });
+
 const DP2_BUSINESS_OBJECT_TYPES_ORDER = [
   "compteur",
   "disjoncteur",
@@ -9761,10 +9765,14 @@ function dp2GetBusinessSelectionMetrics() {
 }
 
 /** Resize unique coin bas-droit (repère local non rotaté, comme avant multi-handles). */
-function dp2ApplyBusinessResizeFromLocal(inter, g, lx, ly) {
+function dp2BusinessMinSizeForType(type) {
+  return type === "compteur" || type === "disjoncteur" || type === "batterie" ? 6 : 12;
+}
+
+function dp2ApplyBusinessResizeFromLocal(inter, g, lx, ly, type) {
   const sx = inter.startX;
   const sy = inter.startY;
-  const minSize = 12;
+  const minSize = dp2BusinessMinSizeForType(type || inter?.type);
   g.x = sx;
   g.y = sy;
   g.width = Math.max(minSize, lx - sx);
@@ -10407,6 +10415,7 @@ function initDP2CanvasEvents() {
       window.DP2_STATE._businessGripReleaseAt = null;
       window.DP2_STATE.businessInteraction = {
         id: obj.id,
+        type: obj.type,
         part: hitBiz.part,
         resizeHandle: hitBiz.part === "resize" ? (hitBiz.handle || "br") : undefined,
         pointerId: e.pointerId,
@@ -11126,7 +11135,7 @@ function initDP2CanvasEvents() {
         }
       };
       const local = dp2BusinessWorldToLocal(tmpObj, coords.x, coords.y);
-      dp2ApplyBusinessResizeFromLocal(inter, g, local.x, local.y);
+      dp2ApplyBusinessResizeFromLocal(inter, g, local.x, local.y, obj.type);
       inter.hasMoved = true;
       dp2ScheduleBusinessDragRender();
       return;
@@ -14610,11 +14619,12 @@ function renderDP2BusinessObject(ctx, obj) {
     case "batterie": {
       // Règles : 1 info = 1 couleur ; forme simple ; aucun pictogramme
       const blue = "#2563eb";
-      const pad = Math.max(6, Math.min(12, Math.min(w, h) * 0.14));
+      const pad = Math.max(1.5, Math.min(4, Math.min(w, h) * 0.14));
+      const stroke = Math.max(0.9, Math.min(1.6, Math.min(w, h) * 0.09));
       ctx.setLineDash([]);
       ctx.strokeStyle = blue;
       ctx.fillStyle = blue;
-      ctx.lineWidth = 2;
+      ctx.lineWidth = stroke;
       ctx.beginPath();
       ctx.rect(x + pad, y + pad, Math.max(1, w - pad * 2), Math.max(1, h - pad * 2));
       ctx.fill();
@@ -14626,14 +14636,15 @@ function renderDP2BusinessObject(ctx, obj) {
     case "compteur": {
       // Règles : 1 info = 1 couleur ; forme simple ; aucun pictogramme
       const green = "#16a34a";
-      const pad = Math.max(6, Math.min(12, Math.min(w, h) * 0.14));
+      const pad = Math.max(1.5, Math.min(4, Math.min(w, h) * 0.14));
+      const stroke = Math.max(0.9, Math.min(1.6, Math.min(w, h) * 0.09));
       const size = Math.max(1, Math.min(w, h) - pad * 2); // carré dans le bbox
       const sx = -size / 2;
       const sy = -size / 2;
       ctx.setLineDash([]);
       ctx.strokeStyle = green;
       ctx.fillStyle = green;
-      ctx.lineWidth = 2;
+      ctx.lineWidth = stroke;
       ctx.beginPath();
       ctx.rect(sx, sy, size, size);
       ctx.fill();
@@ -14645,7 +14656,8 @@ function renderDP2BusinessObject(ctx, obj) {
     case "disjoncteur": {
       // Symbole métier volontairement sobre : petit carré rouge, lisible sur le plan et en PDF.
       const red = "#dc2626";
-      const pad = Math.max(2, Math.min(5, Math.min(w, h) * 0.16));
+      const pad = Math.max(1, Math.min(3, Math.min(w, h) * 0.16));
+      const stroke = Math.max(0.8, Math.min(1.4, Math.min(w, h) * 0.08));
       const size = Math.max(1, Math.min(w, h) - pad * 2);
       const sx = -size / 2;
       const sy = -size / 2;
@@ -14653,7 +14665,7 @@ function renderDP2BusinessObject(ctx, obj) {
       ctx.setLineDash([]);
       ctx.strokeStyle = red;
       ctx.fillStyle = red;
-      ctx.lineWidth = 1.6;
+      ctx.lineWidth = stroke;
       ctx.beginPath();
       ctx.rect(sx, sy, size, size);
       ctx.fill();
