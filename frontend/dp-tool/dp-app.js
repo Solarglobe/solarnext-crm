@@ -15140,9 +15140,11 @@ async function loadDp2OfficialCadastreWfsForPlan() {
     extent3857[3] + dy,
   ];
 
-  // WFS IGN : on demande en EPSG:4326 puis on projette en EPSG:3857.
-  const extent4326 = ol.proj.transformExtent(padded3857, "EPSG:3857", "EPSG:4326");
-  const [minLon, minLat, maxLon, maxLat] = extent4326;
+  // IMPORTANT:
+  // En WFS 2.0, EPSG:4326 peut impliquer un ordre d'axes lat/lon selon serveur.
+  // Pour éviter toute ambiguïté (cause de pertes de features selon zoom), on
+  // interroge le WFS directement en EPSG:3857 avec la BBOX de la vue.
+  const [minX, minY, maxX, maxY] = padded3857;
 
   const url = new URL(DP2_OFFICIAL_WFS_BASE_URL);
   url.searchParams.set("SERVICE", "WFS");
@@ -15150,10 +15152,10 @@ async function loadDp2OfficialCadastreWfsForPlan() {
   url.searchParams.set("REQUEST", "GetFeature");
   url.searchParams.set("TYPENAMES", DP2_OFFICIAL_CADASTRE_WFS_TYPENAME);
   url.searchParams.set("OUTPUTFORMAT", "application/json");
-  url.searchParams.set("SRSNAME", "EPSG:4326");
+  url.searchParams.set("SRSNAME", "EPSG:3857");
   url.searchParams.set(
     "BBOX",
-    `${minLon},${minLat},${maxLon},${maxLat}`
+    `${minX},${minY},${maxX},${maxY}`
   );
   // Paramètre de volume (évite les requêtes infinies)
   url.searchParams.set("COUNT", "20000");
@@ -15161,9 +15163,10 @@ async function loadDp2OfficialCadastreWfsForPlan() {
   console.log("[DP2 WFS] loading");
   console.log("[DP2 WFS] loading bbox", {
     bbox3857: padded3857,
-    bbox4326: extent4326,
+    srsName: "EPSG:3857",
     timeoutMs: DP2_OFFICIAL_WFS_TIMEOUT_MS,
   });
+  console.log("[DP2 WFS] request url", url.toString());
 
   const controller = new AbortController();
   const t = setTimeout(() => {
@@ -15182,12 +15185,20 @@ async function loadDp2OfficialCadastreWfsForPlan() {
 
     const json = await resp.json();
     // Déterminer la projection d’entrée si WFS la fournit.
-    let dataProjection = "EPSG:4326";
+    // Fallback aligné sur la requête envoyée.
+    let dataProjection = "EPSG:3857";
     const crsName = json?.crs?.properties?.name;
     if (typeof crsName === "string") {
-      const m = /EPSG(?::|::)?(\\d+)/i.exec(crsName);
+      const m = /EPSG(?::|::)?(\d+)/i.exec(crsName);
       if (m && m[1]) dataProjection = "EPSG:" + m[1];
     }
+
+    const rawFeatureCount = Array.isArray(json?.features) ? json.features.length : 0;
+    console.log("[DP2 WFS] response", {
+      rawFeatureCount,
+      dataProjection,
+      countParam: "20000",
+    });
 
     const format = new ol.format.GeoJSON();
     const features = format.readFeatures(json, {
@@ -16004,11 +16015,11 @@ async function initDP2() {
           return [
             new ol.style.Style({
               fill: new ol.style.Fill({
-                color: active ? "rgba(156, 163, 175, 0.22)" : "rgba(229, 231, 235, 0.18)"
+                color: active ? "rgba(30, 64, 175, 0.08)" : "rgba(30, 64, 175, 0.04)"
               }),
               stroke: new ol.style.Stroke({
-                color: active ? "#9CA3AF" : "#D1D5DB",
-                width: active ? 2.0 : 1.6
+                color: "#1e40af",
+                width: active ? 2.4 : 2
               })
             })
           ];
@@ -16017,8 +16028,8 @@ async function initDP2() {
           return [
             new ol.style.Style({
               stroke: new ol.style.Stroke({
-                color: active ? "#9CA3AF" : "#D1D5DB",
-                width: 2.0
+                color: "#1e40af",
+                width: active ? 2.4 : 2
               })
             })
           ];
