@@ -1,6 +1,7 @@
 /**
  * GET /api/internal/pdf-financial-invoice/:invoiceId?renderToken=...
- * Payload figé + totaux / paiements à jour pour le PDF facture (Playwright).
+ * Payload PDF facture : lignes + montants + métadonnées issues uniquement du snapshot officiel.
+ * Banque / adresse facturation : enrichissement live optionnel (RIB à jour, adresse client).
  */
 
 import { pool } from "../config/db.js";
@@ -10,11 +11,6 @@ import {
   mergeLiveBillingAddressIntoInvoicePdfPayload,
   mergeLiveOrganizationBankIntoInvoicePdfPayload,
 } from "../services/financialDocumentPdfPayload.service.js";
-
-function num(v) {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : 0;
-}
 
 export async function getInternalFinancialInvoicePdfPayload(req, res) {
   try {
@@ -52,37 +48,6 @@ export async function getInternalFinancialInvoicePdfPayload(req, res) {
     } catch (pe) {
       return res.status(400).json({ ok: false, error: pe.message || "Snapshot invalide" });
     }
-
-    const liveRes = await pool.query(
-      `SELECT status, total_ht, total_vat, total_ttc, total_paid, total_credited, amount_due, payment_terms, issue_date, due_date
-       FROM invoices WHERE id = $1 AND organization_id = $2 AND (archived_at IS NULL)`,
-      [invoiceId, decoded.organizationId]
-    );
-    const liveRow = liveRes.rows[0];
-    const liveTotals = liveRow
-      ? {
-          status: liveRow.status,
-          total_ht: num(liveRow.total_ht),
-          total_vat: num(liveRow.total_vat),
-          total_ttc: num(liveRow.total_ttc),
-          total_paid: num(liveRow.total_paid),
-          total_credited: num(liveRow.total_credited),
-          amount_due: num(liveRow.amount_due),
-          issue_date: liveRow.issue_date ?? null,
-          due_date: liveRow.due_date ?? null,
-          payment_terms: liveRow.payment_terms ?? null,
-        }
-      : null;
-
-    const payRes = await pool.query(
-      `SELECT payment_date, amount, payment_method, reference
-       FROM payments
-       WHERE invoice_id = $1 AND organization_id = $2
-         AND cancelled_at IS NULL
-         AND (status IS NULL OR status = 'RECORDED')
-       ORDER BY payment_date ASC, created_at ASC`,
-      [invoiceId, decoded.organizationId]
-    );
 
     const orgRes = await pool.query(
       `SELECT default_invoice_notes, default_invoice_due_days, iban, bic, bank_name FROM organizations WHERE id = $1`,
@@ -143,16 +108,13 @@ export async function getInternalFinancialInvoicePdfPayload(req, res) {
       ok: true,
       payload,
       organizationId: decoded.organizationId,
-      liveTotals,
-      payments: payRes.rows,
       defaultInvoiceNotes,
       defaultInvoiceDueDays,
-      /** Contrat documentaire assumé : lignes figées (snapshot) + état financier à jour (live). */
       documentContract: {
         lines_and_line_totals: "snapshot_at_issuance",
-        header_amounts_and_balance: "live_at_pdf_generation",
-        payments_list: "live_at_pdf_generation",
+        header_amounts_and_balance: "snapshot_at_issuance",
         issuer_bank_coordinates: "live_at_pdf_generation",
+        billing_address: "live_at_pdf_generation",
       },
     });
   } catch (e) {

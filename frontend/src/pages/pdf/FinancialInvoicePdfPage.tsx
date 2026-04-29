@@ -1,6 +1,6 @@
 /**
  * PDF Facture client — Playwright.
- * Lignes : snapshot d’émission. Totaux / solde / paiements : état live au moment de la génération (cf. section « Document mixte »).
+ * Rendu strictement fidèle au snapshot officiel (lignes + totaux + statuts/dates figés à l’émission).
  * URL : financialInvoiceId, renderToken
  */
 
@@ -9,7 +9,6 @@ import {
   buildInvoiceRecipientAddressLines,
   buildInvoiceRecipientContactLines,
   buildInvoiceRecipientIdentity,
-  formatDateFrLong,
   formatDateFrSlash,
   formatEurUnknown,
   formatVatRateDisplay,
@@ -23,26 +22,6 @@ import { getCrmApiBaseWithWindowFallback } from "@/config/crmApiBase";
 const API_BASE = getCrmApiBaseWithWindowFallback();
 
 type Status = "loading" | "error" | "ready";
-
-interface LiveTotals {
-  status?: string | null;
-  total_ht?: number;
-  total_vat?: number;
-  total_ttc?: number;
-  total_paid?: number;
-  total_credited?: number;
-  amount_due?: number;
-  issue_date?: string | null;
-  due_date?: string | null;
-  payment_terms?: string | null;
-}
-
-interface PaymentRow {
-  payment_date?: string | null;
-  amount?: unknown;
-  payment_method?: string | null;
-  reference?: string | null;
-}
 
 function getSearch() {
   if (typeof window === "undefined") return { financialInvoiceId: "", renderToken: "" };
@@ -85,8 +64,6 @@ export default function FinancialInvoicePdfPage() {
   const [errMsg, setErrMsg] = useState<string | null>(null);
   const [payload, setPayload] = useState<Record<string, unknown> | null>(null);
   const [organizationId, setOrganizationId] = useState<string | null>(null);
-  const [liveTotals, setLiveTotals] = useState<LiveTotals | null>(null);
-  const [payments, setPayments] = useState<PaymentRow[]>([]);
   const [defaultInvoiceNotes, setDefaultInvoiceNotes] = useState<string | null>(null);
   const [defaultInvoiceDueDays, setDefaultInvoiceDueDays] = useState<number>(30);
   const [logoOk, setLogoOk] = useState(false);
@@ -115,16 +92,12 @@ export default function FinancialInvoicePdfPage() {
           ok?: boolean;
           payload?: Record<string, unknown>;
           organizationId?: string;
-          liveTotals?: LiveTotals;
-          payments?: PaymentRow[];
           defaultInvoiceNotes?: string | null;
           defaultInvoiceDueDays?: number;
         }) => {
           if (data?.ok === true && data.payload) {
             setPayload(data.payload);
             setOrganizationId(data.organizationId ?? null);
-            setLiveTotals(data.liveTotals ?? null);
-            setPayments(Array.isArray(data.payments) ? data.payments : []);
             setDefaultInvoiceNotes(data.defaultInvoiceNotes ?? null);
             const d = data.defaultInvoiceDueDays;
             setDefaultInvoiceDueDays(d != null && Number.isFinite(Number(d)) ? Number(d) : 30);
@@ -188,21 +161,25 @@ export default function FinancialInvoicePdfPage() {
   const lines = Array.isArray(payload.lines) ? (payload.lines as Record<string, unknown>[]) : [];
   const snapTotals = (payload.totals || {}) as Record<string, unknown>;
   const currency = (payload.currency as string) || "EUR";
-  const live = liveTotals;
-  const totals = {
-    total_ht: live?.total_ht ?? Number(snapTotals.total_ht),
-    total_vat: live?.total_vat ?? Number(snapTotals.total_vat),
-    total_ttc: live?.total_ttc ?? Number(snapTotals.total_ttc),
-    total_paid: live?.total_paid ?? Number(snapTotals.total_paid),
-    total_credited: live?.total_credited ?? Number(snapTotals.total_credited),
-    amount_due: live?.amount_due ?? Number(snapTotals.amount_due),
+
+  const numSnap = (key: string): number => {
+    const v = snapTotals[key];
+    const n = Number(v);
+    return Number.isFinite(n) ? n : 0;
   };
-  const issueDate = live?.issue_date ?? (payload.issue_date as string | null);
+  const totals = {
+    total_ht: numSnap("total_ht"),
+    total_vat: numSnap("total_vat"),
+    total_ttc: numSnap("total_ttc"),
+    total_paid: numSnap("total_paid"),
+    total_credited: numSnap("total_credited"),
+    amount_due: numSnap("amount_due"),
+  };
+  const issueDate = payload.issue_date as string | null;
   const snapDue = payload.due_date as string | null | undefined;
-  const liveDue = live?.due_date ?? null;
-  const displayDueDate = resolveInvoiceDueDateForPdf(liveDue, snapDue, issueDate, defaultInvoiceDueDays);
-  const payTerms = live?.payment_terms ?? (payload.payment_terms as string | null);
-  const invStatus = live?.status ?? (payload.status as string | null);
+  const displayDueDate = resolveInvoiceDueDateForPdf(null, snapDue, issueDate, defaultInvoiceDueDays);
+  const payTerms = (payload.payment_terms as string | null) ?? null;
+  const invStatus = payload.status as string | null;
   const sourceQuote = payload.source_quote as Record<string, unknown> | undefined;
   const sourceQuoteSnapshot = payload.source_quote_snapshot as Record<string, unknown> | undefined;
   const contractualProjectAmount =
@@ -386,27 +363,6 @@ export default function FinancialInvoicePdfPage() {
         </div>
       </section>
 
-      {/* 6. Paiements */}
-      <section className="fi-no-break fi-section fi-section--payments">
-        <div className="fi-pay-panel">
-          <h3 className="fi-subtitle">Paiements enregistrés</h3>
-          {payments.length === 0 ? (
-            <p className="fi-pay-empty">Aucun paiement pour l&apos;instant.</p>
-          ) : (
-            payments.map((p, i) => (
-              <div key={i} className="fi-pay-row">
-                <span>
-                  {formatDateFrLong(p.payment_date)}
-                  {p.payment_method ? ` · ${p.payment_method}` : ""}
-                  {p.reference ? ` · ${p.reference}` : ""}
-                </span>
-                <span>{formatEurUnknown(p.amount)}</span>
-              </div>
-            ))
-          )}
-        </div>
-      </section>
-
       {payTerms ? (
         <div className="fi-no-break fi-section fi-terms">
           <h3 className="fi-subtitle">Conditions de règlement</h3>
@@ -430,9 +386,9 @@ export default function FinancialInvoicePdfPage() {
 
       <section className="fi-no-break fi-doc-contract" aria-label="Méthode documentaire">
         <p>
-          <strong>Document mixte (figé + à jour)</strong> : les lignes et les montants HT/TTC reproduisent la facture
-          telle qu&apos;émise. Les paiements listés, les avoirs imputés et le reste à payer reflètent l&apos;état
-          comptable au moment de la génération de ce PDF.
+          <strong>Document figé</strong> : lignes, montants et états financiers (y compris déjà réglé et reste à payer)
+          correspondent au snapshot officiel de la facture au moment de son émission ou de sa dernière régénération du
+          snapshot.
         </p>
       </section>
 
