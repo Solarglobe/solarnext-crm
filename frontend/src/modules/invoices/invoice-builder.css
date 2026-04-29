@@ -35,14 +35,19 @@
 
 .ib-workbench {
   display: grid;
-  grid-template-columns: 1fr minmax(260px, 300px);
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 300px);
   gap: 20px;
   align-items: start;
+  min-width: 0;
 }
 
-@media (max-width: 1100px) {
+@media (max-width: 1280px) {
   .ib-workbench {
     grid-template-columns: 1fr;
+  }
+
+  .ib-summary {
+    position: static;
   }
 }
 
@@ -53,6 +58,7 @@
 .ib-summary {
   position: sticky;
   top: 16px;
+  min-width: 0;
   padding: 16px;
   border-radius: 10px;
   border: 1px solid var(--border, rgba(255, 255, 255, 0.08));
@@ -202,10 +208,13 @@
   flex-wrap: wrap;
   gap: 12px;
   align-items: flex-end;
+  max-width: 1520px;
   margin-bottom: 12px;
+  margin-inline: auto;
   padding: 12px;
   border-radius: 8px;
   border: 1px solid var(--border, rgba(255, 255, 255, 0.06));
+  min-width: 0;
 }
 
 .ib-links-bar label {
@@ -223,7 +232,7 @@
 
 .ib-links-bar .ib-billing-combo {
   flex: 1 1 220px;
-  min-width: 220px;
+  min-width: min(220px, 100%);
   max-width: 420px;
 }
 
@@ -245,6 +254,8 @@
   gap: 16px;
   margin-bottom: 18px;
   max-width: min(1520px, 100%);
+  margin-inline: auto;
+  min-width: 0;
 }
 
 .ib-header-card {
@@ -447,9 +458,10 @@
 
 .ib-doc-origin-row {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
   gap: 16px;
   align-items: stretch;
+  min-width: 0;
 }
 
 .ib-doc-block {
@@ -626,10 +638,17 @@
 /* Tableau lignes facture */
 .ib-invoice-lines-wrap {
   margin-top: 8px;
+  width: 100%;
+  min-width: 0;
 }
 
 .ib-invoice-lines-table {
   min-width: 1080px;
+}
+
+.ib-lines-section {
+  min-width: 0;
+  overflow: hidden;
 }
 
 .ib-invoice-lines-table tbody tr:nth-child(even) {
@@ -717,11 +736,43 @@
   display: flex;
   gap: 8px;
   align-items: center;
+  min-width: 0;
 }
 
 .ib-billing-combo-input {
   flex: 1;
   min-width: 0;
+}
+
+@media (max-width: 720px) {
+  .ib-page {
+    padding-inline: 12px;
+  }
+
+  .ib-header-card,
+  .ib-situation-card,
+  .ib-doc-block,
+  .ib-origin-card,
+  .ib-notes-shell {
+    padding-inline: 14px;
+  }
+
+  .ib-links-bar {
+    padding: 10px;
+  }
+
+  .ib-links-bar .ib-billing-combo {
+    flex-basis: 100%;
+    max-width: none;
+  }
+
+  .ib-date-row {
+    grid-template-columns: 1fr;
+  }
+
+  .ib-invoice-lines-table {
+    min-width: 980px;
+  }
 }
 
 .ib-billing-combo-clear {

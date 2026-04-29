@@ -568,7 +568,7 @@ export default function InvoiceBuilderPage() {
   if (!state.header) return null;
 
   return (
-    <div className="qb-page">
+    <div className="qb-page ib-page">
       <InvoiceToolbar
         invoiceNumber={formatInvoiceNumberDisplay(state.header.invoice_number, state.header.status)}
         invoiceNumberTitle={
