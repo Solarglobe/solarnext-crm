@@ -22,7 +22,7 @@ if (!shouldRun) {
 }
 
 try {
-  execSync("npx playwright install chromium", {
+  execSync("npx playwright install chromium --with-deps", {
     stdio: "inherit",
     env: {
       ...process.env,

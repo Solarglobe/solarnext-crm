@@ -43,7 +43,7 @@ RUN apt-get update && apt-get install -y \
   && rm -rf /var/lib/apt/lists/*
 
 # Installe uniquement Chromium Playwright (pas Firefox/Webkit)
-RUN npm ci --omit=dev && npx playwright install chromium && npx playwright --version
+RUN npm ci --omit=dev && npx playwright install chromium --with-deps && npx playwright --version
 
 COPY . .
 
