@@ -15052,6 +15052,7 @@ let dp2MvtFeatureLogged = false;
 const DP2_OFFICIAL_WFS_BASE_URL = "https://data.geopf.fr/wfs";
 const DP2_OFFICIAL_CADASTRE_WFS_TYPENAME = "CADASTRALPARCELS.PARCELLAIRE_EXPRESS";
 const DP2_OFFICIAL_WFS_TIMEOUT_MS = 9000;
+const DP2_DIRECT_MVT_TEST_URL = "https://pci-vecteur.openstreetmap.fr/tiles/{z}/{x}/{y}.pbf";
 
 function dp2OfficialWfsParcelLabelText(feature) {
   const p = feature?.getProperties ? feature.getProperties() : {};
@@ -15112,6 +15113,18 @@ function dp2OfficialCadastreWfsParcelStyle(feature, resolution) {
       }),
     }),
   ];
+}
+
+function dp2DirectMvtTestStyle() {
+  return new ol.style.Style({
+    stroke: new ol.style.Stroke({
+      color: "red",
+      width: 2,
+    }),
+    fill: new ol.style.Fill({
+      color: "rgba(255,0,0,0.1)",
+    }),
+  });
 }
 
 async function loadDp2OfficialCadastreWfsForPlan() {
@@ -15964,6 +15977,8 @@ async function initDP2() {
     // --------------------------
     let dp2CadastreVectorTileSource = null;
     let dp2CadastreVectorTileLayer = null;
+    let dp2DirectMvtTestSource = null;
+    let dp2DirectMvtTestLayer = null;
     let dp2OfficialCadastreWfsSource = null;
     let dp2OfficialCadastreWfsLayer = null;
     try {
@@ -16005,6 +16020,38 @@ async function initDP2() {
       }
     } catch (e) {
       console.warn("[DP2] Fond vectoriel MVT indisponible :", e);
+    }
+
+    // --------------------------
+    // DP2 — TEST MVT direct (sans /api/mvt)
+    // --------------------------
+    try {
+      if (window.__DP2_USE_DIRECT_MVT_TEST__ == null) {
+        window.__DP2_USE_DIRECT_MVT_TEST__ = true;
+      }
+      if (ol?.source?.VectorTile && ol?.layer?.VectorTile && ol?.format?.MVT) {
+        dp2DirectMvtTestSource = new ol.source.VectorTile({
+          projection: "EPSG:3857",
+          format: new ol.format.MVT(),
+          url: DP2_DIRECT_MVT_TEST_URL,
+          maxZoom: 20,
+        });
+        dp2DirectMvtTestLayer = new ol.layer.VectorTile({
+          source: dp2DirectMvtTestSource,
+          style: dp2DirectMvtTestStyle,
+          zIndex: 10,
+          declutter: false,
+          visible: false,
+        });
+        map.addLayer(dp2DirectMvtTestLayer);
+      }
+      if (window.__DP2_USE_DIRECT_MVT_TEST__ === true) {
+        if (dp2DirectMvtTestLayer?.setVisible) dp2DirectMvtTestLayer.setVisible(true);
+        if (dp2CadastreVectorTileLayer?.setVisible) dp2CadastreVectorTileLayer.setVisible(false);
+        console.log("[DP2 TEST] using direct MVT source (pci-vecteur.openstreetmap.fr)");
+      }
+    } catch (e) {
+      console.warn("[DP2 TEST] direct MVT layer init failed:", e);
     }
 
     // --------------------------
@@ -16111,6 +16158,8 @@ async function initDP2() {
       planTileLayer: null,
       mvtSource: dp2CadastreVectorTileSource,
       mvtTileLayer: dp2CadastreVectorTileLayer,
+      directMvtTestSource: dp2DirectMvtTestSource,
+      directMvtTestLayer: dp2DirectMvtTestLayer,
       neighborParcelsSource: dp2NeighborParcelsSource,
       dp2OfficialCadastreWfsSource,
       dp2OfficialCadastreWfsLayer,
