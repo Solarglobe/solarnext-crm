@@ -204,6 +204,7 @@ export default function FinancialInvoicePdfPage() {
   const payTerms = live?.payment_terms ?? (payload.payment_terms as string | null);
   const invStatus = live?.status ?? (payload.status as string | null);
   const sourceQuote = payload.source_quote as Record<string, unknown> | undefined;
+  const invoiceNumberDisplay = payload.number != null && payload.number !== "" ? String(payload.number) : "—";
   const issuerAddress = (issuer.address as Record<string, unknown> | undefined) ?? {};
   const issuerDisplayName = String(
     issuer.display_name || issuer.legal_name || issuer.trade_name || ""
@@ -285,7 +286,7 @@ export default function FinancialInvoicePdfPage() {
         <div className="fi-meta-grid">
           <div className="fi-meta-field">
             <span className="fi-meta-k">N° de facture</span>
-            <span className="fi-meta-v">{payload.number != null && payload.number !== "" ? String(payload.number) : "—"}</span>
+            <span className="fi-meta-v">{invoiceNumberDisplay}</span>
           </div>
           <div className="fi-meta-field">
             <span className="fi-meta-k">Devise</span>
@@ -450,6 +451,13 @@ export default function FinancialInvoicePdfPage() {
 
       {/* 7. Mentions légales */}
       <LegalMentionsBlock />
+
+      <div className="fi-page-footer" aria-hidden="true">
+        <span>N° {invoiceNumberDisplay}</span>
+        <span>
+          Page <span className="fi-page-current" /> / <span className="fi-page-total" />
+        </span>
+      </div>
 
       <div id="pdf-ready" data-status={status === "ready" ? "ready" : "pending"} aria-hidden="true" />
     </div>

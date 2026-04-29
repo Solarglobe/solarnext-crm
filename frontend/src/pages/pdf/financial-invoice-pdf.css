@@ -26,6 +26,7 @@
   line-height: 1.45;
   color: var(--fi-ink);
   background: #fff;
+  padding-bottom: 16mm;
 }
 
 .fi-root *,
@@ -459,4 +460,25 @@
 
 .fi-error {
   color: #b91c1c;
+}
+
+.fi-page-footer {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 6mm;
+  display: flex;
+  justify-content: space-between;
+  padding: 0 15mm;
+  font-size: 8pt;
+  color: var(--fi-muted);
+  border-top: 1px solid var(--fi-line);
+}
+
+.fi-page-current::after {
+  content: counter(page);
+}
+
+.fi-page-total::after {
+  content: counter(pages);
 }

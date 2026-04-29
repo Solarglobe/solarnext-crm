@@ -683,6 +683,107 @@ export async function saveInvoicePdfDocument(pdfBuffer, organizationId, invoiceI
 }
 
 /**
+ * Trouve un PDF facture déjà copié sur une entité client/lead pour une facture donnée.
+ */
+export async function findExistingOwnerInvoicePdfForInvoice(organizationId, entityType, entityId, invoiceId) {
+  const r = await pool.query(
+    `SELECT *
+     FROM entity_documents
+     WHERE organization_id = $1
+       AND entity_type = $2
+       AND entity_id = $3
+       AND document_type = 'invoice_pdf'
+       AND (archived_at IS NULL)
+       AND COALESCE(metadata_json->>'invoice_id', '') = $4
+     ORDER BY created_at DESC
+     LIMIT 1`,
+    [organizationId, entityType, entityId, String(invoiceId)]
+  );
+  return r.rows[0] || null;
+}
+
+/**
+ * Copie le PDF facture sur entity_documents du client/lead (Documents > Factures).
+ * Déduplication par invoice_id via metadata_json.
+ */
+export async function saveInvoicePdfOnOwnerDocument(
+  pdfBuffer,
+  organizationId,
+  entityType,
+  entityId,
+  invoiceId,
+  userId,
+  opts = {}
+) {
+  if (!["client", "lead"].includes(String(entityType))) {
+    const err = new Error("entityType invalide pour saveInvoicePdfOnOwnerDocument");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  let fileName;
+  const preferred = opts.fileName && String(opts.fileName).trim();
+  if (preferred) {
+    const base = String(opts.fileName).trim();
+    fileName = /\.pdf$/i.test(base) ? base : `${base}.pdf`;
+  } else {
+    fileName = `facture-${invoiceId}.pdf`;
+  }
+
+  const existing = await findExistingOwnerInvoicePdfForInvoice(
+    organizationId,
+    entityType,
+    entityId,
+    invoiceId
+  );
+  if (existing?.storage_key) {
+    try {
+      await localStorageDelete(existing.storage_key);
+    } catch (_) {}
+    await pool.query(`DELETE FROM entity_documents WHERE id = $1 AND organization_id = $2`, [
+      existing.id,
+      organizationId,
+    ]);
+  }
+
+  const { storage_path } = await localStorageUpload(pdfBuffer, organizationId, entityType, entityId, fileName);
+  const metadataBase =
+    opts.metadata && typeof opts.metadata === "object" && !Array.isArray(opts.metadata) ? opts.metadata : {};
+  const metadata = { ...metadataBase, invoice_id: String(invoiceId) };
+  const bm = resolveSystemDocumentMetadata("invoice_pdf", {
+    numberForLabel: opts.invoiceNumber != null ? String(opts.invoiceNumber) : null,
+    displayName: opts.displayName,
+  });
+
+  const ins = await pool.query(
+    `INSERT INTO entity_documents
+     (organization_id, entity_type, entity_id, file_name, file_size, mime_type, storage_key, url, uploaded_by, document_type, metadata_json,
+      document_category, source_type, is_client_visible, display_name, description)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12, $13, $14, $15, $16)
+     RETURNING id, file_name, storage_key`,
+    [
+      organizationId,
+      entityType,
+      entityId,
+      fileName,
+      pdfBuffer.length,
+      "application/pdf",
+      storage_path,
+      "local",
+      userId || null,
+      "invoice_pdf",
+      JSON.stringify(metadata),
+      bm.document_category,
+      bm.source_type,
+      bm.is_client_visible,
+      bm.display_name,
+      bm.description,
+    ]
+  );
+  return ins.rows[0];
+}
+
+/**
  * Déduplication « un PDF devis par quote » sur le dossier lead (metadata_json.quote_id).
  */
 export async function findExistingLeadQuotePdfForQuote(organizationId, leadId, quoteId) {

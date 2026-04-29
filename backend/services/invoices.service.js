@@ -31,7 +31,11 @@ import {
   buildFinancialInvoiceRendererUrl,
   generatePdfFromFinancialInvoiceUrl,
 } from "./pdfGeneration.service.js";
-import { removeInvoicePdfDocuments, saveInvoicePdfDocument } from "./documents.service.js";
+import {
+  removeInvoicePdfDocuments,
+  saveInvoicePdfDocument,
+  saveInvoicePdfOnOwnerDocument,
+} from "./documents.service.js";
 import { ensureClientForQuote } from "./ensureClientForQuote.service.js";
 
 /** Tolérance TTC (€) : somme des factures liées au devis (hors annulées, brouillons inclus) ne doit pas dépasser total devis + cette marge. */
@@ -1226,7 +1230,7 @@ export async function duplicateInvoice(invoiceId, organizationId) {
  */
 export async function generateInvoicePdfRecord(invoiceId, organizationId, userId) {
   const r = await pool.query(
-    "SELECT invoice_number, document_snapshot_json, status FROM invoices WHERE id = $1 AND organization_id = $2 AND (archived_at IS NULL)",
+    "SELECT invoice_number, document_snapshot_json, status, client_id, lead_id FROM invoices WHERE id = $1 AND organization_id = $2 AND (archived_at IS NULL)",
     [invoiceId, organizationId]
   );
   if (r.rows.length === 0) {
@@ -1246,6 +1250,7 @@ export async function generateInvoicePdfRecord(invoiceId, organizationId, userId
   const snapshot = typeof snapRaw === "string" ? JSON.parse(snapRaw) : snapRaw;
   const pdfPayload = buildInvoicePdfPayloadFromSnapshot(snapshot);
   const num = row.invoice_number || invoiceId;
+  const fileName = `${String(num).trim()}.pdf`;
 
   const renderToken = createFinancialInvoiceRenderToken(invoiceId, organizationId);
   const rendererUrl = buildFinancialInvoiceRendererUrl(invoiceId, renderToken);
@@ -1253,14 +1258,38 @@ export async function generateInvoicePdfRecord(invoiceId, organizationId, userId
 
   await removeInvoicePdfDocuments(organizationId, invoiceId);
   const doc = await saveInvoicePdfDocument(pdfBuffer, organizationId, invoiceId, userId, {
-    fileName: `facture-${num}.pdf`,
+    fileName,
     invoiceNumber: row.invoice_number ?? null,
     metadata: {
       source: "document_snapshot_json",
       snapshot_checksum: pdfPayload.snapshot_checksum,
       business_document_type: "INVOICE_PDF",
+      linked_entity_type: "invoice",
+      linked_entity_id: String(invoiceId),
     },
   });
+
+  const ownerEntityType = row.client_id ? "client" : row.lead_id ? "lead" : null;
+  const ownerEntityId = row.client_id || row.lead_id || null;
+  if (ownerEntityType && ownerEntityId) {
+    await saveInvoicePdfOnOwnerDocument(
+      pdfBuffer,
+      organizationId,
+      ownerEntityType,
+      ownerEntityId,
+      invoiceId,
+      userId,
+      {
+        fileName,
+        invoiceNumber: row.invoice_number ?? null,
+        metadata: {
+          source: "invoice_pdf_mirror",
+          linked_entity_type: "invoice",
+          linked_entity_id: String(invoiceId),
+        },
+      }
+    );
+  }
 
   return {
     document: doc,
