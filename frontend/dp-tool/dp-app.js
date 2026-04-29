@@ -15994,8 +15994,6 @@ async function initDP2() {
           projection: "EPSG:3857",
           format: new ol.format.MVT(),
           url: mvtUrl,
-          tileGrid: mvtTileGrid,
-          maxZoom: WMTS_RESOLUTIONS.length - 1,
         });
 
         // Compteur pour capture : attend que les tuiles soient réellement chargées.
