@@ -16204,12 +16204,12 @@ async function initDP2() {
       style: function (feature) {
         const styles = [
           new ol.style.Style({
-            fill: new ol.style.Fill({ color: "rgba(209, 213, 219, 0.25)" }),
-            stroke: new ol.style.Stroke({ color: "#D1D5DB", width: 2.0 }),
+            fill: new ol.style.Fill({ color: "rgba(30, 64, 175, 0.08)" }),
+            stroke: new ol.style.Stroke({ color: "#1e40af", width: 2.0 }),
             image: new ol.style.Circle({
               radius: 4,
               fill: new ol.style.Fill({ color: "rgba(255,255,255,0)" }),
-              stroke: new ol.style.Stroke({ color: "#9CA3AF", width: 2 })
+              stroke: new ol.style.Stroke({ color: "#1e40af", width: 2 })
             })
           })
         ];
