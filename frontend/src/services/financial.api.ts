@@ -129,7 +129,9 @@ export interface QuoteListRow {
   quote_number: string;
   status: string;
   total_ht?: number | string;
+  total_vat?: number | string;
   total_ttc?: number | string;
+  document_snapshot_json?: Record<string, unknown> | string | null;
   created_at?: string;
   updated_at?: string;
   valid_until?: string | null;

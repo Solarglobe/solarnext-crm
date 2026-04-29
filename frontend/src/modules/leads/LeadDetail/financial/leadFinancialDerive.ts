@@ -2,7 +2,7 @@
  * Dérivés purement front pour le cockpit Financier (lead) — pas d’appel API supplémentaire.
  */
 
-import type { Quote } from "../../../../services/quotes.service";
+import { quoteDisplayTotals, type Quote } from "../../../../services/quotes.service";
 import type { InvoiceListRow } from "../../../../services/financial.api";
 import { formatQuoteStatusFr } from "../../../finance/financialLabels";
 import { formatQuoteNumberDisplay } from "../../../finance/documentDisplay";
@@ -24,7 +24,7 @@ export interface FinancialKpiDerived {
 export function deriveFinancialKpi(quotes: Quote[], invoices: InvoiceListRow[]): FinancialKpiDerived {
   const quotesCount = quotes.length;
   const accepted = quotes.filter((q) => String(q.status).toUpperCase() === "ACCEPTED");
-  const toInvoiceTtc = accepted.reduce((s, q) => s + num(q.total_ttc), 0);
+  const toInvoiceTtc = accepted.reduce((s, q) => s + quoteDisplayTotals(q).total_ttc, 0);
 
   const openInv = invoices.filter((inv) => {
     const st = String(inv.status).toUpperCase();

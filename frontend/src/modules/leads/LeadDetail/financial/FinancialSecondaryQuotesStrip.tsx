@@ -1,6 +1,6 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import type { Quote } from "../../../../services/quotes.service";
+import { quoteDisplayTotals, type Quote } from "../../../../services/quotes.service";
 import { QuoteStatusBadge } from "./financialStatusBadges";
 import { formatQuoteNumberDisplay } from "../../../finance/documentDisplay";
 
@@ -33,7 +33,7 @@ export default function FinancialSecondaryQuotesStrip({ quotes, excludeId, loadi
             <div className="fin-secondary-quote-main">
               <span className="fin-mono">{formatQuoteNumberDisplay(q.quote_number, q.status)}</span>
               <QuoteStatusBadge status={q.status} />
-              <span className="fin-secondary-ttc">{eur(q.total_ttc)}</span>
+              <span className="fin-secondary-ttc">{eur(quoteDisplayTotals(q).total_ttc)}</span>
             </div>
             <button type="button" className="fin-link-btn" onClick={() => navigate(`/quotes/${q.id}`)}>
               Ouvrir

@@ -618,7 +618,9 @@ export async function buildClientPortalPayload(db, ctx) {
   }
 
   const quotesRes = await db.query(
-    `SELECT id, quote_number, status, total_ttc, currency, created_at, sent_at, valid_until
+    `SELECT id, quote_number, status,
+            COALESCE(NULLIF(document_snapshot_json->'totals'->>'total_ttc', '')::numeric, total_ttc) AS total_ttc,
+            currency, created_at, sent_at, valid_until
      FROM quotes
      WHERE lead_id = $1 AND organization_id = $2 AND (archived_at IS NULL)
      ORDER BY created_at DESC`,

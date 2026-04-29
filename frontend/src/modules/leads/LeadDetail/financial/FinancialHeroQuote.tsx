@@ -1,6 +1,6 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import type { Quote } from "../../../../services/quotes.service";
+import { quoteDisplayTotals, type Quote } from "../../../../services/quotes.service";
 import type { Study } from "../../../../services/studies.service";
 import { apiFetch, getAuthToken } from "../../../../services/api";
 import { Button } from "../../../../components/ui/Button";
@@ -116,6 +116,7 @@ export default function FinancialHeroQuote({
   const sl = studyLabel(primary.study_id);
   const pdfAllowed = canOfferOfficialQuotePdfFromListRow(primary);
   const hasSignedPdf = Boolean(primary.has_signed_pdf);
+  const primaryTotals = quoteDisplayTotals(primary);
 
   const downloadSignedPdfFromDetail = async () => {
     if (!getAuthToken()) throw new Error("Session requise");
@@ -156,7 +157,7 @@ export default function FinancialHeroQuote({
           </div>
           <div className="fin-hero-amount-block">
             <span className="fin-hero-amount-label">Montant TTC</span>
-            <span className="fin-hero-amount">{eur(primary.total_ttc)}</span>
+            <span className="fin-hero-amount">{eur(primaryTotals.total_ttc)}</span>
           </div>
         </div>
         <dl className="fin-hero-meta">

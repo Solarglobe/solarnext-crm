@@ -13,6 +13,7 @@ import {
   type InvoiceListRow,
   type QuoteListRow,
 } from "../services/financial.api";
+import { quoteDisplayTotals } from "../services/quotes.service";
 import { formatInvoiceNumberDisplay } from "../modules/finance/documentDisplay";
 import { InvoiceStatusBadge } from "../modules/leads/LeadDetail/financial/financialStatusBadges";
 import "../modules/quotes/quote-builder.css";
@@ -632,7 +633,7 @@ export default function InvoicesPage() {
                       {q.quote_number || q.id.slice(0, 8)}
                     </span>
                     <span style={{ color: "var(--text-muted)", fontSize: 13 }}>{formatQuoteContact(q)}</span>
-                    <span style={{ marginLeft: "auto", fontSize: 12 }}>{eur(q.total_ttc)}</span>
+                    <span style={{ marginLeft: "auto", fontSize: 12 }}>{eur(quoteDisplayTotals(q).total_ttc)}</span>
                     {blocked ? (
                       <span className="fin-saas-quote-ac-row__hint" style={{ flexBasis: "100%", fontSize: 11 }}>
                         {reason}

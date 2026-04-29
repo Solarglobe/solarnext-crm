@@ -178,6 +178,9 @@ export async function listQuotes(organizationId, query = {}) {
 
   let sql = `
     SELECT q.*, c.company_name, c.first_name, c.last_name,
+           COALESCE(NULLIF(q.document_snapshot_json->'totals'->>'total_ht', '')::numeric, q.total_ht) AS total_ht,
+           COALESCE(NULLIF(q.document_snapshot_json->'totals'->>'total_vat', '')::numeric, q.total_vat) AS total_vat,
+           COALESCE(NULLIF(q.document_snapshot_json->'totals'->>'total_ttc', '')::numeric, q.total_ttc) AS total_ttc,
            COALESCE(
              NULLIF(TRIM(c.company_name), ''),
              NULLIF(TRIM(CONCAT_WS(' ', c.first_name, c.last_name)), '')
@@ -263,6 +266,22 @@ function parseOfficialQuoteSnapshotFromRow(quoteRow) {
     }
   }
   return raw;
+}
+
+function applyOfficialQuoteSnapshotTotals(quoteRow) {
+  const snapshot = parseOfficialQuoteSnapshotFromRow(quoteRow);
+  const totals = snapshot?.totals;
+  if (!totals || typeof totals !== "object") return quoteRow;
+  const totalHt = Number(totals.total_ht);
+  const totalVat = Number(totals.total_vat);
+  const totalTtc = Number(totals.total_ttc);
+  if (!Number.isFinite(totalHt) || !Number.isFinite(totalVat) || !Number.isFinite(totalTtc)) {
+    return quoteRow;
+  }
+  quoteRow.total_ht = totalHt;
+  quoteRow.total_vat = totalVat;
+  quoteRow.total_ttc = totalTtc;
+  return quoteRow;
 }
 
 export async function getQuoteDocumentViewModel(quoteId, organizationId) {
@@ -848,7 +867,7 @@ export async function getQuoteById(quoteId, organizationId) {
   );
   if (quoteRes.rows.length === 0) return null;
 
-  const quote = quoteRes.rows[0];
+  const quote = applyOfficialQuoteSnapshotTotals(quoteRes.rows[0]);
   assertOrgOwnership(quote.organization_id, organizationId);
   if (!quote.client_id && quote.metadata_json?.customer_snapshot) {
     const cs = quote.metadata_json.customer_snapshot;

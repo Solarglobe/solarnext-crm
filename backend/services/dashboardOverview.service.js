@@ -56,6 +56,7 @@ const LEAD_PERIOD_WHERE = `
 
 /** Jointure quote → lead pour filtres commercial / source */
 const QUOTE_LEAD_JOIN = `LEFT JOIN leads lq ON lq.id = q.lead_id`;
+const QUOTE_TOTAL_TTC_SQL = `COALESCE(NULLIF(q.document_snapshot_json->'totals'->>'total_ttc', '')::numeric, q.total_ttc)`;
 const QUOTE_FILTERS = `
   AND ($4::uuid IS NULL OR lq.assigned_user_id = $4)
   AND ($5::uuid IS NULL OR lq.source_id = $5)`;
@@ -195,7 +196,7 @@ export async function buildDashboardOverview(input) {
   const revenue_signed_accepted_in_period = num(
     (
       await pool.query(
-        `SELECT COALESCE(SUM(q.total_ttc), 0)::numeric AS s FROM quotes q ${QUOTE_LEAD_JOIN}
+        `SELECT COALESCE(SUM(${QUOTE_TOTAL_TTC_SQL}), 0)::numeric AS s FROM quotes q ${QUOTE_LEAD_JOIN}
          WHERE q.organization_id = $1 AND q.archived_at IS NULL
            AND q.status = 'ACCEPTED'
            AND q.accepted_at >= $2::timestamptz AND q.accepted_at <= $3::timestamptz
@@ -208,7 +209,7 @@ export async function buildDashboardOverview(input) {
   const revenue_signed_created_in_period = num(
     (
       await pool.query(
-        `SELECT COALESCE(SUM(q.total_ttc), 0)::numeric AS s FROM quotes q ${QUOTE_LEAD_JOIN}
+        `SELECT COALESCE(SUM(${QUOTE_TOTAL_TTC_SQL}), 0)::numeric AS s FROM quotes q ${QUOTE_LEAD_JOIN}
          WHERE q.organization_id = $1 AND q.archived_at IS NULL
            AND q.status = 'ACCEPTED'
            AND q.created_at >= $2::timestamptz AND q.created_at <= $3::timestamptz
@@ -412,10 +413,10 @@ ${INVOICE_LEAD_JOINS}
        COUNT(DISTINCT l.id)::int AS leads_created,
        COUNT(DISTINCT q.id)::int AS quotes_n,
        COUNT(DISTINCT q.id) FILTER (WHERE q.status = 'ACCEPTED')::int AS quotes_signed_n,
-       COALESCE(SUM(q.total_ttc) FILTER (
+       COALESCE(SUM(${QUOTE_TOTAL_TTC_SQL}) FILTER (
          WHERE q.status = 'ACCEPTED' AND q.accepted_at >= $2::timestamptz AND q.accepted_at <= $3::timestamptz
        ), 0)::numeric AS revenue_signed,
-       AVG(q.total_ttc) FILTER (
+       AVG(${QUOTE_TOTAL_TTC_SQL}) FILTER (
          WHERE q.status = 'ACCEPTED' AND q.accepted_at >= $2::timestamptz AND q.accepted_at <= $3::timestamptz
        )::numeric AS avg_quote,
        AVG(EXTRACT(EPOCH FROM (q.accepted_at - q.created_at)) / 86400.0) FILTER (
@@ -484,7 +485,7 @@ ${INVOICE_LEAD_JOINS}
        COUNT(DISTINCT q.id) FILTER (
          WHERE q.status = 'ACCEPTED' AND q.accepted_at >= $2::timestamptz AND q.accepted_at <= $3::timestamptz
        )::int AS quotes_signed_in_period,
-       COALESCE(SUM(q.total_ttc) FILTER (
+        COALESCE(SUM(${QUOTE_TOTAL_TTC_SQL}) FILTER (
          WHERE q.status = 'ACCEPTED' AND q.accepted_at >= $2::timestamptz AND q.accepted_at <= $3::timestamptz
        ), 0)::numeric AS revenue_signed
      FROM leads l
@@ -724,9 +725,9 @@ ${INVOICE_INV_LEAD_JOINS}
   const fq = (
     await pool.query(
       `SELECT
-         COALESCE(SUM(q.total_ttc) FILTER (WHERE q.status IN ('READY_TO_SEND', 'SENT')), 0)::numeric AS pipe,
-         COALESCE(SUM(q.total_ttc) FILTER (WHERE q.status = 'READY_TO_SEND'), 0)::numeric * 0.5
-         + COALESCE(SUM(q.total_ttc) FILTER (WHERE q.status = 'SENT'), 0)::numeric * 0.65 AS weighted
+         COALESCE(SUM(${QUOTE_TOTAL_TTC_SQL}) FILTER (WHERE q.status IN ('READY_TO_SEND', 'SENT')), 0)::numeric AS pipe,
+         COALESCE(SUM(${QUOTE_TOTAL_TTC_SQL}) FILTER (WHERE q.status = 'READY_TO_SEND'), 0)::numeric * 0.5
+         + COALESCE(SUM(${QUOTE_TOTAL_TTC_SQL}) FILTER (WHERE q.status = 'SENT'), 0)::numeric * 0.65 AS weighted
        FROM quotes q ${QUOTE_LEAD_JOIN}
        WHERE q.organization_id = $1 AND q.archived_at IS NULL
          AND ($2::uuid IS NULL OR lq.assigned_user_id = $2)

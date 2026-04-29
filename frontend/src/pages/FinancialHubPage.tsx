@@ -7,6 +7,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "../components/ui/Button";
 import { fetchInvoicesList, fetchQuotesList, type InvoiceListRow, type QuoteListRow } from "../services/financial.api";
+import { quoteDisplayTotals } from "../services/quotes.service";
 import { formatInvoiceStatusFr, formatQuoteStatusFr } from "../modules/finance/financialLabels";
 import { formatInvoiceNumberDisplay, formatQuoteNumberDisplay } from "../modules/finance/documentDisplay";
 import "../modules/leads/LeadDetail/financial/financial-tab.css";
@@ -145,7 +146,7 @@ export default function FinancialHubPage() {
     const invDraft = invoiceRows.filter((inv) => normInvStatus(inv.status) === "DRAFT");
     const invEmitted = invoiceRows.filter(isInvoiceEmitted);
     const invOverdue = invoiceRows.filter((inv) => isInvoiceOverdue(inv));
-    const sentAmountTtc = quoteSent.reduce((acc, q) => acc + toAmount(q.total_ttc), 0);
+    const sentAmountTtc = quoteSent.reduce((acc, q) => acc + quoteDisplayTotals(q).total_ttc, 0);
     const billedTtc = invEmitted.reduce((acc, inv) => acc + toAmount(inv.total_ttc), 0);
     const collected = invEmitted.reduce((acc, inv) => acc + toAmount(inv.total_paid), 0);
     const remainingDue = invEmitted.reduce((acc, inv) => acc + toAmount(inv.amount_due), 0);
@@ -329,7 +330,7 @@ export default function FinancialHubPage() {
                 </div>
                 <div className="fin-doc-row-amount">
                   <span className="fin-doc-row-meta-label">Montant TTC</span>
-                  <span className="fin-doc-row-amount-value">{eur(q.total_ttc)}</span>
+                  <span className="fin-doc-row-amount-value">{eur(quoteDisplayTotals(q).total_ttc)}</span>
                 </div>
                 <div className="fin-doc-row-status">
                   <span className={`fin-badge fin-badge--${quoteStatusTone(q.status)}`}>{formatQuoteStatusFr(q.status)}</span>

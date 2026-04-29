@@ -12,6 +12,7 @@ import {
   postGenerateQuotePdf,
   type QuoteListRow,
 } from "../services/financial.api";
+import { quoteDisplayTotals } from "../services/quotes.service";
 import { formatQuoteNumberDisplay } from "../modules/finance/documentDisplay";
 import { canOfferOfficialQuotePdfFromListRow } from "../modules/quotes/quoteWorkflow";
 import { QuoteStatusBadge } from "../modules/leads/LeadDetail/financial/financialStatusBadges";
@@ -480,7 +481,7 @@ export default function QuotesList() {
                 <tr key={r.id}>
                   <td className="qb-mono">{formatQuoteNumberDisplay(r.quote_number, r.status)}</td>
                   <td>{formatQuoteContact(r)}</td>
-                  <td className="qb-num">{eur(r.total_ttc)}</td>
+                  <td className="qb-num">{eur(quoteDisplayTotals(r).total_ttc)}</td>
                   <td>
                     <QuoteStatusBadge status={r.status} />
                   </td>

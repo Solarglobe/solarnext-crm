@@ -127,7 +127,11 @@ export async function getInvoiceDetail(invoiceId, organizationId) {
 
   let quote = null;
   if (invoice.quote_id) {
-    const q = await pool.query(`SELECT id, quote_number, status, total_ht, total_vat, total_ttc, valid_until, currency FROM quotes WHERE id = $1 AND organization_id = $2`, [
+    const q = await pool.query(`SELECT id, quote_number, status,
+      COALESCE(NULLIF(document_snapshot_json->'totals'->>'total_ht', '')::numeric, total_ht) AS total_ht,
+      COALESCE(NULLIF(document_snapshot_json->'totals'->>'total_vat', '')::numeric, total_vat) AS total_vat,
+      COALESCE(NULLIF(document_snapshot_json->'totals'->>'total_ttc', '')::numeric, total_ttc) AS total_ttc,
+      valid_until, currency FROM quotes WHERE id = $1 AND organization_id = $2`, [
       invoice.quote_id,
       organizationId,
     ]);
@@ -619,6 +623,42 @@ async function recomputeQuoteTotalsFromLines(client, quoteId, organizationId) {
   return { total_ht, total_vat, total_ttc };
 }
 
+function parseOfficialQuoteTotals(quote) {
+  const raw = quote?.document_snapshot_json;
+  if (raw == null) return null;
+  let snapshot = raw;
+  if (typeof raw === "string") {
+    const t = raw.trim();
+    if (!t || t === "{}") return null;
+    try {
+      snapshot = JSON.parse(t);
+    } catch {
+      return null;
+    }
+  }
+  const totals = snapshot?.totals;
+  if (!totals || typeof totals !== "object") return null;
+  const rawHt = Number(totals.total_ht);
+  const rawVat = Number(totals.total_vat);
+  const rawTtc = Number(totals.total_ttc);
+  if (!Number.isFinite(rawHt) || !Number.isFinite(rawVat) || !Number.isFinite(rawTtc)) {
+    return null;
+  }
+  const total_ht = roundMoney2(rawHt);
+  const total_vat = roundMoney2(rawVat);
+  const total_ttc = roundMoney2(rawTtc);
+  return { total_ht, total_vat, total_ttc };
+}
+
+function applyOfficialQuoteTotals(quote) {
+  const totals = parseOfficialQuoteTotals(quote);
+  if (!totals) return false;
+  quote.total_ht = totals.total_ht;
+  quote.total_vat = totals.total_vat;
+  quote.total_ttc = totals.total_ttc;
+  return true;
+}
+
 /**
  * Plafond TTC des factures liées au devis (hors annulées, brouillons inclus).
  * @param {import("pg").PoolClient} client
@@ -828,10 +868,13 @@ export async function getQuoteInvoiceBillingContext(quoteId, organizationId) {
   );
   if (qres.rows.length === 0) return null;
   let quote = qres.rows[0];
-  const recomputed = await recomputeQuoteTotalsFromLines(pool, quoteId, organizationId);
-  quote.total_ht = recomputed.total_ht;
-  quote.total_vat = recomputed.total_vat;
-  quote.total_ttc = recomputed.total_ttc;
+  const hasOfficialTotals = applyOfficialQuoteTotals(quote);
+  if (!hasOfficialTotals) {
+    const recomputed = await recomputeQuoteTotalsFromLines(pool, quoteId, organizationId);
+    quote.total_ht = recomputed.total_ht;
+    quote.total_vat = recomputed.total_vat;
+    quote.total_ttc = recomputed.total_ttc;
+  }
   const quoteStatus = String(quote.status || "").toUpperCase();
   if (!quote.client_id && quote.lead_id && quoteStatus === "ACCEPTED") {
     try {
@@ -849,6 +892,7 @@ export async function getQuoteInvoiceBillingContext(quoteId, organizationId) {
         [quoteId, organizationId]
       );
       quote = qres.rows[0] ?? quote;
+      applyOfficialQuoteTotals(quote);
     } catch (e) {
       console.warn("[invoices] billing context client resolution failed", {
         quote_id: quoteId,
