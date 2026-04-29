@@ -457,7 +457,7 @@ export default function InvoiceCreatePage() {
     return (
       <div className="icp-page">
         <div className="icp-header">
-          <div className="icp-step-badge">Etape 1 : Preparation</div>
+          <div className="icp-step-badge">Étape 1 · Préparation</div>
           <h1 className="icp-title">Préparation de la facture</h1>
           <p className="icp-subtitle">
             Modifiez les lignes du devis avant validation. Le devis original ne sera jamais modifié.
@@ -467,8 +467,8 @@ export default function InvoiceCreatePage() {
           <p className="qb-muted">Chargement de la préparation…</p>
         ) : (
           <div className="icp-workbench">
-            <section className="icp-table-card">
-              <div className="icp-table-wrap">
+            <section className="icp-table-card" aria-label="Lignes du devis">
+              <div className="icp-table-wrap" data-scroll-region="invoice-prep-lines">
                 <table className="icp-table">
                   <thead>
                     <tr>
