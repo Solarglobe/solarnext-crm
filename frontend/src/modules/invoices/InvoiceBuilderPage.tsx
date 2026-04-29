@@ -51,6 +51,7 @@ import "./invoice-financial.css";
 import { formatInvoiceNumberDisplay } from "../finance/documentDisplay";
 import { getCrmApiBase } from "@/config/crmApiBase";
 import { openAuthenticatedDocumentInNewTab } from "@/utils/documentDownload";
+import { showCrmInlineToast } from "../../components/ui/crmInlineToast";
 
 const API_BASE = getCrmApiBase();
 
@@ -109,6 +110,7 @@ export default function InvoiceBuilderPage() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const saveSuccessTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [catalogOpen, setCatalogOpen] = useState(false);
   const [catalogItems, setCatalogItems] = useState<QuoteCatalogItem[]>([]);
@@ -362,16 +364,19 @@ export default function InvoiceBuilderPage() {
   };
 
   const genPdf = async () => {
-    if (!id) return;
+    if (!id || isGeneratingPdf) return;
+    setIsGeneratingPdf(true);
     try {
       const data = await postGenerateInvoicePdf(id);
       await load();
       if (data.downloadUrl) {
         await openAuthenticatedDocumentInNewTab(data.downloadUrl);
       }
-      window.alert("PDF facture généré. Téléchargement ouvert dans un nouvel onglet si votre navigateur l’autorise.");
+      showCrmInlineToast("PDF généré avec succès", "success");
     } catch (e) {
-      window.alert(e instanceof Error ? e.message : "Erreur PDF");
+      showCrmInlineToast(e instanceof Error ? e.message : "Erreur lors de la génération du document", "error");
+    } finally {
+      setIsGeneratingPdf(false);
     }
   };
 
@@ -546,9 +551,38 @@ export default function InvoiceBuilderPage() {
         onSave={() => void save()}
         onDuplicate={() => void duplicate()}
         onPdf={() => void genPdf()}
+        pdfBusy={isGeneratingPdf}
         onMarkIssued={() => void markInvoiceIssued()}
         onDelete={() => void removeInvoice()}
       />
+
+      {isGeneratingPdf ? (
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(18,16,24,0.34)",
+            zIndex: 1200,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <div
+            style={{
+              background: "#fff",
+              borderRadius: 12,
+              padding: "16px 20px",
+              boxShadow: "0 12px 40px rgba(0,0,0,0.18)",
+              fontWeight: 600,
+            }}
+          >
+            ⏳ Génération du document en cours...
+          </div>
+        </div>
+      ) : null}
 
       {error ? <p className="qb-error-inline">{error}</p> : null}
 

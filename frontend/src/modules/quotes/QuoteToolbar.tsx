@@ -97,7 +97,7 @@ export default function QuoteToolbar({
           title={pdfNeedsSave ? pdfSaveFirstHint || undefined : undefined}
           onClick={onPdf}
         >
-          {pdfBusy ? "PDF…" : "PDF"}
+          {pdfBusy ? "⏳ Génération en cours..." : "PDF"}
         </Button>
         <Button
           type="button"

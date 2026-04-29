@@ -64,7 +64,9 @@ import { showCrmInlineToast } from "../../components/ui/crmInlineToast";
 import type { MailComposerInitialPrefill } from "../../pages/mail/MailComposer";
 import { useSuperAdminReadOnly } from "../../contexts/OrganizationContext";
 import { getCrmApiBase } from "@/config/crmApiBase";
-import { assertDocumentDownloadOk, DOCUMENT_DOWNLOAD_UNAVAILABLE } from "../../utils/documentDownload";
+import {
+  openAuthenticatedDocumentInNewTab,
+} from "../../utils/documentDownload";
 import "./quote-builder.css";
 
 const API_BASE = getCrmApiBase();
@@ -307,14 +309,9 @@ export default function QuoteBuilderPage() {
     if (!getAuthToken()) return;
     setDocBlobBusyId(doc.id);
     try {
-      const res = await apiFetch(`${API_BASE}/api/documents/${encodeURIComponent(doc.id)}/download`);
-      assertDocumentDownloadOk(res, doc.id);
-      const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
-      window.open(url, "_blank", "noopener,noreferrer");
-      window.setTimeout(() => window.URL.revokeObjectURL(url), 60000);
+      await openAuthenticatedDocumentInNewTab(`/api/documents/${encodeURIComponent(doc.id)}/download`);
     } catch (e) {
-      window.alert(e instanceof Error ? e.message : DOCUMENT_DOWNLOAD_UNAVAILABLE);
+      window.alert(e instanceof Error ? e.message : "Document indisponible");
     } finally {
       setDocBlobBusyId(null);
     }
@@ -881,18 +878,11 @@ export default function QuoteBuilderPage() {
         downloadUrl?: string;
         document?: { id?: string; file_name?: string };
       };
-      const docId =
-        data.document?.id ||
-        (data.downloadUrl && /\/documents\/([^/]+)\/download/.exec(data.downloadUrl)?.[1]) ||
-        null;
       await load();
-      if (docId) {
-        await openQuoteDocument({
-          id: docId,
-          file_name: data.document?.file_name || "devis.pdf",
-          created_at: new Date().toISOString(),
-        });
+      if (data.downloadUrl) {
+        await openAuthenticatedDocumentInNewTab(data.downloadUrl);
       }
+      showCrmInlineToast("PDF généré avec succès", "success");
     };
 
     setPdfBusy(true);
@@ -947,7 +937,7 @@ export default function QuoteBuilderPage() {
 
       await postPdfAndOpen();
     } catch (e) {
-      window.alert(e instanceof Error ? e.message : "Erreur PDF");
+      showCrmInlineToast(e instanceof Error ? e.message : "❌ Erreur lors de la génération du document", "error");
     } finally {
       setPdfBusy(false);
     }
@@ -1114,6 +1104,33 @@ export default function QuoteBuilderPage() {
         showMarkRejected={stUpper === "SENT"}
         showMarkCancelled={stUpper === "DRAFT" || stUpper === "READY_TO_SEND" || stUpper === "SENT"}
       />
+      {pdfBusy ? (
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(18,16,24,0.34)",
+            zIndex: 1200,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <div
+            style={{
+              background: "#fff",
+              borderRadius: 12,
+              padding: "16px 20px",
+              boxShadow: "0 12px 40px rgba(0,0,0,0.18)",
+              fontWeight: 600,
+            }}
+          >
+            ⏳ Génération du document en cours...
+          </div>
+        </div>
+      ) : null}
 
       <QuoteWorkflowPanel
         backendStatus={state.header.status}

@@ -14,6 +14,7 @@ import StudyCalcTracePanel from "../../components/study/StudyCalcTracePanel";
 import type { StudyVersionDataJson } from "../../services/studies.service";
 import { useSuperAdminReadOnly } from "../../contexts/OrganizationContext";
 import { getCrmApiBaseWithWindowFallback } from "@/config/crmApiBase";
+import { openAuthenticatedDocumentInNewTab } from "@/utils/documentDownload";
 
 const API_BASE = getCrmApiBaseWithWindowFallback();
 
@@ -49,41 +50,6 @@ function normalizeOrderedScenarios(scenarios: ScenarioV2Type[]): (ScenarioV2Type
 function parseSelectedScenarioId(raw: unknown): ScenarioId | null {
   if (raw === "BASE" || raw === "BATTERY_PHYSICAL" || raw === "BATTERY_VIRTUAL") return raw;
   return null;
-}
-
-type DownloadPdfOptions = { openInNewTab?: boolean };
-
-/** Téléchargement PDF avec en-tête Authorization (évite window.open sans JWT). */
-async function downloadPdfAuthenticated(
-  apiBase: string,
-  downloadPath: string,
-  fileNameHint?: string | null,
-  options?: DownloadPdfOptions
-): Promise<void> {
-  const base = apiBase.replace(/\/$/, "");
-  const path = downloadPath.startsWith("/") ? downloadPath : `/${downloadPath}`;
-  const url = `${base}${path}`;
-  const res = await apiFetch(url);
-  if (!res.ok) {
-    const t = await res.text().catch(() => "");
-    throw new Error(t || `Erreur ${res.status}`);
-  }
-  const blob = await res.blob();
-  const obj = URL.createObjectURL(blob);
-  if (options?.openInNewTab && typeof window !== "undefined") {
-    window.open(obj, "_blank", "noopener,noreferrer");
-    setTimeout(() => URL.revokeObjectURL(obj), 120000);
-  }
-  const a = document.createElement("a");
-  a.href = obj;
-  const fn = fileNameHint?.trim();
-  a.download = fn && /\.pdf$/i.test(fn) ? fn : fn ? `${fn}.pdf` : "Etude_Solaire.pdf";
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  if (!options?.openInNewTab) {
-    URL.revokeObjectURL(obj);
-  }
 }
 
 export default function ScenariosPage() {
@@ -190,11 +156,11 @@ export default function ScenariosPage() {
   }, [studyId, versionId, refreshStudy, fetchScenariosOnly]);
 
   const handleSelectScenario = useCallback(
-    async (scenarioId: ScenarioId, ctx?: { addToDocuments?: boolean }) => {
+    async (scenarioId: ScenarioId, _ctx?: { addToDocuments?: boolean }) => {
       if (isReadOnly) return;
       if (!studyId || !versionId) return;
       const base = API_BASE.replace(/\/$/, "");
-      const addToDocuments = ctx?.addToDocuments === true;
+      const addToDocuments = true;
       setPdfFlowBusy(true);
       setSelectingId(scenarioId);
       try {
@@ -236,7 +202,7 @@ export default function ScenariosPage() {
         }
 
         try {
-          await downloadPdfAuthenticated(base, body.downloadUrl, body.fileName, { openInNewTab: true });
+          await openAuthenticatedDocumentInNewTab(body.downloadUrl);
         } catch (e) {
           showToast(e instanceof Error ? e.message : "Téléchargement PDF échoué", true);
           return;
@@ -298,7 +264,7 @@ export default function ScenariosPage() {
         showToast(pdfBody.error || "Impossible de régénérer le PDF", true);
         return;
       }
-      await downloadPdfAuthenticated(base, pdfBody.downloadUrl, pdfBody.fileName);
+      await openAuthenticatedDocumentInNewTab(pdfBody.downloadUrl);
       showToast("Document généré", false);
     } catch (e) {
       showToast(e instanceof Error ? e.message : "Erreur", true);
@@ -474,10 +440,21 @@ export default function ScenariosPage() {
     </div>
   );
 
+  const pdfOverlay = pdfFlowBusy ? (
+    <div className="scenarios-pdf-overlay" role="status" aria-live="polite">
+      <div className="scenarios-pdf-overlay-panel">
+        <div className="scenarios-pdf-overlay-spinner" aria-hidden="true" />
+        <p className="scenarios-pdf-overlay-title">Génération du document en cours...</p>
+        <p className="scenarios-pdf-overlay-sub">Génération… (2-3 secondes)</p>
+      </div>
+    </div>
+  ) : null;
+
   if (scenariosError === "SCENARIOS_NOT_GENERATED") {
     return (
       <div className="scenarios-page" style={{ padding: "var(--spacing-24)", maxWidth: 720, margin: "0 auto" }}>
         <div className="sn-card sn-card-premium" style={{ padding: "var(--spacing-24)" }}>
+          {pdfOverlay}
           {headerBlock}
           <StudyCalcTracePanel data={versionTraceData} />
           <p
@@ -501,6 +478,7 @@ export default function ScenariosPage() {
     return (
       <div className="scenarios-page" style={{ padding: "var(--spacing-24)", maxWidth: 720, margin: "0 auto" }}>
         <div className="sn-card sn-card-premium" style={{ padding: "var(--spacing-24)" }}>
+          {pdfOverlay}
           {headerBlock}
           <StudyCalcTracePanel data={versionTraceData} />
           <p className="sg-text sg-state-error" style={{ marginBottom: "var(--spacing-16)" }}>{scenariosError || "Aucun scénario."}</p>
@@ -524,6 +502,7 @@ export default function ScenariosPage() {
         border: "1px solid rgba(195, 152, 71, 0.45)",
       }}
     >
+      {pdfOverlay}
       <div
         aria-hidden
         className="scenarios-premium-backdrop"

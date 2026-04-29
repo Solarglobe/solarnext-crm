@@ -16,6 +16,7 @@ export interface InvoiceToolbarProps {
   onSave: () => void;
   onDuplicate: () => void;
   onPdf: () => void;
+  pdfBusy?: boolean;
   /** Passe la facture en statut ISSUED (émise), pas « envoyée » au sens courrier. */
   onMarkIssued: () => void;
   onDelete: () => void;
@@ -33,6 +34,7 @@ export default function InvoiceToolbar({
   onSave,
   onDuplicate,
   onPdf,
+  pdfBusy = false,
   onMarkIssued,
   onDelete,
 }: InvoiceToolbarProps) {
@@ -54,8 +56,8 @@ export default function InvoiceToolbar({
         <Button type="button" variant="ghost" size="sm" onClick={onDuplicate}>
           Dupliquer
         </Button>
-        <Button type="button" variant="outlineGold" size="sm" onClick={onPdf}>
-          Générer le PDF
+        <Button type="button" variant="outlineGold" size="sm" onClick={onPdf} disabled={pdfBusy}>
+          {pdfBusy ? "⏳ Génération en cours..." : "Générer le PDF"}
         </Button>
         {canEdit ? (
           <Button type="button" variant="outlineGold" size="sm" onClick={onMarkIssued}>

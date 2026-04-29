@@ -236,11 +236,13 @@ export default function FinancialInvoicePdfPage() {
           <div className="fi-org-lines">
             <div className="fi-org-grid">
               <div className="fi-org-grid-col">
+                <p className="fi-col-label">Émetteur</p>
                 <p className="fi-org-company">{issuerDisplayName || "—"}</p>
                 {issuerEmail ? <p>{issuerEmail}</p> : null}
                 {issuerPhone ? <p>{issuerPhone}</p> : null}
               </div>
               <div className="fi-org-grid-col">
+                <p className="fi-col-label">Siège</p>
                 {issuerStreet ? <p>{issuerStreet}</p> : null}
                 {issuerCityLine ? <p>{issuerCityLine}</p> : null}
                 {issuerCountry ? <p>{issuerCountry}</p> : null}
@@ -252,7 +254,7 @@ export default function FinancialInvoicePdfPage() {
 
       {/* 2. Bloc client */}
       <section className="fi-no-break fi-section fi-section--client">
-        <h2 className="fi-block-label">Facturation</h2>
+        <h2 className="fi-block-label">Facturé à</h2>
         <div className="fi-recipient-stack">
           <p className="fi-recipient-primary">{identity.primary}</p>
           {identity.secondary ? <p className="fi-recipient-secondary">{identity.secondary}</p> : null}
