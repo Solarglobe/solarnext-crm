@@ -62,21 +62,22 @@
 
 .fi-org-header-inner {
   display: grid;
-  grid-template-columns: minmax(0, 36mm) 1fr;
-  gap: 10px;
+  grid-template-columns: minmax(0, 44mm) 1fr;
+  gap: 14px;
   align-items: center;
 }
 
 .fi-logo-wrap {
-  max-width: 36mm;
-  min-height: 14mm;
+  max-width: 44mm;
+  min-height: 18mm;
   display: flex;
   align-items: center;
+  justify-content: flex-start;
 }
 
 .fi-logo-wrap img {
   max-width: 100%;
-  max-height: 14mm;
+  max-height: 18mm;
   object-fit: contain;
 }
 
@@ -89,6 +90,20 @@
 .fi-org-lines .fi-org-company {
   font-weight: 700;
   font-size: 9.5pt;
+}
+
+.fi-org-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 40px;
+  row-gap: 6px;
+  align-items: start;
+}
+
+.fi-org-grid-col {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 /* --- 2. Client --- */

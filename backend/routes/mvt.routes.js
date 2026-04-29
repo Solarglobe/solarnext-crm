@@ -9,15 +9,27 @@ import fetch from "node-fetch";
 import logger from "../app/core/logger.js";
 
 const router = express.Router();
+// Upstream configurable :
+// - cas "tileserver-gl" : TILESERVER_URL + MVT_PATH + extension .pbf
+// - cas "TMS IGN Géoplateforme" : MVT_UPSTREAM_PBF_TEMPLATE avec {z}/{x}/{y} dans l’URL
+//
+// Ex. IGN (si vous avez une clé wxs.ign.fr) :
+// MVT_UPSTREAM_PBF_TEMPLATE=https://wxs.ign.fr/<KEY>/geoportail/tms/1.0.0/PCI/<LAYER>/{z}/{x}/{y}.pbf
+const MVT_UPSTREAM_PBF_TEMPLATE = process.env.MVT_UPSTREAM_PBF_TEMPLATE || "";
 const MVT_UPSTREAM_BASE =
   process.env.TILESERVER_URL || "https://openmaptiles.data.gouv.fr";
-const MVT_PATH = "/data/cadastre";
+const MVT_PATH = process.env.MVT_PATH || "/data/cadastre";
 // Nom du tileset exposé par tileserver-gl (doit correspondre à l’id dans config / mbtiles).
 // GET /api/mvt/cadastre/:z/:x/:y  (ex: .../14/12345/6789 ou .../14/12345/6789.pbf)
 router.get("/cadastre/:z/:x/:y", async (req, res) => {
   const { z, x, y } = req.params;
   const yClean = y.endsWith(".pbf") ? y.replace(/\.pbf$/, "") : y;
-  const url = `${MVT_UPSTREAM_BASE}${MVT_PATH}/${z}/${x}/${yClean}.pbf`;
+  const url = MVT_UPSTREAM_PBF_TEMPLATE
+    ? String(MVT_UPSTREAM_PBF_TEMPLATE)
+        .replace("{z}", String(z))
+        .replace("{x}", String(x))
+        .replace("{y}", String(yClean))
+    : `${MVT_UPSTREAM_BASE}${MVT_PATH}/${z}/${x}/${yClean}.pbf`;
 
   logger.info("MVT_GET_TILE", { url });
 

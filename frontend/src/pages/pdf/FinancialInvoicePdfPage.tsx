@@ -234,12 +234,18 @@ export default function FinancialInvoicePdfPage() {
             ) : null}
           </div>
           <div className="fi-org-lines">
-            <p className="fi-org-company">{issuerDisplayName || "—"}</p>
-            {issuerStreet ? <p>{issuerStreet}</p> : null}
-            {issuerCityLine ? <p>{issuerCityLine}</p> : null}
-            {issuerCountry ? <p>{issuerCountry}</p> : null}
-            {issuerEmail ? <p>{issuerEmail}</p> : null}
-            {issuerPhone ? <p>{issuerPhone}</p> : null}
+            <div className="fi-org-grid">
+              <div className="fi-org-grid-col">
+                <p className="fi-org-company">{issuerDisplayName || "—"}</p>
+                {issuerEmail ? <p>{issuerEmail}</p> : null}
+                {issuerPhone ? <p>{issuerPhone}</p> : null}
+              </div>
+              <div className="fi-org-grid-col">
+                {issuerStreet ? <p>{issuerStreet}</p> : null}
+                {issuerCityLine ? <p>{issuerCityLine}</p> : null}
+                {issuerCountry ? <p>{issuerCountry}</p> : null}
+              </div>
+            </div>
           </div>
         </div>
       </header>
