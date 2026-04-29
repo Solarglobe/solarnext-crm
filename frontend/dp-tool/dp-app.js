@@ -15052,7 +15052,7 @@ let dp2MvtFeatureLogged = false;
 const DP2_OFFICIAL_WFS_BASE_URL = "https://data.geopf.fr/wfs";
 const DP2_OFFICIAL_CADASTRE_WFS_TYPENAME = "CADASTRALPARCELS.PARCELLAIRE_EXPRESS";
 const DP2_OFFICIAL_WFS_TIMEOUT_MS = 9000;
-const DP2_DIRECT_MVT_TEST_URL = "https://pci-vecteur.openstreetmap.fr/tiles/{z}/{x}/{y}.pbf";
+const DP2_DIRECT_MVT_TEST_URL = "__DP2_DIRECT_MVT_TEST_PROXY__";
 
 function dp2OfficialWfsParcelLabelText(feature) {
   const p = feature?.getProperties ? feature.getProperties() : {};
@@ -16011,7 +16011,17 @@ async function initDP2() {
 
         dp2CadastreVectorTileLayer = new ol.layer.VectorTile({
           source: dp2CadastreVectorTileSource,
-          style: styleCadastreMVT,
+          style: function () {
+            return new ol.style.Style({
+              stroke: new ol.style.Stroke({
+                color: "#ff0000",
+                width: 2,
+              }),
+              fill: new ol.style.Fill({
+                color: "rgba(255,0,0,0.1)",
+              }),
+            });
+          },
           zIndex: 10,
           declutter: false,
         });
@@ -16033,7 +16043,10 @@ async function initDP2() {
         dp2DirectMvtTestSource = new ol.source.VectorTile({
           projection: "EPSG:3857",
           format: new ol.format.MVT(),
-          url: DP2_DIRECT_MVT_TEST_URL,
+          url:
+            DP2_DIRECT_MVT_TEST_URL === "__DP2_DIRECT_MVT_TEST_PROXY__"
+              ? __solarnextDpAbsApiUrl("mvt/cadastre/{z}/{x}/{y}.pbf")
+              : DP2_DIRECT_MVT_TEST_URL,
           maxZoom: 20,
         });
         dp2DirectMvtTestLayer = new ol.layer.VectorTile({
