@@ -218,7 +218,7 @@ export function buildFinancialInvoiceRendererUrl(invoiceId, renderToken) {
  * PDF portrait A4 — devis / facture (Playwright, même pipeline).
  * @param {string} rendererUrl
  * @param {string} [logLabel]
- * @param {{ useCssPageMargins?: boolean }} [opts] — si true (devis uniquement) : marges pilotées par @page CSS (preferCSSPageSize), sans double marge Playwright
+ * @param {{ useCssPageMargins?: boolean, footerTemplate?: string }} [opts] — si true : marges pilotées par @page CSS (preferCSSPageSize), sans double marge Playwright
  * @returns {Promise<Buffer>}
  */
 export async function generatePdfFromPortraitFinanceUrl(rendererUrl, logLabel = "finance", opts = {}) {
@@ -229,13 +229,27 @@ export async function generatePdfFromPortraitFinanceUrl(rendererUrl, logLabel = 
   console.log("[PDF] PDF_RENDER_READY_TIMEOUT ms:", readyTimeoutMs);
 
   const useCssPageMargins = opts.useCssPageMargins === true;
+  const footerTemplate = typeof opts.footerTemplate === "string" ? opts.footerTemplate : "";
+  const usePlaywrightFooter = footerTemplate.trim() !== "";
   const pdfOptions = useCssPageMargins
     ? {
         format: "A4",
         landscape: false,
         printBackground: true,
-        margin: { top: "0mm", right: "0mm", bottom: "0mm", left: "0mm" },
+        margin: {
+          top: "0mm",
+          right: "0mm",
+          bottom: usePlaywrightFooter ? "14mm" : "0mm",
+          left: "0mm",
+        },
         preferCSSPageSize: true,
+        ...(usePlaywrightFooter
+          ? {
+              displayHeaderFooter: true,
+              headerTemplate: "<div></div>",
+              footerTemplate,
+            }
+          : {}),
       }
     : {
         format: "A4",
@@ -298,4 +312,31 @@ export async function generatePdfFromFinancialQuoteUrl(rendererUrl) {
  */
 export async function generatePdfFromFinancialInvoiceUrl(rendererUrl) {
   return generatePdfFromPortraitFinanceUrl(rendererUrl, "invoice", { useCssPageMargins: true });
+}
+
+/**
+ * @param {string} invoiceNumber
+ */
+function buildInvoiceFooterTemplate(invoiceNumber) {
+  const safe = String(invoiceNumber || "").replace(/[<>&"]/g, "");
+  return `
+    <div style="width:100%;font-size:9px;color:#4a4654;padding:0 14mm;box-sizing:border-box;">
+      <div style="width:100%;border-top:1px solid rgba(18,16,24,0.14);padding-top:4px;display:flex;justify-content:space-between;align-items:center;">
+        <span>N° ${safe || "—"}</span>
+        <span>Page <span class="pageNumber"></span> / <span class="totalPages"></span></span>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * @param {string} rendererUrl
+ * @param {string} invoiceNumber
+ * @returns {Promise<Buffer>}
+ */
+export async function generatePdfFromFinancialInvoiceUrlWithFooter(rendererUrl, invoiceNumber) {
+  return generatePdfFromPortraitFinanceUrl(rendererUrl, "invoice", {
+    useCssPageMargins: true,
+    footerTemplate: buildInvoiceFooterTemplate(invoiceNumber),
+  });
 }

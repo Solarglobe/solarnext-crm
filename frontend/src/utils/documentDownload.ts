@@ -59,11 +59,45 @@ export function assertDocumentDownloadOk(res: Response, documentId: string): voi
   throw new Error(DOCUMENT_DOWNLOAD_UNAVAILABLE);
 }
 
+function parseFilenameFromContentDisposition(headerValue: string | null): string | null {
+  const raw = String(headerValue || "").trim();
+  if (!raw) return null;
+  const mStar = /filename\*\s*=\s*UTF-8''([^;]+)/i.exec(raw);
+  if (mStar && mStar[1]) {
+    try {
+      return decodeURIComponent(mStar[1].trim().replace(/^["']|["']$/g, ""));
+    } catch {
+      return mStar[1].trim().replace(/^["']|["']$/g, "");
+    }
+  }
+  const m = /filename\s*=\s*("?)([^";]+)\1/i.exec(raw);
+  return m && m[2] ? m[2].trim() : null;
+}
+
+function safePdfName(name: string | null | undefined): string | null {
+  if (!name) return null;
+  const s = String(name).trim();
+  if (!s) return null;
+  return /\.pdf$/i.test(s) ? s : `${s}.pdf`;
+}
+
+function triggerBrowserDownload(objUrl: string, fileName: string): void {
+  const a = document.createElement("a");
+  a.href = objUrl;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
 /**
  * GET document avec Authorization Bearer, ouvre le PDF (ou fichier) dans un nouvel onglet via blob URL.
  * Préférer ce flux à `window.open('/api/documents/...')` qui n’envoie pas le JWT.
  */
-export async function openAuthenticatedDocumentInNewTab(downloadPathOrAbsoluteUrl: string): Promise<void> {
+export async function openAuthenticatedDocumentInNewTab(
+  downloadPathOrAbsoluteUrl: string,
+  opts?: { preferredFileName?: string; alsoTriggerDownload?: boolean }
+): Promise<void> {
   const url = resolveCrmApiAbsoluteUrl(downloadPathOrAbsoluteUrl);
   if (!url) {
     throw new Error(DOCUMENT_DOWNLOAD_UNAVAILABLE);
@@ -73,7 +107,12 @@ export async function openAuthenticatedDocumentInNewTab(downloadPathOrAbsoluteUr
     throw new Error(await getDocumentDownloadUserMessage(res));
   }
   const blob = await res.blob();
+  const filenameFromHeader = parseFilenameFromContentDisposition(res.headers.get("content-disposition"));
+  const finalName = safePdfName(opts?.preferredFileName) || safePdfName(filenameFromHeader);
   const objUrl = URL.createObjectURL(blob);
+  if (opts?.alsoTriggerDownload === true && finalName) {
+    triggerBrowserDownload(objUrl, finalName);
+  }
   window.open(objUrl, "_blank", "noopener,noreferrer");
   setTimeout(() => URL.revokeObjectURL(objUrl), 120_000);
 }

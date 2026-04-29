@@ -452,13 +452,6 @@ export default function FinancialInvoicePdfPage() {
       {/* 7. Mentions légales */}
       <LegalMentionsBlock />
 
-      <div className="fi-page-footer" aria-hidden="true">
-        <span>N° {invoiceNumberDisplay}</span>
-        <span>
-          Page <span className="fi-page-current" /> / <span className="fi-page-total" />
-        </span>
-      </div>
-
       <div id="pdf-ready" data-status={status === "ready" ? "ready" : "pending"} aria-hidden="true" />
     </div>
   );

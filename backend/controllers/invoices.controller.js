@@ -6,6 +6,7 @@ import { pool } from "../config/db.js";
 import * as invoiceService from "../services/invoices.service.js";
 import { logAuditEvent } from "../services/audit/auditLog.service.js";
 import { AuditActions } from "../services/audit/auditActions.js";
+import logger from "../app/core/logger.js";
 
 const orgId = (req) => req.user.organizationId ?? req.user.organization_id;
 const userId = (req) => req.user.userId ?? req.user.id;
@@ -129,6 +130,20 @@ export async function generatePdf(req, res) {
   try {
     const org = orgId(req);
     const data = await invoiceService.generateInvoicePdfRecord(req.params.id, org, userId(req));
+    logger.info("INVOICE_PDF_GENERATE_RESULT", {
+      invoice_id: data?.observability?.invoice_id ?? req.params.id,
+      invoice_number: data?.observability?.invoice_number ?? null,
+      main_document_id: data?.observability?.main_document?.id ?? null,
+      main_file_name: data?.observability?.main_document?.file_name ?? null,
+      main_replaced: data?.observability?.main_document?.replaced ?? false,
+      mirror_entity_type: data?.observability?.mirror?.entity_type ?? null,
+      mirror_entity_id: data?.observability?.mirror?.entity_id ?? null,
+      mirror_document_id: data?.observability?.mirror?.document_id ?? null,
+      mirror_file_name: data?.observability?.mirror?.file_name ?? null,
+      mirror_replaced: data?.observability?.mirror?.replaced ?? false,
+      replaced: data?.replaced === true,
+      organization_id: org,
+    });
     res.status(201).json(data);
   } catch (e) {
     const code = e.statusCode === 404 ? 404 : e.statusCode === 400 ? 400 : 500;

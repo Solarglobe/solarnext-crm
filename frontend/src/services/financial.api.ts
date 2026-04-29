@@ -413,8 +413,21 @@ export async function getQuoteDocumentViewModel(quoteId: string): Promise<{
 export async function postGenerateInvoicePdf(invoiceId: string): Promise<{
   document?: { url?: string; id?: string; file_name?: string };
   downloadUrl?: string;
+  fileName?: string;
   replaced?: boolean;
   message?: string;
+  observability?: {
+    invoice_id?: string;
+    invoice_number?: string | null;
+    main_document?: { id?: string | null; file_name?: string | null; replaced?: boolean };
+    mirror?: {
+      entity_type?: string | null;
+      entity_id?: string | null;
+      document_id?: string | null;
+      file_name?: string | null;
+      replaced?: boolean;
+    };
+  };
 }> {
   const res = await apiFetch(`${API_BASE}/api/invoices/${encodeURIComponent(invoiceId)}/pdf`, { method: "POST" });
   if (!res.ok) {

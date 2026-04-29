@@ -29,7 +29,7 @@ import { buildInvoicePdfPayloadFromSnapshot } from "./financialDocumentPdfPayloa
 import { createFinancialInvoiceRenderToken } from "./pdfRenderToken.service.js";
 import {
   buildFinancialInvoiceRendererUrl,
-  generatePdfFromFinancialInvoiceUrl,
+  generatePdfFromFinancialInvoiceUrlWithFooter,
 } from "./pdfGeneration.service.js";
 import {
   findExistingInvoicePdfForInvoiceEntity,
@@ -1255,7 +1255,7 @@ export async function generateInvoicePdfRecord(invoiceId, organizationId, userId
 
   const renderToken = createFinancialInvoiceRenderToken(invoiceId, organizationId);
   const rendererUrl = buildFinancialInvoiceRendererUrl(invoiceId, renderToken);
-  const pdfBuffer = await generatePdfFromFinancialInvoiceUrl(rendererUrl);
+  const pdfBuffer = await generatePdfFromFinancialInvoiceUrlWithFooter(rendererUrl, num);
 
   const existingMain = await findExistingInvoicePdfForInvoiceEntity(organizationId, invoiceId);
   const replacedMain = Boolean(existingMain);
@@ -1275,6 +1275,8 @@ export async function generateInvoicePdfRecord(invoiceId, organizationId, userId
   const ownerEntityType = row.client_id ? "client" : row.lead_id ? "lead" : null;
   const ownerEntityId = row.client_id || row.lead_id || null;
   let ownerMirrorReplaced = false;
+  let ownerDocId = null;
+  let ownerDocFileName = null;
   if (ownerEntityType && ownerEntityId) {
     const ownerDoc = await saveInvoicePdfOnOwnerDocument(
       pdfBuffer,
@@ -1294,13 +1296,32 @@ export async function generateInvoicePdfRecord(invoiceId, organizationId, userId
       }
     );
     ownerMirrorReplaced = ownerDoc?.replaced === true;
+    ownerDocId = ownerDoc?.id || null;
+    ownerDocFileName = ownerDoc?.file_name || null;
   }
 
   return {
     document: doc,
+    fileName,
     pdf_payload: pdfPayload,
     downloadUrl: `/api/documents/${doc.id}/download`,
     replaced: replacedMain || ownerMirrorReplaced,
+    observability: {
+      invoice_id: String(invoiceId),
+      invoice_number: row.invoice_number ?? null,
+      main_document: {
+        id: doc?.id ?? null,
+        file_name: doc?.file_name ?? null,
+        replaced: replacedMain,
+      },
+      mirror: {
+        entity_type: ownerEntityType,
+        entity_id: ownerEntityId,
+        document_id: ownerDocId,
+        file_name: ownerDocFileName,
+        replaced: ownerMirrorReplaced,
+      },
+    },
     message: "PDF facture généré et enregistré (rendu client depuis le snapshot figé, paiements à jour).",
   };
 }

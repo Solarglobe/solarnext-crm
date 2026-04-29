@@ -370,7 +370,10 @@ export default function InvoiceBuilderPage() {
       const data = await postGenerateInvoicePdf(id);
       await load();
       if (data.downloadUrl) {
-        await openAuthenticatedDocumentInNewTab(data.downloadUrl);
+        await openAuthenticatedDocumentInNewTab(data.downloadUrl, {
+          preferredFileName: data.fileName || data.document?.file_name,
+          alsoTriggerDownload: true,
+        });
       }
       showCrmInlineToast(data.replaced ? "✔ Facture mise à jour" : "✔ Facture générée", "success");
     } catch (e) {
