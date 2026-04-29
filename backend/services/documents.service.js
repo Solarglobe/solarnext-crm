@@ -516,7 +516,7 @@ export async function saveStudyProposalPdfOnLeadDocument(pdfBuffer, organization
  * @param {string} params.scenarioKey
  * @param {string|null} params.userId
  * @param {string|null|undefined} params.leadId — requis pour créer ; sinon skipped (appelant connaît déjà le lead)
- * @param {string|null|undefined} [params.studyNumber] — suffixe display_name optionnel
+ * @param {string|null|undefined} [params.studyNumber] — ex. SGS-… ; repli côté service sur studyId si vide
  * @param {string} [params.scenarioLabelFr] — ex. Sans batterie
  * @param {string} [params.sourceStudyVersionDocumentId]
  * @returns {Promise<{ ok: true, status: 'created'|'existing', document: object } | { ok: true, status: 'skipped', reason: string }>}
@@ -551,11 +551,15 @@ export async function ensureLeadCommercialProposalFromScenarioPdf(params) {
     return { ok: true, status: "existing", document: existing };
   }
 
-  const label = scenarioLabelFr && String(scenarioLabelFr).trim() ? String(scenarioLabelFr).trim() : scenarioKey;
-  const num = studyNumber != null && String(studyNumber).trim() ? String(studyNumber).trim() : null;
-  const displayName = num
-    ? `Proposition commerciale – ${label} · ${num}`
-    : `Proposition commerciale – ${label}`;
+  const scenarioLabelFrResolved =
+    scenarioLabelFr && String(scenarioLabelFr).trim()
+      ? String(scenarioLabelFr).trim()
+      : String(scenarioKey ?? "");
+  const studyNumberResolved =
+    studyNumber != null && String(studyNumber).trim()
+      ? String(studyNumber).trim()
+      : String(studyId ?? "");
+  const displayName = `Proposition commerciale – ${scenarioLabelFrResolved} · ${studyNumberResolved}`;
 
   const doc = await saveStudyProposalPdfOnLeadDocument(pdfBuffer, organizationId, leadId, userId, {
     studyId,

@@ -6,11 +6,13 @@
  * URL : /pdf-render.html?studyId=...&versionId=... (fichier d’entrée : pdf-render.html)
  */
 
-import React from "react";
+import React, { Suspense, lazy } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import StudySnapshotPdfPage from "./pages/pdf/StudySnapshotPdfPage";
-import FinancialInvoicePdfPage from "./pages/pdf/FinancialInvoicePdfPage";
+
+/** Facture : lazy-load pour ne jamais importer financial-invoice-pdf.css sur le renderer étude. */
+const FinancialInvoicePdfPage = lazy(() => import("./pages/pdf/FinancialInvoicePdfPage"));
 
 /** Devis financier : renderer dédié /financial-quote-pdf-render (pas ce bundle). */
 
@@ -18,7 +20,17 @@ function PdfRenderRoot() {
   if (typeof window !== "undefined") {
     const q = new URLSearchParams(window.location.search);
     if (q.get("financialInvoiceId")) {
-      return <FinancialInvoicePdfPage />;
+      return (
+        <Suspense
+          fallback={
+            <div id="pdf-loading" style={{ padding: "2rem", textAlign: "center" }}>
+              Chargement du document...
+            </div>
+          }
+        >
+          <FinancialInvoicePdfPage />
+        </Suspense>
+      );
     }
   }
   return <StudySnapshotPdfPage />;

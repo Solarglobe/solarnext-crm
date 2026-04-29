@@ -22,7 +22,7 @@
    Nommé pour ne pas entrer en conflit avec financial-quote-pdf.css (même chunk Vite).
 ───────────────────────────────────────────────────────────────── */
 @page sn-study-report {
-  size: A4 landscape;
+  size: A4 landscape !important;
   margin: 0;
 }
 

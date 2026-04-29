@@ -132,7 +132,10 @@ export async function generatePdfFromScenario(req, res) {
           [studyId, org]
         );
         const leadId = studyRow.rows[0]?.lead_id ?? null;
-        const studyNumber = studyRow.rows[0]?.study_number ?? null;
+        const studyNumber =
+          (studyRow.rows[0]?.study_number != null &&
+            String(studyRow.rows[0].study_number).trim()) ||
+          studyId;
 
         if (!leadId) {
           payload.leadDocument = { status: "skipped", reason: "NO_LEAD" };
