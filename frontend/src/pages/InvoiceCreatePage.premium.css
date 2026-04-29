@@ -1,4 +1,4 @@
-/* Préparation facture (/invoices/new?fromQuote=…) — grille + scroll horizontal confiné, thème CRM */
+/* Préparation facture — tableau puis récap en dessous ; scroll horizontal confiné dans la carte tableau */
 
 .icp-page {
   width: 100%;
@@ -45,10 +45,10 @@
 }
 
 .icp-workbench {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(260px, 320px);
+  display: flex;
+  flex-direction: column;
   gap: clamp(16px, 2vw, 24px);
-  align-items: start;
+  align-items: stretch;
   width: 100%;
   min-width: 0;
 }
@@ -270,14 +270,8 @@
 .icp-summary-card {
   width: 100%;
   min-width: 0;
-  position: sticky;
-  top: 12px;
   padding: 18px 18px 16px;
   box-sizing: border-box;
-  max-height: min(calc(100vh - 96px), 880px);
-  overflow-x: hidden;
-  overflow-y: auto;
-  overscroll-behavior: contain;
 }
 
 .icp-summary-title {
@@ -417,18 +411,6 @@
 @keyframes icp-spin {
   to {
     transform: rotate(360deg);
-  }
-}
-
-@media (max-width: 1180px) {
-  .icp-workbench {
-    grid-template-columns: 1fr;
-  }
-
-  .icp-summary-card {
-    position: static;
-    max-height: none;
-    overflow-y: visible;
   }
 }
 
