@@ -9,7 +9,6 @@ import {
   buildInvoiceRecipientAddressLines,
   buildInvoiceRecipientContactLines,
   buildInvoiceRecipientIdentity,
-  buildIssuerLines,
   formatDateFrLong,
   formatDateFrSlash,
   formatEurUnknown,
@@ -205,8 +204,24 @@ export default function FinancialInvoicePdfPage() {
   const payTerms = live?.payment_terms ?? (payload.payment_terms as string | null);
   const invStatus = live?.status ?? (payload.status as string | null);
   const sourceQuote = payload.source_quote as Record<string, unknown> | undefined;
-
-  const issuerLines = buildIssuerLines(issuer, { includeBank: true });
+  const issuerAddress = (issuer.address as Record<string, unknown> | undefined) ?? {};
+  const issuerDisplayName = String(
+    issuer.display_name || issuer.legal_name || issuer.trade_name || ""
+  ).trim();
+  const issuerStreet = [issuerAddress.line1, issuerAddress.line2].filter(Boolean).join(", ").trim();
+  const issuerCityLine = [issuerAddress.postal_code, issuerAddress.city].filter(Boolean).join(" ").trim();
+  const issuerCountry = issuerAddress.country ? String(issuerAddress.country).trim() : "";
+  const issuerEmail = issuer.email ? String(issuer.email).trim() : "";
+  const issuerPhone = issuer.phone ? String(issuer.phone).trim() : "";
+  const issuerBank = ((issuer.bank as Record<string, unknown> | undefined) ?? {}) as Record<string, unknown>;
+  const legalBankPairs = [
+    { label: "SIRET", value: issuer.siret },
+    { label: "TVA", value: issuer.vat_number },
+    { label: "RCS", value: issuer.rcs },
+    { label: "Banque", value: issuerBank.bank_name },
+    { label: "IBAN", value: issuerBank.iban },
+    { label: "BIC", value: issuerBank.bic },
+  ].map((x) => ({ label: x.label, value: x.value ? String(x.value).trim() : "" }));
 
   return (
     <div className="fi-root" id="pdf-root" style={{ "--fi-brand": brandColor } as React.CSSProperties}>
@@ -219,9 +234,12 @@ export default function FinancialInvoicePdfPage() {
             ) : null}
           </div>
           <div className="fi-org-lines">
-            {issuerLines.map((line, i) => (
-              <p key={i}>{line}</p>
-            ))}
+            <p className="fi-org-company">{issuerDisplayName || "—"}</p>
+            {issuerStreet ? <p>{issuerStreet}</p> : null}
+            {issuerCityLine ? <p>{issuerCityLine}</p> : null}
+            {issuerCountry ? <p>{issuerCountry}</p> : null}
+            {issuerEmail ? <p>{issuerEmail}</p> : null}
+            {issuerPhone ? <p>{issuerPhone}</p> : null}
           </div>
         </div>
       </header>
@@ -398,6 +416,28 @@ export default function FinancialInvoicePdfPage() {
           telle qu&apos;émise. Les paiements listés, les avoirs imputés et le reste à payer reflètent l&apos;état
           comptable au moment de la génération de ce PDF.
         </p>
+      </section>
+
+      <section className="fi-no-break fi-section fi-legal-bank">
+        <h3 className="fi-subtitle">Mentions légales &amp; bancaires</h3>
+        <div className="fi-legal-bank-grid">
+          <div className="fi-legal-bank-col">
+            {legalBankPairs.slice(0, 3).map((item) => (
+              <p key={item.label} className="fi-legal-bank-row">
+                <span>{item.label} :</span>
+                <span>{item.value || "—"}</span>
+              </p>
+            ))}
+          </div>
+          <div className="fi-legal-bank-col">
+            {legalBankPairs.slice(3).map((item) => (
+              <p key={item.label} className="fi-legal-bank-row">
+                <span>{item.label} :</span>
+                <span>{item.value || "—"}</span>
+              </p>
+            ))}
+          </div>
+        </div>
       </section>
 
       {/* 7. Mentions légales */}
