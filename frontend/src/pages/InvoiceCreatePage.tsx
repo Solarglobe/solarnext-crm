@@ -18,7 +18,6 @@ import {
   type BillingSelectRow,
 } from "../services/billingContacts.api";
 import {
-  createPreparedStandardInvoiceFromQuote,
   createInvoiceDraft,
   createInvoiceFromQuote,
   fetchQuoteInvoiceBillingContext,
@@ -31,58 +30,21 @@ import { billingRoleParamToApi } from "../modules/invoices/invoiceBillingLabels"
 import QuoteBillingUxPanel from "../modules/quotes/QuoteBillingUxPanel";
 import "../modules/invoices/invoice-builder.css";
 import "./InvoiceCreatePage.premium.css";
-
-function roundMoney2(n: number): number {
-  const x = Number(n);
-  if (!Number.isFinite(x)) return 0;
-  return Math.round(x * 100) / 100;
-}
+import {
+  aggregatePreparedTotals,
+  getDiscountPercent,
+  getPreparedLineMoneyTotals,
+  normalizePreparedLines,
+  patchTriggersComputedTotals,
+  roundMoney2,
+  type PreparedInvoiceLine,
+} from "./invoicePreparationTotals";
 
 function fmtDateFrShort(input: string | null | undefined): string {
   if (!input) return "—";
   const d = new Date(input);
   if (Number.isNaN(d.getTime())) return "—";
   return d.toLocaleDateString("fr-FR");
-}
-
-type PreparedInvoiceLine = {
-  id: string;
-  label: string;
-  description: string;
-  quantity: number;
-  unit_price_ht: number;
-  discount_ht: number;
-  vat_rate: number;
-};
-
-function computePreparedLineTotals(line: PreparedInvoiceLine) {
-  const baseHt = Number(line.quantity) * Number(line.unit_price_ht) - Number(line.discount_ht);
-  const totalHt = roundMoney2(baseHt);
-  const totalVat = roundMoney2(totalHt * (Number(line.vat_rate) / 100));
-  const totalTtc = roundMoney2(totalHt + totalVat);
-  return { totalHt, totalVat, totalTtc };
-}
-
-function normalizePreparedLines(rawLines: unknown[]): PreparedInvoiceLine[] {
-  return rawLines
-    .map((raw, idx) => {
-      const row = raw as Record<string, unknown>;
-      const label = String(row.label ?? row.description ?? "").trim();
-      const quantity = Number(row.quantity ?? 0);
-      const unitPrice = Number(row.unit_price_ht ?? 0);
-      const discount = Number(row.discount_ht ?? 0);
-      const vatRate = Number(row.vat_rate ?? row.tva_percent ?? 0);
-      return {
-        id: `line-${idx + 1}`,
-        label: label || `Ligne ${idx + 1}`,
-        description: String(row.description ?? "").trim(),
-        quantity: Number.isFinite(quantity) ? quantity : 0,
-        unit_price_ht: Number.isFinite(unitPrice) ? unitPrice : 0,
-        discount_ht: Number.isFinite(discount) ? discount : 0,
-        vat_rate: Number.isFinite(vatRate) ? vatRate : 0,
-      };
-    })
-    .filter((line) => line.quantity > 0 || line.unit_price_ht > 0 || line.discount_ht > 0);
 }
 
 /** Libellé option « Devis optionnel » : numéro + statut + contact si connu. */
@@ -105,16 +67,6 @@ function quoteOptionalSelectLabel(q: QuoteListRow): string {
   if (q.client_id && clientDisp) return `${base} — ${clientDisp}`;
   if (q.lead_id && leadDisp) return `${base} — ${leadDisp}`;
   return base;
-}
-
-function getLineBaseHt(line: PreparedInvoiceLine): number {
-  return Math.max(0, Number(line.quantity) * Number(line.unit_price_ht));
-}
-
-function getDiscountPercent(line: PreparedInvoiceLine): number {
-  const base = getLineBaseHt(line);
-  if (base <= 0) return 0;
-  return roundMoney2((Number(line.discount_ht) / base) * 100);
 }
 
 export default function InvoiceCreatePage() {
@@ -184,6 +136,10 @@ export default function InvoiceCreatePage() {
         setLeads([]);
         setListsError(e instanceof Error ? e.message : "Impossible de charger les listes client / lead.");
       });
+  }, []);
+
+  useEffect(() => {
+    console.log("VERSION PREP INVOICE V2");
   }, []);
 
   useEffect(() => {
@@ -284,18 +240,7 @@ export default function InvoiceCreatePage() {
     };
   }, [fromQuote]);
 
-  const preparedTotals = useMemo(() => {
-    return preparedLines.reduce(
-      (acc, line) => {
-        const t = computePreparedLineTotals(line);
-        acc.total_ht = roundMoney2(acc.total_ht + t.totalHt);
-        acc.total_vat = roundMoney2(acc.total_vat + t.totalVat);
-        acc.total_ttc = roundMoney2(acc.total_ttc + t.totalTtc);
-        return acc;
-      },
-      { total_ht: 0, total_vat: 0, total_ttc: 0 }
-    );
-  }, [preparedLines]);
+  const preparedTotals = useMemo(() => aggregatePreparedTotals(preparedLines), [preparedLines]);
   const billingLocked = Boolean(billCtx?.billing_is_locked);
   const projectGlobalTotal = billingLocked
     ? roundMoney2(Number(billCtx?.billing_total_ttc ?? preparedTotals.total_ttc))
@@ -378,7 +323,14 @@ export default function InvoiceCreatePage() {
 
   const updatePreparedLine = useCallback(
     (id: string, patch: Partial<Omit<PreparedInvoiceLine, "id">>) => {
-      setPreparedLines((prev) => prev.map((line) => (line.id === id ? { ...line, ...patch } : line)));
+      setPreparedLines((prev) =>
+        prev.map((line) => {
+          if (line.id !== id) return line;
+          const next = { ...line, ...patch };
+          if (patchTriggersComputedTotals(patch)) next.totalsSource = "computed";
+          return next;
+        })
+      );
     },
     []
   );
@@ -393,30 +345,11 @@ export default function InvoiceCreatePage() {
       setError("Le montant global est déjà figé. Utilisez les flux acompte/solde basés sur ce montant.");
       return;
     }
-    const lines = preparedLines
-      .map((line) => ({
-        label: line.label,
-        description: line.label,
-        quantity: line.quantity,
-        unit_price_ht: line.unit_price_ht,
-        discount_ht: line.discount_ht,
-        vat_rate: line.vat_rate,
-      }))
-      .filter((line) => line.quantity > 0 && line.unit_price_ht >= 0 && line.vat_rate >= 0);
-    if (lines.length < 1) {
-      setError("Ajoutez au moins une ligne avant de créer la facture.");
-      return;
-    }
     setLoading(true);
     setError(null);
     try {
-      const inv = await createPreparedStandardInvoiceFromQuote(fromQuote, {
-        preparedLines: lines,
-        preparedTotals: {
-          total_ht: preparedTotals.total_ht,
-          total_vat: preparedTotals.total_vat,
-          total_ttc: preparedTotals.total_ttc,
-        },
+      const inv = await createInvoiceFromQuote(fromQuote, {
+        billingRole: "STANDARD",
       });
       if (inv?.id) navigate(`/invoices/${inv.id}`, { replace: true });
     } catch (e) {
@@ -517,6 +450,7 @@ export default function InvoiceCreatePage() {
 
   if (fromQuote) {
     const canSubmitPrep = preparedLines.length > 0 && projectGlobalTotal > 0;
+    const editingDisabled = billingLocked || apiRole === "STANDARD";
     return (
       <div className="icp-page">
         <div className="icp-header">
@@ -553,7 +487,7 @@ export default function InvoiceCreatePage() {
                         </td>
                       </tr>
                     ) : preparedLines.map((line) => {
-                      const totals = computePreparedLineTotals(line);
+                      const cellTotals = getPreparedLineMoneyTotals(line);
                       const discountPercent = getDiscountPercent(line);
                       return (
                         <tr
@@ -570,7 +504,7 @@ export default function InvoiceCreatePage() {
                               type="number"
                               step="0.01"
                               value={line.quantity === 0 ? "" : line.quantity}
-                              disabled={billingLocked}
+                              disabled={editingDisabled}
                               placeholder="0"
                               onFocus={() => setActiveLineId(line.id)}
                               onChange={(e) => updatePreparedLine(line.id, { quantity: Number(e.target.value) })}
@@ -582,7 +516,7 @@ export default function InvoiceCreatePage() {
                               type="number"
                               step="0.01"
                               value={line.unit_price_ht === 0 ? "" : line.unit_price_ht}
-                              disabled={billingLocked}
+                              disabled={editingDisabled}
                               placeholder="0"
                               onFocus={() => setActiveLineId(line.id)}
                               onChange={(e) =>
@@ -596,14 +530,12 @@ export default function InvoiceCreatePage() {
                               type="number"
                               step="0.01"
                               value={discountPercent === 0 ? "" : discountPercent}
-                              disabled={billingLocked}
+                              disabled={editingDisabled}
                               placeholder="0"
                               onFocus={() => setActiveLineId(line.id)}
                               onChange={(e) => {
                                 const pct = Math.max(0, Number(e.target.value) || 0);
-                                const base = getLineBaseHt(line);
-                                const discountHt = roundMoney2((base * Math.min(100, pct)) / 100);
-                                updatePreparedLine(line.id, { discount_ht: discountHt });
+                                updatePreparedLine(line.id, { discount_percent: Math.min(100, pct) });
                               }}
                             />
                           </td>
@@ -613,28 +545,37 @@ export default function InvoiceCreatePage() {
                               type="number"
                               step="0.01"
                               value={line.vat_rate === 0 ? "" : line.vat_rate}
-                              disabled={billingLocked}
+                              disabled={editingDisabled}
                               placeholder="0"
                               onFocus={() => setActiveLineId(line.id)}
                               onChange={(e) => updatePreparedLine(line.id, { vat_rate: Number(e.target.value) })}
                             />
                           </td>
                           <td className="icp-amount">
-                            {totals.totalHt.toLocaleString("fr-FR", {
+                            {cellTotals.discountHt > 0.0001 ? (
+                              <span className="icp-old-amount">
+                                {cellTotals.baseHt.toLocaleString("fr-FR", {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 2,
+                                })}{" "}
+                                €
+                              </span>
+                            ) : null}
+                            {cellTotals.totalHt.toLocaleString("fr-FR", {
                               minimumFractionDigits: 2,
                               maximumFractionDigits: 2,
                             })}{" "}
                             €
                           </td>
                           <td className="icp-amount icp-amount-strong">
-                            {totals.totalTtc.toLocaleString("fr-FR", {
+                            {cellTotals.totalTtc.toLocaleString("fr-FR", {
                               minimumFractionDigits: 2,
                               maximumFractionDigits: 2,
                             })}{" "}
                             €
                           </td>
                           <td>
-                            {!billingLocked ? (
+                            {!editingDisabled ? (
                               <button
                                 type="button"
                                 className="icp-delete-btn"
@@ -717,6 +658,11 @@ export default function InvoiceCreatePage() {
                   Non encore validé
                 </p>
               )}
+              {apiRole === "STANDARD" ? (
+                <p className="qb-muted" style={{ marginTop: 8 }}>
+                  Facture STANDARD: les lignes et remises sont reprises à l&apos;identique depuis le snapshot officiel du devis.
+                </p>
+              ) : null}
 
               {apiRole === "DEPOSIT" && prepValidated ? (
                 <div className="icp-deposit-box">
