@@ -22,9 +22,12 @@ if (!shouldRun) {
 }
 
 try {
-  execSync("npx playwright install --with-deps chromium", {
+  execSync("npx playwright install chromium", {
     stdio: "inherit",
-    env: process.env,
+    env: {
+      ...process.env,
+      PLAYWRIGHT_BROWSERS_PATH: process.env.PLAYWRIGHT_BROWSERS_PATH || "0",
+    },
   });
 } catch (e) {
   process.stderr.write(`[playwright] postinstall échoué: ${e && e.message}\n`);
