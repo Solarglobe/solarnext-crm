@@ -118,6 +118,44 @@ describe("invoicePreparationTotals — snapshot & DOCUMENT_DISCOUNT", () => {
     expect(t.discountHt).toBe(100);
   });
 
+  it("DOCUMENT_DISCOUNT : line_kind lu depuis snapshot_json si absent à la racine", () => {
+    const raw = [
+      {
+        label: "Remise commerciale",
+        quantity: 1,
+        unit_price_ht: -200,
+        discount_ht: 0,
+        vat_rate: 20,
+        total_line_ht: -200,
+        total_line_vat: -40,
+        total_line_ttc: -240,
+        snapshot_json: { line_kind: "DOCUMENT_DISCOUNT" },
+      },
+    ];
+    const lines = normalizePreparedLines(raw);
+    expect(lines).toHaveLength(1);
+    expect(lines[0].line_kind).toBe("DOCUMENT_DISCOUNT");
+  });
+
+  it("ligne remise : conservée si HT négatif même avec qté et PU à 0 (snapshot dégradé)", () => {
+    const raw = [
+      {
+        label: "Remise",
+        quantity: 0,
+        unit_price_ht: 0,
+        discount_ht: 0,
+        vat_rate: 20,
+        line_kind: "DOCUMENT_DISCOUNT",
+        total_line_ht: -100,
+        total_line_vat: -20,
+        total_line_ttc: -120,
+      },
+    ];
+    const lines = normalizePreparedLines(raw);
+    expect(lines).toHaveLength(1);
+    expect(lines[0].line_kind).toBe("DOCUMENT_DISCOUNT");
+  });
+
   it("discount_ht absent mais total_line_ht net : déduit remise € et % pour l’UI", () => {
     const raw = [
       {

@@ -153,16 +153,36 @@ function keepNormalizedLine(line: PreparedInvoiceLine): boolean {
   const kind = String(line.line_kind || "").toUpperCase();
   const ttc = Number(line.total_line_ttc);
   const th = Number(line.total_line_ht);
+  const up = Number(line.unit_price_ht);
   const hasSnapMag =
     (Number.isFinite(ttc) && Math.abs(ttc) > 1e-9) ||
     (Number.isFinite(th) && Math.abs(th) > 1e-9);
+  /** Ligne type remise document (PU ou HT ligne négatif) — ne pas exclure si qté/PU sont à 0 côté snapshot. */
+  const negCommercialLine =
+    (Number.isFinite(th) && th < -1e-9) || (Number.isFinite(up) && up < -1e-9);
   return (
     hasSnapMag ||
+    negCommercialLine ||
     line.quantity !== 0 ||
     line.unit_price_ht !== 0 ||
     line.discount_percent > 0 ||
     kind === "DOCUMENT_DISCOUNT"
   );
+}
+
+/** line_kind peut manquer sur d’anciens snapshots : replis snapshot_json / document_discount_line. */
+function resolveLineKindFromRawRow(row: Record<string, unknown>): string | null {
+  const direct = row.line_kind;
+  if (typeof direct === "string" && direct.trim()) return direct.trim();
+  if (row.document_discount_line === true) return "DOCUMENT_DISCOUNT";
+  const sj = row.snapshot_json;
+  if (sj && typeof sj === "object" && !Array.isArray(sj)) {
+    const o = sj as Record<string, unknown>;
+    const lk = o.line_kind;
+    if (typeof lk === "string" && lk.trim()) return lk.trim();
+    if (o.document_discount_line === true) return "DOCUMENT_DISCOUNT";
+  }
+  return null;
 }
 
 export function normalizePreparedLines(rawLines: unknown[]): PreparedInvoiceLine[] {
@@ -181,9 +201,7 @@ export function normalizePreparedLines(rawLines: unknown[]): PreparedInvoiceLine
         (Number.isFinite(quantity) ? quantity : 0) * (Number.isFinite(unitPrice) ? unitPrice : 0)
       );
 
-      const lkRaw = row.line_kind;
-      const line_kind =
-        typeof lkRaw === "string" && lkRaw.trim() ? lkRaw.trim() : null;
+      const line_kind = resolveLineKindFromRawRow(row);
       const lineKindUpper = String(line_kind || "").toUpperCase();
 
       const th = Number(row.total_line_ht);

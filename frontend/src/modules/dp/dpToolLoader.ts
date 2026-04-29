@@ -37,6 +37,41 @@ export type DpToolLoaderHandle = {
   destroy: () => void;
 };
 
+/** Contexte injecté sur `window.__SOLARNEXT_DP_CONTEXT__` (typage minimal pour accès sûr au bundle legacy). */
+export type DpContext = {
+  leadId?: string;
+  [key: string]: unknown;
+};
+
+/** Globaux posés par `loadDpTool` avant chargement des scripts DP. */
+type DpLoaderWindowGlobals = {
+  __SOLARNEXT_DP_CONTEXT__?: DpContext;
+  __SOLARNEXT_API_BASE__?: string;
+  __SOLARNEXT_DP_STORAGE_KEY__?: string;
+  __SOLARNEXT_DP_ASSET_BASE__?: string;
+  __SOLARNEXT_DP_DRAFT_SERVER__?: unknown;
+  __SOLARNEXT_DP_EMBED_LOADER__?: boolean;
+  __SOLARNEXT_DP_CRM_EMBED?: boolean;
+  __SN_DP_INIT_BLOCKED?: boolean;
+  __SN_DP_DEV_MODE?: boolean;
+  __SOLARNEXT_DP_MOUNT_SHELL__?: () => void;
+  __SOLARNEXT_DP_NAV_ABORT__?: () => void;
+  __SOLARNEXT_DP_STYLE_DP_MAIN__?: boolean;
+};
+
+type DpPostLoadWindow = {
+  __solarnextHydrateSmartpitchFromDpContext?: () => void;
+  DpDraftStore?: {
+    initDraftFromServer?: (d: unknown) => void;
+    hydrateFromDraft?: () => void;
+    forceSaveDraft?: () => void;
+  };
+  loadDP1LeadContext?: () => Promise<unknown>;
+  __snDpLoadInjectedDp1Context?: () => Promise<unknown>;
+  __SN_DP_INIT_BLOCKED?: boolean;
+  __snDpForceFlush?: () => unknown;
+};
+
 /** Base `/dp-tool/` (copié en dist + servi en dev) — évite import.meta.url cassé depuis assets/*.js bundlés. */
 function getDefaultDpAssetBase(): string {
   if (typeof window !== "undefined") {
@@ -216,8 +251,9 @@ export async function loadDpTool(options: DpToolLoaderOptions): Promise<DpToolLo
   let { container, hostPayload, storageKey, apiBase } = options;
   const devStandalone = isDpLocalStandaloneDevHost();
   if (devStandalone) {
-    (window as Window & { __SN_DP_DP2_AUDIT__?: boolean }).__SN_DP_DP2_AUDIT__ = true;
-    (window as Window & { __SN_DP_BOOT_PAGE_PATH__?: string }).__SN_DP_BOOT_PAGE_PATH__ = "pages/dp2.html";
+    const wd = window as unknown as { __SN_DP_DP2_AUDIT__?: boolean; __SN_DP_BOOT_PAGE_PATH__?: string };
+    wd.__SN_DP_DP2_AUDIT__ = true;
+    wd.__SN_DP_BOOT_PAGE_PATH__ = "pages/dp2.html";
     hostPayload = buildDpLocalDevHostPayload();
     if (!String(storageKey ?? "").trim()) {
       storageKey = SN_DP_DEV_TEST_LEAD_ID;
@@ -228,21 +264,7 @@ export async function loadDpTool(options: DpToolLoaderOptions): Promise<DpToolLo
 
   injectShellMarkup(container);
 
-  const w = window as Window &
-    typeof globalThis & {
-      __SOLARNEXT_DP_CONTEXT__?: unknown;
-      __SOLARNEXT_API_BASE__?: string;
-      __SOLARNEXT_DP_STORAGE_KEY__?: string;
-      __SOLARNEXT_DP_ASSET_BASE__?: string;
-      __SOLARNEXT_DP_DRAFT_SERVER__?: unknown;
-      __SOLARNEXT_DP_EMBED_LOADER__?: boolean;
-      __SOLARNEXT_DP_CRM_EMBED?: boolean;
-      __SN_DP_INIT_BLOCKED?: boolean;
-      __SN_DP_DEV_MODE?: boolean;
-      __SOLARNEXT_DP_MOUNT_SHELL__?: () => void;
-      __SOLARNEXT_DP_NAV_ABORT__?: () => void;
-      __SOLARNEXT_DP_STYLE_DP_MAIN__?: boolean;
-    };
+  const w = window as unknown as Window & DpLoaderWindowGlobals;
 
   const baseCtx = {
     leadId: hostPayload.leadId,
@@ -273,7 +295,8 @@ export async function loadDpTool(options: DpToolLoaderOptions): Promise<DpToolLo
   w.__SOLARNEXT_DP_ASSET_BASE__ = assetBase;
 
   solarnextDpClearLeakingDpGlobals(w);
-  console.log("[DP RESET] leadId =", w.__SOLARNEXT_DP_CONTEXT__?.leadId);
+  const dpCtx = w.__SOLARNEXT_DP_CONTEXT__ as DpContext | undefined;
+  console.log("[DP RESET] leadId =", dpCtx?.leadId);
 
   const ac = new AbortController();
 
@@ -303,20 +326,18 @@ export async function loadDpTool(options: DpToolLoaderOptions): Promise<DpToolLo
     delete w.__SOLARNEXT_DP_EMBED_LOADER__;
   }
 
-  const win = w as Window &
-    Record<string, unknown> & {
-      __solarnextHydrateSmartpitchFromDpContext?: () => void;
-      DpDraftStore?: { initDraftFromServer?: (d: unknown) => void; hydrateFromDraft?: () => void };
-      loadDP1LeadContext?: () => Promise<unknown>;
-      __snDpLoadInjectedDp1Context?: () => Promise<unknown>;
-      __SN_DP_INIT_BLOCKED?: boolean;
-    };
+  const win = w as unknown as DpPostLoadWindow;
   if (!win.__SN_DP_INIT_BLOCKED && typeof win.__solarnextHydrateSmartpitchFromDpContext === "function") {
     win.__solarnextHydrateSmartpitchFromDpContext();
   }
   try {
-    win.DpDraftStore?.initDraftFromServer?.(hostPayload.draft ?? null);
-    win.DpDraftStore?.hydrateFromDraft?.();
+    const draft = hostPayload.draft ?? null;
+    if (win.DpDraftStore?.initDraftFromServer) {
+      win.DpDraftStore.initDraftFromServer(draft);
+    }
+    if (win.DpDraftStore?.hydrateFromDraft) {
+      win.DpDraftStore.hydrateFromDraft();
+    }
   } catch {
     /* ignore */
   }
@@ -338,9 +359,12 @@ export async function loadDpTool(options: DpToolLoaderOptions): Promise<DpToolLo
     if (gen !== loadGeneration) return;
     ac.abort();
     try {
-      const flush = (w as Window & { __snDpForceFlush?: () => unknown }).__snDpForceFlush;
+      const wl = w as unknown as DpPostLoadWindow;
+      const flush = wl.__snDpForceFlush;
       if (typeof flush === "function") flush();
-      else (w as Window & { DpDraftStore?: { forceSaveDraft?: () => void } }).DpDraftStore?.forceSaveDraft?.();
+      else if (wl.DpDraftStore?.forceSaveDraft) {
+        wl.DpDraftStore.forceSaveDraft();
+      }
     } catch {
       /* ignore */
     }

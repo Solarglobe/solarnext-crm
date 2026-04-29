@@ -135,7 +135,12 @@ router.get(
   async (req, res) => {
     try {
       const org = orgId(req);
-      const data = await service.getQuoteDocumentViewModel(req.params.id, org);
+      const q = req.query || {};
+      const forInvoicePrep =
+        q.for_invoice_prep === "1" ||
+        q.for_invoice_prep === "true" ||
+        String(q.invoice_prep || "").toLowerCase() === "true";
+      const data = await service.getQuoteDocumentViewModel(req.params.id, org, { forInvoicePrep });
       res.json(data);
     } catch (e) {
       const code = e.statusCode === 404 ? 404 : 500;

@@ -114,7 +114,7 @@ function parseLegalDocumentsFromMeta(meta) {
   };
 }
 
-function mapQuoteLine(row) {
+export function mapQuoteLine(row) {
   const snap = parseJsonb(row.snapshot_json);
   const refRaw = snap?.reference ?? snap?.product_reference ?? null;
   const reference =

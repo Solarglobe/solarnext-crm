@@ -420,12 +420,21 @@ export async function postFinalizeQuoteSigned(
 }
 
 /** Payload miroir PDF (officiel ou aperçu brouillon) — page Présenter */
-export async function getQuoteDocumentViewModel(quoteId: string): Promise<{
+export async function getQuoteDocumentViewModel(
+  quoteId: string,
+  options?: { forInvoicePrep?: boolean }
+): Promise<{
   mode: "official" | "draft";
   payload: QuotePdfPayload;
   organizationId: string;
 }> {
-  const res = await apiFetch(`${API_BASE}/api/quotes/${encodeURIComponent(quoteId)}/document-view-model`);
+  const qs =
+    options?.forInvoicePrep === true
+      ? `?for_invoice_prep=${encodeURIComponent("1")}`
+      : "";
+  const res = await apiFetch(
+    `${API_BASE}/api/quotes/${encodeURIComponent(quoteId)}/document-view-model${qs}`
+  );
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error((err as { error?: string }).error || `Erreur ${res.status}`);

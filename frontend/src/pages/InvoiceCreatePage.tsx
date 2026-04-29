@@ -214,7 +214,10 @@ export default function InvoiceCreatePage() {
     setPrepReady(false);
     setError(null);
     setPrepValidated(false);
-    void Promise.all([getQuoteDocumentViewModel(fromQuote), fetchQuoteInvoiceBillingContext(fromQuote)])
+    void Promise.all([
+      getQuoteDocumentViewModel(fromQuote, { forInvoicePrep: true }),
+      fetchQuoteInvoiceBillingContext(fromQuote),
+    ])
       .then(([vm, ctx]) => {
         if (cancelled) return;
         const vmLines = Array.isArray(vm?.payload?.lines) ? vm.payload.lines : [];

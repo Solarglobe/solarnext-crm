@@ -52,6 +52,7 @@ import { addDocumentApiAliases } from "../../services/documentMetadata.service.j
 import {
   persistQuoteOfficialDocumentSnapshot,
   buildQuotePdfPayloadForLivePreview,
+  mapQuoteLine,
 } from "../../services/financialDocumentSnapshot.service.js";
 import { ensureClientForQuote } from "../../services/ensureClientForQuote.service.js";
 import { mergeQuoteOrgDocumentFieldsIntoPayload } from "../../services/quoteDocumentOrgSettings.service.js";
@@ -284,7 +285,8 @@ function applyOfficialQuoteSnapshotTotals(quoteRow) {
   return quoteRow;
 }
 
-export async function getQuoteDocumentViewModel(quoteId, organizationId) {
+export async function getQuoteDocumentViewModel(quoteId, organizationId, opts = {}) {
+  const forInvoicePrep = Boolean(opts?.forInvoicePrep);
   const data = await getQuoteById(quoteId, organizationId);
   if (!data) {
     const err = new Error("Devis non trouvé");
@@ -299,6 +301,9 @@ export async function getQuoteDocumentViewModel(quoteId, organizationId) {
         buildQuotePdfPayloadFromSnapshot(snap),
         organizationId
       );
+      if (forInvoicePrep) {
+        payload = mergeMissingDocumentDiscountLinesFromLiveForInvoicePrep(payload, items);
+      }
       const st = String(quote.status || "").toUpperCase();
       if (st === "ACCEPTED") {
         const acc = await fetchQuoteSignatureReadAcceptances(organizationId, quoteId);
@@ -443,6 +448,47 @@ function payloadItemsHaveDocumentDiscountLine(items) {
 
 function isDocumentDiscountItem(it) {
   return it?.line_kind === QUOTE_LINE_KIND_DOCUMENT_DISCOUNT || it?.document_discount_line === true;
+}
+
+function isOfficialPayloadLineDocumentDiscount(line) {
+  return String(line?.line_kind || "").toUpperCase() === QUOTE_LINE_KIND_DOCUMENT_DISCOUNT;
+}
+
+/** Snapshot officier couvre déjà une remise document à cette position ? */
+function officialPayloadCoversLiveDocDiscountPosition(payloadLines, position) {
+  const p = Number(position);
+  if (!Number.isFinite(p)) return false;
+  return (payloadLines || []).some(
+    (L) => isOfficialPayloadLineDocumentDiscount(L) && Number(L.position) === p
+  );
+}
+
+/**
+ * Préparation facture uniquement : ajoute les lignes DOCUMENT_DISCOUNT live absentes du snapshot figé.
+ * Ne persiste rien ; n’altère pas les autres lignes (hors tri par position si ajouts).
+ */
+function mergeMissingDocumentDiscountLinesFromLiveForInvoicePrep(payload, liveQuoteLineRows) {
+  if (!payload || typeof payload !== "object") return payload;
+  const lines = Array.isArray(payload.lines) ? [...payload.lines] : [];
+  const additions = [];
+  for (const row of liveQuoteLineRows || []) {
+    if (!snapshotHasDocumentDiscountLine(row.snapshot_json)) continue;
+    if (officialPayloadCoversLiveDocDiscountPosition(lines, row.position)) continue;
+    additions.push(mapQuoteLine(row));
+  }
+  if (additions.length === 0) return { ...payload, lines };
+  const merged = [...lines, ...additions];
+  merged.sort((a, b) => {
+    const pa = Number(a.position);
+    const pb = Number(b.position);
+    const fa = Number.isFinite(pa);
+    const fb = Number.isFinite(pb);
+    if (fa && fb) return pa - pb;
+    if (fa && !fb) return -1;
+    if (!fa && fb) return 1;
+    return 0;
+  });
+  return { ...payload, lines: merged };
 }
 
 function normalizeQuotePayloadItemForWrite(it) {

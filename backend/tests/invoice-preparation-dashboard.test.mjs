@@ -63,6 +63,16 @@ async function createAcceptedQuoteWithTotals() {
   return quoteId;
 }
 
+async function createAcceptedQuoteWithPayload(payload) {
+  const quote = await quoteService.createQuote(orgId, payload);
+  const quoteId = quote.quote.id;
+  quoteIds.push(quoteId);
+  await quoteService.patchQuoteStatus(quoteId, orgId, "READY_TO_SEND", null);
+  await quoteService.patchQuoteStatus(quoteId, orgId, "SENT", null);
+  await quoteService.patchQuoteStatus(quoteId, orgId, "ACCEPTED", null);
+  return quoteId;
+}
+
 test("STANDARD préparé 13 950 -> 11 250 : draft + billing_total verrouillé", async () => {
   const quoteId = await createAcceptedQuoteWithTotals();
   const inv = await invoiceService.createPreparedStandardInvoiceFromQuote(quoteId, orgId, {
@@ -283,4 +293,109 @@ test("dashboard CA facturé exclut DRAFT/CANCELLED et inclut ISSUED/PARTIALLY_PA
 
   assert.equal(Number(dashboard.global_kpis.revenue_invoiced_ttc), 9000);
   assert.equal(Number(dashboard.global_kpis.remaining_to_collect_ttc), 3500);
+});
+
+test("devis avec remise ligne % -> facture STANDARD conserve total officiel", async () => {
+  const quoteId = await createAcceptedQuoteWithPayload({
+    client_id: clientId,
+    items: [
+      { label: "Ligne %", description: "", quantity: 2, unit_price_ht: 1000, discount_ht: 200, tva_rate: 20 },
+    ],
+  });
+  const q = await pool.query(
+    `SELECT document_snapshot_json->'totals'->>'total_ttc' AS total_ttc FROM quotes WHERE id = $1`,
+    [quoteId]
+  );
+  const expectedTtc = Number(q.rows[0]?.total_ttc || 0);
+  const inv = await invoiceService.createInvoiceFromQuote(quoteId, orgId, { billingRole: "STANDARD" });
+  invoiceIds.push(inv.id);
+  assert.equal(Number(inv.total_ttc), expectedTtc);
+});
+
+test("devis avec remise ligne montant -> facture STANDARD conserve discount_ht", async () => {
+  const quoteId = await createAcceptedQuoteWithPayload({
+    client_id: clientId,
+    items: [
+      { label: "Ligne €", description: "", quantity: 1, unit_price_ht: 1200, discount_ht: 150, tva_rate: 20 },
+    ],
+  });
+  const inv = await invoiceService.createInvoiceFromQuote(quoteId, orgId, { billingRole: "STANDARD" });
+  invoiceIds.push(inv.id);
+  const line = (inv.lines || [])[0];
+  assert.equal(Number(line?.discount_ht || 0), 150);
+});
+
+test("remise globale -> ligne DOCUMENT_DISCOUNT reprise en STANDARD", async () => {
+  const quoteId = await createAcceptedQuoteWithPayload({
+    client_id: clientId,
+    items: [{ label: "Base", description: "", quantity: 1, unit_price_ht: 1000, tva_rate: 20 }],
+    metadata: { global_discount_percent: 10 },
+  });
+  const inv = await invoiceService.createInvoiceFromQuote(quoteId, orgId, { billingRole: "STANDARD" });
+  invoiceIds.push(inv.id);
+  const hasDocDiscountLine = (inv.lines || []).some((l) => l.snapshot_json?.line_kind === "DOCUMENT_DISCOUNT");
+  assert.equal(hasDocDiscountLine, true);
+});
+
+test("acompte = X% du total TTC remisé officiel du devis", async () => {
+  const quoteId = await createAcceptedQuoteWithPayload({
+    client_id: clientId,
+    items: [{ label: "Base", description: "", quantity: 1, unit_price_ht: 1000, tva_rate: 20 }],
+    metadata: { global_discount_percent: 10 },
+  });
+  const q = await pool.query(
+    `SELECT (document_snapshot_json->'totals'->>'total_ttc')::numeric AS total_ttc FROM quotes WHERE id = $1`,
+    [quoteId]
+  );
+  const quoteTtc = Number(q.rows[0]?.total_ttc || 0);
+  const expectedDeposit = Math.round(quoteTtc * 0.3 * 100) / 100;
+  const inv = await invoiceService.createInvoiceFromQuote(quoteId, orgId, {
+    billingRole: "DEPOSIT",
+    billingAmountTtc: expectedDeposit,
+  });
+  invoiceIds.push(inv.id);
+  assert.equal(Number(inv.total_ttc), expectedDeposit);
+  assert.match(String(inv.lines?.[0]?.label || ""), /Acompte/i);
+});
+
+test("solde = total TTC remisé officiel - acomptes émis", async () => {
+  const quoteId = await createAcceptedQuoteWithPayload({
+    client_id: clientId,
+    items: [{ label: "Base", description: "", quantity: 1, unit_price_ht: 1000, tva_rate: 20 }],
+    metadata: { global_discount_percent: 10 },
+  });
+  const q = await pool.query(
+    `SELECT (document_snapshot_json->'totals'->>'total_ttc')::numeric AS total_ttc FROM quotes WHERE id = $1`,
+    [quoteId]
+  );
+  const quoteTtc = Number(q.rows[0]?.total_ttc || 0);
+  const dep = await invoiceService.createInvoiceFromQuote(quoteId, orgId, {
+    billingRole: "DEPOSIT",
+    billingAmountTtc: 200,
+  });
+  invoiceIds.push(dep.id);
+  await invoiceService.patchInvoiceStatus(dep.id, orgId, "ISSUED", null);
+  const bal = await invoiceService.createInvoiceFromQuote(quoteId, orgId, { billingRole: "BALANCE" });
+  invoiceIds.push(bal.id);
+  assert.equal(Number(bal.total_ttc), Math.round((quoteTtc - 200) * 100) / 100);
+  assert.match(String(bal.lines?.[0]?.label || ""), /Solde du devis/i);
+});
+
+test("aucune double remise: STANDARD = total snapshot officiel", async () => {
+  const quoteId = await createAcceptedQuoteWithPayload({
+    client_id: clientId,
+    items: [
+      { label: "A", description: "", quantity: 1, unit_price_ht: 1000, discount_ht: 100, tva_rate: 20 },
+      { label: "B", description: "", quantity: 1, unit_price_ht: 500, tva_rate: 20 },
+    ],
+    metadata: { global_discount_percent: 10 },
+  });
+  const q = await pool.query(
+    `SELECT (document_snapshot_json->'totals'->>'total_ttc')::numeric AS total_ttc FROM quotes WHERE id = $1`,
+    [quoteId]
+  );
+  const expected = Number(q.rows[0]?.total_ttc || 0);
+  const inv = await invoiceService.createInvoiceFromQuote(quoteId, orgId, { billingRole: "STANDARD" });
+  invoiceIds.push(inv.id);
+  assert.equal(Number(inv.total_ttc), expected);
 });
