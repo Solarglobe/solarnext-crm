@@ -592,6 +592,34 @@ async function sumQuoteInvoiceTtcNonCancelled(client, quoteId, organizationId) {
 }
 
 /**
+ * Source de vérité devis : somme des lignes actives quote_lines (inclut lignes de remise négatives).
+ * Resynchronise quotes.total_* pour éviter les écarts entre en-tête et lignes.
+ */
+async function recomputeQuoteTotalsFromLines(client, quoteId, organizationId) {
+  const r = await client.query(
+    `SELECT
+       COALESCE(SUM(total_line_ht) FILTER (WHERE is_active IS DISTINCT FROM false), 0)::numeric AS total_ht,
+       COALESCE(SUM(total_line_vat) FILTER (WHERE is_active IS DISTINCT FROM false), 0)::numeric AS total_vat,
+       COALESCE(SUM(total_line_ttc) FILTER (WHERE is_active IS DISTINCT FROM false), 0)::numeric AS total_ttc
+     FROM quote_lines
+     WHERE quote_id = $1 AND organization_id = $2`,
+    [quoteId, organizationId]
+  );
+  const total_ht = roundMoney2(Number(r.rows[0]?.total_ht) || 0);
+  const total_vat = roundMoney2(Number(r.rows[0]?.total_vat) || 0);
+  const total_ttc = roundMoney2(Number(r.rows[0]?.total_ttc) || 0);
+
+  await client.query(
+    `UPDATE quotes
+     SET total_ht = $1, total_vat = $2, total_ttc = $3, updated_at = now()
+     WHERE id = $4 AND organization_id = $5`,
+    [total_ht, total_vat, total_ttc, quoteId, organizationId]
+  );
+
+  return { total_ht, total_vat, total_ttc };
+}
+
+/**
  * Plafond TTC des factures liées au devis (hors annulées, brouillons inclus).
  * @param {import("pg").PoolClient} client
  * @param {string|null} [excludeInvoiceId] — réservé (cohérence API) ; le plafond compare la somme TTC des factures actives au total TTC du devis.
@@ -608,11 +636,12 @@ async function assertQuoteLinkedInvoicesWithinCap(client, quoteId, organizationI
   const fullSum = roundMoney2(Number(agg.rows[0]?.full_sum) || 0);
 
   const q = await client.query(
-    `SELECT COALESCE(total_ttc, 0)::numeric AS ttc FROM quotes WHERE id = $1 AND organization_id = $2 AND (archived_at IS NULL)`,
+    `SELECT id FROM quotes WHERE id = $1 AND organization_id = $2 AND (archived_at IS NULL)`,
     [quoteId, organizationId]
   );
   if (q.rows.length === 0) return;
-  const quoteTtc = roundMoney2(Number(q.rows[0]?.ttc) || 0);
+  const recomputed = await recomputeQuoteTotalsFromLines(client, quoteId, organizationId);
+  const quoteTtc = recomputed.total_ttc;
 
   if (fullSum > quoteTtc + QUOTE_INVOICE_SUM_TOLERANCE_TTC) {
     throw new Error(
@@ -799,6 +828,10 @@ export async function getQuoteInvoiceBillingContext(quoteId, organizationId) {
   );
   if (qres.rows.length === 0) return null;
   let quote = qres.rows[0];
+  const recomputed = await recomputeQuoteTotalsFromLines(pool, quoteId, organizationId);
+  quote.total_ht = recomputed.total_ht;
+  quote.total_vat = recomputed.total_vat;
+  quote.total_ttc = recomputed.total_ttc;
   const quoteStatus = String(quote.status || "").toUpperCase();
   if (!quote.client_id && quote.lead_id && quoteStatus === "ACCEPTED") {
     try {
@@ -933,6 +966,10 @@ export async function createInvoiceFromQuote(quoteId, organizationId, options = 
     );
     if (qres.rows.length === 0) throw new Error("Devis non trouvé");
     const quote = qres.rows[0];
+    const recomputed = await recomputeQuoteTotalsFromLines(client, quoteId, organizationId);
+    quote.total_ht = recomputed.total_ht;
+    quote.total_vat = recomputed.total_vat;
+    quote.total_ttc = recomputed.total_ttc;
     if (String(quote.status).toUpperCase() !== "ACCEPTED") {
       throw new Error("Le devis doit être accepté pour générer une facture");
     }
