@@ -4832,6 +4832,7 @@ async function generateDP2PDF() {
   // Mode "plan DP vectoriel propre" (WFS officiel) : uniquement pour le fond du PDF.
   let plan = null;
   let usedWfsBasePlan = false;
+  console.log("[DP2 WFS] used only for PDF");
   try {
     if (window.DP2_MAP?.dp2OfficialCadastreWfsLayer) {
       const wfsRes = await loadDp2OfficialCadastreWfsForPlan();
@@ -15225,6 +15226,19 @@ async function loadDp2OfficialCadastreWfsForPlan() {
   }
 }
 
+function ensureDp2OfficialCadastreWfsLayerAttachedForPdf(map, pkg) {
+  if (!map || !pkg || !pkg.dp2OfficialCadastreWfsLayer) return false;
+  try {
+    const layers = map.getLayers && map.getLayers();
+    const arr = layers && typeof layers.getArray === "function" ? layers.getArray() : [];
+    if (arr && arr.indexOf(pkg.dp2OfficialCadastreWfsLayer) >= 0) return true;
+    map.addLayer(pkg.dp2OfficialCadastreWfsLayer);
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
 function loadImageDataUrl(dataUrl) {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -15311,8 +15325,11 @@ async function dp2CaptureOfficialWfsBaseImageForPdf() {
   const oldWfsVisible = pkg.dp2OfficialCadastreWfsLayer?.getVisible ? pkg.dp2OfficialCadastreWfsLayer.getVisible() : false;
   const oldParcelVectorVisible = pkg.parcelVectorLayer?.getVisible ? pkg.parcelVectorLayer.getVisible() : false;
   const oldBuildingVisible = pkg.dp2BuildingVectorLayer?.getVisible ? pkg.dp2BuildingVectorLayer.getVisible() : false;
+  let attachedForPdf = false;
 
   try {
+    attachedForPdf = ensureDp2OfficialCadastreWfsLayerAttachedForPdf(map, pkg);
+    if (!attachedForPdf) return null;
     if (pkg.dp2OfficialCadastreWfsLayer?.setVisible) pkg.dp2OfficialCadastreWfsLayer.setVisible(true);
     if (pkg.mvtTileLayer?.setVisible) pkg.mvtTileLayer.setVisible(false);
     if (pkg.parcelVectorLayer?.setVisible) pkg.parcelVectorLayer.setVisible(false);
@@ -15356,6 +15373,11 @@ async function dp2CaptureOfficialWfsBaseImageForPdf() {
     try { if (pkg.mvtTileLayer?.setVisible) pkg.mvtTileLayer.setVisible(oldMvtVisible); } catch (_) {}
     try { if (pkg.parcelVectorLayer?.setVisible) pkg.parcelVectorLayer.setVisible(oldParcelVectorVisible); } catch (_) {}
     try { if (pkg.dp2BuildingVectorLayer?.setVisible) pkg.dp2BuildingVectorLayer.setVisible(oldBuildingVisible); } catch (_) {}
+    try {
+      if (attachedForPdf && pkg.dp2OfficialCadastreWfsLayer && map?.removeLayer) {
+        map.removeLayer(pkg.dp2OfficialCadastreWfsLayer);
+      }
+    } catch (_) {}
     try { map.updateSize?.(); map.renderSync?.(); } catch (_) {}
   }
 }
@@ -15979,6 +16001,7 @@ async function initDP2() {
           declutter: false,
         });
         map.addLayer(dp2CadastreVectorTileLayer);
+        console.log("[DP2] using MVT for display");
       }
     } catch (e) {
       console.warn("[DP2] Fond vectoriel MVT indisponible :", e);
@@ -15995,7 +16018,8 @@ async function initDP2() {
         zIndex: 11,
         visible: false,
       });
-      map.addLayer(dp2OfficialCadastreWfsLayer);
+      // IMPORTANT: pas d'attachement permanent à la carte en mode affichage DP2.
+      // Cette couche WFS est utilisée uniquement dans le pipeline PDF.
     } catch (e) {
       console.warn("[DP2 WFS] impossible d'initialiser la couche WFS :", e);
     }
