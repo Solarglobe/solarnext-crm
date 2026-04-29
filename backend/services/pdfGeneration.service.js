@@ -132,6 +132,8 @@ export async function generatePdfFromRendererUrl(rendererUrl) {
       await context.close();
     }
   } catch (err) {
+    console.error("PDF_ERROR_FULL:", err);
+    console.error("STACK:", err.stack);
     if (err.message && /timeout|Timeout/i.test(err.message)) {
       logger.error("PDF_RENDER_TIMEOUT", { rendererUrl, message: err.message });
       const e = new Error("PDF_RENDER_TIMEOUT");

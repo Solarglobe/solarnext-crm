@@ -39,12 +39,14 @@ export async function generatePdfForVersion(params, options = {}) {
     options.generatePdfFromRendererUrl ?? pdfGenService.generatePdfFromRendererUrl;
   const getRendererUrl = options.getRendererUrl ?? pdfGenService.getRendererUrl;
 
+  console.log("STEP 1c BEFORE: getVersionById (full row for PDF pipeline)");
   const version = await studiesService.getVersionById(versionId, organizationId);
   if (!version || version.study_id !== studyId) {
     const e = new Error("VERSION_NOT_FOUND");
     e.code = "VERSION_NOT_FOUND";
     throw e;
   }
+  console.log("STEP 1c OK: version row loaded for PDF");
 
   let renderToken;
   if (ephemeralSnapshot != null && typeof ephemeralSnapshot === "object") {
@@ -69,10 +71,16 @@ export async function generatePdfForVersion(params, options = {}) {
     renderToken = createPdfRenderToken(studyId, versionId, organizationId);
   }
 
+  console.log("STEP 5 BEFORE: build renderer URL (pdf-render.html / Playwright)");
   const rendererUrl = getRendererUrl(studyId, versionId, renderToken);
+  console.log("STEP 5 OK: renderer URL ready");
   logger.info("PDF generation started", { rendererUrl, studyId, versionId, ephemeral: !!ephemeralSnapshot });
 
+  console.log("STEP 6 BEFORE: Playwright generatePdfFromRendererUrl (PDF buffer)");
   let pdfBuffer = await generatePdfFromRendererUrl(rendererUrl);
+  console.log("STEP 6 OK: PDF buffer generated", {
+    byteLength: pdfBuffer?.length,
+  });
   if (documentPdfKind === FINANCIAL_DOCUMENT_PDF_KIND.QUOTE) {
     pdfBuffer = await mergeOrganizationCgvPdfAppend(pdfBuffer, organizationId);
   }

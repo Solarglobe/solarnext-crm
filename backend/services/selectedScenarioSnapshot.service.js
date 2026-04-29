@@ -27,6 +27,7 @@ export async function buildSelectedScenarioSnapshot({
     throw new Error(`Scénario ${scenarioId} introuvable dans scenarios_v2`);
   }
 
+  console.log("STEP 1b BEFORE: load study row from studies table");
   const studyRes = await pool.query(
     `SELECT s.lead_id, s.client_id
      FROM studies s
@@ -36,6 +37,7 @@ export async function buildSelectedScenarioSnapshot({
   if (studyRes.rows.length === 0) {
     throw new Error("Étude non trouvée");
   }
+  console.log("STEP 1b OK: study row loaded");
   const study = studyRes.rows[0];
   const leadId = study.lead_id;
   const clientId = study.client_id;
@@ -124,6 +126,7 @@ export async function buildSelectedScenarioSnapshot({
   }
 
   let technical = null;
+  console.log("STEP 2b BEFORE: getQuotePrep (technical snapshot / quote-prep)");
   try {
     const quotePrep = await quotePrepService.getQuotePrep({
       studyId,
@@ -134,6 +137,7 @@ export async function buildSelectedScenarioSnapshot({
   } catch (_) {
     // Pas de calpinage / quote-prep : installation et equipment restent vides
   }
+  console.log("STEP 2b OK: getQuotePrep step finished");
 
   if (technical) {
     site.orientation_deg = technical.orientation_deg ?? site.orientation_deg;

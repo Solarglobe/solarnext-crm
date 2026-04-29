@@ -33,8 +33,9 @@ export async function generatePdfFromScenario(req, res) {
       });
     }
 
+    console.log("STEP 1 BEFORE: load study_versions row (version + data_json)");
     const versionRes = await pool.query(
-      `SELECT id, study_id, data_json FROM study_versions
+      `SELECT id, study_id, data_json, selected_scenario_snapshot FROM study_versions
        WHERE id = $1 AND organization_id = $2`,
       [versionId, org]
     );
@@ -45,8 +46,11 @@ export async function generatePdfFromScenario(req, res) {
     if (row.study_id !== studyId) {
       return res.status(404).json({ error: "Version ne correspond pas à l'étude" });
     }
+    console.log("STEP 1 OK: study_versions row loaded");
 
     const dataJson = row.data_json && typeof row.data_json === "object" ? row.data_json : {};
+
+    console.log("STEP 3 BEFORE: read scenarios_v2 from version data_json");
     const scenariosV2 = dataJson.scenarios_v2;
     if (!Array.isArray(scenariosV2) || scenariosV2.length === 0) {
       return res.status(400).json({
@@ -60,13 +64,42 @@ export async function generatePdfFromScenario(req, res) {
         error: `Scénario ${scenarioId} introuvable dans scenarios_v2`,
       });
     }
+    console.log("STEP 3 OK: scenarios_v2 validated");
 
+    console.log("STEP 2 BEFORE: load calpinage_data (geometry_json)");
+    const calpinageRes = await pool.query(
+      `SELECT geometry_json FROM calpinage_data WHERE study_version_id = $1 AND organization_id = $2`,
+      [versionId, org]
+    );
+    const calpinage_data = calpinageRes.rows[0]?.geometry_json ?? null;
+    console.log("STEP 2 OK: calpinage_data row read");
+
+    console.log("STEP 4 BEFORE: build ephemeral selected_scenario_snapshot");
     const snapshot = await buildSelectedScenarioSnapshot({
       studyId,
       versionId,
       scenarioId,
       organizationId: org,
       dataJson,
+    });
+    console.log("STEP 4 OK: ephemeral selected_scenario_snapshot built");
+
+    const studyDbg = await pool.query(
+      `SELECT id FROM studies WHERE id = $1 AND organization_id = $2 AND (archived_at IS NULL) AND (deleted_at IS NULL)`,
+      [studyId, org]
+    );
+    const study = studyDbg.rows[0] || null;
+
+    const selected_scenario_snapshot = snapshot;
+    console.log("PDF_DEBUG", {
+      hasStudy: !!study,
+      hasVersion: versionRes.rows.length > 0,
+      hasCalpinage: !!calpinage_data,
+      panelsCount: calpinage_data?.panels?.length,
+      hasScenarios: !!scenariosV2,
+      scenarioKeys: Object.keys(scenariosV2 || {}),
+      hasSelected: !!selected_scenario_snapshot,
+      selectedType: selected_scenario_snapshot?.scenario_type,
     });
 
     const doc = await generatePdfForVersion(
@@ -150,8 +183,10 @@ export async function generatePdfFromScenario(req, res) {
     }
 
     return res.status(200).json(payload);
-  } catch (e) {
-    console.error("[generatePdfFromScenario.controller]", e);
+  } catch (err) {
+    console.error("PDF_ERROR_FULL:", err);
+    console.error("STACK:", err.stack);
+    const e = err;
     if (e.code === "VERSION_NOT_FOUND") {
       return res.status(404).json({ error: "VERSION_NOT_FOUND" });
     }
