@@ -4829,7 +4829,30 @@ function buildPdfClientFromDP1Context() {
 // DP2 — GÉNÉRATION PDF (COPIE DP1)
 // ======================================================
 async function generateDP2PDF() {
-  const plan = await collectDP2FinalPlanImage();
+  // Mode "plan DP vectoriel propre" (WFS officiel) : uniquement pour le fond du PDF.
+  let plan = null;
+  let usedWfsBasePlan = false;
+  try {
+    if (window.DP2_MAP?.dp2OfficialCadastreWfsLayer) {
+      const wfsRes = await loadDp2OfficialCadastreWfsForPlan();
+      if (wfsRes?.ok === true && wfsRes.count > 0) {
+        const baseDataUrl = await dp2CaptureOfficialWfsBaseImageForPdf();
+        if (baseDataUrl) {
+          plan = await collectDP2FinalPlanImageWithBaseImageDataUrl(baseDataUrl);
+          usedWfsBasePlan = !!plan;
+        }
+      }
+    }
+  } catch (e) {
+    console.error("[DP2 WFS] export base plan indisponible", e);
+  }
+
+  if (!plan) {
+    if (!usedWfsBasePlan) {
+      console.warn("[DP2 WFS] fallback to existing DP2 capture");
+    }
+    plan = await collectDP2FinalPlanImage();
+  }
   if (!plan) {
     alert("Image DP2 manquante");
     return;
@@ -15022,6 +15045,310 @@ function lockDP2Scale() {
 let dp2MvtTilesLoadingCount = 0;
 let dp2MvtFeatureLogged = false;
 
+// --------------------------
+// DP2 — WFS OFFICIEL (plan DP vectoriel propre)
+// --------------------------
+const DP2_OFFICIAL_WFS_BASE_URL = "https://data.geopf.fr/wfs";
+const DP2_OFFICIAL_CADASTRE_WFS_TYPENAME = "CADASTRALPARCELS.PARCELLAIRE_EXPRESS";
+const DP2_OFFICIAL_WFS_TIMEOUT_MS = 9000;
+
+function dp2OfficialWfsParcelLabelText(feature) {
+  const p = feature?.getProperties ? feature.getProperties() : {};
+  // Afficher le "numéro de parcelle" si un attribut existe.
+  // (On teste plusieurs clés pour être robuste selon les schémas WFS.)
+  const candidates = [
+    p.numero,
+    p.NUMERO,
+    p.parcelle,
+    p.PARCELLE,
+    p.id,
+  ];
+  for (const c of candidates) {
+    if (c == null) continue;
+    const s = String(c).trim();
+    if (s) return s;
+  }
+  return "";
+}
+
+function dp2OfficialCadastreWfsParcelStyle(feature, resolution) {
+  const label = dp2OfficialWfsParcelLabelText(feature);
+  const pxStrokeWidth =
+    resolution == null || !Number.isFinite(resolution) ? 0.85 : resolution < 1 ? 1 : 0.8;
+
+  const base = new ol.style.Style({
+    fill: new ol.style.Fill({ color: "rgba(0,0,0,0)" }), // remplissage transparent
+    stroke: new ol.style.Stroke({
+      color: "#2F80ED", // bleu attendu
+      width: pxStrokeWidth, // 0.6 à 1px (objectif : fin)
+      lineJoin: "round",
+      lineCap: "round",
+    }),
+  });
+
+  if (!label) return base;
+
+  // Labels petits, gris foncé, discrets
+  const showText =
+    resolution == null || !Number.isFinite(resolution) ? true : resolution <= 2.2;
+  if (!showText) return base;
+
+  return [
+    base,
+    new ol.style.Style({
+      geometry: function (feat) {
+        // Réutiliser la même logique de centroïde que le rendu MVT.
+        return dp2MvtCentroidPointForLabel(feat);
+      },
+      text: new ol.style.Text({
+        text: label,
+        font: dp2MvtParcelLabelFontCSS(resolution),
+        fill: new ol.style.Fill({ color: "#374151" }), // gris foncé
+        stroke: new ol.style.Stroke({ color: "rgba(255,255,255,0.55)", width: 1 }),
+        overflow: true,
+        textAlign: "center",
+        textBaseline: "middle",
+      }),
+    }),
+  ];
+}
+
+async function loadDp2OfficialCadastreWfsForPlan() {
+  const pkg = window.DP2_MAP;
+  if (!pkg || !pkg.map) return { ok: false, count: 0 };
+  if (!pkg.dp2OfficialCadastreWfsSource || !pkg.dp2OfficialCadastreWfsLayer) {
+    console.warn("[DP2 WFS] layer/source non initialisée");
+    return { ok: false, count: 0 };
+  }
+
+  const map = pkg.map;
+  const size = map.getSize ? map.getSize() : null;
+  const view = map.getView ? map.getView() : null;
+  if (!size || !Array.isArray(size) || size[0] <= 0 || size[1] <= 0 || !view) {
+    return { ok: false, count: 0 };
+  }
+
+  // BBOX basée sur l’emprise actuelle de la vue DP2 (EPSG:3857 côté carte)
+  const extent3857 = view.calculateExtent(size);
+  const padPct = 0.03;
+  const dx = (extent3857[2] - extent3857[0]) * padPct;
+  const dy = (extent3857[3] - extent3857[1]) * padPct;
+  const padded3857 = [
+    extent3857[0] - dx,
+    extent3857[1] - dy,
+    extent3857[2] + dx,
+    extent3857[3] + dy,
+  ];
+
+  // WFS IGN : on demande en EPSG:4326 puis on projette en EPSG:3857.
+  const extent4326 = ol.proj.transformExtent(padded3857, "EPSG:3857", "EPSG:4326");
+  const [minLon, minLat, maxLon, maxLat] = extent4326;
+
+  const url = new URL(DP2_OFFICIAL_WFS_BASE_URL);
+  url.searchParams.set("SERVICE", "WFS");
+  url.searchParams.set("VERSION", "2.0.0");
+  url.searchParams.set("REQUEST", "GetFeature");
+  url.searchParams.set("TYPENAMES", DP2_OFFICIAL_CADASTRE_WFS_TYPENAME);
+  url.searchParams.set("OUTPUTFORMAT", "application/json");
+  url.searchParams.set("SRSNAME", "EPSG:4326");
+  url.searchParams.set(
+    "BBOX",
+    `${minLon},${minLat},${maxLon},${maxLat}`
+  );
+  // Paramètre de volume (évite les requêtes infinies)
+  url.searchParams.set("COUNT", "20000");
+
+  console.log("[DP2 WFS] loading");
+  console.log("[DP2 WFS] loading bbox", {
+    bbox3857: padded3857,
+    bbox4326: extent4326,
+    timeoutMs: DP2_OFFICIAL_WFS_TIMEOUT_MS,
+  });
+
+  const controller = new AbortController();
+  const t = setTimeout(() => {
+    try { controller.abort(); } catch (_) {}
+  }, DP2_OFFICIAL_WFS_TIMEOUT_MS);
+
+  try {
+    const resp = await fetch(url.toString(), {
+      method: "GET",
+      signal: controller.signal,
+      headers: { Accept: "application/json" },
+    });
+    if (!resp.ok) {
+      throw new Error(`HTTP ${resp.status} ${resp.statusText || ""}`.trim());
+    }
+
+    const json = await resp.json();
+    // Déterminer la projection d’entrée si WFS la fournit.
+    let dataProjection = "EPSG:4326";
+    const crsName = json?.crs?.properties?.name;
+    if (typeof crsName === "string") {
+      const m = /EPSG(?::|::)?(\\d+)/i.exec(crsName);
+      if (m && m[1]) dataProjection = "EPSG:" + m[1];
+    }
+
+    const format = new ol.format.GeoJSON();
+    const features = format.readFeatures(json, {
+      dataProjection: dataProjection,
+      featureProjection: "EPSG:3857",
+    });
+
+    pkg.dp2OfficialCadastreWfsSource.clear();
+    pkg.dp2OfficialCadastreWfsSource.addFeatures(features);
+
+    // Optionnel : forcer le style côté layer (si besoin)
+    if (pkg.dp2OfficialCadastreWfsLayer && pkg.dp2OfficialCadastreWfsLayer.setStyle) {
+      pkg.dp2OfficialCadastreWfsLayer.setStyle(dp2OfficialCadastreWfsParcelStyle);
+    }
+
+    console.log("[DP2 WFS] loaded " + features.length + " parcels");
+    return { ok: true, count: features.length };
+  } catch (err) {
+    const msg = err && err.name === "AbortError" ? "timeout" : String(err?.message || err);
+    console.error("[DP2 WFS] error", { message: msg, error: err });
+    return { ok: false, count: 0 };
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+function loadImageDataUrl(dataUrl) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error("Image base64 non chargée"));
+    img.src = dataUrl;
+  });
+}
+
+async function collectDP2FinalPlanImageWithBaseImageDataUrl(baseDataUrl) {
+  const overlayCanvas = document.getElementById("dp2-draw-canvas");
+  if (!overlayCanvas || overlayCanvas.width <= 0 || overlayCanvas.height <= 0) return null;
+  if (!baseDataUrl || typeof baseDataUrl !== "string") return null;
+
+  if (typeof window.renderDP2FromState === "function") {
+    try {
+      window.renderDP2FromState();
+    } catch (_) {}
+  } else if (typeof renderDP2FromState === "function") {
+    try {
+      renderDP2FromState();
+    } catch (_) {}
+  }
+
+  const imgEl = await loadImageDataUrl(baseDataUrl);
+
+  const out = document.createElement("canvas");
+  const w = imgEl.naturalWidth || overlayCanvas.width;
+  const h = imgEl.naturalHeight || overlayCanvas.height;
+  out.width = w;
+  out.height = h;
+
+  const ctx = out.getContext("2d");
+  if (!ctx) return null;
+
+  // 1) base plan DP propre (WFS)
+  ctx.drawImage(imgEl, 0, 0, w, h);
+
+  // 2) couches OpenLayers (bâti / annotations vectorielles)
+  try {
+    const map = window.DP2_MAP?.map;
+    const mapEl = map && typeof map.getTargetElement === "function" ? map.getTargetElement() : null;
+    if (map && mapEl && mapEl.isConnected) {
+      const olCanvases = mapEl.querySelectorAll(".ol-layer canvas");
+      olCanvases.forEach(function (c) {
+        if (c.width > 0 && c.height > 0) {
+          ctx.save();
+          const opacity = c.parentNode.style.opacity;
+          ctx.globalAlpha = opacity === "" ? 1 : Number(opacity);
+          const transform = c.style.transform;
+          if (transform) {
+            const m = transform.match(/^matrix\\(([^\\(]*)\\)$/);
+            if (m) {
+              const matrix = m[1].split(",").map(Number);
+              ctx.setTransform(matrix[0], matrix[1], matrix[2], matrix[3], matrix[4], matrix[5]);
+            }
+          }
+          ctx.drawImage(c, 0, 0, c.width, c.height, 0, 0, w, h);
+          ctx.restore();
+        }
+      });
+    }
+  } catch (_) {}
+
+  // 3) canvas édition (mesures, poignées, etc.)
+  ctx.drawImage(overlayCanvas, 0, 0, w, h);
+
+  return out.toDataURL("image/png");
+}
+
+async function dp2CaptureOfficialWfsBaseImageForPdf() {
+  const pkg = window.DP2_MAP;
+  if (!pkg?.map) return null;
+
+  const map = pkg.map;
+  const mapEl = map.getTargetElement ? map.getTargetElement() : null;
+  if (!mapEl) return null;
+
+  const wPx = Math.max(1, Math.round(mapEl.clientWidth));
+  const hPx = Math.max(1, Math.round(mapEl.clientHeight));
+
+  // Sauvegarder la visibilité : on ne veut capturer que le fond "parcelles WFS"
+  const oldMvtVisible = pkg.mvtTileLayer?.getVisible ? pkg.mvtTileLayer.getVisible() : false;
+  const oldWfsVisible = pkg.dp2OfficialCadastreWfsLayer?.getVisible ? pkg.dp2OfficialCadastreWfsLayer.getVisible() : false;
+  const oldParcelVectorVisible = pkg.parcelVectorLayer?.getVisible ? pkg.parcelVectorLayer.getVisible() : false;
+  const oldBuildingVisible = pkg.dp2BuildingVectorLayer?.getVisible ? pkg.dp2BuildingVectorLayer.getVisible() : false;
+
+  try {
+    if (pkg.dp2OfficialCadastreWfsLayer?.setVisible) pkg.dp2OfficialCadastreWfsLayer.setVisible(true);
+    if (pkg.mvtTileLayer?.setVisible) pkg.mvtTileLayer.setVisible(false);
+    if (pkg.parcelVectorLayer?.setVisible) pkg.parcelVectorLayer.setVisible(false);
+    if (pkg.dp2BuildingVectorLayer?.setVisible) pkg.dp2BuildingVectorLayer.setVisible(false);
+
+    map.updateSize?.();
+    map.renderSync?.();
+    await new Promise((r) => requestAnimationFrame(() => r()));
+
+    const canvas = document.createElement("canvas");
+    canvas.width = wPx;
+    canvas.height = hPx;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const canvases = mapEl.querySelectorAll(".ol-layer canvas");
+    canvases.forEach((c) => {
+      if (c.width > 0 && c.height > 0) {
+        ctx.save();
+        const opacity = c.parentNode.style.opacity;
+        ctx.globalAlpha = opacity === "" ? 1 : Number(opacity);
+        const transform = c.style.transform;
+        if (transform) {
+          const m = transform.match(/^matrix\\(([^\\(]*)\\)$/);
+          if (m) {
+            const matrix = m[1].split(",").map(Number);
+            ctx.setTransform(matrix[0], matrix[1], matrix[2], matrix[3], matrix[4], matrix[5]);
+          }
+        }
+        ctx.drawImage(c, 0, 0, c.width, c.height, 0, 0, wPx, hPx);
+        ctx.restore();
+      }
+    });
+
+    return canvas.toDataURL("image/png");
+  } finally {
+    try { if (pkg.dp2OfficialCadastreWfsLayer?.setVisible) pkg.dp2OfficialCadastreWfsLayer.setVisible(oldWfsVisible); } catch (_) {}
+    try { if (pkg.mvtTileLayer?.setVisible) pkg.mvtTileLayer.setVisible(oldMvtVisible); } catch (_) {}
+    try { if (pkg.parcelVectorLayer?.setVisible) pkg.parcelVectorLayer.setVisible(oldParcelVectorVisible); } catch (_) {}
+    try { if (pkg.dp2BuildingVectorLayer?.setVisible) pkg.dp2BuildingVectorLayer.setVisible(oldBuildingVisible); } catch (_) {}
+    try { map.updateSize?.(); map.renderSync?.(); } catch (_) {}
+  }
+}
+
 function waitMvtTilesIdle(timeoutMs) {
   return new Promise((resolve) => {
     let resolved = false;
@@ -15066,14 +15393,8 @@ function dp2MvtParcelLabelText(feature) {
         : p.parcelle != null && String(p.parcelle).trim()
           ? String(p.parcelle).trim()
           : "";
-  const s =
-    p.section != null && String(p.section).trim()
-      ? String(p.section).trim()
-      : p.SECTION != null && String(p.SECTION).trim()
-        ? String(p.SECTION).trim()
-        : "";
-  const joined = [s, n].filter(Boolean).join(" ");
-  if (joined) return joined;
+  if (n) return n;
+  // fallback : certains tiles encodent le numéro via d'autres clés (id, etc.)
   if (p.id != null && String(p.id).trim()) return String(p.id).trim();
   return "";
 }
@@ -15176,32 +15497,25 @@ function dp2OlGeometryCentroidPoint(geom) {
 }
 
 function dp2MvtParcelLabelFontCSS(resolution) {
-  let px = 13;
+  // Libellé discret pour export PDF DP2 : petit, lisible, sans surcharge.
+  let px = 9;
   if (resolution != null && Number.isFinite(resolution)) {
-    if (resolution > 2.5) px = 12;
-    else if (resolution < 0.3) px = 14;
-    else px = 13;
+    if (resolution < 0.3) px = 10;
+    else if (resolution < 1.5) px = 9;
+    else px = 8;
   }
-  return (
-    "500 " +
-    px +
-    "px ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif"
-  );
+  return px + "px ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif";
 }
 
 /** Libellé parcelle principale DP2 (plan cadastral propre) — 14–16px, graisse 600. */
 function dp2ParcelPrimaryLabelFontCSS(resolution) {
-  let px = 15;
+  // Label principal de la parcelle sélectionnée : discret + gris foncé.
+  let px = 10;
   if (resolution != null && Number.isFinite(resolution)) {
-    if (resolution > 2.5) px = 14;
-    else if (resolution < 0.3) px = 16;
-    else px = 15;
+    if (resolution < 0.3) px = 11;
+    else if (resolution > 2.5) px = 9;
   }
-  return (
-    "600 " +
-    px +
-    "px ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif"
-  );
+  return px + "px ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif";
 }
 
 function dp2MvtCentroidPointForLabel(feature) {
@@ -15210,57 +15524,65 @@ function dp2MvtCentroidPointForLabel(feature) {
 }
 
 function styleCadastreMVT(feature, resolution) {
-  if (!dp2MvtFeatureLogged && window.__SN_DP_DEV_MODE === true) {
-    dp2MvtFeatureLogged = true;
-    try {
-      const props = feature.getProperties();
-      console.log("[DP2 MVT] Première feature — layer:", feature.get("layer"), "keys:", Object.keys(props || {}));
-    } catch (_) {}
-  }
-
   const layer = feature.get("layer");
   const type = feature.get("type");
   const kind = feature.get("kind");
   const nature = feature.get("nature");
-  const geom = feature.getGeometry();
-  if (!geom) return null;
 
-  const isParcelle = layer === "parcelles" || type === "parcelle" || kind === "parcel" || nature === "parcelle";
-  const isBatiment = layer === "batiments" || type === "building" || kind === "building" || nature === "batiment";
+  const isParcelle =
+    layer === "parcelles" ||
+    type === "parcelle" ||
+    kind === "parcel" ||
+    nature === "parcelle";
+  const isBatiment =
+    layer === "batiments" || type === "building" || kind === "building" || nature === "batiment";
+  // Pour DP2 : on ne dessine pas les labels/segments "sections" (parasites visuels).
   const isSection = layer === "sections";
 
-  if (isBatiment) {
-    return null;
-  }
+  const pxStrokeWidth = (() => {
+    // Exigence : épaisseur 0.5 à 1px.
+    if (resolution == null || !Number.isFinite(resolution)) return 0.8;
+    return resolution < 1 ? 1 : 0.75;
+  })();
 
-  if (isSection) {
+  if (isSection) return null;
+
+  if (isBatiment) {
     return new ol.style.Style({
-      fill: new ol.style.Fill({ color: "transparent" }),
+      fill: new ol.style.Fill({ color: "rgba(229, 231, 235, 0.55)" }), // gris très clair
       stroke: new ol.style.Stroke({
-        color: "rgba(148, 163, 184, 0.45)",
-        width: 0.75,
-        lineJoin: "round"
-      })
+        color: "rgba(209, 213, 219, 0.95)",
+        width: 0.6,
+        lineJoin: "round",
+      }),
     });
   }
 
   if (isParcelle) {
-    if (dp2MvtFeatureMatchesSelectedParcel(feature)) {
-      return null;
-    }
+    // Déduplication : la parcelle sélectionnée est gérée par la surcouche vectorielle DP1 (en haut).
+    if (dp2MvtFeatureMatchesSelectedParcel(feature)) return null;
+
     const label = dp2MvtParcelLabelText(feature);
-    const fillPoly = new ol.style.Style({
-      fill: new ol.style.Fill({ color: "rgba(37, 99, 235, 0.04)" }),
+
+    const base = new ol.style.Style({
+      fill: new ol.style.Fill({ color: "rgba(0, 0, 0, 0)" }), // remplissage transparent
       stroke: new ol.style.Stroke({
-        color: "rgba(37, 99, 235, 0.8)",
-        width: 1,
+        color: "#2F80ED", // bleu attendu Solteo
+        width: pxStrokeWidth,
         lineJoin: "round",
-        lineCap: "round"
-      })
+        lineCap: "round",
+      }),
     });
-    if (!label) return fillPoly;
+
+    // Label uniquement sur zoom "administratif" (évite l'encombrement).
+    // resolution décroît avec le zoom : seuil à ajuster si besoin.
+    const showText =
+      label && (resolution == null || !Number.isFinite(resolution) ? true : resolution <= 2.2);
+
+    if (!showText) return base;
+
     return [
-      fillPoly,
+      base,
       new ol.style.Style({
         geometry: function (feat) {
           return dp2MvtCentroidPointForLabel(feat);
@@ -15268,20 +15590,19 @@ function styleCadastreMVT(feature, resolution) {
         text: new ol.style.Text({
           text: label,
           font: dp2MvtParcelLabelFontCSS(resolution),
-          fill: new ol.style.Fill({ color: "#1f2937" }),
-          stroke: new ol.style.Stroke({ color: "rgba(255,255,255,0.92)", width: 2.5 }),
+          fill: new ol.style.Fill({ color: "#374151" }),
+          // halo ultra léger : améliore la lisibilité sans "surnommer" les labels
+          stroke: new ol.style.Stroke({ color: "rgba(255,255,255,0.55)", width: 1 }),
           overflow: true,
           textAlign: "center",
-          textBaseline: "middle"
-        })
-      })
+          textBaseline: "middle",
+        }),
+      }),
     ];
   }
 
-  return new ol.style.Style({
-    fill: new ol.style.Fill({ color: "transparent" }),
-    stroke: new ol.style.Stroke({ color: "rgba(148, 163, 184, 0.5)", width: 0.75, lineJoin: "round" })
-  });
+  // Rien d'autre : masque routes secondaires, ombres et labels parasites.
+  return null;
 }
 
 // Attente tuiles WMTS (fond plan IGN DP2) — même principe que DP1 waitTilesIdle.
@@ -15439,7 +15760,7 @@ function forceFirstPaintWMTS(map, wmtsSource, wmtsResolutions) {
 // --------------------------
 // DP2 — INIT GLOBAL (CAPTURE MODE)
 // Source de vérité UNIQUE : window.DP1_STATE.selectedParcel (geometry, section, parcelle).
-// Fond : WMTS IGN Plan (GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2). Parcelle sélectionnée + voisines = vectoriel (pas d’orthophoto sur DP2 ; DP4 reste ORTHO).
+// Fond : vectoriel MVT (ol/layer/VectorTile) : parcelles + bâtiments en rendu EPSG:3857.
 // --------------------------
 async function initDP2() {
   setDP2ModeCapture();
@@ -15552,8 +15873,11 @@ async function initDP2() {
       }
       try {
         const m = window.DP2_MAP?.map || null;
-        const planSrc = window.DP2_MAP?.planSource || null;
-        forceFirstPaintWMTS(m, planSrc, window.__DP_WMTS_RESOLUTIONS_PM);
+        if (m) {
+          try { m.updateSize(); } catch (_) {}
+          try { m.renderSync(); } catch (_) {}
+          requestAnimationFrame(() => { try { m.renderSync(); } catch (_) {} });
+        }
       } catch (_) {}
       syncDP2LegendOverlayUI();
     });
@@ -15568,8 +15892,11 @@ async function initDP2() {
     let usedParcelGeometry = false;
     let geom = null;
 
-    // ——— Grille WMTS PM + fond IGN Plan (PLANIGNV2), même grille que DP4 pour cohérence d’échelle ———
-    const WMTS_ORIGIN = [-20037508, 20037508];
+    // ——— Grille de résolution (EPSG:3857) — même pas de WMTS raster pour DP2
+    // fond DP2 = rendu vectoriel MVT (ol/layer/VectorTile) uniquement
+    // ———
+    // Origine WebMercator (EPSG:3857) : valeur plus précise que -20037508 (évite décalage de tuiles).
+    const WMTS_ORIGIN = [-20037508.342789244, 20037508.342789244];
     const WMTS_RESOLUTIONS = [
       156543.03392804103, 78271.51696402051, 39135.75848201024,
       19567.87924100512, 9783.93962050256, 4891.96981025128,
@@ -15579,12 +15906,6 @@ async function initDP2() {
       4.777314267823516, (2.3 + 0.088657133911758), 1.194328566955879,
       0.5971642834779395, 0.29858214173896974, 0.14929107086948487
     ];
-    const WMTS_MATRIX_IDS = WMTS_RESOLUTIONS.map((_, i) => String(i));
-    const wmtsGridPM = new ol.tilegrid.WMTS({
-      origin: WMTS_ORIGIN,
-      resolutions: WMTS_RESOLUTIONS,
-      matrixIds: WMTS_MATRIX_IDS
-    });
     window.__DP_WMTS_RESOLUTIONS_PM = WMTS_RESOLUTIONS;
 
     const centerParis = fromLonLat([2.3488, 48.8534]);
@@ -15596,32 +15917,77 @@ async function initDP2() {
       enableRotation: false
     });
 
-    const planSource = new ol.source.WMTS({
-      url: "https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile",
-      layer: "GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2",
-      matrixSet: "PM",
-      format: "image/png",
-      style: "normal",
-      tileGrid: wmtsGridPM,
-      wrapX: false,
-      crossOrigin: "anonymous"
-    });
-    const planLayer = new ol.layer.Tile({
-      opacity: 1,
-      transition: 0,
-      preload: 2,
-      zIndex: 0,
-      source: planSource
-    });
-
     const map = new ol.Map({
       target: mapEl,
-      layers: [planLayer],
+      layers: [],
       view,
       pixelRatio: Math.min(2, window.devicePixelRatio || 1),
       moveTolerance: 2,
       maxTilesLoading: 16
     });
+
+    // --------------------------
+    // DP2 — Fond vectoriel (MVT) uniquement
+    // --------------------------
+    let dp2CadastreVectorTileSource = null;
+    let dp2CadastreVectorTileLayer = null;
+    let dp2OfficialCadastreWfsSource = null;
+    let dp2OfficialCadastreWfsLayer = null;
+    try {
+      if (ol?.source?.VectorTile && ol?.layer?.VectorTile && ol?.format?.MVT) {
+        const mvtUrl = __solarnextDpAbsApiUrl("mvt/cadastre/{z}/{x}/{y}.pbf");
+        const mvtTileGrid = new ol.tilegrid.TileGrid({
+          origin: WMTS_ORIGIN,
+          resolutions: WMTS_RESOLUTIONS,
+          tileSize: [256, 256],
+        });
+
+        dp2CadastreVectorTileSource = new ol.source.VectorTile({
+          projection: "EPSG:3857",
+          format: new ol.format.MVT(),
+          url: mvtUrl,
+          tileGrid: mvtTileGrid,
+          maxZoom: WMTS_RESOLUTIONS.length - 1,
+        });
+
+        // Compteur pour capture : attend que les tuiles soient réellement chargées.
+        dp2CadastreVectorTileSource.on("tileloadstart", () => {
+          dp2MvtTilesLoadingCount++;
+        });
+        dp2CadastreVectorTileSource.on("tileloadend", () => {
+          dp2MvtTilesLoadingCount = Math.max(0, dp2MvtTilesLoadingCount - 1);
+        });
+        dp2CadastreVectorTileSource.on("tileloaderror", () => {
+          dp2MvtTilesLoadingCount = Math.max(0, dp2MvtTilesLoadingCount - 1);
+        });
+
+        dp2CadastreVectorTileLayer = new ol.layer.VectorTile({
+          source: dp2CadastreVectorTileSource,
+          style: styleCadastreMVT,
+          zIndex: 10,
+          declutter: false,
+        });
+        map.addLayer(dp2CadastreVectorTileLayer);
+      }
+    } catch (e) {
+      console.warn("[DP2] Fond vectoriel MVT indisponible :", e);
+    }
+
+    // --------------------------
+    // DP2 — Couche WFS officielle (plan DP final propre) : par défaut cachée
+    // --------------------------
+    try {
+      dp2OfficialCadastreWfsSource = new ol.source.Vector({ wrapX: false });
+      dp2OfficialCadastreWfsLayer = new ol.layer.Vector({
+        source: dp2OfficialCadastreWfsSource,
+        style: dp2OfficialCadastreWfsParcelStyle,
+        zIndex: 11,
+        visible: false,
+      });
+      map.addLayer(dp2OfficialCadastreWfsLayer);
+    } catch (e) {
+      console.warn("[DP2 WFS] impossible d'initialiser la couche WFS :", e);
+    }
 
     const dp2BuildingVectorSource = new ol.source.Vector({ wrapX: false });
     const dp2BuildingVectorLayer = new ol.layer.Vector({
@@ -15638,11 +16004,11 @@ async function initDP2() {
           return [
             new ol.style.Style({
               fill: new ol.style.Fill({
-                color: active ? "rgba(30, 64, 175, 0.08)" : "rgba(30, 64, 175, 0.04)"
+                color: active ? "rgba(156, 163, 175, 0.22)" : "rgba(229, 231, 235, 0.18)"
               }),
               stroke: new ol.style.Stroke({
-                color: "#1e40af",
-                width: active ? 2.4 : 2
+                color: active ? "#9CA3AF" : "#D1D5DB",
+                width: active ? 2.0 : 1.6
               })
             })
           ];
@@ -15651,9 +16017,8 @@ async function initDP2() {
           return [
             new ol.style.Style({
               stroke: new ol.style.Stroke({
-                color: "#1e40af",
-                width: 2.4,
-                lineDash: [10, 8]
+                color: active ? "#9CA3AF" : "#D1D5DB",
+                width: 2.0
               })
             })
           ];
@@ -15679,7 +16044,7 @@ async function initDP2() {
         const extent = geom.getExtent();
         view.fit(extent, {
           padding: [40, 40, 40, 40],
-          maxZoom: 20
+          maxZoom: 22
         });
         usedParcelGeometry = true;
       } catch (e) {
@@ -15707,10 +16072,13 @@ async function initDP2() {
     const dp2NeighborParcelsSource = new ol.source.Vector();
     window.DP2_MAP = {
       map,
-      planSource,
-      planTileLayer: planLayer,
-      mvtSource: null,
+      planSource: null,
+      planTileLayer: null,
+      mvtSource: dp2CadastreVectorTileSource,
+      mvtTileLayer: dp2CadastreVectorTileLayer,
       neighborParcelsSource: dp2NeighborParcelsSource,
+      dp2OfficialCadastreWfsSource,
+      dp2OfficialCadastreWfsLayer,
       dp2BuildingVectorSource,
       dp2BuildingVectorLayer
     };
@@ -15719,7 +16087,9 @@ async function initDP2() {
       var __dp2ParcelLabel =
         selectedParcel.parcel != null && String(selectedParcel.parcel).trim()
           ? String(selectedParcel.parcel).trim()
-          : [selectedParcel.section, selectedParcel.numero].filter(Boolean).join(" ").trim();
+          : selectedParcel.numero != null && String(selectedParcel.numero).trim()
+            ? String(selectedParcel.numero).trim()
+            : "";
 
       function __dp2ParcelCentroidPointGeometry(feature) {
         var g = feature.getGeometry();
@@ -15732,25 +16102,19 @@ async function initDP2() {
       const parcelVectorLayer = new ol.layer.Vector({
         source: parcelSource,
         zIndex: 200,
+        declutter: true,
         style: function (feature, resolution) {
+          const pxStrokeWidth = resolution == null || !Number.isFinite(resolution) ? 0.8 : resolution < 1 ? 1 : 0.75;
           var styles = [
             new ol.style.Style({
-              fill: new ol.style.Fill({ color: "rgba(180, 83, 9, 0.14)" }),
+              fill: new ol.style.Fill({ color: "rgba(0, 0, 0, 0)" }), // remplissage transparent
               stroke: new ol.style.Stroke({
-                color: "rgba(255,255,255,0.95)",
-                width: 4,
+                color: "#2F80ED",
+                width: pxStrokeWidth,
                 lineJoin: "round",
-                lineCap: "round"
-              })
+                lineCap: "round",
+              }),
             }),
-            new ol.style.Style({
-              stroke: new ol.style.Stroke({
-                color: "#b45309",
-                width: 2.5,
-                lineJoin: "round",
-                lineCap: "round"
-              })
-            })
           ];
           if (__dp2ParcelLabel) {
             styles.push(
@@ -15761,8 +16125,8 @@ async function initDP2() {
                 text: new ol.style.Text({
                   text: __dp2ParcelLabel,
                   font: dp2ParcelPrimaryLabelFontCSS(resolution),
-                  fill: new ol.style.Fill({ color: "#1f2937" }),
-                  stroke: new ol.style.Stroke({ color: "rgba(255,255,255,0.95)", width: 3 }),
+                  fill: new ol.style.Fill({ color: "#374151" }),
+                  stroke: new ol.style.Stroke({ color: "rgba(255,255,255,0.55)", width: 1 }),
                   overflow: true,
                   textAlign: "center",
                   textBaseline: "middle"
@@ -15829,12 +16193,12 @@ async function initDP2() {
       style: function (feature) {
         const styles = [
           new ol.style.Style({
-            fill: new ol.style.Fill({ color: "rgba(30, 64, 175, 0.06)" }),
-            stroke: new ol.style.Stroke({ color: "#1e40af", width: 2.4, lineDash: [8, 6] }),
+            fill: new ol.style.Fill({ color: "rgba(209, 213, 219, 0.25)" }),
+            stroke: new ol.style.Stroke({ color: "#D1D5DB", width: 2.0 }),
             image: new ol.style.Circle({
               radius: 4,
               fill: new ol.style.Fill({ color: "rgba(255,255,255,0)" }),
-              stroke: new ol.style.Stroke({ color: "#1e40af", width: 2 })
+              stroke: new ol.style.Stroke({ color: "#9CA3AF", width: 2 })
             })
           })
         ];
@@ -16027,7 +16391,7 @@ async function initDP2() {
 
     window.__DP2_INIT_DONE = true;
     console.log(
-      "[DP2] Mode CAPTURE prêt (IGN Plan PLANIGNV2" +
+      "[DP2] Mode CAPTURE prêt (fond vectoriel MVT)" +
         (usedParcelGeometry ? " + parcelle vectorielle" : " — vue sans parcelle (fallback adresse CRM)") +
         ")."
     );
@@ -16214,7 +16578,7 @@ function dp2SyncEditionOlMapLayoutSync() {
     dp2ApplyCaptureViewToMapForEdition();
   } catch (_) {}
   try {
-    if (window.DP2_MAP?.planTileLayer) window.DP2_MAP.planTileLayer.setVisible(false);
+    if (window.DP2_MAP?.mvtTileLayer) window.DP2_MAP.mvtTileLayer.setVisible(false);
   } catch (_) {}
   try {
     if (window.DP2_MAP?.parcelVectorLayer) window.DP2_MAP.parcelVectorLayer.setVisible(false);
@@ -16234,7 +16598,7 @@ async function captureDP2Map() {
     dp2RestoreMapNodeToWrapForCapture();
   } catch (_) {}
   try {
-    if (window.DP2_MAP.planTileLayer) window.DP2_MAP.planTileLayer.setVisible(true);
+    if (window.DP2_MAP.mvtTileLayer) window.DP2_MAP.mvtTileLayer.setVisible(true);
   } catch (_) {}
   try {
     if (window.DP2_MAP.parcelVectorLayer) window.DP2_MAP.parcelVectorLayer.setVisible(true);
@@ -16248,11 +16612,9 @@ async function captureDP2Map() {
 
   await dp2SyncOpenLayersSizeToContainer(map);
 
-  const planSrc = window.DP2_MAP.planSource;
-  if (planSrc) {
-    await dp2WaitWmtsSourcesIdle(map, [planSrc], 3200);
-  }
   if (window.DP2_MAP.mvtSource) {
+    // Sécurité : évite une résolution immédiate si les events tileload ne démarrent pas au moment exact.
+    dp2MvtTilesLoadingCount = Math.max(1, dp2MvtTilesLoadingCount);
     await waitMvtTilesIdle(2800);
   }
 
