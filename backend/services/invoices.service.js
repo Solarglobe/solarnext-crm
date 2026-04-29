@@ -32,6 +32,7 @@ import {
   generatePdfFromFinancialInvoiceUrl,
 } from "./pdfGeneration.service.js";
 import {
+  findExistingInvoicePdfForInvoiceEntity,
   removeInvoicePdfDocuments,
   saveInvoicePdfDocument,
   saveInvoicePdfOnOwnerDocument,
@@ -1256,6 +1257,8 @@ export async function generateInvoicePdfRecord(invoiceId, organizationId, userId
   const rendererUrl = buildFinancialInvoiceRendererUrl(invoiceId, renderToken);
   const pdfBuffer = await generatePdfFromFinancialInvoiceUrl(rendererUrl);
 
+  const existingMain = await findExistingInvoicePdfForInvoiceEntity(organizationId, invoiceId);
+  const replacedMain = Boolean(existingMain);
   await removeInvoicePdfDocuments(organizationId, invoiceId);
   const doc = await saveInvoicePdfDocument(pdfBuffer, organizationId, invoiceId, userId, {
     fileName,
@@ -1271,8 +1274,9 @@ export async function generateInvoicePdfRecord(invoiceId, organizationId, userId
 
   const ownerEntityType = row.client_id ? "client" : row.lead_id ? "lead" : null;
   const ownerEntityId = row.client_id || row.lead_id || null;
+  let ownerMirrorReplaced = false;
   if (ownerEntityType && ownerEntityId) {
-    await saveInvoicePdfOnOwnerDocument(
+    const ownerDoc = await saveInvoicePdfOnOwnerDocument(
       pdfBuffer,
       organizationId,
       ownerEntityType,
@@ -1289,12 +1293,14 @@ export async function generateInvoicePdfRecord(invoiceId, organizationId, userId
         },
       }
     );
+    ownerMirrorReplaced = ownerDoc?.replaced === true;
   }
 
   return {
     document: doc,
     pdf_payload: pdfPayload,
     downloadUrl: `/api/documents/${doc.id}/download`,
+    replaced: replacedMain || ownerMirrorReplaced,
     message: "PDF facture généré et enregistré (rendu client depuis le snapshot figé, paiements à jour).",
   };
 }

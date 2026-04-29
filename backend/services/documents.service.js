@@ -83,6 +83,25 @@ export async function removeInvoicePdfDocuments(organizationId, invoiceId) {
   }
 }
 
+/**
+ * Trouve le PDF facture principal rattaché à l'entité invoice.
+ */
+export async function findExistingInvoicePdfForInvoiceEntity(organizationId, invoiceId) {
+  const r = await pool.query(
+    `SELECT *
+     FROM entity_documents
+     WHERE organization_id = $1
+       AND entity_type = 'invoice'
+       AND entity_id = $2
+       AND document_type = 'invoice_pdf'
+       AND (archived_at IS NULL)
+     ORDER BY created_at DESC
+     LIMIT 1`,
+    [organizationId, invoiceId]
+  );
+  return r.rows[0] || null;
+}
+
 export async function removeQuotePdfDocuments(organizationId, quoteId) {
   const r = await pool.query(
     `SELECT id, storage_key FROM entity_documents
@@ -736,6 +755,7 @@ export async function saveInvoicePdfOnOwnerDocument(
     entityId,
     invoiceId
   );
+  const replaced = Boolean(existing);
   if (existing?.storage_key) {
     try {
       await localStorageDelete(existing.storage_key);
@@ -780,7 +800,7 @@ export async function saveInvoicePdfOnOwnerDocument(
       bm.description,
     ]
   );
-  return ins.rows[0];
+  return { ...ins.rows[0], replaced };
 }
 
 /**

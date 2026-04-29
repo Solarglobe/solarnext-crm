@@ -372,7 +372,7 @@ export default function InvoiceBuilderPage() {
       if (data.downloadUrl) {
         await openAuthenticatedDocumentInNewTab(data.downloadUrl);
       }
-      showCrmInlineToast("PDF généré avec succès", "success");
+      showCrmInlineToast(data.replaced ? "✔ Facture mise à jour" : "✔ Facture générée", "success");
     } catch (e) {
       showCrmInlineToast(e instanceof Error ? e.message : "Erreur lors de la génération du document", "error");
     } finally {
