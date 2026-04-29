@@ -16011,16 +16011,25 @@ async function initDP2() {
 
         dp2CadastreVectorTileLayer = new ol.layer.VectorTile({
           source: dp2CadastreVectorTileSource,
-          style: function () {
-            return new ol.style.Style({
-              stroke: new ol.style.Stroke({
-                color: "#ff0000",
-                width: 2,
-              }),
-              fill: new ol.style.Fill({
-                color: "rgba(255,0,0,0.1)",
-              }),
-            });
+          style: function (feature) {
+            const layer = feature.get("layer");
+            const nature = feature.get("nature");
+
+            // garder uniquement les parcelles
+            if (layer === "parcelle" || nature === "parcelle") {
+              return new ol.style.Style({
+                stroke: new ol.style.Stroke({
+                  color: "#2c3e50",
+                  width: 1,
+                }),
+                fill: new ol.style.Fill({
+                  color: "rgba(0,0,0,0)",
+                }),
+              });
+            }
+
+            // ignorer tout le reste
+            return null;
           },
           zIndex: 10,
           declutter: false,
