@@ -78,7 +78,7 @@ export default function PdfLegacyPort({ viewModel, onP10Ready }: PdfLegacyPortPr
       <PdfPage6 organization={organization} viewModel={viewModel} />
       <PdfPage7 organization={organization} viewModel={viewModel} />
       {isVirtualBattery && hasVirtualBatteryPageData ? (
-        <PdfPage7VirtualBattery data={virtualBatteryData} />
+        <PdfPage7VirtualBattery data={virtualBatteryData} organization={organization} viewModel={viewModel} />
       ) : null}
       {Boolean(fr.p9) && <PdfPage8 organization={organization} viewModel={viewModel} />}
       <PdfPage10 organization={organization} viewModel={viewModel} onReady={onP10Ready} />

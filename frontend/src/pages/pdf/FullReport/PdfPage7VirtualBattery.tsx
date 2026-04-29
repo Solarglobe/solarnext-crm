@@ -1,7 +1,27 @@
-import React from "react";
+/**
+ * Page batterie virtuelle — même système que PdfLegacyPort P7 (PdfPageLayout + PdfHeader legacy).
+ */
+import React, { useMemo } from "react";
+import PdfPageLayout from "../PdfEngine/PdfPageLayout";
+import PdfHeader from "@/components/pdf/PdfHeader";
+import { usePdfOrgBranding } from "../PdfLegacyPort/pdfOrgBrandingContext";
+import { getCrmApiBaseWithWindowFallback } from "@/config/crmApiBase";
+
+const API_BASE = getCrmApiBaseWithWindowFallback();
+const PLACEHOLDER_LOGO = "/client-portal/logo-solarglobe.png";
+
+function getStorageUrl(
+  orgId: string,
+  type: "logo" | "pdf-cover",
+  renderToken: string,
+  studyId: string,
+  versionId: string
+): string {
+  return `${API_BASE}/api/internal/pdf-asset/${orgId}/${type}?renderToken=${encodeURIComponent(renderToken)}&studyId=${encodeURIComponent(studyId)}&versionId=${encodeURIComponent(versionId)}`;
+}
 
 interface P7VirtualBatteryData {
-  meta?: Record<string, unknown>;
+  meta?: { client?: string; ref?: string; date?: string; date_display?: string };
   title?: string;
   subtitle?: string;
   without_battery?: Record<string, unknown>;
@@ -42,8 +62,63 @@ function fmtPtsFromRatio(v: unknown): string {
   return `${(n * 100).toFixed(1).replace(".", ",")} pts`;
 }
 
-export default function PdfPage7VirtualBattery({ data }: { data?: P7VirtualBatteryData | null }) {
+const CARD_SOFT_BASE: React.CSSProperties = {
+  padding: "3.6mm 3.3mm",
+  border: "0.4mm solid rgba(195,152,71,.28)",
+  borderRadius: "4.2mm",
+  background: "linear-gradient(180deg, rgba(195,152,71,.06), #fdfcf9)",
+  boxShadow: "0 0.75mm 2.2mm rgba(0,0,0,.04)",
+};
+
+function MetricRow({ label, value, isLast }: { label: string; value: string; isLast?: boolean }) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "baseline",
+        gap: "8px",
+        padding: "1.15mm 0",
+        borderBottom: isLast ? "none" : "0.25mm solid rgba(195, 152, 71, 0.15)",
+        fontSize: "3.05mm",
+        color: "#444",
+      }}
+    >
+      <span>{label}</span>
+      <strong style={{ color: "#1a1a1a", fontWeight: 700 }}>{value}</strong>
+    </div>
+  );
+}
+
+export default function PdfPage7VirtualBattery({
+  data,
+  organization = {},
+  viewModel,
+}: {
+  data?: P7VirtualBatteryData | null;
+  organization?: { id?: string; logo_image_key?: string | null; logo_url?: string | null };
+  viewModel?: { fullReport?: Record<string, unknown>; meta?: { studyId?: string; versionId?: string }; [key: string]: unknown };
+}) {
   if (!data) return null;
+
+  const { brandHex } = usePdfOrgBranding();
+
+  const logoUrl = useMemo(() => {
+    const logoDirect = organization?.logo_url;
+    if (logoDirect) return logoDirect;
+
+    const params = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+    const renderToken = params?.get("renderToken") ?? "";
+    const studyId = params?.get("studyId") ?? (viewModel?.meta as { studyId?: string } | undefined)?.studyId ?? "";
+    const versionId = params?.get("versionId") ?? (viewModel?.meta as { versionId?: string } | undefined)?.versionId ?? "";
+    const orgId = organization?.id;
+
+    if (!orgId || !renderToken || !studyId || !versionId) {
+      return PLACEHOLDER_LOGO;
+    }
+    const hasLogo = !!organization?.logo_image_key;
+    return hasLogo ? getStorageUrl(orgId, "logo", renderToken, studyId, versionId) : PLACEHOLDER_LOGO;
+  }, [organization?.id, organization?.logo_image_key, organization?.logo_url, viewModel?.meta]);
 
   const meta = data.meta ?? {};
   const withoutBattery = data.without_battery ?? {};
@@ -52,71 +127,156 @@ export default function PdfPage7VirtualBattery({ data }: { data?: P7VirtualBatte
   const contribution = data.contribution ?? {};
   const limits = Array.isArray(data.limits) ? data.limits.slice(0, 3) : [];
 
+  const badgeText =
+    data.title != null && String(data.title).trim() !== ""
+      ? String(data.title)
+      : "Impact réel de votre batterie virtuelle";
+
   return (
-    <div className="pdf-page pdf-page-p7vb">
-      <h2 className="pdf-title">{val(data.title)}</h2>
-      <div className="pdf-meta">
-        <span>{val(meta.client)}</span>
-        <span>{val(meta.ref)}</span>
-        <span>{val(meta.date)}</span>
-      </div>
-      <p className="pdf-text pdf-p7vb-subtitle">{val(data.subtitle)}</p>
+    <PdfPageLayout
+      legacyPort={{
+        id: "p7vb",
+        sectionGap: "1.65mm",
+        header: (
+          <PdfHeader
+            headerStyle={{
+              ["--logoW" as string]: logoUrl ? "22mm" : "0",
+              ["--metaW" as string]: "110mm",
+              flexShrink: 0,
+            }}
+            logo={
+              logoUrl ? (
+                <img
+                  src={logoUrl}
+                  alt="Solarglobe"
+                  style={{ position: "absolute", left: 0, top: 0, height: "18mm", objectFit: "contain" }}
+                  onError={(e) => {
+                    e.currentTarget.style.display = "none";
+                  }}
+                />
+              ) : null
+            }
+            badge={badgeText}
+            metaColumn={
+              <div
+                className="meta-compact"
+                style={{
+                  position: "absolute",
+                  right: 0,
+                  bottom: 0,
+                  width: "var(--metaW)",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "flex-end",
+                  gap: "1mm",
+                  textAlign: "right",
+                  lineHeight: 1.3,
+                }}
+              >
+                <div>
+                  <b>Client</b> : {val(meta.client)}
+                </div>
+                <div>
+                  <b>Réf.</b> : {val(meta.ref)}
+                </div>
+                <div>
+                  <b>Date</b> : {val(meta.date_display ?? meta.date)}
+                </div>
+              </div>
+            }
+          />
+        ),
+      }}
+    >
+      <p
+        style={{
+          margin: "0 0 1.5mm 0",
+          fontSize: "3.2mm",
+          lineHeight: 1.38,
+          color: "#555",
+          flexShrink: 0,
+        }}
+      >
+        {val(data.subtitle)}
+      </p>
 
-      <div className="pdf-p7vb-grid2">
-        <div className="pdf-kpi-card pdf-p7vb-block">
-          <div className="pdf-section-title">Sans batterie</div>
-          <div className="pdf-p7vb-line"><span>Autonomie</span><strong>{fmtPctFromRatio(withoutBattery.autonomie_ratio)}</strong></div>
-          <div className="pdf-p7vb-line"><span>PV utilisée</span><strong>{fmtKwh(withoutBattery.pv_used_kwh)}</strong></div>
-          <div className="pdf-p7vb-line"><span>Import réseau</span><strong>{fmtKwh(withoutBattery.grid_import_kwh)}</strong></div>
-        </div>
-
-        <div className="pdf-kpi-card pdf-p7vb-block">
-          <div className="pdf-section-title">Avec batterie virtuelle</div>
-          <div className="pdf-p7vb-line"><span>Autonomie</span><strong>{fmtPctFromRatio(withBattery.autonomie_ratio)}</strong></div>
-          <div className="pdf-p7vb-line"><span>PV utilisée totale</span><strong>{fmtKwh(withBattery.pv_total_used_kwh)}</strong></div>
-          <div className="pdf-p7vb-line"><span>Dont restituée batterie</span><strong>{fmtKwh(withBattery.battery_discharged_kwh)}</strong></div>
-          <div className="pdf-p7vb-line"><span>Import réseau</span><strong>{fmtKwh(withBattery.grid_import_kwh)}</strong></div>
-        </div>
-      </div>
-
-      <div className="pdf-p7vb-grid2">
-        <div className="pdf-kpi-card pdf-p7vb-block">
-          <div className="pdf-section-title">Max théorique</div>
-          <div className="pdf-p7vb-line"><span>Production</span><strong>{fmtKwh(maxTheoretical.production_kwh)}</strong></div>
-          <div className="pdf-p7vb-line"><span>Consommation</span><strong>{fmtKwh(maxTheoretical.consumption_kwh)}</strong></div>
-          <div className="pdf-p7vb-line"><span>Autonomie max</span><strong>{fmtPctFromRatio(maxTheoretical.autonomy_ratio)}</strong></div>
-          <p className="pdf-hint pdf-p7vb-note">
-            Meme avec une batterie parfaite, ce seuil ne peut pas etre depasse.
-          </p>
-        </div>
-
-        <div className="pdf-kpi-card pdf-p7vb-block">
-          <div className="pdf-section-title">Pourquoi pas 100 %</div>
-          <ul className="pdf-p7vb-list">
-            {limits.map((item) => (
-              <li key={item}>{item}</li>
-            ))}
-          </ul>
-        </div>
-      </div>
-
-      <div className="pdf-kpi-card pdf-p7vb-block pdf-p7vb-block--accent">
-        <div className="pdf-section-title">Apport concret de la batterie</div>
-        <div className="pdf-p7vb-grid3">
-          <div className="pdf-p7vb-big">
-            <span>+ {fmtKwh(contribution.recovered_kwh)}</span>
-            <small>recuperes</small>
+      <div style={{ display: "flex", flexDirection: "column", gap: "16px", flex: 1, minHeight: 0 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "3.1mm", flexShrink: 0 }}>
+          <div className="card soft" style={CARD_SOFT_BASE}>
+            <div style={{ fontWeight: 700, marginBottom: "1.15mm", fontSize: "3.2mm", color: brandHex }}>Sans batterie</div>
+            <MetricRow label="Autonomie" value={fmtPctFromRatio(withoutBattery.autonomie_ratio)} />
+            <MetricRow label="PV utilisée" value={fmtKwh(withoutBattery.pv_used_kwh)} />
+            <MetricRow label="Import réseau" value={fmtKwh(withoutBattery.grid_import_kwh)} isLast />
           </div>
-          <div className="pdf-p7vb-big">
-            <span>- {fmtKwh(contribution.grid_bought_less_kwh)}</span>
-            <small>achetes au reseau</small>
+
+          <div className="card soft" style={CARD_SOFT_BASE}>
+            <div style={{ fontWeight: 700, marginBottom: "1.15mm", fontSize: "3.2mm", color: brandHex }}>
+              Avec batterie virtuelle
+            </div>
+            <MetricRow label="Autonomie" value={fmtPctFromRatio(withBattery.autonomie_ratio)} />
+            <MetricRow label="PV utilisée totale" value={fmtKwh(withBattery.pv_total_used_kwh)} />
+            <MetricRow label="Dont restituée batterie" value={fmtKwh(withBattery.battery_discharged_kwh)} />
+            <MetricRow label="Import réseau" value={fmtKwh(withBattery.grid_import_kwh)} isLast />
           </div>
-          <div className="pdf-p7vb-big">
-            <span>+ {fmtPtsFromRatio(contribution.autonomy_gain_ratio)}</span>
-            <small>d'autonomie</small>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "3.1mm", flexShrink: 0 }}>
+          <div className="card soft" style={CARD_SOFT_BASE}>
+            <div style={{ fontWeight: 700, marginBottom: "1.15mm", fontSize: "3.2mm", color: brandHex }}>Max théorique</div>
+            <MetricRow label="Production" value={fmtKwh(maxTheoretical.production_kwh)} />
+            <MetricRow label="Consommation" value={fmtKwh(maxTheoretical.consumption_kwh)} />
+            <MetricRow label="Autonomie max" value={fmtPctFromRatio(maxTheoretical.autonomy_ratio)} isLast />
+            <p style={{ margin: "2mm 0 0", fontSize: "2.85mm", color: "#666", fontStyle: "italic", lineHeight: 1.35 }}>
+              Meme avec une batterie parfaite, ce seuil ne peut pas etre depasse.
+            </p>
+          </div>
+
+          <div className="card soft" style={CARD_SOFT_BASE}>
+            <div style={{ fontWeight: 700, marginBottom: "1.15mm", fontSize: "3.2mm", color: brandHex }}>Pourquoi pas 100 %</div>
+            <ul style={{ margin: "0", paddingLeft: "4mm", fontSize: "3.05mm", color: "#444", lineHeight: 1.42 }}>
+              {limits.map((item) => (
+                <li key={item} style={{ marginBottom: "1mm" }}>
+                  {item}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+
+        <div
+          className="card soft"
+          style={{
+            ...CARD_SOFT_BASE,
+            borderColor: "rgba(195, 152, 71, 0.42)",
+            background: "linear-gradient(180deg, rgba(195,152,71,.1), #fdfcf9)",
+            flexShrink: 0,
+          }}
+        >
+          <div style={{ fontWeight: 700, marginBottom: "1.15mm", fontSize: "3.2mm", color: brandHex }}>
+            Apport concret de la batterie
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "3.1mm" }}>
+            <div className="card soft" style={{ ...CARD_SOFT_BASE, padding: "2.8mm 2mm", textAlign: "center" }}>
+              <div style={{ fontSize: "5.5mm", lineHeight: 1.05, fontWeight: 800, color: brandHex }}>
+                + {fmtKwh(contribution.recovered_kwh)}
+              </div>
+              <div style={{ fontSize: "2.7mm", color: "#666", marginTop: "0.5mm" }}>recuperes</div>
+            </div>
+            <div className="card soft" style={{ ...CARD_SOFT_BASE, padding: "2.8mm 2mm", textAlign: "center" }}>
+              <div style={{ fontSize: "5.5mm", lineHeight: 1.05, fontWeight: 800, color: brandHex }}>
+                - {fmtKwh(contribution.grid_bought_less_kwh)}
+              </div>
+              <div style={{ fontSize: "2.7mm", color: "#666", marginTop: "0.5mm" }}>achetes au reseau</div>
+            </div>
+            <div className="card soft" style={{ ...CARD_SOFT_BASE, padding: "2.8mm 2mm", textAlign: "center" }}>
+              <div style={{ fontSize: "5.5mm", lineHeight: 1.05, fontWeight: 800, color: brandHex }}>
+                + {fmtPtsFromRatio(contribution.autonomy_gain_ratio)}
+              </div>
+              <div style={{ fontSize: "2.7mm", color: "#666", marginTop: "0.5mm" }}>{`d'autonomie`}</div>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </PdfPageLayout>
   );
 }

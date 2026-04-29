@@ -37,6 +37,8 @@ export default function FullReport({ viewModel }: FullReportProps) {
       <PdfPage7 data={fr.p7 as React.ComponentProps<typeof PdfPage7>["data"]} />
       <PdfPage7VirtualBattery
         data={fr.p7_virtual_battery as React.ComponentProps<typeof PdfPage7VirtualBattery>["data"]}
+        organization={viewModel.organization as React.ComponentProps<typeof PdfPage7VirtualBattery>["organization"]}
+        viewModel={viewModel}
       />
       <PdfPage8 data={fr.p8 as React.ComponentProps<typeof PdfPage8>["data"]} />
       <PdfPage9 data={fr.p9 as React.ComponentProps<typeof PdfPage9>["data"]} />
