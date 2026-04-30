@@ -8,23 +8,11 @@
  *  - Compatible Playwright + prévisualisation navigateur
  *
  * Structure CSS :
- *  1. @page nommé — A4 paysage (propos commercial / étude). Obligatoire car pdf-render
- *     bundle aussi le CSS du devis portrait : un @page anonyme portrait écraserait ce fichier.
- *  2. Reset global pour le rendu PDF
+ *  1. Reset global pour le rendu PDF
  *  3. Conteneur racine #pdf-root
  *  3. Classes utilitaires (texte, couleurs, flex helpers)
  *  4. @media print — surcharges Playwright
  */
-
-/* ─────────────────────────────────────────────────────────────────
-   1. @PAGE nommé — A4 paysage, marges 0
-   Playwright : generatePdfFromRendererUrl → landscape:true.
-   Nommé pour ne pas entrer en conflit avec financial-quote-pdf.css (même chunk Vite).
-───────────────────────────────────────────────────────────────── */
-@page sn-study-report {
-  size: A4 landscape !important;
-  margin: 0;
-}
 
 /* ─────────────────────────────────────────────────────────────────
    2. RESET PDF
@@ -38,7 +26,6 @@
 }
 
 #pdf-root {
-  page: sn-study-report;
   margin: 0;
   padding: 0;
   background: #0B0F1E;

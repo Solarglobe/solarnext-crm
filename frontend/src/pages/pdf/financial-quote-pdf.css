@@ -2,6 +2,11 @@
  * Racine PDF : #financial-quote-pdf-root.fq-root — pas #pdf-root (étude).
  * Source de vérité marges PDF Playwright devis : @page sn-financial-quote (preferCSSPageSize côté backend). */
 
+@page {
+  size: A4 portrait;
+  margin: 15mm 18mm;
+}
+
 @page sn-financial-quote {
   size: A4 portrait;
   margin: 15mm 18mm;

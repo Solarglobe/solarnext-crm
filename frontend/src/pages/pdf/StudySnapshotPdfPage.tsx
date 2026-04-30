@@ -11,6 +11,7 @@ import { apiFetch } from "../../services/api";
 import PdfLegacyPort from "./PdfLegacyPort";
 import "./pdf-print.css";
 import "./PdfEngine/pdf-unified.css";
+import "./study-report-page.css";
 import { getCrmApiBaseWithWindowFallback } from "@/config/crmApiBase";
 
 const API_BASE = getCrmApiBaseWithWindowFallback();
@@ -114,7 +115,7 @@ export default function StudySnapshotPdfPage(props?: { studyId?: string; version
 
   const vm = (viewModel ?? {}) as { fullReport?: { p3b?: { p3b_auto?: { layout_snapshot?: string } } }; [key: string]: unknown };
   return (
-    <div id="pdf-root">
+    <div id="pdf-root" className="study-report-root">
       <PdfLegacyPort viewModel={vm} />
       <div
         id="pdf-ready"
