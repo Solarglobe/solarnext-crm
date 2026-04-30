@@ -18,6 +18,12 @@ export interface QuoteBillingUxPanelProps {
   quoteId: string;
   billCtx: QuoteInvoiceBillingContext | null;
   billLoading: boolean;
+  /** Surcharge locale des métriques TTC (ex. préparation facture avec total courant modifié). */
+  totalsOverride?: {
+    totalTtc?: number;
+    invoicedTtc?: number;
+    remainingTtc?: number;
+  };
   /** Si défini, le bouton acompte appelle ce callback (ex. modale sur le builder). Sinon navigation `toDepositHref`. */
   onOpenDepositModal?: () => void;
   /** URL création acompte (sans modale), ex. `/invoices/new?fromQuote=…&billingRole=DEPOSIT` */
@@ -35,6 +41,7 @@ export default function QuoteBillingUxPanel({
   quoteId: quoteIdProp,
   billCtx,
   billLoading,
+  totalsOverride,
   onOpenDepositModal,
   depositHref,
   balanceHref,
@@ -87,6 +94,9 @@ export default function QuoteBillingUxPanel({
   }
 
   const linked = billCtx.linked_invoices ?? [];
+  const displayedTotalTtc = totalsOverride?.totalTtc ?? billCtx.quote_total_ttc ?? 0;
+  const displayedInvoicedTtc = totalsOverride?.invoicedTtc ?? billCtx.invoiced_ttc ?? 0;
+  const displayedRemainingTtc = totalsOverride?.remainingTtc ?? billCtx.remaining_ttc ?? 0;
 
   return (
     <div className={rootClass} id={`quote-billing-ux-${quoteIdProp}`}>
@@ -96,18 +106,18 @@ export default function QuoteBillingUxPanel({
           <div className="qb-billing-ux__ttc-row">
             <div className="qb-billing-ux__ttc-block">
               <span className="qb-billing-ux__label">Total devis TTC</span>
-              <span className="qb-billing-ux__ttc-value">{fmtEur(billCtx.quote_total_ttc ?? 0)}</span>
+              <span className="qb-billing-ux__ttc-value">{fmtEur(displayedTotalTtc)}</span>
             </div>
             <div className="qb-billing-ux__ttc-block">
               <span className="qb-billing-ux__label">Déjà facturé TTC</span>
               <span className="qb-billing-ux__ttc-value qb-billing-ux__ttc-value--muted">
-                {fmtEur(billCtx.invoiced_ttc ?? 0)}
+                {fmtEur(displayedInvoicedTtc)}
               </span>
             </div>
             <div className="qb-billing-ux__ttc-block qb-billing-ux__ttc-block--accent">
               <span className="qb-billing-ux__label">Reste à facturer</span>
               <span className="qb-billing-ux__ttc-value qb-billing-ux__ttc-value--accent">
-                {fmtEur(billCtx.remaining_ttc ?? 0)}
+                {fmtEur(displayedRemainingTtc)}
               </span>
             </div>
           </div>

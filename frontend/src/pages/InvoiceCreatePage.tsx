@@ -224,8 +224,22 @@ export default function InvoiceCreatePage() {
         const normalizedLines = normalizePreparedLines(vmLines);
         setPreparedLines(normalizedLines);
         setBillCtx(ctx);
-        if (ctx?.has_structured_deposit && ctx.deposit_ttc != null && ctx.remaining_ttc != null) {
-          const hint = roundMoney2(Math.min(ctx.deposit_ttc, ctx.remaining_ttc));
+        if (ctx?.has_structured_deposit && ctx.deposit_ttc != null) {
+          const preparedTotalsFromVm = aggregatePreparedTotals(normalizedLines);
+          const currentPreparedTotal = ctx.billing_is_locked
+            ? roundMoney2(Number(ctx.billing_total_ttc ?? preparedTotalsFromVm.total_ttc))
+            : preparedTotalsFromVm.total_ttc;
+          const baseTotalTtc = roundMoney2(
+            Number(ctx.billing_total_ttc ?? ctx.quote_total_ttc ?? currentPreparedTotal)
+          );
+          const remainingOnPrepared = roundMoney2(
+            Math.max(0, currentPreparedTotal - Number(ctx.invoiced_ttc ?? 0))
+          );
+          const depositFromPreparedBase =
+            baseTotalTtc > 0
+              ? roundMoney2((currentPreparedTotal * Number(ctx.deposit_ttc ?? 0)) / baseTotalTtc)
+              : 0;
+          const hint = roundMoney2(Math.min(depositFromPreparedBase, remainingOnPrepared));
           setDepositTtcInput(hint >= 0.01 ? String(hint) : "");
         }
         setPrepReady(true);
@@ -257,6 +271,8 @@ export default function InvoiceCreatePage() {
       ? roundMoney2(Number(billCtx?.billing_total_vat ?? preparedTotals.total_vat))
       : preparedTotals.total_vat,
   };
+  const displayedInvoicedTtc = roundMoney2(Number(billCtx?.invoiced_ttc ?? 0));
+  const displayedRemainingTtc = roundMoney2(Math.max(0, projectGlobalTotal - displayedInvoicedTtc));
 
   const computedDepositTtc = useMemo(() => {
     const rem = projectGlobalTotal;
@@ -674,6 +690,11 @@ export default function InvoiceCreatePage() {
                       quoteId={fromQuote}
                       billCtx={billCtx}
                       billLoading={false}
+                      totalsOverride={{
+                        totalTtc: projectGlobalTotal,
+                        invoicedTtc: displayedInvoicedTtc,
+                        remainingTtc: displayedRemainingTtc,
+                      }}
                       showActions={false}
                       balanceHref={`/invoices/new?fromQuote=${encodeURIComponent(fromQuote)}&billingRole=solde`}
                       standardFullHref={`/invoices/new?fromQuote=${encodeURIComponent(fromQuote)}&billingRole=STANDARD`}
