@@ -275,7 +275,7 @@ export default function InvoiceCreatePage() {
   const displayedRemainingTtc = roundMoney2(Math.max(0, projectGlobalTotal - displayedInvoicedTtc));
 
   const computedDepositTtc = useMemo(() => {
-    const rem = projectGlobalTotal;
+    const rem = displayedRemainingTtc;
     const qTot = projectGlobalTotal;
     const ttcStr = depositTtcInput.trim().replace(",", ".");
     if (ttcStr) {
@@ -291,7 +291,7 @@ export default function InvoiceCreatePage() {
       return roundMoney2(Math.min(raw, rem));
     }
     return null;
-  }, [depositTtcInput, depositPctInput, projectGlobalTotal]);
+  }, [depositTtcInput, depositPctInput, projectGlobalTotal, displayedRemainingTtc]);
 
   const onChangeDepositTtc = useCallback(
     (raw: string) => {
@@ -302,7 +302,7 @@ export default function InvoiceCreatePage() {
       }
       const v = Number(String(raw).trim().replace(",", "."));
       const q = projectGlobalTotal;
-      const rem = projectGlobalTotal;
+      const rem = displayedRemainingTtc;
       if (!String(raw).trim() || !Number.isFinite(v) || v < 0) {
         setDepositPctInput("");
         return;
@@ -313,7 +313,7 @@ export default function InvoiceCreatePage() {
         setDepositPctInput(pct > 0 && pct <= 100 ? String(pct) : "");
       } else setDepositPctInput("");
     },
-    [prepReady, projectGlobalTotal]
+    [prepReady, projectGlobalTotal, displayedRemainingTtc]
   );
 
   const onChangeDepositPct = useCallback(
@@ -325,7 +325,7 @@ export default function InvoiceCreatePage() {
       }
       const p = Number(String(raw).trim().replace(",", "."));
       const q = projectGlobalTotal;
-      const rem = projectGlobalTotal;
+      const rem = displayedRemainingTtc;
       if (!String(raw).trim() || !Number.isFinite(p) || p <= 0) {
         setDepositTtcInput("");
         return;
@@ -337,7 +337,7 @@ export default function InvoiceCreatePage() {
           : ""
       );
     },
-    [prepReady, projectGlobalTotal]
+    [prepReady, projectGlobalTotal, displayedRemainingTtc]
   );
 
   const updatePreparedLine = useCallback(
@@ -757,7 +757,7 @@ export default function InvoiceCreatePage() {
               onClick={() => {
                 setPrepValidated(true);
                 if (hasValidUrlAmount && billingAmountFromUrl != null) {
-                  setDepositTtcInput(String(roundMoney2(Math.min(billingAmountFromUrl, preparedTotals.total_ttc))));
+                  setDepositTtcInput(String(roundMoney2(Math.min(billingAmountFromUrl, displayedRemainingTtc))));
                 }
               }}
             >

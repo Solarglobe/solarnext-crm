@@ -182,9 +182,26 @@ export default function FinancialInvoicePdfPage() {
   const invStatus = payload.status as string | null;
   const sourceQuote = payload.source_quote as Record<string, unknown> | undefined;
   const sourceQuoteSnapshot = payload.source_quote_snapshot as Record<string, unknown> | undefined;
-  const contractualProjectAmount =
-    Number(sourceQuoteSnapshot?.billing_total_ttc ?? sourceQuote?.billing_total_ttc);
+  const refs = (payload.refs || {}) as Record<string, unknown>;
+  const quoteBillingRole = String(refs.quote_billing_role ?? "").toUpperCase();
+  const isDepositInvoice = quoteBillingRole === "DEPOSIT";
+  const contractualProjectAmount = Number(
+    sourceQuoteSnapshot?.billing_total_ttc ??
+      sourceQuote?.billing_total_ttc ??
+      sourceQuoteSnapshot?.total_ttc ??
+      sourceQuote?.total_ttc
+  );
   const hasContractualProjectAmount = Number.isFinite(contractualProjectAmount) && contractualProjectAmount > 0;
+  const depositPercent =
+    isDepositInvoice && hasContractualProjectAmount
+      ? Math.round(((totals.total_ttc / contractualProjectAmount) * 100 + Number.EPSILON) * 100) / 100
+      : null;
+  const depositAmountTtc = isDepositInvoice ? totals.total_ttc : null;
+  const alreadyPaidTtc = isDepositInvoice ? totals.total_paid : null;
+  const remainingProjectTtc =
+    isDepositInvoice && hasContractualProjectAmount && depositAmountTtc != null && alreadyPaidTtc != null
+      ? Math.max(0, Math.round((contractualProjectAmount - depositAmountTtc - alreadyPaidTtc + Number.EPSILON) * 100) / 100)
+      : null;
   const invoiceNumberDisplay = payload.number != null && payload.number !== "" ? String(payload.number) : "—";
   const issuerAddress = (issuer.address as Record<string, unknown> | undefined) ?? {};
   const issuerDisplayName = String(
@@ -261,7 +278,7 @@ export default function FinancialInvoicePdfPage() {
       {/* 3. Infos facture */}
       <section className="fi-no-break fi-section fi-section--invoice-meta">
         <div className="fi-invoice-title-row">
-          <h1 className="fi-invoice-h1">FACTURE</h1>
+          <h1 className="fi-invoice-h1">{isDepositInvoice ? "FACTURE D'ACOMPTE" : "FACTURE"}</h1>
           <span className="fi-status-pill">{statusLabel(invStatus)}</span>
         </div>
         <div className="fi-meta-grid">
@@ -345,6 +362,30 @@ export default function FinancialInvoicePdfPage() {
             <p style={{ margin: "2px 0 8px", fontSize: 11, color: "var(--fi-text-muted, #64748b)" }}>
               Montant contractuel du projet : {formatEurUnknown(contractualProjectAmount)}
             </p>
+          ) : null}
+          {isDepositInvoice && depositPercent != null ? (
+            <div className="fi-totals-row">
+              <span>Pourcentage d&apos;acompte</span>
+              <span>{depositPercent.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} %</span>
+            </div>
+          ) : null}
+          {isDepositInvoice && depositAmountTtc != null ? (
+            <div className="fi-totals-row">
+              <span>Montant de l&apos;acompte TTC</span>
+              <span>{formatEurUnknown(depositAmountTtc)}</span>
+            </div>
+          ) : null}
+          {isDepositInvoice && alreadyPaidTtc != null && alreadyPaidTtc > 0.0001 ? (
+            <div className="fi-totals-row">
+              <span>Total déjà versé TTC</span>
+              <span>{formatEurUnknown(alreadyPaidTtc)}</span>
+            </div>
+          ) : null}
+          {isDepositInvoice && remainingProjectTtc != null ? (
+            <div className="fi-totals-row">
+              <span>Reste à payer TTC</span>
+              <span>{formatEurUnknown(remainingProjectTtc)}</span>
+            </div>
           ) : null}
           <div className="fi-totals-row">
             <span>Déjà réglé</span>
