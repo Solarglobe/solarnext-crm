@@ -101,6 +101,8 @@ export default function PdfPage10({
   const prodKwh = best.annual_production_kwh as number | undefined;
   const autoPct = best.autoprod_pct as number | undefined;
   const autoAu = best.autonomy_pct as number | undefined;
+  const safeAutoPct = autoPct ?? 0;
+  const safeAutoAu = autoAu ?? 0;
 
   const roiBarPct = clamp01((MAX.ROI - (roi ?? MAX.ROI)) / MAX.ROI) * 100;
   const triBarPct = clamp01((tri ?? 0) / MAX.TRI) * 100;
@@ -473,22 +475,22 @@ export default function PdfPage10({
                   Production annuelle estimée : <strong style={{ color: ink }}>{prodKwh != null ? `${fmtInt(prodKwh)} kWh` : "—"}</strong>
                 </li>
                 <li style={{ marginBottom: "0.55mm" }}>
-                  {autoPct >= 50 ? (
+                  {safeAutoPct >= 50 ? (
                     <>
                       Plus de la moitié de votre consommation est couverte par votre installation solaire
                     </>
                   ) : (
                     <>
-                      Vous couvrez environ <strong style={{ color: gold }}>{fmtPct(autoPct)}</strong> de vos besoins avec votre installation solaire
+                      Vous couvrez environ <strong style={{ color: gold }}>{fmtPct(safeAutoPct)}</strong> de vos besoins avec votre installation solaire
                     </>
                   )}
                 </li>
                 <li>
-                  {autoAu >= 50 ? (
+                  {safeAutoAu >= 50 ? (
                     <>Plus de la moitié de votre consommation est couverte par votre installation solaire</>
                   ) : (
                     <>
-                      Vous couvrez environ <strong style={{ color: "#0047AB" }}>{fmtPct(autoAu)}</strong> de vos besoins avec votre installation solaire
+                      Vous couvrez environ <strong style={{ color: "#0047AB" }}>{fmtPct(safeAutoAu)}</strong> de vos besoins avec votre installation solaire
                     </>
                   )}
                 </li>

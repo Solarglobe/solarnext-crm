@@ -469,6 +469,11 @@ export default function ScenarioComparisonTable({
               scenario?.finance?.note === "MISSING_PROVIDER_TIER_FOR_REQUIRED_CAPACITY");
 
           const residualBillEur = getResidualBillEurForDisplay(finance);
+          const billableImportKwh =
+            scenario?.energy?.energy_grid_import_kwh ??
+            scenario?.energy?.billable_import_kwh ??
+            scenario?.energy?.grid_import_kwh ??
+            0;
           const solarUsedKwh =
             energy.energy_solar_used_kwh != null && Number.isFinite(Number(energy.energy_solar_used_kwh))
               ? Number(energy.energy_solar_used_kwh)
@@ -481,12 +486,6 @@ export default function ScenarioComparisonTable({
             solarUsedKwh != null && consoKwh != null && consoKwh > 0
               ? (solarUsedKwh / consoKwh) * 100
               : null;
-          const billableImportKwh =
-            energy.billable_import_kwh != null && Number.isFinite(Number(energy.billable_import_kwh))
-              ? Number(energy.billable_import_kwh)
-              : energy.import_kwh != null && Number.isFinite(Number(energy.import_kwh))
-                ? Number(energy.import_kwh)
-                : null;
 
           const isSelectedLocked =
             versionLocked && selectedScenarioId != null && selectedScenarioId === id;
