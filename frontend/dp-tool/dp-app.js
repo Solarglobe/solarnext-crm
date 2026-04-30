@@ -15154,6 +15154,23 @@ function dp2BuildMapTilerRasterTemplate(styleUrl, explicitKey) {
   return "https://api.maptiler.com/maps/" + mapId + "/{z}/{x}/{y}.png?key=" + encodeURIComponent(String(key));
 }
 
+async function dp2ProbeRasterTemplateUrl(urlTemplate) {
+  if (!urlTemplate) return { ok: false, reason: "missing-template" };
+  try {
+    var probeUrl = String(urlTemplate)
+      .replace(/\{z\}/g, "0")
+      .replace(/\{x\}/g, "0")
+      .replace(/\{y\}/g, "0");
+    var resp = await fetch(probeUrl, { method: "GET", credentials: "same-origin", cache: "no-store" });
+    if (!resp.ok) {
+      return { ok: false, reason: "http-" + resp.status, url: probeUrl };
+    }
+    return { ok: true, url: probeUrl };
+  } catch (e) {
+    return { ok: false, reason: String((e && e.message) || e || "probe-error") };
+  }
+}
+
 async function dp2ResolveBaseVectorTilesUrl() {
   if (__dp2MapTilerStyleCache) return __dp2MapTilerStyleCache;
   var fallbackUrl = __solarnextDpAbsApiUrl("mvt/cadastre/{z}/{x}/{y}.pbf");
@@ -16121,8 +16138,20 @@ async function initDP2() {
     try {
       const baseVectorProvider = await dp2ResolveBaseVectorTilesUrl();
       const mvtUrl = baseVectorProvider.tileUrl;
-      // MapTiler complet : utiliser les tuiles raster du style pour éviter tout filtrage local des couches.
-      if (baseVectorProvider.rasterTileUrl && ol?.source?.XYZ && ol?.layer?.Tile) {
+      // MapTiler complet : utiliser les tuiles raster du style.
+      // Sécurité anti-écran blanc : si la tuile raster n'est pas valide, fallback automatique sur VectorTile.
+      var rasterProbe = { ok: false, reason: "not-tested" };
+      if (baseVectorProvider.rasterTileUrl) {
+        rasterProbe = await dp2ProbeRasterTemplateUrl(baseVectorProvider.rasterTileUrl);
+        if (!rasterProbe.ok) {
+          console.warn("[DP2 Map] raster probe failed, fallback vector", {
+            reason: rasterProbe.reason,
+            rasterTemplate: baseVectorProvider.rasterTileUrl,
+            provider: baseVectorProvider.provider,
+          });
+        }
+      }
+      if (baseVectorProvider.rasterTileUrl && rasterProbe.ok && ol?.source?.XYZ && ol?.layer?.Tile) {
         dp2MapTilerRasterSource = new ol.source.XYZ({
           url: baseVectorProvider.rasterTileUrl,
           crossOrigin: "anonymous",
