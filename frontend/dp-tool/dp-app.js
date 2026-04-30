@@ -15100,12 +15100,38 @@ function dp2PickFirstVectorTilesTemplate(styleJson) {
   return null;
 }
 
+function dp2ExtractMapTilerMapIdFromStyleUrl(styleUrl) {
+  if (!styleUrl) return "";
+  try {
+    var u = new URL(styleUrl, window.location && window.location.href ? window.location.href : undefined);
+    var m = u.pathname.match(/\/maps\/([^/]+)\/style\.json$/i);
+    return m && m[1] ? String(m[1]) : "";
+  } catch (_) {
+    var mm = String(styleUrl).match(/\/maps\/([^/]+)\/style\.json(?:\?|$)/i);
+    return mm && mm[1] ? String(mm[1]) : "";
+  }
+}
+
+function dp2BuildMapTilerRasterTemplate(styleUrl, explicitKey) {
+  var mapId = dp2ExtractMapTilerMapIdFromStyleUrl(styleUrl);
+  if (!mapId) return null;
+  var key = explicitKey || "";
+  if (!key) {
+    try {
+      var u = new URL(styleUrl, window.location && window.location.href ? window.location.href : undefined);
+      key = String(u.searchParams.get("key") || "").trim();
+    } catch (_) {}
+  }
+  if (!key) return null;
+  return "https://api.maptiler.com/maps/" + mapId + "/{z}/{x}/{y}.png?key=" + encodeURIComponent(String(key));
+}
+
 async function dp2ResolveBaseVectorTilesUrl() {
   if (__dp2MapTilerStyleCache) return __dp2MapTilerStyleCache;
   var fallbackUrl = __solarnextDpAbsApiUrl("mvt/cadastre/{z}/{x}/{y}.pbf");
   var styleUrl = __snMapTilerStyleUrl();
   if (!styleUrl) {
-    __dp2MapTilerStyleCache = { provider: "solarnext-proxy", tileUrl: fallbackUrl, styleUrl: null };
+    __dp2MapTilerStyleCache = { provider: "solarnext-proxy", tileUrl: fallbackUrl, styleUrl: null, rasterTileUrl: null };
     console.log("[DP2 Map] provider=fallback");
     return __dp2MapTilerStyleCache;
   }
@@ -15117,12 +15143,18 @@ async function dp2ResolveBaseVectorTilesUrl() {
     if (!rawTile) throw new Error("Aucune source vector tile dans style.json");
     var key = __snMapTilerPublicKey();
     var tileUrl = key ? dp2AppendQueryParam(rawTile, "key", key) : rawTile;
-    __dp2MapTilerStyleCache = { provider: "maptiler-style-json", tileUrl: tileUrl, styleUrl: styleUrl };
+    var rasterTileUrl = dp2BuildMapTilerRasterTemplate(styleUrl, key);
+    __dp2MapTilerStyleCache = {
+      provider: "maptiler-style-json",
+      tileUrl: tileUrl,
+      styleUrl: styleUrl,
+      rasterTileUrl: rasterTileUrl
+    };
     console.log("[DP2 Map] provider=maptiler");
     return __dp2MapTilerStyleCache;
   } catch (e) {
     console.warn("[DP2] MapTiler style indisponible, fallback proxy cadastre:", e);
-    __dp2MapTilerStyleCache = { provider: "solarnext-proxy-fallback", tileUrl: fallbackUrl, styleUrl: styleUrl };
+    __dp2MapTilerStyleCache = { provider: "solarnext-proxy-fallback", tileUrl: fallbackUrl, styleUrl: styleUrl, rasterTileUrl: null };
     console.log("[DP2 Map] provider=fallback");
     return __dp2MapTilerStyleCache;
   }
@@ -16051,14 +16083,29 @@ async function initDP2() {
     // --------------------------
     let dp2CadastreVectorTileSource = null;
     let dp2CadastreVectorTileLayer = null;
+    let dp2MapTilerRasterSource = null;
+    let dp2MapTilerRasterLayer = null;
     let dp2DirectMvtTestSource = null;
     let dp2DirectMvtTestLayer = null;
     let dp2OfficialCadastreWfsSource = null;
     let dp2OfficialCadastreWfsLayer = null;
     try {
-      if (ol?.source?.VectorTile && ol?.layer?.VectorTile && ol?.format?.MVT) {
-        const baseVectorProvider = await dp2ResolveBaseVectorTilesUrl();
-        const mvtUrl = baseVectorProvider.tileUrl;
+      const baseVectorProvider = await dp2ResolveBaseVectorTilesUrl();
+      const mvtUrl = baseVectorProvider.tileUrl;
+      // MapTiler complet : utiliser les tuiles raster du style pour éviter tout filtrage local des couches.
+      if (baseVectorProvider.rasterTileUrl && ol?.source?.XYZ && ol?.layer?.Tile) {
+        dp2MapTilerRasterSource = new ol.source.XYZ({
+          url: baseVectorProvider.rasterTileUrl,
+          crossOrigin: "anonymous",
+          maxZoom: 22,
+        });
+        dp2MapTilerRasterLayer = new ol.layer.Tile({
+          source: dp2MapTilerRasterSource,
+          zIndex: 5,
+        });
+        map.addLayer(dp2MapTilerRasterLayer);
+        console.log("[DP2] using maptiler raster style:", baseVectorProvider.rasterTileUrl);
+      } else if (ol?.source?.VectorTile && ol?.layer?.VectorTile && ol?.format?.MVT) {
         const mvtTileGrid = new ol.tilegrid.TileGrid({
           origin: WMTS_ORIGIN,
           resolutions: WMTS_RESOLUTIONS,
@@ -16082,24 +16129,9 @@ async function initDP2() {
           dp2MvtTilesLoadingCount = Math.max(0, dp2MvtTilesLoadingCount - 1);
         });
 
+        // Sans style local pour éviter tout filtrage involontaire.
         dp2CadastreVectorTileLayer = new ol.layer.VectorTile({
           source: dp2CadastreVectorTileSource,
-          style: function (feature) {
-            const layer = feature.get("layer");
-
-            // garder uniquement contours principaux
-            if (layer === "parcelle" || layer === "building") {
-              return new ol.style.Style({
-                stroke: new ol.style.Stroke({
-                  color: "#2c3e50",
-                  width: 1,
-                }),
-                fill: null,
-              });
-            }
-
-            return null;
-          },
           zIndex: 10,
           declutter: false,
         });
@@ -16115,9 +16147,9 @@ async function initDP2() {
     // --------------------------
     try {
       if (window.__DP2_USE_DIRECT_MVT_TEST__ == null) {
-        window.__DP2_USE_DIRECT_MVT_TEST__ = true;
+        window.__DP2_USE_DIRECT_MVT_TEST__ = false;
       }
-      if (ol?.source?.VectorTile && ol?.layer?.VectorTile && ol?.format?.MVT) {
+      if (window.__DP2_USE_DIRECT_MVT_TEST__ === true && ol?.source?.VectorTile && ol?.layer?.VectorTile && ol?.format?.MVT) {
         dp2DirectMvtTestSource = new ol.source.VectorTile({
           projection: "EPSG:3857",
           format: new ol.format.MVT(),
@@ -16249,6 +16281,8 @@ async function initDP2() {
       planTileLayer: null,
       mvtSource: dp2CadastreVectorTileSource,
       mvtTileLayer: dp2CadastreVectorTileLayer,
+      mapTilerRasterSource: dp2MapTilerRasterSource,
+      mapTilerRasterLayer: dp2MapTilerRasterLayer,
       directMvtTestSource: dp2DirectMvtTestSource,
       directMvtTestLayer: dp2DirectMvtTestLayer,
       neighborParcelsSource: dp2NeighborParcelsSource,
