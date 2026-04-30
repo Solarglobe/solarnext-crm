@@ -84,6 +84,7 @@ function getDefaultDpAssetBase(): string {
 const CDN = {
   olCss: "https://cdn.jsdelivr.net/npm/ol@10.7.0/ol.css",
   olJs: "https://cdn.jsdelivr.net/npm/ol@10.7.0/dist/ol.js",
+  olMapboxStyleJs: "https://cdn.jsdelivr.net/npm/ol-mapbox-style@13.4.1/dist/olms.js",
   html2canvas: "https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js",
   pdfLib: "https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js",
 } as const;
@@ -308,6 +309,7 @@ export async function loadDpTool(options: DpToolLoaderOptions): Promise<DpToolLo
 
   try {
     await loadScriptSequential(CDN.olJs, ac.signal);
+    await loadScriptSequential(CDN.olMapboxStyleJs, ac.signal);
     await loadScriptSequential(CDN.html2canvas, ac.signal);
     await loadScriptSequential(CDN.pdfLib, ac.signal);
     await loadScriptSequential(resolveFromAssetBase(assetBase, "../../shared/panel-dimensions.js"), ac.signal);

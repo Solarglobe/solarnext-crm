@@ -15067,8 +15067,6 @@ let dp2MvtFeatureLogged = false;
 const DP2_OFFICIAL_WFS_BASE_URL = "https://data.geopf.fr/wfs";
 const DP2_OFFICIAL_CADASTRE_WFS_TYPENAME = "CADASTRALPARCELS.PARCELLAIRE_EXPRESS";
 const DP2_OFFICIAL_WFS_TIMEOUT_MS = 9000;
-const DP2_DIRECT_MVT_TEST_URL = "__DP2_DIRECT_MVT_TEST_PROXY__";
-let __dp2MapTilerStyleCache = null;
 
 function dp2AppendQueryParam(url, key, value) {
   if (!url || !key || value == null || value === "") return url;
@@ -15082,128 +15080,24 @@ function dp2AppendQueryParam(url, key, value) {
   }
 }
 
-function dp2PickFirstVectorTilesTemplate(styleJson) {
-  if (!styleJson || typeof styleJson !== "object") return null;
-  var sources = styleJson.sources;
-  if (!sources || typeof sources !== "object") return null;
-  var keys = Object.keys(sources);
-  for (var i = 0; i < keys.length; i++) {
-    var src = sources[keys[i]];
-    if (!src || src.type !== "vector") continue;
-    if (Array.isArray(src.tiles) && src.tiles.length && src.tiles[0]) {
-      return String(src.tiles[0]);
-    }
-    if (typeof src.url === "string" && src.url.trim()) {
-      return String(src.url).trim();
-    }
-  }
-  return null;
-}
-
-async function dp2ResolveVectorTileTemplate(rawTile, explicitKey) {
-  if (!rawTile) return null;
-  var t = String(rawTile).trim();
-  if (!t) return null;
-  // Cas direct attendu par OpenLayers VectorTile.
-  if (/\{z\}.*\{x\}.*\{y\}/i.test(t)) {
-    return explicitKey ? dp2AppendQueryParam(t, "key", explicitKey) : t;
-  }
-  // Cas TileJSON (souvent `.../tiles.json?key=...`) : il faut d'abord résoudre `tiles[0]`.
-  if (/tiles\.json(\?|$)/i.test(t)) {
-    try {
-      var tileJsonUrl = explicitKey ? dp2AppendQueryParam(t, "key", explicitKey) : t;
-      var r = await fetch(tileJsonUrl, { credentials: "same-origin", cache: "no-store" });
-      if (!r.ok) throw new Error("TileJSON HTTP " + r.status);
-      var tj = await r.json();
-      var arr = Array.isArray(tj && tj.tiles) ? tj.tiles : [];
-      if (arr.length && arr[0]) {
-        var tpl = String(arr[0]);
-        return explicitKey ? dp2AppendQueryParam(tpl, "key", explicitKey) : tpl;
-      }
-    } catch (e) {
-      console.warn("[DP2 Map] TileJSON resolve failed:", e);
-      return null;
-    }
-  }
-  return null;
-}
-
-function dp2ExtractMapTilerMapIdFromStyleUrl(styleUrl) {
-  if (!styleUrl) return "";
-  try {
-    var u = new URL(styleUrl, window.location && window.location.href ? window.location.href : undefined);
-    var m = u.pathname.match(/\/maps\/([^/]+)\/style\.json$/i);
-    return m && m[1] ? String(m[1]) : "";
-  } catch (_) {
-    var mm = String(styleUrl).match(/\/maps\/([^/]+)\/style\.json(?:\?|$)/i);
-    return mm && mm[1] ? String(mm[1]) : "";
-  }
-}
-
-function dp2BuildMapTilerRasterTemplate(styleUrl, explicitKey) {
-  var mapId = dp2ExtractMapTilerMapIdFromStyleUrl(styleUrl);
-  if (!mapId) return null;
-  var key = explicitKey || "";
-  if (!key) {
-    try {
-      var u = new URL(styleUrl, window.location && window.location.href ? window.location.href : undefined);
-      key = String(u.searchParams.get("key") || "").trim();
-    } catch (_) {}
-  }
-  if (!key) return null;
-  return "https://api.maptiler.com/maps/" + mapId + "/{z}/{x}/{y}.png?key=" + encodeURIComponent(String(key));
-}
-
-async function dp2ProbeRasterTemplateUrl(urlTemplate) {
-  if (!urlTemplate) return { ok: false, reason: "missing-template" };
-  try {
-    var probeUrl = String(urlTemplate)
-      .replace(/\{z\}/g, "0")
-      .replace(/\{x\}/g, "0")
-      .replace(/\{y\}/g, "0");
-    var resp = await fetch(probeUrl, { method: "GET", credentials: "same-origin", cache: "no-store" });
-    if (!resp.ok) {
-      return { ok: false, reason: "http-" + resp.status, url: probeUrl };
-    }
-    return { ok: true, url: probeUrl };
-  } catch (e) {
-    return { ok: false, reason: String((e && e.message) || e || "probe-error") };
-  }
-}
-
-async function dp2ResolveBaseVectorTilesUrl() {
-  if (__dp2MapTilerStyleCache) return __dp2MapTilerStyleCache;
-  var fallbackUrl = __solarnextDpAbsApiUrl("mvt/cadastre/{z}/{x}/{y}.pbf");
+function dp2ResolveMapTilerStyleUrl() {
   var styleUrl = __snMapTilerStyleUrl();
+  var key = __snMapTilerPublicKey();
+  if (!styleUrl) return "";
+  return key ? dp2AppendQueryParam(styleUrl, "key", key) : styleUrl;
+}
+
+async function dp2ApplyMapTilerStyle(map) {
+  var styleUrl = dp2ResolveMapTilerStyleUrl();
   if (!styleUrl) {
-    __dp2MapTilerStyleCache = { provider: "solarnext-proxy", tileUrl: fallbackUrl, styleUrl: null, rasterTileUrl: null };
-    console.log("[DP2 Map] provider=fallback");
-    return __dp2MapTilerStyleCache;
+    throw new Error("VITE_MAPTILER_STYLE_URL (ou __DP2_MAPTILER_STYLE_URL__) manquant.");
   }
-  try {
-    var res = await fetch(styleUrl, { credentials: "same-origin", cache: "no-store" });
-    if (!res.ok) throw new Error("style.json HTTP " + res.status);
-    var styleJson = await res.json();
-    var rawTile = dp2PickFirstVectorTilesTemplate(styleJson);
-    if (!rawTile) throw new Error("Aucune source vector tile dans style.json");
-    var key = __snMapTilerPublicKey();
-    var tileUrl = await dp2ResolveVectorTileTemplate(rawTile, key);
-    if (!tileUrl) throw new Error("Impossible de résoudre un template vector tile depuis style.json");
-    var rasterTileUrl = dp2BuildMapTilerRasterTemplate(styleUrl, key);
-    __dp2MapTilerStyleCache = {
-      provider: "maptiler-style-json",
-      tileUrl: tileUrl,
-      styleUrl: styleUrl,
-      rasterTileUrl: rasterTileUrl
-    };
-    console.log("[DP2 Map] provider=maptiler");
-    return __dp2MapTilerStyleCache;
-  } catch (e) {
-    console.warn("[DP2] MapTiler style indisponible, fallback proxy cadastre:", e);
-    __dp2MapTilerStyleCache = { provider: "solarnext-proxy-fallback", tileUrl: fallbackUrl, styleUrl: styleUrl, rasterTileUrl: null };
-    console.log("[DP2 Map] provider=fallback");
-    return __dp2MapTilerStyleCache;
+  var olmsApply = window.olms && typeof window.olms.apply === "function" ? window.olms.apply : null;
+  if (!olmsApply) {
+    throw new Error("ol-mapbox-style indisponible (window.olms.apply).");
   }
+  await olmsApply(map, styleUrl);
+  console.log("[DP2 Map] MapTiler style applied");
 }
 
 function dp2OfficialWfsParcelLabelText(feature) {
@@ -16125,7 +16019,7 @@ async function initDP2() {
     });
 
     // --------------------------
-    // DP2 — Fond vectoriel (MVT) uniquement
+    // DP2 — Fond de carte MapTiler via style.json (ol-mapbox-style)
     // --------------------------
     let dp2CadastreVectorTileSource = null;
     let dp2CadastreVectorTileLayer = null;
@@ -16136,110 +16030,10 @@ async function initDP2() {
     let dp2OfficialCadastreWfsSource = null;
     let dp2OfficialCadastreWfsLayer = null;
     try {
-      const baseVectorProvider = await dp2ResolveBaseVectorTilesUrl();
-      const mvtUrl = baseVectorProvider.tileUrl;
-      // MapTiler complet : utiliser les tuiles raster du style.
-      // Sécurité anti-écran blanc : si la tuile raster n'est pas valide, fallback automatique sur VectorTile.
-      var rasterProbe = { ok: false, reason: "not-tested" };
-      if (baseVectorProvider.rasterTileUrl) {
-        rasterProbe = await dp2ProbeRasterTemplateUrl(baseVectorProvider.rasterTileUrl);
-        if (!rasterProbe.ok) {
-          console.warn("[DP2 Map] raster probe failed, fallback vector", {
-            reason: rasterProbe.reason,
-            rasterTemplate: baseVectorProvider.rasterTileUrl,
-            provider: baseVectorProvider.provider,
-          });
-        }
-      }
-      if (baseVectorProvider.rasterTileUrl && rasterProbe.ok && ol?.source?.XYZ && ol?.layer?.Tile) {
-        dp2MapTilerRasterSource = new ol.source.XYZ({
-          url: baseVectorProvider.rasterTileUrl,
-          crossOrigin: "anonymous",
-          maxZoom: 22,
-        });
-        dp2MapTilerRasterSource.on("tileloaderror", function () {
-          console.warn("[DP2 Map] raster tileloaderror", {
-            url: baseVectorProvider.rasterTileUrl,
-            provider: baseVectorProvider.provider,
-          });
-        });
-        dp2MapTilerRasterLayer = new ol.layer.Tile({
-          source: dp2MapTilerRasterSource,
-          zIndex: 5,
-        });
-        map.addLayer(dp2MapTilerRasterLayer);
-        console.log("[DP2] using maptiler raster style:", baseVectorProvider.rasterTileUrl);
-      } else if (ol?.source?.VectorTile && ol?.layer?.VectorTile && ol?.format?.MVT) {
-        const mvtTileGrid = new ol.tilegrid.TileGrid({
-          origin: WMTS_ORIGIN,
-          resolutions: WMTS_RESOLUTIONS,
-          tileSize: [256, 256],
-        });
-
-        dp2CadastreVectorTileSource = new ol.source.VectorTile({
-          projection: "EPSG:3857",
-          format: new ol.format.MVT(),
-          url: mvtUrl,
-        });
-
-        // Compteur pour capture : attend que les tuiles soient réellement chargées.
-        dp2CadastreVectorTileSource.on("tileloadstart", () => {
-          dp2MvtTilesLoadingCount++;
-        });
-        dp2CadastreVectorTileSource.on("tileloadend", () => {
-          dp2MvtTilesLoadingCount = Math.max(0, dp2MvtTilesLoadingCount - 1);
-        });
-        dp2CadastreVectorTileSource.on("tileloaderror", () => {
-          dp2MvtTilesLoadingCount = Math.max(0, dp2MvtTilesLoadingCount - 1);
-          console.warn("[DP2 Map] vector tileloaderror", { url: mvtUrl });
-        });
-
-        // Sans style local pour éviter tout filtrage involontaire.
-        dp2CadastreVectorTileLayer = new ol.layer.VectorTile({
-          source: dp2CadastreVectorTileSource,
-          zIndex: 10,
-          declutter: false,
-        });
-        map.addLayer(dp2CadastreVectorTileLayer);
-        console.log("[DP2] using vector provider:", baseVectorProvider.provider, mvtUrl);
-      }
+      await dp2ApplyMapTilerStyle(map);
     } catch (e) {
-      console.warn("[DP2] Fond vectoriel MVT indisponible :", e);
-    }
-
-    // --------------------------
-    // DP2 — TEST MVT direct (sans /api/mvt)
-    // --------------------------
-    try {
-      if (window.__DP2_USE_DIRECT_MVT_TEST__ == null) {
-        window.__DP2_USE_DIRECT_MVT_TEST__ = false;
-      }
-      if (window.__DP2_USE_DIRECT_MVT_TEST__ === true && ol?.source?.VectorTile && ol?.layer?.VectorTile && ol?.format?.MVT) {
-        dp2DirectMvtTestSource = new ol.source.VectorTile({
-          projection: "EPSG:3857",
-          format: new ol.format.MVT(),
-          url:
-            DP2_DIRECT_MVT_TEST_URL === "__DP2_DIRECT_MVT_TEST_PROXY__"
-              ? __solarnextDpAbsApiUrl("mvt/cadastre/{z}/{x}/{y}.pbf")
-              : DP2_DIRECT_MVT_TEST_URL,
-          maxZoom: 20,
-        });
-        dp2DirectMvtTestLayer = new ol.layer.VectorTile({
-          source: dp2DirectMvtTestSource,
-          style: dp2DirectMvtTestStyle,
-          zIndex: 10,
-          declutter: false,
-          visible: false,
-        });
-        map.addLayer(dp2DirectMvtTestLayer);
-      }
-      if (window.__DP2_USE_DIRECT_MVT_TEST__ === true) {
-        if (dp2DirectMvtTestLayer?.setVisible) dp2DirectMvtTestLayer.setVisible(true);
-        if (dp2CadastreVectorTileLayer?.setVisible) dp2CadastreVectorTileLayer.setVisible(false);
-        console.log("[DP2 TEST] using direct MVT source (pci-vecteur.openstreetmap.fr)");
-      }
-    } catch (e) {
-      console.warn("[DP2 TEST] direct MVT layer init failed:", e);
+      console.error("[DP2 Map] apply style failed", e);
+      throw e;
     }
 
     // --------------------------
