@@ -15100,6 +15100,34 @@ function dp2PickFirstVectorTilesTemplate(styleJson) {
   return null;
 }
 
+async function dp2ResolveVectorTileTemplate(rawTile, explicitKey) {
+  if (!rawTile) return null;
+  var t = String(rawTile).trim();
+  if (!t) return null;
+  // Cas direct attendu par OpenLayers VectorTile.
+  if (/\{z\}.*\{x\}.*\{y\}/i.test(t)) {
+    return explicitKey ? dp2AppendQueryParam(t, "key", explicitKey) : t;
+  }
+  // Cas TileJSON (souvent `.../tiles.json?key=...`) : il faut d'abord résoudre `tiles[0]`.
+  if (/tiles\.json(\?|$)/i.test(t)) {
+    try {
+      var tileJsonUrl = explicitKey ? dp2AppendQueryParam(t, "key", explicitKey) : t;
+      var r = await fetch(tileJsonUrl, { credentials: "same-origin", cache: "no-store" });
+      if (!r.ok) throw new Error("TileJSON HTTP " + r.status);
+      var tj = await r.json();
+      var arr = Array.isArray(tj && tj.tiles) ? tj.tiles : [];
+      if (arr.length && arr[0]) {
+        var tpl = String(arr[0]);
+        return explicitKey ? dp2AppendQueryParam(tpl, "key", explicitKey) : tpl;
+      }
+    } catch (e) {
+      console.warn("[DP2 Map] TileJSON resolve failed:", e);
+      return null;
+    }
+  }
+  return null;
+}
+
 function dp2ExtractMapTilerMapIdFromStyleUrl(styleUrl) {
   if (!styleUrl) return "";
   try {
@@ -15142,7 +15170,8 @@ async function dp2ResolveBaseVectorTilesUrl() {
     var rawTile = dp2PickFirstVectorTilesTemplate(styleJson);
     if (!rawTile) throw new Error("Aucune source vector tile dans style.json");
     var key = __snMapTilerPublicKey();
-    var tileUrl = key ? dp2AppendQueryParam(rawTile, "key", key) : rawTile;
+    var tileUrl = await dp2ResolveVectorTileTemplate(rawTile, key);
+    if (!tileUrl) throw new Error("Impossible de résoudre un template vector tile depuis style.json");
     var rasterTileUrl = dp2BuildMapTilerRasterTemplate(styleUrl, key);
     __dp2MapTilerStyleCache = {
       provider: "maptiler-style-json",
@@ -16099,6 +16128,12 @@ async function initDP2() {
           crossOrigin: "anonymous",
           maxZoom: 22,
         });
+        dp2MapTilerRasterSource.on("tileloaderror", function () {
+          console.warn("[DP2 Map] raster tileloaderror", {
+            url: baseVectorProvider.rasterTileUrl,
+            provider: baseVectorProvider.provider,
+          });
+        });
         dp2MapTilerRasterLayer = new ol.layer.Tile({
           source: dp2MapTilerRasterSource,
           zIndex: 5,
@@ -16127,6 +16162,7 @@ async function initDP2() {
         });
         dp2CadastreVectorTileSource.on("tileloaderror", () => {
           dp2MvtTilesLoadingCount = Math.max(0, dp2MvtTilesLoadingCount - 1);
+          console.warn("[DP2 Map] vector tileloaderror", { url: mvtUrl });
         });
 
         // Sans style local pour éviter tout filtrage involontaire.
