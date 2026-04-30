@@ -142,6 +142,7 @@ export function splitDischargeHpHc(hourlyDischarge, hourlyIsHp) {
  *   meterKva: number,
  *   vbSim: object,
  *   unboundedRequiredCapacityKwh: number,
+ *   selectedCapacityKwh?: number,
  *   hourlyDischargeKwh: number[],
  *   hphcHourlyIsHp?: boolean[]|number[]|null,
  *   tariffElectricityPerKwh: number,
@@ -164,14 +165,25 @@ export function computeVirtualBatteryP2Finance(input) {
   const overflowKwh = Number(input.vbSim?.virtual_battery_overflow_export_kwh) || 0;
   const billableImport = Number(input.vbSim?.grid_import_kwh) || 0;
   const reqCap = Number(input.unboundedRequiredCapacityKwh) || 0;
+  const selectedCapacityFromInput =
+    input.selectedCapacityKwh != null && Number.isFinite(Number(input.selectedCapacityKwh))
+      ? Number(input.selectedCapacityKwh)
+      : null;
+  const selectedCapacityFromSim =
+    input.vbSim?.virtual_battery_capacity_kwh != null &&
+    Number.isFinite(Number(input.vbSim.virtual_battery_capacity_kwh))
+      ? Number(input.vbSim.virtual_battery_capacity_kwh)
+      : null;
+  const selectedCapacityRef = selectedCapacityFromInput ?? selectedCapacityFromSim;
 
   /** @type {{ ok: true, selected_capacity_kwh: number, monthly_subscription_ht: number } | null} */
   let preselectedMySmartTier = null;
   if (providerCode === P.MYLIGHT_MYSMARTBATTERY) {
     let t = null;
+    const tierReferenceKwh = selectedCapacityRef != null && selectedCapacityRef > 0 ? selectedCapacityRef : reqCap;
     const pcGrid = useGrid ? grids.providers[providerCode] : null;
     if (pcGrid && Array.isArray(pcGrid.capacityTiers) && pcGrid.capacityTiers.length > 0) {
-      const tg = vbSelectMySmartTierFromGrid(pcGrid, reqCap);
+      const tg = vbSelectMySmartTierFromGrid(pcGrid, tierReferenceKwh);
       if (tg.ok) {
         t = {
           ok: true,
@@ -189,7 +201,7 @@ export function computeVirtualBatteryP2Finance(input) {
       }
     }
     if (!t) {
-      const legacy = selectMySmartTier(reqCap);
+      const legacy = selectMySmartTier(tierReferenceKwh);
       if (!legacy.ok) {
         return {
           virtual_battery_finance: null,
@@ -348,6 +360,16 @@ export function computeVirtualBatteryP2Finance(input) {
     if (contractType === "HPHC") {
       hphc_allocation_status = "NOT_APPLICABLE";
       notes.push("MySmartBattery : contrat toujours forfait déstockage 0 €/kWh (réseau/taxes inclus dans palier).");
+    }
+    if (
+      selectedCapacityRef != null &&
+      selectedCapacityRef > 0 &&
+      reqCap > 0 &&
+      reqCap > selectedCapacityRef
+    ) {
+      notes.push(
+        `Risque de saturation : capacité recommandée ${round2(reqCap)} kWh > capacité contractuelle choisie ${round2(selectedCapacityRef)} kWh (surplus potentiellement non valorisé).`
+      );
     }
   } else {
     notes.push(`Fournisseur non reconnu pour P2 : ${providerCode}`);

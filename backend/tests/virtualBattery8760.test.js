@@ -194,6 +194,34 @@ function main() {
     console.log("✅ Cas 8 — credit_ratio hérité ignoré (comportement 1)");
   }
 
+  // Cas 9 — capacité plus faible => overflow plus élevé (ex: contrat 300 vs besoin supérieur)
+  {
+    const pv = zeros(H);
+    const load = zeros(H);
+    // 2 heures de surplus important, puis une consommation partielle.
+    pv[0] = 500;
+    pv[1] = 500;
+    load[2] = 400;
+
+    const r300 = simulateVirtualBattery8760({
+      pv_hourly: pv,
+      conso_hourly: load,
+      config: { capacity_kwh: 300 },
+    });
+    const r1000 = simulateVirtualBattery8760({
+      pv_hourly: pv,
+      conso_hourly: load,
+      config: { capacity_kwh: 1000 },
+    });
+
+    assert(r300.ok && r1000.ok, "cas9 sims ok");
+    assert(
+      r300.virtual_battery_overflow_export_kwh > r1000.virtual_battery_overflow_export_kwh,
+      "cas9 overflow augmente avec capacité faible"
+    );
+    console.log("✅ Cas 9 — capacité contractuelle faible => overflow export plus élevé");
+  }
+
   // resolveVirtualBatteryCapacityKwh
   assert(resolveVirtualBatteryCapacityKwh({ capacity_kwh: 12 }) === 12, "resolve capacity");
   assert(resolveVirtualBatteryCapacityKwh({ credit_cap_kwh: 8 }) === 8, "resolve credit_cap");

@@ -19,7 +19,7 @@ function assertApprox(a, b, msg, eps = 0.02) {
   if (Math.abs(a - b) > eps) throw new Error(`${msg}: attendu ~${b}, reçu ${a}`);
 }
 
-function mockVbSim({ discharged = 0, overflow = 0, importKwh = 0 }) {
+function mockVbSim({ discharged = 0, overflow = 0, importKwh = 0, capacityKwh = null }) {
   const hourly = new Array(8760).fill(0);
   hourly[0] = discharged;
   return {
@@ -27,6 +27,7 @@ function mockVbSim({ discharged = 0, overflow = 0, importKwh = 0 }) {
     virtual_battery_overflow_export_kwh: overflow,
     grid_import_kwh: importKwh,
     virtual_battery_hourly_discharge_kwh: hourly,
+    ...(capacityKwh != null ? { virtual_battery_capacity_kwh: capacityKwh } : {}),
   };
 }
 
@@ -85,24 +86,26 @@ function main() {
     console.log("✅ Test 2 MyBattery Base");
   }
 
-  // Test 3 — MySmart palier auto
+  // Test 3 — MySmart capacité contractuelle 300 (required > 300)
   {
-    const t = selectMySmartTier(250);
+    const t = selectMySmartTier(300);
     assert(t.ok, "tier ok");
     assert(t.selected_capacity_kwh === 300, "palier 300");
-    const vb = mockVbSim({ discharged: 10 });
+    const vb = mockVbSim({ discharged: 10, capacityKwh: 300 });
     const r = computeVirtualBatteryP2Finance({
       providerCode: "MYLIGHT_MYSMARTBATTERY",
       contractType: "BASE",
       installedKwc: 6,
       meterKva: 10,
       vbSim: vb,
-      unboundedRequiredCapacityKwh: 250,
+      unboundedRequiredCapacityKwh: 900,
+      selectedCapacityKwh: 300,
       hourlyDischargeKwh: vb.virtual_battery_hourly_discharge_kwh,
       hphcHourlyIsHp: null,
       tariffElectricityPerKwh: 0.2,
       oaRatePerKwh: 0.05,
     });
+    assertApprox(r.virtual_battery_finance.selected_capacity_kwh, 300, "capacité retenue = contractuelle");
     assertApprox(r.virtual_battery_finance.annual_subscription_ht, 22.49 * 12, "abo palier");
     assertApprox(
       r.virtual_battery_finance.annual_autoproducer_contribution_ht,
@@ -110,7 +113,12 @@ function main() {
       "contrib MySmart"
     );
     assert(r.virtual_battery_finance.annual_virtual_discharge_cost_ht === 0, "déstockage 0");
-    console.log("✅ Test 3 MySmartBattery");
+    assert(
+      Array.isArray(r.virtual_battery_finance.notes) &&
+        r.virtual_battery_finance.notes.some((n) => String(n).includes("Risque de saturation")),
+      "warning saturation présent"
+    );
+    console.log("✅ Test 3 MySmartBattery capacité contractuelle conservée + warning saturation");
   }
 
   // Test 3b — MySmart : grille org avec contributionRule explicite (priorité sur legacy P2)

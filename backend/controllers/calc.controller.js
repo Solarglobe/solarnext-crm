@@ -35,7 +35,6 @@ import { simulateVirtualBattery8760Unbounded } from "../services/virtualBatteryU
 import {
   computeVirtualBatteryP2Finance,
   computeVirtualBatteryBusiness,
-  selectMySmartTier,
   resolveP2ContractType,
 } from "../services/virtualBatteryP2Finance.service.js";
 import { mapScenarioToV2 } from "../services/scenarioV2Mapper.service.js";
@@ -718,42 +717,37 @@ if (devLog) {
             const pc = String(providerRaw).toUpperCase();
             let simCapacityKwh;
             if (pc === "MYLIGHT_MYSMARTBATTERY") {
-              const tierPick = selectMySmartTier(requiredCap);
-              if (!tierPick.ok) {
-                virtualScenario.provider_tier_status = "MISSING_PROVIDER_TIER_FOR_REQUIRED_CAPACITY";
-                virtualScenario.virtual_battery_finance = null;
-                virtualScenario.virtual_battery_business = null;
-                virtualScenario._virtualBatteryQuote = null;
-                virtualScenario._skipped = true;
-                virtualScenario._p2_skip_reason = "MISSING_PROVIDER_TIER_FOR_REQUIRED_CAPACITY";
-                virtualScenario.p2_notes = [
-                  `Capacité utile requise ${requiredCap} kWh : aucun palier MySmart catalogue ≥ besoin (plafond 10 000 kWh). Aucune simulation contractuelle, aucun abonnement ni montant tarifaire calculé.`,
-                ];
+              const selectedContractualCap = resolveVirtualBatteryCapacityKwh(vbInput);
+              if (selectedContractualCap != null && selectedContractualCap > 0) {
+                simCapacityKwh = selectedContractualCap;
+                vbSim = simulateVirtualBattery8760({
+                  pv_hourly: ctx.pv.hourly,
+                  conso_hourly: consoHourlyVirtual,
+                  config: { ...vbInput, capacity_kwh: simCapacityKwh },
+                });
+                const saturationRisk =
+                  Number(requiredCap) > 0 && Number(simCapacityKwh) > 0 && Number(requiredCap) > Number(simCapacityKwh);
                 virtualScenario._virtualBatteryP2 = {
                   required_capacity_kwh: requiredCap,
-                  provider_tier_status: "MISSING_PROVIDER_TIER_FOR_REQUIRED_CAPACITY",
-                  diagnostic_unbounded_non_contractual: {
-                    required_capacity_kwh: unbounded.required_capacity_kwh,
-                    virtual_battery_total_charged_kwh: unbounded.virtual_battery_total_charged_kwh,
-                    virtual_battery_total_discharged_kwh: unbounded.virtual_battery_total_discharged_kwh,
-                    virtual_battery_overflow_export_kwh: unbounded.virtual_battery_overflow_export_kwh,
-                    disclaimer:
-                      "Valeurs indicatives profil sans palier contractuel — ne pas présenter comme offre chiffrée.",
-                  },
+                  selected_capacity_kwh: simCapacityKwh,
+                  simulation_capacity_kwh: simCapacityKwh,
+                  provider_tier_status: "OK",
+                  ...(saturationRisk
+                    ? {
+                        saturation_warning: true,
+                        saturation_warning_message:
+                          `Capacité recommandée (${requiredCap} kWh) supérieure à la capacité contractuelle choisie (${simCapacityKwh} kWh) : risque de saturation et surplus non valorisé.`,
+                      }
+                    : {}),
                 };
-                virtualScenario.finance = {
-                  roi_years: null,
-                  irr: null,
-                  lcoe: null,
-                  cashflows: null,
-                  note: "MISSING_PROVIDER_TIER_FOR_REQUIRED_CAPACITY",
-                };
-                virtualScenario.energy_independence_pct = null;
-                virtualScenario.residual_bill_eur = null;
-                virtualScenario.surplus_revenue_eur = null;
-                vbSim = null;
+                if (saturationRisk) {
+                  virtualScenario.p2_notes = [
+                    ...(Array.isArray(virtualScenario.p2_notes) ? virtualScenario.p2_notes : []),
+                    `Risque de saturation : capacité choisie ${simCapacityKwh} kWh < capacité recommandée ${requiredCap} kWh.`,
+                  ];
+                }
               } else {
-                simCapacityKwh = tierPick.selected_capacity_kwh;
+                simCapacityKwh = Math.max(requiredCap, 1e-9);
                 vbSim = simulateVirtualBattery8760({
                   pv_hourly: ctx.pv.hourly,
                   conso_hourly: consoHourlyVirtual,
@@ -761,8 +755,10 @@ if (devLog) {
                 });
                 virtualScenario._virtualBatteryP2 = {
                   required_capacity_kwh: requiredCap,
+                  selected_capacity_kwh: simCapacityKwh,
                   simulation_capacity_kwh: simCapacityKwh,
                   provider_tier_status: "OK",
+                  auto_selected_capacity_from_required: true,
                 };
               }
             } else {
@@ -958,6 +954,10 @@ if (devLog) {
               meterKva,
               vbSim,
               unboundedRequiredCapacityKwh: virtualScenario._virtualBatteryP2?.required_capacity_kwh ?? 0,
+              selectedCapacityKwh:
+                virtualScenario._virtualBatteryP2?.selected_capacity_kwh ??
+                virtualScenario._virtualBatteryP2?.simulation_capacity_kwh ??
+                null,
               hourlyDischargeKwh: vbSim.virtual_battery_hourly_discharge_kwh,
               hphcHourlyIsHp: contractType === "HPHC" ? vbInput.hphc_hourly_slot_is_hp ?? null : null,
               tariffElectricityPerKwh: tariffKwh,
