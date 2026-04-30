@@ -83,7 +83,7 @@ function copyDpToolTree(srcDir: string, destDir: string): void {
 }
 
 type DpToolStaticPluginOpts = {
-  /** Corps JS : définit `window.__VITE_GOOGLE_MAPS_API_KEY__` (clé publique Vite uniquement). */
+  /** Corps JS : définit les variables runtime publiques pour scripts non bundlés (dp-tool, PDF, etc.). */
   makeVitePublicRuntimeJs: () => string;
 };
 
@@ -189,10 +189,16 @@ export default defineConfig(({ mode }) => {
     const key =
       env.VITE_GOOGLE_MAPS_API_KEY ??
       (process.env.VITE_GOOGLE_MAPS_API_KEY || "");
+    const mapTilerStyleUrl = String(
+      env.VITE_MAPTILER_STYLE_URL ?? process.env.VITE_MAPTILER_STYLE_URL ?? ""
+    ).trim();
+    const mapTilerKey = String(
+      env.VITE_MAPTILER_KEY ?? process.env.VITE_MAPTILER_KEY ?? ""
+    ).trim();
     const apiUrl = String(
       env.VITE_API_URL ?? process.env.VITE_API_URL ?? ""
     ).trim();
-    return `(()=>{var k=${JSON.stringify(key)};var a=${JSON.stringify(apiUrl)};if(typeof window!=="undefined"){window.__VITE_GOOGLE_MAPS_API_KEY__=k;window.__VITE_API_URL__=a;}})();`;
+    return `(()=>{var k=${JSON.stringify(key)};var a=${JSON.stringify(apiUrl)};var ms=${JSON.stringify(mapTilerStyleUrl)};var mk=${JSON.stringify(mapTilerKey)};if(typeof window!=="undefined"){window.__VITE_GOOGLE_MAPS_API_KEY__=k;window.__VITE_API_URL__=a;window.__VITE_MAPTILER_STYLE_URL__=ms;window.__VITE_MAPTILER_KEY__=mk;if(!window.__DP2_MAPTILER_STYLE_URL__)window.__DP2_MAPTILER_STYLE_URL__=ms;if(!window.__DP2_MAPTILER_KEY__)window.__DP2_MAPTILER_KEY__=mk;}})();`;
   };
 
   return {

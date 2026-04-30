@@ -9,6 +9,10 @@ interface ImportMetaEnv {
   readonly VITE_API_URL?: string;
   /** Clé publique Google Maps (Calpinage, DP tool) — restreindre par référent côté Google Cloud. */
   readonly VITE_GOOGLE_MAPS_API_KEY?: string;
+  /** URL complète du style MapTiler (style.json). Peut inclure `?key=...`. */
+  readonly VITE_MAPTILER_STYLE_URL?: string;
+  /** Clé publique MapTiler (optionnelle si déjà dans `VITE_MAPTILER_STYLE_URL`). */
+  readonly VITE_MAPTILER_KEY?: string;
   /** Opt-in explicite : near shading 3D canonique (raycast). Valeur attendue : `"true"`. */
   readonly VITE_CANONICAL_3D_NEAR_SHADING?: string;
   /**
@@ -24,6 +28,14 @@ declare global {
     __VITE_API_URL__?: string;
     /** Injecté par `/config/vite-public-runtime.js` (build Vite) pour scripts non bundlés (dp-tool). */
     __VITE_GOOGLE_MAPS_API_KEY__?: string;
+    /** Injecté par `/config/vite-public-runtime.js` pour scripts non bundlés (dp-tool). */
+    __VITE_MAPTILER_STYLE_URL__?: string;
+    /** Injecté par `/config/vite-public-runtime.js` pour scripts non bundlés (dp-tool). */
+    __VITE_MAPTILER_KEY__?: string;
+    /** Override DP2 prioritaire (runtime), utile pour forcer un style spécifique au lot DP2. */
+    __DP2_MAPTILER_STYLE_URL__?: string;
+    /** Clé DP2 prioritaire (runtime), si la clé n'est pas déjà dans l'URL de style. */
+    __DP2_MAPTILER_KEY__?: string;
     Engine?: unknown;
     __pdf_render_ready?: boolean;
     /** Override feature flag 3D canonical (priorité sur `VITE_CALPINAGE_CANONICAL_3D`). */
