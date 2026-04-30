@@ -233,11 +233,18 @@ export async function patchInvoice(invoiceId: string, body: Record<string, unkno
   return res.json();
 }
 
-export async function patchInvoiceStatus(invoiceId: string, status: string): Promise<InvoiceDetail> {
+export async function patchInvoiceStatus(
+  invoiceId: string,
+  status: string,
+  options?: { cancelled_reason?: string | null }
+): Promise<InvoiceDetail> {
   const res = await apiFetch(`${API_BASE}/api/invoices/${encodeURIComponent(invoiceId)}/status`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ status }),
+    body: JSON.stringify({
+      status,
+      ...(options?.cancelled_reason != null ? { cancelled_reason: options.cancelled_reason } : {}),
+    }),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));

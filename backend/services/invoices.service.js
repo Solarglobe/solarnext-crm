@@ -551,7 +551,7 @@ const INVOICE_TRANSITIONS = {
  * @param {string} newStatusRaw
  * @param {string|null} userId
  */
-export async function patchInvoiceStatus(invoiceId, organizationId, newStatusRaw, userId = null) {
+export async function patchInvoiceStatus(invoiceId, organizationId, newStatusRaw, userId = null, options = {}) {
   const normalized = normalizeInvoiceStatusInput(newStatusRaw);
   if (!normalized) throw new Error("Statut invalide");
 
@@ -605,10 +605,35 @@ export async function patchInvoiceStatus(invoiceId, organizationId, newStatusRaw
     } else if (normalized === "CANCELLED") {
       const paid = Number(row.total_paid) || 0;
       const cred = Number(row.total_credited) || 0;
-      if (paid > 0 || cred > 0) {
-        throw new Error("Annulation impossible : paiements ou avoirs enregistrés");
+      if (paid > 0) {
+        throw new Error("Impossible d'annuler une facture avec paiement. Utilisez un avoir.");
       }
-      await client.query(`UPDATE invoices SET status = 'CANCELLED', updated_at = now() WHERE id = $1`, [invoiceId]);
+      if (cred > 0) {
+        throw new Error("Annulation impossible : des avoirs sont déjà imputés.");
+      }
+      const cancelledReason =
+        options?.cancelled_reason != null && String(options.cancelled_reason).trim() !== ""
+          ? String(options.cancelled_reason).trim()
+          : null;
+      const metadata =
+        row.metadata_json && typeof row.metadata_json === "object" && !Array.isArray(row.metadata_json)
+          ? { ...row.metadata_json }
+          : {};
+      if (cancelledReason) metadata.cancelled_reason = cancelledReason;
+      metadata.cancelled_by = userId ?? null;
+      metadata.cancelled_via = "status_transition";
+      if (!metadata.cancelled_reason && cancelledReason == null) {
+        delete metadata.cancelled_reason;
+      }
+      await client.query(
+        `UPDATE invoices
+         SET status = 'CANCELLED',
+             cancelled_at = COALESCE(cancelled_at, now()),
+             metadata_json = $2::jsonb,
+             updated_at = now()
+         WHERE id = $1`,
+        [invoiceId, JSON.stringify(metadata)]
+      );
     }
   });
   return getInvoiceDetail(invoiceId, organizationId);

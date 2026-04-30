@@ -545,9 +545,11 @@ export default function InvoiceBuilderPage() {
   const canMarkIssuedToolbar = invoiceStatusUpper === "DRAFT";
   const canMarkPaidToolbar =
     (invoiceStatusUpper === "ISSUED" || invoiceStatusUpper === "PARTIALLY_PAID") && finBalance.amount_due > 0.0001;
+  const canCancelToolbar = invoiceStatusUpper !== "CANCELLED" && finBalance.total_paid <= 0.0001;
   const canAddPaymentToolbar = canAddPayment;
   const canCreateCreditToolbar = canCreateCredit;
   const canModifyToolbar = canEdit;
+  const disableAllActionsToolbar = invoiceStatusUpper === "CANCELLED";
 
   const modifyDisabledReason =
     canModifyToolbar ? null : "Modification indisponible pour ce statut. Utilisez un avoir si nécessaire.";
@@ -555,6 +557,8 @@ export default function InvoiceBuilderPage() {
     canMarkIssuedToolbar ? null : "Action disponible uniquement sur une facture en brouillon.";
   const markPaidDisabledReason =
     canMarkPaidToolbar ? null : "Action disponible sur facture émise avec un reste à encaisser.";
+  const cancelDisabledReason =
+    canCancelToolbar ? null : "Impossible d'annuler une facture avec paiement. Utilisez un avoir.";
   const addPaymentDisabledReason = canAddPaymentToolbar ? null : payAddReason || "Paiement indisponible sur ce statut.";
   const createCreditDisabledReason =
     canCreateCreditToolbar ? null : creditBlockReason || "Avoir indisponible sur ce statut.";
@@ -594,6 +598,20 @@ export default function InvoiceBuilderPage() {
       window.alert(e instanceof Error ? e.message : "Erreur");
     } finally {
       setMarkPaidBusy(false);
+    }
+  };
+
+  const cancelInvoiceFromToolbar = async () => {
+    if (!state.header?.id || !canCancelToolbar) return;
+    if (!window.confirm("Annuler cette facture ? Cette action est irréversible.")) return;
+    const cancelledReason = window.prompt("Motif d'annulation (optionnel)", "");
+    try {
+      await patchInvoiceStatus(state.header.id, "CANCELLED", {
+        cancelled_reason: cancelledReason?.trim() ? cancelledReason.trim() : null,
+      });
+      await load();
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : "Erreur");
     }
   };
 
@@ -637,20 +655,24 @@ export default function InvoiceBuilderPage() {
         pdfBusy={isGeneratingPdf}
         onMarkIssued={() => void markInvoiceIssued()}
         onMarkPaid={() => void markInvoicePaidFromToolbar()}
+        onCancel={() => void cancelInvoiceFromToolbar()}
         onAddPayment={openPaymentModalFromToolbar}
         onCreateCredit={openCreditModalFromToolbar}
         onEdit={focusEditZone}
         canModify={canModifyToolbar}
         canMarkIssued={canMarkIssuedToolbar}
         canMarkPaid={canMarkPaidToolbar && !markPaidBusy}
+        canCancel={canCancelToolbar}
         canAddPayment={canAddPaymentToolbar}
         canCreateCredit={canCreateCreditToolbar}
         modifyDisabledReason={modifyDisabledReason}
         markIssuedDisabledReason={markIssuedDisabledReason}
         markPaidDisabledReason={markPaidDisabledReason}
+        cancelDisabledReason={cancelDisabledReason}
         addPaymentDisabledReason={addPaymentDisabledReason}
         createCreditDisabledReason={createCreditDisabledReason}
         onDelete={() => void removeInvoice()}
+        disableAllActions={disableAllActionsToolbar}
       />
 
       {isGeneratingPdf ? (

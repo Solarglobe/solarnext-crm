@@ -62,9 +62,11 @@ export async function update(req, res) {
 export async function patchStatus(req, res) {
   try {
     const org = orgId(req);
-    const { status } = req.body;
+    const { status, cancelled_reason } = req.body;
     if (!status) return res.status(400).json({ error: "status requis" });
-    const data = await invoiceService.patchInvoiceStatus(req.params.id, org, status, userId(req));
+    const data = await invoiceService.patchInvoiceStatus(req.params.id, org, status, userId(req), {
+      cancelled_reason,
+    });
     if (!data) return res.status(404).json({ error: "Facture non trouvée" });
     res.json(data);
   } catch (e) {

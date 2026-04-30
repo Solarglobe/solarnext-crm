@@ -20,20 +20,24 @@ export interface InvoiceToolbarProps {
   /** Passe la facture en statut ISSUED (émise), pas « envoyée » au sens courrier. */
   onMarkIssued: () => void;
   onMarkPaid: () => void;
+  onCancel: () => void;
   onAddPayment: () => void;
   onCreateCredit: () => void;
   onEdit: () => void;
   canModify: boolean;
   canMarkIssued: boolean;
   canMarkPaid: boolean;
+  canCancel: boolean;
   canAddPayment: boolean;
   canCreateCredit: boolean;
   modifyDisabledReason?: string | null;
   markIssuedDisabledReason?: string | null;
   markPaidDisabledReason?: string | null;
+  cancelDisabledReason?: string | null;
   addPaymentDisabledReason?: string | null;
   createCreditDisabledReason?: string | null;
   onDelete: () => void;
+  disableAllActions?: boolean;
 }
 
 export default function InvoiceToolbar({
@@ -51,20 +55,24 @@ export default function InvoiceToolbar({
   pdfBusy = false,
   onMarkIssued,
   onMarkPaid,
+  onCancel,
   onAddPayment,
   onCreateCredit,
   onEdit,
   canModify,
   canMarkIssued,
   canMarkPaid,
+  canCancel,
   canAddPayment,
   canCreateCredit,
   modifyDisabledReason = null,
   markIssuedDisabledReason = null,
   markPaidDisabledReason = null,
+  cancelDisabledReason = null,
   addPaymentDisabledReason = null,
   createCreditDisabledReason = null,
   onDelete,
+  disableAllActions = false,
 }: InvoiceToolbarProps) {
   return (
     <header className="qb-toolbar ib-toolbar">
@@ -81,7 +89,14 @@ export default function InvoiceToolbar({
         </div>
       </div>
       <div className="qb-toolbar-actions ib-toolbar-actions">
-        <Button type="button" variant="ghost" size="sm" onClick={onEdit} disabled={!canModify} title={modifyDisabledReason || undefined}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={onEdit}
+          disabled={disableAllActions || !canModify}
+          title={modifyDisabledReason || undefined}
+        >
           Modifier
         </Button>
         <Button
@@ -89,7 +104,7 @@ export default function InvoiceToolbar({
           variant="outlineGold"
           size="sm"
           onClick={onMarkIssued}
-          disabled={!canMarkIssued}
+          disabled={disableAllActions || !canMarkIssued}
           title={markIssuedDisabledReason || undefined}
         >
           Émettre facture
@@ -99,7 +114,7 @@ export default function InvoiceToolbar({
           variant="outlineGold"
           size="sm"
           onClick={onMarkPaid}
-          disabled={!canMarkPaid}
+          disabled={disableAllActions || !canMarkPaid}
           title={markPaidDisabledReason || undefined}
         >
           Marquer comme payée
@@ -108,8 +123,18 @@ export default function InvoiceToolbar({
           type="button"
           variant="ghost"
           size="sm"
+          onClick={onCancel}
+          disabled={disableAllActions || !canCancel}
+          title={cancelDisabledReason || undefined}
+        >
+          Annuler
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
           onClick={onAddPayment}
-          disabled={!canAddPayment}
+          disabled={disableAllActions || !canAddPayment}
           title={addPaymentDisabledReason || undefined}
         >
           Ajouter paiement
@@ -119,19 +144,19 @@ export default function InvoiceToolbar({
           variant="ghost"
           size="sm"
           onClick={onCreateCredit}
-          disabled={!canCreateCredit}
+          disabled={disableAllActions || !canCreateCredit}
           title={createCreditDisabledReason || undefined}
         >
           Créer un avoir
         </Button>
-        <Button type="button" variant="ghost" size="sm" onClick={onDuplicate}>
+        <Button type="button" variant="ghost" size="sm" onClick={onDuplicate} disabled={disableAllActions}>
           Dupliquer
         </Button>
-        <Button type="button" variant="outlineGold" size="sm" onClick={onPdf} disabled={pdfBusy}>
+        <Button type="button" variant="outlineGold" size="sm" onClick={onPdf} disabled={disableAllActions || pdfBusy}>
           {pdfBusy ? "⏳ Génération en cours..." : "Générer le PDF"}
         </Button>
         {canEdit ? (
-          <Button type="button" variant="ghost" size="sm" onClick={onDelete}>
+          <Button type="button" variant="ghost" size="sm" onClick={onDelete} disabled={disableAllActions}>
             Supprimer
           </Button>
         ) : null}
@@ -140,7 +165,7 @@ export default function InvoiceToolbar({
             type="button"
             variant="primary"
             size="sm"
-            disabled={saving}
+            disabled={disableAllActions || saving}
             title={
               canEdit
                 ? "Enregistrer les modifications du brouillon"
