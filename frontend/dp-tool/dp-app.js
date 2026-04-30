@@ -7307,10 +7307,10 @@ function initDP2DrawActions() {
 // --------------------------
 // DP2 — ZOOM VISUEL (image + canvas synchronisés, facteur d'affichage uniquement)
 // Ne modifie PAS scale_m_per_px, ni les mesures, ni les objets stockés.
-// Limites : 0.5× → 3×. Zoom centré sur la position de la souris.
+// Limites : 0.5× → 6×. Zoom centré sur la position de la souris.
 // --------------------------
 const DP2_VIEW_ZOOM_MIN = 0.5;
-const DP2_VIEW_ZOOM_MAX = 3;
+const DP2_VIEW_ZOOM_MAX = 6;
 
 // Applique la transform visuelle du conteneur zoom : translate(pan) + scale(zoom). Ne touche pas à scale_m_per_px ni aux objets.
 function applyDP2ViewTransform() {
@@ -16038,7 +16038,13 @@ async function initDP2() {
       4.777314267823516, (2.3 + 0.088657133911758), 1.194328566955879,
       0.5971642834779395, 0.29858214173896974, 0.14929107086948487
     ];
-    window.__DP_WMTS_RESOLUTIONS_PM = WMTS_RESOLUTIONS;
+    const DP2_MAPTILER_EXTRA_RESOLUTIONS = [
+      0.07464553543474244,
+      0.03732276771737122,
+      0.01866138385868561
+    ];
+    const DP2_MAP_RESOLUTIONS = WMTS_RESOLUTIONS.concat(DP2_MAPTILER_EXTRA_RESOLUTIONS);
+    window.__DP_WMTS_RESOLUTIONS_PM = DP2_MAP_RESOLUTIONS;
     const WMTS_MATRIX_IDS = WMTS_RESOLUTIONS.map((_, i) => String(i));
     const wmtsGridPM = new ol.tilegrid.WMTS({
       origin: WMTS_ORIGIN,
@@ -16050,7 +16056,7 @@ async function initDP2() {
     const view = new ol.View({
       projection: "EPSG:3857",
       center: centerParis,
-      resolutions: WMTS_RESOLUTIONS,
+      resolutions: DP2_MAP_RESOLUTIONS,
       constrainResolution: true,
       enableRotation: false
     });
@@ -16166,14 +16172,14 @@ async function initDP2() {
         console.warn("[DP2] Parcelle absente → fallback carte centrée sur adresse");
       }
       const d1 = window.DP1_CONTEXT;
-      const ok = d1 && dp2CenterMapViewOnLatLon(view, d1.lat, d1.lon, WMTS_RESOLUTIONS);
+      const ok = d1 && dp2CenterMapViewOnLatLon(view, d1.lat, d1.lon, DP2_MAP_RESOLUTIONS);
       if (!ok) {
         console.warn("[DP2] Pas de coordonnées CRM — centre par défaut (Île-de-France).");
       }
     }
 
     try {
-      applySafeInitialResolution(map, view.getResolution(), WMTS_RESOLUTIONS);
+      applySafeInitialResolution(map, view.getResolution(), DP2_MAP_RESOLUTIONS);
     } catch (_) {}
 
     const dp2NeighborParcelsSource = new ol.source.Vector();
