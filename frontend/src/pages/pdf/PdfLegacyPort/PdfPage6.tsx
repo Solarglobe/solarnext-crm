@@ -74,7 +74,7 @@ export default function PdfPage6({
                 />
               ) : null
             }
-            badge="Autonomie et dépendance au réseau"
+            badge="Énergie solaire utilisée et achat réseau"
             metaColumn={
               <div
                 className="meta-compact"
@@ -184,7 +184,7 @@ export default function PdfPage6({
           <div style={{ display: "flex", gap: "3mm", alignItems: "center" }}>
             <div style={{ width: "9mm", height: "9mm", borderRadius: "999mm", background: "#86D8F1" }} />
             <div>
-              <div style={{ fontWeight: 700, fontSize: "3.4mm" }}>Autonomie annuelle</div>
+              <div style={{ fontWeight: 700, fontSize: "3.4mm" }}>Part couverte par le solaire</div>
               <div style={{ fontSize: "3mm", color: "#6b7280" }}>Part couverte sans réseau</div>
             </div>
           </div>
@@ -196,7 +196,7 @@ export default function PdfPage6({
           <div style={{ display: "flex", gap: "3mm", alignItems: "center" }}>
             <div style={{ width: "9mm", height: "9mm", borderRadius: "999mm", background: "#CFCBFF" }} />
             <div>
-              <div style={{ fontWeight: 700, fontSize: "3.4mm" }}>Import réseau</div>
+              <div style={{ fontWeight: 700, fontSize: "3.4mm" }}>Énergie restante à acheter</div>
               <div style={{ fontSize: "3mm", color: "#6b7280" }}>kWh & coût estimé</div>
             </div>
           </div>
@@ -208,8 +208,8 @@ export default function PdfPage6({
           <div style={{ display: "flex", gap: "3mm", alignItems: "center" }}>
             <div style={{ width: "9mm", height: "9mm", borderRadius: "999mm", background: "#B3F4C4" }} />
             <div>
-              <div style={{ fontWeight: 700, fontSize: "3.4mm" }}>Autoconsommation</div>
-              <div style={{ fontSize: "3mm", color: "#6b7280" }}>PV consommée sur place</div>
+              <div style={{ fontWeight: 700, fontSize: "3.4mm" }}>Énergie solaire utilisée</div>
+              <div style={{ fontSize: "3mm", color: "#6b7280" }}>Production utilisée sur place</div>
             </div>
           </div>
           <div style={{ fontSize: "5.6mm", fontWeight: 800, marginTop: "2mm" }} id="p6_auto_pct">—</div>
@@ -274,7 +274,7 @@ export default function PdfPage6({
             Des marges d&apos;optimisation possibles
           </div>
           <div style={{ fontSize: "2.9mm", lineHeight: 1.35, color: "#444" }}>
-            Des solutions complémentaires (stockage, pilotage) permettent d&apos;accroître encore l&apos;autonomie du site.
+            Une partie de votre production solaire peut ne pas être utilisée à certains moments de l’année si la capacité de stockage est atteinte.
           </div>
         </div>
       </div>

@@ -30,6 +30,7 @@ export interface ScenarioV2Finance {
   revenue_export?: number | null;
   /** Présent si le moteur expose une note (ex. skip virtuel) */
   note?: string | null;
+  estimated_annual_bill_eur?: number | null;
 }
 
 export interface ScenarioV2Energy {
@@ -57,6 +58,8 @@ export interface ScenarioV2Energy {
   overflow_export_kwh?: number | null;
   grid_import_kwh?: number | null;
   grid_export_kwh?: number | null;
+  energy_solar_used_kwh?: number | null;
+  energy_grid_import_kwh?: number | null;
 }
 
 export interface ScenarioV2Costs {
@@ -149,41 +152,13 @@ function finiteNumberOrNull(v: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-/** Facture résiduelle affichée « X XXX € / an » (bloc compréhension). */
-function formatCurrencyPerYear(v: number | null | undefined): string {
-  if (v == null || !Number.isFinite(v)) return "—";
-  return `${formatCurrency(v)} / an`;
-}
-
-function getAutoconsumptionPct(energy: ScenarioV2Energy): number | null {
-  const a = finiteNumberOrNull(energy.autoconsumption_pct);
-  if (a != null) return a;
-  return finiteNumberOrNull(energy.self_consumption_pct);
-}
-
 /** Affichage uniquement : alias API puis champs déjà utilisés dans le comparatif. */
 function getResidualBillEurForDisplay(finance: ScenarioV2Finance): number | null {
+  const est = finiteNumberOrNull(finance.estimated_annual_bill_eur);
+  if (est != null) return est;
   const rem = finiteNumberOrNull(finance.remaining_bill_eur);
   if (rem != null) return rem;
   return finiteNumberOrNull(finance.residual_bill_eur);
-}
-
-function getExportRevenueEur(finance: ScenarioV2Finance): number | null {
-  const a = finiteNumberOrNull(finance.revenue_export);
-  if (a != null) return a;
-  return finiteNumberOrNull(finance.surplus_revenue_eur);
-}
-
-function getTotalSavings25y(finance: ScenarioV2Finance): number | null {
-  const a = finiteNumberOrNull(finance.total_savings_25y);
-  if (a != null) return a;
-  return finiteNumberOrNull(finance.economie_total);
-}
-
-function getTriPct(finance: ScenarioV2Finance): number | null {
-  const a = finiteNumberOrNull(finance.tri);
-  if (a != null) return a;
-  return finiteNumberOrNull(finance.irr_pct);
 }
 
 const SCENARIO_IDS = ["BASE", "BATTERY_PHYSICAL", "BATTERY_VIRTUAL"] as const;
@@ -367,40 +342,6 @@ function MiniRow({ label, tip, value, valueLead, highlight }: RowProps) {
 /** Masque le détail technique (refonte closing) — logique conservée dans les branches ci‑dessous. */
 const SHOW_LEGACY_TECH_DETAIL = false;
 
-function computeClosingAwards(scenarios: (ScenarioV2 | null)[]) {
-  type Entry = { idx: number; roi: number | null; total: number | null; tri: number | null };
-  const entries: Entry[] = [];
-  SCENARIO_IDS.forEach((columnId, idx) => {
-    const s = scenarios[idx];
-    if (!s) return;
-    if (resolveColumnBadge(columnId, s).kind !== "available") return;
-    const f = s.finance ?? {};
-    const roi =
-      f.roi_years != null && Number.isFinite(Number(f.roi_years)) ? Number(f.roi_years) : null;
-    const total = getTotalSavings25y(f);
-    const tri = getTriPct(f);
-    entries.push({ idx, roi, total, tri });
-  });
-  const rois = entries.map((e) => e.roi).filter((v): v is number => v != null);
-  const totals = entries.map((e) => e.total).filter((v): v is number => v != null);
-  const tris = entries.map((e) => e.tri).filter((v): v is number => v != null);
-  const minRoi = rois.length ? Math.min(...rois) : null;
-  const maxTotal = totals.length ? Math.max(...totals) : null;
-  const maxTri = tris.length ? Math.max(...tris) : null;
-  const bestRoiIdx = new Set(
-    entries.filter((e) => e.roi != null && minRoi != null && e.roi === minRoi).map((e) => e.idx)
-  );
-  const maxEconomieIdx = new Set(
-    entries
-      .filter((e) => e.total != null && maxTotal != null && e.total === maxTotal)
-      .map((e) => e.idx)
-  );
-  const bestTriIdx = new Set(
-    entries.filter((e) => e.tri != null && maxTri != null && e.tri === maxTri).map((e) => e.idx)
-  );
-  return { bestRoiIdx, maxEconomieIdx, bestTriIdx };
-}
-
 function ctaLabel(id: ScenarioColumnId): string {
   if (id === "BASE") return "Choisir sans stockage";
   if (id === "BATTERY_PHYSICAL") return "Choisir batterie physique";
@@ -452,8 +393,6 @@ export default function ScenarioComparisonTable({
       ? orderedScenarios.slice(0, 3)
       : [...orderedScenarios, ...Array(3 - orderedScenarios.length).fill(null)];
 
-  const closingAwards = computeClosingAwards(scenarios);
-
   const baseEconomieY1 =
     scenarios[0]?.finance?.economie_year_1 != null &&
     Number.isFinite(Number(scenarios[0]?.finance?.economie_year_1))
@@ -483,9 +422,11 @@ export default function ScenarioComparisonTable({
           const hardware = scenario?.hardware ?? {};
 
           const autoKwh =
-            energy.autoconsumption_kwh != null && Number.isFinite(Number(energy.autoconsumption_kwh))
-              ? Number(energy.autoconsumption_kwh)
-              : null;
+            energy.energy_solar_used_kwh != null && Number.isFinite(Number(energy.energy_solar_used_kwh))
+              ? Number(energy.energy_solar_used_kwh)
+              : energy.autoconsumption_kwh != null && Number.isFinite(Number(energy.autoconsumption_kwh))
+                ? Number(energy.autoconsumption_kwh)
+                : null;
           const importKwh =
             energy.import_kwh != null && Number.isFinite(Number(energy.import_kwh))
               ? Number(energy.import_kwh)
@@ -528,27 +469,24 @@ export default function ScenarioComparisonTable({
               scenario?.finance?.note === "MISSING_PROVIDER_TIER_FOR_REQUIRED_CAPACITY");
 
           const residualBillEur = getResidualBillEurForDisplay(finance);
-          const consumptionRoundedKwh =
-            energy.consumption_kwh != null && Number.isFinite(Number(energy.consumption_kwh))
-              ? Math.round(Number(energy.consumption_kwh))
+          const solarUsedKwh =
+            energy.energy_solar_used_kwh != null && Number.isFinite(Number(energy.energy_solar_used_kwh))
+              ? Number(energy.energy_solar_used_kwh)
+              : autoKwh;
+          const gridToBuyKwh =
+            energy.energy_grid_import_kwh != null && Number.isFinite(Number(energy.energy_grid_import_kwh))
+              ? Number(energy.energy_grid_import_kwh)
+              : billableImportKwh;
+          const solarCoveragePct =
+            solarUsedKwh != null && consoKwh != null && consoKwh > 0
+              ? (solarUsedKwh / consoKwh) * 100
               : null;
-          const comprehensionAutoPct = getAutoconsumptionPct(energy);
-          const exportRevenueEur = getExportRevenueEur(finance);
-          const totalSavings25y = getTotalSavings25y(finance);
-          const triPct = getTriPct(finance);
-
           const billableImportKwh =
             energy.billable_import_kwh != null && Number.isFinite(Number(energy.billable_import_kwh))
               ? Number(energy.billable_import_kwh)
               : energy.import_kwh != null && Number.isFinite(Number(energy.import_kwh))
                 ? Number(energy.import_kwh)
                 : null;
-
-          const showInlineAwards = badge.kind === "available";
-          const leadRoi = showInlineAwards && closingAwards.bestRoiIdx.has(index) ? "⭐" : undefined;
-          const leadTri = showInlineAwards && closingAwards.bestTriIdx.has(index) ? "📈" : undefined;
-          const leadEco =
-            showInlineAwards && closingAwards.maxEconomieIdx.has(index) ? "💰" : undefined;
 
           const isSelectedLocked =
             versionLocked && selectedScenarioId != null && selectedScenarioId === id;
@@ -650,85 +588,52 @@ export default function ScenarioComparisonTable({
                   <section className="scenario-block scenario-block-decision scenario-row-decision">
                     <h4 className="scenario-block-title">Décision</h4>
                     <MiniRow
-                      label="Investissement initial"
-                      tip="Montant d’investissement issu du devis (CAPEX TTC), utilisé par le moteur financier."
-                      value={formatCurrency(finance.capex_ttc)}
+                      label="Énergie solaire utilisée"
+                      tip="Énergie solaire utilisée = autoconsommation directe + énergie restituée par la batterie."
+                      value={
+                        solarUsedKwh != null && Number.isFinite(Number(solarUsedKwh))
+                          ? `Vous utiliserez environ ${formatKwh(solarUsedKwh)} de votre production solaire`
+                          : "—"
+                      }
                     />
                     <MiniRow
-                      label="Facture électrique restante"
-                      tip="Estimation de facture électricité résiduelle après solaire (revenus export / crédits exclus de ce poste selon le moteur)."
-                      value={formatCurrency(residualBillEur)}
+                      label="Énergie restante à acheter"
+                      tip="Énergie réseau résiduelle (import facturé prioritaire)."
+                      value={
+                        gridToBuyKwh != null && Number.isFinite(Number(gridToBuyKwh))
+                          ? `Il vous restera environ ${formatKwh(gridToBuyKwh)} à acheter au réseau`
+                          : "—"
+                      }
                     />
                     <MiniRow
-                      label="Import facturé"
-                      tip="Volume import côté énergie : facturable (billable_import_kwh) ou import net import_kwh selon l’export scenarios_v2."
-                      value={formatKwh(billableImportKwh)}
+                      label="Facture annuelle estimée"
+                      tip="Montant annuel estimé du scénario sélectionné."
+                      value={
+                        residualBillEur != null && Number.isFinite(Number(residualBillEur))
+                          ? `Votre facture d’électricité sera d’environ ${formatCurrency(residualBillEur)} par an`
+                          : "—"
+                      }
                     />
                     <MiniRow
-                      label="Autoproduction"
-                      tip="Part de la consommation couverte par la production PV (self_production_pct)."
-                      value={formatPercent(energy.self_production_pct)}
-                    />
-                    <MiniRow
-                      label="Indépendance énergétique"
-                      tip="Indicateur d’indépendance énergétique issu du moteur (energy_independence_pct)."
-                      value={formatPercent(energy.energy_independence_pct)}
-                    />
-                    <MiniRow
-                      label="Revenus revente solaire"
-                      tip="Revenus de revente du surplus (revenue_export ou surplus_revenue_eur lorsque présents)."
-                      value={formatCurrency(exportRevenueEur)}
-                    />
-                    <MiniRow
-                      label="Économie année 1"
-                      tip="Économie estimée sur la première année, selon le scénario et les hypothèses du devis."
-                      value={formatCurrency(finance.economie_year_1)}
-                    />
-                    <MiniRow
-                      label="Économie totale (25 ans)"
-                      tip="Gain cumulé sur l’horizon 25 ans (total_savings_25y ou economie_total)."
-                      value={formatCurrency(totalSavings25y)}
-                      valueLead={leadEco}
-                      highlight={Boolean(leadEco)}
-                    />
-                    <MiniRow
-                      label="Retour sur investissement"
-                      tip="Délai pour récupérer l’investissement, selon le flux financier du moteur."
-                      value={formatYears(finance.roi_years)}
-                      valueLead={leadRoi}
-                      highlight={Boolean(leadRoi)}
-                    />
-                    <MiniRow
-                      label="TRI"
-                      tip="Taux de rentabilité interne (%) (tri ou irr_pct selon l’export)."
-                      value={formatPercent(triPct)}
-                      valueLead={leadTri}
-                      highlight={Boolean(leadTri)}
+                      label="Couverture solaire"
+                      tip="% couverture solaire = énergie solaire utilisée / consommation."
+                      value={
+                        solarCoveragePct != null && Number.isFinite(Number(solarCoveragePct))
+                          ? Number(solarCoveragePct) >= 50
+                            ? "Plus de la moitié de votre consommation est couverte par votre installation solaire"
+                            : `Vous couvrez environ ${formatPercent(solarCoveragePct)} de vos besoins avec votre installation solaire`
+                          : "—"
+                      }
                     />
                   </section>
 
                   <section className="scenario-block scenario-block-comprehension scenario-row-comprehension">
-                    <h4 className="scenario-block-title">Compréhension énergétique</h4>
-                    <MiniRow
-                      label="Production annuelle"
-                      tip="Production photovoltaïque annuelle (production_kwh)."
-                      value={formatKwh(energy.production_kwh)}
-                    />
-                    <MiniRow
-                      label="Consommation annuelle"
-                      tip="Consommation annuelle (consumption_kwh), arrondie à l’unité pour l’affichage."
-                      value={formatKwh(consumptionRoundedKwh)}
-                    />
-                    <MiniRow
-                      label="Autoconsommation"
-                      tip="Taux d’autoconsommation (autoconsumption_pct ou self_consumption_pct)."
-                      value={formatPercent(comprehensionAutoPct)}
-                    />
-                    <MiniRow
-                      label="Facture électrique restante"
-                      tip="Facture électricité résiduelle estimée (remaining_bill_eur ou residual_bill_eur)."
-                      value={formatCurrencyPerYear(residualBillEur)}
-                    />
+                    <h4 className="scenario-block-title">Message client</h4>
+                    <p className="scenario-block-muted">
+                      {id !== "BASE"
+                        ? "Une partie de votre production solaire peut ne pas être utilisée à certains moments de l’année si la capacité de stockage est atteinte. Sans système de stockage, une partie importante de votre production solaire ne pourrait pas être utilisée."
+                        : "Une partie de votre production solaire peut ne pas être utilisée à certains moments de l’année si la capacité de stockage est atteinte."}
+                    </p>
                   </section>
 
                   <section className="scenario-block scenario-block-impact scenario-row-impact">

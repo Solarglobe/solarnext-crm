@@ -249,6 +249,13 @@ export async function buildSelectedScenarioSnapshot({
     exported_kwh: scenario.energy?.exported_kwh ?? null,
     pv_self_consumption_pct: scenario.energy?.pv_self_consumption_pct ?? null,
     site_autonomy_pct: scenario.energy?.site_autonomy_pct ?? null,
+    energy_solar_used_kwh: scenario.energy?.energy_solar_used_kwh ?? null,
+    energy_grid_import_kwh:
+      scenario.energy?.energy_grid_import_kwh ??
+      scenario.energy?.billable_import_kwh ??
+      scenario.energy?.grid_import_kwh ??
+      scenario.energy?.import_kwh ??
+      null,
   };
 
   const vf = scenario.virtual_battery_finance && typeof scenario.virtual_battery_finance === "object"
@@ -290,6 +297,10 @@ export async function buildSelectedScenarioSnapshot({
     irr_pct: scenario.finance?.irr_pct ?? null,
     facture_restante: scenario.finance?.residual_bill_eur ?? null,
     revenu_surplus: scenario.finance?.surplus_revenue_eur ?? null,
+    estimated_annual_bill_eur:
+      scenario.finance?.estimated_annual_bill_eur ??
+      scenario.finance?.residual_bill_eur ??
+      null,
     residual_bill_virtual_breakdown: residualBillVirtualBreakdown,
   };
 

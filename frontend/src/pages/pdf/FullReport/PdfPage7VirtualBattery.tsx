@@ -125,6 +125,7 @@ export default function PdfPage7VirtualBattery({
   const withBattery = data.with_virtual_battery ?? {};
   const maxTheoretical = data.max_theoretical ?? {};
   const contribution = data.contribution ?? {};
+  const kpis = (data as { kpis?: Record<string, unknown> }).kpis ?? {};
   const limits = Array.isArray(data.limits) ? data.limits.slice(0, 3) : [];
 
   const badgeText =
@@ -188,35 +189,38 @@ export default function PdfPage7VirtualBattery({
         ),
       }}
     >
-      <p
-        style={{
-          margin: "0 0 1.5mm 0",
-          fontSize: "3.2mm",
-          lineHeight: 1.38,
-          color: "#555",
-          flexShrink: 0,
-        }}
-      >
+      <p style={{ margin: "0 0 1.5mm 0", fontSize: "3.2mm", lineHeight: 1.38, color: "#555", flexShrink: 0 }}>
         {val(data.subtitle)}
       </p>
 
       <div style={{ display: "flex", flexDirection: "column", gap: "16px", flex: 1, minHeight: 0 }}>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "3.1mm", flexShrink: 0 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "3.1mm", flexShrink: 0 }}>
           <div className="card soft" style={CARD_SOFT_BASE}>
-            <div style={{ fontWeight: 700, marginBottom: "1.15mm", fontSize: "3.2mm", color: brandHex }}>Sans batterie</div>
-            <MetricRow label="Autonomie" value={fmtPctFromRatio(withoutBattery.autonomie_ratio)} />
-            <MetricRow label="PV utilisée" value={fmtKwh(withoutBattery.pv_used_kwh)} />
-            <MetricRow label="Import réseau" value={fmtKwh(withoutBattery.grid_import_kwh)} isLast />
-          </div>
-
-          <div className="card soft" style={CARD_SOFT_BASE}>
-            <div style={{ fontWeight: 700, marginBottom: "1.15mm", fontSize: "3.2mm", color: brandHex }}>
-              Avec batterie virtuelle
+            <div style={{ fontWeight: 700, marginBottom: "1.15mm", fontSize: "3.2mm", color: brandHex }}>Énergie solaire utilisée</div>
+            <div style={{ fontSize: "6.5mm", fontWeight: 800, lineHeight: 1 }}>{fmtKwh(kpis.energy_solar_used_kwh ?? withBattery.pv_total_used_kwh)}</div>
+            <div style={{ margin: "1mm 0 0 0", fontSize: "2.8mm", color: "#666" }}>
+              {`Vous utiliserez environ ${fmtKwh(kpis.energy_solar_used_kwh ?? withBattery.pv_total_used_kwh)} de votre production solaire`}
             </div>
-            <MetricRow label="Autonomie" value={fmtPctFromRatio(withBattery.autonomie_ratio)} />
-            <MetricRow label="PV utilisée totale" value={fmtKwh(withBattery.pv_total_used_kwh)} />
-            <MetricRow label="Dont restituée batterie" value={fmtKwh(withBattery.battery_discharged_kwh)} />
-            <MetricRow label="Import réseau" value={fmtKwh(withBattery.grid_import_kwh)} isLast />
+          </div>
+          <div className="card soft" style={CARD_SOFT_BASE}>
+            <div style={{ fontWeight: 700, marginBottom: "1.15mm", fontSize: "3.2mm", color: brandHex }}>Énergie restante à acheter</div>
+            <div style={{ fontSize: "6.5mm", fontWeight: 800, lineHeight: 1 }}>{fmtKwh(kpis.energy_grid_import_kwh ?? withBattery.grid_import_kwh)}</div>
+            <div style={{ margin: "1mm 0 0 0", fontSize: "2.8mm", color: "#666" }}>
+              {`Il vous restera environ ${fmtKwh(kpis.energy_grid_import_kwh ?? withBattery.grid_import_kwh)} à acheter au réseau`}
+            </div>
+          </div>
+          <div className="card soft" style={CARD_SOFT_BASE}>
+            <div style={{ fontWeight: 700, marginBottom: "1.15mm", fontSize: "3.2mm", color: brandHex }}>Facture annuelle estimée</div>
+            <div style={{ fontSize: "6.5mm", fontWeight: 800, lineHeight: 1 }}>
+              {num(kpis.estimated_annual_bill_eur) != null
+                ? `${Math.round(num(kpis.estimated_annual_bill_eur) as number).toLocaleString("fr-FR")} €`
+                : EMPTY}
+            </div>
+            <div style={{ margin: "1mm 0 0 0", fontSize: "2.8mm", color: "#666" }}>
+              {num(kpis.estimated_annual_bill_eur) != null
+                ? `Votre facture d’électricité sera d’environ ${Math.round(num(kpis.estimated_annual_bill_eur) as number).toLocaleString("fr-FR")} € par an`
+                : EMPTY}
+            </div>
           </div>
         </div>
 
@@ -243,38 +247,20 @@ export default function PdfPage7VirtualBattery({
           </div>
         </div>
 
-        <div
-          className="card soft"
-          style={{
-            ...CARD_SOFT_BASE,
-            borderColor: "rgba(195, 152, 71, 0.42)",
-            background: "linear-gradient(180deg, rgba(195,152,71,.1), #fdfcf9)",
-            flexShrink: 0,
-          }}
-        >
+        <div className="card soft" style={{ ...CARD_SOFT_BASE, borderColor: "rgba(195, 152, 71, 0.42)", background: "linear-gradient(180deg, rgba(195,152,71,.1), #fdfcf9)", flexShrink: 0 }}>
           <div style={{ fontWeight: 700, marginBottom: "1.15mm", fontSize: "3.2mm", color: brandHex }}>
-            Apport concret de la batterie
+            Couverture solaire
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "3.1mm" }}>
-            <div className="card soft" style={{ ...CARD_SOFT_BASE, padding: "2.8mm 2mm", textAlign: "center" }}>
-              <div style={{ fontSize: "5.5mm", lineHeight: 1.05, fontWeight: 800, color: brandHex }}>
-                + {fmtKwh(contribution.recovered_kwh)}
-              </div>
-              <div style={{ fontSize: "2.7mm", color: "#666", marginTop: "0.5mm" }}>recuperes</div>
-            </div>
-            <div className="card soft" style={{ ...CARD_SOFT_BASE, padding: "2.8mm 2mm", textAlign: "center" }}>
-              <div style={{ fontSize: "5.5mm", lineHeight: 1.05, fontWeight: 800, color: brandHex }}>
-                - {fmtKwh(contribution.grid_bought_less_kwh)}
-              </div>
-              <div style={{ fontSize: "2.7mm", color: "#666", marginTop: "0.5mm" }}>achetes au reseau</div>
-            </div>
-            <div className="card soft" style={{ ...CARD_SOFT_BASE, padding: "2.8mm 2mm", textAlign: "center" }}>
-              <div style={{ fontSize: "5.5mm", lineHeight: 1.05, fontWeight: 800, color: brandHex }}>
-                + {fmtPtsFromRatio(contribution.autonomy_gain_ratio)}
-              </div>
-              <div style={{ fontSize: "2.7mm", color: "#666", marginTop: "0.5mm" }}>{`d'autonomie`}</div>
-            </div>
+          <div style={{ fontSize: "5.2mm", fontWeight: 800 }}>
+            {num(kpis.solar_coverage_pct) != null
+              ? Number(kpis.solar_coverage_pct) >= 50
+                ? "Plus de la moitié de votre consommation est couverte par votre installation solaire"
+                : `Vous couvrez environ ${Number(kpis.solar_coverage_pct).toFixed(1).replace(".", ",")} % de vos besoins avec votre installation solaire`
+              : EMPTY}
           </div>
+          <p style={{ margin: "1.2mm 0 0 0", fontSize: "2.8mm", color: "#666" }}>
+            Une partie de votre production solaire peut ne pas être utilisée à certains moments de l’année si la capacité de stockage est atteinte. Sans système de stockage, une partie importante de votre production solaire ne pourrait pas être utilisée.
+          </p>
         </div>
       </div>
     </PdfPageLayout>

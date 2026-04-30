@@ -137,6 +137,17 @@ export function mapScenarioToV2(scenario, ctx) {
     pv_self_consumption_pct: scenario.energy?.pv_self_consumption_pct ?? null,
     site_autonomy_pct: scenario.energy?.site_autonomy_pct ?? null,
   };
+  if (id === "BATTERY_VIRTUAL") {
+    const restored = firstFiniteNum(energy.restored_kwh, energy.used_credit_kwh, scenario.battery_virtual?.annual_discharge_kwh) ?? 0;
+    const autoDirect = firstFiniteNum(
+      scenario.energy?.direct_self_consumption_kwh,
+      energy.autoconsumption_kwh != null ? energy.autoconsumption_kwh - restored : null
+    ) ?? 0;
+    const solarUsed = Math.max(0, autoDirect + restored);
+    const gridImport = firstFiniteNum(energy.billable_import_kwh, energy.grid_import_kwh, energy.import_kwh) ?? 0;
+    energy.energy_solar_used_kwh = round2(solarUsed);
+    energy.energy_grid_import_kwh = round2(Math.max(0, gridImport));
+  }
 
   const financeBase = {
     capex_ttc: scenario.capex_ttc ?? null,
@@ -161,6 +172,26 @@ export function mapScenarioToV2(scenario, ctx) {
     residual_bill_eur: scenario.residual_bill_eur ?? null,
     surplus_revenue_eur: scenario.surplus_revenue_eur ?? null
   };
+  if (id === "BATTERY_VIRTUAL") {
+    const vf = scenario.virtual_battery_finance;
+    const billFromP2 =
+      vf && typeof vf === "object"
+        ? firstFiniteNum(
+            vf.annual_total_virtual_cost_ttc,
+            (Number(vf.annual_grid_import_cost_ttc) || 0) +
+              (Number(vf.annual_total_virtual_cost_ttc) || 0) -
+              (Number(vf.annual_overflow_export_revenue_ttc) || 0)
+          )
+        : null;
+    finance.estimated_annual_bill_eur = round2(
+      firstFiniteNum(
+        billFromP2,
+        scenario.finance?.residual_bill_eur,
+        scenario.residual_bill_eur,
+        finance.residual_bill_eur
+      )
+    );
+  }
 
   const costs = {
     battery_physical_price_ttc: id === "BATTERY_PHYSICAL" ? (Number(ctx?.finance_input?.battery_physical_price_ttc) || 0) : 0,

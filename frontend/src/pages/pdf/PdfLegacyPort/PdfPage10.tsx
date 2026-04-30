@@ -147,9 +147,9 @@ export default function PdfPage10({
       border: "0.4mm solid rgba(17,24,39,0.35)",
     },
     {
-      label: "Autonomie site",
+      label: "Couverture solaire",
       line: fmtPct(indep),
-      sub: "Part des besoins sans achat réseau",
+      sub: "Couverture solaire annuelle",
       accent: "#0047AB",
       bg: "linear-gradient(155deg, rgba(0,71,171,0.14) 0%, rgba(255,255,255,0.98) 55%, #fff 100%)",
       border: "0.4mm solid rgba(0,71,171,0.38)",
@@ -473,10 +473,24 @@ export default function PdfPage10({
                   Production annuelle estimée : <strong style={{ color: ink }}>{prodKwh != null ? `${fmtInt(prodKwh)} kWh` : "—"}</strong>
                 </li>
                 <li style={{ marginBottom: "0.55mm" }}>
-                  Autoconsommation : <strong style={{ color: gold }}>{fmtPct(autoPct)}</strong>
+                  {autoPct >= 50 ? (
+                    <>
+                      Plus de la moitié de votre consommation est couverte par votre installation solaire
+                    </>
+                  ) : (
+                    <>
+                      Vous couvrez environ <strong style={{ color: gold }}>{fmtPct(autoPct)}</strong> de vos besoins avec votre installation solaire
+                    </>
+                  )}
                 </li>
                 <li>
-                  Autonomie : <strong style={{ color: "#0047AB" }}>{fmtPct(autoAu)}</strong> (hors réseau)
+                  {autoAu >= 50 ? (
+                    <>Plus de la moitié de votre consommation est couverte par votre installation solaire</>
+                  ) : (
+                    <>
+                      Vous couvrez environ <strong style={{ color: "#0047AB" }}>{fmtPct(autoAu)}</strong> de vos besoins avec votre installation solaire
+                    </>
+                  )}
                 </li>
               </ul>
             </div>
@@ -578,6 +592,9 @@ export default function PdfPage10({
               </div>
               <div style={{ fontSize: "3.05mm", color: subInk, marginTop: "0.5mm", fontWeight: 500, lineHeight: 1.3 }}>
                 Gain net cumulé sur 25 ans (estimation) : <strong style={{ color: ink, fontWeight: 800 }}>{fmtEUR(gains25)}</strong> — même base que l&apos;étude financière (page 2).
+              </div>
+              <div style={{ fontSize: "2.7mm", color: "#6b7280", marginTop: "0.8mm", lineHeight: 1.35 }}>
+                Une partie de votre production solaire peut ne pas être utilisée à certains moments de l’année si la capacité de stockage est atteinte.
               </div>
             </div>
           </div>

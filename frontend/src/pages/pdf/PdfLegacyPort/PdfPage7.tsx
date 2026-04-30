@@ -111,6 +111,10 @@ export default function PdfPage7({
   const consoKwh = p7.consumption_kwh ?? 0;
   const autoKwh = p7.autoconsumption_kwh ?? 0;
   const prodKwh = p7.production_kwh ?? 0;
+  const solarUsedKwh = safeNum((p7 as unknown as { energy_solar_used_kwh?: number }).energy_solar_used_kwh) || autoKwh;
+  const gridImportKwh = safeNum((p7 as unknown as { energy_grid_import_kwh?: number }).energy_grid_import_kwh) || (p7.c_grid ?? 0);
+  const estimatedBillEur = safeNum((p7 as unknown as { estimated_annual_bill_eur?: number }).estimated_annual_bill_eur);
+  const solarCoveragePct = consoKwh > 0 ? (solarUsedKwh / consoKwh) * 100 : 0;
 
   const autonomie = cPv + cBat;
   const autoconsommation = pAuto + pBat;
@@ -297,7 +301,7 @@ export default function PdfPage7({
             </div>
           </div>
 
-          {/* 3 KPI — chiffres dominants, sous-textes discrets */}
+      {/* 3 KPI canoniques */}
           <div
             style={{
               display: "grid",
@@ -318,13 +322,13 @@ export default function PdfPage7({
               }}
             >
               <div style={{ fontWeight: 700, marginBottom: "1.15mm", fontSize: "3.2mm", color: brandHex }}>
-                Autoconsommation
+                Énergie solaire utilisée
               </div>
               <div style={{ fontSize: "7mm", lineHeight: 1, fontWeight: 800, color: "#1a1a1a", letterSpacing: "-0.02em" }}>
-                {fmtPct(autoconsommation)}
+                {fmtKwh(solarUsedKwh)}
               </div>
               <div style={{ fontSize: "2.7mm", color: "#666", marginTop: "0.6mm", lineHeight: 1.25 }}>
-                Production utilisée sur place
+                {`Vous utiliserez environ ${fmtKwh(solarUsedKwh)} de votre production solaire`}
               </div>
             </div>
 
@@ -339,13 +343,13 @@ export default function PdfPage7({
               }}
             >
               <div style={{ fontWeight: 700, marginBottom: "1.15mm", fontSize: "3.2mm", color: brandHex }}>
-                Autonomie
+                Énergie restante à acheter
               </div>
               <div style={{ fontSize: "7mm", lineHeight: 1, fontWeight: 800, color: "#1a1a1a", letterSpacing: "-0.02em" }}>
-                {fmtPct(autonomie)}
+                {fmtKwh(gridImportKwh)}
               </div>
               <div style={{ fontSize: "2.7mm", color: "#666", marginTop: "0.6mm", lineHeight: 1.25 }}>
-                Besoins couverts sans réseau
+                {`Il vous restera environ ${fmtKwh(gridImportKwh)} à acheter au réseau`}
               </div>
             </div>
 
@@ -360,13 +364,15 @@ export default function PdfPage7({
               }}
             >
               <div style={{ fontWeight: 700, marginBottom: "1.15mm", fontSize: "3.2mm", color: brandHex }}>
-                Surplus injecté
+                Facture annuelle estimée
               </div>
               <div style={{ fontSize: "7mm", lineHeight: 1, fontWeight: 800, color: "#1a1a1a", letterSpacing: "-0.02em" }}>
-                {fmtPct(pSurplusPct)}
+                {estimatedBillEur > 0 ? `${Math.round(estimatedBillEur).toLocaleString("fr-FR")} €` : "—"}
               </div>
               <div style={{ fontSize: "2.7mm", color: "#666", marginTop: "0.6mm", lineHeight: 1.25 }}>
-                {pSurplusKwh > 0 ? fmtKwh(pSurplusKwh) : "Énergie réinjectée"}
+                {solarCoveragePct >= 50
+                  ? "Plus de la moitié de votre consommation est couverte par votre installation solaire"
+                  : `Vous couvrez environ ${fmtPct(solarCoveragePct)} de vos besoins avec votre installation solaire`}
               </div>
             </div>
           </div>
@@ -448,7 +454,9 @@ export default function PdfPage7({
                   <li>le surplus est injecté et valorisé selon les conditions du dossier</li>
                 </ol>
                 <p style={{ margin: "1mm 0 0 0", fontSize: "3mm", color: "#B08B2E", lineHeight: 1.42, fontWeight: 600 }}>
-                  → niveau de production cohérent, avec marge d&apos;optimisation de l&apos;autoconsommation.
+                  {cBat > 0 || pBat > 0
+                    ? "Une partie de votre production solaire peut ne pas être utilisée à certains moments de l’année si la capacité de stockage est atteinte. Sans système de stockage, une partie importante de votre production solaire ne pourrait pas être utilisée."
+                    : "Une partie de votre production solaire peut ne pas être utilisée à certains moments de l’année si la capacité de stockage est atteinte."}
                 </p>
               </div>
 

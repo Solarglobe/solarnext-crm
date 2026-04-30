@@ -101,7 +101,6 @@ export default function PdfPage4({
   const consoAnnuelle = p4.consommation_annuelle ?? conso.reduce((a, b) => a + (b ?? 0), 0);
   const autoAnnuelle = p4.energie_consommee_directement ?? auto.reduce((a, b) => a + (b ?? 0), 0);
   const surplusAnnuelle = p4.energie_injectee ?? surplus.reduce((a, b) => a + (b ?? 0), 0);
-  const tauxAuto = p4.taux_autoconsommation_pct;
   const couverture = p4.couverture_besoins_pct;
   const economieAn1 = p4.economie_annee_1 ?? 0;
 
@@ -230,8 +229,8 @@ export default function PdfPage4({
             <div className="kpi-item"><span>Consommation</span><strong>{fmtKwh(consoAnnuelle)}</strong></div>
             <div className="kpi-item"><span>Utilisé</span><strong>{fmtKwh(autoAnnuelle)}</strong></div>
             <div className="kpi-item"><span>Injecté</span><strong>{fmtKwh(surplusAnnuelle)}</strong></div>
-            <div className="kpi-item"><span>Autonomie site</span><strong>{fmtPct(couverture)}</strong></div>
-            <div className="kpi-item highlight"><span>Autoconsommation PV</span><strong>{fmtPct(tauxAuto)}</strong></div>
+            <div className="kpi-item"><span>Part couverte par le solaire</span><strong>{fmtPct(couverture)}</strong></div>
+            <div className="kpi-item highlight"><span>Énergie solaire utilisée</span><strong>{fmtKwh(autoAnnuelle)}</strong></div>
             <div className="kpi-item highlight"><span>Économies</span><strong>{fmtEur(economieAn1)}</strong></div>
           </div>
         </div>
@@ -247,7 +246,7 @@ export default function PdfPage4({
           flexShrink: 0,
         }}
       >
-        La production est calée sur le profil du site : une part est consommée immédiatement sur place, le surplus est injecté sur le réseau. La facture d&apos;achat et la dépendance au réseau sont ainsi réduites.
+        La production est calée sur le profil du site : une part est utilisée directement, le complément est injecté selon les périodes. Une partie de votre production solaire peut ne pas être utilisée à certains moments de l’année si la capacité de stockage est atteinte.
       </p>
 
       {/* État vide (pas de données) */}

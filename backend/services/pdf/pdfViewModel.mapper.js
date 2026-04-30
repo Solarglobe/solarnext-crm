@@ -1040,6 +1040,20 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
         const restoredP7 =
           num(energyP7.restored_kwh) ?? num(energyP7.used_credit_kwh) ?? 0;
         const creditedP7 = num(energyP7.credited_kwh) ?? 0;
+        const directP7 =
+          num(energyP7.direct_self_consumption_kwh) ??
+          Math.max(0, autoP7 - restoredP7);
+        const solarUsedP7 = directP7 + restoredP7;
+        const gridImportCanonicalP7 =
+          num(energyP7.energy_grid_import_kwh) ??
+          num(energyP7.billable_import_kwh) ??
+          importP7;
+        const solarCoverageP7 =
+          consoP7 > 0 ? Math.max(0, Math.min(100, (solarUsedP7 / consoP7) * 100)) : null;
+        const estimatedAnnualBillP7 =
+          num(scenarioForFinance?.finance?.estimated_annual_bill_eur) ??
+          num(scenarioForFinance?.finance?.residual_bill_eur) ??
+          num(financeActive?.residual_bill_eur);
         let cBat = consoP7 > 0 && isBatScen ? Math.min(100, (restoredP7 / consoP7) * 100) : 0;
         let cGrid = consoP7 > 0 ? Math.min(100, (importP7 / consoP7) * 100) : 0;
         let cPv = isBatScen ? Math.max(0, 100 - cBat - cGrid) : autonomiePct;
@@ -1091,6 +1105,10 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
           consumption_kwh: numOrZero(consoP7),
           autoconsumption_kwh: numOrZero(autoP7),
           production_kwh: numOrZero(prodP7),
+          energy_solar_used_kwh: numOrZero(solarUsedP7),
+          energy_grid_import_kwh: numOrZero(gridImportCanonicalP7),
+          estimated_annual_bill_eur: estimatedAnnualBillP7,
+          solar_coverage_pct: solarCoverageP7,
         };
       })(),
       p7_virtual_battery: (() => {
@@ -1145,6 +1163,10 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
           baseGridImportKwh != null && vbGridImportKwh != null
             ? baseGridImportKwh - vbGridImportKwh
             : null;
+        const estimatedAnnualBillVb =
+          num(selectedScenario?.finance?.estimated_annual_bill_eur) ??
+          num(selectedScenario?.finance?.residual_bill_eur) ??
+          num(financeActive?.residual_bill_eur);
 
         return {
           meta: {
@@ -1186,6 +1208,15 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
             recovered_kwh: vbBatteryDischargeKwh,
             grid_bought_less_kwh: gridBoughtLessKwh,
             autonomy_gain_ratio: autonomyGainRatio,
+          },
+          kpis: {
+            energy_solar_used_kwh: vbTotalPvUsedKwh,
+            energy_grid_import_kwh: vbGridImportKwh,
+            estimated_annual_bill_eur: estimatedAnnualBillVb,
+            solar_coverage_pct:
+              consumptionKwh != null && consumptionKwh > 0 && vbTotalPvUsedKwh != null
+                ? (vbTotalPvUsedKwh / consumptionKwh) * 100
+                : null,
           },
           limits: [
             "La production solaire reste inférieure à la consommation annuelle.",
