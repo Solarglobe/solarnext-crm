@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Button } from "../../components/ui/Button";
 import type { InvoiceCreditNoteApi } from "./invoice-financial.types";
 import CreateCreditModal from "./CreateCreditModal";
@@ -17,6 +17,7 @@ export interface InvoiceCreditsPanelProps {
   createBlockedReason?: string | null;
   maxCreditTtc: number;
   onRefresh: () => void;
+  externalOpenSignal?: number;
 }
 
 export default function InvoiceCreditsPanel({
@@ -27,9 +28,16 @@ export default function InvoiceCreditsPanel({
   createBlockedReason,
   maxCreditTtc,
   onRefresh,
+  externalOpenSignal = 0,
 }: InvoiceCreditsPanelProps) {
   const [open, setOpen] = useState(false);
   const [issuing, setIssuing] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (externalOpenSignal > 0 && canCreate && maxCreditTtc > 0.009) {
+      setOpen(true);
+    }
+  }, [externalOpenSignal, canCreate, maxCreditTtc]);
 
   const issue = async (creditNoteId: string) => {
     if (!window.confirm("Émettre cet avoir ? Il sera imputé sur la facture et le solde mis à jour.")) return;

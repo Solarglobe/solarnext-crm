@@ -115,6 +115,17 @@ export async function cancelPaymentApi(paymentId: string): Promise<unknown> {
   return res.json();
 }
 
+export async function markInvoiceAsPaidApi(invoiceId: string, amountDue: number): Promise<InvoicePaymentApi> {
+  const today = new Date().toISOString().slice(0, 10);
+  return postInvoicePayment(invoiceId, {
+    amount: amountDue,
+    payment_date: today,
+    payment_method: "MARK_AS_PAID",
+    reference: "Marquage manuel payé",
+    notes: "Paiement enregistré via action Marquer comme payée.",
+  });
+}
+
 export async function postInvoiceReminder(
   invoiceId: string,
   body: {

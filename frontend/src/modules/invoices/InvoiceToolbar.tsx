@@ -19,6 +19,20 @@ export interface InvoiceToolbarProps {
   pdfBusy?: boolean;
   /** Passe la facture en statut ISSUED (émise), pas « envoyée » au sens courrier. */
   onMarkIssued: () => void;
+  onMarkPaid: () => void;
+  onAddPayment: () => void;
+  onCreateCredit: () => void;
+  onEdit: () => void;
+  canModify: boolean;
+  canMarkIssued: boolean;
+  canMarkPaid: boolean;
+  canAddPayment: boolean;
+  canCreateCredit: boolean;
+  modifyDisabledReason?: string | null;
+  markIssuedDisabledReason?: string | null;
+  markPaidDisabledReason?: string | null;
+  addPaymentDisabledReason?: string | null;
+  createCreditDisabledReason?: string | null;
   onDelete: () => void;
 }
 
@@ -36,6 +50,20 @@ export default function InvoiceToolbar({
   onPdf,
   pdfBusy = false,
   onMarkIssued,
+  onMarkPaid,
+  onAddPayment,
+  onCreateCredit,
+  onEdit,
+  canModify,
+  canMarkIssued,
+  canMarkPaid,
+  canAddPayment,
+  canCreateCredit,
+  modifyDisabledReason = null,
+  markIssuedDisabledReason = null,
+  markPaidDisabledReason = null,
+  addPaymentDisabledReason = null,
+  createCreditDisabledReason = null,
   onDelete,
 }: InvoiceToolbarProps) {
   return (
@@ -53,17 +81,55 @@ export default function InvoiceToolbar({
         </div>
       </div>
       <div className="qb-toolbar-actions ib-toolbar-actions">
+        <Button type="button" variant="ghost" size="sm" onClick={onEdit} disabled={!canModify} title={modifyDisabledReason || undefined}>
+          Modifier
+        </Button>
+        <Button
+          type="button"
+          variant="outlineGold"
+          size="sm"
+          onClick={onMarkIssued}
+          disabled={!canMarkIssued}
+          title={markIssuedDisabledReason || undefined}
+        >
+          Émettre facture
+        </Button>
+        <Button
+          type="button"
+          variant="outlineGold"
+          size="sm"
+          onClick={onMarkPaid}
+          disabled={!canMarkPaid}
+          title={markPaidDisabledReason || undefined}
+        >
+          Marquer comme payée
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={onAddPayment}
+          disabled={!canAddPayment}
+          title={addPaymentDisabledReason || undefined}
+        >
+          Ajouter paiement
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={onCreateCredit}
+          disabled={!canCreateCredit}
+          title={createCreditDisabledReason || undefined}
+        >
+          Créer un avoir
+        </Button>
         <Button type="button" variant="ghost" size="sm" onClick={onDuplicate}>
           Dupliquer
         </Button>
         <Button type="button" variant="outlineGold" size="sm" onClick={onPdf} disabled={pdfBusy}>
           {pdfBusy ? "⏳ Génération en cours..." : "Générer le PDF"}
         </Button>
-        {canEdit ? (
-          <Button type="button" variant="outlineGold" size="sm" onClick={onMarkIssued}>
-            Émettre la facture
-          </Button>
-        ) : null}
         {canEdit ? (
           <Button type="button" variant="ghost" size="sm" onClick={onDelete}>
             Supprimer

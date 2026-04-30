@@ -1,8 +1,8 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Button } from "../../components/ui/Button";
 import type { InvoicePaymentApi } from "./invoice-financial.types";
 import AddPaymentModal from "./AddPaymentModal";
-import { cancelPaymentApi } from "./invoice-financial.api";
+import { cancelPaymentApi, markInvoiceAsPaidApi } from "./invoice-financial.api";
 
 function eur(n: number) {
   return n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
@@ -29,6 +29,7 @@ export interface InvoicePaymentsPanelProps {
   addDisabledReason?: string | null;
   maxPaymentAmount: number;
   onRefresh: () => void;
+  externalOpenSignal?: number;
 }
 
 export default function InvoicePaymentsPanel({
@@ -38,9 +39,17 @@ export default function InvoicePaymentsPanel({
   addDisabledReason,
   maxPaymentAmount,
   onRefresh,
+  externalOpenSignal = 0,
 }: InvoicePaymentsPanelProps) {
   const [open, setOpen] = useState(false);
   const [cancelling, setCancelling] = useState<string | null>(null);
+  const [markingPaid, setMarkingPaid] = useState(false);
+
+  useEffect(() => {
+    if (externalOpenSignal > 0 && canAdd && maxPaymentAmount > 0.009) {
+      setOpen(true);
+    }
+  }, [externalOpenSignal, canAdd, maxPaymentAmount]);
 
   const cancel = async (paymentId: string) => {
     if (!window.confirm("Annuler ce paiement ?")) return;
@@ -56,6 +65,21 @@ export default function InvoicePaymentsPanel({
   };
 
   const active = payments.filter((p) => !p.cancelled_at && String(p.status || "").toUpperCase() !== "CANCELLED");
+  const canMarkAsPaid = canAdd && maxPaymentAmount > 0.009;
+
+  const markAsPaid = async () => {
+    if (!canMarkAsPaid) return;
+    if (!window.confirm("Marquer cette facture comme payée (enregistrer le solde en paiement) ?")) return;
+    setMarkingPaid(true);
+    try {
+      await markInvoiceAsPaidApi(invoiceId, Number(maxPaymentAmount) || 0);
+      onRefresh();
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : "Erreur");
+    } finally {
+      setMarkingPaid(false);
+    }
+  };
 
   return (
     <div className="if-panel if-panel--payments">
@@ -66,6 +90,15 @@ export default function InvoicePaymentsPanel({
         </div>
         <Button type="button" variant="outlineGold" size="sm" disabled={!canAdd || maxPaymentAmount <= 0.009} onClick={() => setOpen(true)}>
           + Enregistrer un paiement
+        </Button>
+        <Button
+          type="button"
+          variant="primary"
+          size="sm"
+          disabled={!canMarkAsPaid || markingPaid}
+          onClick={() => void markAsPaid()}
+        >
+          {markingPaid ? "Validation…" : "Marquer comme payée"}
         </Button>
       </div>
       {addDisabledReason && !canAdd ? <p className="if-panel-sub">{addDisabledReason}</p> : null}

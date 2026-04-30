@@ -169,6 +169,10 @@ export function buildSourceQuoteSnapshot(quoteRow) {
     total_ht: quoteRow.total_ht != null ? Number(quoteRow.total_ht) : null,
     total_vat: quoteRow.total_vat != null ? Number(quoteRow.total_vat) : null,
     total_ttc: quoteRow.total_ttc != null ? Number(quoteRow.total_ttc) : null,
+    billing_total_ht: quoteRow.billing_total_ht != null ? Number(quoteRow.billing_total_ht) : null,
+    billing_total_vat: quoteRow.billing_total_vat != null ? Number(quoteRow.billing_total_vat) : null,
+    billing_total_ttc: quoteRow.billing_total_ttc != null ? Number(quoteRow.billing_total_ttc) : null,
+    billing_locked_at: quoteRow.billing_locked_at ?? null,
     valid_until: quoteRow.valid_until ?? null,
     currency: quoteRow.currency ?? "EUR",
   };

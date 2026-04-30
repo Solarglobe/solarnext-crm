@@ -309,6 +309,10 @@ export function buildOfficialInvoiceDocumentSnapshot(opts) {
           total_ht: num(sourceQuoteRow.total_ht),
           total_vat: num(sourceQuoteRow.total_vat),
           total_ttc: num(sourceQuoteRow.total_ttc),
+          billing_total_ht: num(sourceQuoteRow.billing_total_ht),
+          billing_total_vat: num(sourceQuoteRow.billing_total_vat),
+          billing_total_ttc: num(sourceQuoteRow.billing_total_ttc),
+          billing_locked_at: sourceQuoteRow.billing_locked_at ?? null,
           valid_until: sourceQuoteRow.valid_until ?? null,
           currency: sourceQuoteRow.currency ?? "EUR",
         }
@@ -347,6 +351,12 @@ export function buildOfficialInvoiceDocumentSnapshot(opts) {
       lead_id: sourceQuoteRow?.lead_id ?? null,
       study_id: sourceQuoteRow?.study_id ?? null,
       study_version_id: sourceQuoteRow?.study_version_id ?? null,
+      quote_billing_role:
+        invoiceRow?.metadata_json &&
+        typeof invoiceRow.metadata_json === "object" &&
+        !Array.isArray(invoiceRow.metadata_json)
+          ? String(invoiceRow.metadata_json.quote_billing_role ?? "").toUpperCase() || null
+          : null,
     },
     created_at: invoiceRow.created_at ?? null,
     frozen_at: frozenAtIso,

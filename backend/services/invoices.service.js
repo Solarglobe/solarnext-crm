@@ -41,6 +41,54 @@ import { ensureClientForQuote } from "./ensureClientForQuote.service.js";
 
 /** Tolérance TTC (€) : somme des factures liées au devis (hors annulées, brouillons inclus) ne doit pas dépasser total devis + cette marge. */
 const QUOTE_INVOICE_SUM_TOLERANCE_TTC = 5;
+const DEFAULT_INVOICE_DUE_DAYS = 30;
+const SAFE_ISSUED_EDIT_WINDOW_HOURS = 24;
+
+function parseDateOnly(value) {
+  if (value == null) return null;
+  const s = String(value).trim();
+  if (!s) return null;
+  const d = new Date(`${s.slice(0, 10)}T12:00:00.000Z`);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function addDaysToDateOnlyIso(baseDateIso, days) {
+  const base = parseDateOnly(baseDateIso);
+  if (!base) return null;
+  const d = new Date(base.getTime());
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+function parseDueDays(rawValue) {
+  const n = Number(rawValue);
+  return Number.isFinite(n) && n >= 0 ? Math.trunc(n) : DEFAULT_INVOICE_DUE_DAYS;
+}
+
+async function getOrganizationDefaultInvoiceDueDays(client, organizationId) {
+  const r = await client.query(`SELECT default_invoice_due_days FROM organizations WHERE id = $1`, [organizationId]);
+  return parseDueDays(r.rows[0]?.default_invoice_due_days);
+}
+
+function resolveInvoiceDueDate({ explicitDueDate, issueDate, defaultDueDays }) {
+  if (explicitDueDate != null && String(explicitDueDate).trim() !== "") return String(explicitDueDate).slice(0, 10);
+  return addDaysToDateOnlyIso(issueDate, defaultDueDays) ?? null;
+}
+
+function isActivePayment(row) {
+  if (!row) return false;
+  const st = String(row.status ?? "").toUpperCase();
+  return !row.cancelled_at && st !== "CANCELLED";
+}
+
+function canSafelyEditIssuedInvoice(invoice, payments = []) {
+  const st = String(invoice?.status ?? "").toUpperCase();
+  if (st !== "ISSUED") return false;
+  if (payments.some(isActivePayment)) return false;
+  const createdAt = invoice?.created_at ? new Date(invoice.created_at) : null;
+  if (!createdAt || Number.isNaN(createdAt.getTime())) return false;
+  return Date.now() - createdAt.getTime() < SAFE_ISSUED_EDIT_WINDOW_HOURS * 60 * 60 * 1000;
+}
 
 /**
  * @param {string} organizationId
@@ -145,6 +193,7 @@ export async function getInvoiceDetail(invoiceId, organizationId) {
       [invoiceId, organizationId]
     )
   ).rows;
+  const can_edit_safely = canSafelyEditIssuedInvoice(invoice, payments);
 
   const credit_notes = (
     await pool.query(
@@ -208,6 +257,7 @@ export async function getInvoiceDetail(invoiceId, organizationId) {
     last_reminder_at,
     is_overdue,
     needs_followup,
+    can_edit_safely,
   };
 }
 
@@ -262,6 +312,12 @@ export async function createInvoice(organizationId, body) {
   const issueDateVal = issue_date != null && String(issue_date).trim() !== "" ? issue_date : new Date().toISOString().slice(0, 10);
 
   const newId = await withTx(pool, async (client) => {
+    const defaultDueDays = await getOrganizationDefaultInvoiceDueDays(client, organizationId);
+    const dueDateVal = resolveInvoiceDueDate({
+      explicitDueDate: due_date,
+      issueDate: issueDateVal,
+      defaultDueDays,
+    });
     const ins = await client.query(
       `INSERT INTO invoices (
         organization_id, client_id, lead_id, quote_id, invoice_number, status,
@@ -275,7 +331,7 @@ export async function createInvoice(organizationId, body) {
         lead_id,
         quote_id,
         draftNum,
-        due_date,
+        dueDateVal,
         notes,
         payment_terms,
         issueDateVal,
@@ -390,8 +446,13 @@ export async function updateInvoice(invoiceId, organizationId, body) {
   });
   await withTx(pool, async (client) => {
     const row = await assertOrgEntity(client, "invoices", invoiceId, organizationId);
-    if (!isInvoiceEditable(row.status)) {
-      throw new Error("Modification interdite : facture déjà émise ou soldée");
+    const paymentRes = await client.query(
+      `SELECT status, cancelled_at FROM payments WHERE invoice_id = $1 AND organization_id = $2`,
+      [invoiceId, organizationId]
+    );
+    const canSafeEditIssued = canSafelyEditIssuedInvoice(row, paymentRes.rows);
+    if (!isInvoiceEditable(row.status) && !canSafeEditIssued) {
+      throw new Error("Modification interdite : utilisez un avoir + nouvelle facture.");
     }
 
     const { lines, client_id, lead_id, quote_id, due_date, notes, payment_terms, issue_date, metadata_json, currency } = body;
@@ -453,6 +514,12 @@ export async function updateInvoice(invoiceId, organizationId, body) {
     if (Array.isArray(lines)) {
       await replaceInvoiceLines(client, organizationId, invoiceId, lines);
       await recalcInvoiceTotals(client, organizationId, invoiceId);
+    }
+    if (canSafeEditIssued) {
+      await persistInvoiceOfficialDocumentSnapshot(client, invoiceId, organizationId, {
+        frozenBy: null,
+        generatedFrom: "PATCH_INVOICE_SAFE_EDIT_LT_24H_NO_PAYMENT",
+      });
     }
 
     const qRow = await client.query(`SELECT quote_id FROM invoices WHERE id = $1`, [invoiceId]);
@@ -1292,12 +1359,19 @@ export async function createInvoiceFromQuote(quoteId, organizationId, options = 
     }
 
     const draftNum = `DRAFT-INV-${Date.now()}`;
+    const issueDate = new Date().toISOString().slice(0, 10);
+    const defaultDueDays = await getOrganizationDefaultInvoiceDueDays(client, organizationId);
+    const dueDate = resolveInvoiceDueDate({
+      explicitDueDate: null,
+      issueDate,
+      defaultDueDays,
+    });
     const ins = await client.query(
       `INSERT INTO invoices (
         organization_id, client_id, lead_id, quote_id, invoice_number, status,
         total_ht, total_vat, total_ttc, total_paid, total_credited, amount_due,
         due_date, notes, payment_terms, issue_date, metadata_json, currency
-      ) VALUES ($1,$2,$3,$4,$5,'DRAFT',0,0,0,0,0,0,NULL,$6,NULL,CURRENT_DATE, COALESCE($7::jsonb, '{}'::jsonb), COALESCE($8, 'EUR'))
+      ) VALUES ($1,$2,$3,$4,$5,'DRAFT',0,0,0,0,0,0,$6,$7,NULL,$8, COALESCE($9::jsonb, '{}'::jsonb), COALESCE($10, 'EUR'))
       RETURNING id`,
       [
         organizationId,
@@ -1305,7 +1379,9 @@ export async function createInvoiceFromQuote(quoteId, organizationId, options = 
         invoiceLeadId,
         quoteId,
         draftNum,
+        dueDate,
         notesForInvoice,
+        issueDate,
         JSON.stringify(metaJson),
         quote.currency || "EUR",
       ]

@@ -52,6 +52,7 @@ import { formatInvoiceNumberDisplay } from "../finance/documentDisplay";
 import { getCrmApiBase } from "@/config/crmApiBase";
 import { openAuthenticatedDocumentInNewTab } from "@/utils/documentDownload";
 import { showCrmInlineToast } from "../../components/ui/crmInlineToast";
+import { markInvoiceAsPaidApi } from "./invoice-financial.api";
 
 const API_BASE = getCrmApiBase();
 
@@ -130,6 +131,9 @@ export default function InvoiceBuilderPage() {
   const [billingLeads, setBillingLeads] = useState<BillingSelectRow[]>([]);
   const [contactsSelectError, setContactsSelectError] = useState<string | null>(null);
   const [invoiceDueDaysDefault, setInvoiceDueDaysDefault] = useState(30);
+  const [markPaidBusy, setMarkPaidBusy] = useState(false);
+  const [paymentModalSignal, setPaymentModalSignal] = useState(0);
+  const [creditModalSignal, setCreditModalSignal] = useState(0);
 
   const [detailExtras, setDetailExtras] = useState<{
     total_paid: number;
@@ -145,7 +149,9 @@ export default function InvoiceBuilderPage() {
   const initialClientIdRef = useRef<string | null>(null);
   const initialLeadIdRef = useRef<string | null>(null);
 
-  const canEdit = state.header ? normalizeInvoiceStatusRaw(state.header.status) === "DRAFT" : false;
+  const canEdit = state.header
+    ? normalizeInvoiceStatusRaw(state.header.status) === "DRAFT" || invoiceDetail?.can_edit_safely === true
+    : false;
 
   const isClientLocked = useMemo(
     () => Boolean(state.header?.client_id) || Boolean(state.header?.quote_id),
@@ -245,9 +251,9 @@ export default function InvoiceBuilderPage() {
       setError("Facture non chargée. Réessayez ou rechargez la page.");
       return;
     }
-    if (normalizeInvoiceStatusRaw(state.header.status) !== "DRAFT") {
+    if (!canEdit) {
       setError(
-        `Seuls les brouillons peuvent être modifiés (statut actuel : ${state.header.status || "—"}).`
+        `Modification non autorisée (statut actuel : ${state.header.status || "—"}). Utilisez un avoir si nécessaire.`
       );
       return;
     }
@@ -314,7 +320,7 @@ export default function InvoiceBuilderPage() {
     } finally {
       setSaving(false);
     }
-  }, [id, state, load]);
+  }, [id, state, load, canEdit]);
 
   const openCatalog = async () => {
     setCatalogOpen(true);
@@ -536,6 +542,22 @@ export default function InvoiceBuilderPage() {
     invoiceStatusUpper === "DRAFT" ? "Émettez la facture pour activer le suivi des relances." : invoiceStatusUpper === "CANCELLED" ? "Facture annulée." : null;
 
   const canRelaunch = invoiceStatusUpper !== "DRAFT" && invoiceStatusUpper !== "CANCELLED";
+  const canMarkIssuedToolbar = invoiceStatusUpper === "DRAFT";
+  const canMarkPaidToolbar =
+    (invoiceStatusUpper === "ISSUED" || invoiceStatusUpper === "PARTIALLY_PAID") && finBalance.amount_due > 0.0001;
+  const canAddPaymentToolbar = canAddPayment;
+  const canCreateCreditToolbar = canCreateCredit;
+  const canModifyToolbar = canEdit;
+
+  const modifyDisabledReason =
+    canModifyToolbar ? null : "Modification indisponible pour ce statut. Utilisez un avoir si nécessaire.";
+  const markIssuedDisabledReason =
+    canMarkIssuedToolbar ? null : "Action disponible uniquement sur une facture en brouillon.";
+  const markPaidDisabledReason =
+    canMarkPaidToolbar ? null : "Action disponible sur facture émise avec un reste à encaisser.";
+  const addPaymentDisabledReason = canAddPaymentToolbar ? null : payAddReason || "Paiement indisponible sur ce statut.";
+  const createCreditDisabledReason =
+    canCreateCreditToolbar ? null : creditBlockReason || "Avoir indisponible sur ce statut.";
 
   const setDueFromIssue = (days: number) => {
     const iss = state.header?.issue_date;
@@ -544,6 +566,35 @@ export default function InvoiceBuilderPage() {
     d.setDate(d.getDate() + days);
     const iso = d.toISOString().slice(0, 10);
     dispatch({ type: "SET_HEADER", payload: { due_date: iso } });
+  };
+
+  const openPaymentModalFromToolbar = () => {
+    if (!canAddPaymentToolbar) return;
+    setPaymentModalSignal((v) => v + 1);
+  };
+
+  const openCreditModalFromToolbar = () => {
+    if (!canCreateCreditToolbar) return;
+    setCreditModalSignal((v) => v + 1);
+  };
+
+  const focusEditZone = () => {
+    const el = document.querySelector(".ib-lines-section");
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  const markInvoicePaidFromToolbar = async () => {
+    if (!state.header?.id || !canMarkPaidToolbar || markPaidBusy) return;
+    if (!window.confirm("Marquer cette facture comme payée (enregistrer automatiquement le solde) ?")) return;
+    setMarkPaidBusy(true);
+    try {
+      await markInvoiceAsPaidApi(state.header.id, finBalance.amount_due);
+      await load();
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : "Erreur");
+    } finally {
+      setMarkPaidBusy(false);
+    }
   };
 
   if (loading && !state.header) {
@@ -585,6 +636,20 @@ export default function InvoiceBuilderPage() {
         onPdf={() => void genPdf()}
         pdfBusy={isGeneratingPdf}
         onMarkIssued={() => void markInvoiceIssued()}
+        onMarkPaid={() => void markInvoicePaidFromToolbar()}
+        onAddPayment={openPaymentModalFromToolbar}
+        onCreateCredit={openCreditModalFromToolbar}
+        onEdit={focusEditZone}
+        canModify={canModifyToolbar}
+        canMarkIssued={canMarkIssuedToolbar}
+        canMarkPaid={canMarkPaidToolbar && !markPaidBusy}
+        canAddPayment={canAddPaymentToolbar}
+        canCreateCredit={canCreateCreditToolbar}
+        modifyDisabledReason={modifyDisabledReason}
+        markIssuedDisabledReason={markIssuedDisabledReason}
+        markPaidDisabledReason={markPaidDisabledReason}
+        addPaymentDisabledReason={addPaymentDisabledReason}
+        createCreditDisabledReason={createCreditDisabledReason}
         onDelete={() => void removeInvoice()}
       />
 
@@ -914,6 +979,7 @@ export default function InvoiceBuilderPage() {
               addDisabledReason={payAddReason}
               maxPaymentAmount={finBalance.amount_due}
               onRefresh={() => void load()}
+              externalOpenSignal={paymentModalSignal}
             />
             <InvoiceCreditsPanel
               invoiceId={state.header.id}
@@ -923,6 +989,7 @@ export default function InvoiceBuilderPage() {
               createBlockedReason={creditBlockReason}
               maxCreditTtc={finBalance.amount_due}
               onRefresh={() => void load()}
+              externalOpenSignal={creditModalSignal}
             />
             <InvoiceRemindersPanel
               invoiceId={state.header.id}
