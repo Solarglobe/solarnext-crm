@@ -15100,6 +15100,46 @@ async function dp2ApplyMapTilerStyle(map) {
   console.log("[DP2 Map] MapTiler style applied");
 }
 
+function dp2CreateIgnPlanFallbackLayer(wmtsGridPM) {
+  return new ol.layer.Tile({
+    opacity: 1,
+    transition: 0,
+    preload: 2,
+    zIndex: 0,
+    source: new ol.source.WMTS({
+      url: "https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile",
+      layer: "GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2",
+      matrixSet: "PM",
+      format: "image/png",
+      style: "normal",
+      tileGrid: wmtsGridPM,
+      wrapX: false,
+      crossOrigin: "anonymous"
+    })
+  });
+}
+
+async function dp2ApplyMapTilerStyleOrFallback(map, wmtsGridPM) {
+  try {
+    await dp2ApplyMapTilerStyle(map);
+    return {
+      provider: "maptiler",
+      fallbackLayer: null,
+      error: null,
+    };
+  } catch (e) {
+    var msg = e && e.message ? String(e.message) : String(e || "Erreur inconnue");
+    console.warn("[DP2 Map] MapTiler indisponible, fallback PLAN IGN activé :", msg);
+    var fallbackLayer = dp2CreateIgnPlanFallbackLayer(wmtsGridPM);
+    map.addLayer(fallbackLayer);
+    return {
+      provider: "ign-plan-fallback",
+      fallbackLayer,
+      error: msg,
+    };
+  }
+}
+
 function dp2OfficialWfsParcelLabelText(feature) {
   const p = feature?.getProperties ? feature.getProperties() : {};
   // Afficher le "numéro de parcelle" si un attribut existe.
@@ -15999,6 +16039,12 @@ async function initDP2() {
       0.5971642834779395, 0.29858214173896974, 0.14929107086948487
     ];
     window.__DP_WMTS_RESOLUTIONS_PM = WMTS_RESOLUTIONS;
+    const WMTS_MATRIX_IDS = WMTS_RESOLUTIONS.map((_, i) => String(i));
+    const wmtsGridPM = new ol.tilegrid.WMTS({
+      origin: WMTS_ORIGIN,
+      resolutions: WMTS_RESOLUTIONS,
+      matrixIds: WMTS_MATRIX_IDS
+    });
 
     const centerParis = fromLonLat([2.3488, 48.8534]);
     const view = new ol.View({
@@ -16029,12 +16075,9 @@ async function initDP2() {
     let dp2DirectMvtTestLayer = null;
     let dp2OfficialCadastreWfsSource = null;
     let dp2OfficialCadastreWfsLayer = null;
-    try {
-      await dp2ApplyMapTilerStyle(map);
-    } catch (e) {
-      console.error("[DP2 Map] apply style failed", e);
-      throw e;
-    }
+    const dp2BaseMapResult = await dp2ApplyMapTilerStyleOrFallback(map, wmtsGridPM);
+    const dp2BaseMapProvider = dp2BaseMapResult.provider;
+    const dp2BaseMapError = dp2BaseMapResult.error;
 
     // --------------------------
     // DP2 — Couche WFS officielle (plan DP final propre) : par défaut cachée
@@ -16142,6 +16185,9 @@ async function initDP2() {
       mvtTileLayer: dp2CadastreVectorTileLayer,
       mapTilerRasterSource: dp2MapTilerRasterSource,
       mapTilerRasterLayer: dp2MapTilerRasterLayer,
+      baseMapFallbackLayer: dp2BaseMapResult.fallbackLayer,
+      baseMapProvider: dp2BaseMapProvider,
+      baseMapError: dp2BaseMapError,
       directMvtTestSource: dp2DirectMvtTestSource,
       directMvtTestLayer: dp2DirectMvtTestLayer,
       neighborParcelsSource: dp2NeighborParcelsSource,
@@ -16149,7 +16195,7 @@ async function initDP2() {
       dp2OfficialCadastreWfsLayer,
       dp2BuildingVectorSource,
       dp2BuildingVectorLayer,
-      vectorProvider: dp2CadastreVectorTileSource ? "maptiler-or-fallback" : "none"
+      vectorProvider: dp2CadastreVectorTileSource ? "maptiler-or-fallback" : dp2BaseMapProvider
     };
 
     if (usedParcelGeometry && geom && selectedParcel) {

@@ -82,6 +82,28 @@ function copyDpToolTree(srcDir: string, destDir: string): void {
   }
 }
 
+function readLocalEnvFile(filePath: string): Record<string, string> {
+  if (!fs.existsSync(filePath)) return {};
+  const out: Record<string, string> = {};
+  const raw = fs.readFileSync(filePath, "utf-8");
+  for (const line of raw.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const eq = trimmed.indexOf("=");
+    if (eq <= 0) continue;
+    const key = trimmed.slice(0, eq).trim();
+    let value = trimmed.slice(eq + 1).trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    out[key] = value;
+  }
+  return out;
+}
+
 type DpToolStaticPluginOpts = {
   /** Corps JS : définit les variables runtime publiques pour scripts non bundlés (dp-tool, PDF, etc.). */
   makeVitePublicRuntimeJs: () => string;
@@ -186,14 +208,21 @@ export default defineConfig(({ mode }) => {
   const repoRoot = path.resolve(__dirname, "..");
   const makeVitePublicRuntimeJs = () => {
     const env = loadEnv(mode, repoRoot, "VITE_");
+    const frontendLocalMapEnv = readLocalEnvFile(path.resolve(__dirname, ".env.dp2-maptiler.local"));
     const key =
       env.VITE_GOOGLE_MAPS_API_KEY ??
       (process.env.VITE_GOOGLE_MAPS_API_KEY || "");
     const mapTilerStyleUrl = String(
-      env.VITE_MAPTILER_STYLE_URL ?? process.env.VITE_MAPTILER_STYLE_URL ?? ""
+      env.VITE_MAPTILER_STYLE_URL ??
+        process.env.VITE_MAPTILER_STYLE_URL ??
+        frontendLocalMapEnv.VITE_MAPTILER_STYLE_URL ??
+        ""
     ).trim();
     const mapTilerKey = String(
-      env.VITE_MAPTILER_KEY ?? process.env.VITE_MAPTILER_KEY ?? ""
+      env.VITE_MAPTILER_KEY ??
+        process.env.VITE_MAPTILER_KEY ??
+        frontendLocalMapEnv.VITE_MAPTILER_KEY ??
+        ""
     ).trim();
     const apiUrl = String(
       env.VITE_API_URL ?? process.env.VITE_API_URL ?? ""
