@@ -480,6 +480,13 @@ export default function InvoiceCreatePage() {
   if (fromQuote) {
     const canSubmitPrep = preparedLines.length > 0 && projectGlobalTotal > 0;
     const editingDisabled = billingLocked || apiRole === "STANDARD";
+    const deleteLineTitle = editingDisabled
+      ? apiRole === "STANDARD"
+        ? "Facture standard : lignes figées sur le devis — suppression désactivée."
+        : billingLocked
+          ? "Facturation verrouillée — suppression désactivée."
+          : "Modification désactivée."
+      : "Supprimer la ligne";
     return (
       <div className="icp-page">
         <div className="icp-header">
@@ -603,23 +610,20 @@ export default function InvoiceCreatePage() {
                             })}{" "}
                             €
                           </td>
-                          <td>
-                            {!editingDisabled ? (
-                              <button
-                                type="button"
-                                className="icp-delete-btn"
-                                aria-label="Supprimer la ligne"
-                                title="Supprimer la ligne"
-                                onClick={() => removePreparedLine(line.id)}
-                              >
-                                <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true">
-                                  <path
-                                    d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 7h2v8h-2v-8zm4 0h2v8h-2v-8zM7 10h2v8H7v-8z"
-                                    fill="currentColor"
-                                  />
-                                </svg>
-                              </button>
-                            ) : null}
+                          <td className="icp-actions-cell">
+                            <button
+                              type="button"
+                              className="icp-delete-btn"
+                              disabled={editingDisabled}
+                              aria-label={deleteLineTitle}
+                              title={deleteLineTitle}
+                              onClick={() => {
+                                if (editingDisabled) return;
+                                removePreparedLine(line.id);
+                              }}
+                            >
+                              ×
+                            </button>
                           </td>
                         </tr>
                       );

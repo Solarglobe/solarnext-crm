@@ -204,9 +204,47 @@
 
 .icp-table th:nth-child(8),
 .icp-table td:nth-child(8) {
-  width: 52px;
-  min-width: 52px;
+  width: 56px;
+  min-width: 56px;
   text-align: center;
+}
+
+/* Colonne Actions toujours visible au scroll horizontal (tableau large) */
+.icp-table thead th:last-child {
+  position: sticky;
+  right: 0;
+  top: 0;
+  z-index: 5;
+  background: var(--surface-card, #fff);
+  box-shadow: -8px 0 14px -10px rgba(15, 23, 42, 0.18);
+}
+
+.theme-dark .icp-table thead th:last-child {
+  box-shadow: -8px 0 14px -10px rgba(0, 0, 0, 0.45);
+}
+
+.icp-table tbody td.icp-actions-cell {
+  position: sticky;
+  right: 0;
+  z-index: 2;
+  background: var(--surface-card, #fff);
+  box-shadow: -8px 0 14px -10px rgba(15, 23, 42, 0.12);
+}
+
+.theme-dark .icp-table tbody td.icp-actions-cell {
+  box-shadow: -8px 0 14px -10px rgba(0, 0, 0, 0.35);
+}
+
+.icp-table tbody tr:hover td.icp-actions-cell {
+  background: var(--surface-2, rgba(148, 163, 184, 0.06));
+}
+
+.icp-row-active td.icp-actions-cell {
+  background: rgba(147, 197, 253, 0.14);
+}
+
+.theme-dark .icp-row-active td.icp-actions-cell {
+  background: rgba(147, 197, 253, 0.08);
 }
 
 .icp-input {
@@ -252,19 +290,41 @@
 }
 
 .icp-delete-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 34px;
   height: 34px;
+  margin: 0 auto;
+  padding: 0;
   border: none;
   background: transparent;
-  color: var(--text-muted, #94a3b8);
+  color: var(--danger, #ef4444);
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1;
   cursor: pointer;
   border-radius: 8px;
-  transition: color 150ms ease, background-color 150ms ease;
+  transition:
+    color 150ms ease,
+    background-color 150ms ease,
+    opacity 150ms ease;
 }
 
-.icp-delete-btn:hover {
-  color: #ef4444;
-  background: rgba(239, 68, 68, 0.12);
+.icp-delete-btn:hover:not(:disabled) {
+  color: var(--danger, #ef4444);
+  background: color-mix(in srgb, var(--danger, #ef4444) 14%, transparent);
+}
+
+.icp-delete-btn:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--danger, #ef4444) 55%, transparent);
+  outline-offset: 2px;
+}
+
+.icp-delete-btn:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+  color: var(--text-muted, #94a3b8);
 }
 
 .icp-summary-card {

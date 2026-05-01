@@ -619,6 +619,43 @@
   color: var(--text-primary);
 }
 
+/* Bouton × suppression de ligne (devis + facture) */
+.qb-line-remove-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin: 0 auto;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--danger, #ef4444);
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.qb-line-remove-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--danger, #ef4444) 14%, transparent);
+  color: var(--danger, #ef4444);
+}
+
+.qb-line-remove-btn:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--danger, #ef4444) 55%, transparent);
+  outline-offset: 2px;
+}
+
+.qb-line-remove-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
 .qb-col-ttc {
   text-align: right;
   font-weight: 600;

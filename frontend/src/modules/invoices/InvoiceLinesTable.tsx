@@ -104,9 +104,16 @@ function SortableRow({
       <td className="qb-num ib-amt">{eur(a.net_ht)}</td>
       <td className="qb-num ib-amt">{eur(a.total_tva)}</td>
       <td className="qb-num ib-amt ib-amt--ttc">{eur(a.total_ttc)}</td>
-      <td>
-        <button type="button" className="qb-btn-link" disabled={!canEdit} onClick={() => onRemove(line.id)}>
-          Retirer
+      <td className="qb-col-act">
+        <button
+          type="button"
+          className="qb-line-remove-btn"
+          disabled={!canEdit}
+          onClick={() => onRemove(line.id)}
+          aria-label="Supprimer la ligne"
+          title="Supprimer la ligne"
+        >
+          ×
         </button>
       </td>
     </tr>
