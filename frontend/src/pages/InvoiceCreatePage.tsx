@@ -20,6 +20,7 @@ import {
 import {
   createInvoiceDraft,
   createInvoiceFromQuote,
+  createPreparedStandardInvoiceFromQuote,
   fetchQuoteInvoiceBillingContext,
   fetchQuotesList,
   getQuoteDocumentViewModel,
@@ -136,10 +137,6 @@ export default function InvoiceCreatePage() {
         setLeads([]);
         setListsError(e instanceof Error ? e.message : "Impossible de charger les listes client / lead.");
       });
-  }, []);
-
-  useEffect(() => {
-    console.log("VERSION PREP INVOICE V2");
   }, []);
 
   useEffect(() => {
@@ -374,11 +371,32 @@ export default function InvoiceCreatePage() {
       setError("Le montant global est déjà figé. Utilisez les flux acompte/solde basés sur ce montant.");
       return;
     }
+    if (preparedLines.length < 1) {
+      setError("Ajoutez au moins une ligne avant validation.");
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
-      const inv = await createInvoiceFromQuote(fromQuote, {
-        billingRole: "STANDARD",
+      const totals = aggregatePreparedTotals(preparedLines);
+      const preparedLinesPayload = preparedLines.map((line) => {
+        const t = getPreparedLineMoneyTotals(line);
+        return {
+          label: line.label,
+          description: line.description || "",
+          quantity: line.quantity,
+          unit_price_ht: line.unit_price_ht,
+          discount_ht: t.discountHt,
+          vat_rate: line.vat_rate,
+        };
+      });
+      const inv = await createPreparedStandardInvoiceFromQuote(fromQuote, {
+        preparedLines: preparedLinesPayload,
+        preparedTotals: {
+          total_ht: totals.total_ht,
+          total_vat: totals.total_vat,
+          total_ttc: totals.total_ttc,
+        },
       });
       if (inv?.id) navigate(`/invoices/${inv.id}`, { replace: true });
     } catch (e) {
@@ -479,13 +497,10 @@ export default function InvoiceCreatePage() {
 
   if (fromQuote) {
     const canSubmitPrep = preparedLines.length > 0 && projectGlobalTotal > 0;
-    const editingDisabled = billingLocked || apiRole === "STANDARD";
-    const deleteLineTitle = editingDisabled
-      ? apiRole === "STANDARD"
-        ? "Facture standard : lignes figées sur le devis — suppression désactivée."
-        : billingLocked
-          ? "Facturation verrouillée — suppression désactivée."
-          : "Modification désactivée."
+    /** Ne pas lier l’édition au rôle STANDARD : sinon inputs/boutons restent disabled alors qu’ils sont visibles (UX piège). */
+    const editingDisabled = billingLocked;
+    const deleteLineTitle = billingLocked
+      ? "Facturation verrouillée — suppression désactivée."
       : "Supprimer la ligne";
     return (
       <div className="icp-page">
@@ -698,7 +713,8 @@ export default function InvoiceCreatePage() {
               )}
               {apiRole === "STANDARD" ? (
                 <p className="qb-muted" style={{ marginTop: 8 }}>
-                  Facture STANDARD: les lignes et remises sont reprises à l&apos;identique depuis le snapshot officiel du devis.
+                  Facture STANDARD : vous pouvez retirer ou ajuster les lignes ci-dessus ; le brouillon créé reprend cette
+                  préparation (le devis source reste inchangé).
                 </p>
               ) : null}
 

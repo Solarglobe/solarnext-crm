@@ -214,7 +214,7 @@
   position: sticky;
   right: 0;
   top: 0;
-  z-index: 5;
+  z-index: 4;
   background: var(--surface-card, #fff);
   box-shadow: -8px 0 14px -10px rgba(15, 23, 42, 0.18);
 }
@@ -226,7 +226,8 @@
 .icp-table tbody td.icp-actions-cell {
   position: sticky;
   right: 0;
-  z-index: 2;
+  /* Au-dessus de l’en-tête sticky pour éviter qu’un calque capte les clics sur la colonne Actions */
+  z-index: 6;
   background: var(--surface-card, #fff);
   box-shadow: -8px 0 14px -10px rgba(15, 23, 42, 0.12);
 }
@@ -290,6 +291,8 @@
 }
 
 .icp-delete-btn {
+  position: relative;
+  z-index: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -304,6 +307,7 @@
   font-weight: 600;
   line-height: 1;
   cursor: pointer;
+  pointer-events: auto;
   border-radius: 8px;
   transition:
     color 150ms ease,
