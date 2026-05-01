@@ -499,11 +499,13 @@ export default function InvoiceCreatePage() {
 
   if (fromQuote) {
     const canSubmitPrep = preparedLines.length > 0 && projectGlobalTotal > 0;
-    /** Ne pas lier l’édition au rôle STANDARD : sinon inputs/boutons restent disabled alors qu’ils sont visibles (UX piège). */
-    const editingDisabled = billingLocked;
-    const deleteLineTitle = billingLocked
-      ? "Facturation verrouillée — suppression désactivée."
-      : "Supprimer la ligne";
+    /**
+     * Les lignes affichees ici sont une preparation locale. Le verrou de facturation
+     * protege le total contractuel cote backend, mais ne doit pas bloquer la suppression
+     * visuelle d'une ligne dans l'etape de preparation.
+     */
+    const editingDisabled = false;
+    const deleteLineTitle = "Supprimer la ligne";
     return (
       <div className="icp-page">
         <div className="icp-header">

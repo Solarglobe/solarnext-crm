@@ -18,6 +18,65 @@ const createInvoiceDraftMock = vi.hoisted(() =>
 const createInvoiceFromQuoteMock = vi.hoisted(() =>
   vi.fn(() => Promise.resolve({ id: "inv-quote-1" }))
 );
+const getQuoteDocumentViewModelMock = vi.hoisted(() =>
+  vi.fn(() =>
+    Promise.resolve({
+      mode: "official",
+      organizationId: "org-1",
+      payload: {
+        lines: [
+          {
+            label: "Materiel",
+            description: "Panneaux",
+            quantity: 1,
+            unit_price_ht: 1000,
+            vat_rate: 20,
+            total_line_ht: 1000,
+            total_line_vat: 200,
+            total_line_ttc: 1200,
+          },
+          {
+            label: "Pose",
+            description: "Installation",
+            quantity: 1,
+            unit_price_ht: 500,
+            vat_rate: 20,
+            total_line_ht: 500,
+            total_line_vat: 100,
+            total_line_ttc: 600,
+          },
+        ],
+      },
+    })
+  )
+);
+const fetchQuoteInvoiceBillingContextMock = vi.hoisted(() =>
+  vi.fn(() =>
+    Promise.resolve({
+      quote_id: "q-locked",
+      quote_number: "SG-LOCKED",
+      quote_status: "ACCEPTED",
+      client_id: "c-1",
+      lead_id: null,
+      quote_total_ttc: 1800,
+      billing_total_ttc: 1800,
+      billing_total_ht: 1500,
+      billing_total_vat: 300,
+      billing_locked_at: "2026-05-01T10:00:00.000Z",
+      billing_is_locked: true,
+      invoiced_ttc: 0,
+      remaining_ttc: 1800,
+      has_structured_deposit: false,
+      deposit_ttc: null,
+      deposit_structure: null,
+      has_deposit_invoice: false,
+      has_balance_invoice: false,
+      can_create_deposit: true,
+      can_create_balance: true,
+      can_create_standard_full: true,
+    })
+  )
+);
 
 vi.mock("../../services/billingContacts.api", () => ({
   fetchClientsBillingSelect: vi.fn(() =>
@@ -39,6 +98,8 @@ vi.mock("../../services/financial.api", async () => {
     fetchQuotesList: fetchQuotesListMock,
     createInvoiceDraft: createInvoiceDraftMock,
     createInvoiceFromQuote: createInvoiceFromQuoteMock,
+    getQuoteDocumentViewModel: getQuoteDocumentViewModelMock,
+    fetchQuoteInvoiceBillingContext: fetchQuoteInvoiceBillingContextMock,
   };
 });
 
@@ -211,7 +272,7 @@ describe("InvoiceCreatePage — contexte client / lead / libre", () => {
     });
   });
 
-  it("avec optionalQuoteId : utilise createInvoiceFromQuote (pas createInvoiceDraft)", async () => {
+  it("avec optionalQuoteId : ouvre la preparation depuis devis (pas createInvoiceDraft)", async () => {
     fetchQuotesListMock.mockResolvedValueOnce([
       {
         id: "q-1",
@@ -238,8 +299,9 @@ describe("InvoiceCreatePage — contexte client / lead / libre", () => {
     fireEvent.click(screen.getByRole("button", { name: /Créer la facture/i }));
 
     await waitFor(() => {
-      expect(createInvoiceFromQuoteMock).toHaveBeenCalledWith("q-1");
+      expect(screen.getByRole("heading", { name: /Préparation de la facture/i })).toBeInTheDocument();
     });
+    expect(createInvoiceFromQuoteMock).not.toHaveBeenCalled();
     expect(createInvoiceDraftMock).not.toHaveBeenCalled();
   });
 
@@ -267,5 +329,28 @@ describe("InvoiceCreatePage — contexte client / lead / libre", () => {
       );
     });
     expect(createInvoiceFromQuoteMock).not.toHaveBeenCalled();
+  });
+
+  it("preparation depuis devis verrouille : la croix supprime quand meme la ligne locale", async () => {
+    render(
+      <MemoryRouter initialEntries={["/invoices/new?fromQuote=q-locked&billingRole=DEPOSIT"]}>
+        <Routes>
+          <Route path="/invoices/new" element={<InvoiceCreatePage />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("Materiel")).toBeInTheDocument();
+      expect(screen.getByText("Pose")).toBeInTheDocument();
+    });
+
+    const removeButtons = screen.getAllByRole("button", { name: "Supprimer la ligne" });
+    expect(removeButtons[0]).toBeEnabled();
+
+    fireEvent.click(removeButtons[0]);
+
+    expect(screen.queryByText("Materiel")).not.toBeInTheDocument();
+    expect(screen.getByText("Pose")).toBeInTheDocument();
   });
 });
