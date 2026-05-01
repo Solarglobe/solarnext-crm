@@ -255,7 +255,9 @@ export default function InvoiceCreatePage() {
   }, [fromQuote, apiRole]);
 
   const preparedTotals = useMemo(() => aggregatePreparedTotals(preparedLines), [preparedLines]);
-  const billingLocked = Boolean(billCtx?.billing_is_locked);
+  /** Verrou uniquement si vrai explicite (évite chaîne \"false\" truthy ; backend envoie un booléen). */
+  const billingLocked =
+    billCtx?.billing_is_locked === true || billCtx?.billing_is_locked === 1;
   const depositPrepFlow = apiRole === "DEPOSIT";
   const projectGlobalTotal = depositPrepFlow
     ? preparedTotals.total_ttc
@@ -527,13 +529,12 @@ export default function InvoiceCreatePage() {
                       <th>TVA %</th>
                       <th>Total HT</th>
                       <th>Total TTC</th>
-                      <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {preparedLines.length === 0 ? (
                       <tr>
-                        <td colSpan={8} className="icp-empty-state">
+                        <td colSpan={7} className="icp-empty-state">
                           Aucune ligne. Ajoutez ou revenez au devis.
                         </td>
                       </tr>
@@ -546,8 +547,27 @@ export default function InvoiceCreatePage() {
                           className={activeLineId === line.id ? "icp-row-active" : undefined}
                         >
                           <td className="icp-cell-label">
-                            <div className="icp-label-primary">{line.label}</div>
-                            <div className="icp-label-secondary">{line.description || "Sans description"}</div>
+                            <div className="icp-label-with-action">
+                              <div className="icp-label-text">
+                                <div className="icp-label-primary">{line.label}</div>
+                                <div className="icp-label-secondary">{line.description || "Sans description"}</div>
+                              </div>
+                              <button
+                                type="button"
+                                className="icp-delete-btn"
+                                disabled={editingDisabled}
+                                aria-label={deleteLineTitle}
+                                title={deleteLineTitle}
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  if (editingDisabled) return;
+                                  removePreparedLine(line.id);
+                                }}
+                              >
+                                ×
+                              </button>
+                            </div>
                           </td>
                           <td>
                             <input
@@ -624,21 +644,6 @@ export default function InvoiceCreatePage() {
                               maximumFractionDigits: 2,
                             })}{" "}
                             €
-                          </td>
-                          <td className="icp-actions-cell">
-                            <button
-                              type="button"
-                              className="icp-delete-btn"
-                              disabled={editingDisabled}
-                              aria-label={deleteLineTitle}
-                              title={deleteLineTitle}
-                              onClick={() => {
-                                if (editingDisabled) return;
-                                removePreparedLine(line.id);
-                              }}
-                            >
-                              ×
-                            </button>
                           </td>
                         </tr>
                       );

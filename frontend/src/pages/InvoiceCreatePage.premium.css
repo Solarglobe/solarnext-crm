@@ -120,6 +120,19 @@
 .icp-cell-label {
   min-width: 200px;
   max-width: 420px;
+  vertical-align: top;
+}
+
+.icp-label-with-action {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.icp-label-text {
+  min-width: 0;
+  flex: 1;
 }
 
 .icp-label-primary {
@@ -202,52 +215,6 @@
   text-align: right;
 }
 
-.icp-table th:nth-child(8),
-.icp-table td:nth-child(8) {
-  width: 56px;
-  min-width: 56px;
-  text-align: center;
-}
-
-/* Colonne Actions toujours visible au scroll horizontal (tableau large) */
-.icp-table thead th:last-child {
-  position: sticky;
-  right: 0;
-  top: 0;
-  z-index: 4;
-  background: var(--surface-card, #fff);
-  box-shadow: -8px 0 14px -10px rgba(15, 23, 42, 0.18);
-}
-
-.theme-dark .icp-table thead th:last-child {
-  box-shadow: -8px 0 14px -10px rgba(0, 0, 0, 0.45);
-}
-
-.icp-table tbody td.icp-actions-cell {
-  position: sticky;
-  right: 0;
-  /* Au-dessus de l’en-tête sticky pour éviter qu’un calque capte les clics sur la colonne Actions */
-  z-index: 6;
-  background: var(--surface-card, #fff);
-  box-shadow: -8px 0 14px -10px rgba(15, 23, 42, 0.12);
-}
-
-.theme-dark .icp-table tbody td.icp-actions-cell {
-  box-shadow: -8px 0 14px -10px rgba(0, 0, 0, 0.35);
-}
-
-.icp-table tbody tr:hover td.icp-actions-cell {
-  background: var(--surface-2, rgba(148, 163, 184, 0.06));
-}
-
-.icp-row-active td.icp-actions-cell {
-  background: rgba(147, 197, 253, 0.14);
-}
-
-.theme-dark .icp-row-active td.icp-actions-cell {
-  background: rgba(147, 197, 253, 0.08);
-}
-
 .icp-input {
   width: 100%;
   min-width: 0;
@@ -291,14 +258,16 @@
 }
 
 .icp-delete-btn {
+  flex-shrink: 0;
   position: relative;
-  z-index: 1;
+  z-index: 2;
+  isolation: isolate;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
-  margin: 0 auto;
+  width: 36px;
+  height: 36px;
+  margin: 0;
   padding: 0;
   border: none;
   background: transparent;
