@@ -102,6 +102,16 @@ export interface InvoiceDetail extends Record<string, unknown> {
   can_edit_safely?: boolean;
   /** Paramètre org « Échéance facture (jours) » — pour préremplissage échéance à l’édition. */
   org_default_invoice_due_days?: number | null;
+  /**
+   * Synthèse dossier sans totaux devis : uniquement base préparation (métadonnées facture) + sommes des factures liées.
+   * Présent si la facture a un quote_id et une `prepared_total_ttc_reference` en metadata.
+   */
+  preparation_billing_summary?: {
+    preparation_base_ttc: number;
+    invoiced_committed_ttc: number;
+    remaining_on_preparation_ttc: number;
+    billing_locked_at?: string | null;
+  } | null;
 }
 
 /**

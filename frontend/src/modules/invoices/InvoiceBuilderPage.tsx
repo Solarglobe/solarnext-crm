@@ -18,10 +18,8 @@ import {
   patchInvoiceStatus,
   postGenerateInvoicePdf,
   fetchInvoiceDetail,
-  fetchQuoteInvoiceBillingContext,
   getInvoicePreparedTotalTtcReference,
   type InvoiceDetail,
-  type QuoteInvoiceBillingContext,
 } from "../../services/financial.api";
 import { Button } from "../../components/ui/Button";
 import { ModalShell } from "../../components/ui/ModalShell";
@@ -145,7 +143,6 @@ export default function InvoiceBuilderPage() {
     total_ttc: number;
   }>({ total_paid: 0, amount_due: 0, is_overdue: false, total_ht: 0, total_vat: 0, total_ttc: 0 });
   const [invoiceDetail, setInvoiceDetail] = useState<InvoiceDetail | null>(null);
-  const [quoteBillCtx, setQuoteBillCtx] = useState<QuoteInvoiceBillingContext | null>(null);
   /** Valeurs DB après dernier chargement — pour n’envoyer client_id / lead_id au PATCH que si modifiés. */
   const initialClientIdRef = useRef<string | null>(null);
   const initialLeadIdRef = useRef<string | null>(null);
@@ -467,25 +464,6 @@ export default function InvoiceBuilderPage() {
 
   const invoiceStatusUpper = state.header ? String(state.header.status).toUpperCase() : "";
 
-  useEffect(() => {
-    const qid = state.header?.quote_id;
-    if (!qid || invoiceStatusUpper === "CANCELLED") {
-      setQuoteBillCtx(null);
-      return;
-    }
-    let cancelled = false;
-    void fetchQuoteInvoiceBillingContext(qid)
-      .then((ctx) => {
-        if (!cancelled) setQuoteBillCtx(ctx);
-      })
-      .catch(() => {
-        if (!cancelled) setQuoteBillCtx(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [state.header?.quote_id, invoiceStatusUpper]);
-
   const paymentsList = invoiceDetail?.payments ?? [];
   const creditNotesList = invoiceDetail?.credit_notes ?? [];
   const remindersList = invoiceDetail?.reminders ?? invoiceDetail?.invoice_reminders ?? [];
@@ -761,7 +739,8 @@ export default function InvoiceBuilderPage() {
           currency={state.header.currency}
         />
 
-        {quoteBillCtx && !quoteBillCtx.quote_zero_total ? (
+        {invoiceDetail?.preparation_billing_summary &&
+        invoiceDetail.preparation_billing_summary.preparation_base_ttc > 0.0001 ? (
           <div className="ib-quote-billing-hint" style={{ marginTop: "0.5rem" }}>
             <p className="ib-muted-title" style={{ margin: "0 0 0.25rem", fontWeight: 600 }}>
               Synthèse facturation (dossier)
@@ -769,17 +748,15 @@ export default function InvoiceBuilderPage() {
             <p className="qb-muted" style={{ margin: "0 0 0.35rem" }}>
               Base préparation (référence de cette facture) :{" "}
               <strong>
-                {invoicePreparedTotalTtcRef != null
-                  ? invoicePreparedTotalTtcRef.toLocaleString("fr-FR", {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })
-                  : "—"}{" "}
+                {invoiceDetail.preparation_billing_summary.preparation_base_ttc.toLocaleString("fr-FR", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}{" "}
                 {state.header.currency}
               </strong>{" "}
-              {quoteBillCtx.billing_locked_at ? (
+              {invoiceDetail.preparation_billing_summary.billing_locked_at ? (
                 <span
-                  title="La base de facturation du dossier a été figée lors de la première facturation sur préparation."
+                  title="Date de figement enregistrée sur cette facture lors de la préparation validée."
                   style={{
                     display: "inline-block",
                     padding: "2px 8px",
@@ -795,23 +772,24 @@ export default function InvoiceBuilderPage() {
                 </span>
               ) : null}
             </p>
-            {quoteBillCtx.billing_locked_at ? (
+            {invoiceDetail.preparation_billing_summary.billing_locked_at ? (
               <p className="qb-muted" style={{ margin: "0 0 0.35rem" }}>
-                Figée le : {fmtDateFrShort(quoteBillCtx.billing_locked_at)}
+                Figée le : {fmtDateFrShort(invoiceDetail.preparation_billing_summary.billing_locked_at)}
               </p>
             ) : (
               <p className="qb-muted" style={{ margin: "0 0 0.35rem" }}>
-                La référence affichée correspond aux métadonnées de cette facture (préparation validée).
+                Montants dérivés uniquement de la préparation validée et des factures liées (sans total catalogue
+                devis).
               </p>
             )}
             <p className="qb-muted" style={{ margin: 0 }}>
               Déjà engagé sur le dossier{" "}
-              {(quoteBillCtx.invoiced_ttc ?? 0).toLocaleString("fr-FR", {
+              {invoiceDetail.preparation_billing_summary.invoiced_committed_ttc.toLocaleString("fr-FR", {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2,
               })}{" "}
-              {state.header.currency} · Reste à facturer{" "}
-              {(quoteBillCtx.remaining_ttc ?? 0).toLocaleString("fr-FR", {
+              {state.header.currency} · Reste à facturer sur cette base{" "}
+              {invoiceDetail.preparation_billing_summary.remaining_on_preparation_ttc.toLocaleString("fr-FR", {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2,
               })}{" "}

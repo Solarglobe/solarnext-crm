@@ -173,17 +173,47 @@ export async function getInvoiceDetail(invoiceId, organizationId) {
     )
   ).rows;
 
+  /** Lien dossier uniquement (pas de montants devis — la vérité après préparation est sur la facture / métadonnées). */
   let quote = null;
   if (invoice.quote_id) {
-    const q = await pool.query(`SELECT id, quote_number, status,
-      COALESCE(NULLIF(document_snapshot_json->'totals'->>'total_ht', '')::numeric, total_ht) AS total_ht,
-      COALESCE(NULLIF(document_snapshot_json->'totals'->>'total_vat', '')::numeric, total_vat) AS total_vat,
-      COALESCE(NULLIF(document_snapshot_json->'totals'->>'total_ttc', '')::numeric, total_ttc) AS total_ttc,
-      valid_until, currency FROM quotes WHERE id = $1 AND organization_id = $2`, [
-      invoice.quote_id,
-      organizationId,
-    ]);
+    const q = await pool.query(
+      `SELECT id, quote_number, status FROM quotes WHERE id = $1 AND organization_id = $2 AND (archived_at IS NULL)`,
+      [invoice.quote_id, organizationId]
+    );
     quote = q.rows[0] ?? null;
+  }
+
+  /** Synthèse dossier sans lecture des totaux du devis : base = préparation figée sur cette facture, agrégats = factures liées. */
+  let preparation_billing_summary = null;
+  if (invoice.quote_id) {
+    const rawMeta = invoice.metadata_json;
+    let meta = {};
+    if (rawMeta && typeof rawMeta === "object" && !Array.isArray(rawMeta)) {
+      meta = rawMeta;
+    } else if (typeof rawMeta === "string" && rawMeta.trim()) {
+      try {
+        const o = JSON.parse(rawMeta);
+        if (o && typeof o === "object" && !Array.isArray(o)) meta = o;
+      } catch {
+        meta = {};
+      }
+    }
+    const prepRef = roundMoney2(Number(meta.prepared_total_ttc_reference));
+    if (Number.isFinite(prepRef) && prepRef > 0.0001) {
+      const sumRes = await pool.query(
+        `SELECT COALESCE(SUM(total_ttc), 0)::numeric AS s FROM invoices
+         WHERE quote_id = $1 AND organization_id = $2 AND UPPER(COALESCE(status, '')) != 'CANCELLED'`,
+        [invoice.quote_id, organizationId]
+      );
+      const invoicedCommitted = roundMoney2(Number(sumRes.rows[0]?.s) || 0);
+      const remaining = roundMoney2(Math.max(0, prepRef - invoicedCommitted));
+      preparation_billing_summary = {
+        preparation_base_ttc: prepRef,
+        invoiced_committed_ttc: invoicedCommitted,
+        remaining_on_preparation_ttc: remaining,
+        billing_locked_at: meta.billing_total_locked_at ?? null,
+      };
+    }
   }
 
   const payments = (
@@ -247,6 +277,7 @@ export async function getInvoiceDetail(invoiceId, organizationId) {
     ...invoice,
     lines,
     quote,
+    preparation_billing_summary,
     payments,
     credit_notes,
     reminders,
