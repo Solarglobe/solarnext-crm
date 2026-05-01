@@ -445,11 +445,7 @@ export default function FinancialInvoicePdfPage() {
       ) : null}
 
       <section className="fi-no-break fi-doc-contract" aria-label="Méthode documentaire">
-        <p>
-          <strong>Document figé</strong> : lignes, montants et états financiers (y compris déjà réglé et reste à payer)
-          correspondent au snapshot officiel de la facture au moment de son émission ou de sa dernière régénération du
-          snapshot.
-        </p>
+        <p>Cette facture reflète les prestations validées et est figée à la date d&apos;émission.</p>
       </section>
 
       <section className="fi-no-break fi-section fi-legal-bank">
