@@ -73,6 +73,26 @@ async function createAcceptedQuoteWithPayload(payload) {
   return quoteId;
 }
 
+async function preparedLinesFromQuote(quoteId) {
+  const lr = await pool.query(
+    `SELECT label, description, quantity, unit_price_ht, discount_ht, vat_rate, snapshot_json
+     FROM quote_lines WHERE quote_id = $1 AND organization_id = $2 ORDER BY position`,
+    [quoteId, orgId]
+  );
+  return lr.rows.map((row) => ({
+    label: row.label ?? "",
+    description: row.description ?? "",
+    quantity: Number(row.quantity),
+    unit_price_ht: Number(row.unit_price_ht),
+    discount_ht: Number(row.discount_ht ?? 0),
+    vat_rate: Number(row.vat_rate),
+    snapshot_json:
+      row.snapshot_json && typeof row.snapshot_json === "object" && !Array.isArray(row.snapshot_json)
+        ? row.snapshot_json
+        : {},
+  }));
+}
+
 test("STANDARD préparé 13 950 -> 11 250 : draft + billing_total verrouillé", async () => {
   const quoteId = await createAcceptedQuoteWithTotals();
   const inv = await invoiceService.createPreparedStandardInvoiceFromQuote(quoteId, orgId, {
@@ -299,7 +319,7 @@ test("dashboard CA facturé exclut DRAFT/CANCELLED et inclut ISSUED/PARTIALLY_PA
   assert.equal(Number(dashboard.global_kpis.remaining_to_collect_ttc), 3500);
 });
 
-test("devis avec remise ligne % -> facture STANDARD conserve total officiel", async () => {
+test("devis avec remise ligne % -> facture STANDARD préparée conserve total officiel", async () => {
   const quoteId = await createAcceptedQuoteWithPayload({
     client_id: clientId,
     items: [
@@ -311,31 +331,34 @@ test("devis avec remise ligne % -> facture STANDARD conserve total officiel", as
     [quoteId]
   );
   const expectedTtc = Number(q.rows[0]?.total_ttc || 0);
-  const inv = await invoiceService.createInvoiceFromQuote(quoteId, orgId, { billingRole: "STANDARD" });
+  const preparedLines = await preparedLinesFromQuote(quoteId);
+  const inv = await invoiceService.createPreparedStandardInvoiceFromQuote(quoteId, orgId, { preparedLines });
   invoiceIds.push(inv.id);
   assert.equal(Number(inv.total_ttc), expectedTtc);
 });
 
-test("devis avec remise ligne montant -> facture STANDARD conserve discount_ht", async () => {
+test("devis avec remise ligne montant -> facture STANDARD préparée conserve discount_ht", async () => {
   const quoteId = await createAcceptedQuoteWithPayload({
     client_id: clientId,
     items: [
       { label: "Ligne €", description: "", quantity: 1, unit_price_ht: 1200, discount_ht: 150, tva_rate: 20 },
     ],
   });
-  const inv = await invoiceService.createInvoiceFromQuote(quoteId, orgId, { billingRole: "STANDARD" });
+  const preparedLines = await preparedLinesFromQuote(quoteId);
+  const inv = await invoiceService.createPreparedStandardInvoiceFromQuote(quoteId, orgId, { preparedLines });
   invoiceIds.push(inv.id);
   const line = (inv.lines || [])[0];
   assert.equal(Number(line?.discount_ht || 0), 150);
 });
 
-test("remise globale -> ligne DOCUMENT_DISCOUNT reprise en STANDARD", async () => {
+test("remise globale -> ligne DOCUMENT_DISCOUNT reprise en STANDARD préparé", async () => {
   const quoteId = await createAcceptedQuoteWithPayload({
     client_id: clientId,
     items: [{ label: "Base", description: "", quantity: 1, unit_price_ht: 1000, tva_rate: 20 }],
     metadata: { global_discount_percent: 10 },
   });
-  const inv = await invoiceService.createInvoiceFromQuote(quoteId, orgId, { billingRole: "STANDARD" });
+  const preparedLines = await preparedLinesFromQuote(quoteId);
+  const inv = await invoiceService.createPreparedStandardInvoiceFromQuote(quoteId, orgId, { preparedLines });
   invoiceIds.push(inv.id);
   const hasDocDiscountLine = (inv.lines || []).some((l) => l.snapshot_json?.line_kind === "DOCUMENT_DISCOUNT");
   assert.equal(hasDocDiscountLine, true);
@@ -352,10 +375,20 @@ test("acompte = X% du total TTC remisé officiel du devis", async () => {
     [quoteId]
   );
   const quoteTtc = Number(q.rows[0]?.total_ttc || 0);
+  const qhv = await pool.query(
+    `SELECT total_ht, total_vat, total_ttc FROM quotes WHERE id = $1`,
+    [quoteId]
+  );
+  const prepHt = Number(qhv.rows[0]?.total_ht || 0);
+  const prepVat = Number(qhv.rows[0]?.total_vat || 0);
+  const prepTtc = Number(qhv.rows[0]?.total_ttc || quoteTtc);
   const expectedDeposit = Math.round(quoteTtc * 0.3 * 100) / 100;
   const inv = await invoiceService.createInvoiceFromQuote(quoteId, orgId, {
     billingRole: "DEPOSIT",
     billingAmountTtc: expectedDeposit,
+    preparedTotalTtc: prepTtc,
+    preparedTotalHt: prepHt,
+    preparedTotalVat: prepVat,
   });
   invoiceIds.push(inv.id);
   assert.equal(Number(inv.total_ttc), expectedDeposit);
@@ -373,19 +406,29 @@ test("solde = total TTC remisé officiel - acomptes émis", async () => {
     [quoteId]
   );
   const quoteTtc = Number(q.rows[0]?.total_ttc || 0);
+  const qhv = await pool.query(
+    `SELECT total_ht, total_vat, total_ttc FROM quotes WHERE id = $1`,
+    [quoteId]
+  );
+  const prepHt = Number(qhv.rows[0]?.total_ht || 0);
+  const prepVat = Number(qhv.rows[0]?.total_vat || 0);
+  const prepTtc = Number(qhv.rows[0]?.total_ttc || quoteTtc);
   const dep = await invoiceService.createInvoiceFromQuote(quoteId, orgId, {
     billingRole: "DEPOSIT",
     billingAmountTtc: 200,
+    preparedTotalTtc: prepTtc,
+    preparedTotalHt: prepHt,
+    preparedTotalVat: prepVat,
   });
   invoiceIds.push(dep.id);
   await invoiceService.patchInvoiceStatus(dep.id, orgId, "ISSUED", null);
   const bal = await invoiceService.createInvoiceFromQuote(quoteId, orgId, { billingRole: "BALANCE" });
   invoiceIds.push(bal.id);
   assert.equal(Number(bal.total_ttc), Math.round((quoteTtc - 200) * 100) / 100);
-  assert.match(String(bal.lines?.[0]?.label || ""), /Solde du devis/i);
+  assert.match(String(bal.lines?.[0]?.label || ""), /Solde/i);
 });
 
-test("aucune double remise: STANDARD = total snapshot officiel", async () => {
+test("aucune double remise: STANDARD préparé = total snapshot officiel", async () => {
   const quoteId = await createAcceptedQuoteWithPayload({
     client_id: clientId,
     items: [
@@ -399,7 +442,8 @@ test("aucune double remise: STANDARD = total snapshot officiel", async () => {
     [quoteId]
   );
   const expected = Number(q.rows[0]?.total_ttc || 0);
-  const inv = await invoiceService.createInvoiceFromQuote(quoteId, orgId, { billingRole: "STANDARD" });
+  const preparedLines = await preparedLinesFromQuote(quoteId);
+  const inv = await invoiceService.createPreparedStandardInvoiceFromQuote(quoteId, orgId, { preparedLines });
   invoiceIds.push(inv.id);
   assert.equal(Number(inv.total_ttc), expected);
 });

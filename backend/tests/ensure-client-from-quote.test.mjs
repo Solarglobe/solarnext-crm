@@ -84,7 +84,9 @@ test("ACCEPTED : quote.client_id null + lead.client_id → facture OK + quote sy
 
   await pool.query(`UPDATE quotes SET client_id = NULL WHERE id = $1`, [qid]);
 
-  const inv = await invoiceService.createInvoiceFromQuote(qid, orgId, { billingRole: "STANDARD" });
+  const inv = await invoiceService.createPreparedStandardInvoiceFromQuote(qid, orgId, {
+    preparedLines: [{ label: "L1", description: "", quantity: 1, unit_price_ht: 500, discount_ht: 0, vat_rate: 20 }],
+  });
   toDelete.invoiceIds.push(inv.id);
   assert.equal(String(inv.client_id), String(clientA));
 
@@ -113,7 +115,9 @@ test("ACCEPTED : lead sans client_id, email unique → création client + factur
   await quoteService.patchQuoteStatus(qid, orgId, "SENT", null);
   await quoteService.patchQuoteStatus(qid, orgId, "ACCEPTED", null);
 
-  const inv = await invoiceService.createInvoiceFromQuote(qid, orgId, { billingRole: "STANDARD" });
+  const inv = await invoiceService.createPreparedStandardInvoiceFromQuote(qid, orgId, {
+    preparedLines: [{ label: "L1", description: "", quantity: 1, unit_price_ht: 300, discount_ht: 0, vat_rate: 20 }],
+  });
   toDelete.invoiceIds.push(inv.id);
   assert.ok(inv.client_id, "facture doit avoir client_id");
 
@@ -234,7 +238,9 @@ test("ACCEPTED : lead sans client mais email déjà client existant → rattache
   await quoteService.patchQuoteStatus(qid, orgId, "SENT", null);
   await quoteService.patchQuoteStatus(qid, orgId, "ACCEPTED", null);
 
-  const inv = await invoiceService.createInvoiceFromQuote(qid, orgId, { billingRole: "STANDARD" });
+  const inv = await invoiceService.createPreparedStandardInvoiceFromQuote(qid, orgId, {
+    preparedLines: [{ label: "L1", description: "", quantity: 1, unit_price_ht: 100, discount_ht: 0, vat_rate: 20 }],
+  });
   toDelete.invoiceIds.push(inv.id);
   assert.equal(String(inv.client_id), String(existingC));
 

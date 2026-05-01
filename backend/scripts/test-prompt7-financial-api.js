@@ -150,12 +150,20 @@ async function main() {
     }
 
     // 11–12 — depuis devis
-    const fromQ = await invoiceService.createInvoiceFromQuote(qLines, orgId);
+    const fromQ = await invoiceService.createPreparedStandardInvoiceFromQuote(qLines, orgId, {
+      preparedLines: [{ label: "A", description: "", quantity: 1, unit_price_ht: 100, discount_ht: 0, vat_rate: 20 }],
+    });
     invFromQ = fromQ.id;
     ok("11) facture depuis devis ACCEPTED");
 
     try {
-      await invoiceService.createInvoiceFromQuote(qEmpty, orgId);
+      await invoiceService.createInvoiceFromQuote(qEmpty, orgId, {
+        billingRole: "DEPOSIT",
+        billingAmountTtc: 10,
+        preparedTotalTtc: 100,
+        preparedTotalHt: 100,
+        preparedTotalVat: 0,
+      });
       fail("12) devis non accepté", new Error("accepté"));
     } catch (e) {
       if (e.message?.includes("accepté")) ok("12) refus depuis devis non accepté");

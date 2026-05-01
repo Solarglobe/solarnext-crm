@@ -190,25 +190,13 @@ export default function FinancialInvoicePdfPage() {
   const displayDueDate = resolveInvoiceDueDateForPdf(null, snapDue, issueDate, defaultInvoiceDueDays);
   const payTerms = (payload.payment_terms as string | null) ?? null;
   const invStatus = payload.status as string | null;
-  const sourceQuote = payload.source_quote as Record<string, unknown> | undefined;
-  const sourceQuoteSnapshot = payload.source_quote_snapshot as Record<string, unknown> | undefined;
   const refs = (payload.refs || {}) as Record<string, unknown>;
   const quoteBillingRole = String(refs.quote_billing_role ?? "").toUpperCase();
   const isDepositInvoice = quoteBillingRole === "DEPOSIT";
   const prepRefFromRefs = Number(refs.prepared_total_ttc_reference);
-  const legacyPrepFallback = Number(
-    sourceQuoteSnapshot?.billing_total_ttc ??
-      sourceQuote?.billing_total_ttc ??
-      sourceQuoteSnapshot?.total_ttc ??
-      sourceQuote?.total_ttc
-  );
   let preparationServicesTtc: number | null = null;
-  if (isDepositInvoice) {
-    if (Number.isFinite(prepRefFromRefs) && prepRefFromRefs > 0.0001) {
-      preparationServicesTtc = prepRefFromRefs;
-    } else if (Number.isFinite(legacyPrepFallback) && legacyPrepFallback > 0.0001) {
-      preparationServicesTtc = legacyPrepFallback;
-    }
+  if (isDepositInvoice && Number.isFinite(prepRefFromRefs) && prepRefFromRefs > 0.0001) {
+    preparationServicesTtc = prepRefFromRefs;
   }
   const depositPercentOfPreparation =
     isDepositInvoice &&

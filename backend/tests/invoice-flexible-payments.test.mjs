@@ -58,6 +58,9 @@ test("CAS 1 — devis 10k TTC : acompte 3k puis solde 7k", async () => {
     const inv1 = await invoiceService.createInvoiceFromQuote(qid, orgId, {
       billingRole: "DEPOSIT",
       billingAmountTtc: 3000,
+      preparedTotalTtc: 10000,
+      preparedTotalHt: 10000,
+      preparedTotalVat: 0,
     });
     invoiceIds.push(inv1.id);
     assert.equal(Number(inv1.total_ttc), 3000);
@@ -92,19 +95,23 @@ test("CAS 2 — devis 10k : trois acomptes 3000 + 3000 + 4000 (sans acompte stru
     await quoteService.patchQuoteStatus(qid, orgId, "SENT", null);
     await quoteService.patchQuoteStatus(qid, orgId, "ACCEPTED", null);
 
+    const prep10 = { preparedTotalTtc: 10000, preparedTotalHt: 10000, preparedTotalVat: 0 };
     const a = await invoiceService.createInvoiceFromQuote(qid, orgId, {
       billingRole: "DEPOSIT",
       billingAmountTtc: 3000,
+      ...prep10,
     });
     invoiceIds.push(a.id);
     const b = await invoiceService.createInvoiceFromQuote(qid, orgId, {
       billingRole: "DEPOSIT",
       billingAmountTtc: 3000,
+      ...prep10,
     });
     invoiceIds.push(b.id);
     const c = await invoiceService.createInvoiceFromQuote(qid, orgId, {
       billingRole: "DEPOSIT",
       billingAmountTtc: 4000,
+      ...prep10,
     });
     invoiceIds.push(c.id);
 
@@ -135,7 +142,9 @@ test("CAS 3 — facture STANDARD complète 10k (aucune facture préalable)", asy
     await quoteService.patchQuoteStatus(qid, orgId, "SENT", null);
     await quoteService.patchQuoteStatus(qid, orgId, "ACCEPTED", null);
 
-    const inv = await invoiceService.createInvoiceFromQuote(qid, orgId, { billingRole: "STANDARD" });
+    const inv = await invoiceService.createPreparedStandardInvoiceFromQuote(qid, orgId, {
+      preparedLines: [{ label: "L1", description: "", quantity: 1, unit_price_ht: 10000, discount_ht: 0, vat_rate: 0 }],
+    });
     invId = inv.id;
     invoiceIds.push(invId);
     assert.equal(Number(inv.total_ttc), 10000);
@@ -187,12 +196,22 @@ test("CAS 4b — facturer au-delà du reste impossible (devis couvert)", async (
     const inv = await invoiceService.createInvoiceFromQuote(qid, orgId, {
       billingRole: "DEPOSIT",
       billingAmountTtc: 1000,
+      preparedTotalTtc: 1000,
+      preparedTotalHt: 1000,
+      preparedTotalVat: 0,
     });
     invId = inv.id;
     invoiceIds.push(invId);
 
     await assert.rejects(
-      () => invoiceService.createInvoiceFromQuote(qid, orgId, { billingRole: "DEPOSIT", billingAmountTtc: 100 }),
+      () =>
+        invoiceService.createInvoiceFromQuote(qid, orgId, {
+          billingRole: "DEPOSIT",
+          billingAmountTtc: 100,
+          preparedTotalTtc: 1000,
+          preparedTotalHt: 1000,
+          preparedTotalVat: 0,
+        }),
       /Rien à facturer|déjà couvert/i
     );
   } finally {

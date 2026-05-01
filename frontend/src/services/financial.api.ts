@@ -581,6 +581,7 @@ export async function fetchQuoteInvoiceBillingContext(quoteId: string): Promise<
   return res.json();
 }
 
+/** DEPOSIT / BALANCE uniquement. Une facture complète (STANDARD) doit passer par `createPreparedStandardInvoiceFromQuote`. */
 export async function createInvoiceFromQuote(
   quoteId: string,
   options?: {

@@ -170,7 +170,9 @@ test("FACTURATION DEVIS — validation complète (TEST FACTURATION)", async (t) 
     const qid = q.quote.id;
     trackQuote(qid);
     await acceptQuote(qid);
-    const inv = await invoiceService.createInvoiceFromQuote(qid, orgId, { billingRole: "STANDARD" });
+    const inv = await invoiceService.createPreparedStandardInvoiceFromQuote(qid, orgId, {
+      preparedLines: [{ label: "Kit TEST", description: "", quantity: 1, unit_price_ht: 10000, discount_ht: 0, vat_rate: 0 }],
+    });
     trackInvoice(inv);
     try {
       assert.equal(Number(inv.total_ttc), 10000);
@@ -194,9 +196,11 @@ test("FACTURATION DEVIS — validation complète (TEST FACTURATION)", async (t) 
     trackQuote(qid);
     await acceptQuote(qid);
 
+    const prep10 = { preparedTotalTtc: 10000, preparedTotalHt: 10000, preparedTotalVat: 0 };
     const inv1 = await invoiceService.createInvoiceFromQuote(qid, orgId, {
       billingRole: "DEPOSIT",
       billingAmountTtc: 3000,
+      ...prep10,
     });
     trackInvoice(inv1);
     assert.equal(Number(inv1.total_ttc), 3000);
@@ -206,6 +210,7 @@ test("FACTURATION DEVIS — validation complète (TEST FACTURATION)", async (t) 
     const inv2 = await invoiceService.createInvoiceFromQuote(qid, orgId, {
       billingRole: "DEPOSIT",
       billingAmountTtc: 2000,
+      ...prep10,
     });
     trackInvoice(inv2);
     assert.equal(Number(inv2.total_ttc), 2000);
@@ -213,6 +218,7 @@ test("FACTURATION DEVIS — validation complète (TEST FACTURATION)", async (t) 
     const inv3 = await invoiceService.createInvoiceFromQuote(qid, orgId, {
       billingRole: "DEPOSIT",
       billingAmountTtc: 2000,
+      ...prep10,
     });
     trackInvoice(inv3);
     assert.equal(Number(inv3.total_ttc), 2000);
@@ -241,18 +247,24 @@ test("FACTURATION DEVIS — validation complète (TEST FACTURATION)", async (t) 
     const dep = await invoiceService.createInvoiceFromQuote(qid, orgId, {
       billingRole: "DEPOSIT",
       billingAmountTtc: 1000,
+      preparedTotalTtc: 10000,
+      preparedTotalHt: 10000,
+      preparedTotalVat: 0,
     });
     trackInvoice(dep);
 
     await assert.rejects(
       () => invoiceService.createInvoiceFromQuote(qid, orgId, { billingRole: "STANDARD" }),
-      /Une facture ou un brouillon existe déjà|acompte|solde/i,
-      "STANDARD doit être refusé après réservation TTC"
+      /prepared-standard|préparation validée/i,
+      "STANDARD depuis from-quote doit être refusé (utiliser prepared-standard)"
     );
 
     const invOverAsk = await invoiceService.createInvoiceFromQuote(qid, orgId, {
       billingRole: "DEPOSIT",
       billingAmountTtc: 50_000,
+      preparedTotalTtc: 10000,
+      preparedTotalHt: 10000,
+      preparedTotalVat: 0,
     });
     trackInvoice(invOverAsk);
     const remAfter = 10_000 - 1000 - Number(invOverAsk.total_ttc);

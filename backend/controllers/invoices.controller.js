@@ -159,7 +159,10 @@ export async function createFromQuote(req, res) {
       msg.includes("Veuillez saisir") ||
       msg.includes("Préparation obligatoire") ||
       msg.includes("base de préparation") ||
-      msg.includes("Base de préparation")
+      msg.includes("Base de préparation") ||
+      msg.includes("préparation validée") ||
+      msg.includes("prepared-standard") ||
+      msg.includes("snapshot devis")
         ? 400
         : 500;
     res.status(code).json({ error: e.message });
