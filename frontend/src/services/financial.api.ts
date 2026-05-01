@@ -555,6 +555,12 @@ export interface QuoteInvoiceBillingContext {
   remaining_ttc: number;
   has_structured_deposit: boolean;
   deposit_ttc: number | null;
+  /** Acompte structuré (mode / % / montant) — à appliquer sur la préparation facture, pas sur le total devis seul. */
+  deposit_structure?: {
+    mode: string;
+    percent?: number;
+    amount_ttc?: number;
+  } | null;
   has_deposit_invoice: boolean;
   has_balance_invoice: boolean;
   has_deposit_issued?: boolean;

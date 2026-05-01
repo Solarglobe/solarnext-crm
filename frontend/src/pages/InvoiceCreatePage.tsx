@@ -224,22 +224,22 @@ export default function InvoiceCreatePage() {
         const normalizedLines = normalizePreparedLines(vmLines);
         setPreparedLines(normalizedLines);
         setBillCtx(ctx);
-        if (ctx?.has_structured_deposit && ctx.deposit_ttc != null) {
+        if (apiRole === "DEPOSIT" && ctx?.has_structured_deposit && ctx.deposit_structure) {
           const preparedTotalsFromVm = aggregatePreparedTotals(normalizedLines);
-          const currentPreparedTotal = ctx.billing_is_locked
-            ? roundMoney2(Number(ctx.billing_total_ttc ?? preparedTotalsFromVm.total_ttc))
-            : preparedTotalsFromVm.total_ttc;
-          const baseTotalTtc = roundMoney2(
-            Number(ctx.billing_total_ttc ?? ctx.quote_total_ttc ?? currentPreparedTotal)
-          );
-          const remainingOnPrepared = roundMoney2(
-            Math.max(0, currentPreparedTotal - Number(ctx.invoiced_ttc ?? 0))
-          );
-          const depositFromPreparedBase =
-            baseTotalTtc > 0
-              ? roundMoney2((currentPreparedTotal * Number(ctx.deposit_ttc ?? 0)) / baseTotalTtc)
-              : 0;
-          const hint = roundMoney2(Math.min(depositFromPreparedBase, remainingOnPrepared));
+          const currentPreparedTotal = preparedTotalsFromVm.total_ttc;
+          const invoicedClamp = Math.min(Number(ctx.invoiced_ttc ?? 0), currentPreparedTotal);
+          const remainingOnPrepared = roundMoney2(Math.max(0, currentPreparedTotal - invoicedClamp));
+          const ds = ctx.deposit_structure;
+          const mode = String(ds.mode || "").toUpperCase();
+          let hintAmount = 0;
+          if (mode === "PERCENT" && ds.percent != null && Number.isFinite(Number(ds.percent))) {
+            hintAmount = roundMoney2((currentPreparedTotal * Math.min(100, Number(ds.percent))) / 100);
+          } else if (mode === "AMOUNT" && ds.amount_ttc != null) {
+            hintAmount = roundMoney2(Math.min(Number(ds.amount_ttc), remainingOnPrepared));
+          } else if (ctx.deposit_ttc != null) {
+            hintAmount = roundMoney2(Math.min(Number(ctx.deposit_ttc), remainingOnPrepared));
+          }
+          const hint = roundMoney2(Math.min(hintAmount, remainingOnPrepared));
           setDepositTtcInput(hint >= 0.01 ? String(hint) : "");
         }
         setPrepReady(true);
@@ -255,24 +255,34 @@ export default function InvoiceCreatePage() {
     return () => {
       cancelled = true;
     };
-  }, [fromQuote]);
+  }, [fromQuote, apiRole]);
 
   const preparedTotals = useMemo(() => aggregatePreparedTotals(preparedLines), [preparedLines]);
   const billingLocked = Boolean(billCtx?.billing_is_locked);
-  const projectGlobalTotal = billingLocked
-    ? roundMoney2(Number(billCtx?.billing_total_ttc ?? preparedTotals.total_ttc))
-    : preparedTotals.total_ttc;
-  const effectivePreparedTotals = {
-    total_ttc: projectGlobalTotal,
-    total_ht: billingLocked
-      ? roundMoney2(Number(billCtx?.billing_total_ht ?? preparedTotals.total_ht))
-      : preparedTotals.total_ht,
-    total_vat: billingLocked
-      ? roundMoney2(Number(billCtx?.billing_total_vat ?? preparedTotals.total_vat))
-      : preparedTotals.total_vat,
-  };
+  const depositPrepFlow = apiRole === "DEPOSIT";
+  const projectGlobalTotal = depositPrepFlow
+    ? preparedTotals.total_ttc
+    : billingLocked
+      ? roundMoney2(Number(billCtx?.billing_total_ttc ?? preparedTotals.total_ttc))
+      : preparedTotals.total_ttc;
+  const effectivePreparedTotals = depositPrepFlow
+    ? {
+        total_ttc: preparedTotals.total_ttc,
+        total_ht: preparedTotals.total_ht,
+        total_vat: preparedTotals.total_vat,
+      }
+    : {
+        total_ttc: projectGlobalTotal,
+        total_ht: billingLocked
+          ? roundMoney2(Number(billCtx?.billing_total_ht ?? preparedTotals.total_ht))
+          : preparedTotals.total_ht,
+        total_vat: billingLocked
+          ? roundMoney2(Number(billCtx?.billing_total_vat ?? preparedTotals.total_vat))
+          : preparedTotals.total_vat,
+      };
   const displayedInvoicedTtc = roundMoney2(Number(billCtx?.invoiced_ttc ?? 0));
-  const displayedRemainingTtc = roundMoney2(Math.max(0, projectGlobalTotal - displayedInvoicedTtc));
+  const invoicedTowardPrep = roundMoney2(Math.min(displayedInvoicedTtc, projectGlobalTotal));
+  const displayedRemainingTtc = roundMoney2(Math.max(0, projectGlobalTotal - invoicedTowardPrep));
 
   const computedDepositTtc = useMemo(() => {
     const rem = displayedRemainingTtc;
@@ -651,7 +661,7 @@ export default function InvoiceCreatePage() {
               <div className="icp-divider" />
 
               <p className="icp-contract-line">
-                Montant contractuel :{" "}
+                {apiRole === "DEPOSIT" ? "Montant total des prestations (préparation)" : "Montant contractuel"} :{" "}
                 <strong>
                   {projectGlobalTotal.toLocaleString("fr-FR", {
                     minimumFractionDigits: 2,
@@ -660,7 +670,12 @@ export default function InvoiceCreatePage() {
                   €
                 </strong>
               </p>
-              {billingLocked ? (
+              {depositPrepFlow ? (
+                <p className="qb-muted" style={{ marginTop: 8 }}>
+                  Base utilisée pour l&apos;acompte : total issu des lignes préparées ci-dessus (indépendamment du total
+                  historique du devis).
+                </p>
+              ) : billingLocked ? (
                 <>
                   <span
                     className="icp-lock-badge"

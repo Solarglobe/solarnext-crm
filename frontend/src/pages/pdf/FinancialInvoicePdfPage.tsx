@@ -185,22 +185,39 @@ export default function FinancialInvoicePdfPage() {
   const refs = (payload.refs || {}) as Record<string, unknown>;
   const quoteBillingRole = String(refs.quote_billing_role ?? "").toUpperCase();
   const isDepositInvoice = quoteBillingRole === "DEPOSIT";
-  const contractualProjectAmount = Number(
+  const prepRefFromRefs = Number(refs.prepared_total_ttc_reference);
+  const legacyPrepFallback = Number(
     sourceQuoteSnapshot?.billing_total_ttc ??
       sourceQuote?.billing_total_ttc ??
       sourceQuoteSnapshot?.total_ttc ??
       sourceQuote?.total_ttc
   );
-  const hasContractualProjectAmount = Number.isFinite(contractualProjectAmount) && contractualProjectAmount > 0;
-  const depositPercent =
-    isDepositInvoice && hasContractualProjectAmount
-      ? Math.round(((totals.total_ttc / contractualProjectAmount) * 100 + Number.EPSILON) * 100) / 100
+  let preparationServicesTtc: number | null = null;
+  if (isDepositInvoice) {
+    if (Number.isFinite(prepRefFromRefs) && prepRefFromRefs > 0.0001) {
+      preparationServicesTtc = prepRefFromRefs;
+    } else if (Number.isFinite(legacyPrepFallback) && legacyPrepFallback > 0.0001) {
+      preparationServicesTtc = legacyPrepFallback;
+    }
+  }
+  const depositPercentOfPreparation =
+    isDepositInvoice &&
+    preparationServicesTtc != null &&
+    preparationServicesTtc > 0.0001 &&
+    totals.total_ttc > 0
+      ? Math.round(((totals.total_ttc / preparationServicesTtc) * 100 + Number.EPSILON) * 100) / 100
       : null;
   const depositAmountTtc = isDepositInvoice ? totals.total_ttc : null;
   const alreadyPaidTtc = isDepositInvoice ? totals.total_paid : null;
   const remainingProjectTtc =
-    isDepositInvoice && hasContractualProjectAmount && depositAmountTtc != null && alreadyPaidTtc != null
-      ? Math.max(0, Math.round((contractualProjectAmount - depositAmountTtc - alreadyPaidTtc + Number.EPSILON) * 100) / 100)
+    isDepositInvoice &&
+    preparationServicesTtc != null &&
+    depositAmountTtc != null &&
+    alreadyPaidTtc != null
+      ? Math.max(
+          0,
+          Math.round((preparationServicesTtc - depositAmountTtc - alreadyPaidTtc + Number.EPSILON) * 100) / 100
+        )
       : null;
   const invoiceNumberDisplay = payload.number != null && payload.number !== "" ? String(payload.number) : "—";
   const issuerAddress = (issuer.address as Record<string, unknown> | undefined) ?? {};
@@ -358,22 +375,29 @@ export default function FinancialInvoicePdfPage() {
             <span>Total TTC</span>
             <span>{formatEurUnknown(totals.total_ttc)}</span>
           </div>
-          {hasContractualProjectAmount ? (
-            <p style={{ margin: "2px 0 8px", fontSize: 11, color: "var(--fi-text-muted, #64748b)" }}>
-              Montant contractuel du projet : {formatEurUnknown(contractualProjectAmount)}
-            </p>
-          ) : null}
-          {isDepositInvoice && depositPercent != null ? (
-            <div className="fi-totals-row">
-              <span>Pourcentage d&apos;acompte</span>
-              <span>{depositPercent.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} %</span>
-            </div>
-          ) : null}
-          {isDepositInvoice && depositAmountTtc != null ? (
-            <div className="fi-totals-row">
-              <span>Montant de l&apos;acompte TTC</span>
-              <span>{formatEurUnknown(depositAmountTtc)}</span>
-            </div>
+          {isDepositInvoice && preparationServicesTtc != null ? (
+            <>
+              <div className="fi-totals-row">
+                <span>Montant total des prestations</span>
+                <span>{formatEurUnknown(preparationServicesTtc)}</span>
+              </div>
+              {depositAmountTtc != null ? (
+                <div className="fi-totals-row">
+                  <span>Acompte facturé</span>
+                  <span>{formatEurUnknown(depositAmountTtc)}</span>
+                </div>
+              ) : null}
+              {depositPercentOfPreparation != null ? (
+                <p style={{ margin: "4px 0 10px", fontSize: 11, color: "var(--fi-text-muted, #64748b)" }}>
+                  Soit{" "}
+                  {depositPercentOfPreparation.toLocaleString("fr-FR", {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}{" "}
+                  % du montant total des prestations (référence préparation).
+                </p>
+              ) : null}
+            </>
           ) : null}
           {isDepositInvoice && alreadyPaidTtc != null && alreadyPaidTtc > 0.0001 ? (
             <div className="fi-totals-row">
@@ -383,7 +407,7 @@ export default function FinancialInvoicePdfPage() {
           ) : null}
           {isDepositInvoice && remainingProjectTtc != null ? (
             <div className="fi-totals-row">
-              <span>Reste à payer TTC</span>
+              <span>Reste sur prestations (après acompte et paiements)</span>
               <span>{formatEurUnknown(remainingProjectTtc)}</span>
             </div>
           ) : null}

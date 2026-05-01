@@ -509,6 +509,13 @@ export default function InvoiceBuilderPage() {
   const situationPaid = situationDraft ? 0 : finBalance.total_paid || 0;
   const situationDue = situationDraft ? Math.max(0, computedTotals.total_ttc) : finBalance.amount_due || 0;
 
+  const depositPreparedTotalRef = useMemo(() => {
+    const raw = invoiceDetail?.metadata_json;
+    const meta = raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : null;
+    const v = Number(meta?.prepared_total_ttc_reference);
+    return Number.isFinite(v) && v > 0.009 ? v : null;
+  }, [invoiceDetail?.metadata_json]);
+
   const quoteSnap = (invoiceDetail as { quote?: QuoteSummary | null })?.quote ?? null;
 
   const payAddReason =
@@ -830,6 +837,8 @@ export default function InvoiceBuilderPage() {
             quoteId={state.header.quote_id}
             quote={quoteSnap}
             quoteBillingRole={quoteBillingRole}
+            preparedTotalTtcReference={depositPreparedTotalRef}
+            invoiceTotalTtcForDepositPct={situationTtc}
           />
         </div>
       </div>
