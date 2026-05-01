@@ -126,6 +126,10 @@ test("acompte après préparation -> base acompte = 11 250€ (pas 13 950€)", 
     typeof deposit.metadata_json === "string" ? JSON.parse(deposit.metadata_json) : deposit.metadata_json || {};
   assert.equal(Number(meta?.quote_billing?.quote_total_ttc_snapshot || 0), 11250);
   assert.equal(Number(deposit.total_ttc), 3375);
+  const depositLines = await pool.query(`SELECT label, description FROM invoice_lines WHERE invoice_id = $1`, [deposit.id]);
+  const depositLineText = `${depositLines.rows[0]?.label || ""} ${depositLines.rows[0]?.description || ""}`;
+  assert.match(depositLineText, /Acompte/i);
+  assert.doesNotMatch(depositLineText, /devis/i);
   const lockedQuote = await pool.query(
     `SELECT billing_total_ttc, billing_total_ht, billing_total_vat, billing_locked_at
      FROM quotes WHERE id = $1`,

@@ -23,6 +23,16 @@ const API_BASE = getCrmApiBaseWithWindowFallback();
 
 type Status = "loading" | "error" | "ready";
 
+export function sanitizeInvoicePdfCommercialText(value: unknown): string {
+  const raw = value == null ? "" : String(value);
+  return raw
+    .replace(/\s*[—-]\s*r[ée]f\.?\s*devis\s+[A-Z0-9._/\-]+/gi, "")
+    .replace(/\s*r[ée]f\.?\s*devis\s+[A-Z0-9._/\-]+/gi, "")
+    .replace(/\bdevis\b/gi, "facture")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
+}
+
 function getSearch() {
   if (typeof window === "undefined") return { financialInvoiceId: "", renderToken: "" };
   const s = new URLSearchParams(window.location.search);
@@ -304,7 +314,7 @@ export default function FinancialInvoicePdfPage() {
             <span className="fi-meta-v">{invoiceNumberDisplay}</span>
           </div>
           <div className="fi-meta-field">
-            <span className="fi-meta-k">Devise</span>
+            <span className="fi-meta-k">Monnaie</span>
             <span className="fi-meta-v">{currency}</span>
           </div>
           <div className="fi-meta-field">
@@ -316,9 +326,6 @@ export default function FinancialInvoicePdfPage() {
             <span className="fi-meta-v">{formatDateFrSlash(displayDueDate)}</span>
           </div>
         </div>
-        {sourceQuote?.quote_number ? (
-          <p className="fi-ref-quote">Réf. devis : {String(sourceQuote.quote_number)}</p>
-        ) : null}
       </section>
 
       {/* 4. Tableau lignes */}
@@ -337,8 +344,8 @@ export default function FinancialInvoicePdfPage() {
             </thead>
             <tbody>
               {lines.map((row, idx) => {
-                const label = String(row.label ?? "—");
-                const desc = row.description ? String(row.description) : "";
+                const label = sanitizeInvoicePdfCommercialText(row.label ?? "—") || "—";
+                const desc = row.description ? sanitizeInvoicePdfCommercialText(row.description) : "";
                 return (
                   <tr key={idx} className="fi-tr-line">
                     <td>
@@ -394,7 +401,7 @@ export default function FinancialInvoicePdfPage() {
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2,
                   })}{" "}
-                  % du montant total des prestations (référence préparation).
+                  % du montant total des prestations.
                 </p>
               ) : null}
             </>

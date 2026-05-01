@@ -919,6 +919,17 @@ function proportionalSliceLineFromQuote(quote, label, sliceTtc) {
   };
 }
 
+function depositInvoiceLineLabel(percent) {
+  return `Acompte ${percent.toLocaleString("fr-FR", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  })} % du montant total des prestations`;
+}
+
+function balanceInvoiceLineLabel() {
+  return "Solde du montant total des prestations";
+}
+
 function asObjectJson(raw) {
   if (!raw) return null;
   if (typeof raw === "object" && !Array.isArray(raw)) return raw;
@@ -1431,10 +1442,7 @@ export async function createInvoiceFromQuote(quoteId, organizationId, options = 
         );
       }
       const pct = roundMoney2((sliceTtc / prepRefTtc) * 100);
-      const label = `Acompte ${pct.toLocaleString("fr-FR", {
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 2,
-      })} % du montant total des prestations${quote.quote_number ? ` — réf. devis ${quote.quote_number}` : ""}`;
+      const label = depositInvoiceLineLabel(pct);
       lines = [proportionalSliceLineFromQuote(prepBillingSliceBase, label, sliceTtc)];
       metaJson = {
         ...buildMetadataQuoteBilling("DEPOSIT", billingBase, {
@@ -1457,7 +1465,7 @@ export async function createInvoiceFromQuote(quoteId, organizationId, options = 
       const depositsIssued = await sumQuoteDepositTtcIssued(client, quoteId, organizationId);
       const balanceDue = roundMoney2(Math.max(0, quoteTtc - depositsIssued));
       if (balanceDue <= 0.02) {
-        throw new Error("Rien à facturer : le devis est déjà couvert par les factures existantes.");
+        throw new Error("Rien à facturer : la base de facturation préparée est déjà couverte par les factures existantes.");
       }
       const sliceTtc = balanceDue;
       if (sliceTtc < 0.01) {
@@ -1465,10 +1473,10 @@ export async function createInvoiceFromQuote(quoteId, organizationId, options = 
       }
       if (reservedTtc + sliceTtc > quoteTtc + QUOTE_INVOICE_SUM_TOLERANCE_TTC) {
         throw new Error(
-          `Impossible : cette facture ferait dépasser le total devis (plafond ${quoteTtc + QUOTE_INVOICE_SUM_TOLERANCE_TTC} € TTC avec tolérance).`
+          `Impossible : cette facture ferait dépasser la base de facturation préparée (plafond ${quoteTtc + QUOTE_INVOICE_SUM_TOLERANCE_TTC} EUR TTC avec tolérance).`
         );
       }
-      const label = `Solde du montant préparé${quote.quote_number ? ` — réf. devis ${quote.quote_number}` : ""}`;
+      const label = balanceInvoiceLineLabel();
       lines = [proportionalSliceLineFromQuote(billingBase, label, sliceTtc)];
       metaJson = buildMetadataQuoteBilling("BALANCE", billingBase, {
         balance_ttc: sliceTtc,
