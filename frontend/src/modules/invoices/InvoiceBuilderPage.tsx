@@ -19,6 +19,7 @@ import {
   postGenerateInvoicePdf,
   fetchInvoiceDetail,
   fetchQuoteInvoiceBillingContext,
+  getInvoicePreparedTotalTtcReference,
   type InvoiceDetail,
   type QuoteInvoiceBillingContext,
 } from "../../services/financial.api";
@@ -509,12 +510,10 @@ export default function InvoiceBuilderPage() {
   const situationPaid = situationDraft ? 0 : finBalance.total_paid || 0;
   const situationDue = situationDraft ? Math.max(0, computedTotals.total_ttc) : finBalance.amount_due || 0;
 
-  const depositPreparedTotalRef = useMemo(() => {
-    const raw = invoiceDetail?.metadata_json;
-    const meta = raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : null;
-    const v = Number(meta?.prepared_total_ttc_reference);
-    return Number.isFinite(v) && v > 0.009 ? v : null;
-  }, [invoiceDetail?.metadata_json]);
+  const invoicePreparedTotalTtcRef = useMemo(
+    () => getInvoicePreparedTotalTtcReference(invoiceDetail?.metadata_json),
+    [invoiceDetail?.metadata_json]
+  );
 
   const quoteSnap = (invoiceDetail as { quote?: QuoteSummary | null })?.quote ?? null;
 
@@ -765,21 +764,22 @@ export default function InvoiceBuilderPage() {
         {quoteBillCtx && !quoteBillCtx.quote_zero_total ? (
           <div className="ib-quote-billing-hint" style={{ marginTop: "0.5rem" }}>
             <p className="ib-muted-title" style={{ margin: "0 0 0.25rem", fontWeight: 600 }}>
-              Synthèse devis (facturation)
+              Synthèse facturation (dossier)
             </p>
             <p className="qb-muted" style={{ margin: "0 0 0.35rem" }}>
-              Montant contractuel facturé :{" "}
+              Base préparation (référence de cette facture) :{" "}
               <strong>
-                {(quoteBillCtx.billing_total_ttc ?? quoteBillCtx.quote_total_ttc ?? 0).toLocaleString("fr-FR", {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}{" "}
+                {invoicePreparedTotalTtcRef != null
+                  ? invoicePreparedTotalTtcRef.toLocaleString("fr-FR", {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })
+                  : "—"}{" "}
                 {state.header.currency}
               </strong>{" "}
-              {quoteBillCtx.billing_locked_at ? "(verrouillé) " : ""}
               {quoteBillCtx.billing_locked_at ? (
                 <span
-                  title="Ce montant correspond au total validé lors de la première facturation. Il ne peut plus être modifié."
+                  title="La base de facturation du dossier a été figée lors de la première facturation sur préparation."
                   style={{
                     display: "inline-block",
                     padding: "2px 8px",
@@ -791,26 +791,21 @@ export default function InvoiceBuilderPage() {
                     letterSpacing: ".02em",
                   }}
                 >
-                  VERROUILLÉ
+                  FIGÉE
                 </span>
               ) : null}
             </p>
             {quoteBillCtx.billing_locked_at ? (
               <p className="qb-muted" style={{ margin: "0 0 0.35rem" }}>
-                Verrouillé le : {fmtDateFrShort(quoteBillCtx.billing_locked_at)}
+                Figée le : {fmtDateFrShort(quoteBillCtx.billing_locked_at)}
               </p>
             ) : (
               <p className="qb-muted" style={{ margin: "0 0 0.35rem" }}>
-                Montant non encore validé (sera figé lors de la première facturation)
+                La référence affichée correspond aux métadonnées de cette facture (préparation validée).
               </p>
             )}
             <p className="qb-muted" style={{ margin: 0 }}>
-              Total devis{" "}
-              {(quoteBillCtx.quote_total_ttc ?? 0).toLocaleString("fr-FR", {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-              })}{" "}
-              {state.header.currency} · Déjà engagé{" "}
+              Déjà engagé sur le dossier{" "}
               {(quoteBillCtx.invoiced_ttc ?? 0).toLocaleString("fr-FR", {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2,
@@ -837,8 +832,8 @@ export default function InvoiceBuilderPage() {
             quoteId={state.header.quote_id}
             quote={quoteSnap}
             quoteBillingRole={quoteBillingRole}
-            preparedTotalTtcReference={depositPreparedTotalRef}
-            invoiceTotalTtcForDepositPct={situationTtc}
+            preparedTotalTtcReference={invoicePreparedTotalTtcRef}
+            invoiceTotalTtcForPct={situationTtc}
           />
         </div>
       </div>

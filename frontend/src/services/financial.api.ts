@@ -104,6 +104,29 @@ export interface InvoiceDetail extends Record<string, unknown> {
   org_default_invoice_due_days?: number | null;
 }
 
+/**
+ * Base TTC de préparation figée sur la facture (`metadata_json.prepared_total_ttc_reference`).
+ * À utiliser pour l’UI « origine / synthèse » — pas le total catalogue du devis.
+ */
+export function getInvoicePreparedTotalTtcReference(metadataJson: unknown): number | null {
+  let meta: Record<string, unknown> | null = null;
+  if (metadataJson && typeof metadataJson === "object" && !Array.isArray(metadataJson)) {
+    meta = metadataJson as Record<string, unknown>;
+  } else if (typeof metadataJson === "string" && metadataJson.trim()) {
+    try {
+      const parsed = JSON.parse(metadataJson) as unknown;
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        meta = parsed as Record<string, unknown>;
+      }
+    } catch {
+      return null;
+    }
+  }
+  if (!meta) return null;
+  const v = Number(meta.prepared_total_ttc_reference);
+  return Number.isFinite(v) && v > 0.0001 ? v : null;
+}
+
 export async function fetchInvoicesByClientId(clientId: string): Promise<InvoiceListRow[]> {
   const res = await apiFetch(
     `${API_BASE}/api/invoices?client_id=${encodeURIComponent(clientId)}&limit=500`

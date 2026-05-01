@@ -1,5 +1,5 @@
 /**
- * Origine de facturation — traçabilité devis / type (acompte, solde…).
+ * Origine de facturation — base préparation (`prepared_total_ttc_reference`) et type (acompte, solde…).
  */
 
 import React from "react";
@@ -16,10 +16,10 @@ export interface InvoiceBillingOriginSectionProps {
   quoteId: string | null;
   quote: QuoteSummary | null | undefined;
   quoteBillingRole?: string | null;
-  /** Base préparation figée (factures d’acompte récentes). */
+  /** Base préparation figée sur cette facture (metadata_json.prepared_total_ttc_reference). */
   preparedTotalTtcReference?: number | null;
   /** Total TTC facture — en brouillon, recalculé depuis les lignes. */
-  invoiceTotalTtcForDepositPct?: number | null;
+  invoiceTotalTtcForPct?: number | null;
 }
 
 function fmtEur2(n: number): string {
@@ -31,8 +31,18 @@ export default function InvoiceBillingOriginSection({
   quote,
   quoteBillingRole,
   preparedTotalTtcReference,
-  invoiceTotalTtcForDepositPct,
+  invoiceTotalTtcForPct,
 }: InvoiceBillingOriginSectionProps) {
+  const role = String(quoteBillingRole || "").toUpperCase();
+  const prepOk =
+    preparedTotalTtcReference != null &&
+    Number.isFinite(preparedTotalTtcReference) &&
+    preparedTotalTtcReference > 0.0001;
+  const invoiceTtc =
+    invoiceTotalTtcForPct != null && Number.isFinite(invoiceTotalTtcForPct)
+      ? Math.max(0, invoiceTotalTtcForPct)
+      : null;
+
   return (
     <section className="ib-origin-card sn-card" aria-labelledby="ib-origin-title">
       <h2 id="ib-origin-title" className="ib-origin-card__title">
@@ -40,20 +50,20 @@ export default function InvoiceBillingOriginSection({
       </h2>
       {!quoteId ? (
         <p className="ib-origin-card__body">
-          <strong>Facture indépendante</strong> — non issue d’un devis. Les lignes et montants sont saisis directement sur
-          cette facture.
+          <strong>Facture indépendante</strong> — non issue d’un dossier lié. Les lignes et montants sont saisis
+          directement sur cette facture.
         </p>
       ) : (
         <div className="ib-origin-card__body">
           <p className="ib-origin-card__line">
-            <span className="ib-origin-label">Devis source</span>
+            <span className="ib-origin-label">Dossier lié</span>
             {quote?.quote_number ? (
               <Link to={`/quotes/${quoteId}`} className="ib-origin-link">
                 {quote.quote_number}
               </Link>
             ) : (
               <Link to={`/quotes/${quoteId}`} className="ib-origin-link">
-                Ouvrir le devis
+                Ouvrir le dossier
               </Link>
             )}
             {quote?.status ? (
@@ -61,43 +71,50 @@ export default function InvoiceBillingOriginSection({
             ) : null}
           </p>
           <p className="ib-origin-card__line">
-            <span className="ib-origin-label">Type depuis le devis</span>
+            <span className="ib-origin-label">Type de facturation</span>
             <span>{formatInvoiceOriginQuoteType(quoteBillingRole)}</span>
           </p>
-          {String(quoteBillingRole || "").toUpperCase() === "DEPOSIT" &&
-          preparedTotalTtcReference != null &&
-          Number.isFinite(preparedTotalTtcReference) &&
-          preparedTotalTtcReference > 0.0001 &&
-          invoiceTotalTtcForDepositPct != null &&
-          Number.isFinite(invoiceTotalTtcForDepositPct) ? (
+          {prepOk ? (
             <div className="ib-origin-card__deposit" style={{ marginTop: 12 }}>
               <p className="ib-origin-card__line">
-                <span className="ib-origin-label">Montant total des prestations</span>
+                <span className="ib-origin-label">Montant total préparé (référence)</span>
                 <span>{fmtEur2(preparedTotalTtcReference)}</span>
               </p>
-              <p className="ib-origin-card__line">
-                <span className="ib-origin-label">Acompte facturé (total TTC)</span>
-                <span>{fmtEur2(Math.max(0, invoiceTotalTtcForDepositPct))}</span>
-              </p>
-              <p className="ib-origin-card__line">
-                <span className="ib-origin-label">Part de la préparation</span>
-                <span>
-                  {(
-                    Math.round(
-                      ((Math.max(0, invoiceTotalTtcForDepositPct) / preparedTotalTtcReference) * 100 +
-                        Number.EPSILON) *
-                        100
-                    ) / 100
-                  ).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{" "}
-                  %
-                </span>
-              </p>
-              <p className="qb-muted" style={{ margin: "8px 0 0", fontSize: 13, lineHeight: 1.45 }}>
-                Le pourcentage est calculé sur la base de préparation figée sur cette facture ; il est mis à jour si vous
-                modifiez les lignes (brouillon).
-              </p>
+              {role === "DEPOSIT" && invoiceTtc != null ? (
+                <>
+                  <p className="ib-origin-card__line">
+                    <span className="ib-origin-label">Montant facturé sur cette base (TTC)</span>
+                    <span>{fmtEur2(invoiceTtc)}</span>
+                  </p>
+                  <p className="ib-origin-card__line">
+                    <span className="ib-origin-label">Part de la base préparée</span>
+                    <span>
+                      {(
+                        Math.round(
+                          ((invoiceTtc / preparedTotalTtcReference) * 100 + Number.EPSILON) * 100
+                        ) / 100
+                      ).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{" "}
+                      %
+                    </span>
+                  </p>
+                  <p className="qb-muted" style={{ margin: "8px 0 0", fontSize: 13, lineHeight: 1.45 }}>
+                    Le pourcentage compare cette facture à la base préparation figée sur le document ; en brouillon, il
+                    suit les lignes modifiées.
+                  </p>
+                </>
+              ) : invoiceTtc != null ? (
+                <p className="ib-origin-card__line">
+                  <span className="ib-origin-label">Total TTC de cette facture</span>
+                  <span>{fmtEur2(invoiceTtc)}</span>
+                </p>
+              ) : null}
             </div>
-          ) : null}
+          ) : (
+            <p className="qb-muted" style={{ margin: "10px 0 0", fontSize: 13, lineHeight: 1.45 }}>
+              Base préparation non renseignée sur cette facture (référence métier absente). Les montants affichés
+              ailleurs sur la page restent ceux des lignes et du récapitulatif financier.
+            </p>
+          )}
         </div>
       )}
     </section>
