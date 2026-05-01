@@ -718,27 +718,62 @@ function readLockedBillingTotals(quote) {
 }
 
 /**
- * Fige la base globale de facturation au premier acte (STANDARD/DEPOSIT).
- * Si déjà verrouillée, renvoie la base existante et ignore toute nouvelle préparation.
+ * Fige / met à jour la base globale de facturation sur le devis.
+ * Si une préparation complète est fournie (HT/TVA/TTC), elle fait foi — même si un verrou
+ * existait déjà (ex. ancien total catalogue). Sinon : renvoie le verrou existant ou fige depuis le live devis.
  * @param {import("pg").PoolClient} client
  */
 async function resolveOrLockQuoteBillingTotals(client, quote, preparedTotals = null) {
+  const preparedTtc = Number(preparedTotals?.total_ttc);
+  const preparedHt = Number(preparedTotals?.total_ht);
+  const preparedVat = Number(preparedTotals?.total_vat);
+  const hasFullPreparation =
+    preparedTotals != null &&
+    typeof preparedTotals === "object" &&
+    Number.isFinite(preparedTtc) &&
+    preparedTtc > 0.0001 &&
+    Number.isFinite(preparedHt) &&
+    preparedHt >= 0 &&
+    Number.isFinite(preparedVat) &&
+    preparedVat >= 0;
+
   const existing = readLockedBillingTotals(quote);
+
+  if (hasFullPreparation) {
+    const total_ttc = roundMoney2(preparedTtc);
+    const total_ht = roundMoney2(preparedHt);
+    const total_vat = roundMoney2(preparedVat);
+
+    await client.query(
+      `UPDATE quotes
+       SET billing_total_ht = $1,
+           billing_total_vat = $2,
+           billing_total_ttc = $3,
+           billing_locked_at = COALESCE(billing_locked_at, now()),
+           updated_at = now()
+       WHERE id = $4 AND organization_id = $5`,
+      [total_ht, total_vat, total_ttc, quote.id, quote.organization_id]
+    );
+
+    return {
+      total_ht,
+      total_vat,
+      total_ttc,
+      locked_at: existing?.locked_at ?? new Date().toISOString(),
+      was_locked_before: Boolean(existing),
+    };
+  }
+
   if (existing) return { ...existing, was_locked_before: true };
 
-  const preparedTtc = Number(preparedTotals?.total_ttc);
   const liveTtc = roundMoney2(Number(quote.total_ttc) || 0);
-  const total_ttc = Number.isFinite(preparedTtc) && preparedTtc > 0 ? roundMoney2(preparedTtc) : liveTtc;
+  const total_ttc = liveTtc;
   if (!Number.isFinite(total_ttc) || total_ttc <= 0) {
     throw new Error("Base de facturation invalide (billing_total_ttc).");
   }
 
-  const preparedHt = Number(preparedTotals?.total_ht);
-  const preparedVat = Number(preparedTotals?.total_vat);
-  const total_ht = Number.isFinite(preparedHt) ? roundMoney2(preparedHt) : roundMoney2(Number(quote.total_ht) || 0);
-  const total_vat = Number.isFinite(preparedVat)
-    ? roundMoney2(preparedVat)
-    : roundMoney2(Number(quote.total_vat) || Math.max(0, total_ttc - total_ht));
+  const total_ht = roundMoney2(Number(quote.total_ht) || 0);
+  const total_vat = roundMoney2(Number(quote.total_vat) || Math.max(0, total_ttc - total_ht));
 
   await client.query(
     `UPDATE quotes

@@ -252,3 +252,53 @@ test("updateInvoice lié à un devis : vraie modification client_id reste bloqu�
     if (otherClientId) await pool.query("DELETE FROM clients WHERE id = $1", [otherClientId]);
   }
 });
+
+test("DEPOSIT : une préparation valide remplace un billing_total déjà figé (cas catalogue ≠ préparation)", async () => {
+  const q = await quoteService.createQuote(orgId, {
+    client_id: clientId,
+    items: [{ label: "L1", description: "", quantity: 1, unit_price_ht: 1000, tva_rate: 20 }],
+  });
+  const qid = q.quote.id;
+  let invId;
+  try {
+    await quoteService.patchQuoteStatus(qid, orgId, "READY_TO_SEND", null);
+    await quoteService.patchQuoteStatus(qid, orgId, "SENT", null);
+    await quoteService.patchQuoteStatus(qid, orgId, "ACCEPTED", null);
+
+    await pool.query(
+      `UPDATE quotes
+       SET billing_total_ht = $1,
+           billing_total_vat = $2,
+           billing_total_ttc = $3,
+           updated_at = now()
+       WHERE id = $4 AND organization_id = $5`,
+      [11625, 2325, 13950, qid, orgId]
+    );
+
+    const inv = await invoiceService.createInvoiceFromQuote(qid, orgId, {
+      billingRole: "DEPOSIT",
+      billingAmountTtc: 300,
+      ...PREP_1200,
+    });
+    invId = inv.id;
+    invoiceIds.push(invId);
+
+    const meta = typeof inv.metadata_json === "string" ? JSON.parse(inv.metadata_json) : inv.metadata_json || {};
+    assert.equal(Number(meta.prepared_total_ttc_reference), 1200);
+
+    const qr = await pool.query(
+      `SELECT billing_total_ttc::float AS ttc FROM quotes WHERE id = $1 AND organization_id = $2`,
+      [qid, orgId]
+    );
+    assert.equal(Number(qr.rows[0]?.ttc), 1200);
+  } finally {
+    if (invId) {
+      await pool.query("DELETE FROM invoice_lines WHERE invoice_id = $1", [invId]);
+      await pool.query("DELETE FROM invoices WHERE id = $1", [invId]);
+      const idx = invoiceIds.indexOf(invId);
+      if (idx >= 0) invoiceIds.splice(idx, 1);
+    }
+    await pool.query("DELETE FROM quote_lines WHERE quote_id = $1", [qid]);
+    await pool.query("DELETE FROM quotes WHERE id = $1", [qid]);
+  }
+});
