@@ -111,6 +111,25 @@ export async function createFromQuote(req, res) {
         return res.status(400).json({ error: "prepared_total_vat invalide" });
       }
     }
+    const roleUpper = String(billingRole || "STANDARD").trim().toUpperCase();
+    if (roleUpper === "DEPOSIT") {
+      if (preparedTotalTtc == null || preparedTotalTtc <= 0) {
+        return res.status(400).json({
+          error: "Préparation obligatoire : prepared_total_ttc doit être strictement positif pour une facture d'acompte.",
+        });
+      }
+      if (preparedTotalHt == null || preparedTotalHt < 0 || !Number.isFinite(preparedTotalHt)) {
+        return res.status(400).json({
+          error: "Préparation obligatoire : prepared_total_ht requis pour une facture d'acompte.",
+        });
+      }
+      if (preparedTotalVat == null || preparedTotalVat < 0 || !Number.isFinite(preparedTotalVat)) {
+        return res.status(400).json({
+          error: "Préparation obligatoire : prepared_total_vat requis pour une facture d'acompte.",
+        });
+      }
+    }
+
     const data = await invoiceService.createInvoiceFromQuote(req.params.quoteId, org, {
       ...(billingRole ? { billingRole } : {}),
       ...(billingAmountTtc !== undefined ? { billingAmountTtc } : {}),
@@ -138,7 +157,9 @@ export async function createFromQuote(req, res) {
       msg.includes("non significatif") ||
       msg.includes("total TTC du devis est nul") ||
       msg.includes("Veuillez saisir") ||
-      msg.includes("Préparation obligatoire")
+      msg.includes("Préparation obligatoire") ||
+      msg.includes("base de préparation") ||
+      msg.includes("Base de préparation")
         ? 400
         : 500;
     res.status(code).json({ error: e.message });

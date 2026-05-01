@@ -412,7 +412,7 @@ export default function InvoiceCreatePage() {
     if (!fromQuote) return;
     const amt = computedDepositTtc;
     if (amt == null || amt < 0.01) {
-      setError("Indiquez un montant TTC (> 0) ou un pourcentage du total devis.");
+      setError("Indiquez un montant TTC (> 0) ou un pourcentage du total préparé.");
       return;
     }
     setLoading(true);

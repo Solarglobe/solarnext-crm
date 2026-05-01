@@ -300,6 +300,10 @@ export function buildOfficialInvoiceDocumentSnapshot(opts) {
   const { invoiceRow, lineRows, sourceQuoteRow, organizationId, frozenAtIso, frozenBy, generatedFrom } = opts;
   const issuer = parseJsonb(invoiceRow.issuer_snapshot);
   const recipient = parseJsonb(invoiceRow.recipient_snapshot);
+  const invMeta =
+    invoiceRow.metadata_json && typeof invoiceRow.metadata_json === "object" && !Array.isArray(invoiceRow.metadata_json)
+      ? invoiceRow.metadata_json
+      : {};
   const sourceQuote =
     sourceQuoteRow && sourceQuoteRow.id
       ? {
@@ -357,6 +361,9 @@ export function buildOfficialInvoiceDocumentSnapshot(opts) {
         !Array.isArray(invoiceRow.metadata_json)
           ? String(invoiceRow.metadata_json.quote_billing_role ?? "").toUpperCase() || null
           : null,
+      prepared_total_ttc_reference: num(invMeta.prepared_total_ttc_reference),
+      prepared_total_ht_reference: num(invMeta.prepared_total_ht_reference),
+      prepared_total_vat_reference: num(invMeta.prepared_total_vat_reference),
     },
     created_at: invoiceRow.created_at ?? null,
     frozen_at: frozenAtIso,
