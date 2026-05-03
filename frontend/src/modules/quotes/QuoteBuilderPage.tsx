@@ -1004,7 +1004,7 @@ export default function QuoteBuilderPage() {
         >
           <div
             style={{
-              background: "#fff",
+          background: "var(--bg-card)",
               borderRadius: 12,
               padding: "16px 20px",
               boxShadow: "0 12px 40px rgba(0,0,0,0.18)",

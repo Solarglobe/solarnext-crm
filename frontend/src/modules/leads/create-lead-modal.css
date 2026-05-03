@@ -23,7 +23,7 @@
 
 .create-lead-type-btn.active {
   background: var(--primary, #3b82f6);
-  color: #fff;
+  color: var(--text-on-dark);
 }
 
 .create-lead-type-btn:not(.active):hover {

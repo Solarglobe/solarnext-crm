@@ -533,7 +533,7 @@ export function AppLayout() {
             onClick={() => exitAdminImpersonationSession()}
             className="sn-btn sn-btn-sm"
             style={{
-              background: "#fff",
+                        background: "var(--bg-card)",
               color: "#991b1b",
               border: "none",
               fontWeight: 600,

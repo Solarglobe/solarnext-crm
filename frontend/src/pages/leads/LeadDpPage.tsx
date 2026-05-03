@@ -161,7 +161,7 @@ export default function LeadDpPage() {
             margin-top: 12px;
             padding: 8px 16px;
             background: linear-gradient(135deg, #7C3AED, #6D28D9);
-            color: #fff;
+            color: var(--text-on-dark);
             border: none;
             border-radius: 8px;
             cursor: pointer;

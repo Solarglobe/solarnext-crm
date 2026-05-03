@@ -7,14 +7,14 @@
   margin-top: 4px;
   border-radius: 14px;
   border: 1px solid #e5e7eb;
-  background: #ffffff;
+  background: var(--bg-card);
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
   overflow: auto;
   -webkit-overflow-scrolling: touch;
 }
 
 .theme-dark .qb-table-wrap--list-saas,
-[data-theme="dark"] .qb-table-wrap--list-saas {
+html.theme-dark .qb-table-wrap--list-saas {
   background: var(--surface-elevated);
   border-color: var(--border-subtle);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
@@ -34,7 +34,7 @@
 }
 
 .theme-dark .qb-table.qb-table--list-saas thead,
-[data-theme="dark"] .qb-table.qb-table--list-saas thead {
+html.theme-dark .qb-table.qb-table--list-saas thead {
   background: color-mix(in srgb, var(--surface-elevated) 92%, transparent);
 }
 
@@ -56,12 +56,12 @@
 }
 
 .theme-dark .qb-table.qb-table--list-saas th,
-[data-theme="dark"] .qb-table.qb-table--list-saas th {
+html.theme-dark .qb-table.qb-table--list-saas th {
   border-bottom-color: rgba(255, 255, 255, 0.08);
 }
 
 .theme-dark .qb-table.qb-table--list-saas td,
-[data-theme="dark"] .qb-table.qb-table--list-saas td {
+html.theme-dark .qb-table.qb-table--list-saas td {
   border-bottom-color: rgba(255, 255, 255, 0.06);
 }
 
@@ -146,7 +146,7 @@
 }
 
 .theme-light .fin-saas-pdf-dot {
-  border-color: #fff;
+  border-color: var(--border);
 }
 
 .fin-saas-pdf-dot--ok {

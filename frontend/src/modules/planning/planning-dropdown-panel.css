@@ -16,7 +16,7 @@
 }
 
 .planning-dropdown-panel:focus-visible {
-  outline: 2px solid var(--ring, rgba(195, 152, 71, 0.45));
+  outline: 2px solid var(--ring, color-mix(in srgb, var(--brand-gold) 45%, transparent));
   outline-offset: 1px;
 }
 

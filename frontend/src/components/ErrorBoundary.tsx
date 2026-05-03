@@ -29,8 +29,8 @@ export class ErrorBoundary extends Component<Props, State> {
             minHeight: "100vh",
             padding: 32,
             fontFamily: "system-ui, sans-serif",
-            background: "#0b0e13",
-            color: "#e6e6e6",
+            background: "var(--bg-page)",
+            color: "var(--text-primary)",
             maxWidth: 560,
             margin: "0 auto",
           }}
@@ -42,9 +42,9 @@ export class ErrorBoundary extends Component<Props, State> {
             style={{
               padding: "10px 16px",
               borderRadius: 8,
-              border: "1px solid rgba(195, 152, 71, 0.45)",
+              border: "1px solid color-mix(in srgb, var(--brand-gold) 45%, transparent)",
               background: "transparent",
-              color: "#c39847",
+              color: "var(--brand-gold)",
               cursor: "pointer",
             }}
             onClick={() => window.location.reload()}

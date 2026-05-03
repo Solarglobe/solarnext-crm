@@ -63,7 +63,7 @@
   padding: 0.45rem 0.85rem;
   border-radius: 8px;
   border: 1px solid var(--sn-border, #e2e8f0);
-  background: var(--sn-surface, #fff);
+  background: var(--sn-surface, var(--bg-card));
   color: inherit;
   font-size: 0.875rem;
   cursor: pointer;
@@ -81,7 +81,7 @@
 .mail-accts__btn--primary {
   background: var(--sn-primary, #2563eb);
   border-color: var(--sn-primary, #2563eb);
-  color: #fff;
+  color: var(--text-on-dark);
 }
 
 .mail-accts__btn--primary:hover:not(:disabled) {
@@ -98,7 +98,7 @@
   border-radius: 12px;
   padding: 1rem 1.15rem 1.25rem;
   margin-bottom: 1.5rem;
-  background: var(--sn-surface, #fff);
+  background: var(--sn-surface, var(--bg-card));
 }
 
 .mail-accts__panel-title {
@@ -137,7 +137,7 @@
   padding: 0.45rem 0.55rem;
   border-radius: 8px;
   border: 1px solid var(--sn-border, #e2e8f0);
-  background: var(--sn-surface, #fff);
+  background: var(--sn-surface, var(--bg-card));
   color: inherit;
   font-size: 0.9rem;
 }
@@ -179,7 +179,7 @@
 .mail-accts__card {
   border: 1px solid var(--sn-border, #e2e8f0);
   border-radius: 10px;
-  background: var(--sn-surface, #fff);
+  background: var(--sn-surface, var(--bg-card));
   overflow: hidden;
 }
 

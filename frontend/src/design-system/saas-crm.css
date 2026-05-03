@@ -8,8 +8,8 @@
   --sn-saas-page-pad-y: clamp(16px, 2vw, 24px);
   --sn-saas-gap-block: 16px;
   --sn-saas-gap-section: 20px;
-  --sn-saas-radius-surface: 12px;
-  --sn-saas-input-h: 44px;
+  --sn-saas-radius-surface: var(--radius-md);
+  --sn-saas-input-h: var(--control-height-sm);
 }
 
 /* ——— Page shell admin ——— */
@@ -47,7 +47,7 @@
 
 /* ——— Surface (remplace Card premium lourd sur pages admin) ——— */
 .sn-saas-surface {
-  background: var(--surface-card, #fff);
+  background: var(--surface-card);
   border: 1px solid var(--border-soft, rgba(15, 23, 42, 0.08));
   border-radius: var(--sn-saas-radius-surface);
   padding: 20px 24px;
@@ -55,7 +55,7 @@
 }
 
 .theme-dark .sn-saas-surface,
-[data-theme="dark"] .sn-saas-surface {
+html.theme-dark .sn-saas-surface {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
@@ -113,7 +113,7 @@
 }
 
 .theme-dark .sn-saas-tab--active,
-[data-theme="dark"] .sn-saas-tab--active {
+html.theme-dark .sn-saas-tab--active {
   border-bottom-color: color-mix(in srgb, var(--text-primary) 75%, var(--primary));
 }
 
@@ -300,7 +300,7 @@ select.sn-saas-input {
 
 /* ——— Sections formulaire (carte légère par bloc) ——— */
 .sn-saas-form-section {
-  background: var(--surface-card, #fff);
+  background: var(--surface-card);
   border: 1px solid var(--border-soft, rgba(15, 23, 42, 0.08));
   border-radius: var(--sn-saas-radius-surface);
   padding: 16px 20px;

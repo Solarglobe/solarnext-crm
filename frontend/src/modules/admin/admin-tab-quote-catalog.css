@@ -482,10 +482,10 @@
 /* Onglets catalogue / modèles : .sn-saas-tabs + .sn-saas-tab (design-system/saas-crm.css) */
 
 /* ========== Modal « Nouvelle ligne catalogue » — rendu SaaS très visible ==========
-   Fond lavé dans le body + cartes #fff + champs explicites (non dépendants du thème gris global). */
+   Fond lavé dans le body + cartes tokenisées + champs explicites (non dépendants du thème gris global). */
 
 .sn-modal-shell-panel.qc-modal-panel .sn-modal-shell-header {
-  background: #ffffff;
+  background: var(--bg-card);
   border-bottom: 1px solid #e2e8f0;
 }
 
@@ -521,7 +521,7 @@
 
 .sn-modal-shell-panel.qc-modal-panel .sn-modal-shell-footer {
   padding: 10px 20px 12px;
-  background: #ffffff;
+  background: var(--bg-card);
   border-top: 1px solid #e2e8f0;
   box-shadow: 0 -6px 16px rgba(15, 23, 42, 0.04);
   gap: 8px;
@@ -536,7 +536,7 @@
 }
 
 .qc-modal-section {
-  background: #ffffff;
+  background: var(--bg-card);
   border: 1px solid #e2e8f0;
   border-radius: 12px;
   padding: 16px;
@@ -634,7 +634,7 @@ select.qc-modal-input {
 .qc-modal-input:hover,
 .qc-modal-textarea:hover,
 select.qc-modal-input:hover {
-  background: #ffffff;
+  background: var(--bg-card);
   border-color: #cbd5e1;
 }
 
@@ -647,7 +647,7 @@ select.qc-modal-input:focus {
 .qc-modal-input:focus-visible,
 .qc-modal-textarea:focus-visible,
 select.qc-modal-input:focus-visible {
-  background: #ffffff;
+  background: var(--bg-card);
   border-color: #94a3b8;
   box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.07);
 }
@@ -705,40 +705,40 @@ select.qc-modal-input:focus-visible {
 }
 
 .theme-dark .sn-modal-shell-body.qc-modal-shell-body,
-[data-theme="dark"] .sn-modal-shell-body.qc-modal-shell-body {
+html.theme-dark .sn-modal-shell-body.qc-modal-shell-body {
   background: color-mix(in srgb, var(--surface-2, #1e293b) 85%, #0f172a);
 }
 
 .theme-dark .qc-modal-section,
-[data-theme="dark"] .qc-modal-section {
+html.theme-dark .qc-modal-section {
   background: var(--surface-card, #1e293b);
   border-color: rgba(148, 163, 184, 0.25);
 }
 
 .theme-dark .qc-modal-section__title,
-[data-theme="dark"] .qc-modal-section__title {
+html.theme-dark .qc-modal-section__title {
   border-bottom-color: rgba(148, 163, 184, 0.2);
   color: #94a3b8;
 }
 
 .theme-dark .qc-modal-label,
-[data-theme="dark"] .qc-modal-label {
+html.theme-dark .qc-modal-label {
   color: #cbd5e1;
 }
 
 .theme-dark .qc-modal-input,
 .theme-dark .qc-modal-textarea,
 .theme-dark select.qc-modal-input,
-[data-theme="dark"] .qc-modal-input,
-[data-theme="dark"] .qc-modal-textarea,
-[data-theme="dark"] select.qc-modal-input {
-  background: color-mix(in srgb, #fff 6%, var(--surface-card, #1e293b));
+html.theme-dark .qc-modal-input,
+html.theme-dark .qc-modal-textarea,
+html.theme-dark select.qc-modal-input {
+  background: color-mix(in srgb, var(--bg-card) 6%, var(--surface-card, #1e293b));
   border-color: rgba(148, 163, 184, 0.35);
   color: var(--text-primary, #f1f5f9);
 }
 
 .theme-dark .qc-modal-marge,
-[data-theme="dark"] .qc-modal-marge {
+html.theme-dark .qc-modal-marge {
   background: color-mix(in srgb, var(--surface-card) 90%, #0f172a);
   border-left-color: #818cf8;
 }

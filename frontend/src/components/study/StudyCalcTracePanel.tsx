@@ -85,11 +85,11 @@ export default function StudyCalcTracePanel({ data }: { data?: StudyVersionDataJ
         marginBottom: "var(--spacing-20)",
         padding: "16px 18px",
         borderRadius: 12,
-        border: "1px solid rgba(195, 152, 71, 0.35)",
-        background: "linear-gradient(135deg, rgba(195, 152, 71, 0.08), rgba(0,0,0,0.15))",
+        border: "1px solid color-mix(in srgb, var(--brand-gold) 35%, transparent)",
+        background: "linear-gradient(135deg, color-mix(in srgb, var(--brand-gold) 8%, transparent), rgba(0,0,0,0.15))",
       }}
     >
-      <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", color: "#C39847", marginBottom: 8 }}>
+      <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", color: "var(--brand-gold)", marginBottom: 8 }}>
         DERNIER RECALCUL
       </div>
       <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: "var(--sn-text-primary, #f2f4f8)" }}>

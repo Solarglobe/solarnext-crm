@@ -499,7 +499,7 @@ export default function ScenariosPage() {
         margin: "0 auto",
         position: "relative",
         borderRadius: 16,
-        border: "1px solid rgba(195, 152, 71, 0.45)",
+        border: "1px solid color-mix(in srgb, var(--brand-gold) 45%, transparent)",
       }}
     >
       {pdfOverlay}
@@ -535,7 +535,7 @@ export default function ScenariosPage() {
               style={{
                 margin: 0,
                 letterSpacing: "0.02em",
-                background: "linear-gradient(90deg, #f3e9d2, #C39847)",
+                background: "linear-gradient(90deg, #f3e9d2, var(--brand-gold))",
                 WebkitBackgroundClip: "text",
                 backgroundClip: "text",
                 color: "transparent",

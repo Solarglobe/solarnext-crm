@@ -1,6 +1,7 @@
 import "./styles/solarglobe-design-system.css";
 import "./styles/solarnext-theme.css";
 import "./design-system/saas-crm.css";
+import "./design-system/tokens.css";
 import "ol/ol.css";
 import React from "react";
 

@@ -2,7 +2,7 @@
 
 .hub {
   --ed-surface: #fafaf9;
-  --ed-surface-raised: #ffffff;
+  --ed-surface-raised: var(--bg-card);
   --ed-border: #e7e5e4;
   --ed-border-subtle: #f5f5f4;
   --ed-text: #1c1917;
@@ -16,9 +16,9 @@
   /* Barre latérale sections — alignée sur l’or CRM (--gold dans solarnext-theme) */
   --ed-bar: linear-gradient(
     180deg,
-    color-mix(in srgb, var(--gold, #c39847) 22%, #fffbeb) 0%,
-    var(--gold, #c39847) 48%,
-    color-mix(in srgb, var(--gold, #c39847) 72%, #78350f) 100%
+    color-mix(in srgb, var(--gold, var(--brand-gold)) 22%, #fffbeb) 0%,
+    var(--gold, var(--brand-gold)) 48%,
+    color-mix(in srgb, var(--gold, var(--brand-gold)) 72%, #78350f) 100%
   );
 
   display: flex;
@@ -369,7 +369,7 @@
   flex-shrink: 0;
   background: var(--ed-bar);
   opacity: 1;
-  box-shadow: inset -1px 0 0 color-mix(in srgb, var(--gold, #c39847) 35%, transparent);
+  box-shadow: inset -1px 0 0 color-mix(in srgb, var(--gold, var(--brand-gold)) 35%, transparent);
 }
 
 .sectionMain {
@@ -440,7 +440,7 @@
 
 .sectionToneDpMairie {
   background: linear-gradient(180deg, #fffbeb 0%, #fafaf9 38%, var(--ed-surface-raised) 100%);
-  border-color: color-mix(in srgb, var(--gold, #c39847) 42%, var(--ed-border));
+  border-color: color-mix(in srgb, var(--gold, var(--brand-gold)) 42%, var(--ed-border));
   box-shadow: 0 1px 3px rgba(120, 53, 15, 0.06);
 }
 
@@ -714,7 +714,7 @@
 
 .btnDeleteDoc {
   border: 1px solid rgba(185, 28, 28, 0.35);
-  background: #fffefe;
+  background: var(--bg-card);
   border-radius: 8px;
   padding: 6px 14px;
   font-size: 0.8125rem;

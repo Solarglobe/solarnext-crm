@@ -8,7 +8,7 @@
   gap: 4px;
   padding: 5px;
   margin-bottom: 22px;
-  background: color-mix(in srgb, var(--text-primary) 6%, var(--surface-card, #fff));
+  background: color-mix(in srgb, var(--text-primary) 6%, var(--surface-card));
   border: 1px solid var(--border-soft, rgba(15, 23, 42, 0.1));
   border-radius: 12px;
   border-bottom: 1px solid var(--border-soft);
@@ -16,7 +16,7 @@
 }
 
 .theme-dark .org-structure-tabs-segmented.sn-saas-tabs,
-[data-theme="dark"] .org-structure-tabs-segmented.sn-saas-tabs {
+html.theme-dark .org-structure-tabs-segmented.sn-saas-tabs {
   background: rgba(255, 255, 255, 0.06);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
@@ -39,14 +39,14 @@
 .org-structure-tabs-segmented .sn-saas-tab--active {
   font-weight: 600;
   color: var(--text-primary);
-  background: var(--surface-card, #fff);
+  background: var(--surface-card);
   box-shadow:
     0 1px 2px rgba(15, 23, 42, 0.06),
     0 2px 8px rgba(15, 23, 42, 0.04);
 }
 
 .theme-dark .org-structure-tabs-segmented .sn-saas-tab--active,
-[data-theme="dark"] .org-structure-tabs-segmented .sn-saas-tab--active {
+html.theme-dark .org-structure-tabs-segmented .sn-saas-tab--active {
   background: rgba(15, 23, 42, 0.85);
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
 }
@@ -138,7 +138,7 @@
 .org-tab-table-wrap {
   border-radius: 12px;
   border: 1px solid var(--border-soft, rgba(15, 23, 42, 0.1));
-  background: var(--surface-card, #fff);
+  background: var(--surface-card);
   overflow: auto;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
@@ -473,7 +473,7 @@
   padding: 4px;
   margin-bottom: 16px;
   gap: 4px;
-  background: color-mix(in srgb, var(--text-primary) 5%, var(--surface-card, #fff));
+  background: color-mix(in srgb, var(--text-primary) 5%, var(--surface-card));
   border: 1px solid var(--border-soft);
   border-radius: 10px;
 }
@@ -498,14 +498,14 @@
 }
 
 .org-legal-mode-switch__btn--active {
-  background: var(--surface-card, #fff);
+  background: var(--surface-card);
   color: var(--text-primary);
   font-weight: 600;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
 }
 
 .theme-dark .org-legal-mode-switch__btn--active,
-[data-theme="dark"] .org-legal-mode-switch__btn--active {
+html.theme-dark .org-legal-mode-switch__btn--active {
   background: rgba(15, 23, 42, 0.75);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
@@ -541,7 +541,7 @@
   border: 1px solid var(--border-soft);
   border-radius: 10px;
   overflow: hidden;
-  background: var(--surface-card, #fff);
+  background: var(--surface-card);
 }
 
 .org-legal-upload {

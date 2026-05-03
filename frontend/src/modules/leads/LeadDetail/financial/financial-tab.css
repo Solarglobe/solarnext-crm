@@ -33,7 +33,7 @@
 }
 
 .theme-light .fin-kpi-card {
-  background: #fff;
+  background: var(--bg-card);
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
 }
 
@@ -94,7 +94,7 @@
 }
 
 .theme-light .fin-section {
-  background: #fff;
+  background: var(--bg-card);
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
 }
 
@@ -473,22 +473,22 @@
 
 .fin-kpi-card--next {
   position: relative;
-  border-color: color-mix(in srgb, var(--gold-accent, #d4a853) 42%, var(--border));
+  border-color: color-mix(in srgb, var(--brand-gold) 42%, var(--border));
   background: linear-gradient(
     145deg,
     color-mix(in srgb, var(--violet-strong, #7c3aed) 12%, var(--surface-elevated, #1e1a28)) 0%,
     var(--surface-elevated, #1e1a28) 100%
   );
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--gold-accent, #d4a853) 18%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--brand-gold) 18%, transparent);
 }
 
 .theme-light .fin-kpi-card--next {
-  background: linear-gradient(145deg, #faf8ff 0%, #fff 100%);
+  background: linear-gradient(145deg, #faf8ff 0%, var(--bg-card) 100%);
   box-shadow: 0 1px 4px rgba(15, 23, 42, 0.06);
 }
 
 .fin-kpi-label--accent {
-  color: color-mix(in srgb, var(--gold-accent, #d4a853) 85%, var(--text-muted));
+  color: color-mix(in srgb, var(--brand-gold) 85%, var(--text-muted));
 }
 
 .fin-kpi-next-title {
@@ -509,13 +509,13 @@
 .fin-hero {
   position: relative;
   border-radius: 14px;
-  border: 1px solid color-mix(in srgb, var(--gold-accent, #d4a853) 28%, var(--border));
+  border: 1px solid color-mix(in srgb, var(--brand-gold) 28%, var(--border));
   background: color-mix(in srgb, var(--surface-elevated) 100%, transparent);
   overflow: hidden;
 }
 
 .theme-light .fin-hero {
-  background: #fff;
+  background: var(--bg-card);
   box-shadow: 0 4px 24px rgba(15, 23, 42, 0.06);
 }
 
@@ -551,7 +551,7 @@
   font-weight: 800;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: color-mix(in srgb, var(--gold-accent) 70%, var(--text-muted));
+  color: color-mix(in srgb, var(--brand-gold) 70%, var(--text-muted));
 }
 
 .fin-hero-top {
@@ -963,7 +963,7 @@
   border-radius: 16px;
   border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
   background:
-    radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--gold-accent, #d4a853) 9%, transparent), transparent 42%),
+    radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--brand-gold) 9%, transparent), transparent 42%),
     var(--surface-elevated, #1e1a28);
   padding: 16px;
   box-shadow: 0 10px 26px rgba(15, 23, 42, 0.2);

@@ -35,7 +35,7 @@
   margin: 0 auto;
   display: flex;
   flex-direction: column;
-  background: var(--sg-bg, #fff);
+  background: var(--sg-bg, var(--bg-card));
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
   animation: mail-overlay-panel-in 0.2s ease-out;
 }
@@ -147,16 +147,16 @@
   padding: 8px 14px;
   border-radius: 8px;
   border: 1px solid var(--sg-border, #e5e7eb);
-  background: #fff;
+  background: var(--bg-card);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
 }
 
 .mail-thread-overlay__btn--primary {
-  background: var(--sg-brand, #c39847);
-  border-color: var(--sg-brand, #c39847);
-  color: #fff;
+  background: var(--sg-brand, var(--brand-gold));
+  border-color: var(--sg-brand, var(--brand-gold));
+  color: var(--text-on-dark);
 }
 
 .mail-thread-overlay__btn:disabled {
@@ -197,7 +197,7 @@
   border-top: 1px solid var(--sg-border, #e5e7eb);
   max-height: 55vh;
   overflow: auto;
-  background: #fff;
+  background: var(--bg-card);
 }
 
 @media (max-width: 640px) {

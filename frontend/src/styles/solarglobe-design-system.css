@@ -1,7 +1,7 @@
 :root {
   /* Brand */
-  --sg-brand: #C39847;
-  --sg-brand-hover: #A97F35;
+  --sg-brand: var(--brand-gold);
+  --sg-brand-hover: var(--brand-gold-hover);
 
   /* States */
   --sg-success: #16A34A;
@@ -12,7 +12,7 @@
   --sg-text: #1F2937;
   --sg-text-muted: #6B7280;
   --sg-border: #E5E7EB;
-  --sg-bg: #FFFFFF;
+  --sg-bg: var(--bg-card);
   --sg-bg-soft: #F9FAFB;
 
   /* Radius */
@@ -47,7 +47,7 @@
 
 .sg-btn-primary {
   background: var(--sg-brand);
-  color: #ffffff;
+  color: var(--text-on-dark);
   border: none;
 }
 
@@ -64,7 +64,7 @@
 
 .sg-btn-danger {
   background: var(--sg-error);
-  color: #ffffff;
+  color: var(--text-on-dark);
   border: none;
 }
 
@@ -111,13 +111,13 @@
 
 /* Active state */
 .sg-icon-wrapper.is-active {
-  background: rgba(195,152,71,0.12);
+  background: color-mix(in srgb, var(--brand-gold) 12%, transparent);
   color: var(--sg-brand);
 }
 
 /* Hover */
 .sg-icon-wrapper:hover {
-  background: rgba(195,152,71,0.08);
+  background: color-mix(in srgb, var(--brand-gold) 8%, transparent);
   color: var(--sg-text);
 }
 

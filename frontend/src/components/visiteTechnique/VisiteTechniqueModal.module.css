@@ -25,7 +25,7 @@
   max-width: 1200px;
   height: 90vh;
   max-height: 90dvh;
-  background: #ffffff;
+  background: var(--bg-card);
   border-radius: 12px;
   overflow: hidden;
   display: flex;
@@ -46,7 +46,7 @@
   justify-content: space-between;
   align-items: center;
   gap: 12px;
-  background: #fff;
+  background: var(--bg-card);
 }
 
 .title {
@@ -75,7 +75,7 @@
 }
 
 .theme-dark .shell,
-[data-theme="dark"] .shell {
+html.theme-dark .shell {
   background: var(--bg-elevated, #1f2937);
   color: var(--text-primary, #f3f4f6);
   box-shadow:
@@ -84,7 +84,7 @@
 }
 
 .theme-dark .header,
-[data-theme="dark"] .header {
+html.theme-dark .header {
   background: var(--bg-elevated, #1f2937);
   border-bottom-color: rgba(255, 255, 255, 0.1);
 }

@@ -8,7 +8,7 @@ import type { SxProps, Theme } from "@mui/material/styles";
 
 export const PLANNING_DTP_POPPER_Z_INDEX = 1300;
 
-const ACCENT = "#C39847";
+const ACCENT = "var(--brand-gold)";
 
 function textFieldSx(inputColor: string): SxProps<Theme> {
   return {
@@ -43,14 +43,14 @@ function popperSxLight(): SxProps<Theme> {
   return {
     zIndex: PLANNING_DTP_POPPER_Z_INDEX,
     "& .MuiPaper-root": {
-      backgroundColor: "#ffffff",
+      backgroundColor: "var(--bg-card)",
       color: "#111",
       borderRadius: "14px",
       boxShadow: "0 20px 60px rgba(0,0,0,0.25)",
       border: "1px solid rgba(0,0,0,0.08)",
     },
     "& .MuiPickersLayout-root": {
-      backgroundColor: "#ffffff",
+      backgroundColor: "var(--bg-card)",
     },
     "& .MuiTypography-root": {
       color: "#111",
@@ -90,7 +90,7 @@ function popperSxLight(): SxProps<Theme> {
       color: "#111",
     },
     "& .MuiMenuItem-root.Mui-selected": {
-      backgroundColor: "rgba(195,152,71,0.15)",
+      backgroundColor: "color-mix(in srgb, var(--brand-gold) 15%, transparent)",
       color: ACCENT,
       fontWeight: 600,
     },
@@ -169,7 +169,7 @@ function popperSxDark(): SxProps<Theme> {
       color: text,
     },
     "& .MuiMenuItem-root.Mui-selected": {
-      backgroundColor: "rgba(195,152,71,0.2)",
+      backgroundColor: "color-mix(in srgb, var(--brand-gold) 20%, transparent)",
       color: ACCENT,
       fontWeight: 600,
     },

@@ -17,7 +17,7 @@
   -webkit-user-select: none;
   user-select: none;
   border: 1px solid #333;
-  background: #fff;
+  background: var(--bg-card);
   cursor: crosshair;
 }
 

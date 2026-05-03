@@ -70,7 +70,7 @@
 }
 
 .theme-light .crm-lead-sticky-bar {
-  background: color-mix(in srgb, var(--surface-elevated, #fff) 92%, #fff);
+  background: color-mix(in srgb, var(--surface-elevated) 92%, #fff);
   box-shadow: 0 4px 18px rgba(15, 23, 42, 0.08);
 }
 
@@ -575,9 +575,9 @@
   cursor: pointer;
   white-space: nowrap;
   flex-shrink: 0;
-  border: 1px solid var(--gold, #C39847);
-  color: var(--gold, #C39847);
-  background: color-mix(in srgb, var(--gold, #C39847) 10%, var(--surface));
+  border: 1px solid var(--gold, var(--brand-gold));
+  color: var(--gold, var(--brand-gold));
+  background: color-mix(in srgb, var(--gold, var(--brand-gold)) 10%, var(--surface));
   transition:
     background 0.14s ease,
     border-color 0.14s ease,
@@ -586,19 +586,19 @@
 }
 
 .crm-lead-header-convert-btn:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--gold, #C39847) 18%, var(--surface));
-  border-color: var(--gold, #C39847);
-  color: var(--gold, #C39847);
+  background: color-mix(in srgb, var(--gold, var(--brand-gold)) 18%, var(--surface));
+  border-color: var(--gold, var(--brand-gold));
+  color: var(--gold, var(--brand-gold));
 }
 
 .theme-light .crm-lead-header-convert-btn {
-  border-color: var(--gold, #B8860B);
-  color: var(--gold, #B8860B);
-  background: color-mix(in srgb, var(--gold, #B8860B) 8%, var(--surface));
+  border-color: var(--gold, var(--brand-gold));
+  color: var(--gold, var(--brand-gold));
+  background: color-mix(in srgb, var(--gold, var(--brand-gold)) 8%, var(--surface));
 }
 
 .theme-light .crm-lead-header-convert-btn:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--gold, #B8860B) 16%, var(--surface));
+  background: color-mix(in srgb, var(--gold, var(--brand-gold)) 16%, var(--surface));
 }
 
 .crm-lead-header-convert-btn:disabled {
@@ -812,7 +812,7 @@
 
 .crm-lead-pipeline-bar__btn--active {
   background: var(--violet-strong);
-  color: #fff;
+  color: var(--text-on-dark);
   font-weight: 600;
   border-color: color-mix(in srgb, var(--violet-strong) 85%, var(--border));
   transform: scale(1.02);
@@ -1047,7 +1047,7 @@
 }
 .crm-lead-type-btn.active {
   background: var(--primary, #3b82f6);
-  color: #fff;
+  color: var(--text-on-dark);
 }
 .crm-lead-type-btn:not(.active):hover {
   background: var(--surface-hover, #f1f5f9);
@@ -1177,8 +1177,8 @@
   border-radius: 2px;
   background: linear-gradient(
     90deg,
-    var(--gold, #c39847),
-    color-mix(in srgb, var(--gold, #c39847) 30%, transparent)
+    var(--gold, var(--brand-gold)),
+    color-mix(in srgb, var(--gold, var(--brand-gold)) 30%, transparent)
   );
   opacity: 0.9;
 }
@@ -1872,17 +1872,17 @@
 .sn-energy-loader {
   margin-top: 8px;
   font-size: 13px;
-  color: var(--sg-brand, var(--gold-accent, #c39847));
+  color: var(--sg-brand, var(--brand-gold));
 }
 
 .sn-energy-file {
   margin-top: 8px;
   display: inline-flex;
   align-items: center;
-  background: color-mix(in srgb, var(--sg-brand, #c39847) 12%, transparent);
+  background: color-mix(in srgb, var(--sg-brand, var(--brand-gold)) 12%, transparent);
   padding: 6px 10px;
   border-radius: 20px;
-  border: 1px solid color-mix(in srgb, var(--sg-brand, #c39847) 45%, var(--border));
+  border: 1px solid color-mix(in srgb, var(--sg-brand, var(--brand-gold)) 45%, var(--border));
 }
 
 .sn-energy-file-name {
@@ -2278,7 +2278,7 @@
   border-radius: 2px;
   background: linear-gradient(
     90deg,
-    color-mix(in srgb, var(--violet-strong) 75%, var(--gold, #c39847)),
+    color-mix(in srgb, var(--violet-strong) 75%, var(--gold, var(--brand-gold))),
     var(--violet-strong)
   );
 }
@@ -2375,7 +2375,7 @@
 }
 
 .crm-lead-equipment-block--actuel {
-  border-left: 3px solid color-mix(in srgb, var(--gold, #c39847) 75%, var(--border));
+  border-left: 3px solid color-mix(in srgb, var(--gold, var(--brand-gold)) 75%, var(--border));
 }
 
 .crm-lead-equipment-block--avenir {
@@ -2402,8 +2402,8 @@
 }
 
 .crm-lead-equipment-block--actuel .crm-lead-equipment-block__eyebrow {
-  color: color-mix(in srgb, var(--gold, #c39847) 90%, var(--text-primary));
-  border-color: color-mix(in srgb, var(--gold, #c39847) 35%, var(--border));
+  color: color-mix(in srgb, var(--gold, var(--brand-gold)) 90%, var(--text-primary));
+  border-color: color-mix(in srgb, var(--gold, var(--brand-gold)) 35%, var(--border));
 }
 
 .crm-lead-equipment-block--avenir .crm-lead-equipment-block__eyebrow {
@@ -2467,7 +2467,7 @@
   text-transform: uppercase;
   color: var(--text-primary);
   cursor: pointer;
-  border: 1px solid color-mix(in srgb, var(--gold, #c39847) 65%, var(--border));
+  border: 1px solid color-mix(in srgb, var(--gold, var(--brand-gold)) 65%, var(--border));
   background: color-mix(in srgb, var(--surface-elevated, var(--surface)) 88%, var(--violet-strong));
   box-shadow:
     0 1px 0 color-mix(in srgb, #fff 6%, transparent),
@@ -2487,7 +2487,7 @@
 
 .crm-lead-overview .crm-lead-equipment-kind-btn:hover,
 .crm-lead-meter-modal-panel .crm-lead-equipment-kind-btn:hover {
-  border-color: var(--gold, #c39847);
+  border-color: var(--gold, var(--brand-gold));
   background: color-mix(in srgb, var(--violet-strong) 16%, var(--surface));
   transform: translateY(-1px);
   box-shadow: 0 3px 12px color-mix(in srgb, var(--violet-strong) 22%, transparent);
@@ -2572,7 +2572,7 @@
   line-height: 1.4;
   color: color-mix(in srgb, var(--text-primary) 88%, var(--text-muted));
   background: color-mix(in srgb, var(--violet-strong) 9%, var(--surface-soft, var(--surface)));
-  border-left: 2px solid color-mix(in srgb, var(--gold, #c39847) 45%, var(--violet-strong));
+  border-left: 2px solid color-mix(in srgb, var(--gold, var(--brand-gold)) 45%, var(--violet-strong));
 }
 
 .crm-lead-equipment-card__remove {

@@ -24,7 +24,7 @@
 }
 
 .theme-light .qb-billing-ux__hero {
-  background: linear-gradient(165deg, rgba(234, 179, 8, 0.12) 0%, #fff 55%, #f8fafc 100%);
+  background: linear-gradient(165deg, rgba(234, 179, 8, 0.12) 0%, var(--bg-card) 55%, #f8fafc 100%);
 }
 
 .qb-billing-ux__kicker {

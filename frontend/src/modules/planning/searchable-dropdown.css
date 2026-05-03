@@ -77,5 +77,5 @@
 
 .planning-searchable-dropdown-option.selected {
   background: var(--primary);
-  color: #fff;
+  color: var(--text-on-dark);
 }

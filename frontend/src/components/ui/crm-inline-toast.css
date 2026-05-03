@@ -40,7 +40,7 @@
     rgba(34, 197, 94, 0.96) 0%,
     rgba(22, 163, 74, 0.98) 100%
   );
-  color: #fff;
+  color: var(--text-on-dark);
 }
 
 .sn-crm-inline-toast--error {
@@ -49,7 +49,7 @@
     rgba(239, 68, 68, 0.96) 0%,
     rgba(220, 38, 38, 0.98) 100%
   );
-  color: #fff;
+  color: var(--text-on-dark);
 }
 
 html.theme-dark .sn-crm-inline-toast {

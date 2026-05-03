@@ -32,7 +32,7 @@ function showToast(message: string, type: "success" | "error" = "success") {
     padding: 12px 20px; border-radius: 8px; font-size: 14px; font-weight: 500;
     box-shadow: 0 4px 12px rgba(0,0,0,0.15);
     background: ${type === "success" ? "var(--success, #22c55e)" : "var(--danger, #ef4444)"};
-    color: #fff;
+    color: var(--text-on-dark);
   `;
   toast.textContent = message;
   document.body.appendChild(toast);

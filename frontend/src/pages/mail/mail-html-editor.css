@@ -16,7 +16,7 @@
   padding: 6px 14px;
   font-size: 13px;
   border: none;
-  background: #fff;
+  background: var(--bg-card);
   color: var(--sg-text-muted, #64748b);
   cursor: pointer;
 }
@@ -27,7 +27,7 @@
 
 .mail-html-editor__mode-btn--active {
   background: var(--sg-primary, #2563eb);
-  color: #fff;
+  color: var(--text-on-dark);
 }
 
 .mail-html-editor__toolbar {
@@ -121,7 +121,7 @@
   border: 1px solid var(--sg-border, #e5e7eb);
   border-radius: 8px;
   cursor: pointer;
-  background: #fff;
+  background: var(--bg-card);
   vertical-align: middle;
 }
 
@@ -140,7 +140,7 @@
   padding: 4px 8px;
   border-radius: 6px;
   border: 1px solid var(--sg-border, #e5e7eb);
-  background: #fff;
+  background: var(--bg-card);
   color: var(--sg-text-muted, #64748b);
   cursor: pointer;
 }
@@ -170,7 +170,7 @@
 .mail-html-editor__surface {
   border: 1px solid var(--sg-border, #e5e7eb);
   border-radius: 10px;
-  background: #fff;
+  background: var(--bg-card);
   min-height: 160px;
 }
 
@@ -227,7 +227,7 @@
 }
 
 .mail-html-editor__modal {
-  background: #fff;
+  background: var(--bg-card);
   border-radius: 12px;
   padding: 16px;
   max-width: 520px;
@@ -262,7 +262,7 @@
   font-size: 13px;
   line-height: 1.45;
   color: #b45309;
-  background: #fffbeb;
+  background: var(--brand-gold-soft);
   border: 1px solid #fcd34d;
   border-radius: 8px;
   padding: 8px 10px;
@@ -292,7 +292,7 @@
   border-radius: 6px;
   border: 1px solid var(--sg-border, #e5e7eb);
   font-size: 12px;
-  background: #fff;
+  background: var(--bg-card);
   color: var(--sg-text, #0f172a);
 }
 

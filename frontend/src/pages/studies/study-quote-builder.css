@@ -980,11 +980,11 @@
 /* Confirmation post-validation devis → scénarios (ne pas confondre avec une erreur) */
 .study-quote-toast-success-premium {
   background: color-mix(in srgb, var(--sn-bg-elevated, #1a1f2e) 92%, transparent);
-  border: 1px solid rgba(195, 152, 71, 0.4);
+  border: 1px solid color-mix(in srgb, var(--brand-gold) 40%, transparent);
   color: var(--sn-text-primary, var(--text-primary, #e8ecf4));
   box-shadow:
     0 12px 36px rgba(0, 0, 0, 0.38),
-    0 0 0 1px rgba(195, 152, 71, 0.06) inset;
+    0 0 0 1px color-mix(in srgb, var(--brand-gold) 6%, transparent) inset;
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   max-width: min(28rem, calc(100vw - 2.5rem));
@@ -994,10 +994,10 @@
 }
 
 .theme-light .study-quote-toast-success-premium {
-  background: color-mix(in srgb, var(--surface-app, #fff) 94%, #f5efe6);
+  background: color-mix(in srgb, var(--surface-app, var(--bg-card)) 94%, #f5efe6);
   color: var(--text-primary, #1a1d26);
-  border-color: rgba(195, 152, 71, 0.45);
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(195, 152, 71, 0.08) inset;
+  border-color: color-mix(in srgb, var(--brand-gold) 45%, transparent);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.1), 0 0 0 1px color-mix(in srgb, var(--brand-gold) 8%, transparent) inset;
 }
 
 .study-quote-toast-error {
@@ -1197,9 +1197,9 @@
 }
 
 .sqb-study-meter__badge--info {
-  background: color-mix(in srgb, var(--sn-gold, #c9a227) 18%, transparent);
+  background: color-mix(in srgb, var(--brand-gold) 18%, transparent);
   color: var(--text-primary);
-  border: 1px solid color-mix(in srgb, var(--sn-gold, #c9a227) 35%, transparent);
+  border: 1px solid color-mix(in srgb, var(--brand-gold) 35%, transparent);
 }
 
 .sqb-study-meter__badge--alt {
@@ -1259,7 +1259,7 @@
   border-radius: 6px;
   font-size: 0.68rem;
   font-weight: 600;
-  background: color-mix(in srgb, var(--sn-gold, #c9a227) 22%, transparent);
+  background: color-mix(in srgb, var(--brand-gold) 22%, transparent);
   color: var(--text-primary);
 }
 
@@ -1267,8 +1267,8 @@
   margin: 0 0 12px;
   padding: 12px 14px;
   border-radius: 10px;
-  border: 1px solid color-mix(in srgb, var(--sn-gold, #c9a227) 40%, var(--border));
-  background: color-mix(in srgb, var(--sn-gold, #c9a227) 10%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--brand-gold) 40%, var(--border));
+  background: color-mix(in srgb, var(--brand-gold) 10%, var(--surface));
   font-size: 0.8125rem;
   line-height: 1.5;
   color: var(--text-primary);

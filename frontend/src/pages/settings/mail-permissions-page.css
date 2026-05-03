@@ -37,7 +37,7 @@
   padding: 0.45rem 0.65rem;
   border-radius: 8px;
   border: 1px solid var(--sn-border, #e2e8f0);
-  background: var(--sn-surface, #fff);
+  background: var(--sn-surface, var(--bg-card));
   color: inherit;
 }
 
@@ -46,7 +46,7 @@
   max-height: calc(100vh - 220px);
   border: 1px solid var(--sn-border, #e2e8f0);
   border-radius: 10px;
-  background: var(--sn-surface, #fff);
+  background: var(--sn-surface, var(--bg-card));
 }
 
 .mail-perm__table {
@@ -94,7 +94,7 @@
   position: sticky;
   left: 0;
   z-index: 1;
-  background: var(--sn-surface, #fff);
+  background: var(--sn-surface, var(--bg-card));
   box-shadow: 2px 0 4px rgba(15, 23, 42, 0.06);
   max-width: 280px;
 }
@@ -222,7 +222,7 @@
   z-index: 50;
   min-width: 200px;
   padding: 0.75rem;
-  background: var(--sn-surface, #fff);
+  background: var(--sn-surface, var(--bg-card));
   border: 1px solid var(--sn-border, #e2e8f0);
   border-radius: 10px;
   box-shadow: 0 10px 40px rgba(15, 23, 42, 0.15);
@@ -254,14 +254,14 @@
   padding: 0.35rem 0.65rem;
   border-radius: 6px;
   border: 1px solid var(--sn-border, #e2e8f0);
-  background: var(--sn-surface, #fff);
+  background: var(--sn-surface, var(--bg-card));
   cursor: pointer;
   font-size: 0.8rem;
 }
 
 .mail-perm__popover-actions button.primary {
   background: #2563eb;
-  color: #fff;
+  color: var(--text-on-dark);
   border-color: #2563eb;
 }
 

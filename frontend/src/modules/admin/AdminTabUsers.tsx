@@ -59,7 +59,7 @@ function showAdminToast(message: string) {
     padding: 12px 20px; border-radius: 8px; font-size: 14px; font-weight: 500;
     box-shadow: 0 4px 12px rgba(0,0,0,0.15);
     background: var(--success, #22c55e);
-    color: #fff;
+    color: var(--text-on-dark);
   `;
   document.body.appendChild(toast);
   setTimeout(() => toast.remove(), 3000);

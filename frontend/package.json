@@ -18,6 +18,7 @@
     "test": "node --test calpinage/shading/__tests__/*.test.js",
     "build:geom3d": "node -e \"require('fs').mkdirSync('../backend/calpinage-legacy-assets/geometry',{recursive:true});require('child_process').execSync('npx esbuild src/modules/calpinage/geometry/index.ts --bundle --format=cjs --outfile=../backend/calpinage-legacy-assets/geometry/geoEntity3D.cjs --platform=node',{stdio:'inherit'})\"",
     "test:geom3d": "tsx src/modules/calpinage/geometry/__tests__/geoEntity3D.test.ts",
+    "check:design-token-debt": "node scripts/check-design-token-debt.mjs --strict",
     "test:entity-documents-ui": "vitest run src/components/entityDocuments/__tests__/",
     "test:mairies-ui": "vitest run src/pages/mairies/__tests__/",
     "test:phase3-checklist": "vitest run src/modules/calpinage/__tests__/",

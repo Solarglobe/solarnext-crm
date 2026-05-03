@@ -6,7 +6,7 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
 
-const GOLD = "#C39847";
+const GOLD = "var(--brand-gold)";
 
 export interface ScenarioV2Finance {
   capex_ttc?: number | null;
@@ -1121,8 +1121,8 @@ export default function ScenarioComparisonTable({
           color: var(--sn-text-muted, #7d86a8);
         }
         .scenario-hero {
-          background: linear-gradient(145deg, rgba(195, 152, 71, 0.12), rgba(255,255,255,0.02));
-          border: 1px solid rgba(195, 152, 71, 0.25);
+          background: linear-gradient(145deg, color-mix(in srgb, var(--brand-gold) 12%, transparent), rgba(255,255,255,0.02));
+          border: 1px solid color-mix(in srgb, var(--brand-gold) 25%, transparent);
           border-radius: 0.75rem;
           padding: 1rem;
           margin-bottom: 1rem;
@@ -1131,8 +1131,8 @@ export default function ScenarioComparisonTable({
           padding: 1.2rem 1.1rem 1.15rem;
           margin-bottom: 1.1rem;
           border-width: 1.5px;
-          border-color: rgba(195, 152, 71, 0.4);
-          background: linear-gradient(155deg, rgba(195, 152, 71, 0.2), rgba(255,255,255,0.03));
+          border-color: color-mix(in srgb, var(--brand-gold) 40%, transparent);
+          background: linear-gradient(155deg, color-mix(in srgb, var(--brand-gold) 20%, transparent), rgba(255,255,255,0.03));
           box-shadow: 0 4px 18px rgba(0, 0, 0, 0.18);
         }
         .scenario-vs-base {
@@ -1183,8 +1183,8 @@ export default function ScenarioComparisonTable({
         .scenario-mini-row--highlight {
           background: linear-gradient(
             90deg,
-            rgba(195, 152, 71, 0.14),
-            rgba(195, 152, 71, 0.04)
+            color-mix(in srgb, var(--brand-gold) 14%, transparent),
+            color-mix(in srgb, var(--brand-gold) 4%, transparent)
           );
           margin-left: -0.35rem;
           margin-right: -0.35rem;
@@ -1264,8 +1264,8 @@ export default function ScenarioComparisonTable({
         .theme-light .scenario-hero-prominent {
           background: linear-gradient(
             155deg,
-            rgba(195, 152, 71, 0.22),
-            rgba(195, 152, 71, 0.06)
+            color-mix(in srgb, var(--brand-gold) 22%, transparent),
+            color-mix(in srgb, var(--brand-gold) 6%, transparent)
           );
           box-shadow: 0 4px 18px rgba(0, 0, 0, 0.06);
         }
@@ -1306,7 +1306,7 @@ export default function ScenarioComparisonTable({
         }
         .scenario-col-tip {
           cursor: help;
-          border-bottom: 1px dotted rgba(195, 152, 71, 0.45);
+          border-bottom: 1px dotted color-mix(in srgb, var(--brand-gold) 45%, transparent);
         }
         .scenario-energy-bar { margin-bottom: 0.35rem; }
         .scenario-energy-bar-empty {
@@ -1356,7 +1356,7 @@ export default function ScenarioComparisonTable({
         .scenario-add-docs input {
           margin-top: 0.12rem;
           flex-shrink: 0;
-          accent-color: var(--gold, #c39847);
+          accent-color: var(--gold, var(--brand-gold));
         }
         .scenario-add-docs span {
           font-weight: 500;

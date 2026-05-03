@@ -171,7 +171,7 @@
 .filter-reset:hover {
   opacity: 1;
   color: var(--text-primary);
-  background: rgba(195, 152, 71, 0.12);
+  background: color-mix(in srgb, var(--brand-gold) 12%, transparent);
 }
 
 .theme-light .filter-reset:hover {
@@ -343,7 +343,7 @@
   width: 16px;
   height: 16px;
   cursor: pointer;
-  accent-color: var(--primary, #c39847);
+  accent-color: var(--primary, var(--brand-gold));
 }
 
 .clients-portfolio-list__head {
@@ -378,12 +378,12 @@
 }
 
 .clients-portfolio-list__row:hover {
-  background: rgba(195, 152, 71, 0.06);
+  background: color-mix(in srgb, var(--brand-gold) 6%, transparent);
 }
 
 .clients-portfolio-list__row--selected {
-  background: rgba(195, 152, 71, 0.14);
-  box-shadow: inset 3px 0 0 var(--primary, #c39847);
+  background: color-mix(in srgb, var(--brand-gold) 14%, transparent);
+  box-shadow: inset 3px 0 0 var(--primary, var(--brand-gold));
 }
 
 .clients-portfolio-list__row:focus-visible {
@@ -635,13 +635,13 @@
 }
 
 .theme-dark .progress-bar,
-[data-theme="dark"] .progress-bar {
+html.theme-dark .progress-bar {
   background: rgba(255, 255, 255, 0.1);
 }
 
 .progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #c39847, #ffd700);
+  background: linear-gradient(90deg, var(--brand-gold), #ffd700);
   border-radius: 4px;
   transition: width 0.25s ease;
 }
@@ -673,7 +673,7 @@
 }
 
 .theme-dark .clients-detail.clients-detail-panel,
-[data-theme="dark"] .clients-detail.clients-detail-panel {
+html.theme-dark .clients-detail.clients-detail-panel {
   background: linear-gradient(
     180deg,
     rgba(255, 255, 255, 0.03),
@@ -850,7 +850,7 @@
 }
 
 .theme-dark .project-status-container,
-[data-theme="dark"] .project-status-container {
+html.theme-dark .project-status-container {
   background: rgba(255, 255, 255, 0.05);
   border-color: rgba(255, 255, 255, 0.08);
 }
@@ -918,7 +918,7 @@
 }
 
 .project-status-stepper .step.current .dot {
-  background: #c39847;
+  background: var(--brand-gold);
   width: 10px;
   height: 10px;
 }

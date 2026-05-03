@@ -19,7 +19,7 @@ import {
 import type { ScenarioV2 } from "./ScenarioComparisonTable";
 
 const COLORS = [
-  "#C39847",
+  "var(--brand-gold)",
   "#4A90E2",
   "#27AE60",
   "#E67E22",

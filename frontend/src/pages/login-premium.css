@@ -129,7 +129,7 @@ html.sn-auth-page #root {
   margin: -12px 0 0;
   position: relative;
   z-index: 1;
-  background: #ffffff;
+  background: var(--bg-card);
   border-radius: 16px;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
   padding: 14px 24px 32px;
@@ -294,7 +294,7 @@ html.sn-auth-page #root {
 /* Priorité sur solarnext-theme (sn-auth-page select en !important) */
 html.sn-auth-page .login-card select,
 html.sn-auth-page.theme-dark .login-card select,
-html.sn-auth-page[data-theme="dark"] .login-card select {
+html.sn-auth-page.theme-dark .login-card select {
   background: #fafafa !important;
   color: #1e1e1e !important;
   border: 1px solid #e5e5e5 !important;
@@ -302,7 +302,7 @@ html.sn-auth-page[data-theme="dark"] .login-card select {
 
 html.sn-auth-page .login-card select:focus,
 html.sn-auth-page.theme-dark .login-card select:focus,
-html.sn-auth-page[data-theme="dark"] .login-card select:focus {
+html.sn-auth-page.theme-dark .login-card select:focus {
   outline: none !important;
   border: 1px solid #4b2e83 !important;
   box-shadow: none !important;
@@ -349,7 +349,7 @@ html.sn-auth-page[data-theme="dark"] .login-card select:focus {
   margin-top: 4px;
   border-radius: 10px;
   background: #2e1a47;
-  color: #ffffff;
+  color: var(--text-on-dark);
   font-weight: 500;
   font-size: 15px;
   border: none;

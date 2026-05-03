@@ -57,7 +57,7 @@
 .icp-summary-card {
   border: 1px solid var(--border, rgba(148, 163, 184, 0.22));
   border-radius: 14px;
-  background: var(--surface-card, #fff);
+  background: var(--surface-card);
   color: var(--text, #111827);
   box-shadow: 0 1px 0 rgba(15, 23, 42, 0.04);
 }
@@ -96,7 +96,7 @@
   border-bottom: 1px solid var(--border, rgba(148, 163, 184, 0.18));
   vertical-align: middle;
   min-height: 52px;
-  background: var(--surface-card, #fff);
+  background: var(--surface-card);
 }
 
 .icp-table th {
@@ -221,7 +221,7 @@
   max-width: 120px;
   border: 1px solid var(--border, #d1d5db);
   border-radius: 8px;
-  background: var(--input-bg, #fff);
+  background: var(--input-bg, var(--bg-card));
   color: var(--text, #111827);
   height: 38px;
   padding: 0 8px;

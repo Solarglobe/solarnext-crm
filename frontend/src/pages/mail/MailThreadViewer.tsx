@@ -36,7 +36,7 @@ function tagPillStyle(color: string | null | undefined): React.CSSProperties {
       color: "#111827",
     };
   }
-  return { backgroundColor: c, borderColor: c, color: "#fff" };
+  return { backgroundColor: c, borderColor: c, color: "var(--text-on-dark)" };
 }
 
 export function MailThreadViewerSkeleton() {

@@ -85,7 +85,7 @@
   padding: 10px 12px;
   border: 1px solid var(--sg-border, #e5e7eb);
   border-radius: 10px;
-  background: #fff;
+  background: var(--bg-card);
   cursor: pointer;
   display: flex;
   flex-direction: column;
@@ -137,7 +137,7 @@
   padding: 10px 12px;
   border: 1px solid var(--sg-border, #e5e7eb);
   border-radius: 10px;
-  background: #fff;
+  background: var(--bg-card);
   font-size: 14px;
   line-height: 1.5;
   margin-bottom: 16px;
@@ -193,7 +193,7 @@
   width: 100%;
   max-width: 600px;
   margin: 0 auto;
-  background: #fff;
+  background: var(--bg-card);
   padding: 24px 28px;
   border-radius: 8px;
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);

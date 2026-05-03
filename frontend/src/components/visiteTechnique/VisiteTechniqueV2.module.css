@@ -100,7 +100,7 @@
 }
 
 .theme-dark .booleanRow,
-[data-theme="dark"] .booleanRow {
+html.theme-dark .booleanRow {
   background: rgba(255, 255, 255, 0.04);
   border-color: rgba(255, 255, 255, 0.08);
 }
@@ -126,11 +126,11 @@
 }
 
 .switch[aria-checked="true"] {
-  background: var(--sg-brand, #c39847);
+  background: var(--sg-brand, var(--brand-gold));
 }
 
 .switch:focus-visible {
-  outline: 2px solid var(--sg-brand, #c39847);
+  outline: 2px solid var(--sg-brand, var(--brand-gold));
   outline-offset: 2px;
 }
 
@@ -141,7 +141,7 @@
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: #fff;
+  background: var(--bg-card);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
   transition: transform 0.2s ease;
 }

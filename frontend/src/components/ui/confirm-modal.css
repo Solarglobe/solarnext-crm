@@ -5,7 +5,7 @@
   --sn-z-confirm-stacked: 1100;
   --sn-confirm-backdrop: rgba(15, 23, 42, 0.38);
   --sn-confirm-panel-border: rgba(15, 23, 42, 0.08);
-  --sn-confirm-panel-bg: #ffffff;
+  --sn-confirm-panel-bg: var(--bg-card);
   --sn-confirm-panel-shadow:
     0 12px 40px rgba(15, 23, 42, 0.1),
     0 2px 8px rgba(15, 23, 42, 0.04);
@@ -180,18 +180,18 @@
 /* Confirmer — défaut (action positive) */
 .sn-confirm-modal-btn--default {
   background: color-mix(in srgb, var(--primary, #7c3aed) 92%, #1e1b4b);
-  color: #fff;
+  color: var(--text-on-dark);
   border-color: transparent;
 }
 
 .sn-confirm-modal-btn--warning {
   background: #d97706;
-  color: #fff;
+  color: var(--text-on-dark);
 }
 
 .sn-confirm-modal-btn--danger {
   background: #dc2626;
-  color: #fff;
+  color: var(--text-on-dark);
 }
 
 html.theme-dark {
@@ -218,5 +218,5 @@ html.theme-dark .sn-confirm-modal-btn--ghost:hover:not(:disabled) {
 }
 
 html.theme-dark .sn-confirm-modal-btn--danger {
-  color: #fff;
+  color: var(--text-on-dark);
 }

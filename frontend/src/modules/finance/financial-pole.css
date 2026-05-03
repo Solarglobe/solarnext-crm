@@ -47,12 +47,12 @@
 }
 
 .theme-light .fin-pole-list-hero__actions .sn-btn-ghost {
-  background: #fff;
+  background: var(--bg-card);
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
 }
 
 .fin-pole-list-hero__actions .sn-btn-ghost:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--gold, #c39847) 45%, var(--border-strong, var(--border)));
+  border-color: color-mix(in srgb, var(--gold, var(--brand-gold)) 45%, var(--border-strong, var(--border)));
 }
 
 /* Outline doré : même « carte » que les ghost pour un ensemble cohérent */
@@ -125,13 +125,13 @@
 }
 
 .fin-preview-kpi-card--link:hover {
-  border-color: color-mix(in srgb, var(--gold-accent, #d4a853) 45%, var(--border));
+  border-color: color-mix(in srgb, var(--brand-gold) 45%, var(--border));
   box-shadow: 0 10px 28px rgba(15, 23, 42, 0.22);
   transform: translateY(-1px);
 }
 
 .fin-preview-kpi-card--link:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--gold-accent, #d4a853) 70%, transparent);
+  outline: 2px solid color-mix(in srgb, var(--brand-gold) 70%, transparent);
   outline-offset: 2px;
 }
 

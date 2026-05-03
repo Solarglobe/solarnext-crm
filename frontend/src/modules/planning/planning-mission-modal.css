@@ -63,7 +63,7 @@
 
 .sn-btn-danger {
   background: var(--error, #ef4444);
-  color: #fff;
+  color: var(--text-on-dark);
   border: none;
   padding: 8px 16px;
   border-radius: 8px;

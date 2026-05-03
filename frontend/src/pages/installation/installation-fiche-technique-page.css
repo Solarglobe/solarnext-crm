@@ -55,7 +55,7 @@
   padding: 0 12px;
   border-radius: 8px;
   border: 1px solid var(--border-subtle, #e2e8f0);
-  background: var(--surface, #fff);
+  background: var(--surface);
   color: var(--text, #0f172a);
   font-size: 14px;
   width: 100%;
@@ -114,7 +114,7 @@
   border: 1px solid var(--border-subtle, #e2e8f0);
   border-radius: 10px;
   overflow: hidden;
-  background: var(--surface, #fff);
+  background: var(--surface);
   margin-bottom: 16px;
 }
 
@@ -245,9 +245,9 @@
   letter-spacing: 0.04em;
   padding: 4px 10px;
   border-radius: 999px;
-  border: 1px solid color-mix(in srgb, #c39847 45%, var(--border-subtle));
+  border: 1px solid color-mix(in srgb, var(--brand-gold) 45%, var(--border-subtle));
   color: #92400e;
-  background: color-mix(in srgb, #c39847 10%, transparent);
+  background: color-mix(in srgb, var(--brand-gold) 10%, transparent);
 }
 
 .installation-ft-page__th-actions-inner {
@@ -263,7 +263,7 @@
   width: 14px;
   height: 14px;
   border: 2px solid color-mix(in srgb, var(--text-muted) 22%, transparent);
-  border-top-color: #c39847;
+  border-top-color: var(--brand-gold);
   border-radius: 50%;
   animation: installation-ft-spin 0.7s linear infinite;
   flex-shrink: 0;
@@ -302,7 +302,7 @@
 }
 
 .installation-ft-page__row--highlight > td {
-  background: rgba(195, 152, 71, 0.12);
+  background: color-mix(in srgb, var(--brand-gold) 12%, transparent);
   transition: background 2s ease;
 }
 
@@ -325,8 +325,8 @@
   width: 12px;
   height: 12px;
   border-width: 2px;
-  border-color: color-mix(in srgb, #c39847 35%, transparent);
-  border-top-color: #c39847;
+  border-color: color-mix(in srgb, var(--brand-gold) 35%, transparent);
+  border-top-color: var(--brand-gold);
 }
 
 /* Boutons formulaire — spinner inline */
@@ -346,8 +346,8 @@
 }
 
 .installation-ft-page__btn--working.sn-btn-primary .installation-ft-page__btn-spinner {
-  border-color: color-mix(in srgb, #fff 25%, transparent);
-  border-top-color: #fff;
+  border-color: color-mix(in srgb, var(--bg-card) 25%, transparent);
+  border-top-color: var(--bg-card);
 }
 
 @keyframes installation-ft-spin {
@@ -419,7 +419,7 @@
   height: 36px;
   border-radius: 50%;
   border: 3px solid color-mix(in srgb, var(--text-muted) 18%, transparent);
-  border-top-color: #c39847;
+  border-top-color: var(--brand-gold);
   animation: installation-ft-spin 0.7s linear infinite;
 }
 
@@ -584,19 +584,19 @@
 }
 
 .ft-status-badge--recommended {
-  background: color-mix(in srgb, #c39847 22%, transparent);
+  background: color-mix(in srgb, var(--brand-gold) 22%, transparent);
   color: #92400e;
 }
 
 .theme-dark .ft-status-badge--active,
-[data-theme="dark"] .ft-status-badge--active {
+html.theme-dark .ft-status-badge--active {
   background: color-mix(in srgb, #4ade80 15%, transparent);
   color: #86efac;
 }
 
 .theme-dark .ft-status-badge--recommended,
-[data-theme="dark"] .ft-status-badge--recommended {
-  background: color-mix(in srgb, #c39847 20%, transparent);
+html.theme-dark .ft-status-badge--recommended {
+  background: color-mix(in srgb, var(--brand-gold) 20%, transparent);
   color: #fcd34d;
 }
 
@@ -618,12 +618,12 @@
 
 .ft-star-btn:hover {
   background: color-mix(in srgb, var(--text-primary) 6%, transparent);
-  color: #c39847;
+  color: var(--brand-gold);
 }
 
 .ft-star-btn--on {
-  color: #c39847;
-  filter: drop-shadow(0 0 0.5px color-mix(in srgb, #c39847 40%, transparent));
+  color: var(--brand-gold);
+  filter: drop-shadow(0 0 0.5px color-mix(in srgb, var(--brand-gold) 40%, transparent));
 }
 
 .ft-star-btn:focus-visible {
@@ -659,7 +659,7 @@
   padding: 0;
   border: 1px solid var(--border-soft);
   border-radius: 8px;
-  background: var(--surface-card, #fff);
+  background: var(--surface-card);
   color: var(--text-muted);
   cursor: pointer;
   transition:
@@ -700,8 +700,8 @@
 }
 
 .ft-dropzone--active {
-  border-color: #c39847;
-  background: color-mix(in srgb, #c39847 12%, transparent);
+  border-color: var(--brand-gold);
+  background: color-mix(in srgb, var(--brand-gold) 12%, transparent);
   color: var(--text-primary);
 }
 
