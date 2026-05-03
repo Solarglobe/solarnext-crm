@@ -1,6 +1,8 @@
 /**
  * SolarNext — design system CRM admin / SaaS (onglets, pages, surfaces, tables).
  * À importer une fois au boot (main.tsx). Préfixe : sn-saas-*
+ * Boutons CRM : classes .sn-btn / .sg-btn (+ variantes) — géométrie et états = `primitives.css` sous html.sn-app-page.
+ * Pas de classe .sn-saas-btn ici ; si elle est introduite plus tard, aligner sur les mêmes tokens que .sn-btn.
  */
 
 :root {

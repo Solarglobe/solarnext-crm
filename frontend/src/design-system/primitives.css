@@ -1,7 +1,7 @@
 /**
  * SolarNext CRM primitives.
- * Phase 2 — UI geometry pilotée par tokens : boutons (3 familles), cartes, tables, inputs, shell.
- * Scope : pages CRM (`html.sn-app-page`). PDF / auth inchangés.
+ * Phase 2.1 — cascade lock : sélecteurs `html.sn-app-page …` (sans pseudo where), sans directive important.
+ * Scope : pages CRM (`html.sn-app-page`). PDF / calpinage inchangés.
  */
 
 html.sn-app-page {
@@ -34,20 +34,18 @@ html.sn-app-page.theme-dark {
 }
 
 /* -------------------------------------------------------------------------- */
-/* Boutons — un seul châssis (:where), 3 familles : filled (primary) / outline / ghost */
-/* Danger = même chrome que primary, couleur `--danger`. Premium / outline-gold = alias CSS. */
+/* Boutons — châssis unique CRM (sn-btn / sg-btn / sn-saas-btn / legacy .btn) */
 /* -------------------------------------------------------------------------- */
 
-html.sn-app-page :where(
-  .sn-btn,
-  .sg-btn,
-  .btn,
-  .btn-primary,
-  .btn-secondary,
-  .qb-btn-ghost,
-  .qb-lines-btn,
-  .planning-view-btn
-) {
+html.sn-app-page .sn-btn,
+html.sn-app-page .sg-btn,
+html.sn-app-page .sn-saas-btn,
+html.sn-app-page .btn,
+html.sn-app-page .btn-primary,
+html.sn-app-page .btn-secondary,
+html.sn-app-page .qb-btn-ghost,
+html.sn-app-page .qb-lines-btn,
+html.sn-app-page .planning-view-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -75,183 +73,211 @@ html.sn-app-page :where(
     transform 150ms ease;
 }
 
-html.sn-app-page :where(.sn-btn-sm, .sg-btn--sm) {
+html.sn-app-page .sn-btn-sm,
+html.sn-app-page .sg-btn--sm {
   height: var(--sn-ui-control-h-sm);
   min-height: var(--sn-ui-control-h-sm);
   padding-inline: 10px;
   font-size: var(--font-size-label);
 }
 
-html.sn-app-page :where(.sn-btn-lg) {
+html.sn-app-page .sn-btn-lg {
   height: var(--sn-ui-control-h-lg);
   min-height: var(--sn-ui-control-h-lg);
   padding-inline: var(--spacing-16, 16px);
   font-size: var(--font-size-body-lg);
 }
 
-/* Filled — primary / danger : même structure ; danger = alias (--sn-btn-fill) */
-html.sn-app-page :where(.sn-btn-primary, .sn-btn-premium, .sg-btn-primary, .btn-primary) {
+html.sn-app-page .sn-btn-primary,
+html.sn-app-page .sn-btn-premium,
+html.sn-app-page .sg-btn-primary,
+html.sn-app-page .btn-primary {
   --sn-btn-fill: var(--primary);
 }
 
-html.sn-app-page :where(.sn-btn-danger, .sg-btn-danger) {
+html.sn-app-page .sn-btn-danger,
+html.sn-app-page .sg-btn-danger {
   --sn-btn-fill: var(--danger);
 }
 
-html.sn-app-page :where(
-  .sn-btn-primary,
-  .sn-btn-premium,
-  .sn-btn-danger,
-  .sg-btn-primary,
-  .sg-btn-danger,
-  .btn-primary
-) {
+html.sn-app-page .sn-btn-primary,
+html.sn-app-page .sn-btn-premium,
+html.sn-app-page .sn-btn-danger,
+html.sn-app-page .sg-btn-primary,
+html.sn-app-page .sg-btn-danger,
+html.sn-app-page .btn-primary {
   background: var(--sn-btn-fill);
   border-color: var(--sn-btn-fill);
   color: var(--text-on-dark);
   box-shadow: none;
 }
 
-html.sn-app-page :where(
-  .sn-btn-primary,
-  .sn-btn-premium,
-  .sn-btn-danger,
-  .sg-btn-primary,
-  .sg-btn-danger,
-  .btn-primary
-):hover:not(:disabled):not(.is-disabled) {
+html.sn-app-page .sn-btn-primary:hover:not(:disabled):not(.is-disabled),
+html.sn-app-page .sn-btn-premium:hover:not(:disabled):not(.is-disabled),
+html.sn-app-page .sn-btn-danger:hover:not(:disabled):not(.is-disabled),
+html.sn-app-page .sg-btn-primary:hover:not(:disabled):not(.is-disabled),
+html.sn-app-page .sg-btn-danger:hover:not(:disabled):not(.is-disabled),
+html.sn-app-page .btn-primary:hover:not(:disabled):not(.is-disabled) {
   background: color-mix(in srgb, var(--sn-btn-fill) 88%, var(--text-on-dark));
   border-color: color-mix(in srgb, var(--sn-btn-fill) 88%, var(--text-on-dark));
   transform: translateY(-1px);
   box-shadow: 0 1px 2px color-mix(in srgb, var(--sn-btn-fill) 22%, transparent);
 }
 
-html.sn-app-page :where(
-  .sn-btn-primary,
-  .sn-btn-premium,
-  .sn-btn-danger,
-  .sg-btn-primary,
-  .sg-btn-danger,
-  .btn-primary
-):active:not(:disabled):not(.is-disabled) {
+html.sn-app-page .sn-btn-primary:active:not(:disabled):not(.is-disabled),
+html.sn-app-page .sn-btn-premium:active:not(:disabled):not(.is-disabled),
+html.sn-app-page .sn-btn-danger:active:not(:disabled):not(.is-disabled),
+html.sn-app-page .sg-btn-primary:active:not(:disabled):not(.is-disabled),
+html.sn-app-page .sg-btn-danger:active:not(:disabled):not(.is-disabled),
+html.sn-app-page .btn-primary:active:not(:disabled):not(.is-disabled) {
   background: color-mix(in srgb, var(--sn-btn-fill) 82%, var(--text-on-dark));
   transform: translateY(0);
 }
 
-/* Outline / secondary (+ outline-gold = bordure accent, même base) */
-html.sn-app-page :where(
-  .sn-btn-secondary,
-  .sn-btn-outline,
-  .sn-btn-outline-gold,
-  .sg-btn-secondary,
-  .btn-secondary
-) {
+html.sn-app-page .sn-btn-secondary,
+html.sn-app-page .sn-btn-outline,
+html.sn-app-page .sn-btn-outline-gold,
+html.sn-app-page .sg-btn-secondary,
+html.sn-app-page .btn-secondary {
   background: var(--bg-card);
   border-color: var(--border);
   color: var(--text-primary);
   box-shadow: none;
 }
 
-html.sn-app-page :where(.sn-btn-outline-gold) {
+html.sn-app-page .sn-btn-outline-gold {
   border-color: color-mix(in srgb, var(--brand-gold, var(--primary)) 42%, var(--border));
 }
 
-html.sn-app-page :where(
-  .sn-btn-secondary,
-  .sn-btn-outline,
-  .sn-btn-outline-gold,
-  .sg-btn-secondary,
-  .btn-secondary
-):hover:not(:disabled):not(.is-disabled) {
+html.sn-app-page .sn-btn-secondary:hover:not(:disabled):not(.is-disabled),
+html.sn-app-page .sn-btn-outline:hover:not(:disabled):not(.is-disabled),
+html.sn-app-page .sn-btn-outline-gold:hover:not(:disabled):not(.is-disabled),
+html.sn-app-page .sg-btn-secondary:hover:not(:disabled):not(.is-disabled),
+html.sn-app-page .btn-secondary:hover:not(:disabled):not(.is-disabled) {
   background: var(--sn-ui-hover-bg);
   border-color: var(--border-strong);
   transform: translateY(-1px);
 }
 
-html.sn-app-page :where(.sn-btn-ghost, .sg-btn-ghost, .qb-btn-ghost) {
+html.sn-app-page .sn-btn-ghost,
+html.sn-app-page .sg-btn-ghost,
+html.sn-app-page .qb-btn-ghost {
   background: transparent;
   border-color: transparent;
   color: var(--text-secondary);
   box-shadow: none;
 }
 
-html.sn-app-page :where(.sn-btn-ghost, .sg-btn-ghost, .qb-btn-ghost):hover:not(:disabled):not(.is-disabled) {
+html.sn-app-page .sn-btn-ghost:hover:not(:disabled):not(.is-disabled),
+html.sn-app-page .sg-btn-ghost:hover:not(:disabled):not(.is-disabled),
+html.sn-app-page .qb-btn-ghost:hover:not(:disabled):not(.is-disabled) {
   background: var(--sn-ui-hover-bg);
   color: var(--text-primary);
   transform: none;
 }
 
-html.sn-app-page :where(
-  .sn-btn,
-  .sg-btn,
-  .btn,
-  .btn-primary,
-  .btn-secondary,
-  .sn-btn-primary,
-  .sn-btn-premium,
-  .sn-btn-danger,
-  .sn-btn-secondary,
-  .sn-btn-outline,
-  .sn-btn-outline-gold,
-  .sn-btn-ghost,
-  .sg-btn-primary,
-  .sg-btn-secondary,
-  .sg-btn-danger,
-  .sg-btn-ghost,
-  .qb-btn-ghost
-):focus-visible {
+html.sn-app-page .sn-btn:focus-visible,
+html.sn-app-page .sg-btn:focus-visible,
+html.sn-app-page .sn-saas-btn:focus-visible,
+html.sn-app-page .btn:focus-visible,
+html.sn-app-page .btn-primary:focus-visible,
+html.sn-app-page .btn-secondary:focus-visible,
+html.sn-app-page .sn-btn-primary:focus-visible,
+html.sn-app-page .sn-btn-premium:focus-visible,
+html.sn-app-page .sn-btn-danger:focus-visible,
+html.sn-app-page .sn-btn-secondary:focus-visible,
+html.sn-app-page .sn-btn-outline:focus-visible,
+html.sn-app-page .sn-btn-outline-gold:focus-visible,
+html.sn-app-page .sn-btn-ghost:focus-visible,
+html.sn-app-page .sg-btn-primary:focus-visible,
+html.sn-app-page .sg-btn-secondary:focus-visible,
+html.sn-app-page .sg-btn-danger:focus-visible,
+html.sn-app-page .sg-btn-ghost:focus-visible,
+html.sn-app-page .qb-btn-ghost:focus-visible {
   outline: none;
   border-color: var(--sn-ui-focus-border);
   box-shadow: var(--sn-ui-focus-ring);
 }
 
-html.sn-app-page :where(
-  .sn-btn,
-  .sg-btn,
-  .btn,
-  .btn-primary,
-  .btn-secondary,
-  .sn-btn-ghost,
-  .qb-btn-ghost
-):active:not(:disabled):not(.is-disabled) {
+html.sn-app-page .sn-btn:active:not(:disabled):not(.is-disabled),
+html.sn-app-page .sg-btn:active:not(:disabled):not(.is-disabled),
+html.sn-app-page .sn-saas-btn:active:not(:disabled):not(.is-disabled),
+html.sn-app-page .btn:active:not(:disabled):not(.is-disabled),
+html.sn-app-page .btn-primary:active:not(:disabled):not(.is-disabled),
+html.sn-app-page .btn-secondary:active:not(:disabled):not(.is-disabled),
+html.sn-app-page .sn-btn-ghost:active:not(:disabled):not(.is-disabled),
+html.sn-app-page .qb-btn-ghost:active:not(:disabled):not(.is-disabled) {
   transform: translateY(0);
 }
 
-html.sn-app-page :where(.sn-btn, .sg-btn, .btn, .btn-primary, .btn-secondary):disabled,
-html.sn-app-page :where(.sn-btn, .sg-btn, .btn, .btn-primary, .btn-secondary).is-disabled {
+html.sn-app-page .sn-btn:disabled,
+html.sn-app-page .sg-btn:disabled,
+html.sn-app-page .sn-saas-btn:disabled,
+html.sn-app-page .btn:disabled,
+html.sn-app-page .btn-primary:disabled,
+html.sn-app-page .btn-secondary:disabled,
+html.sn-app-page .sn-btn-primary:disabled,
+html.sn-app-page .sn-btn-premium:disabled,
+html.sn-app-page .sn-btn-danger:disabled,
+html.sn-app-page .sn-btn-secondary:disabled,
+html.sn-app-page .sn-btn-outline:disabled,
+html.sn-app-page .sn-btn-outline-gold:disabled,
+html.sn-app-page .sn-btn-ghost:disabled,
+html.sn-app-page .sg-btn-primary:disabled,
+html.sn-app-page .sg-btn-secondary:disabled,
+html.sn-app-page .sg-btn-danger:disabled,
+html.sn-app-page .sg-btn-ghost:disabled,
+html.sn-app-page .qb-btn-ghost:disabled,
+html.sn-app-page .sn-btn.is-disabled,
+html.sn-app-page .sg-btn.is-disabled,
+html.sn-app-page .sn-saas-btn.is-disabled,
+html.sn-app-page .btn.is-disabled,
+html.sn-app-page .btn-primary.is-disabled,
+html.sn-app-page .btn-secondary.is-disabled {
   opacity: 0.55;
   cursor: not-allowed;
   transform: none;
   box-shadow: none;
 }
 
-/* Cartes — 2 surfaces ; legacy glass / blur neutralisés sur l’app CRM */
-html.sn-app-page :where(.sn-card-glass, .sn-card-premium, .scenarios-th-glass) {
+/* Cartes — 2 surfaces ; glass neutralisé */
+html.sn-app-page .sn-card-glass,
+html.sn-app-page .sn-card-premium,
+html.sn-app-page .scenarios-th-glass {
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
 }
 
-html.sn-app-page :where(.sn-card, .sn-card-app, .sn-saas-surface, .sn-saas-form-section) {
+html.sn-app-page .sn-card,
+html.sn-app-page .sn-card-app,
+html.sn-app-page .sn-saas-surface,
+html.sn-app-page .sn-saas-form-section {
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   box-shadow: var(--sn-ui-card-shadow);
 }
 
-html.sn-app-page :where(.sn-card-elevated, .sn-saas-surface--elevated) {
+html.sn-app-page .sn-card-elevated,
+html.sn-app-page .sn-saas-surface--elevated {
   background: var(--bg-elevated);
   border-color: var(--border);
   border-radius: var(--radius-md);
   box-shadow: var(--sn-ui-card-shadow-elevated);
 }
 
-html.sn-app-page :where(.sn-card, .sn-card-elevated, .sn-saas-surface):hover {
+html.sn-app-page .sn-card:hover,
+html.sn-app-page .sn-card-elevated:hover,
+html.sn-app-page .sn-saas-surface:hover {
   border-color: var(--border-strong);
   box-shadow: var(--sn-ui-card-shadow-elevated);
 }
 
 /* Inputs */
-html.sn-app-page :where(.sn-input, .sn-saas-input, .admin-catalog-input, .admin-catalog-select) {
+html.sn-app-page .sn-input,
+html.sn-app-page .sn-saas-input,
+html.sn-app-page .admin-catalog-input,
+html.sn-app-page .admin-catalog-select {
   width: 100%;
   height: var(--sn-ui-control-h-md);
   min-height: var(--sn-ui-control-h-md);
@@ -271,7 +297,8 @@ html.sn-app-page :where(.sn-input, .sn-saas-input, .admin-catalog-input, .admin-
   box-sizing: border-box;
 }
 
-html.sn-app-page :where(textarea.sn-input, .sn-saas-textarea) {
+html.sn-app-page textarea.sn-input,
+html.sn-app-page .sn-saas-textarea {
   min-height: 72px;
   height: auto;
   padding: var(--spacing-8, 8px) 10px;
@@ -279,34 +306,46 @@ html.sn-app-page :where(textarea.sn-input, .sn-saas-textarea) {
   resize: vertical;
 }
 
-html.sn-app-page :where(.sn-input, .sn-saas-input, .sn-saas-textarea)::placeholder {
+html.sn-app-page .sn-input::placeholder,
+html.sn-app-page .sn-saas-input::placeholder,
+html.sn-app-page .sn-saas-textarea::placeholder {
   color: var(--input-placeholder, var(--text-muted));
   opacity: 0.75;
 }
 
-html.sn-app-page :where(.sn-input, .sn-saas-input, .sn-saas-textarea):hover:not(:disabled):not(:focus) {
+html.sn-app-page .sn-input:hover:not(:disabled):not(:focus),
+html.sn-app-page .sn-saas-input:hover:not(:disabled):not(:focus),
+html.sn-app-page .sn-saas-textarea:hover:not(:disabled):not(:focus) {
   background: color-mix(in srgb, var(--input-bg, var(--bg-card)) 88%, var(--text-primary) 3%);
   box-shadow: inset 0 0 0 1px var(--border-strong);
 }
 
-html.sn-app-page :where(.sn-input, .sn-saas-input, .sn-saas-textarea):focus,
-html.sn-app-page :where(.sn-input, .sn-saas-input, .sn-saas-textarea):focus-visible {
+html.sn-app-page .sn-input:focus,
+html.sn-app-page .sn-input:focus-visible,
+html.sn-app-page .sn-saas-input:focus,
+html.sn-app-page .sn-saas-input:focus-visible,
+html.sn-app-page .sn-saas-textarea:focus,
+html.sn-app-page .sn-saas-textarea:focus-visible {
   outline: none;
   border-color: var(--sn-ui-focus-border);
   box-shadow: var(--sn-ui-focus-ring);
 }
 
-html.sn-app-page :where(.sn-input, .sn-saas-input, .sn-saas-textarea):disabled,
-html.sn-app-page :where(.sn-input, .sn-saas-input, .sn-saas-textarea)[readonly] {
+html.sn-app-page .sn-input:disabled,
+html.sn-app-page .sn-saas-input:disabled,
+html.sn-app-page .sn-saas-textarea:disabled,
+html.sn-app-page .sn-input[readonly],
+html.sn-app-page .sn-saas-input[readonly],
+html.sn-app-page .sn-saas-textarea[readonly] {
   opacity: 0.72;
   cursor: not-allowed;
   background: var(--bg-muted);
 }
 
-/* Shell */
-html.sn-app-page .sn-sidebar {
+/* Shell — aside renforce la spécificité sur le thème (.sn-sidebar avec padding forcé côté thème) */
+html.sn-app-page aside.sn-sidebar {
   width: var(--sn-ui-shell-sidebar-w);
-  padding: 10px 10px 0 !important;
+  padding: 10px 10px 0;
   border-right: 1px solid var(--border);
 }
 
@@ -334,7 +373,8 @@ html.sn-app-page .sn-sidebar-nav-group-label {
   letter-spacing: 0.08em;
 }
 
-html.sn-app-page :where(.sn-sidebar-link, .sn-sidebar-section-toggle) {
+html.sn-app-page .sn-sidebar-link,
+html.sn-app-page .sn-sidebar-section-toggle {
   min-height: var(--sn-ui-shell-nav-h);
   padding: 0 10px;
   margin-bottom: 2px;
@@ -360,12 +400,14 @@ html.sn-app-page .sn-sidebar-action-btn svg {
   stroke-width: 1.7;
 }
 
-html.sn-app-page :where(.sn-sidebar-link, .sn-sidebar-section-toggle):hover {
+html.sn-app-page .sn-sidebar-link:hover,
+html.sn-app-page .sn-sidebar-section-toggle:hover {
   background: var(--sn-ui-hover-bg);
   border-color: var(--border);
 }
 
-html.sn-app-page :where(.sn-sidebar-link-active, .sn-sidebar-item.active) {
+html.sn-app-page .sn-sidebar-link-active,
+html.sn-app-page .sn-sidebar-item.active {
   background: color-mix(in srgb, var(--primary) 11%, transparent);
   border-color: color-mix(in srgb, var(--primary) 20%, var(--border));
   color: var(--text-primary);
@@ -391,28 +433,37 @@ html.sn-app-page .sn-main {
 }
 
 /* -------------------------------------------------------------------------- */
-/* Tables — pattern lecture (sn-ui-table + listes SaaS finance / devis) */
+/* Tables — alignées sur .sn-ui-table (listes SaaS + admin + éditable) */
 /* -------------------------------------------------------------------------- */
 
-html.sn-app-page :where(.sn-ui-table, .qb-table.qb-table--list-saas) {
+html.sn-app-page .sn-ui-table,
+html.sn-app-page .sn-saas-table,
+html.sn-app-page .admin-catalog-table,
+html.sn-app-page .qb-table.qb-table--list-saas {
   width: 100%;
   min-width: 0;
   font-size: var(--font-size-body);
   border-collapse: collapse;
 }
 
-html.sn-app-page :where(.qb-table.qb-table--list-saas) {
+html.sn-app-page .qb-table.qb-table--list-saas {
   min-width: 960px;
 }
 
-html.sn-app-page :where(.sn-ui-table thead, .qb-table.qb-table--list-saas thead) {
+html.sn-app-page .sn-ui-table thead,
+html.sn-app-page .sn-saas-table thead,
+html.sn-app-page .admin-catalog-table thead,
+html.sn-app-page .qb-table.qb-table--list-saas thead {
   position: sticky;
   top: 0;
   z-index: 2;
   background: var(--bg-elevated, var(--bg-card));
 }
 
-html.sn-app-page :where(.sn-ui-table th, .qb-table.qb-table--list-saas th) {
+html.sn-app-page .sn-ui-table thead th,
+html.sn-app-page .sn-saas-table thead th,
+html.sn-app-page .admin-catalog-table thead th,
+html.sn-app-page .qb-table.qb-table--list-saas thead th {
   padding: var(--spacing-8, 8px) 10px;
   font-size: var(--sn-ui-table-header-fs);
   font-weight: 700;
@@ -424,27 +475,41 @@ html.sn-app-page :where(.sn-ui-table th, .qb-table.qb-table--list-saas th) {
   vertical-align: middle;
 }
 
-html.sn-app-page :where(.sn-ui-table td, .qb-table.qb-table--list-saas td) {
+html.sn-app-page .sn-ui-table tbody td,
+html.sn-app-page .sn-saas-table tbody td,
+html.sn-app-page .admin-catalog-table tbody td,
+html.sn-app-page .qb-table.qb-table--list-saas tbody td {
   padding: 10px;
   min-height: var(--sn-ui-table-row-min-h);
   vertical-align: middle;
   border-bottom: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
 }
 
-html.sn-app-page :where(.sn-ui-table tbody tr, .qb-table.qb-table--list-saas tbody tr) {
+html.sn-app-page .sn-ui-table tbody tr,
+html.sn-app-page .sn-saas-table tbody tr,
+html.sn-app-page .admin-catalog-table tbody tr,
+html.sn-app-page .qb-table.qb-table--list-saas tbody tr {
   transition: background-color 0.15s ease;
 }
 
-html.sn-app-page :where(.sn-ui-table tbody tr:hover, .qb-table.qb-table--list-saas tbody tr:hover) {
+html.sn-app-page .sn-ui-table tbody tr:hover,
+html.sn-app-page .sn-saas-table tbody tr:hover,
+html.sn-app-page .admin-catalog-table tbody tr:hover,
+html.sn-app-page .qb-table.qb-table--list-saas tbody tr:hover {
   background: var(--sn-ui-table-row-hover);
 }
 
-html.sn-app-page :where(.sn-ui-table tbody tr:last-child td, .qb-table.qb-table--list-saas tbody tr:last-child td) {
+html.sn-app-page .sn-ui-table tbody tr:last-child td,
+html.sn-app-page .sn-saas-table tbody tr:last-child td,
+html.sn-app-page .admin-catalog-table tbody tr:last-child td,
+html.sn-app-page .qb-table.qb-table--list-saas tbody tr:last-child td {
   border-bottom: none;
 }
 
-/* Table éditable : champs compacts ; actions masquées sauf au survol de ligne */
-html.sn-app-page :where(.sn-ui-table--editable) :where(input:not([type="checkbox"]):not([type="radio"]), select, textarea) {
+/* Table éditable */
+html.sn-app-page .sn-ui-table--editable input:not([type="checkbox"]):not([type="radio"]),
+html.sn-app-page .sn-ui-table--editable select,
+html.sn-app-page .sn-ui-table--editable textarea {
   height: var(--sn-ui-control-h-md);
   min-height: var(--sn-ui-control-h-md);
   padding: 0 8px;
@@ -453,18 +518,18 @@ html.sn-app-page :where(.sn-ui-table--editable) :where(input:not([type="checkbox
   box-sizing: border-box;
 }
 
-html.sn-app-page :where(.sn-ui-table--editable textarea) {
+html.sn-app-page .sn-ui-table--editable textarea {
   min-height: 56px;
   height: auto;
   padding: var(--spacing-8, 8px);
 }
 
-html.sn-app-page :where(.sn-ui-table--editable .sn-ui-table__row-actions) {
+html.sn-app-page .sn-ui-table--editable .sn-ui-table__row-actions {
   opacity: 0;
   transition: opacity 0.12s ease;
 }
 
-html.sn-app-page :where(.sn-ui-table--editable tr:hover .sn-ui-table__row-actions),
-html.sn-app-page :where(.sn-ui-table--editable tr:focus-within .sn-ui-table__row-actions) {
+html.sn-app-page .sn-ui-table--editable tr:hover .sn-ui-table__row-actions,
+html.sn-app-page .sn-ui-table--editable tr:focus-within .sn-ui-table__row-actions {
   opacity: 1;
 }

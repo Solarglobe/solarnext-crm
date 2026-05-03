@@ -1478,7 +1478,8 @@ html.sn-app-page.crm-app .sn-app-root.sn-app-bg {
   /* Bord droit : même ADN que le trait sous titres (or, lisible sur toute la hauteur) */
   border-right: 2px solid color-mix(in srgb, var(--brand-gold) 38%, transparent);
   color: var(--text);
-  padding: 8px 12px 0 !important;
+  /* Sans !important : le CRM surcharge le padding via primitives (html.sn-app-page aside.sn-sidebar). */
+  padding: 8px 12px 0;
   box-sizing: border-box;
 }
 
