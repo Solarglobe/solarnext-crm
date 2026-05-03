@@ -10,16 +10,23 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   children: React.ReactNode;
 }
 
+/** Géométrie pilotée par `primitives.css` ; ici seulement paddings / typo complémentaires. */
+const sizeClass: Record<ButtonSize, string> = {
+  sm: "sn-btn-sm",
+  md: "",
+  lg: "sn-btn-lg",
+};
+
 const sizeStyles: Record<ButtonSize, React.CSSProperties> = {
-  sm: { height: 36, padding: "0 var(--spacing-12)", fontSize: 13 },
-  md: { height: 44, padding: "0 18px", fontSize: "var(--font-size-body)" },
-  lg: { height: 48, padding: "0 var(--spacing-24)", fontSize: "var(--font-size-body-lg)" },
+  sm: { paddingInline: "10px" },
+  md: {},
+  lg: { paddingInline: "var(--spacing-16, 16px)" },
 };
 
 const variantClasses: Record<ButtonVariant, string> = {
   primary: "sn-btn sn-btn-primary",
   secondary: "sn-btn sn-btn-secondary",
-  premium: "sn-btn sn-btn-premium",
+  premium: "sn-btn sn-btn-primary",
   ghost: "sn-btn sn-btn-ghost",
   danger: "sn-btn sn-btn-danger",
   outlineGold: "sn-btn sn-btn-outline-gold",
@@ -36,11 +43,12 @@ export function Button({
   disabled,
   ...props
 }: ButtonProps) {
+  const sizeCls = sizeClass[size];
   return (
     <button
       type={type}
       data-variant={variant}
-      className={`${variantClasses[variant]} ${className}`.trim()}
+      className={`${variantClasses[variant]}${sizeCls ? ` ${sizeCls}` : ""} ${className}`.trim()}
       style={{
         ...sizeStyles[size],
         width: fullWidth ? "100%" : undefined,

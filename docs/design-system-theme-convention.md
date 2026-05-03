@@ -27,6 +27,22 @@ The foundation layer keeps legacy aliases alive while the CRM is migrated:
 - `--sn-accent-gold`, `--sn-accent-gold-soft`
 - `--sg-brand`, `--sg-brand-hover`
 
+## Phase 2 Primitives
+
+New CRM UI must consume `frontend/src/design-system/primitives.css`.
+
+- Buttons: `sn-btn`, `sg-btn`, and legacy `btn-*` render through the same
+  three-variant model: primary, outline/secondary, ghost. CRM controls are
+  `32px` high by default and `28px` in `*-sm`.
+- Inputs: `sn-input`, `sn-saas-input`, and `sn-saas-textarea` use the shared
+  `32px` control height, `6px` radius, transparent border at rest, and the
+  violet focus ring.
+- Cards: CRM cards should use default surfaces (`--bg-card` + border) or the
+  elevated surface (`--bg-elevated` + 0 1px 3px shadow). Decorative glass or
+  premium variants are legacy compatibility only.
+- Shell: CRM sidebar width is `200px`, nav items are `36px`, and page padding is
+  `24px` through primitive shell tokens.
+
 ## `[data-theme="dark"]` Migration Inventory
 
 Current source inventory, excluding generated bundles and dependencies:

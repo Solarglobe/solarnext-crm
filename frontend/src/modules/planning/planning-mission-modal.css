@@ -60,22 +60,3 @@
   align-items: center;
   flex-wrap: wrap;
 }
-
-.sn-btn-danger {
-  background: var(--error, #ef4444);
-  color: var(--text-on-dark);
-  border: none;
-  padding: 8px 16px;
-  border-radius: 8px;
-  cursor: pointer;
-  font-weight: 600;
-}
-
-.sn-btn-danger:hover:not(:disabled) {
-  opacity: 0.9;
-}
-
-.sn-btn-danger:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}

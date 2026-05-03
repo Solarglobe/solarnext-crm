@@ -800,20 +800,23 @@ html.sn-auth-page.theme-dark select:focus {
   transition: var(--transition-theme), border-color var(--ease), box-shadow var(--ease);
 }
 
-.sn-card:hover {
+/* Hover carte : hors CRM uniquement (le CRM = primitives sur html.sn-app-page). */
+html:not(.sn-app-page) .sn-card:hover {
   border-color: color-mix(in srgb, var(--brand-gold) 25%, transparent);
   box-shadow: var(--shadow-1), 0 0 20px var(--gold-glow);
 }
 
-.sn-card-glass {
+html:not(.sn-app-page) .sn-card-glass {
   backdrop-filter: blur(8px);
 }
 
-.theme-dark .sn-card-glass {
+html:not(.sn-app-page).theme-dark .sn-card-glass,
+html.theme-dark:not(.sn-app-page) .sn-card-glass {
   background: var(--surface);
 }
 
-.theme-light .sn-card-glass {
+html:not(.sn-app-page).theme-light .sn-card-glass,
+html.theme-light:not(.sn-app-page) .sn-card-glass {
   background: var(--surface-card);
 }
 
@@ -822,7 +825,7 @@ html.sn-auth-page.theme-dark select:focus {
   box-shadow: var(--shadow-2);
 }
 
-.sn-card-elevated:hover {
+html:not(.sn-app-page) .sn-card-elevated:hover {
   border-color: color-mix(in srgb, var(--brand-gold) 30%, transparent);
   box-shadow: var(--shadow-2), 0 0 24px var(--gold-glow);
 }
@@ -859,8 +862,8 @@ html.sn-auth-page.theme-dark select:focus {
   box-shadow: var(--shadow-2);
 }
 
-/* ========== Inputs premium ========== */
-.sn-input {
+/* ========== Inputs premium (hors CRM : Login / pages sans html.sn-app-page) ========== */
+html:not(.sn-app-page) .sn-input {
   width: 100%;
   height: 52px;
   padding: 0 16px;
@@ -874,18 +877,19 @@ html.sn-auth-page.theme-dark select:focus {
   box-sizing: border-box;
 }
 
-.sn-input::placeholder {
+html:not(.sn-app-page) .sn-input::placeholder {
   color: var(--text-muted);
   opacity: 0.7;
 }
 
-.sn-input:focus {
+html:not(.sn-app-page) .sn-input:focus {
   outline: none;
   border-color: var(--violet-strong);
   box-shadow: 0 0 0 3px var(--violet-glow);
 }
 
-.theme-light .sn-input:focus {
+html:not(.sn-app-page).theme-light .sn-input:focus,
+html.theme-light:not(.sn-app-page) .sn-input:focus {
   border-color: var(--violet-strong);
   box-shadow: 0 0 0 3px var(--violet-glow);
 }
@@ -1285,8 +1289,8 @@ html.theme-dark .sn-sidebar-link-active::before {
   border-color: var(--primary);
 }
 
-/* ========== Button variants ========== */
-.sn-btn {
+/* ========== Button variants (hors CRM : html sans .sn-app-page — CRM = design-system/primitives.css) ========== */
+html:not(.sn-app-page) .sn-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1303,133 +1307,135 @@ html.theme-dark .sn-sidebar-link-active::before {
   box-sizing: border-box;
 }
 
-a.sn-btn {
+html:not(.sn-app-page) a.sn-btn {
   text-decoration: none;
 }
 
-.sn-btn:focus-visible {
+html:not(.sn-app-page) .sn-btn:focus-visible {
   box-shadow: 0 0 0 3px var(--ring), 0 0 0 1px color-mix(in srgb, var(--brand-gold) 20%, transparent);
 }
 
-.sn-btn-premium:focus-visible {
+html:not(.sn-app-page) .sn-btn-premium:focus-visible {
   box-shadow: 0 0 0 3px var(--ring), 0 0 0 1px color-mix(in srgb, var(--brand-gold) 35%, transparent);
 }
 
-.sn-btn:disabled {
+html:not(.sn-app-page) .sn-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
 
-.sn-btn-sm {
+html:not(.sn-app-page) .sn-btn-sm {
   height: 36px;
   padding: 0 12px;
   font-size: 13px;
 }
 
 /* primary: violet gradient + glow via tokens */
-.sn-btn-primary {
+html:not(.sn-app-page) .sn-btn-primary {
   background: linear-gradient(180deg, var(--violet-strong) 0%, var(--primary-hover) 100%);
   color: white;
   box-shadow: 0 4px 12px var(--violet-glow);
 }
 
-.sn-btn-primary:hover:not(:disabled) {
+html:not(.sn-app-page) .sn-btn-primary:hover:not(:disabled) {
   transform: translateY(-1px);
   box-shadow: 0 6px 16px var(--violet-glow);
 }
 
-.sn-btn-primary:active:not(:disabled) {
+html:not(.sn-app-page) .sn-btn-primary:active:not(:disabled) {
   transform: translateY(0);
 }
 
 /* premium: violet + fine bordure dorée (SolarGlobe signature) */
-.sn-btn-premium {
+html:not(.sn-app-page) .sn-btn-premium {
   background: linear-gradient(180deg, var(--violet-strong) 0%, var(--primary-hover) 100%);
   color: white;
   border: 1px solid color-mix(in srgb, var(--brand-gold) 35%, transparent);
   box-shadow: 0 4px 12px var(--violet-glow);
 }
 
-.sn-btn-premium:hover:not(:disabled) {
+html:not(.sn-app-page) .sn-btn-premium:hover:not(:disabled) {
   transform: translateY(-1px);
   box-shadow: 0 6px 16px var(--violet-glow), 0 0 12px var(--gold-glow);
   border-color: color-mix(in srgb, var(--brand-gold) 45%, transparent);
 }
 
-.sn-btn-premium:active:not(:disabled) {
+html:not(.sn-app-page) .sn-btn-premium:active:not(:disabled) {
   transform: translateY(0);
 }
 
 /* ghost: hover gold-soft */
-.sn-btn-ghost {
+html:not(.sn-app-page) .sn-btn-ghost {
   background: transparent;
   color: var(--text);
 }
 
-.sn-btn-ghost:hover:not(:disabled) {
+html:not(.sn-app-page) .sn-btn-ghost:hover:not(:disabled) {
   background: var(--gold-soft);
 }
 
-.theme-light .sn-btn-ghost:hover:not(:disabled) {
+html:not(.sn-app-page).theme-light .sn-btn-ghost:hover:not(:disabled),
+html.theme-light:not(.sn-app-page) .sn-btn-ghost:hover:not(:disabled) {
   background: var(--gold-soft);
 }
 
 /* secondary — action peu dominante (listes, filtres) */
-.sn-btn-secondary {
+html:not(.sn-app-page) .sn-btn-secondary {
   background: color-mix(in srgb, var(--surface-2) 92%, var(--text-primary) 4%);
   color: var(--text-primary);
   border: 1px solid var(--border-soft);
 }
 
-.sn-btn-secondary:hover:not(:disabled) {
+html:not(.sn-app-page) .sn-btn-secondary:hover:not(:disabled) {
   background: var(--surface-2);
   border-color: color-mix(in srgb, var(--text-primary) 12%, var(--border-soft));
 }
 
-.sn-btn-secondary:active:not(:disabled) {
+html:not(.sn-app-page) .sn-btn-secondary:active:not(:disabled) {
   transform: translateY(0);
 }
 
-.theme-dark .sn-btn-secondary,
-html.theme-dark .sn-btn-secondary {
+html:not(.sn-app-page).theme-dark .sn-btn-secondary,
+html.theme-dark:not(.sn-app-page) .sn-btn-secondary {
   background: rgba(255, 255, 255, 0.06);
   border-color: rgba(255, 255, 255, 0.12);
 }
 
-.theme-dark .sn-btn-secondary:hover:not(:disabled),
-html.theme-dark .sn-btn-secondary:hover:not(:disabled) {
+html:not(.sn-app-page).theme-dark .sn-btn-secondary:hover:not(:disabled),
+html.theme-dark:not(.sn-app-page) .sn-btn-secondary:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.1);
 }
 
 /* outlineGold: contour doré + hover gold-soft */
-.sn-btn-outline-gold {
+html:not(.sn-app-page) .sn-btn-outline-gold {
   background: transparent;
   color: var(--text);
   border: 1px solid var(--gold);
 }
 
-.theme-light .sn-btn-outline-gold {
+html:not(.sn-app-page).theme-light .sn-btn-outline-gold,
+html.theme-light:not(.sn-app-page) .sn-btn-outline-gold {
   background: color-mix(in srgb, var(--gold) 9%, transparent);
   color: var(--text-primary);
 }
 
-.sn-btn-outline-gold:hover:not(:disabled) {
+html:not(.sn-app-page) .sn-btn-outline-gold:hover:not(:disabled) {
   background: var(--gold-soft);
   border-color: var(--gold);
 }
 
 /* danger */
-.sn-btn-danger {
-  background: #DC2626;
+html:not(.sn-app-page) .sn-btn-danger {
+  background: #dc2626;
   color: white;
 }
 
-.sn-btn-danger:hover:not(:disabled) {
-  background: #B91C1C;
+html:not(.sn-app-page) .sn-btn-danger:hover:not(:disabled) {
+  background: #b91c1c;
   transform: translateY(-1px);
 }
 
-.sn-btn-danger:active:not(:disabled) {
+html:not(.sn-app-page) .sn-btn-danger:active:not(:disabled) {
   transform: translateY(0);
 }
 
@@ -5057,21 +5063,21 @@ html.theme-dark .sn-leads-table tbody tr:hover td {
   outline-offset: 2px;
 }
 
-/* Override hover/active pour sn-btn-primary, sn-btn-premium, sn-btn-danger — garder leur glow existant, ajouter scale */
-.sn-btn-primary:not(:disabled):not(.is-disabled):hover {
+/* Override hover/active (hors CRM uniquement) */
+html:not(.sn-app-page) .sn-btn-primary:not(:disabled):not(.is-disabled):hover {
   transform: translateY(-1px) scale(1.02);
   box-shadow:
     0 6px 16px var(--violet-glow),
     0 4px 10px rgba(0, 0, 0, 0.12);
 }
-.sn-btn-premium:not(:disabled):not(.is-disabled):hover {
+html:not(.sn-app-page) .sn-btn-premium:not(:disabled):not(.is-disabled):hover {
   transform: translateY(-1px) scale(1.02);
   box-shadow:
     0 6px 16px var(--violet-glow),
     0 0 12px var(--gold-glow),
     0 4px 10px rgba(0, 0, 0, 0.12);
 }
-.sn-btn-danger:not(:disabled):not(.is-disabled):hover {
+html:not(.sn-app-page) .sn-btn-danger:not(:disabled):not(.is-disabled):hover {
   transform: translateY(-1px) scale(1.02);
 }
 

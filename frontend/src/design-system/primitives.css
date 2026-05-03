@@ -1,0 +1,470 @@
+/**
+ * SolarNext CRM primitives.
+ * Phase 2 — UI geometry pilotée par tokens : boutons (3 familles), cartes, tables, inputs, shell.
+ * Scope : pages CRM (`html.sn-app-page`). PDF / auth inchangés.
+ */
+
+html.sn-app-page {
+  --sn-ui-control-h-md: 32px;
+  --sn-ui-control-h-sm: 28px;
+  --sn-ui-control-h-lg: 36px;
+  --sn-ui-control-pad-x: 12px;
+  --sn-ui-control-radius: var(--radius-control);
+  --sn-ui-focus-ring: 0 0 0 3px color-mix(in srgb, var(--primary) 16%, transparent);
+  --sn-ui-focus-border: color-mix(in srgb, var(--primary) 45%, var(--border));
+  --sn-ui-hover-bg: color-mix(in srgb, var(--text-primary) 4%, transparent);
+  --sn-ui-active-bg: color-mix(in srgb, var(--text-primary) 6%, transparent);
+  --sn-ui-table-row-min-h: 44px;
+  --sn-ui-table-header-fs: 10px;
+  --sn-ui-table-row-hover: color-mix(in srgb, var(--text-primary) 5%, transparent);
+  --sn-ui-card-shadow: var(--shadow-sm, 0 1px 2px rgba(15, 23, 42, 0.05));
+  --sn-ui-card-shadow-elevated: var(--shadow-md, 0 1px 3px rgba(15, 23, 42, 0.08));
+  --sn-ui-shell-sidebar-w: 200px;
+  --sn-ui-shell-nav-h: 36px;
+  --sn-ui-shell-topbar-h: 48px;
+  --sn-ui-page-pad: 24px;
+}
+
+html.sn-app-page.theme-dark {
+  --sn-ui-hover-bg: color-mix(in srgb, var(--text-primary) 7%, transparent);
+  --sn-ui-active-bg: color-mix(in srgb, var(--text-primary) 10%, transparent);
+  --sn-ui-card-shadow: var(--shadow-sm, 0 1px 2px rgba(0, 0, 0, 0.22));
+  --sn-ui-card-shadow-elevated: var(--shadow-md, 0 1px 3px rgba(0, 0, 0, 0.32));
+  --sn-ui-table-row-hover: color-mix(in srgb, var(--text-primary) 8%, transparent);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Boutons — un seul châssis (:where), 3 familles : filled (primary) / outline / ghost */
+/* Danger = même chrome que primary, couleur `--danger`. Premium / outline-gold = alias CSS. */
+/* -------------------------------------------------------------------------- */
+
+html.sn-app-page :where(
+  .sn-btn,
+  .sg-btn,
+  .btn,
+  .btn-primary,
+  .btn-secondary,
+  .qb-btn-ghost,
+  .qb-lines-btn,
+  .planning-view-btn
+) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-8, 8px);
+  min-width: 0;
+  height: var(--sn-ui-control-h-md);
+  min-height: var(--sn-ui-control-h-md);
+  padding: 0 var(--sn-ui-control-pad-x);
+  border-radius: var(--sn-ui-control-radius);
+  border: 1px solid transparent;
+  font: inherit;
+  font-size: var(--font-size-body);
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: 0;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  box-sizing: border-box;
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease,
+    box-shadow 150ms ease,
+    transform 150ms ease;
+}
+
+html.sn-app-page :where(.sn-btn-sm, .sg-btn--sm) {
+  height: var(--sn-ui-control-h-sm);
+  min-height: var(--sn-ui-control-h-sm);
+  padding-inline: 10px;
+  font-size: var(--font-size-label);
+}
+
+html.sn-app-page :where(.sn-btn-lg) {
+  height: var(--sn-ui-control-h-lg);
+  min-height: var(--sn-ui-control-h-lg);
+  padding-inline: var(--spacing-16, 16px);
+  font-size: var(--font-size-body-lg);
+}
+
+/* Filled — primary / danger : même structure ; danger = alias (--sn-btn-fill) */
+html.sn-app-page :where(.sn-btn-primary, .sn-btn-premium, .sg-btn-primary, .btn-primary) {
+  --sn-btn-fill: var(--primary);
+}
+
+html.sn-app-page :where(.sn-btn-danger, .sg-btn-danger) {
+  --sn-btn-fill: var(--danger);
+}
+
+html.sn-app-page :where(
+  .sn-btn-primary,
+  .sn-btn-premium,
+  .sn-btn-danger,
+  .sg-btn-primary,
+  .sg-btn-danger,
+  .btn-primary
+) {
+  background: var(--sn-btn-fill);
+  border-color: var(--sn-btn-fill);
+  color: var(--text-on-dark);
+  box-shadow: none;
+}
+
+html.sn-app-page :where(
+  .sn-btn-primary,
+  .sn-btn-premium,
+  .sn-btn-danger,
+  .sg-btn-primary,
+  .sg-btn-danger,
+  .btn-primary
+):hover:not(:disabled):not(.is-disabled) {
+  background: color-mix(in srgb, var(--sn-btn-fill) 88%, var(--text-on-dark));
+  border-color: color-mix(in srgb, var(--sn-btn-fill) 88%, var(--text-on-dark));
+  transform: translateY(-1px);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--sn-btn-fill) 22%, transparent);
+}
+
+html.sn-app-page :where(
+  .sn-btn-primary,
+  .sn-btn-premium,
+  .sn-btn-danger,
+  .sg-btn-primary,
+  .sg-btn-danger,
+  .btn-primary
+):active:not(:disabled):not(.is-disabled) {
+  background: color-mix(in srgb, var(--sn-btn-fill) 82%, var(--text-on-dark));
+  transform: translateY(0);
+}
+
+/* Outline / secondary (+ outline-gold = bordure accent, même base) */
+html.sn-app-page :where(
+  .sn-btn-secondary,
+  .sn-btn-outline,
+  .sn-btn-outline-gold,
+  .sg-btn-secondary,
+  .btn-secondary
+) {
+  background: var(--bg-card);
+  border-color: var(--border);
+  color: var(--text-primary);
+  box-shadow: none;
+}
+
+html.sn-app-page :where(.sn-btn-outline-gold) {
+  border-color: color-mix(in srgb, var(--brand-gold, var(--primary)) 42%, var(--border));
+}
+
+html.sn-app-page :where(
+  .sn-btn-secondary,
+  .sn-btn-outline,
+  .sn-btn-outline-gold,
+  .sg-btn-secondary,
+  .btn-secondary
+):hover:not(:disabled):not(.is-disabled) {
+  background: var(--sn-ui-hover-bg);
+  border-color: var(--border-strong);
+  transform: translateY(-1px);
+}
+
+html.sn-app-page :where(.sn-btn-ghost, .sg-btn-ghost, .qb-btn-ghost) {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-secondary);
+  box-shadow: none;
+}
+
+html.sn-app-page :where(.sn-btn-ghost, .sg-btn-ghost, .qb-btn-ghost):hover:not(:disabled):not(.is-disabled) {
+  background: var(--sn-ui-hover-bg);
+  color: var(--text-primary);
+  transform: none;
+}
+
+html.sn-app-page :where(
+  .sn-btn,
+  .sg-btn,
+  .btn,
+  .btn-primary,
+  .btn-secondary,
+  .sn-btn-primary,
+  .sn-btn-premium,
+  .sn-btn-danger,
+  .sn-btn-secondary,
+  .sn-btn-outline,
+  .sn-btn-outline-gold,
+  .sn-btn-ghost,
+  .sg-btn-primary,
+  .sg-btn-secondary,
+  .sg-btn-danger,
+  .sg-btn-ghost,
+  .qb-btn-ghost
+):focus-visible {
+  outline: none;
+  border-color: var(--sn-ui-focus-border);
+  box-shadow: var(--sn-ui-focus-ring);
+}
+
+html.sn-app-page :where(
+  .sn-btn,
+  .sg-btn,
+  .btn,
+  .btn-primary,
+  .btn-secondary,
+  .sn-btn-ghost,
+  .qb-btn-ghost
+):active:not(:disabled):not(.is-disabled) {
+  transform: translateY(0);
+}
+
+html.sn-app-page :where(.sn-btn, .sg-btn, .btn, .btn-primary, .btn-secondary):disabled,
+html.sn-app-page :where(.sn-btn, .sg-btn, .btn, .btn-primary, .btn-secondary).is-disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* Cartes — 2 surfaces ; legacy glass / blur neutralisés sur l’app CRM */
+html.sn-app-page :where(.sn-card-glass, .sn-card-premium, .scenarios-th-glass) {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+html.sn-app-page :where(.sn-card, .sn-card-app, .sn-saas-surface, .sn-saas-form-section) {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--sn-ui-card-shadow);
+}
+
+html.sn-app-page :where(.sn-card-elevated, .sn-saas-surface--elevated) {
+  background: var(--bg-elevated);
+  border-color: var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--sn-ui-card-shadow-elevated);
+}
+
+html.sn-app-page :where(.sn-card, .sn-card-elevated, .sn-saas-surface):hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--sn-ui-card-shadow-elevated);
+}
+
+/* Inputs */
+html.sn-app-page :where(.sn-input, .sn-saas-input, .admin-catalog-input, .admin-catalog-select) {
+  width: 100%;
+  height: var(--sn-ui-control-h-md);
+  min-height: var(--sn-ui-control-h-md);
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: var(--sn-ui-control-radius);
+  background: var(--input-bg, var(--bg-card));
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--font-size-body);
+  line-height: 1.2;
+  box-shadow: inset 0 0 0 1px var(--input-border, var(--border));
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    box-shadow 150ms ease;
+  box-sizing: border-box;
+}
+
+html.sn-app-page :where(textarea.sn-input, .sn-saas-textarea) {
+  min-height: 72px;
+  height: auto;
+  padding: var(--spacing-8, 8px) 10px;
+  line-height: 1.45;
+  resize: vertical;
+}
+
+html.sn-app-page :where(.sn-input, .sn-saas-input, .sn-saas-textarea)::placeholder {
+  color: var(--input-placeholder, var(--text-muted));
+  opacity: 0.75;
+}
+
+html.sn-app-page :where(.sn-input, .sn-saas-input, .sn-saas-textarea):hover:not(:disabled):not(:focus) {
+  background: color-mix(in srgb, var(--input-bg, var(--bg-card)) 88%, var(--text-primary) 3%);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+}
+
+html.sn-app-page :where(.sn-input, .sn-saas-input, .sn-saas-textarea):focus,
+html.sn-app-page :where(.sn-input, .sn-saas-input, .sn-saas-textarea):focus-visible {
+  outline: none;
+  border-color: var(--sn-ui-focus-border);
+  box-shadow: var(--sn-ui-focus-ring);
+}
+
+html.sn-app-page :where(.sn-input, .sn-saas-input, .sn-saas-textarea):disabled,
+html.sn-app-page :where(.sn-input, .sn-saas-input, .sn-saas-textarea)[readonly] {
+  opacity: 0.72;
+  cursor: not-allowed;
+  background: var(--bg-muted);
+}
+
+/* Shell */
+html.sn-app-page .sn-sidebar {
+  width: var(--sn-ui-shell-sidebar-w);
+  padding: 10px 10px 0 !important;
+  border-right: 1px solid var(--border);
+}
+
+html.sn-app-page .logo-solarnext {
+  width: min(176px, calc(var(--sn-ui-shell-sidebar-w) - 24px));
+}
+
+html.sn-app-page .sn-sidebar-brand {
+  margin-bottom: 10px;
+  padding-bottom: var(--spacing-8, 8px);
+}
+
+html.sn-app-page .sn-sidebar-nav {
+  gap: 2px;
+}
+
+html.sn-app-page .sn-sidebar-nav-group {
+  margin-top: 4px;
+  padding-top: 4px;
+}
+
+html.sn-app-page .sn-sidebar-nav-group-label {
+  margin: var(--spacing-8, 8px) var(--spacing-8, 8px) 5px;
+  font-size: var(--font-size-label);
+  letter-spacing: 0.08em;
+}
+
+html.sn-app-page :where(.sn-sidebar-link, .sn-sidebar-section-toggle) {
+  min-height: var(--sn-ui-shell-nav-h);
+  padding: 0 10px;
+  margin-bottom: 2px;
+  border-radius: var(--radius-control);
+  border: 1px solid transparent;
+  font-size: var(--font-size-body);
+  line-height: 1;
+}
+
+html.sn-app-page .sn-sidebar-link-icon {
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 18px;
+}
+
+html.sn-app-page .sn-sidebar-link-icon svg,
+html.sn-app-page .sn-sidebar-action-btn svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 1.7;
+}
+
+html.sn-app-page :where(.sn-sidebar-link, .sn-sidebar-section-toggle):hover {
+  background: var(--sn-ui-hover-bg);
+  border-color: var(--border);
+}
+
+html.sn-app-page :where(.sn-sidebar-link-active, .sn-sidebar-item.active) {
+  background: color-mix(in srgb, var(--primary) 11%, transparent);
+  border-color: color-mix(in srgb, var(--primary) 20%, var(--border));
+  color: var(--text-primary);
+}
+
+html.sn-app-page .sn-sidebar-action-btn,
+html.sn-app-page .sn-topbar-btn {
+  width: var(--sn-ui-control-h-md);
+  height: var(--sn-ui-control-h-md);
+  border-radius: var(--sn-ui-control-radius);
+  border-color: var(--border);
+  background: var(--bg-card);
+}
+
+html.sn-app-page .sn-topbar {
+  height: var(--sn-ui-shell-topbar-h);
+  padding: 0 var(--sn-ui-page-pad);
+  border-bottom-color: var(--border);
+}
+
+html.sn-app-page .sn-main {
+  padding: var(--sn-ui-page-pad);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Tables — pattern lecture (sn-ui-table + listes SaaS finance / devis) */
+/* -------------------------------------------------------------------------- */
+
+html.sn-app-page :where(.sn-ui-table, .qb-table.qb-table--list-saas) {
+  width: 100%;
+  min-width: 0;
+  font-size: var(--font-size-body);
+  border-collapse: collapse;
+}
+
+html.sn-app-page :where(.qb-table.qb-table--list-saas) {
+  min-width: 960px;
+}
+
+html.sn-app-page :where(.sn-ui-table thead, .qb-table.qb-table--list-saas thead) {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--bg-elevated, var(--bg-card));
+}
+
+html.sn-app-page :where(.sn-ui-table th, .qb-table.qb-table--list-saas th) {
+  padding: var(--spacing-8, 8px) 10px;
+  font-size: var(--sn-ui-table-header-fs);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--primary) 16%, var(--text-muted));
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+html.sn-app-page :where(.sn-ui-table td, .qb-table.qb-table--list-saas td) {
+  padding: 10px;
+  min-height: var(--sn-ui-table-row-min-h);
+  vertical-align: middle;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
+}
+
+html.sn-app-page :where(.sn-ui-table tbody tr, .qb-table.qb-table--list-saas tbody tr) {
+  transition: background-color 0.15s ease;
+}
+
+html.sn-app-page :where(.sn-ui-table tbody tr:hover, .qb-table.qb-table--list-saas tbody tr:hover) {
+  background: var(--sn-ui-table-row-hover);
+}
+
+html.sn-app-page :where(.sn-ui-table tbody tr:last-child td, .qb-table.qb-table--list-saas tbody tr:last-child td) {
+  border-bottom: none;
+}
+
+/* Table éditable : champs compacts ; actions masquées sauf au survol de ligne */
+html.sn-app-page :where(.sn-ui-table--editable) :where(input:not([type="checkbox"]):not([type="radio"]), select, textarea) {
+  height: var(--sn-ui-control-h-md);
+  min-height: var(--sn-ui-control-h-md);
+  padding: 0 8px;
+  border-radius: var(--sn-ui-control-radius);
+  font-size: var(--font-size-body);
+  box-sizing: border-box;
+}
+
+html.sn-app-page :where(.sn-ui-table--editable textarea) {
+  min-height: 56px;
+  height: auto;
+  padding: var(--spacing-8, 8px);
+}
+
+html.sn-app-page :where(.sn-ui-table--editable .sn-ui-table__row-actions) {
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+html.sn-app-page :where(.sn-ui-table--editable tr:hover .sn-ui-table__row-actions),
+html.sn-app-page :where(.sn-ui-table--editable tr:focus-within .sn-ui-table__row-actions) {
+  opacity: 1;
+}

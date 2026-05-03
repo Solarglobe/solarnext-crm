@@ -1,5 +1,9 @@
 import React from "react";
 
+/**
+ * Variantes de surface (2 rendus réels : plat vs surélevé).
+ * `premium` et `app` sont conservées pour compat API : mappées respectivement sur surélevé et plat.
+ */
 type CardVariant = "default" | "elevated" | "premium" | "app";
 
 interface CardProps {
@@ -26,10 +30,7 @@ export function Card({
 }: CardProps) {
   const classes = [
     "sn-card",
-    variant === "elevated" && "sn-card-elevated",
-    variant === "premium" && "sn-card-premium",
-    variant === "app" && "sn-card-app",
-    variant === "default" && "sn-card-glass",
+    (variant === "elevated" || variant === "premium") && "sn-card-elevated",
     className,
   ]
     .filter(Boolean)

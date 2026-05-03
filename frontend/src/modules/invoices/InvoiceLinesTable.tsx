@@ -104,7 +104,7 @@ function SortableRow({
       <td className="qb-num ib-amt">{eur(a.net_ht)}</td>
       <td className="qb-num ib-amt">{eur(a.total_tva)}</td>
       <td className="qb-num ib-amt ib-amt--ttc">{eur(a.total_ttc)}</td>
-      <td className="qb-col-act">
+      <td className="qb-col-act sn-ui-table__row-actions">
         <button
           type="button"
           className="qb-line-remove-btn"
@@ -152,7 +152,7 @@ export default function InvoiceLinesTable({
   return (
     <div className="qb-table-wrap qb-table-wrap--framed ib-invoice-lines-wrap">
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-        <table className="qb-table ib-invoice-lines-table">
+        <table className="sn-ui-table sn-ui-table--editable qb-table ib-invoice-lines-table">
           <thead>
             <tr>
               <th className="qb-th-drag" />

@@ -128,7 +128,7 @@ function SortableRow({
           ))}
         </select>
       </td>
-      <td className="qb-col-act">
+      <td className="qb-col-act sn-ui-table__row-actions">
         <button
           type="button"
           className="qb-line-remove-btn"
@@ -176,7 +176,7 @@ export default function QuoteLinesTable({
   const sorted = [...lines].sort((a, b) => a.position - b.position);
   const ids = sorted.map((l) => l.id);
 
-  const tableClass = `qb-table qb-lines-edit${!docShowLinePricing ? " qb-lines-edit--doc-hide-pricing" : ""}`;
+  const tableClass = `sn-ui-table sn-ui-table--editable qb-table qb-lines-edit${!docShowLinePricing ? " qb-lines-edit--doc-hide-pricing" : ""}`;
 
   if (sorted.length === 0) {
     return (

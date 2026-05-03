@@ -20,66 +20,7 @@ html.theme-dark .qb-table-wrap--list-saas {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
-.qb-table.qb-table--list-saas {
-  min-width: 960px;
-  font-size: 13px;
-}
-
-.qb-table.qb-table--list-saas thead {
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  background: rgba(255, 255, 255, 0.92);
-  backdrop-filter: blur(8px);
-}
-
-.theme-dark .qb-table.qb-table--list-saas thead,
-html.theme-dark .qb-table.qb-table--list-saas thead {
-  background: color-mix(in srgb, var(--surface-elevated) 92%, transparent);
-}
-
-.qb-table.qb-table--list-saas th {
-  padding: 8px 10px;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: color-mix(in srgb, var(--primary) 16%, var(--text-muted));
-  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
-  white-space: nowrap;
-}
-
-.qb-table.qb-table--list-saas td {
-  padding: 7px 10px;
-  vertical-align: middle;
-  border-bottom: 1px solid rgba(15, 23, 42, 0.06);
-}
-
-.theme-dark .qb-table.qb-table--list-saas th,
-html.theme-dark .qb-table.qb-table--list-saas th {
-  border-bottom-color: rgba(255, 255, 255, 0.08);
-}
-
-.theme-dark .qb-table.qb-table--list-saas td,
-html.theme-dark .qb-table.qb-table--list-saas td {
-  border-bottom-color: rgba(255, 255, 255, 0.06);
-}
-
-.qb-table.qb-table--list-saas tbody tr {
-  transition: background-color 0.15s ease;
-}
-
-.qb-table.qb-table--list-saas tbody tr:hover {
-  background: rgba(15, 23, 42, 0.03);
-}
-
-.theme-light .qb-table.qb-table--list-saas tbody tr:hover {
-  background: rgba(15, 23, 42, 0.035);
-}
-
-.qb-table.qb-table--list-saas tbody tr:last-child td {
-  border-bottom: none;
-}
+/* Grille tableau liste SaaS : `design-system/primitives.css` (html.sn-app-page) */
 
 /* Retard facture — accent cohérent */
 .qb-table--list-saas tbody tr.fin-saas-row-overdue {
