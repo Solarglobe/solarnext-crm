@@ -3,6 +3,7 @@ import "./styles/solarnext-theme.css";
 import "./design-system/saas-crm.css";
 import "./design-system/tokens.css";
 import "./design-system/primitives.css";
+import "./design-system/sidebar-crm.css";
 import "ol/ol.css";
 import React from "react";
 

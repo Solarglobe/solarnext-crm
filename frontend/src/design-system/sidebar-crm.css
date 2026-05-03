@@ -1,0 +1,198 @@
+/**
+ * CRM sidebar — rendu SaaS premium (Stripe / Linear / Notion).
+ * Uniquement sous html.sn-app-page. Sans !important.
+ * Chargé après primitives.css pour dominer la cascade.
+ */
+
+/* Colonne : neutre, une seule séparation droite */
+html.sn-app-page aside.sn-sidebar {
+  background: var(--bg-muted);
+  border-right: 1px solid var(--border);
+}
+
+html.sn-app-page.theme-light aside.sn-sidebar,
+html.theme-light html.sn-app-page aside.sn-sidebar {
+  border-right-color: var(--border);
+}
+
+/* Logo : pas de barre dorée décorative */
+html.sn-app-page .sn-sidebar-brand.sidebar-brand::after {
+  content: none;
+  display: none;
+}
+
+/* Nav : respiration */
+html.sn-app-page .sn-sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4, 4px);
+  padding: 0 0 var(--spacing-12, 12px);
+  margin-top: 0;
+}
+
+/* Supprime les traits dorés entre sections (::before du thème) */
+html.sn-app-page .sn-sidebar-nav-group::before {
+  display: none;
+  content: none;
+}
+
+html.sn-app-page .sn-sidebar-nav > .sn-sidebar-nav-group:first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+}
+
+html.sn-app-page .sn-sidebar-nav-group {
+  margin-top: var(--spacing-20, 20px);
+  padding-top: 0;
+}
+
+/* Une séparation très douce optionnelle entre blocs (pas de doré) */
+html.sn-app-page .sn-sidebar-nav-group:not(:first-child) {
+  padding-top: var(--spacing-12, 12px);
+  border-top: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
+}
+
+/* Labels de section : discrets */
+html.sn-app-page .sn-sidebar-nav-group-label {
+  margin: 0 0 var(--spacing-6, 6px) 0;
+  padding: 0 10px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-muted);
+  opacity: 0.92;
+}
+
+/* Sections repliables : pas de “carte”, aligné label */
+html.sn-app-page .sn-sidebar-section-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  margin: 0 0 var(--spacing-4, 4px);
+  padding: 0 10px;
+  min-height: 32px;
+  border: none;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  box-shadow: none;
+  cursor: pointer;
+  text-align: left;
+  transition:
+    background-color 0.12s ease,
+    color 0.12s ease;
+}
+
+html.sn-app-page .sn-sidebar-section-toggle:hover {
+  background: var(--sn-ui-hover-bg);
+  color: var(--text-primary);
+  border: none;
+  box-shadow: none;
+}
+
+html.sn-app-page .sn-sidebar-section-toggle:focus-visible {
+  outline: none;
+  box-shadow: var(--sn-ui-focus-ring);
+}
+
+html.sn-app-page .sn-sidebar-section-chevron {
+  opacity: 0.65;
+  color: var(--text-muted);
+}
+
+/* Liens : 36px, fond transparent, pas de contour “box” */
+html.sn-app-page .sn-sidebar-link {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8, 8px);
+  margin: 0 0 var(--spacing-4, 4px);
+  padding: 0 10px;
+  min-height: 36px;
+  border: none;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--text-primary);
+  font-size: var(--font-size-body);
+  font-weight: 500;
+  text-decoration: none;
+  box-shadow: none;
+  transition:
+    background-color 0.12s ease,
+    color 0.12s ease;
+}
+
+html.sn-app-page .sn-sidebar-link:hover {
+  background: var(--sn-ui-hover-bg);
+  color: var(--text-primary);
+  border: none;
+  box-shadow: none;
+}
+
+/* Actif : neutre + léger accent doré (pas de violet ni glow) */
+html.sn-app-page .sn-sidebar-link-active,
+html.sn-app-page .sn-sidebar-item.active {
+  background: color-mix(in srgb, var(--brand-gold, var(--gold)) 12%, transparent);
+  color: var(--text-primary);
+  border: none;
+  box-shadow: none;
+  font-weight: 600;
+}
+
+html.sn-app-page .sn-sidebar-link-active::before,
+html.sn-app-page .sn-sidebar-item.active::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 2px;
+  height: 20px;
+  border-radius: 1px;
+  background: var(--brand-gold, var(--gold));
+}
+
+/* Icônes : même taille, couleur = texte */
+html.sn-app-page .sn-sidebar-link .sn-sidebar-link-icon,
+html.sn-app-page .sn-sidebar-link-active .sn-sidebar-link-icon {
+  opacity: 1;
+  color: inherit;
+}
+
+html.sn-app-page .sn-sidebar-link-icon svg {
+  color: currentColor;
+  stroke: currentColor;
+}
+
+html.sn-app-page .sn-sidebar-link-nested,
+html.sn-app-page .sn-sidebar-link-org {
+  padding-left: calc(var(--spacing-16, 16px) + 6px);
+}
+
+html.sn-app-page .sn-sidebar-link-icon {
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 18px;
+}
+
+html.sn-app-page .sn-sidebar-action-btn {
+  border-radius: var(--radius-control);
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+}
+
+html.sn-app-page .sn-sidebar-action-btn:hover {
+  background: var(--sn-ui-hover-bg);
+  color: var(--text-primary);
+}

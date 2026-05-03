@@ -358,59 +358,13 @@ html.sn-app-page .sn-sidebar-brand {
   padding-bottom: var(--spacing-8, 8px);
 }
 
-html.sn-app-page .sn-sidebar-nav {
-  gap: 2px;
-}
-
-html.sn-app-page .sn-sidebar-nav-group {
-  margin-top: 4px;
-  padding-top: 4px;
-}
-
-html.sn-app-page .sn-sidebar-nav-group-label {
-  margin: var(--spacing-8, 8px) var(--spacing-8, 8px) 5px;
-  font-size: var(--font-size-label);
-  letter-spacing: 0.08em;
-}
-
-html.sn-app-page .sn-sidebar-link,
-html.sn-app-page .sn-sidebar-section-toggle {
-  min-height: var(--sn-ui-shell-nav-h);
-  padding: 0 10px;
-  margin-bottom: 2px;
-  border-radius: var(--radius-control);
-  border: 1px solid transparent;
-  font-size: var(--font-size-body);
-  line-height: 1;
-}
-
-html.sn-app-page .sn-sidebar-link-icon {
-  width: 18px;
-  height: 18px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 18px;
-}
+/* Détail nav sidebar CRM → sidebar-crm.css */
 
 html.sn-app-page .sn-sidebar-link-icon svg,
 html.sn-app-page .sn-sidebar-action-btn svg {
   width: 16px;
   height: 16px;
   stroke-width: 1.7;
-}
-
-html.sn-app-page .sn-sidebar-link:hover,
-html.sn-app-page .sn-sidebar-section-toggle:hover {
-  background: var(--sn-ui-hover-bg);
-  border-color: var(--border);
-}
-
-html.sn-app-page .sn-sidebar-link-active,
-html.sn-app-page .sn-sidebar-item.active {
-  background: color-mix(in srgb, var(--primary) 11%, transparent);
-  border-color: color-mix(in srgb, var(--primary) 20%, var(--border));
-  color: var(--text-primary);
 }
 
 html.sn-app-page .sn-sidebar-action-btn,
