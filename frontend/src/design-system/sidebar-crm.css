@@ -1,13 +1,23 @@
 /**
  * CRM sidebar — rendu SaaS premium (Stripe / Linear / Notion).
  * Uniquement sous html.sn-app-page. Sans !important.
- * Chargé après primitives.css pour dominer la cascade.
+ * Espacements : mini système local (--sb-space-*), sans toucher tokens/primitives.
  */
 
-/* Colonne : neutre, une seule séparation droite */
+:root {
+  --sb-space-4: 4px;
+  --sb-space-6: 6px;
+  --sb-space-8: 8px;
+  --sb-space-12: 12px;
+  --sb-space-16: 16px;
+  --sb-space-20: 20px;
+}
+
+/* Colonne : neutre, padding global Stripe-like */
 html.sn-app-page aside.sn-sidebar {
   background: var(--bg-muted);
   border-right: 1px solid var(--border);
+  padding: var(--sb-space-16);
 }
 
 html.sn-app-page.theme-light aside.sn-sidebar,
@@ -21,12 +31,12 @@ html.sn-app-page .sn-sidebar-brand.sidebar-brand::after {
   display: none;
 }
 
-/* Nav : respiration */
+/* Nav : rythme vertical — espacement UNIQUEMENT entre groupes (gap) */
 html.sn-app-page .sn-sidebar-nav {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-4, 4px);
-  padding: 0 0 var(--spacing-12, 12px);
+  gap: var(--sb-space-16);
+  padding: 0 0 var(--sb-space-12);
   margin-top: 0;
 }
 
@@ -36,27 +46,35 @@ html.sn-app-page .sn-sidebar-nav-group::before {
   content: none;
 }
 
+/* Groupe : colonne, espace label → liste via gap interne */
+html.sn-app-page .sn-sidebar-nav-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-space-6);
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+}
+
 html.sn-app-page .sn-sidebar-nav > .sn-sidebar-nav-group:first-child {
   margin-top: 0;
   padding-top: 0;
   border-top: none;
 }
 
-html.sn-app-page .sn-sidebar-nav-group {
-  margin-top: var(--spacing-20, 20px);
-  padding-top: 0;
+/* Plus de bordure entre groupes : le rythme vient du gap du nav (16px) */
+
+/* Liste d’items : gap uniquement, pas de margin sur les liens */
+html.sn-app-page .sn-sidebar-section-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-space-4);
 }
 
-/* Une séparation très douce optionnelle entre blocs (pas de doré) */
-html.sn-app-page .sn-sidebar-nav-group:not(:first-child) {
-  padding-top: var(--spacing-12, 12px);
-  border-top: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
-}
-
-/* Labels de section : discrets */
+/* Labels de section (si présents hors repliable) */
 html.sn-app-page .sn-sidebar-nav-group-label {
-  margin: 0 0 var(--spacing-6, 6px) 0;
-  padding: 0 10px;
+  margin: 0 0 var(--sb-space-6) 0;
+  padding: 0;
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
@@ -65,14 +83,14 @@ html.sn-app-page .sn-sidebar-nav-group-label {
   opacity: 0.92;
 }
 
-/* Sections repliables : pas de “carte”, aligné label */
+/* En-tête de section repliable = label */
 html.sn-app-page .sn-sidebar-section-toggle {
   display: flex;
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  margin: 0 0 var(--spacing-4, 4px);
-  padding: 0 10px;
+  margin: 0;
+  padding: 0;
   min-height: 32px;
   border: none;
   border-radius: var(--radius-control);
@@ -107,15 +125,16 @@ html.sn-app-page .sn-sidebar-section-chevron {
   color: var(--text-muted);
 }
 
-/* Liens : 36px, fond transparent, pas de contour “box” */
+/* Liens : 36px, spacing = gap du panel uniquement */
 html.sn-app-page .sn-sidebar-link {
   position: relative;
   display: flex;
   align-items: center;
-  gap: var(--spacing-8, 8px);
-  margin: 0 0 var(--spacing-4, 4px);
-  padding: 0 10px;
+  gap: var(--sb-space-8);
+  margin: 0;
+  padding: 0;
   min-height: 36px;
+  height: 36px;
   border: none;
   border-radius: var(--radius-control);
   background: transparent;
@@ -136,7 +155,6 @@ html.sn-app-page .sn-sidebar-link:hover {
   box-shadow: none;
 }
 
-/* Actif : neutre + léger accent doré (pas de violet ni glow) */
 html.sn-app-page .sn-sidebar-link-active,
 html.sn-app-page .sn-sidebar-item.active {
   background: color-mix(in srgb, var(--brand-gold, var(--gold)) 12%, transparent);
@@ -159,7 +177,6 @@ html.sn-app-page .sn-sidebar-item.active::before {
   background: var(--brand-gold, var(--gold));
 }
 
-/* Icônes : même taille, couleur = texte */
 html.sn-app-page .sn-sidebar-link .sn-sidebar-link-icon,
 html.sn-app-page .sn-sidebar-link-active .sn-sidebar-link-icon {
   opacity: 1;
@@ -173,7 +190,7 @@ html.sn-app-page .sn-sidebar-link-icon svg {
 
 html.sn-app-page .sn-sidebar-link-nested,
 html.sn-app-page .sn-sidebar-link-org {
-  padding-left: calc(var(--spacing-16, 16px) + 6px);
+  padding-left: var(--sb-space-12);
 }
 
 html.sn-app-page .sn-sidebar-link-icon {
