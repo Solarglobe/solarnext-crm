@@ -61,6 +61,7 @@ import MailInboxPage from "./pages/mail/MailInboxPage";
 import MailOutboxPage from "./pages/mail/MailOutboxPage";
 import MailSettingsPage from "./pages/settings/MailSettingsPage";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import "./styles/theme-overrides.css";
 
 const router = createBrowserRouter(
   [

@@ -1,0 +1,191 @@
+/**
+ * Couche d’override globale — dark mode uniquement.
+ * Ne remplace pas les fichiers existants ; s’appuie sur les tokens (--text-primary, --bg-page, etc.).
+ */
+
+/* --- Texte principal (corpus de page, sans forcer l’héritage sur tous les nœuds) --- */
+html.theme-dark body {
+  color: var(--text-primary);
+}
+
+/* --- Fonds page / shell --- */
+html.theme-dark body,
+html.theme-dark .sn-app,
+html.theme-dark .sn-main {
+  background-color: var(--bg-page);
+}
+
+/* --- Cartes / panneaux --- */
+html.theme-dark .card,
+html.theme-dark .panel,
+html.theme-dark .sn-card,
+html.theme-dark .sn-surface {
+  background-color: var(--bg-card);
+}
+
+/* --- Bordures harmonisées (ciblé — pas de wildcard) --- */
+html.theme-dark .card,
+html.theme-dark .panel,
+html.theme-dark .sn-card,
+html.theme-dark .sn-surface,
+html.theme-dark table,
+html.theme-dark input,
+html.theme-dark textarea,
+html.theme-dark select {
+  border-color: var(--border);
+}
+
+/* --- Champs de formulaire --- */
+html.theme-dark input,
+html.theme-dark textarea,
+html.theme-dark select {
+  background-color: var(--bg-card);
+  color: var(--text-primary);
+  transition: all 120ms ease;
+}
+
+html.theme-dark input:hover,
+html.theme-dark textarea:hover,
+html.theme-dark select:hover {
+  border-color: var(--border-strong, var(--border));
+}
+
+html.theme-dark input:focus,
+html.theme-dark textarea:focus,
+html.theme-dark select:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 1px var(--primary);
+  transform: scale(1.01);
+}
+
+/* --- Tableaux --- */
+html.theme-dark table {
+  background-color: var(--bg-card);
+}
+
+html.theme-dark td,
+html.theme-dark th {
+  color: var(--text-primary);
+  border-color: var(--border);
+}
+
+/* --- Boutons : éviter d’écraser primary / danger --- */
+html.theme-dark button:not([class*="primary"]):not([class*="danger"]) {
+  color: var(--text-primary);
+}
+
+/* --- Icônes SVG : suivre la couleur du contexte --- */
+html.theme-dark svg {
+  fill: currentColor;
+}
+
+/* --- Badges / statuts : préserver les couleurs définies par le composant --- */
+html.theme-dark [class*="badge"],
+html.theme-dark [class*="status"] {
+  color: inherit;
+}
+
+/* --- Modales (confirmation & dérivés) --- */
+html.theme-dark .confirm-modal,
+html.theme-dark [class*="modal"] {
+  background-color: var(--bg-card);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+}
+
+html.theme-dark [class*="modal"] h1,
+html.theme-dark [class*="modal"] h2,
+html.theme-dark [class*="modal"] h3 {
+  color: var(--text-primary);
+}
+
+html.theme-dark [class*="modal"] p {
+  color: var(--text-secondary);
+}
+
+/* --- Toasts / notifications --- */
+html.theme-dark .sn-undo-toast,
+html.theme-dark [class*="toast"] {
+  background-color: var(--bg-card);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+}
+
+/* --- Tableaux : hiérarchie & ligne --- */
+html.theme-dark table tr {
+  border-bottom: 1px solid var(--border);
+  transition: background-color 120ms ease;
+}
+
+html.theme-dark table tr:hover {
+  background-color: rgba(255, 255, 255, 0.04);
+}
+
+html.theme-dark th {
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+html.theme-dark td {
+  color: var(--text-primary);
+}
+
+html.theme-dark tr:focus-within {
+  background-color: rgba(255, 255, 255, 0.04);
+}
+
+/* --- Badges sémantiques (couleur du texte uniquement) --- */
+html.theme-dark [class*="success"] {
+  color: var(--success);
+}
+
+html.theme-dark [class*="danger"] {
+  color: var(--danger);
+}
+
+html.theme-dark [class*="warning"] {
+  color: var(--warning);
+}
+
+/* --- Polish premium : fluidité globale --- */
+html.theme-dark * {
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+/* --- Cartes / panneaux : léger relief --- */
+html.theme-dark .card,
+html.theme-dark .sn-card,
+html.theme-dark .panel {
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease,
+    box-shadow 120ms ease,
+    transform 120ms ease;
+}
+
+html.theme-dark .card:hover,
+html.theme-dark .sn-card:hover,
+html.theme-dark .panel:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+/* --- Boutons : feedback --- */
+html.theme-dark button {
+  transition: all 120ms ease;
+}
+
+html.theme-dark button:hover {
+  filter: brightness(1.05);
+}
+
+html.theme-dark button:active {
+  transform: scale(0.98);
+}
