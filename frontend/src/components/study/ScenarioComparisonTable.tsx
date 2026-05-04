@@ -161,6 +161,17 @@ function getResidualBillEurForDisplay(finance: ScenarioV2Finance): number | null
   return finiteNumberOrNull(finance.residual_bill_eur);
 }
 
+/** Lecture seule : facture annuelle avant solaire si le JSON expose un champ reconnu (aucun calcul). */
+function getFinanceBaselineBillBeforeSolarEuro(finance: ScenarioV2Finance): number | null {
+  const raw = finance as Record<string, unknown>;
+  return finiteNumberOrNull(
+    raw.baseline_annual_bill_eur ??
+      raw.baselineAnnualBillEur ??
+      raw.annual_bill_before_solar_eur ??
+      raw.reference_annual_bill_eur
+  );
+}
+
 /** Indices des colonnes au maximum sur une métrique (lecture seule, pour repères visuels ⭐). */
 function columnIndicesAtNumericMax(values: readonly (number | null)[]): Set<number> {
   let max = -Infinity;
@@ -481,6 +492,11 @@ export default function ScenarioComparisonTable({
     useState<Record<ScenarioColumnId, boolean>>(INITIAL_ADD_TO_DOCS);
 
   const commercialIndicatorStars = computeCommercialIndicatorStars(scenarios);
+  const bestGainNetIndices = columnIndicesAtNumericMax(
+    scenarios.map((s) =>
+      s ? finiteNumberOrNull(s.finance?.economie_total ?? s.finance?.total_savings_25y) : null
+    )
+  );
 
   return (
     <div className={`scenario-comparison-premium ${className}`}>
@@ -568,6 +584,12 @@ export default function ScenarioComparisonTable({
             savings: commercialIndicatorStars.savings.has(index),
           });
 
+          const capexTtc = finiteNumberOrNull(finance.capex_ttc);
+          const roiYearsFinance = finiteNumberOrNull(finance.roi_years);
+          const triPctFinance = finiteNumberOrNull(finance.irr_pct ?? finance.tri);
+          const totalSavingsFinance = finiteNumberOrNull(finance.economie_total ?? finance.total_savings_25y);
+          const beforeBillSolar = getFinanceBaselineBillBeforeSolarEuro(finance);
+
           const isSelectedLocked =
             versionLocked && selectedScenarioId != null && selectedScenarioId === id;
           const isOtherLocked =
@@ -599,6 +621,9 @@ export default function ScenarioComparisonTable({
                         <span className="sn-badge sn-badge-danger">Non adapté</span>
                       )}
                     </div>
+                    {scenario != null && bestGainNetIndices.has(index) ? (
+                      <span className="scenario-best-option-badge">Meilleure option</span>
+                    ) : null}
                   </div>
 
                   <div className="scenario-header-middle">
@@ -673,6 +698,54 @@ export default function ScenarioComparisonTable({
                         })}
                       </div>
                     )}
+                  </section>
+
+                  <section className="scenario-finance scenario-row-finance" aria-label="Finance">
+                    <div className="scenario-finance-block">
+                      <div className="scenario-finance-title">💰 Investissement</div>
+                      <div className="scenario-finance-line">
+                        <span>CAPEX TTC</span>
+                        <strong className="scenario-finance-value">
+                          {capexTtc != null ? formatCurrency(capexTtc) : "—"}
+                        </strong>
+                      </div>
+                    </div>
+                    <div className="scenario-finance-block">
+                      <div className="scenario-finance-title">📊 Rentabilité</div>
+                      <div className="scenario-finance-line">
+                        <span>ROI</span>
+                        <strong className="scenario-finance-value">
+                          {roiYearsFinance != null ? `${roiYearsFinance} ans` : "—"}
+                        </strong>
+                      </div>
+                      <div className="scenario-finance-line">
+                        <span>TRI</span>
+                        <strong className="scenario-finance-value">
+                          {triPctFinance != null ? formatPercent(triPctFinance) : "—"}
+                        </strong>
+                      </div>
+                    </div>
+                    <div className="scenario-finance-block">
+                      <div className="scenario-finance-title">💸 Impact</div>
+                      {beforeBillSolar != null ? (
+                        <div className="scenario-finance-line">
+                          <span>Avant</span>
+                          <strong className="scenario-finance-value">{formatCurrency(beforeBillSolar)}</strong>
+                        </div>
+                      ) : null}
+                      <div className="scenario-finance-line">
+                        <span>Après</span>
+                        <strong className="scenario-finance-value">
+                          {residualBillEur != null ? formatCurrency(residualBillEur) : "—"}
+                        </strong>
+                      </div>
+                      <div className="scenario-finance-line scenario-finance-highlight">
+                        <span>Gain net</span>
+                        <strong className="scenario-finance-value">
+                          {totalSavingsFinance != null ? formatCurrency(totalSavingsFinance) : "—"}
+                        </strong>
+                      </div>
+                    </div>
                   </section>
 
                   <div className="scenario-row-delta">
@@ -1130,6 +1203,7 @@ export default function ScenarioComparisonTable({
         }
         .scenario-col-card:not(.scenario-col-card--empty) > .scenario-row-hero,
         .scenario-col-card:not(.scenario-col-card--empty) > .scenario-row-key-indicators,
+        .scenario-col-card:not(.scenario-col-card--empty) > .scenario-row-finance,
         .scenario-col-card:not(.scenario-col-card--empty) > .scenario-row-numbers,
         .scenario-col-card:not(.scenario-col-card--empty) > .scenario-row-comprehension,
         .scenario-col-card:not(.scenario-col-card--empty) > .scenario-row-impact {
@@ -1162,7 +1236,23 @@ export default function ScenarioComparisonTable({
         .scenario-header-top {
           min-height: 40px;
           display: flex;
+          flex-direction: column;
           align-items: flex-start;
+          gap: 0.3rem;
+        }
+        .scenario-best-option-badge {
+          display: inline-flex;
+          align-items: center;
+          align-self: flex-start;
+          font-size: 0.62rem;
+          font-weight: 800;
+          text-transform: uppercase;
+          letter-spacing: 0.07em;
+          padding: 0.22rem 0.5rem;
+          border-radius: 6px;
+          background: color-mix(in srgb, var(--primary) 16%, transparent);
+          border: 1px solid color-mix(in srgb, var(--primary) 42%, transparent);
+          color: var(--primary);
         }
         .scenario-header-top-inner {
           display: flex;
@@ -1387,6 +1477,56 @@ export default function ScenarioComparisonTable({
           white-space: nowrap;
           display: inline-block;
           vertical-align: middle;
+        }
+        .scenario-finance {
+          margin-top: 0.6rem;
+          display: flex;
+          flex-direction: column;
+          gap: 0.4rem;
+          min-width: 0;
+        }
+        .scenario-finance-block {
+          padding: 0.3rem 0;
+          border-top: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .theme-light .scenario-finance-block {
+          border-top-color: rgba(15, 23, 42, 0.08);
+        }
+        .scenario-finance-title {
+          font-size: 0.7rem;
+          font-weight: 700;
+          margin-bottom: 0.2rem;
+          opacity: 0.9;
+          letter-spacing: 0.04em;
+          text-transform: uppercase;
+          color: var(--sn-text-secondary, #9fa8c7);
+        }
+        .scenario-finance-line {
+          display: grid;
+          grid-template-columns: 1fr auto;
+          gap: 0.35rem 0.5rem;
+          align-items: baseline;
+          font-size: 0.75rem;
+          min-width: 0;
+        }
+        .scenario-finance-line span {
+          color: var(--sn-text-secondary, #9fa8c7);
+          overflow-wrap: anywhere;
+        }
+        .scenario-finance-value {
+          font-size: 0.9rem;
+          font-weight: 800;
+          font-variant-numeric: tabular-nums;
+          color: var(--sn-text-primary);
+          text-align: right;
+          min-width: 0;
+          overflow-wrap: anywhere;
+        }
+        .scenario-finance-highlight strong.scenario-finance-value,
+        .scenario-finance-highlight .scenario-finance-value {
+          font-size: 1.05rem;
+          font-weight: 900;
+          color: var(--primary);
         }
         .scenario-numbers {
           margin-top: 0.5rem;
