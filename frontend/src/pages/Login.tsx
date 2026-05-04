@@ -92,19 +92,12 @@ function IconEye({ visible }: { visible: boolean }) {
   );
 }
 
-function IconArrowRight() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M5 12h14M13 6l6 6-6 6"
-        stroke="currentColor"
-        strokeWidth="1.75"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
+const FEATURES = [
+  "Leads & pipeline commercial",
+  "Études PV & calpinage 3D",
+  "Dossiers réglementaires (DP)",
+  "Suivi opérationnel & SAV",
+];
 
 export default function Login() {
   const navigate = useNavigate();
@@ -165,11 +158,11 @@ export default function Login() {
 
   return (
     <div className="login-page">
-      <div className="login-bg" aria-hidden />
-      <div className="login-content">
-        <div className="login-wrapper">
+      {/* ── Panneau gauche — brand ── */}
+      <div className="login-panel-left" aria-hidden="true">
+        <div className="login-brand">
           <div
-            className="logo-container login-logo"
+            className="logo-container"
             role="img"
             aria-label="SolarNext"
           >
@@ -188,23 +181,39 @@ export default function Login() {
               decoding="async"
             />
           </div>
+          <p className="login-brand-pitch">
+            Votre CRM photovoltaïque de bout en bout.
+          </p>
+          <ul className="login-features" aria-hidden="true">
+            {FEATURES.map((f) => (
+              <li key={f} className="login-feature-item">
+                <span className="login-feature-dot" aria-hidden />
+                {f}
+              </li>
+            ))}
+          </ul>
+        </div>
+        <footer className="login-footer-left">
+          © {year} SolarNext. Tous droits réservés.
+        </footer>
+      </div>
 
-          <div className="login-card">
-            <header className="login-card-header">
-            <span className="sn-badge sn-badge-info">CRM photovoltaïque</span>
+      {/* ── Panneau droit — formulaire ── */}
+      <div className="login-panel-right">
+        <div className="login-card">
+          <header className="login-card-header">
             <h1>
-              <span className="login-title-muted">Bienvenue sur </span>
+              <span className="login-title-muted">Connexion à </span>
               <span className="login-title-solar">Solar</span>
               <span className="login-title-next">Next</span>
             </h1>
             <p className="login-tagline">
-              Accédez à votre espace de pilotage : leads, études et suivi
-              opérationnel, au même endroit.
+              Entrez vos identifiants pour accéder à votre espace.
             </p>
-            </header>
+          </header>
 
-            <form onSubmit={handleSubmit} className="login-form" noValidate>
-              <div className="login-field">
+          <form onSubmit={handleSubmit} className="login-form" noValidate>
+            <div className="login-field">
               <label htmlFor="email">Adresse e-mail</label>
               <div className="login-input-wrap">
                 <span className="login-input-icon" aria-hidden>
@@ -227,7 +236,12 @@ export default function Login() {
             </div>
 
             <div className="login-field">
-              <label htmlFor="password">Mot de passe</label>
+              <div className="login-field-label-row">
+                <label htmlFor="password">Mot de passe</label>
+                <a href="/forgot-password" className="login-forgot">
+                  Mot de passe oublié ?
+                </a>
+              </div>
               <div className="login-password-wrap">
                 <span className="login-input-icon--left" aria-hidden>
                   <IconLock />
@@ -280,20 +294,12 @@ export default function Login() {
             {error ? <p className="login-error">{error}</p> : null}
 
             <button type="submit" className="login-submit" disabled={loading}>
-              <span className="login-submit-label">
-                {loading ? "Connexion…" : "Se connecter"}
-              </span>
-              {!loading ? (
-                <span className="login-submit-arrow">
-                  <IconArrowRight />
-                </span>
-              ) : null}
+              {loading ? "Connexion…" : "Se connecter"}
             </button>
           </form>
-          </div>
         </div>
 
-        <footer className="login-footer">
+        <footer className="login-footer-right">
           © {year} SolarNext. Tous droits réservés.
         </footer>
       </div>
