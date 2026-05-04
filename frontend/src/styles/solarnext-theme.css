@@ -747,22 +747,19 @@ body {
   box-shadow: 0 8px 22px rgba(109, 40, 217, 0.32), 0 1px 0 rgba(255, 255, 255, 0.14) inset;
 }
 
-/* Login clair : le sélecteur org doit rester lisible même si le CRM est en theme-dark */
-html.sn-auth-page select,
-html.sn-auth-page.theme-dark select {
+/* Page auth : toujours theme-light — sélecteur org lisible sur fond clair */
+html.sn-auth-page select {
   background: var(--input-bg) !important;
   color: var(--text-primary) !important;
   border: 1px solid var(--border-soft) !important;
 }
 
-html.sn-auth-page select option,
-html.sn-auth-page.theme-dark select option {
+html.sn-auth-page select option {
   background: var(--bg-card) !important;
   color: #17131f !important;
 }
 
-html.sn-auth-page select:focus,
-html.sn-auth-page.theme-dark select:focus {
+html.sn-auth-page select:focus {
   border-color: var(--violet-strong) !important;
   box-shadow: 0 0 0 3px var(--violet-glow) !important;
 }

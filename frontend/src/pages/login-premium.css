@@ -80,14 +80,10 @@ html.sn-auth-page #root {
   line-height: 0;
 }
 
-.login-panel-left .logo-light {
+.login-panel-left .login-brand-logo {
   display: block;
   width: clamp(120px, 14vw, 180px);
   height: auto;
-}
-
-.login-panel-left .logo-dark {
-  display: none;
 }
 
 .login-brand-pitch {
@@ -443,72 +439,3 @@ html.sn-auth-page #root {
   }
 }
 
-/* ─── Mode sombre ────────────────────────────────────────── */
-
-html.sn-auth-page.theme-dark .login-panel-left {
-  background: #1a0f2b;
-}
-
-html.sn-auth-page.theme-dark .login-panel-right {
-  background: var(--color-bg-page);
-}
-
-html.sn-auth-page.theme-dark .login-card {
-  background: var(--bg-card);
-  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.3), 0 0 0 0.5px rgba(255, 255, 255, 0.06);
-}
-
-html.sn-auth-page.theme-dark .login-title-muted {
-  color: var(--text-primary);
-}
-
-html.sn-auth-page.theme-dark .login-card p.login-tagline {
-  color: var(--text-muted);
-}
-
-html.sn-auth-page.theme-dark .login-field label {
-  color: var(--text-secondary);
-}
-
-html.sn-auth-page.theme-dark .login-forgot {
-  color: var(--primary);
-}
-
-html.sn-auth-page.theme-dark .login-input-wrap input,
-html.sn-auth-page.theme-dark .login-password-wrap input,
-html.sn-auth-page.theme-dark .login-card select {
-  background: var(--input-bg);
-  color: var(--text-primary);
-  border-color: var(--input-border);
-}
-
-html.sn-auth-page.theme-dark .login-card input::placeholder {
-  color: var(--input-placeholder);
-}
-
-html.sn-auth-page.theme-dark .login-input-wrap .login-input-icon,
-html.sn-auth-page.theme-dark .login-password-wrap .login-input-icon--left,
-html.sn-auth-page.theme-dark .login-password-toggle {
-  color: var(--text-muted);
-}
-
-html.sn-auth-page.theme-dark .login-password-toggle:hover {
-  color: var(--primary);
-  background: color-mix(in srgb, var(--primary) 12%, transparent);
-}
-
-html.sn-auth-page.theme-dark .login-card input:focus,
-html.sn-auth-page.theme-dark .login-card select:focus {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 18%, transparent);
-}
-
-html.sn-auth-page.theme-dark .login-footer-right {
-  color: var(--text-muted);
-}
-
-html.sn-auth-page.theme-dark .login-error {
-  color: color-mix(in srgb, var(--danger) 75%, var(--text-primary));
-  background: color-mix(in srgb, var(--danger) 12%, var(--color-bg-card));
-  border-color: color-mix(in srgb, var(--danger) 28%, var(--border));
-}

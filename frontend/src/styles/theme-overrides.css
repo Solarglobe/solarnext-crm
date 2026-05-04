@@ -394,8 +394,7 @@ html.theme-dark * {
    LOGO SYSTEM — FINAL (PIXEL PERFECT)
    ========================================================= */
 
-.sn-logo,
-.login-logo {
+.sn-logo {
   position: relative;
   display: flex;
   align-items: center;
@@ -403,13 +402,8 @@ html.theme-dark * {
   min-height: 40px; /* zone réelle malgré img en absolute */
 }
 
-.login-logo {
-  min-height: 48px;
-}
-
-/* stack les deux logos */
-.sn-logo img,
-.login-logo img {
+/* stack les deux logos (sidebar CRM uniquement) */
+.sn-logo img {
   position: absolute;
   height: 32px;
   width: auto;
@@ -417,11 +411,6 @@ html.theme-dark * {
   object-fit: contain;
   opacity: 0;
   transition: opacity 0.2s ease;
-}
-
-/* login légèrement plus grand */
-.login-logo img {
-  height: 42px;
 }
 
 /* LIGHT */

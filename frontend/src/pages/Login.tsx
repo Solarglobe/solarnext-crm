@@ -115,8 +115,17 @@ export default function Login() {
   useEffect(() => {
     document.documentElement.classList.add("sn-auth-page");
     document.documentElement.classList.remove("sn-app-page");
+    const saved = localStorage.getItem("solarnext_theme");
+    const restoreDark = saved === "dark";
+    document.documentElement.classList.remove("theme-light", "theme-dark");
+    document.documentElement.classList.add("theme-light");
+
     return () => {
       document.documentElement.classList.remove("sn-auth-page");
+      document.documentElement.classList.remove("theme-light", "theme-dark");
+      document.documentElement.classList.add(
+        restoreDark ? "theme-dark" : "theme-light"
+      );
     };
   }, []);
 
@@ -161,23 +170,11 @@ export default function Login() {
       {/* ── Panneau gauche — brand ── */}
       <div className="login-panel-left" aria-hidden="true">
         <div className="login-brand">
-          <div
-            className="logo-container"
-            role="img"
-            aria-label="SolarNext"
-          >
-            <img
-              src="/logo.png"
-              className="logo-light"
-              alt=""
-              aria-hidden="true"
-              decoding="async"
-            />
+          <div className="logo-container">
             <img
               src="/dark-logo.png"
-              className="logo-dark"
-              alt=""
-              aria-hidden="true"
+              alt="SolarNext"
+              className="login-brand-logo"
               decoding="async"
             />
           </div>
