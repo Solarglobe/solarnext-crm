@@ -11,25 +11,30 @@
   margin: 0;
 }
 
+.theme-light .mail-sig-page__intro,
+html.theme-light .mail-sig-page__intro {
+  background: var(--color-bg-muted);
+}
+
 .mail-sig-page__intro {
   margin-bottom: 16px;
   padding: 12px 14px;
   border-radius: 10px;
-  border: 1px solid var(--sg-border, #e5e7eb);
-  background: #f8fafc;
+  border: 1px solid var(--sg-border, var(--border));
+  background: var(--color-bg-muted);
 }
 
 .mail-sig-page__intro-text {
   margin: 0 0 6px;
   font-size: 14px;
   line-height: 1.5;
-  color: var(--sg-text, #0f172a);
+  color: var(--sg-text, var(--text-primary));
 }
 
 .mail-sig-page__intro-meta {
   margin: 0;
   font-size: 13px;
-  color: var(--sg-text-muted, #64748b);
+  color: var(--sg-text-muted, var(--text-muted));
 }
 
 .mail-sig-page__head {
@@ -78,7 +83,7 @@
   width: 100%;
   text-align: left;
   padding: 10px 12px;
-  border: 1px solid var(--sg-border, #e5e7eb);
+  border: 1px solid var(--sg-border, var(--border));
   border-radius: 10px;
   background: var(--bg-card);
   cursor: pointer;
@@ -92,8 +97,8 @@
 }
 
 .mail-sig-page__item--active {
-  border-color: var(--sg-primary, #2563eb);
-  box-shadow: 0 0 0 1px var(--sg-primary, #2563eb);
+  border-color: var(--sg-primary, var(--primary));
+  box-shadow: 0 0 0 1px var(--sg-primary, var(--primary));
 }
 
 .mail-sig-page__item-name {
@@ -103,7 +108,7 @@
 
 .mail-sig-page__item-meta {
   font-size: 12px;
-  color: var(--sg-text-muted, #6b7280);
+  color: var(--sg-text-muted, var(--text-muted));
 }
 
 .mail-sig-page__field {
@@ -130,7 +135,7 @@
 .mail-sig-page__editor {
   min-height: 140px;
   padding: 10px 12px;
-  border: 1px solid var(--sg-border, #e5e7eb);
+  border: 1px solid var(--sg-border, var(--border));
   border-radius: 10px;
   background: var(--bg-card);
   font-size: 14px;
@@ -154,15 +159,20 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--sg-text-muted, #6b7280);
+  color: var(--sg-text-muted, var(--text-muted));
   margin-bottom: 6px;
+}
+
+.theme-light .mail-sig-page__preview-box,
+html.theme-light .mail-sig-page__preview-box {
+  background: var(--color-bg-muted);
 }
 
 .mail-sig-page__preview-box {
   padding: 12px 14px;
-  border: 1px dashed #cbd5e1;
+  border: 1px dashed var(--border-strong);
   border-radius: 10px;
-  background: #f9fafb;
+  background: var(--color-bg-muted);
   font-size: 14px;
   line-height: 1.5;
 }
@@ -174,11 +184,16 @@
 .mail-sig-page__preview-hint {
   margin: 0 0 10px;
   font-size: 12px;
-  color: var(--sg-text-muted, #64748b);
+  color: var(--sg-text-muted, var(--text-muted));
+}
+
+.theme-light .mail-sig-page__email-preview-shell,
+html.theme-light .mail-sig-page__email-preview-shell {
+  background: #e8edf3;
 }
 
 .mail-sig-page__email-preview-shell {
-  background: #e8edf3;
+  background: color-mix(in srgb, var(--text-primary) 8%, var(--color-bg-page));
   padding: 20px 16px;
   border-radius: 12px;
   max-width: 640px;
@@ -195,7 +210,7 @@
   min-height: 72px;
   font-size: 14px;
   line-height: 1.5;
-  color: #0f172a;
+  color: var(--text-primary);
   overflow-x: auto;
 }
 

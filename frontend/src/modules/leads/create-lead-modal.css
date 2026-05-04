@@ -27,7 +27,7 @@
 }
 
 .create-lead-type-btn:not(.active):hover {
-  background: var(--surface-hover, #f1f5f9);
+  background: color-mix(in srgb, var(--text-primary) 6%, transparent);
 }
 
 .create-lead-field {

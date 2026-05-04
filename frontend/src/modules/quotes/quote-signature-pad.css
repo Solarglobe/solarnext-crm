@@ -31,7 +31,7 @@
   font-size: 13px;
   line-height: 1.35;
   color: #1f2937;
-  background: #f9fafb;
+  background: var(--color-bg-muted);
   border: 1px solid #e5e7eb;
   border-radius: 8px;
   cursor: pointer;
@@ -41,4 +41,10 @@
 .quote-signature-read-accept input {
   margin-top: 3px;
   flex-shrink: 0;
+}
+
+html.theme-dark .quote-signature-read-accept {
+  color: var(--text-secondary);
+  background: var(--color-bg-muted);
+  border-color: var(--border);
 }

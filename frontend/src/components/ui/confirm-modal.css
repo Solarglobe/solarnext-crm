@@ -197,12 +197,12 @@
 html.theme-dark {
   --sn-confirm-backdrop: rgba(8, 12, 22, 0.48);
   --sn-confirm-panel-border: rgba(255, 255, 255, 0.1);
-  --sn-confirm-panel-bg: rgba(22, 32, 52, 0.98);
+  --sn-confirm-panel-bg: var(--color-bg-card);
   --sn-confirm-panel-shadow:
     0 16px 48px rgba(0, 0, 0, 0.4),
     0 0 0 1px rgba(255, 255, 255, 0.06);
-  --sn-confirm-text: rgba(248, 250, 252, 0.96);
-  --sn-confirm-text-muted: rgba(226, 232, 240, 0.82);
+  --sn-confirm-text: var(--text-primary);
+  --sn-confirm-text-muted: var(--text-muted);
 }
 
 html.theme-dark .sn-confirm-modal-btn--secondary,

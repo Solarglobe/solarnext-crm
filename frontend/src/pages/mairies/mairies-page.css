@@ -146,13 +146,13 @@ html.theme-dark .mairies-page .qb-table.qb-table--list-saas thead th {
   border-bottom-color: rgba(255, 255, 255, 0.08);
 }
 
-.mairies-page .qb-table.qb-table--list-saas tbody tr:hover {
-  background: #f9fafb;
+.theme-light .mairies-page .qb-table.qb-table--list-saas tbody tr:hover,
+html.theme-light .mairies-page .qb-table.qb-table--list-saas tbody tr:hover {
+  background: var(--color-bg-muted);
 }
 
-.theme-dark .mairies-page .qb-table.qb-table--list-saas tbody tr:hover,
-html.theme-dark .mairies-page .qb-table.qb-table--list-saas tbody tr:hover {
-  background: rgba(255, 255, 255, 0.04);
+.mairies-page .qb-table.qb-table--list-saas tbody tr:hover {
+  background: color-mix(in srgb, var(--text-primary) 6%, transparent);
 }
 
 .mairies-page__cp-cell {
@@ -435,7 +435,7 @@ html.theme-dark .mairies-page__action-link {
 
 .theme-dark .mairies-page__action-link:hover,
 html.theme-dark .mairies-page__action-link:hover {
-  color: #f1f5f9;
+  color: var(--text-primary);
 }
 
 .theme-dark .mairies-page__action-link--danger,

@@ -227,7 +227,7 @@ html.sn-auth-page #root {
   border: 1px solid #e5e5e5;
   padding: 0 14px 0 42px;
   font-size: 14px;
-  background: #fafafa;
+  background: var(--color-bg-muted);
   color: #1e1e1e;
   box-sizing: border-box;
 }
@@ -256,7 +256,7 @@ html.sn-auth-page #root {
   border: 1px solid #e5e5e5;
   padding: 0 48px 0 42px;
   font-size: 14px;
-  background: #fafafa;
+  background: var(--color-bg-muted);
   color: #1e1e1e;
   box-sizing: border-box;
 }
@@ -279,26 +279,9 @@ html.sn-auth-page #root {
   border: 1px solid #e5e5e5;
   padding: 0 14px;
   font-size: 14px;
-  background: #fafafa;
+  background: var(--color-bg-muted);
   color: #1e1e1e;
   box-sizing: border-box;
-}
-
-/* Priorité sur solarnext-theme (sn-auth-page select en !important) */
-html.sn-auth-page .login-card select,
-html.sn-auth-page.theme-dark .login-card select,
-html.sn-auth-page.theme-dark .login-card select {
-  background: #fafafa !important;
-  color: #1e1e1e !important;
-  border: 1px solid #e5e5e5 !important;
-}
-
-html.sn-auth-page .login-card select:focus,
-html.sn-auth-page.theme-dark .login-card select:focus,
-html.sn-auth-page.theme-dark .login-card select:focus {
-  outline: none !important;
-  border: 1px solid #4b2e83 !important;
-  box-shadow: none !important;
 }
 
 .login-password-toggle {
@@ -417,4 +400,63 @@ html.sn-auth-page.theme-dark .login-card select:focus {
   .login-card h1 {
     font-size: 24px;
   }
+}
+
+/* Phase 3.5 — login : shell sombre sans !important (tokens html.theme-dark) */
+html.sn-auth-page.theme-dark body {
+  background: var(--color-bg-page);
+}
+
+html.sn-auth-page.theme-dark .login-page {
+  background: var(--color-bg-page);
+}
+
+html.sn-auth-page.theme-dark .login-title-muted {
+  color: var(--text-primary);
+}
+
+html.sn-auth-page.theme-dark .login-card p.login-tagline {
+  color: var(--text-muted);
+}
+
+html.sn-auth-page.theme-dark .login-field label {
+  color: var(--text-secondary);
+}
+
+html.sn-auth-page.theme-dark .login-input-wrap input,
+html.sn-auth-page.theme-dark .login-password-wrap input,
+html.sn-auth-page.theme-dark .login-card select {
+  background: var(--input-bg);
+  color: var(--text-primary);
+  border-color: var(--input-border);
+}
+
+html.sn-auth-page.theme-dark .login-card input::placeholder {
+  color: var(--input-placeholder);
+}
+
+html.sn-auth-page.theme-dark .login-input-wrap .login-input-icon,
+html.sn-auth-page.theme-dark .login-password-wrap .login-input-icon--left,
+html.sn-auth-page.theme-dark .login-password-toggle {
+  color: var(--text-muted);
+}
+
+html.sn-auth-page.theme-dark .login-password-toggle:hover {
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+}
+
+html.sn-auth-page.theme-dark .login-card input:focus,
+html.sn-auth-page.theme-dark .login-card select:focus {
+  border-color: var(--primary);
+}
+
+html.sn-auth-page.theme-dark .login-footer {
+  color: var(--text-muted);
+}
+
+html.sn-auth-page.theme-dark .login-error {
+  color: color-mix(in srgb, var(--danger) 75%, var(--text-primary));
+  background: color-mix(in srgb, var(--danger) 12%, var(--color-bg-card));
+  border-color: color-mix(in srgb, var(--danger) 28%, var(--border));
 }

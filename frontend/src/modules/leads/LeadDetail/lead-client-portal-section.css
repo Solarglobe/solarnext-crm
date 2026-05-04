@@ -13,12 +13,14 @@
   background: transparent;
 }
 
-.theme-dark .lead-client-portal {
-  background: var(--color-surface-raised, #1e293b);
+.theme-dark .lead-client-portal,
+html.theme-dark .lead-client-portal {
+  background: var(--color-surface-raised, var(--surface-elevated));
   border-color: rgba(255, 255, 255, 0.08);
 }
 
-.theme-dark .lead-client-portal--embedded {
+.theme-dark .lead-client-portal--embedded,
+html.theme-dark .lead-client-portal--embedded {
   background: transparent;
   border: none;
 }
@@ -27,11 +29,12 @@
   margin: 0 0 12px;
   font-size: 1rem;
   font-weight: 600;
-  color: var(--color-text-primary, #0f172a);
+  color: var(--color-text-primary, var(--text-primary));
 }
 
-.theme-dark .lead-client-portal__title {
-  color: var(--color-text-primary, #f8fafc);
+.theme-dark .lead-client-portal__title,
+html.theme-dark .lead-client-portal__title {
+  color: var(--color-text-primary, var(--text-primary));
 }
 
 .lead-client-portal__mail-hint {
@@ -56,8 +59,8 @@
   font-size: 13px;
   word-break: break-all;
   border-radius: 8px;
-  background: var(--color-surface-muted, #f1f5f9);
-  color: var(--color-text-secondary, #334155);
+  background: var(--color-surface-muted, var(--color-bg-muted));
+  color: var(--color-text-secondary, var(--text-secondary));
   border: 1px solid var(--color-border-subtle, rgba(0, 0, 0, 0.06));
 }
 
@@ -69,7 +72,8 @@
   transition: border-color 0.15s ease, background 0.15s ease;
 }
 
-.theme-dark .lead-client-portal__url-link {
+.theme-dark .lead-client-portal__url-link,
+html.theme-dark .lead-client-portal__url-link {
   color: var(--brand-gold);
 }
 

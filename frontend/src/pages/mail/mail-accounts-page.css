@@ -39,15 +39,15 @@
 
 .mail-accts__sub {
   margin: 0;
-  color: var(--sn-text-muted, #64748b);
+  color: var(--sn-text-muted, var(--text-muted));
   font-size: 0.9rem;
 }
 
 .mail-accts__alert {
   padding: 1rem;
   border-radius: 10px;
-  background: var(--sn-surface-elevated, #f1f5f9);
-  border: 1px solid var(--sn-border, #e2e8f0);
+  background: var(--sn-surface-elevated, var(--surface-elevated));
+  border: 1px solid var(--sn-border, var(--border));
 }
 
 .mail-accts__error {
@@ -62,7 +62,7 @@
 .mail-accts__btn {
   padding: 0.45rem 0.85rem;
   border-radius: 8px;
-  border: 1px solid var(--sn-border, #e2e8f0);
+  border: 1px solid var(--sn-border, var(--border));
   background: var(--sn-surface, var(--bg-card));
   color: inherit;
   font-size: 0.875rem;
@@ -70,7 +70,7 @@
 }
 
 .mail-accts__btn:hover:not(:disabled) {
-  background: var(--sn-surface-elevated, #f8fafc);
+  background: var(--sn-surface-elevated, var(--surface-elevated));
 }
 
 .mail-accts__btn:disabled {
@@ -79,8 +79,8 @@
 }
 
 .mail-accts__btn--primary {
-  background: var(--sn-primary, #2563eb);
-  border-color: var(--sn-primary, #2563eb);
+  background: var(--sn-primary, var(--primary));
+  border-color: var(--sn-primary, var(--primary));
   color: var(--text-on-dark);
 }
 
@@ -94,7 +94,7 @@
 }
 
 .mail-accts__panel {
-  border: 1px solid var(--sn-border, #e2e8f0);
+  border: 1px solid var(--sn-border, var(--border));
   border-radius: 12px;
   padding: 1rem 1.15rem 1.25rem;
   margin-bottom: 1.5rem;
@@ -111,7 +111,7 @@
   font-size: 0.8rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--sn-text-muted, #64748b);
+  color: var(--sn-text-muted, var(--text-muted));
   margin: 1rem 0 0.65rem;
   font-weight: 600;
 }
@@ -130,13 +130,13 @@
 }
 
 .mail-accts__field span:first-child {
-  color: var(--sn-text-muted, #64748b);
+  color: var(--sn-text-muted, var(--text-muted));
 }
 
 .mail-accts__field input {
   padding: 0.45rem 0.55rem;
   border-radius: 8px;
-  border: 1px solid var(--sn-border, #e2e8f0);
+  border: 1px solid var(--sn-border, var(--border));
   background: var(--sn-surface, var(--bg-card));
   color: inherit;
   font-size: 0.9rem;
@@ -172,12 +172,12 @@
 }
 
 .mail-accts__empty {
-  color: var(--sn-text-muted, #64748b);
+  color: var(--sn-text-muted, var(--text-muted));
   margin: 0;
 }
 
 .mail-accts__card {
-  border: 1px solid var(--sn-border, #e2e8f0);
+  border: 1px solid var(--sn-border, var(--border));
   border-radius: 10px;
   background: var(--sn-surface, var(--bg-card));
   overflow: hidden;
@@ -218,21 +218,21 @@
 
 .mail-accts__card-email {
   font-size: 0.85rem;
-  color: var(--sn-text-muted, #64748b);
+  color: var(--sn-text-muted, var(--text-muted));
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .mail-accts__chev {
-  color: var(--sn-text-muted, #94a3b8);
+  color: var(--sn-text-muted, var(--text-muted));
   font-size: 0.75rem;
 }
 
 .mail-accts__card-body {
   padding: 0 1rem 1rem;
-  border-top: 1px solid var(--sn-border, #e2e8f0);
-  background: var(--sn-surface-elevated, #f8fafc);
+  border-top: 1px solid var(--sn-border, var(--border));
+  background: var(--sn-surface-elevated, var(--surface-elevated));
 }
 
 .mail-accts__dl {
@@ -245,7 +245,7 @@
 
 .mail-accts__dl dt {
   margin: 0;
-  color: var(--sn-text-muted, #64748b);
+  color: var(--sn-text-muted, var(--text-muted));
 }
 
 .mail-accts__dl dd {

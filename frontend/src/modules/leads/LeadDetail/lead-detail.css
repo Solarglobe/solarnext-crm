@@ -70,7 +70,7 @@
 }
 
 .theme-light .crm-lead-sticky-bar {
-  background: color-mix(in srgb, var(--surface-elevated) 92%, #fff);
+  background: color-mix(in srgb, var(--surface-elevated) 92%, var(--color-bg-card));
   box-shadow: 0 4px 18px rgba(15, 23, 42, 0.08);
 }
 
@@ -257,11 +257,11 @@
   border: 1px solid color-mix(in srgb, var(--border) 88%, var(--violet-strong));
   border-radius: 999px;
   background: color-mix(in srgb, var(--surface) 94%, var(--violet-strong));
-  box-shadow: 0 1px 0 color-mix(in srgb, #fff 6%, transparent);
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--color-bg-card) 6%, transparent);
 }
 
 .theme-light .crm-lead-header-v4-back.sn-btn {
-  background: color-mix(in srgb, #fff 92%, var(--violet-strong));
+  background: color-mix(in srgb, var(--color-bg-card) 92%, var(--violet-strong));
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
 }
 
@@ -280,11 +280,11 @@
   color: var(--danger);
   border-color: color-mix(in srgb, var(--danger) 42%, var(--border));
   background: color-mix(in srgb, var(--danger) 10%, var(--surface));
-  box-shadow: 0 1px 0 color-mix(in srgb, #fff 5%, transparent);
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--color-bg-card) 5%, transparent);
 }
 
 .theme-light .crm-lead-header-v4-back--danger.sn-btn {
-  background: color-mix(in srgb, var(--danger) 8%, #fff);
+  background: color-mix(in srgb, var(--danger) 8%, var(--color-bg-card));
 }
 
 .crm-lead-header-v4-back--danger.sn-btn:hover:not(:disabled) {
@@ -401,7 +401,7 @@
   background: color-mix(in srgb, var(--violet-strong) 9%, var(--surface));
   border-color: color-mix(in srgb, var(--violet-strong) 52%, var(--border));
   box-shadow:
-    inset 0 1px 0 color-mix(in srgb, #fff 8%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--color-bg-card) 8%, transparent),
     0 0 0 1px color-mix(in srgb, var(--violet-strong) 14%, transparent);
 }
 
@@ -415,7 +415,7 @@
   border-color: color-mix(in srgb, var(--violet-strong) 72%, var(--border));
   background: color-mix(in srgb, var(--violet-strong) 13%, var(--surface));
   box-shadow:
-    inset 0 1px 0 color-mix(in srgb, #fff 10%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--color-bg-card) 10%, transparent),
     0 0 0 1px color-mix(in srgb, var(--violet-strong) 22%, transparent);
 }
 
@@ -929,7 +929,7 @@
   color: var(--text-on-dark);
 }
 .crm-lead-type-btn:not(.active):hover {
-  background: var(--surface-hover, #f1f5f9);
+  background: color-mix(in srgb, var(--text-primary) 6%, transparent);
 }
 /* Nom du contact affiché en sous-titre dans le header PRO */
 .crm-lead-header-contact-sub {
@@ -959,7 +959,7 @@
   border: 1px solid color-mix(in srgb, var(--border) 90%, var(--violet-strong));
   background: color-mix(in srgb, var(--surface) 97%, var(--violet-strong));
   box-shadow:
-    0 1px 0 color-mix(in srgb, #fff 4%, transparent),
+    0 1px 0 color-mix(in srgb, var(--color-bg-card) 4%, transparent),
     var(--shadow-1, 0 4px 18px rgba(0, 0, 0, 0.07));
   overflow: hidden;
 }
@@ -972,7 +972,7 @@
 
 .theme-dark .crm-lead-overview-surface {
   box-shadow:
-    0 1px 0 color-mix(in srgb, #fff 3%, transparent),
+    0 1px 0 color-mix(in srgb, var(--color-bg-card) 3%, transparent),
     0 6px 22px rgba(0, 0, 0, 0.2);
 }
 
@@ -1091,7 +1091,7 @@
 }
 
 .theme-light .crm-lead-overview-section-index {
-  background: color-mix(in srgb, var(--violet-strong) 7%, #fff);
+  background: color-mix(in srgb, var(--violet-strong) 7%, var(--color-bg-card));
 }
 
 .crm-lead-overview-section-chevron {
@@ -1767,11 +1767,11 @@
   border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
   border-radius: 8px;
   background: color-mix(in srgb, var(--surface-elevated, var(--surface)) 96%, var(--violet-strong));
-  box-shadow: 0 1px 0 color-mix(in srgb, #fff 4%, transparent);
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--color-bg-card) 4%, transparent);
 }
 
 .theme-light .lead-consent-strip {
-  background: color-mix(in srgb, #fff 94%, var(--violet-strong));
+  background: color-mix(in srgb, var(--color-bg-card) 94%, var(--violet-strong));
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
@@ -1981,7 +1981,7 @@
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   padding: 6px 10px 7px;
-  box-shadow: 0 1px 0 color-mix(in srgb, #fff 5%, transparent);
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--color-bg-card) 5%, transparent);
 }
 
 .theme-dark .lead-quick-summary {
@@ -2299,8 +2299,8 @@
   border: 1px solid color-mix(in srgb, var(--gold, var(--brand-gold)) 65%, var(--border));
   background: color-mix(in srgb, var(--surface-elevated, var(--surface)) 88%, var(--violet-strong));
   box-shadow:
-    0 1px 0 color-mix(in srgb, #fff 6%, transparent),
-    inset 0 1px 0 color-mix(in srgb, #fff 4%, transparent);
+    0 1px 0 color-mix(in srgb, var(--color-bg-card) 6%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--color-bg-card) 4%, transparent);
   transition:
     background 0.16s ease,
     border-color 0.16s ease,
@@ -2310,7 +2310,7 @@
 
 .theme-light .crm-lead-overview .crm-lead-equipment-kind-btn,
 .theme-light .crm-lead-meter-modal-panel .crm-lead-equipment-kind-btn {
-  background: color-mix(in srgb, #fff 94%, var(--violet-strong));
+  background: color-mix(in srgb, var(--color-bg-card) 94%, var(--violet-strong));
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
 }
 
@@ -2347,8 +2347,8 @@
   background: color-mix(in srgb, var(--surface-elevated, var(--surface)) 100%, var(--violet-strong));
   padding: 12px 14px 14px;
   box-shadow:
-    0 1px 0 color-mix(in srgb, #fff 5%, transparent),
-    inset 0 1px 0 color-mix(in srgb, #fff 3%, transparent);
+    0 1px 0 color-mix(in srgb, var(--color-bg-card) 5%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--color-bg-card) 3%, transparent);
   width: 100%;
   box-sizing: border-box;
 }

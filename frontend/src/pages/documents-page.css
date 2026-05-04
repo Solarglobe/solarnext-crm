@@ -67,7 +67,7 @@
 .documents-page__table th {
   text-align: left;
   padding: 12px 14px;
-  background: var(--surface-elevated, #f8fafc);
+  background: var(--surface-elevated);
   color: var(--text-muted, #64748b);
   font-weight: 600;
   white-space: nowrap;

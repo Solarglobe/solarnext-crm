@@ -21,7 +21,7 @@
 
 .mail-perm__header p {
   margin: 0;
-  color: var(--sn-text-muted, #64748b);
+  color: var(--sn-text-muted, var(--text-muted));
   font-size: 0.9rem;
 }
 
@@ -36,7 +36,7 @@
   min-width: 200px;
   padding: 0.45rem 0.65rem;
   border-radius: 8px;
-  border: 1px solid var(--sn-border, #e2e8f0);
+  border: 1px solid var(--sn-border, var(--border));
   background: var(--sn-surface, var(--bg-card));
   color: inherit;
 }
@@ -44,7 +44,7 @@
 .mail-perm__scroll {
   overflow: auto;
   max-height: calc(100vh - 220px);
-  border: 1px solid var(--sn-border, #e2e8f0);
+  border: 1px solid var(--sn-border, var(--border));
   border-radius: 10px;
   background: var(--sn-surface, var(--bg-card));
 }
@@ -59,8 +59,8 @@
 .mail-perm__table th,
 .mail-perm__table td {
   padding: 0.5rem 0.65rem;
-  border-bottom: 1px solid var(--sn-border, #e2e8f0);
-  border-right: 1px solid var(--sn-border, #e2e8f0);
+  border-bottom: 1px solid var(--sn-border, var(--border));
+  border-right: 1px solid var(--sn-border, var(--border));
   vertical-align: middle;
   font-size: 0.85rem;
 }
@@ -74,7 +74,7 @@
   position: sticky;
   top: 0;
   z-index: 2;
-  background: var(--sn-surface-elevated, #f8fafc);
+  background: var(--sn-surface-elevated, var(--surface-elevated));
   font-weight: 600;
   text-align: left;
   white-space: nowrap;
@@ -86,7 +86,7 @@
   z-index: 3;
   min-width: 200px;
   max-width: 280px;
-  background: var(--sn-surface-elevated, #f8fafc);
+  background: var(--sn-surface-elevated, var(--surface-elevated));
   box-shadow: 2px 0 4px rgba(15, 23, 42, 0.06);
 }
 
@@ -100,7 +100,7 @@
 }
 
 .mail-perm__table tbody tr:hover .mail-perm__account-cell {
-  background: var(--sn-row-hover, #f1f5f9);
+  background: var(--sn-row-hover, var(--color-bg-muted));
 }
 
 .mail-perm__account-title {
@@ -111,7 +111,7 @@
 
 .mail-perm__account-sub {
   font-size: 0.75rem;
-  color: var(--sn-text-muted, #64748b);
+  color: var(--sn-text-muted, var(--text-muted));
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -195,7 +195,7 @@
   border-radius: 4px;
   font-size: 0.85rem;
   line-height: 1;
-  color: var(--sn-text-muted, #64748b);
+  color: var(--sn-text-muted, var(--text-muted));
 }
 
 .mail-perm__cell-btn:hover {
@@ -209,7 +209,7 @@
   min-width: 200px;
   padding: 0.75rem;
   background: var(--sn-surface, var(--bg-card));
-  border: 1px solid var(--sn-border, #e2e8f0);
+  border: 1px solid var(--sn-border, var(--border));
   border-radius: 10px;
   box-shadow: 0 10px 40px rgba(15, 23, 42, 0.15);
 }
@@ -239,7 +239,7 @@
 .mail-perm__popover-actions button {
   padding: 0.35rem 0.65rem;
   border-radius: 6px;
-  border: 1px solid var(--sn-border, #e2e8f0);
+  border: 1px solid var(--sn-border, var(--border));
   background: var(--sn-surface, var(--bg-card));
   cursor: pointer;
   font-size: 0.8rem;

@@ -62,7 +62,7 @@
   width: 100%;
   text-align: left;
   padding: 10px 12px;
-  border: 1px solid var(--sg-border, #e5e7eb);
+  border: 1px solid var(--sg-border, var(--border));
   border-radius: 10px;
   background: var(--bg-card);
   cursor: pointer;
@@ -76,8 +76,8 @@
 }
 
 .mail-tpl-page__item--active {
-  border-color: var(--sg-primary, #2563eb);
-  box-shadow: 0 0 0 1px var(--sg-primary, #2563eb);
+  border-color: var(--sg-primary, var(--primary));
+  box-shadow: 0 0 0 1px var(--sg-primary, var(--primary));
 }
 
 .mail-tpl-page__item-name {
@@ -87,7 +87,7 @@
 
 .mail-tpl-page__item-meta {
   font-size: 12px;
-  color: var(--sg-text-muted, #6b7280);
+  color: var(--sg-text-muted, var(--text-muted));
 }
 
 .mail-tpl-page__field {
@@ -105,7 +105,7 @@
 .mail-tpl-page__editor {
   min-height: 160px;
   padding: 10px 12px;
-  border: 1px solid var(--sg-border, #e5e7eb);
+  border: 1px solid var(--sg-border, var(--border));
   border-radius: 10px;
   background: var(--bg-card);
   font-size: 14px;
@@ -128,7 +128,7 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--sg-text-muted, #6b7280);
+  color: var(--sg-text-muted, var(--text-muted));
   margin-bottom: 6px;
 }
 
@@ -137,11 +137,16 @@
   margin: 0 0 8px;
 }
 
+.theme-light .mail-tpl-page__preview-box,
+html.theme-light .mail-tpl-page__preview-box {
+  background: var(--color-bg-muted);
+}
+
 .mail-tpl-page__preview-box {
   padding: 12px 14px;
-  border: 1px dashed #cbd5e1;
+  border: 1px dashed var(--border-strong);
   border-radius: 10px;
-  background: #f9fafb;
+  background: var(--color-bg-muted);
   font-size: 14px;
   line-height: 1.5;
 }

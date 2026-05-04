@@ -32,7 +32,7 @@ export function QuoteSignaturePadModal({ open, onClose, title, onConfirm }: Quot
     if (!ctx) return;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.scale(dpr, dpr);
-    ctx.fillStyle = "#ffffff";
+    ctx.fillStyle = "rgb(255, 255, 255)";
     ctx.fillRect(0, 0, QUOTE_SIGNATURE_PAD_LOGICAL_W, QUOTE_SIGNATURE_PAD_LOGICAL_H);
     ctx.strokeStyle = "#16131c";
     ctx.lineWidth = 2.5;

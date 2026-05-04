@@ -1,18 +1,18 @@
 /* P4 — Hub documents : finition CRM premium (sobre, structuré) */
 
 .hub {
-  --ed-surface: #fafaf9;
+  --ed-surface: var(--color-bg-muted);
   --ed-surface-raised: var(--bg-card);
-  --ed-border: #e7e5e4;
-  --ed-border-subtle: #f5f5f4;
-  --ed-text: #1c1917;
-  --ed-text-secondary: #57534e;
-  --ed-text-muted: #a8a29e;
-  --ed-accent: #78716c;
-  --ed-accent-strong: #44403c;
-  --ed-ring: #d6d3d1;
+  --ed-border: var(--border);
+  --ed-border-subtle: var(--border-subtle);
+  --ed-text: var(--text-primary);
+  --ed-text-secondary: var(--text-secondary);
+  --ed-text-muted: var(--text-muted);
+  --ed-accent: var(--text-muted);
+  --ed-accent-strong: var(--primary);
+  --ed-ring: var(--border-strong);
   --ed-focus: rgba(68, 64, 60, 0.12);
-  --ed-accent-brand: #a8a29e;
+  --ed-accent-brand: var(--text-muted);
   /* Barre latérale sections — alignée sur l’or CRM (--gold dans solarnext-theme) */
   --ed-bar: linear-gradient(
     180deg,
@@ -90,7 +90,7 @@
 }
 
 .uploadPanelHead:hover {
-  background: #f5f5f4;
+  background: var(--ed-surface);
 }
 
 .uploadOpenHead {
@@ -112,7 +112,7 @@
   width: 32px;
   height: 32px;
   border-radius: 8px;
-  background: #f5f5f4;
+  background: var(--ed-surface);
   color: var(--ed-text-secondary);
   font-size: 1.1rem;
   font-weight: 500;
@@ -223,7 +223,7 @@
   padding: 12px 14px;
   border-radius: 8px;
   border: 1px solid var(--ed-border-subtle);
-  background: #fafaf9;
+  background: var(--ed-surface);
 }
 
 .checkboxRow {
@@ -252,17 +252,17 @@
   position: relative;
   transition: border-color 0.18s ease, background 0.18s ease;
   cursor: pointer;
-  background: #fafaf9;
+  background: var(--ed-surface);
 }
 
 .dropzone:hover:not(.dropzoneDisabled) {
   border-color: var(--ed-accent);
-  background: #f5f5f4;
+  background: var(--ed-surface);
 }
 
 .dropzoneActive {
   border-color: var(--ed-accent-strong);
-  background: #f5f5f4;
+  background: var(--ed-surface);
   border-style: solid;
 }
 
@@ -312,12 +312,12 @@
   font-size: 0.8125rem;
   cursor: pointer;
   background: var(--ed-accent-strong);
-  color: #fafaf9;
+  color: var(--text-on-dark);
   transition: background 0.15s ease, opacity 0.15s ease;
 }
 
 .btnPrimary:hover:not(:disabled) {
-  background: #292524;
+  background: color-mix(in srgb, var(--primary) 88%, var(--color-bg-page));
 }
 
 .btnPrimary:disabled {
@@ -326,18 +326,18 @@
 }
 
 .error {
-  color: #b45309;
+  color: color-mix(in srgb, var(--warning) 82%, var(--text-primary));
   font-size: 0.8125rem;
   margin: 0;
   padding: 8px 10px;
   border-radius: 6px;
-  background: rgba(180, 83, 9, 0.06);
-  border: 1px solid rgba(180, 83, 9, 0.15);
+  background: color-mix(in srgb, var(--warning) 12%, var(--color-bg-card));
+  border: 1px solid color-mix(in srgb, var(--warning) 35%, var(--border));
 }
 
 .progressWrap {
   height: 3px;
-  background: #e7e5e4;
+  background: var(--border-subtle);
   border-radius: 3px;
   overflow: hidden;
 }
@@ -385,7 +385,7 @@
   gap: 10px 14px;
   padding: 12px 16px 10px;
   border-bottom: 1px solid var(--ed-border-subtle);
-  background: linear-gradient(180deg, #fafaf9 0%, var(--ed-surface-raised) 100%);
+  background: linear-gradient(180deg, var(--ed-surface) 0%, var(--ed-surface-raised) 100%);
 }
 
 .sectionTitleBlock {
@@ -455,7 +455,7 @@
   font-size: 0.75rem;
   font-weight: 600;
   color: var(--ed-text-secondary);
-  background: #f5f5f4;
+  background: var(--ed-surface);
   padding: 4px 10px;
   border-radius: 999px;
   border: 1px solid var(--ed-border);
@@ -477,7 +477,7 @@
 .btnAddSection:hover {
   border-color: var(--ed-accent);
   color: var(--ed-text);
-  background: #fafaf9;
+  background: var(--ed-surface);
 }
 
 .sectionEmpty {
@@ -502,7 +502,7 @@
   gap: 0;
   padding: 12px 14px;
   border-radius: 10px;
-  background: #fafaf9;
+  background: var(--ed-surface);
   border: 1px solid var(--ed-border-subtle);
   transition: border-color 0.18s ease, box-shadow 0.18s ease;
 }
@@ -513,7 +513,7 @@
 }
 
 .cardRecent {
-  border-color: #d6d3d1;
+  border-color: var(--ed-ring);
   box-shadow: 0 0 0 1px rgba(120, 113, 108, 0.12);
 }
 
@@ -580,13 +580,13 @@
 }
 
 .metaSep {
-  color: #d6d3d1;
+  color: var(--text-muted);
   user-select: none;
   padding: 0 2px;
 }
 
 .metaTechnical {
-  color: #a8a29e;
+  color: var(--text-muted);
   font-weight: 450;
   font-size: 0.6875rem;
 }
@@ -625,7 +625,7 @@
 }
 
 .btnDownload:hover:not(:disabled) {
-  background: #f5f5f4;
+  background: var(--ed-surface);
   border-color: var(--ed-accent);
 }
 
@@ -647,7 +647,7 @@
 }
 
 .btnArchiveDoc:hover:not(:disabled) {
-  background: #f5f5f4;
+  background: var(--ed-surface);
   border-color: var(--ed-accent);
   color: var(--ed-text);
 }
@@ -664,13 +664,13 @@
   padding: 6px 14px;
   font-size: 0.8125rem;
   font-weight: 600;
-  color: #991b1b;
+  color: var(--danger);
   cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease;
 }
 
 .btnDeleteDoc:hover:not(:disabled) {
-  background: #fef2f2;
+  background: color-mix(in srgb, var(--danger) 12%, var(--color-bg-card));
   border-color: rgba(185, 28, 28, 0.55);
 }
 
@@ -702,11 +702,11 @@
 
 .actionLink:hover:not(:disabled) {
   color: var(--ed-text-secondary);
-  background: rgba(0, 0, 0, 0.03);
+  background: color-mix(in srgb, var(--text-primary) 6%, transparent);
 }
 
 .actionLinkDanger:hover:not(:disabled) {
-  color: #991b1b;
+  color: var(--danger);
 }
 
 .actionLink:disabled {
@@ -715,7 +715,7 @@
 }
 
 .actionSep {
-  color: #d6d3d1;
+  color: var(--text-muted);
   font-size: 0.65rem;
   user-select: none;
   padding: 0 2px;

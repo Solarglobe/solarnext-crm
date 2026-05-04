@@ -344,7 +344,7 @@
 }
 
 .theme-light .ib-situation-metric {
-  background: #f8fafc;
+  background: var(--color-bg-muted);
 }
 
 .ib-situation-metric--emph {
@@ -541,7 +541,7 @@
 }
 
 .theme-light .ib-notes-shell {
-  background: #f8fafc;
+  background: var(--color-bg-muted);
 }
 
 .ib-summary-lead {

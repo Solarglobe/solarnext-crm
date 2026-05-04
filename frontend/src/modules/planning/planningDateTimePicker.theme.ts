@@ -75,7 +75,7 @@ function popperSxLight(): SxProps<Theme> {
     },
     "& .MuiPickersDay-root.Mui-selected": {
       backgroundColor: ACCENT,
-      color: "#fff",
+      color: "rgb(255, 255, 255)",
     },
     "& .MuiPickersDay-root.MuiPickersDay-today": {
       border: `1px solid ${ACCENT}`,

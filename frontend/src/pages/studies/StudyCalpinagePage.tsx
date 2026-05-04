@@ -89,7 +89,7 @@ export default function StudyCalpinagePage() {
           .study-calpinage-page { padding: 48px; text-align: center; color: var(--text-muted, #9CA8C6); }
           .study-calpinage-loading { font-size: 15px; }
           .study-calpinage-error p { margin: 0 0 12px 0; }
-          .study-calpinage-error button { padding: 8px 16px; background: linear-gradient(135deg, #7C3AED, #6D28D9); color: #fff; border: none; border-radius: 8px; cursor: pointer; }
+          .study-calpinage-error button { padding: 8px 16px; background: linear-gradient(135deg, #7C3AED, #6D28D9); color: rgb(255, 255, 255); border: none; border-radius: 8px; cursor: pointer; }
         `}</style>
       </div>
     );
@@ -106,7 +106,7 @@ export default function StudyCalpinagePage() {
         </div>
         <style>{`
           .study-calpinage-page { padding: 48px; text-align: center; color: var(--text-muted, #9CA8C6); }
-          .study-calpinage-error button { margin-top: 12px; padding: 8px 16px; background: linear-gradient(135deg, #7C3AED, #6D28D9); color: #fff; border: none; border-radius: 8px; cursor: pointer; }
+          .study-calpinage-error button { margin-top: 12px; padding: 8px 16px; background: linear-gradient(135deg, #7C3AED, #6D28D9); color: rgb(255, 255, 255); border: none; border-radius: 8px; cursor: pointer; }
         `}</style>
       </div>
     );

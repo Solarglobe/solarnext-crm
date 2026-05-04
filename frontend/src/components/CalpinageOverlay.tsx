@@ -153,8 +153,8 @@ function showToast(message: string, success = true) {
   toast.textContent = message;
   toast.setAttribute("role", "alert");
   toast.style.cssText = success
-    ? "position:fixed;top:20px;right:20px;z-index:99999;padding:14px 20px;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;border-radius:var(--sg-radius-md);font-weight:500;box-shadow:var(--sg-shadow-soft);"
-    : "position:fixed;top:20px;right:20px;z-index:99999;padding:14px 20px;background:linear-gradient(135deg,#dc2626,#b91c1c);color:#fff;border-radius:var(--sg-radius-md);font-weight:500;box-shadow:var(--sg-shadow-soft);";
+    ? "position:fixed;top:20px;right:20px;z-index:99999;padding:14px 20px;background:linear-gradient(135deg,#22c55e,#16a34a);color:rgb(255,255,255);border-radius:var(--sg-radius-md);font-weight:500;box-shadow:var(--sg-shadow-soft);"
+    : "position:fixed;top:20px;right:20px;z-index:99999;padding:14px 20px;background:linear-gradient(135deg,#dc2626,#b91c1c);color:rgb(255,255,255);border-radius:var(--sg-radius-md);font-weight:500;box-shadow:var(--sg-shadow-soft);";
   document.body.appendChild(toast);
   setTimeout(() => toast.remove(), 4000);
 }
