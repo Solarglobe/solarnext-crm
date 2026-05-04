@@ -245,7 +245,7 @@ export function AdminTabRoles() {
       )}
 
       <div className="org-tab-table-wrap">
-        <table className="org-tab-table">
+        <table className="sn-ui-table org-tab-table">
           <thead>
             <tr>
               <th>Code</th>
@@ -272,9 +272,9 @@ export function AdminTabRoles() {
                     <td>{r.name}</td>
                     <td>
                       {isGlobalSystem ? (
-                        <span className="org-tab-badge org-tab-badge--system">Système</span>
+                        <span className="sn-badge sn-badge-neutral">Système</span>
                       ) : (
-                        <span className="org-tab-badge org-tab-badge--custom">Personnalisé</span>
+                        <span className="sn-badge sn-badge-info">Personnalisé</span>
                       )}
                     </td>
                     <td className="org-tab-table__cell--right">
@@ -340,7 +340,13 @@ export function AdminTabRoles() {
                 <p className="admin-roles-modal-summary-count">{activeSummaryText}</p>
                 {roleLevel && (
                   <span
-                    className={`admin-roles-level-badge admin-roles-level-badge--${roleLevel.variant}`}
+                    className={`sn-badge ${
+                      roleLevel.variant === "full"
+                        ? "sn-badge-success"
+                        : roleLevel.variant === "standard"
+                          ? "sn-badge-info"
+                          : "sn-badge-warn"
+                    }`}
                     title="Estimation selon la part des permissions activées dans le catalogue."
                   >
                     {roleLevel.label}

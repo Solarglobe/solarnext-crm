@@ -9,16 +9,16 @@ function labelAndClass(lead: Pick<Lead, "mairie_id" | "mairie_account_status">):
   className: string;
 } {
   if (!lead.mairie_id) {
-    return { text: "Pas de mairie", className: "lead-mairie-badge lead-mairie-badge--empty" };
+    return { text: "Pas de mairie", className: "lead-mairie-list-badge-slot sn-badge sn-badge-neutral" };
   }
   const st = lead.mairie_account_status;
   if (st === "to_create") {
-    return { text: "Mairie à créer", className: "lead-mairie-badge lead-mairie-badge--orange" };
+    return { text: "Mairie à créer", className: "lead-mairie-list-badge-slot sn-badge sn-badge-warn" };
   }
   if (st === "created") {
-    return { text: "Mairie OK", className: "lead-mairie-badge lead-mairie-badge--green" };
+    return { text: "Mairie OK", className: "lead-mairie-list-badge-slot sn-badge sn-badge-success" };
   }
-  return { text: "Mairie non créée", className: "lead-mairie-badge lead-mairie-badge--red" };
+  return { text: "Mairie non créée", className: "lead-mairie-list-badge-slot sn-badge sn-badge-danger" };
 }
 
 export function LeadMairieListBadge({ lead }: { lead: Pick<Lead, "mairie_id" | "mairie_account_status"> }) {

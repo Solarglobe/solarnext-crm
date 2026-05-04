@@ -259,7 +259,7 @@ export default function DocumentsList() {
       {!loading && listItems.length > 0 && (
         <>
           <div className="documents-page__table-wrap">
-            <table className="documents-page__table">
+            <table className="sn-ui-table documents-page__table">
               <thead>
                 <tr>
                   <th>Nom</th>
@@ -276,7 +276,7 @@ export default function DocumentsList() {
                       <div className="documents-page__name">
                         {resolveDisplayName(doc)}
                         {(doc.is_visible_to_client || doc.isClientVisible) && (
-                          <span className="documents-page__badge">Visible client</span>
+                          <span className="documents-page__aside-sn sn-badge sn-badge-success">Visible client</span>
                         )}
                       </div>
                       <div className="documents-page__muted">{doc.file_name}</div>

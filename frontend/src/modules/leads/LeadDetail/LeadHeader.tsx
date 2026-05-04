@@ -8,6 +8,13 @@ import { CrmLeadStatusBadge } from "../../../components/crm/CrmLeadStatusBadge";
 
 export type LeadSaveSyncState = "idle" | "pending" | "saving" | "saved" | "error";
 
+/** Variante `sn-badge` pour l’état de synchro formulaire (Phase 3 — badges unifiés). */
+export function leadSaveSyncSnBadgeTone(state: LeadSaveSyncState): "success" | "warn" | "danger" {
+  if (state === "saved" || state === "idle") return "success";
+  if (state === "error") return "danger";
+  return "warn";
+}
+
 interface LeadHeaderProps {
   fullName: string;
   /** PRO : nom de l'entreprise (affiché comme titre principal) */
@@ -103,14 +110,7 @@ export default function LeadHeader({
     }
   })();
 
-  const saveClass =
-    saveSyncState === "saved" || saveSyncState === "idle"
-      ? "crm-lead-save-pill crm-lead-save-pill--synced crm-lead-save-pill--compact crm-lead-save-pill--header"
-      : saveSyncState === "pending"
-        ? "crm-lead-save-pill crm-lead-save-pill--pending crm-lead-save-pill--compact crm-lead-save-pill--header"
-        : saveSyncState === "saving"
-          ? "crm-lead-save-pill crm-lead-save-pill--saving crm-lead-save-pill--compact crm-lead-save-pill--header"
-          : "crm-lead-save-pill crm-lead-save-pill--error crm-lead-save-pill--compact crm-lead-save-pill--header";
+  const syncTone = leadSaveSyncSnBadgeTone(saveSyncState);
 
   return (
     <header className="crm-lead-header-v4">
@@ -127,7 +127,7 @@ export default function LeadHeader({
             ) : null}
           </h1>
           {isArchived ? (
-            <span className="crm-lead-badge crm-lead-badge--compact badge-archived">ARCHIVÉ</span>
+            <span className="sn-badge sn-badge-neutral">ARCHIVÉ</span>
           ) : (
             <CrmLeadStatusBadge
               status={leadStatusCode ?? (status === "CLIENT" ? "CLIENT" : "LEAD")}
@@ -137,11 +137,10 @@ export default function LeadHeader({
             />
           )}
           {isPro ? (
-            <span className="crm-lead-badge-pro">PRO</span>
+            <span className="sn-badge sn-badge-info">PRO</span>
           ) : null}
-          <div className={saveClass} aria-live="polite">
-            <span className="crm-lead-save-dot" aria-hidden />
-            <span className="crm-lead-save-label">{saveLabel}</span>
+          <div className="crm-lead-save-indicator crm-lead-save-indicator--header" aria-live="polite">
+            <span className={`sn-badge sn-badge-${syncTone}`}>{saveLabel}</span>
             {saveSyncState === "error" && onRetrySave ? (
               <button
                 type="button"

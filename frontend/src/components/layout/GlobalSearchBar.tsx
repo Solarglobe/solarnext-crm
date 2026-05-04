@@ -11,6 +11,11 @@ const TYPE_LABEL: Record<GlobalSearchHit["type"], string> = {
   client: "Client",
 };
 
+const TYPE_BADGE_CLASS: Record<GlobalSearchHit["type"], string> = {
+  lead: "sn-badge sn-badge-neutral",
+  client: "sn-badge sn-badge-success",
+};
+
 export function GlobalSearchBar() {
   const navigate = useNavigate();
   const inputId = useId();
@@ -161,9 +166,7 @@ export function GlobalSearchBar() {
                     <span className="sn-global-search__item-name">{r.full_name || "—"}</span>
                     <span className="sn-global-search__item-meta">
                       {r.email ? <span className="sn-global-search__item-email">{r.email}</span> : null}
-                      <span className={`sn-global-search__badge sn-global-search__badge--${r.type}`}>
-                        {TYPE_LABEL[r.type]}
-                      </span>
+                      <span className={TYPE_BADGE_CLASS[r.type]}>{TYPE_LABEL[r.type]}</span>
                     </span>
                   </button>
                 </li>

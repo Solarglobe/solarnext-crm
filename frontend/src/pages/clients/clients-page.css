@@ -420,18 +420,6 @@
   min-width: 0;
 }
 
-.clients-portfolio-archive-badge {
-  flex-shrink: 0;
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 0.07em;
-  padding: 2px 6px;
-  border-radius: 4px;
-  background: color-mix(in srgb, var(--text-muted) 38%, transparent);
-  color: var(--text-secondary);
-  line-height: 1.2;
-}
-
 .clients-portfolio-list__sub {
   font-size: 11px;
   color: var(--text-muted);
@@ -484,119 +472,11 @@
   line-height: 1.45;
 }
 
-/* Badges & progression (partagés avec le détail) */
-.badge-project {
-  display: inline-block;
-  padding: 4px 10px;
-  border-radius: 10px;
-  font-size: 12px;
-  font-weight: 600;
+.clients-portfolio-list__stage-sn {
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.badge-project--compact {
-  padding: 2px 8px;
-  font-size: 11px;
-  border-radius: 8px;
-}
-
-.badge-project.ETUDE {
-  background: #eee;
-  color: #333;
-}
-
-.badge-project.MAIRIE {
-  background: #dbeafe;
-  color: #1e3a8a;
-}
-
-.badge-project.ACCORD_MAIRIE {
-  background: #bfdbfe;
-  color: #1e40af;
-}
-
-.badge-project.PLANIFICATION {
-  background: #e0e7ff;
-  color: #3730a3;
-}
-
-.badge-project.INSTALLATION {
-  background: #fde68a;
-  color: #78350f;
-}
-
-.badge-project.RACCORDEMENT {
-  background: #fed7aa;
-  color: #9a3412;
-}
-
-.badge-project.TERMINE {
-  background: #bbf7d0;
-  color: #14532d;
-}
-
-.badge-project.SIGNE {
-  background: rgba(46, 204, 113, 0.12);
-  color: #2ecc71;
-  border: 1px solid rgba(46, 204, 113, 0.25);
-}
-
-.badge-project.DP_A_DEPOSER {
-  background: #dbeafe;
-  color: #1e40af;
-}
-
-.badge-project.DP_DEPOSE {
-  background: #bfdbfe;
-  color: #1e3a8a;
-}
-
-.badge-project.DP_ACCEPTE {
-  background: #93c5fd;
-  color: #1e3a8a;
-}
-
-.badge-project.INSTALLATION_PLANIFIEE {
-  background: #fde68a;
-  color: #78350f;
-}
-
-.badge-project.INSTALLATION_REALISEE {
-  background: #fcd34d;
-  color: #78350f;
-}
-
-.badge-project.CONSUEL_EN_ATTENTE {
-  background: #ffedd5;
-  color: #9a3412;
-}
-
-.badge-project.CONSUEL_OBTENU {
-  background: #d9f99d;
-  color: #365314;
-}
-
-.badge-project.MISE_EN_SERVICE {
-  background: #bbf7d0;
-  color: #14532d;
-}
-
-.badge-project.FACTURATION_TERMINEE {
-  background: #bbf7d0;
-  color: #166534;
-}
-
-.badge-project.CLOTURE {
-  background: #bbf7d0;
-  color: #14532d;
-}
-
-.badge-project.NONE {
-  background: #eee;
-  color: #666;
+  vertical-align: middle;
 }
 
 .clients-progress-wrap {

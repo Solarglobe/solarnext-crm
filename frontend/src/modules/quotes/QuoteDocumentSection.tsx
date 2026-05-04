@@ -152,7 +152,7 @@ export default function QuoteDocumentSection({
 
       {!pdfShowLinePricing ? (
         <div className="qb-doc-preview-callout" role="status">
-          <span className="fin-badge fin-badge--info">Aperçu logique</span>
+          <span className="sn-badge sn-badge-info">Aperçu logique</span>
           <p>
             Le client ne verra pas le détail tarifaire ligne par ligne (PU, TVA, montants par ligne). Seuls les totaux
             globaux HT, TVA et TTC apparaîtront sur le devis. Complétez les colonnes <strong>Réf.</strong> et{" "}

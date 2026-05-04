@@ -1,0 +1,49 @@
+/* Couleurs via tokens uniquement — pas de style inline couleur sur les messages */
+
+.geo-validation-modal__title {
+  margin: 0;
+  font-size: 18px;
+  color: var(--text-primary);
+}
+
+.geo-validation-modal__close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 24px;
+  padding: 0 8px;
+}
+
+.geo-validation-modal__hint {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.geo-validation-modal__hint-block {
+  display: block;
+  margin-top: 8px;
+  max-width: 560px;
+}
+
+.geo-validation-modal__parcelle-ok {
+  font-size: 15px;
+  margin-bottom: 16px;
+  color: var(--success, #22c55e);
+}
+
+.geo-validation-modal__parcelle-warn {
+  font-size: 15px;
+  margin-bottom: 16px;
+  color: var(--warning, #f59e0b);
+}
+
+.geo-validation-modal__parcelle-warn-note {
+  font-size: 13px;
+  opacity: 0.9;
+}
+
+.geo-validation-modal__error {
+  margin-bottom: 16px;
+  color: var(--error, #ef4444);
+}

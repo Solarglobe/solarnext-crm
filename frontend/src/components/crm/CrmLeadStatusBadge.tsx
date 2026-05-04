@@ -2,9 +2,16 @@ import React from "react";
 import {
   resolveCrmLeadStatusTone,
   crmLeadStatusShortLabel,
+  type CrmLeadStatusTone,
   type CrmLeadStatusResolveOptions,
 } from "./crmLeadStatusDisplay";
-import "./crm-lead-status-badge.css";
+
+const TONE_BADGE_CLASS: Record<CrmLeadStatusTone, string> = {
+  lead: "sn-badge sn-badge-neutral",
+  qualified: "sn-badge sn-badge-info",
+  client: "sn-badge sn-badge-success",
+  lost: "sn-badge sn-badge-danger",
+};
 
 export interface CrmLeadStatusBadgeProps {
   status?: string | null;
@@ -28,11 +35,10 @@ export function CrmLeadStatusBadge({
   const fullTitle =
     title ?? (raw && raw.toUpperCase() !== label.toUpperCase() ? `${label} — ${raw}` : label);
 
+  const base = TONE_BADGE_CLASS[tone];
+
   return (
-    <span
-      className={`crm-status-badge crm-status-badge--${tone}${className ? ` ${className}` : ""}`.trim()}
-      title={fullTitle}
-    >
+    <span className={`${base}${className ? ` ${className}` : ""}`.trim()} title={fullTitle}>
       {label}
     </span>
   );

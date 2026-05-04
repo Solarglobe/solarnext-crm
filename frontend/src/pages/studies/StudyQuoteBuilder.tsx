@@ -1196,9 +1196,13 @@ export default function StudyQuoteBuilder() {
         <h1 className="sqb-h1">Préparation du devis technique</h1>
         <div className="study-quote-page-header__meta">
           {saveStatus === "saving" && <span className="sqb-helper">Enregistrement…</span>}
-          {saveStatus === "saved" && <span className="sqb-helper sqb-status--ok">Sauvegardé</span>}
-          {saveStatus === "error" && <span className="sqb-helper sqb-status--err">Non sauvegardé</span>}
-          {locked && <span className="sqb-badge">READY_FOR_STUDY</span>}
+          {saveStatus === "saved" && (
+            <span className="sqb-helper sn-badge sn-badge-success">Sauvegardé</span>
+          )}
+          {saveStatus === "error" && (
+            <span className="sqb-helper sn-badge sn-badge-danger">Non sauvegardé</span>
+          )}
+          {locked && <span className="sn-badge sn-badge-success">READY_FOR_STUDY</span>}
         </div>
       </header>
 
@@ -1235,7 +1239,7 @@ export default function StudyQuoteBuilder() {
           <div className="sqb-section-head">
             <h2 className="sqb-h2 sqb-h2--inline">Matériel principal</h2>
             {leadCustomerType === "PRO" ? (
-              <span className="sqb-pro-vat-badge" title="Clients professionnels : TVA 20% appliquée sur toutes les lignes">
+              <span className="sn-badge sn-badge-info" title="Clients professionnels : TVA 20% appliquée sur toutes les lignes">
                 TVA 20% — régime professionnel
               </span>
             ) : (
@@ -1252,7 +1256,7 @@ export default function StudyQuoteBuilder() {
             )}
           </div>
           <div className="sn-table-wrapper">
-            <table className="sn-table-finance">
+            <table className="sn-ui-table sn-ui-table--editable sn-table-finance">
               <thead>
                 <tr>
                   <th className="col-designation">Désignation</th>
@@ -1410,7 +1414,7 @@ export default function StudyQuoteBuilder() {
           </div>
           <h3 className="sqb-h3 sqb-scenario-subtitle">Batterie physique</h3>
           <div className="sn-table-wrapper">
-            <table className="sn-table-finance">
+            <table className="sn-ui-table sn-ui-table--editable sn-table-finance">
               <thead>
                 <tr>
                   <th className="col-actif">Actif</th>

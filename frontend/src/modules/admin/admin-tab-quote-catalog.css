@@ -215,46 +215,6 @@
   white-space: nowrap;
 }
 
-/* Marge — couleur selon niveau, chiffre + % collés (nbsp en JSX) */
-.admin-catalog-marge {
-  display: inline-block;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-.admin-catalog-marge--low {
-  color: var(--danger, #dc2626);
-}
-
-.admin-catalog-marge--mid {
-  color: var(--warning, #f59e0b);
-}
-
-.admin-catalog-marge--good {
-  color: var(--success, #22c55e);
-}
-
-/* Badge Actif / Inactif */
-.admin-catalog-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 500;
-}
-
-.admin-catalog-badge--active {
-  background: rgba(34, 197, 94, 0.15);
-  color: var(--success, #16a34a);
-}
-
-.admin-catalog-badge--inactive {
-  background: rgba(107, 114, 128, 0.15);
-  color: var(--text-muted, #6b7280);
-}
-
 /* Ligne inactive — fond léger */
 .admin-catalog-table tbody tr.admin-catalog-row-inactive td {
   background: var(--surface-subtle, rgba(0, 0, 0, 0.03));
@@ -678,30 +638,17 @@ select.qc-modal-input:focus-visible {
   border-left: 3px solid #6366f1;
 }
 
-.qc-modal-marge-value {
-  font-size: 1.125rem;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0.01em;
-}
-
 .qc-modal-marge-sep {
   margin: 0 10px;
   font-weight: 500;
-  color: #94a3b8;
+  opacity: 0.72;
 }
 
-/* Couleurs marge : réutilise les utilitaires catalogue */
-.qc-modal-marge .admin-catalog-marge--low {
-  color: var(--danger, #dc2626);
-}
-
-.qc-modal-marge .admin-catalog-marge--mid {
-  color: var(--warning, #d97706);
-}
-
-.qc-modal-marge .admin-catalog-marge--good {
-  color: var(--success, #16a34a);
+.qc-modal-marge .sn-badge {
+  font-size: 1.0625rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
 }
 
 .theme-dark .sn-modal-shell-body.qc-modal-shell-body,

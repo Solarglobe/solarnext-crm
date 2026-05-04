@@ -367,23 +367,21 @@ export default function EntityDocumentsHub({
                     >
                       <div className={styles.cardRow1}>
                         <h4 className={styles.cardTitle}>{title}</h4>
-                        <div className={styles.badgeGroup}>
+                        <div className={styles.hubChipRow}>
                           {lifecycle ? (
                             <span
-                              className={`${styles.badge} ${
+                              className={
                                 lifecycle.variant === "signed"
-                                  ? styles.badgeLifecycleSigned
-                                  : styles.badgeLifecycleDraft
-                              }`}
+                                  ? "sn-badge sn-badge-success"
+                                  : "sn-badge sn-badge-warn"
+                              }
                             >
                               {lifecycle.label}
                             </span>
                           ) : null}
                           <button
                             type="button"
-                            className={`${styles.badge} ${styles.badgeClickable} ${
-                              doc.isClientVisible ? styles.badgeVisibleOn : styles.badgeVisibleOff
-                            }`}
+                            className={`sn-badge ${doc.isClientVisible ? "sn-badge-success" : "sn-badge-neutral"} ${styles.hubChipBtn}`}
                             onClick={() => void handleToggleClientVisible(doc)}
                             disabled={visibilityBusyId === doc.id}
                             aria-pressed={doc.isClientVisible}
@@ -395,11 +393,7 @@ export default function EntityDocumentsHub({
                                 ? "Visible client"
                                 : "Non visible client"}
                           </button>
-                          <span
-                            className={`${styles.badge} ${
-                              sys ? styles.badgeSourceAuto : styles.badgeSourceManual
-                            }`}
-                          >
+                          <span className={`sn-badge ${sys ? "sn-badge-info" : "sn-badge-neutral"}`}>
                             {sys ? "GÉNÉRÉ" : "AJOUTÉ"}
                           </span>
                         </div>

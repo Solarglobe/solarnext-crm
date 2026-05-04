@@ -12,6 +12,31 @@ import {
 import { isLeadArchivedRecord } from "../../services/leads.service";
 import { CrmLeadStatusBadge } from "../crm/CrmLeadStatusBadge";
 
+function portfolioPipelineBadgeClass(stageKey: string): string {
+  const k = stageKey.toUpperCase();
+  const successStages = [
+    "SIGNE",
+    "TERMINE",
+    "FACTURATION_TERMINEE",
+    "CLOTURE",
+    "MISE_EN_SERVICE",
+    "CONSUEL_OBTENU",
+  ];
+  const warnStages = [
+    "INSTALLATION",
+    "INSTALLATION_PLANIFIEE",
+    "INSTALLATION_REALISEE",
+    "RACCORDEMENT",
+    "CONSUEL_EN_ATTENTE",
+  ];
+  const infoStages = ["MAIRIE", "ACCORD_MAIRIE", "DP_A_DEPOSER", "DP_DEPOSE", "DP_ACCEPTE", "PLANIFICATION"];
+  let tone: "neutral" | "info" | "warn" | "success" = "neutral";
+  if (successStages.includes(k)) tone = "success";
+  else if (warnStages.includes(k)) tone = "warn";
+  else if (infoStages.includes(k)) tone = "info";
+  return `sn-badge sn-badge-${tone} clients-portfolio-list__stage-sn`;
+}
+
 export interface ClientsPortfolioListProps {
   leads: Lead[];
   selectedId: string | null;
@@ -169,7 +194,7 @@ export function ClientsPortfolioList({
                   <span className="clients-portfolio-list__name">{name}</span>
                   <CrmLeadStatusBadge status={lead.status} stageName={lead.stage_name} />
                   {rowArchived ? (
-                    <span className="clients-portfolio-archive-badge" title="Dossier archivé">
+                    <span className="sn-badge sn-badge-neutral" title="Dossier archivé">
                       ARCHIVÉ
                     </span>
                   ) : null}
@@ -180,10 +205,7 @@ export function ClientsPortfolioList({
               </div>
               <div className="clients-portfolio-list__cell">
                 {ps ? (
-                  <span
-                    className={`badge-project badge-project--compact ${psKey}`}
-                    title={ps}
-                  >
+                  <span className={portfolioPipelineBadgeClass(psKey)} title={ps}>
                     {tracking.statusLabel}
                   </span>
                 ) : (

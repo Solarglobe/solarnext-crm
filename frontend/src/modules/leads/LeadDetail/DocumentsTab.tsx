@@ -26,7 +26,7 @@ export default function DocumentsTab({
         <div className="crm-lead-card">
           <div className="crm-lead-card-head">
             <h2 className="crm-lead-card-title">Documents client</h2>
-            <p className="crm-lead-card-subtitle" style={{ margin: "6px 0 0", color: "#6b5530", fontSize: "0.9rem" }}>
+            <p className="crm-lead-card-subtitle">
               Factures, devis et documents contractuels rattachés à l’entité client.
             </p>
           </div>
@@ -42,7 +42,7 @@ export default function DocumentsTab({
       <div className="crm-lead-card">
         <div className="crm-lead-card-head">
           <h2 className="crm-lead-card-title">{clientId ? "Documents du lead" : "Documents"}</h2>
-          <p className="crm-lead-card-subtitle" style={{ margin: "6px 0 0", color: "#6b5530", fontSize: "0.9rem" }}>
+          <p className="crm-lead-card-subtitle">
             Devis, factures, propositions et pièces classées par nature — prêt pour l’espace client.
           </p>
         </div>

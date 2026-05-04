@@ -237,7 +237,7 @@ export default function AdminOrganizationsPage() {
       {!loading && !error && (
         <div className="sn-saas-surface sn-saas-surface--flush">
           <div className="sn-saas-table-wrap">
-            <table className="sn-saas-table">
+            <table className="sn-ui-table sn-saas-table">
               <thead>
                 <tr>
                   <th>Entreprise</th>

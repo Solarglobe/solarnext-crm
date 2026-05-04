@@ -433,7 +433,7 @@ export default function MairiesPage() {
 
       {listLoading && !listError ? (
         <div className="mairies-page__skeleton-wrap" aria-busy="true" aria-label="Chargement de la liste">
-          <table className="qb-table qb-table--list-saas mairies-page__skeleton-table">
+          <table className="sn-ui-table qb-table qb-table--list-saas mairies-page__skeleton-table">
             <thead>
               <tr>
                 <th>Nom</th>
@@ -497,7 +497,7 @@ export default function MairiesPage() {
           onKeyDown={onTableKeyDown}
         >
           <div className="mairies-page__table-wrap qb-table-wrap qb-table-wrap--list-saas">
-            <table className="qb-table qb-table--list-saas">
+            <table className="sn-ui-table sn-ui-table--editable qb-table qb-table--list-saas">
               <thead>
                 <tr>
                   <th>Nom</th>
@@ -598,7 +598,7 @@ export default function MairiesPage() {
                       </td>
                       <td className="qb-num">
                         {(row.linked_leads_count ?? 0) > 0 ? (
-                          <span className="mairie-leads-badge" title="Leads liés à cette mairie">
+                          <span className="sn-badge sn-badge-info" title="Leads liés à cette mairie">
                             {row.linked_leads_count ?? 0}
                           </span>
                         ) : (

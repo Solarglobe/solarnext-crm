@@ -507,16 +507,16 @@ export default function ScenarioComparisonTable({
                     <p className="scenario-col-sub">{subtitle}</p>
                   </div>
                   {badge.kind === "missing" && (
-                    <span className="scenario-pill scenario-pill-muted">Non configuré</span>
+                    <span className="sn-badge sn-badge-neutral">Non configuré</span>
                   )}
                   {badge.kind === "available" && (
-                    <span className="scenario-pill scenario-pill-ok">DISPONIBLE</span>
+                    <span className="sn-badge sn-badge-success">DISPONIBLE</span>
                   )}
                   {badge.kind === "incomplete" && (
-                    <span className="scenario-pill scenario-pill-warn">Données incomplètes</span>
+                    <span className="sn-badge sn-badge-warn">Données incomplètes</span>
                   )}
                   {badge.kind === "unsuitable" && (
-                    <span className="scenario-pill scenario-pill-bad">Non adapté</span>
+                    <span className="sn-badge sn-badge-danger">Non adapté</span>
                   )}
                 </header>
 
@@ -872,7 +872,7 @@ export default function ScenarioComparisonTable({
                     <footer className="scenario-col-footer scenario-row-footer">
                       {isSelectedLocked && onRedownloadPdf ? (
                         <div className="scenario-col-selected-footer">
-                          <div className="scenario-selected-pill" role="status">
+                          <div className="sn-badge sn-badge-success" role="status">
                             ✔ Solution sélectionnée
                           </div>
                           <button
@@ -997,20 +997,9 @@ export default function ScenarioComparisonTable({
           gap: 0.75rem;
           width: 100%;
         }
-        .scenario-selected-pill {
-          text-align: center;
-          font-size: 0.8rem;
-          font-weight: 600;
-          color: var(--success, #22c55e);
-          padding: 0.35rem 0.5rem;
-          border-radius: 8px;
-          background: rgba(34, 197, 94, 0.14);
-          border: 1px solid rgba(34, 197, 94, 0.28);
-        }
-        .theme-light .scenario-selected-pill {
-          color: #15803d;
-          background: rgba(34, 197, 94, 0.12);
-          border-color: rgba(34, 197, 94, 0.35);
+        .scenario-col-selected-footer .sn-badge {
+          justify-content: center;
+          width: 100%;
         }
         .scenario-col-cta--blocked {
           opacity: 0.5;
@@ -1051,35 +1040,6 @@ export default function ScenarioComparisonTable({
           font-size: 0.8rem;
           line-height: 1.35;
           color: var(--sn-text-secondary, #9FA8C7);
-        }
-        .scenario-pill {
-          font-size: 0.65rem;
-          font-weight: 700;
-          text-transform: uppercase;
-          letter-spacing: 0.06em;
-          padding: 0.2rem 0.5rem;
-          border-radius: 999px;
-          white-space: nowrap;
-        }
-        .scenario-pill-ok {
-          background: rgba(39, 174, 96, 0.2);
-          color: #6ee7a8;
-          border: 1px solid rgba(39, 174, 96, 0.35);
-        }
-        .scenario-pill-warn {
-          background: rgba(230, 126, 34, 0.2);
-          color: #f5b041;
-          border: 1px solid rgba(230, 126, 34, 0.35);
-        }
-        .scenario-pill-bad {
-          background: rgba(192, 57, 43, 0.18);
-          color: #f1948a;
-          border: 1px solid rgba(192, 57, 43, 0.35);
-        }
-        .scenario-pill-muted {
-          background: rgba(255,255,255,0.06);
-          color: var(--sn-text-muted, #7d86a8);
-          border: 1px solid rgba(255,255,255,0.1);
         }
         .scenario-col-banner {
           margin: 0 0 0.75rem;

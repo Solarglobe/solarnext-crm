@@ -317,25 +317,6 @@
   border-bottom: none;
 }
 
-.pv-cat-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 3px 10px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 600;
-}
-
-.pv-cat-badge--on {
-  background: rgba(34, 197, 94, 0.12);
-  color: #15803d;
-}
-
-.pv-cat-badge--off {
-  background: #f1f5f9;
-  color: #64748b;
-}
-
 .pv-cat-row-actions {
   display: inline-flex;
   align-items: center;

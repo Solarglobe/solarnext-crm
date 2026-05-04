@@ -143,15 +143,8 @@ html.sn-auth-page #root {
   text-align: center;
 }
 
-.login-badge {
-  display: block;
-  font-size: 12px;
-  letter-spacing: 1px;
-  color: #c8a96a;
-  text-align: center;
-  margin: 0 0 8px;
-  text-transform: uppercase;
-  font-weight: 500;
+.login-card-header .sn-badge {
+  margin: 0 auto 8px;
 }
 
 .login-card h1 {

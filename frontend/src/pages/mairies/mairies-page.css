@@ -162,36 +162,6 @@ html.theme-dark .mairies-page .qb-table.qb-table--list-saas tbody tr:hover {
   color: var(--text-muted, #64748b);
 }
 
-.mairie-badge {
-  display: inline-block;
-  padding: 4px 12px;
-  border-radius: 999px;
-  font-size: 13px;
-  font-weight: 600;
-  line-height: 1.35;
-  white-space: nowrap;
-}
-
-.mairie-badge--red {
-  background: color-mix(in srgb, #ef4444 18%, transparent);
-  color: #b91c1c;
-}
-
-.mairie-badge--orange {
-  background: color-mix(in srgb, var(--gold, var(--brand-gold)) 22%, transparent);
-  color: color-mix(in srgb, var(--gold, var(--brand-gold)) 95%, #92400e);
-}
-
-.mairie-badge--green {
-  background: color-mix(in srgb, #22c55e 16%, transparent);
-  color: #15803d;
-}
-
-.theme-dark .mairie-badge--orange,
-html.theme-dark .mairie-badge--orange {
-  color: #fcd34d;
-}
-
 .mairies-page__table-wrap {
   overflow-x: auto;
 }
@@ -360,28 +330,6 @@ html.theme-dark .mairie-recent-dot {
 .mairies-page__bw-copy:focus-visible {
   outline: 2px solid var(--primary, #6d28d9);
   outline-offset: 2px;
-}
-
-/* Compteur leads liés — teinte violette + chiffre lisible */
-.mairie-leads-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 1.75rem;
-  padding: 2px 8px;
-  border-radius: 999px;
-  font-size: 13px;
-  font-weight: 700;
-  background: color-mix(in srgb, var(--primary, #6d28d9) 14%, var(--gold-soft, rgba(184, 134, 11, 0.08)));
-  color: var(--primary, #6d28d9);
-  border: 1px solid color-mix(in srgb, var(--primary) 22%, transparent);
-}
-
-.theme-dark .mairie-leads-badge,
-html.theme-dark .mairie-leads-badge {
-  background: color-mix(in srgb, var(--primary) 22%, transparent);
-  color: #e9d5ff;
-  border-color: color-mix(in srgb, var(--gold) 25%, transparent);
 }
 
 .mairies-page__actions-cell {

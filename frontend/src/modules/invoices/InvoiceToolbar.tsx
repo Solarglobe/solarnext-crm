@@ -85,7 +85,7 @@ export default function InvoiceToolbar({
             {invoiceNumber || "Facture"}
           </span>
           <span className={invoiceStatusClass(statusUi)}>{invoiceStatusLabel(statusUi)}</span>
-          {linkHint ? <span className="qb-badge-study">{linkHint}</span> : null}
+          {linkHint ? <span className="sn-badge sn-badge-neutral">{linkHint}</span> : null}
         </div>
       </div>
       <div className="qb-toolbar-actions ib-toolbar-actions">

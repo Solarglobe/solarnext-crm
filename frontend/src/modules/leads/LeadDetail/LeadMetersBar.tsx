@@ -134,7 +134,7 @@ export default function LeadMetersBar({
                     <span className="crm-lead-meters__card-name-row">
                       <span className="crm-lead-meters__card-name">{m.name || "Sans nom"}</span>
                       {m.is_default ? (
-                        <span className="crm-lead-meters__pill">Principal</span>
+                        <span className="sn-badge sn-badge-success">Principal</span>
                       ) : null}
                     </span>
                     <span className="crm-lead-meters__card-kwh">{fmtKwhAnnualPerYear(annual)}</span>

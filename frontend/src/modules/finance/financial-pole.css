@@ -139,21 +139,3 @@
 .fin-preview-kpis.fin-preview-kpis--dashboard {
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
 }
-
-.fin-doc-pdf-tag {
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  padding: 3px 7px;
-  border-radius: 6px;
-  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
-  color: var(--text-muted);
-  background: color-mix(in srgb, var(--surface-soft, #0f172a) 88%, transparent);
-}
-
-.fin-doc-pdf-tag--ok {
-  color: var(--sg-success, #16a34a);
-  border-color: color-mix(in srgb, var(--sg-success, #16a34a) 35%, var(--border));
-  background: color-mix(in srgb, var(--sg-success, #16a34a) 12%, transparent);
-}

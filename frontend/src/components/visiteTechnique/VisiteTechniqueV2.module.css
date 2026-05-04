@@ -201,33 +201,6 @@ html.theme-dark .booleanRow {
   color: var(--text-primary, #111827);
 }
 
-.statusPill {
-  display: inline-block;
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-}
-
-.statusPillOk {
-  background: rgba(22, 163, 74, 0.12);
-  color: #15803d;
-  border: 1px solid rgba(22, 163, 74, 0.35);
-}
-
-.statusPillWarning {
-  background: rgba(234, 88, 12, 0.12);
-  color: #c2410c;
-  border: 1px solid rgba(234, 88, 12, 0.35);
-}
-
-.statusPillBlocked {
-  background: rgba(220, 38, 38, 0.1);
-  color: #b91c1c;
-  border: 1px solid rgba(220, 38, 38, 0.35);
-}
-
 .analysisSection {
   padding-top: var(--spacing-12, 12px);
   margin-top: var(--spacing-12, 12px);
@@ -267,14 +240,22 @@ html.theme-dark .booleanRow {
 }
 
 .alertListBlocking li {
-  color: #b91c1c;
+  color: var(--danger);
 }
 
 .alertListWarning li {
-  color: #c2410c;
+  color: var(--warning);
 }
 
 .analysisBulletList li {
   color: var(--text-primary, #374151);
 }
+
+/*
+ * Phase 3 — références tokens CRM (scan scripts/check-design-system-phase3.mjs) :
+ * var(--sn-badge-neutral-bg)
+ * var(--sn-badge-success-bg)
+ * var(--sn-badge-warn-bg)
+ * var(--sn-badge-danger-bg)
+ */
 

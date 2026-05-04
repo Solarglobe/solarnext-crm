@@ -54,12 +54,16 @@ export default function InvoiceHeaderCard({
         </div>
         <div className="ib-header-card__badges">
           {isTestInvoice ? (
-            <span className="ib-header-card__badge-test" title="Marquée comme facture test (ne pas utiliser en comptabilité réelle)">
+            <span className="sn-badge sn-badge-warn" title="Marquée comme facture test (ne pas utiliser en comptabilité réelle)">
               FACTURE TEST
             </span>
           ) : null}
           <span className={invoiceStatusClass(statusUi)}>{invoiceStatusLabel(statusUi)}</span>
-          {showOverdueBadge ? <span className="ib-status ib-status--overdue">En retard</span> : null}
+          {showOverdueBadge ? (
+            <span className="sn-badge sn-badge-danger" title="Échéance dépassée">
+              En retard
+            </span>
+          ) : null}
         </div>
       </div>
 

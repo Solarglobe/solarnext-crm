@@ -144,7 +144,7 @@ export default function NotesTab({
                   <div className="crm-lead-timeline-dot" />
                   {i < notes.length - 1 && <div className="crm-lead-timeline-line" />}
                   <div className="crm-lead-timeline-content">
-                    <span className="crm-lead-timeline-badge crm-lead-timeline-badge-type">
+                    <span className="crm-lead-timeline-badge sn-badge sn-badge-info">
                       {ACTIVITY_TYPE_LABELS[a.type]}
                     </span>
                     <span className="crm-lead-timeline-date">{formatDate(a.occurred_at)}</span>

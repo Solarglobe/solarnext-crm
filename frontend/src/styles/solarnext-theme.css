@@ -951,22 +951,40 @@ html.theme-dark .sn-select:focus {
   box-shadow: var(--shadow-1);
 }
 
-.sn-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: var(--spacing-4) var(--spacing-8);
-  font-size: var(--font-size-label);
-  font-weight: 500;
-  border-radius: var(--radius-pill);
+/* CRM badges — modificateurs sn-badge-* (couleurs = variables --sn-badge-* définies dans primitives) */
+html.sn-app-page .sn-badge.sn-badge-neutral {
+  background: var(--sn-badge-neutral-bg);
+  border-color: var(--sn-badge-neutral-border);
+  color: var(--sn-badge-neutral-fg);
 }
 
-/* Score badge premium */
-.sn-score-badge {
-  background: rgba(124, 58, 237, 0.15);
-  border: 1px solid var(--sn-accent-gold-soft, var(--gold-soft));
-  color: var(--sn-text-primary, var(--text-primary));
-  border-radius: 999px;
-  padding: 4px 10px;
+html.sn-app-page .sn-badge.sn-badge-info {
+  background: var(--sn-badge-info-bg);
+  border-color: var(--sn-badge-info-border);
+  color: var(--sn-badge-info-fg);
+}
+
+html.sn-app-page .sn-badge.sn-badge-success {
+  background: var(--sn-badge-success-bg);
+  border-color: var(--sn-badge-success-border);
+  color: var(--sn-badge-success-fg);
+}
+
+html.sn-app-page .sn-badge.sn-badge-warn {
+  background: var(--sn-badge-warn-bg);
+  border-color: var(--sn-badge-warn-border);
+  color: var(--sn-badge-warn-fg);
+}
+
+html.sn-app-page .sn-badge.sn-badge-danger {
+  background: var(--sn-badge-danger-bg);
+  border-color: var(--sn-badge-danger-border);
+  color: var(--sn-badge-danger-fg);
+}
+
+html.sn-app-page .sn-badge.crm-status-badge--in-header {
+  font-size: 11px;
+  padding: 3px 8px;
 }
 
 /* ========== Doré STRUCTUREL — Page titles (SolarGlobe signature) ========== */
@@ -1846,26 +1864,6 @@ html.theme-dark .sn-topbar {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.sn-global-search__badge {
-  flex-shrink: 0;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  padding: 2px 8px;
-  border-radius: 999px;
-}
-
-.sn-global-search__badge--lead {
-  background: color-mix(in srgb, var(--primary) 22%, transparent);
-  color: var(--text-primary);
-}
-
-.sn-global-search__badge--client {
-  background: color-mix(in srgb, var(--violet-strong) 22%, transparent);
-  color: var(--text-primary);
 }
 
 .sn-global-search__empty {
@@ -3256,24 +3254,6 @@ html.theme-dark .sn-leads-kanban-col-signed {
   flex-shrink: 0;
 }
 
-.badge-lost {
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  padding: 2px 6px;
-  border-radius: 6px;
-  color: var(--text-muted);
-  background: rgba(148, 163, 184, 0.25);
-  border: 1px solid rgba(148, 163, 184, 0.45);
-}
-
-.theme-light .badge-lost {
-  color: #64748b;
-  background: #e2e8f0;
-  border-color: #cbd5e1;
-}
-
 .sn-leads-card-v3__name {
   margin: 0;
   font-size: 15px;
@@ -3285,7 +3265,7 @@ html.theme-dark .sn-leads-kanban-col-signed {
   min-width: 0;
 }
 
-.sn-leads-card-v3__head .sn-leads-badge {
+.sn-leads-card-v3__head .sn-badge {
   flex-shrink: 0;
   min-width: 2rem;
   justify-content: center;
@@ -3537,152 +3517,6 @@ html.theme-dark .sn-leads-kanban-col-signed {
   border-radius: 12px;
 }
 
-/* Badges — score ≠ CA ≠ inactivité */
-.sn-leads-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 4px 9px;
-  border-radius: 8px;
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 1.2;
-  letter-spacing: 0.02em;
-}
-
-.sn-leads-badge-score-high {
-  background: rgba(34, 197, 94, 0.2);
-  color: var(--success);
-  border: 1px solid rgba(34, 197, 94, 0.28);
-}
-.sn-leads-badge-score-mid {
-  background: rgba(245, 158, 11, 0.2);
-  color: var(--warning);
-  border: 1px solid rgba(245, 158, 11, 0.28);
-}
-.sn-leads-badge-score-low {
-  background: rgba(100, 116, 139, 0.2);
-  color: var(--text-muted);
-  border: 1px solid rgba(100, 116, 139, 0.25);
-}
-
-.theme-dark .sn-leads-badge-score-low {
-  background: rgba(51, 65, 85, 0.45);
-  border-color: rgba(148, 163, 184, 0.25);
-}
-.theme-light .sn-leads-badge-score-low {
-  background: rgba(241, 245, 249, 0.95);
-  border: 1px solid var(--border-soft);
-}
-
-.sn-leads-badge-kw {
-  background: rgba(56, 189, 248, 0.14);
-  color: var(--info);
-  border: 1px solid rgba(56, 189, 248, 0.22);
-}
-
-.theme-light .sn-leads-badge-kw {
-  background: rgba(14, 165, 233, 0.1);
-  color: #0369a1;
-  border-color: rgba(14, 165, 233, 0.2);
-}
-
-/* CA — or / ambre (jamais la couleur « score » vert) */
-.sn-leads-badge-revenue {
-  background: rgba(212, 160, 24, 0.16);
-  color: #b45309;
-  border: 1px solid rgba(180, 130, 20, 0.28);
-}
-
-.theme-dark .sn-leads-badge-revenue {
-  color: #fcd34d;
-  background: rgba(212, 160, 24, 0.12);
-  border-color: rgba(250, 200, 80, 0.22);
-}
-
-/* Inactivité : À jour — vert discret */
-.sn-leads-badge-inactive-ok {
-  background: rgba(34, 197, 94, 0.12);
-  color: var(--success, #22c55e);
-}
-.sn-leads-badge-inactive-warning {
-  background: rgba(245, 158, 11, 0.16);
-  color: var(--warning);
-}
-.sn-leads-badge-inactive-danger {
-  background: rgba(239, 68, 68, 0.16);
-  color: var(--danger);
-}
-.sn-leads-badge-inactive-critical {
-  background: rgba(220, 38, 38, 0.88);
-  color: var(--text-on-dark);
-}
-
-/* Pills stage — alignés pipeline */
-.sn-leads-pill-stage {
-  display: inline-flex;
-  align-items: center;
-  max-width: 100%;
-  padding: 5px 10px;
-  border-radius: 8px;
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  line-height: 1.2;
-  border: 1px solid transparent;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.sn-leads-pill-stage--1 {
-  background: rgba(148, 163, 184, 0.22);
-  color: #cbd5e1;
-  border-color: rgba(148, 163, 184, 0.35);
-}
-.sn-leads-pill-stage--2 {
-  background: rgba(212, 184, 150, 0.22);
-  color: #e7d5c4;
-  border-color: rgba(212, 184, 150, 0.35);
-}
-.sn-leads-pill-stage--3 {
-  background: rgba(232, 200, 120, 0.22);
-  color: #fde68a;
-  border-color: rgba(232, 200, 120, 0.38);
-}
-.sn-leads-pill-stage--4 {
-  background: rgba(220, 170, 40, 0.24);
-  color: #fcd34d;
-  border-color: rgba(250, 200, 80, 0.4);
-}
-.sn-leads-pill-stage--5 {
-  background: rgba(180, 130, 30, 0.35);
-  color: #fff8e8;
-  border-color: rgba(255, 210, 120, 0.45);
-}
-
-.theme-light .sn-leads-pill-stage--1 {
-  color: #334155;
-  background: rgba(148, 163, 184, 0.2);
-}
-.theme-light .sn-leads-pill-stage--2 {
-  color: #78350f;
-  background: rgba(231, 213, 196, 0.85);
-}
-.theme-light .sn-leads-pill-stage--3 {
-  color: #854d0e;
-  background: rgba(253, 230, 138, 0.65);
-}
-.theme-light .sn-leads-pill-stage--4 {
-  color: #713f12;
-  background: rgba(252, 211, 77, 0.75);
-}
-.theme-light .sn-leads-pill-stage--5 {
-  color: #422006;
-  background: linear-gradient(135deg, #d4a012, #a16207);
-  border-color: rgba(120, 80, 10, 0.35);
-}
-
 /* ——— Liste premium (grille, pas tableau générique) ——— */
 .sn-leads-list-host {
   display: flex;
@@ -3810,19 +3644,6 @@ html.theme-dark .sn-leads-kanban-col-signed {
 
 .sn-clients-list-actions__archive {
   color: var(--danger);
-}
-
-.crm-badge-project--client-list {
-  font-weight: 700;
-  border: 1px solid color-mix(in srgb, var(--primary) 45%, transparent);
-  background: color-mix(in srgb, var(--primary) 22%, transparent);
-  color: var(--text-primary);
-}
-
-.theme-light .crm-badge-project--client-list {
-  background: rgba(91, 33, 182, 0.14);
-  border-color: rgba(91, 33, 182, 0.35);
-  color: #4c1d95;
 }
 
 /* Nom | Adresse | Tél | Score | Stage | Inact. | Commercial | Création | Actions — une ligne */
@@ -3969,50 +3790,13 @@ html.theme-dark .sn-leads-kanban-col-signed {
   width: 100%;
 }
 
-.sn-leads-archive-badge--subtle {
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  padding: 1px 6px;
-  border-radius: 4px;
-  background: rgba(100, 116, 139, 0.12);
-  color: var(--text-muted);
-  border: 1px solid rgba(100, 116, 139, 0.2);
-  flex-shrink: 0;
-}
-
-/* CP-MAIRIES-004 — pastille mairie (liste leads) */
-.lead-mairie-badge {
-  font-size: 9px;
-  font-weight: 650;
-  padding: 1px 6px;
-  border-radius: 4px;
-  flex-shrink: 0;
+/* CP-MAIRIES-004 — contrainte largeur liste (couleurs via sn-badge) */
+html.sn-app-page .lead-mairie-list-badge-slot {
   max-width: 118px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-.lead-mairie-badge--empty {
-  color: var(--text-muted);
-  background: rgba(100, 116, 139, 0.08);
-  border: 1px solid rgba(100, 116, 139, 0.15);
-}
-.lead-mairie-badge--red {
-  color: #b91c1c;
-  background: rgba(239, 68, 68, 0.12);
-  border: 1px solid rgba(239, 68, 68, 0.25);
-}
-.lead-mairie-badge--orange {
-  color: #c2410c;
-  background: rgba(245, 158, 11, 0.15);
-  border: 1px solid rgba(245, 158, 11, 0.28);
-}
-.lead-mairie-badge--green {
-  color: #15803d;
-  background: rgba(34, 197, 94, 0.14);
-  border: 1px solid rgba(34, 197, 94, 0.28);
+  flex-shrink: 0;
 }
 
 .sn-leads-premium__bulk-check--subtle {
@@ -4030,92 +3814,6 @@ html.theme-dark .sn-leads-kanban-col-signed {
   pointer-events: none;
   justify-content: flex-end;
   width: 100%;
-}
-
-.sn-leads-list-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  max-width: 100%;
-  padding: 2px 7px;
-  border-radius: 6px;
-  font-size: 10px;
-  font-weight: 650;
-  letter-spacing: 0.02em;
-  line-height: 1.25;
-  border: 1px solid transparent;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.sn-leads-list-badge--score-high {
-  color: #3f6212;
-  background: rgba(132, 204, 22, 0.12);
-  border-color: rgba(101, 163, 13, 0.2);
-}
-
-.sn-leads-list-badge--score-mid {
-  color: #a16207;
-  background: rgba(234, 179, 8, 0.12);
-  border-color: rgba(202, 138, 4, 0.22);
-}
-
-.sn-leads-list-badge--score-low {
-  color: var(--text-muted);
-  background: rgba(100, 116, 139, 0.1);
-  border-color: rgba(100, 116, 139, 0.18);
-}
-
-.sn-leads-list-badge--stage {
-  font-weight: 600;
-  font-size: 10px;
-  letter-spacing: 0.03em;
-  text-transform: none;
-  color: var(--text-secondary);
-  background: rgba(15, 23, 42, 0.04);
-  border-color: rgba(15, 23, 42, 0.08);
-}
-
-.theme-light .sn-leads-list-badge--stage {
-  background: #f8fafc;
-  border-color: #e2e8f0;
-  color: #475569;
-}
-
-.sn-leads-list-badge--stage-1,
-.sn-leads-list-badge--stage-2,
-.sn-leads-list-badge--stage-3,
-.sn-leads-list-badge--stage-4,
-.sn-leads-list-badge--stage-5 {
-  /* Palette courte : neutre / gris-bleu */
-  color: #475569;
-  background: #f1f5f9;
-  border-color: #e2e8f0;
-}
-
-.sn-leads-list-badge--inact-ok {
-  color: #3f6212;
-  background: rgba(74, 222, 128, 0.12);
-  border-color: rgba(34, 197, 94, 0.2);
-}
-
-.sn-leads-list-badge--inact-warn {
-  color: #92400e;
-  background: rgba(251, 191, 36, 0.14);
-  border-color: rgba(245, 158, 11, 0.28);
-}
-
-.sn-leads-list-badge--inact-attn {
-  color: #9a3412;
-  background: rgba(251, 146, 60, 0.14);
-  border-color: rgba(234, 88, 12, 0.28);
-}
-
-.sn-leads-list-badge--inact-crit {
-  color: #991b1b;
-  background: rgba(248, 113, 113, 0.16);
-  border-color: rgba(220, 38, 38, 0.35);
 }
 
 .sn-leads-list-row-actions {
@@ -4492,18 +4190,6 @@ html.theme-dark .sn-leads-list-pagination {
   white-space: nowrap;
 }
 
-.sn-leads-archive-badge {
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 0.07em;
-  padding: 2px 6px;
-  border-radius: 4px;
-  background: color-mix(in srgb, var(--text-muted) 38%, transparent);
-  color: var(--text-secondary);
-  flex-shrink: 0;
-  line-height: 1.2;
-}
-
 .sn-leads-premium__cell--address {
   min-width: 0;
 }
@@ -4748,27 +4434,6 @@ html.theme-dark .sn-leads-table tbody tr:hover td {
 .clients-filter-reset {
   margin-left: auto;
 }
-
-/* CP-036 — Badges liste clients */
-.crm-badge {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: var(--radius-pill);
-  font-size: 12px;
-  font-weight: 500;
-}
-.crm-badge-ok { background: rgba(34, 197, 94, 0.2); color: var(--success); }
-.crm-badge-warn { background: rgba(245, 158, 11, 0.2); color: var(--warning); }
-.crm-badge-muted { background: rgba(156, 163, 175, 0.2); color: var(--text-muted); }
-.crm-badge-project { background: rgba(124, 58, 237, 0.2); color: var(--primary); }
-.crm-badge-prospection { background: rgba(156, 163, 175, 0.2); }
-.crm-badge-etude_en_cours { background: rgba(59, 130, 246, 0.2); color: #3b82f6; }
-.crm-badge-devis_envoye { background: rgba(245, 158, 11, 0.2); }
-.crm-badge-signe { background: rgba(34, 197, 94, 0.2); color: var(--success); }
-.crm-badge-en_installation { background: rgba(124, 58, 237, 0.2); }
-.crm-badge-raccorde,
-.crm-badge-facture,
-.crm-badge-cloture { background: rgba(34, 197, 94, 0.15); color: var(--success); }
 
 /* CP-036 — Hub Client progress bar */
 .crm-hub-progress {
@@ -5218,15 +4883,9 @@ html:not(.sn-app-page) .sn-btn-danger:not(:disabled):not(.is-disabled):hover {
   color: var(--text-primary);
 }
 
-.study-card-sg-badge {
-  display: inline-block;
+/* Espacement badge workflow (couleurs : primitives sn-badge) */
+.study-card-sg-workflow-slot {
   margin-top: 0.75rem;
-  padding: 0.35rem 0.85rem;
-  border-radius: var(--radius-pill);
-  font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
 }
 
 .study-card-sg-actions {

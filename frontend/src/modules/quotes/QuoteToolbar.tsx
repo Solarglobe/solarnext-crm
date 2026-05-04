@@ -74,9 +74,9 @@ export default function QuoteToolbar({
           <span className="qb-mono" title={quoteNumberTitle || undefined}>
             {quoteNumber}
           </span>
-          <span className={`qb-status ${uxStatusClass}`}>{uxStatusLabel}</span>
+          <span className={uxStatusClass}>{uxStatusLabel}</span>
           {studyLabel ? (
-            <span className="qb-badge-study" title="Étude liée">
+            <span className="sn-badge sn-badge-neutral" title="Étude liée">
               Étude : {studyLabel}
             </span>
           ) : null}

@@ -9,12 +9,12 @@ interface MailInboxChipsProps {
 
 export const MailInboxChips = React.memo(function MailInboxChips({ mode, onChange }: MailInboxChipsProps) {
   return (
-    <div className="mail-inbox-chips" role="tablist" aria-label="Filtrer la boîte">
+    <div className="mail-inbox-sn-tablist" role="tablist" aria-label="Filtrer la boîte">
       <button
         type="button"
         role="tab"
         aria-selected={mode === "all"}
-        className={`mail-inbox-chip${mode === "all" ? " mail-inbox-chip--active" : ""}`}
+        className={`mail-inbox-sn-tab sn-badge ${mode === "all" ? "sn-badge-info" : "sn-badge-neutral"}`}
         onClick={() => onChange("all")}
       >
         Tous
@@ -23,7 +23,7 @@ export const MailInboxChips = React.memo(function MailInboxChips({ mode, onChang
         type="button"
         role="tab"
         aria-selected={mode === "unread"}
-        className={`mail-inbox-chip${mode === "unread" ? " mail-inbox-chip--active" : ""}`}
+        className={`mail-inbox-sn-tab sn-badge ${mode === "unread" ? "sn-badge-info" : "sn-badge-neutral"}`}
         onClick={() => onChange("unread")}
       >
         Non lus
@@ -32,7 +32,7 @@ export const MailInboxChips = React.memo(function MailInboxChips({ mode, onChang
         type="button"
         role="tab"
         aria-selected={mode === "attachments"}
-        className={`mail-inbox-chip${mode === "attachments" ? " mail-inbox-chip--active" : ""}`}
+        className={`mail-inbox-sn-tab sn-badge ${mode === "attachments" ? "sn-badge-info" : "sn-badge-neutral"}`}
         onClick={() => onChange("attachments")}
       >
         Avec PJ

@@ -75,7 +75,7 @@ export default function InvoiceCreditsPanel({
         {credits.length === 0 ? (
           <p className="if-muted">Aucun avoir lié.</p>
         ) : (
-          <table className="if-table">
+          <table className="sn-ui-table if-table">
             <thead>
               <tr>
                 <th>N°</th>
@@ -95,7 +95,11 @@ export default function InvoiceCreditsPanel({
                     <td className="if-num">{eur(Number(c.total_ttc) || 0)}</td>
                     <td className="if-muted">{c.reason_text || "—"}</td>
                     <td>
-                      <span className={`if-badge ${draft ? "if-badge--draft" : "if-badge--issued"}`}>{draft ? "Brouillon" : st}</span>
+                      <span
+                        className={draft ? "sn-badge sn-badge-neutral" : "sn-badge sn-badge-success"}
+                      >
+                        {draft ? "Brouillon" : st}
+                      </span>
                     </td>
                     <td>
                       {draft ? (

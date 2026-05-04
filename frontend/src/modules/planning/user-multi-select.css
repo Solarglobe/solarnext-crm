@@ -26,7 +26,7 @@
   cursor: not-allowed;
 }
 
-.planning-user-multi-select-tags {
+.planning-user-multi-select-sn-row {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
@@ -35,18 +35,14 @@
   min-width: 0;
 }
 
-.planning-user-multi-select-tag {
+.planning-user-multi-select-sn-inner {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 2px 8px;
-  background: var(--primary);
-  color: var(--text-on-dark);
-  border-radius: 6px;
-  font-size: 12px;
+  max-width: 100%;
 }
 
-.planning-user-multi-select-tag-remove {
+.planning-user-multi-select-sn-remove {
   background: none;
   border: none;
   color: inherit;
@@ -57,7 +53,7 @@
   opacity: 0.9;
 }
 
-.planning-user-multi-select-tag-remove:hover {
+.planning-user-multi-select-sn-remove:hover {
   opacity: 1;
 }
 

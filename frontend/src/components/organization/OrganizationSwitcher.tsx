@@ -31,12 +31,9 @@ export function OrganizationSwitcher() {
   if (!isSuperAdmin || organizations.length <= 1) {
     return (
       <div
-        className="sn-org-badge"
+        className="sn-badge sn-badge-neutral"
         title="Organisation active"
         style={{
-          fontSize: 12,
-          fontWeight: 600,
-          color: "var(--text-muted)",
           maxWidth: 200,
           overflow: "hidden",
           textOverflow: "ellipsis",

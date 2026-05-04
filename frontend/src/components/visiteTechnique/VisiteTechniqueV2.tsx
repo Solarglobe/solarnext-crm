@@ -1241,12 +1241,12 @@ export function VisiteTechniqueV2({
               <div className={styles.analysisKpi}>
                 <span className={styles.analysisKpiLabel}>Statut</span>
                 <span
-                  className={`${styles.statusPill} ${
+                  className={`sn-badge ${
                     evaluation.status === "OK"
-                      ? styles.statusPillOk
+                      ? "sn-badge-success"
                       : evaluation.status === "WARNING"
-                        ? styles.statusPillWarning
-                        : styles.statusPillBlocked
+                        ? "sn-badge-warn"
+                        : "sn-badge-danger"
                   }`}
                 >
                   {evaluation.status}

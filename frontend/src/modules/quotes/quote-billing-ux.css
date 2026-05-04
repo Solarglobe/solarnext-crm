@@ -188,31 +188,6 @@
   width: fit-content;
 }
 
-.qb-billing-ux__list-status.ib-status--draft {
-  background: rgba(100, 116, 139, 0.25);
-  color: var(--text-muted);
-}
-.qb-billing-ux__list-status.ib-status--sent {
-  background: rgba(59, 130, 246, 0.2);
-  color: #93c5fd;
-}
-.qb-billing-ux__list-status.ib-status--partial {
-  background: rgba(245, 158, 11, 0.2);
-  color: #fcd34d;
-}
-.qb-billing-ux__list-status.ib-status--paid {
-  background: rgba(34, 197, 94, 0.2);
-  color: #86efac;
-}
-.qb-billing-ux__list-status.ib-status--cancelled {
-  background: rgba(148, 163, 184, 0.2);
-  color: #94a3b8;
-}
-.qb-billing-ux__list-status.ib-status--overdue {
-  background: rgba(239, 68, 68, 0.22);
-  color: #fecaca;
-}
-
 .qb-billing-ux__empty-list {
   margin: 0 0 12px;
   font-size: 0.85rem;

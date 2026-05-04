@@ -114,7 +114,7 @@ export function AdminTabAgencies() {
       {error ? <p className="org-tab-alert">{error}</p> : null}
 
       <div className="org-tab-table-wrap">
-        <table className="org-tab-table">
+        <table className="sn-ui-table org-tab-table">
           <thead>
             <tr>
               <th>Nom</th>

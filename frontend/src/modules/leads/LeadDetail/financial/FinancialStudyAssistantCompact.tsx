@@ -25,7 +25,7 @@ export default function FinancialStudyAssistantCompact({
       <section className="fin-section fin-section--assistant">
         <div className="fin-section-head fin-section-head--compact">
           <h3 className="fin-section-title fin-section-title--assistant">Assistant étude</h3>
-          <span className="fin-assistant-badge">Optionnel</span>
+          <span className="sn-badge sn-badge-neutral">Optionnel</span>
         </div>
         <p className="fin-muted fin-assistant-loading">Chargement…</p>
       </section>
@@ -37,7 +37,7 @@ export default function FinancialStudyAssistantCompact({
       <section className="fin-section fin-section--assistant fin-section--assistant-empty">
         <div className="fin-section-head fin-section-head--compact">
           <h3 className="fin-section-title fin-section-title--assistant">Assistant étude</h3>
-          <span className="fin-assistant-badge">Optionnel</span>
+          <span className="sn-badge sn-badge-neutral">Optionnel</span>
         </div>
         <p className="fin-assistant-muted">
           Aucune étude sur ce dossier. Vous pouvez créer un devis sans étude, ou ajouter une étude plus tard pour
@@ -55,7 +55,7 @@ export default function FinancialStudyAssistantCompact({
     <section className="fin-section fin-section--assistant">
       <div className="fin-section-head fin-section-head--compact">
         <h3 className="fin-section-title fin-section-title--assistant">Assistant étude</h3>
-        <span className="fin-assistant-badge">Préparation devis</span>
+        <span className="sn-badge sn-badge-info">Préparation devis</span>
       </div>
       <p className="fin-assistant-lead">
         Pré-remplissage technique — le devis commercial reste le document central du dossier.

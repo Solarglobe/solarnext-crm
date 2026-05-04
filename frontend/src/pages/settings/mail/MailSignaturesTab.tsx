@@ -220,7 +220,7 @@ export function MailSignaturesTab() {
                     <span className="mail-sig-page__item-meta">
                       {scopeLabel(s)}
                       {s.is_default ? (
-                        <span className="mail-sig-page__badge-def"> · défaut</span>
+                        <span className="sn-badge sn-badge-neutral"> · défaut</span>
                       ) : (
                         ""
                       )}

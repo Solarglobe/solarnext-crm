@@ -44,7 +44,9 @@ function SortableRow({
         </button>
       </td>
       <td className="ib-col-type">
-        <span className="ib-line-type-pill">{line.type === "catalog" ? "Cat." : "Libre"}</span>
+        <span className={line.type === "catalog" ? "sn-badge sn-badge-info" : "sn-badge sn-badge-neutral"}>
+          {line.type === "catalog" ? "Cat." : "Libre"}
+        </span>
       </td>
       <td className="ib-col-label">
         <input

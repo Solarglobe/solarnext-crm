@@ -64,7 +64,7 @@ export default function InvoiceRemindersPanel({
         {reminders.length === 0 ? (
           <p className="if-muted">Historique vide.</p>
         ) : (
-          <table className="if-table">
+          <table className="sn-ui-table if-table">
             <thead>
               <tr>
                 <th>Date</th>

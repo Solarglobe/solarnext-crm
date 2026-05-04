@@ -251,28 +251,6 @@ html.theme-dark .org-structure-tabs-segmented .sn-saas-tab--active {
   color: var(--danger, #dc2626);
 }
 
-/* ——— Badges type (rôles) ——— */
-.org-tab-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 3px 9px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 600;
-  border: 1px solid var(--border-soft);
-}
-
-.org-tab-badge--system {
-  background: color-mix(in srgb, var(--text-muted) 12%, transparent);
-  color: var(--text-muted);
-}
-
-.org-tab-badge--custom {
-  background: color-mix(in srgb, var(--primary) 10%, var(--surface-card));
-  border-color: color-mix(in srgb, var(--primary) 22%, transparent);
-  color: color-mix(in srgb, var(--primary) 70%, var(--text-primary));
-}
-
 /* ——— Toolbar secondaire (recherche + actions) ——— */
 .org-tab-toolbar {
   display: flex;

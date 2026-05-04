@@ -313,14 +313,16 @@ export default function StudyMeterSelector({
         )}
 
         {usesDefaultFallback && !metersError && meters && meters.length > 0 && (
-          <p className="sqb-study-meter__badge sqb-study-meter__badge--info">
-            Compteur par défaut utilisé
+          <p className="sqb-study-meter__hint-stack">
+            <span className="sn-badge sn-badge-warn">Compteur par défaut utilisé</span>
           </p>
         )}
 
         {!isDefaultRow && !usesDefaultFallback && (
           <>
-            <span className="sqb-study-meter__badge sqb-study-meter__badge--alt">Hors compteur principal</span>
+            <p className="sqb-study-meter__hint-stack">
+              <span className="sn-badge sn-badge-neutral">Hors compteur principal</span>
+            </p>
             <p className="sqb-study-meter__hint">
               Ce compteur n’est pas le compteur principal du site.
             </p>
@@ -396,7 +398,7 @@ export default function StudyMeterSelector({
                   <div className="sqb-study-meter-modal-item__main">
                     <span className="sqb-study-meter-modal-item__name">{m.name || "Sans nom"}</span>
                     {m.is_default ? (
-                      <span className="sqb-study-meter__pill">Principal</span>
+                      <span className="sn-badge sn-badge-success">Principal</span>
                     ) : null}
                     <p className="sqb-study-meter-modal-item__meta">
                       {annualKwhDisplay(m)} ·{" "}

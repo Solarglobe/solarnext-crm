@@ -71,10 +71,11 @@ function fmtPotentiel(n: number): string {
   return `${Math.round(n / 1000).toLocaleString("fr-FR")} k€`;
 }
 
-function stageColor(i: number, closed: boolean): string {
-  if (closed) return "rgba(100, 116, 139, 0.85)";
-  const hue = (35 + i * 47) % 360;
-  return `hsl(${hue} 55% 42%)`;
+/** Variantes sn-badge pour légende pipeline (pas de couleur inline). */
+function pipelineLegendBadgeClass(i: number, closed: boolean): string {
+  if (closed) return "sn-badge sn-badge-neutral";
+  const cycle = ["sn-badge-info", "sn-badge-warn", "sn-badge-success"] as const;
+  return `sn-badge ${cycle[i % cycle.length]}`;
 }
 
 const RANGE_OPTIONS: { value: DashboardRange; label: string }[] = [
@@ -96,6 +97,12 @@ const SERIES_LABELS: Record<SeriesKey, string> = {
 };
 
 type InsightAlert = { id: string; text: string; tone: "danger" | "warn" | "info" };
+
+function insightToneBadgeClass(tone: InsightAlert["tone"]): string {
+  if (tone === "danger") return "sn-badge sn-badge-danger";
+  if (tone === "warn") return "sn-badge sn-badge-warn";
+  return "sn-badge sn-badge-info";
+}
 
 function buildDashboardInsight(
   d: DashboardOverview,
@@ -481,8 +488,8 @@ export default function DashboardPage() {
             {insight.alerts.length > 0 && (
               <ul className="sn-dashboard-insight__alerts">
                 {insight.alerts.map((a) => (
-                  <li key={a.id} className={`sn-dashboard-insight__alert sn-dashboard-insight__alert--${a.tone}`}>
-                    {a.text}
+                  <li key={a.id} className="sn-dashboard-insight__alert">
+                    <span className={insightToneBadgeClass(a.tone)}>{a.text}</span>
                   </li>
                 ))}
               </ul>
@@ -627,21 +634,21 @@ export default function DashboardPage() {
               clients actifs · {data.pipeline.pipeline_summary.archived_leads_count} archivés
             </span>
           </p>
-          <div className="sn-dashboard-summary-badges">
-            <span className="sn-dashboard-summary-badges__item sn-dashboard-summary-badges__item--open">
+          <div className="sn-dashboard-summary-sn-row">
+            <span className="sn-badge sn-badge-info">
               Ouverts <strong>{data.pipeline.pipeline_summary.open_leads_count}</strong>
             </span>
-            <span className="sn-dashboard-summary-badges__item sn-dashboard-summary-badges__item--lost">
+            <span className="sn-badge sn-badge-danger">
               Perdus <strong>{data.pipeline.pipeline_summary.lost_leads_count}</strong>
             </span>
-            <span className="sn-dashboard-summary-badges__item sn-dashboard-summary-badges__item--signed">
+            <span className="sn-badge sn-badge-success">
               Clients{" "}
               <strong>
                 {data.pipeline.pipeline_summary.clients_active_count ??
                   data.pipeline.pipeline_summary.signed_leads_count}
               </strong>
             </span>
-            <span className="sn-dashboard-summary-badges__item sn-dashboard-summary-badges__item--arch">
+            <span className="sn-badge sn-badge-warn">
               Archivés <strong>{data.pipeline.pipeline_summary.archived_leads_count}</strong>
             </span>
           </div>
@@ -658,11 +665,10 @@ export default function DashboardPage() {
                   return (
                     <div
                       key={st.stage_id}
-                      className="sn-dashboard-pipeline-seg"
+                      className={`sn-dashboard-pipeline-seg${st.is_closed ? " sn-dashboard-pipeline-seg--closed" : ""}`}
                       style={{
                         flex: `${w} 1 0`,
                         minWidth: "2%",
-                        background: stageColor(i, st.is_closed),
                       }}
                       title={`${st.stage_name}: ${st.leads_count}`}
                     >
@@ -678,11 +684,7 @@ export default function DashboardPage() {
             <div className="sn-dashboard-pipeline-legend">
               {data.pipeline.leads_by_stage.map((st, i) => (
                 <span key={st.stage_id} className="sn-dashboard-pipeline-legend__item">
-                  <span
-                    className="sn-dashboard-dot"
-                    style={{ background: stageColor(i, st.is_closed) }}
-                    aria-hidden
-                  />
+                  <span className={pipelineLegendBadgeClass(i, st.is_closed)} aria-hidden />
                   <span className="sn-dashboard-pipeline-legend__name">{st.stage_name}</span>
                   <span className="sn-dashboard-pipeline-legend__count sn-dashboard-num">{st.leads_count}</span>
                 </span>
@@ -706,8 +708,7 @@ export default function DashboardPage() {
                     <div className="sn-dashboard-stage-tile__pot sn-dashboard-stage-tile__pot--muted">—</div>
                   )}
                   <div
-                    className="sn-dashboard-stage-tile__bar"
-                    style={{ background: stageColor(i, st.is_closed) }}
+                    className={`sn-dashboard-stage-tile__bar${st.is_closed ? " sn-dashboard-stage-tile__bar--closed" : " sn-dashboard-stage-tile__bar--open"}`}
                     aria-hidden
                   />
                 </div>
@@ -763,7 +764,7 @@ export default function DashboardPage() {
           </div>
           <div className="sn-dashboard-table-wrap">
             <table
-              className={`sn-dashboard-table sn-dashboard-table--pilotage${commercialExpanded ? " sn-dashboard-table--expanded" : ""}`}
+              className={`sn-ui-table sn-dashboard-table sn-dashboard-table--pilotage${commercialExpanded ? " sn-dashboard-table--expanded" : ""}`}
             >
               <thead>
                 <tr>
@@ -798,7 +799,7 @@ export default function DashboardPage() {
                         <td className="sn-dashboard-td-rank sn-dashboard-num">{r.rank}</td>
                         <td className="sn-dashboard-td-name">
                           {r.display_name}
-                          {r.rank === 1 && <span className="sn-dashboard-pill-top">Top CA</span>}
+                          {r.rank === 1 && <span className="sn-badge sn-badge-success">Top CA</span>}
                         </td>
                         <td className="sn-dashboard-td--secondary sn-dashboard-num">{r.leads_created_count}</td>
                         <td className="sn-dashboard-td--secondary sn-dashboard-num">{r.quotes_count}</td>
@@ -842,7 +843,7 @@ export default function DashboardPage() {
           </div>
           <div className="sn-dashboard-table-wrap">
             <table
-              className={`sn-dashboard-table sn-dashboard-table--sources sn-dashboard-table--pilotage${sourcesExpanded ? " sn-dashboard-table--expanded" : ""}`}
+              className={`sn-ui-table sn-dashboard-table sn-dashboard-table--sources sn-dashboard-table--pilotage${sourcesExpanded ? " sn-dashboard-table--expanded" : ""}`}
             >
               <thead>
                 <tr>
@@ -873,7 +874,7 @@ export default function DashboardPage() {
                         <td className="sn-dashboard-td-rank sn-dashboard-num">{idx + 1}</td>
                         <td className="sn-dashboard-td-name">
                           {r.source_name}
-                          {idx === 0 && <span className="sn-dashboard-pill-top">Top volume</span>}
+                          {idx === 0 && <span className="sn-badge sn-badge-info">Top volume</span>}
                         </td>
                         <td className="sn-dashboard-td-num sn-dashboard-num">{r.leads_count}</td>
                         <td className="sn-dashboard-td--secondary sn-dashboard-td-num sn-dashboard-num">
@@ -949,7 +950,7 @@ export default function DashboardPage() {
             <>
               <h3 className="sn-dashboard-section-title sn-dashboard-section-title--sub">Principaux devis</h3>
               <div className="sn-dashboard-table-wrap">
-                <table className="sn-dashboard-table sn-dashboard-table--pilotage">
+                <table className="sn-ui-table sn-dashboard-table sn-dashboard-table--pilotage">
                   <thead>
                     <tr>
                       <th>Devis</th>
@@ -1048,7 +1049,7 @@ export default function DashboardPage() {
                 </p>
               )}
               <div className="sn-dashboard-timeline-wrap">
-                <table className="sn-dashboard-timeline-table">
+                <table className="sn-ui-table sn-dashboard-timeline-table">
                   <thead>
                     <tr>
                       <th>Date</th>

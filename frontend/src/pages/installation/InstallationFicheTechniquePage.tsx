@@ -83,10 +83,10 @@ function resolveEmptyKind(p: {
 function StatusBadge({ status }: { status: FicheTechniqueStatus }) {
   const cls =
     status === "active"
-      ? "ft-status-badge ft-status-badge--active"
+      ? "sn-badge sn-badge-success"
       : status === "obsolete"
-        ? "ft-status-badge ft-status-badge--obsolete"
-        : "ft-status-badge ft-status-badge--recommended";
+        ? "sn-badge sn-badge-danger"
+        : "sn-badge sn-badge-info";
   return <span className={cls}>{STATUS_LABELS[status]}</span>;
 }
 
@@ -886,12 +886,12 @@ export default function InstallationFicheTechniquePage() {
                   {showBodySkeleton ? "…" : total === 0 ? "—" : `${rangeFrom}–${rangeTo} sur ${total}`}
                 </span>
               </div>
-              {filtersActive ? <span className="installation-ft-page__filters-pill">Filtres actifs</span> : null}
+              {filtersActive ? <span className="sn-badge sn-badge-warn">Filtres actifs</span> : null}
             </div>
 
             <div className="installation-ft-page__table-wrap">
               <div className="sn-saas-table-wrap">
-                <table className="sn-saas-table sn-saas-table--dense installation-ft-page__data-table">
+                <table className="sn-ui-table sn-saas-table sn-saas-table--dense installation-ft-page__data-table">
                   <thead>
                     <tr>
                       <th scope="col" style={{ width: 48 }}>

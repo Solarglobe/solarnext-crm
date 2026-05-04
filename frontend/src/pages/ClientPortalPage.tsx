@@ -568,7 +568,7 @@ export default function ClientPortalPage() {
                 Dossier <strong>{data.project.study_number}</strong>
               </span>
             ) : null}
-            <span className="cp-hero__badge">{badge}</span>
+            <span className="cp-hero__sn-slot sn-badge sn-badge-neutral">{badge}</span>
           </div>
         </div>
       </header>
@@ -617,7 +617,7 @@ export default function ClientPortalPage() {
                       <span className="cp-field__label">
                         Consommation annuelle
                         {data.summary.consumption_is_estimated ? (
-                          <span className="cp-field__tag">estimée</span>
+                          <span className="cp-field__hint-sn sn-badge sn-badge-neutral">estimée</span>
                         ) : null}
                       </span>
                       <div className="cp-field__value cp-field__value--big">

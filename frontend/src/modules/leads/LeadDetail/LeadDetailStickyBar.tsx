@@ -3,7 +3,7 @@
  */
 
 import React from "react";
-import type { LeadSaveSyncState } from "./LeadHeader";
+import { leadSaveSyncSnBadgeTone, type LeadSaveSyncState } from "./LeadHeader";
 import { CrmLeadStatusBadge } from "../../../components/crm/CrmLeadStatusBadge";
 
 export interface LeadDetailStickyBarProps {
@@ -34,19 +34,6 @@ export interface LeadDetailStickyBarProps {
   leadStatusCode?: string | null;
   stageName?: string | null;
   stageCode?: string | null;
-}
-
-function savePillClass(state: LeadSaveSyncState): string {
-  if (state === "saved" || state === "idle") {
-    return "crm-lead-save-pill crm-lead-save-pill--synced crm-lead-save-pill--compact crm-lead-save-pill--sticky";
-  }
-  if (state === "pending") {
-    return "crm-lead-save-pill crm-lead-save-pill--pending crm-lead-save-pill--compact crm-lead-save-pill--sticky";
-  }
-  if (state === "saving") {
-    return "crm-lead-save-pill crm-lead-save-pill--saving crm-lead-save-pill--compact crm-lead-save-pill--sticky";
-  }
-  return "crm-lead-save-pill crm-lead-save-pill--error crm-lead-save-pill--compact crm-lead-save-pill--sticky";
 }
 
 function saveLabel(state: LeadSaveSyncState): string {
@@ -111,7 +98,7 @@ export default function LeadDetailStickyBar({
             ) : null}
           </h2>
           {isArchived ? (
-            <span className="crm-lead-badge crm-lead-badge--compact badge-archived">ARCHIVÉ</span>
+            <span className="sn-badge sn-badge-neutral">ARCHIVÉ</span>
           ) : (
             <CrmLeadStatusBadge
               status={leadStatusCode ?? (status === "CLIENT" ? "CLIENT" : "LEAD")}
@@ -120,11 +107,12 @@ export default function LeadDetailStickyBar({
               className="crm-status-badge--in-header"
             />
           )}
-          {isPro ? <span className="crm-lead-badge-pro">PRO</span> : null}
+          {isPro ? <span className="sn-badge sn-badge-info">PRO</span> : null}
 
-          <div className={savePillClass(saveSyncState)} aria-live="polite">
-            <span className="crm-lead-save-dot" aria-hidden />
-            <span className="crm-lead-save-label">{saveLabel(saveSyncState)}</span>
+          <div className="crm-lead-save-indicator crm-lead-save-indicator--sticky" aria-live="polite">
+            <span className={`sn-badge sn-badge-${leadSaveSyncSnBadgeTone(saveSyncState)}`}>
+              {saveLabel(saveSyncState)}
+            </span>
             {saveSyncState === "error" && onRetrySave ? (
               <button
                 type="button"

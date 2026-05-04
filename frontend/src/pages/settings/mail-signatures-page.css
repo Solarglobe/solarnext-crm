@@ -32,11 +32,6 @@
   color: var(--sg-text-muted, #64748b);
 }
 
-.mail-sig-page__badge-def {
-  font-weight: 600;
-  color: var(--sg-primary, #2563eb);
-}
-
 .mail-sig-page__head {
   display: flex;
   align-items: flex-start;

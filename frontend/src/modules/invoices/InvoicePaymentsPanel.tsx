@@ -133,7 +133,7 @@ export default function InvoicePaymentsPanel({
                     </div>
                   </dl>
                   <div className="if-payment-card__actions">
-                    {cancelled ? <span className="if-payment-badge">Annulé</span> : null}
+                    {cancelled ? <span className="sn-badge sn-badge-neutral">Annulé</span> : null}
                     {canCancelRow ? (
                       <button
                         type="button"

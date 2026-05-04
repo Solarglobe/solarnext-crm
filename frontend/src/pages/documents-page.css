@@ -115,15 +115,10 @@
   cursor: not-allowed;
 }
 
-.documents-page__badge {
+.documents-page__aside-sn {
   display: inline-block;
   margin-left: 8px;
-  padding: 2px 8px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 600;
-  background: #ecfdf5;
-  color: #047857;
+  vertical-align: middle;
 }
 
 .documents-page__empty,

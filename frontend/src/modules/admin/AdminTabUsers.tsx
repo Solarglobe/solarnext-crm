@@ -101,19 +101,19 @@ function UserNameCell({ u }: { u: AdminUser }) {
 }
 
 function RoleBadges({ codes }: { codes: string[] }) {
-  if (!codes.length) return <span className="admin-users-pill admin-users-pill--muted">—</span>;
+  if (!codes.length) return <span className="sn-badge sn-badge-neutral">—</span>;
   const visible = codes.slice(0, 2);
   const rest = codes.length - 2;
   const fullList = codes.join(", ");
   return (
-    <span className="admin-users-pill-row" title={codes.length > 2 ? fullList : undefined}>
+    <span className="admin-users-badge-row" title={codes.length > 2 ? fullList : undefined}>
       {visible.map((r) => (
-        <span key={r} className="admin-users-pill admin-users-pill--role">
+        <span key={r} className="sn-badge sn-badge-info">
           {r}
         </span>
       ))}
       {rest > 0 ? (
-        <span className="admin-users-pill admin-users-pill--muted" title={fullList}>
+        <span className="sn-badge sn-badge-neutral" title={fullList}>
           +{rest}
         </span>
       ) : null}
@@ -123,15 +123,15 @@ function RoleBadges({ codes }: { codes: string[] }) {
 
 function TeamAgencyCell({ names }: { names: string[] | undefined }) {
   if (names === undefined) {
-    return <span className="admin-users-pill admin-users-pill--muted">—</span>;
+    return <span className="sn-badge sn-badge-neutral">—</span>;
   }
   if (names.length === 0) {
-    return <span className="admin-users-pill admin-users-pill--muted">Aucune</span>;
+    return <span className="sn-badge sn-badge-neutral">Aucune</span>;
   }
   return (
-    <span className="admin-users-pill-row">
+    <span className="admin-users-badge-row">
       {names.map((n, idx) => (
-        <span key={`${n}-${idx}`} className="admin-users-pill admin-users-pill--tag">
+        <span key={`${n}-${idx}`} className="sn-badge sn-badge-neutral">
           {n}
         </span>
       ))}
@@ -142,30 +142,9 @@ function TeamAgencyCell({ names }: { names: string[] | undefined }) {
 function StatusBadge({ status }: { status: string }) {
   const active = status === "active";
   const inactive = status === "inactive";
-  const dotClass =
-    active ? "admin-users-status-dot admin-users-status-dot--active" : "admin-users-status-dot admin-users-status-dot--inactive";
-  if (active) {
-    return (
-      <span className="admin-users-status">
-        <span className={dotClass} aria-hidden />
-        <span className="sn-badge crm-badge-ok">Actif</span>
-      </span>
-    );
-  }
-  if (inactive) {
-    return (
-      <span className="admin-users-status">
-        <span className={dotClass} aria-hidden />
-        <span className="sn-badge crm-badge-muted">Inactif</span>
-      </span>
-    );
-  }
-  return (
-    <span className="admin-users-status">
-      <span className="admin-users-status-dot admin-users-status-dot--inactive" aria-hidden />
-      <span className="sn-badge crm-badge-muted">{status}</span>
-    </span>
-  );
+  if (active) return <span className="sn-badge sn-badge-success">Actif</span>;
+  if (inactive) return <span className="sn-badge sn-badge-neutral">Inactif</span>;
+  return <span className="sn-badge sn-badge-neutral">{status}</span>;
 }
 
 function IconEdit() {
@@ -605,7 +584,7 @@ export function AdminTabUsers() {
             <p className="admin-users-filter-empty">Aucun utilisateur ne correspond à ces filtres.</p>
           ) : (
             <div className="admin-users-table-wrap admin-users-table-wrap--saas">
-              <table className="admin-users-table admin-users-table--saas">
+              <table className="sn-ui-table admin-users-table admin-users-table--saas">
                 <thead>
                   <tr>
                     <th>Nom</th>

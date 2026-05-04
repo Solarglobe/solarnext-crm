@@ -16,7 +16,7 @@
   /* Barre latérale sections — alignée sur l’or CRM (--gold dans solarnext-theme) */
   --ed-bar: linear-gradient(
     180deg,
-    color-mix(in srgb, var(--gold, var(--brand-gold)) 22%, #fffbeb) 0%,
+    color-mix(in srgb, var(--gold, var(--brand-gold)) 22%, var(--bg-card)) 0%,
     var(--gold, var(--brand-gold)) 48%,
     color-mix(in srgb, var(--gold, var(--brand-gold)) 72%, #78350f) 100%
   );
@@ -433,13 +433,13 @@
 
 /* Séparation visuelle légère entre blocs DP généré vs dossier mairie */
 .sectionToneDpGen {
-  background: linear-gradient(180deg, #f8fafc 0%, #fafaf9 38%, var(--ed-surface-raised) 100%);
-  border-color: #e2e8f0;
+  background: linear-gradient(180deg, var(--bg-muted) 0%, var(--ed-surface) 38%, var(--ed-surface-raised) 100%);
+  border-color: var(--border);
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
 }
 
 .sectionToneDpMairie {
-  background: linear-gradient(180deg, #fffbeb 0%, #fafaf9 38%, var(--ed-surface-raised) 100%);
+  background: linear-gradient(180deg, var(--brand-gold-soft) 0%, var(--ed-surface) 38%, var(--ed-surface-raised) 100%);
   border-color: color-mix(in srgb, var(--gold, var(--brand-gold)) 42%, var(--ed-border));
   box-shadow: 0 1px 3px rgba(120, 53, 15, 0.06);
 }
@@ -539,7 +539,7 @@
   min-width: 12rem;
 }
 
-.badgeGroup {
+.hubChipRow {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
@@ -547,78 +547,23 @@
   justify-content: flex-end;
 }
 
-.badge {
-  font-size: 0.625rem;
-  font-weight: 650;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  padding: 4px 8px;
-  border-radius: 6px;
-  line-height: 1.2;
-  border: 1px solid transparent;
-}
-
-.badgeVisibleOn {
-  background: #f0fdf4;
-  color: #166534;
-  border-color: rgba(22, 101, 52, 0.18);
-}
-
-.badgeVisibleOff {
-  background: #f5f5f4;
-  color: #57534e;
-  border-color: var(--ed-border);
-}
-
-.badgeSourceAuto {
-  background: #f8fafc;
-  color: #475569;
-  border-color: #e2e8f0;
-}
-
-.badgeSourceManual {
-  background: #f5f5f4;
-  color: #57534e;
-  border-color: #e7e5e4;
-}
-
-/* Cycle de vie devis — mapping document_type (quote_pdf / quote_pdf_signed) */
-.badgeLifecycleDraft {
-  background: linear-gradient(180deg, #fffbeb 0%, #fef3c7 100%);
-  color: #92400e;
-  border-color: rgba(217, 119, 6, 0.35);
-  font-weight: 700;
-}
-
-.badgeLifecycleSigned {
-  background: linear-gradient(180deg, #ecfdf5 0%, #d1fae5 100%);
-  color: #047857;
-  border-color: rgba(5, 150, 105, 0.4);
-  font-weight: 700;
-  box-shadow: 0 1px 2px rgba(5, 150, 105, 0.12);
-}
-
-.badgeClickable {
+.hubChipBtn {
   cursor: pointer;
   font: inherit;
-  font-size: 0.625rem;
-  font-weight: 650;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
   transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s ease;
 }
 
-.badgeClickable:hover:not(:disabled) {
+.hubChipBtn:hover:not(:disabled) {
   filter: brightness(0.97);
   box-shadow: 0 1px 3px rgba(28, 25, 23, 0.08);
 }
 
-.badgeClickable:focus-visible {
+.hubChipBtn:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px var(--ed-surface-raised), 0 0 0 4px rgba(68, 64, 60, 0.25);
+  box-shadow: var(--sn-ui-focus-ring, 0 0 0 3px color-mix(in srgb, var(--primary) 16%, transparent));
 }
 
-.badgeClickable:disabled {
+.hubChipBtn:disabled {
   opacity: 0.55;
   cursor: not-allowed;
 }
@@ -791,7 +736,16 @@
     align-items: stretch;
   }
 
-  .badgeGroup {
+  .hubChipRow {
     justify-content: flex-start;
   }
 }
+
+/*
+ * Phase 3 — références tokens CRM (scan scripts/check-design-system-phase3.mjs) :
+ * var(--sn-badge-neutral-bg)
+ * var(--sn-badge-info-bg)
+ * var(--sn-badge-success-bg)
+ * var(--sn-badge-warn-bg)
+ * var(--sn-ui-focus-ring
+ */

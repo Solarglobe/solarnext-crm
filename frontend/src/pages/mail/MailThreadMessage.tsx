@@ -26,14 +26,14 @@ function outboundDeliveryBadge(m: ThreadMessage): React.ReactNode {
 
   if (st === "queued" || msgSt === "QUEUED") {
     return (
-      <span className="mail-msg__outbox-badge mail-msg__outbox-badge--wait" title="En file d’envoi">
+      <span className="sn-badge sn-badge-neutral" title="En file d’envoi">
         En attente
       </span>
     );
   }
   if (st === "sending" || msgSt === "SENDING") {
     return (
-      <span className="mail-msg__outbox-badge mail-msg__outbox-badge--send" title="Envoi SMTP en cours">
+      <span className="sn-badge sn-badge-info" title="Envoi SMTP en cours">
         Envoi en cours
       </span>
     );
@@ -43,7 +43,7 @@ function outboundDeliveryBadge(m: ThreadMessage): React.ReactNode {
       ? `Prochain essai : ${new Date(m.outbox.nextAttemptAt).toLocaleString("fr-FR")}`
       : "Relance automatique prévue";
     return (
-      <span className="mail-msg__outbox-badge mail-msg__outbox-badge--retry" title={when}>
+      <span className="sn-badge sn-badge-warn" title={when}>
         Relance prévue
       </span>
     );
@@ -51,14 +51,14 @@ function outboundDeliveryBadge(m: ThreadMessage): React.ReactNode {
   if (st === "failed" || msgSt === "FAILED") {
     const err = m.outbox?.lastError?.trim();
     return (
-      <span className="mail-msg__outbox-badge mail-msg__outbox-badge--fail" title={err || "Échec d’envoi"}>
+      <span className="sn-badge sn-badge-danger" title={err || "Échec d’envoi"}>
         Échec envoi
       </span>
     );
   }
   if (st === "cancelled") {
     return (
-      <span className="mail-msg__outbox-badge mail-msg__outbox-badge--cancel" title="Envoi annulé">
+      <span className="sn-badge sn-badge-neutral" title="Envoi annulé">
         Annulé
       </span>
     );
@@ -203,17 +203,20 @@ export const MailThreadMessage = React.memo(function MailThreadMessage({
             </time>
             {outbound && outboundDeliveryBadge(m)}
             {outbound && m.openedAt && (
-              <span className="mail-msg__track-badge" title={`Ouvert le ${new Date(m.openedAt).toLocaleString("fr-FR")}`}>
+              <span className="sn-badge sn-badge-success" title={`Ouvert le ${new Date(m.openedAt).toLocaleString("fr-FR")}`}>
                 Ouvert
               </span>
             )}
             {outbound && m.clickedAt && (
-              <span className="mail-msg__track-badge" title={`Lien cliqué le ${new Date(m.clickedAt).toLocaleString("fr-FR")}`}>
+              <span className="sn-badge sn-badge-info" title={`Lien cliqué le ${new Date(m.clickedAt).toLocaleString("fr-FR")}`}>
                 Cliqué
               </span>
             )}
             {!outbound && (
-              <span className={`mail-msg__pill mail-msg__pill--${m.isRead ? "read" : "unread"}`} title="Message entrant">
+              <span
+                className={m.isRead ? "sn-badge sn-badge-neutral" : "sn-badge sn-badge-warn"}
+                title="Message entrant"
+              >
                 {m.isRead ? "Lu" : "Non lu"}
               </span>
             )}

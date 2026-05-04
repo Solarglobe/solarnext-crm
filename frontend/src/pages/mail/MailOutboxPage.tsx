@@ -21,6 +21,17 @@ function statusLabel(s: string): string {
   return s;
 }
 
+/** Variantes design system : queued/retrying → warn, sent → success, failed → danger, cancelled → neutral, sending → info */
+function mailOutboxStatusBadgeClass(status: string): string {
+  const x = status.toLowerCase();
+  if (x === "failed") return "sn-badge-danger";
+  if (x === "sent") return "sn-badge-success";
+  if (x === "queued" || x === "retrying") return "sn-badge-warn";
+  if (x === "sending") return "sn-badge-info";
+  if (x === "cancelled") return "sn-badge-neutral";
+  return "sn-badge-neutral";
+}
+
 function formatWhen(iso: string | null): string {
   if (!iso) return "—";
   try {
@@ -136,7 +147,7 @@ export default function MailOutboxPage() {
 
       {!loading && items.length > 0 && (
         <div className="mail-outbox-table-wrap">
-          <table className="mail-outbox-table">
+          <table className="sn-ui-table mail-outbox-table">
             <thead>
               <tr>
                 <th>Statut</th>
@@ -152,7 +163,7 @@ export default function MailOutboxPage() {
               {items.map((row) => (
                 <tr key={row.id}>
                   <td>
-                    <span className={`mail-outbox-pill mail-outbox-pill--${row.status}`}>{statusLabel(row.status)}</span>
+                    <span className={`sn-badge ${mailOutboxStatusBadgeClass(row.status)}`}>{statusLabel(row.status)}</span>
                   </td>
                   <td className="mail-outbox-subj">{row.subject || "(sans objet)"}</td>
                   <td>{row.accountEmail || "—"}</td>

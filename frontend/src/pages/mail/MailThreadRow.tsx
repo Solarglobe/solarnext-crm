@@ -117,11 +117,11 @@ export const MailThreadRow = React.memo(function MailThreadRow({
           <span className="mail-thread-row__icons">
             {hasAtt && <IconPaperclip className="mail-thread-row__icon" />}
             {replied && <IconReplied className="mail-thread-row__icon mail-thread-row__icon--muted" />}
-            {crmName && (
-              <span className="mail-chip mail-chip--client" title="Contact CRM">
+            {crmName ? (
+              <span className="sn-badge sn-badge-info" title="Contact CRM">
                 {crmName}
               </span>
-            )}
+            ) : null}
           </span>
           <time className="mail-thread-row__time" dateTime={t.lastMessageAt || undefined}>
             {time}
@@ -130,13 +130,15 @@ export const MailThreadRow = React.memo(function MailThreadRow({
         <p className="mail-thread-row__subject">{subjectNode}</p>
         <p className="mail-thread-row__snippet">{previewNode}</p>
         {t.tags && t.tags.length > 0 ? (
-          <div className="mail-thread-row__tags">
+          <div className="mail-thread-row__thread-labels">
             {t.tags.slice(0, 4).map((tg) => (
-              <span key={tg.id} className="mail-thread-row__tag-pill" title={tg.name}>
+              <span key={tg.id} className="sn-badge sn-badge-neutral" title={tg.name}>
                 {tg.name}
               </span>
             ))}
-            {t.tags.length > 4 ? <span className="mail-thread-row__tag-pill">+{t.tags.length - 4}</span> : null}
+            {t.tags.length > 4 ? (
+              <span className="sn-badge sn-badge-neutral">+{t.tags.length - 4}</span>
+            ) : null}
           </div>
         ) : null}
       </div>

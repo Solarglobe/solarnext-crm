@@ -70,13 +70,13 @@ export default function UserMultiSelect({
         className={`planning-user-multi-select-trigger ${open ? "open" : ""} ${disabled ? "disabled" : ""}`}
         onClick={() => !disabled && setOpen(!open)}
       >
-        <div className="planning-user-multi-select-tags">
+        <div className="planning-user-multi-select-sn-row">
           {selectedUsers.map((u) => (
-            <span key={u.id} className="planning-user-multi-select-tag">
+            <span key={u.id} className="planning-user-multi-select-sn-inner sn-badge sn-badge-info">
               {u.email || u.id}
               <button
                 type="button"
-                className="planning-user-multi-select-tag-remove"
+                className="planning-user-multi-select-sn-remove"
                 onClick={(e) => {
                   e.stopPropagation();
                   remove(u.id);

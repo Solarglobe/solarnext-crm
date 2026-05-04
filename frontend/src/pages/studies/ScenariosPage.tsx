@@ -546,7 +546,7 @@ export default function ScenariosPage() {
             </h2>
             {versionLocked && (
               <span
-                className="scenarios-badge-readonly"
+                className="sn-badge sn-badge-neutral"
                 style={{
                   fontSize: 12,
                   fontWeight: 600,

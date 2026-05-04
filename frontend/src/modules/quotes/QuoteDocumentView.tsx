@@ -321,7 +321,7 @@ export function QuoteDocumentView({
 
           {showLinePricing ? (
             <div className="fq-table-wrap">
-              <table className="fq-table">
+              <table className="sn-ui-table fq-table">
                 <thead>
                   <tr>
                     <th>Nom et description</th>
@@ -336,7 +336,7 @@ export function QuoteDocumentView({
           ) : (
             <div className="fq-table-wrap fq-table-wrap--condensed">
               <p className="fq-condensed-hint">Présentation condensée — montants détaillés sous le tableau.</p>
-              <table className="fq-table fq-table--condensed">
+              <table className="sn-ui-table fq-table fq-table--condensed">
                 <thead>
                   <tr>
                     <th>Nom et description</th>

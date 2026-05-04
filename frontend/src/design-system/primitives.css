@@ -392,7 +392,16 @@ html.sn-app-page .sn-main {
 
 html.sn-app-page .sn-ui-table,
 html.sn-app-page .sn-saas-table,
+html.sn-app-page .sn-table,
+html.sn-app-page .sn-leads-table,
+html.sn-app-page .sn-leads-table-v2,
+html.sn-app-page .sn-dashboard-table,
+html.sn-app-page .sn-dashboard-timeline-table,
+html.sn-app-page .scenarios-table,
+html.sn-app-page .org-tab-table,
+html.sn-app-page .admin-users-table,
 html.sn-app-page .admin-catalog-table,
+html.sn-app-page .qb-table,
 html.sn-app-page .qb-table.qb-table--list-saas {
   width: 100%;
   min-width: 0;
@@ -400,13 +409,25 @@ html.sn-app-page .qb-table.qb-table--list-saas {
   border-collapse: collapse;
 }
 
-html.sn-app-page .qb-table.qb-table--list-saas {
+html.sn-app-page .qb-table,
+html.sn-app-page .qb-table.qb-table--list-saas,
+html.sn-app-page .sn-leads-table,
+html.sn-app-page .sn-leads-table-v2 {
   min-width: 960px;
 }
 
 html.sn-app-page .sn-ui-table thead,
 html.sn-app-page .sn-saas-table thead,
+html.sn-app-page .sn-table thead,
+html.sn-app-page .sn-leads-table thead,
+html.sn-app-page .sn-leads-table-v2 thead,
+html.sn-app-page .sn-dashboard-table thead,
+html.sn-app-page .sn-dashboard-timeline-table thead,
+html.sn-app-page .scenarios-table thead,
+html.sn-app-page .org-tab-table thead,
+html.sn-app-page .admin-users-table thead,
 html.sn-app-page .admin-catalog-table thead,
+html.sn-app-page .qb-table thead,
 html.sn-app-page .qb-table.qb-table--list-saas thead {
   position: sticky;
   top: 0;
@@ -416,7 +437,16 @@ html.sn-app-page .qb-table.qb-table--list-saas thead {
 
 html.sn-app-page .sn-ui-table thead th,
 html.sn-app-page .sn-saas-table thead th,
+html.sn-app-page .sn-table thead th,
+html.sn-app-page .sn-leads-table thead th,
+html.sn-app-page .sn-leads-table-v2 thead th,
+html.sn-app-page .sn-dashboard-table thead th,
+html.sn-app-page .sn-dashboard-timeline-table thead th,
+html.sn-app-page .scenarios-table thead th,
+html.sn-app-page .org-tab-table thead th,
+html.sn-app-page .admin-users-table thead th,
 html.sn-app-page .admin-catalog-table thead th,
+html.sn-app-page .qb-table thead th,
 html.sn-app-page .qb-table.qb-table--list-saas thead th {
   padding: var(--spacing-8, 8px) 10px;
   font-size: var(--sn-ui-table-header-fs);
@@ -431,9 +461,19 @@ html.sn-app-page .qb-table.qb-table--list-saas thead th {
 
 html.sn-app-page .sn-ui-table tbody td,
 html.sn-app-page .sn-saas-table tbody td,
+html.sn-app-page .sn-table tbody td,
+html.sn-app-page .sn-leads-table tbody td,
+html.sn-app-page .sn-leads-table-v2 tbody td,
+html.sn-app-page .sn-dashboard-table tbody td,
+html.sn-app-page .sn-dashboard-timeline-table tbody td,
+html.sn-app-page .scenarios-table tbody td,
+html.sn-app-page .org-tab-table tbody td,
+html.sn-app-page .admin-users-table tbody td,
 html.sn-app-page .admin-catalog-table tbody td,
+html.sn-app-page .qb-table tbody td,
 html.sn-app-page .qb-table.qb-table--list-saas tbody td {
   padding: 10px;
+  height: var(--sn-ui-table-row-min-h);
   min-height: var(--sn-ui-table-row-min-h);
   vertical-align: middle;
   border-bottom: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
@@ -441,21 +481,48 @@ html.sn-app-page .qb-table.qb-table--list-saas tbody td {
 
 html.sn-app-page .sn-ui-table tbody tr,
 html.sn-app-page .sn-saas-table tbody tr,
+html.sn-app-page .sn-table tbody tr,
+html.sn-app-page .sn-leads-table tbody tr,
+html.sn-app-page .sn-leads-table-v2 tbody tr,
+html.sn-app-page .sn-dashboard-table tbody tr,
+html.sn-app-page .sn-dashboard-timeline-table tbody tr,
+html.sn-app-page .scenarios-table tbody tr,
+html.sn-app-page .org-tab-table tbody tr,
+html.sn-app-page .admin-users-table tbody tr,
 html.sn-app-page .admin-catalog-table tbody tr,
+html.sn-app-page .qb-table tbody tr,
 html.sn-app-page .qb-table.qb-table--list-saas tbody tr {
   transition: background-color 0.15s ease;
 }
 
 html.sn-app-page .sn-ui-table tbody tr:hover,
 html.sn-app-page .sn-saas-table tbody tr:hover,
+html.sn-app-page .sn-table tbody tr:hover,
+html.sn-app-page .sn-leads-table tbody tr:hover,
+html.sn-app-page .sn-leads-table-v2 tbody tr:hover,
+html.sn-app-page .sn-dashboard-table tbody tr:hover,
+html.sn-app-page .sn-dashboard-timeline-table tbody tr:hover,
+html.sn-app-page .scenarios-table tbody tr:hover,
+html.sn-app-page .org-tab-table tbody tr:hover,
+html.sn-app-page .admin-users-table tbody tr:hover,
 html.sn-app-page .admin-catalog-table tbody tr:hover,
+html.sn-app-page .qb-table tbody tr:hover,
 html.sn-app-page .qb-table.qb-table--list-saas tbody tr:hover {
   background: var(--sn-ui-table-row-hover);
 }
 
 html.sn-app-page .sn-ui-table tbody tr:last-child td,
 html.sn-app-page .sn-saas-table tbody tr:last-child td,
+html.sn-app-page .sn-table tbody tr:last-child td,
+html.sn-app-page .sn-leads-table tbody tr:last-child td,
+html.sn-app-page .sn-leads-table-v2 tbody tr:last-child td,
+html.sn-app-page .sn-dashboard-table tbody tr:last-child td,
+html.sn-app-page .sn-dashboard-timeline-table tbody tr:last-child td,
+html.sn-app-page .scenarios-table tbody tr:last-child td,
+html.sn-app-page .org-tab-table tbody tr:last-child td,
+html.sn-app-page .admin-users-table tbody tr:last-child td,
 html.sn-app-page .admin-catalog-table tbody tr:last-child td,
+html.sn-app-page .qb-table tbody tr:last-child td,
 html.sn-app-page .qb-table.qb-table--list-saas tbody tr:last-child td {
   border-bottom: none;
 }
@@ -463,7 +530,13 @@ html.sn-app-page .qb-table.qb-table--list-saas tbody tr:last-child td {
 /* Table éditable */
 html.sn-app-page .sn-ui-table--editable input:not([type="checkbox"]):not([type="radio"]),
 html.sn-app-page .sn-ui-table--editable select,
-html.sn-app-page .sn-ui-table--editable textarea {
+html.sn-app-page .sn-ui-table--editable textarea,
+html.sn-app-page .qb-table.qb-lines-edit input:not([type="checkbox"]):not([type="radio"]),
+html.sn-app-page .qb-table.qb-lines-edit select,
+html.sn-app-page .qb-table.qb-lines-edit textarea,
+html.sn-app-page .sn-table-finance input:not([type="checkbox"]):not([type="radio"]),
+html.sn-app-page .sn-table-finance select,
+html.sn-app-page .sn-table-finance textarea {
   height: var(--sn-ui-control-h-md);
   min-height: var(--sn-ui-control-h-md);
   padding: 0 8px;
@@ -472,18 +545,220 @@ html.sn-app-page .sn-ui-table--editable textarea {
   box-sizing: border-box;
 }
 
-html.sn-app-page .sn-ui-table--editable textarea {
+html.sn-app-page .sn-ui-table--editable textarea,
+html.sn-app-page .qb-table.qb-lines-edit textarea,
+html.sn-app-page .sn-table-finance textarea {
   min-height: 56px;
   height: auto;
   padding: var(--spacing-8, 8px);
 }
 
-html.sn-app-page .sn-ui-table--editable .sn-ui-table__row-actions {
+html.sn-app-page .sn-ui-table--editable .sn-ui-table__row-actions,
+html.sn-app-page .qb-table.qb-lines-edit .qb-btn-line-remove,
+html.sn-app-page .sn-table-finance .sn-ui-table__row-actions {
   opacity: 0;
   transition: opacity 0.12s ease;
 }
 
 html.sn-app-page .sn-ui-table--editable tr:hover .sn-ui-table__row-actions,
-html.sn-app-page .sn-ui-table--editable tr:focus-within .sn-ui-table__row-actions {
+html.sn-app-page .sn-ui-table--editable tr:focus-within .sn-ui-table__row-actions,
+html.sn-app-page .qb-table.qb-lines-edit tr:hover .qb-btn-line-remove,
+html.sn-app-page .qb-table.qb-lines-edit tr:focus-within .qb-btn-line-remove,
+html.sn-app-page .sn-table-finance tr:hover .sn-ui-table__row-actions,
+html.sn-app-page .sn-table-finance tr:focus-within .sn-ui-table__row-actions {
   opacity: 1;
+}
+
+html.sn-app-page .qb-table-wrap,
+html.sn-app-page .sn-saas-table-wrap,
+html.sn-app-page .sn-leads-table-wrapper,
+html.sn-app-page .sn-leads-table-scroll,
+html.sn-app-page .sn-dashboard-table-wrap,
+html.sn-app-page .sn-dashboard-timeline-wrap,
+html.sn-app-page .scenarios-table-wrapper,
+html.sn-app-page .scenarios-table-card,
+html.sn-app-page .org-tab-table-wrap,
+html.sn-app-page .admin-users-table-wrap--saas {
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+  box-shadow: var(--sn-ui-card-shadow);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Badges â€” palette sÃ©mantique unique pour listes, leads, clients, admin      */
+/* -------------------------------------------------------------------------- */
+
+html.sn-app-page {
+  --sn-badge-neutral-bg: color-mix(in srgb, var(--text-muted) 12%, transparent);
+  --sn-badge-neutral-fg: var(--text-secondary);
+  --sn-badge-neutral-border: color-mix(in srgb, var(--text-muted) 22%, transparent);
+  --sn-badge-info-bg: color-mix(in srgb, var(--info) 14%, transparent);
+  --sn-badge-info-fg: color-mix(in srgb, var(--info) 78%, var(--text-primary));
+  --sn-badge-info-border: color-mix(in srgb, var(--info) 28%, transparent);
+  --sn-badge-success-bg: color-mix(in srgb, var(--success) 14%, transparent);
+  --sn-badge-success-fg: color-mix(in srgb, var(--success) 72%, var(--text-primary));
+  --sn-badge-success-border: color-mix(in srgb, var(--success) 30%, transparent);
+  --sn-badge-warn-bg: color-mix(in srgb, var(--warning) 16%, transparent);
+  --sn-badge-warn-fg: color-mix(in srgb, var(--warning) 78%, var(--text-primary));
+  --sn-badge-warn-border: color-mix(in srgb, var(--warning) 32%, transparent);
+  --sn-badge-danger-bg: color-mix(in srgb, var(--danger) 14%, transparent);
+  --sn-badge-danger-fg: color-mix(in srgb, var(--danger) 76%, var(--text-primary));
+  --sn-badge-danger-border: color-mix(in srgb, var(--danger) 32%, transparent);
+}
+
+html.sn-app-page .sn-ui-badge,
+html.sn-app-page .sn-badge,
+html.sn-app-page .crm-badge,
+html.sn-app-page .crm-status-badge,
+html.sn-app-page .sn-leads-badge,
+html.sn-app-page .sn-leads-list-badge,
+html.sn-app-page .sn-leads-archive-badge,
+html.sn-app-page .sn-leads-badge-revenue,
+html.sn-app-page .sn-leads-pill-stage,
+html.sn-app-page .badge-project,
+html.sn-app-page .crm-badge-project--client-list,
+html.sn-app-page .mairie-badge,
+html.sn-app-page .mairie-leads-badge,
+html.sn-app-page .lead-mairie-badge,
+html.sn-app-page .clients-portfolio-archive-badge,
+html.sn-app-page .admin-catalog-badge,
+html.sn-app-page .org-tab-badge,
+html.sn-app-page .sn-org-badge,
+html.sn-app-page .admin-users-pill,
+html.sn-app-page .admin-roles-type-badge--system,
+html.sn-app-page .admin-roles-type-badge--custom,
+html.sn-app-page .admin-roles-level-badge,
+html.sn-app-page .scenario-pill,
+html.sn-app-page .scenario-selected-pill,
+html.sn-app-page .study-card-sg-badge,
+html.sn-app-page .sn-global-search__badge,
+html.sn-app-page .documents-page__badge,
+html.sn-app-page .pv-cat-badge,
+html.sn-app-page .icp-step-badge,
+html.sn-app-page .icp-lock-badge,
+html.sn-app-page .sn-dashboard-badge-reliable,
+html.sn-app-page .sn-dashboard-pill-top,
+html.sn-app-page .sn-dashboard-coverage-badge--high,
+html.sn-app-page .sn-dashboard-coverage-badge--medium,
+html.sn-app-page .sn-dashboard-coverage-badge--low {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  max-width: 100%;
+  min-height: 20px;
+  padding: 2px 8px;
+  border: 1px solid var(--sn-badge-neutral-border);
+  border-radius: var(--radius-pill);
+  background: var(--sn-badge-neutral-bg);
+  color: var(--sn-badge-neutral-fg);
+  font-size: 10px;
+  font-weight: 650;
+  line-height: 1.2;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-sizing: border-box;
+}
+
+html.sn-app-page .sn-ui-badge--info,
+html.sn-app-page .crm-status-badge--qualified,
+html.sn-app-page .sn-leads-badge-kw,
+html.sn-app-page .sn-leads-badge-revenue,
+html.sn-app-page .sn-global-search__badge,
+html.sn-app-page .badge-project.MAIRIE,
+html.sn-app-page .badge-project.ACCORD_MAIRIE,
+html.sn-app-page .badge-project.DP_A_DEPOSER,
+html.sn-app-page .badge-project.DP_DEPOSE,
+html.sn-app-page .badge-project.DP_ACCEPTE,
+html.sn-app-page .crm-badge-project--client-list,
+html.sn-app-page .sn-org-badge,
+html.sn-app-page .scenario-selected-pill,
+html.sn-app-page .study-card-sg-badge,
+html.sn-app-page .admin-roles-level-badge--standard {
+  background: var(--sn-badge-info-bg);
+  border-color: var(--sn-badge-info-border);
+  color: var(--sn-badge-info-fg);
+}
+
+html.sn-app-page .sn-ui-badge--success,
+html.sn-app-page .crm-badge-ok,
+html.sn-app-page .crm-status-badge--client,
+html.sn-app-page .sn-leads-badge-score-high,
+html.sn-app-page .sn-leads-badge-inactive-ok,
+html.sn-app-page .clients-portfolio-archive-badge,
+html.sn-app-page .sn-leads-list-badge--score-high,
+html.sn-app-page .sn-leads-list-badge--inact-ok,
+html.sn-app-page .mairie-badge--green,
+html.sn-app-page .lead-mairie-badge--green,
+html.sn-app-page .admin-catalog-badge--active,
+html.sn-app-page .documents-page__badge,
+html.sn-app-page .admin-roles-level-badge--full,
+html.sn-app-page .badge-project.SIGNE,
+html.sn-app-page .badge-project.TERMINE,
+html.sn-app-page .badge-project.FACTURATION_TERMINEE,
+html.sn-app-page .badge-project.CLOTURE,
+html.sn-app-page .badge-project.MISE_EN_SERVICE,
+html.sn-app-page .sn-dashboard-coverage-badge--high {
+  background: var(--sn-badge-success-bg);
+  border-color: var(--sn-badge-success-border);
+  color: var(--sn-badge-success-fg);
+}
+
+html.sn-app-page .sn-ui-badge--warn,
+html.sn-app-page .crm-badge-warn,
+html.sn-app-page .sn-leads-badge-score-mid,
+html.sn-app-page .sn-leads-badge-inactive-warning,
+html.sn-app-page .sn-leads-archive-badge,
+html.sn-app-page .sn-leads-list-badge--score-mid,
+html.sn-app-page .sn-leads-list-badge--inact-warn,
+html.sn-app-page .sn-leads-list-badge--inact-attn,
+html.sn-app-page .mairie-badge--orange,
+html.sn-app-page .lead-mairie-badge--orange,
+html.sn-app-page .badge-project.INSTALLATION,
+html.sn-app-page .badge-project.INSTALLATION_PLANIFIEE,
+html.sn-app-page .badge-project.INSTALLATION_REALISEE,
+html.sn-app-page .badge-project.RACCORDEMENT,
+html.sn-app-page .badge-project.CONSUEL_EN_ATTENTE,
+html.sn-app-page .badge-project.CONSUEL_OBTENU,
+html.sn-app-page .sn-dashboard-coverage-badge--medium {
+  background: var(--sn-badge-warn-bg);
+  border-color: var(--sn-badge-warn-border);
+  color: var(--sn-badge-warn-fg);
+}
+
+html.sn-app-page .sn-ui-badge--danger,
+html.sn-app-page .crm-status-badge--lost,
+html.sn-app-page .sn-leads-badge-inactive-danger,
+html.sn-app-page .sn-leads-badge-inactive-critical,
+html.sn-app-page .sn-leads-list-badge--inact-crit,
+html.sn-app-page .mairie-badge--red,
+html.sn-app-page .lead-mairie-badge--red,
+html.sn-app-page .badge-lost,
+html.sn-app-page .icp-lock-badge,
+html.sn-app-page .sn-dashboard-coverage-badge--low {
+  background: var(--sn-badge-danger-bg);
+  border-color: var(--sn-badge-danger-border);
+  color: var(--sn-badge-danger-fg);
+}
+
+html.sn-app-page .sn-ui-badge--neutral,
+html.sn-app-page .crm-badge-muted,
+html.sn-app-page .crm-status-badge--lead,
+html.sn-app-page .sn-leads-badge-score-low,
+html.sn-app-page .sn-leads-list-badge--score-low,
+html.sn-app-page .sn-leads-list-badge--stage,
+html.sn-app-page .pv-cat-badge,
+html.sn-app-page .icp-step-badge,
+html.sn-app-page .lead-mairie-badge--empty,
+html.sn-app-page .admin-catalog-badge--inactive,
+html.sn-app-page .admin-roles-level-badge--limited,
+html.sn-app-page .badge-project.NONE,
+html.sn-app-page .badge-project.ETUDE {
+  background: var(--sn-badge-neutral-bg);
+  border-color: var(--sn-badge-neutral-border);
+  color: var(--sn-badge-neutral-fg);
 }

@@ -216,7 +216,7 @@ export function AdminTabQuoteTextTemplates() {
               </div>
             ) : (
               <div className="sn-saas-table-wrap">
-                <table className="sn-saas-table sn-saas-table--dense admin-tab-quote-text-table">
+                <table className="sn-ui-table sn-saas-table sn-saas-table--dense admin-tab-quote-text-table">
                   <thead>
                     <tr>
                       <th>Nom</th>

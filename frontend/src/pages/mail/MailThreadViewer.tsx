@@ -26,19 +26,6 @@ import { MailComposer } from "./MailComposer";
 import type { ComposerMode } from "./mailComposerLogic";
 import { MailThreadMessage } from "./MailThreadMessage";
 
-function tagPillStyle(color: string | null | undefined): React.CSSProperties {
-  if (!color?.trim()) return {};
-  const c = color.trim();
-  if (c.startsWith("#")) {
-    return {
-      backgroundColor: `${c}26`,
-      borderColor: c,
-      color: "#111827",
-    };
-  }
-  return { backgroundColor: c, borderColor: c, color: "var(--text-on-dark)" };
-}
-
 export function MailThreadViewerSkeleton() {
   return (
     <div className="mail-viewer-skel" aria-hidden>
@@ -454,23 +441,18 @@ export const MailThreadViewer = React.memo(function MailThreadViewer({
           <h2 className="mail-viewer__title" title={subject || undefined}>
             {subject}
           </h2>
-          <div className="mail-viewer__badges">
-            {threadUnread && <span className="mail-viewer__badge mail-viewer__badge--unread">Non lu</span>}
-            {hasOutboundReply && <span className="mail-viewer__badge mail-viewer__badge--replied">Répondu</span>}
+          <div className="mail-viewer__thread-status-row">
+            {threadUnread && <span className="sn-badge sn-badge-warn">Non lu</span>}
+            {hasOutboundReply && <span className="sn-badge sn-badge-success">Répondu</span>}
           </div>
-          <div className="mail-viewer__tagbar">
+          <div className="mail-viewer__thread-label-bar">
             {threadTags.map((tg) => (
-              <span
-                key={tg.id}
-                className="mail-tag-pill"
-                style={tagPillStyle(tg.color)}
-                title={tg.name}
-              >
+              <span key={tg.id} className="sn-badge sn-badge-neutral" title={tg.name}>
                 {tg.name}
               </span>
             ))}
-            <button type="button" className="mail-viewer__tag-add" onClick={() => setTagModalOpen(true)}>
-              + Tag
+            <button type="button" className="mail-viewer__thread-label-add" onClick={() => setTagModalOpen(true)}>
+              + Étiquette
             </button>
           </div>
         </div>
@@ -624,19 +606,19 @@ export const MailThreadViewer = React.memo(function MailThreadViewer({
 
       {tagModalOpen && (
         <div
-          className="mail-tag-modal__backdrop"
+          className="mail-thread-label-modal__backdrop"
           role="presentation"
           onClick={() => setTagModalOpen(false)}
         >
           <div
-            className="mail-tag-modal"
+            className="mail-thread-label-modal"
             role="dialog"
-            aria-labelledby="mail-tag-modal-title"
+            aria-labelledby="mail-thread-label-modal-title"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 id="mail-tag-modal-title">Tags du fil</h3>
-            <p className="mail-tag-modal__hint">Cliquez pour ajouter ou retirer un tag.</p>
-            <ul className="mail-tag-modal__list">
+            <h3 id="mail-thread-label-modal-title">Étiquettes du fil</h3>
+            <p className="mail-thread-label-modal__hint">Cliquez pour ajouter ou retirer une étiquette.</p>
+            <ul className="mail-thread-label-modal__list">
               {mailTagsCatalog.map((tg) => {
                 const on = threadTags.some((t) => t.id === tg.id);
                 const busy = tagBusy === tg.id;
@@ -644,8 +626,7 @@ export const MailThreadViewer = React.memo(function MailThreadViewer({
                   <li key={tg.id}>
                     <button
                       type="button"
-                      className={`mail-tag-modal__opt${on ? " mail-tag-modal__opt--on" : ""}`}
-                      style={on ? tagPillStyle(tg.color) : undefined}
+                      className={`mail-thread-label-modal__opt${on ? " mail-thread-label-modal__opt--on" : ""}`}
                       disabled={busy}
                       onClick={() => void toggleTag(tg.id)}
                     >
@@ -656,10 +637,10 @@ export const MailThreadViewer = React.memo(function MailThreadViewer({
                 );
               })}
             </ul>
-            <div className="mail-tag-modal__create">
+            <div className="mail-thread-label-modal__create">
               <input
                 type="text"
-                placeholder="Nouveau tag"
+                placeholder="Nouvelle étiquette"
                 value={newTagName}
                 onChange={(e) => setNewTagName(e.target.value)}
               />
@@ -671,14 +652,14 @@ export const MailThreadViewer = React.memo(function MailThreadViewer({
               />
               <button
                 type="button"
-                className="mail-tag-modal__create-btn"
+                className="mail-thread-label-modal__create-btn"
                 disabled={tagBusy === "__create__" || !newTagName.trim()}
                 onClick={() => void handleCreateTagFixed()}
               >
                 Créer et appliquer
               </button>
             </div>
-            <button type="button" className="mail-tag-modal__close" onClick={() => setTagModalOpen(false)}>
+            <button type="button" className="mail-thread-label-modal__close" onClick={() => setTagModalOpen(false)}>
               Fermer
             </button>
           </div>

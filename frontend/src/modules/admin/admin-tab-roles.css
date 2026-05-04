@@ -168,30 +168,6 @@
   cursor: pointer;
 }
 
-.admin-roles-type-badge--system {
-  display: inline-flex;
-  align-items: center;
-  padding: 4px 10px;
-  font-size: 12px;
-  font-weight: 600;
-  border-radius: var(--radius-pill);
-  background: rgba(124, 58, 237, 0.15);
-  border: 1px solid rgba(124, 58, 237, 0.35);
-  color: var(--primary);
-}
-
-.admin-roles-type-badge--custom {
-  display: inline-flex;
-  align-items: center;
-  padding: 4px 10px;
-  font-size: 12px;
-  font-weight: 500;
-  border-radius: var(--radius-pill);
-  background: var(--surface-2);
-  border: 1px solid var(--border-soft);
-  color: var(--text-muted);
-}
-
 /* —— Modal phase 2 : résumé, niveau, recherche —— */
 
 .admin-roles-modal-stack {
@@ -271,39 +247,6 @@
   font-size: var(--font-size-body);
   font-weight: 600;
   color: var(--text-primary);
-}
-
-.admin-roles-level-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 6px 12px;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  border-radius: 999px;
-  border: 1px solid transparent;
-}
-
-.admin-roles-level-badge--limited {
-  background: rgba(156, 163, 175, 0.2);
-  border-color: rgba(156, 163, 175, 0.45);
-  color: var(--text-muted);
-}
-
-.admin-roles-level-badge--standard {
-  background: rgba(59, 130, 246, 0.12);
-  border-color: rgba(59, 130, 246, 0.35);
-  color: #3b82f6;
-}
-
-.theme-light .admin-roles-level-badge--standard {
-  color: #2563eb;
-}
-
-.admin-roles-level-badge--full {
-  background: rgba(34, 197, 94, 0.15);
-  border-color: rgba(34, 197, 94, 0.4);
-  color: var(--success, #22c55e);
 }
 
 .admin-roles-summary-bars {

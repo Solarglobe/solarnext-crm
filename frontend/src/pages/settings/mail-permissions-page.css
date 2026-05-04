@@ -130,26 +130,12 @@
   margin: 0 auto;
 }
 
-.mail-perm__badges {
+.mail-perm__role-sn-stack {
   display: flex;
   flex-wrap: wrap;
   gap: 0.25rem;
   justify-content: center;
   margin-top: 0.25rem;
-}
-
-.mail-perm__badge {
-  font-size: 0.65rem;
-  font-weight: 600;
-  padding: 0.1rem 0.35rem;
-  border-radius: 4px;
-  background: #dbeafe;
-  color: #1e40af;
-}
-
-.mail-perm__badge--manage {
-  background: #ede9fe;
-  color: #5b21b6;
 }
 
 .mail-perm__cell {

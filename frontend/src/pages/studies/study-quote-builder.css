@@ -193,20 +193,6 @@
   display: inline;
 }
 
-.study-quote-page .sqb-status--ok {
-  color: var(--success);
-}
-
-.study-quote-page .sqb-status--err {
-  color: var(--danger);
-}
-
-.study-quote-page .sqb-badge {
-  font-size: 0.6875rem;
-  font-weight: 500;
-  color: var(--success);
-}
-
 .study-quote-page .sqb-total-ttc {
   font-size: 1rem;
   font-weight: 700;
@@ -262,22 +248,6 @@
 
 .sqb-btn-compact {
   font-size: 12px;
-}
-
-/* Badge TVA PRO (régime professionnel — taux réduit interdit) */
-.sqb-pro-vat-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 3px 10px;
-  border-radius: 20px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  background: var(--primary-light, #eff6ff);
-  color: var(--primary, #3b82f6);
-  border: 1px solid var(--primary-border, #bfdbfe);
-  white-space: nowrap;
 }
 
 /* KPI — résumé technique (grille équilibrée, cartes type SaaS) */
@@ -1187,25 +1157,8 @@
   line-height: 1.45;
 }
 
-.sqb-study-meter__badge {
-  display: inline-block;
+.sqb-study-meter__hint-stack {
   margin: 0 0 8px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-size: 0.75rem;
-  font-weight: 500;
-}
-
-.sqb-study-meter__badge--info {
-  background: color-mix(in srgb, var(--brand-gold) 18%, transparent);
-  color: var(--text-primary);
-  border: 1px solid color-mix(in srgb, var(--brand-gold) 35%, transparent);
-}
-
-.sqb-study-meter__badge--alt {
-  background: color-mix(in srgb, var(--text-muted) 12%, transparent);
-  color: var(--text-secondary);
-  border: 1px solid var(--border);
 }
 
 .sqb-study-meter__hint {
@@ -1249,17 +1202,6 @@
 .sqb-study-meter__dl dd {
   margin: 4px 0 0;
   font-size: 0.875rem;
-  color: var(--text-primary);
-}
-
-.sqb-study-meter__pill {
-  display: inline-block;
-  margin-left: 8px;
-  padding: 2px 8px;
-  border-radius: 6px;
-  font-size: 0.68rem;
-  font-weight: 600;
-  background: color-mix(in srgb, var(--brand-gold) 22%, transparent);
   color: var(--text-primary);
 }
 

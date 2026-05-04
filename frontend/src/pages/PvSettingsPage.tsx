@@ -266,9 +266,7 @@ export default function PvSettingsPage() {
   if (error || !data) {
     return (
       <div className="pv-settings-page">
-        <p className="sn-saas-callout-error__text" style={{ color: "var(--danger)" }}>
-          {error || "Données non disponibles"}
-        </p>
+        <p className="sn-saas-callout-error__text">{error || "Données non disponibles"}</p>
       </div>
     );
   }
@@ -667,7 +665,7 @@ function CatalogPanelsTab({
         </div>
       )}
       <div className="pv-cat-table-wrap">
-        <table className="pv-cat-table">
+        <table className="sn-ui-table sn-ui-table--editable pv-cat-table">
           <thead>
             <tr>
               <th className="pv-cat-table__th--check" scope="col">
@@ -699,7 +697,7 @@ function CatalogPanelsTab({
                   <td className="pv-cat-table__td--right">{p.power_wc}</td>
                   <td className="pv-cat-table__td--right">{p.width_mm}×{p.height_mm}</td>
                   <td>
-                    <span className={p.active ? "pv-cat-badge pv-cat-badge--on" : "pv-cat-badge pv-cat-badge--off"}>{p.active ? "Actif" : "Inactif"}</span>
+                    <span className={p.active ? "sn-badge sn-badge-success" : "sn-badge sn-badge-neutral"}>{p.active ? "Actif" : "Inactif"}</span>
                   </td>
                   <td className="pv-cat-table__td--right">
                     <div className="pv-cat-row-actions">
@@ -820,7 +818,7 @@ function InverterBlock({
         </div>
       )}
       <div className="pv-cat-table-wrap">
-        <table className="pv-cat-table">
+        <table className="sn-ui-table sn-ui-table--editable pv-cat-table">
           <thead>
             <tr>
               <th className="pv-cat-table__th--check" scope="col">
@@ -852,7 +850,7 @@ function InverterBlock({
                   <td>{i.inverter_type}</td>
                   <td className="pv-cat-table__td--right">{i.nominal_va ? `${i.nominal_va} VA` : i.nominal_power_kw ? `${i.nominal_power_kw} kW` : "—"}</td>
                   <td>
-                    <span className={i.active ? "pv-cat-badge pv-cat-badge--on" : "pv-cat-badge pv-cat-badge--off"}>{i.active ? "Actif" : "Inactif"}</span>
+                    <span className={i.active ? "sn-badge sn-badge-success" : "sn-badge sn-badge-neutral"}>{i.active ? "Actif" : "Inactif"}</span>
                   </td>
                   <td className="pv-cat-table__td--right">
                     <div className="pv-cat-row-actions">
@@ -1018,7 +1016,7 @@ function CatalogBatteriesTab({
         </div>
       )}
       <div className="pv-cat-table-wrap">
-        <table className="pv-cat-table">
+        <table className="sn-ui-table sn-ui-table--editable pv-cat-table">
           <thead>
             <tr>
               <th className="pv-cat-table__th--check" scope="col">
@@ -1052,7 +1050,7 @@ function CatalogBatteriesTab({
                   <td className="pv-cat-table__td--right">{b.default_price_ht != null ? `${Number(b.default_price_ht).toLocaleString("fr-FR")} €` : "—"}</td>
                   <td className="pv-cat-table__td--right">{b.purchase_price_ht != null ? `${Number(b.purchase_price_ht).toLocaleString("fr-FR")} €` : "—"}</td>
                   <td>
-                    <span className={b.active ? "pv-cat-badge pv-cat-badge--on" : "pv-cat-badge pv-cat-badge--off"}>{b.active ? "Actif" : "Inactif"}</span>
+                    <span className={b.active ? "sn-badge sn-badge-success" : "sn-badge sn-badge-neutral"}>{b.active ? "Actif" : "Inactif"}</span>
                   </td>
                   <td className="pv-cat-table__td--right">
                     <div className="pv-cat-row-actions">

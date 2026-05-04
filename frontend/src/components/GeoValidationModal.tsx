@@ -22,6 +22,7 @@ import Point from "ol/geom/Point";
 import { Icon, Style } from "ol/style";
 import { fetchCadastreByPoint, verifyPin } from "../services/address.service";
 import { parseGeoLatitude, parseGeoLongitude, resolveCoordOrFrance } from "./geoCoordinateParse";
+import "./geo-validation-modal.css";
 
 // WMTS IGN — Orthophoto + Parcellaire (Géoplateforme)
 function createOrthoLayer(): TileLayer<WMTS> {
@@ -269,20 +270,11 @@ export default function GeoValidationModal({
             alignItems: "center",
           }}
         >
-          <h2 style={{ margin: 0, fontSize: 18, color: "var(--text-primary)" }}>
-            Valider l&apos;emplacement sur Géoportail
-          </h2>
+          <h2 className="geo-validation-modal__title">Valider l&apos;emplacement sur Géoportail</h2>
           <button
             type="button"
             onClick={onClose}
-            style={{
-              background: "none",
-              border: "none",
-              color: "var(--text-muted)",
-              cursor: "pointer",
-              fontSize: 24,
-              padding: "0 8px",
-            }}
+            className="geo-validation-modal__close"
             aria-label="Fermer"
           >
             ×
@@ -305,10 +297,10 @@ export default function GeoValidationModal({
                 flexWrap: "wrap",
               }}
             >
-              <span style={{ fontSize: 13, color: "var(--text-muted)" }}>
+              <span className="geo-validation-modal__hint">
                 Déplacez le marqueur sur le bâtiment, puis validez.
                 {hasNoInitialCoords ? (
-                  <span style={{ display: "block", marginTop: 8, maxWidth: 560 }}>
+                  <span className="geo-validation-modal__hint-block">
                     Sans coordonnées initiales, la carte est centrée sur la France — positionnez le marqueur sur le
                     bâtiment du client.
                   </span>
@@ -333,38 +325,22 @@ export default function GeoValidationModal({
         ) : (
           <div style={{ padding: 24, flex: 1 }}>
             {parcelle ? (
-              <p
-                style={{
-                  color: "var(--success, #22c55e)",
-                  fontSize: 15,
-                  marginBottom: 16,
-                }}
-              >
+              <p className="geo-validation-modal__parcelle-ok">
                 Parcelle détectée : Section {parcelle.section} — Numéro{" "}
                 {parcelle.numero}
                 {parcelle.commune && ` — ${parcelle.commune}`}
               </p>
             ) : (
-              <p
-                style={{
-                  color: "var(--warning, #f59e0b)",
-                  fontSize: 15,
-                  marginBottom: 16,
-                }}
-              >
+              <p className="geo-validation-modal__parcelle-warn">
                 {parcelleError || "Parcelle non détectée à cette position."}
                 <br />
-                <span style={{ fontSize: 13, opacity: 0.9 }}>
+                <span className="geo-validation-modal__parcelle-warn-note">
                   Vous pouvez confirmer quand même (emplacement validé manuellement).
                 </span>
               </p>
             )}
 
-            {error && (
-              <p style={{ color: "var(--error, #ef4444)", marginBottom: 16 }}>
-                {error}
-              </p>
-            )}
+            {error ? <p className="geo-validation-modal__error">{error}</p> : null}
 
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
               <button

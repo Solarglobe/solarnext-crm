@@ -181,7 +181,7 @@ export default function Login() {
 
           <div className="login-card">
             <header className="login-card-header">
-            <span className="login-badge">CRM photovoltaïque</span>
+            <span className="sn-badge sn-badge-info">CRM photovoltaïque</span>
             <h1>
               <span className="login-title-muted">Bienvenue sur </span>
               <span className="login-title-solar">Solar</span>

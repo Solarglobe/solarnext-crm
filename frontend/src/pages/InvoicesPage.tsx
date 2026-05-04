@@ -485,7 +485,7 @@ export default function InvoicesPage() {
 
       {!loading && filtered.length > 0 ? (
         <div className="qb-table-wrap qb-table-wrap--list-saas">
-          <table className="qb-table qb-table--list-saas">
+          <table className="sn-ui-table qb-table qb-table--list-saas">
             <thead>
               <tr>
                 <th>Numéro</th>
@@ -515,7 +515,7 @@ export default function InvoicesPage() {
                       <span style={{ display: "inline-flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
                         {formatInvoiceNumberDisplay(r.invoice_number, r.status)}
                         {invoiceRowIsTest(r) ? (
-                          <span className="ib-header-card__badge-test" title="Facture test">
+                          <span className="sn-badge sn-badge-warn" title="Facture test">
                             TEST
                           </span>
                         ) : null}
@@ -531,15 +531,15 @@ export default function InvoicesPage() {
                     <td>{fmtDate(r.due_date)}</td>
                     <td onClick={(e) => e.stopPropagation()}>
                       {overdue ? (
-                        <span className="fin-badge fin-badge--danger" title="Échéance dépassée et solde dû">
+                        <span className="sn-badge sn-badge-danger" title="Échéance dépassée et solde dû">
                           Retard
                         </span>
                       ) : paid > 0 && due <= 0 ? (
-                        <span className="fin-badge fin-badge--success">Soldée</span>
+                        <span className="sn-badge sn-badge-success">Soldée</span>
                       ) : partial ? (
-                        <span className="fin-badge fin-badge--warning">Partiel</span>
+                        <span className="sn-badge sn-badge-warn">Partiel</span>
                       ) : (
-                        <span className="fin-badge fin-badge--muted">—</span>
+                        <span className="sn-badge sn-badge-neutral">—</span>
                       )}
                     </td>
                   </tr>

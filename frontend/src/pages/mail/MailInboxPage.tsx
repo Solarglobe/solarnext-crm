@@ -470,7 +470,7 @@ export default function MailInboxPage() {
               >
                 <span className="mail-inbox__nav-item-label">{item.label}</span>
                 {item.id === "inbox" && unreadSummary.totalUnread > 0 ? (
-                  <span className="mail-inbox__badge">
+                  <span className="sn-badge sn-badge-info mail-inbox__account-sn-tweak">
                     {unreadSummary.totalUnread > 99 ? "99+" : unreadSummary.totalUnread}
                   </span>
                 ) : null}
@@ -524,7 +524,7 @@ export default function MailInboxPage() {
 
           <div className="mail-inbox__filter-strip">
             <MailFilters layout="toolbar" mailTags={mailTags} value={filters} onChange={onFiltersChange} />
-            <div className="mail-inbox__filter-strip-chips" aria-label="Affinage liste">
+            <div className="mail-inbox__filter-strip-tabs" aria-label="Affinage liste">
               <MailInboxChips mode={listMode} onChange={setListMode} />
             </div>
           </div>

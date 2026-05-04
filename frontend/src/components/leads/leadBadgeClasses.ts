@@ -1,4 +1,4 @@
-/** Classes badges Leads — sémantique unifiée (carte + liste) */
+/** Classes badges Leads — sémantique unifiée (carte + liste) via sn-badge */
 
 /** Indice colonne pipeline (1–5) à partir du libellé de stage API */
 export function stageIndexFromStageName(name?: string | null): number {
@@ -12,27 +12,35 @@ export function stageIndexFromStageName(name?: string | null): number {
   return 1;
 }
 
-export function stagePillClass(stageIndex: number): string {
+function stageTone(stageIndex: number): "neutral" | "info" | "warn" | "success" {
   const i = Math.min(5, Math.max(1, Math.floor(stageIndex)));
-  return `sn-leads-pill-stage sn-leads-pill-stage--${i}`;
+  if (i <= 1) return "neutral";
+  if (i <= 3) return "info";
+  if (i === 4) return "warn";
+  return "success";
+}
+
+export function stagePillClass(stageIndex: number): string {
+  const t = stageTone(stageIndex);
+  return `sn-badge sn-badge-${t}`;
 }
 
 export function scoreBadgeClass(score: number): string {
-  if (score >= 70) return "sn-leads-badge sn-leads-badge-score-high";
-  if (score >= 40) return "sn-leads-badge sn-leads-badge-score-mid";
-  return "sn-leads-badge sn-leads-badge-score-low";
+  if (score >= 70) return "sn-badge sn-badge-success";
+  if (score >= 40) return "sn-badge sn-badge-warn";
+  return "sn-badge sn-badge-neutral";
 }
 
 export function inactivityBadgeClass(level: string): string {
   switch (level) {
     case "warning":
-      return "sn-leads-badge sn-leads-badge-inactive-warning";
+      return "sn-badge sn-badge-warn";
     case "danger":
-      return "sn-leads-badge sn-leads-badge-inactive-danger";
+      return "sn-badge sn-badge-warn";
     case "critical":
-      return "sn-leads-badge sn-leads-badge-inactive-critical";
+      return "sn-badge sn-badge-danger";
     case "none":
-      return "sn-leads-badge sn-leads-badge-inactive-ok";
+      return "sn-badge sn-badge-success";
     default:
       return "";
   }
@@ -120,26 +128,26 @@ export function inactivityLabelHybrid(
 
 /** Badges très discrets — vue liste uniquement (ne pas utiliser sur cartes Kanban). */
 export function listRowScoreClass(score: number): string {
-  if (score >= 70) return "sn-leads-list-badge sn-leads-list-badge--score-high";
-  if (score >= 40) return "sn-leads-list-badge sn-leads-list-badge--score-mid";
-  return "sn-leads-list-badge sn-leads-list-badge--score-low";
+  if (score >= 70) return "sn-badge sn-badge-success";
+  if (score >= 40) return "sn-badge sn-badge-warn";
+  return "sn-badge sn-badge-neutral";
 }
 
 export function listRowStageClass(stageIndex: number): string {
-  const i = Math.min(5, Math.max(1, Math.floor(stageIndex)));
-  return `sn-leads-list-badge sn-leads-list-badge--stage sn-leads-list-badge--stage-${i}`;
+  const t = stageTone(stageIndex);
+  return `sn-badge sn-badge-${t}`;
 }
 
 export function listRowInactivityClass(level: string): string {
   switch (level) {
     case "warning":
-      return "sn-leads-list-badge sn-leads-list-badge--inact-warn";
+      return "sn-badge sn-badge-warn";
     case "danger":
-      return "sn-leads-list-badge sn-leads-list-badge--inact-attn";
+      return "sn-badge sn-badge-warn";
     case "critical":
-      return "sn-leads-list-badge sn-leads-list-badge--inact-crit";
+      return "sn-badge sn-badge-danger";
     case "none":
     default:
-      return "sn-leads-list-badge sn-leads-list-badge--inact-ok";
+      return "sn-badge sn-badge-success";
   }
 }

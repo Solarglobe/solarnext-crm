@@ -21,11 +21,11 @@ function showStudyCardToast(message: string, isError: boolean) {
   setTimeout(() => toast.remove(), 4000);
 }
 
-const BADGE_STYLES: Record<StudyWorkflowBadge, { bg: string; color: string }> = {
-  non_calc: { bg: "rgba(148, 163, 184, 0.22)", color: "var(--text-muted)" },
-  calcule: { bg: "rgba(59, 130, 246, 0.2)", color: "#2563eb" },
-  devis: { bg: "rgba(139, 92, 246, 0.22)", color: "#7c3aed" },
-  signe: { bg: "rgba(34, 197, 94, 0.2)", color: "#16a34a" },
+const WORKFLOW_BADGE_CLASS: Record<StudyWorkflowBadge, string> = {
+  non_calc: "sn-badge sn-badge-neutral",
+  calcule: "sn-badge sn-badge-info",
+  devis: "sn-badge sn-badge-warn",
+  signe: "sn-badge sn-badge-success",
 };
 
 type Props = {
@@ -48,7 +48,7 @@ export function StudyCard({
   const [deleting, setDeleting] = useState(false);
 
   const badgeKey = getStudyWorkflowBadge(study);
-  const badge = BADGE_STYLES[badgeKey];
+  const workflowBadgeClass = WORKFLOW_BADGE_CLASS[badgeKey];
   const subtitle = studyCustomTitleSubtitle(study);
   const power = formatStudyPowerKw(study);
   const updated = formatStudyUpdatedAt(study.updated_at);
@@ -129,9 +129,7 @@ export function StudyCard({
           </p>
         </div>
 
-        <span className="study-card-sg-badge" style={{ background: badge.bg, color: badge.color }}>
-          {workflowBadgeLabel(badgeKey)}
-        </span>
+        <span className={`study-card-sg-workflow-slot ${workflowBadgeClass}`}>{workflowBadgeLabel(badgeKey)}</span>
 
         <div className="study-card-sg-actions">
           <button type="button" className="study-card-sg-btn-open" onClick={openStudy}>

@@ -87,7 +87,7 @@ export default function InvoiceDocumentBlock({
       </div>
       {generateDisabledReason && !canGenerate ? <p className="ib-doc-block__hint">{generateDisabledReason}</p> : null}
       <div className="ib-doc-block__status">
-        <span className={`ib-doc-pill ${hasPdf ? "ib-doc-pill--ok" : "ib-doc-pill--off"}`}>
+        <span className={hasPdf ? "sn-badge sn-badge-success" : "sn-badge sn-badge-neutral"}>
           {hasPdf ? "PDF disponible" : "Aucun PDF enregistré"}
         </span>
         {latest?.created_at ? (

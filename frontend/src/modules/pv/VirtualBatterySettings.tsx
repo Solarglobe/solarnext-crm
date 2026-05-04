@@ -229,7 +229,7 @@ function CapacityTiersBlock({
       </button>
       {open ? (
         <div className="pv-vb-accordion__body">
-          <table className="pv-vb-table">
+          <table className="sn-ui-table sn-ui-table--editable pv-vb-table">
             <thead>
               <tr>
                 <th>kWh</th>
@@ -293,7 +293,7 @@ function SegmentAccordion({
       </button>
       {open ? (
         <div className="pv-vb-accordion__body">
-          <table className="pv-vb-table">
+          <table className="sn-ui-table sn-ui-table--editable pv-vb-table">
             <thead>
               <tr>
                 <th>kVA</th>

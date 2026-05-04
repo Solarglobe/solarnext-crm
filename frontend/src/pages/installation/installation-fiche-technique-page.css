@@ -238,18 +238,6 @@
   font-weight: 500;
 }
 
-.installation-ft-page__filters-pill {
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  padding: 4px 10px;
-  border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--brand-gold) 45%, var(--border-subtle));
-  color: #92400e;
-  background: color-mix(in srgb, var(--brand-gold) 10%, transparent);
-}
-
 .installation-ft-page__th-actions-inner {
   display: inline-flex;
   align-items: center;
@@ -559,45 +547,6 @@
   color: #15803d;
   border-radius: 10px;
   background: color-mix(in srgb, #16a34a 12%, transparent);
-}
-
-/* Badges statut */
-.ft-status-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 10px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  white-space: nowrap;
-}
-
-.ft-status-badge--active {
-  background: color-mix(in srgb, #16a34a 18%, transparent);
-  color: #15803d;
-}
-
-.ft-status-badge--obsolete {
-  background: color-mix(in srgb, var(--text-muted) 16%, transparent);
-  color: var(--text-muted);
-}
-
-.ft-status-badge--recommended {
-  background: color-mix(in srgb, var(--brand-gold) 22%, transparent);
-  color: #92400e;
-}
-
-.theme-dark .ft-status-badge--active,
-html.theme-dark .ft-status-badge--active {
-  background: color-mix(in srgb, #4ade80 15%, transparent);
-  color: #86efac;
-}
-
-.theme-dark .ft-status-badge--recommended,
-html.theme-dark .ft-status-badge--recommended {
-  background: color-mix(in srgb, var(--brand-gold) 20%, transparent);
-  color: #fcd34d;
 }
 
 /* Favori */

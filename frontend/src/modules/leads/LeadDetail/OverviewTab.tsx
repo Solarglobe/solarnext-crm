@@ -1369,12 +1369,12 @@ export default function OverviewTab({
               <span
                 className={
                   addressQualityUi === "validated"
-                    ? "crm-lead-address-quality-badge crm-lead-address-quality-badge--ok"
+                    ? "sn-badge sn-badge-success"
                     : addressQualityUi === "exact"
-                      ? "crm-lead-address-quality-badge crm-lead-address-quality-badge--exact"
+                      ? "sn-badge sn-badge-info"
                       : addressQualityUi === "approx_street" || addressQualityUi === "approx_city"
-                        ? "crm-lead-address-quality-badge crm-lead-address-quality-badge--warn"
-                        : "crm-lead-address-quality-badge crm-lead-address-quality-badge--pending"
+                        ? "sn-badge sn-badge-warn"
+                        : "sn-badge sn-badge-neutral"
                 }
               >
                 {addressQualityUi === "validated" && "Validé (parcelle)"}

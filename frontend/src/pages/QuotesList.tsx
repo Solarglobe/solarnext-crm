@@ -186,7 +186,7 @@ function PdfGlyph({ hasPdf, hasSignedPdf = false }: { hasPdf: boolean; hasSigned
         <path d="M9 15h6" />
         <path d="M9 11h6" />
       </svg>
-      <span className={`fin-saas-pdf-dot ${ok ? "fin-saas-pdf-dot--ok" : "fin-saas-pdf-dot--off"}`} />
+      <span className={`fin-saas-pdf-sn sn-badge ${ok ? "sn-badge-success" : "sn-badge-neutral"}`}>PDF</span>
     </span>
   );
 }
@@ -464,7 +464,7 @@ export default function QuotesList() {
 
       {!loading && filtered.length > 0 ? (
         <div className="qb-table-wrap qb-table-wrap--list-saas">
-          <table className="qb-table qb-table--list-saas">
+          <table className="sn-ui-table qb-table qb-table--list-saas">
             <thead>
               <tr>
                 <th>Numéro</th>

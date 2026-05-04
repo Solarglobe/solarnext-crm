@@ -6,27 +6,27 @@ import React from "react";
 import { formatCreditNoteStatusFr, formatInvoiceStatusFr, formatQuoteStatusFr } from "../../../finance/financialLabels";
 
 const QUOTE_STYLES: Record<string, string> = {
-  DRAFT: "fin-badge fin-badge--neutral",
-  READY_TO_SEND: "fin-badge fin-badge--info",
-  SENT: "fin-badge fin-badge--info",
-  ACCEPTED: "fin-badge fin-badge--success",
-  REJECTED: "fin-badge fin-badge--muted",
-  EXPIRED: "fin-badge fin-badge--warning",
-  CANCELLED: "fin-badge fin-badge--danger",
+  DRAFT: "sn-badge sn-badge-neutral",
+  READY_TO_SEND: "sn-badge sn-badge-info",
+  SENT: "sn-badge sn-badge-info",
+  ACCEPTED: "sn-badge sn-badge-success",
+  REJECTED: "sn-badge sn-badge-danger",
+  EXPIRED: "sn-badge sn-badge-warn",
+  CANCELLED: "sn-badge sn-badge-danger",
 };
 
 const INV_STYLES: Record<string, string> = {
-  DRAFT: "fin-badge fin-badge--neutral",
-  ISSUED: "fin-badge fin-badge--info",
-  PARTIALLY_PAID: "fin-badge fin-badge--warning",
-  PAID: "fin-badge fin-badge--success",
-  CANCELLED: "fin-badge fin-badge--danger",
+  DRAFT: "sn-badge sn-badge-neutral",
+  ISSUED: "sn-badge sn-badge-info",
+  PARTIALLY_PAID: "sn-badge sn-badge-warn",
+  PAID: "sn-badge sn-badge-success",
+  CANCELLED: "sn-badge sn-badge-danger",
 };
 
 const CN_STYLES: Record<string, string> = {
-  DRAFT: "fin-badge fin-badge--neutral",
-  ISSUED: "fin-badge fin-badge--info",
-  CANCELLED: "fin-badge fin-badge--danger",
+  DRAFT: "sn-badge sn-badge-neutral",
+  ISSUED: "sn-badge sn-badge-info",
+  CANCELLED: "sn-badge sn-badge-danger",
 };
 
 const LABELS: Record<string, string> = {
@@ -50,21 +50,21 @@ function norm(s: string | undefined) {
 
 export function QuoteStatusBadge({ status }: { status: string | undefined }) {
   const n = norm(status);
-  const cls = QUOTE_STYLES[n] || "fin-badge fin-badge--neutral";
+  const cls = QUOTE_STYLES[n] || "sn-badge sn-badge-neutral";
   const label = formatQuoteStatusFr(status);
   return <span className={cls}>{label}</span>;
 }
 
 export function InvoiceStatusBadge({ status }: { status: string | undefined }) {
   const n = norm(status);
-  const cls = INV_STYLES[n] || "fin-badge fin-badge--neutral";
+  const cls = INV_STYLES[n] || "sn-badge sn-badge-neutral";
   const label = formatInvoiceStatusFr(status);
   return <span className={cls}>{label}</span>;
 }
 
 export function CreditNoteStatusBadge({ status }: { status: string | undefined }) {
   const n = norm(status);
-  const cls = CN_STYLES[n] || "fin-badge fin-badge--neutral";
+  const cls = CN_STYLES[n] || "sn-badge sn-badge-neutral";
   const label = formatCreditNoteStatusFr(status);
   return <span className={cls}>{label}</span>;
 }

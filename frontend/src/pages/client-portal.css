@@ -197,13 +197,7 @@
   color: var(--cp-gold);
 }
 
-.cp-hero__badge {
-  padding: 8px 18px;
-  border: 1px solid color-mix(in srgb, var(--brand-gold) 65%, transparent);
-  background: color-mix(in srgb, var(--brand-gold) 12%, transparent);
-  color: var(--cp-gold);
-  font-weight: 600;
-  border-radius: 4px;
+.cp-hero__sn-slot {
   max-width: 100%;
 }
 
@@ -385,17 +379,9 @@
   font-weight: 600;
 }
 
-.cp-field__tag {
+.cp-field__hint-sn {
   display: inline-block;
   margin-left: 8px;
-  padding: 2px 8px;
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
-  border-radius: 4px;
-  background: color-mix(in srgb, var(--brand-gold) 15%, transparent);
-  color: var(--cp-gold);
   vertical-align: middle;
 }
 

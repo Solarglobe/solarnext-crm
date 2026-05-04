@@ -84,6 +84,12 @@ function marginLevel(pct: number | null): "low" | "mid" | "good" {
   return "good";
 }
 
+function marginSnBadgeClass(level: "low" | "mid" | "good"): string {
+  if (level === "good") return "sn-badge-success";
+  if (level === "mid") return "sn-badge-neutral";
+  return "sn-badge-warn";
+}
+
 function IconEdit() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -382,7 +388,7 @@ export function AdminTabQuoteCatalog() {
             </div>
           ) : (
             <div className="sn-saas-table-wrap admin-catalog-table-outer">
-              <table className="sn-saas-table sn-saas-table--dense admin-catalog-table">
+              <table className="sn-ui-table sn-saas-table sn-saas-table--dense admin-catalog-table">
             <thead>
               <tr>
                 <th className="admin-catalog-col-nom">Nom</th>
@@ -434,14 +440,14 @@ export function AdminTabQuoteCatalog() {
                       {centsToEur(item.purchase_price_ht_cents)}
                     </td>
                     <td className="admin-catalog-cell-right admin-catalog-col-marge">
-                      <span className={`admin-catalog-marge admin-catalog-marge--${level}`}>
-                        {mPct == null ? "—" : (
-                          <>
-                            {mPct.toFixed(1)}
-                            {"\u00a0"}%
-                          </>
-                        )}
-                      </span>
+                      {mPct == null ? (
+                        <span className="sn-badge sn-badge-neutral">—</span>
+                      ) : (
+                        <span className={`sn-badge ${marginSnBadgeClass(level)}`}>
+                          {mPct.toFixed(1)}
+                          {"\u00a0"}%
+                        </span>
+                      )}
                     </td>
                     <td className="admin-catalog-cell-right admin-catalog-cell-tva admin-catalog-col-tva">
                       {(item.default_vat_rate_bps / 100) % 1 === 0
@@ -462,8 +468,8 @@ export function AdminTabQuoteCatalog() {
                       <span
                         className={
                           item.is_active
-                            ? "admin-catalog-badge admin-catalog-badge--active"
-                            : "admin-catalog-badge admin-catalog-badge--inactive"
+                            ? "sn-badge sn-badge-success"
+                            : "sn-badge sn-badge-neutral"
                         }
                       >
                         {item.is_active ? "Actif" : "Inactif"}
@@ -674,7 +680,7 @@ export function AdminTabQuoteCatalog() {
               Marge indicative
             </h3>
             <div className="qc-modal-marge">
-              <span className={`qc-modal-marge-value admin-catalog-marge--${marginLevel(marginPctVal)}`}>
+              <span className={`sn-badge ${marginSnBadgeClass(marginLevel(marginPctVal))}`}>
                 {marginEurVal.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
                 <span className="qc-modal-marge-sep">|</span>
                 {marginPctVal == null ? "—" : `${marginPctVal.toFixed(1)} %`}

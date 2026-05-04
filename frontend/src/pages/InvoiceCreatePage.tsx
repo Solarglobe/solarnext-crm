@@ -255,9 +255,9 @@ export default function InvoiceCreatePage() {
   }, [fromQuote, apiRole]);
 
   const preparedTotals = useMemo(() => aggregatePreparedTotals(preparedLines), [preparedLines]);
-  /** Verrou uniquement si vrai explicite (évite chaîne \"false\" truthy ; backend envoie un booléen). */
-  const billingLocked =
-    billCtx?.billing_is_locked === true || billCtx?.billing_is_locked === 1;
+  /** Verrou : booléen explicite ou 1 côté API JSON toléré (sans comparer number au type bool TS). */
+  const billingLockedRaw = billCtx?.billing_is_locked as boolean | number | undefined;
+  const billingLocked = billingLockedRaw === true || billingLockedRaw === 1;
   const depositPrepFlow = apiRole === "DEPOSIT";
   const projectGlobalTotal = depositPrepFlow
     ? preparedTotals.total_ttc
@@ -509,7 +509,7 @@ export default function InvoiceCreatePage() {
     return (
       <div className="icp-page">
         <div className="icp-header">
-          <div className="icp-step-badge">Étape 1 · Préparation</div>
+          <div className="sn-badge sn-badge-info">Étape 1 · Préparation</div>
           <h1 className="icp-title">Préparation de la facture</h1>
           <p className="icp-subtitle">
             Modifiez les lignes du devis avant validation. Le devis original ne sera jamais modifié.
@@ -521,7 +521,7 @@ export default function InvoiceCreatePage() {
           <div className="icp-workbench">
             <section className="icp-table-card" aria-label="Lignes du devis">
               <div className="icp-table-wrap" data-scroll-region="invoice-prep-lines">
-                <table className="icp-table">
+                <table className="sn-ui-table sn-ui-table--editable icp-table">
                   <thead>
                     <tr>
                       <th className="icp-col-label">Libellé / Description</th>
@@ -704,7 +704,7 @@ export default function InvoiceCreatePage() {
               ) : billingLocked ? (
                 <>
                   <span
-                    className="icp-lock-badge"
+                    className="icp-lock-badge sn-badge sn-badge-warn icp-lock-sn-top"
                     title="Ce montant correspond au total validé lors de la première facturation. Il ne peut plus être modifié."
                   >
                     Verrouille

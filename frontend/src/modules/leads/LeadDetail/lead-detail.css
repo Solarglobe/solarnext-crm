@@ -202,14 +202,20 @@
   }
 }
 
-.crm-lead-save-pill--sticky {
-  opacity: 0.92;
+.crm-lead-save-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
   max-width: 10rem;
 }
 
-.crm-lead-save-pill--header {
+.crm-lead-save-indicator--sticky {
+  opacity: 0.92;
+}
+
+.crm-lead-save-indicator--header {
   opacity: 0.88;
-  max-width: 10rem;
 }
 
 .theme-dark .crm-lead-header-v4 {
@@ -236,17 +242,6 @@
 
 .crm-lead-header-v4-actions .sn-btn {
   white-space: nowrap;
-}
-
-.badge-archived {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  padding: 2px 8px;
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--text-muted) 18%, transparent);
-  color: var(--text-muted);
 }
 
 /* Retour : vrai bouton (ghost seul = texte sans cadre) */
@@ -360,71 +355,6 @@
   color: color-mix(in srgb, var(--text-primary) 96%, #000);
 }
 
-.crm-lead-badge {
-  padding: 4px 10px;
-  border-radius: 10px;
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-
-.crm-lead-badge--compact {
-  padding: 2px 8px;
-  font-size: 10px;
-  flex-shrink: 0;
-}
-
-.crm-lead-badge-lead {
-  background: color-mix(in srgb, var(--violet-strong) 22%, transparent);
-  color: var(--violet-strong);
-  border: 1px solid color-mix(in srgb, var(--violet-strong) 35%, transparent);
-}
-
-.crm-lead-badge-client {
-  background: color-mix(in srgb, var(--success, #22c55e) 22%, transparent);
-  color: var(--success, #22c55e);
-  border: 1px solid color-mix(in srgb, var(--success, #22c55e) 35%, transparent);
-}
-
-.crm-lead-save-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 0 8px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 600;
-  border: 1px solid var(--border);
-  background: var(--surface-soft, rgba(255, 255, 255, 0.04));
-  color: var(--text-muted);
-}
-
-.crm-lead-save-pill--compact {
-  flex-shrink: 0;
-  max-width: 8.5rem;
-  font-size: 10px;
-  font-weight: 500;
-  padding: 1px 6px;
-  min-height: 20px;
-  opacity: 0.72;
-  border-color: color-mix(in srgb, var(--border) 85%, transparent);
-  background: color-mix(in srgb, var(--surface) 92%, transparent);
-}
-
-.crm-lead-save-pill--compact .crm-lead-save-dot {
-  width: 4px;
-  height: 4px;
-  opacity: 0.55;
-}
-
-.crm-lead-save-label {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  opacity: 0.95;
-}
-
 .crm-lead-save-retry {
   flex-shrink: 0;
   margin: 0;
@@ -433,67 +363,9 @@
   background: none;
   font-size: 11px;
   font-weight: 600;
-  color: inherit;
+  color: var(--text-primary);
   cursor: pointer;
   text-decoration: underline;
-}
-
-/* États synchro : rester lisibles mais discrets (sauf erreur) */
-.crm-lead-save-pill--compact.crm-lead-save-pill--synced {
-  opacity: 0.82;
-  border-color: color-mix(in srgb, var(--success, #22c55e) 28%, var(--border));
-  color: color-mix(in srgb, var(--success, #22c55e) 88%, var(--text-muted));
-  background: color-mix(in srgb, var(--success, #22c55e) 6%, transparent);
-}
-
-.crm-lead-save-pill--compact.crm-lead-save-pill--pending {
-  opacity: 0.85;
-  border-color: color-mix(in srgb, var(--warning, #d97706) 35%, var(--border));
-  color: var(--warning, #d97706);
-}
-
-.crm-lead-save-pill--compact.crm-lead-save-pill--saving {
-  opacity: 0.88;
-  border-color: var(--border);
-  color: color-mix(in srgb, var(--text-primary) 75%, var(--text-muted));
-}
-
-.crm-lead-save-pill--compact.crm-lead-save-pill--error {
-  opacity: 1;
-  border-color: color-mix(in srgb, var(--error, #ef4444) 40%, var(--border));
-  color: var(--error, #ef4444);
-  background: color-mix(in srgb, var(--error, #ef4444) 6%, transparent);
-}
-
-.crm-lead-save-pill--synced {
-  border-color: color-mix(in srgb, var(--success, #22c55e) 40%, var(--border));
-  color: var(--success, #22c55e);
-  background: color-mix(in srgb, var(--success, #22c55e) 10%, transparent);
-}
-
-.crm-lead-save-pill--pending {
-  border-color: color-mix(in srgb, var(--warning, #d97706) 45%, var(--border));
-  color: var(--warning, #d97706);
-}
-
-.crm-lead-save-pill--saving {
-  border-color: var(--border-strong, #666);
-  color: var(--text-primary);
-}
-
-.crm-lead-save-pill--error {
-  border-color: color-mix(in srgb, var(--error, #ef4444) 45%, var(--border));
-  color: var(--error, #ef4444);
-  background: color-mix(in srgb, var(--error, #ef4444) 8%, transparent);
-}
-
-.crm-lead-save-dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: currentColor;
-  opacity: 0.75;
-  flex-shrink: 0;
 }
 
 /* Pipeline + type : alignés sur la même ligne, visibles, sans label */
@@ -979,6 +851,13 @@
   margin: 0;
 }
 
+.crm-lead-card-subtitle {
+  margin: 6px 0 0;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: var(--text-secondary, var(--text-muted));
+}
+
 .crm-lead-card-index {
   flex-shrink: 0;
   width: 22px;
@@ -1051,17 +930,6 @@
 }
 .crm-lead-type-btn:not(.active):hover {
   background: var(--surface-hover, #f1f5f9);
-}
-/* Badge PRO dans le header */
-.crm-lead-badge-pro {
-  background: var(--primary-light, #dbeafe);
-  color: var(--primary, #1d4ed8);
-  font-size: 11px;
-  font-weight: 600;
-  padding: 2px 8px;
-  border-radius: 20px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
 }
 /* Nom du contact affiché en sous-titre dans le header PRO */
 .crm-lead-header-contact-sub {
@@ -1621,35 +1489,6 @@
   color: var(--text-muted);
 }
 
-.crm-lead-address-quality-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.crm-lead-address-quality-badge--ok {
-  background: color-mix(in srgb, var(--success) 18%, transparent);
-  color: var(--success);
-}
-
-.crm-lead-address-quality-badge--exact {
-  background: color-mix(in srgb, var(--violet-strong) 14%, transparent);
-  color: var(--text-primary);
-}
-
-.crm-lead-address-quality-badge--warn {
-  background: color-mix(in srgb, var(--warning) 16%, transparent);
-  color: var(--warning);
-}
-
-.crm-lead-address-quality-badge--pending {
-  background: color-mix(in srgb, var(--text-muted) 14%, transparent);
-  color: var(--text-muted);
-}
-
 .crm-lead-warning {
   color: var(--warning);
   font-size: 13px;
@@ -1767,17 +1606,7 @@
 }
 
 .crm-lead-timeline-badge {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 6px;
-  font-size: 11px;
-  font-weight: 600;
   margin-right: 8px;
-}
-
-.crm-lead-timeline-badge-type {
-  background: color-mix(in srgb, var(--violet-strong) 22%, transparent);
-  color: var(--violet-strong);
 }
 
 .crm-lead-timeline-title {
@@ -2873,19 +2702,6 @@
   color: var(--text-muted);
   line-height: 1.35;
   font-variant-numeric: tabular-nums;
-}
-
-.crm-lead-meters__pill {
-  display: inline-block;
-  flex-shrink: 0;
-  padding: 2px 7px;
-  border-radius: 999px;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  background: color-mix(in srgb, var(--violet-strong, #8b5cf6) 22%, transparent);
-  color: var(--text-primary);
 }
 
 .crm-lead-meters__card-tools {

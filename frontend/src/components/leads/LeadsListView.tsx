@@ -366,7 +366,7 @@ export function LeadsListView({
                         <LeadMairieListBadge lead={lead} />
                       </div>
                       {archived ? (
-                        <span className="sn-leads-archive-badge sn-leads-archive-badge--subtle" title="Dossier archivé">
+                        <span className="sn-badge sn-badge-warn" title="Dossier archivé">
                           Archivé
                         </span>
                       ) : null}

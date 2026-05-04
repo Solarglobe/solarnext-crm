@@ -23,14 +23,13 @@ export function invoiceStatusLabel(ui: InvoiceStatusUi): string {
 }
 
 export function invoiceStatusClass(ui: InvoiceStatusUi): string {
-  const base = "ib-status";
   const map: Record<InvoiceStatusUi, string> = {
-    draft: "ib-status--draft",
-    sent: "ib-status--sent",
-    partial: "ib-status--partial",
-    paid: "ib-status--paid",
-    cancelled: "ib-status--cancelled",
-    overdue: "ib-status--overdue",
+    draft: "sn-badge sn-badge-neutral",
+    sent: "sn-badge sn-badge-info",
+    partial: "sn-badge sn-badge-warn",
+    paid: "sn-badge sn-badge-success",
+    cancelled: "sn-badge sn-badge-neutral",
+    overdue: "sn-badge sn-badge-danger",
   };
-  return `${base} ${map[ui]}`;
+  return map[ui];
 }

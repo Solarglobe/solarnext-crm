@@ -132,7 +132,7 @@ export default function FinancialInvoicesTable({
         </div>
       ) : (
         <div className="fin-table-wrap fin-table-wrap--compact">
-          <table className="fin-table fin-table--compact">
+          <table className="sn-ui-table fin-table fin-table--compact">
             <thead>
               <tr>
                 <th>N°</th>
@@ -153,7 +153,7 @@ export default function FinancialInvoicesTable({
                       <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                         <InvoiceStatusBadge status={inv.status} />
                         {od ? (
-                          <span className="fin-pill fin-pill--danger" title="Échéance dépassée">
+                          <span className="sn-badge sn-badge-danger" title="Échéance dépassée">
                             Retard
                           </span>
                         ) : null}

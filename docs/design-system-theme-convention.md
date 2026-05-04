@@ -43,6 +43,21 @@ New CRM UI must consume `frontend/src/design-system/primitives.css`.
 - Shell: CRM sidebar width is `200px`, nav items are `36px`, and page padding is
   `24px` through primitive shell tokens.
 
+## Phase 3 Tables And Badges
+
+Tables and badges are also owned by `frontend/src/design-system/primitives.css`.
+
+- Reading tables: `sn-ui-table`, `sn-saas-table`, `sn-table`, `sn-leads-table`,
+  `sn-dashboard-table`, `org-tab-table`, `admin-users-table`,
+  `admin-catalog-table`, and `qb-table` share the same header, row, hover, and
+  border geometry.
+- Editable tables: `sn-ui-table--editable`, `qb-table.qb-lines-edit`, and
+  `sn-table-finance` share compact inputs and hover-only row actions.
+- Badges: CRM badge families (`crm-status-badge`, `sn-leads-badge`,
+  `sn-leads-list-badge`, `badge-project`, mairie/admin badges) map to the
+  semantic tones `neutral`, `info`, `success`, `warn`, and `danger`.
+- Dark mode: new CSS must use `html.theme-dark`; `[data-theme]` remains banned.
+
 ## `[data-theme="dark"]` Migration Inventory
 
 Current source inventory, excluding generated bundles and dependencies:
@@ -64,3 +79,31 @@ Current source inventory, excluding generated bundles and dependencies:
 
 These selectors stay unchanged in step 1. They are scheduled for the dark mode
 cleanup phase so the first step remains reversible and low risk.
+
+## BADGES POLICY — PHASE 3 LOCK
+
+---
+
+sn-badge (+ sn-badge-{neutral|info|success|warn|danger}) = langage unique pour tout ce qui porte une lecture métier ou décisionnelle pour l'utilisateur.
+
+OBLIGATOIRE (sn-badge requis)
+- Statuts métier : devis, facture, lead, mairie, connexion mail, etc.
+- États système : actif, inactif, erreur, en attente, validé, brouillon, etc.
+- Labels décisionnels : tout ce qui répond à "où en est le dossier ?" ou "est-ce bloquant ?"
+
+AUTORISÉ HORS sn-badge
+- Dots : timeline, récence (ex. crm-lead-timeline-dot, mairie-recent-dot)
+- Barres : dashboard, KPI, progression
+- Couleurs dynamiques : planning, calendrier, utilisateur
+- Indicateurs visuels sans texte métier
+
+INTERDIT
+- Toute pastille de statut métier sans sn-badge
+- Classes *-pill, *-tag, *-chip utilisées pour un statut
+- style={{ color / background }} pour un état métier
+
+OBJECTIF
+sn-badge = langage universel des états métier
+Le reste = visualisation / UI
+
+---

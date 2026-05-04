@@ -22,13 +22,13 @@ export function quoteUiBucket(status: string | undefined | null): QuoteUiBucket 
   return "en_cours";
 }
 
-/** Classe pastille toolbar / listes (préfixe qb-status--). */
+/** Pastille statut devis (toolbar / alignement produit). */
 export function quoteUiStatusBadgeClass(status: string | undefined | null): string {
   const b = quoteUiBucket(status);
-  if (b === "en_cours") return "qb-status--ux-en-cours";
-  if (b === "signe") return "qb-status--ux-signe";
-  if (b === "refuse") return "qb-status--ux-refuse";
-  return "qb-status--ux-annule";
+  if (b === "en_cours") return "sn-badge sn-badge-info";
+  if (b === "signe") return "sn-badge sn-badge-success";
+  if (b === "refuse") return "sn-badge sn-badge-danger";
+  return "sn-badge sn-badge-neutral";
 }
 
 /**

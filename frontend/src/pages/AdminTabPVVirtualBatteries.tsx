@@ -156,7 +156,7 @@ export default function AdminTabPVVirtualBatteries() {
           </Button>
         </div>
         <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+          <table className="sn-ui-table sn-ui-table--editable">
             <thead>
               <tr>
                 <th style={{ textAlign: "left", padding: "var(--spacing-8)", borderBottom: "1px solid var(--sn-border-soft)" }}>Nom</th>
@@ -687,7 +687,7 @@ function VirtualBatteryModal({
                   </Button>
                 </div>
                 {form.capacity_table.length > 0 && (
-                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                  <table className="sn-ui-table sn-ui-table--editable">
                     <thead>
                       <tr>
                         <th style={{ textAlign: "left", padding: "var(--spacing-8)", borderBottom: "1px solid var(--sn-border-soft)" }}>

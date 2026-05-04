@@ -38,13 +38,13 @@ export function formatMairiePortalTypeLabel(t: MairiePortalType): string {
 export function statusBadgeClass(s: MairieAccountStatus): string {
   switch (s) {
     case "none":
-      return "mairie-badge mairie-badge--red";
+      return "sn-badge sn-badge-danger";
     case "to_create":
-      return "mairie-badge mairie-badge--orange";
+      return "sn-badge sn-badge-warn";
     case "created":
-      return "mairie-badge mairie-badge--green";
+      return "sn-badge sn-badge-success";
     default:
-      return "mairie-badge";
+      return "sn-badge sn-badge-neutral";
   }
 }
 

@@ -267,7 +267,7 @@ export function MailAccessTab() {
           </p>
         ) : null}
         {filteredAccounts.length > 0 && filteredUsers.length > 0 ? (
-        <table className="mail-perm__table">
+        <table className="sn-ui-table mail-perm__table">
           <thead>
             <tr>
               <th className="mail-perm__corner">Compte mail</th>
@@ -276,10 +276,10 @@ export function MailAccessTab() {
                   <span className="mail-perm__user-label" title={u.email}>
                     {u.label}
                   </span>
-                  <div className="mail-perm__badges">
-                    {u.hasViewAll ? <span className="mail-perm__badge">Accès global</span> : null}
+                  <div className="mail-perm__role-sn-stack">
+                    {u.hasViewAll ? <span className="sn-badge sn-badge-success">Accès global</span> : null}
                     {u.hasAccountsManage ? (
-                      <span className="mail-perm__badge mail-perm__badge--manage">Gestion boîtes</span>
+                      <span className="sn-badge sn-badge-warn">Gestion boîtes</span>
                     ) : null}
                   </div>
                 </th>

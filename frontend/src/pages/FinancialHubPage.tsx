@@ -81,6 +81,11 @@ function invoiceStatusTone(status: string, overdue: boolean): "neutral" | "info"
   return "neutral";
 }
 
+function hubStatusBadgeClass(tone: "neutral" | "info" | "success" | "warning" | "danger"): string {
+  const mod = tone === "warning" ? "sn-badge-warn" : `sn-badge-${tone}`;
+  return `sn-badge ${mod}`;
+}
+
 function quoteSubtitle(q: QuoteListRow): string {
   if (q.company_name) return q.company_name;
   const fullName = [q.first_name, q.last_name].filter(Boolean).join(" ").trim();
@@ -333,13 +338,16 @@ export default function FinancialHubPage() {
                   <span className="fin-doc-row-amount-value">{eur(quoteDisplayTotals(q).total_ttc)}</span>
                 </div>
                 <div className="fin-doc-row-status">
-                  <span className={`fin-badge fin-badge--${quoteStatusTone(q.status)}`}>{formatQuoteStatusFr(q.status)}</span>
+                  <span className={hubStatusBadgeClass(quoteStatusTone(q.status))}>{formatQuoteStatusFr(q.status)}</span>
                 </div>
                 <div className="fin-doc-row-actions">
                   <Link to={`/quotes/${q.id}`} className="fin-link-btn fin-link-btn--accent">
                     Ouvrir
                   </Link>
-                  <span className={q.has_pdf ? "fin-doc-pdf-tag fin-doc-pdf-tag--ok" : "fin-doc-pdf-tag"} title="PDF archivé">
+                  <span
+                    className={q.has_pdf ? "sn-badge sn-badge-success" : "sn-badge sn-badge-neutral"}
+                    title="PDF archivé"
+                  >
                     PDF
                   </span>
                 </div>
@@ -394,7 +402,7 @@ export default function FinancialHubPage() {
                     <span className="fin-doc-row-amount-value">{eur(inv.amount_due)}</span>
                   </div>
                   <div className="fin-doc-row-status">
-                    <span className={`fin-badge fin-badge--${invoiceStatusTone(inv.status, overdue)}`}>
+                    <span className={hubStatusBadgeClass(invoiceStatusTone(inv.status, overdue))}>
                       {overdue ? "En retard" : formatInvoiceStatusFr(inv.status)}
                     </span>
                   </div>
@@ -402,7 +410,10 @@ export default function FinancialHubPage() {
                     <Link to={`/invoices/${inv.id}`} className="fin-link-btn fin-link-btn--accent">
                       Ouvrir
                     </Link>
-                    <span className={inv.has_pdf ? "fin-doc-pdf-tag fin-doc-pdf-tag--ok" : "fin-doc-pdf-tag"} title="PDF archivé">
+                    <span
+                      className={inv.has_pdf ? "sn-badge sn-badge-success" : "sn-badge sn-badge-neutral"}
+                      title="PDF archivé"
+                    >
                       PDF
                     </span>
                   </div>

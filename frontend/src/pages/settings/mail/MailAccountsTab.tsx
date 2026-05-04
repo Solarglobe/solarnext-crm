@@ -72,6 +72,13 @@ function statusLabel(s: MailAccountRow["connection_status"], row: MailAccountRow
   return "Jamais synchronisé";
 }
 
+/** ok → success, error → danger, sinon neutral (jamais testé / vide). */
+function mailAcctConnectionBadgeVariant(s: MailAccountRow["connection_status"]): string {
+  if (s === "ok") return "sn-badge-success";
+  if (s === "error") return "sn-badge-danger";
+  return "sn-badge-neutral";
+}
+
 export function MailAccountsTab() {
   const [allowed, setAllowed] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
@@ -463,7 +470,7 @@ export function MailAccountsTab() {
                   <span className="mail-accts__card-title">{acc.display_name?.trim() || acc.email}</span>
                   <span className="mail-accts__card-email">{acc.email}</span>
                   <span
-                    className={`mail-accts__pill mail-accts__pill--${acc.connection_status || "untested"}`}
+                    className={`sn-badge ${mailAcctConnectionBadgeVariant(acc.connection_status)}`}
                     title={statusLabel(acc.connection_status, acc)}
                   >
                     {acc.connection_status === "ok"
