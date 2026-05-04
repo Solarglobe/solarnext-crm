@@ -1025,7 +1025,9 @@ html.sn-app-page .sn-badge.crm-status-badge--in-header {
 .theme-dark .sn-main h1,
 .theme-dark .sn-main h2,
 .theme-dark .sg-title {
-  color: var(--text-on-dark);
+  /* Corpus page dark : même jeton que le texte principal (lisible sur --bg-page).
+     Éviter --text-on-dark ici : prévu pour pastilles/boutons, pas pour le fond pleine page. */
+  color: var(--text-primary);
 }
 
 .theme-light .sn-main h1,

@@ -15,6 +15,19 @@ html.theme-dark .sn-main {
   background-color: var(--bg-page);
 }
 
+/*
+ * CRM (sn-app-page) : même fond page sur toute la chaîne #root → shell → colonne scroll.
+ * Sans cela, seuls body / .sn-main étaient teintés : marges flex, halos transparents ou
+ * wrappers sans fond laissaient voir du « blanc » sous les composants dark.
+ */
+html.theme-dark.sn-app-page #root,
+html.theme-dark.sn-app-page .sn-app-root,
+html.theme-dark.sn-app-page .sn-app-bg,
+html.theme-dark.sn-app-page .sn-app-shell,
+html.theme-dark.sn-app-page .sn-app-shell > aside.sn-sidebar + div {
+  background-color: var(--bg-page);
+}
+
 /* --- Cartes / panneaux --- */
 html.theme-dark .card,
 html.theme-dark .panel,
