@@ -161,22 +161,56 @@ function getResidualBillEurForDisplay(finance: ScenarioV2Finance): number | null
   return finiteNumberOrNull(finance.residual_bill_eur);
 }
 
-/** Indicateurs clés — affichage pur, aucun calcul métier (valeurs déjà dans scenarios_v2). */
+/** Indices des colonnes au maximum sur une métrique (lecture seule, pour repères visuels ⭐). */
+function columnIndicesAtNumericMax(values: readonly (number | null)[]): Set<number> {
+  let max = -Infinity;
+  const finite: { i: number; v: number }[] = [];
+  values.forEach((v, i) => {
+    if (v != null && Number.isFinite(v)) {
+      finite.push({ i, v });
+      if (v > max) max = v;
+    }
+  });
+  if (!finite.length || !Number.isFinite(max)) return new Set();
+  return new Set(finite.filter((p) => p.v === max).map((p) => p.i));
+}
+
+/** Repères ⭐ : meilleur TRI, meilleures économies 25 ans, meilleure autoconsommation % (entre les 3 colonnes). */
+function computeCommercialIndicatorStars(scenarios: readonly (ScenarioV2 | null)[]) {
+  const autoVals = scenarios.map((s) =>
+    s ? finiteNumberOrNull(s.energy?.self_consumption_pct ?? s.energy?.autoconsumption_pct) : null
+  );
+  const triVals = scenarios.map((s) =>
+    s ? finiteNumberOrNull(s.finance?.irr_pct ?? s.finance?.tri) : null
+  );
+  const savingsVals = scenarios.map((s) =>
+    s ? finiteNumberOrNull(s.finance?.economie_total ?? s.finance?.total_savings_25y) : null
+  );
+  return {
+    auto: columnIndicesAtNumericMax(autoVals),
+    tri: columnIndicesAtNumericMax(triVals),
+    savings: columnIndicesAtNumericMax(savingsVals),
+  };
+}
+
+/** Indicateurs clés — lignes label / valeur (données déjà dans scenarios_v2). */
 function buildKeyIndicatorRows(
   energy: ScenarioV2Energy,
   finance: ScenarioV2Finance,
-  solarCoveragePctDerived: number | null
-): ReadonlyArray<{ icon: string; label: string; value: string }> {
-  const rows: { icon: string; label: string; value: string }[] = [];
+  solarCoveragePctDerived: number | null,
+  stars: { auto: boolean; tri: boolean; savings: boolean }
+): ReadonlyArray<{ label: string; value: string; star: boolean }> {
+  const rows: { label: string; value: string; star: boolean }[] = [];
 
   const prod = finiteNumberOrNull(energy.production_kwh);
-  if (prod != null) rows.push({ icon: "☀️", label: "Production annuelle", value: formatKwh(prod) });
+  if (prod != null) rows.push({ label: "Production annuelle", value: formatKwh(prod), star: false });
 
   const conso = finiteNumberOrNull(energy.consumption_kwh);
-  if (conso != null) rows.push({ icon: "🏠", label: "Consommation annuelle", value: formatKwh(conso) });
+  if (conso != null) rows.push({ label: "Consommation annuelle", value: formatKwh(conso), star: false });
 
   const selfCons = finiteNumberOrNull(energy.self_consumption_pct ?? energy.autoconsumption_pct);
-  if (selfCons != null) rows.push({ icon: "⚡", label: "Autoconsommation", value: formatPercent(selfCons) });
+  if (selfCons != null)
+    rows.push({ label: "Autoconsommation", value: formatPercent(selfCons), star: stars.auto });
 
   const coverPref = finiteNumberOrNull(energy.self_production_pct);
   let cover: number | null = coverPref;
@@ -184,17 +218,18 @@ function buildKeyIndicatorRows(
     cover = solarCoveragePctDerived;
   }
   if (cover != null && Number.isFinite(cover)) {
-    rows.push({ icon: "📊", label: "Couverture solaire", value: formatPercent(cover) });
+    rows.push({ label: "Couverture solaire", value: formatPercent(cover), star: false });
   }
 
   const roi = finiteNumberOrNull(finance.roi_years);
-  if (roi != null) rows.push({ icon: "📅", label: "ROI", value: formatYears(roi) });
+  if (roi != null) rows.push({ label: "ROI", value: formatYears(roi), star: false });
 
   const tri = finiteNumberOrNull(finance.irr_pct ?? finance.tri);
-  if (tri != null) rows.push({ icon: "📈", label: "TRI", value: formatPercent(tri) });
+  if (tri != null) rows.push({ label: "TRI", value: formatPercent(tri), star: stars.tri });
 
   const sav25 = finiteNumberOrNull(finance.economie_total ?? finance.total_savings_25y);
-  if (sav25 != null) rows.push({ icon: "💶", label: "Économies (25 ans)", value: formatCurrency(sav25) });
+  if (sav25 != null)
+    rows.push({ label: "Économies (25 ans)", value: formatCurrency(sav25), star: stars.savings });
 
   return rows;
 }
@@ -445,6 +480,8 @@ export default function ScenarioComparisonTable({
   const [addToDocumentsByScenario, setAddToDocumentsByScenario] =
     useState<Record<ScenarioColumnId, boolean>>(INITIAL_ADD_TO_DOCS);
 
+  const commercialIndicatorStars = computeCommercialIndicatorStars(scenarios);
+
   return (
     <div className={`scenario-comparison-premium ${className}`}>
       <div className="scenario-comparison-grid">
@@ -525,7 +562,11 @@ export default function ScenarioComparisonTable({
               ? (solarUsedKwh / consoKwh) * 100
               : null;
 
-          const keyIndicatorRows = buildKeyIndicatorRows(energy, finance, solarCoveragePct);
+          const keyIndicatorRows = buildKeyIndicatorRows(energy, finance, solarCoveragePct, {
+            auto: commercialIndicatorStars.auto.has(index),
+            tri: commercialIndicatorStars.tri.has(index),
+            savings: commercialIndicatorStars.savings.has(index),
+          });
 
           const isSelectedLocked =
             versionLocked && selectedScenarioId != null && selectedScenarioId === id;
@@ -599,22 +640,31 @@ export default function ScenarioComparisonTable({
                     className="scenario-block scenario-key-indicators scenario-row-key-indicators"
                     aria-label="Indicateurs clés"
                   >
-                    <h4 className="scenario-block-title">Indicateurs clés</h4>
+                    <h4 className="scenario-block-title scenario-key-indicators-title">Indicateurs clés</h4>
                     {keyIndicatorRows.length === 0 ? (
-                      <p className="scenario-key-indicators-empty">Non disponible</p>
+                      <div className="scenario-key-indicators-empty" role="status">
+                        Non disponible
+                      </div>
                     ) : (
-                      <div className="scenario-key-indicators-grid">
-                        {keyIndicatorRows.map((row) => (
-                          <div key={row.label} className="scenario-key-indicator-cell">
-                            <div className="scenario-key-indicator-head">
-                              <span className="scenario-key-indicator-icon" aria-hidden>
-                                {row.icon}
+                      <div className="scenario-key-indicators-list">
+                        {keyIndicatorRows.map((row) => {
+                          const lineClass = [
+                            "scenario-key-indicator-line",
+                            row.label === "TRI" || row.label === "Économies (25 ans)" ? "is-key" : "",
+                            row.label === "Autoconsommation" ? "is-secondary" : "",
+                          ]
+                            .filter(Boolean)
+                            .join(" ");
+                          return (
+                            <div key={row.label} className={lineClass}>
+                              <span className="scenario-key-indicator-line-label">{row.label}</span>
+                              <span className="scenario-key-indicator-line-value">
+                                {row.value}
+                                {row.star ? <span className="scenario-key-indicator-star">⭐</span> : null}
                               </span>
-                              <span className="scenario-key-indicator-label">{row.label}</span>
                             </div>
-                            <div className="scenario-key-indicator-value">{row.value}</div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
                   </section>
@@ -1216,71 +1266,93 @@ export default function ScenarioComparisonTable({
         }
         .scenario-key-indicators {
           margin-top: 0;
-          margin-bottom: 0.5rem;
-          padding: 0.55rem 0.45rem 0.6rem;
-          border-radius: 0.65rem;
-          background: color-mix(in srgb, var(--sn-text-primary) 4%, transparent);
-          border: 1px solid rgba(255, 255, 255, 0.06);
-        }
-        .theme-light .scenario-key-indicators {
-          background: color-mix(in srgb, var(--text-primary) 3%, transparent);
-          border-color: rgba(15, 23, 42, 0.08);
-        }
-        .scenario-key-indicators .scenario-block-title {
           margin-bottom: 0.45rem;
-          font-size: 0.68rem;
+          padding: 0.15rem 0 0.35rem;
+          border: none;
+          background: transparent;
+        }
+        .scenario-key-indicators-title {
+          margin: 0 0 0.28rem;
+          font-size: 0.65rem;
+          letter-spacing: 0.07em;
         }
         .scenario-key-indicators-empty {
           margin: 0;
-          font-size: 0.76rem;
+          font-size: 0.72rem;
           color: var(--sn-text-muted, #7d86a8);
         }
-        .scenario-key-indicators-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(min(100%, 148px), 1fr));
-          gap: 0.45rem 0.55rem;
-        }
-        .scenario-key-indicator-cell {
-          min-width: 0;
-          padding: 0.35rem 0.4rem;
-          border-radius: 0.4rem;
-          background: color-mix(in srgb, var(--sn-bg-surface, #1a1d2e) 65%, transparent);
-          border: 1px solid rgba(255, 255, 255, 0.05);
-        }
-        .theme-light .scenario-key-indicator-cell {
-          background: color-mix(in srgb, var(--bg-card, #fff) 92%, transparent);
-          border-color: rgba(15, 23, 42, 0.06);
-        }
-        .scenario-key-indicator-head {
+        .scenario-key-indicators-list {
           display: flex;
-          align-items: center;
-          gap: 0.3rem;
+          flex-direction: column;
+          gap: 0.25rem;
+        }
+        .scenario-key-indicator-line {
+          display: grid;
+          grid-template-columns: 1fr auto;
+          gap: 0.35rem 0.55rem;
+          align-items: baseline;
           min-width: 0;
-          margin-bottom: 0.12rem;
+          padding: 0.2rem 0;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.05);
         }
-        .scenario-key-indicator-icon {
-          flex-shrink: 0;
-          font-size: 0.75rem;
-          line-height: 1;
+        .theme-light .scenario-key-indicator-line {
+          border-bottom-color: rgba(15, 23, 42, 0.06);
         }
-        .scenario-key-indicator-label {
-          font-size: 0.65rem;
-          font-weight: 700;
-          text-transform: uppercase;
-          letter-spacing: 0.05em;
+        .scenario-key-indicator-line:last-child {
+          border-bottom: none;
+          padding-bottom: 0;
+        }
+        .scenario-key-indicator-line.is-key {
+          font-size: 0.85rem;
+          font-weight: 800;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+        }
+        .scenario-key-indicator-line.is-key .scenario-key-indicator-line-value {
+          color: var(--primary);
+        }
+        .theme-light .scenario-key-indicator-line.is-key {
+          border-bottom-color: rgba(15, 23, 42, 0.12);
+        }
+        .scenario-key-indicator-line-label {
+          font-size: 0.72rem;
+          font-weight: 600;
           color: var(--sn-text-secondary, #9fa8c7);
           min-width: 0;
           overflow-wrap: anywhere;
+          word-break: break-word;
+          line-height: 1.3;
         }
-        .scenario-key-indicator-value {
-          font-size: 0.78rem;
+        .scenario-key-indicator-line.is-key .scenario-key-indicator-line-label {
+          font-size: 0.85rem;
+          font-weight: 800;
+          color: var(--sn-text-primary);
+        }
+        .scenario-key-indicator-line-value {
+          font-size: 0.8rem;
           font-weight: 700;
           font-variant-numeric: tabular-nums;
           color: var(--sn-text-primary);
-          line-height: 1.25;
+          text-align: right;
           min-width: 0;
           overflow-wrap: anywhere;
           word-break: break-word;
+          line-height: 1.3;
+          justify-self: end;
+        }
+        .scenario-key-indicator-line.is-key .scenario-key-indicator-line-value {
+          font-size: 0.85rem;
+          font-weight: 800;
+        }
+        .scenario-key-indicator-line.is-secondary .scenario-key-indicator-line-label {
+          font-weight: 600;
+        }
+        .scenario-key-indicator-star {
+          font-size: 0.9rem;
+          margin-left: 4px;
+          color: gold;
+          white-space: nowrap;
+          display: inline-block;
+          vertical-align: middle;
         }
         .scenario-row-decision {
           min-height: 0;
