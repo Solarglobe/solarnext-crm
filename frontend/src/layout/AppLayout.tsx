@@ -451,14 +451,6 @@ export function AppLayout() {
   }, []);
 
   useEffect(() => {
-    document.documentElement.classList.add("sn-app-page", "crm-app");
-    document.documentElement.classList.remove("sn-auth-page");
-    return () => {
-      document.documentElement.classList.remove("sn-app-page", "crm-app");
-    };
-  }, []);
-
-  useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setDropdownOpen(false);

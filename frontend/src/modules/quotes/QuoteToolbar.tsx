@@ -35,7 +35,7 @@ function closeDetailsFromEvent(e: React.MouseEvent) {
   if (det) det.open = false;
 }
 
-export default function QuoteToolbar({
+export function QuoteToolbar({
   quoteNumber,
   quoteNumberTitle,
   uxStatusLabel,

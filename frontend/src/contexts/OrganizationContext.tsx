@@ -125,6 +125,15 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
     void init();
   }, [init]);
 
+  /** CRM authentifié : même pendant chargement / erreur org, `AppLayout` n’est pas encore monté — aligner le shell HTML pour primitives / thème. */
+  useEffect(() => {
+    document.documentElement.classList.add("sn-app-page", "crm-app");
+    document.documentElement.classList.remove("sn-auth-page");
+    return () => {
+      document.documentElement.classList.remove("sn-app-page", "crm-app");
+    };
+  }, []);
+
   const switchOrganization = useCallback(
     async (orgId: string) => {
       if (!isSuperAdmin) return;

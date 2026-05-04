@@ -29,7 +29,7 @@ import {
   fetchQuotePrepEconomicItems,
   quotePrepItemsToQuoteLines,
 } from "./quotePrepImport";
-import QuoteToolbar from "./QuoteToolbar";
+import { QuoteToolbar } from "./QuoteToolbar";
 import QuoteWorkflowPanel from "./QuoteWorkflowPanel";
 import {
   quoteHasOfficialDocumentSnapshot,
