@@ -582,36 +582,42 @@ export default function ScenarioComparisonTable({
               }`}
             >
               <div className="scenario-col-top">
-                <header className="scenario-col-head">
-                  <div className="scenario-col-title-block">
-                    <h3 className="scenario-col-title">{title}</h3>
+                <div className="scenario-header">
+                  <div className="scenario-header-top">
+                    <div className="scenario-header-top-inner">
+                      <h3 className="scenario-col-title">{title}</h3>
+                      {badge.kind === "missing" && (
+                        <span className="sn-badge sn-badge-neutral">Non configuré</span>
+                      )}
+                      {badge.kind === "available" && (
+                        <span className="sn-badge sn-badge-success">DISPONIBLE</span>
+                      )}
+                      {badge.kind === "incomplete" && (
+                        <span className="sn-badge sn-badge-warn">Données incomplètes</span>
+                      )}
+                      {badge.kind === "unsuitable" && (
+                        <span className="sn-badge sn-badge-danger">Non adapté</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="scenario-header-middle">
                     <p className="scenario-col-sub">{subtitle}</p>
                   </div>
-                  {badge.kind === "missing" && (
-                    <span className="sn-badge sn-badge-neutral">Non configuré</span>
-                  )}
-                  {badge.kind === "available" && (
-                    <span className="sn-badge sn-badge-success">DISPONIBLE</span>
-                  )}
-                  {badge.kind === "incomplete" && (
-                    <span className="sn-badge sn-badge-warn">Données incomplètes</span>
-                  )}
-                  {badge.kind === "unsuitable" && (
-                    <span className="sn-badge sn-badge-danger">Non adapté</span>
-                  )}
-                </header>
 
-                {partialHphc && (
-                  <p className="scenario-col-banner">
-                    Répartition HP/HC partielle — estimation limitée.
-                  </p>
-                )}
-
-                {mySmartBlocked && (
-                  <p className="scenario-col-banner scenario-col-banner-strong">
-                    Capacité requise supérieure aux offres actuelles (MySmart).
-                  </p>
-                )}
+                  <div className="scenario-header-bottom">
+                    {partialHphc && (
+                      <p className="scenario-col-banner">
+                        Répartition HP/HC partielle — estimation limitée.
+                      </p>
+                    )}
+                    {mySmartBlocked && (
+                      <p className="scenario-col-banner scenario-col-banner-strong">
+                        Capacité requise supérieure aux offres actuelles (MySmart).
+                      </p>
+                    )}
+                  </div>
+                </div>
               </div>
 
               {scenario == null ? (
@@ -698,46 +704,31 @@ export default function ScenarioComparisonTable({
                     )}
                   </div>
 
-                  <section className="scenario-block scenario-block-decision scenario-row-decision">
-                    <h4 className="scenario-block-title">Décision</h4>
-                    <MiniRow
-                      label="Énergie solaire utilisée"
-                      tip="Énergie solaire utilisée = autoconsommation directe + énergie restituée par la batterie."
-                      value={
-                        solarUsedKwh != null && Number.isFinite(Number(solarUsedKwh))
-                          ? `Vous utiliserez environ ${formatKwh(solarUsedKwh)} de votre production solaire`
-                          : "—"
-                      }
-                    />
-                    <MiniRow
-                      label="Énergie restante à acheter"
-                      tip="Énergie réseau résiduelle (import facturé prioritaire)."
-                      value={
-                        gridToBuyKwh != null && Number.isFinite(Number(gridToBuyKwh))
-                          ? `Il vous restera environ ${formatKwh(gridToBuyKwh)} à acheter au réseau`
-                          : "—"
-                      }
-                    />
-                    <MiniRow
-                      label="Facture annuelle estimée"
-                      tip="Montant annuel estimé du scénario sélectionné."
-                      value={
-                        residualBillEur != null && Number.isFinite(Number(residualBillEur))
-                          ? `Votre facture d’électricité sera d’environ ${formatCurrency(residualBillEur)} par an`
-                          : "—"
-                      }
-                    />
-                    <MiniRow
-                      label="Couverture solaire"
-                      tip="% couverture solaire = énergie solaire utilisée / consommation."
-                      value={
-                        solarCoveragePct != null && Number.isFinite(Number(solarCoveragePct))
-                          ? Number(solarCoveragePct) >= 50
-                            ? "Plus de la moitié de votre consommation est couverte par votre installation solaire"
-                            : `Vous couvrez environ ${formatPercent(solarCoveragePct)} de vos besoins avec votre installation solaire`
-                          : "—"
-                      }
-                    />
+                  <section className="scenario-numbers scenario-row-numbers" aria-label="Synthèse chiffrée">
+                    <div className="scenario-number-line">
+                      <span>Énergie utilisée</span>
+                      <strong>
+                        {solarUsedKwh != null && Number.isFinite(Number(solarUsedKwh))
+                          ? formatKwh(solarUsedKwh)
+                          : "—"}
+                      </strong>
+                    </div>
+                    <div className="scenario-number-line">
+                      <span>Énergie à acheter</span>
+                      <strong>
+                        {gridToBuyKwh != null && Number.isFinite(Number(gridToBuyKwh))
+                          ? formatKwh(Number(gridToBuyKwh))
+                          : "—"}
+                      </strong>
+                    </div>
+                    <div className="scenario-number-line">
+                      <span>Facture annuelle</span>
+                      <strong>
+                        {residualBillEur != null && Number.isFinite(Number(residualBillEur))
+                          ? formatCurrency(residualBillEur)
+                          : "—"}
+                      </strong>
+                    </div>
                   </section>
 
                   <section className="scenario-block scenario-block-comprehension scenario-row-comprehension">
@@ -1083,10 +1074,10 @@ export default function ScenarioComparisonTable({
           position: relative;
           z-index: 1;
           overflow: hidden;
-          display: grid;
-          grid-template-rows: auto auto auto 1fr auto auto auto;
-          align-content: start;
-          row-gap: 0.35rem;
+          display: flex;
+          flex-direction: column;
+          align-items: stretch;
+          gap: 0.35rem;
           border-radius: 1rem;
           border: 1px solid var(--sn-border-soft);
           background: var(--sn-bg-surface);
@@ -1106,10 +1097,13 @@ export default function ScenarioComparisonTable({
           display: block;
           min-width: 0;
           box-sizing: border-box;
+          margin-top: 0.25rem;
         }
         .scenario-col-card--empty {
-          grid-template-rows: auto 1fr;
-          row-gap: 0;
+          gap: 0;
+        }
+        .scenario-col-card--empty .scenario-col-body.scenario-col-empty {
+          flex: 1 1 auto;
         }
         .scenario-col-card--selected {
           border-color: color-mix(in srgb, var(--gold) 42%, var(--sn-border-soft));
@@ -1136,7 +1130,7 @@ export default function ScenarioComparisonTable({
         }
         .scenario-col-card:not(.scenario-col-card--empty) > .scenario-row-hero,
         .scenario-col-card:not(.scenario-col-card--empty) > .scenario-row-key-indicators,
-        .scenario-col-card:not(.scenario-col-card--empty) > .scenario-row-decision,
+        .scenario-col-card:not(.scenario-col-card--empty) > .scenario-row-numbers,
         .scenario-col-card:not(.scenario-col-card--empty) > .scenario-row-comprehension,
         .scenario-col-card:not(.scenario-col-card--empty) > .scenario-row-impact {
           margin-bottom: 0;
@@ -1144,18 +1138,58 @@ export default function ScenarioComparisonTable({
         .scenario-col-card:not(.scenario-col-card--empty) > .scenario-row-hero.scenario-hero {
           margin-bottom: 0;
         }
+        .scenario-col-card:not(.scenario-col-card--empty) > footer.scenario-col-footer {
+          margin-top: auto;
+        }
+        .scenario-col-card:not(.scenario-col-card--empty) > .scenario-row-footer--inert {
+          margin-top: auto;
+        }
         .scenario-col-top {
           min-width: 0;
         }
-        .scenario-col-head {
+        .scenario-header {
+          display: grid;
+          grid-template-rows: auto auto auto;
+          min-height: 110px;
+          align-content: start;
+          flex-shrink: 0;
+          padding-bottom: 0.5rem;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .theme-light .scenario-header {
+          border-bottom-color: rgba(15, 23, 42, 0.08);
+        }
+        .scenario-header-top {
+          min-height: 40px;
+          display: flex;
+          align-items: flex-start;
+        }
+        .scenario-header-top-inner {
           display: flex;
           flex-wrap: wrap;
           align-items: flex-start;
           justify-content: space-between;
           gap: 0.5rem;
-          margin-bottom: 0.5rem;
-          padding-bottom: 0.75rem;
-          border-bottom: 1px solid rgba(255,255,255,0.08);
+          width: 100%;
+          min-width: 0;
+        }
+        .scenario-header-middle {
+          min-height: 20px;
+          display: flex;
+          align-items: flex-start;
+        }
+        .scenario-header-middle .scenario-col-sub {
+          margin: 0;
+        }
+        .scenario-header-bottom {
+          min-height: 30px;
+          display: flex;
+          flex-direction: column;
+          gap: 0.35rem;
+          justify-content: flex-start;
+        }
+        .scenario-header-bottom .scenario-col-banner {
+          margin: 0;
         }
         .scenario-col-title {
           margin: 0;
@@ -1166,13 +1200,13 @@ export default function ScenarioComparisonTable({
           color: var(--sg-gold);
         }
         .scenario-col-sub {
-          margin: 0.35rem 0 0;
+          margin: 0;
           font-size: 0.8rem;
           line-height: 1.35;
           color: var(--sn-text-secondary, #9FA8C7);
         }
         .scenario-col-banner {
-          margin: 0 0 0.75rem;
+          margin: 0;
           padding: 0.5rem 0.65rem;
           border-radius: 0.5rem;
           font-size: 0.78rem;
@@ -1354,11 +1388,35 @@ export default function ScenarioComparisonTable({
           display: inline-block;
           vertical-align: middle;
         }
-        .scenario-row-decision {
-          min-height: 0;
-          padding-top: 0.25rem;
-          margin-top: 0.15rem;
-          border-top: 1px solid rgba(255,255,255,0.07);
+        .scenario-numbers {
+          margin-top: 0.5rem;
+          display: flex;
+          flex-direction: column;
+          gap: 0.25rem;
+          min-width: 0;
+        }
+        .scenario-number-line {
+          display: grid;
+          grid-template-columns: 1fr auto;
+          gap: 0.35rem 0.5rem;
+          align-items: baseline;
+          font-size: 0.75rem;
+          min-width: 0;
+        }
+        .scenario-number-line span {
+          color: var(--sn-text-secondary, #9fa8c7);
+          min-width: 0;
+          overflow-wrap: anywhere;
+          word-break: break-word;
+          line-height: 1.3;
+        }
+        .scenario-number-line strong {
+          font-weight: 700;
+          font-variant-numeric: tabular-nums;
+          color: var(--sn-text-primary);
+          text-align: right;
+          min-width: 0;
+          overflow-wrap: anywhere;
         }
         .scenario-mini-row--highlight {
           background: linear-gradient(
