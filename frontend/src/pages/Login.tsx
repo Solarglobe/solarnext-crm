@@ -7,8 +7,6 @@ import {
 } from "../services/auth.service";
 import "./login-premium.css";
 
-const LOGO_SRC = "/assets/branding/logo-solarnext.png";
-
 function IconMail() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
@@ -170,11 +168,23 @@ export default function Login() {
       <div className="login-bg" aria-hidden />
       <div className="login-content">
         <div className="login-wrapper">
-          <div className="logo-container">
+          <div
+            className="logo-container login-logo"
+            role="img"
+            aria-label="SolarNext"
+          >
             <img
-              src={LOGO_SRC}
-              alt="SolarNext"
-              className="logo"
+              src="/logo.png"
+              className="logo-light"
+              alt=""
+              aria-hidden="true"
+              decoding="async"
+            />
+            <img
+              src="/dark-logo.png"
+              className="logo-dark"
+              alt=""
+              aria-hidden="true"
               decoding="async"
             />
           </div>

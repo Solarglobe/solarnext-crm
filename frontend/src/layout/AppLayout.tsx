@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useLayoutEffect, useCallback } from "react";
 import { Outlet, NavLink, useLocation } from "react-router-dom";
 import { logout } from "../services/auth.service";
 import {
@@ -398,6 +398,17 @@ function SidebarCollapsibleSection({
 export function AppLayout() {
   const { isSuperAdmin } = useOrganization();
   const { pathname } = useLocation();
+
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    root.classList.add("sn-app-page", "crm-app");
+    // 🔴 IMPORTANT : nettoyer auth
+    root.classList.remove("sn-auth-page");
+    return () => {
+      root.classList.remove("sn-app-page", "crm-app");
+    };
+  }, []);
+
   const [theme, setTheme] = useState<"light" | "dark">(getStoredTheme);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [isCreateLeadOpen, setIsCreateLeadOpen] = useState(false);
@@ -539,8 +550,25 @@ export function AppLayout() {
       <div className="sn-app-shell">
       <aside className="sn-sidebar">
         <div className="sn-sidebar-header">
-          <div className="sn-sidebar-brand sidebar-brand">
-            <img src="/logo.png" alt="SolarNext" className="logo-solarnext" />
+          <div
+            className="sn-sidebar-brand sidebar-brand sn-logo"
+            role="img"
+            aria-label="SolarNext"
+          >
+            <img
+              src="/logo.png"
+              className="logo-light"
+              alt=""
+              aria-hidden="true"
+              decoding="async"
+            />
+            <img
+              src="/dark-logo.png"
+              className="logo-dark"
+              alt=""
+              aria-hidden="true"
+              decoding="async"
+            />
           </div>
           <div className="sn-sidebar-header-toolbar">
             <div className="sn-sidebar-header-brand">
