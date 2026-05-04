@@ -161,6 +161,44 @@ function getResidualBillEurForDisplay(finance: ScenarioV2Finance): number | null
   return finiteNumberOrNull(finance.residual_bill_eur);
 }
 
+/** Indicateurs clés — affichage pur, aucun calcul métier (valeurs déjà dans scenarios_v2). */
+function buildKeyIndicatorRows(
+  energy: ScenarioV2Energy,
+  finance: ScenarioV2Finance,
+  solarCoveragePctDerived: number | null
+): ReadonlyArray<{ icon: string; label: string; value: string }> {
+  const rows: { icon: string; label: string; value: string }[] = [];
+
+  const prod = finiteNumberOrNull(energy.production_kwh);
+  if (prod != null) rows.push({ icon: "☀️", label: "Production annuelle", value: formatKwh(prod) });
+
+  const conso = finiteNumberOrNull(energy.consumption_kwh);
+  if (conso != null) rows.push({ icon: "🏠", label: "Consommation annuelle", value: formatKwh(conso) });
+
+  const selfCons = finiteNumberOrNull(energy.self_consumption_pct ?? energy.autoconsumption_pct);
+  if (selfCons != null) rows.push({ icon: "⚡", label: "Autoconsommation", value: formatPercent(selfCons) });
+
+  const coverPref = finiteNumberOrNull(energy.self_production_pct);
+  let cover: number | null = coverPref;
+  if (cover == null && solarCoveragePctDerived != null && Number.isFinite(solarCoveragePctDerived)) {
+    cover = solarCoveragePctDerived;
+  }
+  if (cover != null && Number.isFinite(cover)) {
+    rows.push({ icon: "📊", label: "Couverture solaire", value: formatPercent(cover) });
+  }
+
+  const roi = finiteNumberOrNull(finance.roi_years);
+  if (roi != null) rows.push({ icon: "📅", label: "ROI", value: formatYears(roi) });
+
+  const tri = finiteNumberOrNull(finance.irr_pct ?? finance.tri);
+  if (tri != null) rows.push({ icon: "📈", label: "TRI", value: formatPercent(tri) });
+
+  const sav25 = finiteNumberOrNull(finance.economie_total ?? finance.total_savings_25y);
+  if (sav25 != null) rows.push({ icon: "💶", label: "Économies (25 ans)", value: formatCurrency(sav25) });
+
+  return rows;
+}
+
 const SCENARIO_IDS = ["BASE", "BATTERY_PHYSICAL", "BATTERY_VIRTUAL"] as const;
 export type ScenarioColumnId = (typeof SCENARIO_IDS)[number];
 
@@ -487,6 +525,8 @@ export default function ScenarioComparisonTable({
               ? (solarUsedKwh / consoKwh) * 100
               : null;
 
+          const keyIndicatorRows = buildKeyIndicatorRows(energy, finance, solarCoveragePct);
+
           const isSelectedLocked =
             versionLocked && selectedScenarioId != null && selectedScenarioId === id;
           const isOtherLocked =
@@ -553,6 +593,30 @@ export default function ScenarioComparisonTable({
                       </Tip>
                     </p>
                     <p className="scenario-hero-value">{formatCurrency(finance.economie_year_1)}</p>
+                  </section>
+
+                  <section
+                    className="scenario-block scenario-key-indicators scenario-row-key-indicators"
+                    aria-label="Indicateurs clés"
+                  >
+                    <h4 className="scenario-block-title">Indicateurs clés</h4>
+                    {keyIndicatorRows.length === 0 ? (
+                      <p className="scenario-key-indicators-empty">Non disponible</p>
+                    ) : (
+                      <div className="scenario-key-indicators-grid">
+                        {keyIndicatorRows.map((row) => (
+                          <div key={row.label} className="scenario-key-indicator-cell">
+                            <div className="scenario-key-indicator-head">
+                              <span className="scenario-key-indicator-icon" aria-hidden>
+                                {row.icon}
+                              </span>
+                              <span className="scenario-key-indicator-label">{row.label}</span>
+                            </div>
+                            <div className="scenario-key-indicator-value">{row.value}</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </section>
 
                   <div className="scenario-row-delta">
@@ -1021,6 +1085,7 @@ export default function ScenarioComparisonTable({
           pointer-events: none;
         }
         .scenario-col-card:not(.scenario-col-card--empty) > .scenario-row-hero,
+        .scenario-col-card:not(.scenario-col-card--empty) > .scenario-row-key-indicators,
         .scenario-col-card:not(.scenario-col-card--empty) > .scenario-row-decision,
         .scenario-col-card:not(.scenario-col-card--empty) > .scenario-row-comprehension,
         .scenario-col-card:not(.scenario-col-card--empty) > .scenario-row-impact {
@@ -1149,6 +1214,74 @@ export default function ScenarioComparisonTable({
           justify-content: center;
           margin-bottom: 0;
         }
+        .scenario-key-indicators {
+          margin-top: 0;
+          margin-bottom: 0.5rem;
+          padding: 0.55rem 0.45rem 0.6rem;
+          border-radius: 0.65rem;
+          background: color-mix(in srgb, var(--sn-text-primary) 4%, transparent);
+          border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+        .theme-light .scenario-key-indicators {
+          background: color-mix(in srgb, var(--text-primary) 3%, transparent);
+          border-color: rgba(15, 23, 42, 0.08);
+        }
+        .scenario-key-indicators .scenario-block-title {
+          margin-bottom: 0.45rem;
+          font-size: 0.68rem;
+        }
+        .scenario-key-indicators-empty {
+          margin: 0;
+          font-size: 0.76rem;
+          color: var(--sn-text-muted, #7d86a8);
+        }
+        .scenario-key-indicators-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(min(100%, 148px), 1fr));
+          gap: 0.45rem 0.55rem;
+        }
+        .scenario-key-indicator-cell {
+          min-width: 0;
+          padding: 0.35rem 0.4rem;
+          border-radius: 0.4rem;
+          background: color-mix(in srgb, var(--sn-bg-surface, #1a1d2e) 65%, transparent);
+          border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        .theme-light .scenario-key-indicator-cell {
+          background: color-mix(in srgb, var(--bg-card, #fff) 92%, transparent);
+          border-color: rgba(15, 23, 42, 0.06);
+        }
+        .scenario-key-indicator-head {
+          display: flex;
+          align-items: center;
+          gap: 0.3rem;
+          min-width: 0;
+          margin-bottom: 0.12rem;
+        }
+        .scenario-key-indicator-icon {
+          flex-shrink: 0;
+          font-size: 0.75rem;
+          line-height: 1;
+        }
+        .scenario-key-indicator-label {
+          font-size: 0.65rem;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+          color: var(--sn-text-secondary, #9fa8c7);
+          min-width: 0;
+          overflow-wrap: anywhere;
+        }
+        .scenario-key-indicator-value {
+          font-size: 0.78rem;
+          font-weight: 700;
+          font-variant-numeric: tabular-nums;
+          color: var(--sn-text-primary);
+          line-height: 1.25;
+          min-width: 0;
+          overflow-wrap: anywhere;
+          word-break: break-word;
+        }
         .scenario-row-decision {
           min-height: 0;
           padding-top: 0.25rem;
@@ -1248,38 +1381,43 @@ export default function ScenarioComparisonTable({
           box-shadow: 0 4px 18px rgba(0, 0, 0, 0.06);
         }
         .scenario-mini-row {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          gap: 0.65rem;
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+          gap: 0.45rem 0.65rem;
+          align-items: start;
           font-size: 0.82rem;
-          padding: 0.32rem 0;
+          padding: 0.38rem 0;
           border-bottom: 1px solid rgba(255,255,255,0.04);
         }
         .scenario-mini-label {
           color: var(--sn-text-secondary, #9FA8C7);
-          flex: 1;
           min-width: 0;
+          overflow-wrap: anywhere;
+          word-break: break-word;
+          line-height: 1.35;
+          padding-right: 0.15rem;
         }
         .scenario-mini-value {
           display: flex;
           justify-content: flex-end;
-          align-items: center;
+          align-items: flex-start;
           font-weight: 600;
           color: var(--sn-text-primary);
           text-align: right;
           white-space: normal;
           overflow-wrap: anywhere;
+          word-break: break-word;
           font-variant-numeric: tabular-nums;
-          flex-shrink: 1;
           min-width: 0;
         }
         .scenario-mini-value-cluster {
           display: inline-flex;
-          align-items: center;
+          align-items: flex-start;
           justify-content: flex-end;
           gap: 0.22rem;
           max-width: 100%;
+          min-width: 0;
+          flex-wrap: wrap;
         }
         .scenario-mini-value-text {
           font-variant-numeric: tabular-nums;
