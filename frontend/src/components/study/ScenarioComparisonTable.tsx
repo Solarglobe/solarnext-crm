@@ -667,6 +667,35 @@ export default function ScenarioComparisonTable({
                     <p className="scenario-hero-value">{formatCurrency(finance.economie_year_1)}</p>
                   </section>
 
+                  <div className="scenario-row-delta">
+                    {id === "BATTERY_PHYSICAL" || id === "BATTERY_VIRTUAL" ? (
+                      badge.kind === "available" &&
+                      baseEconomieY1 != null &&
+                      finance.economie_year_1 != null &&
+                      Number.isFinite(Number(finance.economie_year_1)) ? (
+                        <div className="scenario-vs-base">
+                          <span className="scenario-vs-base-label">Gain vs sans batterie</span>
+                          <span className="scenario-vs-base-value">
+                            {(() => {
+                              const d = Number(finance.economie_year_1) - baseEconomieY1;
+                              const sign = d >= 0 ? "+" : "";
+                              return (
+                                <>
+                                  {sign}
+                                  {formatCurrency(d)} / an
+                                </>
+                              );
+                            })()}
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="scenario-vs-base scenario-vs-base--placeholder" aria-hidden />
+                      )
+                    ) : (
+                      <div className="scenario-vs-base scenario-vs-base--placeholder" aria-hidden />
+                    )}
+                  </div>
+
                   <section
                     className="scenario-block scenario-key-indicators scenario-row-key-indicators"
                     aria-label="Indicateurs clés"
@@ -748,35 +777,6 @@ export default function ScenarioComparisonTable({
                     </div>
                   </section>
 
-                  <div className="scenario-row-delta">
-                    {id === "BATTERY_PHYSICAL" || id === "BATTERY_VIRTUAL" ? (
-                      badge.kind === "available" &&
-                      baseEconomieY1 != null &&
-                      finance.economie_year_1 != null &&
-                      Number.isFinite(Number(finance.economie_year_1)) ? (
-                        <div className="scenario-vs-base">
-                          <span className="scenario-vs-base-label">Gain vs sans batterie</span>
-                          <span className="scenario-vs-base-value">
-                            {(() => {
-                              const d = Number(finance.economie_year_1) - baseEconomieY1;
-                              const sign = d >= 0 ? "+" : "";
-                              return (
-                                <>
-                                  {sign}
-                                  {formatCurrency(d)} / an
-                                </>
-                              );
-                            })()}
-                          </span>
-                        </div>
-                      ) : (
-                        <div className="scenario-vs-base scenario-vs-base--placeholder" aria-hidden />
-                      )
-                    ) : (
-                      <div className="scenario-vs-base scenario-vs-base--placeholder" aria-hidden />
-                    )}
-                  </div>
-
                   <section className="scenario-numbers scenario-row-numbers" aria-label="Synthèse chiffrée">
                     <div className="scenario-number-line">
                       <span>Énergie utilisée</span>
@@ -802,15 +802,6 @@ export default function ScenarioComparisonTable({
                           : "—"}
                       </strong>
                     </div>
-                  </section>
-
-                  <section className="scenario-block scenario-block-comprehension scenario-row-comprehension">
-                    <h4 className="scenario-block-title">Message client</h4>
-                    <p className="scenario-block-muted">
-                      {id !== "BASE"
-                        ? "Une partie de votre production solaire peut ne pas être utilisée à certains moments de l’année si la capacité de stockage est atteinte. Sans système de stockage, une partie importante de votre production solaire ne pourrait pas être utilisée."
-                        : "Une partie de votre production solaire peut ne pas être utilisée à certains moments de l’année si la capacité de stockage est atteinte."}
-                    </p>
                   </section>
 
                   <section className="scenario-block scenario-block-impact scenario-row-impact">
