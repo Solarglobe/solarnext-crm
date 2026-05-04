@@ -199,10 +199,10 @@ export default function Login() {
       <div className="login-panel-right">
         <div className="login-card">
           <header className="login-card-header">
-            <h1>
-              <span className="login-title-muted">Connexion à </span>
-              <span className="login-title-solar">Solar</span>
-              <span className="login-title-next">Next</span>
+            <h1 className="login-title">
+              Connexion à{" "}
+              <span className="brand-solar">Solar</span>
+              <span className="brand-next">Next</span>
             </h1>
             <p className="login-tagline">
               Entrez vos identifiants pour accéder à votre espace.

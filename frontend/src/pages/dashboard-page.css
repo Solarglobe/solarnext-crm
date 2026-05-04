@@ -17,6 +17,21 @@
   display: none;
 }
 
+/* Neutraliser le trait doré global (.sn-main h2::after) sur les titres de section dashboard */
+.sn-main h2.sn-dashboard-section-title::after,
+.sn-main h3.sn-dashboard-section-title::after {
+  display: none;
+}
+
+/* Neutraliser aussi le style inline-block + padding-bottom hérité du global .sn-main h2 */
+.sn-main h2.sn-dashboard-section-title,
+.sn-main h3.sn-dashboard-section-title {
+  display: block;
+  padding-bottom: 0;
+  position: static;
+  letter-spacing: -0.01em;
+}
+
 .sn-dashboard-num {
   font-variant-numeric: tabular-nums;
 }
@@ -1301,8 +1316,8 @@ html.theme-dark .sn-dashboard-wrap .sn-dashboard-kpi-card__accent--subtle {
 /* ——— Insight banner ——— */
 
 html.theme-dark .sn-dashboard-wrap .sn-dashboard-insight {
-  background: rgba(212, 175, 106, 0.07);
-  border-color: rgba(212, 175, 106, 0.28);
+  background: rgba(212, 175, 106, 0.07) !important;
+  border-color: rgba(212, 175, 106, 0.28) !important;
 }
 
 html.theme-dark .sn-dashboard-wrap .sn-dashboard-insight__metrics {

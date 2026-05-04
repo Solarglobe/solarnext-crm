@@ -168,16 +168,25 @@ html.sn-auth-page #root {
   line-height: 1.3;
 }
 
-.login-title-muted {
+/* =========================================================
+   BRAND TITLE LOGIN
+   ========================================================= */
+
+.login-card h1.login-title {
+  font-weight: 600;
   color: #1e1e1e;
 }
 
-.login-title-solar {
-  color: #4b2e83;
+.brand-solar {
+  color: #8b5cf6;
 }
 
-.login-title-next {
-  color: #c8a96a;
+.brand-next {
+  background: linear-gradient(90deg, #9ca3af, #e5e7eb);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: #9ca3af;
 }
 
 .login-card p.login-tagline {
