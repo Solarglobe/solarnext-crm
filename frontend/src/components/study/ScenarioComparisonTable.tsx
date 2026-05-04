@@ -957,7 +957,7 @@ export default function ScenarioComparisonTable({
         .scenario-comparison-grid {
           display: grid;
           grid-template-columns: repeat(3, minmax(0, 1fr));
-          gap: 1rem;
+          gap: 16px;
           align-items: stretch;
         }
         @media (max-width: 1024px) {
@@ -966,6 +966,9 @@ export default function ScenarioComparisonTable({
           }
         }
         .scenario-col-card {
+          position: relative;
+          z-index: 1;
+          overflow: hidden;
           display: grid;
           grid-template-rows: auto auto auto 1fr auto auto auto;
           align-content: start;
@@ -977,6 +980,18 @@ export default function ScenarioComparisonTable({
           min-height: 100%;
           min-width: 0;
           box-shadow: var(--shadow-sm);
+        }
+        .scenario-col-card * {
+          max-width: 100%;
+          position: relative;
+        }
+        /* Bloc « Économie annuelle (année 1) » : flux normal, pas de chevauchement entre colonnes */
+        .scenario-col-card .scenario-row-hero.scenario-hero {
+          position: relative;
+          width: 100%;
+          display: block;
+          min-width: 0;
+          box-sizing: border-box;
         }
         .scenario-col-card--empty {
           grid-template-rows: auto 1fr;
@@ -1216,6 +1231,9 @@ export default function ScenarioComparisonTable({
           font-weight: 800;
           line-height: 1.1;
           color: var(--sn-text-primary);
+          max-width: 100%;
+          overflow-wrap: anywhere;
+          word-break: break-word;
         }
         .scenario-hero-prominent .scenario-hero-value {
           font-size: 2.15rem;
@@ -1250,9 +1268,11 @@ export default function ScenarioComparisonTable({
           font-weight: 600;
           color: var(--sn-text-primary);
           text-align: right;
-          white-space: nowrap;
+          white-space: normal;
+          overflow-wrap: anywhere;
           font-variant-numeric: tabular-nums;
-          flex-shrink: 0;
+          flex-shrink: 1;
+          min-width: 0;
         }
         .scenario-mini-value-cluster {
           display: inline-flex;
