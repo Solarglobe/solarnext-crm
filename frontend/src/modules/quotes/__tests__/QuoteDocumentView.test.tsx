@@ -34,7 +34,7 @@ describe("QuoteDocumentView", () => {
         variant="pdf"
         legalMode="draft"
         showOfficialQuoteNumber={false}
-        brandColor="#c39847"
+        brandColor="#6366F1"
         logoSrc={null}
         issuerFallbackName="SolarNext Test"
       />
@@ -49,7 +49,7 @@ describe("QuoteDocumentView", () => {
         payload={basePayload}
         variant="present"
         legalMode="official"
-        brandColor="#c39847"
+        brandColor="#6366F1"
         logoSrc={null}
         issuerFallbackName="SolarNext Test"
       />
@@ -66,7 +66,7 @@ describe("QuoteDocumentView", () => {
         payload={basePayload}
         variant="present"
         legalMode="official"
-        brandColor="#c39847"
+        brandColor="#6366F1"
         logoSrc={null}
         issuerFallbackName="X"
       />
@@ -81,7 +81,7 @@ describe("QuoteDocumentView", () => {
         payload={basePayload}
         variant="present"
         legalMode="official"
-        brandColor="#c39847"
+        brandColor="#6366F1"
         logoSrc={null}
         issuerFallbackName="X"
         interactiveSignatures
@@ -103,7 +103,7 @@ describe("QuoteDocumentView", () => {
           payload={basePayload}
           variant="present"
           legalMode="official"
-          brandColor="#c39847"
+          brandColor="#6366F1"
           logoSrc={null}
           issuerFallbackName="X"
           clientReadApproved={false}
@@ -134,7 +134,7 @@ describe("QuoteDocumentView", () => {
         payload={payload}
         variant="present"
         legalMode="official"
-        brandColor="#c39847"
+        brandColor="#6366F1"
         logoSrc={null}
         issuerFallbackName="X"
       />
@@ -152,7 +152,7 @@ describe("QuoteDocumentView", () => {
         payload={basePayload}
         variant="present"
         legalMode="draft"
-        brandColor="#c39847"
+        brandColor="#6366F1"
         logoSrc={null}
         issuerFallbackName="X"
         clientReadApproved={false}
@@ -172,7 +172,7 @@ describe("QuoteDocumentView", () => {
         }}
         variant="pdf"
         legalMode="official"
-        brandColor="#c39847"
+        brandColor="#6366F1"
         logoSrc={null}
         issuerFallbackName="X"
       />
@@ -187,7 +187,7 @@ describe("QuoteDocumentView", () => {
         payload={{ ...basePayload, legal_cgv: { mode: "pdf" } }}
         variant="pdf"
         legalMode="official"
-        brandColor="#c39847"
+        brandColor="#6366F1"
         logoSrc={null}
         issuerFallbackName="X"
       />

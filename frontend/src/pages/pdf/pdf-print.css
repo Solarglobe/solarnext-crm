@@ -664,7 +664,7 @@
 .pdf-legacy-port .pdf-cgv__title {
   font-size: 14px;
   margin: 0 0 0.75em;
-  color: var(--sn-accent-gold, #c39847);
+  color: var(--sn-accent-gold, #C39847);
 }
 
 .pdf-legacy-port .pdf-cgv__html {
@@ -677,7 +677,7 @@
 }
 
 .pdf-legacy-port .pdf-cgv--url a {
-  color: var(--sn-accent-gold, #c39847);
+  color: var(--sn-accent-gold, #C39847);
   word-break: break-all;
 }
 

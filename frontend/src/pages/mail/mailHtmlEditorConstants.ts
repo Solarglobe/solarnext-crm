@@ -91,4 +91,4 @@ export const LINE_HEIGHT_PRESETS: { label: string; value: string }[] = [
 ];
 
 /** Pastilles rapides (toolbar couleur) — toujours exporté pour éviter les références orphelines. */
-export const COLOR_SWATCHES = ["#000000", "#FFFFFF", "#C39847", "#1F2937", "#6B7280"];
+export const COLOR_SWATCHES = ["#000000", "#FFFFFF", "#6366F1", "#1F2937", "#6B7280"];

@@ -18,7 +18,7 @@ export const PDF_HEADER_META_WIDTH_WIDE = "120mm";
 /** @deprecated alias historique ; préférer `PDF_HEADER_META_WIDTH_NARROW`. */
 export const PDF_LEGACY_HEADER_META_W_DEFAULT = PDF_HEADER_META_WIDTH_NARROW;
 
-const BRAND_FALLBACK = "#C39847";
+const BRAND_FALLBACK = "#6366F1";
 
 /** Variante de largeur méta sans passer par `headerStyle['--metaW']`. */
 export type PdfHeaderMetaWidth = "narrow" | "wide";

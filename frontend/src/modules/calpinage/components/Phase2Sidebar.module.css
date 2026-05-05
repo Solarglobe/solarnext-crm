@@ -29,7 +29,7 @@
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--sg-brand, #c39847);
+  color: var(--sg-brand, #6366F1);
 }
 
 .zoneHeaderDivider {
@@ -148,11 +148,11 @@
 .quickToolBtn:hover {
   background: rgba(195, 152, 71, 0.06);
   border-color: rgba(195, 152, 71, 0.3);
-  color: var(--sg-brand, #a97f35);
+  color: var(--sg-brand, #4F46E5);
 }
 
 .quickToolBtnActive {
-  border-color: var(--sg-brand, #c39847);
+  border-color: var(--sg-brand, #6366F1);
   background: rgba(195, 152, 71, 0.1);
   color: var(--sg-brand, #8b6914);
 }
@@ -536,7 +536,7 @@
 }
 
 .stepChip[data-status="active"] .stepChipDot {
-  background: var(--sg-brand, #c39847);
+  background: var(--sg-brand, #6366F1);
 }
 
 .stepChip[data-status="inactive"] {
@@ -580,15 +580,15 @@
 }
 
 .actionBtn.primary {
-  border-color: var(--sg-brand, #c39847);
-  background: var(--sg-brand, #c39847);
+  border-color: var(--sg-brand, #6366F1);
+  background: var(--sg-brand, #6366F1);
   color: #111;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
 }
 
 .actionBtn.primary:hover {
-  background: var(--sg-brand-hover, #a97f35);
-  border-color: var(--sg-brand-hover, #a97f35);
+  background: var(--sg-brand-hover, #4F46E5);
+  border-color: var(--sg-brand-hover, #4F46E5);
 }
 
 .actionBtn.primary:disabled {
@@ -752,7 +752,7 @@
 
 .mapSourceTrigger:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px var(--sg-brand, #c39847);
+  box-shadow: 0 0 0 2px var(--sg-brand, #6366F1);
   outline-offset: 2px;
 }
 

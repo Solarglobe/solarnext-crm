@@ -9,7 +9,7 @@
 .p12-premium {
   --p12-ink: #1a1917;
   --p12-ink-soft: #3d3a36;
-  --p12-gold: #c39847;
+  --p12-gold: #C39847;
   --p12-gold-mid: #b8923f;
   --p12-gold-soft: rgba(195, 152, 71, 0.12);
   --p12-gold-tint: rgba(195, 152, 71, 0.06);
@@ -192,7 +192,7 @@
   height: 2.5mm;
   margin-top: 0.55mm;
   border-radius: 50%;
-  background: radial-gradient(circle at 30% 30%, #e8d4a8, #c39847 55%, #8f6f2e);
+  background: radial-gradient(circle at 30% 30%, #e8d4a8, #C39847 55%, #8f6f2e);
   box-shadow:
     0 0 0 0.22mm rgba(195, 152, 71, 0.35),
     0 1px 2px rgba(0, 0, 0, 0.05);

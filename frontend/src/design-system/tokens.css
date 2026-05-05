@@ -6,10 +6,17 @@
  */
 
 :root {
-  --brand-gold: #C39847;
-  --brand-gold-hover: #A97F35;
-  --brand-gold-soft: rgba(195, 152, 71, 0.12);
-  --brand-gold-glow: rgba(195, 152, 71, 0.15);
+  /* Brand accent — indigo (remplace gold) */
+  --brand-accent: #6366F1;
+  --brand-accent-hover: #4F46E5;
+  --brand-accent-soft: #EEF2FF;
+  --brand-accent-glow: rgba(99, 102, 241, 0.15);
+
+  /* Aliases legacy conservés pour compatibilité (pointent vers indigo) */
+  --brand-gold: #6366F1;
+  --brand-gold-hover: #4F46E5;
+  --brand-gold-soft: rgba(99, 102, 241, 0.12);
+  --brand-gold-glow: rgba(99, 102, 241, 0.15);
 
   --focus-ring: rgba(109, 40, 217, 0.22);
   --focus-ring-strong: rgba(109, 40, 217, 0.36);
@@ -144,15 +151,16 @@ html.theme-dark {
 
 html.theme-light,
 html.theme-dark {
-  --sn-accent-gold: var(--brand-gold);
-  --sn-accent-gold-soft: var(--brand-gold-soft);
-  --gold: var(--brand-gold);
-  --gold-accent: var(--brand-gold);
-  --gold-soft: var(--brand-gold-soft);
-  --gold-glow: var(--brand-gold-glow);
-  --sn-gold: var(--brand-gold);
-  --sg-brand: var(--brand-gold);
-  --sg-brand-hover: var(--brand-gold-hover);
+  /* Aliases accent (indigo) */
+  --sn-accent-gold: var(--brand-accent);
+  --sn-accent-gold-soft: var(--brand-accent-soft);
+  --gold: var(--brand-accent);
+  --gold-accent: var(--brand-accent);
+  --gold-soft: var(--brand-accent-soft);
+  --gold-glow: var(--brand-accent-glow);
+  --sn-gold: var(--brand-accent);
+  --sg-brand: var(--brand-accent);
+  --sg-brand-hover: var(--brand-accent-hover);
 
   --ring: var(--focus-ring);
   --ring-strong: var(--focus-ring-strong);

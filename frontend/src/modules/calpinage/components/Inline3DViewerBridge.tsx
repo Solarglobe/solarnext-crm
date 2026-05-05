@@ -966,7 +966,7 @@ function Inline3DViewer({
             borderRadius: 8,
             border: "1px solid rgba(195,152,71,0.4)",
             background: "rgba(195,152,71,0.1)",
-            color: "#c39847",
+            color: "#6366F1",
             fontSize: 13,
             fontWeight: 600,
             cursor: "pointer",
