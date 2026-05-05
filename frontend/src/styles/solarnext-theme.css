@@ -178,12 +178,14 @@ html.theme-dark {
 }
 
 /* Fond dark profond — override app (Login inchangé) */
+/* Fix: utiliser --color-bg-page directement pour éviter la référence circulaire
+   --sn-bg-main → --bg-page → --sn-bg-main (cycle → valeur vide → fond blanc) */
 .theme-dark.sn-app-page,
 html.theme-dark.sn-app-page,
 .theme-dark .sn-app-bg,
 html.theme-dark .sn-app-bg {
-  --bg: var(--sn-bg-main);
-  --bg-page: var(--sn-bg-main);
+  --bg: var(--color-bg-page);
+  --bg-page: var(--color-bg-page);
 }
 
 /* Route-based body background (Login vs App) */
@@ -5155,6 +5157,42 @@ html:not(.sn-app-page) .sn-btn-danger:not(:disabled):not(.is-disabled):hover {
 }
 html.theme-light .logo-light { opacity: 1 !important; }
 html.theme-dark  .logo-dark  { opacity: 1 !important; }
+
+.sn-logo {
+  position: relative !important;
+  display: flex !important;
+  align-items: center !important;
+  min-height: 40px !important;
+}
+
+.logo-solarnext {
+  width: 240px !important;
+  max-width: none !important;
+  height: auto !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.sn-sidebar-header {
+  padding: 0 0 4px 0 !important;
+}
+
+.sn-sidebar-brand {
+  margin-bottom: 12px !important;
+  overflow: visible !important;
+}
+
+.sn-sidebar-header-toolbar {
+  margin: 0 !important;
+  padding-top: 12px !important;
+}
+
+@media (max-width: 768px) {
+  .logo-solarnext {
+    width: min(240px, calc(100vw - 32px)) !important;
+    max-width: none !important;
+  }
+}
 
 .sn-logo {
   position: relative !important;
