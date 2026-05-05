@@ -74,6 +74,10 @@ function resolveShellWallHeightM(runtime: unknown): { wallHeightM: number; sourc
   return { wallHeightM, source };
 }
 
+function resolveWorldZOriginShiftM(raw: unknown): number | null {
+  return typeof raw === "number" && Number.isFinite(raw) && raw > 0 ? raw : null;
+}
+
 export type BuildBuildingShell3DFromCalpinageRuntimeInput = {
   readonly runtime: unknown;
   readonly roofPlanePatches: readonly RoofPlanePatch3D[];
@@ -118,14 +122,22 @@ export function buildBuildingShell3DFromCalpinageRuntime(
   const zContourMax = Math.max(...zContour);
   const roofFitMode = `raw_building_footprint_xy,n=${zContour.length},z_roof=resolveRoofPlaneZAtXYFromPatches`;
 
-  const { wallHeightM: shellWallHeightM, source: wallHeightSource } = resolveShellWallHeightM(runtime);
+  const { wallHeightM: nominalWallHeightM, source: wallHeightSource } = resolveShellWallHeightM(runtime);
+  const worldZOriginShiftM = resolveWorldZOriginShiftM(input.worldZOriginShiftM);
 
   const zTopRing = zContour.map((z) => z - WALL_TOP_CLEARANCE_M);
-  const baseZ = zContourMin - shellWallHeightM;
+  const nominalBaseZ = zContourMin - nominalWallHeightM;
+  const worldOriginBaseZ = worldZOriginShiftM != null ? -worldZOriginShiftM : null;
+  const baseZ = worldOriginBaseZ != null ? Math.min(nominalBaseZ, worldOriginBaseZ) : nominalBaseZ;
+  const effectiveWallHeightM = zContourMin - baseZ;
   const zTopMin = Math.min(...zTopRing);
   const zTopMax = Math.max(...zTopRing);
 
-  const strategy = `horizontal_base baseZ=min(z_roof)-wallH(${shellWallHeightM.toFixed(3)}m) [${wallHeightSource}] | zTopRing=z_roof-${WALL_TOP_CLEARANCE_M} | ${roofFitMode}`;
+  const baseStrategy =
+    worldOriginBaseZ != null && baseZ === worldOriginBaseZ
+      ? `world_origin_shift(${worldZOriginShiftM!.toFixed(3)}m)`
+      : `min(z_roof)-wallH(${nominalWallHeightM.toFixed(3)}m)`;
+  const strategy = `horizontal_base baseZ=${baseStrategy} [nominal=${wallHeightSource},effectiveWallH=${effectiveWallHeightM.toFixed(3)}m] | zTopRing=z_roof-${WALL_TOP_CLEARANCE_M} | ${roofFitMode}`;
 
   const minColumnHeight = Math.min(...zTopRing.map((zt) => zt - baseZ));
   if (!Number.isFinite(minColumnHeight) || minColumnHeight < WALL_HEIGHT_MIN_M * 0.85) return null;
@@ -140,7 +152,9 @@ export function buildBuildingShell3DFromCalpinageRuntime(
       zTopRingMin: Number(zTopMin.toFixed(4)),
       zTopRingMax: Number(zTopMax.toFixed(4)),
       baseZ: Number(baseZ.toFixed(4)),
-      shellWallHeightM: Number(shellWallHeightM.toFixed(4)),
+      shellWallHeightM: Number(effectiveWallHeightM.toFixed(4)),
+      nominalWallHeightM: Number(nominalWallHeightM.toFixed(4)),
+      worldZOriginShiftM: worldZOriginShiftM == null ? null : Number(worldZOriginShiftM.toFixed(4)),
       roofFitMode,
       wallHeightStrategy: strategy,
     });
@@ -165,7 +179,7 @@ export function buildBuildingShell3DFromCalpinageRuntime(
     bounds: prism.bounds,
     baseElevationM: baseZ,
     topElevationM: zTopMax,
-    wallHeightM: shellWallHeightM,
+    wallHeightM: effectiveWallHeightM,
     wallHeightStrategy: strategy,
   };
 }

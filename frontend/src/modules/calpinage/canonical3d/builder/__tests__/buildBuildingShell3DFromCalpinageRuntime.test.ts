@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   buildBuildingShell3DFromCalpinageRuntime,
-  WALL_HEIGHT_DEFAULT_M,
   WALL_TOP_CLEARANCE_M,
 } from "../buildBuildingShell3DFromCalpinageRuntime";
 import type { LegacyRoofGeometryInput } from "../legacyInput";
@@ -124,7 +123,7 @@ describe("buildBuildingShell3DFromCalpinageRuntime", () => {
     ).toBeNull();
   });
 
-  it("worldZOriginShiftM ignoré : base horizontale ; haut suit le toit sur contour brut", () => {
+  it("worldZOriginShiftM aligne la base métier ; haut suit le toit sur contour brut", () => {
     const ny = -20;
     const nz = 100;
     const nl = Math.hypot(ny, nz);
@@ -198,9 +197,9 @@ describe("buildBuildingShell3DFromCalpinageRuntime", () => {
     const zContourMax = Math.max(...zc);
     const zTopMin = zContourMin - WALL_TOP_CLEARANCE_M;
     const zTopMax = zContourMax - WALL_TOP_CLEARANCE_M;
-    expect(shell!.baseElevationM).toBeCloseTo(zContourMin - WALL_HEIGHT_DEFAULT_M, 4);
+    expect(shell!.baseElevationM).toBeCloseTo(-5, 4);
     expect(shell!.topElevationM).toBeCloseTo(zTopMax, 4);
-    expect(shell!.wallHeightM).toBeCloseTo(WALL_HEIGHT_DEFAULT_M, 4);
+    expect(shell!.wallHeightM).toBeCloseTo(zContourMin + 5, 4);
     const half = shell!.vertices.length / 2;
     const baseZs = shell!.vertices.slice(0, half).map((v) => v.position.z);
     expect(Math.min(...baseZs)).toBeCloseTo(Math.max(...baseZs), 6);

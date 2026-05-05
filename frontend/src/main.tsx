@@ -87,6 +87,14 @@ const router = createBrowserRouter(
         )
     },
     {
+      path: "/dev/solar-scene-3d",
+      element: import.meta.env.DEV ? <SolarScene3DDebugPage /> : <Navigate to="/" replace />
+    },
+    {
+      path: "/dev/3d",
+      element: import.meta.env.DEV ? <Dev3DPage /> : <Navigate to="/" replace />
+    },
+    {
       path: "/",
       element: (
         <ProtectedRoute>
@@ -179,14 +187,6 @@ const router = createBrowserRouter(
               <AdminOrganizationsPage />
             </SuperAdminRoute>
           ),
-        },
-        {
-          path: "dev/solar-scene-3d",
-          element: import.meta.env.DEV ? <SolarScene3DDebugPage /> : <Navigate to="/" replace />
-        },
-        {
-          path: "dev/3d",
-          element: import.meta.env.DEV ? <Dev3DPage /> : <Navigate to="/" replace />
         },
         {
           path: "*",

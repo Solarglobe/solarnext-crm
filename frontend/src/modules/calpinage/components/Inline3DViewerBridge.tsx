@@ -1071,7 +1071,7 @@ export function Inline3DViewerBridge({
 
   useEffect(
     () => () => {
-      rootRef.current?.render(null);
+      rootRef.current?.unmount();
       rootRef.current = null;
     },
     [],
