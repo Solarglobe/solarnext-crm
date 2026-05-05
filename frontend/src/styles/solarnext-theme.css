@@ -5163,4 +5163,8 @@ html:not(.sn-app-page) .sn-btn-danger:not(:disabled):not(.is-disabled):hover {
 }
 
 @media (max-width: 768px) {
-  .lo
+  .logo-solarnext {
+    width: min(240px, calc(100vw - 32px)) !important;
+    max-width: none !important;
+  }
+}
