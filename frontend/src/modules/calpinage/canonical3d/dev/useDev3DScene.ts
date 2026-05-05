@@ -18,7 +18,7 @@ import type { SolarScene3D } from "../types/solarScene3d";
 import { buildDemoSolarScene3D } from "../viewer/demoSolarScene3d";
 import { buildSolarScene3DFromCalpinageRuntime } from "../buildSolarScene3DFromCalpinageRuntime";
 import { minimalCalpinageRuntimeFixture } from "./minimalCalpinageRuntimeFixture";
-import { getRuntime3DFixture } from "./runtime3DFixtureBattery";
+import { getRuntime3DFixture, runtimeFixtureWithStrictRootPans } from "./runtime3DFixtureBattery";
 
 const RUNTIME_SESSION_KEY = "solarnext_dev_3d_runtime_json";
 
@@ -89,7 +89,7 @@ export function useDev3DScene(): Dev3DSceneState {
 
     const batteryBundle = fixtureParam ? getRuntime3DFixture(fixtureParam) : undefined;
     if (batteryBundle) {
-      const runtime = batteryBundle.runtime as Record<string, unknown>;
+      const runtime = runtimeFixtureWithStrictRootPans(batteryBundle.runtime as Record<string, unknown>);
       const res = buildSolarScene3DFromCalpinageRuntime(runtime, {
         getAllPanels: () => batteryBundle.panels,
       });

@@ -286,6 +286,28 @@ function normalizeRotationDegInPlane(blockDeg: number, localDeg: number): number
   return ((s % 360) + 360) % 360;
 }
 
+function inferPanelRotationDegInPatchPlane(
+  poly: ReadonlyArray<{ x: number; y: number }>,
+  patch: RoofPlanePatch3D | null,
+  metersPerPixel: number,
+  northAngleDeg: number,
+): number | null {
+  if (!patch || poly.length < 2) return null;
+  const a = imagePxToWorldHorizontalM(poly[0]!.x, poly[0]!.y, metersPerPixel, northAngleDeg);
+  const b = imagePxToWorldHorizontalM(poly[1]!.x, poly[1]!.y, metersPerPixel, northAngleDeg);
+  const vx = b.x - a.x;
+  const vy = b.y - a.y;
+  const vz = 0;
+  const u = patch.localFrame.xAxis;
+  const v = patch.localFrame.yAxis;
+  const alongU = vx * u.x + vy * u.y + vz * u.z;
+  const alongV = vx * v.x + vy * v.y + vz * v.z;
+  if (!Number.isFinite(alongU) || !Number.isFinite(alongV) || Math.hypot(alongU, alongV) < 1e-6) {
+    return null;
+  }
+  return ((Math.atan2(alongV, alongU) * 180) / Math.PI + 360) % 360;
+}
+
 function resolvePatchIdForPanel(
   p: PanelInput,
   patchIds: ReadonlySet<string>,
@@ -341,7 +363,8 @@ export function mapPanelsToPvPlacementInputs(
   samplingNy: number,
   extras?: MapPanelsToPvPlacementExtras,
 ): MapPanelsToPvPlacementResult {
-  const patchIds = new Set(roofPlanePatches.map((x) => x.id));
+  const patchById = new Map(roofPlanePatches.map((x) => [x.id, x] as const));
+  const patchIds = new Set(patchById.keys());
   const nx = Math.max(1, Math.min(CANONICAL_NEAR_MAX_SAMPLING_N, Math.floor(samplingNx)));
   const ny = Math.max(1, Math.min(CANONICAL_NEAR_MAX_SAMPLING_N, Math.floor(samplingNy)));
   const diag: string[] = [];
@@ -362,10 +385,7 @@ export function mapPanelsToPvPlacementInputs(
     const patchId = resolvePatchIdForPanel(p, patchIds, diag, panelLabel);
     if (!patchId) continue;
 
-    const c =
-      p.center && typeof p.center.x === "number" && typeof p.center.y === "number"
-        ? { x: p.center.x, y: p.center.y }
-        : polygonCentroidPx(poly);
+    const c = polygonCentroidPx(poly);
     const panIdForZ = p.panId != null ? String(p.panId) : null;
     let z: number;
     if (typeof extras?.resolveZWorldAtImageWithPanId === "function") {
@@ -390,7 +410,10 @@ export function mapPanelsToPvPlacementInputs(
     }
     const xy = imagePxToWorldHorizontalM(c.x, c.y, metersPerPixel, northAngleDeg);
     const { w, h } = getPanelModuleDimsM(p);
-    const rot = normalizeRotationDegInPlane(p.rotationDeg ?? 0, p.localRotationDeg ?? 0);
+    const patch = patchById.get(patchId) ?? null;
+    const rot =
+      inferPanelRotationDegInPatchPlane(poly, patch, metersPerPixel, northAngleDeg) ??
+      normalizeRotationDegInPlane(p.rotationDeg ?? 0, p.localRotationDeg ?? 0);
 
     out.push({
       id: p.id != null ? String(p.id) : `pv-${i}`,
