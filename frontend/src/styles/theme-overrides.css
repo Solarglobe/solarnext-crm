@@ -140,6 +140,21 @@ html.theme-dark .mairies-page__open-portal-btn {
 }
 
 /* =========================================================
+   SHELL — fond principal (anti blanc sur toutes les pages)
+   ========================================================= */
+html.theme-dark body,
+html.theme-dark #root {
+  background: #0b1220 !important;
+}
+
+html.theme-dark .sn-main,
+html.theme-dark main.sn-main,
+html.theme-dark .sn-app-shell > aside.sn-sidebar + div {
+  background: #0b1220 !important;
+  color: var(--text-primary) !important;
+}
+
+/* =========================================================
    GLOBAL FIX (anti blancs)
    ========================================================= */
 html.theme-dark [class*="card"],
