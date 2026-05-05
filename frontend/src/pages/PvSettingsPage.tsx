@@ -5,7 +5,7 @@
  * Accès: SUPER_ADMIN, ADMIN (via AdminRoute / org.settings.manage)
  */
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { Button } from "../components/ui/Button";
 import { ModalShell } from "../components/ui/ModalShell";
 import { SaasTabs } from "../components/ui/SaasTabs";
@@ -35,6 +35,30 @@ import {
   type PvInverter,
   type PvBattery,
 } from "../api/pvCatalogApi";
+
+/** Brouillon pour duplication catalogue batteries — POST création, sans identifiants serveur. */
+function buildDraftBatteryDuplicate(row: PvBattery): Partial<PvBattery> {
+  const {
+    id: _id,
+    created_at: _ca,
+    updated_at: _ua,
+    ...rest
+  } = structuredClone(row) as PvBattery;
+  void _id;
+  void _ca;
+  void _ua;
+  const baseName = (rest.name ?? "").trim() || `${rest.brand} ${rest.model_ref}`.trim();
+  return { ...rest, name: `${baseName} (copie)` };
+}
+
+function IconCopySmall() {
+  return (
+    <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+    </svg>
+  );
+}
 
 /** Onglets paramètres PV — ids stables pour SaasTabs */
 type PvSettingsTabId = "economie" | "panneaux" | "onduleurs" | "batteries" | "virtuelles";
@@ -114,6 +138,7 @@ export default function PvSettingsPage() {
   const [inverterDefaultFamily, setInverterDefaultFamily] = useState<"CENTRAL" | "MICRO">("CENTRAL");
   const [inverterModalOpen, setInverterModalOpen] = useState(false);
   const [editingBattery, setEditingBattery] = useState<PvBattery | null>(null);
+  const [batteryModalInitialData, setBatteryModalInitialData] = useState<Partial<PvBattery> | null>(null);
   const [batteryModalOpen, setBatteryModalOpen] = useState(false);
   const [catalogSaveError, setCatalogSaveError] = useState<string | null>(null);
 
@@ -238,6 +263,14 @@ export default function PvSettingsPage() {
     }
   };
 
+  const handleDuplicateBattery = useCallback((batteryRow: PvBattery) => {
+    const draftBattery = buildDraftBatteryDuplicate(batteryRow);
+    setEditingBattery(null);
+    setBatteryModalInitialData(draftBattery);
+    setBatteryModalOpen(true);
+    showToast("Modèle dupliqué, vous pouvez maintenant l'ajuster");
+  }, []);
+
   const handleBatterySave = async (bat: Partial<PvBattery>) => {
     setCatalogSaveError(null);
     try {
@@ -248,6 +281,7 @@ export default function PvSettingsPage() {
       }
       setBatteryModalOpen(false);
       setEditingBattery(null);
+      setBatteryModalInitialData(null);
       loadCatalogs();
     } catch (e) {
       setCatalogSaveError((e as Error).message);
@@ -514,8 +548,9 @@ export default function PvSettingsPage() {
         <CatalogBatteriesTab
           batteries={batteries}
           loading={catalogLoading}
-          onAdd={() => { setEditingBattery(null); setBatteryModalOpen(true); }}
-          onEdit={(b) => { setEditingBattery(b); setBatteryModalOpen(true); }}
+          onAdd={() => { setEditingBattery(null); setBatteryModalInitialData(null); setBatteryModalOpen(true); }}
+          onEdit={(b) => { setEditingBattery(b); setBatteryModalInitialData(null); setBatteryModalOpen(true); }}
+          onDuplicate={handleDuplicateBattery}
           onToggle={async (b) => { await toggleBatteryActive(b); loadCatalogs(); }}
           onBulkActiveChange={async (ids, active) => {
             const results = await Promise.allSettled(ids.map((id) => updateBattery(id, { active })));
@@ -554,8 +589,14 @@ export default function PvSettingsPage() {
       {batteryModalOpen && (
         <PvBatteryModal
           battery={editingBattery}
+          initialData={batteryModalInitialData}
           onSave={handleBatterySave}
-          onClose={() => { setBatteryModalOpen(false); setEditingBattery(null); setCatalogSaveError(null); }}
+          onClose={() => {
+            setBatteryModalOpen(false);
+            setEditingBattery(null);
+            setBatteryModalInitialData(null);
+            setCatalogSaveError(null);
+          }}
           saveError={catalogSaveError}
         />
       )}
@@ -919,6 +960,7 @@ function CatalogBatteriesTab({
   loading,
   onAdd,
   onEdit,
+  onDuplicate,
   onToggle,
   onBulkActiveChange,
 }: {
@@ -926,6 +968,7 @@ function CatalogBatteriesTab({
   loading: boolean;
   onAdd: () => void;
   onEdit: (b: PvBattery) => void;
+  onDuplicate: (b: PvBattery) => void;
   onToggle: (b: PvBattery) => void;
   onBulkActiveChange: (ids: string[], active: boolean) => Promise<void>;
 }) {
@@ -1056,6 +1099,16 @@ function CatalogBatteriesTab({
                     <div className="pv-cat-row-actions">
                       <Button variant="ghost" size="sm" onClick={() => onToggle(b)}>{b.active ? "Désact." : "Activer"}</Button>
                       <Button variant="ghost" size="sm" onClick={() => onEdit(b)}>Modifier</Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onDuplicate(b)}
+                        title="Dupliquer"
+                        style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+                      >
+                        <IconCopySmall />
+                        Dupliquer
+                      </Button>
                     </div>
                   </td>
                 </tr>
@@ -1273,9 +1326,37 @@ function PvInverterModal({ inverter, defaultFamily, onSave, onClose, saveError }
 
 const PV_BATTERY_FORM_ID = "pv-catalog-battery-form";
 
-function PvBatteryModal({ battery, onSave, onClose, saveError }: { battery: PvBattery | null; onSave: (b: Partial<PvBattery>) => void; onClose: () => void; saveError?: string | null }) {
-  const [form, setForm] = useState<Partial<PvBattery>>(() => battery ?? { name: "", brand: "", model_ref: "", usable_kwh: 0, chemistry: "LFP", scalable: false, active: true });
-  useEffect(() => { setForm(battery ?? { name: "", brand: "", model_ref: "", usable_kwh: 0, chemistry: "LFP", scalable: false, active: true }); }, [battery]);
+function pvBatteryModalEmptyForm(): Partial<PvBattery> {
+  return { name: "", brand: "", model_ref: "", usable_kwh: 0, chemistry: "LFP", scalable: false, active: true };
+}
+
+function PvBatteryModal({
+  battery,
+  initialData = null,
+  onSave,
+  onClose,
+  saveError,
+}: {
+  battery: PvBattery | null;
+  initialData?: Partial<PvBattery> | null;
+  onSave: (b: Partial<PvBattery>) => void;
+  onClose: () => void;
+  saveError?: string | null;
+}) {
+  const nameInputRef = useRef<HTMLInputElement>(null);
+  const [form, setForm] = useState<Partial<PvBattery>>(() =>
+    battery ? { ...battery } : { ...pvBatteryModalEmptyForm(), ...(initialData ?? {}) }
+  );
+  useEffect(() => {
+    if (battery) setForm({ ...battery });
+    else setForm({ ...pvBatteryModalEmptyForm(), ...(initialData ?? {}) });
+  }, [battery, initialData]);
+
+  useEffect(() => {
+    if (battery != null || initialData == null) return;
+    const id = requestAnimationFrame(() => nameInputRef.current?.focus());
+    return () => cancelAnimationFrame(id);
+  }, [battery, initialData]);
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const p = {
@@ -1290,6 +1371,11 @@ function PvBatteryModal({ battery, onSave, onClose, saveError }: { battery: PvBa
           : Number(form.purchase_price_ht),
     };
     if (!p.brand || !p.model_ref || p.usable_kwh <= 0) return;
+    if (!battery) {
+      delete p.id;
+      delete p.created_at;
+      delete p.updated_at;
+    }
     onSave(p);
   };
   return (
@@ -1320,7 +1406,15 @@ function PvBatteryModal({ battery, onSave, onClose, saveError }: { battery: PvBa
             <Field label="Marque *"><input type="text" value={form.brand ?? ""} onChange={(e) => setForm({ ...form, brand: e.target.value })} className="qc-modal-input" required /></Field>
             <Field label="Modèle / Réf *"><input type="text" value={form.model_ref ?? ""} onChange={(e) => setForm({ ...form, model_ref: e.target.value })} className="qc-modal-input" required /></Field>
             <div className="qc-modal-field-span-2">
-              <Field label="Nom affiché"><input type="text" value={form.name ?? ""} onChange={(e) => setForm({ ...form, name: e.target.value })} className="qc-modal-input" /></Field>
+              <Field label="Nom affiché">
+                <input
+                  ref={nameInputRef}
+                  type="text"
+                  value={form.name ?? ""}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  className="qc-modal-input"
+                />
+              </Field>
             </div>
           </div>
         </div>

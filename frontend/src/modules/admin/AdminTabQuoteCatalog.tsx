@@ -18,8 +18,20 @@ import {
   type QuoteCatalogPricingMode,
   QUOTE_CATALOG_DESCRIPTION_MAX_CHARS,
 } from "../../services/admin.api";
+import { generateDuplicateName, sanitizeDuplicateQuoteCatalogFinancials } from "./quoteCatalogDuplicate";
 
 import "./admin-tab-quote-catalog.css";
+
+function showCatalogToast(message: string, type: "success" | "error" = "success") {
+  const toast = document.createElement("div");
+  toast.className = `planning-toast planning-toast-${type}`;
+  toast.textContent = message;
+  toast.setAttribute("role", "alert");
+  toast.style.cssText =
+    "position:fixed;bottom:24px;right:24px;z-index:99999;padding:12px 16px;border-radius:8px;font-size:14px;max-width:min(420px,calc(100vw - 48px));box-shadow:0 8px 24px rgba(0,0,0,.15);";
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 3200);
+}
 
 const CATEGORY_LABELS: Record<QuoteCatalogCategory, string> = {
   PANEL: "Panneau",
@@ -123,6 +135,15 @@ function IconToggleOff() {
   );
 }
 
+function IconCopySmall() {
+  return (
+    <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+    </svg>
+  );
+}
+
 function SkeletonLines({ count = 5 }: { count?: number }) {
   return (
     <div className="admin-catalog-skeleton">
@@ -153,6 +174,8 @@ export function AdminTabQuoteCatalog() {
   const [formVatPercent, setFormVatPercent] = useState<number>(20);
   const [quitConfirmOpen, setQuitConfirmOpen] = useState(false);
   const formInitialRef = useRef<string>("");
+  const catalogNameInputRef = useRef<HTMLInputElement>(null);
+  const focusCatalogNameOnOpenRef = useRef(false);
 
   const getFormSnapshot = useCallback(() =>
     JSON.stringify({
@@ -186,7 +209,15 @@ export function AdminTabQuoteCatalog() {
     load();
   }, [load]);
 
+  useEffect(() => {
+    if (!modalOpen || !focusCatalogNameOnOpenRef.current) return;
+    focusCatalogNameOnOpenRef.current = false;
+    const id = requestAnimationFrame(() => catalogNameInputRef.current?.focus());
+    return () => cancelAnimationFrame(id);
+  }, [modalOpen]);
+
   const openCreate = () => {
+    focusCatalogNameOnOpenRef.current = false;
     setEditingItem(null);
     setFormName("");
     setFormDescription("");
@@ -203,7 +234,70 @@ export function AdminTabQuoteCatalog() {
     setModalOpen(true);
   };
 
+  const openCatalogItemModalCreateFromDraft = (
+    draft: Pick<
+      QuoteCatalogItem,
+      | "name"
+      | "description"
+      | "category"
+      | "pricing_mode"
+      | "sale_price_ht_cents"
+      | "purchase_price_ht_cents"
+      | "default_vat_rate_bps"
+    >,
+  ) => {
+    setEditingItem(null);
+    setFormName(draft.name);
+    setFormDescription(draft.description ?? "");
+    setFormCategory(draft.category);
+    setFormPricingMode(draft.pricing_mode);
+    setFormSaleCents(draft.sale_price_ht_cents);
+    setFormPurchaseCents(draft.purchase_price_ht_cents);
+    setFormVatPercent(draft.default_vat_rate_bps / 100);
+    setQuitConfirmOpen(false);
+    formInitialRef.current = JSON.stringify({
+      name: draft.name,
+      description: draft.description ?? "",
+      category: draft.category,
+      pricingMode: draft.pricing_mode,
+      saleCents: draft.sale_price_ht_cents,
+      purchaseCents: draft.purchase_price_ht_cents,
+      vatPercent: draft.default_vat_rate_bps / 100,
+    });
+    focusCatalogNameOnOpenRef.current = true;
+    setModalOpen(true);
+  };
+
+  const handleDuplicateItem = useCallback(
+    (item: QuoteCatalogItem) => {
+      if (item.category === "DISCOUNT") {
+        showCatalogToast(
+          "Les lignes « Remise » ne peuvent pas être dupliquées (risque de cumul ou d’erreur sur les montants). Créez une nouvelle remise manuellement.",
+          "error",
+        );
+        return;
+      }
+      const c = structuredClone(item);
+      const existingNames = items.map((i) => i.name);
+      const draft = {
+        name: generateDuplicateName(item.name, existingNames),
+        description: c.description,
+        category: c.category,
+        pricing_mode: c.pricing_mode,
+        sale_price_ht_cents: c.sale_price_ht_cents,
+        purchase_price_ht_cents: c.purchase_price_ht_cents,
+        default_vat_rate_bps: c.default_vat_rate_bps,
+      };
+      sanitizeDuplicateQuoteCatalogFinancials(draft, PRICING_MODES);
+
+      openCatalogItemModalCreateFromDraft(draft);
+      showCatalogToast("Ligne dupliquée, vous pouvez l'ajuster");
+    },
+    [items],
+  );
+
   const openEdit = (item: QuoteCatalogItem) => {
+    focusCatalogNameOnOpenRef.current = false;
     setEditingItem(item);
     setFormName(item.name);
     setFormDescription(item.description ?? "");
@@ -235,6 +329,7 @@ export function AdminTabQuoteCatalog() {
 
   const confirmQuit = useCallback(() => {
     setQuitConfirmOpen(false);
+    focusCatalogNameOnOpenRef.current = false;
     setModalOpen(false);
   }, []);
 
@@ -279,6 +374,7 @@ export function AdminTabQuoteCatalog() {
           default_vat_rate_bps: vatBps,
         });
       }
+      focusCatalogNameOnOpenRef.current = false;
       setModalOpen(false);
       load();
     } catch (e) {
@@ -486,6 +582,22 @@ export function AdminTabQuoteCatalog() {
                         >
                           <IconEdit />
                         </button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          disabled={item.category === "DISCOUNT"}
+                          title={
+                            item.category === "DISCOUNT"
+                              ? "Duplication désactivée pour les remises (création manuelle recommandée)."
+                              : "Dupliquer vers une nouvelle ligne"
+                          }
+                          onClick={() => handleDuplicateItem(item)}
+                          style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+                        >
+                          <IconCopySmall />
+                          Dupliquer
+                        </Button>
                         {item.is_active ? (
                           <button
                             type="button"
@@ -555,6 +667,7 @@ export function AdminTabQuoteCatalog() {
                   Nom *
                 </label>
                 <input
+                  ref={catalogNameInputRef}
                   id="qc-name"
                   type="text"
                   value={formName}
