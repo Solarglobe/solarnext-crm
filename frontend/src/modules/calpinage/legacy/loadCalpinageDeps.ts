@@ -19,6 +19,17 @@ const cssCache = new Map<string, Promise<void>>();
 let ensureCalpinageDepsPromise: Promise<void> | null = null;
 let googleMapsPromise: Promise<void> | null = null;
 
+function getGoogleMapsKeyFromScript(script: HTMLScriptElement): string {
+  try {
+    const src = script.getAttribute("src") || "";
+    if (!src) return "";
+    const url = new URL(src, window.location.origin);
+    return String(url.searchParams.get("key") || "").trim();
+  } catch {
+    return "";
+  }
+}
+
 /**
  * Garantit que window.google et window.google.maps sont disponibles.
  * Singleton : pas de double injection, compatible réouverture overlay et localhost.
@@ -35,11 +46,24 @@ function ensureGoogleMapsLoaded(): Promise<void> {
   }
 
   googleMapsPromise = new Promise((resolve, reject) => {
+    const apiKey = getGoogleMapsApiKey();
+    if (!apiKey) {
+      (win as unknown as { __CALPINAGE_GOOGLE_MAPS_KEY_MISSING__?: boolean }).__CALPINAGE_GOOGLE_MAPS_KEY_MISSING__ =
+        true;
+      resolve();
+      return;
+    }
+
     const existingScript =
       document.querySelector('script[data-google-maps="true"]') ??
       document.querySelector('script[src*="maps.googleapis.com"]');
 
     if (existingScript) {
+      const existingGoogleScript = existingScript as HTMLScriptElement;
+      const existingKey = getGoogleMapsKeyFromScript(existingGoogleScript);
+      if (existingKey && existingKey !== apiKey) {
+        existingGoogleScript.remove();
+      } else {
       if ((win as unknown as { __CALPINAGE_GOOGLE_READY__?: boolean }).__CALPINAGE_GOOGLE_READY__ || (win.google && win.google.maps)) {
         (win as unknown as { __CALPINAGE_GOOGLE_READY__?: boolean }).__CALPINAGE_GOOGLE_READY__ = true;
         resolve();
@@ -52,14 +76,7 @@ function ensureGoogleMapsLoaded(): Promise<void> {
         } else reject(new Error("Google Maps loaded but window.google undefined"));
       });
       return;
-    }
-
-    const apiKey = getGoogleMapsApiKey();
-    if (!apiKey) {
-      (win as unknown as { __CALPINAGE_GOOGLE_MAPS_KEY_MISSING__?: boolean }).__CALPINAGE_GOOGLE_MAPS_KEY_MISSING__ =
-        true;
-      resolve();
-      return;
+      }
     }
 
     (win as unknown as { __calpinageGoogleInit?: () => void }).__calpinageGoogleInit = function () {
@@ -272,7 +289,7 @@ export async function ensureCalpinageDeps(): Promise<void> {
     };
     if (gmaps.__CALPINAGE_GOOGLE_MAPS_KEY_MISSING__) {
       throw new Error(
-        "Calpinage : clé Google Maps absente. Ajoutez VITE_GOOGLE_MAPS_API_KEY dans Vercel (Project → Settings → Environment Variables), pour tous les environnements ciblés, puis redéployez. En local : .env à la racine du dépôt ou frontend/.env, puis relancez Vite."
+        "Calpinage : clé Google Maps absente. Ajoutez VITE_GOOGLE_MAPS_API_KEY dans Vercel (Project → Settings → Environment Variables), pour tous les environnements ciblés, puis redéployez. En local : utilisez un .env à la racine du dépôt puis relancez Vite."
       );
     }
     console.log("[GoogleMaps] ready =", !!gmaps.google?.maps);
