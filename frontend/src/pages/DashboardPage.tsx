@@ -4,6 +4,19 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip as RechartsTooltip,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  Legend,
+} from "recharts";
 import { Card } from "../components/ui/Card";
 import {
   fetchDashboardOverview,
@@ -233,6 +246,250 @@ function TimelineSparkline({
         points={pts.join(" ")}
       />
     </svg>
+  );
+}
+
+/* ─── Gauge circulaire SVG (taux de conversion) ───────────────────────────── */
+function ConversionGauge({ pctValue, label }: { pctValue: number; label: string }) {
+  const r = 52;
+  const cx = 64;
+  const cy = 64;
+  const circumference = 2 * Math.PI * r;
+  const clamped = Math.min(100, Math.max(0, pctValue));
+  const dash = (clamped / 100) * circumference;
+  const gap = circumference - dash;
+  // couleur selon valeur
+  const color = clamped >= 60 ? "#22c55e" : clamped >= 35 ? "#7c3aed" : "#f59e0b";
+  return (
+    <div className="sn-dashboard-gauge">
+      <svg viewBox="0 0 128 128" className="sn-dashboard-gauge__svg" aria-hidden>
+        {/* piste */}
+        <circle cx={cx} cy={cy} r={r} fill="none" stroke="currentColor" strokeWidth="10" className="sn-dashboard-gauge__track" />
+        {/* arc valeur */}
+        <circle
+          cx={cx} cy={cy} r={r}
+          fill="none"
+          stroke={color}
+          strokeWidth="10"
+          strokeLinecap="round"
+          strokeDasharray={`${dash} ${gap}`}
+          transform={`rotate(-90 ${cx} ${cy})`}
+          style={{ transition: "stroke-dasharray 0.6s ease" }}
+        />
+        <text x={cx} y={cy - 4} textAnchor="middle" className="sn-dashboard-gauge__value" fill={color}>
+          {clamped.toLocaleString("fr-FR", { maximumFractionDigits: 0 })}%
+        </text>
+        <text x={cx} y={cy + 16} textAnchor="middle" className="sn-dashboard-gauge__sub">
+          {label}
+        </text>
+      </svg>
+    </div>
+  );
+}
+
+/* ─── Mini sparkline inline pour KPI cards ───────────────────────────────── */
+function KpiSparkline({ values, color = "#7c3aed" }: { values: number[]; color?: string }) {
+  if (!values.length || values.every((v) => v === 0)) return null;
+  const max = Math.max(...values, 1);
+  const w = 80;
+  const h = 28;
+  const pts = values.map((v, i) => {
+    const x = (i / Math.max(values.length - 1, 1)) * w;
+    const y = h - 2 - ((v / max) * (h - 4));
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  });
+  // Aire de remplissage
+  const areaPoints = `0,${h} ${pts.join(" ")} ${w},${h}`;
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} className="sn-dashboard-kpi-sparkline" aria-hidden>
+      <defs>
+        <linearGradient id={`kpi-grad-${color.replace("#","")}`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.25" />
+          <stop offset="100%" stopColor={color} stopOpacity="0.02" />
+        </linearGradient>
+      </defs>
+      <polygon points={areaPoints} fill={`url(#kpi-grad-${color.replace("#","")})`} />
+      <polyline fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" points={pts.join(" ")} />
+    </svg>
+  );
+}
+
+/* ─── Trend badge (flèche + delta) ──────────────────────────────────────────*/
+function TrendBadge({ current, previous, formatter }: { current: number; previous: number; formatter: (v: number) => string }) {
+  if (!previous || previous === 0) return null;
+  const delta = current - previous;
+  const pctChange = (delta / previous) * 100;
+  const isUp = delta >= 0;
+  const isNeutral = Math.abs(pctChange) < 2;
+  if (isNeutral) return <span className="sn-dashboard-trend sn-dashboard-trend--neutral">→ stable</span>;
+  return (
+    <span className={`sn-dashboard-trend ${isUp ? "sn-dashboard-trend--up" : "sn-dashboard-trend--down"}`}>
+      {isUp ? "↑" : "↓"} {Math.abs(pctChange).toFixed(0)}%
+      <span className="sn-dashboard-trend__abs"> ({isUp ? "+" : ""}{formatter(delta)})</span>
+    </span>
+  );
+}
+
+/* ─── Area Chart timeline (remplace la table) ───────────────────────────────*/
+const CHART_COLORS: Record<SeriesKey, string> = {
+  leads: "#7c3aed",
+  sent: "#a78bfa",
+  signed: "#22c55e",
+  invoices: "#f59e0b",
+  cash: "#0ea5e9",
+};
+
+function TimelineAreaChart({
+  rows,
+  seriesVis,
+}: {
+  rows: DashboardOverview["activity_timeline"];
+  seriesVis: Record<SeriesKey, boolean>;
+}) {
+  if (!rows.length) return null;
+
+  const data = rows.map((r) => ({
+    date: fmtDay(String(r.date)),
+    leads: seriesVis.leads ? safeNum(r.leads_created) : undefined,
+    sent: seriesVis.sent ? safeNum(r.quotes_sent) : undefined,
+    signed: seriesVis.signed ? safeNum(r.quotes_signed) : undefined,
+    invoices: seriesVis.invoices ? safeNum(r.invoices_issued) : undefined,
+    cash: seriesVis.cash ? safeNum(r.cash_collected) : undefined,
+  }));
+
+  const hasCash = seriesVis.cash;
+  const countSeries = (Object.keys(seriesVis) as SeriesKey[]).filter((k) => seriesVis[k] && k !== "cash").length;
+
+  return (
+    <div className="sn-dashboard-areachart-wrap">
+      <ResponsiveContainer width="100%" height={220}>
+        <AreaChart data={data} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
+          <defs>
+            {(Object.keys(CHART_COLORS) as SeriesKey[]).map((k) => (
+              <linearGradient key={k} id={`grad-${k}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor={CHART_COLORS[k]} stopOpacity={0.22} />
+                <stop offset="95%" stopColor={CHART_COLORS[k]} stopOpacity={0.02} />
+              </linearGradient>
+            ))}
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--border, rgba(148,163,184,0.12))" vertical={false} />
+          <XAxis
+            dataKey="date"
+            tick={{ fontSize: 11, fill: "var(--text-secondary, #9FA8C7)" }}
+            axisLine={false}
+            tickLine={false}
+            interval={Math.floor(data.length / 6)}
+          />
+          {/* Axe Y gauche pour counts */}
+          {countSeries > 0 && (
+            <YAxis
+              yAxisId="count"
+              tick={{ fontSize: 11, fill: "var(--text-secondary, #9FA8C7)" }}
+              axisLine={false}
+              tickLine={false}
+              width={28}
+              allowDecimals={false}
+            />
+          )}
+          {/* Axe Y droit pour cash */}
+          {hasCash && (
+            <YAxis
+              yAxisId="cash"
+              orientation="right"
+              tick={{ fontSize: 11, fill: "var(--text-secondary, #9FA8C7)" }}
+              axisLine={false}
+              tickLine={false}
+              width={56}
+              tickFormatter={(v: number) => v >= 1000 ? `${(v/1000).toFixed(0)}k` : String(v)}
+            />
+          )}
+          <RechartsTooltip
+            contentStyle={{
+              background: "var(--surface, #12172B)",
+              border: "1px solid var(--border, rgba(255,255,255,0.1))",
+              borderRadius: "8px",
+              fontSize: "12px",
+              color: "var(--text-primary, #E8ECF8)",
+            }}
+            labelStyle={{ fontWeight: 600, marginBottom: 4 }}
+            formatter={(value: number, name: string) => {
+              if (name === "cash") return [eur(value), "Encaissements"];
+              return [value, SERIES_LABELS[name as SeriesKey] ?? name];
+            }}
+          />
+          {(Object.keys(seriesVis) as SeriesKey[]).map((k) => {
+            if (!seriesVis[k]) return null;
+            const isCash = k === "cash";
+            return (
+              <Area
+                key={k}
+                type="monotone"
+                dataKey={k}
+                yAxisId={isCash ? "cash" : "count"}
+                stroke={CHART_COLORS[k]}
+                strokeWidth={2}
+                fill={`url(#grad-${k})`}
+                dot={false}
+                activeDot={{ r: 4, strokeWidth: 0 }}
+                name={k}
+              />
+            );
+          })}
+        </AreaChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+/* ─── Donut Chart sources ────────────────────────────────────────────────── */
+const DONUT_COLORS = ["#7c3aed", "#0ea5e9", "#22c55e", "#f59e0b", "#ec4899", "#14b8a6"];
+
+function SourceDonutChart({ rows }: { rows: DashboardOverview["acquisition_performance"] }) {
+  if (!rows.length) return null;
+  const data = rows.map((r, i) => ({
+    name: r.source_name,
+    value: safeNum(r.leads_count),
+    signed: safeNum(r.quotes_signed_count),
+    color: DONUT_COLORS[i % DONUT_COLORS.length],
+  })).filter((d) => d.value > 0);
+
+  if (!data.length) return null;
+
+  return (
+    <div className="sn-dashboard-donut-wrap">
+      <ResponsiveContainer width="100%" height={200}>
+        <PieChart>
+          <Pie
+            data={data}
+            cx="50%"
+            cy="50%"
+            innerRadius={55}
+            outerRadius={80}
+            paddingAngle={3}
+            dataKey="value"
+          >
+            {data.map((entry, i) => (
+              <Cell key={entry.name} fill={entry.color} strokeWidth={0} />
+            ))}
+          </Pie>
+          <RechartsTooltip
+            contentStyle={{
+              background: "var(--surface, #12172B)",
+              border: "1px solid var(--border, rgba(255,255,255,0.1))",
+              borderRadius: "8px",
+              fontSize: "12px",
+              color: "var(--text-primary, #E8ECF8)",
+            }}
+            formatter={(value: number, name: string) => [`${value} leads`, name]}
+          />
+          <Legend
+            iconType="circle"
+            iconSize={8}
+            wrapperStyle={{ fontSize: "12px", paddingTop: "8px" }}
+          />
+        </PieChart>
+      </ResponsiveContainer>
+    </div>
   );
 }
 
@@ -483,17 +740,20 @@ export default function DashboardPage() {
       {/* Bandeau insight + hero */}
       {!loading && !err && insight && kpis && fc && (
         <>
-          <section className="sn-dashboard-insight" aria-label="Synthèse">
-            <p className="sn-dashboard-insight__headline">{insight.headline}</p>
-            {insight.alerts.length > 0 && (
-              <ul className="sn-dashboard-insight__alerts">
-                {insight.alerts.map((a) => (
-                  <li key={a.id} className="sn-dashboard-insight__alert">
-                    <span className={insightToneBadgeClass(a.tone)}>{a.text}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
+          <section className="sn-dashboard-insight sn-dashboard-insight--premium" aria-label="Synthèse IA">
+            <div className="sn-dashboard-insight__icon" aria-hidden>✦</div>
+            <div className="sn-dashboard-insight__body">
+              <p className="sn-dashboard-insight__headline">{insight.headline}</p>
+              {insight.alerts.length > 0 && (
+                <ul className="sn-dashboard-insight__alerts">
+                  {insight.alerts.map((a) => (
+                    <li key={a.id} className="sn-dashboard-insight__alert">
+                      <span className={insightToneBadgeClass(a.tone)}>{a.text}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
             <div className="sn-dashboard-insight__metrics">
               {insight.metrics.map((m) => (
                 <div key={m.label} className="sn-dashboard-insight__metric">
@@ -548,6 +808,7 @@ export default function DashboardPage() {
                   <div className="sn-dashboard-kpi-card__accent sn-dashboard-kpi-card__accent--subtle" aria-hidden />
                   <div className="sn-dashboard-kpi-label">Encaissé</div>
                   <div className="sn-dashboard-kpi-value sn-dashboard-num">{eur(kpis.cash_collected_ttc)}</div>
+                  <KpiSparkline values={timelineTail.map((r) => safeNum(r.cash_collected))} color="#0ea5e9" />
                   <p className="sn-dashboard-kpi-sub">TTC · encaissements sur la période</p>
                 </article>
                 <article
@@ -566,15 +827,19 @@ export default function DashboardPage() {
                   <div className="sn-dashboard-kpi-card__accent sn-dashboard-kpi-card__accent--subtle" aria-hidden />
                   <div className="sn-dashboard-kpi-label">Pipeline à signer</div>
                   <div className="sn-dashboard-kpi-value sn-dashboard-num">{eur(fc.pipeline_quotes_to_sign_ttc)}</div>
+                  <KpiSparkline values={timelineTail.map((r) => safeNum(r.quotes_signed))} color="#7c3aed" />
                   <p className="sn-dashboard-kpi-sub">Instantané · non signés</p>
                 </article>
                 <article
-                  className="sn-dashboard-kpi-card sn-dashboard-kpi-card--secondary sn-card"
+                  className="sn-dashboard-kpi-card sn-dashboard-kpi-card--secondary sn-dashboard-kpi-card--gauge sn-card"
                   title="Devis créés sur la période déjà acceptés ÷ devis créés. Stock : taux instantané sur l’ouvert."
                 >
                   <div className="sn-dashboard-kpi-card__accent sn-dashboard-kpi-card__accent--subtle" aria-hidden />
                   <div className="sn-dashboard-kpi-label">Conversion devis → signé</div>
-                  <div className="sn-dashboard-kpi-value sn-dashboard-num">{pct(kpis.sign_rate_cohort_created_pct)}</div>
+                  <ConversionGauge
+                    pctValue={safeNum(kpis.sign_rate_cohort_created_pct)}
+                    label="cohorte"
+                  />
                   <p className="sn-dashboard-kpi-sub">Cohorte création sur la période</p>
                   <p className="sn-dashboard-kpi-hint">
                     Stock ouvert : <span className="sn-dashboard-num">{pct(kpis.sign_rate_stock_pct)}</span>
@@ -841,9 +1106,14 @@ export default function DashboardPage() {
               {sourcesExpanded ? "Vue compacte" : "Toutes les colonnes"}
             </button>
           </div>
-          <div className="sn-dashboard-table-wrap">
-            <table
-              className={`sn-ui-table sn-dashboard-table sn-dashboard-table--sources sn-dashboard-table--pilotage${sourcesExpanded ? " sn-dashboard-table--expanded" : ""}`}
+
+          {/* Layout donut + tableau côte à côte */}
+          <div className="sn-dashboard-sources-layout">
+            <SourceDonutChart rows={data.acquisition_performance} />
+            <div className="sn-dashboard-sources-table-wrap">
+              <div className="sn-dashboard-table-wrap">
+                <table
+                  className={`sn-ui-table sn-dashboard-table sn-dashboard-table--sources sn-dashboard-table--pilotage${sourcesExpanded ? " sn-dashboard-table--expanded" : ""}`}
             >
               <thead>
                 <tr>
@@ -903,8 +1173,10 @@ export default function DashboardPage() {
                   })
                 )}
               </tbody>
-            </table>
-          </div>
+                </table>
+              </div>
+            </div>{/* end sn-dashboard-sources-table-wrap */}
+          </div>{/* end sn-dashboard-sources-layout */}
         </section>
       )}
 
@@ -1026,54 +1298,58 @@ export default function DashboardPage() {
                 </h3>
                 {trendSentence && <p className="sn-dashboard-trend-line">{trendSentence}</p>}
               </div>
-              <div className="sn-dashboard-sparkline-row">
-                <div className="sn-dashboard-sparkline-block">
-                  <span className="sn-dashboard-sparkline-label">Signés / jour</span>
-                  <TimelineSparkline rows={timelineTail} accessor="quotes_signed" />
-                </div>
-                <div className="sn-dashboard-sparkline-block">
-                  <span className="sn-dashboard-sparkline-label">Encaissements / jour</span>
-                  <TimelineSparkline rows={timelineTail} accessor="cash_collected" />
-                </div>
-              </div>
-              <div className="sn-dashboard-timeline-toggles" role="group" aria-label="Colonnes affichées">
+              {/* Toggles séries */}
+              <div className="sn-dashboard-timeline-toggles" role="group" aria-label="Séries affichées">
                 {(Object.keys(SERIES_LABELS) as SeriesKey[]).map((k) => (
-                  <label key={k} className="sn-dashboard-timeline-toggle">
-                    <input type="checkbox" checked={seriesVis[k]} onChange={() => toggleSeries(k)} /> {SERIES_LABELS[k]}
+                  <label key={k} className="sn-dashboard-timeline-toggle" style={{ "--toggle-color": CHART_COLORS[k] } as React.CSSProperties}>
+                    <input type="checkbox" checked={seriesVis[k]} onChange={() => toggleSeries(k)} />
+                    <span className="sn-dashboard-timeline-toggle__dot" style={{ background: CHART_COLORS[k] }} aria-hidden />
+                    {SERIES_LABELS[k]}
                   </label>
                 ))}
               </div>
+
+              {/* Area Chart principal */}
+              <Card variant="app" padding="none" className="sn-dashboard-chart-card">
+                <TimelineAreaChart rows={timelineTail} seriesVis={seriesVis} />
+              </Card>
+
               {timelineRows.length > 31 && (
                 <p className="sn-dashboard-micro-note">
                   {timelineTail.length} derniers jours affichés sur {timelineRows.length} (lisibilité).
                 </p>
               )}
-              <div className="sn-dashboard-timeline-wrap">
-                <table className="sn-ui-table sn-dashboard-timeline-table">
-                  <thead>
-                    <tr>
-                      <th>Date</th>
-                      {seriesVis.leads && <th>Leads</th>}
-                      {seriesVis.sent && <th>Envoyés</th>}
-                      {seriesVis.signed && <th>Signés</th>}
-                      {seriesVis.invoices && <th>Factures</th>}
-                      {seriesVis.cash && <th>Encais.</th>}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {timelineTail.map((row) => (
-                      <tr key={String(row.date)}>
-                        <td className="sn-dashboard-timeline-date">{fmtDay(String(row.date))}</td>
-                        {seriesVis.leads && <td className="sn-dashboard-num">{row.leads_created}</td>}
-                        {seriesVis.sent && <td className="sn-dashboard-num">{row.quotes_sent}</td>}
-                        {seriesVis.signed && <td className="sn-dashboard-num">{row.quotes_signed}</td>}
-                        {seriesVis.invoices && <td className="sn-dashboard-num">{row.invoices_issued}</td>}
-                        {seriesVis.cash && <td className="sn-dashboard-num">{eur(row.cash_collected, { fraction: 0 })}</td>}
+
+              {/* Tableau détail replié */}
+              <details className="sn-dashboard-timeline-details">
+                <summary className="sn-dashboard-timeline-details__toggle">Voir le détail jour par jour</summary>
+                <div className="sn-dashboard-timeline-wrap">
+                  <table className="sn-ui-table sn-dashboard-timeline-table">
+                    <thead>
+                      <tr>
+                        <th>Date</th>
+                        {seriesVis.leads && <th>Leads</th>}
+                        {seriesVis.sent && <th>Envoyés</th>}
+                        {seriesVis.signed && <th>Signés</th>}
+                        {seriesVis.invoices && <th>Factures</th>}
+                        {seriesVis.cash && <th>Encais.</th>}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {timelineTail.map((row) => (
+                        <tr key={String(row.date)}>
+                          <td className="sn-dashboard-timeline-date">{fmtDay(String(row.date))}</td>
+                          {seriesVis.leads && <td className="sn-dashboard-num">{row.leads_created}</td>}
+                          {seriesVis.sent && <td className="sn-dashboard-num">{row.quotes_sent}</td>}
+                          {seriesVis.signed && <td className="sn-dashboard-num">{row.quotes_signed}</td>}
+                          {seriesVis.invoices && <td className="sn-dashboard-num">{row.invoices_issued}</td>}
+                          {seriesVis.cash && <td className="sn-dashboard-num">{eur(row.cash_collected, { fraction: 0 })}</td>}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </details>
             </>
           )}
         </section>
