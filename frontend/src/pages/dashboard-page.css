@@ -1295,7 +1295,7 @@ html.theme-dark .sn-dashboard-wrap {
   --sn-d-card:   #16203a;
   --sn-d-surf:   rgba(255, 255, 255, 0.04);
   --sn-d-border: rgba(255, 255, 255, 0.08);
-  --sn-d-gold:   #d4af6a;
+  --sn-d-accent:   #6366F1;
   --sn-d-violet: #9b7fd4;
 }
 
@@ -1362,7 +1362,7 @@ html.theme-dark .sn-dashboard-wrap .sn-dashboard-kpi-card--primary {
 }
 
 html.theme-dark .sn-dashboard-wrap .sn-dashboard-kpi-card__accent {
-  background: var(--sn-d-gold);
+  background: var(--sn-d-accent);
 }
 
 html.theme-dark .sn-dashboard-wrap .sn-dashboard-kpi-card__accent--subtle {
@@ -1506,7 +1506,7 @@ html.theme-dark .sn-dashboard-wrap .sn-dashboard-stage-tile__pot--muted {
 }
 
 html.theme-dark .sn-dashboard-wrap .sn-dashboard-stage-tile__bar--open {
-  background: var(--sn-d-gold);
+  background: var(--sn-d-accent);
 }
 
 /* ——— Callout ——— */

@@ -5140,6 +5140,30 @@ html:not(.sn-app-page) .sn-btn-danger:not(:disabled):not(.is-disabled):hover {
 }
 
 /* ========== FORCE OVERRIDE SIDEBAR (logo + header — dernier mot sur la cascade) ========== */
+
+/* Logo sidebar : contrainte de taille (écrase tout, y compris taille naturelle PNG/SVG) */
+.sn-logo img,
+.logo-light,
+.logo-dark {
+  height: 32px !important;
+  width: auto !important;
+  max-width: 120px !important;
+  object-fit: contain !important;
+  position: absolute !important;
+  opacity: 0 !important;
+  transition: opacity 0.2s ease !important;
+}
+html.theme-light .logo-light { opacity: 1 !important; }
+html.theme-dark  .logo-dark  { opacity: 1 !important; }
+:root:not(.theme-dark) .logo-light { opacity: 1 !important; }
+
+.sn-logo {
+  position: relative !important;
+  display: flex !important;
+  align-items: center !important;
+  min-height: 40px !important;
+}
+
 .logo-solarnext {
   width: 240px !important;
   max-width: none !important;
