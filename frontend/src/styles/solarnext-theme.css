@@ -152,25 +152,25 @@ html.theme-dark {
   --spacing-24: 24px;
   --spacing-32: 32px;
 
-  /* Kanban dark — même logique que le light : clair→foncé dans chaque colonne + progression gauche→droite (violet froid → or chaud), écarts plus marqués pour lisibilité */
-  --kanban-col-1-start: #3c3748;
-  --kanban-col-1-end: #18151f;
-  --kanban-col-2-start: #42362c;
-  --kanban-col-2-end: #1c1410;
-  --kanban-col-3-start: #4a3a1e;
-  --kanban-col-3-end: #1e1408;
-  --kanban-col-4-start: #534218;
-  --kanban-col-4-end: #241404;
-  /* Signé = la plus foncée du pipeline — or profond (ambre / pas brun rouge) */
-  --kanban-col-5-start: #3c330c;
-  --kanban-col-5-end: #0e0b02;
-  --kanban-col-border: rgba(212, 175, 95, 0.22);
-  --kanban-col-border-strong: rgba(230, 190, 110, 0.42);
-  --kanban-col-glow: rgba(180, 140, 70, 0.12);
+  /* Kanban dark — progression violet froid → indigo profond */
+  --kanban-col-1-start: #1e1b2e;
+  --kanban-col-1-end: #13111f;
+  --kanban-col-2-start: #221e38;
+  --kanban-col-2-end: #16132a;
+  --kanban-col-3-start: #272060;
+  --kanban-col-3-end: #1a1745;
+  --kanban-col-4-start: #312975;
+  --kanban-col-4-end: #1f1a55;
+  /* Signé = indigo profond */
+  --kanban-col-5-start: #3730a3;
+  --kanban-col-5-end: #1e1b4b;
+  --kanban-col-border: rgba(99, 102, 241, 0.2);
+  --kanban-col-border-strong: rgba(99, 102, 241, 0.4);
+  --kanban-col-glow: rgba(99, 102, 241, 0.12);
 
   /* Kanban — cartes pipeline (réflexion / relance / perdu) */
-  --card-reflection-bg: linear-gradient(135deg, #3a2a00, #5a3e00);
-  --card-reflection-border: #ffb84d;
+  --card-reflection-bg: linear-gradient(135deg, #1e1b2e, #2d2a50);
+  --card-reflection-border: #818cf8;
   --card-followup-bg: linear-gradient(135deg, #1e293b, #312e81);
   --card-followup-border: #818cf8;
   --card-lost-bg: #1f2937;
@@ -374,24 +374,24 @@ html.sn-app-page.crm-app #root {
   --sg-bg-soft: #F9FAFB;
   --sg-border: rgba(15, 23, 42, 0.08);
 
-  /* Kanban light — pipeline clair → beige → doré → or profond (obligatoire) */
-  --kanban-col-1-start: #faf8f4;
-  --kanban-col-1-end: #ebe6dc;
-  --kanban-col-2-start: #efe4d6;
-  --kanban-col-2-end: #e2d4c2;
-  --kanban-col-3-start: #e9dcb8;
-  --kanban-col-3-end: #d9c090;
-  --kanban-col-4-start: #e0c470;
-  --kanban-col-4-end: #c9a038;
-  --kanban-col-5-start: #c9a028;
-  --kanban-col-5-end: #8a6510;
+  /* Kanban light — progression neutre → indigo */
+  --kanban-col-1-start: #F8F9FF;
+  --kanban-col-1-end: #EEF2FF;
+  --kanban-col-2-start: #E8EDFF;
+  --kanban-col-2-end: #E0E7FF;
+  --kanban-col-3-start: #D4D8FF;
+  --kanban-col-3-end: #C7D0FF;
+  --kanban-col-4-start: #A5B4FC;
+  --kanban-col-4-end: #818CF8;
+  --kanban-col-5-start: #6366F1;
+  --kanban-col-5-end: #4F46E5;
   --kanban-col-border: rgba(15, 23, 42, 0.07);
-  --kanban-col-border-strong: rgba(138, 101, 16, 0.35);
-  --kanban-col-glow: rgba(184, 134, 11, 0.14);
+  --kanban-col-border-strong: rgba(99, 102, 241, 0.3);
+  --kanban-col-glow: rgba(99, 102, 241, 0.12);
 
   /* Kanban — cartes pipeline (réflexion / relance / perdu) */
-  --card-reflection-bg: linear-gradient(135deg, #fff7e6, #ffe4b5);
-  --card-reflection-border: #e6a23c;
+  --card-reflection-bg: linear-gradient(135deg, #EEF2FF, #E0E7FF);
+  --card-reflection-border: #818CF8;
   --card-followup-bg: linear-gradient(135deg, #eef2ff, #dbeafe);
   --card-followup-border: #6366f1;
   --card-lost-bg: #f5f5f5;

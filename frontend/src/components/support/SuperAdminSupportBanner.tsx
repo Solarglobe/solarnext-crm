@@ -69,8 +69,8 @@ export function SuperAdminSupportBanner() {
         flexWrap: "wrap",
         borderBottom: "1px solid var(--border)",
         background: superAdminEditMode
-          ? "color-mix(in srgb, var(--warning, #f59e0b) 22%, var(--bg-muted))"
-          : "color-mix(in srgb, var(--primary, #3b82f6) 12%, var(--bg-muted))",
+          ? "color-mix(in srgb, var(--danger, #EF4444) 14%, var(--bg-muted))"
+          : "color-mix(in srgb, var(--primary, #6366F1) 12%, var(--bg-muted))",
         color: "var(--text)",
       }}
     >
