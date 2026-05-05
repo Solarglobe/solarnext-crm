@@ -16,13 +16,7 @@ import { OrganizationSwitcher } from "../components/organization/OrganizationSwi
 import { SuperAdminSupportBanner } from "../components/support/SuperAdminSupportBanner";
 import { GlobalSearchBar } from "../components/layout/GlobalSearchBar";
 import { useOrganization, useSuperAdminReadOnly } from "../contexts/OrganizationContext";
-
-const THEME_KEY = "solarnext_theme";
-
-function getStoredTheme(): "light" | "dark" {
-  const stored = localStorage.getItem(THEME_KEY);
-  return stored === "dark" ? "dark" : "light";
-}
+import { applyTheme, persistTheme, readStoredTheme, type ThemeMode } from "../theme/themeApply";
 
 export type ImpersonationMetaState =
   | { type: "ORG"; organizationName: string; organizationId: string }
@@ -66,12 +60,6 @@ function readImpersonationMetaState(): ImpersonationMetaState | null {
     /* ignore */
   }
   return null;
-}
-
-function setStoredTheme(theme: "light" | "dark") {
-  localStorage.setItem(THEME_KEY, theme);
-  document.documentElement.classList.remove("theme-light", "theme-dark");
-  document.documentElement.classList.add(theme === "light" ? "theme-light" : "theme-dark");
 }
 
 function InvoiceNavIcon() {
@@ -409,7 +397,7 @@ export function AppLayout() {
     };
   }, []);
 
-  const [theme, setTheme] = useState<"light" | "dark">(getStoredTheme);
+  const [theme, setTheme] = useState<ThemeMode>(readStoredTheme);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [isCreateLeadOpen, setIsCreateLeadOpen] = useState(false);
   const [impersonationMeta, setImpersonationMeta] = useState<ImpersonationMetaState | null>(() =>
@@ -456,9 +444,7 @@ export function AppLayout() {
   }, [pathname]);
 
   useEffect(() => {
-    const stored = getStoredTheme();
-    document.documentElement.classList.remove("theme-light", "theme-dark");
-    document.documentElement.classList.add(stored === "light" ? "theme-light" : "theme-dark");
+    applyTheme(readStoredTheme());
   }, []);
 
   useEffect(() => {
@@ -474,7 +460,7 @@ export function AppLayout() {
   const toggleTheme = () => {
     const next = theme === "dark" ? "light" : "dark";
     setTheme(next);
-    setStoredTheme(next);
+    persistTheme(next);
   };
 
   const superAdminReadOnly = useSuperAdminReadOnly();

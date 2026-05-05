@@ -231,18 +231,18 @@
   };
 
   /* --- Obstacles toiture (2D) : draw + hitTest --- */
-  var OBSTACLE_STROKE = "#374151";
-  var OBSTACLE_FILL = "rgba(156, 163, 175, 0.35)";
-  var OBSTACLE_SELECTED_STROKE = "#b45309";
-  var OBSTACLE_SELECTED_LINE_WIDTH = 3;
-  var OBSTACLE_PREVIEW_DASH = [6, 4];
+  var OBSTACLE_STROKE = "rgba(51, 65, 85, 0.82)";
+  var OBSTACLE_FILL = "rgba(71, 85, 105, 0.18)";
+  var OBSTACLE_SELECTED_STROKE = "rgba(30, 64, 175, 0.88)";
+  var OBSTACLE_SELECTED_LINE_WIDTH = 1.8;
+  var OBSTACLE_PREVIEW_DASH = [5, 5];
   /** Rayon visuel poignées — hit élargi dans hitTestObstacleHandles */
-  var HANDLE_RADIUS_PX = 6;
-  var RECT_CORNER_HANDLE_RADIUS_PX = 8;
-  var RECT_EDGE_HANDLE_RADIUS_PX = 5;
-  var HANDLE_FILL = "#f8fafc";
-  var HANDLE_STROKE_OUTER = "#334155";
-  var HANDLE_STROKE_ACCENT = "rgba(195, 152, 71, 0.95)";
+  var HANDLE_RADIUS_PX = 4.6;
+  var RECT_CORNER_HANDLE_RADIUS_PX = 5.5;
+  var RECT_EDGE_HANDLE_RADIUS_PX = 4.2;
+  var HANDLE_FILL = "rgba(255, 255, 255, 0.82)";
+  var HANDLE_STROKE_OUTER = "rgba(15, 23, 42, 0.72)";
+  var HANDLE_STROKE_ACCENT = "rgba(37, 99, 235, 0.82)";
 
   function rotatePointImage(p, cx, cy, angle) {
     var dx = p.x - cx, dy = p.y - cy;
@@ -319,20 +319,20 @@
 
   function drawHandleDisc(ctx, x, y, r) {
     ctx.beginPath();
-    ctx.arc(x, y, r + 1.2, 0, Math.PI * 2);
-    ctx.fillStyle = "rgba(255,255,255,0.92)";
+    ctx.arc(x, y, r + 0.8, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(255,255,255,0.50)";
     ctx.fill();
     ctx.beginPath();
     ctx.arc(x, y, r, 0, Math.PI * 2);
     ctx.fillStyle = HANDLE_FILL;
     ctx.fill();
     ctx.strokeStyle = HANDLE_STROKE_OUTER;
-    ctx.lineWidth = 1.35;
+    ctx.lineWidth = 1.05;
     ctx.stroke();
     ctx.beginPath();
-    ctx.arc(x, y, r - 0.9, 0, Math.PI * 2);
+    ctx.arc(x, y, Math.max(1, r - 1.2), 0, Math.PI * 2);
     ctx.strokeStyle = HANDLE_STROKE_ACCENT;
-    ctx.lineWidth = 1;
+    ctx.lineWidth = 0.85;
     ctx.stroke();
   }
 
@@ -391,8 +391,8 @@
 
       /* Ligne de liaison PREMIUM (top-edge → handle) */
       ctx.save();
-      ctx.strokeStyle = "rgba(195,152,71,0.65)";
-      ctx.lineWidth = 1.2;
+      ctx.strokeStyle = "rgba(37, 99, 235, 0.30)";
+      ctx.lineWidth = 0.9;
       ctx.lineCap = "round";
       ctx.beginPath();
       ctx.moveTo(edgeScreen.x, edgeScreen.y);
@@ -404,35 +404,35 @@
       var hovered = !!emphasizeRotate;
       ctx.save();
       if (hovered) {
-        ctx.shadowBlur = 10;
-        ctx.shadowColor = "rgba(201, 152, 71, 0.85)";
+        ctx.shadowBlur = 6;
+        ctx.shadowColor = "rgba(37, 99, 235, 0.55)";
       } else {
         ctx.shadowBlur = 0;
       }
       ctx.beginPath();
-      ctx.arc(handleScreen.x, handleScreen.y, 10, 0, Math.PI * 2);
-      ctx.fillStyle = "rgba(20,20,20,0.92)";
+      ctx.arc(handleScreen.x, handleScreen.y, 7, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(15, 23, 42, 0.86)";
       ctx.fill();
-      ctx.lineWidth = 1.4;
-      ctx.strokeStyle = "#C39847";
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = "rgba(96, 165, 250, 0.85)";
       ctx.stroke();
       ctx.shadowBlur = 0;
       /* Icône rotation arc */
       ctx.beginPath();
-      ctx.lineWidth = 1.6;
-      ctx.strokeStyle = "#C39847";
-      ctx.arc(handleScreen.x, handleScreen.y, 6, Math.PI * 0.2, Math.PI * 1.7);
+      ctx.lineWidth = 1.25;
+      ctx.strokeStyle = "rgba(191, 219, 254, 0.95)";
+      ctx.arc(handleScreen.x, handleScreen.y, 4.2, Math.PI * 0.2, Math.PI * 1.7);
       ctx.stroke();
       /* Pointe flèche */
       var arrowAngle = Math.PI * 1.7;
-      var ax = handleScreen.x + Math.cos(arrowAngle) * 6;
-      var ay = handleScreen.y + Math.sin(arrowAngle) * 6;
+      var ax = handleScreen.x + Math.cos(arrowAngle) * 4.2;
+      var ay = handleScreen.y + Math.sin(arrowAngle) * 4.2;
       ctx.beginPath();
       ctx.moveTo(ax, ay);
-      ctx.lineTo(ax - 4, ay - 2);
-      ctx.lineTo(ax - 1, ay - 5);
+      ctx.lineTo(ax - 3, ay - 1.5);
+      ctx.lineTo(ax - 0.8, ay - 3.5);
       ctx.closePath();
-      ctx.fillStyle = "#C39847";
+      ctx.fillStyle = "rgba(191, 219, 254, 0.95)";
       ctx.fill();
       ctx.restore();
     }
@@ -469,8 +469,8 @@
       var edgeScreen = imageToScreen(edgeImg);
       var handleScreen = imageToScreen(handleImg);
       ctx.save();
-      ctx.strokeStyle = "rgba(195,152,71,0.65)";
-      ctx.lineWidth = 1.2;
+      ctx.strokeStyle = "rgba(37, 99, 235, 0.30)";
+      ctx.lineWidth = 0.9;
       ctx.lineCap = "round";
       ctx.beginPath();
       ctx.moveTo(edgeScreen.x, edgeScreen.y);
@@ -479,33 +479,33 @@
       ctx.restore();
       ctx.save();
       if (hoveredRotate) {
-        ctx.shadowBlur = 8;
-        ctx.shadowColor = "#C39847";
+        ctx.shadowBlur = 6;
+        ctx.shadowColor = "rgba(37, 99, 235, 0.55)";
       } else {
         ctx.shadowBlur = 0;
       }
       ctx.beginPath();
-      ctx.arc(handleScreen.x, handleScreen.y, 10, 0, Math.PI * 2);
-      ctx.fillStyle = "rgba(20,20,20,0.92)";
+      ctx.arc(handleScreen.x, handleScreen.y, 7, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(15, 23, 42, 0.86)";
       ctx.fill();
-      ctx.lineWidth = 1.4;
-      ctx.strokeStyle = "#C39847";
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = "rgba(96, 165, 250, 0.85)";
       ctx.stroke();
       ctx.shadowBlur = 0;
       ctx.beginPath();
-      ctx.lineWidth = 1.6;
-      ctx.strokeStyle = "#C39847";
-      ctx.arc(handleScreen.x, handleScreen.y, 6, Math.PI * 0.2, Math.PI * 1.7);
+      ctx.lineWidth = 1.25;
+      ctx.strokeStyle = "rgba(191, 219, 254, 0.95)";
+      ctx.arc(handleScreen.x, handleScreen.y, 4.2, Math.PI * 0.2, Math.PI * 1.7);
       ctx.stroke();
       var arrowAngle = Math.PI * 1.7;
-      var ax = handleScreen.x + Math.cos(arrowAngle) * 6;
-      var ay = handleScreen.y + Math.sin(arrowAngle) * 6;
+      var ax = handleScreen.x + Math.cos(arrowAngle) * 4.2;
+      var ay = handleScreen.y + Math.sin(arrowAngle) * 4.2;
       ctx.beginPath();
       ctx.moveTo(ax, ay);
-      ctx.lineTo(ax - 4, ay - 2);
-      ctx.lineTo(ax - 1, ay - 5);
+      ctx.lineTo(ax - 3, ay - 1.5);
+      ctx.lineTo(ax - 0.8, ay - 3.5);
       ctx.closePath();
-      ctx.fillStyle = "#C39847";
+      ctx.fillStyle = "rgba(191, 219, 254, 0.95)";
       ctx.fill();
       ctx.restore();
     }

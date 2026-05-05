@@ -6,11 +6,7 @@ import "./design-system/primitives.css";
 import "./design-system/sidebar-crm.css";
 import "ol/ol.css";
 import React from "react";
-
-// Initialisation thème (light default, persistance localStorage)
-const savedTheme = localStorage.getItem("solarnext_theme");
-document.documentElement.classList.remove("theme-light", "theme-dark");
-document.documentElement.classList.add(savedTheme === "dark" ? "theme-dark" : "theme-light");
+import { applyTheme, readStoredTheme } from "./theme/themeApply";
 import { createRoot } from "react-dom/client";
 import { createBrowserRouter, Navigate, RouterProvider, useParams, Outlet } from "react-router-dom";
 
@@ -62,6 +58,8 @@ import MailOutboxPage from "./pages/mail/MailOutboxPage";
 import MailSettingsPage from "./pages/settings/MailSettingsPage";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import "./styles/theme-overrides.css";
+
+applyTheme(readStoredTheme());
 
 const router = createBrowserRouter(
   [

@@ -14312,15 +14312,54 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
           }
           return out;
         }
+        var PHASE2_DRAW_STYLE = {
+          roofStroke: "#1d4ed8",
+          roofStrokeSelected: "#1e40af",
+          roofFill: "rgba(37, 99, 235, 0.075)",
+          roofFillSelected: "rgba(37, 99, 235, 0.115)",
+          ridgeStroke: "#334155",
+          ridgeStrokeSelected: "#0f172a",
+          traitStroke: "#2563eb",
+          traitStrokeSelected: "#1d4ed8",
+          guideStroke: "rgba(37, 99, 235, 0.62)",
+          guideFill: "rgba(37, 99, 235, 0.10)",
+          snapStroke: "#0f766e",
+          snapFill: "rgba(20, 184, 166, 0.22)",
+          mutedStroke: "rgba(100, 116, 139, 0.72)",
+          labelText: "#1f2937",
+          labelHalo: "rgba(255, 255, 255, 0.88)"
+        };
+
         function drawSegmentLabelHalo(ctx, screenMid, text) {
-          ctx.font = "12px system-ui, sans-serif";
+          ctx.font = "10.5px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
-          ctx.strokeStyle = "#fff";
-          ctx.lineWidth = 4;
+          ctx.strokeStyle = PHASE2_DRAW_STYLE.labelHalo;
+          ctx.lineWidth = 2.5;
           ctx.strokeText(text, screenMid.x, screenMid.y);
-          ctx.fillStyle = "#000";
+          ctx.fillStyle = PHASE2_DRAW_STYLE.labelText;
           ctx.fillText(text, screenMid.x, screenMid.y);
+        }
+        function drawSegmentLabelAlong(ctx, a, b, text, offsetPx) {
+          var sa = imageToScreen(a);
+          var sb = imageToScreen(b);
+          var dx = sb.x - sa.x;
+          var dy = sb.y - sa.y;
+          var len = Math.hypot(dx, dy);
+          if (len < 6) return;
+          var mid = { x: (sa.x + sb.x) / 2, y: (sa.y + sb.y) / 2 };
+          var nx = -dy / len;
+          var ny = dx / len;
+          var side = (offsetPx == null ? 7 : offsetPx);
+          var x = mid.x + nx * side;
+          var y = mid.y + ny * side;
+          var angle = Math.atan2(dy, dx);
+          if (angle > Math.PI / 2 || angle < -Math.PI / 2) angle += Math.PI;
+          ctx.save();
+          ctx.translate(x, y);
+          ctx.rotate(angle);
+          drawSegmentLabelHalo(ctx, { x: 0, y: 0 }, text);
+          ctx.restore();
         }
         /**
          * Vérifie si le sommet (contourId, pointIndex) est référencé par au moins un
@@ -14362,11 +14401,8 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               var s2 = subSegments[j][1];
               var lenM = segmentLengthMeters(s1, s2);
               if (lenM == null) continue;
-              var midX = (s1.x + s2.x) / 2;
-              var midY = (s1.y + s2.y) / 2;
-              var screenMid = imageToScreen({ x: midX, y: midY });
               var text = lenM.toFixed(2).replace(".", ",") + " m";
-              drawSegmentLabelHalo(ctx, screenMid, text);
+              drawSegmentLabelAlong(ctx, s1, s2, text, 7);
             }
           }
         }
@@ -14383,11 +14419,8 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               var s2 = subSegments[j][1];
               var lenM = segmentLengthMeters(s1, s2);
               if (lenM == null) continue;
-              var midX = (s1.x + s2.x) / 2;
-              var midY = (s1.y + s2.y) / 2;
-              var screenMid = imageToScreen({ x: midX, y: midY });
               var text = lenM.toFixed(2).replace(".", ",") + " m";
-              drawSegmentLabelHalo(ctx, screenMid, text);
+              drawSegmentLabelAlong(ctx, s1, s2, text, 7);
             }
           }
         }
@@ -14398,21 +14431,18 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
           var last = pts[pts.length - 1];
           var lenM = segmentLengthMeters(last, hover);
           if (!lenM) return;
-          var midX = (last.x + hover.x) / 2;
-          var midY = (last.y + hover.y) / 2;
           var sa = imageToScreen(last);
           var sb = imageToScreen(hover);
-          ctx.strokeStyle = "rgba(201, 164, 73, 0.8)";
-          ctx.lineWidth = 1.5;
+          ctx.strokeStyle = PHASE2_DRAW_STYLE.guideStroke;
+          ctx.lineWidth = 1.25;
           ctx.setLineDash([4, 4]);
           ctx.beginPath();
           ctx.moveTo(sa.x, sa.y);
           ctx.lineTo(sb.x, sb.y);
           ctx.stroke();
           ctx.setLineDash([]);
-          var screenMid = imageToScreen({ x: midX, y: midY });
           var text = lenM.toFixed(2).replace(".", ",") + " m";
-          drawSegmentLabelHalo(ctx, screenMid, text);
+          drawSegmentLabelAlong(ctx, last, hover, text, 8);
         }
         /** Phase 2 : repère 90° live pendant le tracé du contour bâti.
          * S'affiche au dernier point posé si l'angle entre le segment précédent et
@@ -14437,15 +14467,15 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
           var bl = Math.hypot(bx, by);
           if (bl < 1e-6) return;
           bx /= bl; by /= bl;
-          var SQ_PX = 12, INSET_PX = 10;
+          var SQ_PX = 8, INSET_PX = 9;
           var hcx = hVtx.x + bx * INSET_PX;
           var hcy = hVtx.y + by * INSET_PX;
           ctx.save();
           ctx.translate(hcx, hcy);
           ctx.rotate(Math.atan2(by, bx) + Math.PI / 4);
-          ctx.fillStyle = "rgba(201, 164, 73, 0.38)";
-          ctx.strokeStyle = "rgba(120, 85, 30, 0.95)";
-          ctx.lineWidth = 2;
+          ctx.fillStyle = PHASE2_DRAW_STYLE.guideFill;
+          ctx.strokeStyle = PHASE2_DRAW_STYLE.guideStroke;
+          ctx.lineWidth = 1.2;
           ctx.setLineDash([]);
           ctx.fillRect(-SQ_PX / 2, -SQ_PX / 2, SQ_PX, SQ_PX);
           ctx.strokeRect(-SQ_PX / 2, -SQ_PX / 2, SQ_PX, SQ_PX);
@@ -14464,11 +14494,11 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             var isSegmentSnap = (hasAnySnap && !isVertexSnap);
             var hasSnap = isVertexSnap || isSegmentSnap;
             ctx.save();
-            ctx.fillStyle = hasSnap ? "#22c55e" : "#9ca3af";
-            ctx.strokeStyle = hasSnap ? "#16a34a" : "#6b7280";
-            ctx.lineWidth = 1.5;
+            ctx.fillStyle = hasSnap ? PHASE2_DRAW_STYLE.snapFill : "rgba(148, 163, 184, 0.18)";
+            ctx.strokeStyle = hasSnap ? PHASE2_DRAW_STYLE.snapStroke : PHASE2_DRAW_STYLE.mutedStroke;
+            ctx.lineWidth = hasSnap ? 1.4 : 1.1;
             if (isSegmentSnap) {
-              var s = 5;
+              var s = hasSnap ? 4.5 : 3.8;
               ctx.beginPath();
               ctx.moveTo(screenPt.x, screenPt.y - s);
               ctx.lineTo(screenPt.x + s, screenPt.y);
@@ -14479,7 +14509,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               ctx.stroke();
             } else {
               ctx.beginPath();
-              ctx.arc(screenPt.x, screenPt.y, 5, 0, Math.PI * 2);
+              ctx.arc(screenPt.x, screenPt.y, hasSnap ? 4.5 : 3.8, 0, Math.PI * 2);
               ctx.fill();
               ctx.stroke();
             }
@@ -14495,9 +14525,9 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
           var endSnapSource = hasSnapEdge ? null : (drawState.traitSnapPreviewSource || null);
           var endHasSnap = hasSnapEdge || !!drawState.traitSnapPreviewSource;
           if (Number.isFinite(sb.x) && Number.isFinite(sb.y)) {
-            ctx.strokeStyle = endHasSnap ? "#00aa00" : "#666";
-            ctx.lineWidth = endHasSnap ? 2.5 : 1.5;
-            ctx.setLineDash([6, 6]);
+            ctx.strokeStyle = endHasSnap ? PHASE2_DRAW_STYLE.snapStroke : PHASE2_DRAW_STYLE.mutedStroke;
+            ctx.lineWidth = endHasSnap ? 1.8 : 1.25;
+            ctx.setLineDash([5, 5]);
             ctx.beginPath();
             ctx.moveTo(sa.x, sa.y);
             ctx.lineTo(sb.x, sb.y);
@@ -14514,11 +14544,11 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             var isSegmentSnap = (hasAnySnap && !isVertexSnap);
             var hasSnap = isVertexSnap || isSegmentSnap;
             ctx.save();
-            ctx.fillStyle = hasSnap ? "#22c55e" : "#9ca3af";
-            ctx.strokeStyle = hasSnap ? "#16a34a" : "#6b7280";
-            ctx.lineWidth = 1.5;
+            ctx.fillStyle = hasSnap ? PHASE2_DRAW_STYLE.snapFill : "rgba(148, 163, 184, 0.18)";
+            ctx.strokeStyle = hasSnap ? PHASE2_DRAW_STYLE.snapStroke : PHASE2_DRAW_STYLE.mutedStroke;
+            ctx.lineWidth = hasSnap ? 1.4 : 1.1;
             if (isSegmentSnap) {
-              var s = 5;
+              var s = hasSnap ? 4.5 : 3.8;
               ctx.beginPath();
               ctx.moveTo(screenPt.x, screenPt.y - s);
               ctx.lineTo(screenPt.x + s, screenPt.y);
@@ -14529,7 +14559,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               ctx.stroke();
             } else {
               ctx.beginPath();
-              ctx.arc(screenPt.x, screenPt.y, 5, 0, Math.PI * 2);
+              ctx.arc(screenPt.x, screenPt.y, hasSnap ? 4.5 : 3.8, 0, Math.PI * 2);
               ctx.fill();
               ctx.stroke();
             }
@@ -14552,14 +14582,12 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
           var sa = imageToScreen(pa);
           var sb = imageToScreen(ph);
           var lenM = segmentLengthMeters(pa, ph);
-          var mid = { x: (pa.x + ph.x) / 2, y: (pa.y + ph.y) / 2 };
-          var screenMid = imageToScreen(mid);
           var hasSnap = r.snapEdge || (r.hoverSnap && r.hoverSnap.point);
           var snapSrc = r.hoverSnap && r.hoverSnap.source ? r.hoverSnap.source : null;
           ctx.save();
-          ctx.strokeStyle = hasSnap ? "#00aa00" : "rgba(201, 164, 73, 0.8)";
-          ctx.lineWidth = 2.5;
-          ctx.setLineDash([4, 4]);
+          ctx.strokeStyle = hasSnap ? PHASE2_DRAW_STYLE.snapStroke : PHASE2_DRAW_STYLE.guideStroke;
+          ctx.lineWidth = hasSnap ? 1.8 : 1.25;
+          ctx.setLineDash([5, 5]);
           ctx.beginPath();
           ctx.moveTo(sa.x, sa.y);
           ctx.lineTo(sb.x, sb.y);
@@ -14569,7 +14597,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
           ctx.restore();
           if (lenM != null) {
             var text = lenM.toFixed(2).replace(".", ",") + " m";
-            drawSegmentLabelHalo(ctx, screenMid, text);
+            drawSegmentLabelAlong(ctx, pa, ph, text, 8);
           }
         }
 
@@ -14588,7 +14616,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
           var rlen = Math.hypot(rdx, rdy);
           if (rlen < 3) return;
           rdx /= rlen; rdy /= rlen;
-          var SQ_PX = 12, INSET_PX = 10;
+          var SQ_PX = 8, INSET_PX = 9;
           var TOL_PERP = Math.sin(Math.PI / 180); /* sin(1°) ≈ 0.0175 */
           function drawHintAt(attach, scrPt, inX, inY) {
             if (!attach || attach.type !== "roof_contour_edge") return;
@@ -14612,9 +14640,9 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             ctx.save();
             ctx.translate(scrPt.x + bx * INSET_PX, scrPt.y + by * INSET_PX);
             ctx.rotate(Math.atan2(by, bx) + Math.PI / 4);
-            ctx.fillStyle = "rgba(201, 164, 73, 0.38)";
-            ctx.strokeStyle = "rgba(120, 85, 30, 0.95)";
-            ctx.lineWidth = 2;
+            ctx.fillStyle = PHASE2_DRAW_STYLE.guideFill;
+            ctx.strokeStyle = PHASE2_DRAW_STYLE.guideStroke;
+            ctx.lineWidth = 1.2;
             ctx.setLineDash([]);
             ctx.fillRect(-SQ_PX / 2, -SQ_PX / 2, SQ_PX, SQ_PX);
             ctx.strokeRect(-SQ_PX / 2, -SQ_PX / 2, SQ_PX, SQ_PX);
@@ -18776,8 +18804,8 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
           /** Phase 2 : repères 90° uniquement pendant tracé / ajustement (contour posé + non sélectionné = rien). Purement visuel. */
           function drawPhase2ContourRightAngleHints(ctx) {
             var TOL_DEG = 1;
-            var SQ_PX = 12;
-            var INSET_PX = 10;
+            var SQ_PX = 8;
+            var INSET_PX = 9;
             var MIN_EDGE_SCR_PX = 3;
             var selContourIdsHint = new Set(drawState.selectedContourIds || []);
             function contourStoredBeingEdited(ci, c) {
@@ -18823,9 +18851,9 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               ctx.save();
               ctx.translate(hcx, hcy);
               ctx.rotate(Math.atan2(by, bx) + Math.PI / 4);
-              ctx.fillStyle = "rgba(201, 164, 73, 0.38)";
-              ctx.strokeStyle = "rgba(120, 85, 30, 0.95)";
-              ctx.lineWidth = 2;
+              ctx.fillStyle = PHASE2_DRAW_STYLE.guideFill;
+              ctx.strokeStyle = PHASE2_DRAW_STYLE.guideStroke;
+              ctx.lineWidth = 1.2;
               ctx.setLineDash([]);
               ctx.fillRect(-SQ_PX / 2, -SQ_PX / 2, SQ_PX, SQ_PX);
               ctx.strokeRect(-SQ_PX / 2, -SQ_PX / 2, SQ_PX, SQ_PX);
@@ -18921,12 +18949,14 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 ctx.lineTo(p.x, p.y);
               }
               if (c.closed) ctx.closePath();
-              ctx.strokeStyle = "#c9a449";
-              ctx.lineWidth = isSelContour ? 3 : 2;
+              ctx.strokeStyle = isSelContour ? PHASE2_DRAW_STYLE.roofStrokeSelected : PHASE2_DRAW_STYLE.roofStroke;
+              ctx.lineWidth = isSelContour ? 2.35 : 1.65;
+              ctx.lineJoin = "round";
+              ctx.lineCap = "round";
               ctx.setLineDash([]);
               ctx.stroke();
               if (c.closed) {
-                ctx.fillStyle = "rgba(201, 164, 73, 0.12)";
+                ctx.fillStyle = isSelContour ? PHASE2_DRAW_STYLE.roofFillSelected : PHASE2_DRAW_STYLE.roofFill;
                 ctx.fill();
               }
             }
@@ -18937,8 +18967,9 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               var tra = imageToScreen(tr.a);
               var trb = imageToScreen(tr.b);
               var isSelTrait = selTraitIds.has(tr.id);
-              ctx.strokeStyle = "#3b82f6";
-              ctx.lineWidth = isSelTrait ? 3 : 2;
+              ctx.strokeStyle = isSelTrait ? PHASE2_DRAW_STYLE.traitStrokeSelected : PHASE2_DRAW_STYLE.traitStroke;
+              ctx.lineWidth = isSelTrait ? 2.15 : 1.45;
+              ctx.lineCap = "round";
               ctx.setLineDash([]);
               ctx.beginPath();
               ctx.moveTo(tra.x, tra.y);
@@ -18946,8 +18977,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               ctx.stroke();
               var lenM = segmentLengthMeters(tr.a, tr.b);
               if (lenM != null) {
-                var midT = imageToScreen({ x: (tr.a.x + tr.b.x) / 2, y: (tr.a.y + tr.b.y) / 2 });
-                drawSegmentLabelHalo(ctx, midT, lenM.toFixed(2).replace(".", ",") + " m");
+                drawSegmentLabelAlong(ctx, tr.a, tr.b, lenM.toFixed(2).replace(".", ",") + " m", 7);
               }
             }
             /* 3. Fa??tages main ??? segment + label */
@@ -18959,8 +18989,9 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               var ra = imageToScreen(raPt);
               var rb = imageToScreen(rbPt);
               var isSelRidge = selRidgeIds.has(ridge.id);
-              ctx.strokeStyle = "orange";
-              ctx.lineWidth = isSelRidge ? 3 : 2;
+              ctx.strokeStyle = isSelRidge ? PHASE2_DRAW_STYLE.ridgeStrokeSelected : PHASE2_DRAW_STYLE.ridgeStroke;
+              ctx.lineWidth = isSelRidge ? 2.2 : 1.45;
+              ctx.lineCap = "round";
               ctx.setLineDash([]);
               ctx.beginPath();
               ctx.moveTo(ra.x, ra.y);
@@ -18968,8 +18999,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               ctx.stroke();
               var lenM = segmentLengthMeters(raPt, rbPt);
               if (lenM != null) {
-                var mid = imageToScreen({ x: (raPt.x + rbPt.x) / 2, y: (raPt.y + rbPt.y) / 2 });
-                drawSegmentLabelHalo(ctx, mid, lenM.toFixed(2).replace(".", ",") + " m");
+                drawSegmentLabelAlong(ctx, raPt, rbPt, lenM.toFixed(2).replace(".", ",") + " m", 7);
               }
             }
             /* 4a. Hover pan : eclaircissement subtil + bordure doree (priorite < selection) */
@@ -18985,10 +19015,10 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                   ctx.lineTo(hpp.x, hpp.y);
                 }
                 ctx.closePath();
-                ctx.fillStyle = "rgba(255, 255, 255, 0.06)";
+                ctx.fillStyle = "rgba(37, 99, 235, 0.07)";
                 ctx.fill();
-                ctx.strokeStyle = "#C39847";
-                ctx.lineWidth = 2;
+                ctx.strokeStyle = "rgba(37, 99, 235, 0.62)";
+                ctx.lineWidth = 1.35;
                 ctx.stroke();
               }
             }
@@ -19004,7 +19034,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                   ctx.lineTo(spp.x, spp.y);
                 }
                 ctx.closePath();
-                ctx.fillStyle = "rgba(255, 248, 220, 0.42)";
+                ctx.fillStyle = "rgba(37, 99, 235, 0.13)";
                 ctx.fill();
               }
             }
@@ -19049,8 +19079,8 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             var activeObsPts = (drawState.obstacleShape === "polygon" && CALPINAGE_STATE.activeObstacle) ? CALPINAGE_STATE.activeObstacle.points : [];
             if (activeObsPts.length >= 1) {
               var hoverObs = CALPINAGE_STATE.activeObstacle.hover;
-              ctx.strokeStyle = "#5a3a3a";
-              ctx.lineWidth = 1.5;
+              ctx.strokeStyle = "rgba(51, 65, 85, 0.86)";
+              ctx.lineWidth = 1.25;
               ctx.setLineDash([]);
               ctx.beginPath();
               var oFirst = imageToScreen(activeObsPts[0]);
@@ -19069,19 +19099,19 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 ctx.lineTo(oMouse.x, oMouse.y);
               }
               ctx.stroke();
-              ctx.fillStyle = "#1f2937";
+              ctx.fillStyle = "#334155";
               for (var om = 0; om < activeObsPts.length; om++) {
                 var oSc = imageToScreen(activeObsPts[om]);
                 ctx.beginPath();
                 var rObs = (om === 0 && drawState.hoverNearFirstPointObstacle) ? 7 : 5;
                 ctx.arc(oSc.x, oSc.y, rObs, 0, Math.PI * 2);
                 if (om === 0 && drawState.hoverNearFirstPointObstacle) {
-                  ctx.fillStyle = "#c9a449";
+                  ctx.fillStyle = PHASE2_DRAW_STYLE.snapFill;
                   ctx.fill();
-                  ctx.strokeStyle = "#1f2937";
-                  ctx.lineWidth = 2;
+                  ctx.strokeStyle = PHASE2_DRAW_STYLE.snapStroke;
+                  ctx.lineWidth = 1.4;
                   ctx.stroke();
-                  ctx.fillStyle = "#1f2937";
+                  ctx.fillStyle = "#334155";
                 } else {
                   ctx.fill();
                 }
@@ -19113,12 +19143,12 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               }
               ctx.closePath();
               if (isCrePrev) {
-                ctx.fillStyle = "rgba(120, 80, 80, 0.14)";
-                ctx.strokeStyle = "rgba(90, 58, 58, 0.9)";
-                ctx.lineWidth = 2;
-                ctx.setLineDash([7, 5]);
+                ctx.fillStyle = "rgba(51, 65, 85, 0.08)";
+                ctx.strokeStyle = "rgba(51, 65, 85, 0.74)";
+                ctx.lineWidth = 1.35;
+                ctx.setLineDash([5, 5]);
               } else {
-                ctx.fillStyle = sel ? "rgba(180, 83, 9, 0.24)" : "rgba(120, 80, 80, 0.28)";
+                ctx.fillStyle = sel ? "rgba(37, 99, 235, 0.16)" : "rgba(71, 85, 105, 0.18)";
                 ctx.setLineDash([]);
               }
               ctx.lineJoin = "round";
@@ -19127,18 +19157,18 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               if (isCrePrev) {
                 ctx.stroke();
               } else if (sel) {
-                ctx.strokeStyle = "rgba(255, 255, 255, 0.92)";
-                ctx.lineWidth = 4.5;
+                ctx.strokeStyle = "rgba(255, 255, 255, 0.86)";
+                ctx.lineWidth = 3.2;
                 ctx.stroke();
-                ctx.strokeStyle = "rgba(30, 41, 59, 0.88)";
-                ctx.lineWidth = 2.25;
+                ctx.strokeStyle = "rgba(30, 64, 175, 0.88)";
+                ctx.lineWidth = 1.7;
                 ctx.stroke();
-                ctx.strokeStyle = "rgba(180, 83, 9, 0.65)";
-                ctx.lineWidth = 1.2;
+                ctx.strokeStyle = "rgba(37, 99, 235, 0.42)";
+                ctx.lineWidth = 0.9;
                 ctx.stroke();
               } else {
-                ctx.strokeStyle = "#5a3a3a";
-                ctx.lineWidth = 1.5;
+                ctx.strokeStyle = "rgba(51, 65, 85, 0.82)";
+                ctx.lineWidth = 1.15;
                 ctx.stroke();
               }
               var label = (o.meta && o.meta.label) || o.kind || "";
@@ -19148,8 +19178,8 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 cx /= o.points.length;
                 cy /= o.points.length;
                 var sc = imageToScreen({ x: cx, y: cy });
-                ctx.fillStyle = "#333";
-                ctx.font = "11px sans-serif";
+                ctx.fillStyle = "rgba(30, 41, 59, 0.82)";
+                ctx.font = "10.5px system-ui, sans-serif";
                 ctx.fillText(label, sc.x - 20, sc.y + 4);
               }
             }
@@ -19503,30 +19533,30 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                   var rScreen = r * vp.scale;
                   ctx.beginPath();
                   ctx.arc(sc.x, sc.y, Math.max(2, rScreen), 0, Math.PI * 2);
-                  ctx.fillStyle = svIsPlacing ? "rgba(255,140,0,0.08)" : svIsSelected ? "rgba(255,140,0,0.18)" : "rgba(255,140,0,0.15)";
+                  ctx.fillStyle = svIsPlacing ? "rgba(37, 99, 235, 0.08)" : svIsSelected ? "rgba(37, 99, 235, 0.16)" : "rgba(51, 65, 85, 0.13)";
                   ctx.fill();
                   ctx.lineJoin = "round";
                   ctx.lineCap = "round";
                   if (svIsPlacing) {
-                    ctx.strokeStyle = "rgba(180,90,0,0.95)";
-                    ctx.lineWidth = 2.2;
-                    ctx.setLineDash([6, 4]);
+                    ctx.strokeStyle = "rgba(37, 99, 235, 0.72)";
+                    ctx.lineWidth = 1.35;
+                    ctx.setLineDash([5, 5]);
                     ctx.stroke();
                   } else if (svIsSelected) {
                     ctx.setLineDash([]);
                     ctx.strokeStyle = "rgba(255, 255, 255, 0.9)";
-                    ctx.lineWidth = 4;
+                    ctx.lineWidth = 3.2;
                     ctx.stroke();
-                    ctx.strokeStyle = "rgba(30, 41, 59, 0.88)";
-                    ctx.lineWidth = 2;
+                    ctx.strokeStyle = "rgba(30, 64, 175, 0.88)";
+                    ctx.lineWidth = 1.7;
                     ctx.stroke();
-                    ctx.strokeStyle = "rgba(234, 88, 12, 0.5)";
-                    ctx.lineWidth = 1.1;
+                    ctx.strokeStyle = "rgba(37, 99, 235, 0.42)";
+                    ctx.lineWidth = 0.9;
                     ctx.stroke();
                   } else {
                     ctx.setLineDash([]);
-                    ctx.strokeStyle = "#ff8c00";
-                    ctx.lineWidth = 2;
+                    ctx.strokeStyle = "rgba(51, 65, 85, 0.78)";
+                    ctx.lineWidth = 1.2;
                     ctx.stroke();
                   }
                 } else {
@@ -19545,30 +19575,30 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                     ctx.lineTo(sp.x, sp.y);
                   }
                   ctx.closePath();
-                  ctx.fillStyle = svIsPlacing ? "rgba(255,140,0,0.08)" : svIsSelected ? "rgba(255,140,0,0.18)" : "rgba(255,140,0,0.15)";
+                  ctx.fillStyle = svIsPlacing ? "rgba(37, 99, 235, 0.08)" : svIsSelected ? "rgba(37, 99, 235, 0.16)" : "rgba(51, 65, 85, 0.13)";
                   ctx.fill();
                   ctx.lineJoin = "round";
                   ctx.lineCap = "round";
                   if (svIsPlacing) {
-                    ctx.strokeStyle = "rgba(180,90,0,0.95)";
-                    ctx.lineWidth = 2.2;
-                    ctx.setLineDash([6, 4]);
+                    ctx.strokeStyle = "rgba(37, 99, 235, 0.72)";
+                    ctx.lineWidth = 1.35;
+                    ctx.setLineDash([5, 5]);
                     ctx.stroke();
                   } else if (svIsSelected) {
                     ctx.setLineDash([]);
                     ctx.strokeStyle = "rgba(255, 255, 255, 0.9)";
-                    ctx.lineWidth = 4;
+                    ctx.lineWidth = 3.2;
                     ctx.stroke();
-                    ctx.strokeStyle = "rgba(30, 41, 59, 0.88)";
-                    ctx.lineWidth = 2;
+                    ctx.strokeStyle = "rgba(30, 64, 175, 0.88)";
+                    ctx.lineWidth = 1.7;
                     ctx.stroke();
-                    ctx.strokeStyle = "rgba(234, 88, 12, 0.5)";
-                    ctx.lineWidth = 1.1;
+                    ctx.strokeStyle = "rgba(37, 99, 235, 0.42)";
+                    ctx.lineWidth = 0.9;
                     ctx.stroke();
                   } else {
                     ctx.setLineDash([]);
-                    ctx.strokeStyle = "#ff8c00";
-                    ctx.lineWidth = 2;
+                    ctx.strokeStyle = "rgba(51, 65, 85, 0.78)";
+                    ctx.lineWidth = 1.2;
                     ctx.stroke();
                   }
                 }
@@ -20519,8 +20549,10 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             /* 5. Contour actif + mesures live */
             var hoverPt = CALPINAGE_STATE.activeContour.hoverPoint;
             if (activeContourPts.length >= 1) {
-              ctx.strokeStyle = "#c9a449";
-              ctx.lineWidth = 2;
+              ctx.strokeStyle = PHASE2_DRAW_STYLE.roofStroke;
+              ctx.lineWidth = 1.65;
+              ctx.lineJoin = "round";
+              ctx.lineCap = "round";
               ctx.setLineDash([]);
               ctx.beginPath();
               var dFirst = imageToScreen(activeContourPts[0]);
@@ -20539,19 +20571,19 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 ctx.lineTo(mouseSc.x, mouseSc.y);
               }
               ctx.stroke();
-              ctx.fillStyle = "#1f2937";
+              ctx.fillStyle = "#0f172a";
               for (var m = 0; m < activeContourPts.length; m++) {
                 var dSc = imageToScreen(activeContourPts[m]);
                 ctx.beginPath();
-                var r = (m === 0 && drawState.hoverNearFirstPoint) ? 7 : 5;
+                var r = (m === 0 && drawState.hoverNearFirstPoint) ? 6 : 4.3;
                 ctx.arc(dSc.x, dSc.y, r, 0, Math.PI * 2);
                 if (m === 0 && drawState.hoverNearFirstPoint) {
-                  ctx.fillStyle = "#c9a449";
+                  ctx.fillStyle = PHASE2_DRAW_STYLE.snapFill;
                   ctx.fill();
-                  ctx.strokeStyle = "#1f2937";
-                  ctx.lineWidth = 2;
+                  ctx.strokeStyle = PHASE2_DRAW_STYLE.snapStroke;
+                  ctx.lineWidth = 1.4;
                   ctx.stroke();
-                  ctx.fillStyle = "#1f2937";
+                  ctx.fillStyle = "#0f172a";
                 } else {
                   ctx.fill();
                 }
@@ -20561,11 +20593,11 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 var isVertexSnap = snapSrc && typeof snapSrc.pointIndex === "number";
                 var isSegmentSnap = snapSrc && snapSrc.pointIndex == null;
                 var scHover = imageToScreen(hoverPt);
-                ctx.fillStyle = (isVertexSnap || isSegmentSnap) ? "#22c55e" : "#9ca3af";
-                ctx.strokeStyle = (isVertexSnap || isSegmentSnap) ? "#16a34a" : "#6b7280";
-                ctx.lineWidth = 1.5;
+                ctx.fillStyle = (isVertexSnap || isSegmentSnap) ? PHASE2_DRAW_STYLE.snapFill : "rgba(148, 163, 184, 0.18)";
+                ctx.strokeStyle = (isVertexSnap || isSegmentSnap) ? PHASE2_DRAW_STYLE.snapStroke : PHASE2_DRAW_STYLE.mutedStroke;
+                ctx.lineWidth = (isVertexSnap || isSegmentSnap) ? 1.4 : 1.1;
                 if (isSegmentSnap) {
-                  var s = 5;
+                  var s = 4.5;
                   ctx.beginPath();
                   ctx.moveTo(scHover.x, scHover.y - s);
                   ctx.lineTo(scHover.x + s, scHover.y);
@@ -20576,7 +20608,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                   ctx.stroke();
                 } else {
                   ctx.beginPath();
-                  ctx.arc(scHover.x, scHover.y, 5, 0, Math.PI * 2);
+                  ctx.arc(scHover.x, scHover.y, 4.5, 0, Math.PI * 2);
                   ctx.fill();
                   ctx.stroke();
                 }
@@ -20586,8 +20618,8 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 var _closeLast = imageToScreen(activeContourPts[activeContourPts.length - 1]);
                 var _closeFirst = imageToScreen(activeContourPts[0]);
                 ctx.save();
-                ctx.strokeStyle = "#22c55e";
-                ctx.lineWidth = 2.5;
+                ctx.strokeStyle = PHASE2_DRAW_STYLE.snapStroke;
+                ctx.lineWidth = 1.7;
                 ctx.setLineDash([5, 3]);
                 ctx.beginPath();
                 ctx.moveTo(_closeLast.x, _closeLast.y);
@@ -20598,9 +20630,9 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 /* Tooltip */
                 var firstSc = imageToScreen(activeContourPts[0]);
                 ctx.font = "11px system-ui, sans-serif";
-                ctx.fillStyle = "rgba(0,0,0,0.7)";
-                ctx.strokeStyle = "#fff";
-                ctx.lineWidth = 2;
+                ctx.fillStyle = PHASE2_DRAW_STYLE.labelText;
+                ctx.strokeStyle = PHASE2_DRAW_STYLE.labelHalo;
+                ctx.lineWidth = 2.5;
                 ctx.textAlign = "center";
                 ctx.textBaseline = "bottom";
                 var tip = "Cliquer pour fermer le contour";

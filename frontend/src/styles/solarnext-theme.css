@@ -2821,10 +2821,10 @@ html.theme-dark .sn-leads-page__main {
   --sn-kanban-col-w: clamp(200px, 3.5vw + 160px, 260px);
   display: flex;
   flex: 0 0 auto;
-  align-self: flex-start;
+  align-self: stretch;
   gap: 8px;
-  align-items: flex-start;
-  align-content: flex-start;
+  align-items: stretch;
+  align-content: stretch;
   width: max-content;
   min-width: 100%;
   box-sizing: border-box;
@@ -2840,7 +2840,7 @@ html.theme-dark .sn-leads-page__main {
   border: 1px solid var(--kanban-col-border);
   display: flex;
   flex-direction: column;
-  align-self: flex-start;
+  align-self: stretch;
   height: auto;
   max-height: none;
   min-height: 0;
@@ -3051,7 +3051,7 @@ html.theme-dark .sn-leads-kanban-col-signed {
 }
 
 .sn-leads-kanban-col__body {
-  flex: 0 0 auto;
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -5155,7 +5155,6 @@ html:not(.sn-app-page) .sn-btn-danger:not(:disabled):not(.is-disabled):hover {
 }
 html.theme-light .logo-light { opacity: 1 !important; }
 html.theme-dark  .logo-dark  { opacity: 1 !important; }
-:root:not(.theme-dark) .logo-light { opacity: 1 !important; }
 
 .sn-logo {
   position: relative !important;

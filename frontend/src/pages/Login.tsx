@@ -5,6 +5,7 @@ import {
   isAuthenticated,
   LoginAmbiguousError,
 } from "../services/auth.service";
+import { applyTheme, readStoredTheme } from "../theme/themeApply";
 import "./login-premium.css";
 
 function IconMail() {
@@ -115,17 +116,11 @@ export default function Login() {
   useEffect(() => {
     document.documentElement.classList.add("sn-auth-page");
     document.documentElement.classList.remove("sn-app-page");
-    const saved = localStorage.getItem("solarnext_theme");
-    const restoreDark = saved === "dark";
-    document.documentElement.classList.remove("theme-light", "theme-dark");
-    document.documentElement.classList.add("theme-light");
+    applyTheme("light");
 
     return () => {
       document.documentElement.classList.remove("sn-auth-page");
-      document.documentElement.classList.remove("theme-light", "theme-dark");
-      document.documentElement.classList.add(
-        restoreDark ? "theme-dark" : "theme-light"
-      );
+      applyTheme(readStoredTheme());
     };
   }, []);
 

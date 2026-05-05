@@ -498,62 +498,67 @@ export default function PlanningPage() {
           height: 40px;
           padding: 0 14px;
           font-size: 13px;
-          background-color: rgba(255,255,255,0.04);
-          border: 1px solid rgba(255,255,255,0.08);
           border-radius: 12px;
-          color: var(--text);
           transition: border-color 0.2s ease, box-shadow 0.2s ease;
           appearance: none;
-          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%239CA8C6' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
           background-repeat: no-repeat;
           background-position: right 12px center;
           background-size: 12px 12px;
           padding-right: 36px;
+        }
+        html.theme-dark .planning-toolbar-select {
+          background-color: rgba(255,255,255,0.04);
+          border: 1px solid rgba(255,255,255,0.08);
+          color: var(--text);
+          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%239CA8C6' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
           color-scheme: dark;
         }
-        .planning-toolbar-select:hover {
+        html.theme-dark .planning-toolbar-select:hover {
           border-color: color-mix(in srgb, var(--brand-gold) 60%, transparent);
         }
-        .planning-toolbar-select:focus {
+        html.theme-dark .planning-toolbar-select:focus {
           outline: none;
           border-color: var(--brand-gold);
           box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand-gold) 25%, transparent);
         }
-        .planning-toolbar-select option {
+        html.theme-dark .planning-toolbar-select option {
           background: #1c1a2e;
           color: var(--text-on-dark);
         }
-        /* Light — filtres toolbar : contrôles lisibles (sans changer le layout) */
-        html:not(.theme-dark) .planning-toolbar-select {
+        html.theme-light .planning-toolbar-select {
           background-color: rgba(255, 255, 255, 0.98);
           border: 1px solid rgba(15, 23, 42, 0.14);
           box-shadow:
             0 1px 2px rgba(15, 23, 42, 0.06),
             inset 0 1px 0 rgba(255, 255, 255, 0.95);
+          color: var(--text-primary);
           color-scheme: light;
           background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23475569' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
-          background-repeat: no-repeat;
-          background-position: right 12px center;
-          background-size: 12px 12px;
         }
-        html:not(.theme-dark) .planning-toolbar-select:hover {
+        html.theme-light .planning-toolbar-select:hover {
           border-color: rgba(15, 23, 42, 0.22);
           background-color: var(--bg-card);
           box-shadow: 0 2px 10px rgba(15, 23, 42, 0.08);
         }
-        html:not(.theme-dark) .planning-toolbar-select:focus {
+        html.theme-light .planning-toolbar-select:focus {
+          outline: none;
           border-color: var(--brand-gold);
           box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand-gold) 22%, transparent);
         }
-        html:not(.theme-dark) .planning-toolbar-select option {
+        html.theme-light .planning-toolbar-select option {
           background: var(--bg-card);
           color: #0f172a;
         }
         .planning-toolbar-sep {
           width: 1px;
           height: 28px;
-          background: rgba(255,255,255,0.12);
           flex-shrink: 0;
+        }
+        html.theme-dark .planning-toolbar-sep {
+          background: rgba(255,255,255,0.12);
+        }
+        html.theme-light .planning-toolbar-sep {
+          background: var(--border, rgba(15, 23, 42, 0.12));
         }
         .planning-toolbar-views {
           display: flex;
@@ -565,26 +570,26 @@ export default function PlanningPage() {
           padding: 0 14px;
           font-size: 13px;
           font-weight: 500;
-          background: transparent;
-          border: 1px solid rgba(255,255,255,0.08);
           border-radius: 12px;
-          color: var(--text-muted);
           cursor: pointer;
           transition: all 0.2s ease;
         }
-        .planning-view-btn:hover {
+        html.theme-dark .planning-view-btn:not(.active) {
+          background: transparent;
+          border: 1px solid rgba(255,255,255,0.08);
+          color: var(--text-muted);
+        }
+        html.theme-dark .planning-view-btn:not(.active):hover {
           color: var(--text);
           background: rgba(255,255,255,0.04);
           border-color: rgba(255,255,255,0.12);
         }
-        .planning-view-btn.active {
-          background: linear-gradient(180deg, var(--violet-strong) 0%, var(--primary-hover) 100%);
-          color: var(--text-on-dark);
-          border-color: var(--violet-strong);
-          box-shadow: 0 4px 12px var(--violet-glow);
+        html.theme-dark .planning-view-btn:not(.active):focus-visible {
+          outline: none;
+          border-color: var(--brand-gold);
+          box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand-gold) 25%, transparent);
         }
-        /* Light — Jour / Semaine / Mois non sélectionnés : même famille visuelle que les filtres */
-        html:not(.theme-dark) .planning-view-btn:not(.active) {
+        html.theme-light .planning-view-btn:not(.active) {
           background-color: rgba(255, 255, 255, 0.98);
           border: 1px solid rgba(15, 23, 42, 0.14);
           box-shadow:
@@ -592,16 +597,22 @@ export default function PlanningPage() {
             inset 0 1px 0 rgba(255, 255, 255, 0.95);
           color: var(--text-muted);
         }
-        html:not(.theme-dark) .planning-view-btn:not(.active):hover {
+        html.theme-light .planning-view-btn:not(.active):hover {
           border-color: rgba(15, 23, 42, 0.22);
           background-color: var(--bg-card);
           box-shadow: 0 2px 10px rgba(15, 23, 42, 0.08);
           color: var(--text);
         }
-        html:not(.theme-dark) .planning-view-btn:not(.active):focus-visible {
+        html.theme-light .planning-view-btn:not(.active):focus-visible {
           outline: none;
           border-color: var(--brand-gold);
           box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand-gold) 22%, transparent);
+        }
+        .planning-view-btn.active {
+          background: linear-gradient(180deg, var(--violet-strong) 0%, var(--primary-hover) 100%);
+          color: var(--text-on-dark);
+          border-color: var(--violet-strong);
+          box-shadow: 0 4px 12px var(--violet-glow);
         }
         .planning-actions { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
         .planning-week-label { font-weight: 600; }
