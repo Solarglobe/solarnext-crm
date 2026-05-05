@@ -1508,6 +1508,7 @@ html.sn-app-page.crm-app .sn-app-root.sn-app-bg {
   overflow-x: hidden;
   overflow-y: auto;
   scrollbar-width: thin;
+  background: var(--bg-page);
 }
 
 .sn-app-shell > aside.sn-sidebar + div::-webkit-scrollbar {
@@ -1882,6 +1883,7 @@ html.theme-dark .sn-topbar {
   box-sizing: border-box;
   min-width: 0;
   min-height: 0;
+  background: var(--bg-page);
 }
 
 /* Tableau de bord : éviter double couche 32px + wrap — densité premium */
@@ -5161,8 +5163,4 @@ html:not(.sn-app-page) .sn-btn-danger:not(:disabled):not(.is-disabled):hover {
 }
 
 @media (max-width: 768px) {
-  .logo-solarnext {
-    width: min(240px, calc(100vw - 32px)) !important;
-    max-width: none !important;
-  }
-}
+  .lo
