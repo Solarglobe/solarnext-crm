@@ -20589,9 +20589,6 @@ function initDP4() {
         "m"
       );
 
-      const okGeom = dp4TransformDP2GeometryToMapPixels(null, map);
-      if (!okGeom) return;
-
       window.DP4_STATE = window.DP4_STATE || dp4DefaultState();
       const captureOrthoPayload = {
         imageBase64,
@@ -20606,6 +20603,9 @@ function initDP4() {
       };
       window.DP4_STATE.capture_ortho = captureOrthoPayload;
       window.DP4_STATE.capture = dp2CloneForHistory(captureOrthoPayload);
+
+      const okGeom = dp4TransformDP2GeometryToMapPixels(null, map);
+      if (!okGeom) return;
 
       window.DP4_CAPTURE_IMAGE = imageBase64;
       try {
