@@ -157,11 +157,11 @@ export default function ScenariosPage() {
   }, [studyId, versionId, refreshStudy, fetchScenariosOnly]);
 
   const handleSelectScenario = useCallback(
-    async (scenarioId: ScenarioId, _ctx?: { addToDocuments?: boolean }) => {
+    async (scenarioId: ScenarioId, ctx?: { addToDocuments?: boolean }) => {
       if (isReadOnly) return;
       if (!studyId || !versionId) return;
       const base = API_BASE.replace(/\/$/, "");
-      const addToDocuments = true;
+      const addToDocuments = ctx?.addToDocuments ?? false;
       setPdfFlowBusy(true);
       setSelectingId(scenarioId);
       try {

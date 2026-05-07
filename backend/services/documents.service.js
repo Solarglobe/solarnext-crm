@@ -15,7 +15,15 @@ import { resolveSystemDocumentMetadata } from "./documentMetadata.service.js";
 import { assertOrgOwnership } from "./security/assertOrgOwnership.js";
 import { getDpPdfFileName, normalizeDpPieceKey } from "../constants/dpPdfFileNames.js";
 import { SIGNATURE_READ_ACCEPTANCE_LABEL_FR } from "../constants/signatureReadAcceptance.js";
-import { buildQuoteSignedPdfFileName, buildQuoteUnsignedPdfFileName } from "./quotePdfStorageName.js";
+import { buildQuoteSignedPdfFileName, buildQuoteUnsignedPdfFileName, normalizeClientName } from "./quotePdfStorageName.js";
+
+/** Slugs fichier par scénario pour les propositions commerciales */
+const SCENARIO_FILE_SLUGS = {
+  BASE: "sans-batterie",
+  BATTERY_PHYSICAL: "batterie-physique",
+  BATTERY_VIRTUAL: "batterie-virtuelle",
+  BATTERY_HYBRID: "hybride",
+};
 
 export { QUOTE_DOC_SIGNATURE_CLIENT, QUOTE_DOC_SIGNATURE_COMPANY, QUOTE_DOC_PDF_SIGNED };
 
@@ -455,9 +463,13 @@ export async function saveStudyProposalPdfOnLeadDocument(pdfBuffer, organization
     const base = String(opts.fileName).trim();
     fileName = /\.pdf$/i.test(base) ? base : `${base}.pdf`;
   } else {
-    const timestamp = new Date().toISOString().replace(/[-:T]/g, "").slice(0, 17);
-    const suffix = Math.random().toString(36).slice(2, 8);
-    fileName = `solarnext-proposition-lead-${leadId}-${timestamp}-${suffix}.pdf`;
+    const clientPart = opts.clientSlug && String(opts.clientSlug).trim()
+      ? `-${String(opts.clientSlug).trim()}`
+      : "";
+    const scenarioPart = opts.scenarioSlug && String(opts.scenarioSlug).trim()
+      ? `-${String(opts.scenarioSlug).trim()}`
+      : "";
+    fileName = `etude${clientPart}${scenarioPart}.pdf`;
   }
 
   const { storage_path } = await localStorageUpload(pdfBuffer, organizationId, "lead", leadId, fileName);
@@ -532,6 +544,7 @@ export async function ensureLeadCommercialProposalFromScenarioPdf(params) {
     leadId: leadIdParam,
     studyNumber,
     scenarioLabelFr,
+    clientSlug,
     sourceStudyVersionDocumentId,
   } = params;
 
@@ -560,12 +573,16 @@ export async function ensureLeadCommercialProposalFromScenarioPdf(params) {
       ? String(studyNumber).trim()
       : String(studyId ?? "");
   const displayName = `Proposition commerciale – ${scenarioLabelFrResolved} · ${studyNumberResolved}`;
+  const scenarioSlug = SCENARIO_FILE_SLUGS[scenarioKey] || normalizeClientName(scenarioLabelFrResolved);
+  const clientSlugResolved = clientSlug && String(clientSlug).trim() ? String(clientSlug).trim() : null;
 
   const doc = await saveStudyProposalPdfOnLeadDocument(pdfBuffer, organizationId, leadId, userId, {
     studyId,
     studyVersionId,
     scenarioKey,
     displayName,
+    clientSlug: clientSlugResolved,
+    scenarioSlug,
     sourceStudyVersionDocumentId,
   });
 

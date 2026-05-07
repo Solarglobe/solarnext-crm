@@ -10,6 +10,7 @@ import { buildSelectedScenarioSnapshot } from "../services/selectedScenarioSnaps
 import { generatePdfForVersion } from "./pdfGeneration.controller.js";
 import { getAbsolutePath } from "../services/localStorage.service.js";
 import { ensureLeadCommercialProposalFromScenarioPdf } from "../services/documents.service.js";
+import { resolveQuotePdfClientSlug } from "../services/quotePdfStorageName.js";
 
 const VALID_SCENARIO_IDS = ["BASE", "BATTERY_PHYSICAL", "BATTERY_VIRTUAL", "BATTERY_HYBRID"];
 const SCENARIO_LABELS_FR = {
@@ -129,7 +130,10 @@ export async function generatePdfFromScenario(req, res) {
     if (addToDocuments) {
       try {
         const studyRow = await pool.query(
-          `SELECT lead_id, study_number FROM studies WHERE id = $1 AND organization_id = $2 AND (archived_at IS NULL)`,
+          `SELECT s.lead_id, s.study_number, l.last_name AS lead_last_name, l.full_name AS lead_full_name
+           FROM studies s
+           LEFT JOIN leads l ON l.id = s.lead_id AND l.organization_id = s.organization_id
+           WHERE s.id = $1 AND s.organization_id = $2 AND (s.archived_at IS NULL)`,
           [studyId, org]
         );
         const leadId = studyRow.rows[0]?.lead_id ?? null;
@@ -137,6 +141,10 @@ export async function generatePdfFromScenario(req, res) {
           (studyRow.rows[0]?.study_number != null &&
             String(studyRow.rows[0].study_number).trim()) ||
           studyId;
+        const clientSlug = resolveQuotePdfClientSlug(
+          studyRow.rows[0]?.lead_last_name ?? null,
+          studyRow.rows[0]?.lead_full_name ?? null
+        );
 
         if (!leadId) {
           payload.leadDocument = { status: "skipped", reason: "NO_LEAD" };
@@ -160,6 +168,7 @@ export async function generatePdfFromScenario(req, res) {
               leadId,
               studyNumber,
               scenarioLabelFr: SCENARIO_LABELS_FR[scenarioId] || scenarioId,
+              clientSlug,
               sourceStudyVersionDocumentId: doc.id,
             });
             if (leadResult.status === "skipped") {
