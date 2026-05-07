@@ -1,0 +1,48 @@
+# Railpack / Nixpacks — system dependencies for Playwright/Chromium headless
+# These packages are required at runtime by the Chromium binary installed via
+# `npx playwright install chromium`. Without them Railway returns:
+#   error while loading shared libraries: libglib-2.0.so.0: cannot open shared object file
+#
+# Reference: https://playwright.dev/docs/browsers#install-system-dependencies
+
+[phases.setup]
+aptPkgs = [
+  # Core glib / GObject / GIO
+  "libglib2.0-0",
+  # NSS (network security services) — required by Chromium
+  "libnss3",
+  # ATK accessibility
+  "libatk1.0-0",
+  "libatk-bridge2.0-0",
+  # CUPS printing (Chromium needs the lib even without a printer)
+  "libcups2",
+  # DRM / kernel GPU abstraction
+  "libdrm2",
+  # D-Bus IPC
+  "libdbus-1-3",
+  # X11 / XCB
+  "libxcb1",
+  "libxkbcommon0",
+  "libx11-6",
+  "libxcomposite1",
+  "libxdamage1",
+  "libxext6",
+  "libxfixes3",
+  "libxrandr2",
+  # GBM (generic buffer management) — required by headless Chrome
+  "libgbm1",
+  # Pango / Cairo text rendering
+  "libpango-1.0-0",
+  "libcairo2",
+  # ALSA (audio stub — Chromium links against it even in headless)
+  "libasound2",
+  # AT-SPI2 (accessibility)
+  "libatspi2.0-0",
+  # Fonts
+  "fonts-liberation",
+  "libfontconfig1",
+  # Expat XML parser
+  "libexpat1",
+  # Atomic ops (already installed by Railpack but explicit for safety)
+  "libatomic1",
+]

@@ -65,9 +65,18 @@ if (hasChromiumInCache()) {
 
 try {
   console.log("PLAYWRIGHT_INSTALL_START");
-  execSync("npx playwright install chromium", {
-    stdio: "inherit",
-  });
+  // Install Chromium binary
+  execSync("npx playwright install chromium", { stdio: "inherit" });
+
+  // Install system-level OS dependencies for Chromium (libnss3, libglib2 etc.)
+  // This is a safety net alongside nixpacks.toml apt packages.
+  // On Railway the command may need sudo — it silently continues on error.
+  try {
+    execSync("npx playwright install-deps chromium", { stdio: "inherit" });
+  } catch (depErr) {
+    console.warn("PLAYWRIGHT_INSTALL_DEPS_WARN", String(depErr.message || depErr).slice(0, 200));
+  }
+
   console.log("PLAYWRIGHT_INSTALL_DONE");
 } catch (err) {
   console.error("PLAYWRIGHT_INSTALL_FAILED", err);
