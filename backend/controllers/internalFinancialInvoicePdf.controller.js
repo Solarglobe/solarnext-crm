@@ -57,7 +57,8 @@ export async function getInternalFinancialInvoicePdfPayload(req, res) {
     payload = mergeLiveOrganizationBankIntoInvoicePdfPayload(payload, orgRow);
 
     const linkRes = await pool.query(
-      `SELECT client_id, lead_id FROM invoices WHERE id = $1 AND organization_id = $2 AND (archived_at IS NULL)`,
+      `SELECT client_id, lead_id, total_paid, total_credited, amount_due, status
+       FROM invoices WHERE id = $1 AND organization_id = $2 AND (archived_at IS NULL)`,
       [invoiceId, decoded.organizationId]
     );
     const cid = linkRes.rows[0]?.client_id ?? null;
@@ -99,6 +100,28 @@ export async function getInternalFinancialInvoicePdfPayload(req, res) {
     }
     payload = mergeLiveBillingAddressIntoInvoicePdfPayload(payload, { clientRow, leadRow });
 
+    // Merge live payment data — total_paid / amount_due doivent toujours refléter
+    // les paiements réels, pas le snapshot figé à l'émission (qui avait total_paid=0).
+    const liveRow = linkRes.rows[0] ?? {};
+    const liveTotalPaid = liveRow.total_paid != null ? Number(liveRow.total_paid) : 0;
+    const liveTotalCredited = liveRow.total_credited != null ? Number(liveRow.total_credited) : 0;
+    const liveAmountDue = liveRow.amount_due != null ? Number(liveRow.amount_due) : null;
+    const liveStatus = liveRow.status ?? null;
+
+    const snapTotals = payload.totals && typeof payload.totals === "object" ? payload.totals : {};
+    payload = {
+      ...payload,
+      // Statut live : reflète PAID / PARTIALLY_PAID après paiements
+      ...(liveStatus != null ? { status: liveStatus } : {}),
+      totals: {
+        ...snapTotals,
+        total_paid: liveTotalPaid,
+        total_credited: liveTotalCredited,
+        // amount_due live calculé DB (= total_ttc - total_paid - total_credited)
+        ...(liveAmountDue != null ? { amount_due: liveAmountDue } : {}),
+      },
+    };
+
     const defaultInvoiceNotes = orgRow.default_invoice_notes ?? null;
     const rawDueDays = orgRow.default_invoice_due_days;
     const defaultInvoiceDueDays =
@@ -112,7 +135,9 @@ export async function getInternalFinancialInvoicePdfPayload(req, res) {
       defaultInvoiceDueDays,
       documentContract: {
         lines_and_line_totals: "snapshot_at_issuance",
-        header_amounts_and_balance: "snapshot_at_issuance",
+        header_amounts_ht_vat_ttc: "snapshot_at_issuance",
+        payment_balance_total_paid_amount_due: "live_at_pdf_generation",
+        invoice_status: "live_at_pdf_generation",
         issuer_bank_coordinates: "live_at_pdf_generation",
         billing_address: "live_at_pdf_generation",
       },
