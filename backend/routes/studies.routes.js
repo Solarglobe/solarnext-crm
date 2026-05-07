@@ -58,6 +58,36 @@ router.post(
   }
 );
 
+/**
+ * Copie une étude (corps JSON) — préféré à POST /:id/duplicate pour éviter les problèmes
+ * de passerelle qui tronquent le chemin et retombent sur PATCH /:id (= renommage uniquement).
+ * Corps : `{ source_study_id: UUID, title?: string }`.
+ */
+router.post(
+  "/duplicate-from",
+  verifyJWT,
+  requirePermission("study.manage"),
+  async (req, res) => {
+    try {
+      const org = orgId(req);
+      const sid = req.body?.source_study_id;
+      if (sid == null || typeof sid !== "string" || String(sid).trim() === "") {
+        return res.status(400).json({ error: "source_study_id requis (UUID de l'étude à copier)" });
+      }
+      const data = await service.duplicateStudy(String(sid).trim(), org, userId(req), req.body ?? {});
+      res.status(201).json(data);
+    } catch (e) {
+      if (e.code === "NOT_FOUND") {
+        return res.status(404).json({ error: "Étude non trouvée" });
+      }
+      if (e.code === "BAD_REQUEST") {
+        return res.status(400).json({ error: e.message });
+      }
+      res.status(500).json({ error: e.message });
+    }
+  }
+);
+
 router.post(
   "/:id/versions",
   verifyJWT,

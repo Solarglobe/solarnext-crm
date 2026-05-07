@@ -197,7 +197,7 @@ export function StudyCard({
         }}
         size="sm"
         title="Dupliquer l'étude"
-        subtitle="Nouvelle étude sur ce dossier avec les données de la version en cours."
+        subtitle="L’étude d’origine ne change pas. Saisissez le titre à afficher pour la nouvelle étude ; son contenu (version en cours, calpinage, éco) sera recopié."
         footer={
           <>
             <Button

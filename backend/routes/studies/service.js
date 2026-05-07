@@ -801,7 +801,19 @@ export async function duplicateStudy(studyId, organizationId, userId, body = {})
 
   const targetVersionId = newStudyPayload.versions[0].id;
   const newStudyId = newStudyPayload.study.id;
+  if (!newStudyId || String(newStudyId) === String(studyId)) {
+    const err = new Error(
+      "duplicateStudy: nouvelle ligne studies invalide ou identique à la source (déployer la dernière version du serveur)."
+    );
+    err.code = "BAD_REQUEST";
+    throw err;
+  }
   const sourceVersionId = sourceVer?.id ?? source?.versions?.[0]?.id ?? null;
+  if (sourceVersionId && String(targetVersionId) === String(sourceVersionId)) {
+    const err = new Error("duplicateStudy: collision d’UUID de version (annulé)");
+    err.code = "BAD_REQUEST";
+    throw err;
+  }
 
   if (sourceVersionId) {
     const srcDb = await pool.query(

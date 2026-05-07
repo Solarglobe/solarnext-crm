@@ -136,19 +136,29 @@ export async function duplicateStudy(
   studyId: string,
   payload?: { title?: string }
 ): Promise<StudyWithVersions> {
-  const body =
-    payload && typeof payload.title === "string" && payload.title.trim() !== ""
-      ? JSON.stringify({ title: payload.title.trim() })
-      : undefined;
-  const res = await apiFetch(`${API_BASE}/api/studies/${encodeURIComponent(studyId)}/duplicate`, {
+  const bodyObj: Record<string, unknown> = {
+    source_study_id: studyId,
+  };
+  if (payload && typeof payload.title === "string" && payload.title.trim() !== "") {
+    bodyObj.title = payload.title.trim();
+  }
+  const res = await apiFetch(`${API_BASE}/api/studies/duplicate-from`, {
     method: "POST",
-    ...(body != null ? { headers: { "Content-Type": "application/json" }, body } : {}),
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(bodyObj),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error((err as { error?: string }).error || `Erreur ${res.status}`);
   }
-  return res.json();
+  const data = (await res.json()) as StudyWithVersions;
+  const newId = data?.study?.id;
+  if (!newId || String(newId) === String(studyId)) {
+    throw new Error(
+      "Réponse duplication invalide : l'API doit créer une nouvelle étude. Vérifiez que le backend à jour expose POST /api/studies/duplicate-from."
+    );
+  }
+  return data;
 }
 
 export async function patchStudyTitle(
