@@ -279,20 +279,14 @@ export function isPortalClientDocument(doc) {
     .toLowerCase()
     .trim();
 
-  if (et === "quote" && dt === "quote_pdf") {
-    return true;
-  }
+  // Devis
+  if (et === "quote" && dt === "quote_pdf") return true;
 
-  if (
-    (et === "study" || et === "study_version") &&
-    (dt === "study_pdf" || dt === "study_proposal")
-  ) {
-    return true;
-  }
+  // Proposition commerciale (study_proposal uniquement — pas les study_pdf DP)
+  if ((et === "study" || et === "study_version") && dt === "study_proposal") return true;
 
-  if (et === "lead") {
-    return !LEAD_EXCLUDED_TECH_TYPES.includes(dt);
-  }
+  // Factures
+  if (et === "invoice" && dt === "invoice_pdf") return true;
 
   return false;
 }
@@ -310,12 +304,8 @@ export function resolvePortalDocumentLabelFromRow(row) {
     .toLowerCase()
     .trim();
   if (et === "quote" && dt === "quote_pdf") return "Devis";
-  if (
-    (et === "study" || et === "study_version") &&
-    (dt === "study_pdf" || dt === "study_proposal")
-  ) {
-    return "Proposition";
-  }
+  if ((et === "study" || et === "study_version") && dt === "study_proposal") return "Proposition commerciale";
+  if (et === "invoice" && dt === "invoice_pdf") return "Facture";
   return resolvePortalDocumentLabel(row.document_type);
 }
 
@@ -361,9 +351,9 @@ export function dedupeByFileNameKeepNewest(docs) {
  * @param {Array<Record<string, unknown>>} rows
  */
 export function splitPortalFilteredDocuments(rows) {
-  const leadManual = [];
   const quotes = [];
   const proposals = [];
+  const invoices = [];
   for (const doc of rows) {
     const et = String(doc.entity_type ?? "")
       .toLowerCase()
@@ -371,26 +361,26 @@ export function splitPortalFilteredDocuments(rows) {
     const dt = String(doc.document_type ?? "")
       .toLowerCase()
       .trim();
-    if (et === "lead") {
-      leadManual.push(doc);
-    } else if (et === "quote" && dt === "quote_pdf") {
+    if (et === "quote" && dt === "quote_pdf") {
       quotes.push(doc);
     } else if (
       (et === "study" || et === "study_version") &&
-      (dt === "study_pdf" || dt === "study_proposal")
+      dt === "study_proposal"
     ) {
       proposals.push(doc);
+    } else if (et === "invoice" && dt === "invoice_pdf") {
+      invoices.push(doc);
     }
   }
-  return { leadManual, quotes, proposals };
+  return { quotes, proposals, invoices };
 }
 
 /**
- * Ordre final : propositions, devis, docs lead manuels ; puis tri global `created_at` DESC.
- * @param {{ proposalsDeduped: Record<string, unknown>[]; quotesDeduped: Record<string, unknown>[]; leadManual: Record<string, unknown>[] }} p
+ * Ordre final : propositions, devis, factures ; tri par section puis `created_at` DESC.
+ * @param {{ proposalsDeduped: Record<string, unknown>[]; quotesDeduped: Record<string, unknown>[]; invoicesDeduped: Record<string, unknown>[] }} p
  */
 export function mergePortalDocumentsForResponse(p) {
-  const merged = [...p.proposalsDeduped, ...p.quotesDeduped, ...p.leadManual];
+  const merged = [...p.proposalsDeduped, ...p.quotesDeduped, ...p.invoicesDeduped];
   merged.sort((a, b) => {
     const ta = new Date(/** @type {Date|string|undefined} */ (a.created_at) || 0).getTime();
     const tb = new Date(/** @type {Date|string|undefined} */ (b.created_at) || 0).getTime();
@@ -695,6 +685,7 @@ export async function buildClientPortalPayload(db, ctx) {
        AND ed.archived_at IS NULL
        AND ed.is_client_visible IS TRUE
        AND (
+         /* Devis — PDF de devis (entité quote) */
          (
            ed.entity_type = 'quote'
            AND ed.document_type = 'quote_pdf'
@@ -703,9 +694,10 @@ export async function buildClientPortalPayload(db, ctx) {
              WHERE q.lead_id = $2::uuid AND q.organization_id = $1 AND (q.archived_at IS NULL)
            )
          )
+         /* Proposition commerciale — PDF d'étude/proposition (study_proposal uniquement, pas les study_pdf DP) */
          OR (
            (ed.entity_type = 'study' OR ed.entity_type = 'study_version')
-           AND ed.document_type IN ('study_pdf', 'study_proposal')
+           AND ed.document_type = 'study_proposal'
            AND (
              (
                ed.entity_type = 'study'
@@ -724,10 +716,14 @@ export async function buildClientPortalPayload(db, ctx) {
              )
            )
          )
+         /* Factures — PDF de facture liés au dossier */
          OR (
-           ed.entity_type = 'lead'
-           AND ed.entity_id = $2::uuid
-           AND COALESCE(ed.document_type, '') NOT IN ('quote_pdf', 'study_pdf', 'study_proposal')
+           ed.entity_type = 'invoice'
+           AND ed.document_type = 'invoice_pdf'
+           AND ed.entity_id IN (
+             SELECT i.id FROM invoices i
+             WHERE i.lead_id = $2::uuid AND i.organization_id = $1 AND (i.archived_at IS NULL)
+           )
          )
        )
      ORDER BY ed.created_at DESC`,
@@ -735,7 +731,7 @@ export async function buildClientPortalPayload(db, ctx) {
   );
 
   const filteredRows = docRes.rows.filter(isPortalClientDocument);
-  const { leadManual, quotes, proposals } = splitPortalFilteredDocuments(filteredRows);
+  const { quotes, proposals, invoices } = splitPortalFilteredDocuments(filteredRows);
 
   const logProposalRow = (tag, list) => {
     if (process.env.CLIENT_PORTAL_DOC_DEBUG !== "1") return;
@@ -755,12 +751,13 @@ export async function buildClientPortalPayload(db, ctx) {
   logProposalRow("avant dédup", proposals);
   const quotesDeduped = dedupeByFileNameKeepNewest(quotes);
   const proposalsDeduped = dedupeByFileNameKeepNewest(proposals);
+  const invoicesDeduped = dedupeByFileNameKeepNewest(invoices);
   logProposalRow("après dédup", proposalsDeduped);
 
   const mergedForPortal = mergePortalDocumentsForResponse({
     proposalsDeduped,
     quotesDeduped,
-    leadManual,
+    invoicesDeduped,
   });
 
   const documents = mergedForPortal.map((d) => {
@@ -867,6 +864,7 @@ export async function assertDocumentInPortalScope(db, { organizationId, leadId, 
        AND ed.archived_at IS NULL
        AND ed.is_client_visible IS TRUE
        AND (
+         /* Devis */
          (
            ed.entity_type = 'quote'
            AND ed.document_type = 'quote_pdf'
@@ -875,9 +873,10 @@ export async function assertDocumentInPortalScope(db, { organizationId, leadId, 
              WHERE q.lead_id = $3::uuid AND q.organization_id = $2 AND (q.archived_at IS NULL)
            )
          )
+         /* Proposition commerciale (study_proposal uniquement — pas les study_pdf DP) */
          OR (
            (ed.entity_type = 'study' OR ed.entity_type = 'study_version')
-           AND ed.document_type IN ('study_pdf', 'study_proposal')
+           AND ed.document_type = 'study_proposal'
            AND (
              (
                ed.entity_type = 'study'
@@ -896,10 +895,14 @@ export async function assertDocumentInPortalScope(db, { organizationId, leadId, 
              )
            )
          )
+         /* Factures */
          OR (
-           ed.entity_type = 'lead'
-           AND ed.entity_id = $3::uuid
-           AND COALESCE(ed.document_type, '') NOT IN ('quote_pdf', 'study_pdf', 'study_proposal')
+           ed.entity_type = 'invoice'
+           AND ed.document_type = 'invoice_pdf'
+           AND ed.entity_id IN (
+             SELECT i.id FROM invoices i
+             WHERE i.lead_id = $3::uuid AND i.organization_id = $2 AND (i.archived_at IS NULL)
+           )
          )
        )`,
     [documentId, organizationId, leadId]

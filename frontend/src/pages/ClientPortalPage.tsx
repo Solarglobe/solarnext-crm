@@ -268,23 +268,21 @@ function getStoryPrimaryParagraph(data: PortalPayload, brand: string): string {
   return map[key] ?? map.UNKNOWN;
 }
 
-type DocGroupId = "project" | "quote" | "other";
+type DocGroupId = "proposal" | "quote" | "invoice";
 
-function categorizePortalDocument(docType: string | null | undefined): DocGroupId {
+/** Retourne le groupe ou null si le document ne doit pas être affiché. */
+function categorizePortalDocument(docType: string | null | undefined): DocGroupId | null {
   const t = (docType ?? "").toLowerCase().trim();
-  if (["quote_pdf", "quote_pdf_signed", "quote_signature_client", "quote_signature_company"].includes(t)) {
-    return "quote";
-  }
-  if (["study_pdf", "study_attachment", "lead_attachment"].includes(t)) {
-    return "project";
-  }
-  return "other";
+  if (t === "study_proposal") return "proposal";
+  if (t === "quote_pdf") return "quote";
+  if (t === "invoice_pdf") return "invoice";
+  return null;
 }
 
 const DOCUMENT_SECTION_ORDER: { key: DocGroupId; title: string }[] = [
-  { key: "project", title: "Votre projet" },
-  { key: "quote", title: "Votre devis" },
-  { key: "other", title: "Autres documents" },
+  { key: "proposal", title: "Proposition commerciale :" },
+  { key: "quote", title: "Devis :" },
+  { key: "invoice", title: "Factures :" },
 ];
 
 const PROPERTY_TYPE_LABELS: Record<string, string> = {
@@ -506,13 +504,15 @@ export default function ClientPortalPage() {
   }, [data]);
 
   const documentGroups = useMemo(() => {
-    const empty = { project: [] as PortalPayload["documents"], quote: [] as PortalPayload["documents"], other: [] as PortalPayload["documents"] };
+    const empty: Record<DocGroupId, PortalPayload["documents"]> = {
+      proposal: [],
+      quote: [],
+      invoice: [],
+    };
     if (!data?.documents.length) return empty;
     for (const d of data.documents) {
       const g = categorizePortalDocument(d.type);
-      if (g === "project") empty.project.push(d);
-      else if (g === "quote") empty.quote.push(d);
-      else empty.other.push(d);
+      if (g != null) empty[g].push(d);
     }
     return empty;
   }, [data]);
@@ -749,14 +749,14 @@ export default function ClientPortalPage() {
           <div className="cp-docs-section">
             <div className="cp-docs-head">
               <h3>
-                Vos propositions &amp; <span>documents</span>
+                Vos <span>documents</span>
               </h3>
               <p className="cp-docs-lead">
-                L&apos;ensemble de vos documents, centralisés et accessibles à tout moment.
+                Proposition commerciale, devis et factures — centralis&eacute;s et accessibles &agrave; tout moment.
               </p>
               <p className="cp-docs-intro">
-                Vous trouverez ci-dessous les documents constituant votre projet. Ces documents peuvent être
-                consultés ou téléchargés librement, selon les droits définis par votre interlocuteur.
+                Vous trouverez ci-dessous les documents constituant votre projet. Ces documents peuvent &ecirc;tre
+                consult&eacute;s ou t&eacute;l&eacute;charg&eacute;s librement, selon les droits d&eacute;finis par votre interlocuteur.
               </p>
             </div>
 

@@ -3062,3 +3062,83 @@ html.theme-dark .dp2-toast {
 html.theme-dark .dp-draft-save-status--blocked {
   background: rgba(251,191,36,0.10);
 }
+
+/* Cartes génériques (upload / placeholder) */
+html.theme-dark .dp-card {
+  background: #1D2545;
+  border-color: rgba(226,232,240,0.15);
+}
+
+html.theme-dark .dp-card-placeholder {
+  background: #161C34;
+}
+
+html.theme-dark .dp-card-info {
+  background: #161C34;
+  border-color: rgba(226,232,240,0.12);
+  border-left-color: #16a34a;
+}
+
+/* Supprimer le halo lumineux résiduel sur les cartes principales */
+html.theme-dark .content-card,
+html.theme-dark .dp-page {
+  box-shadow: 0 14px 40px rgba(0,0,0,0.45);
+}
+
+/* DP3 — cards type sélection */
+html.theme-dark .dp3-type-card {
+  background: #12172B;
+  border-color: rgba(226,232,240,0.12);
+}
+
+html.theme-dark .dp3-type-card:hover {
+  border-color: rgba(99,102,241,0.35);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.30);
+}
+
+html.theme-dark .dp3-type-card.selected {
+  border-color: rgba(99,102,241,0.70);
+  box-shadow: 0 0 0 3px rgba(99,102,241,0.14);
+}
+
+html.theme-dark .dp3-type-card-img {
+  background: #0F172A;
+  border-color: rgba(226,232,240,0.10);
+}
+
+/* DP3 — éditeur */
+html.theme-dark .dp3-editor-canvas {
+  background: #0B0F1E;
+}
+
+html.theme-dark .dp3-page {
+  background: #12172B;
+  border-color: rgba(226,232,240,0.10);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.40);
+}
+
+/* DP3 — champs texte */
+html.theme-dark .dp3-select,
+html.theme-dark .dp3-textarea {
+  background: #0B0F1E;
+  border-color: rgba(226,232,240,0.18);
+  color: #E8ECF8;
+}
+
+html.theme-dark .dp3-textbox {
+  background: #12172B;
+  border-color: rgba(99,102,241,0.40);
+  color: #E8ECF8;
+}
+
+/* Upload icons / titres dans les cards vides */
+html.theme-dark .dp-upload-icon,
+html.theme-dark .dp-placeholder-title,
+html.theme-dark .dp-upload-title {
+  color: #94A3B8;
+}
+
+html.theme-dark .dp-upload-sub,
+html.theme-dark .dp-placeholder-sub {
+  color: #64748B;
+}
