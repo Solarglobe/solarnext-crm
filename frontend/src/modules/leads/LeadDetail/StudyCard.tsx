@@ -2,7 +2,7 @@ import { useState } from "react";
 import { ConfirmModal } from "../../../components/ui/ConfirmModal";
 import { useNavigate } from "react-router-dom";
 import type { Study } from "../../../services/studies.service";
-import { deleteStudy } from "../../../services/studies.service";
+import { deleteStudy, duplicateStudy } from "../../../services/studies.service";
 import {
   formatStudyPowerKw,
   formatStudyUpdatedAt,
@@ -46,6 +46,7 @@ export function StudyCard({
   const navigate = useNavigate();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [duplicating, setDuplicating] = useState(false);
 
   const badgeKey = getStudyWorkflowBadge(study);
   const workflowBadgeClass = WORKFLOW_BADGE_CLASS[badgeKey];
@@ -55,6 +56,20 @@ export function StudyCard({
 
   const openStudy = () => {
     navigate(`/studies/${study.id}`);
+  };
+
+  const handleDuplicate = async () => {
+    if (duplicating) return;
+    setDuplicating(true);
+    try {
+      await duplicateStudy(study.id);
+      showStudyCardToast("Étude dupliquée", false);
+      await onStudiesChange?.();
+    } catch (e) {
+      showStudyCardToast(e instanceof Error ? e.message : "Duplication impossible", true);
+    } finally {
+      setDuplicating(false);
+    }
   };
 
   const handleConfirmDelete = async () => {
@@ -84,8 +99,8 @@ export function StudyCard({
               <button
                 type="button"
                 className="study-card-sg-icon-btn"
-                title="Modifier l'étude"
-                aria-label="Modifier l'étude"
+                title="Renommer l'étude"
+                aria-label="Renommer l'étude"
                 onClick={() => onEditStudy(study)}
               >
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
@@ -145,6 +160,14 @@ export function StudyCard({
               Devis technique
             </button>
           ) : null}
+          <button
+            type="button"
+            className="study-card-sg-btn-outline"
+            onClick={() => void handleDuplicate()}
+            disabled={duplicating}
+          >
+            {duplicating ? "Copie…" : "Dupliquer"}
+          </button>
         </div>
       </article>
 

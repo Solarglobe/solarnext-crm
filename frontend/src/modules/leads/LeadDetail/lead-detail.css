@@ -1294,7 +1294,9 @@
 }
 
 .crm-lead-address-suggestions li:hover {
-  background: var(--gold-soft);
+  /* --gold-soft pointe vers --brand-accent-soft (#EEF2FF) : en dark → fond quasi blanc + texte clair = illisible */
+  background: var(--sn-bg-hover);
+  color: var(--text-primary);
 }
 
 .crm-lead-address-loading {

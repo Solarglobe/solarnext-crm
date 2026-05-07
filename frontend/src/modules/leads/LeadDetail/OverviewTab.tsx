@@ -1696,8 +1696,8 @@ export default function OverviewTab({
         defaultOpen={false}
         summary={bienFoyerSummary || undefined}
       >
-        <div className="crm-lead-fields">
-          <div className="crm-lead-field crm-lead-field-full">
+        <div className="crm-lead-fields" style={{ gridTemplateColumns: "1fr auto" }}>
+          <div className="crm-lead-field">
             <label>Type de bien</label>
             <PillPicker
               options={PROPERTY_TYPE_OPTIONS}
@@ -1705,8 +1705,8 @@ export default function OverviewTab({
               onChange={(v) => onLeadChange({ property_type: v })}
             />
           </div>
-          <div className="crm-lead-field crm-lead-field--household-label">
-            <label className="crm-lead-label-nowrap">Nombre de personnes au foyer</label>
+          <div className="crm-lead-field">
+            <label className="crm-lead-label-nowrap">Personnes au foyer</label>
             <input
               className="sn-input"
               type="number"
@@ -1718,6 +1718,7 @@ export default function OverviewTab({
                 })
               }
               placeholder="—"
+              style={{ width: 80 }}
             />
           </div>
         </div>
@@ -1729,7 +1730,7 @@ export default function OverviewTab({
         defaultOpen={false}
         summary={maisonToitureSummary || undefined}
       >
-        <div className="crm-lead-fields">
+        <div className="crm-lead-fields" style={{ gridTemplateColumns: "1fr 1fr" }}>
           <div className="crm-lead-field">
             <label>Année de construction</label>
             <input
@@ -1747,7 +1748,7 @@ export default function OverviewTab({
               placeholder="—"
             />
           </div>
-          <div className="crm-lead-field crm-lead-field-full">
+          <div className="crm-lead-field">
             <label>Isolation</label>
             <PillPicker
               options={INSULATION_OPTIONS}
@@ -1755,7 +1756,7 @@ export default function OverviewTab({
               onChange={(v) => onLeadChange({ insulation_level: v })}
             />
           </div>
-          <div className="crm-lead-field crm-lead-field-full">
+          <div className="crm-lead-field">
             <label>Type de toiture</label>
             <PillPicker
               options={ROOF_TYPE_OPTIONS}
@@ -1763,7 +1764,7 @@ export default function OverviewTab({
               onChange={(v) => onLeadChange({ roof_type: v })}
             />
           </div>
-          <div className="crm-lead-field crm-lead-field-full">
+          <div className="crm-lead-field">
             <label>Charpente</label>
             <PillPicker
               options={FRAME_TYPE_OPTIONS}

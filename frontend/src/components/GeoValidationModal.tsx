@@ -9,6 +9,7 @@ import Map from "ol/Map";
 import MapBrowserEvent from "ol/MapBrowserEvent";
 import View from "ol/View";
 import { listen, unlistenByKey } from "ol/events";
+import DragPan from "ol/interaction/DragPan";
 import TileLayer from "ol/layer/Tile";
 import VectorLayer from "ol/layer/Vector";
 import VectorSource from "ol/source/Vector";
@@ -143,7 +144,8 @@ export default function GeoValidationModal({
 
     // Drag manuel du marker — handlers nommés pour nettoyage propre au unmount
     let dragging = false;
-    const dragPan = map.getInteractions().getArray().find((i) => i.constructor.name === "DragPan");
+    /** Ne pas utiliser constructor.name (cassé en prod minifiée → DragPan jamais désactivé). */
+    const dragPan = map.getInteractions().getArray().find((i) => i instanceof DragPan);
     const mapEl = map.getTargetElement();
 
     const handlePointerDown = (evt: { pixel: number[] }) => {
