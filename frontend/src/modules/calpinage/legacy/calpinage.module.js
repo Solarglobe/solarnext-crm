@@ -22436,4 +22436,30 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
       try { delete window.__computeGeometryHashForExport; } catch (_) {}
       try { delete window.__computePanelsHashForExport; } catch (_) {}
       try { delete window.__computeShadingHashForExport; } catch (_) {}
-      try { delete window.__calpina
+      try { delete window.__calpinageRefreshLegacyUiAfterPanVertexHeightEdit; } catch (_) {}
+      try { delete window.__calpinageCommitRoofVertexHeightLike2D; } catch (_) {}
+      try { delete window.__calpinage_hitTestPan__; } catch (_) {}
+      try { delete window.__calpinageRecomputePansFromGeometryAndUI; } catch (_) {}
+      window.CALPINAGE_STUDY_ID = null;
+      window.CALPINAGE_VERSION_ID = null;
+      window.PV_SELECTED_PANEL = null;
+      window.CALPINAGE_SELECTED_PANEL_ID = null;
+      window.PV_SELECTED_INVERTER = null;
+      window.CALPINAGE_SELECTED_INVERTER_ID = null;
+      window.CALPINAGE_ALLOWED = false;
+    }
+    /* Vider le container pour que le prochain init (étude B) ne trouve pas #calpinage-root et réinjecte proprement */
+    try {
+      if (container && container.firstChild) {
+        while (container.firstChild) container.removeChild(container.firstChild);
+      }
+    } catch (e) { if (typeof console !== "undefined") console.warn("[CALPINAGE] container clear error", e); }
+    _calpinageInitInFlight = false;
+    if (devLog) {
+      console.log("[CALPINAGE] cleanup done (state isolated, ready for next study)");
+    }
+  };
+  container.__CALPINAGE_MOUNTED__ = true;
+  container.__CALPINAGE_TEARDOWN__ = cleanup;
+  return cleanup;
+}
