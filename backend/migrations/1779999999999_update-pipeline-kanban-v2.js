@@ -65,8 +65,12 @@ export const up = async (pgm) => {
   // ── 3. Décaler les positions >= 4 pour faire place à STUDY (pos 4) ───────
   pgm.sql(`
     UPDATE pipeline_stages
-    SET position = position + 1
+    SET position = position + 1000
     WHERE position >= 4;
+
+    UPDATE pipeline_stages
+    SET position = position - 999
+    WHERE position >= 1004;
   `);
 
   // ── 4. Insérer "Étude en cours" (STUDY) en position 4 ───────────────────
