@@ -571,6 +571,7 @@ export default function DashboardPage() {
 
   const kpis = data?.global_kpis;
   const fc = data?.forecast;
+  const weighted = safeNum(fc?.weighted_pipeline_ttc);
 
   const pipelineTotal = useMemo(() => {
     if (!data) return 0;
