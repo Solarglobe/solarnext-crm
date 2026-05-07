@@ -11,11 +11,12 @@ import { generatePdfForVersion } from "./pdfGeneration.controller.js";
 import { getAbsolutePath } from "../services/localStorage.service.js";
 import { ensureLeadCommercialProposalFromScenarioPdf } from "../services/documents.service.js";
 
-const VALID_SCENARIO_IDS = ["BASE", "BATTERY_PHYSICAL", "BATTERY_VIRTUAL"];
+const VALID_SCENARIO_IDS = ["BASE", "BATTERY_PHYSICAL", "BATTERY_VIRTUAL", "BATTERY_HYBRID"];
 const SCENARIO_LABELS_FR = {
   BASE: "Sans batterie",
   BATTERY_PHYSICAL: "Batterie physique",
   BATTERY_VIRTUAL: "Batterie virtuelle",
+  BATTERY_HYBRID: "Hybride : physique + virtuelle",
 };
 const orgId = (req) => req.user?.organizationId ?? req.user?.organization_id;
 const userId = (req) => req.user?.userId ?? req.user?.id ?? null;
@@ -29,7 +30,7 @@ export async function generatePdfFromScenario(req, res) {
     const scenarioId = req.body?.scenario_id;
     if (!scenarioId || !VALID_SCENARIO_IDS.includes(scenarioId)) {
       return res.status(400).json({
-        error: "scenario_id requis et doit être BASE, BATTERY_PHYSICAL ou BATTERY_VIRTUAL",
+        error: "scenario_id requis et doit être BASE, BATTERY_PHYSICAL, BATTERY_VIRTUAL ou BATTERY_HYBRID",
       });
     }
 

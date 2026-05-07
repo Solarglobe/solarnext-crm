@@ -9,6 +9,7 @@ const LABELS = {
   BASE: "Sans batterie",
   BATTERY_PHYSICAL: "Batterie physique",
   BATTERY_VIRTUAL: "Batterie virtuelle",
+  BATTERY_HYBRID: "Hybride : physique + virtuelle",
 };
 
 function round2(x) {
@@ -36,24 +37,26 @@ function firstFiniteNum(...vals) {
 
 export function mapScenarioToV2(scenario, ctx) {
   const id = scenario.name ?? "BASE";
+  const isVirtualLike = id === "BATTERY_VIRTUAL" || id === "BATTERY_HYBRID";
+  const isPhysicalLike = id === "BATTERY_PHYSICAL" || id === "BATTERY_HYBRID";
   if (scenario.name === "BATTERY_VIRTUAL" && process.env.NODE_ENV !== "production" && process.env.DEBUG_BV_MAPPER === "1") {
     console.log("=== BV MAPPER INPUT ===");
     console.log(JSON.stringify(scenario, null, 2));
   }
   const label = LABELS[id] ?? id;
-  const bvSrc = id === "BATTERY_VIRTUAL" ? (scenario.battery_virtual || {}) : {};
+  const bvSrc = isVirtualLike ? (scenario.battery_virtual || {}) : {};
 
   const prodKwh = scenario.energy?.production_kwh ?? scenario.energy?.prod ?? scenario.prod_kwh ?? null;
   const consoKwh = scenario.energy?.consumption_kwh ?? scenario.conso_kwh ?? (scenario.energy?.conso != null ? scenario.energy.conso : null);
   const autoKwh = scenario.energy?.autoconsumption_kwh ?? scenario.energy?.auto ?? scenario.auto_kwh ?? null;
   const autoproductionKwh = scenario.energy?.autoproduction_kwh ?? scenario.autoproduction_kwh ?? null;
-  // BATTERY_VIRTUAL : afficher l'import facturé (billable_import_kwh = import_kwh)
-  const importKwhDisplay = id === "BATTERY_VIRTUAL"
+  // BATTERY_VIRTUAL / BATTERY_HYBRID : afficher l'import facturé (billable_import_kwh = import_kwh)
+  const importKwhDisplay = isVirtualLike
     ? (scenario.energy?.import_kwh ?? scenario.import_kwh ?? scenario.energy?.billable_import_kwh ?? scenario.billable_import_kwh ?? scenario.energy?.import ?? null)
     : (scenario.energy?.import ?? null);
 
   const selfConsumptionPct = scenario.self_consumption_pct ?? scenario.auto_pct_real ?? (consoKwh > 0 && autoKwh != null ? (autoKwh / consoKwh) * 100 : null);
-  const selfProductionPct = id === "BATTERY_VIRTUAL" && (scenario.self_production_pct != null || (autoproductionKwh != null && consoKwh > 0))
+  const selfProductionPct = isVirtualLike && (scenario.self_production_pct != null || (autoproductionKwh != null && consoKwh > 0))
     ? (scenario.self_production_pct ?? (consoKwh > 0 && autoproductionKwh != null ? (autoproductionKwh / consoKwh) * 100 : 0))
     : (prodKwh > 0 && consoKwh > 0 ? (prodKwh / consoKwh) * 100 : 0);
 
@@ -66,8 +69,8 @@ export function mapScenarioToV2(scenario, ctx) {
     monthly: scenario.energy?.monthly ?? null,
     self_consumption_pct: selfConsumptionPct,
     self_production_pct: selfProductionPct,
-    // BATTERY_VIRTUAL : lecture directe depuis le scénario (energy ou racine)
-    ...(id === "BATTERY_VIRTUAL" ? {
+    // BATTERY_VIRTUAL / BATTERY_HYBRID : lecture directe depuis le scénario (energy ou racine)
+    ...(isVirtualLike ? {
       production_kwh: prodKwh,
       consumption_kwh: consoKwh,
       autoconsumption_kwh: autoKwh,
@@ -124,8 +127,8 @@ export function mapScenarioToV2(scenario, ctx) {
           bvSrc.overflow_export_kwh
         ) ?? 0,
     } : {}),
-    // Pertes batterie pour équilibre production = auto + surplus + battery_losses (BATTERY_PHYSICAL)
-    ...(id === "BATTERY_PHYSICAL" && scenario.energy?.battery_losses_kwh != null ? { battery_losses_kwh: scenario.energy.battery_losses_kwh } : {}),
+    // Pertes batterie pour équilibre production = auto + surplus + battery_losses (BATTERY_PHYSICAL + BATTERY_HYBRID)
+    ...(isPhysicalLike && scenario.energy?.battery_losses_kwh != null ? { battery_losses_kwh: scenario.energy.battery_losses_kwh } : {}),
   };
   const energy = {
     ...energyBase,
@@ -137,7 +140,7 @@ export function mapScenarioToV2(scenario, ctx) {
     pv_self_consumption_pct: scenario.energy?.pv_self_consumption_pct ?? null,
     site_autonomy_pct: scenario.energy?.site_autonomy_pct ?? null,
   };
-  if (id === "BATTERY_VIRTUAL") {
+  if (isVirtualLike) {
     const restored = firstFiniteNum(energy.restored_kwh, energy.used_credit_kwh, scenario.battery_virtual?.annual_discharge_kwh) ?? 0;
     const autoDirect = firstFiniteNum(
       scenario.energy?.direct_self_consumption_kwh,
@@ -194,8 +197,8 @@ export function mapScenarioToV2(scenario, ctx) {
   }
 
   const costs = {
-    battery_physical_price_ttc: id === "BATTERY_PHYSICAL" ? (Number(ctx?.finance_input?.battery_physical_price_ttc) || 0) : 0,
-    battery_virtual_annual_cost: id === "BATTERY_VIRTUAL"
+    battery_physical_price_ttc: isPhysicalLike ? (Number(ctx?.finance_input?.battery_physical_price_ttc) || 0) : 0,
+    battery_virtual_annual_cost: isVirtualLike
       ? (Number(scenario.costs?.battery_virtual_annual_cost) || Number(scenario._virtualBatteryQuote?.annual_cost_ttc) || 0)
       : 0,
   };
@@ -216,13 +219,21 @@ export function mapScenarioToV2(scenario, ctx) {
             ctx?.virtual_battery_input?.capacity_kwh
           )
         : (ctx?.battery_input?.capacity_kwh ?? null),
+    /** Capacité VB simulée (uniquement pour HYBRID — affichage combiné) */
+    virtual_battery_capacity_kwh:
+      id === "BATTERY_HYBRID"
+        ? firstFiniteNum(
+            scenario.battery_virtual?.capacity_simulated_kwh,
+            scenario._virtualBatteryP2?.simulation_capacity_kwh
+          )
+        : null,
     /** Identité technique catalogue (payload builder) — pas de prix ici. */
     battery_id:
-      id === "BATTERY_PHYSICAL"
+      isPhysicalLike
         ? (ctx?.battery_input?.battery_id ?? ctx?.battery_input?.id ?? null)
         : null,
     battery_usable_kwh:
-      id === "BATTERY_PHYSICAL"
+      isPhysicalLike
         ? (ctx?.battery_input?.usable_kwh ?? ctx?.battery_input?.capacity_kwh ?? null)
         : null,
   };
@@ -256,13 +267,13 @@ export function mapScenarioToV2(scenario, ctx) {
       (typeof scenario.battery === "object" &&
         scenario.battery !== null &&
         scenario.battery.enabled === true),
-    virtual_enabled: id === "BATTERY_VIRTUAL",
+    virtual_enabled: isVirtualLike,
     shading_source: shadingSrc.farSource ?? shadingSrc.far_source ?? null,
     model_version: "ENGINE_V2",
   };
 
   const batteryPhysicalMetrics =
-    id === "BATTERY_PHYSICAL" && physicalBatteryObj
+    isPhysicalLike && physicalBatteryObj
       ? {
           battery_cycles_per_year: round2(scenario.battery.equivalent_cycles),
           battery_daily_cycles: round4(scenario.battery.daily_cycles_avg),
@@ -293,17 +304,18 @@ export function mapScenarioToV2(scenario, ctx) {
     assumptions,
     computed_at: new Date().toISOString(),
     battery_virtual:
-      id === "BATTERY_VIRTUAL"
+      isVirtualLike
         ? (scenario.battery_virtual ??
             (scenario._skipped === true
               ? { enabled: false, annual_charge_kwh: 0, annual_discharge_kwh: 0 }
               : null))
         : null,
     virtual_battery_8760:
-      id === "BATTERY_VIRTUAL" ? (scenario._virtualBattery8760 ?? null) : null,
-    ...(id === "BATTERY_VIRTUAL" && scenario.virtual_battery_finance && typeof scenario.virtual_battery_finance === "object"
+      isVirtualLike ? (scenario._virtualBattery8760 ?? null) : null,
+    ...(isVirtualLike && scenario.virtual_battery_finance && typeof scenario.virtual_battery_finance === "object"
       ? { virtual_battery_finance: scenario.virtual_battery_finance }
       : {}),
+    _virtualBatteryP2: isVirtualLike ? (scenario._virtualBatteryP2 ?? null) : null,
     ...batteryPhysicalMetrics,
   };
   if (mappedScenario.id === "BATTERY_VIRTUAL" && process.env.NODE_ENV !== "production" && process.env.DEBUG_BV_MAPPER === "1") {

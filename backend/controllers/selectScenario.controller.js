@@ -12,7 +12,7 @@ import { generatePdfForVersion } from "./pdfGeneration.controller.js";
 import { logAuditEvent } from "../services/audit/auditLog.service.js";
 import { AuditActions } from "../services/audit/auditActions.js";
 
-const VALID_SCENARIO_IDS = ["BASE", "BATTERY_PHYSICAL", "BATTERY_VIRTUAL"];
+const VALID_SCENARIO_IDS = ["BASE", "BATTERY_PHYSICAL", "BATTERY_VIRTUAL", "BATTERY_HYBRID"];
 const orgId = (req) => req.user?.organizationId ?? req.user?.organization_id;
 const userId = (req) => req.user?.userId ?? req.user?.id ?? null;
 
@@ -30,7 +30,7 @@ export async function selectScenario(req, res) {
     const scenarioId = req.body?.scenario_id;
     if (!scenarioId || !VALID_SCENARIO_IDS.includes(scenarioId)) {
       return res.status(400).json({
-        error: "scenario_id requis et doit être BASE, BATTERY_PHYSICAL ou BATTERY_VIRTUAL",
+        error: "scenario_id requis et doit être BASE, BATTERY_PHYSICAL, BATTERY_VIRTUAL ou BATTERY_HYBRID",
       });
     }
 

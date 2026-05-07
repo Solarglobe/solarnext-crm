@@ -114,12 +114,14 @@ const COLUMN_LABELS_DEFAULT: Record<string, string> = {
   BASE: "Sans batterie",
   BATTERY_PHYSICAL: "Batterie physique",
   BATTERY_VIRTUAL: "Batterie virtuelle",
+  BATTERY_HYBRID: "Hybride : physique + virtuelle",
 };
 
 const COLUMN_SUBTITLES: Record<string, string> = {
   BASE: "Photovoltaïque seul, sans stockage.",
   BATTERY_PHYSICAL: "Stockage local + gestion du surplus.",
-  BATTERY_VIRTUAL: "Crédit de votre surplus, utilisé plus tard",
+  BATTERY_VIRTUAL: "Crédit de votre surplus, utilisé plus tard.",
+  BATTERY_HYBRID: "Batterie physique + crédit du surplus résiduel.",
 };
 
 function formatCurrency(v: number | null | undefined): string {
@@ -245,7 +247,7 @@ function buildKeyIndicatorRows(
   return rows;
 }
 
-const SCENARIO_IDS = ["BASE", "BATTERY_PHYSICAL", "BATTERY_VIRTUAL"] as const;
+const SCENARIO_IDS = ["BASE", "BATTERY_PHYSICAL", "BATTERY_VIRTUAL", "BATTERY_HYBRID"] as const;
 export type ScenarioColumnId = (typeof SCENARIO_IDS)[number];
 
 export type ScenarioSelectContext = { addToDocuments: boolean };
@@ -271,6 +273,7 @@ const INITIAL_ADD_TO_DOCS: Record<ScenarioColumnId, boolean> = {
   BASE: false,
   BATTERY_PHYSICAL: false,
   BATTERY_VIRTUAL: false,
+  BATTERY_HYBRID: false,
 };
 
 function Tip({ text, children }: { text: string; children: React.ReactNode }) {
@@ -429,6 +432,7 @@ const SHOW_LEGACY_TECH_DETAIL = false;
 function ctaLabel(id: ScenarioColumnId): string {
   if (id === "BASE") return "Choisir sans stockage";
   if (id === "BATTERY_PHYSICAL") return "Choisir batterie physique";
+  if (id === "BATTERY_HYBRID") return "Choisir hybride physique + virtuelle";
   return "Choisir batterie virtuelle";
 }
 
@@ -448,6 +452,10 @@ const IMPACT_LINES: Record<
     { icon: "💰", text: "Réutilisation du surplus" },
     { icon: "📈", text: "Rentabilité optimisée" },
   ],
+  BATTERY_HYBRID: [
+    { icon: "🔋", text: "Stockage physique + crédit virtuel en cascade" },
+    { icon: "🚀", text: "Autonomie maximisée" },
+  ],
 };
 
 /** Libellé contexte impact (closing) — affichage seulement, pas de calcul. */
@@ -455,6 +463,7 @@ const IMPACT_SCENE_HEADLINE: Record<ScenarioColumnId, string> = {
   BASE: "Sans batterie",
   BATTERY_PHYSICAL: "Batterie physique",
   BATTERY_VIRTUAL: "Batterie virtuelle",
+  BATTERY_HYBRID: "Hybride physique + virtuelle",
 };
 
 export default function ScenarioComparisonTable({
@@ -473,9 +482,9 @@ export default function ScenarioComparisonTable({
   className = "",
 }: ScenarioComparisonTableProps) {
   const scenarios =
-    orderedScenarios.length >= 3
-      ? orderedScenarios.slice(0, 3)
-      : [...orderedScenarios, ...Array(3 - orderedScenarios.length).fill(null)];
+    orderedScenarios.length >= 4
+      ? orderedScenarios.slice(0, 4)
+      : [...orderedScenarios, ...Array(4 - orderedScenarios.length).fill(null)];
 
   const baseEconomieY1 =
     scenarios[0]?.finance?.economie_year_1 != null &&
@@ -668,7 +677,7 @@ export default function ScenarioComparisonTable({
                   </section>
 
                   <div className="scenario-row-delta">
-                    {id === "BATTERY_PHYSICAL" || id === "BATTERY_VIRTUAL" ? (
+                    {id === "BATTERY_PHYSICAL" || id === "BATTERY_VIRTUAL" || id === "BATTERY_HYBRID" ? (
                       badge.kind === "available" &&
                       baseEconomieY1 != null &&
                       finance.economie_year_1 != null &&
@@ -1125,11 +1134,16 @@ export default function ScenarioComparisonTable({
         }
         .scenario-comparison-grid {
           display: grid;
-          grid-template-columns: repeat(3, minmax(0, 1fr));
+          grid-template-columns: repeat(4, minmax(0, 1fr));
           gap: 16px;
           align-items: stretch;
         }
-        @media (max-width: 1024px) {
+        @media (max-width: 1200px) {
+          .scenario-comparison-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+        }
+        @media (max-width: 640px) {
           .scenario-comparison-grid {
             grid-template-columns: 1fr;
           }

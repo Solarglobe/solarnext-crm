@@ -18,15 +18,16 @@ import { openAuthenticatedDocumentInNewTab } from "@/utils/documentDownload";
 
 const API_BASE = getCrmApiBaseWithWindowFallback();
 
-type ScenarioId = "BASE" | "BATTERY_PHYSICAL" | "BATTERY_VIRTUAL";
+type ScenarioId = "BASE" | "BATTERY_PHYSICAL" | "BATTERY_VIRTUAL" | "BATTERY_HYBRID";
 
 type ScenarioV2 = ScenarioV2Type;
 
-const COLUMN_ORDER: ScenarioId[] = ["BASE", "BATTERY_PHYSICAL", "BATTERY_VIRTUAL"];
+const COLUMN_ORDER: ScenarioId[] = ["BASE", "BATTERY_PHYSICAL", "BATTERY_VIRTUAL", "BATTERY_HYBRID"];
 const COLUMN_LABELS: Record<ScenarioId, string> = {
   BASE: "Sans batterie",
   BATTERY_PHYSICAL: "Batterie physique",
   BATTERY_VIRTUAL: "Batterie virtuelle",
+  BATTERY_HYBRID: "Hybride : physique + virtuelle",
 };
 
 function showToast(message: string, isError: boolean) {
@@ -48,7 +49,7 @@ function normalizeOrderedScenarios(scenarios: ScenarioV2Type[]): (ScenarioV2Type
 }
 
 function parseSelectedScenarioId(raw: unknown): ScenarioId | null {
-  if (raw === "BASE" || raw === "BATTERY_PHYSICAL" || raw === "BATTERY_VIRTUAL") return raw;
+  if (raw === "BASE" || raw === "BATTERY_PHYSICAL" || raw === "BATTERY_VIRTUAL" || raw === "BATTERY_HYBRID") return raw;
   return null;
 }
 
@@ -495,7 +496,7 @@ export default function ScenariosPage() {
       className="scenarios-page scenarios-page-rebuild scenarios-premium"
       style={{
         padding: "var(--spacing-24)",
-        maxWidth: 1180,
+        maxWidth: 1400,
         margin: "0 auto",
         position: "relative",
         borderRadius: 16,

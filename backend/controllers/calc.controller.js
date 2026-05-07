@@ -533,6 +533,8 @@ if (devLog) {
     addEnergyKpisToScenario(baseScenario, ctx);
 
     const batteryEnabled = ctx.battery_input?.enabled === true && Number(ctx.battery_input?.capacity_kwh) > 0;
+    /** Résultat physique 8760h conservé pour le scénario HYBRID (accès depuis le bloc BATTERY_HYBRID). */
+    let battPhysicalResult = null;
 
     if (batteryEnabled) {
       const consoHourly = ctx.conso_p_pilotee || ctx.conso?.hourly || ctx.conso?.clamped;
@@ -625,6 +627,7 @@ if (devLog) {
             (baseCapexTtc != null && Number.isFinite(Number(baseCapexTtc)) ? Number(baseCapexTtc) : 0) +
             (batteryPhysicalPriceTtc != null && Number.isFinite(Number(batteryPhysicalPriceTtc)) ? Number(batteryPhysicalPriceTtc) : 0);
           addEnergyKpisToScenario(batteryScenario, ctx);
+          battPhysicalResult = batt; // conservé pour BATTERY_HYBRID
           scenarios.BATTERY_PHYSICAL = batteryScenario;
 
           const sumAuto = monthlyBatt.reduce((a, m) => a + m.auto_kwh, 0);
@@ -1076,6 +1079,225 @@ if (devLog) {
         });
       }
       scenarios.BATTERY_VIRTUAL = virtualScenario;
+    }
+
+    // -----------------------------------------------------------------------
+    // BATTERY_HYBRID — Batterie physique PUIS batterie virtuelle sur surplus résiduel.
+    // Condition : batterie physique simulée avec succès ET batterie virtuelle activée.
+    // Principe : la VB ne voit que le surplus que la batterie physique n'a pas absorbé.
+    // -----------------------------------------------------------------------
+    if (battPhysicalResult !== null && ctx.virtual_battery_input?.enabled === true) {
+      const consoHourlyHybrid = ctx.conso_p_pilotee || ctx.conso?.hourly || ctx.conso?.clamped;
+      const hasSurplus8760H = Array.isArray(battPhysicalResult.surplus_hourly) && battPhysicalResult.surplus_hourly.length === 8760;
+      const hasConso8760H = Array.isArray(consoHourlyHybrid) && consoHourlyHybrid.length === 8760;
+
+      const hybridScenario = JSON.parse(JSON.stringify(scenarios.BATTERY_PHYSICAL));
+      hybridScenario.name = "BATTERY_HYBRID";
+      hybridScenario._v2 = true;
+
+      if (!hasSurplus8760H || !hasConso8760H) {
+        hybridScenario._skipped = true;
+        hybridScenario.finance = { roi_years: null, irr: null, lcoe: null, cashflows: null, note: "hybrid_skipped_no_profiles" };
+        scenarios.BATTERY_HYBRID = hybridScenario;
+      } else {
+        // Profils résiduels après batterie physique
+        // surplusHourly = ce qui n'a pas été absorbé par la physique → crédit VB
+        // importHourly  = ce qui n'a pas été couvert par la physique → offset VB
+        const surplusAfterPhysical = battPhysicalResult.surplus_hourly;
+        const importAfterPhysical = consoHourlyHybrid.map(
+          (c, h) => Math.max(0, (c || 0) - (battPhysicalResult.auto_hourly[h] || 0))
+        );
+
+        const vbInputH = ctx.virtual_battery_input || {};
+        const providerRawH = vbInputH.provider_code || vbInputH.provider;
+        const P2_PROVIDERS_H = new Set(["URBAN_SOLAR", "MYLIGHT_MYBATTERY", "MYLIGHT_MYSMARTBATTERY"]);
+        const useP2H = providerRawH && P2_PROVIDERS_H.has(String(providerRawH).toUpperCase());
+        const meterKvaH = Number(ctx.site?.puissance_kva ?? ctx.form?.params?.puissance_kva ?? 9);
+        const installedKwcH = scenarios.BATTERY_PHYSICAL.kwc ?? scenarios.BATTERY_PHYSICAL.metadata?.kwc ?? ctx.pv?.kwc ?? resolveKwcMono(ctx.form);
+        const tariffKwhH = resolveRetailElectricityKwhPrice(ctx);
+        const oaRateH = resolveOaRateForKwc(ctx, installedKwcH);
+        const contractTypeH = resolveP2ContractType(vbInputH, ctx);
+
+        // Capacité requise sur le surplus résiduel (plus petite que pour VB pure)
+        const unboundedH = simulateVirtualBattery8760Unbounded({
+          pv_hourly: surplusAfterPhysical,
+          conso_hourly: importAfterPhysical,
+        });
+
+        if (!unboundedH.ok) {
+          hybridScenario._skipped = true;
+          hybridScenario.finance = { roi_years: null, irr: null, lcoe: null, cashflows: null, note: "hybrid_vb_unbounded_failed" };
+          scenarios.BATTERY_HYBRID = hybridScenario;
+        } else {
+          const requiredCapH = unboundedH.required_capacity_kwh;
+          const selectedContractCapH = resolveVirtualBatteryCapacityKwh(vbInputH);
+          const simCapacityKwhH = selectedContractCapH != null && selectedContractCapH > 0
+            ? selectedContractCapH
+            : Math.max(requiredCapH, 1e-9);
+
+          const vbSimH = simulateVirtualBattery8760({
+            pv_hourly: surplusAfterPhysical,
+            conso_hourly: importAfterPhysical,
+            config: { ...vbInputH, capacity_kwh: simCapacityKwhH },
+          });
+
+          if (!vbSimH.ok) {
+            hybridScenario._skipped = true;
+            hybridScenario.finance = { roi_years: null, irr: null, lcoe: null, cashflows: null, note: "hybrid_vb_sim_failed" };
+            scenarios.BATTERY_HYBRID = hybridScenario;
+          } else {
+            // Bilans énergie hybride — SANS double comptage
+            const vbCreditsUsed = vbSimH.virtual_battery_total_discharged_kwh ?? 0;
+            const hybridAutoKwh = battPhysicalResult.auto_kwh + vbCreditsUsed;
+            const hybridImportKwh = vbSimH.grid_import_kwh;
+            const hybridSurplusKwh = vbSimH.virtual_battery_overflow_export_kwh ?? vbSimH.surplus_kwh ?? 0;
+            const hybridCredited = vbSimH.virtual_battery_total_charged_kwh ?? 0;
+            const hybridRemainingCredit = vbSimH.virtual_battery_credit_end_kwh ?? 0;
+
+            const baseScenarioH = scenarios.BASE;
+            const production = baseScenarioH.energy?.production_kwh ?? baseScenarioH.energy?.prod ?? baseScenarioH.prod_kwh ?? 0;
+            const consumption = baseScenarioH.energy?.consumption_kwh ?? baseScenarioH.energy?.conso ?? baseScenarioH.conso_kwh ?? 0;
+
+            // Agrégation mensuelle hybride (auto = physique + crédits VB utilisés)
+            const hybridAutoHourly = battPhysicalResult.auto_hourly.map(
+              (a, h) => a + (vbSimH.virtual_battery_hourly_discharge_kwh[h] || 0)
+            );
+            const hybridSurplusHourly = vbSimH.virtual_battery_hourly_overflow_export_kwh ?? Array(8760).fill(0);
+            const monthlyHybrid = aggregateMonthly(ctx.pv.hourly, consoHourlyHybrid, {
+              auto_hourly: hybridAutoHourly,
+              surplus_hourly: hybridSurplusHourly,
+              batt_discharge_hourly: battPhysicalResult.batt_discharge_hourly.map(
+                (d, h) => d + (vbSimH.virtual_battery_hourly_discharge_kwh[h] || 0)
+              ),
+            });
+
+            // Abonnement VB calculé sur le surplus résiduel (Option A)
+            let subscriptionAnnualH;
+            if (useP2H) {
+              const p2WrapH = computeVirtualBatteryP2Finance({
+                providerCode: providerRawH,
+                contractType: contractTypeH,
+                installedKwc: installedKwcH,
+                meterKva: meterKvaH,
+                vbSim: vbSimH,
+                unboundedRequiredCapacityKwh: requiredCapH,
+                selectedCapacityKwh: simCapacityKwhH,
+                hourlyDischargeKwh: vbSimH.virtual_battery_hourly_discharge_kwh,
+                hphcHourlyIsHp: contractTypeH === "HPHC" ? vbInputH.hphc_hourly_slot_is_hp ?? null : null,
+                tariffElectricityPerKwh: tariffKwhH,
+                oaRatePerKwh: oaRateH,
+                virtual_battery_settings: ctx.settings?.pv?.virtual_battery ?? null,
+              });
+              hybridScenario.virtual_battery_finance = p2WrapH.virtual_battery_finance;
+              hybridScenario.virtual_battery_business = computeVirtualBatteryBusiness({
+                virtual_battery_finance: p2WrapH.virtual_battery_finance,
+                baseImportKwh: battPhysicalResult.grid_import_kwh,
+                virtImportKwh: hybridImportKwh,
+                baseOverflowOrSurplusKwh: battPhysicalResult.surplus_kwh,
+                virtOverflowKwh: hybridSurplusKwh,
+                tariffElectricityPerKwh: tariffKwhH,
+                oaRatePerKwh: oaRateH,
+                includeActivationInVirtualYear1: false,
+                annual_virtual_discharge_kwh: vbSimH.virtual_battery_total_discharged_kwh,
+              });
+              subscriptionAnnualH = Number(p2WrapH.annual_recurring_provider_cost_ttc) || 0;
+              hybridScenario._virtualBatteryQuote = {
+                annual_cost_ttc: subscriptionAnnualH,
+                annual_cost_ht: null,
+                net_gain_annual: null,
+                detail: { p2: true, recurring_annual_ttc: p2WrapH.annual_recurring_provider_cost_ttc },
+              };
+            } else {
+              const creditResultH = {
+                ok: true,
+                billable_import_kwh: hybridImportKwh,
+                credited_kwh: hybridCredited,
+                used_credit_kwh: vbCreditsUsed,
+                remaining_credit_kwh: hybridRemainingCredit,
+              };
+              const costDetailH = computeVirtualBatteryAnnualCost({ creditResult: creditResultH, config: vbInputH });
+              subscriptionAnnualH = vbInputH?.annual_subscription_ttc ?? costDetailH?.annual_cost_ttc ?? 0;
+              hybridScenario._virtualBatteryQuote = {
+                annual_cost_ttc: costDetailH.annual_cost_ttc,
+                annual_cost_ht: null,
+                net_gain_annual: null,
+                detail: costDetailH,
+              };
+            }
+
+            hybridScenario.energy = {
+              prod: production,
+              auto: hybridAutoKwh,
+              surplus: hybridSurplusKwh,
+              import: hybridImportKwh,
+              conso: consumption,
+              battery_losses_kwh: battPhysicalResult.battery_losses_kwh ?? 0,
+              production_kwh: production,
+              consumption_kwh: consumption,
+              autoconsumption_kwh: hybridAutoKwh,
+              import_kwh: hybridImportKwh,
+              billable_import_kwh: hybridImportKwh,
+              surplus_kwh: hybridSurplusKwh,
+              grid_import_kwh: hybridImportKwh,
+              grid_export_kwh: hybridSurplusKwh,
+              credited_kwh: hybridCredited,
+              used_credit_kwh: vbCreditsUsed,
+              restored_kwh: vbCreditsUsed,
+              remaining_credit_kwh: hybridRemainingCredit,
+              overflow_export_kwh: hybridSurplusKwh,
+              virtual_battery_overflow_export_kwh: hybridSurplusKwh,
+              monthly: monthlyHybrid.map(m => ({
+                prod: m.prod_kwh, conso: m.conso_kwh, auto: m.auto_kwh,
+                surplus: m.surplus_kwh, import: m.import_kwh, batt: m.batt_kwh,
+              })),
+              hourly: null,
+            };
+
+            hybridScenario.prod_kwh = production;
+            hybridScenario.auto_kwh = hybridAutoKwh;
+            hybridScenario.surplus_kwh = hybridSurplusKwh;
+            hybridScenario.conso_kwh = consumption;
+            hybridScenario.import_kwh = hybridImportKwh;
+            hybridScenario.billable_import_kwh = hybridImportKwh;
+            hybridScenario.credited_kwh = hybridCredited;
+            hybridScenario.used_credit_kwh = vbCreditsUsed;
+
+            hybridScenario.battery_virtual = {
+              enabled: true,
+              capacity_simulated_kwh: simCapacityKwhH,
+              annual_charge_kwh: hybridCredited,
+              annual_discharge_kwh: vbCreditsUsed,
+              annual_throughput_kwh: hybridCredited + vbCreditsUsed,
+              credited_kwh: hybridCredited,
+              restored_kwh: vbCreditsUsed,
+              overflow_export_kwh: hybridSurplusKwh,
+              cycles_equivalent: simCapacityKwhH > 0 ? vbCreditsUsed / simCapacityKwhH : null,
+            };
+
+            hybridScenario._virtualBatteryP2 = {
+              required_capacity_kwh: requiredCapH,
+              simulation_capacity_kwh: simCapacityKwhH,
+              provider_tier_status: "OK",
+              note: "capacity_reduced_by_physical_battery",
+            };
+
+            // CAPEX = PV + batterie physique (abonnement VB = OPEX uniquement)
+            const baseCapexTtcH = ctx.finance_input?.capex_ttc ?? 0;
+            const batteryPhysicalPriceTtcH = ctx.finance_input?.battery_physical_price_ttc ?? 0;
+            hybridScenario.capex_ttc =
+              (Number.isFinite(Number(baseCapexTtcH)) ? Number(baseCapexTtcH) : 0) +
+              (Number.isFinite(Number(batteryPhysicalPriceTtcH)) ? Number(batteryPhysicalPriceTtcH) : 0);
+
+            hybridScenario.costs = { battery_virtual_annual_cost: subscriptionAnnualH };
+
+            addEnergyKpisToScenario(hybridScenario, ctx);
+            scenarios.BATTERY_HYBRID = hybridScenario;
+            if (devLog) {
+              console.log("[HYBRID] auto=", hybridAutoKwh, "import=", hybridImportKwh, "surplus=", hybridSurplusKwh, "sub=", subscriptionAnnualH);
+            }
+          }
+        }
+      }
     }
 
     console.log("[D2] SCENARIO GENERATED:", Object.keys(scenarios).join(", "));
