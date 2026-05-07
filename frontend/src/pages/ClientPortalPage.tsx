@@ -273,7 +273,7 @@ type DocGroupId = "proposal" | "quote" | "invoice";
 /** Retourne le groupe ou null si le document ne doit pas être affiché. */
 function categorizePortalDocument(docType: string | null | undefined): DocGroupId | null {
   const t = (docType ?? "").toLowerCase().trim();
-  if (t === "study_proposal") return "proposal";
+  if (t === "study_pdf" || t === "study_proposal") return "proposal";
   if (t === "quote_pdf" || t === "quote_pdf_signed") return "quote";
   if (t === "invoice_pdf") return "invoice";
   return null;

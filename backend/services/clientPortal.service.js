@@ -267,45 +267,36 @@ export function resolvePortalDocumentLabel(documentType) {
 const LEAD_EXCLUDED_TECH_TYPES = ["quote_pdf", "study_pdf", "study_proposal"];
 
 /**
- * Périmètre portail : source métier explicite (pas de propositions depuis entity lead).
+ * Types de documents portail — correspond aux mirrors entity_type='lead' créés à la génération.
+ * Identique à ce que le CRM Documents tab (GET /api/documents/lead/:id) retourne, filtré.
+ *
+ * NB : les propositions commerciales sauvegardées sur le lead utilisent document_type='study_pdf'
+ * (via saveStudyProposalPdfOnLeadDocument). 'study_proposal' est gardé comme filet de sécurité.
+ */
+const PORTAL_ALLOWED_DOC_TYPES = ["quote_pdf", "quote_pdf_signed", "study_pdf", "study_proposal", "invoice_pdf"];
+
+/**
+ * Périmètre portail : uniquement les documents entity_type='lead' de types autorisés.
+ * Miroir exact de ce que le CRM Documents tab affiche.
  * @param {Record<string, unknown>} doc
  * @returns {boolean}
  */
 export function isPortalClientDocument(doc) {
-  const et = String(doc.entity_type ?? "")
-    .toLowerCase()
-    .trim();
-  const dt = String(doc.document_type ?? "")
-    .toLowerCase()
-    .trim();
-
-  // Devis (non signé ou signé — seul le plus récent par entity_id sera affiché)
-  if (et === "quote" && (dt === "quote_pdf" || dt === "quote_pdf_signed")) return true;
-
-  // Proposition commerciale (study_proposal uniquement — pas les study_pdf DP)
-  if ((et === "study" || et === "study_version") && dt === "study_proposal") return true;
-
-  // Factures
-  if (et === "invoice" && dt === "invoice_pdf") return true;
-
-  return false;
+  const et = String(doc.entity_type ?? "").toLowerCase().trim();
+  const dt = String(doc.document_type ?? "").toLowerCase().trim();
+  return et === "lead" && PORTAL_ALLOWED_DOC_TYPES.includes(dt);
 }
 
 /**
- * Libellés UX selon la source réelle (quote / étude / reste lead).
+ * Libellé UX portail selon document_type (entity_type est toujours 'lead').
  * @param {Record<string, unknown>} row
  * @returns {string}
  */
 export function resolvePortalDocumentLabelFromRow(row) {
-  const et = String(row.entity_type ?? "")
-    .toLowerCase()
-    .trim();
-  const dt = String(row.document_type ?? "")
-    .toLowerCase()
-    .trim();
-  if (et === "quote" && (dt === "quote_pdf" || dt === "quote_pdf_signed")) return "Devis";
-  if ((et === "study" || et === "study_version") && dt === "study_proposal") return "Proposition commerciale";
-  if (et === "invoice" && dt === "invoice_pdf") return "Facture";
+  const dt = String(row.document_type ?? "").toLowerCase().trim();
+  if (dt === "quote_pdf" || dt === "quote_pdf_signed") return "Devis";
+  if (dt === "study_pdf" || dt === "study_proposal") return "Proposition commerciale";
+  if (dt === "invoice_pdf") return "Facture";
   return resolvePortalDocumentLabel(row.document_type);
 }
 
@@ -685,9 +676,8 @@ export async function buildClientPortalPayload(db, ctx) {
 
   const enc = encodeURIComponent(rawToken);
   /**
-   * Devis = PDF sur l’entité quote.
-   * Propositions = uniquement study / study_version (jamais les copies solarnext-proposition-lead-* sur le lead).
-   * Lead = documents manuels hors types techniques copiés.
+   * Source unique : entity_type=’lead’, entity_id=leadId — miroir exact du CRM onglet Documents.
+   * Ne retourne que les types autorisés pour le portail (quote_pdf, quote_pdf_signed, study_pdf, study_proposal, invoice_pdf).
    */
   const docRes = await db.query(
     `SELECT ed.id,
@@ -695,89 +685,32 @@ export async function buildClientPortalPayload(db, ctx) {
             ed.entity_id,
             ed.file_name,
             ed.document_type,
-            COALESCE(NULLIF(TRIM(ed.display_name), ''), ed.file_name) AS name,
+            COALESCE(NULLIF(TRIM(ed.display_name), ‘’), ed.file_name) AS name,
             ed.created_at
      FROM entity_documents ed
      WHERE ed.organization_id = $1
        AND ed.archived_at IS NULL
        AND ed.is_client_visible IS TRUE
-       AND (
-         /* Devis — PDF de devis non signé ou signé (entité quote). La dédup entity_id garde le plus récent. */
-         (
-           ed.entity_type = 'quote'
-           AND ed.document_type IN ('quote_pdf', 'quote_pdf_signed')
-           AND ed.entity_id IN (
-             SELECT q.id FROM quotes q
-             WHERE q.lead_id = $2::uuid AND q.organization_id = $1 AND (q.archived_at IS NULL)
-           )
-         )
-         /* Proposition commerciale — PDF d'étude/proposition (study_proposal uniquement, pas les study_pdf DP) */
-         OR (
-           (ed.entity_type = 'study' OR ed.entity_type = 'study_version')
-           AND ed.document_type = 'study_proposal'
-           AND (
-             (
-               ed.entity_type = 'study'
-               AND ed.entity_id IN (
-                 SELECT s.id FROM studies s
-                 WHERE s.lead_id = $2::uuid AND s.organization_id = $1
-               )
-             )
-             OR (
-               ed.entity_type = 'study_version'
-               AND ed.entity_id IN (
-                 SELECT sv.id FROM study_versions sv
-                 INNER JOIN studies s ON s.id = sv.study_id
-                 WHERE s.lead_id = $2::uuid AND s.organization_id = $1 AND sv.organization_id = $1
-               )
-             )
-           )
-         )
-         /* Factures — PDF de facture liés au dossier */
-         OR (
-           ed.entity_type = 'invoice'
-           AND ed.document_type = 'invoice_pdf'
-           AND ed.entity_id IN (
-             SELECT i.id FROM invoices i
-             WHERE i.lead_id = $2::uuid AND i.organization_id = $1 AND (i.archived_at IS NULL)
-           )
-         )
-       )
+       AND ed.entity_type = ‘lead’
+       AND ed.entity_id = $2::uuid
+       AND ed.document_type IN (‘quote_pdf’, ‘quote_pdf_signed’, ‘study_pdf’, ‘study_proposal’, ‘invoice_pdf’)
      ORDER BY ed.created_at DESC`,
     [organizationId, leadId]
   );
 
-  const filteredRows = docRes.rows.filter(isPortalClientDocument);
-  const { quotes, proposals, invoices } = splitPortalFilteredDocuments(filteredRows);
-
-  const logProposalRow = (tag, list) => {
-    if (process.env.CLIENT_PORTAL_DOC_DEBUG !== "1") return;
-    console.log(`[client-portal] propositions ${tag}`, {
-      n: list.length,
-      rows: list.map((d) => ({
+  if (process.env.CLIENT_PORTAL_DOC_DEBUG === "1") {
+    console.log(`[client-portal] documents lead=${leadId}`, {
+      n: docRes.rows.length,
+      rows: docRes.rows.map((d) => ({
         id: d.id,
-        entity_type: d.entity_type,
-        entity_id: d.entity_id,
         document_type: d.document_type,
         file_name: d.file_name,
         created_at: d.created_at,
       })),
     });
-  };
+  }
 
-  logProposalRow("avant dédup", proposals);
-  const quotesDeduped = dedupeByEntityIdKeepNewest(quotes);
-  const proposalsDeduped = dedupeByEntityIdKeepNewest(proposals);
-  const invoicesDeduped = dedupeByEntityIdKeepNewest(invoices);
-  logProposalRow("après dédup", proposalsDeduped);
-
-  const mergedForPortal = mergePortalDocumentsForResponse({
-    proposalsDeduped,
-    quotesDeduped,
-    invoicesDeduped,
-  });
-
-  const documents = mergedForPortal.map((d) => {
+  const documents = docRes.rows.map((d) => {
     const docType = d.document_type || "unknown";
     const label = resolvePortalDocumentLabelFromRow(d);
     const displayName = (d.name && String(d.name).trim()) || (d.file_name && String(d.file_name).trim()) || "Document";
@@ -871,6 +804,7 @@ export async function mintClientPortalToken(db, { leadId, organizationId, expire
 
 /**
  * Vérifie qu'un document est téléchargeable pour ce lead (portail).
+ * Source unique : entity_type='lead', entity_id=leadId — miroir exact du CRM onglet Documents.
  */
 export async function assertDocumentInPortalScope(db, { organizationId, leadId, documentId }) {
   const r = await db.query(
@@ -880,48 +814,9 @@ export async function assertDocumentInPortalScope(db, { organizationId, leadId, 
        AND ed.organization_id = $2
        AND ed.archived_at IS NULL
        AND ed.is_client_visible IS TRUE
-       AND (
-         /* Devis (signé ou non signé) */
-         (
-           ed.entity_type = 'quote'
-           AND ed.document_type IN ('quote_pdf', 'quote_pdf_signed')
-           AND ed.entity_id IN (
-             SELECT q.id FROM quotes q
-             WHERE q.lead_id = $3::uuid AND q.organization_id = $2 AND (q.archived_at IS NULL)
-           )
-         )
-         /* Proposition commerciale (study_proposal uniquement — pas les study_pdf DP) */
-         OR (
-           (ed.entity_type = 'study' OR ed.entity_type = 'study_version')
-           AND ed.document_type = 'study_proposal'
-           AND (
-             (
-               ed.entity_type = 'study'
-               AND ed.entity_id IN (
-                 SELECT s.id FROM studies s
-                 WHERE s.lead_id = $3::uuid AND s.organization_id = $2
-               )
-             )
-             OR (
-               ed.entity_type = 'study_version'
-               AND ed.entity_id IN (
-                 SELECT sv.id FROM study_versions sv
-                 INNER JOIN studies s ON s.id = sv.study_id
-                 WHERE s.lead_id = $3::uuid AND s.organization_id = $2 AND sv.organization_id = $2
-               )
-             )
-           )
-         )
-         /* Factures */
-         OR (
-           ed.entity_type = 'invoice'
-           AND ed.document_type = 'invoice_pdf'
-           AND ed.entity_id IN (
-             SELECT i.id FROM invoices i
-             WHERE i.lead_id = $3::uuid AND i.organization_id = $2 AND (i.archived_at IS NULL)
-           )
-         )
-       )`,
+       AND ed.entity_type = 'lead'
+       AND ed.entity_id = $3::uuid
+       AND ed.document_type IN ('quote_pdf', 'quote_pdf_signed', 'study_pdf', 'study_proposal', 'invoice_pdf')`,
     [documentId, organizationId, leadId]
   );
   if (r.rows.length === 0) return null;
