@@ -730,33 +730,108 @@ async function copyEconomicSnapshot(sourceVersionId, newStudyId, targetVersionId
   );
 }
 
+/** @param {unknown} body */
+function parseDuplicateTitle(body) {
+  if (!body || typeof body !== "object") return undefined;
+  const raw = /** @type {{ title?: unknown }} */ (body).title;
+  if (raw === undefined || raw === null) return undefined;
+  if (typeof raw !== "string") return undefined;
+  const s = raw.trim();
+  return s === "" ? undefined : s;
+}
+
 /**
- * Duplique une étude : nouvelle étude avec même lead_id, copie calpinage + economic de la première version.
- * @returns {Promise<{ study, versions, lead }>} même forme que getStudyById (pour le frontend)
+ * Version source pour une duplication fidèle au travail en cours (= version courante de l'étude).
+ * @param {{ study?: { current_version?: number|null }, versions?: Array<{ id: string; version_number: number }> }|null} source
  */
-export async function duplicateStudy(studyId, organizationId, userId) {
+function resolveSourceVersionRowForDuplicate(source) {
+  const versions = Array.isArray(source?.versions) ? source.versions : [];
+  const curNum = Number(source?.study?.current_version);
+  if (versions.length === 0) return null;
+  if (Number.isFinite(curNum) && curNum >= 1) {
+    const hit = versions.find((v) => Number(v.version_number) === curNum);
+    if (hit) return hit;
+  }
+  return versions.reduce((best, v) =>
+    Number(v.version_number) > Number(best.version_number) ? v : best
+  );
+}
+
+/**
+ * Nouvelle étude sur le même dossier (lead/client), clone data_json + artefacts depuis la **version courante**.
+ * Corps optionnel : `{ title?: string }`.
+ * @returns {Promise<{ study: object, versions: object[], lead: object|null }|null>}
+ */
+export async function duplicateStudy(studyId, organizationId, userId, body = {}) {
   const source = await getStudyById(studyId, organizationId);
   if (!source || !source.study) {
     const err = new Error("NOT_FOUND");
     err.code = "NOT_FOUND";
     throw err;
   }
-  const leadId = source.study.lead_id;
-  if (!leadId) {
-    const err = new Error("Study has no lead_id");
+
+  const leadId = source.study.lead_id ?? null;
+  const clientId = source.study.client_id ?? null;
+  if (!leadId && !clientId) {
+    const err = new Error("Étude sans lead ni client — duplication impossible.");
     err.code = "BAD_REQUEST";
     throw err;
   }
 
-  const newStudy = await createStudy(organizationId, userId, { lead_id: leadId });
-  if (!newStudy || !newStudy.versions || newStudy.versions.length === 0) {
+  const requestedTitle = parseDuplicateTitle(body);
+  const sourceVer = resolveSourceVersionRowForDuplicate(source);
+  const rawData = sourceVer?.data;
+  const dataClone =
+    rawData != null && typeof rawData === "object" && !Array.isArray(rawData)
+      ? JSON.parse(JSON.stringify(rawData))
+      : {};
+
+  /** @type {{ lead_id?: string; client_id?: string; title?: string; data: object }} */
+  const createPayload = {
+    ...(leadId ? { lead_id: leadId } : {}),
+    ...(clientId ? { client_id: clientId } : {}),
+    ...(requestedTitle !== undefined ? { title: requestedTitle } : {}),
+    data: dataClone,
+  };
+
+  const newStudyPayload = await createStudy(organizationId, userId, createPayload);
+  if (!newStudyPayload?.versions?.length) {
     throw new Error("Failed to create study");
   }
-  const sourceVersionId = source.versions[0]?.id;
-  const targetVersionId = newStudy.versions[0].id;
-  const newStudyId = newStudy.study.id;
+
+  const targetVersionId = newStudyPayload.versions[0].id;
+  const newStudyId = newStudyPayload.study.id;
+  const sourceVersionId = sourceVer?.id ?? source?.versions?.[0]?.id ?? null;
 
   if (sourceVersionId) {
+    const srcDb = await pool.query(
+      `SELECT selected_scenario_id, selected_scenario_snapshot, final_study_json, status
+       FROM study_versions WHERE id = $1 AND organization_id = $2`,
+      [sourceVersionId, organizationId]
+    );
+    const sv = srcDb.rows[0];
+    if (sv) {
+      await pool.query(
+        `UPDATE study_versions SET
+           selected_scenario_id = $1,
+           selected_scenario_snapshot = $2,
+           final_study_json = $3,
+           status = $4,
+           is_locked = FALSE,
+           locked_at = NULL,
+           updated_at = NOW()
+         WHERE id = $5 AND organization_id = $6`,
+        [
+          sv.selected_scenario_id ?? null,
+          sv.selected_scenario_snapshot ?? null,
+          sv.final_study_json ?? null,
+          sv.status ?? null,
+          targetVersionId,
+          organizationId,
+        ]
+      );
+    }
+
     const calpinageRows = await pool.query(
       "SELECT 1 FROM calpinage_data WHERE study_version_id = $1 AND organization_id = $2 LIMIT 1",
       [sourceVersionId, organizationId]
@@ -773,7 +848,7 @@ export async function duplicateStudy(studyId, organizationId, userId) {
     }
   }
 
-  return newStudy;
+  return getStudyById(newStudyId, organizationId);
 }
 
 /**

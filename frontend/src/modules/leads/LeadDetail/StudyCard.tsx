@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { ConfirmModal } from "../../../components/ui/ConfirmModal";
+import { ModalShell } from "../../../components/ui/ModalShell";
+import { Button } from "../../../components/ui/Button";
 import { useNavigate } from "react-router-dom";
 import type { Study } from "../../../services/studies.service";
 import { deleteStudy, duplicateStudy } from "../../../services/studies.service";
@@ -47,6 +49,8 @@ export function StudyCard({
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [duplicating, setDuplicating] = useState(false);
+  const [duplicateModalOpen, setDuplicateModalOpen] = useState(false);
+  const [duplicateTitleDraft, setDuplicateTitleDraft] = useState("");
 
   const badgeKey = getStudyWorkflowBadge(study);
   const workflowBadgeClass = WORKFLOW_BADGE_CLASS[badgeKey];
@@ -58,12 +62,27 @@ export function StudyCard({
     navigate(`/studies/${study.id}`);
   };
 
-  const handleDuplicate = async () => {
+  const openDuplicateModal = () => {
+    const base =
+      study.title?.trim() ||
+      (study.study_number != null ? String(study.study_number).trim() : "") ||
+      study.id.slice(0, 8);
+    setDuplicateTitleDraft(`${base} (copie)`);
+    setDuplicateModalOpen(true);
+  };
+
+  const handleDuplicateSubmit = async () => {
     if (duplicating) return;
+    const t = duplicateTitleDraft.trim();
+    if (!t) {
+      showStudyCardToast("Indiquez un nom pour la nouvelle étude.", true);
+      return;
+    }
     setDuplicating(true);
     try {
-      await duplicateStudy(study.id);
+      await duplicateStudy(study.id, { title: t });
       showStudyCardToast("Étude dupliquée", false);
+      setDuplicateModalOpen(false);
       await onStudiesChange?.();
     } catch (e) {
       showStudyCardToast(e instanceof Error ? e.message : "Duplication impossible", true);
@@ -163,13 +182,51 @@ export function StudyCard({
           <button
             type="button"
             className="study-card-sg-btn-outline"
-            onClick={() => void handleDuplicate()}
+            onClick={openDuplicateModal}
             disabled={duplicating}
           >
-            {duplicating ? "Copie…" : "Dupliquer"}
+            Dupliquer
           </button>
         </div>
       </article>
+
+      <ModalShell
+        open={duplicateModalOpen}
+        onClose={() => {
+          if (!duplicating) setDuplicateModalOpen(false);
+        }}
+        size="sm"
+        title="Dupliquer l'étude"
+        subtitle="Nouvelle étude sur ce dossier avec les données de la version en cours."
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={duplicating}
+              onClick={() => setDuplicateModalOpen(false)}
+            >
+              Annuler
+            </Button>
+            <Button type="button" variant="primary" disabled={duplicating} onClick={() => void handleDuplicateSubmit()}>
+              {duplicating ? "Copie…" : "Dupliquer"}
+            </Button>
+          </>
+        }
+      >
+        <label htmlFor="study-duplicate-input" style={{ display: "block", marginBottom: 6, fontSize: 13, color: "var(--text-muted)" }}>
+          Nom de la nouvelle étude
+        </label>
+        <input
+          id="study-duplicate-input"
+          className="sn-input"
+          style={{ width: "100%", boxSizing: "border-box" }}
+          value={duplicateTitleDraft}
+          onChange={(e) => setDuplicateTitleDraft(e.target.value)}
+          disabled={duplicating}
+          autoFocus
+        />
+      </ModalShell>
 
       <ConfirmModal
         open={confirmOpen}

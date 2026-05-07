@@ -132,9 +132,17 @@ export interface StudyWithVersions {
   lead?: unknown;
 }
 
-export async function duplicateStudy(studyId: string): Promise<StudyWithVersions> {
+export async function duplicateStudy(
+  studyId: string,
+  payload?: { title?: string }
+): Promise<StudyWithVersions> {
+  const body =
+    payload && typeof payload.title === "string" && payload.title.trim() !== ""
+      ? JSON.stringify({ title: payload.title.trim() })
+      : undefined;
   const res = await apiFetch(`${API_BASE}/api/studies/${encodeURIComponent(studyId)}/duplicate`, {
     method: "POST",
+    ...(body != null ? { headers: { "Content-Type": "application/json" }, body } : {}),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));

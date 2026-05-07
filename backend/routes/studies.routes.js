@@ -121,7 +121,7 @@ router.post(
     try {
       const org = orgId(req);
       const studyId = req.params.id;
-      const data = await service.duplicateStudy(studyId, org, userId(req));
+      const data = await service.duplicateStudy(studyId, org, userId(req), req.body);
       res.status(201).json(data);
     } catch (e) {
       if (e.code === "NOT_FOUND") {
