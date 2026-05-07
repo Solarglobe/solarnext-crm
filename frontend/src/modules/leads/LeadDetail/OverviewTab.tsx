@@ -1696,8 +1696,8 @@ export default function OverviewTab({
         defaultOpen={false}
         summary={bienFoyerSummary || undefined}
       >
-        <div className="crm-lead-fields" style={{ gridTemplateColumns: "1fr auto" }}>
-          <div className="crm-lead-field">
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "10px 16px", alignItems: "flex-start" }}>
+          <div className="crm-lead-field" style={{ flex: "0 1 auto" }}>
             <label>Type de bien</label>
             <PillPicker
               options={PROPERTY_TYPE_OPTIONS}
@@ -1705,7 +1705,7 @@ export default function OverviewTab({
               onChange={(v) => onLeadChange({ property_type: v })}
             />
           </div>
-          <div className="crm-lead-field">
+          <div className="crm-lead-field" style={{ flex: "0 0 auto" }}>
             <label className="crm-lead-label-nowrap">Personnes au foyer</label>
             <input
               className="sn-input"
@@ -1718,7 +1718,7 @@ export default function OverviewTab({
                 })
               }
               placeholder="—"
-              style={{ width: 80 }}
+              style={{ width: 88 }}
             />
           </div>
         </div>
@@ -1730,24 +1730,7 @@ export default function OverviewTab({
         defaultOpen={false}
         summary={maisonToitureSummary || undefined}
       >
-        <div className="crm-lead-fields" style={{ gridTemplateColumns: "1fr 1fr" }}>
-          <div className="crm-lead-field">
-            <label>Année de construction</label>
-            <input
-              className="sn-input"
-              type="number"
-              min={1800}
-              max={2100}
-              value={lead.construction_year ?? ""}
-              onChange={(e) =>
-                onLeadChange({
-                  construction_year:
-                    e.target.value === "" ? undefined : parseInt(e.target.value, 10),
-                })
-              }
-              placeholder="—"
-            />
-          </div>
+        <div className="crm-lead-fields" style={{ gridTemplateColumns: "1fr 1fr 1fr" }}>
           <div className="crm-lead-field">
             <label>Isolation</label>
             <PillPicker
@@ -1770,6 +1753,23 @@ export default function OverviewTab({
               options={FRAME_TYPE_OPTIONS}
               value={lead.frame_type ?? ""}
               onChange={(v) => onLeadChange({ frame_type: v })}
+            />
+          </div>
+          <div className="crm-lead-field">
+            <label>Année de construction</label>
+            <input
+              className="sn-input"
+              type="number"
+              min={1800}
+              max={2100}
+              value={lead.construction_year ?? ""}
+              onChange={(e) =>
+                onLeadChange({
+                  construction_year:
+                    e.target.value === "" ? undefined : parseInt(e.target.value, 10),
+                })
+              }
+              placeholder="—"
             />
           </div>
         </div>
