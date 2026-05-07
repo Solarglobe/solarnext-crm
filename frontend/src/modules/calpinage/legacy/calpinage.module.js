@@ -14700,28 +14700,21 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
           }
         }
         function drawLiveContourMeasure(ctx) {
+          /* Le trait last→hover est désormais intégré au path principal (double-stroke halo+bleu).
+             Cette fonction se limite au label de mesure. */
           var pts = CALPINAGE_STATE.activeContour.points;
           var hover = CALPINAGE_STATE.activeContour.hoverPoint;
           if (!hover || pts.length === 0) return;
           var last = pts[pts.length - 1];
           var lenM = segmentLengthMeters(last, hover);
           if (!lenM) return;
-          var sa = imageToScreen(last);
-          var sb = imageToScreen(hover);
-          ctx.strokeStyle = PHASE2_DRAW_STYLE.guideStroke;
-          ctx.lineWidth = 1.25;
-          ctx.setLineDash([4, 4]);
-          ctx.beginPath();
-          ctx.moveTo(sa.x, sa.y);
-          ctx.lineTo(sb.x, sb.y);
-          ctx.stroke();
-          ctx.setLineDash([]);
           var text = lenM.toFixed(2).replace(".", ",") + " m";
-          drawSegmentLabelAlong(ctx, last, hover, text, 8);
+          drawSegmentLabelAlong(ctx, last, hover, text, 10);
         }
         /** Phase 2 : repère 90° live pendant le tracé du contour bâti.
          * S'affiche au dernier point posé si l'angle entre le segment précédent et
-         * le segment en cours (→ hoverPoint) est à 90° ± 1°. Purement visuel. */
+         * le segment en cours (→ hoverPoint) est à 90° ± 3°. Purement visuel.
+         * Carré de 12 px avec couleurs visibles (identiques aux handles d'angle posés). */
         function drawLiveContourAngleHint(ctx) {
           var pts = CALPINAGE_STATE.activeContour.points;
           var hover = CALPINAGE_STATE.activeContour.hoverPoint;
@@ -14737,20 +14730,22 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
           v2x /= len2; v2y /= len2;
           var hdot = Math.max(-1, Math.min(1, v1x * v2x + v1y * v2y));
           var angDeg = Math.acos(hdot) * (180 / Math.PI);
-          if (Math.abs(angDeg - 90) > 1) return;
+          /* Tolérance élargie à ±3° pour plus de confort */
+          if (Math.abs(angDeg - 90) > 3) return;
           var bx = v1x + v2x, by = v1y + v2y;
           var bl = Math.hypot(bx, by);
           if (bl < 1e-6) return;
           bx /= bl; by /= bl;
-          var SQ_PX = 8, INSET_PX = 9;
+          /* Carré agrandi (12 px) avec couleurs bien visibles */
+          var SQ_PX = 12, INSET_PX = 11;
           var hcx = hVtx.x + bx * INSET_PX;
           var hcy = hVtx.y + by * INSET_PX;
           ctx.save();
           ctx.translate(hcx, hcy);
           ctx.rotate(Math.atan2(by, bx) + Math.PI / 4);
-          ctx.fillStyle = PHASE2_DRAW_STYLE.guideFill;
-          ctx.strokeStyle = PHASE2_DRAW_STYLE.guideStroke;
-          ctx.lineWidth = 1.2;
+          ctx.fillStyle = "rgba(37, 99, 235, 0.18)";   /* bleu visible sans masquer l'image */
+          ctx.strokeStyle = PHASE2_DRAW_STYLE.roofStroke; /* #2563eb — même bleu que le trait */
+          ctx.lineWidth = 1.8;
           ctx.setLineDash([]);
           ctx.fillRect(-SQ_PX / 2, -SQ_PX / 2, SQ_PX, SQ_PX);
           ctx.strokeRect(-SQ_PX / 2, -SQ_PX / 2, SQ_PX, SQ_PX);
@@ -15434,6 +15429,15 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
 
             /* CREATE_SHADOW_VOLUME : priorité absolue — clic démarre placement, drag resize live, mouseup commit */
             if (window.CALPINAGE_MODE === "CREATE_SHADOW_VOLUME" && drawState.shadowVolumeCreateShape) {
+              /* Fix-F : si le clic tombe sur un handle du volume sélectionné (rotate / resize),
+                 on NE crée PAS un nouveau volume — on laisse tomber vers le bloc SHADOW INTERACTION. */
+              var _svListC = CALPINAGE_STATE.shadowVolumes || [];
+              var _selIdxC = drawState.selectedShadowVolumeIndex;
+              var _skipCreateForHandle = false;
+              if (_selIdxC != null && _selIdxC >= 0 && _selIdxC < _svListC.length) {
+                _skipCreateForHandle = !!hitTestShadowVolumeHandles(screen, _svListC[_selIdxC], imageToScreen, vp.scale);
+              }
+              if (!_skipCreateForHandle) {
               var p = imgPt;
               var bizSv = drawState.shadowVolumeBusinessId;
               var payloadSv = bizSv
@@ -15490,6 +15494,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
               try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
               return;
+              } // end if (!_skipCreateForHandle) — Fix-F
             }
 
             /* SHADOW INTERACTION — Phase 2 uniquement (read-only en PV_LAYOUT) */
@@ -21173,28 +21178,33 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             /* 5. Contour actif + mesures live */
             var hoverPt = CALPINAGE_STATE.activeContour.hoverPoint;
             if (activeContourPts.length >= 1) {
-              ctx.strokeStyle = PHASE2_DRAW_STYLE.roofStroke;
-              ctx.lineWidth = 1.65;
+              /* Contour actif : même double-stroke que le contour posé (halo blanc + bleu solide).
+                 Le dernier segment → hoverPt est inclus pour un rendu cohérent dès le 1er point. */
               ctx.lineJoin = "round";
               ctx.lineCap = "round";
               ctx.setLineDash([]);
-              ctx.beginPath();
+              var _acPath = new Path2D();
               var dFirst = imageToScreen(activeContourPts[0]);
-              ctx.moveTo(dFirst.x, dFirst.y);
+              _acPath.moveTo(dFirst.x, dFirst.y);
               for (var k = 1; k < activeContourPts.length; k++) {
                 var dP = imageToScreen(activeContourPts[k]);
-                ctx.lineTo(dP.x, dP.y);
+                _acPath.lineTo(dP.x, dP.y);
               }
               if (hoverPt) {
-                var lastSc = imageToScreen(activeContourPts[activeContourPts.length - 1]);
                 var mouseSc = imageToScreen(hoverPt);
-                ctx.lineTo(mouseSc.x, mouseSc.y);
+                _acPath.lineTo(mouseSc.x, mouseSc.y);
               } else if (drawState.lastMouseImage) {
-                var lastSc = imageToScreen(activeContourPts[activeContourPts.length - 1]);
                 var mouseSc = imageToScreen(drawState.lastMouseImage);
-                ctx.lineTo(mouseSc.x, mouseSc.y);
+                _acPath.lineTo(mouseSc.x, mouseSc.y);
               }
-              ctx.stroke();
+              /* Passe 1 — halo blanc (identique au contour posé) */
+              ctx.strokeStyle = PHASE2_DRAW_STYLE.roofHalo;
+              ctx.lineWidth = 4.0;
+              ctx.stroke(_acPath);
+              /* Passe 2 — trait bleu solide (identique au contour posé) */
+              ctx.strokeStyle = PHASE2_DRAW_STYLE.roofStroke;
+              ctx.lineWidth = 1.8;
+              ctx.stroke(_acPath);
               for (var m = 0; m < activeContourPts.length; m++) {
                 var dSc = imageToScreen(activeContourPts[m]);
                 var isFirst = (m === 0);
@@ -21216,14 +21226,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                   ctx.stroke();
                 }
               }
-              /* Mesure live du dernier segment contour → souris */
-              if (activeContourPts && activeContourPts.length > 0 && hoverPt) {
-                var lastContPt = activeContourPts[activeContourPts.length - 1];
-                var liveContLen = segmentLengthMeters(lastContPt, hoverPt);
-                if (liveContLen != null) {
-                  drawSegmentLabelAlong(ctx, lastContPt, hoverPt, liveContLen.toFixed(2).replace(".", ",") + " m", 10);
-                }
-              }
+              /* Mesure live : gérée par drawLiveContourMeasure() appelé après ce bloc. */
               if (hoverPt) {
                 var snapSrc = drawState.contourHoverSnapSource;
                 var isVertexSnap = snapSrc && typeof snapSrc.pointIndex === "number";
