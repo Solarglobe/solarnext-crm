@@ -18638,6 +18638,74 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               }
               return;
             }
+            /* Fix-G : Resize / Rotation handles shadow volume (migré depuis mousemove_DISABLED) */
+            if (drawState.draggingShadowVolumeHandle != null && drawState.resizeShadowVolumeStart) {
+              if (CALPINAGE_STATE && CALPINAGE_STATE.currentPhase === "PV_LAYOUT") {
+                drawState.draggingShadowVolumeHandle = null;
+                drawState.resizeShadowVolumeStart = null;
+                drawState.shadowVolumeRotateStart = null;
+                drawState.selectedShadowVolumeIndex = null;
+                if (drawState.activePointerId != null && canvasEl && typeof canvasEl.releasePointerCapture === "function") {
+                  try { canvasEl.releasePointerCapture(drawState.activePointerId); } catch (_) {}
+                  drawState.activePointerId = null;
+                }
+                if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
+                return;
+              }
+              var _svhScreen = getMouseScreen(e);
+              var _svhImgPt = screenToImage(_svhScreen);
+              var _svhVol = drawState.resizeShadowVolumeStart.volume;
+              var _svhStart = drawState.resizeShadowVolumeStart;
+              var _svhMpp = _svhStart.mpp || (CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.scale && CALPINAGE_STATE.roof.scale.metersPerPixel) || 1;
+              var _svhTpm = technicalMinObstaclePixels(_svhMpp);
+              var _svhMinPx = Math.max(_svhTpm.minW, _svhTpm.minH);
+              if (drawState.draggingShadowVolumeHandle === "rotate" && drawState.shadowVolumeRotateStart) {
+                var _svhRotStart = drawState.shadowVolumeRotateStart;
+                var _svhCenter = _svhRotStart.centerImg || { x: _svhVol.x, y: _svhVol.y };
+                var _svhStartAngle = Math.atan2(_svhRotStart.startImg.y - _svhCenter.y, _svhRotStart.startImg.x - _svhCenter.x);
+                var _svhCurrAngle = Math.atan2(_svhImgPt.y - _svhCenter.y, _svhImgPt.x - _svhCenter.x);
+                _svhVol.rotation = _svhRotStart.angle + (_svhCurrAngle - _svhStartAngle) * 180 / Math.PI;
+              } else if (_svhStart.resizeMode === "tubeRadius" && _svhStart.centerImg && typeof _svhStart.ux === "number") {
+                var _svhVmx = _svhImgPt.x - _svhStart.centerImg.x;
+                var _svhVmy = _svhImgPt.y - _svhStart.centerImg.y;
+                var _svhProjR = _svhVmx * _svhStart.ux + _svhVmy * _svhStart.uy;
+                var _svhMinRpx = (_svhStart.minDiamM || TECH_MIN_DIM_M) / 2 / _svhMpp;
+                var _svhRPx = Math.max(_svhMinRpx, _svhProjR);
+                _svhVol.x = _svhStart.centerImg.x;
+                _svhVol.y = _svhStart.centerImg.y;
+                _svhVol.width = _svhVol.depth = 2 * _svhRPx * _svhMpp;
+              } else if (_svhStart.resizeMode === "corner" && _svhStart.fixedCornerWorld) {
+                var _svhMCorner = {
+                  centerX: _svhVol.x, centerY: _svhVol.y,
+                  width: _svhVol.width / _svhMpp, height: _svhVol.depth / _svhMpp,
+                  angle: typeof _svhStart.angleLock === "number" ? _svhStart.angleLock : 0,
+                };
+                obstacleRectResizeFromCornerDrag(
+                  _svhMCorner, _svhImgPt,
+                  { fixedCornerWorld: _svhStart.fixedCornerWorld, angleLock: _svhStart.angleLock },
+                  _svhMinPx, !!(e && e.shiftKey)
+                );
+                _svhVol.x = _svhMCorner.centerX; _svhVol.y = _svhMCorner.centerY;
+                _svhVol.width = _svhMCorner.width * _svhMpp; _svhVol.depth = _svhMCorner.height * _svhMpp;
+                _svhVol.rotation = (_svhMCorner.angle * 180) / Math.PI;
+              } else if (_svhStart.resizeMode === "edge") {
+                var _svhMEdge = {
+                  centerX: _svhVol.x, centerY: _svhVol.y,
+                  width: _svhVol.width / _svhMpp, height: _svhVol.depth / _svhMpp,
+                  angle: typeof _svhStart.angleLock === "number" ? _svhStart.angleLock : 0,
+                };
+                obstacleRectResizeFromEdgeDrag(_svhMEdge, _svhImgPt, {
+                  angleLock: _svhStart.angleLock, edgeIndex: _svhStart.edgeIndex,
+                  edgeStartCenter: _svhStart.edgeStartCenter,
+                  edgeStartHw: _svhStart.edgeStartHw, edgeStartHh: _svhStart.edgeStartHh,
+                }, _svhMinPx);
+                _svhVol.x = _svhMEdge.centerX; _svhVol.y = _svhMEdge.centerY;
+                _svhVol.width = _svhMEdge.width * _svhMpp; _svhVol.depth = _svhMEdge.height * _svhMpp;
+                _svhVol.rotation = (_svhMEdge.angle * 180) / Math.PI;
+              }
+              if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
+              return;
+            }
             var screen = getMouseScreen(e);
             var imgPt = screenToImage(screen);
             drawState.lastMouseImage = imgPt;
