@@ -10206,9 +10206,30 @@ export function initCalpinage(container, options = {}) {
               var json = JSON.stringify(data);
               setCalpinageItem("state", sid, vid, json);
             } catch (e) {
-              console.error("STRINGIFY ERROR DETAIL:", e);
-              console.log("OBJECT STRUCTURE:", data);
-              debugStringifyError(data, "data");
+              var _isQuota = e && (e.name === "QuotaExceededError" || e.code === 22 || (e.message && e.message.toLowerCase().indexOf("quota") >= 0));
+              if (_isQuota) {
+                /* Quota dépassé (image satellite trop lourde) : réessai sans le dataUrl.
+                   La géométrie (contours/faîtages/traits/obstacles) est préservée.
+                   L'image sera absente au prochain rechargement → l'utilisateur doit recapturer. */
+                try {
+                  var _dataNI = JSON.parse(JSON.stringify(data));
+                  if (_dataNI.roofState && _dataNI.roofState.image) {
+                    _dataNI.roofState.image = {
+                      width: _dataNI.roofState.image.width,
+                      height: _dataNI.roofState.image.height
+                      /* dataUrl volontairement exclu : trop volumineux pour localStorage */
+                    };
+                  }
+                  setCalpinageItem("state", sid, vid, JSON.stringify(_dataNI));
+                  console.warn("[CALPINAGE] QuotaExceededError : état sauvegardé sans image satellite (géométrie préservée).");
+                } catch (e2) {
+                  console.error("[CALPINAGE] Sauvegarde impossible même sans image :", e2);
+                }
+              } else {
+                console.error("STRINGIFY ERROR DETAIL:", e);
+                console.log("OBJECT STRUCTURE:", data);
+                debugStringifyError(data, "data");
+              }
             }
           }
           // Refresh intégrité avec le dossier fraîchement construit (meta frais, hashes à jour)
@@ -14945,12 +14966,31 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
           if (roofImgLoadSettled) return;
           roofImgLoadSettled = true;
           if (roofImgLoadTimeout != null) clearTimeout(roofImgLoadTimeout);
-          console.error("[CALPINAGE] Échec chargement image toit (data URL / réseau)");
-          try {
-            if (window.calpinageToast && window.calpinageToast.error) {
-              window.calpinageToast.error("Impossible d'afficher l'image du toit. Réessayez la capture.");
-            }
-          } catch (_) {}
+          /* Distinguer image manquante (quota localStorage) vs vraie erreur réseau */
+          var _hasDataUrl = CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.image && typeof CALPINAGE_STATE.roof.image.dataUrl === "string" && CALPINAGE_STATE.roof.image.dataUrl.length > 32;
+          if (!_hasDataUrl) {
+            console.error("[CALPINAGE] Image satellite manquante (probable QuotaExceededError précédent — état sauvegardé sans image).");
+            try {
+              if (window.calpinageToast && window.calpinageToast.error) {
+                window.calpinageToast.error("L’image satellite n’a pas pu être restaurée. Retournez en Étape 1 et recapturez l’image.");
+              }
+            } catch (_) {}
+            /* Signaler à l'UI qu'une recapture est nécessaire */
+            try {
+              if (typeof window.dispatchEvent === "function") {
+                window.dispatchEvent(new CustomEvent("calpinage:image-missing", {
+                  detail: { studyId: (typeof window !== "undefined" && window.CALPINAGE_STUDY_ID) || null }
+                }));
+              }
+            } catch (_) {}
+          } else {
+            console.error("[CALPINAGE] Échec chargement image toit (data URL invalide ou corrompue).");
+            try {
+              if (window.calpinageToast && window.calpinageToast.error) {
+                window.calpinageToast.error("Impossible d’afficher l’image du toit. Réessayez la capture.");
+              }
+            } catch (_) {}
+          }
           if (renderRafId != null && typeof cancelAnimationFrame === "function") {
             cancelAnimationFrame(renderRafId);
             renderRafId = null;
@@ -16375,12 +16415,14 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 var pt = snapped ? { x: snapped.x, y: snapped.y } : { x: imgPt.x, y: imgPt.y };
                 activeContour.points = [newContourVertexAtDraw(pt.x, pt.y)];
                 activeContour.hoverPoint = null;
+                if (typeof window.CALPINAGE_RENDER === "function") requestAnimationFrame(window.CALPINAGE_RENDER);
                 return;
               }
               var snapped = snapPointToGeometry(imgPt, CALPINAGE_STATE.contours, CALPINAGE_STATE.traits, CALPINAGE_STATE.ridges, SNAP_DIST_PX, activeContour.points);
               var pt = snapped ? { x: snapped.x, y: snapped.y } : { x: imgPt.x, y: imgPt.y };
               activeContour.points.push(newContourVertexAtDraw(pt.x, pt.y));
               activeContour.hoverPoint = null;
+              if (typeof window.CALPINAGE_RENDER === "function") requestAnimationFrame(window.CALPINAGE_RENDER);
               return;
             }
             /* Outil Mesure ??? s?lection d'une mesure existante ou cr?ation (clic A puis clic B) */
@@ -18188,7 +18230,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             resetInteractionState();
             drawState.selectedVertexIndex = null;
           }
-          window.addEventListener("mouseup", handlePointerOrMouseUp);
+          /* mouseup supprimé (doublon de pointerup — les deux appelaient handlePointerOrMouseUp) */
           window.addEventListener("pointerup", handlePointerOrMouseUp);
           addSafeListener(canvasEl, "pointerleave", function () {
             // IMPORTANT: ne pas annuler une manip PV en cours (sinon move/rotate "meurt" dès qu'on sort du canvas)
@@ -18299,7 +18341,9 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             if (CALPINAGE_STATE.activeObstacle) CALPINAGE_STATE.activeObstacle.hover = null;
           };
           window.addEventListener("mouseleave", handleWindowMouseleave);
-          addSafeListener(canvasEl, "mousemove", function (e) {
+          /* mousemove supprimé : toute sa logique est couverte par pointermove ci-dessous.
+             hoverPanId (seule fonctionnalité absente de pointermove) migré en bas du handler pointermove. */
+          addSafeListener(canvasEl, "mousemove_DISABLED_SEE_POINTERMOVE", function (e) {
             if (window.CALPINAGE_IS_MANIPULATING) return;
             if (drawState.draggingShadowVolumeHandle && drawState.resizeShadowVolumeStart) {
               if (CALPINAGE_STATE && CALPINAGE_STATE.currentPhase === "PV_LAYOUT") {
@@ -18672,6 +18716,13 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             if (process.env.NODE_ENV !== "production") {
               // console.log("[STATE]", interactionState);
             }
+            /* hoverPanId — migré depuis mousemove (Fix-C : suppression doublon mousemove) */
+            var hitPanHoverPm = hitTestPan(imgPt);
+            var newHoverPanIdPm = hitPanHoverPm ? hitPanHoverPm.id : null;
+            if (newHoverPanIdPm !== drawState.hoverPanId) {
+              drawState.hoverPanId = newHoverPanIdPm;
+              if (typeof window.CALPINAGE_RENDER === "function") requestAnimationFrame(window.CALPINAGE_RENDER);
+            }
           });
           /* DELETE-ROOFEXTENSION-SECURED */
           deleteCurrentSelection = function (e) {
@@ -18980,7 +19031,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             if (typeof PointerEvent !== "undefined") {
               window.removeEventListener("pointermove", handleWindowPointermoveForPv);
             }
-            window.removeEventListener("mouseup", handlePointerOrMouseUp);
+            /* mouseup supprimé (doublon — voir addEventListener ci-dessus) */
             window.removeEventListener("pointerup", handlePointerOrMouseUp);
             window.removeEventListener("mouseleave", handleWindowMouseleave);
             window.removeEventListener("keydown", handleWindowKeydown);
