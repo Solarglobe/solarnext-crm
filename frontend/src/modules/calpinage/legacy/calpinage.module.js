@@ -1496,6 +1496,11 @@ export function initCalpinage(container, options = {}) {
       display: block;
       opacity: 0.92;
       transition: opacity 0.15s;
+      /* Fix-E : #zone-c canvas { width:100%; height:100% } écrasait la taille de la minimap
+         (1240×644 au lieu de 180×130), couvrant tout le canvas et volant tous les clics.
+         !important nécessaire car #zone-c canvas a une spécificité CSS plus élevée (101 > 100). */
+      width: 180px !important;
+      height: 130px !important;
     }
     #calpinage-minimap:hover { opacity: 1; }
     #zone-c canvas {
