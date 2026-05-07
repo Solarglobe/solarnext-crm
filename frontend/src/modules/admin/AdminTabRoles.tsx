@@ -266,10 +266,10 @@ export function AdminTabRoles() {
                 const isGlobalSystem = r.is_system && r.organization_id == null;
                 return (
                   <tr key={r.id}>
-                    <td className="org-tab-table__cell--strong">
-                      <code style={{ fontSize: 12, fontFamily: "ui-monospace, monospace" }}>{r.code}</code>
+                    <td>
+                      <span className="org-role-code">{r.code}</span>
                     </td>
-                    <td>{r.name}</td>
+                    <td className="org-tab-table__cell--strong">{r.name}</td>
                     <td>
                       {isGlobalSystem ? (
                         <span className="sn-badge sn-badge-neutral">Système</span>
@@ -281,18 +281,20 @@ export function AdminTabRoles() {
                       {isGlobalSystem ? (
                         <span className="org-tab-table__cell--muted">—</span>
                       ) : (
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          type="button"
-                          onClick={() => openPermissions(r)}
-                          disabled={noPermissions}
-                        >
-                          <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                            <OrgIconShield />
-                            Permissions
-                          </span>
-                        </Button>
+                        <div className="org-tab-row-actions">
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            type="button"
+                            onClick={() => openPermissions(r)}
+                            disabled={noPermissions}
+                          >
+                            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                              <OrgIconShield />
+                              Permissions
+                            </span>
+                          </Button>
+                        </div>
                       )}
                     </td>
                   </tr>

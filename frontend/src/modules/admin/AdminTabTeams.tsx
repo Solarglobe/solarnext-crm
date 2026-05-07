@@ -17,6 +17,37 @@ import {
 } from "../../services/admin.api";
 import { OrgIconEdit, OrgIconTrash } from "./orgStructureTableIcons";
 
+function IconTeam() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+      <circle cx="9" cy="7" r="4"/>
+      <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+      <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+    </svg>
+  );
+}
+
+function IconTeamModal() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+      <circle cx="9" cy="7" r="4"/>
+      <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+      <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+    </svg>
+  );
+}
+
+function IconAgency() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="18" height="18" rx="2"/>
+      <path d="M9 3v18M3 9h18"/>
+    </svg>
+  );
+}
+
 export function AdminTabTeams() {
   const [teams, setTeams] = useState<AdminTeam[]>([]);
   const [agencies, setAgencies] = useState<AdminAgency[]>([]);
@@ -124,15 +155,32 @@ export function AdminTabTeams() {
           <tbody>
             {teams.length === 0 ? (
               <tr>
-                <td colSpan={4} className="org-tab-table__empty">
-                  Aucune équipe pour le moment. Créez une équipe pour commencer.
+                <td colSpan={4} className="org-tab-empty-cell">
+                  <div className="org-tab-empty-state">
+                    <div className="org-tab-empty-icon">
+                      <IconTeam />
+                    </div>
+                    <p className="org-tab-empty-title">Aucune équipe</p>
+                    <p className="org-tab-empty-lead">Créez votre première équipe pour regrouper les utilisateurs par territoire ou spécialité.</p>
+                    <Button variant="primary" size="sm" type="button" onClick={openCreate}>
+                      Nouvelle équipe
+                    </Button>
+                  </div>
                 </td>
               </tr>
             ) : (
               teams.map((t) => (
                 <tr key={t.id}>
                   <td className="org-tab-table__cell--strong">{t.name}</td>
-                  <td>{t.agency_name || <span className="org-tab-table__cell--muted">—</span>}</td>
+                  <td>
+                    {t.agency_name ? (
+                      <span style={{ fontSize: 12.5, padding: "2px 8px", borderRadius: 6, background: "color-mix(in srgb, var(--primary) 8%, transparent)", color: "var(--text-secondary, var(--text-muted))", fontWeight: 500 }}>
+                        {t.agency_name}
+                      </span>
+                    ) : (
+                      <span className="org-tab-table__cell--muted">—</span>
+                    )}
+                  </td>
                   <td className="org-tab-table__cell--muted">—</td>
                   <td className="org-tab-table__cell--right">
                     <div className="org-tab-row-actions">
@@ -141,6 +189,7 @@ export function AdminTabTeams() {
                         className="org-tab-icon-btn"
                         onClick={() => openEdit(t)}
                         aria-label={`Modifier ${t.name}`}
+                        title="Modifier"
                       >
                         <OrgIconEdit />
                       </button>
@@ -149,6 +198,7 @@ export function AdminTabTeams() {
                         className="org-tab-icon-btn org-tab-icon-btn--danger"
                         onClick={() => void handleDelete(t)}
                         aria-label={`Supprimer ${t.name}`}
+                        title="Supprimer"
                       >
                         <OrgIconTrash />
                       </button>
@@ -164,28 +214,35 @@ export function AdminTabTeams() {
       <ModalShell
         open={modalOpen}
         onClose={() => setModalOpen(false)}
-        size="md"
+        size="lg"
         title={editingTeam ? "Modifier l'équipe" : "Nouvelle équipe"}
-        subtitle="Nom affiché dans l’admin et rattachement optionnel à une agence."
+        subtitle={editingTeam ? `Mettez à jour les informations de l'équipe "${editingTeam.name}".` : "Créez une équipe et associez-la optionnellement à une agence."}
         footer={
           <>
             <Button variant="secondary" size="sm" type="button" onClick={() => setModalOpen(false)}>
               Annuler
             </Button>
             <Button variant="primary" size="sm" type="submit" form="admin-team-form">
-              {editingTeam ? "Enregistrer" : "Créer"}
+              {editingTeam ? "Enregistrer" : "Créer l'équipe"}
             </Button>
           </>
         }
       >
         <form id="admin-team-form" onSubmit={handleSubmit}>
-          <section className="sn-saas-form-section">
-            <h3 className="sn-saas-form-section__title">Informations</h3>
-            <div className="sn-saas-field-grid sn-saas-field-grid--2">
+          {/* Section identité */}
+          <div className="org-modal-section" style={{ marginBottom: 24 }}>
+            <div className="org-modal-section__header">
+              <div className="org-modal-section__icon">
+                <IconTeamModal />
+              </div>
               <div>
-                <label className="sn-saas-label" htmlFor="admin-team-name">
-                  Nom de l&apos;équipe
-                </label>
+                <h3 className="org-modal-section__title">Identité de l&apos;équipe</h3>
+                <p className="org-modal-section__desc">Nom affiché dans l'admin, les filtres et les profils utilisateurs.</p>
+              </div>
+            </div>
+            <div className="org-modal-field-grid">
+              <div className="org-modal-field">
+                <label htmlFor="admin-team-name">Nom de l&apos;équipe</label>
                 <input
                   id="admin-team-name"
                   type="text"
@@ -195,12 +252,26 @@ export function AdminTabTeams() {
                   className="sn-saas-input"
                   autoComplete="off"
                   placeholder="Ex. Commercial Sud"
+                  autoFocus
                 />
               </div>
+            </div>
+          </div>
+
+          {/* Section rattachement */}
+          <div className="org-modal-section">
+            <div className="org-modal-section__header">
+              <div className="org-modal-section__icon">
+                <IconAgency />
+              </div>
               <div>
-                <label className="sn-saas-label" htmlFor="admin-team-agency">
-                  Agence
-                </label>
+                <h3 className="org-modal-section__title">Rattachement agence</h3>
+                <p className="org-modal-section__desc">Optionnel — associe cette équipe à une agence pour la structure et les droits.</p>
+              </div>
+            </div>
+            <div className="org-modal-field-grid">
+              <div className="org-modal-field">
+                <label htmlFor="admin-team-agency">Agence</label>
                 <select
                   id="admin-team-agency"
                   value={form.agency_id}
@@ -216,7 +287,7 @@ export function AdminTabTeams() {
                 </select>
               </div>
             </div>
-          </section>
+          </div>
         </form>
       </ModalShell>
     </div>

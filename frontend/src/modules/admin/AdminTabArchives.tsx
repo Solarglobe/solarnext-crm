@@ -13,6 +13,25 @@ import {
 } from "../../services/admin.api";
 import { OrgIconUndo } from "./orgStructureTableIcons";
 
+function IconArchive() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="21 8 21 21 3 21 3 8"/>
+      <rect x="1" y="3" width="22" height="5"/>
+      <line x1="10" y1="12" x2="14" y2="12"/>
+    </svg>
+  );
+}
+
+function IconSearch() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="11" cy="11" r="8"/>
+      <path d="m21 21-4.35-4.35"/>
+    </svg>
+  );
+}
+
 export function AdminTabArchives() {
   const [items, setItems] = useState<AdminArchiveItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -116,7 +135,18 @@ export function AdminTabArchives() {
             onClick={() => void handleExportCsv()}
             disabled={exporting || items.length === 0}
           >
-            {exporting ? "Export…" : "Exporter CSV"}
+            {exporting ? (
+              "Export…"
+            ) : (
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="7 10 12 15 17 10"/>
+                  <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                Exporter CSV
+              </span>
+            )}
           </Button>
         </div>
       </header>
@@ -125,7 +155,8 @@ export function AdminTabArchives() {
 
       {items.length > 0 ? (
         <div className="org-tab-toolbar">
-          <div className="org-tab-toolbar__search">
+          <div className="org-tab-toolbar__search-wrap">
+            <IconSearch />
             <input
               type="search"
               className="sn-input"
@@ -140,15 +171,23 @@ export function AdminTabArchives() {
 
       {items.length === 0 ? (
         <div className="org-tab-table-wrap">
-          <p className="org-tab-table__empty" style={{ margin: 0 }}>
-            Aucun lead archivé.
-          </p>
+          <div className="org-tab-empty-state">
+            <div className="org-tab-empty-icon">
+              <IconArchive />
+            </div>
+            <p className="org-tab-empty-title">Aucun lead archivé</p>
+            <p className="org-tab-empty-lead">Les leads marqués comme perdus ou archivés manuellement apparaîtront ici.</p>
+          </div>
         </div>
       ) : filteredItems.length === 0 ? (
         <div className="org-tab-table-wrap">
-          <p className="org-tab-table__empty" style={{ margin: 0 }}>
-            Aucun résultat pour cette recherche.
-          </p>
+          <div className="org-tab-empty-state">
+            <div className="org-tab-empty-icon">
+              <IconSearch />
+            </div>
+            <p className="org-tab-empty-title">Aucun résultat</p>
+            <p className="org-tab-empty-lead">Aucun lead ne correspond à «&nbsp;{search}&nbsp;».</p>
+          </div>
         </div>
       ) : (
         <div className="org-tab-table-wrap">
@@ -171,21 +210,35 @@ export function AdminTabArchives() {
                   <td className="org-tab-table__cell--strong">{item.full_name || "—"}</td>
                   <td className="org-tab-table__cell--muted">{item.email || "—"}</td>
                   <td>{item.phone || "—"}</td>
-                  <td>{item.stage_name || "—"}</td>
-                  <td>{reasonLabel(item.archived_reason)}</td>
+                  <td>
+                    {item.stage_name ? (
+                      <span style={{ fontSize: 12, padding: "2px 7px", borderRadius: 5, background: "color-mix(in srgb, var(--text-primary) 7%, transparent)", fontWeight: 500 }}>
+                        {item.stage_name}
+                      </span>
+                    ) : "—"}
+                  </td>
+                  <td>
+                    {reasonLabel(item.archived_reason) !== "—" ? (
+                      <span style={{ fontSize: 12, padding: "2px 7px", borderRadius: 5, background: "color-mix(in srgb, #dc2626 8%, transparent)", color: "#dc2626", fontWeight: 500 }}>
+                        {reasonLabel(item.archived_reason)}
+                      </span>
+                    ) : "—"}
+                  </td>
                   <td className="org-tab-table__cell--muted">{formatDate(item.archived_at)}</td>
-                  <td className="org-tab-table__cell--muted">{item.archived_by_email || "—"}</td>
+                  <td className="org-tab-table__cell--muted" style={{ fontSize: 12 }}>{item.archived_by_email || "—"}</td>
                   <td className="org-tab-table__cell--right">
-                    <button
-                      type="button"
-                      className="org-tab-icon-btn"
-                      onClick={() => void handleRestore(item)}
-                      disabled={restoringId === item.id}
-                      aria-label={`Restaurer ${item.full_name || item.email || "ce lead"}`}
-                      title="Restaurer"
-                    >
-                      <OrgIconUndo />
-                    </button>
+                    <div className="org-tab-row-actions">
+                      <button
+                        type="button"
+                        className="org-tab-icon-btn"
+                        onClick={() => void handleRestore(item)}
+                        disabled={restoringId === item.id}
+                        aria-label={`Restaurer ${item.full_name || item.email || "ce lead"}`}
+                        title="Restaurer dans le pipeline"
+                      >
+                        <OrgIconUndo />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

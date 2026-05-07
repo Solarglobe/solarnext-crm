@@ -1,9 +1,9 @@
 /**
  * Refonte visible — page /organization/structure
- * Onglets segmentés, en-têtes d’onglet, tableaux type “database SaaS”, modales formulaire.
+ * Onglets segmentés, en-têtes d'onglet, tableaux type "database SaaS", modales formulaire.
  */
 
-/* ——— Onglets page : segmented control (très visible) ——— */
+/* ——— Onglets page : segmented control ——— */
 .org-structure-tabs-segmented.sn-saas-tabs {
   gap: 4px;
   padding: 5px;
@@ -51,14 +51,14 @@ html.theme-dark .org-structure-tabs-segmented .sn-saas-tab--active {
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
 }
 
-/* Panneau : un peu plus d’air sous les onglets */
+/* Panneau : un peu plus d'air sous les onglets */
 .org-structure-panel.sn-saas-surface {
   padding: 0;
   overflow: hidden;
 }
 
 .org-structure-tab {
-  padding: 22px 24px 28px;
+  padding: 24px 28px 32px;
   box-sizing: border-box;
 }
 
@@ -68,15 +68,15 @@ html.theme-dark .org-structure-tabs-segmented .sn-saas-tab--active {
   }
 }
 
-/* ——— En-tête d’onglet ——— */
+/* ——— En-tête d'onglet ——— */
 .org-tab-hero {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
-  margin-bottom: 20px;
-  padding-bottom: 18px;
+  margin-bottom: 22px;
+  padding-bottom: 20px;
   border-bottom: 1px solid color-mix(in srgb, var(--border-soft) 90%, transparent);
 }
 
@@ -88,15 +88,16 @@ html.theme-dark .org-structure-tabs-segmented .sn-saas-tab--active {
 .org-tab-hero__title {
   margin: 0 0 6px;
   font-size: 1.0625rem;
-  font-weight: 650;
-  letter-spacing: -0.02em;
+  font-weight: 700;
+  letter-spacing: -0.025em;
   color: var(--text-primary);
+  line-height: 1.2;
 }
 
 .org-tab-hero__lead {
   margin: 0;
   font-size: 0.8125rem;
-  line-height: 1.5;
+  line-height: 1.55;
   color: var(--text-muted);
   max-width: 560px;
 }
@@ -104,15 +105,26 @@ html.theme-dark .org-structure-tabs-segmented .sn-saas-tab--active {
 .org-tab-hero__meta {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   margin-top: 10px;
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 600;
   color: var(--text-muted);
-  padding: 4px 10px;
+  padding: 3px 10px;
   border-radius: 999px;
   background: color-mix(in srgb, var(--text-primary) 5%, transparent);
   border: 1px solid var(--border-soft);
+  letter-spacing: 0.01em;
+}
+
+.org-tab-hero__meta::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--primary) 55%, transparent);
+  flex-shrink: 0;
 }
 
 .org-tab-hero__actions {
@@ -140,7 +152,7 @@ html.theme-dark .org-structure-tabs-segmented .sn-saas-tab--active {
   border: 1px solid var(--border-soft, rgba(15, 23, 42, 0.1));
   background: var(--surface-card);
   overflow: auto;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
 }
 
 .org-tab-table {
@@ -154,22 +166,22 @@ html.theme-dark .org-structure-tabs-segmented .sn-saas-tab--active {
   position: sticky;
   top: 0;
   z-index: 1;
-  padding: 10px 14px;
+  padding: 10px 16px;
   text-align: left;
-  font-size: 10px;
+  font-size: 10.5px;
   font-weight: 700;
-  letter-spacing: 0.07em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: color-mix(in srgb, var(--primary) 12%, var(--text-muted));
-  background: color-mix(in srgb, var(--surface-2) 55%, var(--surface-card));
+  color: color-mix(in srgb, var(--primary) 18%, var(--text-muted));
+  background: color-mix(in srgb, var(--primary) 4%, var(--surface-card));
   border-bottom: 1px solid var(--border-soft);
   white-space: nowrap;
 }
 
 .org-tab-table tbody td {
-  padding: 10px 14px;
+  padding: 11px 16px;
   vertical-align: middle;
-  border-bottom: 1px solid color-mix(in srgb, var(--border-soft) 75%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--border-soft) 70%, transparent);
   color: var(--text-primary);
 }
 
@@ -178,11 +190,11 @@ html.theme-dark .org-structure-tabs-segmented .sn-saas-tab--active {
 }
 
 .org-tab-table tbody tr {
-  transition: background-color 0.15s ease;
+  transition: background-color 0.12s ease;
 }
 
 .org-tab-table tbody tr:hover {
-  background: color-mix(in srgb, var(--text-primary) 3.5%, transparent);
+  background: color-mix(in srgb, var(--primary) 3%, transparent);
 }
 
 .org-tab-table__cell--strong {
@@ -191,16 +203,17 @@ html.theme-dark .org-structure-tabs-segmented .sn-saas-tab--active {
 
 .org-tab-table__cell--muted {
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: 12.5px;
 }
 
 .org-tab-table__cell--right {
   text-align: right;
 }
 
+/* ——— Empty state enrichi ——— */
 .org-tab-table__empty {
   text-align: center;
-  padding: 36px 20px !important;
+  padding: 48px 20px !important;
   color: var(--text-muted);
   font-size: 0.875rem;
 }
@@ -208,37 +221,95 @@ html.theme-dark .org-structure-tabs-segmented .sn-saas-tab--active {
 .org-tab-table-wrap > .org-tab-table__empty {
   display: block;
   margin: 0;
-  padding: 40px 24px !important;
+  padding: 48px 24px !important;
 }
 
-/* ——— Actions ligne (icônes) ——— */
+/* Empty state avec icône (utilisé dans les tbody) */
+.org-tab-empty-cell {
+  padding: 0 !important;
+  border-bottom: none !important;
+}
+
+.org-tab-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 52px 24px;
+  text-align: center;
+}
+
+.org-tab-empty-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--primary) 8%, transparent);
+  color: color-mix(in srgb, var(--primary) 55%, var(--text-muted));
+  flex-shrink: 0;
+}
+
+.org-tab-empty-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--text-primary);
+}
+
+.org-tab-empty-lead {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-muted);
+  max-width: 320px;
+  line-height: 1.5;
+}
+
+/* ——— Actions ligne — hover reveal ——— */
 .org-tab-row-actions {
   display: inline-flex;
   align-items: center;
   justify-content: flex-end;
   gap: 4px;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.org-tab-table tbody tr:hover .org-tab-row-actions {
+  opacity: 1;
+}
+
+/* Toujours visible si focus clavier */
+.org-tab-row-actions:focus-within {
+  opacity: 1;
 }
 
 .org-tab-icon-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
+  width: 30px;
+  height: 30px;
   padding: 0;
-  border: none;
+  border: 1px solid var(--border-soft, rgba(15, 23, 42, 0.12));
   border-radius: 8px;
-  background: transparent;
+  background: var(--surface-card);
   color: var(--text-muted);
   cursor: pointer;
   transition:
-    background 0.15s ease,
-    color 0.15s ease;
+    background 0.12s ease,
+    border-color 0.12s ease,
+    color 0.12s ease,
+    box-shadow 0.12s ease;
+  flex-shrink: 0;
 }
 
 .org-tab-icon-btn:hover {
-  background: color-mix(in srgb, var(--text-primary) 7%, transparent);
-  color: var(--text-primary);
+  background: color-mix(in srgb, var(--primary) 8%, var(--surface-card));
+  border-color: color-mix(in srgb, var(--primary) 30%, var(--border-soft));
+  color: var(--primary);
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.08);
 }
 
 .org-tab-icon-btn:focus-visible {
@@ -247,8 +318,14 @@ html.theme-dark .org-structure-tabs-segmented .sn-saas-tab--active {
 }
 
 .org-tab-icon-btn--danger:hover {
-  background: color-mix(in srgb, var(--danger, #dc2626) 12%, transparent);
+  background: color-mix(in srgb, var(--danger, #dc2626) 10%, var(--surface-card));
+  border-color: color-mix(in srgb, var(--danger, #dc2626) 35%, var(--border-soft));
   color: var(--danger, #dc2626);
+}
+
+/* Action cell — assurer que le bouton reste visible pendant le focus */
+td:has(.org-tab-row-actions:focus-within) .org-tab-row-actions {
+  opacity: 1;
 }
 
 /* ——— Toolbar secondaire (recherche + actions) ——— */
@@ -263,7 +340,17 @@ html.theme-dark .org-structure-tabs-segmented .sn-saas-tab--active {
 .org-tab-toolbar__search {
   flex: 1 1 220px;
   min-width: 180px;
-  max-width: 360px;
+  max-width: 380px;
+  position: relative;
+}
+
+.org-tab-toolbar__search-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  pointer-events: none;
 }
 
 .org-tab-toolbar__search .sn-input {
@@ -271,11 +358,12 @@ html.theme-dark .org-structure-tabs-segmented .sn-saas-tab--active {
   height: 40px;
   border-radius: 10px;
   font-size: 13px;
+  padding-left: 36px;
 }
 
 .org-tab-loading {
   margin: 0;
-  padding: 28px 8px;
+  padding: 32px 8px;
   text-align: center;
   font-size: 0.875rem;
   color: var(--text-muted);
@@ -304,6 +392,93 @@ html.theme-dark .org-structure-tabs-segmented .sn-saas-tab--active {
   box-sizing: border-box;
 }
 
+/* ——— Form section premium dans les modales ——— */
+.org-modal-section {
+  margin-bottom: 0;
+}
+
+.org-modal-section__header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.org-modal-section__icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
+  color: var(--primary);
+  flex-shrink: 0;
+}
+
+.org-modal-section__title {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.015em;
+}
+
+.org-modal-section__desc {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.org-modal-field-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+@media (min-width: 500px) {
+  .org-modal-field-grid--2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.org-modal-field label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-secondary, var(--text-muted));
+  letter-spacing: 0.01em;
+}
+
+.org-modal-field .sn-saas-input,
+.org-modal-field input.sn-saas-input,
+.org-modal-field select.sn-saas-input {
+  width: 100%;
+  height: 44px;
+  border-radius: 10px;
+  box-sizing: border-box;
+  font-size: 13.5px;
+}
+
+/* ——— Code badge rôle ——— */
+.org-role-code {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-family: ui-monospace, "Cascadia Code", "Fira Code", monospace;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  background: color-mix(in srgb, var(--text-primary) 7%, transparent);
+  color: var(--text-primary);
+  border: 1px solid var(--border-soft);
+}
+
 /* ——— Entreprise : page unique SaaS (sections plates, pas de cartes) ——— */
 .org-org-page-intro {
   margin: 0 0 20px;
@@ -319,11 +494,11 @@ html.theme-dark .org-structure-tabs-segmented .sn-saas-tab--active {
 }
 
 .org-org-page {
-  max-width: 720px;
+  max-width: 760px;
 }
 
 .org-org-section {
-  padding: 18px 0 22px;
+  padding: 22px 0 26px;
   border-bottom: 1px solid var(--border-soft, rgba(15, 23, 42, 0.08));
 }
 
@@ -332,16 +507,40 @@ html.theme-dark .org-structure-tabs-segmented .sn-saas-tab--active {
   padding-bottom: 8px;
 }
 
+.org-org-section__header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.org-org-section__icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: color-mix(in srgb, var(--primary) 9%, transparent);
+  color: color-mix(in srgb, var(--primary) 70%, var(--text-muted));
+  margin-top: 2px;
+}
+
+.org-org-section__text {
+  min-width: 0;
+}
+
 .org-org-section__title {
-  margin: 0 0 4px;
-  font-size: 0.8125rem;
-  font-weight: 600;
+  margin: 0 0 3px;
+  font-size: 0.875rem;
+  font-weight: 700;
   letter-spacing: -0.01em;
   color: var(--text-primary);
 }
 
 .org-org-section__desc {
-  margin: 0 0 14px;
+  margin: 0;
   font-size: 0.75rem;
   line-height: 1.45;
   color: var(--text-muted);
@@ -350,7 +549,7 @@ html.theme-dark .org-structure-tabs-segmented .sn-saas-tab--active {
 .org-org-fields {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 14px 20px;
+  gap: 16px 20px;
 }
 
 @media (min-width: 640px) {
@@ -364,24 +563,30 @@ html.theme-dark .org-structure-tabs-segmented .sn-saas-tab--active {
 }
 
 .org-org-preview-box {
-  margin-top: 10px;
-  padding: 10px 12px;
-  border-radius: 8px;
+  margin-top: 12px;
+  padding: 12px 16px;
+  border-radius: 10px;
   border: 1px solid var(--border-soft);
   background: color-mix(in srgb, var(--text-primary) 3%, transparent);
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .org-org-preview-box__label {
-  font-size: 11px;
-  font-weight: 600;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   color: var(--text-muted);
   margin-bottom: 4px;
 }
 
 .org-org-preview-box__value {
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 15px;
+  font-weight: 700;
   color: var(--text-primary);
+  letter-spacing: -0.02em;
 }
 
 .org-structure-panel .admin-tab-org .admin-org-actions {
@@ -393,9 +598,9 @@ html.theme-dark .org-structure-tabs-segmented .sn-saas-tab--active {
   border-top: 1px solid var(--border-soft);
 }
 
-/* ——— Documents légaux : page sobre (sections plates, pas cartes) ——— */
+/* ——— Documents légaux : page sobre (sections plates) ——— */
 .org-legal-page {
-  max-width: 720px;
+  max-width: 760px;
 }
 
 .org-legal-page-intro {
@@ -412,7 +617,7 @@ html.theme-dark .org-structure-tabs-segmented .sn-saas-tab--active {
 }
 
 .org-legal-block {
-  padding: 18px 0 22px;
+  padding: 20px 0 24px;
   border-bottom: 1px solid var(--border-soft, rgba(15, 23, 42, 0.08));
 }
 
@@ -421,16 +626,40 @@ html.theme-dark .org-structure-tabs-segmented .sn-saas-tab--active {
   padding-bottom: 8px;
 }
 
+.org-legal-block__header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.org-legal-block__icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: color-mix(in srgb, var(--primary) 9%, transparent);
+  color: color-mix(in srgb, var(--primary) 70%, var(--text-muted));
+  margin-top: 2px;
+}
+
+.org-legal-block__text {
+  min-width: 0;
+}
+
 .org-legal-block__title {
-  margin: 0 0 4px;
-  font-size: 0.8125rem;
-  font-weight: 600;
+  margin: 0 0 3px;
+  font-size: 0.875rem;
+  font-weight: 700;
   letter-spacing: -0.01em;
   color: var(--text-primary);
 }
 
 .org-legal-block__lead {
-  margin: 0 0 16px;
+  margin: 0;
   font-size: 0.75rem;
   line-height: 1.45;
   color: var(--text-muted);
@@ -458,7 +687,7 @@ html.theme-dark .org-structure-tabs-segmented .sn-saas-tab--active {
 
 .org-legal-mode-switch__btn {
   margin: 0;
-  padding: 8px 16px;
+  padding: 8px 18px;
   border: none;
   border-radius: 8px;
   font-size: 13px;
@@ -479,7 +708,7 @@ html.theme-dark .org-structure-tabs-segmented .sn-saas-tab--active {
   background: var(--surface-card);
   color: var(--text-primary);
   font-weight: 600;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
 }
 
 .theme-dark .org-legal-mode-switch__btn--active,
@@ -590,4 +819,31 @@ html.theme-dark .org-legal-mode-switch__btn--active {
 /* ——— Rôles : carte tableau + toolbar ——— */
 .org-tab-roles-toolbar {
   margin-bottom: 14px;
+}
+
+/* ——— Archives : toolbar search premium ——— */
+.org-tab-toolbar__search-wrap {
+  flex: 1 1 220px;
+  min-width: 180px;
+  max-width: 400px;
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.org-tab-toolbar__search-wrap svg {
+  position: absolute;
+  left: 12px;
+  color: var(--text-muted);
+  pointer-events: none;
+  flex-shrink: 0;
+}
+
+.org-tab-toolbar__search-wrap .sn-input {
+  width: 100%;
+  height: 40px;
+  padding-left: 38px;
+  border-radius: 10px;
+  font-size: 13px;
+  box-sizing: border-box;
 }

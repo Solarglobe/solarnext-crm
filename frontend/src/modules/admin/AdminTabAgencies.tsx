@@ -17,6 +17,24 @@ import {
 } from "../../services/admin.api";
 import { OrgIconEdit, OrgIconTrash } from "./orgStructureTableIcons";
 
+function IconBuilding() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="18" height="18" rx="2"/>
+      <path d="M9 3v18M15 3v18M3 9h18M3 15h18"/>
+    </svg>
+  );
+}
+
+function IconBuildingModal() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="18" height="18" rx="2"/>
+      <path d="M9 3v18M15 3v18M3 9h18M3 15h18"/>
+    </svg>
+  );
+}
+
 export function AdminTabAgencies() {
   const [agencies, setAgencies] = useState<AdminAgency[]>([]);
   const [teams, setTeams] = useState<AdminTeam[]>([]);
@@ -125,15 +143,32 @@ export function AdminTabAgencies() {
           <tbody>
             {agencies.length === 0 ? (
               <tr>
-                <td colSpan={3} className="org-tab-table__empty">
-                  Aucune agence. Créez une agence avant d&apos;associer des équipes.
+                <td colSpan={3} className="org-tab-empty-cell">
+                  <div className="org-tab-empty-state">
+                    <div className="org-tab-empty-icon">
+                      <IconBuilding />
+                    </div>
+                    <p className="org-tab-empty-title">Aucune agence</p>
+                    <p className="org-tab-empty-lead">Créez votre première agence pour structurer vos équipes commerciales.</p>
+                    <Button variant="primary" size="sm" type="button" onClick={openCreate}>
+                      Nouvelle agence
+                    </Button>
+                  </div>
                 </td>
               </tr>
             ) : (
               agencies.map((a) => (
                 <tr key={a.id}>
                   <td className="org-tab-table__cell--strong">{a.name}</td>
-                  <td>{teamCountByAgency[a.id] ?? 0}</td>
+                  <td>
+                    {(teamCountByAgency[a.id] ?? 0) > 0 ? (
+                      <span style={{ fontVariantNumeric: "tabular-nums" }}>
+                        {teamCountByAgency[a.id]} équipe{(teamCountByAgency[a.id] ?? 0) !== 1 ? "s" : ""}
+                      </span>
+                    ) : (
+                      <span className="org-tab-table__cell--muted">—</span>
+                    )}
+                  </td>
                   <td className="org-tab-table__cell--right">
                     <div className="org-tab-row-actions">
                       <button
@@ -141,6 +176,7 @@ export function AdminTabAgencies() {
                         className="org-tab-icon-btn"
                         onClick={() => openEdit(a)}
                         aria-label={`Modifier ${a.name}`}
+                        title="Modifier"
                       >
                         <OrgIconEdit />
                       </button>
@@ -149,6 +185,7 @@ export function AdminTabAgencies() {
                         className="org-tab-icon-btn org-tab-icon-btn--danger"
                         onClick={() => void handleDelete(a)}
                         aria-label={`Supprimer ${a.name}`}
+                        title="Supprimer"
                       >
                         <OrgIconTrash />
                       </button>
@@ -166,37 +203,46 @@ export function AdminTabAgencies() {
         onClose={() => setModalOpen(false)}
         size="md"
         title={editingAgency ? "Modifier l'agence" : "Nouvelle agence"}
-        subtitle="Libellé interne visible dans l’admin et les listes."
+        subtitle={editingAgency ? "Mettez à jour le nom de cette agence." : "Créez une nouvelle agence pour regrouper vos équipes."}
         footer={
           <>
             <Button variant="secondary" size="sm" type="button" onClick={() => setModalOpen(false)}>
               Annuler
             </Button>
             <Button variant="primary" size="sm" type="submit" form="admin-agency-form">
-              {editingAgency ? "Enregistrer" : "Créer"}
+              {editingAgency ? "Enregistrer" : "Créer l'agence"}
             </Button>
           </>
         }
       >
         <form id="admin-agency-form" onSubmit={handleSubmit}>
-          <section className="sn-saas-form-section">
-            <h3 className="sn-saas-form-section__title">Informations</h3>
-            <div>
-              <label className="sn-saas-label" htmlFor="admin-agency-name">
-                Nom de l&apos;agence
-              </label>
-              <input
-                id="admin-agency-name"
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
-                className="sn-saas-input"
-                autoComplete="off"
-                placeholder="Ex. Agence Lyon"
-              />
+          <div className="org-modal-section">
+            <div className="org-modal-section__header">
+              <div className="org-modal-section__icon">
+                <IconBuildingModal />
+              </div>
+              <div>
+                <h3 className="org-modal-section__title">Informations</h3>
+                <p className="org-modal-section__desc">Libellé interne visible dans l'admin et les listes.</p>
+              </div>
             </div>
-          </section>
+            <div className="org-modal-field-grid">
+              <div className="org-modal-field">
+                <label htmlFor="admin-agency-name">Nom de l&apos;agence</label>
+                <input
+                  id="admin-agency-name"
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                  className="sn-saas-input"
+                  autoComplete="off"
+                  placeholder="Ex. Agence Lyon"
+                  autoFocus
+                />
+              </div>
+            </div>
+          </div>
         </form>
       </ModalShell>
     </div>
