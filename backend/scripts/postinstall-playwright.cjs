@@ -64,12 +64,12 @@ if (hasChromiumInCache()) {
 }
 
 try {
-  log("PLAYWRIGHT_INSTALL_START", "cmd=\"npx playwright install chromium --with-deps\"");
-  execSync("npx playwright install chromium --with-deps", {
+  console.log("PLAYWRIGHT_INSTALL_START");
+  execSync("npx playwright install chromium", {
     stdio: "inherit",
   });
-  log("PLAYWRIGHT_INSTALL_DONE");
-} catch (e) {
-  process.stderr.write(`[playwright] postinstall échoué: ${e && e.message}\n`);
+  console.log("PLAYWRIGHT_INSTALL_DONE");
+} catch (err) {
+  console.error("PLAYWRIGHT_INSTALL_FAILED", err);
   process.exit(1);
 }
