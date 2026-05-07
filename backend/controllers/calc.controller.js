@@ -1261,6 +1261,14 @@ if (devLog) {
             hybridScenario.billable_import_kwh = hybridImportKwh;
             hybridScenario.credited_kwh = hybridCredited;
             hybridScenario.used_credit_kwh = vbCreditsUsed;
+            // Taux d'autoconsommation (auto / production) et couverture solaire (auto / conso) — cohérents avec BATTERY_PHYSICAL et BATTERY_VIRTUAL
+            hybridScenario.self_consumption_pct = production > 0
+              ? Math.round((hybridAutoKwh / production) * 10000) / 100
+              : 0;
+            hybridScenario.self_production_pct = consumption > 0
+              ? Math.round((hybridAutoKwh / consumption) * 10000) / 100
+              : 0;
+            hybridScenario.autoproduction_kwh = hybridAutoKwh;
 
             hybridScenario.battery_virtual = {
               enabled: true,

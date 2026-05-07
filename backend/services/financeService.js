@@ -135,6 +135,11 @@ export function resolveScenarioCapexTtcV2(sc, ctx) {
     if (pvCapex == null) return null;
     return pvCapex + virtAdd;
   }
+  if (sc.name === "BATTERY_HYBRID") {
+    // CAPEX = PV + batterie physique (abonnement VB = OPEX uniquement)
+    if (pvCapex == null) return null;
+    return pvCapex + batteryPhysExtra;
+  }
   return null;
 }
 
@@ -455,12 +460,12 @@ export async function computeFinance(ctx, scenarios) {
           ? Math.max(0, (baseImportKwh || 0) - billableImportKwh)
           : null;
 
-      // Pour BATTERY_PHYSICAL : séparation de la contribution batterie pour dégradation physique.
-      // sc.battery.annual_discharge_kwh = énergie restituée par la batterie en an 1 (kWh).
+      // Pour BATTERY_PHYSICAL / BATTERY_HYBRID : séparation de la contribution batterie pour dégradation physique.
+      // sc.battery.annual_discharge_kwh = énergie restituée par la batterie physique en an 1 (kWh).
       // Les scénarios BASE / BATTERY_VIRTUAL reçoivent battery_contribution_y1 = 0
       // → comportement identique à avant (rétrocompatible).
       const _battContribY1 =
-        sc.name === "BATTERY_PHYSICAL"
+        (sc.name === "BATTERY_PHYSICAL" || sc.name === "BATTERY_HYBRID")
           ? (sc.battery?.annual_discharge_kwh ?? 0)
           : 0;
 
@@ -489,7 +494,8 @@ export async function computeFinance(ctx, scenarios) {
         pv_degradation_first_year_pct: econ.pv_degradation_first_year_pct
       });
 
-      if (sc.name === "BATTERY_VIRTUAL" && sc.virtual_battery_finance) {
+      const _isVbScenario = sc.name === "BATTERY_VIRTUAL" || sc.name === "BATTERY_HYBRID";
+      if (_isVbScenario && sc.virtual_battery_finance) {
         const recurring = Number(sc.virtual_battery_finance.annual_total_virtual_cost_ttc);
         const act = Number(sc.virtual_battery_finance.annual_activation_fee_ttc || 0) || 0;
         const actInCapex = sc._virtual_battery_activation_in_capex === true;
@@ -500,7 +506,7 @@ export async function computeFinance(ctx, scenarios) {
           return { ...f, total_eur };
         });
         flows = recalcCumulColumns(flows, capex_ttc);
-      } else if (sc.name === "BATTERY_VIRTUAL" && sc._virtualBatteryQuote?.annual_cost_ttc != null) {
+      } else if (_isVbScenario && sc._virtualBatteryQuote?.annual_cost_ttc != null) {
         const opexVirtual = Number(sc._virtualBatteryQuote.annual_cost_ttc);
         const feeFixedTtc = Number(sc._virtualBatteryQuote?.detail?.fee_fixed_ttc ?? 0) || 0;
         const recurringCost = feeFixedTtc > 0 ? opexVirtual - feeFixedTtc : opexVirtual;
