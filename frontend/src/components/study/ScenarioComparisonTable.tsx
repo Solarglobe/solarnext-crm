@@ -1136,7 +1136,6 @@ export default function ScenarioComparisonTable({
           display: grid;
           grid-template-columns: repeat(4, minmax(0, 1fr));
           gap: 16px;
-          align-items: stretch;
         }
         @media (max-width: 1200px) {
           .scenario-comparison-grid {
@@ -1767,6 +1766,32 @@ export default function ScenarioComparisonTable({
           padding-top: 0;
         }
         .scenario-col-cta { width: 100%; }
+        /* ── Subgrid cross-card row alignment (4-col only) ── */
+        @media (min-width: 1201px) {
+          .scenario-comparison-grid {
+            grid-template-rows: repeat(8, auto);
+            row-gap: 0.35rem;
+          }
+          .scenario-col-card {
+            display: grid;
+            grid-row: span 8;
+            grid-template-rows: subgrid;
+            gap: 0;
+            min-height: unset;
+          }
+          .scenario-col-card--empty {
+            gap: 0;
+          }
+          .scenario-col-card--empty .scenario-col-body.scenario-col-empty {
+            grid-row: 2 / 9;
+            flex: unset;
+          }
+          .scenario-col-card:not(.scenario-col-card--empty) > footer.scenario-col-footer,
+          .scenario-col-card:not(.scenario-col-card--empty) > .scenario-row-footer--inert {
+            margin-top: 0;
+            align-self: end;
+          }
+        }
         @media (max-width: 640px) {
           .scenario-comparison-premium { padding: 0.75rem; }
           .scenario-hero-value { font-size: 1.55rem; }
