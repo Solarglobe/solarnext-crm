@@ -78,6 +78,18 @@ function serializeForm(f: UserFormState): string {
   });
 }
 
+const AVATAR_COLORS = ["#7C3AED","#2563EB","#059669","#D97706","#0891B2","#DC2626","#7C3AED"];
+function getAvatarColor(name: string): string {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = name.charCodeAt(i) + ((h << 5) - h);
+  return AVATAR_COLORS[Math.abs(h) % AVATAR_COLORS.length];
+}
+function getInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  return name.slice(0, 2).toUpperCase();
+}
+
 function displayPrimaryName(u: AdminUser): string {
   const fromParts = [u.first_name?.trim(), u.last_name?.trim()].filter(Boolean).join(" ").trim();
   if (fromParts) return fromParts;
@@ -92,46 +104,52 @@ function UserNameCell({ u }: { u: AdminUser }) {
   );
   const primary = displayPrimaryName(u);
   const email = u.email || "";
+  const color = getAvatarColor(primary);
   return (
-    <div>
-      <span className="admin-users-cell-name-primary">{primary}</span>
-      {hasName && email ? <span className="admin-users-cell-name-email">{email}</span> : null}
+    <div className="admin-users-name-cell">
+      <div className="admin-users-avatar" style={{ background: color }} aria-hidden>
+        {getInitials(primary)}
+      </div>
+      <div className="admin-users-name-cell-text">
+        <span className="admin-users-cell-name-primary">{primary}</span>
+        {hasName && email ? <span className="admin-users-cell-name-email">{email}</span> : null}
+      </div>
     </div>
   );
 }
 
+function roleBadgeClass(code: string): string {
+  const c = code.toUpperCase();
+  if (c === "SUPER_ADMIN") return "admin-users-role-badge admin-users-role-badge--super";
+  if (c === "ADMIN") return "admin-users-role-badge admin-users-role-badge--admin";
+  return "admin-users-role-badge admin-users-role-badge--other";
+}
+
 function RoleBadges({ codes }: { codes: string[] }) {
-  if (!codes.length) return <span className="sn-badge sn-badge-neutral">—</span>;
-  const visible = codes.slice(0, 2);
-  const rest = codes.length - 2;
+  if (!codes.length) return <span className="admin-users-none-text">—</span>;
+  const visible = codes.slice(0, 3);
+  const rest = codes.length - 3;
   const fullList = codes.join(", ");
   return (
-    <span className="admin-users-badge-row" title={codes.length > 2 ? fullList : undefined}>
+    <span className="admin-users-badge-row" title={codes.length > 3 ? fullList : undefined}>
       {visible.map((r) => (
-        <span key={r} className="sn-badge sn-badge-info">
-          {r}
-        </span>
+        <span key={r} className={roleBadgeClass(r)}>{r}</span>
       ))}
       {rest > 0 ? (
-        <span className="sn-badge sn-badge-neutral" title={fullList}>
-          +{rest}
-        </span>
+        <span className="admin-users-role-badge admin-users-role-badge--other" title={fullList}>+{rest}</span>
       ) : null}
     </span>
   );
 }
 
 function TeamAgencyCell({ names }: { names: string[] | undefined }) {
-  if (names === undefined) {
-    return <span className="sn-badge sn-badge-neutral">—</span>;
-  }
-  if (names.length === 0) {
-    return <span className="sn-badge sn-badge-neutral">Aucune</span>;
+  if (names === undefined || names.length === 0) {
+    return <span className="admin-users-none-text">—</span>;
   }
   return (
     <span className="admin-users-badge-row">
       {names.map((n, idx) => (
-        <span key={`${n}-${idx}`} className="sn-badge sn-badge-neutral">
+        <span key={`${n}-${idx}`} className="sn-badge sn-badge-neutral" style={{ fontSize: 11 }}>
           {n}
         </span>
       ))}
@@ -180,23 +198,20 @@ function IconUsersEmpty() {
 
 function IconSearchFin({ className }: { className?: string }) {
   return (
-    <svg
-      className={className}
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-    >
-      <circle cx="11" cy="11" r="7" />
-      <path d="M21 21l-4.3-4.3" />
+    <svg className={className} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" />
     </svg>
   );
 }
+
+const IconImpersonate = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+    <circle cx="9" cy="7" r="4"/>
+    <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+    <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+  </svg>
+);
 
 function IconCheck({ className }: { className?: string }) {
   return (
@@ -553,20 +568,19 @@ export function AdminTabUsers() {
                     autoComplete="off"
                   />
                 </div>
-                <div className="sn-leads-filters-field">
-                  <label htmlFor="admin-users-status-filter" className="sn-leads-filters-field__label">
-                    Statut
-                  </label>
-                  <select
-                    id="admin-users-status-filter"
-                    className="sn-leads-filters-select"
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value as UserStatusFilter)}
-                  >
-                    <option value="all">Tous</option>
-                    <option value="active">Actif</option>
-                    <option value="inactive">Inactif</option>
-                  </select>
+                {/* Status chips */}
+                <div className="fin-chips">
+                  {(["all", "active", "inactive"] as UserStatusFilter[]).map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      className={`fin-chip${statusFilter === s ? " fin-chip--active" : ""}`}
+                      onClick={() => setStatusFilter(s)}
+                    >
+                      {statusFilter === s && s !== "all" && <span className="fin-chip__dot" />}
+                      {{ all: "Tous", active: "Actif", inactive: "Inactif" }[s]}
+                    </button>
+                  ))}
                 </div>
                 <div className="admin-users-toolbar-tail">
                   <button type="button" className="sn-leads-filters-reset" onClick={resetListFilters}>
@@ -648,11 +662,13 @@ export function AdminTabUsers() {
                             {canImpersonate && (
                               <button
                                 type="button"
-                                className="admin-users-impersonate-link"
+                                className="admin-users-icon-btn admin-users-icon-btn--impersonate"
+                                title="Se connecter en tant que cet utilisateur"
+                                aria-label="Se connecter en tant que cet utilisateur"
                                 disabled={impersonateBusyId !== null}
                                 onClick={() => void handleImpersonateUser(u)}
                               >
-                                {impersonateBusyId === u.id ? "…" : "Se connecter en tant que cet utilisateur"}
+                                <IconImpersonate />
                               </button>
                             )}
                           </div>
