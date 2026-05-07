@@ -322,7 +322,7 @@ export function initCalpinage(container, options = {}) {
   container.__CALPINAGE_VERSION_ID = versionId;
 
   var CALPINAGE_STYLES = `
-    /* Scope visuel LIGHT fixe : isole le Calpinage du thème global (body.theme-dark) */
+    /* Scope visuel LIGHT : variables par défaut */
     #calpinage-root {
       color-scheme: light;
       --sg-bg: #ffffff;
@@ -335,6 +335,26 @@ export function initCalpinage(container, options = {}) {
       --sg-success: #16a34a;
       --sg-warning: #f59e0b;
       --sg-error: #dc2626;
+    }
+
+    /* Scope visuel DARK : override complet pour html.theme-dark */
+    html.theme-dark #calpinage-root {
+      color-scheme: dark;
+      --sg-bg: #12172B;
+      --sg-bg-soft: #161C34;
+      --sg-text: #E8ECF8;
+      --sg-text-muted: #A8B3CF;
+      --sg-border: rgba(226, 232, 240, 0.10);
+    }
+    html.theme-dark .calpinage-root {
+      --bg: #0F1627;
+      --bg-soft: #161C34;
+      --card: #12172B;
+      --ink: #E8ECF8;
+      --muted: #A8B3CF;
+      --line: rgba(226, 232, 240, 0.10);
+      background: var(--color-bg-page, #0F1627);
+      color: var(--ink);
     }
 
     :root {
@@ -736,7 +756,7 @@ export function initCalpinage(container, options = {}) {
       gap: 6px;
       padding: 0 10px;
       box-sizing: border-box;
-      background: #fff;
+      background: var(--sg-bg, #fff);
       border: 1px solid var(--sg-border, var(--line));
       border-radius: var(--sg-radius-md);
       box-shadow: 0 1px 2px rgba(0,0,0,0.04);
@@ -808,8 +828,8 @@ export function initCalpinage(container, options = {}) {
       border-radius: var(--sg-radius-sm);
       font-size: 12.5px;
       font-weight: 600;
-      background: #ffffff;
-      border: 1px solid rgba(0,0,0,0.15);
+      background: var(--sg-bg, #fff);
+      border: 1px solid var(--sg-border, rgba(0,0,0,0.15));
       box-shadow: 0 1px 2px rgba(0,0,0,0.04);
       color: var(--sg-text, var(--ink));
       cursor: pointer;
@@ -820,7 +840,7 @@ export function initCalpinage(container, options = {}) {
       white-space: nowrap;
     }
     .p3-topbar-menu-trigger:hover {
-      background: #fafafa;
+      background: var(--sg-bg-soft, #fafafa);
       border-color: rgba(0,0,0,0.28);
     }
     .p3-topbar-menu-trigger.is-open,
@@ -842,8 +862,8 @@ export function initCalpinage(container, options = {}) {
       min-width: min(320px, calc(100vw - 48px));
       max-width: min(380px, 92vw);
       padding: 12px;
-      background: #fff;
-      border: 1px solid var(--line);
+      background: var(--sg-bg, #fff);
+      border: 1px solid var(--sg-border, var(--line));
       border-radius: var(--sg-radius-md);
       box-shadow: 0 10px 28px rgba(15, 23, 42, 0.12), 0 2px 8px rgba(15, 23, 42, 0.06);
       display: none;
@@ -898,7 +918,7 @@ export function initCalpinage(container, options = {}) {
       font-size: 12.5px;
       font-weight: 500;
       background: transparent;
-      border: 1px solid rgba(0,0,0,0.12);
+      border: 1px solid var(--sg-border, rgba(0,0,0,0.12));
       color: var(--sg-text, var(--ink));
       transition: all 0.15s ease;
       display: inline-flex;
@@ -908,8 +928,8 @@ export function initCalpinage(container, options = {}) {
     #zone-b-toolbar button,
     #zone-b-toolbar .calpinage-tool-btn {
       padding: 0 6px;
-      background: #ffffff;
-      border: 1px solid rgba(0,0,0,0.12);
+      background: var(--sg-bg, #fff);
+      border: 1px solid var(--sg-border, rgba(0,0,0,0.12));
     }
     #zone-b-toolbar .calpinage-tool-dessin-option,
     #zone-b-toolbar .calpinage-tool-obstacle-option {
@@ -924,7 +944,7 @@ export function initCalpinage(container, options = {}) {
     }
     #zone-b-toolbar button:hover,
     #zone-b-toolbar .calpinage-tool-btn:hover {
-      background: #fafafa;
+      background: var(--sg-bg-soft, #fafafa);
       border-color: rgba(0,0,0,0.25);
       color: var(--sg-text, var(--ink));
     }
@@ -1213,7 +1233,7 @@ export function initCalpinage(container, options = {}) {
       font: 600 12px system-ui, -apple-system, sans-serif;
       border: 1px solid var(--sg-border, rgba(15, 23, 42, 0.15));
       border-radius: 6px;
-      background: #fff;
+      background: var(--sg-bg, #fff);
       color: var(--sg-text, #0f172a);
       box-sizing: border-box;
     }
@@ -1251,7 +1271,7 @@ export function initCalpinage(container, options = {}) {
     /* ========== Overlay dimensions obstacle Cercle / Rectangle — Design System aligné ========== */
     .sg-obstacle-overlay {
       position: absolute;
-      background: #ffffff;
+      background: var(--sg-bg, #fff);
       border-radius: var(--sg-radius-lg);
       border: 1px solid var(--sg-border);
       box-shadow: var(--sg-shadow-soft);
@@ -1378,8 +1398,8 @@ export function initCalpinage(container, options = {}) {
       border-radius: var(--sg-radius-sm);
       font-size: 12.5px;
       font-weight: 500;
-      background: #ffffff;
-      border: 1px solid rgba(0,0,0,0.15);
+      background: var(--sg-bg, #fff);
+      border: 1px solid var(--sg-border, rgba(0,0,0,0.15));
       box-shadow: 0 1px 2px rgba(0,0,0,0.04);
       color: var(--sg-text, var(--ink));
       line-height: 1.2;
@@ -1391,7 +1411,7 @@ export function initCalpinage(container, options = {}) {
     }
     #p3-topbar .p3-pill-btn:hover,
     .p3-pill-btn:hover {
-      background: #fafafa;
+      background: var(--sg-bg-soft, #fafafa);
       border-color: rgba(0,0,0,0.3);
     }
     .p3-pill-btn.is-active {
@@ -1405,8 +1425,8 @@ export function initCalpinage(container, options = {}) {
       box-shadow: 0 0 0 2px var(--sg-brand);
       outline-offset: 2px;
     }
-    .p3-pill-label { font-size: 9px; color: rgba(0,0,0,0.55); text-transform: uppercase; letter-spacing: 0.06em; }
-    .p3-pill-value { font-size: 12px; font-weight: 600; color: #1f2937; }
+    .p3-pill-label { font-size: 9px; color: var(--sg-text-muted, rgba(0,0,0,0.55)); text-transform: uppercase; letter-spacing: 0.06em; }
+    .p3-pill-value { font-size: 12px; font-weight: 600; color: var(--sg-text, #1f2937); }
     #p3-topbar .p3-pill-product .p3-pill-value { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .p3-pill-wrap { position: relative; }
     .p3-tech-popover {
@@ -1416,8 +1436,8 @@ export function initCalpinage(container, options = {}) {
       left: 0;
       margin-top: 4px;
       padding: 12px;
-      background: #fff;
-      border: 1px solid var(--line);
+      background: var(--sg-bg, #fff);
+      border: 1px solid var(--sg-border, var(--line));
       border-radius: var(--sg-radius-md);
       box-shadow: var(--sg-shadow-soft);
       z-index: 50;
@@ -1651,7 +1671,7 @@ export function initCalpinage(container, options = {}) {
       max-height: 90vh;
       display: flex;
       flex-direction: column;
-      background: #ffffff;
+      background: var(--sg-bg, #fff);
       border-radius: var(--sg-radius-lg);
       border: 1px solid var(--sg-border);
       box-shadow: var(--sg-shadow-soft);
@@ -1688,7 +1708,7 @@ export function initCalpinage(container, options = {}) {
     .p3-select-hidden { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; clip: rect(0,0,0,0); }
     .p3-cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
     .p3-product-card {
-      background: #ffffff;
+      background: var(--sg-bg, #fff);
       border: 1px solid var(--sg-border);
       border-radius: var(--sg-radius-md);
       box-shadow: var(--sg-shadow-soft);
@@ -1730,7 +1750,7 @@ export function initCalpinage(container, options = {}) {
     .p3-params-card {
       border-radius: var(--sg-radius-md);
       padding: 16px;
-      background: #ffffff;
+      background: var(--sg-bg, #fff);
       border: 1px solid var(--sg-border);
     }
     .p3-params-card .state-block { margin-bottom: 16px; }
@@ -1746,7 +1766,7 @@ export function initCalpinage(container, options = {}) {
       font-weight: 500 !important;
       border-radius: var(--sg-radius-md) !important;
       border: 1px solid var(--sg-border) !important;
-      background: #ffffff !important;
+      background: var(--sg-bg, #fff) !important;
       color: var(--sg-text) !important;
       cursor: pointer;
       transition: background 0.2s ease, border-color 0.2s ease;
@@ -1769,7 +1789,7 @@ export function initCalpinage(container, options = {}) {
       font-size: 14px !important;
       border-radius: var(--sg-radius-md) !important;
       border: 1px solid var(--sg-border) !important;
-      background: #ffffff !important;
+      background: var(--sg-bg, #fff) !important;
       color: var(--sg-text) !important;
       box-sizing: border-box !important;
       transition: border-color 0.15s ease, box-shadow 0.15s ease;
@@ -1819,7 +1839,7 @@ export function initCalpinage(container, options = {}) {
       width: min(900px, calc(100vw - 40px));
       max-height: 90vh;
       overflow-y: auto;
-      background: #ffffff;
+      background: var(--sg-bg, #fff);
       border-radius: var(--sg-radius-lg);
       border: 1px solid var(--sg-border);
       box-shadow: var(--sg-shadow-soft);
@@ -19131,38 +19151,52 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
           /* ─── Menu contextuel clic droit ─────────────────────────────────── */
           (function initContextMenu() {
             var ctxMenu = null;
+            /* Variables de thème partagées avec createMenuItem/createSeparator */
+            var _menuBg, _menuBorder, _menuText, _menuHover, _kbdBg, _kbdBorder, _kbdColor, _sepColor;
+            function _updateCtxTheme() {
+              var _d = document.documentElement.classList.contains("theme-dark");
+              _menuBg     = _d ? "#12172B" : "#fff";
+              _menuBorder = _d ? "rgba(226,232,240,0.10)" : "#e2e8f0";
+              _menuText   = _d ? "#E8ECF8" : "#1f2937";
+              _menuHover  = _d ? "rgba(99,102,241,0.12)" : "#f0f4ff";
+              _kbdBg      = _d ? "#1e2640" : "#f1f5f9";
+              _kbdBorder  = _d ? "rgba(226,232,240,0.15)" : "#cbd5e1";
+              _kbdColor   = _d ? "#A8B3CF" : "#64748b";
+              _sepColor   = _d ? "rgba(226,232,240,0.08)" : "#e2e8f0";
+            }
             function removeCtxMenu() {
               if (ctxMenu && ctxMenu.parentNode) ctxMenu.parentNode.removeChild(ctxMenu);
               ctxMenu = null;
             }
             function createMenuItem(label, shortcut, action) {
               var li = document.createElement("li");
-              li.style.cssText = "display:flex;align-items:center;justify-content:space-between;padding:6px 14px;cursor:pointer;gap:16px;border-radius:4px;font-size:13px;color:#1f2937;transition:background 0.1s;";
+              li.style.cssText = "display:flex;align-items:center;justify-content:space-between;padding:6px 14px;cursor:pointer;gap:16px;border-radius:4px;font-size:13px;color:" + _menuText + ";transition:background 0.1s;";
               var span = document.createElement("span");
               span.textContent = label;
               li.appendChild(span);
               if (shortcut) {
                 var kbd = document.createElement("kbd");
                 kbd.textContent = shortcut;
-                kbd.style.cssText = "font-size:11px;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:3px;padding:1px 5px;color:#64748b;font-family:inherit;";
+                kbd.style.cssText = "font-size:11px;background:" + _kbdBg + ";border:1px solid " + _kbdBorder + ";border-radius:3px;padding:1px 5px;color:" + _kbdColor + ";font-family:inherit;";
                 li.appendChild(kbd);
               }
-              li.addEventListener("mouseenter", function () { li.style.background = "#f0f4ff"; });
+              li.addEventListener("mouseenter", function () { li.style.background = _menuHover; });
               li.addEventListener("mouseleave", function () { li.style.background = ""; });
               li.addEventListener("mousedown", function (e) { e.stopPropagation(); action(); removeCtxMenu(); });
               return li;
             }
             function createSeparator() {
               var hr = document.createElement("li");
-              hr.style.cssText = "height:1px;background:#e2e8f0;margin:4px 0;pointer-events:none;";
+              hr.style.cssText = "height:1px;background:" + _sepColor + ";margin:4px 0;pointer-events:none;";
               return hr;
             }
             addSafeListener(canvasEl, "contextmenu", function (e) {
               e.preventDefault();
               removeCtxMenu();
               if (CALPINAGE_STATE.currentPhase !== "ROOF_EDIT") return;
+              _updateCtxTheme();
               var menu = document.createElement("div");
-              menu.style.cssText = "position:fixed;z-index:99999;background:#fff;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.14);padding:6px 0;min-width:200px;font-family:system-ui,sans-serif;";
+              menu.style.cssText = "position:fixed;z-index:99999;background:" + _menuBg + ";border:1px solid " + _menuBorder + ";border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.14);padding:6px 0;min-width:200px;font-family:system-ui,sans-serif;";
               menu.style.left = e.clientX + "px";
               menu.style.top = e.clientY + "px";
               var ul = document.createElement("ul");
