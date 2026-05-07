@@ -172,6 +172,23 @@
 /* Utilise org-tab-row-actions défini dans admin-org-structure-visual.css */
 /* Les boutons utilisent org-tab-icon-btn (idem autres onglets) */
 
+/* Hover-reveal pour la table catalogue (org-tab-table est scopé aux onglets structure) */
+.admin-catalog-table tbody tr .org-tab-row-actions {
+  opacity: 0;
+  transition: opacity 0.12s ease;
+  pointer-events: none;
+}
+
+.admin-catalog-table tbody tr:hover .org-tab-row-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.admin-catalog-table tbody td:has(.org-tab-row-actions:focus-within) .org-tab-row-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
 /* Surcharge couleur pour toggle on/off */
 .admin-catalog-toggle-btn--off:hover {
   background: color-mix(in srgb, #f59e0b 12%, transparent) !important;
@@ -215,6 +232,11 @@
 .admin-catalog-modal {
   width: 100%;
   padding: 0;
+}
+
+/* Largeur xl réelle — le design-system plafonne xl à 720px comme lg, on force 920px */
+.sn-modal-shell-panel.qc-modal-panel.sn-modal-shell-panel--xl {
+  max-width: min(920px, calc(100vw - 48px));
 }
 
 /* Header/footer panel */
