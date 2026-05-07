@@ -138,6 +138,200 @@
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
 }
 
+/* ── Hub header compact ─────────────────────────────────────────────────── */
+.fin-hub-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.fin-hub-title {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  color: var(--text-primary);
+  margin: 0 0 3px;
+  line-height: 1.2;
+}
+
+.fin-hub-subtitle {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+/* ── Toolbar — supprimer le fond dégradé ────────────────────────────────── */
+.fin-hub.fin-hub-premium .fin-hub-toolbar {
+  background: transparent;
+  border: none;
+  padding: 0 0 4px 0;
+  margin-bottom: 4px;
+  gap: 8px;
+}
+
+/* ── KPI icon circle ────────────────────────────────────────────────────── */
+.fin-kpi-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 10px;
+  flex-shrink: 0;
+}
+
+.fin-kpi-icon--draft    { background: color-mix(in srgb, #94a3b8 14%, transparent); color: #64748b; }
+.fin-kpi-icon--sent     { background: color-mix(in srgb, #2563EB 12%, transparent); color: #2563EB; }
+.fin-kpi-icon--accepted { background: color-mix(in srgb, #059669 12%, transparent); color: #059669; }
+.fin-kpi-icon--inv      { background: color-mix(in srgb, #7C3AED 12%, transparent); color: #7C3AED; }
+.fin-kpi-icon--emitted  { background: color-mix(in srgb, #0891B2 12%, transparent); color: #0891B2; }
+.fin-kpi-icon--danger   { background: color-mix(in srgb, #dc2626 12%, transparent); color: #dc2626; }
+.fin-kpi-icon--billed   { background: color-mix(in srgb, #D97706 12%, transparent); color: #D97706; }
+.fin-kpi-icon--collected{ background: color-mix(in srgb, #059669 12%, transparent); color: #059669; }
+.fin-kpi-icon--due      { background: color-mix(in srgb, #7C3AED 12%, transparent); color: #7C3AED; }
+
+/* KPI card danger (factures en retard > 0) */
+.fin-preview-kpi-card--danger {
+  border-color: color-mix(in srgb, #dc2626 30%, var(--border)) !important;
+  background: color-mix(in srgb, #dc2626 5%, var(--bg-card)) !important;
+}
+
+.fin-preview-kpi-card--danger .fin-preview-kpi-label,
+.fin-preview-kpi-card--danger .fin-preview-kpi-value {
+  color: #dc2626;
+}
+
+/* ── Alert banner ───────────────────────────────────────────────────────── */
+.fin-preview-alert--ok {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: color-mix(in srgb, #10b981 7%, transparent);
+  border-color: color-mix(in srgb, #10b981 30%, var(--border));
+  color: #065f46;
+}
+
+.theme-light .fin-preview-alert--ok {
+  color: #065f46;
+}
+
+.fin-alert-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.fin-alert-icon--ok {
+  background: color-mix(in srgb, #10b981 18%, transparent);
+  color: #059669;
+}
+
+.fin-alert-icon--danger {
+  background: color-mix(in srgb, #f59e0b 18%, transparent);
+  color: #d97706;
+}
+
+/* ── Doc row v2 — compact sans labels DATE/MONTANT ─────────────────────── */
+.fin-doc-row-v2 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  background: var(--bg-card);
+  transition: background 0.1s, border-color 0.1s;
+  min-width: 0;
+}
+
+.fin-doc-row-v2:hover {
+  background: var(--sn-ui-table-row-hover, color-mix(in srgb, var(--primary) 4%, var(--bg-card)));
+  border-color: color-mix(in srgb, var(--primary) 20%, var(--border));
+}
+
+.fin-doc-row-v2--critical {
+  border-color: color-mix(in srgb, #f59e0b 40%, var(--border));
+  background: color-mix(in srgb, #f59e0b 5%, var(--bg-card));
+}
+
+.fin-doc-row-v2__main {
+  min-width: 0;
+}
+
+.fin-doc-row-v2__title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.fin-doc-row-v2__sub {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 2px 0 0;
+}
+
+.fin-doc-row-v2__amount {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.fin-doc-row-v2__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Refresh icon button dans header */
+.fin-hub-refresh-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.12s;
+  flex-shrink: 0;
+}
+
+.fin-hub-refresh-btn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 6%, var(--bg-card));
+}
+
+.fin-hub-refresh-btn--spin svg {
+  animation: fin-hub-spin 0.8s linear infinite;
+}
+
+@keyframes fin-hub-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
 /* ── Filter chips (status) ──────────────────────────────────────────────── */
 .fin-chips {
   display: flex;
