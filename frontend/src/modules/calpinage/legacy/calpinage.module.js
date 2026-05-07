@@ -1484,6 +1484,20 @@ export function initCalpinage(container, options = {}) {
       position: relative;
       z-index: 1;
     }
+    #calpinage-minimap {
+      position: absolute;
+      bottom: 14px;
+      right: 14px;
+      z-index: 20;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.55);
+      cursor: pointer;
+      pointer-events: auto;
+      display: block;
+      opacity: 0.92;
+      transition: opacity 0.15s;
+    }
+    #calpinage-minimap:hover { opacity: 1; }
     #zone-c canvas {
       display: block;
       width: 100%;
@@ -2299,6 +2313,7 @@ export function initCalpinage(container, options = {}) {
           <div id="zone-c-3d"></div>
           <div id="canvas-wrapper">
             <canvas id="calpinage-canvas-el"></canvas>
+            <canvas id="calpinage-minimap" width="180" height="130" title="Vue d'ensemble — clic pour naviguer"></canvas>
             <div id="calpinage-phase2-obstacle-toolbar" class="calpinage-p2-ob-toolbar" role="toolbar" aria-label="Actions sur l'obstacle" hidden>
               <div class="calpinage-p2-ob-toolbar-inner">
                 <button type="button" class="calpinage-p2-ob-toolbar-btn" data-p2-ob-action="duplicate" title="Dupliquer (Ctrl+D)">Dupliquer</button>
@@ -7352,6 +7367,52 @@ export function initCalpinage(container, options = {}) {
           case "mesure":
             drawState.selectedMesureIndex = hit.index;
             break;
+        }
+      }
+
+      /**
+       * Shift+clic : bascule l'entité dans la multi-sélection sans effacer le reste.
+       * Supporte contours, faîtages (ridges) et arêtiers (traits).
+       * Les obstacles, extensions de toiture et mesures ne sont pas multi-sélectionnables.
+       */
+      function toggleEntityInMultiSelection(hit) {
+        if (!hit || !hit.type) return;
+        if (hit.type === "contour") {
+          var _c = CALPINAGE_STATE.contours[hit.index];
+          if (!_c) return;
+          var _cid = _c.id;
+          var _ci = drawState.selectedContourIds.indexOf(_cid);
+          if (_ci >= 0) {
+            drawState.selectedContourIds.splice(_ci, 1);
+            if (drawState.selectedContourIndex === hit.index) drawState.selectedContourIndex = null;
+          } else {
+            drawState.selectedContourIds.push(_cid);
+            drawState.selectedContourIndex = hit.index;
+          }
+        } else if (hit.type === "ridge") {
+          var _r = CALPINAGE_STATE.ridges[hit.index];
+          if (!_r) return;
+          var _rid = _r.id;
+          var _ri = drawState.selectedRidgeIds.indexOf(_rid);
+          if (_ri >= 0) {
+            drawState.selectedRidgeIds.splice(_ri, 1);
+            if (drawState.selectedRidgeIndex === hit.index) drawState.selectedRidgeIndex = null;
+          } else {
+            drawState.selectedRidgeIds.push(_rid);
+            drawState.selectedRidgeIndex = hit.index;
+          }
+        } else if (hit.type === "trait") {
+          var _t = CALPINAGE_STATE.traits[hit.index];
+          if (!_t) return;
+          var _tid = _t.id;
+          var _ti = drawState.selectedTraitIds.indexOf(_tid);
+          if (_ti >= 0) {
+            drawState.selectedTraitIds.splice(_ti, 1);
+            if (drawState.selectedTraitIndex === hit.index) drawState.selectedTraitIndex = null;
+          } else {
+            drawState.selectedTraitIds.push(_tid);
+            drawState.selectedTraitIndex = hit.index;
+          }
         }
       }
 
@@ -12755,10 +12816,14 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
         function updateCursor() {
           if (!canvasEl) return;
           var t = drawState.activeTool;
-          if (t === "heightEdit") { canvasEl.style.cursor = "pointer"; return; }
-          if (t === "select") { canvasEl.style.cursor = "move"; return; }
-          var isCrosshair = t === "contour" || t === "mesure" || t === "trait" || t === "ridge" || t === "obstacle";
-          canvasEl.style.cursor = isCrosshair ? "crosshair" : "default";
+          if (t === "heightEdit") { canvasEl.style.cursor = "cell"; return; }
+          /* Select : default tant que le mousemove n'a pas affine */
+          if (t === "select") { canvasEl.style.cursor = "default"; return; }
+          /* Outils de dessin : mire */
+          if (t === "contour" || t === "mesure" || t === "obstacle") { canvasEl.style.cursor = "crosshair"; return; }
+          /* Ridge et trait : mire + indication specifique via title */
+          if (t === "ridge" || t === "trait") { canvasEl.style.cursor = "crosshair"; return; }
+          canvasEl.style.cursor = "default";
         }
         function updateToolbarActiveUI(toolName) {
           var isHeightEdit = toolName === "heightEdit";
@@ -12927,11 +12992,57 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             redoCalpinage();
           });
         }
-        /* Raccourcis clavier Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z */
+        /* Raccourcis clavier Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z + raccourcis outil */
         addSafeListener(document, "keydown", function (e) {
           if (!container.isConnected) return;
-          if (e.ctrlKey && !e.shiftKey && e.key === "z") { e.preventDefault(); undoCalpinage(); }
-          if (e.ctrlKey && (e.key === "y" || (e.shiftKey && e.key === "z"))) { e.preventDefault(); redoCalpinage(); }
+          /* Eviter conflits avec les inputs */
+          var isInputFocus = e.target && (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA" || e.target.isContentEditable);
+          if (e.ctrlKey && !e.shiftKey && e.key === "z") { e.preventDefault(); undoCalpinage(); return; }
+          if (e.ctrlKey && (e.key === "y" || (e.shiftKey && e.key === "z"))) { e.preventDefault(); redoCalpinage(); return; }
+          if (isInputFocus) return;
+          var phase = CALPINAGE_STATE.currentPhase;
+          if (phase !== "ROOF_EDIT") return;
+          /* V → Select ; C → Contour ; R → Ridge (faitage) ; T → Trait (aretier) ; O → Obstacle */
+          if (!e.ctrlKey && !e.altKey && !e.metaKey) {
+            if (e.key === "v" || e.key === "V") { e.preventDefault(); activateTool("select"); updateToolbarActiveUI("select"); updateCursor(); }
+            else if (e.key === "c" || e.key === "C") { e.preventDefault(); activateTool("contour"); updateToolbarActiveUI("contour"); updateCursor(); }
+            else if (e.key === "r" || e.key === "R") { e.preventDefault(); activateTool("ridge"); updateToolbarActiveUI("ridge"); updateCursor(); }
+            else if (e.key === "t" || e.key === "T") { e.preventDefault(); activateTool("trait"); updateToolbarActiveUI("trait"); updateCursor(); }
+            else if (e.key === "o" || e.key === "O") { e.preventDefault(); activateTool("obstacle"); updateToolbarActiveUI("obstacle"); updateCursor(); }
+            else if (e.key === "Escape") { e.preventDefault(); activateTool("select"); updateToolbarActiveUI("select"); updateCursor(); }
+            else if (e.key === "Delete" || e.key === "Backspace") {
+              /* Supprimer élément(s) sélectionné(s) — batch si plusieurs */
+              var _didDel = false;
+              if (drawState.selectedContourIds && drawState.selectedContourIds.length > 0) {
+                var _delCids = new Set(drawState.selectedContourIds);
+                CALPINAGE_STATE.contours = (CALPINAGE_STATE.contours || []).filter(function (c) { return c && !_delCids.has(c.id); });
+                drawState.selectedContourIds = [];
+                drawState.selectedContourIndex = null;
+                _didDel = true;
+              }
+              if (drawState.selectedRidgeIds && drawState.selectedRidgeIds.length > 0) {
+                var _delRids = new Set(drawState.selectedRidgeIds);
+                CALPINAGE_STATE.ridges = (CALPINAGE_STATE.ridges || []).filter(function (r) { return r && !_delRids.has(r.id); });
+                drawState.selectedRidgeIds = [];
+                drawState.selectedRidgeIndex = null;
+                _didDel = true;
+              }
+              if (drawState.selectedTraitIds && drawState.selectedTraitIds.length > 0) {
+                var _delTids = new Set(drawState.selectedTraitIds);
+                CALPINAGE_STATE.traits = (CALPINAGE_STATE.traits || []).filter(function (t) { return t && !_delTids.has(t.id); });
+                drawState.selectedTraitIds = [];
+                drawState.selectedTraitIndex = null;
+                _didDel = true;
+              }
+              if (_didDel) {
+                e.preventDefault();
+                saveCalpinageState();
+                computePansFromGeometry();
+                if (typeof requestAnimationFrame !== "undefined" && typeof window.CALPINAGE_RENDER === "function") requestAnimationFrame(window.CALPINAGE_RENDER);
+              }
+            }
+          }
+          if (typeof requestAnimationFrame !== "undefined" && typeof window.CALPINAGE_RENDER === "function") requestAnimationFrame(window.CALPINAGE_RENDER);
         });
         /* ─────────────────────────────────────────────────────────────────── */
 
@@ -14088,13 +14199,71 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
         }
         function applyStructuralRidgePreview(imgPt) {
           var payload = resolveStructuralSnapRidge(imgPt);
+
+          /* === Angle snap pour le tracé de faîtage ===
+           * Quand le point A est placé, on peut contraindre la direction du curseur :
+           *   • Shift enfoncé → contrainte ortho 45° depuis A (identique contours)
+           *   • Sans Shift  → snap perpendiculaire automatique si curseur à < 5° de la
+           *                   perpendiculaire au bord du contour sur lequel A est ancré */
+          var ridgeA = CALPINAGE_STATE.activeRidge.a;
+          if (ridgeA) {
+            var pA = { x: ridgeA.x, y: ridgeA.y };
+            var hx = payload.x, hy = payload.y;
+            var rdx = hx - pA.x, rdy = hy - pA.y;
+            var rlen = Math.hypot(rdx, rdy);
+
+            if (drawState.skipStructuralContourSnap && rlen > 1e-6) {
+              /* Shift → ortho 45° depuis A, même logique que les contours */
+              var orthoH = applyOrthoConstraint(pA, { x: hx, y: hy });
+              payload = {
+                x: orthoH.x, y: orthoH.y,
+                snapped: true, kind: "ortho", attach: payload.attach,
+                sourceMeta: { priority: "ortho_shift" }
+              };
+            } else if (!drawState.skipStructuralContourSnap && rlen > 1e-6) {
+              /* Perpendicular auto-snap si A est ancré sur un bord de contour */
+              var attachA = ridgeA.attach;
+              if (attachA && attachA.type === "roof_contour_edge") {
+                var _contSnap = (CALPINAGE_STATE.contours || []).find(function (c) { return c && c.id === attachA.contourId; });
+                if (_contSnap && _contSnap.points && _contSnap.points.length >= 2) {
+                  var _siSnap = typeof attachA.segmentIndex === "number" ? attachA.segmentIndex : -1;
+                  var _nSnap = _contSnap.points.length;
+                  if (_siSnap >= 0 && _siSnap < _nSnap) {
+                    var _eA = _contSnap.points[_siSnap];
+                    var _eB = _contSnap.points[(_siSnap + 1) % _nSnap];
+                    var _edx = _eB.x - _eA.x, _edy = _eB.y - _eA.y;
+                    var _elen = Math.hypot(_edx, _edy);
+                    if (_elen > 1e-6) {
+                      _edx /= _elen; _edy /= _elen;
+                      /* cos(angle) entre la direction du faîtage et le bord */
+                      var _cosAngle = Math.abs((rdx * _edx + rdy * _edy) / rlen);
+                      /* _cosAngle ≈ 0 → quasi-perpendiculaire ; tolérance 5° */
+                      var _TOL_PERP_SNAP = Math.sin(5 * Math.PI / 180); /* ≈ 0.087 */
+                      if (_cosAngle < _TOL_PERP_SNAP) {
+                        /* Projection sur la perpendiculaire au bord passant par A */
+                        var _perpX = -_edy, _perpY = _edx;
+                        var _dotPerp = rdx * _perpX + rdy * _perpY;
+                        payload = {
+                          x: pA.x + _dotPerp * _perpX,
+                          y: pA.y + _dotPerp * _perpY,
+                          snapped: true, kind: "angle_perp", attach: payload.attach,
+                          sourceMeta: { priority: "angle_perp" }
+                        };
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+
           CALPINAGE_STATE.activeRidge.frozenStructuralSnap = payload;
           CALPINAGE_STATE.activeRidge.hover = { x: payload.x, y: payload.y };
           CALPINAGE_STATE.activeRidge.hoverSnap = {
             point: { x: payload.x, y: payload.y },
             source: payload.attach || null,
           };
-          var onRoofEdge = payload.sourceMeta && payload.sourceMeta.priority === "roof_contour_edge";
+          var onRoofEdge = payload.sourceMeta && (payload.sourceMeta.priority === "roof_contour_edge" || payload.sourceMeta.priority === "angle_perp" || payload.sourceMeta.priority === "ortho_shift");
           CALPINAGE_STATE.activeRidge.snapEdge = onRoofEdge ? { x: payload.x, y: payload.y } : null;
         }
         function commitStructuralSnapForRidge(imgPt) {
@@ -14138,13 +14307,19 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             };
           }
           if (drawState.skipStructuralContourSnap) {
+            /* Shift enfonce : appliquer contrainte ortho depuis le dernier sommet du contour actif */
+            var _orthoOrigin = null;
+            if (activeContourPts && activeContourPts.length > 0) {
+              _orthoOrigin = activeContourPts[activeContourPts.length - 1];
+            }
+            var _orthoResult = _orthoOrigin ? applyOrthoConstraint(_orthoOrigin, imgPt) : imgPt;
             return {
-              x: imgPt.x,
-              y: imgPt.y,
-              snapped: false,
-              kind: "raw",
+              x: _orthoResult.x,
+              y: _orthoResult.y,
+              snapped: true,
+              kind: "ortho",
               attach: null,
-              sourceMeta: { priority: "raw" },
+              sourceMeta: { priority: "ortho_shift" },
             };
           }
           var TRAIT_VERTEX_SNAP_DIST_PX = 18;
@@ -14313,30 +14488,90 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
           return out;
         }
         var PHASE2_DRAW_STYLE = {
-          roofStroke: "#1d4ed8",
-          roofStrokeSelected: "#1e40af",
-          roofFill: "rgba(37, 99, 235, 0.075)",
-          roofFillSelected: "rgba(37, 99, 235, 0.115)",
-          ridgeStroke: "#334155",
-          ridgeStrokeSelected: "#0f172a",
-          traitStroke: "#2563eb",
-          traitStrokeSelected: "#1d4ed8",
+          /* Contour bati */
+          roofStroke: "#2563eb",
+          roofStrokeSelected: "#1d4ed8",
+          roofFill: "rgba(37, 99, 235, 0.06)",
+          roofFillSelected: "rgba(37, 99, 235, 0.12)",
+          roofHalo: "rgba(255, 255, 255, 0.90)",
+          /* Faitage */
+          ridgeStroke: "#b45309",
+          ridgeStrokeSelected: "#92400e",
+          ridgeHalo: "rgba(255, 255, 255, 0.85)",
+          /* Aretier / trait */
+          traitStroke: "#0891b2",
+          traitStrokeSelected: "#0e7490",
+          traitHalo: "rgba(255, 255, 255, 0.85)",
+          /* Chien assis (roofExtensions) */
+          rxContourStroke: "#334155",
+          rxContourStrokeSelected: "#0f172a",
+          rxContourFill: "rgba(51, 65, 85, 0.08)",
+          rxContourFillSelected: "rgba(51, 65, 85, 0.16)",
+          rxRidgeStroke: "#c2410c",
+          rxHipStroke: "#0f766e",
+          rxHalo: "rgba(255, 255, 255, 0.88)",
+          /* Guide / snap */
           guideStroke: "rgba(37, 99, 235, 0.62)",
           guideFill: "rgba(37, 99, 235, 0.10)",
           snapStroke: "#0f766e",
           snapFill: "rgba(20, 184, 166, 0.22)",
           mutedStroke: "rgba(100, 116, 139, 0.72)",
+          /* Labels */
           labelText: "#1f2937",
-          labelHalo: "rgba(255, 255, 255, 0.88)"
+          labelHalo: "rgba(255, 255, 255, 0.92)"
         };
 
+        /**
+         * Contraint imgPt au multiple de 45deg le plus proche depuis origin.
+         * Utilise uniquement quand Shift est enfonce pendant le dessin.
+         */
+        function applyOrthoConstraint(origin, imgPt) {
+          var dx = imgPt.x - origin.x;
+          var dy = imgPt.y - origin.y;
+          var dist = Math.hypot(dx, dy);
+          if (dist < 1e-6) return imgPt;
+          var angle = Math.atan2(dy, dx);
+          /* Arrondir au multiple de 45deg (pi/4) le plus proche */
+          var snap45 = Math.round(angle / (Math.PI / 4)) * (Math.PI / 4);
+          return {
+            x: origin.x + dist * Math.cos(snap45),
+            y: origin.y + dist * Math.sin(snap45)
+          };
+        }
+
         function drawSegmentLabelHalo(ctx, screenMid, text) {
-          ctx.font = "10.5px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+          /* Font size adaptative au zoom (vp.scale dans la closure parente) */
+          var _vpScale = (typeof vp !== "undefined" && vp && typeof vp.scale === "number") ? vp.scale : 1;
+          var fontSize = Math.max(8.0, Math.min(12.5, 10.5 * Math.pow(_vpScale, 0.22)));
+          ctx.font = fontSize + "px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
-          ctx.strokeStyle = PHASE2_DRAW_STYLE.labelHalo;
-          ctx.lineWidth = 2.5;
-          ctx.strokeText(text, screenMid.x, screenMid.y);
+          /* Pill background pour lisibilité sur tout fond satellite */
+          var metrics = ctx.measureText(text);
+          var pw = metrics.width + fontSize * 1.0;
+          var ph = fontSize * 1.65;
+          var pr = ph * 0.5;
+          var px = screenMid.x - pw * 0.5;
+          var py = screenMid.y - ph * 0.5;
+          ctx.save();
+          ctx.fillStyle = "rgba(255, 255, 255, 0.93)";
+          ctx.strokeStyle = "rgba(100, 116, 139, 0.28)";
+          ctx.lineWidth = 0.6;
+          ctx.beginPath();
+          if (ctx.roundRect) {
+            ctx.roundRect(px, py, pw, ph, pr);
+          } else {
+            /* Fallback pour anciens navigateurs */
+            ctx.arc(px + pr, py + pr, pr, Math.PI, 1.5 * Math.PI);
+            ctx.arc(px + pw - pr, py + pr, pr, 1.5 * Math.PI, 2 * Math.PI);
+            ctx.arc(px + pw - pr, py + ph - pr, pr, 0, 0.5 * Math.PI);
+            ctx.arc(px + pr, py + ph - pr, pr, 0.5 * Math.PI, Math.PI);
+            ctx.closePath();
+          }
+          ctx.fill();
+          ctx.stroke();
+          ctx.restore();
+          /* Texte par-dessus */
           ctx.fillStyle = PHASE2_DRAW_STYLE.labelText;
           ctx.fillText(text, screenMid.x, screenMid.y);
         }
@@ -14346,11 +14581,12 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
           var dx = sb.x - sa.x;
           var dy = sb.y - sa.y;
           var len = Math.hypot(dx, dy);
-          if (len < 6) return;
+          /* Masquer le label si le segment est trop court a l'ecran (evite les collisions) */
+          if (len < 28) return;
           var mid = { x: (sa.x + sb.x) / 2, y: (sa.y + sb.y) / 2 };
           var nx = -dy / len;
           var ny = dx / len;
-          var side = (offsetPx == null ? 7 : offsetPx);
+          var side = (offsetPx == null ? 9 : offsetPx + 2);
           var x = mid.x + nx * side;
           var y = mid.y + ny * side;
           var angle = Math.atan2(dy, dx);
@@ -14534,6 +14770,11 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             ctx.stroke();
             ctx.setLineDash([]);
             drawTraitSnapIndicator(sb, endSnapSource, endHasSnap);
+            /* Mesure live du segment en cours de dessin */
+            var traitLenM = segmentLengthMeters(drawState.traitLineStart, endPt);
+            if (traitLenM != null) {
+              drawSegmentLabelAlong(ctx, drawState.traitLineStart, endPt, traitLenM.toFixed(2).replace(".", ",") + " m", 10);
+            }
           }
           ctx.restore();
         }
@@ -16347,6 +16588,12 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             if (drawState.activeTool === "select") {
               /* Phase 2 — Centralisation : sélection via selectEntityFromHit */
               if (hit && hit.type != null) {
+                /* Shift+clic : bascule l'entité dans la multi-sélection ; pas de drag */
+                if (e.shiftKey && (hit.type === "contour" || hit.type === "ridge" || hit.type === "trait")) {
+                  toggleEntityInMultiSelection(hit);
+                  if (typeof requestAnimationFrame !== "undefined" && typeof window.CALPINAGE_RENDER === "function") requestAnimationFrame(window.CALPINAGE_RENDER);
+                  return;
+                }
                 selectEntityFromHit(hit);
               } else {
                 clearSelection();
@@ -16829,6 +17076,26 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             if (drawState.activeTool === "select") {
               var screen = getMouseScreen(e);
               var imgPt = screenToImage(screen);
+
+              /* Double-clic sur un sommet structurel → édition hauteur inline
+               * Fonctionne en phase ROOF_EDIT ; active le mode hauteur, sélectionne le
+               * sommet cliqué et affiche immédiatement l'input in-place. */
+              if (
+                CALPINAGE_STATE.currentPhase === "ROOF_EDIT" &&
+                (CALPINAGE_STATE.contours || []).length > 0
+              ) {
+                var _htHit = hitTestHeightPoints(imgPt, imageToScreen, screenToImage);
+                if (_htHit) {
+                  activateTool("heightEdit"); /* règle heightEditMode = true, clear sels */
+                  CALPINAGE_STATE.selectedHeightPoint = _htHit;
+                  CALPINAGE_STATE.selectedHeightPoints = [_htHit];
+                  heightEditInplaceRollbackValues = [getHeightForSelection(_htHit)];
+                  heightEditDraftValue = null;
+                  requestAnimationFrame(safeRender);
+                  return;
+                }
+              }
+
               var hitPan = hitTestPan(imgPt);
               if (hitPan && samePanId(CALPINAGE_STATE.selectedPanId, hitPan.id)) {
                 CALPINAGE_STATE.editingPanId = hitPan.id;
@@ -18719,6 +18986,96 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             vp.zoom(factor, center);
           }, { passive: false });
 
+          /* ─── Menu contextuel clic droit ─────────────────────────────────── */
+          (function initContextMenu() {
+            var ctxMenu = null;
+            function removeCtxMenu() {
+              if (ctxMenu && ctxMenu.parentNode) ctxMenu.parentNode.removeChild(ctxMenu);
+              ctxMenu = null;
+            }
+            function createMenuItem(label, shortcut, action) {
+              var li = document.createElement("li");
+              li.style.cssText = "display:flex;align-items:center;justify-content:space-between;padding:6px 14px;cursor:pointer;gap:16px;border-radius:4px;font-size:13px;color:#1f2937;transition:background 0.1s;";
+              var span = document.createElement("span");
+              span.textContent = label;
+              li.appendChild(span);
+              if (shortcut) {
+                var kbd = document.createElement("kbd");
+                kbd.textContent = shortcut;
+                kbd.style.cssText = "font-size:11px;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:3px;padding:1px 5px;color:#64748b;font-family:inherit;";
+                li.appendChild(kbd);
+              }
+              li.addEventListener("mouseenter", function () { li.style.background = "#f0f4ff"; });
+              li.addEventListener("mouseleave", function () { li.style.background = ""; });
+              li.addEventListener("mousedown", function (e) { e.stopPropagation(); action(); removeCtxMenu(); });
+              return li;
+            }
+            function createSeparator() {
+              var hr = document.createElement("li");
+              hr.style.cssText = "height:1px;background:#e2e8f0;margin:4px 0;pointer-events:none;";
+              return hr;
+            }
+            addSafeListener(canvasEl, "contextmenu", function (e) {
+              e.preventDefault();
+              removeCtxMenu();
+              if (CALPINAGE_STATE.currentPhase !== "ROOF_EDIT") return;
+              var menu = document.createElement("div");
+              menu.style.cssText = "position:fixed;z-index:99999;background:#fff;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.14);padding:6px 0;min-width:200px;font-family:system-ui,sans-serif;";
+              menu.style.left = e.clientX + "px";
+              menu.style.top = e.clientY + "px";
+              var ul = document.createElement("ul");
+              ul.style.cssText = "list-style:none;margin:0;padding:0 6px;";
+              var t = drawState.activeTool;
+              ul.appendChild(createMenuItem("Sélectionner", "V", function () { activateTool("select"); updateToolbarActiveUI("select"); updateCursor(); }));
+              ul.appendChild(createMenuItem("Tracer contour", "C", function () { activateTool("contour"); updateToolbarActiveUI("contour"); updateCursor(); }));
+              ul.appendChild(createMenuItem("Tracer faîtage", "R", function () { activateTool("ridge"); updateToolbarActiveUI("ridge"); updateCursor(); }));
+              ul.appendChild(createMenuItem("Tracer arêtier", "T", function () { activateTool("trait"); updateToolbarActiveUI("trait"); updateCursor(); }));
+              ul.appendChild(createSeparator());
+              /* Undo/Redo */
+              ul.appendChild(createMenuItem("Annuler", "Ctrl+Z", function () { undoCalpinage(); }));
+              ul.appendChild(createMenuItem("Rétablir", "Ctrl+Y", function () { redoCalpinage(); }));
+              /* Delete selection */
+              var hasSel = (drawState.selectedContourIds && drawState.selectedContourIds.length > 0) ||
+                           (drawState.selectedRidgeIds && drawState.selectedRidgeIds.length > 0) ||
+                           (drawState.selectedTraitIds && drawState.selectedTraitIds.length > 0) ||
+                           (drawState.selectedObstacleIndex != null);
+              if (hasSel) {
+                ul.appendChild(createSeparator());
+                ul.appendChild(createMenuItem("Supprimer la sélection", "Suppr", function () {
+                  if (drawState.selectedContourIds && drawState.selectedContourIds.length > 0) {
+                    var cid = drawState.selectedContourIds[0];
+                    CALPINAGE_STATE.contours = (CALPINAGE_STATE.contours || []).filter(function (c) { return c && c.id !== cid; });
+                    drawState.selectedContourIds = [];
+                  } else if (drawState.selectedRidgeIds && drawState.selectedRidgeIds.length > 0) {
+                    var rid = drawState.selectedRidgeIds[0];
+                    CALPINAGE_STATE.ridges = (CALPINAGE_STATE.ridges || []).filter(function (r) { return r && r.id !== rid; });
+                    drawState.selectedRidgeIds = [];
+                  } else if (drawState.selectedTraitIds && drawState.selectedTraitIds.length > 0) {
+                    var tid = drawState.selectedTraitIds[0];
+                    CALPINAGE_STATE.traits = (CALPINAGE_STATE.traits || []).filter(function (t) { return t && t.id !== tid; });
+                    drawState.selectedTraitIds = [];
+                  }
+                  computePansFromGeometry();
+                  if (typeof requestAnimationFrame !== "undefined" && typeof window.CALPINAGE_RENDER === "function") requestAnimationFrame(window.CALPINAGE_RENDER);
+                }));
+              }
+              menu.appendChild(ul);
+              document.body.appendChild(menu);
+              ctxMenu = menu;
+              /* Fermer au clic en dehors */
+              setTimeout(function () {
+                addSafeListener(document, "mousedown", function onDocDown(ev) {
+                  if (!ctxMenu || !ctxMenu.contains(ev.target)) {
+                    removeCtxMenu();
+                    document.removeEventListener("mousedown", onDocDown);
+                  }
+                });
+              }, 0);
+              if (typeof requestAnimationFrame !== "undefined" && typeof window.CALPINAGE_RENDER === "function") requestAnimationFrame(window.CALPINAGE_RENDER);
+            });
+          })();
+          /* ────────────────────────────────────────────────────────────────── */
+
           function syncCalpinageDsmReadOverlay() {
             if (!canvasEl || !canvasWrapper || !engine || engine._destroyed) return;
             if (!dsmReadOverlayEl) {
@@ -18792,6 +19149,153 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             hud.style.display = "block";
           }
 
+          /* ── Mini-map : coordonnées de projection image→minimap (partagées render/interaction) ── */
+          var _mmOx = 0, _mmOy = 0, _mmScaleFactor = 1;
+          var minimapEl = container.querySelector("#calpinage-minimap");
+          var minimapCtx = minimapEl ? minimapEl.getContext("2d") : null;
+
+          function drawMinimap() {
+            if (!minimapEl || !minimapCtx || !roofImg || !roofImg.complete || !roofImg.naturalWidth) return;
+            var mmW = minimapEl.width;
+            var mmH = minimapEl.height;
+            minimapCtx.clearRect(0, 0, mmW, mmH);
+
+            /* Fond semi-transparent */
+            minimapCtx.fillStyle = "rgba(15,23,42,0.78)";
+            if (minimapCtx.roundRect) {
+              minimapCtx.beginPath();
+              minimapCtx.roundRect(0, 0, mmW, mmH, 8);
+              minimapCtx.fill();
+            } else {
+              minimapCtx.fillRect(0, 0, mmW, mmH);
+            }
+
+            /* Mise à l'échelle de l'image dans le minimap avec padding */
+            var pad = 7;
+            var sc = Math.min((mmW - 2*pad) / imgW, (mmH - 2*pad) / imgH);
+            var ox = pad + ((mmW - 2*pad) - imgW * sc) / 2;
+            var oy = pad + ((mmH - 2*pad) - imgH * sc) / 2;
+            _mmOx = ox; _mmOy = oy; _mmScaleFactor = sc;
+
+            /* Convertit un point image (y du bas = 0) en coordonnées minimap
+             * Note : dans l'image, y=0 est le BAS (même convention que "world") ;
+             *        dans l'espace minimap 2D l'origine est en haut-gauche,
+             *        donc on fait imgH - imgPt.y pour retrouver le y image-top. */
+            function i2mm(imgPt) {
+              /* image coords: y=0 at top (matches canvas/minimap origin),
+               * so no Y-flip needed — direct mapping. */
+              return {
+                x: ox + imgPt.x * sc,
+                y: oy + imgPt.y * sc
+              };
+            }
+
+            /* Image satellite */
+            minimapCtx.save();
+            minimapCtx.beginPath();
+            minimapCtx.rect(ox, oy, imgW * sc, imgH * sc);
+            minimapCtx.clip();
+            minimapCtx.drawImage(roofImg, ox, oy, imgW * sc, imgH * sc);
+            minimapCtx.restore();
+
+            /* Contours bâti */
+            minimapCtx.setLineDash([]);
+            minimapCtx.strokeStyle = "#60a5fa";
+            minimapCtx.lineWidth = 1.5;
+            (CALPINAGE_STATE.contours || []).forEach(function (c) {
+              if (!c || !c.points || c.points.length < 2) return;
+              var pts = c.points;
+              var p0 = i2mm(pts[0]);
+              minimapCtx.beginPath();
+              minimapCtx.moveTo(p0.x, p0.y);
+              for (var i = 1; i < pts.length; i++) { var pi = i2mm(pts[i]); minimapCtx.lineTo(pi.x, pi.y); }
+              if (c.closed) minimapCtx.closePath();
+              minimapCtx.stroke();
+            });
+
+            /* Faîtages */
+            minimapCtx.strokeStyle = "#fbbf24";
+            minimapCtx.lineWidth = 1.5;
+            (CALPINAGE_STATE.ridges || []).forEach(function (r) {
+              if (!r || !r.a || !r.b) return;
+              var ra = resolveRidgePoint(r.a);
+              var rb = resolveRidgePoint(r.b);
+              if (!ra || !rb) return;
+              var pa = i2mm(ra), pb = i2mm(rb);
+              minimapCtx.beginPath();
+              minimapCtx.moveTo(pa.x, pa.y);
+              minimapCtx.lineTo(pb.x, pb.y);
+              minimapCtx.stroke();
+            });
+
+            /* Arêtiers */
+            minimapCtx.strokeStyle = "#22d3ee";
+            minimapCtx.lineWidth = 1;
+            (CALPINAGE_STATE.traits || []).forEach(function (t) {
+              if (!t || !t.a || !t.b) return;
+              var pa = i2mm(t.a), pb = i2mm(t.b);
+              minimapCtx.beginPath();
+              minimapCtx.moveTo(pa.x, pa.y);
+              minimapCtx.lineTo(pb.x, pb.y);
+              minimapCtx.stroke();
+            });
+
+            /* Indicateur de viewport : rectangle de la zone visible sur le canvas principal */
+            try {
+              var cw = engine.width, ch = engine.height;
+              /* Les quatre coins du canvas en coordonnées image */
+              var corners = [
+                screenToImage({x:0,  y:0}),
+                screenToImage({x:cw, y:0}),
+                screenToImage({x:cw, y:ch}),
+                screenToImage({x:0,  y:ch}),
+              ];
+              minimapCtx.beginPath();
+              minimapCtx.setLineDash([3, 2]);
+              minimapCtx.lineWidth = 1.5;
+              minimapCtx.strokeStyle = "rgba(255,255,255,0.90)";
+              minimapCtx.fillStyle   = "rgba(255,255,255,0.10)";
+              var c0 = i2mm(corners[0]);
+              minimapCtx.moveTo(c0.x, c0.y);
+              for (var vi = 1; vi < corners.length; vi++) { var ci = i2mm(corners[vi]); minimapCtx.lineTo(ci.x, ci.y); }
+              minimapCtx.closePath();
+              minimapCtx.fill();
+              minimapCtx.stroke();
+              minimapCtx.setLineDash([]);
+            } catch (_mmErr) {}
+          }
+
+          /* Interaction minimap : clic → pan viewport vers ce point de l'image */
+          if (minimapEl) {
+            minimapEl.addEventListener("pointerdown", function (e) {
+              e.preventDefault();
+              function panToMM(ex, ey) {
+                var rect = minimapEl.getBoundingClientRect();
+                var mx = ex - rect.left;
+                var my = ey - rect.top;
+                /* Minimap → image coords (y=0 at top, no flip) */
+                var imgX = (mx - _mmOx) / _mmScaleFactor;
+                var imgY = (my - _mmOy) / _mmScaleFactor;
+                /* worldToScreen: screen.y = -world.y*scale + offset.y
+                 * To center imgPt {x:imgX, y:imgY} on canvas:
+                 *   world.y = imgH - imgY
+                 *   offset.y = ch/2 + (imgH - imgY)*scale */
+                var cw = engine.width, ch = engine.height;
+                vp.offset.x = cw / 2 - imgX * vp.scale;
+                vp.offset.y = ch / 2 + (imgH - imgY) * vp.scale;
+                if (typeof window.CALPINAGE_RENDER === "function") requestAnimationFrame(window.CALPINAGE_RENDER);
+              }
+              panToMM(e.clientX, e.clientY);
+              function onMove(ev) { panToMM(ev.clientX, ev.clientY); }
+              function onUp() {
+                window.removeEventListener("pointermove", onMove);
+                window.removeEventListener("pointerup", onUp);
+              }
+              window.addEventListener("pointermove", onMove);
+              window.addEventListener("pointerup", onUp);
+            });
+          }
+
           function safeRender() {
             if (!engine || engine._destroyed) return;
             var _nowSr = performance.now();
@@ -18799,6 +19303,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             __calpinageSafeRenderLastTs = _nowSr;
             renderImpl();
             updateObstacleUxHud();
+            drawMinimap();
           }
 
           /** Phase 2 : repères 90° uniquement pendant tracé / ajustement (contour posé + non sélectionné = rien). Purement visuel. */
@@ -18935,52 +19440,58 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             var selTraitIds = new Set(drawState.selectedTraitIds || []);
 
             /* 1. Image d?j? dessin?e ci-dessus. */
-            /* 2. Contours b??ti main ??? traits + fill */
+            /* 2. Contours bati main - double stroke (halo blanc + trait bleu) + fill */
             for (var ci = 0; ci < CALPINAGE_STATE.contours.length; ci++) {
               var c = CALPINAGE_STATE.contours[ci];
               if (!c || !c.points || c.points.length < 2 || c.roofRole === "chienAssis") continue;
               var pts = c.points;
               var isSelContour = selContourIds.has(c.id);
-              ctx.beginPath();
-              var first = imageToScreen(pts[0]);
-              ctx.moveTo(first.x, first.y);
+              var cPath = new Path2D();
+              var cFirst = imageToScreen(pts[0]);
+              cPath.moveTo(cFirst.x, cFirst.y);
               for (var i = 1; i < pts.length; i++) {
                 var p = imageToScreen(pts[i]);
-                ctx.lineTo(p.x, p.y);
+                cPath.lineTo(p.x, p.y);
               }
-              if (c.closed) ctx.closePath();
-              ctx.strokeStyle = isSelContour ? PHASE2_DRAW_STYLE.roofStrokeSelected : PHASE2_DRAW_STYLE.roofStroke;
-              ctx.lineWidth = isSelContour ? 2.35 : 1.65;
+              if (c.closed) cPath.closePath();
+              if (c.closed) {
+                ctx.fillStyle = isSelContour ? PHASE2_DRAW_STYLE.roofFillSelected : PHASE2_DRAW_STYLE.roofFill;
+                ctx.fill(cPath);
+              }
               ctx.lineJoin = "round";
               ctx.lineCap = "round";
               ctx.setLineDash([]);
-              ctx.stroke();
-              if (c.closed) {
-                ctx.fillStyle = isSelContour ? PHASE2_DRAW_STYLE.roofFillSelected : PHASE2_DRAW_STYLE.roofFill;
-                ctx.fill();
-              }
+              ctx.strokeStyle = PHASE2_DRAW_STYLE.roofHalo;
+              ctx.lineWidth = isSelContour ? 5.5 : 4.0;
+              ctx.stroke(cPath);
+              ctx.strokeStyle = isSelContour ? PHASE2_DRAW_STYLE.roofStrokeSelected : PHASE2_DRAW_STYLE.roofStroke;
+              ctx.lineWidth = isSelContour ? 2.5 : 1.8;
+              ctx.stroke(cPath);
             }
-            /* 2b. Traits main ??? ligne bleue + label */
+            /* 2b. Traits (aretiers) - double stroke halo + cyan + label */
             for (var ti = 0; ti < (CALPINAGE_STATE.traits || []).length; ti++) {
               var tr = CALPINAGE_STATE.traits[ti];
               if (!tr || !tr.a || !tr.b || tr.roofRole === "chienAssis") continue;
               var tra = imageToScreen(tr.a);
               var trb = imageToScreen(tr.b);
               var isSelTrait = selTraitIds.has(tr.id);
-              ctx.strokeStyle = isSelTrait ? PHASE2_DRAW_STYLE.traitStrokeSelected : PHASE2_DRAW_STYLE.traitStroke;
-              ctx.lineWidth = isSelTrait ? 2.15 : 1.45;
+              var trPath = new Path2D();
+              trPath.moveTo(tra.x, tra.y);
+              trPath.lineTo(trb.x, trb.y);
               ctx.lineCap = "round";
               ctx.setLineDash([]);
-              ctx.beginPath();
-              ctx.moveTo(tra.x, tra.y);
-              ctx.lineTo(trb.x, trb.y);
-              ctx.stroke();
+              ctx.strokeStyle = PHASE2_DRAW_STYLE.traitHalo;
+              ctx.lineWidth = isSelTrait ? 4.8 : 3.5;
+              ctx.stroke(trPath);
+              ctx.strokeStyle = isSelTrait ? PHASE2_DRAW_STYLE.traitStrokeSelected : PHASE2_DRAW_STYLE.traitStroke;
+              ctx.lineWidth = isSelTrait ? 2.2 : 1.6;
+              ctx.stroke(trPath);
               var lenM = segmentLengthMeters(tr.a, tr.b);
               if (lenM != null) {
                 drawSegmentLabelAlong(ctx, tr.a, tr.b, lenM.toFixed(2).replace(".", ",") + " m", 7);
               }
             }
-            /* 3. Fa??tages main ??? segment + label */
+            /* 3. Faitages - double stroke halo + ambre + label */
             for (var ri = 0; ri < CALPINAGE_STATE.ridges.length; ri++) {
               var ridge = CALPINAGE_STATE.ridges[ri];
               if (!ridge || !ridge.a || !ridge.b || ridge.roofRole === "chienAssis") continue;
@@ -18989,14 +19500,17 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               var ra = imageToScreen(raPt);
               var rb = imageToScreen(rbPt);
               var isSelRidge = selRidgeIds.has(ridge.id);
-              ctx.strokeStyle = isSelRidge ? PHASE2_DRAW_STYLE.ridgeStrokeSelected : PHASE2_DRAW_STYLE.ridgeStroke;
-              ctx.lineWidth = isSelRidge ? 2.2 : 1.45;
+              var ridgePath = new Path2D();
+              ridgePath.moveTo(ra.x, ra.y);
+              ridgePath.lineTo(rb.x, rb.y);
               ctx.lineCap = "round";
               ctx.setLineDash([]);
-              ctx.beginPath();
-              ctx.moveTo(ra.x, ra.y);
-              ctx.lineTo(rb.x, rb.y);
-              ctx.stroke();
+              ctx.strokeStyle = PHASE2_DRAW_STYLE.ridgeHalo;
+              ctx.lineWidth = isSelRidge ? 5.5 : 4.0;
+              ctx.stroke(ridgePath);
+              ctx.strokeStyle = isSelRidge ? PHASE2_DRAW_STYLE.ridgeStrokeSelected : PHASE2_DRAW_STYLE.ridgeStroke;
+              ctx.lineWidth = isSelRidge ? 2.8 : 2.0;
+              ctx.stroke(ridgePath);
               var lenM = segmentLengthMeters(raPt, rbPt);
               if (lenM != null) {
                 drawSegmentLabelAlong(ctx, raPt, rbPt, lenM.toFixed(2).replace(".", ",") + " m", 7);
@@ -19190,69 +19704,98 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             if (rxList.length > 0) {
               ctx.save();
               var rxActivePointRef = (drawState.dragMode === "roofExtensionVertex" && drawState.dragBase) ? drawState.dragBase.pointRef : null;
-              rxList.forEach(function (rx, ri) {
-                var sel = drawState.selectedRoofExtensionIndex === ri;
-                ctx.strokeStyle = "#000000";
-                ctx.lineWidth = sel ? 3 : 2;
+              rxList.forEach(function (rx, rxIdx) {
+                var sel = drawState.selectedRoofExtensionIndex === rxIdx;
+                ctx.lineJoin = "round";
+                ctx.lineCap = "round";
+                ctx.setLineDash([]);
                 var pts = rx.contour && rx.contour.points ? rx.contour.points : [];
                 if (pts.length > 0) {
-                  ctx.beginPath();
-                  var p0 = imageToScreen(pts[0]);
-                  ctx.moveTo(p0.x, p0.y);
+                  var rxContPath = new Path2D();
+                  var rxP0 = imageToScreen(pts[0]);
+                  rxContPath.moveTo(rxP0.x, rxP0.y);
                   for (var i = 1; i < pts.length; i++) {
-                    var pi = imageToScreen(pts[i]);
-                    ctx.lineTo(pi.x, pi.y);
+                    var rxPi = imageToScreen(pts[i]);
+                    rxContPath.lineTo(rxPi.x, rxPi.y);
                   }
-                  ctx.closePath();
-                  ctx.stroke();
+                  rxContPath.closePath();
+                  ctx.fillStyle = sel ? PHASE2_DRAW_STYLE.rxContourFillSelected : PHASE2_DRAW_STYLE.rxContourFill;
+                  ctx.fill(rxContPath);
+                  ctx.strokeStyle = PHASE2_DRAW_STYLE.rxHalo;
+                  ctx.lineWidth = sel ? 5.0 : 3.8;
+                  ctx.stroke(rxContPath);
+                  ctx.strokeStyle = sel ? PHASE2_DRAW_STYLE.rxContourStrokeSelected : PHASE2_DRAW_STYLE.rxContourStroke;
+                  ctx.lineWidth = sel ? 2.4 : 1.7;
+                  ctx.stroke(rxContPath);
                 }
                 if (rx.ridge && rx.ridge.a && rx.ridge.b) {
-                  ctx.beginPath();
-                  var ra = imageToScreen(rx.ridge.a);
-                  var rb = imageToScreen(rx.ridge.b);
-                  ctx.moveTo(ra.x, ra.y);
-                  ctx.lineTo(rb.x, rb.y);
-                  ctx.stroke();
+                  var rxRidgePath = new Path2D();
+                  var rxRa = imageToScreen(rx.ridge.a);
+                  var rxRb = imageToScreen(rx.ridge.b);
+                  rxRidgePath.moveTo(rxRa.x, rxRa.y);
+                  rxRidgePath.lineTo(rxRb.x, rxRb.y);
+                  ctx.strokeStyle = PHASE2_DRAW_STYLE.rxHalo;
+                  ctx.lineWidth = sel ? 5.5 : 4.0;
+                  ctx.stroke(rxRidgePath);
+                  ctx.strokeStyle = PHASE2_DRAW_STYLE.rxRidgeStroke;
+                  ctx.lineWidth = sel ? 2.8 : 2.0;
+                  ctx.stroke(rxRidgePath);
                 }
                 if (rx.hips) {
-                  if (rx.hips.left && rx.hips.left.a && rx.hips.left.b) {
-                    ctx.beginPath();
-                    var la = imageToScreen(rx.hips.left.a);
-                    var lb = imageToScreen(rx.hips.left.b);
-                    ctx.moveTo(la.x, la.y);
-                    ctx.lineTo(lb.x, lb.y);
-                    ctx.stroke();
-                  }
-                  if (rx.hips.right && rx.hips.right.a && rx.hips.right.b) {
-                    ctx.beginPath();
-                    var ra1 = imageToScreen(rx.hips.right.a);
-                    var rb1 = imageToScreen(rx.hips.right.b);
-                    ctx.moveTo(ra1.x, ra1.y);
-                    ctx.lineTo(rb1.x, rb1.y);
-                    ctx.stroke();
-                  }
+                  var drawRxHip = function (ha, hb) {
+                    if (!ha || !hb) return;
+                    var rxHipPath = new Path2D();
+                    var hpa = imageToScreen(ha);
+                    var hpb = imageToScreen(hb);
+                    rxHipPath.moveTo(hpa.x, hpa.y);
+                    rxHipPath.lineTo(hpb.x, hpb.y);
+                    ctx.strokeStyle = PHASE2_DRAW_STYLE.rxHalo;
+                    ctx.lineWidth = sel ? 4.8 : 3.5;
+                    ctx.stroke(rxHipPath);
+                    ctx.strokeStyle = PHASE2_DRAW_STYLE.rxHipStroke;
+                    ctx.lineWidth = sel ? 2.2 : 1.6;
+                    ctx.stroke(rxHipPath);
+                  };
+                  drawRxHip(rx.hips.left && rx.hips.left.a, rx.hips.left && rx.hips.left.b);
+                  drawRxHip(rx.hips.right && rx.hips.right.a, rx.hips.right && rx.hips.right.b);
                 }
                 if (sel && drawState.activeTool === "select") {
-                  var allPts = [];
-                  pts.forEach(function (p) { allPts.push({ p: p, kind: "contour" }); });
-                  if (rx.ridge && rx.ridge.a) allPts.push({ p: rx.ridge.a, kind: "ridge-a" });
-                  if (rx.ridge && rx.ridge.b) allPts.push({ p: rx.ridge.b, kind: "ridge-b" });
+                  var allRxPts = [];
+                  pts.forEach(function (p) { allRxPts.push({ p: p, kind: "contour" }); });
+                  if (rx.ridge && rx.ridge.a) allRxPts.push({ p: rx.ridge.a, kind: "ridge" });
+                  if (rx.ridge && rx.ridge.b) allRxPts.push({ p: rx.ridge.b, kind: "ridge" });
                   if (rx.hips && rx.hips.left) {
-                    if (rx.hips.left.a) allPts.push({ p: rx.hips.left.a, kind: "hip-left-a" });
-                    if (rx.hips.left.b) allPts.push({ p: rx.hips.left.b, kind: "hip-left-b" });
+                    if (rx.hips.left.a) allRxPts.push({ p: rx.hips.left.a, kind: "hip" });
+                    if (rx.hips.left.b) allRxPts.push({ p: rx.hips.left.b, kind: "hip" });
                   }
                   if (rx.hips && rx.hips.right) {
-                    if (rx.hips.right.a) allPts.push({ p: rx.hips.right.a, kind: "hip-right-a" });
-                    if (rx.hips.right.b) allPts.push({ p: rx.hips.right.b, kind: "hip-right-b" });
+                    if (rx.hips.right.a) allRxPts.push({ p: rx.hips.right.a, kind: "hip" });
+                    if (rx.hips.right.b) allRxPts.push({ p: rx.hips.right.b, kind: "hip" });
                   }
-                  allPts.forEach(function (item) {
+                  allRxPts.forEach(function (item) {
                     var sc = imageToScreen(item.p);
-                    ctx.beginPath();
-                    ctx.arc(sc.x, sc.y, 6, 0, Math.PI * 2);
                     var isActive = rxActivePointRef === item.p;
-                    ctx.fillStyle = isActive ? "#22c55e" : "#ffffff";
-                    ctx.strokeStyle = "#000000";
-                    ctx.lineWidth = 2;
+                    var fillCol = isActive ? "#22c55e" : "#ffffff";
+                    var strokeCol = isActive ? "#15803d" :
+                      (item.kind === "ridge" ? PHASE2_DRAW_STYLE.rxRidgeStroke :
+                       item.kind === "hip"   ? PHASE2_DRAW_STYLE.rxHipStroke :
+                                               PHASE2_DRAW_STYLE.rxContourStroke);
+                    var r = isActive ? 6.5 : 5.5;
+                    ctx.beginPath();
+                    if (item.kind === "contour") {
+                      ctx.rect(sc.x - r, sc.y - r, r * 2, r * 2);
+                    } else if (item.kind === "ridge") {
+                      ctx.moveTo(sc.x, sc.y - r);
+                      ctx.lineTo(sc.x + r, sc.y);
+                      ctx.lineTo(sc.x, sc.y + r);
+                      ctx.lineTo(sc.x - r, sc.y);
+                      ctx.closePath();
+                    } else {
+                      ctx.arc(sc.x, sc.y, r, 0, Math.PI * 2);
+                    }
+                    ctx.fillStyle = fillCol;
+                    ctx.strokeStyle = strokeCol;
+                    ctx.lineWidth = isActive ? 2.2 : 1.8;
                     ctx.fill();
                     ctx.stroke();
                   });
@@ -20571,21 +21114,33 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 ctx.lineTo(mouseSc.x, mouseSc.y);
               }
               ctx.stroke();
-              ctx.fillStyle = "#0f172a";
               for (var m = 0; m < activeContourPts.length; m++) {
                 var dSc = imageToScreen(activeContourPts[m]);
+                var isFirst = (m === 0);
+                var isSnappable = isFirst && drawState.hoverNearFirstPoint;
+                var vr = isSnappable ? 6.5 : 5.0;
                 ctx.beginPath();
-                var r = (m === 0 && drawState.hoverNearFirstPoint) ? 6 : 4.3;
-                ctx.arc(dSc.x, dSc.y, r, 0, Math.PI * 2);
-                if (m === 0 && drawState.hoverNearFirstPoint) {
+                ctx.arc(dSc.x, dSc.y, vr, 0, Math.PI * 2);
+                if (isSnappable) {
                   ctx.fillStyle = PHASE2_DRAW_STYLE.snapFill;
                   ctx.fill();
                   ctx.strokeStyle = PHASE2_DRAW_STYLE.snapStroke;
-                  ctx.lineWidth = 1.4;
+                  ctx.lineWidth = 2.0;
                   ctx.stroke();
-                  ctx.fillStyle = "#0f172a";
                 } else {
+                  ctx.fillStyle = "#ffffff";
                   ctx.fill();
+                  ctx.strokeStyle = PHASE2_DRAW_STYLE.roofStroke;
+                  ctx.lineWidth = isFirst ? 2.0 : 1.6;
+                  ctx.stroke();
+                }
+              }
+              /* Mesure live du dernier segment contour → souris */
+              if (activeContourPts && activeContourPts.length > 0 && hoverPt) {
+                var lastContPt = activeContourPts[activeContourPts.length - 1];
+                var liveContLen = segmentLengthMeters(lastContPt, hoverPt);
+                if (liveContLen != null) {
+                  drawSegmentLabelAlong(ctx, lastContPt, hoverPt, liveContLen.toFixed(2).replace(".", ",") + " m", 10);
                 }
               }
               if (hoverPt) {
@@ -20909,6 +21464,32 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 else canvasEl.style.cursor = "default";
               }
             } else {
+              /* Select : cursor selon contexte (vertex, handle, corps) */
+              if (drawState.activeTool === "select" && drawState.lastMouseImage) {
+                var _scrCur = imageToScreen(drawState.lastMouseImage);
+                var _isMi = drawState.lastMouseImage;
+                var _SNAP_V = Math.max(0.5, 10 / vp.scale);
+                var _hoverVertex = false;
+                /* Sommets de contour */
+                (CALPINAGE_STATE.contours || []).forEach(function (c) {
+                  if (!c || !c.points) return;
+                  c.points.forEach(function (p) {
+                    if (Math.hypot(_isMi.x - p.x, _isMi.y - p.y) < _SNAP_V) _hoverVertex = true;
+                  });
+                });
+                /* Endpoints ridge/trait */
+                if (!_hoverVertex) {
+                  (CALPINAGE_STATE.ridges || []).concat(CALPINAGE_STATE.traits || []).forEach(function (seg) {
+                    if (!seg) return;
+                    var a = seg.a && typeof seg.a.x === "number" ? seg.a : null;
+                    var b = seg.b && typeof seg.b.x === "number" ? seg.b : null;
+                    if (a && Math.hypot(_isMi.x - a.x, _isMi.y - a.y) < _SNAP_V) _hoverVertex = true;
+                    if (b && Math.hypot(_isMi.x - b.x, _isMi.y - b.y) < _SNAP_V) _hoverVertex = true;
+                  });
+                }
+                if (_hoverVertex) { canvasEl.style.cursor = "pointer"; }
+                else { canvasEl.style.cursor = "move"; }
+              }
               var obstacleHoverRotate = false;
               if (drawState.selectedObstacleIndex != null && drawState.lastMouseImage && window.CalpinageCanvas && window.CalpinageCanvas.hitTestObstacleHandles) {
                 var obsListCur = CALPINAGE_STATE.obstacles || [];
