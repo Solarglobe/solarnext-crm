@@ -653,7 +653,8 @@ export async function buildClientPortalPayload(db, ctx) {
             o.phone AS org_phone,
             o.name AS org_name,
             o.trade_name AS org_trade_name,
-            o.legal_name AS org_legal_name
+            o.legal_name AS org_legal_name,
+            o.pdf_primary_color AS org_pdf_primary_color
      FROM leads l
      LEFT JOIN users u ON u.id = l.assigned_user_id
      LEFT JOIN organizations o ON o.id = l.organization_id
@@ -662,6 +663,10 @@ export async function buildClientPortalPayload(db, ctx) {
   );
   const advRow = advRes.rows[0];
   const organizationName = pickOrganizationDisplayName(advRow);
+  const orgBrandColor =
+    advRow?.org_pdf_primary_color != null && String(advRow.org_pdf_primary_color).trim() !== ""
+      ? String(advRow.org_pdf_primary_color).trim()
+      : null;
   const fn = advRow?.advisor_first_name != null ? String(advRow.advisor_first_name).trim() : "";
   const ln = advRow?.advisor_last_name != null ? String(advRow.advisor_last_name).trim() : "";
   const advisor = {
@@ -795,6 +800,8 @@ export async function buildClientPortalPayload(db, ctx) {
       currency,
       organization_name: organizationName,
       organization_logo_url: organization_logo_url,
+      /** Couleur de marque entreprise (organizations.pdf_primary_color) — injectée comme CSS variable sur le portail. */
+      organization_brand_color: orgBrandColor,
     },
     client: {
       full_name: lead.full_name ?? null,

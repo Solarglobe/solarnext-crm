@@ -40,6 +40,8 @@ type PortalPayload = {
     organization_name: string | null;
     /** URL relative `/api/client-portal/organization/logo?token=…` si un logo est enregistré en CRM. */
     organization_logo_url: string | null;
+    /** Couleur de marque entreprise (organizations.pdf_primary_color). Ex : "#E67E22". Null = indigo CRM par défaut. */
+    organization_brand_color: string | null;
   };
   client: {
     full_name: string | null;
@@ -106,6 +108,32 @@ type PortalPayload = {
     phone: string | null;
   };
 };
+
+/** Valide et normalise une couleur hex entreprise. Accepte #RGB, #RRGGBB, #RRGGBBAA. */
+function normBrandColor(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const t = raw.trim();
+  if (/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(t)) return t;
+  // Sans # (ex. "E67E22")
+  if (/^[0-9a-fA-F]{6}$/.test(t)) return `#${t}`;
+  return null;
+}
+
+/**
+ * Calcule une version légèrement plus claire / plus sombre pour les glows et halos.
+ * Retourne la même couleur si la manipulation CSS n'est pas nécessaire (color-mix la gère côté CSS).
+ */
+function brandColorCssBlock(hex: string): string {
+  // On surcharge --brand-gold, --cp-gold et les éventuels tokens CRM de la page.
+  // Le portail client est une page publique sans thème CRM : les variables doivent être auto-suffisantes.
+  return `
+    :root, .client-portal {
+      --brand-gold: ${hex};
+      --cp-gold: ${hex};
+      --brand-accent: ${hex};
+    }
+  `;
+}
 
 function dash(v: string | number | null | undefined): string {
   if (v === null || v === undefined || v === "") return "—";
@@ -360,6 +388,7 @@ function parsePortalPayload(raw: unknown): PortalPayload {
     ...rawMeta,
     organization_name: normPortalStr(rawMeta.organization_name),
     organization_logo_url: normPortalStr(rawMeta.organization_logo_url),
+    organization_brand_color: normPortalStr(rawMeta.organization_brand_color),
   };
   const sum = summaryRaw as Record<string, unknown>;
   const summaryNorm = {
@@ -539,6 +568,12 @@ export default function ClientPortalPage() {
 
   return (
     <div className="client-portal">
+      {/* Inject company brand color — overrides --brand-gold and --cp-gold with the org's accent */}
+      {(() => {
+        const brandHex = normBrandColor(data.meta.organization_brand_color);
+        if (!brandHex) return null;
+        return <style dangerouslySetInnerHTML={{ __html: brandColorCssBlock(brandHex) }} />;
+      })()}
       <header className="cp-hero">
         <div
           className="cp-hero__bg"
