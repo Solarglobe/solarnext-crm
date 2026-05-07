@@ -800,14 +800,14 @@
    DARK MODE
    ══════════════════════════════════════════════ */
 :global(html.theme-dark) .sidebar {
-  background: var(--color-bg-card, #12172B);
+  background: var(--color-bg-page, #0B0F1E);
   border-right-color: var(--color-border-default, rgba(226, 232, 240, 0.10));
 }
 
 :global(html.theme-dark) .actionCard,
 :global(html.theme-dark) .pansZone,
 :global(html.theme-dark) .stepsCompact {
-  background: var(--color-bg-elevated, #161C34);
+  background: var(--color-bg-card, #12172B);
   border-color: var(--color-border-default, rgba(226, 232, 240, 0.10));
 }
 

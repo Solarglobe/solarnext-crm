@@ -356,6 +356,17 @@ export function initCalpinage(container, options = {}) {
       background: var(--color-bg-page, #0F1627);
       color: var(--ink);
     }
+    html.theme-dark #zone-b {
+      background: rgba(18, 23, 43, 0.95);
+    }
+    html.theme-dark .calpinage-p2-ob-toolbar-inner {
+      background: rgba(18, 23, 43, 0.92);
+      border-color: rgba(226, 232, 240, 0.12);
+    }
+    html.theme-dark .calpinage-obstacle-ux-hud {
+      background: rgba(18, 23, 43, 0.92);
+      color: var(--sg-text, #E8ECF8);
+    }
 
     :root {
       --bg:#F8F9FC;
@@ -723,8 +734,8 @@ export function initCalpinage(container, options = {}) {
       position: relative;
       z-index: 10;
       padding: 12px 20px;
-      background: rgba(255,255,255,0.85);
-      border-bottom: 1px solid var(--line);
+      background: var(--sg-bg, rgba(255,255,255,0.85));
+      border-bottom: 1px solid var(--sg-border, var(--line));
       display: flex;
       align-items: center;
       justify-content: flex-start;
@@ -1185,7 +1196,7 @@ export function initCalpinage(container, options = {}) {
       align-items: center;
       gap: 2px;
       padding: 5px 6px;
-      background: rgba(255, 255, 255, 0.97);
+      background: var(--sg-bg, rgba(255, 255, 255, 0.97));
       border: 1px solid var(--sg-border, rgba(15, 23, 42, 0.12));
       border-radius: var(--sg-radius-md, 10px);
       box-shadow: 0 6px 28px rgba(15, 23, 42, 0.12), 0 1px 3px rgba(15, 23, 42, 0.08);
@@ -1253,8 +1264,8 @@ export function initCalpinage(container, options = {}) {
       padding: 10px 14px;
       font-size: 12px;
       line-height: 1.45;
-      color: var(--ink);
-      background: rgba(255, 255, 255, 0.92);
+      color: var(--sg-text, var(--ink));
+      background: var(--sg-bg, rgba(255, 255, 255, 0.92));
       border: 1px solid rgba(99, 102, 241, 0.35);
       border-radius: var(--sg-radius-sm);
       box-shadow: var(--sg-shadow-soft);

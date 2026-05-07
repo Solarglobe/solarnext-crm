@@ -489,7 +489,7 @@
    DARK MODE
    ══════════════════════════════════════════════ */
 :global(html.theme-dark) .sidebar {
-  background: var(--color-bg-card, #12172B);
+  background: var(--color-bg-page, #0B0F1E);
   border-right-color: var(--color-border-default, rgba(226, 232, 240, 0.10));
   color: var(--text, #E8ECF8);
 }
