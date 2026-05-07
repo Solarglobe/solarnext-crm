@@ -12,12 +12,24 @@
  *   8. Perdu           (LOST)
  *   9. Injoignable     (CONTACTED)    ← renommé
  *
- * Hypothèse : aucun lead dans IN_REFLECTION (confirmé par l'utilisateur).
+ * NOTE SAFETY:
+ * Cette migration a été re-timestampée pour respecter l'ordre node-pg-migrate.
+ * Elle short-circuit si STUDY existe déjà pour éviter un double décalage.
  */
 
 export const shorthands = undefined;
 
-export const up = (pgm) => {
+export const up = async (pgm) => {
+  const alreadyApplied = await pgm.db.query(
+    `SELECT 1
+       FROM pipeline_stages
+      WHERE code = 'STUDY'
+         OR name ILIKE '%étude%'
+         OR name ILIKE '%etude%'
+      LIMIT 1`
+  );
+  if (alreadyApplied.rows.length > 0) return;
+
   // ── 1. Assigner les codes manquants aux stages existants ──────────────────
   pgm.sql(`
     UPDATE pipeline_stages SET code = 'NEW'
