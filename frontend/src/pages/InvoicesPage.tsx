@@ -177,20 +177,8 @@ function matchesInvoiceDateRange(
 
 function IconSearchFin({ className }: { className?: string }) {
   return (
-    <svg
-      className={className}
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-    >
-      <circle cx="11" cy="11" r="7" />
-      <path d="M21 21l-4.3-4.3" />
+    <svg className={className} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" />
     </svg>
   );
 }
@@ -389,23 +377,19 @@ export default function InvoicesPage() {
                 autoComplete="off"
               />
             </div>
-            <div className="sn-leads-filters-field">
-              <label htmlFor="fin-inv-status" className="sn-leads-filters-field__label">
-                Statut
-              </label>
-              <select
-                id="fin-inv-status"
-                className="sn-leads-filters-select"
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value as InvStatusFilter)}
-              >
-                <option value="ALL">Tous</option>
-                <option value="DRAFT">Brouillon</option>
-                <option value="ISSUED">Émise</option>
-                <option value="PARTIAL">Partiellement payée</option>
-                <option value="PAID">Payée</option>
-                <option value="OVERDUE">En retard</option>
-              </select>
+            {/* Status chips */}
+            <div className="fin-chips">
+              {(["ALL", "DRAFT", "ISSUED", "PARTIAL", "PAID", "OVERDUE"] as InvStatusFilter[]).map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  className={`fin-chip${statusFilter === s ? " fin-chip--active" : ""}`}
+                  onClick={() => setStatusFilter(s)}
+                >
+                  {statusFilter === s && s !== "ALL" && <span className="fin-chip__dot" />}
+                  {{ ALL: "Tous", DRAFT: "Brouillon", ISSUED: "Émise", PARTIAL: "Partiel", PAID: "Payée", OVERDUE: "En retard" }[s]}
+                </button>
+              ))}
             </div>
             <div className="sn-leads-filters-field sn-leads-filters-field--daterange">
               <span className="sn-leads-filters-field__label">Plage de dates</span>

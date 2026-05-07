@@ -180,3 +180,68 @@ html.theme-dark .qb-table-wrap--list-saas {
   flex: 1 1 220px;
   opacity: 0.94;
 }
+
+/* ── Icon action buttons (hover-reveal in table rows) ───────────────────── */
+.fin-actions-cell {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  justify-content: flex-end;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+
+tr:hover .fin-actions-cell,
+.qb-line:hover .fin-actions-cell {
+  opacity: 1;
+}
+
+.fin-icon-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text-muted);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.1s;
+  text-decoration: none;
+  flex-shrink: 0;
+  padding: 0;
+}
+
+.fin-icon-btn:hover:not(:disabled) {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+
+.fin-icon-btn:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.fin-icon-btn--danger:hover:not(:disabled) {
+  background: #dc2626;
+  border-color: #dc2626;
+  color: #fff;
+}
+
+.fin-icon-btn--spin svg {
+  animation: fin-spin 0.8s linear infinite;
+}
+
+@keyframes fin-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* Pleine largeur pour les listes */
+.qb-page.fin-pole-shell {
+  max-width: 100%;
+  padding: 28px 32px 48px;
+}

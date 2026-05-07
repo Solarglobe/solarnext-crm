@@ -154,23 +154,43 @@ const PDF_OFFICIAL_HINT =
 
 function IconSearchFin({ className }: { className?: string }) {
   return (
-    <svg
-      className={className}
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-    >
-      <circle cx="11" cy="11" r="7" />
-      <path d="M21 21l-4.3-4.3" />
+    <svg className={className} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" />
     </svg>
   );
 }
+const IconEye = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+  </svg>
+);
+const IconPresent = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>
+  </svg>
+);
+const IconFilePdf = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+    <polyline points="14 2 14 8 20 8"/><path d="M9 13h6M9 17h4"/>
+  </svg>
+);
+const IconCopy = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+  </svg>
+);
+const IconTrashQ = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+    <path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/>
+  </svg>
+);
+const IconSpinnerQ = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+  </svg>
+);
 
 function PdfGlyph({ hasPdf, hasSignedPdf = false }: { hasPdf: boolean; hasSignedPdf?: boolean }) {
   const ok = hasPdf || hasSignedPdf;
@@ -352,22 +372,19 @@ export default function QuotesList() {
                 autoComplete="off"
               />
             </div>
-            <div className="sn-leads-filters-field">
-              <label htmlFor="fin-quotes-status" className="sn-leads-filters-field__label">
-                Statut
-              </label>
-              <select
-                id="fin-quotes-status"
-                className="sn-leads-filters-select"
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value as QuoteStatusFilter)}
-              >
-                <option value="ALL">Tous</option>
-                <option value="DRAFT">Brouillon</option>
-                <option value="SENT">Envoyé / prêt</option>
-                <option value="ACCEPTED">Accepté</option>
-                <option value="REFUSED">Refusé</option>
-              </select>
+            {/* Status chips */}
+            <div className="fin-chips">
+              {(["ALL", "DRAFT", "SENT", "ACCEPTED", "REFUSED"] as QuoteStatusFilter[]).map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  className={`fin-chip${statusFilter === s ? " fin-chip--active" : ""}`}
+                  onClick={() => setStatusFilter(s)}
+                >
+                  {statusFilter === s && s !== "ALL" && <span className="fin-chip__dot" />}
+                  {{ ALL: "Tous", DRAFT: "Brouillon", SENT: "Envoyé", ACCEPTED: "Accepté", REFUSED: "Refusé" }[s]}
+                </button>
+              ))}
             </div>
             <div
               className="sn-leads-filters-field sn-leads-filters-field--daterange"
@@ -382,9 +399,7 @@ export default function QuotesList() {
                   onChange={(e) => setDateFrom(e.target.value)}
                   aria-label="Date de début (filtre)"
                 />
-                <span className="sn-leads-filters-daterange__sep" aria-hidden>
-                  –
-                </span>
+                <span className="sn-leads-filters-daterange__sep" aria-hidden>–</span>
                 <input
                   type="date"
                   className="sn-leads-filters-input sn-leads-filters-input--date"
@@ -405,9 +420,7 @@ export default function QuotesList() {
               className="sn-leads-filters-field sn-leads-filters-field--subtle"
               title={useCustomDateRange ? "Désactivé tant qu’une plage Du/Au est renseignée" : undefined}
             >
-              <label htmlFor="fin-quotes-period" className="sn-leads-filters-field__label">
-                Période rapide
-              </label>
+              <label htmlFor="fin-quotes-period" className="sn-leads-filters-field__label">Période rapide</label>
               <select
                 id="fin-quotes-period"
                 className="sn-leads-filters-select sn-leads-filters-select--subtle"
@@ -422,9 +435,7 @@ export default function QuotesList() {
               </select>
             </div>
             <div className="sn-leads-filters-field sn-leads-filters-field--subtle fin-list-field--wide">
-              <label htmlFor="fin-quotes-basis" className="sn-leads-filters-field__label">
-                Filtrer sur
-              </label>
+              <label htmlFor="fin-quotes-basis" className="sn-leads-filters-field__label">Filtrer sur</label>
               <select
                 id="fin-quotes-basis"
                 className="sn-leads-filters-select sn-leads-filters-select--subtle"
@@ -490,55 +501,57 @@ export default function QuotesList() {
                     <PdfGlyph hasPdf={Boolean(r.has_pdf)} hasSignedPdf={Boolean(r.has_signed_pdf)} />
                   </td>
                   <td>
-                    <div className="fin-list-actions">
+                    <div className="fin-actions-cell">
                       <button
                         type="button"
-                        className="fin-link-btn fin-link-btn--accent"
+                        className="fin-icon-btn"
+                        title="Ouvrir"
                         onClick={() => navigate(`/quotes/${r.id}`)}
                       >
-                        Ouvrir
+                        <IconEye />
                       </button>
                       <button
                         type="button"
-                        className="fin-link-btn"
+                        className="fin-icon-btn"
+                        title="Présenter"
                         onClick={() => navigate(`/quotes/${r.id}/present`)}
                       >
-                        Présenter
+                        <IconPresent />
                       </button>
                       {canOfferOfficialQuotePdfFromListRow(r) ? (
                         <button
                           type="button"
-                          className="fin-link-btn"
+                          className={`fin-icon-btn${pdfBusyId === r.id ? " fin-icon-btn--spin" : ""}`}
+                          title="Générer PDF"
                           disabled={pdfBusyId === r.id}
                           onClick={(e) => void onGeneratePdf(e, r.id)}
                         >
-                          {pdfBusyId === r.id ? "PDF…" : "Générer PDF"}
+                          {pdfBusyId === r.id ? <IconSpinnerQ /> : <IconFilePdf />}
                         </button>
                       ) : (
-                        <button type="button" className="fin-link-btn" disabled title={PDF_OFFICIAL_HINT}>
-                          PDF
+                        <button type="button" className="fin-icon-btn" disabled title={PDF_OFFICIAL_HINT}>
+                          <IconFilePdf />
                         </button>
                       )}
                       <button
                         type="button"
-                        className="fin-link-btn"
+                        className={`fin-icon-btn${dupBusyId === r.id ? " fin-icon-btn--spin" : ""}`}
+                        title="Dupliquer"
                         disabled={dupBusyId === r.id}
                         onClick={(e) => void onDuplicate(e, r.id)}
                       >
-                        {dupBusyId === r.id ? "…" : "Dupliquer"}
+                        {dupBusyId === r.id ? <IconSpinnerQ /> : <IconCopy />}
                       </button>
                       {isQuoteDeletable(r.status) ? (
                         <button
                           type="button"
-                          className="fin-quote-list-delete"
+                          className="fin-icon-btn fin-icon-btn--danger"
                           title="Supprimer le devis"
                           aria-label="Supprimer le devis"
                           disabled={deleteBusyId === r.id}
                           onClick={(e) => void onDeleteQuote(e, r.id)}
                         >
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" aria-hidden>
-                            <path d="M18 6L6 18M6 6l12 12" strokeLinecap="round" />
-                          </svg>
+                          {deleteBusyId === r.id ? <IconSpinnerQ /> : <IconTrashQ />}
                         </button>
                       ) : null}
                     </div>
