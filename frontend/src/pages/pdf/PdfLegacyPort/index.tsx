@@ -17,6 +17,7 @@ import PdfPage5 from "./PdfPage5";
 import PdfPage6 from "./PdfPage6";
 import PdfPage7 from "./PdfPage7";
 import PdfPage7VirtualBattery from "../FullReport/PdfPage7VirtualBattery";
+import PdfPage7HybridBattery from "../FullReport/PdfPage7HybridBattery";
 import PdfPage8 from "./PdfPage8";
 import PdfPage10 from "./PdfPage10";
 import PdfPage11 from "./PdfPage11";
@@ -41,10 +42,15 @@ export default function PdfLegacyPort({ viewModel, onP10Ready }: PdfLegacyPortPr
   const virtualBatteryData = (fr.p7_virtual_battery ?? null) as React.ComponentProps<
     typeof PdfPage7VirtualBattery
   >["data"];
+  const hybridBatteryData = (fr.p7_hybrid_battery ?? null) as React.ComponentProps<
+    typeof PdfPage7HybridBattery
+  >["data"];
   const selectedScenarioType = ((viewModel?.meta as { scenarioType?: string } | undefined)?.scenarioType ?? "")
     .toUpperCase();
   const hasVirtualBatteryPageData = virtualBatteryData != null && typeof virtualBatteryData === "object";
+  const hasHybridBatteryPageData = hybridBatteryData != null && typeof hybridBatteryData === "object";
   const isVirtualBattery = selectedScenarioType.includes("VIRTUAL") || hasVirtualBatteryPageData;
+  const isHybridBattery = selectedScenarioType.includes("HYBRID") || hasHybridBatteryPageData;
   useLegacyPdfEngine(viewModel ?? null);
   const organization = (viewModel?.organization ?? {}) as {
     id?: string;
@@ -79,6 +85,9 @@ export default function PdfLegacyPort({ viewModel, onP10Ready }: PdfLegacyPortPr
       <PdfPage7 organization={organization} viewModel={viewModel} />
       {isVirtualBattery && hasVirtualBatteryPageData ? (
         <PdfPage7VirtualBattery data={virtualBatteryData} organization={organization} viewModel={viewModel} />
+      ) : null}
+      {isHybridBattery && hasHybridBatteryPageData ? (
+        <PdfPage7HybridBattery data={hybridBatteryData} organization={organization} viewModel={viewModel} />
       ) : null}
       {Boolean(fr.p9) && <PdfPage8 organization={organization} viewModel={viewModel} />}
       <PdfPage10 organization={organization} viewModel={viewModel} onReady={onP10Ready} />
