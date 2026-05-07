@@ -685,15 +685,15 @@ export async function buildClientPortalPayload(db, ctx) {
             ed.entity_id,
             ed.file_name,
             ed.document_type,
-            COALESCE(NULLIF(TRIM(ed.display_name), ‘’), ed.file_name) AS name,
+            COALESCE(NULLIF(TRIM(ed.display_name), ''), ed.file_name) AS name,
             ed.created_at
      FROM entity_documents ed
      WHERE ed.organization_id = $1
        AND ed.archived_at IS NULL
        AND ed.is_client_visible IS TRUE
-       AND ed.entity_type = ‘lead’
+       AND ed.entity_type = 'lead'
        AND ed.entity_id = $2::uuid
-       AND ed.document_type IN (‘quote_pdf’, ‘quote_pdf_signed’, ‘study_pdf’, ‘study_proposal’, ‘invoice_pdf’)
+       AND ed.document_type IN ('quote_pdf', 'quote_pdf_signed', 'study_pdf', 'study_proposal', 'invoice_pdf')
      ORDER BY ed.created_at DESC`,
     [organizationId, leadId]
   );
