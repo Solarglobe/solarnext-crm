@@ -10,7 +10,7 @@
     "start": "node server.js",
     "restore:storage:railway": "node scripts/railway-restore-storage.mjs",
     "verify:documents:storage": "node scripts/verify-entity-documents-storage.mjs",
-    "build": "npx playwright install chromium --with-deps",
+    "build": "node -e \"console.log('PLAYWRIGHT_INSTALL_SKIP build_noop_use_postinstall')\"",
     "postinstall": "node scripts/postinstall-playwright.cjs",
     "migrate": "node scripts/run-pg-migrate.cjs up",
     "migrate:create": "node scripts/run-pg-migrate.cjs create",

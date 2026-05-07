@@ -6,6 +6,9 @@
  * Local : variable absente → skip (lancer manuellement : npm run build).
  */
 const { execSync } = require("node:child_process");
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
 
 const shouldRun =
   process.env.PLAYWRIGHT_FORCE_INSTALL === "1" ||
@@ -14,17 +17,58 @@ const shouldRun =
   Boolean(process.env.RAILWAY_ENVIRONMENT) ||
   process.env.RAILWAY === "true";
 
-if (!shouldRun) {
-  process.stdout.write(
-    "[playwright] postinstall skip (hors Railway/CI) — exécuter: npm run build\n"
+const skipDownload =
+  process.env.PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD === "true" ||
+  process.env.PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD === "1";
+
+function log(marker, details) {
+  if (details) {
+    process.stdout.write(`${marker} ${details}\n`);
+    return;
+  }
+  process.stdout.write(`${marker}\n`);
+}
+
+function resolvePlaywrightCacheDir() {
+  const customPath = process.env.PLAYWRIGHT_BROWSERS_PATH;
+  if (customPath && customPath !== "0") {
+    return path.resolve(customPath);
+  }
+  return path.join(os.homedir(), ".cache", "ms-playwright");
+}
+
+function hasChromiumInCache() {
+  const cacheDir = resolvePlaywrightCacheDir();
+  if (!fs.existsSync(cacheDir)) return false;
+  const entries = fs.readdirSync(cacheDir, { withFileTypes: true });
+  return entries.some(
+    (entry) =>
+      entry.isDirectory() &&
+      (entry.name.startsWith("chromium-") || entry.name.startsWith("chromium_headless_shell-"))
   );
+}
+
+if (skipDownload) {
+  log("PLAYWRIGHT_INSTALL_SKIP", "skip_env=PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD");
+  process.exit(0);
+}
+
+if (!shouldRun) {
+  log("PLAYWRIGHT_INSTALL_SKIP", "reason=not_railway_or_ci");
+  process.exit(0);
+}
+
+if (hasChromiumInCache()) {
+  log("PLAYWRIGHT_INSTALL_SKIP", `reason=chromium_cache_present cache=${resolvePlaywrightCacheDir()}`);
   process.exit(0);
 }
 
 try {
+  log("PLAYWRIGHT_INSTALL_START", "cmd=\"npx playwright install chromium --with-deps\"");
   execSync("npx playwright install chromium --with-deps", {
     stdio: "inherit",
   });
+  log("PLAYWRIGHT_INSTALL_DONE");
 } catch (e) {
   process.stderr.write(`[playwright] postinstall échoué: ${e && e.message}\n`);
   process.exit(1);
