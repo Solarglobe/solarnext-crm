@@ -207,14 +207,17 @@ export default function FinancialInvoicePdfPage() {
       : null;
   const depositAmountTtc = isDepositInvoice ? totals.total_ttc : null;
   const alreadyPaidTtc = isDepositInvoice ? totals.total_paid : null;
+  // Reste sur prestations = ce qu'il reste à facturer sur le projet GLOBAL après cet acompte.
+  // Formule : total_projet - montant_acompte_facturé (seulement).
+  // On ne soustrait PAS total_paid : total_paid concerne le règlement de CETTE facture,
+  // pas la part déjà facturée du projet. Soustraire les deux revient à compter l'acompte en double.
   const remainingProjectTtc =
     isDepositInvoice &&
     preparationServicesTtc != null &&
-    depositAmountTtc != null &&
-    alreadyPaidTtc != null
+    depositAmountTtc != null
       ? Math.max(
           0,
-          Math.round((preparationServicesTtc - depositAmountTtc - alreadyPaidTtc + Number.EPSILON) * 100) / 100
+          Math.round((preparationServicesTtc - depositAmountTtc + Number.EPSILON) * 100) / 100
         )
       : null;
   const invoiceNumberDisplay = payload.number != null && payload.number !== "" ? String(payload.number) : "—";
@@ -402,7 +405,7 @@ export default function FinancialInvoicePdfPage() {
           ) : null}
           {isDepositInvoice && remainingProjectTtc != null ? (
             <div className="fi-totals-row">
-              <span>Reste sur prestations (après acompte et paiements)</span>
+              <span>Reste sur prestations (solde à facturer)</span>
               <span>{formatEurUnknown(remainingProjectTtc)}</span>
             </div>
           ) : null}
