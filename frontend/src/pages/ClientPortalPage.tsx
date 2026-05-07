@@ -275,7 +275,7 @@ function categorizePortalDocument(docType: string | null | undefined): DocGroupI
   const t = (docType ?? "").toLowerCase().trim();
   if (t === "study_pdf" || t === "study_proposal") return "proposal";
   if (t === "quote_pdf" || t === "quote_pdf_signed") return "quote";
-  if (t === "invoice_pdf") return "invoice";
+  if (t === "invoice_pdf" || t === "credit_note_pdf") return "invoice";
   return null;
 }
 
@@ -317,7 +317,7 @@ function getDocumentLabel(type: string | null | undefined): string {
     study_attachment: "Étude",
     lead_attachment: "Document projet",
     invoice_pdf: "Facture",
-    credit_note_pdf: "Avoir",
+    credit_note_pdf: "Avoir fiscal",
     quote_signature_client: "Signature client",
     quote_signature_company: "Signature entreprise",
     organization_pdf_cover: "Document entreprise",

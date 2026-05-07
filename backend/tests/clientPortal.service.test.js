@@ -17,7 +17,6 @@ import {
   resolvePortalDocumentLabelFromRow,
   normalizePortalFileName,
   dedupeByFileNameKeepNewest,
-  splitPortalFilteredDocuments,
   mergePortalDocumentsForResponse,
 } from "../services/clientPortal.service.js";
 
@@ -136,62 +135,61 @@ describe("clientPortal.service", () => {
     );
     assert.equal(
       resolvePortalDocumentLabelFromRow({ entity_type: "study_version", document_type: "study_pdf" }),
-      "Proposition"
+      "Proposition commerciale"
     );
     assert.equal(
       resolvePortalDocumentLabelFromRow({ entity_type: "lead", document_type: "lead_attachment" }),
       "Document"
     );
+    assert.equal(resolvePortalDocumentLabelFromRow({ entity_type: "client", document_type: "invoice_pdf" }), "Facture");
+    assert.equal(resolvePortalDocumentLabelFromRow({ entity_type: "client", document_type: "credit_note_pdf" }), "Avoir");
   });
 
-  it("isPortalClientDocument — devis quote, propositions study*, lead hors copies techniques", () => {
+  it("isPortalClientDocument — entrées miroir lead ou client, types portail uniquement", () => {
     assert.equal(
-      isPortalClientDocument({ entity_type: "quote", document_type: "quote_pdf" }),
+      isPortalClientDocument({ entity_type: "lead", document_type: "quote_pdf" }),
       true
     );
     assert.equal(
-      isPortalClientDocument({ entity_type: "study_version", document_type: "study_pdf" }),
+      isPortalClientDocument({ entity_type: "client", document_type: "invoice_pdf" }),
       true
+    );
+    assert.equal(
+      isPortalClientDocument({ entity_type: "quote", document_type: "quote_pdf" }),
+      false
     );
     assert.equal(
       isPortalClientDocument({ entity_type: "lead", document_type: "lead_attachment" }),
-      true
+      false
     );
     assert.equal(
       isPortalClientDocument({ entity_type: "lead", document_type: "study_pdf" }),
-      false
-    );
-    assert.equal(
-      isPortalClientDocument({ entity_type: "lead", document_type: "study_proposal" }),
-      false
-    );
-    assert.equal(
-      isPortalClientDocument({ entity_type: "lead", document_type: "quote_pdf" }),
-      false
+      true
     );
   });
 
-  it("portail — 2 devis quote + 2 propositions SV + copie lead exclue = 4", () => {
+  it("portail — filtre : miroirs lead + client hors entités quote/study", () => {
     const rows = [
       { id: "q1", entity_type: "quote", document_type: "quote_pdf" },
-      { id: "q2", entity_type: "quote", document_type: "quote_pdf" },
-      { id: "sv1", entity_type: "study_version", document_type: "study_pdf" },
-      { id: "sv2", entity_type: "study_version", document_type: "study_pdf" },
-      { id: "leadCopy", entity_type: "lead", document_type: "study_pdf" },
+      { id: "l1", entity_type: "lead", document_type: "quote_pdf" },
+      { id: "c1", entity_type: "client", document_type: "invoice_pdf" },
+      { id: "l2", entity_type: "lead", document_type: "lead_attachment" },
     ];
     const portal = rows.filter((r) => isPortalClientDocument(r));
-    assert.equal(portal.length, 4);
-    assert.ok(!portal.some((r) => r.id === "leadCopy"));
+    assert.equal(portal.length, 2);
+    assert.ok(portal.some((r) => r.id === "l1"));
+    assert.ok(portal.some((r) => r.id === "c1"));
   });
 
   it("normalizePortalFileName — trim + lower", () => {
     assert.equal(normalizePortalFileName("  Foo.PDF "), "foo.pdf");
   });
 
-  it("dedupeByFileNameKeepNewest — cas 1 : 2 propositions même file_name → 1 (plus récent)", () => {
+  it("dedupeByFileNameKeepNewest — cas 1 : même entity_id → 1 (plus récent)", () => {
     const docs = [
       {
         id: "old",
+        entity_id: "study-v-1",
         file_name: "PierrickROUXEL-Etude1-SansBatterie.pdf",
         created_at: new Date("2026-01-01"),
         entity_type: "study_version",
@@ -199,6 +197,7 @@ describe("clientPortal.service", () => {
       },
       {
         id: "new",
+        entity_id: "study-v-1",
         file_name: "pierrickrouxel-etude1-sansbatterie.pdf",
         created_at: new Date("2026-02-01"),
         entity_type: "study_version",
@@ -218,82 +217,37 @@ describe("clientPortal.service", () => {
     assert.equal(dedupeByFileNameKeepNewest(docs).length, 2);
   });
 
-  it("dedupeByFileNameKeepNewest — cas 3 : 2 devis même file_name → 1 récent", () => {
+  it("dedupeByFileNameKeepNewest — cas 3 : même entity_id devis → 1 récent", () => {
     const docs = [
-      { id: "a", file_name: "x.pdf", created_at: new Date("2026-01-01"), entity_type: "quote", document_type: "quote_pdf" },
-      { id: "b", file_name: "x.pdf", created_at: new Date("2026-06-01"), entity_type: "quote", document_type: "quote_pdf" },
+      {
+        id: "a",
+        entity_id: "quote-42",
+        file_name: "x.pdf",
+        created_at: new Date("2026-01-01"),
+        entity_type: "quote",
+        document_type: "quote_pdf",
+      },
+      {
+        id: "b",
+        entity_id: "quote-42",
+        file_name: "x.pdf",
+        created_at: new Date("2026-06-01"),
+        entity_type: "quote",
+        document_type: "quote_pdf",
+      },
     ];
     const out = dedupeByFileNameKeepNewest(docs);
     assert.equal(out.length, 1);
     assert.equal(out[0].id, "b");
   });
 
-  it("merge + dédup — cas 4 : 2 lead manuels distincts conservés (pas de dédup lead)", () => {
-    const filtered = [
-      { id: "l1", entity_type: "lead", document_type: "lead_attachment", file_name: "a.pdf", created_at: new Date("2026-01-01") },
-      { id: "l2", entity_type: "lead", document_type: "lead_attachment", file_name: "b.pdf", created_at: new Date("2026-01-02") },
-    ].filter((r) => isPortalClientDocument(r));
-    const { leadManual, quotes, proposals } = splitPortalFilteredDocuments(filtered);
+  it("mergePortalDocumentsForResponse — agrège propositions / devis / factures déjà dédupliqués", () => {
     const merged = mergePortalDocumentsForResponse({
-      proposalsDeduped: dedupeByFileNameKeepNewest(proposals),
-      quotesDeduped: dedupeByFileNameKeepNewest(quotes),
-      leadManual,
+      proposalsDeduped: [{ id: "p1", created_at: new Date("2026-01-02") }],
+      quotesDeduped: [{ id: "q1", created_at: new Date("2026-01-03") }],
+      invoicesDeduped: [{ id: "i1", created_at: new Date("2026-01-01") }],
     });
-    assert.equal(merged.length, 2);
-  });
-
-  it("pipeline complet — cas 5 : 2 propositions (dont 1 doublon nom) + 2 devis = 4 sans doublon Pierrick…SansBatterie", () => {
-    const rows = [
-      {
-        id: "p-dup-old",
-        entity_type: "study_version",
-        document_type: "study_pdf",
-        file_name: "PierrickROUXEL-Etude1-SansBatterie.pdf",
-        created_at: new Date("2026-01-01"),
-      },
-      {
-        id: "p-dup-new",
-        entity_type: "study_version",
-        document_type: "study_pdf",
-        file_name: "PierrickROUXEL-Etude1-SansBatterie.pdf",
-        created_at: new Date("2026-03-01"),
-      },
-      {
-        id: "p-physique",
-        entity_type: "study_version",
-        document_type: "study_pdf",
-        file_name: "PierrickROUXEL-Etude1-BatteriePhysique.pdf",
-        created_at: new Date("2026-02-01"),
-      },
-      {
-        id: "q1",
-        entity_type: "quote",
-        document_type: "quote_pdf",
-        file_name: "devis-0021.pdf",
-        created_at: new Date("2026-01-15"),
-      },
-      {
-        id: "q2",
-        entity_type: "quote",
-        document_type: "quote_pdf",
-        file_name: "devis-0022.pdf",
-        created_at: new Date("2026-02-01"),
-      },
-    ];
-    const filtered = rows.filter((r) => isPortalClientDocument(r));
-    const { leadManual, quotes, proposals } = splitPortalFilteredDocuments(filtered);
-    const merged = mergePortalDocumentsForResponse({
-      proposalsDeduped: dedupeByFileNameKeepNewest(proposals),
-      quotesDeduped: dedupeByFileNameKeepNewest(quotes),
-      leadManual,
-    });
-    assert.equal(merged.length, 4);
-    const sansBat = merged.filter(
-      (d) =>
-        normalizePortalFileName(d.file_name) ===
-        normalizePortalFileName("PierrickROUXEL-Etude1-SansBatterie.pdf")
-    );
-    assert.equal(sansBat.length, 1);
-    assert.equal(sansBat[0].id, "p-dup-new");
+    assert.equal(merged.length, 3);
+    assert.equal(merged[0].id, "q1");
   });
 });

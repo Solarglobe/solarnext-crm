@@ -54,6 +54,7 @@ import {
   GRID_TYPE_OPTIONS,
   TARIFF_TYPE_OPTIONS,
 } from "./meterFormOptions";
+import PillPicker from "./PillPicker";
 
 /** Choix d’ajout : 1 entrée = 1 groupe ou 1 ligne dans un groupe existant. */
 const EQUIPMENT_ADD_CHOICES: {
@@ -1732,17 +1733,13 @@ export default function OverviewTab({
         summary={bienFoyerSummary || undefined}
       >
         <div className="crm-lead-fields">
-          <div className="crm-lead-field">
+          <div className="crm-lead-field crm-lead-field-full">
             <label>Type de bien</label>
-            <select
-              className="sn-input"
+            <PillPicker
+              options={PROPERTY_TYPE_OPTIONS}
               value={lead.property_type ?? ""}
-              onChange={(e) => onLeadChange({ property_type: e.target.value || undefined })}
-            >
-              {PROPERTY_TYPE_OPTIONS.map((o) => (
-                <option key={o.value || "_"} value={o.value}>{o.label}</option>
-              ))}
-            </select>
+              onChange={(v) => onLeadChange({ property_type: v })}
+            />
           </div>
           <div className="crm-lead-field crm-lead-field--household-label">
             <label className="crm-lead-label-nowrap">Nombre de personnes au foyer</label>
@@ -1786,41 +1783,29 @@ export default function OverviewTab({
               placeholder="—"
             />
           </div>
-          <div className="crm-lead-field">
+          <div className="crm-lead-field crm-lead-field-full">
             <label>Isolation</label>
-            <select
-              className="sn-input"
+            <PillPicker
+              options={INSULATION_OPTIONS}
               value={lead.insulation_level ?? ""}
-              onChange={(e) => onLeadChange({ insulation_level: e.target.value || undefined })}
-            >
-              {INSULATION_OPTIONS.map((o) => (
-                <option key={o.value || "_"} value={o.value}>{o.label}</option>
-              ))}
-            </select>
+              onChange={(v) => onLeadChange({ insulation_level: v })}
+            />
           </div>
-          <div className="crm-lead-field">
+          <div className="crm-lead-field crm-lead-field-full">
             <label>Type de toiture</label>
-            <select
-              className="sn-input"
+            <PillPicker
+              options={ROOF_TYPE_OPTIONS}
               value={lead.roof_type ?? ""}
-              onChange={(e) => onLeadChange({ roof_type: e.target.value || undefined })}
-            >
-              {ROOF_TYPE_OPTIONS.map((o) => (
-                <option key={o.value || "_"} value={o.value}>{o.label}</option>
-              ))}
-            </select>
+              onChange={(v) => onLeadChange({ roof_type: v })}
+            />
           </div>
-          <div className="crm-lead-field">
+          <div className="crm-lead-field crm-lead-field-full">
             <label>Charpente</label>
-            <select
-              className="sn-input"
+            <PillPicker
+              options={FRAME_TYPE_OPTIONS}
               value={lead.frame_type ?? ""}
-              onChange={(e) => onLeadChange({ frame_type: e.target.value || undefined })}
-            >
-              {FRAME_TYPE_OPTIONS.map((o) => (
-                <option key={o.value || "_"} value={o.value}>{o.label}</option>
-              ))}
-            </select>
+              onChange={(v) => onLeadChange({ frame_type: v })}
+            />
           </div>
         </div>
       </OverviewCardSection>

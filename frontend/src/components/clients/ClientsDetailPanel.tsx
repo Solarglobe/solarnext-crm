@@ -4,6 +4,10 @@
 
 import React, { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { getCrmApiBase, buildApiUrl } from "@/config/crmApiBase";
+import { apiFetch, getAuthToken } from "../../services/api";
+import { assertDocumentDownloadOk } from "@/utils/documentDownload";
+import { normalizeEntityDocument, type Document } from "../../components/DocumentUploader";
 import type { Lead } from "../../services/leads.service";
 import {
   getLeadFullAddress,
@@ -42,6 +46,22 @@ import { fetchQuotesList } from "../../services/financial.api";
 import { fetchMissionsByClientId } from "../../services/missions.service";
 import { getInbox } from "../../services/mailApi";
 import { Button } from "../ui/Button";
+
+const CRM_API_BASE = getCrmApiBase();
+
+function isLeadClientBizDocument(doc: Document): boolean {
+  const cat = doc.documentCategory;
+  if (cat === "QUOTE" || cat === "INVOICE" || cat === "COMMERCIAL_PROPOSAL") return true;
+  const t = (doc.document_type ?? "").toLowerCase();
+  return (
+    t === "quote_pdf" ||
+    t === "quote_pdf_signed" ||
+    t === "invoice_pdf" ||
+    t === "credit_note_pdf" ||
+    t === "study_pdf" ||
+    t === "study_proposal"
+  );
+}
 
 const STATUS_LIST = CYCLE_PROJECT_SELECT_OPTIONS;
 
@@ -144,6 +164,9 @@ function ClientsDetailPanelBody({
     rdv: number;
   } | null>(null);
   const [quickStatsLoading, setQuickStatsLoading] = useState(true);
+  const [bizDocs, setBizDocs] = useState<Array<{ doc: Document; origin: "lead" | "client" }>>([]);
+  const [bizDocsLoading, setBizDocsLoading] = useState(false);
+  const [bizDocDownloadingId, setBizDocDownloadingId] = useState<string | null>(null);
   const navigate = useNavigate();
   const isReadOnly = useSuperAdminReadOnly();
 
@@ -180,6 +203,77 @@ function ClientsDetailPanelBody({
       cancelled = true;
     };
   }, [lead.id, lead.client_id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!getAuthToken()) {
+      setBizDocs([]);
+      setBizDocsLoading(false);
+      return;
+    }
+    setBizDocsLoading(true);
+    const id = lead.id;
+    const cid = lead.client_id ?? null;
+    (async () => {
+      try {
+        const leadRes = await apiFetch(`${CRM_API_BASE}/api/documents/lead/${encodeURIComponent(id)}`);
+        const leadRows: unknown = leadRes.ok ? await leadRes.json() : [];
+        let clientRows: unknown = [];
+        if (cid) {
+          const clientRes = await apiFetch(
+            `${CRM_API_BASE}/api/documents/client/${encodeURIComponent(cid)}`
+          );
+          clientRows = clientRes.ok ? await clientRes.json() : [];
+        }
+        if (cancelled) return;
+        const lr = Array.isArray(leadRows) ? leadRows : [];
+        const cr = Array.isArray(clientRows) ? clientRows : [];
+        const merged: Array<{ doc: Document; origin: "lead" | "client" }> = [];
+        for (const row of lr) {
+          const doc = normalizeEntityDocument(row as Record<string, unknown>);
+          if (isLeadClientBizDocument(doc)) merged.push({ doc, origin: "lead" });
+        }
+        for (const row of cr) {
+          const doc = normalizeEntityDocument(row as Record<string, unknown>);
+          if (isLeadClientBizDocument(doc)) merged.push({ doc, origin: "client" });
+        }
+        merged.sort(
+          (a, b) => new Date(b.doc.created_at).getTime() - new Date(a.doc.created_at).getTime()
+        );
+        setBizDocs(merged.slice(0, 40));
+      } catch {
+        if (!cancelled) setBizDocs([]);
+      } finally {
+        if (!cancelled) setBizDocsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [lead.id, lead.client_id]);
+
+  const downloadBizDoc = useCallback(async (doc: Document) => {
+    if (!getAuthToken()) return;
+    setBizDocDownloadingId(doc.id);
+    try {
+      const res = await apiFetch(buildApiUrl(`/api/documents/${doc.id}/download`));
+      assertDocumentDownloadOk(res, doc.id);
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = window.document.createElement("a");
+      a.href = url;
+      a.download = doc.displayName?.trim() || doc.file_name;
+      window.document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      /* pas de toast dédié dans ce panneau */
+    } finally {
+      setBizDocDownloadingId(null);
+    }
+  }, []);
+
   const closeVisiteTechnique = useCallback(() => setIsVisiteOpen(false), []);
 
   const statusKey = normalizeStatusKey(ps);
@@ -531,6 +625,74 @@ function ClientsDetailPanelBody({
             {lead.assigned_to_email}
           </p>
         ) : null}
+      </div>
+
+      <div className="clients-detail__section">
+        <h3 className="clients-detail__h3">Documents (devis, factures, propositions)</h3>
+        <p className="clients-detail__hint" style={{ marginTop: 6 }}>
+          Combinaison des pièces enregistrées sur le dossier projet et sur le compte client (comme l’onglet
+          Documents de la fiche complète).
+        </p>
+        {bizDocsLoading ? (
+          <p className="clients-detail__hint">Chargement…</p>
+        ) : bizDocs.length === 0 ? (
+          <p className="clients-detail__hint">
+            Aucun devis, facture ou proposition enregistrés pour ces sources.
+          </p>
+        ) : (
+          <ul
+            style={{
+              listStyle: "none",
+              padding: 0,
+              margin: "10px 0 0",
+              display: "grid",
+              gap: 12,
+            }}
+          >
+            {bizDocs.map(({ doc, origin }) => {
+              const title = doc.displayName?.trim() || doc.file_name || "Document";
+              return (
+                <li
+                  key={`${origin}-${doc.id}`}
+                  style={{
+                    border: "1px solid rgba(0,0,0,0.08)",
+                    borderRadius: 8,
+                    padding: "10px 12px",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    <span style={{ fontWeight: 600, flex: "1 1 160px" }}>{title}</span>
+                    <span className="sn-badge sn-badge-neutral">
+                      {origin === "lead" ? "Projet" : "Client"}
+                    </span>
+                  </div>
+                  <div className="clients-detail__hint" style={{ marginTop: 6, marginBottom: 0 }}>
+                    {formatDateFR(doc.created_at) ?? "—"}
+                    {" · "}
+                    <button
+                      type="button"
+                      className="sn-btn sn-btn-ghost sn-btn-sm"
+                      style={{ padding: "2px 8px", minHeight: 0, verticalAlign: "baseline" }}
+                      onClick={() => void downloadBizDoc(doc)}
+                      disabled={bizDocDownloadingId === doc.id}
+                    >
+                      {bizDocDownloadingId === doc.id ? "Téléchargement…" : "Télécharger"}
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        <div style={{ marginTop: 12 }}>
+          <button
+            type="button"
+            className="sn-btn sn-btn-ghost sn-btn-sm"
+            onClick={() => navigate(`/leads/${lead.id}?tab=documents`)}
+          >
+            Ouvrir l’onglet Documents (fiche complète)
+          </button>
+        </div>
       </div>
 
       <div className="clients-detail__actions">

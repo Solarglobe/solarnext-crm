@@ -1,5 +1,5 @@
 /**
- * Bloc « client CRM » sur la fiche lead — fiche créée via étape pipeline Signé uniquement.
+ * Bloc « client CRM » sur la fiche lead — chip compact inline.
  */
 
 import React, { useEffect, useState } from "react";
@@ -56,69 +56,60 @@ export default function LeadClientAssociationCard({
     };
   }, [clientId]);
 
-  if (clientId) {
+  if (!clientId) {
+    if (readOnly) return null;
     return (
-      <section
-        data-lead-id={leadId}
-        className="lead-client-assoc"
-        style={{
-          marginTop: 16,
-          padding: 16,
-          borderRadius: 10,
-          border: "1px solid var(--border, rgba(148, 163, 184, 0.25))",
-          background: "var(--surface-elevated, rgba(15, 23, 42, 0.35))",
-        }}
-      >
-        <h3 className="lead-client-assoc__title" style={{ margin: "0 0 12px", fontSize: 14, fontWeight: 700 }}>
-          Client associé
-        </h3>
-        {loadingClient ? (
-          <p className="crm-lead-muted" style={{ margin: 0 }}>
-            Chargement…
-          </p>
-        ) : loadErr ? (
-          <p className="qb-error-inline" style={{ margin: 0 }}>
-            {loadErr}
-          </p>
-        ) : (
-          <>
-            {client?.client_number ? (
-              <p style={{ margin: "0 0 8px", fontSize: 12, color: "var(--text-muted)" }}>N° {client.client_number}</p>
-            ) : null}
-            <p style={{ margin: "0 0 6px", fontWeight: 600 }}>{client ? formatClientName(client) : "—"}</p>
-            <p style={{ margin: "4px 0", fontSize: 14 }}>{client?.email || "—"}</p>
-            <p style={{ margin: "4px 0 0", fontSize: 14 }}>{client?.phone || client?.mobile || "—"}</p>
-            <p style={{ margin: "12px 0 0", fontSize: 12, color: "var(--text-muted)" }}>
-              <Link to="/clients" style={{ color: "var(--accent, #eab308)" }}>
-                Liste des clients
-              </Link>
-            </p>
-          </>
-        )}
-      </section>
+      <div className="crm-lead-assoc-row" data-lead-id={leadId}>
+        <span className="crm-lead-assoc-chip" style={{ cursor: "default" }}>
+          <span className="crm-lead-assoc-chip__dot" style={{ background: "var(--text-muted)", opacity: 0.4 }} />
+          <span className="crm-lead-assoc-chip__label">Client</span>
+          <span className="crm-lead-assoc-chip__meta">Pas encore client — étape Signé requise</span>
+        </span>
+      </div>
     );
   }
 
+  if (loadingClient) {
+    return (
+      <div className="crm-lead-assoc-row" data-lead-id={leadId}>
+        <span className="crm-lead-assoc-chip" style={{ cursor: "default" }}>
+          <span className="crm-lead-assoc-chip__dot" />
+          <span className="crm-lead-assoc-chip__label">Client</span>
+          <span className="crm-lead-assoc-chip__meta">Chargement…</span>
+        </span>
+      </div>
+    );
+  }
+
+  if (loadErr) {
+    return (
+      <div className="crm-lead-assoc-row" data-lead-id={leadId}>
+        <span className="crm-lead-assoc-chip" style={{ cursor: "default", borderColor: "var(--error)" }}>
+          <span className="crm-lead-assoc-chip__dot" style={{ background: "var(--error)" }} />
+          <span className="crm-lead-assoc-chip__label">Client</span>
+          <span className="crm-lead-assoc-chip__meta" style={{ color: "var(--error)" }}>{loadErr}</span>
+        </span>
+      </div>
+    );
+  }
+
+  const name = client ? formatClientName(client) : "—";
+  const meta = [
+    client?.client_number ? `N° ${client.client_number}` : null,
+    client?.email || null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
   return (
-    <section
-      data-lead-id={leadId}
-      className="lead-client-assoc lead-client-assoc--pending"
-      style={{
-        marginTop: 16,
-        padding: 14,
-        borderRadius: 10,
-        border: "1px dashed var(--border, rgba(148, 163, 184, 0.35))",
-      }}
-    >
-      <p style={{ margin: "0 0 10px", color: "var(--text-muted)", fontSize: 14 }}>
-        Ce dossier n&apos;est pas encore un client CRM.
-      </p>
-      {!readOnly ? (
-        <p style={{ margin: 0, fontSize: 13, color: "var(--text-muted)", lineHeight: 1.45 }}>
-          La fiche client est créée lorsque vous placez le dossier sur l&apos;étape <strong>Signé</strong> du pipeline
-          (barre d&apos;actions ou vue Kanban). Un devis accepté seul ne crée pas la fiche client.
-        </p>
-      ) : null}
-    </section>
+    <div className="crm-lead-assoc-row" data-lead-id={leadId}>
+      <Link to="/clients" className="crm-lead-assoc-chip" title="Voir la fiche client">
+        <span className="crm-lead-assoc-chip__dot" />
+        <span className="crm-lead-assoc-chip__label">Client</span>
+        <span className="crm-lead-assoc-chip__name">{name}</span>
+        {meta ? <span className="crm-lead-assoc-chip__meta">{meta}</span> : null}
+        <span className="crm-lead-assoc-chip__arrow">↗</span>
+      </Link>
+    </div>
   );
 }

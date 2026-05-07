@@ -273,22 +273,28 @@ const LEAD_EXCLUDED_TECH_TYPES = ["quote_pdf", "study_pdf", "study_proposal"];
  * NB : les propositions commerciales sauvegardées sur le lead utilisent document_type='study_pdf'
  * (via saveStudyProposalPdfOnLeadDocument). 'study_proposal' est gardé comme filet de sécurité.
  */
-const PORTAL_ALLOWED_DOC_TYPES = ["quote_pdf", "quote_pdf_signed", "study_pdf", "study_proposal", "invoice_pdf"];
+const PORTAL_ALLOWED_DOC_TYPES = [
+  "quote_pdf",
+  "quote_pdf_signed",
+  "study_pdf",
+  "study_proposal",
+  "invoice_pdf",
+  "credit_note_pdf",
+];
 
 /**
- * Périmètre portail : uniquement les documents entity_type='lead' de types autorisés.
- * Miroir exact de ce que le CRM Documents tab affiche.
+ * Documents visibles espace client : miroirs sur le lead ET sur le client CRM (factures copiées côté client, etc.).
  * @param {Record<string, unknown>} doc
  * @returns {boolean}
  */
 export function isPortalClientDocument(doc) {
   const et = String(doc.entity_type ?? "").toLowerCase().trim();
   const dt = String(doc.document_type ?? "").toLowerCase().trim();
-  return et === "lead" && PORTAL_ALLOWED_DOC_TYPES.includes(dt);
+  return (et === "lead" || et === "client") && PORTAL_ALLOWED_DOC_TYPES.includes(dt);
 }
 
 /**
- * Libellé UX portail selon document_type (entity_type est toujours 'lead').
+ * Libellé UX portail selon document_type (entity_type lead ou client).
  * @param {Record<string, unknown>} row
  * @returns {string}
  */
@@ -297,6 +303,7 @@ export function resolvePortalDocumentLabelFromRow(row) {
   if (dt === "quote_pdf" || dt === "quote_pdf_signed") return "Devis";
   if (dt === "study_pdf" || dt === "study_proposal") return "Proposition commerciale";
   if (dt === "invoice_pdf") return "Facture";
+  if (dt === "credit_note_pdf") return "Avoir";
   return resolvePortalDocumentLabel(row.document_type);
 }
 
@@ -496,7 +503,7 @@ export async function buildClientPortalPayload(db, ctx) {
   const { organizationId, leadId, rawToken } = ctx;
 
   const leadRes = await db.query(
-    `SELECT l.id, l.organization_id, l.status, l.project_status, l.archived_at,
+    `SELECT l.id, l.organization_id, l.client_id, l.status, l.project_status, l.archived_at,
             l.full_name, l.email, l.phone, l.phone_mobile, l.phone_landline,
             l.property_type, l.consumption_mode,
             l.consumption_annual_kwh, l.consumption_annual_calculated_kwh,
@@ -676,9 +683,9 @@ export async function buildClientPortalPayload(db, ctx) {
 
   const enc = encodeURIComponent(rawToken);
   /**
-   * Source unique : entity_type=’lead’, entity_id=leadId — miroir exact du CRM onglet Documents.
-   * Ne retourne que les types autorisés pour le portail (quote_pdf, quote_pdf_signed, study_pdf, study_proposal, invoice_pdf).
+   * PDF visibles client : entrées attachées au lead et, si présent, au client CRM lié au dossier.
    */
+  const portalClientUuid = lead.client_id ?? null;
   const docRes = await db.query(
     `SELECT ed.id,
             ed.entity_type,
@@ -691,11 +698,17 @@ export async function buildClientPortalPayload(db, ctx) {
      WHERE ed.organization_id = $1
        AND ed.archived_at IS NULL
        AND ed.is_client_visible IS TRUE
-       AND ed.entity_type = 'lead'
-       AND ed.entity_id = $2::uuid
-       AND ed.document_type IN ('quote_pdf', 'quote_pdf_signed', 'study_pdf', 'study_proposal', 'invoice_pdf')
+       AND (
+         (ed.entity_type = 'lead' AND ed.entity_id = $2::uuid)
+         OR (
+           $3::uuid IS NOT NULL
+           AND ed.entity_type = 'client'
+           AND ed.entity_id = $3::uuid
+         )
+       )
+       AND ed.document_type IN ('quote_pdf', 'quote_pdf_signed', 'study_pdf', 'study_proposal', 'invoice_pdf', 'credit_note_pdf')
      ORDER BY ed.created_at DESC`,
-    [organizationId, leadId]
+    [organizationId, leadId, portalClientUuid]
   );
 
   if (process.env.CLIENT_PORTAL_DOC_DEBUG === "1") {
@@ -810,13 +823,16 @@ export async function assertDocumentInPortalScope(db, { organizationId, leadId, 
   const r = await db.query(
     `SELECT ed.id, ed.storage_key, ed.file_name, ed.mime_type, ed.entity_type, ed.document_type, ed.entity_id
      FROM entity_documents ed
+     INNER JOIN leads l ON l.id = $3 AND l.organization_id = $2
      WHERE ed.id = $1
        AND ed.organization_id = $2
        AND ed.archived_at IS NULL
        AND ed.is_client_visible IS TRUE
-       AND ed.entity_type = 'lead'
-       AND ed.entity_id = $3::uuid
-       AND ed.document_type IN ('quote_pdf', 'quote_pdf_signed', 'study_pdf', 'study_proposal', 'invoice_pdf')`,
+       AND ed.document_type IN ('quote_pdf', 'quote_pdf_signed', 'study_pdf', 'study_proposal', 'invoice_pdf', 'credit_note_pdf')
+       AND (
+         (ed.entity_type = 'lead' AND ed.entity_id = l.id)
+         OR (ed.entity_type = 'client' AND l.client_id IS NOT NULL AND ed.entity_id = l.client_id)
+       )`,
     [documentId, organizationId, leadId]
   );
   if (r.rows.length === 0) return null;
