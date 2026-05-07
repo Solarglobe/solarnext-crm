@@ -114,7 +114,7 @@
   line-height: 1.45;
   color: #4b5563;
   background: rgba(255, 255, 255, 0.7);
-  border-left: 3px solid rgba(195, 152, 71, 0.55);
+  border-left: 3px solid rgba(99, 102, 241, 0.45);
   border-radius: 0 var(--sg-radius-sm, 8px) var(--sg-radius-sm, 8px) 0;
 }
 
@@ -258,8 +258,8 @@
 
 .dimInput:focus {
   outline: none;
-  border-color: rgba(195, 152, 71, 0.75);
-  box-shadow: 0 0 0 3px rgba(195, 152, 71, 0.12);
+  border-color: rgba(99, 102, 241, 0.75);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
 }
 
 .unit {
@@ -351,12 +351,12 @@
 }
 
 .actionSecondary {
-  border-color: rgba(195, 152, 71, 0.4);
-  color: #92400e;
+  border-color: rgba(99, 102, 241, 0.35);
+  color: var(--brand-accent, #6366F1);
 }
 
 .actionSecondary:hover {
-  background: rgba(255, 251, 235, 0.9);
+  background: var(--brand-accent-soft, rgba(99, 102, 241, 0.08));
 }
 
 .note {
@@ -371,4 +371,102 @@
   font-size: 12px;
   color: #4b5563;
   line-height: 1.45;
+}
+
+/* ══════════════════════════════════════════════
+   DARK MODE
+   ══════════════════════════════════════════════ */
+:global(html.theme-dark) .empty,
+:global(html.theme-dark) .emptyCompact {
+  background: rgba(22, 28, 52, 0.9);
+  border-color: rgba(226, 232, 240, 0.08);
+}
+
+:global(html.theme-dark) .emptyLegend {
+  background: rgba(22, 28, 52, 0.6);
+  color: var(--text-secondary, #A8B3CF);
+}
+
+:global(html.theme-dark) .sectionInner {
+  background: rgba(22, 28, 52, 0.6);
+  border-color: rgba(226, 232, 240, 0.06);
+}
+
+:global(html.theme-dark) .dimInput {
+  background: rgba(226, 232, 240, 0.05);
+  border-color: rgba(226, 232, 240, 0.12);
+  color: var(--text, #E8ECF8);
+}
+
+:global(html.theme-dark) .dimInput:hover {
+  border-color: rgba(226, 232, 240, 0.20);
+}
+
+:global(html.theme-dark) .actionBtn {
+  background: rgba(226, 232, 240, 0.05);
+  border-color: rgba(226, 232, 240, 0.10);
+  color: var(--text, #E8ECF8);
+}
+
+:global(html.theme-dark) .actionBtn:hover {
+  background: rgba(226, 232, 240, 0.10);
+}
+
+:global(html.theme-dark) .actionDanger {
+  border-color: rgba(220, 38, 38, 0.3);
+  color: #fca5a5;
+}
+
+:global(html.theme-dark) .actionSecondary {
+  border-color: rgba(99, 102, 241, 0.3);
+  color: #c7d2fe;
+}
+
+:global(html.theme-dark) .actionSecondary:hover {
+  background: rgba(99, 102, 241, 0.10);
+}
+
+:global(html.theme-dark) .impactBox {
+  background: rgba(120, 70, 20, 0.18);
+  border-color: rgba(217, 119, 6, 0.22);
+}
+
+:global(html.theme-dark) .impactBadge {
+  color: #fbbf24;
+}
+
+:global(html.theme-dark) .impactDetail {
+  color: #fde68a;
+}
+
+:global(html.theme-dark) .impactDetailCompact {
+  color: #fbbf24;
+}
+
+:global(html.theme-dark) .impactNeutral {
+  background: rgba(226, 232, 240, 0.05);
+  border-color: rgba(226, 232, 240, 0.10);
+  color: var(--text-secondary, #A8B3CF);
+}
+
+:global(html.theme-dark) .heightDisabled {
+  background: rgba(226, 232, 240, 0.04);
+  border-color: rgba(226, 232, 240, 0.08);
+  color: var(--text-secondary, #A8B3CF);
+}
+
+:global(html.theme-dark) .section {
+  border-top-color: rgba(226, 232, 240, 0.06);
+}
+
+:global(html.theme-dark) .sectionTitle {
+  color: var(--text-secondary, #A8B3CF);
+}
+
+:global(html.theme-dark) .eyebrow {
+  color: rgba(168, 179, 207, 0.6);
+}
+
+:global(html.theme-dark) .polygonHint {
+  color: var(--text-secondary, #A8B3CF);
 }

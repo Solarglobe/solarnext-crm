@@ -63,7 +63,7 @@
   box-shadow: 0 6px 24px rgba(15, 23, 42, 0.14);
   background: rgba(15, 23, 42, 0.82);
   backdrop-filter: blur(10px);
-  border: 1px solid rgba(195, 152, 71, 0.35);
+  border: 1px solid rgba(99, 102, 241, 0.35);
   pointer-events: auto;
   z-index: 90;
 }
@@ -171,7 +171,7 @@
   background: rgba(255, 255, 255, 0.94);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
-  border: 1px solid rgba(195, 152, 71, 0.28);
+  border: 1px solid rgba(99, 102, 241, 0.20);
   border-radius: 16px;
   padding: 14px 16px 16px;
   color: #0f172a;
@@ -329,9 +329,9 @@
   list-style: none;
   font-size: 12px;
   font-weight: 600;
-  color: #92400e;
+  color: #6366F1;
   padding: 10px 12px;
-  background: rgba(253, 230, 138, 0.2);
+  background: rgba(99, 102, 241, 0.06);
   user-select: none;
 }
 
@@ -389,7 +389,7 @@
   background: rgba(255, 255, 255, 0.94);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
-  border: 1px solid rgba(195, 152, 71, 0.28);
+  border: 1px solid rgba(99, 102, 241, 0.20);
   box-shadow: 0 10px 36px rgba(15, 23, 42, 0.1);
   z-index: 80;
 }
@@ -489,7 +489,7 @@
   cursor: pointer;
   user-select: none;
   font-weight: 600;
-  color: #92400e;
+  color: #6366F1;
 }
 
 .dsm-sun-sim-details > summary::-webkit-details-marker {
@@ -530,7 +530,7 @@
 }
 
 .p3-pill-btn.dsm-analyse-btn.active {
-  background: rgba(195, 152, 71, 0.12);
+  background: rgba(99, 102, 241, 0.12);
   border-color: var(--sg-brand, #6366F1);
 }
 
@@ -597,7 +597,7 @@
 .dsm-solar-season-btn {
   padding: 4px 10px;
   font-size: 11px;
-  border: 1px solid rgba(195, 152, 71, 0.5);
+  border: 1px solid rgba(99, 102, 241, 0.4);
   border-radius: 8px;
   background: rgba(0, 0, 0, 0.4);
   color: #e2e8f0;
@@ -606,14 +606,14 @@
 }
 
 .dsm-solar-season-btn:hover {
-  background: rgba(195, 152, 71, 0.2);
+  background: rgba(99, 102, 241, 0.18);
   border-color: #6366F1;
 }
 
 .dsm-solar-season-btn.active {
-  background: rgba(195, 152, 71, 0.28);
+  background: rgba(99, 102, 241, 0.28);
   border-color: #6366F1;
-  color: #92400e;
+  color: #c7d2fe;
 }
 
 .dsm-solar-controls-row {
@@ -656,8 +656,8 @@
   padding: 0;
   border: 1px solid #6366F1;
   border-radius: 8px;
-  background: rgba(195, 152, 71, 0.18);
-  color: #92400e;
+  background: rgba(99, 102, 241, 0.18);
+  color: #c7d2fe;
   font-size: 12px;
   cursor: pointer;
   display: flex;
@@ -667,5 +667,5 @@
 }
 
 .dsm-solar-play-btn:hover {
-  background: rgba(195, 152, 71, 0.4);
+  background: rgba(99, 102, 241, 0.35);
 }

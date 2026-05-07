@@ -964,8 +964,8 @@ function Inline3DViewer({
           style={{
             padding: "8px 18px",
             borderRadius: 8,
-            border: "1px solid rgba(195,152,71,0.4)",
-            background: "rgba(195,152,71,0.1)",
+            border: "1px solid rgba(99,102,241,0.35)",
+            background: "rgba(99,102,241,0.08)",
             color: "#6366F1",
             fontSize: 13,
             fontWeight: 600,

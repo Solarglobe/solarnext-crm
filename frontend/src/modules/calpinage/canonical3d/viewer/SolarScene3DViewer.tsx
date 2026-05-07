@@ -2577,7 +2577,7 @@ function SolarScene3DViewer({
                 borderRadius: 4,
                 border: "none",
                 cursor: "pointer",
-                background: premiumMode === m ? "rgba(195,152,71,0.35)" : "transparent",
+                background: premiumMode === m ? "rgba(99,102,241,0.35)" : "transparent",
                 color: "rgba(248,250,252,0.92)",
               }}
             >

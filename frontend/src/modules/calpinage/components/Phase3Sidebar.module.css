@@ -5,18 +5,18 @@
   flex-direction: column;
   gap: 0;
   padding: 12px 12px 14px;
-  background: #fafafa;
-  border-right: 1px solid #e5e7eb;
+  background: var(--color-bg-page, #fafafa);
+  border-right: 1px solid var(--color-border-default, #e5e7eb);
   min-height: 0;
   overflow-y: auto;
-  color: #111827;
+  color: var(--text, #111827);
 }
 
 /* —— ZONE 1 Header —— */
 .zoneHeader {
   margin-bottom: 14px;
   padding-bottom: 12px;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--color-border-default, #e5e7eb);
 }
 
 .headerTitle {
@@ -24,7 +24,7 @@
   font-size: 15px;
   font-weight: 700;
   letter-spacing: -0.02em;
-  color: #000000;
+  color: var(--text, #0F172A);
   line-height: 1.2;
 }
 
@@ -32,7 +32,7 @@
   margin: 4px 0 0;
   font-size: 12px;
   font-weight: 600;
-  color: #92400e;
+  color: var(--brand-accent, #6366F1);
   line-height: 1.3;
 }
 
@@ -40,7 +40,7 @@
   margin: 6px 0 0;
   font-size: 11px;
   line-height: 1.35;
-  color: #374151;
+  color: var(--text-secondary, #475569);
 }
 
 /* —— ZONE 2 Action —— */
@@ -50,14 +50,14 @@
   gap: 10px;
   margin-bottom: 14px;
   padding-bottom: 14px;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--color-border-default, #e5e7eb);
 }
 
 .modeSegmentRow {
   display: flex;
   gap: 0;
   padding: 3px;
-  background: #e5e7eb;
+  background: var(--color-bg-muted, #e5e7eb);
   border-radius: 10px;
 }
 
@@ -70,20 +70,20 @@
   border: none;
   border-radius: 8px;
   background: transparent;
-  color: #111827;
+  color: var(--text, #111827);
   cursor: pointer;
   transition: background 0.12s ease, color 0.12s ease;
 }
 
 .modeSegmentBtn:hover {
-  background: rgba(195, 152, 71, 0.2);
-  color: #000000;
+  background: var(--brand-accent-soft, #EEF2FF);
+  color: var(--brand-accent, #6366F1);
 }
 
 .modeSegmentBtnActive {
-  background: #fef3c7;
-  color: #000000;
-  box-shadow: inset 0 0 0 1px #6366F1;
+  background: var(--brand-accent, #6366F1);
+  color: #ffffff;
+  box-shadow: 0 1px 3px rgba(99, 102, 241, 0.3);
 }
 
 .modeSegmentBtn:focus-visible,
@@ -108,7 +108,7 @@
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: #374151;
+  color: var(--text-secondary, #374151);
 }
 
 .toggleCompact {
@@ -123,21 +123,21 @@
   font-weight: 600;
   border: none;
   border-radius: 8px;
-  background: #e5e7eb;
-  color: #111827;
+  background: var(--color-bg-muted, #e5e7eb);
+  color: var(--text, #111827);
   cursor: pointer;
   transition: background 0.12s ease, color 0.12s ease;
 }
 
 .toggleCompactBtn:hover {
-  background: #d1d5db;
-  color: #000000;
+  background: var(--brand-accent-soft, #EEF2FF);
+  color: var(--brand-accent, #6366F1);
 }
 
 .toggleCompactBtnOn {
-  background: #fef3c7;
-  color: #000000;
-  box-shadow: inset 0 0 0 1px #6366F1;
+  background: var(--brand-accent, #6366F1);
+  color: #ffffff;
+  box-shadow: 0 1px 3px rgba(99, 102, 241, 0.3);
 }
 
 .flatRoofInline {
@@ -150,7 +150,7 @@
 .flatRoofMicroLabel {
   font-size: 11px;
   font-weight: 700;
-  color: #000000;
+  color: var(--text, #0F172A);
 }
 
 .flatRoofTinyLabel {
@@ -158,7 +158,7 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  color: #374151;
+  color: var(--text-secondary, #374151);
 }
 
 .toolLinkBtn {
@@ -168,21 +168,21 @@
   background: none;
   font-size: 11px;
   font-weight: 600;
-  color: #92400e;
+  color: var(--brand-accent, #6366F1);
   cursor: pointer;
   text-decoration: underline;
   text-underline-offset: 2px;
 }
 
 .toolLinkBtn:hover {
-  color: #78350f;
+  color: var(--brand-accent-hover, #4F46E5);
 }
 
 /* —— ZONE 3 État —— */
 .zoneState {
   margin-bottom: 12px;
   padding-bottom: 12px;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--color-border-default, #e5e7eb);
 }
 
 .stateBlock {
@@ -203,7 +203,7 @@
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: #374151;
+  color: var(--text-secondary, #374151);
 }
 
 .stateStatusVal {
@@ -241,14 +241,14 @@
 
 .stateDlRow dt {
   margin: 0;
-  color: #374151;
+  color: var(--text-secondary, #374151);
   font-weight: 500;
 }
 
 .stateDlRow dd {
   margin: 0;
   font-weight: 600;
-  color: #000000;
+  color: var(--text, #0F172A);
   text-align: right;
 }
 
@@ -297,7 +297,7 @@
 }
 
 .validationNoteBlock {
-  color: #92400e;
+  color: var(--text-secondary, #475569);
   display: -webkit-box;
   -webkit-line-clamp: 4;
   -webkit-box-orient: vertical;
@@ -321,9 +321,9 @@
   border: none;
   border-radius: 10px;
   background: linear-gradient(180deg, #818CF8 0%, #6366F1 100%);
-  color: #000000;
+  color: #ffffff;
   cursor: pointer;
-  box-shadow: 0 2px 8px rgba(195, 152, 71, 0.25);
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.35);
   transition: filter 0.15s ease, transform 0.1s ease;
 }
 
@@ -347,8 +347,8 @@
 .validateSpinner {
   width: 14px;
   height: 14px;
-  border: 2px solid rgba(17, 17, 17, 0.25);
-  border-top-color: #111;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #ffffff;
   border-radius: 50%;
   animation: phase3-spin 0.7s linear infinite;
 }
@@ -365,25 +365,25 @@
   padding: 8px 12px;
   font-size: 12px;
   font-weight: 600;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--color-border-default, #d1d5db);
   border-radius: 8px;
-  background: #ffffff;
-  color: #111827;
+  background: var(--color-bg-card, #ffffff);
+  color: var(--text, #111827);
   cursor: pointer;
   transition: border-color 0.12s ease, background 0.12s ease;
 }
 
 .btnBackSecondary:hover {
-  border-color: #6366F1;
-  background: #fffbeb;
-  color: #000000;
+  border-color: var(--brand-accent, #6366F1);
+  background: var(--brand-accent-soft, #EEF2FF);
+  color: var(--brand-accent, #6366F1);
 }
 
 /* —— ZONE 5 Outils —— */
 .zoneTools {
   margin-top: auto;
   padding-top: 12px;
-  border-top: 1px dashed #d1d5db;
+  border-top: 1px dashed var(--color-border-default, #d1d5db);
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -400,30 +400,30 @@
   font-weight: 600;
   border: none;
   border-radius: 8px;
-  background: #f3f4f6;
-  color: #111827;
+  background: var(--color-bg-muted, #f3f4f6);
+  color: var(--text, #111827);
   cursor: pointer;
   transition: background 0.12s ease, color 0.12s ease;
 }
 
 .toolGhostBtn:hover {
-  background: #e5e7eb;
-  color: #000000;
+  background: var(--brand-accent-soft, #EEF2FF);
+  color: var(--brand-accent, #6366F1);
 }
 
 .toolGhostBtnOn {
-  background: #fef3c7;
-  color: #000000;
-  box-shadow: inset 0 0 0 1px #6366F1;
+  background: var(--brand-accent, #6366F1);
+  color: #ffffff;
+  box-shadow: 0 1px 3px rgba(99, 102, 241, 0.3);
 }
 
 .toolGhostBtnOn .toolGhostIcon {
-  color: #111827;
+  color: #ffffff;
 }
 
 .toolGhostIcon {
   display: inline-flex;
-  color: #374151;
+  color: var(--text-secondary, #374151);
 }
 
 .autofillWrap {
@@ -438,16 +438,16 @@
 .autofillActive {
   padding: 8px 10px;
   border-radius: 8px;
-  background: #f3f4f6;
+  background: var(--color-bg-muted, #f3f4f6);
   display: flex;
   flex-direction: column;
   gap: 8px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--color-border-default, #e5e7eb);
 }
 
 .autofillText {
   font-size: 11px;
-  color: #111827;
+  color: var(--text, #111827);
   line-height: 1.35;
 }
 
@@ -463,8 +463,8 @@
   font-weight: 600;
   border: none;
   border-radius: 6px;
-  background: #6366F1;
-  color: #000000;
+  background: var(--brand-accent, #6366F1);
+  color: #ffffff;
   cursor: pointer;
 }
 
@@ -478,9 +478,95 @@
   padding: 6px 8px;
   font-size: 11px;
   font-weight: 600;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--color-border-default, #d1d5db);
   border-radius: 6px;
-  background: #ffffff;
-  color: #111827;
+  background: var(--color-bg-card, #ffffff);
+  color: var(--text, #111827);
   cursor: pointer;
+}
+
+/* ══════════════════════════════════════════════
+   DARK MODE
+   ══════════════════════════════════════════════ */
+:global(html.theme-dark) .sidebar {
+  background: var(--color-bg-card, #12172B);
+  border-right-color: var(--color-border-default, rgba(226, 232, 240, 0.10));
+  color: var(--text, #E8ECF8);
+}
+
+:global(html.theme-dark) .zoneHeader,
+:global(html.theme-dark) .zoneAction,
+:global(html.theme-dark) .zoneState {
+  border-color: var(--color-border-default, rgba(226, 232, 240, 0.10));
+}
+
+:global(html.theme-dark) .modeSegmentRow {
+  background: rgba(226, 232, 240, 0.08);
+}
+
+:global(html.theme-dark) .modeSegmentBtn {
+  color: var(--text, #E8ECF8);
+}
+
+:global(html.theme-dark) .toggleCompactBtn {
+  background: rgba(226, 232, 240, 0.08);
+  color: var(--text, #E8ECF8);
+}
+
+:global(html.theme-dark) .toggleCompactBtn:hover {
+  background: rgba(99, 102, 241, 0.15);
+  color: #c7d2fe;
+}
+
+:global(html.theme-dark) .toolGhostBtn {
+  background: rgba(226, 232, 240, 0.05);
+  color: var(--text, #E8ECF8);
+}
+
+:global(html.theme-dark) .toolGhostBtn:hover {
+  background: rgba(99, 102, 241, 0.15);
+  color: #c7d2fe;
+}
+
+:global(html.theme-dark) .toolGhostIcon {
+  color: var(--text-secondary, #A8B3CF);
+}
+
+:global(html.theme-dark) .zoneTools {
+  border-top-color: var(--color-border-default, rgba(226, 232, 240, 0.10));
+}
+
+:global(html.theme-dark) .autofillActive {
+  background: rgba(226, 232, 240, 0.05);
+  border-color: var(--color-border-default, rgba(226, 232, 240, 0.10));
+}
+
+:global(html.theme-dark) .autofillCancel {
+  background: rgba(226, 232, 240, 0.07);
+  border-color: var(--color-border-default, rgba(226, 232, 240, 0.10));
+  color: var(--text, #E8ECF8);
+}
+
+:global(html.theme-dark) .btnBackSecondary {
+  background: rgba(226, 232, 240, 0.05);
+  border-color: var(--color-border-default, rgba(226, 232, 240, 0.10));
+  color: var(--text, #E8ECF8);
+}
+
+:global(html.theme-dark) .btnBackSecondary:hover {
+  border-color: var(--brand-accent, #6366F1);
+  background: rgba(99, 102, 241, 0.12);
+  color: #c7d2fe;
+}
+
+:global(html.theme-dark) .stateDlRow dt {
+  color: var(--text-secondary, #A8B3CF);
+}
+
+:global(html.theme-dark) .stateDlRow dd {
+  color: var(--text, #E8ECF8);
+}
+
+:global(html.theme-dark) .stateStatusKey {
+  color: var(--text-secondary, #A8B3CF);
 }
