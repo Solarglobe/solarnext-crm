@@ -29,6 +29,7 @@ import { normalizeEntityDocument, type Document } from "../components/DocumentUp
 import {
   fetchStudiesByLeadId,
   createStudy,
+  duplicateStudy,
   patchStudyTitle,
   type Study,
 } from "../services/studies.service";
@@ -321,6 +322,8 @@ export default function LeadDetail() {
   const [studyTitleModalStudy, setStudyTitleModalStudy] = useState<Study | null>(null);
   const [studyTitleDraft, setStudyTitleDraft] = useState("");
   const [studyTitleSaving, setStudyTitleSaving] = useState(false);
+  /** Duplication depuis la même modale que le renommage — évite de confondre avec « Enregistrer » (= PATCH titre). */
+  const [studyDuplicateBusy, setStudyDuplicateBusy] = useState(false);
   /** Conso moteur PDL (CSV) — loadConsumption + sum(hourly), aligné sur le calcul */
   const [energyEngine, setEnergyEngine] = useState<EnergyEngineResult | null>(null);
   const [energyProfileSuccessMessage, setEnergyProfileSuccessMessage] = useState<string | null>(null);
@@ -1613,6 +1616,27 @@ export default function LeadDetail() {
     }
   };
 
+  const handleCreateStudyDuplicateFromTitleModal = async () => {
+    if (isReadOnly) return;
+    if (!studyTitleModalStudy) return;
+    const t = studyTitleDraft.trim();
+    if (!t) {
+      setError("Indiquez un nom pour la nouvelle étude (copie).");
+      return;
+    }
+    setStudyDuplicateBusy(true);
+    setError(null);
+    try {
+      await duplicateStudy(studyTitleModalStudy.id, { title: t });
+      setStudyTitleModalStudy(null);
+      await fetchStudies();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erreur");
+    } finally {
+      setStudyDuplicateBusy(false);
+    }
+  };
+
   const handleStageChange = async (stageId: string) => {
     if (isReadOnly) return;
     if (!id || !data || data.lead.stage_id === stageId) return;
@@ -2078,29 +2102,42 @@ export default function LeadDetail() {
       <ModalShell
         open={!!studyTitleModalStudy}
         onClose={() => {
-          if (!studyTitleSaving) setStudyTitleModalStudy(null);
+          if (!studyTitleSaving && !studyDuplicateBusy) setStudyTitleModalStudy(null);
         }}
         size="sm"
-        title="Modifier l'étude"
-        subtitle="Nom affiché sur la carte (numéro SGS inchangé)."
+        title="Nom de l'étude"
+        subtitle="« Modifier le titre » renomme cette étude. « Créer une copie » ajoute une deuxième étude sur le dossier (même contenu)."
         footer={
           <>
-            <Button type="button" variant="ghost" disabled={studyTitleSaving} onClick={() => setStudyTitleModalStudy(null)}>
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={studyTitleSaving || studyDuplicateBusy}
+              onClick={() => setStudyTitleModalStudy(null)}
+            >
               Annuler
             </Button>
             <Button
               type="button"
+              variant="secondary"
+              disabled={studyTitleSaving || studyDuplicateBusy || isReadOnly}
+              onClick={() => void handleCreateStudyDuplicateFromTitleModal()}
+            >
+              {studyDuplicateBusy ? "Copie…" : "Créer une copie"}
+            </Button>
+            <Button
+              type="button"
               variant="primary"
-              disabled={studyTitleSaving || isReadOnly}
+              disabled={studyTitleSaving || studyDuplicateBusy || isReadOnly}
               onClick={handleSaveStudyTitle}
             >
-              {studyTitleSaving ? "Enregistrement…" : "Enregistrer"}
+              {studyTitleSaving ? "Enregistrement…" : "Modifier le titre"}
             </Button>
           </>
         }
       >
         <label htmlFor="study-rename-input" style={{ display: "block", marginBottom: 6, fontSize: 13, color: "var(--text-muted)" }}>
-          Nom de l&apos;étude
+          Nom (titre ou libellé de la copie)
         </label>
         <input
           id="study-rename-input"
@@ -2108,7 +2145,14 @@ export default function LeadDetail() {
           style={{ width: "100%", boxSizing: "border-box" }}
           value={studyTitleDraft}
           onChange={(e) => setStudyTitleDraft(e.target.value)}
-          disabled={studyTitleSaving || isReadOnly}
+          disabled={studyTitleSaving || studyDuplicateBusy || isReadOnly}
+          onKeyDown={(e) => {
+            if (e.key !== "Enter") return;
+            e.preventDefault();
+            if (!(studyTitleSaving || studyDuplicateBusy || isReadOnly)) {
+              void handleSaveStudyTitle();
+            }
+          }}
           autoFocus
         />
       </ModalShell>

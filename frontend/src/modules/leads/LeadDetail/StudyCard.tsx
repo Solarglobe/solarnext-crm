@@ -118,8 +118,8 @@ export function StudyCard({
               <button
                 type="button"
                 className="study-card-sg-icon-btn"
-                title="Renommer l'étude"
-                aria-label="Renommer l'étude"
+                title="Changer le nom affiché sur la carte (même étude — pour une copie, utilisez « Dupliquer »)"
+                aria-label="Changer le nom de l'étude"
                 onClick={() => onEditStudy(study)}
               >
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
@@ -209,7 +209,7 @@ export function StudyCard({
               Annuler
             </Button>
             <Button type="button" variant="primary" disabled={duplicating} onClick={() => void handleDuplicateSubmit()}>
-              {duplicating ? "Copie…" : "Dupliquer"}
+              {duplicating ? "Copie…" : "Créer la copie"}
             </Button>
           </>
         }
@@ -224,6 +224,11 @@ export function StudyCard({
           value={duplicateTitleDraft}
           onChange={(e) => setDuplicateTitleDraft(e.target.value)}
           disabled={duplicating}
+          onKeyDown={(e) => {
+            if (e.key !== "Enter") return;
+            e.preventDefault();
+            if (!duplicating) void handleDuplicateSubmit();
+          }}
           autoFocus
         />
       </ModalShell>
