@@ -392,6 +392,61 @@ export default function PdfPage7HybridBattery({
               brandHex={brandHex}
             />
 
+            {/* Résultat combiné avant / après — remplit l'espace sous les étapes */}
+            {(comparison.base_import_kwh != null || comparison.grid_bought_less_kwh != null) && (
+              <div
+                style={{
+                  marginTop: "2.5mm",
+                  padding: "2mm 2.5mm",
+                  borderRadius: "2.5mm",
+                  background: `linear-gradient(135deg, rgba(195,152,71,.08), rgba(195,152,71,.03))`,
+                  border: "0.35mm solid rgba(195,152,71,.25)",
+                }}
+              >
+                <div style={{ fontSize: "2.7mm", fontWeight: 700, color: brandHex, marginBottom: "1.5mm" }}>
+                  Résultat combiné
+                </div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "1.5mm" }}>
+                  {comparison.base_import_kwh != null && (
+                    <div style={{ textAlign: "center", flex: 1 }}>
+                      <div style={{ fontSize: "2.4mm", color: "#888", marginBottom: "0.5mm" }}>Avant</div>
+                      <div style={{ fontSize: "4mm", fontWeight: 800, color: "#666" }}>{fmtKwh(comparison.base_import_kwh)}</div>
+                      <div style={{ fontSize: "2.2mm", color: "#aaa" }}>d'import réseau</div>
+                    </div>
+                  )}
+                  <div style={{ fontSize: "5mm", color: brandHex, flexShrink: 0 }}>→</div>
+                  {comparison.hybrid_import_kwh != null && (
+                    <div style={{ textAlign: "center", flex: 1 }}>
+                      <div style={{ fontSize: "2.4mm", color: "#888", marginBottom: "0.5mm" }}>Après hybride</div>
+                      <div style={{ fontSize: "4mm", fontWeight: 800, color: "#27ae60" }}>{fmtKwh(comparison.hybrid_import_kwh)}</div>
+                      <div style={{ fontSize: "2.2mm", color: "#aaa" }}>d'import réseau</div>
+                    </div>
+                  )}
+                  {comparison.grid_bought_less_kwh != null && (
+                    <div
+                      style={{
+                        textAlign: "center",
+                        flex: 1,
+                        padding: "1mm 1.5mm",
+                        borderRadius: "2mm",
+                        background: "rgba(195,152,71,.12)",
+                        border: "0.25mm solid rgba(195,152,71,.3)",
+                      }}
+                    >
+                      <div style={{ fontSize: "2.4mm", color: "#888", marginBottom: "0.5mm" }}>Économie</div>
+                      <div style={{ fontSize: "4mm", fontWeight: 800, color: brandHex }}>
+                        -{fmtKwh(comparison.grid_bought_less_kwh)}
+                      </div>
+                      <div style={{ fontSize: "2.2mm", color: "#aaa" }}>achetés en moins</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Spacer résiduel : ancre la barre en bas si le bloc comparaison est court */}
+            <div style={{ flex: 1 }} />
+
             {/* Barre de répartition */}
             {total > 0 && (
               <div style={{ marginTop: "2.5mm" }}>
