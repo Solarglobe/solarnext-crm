@@ -279,8 +279,8 @@ export function isPortalClientDocument(doc) {
     .toLowerCase()
     .trim();
 
-  // Devis
-  if (et === "quote" && dt === "quote_pdf") return true;
+  // Devis (non signé ou signé — seul le plus récent par entity_id sera affiché)
+  if (et === "quote" && (dt === "quote_pdf" || dt === "quote_pdf_signed")) return true;
 
   // Proposition commerciale (study_proposal uniquement — pas les study_pdf DP)
   if ((et === "study" || et === "study_version") && dt === "study_proposal") return true;
@@ -303,7 +303,7 @@ export function resolvePortalDocumentLabelFromRow(row) {
   const dt = String(row.document_type ?? "")
     .toLowerCase()
     .trim();
-  if (et === "quote" && dt === "quote_pdf") return "Devis";
+  if (et === "quote" && (dt === "quote_pdf" || dt === "quote_pdf_signed")) return "Devis";
   if ((et === "study" || et === "study_version") && dt === "study_proposal") return "Proposition commerciale";
   if (et === "invoice" && dt === "invoice_pdf") return "Facture";
   return resolvePortalDocumentLabel(row.document_type);
@@ -320,13 +320,22 @@ export function normalizePortalFileName(name) {
 }
 
 /**
- * Dédup minimale : même file_name (normalisé) dans une famille → garde le plus récent.
+ * Dédup par entity_id : pour chaque entité source (quote, invoice, étude…), garde seulement
+ * le document pertinent. Évite les doublons quand un PDF est régénéré plusieurs fois.
+ *
+ * Priorité (pour les devis) : quote_pdf_signed > quote_pdf (indépendamment des dates).
+ * Priorité générale : le plus récent en cas d'égalité de type.
+ *
  * @param {Array<Record<string, unknown>>} docs
  * @returns {Array<Record<string, unknown>>}
  */
-export function dedupeByFileNameKeepNewest(docs) {
+export function dedupeByEntityIdKeepNewest(docs) {
   const list = Array.isArray(docs) ? docs : [];
+  // Tri : signé en premier, puis plus récent en premier
   const sorted = [...list].sort((a, b) => {
+    const aIsSigned = String(a.document_type ?? "").toLowerCase() === "quote_pdf_signed" ? 1 : 0;
+    const bIsSigned = String(b.document_type ?? "").toLowerCase() === "quote_pdf_signed" ? 1 : 0;
+    if (bIsSigned !== aIsSigned) return bIsSigned - aIsSigned; // signé en tête
     const aTime = new Date(/** @type {Date|string|undefined} */ (a.created_at) || 0).getTime();
     const bTime = new Date(/** @type {Date|string|undefined} */ (b.created_at) || 0).getTime();
     return bTime - aTime;
@@ -334,16 +343,24 @@ export function dedupeByFileNameKeepNewest(docs) {
   /** @type {Map<string, Record<string, unknown>>} */
   const byKey = new Map();
   for (const doc of sorted) {
-    const raw =
-      normalizePortalFileName(
-        doc.file_name != null ? String(doc.file_name) : doc.name != null ? String(doc.name) : ""
-      ) || "";
-    const key = raw || `__id:${String(doc.id ?? "")}`;
+    // Clé = entity_id (une seule entrée par entité source — le premier gagne, donc le signé si disponible)
+    const entityId = doc.entity_id != null ? String(doc.entity_id) : null;
+    const key = entityId || `__docid:${String(doc.id ?? "")}`;
     if (!byKey.has(key)) {
       byKey.set(key, doc);
     }
   }
   return Array.from(byKey.values());
+}
+
+/**
+ * @deprecated Utiliser dedupeByEntityIdKeepNewest — la dédup par file_name ne fonctionne pas
+ * quand les PDFs ont des noms UUID uniques (régénération).
+ * @param {Array<Record<string, unknown>>} docs
+ * @returns {Array<Record<string, unknown>>}
+ */
+export function dedupeByFileNameKeepNewest(docs) {
+  return dedupeByEntityIdKeepNewest(docs);
 }
 
 /**
@@ -361,7 +378,7 @@ export function splitPortalFilteredDocuments(rows) {
     const dt = String(doc.document_type ?? "")
       .toLowerCase()
       .trim();
-    if (et === "quote" && dt === "quote_pdf") {
+    if (et === "quote" && (dt === "quote_pdf" || dt === "quote_pdf_signed")) {
       quotes.push(doc);
     } else if (
       (et === "study" || et === "study_version") &&
@@ -685,10 +702,10 @@ export async function buildClientPortalPayload(db, ctx) {
        AND ed.archived_at IS NULL
        AND ed.is_client_visible IS TRUE
        AND (
-         /* Devis — PDF de devis (entité quote) */
+         /* Devis — PDF de devis non signé ou signé (entité quote). La dédup entity_id garde le plus récent. */
          (
            ed.entity_type = 'quote'
-           AND ed.document_type = 'quote_pdf'
+           AND ed.document_type IN ('quote_pdf', 'quote_pdf_signed')
            AND ed.entity_id IN (
              SELECT q.id FROM quotes q
              WHERE q.lead_id = $2::uuid AND q.organization_id = $1 AND (q.archived_at IS NULL)
@@ -749,9 +766,9 @@ export async function buildClientPortalPayload(db, ctx) {
   };
 
   logProposalRow("avant dédup", proposals);
-  const quotesDeduped = dedupeByFileNameKeepNewest(quotes);
-  const proposalsDeduped = dedupeByFileNameKeepNewest(proposals);
-  const invoicesDeduped = dedupeByFileNameKeepNewest(invoices);
+  const quotesDeduped = dedupeByEntityIdKeepNewest(quotes);
+  const proposalsDeduped = dedupeByEntityIdKeepNewest(proposals);
+  const invoicesDeduped = dedupeByEntityIdKeepNewest(invoices);
   logProposalRow("après dédup", proposalsDeduped);
 
   const mergedForPortal = mergePortalDocumentsForResponse({
@@ -864,10 +881,10 @@ export async function assertDocumentInPortalScope(db, { organizationId, leadId, 
        AND ed.archived_at IS NULL
        AND ed.is_client_visible IS TRUE
        AND (
-         /* Devis */
+         /* Devis (signé ou non signé) */
          (
            ed.entity_type = 'quote'
-           AND ed.document_type = 'quote_pdf'
+           AND ed.document_type IN ('quote_pdf', 'quote_pdf_signed')
            AND ed.entity_id IN (
              SELECT q.id FROM quotes q
              WHERE q.lead_id = $3::uuid AND q.organization_id = $2 AND (q.archived_at IS NULL)
