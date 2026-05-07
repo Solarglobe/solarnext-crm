@@ -80,7 +80,7 @@ function getColumnClass(stage: Stage, index: number): string {
     2: "sn-leads-kanban-col-2",
     3: "sn-leads-kanban-col-3",
     4: "sn-leads-kanban-col-4",
-    5: "sn-leads-kanban-col-signed",
+    5: "sn-leads-kanban-col-4",
     6: "sn-leads-kanban-col-4",
   };
   const legacy = colMap[pos] ?? "sn-leads-kanban-col-1";
@@ -301,7 +301,7 @@ function DroppableColumn({
       data-stage-id={stage.id}
     >
       <header className="sn-leads-kanban-col__head">
-        <h2 className="sn-leads-kanban-col__title">{stage.name}</h2>
+        <h2 className="sn-leads-kanban-col__title">{getKanbanColumnTitle(stage)}</h2>
         <span className="sn-leads-kanban-col__count" aria-label={`${leadCount} leads`}>
           {leadCount}
         </span>

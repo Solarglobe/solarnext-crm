@@ -1205,7 +1205,13 @@ html.sn-app-page .sn-dashboard-timeline-table thead th {
 }
 
 .sn-dashboard-forecast-item--muted {
-  background: var(--surface, rgba(0, 0, 0, 0.02));
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(14, 165, 233, 0.06) 100%);
+  border-color: rgba(99, 102, 241, 0.22);
+}
+
+html.theme-dark .sn-dashboard-wrap .sn-dashboard-forecast-item--muted {
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.10) 0%, rgba(59, 130, 246, 0.08) 100%);
+  border-color: rgba(124, 58, 237, 0.28);
 }
 
 .sn-dashboard-forecast-item small {
