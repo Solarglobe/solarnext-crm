@@ -858,6 +858,15 @@ export default function DashboardPage() {
                     <span className="sn-dashboard-num">{fmtDays(kpis.avg_quote_cycle_days)}</span>
                   </p>
                 </article>
+                <article
+                  className="sn-dashboard-kpi-card sn-dashboard-kpi-card--secondary sn-card"
+                  title="Pipeline commercial pondéré par probabilité de signature."
+                >
+                  <div className="sn-dashboard-kpi-card__accent sn-dashboard-kpi-card__accent--subtle" aria-hidden />
+                  <div className="sn-dashboard-kpi-label">Pipeline pondéré</div>
+                  <div className="sn-dashboard-kpi-value sn-dashboard-num">{eur(weighted)}</div>
+                  <p className="sn-dashboard-kpi-sub">{fc.weighted_method_short ?? fc.weighted_method}</p>
+                </article>
               </div>
             </div>
           </section>
