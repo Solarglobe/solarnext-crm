@@ -10,14 +10,22 @@ interface PillPickerProps {
   value: string | undefined;
   onChange: (value: string | undefined) => void;
   disabled?: boolean;
+  /** Si false, re-cliquer sur la pill active ne désélectionne pas (utile pour les champs obligatoires). Default: true */
+  allowDeselect?: boolean;
 }
 
 /**
  * PillPicker — remplace un <select> natif par des pills cliquables.
- * - Clic sur la pill active → désélectionne (valeur undefined)
- * - L'option vide ("") est ignorée (la désélection se fait par re-clic)
+ * - L'option vide ("") est ignorée
+ * - Re-clic sur la pill active → désélectionne (sauf si allowDeselect=false)
  */
-export default function PillPicker({ options, value, onChange, disabled }: PillPickerProps) {
+export default function PillPicker({
+  options,
+  value,
+  onChange,
+  disabled,
+  allowDeselect = true,
+}: PillPickerProps) {
   const filtered = options.filter((o) => o.value !== "");
 
   return (
@@ -32,7 +40,11 @@ export default function PillPicker({ options, value, onChange, disabled }: PillP
             className={`crm-pill-picker__option${isActive ? " crm-pill-picker__option--active" : ""}`}
             onClick={() => {
               if (disabled) return;
-              onChange(isActive ? undefined : o.value);
+              if (isActive && allowDeselect) {
+                onChange(undefined);
+              } else if (!isActive) {
+                onChange(o.value);
+              }
             }}
           >
             {o.label}

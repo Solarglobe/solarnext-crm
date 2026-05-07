@@ -55,6 +55,7 @@ import {
   TARIFF_TYPE_OPTIONS,
 } from "./meterFormOptions";
 import PillPicker from "./PillPicker";
+import CustomSelect from "./CustomSelect";
 
 /** Choix d’ajout : 1 entrée = 1 groupe ou 1 ligne dans un groupe existant. */
 const EQUIPMENT_ADD_CHOICES: {
@@ -1066,15 +1067,11 @@ export default function OverviewTab({
               <div className="crm-lead-identity-row">
                 <div className="crm-lead-field">
                   <label>Civilité</label>
-                  <select
-                    className="sn-input"
+                  <PillPicker
+                    options={CIVILITY_OPTIONS}
                     value={lead.civility ?? ""}
-                    onChange={(e) => onLeadChange({ civility: e.target.value || undefined })}
-                  >
-                    {CIVILITY_OPTIONS.map((o) => (
-                      <option key={o.value || "_"} value={o.value}>{o.label}</option>
-                    ))}
-                  </select>
+                    onChange={(v) => onLeadChange({ civility: v })}
+                  />
                 </div>
                 <div className="crm-lead-field">
                   <label>Nom complet</label>
@@ -1170,21 +1167,15 @@ export default function OverviewTab({
           <div className="crm-lead-identity-row crm-lead-identity-row--advisor-source">
             <div className="crm-lead-field">
               <label htmlFor="lead-assigned-user">Conseiller commercial</label>
-              <select
+              <CustomSelect
                 id="lead-assigned-user"
-                className="sn-input"
+                options={[
+                  { value: "", label: "—" },
+                  ...users.map((u) => ({ value: u.id, label: u.email || u.id })),
+                ]}
                 value={lead.assigned_user_id ?? ""}
-                onChange={(e) =>
-                  onLeadChange({
-                    assigned_user_id: e.target.value || undefined,
-                  })
-                }
-              >
-                <option value="">—</option>
-                {users.map((u) => (
-                  <option key={u.id} value={u.id}>{u.email || u.id}</option>
-                ))}
-              </select>
+                onChange={(v) => onLeadChange({ assigned_user_id: v || undefined })}
+              />
             </div>
             <div className="crm-lead-field">
               <label
@@ -1193,26 +1184,15 @@ export default function OverviewTab({
               >
                 Source du lead
               </label>
-              <select
+              <CustomSelect
                 id="lead-source-acquisition"
-                className="sn-input"
+                options={[
+                  ...(leadSources.length === 0 ? [{ value: "", label: "—" }] : []),
+                  ...leadSources.map((s) => ({ value: s.id, label: s.name })),
+                ]}
                 value={lead.source_id ?? leadSources[0]?.id ?? ""}
-                onChange={(e) =>
-                  onLeadChange({
-                    source_id: e.target.value || undefined,
-                  })
-                }
-                required={leadSources.length > 0}
-              >
-                {leadSources.length === 0 ? (
-                  <option value="">—</option>
-                ) : null}
-                {leadSources.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
+                onChange={(v) => onLeadChange({ source_id: v || undefined })}
+              />
             </div>
           </div>
 
@@ -1477,21 +1457,18 @@ export default function OverviewTab({
         ) : null}
         {showEnergyConsoBody ? (
           <>
-        <div className="crm-lead-field">
+        <div className="crm-lead-field crm-lead-field-full">
           <label>Mode de conso</label>
-          <select
-            className="sn-input"
+          <PillPicker
+            options={[
+              { value: "ANNUAL", label: "Annuel" },
+              { value: "MONTHLY", label: "Mensuel" },
+              { value: "PDL", label: "PDL" },
+            ]}
             value={consumptionMode}
-            onChange={(e) =>
-              onLeadChange({
-                consumption_mode: e.target.value as "ANNUAL" | "MONTHLY" | "PDL",
-              })
-            }
-          >
-            <option value="ANNUAL">Annuel</option>
-            <option value="MONTHLY">Mensuel</option>
-            <option value="PDL">PDL</option>
-          </select>
+            onChange={(v) => { if (v) onLeadChange({ consumption_mode: v as "ANNUAL" | "MONTHLY" | "PDL" }); }}
+            allowDeselect={false}
+          />
         </div>
         {consumptionMode === "ANNUAL" && (
           <div className="crm-lead-field">
@@ -1636,14 +1613,15 @@ export default function OverviewTab({
           <div className="crm-lead-fields">
             <div className="crm-lead-field">
               <label>HP/HC</label>
-              <select
-                className="sn-input"
+              <PillPicker
+                options={[
+                  { value: "no", label: "Non" },
+                  { value: "yes", label: "Oui" },
+                ]}
                 value={lead.hp_hc ? "yes" : "no"}
-                onChange={(e) => onLeadChange({ hp_hc: e.target.value === "yes" })}
-              >
-                <option value="no">Non</option>
-                <option value="yes">Oui</option>
-              </select>
+                onChange={(v) => onLeadChange({ hp_hc: v === "yes" })}
+                allowDeselect={false}
+              />
             </div>
             <div className="crm-lead-field">
               <label>Fournisseur</label>
@@ -1653,43 +1631,29 @@ export default function OverviewTab({
                 onChange={(e) => onLeadChange({ supplier_name: e.target.value || undefined })}
               />
             </div>
-            <div className="crm-lead-field">
+            <div className="crm-lead-field crm-lead-field-full">
               <label>Profil de consommation</label>
-              <select
-                className="sn-input"
+              <PillPicker
+                options={CONSUMPTION_PROFILE_OPTIONS}
                 value={lead.consumption_profile ?? ""}
-                onChange={(e) =>
-                  onLeadChange({ consumption_profile: e.target.value || undefined })
-                }
-              >
-                {CONSUMPTION_PROFILE_OPTIONS.map((o) => (
-                  <option key={o.value || "_"} value={o.value}>{o.label}</option>
-                ))}
-              </select>
+                onChange={(v) => onLeadChange({ consumption_profile: v })}
+              />
             </div>
-            <div className="crm-lead-field">
+            <div className="crm-lead-field crm-lead-field-full">
               <label>Type de contrat</label>
-              <select
-                className="sn-input"
+              <PillPicker
+                options={TARIFF_TYPE_OPTIONS}
                 value={lead.tariff_type ?? ""}
-                onChange={(e) => onLeadChange({ tariff_type: e.target.value || undefined })}
-              >
-                {TARIFF_TYPE_OPTIONS.map((o) => (
-                  <option key={o.value || "_"} value={o.value}>{o.label}</option>
-                ))}
-              </select>
+                onChange={(v) => onLeadChange({ tariff_type: v })}
+              />
             </div>
-            <div className="crm-lead-field">
+            <div className="crm-lead-field crm-lead-field-full">
               <label>Type de réseau</label>
-              <select
-                className="sn-input"
+              <PillPicker
+                options={GRID_TYPE_OPTIONS}
                 value={lead.grid_type ?? ""}
-                onChange={(e) => onLeadChange({ grid_type: e.target.value || undefined })}
-              >
-                {GRID_TYPE_OPTIONS.map((o) => (
-                  <option key={o.value || "_"} value={o.value}>{o.label}</option>
-                ))}
-              </select>
+                onChange={(v) => onLeadChange({ grid_type: v })}
+              />
             </div>
             <div className="crm-lead-field">
               <label>Puissance compteur (kVA)</label>
