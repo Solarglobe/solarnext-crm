@@ -1257,9 +1257,11 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
         const productionKwh = num(hybridEnergy.production_kwh) ?? num(baseEnergy.production_kwh) ?? annualKwh;
         const consumptionKwh = num(hybridEnergy.consumption_kwh) ?? num(baseEnergy.consumption_kwh);
         const totalAutoKwh = num(hybridEnergy.autoconsumption_kwh) ?? num(selectedScenario.autoproduction_kwh);
-        // En V2, le discharge physique est dans hardware.battery_discharge_kwh (après mapScenarioToV2).
-        // Fallback : battery.annual_discharge_kwh (objet brut pré-V2) + energy.battery_discharge_kwh.
+        // En V2, batteryPhysicalMetrics est spreadé à la RACINE du scénario (pas dans hardware).
+        // → selectedScenario.battery_discharge_kwh (racine) est la source fiable.
+        // Fallbacks : energy.battery_discharge_kwh (si moteur le fournit), puis battery.annual_discharge_kwh (pré-V2).
         const physicalDischargeKwh =
+          num(selectedScenario.battery_discharge_kwh) ??
           num(selectedScenario.hardware?.battery_discharge_kwh) ??
           num(selectedScenario.energy?.battery_discharge_kwh) ??
           num(physBattery.annual_discharge_kwh) ??
