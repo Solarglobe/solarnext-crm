@@ -1,4 +1,4 @@
-/* CP-QUOTE-003 — Catalogue devis admin — Phase 1 professionnel */
+/* CP-QUOTE-003 — Catalogue devis admin — Phase 2 premium */
 
 .admin-tab-quote-catalog {
   display: flex;
@@ -6,171 +6,116 @@
   min-height: 0;
 }
 
-.admin-catalog-filters-toolbar {
-  margin-bottom: 4px;
+/* ─── Toolbar premium ─────────────────────────────────────────────────────── */
+
+.admin-catalog-toolbar-premium {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 0 0 14px;
 }
 
-.admin-catalog-kind-tabs {
-  margin-bottom: 14px;
+/* Search icon wrap — même pattern que org-tab-toolbar__search-wrap */
+/* (défini dans admin-org-structure-visual.css, réutilisé ici via la classe partagée) */
+
+/* Chips catégorie */
+.admin-catalog-filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
 }
 
+.admin-catalog-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 20px;
+  border: 1px solid var(--border-soft);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+  white-space: nowrap;
+}
+
+.admin-catalog-chip:hover {
+  background: color-mix(in srgb, var(--primary) 6%, transparent);
+  border-color: color-mix(in srgb, var(--primary) 30%, transparent);
+  color: var(--text-primary);
+}
+
+.admin-catalog-chip--active {
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
+  border-color: color-mix(in srgb, var(--primary) 40%, transparent);
+  color: var(--primary, #6366f1);
+  font-weight: 600;
+}
+
+.admin-catalog-chip--active:hover {
+  background: color-mix(in srgb, var(--primary) 15%, transparent);
+}
+
+/* Checkbox inactifs */
 .admin-catalog-checkbox {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   flex-shrink: 0;
-}
-
-.admin-catalog-table-outer {
-  border-radius: 12px;
-}
-
-.admin-catalog-modal-form.sn-saas-stack {
-  gap: 14px;
-}
-
-.admin-catalog-modal-textarea {
-  min-height: 160px;
-}
-
-.admin-catalog-modal-marge-section .sn-saas-form-section__title {
-  margin-bottom: 10px;
-}
-
-.admin-tab-quote-text-table {
-  min-width: 520px;
-}
-
-.admin-quote-doc-textarea {
-  max-width: 720px;
-}
-
-.admin-catalog-empty--inline {
-  padding: 28px 20px;
-  text-align: center;
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--text-primary) 3%, transparent);
-  border: 1px dashed color-mix(in srgb, var(--border-soft) 90%, transparent);
-}
-
-/* Toolbar structurée */
-.admin-catalog-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--spacing-16);
-  margin-bottom: var(--spacing-16);
-}
-
-.admin-catalog-toolbar-left {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-16);
-  flex-wrap: wrap;
-}
-
-.admin-catalog-toolbar-right {
-  flex-shrink: 0;
-}
-
-/* Largeurs filtres (hauteur via .sn-saas-input) */
-.admin-tab-quote-catalog .admin-catalog-input {
-  width: min(240px, 100%);
-}
-
-.admin-tab-quote-catalog .admin-catalog-select {
-  width: min(200px, 100%);
 }
 
 .admin-catalog-checkbox-wrap {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 13px;
+  font-weight: 500;
   color: var(--text-muted);
+  white-space: nowrap;
+  margin-left: 4px;
 }
 
-/* Table (enveloppe souvent .sn-saas-table-wrap) */
+/* ─── Table ───────────────────────────────────────────────────────────────── */
+
+.admin-catalog-table-outer {
+  border-radius: 12px;
+}
+
 .admin-catalog-table {
   width: 100%;
-  min-width: 1120px;
+  min-width: 1100px;
   border-collapse: collapse;
   table-layout: fixed;
 }
 
-/* Largeurs relatives — catégorie assez large pour « Coffret de protection » + clip si besoin */
-.admin-catalog-col-nom {
-  width: 22%;
-  min-width: 160px;
-}
+.admin-catalog-col-nom        { width: 22%; min-width: 160px; }
+.admin-catalog-col-categorie  { width: 14%; min-width: 120px; }
+.admin-catalog-col-mode       { width: 9%;  min-width: 80px;  }
+.admin-catalog-col-prix       { width: 9%;  min-width: 90px;  }
+.admin-catalog-col-marge      { width: 7%;  min-width: 60px;  }
+.admin-catalog-col-tva        { width: 5%;  min-width: 48px;  }
+.admin-catalog-col-statut     { width: 7%;  min-width: 64px;  }
+.admin-catalog-col-actions    { width: 112px; min-width: 112px; }
 
-.admin-catalog-col-categorie {
-  width: 16%;
-  min-width: 13.5rem;
-}
-
-.admin-catalog-col-mode {
-  width: 10%;
-  min-width: 6.25rem;
-}
-
-.admin-catalog-col-prix {
-  width: 9%;
-  min-width: 6.25rem;
-}
-
-.admin-catalog-col-marge {
-  width: 7%;
-  min-width: 4.5rem;
-}
-
-.admin-catalog-col-tva {
-  width: 5%;
-  min-width: 3.25rem;
-}
-
-.admin-catalog-col-statut {
-  width: 7%;
-  min-width: 5rem;
-}
-
-.admin-catalog-col-actions {
-  width: 88px;
-  min-width: 88px;
-}
-
-.admin-catalog-table thead th.admin-catalog-th-right {
-  text-align: right;
-}
-
-.admin-catalog-table thead th.admin-catalog-th-muted {
-  opacity: 0.88;
-}
+.admin-catalog-table thead th.admin-catalog-th-right  { text-align: right; }
+.admin-catalog-table thead th.admin-catalog-th-muted  { opacity: 0.88; }
 
 .admin-catalog-table tbody td {
   font-size: 13px;
   line-height: 1.3;
 }
 
-/* Aucun débordement visuel sur la colonne voisine */
 .admin-catalog-table tbody td.admin-catalog-col-categorie,
 .admin-catalog-table tbody td.admin-catalog-col-mode {
   overflow: hidden;
 }
 
-.admin-catalog-table tbody tr:last-child td {
-  border-bottom: none;
-}
-
-.admin-catalog-table.sn-saas-table tbody tr.admin-catalog-row-inactive:hover {
-  background: rgba(0, 0, 0, 0.05);
-}
-
-.admin-catalog-table tbody td.admin-catalog-cell-right {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
+.admin-catalog-table tbody tr:last-child td { border-bottom: none; }
 
 /* Hiérarchie colonnes */
 .admin-catalog-cell-name {
@@ -187,11 +132,6 @@
   font-size: 13px;
 }
 
-.admin-catalog-cell-nowrap {
-  white-space: nowrap;
-}
-
-/* Catégorie / mode tarif : une ligne, ellipsis si trop long (évite chevauchement) */
 .admin-catalog-cell-clip {
   display: block;
   overflow: hidden;
@@ -201,7 +141,11 @@
   max-width: 100%;
 }
 
-/* TVA — réduit, muted, une seule ligne */
+.admin-catalog-cell-right {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
 .admin-catalog-cell-tva {
   font-size: 12px;
   color: var(--text-muted);
@@ -215,79 +159,39 @@
   white-space: nowrap;
 }
 
-/* Ligne inactive — fond léger */
+/* Lignes inactives */
 .admin-catalog-table tbody tr.admin-catalog-row-inactive td {
   background: var(--surface-subtle, rgba(0, 0, 0, 0.03));
 }
-
 .admin-catalog-table tbody tr.admin-catalog-row-inactive:hover td {
   background: rgba(0, 0, 0, 0.05);
 }
 
-/* Actions icônes */
-.admin-catalog-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+/* ─── Actions hover-reveal ────────────────────────────────────────────────── */
+
+/* Utilise org-tab-row-actions défini dans admin-org-structure-visual.css */
+/* Les boutons utilisent org-tab-icon-btn (idem autres onglets) */
+
+/* Surcharge couleur pour toggle on/off */
+.admin-catalog-toggle-btn--off:hover {
+  background: color-mix(in srgb, #f59e0b 12%, transparent) !important;
+  color: #d97706 !important;
+  border-color: color-mix(in srgb, #f59e0b 30%, transparent) !important;
 }
 
-.admin-catalog-icon-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 34px;
-  height: 34px;
-  padding: 0;
-  border: none;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--text-muted);
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+.admin-catalog-toggle-btn--on:hover {
+  background: color-mix(in srgb, #22c55e 12%, transparent) !important;
+  color: #16a34a !important;
+  border-color: color-mix(in srgb, #22c55e 30%, transparent) !important;
 }
 
-.admin-catalog-icon-btn:hover {
-  background: rgba(124, 58, 237, 0.1);
-  color: var(--text-primary);
-}
+/* ─── Empty state ─────────────────────────────────────────────────────────── */
+/* Utilise .org-tab-empty-state défini dans admin-org-structure-visual.css */
 
-.admin-catalog-icon-btn--success:hover {
-  background: rgba(34, 197, 94, 0.15);
-  color: var(--success);
-}
+/* ─── Skeleton loading ────────────────────────────────────────────────────── */
 
-.admin-catalog-icon-btn--warning:hover {
-  background: rgba(245, 158, 11, 0.15);
-  color: var(--warning);
-}
-
-.admin-catalog-icon-btn svg {
-  width: 18px;
-  height: 18px;
-}
-
-/* Empty state */
-.admin-catalog-empty {
-  text-align: center;
-  padding: var(--spacing-48) var(--spacing-24);
-}
-
-.admin-catalog-empty-title {
-  margin: 0 0 var(--spacing-8);
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.admin-catalog-empty-desc {
-  margin: 0 0 var(--spacing-24);
-  font-size: 14px;
-  color: var(--text-muted);
-}
-
-/* Skeleton loading */
 .admin-catalog-skeleton {
-  padding: var(--spacing-24);
+  padding: var(--spacing-24, 24px);
 }
 
 .admin-catalog-skeleton-line {
@@ -299,151 +203,21 @@
   margin-bottom: 12px;
 }
 
-.admin-catalog-skeleton-line:last-child {
-  margin-bottom: 0;
-}
+.admin-catalog-skeleton-line:last-child { margin-bottom: 0; }
 
 @keyframes admin-catalog-skeleton-shine {
-  0% { background-position: 200% 0; }
+  0%   { background-position: 200% 0; }
   100% { background-position: -200% 0; }
 }
 
-/* Modal produit — contenu dans ModalShell (scroll = .sn-modal-shell-body) */
+/* ─── Modal ───────────────────────────────────────────────────────────────── */
+
 .admin-catalog-modal {
   width: 100%;
   padding: 0;
 }
 
-.admin-catalog-modal-section {
-  margin-bottom: 14px;
-}
-
-.admin-catalog-modal-section:last-of-type {
-  margin-bottom: 0;
-}
-
-.admin-catalog-modal-section-title {
-  margin: 0 0 8px;
-  font-size: 10px;
-  font-weight: 600;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.admin-catalog-modal-fields {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.admin-catalog-modal-field {
-  flex: 1;
-  min-width: 0;
-}
-
-.admin-catalog-modal-field-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-}
-
-.admin-catalog-modal-field-row--3 {
-  grid-template-columns: 1fr 1fr 1fr;
-}
-
-.admin-catalog-field-optional {
-  opacity: 0.85;
-}
-
-.admin-catalog-field-label-optional {
-  font-size: 11px;
-  opacity: 0.8;
-}
-
-.admin-catalog-modal-input-optional {
-  font-size: 13px;
-}
-
-.admin-catalog-field-label {
-  display: block;
-  margin-bottom: 3px;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--text-muted);
-}
-
-.admin-catalog-field-error {
-  display: block;
-  margin-top: 2px;
-  font-size: 11px;
-  color: var(--danger);
-}
-
-.admin-catalog-modal-input {
-  width: 100%;
-  height: 44px;
-  padding: 0 12px;
-  border-radius: var(--radius-btn, 8px);
-  border: 1px solid var(--sn-border-soft);
-  font-size: 14px;
-  box-sizing: border-box;
-}
-
-.admin-catalog-modal-textarea {
-  min-height: 200px;
-  height: auto;
-  padding: 10px 12px;
-  resize: vertical;
-  line-height: 1.5;
-  font-family: inherit;
-}
-
-.admin-catalog-desc-counter {
-  margin: 6px 0 0;
-  font-size: 12px;
-  color: var(--text-muted);
-  text-align: right;
-}
-
-/* Résultat — marge bien visible */
-.admin-catalog-modal-marge {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 12px 14px;
-  background: var(--surface-subtle);
-  border-radius: var(--radius-btn, 8px);
-}
-
-.admin-catalog-marge-value {
-  font-size: 16px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0.02em;
-}
-
-.admin-catalog-marge-sep {
-  margin: 0 10px;
-  font-weight: 400;
-  color: var(--text-muted);
-  opacity: 0.7;
-}
-
-.admin-catalog-modal-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 14px;
-  padding-top: 12px;
-  border-top: 1px solid var(--border-soft);
-}
-
-/* Onglets catalogue / modèles : .sn-saas-tabs + .sn-saas-tab (design-system/saas-crm.css) */
-
-/* ========== Modal « Nouvelle ligne catalogue » — rendu SaaS très visible ==========
-   Fond lavé dans le body + cartes tokenisées + champs explicites (non dépendants du thème gris global). */
-
+/* Header/footer panel */
 .sn-modal-shell-panel.qc-modal-panel .sn-modal-shell-header {
   background: var(--bg-card);
   border-bottom: 1px solid #e2e8f0;
@@ -460,7 +234,7 @@
   color: #64748b;
   font-size: 0.8125rem;
   line-height: 1.45;
-  max-width: 36rem;
+  max-width: 42rem;
 }
 
 .sn-modal-shell-panel.qc-modal-panel .sn-modal-shell-close {
@@ -487,6 +261,7 @@
   gap: 8px;
 }
 
+/* Form */
 .qc-modal-form {
   display: flex;
   flex-direction: column;
@@ -495,11 +270,12 @@
   padding: 0;
 }
 
+/* Section card */
 .qc-modal-section {
   background: var(--bg-card);
   border: 1px solid #e2e8f0;
   border-radius: 12px;
-  padding: 16px;
+  padding: 16px 18px 18px;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
   box-sizing: border-box;
 }
@@ -511,17 +287,49 @@
     inset 0 0 0 1px rgba(99, 102, 241, 0.08);
 }
 
-.qc-modal-section__title {
-  margin: 0 0 12px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid var(--border);
-  font-size: 0.6875rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: #64748b;
+/* Section header avec icône */
+.qc-modal-section__header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #f1f5f9;
 }
 
+.qc-modal-section__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--primary, #6366f1) 10%, transparent);
+  color: var(--primary, #6366f1);
+  flex-shrink: 0;
+}
+
+.qc-modal-section__icon--accent {
+  background: color-mix(in srgb, #22c55e 10%, transparent);
+  color: #16a34a;
+}
+
+.qc-modal-section__title {
+  margin: 0 0 2px;
+  font-size: 0.875rem;
+  font-weight: 650;
+  color: #1e293b;
+  letter-spacing: -0.01em;
+}
+
+.qc-modal-section__desc {
+  margin: 0;
+  font-size: 0.75rem;
+  color: #94a3b8;
+  line-height: 1.4;
+}
+
+/* Field grid */
 .qc-modal-field-grid {
   display: grid;
   gap: 14px;
@@ -544,12 +352,12 @@
   .qc-modal-field-grid--3 {
     grid-template-columns: 1fr;
   }
-
   .qc-modal-field-span-2 {
     grid-column: auto;
   }
 }
 
+/* Labels & inputs */
 .qc-modal-label {
   display: block;
   margin-bottom: 5px;
@@ -557,6 +365,11 @@
   font-weight: 600;
   color: #475569;
   letter-spacing: 0.02em;
+}
+
+.qc-modal-label-optional {
+  font-weight: 400;
+  color: #94a3b8;
 }
 
 .qc-modal-input,
@@ -585,7 +398,7 @@ select.qc-modal-input {
 }
 
 .qc-modal-textarea {
-  min-height: 132px;
+  min-height: 80px;
   padding: 10px 12px;
   resize: vertical;
   line-height: 1.5;
@@ -627,6 +440,7 @@ select.qc-modal-input:focus-visible {
   color: var(--danger, #dc2626);
 }
 
+/* Marge calculée */
 .qc-modal-marge {
   display: flex;
   align-items: center;
@@ -655,6 +469,8 @@ select.qc-modal-input:focus-visible {
   letter-spacing: 0.01em;
 }
 
+/* ─── Dark mode ───────────────────────────────────────────────────────────── */
+
 .theme-dark .sn-modal-shell-body.qc-modal-shell-body,
 html.theme-dark .sn-modal-shell-body.qc-modal-shell-body {
   background: color-mix(in srgb, var(--surface-2, #1e293b) 85%, #0f172a);
@@ -666,10 +482,19 @@ html.theme-dark .qc-modal-section {
   border-color: rgba(148, 163, 184, 0.25);
 }
 
+.theme-dark .qc-modal-section__header,
+html.theme-dark .qc-modal-section__header {
+  border-bottom-color: rgba(148, 163, 184, 0.1);
+}
+
 .theme-dark .qc-modal-section__title,
 html.theme-dark .qc-modal-section__title {
-  border-bottom-color: rgba(148, 163, 184, 0.2);
-  color: #94a3b8;
+  color: var(--text-primary);
+}
+
+.theme-dark .qc-modal-section__desc,
+html.theme-dark .qc-modal-section__desc {
+  color: var(--text-muted);
 }
 
 .theme-dark .qc-modal-label,
@@ -720,3 +545,19 @@ html.theme-dark .sn-modal-shell-panel.qc-modal-panel .sn-modal-shell-footer {
   box-shadow: 0 -6px 16px rgba(0, 0, 0, 0.35);
 }
 
+html.theme-dark .admin-catalog-chip {
+  border-color: rgba(148, 163, 184, 0.25);
+  color: var(--text-muted);
+}
+
+html.theme-dark .admin-catalog-chip:hover {
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
+  border-color: color-mix(in srgb, var(--primary) 35%, transparent);
+  color: var(--text-primary);
+}
+
+html.theme-dark .admin-catalog-chip--active {
+  background: color-mix(in srgb, var(--primary) 15%, transparent);
+  border-color: color-mix(in srgb, var(--primary) 45%, transparent);
+  color: var(--primary, #818cf8);
+}

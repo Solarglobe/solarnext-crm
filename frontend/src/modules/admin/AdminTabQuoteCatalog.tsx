@@ -1,6 +1,7 @@
 /**
  * CP-QUOTE-003 — Tab Catalogue devis
- * Phase 1 professionnel : toolbar structurée, table lisible, marge colorée, icônes, modal confirmation.
+ * Phase 2 premium : org-tab-hero header, search avec icône, chips catégorie,
+ * hover-reveal actions, modal XL avec sections iconifiées.
  */
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -38,7 +39,7 @@ const CATEGORY_LABELS: Record<QuoteCatalogCategory, string> = {
   INVERTER: "Onduleur",
   MOUNTING: "Fixation",
   CABLE: "Câble",
-  PROTECTION_BOX: "Coffret de protection",
+  PROTECTION_BOX: "Coffret protection",
   INSTALL: "Pose",
   SERVICE: "Service",
   BATTERY_PHYSICAL: "Batterie physique",
@@ -71,6 +72,108 @@ const CATEGORIES: QuoteCatalogCategory[] = [
 
 const PRICING_MODES: QuoteCatalogPricingMode[] = ["FIXED", "UNIT", "PERCENT_TOTAL"];
 
+// ─── Icons ─────────────────────────────────────────────────────────────────
+
+function IconList() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="8" y1="6" x2="21" y2="6"/>
+      <line x1="8" y1="12" x2="21" y2="12"/>
+      <line x1="8" y1="18" x2="21" y2="18"/>
+      <line x1="3" y1="6" x2="3.01" y2="6"/>
+      <line x1="3" y1="12" x2="3.01" y2="12"/>
+      <line x1="3" y1="18" x2="3.01" y2="18"/>
+    </svg>
+  );
+}
+
+function IconSearch() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="11" cy="11" r="8"/>
+      <path d="m21 21-4.35-4.35"/>
+    </svg>
+  );
+}
+
+function IconPackage() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+      <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+      <line x1="12" y1="22.08" x2="12" y2="12"/>
+    </svg>
+  );
+}
+
+function IconPriceTag() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
+      <line x1="7" y1="7" x2="7.01" y2="7"/>
+    </svg>
+  );
+}
+
+function IconTrendingUp() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
+      <polyline points="17 6 23 6 23 12"/>
+    </svg>
+  );
+}
+
+function IconEdit() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+    </svg>
+  );
+}
+
+function IconToggleOn() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="1" y="5" width="22" height="14" rx="7"/>
+      <circle cx="16" cy="12" r="3"/>
+    </svg>
+  );
+}
+
+function IconToggleOff() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="1" y="5" width="22" height="14" rx="7"/>
+      <circle cx="8" cy="12" r="3"/>
+    </svg>
+  );
+}
+
+function IconCopy() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+    </svg>
+  );
+}
+
+// ─── Skeleton ───────────────────────────────────────────────────────────────
+
+function SkeletonLines({ count = 5 }: { count?: number }) {
+  return (
+    <div className="admin-catalog-skeleton">
+      {Array.from({ length: count }).map((_, i) => (
+        <div key={i} className="admin-catalog-skeleton-line" style={{ width: i === 0 ? "60%" : i === 1 ? "90%" : "100%" }} />
+      ))}
+    </div>
+  );
+}
+
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
 function centsToEur(cents: number): string {
   return (cents / 100).toLocaleString("fr-FR", {
     style: "currency",
@@ -102,57 +205,7 @@ function marginSnBadgeClass(level: "low" | "mid" | "good"): string {
   return "sn-badge-warn";
 }
 
-function IconEdit() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-    </svg>
-  );
-}
-
-function IconToggleOn() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <circle cx="12" cy="12" r="5" />
-      <path d="M12 2v4" />
-      <path d="M12 18v4" />
-      <path d="M2 12h4" />
-      <path d="M18 12h4" />
-    </svg>
-  );
-}
-
-function IconToggleOff() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <circle cx="12" cy="12" r="10" />
-      <path d="M12 2v4" />
-      <path d="M12 18v4" />
-      <path d="M2 12h4" />
-      <path d="M18 12h4" />
-    </svg>
-  );
-}
-
-function IconCopySmall() {
-  return (
-    <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-    </svg>
-  );
-}
-
-function SkeletonLines({ count = 5 }: { count?: number }) {
-  return (
-    <div className="admin-catalog-skeleton">
-      {Array.from({ length: count }).map((_, i) => (
-        <div key={i} className="admin-catalog-skeleton-line" style={{ width: i === 0 ? "60%" : i === 1 ? "90%" : "100%" }} />
-      ))}
-    </div>
-  );
-}
+// ─── Component ──────────────────────────────────────────────────────────────
 
 export function AdminTabQuoteCatalog() {
   const [items, setItems] = useState<QuoteCatalogItem[]>([]);
@@ -272,7 +325,7 @@ export function AdminTabQuoteCatalog() {
     (item: QuoteCatalogItem) => {
       if (item.category === "DISCOUNT") {
         showCatalogToast(
-          "Les lignes « Remise » ne peuvent pas être dupliquées (risque de cumul ou d’erreur sur les montants). Créez une nouvelle remise manuellement.",
+          "Les lignes « Remise » ne peuvent pas être dupliquées (risque de cumul ou d'erreur sur les montants). Créez une nouvelle remise manuellement.",
           "error",
         );
         return;
@@ -289,7 +342,6 @@ export function AdminTabQuoteCatalog() {
         default_vat_rate_bps: c.default_vat_rate_bps,
       };
       sanitizeDuplicateQuoteCatalogFinancials(draft, PRICING_MODES);
-
       openCatalogItemModalCreateFromDraft(draft);
       showCatalogToast("Ligne dupliquée, vous pouvez l'ajuster");
     },
@@ -416,75 +468,93 @@ export function AdminTabQuoteCatalog() {
 
   return (
     <div className="admin-tab-quote-catalog org-structure-tab">
-      <header className="sn-saas-tab-inner-header">
-        <h2 className="sn-saas-tab-inner-header__title">Lignes catalogue</h2>
-        <p className="sn-saas-tab-inner-header__lead">
-          Matériel, prestations et services : chaque ligne alimente le monteur de devis avec tarifs, TVA et indicateur de marge.
-        </p>
+
+      {/* ── Header hero ── */}
+      <header className="org-tab-hero">
+        <div className="org-tab-hero__text">
+          <h2 className="org-tab-hero__title">Lignes catalogue</h2>
+          <p className="org-tab-hero__lead">
+            Matériel, prestations et services : chaque ligne alimente le monteur de devis avec tarifs, TVA et indicateur de marge.
+          </p>
+          <span className="org-tab-hero__meta">
+            {items.length} ligne{items.length !== 1 ? "s" : ""}
+            {filterCategory ? ` · ${CATEGORY_LABELS[filterCategory as QuoteCatalogCategory]}` : ""}
+            {includeInactive ? " · avec inactifs" : ""}
+          </span>
+        </div>
+        <div className="org-tab-hero__actions">
+          <Button variant="primary" size="md" type="button" onClick={openCreate}>
+            Ajouter une ligne
+          </Button>
+        </div>
       </header>
 
-      <div className="sn-saas-stack">
-        {error ? (
-          <div className="sn-saas-form-section sn-saas-callout-error" role="alert">
-            <p className="sn-saas-callout-error__text">{error}</p>
-          </div>
-        ) : null}
+      {error ? <p className="org-tab-alert">{error}</p> : null}
 
-        <section className="sn-saas-form-section" aria-labelledby="catalog-lines-section-title">
-          <div className="sn-saas-form-section__head">
-            <h3 id="catalog-lines-section-title" className="sn-saas-form-section__title">
-              Catalogue
-            </h3>
+      {/* ── Toolbar : search + chips catégorie ── */}
+      <div className="admin-catalog-toolbar-premium">
+        <div className="org-tab-toolbar__search-wrap">
+          <IconSearch />
+          <input
+            type="search"
+            className="sn-input"
+            placeholder="Rechercher par nom…"
+            value={searchQ}
+            onChange={(e) => setSearchQ(e.target.value)}
+            aria-label="Rechercher par nom"
+          />
+        </div>
+
+        <div className="admin-catalog-filter-chips" role="group" aria-label="Filtrer par catégorie">
+          <button
+            type="button"
+            className={`admin-catalog-chip${filterCategory === "" ? " admin-catalog-chip--active" : ""}`}
+            onClick={() => setFilterCategory("")}
+          >
+            Toutes
+          </button>
+          {CATEGORIES.map((c) => (
+            <button
+              key={c}
+              type="button"
+              className={`admin-catalog-chip${filterCategory === c ? " admin-catalog-chip--active" : ""}`}
+              onClick={() => setFilterCategory(filterCategory === c ? "" : c)}
+            >
+              {CATEGORY_LABELS[c]}
+            </button>
+          ))}
+        </div>
+
+        <label className="admin-catalog-checkbox-wrap">
+          <input
+            type="checkbox"
+            checked={includeInactive}
+            onChange={(e) => setIncludeInactive(e.target.checked)}
+            className="admin-catalog-checkbox"
+          />
+          <span>Inclure inactifs</span>
+        </label>
+      </div>
+
+      {/* ── Contenu ── */}
+      {showEmpty ? (
+        <div className="org-tab-table-wrap">
+          <div className="org-tab-empty-state">
+            <div className="org-tab-empty-icon">
+              <IconList />
+            </div>
+            <p className="org-tab-empty-title">Aucune ligne catalogue</p>
+            <p className="org-tab-empty-lead">
+              Ajoutez votre première ligne pour monter vos devis — matériel, prestation ou service.
+            </p>
             <Button variant="primary" size="sm" type="button" onClick={openCreate}>
               Ajouter une ligne
             </Button>
           </div>
-
-          <div className="sn-saas-toolbar admin-catalog-filters-toolbar">
-            <div className="sn-saas-toolbar__main">
-              <input
-                type="text"
-                placeholder="Rechercher par nom…"
-                value={searchQ}
-                onChange={(e) => setSearchQ(e.target.value)}
-                className="admin-catalog-input sn-saas-input"
-                aria-label="Rechercher par nom"
-              />
-              <select
-                value={filterCategory}
-                onChange={(e) => setFilterCategory(e.target.value)}
-                className="admin-catalog-select sn-saas-input"
-                aria-label="Filtrer par catégorie"
-              >
-                <option value="">Toutes catégories</option>
-                {CATEGORIES.map((c) => (
-                  <option key={c} value={c}>
-                    {CATEGORY_LABELS[c]}
-                  </option>
-                ))}
-              </select>
-              <label className="admin-catalog-checkbox-wrap">
-                <input
-                  type="checkbox"
-                  checked={includeInactive}
-                  onChange={(e) => setIncludeInactive(e.target.checked)}
-                  className="admin-catalog-checkbox"
-                />
-                <span>Inclure inactifs</span>
-              </label>
-            </div>
-          </div>
-
-          {showEmpty ? (
-            <div className="admin-catalog-empty admin-catalog-empty--inline">
-              <h3 className="admin-catalog-empty-title">Aucune ligne</h3>
-              <p className="admin-catalog-empty-desc">
-                Ajoutez votre première ligne au catalogue pour monter vos devis — bouton « Ajouter une ligne » ci-dessus.
-              </p>
-            </div>
-          ) : (
-            <div className="sn-saas-table-wrap admin-catalog-table-outer">
-              <table className="sn-ui-table sn-saas-table sn-saas-table--dense admin-catalog-table">
+        </div>
+      ) : (
+        <div className="sn-saas-table-wrap admin-catalog-table-outer">
+          <table className="sn-ui-table sn-saas-table sn-saas-table--dense admin-catalog-table">
             <thead>
               <tr>
                 <th className="admin-catalog-col-nom">Nom</th>
@@ -495,7 +565,7 @@ export function AdminTabQuoteCatalog() {
                 <th className="admin-catalog-th-right admin-catalog-col-marge">Marge</th>
                 <th className="admin-catalog-th-right admin-catalog-th-muted admin-catalog-col-tva">TVA</th>
                 <th className="admin-catalog-col-statut">Statut</th>
-                <th className="admin-catalog-col-actions">Actions</th>
+                <th className="admin-catalog-col-actions"></th>
               </tr>
             </thead>
             <tbody>
@@ -540,68 +610,50 @@ export function AdminTabQuoteCatalog() {
                         <span className="sn-badge sn-badge-neutral">—</span>
                       ) : (
                         <span className={`sn-badge ${marginSnBadgeClass(level)}`}>
-                          {mPct.toFixed(1)}
-                          {"\u00a0"}%
+                          {mPct.toFixed(1)}{" "}%
                         </span>
                       )}
                     </td>
                     <td className="admin-catalog-cell-right admin-catalog-cell-tva admin-catalog-col-tva">
                       {(item.default_vat_rate_bps / 100) % 1 === 0
-                        ? (
-                            <>
-                              {item.default_vat_rate_bps / 100}
-                              {"\u00a0"}%
-                            </>
-                          )
-                        : (
-                            <>
-                              {(item.default_vat_rate_bps / 100).toFixed(2)}
-                              {"\u00a0"}%
-                            </>
-                          )}
+                        ? <>{item.default_vat_rate_bps / 100}{" "}%</>
+                        : <>{(item.default_vat_rate_bps / 100).toFixed(2)}{" "}%</>
+                      }
                     </td>
                     <td className="admin-catalog-col-statut">
-                      <span
-                        className={
-                          item.is_active
-                            ? "sn-badge sn-badge-success"
-                            : "sn-badge sn-badge-neutral"
-                        }
-                      >
+                      <span className={item.is_active ? "sn-badge sn-badge-success" : "sn-badge sn-badge-neutral"}>
                         {item.is_active ? "Actif" : "Inactif"}
                       </span>
                     </td>
                     <td className="admin-catalog-col-actions">
-                      <div className="admin-catalog-actions">
+                      <div className="admin-catalog-actions org-tab-row-actions">
                         <button
                           type="button"
-                          className="admin-catalog-icon-btn"
+                          className="org-tab-icon-btn"
                           onClick={() => openEdit(item)}
                           aria-label="Modifier"
                           title="Modifier"
                         >
                           <IconEdit />
                         </button>
-                        <Button
+                        <button
                           type="button"
-                          variant="ghost"
-                          size="sm"
+                          className="org-tab-icon-btn"
                           disabled={item.category === "DISCOUNT"}
                           title={
                             item.category === "DISCOUNT"
-                              ? "Duplication désactivée pour les remises (création manuelle recommandée)."
+                              ? "Duplication désactivée pour les remises"
                               : "Dupliquer vers une nouvelle ligne"
                           }
                           onClick={() => handleDuplicateItem(item)}
-                          style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+                          aria-label="Dupliquer"
                         >
-                          <IconCopySmall />
-                          Dupliquer
-                        </Button>
+                          <IconCopy />
+                        </button>
                         {item.is_active ? (
                           <button
                             type="button"
-                            className="admin-catalog-icon-btn admin-catalog-icon-btn--warning"
+                            className="org-tab-icon-btn admin-catalog-toggle-btn--off"
                             onClick={() => setConfirmItem({ item, action: "deactivate" })}
                             aria-label="Désactiver"
                             title="Désactiver"
@@ -611,7 +663,7 @@ export function AdminTabQuoteCatalog() {
                         ) : (
                           <button
                             type="button"
-                            className="admin-catalog-icon-btn admin-catalog-icon-btn--success"
+                            className="org-tab-icon-btn admin-catalog-toggle-btn--on"
                             onClick={() => setConfirmItem({ item, action: "activate" })}
                             aria-label="Activer"
                             title="Activer"
@@ -626,22 +678,21 @@ export function AdminTabQuoteCatalog() {
               })}
             </tbody>
           </table>
-            </div>
-          )}
-        </section>
-      </div>
+        </div>
+      )}
 
+      {/* ── Modal création / édition ── */}
       <ModalShell
         open={modalOpen}
         onClose={requestClose}
         onEscape={handleModalEscape}
         closeOnBackdropClick
-        size="lg"
+        size="xl"
         title={editingItem ? "Modifier la ligne" : "Nouvelle ligne catalogue"}
         subtitle={
           editingItem
-            ? "Mettez à jour les blocs ci-dessous — chaque section est indépendante."
-            : "Trois blocs : produit, tarifs, puis marge calculée. Champs compacts, fond clair."
+            ? `Mettez à jour les informations de « ${editingItem.name} ».`
+            : "Renseignez l'identité du produit, sa tarification, puis vérifiez la marge calculée."
         }
         panelClassName="admin-catalog-modal qc-modal-panel"
         bodyClassName="qc-modal-shell-body"
@@ -651,16 +702,24 @@ export function AdminTabQuoteCatalog() {
               Annuler
             </Button>
             <Button variant="primary" type="submit" size="sm" form="quote-catalog-form">
-              {editingItem ? "Enregistrer" : "Créer"}
+              {editingItem ? "Enregistrer" : "Créer la ligne"}
             </Button>
           </>
         }
       >
         <form id="quote-catalog-form" className="qc-modal-form" onSubmit={handleSubmit}>
+
+          {/* Section Produit */}
           <section className="qc-modal-section" aria-labelledby="qc-sec-produit">
-            <h3 id="qc-sec-produit" className="qc-modal-section__title">
-              Produit
-            </h3>
+            <div className="qc-modal-section__header">
+              <div className="qc-modal-section__icon">
+                <IconPackage />
+              </div>
+              <div>
+                <h3 id="qc-sec-produit" className="qc-modal-section__title">Produit</h3>
+                <p className="qc-modal-section__desc">Identité, classification et description commerciale.</p>
+              </div>
+            </div>
             <div className="qc-modal-field-grid qc-modal-field-grid--2">
               <div className="qc-modal-field-span-2">
                 <label className="qc-modal-label" htmlFor="qc-name">
@@ -677,6 +736,7 @@ export function AdminTabQuoteCatalog() {
                   maxLength={120}
                   className="qc-modal-input"
                   autoComplete="off"
+                  placeholder="Ex. Panneau JA Solar 440 Wc"
                 />
               </div>
               <div>
@@ -715,16 +775,17 @@ export function AdminTabQuoteCatalog() {
               </div>
               <div className="qc-modal-field-span-2">
                 <label className="qc-modal-label" htmlFor="qc-desc">
-                  Description (texte commercial)
+                  Description commerciale{" "}
+                  <span className="qc-modal-label-optional">— optionnel</span>
                 </label>
                 <textarea
                   id="qc-desc"
                   value={formDescription}
                   onChange={(e) => setFormDescription(e.target.value)}
                   maxLength={QUOTE_CATALOG_DESCRIPTION_MAX_CHARS}
-                  rows={6}
+                  rows={3}
                   className="qc-modal-textarea"
-                  placeholder="Optionnel — détail affiché sur le devis et le PDF"
+                  placeholder="Détail affiché sur le devis et le PDF…"
                   aria-describedby="qc-desc-counter"
                 />
                 <p id="qc-desc-counter" className="qc-modal-desc-counter">
@@ -734,10 +795,17 @@ export function AdminTabQuoteCatalog() {
             </div>
           </section>
 
+          {/* Section Tarification */}
           <section className="qc-modal-section" aria-labelledby="qc-sec-tarif">
-            <h3 id="qc-sec-tarif" className="qc-modal-section__title">
-              Tarification
-            </h3>
+            <div className="qc-modal-section__header">
+              <div className="qc-modal-section__icon">
+                <IconPriceTag />
+              </div>
+              <div>
+                <h3 id="qc-sec-tarif" className="qc-modal-section__title">Tarification</h3>
+                <p className="qc-modal-section__desc">Prix de vente, d'achat et taux de TVA applicable.</p>
+              </div>
+            </div>
             <div className="qc-modal-field-grid qc-modal-field-grid--3">
               <div>
                 <label className="qc-modal-label" htmlFor="qc-sale">
@@ -788,10 +856,17 @@ export function AdminTabQuoteCatalog() {
             ) : null}
           </section>
 
+          {/* Section Marge indicative */}
           <section className="qc-modal-section qc-modal-section--highlight" aria-labelledby="qc-sec-marge">
-            <h3 id="qc-sec-marge" className="qc-modal-section__title">
-              Marge indicative
-            </h3>
+            <div className="qc-modal-section__header">
+              <div className="qc-modal-section__icon qc-modal-section__icon--accent">
+                <IconTrendingUp />
+              </div>
+              <div>
+                <h3 id="qc-sec-marge" className="qc-modal-section__title">Marge indicative</h3>
+                <p className="qc-modal-section__desc">Calculée automatiquement à partir des prix ci-dessus.</p>
+              </div>
+            </div>
             <div className="qc-modal-marge">
               <span className={`sn-badge ${marginSnBadgeClass(marginLevel(marginPctVal))}`}>
                 {marginEurVal.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
@@ -800,6 +875,7 @@ export function AdminTabQuoteCatalog() {
               </span>
             </div>
           </section>
+
         </form>
       </ModalShell>
 
