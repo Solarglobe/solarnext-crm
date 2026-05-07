@@ -231,19 +231,18 @@
   };
 
   /* --- Obstacles toiture (2D) : draw + hitTest --- */
-  /* Non-ombrant : ardoise bleue sobre */
-  var OBSTACLE_STROKE = "rgba(51, 65, 85, 0.80)";
-  var OBSTACLE_FILL = "rgba(71, 85, 105, 0.14)";
-  var OBSTACLE_SELECTED_STROKE = "rgba(30, 64, 175, 0.92)";
-  var OBSTACLE_SELECTED_LINE_WIDTH = 2.0;
+  var OBSTACLE_STROKE = "rgba(51, 65, 85, 0.82)";
+  var OBSTACLE_FILL = "rgba(71, 85, 105, 0.18)";
+  var OBSTACLE_SELECTED_STROKE = "rgba(30, 64, 175, 0.88)";
+  var OBSTACLE_SELECTED_LINE_WIDTH = 1.8;
   var OBSTACLE_PREVIEW_DASH = [5, 5];
-  /* Handles - dimensions visuelles */
+  /** Rayon visuel poignées — hit élargi dans hitTestObstacleHandles */
   var HANDLE_RADIUS_PX = 4.6;
-  var RECT_CORNER_HANDLE_RADIUS_PX = 5.5;   /* demi-cote du carre */
-  var RECT_EDGE_HANDLE_RADIUS_PX = 3.0;     /* petit tiret milieu */
-  var HANDLE_FILL = "rgba(255, 255, 255, 0.95)";
-  var HANDLE_STROKE_OUTER = "rgba(30, 64, 175, 0.75)";
-  var HANDLE_STROKE_ACCENT = "rgba(37, 99, 235, 0.90)";
+  var RECT_CORNER_HANDLE_RADIUS_PX = 5.5;
+  var RECT_EDGE_HANDLE_RADIUS_PX = 4.2;
+  var HANDLE_FILL = "rgba(255, 255, 255, 0.82)";
+  var HANDLE_STROKE_OUTER = "rgba(15, 23, 42, 0.72)";
+  var HANDLE_STROKE_ACCENT = "rgba(37, 99, 235, 0.82)";
 
   function rotatePointImage(p, cx, cy, angle) {
     var dx = p.x - cx, dy = p.y - cy;
@@ -318,39 +317,22 @@
     }
   }
 
-  /** Handle carré pour les coins (resize) — plus professionnel que le cercle */
-  function drawHandleSquare(ctx, x, y, r) {
-    /* Ombre portée legere */
-    ctx.save();
-    ctx.shadowBlur = 3;
-    ctx.shadowColor = "rgba(15, 23, 42, 0.25)";
-    ctx.shadowOffsetX = 0.5;
-    ctx.shadowOffsetY = 0.5;
-    ctx.fillStyle = HANDLE_FILL;
-    ctx.strokeStyle = HANDLE_STROKE_OUTER;
-    ctx.lineWidth = 1.4;
-    ctx.beginPath();
-    ctx.rect(x - r, y - r, r * 2, r * 2);
-    ctx.fill();
-    ctx.stroke();
-    ctx.shadowBlur = 0;
-    /* Accent intérieur */
-    ctx.strokeStyle = HANDLE_STROKE_ACCENT;
-    ctx.lineWidth = 0.7;
-    ctx.beginPath();
-    ctx.rect(x - r + 1.5, y - r + 1.5, (r - 1.5) * 2, (r - 1.5) * 2);
-    ctx.stroke();
-    ctx.restore();
-  }
-
-  /** Handle cercle (milieu d'arête) — subtil, petit */
   function drawHandleDisc(ctx, x, y, r) {
     ctx.beginPath();
+    ctx.arc(x, y, r + 0.8, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(255,255,255,0.50)";
+    ctx.fill();
+    ctx.beginPath();
     ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.fillStyle = "rgba(255, 255, 255, 0.82)";
+    ctx.fillStyle = HANDLE_FILL;
     ctx.fill();
     ctx.strokeStyle = HANDLE_STROKE_OUTER;
-    ctx.lineWidth = 1.0;
+    ctx.lineWidth = 1.05;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(x, y, Math.max(1, r - 1.2), 0, Math.PI * 2);
+    ctx.strokeStyle = HANDLE_STROKE_ACCENT;
+    ctx.lineWidth = 0.85;
     ctx.stroke();
   }
 
@@ -371,29 +353,24 @@
         { x: hw, y: hh },
         { x: -hw, y: hh },
       ];
-      /* 4 coins = carrés blancs (visuellement dominant) */
       for (var i = 0; i < cornersLocal.length; i++) {
         var lp = cornersLocal[i];
         var rotPt = rotatePointImage({ x: m.centerX + lp.x, y: m.centerY + lp.y }, m.centerX, m.centerY, angleR);
         var c = imageToScreen(rotPt);
-        drawHandleSquare(ctx, c.x, c.y, RECT_CORNER_HANDLE_RADIUS_PX);
+        drawHandleDisc(ctx, c.x, c.y, RECT_CORNER_HANDLE_RADIUS_PX);
       }
-      /* 4 milieux d'arête = petits cercles discrets (toujours présents, hitbox large) */
       var edgeLocals = [
         { x: 0, y: -hh },
         { x: hw, y: 0 },
         { x: 0, y: hh },
         { x: -hw, y: 0 },
       ];
-      ctx.save();
-      ctx.globalAlpha = 0.5;
       for (var ei = 0; ei < edgeLocals.length; ei++) {
         var elp = edgeLocals[ei];
         var erot = rotatePointImage({ x: m.centerX + elp.x, y: m.centerY + elp.y }, m.centerX, m.centerY, angleR);
         var es = imageToScreen(erot);
         drawHandleDisc(ctx, es.x, es.y, RECT_EDGE_HANDLE_RADIUS_PX);
       }
-      ctx.restore();
       /* Rotation handle: geometrically attached, follows rotation (SolarGlobe premium) */
       var halfH = m.height / 2;
       var angle = m.angle || 0;

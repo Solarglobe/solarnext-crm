@@ -1791,4 +1791,23 @@ function buildEmptyFullReport() {
       error: null,
       warnings: [],
     },
-    p10: { meta: emptyMeta, best: {}, hyp: {}, residual_bill_vir
+    p10: { meta: emptyMeta, best: {}, hyp: {}, residual_bill_virtual: null },
+    p11: {
+      meta: emptyMeta,
+      data: {
+        economies_annuelles_25: empty25,
+        series: {
+          economies_annuelles: empty25,
+          paiement_annuel: empty25,
+          reste_a_charge_annuel: empty25,
+        },
+        financing: {},
+        kpi: {},
+        post_loan: {},
+      },
+    },
+    p12: { meta: emptyMeta, env: {}, v_co2: "", v_trees: "", v_cars: "", v_co2_25: "", v_trees_25: "", v_cars_25: "" },
+    p13: { meta: emptyMeta },
+    p14: { meta: emptyMeta },
+  };
+}

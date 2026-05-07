@@ -14377,8 +14377,17 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
         }
         function applyStructuralTraitPreview(imgPt) {
           var payload = resolveStructuralSnapTrait(imgPt);
+          var tStart = drawState.traitLineStart;
+          if (tStart) {
+            var _tdx = payload.x - tStart.x, _tdy = payload.y - tStart.y;
+            var _tlen = Math.hypot(_tdx, _tdy);
+            if (drawState.skipStructuralContourSnap && _tlen > 1e-6) {
+              var _orthoT = applyOrthoConstraint(tStart, { x: payload.x, y: payload.y });
+              payload = { x: _orthoT.x, y: _orthoT.y, snapped: true, kind: "ortho", attach: payload.attach, sourceMeta: { priority: "ortho_shift" } };
+            }
+          }
           drawState.traitFrozenStructuralSnap = payload;
-          if (!drawState.traitLineStart) return;
+          if (!tStart) return;
           drawState.traitSnapPreview = { x: payload.x, y: payload.y };
           drawState.traitSnapPreviewSource = payload.attach || null;
           var isVertex =
@@ -14391,7 +14400,11 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             (payload.kind === "roof_edge_segment" ||
               payload.kind === "roof_contour_edge" ||
               (payload.attach && payload.attach.type === "roof_contour_edge"));
-          if (isSegmentSnap) {
+          var isOrthoOrPerp = payload.sourceMeta && (
+            payload.sourceMeta.priority === "ortho_shift" ||
+            payload.sourceMeta.priority === "angle_perp"
+          );
+          if (isSegmentSnap || isOrthoOrPerp) {
             drawState.traitSnapEdge = { x: payload.x, y: payload.y };
           } else {
             drawState.traitSnapEdge = null;
@@ -19042,21 +19055,33 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               if (hasSel) {
                 ul.appendChild(createSeparator());
                 ul.appendChild(createMenuItem("Supprimer la sélection", "Suppr", function () {
+                  var _cmDidDel = false;
                   if (drawState.selectedContourIds && drawState.selectedContourIds.length > 0) {
-                    var cid = drawState.selectedContourIds[0];
-                    CALPINAGE_STATE.contours = (CALPINAGE_STATE.contours || []).filter(function (c) { return c && c.id !== cid; });
+                    var _cmDelCids = new Set(drawState.selectedContourIds);
+                    CALPINAGE_STATE.contours = (CALPINAGE_STATE.contours || []).filter(function (c) { return c && !_cmDelCids.has(c.id); });
                     drawState.selectedContourIds = [];
-                  } else if (drawState.selectedRidgeIds && drawState.selectedRidgeIds.length > 0) {
-                    var rid = drawState.selectedRidgeIds[0];
-                    CALPINAGE_STATE.ridges = (CALPINAGE_STATE.ridges || []).filter(function (r) { return r && r.id !== rid; });
-                    drawState.selectedRidgeIds = [];
-                  } else if (drawState.selectedTraitIds && drawState.selectedTraitIds.length > 0) {
-                    var tid = drawState.selectedTraitIds[0];
-                    CALPINAGE_STATE.traits = (CALPINAGE_STATE.traits || []).filter(function (t) { return t && t.id !== tid; });
-                    drawState.selectedTraitIds = [];
+                    drawState.selectedContourIndex = null;
+                    _cmDidDel = true;
                   }
-                  computePansFromGeometry();
-                  if (typeof requestAnimationFrame !== "undefined" && typeof window.CALPINAGE_RENDER === "function") requestAnimationFrame(window.CALPINAGE_RENDER);
+                  if (drawState.selectedRidgeIds && drawState.selectedRidgeIds.length > 0) {
+                    var _cmDelRids = new Set(drawState.selectedRidgeIds);
+                    CALPINAGE_STATE.ridges = (CALPINAGE_STATE.ridges || []).filter(function (r) { return r && !_cmDelRids.has(r.id); });
+                    drawState.selectedRidgeIds = [];
+                    drawState.selectedRidgeIndex = null;
+                    _cmDidDel = true;
+                  }
+                  if (drawState.selectedTraitIds && drawState.selectedTraitIds.length > 0) {
+                    var _cmDelTids = new Set(drawState.selectedTraitIds);
+                    CALPINAGE_STATE.traits = (CALPINAGE_STATE.traits || []).filter(function (t) { return t && !_cmDelTids.has(t.id); });
+                    drawState.selectedTraitIds = [];
+                    drawState.selectedTraitIndex = null;
+                    _cmDidDel = true;
+                  }
+                  if (_cmDidDel) {
+                    saveCalpinageState();
+                    computePansFromGeometry();
+                    if (typeof requestAnimationFrame !== "undefined" && typeof window.CALPINAGE_RENDER === "function") requestAnimationFrame(window.CALPINAGE_RENDER);
+                  }
                 }));
               }
               menu.appendChild(ul);
@@ -22411,30 +22436,4 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
       try { delete window.__computeGeometryHashForExport; } catch (_) {}
       try { delete window.__computePanelsHashForExport; } catch (_) {}
       try { delete window.__computeShadingHashForExport; } catch (_) {}
-      try { delete window.__calpinageRefreshLegacyUiAfterPanVertexHeightEdit; } catch (_) {}
-      try { delete window.__calpinageCommitRoofVertexHeightLike2D; } catch (_) {}
-      try { delete window.__calpinage_hitTestPan__; } catch (_) {}
-      try { delete window.__calpinageRecomputePansFromGeometryAndUI; } catch (_) {}
-      window.CALPINAGE_STUDY_ID = null;
-      window.CALPINAGE_VERSION_ID = null;
-      window.PV_SELECTED_PANEL = null;
-      window.CALPINAGE_SELECTED_PANEL_ID = null;
-      window.PV_SELECTED_INVERTER = null;
-      window.CALPINAGE_SELECTED_INVERTER_ID = null;
-      window.CALPINAGE_ALLOWED = false;
-    }
-    /* Vider le container pour que le prochain init (étude B) ne trouve pas #calpinage-root et réinjecte proprement */
-    try {
-      if (container && container.firstChild) {
-        while (container.firstChild) container.removeChild(container.firstChild);
-      }
-    } catch (e) { if (typeof console !== "undefined") console.warn("[CALPINAGE] container clear error", e); }
-    _calpinageInitInFlight = false;
-    if (devLog) {
-      console.log("[CALPINAGE] cleanup done (state isolated, ready for next study)");
-    }
-  };
-  container.__CALPINAGE_MOUNTED__ = true;
-  container.__CALPINAGE_TEARDOWN__ = cleanup;
-  return cleanup;
-}
+      try { delete window.__calpina
