@@ -225,7 +225,9 @@ export async function buildSelectedScenarioSnapshot({
           ? "physique"
           : scenarioId === "BATTERY_VIRTUAL"
             ? "virtuelle"
-            : null,
+            : scenarioId === "BATTERY_HYBRID"
+              ? "hybride"
+              : null,
     },
   };
 

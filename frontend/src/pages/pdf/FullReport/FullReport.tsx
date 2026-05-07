@@ -13,6 +13,7 @@ import PdfPage5 from "./PdfPage5";
 import PdfPage6 from "./PdfPage6";
 import PdfPage7 from "./PdfPage7";
 import PdfPage7VirtualBattery from "./PdfPage7VirtualBattery";
+import PdfPage7HybridBattery from "./PdfPage7HybridBattery";
 import PdfPage8 from "./PdfPage8";
 import PdfPage9 from "./PdfPage9";
 import PdfPage10 from "./PdfPage10";
@@ -38,6 +39,11 @@ export default function FullReport({ viewModel }: FullReportProps) {
       <PdfPage7VirtualBattery
         data={fr.p7_virtual_battery as React.ComponentProps<typeof PdfPage7VirtualBattery>["data"]}
         organization={viewModel.organization as React.ComponentProps<typeof PdfPage7VirtualBattery>["organization"]}
+        viewModel={viewModel}
+      />
+      <PdfPage7HybridBattery
+        data={fr.p7_hybrid_battery as React.ComponentProps<typeof PdfPage7HybridBattery>["data"]}
+        organization={viewModel.organization as React.ComponentProps<typeof PdfPage7HybridBattery>["organization"]}
         viewModel={viewModel}
       />
       <PdfPage8 data={fr.p8 as React.ComponentProps<typeof PdfPage8>["data"]} />

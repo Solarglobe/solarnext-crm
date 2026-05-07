@@ -527,6 +527,8 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
   const batteryVirtualGlobal = scenariosByKey.BATTERY_VIRTUAL || null;
   const selectedScenario = scenariosByKey[selectedKey] ?? null;
 
+  const batteryHybridGlobal = scenariosByKey.BATTERY_HYBRID || null;
+
   let pdfBatteryScenario = null;
   let pdfBatteryType = null;
   if (selectedKey === "BATTERY_VIRTUAL" && batteryVirtualGlobal) {
@@ -535,6 +537,10 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
   } else if (selectedKey === "BATTERY_PHYSICAL" && batteryPhysicalGlobal) {
     pdfBatteryScenario = batteryPhysicalGlobal;
     pdfBatteryType = "PHYSICAL";
+  } else if (selectedKey === "BATTERY_HYBRID" && batteryHybridGlobal) {
+    // HYBRID : utilise ses propres données — pas de fallback silencieux vers BATTERY_VIRTUAL
+    pdfBatteryScenario = batteryHybridGlobal;
+    pdfBatteryType = "HYBRID";
   } else if (selectedKey === "BASE") {
     pdfBatteryScenario = null;
     pdfBatteryType = null;
@@ -729,7 +735,7 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
   let autoMonthly;
   let surplusMonthly;
   const scenarioMonthly = selectedScenario?.energy?.monthly;
-  const isBatteryScenario = selectedKey === "BATTERY_PHYSICAL" || selectedKey === "BATTERY_VIRTUAL";
+  const isBatteryScenario = selectedKey === "BATTERY_PHYSICAL" || selectedKey === "BATTERY_VIRTUAL" || selectedKey === "BATTERY_HYBRID";
 
   if (Array.isArray(scenarioMonthly) && scenarioMonthly.length >= 12) {
     consoMonthly = scenarioMonthly.slice(0, 12).map((m) => numOrZero(m.conso_kwh ?? m.conso));
@@ -1225,6 +1231,120 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
           ],
         };
       })(),
+      // P7 HYBRID — Page pédagogique "Physique + Virtuelle en cascade"
+      // Strictement réservée au scénario sélectionné BATTERY_HYBRID.
+      p7_hybrid_battery: (() => {
+        if (selectedKey !== "BATTERY_HYBRID") return null;
+        if (!selectedScenario || typeof selectedScenario !== "object") return null;
+
+        const baseScenario = baseFromV2;
+        if (!baseScenario || typeof baseScenario !== "object") return null;
+
+        const hybridEnergy = selectedScenario.energy && typeof selectedScenario.energy === "object"
+          ? selectedScenario.energy
+          : {};
+        const baseEnergy = baseScenario.energy && typeof baseScenario.energy === "object"
+          ? baseScenario.energy
+          : {};
+        const physBattery = selectedScenario.battery && typeof selectedScenario.battery === "object"
+          ? selectedScenario.battery
+          : {};
+        const virtBattery = selectedScenario.battery_virtual && typeof selectedScenario.battery_virtual === "object"
+          ? selectedScenario.battery_virtual
+          : {};
+
+        // ── Énergie totale hybride ──────────────────────────────────────────────
+        const productionKwh = num(hybridEnergy.production_kwh) ?? num(baseEnergy.production_kwh) ?? annualKwh;
+        const consumptionKwh = num(hybridEnergy.consumption_kwh) ?? num(baseEnergy.consumption_kwh);
+        const totalAutoKwh = num(hybridEnergy.autoconsumption_kwh) ?? num(selectedScenario.autoproduction_kwh);
+        const physicalDischargeKwh = num(physBattery.annual_discharge_kwh) ?? 0;
+        const virtualDischargeKwh =
+          num(hybridEnergy.used_credit_kwh) ??
+          num(virtBattery.annual_discharge_kwh) ??
+          num(virtBattery.restored_kwh) ??
+          0;
+        // Autoconsommation directe = total - physique - virtuel (sans double comptage)
+        const directAutoKwh =
+          totalAutoKwh != null
+            ? Math.max(0, totalAutoKwh - physicalDischargeKwh - virtualDischargeKwh)
+            : null;
+        const residualImportKwh =
+          num(hybridEnergy.import_kwh) ??
+          num(hybridEnergy.grid_import_kwh) ??
+          num(hybridEnergy.billable_import_kwh);
+        const residualSurplusKwh =
+          num(hybridEnergy.surplus_kwh) ??
+          num(hybridEnergy.grid_export_kwh) ??
+          null;
+
+        // ── Finance ─────────────────────────────────────────────────────────────
+        const estimatedBillEur =
+          num(selectedScenario?.finance?.estimated_annual_bill_eur) ??
+          num(selectedScenario?.finance?.residual_bill_eur) ??
+          num(financeActive?.residual_bill_eur);
+
+        // ── Indicateurs de comparaison ───────────────────────────────────────────
+        const baseDirectAutoKwh =
+          num(baseEnergy.direct_self_consumption_kwh) ??
+          num(baseEnergy.autoconsumption_kwh) ??
+          num(baseEnergy.auto);
+        const baseImportKwh =
+          num(baseEnergy.import_kwh) ?? num(baseEnergy.grid_import_kwh);
+        const autonomyHybridRatio = safeRatio(totalAutoKwh, consumptionKwh);
+        const autonomyBaseRatio = safeRatio(baseDirectAutoKwh, consumptionKwh);
+        const autonomyGainRatio =
+          autonomyHybridRatio != null && autonomyBaseRatio != null
+            ? autonomyHybridRatio - autonomyBaseRatio
+            : null;
+        const maxTheoreticalRatio = safeRatio(productionKwh, consumptionKwh);
+        const gridBoughtLessKwh =
+          baseImportKwh != null && residualImportKwh != null
+            ? baseImportKwh - residualImportKwh
+            : null;
+        const solarCoveragePct =
+          consumptionKwh != null && consumptionKwh > 0 && totalAutoKwh != null
+            ? (totalAutoKwh / consumptionKwh) * 100
+            : null;
+
+        return {
+          meta: {
+            client: clientName,
+            ref,
+            date: dateDisplay,
+          },
+          title: "Configuration hybride : physique + virtuelle en cascade",
+          subtitle:
+            "Votre batterie physique gère les cycles journaliers. Le surplus résiduel est converti en crédits kWh pour réduire vos factures en hiver.",
+          kpis: {
+            energy_solar_valorised_kwh: totalAutoKwh,
+            energy_grid_import_kwh: residualImportKwh,
+            estimated_annual_bill_eur: estimatedBillEur,
+            solar_coverage_pct: solarCoveragePct,
+          },
+          // Détail des 3 couches — cœur commercial de la page
+          layers: {
+            direct_auto_kwh: directAutoKwh,
+            physical_battery_kwh: physicalDischargeKwh,
+            virtual_battery_kwh: virtualDischargeKwh,
+            total_valorised_kwh: totalAutoKwh,
+          },
+          // Données de comparaison avec le scénario BASE
+          comparison: {
+            base_import_kwh: baseImportKwh,
+            hybrid_import_kwh: residualImportKwh,
+            grid_bought_less_kwh: gridBoughtLessKwh,
+            autonomy_gain_ratio: autonomyGainRatio,
+            max_theoretical_ratio: maxTheoreticalRatio,
+          },
+          // Surplus résiduel (overflow VB)
+          residual_surplus_kwh: residualSurplusKwh,
+          limits: [
+            "La batterie physique ne couvre que les cycles journaliers (charge le jour, décharge le soir).",
+            "La batterie virtuelle absorbe le surplus saisonnier et le restitue en période froide.",
+            "Une partie résiduelle du surplus peut rester non récupérable selon les saisons.",
+          ],
+        };
+      })(),
       // P8 — source UNIQUE = scenarios_v2, JAMAIS snapshot. Conditionnel : null si pas de batterie.
       p8: (() => {
         const base = baseFromV2;
@@ -1308,6 +1428,8 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
         const interpretation = {};
         if (batteryType === "PHYSICAL") {
           interpretation.ligne1 = "Votre batterie vous permet de stocker votre production solaire";
+        } else if (batteryType === "HYBRID") {
+          interpretation.ligne1 = "Votre configuration hybride valorise chaque kWh produit au maximum";
         } else {
           interpretation.ligne1 = "Votre batterie virtuelle valorise votre surplus d'énergie";
         }
@@ -1316,7 +1438,9 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
         interpretation.texte_court =
           batteryType === "PHYSICAL"
             ? "Votre batterie stocke votre énergie produite en journée pour l'utiliser le soir, lorsque votre consommation est la plus élevée."
-            : "Votre batterie virtuelle valorise votre surplus en journée pour réduire vos achats au réseau le soir.";
+            : batteryType === "HYBRID"
+              ? "Votre batterie physique gère les cycles journaliers (jour → soir). Le surplus résiduel est ensuite converti en crédits virtuels qui réduisent vos factures d'import en saison froide."
+              : "Votre batterie virtuelle valorise votre surplus en journée pour réduire vos achats au réseau le soir.";
 
         const batt = batteryScenario?.battery || batteryScenario?.equipment?.batterie || {};
         const deltaAuto = (num(B.autoconsumption_kwh) ?? num(B.auto_kwh) ?? 0) - (num(A.autoconsumption_kwh) ?? num(A.auto_kwh) ?? 0);
@@ -1651,6 +1775,7 @@ function buildEmptyFullReport() {
     p6: { p6: { meta: emptyMeta, price: 0, dir: emptyMonthly, bat: emptyMonthly, grid: emptyMonthly, tot: emptyMonthly } },
     p7: { meta: emptyMeta, pct: {}, c_grid: 0, p_surplus: 0 },
     p7_virtual_battery: null,
+    p7_hybrid_battery: null,
     p8: null,
     p9: {
       meta: emptyMeta,
