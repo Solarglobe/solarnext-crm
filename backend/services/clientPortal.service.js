@@ -858,6 +858,27 @@ export async function buildClientPortalPayload(db, ctx) {
          )
        )
        AND ed.document_type IN ('quote_pdf', 'quote_pdf_signed', 'study_pdf', 'study_proposal', 'invoice_pdf')
+       AND NOT EXISTS (
+         SELECT 1 FROM invoices cancelled_invoice
+         WHERE ed.document_type = 'invoice_pdf'
+           AND cancelled_invoice.organization_id = $1
+           AND (
+             cancelled_invoice.id = ed.entity_id
+             OR cancelled_invoice.id::text = COALESCE(
+               NULLIF(ed.metadata_json->>'invoice_id', ''),
+               NULLIF(ed.metadata_json->>'invoiceId', ''),
+               CASE
+                 WHEN LOWER(COALESCE(ed.metadata_json->>'linked_entity_type', '')) = 'invoice'
+                 THEN NULLIF(ed.metadata_json->>'linked_entity_id', '')
+                 ELSE NULL
+               END
+             )
+           )
+           AND (
+             UPPER(COALESCE(cancelled_invoice.status, '')) = 'CANCELLED'
+             OR cancelled_invoice.cancelled_at IS NOT NULL
+           )
+       )
      ORDER BY ed.created_at DESC`,
     [organizationId, leadId, portalClientUuid]
   );
@@ -981,6 +1002,27 @@ export async function assertDocumentInPortalScope(db, { organizationId, leadId, 
        AND ed.archived_at IS NULL
        AND ed.is_client_visible IS TRUE
        AND ed.document_type IN ('quote_pdf', 'quote_pdf_signed', 'study_pdf', 'study_proposal', 'invoice_pdf')
+       AND NOT EXISTS (
+         SELECT 1 FROM invoices cancelled_invoice
+         WHERE ed.document_type = 'invoice_pdf'
+           AND cancelled_invoice.organization_id = ed.organization_id
+           AND (
+             cancelled_invoice.id = ed.entity_id
+             OR cancelled_invoice.id::text = COALESCE(
+               NULLIF(ed.metadata_json->>'invoice_id', ''),
+               NULLIF(ed.metadata_json->>'invoiceId', ''),
+               CASE
+                 WHEN LOWER(COALESCE(ed.metadata_json->>'linked_entity_type', '')) = 'invoice'
+                 THEN NULLIF(ed.metadata_json->>'linked_entity_id', '')
+                 ELSE NULL
+               END
+             )
+           )
+           AND (
+             UPPER(COALESCE(cancelled_invoice.status, '')) = 'CANCELLED'
+             OR cancelled_invoice.cancelled_at IS NOT NULL
+           )
+       )
        AND (
          (ed.entity_type = 'lead' AND ed.entity_id = l.id)
          OR (ed.entity_type = 'client' AND l.client_id IS NOT NULL AND ed.entity_id = l.client_id)
