@@ -27,8 +27,8 @@ const baseCtx = {
       price_eur_kwh: 0.2,
       elec_growth_pct: 5,
       pv_degradation_pct: 0.5,
-      oa_rate_lt_9: 0.04,
-      oa_rate_gte_9: 0.0617,
+      oa_rate_lt_9: 0.0762,   // S24 — aligné sur orgEconomics.common.js
+      oa_rate_gte_9: 0.0606,  // S24 — aligné sur orgEconomics.common.js
       prime_lt9: 80,
       prime_gte9: 180,
       horizon_years: 25,

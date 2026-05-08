@@ -12,8 +12,8 @@
  *   oa_rate_lt_9       : Arrêté S24 — autoconsommation individuelle avec vente du surplus,
  *                        tranche 3-9 kWc, T4 2024. Source : arrêté du 11 juillet 2024.
  *   oa_rate_gte_9      : Arrêté S24 — tranche 9-36 kWc, T4 2024.
- *   elec_growth_pct    : Fallback moteur = 5 %/an. Défaut UI admin = 4 %/an (admin.org.settings.controller.js).
- *                        Écart volontaire (choix produit). Configurable par organisation.
+ *   elec_growth_pct    : 4 %/an — aligné avec le défaut UI admin (admin.org.settings.controller.js).
+ *                        Configurable par organisation via Paramètres → Économie.
  */
 
 /** @type {readonly string[]} */
@@ -46,7 +46,7 @@ export const ORG_ECONOMICS_NUMERIC_KEY_SET = new Set(ORG_ECONOMICS_NUMERIC_KEYS)
  */
 export const ORG_ECONOMICS_ENGINE_DEFAULTS = Object.freeze({
   price_eur_kwh: 0.1952,        // TRV EDF option base 2023-S1 — à mettre à jour T1 chaque année
-  elec_growth_pct: 5,           // Fallback moteur — configurable org (défaut UI admin = 4)
+  elec_growth_pct: 4,           // Aligné sur le défaut UI admin (admin.org.settings.controller.js)
   pv_degradation_pct: 0.5,
   oa_rate_lt_9: 0.0762,         // S24 — 3-9 kWc (mis à jour depuis 0.04 S16)
   oa_rate_gte_9: 0.0606,        // S24 — 9-36 kWc (mis à jour depuis 0.0617 S21)
