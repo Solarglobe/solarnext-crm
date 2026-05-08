@@ -412,10 +412,11 @@ function TimelineAreaChart({
               color: "var(--text-primary, #E8ECF8)",
             }}
             labelStyle={{ fontWeight: 600, marginBottom: 4 }}
-            formatter={(value, name: string) => {
+            formatter={(value, name) => {
               const v = Number(value) || 0;
-              if (name === "cash") return [eur(v), "Encaissements"];
-              return [v, SERIES_LABELS[name as SeriesKey] ?? name];
+              const n = String(name ?? "");
+              if (n === "cash") return [eur(v), "Encaissements"];
+              return [v, SERIES_LABELS[n as SeriesKey] ?? n];
             }}
           />
           {(Object.keys(seriesVis) as SeriesKey[]).map((k) => {
