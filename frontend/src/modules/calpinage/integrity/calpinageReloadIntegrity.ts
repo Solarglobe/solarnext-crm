@@ -87,7 +87,7 @@ function imageFingerprint(img: unknown): unknown {
 }
 
 /**
- * Hash géométrie aligné sur l’export `roofState` (buildGeometryForExport).
+ * Hash géométrie aligné sur l'export `roofState` (buildGeometryForExport).
  */
 export function computeGeometryHashFromRoofState(roofState: unknown): string {
   if (!roofState || typeof roofState !== "object") return fnv1a32Hex("roof:empty");
@@ -108,21 +108,31 @@ export function computeGeometryHashFromRoofState(roofState: unknown): string {
   return fnv1a32Hex(stableSerialize(slim));
 }
 
+/**
+ * Sérialisation d'un frozenBlock pour le calcul du hash panneaux.
+ *
+ * RÈGLE ABSOLUE : cette fonction doit produire une structure JSON identique à celle
+ * de `computePanelsHash()` dans `calpinage.module.js` (legacy), qui calcule le hash
+ * au moment de la sauvegarde (stocké dans `calpinage_meta.panelsHash`).
+ *
+ * Toute divergence crée un faux positif `hasPanelDrift = true` au rechargement.
+ *
+ * Alignements explicites sur le legacy (P0.4) :
+ *   - `id`          : `bl.id || null`      (legacy: `bl.id || null`)
+ *   - `panId`       : `bl.panId || null`   (legacy: `bl.panId || null`)
+ *   - `rotation`    : normalisation numérique explicite -> `null` si absent
+ *                     (legacy: `typeof bl.rotation === "number" ? bl.rotation : null`)
+ *   - `orientation` : valeur brute `|| null`, PAS de normalisation casse
+ *                     (legacy: `bl.orientation || null`)
+ *                     Raison : le hash de référence a été calculé sur la valeur en mémoire
+ *                     telle quelle -- normaliser "portrait" -> "PORTRAIT" ici divergerait des
+ *                     études historiques dont le hash legacy est sur la valeur minuscule.
+ */
 function mapBlockForPanelsHash(bl: Record<string, unknown>): Record<string, unknown> {
-  const bo = bl.orientation;
-  const orientSaved =
-    bo === "PORTRAIT" || bo === "PAYSAGE"
-      ? bo
-      : typeof bo === "string" &&
-          (bo.toLowerCase() === "landscape" || bo.toLowerCase() === "paysage")
-        ? "PAYSAGE"
-        : typeof bo === "string" && bo.toLowerCase() === "portrait"
-          ? "PORTRAIT"
-          : null;
   const panels = Array.isArray(bl.panels) ? bl.panels : [];
   return {
-    id: bl.id,
-    panId: bl.panId,
+    id: bl.id || null,
+    panId: bl.panId || null,
     panels: panels.map((p: unknown) => {
       const q = p as Record<string, unknown>;
       return {
@@ -133,13 +143,13 @@ function mapBlockForPanelsHash(bl: Record<string, unknown>): Record<string, unkn
         localRotationDeg: typeof q.localRotationDeg === "number" ? q.localRotationDeg : 0,
       };
     }),
-    rotation: bl.rotation,
-    orientation: orientSaved,
+    rotation: typeof bl.rotation === "number" ? bl.rotation : null,
+    orientation: bl.orientation || null,
     useScreenAxes: bl.useScreenAxes === true,
   };
 }
 
-/** Hash placement PV (frozenBlocks sérialisés comme à l’export). */
+/** Hash placement PV (frozenBlocks sérialisés comme à l'export). */
 export function computePanelsHashFromFrozenBlocks(frozenBlocks: unknown): string {
   if (!Array.isArray(frozenBlocks)) return fnv1a32Hex("fb:[]");
   const blocks = frozenBlocks
@@ -226,7 +236,7 @@ type CalpinageStateLike = {
   shading?: { normalized?: unknown; lastAbortReason?: string | null; lastComputedAt?: number | null };
 };
 
-/** Reconstruit un `roofState` minimal depuis l’état runtime (même forme que l’export). */
+/** Reconstruit un `roofState` minimal depuis l'état runtime (même forme que l'export). */
 export function buildRoofStateSliceFromCalpinageState(state: CalpinageStateLike): Record<string, unknown> {
   const roof = state.roof || {};
   const contours = Array.isArray(state.contours) ? state.contours : [];

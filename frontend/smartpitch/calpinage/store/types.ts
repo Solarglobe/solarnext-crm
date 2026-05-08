@@ -15,7 +15,12 @@ export interface CalpinageMeta {
 
 export interface Roof {
   image: string;
-  scale?: number;
+  /**
+   * Échelle image → monde.
+   * Objet `{ metersPerPixel: number }` aligné sur CALPINAGE_STATE.roof.scale du runtime legacy.
+   * Anciennement typé `number` (incorrect) — corrigé P0.1.
+   */
+  scale?: { metersPerPixel: number };
   north?: number;
   referencePoints?: Point[];
 }

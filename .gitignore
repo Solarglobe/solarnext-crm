@@ -21,6 +21,10 @@ frontend/.env.production
 !.env.example
 !backend/.env.example
 !frontend/.env.example
+# P0.2 — Feature flags Vite dev sans secrets (à versionner — source de vérité locale)
+# .env.production intentionnellement absent : les vars prod sont injectées via Vercel dashboard.
+# Les vrais secrets restent dans .env.dev / .env.prod (gitignorés).
+!.env.development
 
 # --- Dépendances & caches package managers ---
 node_modules/
