@@ -626,10 +626,10 @@ export function AdminTabQuoteCatalog() {
                       </span>
                     </td>
                     <td className="admin-catalog-col-actions">
-                      <div className="admin-catalog-actions org-tab-row-actions">
+                      <div className="admin-catalog-actions">
                         <button
                           type="button"
-                          className="org-tab-icon-btn"
+                          className="admin-catalog-icon-btn"
                           onClick={() => openEdit(item)}
                           aria-label="Modifier"
                           title="Modifier"
@@ -638,12 +638,12 @@ export function AdminTabQuoteCatalog() {
                         </button>
                         <button
                           type="button"
-                          className="org-tab-icon-btn"
+                          className="admin-catalog-icon-btn"
                           disabled={item.category === "DISCOUNT"}
                           title={
                             item.category === "DISCOUNT"
                               ? "Duplication désactivée pour les remises"
-                              : "Dupliquer vers une nouvelle ligne"
+                              : "Dupliquer"
                           }
                           onClick={() => handleDuplicateItem(item)}
                           aria-label="Dupliquer"
@@ -653,7 +653,7 @@ export function AdminTabQuoteCatalog() {
                         {item.is_active ? (
                           <button
                             type="button"
-                            className="org-tab-icon-btn admin-catalog-toggle-btn--off"
+                            className="admin-catalog-icon-btn admin-catalog-icon-btn--warn"
                             onClick={() => setConfirmItem({ item, action: "deactivate" })}
                             aria-label="Désactiver"
                             title="Désactiver"
@@ -663,7 +663,7 @@ export function AdminTabQuoteCatalog() {
                         ) : (
                           <button
                             type="button"
-                            className="org-tab-icon-btn admin-catalog-toggle-btn--on"
+                            className="admin-catalog-icon-btn admin-catalog-icon-btn--success"
                             onClick={() => setConfirmItem({ item, action: "activate" })}
                             aria-label="Activer"
                             title="Activer"
