@@ -69,7 +69,10 @@ function pickEconomics(ctx) {
         e.pv_degradation_pct,
       DEFAULT_ECONOMICS_FALLBACK.pv_degradation_pct
     ),
-    // LID — fiche panneau uniquement
+    // LID (Light-Induced Degradation) — source : fiche panneau uniquement.
+    // Défaut 0 si absent → comportement conservateur (pas de sur-dégradation an 1 inventée).
+    // Évolution future : si f.panel_input?.technology est connu (PERC/TOPCon → ~2-3%, HJT/BSF → ~0.5%),
+    //   utiliser un fallback technologique plutôt que 0. À implémenter avec le catalogue panneaux.
     pv_degradation_first_year_pct: num(f.panel_input?.degradation_first_year_pct ?? 0, 0),
     oa_rate_lt_9: num(e.oa_rate_lt_9, DEFAULT_ECONOMICS_FALLBACK.oa_rate_lt_9),
     oa_rate_gte_9: num(e.oa_rate_gte_9, DEFAULT_ECONOMICS_FALLBACK.oa_rate_gte_9),
@@ -322,7 +325,7 @@ function buildCashflows(params) {
     // PV direct auto suit la dégradation PV ; contribution batterie suit sa propre dégradation physique
     _battContrib *= 1 - battery_degradation_pct / 100;
     auto = prod * _pvDirectRatio + _battContrib;
-    surplus = prod - auto;
+    surplus = Math.max(0, prod - auto);  // garde : évite surplus négatif (edge cases batterie / round-trip)
   }
 
   return flows;
@@ -361,8 +364,11 @@ function irr(values, guess = 0.1) {
 
 // ======================================================================
 // LCOE (coût actualisé de l'énergie)
+// Formule IEC 62722 : LCOE = (CAPEX_net + ΣOPEX_actualisé) / Σprod_actualisée
+// annual_opex_eur : charge O&M annuelle constante (capex × maintenance_pct/100).
+//   Défaut 0 → comportement rétrocompatible identique à l'ancien `num += 0`.
 // ======================================================================
-function lcoe(capex_net, prod_y1, degradation_pct, horizon_years, discount_rate = 0.03) {
+function lcoe(capex_net, prod_y1, degradation_pct, horizon_years, discount_rate = 0.03, annual_opex_eur = 0) {
   let num = capex_net;
   let den = 0;
 
@@ -370,7 +376,7 @@ function lcoe(capex_net, prod_y1, degradation_pct, horizon_years, discount_rate 
 
   for (let y = 1; y <= horizon_years; y++) {
     const factor = Math.pow(1 + discount_rate, y);
-    num += 0;
+    num += annual_opex_eur / factor;   // OPEX actualisé — correction bug (était num += 0)
     den += prod / factor;
 
     prod *= 1 - degradation_pct / 100;
@@ -521,7 +527,9 @@ export async function computeFinance(ctx, scenarios) {
       const roi_years = flows.find((f) => f.cumul_eur >= 0)?.year ?? null;
       const irr_values = [-capex_ttc, ...flows.map((f) => f.total_eur)];
       const irr_pct = irr(irr_values);
-      const lcoe_eur = lcoe(capex_net, prod_y1, econ.pv_degradation_pct, econ.horizon_years);
+      // OPEX annuel constant = maintenance_pct × CAPEX TTC (cohérent avec buildCashflows)
+      const _lcoe_annual_opex = capex_ttc > 0 ? capex_ttc * (econ.maintenance_pct / 100) : 0;
+      const lcoe_eur = lcoe(capex_net, prod_y1, econ.pv_degradation_pct, econ.horizon_years, 0.03, _lcoe_annual_opex);
       const auto_pct_real = sc.conso_kwh > 0 ? (sc.auto_kwh / sc.conso_kwh) * 100 : 0;
 
       const finance_warnings = buildFinanceWarningsV2({

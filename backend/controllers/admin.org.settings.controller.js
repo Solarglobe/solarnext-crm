@@ -43,12 +43,12 @@ const DEFAULT_SETTINGS = {
     ],
   },
   economics: {
-    price_eur_kwh: 0.1952,
-    elec_growth_pct: 4,
+    price_eur_kwh: 0.1952,      // TRV EDF option base 2023-S1
+    elec_growth_pct: 4,         // Défaut UI admin — le fallback moteur est 5 (orgEconomics.common.js), écart volontaire
     pv_degradation_pct: 0.5,
     horizon_years: 25,
-    oa_rate_lt_9: 0.04,
-    oa_rate_gte_9: 0.0617,
+    oa_rate_lt_9: 0.0762,       // S24 — 3-9 kWc (arrêté du 11 juillet 2024)
+    oa_rate_gte_9: 0.0606,      // S24 — 9-36 kWc (arrêté du 11 juillet 2024)
     prime_lt9: 80,
     prime_gte9: 180,
     maintenance_pct: 0,

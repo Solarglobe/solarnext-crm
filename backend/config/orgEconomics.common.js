@@ -5,6 +5,15 @@
  * La validation / le pick partagés évitent la dérive entre routes ; les valeurs
  * par défaut « moteur » (finance / resolve) sont exportées séparément des
  * défauts d’UI admin (`admin.org.settings.controller.js`).
+ *
+ * RÉFÉRENCES TARIFAIRES (à vérifier à chaque arrêté CRE) :
+ *   price_eur_kwh      : TRV EDF option base — référence 2023-S1 (0,1952 €/kWh HT estimé).
+ *                        Mettre à jour depuis https://www.cre.fr chaque T1.
+ *   oa_rate_lt_9       : Arrêté S24 — autoconsommation individuelle avec vente du surplus,
+ *                        tranche 3-9 kWc, T4 2024. Source : arrêté du 11 juillet 2024.
+ *   oa_rate_gte_9      : Arrêté S24 — tranche 9-36 kWc, T4 2024.
+ *   elec_growth_pct    : Fallback moteur = 5 %/an. Défaut UI admin = 4 %/an (admin.org.settings.controller.js).
+ *                        Écart volontaire (choix produit). Configurable par organisation.
  */
 
 /** @type {readonly string[]} */
@@ -28,13 +37,19 @@ export const ORG_ECONOMICS_NUMERIC_KEY_SET = new Set(ORG_ECONOMICS_NUMERIC_KEYS)
 /**
  * Défauts alignés sur `economicsResolve.service.js` (hypothèses moteur / finance).
  * Toute nouvelle clé « moteur » doit exister ici et dans ORG_ECONOMICS_NUMERIC_KEYS.
+ *
+ * MISE À JOUR OA S24 (arrêté du 11 juillet 2024, applicable T4 2024 / S25) :
+ *   oa_rate_lt_9  : 0.0762 €/kWh (tranche 3-9 kWc)  — était 0.04 (S16, périmé)
+ *   oa_rate_gte_9 : 0.0606 €/kWh (tranche 9-36 kWc) — était 0.0617 (S21)
+ * Note : pour les installations < 3 kWc le taux S24 est ~0.1305 €/kWh.
+ *   À affiner si un bracket oa_rate_lt_3 est ajouté ultérieurement.
  */
 export const ORG_ECONOMICS_ENGINE_DEFAULTS = Object.freeze({
-  price_eur_kwh: 0.1952,
-  elec_growth_pct: 5,
+  price_eur_kwh: 0.1952,        // TRV EDF option base 2023-S1 — à mettre à jour T1 chaque année
+  elec_growth_pct: 5,           // Fallback moteur — configurable org (défaut UI admin = 4)
   pv_degradation_pct: 0.5,
-  oa_rate_lt_9: 0.04,
-  oa_rate_gte_9: 0.0617,
+  oa_rate_lt_9: 0.0762,         // S24 — 3-9 kWc (mis à jour depuis 0.04 S16)
+  oa_rate_gte_9: 0.0606,        // S24 — 9-36 kWc (mis à jour depuis 0.0617 S21)
   prime_lt9: 80,
   prime_gte9: 180,
   horizon_years: 25,

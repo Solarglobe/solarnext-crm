@@ -1644,10 +1644,13 @@ export async function getOfficialQuotePdf(quoteId, organizationId, userId, inten
 export async function generateQuotePdfRecord(quoteId, organizationId, userId) {
   const r = await getOfficialQuotePdf(quoteId, organizationId, userId, "api_post_pdf");
 
-  // Auto-copie vers les documents du lead (best-effort — n'échoue pas la requête principale)
-  addQuotePdfToDocuments(quoteId, organizationId, userId, { force_replace: true }).catch((e) => {
-    console.warn(`[generateQuotePdfRecord] auto-copy to lead docs failed (non-bloquant): ${e?.message}`);
-  });
+  // Auto-copie vers les documents du lead — attendue pour garantir la visibilité portail client.
+  // Erreur loguée mais non remontée : l'échec ne bloque pas le retour PDF au staff.
+  try {
+    await addQuotePdfToDocuments(quoteId, organizationId, userId, { force_replace: true });
+  } catch (e) {
+    console.error(`[generateQuotePdfRecord] auto-copy to lead docs failed: ${e?.message}`, e);
+  }
 
   if (r.kind === "existing") {
     return {
