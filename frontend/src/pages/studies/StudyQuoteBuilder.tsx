@@ -88,6 +88,8 @@ interface BatteryOption {
   purchase_price_ht?: number | null;
   /** True si l'utilisateur a modifié le prix manuellement → ne pas écraser au changement de batterie */
   batteryPriceEdited?: boolean;
+  /** Capacité utile unitaire (kWh) figée au snapshot — alimentée depuis usable_kwh du catalogue */
+  capacity_kwh?: number | null;
 }
 
 /** Format retourné par GET /api/admin/quote-catalog (items[].) */

@@ -412,9 +412,10 @@ function TimelineAreaChart({
               color: "var(--text-primary, #E8ECF8)",
             }}
             labelStyle={{ fontWeight: 600, marginBottom: 4 }}
-            formatter={(value: number, name: string) => {
-              if (name === "cash") return [eur(value), "Encaissements"];
-              return [value, SERIES_LABELS[name as SeriesKey] ?? name];
+            formatter={(value: number | undefined, name: string) => {
+              const v = value ?? 0;
+              if (name === "cash") return [eur(v), "Encaissements"];
+              return [v, SERIES_LABELS[name as SeriesKey] ?? name];
             }}
           />
           {(Object.keys(seriesVis) as SeriesKey[]).map((k) => {
@@ -480,7 +481,7 @@ function SourceDonutChart({ rows }: { rows: DashboardOverview["acquisition_perfo
               fontSize: "12px",
               color: "var(--text-primary, #E8ECF8)",
             }}
-            formatter={(value: number, name: string) => [`${value} leads`, name]}
+            formatter={(value: number | undefined, name: string) => [`${value ?? 0} leads`, name]}
           />
           <Legend
             iconType="circle"
