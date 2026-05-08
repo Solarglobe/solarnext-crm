@@ -265,6 +265,17 @@ function buildCashflows(params) {
 
   let cumulGains = 0;
 
+  // BUG A/B FIX — dégradation VB proportionnelle à la production PV sur 25 ans.
+  // Justification : le surplus stockable en batterie virtuelle est une fraction de la prod PV.
+  // Quand le PV dégrade de pv_degradation_pct/an, le surplus — et donc la décharge VB —
+  // décroît au même rythme. Avant ce fix, _vbOverflow et _vbImportSavings restaient constants
+  // toute la durée de vie → overstatement cumulé de 6-12 % des gains VB sur 25 ans.
+  // Rétrocompatible : si virtualImportSavings=null ou isVirtualBattery=false → aucun effet.
+  let _vbOverflow = isVirtualBattery ? (Number(virtual_overflow_export_kwh) || 0) : 0;
+  let _vbImportSavings = (isVirtualBattery && virtualImportSavings != null && Number.isFinite(Number(virtualImportSavings)))
+    ? Number(virtualImportSavings)
+    : null;
+
   for (let y = 1; y <= horizon_years; y++) {
     // LID (Light-Induced Degradation) : perte irréversible en toute première année seulement.
     // Appliquée avant les gains de l'an 1, sur la base de la fiche technique panneau.
@@ -276,14 +287,11 @@ function buildCashflows(params) {
 
     const gain_auto = auto * price;
     const gain_oa = isVirtualBattery
-      ? (Number(virtual_overflow_export_kwh) || 0) * oa_rate
+      ? _vbOverflow * oa_rate           // dégradé chaque année (voir init _vbOverflow)
       : surplus * oa_rate;
-    const import_savings_eur =
-      isVirtualBattery &&
-      virtualImportSavings != null &&
-      Number.isFinite(Number(virtualImportSavings))
-        ? Math.max(0, Number(virtualImportSavings)) * price
-        : 0;
+    const import_savings_eur = (isVirtualBattery && _vbImportSavings !== null)
+      ? Math.max(0, _vbImportSavings) * price  // dégradé chaque année (voir init _vbImportSavings)
+      : 0;
 
     let total = gain_auto + gain_oa + import_savings_eur;
 
@@ -326,6 +334,11 @@ function buildCashflows(params) {
     _battContrib *= 1 - battery_degradation_pct / 100;
     auto = prod * _pvDirectRatio + _battContrib;
     surplus = Math.max(0, prod - auto);  // garde : évite surplus négatif (edge cases batterie / round-trip)
+    // BUG A/B FIX — dégrader overflow VB et import_savings VB au même rythme que le PV
+    if (isVirtualBattery) {
+      _vbOverflow *= 1 - pv_degradation_pct / 100;
+      if (_vbImportSavings !== null) _vbImportSavings *= 1 - pv_degradation_pct / 100;
+    }
   }
 
   return flows;
@@ -609,3 +622,4 @@ export async function computeFinance(ctx, scenarios) {
 
   return out;
 }
+ 

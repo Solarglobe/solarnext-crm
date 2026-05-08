@@ -774,10 +774,19 @@ if (devLog) {
                 conso_hourly: consoHourlyVirtual,
                 config: { ...vbInput, capacity_kwh: simCapacityKwh },
               });
+              // RISQUE 1 : capacité auto-résolue au maximum théorique (unbounded).
+              // Le palier contractuel réel (URBAN_SOLAR / MYBATTERY) peut être inférieur.
+              // finance_warnings contient VB_CAPACITY_AUTO_UNBOUNDED pour alerter l'intégrateur.
               virtualScenario._virtualBatteryP2 = {
                 required_capacity_kwh: requiredCap,
                 simulation_capacity_kwh: simCapacityKwh,
+                capacity_auto_from_unbounded: true,
               };
+              if (!Array.isArray(virtualScenario.finance_warnings)) virtualScenario.finance_warnings = [];
+              virtualScenario.finance_warnings.push("VB_CAPACITY_AUTO_UNBOUNDED");
+              if (process.env.NODE_ENV !== "production") {
+                console.warn(`[BATTERY_VIRTUAL] capacité P2 auto depuis sim unbounded (${String(providerRaw)}) : ${requiredCap.toFixed(1)} kWh — palier contractuel non configuré`);
+              }
             }
           }
         } else {
@@ -798,6 +807,14 @@ if (devLog) {
             });
             if (ub.ok && Number(ub.required_capacity_kwh) > 0) {
               vbConfig.capacity_kwh = Math.max(Number(ub.required_capacity_kwh), 1e-9);
+              // RISQUE 1 : capacité auto-résolue au maximum théorique (unbounded).
+              // La capacité contractuelle réelle du fournisseur peut être inférieure.
+              if (!Array.isArray(virtualScenario.finance_warnings)) virtualScenario.finance_warnings = [];
+              virtualScenario.finance_warnings.push("VB_CAPACITY_AUTO_UNBOUNDED");
+              virtualScenario._vb_capacity_auto_from_unbounded = true;
+              if (process.env.NODE_ENV !== "production") {
+                console.warn(`[BATTERY_VIRTUAL] capacité auto depuis sim unbounded : ${vbConfig.capacity_kwh.toFixed(1)} kWh — capacity_kwh non configurée`);
+              }
             }
           }
           vbSim = simulateVirtualBattery8760({
@@ -1010,6 +1027,16 @@ if (devLog) {
               net_gain_annual: null,
               detail: costDetail,
             };
+          }
+
+          // RISQUE 2 : coût VB = 0 → scénario apparaît gratuit, gains non tempérés par un abonnement.
+          // Avertit l'intégrateur sans bloquer le scénario.
+          if (subscriptionAnnual === 0) {
+            if (!Array.isArray(virtualScenario.finance_warnings)) virtualScenario.finance_warnings = [];
+            virtualScenario.finance_warnings.push("VB_COST_UNCONFIGURED");
+            if (process.env.NODE_ENV !== "production") {
+              console.warn("[BATTERY_VIRTUAL] coût annuel VB = 0 — abonnement/frais non configurés ; le scénario VB peut apparaître artificiellement avantageux");
+            }
           }
 
           const p2ActivationTtc =
@@ -1669,7 +1696,6 @@ function resolveKwcMono(form) {
   console.error("[ENGINE ERROR] Missing panel in study");
   throw new Error(ENGINE_ERROR_PANEL_REQUIRED);
 }
-
 // ======================================================================
 // CONTEXTE GLOBAL
 // ======================================================================
