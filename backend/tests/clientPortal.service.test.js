@@ -16,6 +16,8 @@ import {
   resolvePortalDocumentLabel,
   resolvePortalDocumentLabelFromRow,
   normalizePortalFileName,
+  portalDocumentDedupeKey,
+  selectPortalDocumentsForResponse,
   dedupeByFileNameKeepNewest,
   mergePortalDocumentsForResponse,
 } from "../services/clientPortal.service.js";
@@ -156,7 +158,15 @@ describe("clientPortal.service", () => {
     );
     assert.equal(
       isPortalClientDocument({ entity_type: "quote", document_type: "quote_pdf" }),
-      false
+      true
+    );
+    assert.equal(
+      isPortalClientDocument({ entity_type: "quote", document_type: "quote_pdf_signed" }),
+      true
+    );
+    assert.equal(
+      isPortalClientDocument({ entity_type: "invoice", document_type: "invoice_pdf" }),
+      true
     );
     assert.equal(
       isPortalClientDocument({ entity_type: "lead", document_type: "lead_attachment" }),
@@ -176,7 +186,8 @@ describe("clientPortal.service", () => {
       { id: "l2", entity_type: "lead", document_type: "lead_attachment" },
     ];
     const portal = rows.filter((r) => isPortalClientDocument(r));
-    assert.equal(portal.length, 2);
+    assert.equal(portal.length, 3);
+    assert.ok(portal.some((r) => r.id === "q1"));
     assert.ok(portal.some((r) => r.id === "l1"));
     assert.ok(portal.some((r) => r.id === "c1"));
   });
@@ -249,5 +260,89 @@ describe("clientPortal.service", () => {
     });
     assert.equal(merged.length, 3);
     assert.equal(merged[0].id, "q1");
+  });
+  it("portalDocumentDedupeKey quote lead/source", () => {
+    assert.equal(
+      portalDocumentDedupeKey({
+        id: "lead-copy",
+        entity_type: "lead",
+        entity_id: "lead-1",
+        document_type: "quote_pdf",
+        metadata_json: { quote_id: "quote-1" },
+      }),
+      "quote:quote-1"
+    );
+    assert.equal(
+      portalDocumentDedupeKey({
+        id: "quote-source",
+        entity_type: "quote",
+        entity_id: "quote-1",
+        document_type: "quote_pdf_signed",
+      }),
+      "quote:quote-1"
+    );
+  });
+
+  it("selectPortalDocumentsForResponse limite les devis source non ajoutÃ©s aux Documents", () => {
+    const rows = [
+      {
+        id: "q-old",
+        entity_type: "quote",
+        entity_id: "quote-old",
+        document_type: "quote_pdf",
+        created_at: new Date("2026-01-01"),
+      },
+      {
+        id: "q-new",
+        entity_type: "quote",
+        entity_id: "quote-new",
+        document_type: "quote_pdf",
+        created_at: new Date("2026-02-01"),
+      },
+      {
+        id: "inv-1",
+        entity_type: "invoice",
+        entity_id: "invoice-1",
+        document_type: "invoice_pdf",
+        created_at: new Date("2026-01-15"),
+      },
+    ];
+    const out = selectPortalDocumentsForResponse(rows);
+    assert.equal(out.filter((d) => String(d.document_type).startsWith("quote_pdf")).length, 1);
+    assert.ok(out.some((d) => d.id === "q-new"));
+    assert.ok(out.some((d) => d.id === "inv-1"));
+  });
+
+  it("selectPortalDocumentsForResponse garde les devis explicitement ajoutÃ©s aux Documents", () => {
+    const rows = [
+      {
+        id: "lead-q-1",
+        entity_type: "lead",
+        entity_id: "lead-1",
+        document_type: "quote_pdf",
+        metadata_json: { quote_id: "quote-1" },
+        created_at: new Date("2026-01-01"),
+      },
+      {
+        id: "lead-q-2",
+        entity_type: "lead",
+        entity_id: "lead-1",
+        document_type: "quote_pdf",
+        metadata_json: { quote_id: "quote-2" },
+        created_at: new Date("2026-02-01"),
+      },
+      {
+        id: "source-q-3",
+        entity_type: "quote",
+        entity_id: "quote-3",
+        document_type: "quote_pdf",
+        created_at: new Date("2026-03-01"),
+      },
+    ];
+    const out = selectPortalDocumentsForResponse(rows);
+    assert.equal(out.filter((d) => String(d.document_type).startsWith("quote_pdf")).length, 2);
+    assert.ok(out.some((d) => d.id === "lead-q-1"));
+    assert.ok(out.some((d) => d.id === "lead-q-2"));
+    assert.ok(!out.some((d) => d.id === "source-q-3"));
   });
 });
