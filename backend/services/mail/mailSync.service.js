@@ -96,6 +96,40 @@ function headersToJson(parsed) {
   return o;
 }
 
+export function normalizeImapFlagsForJson(flags) {
+  if (!flags) return [];
+  const list =
+    typeof flags === "string"
+      ? [flags]
+      : typeof flags[Symbol.iterator] === "function"
+        ? [...flags]
+        : Array.isArray(flags)
+          ? flags
+          : [];
+  return list.map((flag) => String(flag).trim()).filter(Boolean);
+}
+
+export function serializeJsonbValue(column, value) {
+  if (value === undefined) return null;
+  try {
+    return JSON.stringify(value);
+  } catch (e) {
+    throw new Error(`mail_messages.${column}: valeur JSON non serialisable`, { cause: e });
+  }
+}
+
+function logMailMessagesJsonbInsert(valuesByColumn) {
+  for (const [column, value] of Object.entries(valuesByColumn)) {
+    console.info("[mailSync.importImapMessage.jsonb]", {
+      table: "mail_messages",
+      column,
+      typeofValue: typeof value,
+      isArray: Array.isArray(value),
+      value,
+    });
+  }
+}
+
 /**
  * @param {string | null | undefined} email
  */
@@ -235,7 +269,7 @@ export async function importImapMessage(client, imapClient, ctx) {
 
   const sentAt = env?.date ? new Date(env.date) : parsed.date ? new Date(parsed.date) : null;
   const receivedAt = raw.internalDate ? new Date(raw.internalDate) : new Date();
-  const extFlags = raw.flags ? [...raw.flags] : [];
+  const extFlags = normalizeImapFlagsForJson(raw.flags);
 
   const bodyText = parsed.text || null;
   const bodyHtml = parsed.html || null;
@@ -275,6 +309,14 @@ export async function importImapMessage(client, imapClient, ctx) {
   const status = direction === "OUTBOUND" ? "SENT" : "RECEIVED";
   const referencesArray = referencesIds.length ? [...new Set(referencesIds.map((x) => String(x).trim()).filter(Boolean))] : null;
 
+  const rawHeaders = headersToJson(parsed);
+  const externalFlagsJson = serializeJsonbValue("external_flags", extFlags);
+  const rawHeadersJson = serializeJsonbValue("raw_headers", rawHeaders);
+  logMailMessagesJsonbInsert({
+    external_flags: extFlags,
+    raw_headers: rawHeaders,
+  });
+
   const msgIns = await client.query(
     `INSERT INTO mail_messages (
       organization_id, mail_thread_id, mail_account_id, folder_id,
@@ -310,9 +352,9 @@ export async function importImapMessage(client, imapClient, ctx) {
       isRead,
       (parsed.attachments && parsed.attachments.length > 0) || false,
       uid,
-      extFlags,
+      externalFlagsJson,
       raw.internalDate ? new Date(raw.internalDate) : null,
-      headersToJson(parsed),
+      rawHeadersJson,
       "IMAP",
     ]
   );
