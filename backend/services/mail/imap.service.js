@@ -144,10 +144,7 @@ export async function testImapConnection(config) {
 export async function getMailboxes(config) {
   const client = await createImapClient(config);
   try {
-    const raw = [];
-    for await (const m of client.list()) {
-      raw.push(m);
-    }
+    const raw = await client.list();
     return collectMailboxesFromList(raw);
   } catch (e) {
     if (e?.code && Object.values(ImapErrorCodes).includes(e.code)) {
