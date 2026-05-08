@@ -1,25 +1,9 @@
 /**
- * Tests de parité — computePanelsHashFromFrozenBlocks (P0.4)
- *
- * Objectif : garantir que la fonction TS produit exactement le même hash que
- * la legacy `computePanelsHash` de `calpinage.module.js` sur les mêmes données.
- *
- * La fonction legacy est réimplémentée inline ci-dessous (copiée fidèlement),
- * ce qui permet de valider la parité sans dépendance sur le legacy bundlé.
- *
- * Les 4 cas critiques testés (corrections P0.4) :
- *   1. `rotation` absent (undefined) → doit se comporter comme `null` dans les deux
- *   2. `id` / `panId` absents (undefined) → doit se comporter comme `null` dans les deux
- *   3. `orientation` minuscule ("portrait") → les deux conservent la valeur as-is (pas de normalisation casse)
- *   4. `orientation` mixte (legacy "PORTRAIT") → pas de régression sur le cas nominal
+ * Tests de parite — computePanelsHashFromFrozenBlocks (P0.4 + P0.4-b)
  */
 
 import { describe, expect, it } from "vitest";
 import { computePanelsHashFromFrozenBlocks } from "../calpinageReloadIntegrity";
-
-// ─── Réimplémentation inline de la legacy computePanelsHash ──────────────────
-// Source : calpinage.module.js, fonction computePanelsHash (ligne ~7695)
-// Reproduite ici pour comparaison de parité sans importer le bundle legacy.
 
 function legacyStableSerialize(value: unknown): string {
   function normalize(x: unknown): unknown {
@@ -84,8 +68,6 @@ function legacyComputePanelsHash(frozenBlocks: unknown[]): string {
   return legacyHashHex(legacyStableSerialize(blocks));
 }
 
-// ─── Fixtures ─────────────────────────────────────────────────────────────────
-
 function makeBlock(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     id: "block-1",
@@ -106,106 +88,75 @@ function makeBlock(overrides: Record<string, unknown> = {}): Record<string, unkn
   };
 }
 
-// ─── Tests ───────────────────────────────────────────────────────────────────
-
-describe("computePanelsHashFromFrozenBlocks — parité avec legacy computePanelsHash (P0.4)", () => {
-  it("CAS NOMINAL — bloc PORTRAIT complet : hash TS === hash legacy", () => {
+describe("computePanelsHashFromFrozenBlocks — parite avec legacy computePanelsHash (P0.4+P0.4-b)", () => {
+  it("CAS NOMINAL — bloc PORTRAIT complet", () => {
     const blocks = [makeBlock()];
-    const tsHash = computePanelsHashFromFrozenBlocks(blocks);
-    const legHash = legacyComputePanelsHash(blocks);
-    expect(tsHash).toBe(legHash);
+    expect(computePanelsHashFromFrozenBlocks(blocks)).toBe(legacyComputePanelsHash(blocks));
   });
 
-  it("CAS NOMINAL — bloc PAYSAGE complet : hash TS === hash legacy", () => {
+  it("CAS NOMINAL — bloc PAYSAGE complet", () => {
     const blocks = [makeBlock({ orientation: "PAYSAGE", rotation: 90 })];
-    const tsHash = computePanelsHashFromFrozenBlocks(blocks);
-    const legHash = legacyComputePanelsHash(blocks);
-    expect(tsHash).toBe(legHash);
+    expect(computePanelsHashFromFrozenBlocks(blocks)).toBe(legacyComputePanelsHash(blocks));
   });
 
-  it("CAS CRITIQUE 1 — rotation absente (undefined) : hash TS === hash legacy", () => {
+  it("CAS CRITIQUE 1 — rotation absente (undefined)", () => {
     const blocks = [makeBlock({ rotation: undefined })];
-    const tsHash = computePanelsHashFromFrozenBlocks(blocks);
-    const legHash = legacyComputePanelsHash(blocks);
-    expect(tsHash).toBe(legHash);
+    expect(computePanelsHashFromFrozenBlocks(blocks)).toBe(legacyComputePanelsHash(blocks));
   });
 
-  it("CAS CRITIQUE 2 — id absent (undefined) : hash TS === hash legacy", () => {
+  it("CAS CRITIQUE 2 — id absent (undefined)", () => {
     const blocks = [makeBlock({ id: undefined, panId: undefined })];
-    const tsHash = computePanelsHashFromFrozenBlocks(blocks);
-    const legHash = legacyComputePanelsHash(blocks);
-    expect(tsHash).toBe(legHash);
+    expect(computePanelsHashFromFrozenBlocks(blocks)).toBe(legacyComputePanelsHash(blocks));
   });
 
-  it("CAS CRITIQUE 2b — id chaîne vide : hash TS === hash legacy", () => {
+  it("CAS CRITIQUE 2b — id chaine vide", () => {
     const blocks = [makeBlock({ id: "", panId: "" })];
-    const tsHash = computePanelsHashFromFrozenBlocks(blocks);
-    const legHash = legacyComputePanelsHash(blocks);
-    expect(tsHash).toBe(legHash);
+    expect(computePanelsHashFromFrozenBlocks(blocks)).toBe(legacyComputePanelsHash(blocks));
   });
 
-  it("CAS CRITIQUE 3 — orientation minuscule 'portrait' : hash TS === hash legacy (conservation as-is)", () => {
-    // Cas historique : études sauvegardées avant normalisation dans buildGeometryForExport.
-    // Le hash legacy était calculé sur "portrait" → le hash TS doit produire la même valeur.
+  it("CAS CRITIQUE 3 — orientation minuscule 'portrait'", () => {
     const blocks = [makeBlock({ orientation: "portrait" })];
-    const tsHash = computePanelsHashFromFrozenBlocks(blocks);
-    const legHash = legacyComputePanelsHash(blocks);
-    expect(tsHash).toBe(legHash);
+    expect(computePanelsHashFromFrozenBlocks(blocks)).toBe(legacyComputePanelsHash(blocks));
   });
 
-  it("CAS CRITIQUE 3b — orientation 'landscape' : hash TS === hash legacy", () => {
+  it("CAS CRITIQUE 3b — orientation 'landscape'", () => {
     const blocks = [makeBlock({ orientation: "landscape" })];
-    const tsHash = computePanelsHashFromFrozenBlocks(blocks);
-    const legHash = legacyComputePanelsHash(blocks);
-    expect(tsHash).toBe(legHash);
+    expect(computePanelsHashFromFrozenBlocks(blocks)).toBe(legacyComputePanelsHash(blocks));
   });
 
-  it("CAS CRITIQUE 3c — 'portrait' et 'PORTRAIT' produisent des hashes DIFFÉRENTS (attendu)", () => {
-    // Garantit que la fonction ne normalise PAS la casse (comportement corrigé P0.4).
-    // Si les deux produisaient le même hash, une étude avec hash("portrait") en référence
-    // ne pourrait pas détecter de vrai drift si les blocs passent à "PORTRAIT" en mémoire.
-    const blocksLower = [makeBlock({ orientation: "portrait" })];
-    const blocksUpper = [makeBlock({ orientation: "PORTRAIT" })];
-    const hashLower = computePanelsHashFromFrozenBlocks(blocksLower);
-    const hashUpper = computePanelsHashFromFrozenBlocks(blocksUpper);
+  it("CAS CRITIQUE 3c — 'portrait' et 'PORTRAIT' produisent des hashes DIFFERENTS", () => {
+    const hashLower = computePanelsHashFromFrozenBlocks([makeBlock({ orientation: "portrait" })]);
+    const hashUpper = computePanelsHashFromFrozenBlocks([makeBlock({ orientation: "PORTRAIT" })]);
     expect(hashLower).not.toBe(hashUpper);
   });
 
-  it("CAS CRITIQUE 4 — orientation null : hash TS === hash legacy", () => {
+  it("CAS CRITIQUE 4 — orientation null", () => {
     const blocks = [makeBlock({ orientation: null })];
-    const tsHash = computePanelsHashFromFrozenBlocks(blocks);
-    const legHash = legacyComputePanelsHash(blocks);
-    expect(tsHash).toBe(legHash);
+    expect(computePanelsHashFromFrozenBlocks(blocks)).toBe(legacyComputePanelsHash(blocks));
   });
 
-  it("MULTI-BLOCS — tri par id stable : même ordre → même hash", () => {
+  it("MULTI-BLOCS — tri par id stable", () => {
     const blocks = [
       makeBlock({ id: "block-b", panId: "pan-2", orientation: "PAYSAGE" }),
       makeBlock({ id: "block-a", panId: "pan-1", orientation: "PORTRAIT" }),
     ];
     const blocksReversed = [...blocks].reverse();
-    const hash1 = computePanelsHashFromFrozenBlocks(blocks);
-    const hash2 = computePanelsHashFromFrozenBlocks(blocksReversed);
-    expect(hash1).toBe(hash2);
+    expect(computePanelsHashFromFrozenBlocks(blocks)).toBe(computePanelsHashFromFrozenBlocks(blocksReversed));
   });
 
-  it("MULTI-BLOCS — parité legacy sur ensemble trié", () => {
+  it("MULTI-BLOCS — parite legacy", () => {
     const blocks = [
       makeBlock({ id: "block-b", panId: "pan-2", orientation: "PAYSAGE" }),
       makeBlock({ id: "block-a", panId: "pan-1", orientation: "PORTRAIT", rotation: 45 }),
     ];
-    const tsHash = computePanelsHashFromFrozenBlocks(blocks);
-    const legHash = legacyComputePanelsHash(blocks);
-    expect(tsHash).toBe(legHash);
+    expect(computePanelsHashFromFrozenBlocks(blocks)).toBe(legacyComputePanelsHash(blocks));
   });
 
   it("LISTE VIDE — hash stable", () => {
-    const tsHash = computePanelsHashFromFrozenBlocks([]);
-    const legHash = legacyComputePanelsHash([]);
-    expect(tsHash).toBe(legHash);
+    expect(computePanelsHashFromFrozenBlocks([])).toBe(legacyComputePanelsHash([]));
   });
 
-  it("PANEL enabled=false — conservé as-is dans les deux", () => {
+  it("PANEL enabled=false", () => {
     const blocks = [
       makeBlock({
         panels: [
@@ -213,23 +164,61 @@ describe("computePanelsHashFromFrozenBlocks — parité avec legacy computePanel
         ],
       }),
     ];
-    const tsHash = computePanelsHashFromFrozenBlocks(blocks);
-    const legHash = legacyComputePanelsHash(blocks);
-    expect(tsHash).toBe(legHash);
+    expect(computePanelsHashFromFrozenBlocks(blocks)).toBe(legacyComputePanelsHash(blocks));
   });
 
-  it("PANEL localRotationDeg absent — normalisé 0 dans les deux", () => {
+  it("PANEL localRotationDeg absent — normalise 0", () => {
     const block = makeBlock();
     (block.panels as Record<string, unknown>[])[0] = {
       center: { x: 100, y: 200 },
       projection: null,
       state: "placed",
       enabled: true,
-      // localRotationDeg intentionnellement absent
     };
     const blocks = [block];
-    const tsHash = computePanelsHashFromFrozenBlocks(blocks);
-    const legHash = legacyComputePanelsHash(blocks);
-    expect(tsHash).toBe(legHash);
+    expect(computePanelsHashFromFrozenBlocks(blocks)).toBe(legacyComputePanelsHash(blocks));
+  });
+
+  it("P0.4-b — state undefined -> normalise null", () => {
+    const block = makeBlock();
+    (block.panels as Record<string, unknown>[])[0] = {
+      center: { x: 100, y: 200 },
+      projection: { slopeAxis: { x: 0, y: 1 }, perpAxis: { x: 1, y: 0 } },
+      enabled: true,
+      localRotationDeg: 0,
+    };
+    const blocks = [block];
+    expect(computePanelsHashFromFrozenBlocks(blocks)).toBe(legacyComputePanelsHash(blocks));
+  });
+
+  it("P0.4-b — center undefined -> normalise null", () => {
+    const block = makeBlock();
+    (block.panels as Record<string, unknown>[])[0] = {
+      projection: { slopeAxis: { x: 0, y: 1 }, perpAxis: { x: 1, y: 0 } },
+      state: "placed",
+      enabled: true,
+      localRotationDeg: 0,
+    };
+    const blocks = [block];
+    expect(computePanelsHashFromFrozenBlocks(blocks)).toBe(legacyComputePanelsHash(blocks));
+  });
+
+  it("P0.4-b — projection undefined -> normalise null", () => {
+    const block = makeBlock();
+    (block.panels as Record<string, unknown>[])[0] = {
+      center: { x: 100, y: 200 },
+      state: "placed",
+      enabled: true,
+      localRotationDeg: 0,
+    };
+    const blocks = [block];
+    expect(computePanelsHashFromFrozenBlocks(blocks)).toBe(legacyComputePanelsHash(blocks));
+  });
+
+  it("P0.4-b — center/projection/state tous undefined", () => {
+    const block = makeBlock();
+    (block.panels as Record<string, unknown>[])[0] = { enabled: true, localRotationDeg: 0 };
+    const blocks = [block];
+    expect(computePanelsHashFromFrozenBlocks(blocks)).toBe(legacyComputePanelsHash(blocks));
   });
 });

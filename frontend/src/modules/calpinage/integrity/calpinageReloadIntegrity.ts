@@ -136,9 +136,12 @@ function mapBlockForPanelsHash(bl: Record<string, unknown>): Record<string, unkn
     panels: panels.map((p: unknown) => {
       const q = p as Record<string, unknown>;
       return {
-        center: q.center,
-        projection: q.projection,
-        state: q.state,
+        // Alignement exact legacy (P0.4-b) :
+        //   center/projection : null si absent ou non-objet (legacy: `p.center && typeof p.center === 'object' ? p.center : null`)
+        //   state             : null si undefined             (legacy: `p.state ?? null`)
+        center: q.center && typeof q.center === "object" ? q.center : null,
+        projection: q.projection && typeof q.projection === "object" ? q.projection : null,
+        state: q.state ?? null,
         enabled: q.enabled !== false,
         localRotationDeg: typeof q.localRotationDeg === "number" ? q.localRotationDeg : 0,
       };
