@@ -236,6 +236,38 @@ export function mapScenarioToV2(scenario, ctx) {
       isPhysicalLike
         ? (ctx?.battery_input?.usable_kwh ?? ctx?.battery_input?.capacity_kwh ?? null)
         : null,
+    /** Nombre d'unités batteries physiques couplées (1 si mono, N si multi). Exposé pour affichage frontend + PDF. */
+    battery_units:
+      isPhysicalLike
+        ? (ctx?.battery_input?.battery_units ?? 1)
+        : null,
+    /**
+     * Puissance de charge système totale après scaling V2 (kW).
+     * = unitaire × qty si scalable sans cap, ou min(unitaire × qty, max_system_charge_kw) si capée,
+     * ou puissance unitaire seule si scalable=false.
+     */
+    battery_max_charge_kw:
+      isPhysicalLike
+        ? (ctx?.battery_input?.max_charge_kw != null
+            ? round2(ctx.battery_input.max_charge_kw)
+            : null)
+        : null,
+    /** Puissance de décharge système totale après scaling V2 (kW). */
+    battery_max_discharge_kw:
+      isPhysicalLike
+        ? (ctx?.battery_input?.max_discharge_kw != null
+            ? round2(ctx.battery_input.max_discharge_kw)
+            : null)
+        : null,
+    /**
+     * true si la puissance système est limitée par l'onduleur hybride ou le BMS
+     * (scalable=false OU cap max_system_*_kw atteint pour qty > 1).
+     * Utilisé pour afficher l'avertissement "puissance limitée" en frontend / PDF.
+     */
+    battery_power_capped:
+      isPhysicalLike
+        ? (ctx?.battery_input?.battery_power_capped === true)
+        : null,
   };
 
   const shadingSrc = ctx?.shading ?? ctx?.form?.installation?.shading ?? {};

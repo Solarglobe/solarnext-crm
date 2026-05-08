@@ -19,7 +19,8 @@ const INVERTERS_WHITELIST = [
 const BATTERIES_WHITELIST = [
   "name", "brand", "model_ref", "usable_kwh", "nominal_voltage_v", "max_charge_kw",
   "max_discharge_kw", "roundtrip_efficiency_pct", "depth_of_discharge_pct", "cycle_life",
-  "chemistry", "scalable", "max_modules", "active", "default_price_ht", "purchase_price_ht",
+  "chemistry", "scalable", "max_modules", "max_system_charge_kw", "max_system_discharge_kw",
+  "active", "default_price_ht", "purchase_price_ht",
 ];
 
 function pick(obj, keys) {
@@ -331,14 +332,16 @@ export async function createBattery(req, res) {
       if (pp == null) return res.status(400).json({ error: "purchase_price_ht doit être un nombre >= 0" });
     }
     const { rows } = await pool.query(
-      `INSERT INTO pv_batteries (name, brand, model_ref, usable_kwh, nominal_voltage_v, max_charge_kw, max_discharge_kw, roundtrip_efficiency_pct, depth_of_discharge_pct, cycle_life, chemistry, scalable, max_modules, active, default_price_ht, purchase_price_ht)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+      `INSERT INTO pv_batteries (name, brand, model_ref, usable_kwh, nominal_voltage_v, max_charge_kw, max_discharge_kw, roundtrip_efficiency_pct, depth_of_discharge_pct, cycle_life, chemistry, scalable, max_modules, max_system_charge_kw, max_system_discharge_kw, active, default_price_ht, purchase_price_ht)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
        RETURNING *`,
       [
         body.name, body.brand, body.model_ref, usable_kwh,
         body.nominal_voltage_v ?? null, body.max_charge_kw ?? null, body.max_discharge_kw ?? null,
         body.roundtrip_efficiency_pct ?? null, body.depth_of_discharge_pct ?? null, body.cycle_life ?? null,
         body.chemistry ?? null, body.scalable ?? false, body.max_modules ?? null,
+        body.max_system_charge_kw != null ? validateNum(body.max_system_charge_kw) : null,
+        body.max_system_discharge_kw != null ? validateNum(body.max_system_discharge_kw) : null,
         body.active !== false,
         body.default_price_ht != null ? validateNum(body.default_price_ht) : null,
         body.purchase_price_ht != null ? validateNum(body.purchase_price_ht) : null,
@@ -358,7 +361,7 @@ export async function updateBattery(req, res) {
     const updates = [];
     const values = [];
     let i = 1;
-    const allowed = ["name", "usable_kwh", "nominal_voltage_v", "max_charge_kw", "max_discharge_kw", "roundtrip_efficiency_pct", "depth_of_discharge_pct", "cycle_life", "chemistry", "scalable", "max_modules", "active", "default_price_ht", "purchase_price_ht"];
+    const allowed = ["name", "usable_kwh", "nominal_voltage_v", "max_charge_kw", "max_discharge_kw", "roundtrip_efficiency_pct", "depth_of_discharge_pct", "cycle_life", "chemistry", "scalable", "max_modules", "max_system_charge_kw", "max_system_discharge_kw", "active", "default_price_ht", "purchase_price_ht"];
     for (const k of allowed) {
       if (body[k] !== undefined) {
         updates.push(`${k} = $${i++}`);

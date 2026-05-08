@@ -126,7 +126,10 @@ export async function calculateSmartpitch(req, res) {
       form.pv_inverter = await resolvePvInverterEngineFields(pool, null, form.pv_inverter);
     }
     // Même chaîne que solarnextPayloadBuilder : technique batterie = pv_batteries si UUID actif (idempotent si déjà mergé).
-    if (form.battery_input && typeof form.battery_input === "object") {
+    // IMPORTANT : si battery_input._catalog_merged === true, solarnextPayloadBuilder a déjà fait le merge
+    // ET appliqué le multiplicateur qty (multi-batteries). On skip ce bloc pour éviter d'écraser
+    // la capacité/puissance totale avec les valeurs unitaires du catalogue.
+    if (form.battery_input && typeof form.battery_input === "object" && !form.battery_input._catalog_merged) {
       const bi = form.battery_input;
       const physicalConfig = {
         enabled: bi.enabled === true,

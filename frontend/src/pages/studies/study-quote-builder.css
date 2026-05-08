@@ -704,6 +704,50 @@
   margin-left: 8px;
 }
 
+/* Indicateur capacité + puissance totales multi-batteries */
+.sqb-battery-capacity-hint {
+  margin: 6px 0 2px;
+  padding: 5px 10px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  background: var(--color-bg-elevated, #f4f5fb);
+  border-left: 3px solid var(--color-accent, #6D28D9);
+  border-radius: 0 4px 4px 0;
+  font-size: 12px;
+  color: var(--text-secondary, #6b7280);
+  line-height: 1.4;
+}
+html.theme-dark .sqb-battery-capacity-hint {
+  background: var(--color-bg-elevated, #161C34);
+  border-left-color: var(--color-accent, #7C3AED);
+  color: var(--text-secondary, #9ca3af);
+}
+/* Séparateur visuel entre capacité et puissance */
+.sqb-battery-sep {
+  color: var(--text-disabled, #d1d5db);
+  user-select: none;
+}
+/* Puissance système (ligne info) */
+.sqb-battery-power {
+  color: var(--text-secondary, #6b7280);
+}
+/* Puissance système capée — légèrement mis en avant */
+.sqb-battery-power--capped {
+  color: var(--warning-text, #92400e);
+}
+html.theme-dark .sqb-battery-power--capped {
+  color: var(--warning-text, #fbbf24);
+}
+/* Badge "⚠ limitée" — inline, discret, avec tooltip */
+.sqb-battery-cap-warn {
+  margin-left: 3px;
+  font-size: 11px;
+  cursor: help;
+  opacity: 0.85;
+}
+
 /* Batterie virtuelle — compact */
 .sqb-vb--compact {
   margin-top: 10px;

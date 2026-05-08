@@ -635,6 +635,78 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading
     }
   }
 
+  // ── MULTI-BATTERIES PHYSIQUES — V2 power-scaling ─────────────────────────
+  // qty > 1 = N batteries identiques couplées en parallèle.
+  // Le prix est déjà multiplié dans pickPriceTtc (ligne ~496).
+  // Ici on multiplie les grandeurs PHYSIQUES (capacité, puissances) transmises
+  // au moteur 8760h, APRÈS que le catalogue a fourni les valeurs unitaires et
+  // APRÈS que les defaults ont été calculés à partir de la capacité unitaire.
+  // NE PAS multiplier : roundtrip_efficiency, ratios, pourcentages.
+  //
+  // Modèle V2 de puissance (champs lus depuis catalogue via resolveBatteryFromDb) :
+  //   scalable = false  → puissance totale = puissance unitaire (onduleur unique, BMS figé)
+  //   scalable = true   → puissance totale = min(qty × unit_kw, max_system_*_kw ?? +∞)
+  //
+  // _catalog_merged = true : marqueur qui indique que ce bloc a déjà été exécuté.
+  // calc.controller appelle applyPhysicalBatteryTechnicalFromCatalog une 2e fois ;
+  // si ce flag est présent, calc.controller skip ce re-merge (qui écraserait les
+  // valeurs multipliées par qty avec les valeurs unitaires du catalogue).
+  if (battery_input.enabled && battery_input.capacity_kwh != null) {
+    const physicalQty = Math.max(1, Math.round(Number(physicalConfig?.qty ?? 1) || 1));
+    if (physicalQty > 1) {
+      // ── Capacité : toujours proportionnelle à qty ──
+      battery_input.capacity_kwh = battery_input.capacity_kwh * physicalQty;
+      battery_input.usable_kwh   = battery_input.usable_kwh != null
+        ? battery_input.usable_kwh * physicalQty
+        : battery_input.capacity_kwh;
+
+      // ── Puissance : modèle V2 scalable/capped ──
+      // Lire les valeurs UNITAIRES AVANT tout scaling.
+      const unitChargeKw    = Number(battery_input.max_charge_kw)    || 0;
+      const unitDischargeKw = Number(battery_input.max_discharge_kw) || 0;
+      // scalable vient du catalogue via mergeBatteryInputWithCatalogRow ; défaut = true (compat)
+      const scalable = battery_input.scalable !== false; // false strict seulement si catalogue dit false
+
+      if (!scalable) {
+        // Puissance FIGÉE : l'onduleur hybride ou le BMS ne permet pas d'additionner les unités.
+        // La puissance système reste égale à la puissance d'UNE unité, quel que soit qty.
+        // max_charge_kw / max_discharge_kw restent inchangés (valeurs unitaires déjà dans battery_input).
+        battery_input.battery_power_capped = physicalQty > 1; // toujours vrai ici (physicalQty > 1)
+      } else {
+        // Puissance SCALABLE : parallèle réel, éventuellement capée par max_system_*_kw.
+        const rawCharge    = unitChargeKw    * physicalQty;
+        const rawDischarge = unitDischargeKw * physicalQty;
+
+        const capCharge    = battery_input.max_system_charge_kw    != null
+          ? Number(battery_input.max_system_charge_kw)    : null;
+        const capDischarge = battery_input.max_system_discharge_kw != null
+          ? Number(battery_input.max_system_discharge_kw) : null;
+
+        battery_input.max_charge_kw    = (capCharge    != null && Number.isFinite(capCharge)    && capCharge    > 0)
+          ? Math.min(rawCharge,    capCharge)    : rawCharge;
+        battery_input.max_discharge_kw = (capDischarge != null && Number.isFinite(capDischarge) && capDischarge > 0)
+          ? Math.min(rawDischarge, capDischarge) : rawDischarge;
+
+        battery_input.battery_power_capped =
+          (capCharge    != null && Number.isFinite(capCharge)    && rawCharge    > capCharge)    ||
+          (capDischarge != null && Number.isFinite(capDischarge) && rawDischarge > capDischarge);
+      }
+    } else {
+      // qty = 1 : pas de scaling, pas de capping
+      battery_input.battery_power_capped = false;
+    }
+
+    // Alias puissances (moteur 8760h + traçabilité)
+    battery_input.charge_power_kw    = battery_input.max_charge_kw;
+    battery_input.discharge_power_kw = battery_input.max_discharge_kw;
+
+    // Toujours exposer battery_units (= 1 si mono, N si multi) pour le mapper scénario / PDF
+    battery_input.battery_units = physicalQty;
+    // Flag : catalogue déjà mergé + qty déjà appliqué → calc.controller doit sauter son re-merge
+    battery_input._catalog_merged = true;
+  }
+  // ── FIN MULTI-BATTERIES ───────────────────────────────────────────────────
+
   // Batterie virtuelle : priorité config_json.virtualBattery (grilles) puis battery_virtual / batteries.virtual
   const vbNew = economicSnapshot?.virtualBattery;
   const meterPowerKva = Number(energyLead.meter_power_kva) || 9;

@@ -137,6 +137,10 @@ export interface PvBattery {
   chemistry?: string;
   scalable: boolean;
   max_modules?: number;
+  /** Puissance de charge maximale du système, indépendante de qty. null = pur parallèle (qty × unit). */
+  max_system_charge_kw?: number | null;
+  /** Puissance de décharge maximale du système, indépendante de qty. null = pur parallèle. */
+  max_system_discharge_kw?: number | null;
   active: boolean;
   default_price_ht?: number | null;
   /** Coût d'achat unitaire HT (marge interne) — optionnel */

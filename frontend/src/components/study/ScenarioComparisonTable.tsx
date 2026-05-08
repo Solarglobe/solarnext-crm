@@ -71,6 +71,14 @@ export interface ScenarioV2Hardware {
   panels_count?: number | null;
   kwc?: number | null;
   battery_capacity_kwh?: number | null;
+  /** Nombre d'unités batteries physiques (1 si mono, N si multi-batteries). */
+  battery_units?: number | null;
+  /** Puissance de charge système après scaling V2 (kW). */
+  battery_max_charge_kw?: number | null;
+  /** Puissance de décharge système après scaling V2 (kW). */
+  battery_max_discharge_kw?: number | null;
+  /** true si la puissance est limitée par l'onduleur ou le BMS (scalable=false ou cap max_system_*_kw atteint). */
+  battery_power_capped?: boolean | null;
 }
 
 export interface ScenarioV2 {
@@ -813,6 +821,50 @@ export default function ScenarioComparisonTable({
                     </div>
                   </section>
 
+                  {/* Résumé matériel batterie physique — toujours rendu pour maintenir le subgrid (vide pour BASE/VIRTUAL) */}
+                  <section
+                    className="scenario-block scenario-row-bat-hw"
+                    aria-label="Matériel batterie"
+                    aria-hidden={(id !== "BATTERY_PHYSICAL" && id !== "BATTERY_HYBRID") || undefined}
+                  >
+                    {(id === "BATTERY_PHYSICAL" || id === "BATTERY_HYBRID") && (() => {
+                      const cap = finiteNumberOrNull(hardware.battery_capacity_kwh);
+                      const units = finiteNumberOrNull(hardware.battery_units);
+                      const chargKw = finiteNumberOrNull(hardware.battery_max_charge_kw);
+                      const capped = hardware.battery_power_capped === true;
+                      if (cap == null && chargKw == null) return null;
+                      return (
+                        <>
+                          {cap != null && (
+                            <div className="scenario-hw-line">
+                              <span className="scenario-hw-label">Capacité utile</span>
+                              <span className="scenario-hw-value">
+                                {cap.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} kWh
+                                {units != null && Number.isFinite(units) && units > 1 && (
+                                  <span className="scenario-hw-units"> ({units} bat.)</span>
+                                )}
+                              </span>
+                            </div>
+                          )}
+                          {chargKw != null && (
+                            <div className={`scenario-hw-line${capped ? " scenario-hw-line--capped" : ""}`}>
+                              <span className="scenario-hw-label">Puissance charge</span>
+                              <span className="scenario-hw-value">
+                                {chargKw.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} kW
+                                {capped && (
+                                  <span
+                                    className="scenario-hw-cap-badge"
+                                    title="Puissance limitée par l'onduleur hybride ou le BMS — ne s'additionne pas avec qty."
+                                  > ⚠ limitée</span>
+                                )}
+                              </span>
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </section>
+
                   <section className="scenario-block scenario-block-impact scenario-row-impact">
                     <h4 className="scenario-block-title">Impact</h4>
                     <p className="scenario-impact-scene">{IMPACT_SCENE_HEADLINE[id]}</p>
@@ -921,13 +973,17 @@ export default function ScenarioComparisonTable({
                       <>
                         <MiniRow
                           label="Capacité utile"
-                          tip="Capacité configurée dans le devis pour ce scénario."
-                          value={
-                            hardware.battery_capacity_kwh != null &&
-                            Number.isFinite(Number(hardware.battery_capacity_kwh))
-                              ? `${Number(hardware.battery_capacity_kwh)} kWh`
-                              : "—"
-                          }
+                          tip="Capacité totale configurée dans le devis pour ce scénario (toutes unités cumulées)."
+                          value={(() => {
+                            const cap = hardware.battery_capacity_kwh;
+                            const units = hardware.battery_units;
+                            if (cap == null || !Number.isFinite(Number(cap))) return "—";
+                            const capStr = `${Number(cap)} kWh`;
+                            if (units != null && Number.isFinite(Number(units)) && Number(units) > 1) {
+                              return `${capStr} (${Number(units)} batteries)`;
+                            }
+                            return capStr;
+                          })()}
                         />
                         <MiniRow
                           label="Cycles équivalents / an"
@@ -1624,6 +1680,53 @@ export default function ScenarioComparisonTable({
           flex-shrink: 0;
           line-height: 1.4;
         }
+        /* ── Résumé matériel batterie physique ── */
+        .scenario-row-bat-hw {
+          padding-top: 0.35rem;
+          border-top: 1px solid rgba(255,255,255,0.07);
+          display: flex;
+          flex-direction: column;
+          gap: 0.2rem;
+        }
+        .scenario-hw-line {
+          display: grid;
+          grid-template-columns: 1fr auto;
+          gap: 0.35rem 0.5rem;
+          align-items: baseline;
+          font-size: 0.75rem;
+          min-width: 0;
+        }
+        .scenario-hw-label {
+          color: var(--sn-text-secondary, #9fa8c7);
+          overflow-wrap: anywhere;
+        }
+        .scenario-hw-value {
+          font-weight: 700;
+          font-variant-numeric: tabular-nums;
+          color: var(--sn-text-primary);
+          text-align: right;
+          min-width: 0;
+          overflow-wrap: anywhere;
+        }
+        .scenario-hw-units {
+          font-weight: 400;
+          font-size: 0.7rem;
+          color: var(--sn-text-secondary, #9fa8c7);
+          margin-left: 2px;
+        }
+        .scenario-hw-line--capped .scenario-hw-label {
+          color: var(--warning-label, #92400e);
+        }
+        .scenario-hw-line--capped .scenario-hw-value {
+          color: var(--warning-value, #b45309);
+        }
+        .scenario-hw-cap-badge {
+          margin-left: 3px;
+          font-size: 0.68rem;
+          font-weight: 600;
+          cursor: help;
+          opacity: 0.9;
+        }
         .scenario-hero-label {
           margin: 0;
           font-size: 0.72rem;
@@ -1769,12 +1872,12 @@ export default function ScenarioComparisonTable({
         /* ── Subgrid cross-card row alignment (4-col only) ── */
         @media (min-width: 1201px) {
           .scenario-comparison-grid {
-            grid-template-rows: repeat(8, auto);
+            grid-template-rows: repeat(9, auto);
             row-gap: 0.35rem;
           }
           .scenario-col-card {
             display: grid;
-            grid-row: span 8;
+            grid-row: span 9;
             grid-template-rows: subgrid;
             gap: 0;
             min-height: unset;
@@ -1783,7 +1886,7 @@ export default function ScenarioComparisonTable({
             gap: 0;
           }
           .scenario-col-card--empty .scenario-col-body.scenario-col-empty {
-            grid-row: 2 / 9;
+            grid-row: 2 / 10;
             flex: unset;
           }
           .scenario-col-card:not(.scenario-col-card--empty) > footer.scenario-col-footer,

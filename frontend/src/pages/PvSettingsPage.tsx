@@ -1455,8 +1455,16 @@ function PvBatteryModal({
         <div className="qc-modal-section">
           <h3 className="qc-modal-section__title">Modularité &amp; statut</h3>
           <div className="qc-modal-field-grid qc-modal-field-grid--2">
-            <Field label="Scalable"><label className="pv-cat-check"><input type="checkbox" checked={form.scalable ?? false} onChange={(e) => setForm({ ...form, scalable: e.target.checked })} /> Oui</label></Field>
+            <Field label="Scalable (puissance additive)" sublabel="Décoché : puissance figée à l'unité (ex. LUNA2000 derrière onduleur hybride).">
+              <label className="pv-cat-check"><input type="checkbox" checked={form.scalable ?? false} onChange={(e) => setForm({ ...form, scalable: e.target.checked })} /> Oui</label>
+            </Field>
             <Field label="Max modules"><input type="number" value={form.max_modules ?? ""} onChange={(e) => setForm({ ...form, max_modules: e.target.value ? Number(e.target.value) : undefined })} className="qc-modal-input" /></Field>
+            <Field label="Charge max système (kW)" sublabel="Cap global charge, indépendant de qty. Vide = pur parallèle.">
+              <input type="number" step={0.01} min={0} value={form.max_system_charge_kw ?? ""} onChange={(e) => setForm({ ...form, max_system_charge_kw: e.target.value ? Number(e.target.value) : null })} className="qc-modal-input" placeholder="ex. 5 (Huawei LUNA)" />
+            </Field>
+            <Field label="Décharge max système (kW)" sublabel="Cap global décharge, indépendant de qty.">
+              <input type="number" step={0.01} min={0} value={form.max_system_discharge_kw ?? ""} onChange={(e) => setForm({ ...form, max_system_discharge_kw: e.target.value ? Number(e.target.value) : null })} className="qc-modal-input" placeholder="ex. 5 (Huawei LUNA)" />
+            </Field>
             <Field label="Actif"><label className="pv-cat-check"><input type="checkbox" checked={form.active !== false} onChange={(e) => setForm({ ...form, active: e.target.checked })} /> Catalogue actif</label></Field>
           </div>
         </div>

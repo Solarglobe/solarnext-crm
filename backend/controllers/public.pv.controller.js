@@ -30,7 +30,7 @@ export async function listInvertersPublic(req, res) {
 export async function listBatteriesPublic(req, res) {
   try {
     const { rows } = await pool.query(
-      "SELECT id, name, brand, model_ref, usable_kwh, nominal_voltage_v, max_charge_kw, max_discharge_kw, roundtrip_efficiency_pct, depth_of_discharge_pct, cycle_life, chemistry, scalable, max_modules, default_price_ht FROM pv_batteries WHERE active = true ORDER BY brand, model_ref"
+      "SELECT id, name, brand, model_ref, usable_kwh, nominal_voltage_v, max_charge_kw, max_discharge_kw, roundtrip_efficiency_pct, depth_of_discharge_pct, cycle_life, chemistry, scalable, max_modules, max_system_charge_kw, max_system_discharge_kw, default_price_ht FROM pv_batteries WHERE active = true ORDER BY brand, model_ref"
     );
     res.json(rows);
   } catch (e) {

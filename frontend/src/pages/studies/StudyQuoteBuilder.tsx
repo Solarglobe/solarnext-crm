@@ -1059,6 +1059,10 @@ export default function StudyQuoteBuilder() {
         max_charge_kw: battery.max_charge_kw,
         max_discharge_kw: battery.max_discharge_kw,
         roundtrip_efficiency_pct: battery.roundtrip_efficiency_pct ?? 90,
+        // Champs V2 power-scaling — utilisés pour prévisualisation puissance dans le devis technique
+        scalable: battery.scalable,
+        max_system_charge_kw: battery.max_system_charge_kw ?? null,
+        max_system_discharge_kw: battery.max_system_discharge_kw ?? null,
         ...(purchaseHt != null ? { purchase_price_ht: purchaseHt } : {}),
       };
       updateEconomic((d) => ({
@@ -1487,6 +1491,7 @@ export default function StudyQuoteBuilder() {
                       <LocaleNumberInput
                         className="sn-input"
                         min={1}
+                        max={5}
                         disabled={locked}
                         integer
                         value={economic.batteries.physical.qty ?? 1}
@@ -1495,7 +1500,7 @@ export default function StudyQuoteBuilder() {
                             ...d,
                             batteries: {
                               ...d.batteries,
-                              physical: { ...d.batteries.physical, qty: Math.max(1, n) },
+                              physical: { ...d.batteries.physical, qty: Math.max(1, Math.min(5, n)) },
                             },
                           }))
                         }
@@ -1511,6 +1516,84 @@ export default function StudyQuoteBuilder() {
                 </tr>
               </tbody>
             </table>
+            {/* Capacité et puissance totales — aperçu V2 avant calcul */}
+            {(() => {
+              const phys = economic.batteries.physical;
+              if (!phys.enabled) return null;
+              const qty = Math.max(1, phys.qty ?? 1);
+              type BatterySnap = {
+                usable_kwh?: number;
+                max_charge_kw?: number;
+                max_discharge_kw?: number;
+                scalable?: boolean;
+                max_system_charge_kw?: number | null;
+                max_system_discharge_kw?: number | null;
+              };
+              const snap = phys.product_snapshot as BatterySnap | undefined;
+              const unitKwh =
+                phys.capacity_kwh != null && Number.isFinite(Number(phys.capacity_kwh)) && Number(phys.capacity_kwh) > 0
+                  ? Number(phys.capacity_kwh)
+                  : snap?.usable_kwh ?? null;
+              if (unitKwh == null) return null;
+              const totalKwh = qty * unitKwh;
+
+              // Puissance système V2
+              const unitCharge = snap?.max_charge_kw != null ? Number(snap.max_charge_kw) : null;
+              const scalable = snap?.scalable !== false; // défaut true = compat legacy
+              const capCharge = snap?.max_system_charge_kw != null ? Number(snap.max_system_charge_kw) : null;
+
+              let systemChargeKw: number | null = null;
+              let powerCapped = false;
+              if (unitCharge != null && Number.isFinite(unitCharge) && unitCharge > 0) {
+                if (!scalable) {
+                  systemChargeKw = unitCharge; // ne scale jamais
+                  powerCapped = qty > 1;
+                } else {
+                  const rawCharge = unitCharge * qty;
+                  if (capCharge != null && Number.isFinite(capCharge) && capCharge > 0 && rawCharge > capCharge) {
+                    systemChargeKw = capCharge;
+                    powerCapped = true;
+                  } else {
+                    systemChargeKw = rawCharge;
+                    powerCapped = false;
+                  }
+                }
+              }
+
+              const fmtKw = (v: number) =>
+                v.toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: 1 });
+
+              return (
+                <div className="sqb-battery-capacity-hint">
+                  {/* Capacité */}
+                  {qty > 1 ? (
+                    <span>
+                      <strong>{qty}</strong> × {unitKwh} kWh
+                      {" = "}
+                      <strong>{totalKwh} kWh</strong> utiles
+                    </span>
+                  ) : (
+                    <span><strong>{unitKwh} kWh</strong> utiles</span>
+                  )}
+                  {/* Puissance système */}
+                  {systemChargeKw != null && (
+                    <>
+                      <span className="sqb-battery-sep">·</span>
+                      <span className={powerCapped ? "sqb-battery-power sqb-battery-power--capped" : "sqb-battery-power"}>
+                        Puissance : <strong>{fmtKw(systemChargeKw)} kW</strong>
+                        {powerCapped && (
+                          <span className="sqb-battery-cap-warn" title={
+                            !scalable
+                              ? "Puissance figée par l'onduleur hybride ou le BMS — ne s'additionne pas avec plusieurs unités."
+                              : `Puissance limitée à ${fmtKw(capCharge!)} kW par le système (onduleur hybride ou BMS).`
+                          }> ⚠ limitée</span>
+                        )}
+                      </span>
+                    </>
+                  )}
+                </div>
+              );
+            })()}
           </div>
           <div className="sqb-scenario-virtual">
             <VirtualBatteryConfigurator

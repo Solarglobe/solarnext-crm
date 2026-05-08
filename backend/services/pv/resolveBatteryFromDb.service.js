@@ -2,6 +2,9 @@
  * Vérité technique batterie physique : pv_batteries (catalogue actif) via UUID.
  * Le prix / CAPEX reste porté par economic_snapshot (devis) — ne pas lire default_price_ht ici.
  * Seul point de lecture SQL « moteur » pour pv_batteries — ne pas dupliquer hors admin/API publique.
+ *
+ * V2 : expose scalable, max_modules, max_system_charge_kw, max_system_discharge_kw pour la
+ *      logique de power-scaling multi-batteries dans solarnextPayloadBuilder.
  */
 
 /**
@@ -16,7 +19,8 @@ export async function fetchPvBatteryTechnicalActiveById(poolOrClient, batteryId)
   try {
     const { rows } = await poolOrClient.query(
       `SELECT id, name, brand, model_ref, usable_kwh, nominal_voltage_v, max_charge_kw, max_discharge_kw,
-              roundtrip_efficiency_pct, depth_of_discharge_pct, cycle_life, chemistry
+              roundtrip_efficiency_pct, depth_of_discharge_pct, cycle_life, chemistry,
+              scalable, max_modules, max_system_charge_kw, max_system_discharge_kw
        FROM pv_batteries
        WHERE id = $1::uuid AND active = true
        LIMIT 1`,
@@ -30,6 +34,9 @@ export async function fetchPvBatteryTechnicalActiveById(poolOrClient, batteryId)
 
 /**
  * Fusionne les champs techniques moteur avec une ligne catalogue (active).
+ * Les champs V2 (scalable, max_modules, max_system_*_kw) sont exposés en lecture seule ;
+ * la logique de power-scaling est appliquée dans solarnextPayloadBuilder (MULTI-BATTERIES bloc).
+ *
  * @param {object} batteryInput
  * @param {object | null} row
  * @returns {object}
@@ -82,6 +89,20 @@ export function mergeBatteryInputWithCatalogRow(batteryInput, row) {
       ? Math.round(roundtrip_efficiency * 10000) / 100
       : null;
 
+  // ── Champs V2 power-scaling (lus depuis catalogue, utilisés par payloadBuilder) ──
+  // scalable : si false → la puissance NE scale PAS avec qty (onduleur/BMS limité)
+  //            si true  → la puissance scale avec qty, éventuellement capée par max_system_*
+  const scalable = row.scalable != null ? Boolean(row.scalable) : (batteryInput.scalable ?? true);
+  const max_modules = row.max_modules != null ? Number(row.max_modules) : (batteryInput.max_modules ?? null);
+  // max_system_*_kw : cap absolu de puissance système (nullable = pas de cap)
+  const parseCap = (v) => {
+    if (v == null) return null;
+    const n = Number(v);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  };
+  const max_system_charge_kw    = parseCap(row.max_system_charge_kw)    ?? parseCap(batteryInput.max_system_charge_kw);
+  const max_system_discharge_kw = parseCap(row.max_system_discharge_kw) ?? parseCap(batteryInput.max_system_discharge_kw);
+
   return {
     ...batteryInput,
     battery_id: row.id,
@@ -102,6 +123,11 @@ export function mergeBatteryInputWithCatalogRow(batteryInput, row) {
     cycle_life,
     chemistry: row.chemistry ?? batteryInput.chemistry ?? null,
     nominal_voltage_v,
+    // Champs V2 power-scaling
+    scalable,
+    max_modules,
+    max_system_charge_kw,
+    max_system_discharge_kw,
   };
 }
 
