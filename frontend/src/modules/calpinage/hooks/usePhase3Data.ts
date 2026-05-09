@@ -1,272 +1,228 @@
 /**
  * usePhase3Data — Hook lecture seule pour sidebar Phase 3.
- * Lit pvPlacementEngine, PV_SELECTED_INVERTER, appelle validateInverterSizing.
- * Pas de polling — écoute l'événement phase3:update.
+ *
+ * Phase 1 : lit depuis calpinageStore (Zustand) au lieu de window.*.
+ * L'adapter legacyCalpinageStateAdapter.ts se charge de lire les globals PV
+ * et de mettre à jour store.phase3 sur chaque événement "phase3:update".
+ *
+ * Ce hook ne contient plus aucun accès window.* — uniquement du calcul
+ * sur les données brutes du store (validateInverterSizing, normalizeInverterFamily).
  */
-import { useCallback, useEffect, useState } from "react";
+import { useMemo } from "react";
+import { useCalpinageStore } from "../store/calpinageStore";
 import { validateInverterSizing } from "../inverterSizing";
 import { normalizeInverterFamily } from "../utils/normalizeInverterFamily";
 
-/** Émis par `setupPhase3SidebarNotify` / legacy ; réutilisable pour rafraîchir la vue 3D canonical Phase 3. */
+/** Émis par setupPhase3SidebarNotify / legacy ; réutilisable pour rafraîchir la vue 3D. */
 export const PHASE3_SIDEBAR_UPDATE_EVENT = "phase3:update";
 
-const EVENT_NAME = PHASE3_SIDEBAR_UPDATE_EVENT;
+// ─────────────────────────────────────────────────────────────────────────────
+// Helpers — lookup dans les catalogues (pure, sans window)
+// ─────────────────────────────────────────────────────────────────────────────
 
-function getInverterList(): any[] {
-  return Array.isArray((window as any).SOLARNEXT_INVERTERS)
-    ? (window as any).SOLARNEXT_INVERTERS
-    : [];
-}
-
-function getPanelList(): any[] {
-  return Array.isArray((window as any).SOLARNEXT_PANELS)
-    ? (window as any).SOLARNEXT_PANELS
-    : [];
-}
-
-function findInverterById(id: string | null): any {
+function findInverterById(
+  inverters: unknown[],
+  id: string | null,
+): unknown | null {
   if (!id) return null;
-  return getInverterList().find((i) => i && i.id === id) ?? null;
-}
-
-function findPanelById(id: string | null): any {
-  if (!id) return null;
-  return getPanelList().find((p) => p && p.id === id) ?? null;
-}
-
-function computePhase3Data() {
-  const panels =
-    typeof (window as any).pvPlacementEngine?.getAllPanels === "function"
-      ? ((window as any).pvPlacementEngine.getAllPanels() || [])
-      : [];
-  const modulesCount = panels.length;
-
-  const inv =
-    (window as any).PV_SELECTED_INVERTER ||
-    findInverterById((window as any).CALPINAGE_SELECTED_INVERTER_ID ?? null);
-
-  const selectedPanel =
-    findPanelById((window as any).CALPINAGE_SELECTED_PANEL_ID) ||
-    ((window as any).PV_SELECTED_PANEL
-      ? findPanelById((window as any).PV_SELECTED_PANEL?.id)
-      : null) ||
-    (window as any).PV_SELECTED_PANEL;
-
-  const powerWc =
-    selectedPanel &&
-    (selectedPanel.power_wc != null || selectedPanel.powerWc != null)
-      ? Number(selectedPanel.power_wc ?? selectedPanel.powerWc) || 0
-      : 0;
-  const totalKwc =
-    modulesCount > 0 && powerWc > 0 ? (modulesCount * powerWc) / 1000 : 0;
-
-  const panelSpec = selectedPanel
-    ? {
-        power_wc: powerWc,
-        isc_a: selectedPanel.isc_a,
-        vmp_v: selectedPanel.vmp_v,
-        strings: selectedPanel.strings,
-      }
-    : null;
-
-  const validation = inv
-    ? validateInverterSizing({
-        totalPanels: modulesCount,
-        totalPowerKwc: totalKwc,
-        inverter: inv,
-        panelSpec,
-      })
-    : {
-        requiredUnits: 0,
-        isDcPowerOk: true,
-        isCurrentOk: true,
-        isMpptOk: true,
-        isVoltageOk: true,
-        warnings: [] as string[],
-      };
-
-  const unitsRequired = validation.requiredUnits;
-  const family = inv ? (normalizeInverterFamily(inv) || "CENTRAL") : "CENTRAL";
-  const acPowerKw =
-    inv &&
-    (inv.nominal_power_kw != null || inv.max_dc_power_kw != null)
-      ? Number(inv.nominal_power_kw ?? inv.max_dc_power_kw) || 0
-      : 0;
-
-  const acTotal =
-    family === "MICRO" && inv && modulesCount > 0 && acPowerKw > 0
-      ? modulesCount * acPowerKw
-      : family === "CENTRAL" && acPowerKw > 0
-        ? acPowerKw
-        : 0;
-
-  const dcAcRatio = acTotal > 0 ? totalKwc / acTotal : null;
-
-  const isValid =
-    modulesCount > 0 &&
-    !!inv &&
-    (family === "MICRO" || (dcAcRatio !== null && dcAcRatio >= 0.8));
-
-  const inverterName = inv
-    ? (inv.name || inv.model_ref || "").trim() || inv.id || "—"
-    : "—";
-
-  // Inclinaison : pan actif ou premier pan (roof.tilt / physical.slope.valueDeg / tiltDeg)
-  const state = (window as any).CALPINAGE_STATE;
-  const validatedRoof = state?.validatedRoofData;
-  const pans = validatedRoof?.pans;
-  let tiltDeg: number | null = null;
-  if (pans && pans.length > 0) {
-    const activePanId =
-      (window as any).CalpinagePans?.panState?.activePanId ??
-      state?.selectedPanId;
-    const pan = activePanId
-      ? pans.find((p: any) => p && p.id === activePanId)
-      : pans[0];
-    if (pan) {
-      tiltDeg =
-        pan.physical?.slope?.valueDeg ?? pan.tiltDeg ?? null;
-    }
-  }
-
-  const win = window as any;
-  const eng = win.pvPlacementEngine;
-  /** Aligné sur le legacy : seuls « panels » et « select » sont exposés ; évite libellé vide si valeur inattendue. */
-  const rawPhase3Tool =
-    typeof win.getPhase3ActiveTool === "function"
-      ? win.getPhase3ActiveTool()
-      : "panels";
-  const activeToolStr = String(rawPhase3Tool || "panels");
-  const activeTool: "panels" | "select" =
-    activeToolStr === "select" ? "select" : "panels";
-
-  let orientationRaw =
-    (win.PV_LAYOUT_RULES && win.PV_LAYOUT_RULES.orientation) || "portrait";
-  const focusBl =
-    eng && typeof eng.getFocusBlock === "function"
-      ? eng.getFocusBlock()
-      : null;
-  if (
-    focusBl &&
-    (focusBl.orientation === "PORTRAIT" ||
-      focusBl.orientation === "PAYSAGE" ||
-      focusBl.orientation === "landscape" ||
-      focusBl.orientation === "portrait")
-  ) {
-    orientationRaw =
-      focusBl.orientation === "PAYSAGE" ||
-      focusBl.orientation === "landscape"
-        ? "landscape"
-        : "portrait";
-  }
-  const orientationNorm =
-    String(orientationRaw).toLowerCase() === "landscape" ||
-    String(orientationRaw).toLowerCase() === "paysage"
-      ? "landscape"
-      : "portrait";
-
-  // État autofill
-  const autofillActive = !!(
-    win.__CALPINAGE_AUTOFILL_MODE__ &&
-    (win.__CALPINAGE_AUTOFILL_MODE__ as { enabled?: boolean }).enabled
+  return (
+    (inverters as Array<Record<string, unknown>>).find((i) => i?.id === id) ??
+    null
   );
-  const autofillText: string = win.__CALPINAGE_AUTOFILL_TEXT__ || "";
-  const autofillValidCount: number = win.__CALPINAGE_AUTOFILL_VALID_COUNT__ || 0;
-
-  // Bloc actif avec au moins 1 panneau ET panneau catalogue sélectionné
-  const activeBlock =
-    eng && typeof eng.getActiveBlock === "function" ? eng.getActiveBlock() : null;
-  const hasActiveBlockWithPanels = !!(win.PV_SELECTED_PANEL && activeBlock && activeBlock.panels && activeBlock.panels.length >= 1);
-
-  let flatRoof: {
-    inPvLayout: boolean;
-    hasPanCtx: boolean;
-    activePanId: string | null;
-    isFlat: boolean;
-    showFlatEnable: boolean;
-    supportTiltDeg: number;
-    layoutPortrait: boolean;
-  } = {
-    inPvLayout: false,
-    hasPanCtx: false,
-    activePanId: null,
-    isFlat: false,
-    showFlatEnable: false,
-    supportTiltDeg: 10,
-    layoutPortrait: true,
-  };
-  try {
-    const st = (window as any).CALPINAGE_STATE;
-    if (typeof win.projectCalpinageUi === "function" && st) {
-      const ui = win.projectCalpinageUi(st);
-      if (ui) {
-        const lp = ui.livePan || ui.validatedPan;
-        const fc =
-          lp && typeof lp.flatRoofConfig === "object" && lp.flatRoofConfig
-            ? lp.flatRoofConfig
-            : {};
-        const tilt = Number((fc as { supportTiltDeg?: number }).supportTiltDeg);
-        const lo = String(
-          (fc as { layoutOrientation?: string }).layoutOrientation || "portrait",
-        ).toLowerCase();
-        flatRoof = {
-          inPvLayout: !!ui.inPvLayout,
-          hasPanCtx: !!ui.hasPanCtx,
-          activePanId:
-            ui.activePanId != null && ui.activePanId !== ""
-              ? String(ui.activePanId)
-              : null,
-          isFlat: !!ui.isFlat,
-          showFlatEnable: !!ui.hasPanCtx && !ui.isFlat,
-          supportTiltDeg:
-            tilt === 5 || tilt === 10 || tilt === 15 ? tilt : 10,
-          layoutPortrait: !(lo === "landscape" || lo === "paysage"),
-        };
-      }
-    }
-  } catch {
-    /* ignore */
-  }
-
-  return {
-    modulesCount,
-    totalKwc,
-    inverterName,
-    unitsRequired,
-    acTotal,
-    dcAcRatio,
-    isValid,
-    activeTool,
-    tiltDeg,
-    orientation: orientationNorm,
-    autofillActive,
-    autofillText,
-    autofillValidCount,
-    hasActiveBlockWithPanels,
-    flatRoof,
-  };
 }
+
+function findPanelById(
+  catalog: unknown[],
+  id: string | null,
+): unknown | null {
+  if (!id) return null;
+  return (
+    (catalog as Array<Record<string, unknown>>).find((p) => p?.id === id) ??
+    null
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Hook
+// ─────────────────────────────────────────────────────────────────────────────
 
 export function usePhase3Data() {
-  const [data, setData] = useState(computePhase3Data);
+  const raw = useCalpinageStore((s) => s.phase3);
 
-  const refresh = useCallback(() => {
-    setData(computePhase3Data());
-  }, []);
+  return useMemo(() => {
+    const {
+      modulesCount,
+      selectedInverterId,
+      pvSelectedInverter,
+      selectedPanelId,
+      pvSelectedPanel,
+      inverters,
+      panelCatalog,
+      validatedRoofData,
+      activePanId,
+      pvLayoutOrientation,
+      focusBlockOrientation,
+      activeTool,
+      autofillEnabled,
+      autofillText,
+      autofillValidCount,
+      hasActiveBlockWithPanels,
+      flatRoofProjection,
+    } = raw;
 
-  useEffect(() => {
-    const handler = () => refresh();
-    window.addEventListener(EVENT_NAME, handler);
-    refresh();
-    return () => window.removeEventListener(EVENT_NAME, handler);
-  }, [refresh]);
+    // ── Onduleur ──────────────────────────────────────────────────────────
+    const inv =
+      pvSelectedInverter ||
+      findInverterById(inverters, selectedInverterId);
 
-  return data;
+    // ── Panneau catalogue ─────────────────────────────────────────────────
+    const pvSelPanObj = pvSelectedPanel as Record<string, unknown> | null;
+    const selectedPanel =
+      findPanelById(panelCatalog, selectedPanelId) ||
+      (pvSelPanObj?.id != null
+        ? findPanelById(panelCatalog, String(pvSelPanObj.id))
+        : null) ||
+      pvSelectedPanel;
+
+    const selPanObj = selectedPanel as Record<string, unknown> | null;
+    const powerWc =
+      selPanObj &&
+      (selPanObj.power_wc != null || selPanObj.powerWc != null)
+        ? Number(selPanObj.power_wc ?? selPanObj.powerWc) || 0
+        : 0;
+    const totalKwc =
+      modulesCount > 0 && powerWc > 0
+        ? (modulesCount * powerWc) / 1000
+        : 0;
+
+    const panelSpec = selPanObj
+      ? {
+          power_wc: powerWc,
+          isc_a: selPanObj.isc_a,
+          vmp_v: selPanObj.vmp_v,
+          strings: selPanObj.strings,
+        }
+      : null;
+
+    // ── Validation onduleur ───────────────────────────────────────────────
+    const validation = inv
+      ? validateInverterSizing({
+          totalPanels: modulesCount,
+          totalPowerKwc: totalKwc,
+          inverter: inv,
+          panelSpec,
+        })
+      : {
+          requiredUnits: 0,
+          isDcPowerOk: true,
+          isCurrentOk: true,
+          isMpptOk: true,
+          isVoltageOk: true,
+          warnings: [] as string[],
+        };
+
+    const invObj = inv as Record<string, unknown> | null;
+    const unitsRequired = validation.requiredUnits;
+    const family = inv ? (normalizeInverterFamily(inv) || "CENTRAL") : "CENTRAL";
+    const acPowerKw =
+      invObj &&
+      (invObj.nominal_power_kw != null || invObj.max_dc_power_kw != null)
+        ? Number(invObj.nominal_power_kw ?? invObj.max_dc_power_kw) || 0
+        : 0;
+
+    const acTotal =
+      family === "MICRO" && inv && modulesCount > 0 && acPowerKw > 0
+        ? modulesCount * acPowerKw
+        : family === "CENTRAL" && acPowerKw > 0
+          ? acPowerKw
+          : 0;
+
+    const dcAcRatio = acTotal > 0 ? totalKwc / acTotal : null;
+    const isValid =
+      modulesCount > 0 &&
+      !!inv &&
+      (family === "MICRO" || (dcAcRatio !== null && dcAcRatio >= 0.8));
+
+    const inverterName = invObj
+      ? (String(invObj.name ?? invObj.model_ref ?? "").trim() ||
+          String(invObj.id ?? "") ||
+          "—")
+      : "—";
+
+    // ── Inclinaison — pan actif ou premier pan ────────────────────────────
+    const vrd = validatedRoofData as Record<string, unknown> | null | undefined;
+    const pans = vrd?.pans;
+    let tiltDeg: number | null = null;
+    if (Array.isArray(pans) && pans.length > 0) {
+      const pan = activePanId
+        ? (pans as Array<Record<string, unknown>>).find(
+            (p) => p?.id === activePanId,
+          )
+        : (pans as Array<Record<string, unknown>>)[0];
+      if (pan) {
+        const physical = pan.physical as Record<string, unknown> | undefined;
+        const slope = physical?.slope as Record<string, unknown> | undefined;
+        tiltDeg =
+          (slope?.valueDeg as number | undefined) ??
+          (pan.tiltDeg as number | undefined) ??
+          null;
+      }
+    }
+
+    // ── Orientation effective ─────────────────────────────────────────────
+    let orientationNorm: "portrait" | "landscape" = pvLayoutOrientation;
+    if (focusBlockOrientation != null) {
+      const lo = focusBlockOrientation.toLowerCase();
+      if (lo === "landscape" || lo === "paysage") {
+        orientationNorm = "landscape";
+      } else if (lo === "portrait") {
+        orientationNorm = "portrait";
+      }
+    }
+
+    // ── Toiture plate — re-expose les champs du store ─────────────────────
+    const flatRoof = {
+      inPvLayout: flatRoofProjection.inPvLayout,
+      hasPanCtx: flatRoofProjection.hasPanCtx,
+      activePanId: flatRoofProjection.activePanId,
+      isFlat: flatRoofProjection.isFlat,
+      showFlatEnable: flatRoofProjection.showFlatEnable,
+      supportTiltDeg: flatRoofProjection.supportTiltDeg,
+      layoutPortrait: flatRoofProjection.layoutPortrait,
+    };
+
+    return {
+      modulesCount,
+      totalKwc,
+      inverterName,
+      unitsRequired,
+      acTotal,
+      dcAcRatio,
+      isValid,
+      activeTool,
+      tiltDeg,
+      orientation: orientationNorm,
+      autofillActive: autofillEnabled,
+      autofillText,
+      autofillValidCount,
+      hasActiveBlockWithPanels,
+      flatRoof,
+    };
+  }, [raw]);
 }
 
-/** Exposé sur window pour que le legacy puisse notifier les mises à jour. Retourne la fn assignée pour cleanup. */
-export function setupPhase3SidebarNotify() {
-  const fn = () => window.dispatchEvent(new Event(EVENT_NAME));
-  (window as any).notifyPhase3SidebarUpdate = fn;
+// ─────────────────────────────────────────────────────────────────────────────
+// Notify — identique à avant (le legacy l'appelle pour déclencher l'adapter)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Exposé sur window pour que le legacy puisse notifier les mises à jour.
+ * Retourne la fn assignée pour cleanup (appelé par Phase3Sidebar).
+ */
+export function setupPhase3SidebarNotify(): () => void {
+  const fn = () =>
+    window.dispatchEvent(new Event(PHASE3_SIDEBAR_UPDATE_EVENT));
+  (window as unknown as Record<string, unknown>).notifyPhase3SidebarUpdate =
+    fn;
   return fn;
 }

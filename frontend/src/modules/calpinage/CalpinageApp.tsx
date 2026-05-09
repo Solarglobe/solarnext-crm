@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { installEmitOfficialRuntimeStructuralChangeOnWindow } from "./runtime/emitOfficialRuntimeStructuralChange";
 import { installRoofModelingHistoryOnWindow } from "./runtime/roofModelingHistory";
 import { initCalpinage } from "./legacy/calpinage.module.js";
+import { bootstrapCalpinageStore } from "./store/adapters/legacyCalpinageStateAdapter";
 import { ensureCalpinageDeps, resetCalpinageDepsCache } from "./legacy/loadCalpinageDeps";
 import { getUiShadingSnapshot } from "./shading/getUiShadingSnapshot";
 import { getDsmOverlayManager } from "./dsmOverlay";
@@ -168,7 +169,14 @@ export default function CalpinageApp({
         versionId,
         onValidate: (data: unknown) => onValidateRef.current?.(data)
       });
-      teardownRef.current = typeof teardown === "function" ? teardown : null;
+      // Phase 1 : bootstrap store Zustand depuis window.CALPINAGE_STATE
+      // Doit être appelé APRÈS initCalpinage (le module legacy est monté).
+      const storeTeardown = bootstrapCalpinageStore();
+      const legacyTeardown = typeof teardown === "function" ? teardown : null;
+      teardownRef.current = () => {
+        legacyTeardown?.();
+        storeTeardown();
+      };
       hasInitializedRef.current = true;
       if (DEV && typeof console !== "undefined") {
         console.log("[CalpinageApp] init done");
