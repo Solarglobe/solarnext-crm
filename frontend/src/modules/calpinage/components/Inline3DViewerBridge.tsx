@@ -23,6 +23,7 @@ import type { GroundPlaneImageData } from "../canonical3d/viewer/GroundPlaneText
 import type { CalpinagePanProvenanceEntry } from "../canonical3d/viewer/inspection/buildPickProvenance2DViewModel";
 import { Canonical3DViewerErrorBoundary } from "../canonical3d/product/Canonical3DProductMount";
 import { syncRoofPansMirrorFromPans } from "../legacy/phase2RoofDerivedModel";
+import { getCalpinageRuntime } from "../runtime/calpinageRuntime";
 import {
   applyRoofVertexHeightEdit,
   readCalpinagePanVertexHeightM,
@@ -111,11 +112,9 @@ function assertRoofVertexEditTarget(
   return true;
 }
 
-function getAllPanelsFromWindow(): unknown[] {
+function getAllPanelsFromRuntime(): unknown[] {
   try {
-    const eng = (window as unknown as { pvPlacementEngine?: { getAllPanels?: () => unknown[] } })
-      .pvPlacementEngine;
-    if (eng && typeof eng.getAllPanels === "function") return eng.getAllPanels() ?? [];
+    return getCalpinageRuntime()?.getPlacementEngine()?.getAllPanels() ?? [];
   } catch {
     /* ignore */
   }
@@ -726,7 +725,7 @@ function Inline3DViewer({
         syncRoofDerivedMirrors(root);
         const post = validateCalpinageRuntimeAfterRoofEdit(root, {
           editedPanId: edit.panId,
-          getAllPanels: getAllPanelsFromWindow,
+          getAllPanels: getAllPanelsFromRuntime,
         });
         if (!post.ok) {
           legacy.rollback?.();
@@ -809,7 +808,7 @@ function Inline3DViewer({
       syncRoofDerivedMirrors(root);
       const post = validateCalpinageRuntimeAfterRoofEdit(root, {
         editedPanId: edit.panId,
-        getAllPanels: getAllPanelsFromWindow,
+        getAllPanels: getAllPanelsFromRuntime,
       });
       if (!post.ok) {
         if (pansBefore != null) rollbackPansAndSync(root, pansBefore);
@@ -853,7 +852,7 @@ function Inline3DViewer({
       syncRoofDerivedMirrors(root);
       const post = validateCalpinageRuntimeAfterRoofEdit(root, {
         editedPanId: edit.panId,
-        getAllPanels: getAllPanelsFromWindow,
+        getAllPanels: getAllPanelsFromRuntime,
       });
       if (!post.ok) {
         if (pansBefore != null) rollbackPansAndSync(root, pansBefore);
@@ -888,7 +887,7 @@ function Inline3DViewer({
       syncRoofDerivedMirrors(root);
       const post = validateCalpinageRuntimeAfterRoofEdit(root, {
         editedPanId: firstPanIdForStructuralValidation(root),
-        getAllPanels: getAllPanelsFromWindow,
+        getAllPanels: getAllPanelsFromRuntime,
         validateSlopeOnAllPans: true,
         scopePanGeometryErrorsToEditedPanId: false,
       });

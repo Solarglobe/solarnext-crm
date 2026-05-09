@@ -40,6 +40,7 @@
 
 import { useCalpinageStore } from "../calpinageStore";
 import type { CalpinagePhase2Snapshot, CalpinagePhase3Snapshot, FlatRoofUiProjection } from "../storeTypes";
+import { getCalpinageRuntime } from "../../runtime/calpinageRuntime";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Type helper — window sans typage strict (legacy IIFE)
@@ -83,15 +84,14 @@ function readPhase2Snapshot(): CalpinagePhase2Snapshot {
 
 function readPhase3Snapshot(): CalpinagePhase3Snapshot {
   const win = window as Win;
-  const eng = win.pvPlacementEngine as Record<string, unknown> | undefined;
+  // Accès au moteur via la façade runtime typée (Phase 2).
+  // getCalpinageRuntime() retourne null si le legacy n'est pas encore monté.
+  const eng = getCalpinageRuntime()?.getPlacementEngine() ?? null;
   const state = win.CALPINAGE_STATE as Record<string, unknown> | null | undefined;
 
   // ── Modules posés ───────────────────────────────────────────────────────
-  const rawPanels =
-    eng && typeof eng.getAllPanels === "function"
-      ? (eng.getAllPanels as () => unknown)()
-      : [];
-  const modulesCount = Array.isArray(rawPanels) ? rawPanels.length : 0;
+  const rawPanels = eng?.getAllPanels() ?? [];
+  const modulesCount = rawPanels.length;
 
   // ── Sélection ───────────────────────────────────────────────────────────
   const selectedInverterId =
@@ -133,14 +133,10 @@ function readPhase3Snapshot(): CalpinagePhase3Snapshot {
       ? "landscape"
       : "portrait";
 
-  const rawFocusBlock =
-    eng && typeof eng.getFocusBlock === "function"
-      ? (eng.getFocusBlock as () => unknown)()
-      : null;
+  const rawFocusBlock = eng?.getFocusBlock() ?? null;
   const focusBlockOrientation: string | null =
-    rawFocusBlock != null &&
-    typeof (rawFocusBlock as Record<string, unknown>).orientation === "string"
-      ? String((rawFocusBlock as Record<string, unknown>).orientation)
+    rawFocusBlock?.orientation != null
+      ? String(rawFocusBlock.orientation)
       : null;
 
   // ── Outil Phase 3 ───────────────────────────────────────────────────────
@@ -161,19 +157,12 @@ function readPhase3Snapshot(): CalpinagePhase3Snapshot {
   const autofillValidCount = Number(win.__CALPINAGE_AUTOFILL_VALID_COUNT__ || 0);
 
   // ── Bloc actif ──────────────────────────────────────────────────────────
-  const activeBlock =
-    eng && typeof eng.getActiveBlock === "function"
-      ? (eng.getActiveBlock as () => unknown)()
-      : null;
-  const abPanels =
-    activeBlock != null
-      ? (activeBlock as Record<string, unknown>).panels
-      : null;
+  const activeBlock = eng?.getActiveBlock() ?? null;
   const hasActiveBlockWithPanels = !!(
     win.PV_SELECTED_PANEL &&
     activeBlock &&
-    Array.isArray(abPanels) &&
-    abPanels.length >= 1
+    Array.isArray(activeBlock.panels) &&
+    activeBlock.panels.length >= 1
   );
 
   // ── Toiture plate ───────────────────────────────────────────────────────

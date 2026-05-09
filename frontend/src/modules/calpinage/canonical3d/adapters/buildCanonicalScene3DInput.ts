@@ -15,6 +15,7 @@ import { prepareCanonicalPlacedPanelsFromCalpinageState } from "../../integratio
 import type { CanonicalPan3D } from "./buildCanonicalPans3DFromRuntime";
 import type { CanonicalObstacle3D } from "./buildCanonicalObstacles3DFromRuntime";
 import type { PlacementEngineLike } from "../../integration/enrichPanelsForCanonicalShading";
+import { getCalpinageRuntime } from "../../runtime/calpinageRuntime";
 import {
   normalizeWorldConfig,
   peekCalpinageRuntimeWorldFrame,
@@ -188,10 +189,14 @@ export function resolvePlacementEngineForCalpinage3D(
   explicit: PlacementEngineLike | null | undefined,
 ): PlacementEngineLike | null {
   if (explicit !== undefined && explicit !== null) return explicit;
+  // Accès via la façade runtime typée (Phase 2) — évite l'accès direct à window.pvPlacementEngine.
+  const eng = getCalpinageRuntime()?.getPlacementEngine();
+  if (eng) return eng;
+  // Fallback défensif : runtime non encore enregistré (chargement anticipé, SSR, tests).
   if (typeof globalThis !== "undefined") {
     const w = globalThis as Record<string, unknown>;
-    const eng = w.pvPlacementEngine;
-    if (eng && typeof eng === "object") return eng as PlacementEngineLike;
+    const raw = w.pvPlacementEngine;
+    if (raw && typeof raw === "object") return raw as PlacementEngineLike;
   }
   return null;
 }

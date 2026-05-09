@@ -12,6 +12,7 @@ import {
   diagnoseCanonical3DWorldContract,
   getCanonical3DWorldContractDriftReport,
 } from "./canonical3DWorldContract";
+import type { PlacementEngineAdapter } from "../engine/PlacementEngineAdapter";
 
 export type ComputeProjectedPanelRectFn = (opts: unknown) => unknown;
 
@@ -33,7 +34,12 @@ export type NearShadingCoreLike = {
 /** Façade lecture seule ; chaque getter lit window au moment de l'appel. */
 export interface CalpinageRuntime {
   getState: () => unknown | null;
-  getPlacementEngine: () => unknown | null;
+  /**
+   * Façade typée pour window.pvPlacementEngine.
+   * Retourne null si le module legacy n'est pas encore monté (calpinage non initialisé).
+   * Toutes les méthodes sont null-safe : préférer l'opérateur `?.` en appelant.
+   */
+  getPlacementEngine: () => PlacementEngineAdapter | null;
   getRender: () => (() => void) | null;
   getLayoutRules: () => unknown | null;
   getComputeProjectedPanelRect: () => ComputeProjectedPanelRectFn | null;
@@ -69,7 +75,7 @@ const facade: CalpinageRuntime = {
   },
   getPlacementEngine() {
     if (typeof window === "undefined") return null;
-    const w = window as unknown as { pvPlacementEngine?: unknown };
+    const w = window as unknown as { pvPlacementEngine?: PlacementEngineAdapter };
     return w.pvPlacementEngine ?? null;
   },
   getRender() {

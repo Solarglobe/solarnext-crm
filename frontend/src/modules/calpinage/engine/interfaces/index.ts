@@ -48,3 +48,10 @@ export {
 } from "./Dp2Boundary";
 
 export type { Dp2GlobalName } from "./Dp2Boundary";
+
+export type {
+  PlacedPanel,
+  PlacementPanelData,
+  PlacementBlock,
+  PlacementEngineAdapter,
+} from "../PlacementEngineAdapter";
