@@ -295,14 +295,27 @@ export function buildRoofStateSliceFromCalpinageState(state: CalpinageStateLike)
 
 function getEngineFrozenBlocksExport(): unknown[] {
   const w = window as unknown as {
-    pvPlacementEngine?: { getFrozenBlocks?: () => unknown[] };
-    ActivePlacementBlock?: { getFrozenBlocks?: () => unknown[] };
+    pvPlacementEngine?: { getFrozenBlocks?: () => unknown[]; getActiveBlock?: () => unknown };
+    ActivePlacementBlock?: { getFrozenBlocks?: () => unknown[]; getActiveBlock?: () => unknown };
   };
   const getFrozen =
     w.pvPlacementEngine?.getFrozenBlocks || w.ActivePlacementBlock?.getFrozenBlocks;
   if (typeof getFrozen !== "function") return [];
   const raw = getFrozen();
-  return Array.isArray(raw) ? raw : [];
+  const frozen = Array.isArray(raw) ? raw : [];
+  // P0.4-c : restoreFrozenBlocks() pop le dernier bloc figé pour en faire le bloc actif.
+  // getFrozenBlocks() retourne N-1 blocs au reload alors que le hash de sauvegarde couvrait N blocs.
+  // On inclut le bloc actif pour restaurer la parité.
+  const getActive =
+    w.pvPlacementEngine?.getActiveBlock || w.ActivePlacementBlock?.getActiveBlock;
+  if (typeof getActive === "function") {
+    const active = getActive() as Record<string, unknown> | null;
+    if (active && Array.isArray(active.panels) && (active.panels as unknown[]).length > 0) {
+      const inFrozen = frozen.some((b) => b && (b as Record<string, unknown>).id === active.id);
+      if (!inFrozen) return [...frozen, active];
+    }
+  }
+  return frozen;
 }
 
 export function computeReloadDiagnostic(

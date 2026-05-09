@@ -7747,7 +7747,22 @@ export function initCalpinage(container, options = {}) {
           var getFrozenBlocks = (window.pvPlacementEngine && window.pvPlacementEngine.getFrozenBlocks) || (window.ActivePlacementBlock && window.ActivePlacementBlock.getFrozenBlocks);
           if (typeof getFrozenBlocks !== "function") return [];
           var fb = getFrozenBlocks();
-          return Array.isArray(fb) ? fb : [];
+          var frozen = Array.isArray(fb) ? fb : [];
+          /* P0.4-c : restoreFrozenBlocks() pop le dernier bloc pour en faire le bloc actif ;
+           * getFrozenBlocks() retourne N-1 blocs au reload alors que le hash de sauvegarde
+           * couvrait N blocs. Inclure le bloc actif restore la parité. */
+          var getActive = (window.pvPlacementEngine && window.pvPlacementEngine.getActiveBlock) || (window.ActivePlacementBlock && window.ActivePlacementBlock.getActiveBlock);
+          if (typeof getActive === "function") {
+            var active = getActive();
+            if (active && Array.isArray(active.panels) && active.panels.length > 0) {
+              var inFrozen = false;
+              for (var _fi = 0; _fi < frozen.length; _fi++) {
+                if (frozen[_fi] && frozen[_fi].id === active.id) { inFrozen = true; break; }
+              }
+              if (!inFrozen) return frozen.concat([active]);
+            }
+          }
+          return frozen;
         } catch (e) {
           return [];
         }
