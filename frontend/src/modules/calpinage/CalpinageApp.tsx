@@ -19,6 +19,7 @@ import { emitRoofVertexZTelemetry } from "./runtime/roofVertexZEditTelemetry";
 import { getCrmApiBase } from "@/config/crmApiBase";
 import { ConfirmProvider } from "./ui/ConfirmProvider";
 import { ToastProvider } from "./ui/ToastProvider";
+import { KonvaOverlay, isKonvaOverlayEnabled } from "./konva";
 
 const DEV = typeof import.meta !== "undefined" && import.meta.env?.DEV;
 
@@ -244,6 +245,8 @@ export default function CalpinageApp({
       />
       {!loading && !error && (
         <>
+          {/* P4.0 — couche Konva progressive (flag VITE_CALPINAGE_KONVA / window.__CALPINAGE_KONVA__) */}
+          {isKonvaOverlayEnabled() && <KonvaOverlay containerRef={containerRef} />}
           <Phase2SidebarBridge containerRef={containerRef} />
           <Phase3SidebarBridge containerRef={containerRef} />
           <Inline3DViewerBridge
@@ -311,12 +314,12 @@ export default function CalpinageApp({
                 background: "#7c3aed",
                 color: "#fff",
                 fontSize: "14px",
-                fontWeight: 500,
-                cursor: "pointer"
-              }}
-            >
-              Réessayer
-            </button>
+              fontWeight: 500,
+              cursor: "pointer"
+            }}
+          >
+            Réessayer
+          </button>
           </div>
         </div>
       )}
