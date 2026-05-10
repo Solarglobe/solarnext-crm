@@ -19363,17 +19363,17 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             _mmOx = ox; _mmOy = oy; _mmScaleFactor = sc;
 
             /* Convertit un point image en coordonnées minimap.
-             * L'image brute stockée (roofImg / dataUrl) est SUD-EN-HAUT (upside-down).
-             * renderImpl la corrige via double flip → nord-en-haut sur le canvas principal.
-             * Le minimap affiche lui aussi roofImg flippé verticalement (dh négatif, cf. ci-dessous),
-             * donc nord visuel = oy (haut minimap). Pour aligner les polygones :
-             *   y_minimap = oy + (imgH - imgPt.y) * sc
-             * (imgPt.y=0 → row 0 = sud stocké → bas visuel = oy + imgH*sc ;
-             *  imgPt.y=imgH → row imgH = nord stocké → haut visuel = oy) */
+             * Les coordonnées imgPt utilisent la convention screenToImage :
+             *   imgPt.y = 0 → nord géographique (haut du canvas principal)
+             *   imgPt.y = imgH → sud géographique (bas du canvas principal)
+             * Le satellite est affiché flippé verticalement (dh négatif ci-dessous) :
+             *   nord visuel = oy (haut minimap), sud visuel = oy + imgH*sc (bas minimap)
+             * Donc la formule directe aligne bien polygones et satellite :
+             *   y_minimap = oy + imgPt.y * sc  (nord→haut, sud→bas) */
             function i2mm(imgPt) {
               return {
                 x: ox + imgPt.x * sc,
-                y: oy + (imgH - imgPt.y) * sc
+                y: oy + imgPt.y * sc
               };
             }
 
@@ -19466,13 +19466,14 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 /* Minimap → image coords (y=0 at top, no flip) */
                 var imgX = (mx - _mmOx) / _mmScaleFactor;
                 var imgY = (my - _mmOy) / _mmScaleFactor;
-                /* Après flip visuel du minimap, cliquer en y_minimap=my correspond à
-                 * imgY_flipped = (my - oy) / sc, soit la row stockée = imgH - imgY_flipped.
-                 * worldToScreen: screen.y = -world.y*scale + offset.y, world.y = imgH - row_stockée = imgY_flipped.
-                 * Pour centrer ce point : offset.y = ch/2 + imgY * scale */
+                /* Minimap → imgPt coords (convention screenToImage, y=0=nord) :
+                 *   imgX = (mx - ox) / sc,  imgY = (my - oy) / sc
+                 * worldToScreen: screen.y = -world.y * scale + offset.y
+                 * screenToImage: imgPt.y = imgH - world.y  →  world.y = imgH - imgY
+                 * Pour centrer ce point sur le canvas : offset.y = ch/2 + (imgH - imgY)*scale */
                 var cw = engine.width, ch = engine.height;
                 vp.offset.x = cw / 2 - imgX * vp.scale;
-                vp.offset.y = ch / 2 + imgY * vp.scale;
+                vp.offset.y = ch / 2 + (imgH - imgY) * vp.scale;
                 if (typeof window.CALPINAGE_RENDER === "function") requestAnimationFrame(window.CALPINAGE_RENDER);
               }
               panToMM(e.clientX, e.clientY);
