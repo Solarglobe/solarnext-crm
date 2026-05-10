@@ -19382,9 +19382,12 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             minimapCtx.beginPath();
             minimapCtx.rect(ox, oy, imgW * sc, imgH * sc);
             minimapCtx.clip();
-            /* La mini-map doit compenser comme le canvas principal l'axe Y image/monde.
-             * Sans hauteur negative, l'aperçu est retourné verticalement par rapport au plan. */
-            minimapCtx.drawImage(roofImg, ox, oy + imgH * sc, imgW * sc, -(imgH * sc));
+            /* La mini-map doit reproduire le flip Y du canvas principal.
+             * drawImage avec une hauteur negative ne retourne pas les pixels dans Canvas 2D :
+             * on applique donc explicitement un scaleY(-1) autour du rectangle image. */
+            minimapCtx.translate(0, oy * 2 + imgH * sc);
+            minimapCtx.scale(1, -1);
+            minimapCtx.drawImage(roofImg, ox, oy, imgW * sc, imgH * sc);
             minimapCtx.restore();
 
             /* Contours bâti */
