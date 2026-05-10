@@ -19382,9 +19382,9 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             minimapCtx.beginPath();
             minimapCtx.rect(ox, oy, imgW * sc, imgH * sc);
             minimapCtx.clip();
-            /* La mini-map doit afficher la meme orientation que le canvas principal.
-             * Un drawImage a hauteur negative inversait la vue d'ensemble en miroir vertical. */
-            minimapCtx.drawImage(roofImg, ox, oy, imgW * sc, imgH * sc);
+            /* La mini-map doit compenser comme le canvas principal l'axe Y image/monde.
+             * Sans hauteur negative, l'aperçu est retourné verticalement par rapport au plan. */
+            minimapCtx.drawImage(roofImg, ox, oy + imgH * sc, imgW * sc, -(imgH * sc));
             minimapCtx.restore();
 
             /* Contours bâti */
