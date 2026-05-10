@@ -19406,9 +19406,12 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             minimapCtx.beginPath();
             minimapCtx.rect(ox, oy, imgW * sc, imgH * sc);
             minimapCtx.clip();
-            /* Image satellite dans le minimap : drawImage standard (pas de flip).
-             * Le PNG a y=0 en HAUT, le minimap n'a pas de transform → affichage correct direct. */
-            minimapCtx.drawImage(roofImg, ox, oy, imgW * sc, imgH * sc);
+            /* Flip vertical obligatoire : roofImg est stocké avec y=0 au BAS visuel
+             * (le main canvas compense via drawImage(dh<0) + ctx.transform scaleY=-s).
+             * Le minimap n'a pas de ctx.transform → on flip manuellement via dh négatif.
+             * source y=0 (bas visuel) → dest oy+imgH*sc (bas minimap) ✓
+             * source y=imgH (haut visuel) → dest oy (haut minimap) ✓ */
+            minimapCtx.drawImage(roofImg, 0, 0, imgW, imgH, ox, oy + imgH * sc, imgW * sc, -(imgH * sc));
             minimapCtx.restore();
 
             /* Contours bâti */
@@ -22648,13 +22651,4 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
       if (container && container.firstChild) {
         while (container.firstChild) container.removeChild(container.firstChild);
       }
-    } catch (e) { if (typeof console !== "undefined") console.warn("[CALPINAGE] container clear error", e); }
-    _calpinageInitInFlight = false;
-    if (devLog) {
-      console.log("[CALPINAGE] cleanup done (state isolated, ready for next study)");
-    }
-  };
-  container.__CALPINAGE_MOUNTED__ = true;
-  container.__CALPINAGE_TEARDOWN__ = cleanup;
-  return cleanup;
-}
+    } catch (e) { if (typeof console !== "undefined") console.warn("[CALPINAGE] container clear erro
