@@ -19642,7 +19642,11 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             var selTraitIds = new Set(drawState.selectedTraitIds || []);
 
             /* 1. Image d?j? dessin?e ci-dessus. */
+            /* P4.0 — lecture du kill switch Konva (undefined si KonvaOverlay non monté) */
+            var _konvaLayers = /** @type {Set<string>|undefined} */ (window.__CALPINAGE_KONVA_LAYERS__);
             /* 2. Contours bati main - double stroke (halo blanc + trait bleu) + fill */
+            /* P4.1 kill switch : si KonvaContoursLayer actif, ces couches sont dessinées par Konva */
+            if (!_konvaLayers || !_konvaLayers.has("contours")) {
             for (var ci = 0; ci < CALPINAGE_STATE.contours.length; ci++) {
               var c = CALPINAGE_STATE.contours[ci];
               if (!c || !c.points || c.points.length < 2 || c.roofRole === "chienAssis") continue;
@@ -19718,6 +19722,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 drawSegmentLabelAlong(ctx, raPt, rbPt, lenM.toFixed(2).replace(".", ",") + " m", 7);
               }
             }
+            } /* end P4.1 kill switch : !_konvaLayers.has("contours") */
             /* 4a. Hover pan : eclaircissement subtil + bordure doree (priorite < selection) */
             if (drawState.hoverPanId && drawState.hoverPanId !== CALPINAGE_STATE.selectedPanId) {
               var hoverPan = CALPINAGE_STATE.pans.filter(function (p) { return p.id === drawState.hoverPanId; })[0];
@@ -19834,6 +19839,8 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               }
             }
             /* 4c-2. Obstacles polygones (A-2) ??? contour + remplissage semi-transparent, label si dispo */
+            /* P4.2 kill switch : si KonvaObstaclesLayer actif, les obstacles sont dessinés par Konva */
+            if (!_konvaLayers || !_konvaLayers.has("obstacles")) {
             var obstaclesList = CALPINAGE_STATE.obstacles || [];
             var obstacleSelectedIndexRaw = drawState.activeTool === "select" ? drawState.selectedObstacleIndex : -1;
             var obstacleSelectedIndex =
@@ -19902,6 +19909,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             if (CalpinageCanvas.drawObstacles) {
               CalpinageCanvas.drawObstacles(ctx, CALPINAGE_STATE.obstacles || [], imageToScreen, obstaclePreview, vp.scale, obstacleSelectedIndex);
             }
+            } /* end P4.2 kill switch : !_konvaLayers.has("obstacles") */
             var rxList = CALPINAGE_STATE.roofExtensions || [];
             if (rxList.length > 0) {
               ctx.save();

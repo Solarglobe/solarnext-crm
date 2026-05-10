@@ -23,6 +23,7 @@ import { createPortal } from "react-dom";
 import { Layer, Group, Stage } from "react-konva";
 import { useViewportSync } from "./useViewportSync";
 import { KonvaContoursLayer } from "./KonvaContoursLayer";
+import { KonvaObstaclesLayer } from "./KonvaObstaclesLayer";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // KonvaOverlay
@@ -145,6 +146,7 @@ export function KonvaOverlay({ containerRef }: Props) {
             scaleY={-vp.scale}
           >
             <KonvaContoursLayer />
+            <KonvaObstaclesLayer />
           </Group>
         </Layer>
       </Stage>
