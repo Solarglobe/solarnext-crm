@@ -66,16 +66,18 @@ const VIEWPORT_EVENT = "calpinage:viewport-changed";
 function readLayerSnap(): LayerSnap | null {
   const w = window as Record<string, unknown>;
   const st = w["CALPINAGE_STATE"] as
-    | { contours?: Contour[]; ridges?: Ridge[] }
+    | { contours?: Contour[]; ridges?: Ridge[]; roof?: { image?: { height?: number } } }
     | null
     | undefined;
   if (!st) return null;
-  const canvasEl = document.querySelector<HTMLCanvasElement>("#calpinage-canvas-el");
-  if (!canvasEl || canvasEl.height === 0) return null;
+  // imgH = hauteur de l'image SOURCE (roofImg), pas du canvas HTML.
+  // Le legacy utilise CALPINAGE_STATE.roof.image.height dans imageToScreen.
+  const imgH = (st.roof?.image?.height ?? 0);
+  if (imgH === 0) return null;
   return {
     contours: Array.isArray(st.contours) ? st.contours : [],
     ridges: Array.isArray(st.ridges) ? st.ridges : [],
-    imgH: canvasEl.height,
+    imgH,
   };
 }
 

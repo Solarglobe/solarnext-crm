@@ -19391,17 +19391,13 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             var oy = pad + ((mmH - 2*pad) - imgH * sc) / 2;
             _mmOx = ox; _mmOy = oy; _mmScaleFactor = sc;
 
-            /* Convertit un point image (y du bas = 0) en coordonnées minimap
-             * Note : dans l'image, y=0 est le BAS (même convention que "world") ;
-             *        dans l'espace minimap 2D l'origine est en haut-gauche,
-             *        donc on fait imgH - imgPt.y pour retrouver le y image-top. */
+            /* Convertit un point image en coordonnées minimap.
+             * Les points de CALPINAGE_STATE ont y=0 en HAUT (convention screenToImage).
+             * Le minimap 2D a aussi y=0 en haut — pas de flip. */
             function i2mm(imgPt) {
-              /* Y-flip : world-space y=0 est en BAS, minimap 2D y=0 est en HAUT.
-               * minimap_y = oy + (imgH - world_y) * sc
-               * Cohérent avec panToMM qui fait (imgH - imgY) pour l'inverse. */
               return {
                 x: ox + imgPt.x * sc,
-                y: oy + (imgH - imgPt.y) * sc
+                y: oy + imgPt.y * sc
               };
             }
 
