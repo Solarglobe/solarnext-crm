@@ -2526,14 +2526,19 @@ export function initCalpinage(container, options = {}) {
       var compassActive = true;
       function syncCompass() {
         if (!compassActive) return;
-        var bearing = 0;
+        /* compassAngle = angle de rotation CSS de la boussole pour pointer le Nord.
+         * Google Maps : getHeading() retourne le bearing géographique (°CW depuis le Nord).
+         *   → la boussole doit contre-rotater : compassAngle = -heading.
+         * Canvas mode : calpinageViewRotation = north.angleDeg = -bearing déjà.
+         *   → on l'utilise directement, sans inverser à nouveau. */
+        var compassAngle = 0;
         if (window.calpinageMap && typeof window.calpinageMap.getHeading === "function") {
-          bearing = window.calpinageMap.getHeading() || 0;
+          compassAngle = -(window.calpinageMap.getHeading() || 0);
         }
         if (window.calpinageViewRotation !== undefined) {
-          bearing = window.calpinageViewRotation;
+          compassAngle = window.calpinageViewRotation; /* déjà = -bearing */
         }
-        compass.style.transform = "rotate(" + (-bearing) + "deg)";
+        compass.style.transform = "rotate(" + compassAngle + "deg)";
         compassRafId = requestAnimationFrame(syncCompass);
       }
       syncCompass();
