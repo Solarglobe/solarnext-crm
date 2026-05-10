@@ -30,8 +30,6 @@ import { createPortal } from "react-dom";
 import { Layer, Group, Rect, Stage, Text } from "react-konva";
 import { useViewportSync } from "./useViewportSync";
 
-const IS_DEV = typeof import.meta !== "undefined" && Boolean(import.meta.env?.DEV);
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Debug alignment rect (dev uniquement)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -43,7 +41,7 @@ const IS_DEV = typeof import.meta !== "undefined" && Boolean(import.meta.env?.DE
  * du canvas legacy → valide le flip Y et l'alignement pixel.
  */
 function DebugAlignRect() {
-  if (!IS_DEV) return null;
+  // Visible dès que le flag Konva est actif (pas limité à DEV — sert à valider P4.0 en prod aussi)
   return (
     <>
       {/* Croix sur l'origine image (0,0) — coin bas-gauche sur écran */}
@@ -148,7 +146,7 @@ export function KonvaOverlay({ containerRef }: Props) {
             scaleX={vp.scale}
             scaleY={-vp.scale}
           >
-            {IS_DEV && <DebugAlignRect />}
+            <DebugAlignRect />
           </Group>
         </Layer>
       </Stage>
