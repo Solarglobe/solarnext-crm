@@ -29,6 +29,7 @@ import { type RefObject, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { Layer, Group, Rect, Stage, Text } from "react-konva";
 import { useViewportSync } from "./useViewportSync";
+import { KonvaContoursLayer } from "./KonvaContoursLayer";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Debug alignment rect (dev uniquement)
@@ -146,6 +147,7 @@ export function KonvaOverlay({ containerRef }: Props) {
             scaleX={vp.scale}
             scaleY={-vp.scale}
           >
+            <KonvaContoursLayer />
             <DebugAlignRect />
           </Group>
         </Layer>
@@ -153,7 +155,7 @@ export function KonvaOverlay({ containerRef }: Props) {
     </div>
   );
 
-  // Portal dans containerRef : sibling de #calpinage-root dans le même stacking context
+  // Portal dans containerRef : sibling de #calpinage-root dans le mêm stacking context
   return createPortal(overlay, container);
 }
 
