@@ -19396,11 +19396,12 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
              *        dans l'espace minimap 2D l'origine est en haut-gauche,
              *        donc on fait imgH - imgPt.y pour retrouver le y image-top. */
             function i2mm(imgPt) {
-              /* image coords: y=0 at top (matches canvas/minimap origin),
-               * so no Y-flip needed — direct mapping. */
+              /* Y-flip : world-space y=0 est en BAS, minimap 2D y=0 est en HAUT.
+               * minimap_y = oy + (imgH - world_y) * sc
+               * Cohérent avec panToMM qui fait (imgH - imgY) pour l'inverse. */
               return {
                 x: ox + imgPt.x * sc,
-                y: oy + imgPt.y * sc
+                y: oy + (imgH - imgPt.y) * sc
               };
             }
 
