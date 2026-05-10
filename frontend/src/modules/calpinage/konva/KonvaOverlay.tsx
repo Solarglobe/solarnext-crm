@@ -20,36 +20,9 @@
 
 import { type RefObject, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { Layer, Group, Rect, Stage, Text } from "react-konva";
+import { Layer, Group, Stage } from "react-konva";
 import { useViewportSync } from "./useViewportSync";
 import { KonvaContoursLayer } from "./KonvaContoursLayer";
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Debug alignment rect
-// ─────────────────────────────────────────────────────────────────────────────
-
-function DebugAlignRect() {
-  return (
-    <>
-      {/* Croix sur l'origine image (0,0) — coin bas-gauche sur écran */}
-      <Rect x={-10} y={-10} width={20} height={20} fill="rgba(255,0,200,0.9)" listening={false} />
-      {/* Rectangle de 200×200 px image depuis (0,0) */}
-      <Rect
-        x={0} y={0} width={200} height={200}
-        stroke="rgba(255,0,200,0.85)" strokeWidth={3}
-        fill="rgba(255,0,200,0.06)"
-        dash={[8, 5]} listening={false}
-      />
-      {/* Label — scaleY=-1 pour compenser le flip Y du WorldGroup */}
-      <Text
-        x={5} y={-20} text="Konva P4.0 (0,0)" fontSize={14}
-        fill="rgba(255,0,200,1)" scaleY={-1} fontStyle="bold" listening={false}
-      />
-      {/* Point (200,200) */}
-      <Rect x={194} y={194} width={12} height={12} fill="rgba(255,0,200,0.9)" listening={false} />
-    </>
-  );
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // KonvaOverlay
@@ -115,11 +88,10 @@ export function KonvaOverlay({ containerRef }: Props) {
     };
 
     update();
-    // Remettre à jour sur chaque frame legacy + resize
+    // Remettre à jour sur chaque frame legacy + resize du canvas
     window.addEventListener("calpinage:viewport-changed", update);
     const ro = new ResizeObserver(update);
     ro.observe(canvasEl);
-    ro.observe(container);
     return () => {
       window.removeEventListener("calpinage:viewport-changed", update);
       ro.disconnect();
@@ -173,7 +145,6 @@ export function KonvaOverlay({ containerRef }: Props) {
             scaleY={-vp.scale}
           >
             <KonvaContoursLayer />
-            <DebugAlignRect />
           </Group>
         </Layer>
       </Stage>
