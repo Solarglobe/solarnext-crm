@@ -193,7 +193,7 @@ export function initGoogleMap(container: HTMLElement): GoogleMapApi {
       mapTypeIds: ["roadmap", "satellite", "hybrid"],
     },
 
-    rotateControl: true,
+    rotateControl: false,
     scaleControl: true,
     streetViewControl: false,
     fullscreenControl: false,
@@ -202,17 +202,8 @@ export function initGoogleMap(container: HTMLElement): GoogleMapApi {
   projectionOverlay = new PixelProjectionOverlay();
   projectionOverlay.setMap(mapInstance);
 
-  // Inclinaison de la carte selon le zoom (si l’API le permet)
-  if (typeof mapInstance.addListener === "function" && typeof mapInstance.setTilt === "function") {
-    mapInstance.addListener("zoom_changed", () => {
-      const z = mapInstance ? mapInstance.getZoom() ?? 0 : 0;
-      if (z >= 18) {
-        mapInstance!.setTilt!(45); // Google active le relief si dispo
-      } else {
-        mapInstance!.setTilt!(0);
-      }
-    });
-  }
+  // Garder la carte à plat évite le contrôle Google de rotation/inclinaison.
+  if (typeof mapInstance.setTilt === "function") mapInstance.setTilt(0);
 
   return {
     getState(): MapState {
