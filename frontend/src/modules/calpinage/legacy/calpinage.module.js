@@ -19382,10 +19382,9 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             minimapCtx.beginPath();
             minimapCtx.rect(ox, oy, imgW * sc, imgH * sc);
             minimapCtx.clip();
-            /* roofImg est stocké SUD-EN-HAUT. On le flip verticalement avec dh négatif :
-             * drawImage(img, dx, dy+imgH*sc, dw, -dh) → nord-en-haut dans le minimap,
-             * cohérent avec renderImpl qui applique lui aussi un double flip correctif. */
-            minimapCtx.drawImage(roofImg, ox, oy + imgH * sc, imgW * sc, -(imgH * sc));
+            /* La mini-map doit afficher la meme orientation que le canvas principal.
+             * Un drawImage a hauteur negative inversait la vue d'ensemble en miroir vertical. */
+            minimapCtx.drawImage(roofImg, ox, oy, imgW * sc, imgH * sc);
             minimapCtx.restore();
 
             /* Contours bâti */
