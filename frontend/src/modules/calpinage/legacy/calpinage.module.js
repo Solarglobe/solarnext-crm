@@ -19406,12 +19406,10 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             minimapCtx.beginPath();
             minimapCtx.rect(ox, oy, imgW * sc, imgH * sc);
             minimapCtx.clip();
-            /* Flip vertical obligatoire : roofImg est stocké avec y=0 au BAS visuel
-             * (le main canvas compense via drawImage(dh<0) + ctx.transform scaleY=-s).
-             * Le minimap n'a pas de ctx.transform → on flip manuellement via dh négatif.
-             * source y=0 (bas visuel) → dest oy+imgH*sc (bas minimap) ✓
-             * source y=imgH (haut visuel) → dest oy (haut minimap) ✓ */
-            minimapCtx.drawImage(roofImg, 0, 0, imgW, imgH, ox, oy + imgH * sc, imgW * sc, -(imgH * sc));
+            /* Pas de flip : imageToScreen/screenToImage utilisent imgH - imgPt.y,
+             * donc imgPt.y=0 = haut visuel. Le PNG roofImg a aussi sy=0 en haut.
+             * drawImage standard aligne les deux conventions — dh négatif inverserait le satellite. */
+            minimapCtx.drawImage(roofImg, ox, oy, imgW * sc, imgH * sc);
             minimapCtx.restore();
 
             /* Contours bâti */
