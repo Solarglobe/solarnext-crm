@@ -14,6 +14,32 @@ export type CalpinageMetaV1 = {
   version: "CALPINAGE_V1";
 };
 
+/** Meta V2 — Phase 5+. Mêmes champs, version bumpée. */
+export type CalpinageMetaV2 = {
+  savedAt: string;
+  geometryHash: string;
+  panelsHash: string;
+  shadingHash: string;
+  shadingComputedAt: string | null;
+  shadingSource: "persisted" | "none";
+  shadingValid: boolean;
+  version: "CALPINAGE_V2";
+};
+
+export type CalpinageMetaAny = CalpinageMetaV1 | CalpinageMetaV2;
+
+export function isCalpinageMetaV1(x: unknown): x is CalpinageMetaV1 {
+  return !!x && typeof x === "object" && (x as Record<string, unknown>).version === "CALPINAGE_V1";
+}
+
+export function isCalpinageMetaV2(x: unknown): x is CalpinageMetaV2 {
+  return !!x && typeof x === "object" && (x as Record<string, unknown>).version === "CALPINAGE_V2";
+}
+
+export function isCalpinageMetaAny(x: unknown): x is CalpinageMetaAny {
+  return isCalpinageMetaV1(x) || isCalpinageMetaV2(x);
+}
+
 export type ReloadDiagnostic = {
   geometryMatch: boolean | null;
   panelsMatch: boolean | null;
@@ -195,7 +221,7 @@ type BuildMetaOpts = {
 export function buildCalpinageMetaForExport(
   exportObj: Record<string, unknown>,
   opts: BuildMetaOpts
-): CalpinageMetaV1 {
+): CalpinageMetaV2 {
   const roofState = exportObj.roofState;
   const frozen = exportObj.frozenBlocks;
   const shading = exportObj.shading;
@@ -224,7 +250,7 @@ export function buildCalpinageMetaForExport(
     shadingComputedAt,
     shadingSource: shading ? "persisted" : "none",
     shadingValid,
-    version: "CALPINAGE_V1",
+    version: "CALPINAGE_V2",
   };
 }
 
@@ -322,7 +348,7 @@ export function computeReloadDiagnostic(
   loadedData: Record<string, unknown>,
   liveState: CalpinageStateLike
 ): { diagnostic: ReloadDiagnostic; status: CalpinageStateStatus; current: { geometryHash: string; panelsHash: string; shadingHash: string } } {
-  const meta = loadedData.calpinage_meta as CalpinageMetaV1 | undefined;
+  const meta = loadedData.calpinage_meta as CalpinageMetaAny | undefined;
 
   const roofSlice = buildRoofStateSliceFromCalpinageState(liveState);
   const curGeom = computeGeometryHashFromRoofState(roofSlice);
@@ -334,7 +360,7 @@ export function computeReloadDiagnostic(
 
   const current = { geometryHash: curGeom, panelsHash: curPanels, shadingHash: curSh };
 
-  if (!meta || typeof meta !== "object" || meta.version !== "CALPINAGE_V1") {
+  if (!meta || typeof meta !== "object" || !isCalpinageMetaAny(meta)) {
     return {
       diagnostic: {
         geometryMatch: null,
