@@ -2489,7 +2489,7 @@ export function initCalpinage(container, options = {}) {
 
       /* ??TAPE 1 ??? Supprimer tout nord existant (Google Maps / Canvas / HTML) */
       innerRoot.querySelectorAll(
-        "#north-arrow, #north-arrow-overlay, .north-arrow, .north-compass"
+        "#north-arrow, #north-arrow-overlay, #calpinage-north-compass, .north-arrow, .north-compass"
       ).forEach(function (el) { el.remove(); });
 
       if (window.google && window.google.maps && window.calpinageMap) {
@@ -2509,43 +2509,9 @@ export function initCalpinage(container, options = {}) {
       hideStyle.innerHTML = "canvas[data-north],.gm-style .north,.gm-style .compass,.gm-style canvas+div{display:none!important}";
       innerRoot.appendChild(hideStyle);
 
-      /* ??TAPE 2 ??? Cr?ation de la boussole pro (la seule) */
-      if (innerRoot.querySelector("#calpinage-north-compass")) return;
-
-      var compass = document.createElement("div");
-      compass.id = "calpinage-north-compass";
-      compass.innerHTML = "<div class=\"compass-ring\"><div class=\"compass-needle\"></div></div>";
-      innerRoot.appendChild(compass);
-
-      var style = document.createElement("style");
-      style.innerHTML = "#calpinage-north-compass{position:fixed;bottom:24px;right:24px;width:48px;height:48px;z-index:999999;pointer-events:none}.compass-ring{width:100%;height:100%;border:1.5px solid #111;border-radius:50%;background:rgba(255,255,255,0.9);display:flex;align-items:center;justify-content:center}.compass-needle{width:2px;height:18px;background:#111;position:relative;transform-origin:center bottom}.compass-needle::after{content:'';position:absolute;top:-6px;left:-4px;border-left:4px solid transparent;border-right:4px solid transparent;border-bottom:6px solid #111}";
-      innerRoot.appendChild(style);
-
-      /* Synchro rotation avec la carte (2D / 3D) */
-      var compassRafId = null;
-      var compassActive = true;
-      function syncCompass() {
-        if (!compassActive) return;
-        /* compassAngle = angle de rotation CSS de la boussole pour pointer le Nord.
-         * Google Maps : getHeading() retourne le bearing géographique (°CW depuis le Nord).
-         *   → la boussole doit contre-rotater : compassAngle = -heading.
-         * Canvas mode : calpinageViewRotation = north.angleDeg = -bearing déjà.
-         *   → on l'utilise directement, sans inverser à nouveau. */
-        var compassAngle = 0;
-        if (window.calpinageMap && typeof window.calpinageMap.getHeading === "function") {
-          compassAngle = -(window.calpinageMap.getHeading() || 0);
-        }
-        if (window.calpinageViewRotation !== undefined) {
-          compassAngle = window.calpinageViewRotation; /* déjà = -bearing */
-        }
-        compass.style.transform = "rotate(" + compassAngle + "deg)";
-        compassRafId = requestAnimationFrame(syncCompass);
-      }
-      syncCompass();
-      cleanupTasks.push(function () {
-        compassActive = false;
-        if (compassRafId != null && typeof cancelAnimationFrame === "function") cancelAnimationFrame(compassRafId);
-      });
+      /* La boussole custom fixe en bas a droite ressemblait a un controle Google inverse
+       * et se superposait a la zone carte/minimap. Le nord metier reste stocke via
+       * roof.north lors de la capture, donc aucun indicateur flottant n'est necessaire ici. */
     })();
     (function () {
       var GOOGLE_MAPS_API_KEY = "__GOOGLE_API_KEY__";
