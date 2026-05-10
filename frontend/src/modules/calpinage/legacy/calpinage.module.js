@@ -19406,7 +19406,9 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             minimapCtx.beginPath();
             minimapCtx.rect(ox, oy, imgW * sc, imgH * sc);
             minimapCtx.clip();
-            minimapCtx.drawImage(roofImg, ox, oy, imgW * sc, imgH * sc);
+            /* Flip vertical : source roofImg a y=0 en bas (main canvas compense avec double flip).
+             * Dans le minimap (identite) on flip manuellement via dh negatif. */
+            minimapCtx.drawImage(roofImg, 0, 0, imgW, imgH, ox, oy + imgH * sc, imgW * sc, -(imgH * sc));
             minimapCtx.restore();
 
             /* Contours bâti */
