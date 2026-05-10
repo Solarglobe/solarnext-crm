@@ -19363,12 +19363,17 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             _mmOx = ox; _mmOy = oy; _mmScaleFactor = sc;
 
             /* Convertit un point image en coordonnées minimap.
-             * Les points de CALPINAGE_STATE ont y=0 en HAUT (convention screenToImage).
-             * Le minimap 2D a aussi y=0 en haut — pas de flip. */
+             * L'image brute stockée (roofImg / dataUrl) est SUD-EN-HAUT (upside-down).
+             * renderImpl la corrige via double flip → nord-en-haut sur le canvas principal.
+             * Le minimap affiche lui aussi roofImg flippé verticalement (dh négatif, cf. ci-dessous),
+             * donc nord visuel = oy (haut minimap). Pour aligner les polygones :
+             *   y_minimap = oy + (imgH - imgPt.y) * sc
+             * (imgPt.y=0 → row 0 = sud stocké → bas visuel = oy + imgH*sc ;
+             *  imgPt.y=imgH → row imgH = nord stocké → haut visuel = oy) */
             function i2mm(imgPt) {
               return {
                 x: ox + imgPt.x * sc,
-                y: oy + imgPt.y * sc
+                y: oy + (imgH - imgPt.y) * sc
               };
             }
 
@@ -19377,10 +19382,10 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             minimapCtx.beginPath();
             minimapCtx.rect(ox, oy, imgW * sc, imgH * sc);
             minimapCtx.clip();
-            /* Pas de flip : imageToScreen/screenToImage utilisent imgH - imgPt.y,
-             * donc imgPt.y=0 = haut visuel. Le PNG roofImg a aussi sy=0 en haut.
-             * drawImage standard aligne les deux conventions — dh négatif inverserait le satellite. */
-            minimapCtx.drawImage(roofImg, ox, oy, imgW * sc, imgH * sc);
+            /* roofImg est stocké SUD-EN-HAUT. On le flip verticalement avec dh négatif :
+             * drawImage(img, dx, dy+imgH*sc, dw, -dh) → nord-en-haut dans le minimap,
+             * cohérent avec renderImpl qui applique lui aussi un double flip correctif. */
+            minimapCtx.drawImage(roofImg, ox, oy + imgH * sc, imgW * sc, -(imgH * sc));
             minimapCtx.restore();
 
             /* Contours bâti */
@@ -19461,13 +19466,13 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 /* Minimap → image coords (y=0 at top, no flip) */
                 var imgX = (mx - _mmOx) / _mmScaleFactor;
                 var imgY = (my - _mmOy) / _mmScaleFactor;
-                /* worldToScreen: screen.y = -world.y*scale + offset.y
-                 * To center imgPt {x:imgX, y:imgY} on canvas:
-                 *   world.y = imgH - imgY
-                 *   offset.y = ch/2 + (imgH - imgY)*scale */
+                /* Après flip visuel du minimap, cliquer en y_minimap=my correspond à
+                 * imgY_flipped = (my - oy) / sc, soit la row stockée = imgH - imgY_flipped.
+                 * worldToScreen: screen.y = -world.y*scale + offset.y, world.y = imgH - row_stockée = imgY_flipped.
+                 * Pour centrer ce point : offset.y = ch/2 + imgY * scale */
                 var cw = engine.width, ch = engine.height;
                 vp.offset.x = cw / 2 - imgX * vp.scale;
-                vp.offset.y = ch / 2 + (imgH - imgY) * vp.scale;
+                vp.offset.y = ch / 2 + imgY * vp.scale;
                 if (typeof window.CALPINAGE_RENDER === "function") requestAnimationFrame(window.CALPINAGE_RENDER);
               }
               panToMM(e.clientX, e.clientY);
