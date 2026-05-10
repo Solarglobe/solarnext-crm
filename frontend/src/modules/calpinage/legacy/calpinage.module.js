@@ -15697,73 +15697,83 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               }
 
               // --- 2) BODY HIT ---
-              var tolImgBody = (vp && typeof vp.scale === "number") ? Math.max(0.5, 8 / vp.scale) : 0.5;
-              for (var i = obsList.length - 1; i >= 0; i--) {
+              /* P4.3 : si KonvaObstaclesLayer actif, déléguer le hit-test à stage.getIntersection().
+               * __CALPINAGE_KONVA_OBS_HIT__(clientX, clientY) → index ≥ 0 (hit) ou -1 (miss).
+               * Konva est autoritatif : on ne double-teste pas en legacy.
+               * Les handles (rotate/resize) restent dans CalpinageCanvas legacy (non migré P4.3). */
+              var _konvaObsActive = window.__CALPINAGE_KONVA_LAYERS__ && window.__CALPINAGE_KONVA_LAYERS__.has("obstacles") && typeof window.__CALPINAGE_KONVA_OBS_HIT__ === "function";
+              var _konvaObsIdx = _konvaObsActive ? window.__CALPINAGE_KONVA_OBS_HIT__(e.clientX, e.clientY) : undefined;
 
-                var o = obsList[i];
-                if (!o) continue;
-
-                var isHit = false;
-
-                if (o.shapeMeta && (!o.points || !Array.isArray(o.points) || o.points.length < 3) && typeof obstacleRecalcFromShapeMeta === "function") {
-                  obstacleRecalcFromShapeMeta(o);
+              /* Fonction helper partagée hit→sélection+drag (utilisée par les deux chemins) */
+              var _applyObstacleHit = function(hitIdx) {
+                var o = obsList[hitIdx];
+                if (!o) return false;
+                drawState.selectedObstacleIndex = hitIdx;
+                drawState.lastMouseImage = imgPt;
+                var ref = o.shapeMeta && typeof o.shapeMeta.centerX === "number" && typeof o.shapeMeta.centerY === "number"
+                  ? { x: o.shapeMeta.centerX, y: o.shapeMeta.centerY }
+                  : (o.points && o.points.length > 0 ? o.points[0] : { x: imgPt.x, y: imgPt.y });
+                drawState.draggingObstacleOffset = { dx: imgPt.x - ref.x, dy: imgPt.y - ref.y };
+                setInteractionState(InteractionStates.DRAGGING);
+                if (canvasEl.setPointerCapture && e.pointerId != null) {
+                  try { canvasEl.setPointerCapture(e.pointerId); } catch (_) {}
+                  drawState.activePointerId = e.pointerId;
                 }
+                if (typeof window.CALPINAGE_RENDER === "function") { window.CALPINAGE_RENDER(); }
+                return true;
+              };
 
-                if (o.points && Array.isArray(o.points) && o.points.length >= 3) {
-                  isHit = pointInPolygonImage(imgPt, o.points);
-                } else if (o.shapeMeta) {
-                  var m = o.shapeMeta;
-                  if (m.originalType === "circle" && typeof m.centerX === "number" && typeof m.centerY === "number" && typeof m.radius === "number") {
-                    var d = Math.hypot(imgPt.x - m.centerX, imgPt.y - m.centerY);
-                    isHit = d <= m.radius + tolImgBody;
-                  } else if (m.originalType === "rect" && typeof m.centerX === "number" && typeof m.centerY === "number" && typeof m.width === "number" && typeof m.height === "number") {
-                    var hw = m.width / 2, hh = m.height / 2;
-                    var a = typeof m.angle === "number" ? m.angle : 0;
-                    var c = Math.cos(a), s = Math.sin(a);
-                    var corners = [
-                      { x: m.centerX - hw * c + hh * s, y: m.centerY - hw * s - hh * c },
-                      { x: m.centerX + hw * c + hh * s, y: m.centerY + hw * s - hh * c },
-                      { x: m.centerX + hw * c - hh * s, y: m.centerY + hw * s + hh * c },
-                      { x: m.centerX - hw * c - hh * s, y: m.centerY - hw * s + hh * c }
-                    ];
-                    isHit = pointInPolygonImage(imgPt, corners);
+              if (_konvaObsActive) {
+                /* Chemin Konva (P4.3) */
+                if (typeof _konvaObsIdx === "number" && _konvaObsIdx >= 0) {
+                  if (_applyObstacleHit(_konvaObsIdx)) return; // 🔴 STOP
+                } else {
+                  /* Miss Konva → déselection */
+                  if (selIdx != null) {
+                    drawState.selectedObstacleIndex = null;
+                    if (typeof window.CALPINAGE_RENDER === "function") { window.CALPINAGE_RENDER(); }
                   }
                 }
-
-                if (isHit) {
-
-                  drawState.selectedObstacleIndex = i;
-                  drawState.lastMouseImage = imgPt;
-
-                  var ref = o.shapeMeta && typeof o.shapeMeta.centerX === "number" && typeof o.shapeMeta.centerY === "number"
-                    ? { x: o.shapeMeta.centerX, y: o.shapeMeta.centerY }
-                    : (o.points && o.points.length > 0 ? o.points[0] : { x: imgPt.x, y: imgPt.y });
-
-                  drawState.draggingObstacleOffset = {
-                    dx: imgPt.x - ref.x,
-                    dy: imgPt.y - ref.y
-                  };
-
-                  setInteractionState(InteractionStates.DRAGGING);
-
-                  if (canvasEl.setPointerCapture && e.pointerId != null) {
-                    try { canvasEl.setPointerCapture(e.pointerId); } catch (_) {}
-                    drawState.activePointerId = e.pointerId;
+              } else {
+                /* Chemin legacy (Konva non actif) */
+                var tolImgBody = (vp && typeof vp.scale === "number") ? Math.max(0.5, 8 / vp.scale) : 0.5;
+                var legacyHitIdx = -1;
+                for (var i = obsList.length - 1; i >= 0; i--) {
+                  var o = obsList[i];
+                  if (!o) continue;
+                  if (o.shapeMeta && (!o.points || !Array.isArray(o.points) || o.points.length < 3) && typeof obstacleRecalcFromShapeMeta === "function") {
+                    obstacleRecalcFromShapeMeta(o);
                   }
-
-                  if (typeof window.CALPINAGE_RENDER === "function") {
-                    window.CALPINAGE_RENDER();
+                  var isHit = false;
+                  if (o.points && Array.isArray(o.points) && o.points.length >= 3) {
+                    isHit = pointInPolygonImage(imgPt, o.points);
+                  } else if (o.shapeMeta) {
+                    var m = o.shapeMeta;
+                    if (m.originalType === "circle" && typeof m.centerX === "number" && typeof m.centerY === "number" && typeof m.radius === "number") {
+                      var d = Math.hypot(imgPt.x - m.centerX, imgPt.y - m.centerY);
+                      isHit = d <= m.radius + tolImgBody;
+                    } else if (m.originalType === "rect" && typeof m.centerX === "number" && typeof m.centerY === "number" && typeof m.width === "number" && typeof m.height === "number") {
+                      var hw = m.width / 2, hh = m.height / 2;
+                      var a = typeof m.angle === "number" ? m.angle : 0;
+                      var c = Math.cos(a), s = Math.sin(a);
+                      var corners = [
+                        { x: m.centerX - hw * c + hh * s, y: m.centerY - hw * s - hh * c },
+                        { x: m.centerX + hw * c + hh * s, y: m.centerY + hw * s - hh * c },
+                        { x: m.centerX + hw * c - hh * s, y: m.centerY + hw * s + hh * c },
+                        { x: m.centerX - hw * c - hh * s, y: m.centerY - hw * s + hh * c }
+                      ];
+                      isHit = pointInPolygonImage(imgPt, corners);
+                    }
                   }
-
-                  return; // 🔴 STOP → ne pas aller vers PV_LAYOUT
+                  if (isHit) { legacyHitIdx = i; break; }
                 }
-              }
-
-              // --- 3) EMPTY CLICK ---
-              if (selIdx != null) {
-                drawState.selectedObstacleIndex = null;
-                if (typeof window.CALPINAGE_RENDER === "function") {
-                  window.CALPINAGE_RENDER();
+                if (legacyHitIdx >= 0) {
+                  if (_applyObstacleHit(legacyHitIdx)) return; // 🔴 STOP
+                }
+                /* --- 3) EMPTY CLICK --- */
+                if (selIdx != null) {
+                  drawState.selectedObstacleIndex = null;
+                  if (typeof window.CALPINAGE_RENDER === "function") { window.CALPINAGE_RENDER(); }
                 }
               }
             }

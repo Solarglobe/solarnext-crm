@@ -120,8 +120,13 @@ export function KonvaObstaclesLayer() {
 
         return (
           <Group key={obs.id ?? i} listening={false}>
-            {/* Polygone fermé : fill gris + stroke gris foncé */}
+            {/*
+             * id="obs-{i}" + listening={true} : shape enregistrée dans le hit canvas Konva.
+             * Permet à stage.getIntersection() de trouver l'obstacle (P4.3).
+             * pointer-events reste none sur l'overlay div → aucun DOM event ne remonte ici.
+             */}
             <Line
+              id={`obs-${i}`}
               points={pts}
               closed
               fill={STYLE.fill}
@@ -130,7 +135,7 @@ export function KonvaObstaclesLayer() {
               strokeScaleEnabled={false}
               lineJoin="round"
               lineCap="round"
-              listening={false}
+              listening={true}
             />
             {/* Label au centroïde */}
             {label ? (
