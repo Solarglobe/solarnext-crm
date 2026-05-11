@@ -53,5 +53,26 @@ export type {
   PlacedPanel,
   PlacementPanelData,
   PlacementBlock,
+  ManipulationTransform,
+  GhostSlot,
+  AutofillPreviewItem,
+  AutofillGridPreviewResult,
+  AutofillOpts,
+  AddPanelResult,
+  AddPanelsBatchResult,
+  CreateBlockOpts,
   PlacementEngineAdapter,
 } from "../PlacementEngineAdapter";
+
+export type {
+  PanelProjection,
+  PanelGridPosition,
+  PanelLikeWithProjection,
+  BlockLikeWithPanels,
+  APBCreateBlockOpts,
+  APBCreateBlockResult,
+  APBResult,
+  ActivePlacementBlockLike,
+} from "./ActivePlacementBlockLike";
+
+export { getActivePlacementBlock } from "./ActivePlacementBlockLike";
