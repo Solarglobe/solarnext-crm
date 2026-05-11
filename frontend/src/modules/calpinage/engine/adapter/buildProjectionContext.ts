@@ -183,7 +183,7 @@ export interface ProjectionContext {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** Normalise l'orientation panneau en "PORTRAIT" ou "PAYSAGE". */
-function normalizePanelOrientation(raw: string | undefined | null): "PORTRAIT" | "PAYSAGE" {
+export function normalizePanelOrientation(raw: string | undefined | null): "PORTRAIT" | "PAYSAGE" {
   if (!raw) return "PORTRAIT";
   const u = raw.toUpperCase();
   if (u === "LANDSCAPE" || u === "PAYSAGE") return "PAYSAGE";
