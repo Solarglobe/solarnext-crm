@@ -7,7 +7,9 @@
  * Relation avec PlacementEngineLike (enrichPanelsForCanonicalShading.ts) :
  *   PlacementEngineLike = contrat minimal pour le pipeline ombrage (getBlockById seul).
  *   PlacementEngineAdapter = surcouche qui expose toutes les méthodes appelées depuis TS.
- *   PlacementEngineAdapter est structurellement compatible avec PlacementEngineLike.
+ *   Compatibilité structurelle avec PlacementEngineLike garantie sans extends explicite :
+ *   PlacementBlock.orientation = string|null, PlacementEngineLike attend string|undefined
+ *   → incompatible au sens TypeScript strict, mais compatible à l'usage (duck typing).
  *
  * Point d'accès : getCalpinageRuntime()?.getPlacementEngine()
  * (calpinageRuntime.ts — registre runtime transitoire)
@@ -16,7 +18,7 @@
  * Tous les types sont inférés depuis pvPlacementEngine.js L.1-2032 + pans-bundle.js.
  */
 
-import type { PlacementEngineLike } from "../integration/enrichPanelsForCanonicalShading";
+// PlacementEngineLike non importé ici : compatibilité structurelle sans extends (voir en-tête).
 import type { PanelProjection } from "./interfaces/ActivePlacementBlockLike";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -268,7 +270,7 @@ export interface CreateBlockOpts {
  * Point d'accès unique : getCalpinageRuntime()?.getPlacementEngine()
  * Retourne null si le module legacy n'est pas encore monté.
  */
-export interface PlacementEngineAdapter extends PlacementEngineLike {
+export interface PlacementEngineAdapter {
   // ════════════════════════════════════════════════════════════════════════════
   // LECTURE D'ÉTAT
   // ════════════════════════════════════════════════════════════════════════════

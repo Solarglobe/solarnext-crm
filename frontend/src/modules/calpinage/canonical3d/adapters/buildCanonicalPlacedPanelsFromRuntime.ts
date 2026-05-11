@@ -119,7 +119,7 @@ export function inferModuleDimsFromProjectionQuadPx(
   return { widthM: Math.max(w, 0.05), heightM: Math.max(h, 0.05) };
 }
 
-function blockOrientationToPanelOrientation(block: { orientation?: string } | null): string | undefined {
+function blockOrientationToPanelOrientation(block: { orientation?: string | null } | null): string | undefined {
   if (!block?.orientation) return undefined;
   const o = String(block.orientation).toUpperCase();
   if (o === "PAYSAGE" || o === "LANDSCAPE") return "landscape";
@@ -310,4 +310,6 @@ export function buildCanonicalPlacedPanelsFromRuntime(
     diagnostics: diag,
     rawEnginePanelCount,
   };
+}
+};
 }

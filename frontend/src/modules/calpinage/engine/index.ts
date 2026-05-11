@@ -103,12 +103,21 @@ export type {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export {
-  isPointInPolygon,
-  polygonsOverlap,
-  computePolygonArea,
-  computePolygonCentroid,
-  computeBoundingBox,
-  clipPolygonToPolygon,
+  pointInPolygon,
+  polygonIntersectsPolygon,
+  polygonBBox2D,
+  bboxOverlap2D,
+  distancePointToSegment,
+  minDistancePointToPolygonEdges,
+  minDistancePolygonToSegments,
+  minDistanceBetweenPolygons,
+  segmentIntersect,
+} from "./geometry/polygonUtils";
+
+export type {
+  Point2D,
+  BBox2D,
+  Segment2D,
 } from "./geometry/polygonUtils";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -151,11 +160,22 @@ export {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export {
-  isPointInRoof,
-  panelPolygonFromCenter,
-  panelOverlapsKeepout,
-  panelOverlapsObstacle,
-  panelOverlapsExistingPanel,
+  validatePanelPolygon,
+  validatePanelPolygonIndexed,
+  validatePanelPolygonSteps0And1,
+  validatePanelPolygonStep3Ridge,
+  validateAutofillCandidateDetailed,
+  buildValidationCaches,
+} from "./validation/panelValidator";
+
+export type {
+  RoofConstraints,
+  AutofillValidationResult,
+  PanelLike,
+  BlockLike,
+  ValidationCaches,
+} from "./validation/panelValidator";
+
   buildValidationCaches,
 } from "./validation/panelValidator";
 

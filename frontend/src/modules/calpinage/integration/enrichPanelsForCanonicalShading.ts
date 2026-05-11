@@ -8,9 +8,9 @@ import type { PanelInput } from "../shading/shadingInputTypes";
 export type PlacementEngineLike = {
   getBlockById?: (id: string) => {
     rotation?: number;
-    /** PORTRAIT | PAYSAGE / LANDSCAPE (moteur placement). */
-    orientation?: string;
-    manipulationTransform?: { rotationDeg?: number };
+    /** PORTRAIT | PAYSAGE / LANDSCAPE (moteur placement). null = legacy moteur sans orientation. */
+    orientation?: string | null;
+    manipulationTransform?: { rotationDeg?: number } | null;
     panels?: ReadonlyArray<{ localRotationDeg?: number }>;
   } | null;
 };
