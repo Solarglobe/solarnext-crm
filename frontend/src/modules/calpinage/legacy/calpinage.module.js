@@ -19667,15 +19667,15 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               window.CALPINAGE_VIEWPORT_OFFSET = { x: vp.offset.x, y: vp.offset.y };
               /* P4.4 â€” Ã©tat hover pan pour KonvaPansLayer */
               window.CALPINAGE_HOVER_PAN_ID = drawState ? drawState.hoverPanId : null;
-              /* P4.5a â€” état sélection/placement shadow volumes pour KonvaShadowVolumesLayer */
+              /* P4.5a â€” ï¿½tat sï¿½lection/placement shadow volumes pour KonvaShadowVolumesLayer */
               window.CALPINAGE_SV_SEL_IDX = drawState ? drawState.selectedShadowVolumeIndex : null;
               window.CALPINAGE_SV_PLACING_IDX = drawState && drawState.isPlacingShadowVolume ? drawState.selectedShadowVolumeIndex : null;
-              /* P4.5b â€” hover rotate handle (mis à jour dans le bloc ROOF_EDIT ci-dessous) */
+              /* P4.5b â€” hover rotate handle (mis ï¿½ jour dans le bloc ROOF_EDIT ci-dessous) */
               window.CALPINAGE_SV_ROTATE_HOVERED = false;
-              /* P4.6a â€” PH3 handles (mis à jour dans le bloc PV_LAYOUT ci-dessous) */
+              /* P4.6a â€” PH3 handles (mis ï¿½ jour dans le bloc PV_LAYOUT ci-dessous) */
               window.CALPINAGE_PH3_HANDLES = null;
-              /* P4.6b â€” données panels PV (mis à jour dans le bloc PV_LAYOUT ci-dessous) */
-              window.CALPINAGE_PV_PANELS_DATA = null;
+              /* P4.6b â€” donnï¿½es panels PV (mis ï¿½ jour dans le bloc PV_LAYOUT ci-dessous) */
+              // window.CALPINAGE_PV_PANELS_DATA = null; // P4.6c-fix : retirÃ© â€” race condition avec calpinage:viewport-changed (donnÃ©es rÃ©elles Ã©crites L.21071 aprÃ¨s l'event). La garde currentPhase!=="PV_LAYOUT" dans readSnap() protÃ¨ge contre les donnÃ©es pÃ©rimÃ©es.
               if (typeof window.dispatchEvent === "function") {
                 try {
                   window.dispatchEvent(new CustomEvent("calpinage:viewport-changed", {
@@ -20322,7 +20322,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             /* SHADOW_VOLUMES : footprint orange â€” Phase 2 + Phase 3 */
             var svList = CALPINAGE_STATE.shadowVolumes || [];
             var svSelDraw = drawState.selectedShadowVolumeIndex;
-            /* P4.5a kill switch â€” body footprint délégué à KonvaShadowVolumesLayer */
+            /* P4.5a kill switch â€” body footprint dï¿½lï¿½guï¿½ ï¿½ KonvaShadowVolumesLayer */
             if ((!_konvaLayers || !_konvaLayers.has("shadowVolumes")) && svList.length > 0) {
               var mpp = (CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.scale && CALPINAGE_STATE.roof.scale.metersPerPixel) || 1;
               for (var svi = 0; svi < svList.length; svi++) {
@@ -20438,7 +20438,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 }
                 /* P4.5b â€” expose hover rotate pour KonvaShadowVolumeHandlesLayer */
                 window.CALPINAGE_SV_ROTATE_HOVERED = svHoveredRotate;
-                /* P4.5b kill switch â€” handles délégués à KonvaShadowVolumeHandlesLayer */
+                /* P4.5b kill switch â€” handles dï¿½lï¿½guï¿½s ï¿½ KonvaShadowVolumeHandlesLayer */
                 if ((!_konvaLayers || !_konvaLayers.has("shadowVolumeHandles")) && window.CalpinageCanvas && window.CalpinageCanvas.drawShadowVolumeHandles) {
                   window.CalpinageCanvas.drawShadowVolumeHandles(ctx, svSelVol, imageToScreen, vp.scale, mppH, svHoveredRotate);
                 }
@@ -20794,7 +20794,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 ctx.restore();
               }
 
-              /* P4.6b â€” kill switch panneaux PV + collecte données pour KonvaPVPanelsLayer */
+              /* P4.6b â€” kill switch panneaux PV + collecte donnï¿½es pour KonvaPVPanelsLayer */
               var _konvaPvActive = _konvaLayers && _konvaLayers.has("pvPanels");
               var _pvPanelsForKonva = [];
 
@@ -20846,7 +20846,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                   var panelPoly = proj.points;
                   var center = getPanelCenterFromPoly(panelPoly);
                   var isDormerShaded = dormerShadowPolys.some(function (poly) { return pointInPolygon(center, poly); });
-                  /* P4.6b â€” collecte données panneau figé */
+                  /* P4.6b â€” collecte donnï¿½es panneau figï¿½ */
                   _pvPanelsForKonva.push({
                     points: panelPoly,
                     frameColor: frameColorFrozen,
@@ -20980,7 +20980,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                   var dash = isInvalid ? [6, 4] : [];
                   var panelPolyAct = null;
                   if (window.CALPINAGE_IS_MANIPULATING && activeBl.manipulationTransform) {
-                    /* P4.6b â€” calcul points transformés avant le dessin (pour collecte) */
+                    /* P4.6b â€” calcul points transformï¿½s avant le dessin (pour collecte) */
                     if (p.projection && p.projection.points) {
                       var centerAct = ENG.getBlockCenter ? ENG.getBlockCenter(activeBl) : null;
                       if (centerAct) {
@@ -21008,7 +21008,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                     }
                   }
                   if (panelPolyAct) {
-                    /* P4.6b â€” collecte données panneau actif */
+                    /* P4.6b â€” collecte donnï¿½es panneau actif */
                     var _centerActKonva = getPanelCenterFromPoly(panelPolyAct);
                     var isDormerShadedAct = dormerShadowPolys.some(function (poly) { return pointInPolygon(_centerActKonva, poly); });
                     _pvPanelsForKonva.push({
@@ -21066,7 +21066,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 safeZonePh3.geoDirty = false;
                 safeZonePh3.panelsDirty = false;
               }
-              /* P4.6b â€” exposition données panels PV pour KonvaPVPanelsLayer */
+              /* P4.6b â€” exposition donnï¿½es panels PV pour KonvaPVPanelsLayer */
               if (typeof window !== "undefined") {
                 window.CALPINAGE_PV_PANELS_DATA = { panels: _pvPanelsForKonva, imgH: imgH, scale: vp.scale };
               }
