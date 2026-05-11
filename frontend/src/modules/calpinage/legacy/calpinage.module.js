@@ -15592,7 +15592,10 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                     return;
                   }
                 }
-                var svHit = hitTestShadowVolume(imgPt);
+                var _konvaSvActive = window.__CALPINAGE_KONVA_LAYERS__ && window.__CALPINAGE_KONVA_LAYERS__.has("shadowVolumes") && typeof window.__CALPINAGE_KONVA_SV_HIT__ === "function";
+                var svHit = _konvaSvActive
+                  ? (function () { var _i = window.__CALPINAGE_KONVA_SV_HIT__(e.clientX, e.clientY); return _i >= 0 ? { index: _i, volume: (CALPINAGE_STATE.shadowVolumes || [])[_i] } : null; }())
+                  : hitTestShadowVolume(imgPt);
                 if (svHit) {
                   drawState.selectedShadowVolumeIndex = svHit.index;
                   /* drag sur le corps (pas handle) => move */
@@ -17163,7 +17166,10 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             ) {
               var screenDb = getMouseScreen(e);
               var imgPtDb = screenToImage(screenDb);
-              var svHitDb = hitTestShadowVolume(imgPtDb);
+              var _konvaSvActiveDb = window.__CALPINAGE_KONVA_LAYERS__ && window.__CALPINAGE_KONVA_LAYERS__.has("shadowVolumes") && typeof window.__CALPINAGE_KONVA_SV_HIT__ === "function";
+              var svHitDb = _konvaSvActiveDb
+                ? (function () { var _i = window.__CALPINAGE_KONVA_SV_HIT__(e.clientX, e.clientY); return _i >= 0 ? { index: _i, volume: (CALPINAGE_STATE.shadowVolumes || [])[_i] } : null; }())
+                : hitTestShadowVolume(imgPtDb);
               if (svHitDb && svHitDb.index === drawState.selectedShadowVolumeIndex && typeof window.showShadowVolumeOverlay === "function") {
                 window.showShadowVolumeOverlay(svHitDb.index, svHitDb.volume);
                 return;
@@ -19644,6 +19650,9 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               window.CALPINAGE_VIEWPORT_OFFSET = { x: vp.offset.x, y: vp.offset.y };
               /* P4.4 — état hover pan pour KonvaPansLayer */
               window.CALPINAGE_HOVER_PAN_ID = drawState ? drawState.hoverPanId : null;
+              /* P4.5a — état sélection/placement shadow volumes pour KonvaShadowVolumesLayer */
+              window.CALPINAGE_SV_SEL_IDX = drawState ? drawState.selectedShadowVolumeIndex : null;
+              window.CALPINAGE_SV_PLACING_IDX = drawState && drawState.isPlacingShadowVolume ? drawState.selectedShadowVolumeIndex : null;
               if (typeof window.dispatchEvent === "function") {
                 try {
                   window.dispatchEvent(new CustomEvent("calpinage:viewport-changed", {
@@ -20290,7 +20299,8 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             /* SHADOW_VOLUMES : footprint orange — Phase 2 + Phase 3 */
             var svList = CALPINAGE_STATE.shadowVolumes || [];
             var svSelDraw = drawState.selectedShadowVolumeIndex;
-            if (svList.length > 0) {
+            /* P4.5a kill switch — body footprint délégué à KonvaShadowVolumesLayer */
+            if ((!_konvaLayers || !_konvaLayers.has("shadowVolumes")) && svList.length > 0) {
               var mpp = (CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.scale && CALPINAGE_STATE.roof.scale.metersPerPixel) || 1;
               for (var svi = 0; svi < svList.length; svi++) {
                 var sv = svList[svi];
@@ -22624,52 +22634,4 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
     });
     /* Reset moteurs PV (blocs figés, panneaux posés) — singletons window qui persistent sinon */
     try {
-      var engReset = (typeof window !== "undefined" && window.pvPlacementEngine && window.pvPlacementEngine.reset) ||
-        (typeof window !== "undefined" && window.ActivePlacementBlock && window.ActivePlacementBlock.reset);
-      if (typeof engReset === "function") engReset();
-    } catch (e) { if (typeof console !== "undefined") console.warn("[CALPINAGE] engine reset error", e); }
-    /* Reset CalpinagePans.panState (pans, activePanId) */
-    try {
-      if (typeof window !== "undefined" && window.CalpinagePans && window.CalpinagePans.panState) {
-        var ps = window.CalpinagePans.panState;
-        if (Array.isArray(ps.pans)) ps.pans.length = 0;
-        ps.activePanId = null;
-        ps.activePoint = null;
-      }
-    } catch (e) { if (typeof console !== "undefined") console.warn("[CALPINAGE] CalpinagePans reset error", e); }
-    /* Supprimer toute référence window pour éviter fuite d'état entre études */
-    if (typeof window !== "undefined") {
-      try { delete window.CALPINAGE_STATE; } catch (_) {}
-      try { delete window.__applyFlatRoofConfigAndRecompute; } catch (_) {}
-      try { delete window.__applyManualPanRoofTypeAndRecompute; } catch (_) {}
-      try { delete window.__computePansFromGeometryCoreForExport; } catch (_) {}
-      try { delete window.__computeGeometryHashForExport; } catch (_) {}
-      try { delete window.__computePanelsHashForExport; } catch (_) {}
-      try { delete window.__computeShadingHashForExport; } catch (_) {}
-      try { delete window.__calpinageRefreshLegacyUiAfterPanVertexHeightEdit; } catch (_) {}
-      try { delete window.__calpinageCommitRoofVertexHeightLike2D; } catch (_) {}
-      try { delete window.__calpinage_hitTestPan__; } catch (_) {}
-      try { delete window.__calpinageRecomputePansFromGeometryAndUI; } catch (_) {}
-      window.CALPINAGE_STUDY_ID = null;
-      window.CALPINAGE_VERSION_ID = null;
-      window.PV_SELECTED_PANEL = null;
-      window.CALPINAGE_SELECTED_PANEL_ID = null;
-      window.PV_SELECTED_INVERTER = null;
-      window.CALPINAGE_SELECTED_INVERTER_ID = null;
-      window.CALPINAGE_ALLOWED = false;
-    }
-    /* Vider le container pour que le prochain init (étude B) ne trouve pas #calpinage-root et réinjecte proprement */
-    try {
-      if (container && container.firstChild) {
-        while (container.firstChild) container.removeChild(container.firstChild);
-      }
-    } catch (e) { if (typeof console !== "undefined") console.warn("[CALPINAGE] container clear error", e); }
-    _calpinageInitInFlight = false;
-    if (devLog) {
-      console.log("[CALPINAGE] cleanup done (state isolated, ready for next study)");
-    }
-  };
-  container.__CALPINAGE_MOUNTED__ = true;
-  container.__CALPINAGE_TEARDOWN__ = cleanup;
-  return cleanup;
-}
+      var 

@@ -26,6 +26,7 @@ import { useViewportSync } from "./useViewportSync";
 import { KonvaContoursLayer } from "./KonvaContoursLayer";
 import { KonvaPansLayer } from "./KonvaPansLayer";
 import { KonvaObstaclesLayer } from "./KonvaObstaclesLayer";
+import { KonvaShadowVolumesLayer } from "./KonvaShadowVolumesLayer";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // KonvaOverlay
@@ -164,6 +165,29 @@ export function KonvaOverlay({ containerRef }: Props) {
     };
   }, []); // stageRef est une ref — pas besoin de la lister comme dépendance
 
+  /**
+   * P4.5a — Expose le hit-test Konva pour les shadow volumes (body uniquement).
+   * Retourne l'index du volume touché, ou -1 si aucun.
+   * id format : "sv-{index}" (posé dans KonvaShadowVolumesLayer).
+   */
+  useEffect(() => {
+    const w = window as Record<string, unknown>;
+    w["__CALPINAGE_KONVA_SV_HIT__"] = (clientX: number, clientY: number): number => {
+      const stage = stageRef.current;
+      if (!stage) return -1;
+      const stageContainer = stage.container();
+      const rect = stageContainer.getBoundingClientRect();
+      const pos = { x: clientX - rect.left, y: clientY - rect.top };
+      const shape = stage.getIntersection(pos);
+      if (!shape) return -1;
+      const match = shape.id().match(/^sv-(\d+)$/);
+      return match ? parseInt(match[1], 10) : -1;
+    };
+    return () => {
+      delete (w as Record<string, unknown>)["__CALPINAGE_KONVA_SV_HIT__"];
+    };
+  }, []);
+
   const container = containerRef.current;
   if (!container || !canvasEl || vp.width === 0 || vp.height === 0) return null;
 
@@ -194,7 +218,7 @@ export function KonvaOverlay({ containerRef }: Props) {
          * listening={true} sur Stage + Layer : popule le hit canvas Konva à chaque rendu.
          * Nécessaire pour stage.getIntersection() (P4.3 hit-test obstacles).
          * L'overlay div garde pointer-events:none → aucun event DOM ne remonte au Stage.
-         * Seules les shapes avec listening={true} (obstacles) sont dans le hit canvas.
+         * Seules les shapes avec listening={true} sont dans le hit canvas.
          */}
         <Layer listening={true} clearBeforeDraw>
           {/*
@@ -211,6 +235,7 @@ export function KonvaOverlay({ containerRef }: Props) {
             <KonvaContoursLayer />
             <KonvaPansLayer />
             <KonvaObstaclesLayer />
+            <KonvaShadowVolumesLayer />
           </Group>
         </Layer>
       </Stage>
