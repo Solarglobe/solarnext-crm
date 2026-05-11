@@ -56,7 +56,7 @@ const VIEWPORT_EVENT = "calpinage:viewport-changed";
 // ─── Lecture état legacy ──────────────────────────────────────────────────────
 
 function readLayerSnap(): LayerSnap | null {
-  const w = window as Record<string, unknown>;
+  const w = window as unknown as Record<string, unknown>;
   const st = w["CALPINAGE_STATE"] as
     | { pans?: Pan[]; selectedPanId?: string | null; roof?: { image?: { height?: number } } }
     | null
@@ -90,7 +90,7 @@ export function KonvaPansLayer() {
 
   /* Kill switch — enregistrer la couche dans __CALPINAGE_KONVA_LAYERS__ */
   useEffect(() => {
-    const w = window as Record<string, unknown>;
+    const w = window as unknown as Record<string, unknown>;
     const layers = w["__CALPINAGE_KONVA_LAYERS__"] as Set<string> | undefined;
     layers?.add("pans");
     return () => {

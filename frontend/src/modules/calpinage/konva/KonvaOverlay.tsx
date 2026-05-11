@@ -123,7 +123,7 @@ export function KonvaOverlay({ containerRef }: Props) {
    * Retourne le pan.id (string) touché, ou null.
    */
   useEffect(() => {
-    const w = window as Record<string, unknown>;
+    const w = window as unknown as Record<string, unknown>;
     w["__CALPINAGE_KONVA_PAN_HIT__"] = (clientX: number, clientY: number): string | null => {
       const stage = stageRef.current;
       if (!stage) return null;
@@ -145,7 +145,7 @@ export function KonvaOverlay({ containerRef }: Props) {
    * Retourne l'index de l'obstacle touché, ou -1 si aucun.
    */
   useEffect(() => {
-    const w = window as Record<string, unknown>;
+    const w = window as unknown as Record<string, unknown>;
     w["__CALPINAGE_KONVA_OBS_HIT__"] = (clientX: number, clientY: number): number => {
       const stage = stageRef.current;
       if (!stage) return -1;
@@ -167,7 +167,7 @@ export function KonvaOverlay({ containerRef }: Props) {
    * Retourne l'index du volume touché, ou -1 si aucun.
    */
   useEffect(() => {
-    const w = window as Record<string, unknown>;
+    const w = window as unknown as Record<string, unknown>;
     w["__CALPINAGE_KONVA_SV_HIT__"] = (clientX: number, clientY: number): number => {
       const stage = stageRef.current;
       if (!stage) return -1;
@@ -190,7 +190,7 @@ export function KonvaOverlay({ containerRef }: Props) {
    * Résolution via CALPINAGE_PV_PANELS_DATA.panels[idx] (même frame).
    */
   useEffect(() => {
-    const w = window as Record<string, unknown>;
+    const w = window as unknown as Record<string, unknown>;
     w["__CALPINAGE_KONVA_PANEL_HIT__"] = (
       clientX: number,
       clientY: number,

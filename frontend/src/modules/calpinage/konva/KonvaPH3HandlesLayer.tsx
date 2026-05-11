@@ -59,7 +59,7 @@ const HANDLES_EVENT  = "calpinage:ph3-handles-changed"; // P4.6a-fix : dispatch�
 // ─── Lecture état legacy ──────────────────────────────────────────────────────
 
 function readHandleSnap(): HandleSnap | null {
-  const w  = window as Record<string, unknown>;
+  const w  = window as unknown as Record<string, unknown>;
   const st = w["CALPINAGE_STATE"] as { currentPhase?: string } | null | undefined;
   if (!st || st.currentPhase !== "PV_LAYOUT") return null;
 
@@ -100,7 +100,7 @@ export function KonvaPH3HandlesLayer() {
 
   /* Kill switch — enregistrer la couche */
   useEffect(() => {
-    const w = window as Record<string, unknown>;
+    const w = window as unknown as Record<string, unknown>;
     (w["__CALPINAGE_KONVA_LAYERS__"] as Set<string> | undefined)?.add("ph3Handles");
     return () => {
       (w["__CALPINAGE_KONVA_LAYERS__"] as Set<string> | undefined)?.delete("ph3Handles");

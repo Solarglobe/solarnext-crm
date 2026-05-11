@@ -53,7 +53,7 @@ type Win = Window & Record<string, unknown>;
 // ─────────────────────────────────────────────────────────────────────────────
 
 function readPhase2Snapshot(): CalpinagePhase2Snapshot {
-  const win = window as Win;
+  const win = window as unknown as Win;
 
   const rawData =
     typeof win.getPhase2Data === "function"
@@ -83,7 +83,7 @@ function readPhase2Snapshot(): CalpinagePhase2Snapshot {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function readPhase3Snapshot(): CalpinagePhase3Snapshot {
-  const win = window as Win;
+  const win = window as unknown as Win;
   // Accès au moteur via la façade runtime typée (Phase 2).
   // getCalpinageRuntime() retourne null si le legacy n'est pas encore monté.
   const eng = getCalpinageRuntime()?.getPlacementEngine() ?? null;

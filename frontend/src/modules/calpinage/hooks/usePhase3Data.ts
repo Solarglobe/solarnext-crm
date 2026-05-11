@@ -10,6 +10,7 @@
  */
 import { useMemo } from "react";
 import { useCalpinageStore } from "../store/calpinageStore";
+import type { CalpinageStore } from "../store/storeTypes";
 import { validateInverterSizing } from "../inverterSizing";
 import { normalizeInverterFamily } from "../utils/normalizeInverterFamily";
 
@@ -47,7 +48,7 @@ function findPanelById(
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function usePhase3Data() {
-  const raw = useCalpinageStore((s) => s.phase3);
+  const raw = useCalpinageStore((s: CalpinageStore) => s.phase3);
 
   return useMemo(() => {
     const {
@@ -98,9 +99,9 @@ export function usePhase3Data() {
     const panelSpec = selPanObj
       ? {
           power_wc: powerWc,
-          isc_a: selPanObj.isc_a,
-          vmp_v: selPanObj.vmp_v,
-          strings: selPanObj.strings,
+          isc_a: selPanObj.isc_a != null ? Number(selPanObj.isc_a) : undefined,
+          vmp_v: selPanObj.vmp_v != null ? Number(selPanObj.vmp_v) : undefined,
+          strings: Array.isArray(selPanObj.strings) ? (selPanObj.strings as number[]) : undefined,
         }
       : null;
 

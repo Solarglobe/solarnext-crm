@@ -8,9 +8,10 @@
  * Le hook est devenu un simple selector Zustand — aucun accès window.*.
  */
 import { useCalpinageStore } from "../store/calpinageStore";
+import type { CalpinageStore } from "../store/storeTypes";
 
 export function usePhase2Data() {
-  return useCalpinageStore((s) => s.phase2);
+  return useCalpinageStore((s: CalpinageStore) => s.phase2);
 }
 
 /**

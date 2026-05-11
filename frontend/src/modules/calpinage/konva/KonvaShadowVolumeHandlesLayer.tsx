@@ -95,7 +95,7 @@ const VIEWPORT_EVENT = "calpinage:viewport-changed";
 // ─── Lecture état legacy ──────────────────────────────────────────────────────
 
 function readHandleSnap(): HandleSnap | null {
-  const w = window as Record<string, unknown>;
+  const w = window as unknown as Record<string, unknown>;
   const st = w["CALPINAGE_STATE"] as
     | {
         currentPhase?: string;
@@ -246,7 +246,7 @@ export function KonvaShadowVolumeHandlesLayer() {
 
   /* Kill switch — enregistrer "shadowVolumeHandles" */
   useEffect(() => {
-    const w = window as Record<string, unknown>;
+    const w = window as unknown as Record<string, unknown>;
     (w["__CALPINAGE_KONVA_LAYERS__"] as Set<string> | undefined)?.add("shadowVolumeHandles");
     return () => {
       (w["__CALPINAGE_KONVA_LAYERS__"] as Set<string> | undefined)?.delete("shadowVolumeHandles");
