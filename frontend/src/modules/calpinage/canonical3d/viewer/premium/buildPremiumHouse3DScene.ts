@@ -116,11 +116,39 @@ function validationPresentation(
 }
 
 /**
+ * Fix 5 — surcharge de validation si la géométrie toiture vient du repli bâtiment.
+ * `roofGeometryFallbackReason` est affiché dans l'excerpt si disponible.
+ */
+function applyBuildingFallbackOverlay(
+  base: PremiumHouse3DValidationPresentation,
+  scene: SolarScene3D,
+  viewMode: PremiumHouse3DViewMode,
+): PremiumHouse3DValidationPresentation {
+  if (scene.metadata?.roofGeometrySource !== "FALLBACK_BUILDING_CONTOUR") return base;
+  const reason = typeof scene.metadata?.roofGeometryFallbackReason === "string"
+    ? scene.metadata.roofGeometryFallbackReason
+    : null;
+  const upgradedAccent: PremiumGeometryTrustAccent =
+    base.accent === "critical" ? "critical"
+    : base.accent === "attention" ? "attention"
+    : "attention";
+  const fallbackLabel = "⚠ Géométrie toiture : contour bâtiment (repli) — dessinez les pans pour la 3D réelle";
+  const labelFr = base.labelFr ? `${base.labelFr} · ${fallbackLabel}` : fallbackLabel;
+  const extraCodes = reason ? ["FALLBACK_BUILDING_CONTOUR", reason] : ["FALLBACK_BUILDING_CONTOUR"];
+  const diagnosticCodesExcerpt = [
+    ...base.diagnosticCodesExcerpt.filter((c) => !extraCodes.includes(c)),
+    ...extraCodes,
+  ].slice(0, 12);
+  return { ...base, accent: upgradedAccent, labelFr, diagnosticCodesExcerpt };
+}
+
+/**
  * Construit la description de scène premium : styles, visibilités, lumière, disclosure validation.
  */
 export function buildPremiumHouse3DScene(input: BuildPremiumHouse3DSceneInput): PremiumHouse3DSceneAssembly {
   const { scene, viewMode } = input;
-  const validation = validationPresentation(input.geometryValidationReport, viewMode);
+  const rawValidation = validationPresentation(input.geometryValidationReport, viewMode);
+  const validation = applyBuildingFallbackOverlay(rawValidation, scene, viewMode);
 
   const baseLayers = {
     showRoof: true,
