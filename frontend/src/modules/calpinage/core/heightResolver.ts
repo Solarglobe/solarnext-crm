@@ -548,23 +548,28 @@ export function buildRuntimeContext(
     __calpinage_hitTestPan__?: (pt: { x: number; y: number }) => { id: string } | null;
   };
 
+  // Fix 2 — lazy lookup : on lit window.getHeightAtXY / window.__calpinage_hitTestPan__ à
+  // chaque invocation, pas une fois à la construction du contexte.  Ainsi, si pans-bundle.js
+  // est chargé après buildRuntimeContext() (timing race), P2/P3 fonctionnent quand même.
   const ctx: HeightResolverContext = {
-    getHeightAtXY: typeof w.getHeightAtXY === "function"
-      ? (panId, x, y) => {
-          try { return w.getHeightAtXY!(panId, x, y); } catch { return undefined; }
-        }
-      : undefined,
-    hitTestPan: typeof w.__calpinage_hitTestPan__ === "function"
-      ? (pt) => {
-          try { return w.__calpinage_hitTestPan__!(pt); } catch { return null; }
-        }
-      : undefined,
+    getHeightAtXY: (panId, x, y) => {
+      if (typeof w.getHeightAtXY === "function") {
+        try { return w.getHeightAtXY(panId, x, y); } catch { return undefined; }
+      }
+      return undefined;
+    },
+    hitTestPan: (pt) => {
+      if (typeof w.__calpinage_hitTestPan__ === "function") {
+        try { return w.__calpinage_hitTestPan__(pt); } catch { return null; }
+      }
+      return null;
+    },
     state: state ?? null,
   };
 
   logHeightResolverContextThrottled({
-    getHeightAtXY: ctx.getHeightAtXY ? "available" : "missing",
-    hitTestPan: ctx.hitTestPan ? "available" : "missing",
+    getHeightAtXY: typeof w.getHeightAtXY === "function" ? "available" : "missing (lazy — sera retesté à chaque appel)",
+    hitTestPan: typeof w.__calpinage_hitTestPan__ === "function" ? "available" : "missing (lazy)",
     windowFitPlaneNote:
       "Pas de window.fitPlaneAtXY — fitPlane côté legacy via getHeightAtXY (pans-bundle) si disponible.",
     stateRidgeCount: state?.ridges?.length ?? 0,

@@ -169,8 +169,8 @@ function shoelaceXYSigned(pts: readonly Vector3[]): number {
  */
 export type RoofGeometryFidelityMode = "reconstruction" | "fidelity" | "hybrid";
 
-/** Pipeline produit `buildSolarScene3DFromCalpinageRuntime` : défaut si `roofGeometryFidelityMode` est omis. Réversible via l’option explicite `roofGeometryFidelityMode: "hybrid"`. */
-export const DEFAULT_PRODUCT_ROOF_GEOMETRY_FIDELITY_MODE: RoofGeometryFidelityMode = "fidelity";
+/** Pipeline produit `buildSolarScene3DFromCalpinageRuntime` : défaut si `roofGeometryFidelityMode` est omis. Passe à "hybrid" pour activer le raffinement des normales sur arêtes structurantes (élimine les craquelures visuelles inter-pans). */
+export const DEFAULT_PRODUCT_ROOF_GEOMETRY_FIDELITY_MODE: RoofGeometryFidelityMode = "hybrid";
 
 export interface BuildRoofModel3DFromLegacyGeometryOptions {
   readonly roofGeometryFidelityMode?: RoofGeometryFidelityMode;
