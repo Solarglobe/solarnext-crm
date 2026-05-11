@@ -250,6 +250,12 @@ export function loadPanelsFromCalpinageState(args: {
    * Obligatoire et non vide : patches issus d’une toiture **déjà** construite (pas de rebuild ici).
    */
   readonly roofPlanePatches: readonly RoofPlanePatch3D[];
+  /**
+   * Z de repli (m) pour les panneaux quand le résolveur de hauteur échoue.
+   * **Doit correspondre à `worldZOriginShiftM` du modèle toiture** pour que l’ajustement
+   * `zSceneAdjustM = -worldZOriginShiftM` place les panneaux au niveau du toit et non en sous-sol.
+   */
+  readonly defaultZFallbackM?: number;
 }): { readonly panels: CanonicalPlacedPanel3D[]; readonly notes: string[] } {
   const notes: string[] = [];
   if (!args.state || typeof args.state !== "object") {
@@ -274,6 +280,9 @@ export function loadPanelsFromCalpinageState(args: {
     state: args.state,
     placementEngine: args.placementEngine,
     getAllPanels: args.getAllPanels,
+    ...(typeof args.defaultZFallbackM === "number" && Number.isFinite(args.defaultZFallbackM)
+      ? { options: { defaultZFallbackM: args.defaultZFallbackM } }
+      : {}),
   });
   notes.push(...placRes.diagnostics);
   if (!placRes.ok && placRes.placementInputs.length === 0) {

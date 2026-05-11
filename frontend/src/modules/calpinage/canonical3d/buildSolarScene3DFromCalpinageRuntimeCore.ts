@@ -471,6 +471,9 @@ export function buildSolarScene3DFromCalpinageRuntime(
       placementEngine: eng,
       getAllPanels: options?.getAllPanels,
       roofPlanePatches: patches,
+      // Aligne le Z de repli panneaux sur l'origine Z du modèle toiture.
+      // Sans ça : panneaux à Z=0 → après zSceneAdjustM = -worldZOriginShiftM → Z négatif (sous-sol).
+      defaultZFallbackM: roofRes.worldZOriginShiftM,
     });
     const mergedScene = mergePlacedPanelsIntoCanonicalScene3DInput(
       validation.scene,
