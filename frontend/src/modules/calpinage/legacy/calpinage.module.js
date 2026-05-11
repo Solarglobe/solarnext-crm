@@ -17011,7 +17011,11 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 console.log("[MD] return select hit contour");
                 return;
               }
-              var hitPan = hitTestPan(imgPt);
+              /* P4.4 : hit-test pan sélection délégué à Konva si KonvaPansLayer actif */
+              var _konvaPanSelActive = window.__CALPINAGE_KONVA_LAYERS__ && window.__CALPINAGE_KONVA_LAYERS__.has("pans") && typeof window.__CALPINAGE_KONVA_PAN_HIT__ === "function";
+              var hitPan = _konvaPanSelActive
+                ? (function() { var _id = window.__CALPINAGE_KONVA_PAN_HIT__(e.clientX, e.clientY); return _id ? (CALPINAGE_STATE.pans || []).filter(function(p) { return p.id === _id; })[0] || null : null; })()
+                : hitTestPan(imgPt);
               if (!CALPINAGE_STATE.heightEditMode && !hitPan && !CALPINAGE_STATE.editingPanId) {
                 drawState.selectedRoofExtensionIndex = null;
                 if (CALPINAGE_STATE.currentPhase === "PV_LAYOUT") {
@@ -18545,7 +18549,11 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             if (window.CALPINAGE_MODE === MODE_DORMER_CONTOUR || window.CALPINAGE_MODE === MODE_DORMER_HIPS || window.CALPINAGE_MODE === MODE_DORMER_RIDGE) {
               if (typeof window.CALPINAGE_RENDER === "function") requestAnimationFrame(window.CALPINAGE_RENDER);
             }
-            var hitPanHover = hitTestPan(imgPt);
+            /* P4.4 : hit-test pan hover délégué à Konva si KonvaPansLayer actif */
+            var _konvaPanHoverActive = window.__CALPINAGE_KONVA_LAYERS__ && window.__CALPINAGE_KONVA_LAYERS__.has("pans") && typeof window.__CALPINAGE_KONVA_PAN_HIT__ === "function";
+            var hitPanHover = _konvaPanHoverActive
+              ? (function() { var _id = window.__CALPINAGE_KONVA_PAN_HIT__(e.clientX, e.clientY); return _id ? { id: _id } : null; })()
+              : hitTestPan(imgPt);
             var newHoverPanId = hitPanHover ? hitPanHover.id : null;
             if (newHoverPanId !== drawState.hoverPanId) {
               drawState.hoverPanId = newHoverPanId;
@@ -18822,7 +18830,11 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               // console.log("[STATE]", interactionState);
             }
             /* hoverPanId — migré depuis mousemove (Fix-C : suppression doublon mousemove) */
-            var hitPanHoverPm = hitTestPan(imgPt);
+            /* P4.4 : hit-test pan hover délégué à Konva si KonvaPansLayer actif */
+            var _konvaPanHoverActivePm = window.__CALPINAGE_KONVA_LAYERS__ && window.__CALPINAGE_KONVA_LAYERS__.has("pans") && typeof window.__CALPINAGE_KONVA_PAN_HIT__ === "function";
+            var hitPanHoverPm = _konvaPanHoverActivePm
+              ? (function() { var _id = window.__CALPINAGE_KONVA_PAN_HIT__(e.clientX, e.clientY); return _id ? { id: _id } : null; })()
+              : hitTestPan(imgPt);
             var newHoverPanIdPm = hitPanHoverPm ? hitPanHoverPm.id : null;
             if (newHoverPanIdPm !== drawState.hoverPanId) {
               drawState.hoverPanId = newHoverPanIdPm;
@@ -19630,6 +19642,8 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               window.CALPINAGE_VIEWPORT_FIT_SCALE = vpFitBaseScale;
               /* P4.0 — exposition offset pour KonvaOverlay (lecture seule, non critique) */
               window.CALPINAGE_VIEWPORT_OFFSET = { x: vp.offset.x, y: vp.offset.y };
+              /* P4.4 — état hover pan pour KonvaPansLayer */
+              window.CALPINAGE_HOVER_PAN_ID = drawState ? drawState.hoverPanId : null;
               if (typeof window.dispatchEvent === "function") {
                 try {
                   window.dispatchEvent(new CustomEvent("calpinage:viewport-changed", {
@@ -19733,6 +19747,8 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               }
             }
             } /* end P4.1 kill switch : !_konvaLayers.has("contours") */
+            /* P4.4 kill switch : si KonvaPansLayer actif, hover + sélection rendus par Konva */
+            if (!_konvaLayers || !_konvaLayers.has("pans")) {
             /* 4a. Hover pan : eclaircissement subtil + bordure doree (priorite < selection) */
             if (drawState.hoverPanId && drawState.hoverPanId !== CALPINAGE_STATE.selectedPanId) {
               var hoverPan = CALPINAGE_STATE.pans.filter(function (p) { return p.id === drawState.hoverPanId; })[0];
@@ -19769,6 +19785,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 ctx.fill();
               }
             }
+            } /* end P4.4 kill switch : !_konvaLayers.has("pans") */
             /* 4d. Sommets du pan en ?dition : visibles uniquement si editingPanId === pan.id */
             if (CALPINAGE_STATE.editingPanId) {
               var editPan = CALPINAGE_STATE.pans.filter(function (p) { return p.id === CALPINAGE_STATE.editingPanId; })[0];

@@ -24,6 +24,7 @@ import { Layer, Group, Stage } from "react-konva";
 import type Konva from "konva";
 import { useViewportSync } from "./useViewportSync";
 import { KonvaContoursLayer } from "./KonvaContoursLayer";
+import { KonvaPansLayer } from "./KonvaPansLayer";
 import { KonvaObstaclesLayer } from "./KonvaObstaclesLayer";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -112,6 +113,29 @@ export function KonvaOverlay({ containerRef }: Props) {
   }, []);
 
   /**
+   * P4.4 — Expose le hit-test Konva pour les pans.
+   * Retourne le pan.id (string) touché, ou null.
+   * Même mécanique que P4.3 (getIntersection → shape.id → parse "pan-{id}").
+   */
+  useEffect(() => {
+    const w = window as Record<string, unknown>;
+    w["__CALPINAGE_KONVA_PAN_HIT__"] = (clientX: number, clientY: number): string | null => {
+      const stage = stageRef.current;
+      if (!stage) return null;
+      const stageContainer = stage.container();
+      const rect = stageContainer.getBoundingClientRect();
+      const pos = { x: clientX - rect.left, y: clientY - rect.top };
+      const shape = stage.getIntersection(pos);
+      if (!shape) return null;
+      const match = shape.id().match(/^pan-(.+)$/);
+      return match ? match[1] : null;
+    };
+    return () => {
+      delete (w as Record<string, unknown>)["__CALPINAGE_KONVA_PAN_HIT__"];
+    };
+  }, []);
+
+  /**
    * P4.3 — Expose le hit-test Konva pour les obstacles.
    * Appelé depuis handlePointerOrMouseDown legacy (quand "obstacles" est dans le kill switch set).
    * Retourne l'index de l'obstacle touché, ou -1 si aucun.
@@ -185,6 +209,7 @@ export function KonvaOverlay({ containerRef }: Props) {
             scaleY={-vp.scale}
           >
             <KonvaContoursLayer />
+            <KonvaPansLayer />
             <KonvaObstaclesLayer />
           </Group>
         </Layer>
