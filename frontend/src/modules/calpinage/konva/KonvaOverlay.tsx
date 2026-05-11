@@ -16,6 +16,7 @@
  *   ctx.transform(s, 0, 0, -s, ox, oy) legacy ≡ WorldGroup x=ox y=oy scaleX=s scaleY=-s
  *   → formes dans WorldGroup : coordonnées image-space directement.
  *   → Text dans WorldGroup : nécessite scaleY(-1) local pour ne pas être inversé.
+ *   → KonvaShadowVolumeHandlesLayer : hors WorldGroup (screen-space, tailles fixes px).
  */
 
 import { type RefObject, useEffect, useRef, useState } from "react";
@@ -27,6 +28,7 @@ import { KonvaContoursLayer } from "./KonvaContoursLayer";
 import { KonvaPansLayer } from "./KonvaPansLayer";
 import { KonvaObstaclesLayer } from "./KonvaObstaclesLayer";
 import { KonvaShadowVolumesLayer } from "./KonvaShadowVolumesLayer";
+import { KonvaShadowVolumeHandlesLayer } from "./KonvaShadowVolumeHandlesLayer";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // KonvaOverlay
@@ -116,7 +118,6 @@ export function KonvaOverlay({ containerRef }: Props) {
   /**
    * P4.4 — Expose le hit-test Konva pour les pans.
    * Retourne le pan.id (string) touché, ou null.
-   * Même mécanique que P4.3 (getIntersection → shape.id → parse "pan-{id}").
    */
   useEffect(() => {
     const w = window as Record<string, unknown>;
@@ -138,37 +139,29 @@ export function KonvaOverlay({ containerRef }: Props) {
 
   /**
    * P4.3 — Expose le hit-test Konva pour les obstacles.
-   * Appelé depuis handlePointerOrMouseDown legacy (quand "obstacles" est dans le kill switch set).
    * Retourne l'index de l'obstacle touché, ou -1 si aucun.
-   *
-   * Utilise stage.getIntersection() : Konva est autoritatif pour la géométrie.
-   * Les shapes obstacles ont listening={true} → présents dans le hit canvas.
-   * L'overlay div garde pointer-events:none → aucun DOM event ne remonte ici.
    */
   useEffect(() => {
     const w = window as Record<string, unknown>;
     w["__CALPINAGE_KONVA_OBS_HIT__"] = (clientX: number, clientY: number): number => {
       const stage = stageRef.current;
       if (!stage) return -1;
-      // Coordonnées relatives au container du Stage (= la div overlay)
       const stageContainer = stage.container();
       const rect = stageContainer.getBoundingClientRect();
       const pos = { x: clientX - rect.left, y: clientY - rect.top };
       const shape = stage.getIntersection(pos);
       if (!shape) return -1;
-      // id format : "obs-{index}" (posé dans KonvaObstaclesLayer)
       const match = shape.id().match(/^obs-(\d+)$/);
       return match ? parseInt(match[1], 10) : -1;
     };
     return () => {
       delete (w as Record<string, unknown>)["__CALPINAGE_KONVA_OBS_HIT__"];
     };
-  }, []); // stageRef est une ref — pas besoin de la lister comme dépendance
+  }, []);
 
   /**
    * P4.5a — Expose le hit-test Konva pour les shadow volumes (body uniquement).
    * Retourne l'index du volume touché, ou -1 si aucun.
-   * id format : "sv-{index}" (posé dans KonvaShadowVolumesLayer).
    */
   useEffect(() => {
     const w = window as Record<string, unknown>;
@@ -195,15 +188,11 @@ export function KonvaOverlay({ containerRef }: Props) {
     <div
       style={{
         position: "absolute",
-        /* Positionné exactement sur #calpinage-canvas-el :
-         * left/top = offset du canvas dans containerRef (hors sidebar legacy).
-         * width/height = dimensions CSS du canvas. */
         left: canvasOffset.left,
         top: canvasOffset.top,
         width: vp.width,
         height: vp.height,
         pointerEvents: "none",
-        /* Au-dessus de #calpinage-root (z-index:1), sous les UI overlay (z-index:50+) */
         zIndex: 5,
       }}
     >
@@ -214,17 +203,10 @@ export function KonvaOverlay({ containerRef }: Props) {
         listening={true}
         style={{ display: "block" }}
       >
-        {/*
-         * listening={true} sur Stage + Layer : popule le hit canvas Konva à chaque rendu.
-         * Nécessaire pour stage.getIntersection() (P4.3 hit-test obstacles).
-         * L'overlay div garde pointer-events:none → aucun event DOM ne remonte au Stage.
-         * Seules les shapes avec listening={true} sont dans le hit canvas.
-         */}
         <Layer listening={true} clearBeforeDraw>
           {/*
            * WorldGroup — coordonnées image-space → écran-space.
            * Identique à ctx.transform(s, 0, 0, -s, ox, oy) du canvas legacy.
-           * Note : image-space (0,0) = coin BAS-GAUCHE sur écran (Y inversé).
            */}
           <Group
             x={vp.offsetX}
@@ -237,6 +219,13 @@ export function KonvaOverlay({ containerRef }: Props) {
             <KonvaObstaclesLayer />
             <KonvaShadowVolumesLayer />
           </Group>
+
+          {/*
+           * KonvaShadowVolumeHandlesLayer — P4.5b — hors WorldGroup.
+           * Handles en screen-space (tailles fixes en px).
+           * Positions calculées via imgToStage dans le composant.
+           */}
+          <KonvaShadowVolumeHandlesLayer />
         </Layer>
       </Stage>
     </div>

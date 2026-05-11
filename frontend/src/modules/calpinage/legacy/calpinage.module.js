@@ -19653,6 +19653,8 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               /* P4.5a — état sélection/placement shadow volumes pour KonvaShadowVolumesLayer */
               window.CALPINAGE_SV_SEL_IDX = drawState ? drawState.selectedShadowVolumeIndex : null;
               window.CALPINAGE_SV_PLACING_IDX = drawState && drawState.isPlacingShadowVolume ? drawState.selectedShadowVolumeIndex : null;
+              /* P4.5b — hover rotate handle (mis à jour dans le bloc ROOF_EDIT ci-dessous) */
+              window.CALPINAGE_SV_ROTATE_HOVERED = false;
               if (typeof window.dispatchEvent === "function") {
                 try {
                   window.dispatchEvent(new CustomEvent("calpinage:viewport-changed", {
@@ -20413,7 +20415,10 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                   var svHandleHit = window.CalpinageCanvas.hitTestShadowVolumeHandles(screenMouseSv, svSelVol, imageToScreen, vp.scale, mppH);
                   svHoveredRotate = !!(svHandleHit && svHandleHit.handle === "rotate");
                 }
-                if (window.CalpinageCanvas && window.CalpinageCanvas.drawShadowVolumeHandles) {
+                /* P4.5b — expose hover rotate pour KonvaShadowVolumeHandlesLayer */
+                window.CALPINAGE_SV_ROTATE_HOVERED = svHoveredRotate;
+                /* P4.5b kill switch — handles délégués à KonvaShadowVolumeHandlesLayer */
+                if ((!_konvaLayers || !_konvaLayers.has("shadowVolumeHandles")) && window.CalpinageCanvas && window.CalpinageCanvas.drawShadowVolumeHandles) {
                   window.CalpinageCanvas.drawShadowVolumeHandles(ctx, svSelVol, imageToScreen, vp.scale, mppH, svHoveredRotate);
                 }
               }
