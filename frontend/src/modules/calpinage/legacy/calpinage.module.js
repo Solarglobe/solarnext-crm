@@ -19650,13 +19650,15 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               window.CALPINAGE_VIEWPORT_OFFSET = { x: vp.offset.x, y: vp.offset.y };
               /* P4.4 — état hover pan pour KonvaPansLayer */
               window.CALPINAGE_HOVER_PAN_ID = drawState ? drawState.hoverPanId : null;
-              /* P4.5a — état sélection/placement shadow volumes pour KonvaShadowVolumesLayer */
+              /* P4.5a — �tat s�lection/placement shadow volumes pour KonvaShadowVolumesLayer */
               window.CALPINAGE_SV_SEL_IDX = drawState ? drawState.selectedShadowVolumeIndex : null;
               window.CALPINAGE_SV_PLACING_IDX = drawState && drawState.isPlacingShadowVolume ? drawState.selectedShadowVolumeIndex : null;
-              /* P4.5b — hover rotate handle (mis à jour dans le bloc ROOF_EDIT ci-dessous) */
+              /* P4.5b — hover rotate handle (mis � jour dans le bloc ROOF_EDIT ci-dessous) */
               window.CALPINAGE_SV_ROTATE_HOVERED = false;
-              /* P4.6a — PH3 handles (mis à jour dans le bloc PV_LAYOUT ci-dessous) */
+              /* P4.6a — PH3 handles (mis � jour dans le bloc PV_LAYOUT ci-dessous) */
               window.CALPINAGE_PH3_HANDLES = null;
+              /* P4.6b — donn�es panels PV (mis � jour dans le bloc PV_LAYOUT ci-dessous) */
+              window.CALPINAGE_PV_PANELS_DATA = null;
               if (typeof window.dispatchEvent === "function") {
                 try {
                   window.dispatchEvent(new CustomEvent("calpinage:viewport-changed", {
@@ -20303,7 +20305,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             /* SHADOW_VOLUMES : footprint orange — Phase 2 + Phase 3 */
             var svList = CALPINAGE_STATE.shadowVolumes || [];
             var svSelDraw = drawState.selectedShadowVolumeIndex;
-            /* P4.5a kill switch — body footprint délégué à KonvaShadowVolumesLayer */
+            /* P4.5a kill switch — body footprint d�l�gu� � KonvaShadowVolumesLayer */
             if ((!_konvaLayers || !_konvaLayers.has("shadowVolumes")) && svList.length > 0) {
               var mpp = (CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.scale && CALPINAGE_STATE.roof.scale.metersPerPixel) || 1;
               for (var svi = 0; svi < svList.length; svi++) {
@@ -20419,7 +20421,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 }
                 /* P4.5b — expose hover rotate pour KonvaShadowVolumeHandlesLayer */
                 window.CALPINAGE_SV_ROTATE_HOVERED = svHoveredRotate;
-                /* P4.5b kill switch — handles délégués à KonvaShadowVolumeHandlesLayer */
+                /* P4.5b kill switch — handles d�l�gu�s � KonvaShadowVolumeHandlesLayer */
                 if ((!_konvaLayers || !_konvaLayers.has("shadowVolumeHandles")) && window.CalpinageCanvas && window.CalpinageCanvas.drawShadowVolumeHandles) {
                   window.CalpinageCanvas.drawShadowVolumeHandles(ctx, svSelVol, imageToScreen, vp.scale, mppH, svHoveredRotate);
                 }
@@ -20775,6 +20777,10 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 ctx.restore();
               }
 
+              /* P4.6b — kill switch panneaux PV + collecte donn�es pour KonvaPVPanelsLayer */
+              var _konvaPvActive = _konvaLayers && _konvaLayers.has("pvPanels");
+              var _pvPanelsForKonva = [];
+
               /* 1) Panneaux fig?s : FROZEN (1.5 px) ou SELECTED (2.5 px) si bloc focus ; d?sactiv?s = contour ghost */
               var frozen = ENG.getFrozenBlocks();
               for (var fi = 0; fi < frozen.length; fi++) {
@@ -20820,33 +20826,48 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                   var effInvalid = p.state === "invalid" || invalidSafeZone;
                   var frameColorFrozen = effInvalid ? PANEL_OUTLINE_INVALID : outlineColor;
                   var dashFrozen = effInvalid ? [6, 4] : (p.enabled === false ? [6, 4] : []);
-                  if (p.enabled === false) {
-                    drawPanelPolygon(ctx, proj.points, imageToScreen, frameColorFrozen, outlineWidth, dashFrozen, true, isSelectedFrozen && !effInvalid);
-                  } else {
-                    drawPanelPolygon(ctx, proj.points, imageToScreen, frameColorFrozen, outlineWidth, dashFrozen, false, isSelectedFrozen && !effInvalid);
+                  var panelPoly = proj.points;
+                  var center = getPanelCenterFromPoly(panelPoly);
+                  var isDormerShaded = dormerShadowPolys.some(function (poly) { return pointInPolygon(center, poly); });
+                  /* P4.6b — collecte donn�es panneau fig� */
+                  _pvPanelsForKonva.push({
+                    points: panelPoly,
+                    frameColor: frameColorFrozen,
+                    outlineWidth: outlineWidth,
+                    dash: dashFrozen,
+                    outlineOnly: p.enabled === false,
+                    invalid: effInvalid,
+                    dormerShaded: isDormerShaded,
+                    glow: isSelectedFrozen && !effInvalid,
+                  });
+                  if (!_konvaPvActive) {
+                    if (p.enabled === false) {
+                      drawPanelPolygon(ctx, proj.points, imageToScreen, frameColorFrozen, outlineWidth, dashFrozen, true, isSelectedFrozen && !effInvalid);
+                    } else {
+                      drawPanelPolygon(ctx, proj.points, imageToScreen, frameColorFrozen, outlineWidth, dashFrozen, false, isSelectedFrozen && !effInvalid);
+                    }
                   }
                   if (vp && typeof vp.scale === "number" && focusBlock && bl.id === focusBlock.id && !activeBl) {
                     for (var vk = 0; vk < proj.points.length; vk++) visibleScreenPtsForHandles.push(imageToScreen(proj.points[vk]));
                   }
-                  var panelPoly = proj.points;
-                  var center = getPanelCenterFromPoly(panelPoly);
-                  var isDormerShaded = dormerShadowPolys.some(function (poly) { return pointInPolygon(center, poly); });
                   if (isDormerShaded) {
                     dormerShadedCount++;
-                    ctx.save();
-                    ctx.fillStyle = "rgba(0,0,0,0.18)";
-                    ctx.beginPath();
-                    var sp0 = imageToScreen(panelPoly[0]);
-                    ctx.moveTo(sp0.x, sp0.y);
-                    for (var k = 1; k < panelPoly.length; k++) {
-                      var spk = imageToScreen(panelPoly[k]);
-                      ctx.lineTo(spk.x, spk.y);
+                    if (!_konvaPvActive) {
+                      ctx.save();
+                      ctx.fillStyle = "rgba(0,0,0,0.18)";
+                      ctx.beginPath();
+                      var sp0 = imageToScreen(panelPoly[0]);
+                      ctx.moveTo(sp0.x, sp0.y);
+                      for (var k = 1; k < panelPoly.length; k++) {
+                        var spk = imageToScreen(panelPoly[k]);
+                        ctx.lineTo(spk.x, spk.y);
+                      }
+                      ctx.closePath();
+                      ctx.fill();
+                      ctx.restore();
                     }
-                    ctx.closePath();
-                    ctx.fill();
-                    ctx.restore();
                   }
-                  if (effInvalid) {
+                  if (effInvalid && !_konvaPvActive) {
                     ctx.save();
                     ctx.fillStyle = "rgba(239,68,68,0.25)";
                     ctx.beginPath();
@@ -20939,7 +20960,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                   var dash = isInvalid ? [6, 4] : [];
                   var panelPolyAct = null;
                   if (window.CALPINAGE_IS_MANIPULATING && activeBl.manipulationTransform) {
-                    drawPanelWithTransform(ctx, p, activeBl, imageToScreen, outlineColor, outlineWidth, dash, false, !isInvalid);
+                    /* P4.6b — calcul points transform�s avant le dessin (pour collecte) */
                     if (p.projection && p.projection.points) {
                       var centerAct = ENG.getBlockCenter ? ENG.getBlockCenter(activeBl) : null;
                       if (centerAct) {
@@ -20955,34 +20976,52 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                         }
                       }
                     }
+                    if (!_konvaPvActive) {
+                      drawPanelWithTransform(ctx, p, activeBl, imageToScreen, outlineColor, outlineWidth, dash, false, !isInvalid);
+                    }
                   } else {
                     var effProj = ENG.getEffectivePanelProjection(activeBl, pi);
                     if (!effProj || !effProj.points) continue;
-                    drawPanelPolygon(ctx, effProj.points, imageToScreen, outlineColor, outlineWidth, dash, false, !isInvalid);
                     panelPolyAct = effProj.points;
+                    if (!_konvaPvActive) {
+                      drawPanelPolygon(ctx, effProj.points, imageToScreen, outlineColor, outlineWidth, dash, false, !isInvalid);
+                    }
                   }
                   if (panelPolyAct) {
+                    /* P4.6b — collecte donn�es panneau actif */
+                    var _centerActKonva = getPanelCenterFromPoly(panelPolyAct);
+                    var isDormerShadedAct = dormerShadowPolys.some(function (poly) { return pointInPolygon(_centerActKonva, poly); });
+                    _pvPanelsForKonva.push({
+                      points: panelPolyAct,
+                      frameColor: isInvalid ? PANEL_OUTLINE_INVALID : PANEL_OUTLINE_ACTIVE,
+                      outlineWidth: isInvalid ? 3 : 2.5,
+                      dash: isInvalid ? [6, 4] : [],
+                      outlineOnly: false,
+                      invalid: isInvalid,
+                      dormerShaded: isDormerShadedAct,
+                      glow: !isInvalid,
+                    });
                     if (vp && typeof vp.scale === "number" && focusBlock && activeBl.id === focusBlock.id) {
                       for (var vk = 0; vk < panelPolyAct.length; vk++) visibleScreenPtsForHandles.push(imageToScreen(panelPolyAct[vk]));
                     }
-                    var centerAct = getPanelCenterFromPoly(panelPolyAct);
-                    var isDormerShadedAct = dormerShadowPolys.some(function (poly) { return pointInPolygon(centerAct, poly); });
                     if (isDormerShadedAct) {
                       dormerShadedCount++;
-                      ctx.save();
-                      ctx.fillStyle = "rgba(0,0,0,0.18)";
-                      ctx.beginPath();
-                      var sp0Act = imageToScreen(panelPolyAct[0]);
-                      ctx.moveTo(sp0Act.x, sp0Act.y);
-                      for (var k = 1; k < panelPolyAct.length; k++) {
-                        var spkAct = imageToScreen(panelPolyAct[k]);
-                        ctx.lineTo(spkAct.x, spkAct.y);
+                      if (!_konvaPvActive) {
+                        ctx.save();
+                        ctx.fillStyle = "rgba(0,0,0,0.18)";
+                        ctx.beginPath();
+                        var sp0Act = imageToScreen(panelPolyAct[0]);
+                        ctx.moveTo(sp0Act.x, sp0Act.y);
+                        for (var k = 1; k < panelPolyAct.length; k++) {
+                          var spkAct = imageToScreen(panelPolyAct[k]);
+                          ctx.lineTo(spkAct.x, spkAct.y);
+                        }
+                        ctx.closePath();
+                        ctx.fill();
+                        ctx.restore();
                       }
-                      ctx.closePath();
-                      ctx.fill();
-                      ctx.restore();
                     }
-                    if (isInvalid) {
+                    if (isInvalid && !_konvaPvActive) {
                       ctx.save();
                       ctx.fillStyle = "rgba(239,68,68,0.25)";
                       ctx.beginPath();
@@ -21003,6 +21042,10 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 safeZonePh3.lastValidateTs = now;
                 safeZonePh3.geoDirty = false;
                 safeZonePh3.panelsDirty = false;
+              }
+              /* P4.6b — exposition donn�es panels PV pour KonvaPVPanelsLayer */
+              if (typeof window !== "undefined") {
+                window.CALPINAGE_PV_PANELS_DATA = { panels: _pvPanelsForKonva, imgH: imgH, scale: vp.scale };
               }
               if (window.__SAFE_ZONE_PROF_ENABLE__ && window.__SAFE_ZONE_PROF__) {
                 var prof = window.__SAFE_ZONE_PROF__;
@@ -22651,4 +22694,52 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
     });
     /* Reset moteurs PV (blocs figés, panneaux posés) — singletons window qui persistent sinon */
     try {
-      var 
+      var engReset = (typeof window !== "undefined" && window.pvPlacementEngine && window.pvPlacementEngine.reset) ||
+        (typeof window !== "undefined" && window.ActivePlacementBlock && window.ActivePlacementBlock.reset);
+      if (typeof engReset === "function") engReset();
+    } catch (e) { if (typeof console !== "undefined") console.warn("[CALPINAGE] engine reset error", e); }
+    /* Reset CalpinagePans.panState (pans, activePanId) */
+    try {
+      if (typeof window !== "undefined" && window.CalpinagePans && window.CalpinagePans.panState) {
+        var ps = window.CalpinagePans.panState;
+        if (Array.isArray(ps.pans)) ps.pans.length = 0;
+        ps.activePanId = null;
+        ps.activePoint = null;
+      }
+    } catch (e) { if (typeof console !== "undefined") console.warn("[CALPINAGE] CalpinagePans reset error", e); }
+    /* Supprimer toute référence window pour éviter fuite d'état entre études */
+    if (typeof window !== "undefined") {
+      try { delete window.CALPINAGE_STATE; } catch (_) {}
+      try { delete window.__applyFlatRoofConfigAndRecompute; } catch (_) {}
+      try { delete window.__applyManualPanRoofTypeAndRecompute; } catch (_) {}
+      try { delete window.__computePansFromGeometryCoreForExport; } catch (_) {}
+      try { delete window.__computeGeometryHashForExport; } catch (_) {}
+      try { delete window.__computePanelsHashForExport; } catch (_) {}
+      try { delete window.__computeShadingHashForExport; } catch (_) {}
+      try { delete window.__calpinageRefreshLegacyUiAfterPanVertexHeightEdit; } catch (_) {}
+      try { delete window.__calpinageCommitRoofVertexHeightLike2D; } catch (_) {}
+      try { delete window.__calpinage_hitTestPan__; } catch (_) {}
+      try { delete window.__calpinageRecomputePansFromGeometryAndUI; } catch (_) {}
+      window.CALPINAGE_STUDY_ID = null;
+      window.CALPINAGE_VERSION_ID = null;
+      window.PV_SELECTED_PANEL = null;
+      window.CALPINAGE_SELECTED_PANEL_ID = null;
+      window.PV_SELECTED_INVERTER = null;
+      window.CALPINAGE_SELECTED_INVERTER_ID = null;
+      window.CALPINAGE_ALLOWED = false;
+    }
+    /* Vider le container pour que le prochain init (étude B) ne trouve pas #calpinage-root et réinjecte proprement */
+    try {
+      if (container && container.firstChild) {
+        while (container.firstChild) container.removeChild(container.firstChild);
+      }
+    } catch (e) { if (typeof console !== "undefined") console.warn("[CALPINAGE] container clear error", e); }
+    _calpinageInitInFlight = false;
+    if (devLog) {
+      console.log("[CALPINAGE] cleanup done (state isolated, ready for next study)");
+    }
+  };
+  container.__CALPINAGE_MOUNTED__ = true;
+  container.__CALPINAGE_TEARDOWN__ = cleanup;
+  return cleanup;
+}

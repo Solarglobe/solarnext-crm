@@ -31,6 +31,7 @@ import { KonvaObstaclesLayer } from "./KonvaObstaclesLayer";
 import { KonvaShadowVolumesLayer } from "./KonvaShadowVolumesLayer";
 import { KonvaShadowVolumeHandlesLayer } from "./KonvaShadowVolumeHandlesLayer";
 import { KonvaPH3HandlesLayer } from "./KonvaPH3HandlesLayer";
+import { KonvaPVPanelsLayer } from "./KonvaPVPanelsLayer";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // KonvaOverlay
@@ -220,6 +221,9 @@ export function KonvaOverlay({ containerRef }: Props) {
             <KonvaPansLayer />
             <KonvaObstaclesLayer />
             <KonvaShadowVolumesLayer />
+
+            {/* P4.6b — panneaux PV (frozen + active) en world-space */}
+            <KonvaPVPanelsLayer />
           </Group>
 
           {/*
