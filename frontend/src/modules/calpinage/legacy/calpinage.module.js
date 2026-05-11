@@ -19673,7 +19673,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               /* P4.5b — hover rotate handle (mis � jour dans le bloc ROOF_EDIT ci-dessous) */
               window.CALPINAGE_SV_ROTATE_HOVERED = false;
               /* P4.6a — PH3 handles (mis � jour dans le bloc PV_LAYOUT ci-dessous) */
-              window.CALPINAGE_PH3_HANDLES = null;
+              // window.CALPINAGE_PH3_HANDLES = null; // P4.6c-fix : même race condition que CALPINAGE_PV_PANELS_DATA — retiré
               /* P4.6b — donn�es panels PV (mis � jour dans le bloc PV_LAYOUT ci-dessous) */
               // window.CALPINAGE_PV_PANELS_DATA = null; // P4.6c-fix : retiré — race condition avec calpinage:viewport-changed (données réelles écrites L.21071 après l'event). La garde currentPhase!=="PV_LAYOUT" dans readSnap() protège contre les données périmées.
               if (typeof window.dispatchEvent === "function") {
