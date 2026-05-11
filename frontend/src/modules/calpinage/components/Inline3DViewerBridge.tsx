@@ -295,13 +295,10 @@ function Inline3DViewer({
         structuralChangeEventDetail,
         ...(displayReconstruction ? { roofGeometryFidelityMode: "reconstruction" as const } : {}),
         ...(optimalSingleBuilding ? { legacyRoofMapOptions: optimalSingleBuildingLegacyRoofMapOptions() } : {}),
+        // T13 : accès typé via façade runtime — cohérent avec L.117 du même fichier.
         getAllPanels: () => {
           try {
-            const eng = (window as unknown as { pvPlacementEngine?: { getAllPanels?: () => unknown[] } })
-              .pvPlacementEngine;
-            if (eng && typeof eng.getAllPanels === "function") {
-              return eng.getAllPanels() ?? [];
-            }
+            return getCalpinageRuntime()?.getPlacementEngine()?.getAllPanels() ?? [];
           } catch {
             /* ignore */
           }

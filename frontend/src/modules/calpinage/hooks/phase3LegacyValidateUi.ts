@@ -1,7 +1,12 @@
 /**
  * Lecture seule des prédicats déjà utilisés par le legacy pour activer « Valider le calpinage ».
  * Ne modifie aucune règle métier : copie fidèle de calpinage.module.js (updateCalpinageValidateButton).
+ *
+ * T13 — wiring : pvPlacementEngine lu via getCalpinageRuntime().getPlacementEngine()
+ * au lieu du cast inline `window as unknown as { pvPlacementEngine?: ... }`.
  */
+
+import { getCalpinageRuntime } from "../runtime/calpinageRuntime";
 
 export function hasPhase3CatalogModuleSelected(win: Window & typeof globalThis = window): boolean {
   const w = win as unknown as {
@@ -13,15 +18,12 @@ export function hasPhase3CatalogModuleSelected(win: Window & typeof globalThis =
 
 export function computeLegacyPhase3CanValidate(win: Window & typeof globalThis = window): boolean {
   const w = win as unknown as {
-    pvPlacementEngine?: { getAllPanels?: () => unknown[] };
     PV_SELECTED_INVERTER?: { id?: string };
     CALPINAGE_SELECTED_INVERTER_ID?: string;
     getPhase3ChecklistOk?: () => boolean;
   };
-  const totalPanels =
-    w.pvPlacementEngine?.getAllPanels != null
-      ? (w.pvPlacementEngine.getAllPanels() || []).length
-      : 0;
+  // T13 : accès typé via façade runtime — plus de cast inline pvPlacementEngine.
+  const totalPanels = getCalpinageRuntime()?.getPlacementEngine()?.getAllPanels()?.length ?? 0;
   const hasCatalog = hasPhase3CatalogModuleSelected(win);
   const hasInverter =
     !!(w.PV_SELECTED_INVERTER && w.PV_SELECTED_INVERTER.id) || !!w.CALPINAGE_SELECTED_INVERTER_ID;
@@ -29,19 +31,16 @@ export function computeLegacyPhase3CanValidate(win: Window & typeof globalThis =
   return hasCatalog && totalPanels > 0 && hasInverter && checklistOk;
 }
 
-/** Message d’action suivante ; null si validation possible (même ordre de priorité que les title legacy). */
+/** Message d'action suivante ; null si validation possible (même ordre de priorité que les title legacy). */
 export function getPhase3ValidateBlockedHint(win: Window & typeof globalThis = window): string | null {
   if (computeLegacyPhase3CanValidate(win)) return null;
   const w = win as unknown as {
-    pvPlacementEngine?: { getAllPanels?: () => unknown[] };
     PV_SELECTED_INVERTER?: { id?: string };
     CALPINAGE_SELECTED_INVERTER_ID?: string;
     getPhase3ChecklistOk?: () => boolean;
   };
-  const totalPanels =
-    w.pvPlacementEngine?.getAllPanels != null
-      ? (w.pvPlacementEngine.getAllPanels() || []).length
-      : 0;
+  // T13 : accès typé via façade runtime.
+  const totalPanels = getCalpinageRuntime()?.getPlacementEngine()?.getAllPanels()?.length ?? 0;
   const hasCatalog = hasPhase3CatalogModuleSelected(win);
   const hasInverter =
     !!(w.PV_SELECTED_INVERTER && w.PV_SELECTED_INVERTER.id) || !!w.CALPINAGE_SELECTED_INVERTER_ID;
@@ -53,7 +52,7 @@ export function getPhase3ValidateBlockedHint(win: Window & typeof globalThis = w
     return "Sélectionnez un onduleur dans la barre du haut.";
   }
   if (!checklistOk) {
-    return "Pour un onduleur central, le ratio DC/AC doit être au moins 0,80 — ajustez l’onduleur ou la puissance installée.";
+    return "Pour un onduleur central, le ratio DC/AC doit être au moins 0,80 — ajustez l'onduleur ou la puissance installée.";
   }
   if (totalPanels < 1) {
     return "Posez au moins un module sur le plan.";
