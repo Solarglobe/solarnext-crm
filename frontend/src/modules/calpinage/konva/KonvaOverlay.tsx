@@ -16,7 +16,8 @@
  *   ctx.transform(s, 0, 0, -s, ox, oy) legacy ≡ WorldGroup x=ox y=oy scaleX=s scaleY=-s
  *   → formes dans WorldGroup : coordonnées image-space directement.
  *   → Text dans WorldGroup : nécessite scaleY(-1) local pour ne pas être inversé.
- *   → KonvaShadowVolumeHandlesLayer : hors WorldGroup (screen-space, tailles fixes px).
+ *   → KonvaShadowVolumeHandlesLayer / KonvaPH3HandlesLayer : hors WorldGroup
+ *     (screen-space, tailles fixes px).
  */
 
 import { type RefObject, useEffect, useRef, useState } from "react";
@@ -29,6 +30,7 @@ import { KonvaPansLayer } from "./KonvaPansLayer";
 import { KonvaObstaclesLayer } from "./KonvaObstaclesLayer";
 import { KonvaShadowVolumesLayer } from "./KonvaShadowVolumesLayer";
 import { KonvaShadowVolumeHandlesLayer } from "./KonvaShadowVolumeHandlesLayer";
+import { KonvaPH3HandlesLayer } from "./KonvaPH3HandlesLayer";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // KonvaOverlay
@@ -221,11 +223,16 @@ export function KonvaOverlay({ containerRef }: Props) {
           </Group>
 
           {/*
-           * KonvaShadowVolumeHandlesLayer — P4.5b — hors WorldGroup.
-           * Handles en screen-space (tailles fixes en px).
-           * Positions calculées via imgToStage dans le composant.
+           * Couches screen-space — hors WorldGroup (tailles fixes px).
+           * Positions calculées via imgToStage dans chaque composant.
            */}
+
+          {/* P4.5b — handles shadow volume sélectionné (ROOF_EDIT) */}
           <KonvaShadowVolumeHandlesLayer />
+
+          {/* P4.6a — handles PH3 bloc PV actif (PV_LAYOUT) */}
+          <KonvaPH3HandlesLayer />
+
         </Layer>
       </Stage>
     </div>

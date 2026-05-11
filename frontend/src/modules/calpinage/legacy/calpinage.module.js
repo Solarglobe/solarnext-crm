@@ -19655,6 +19655,8 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               window.CALPINAGE_SV_PLACING_IDX = drawState && drawState.isPlacingShadowVolume ? drawState.selectedShadowVolumeIndex : null;
               /* P4.5b — hover rotate handle (mis à jour dans le bloc ROOF_EDIT ci-dessous) */
               window.CALPINAGE_SV_ROTATE_HOVERED = false;
+              /* P4.6a — PH3 handles (mis à jour dans le bloc PV_LAYOUT ci-dessous) */
+              window.CALPINAGE_PH3_HANDLES = null;
               if (typeof window.dispatchEvent === "function") {
                 try {
                   window.dispatchEvent(new CustomEvent("calpinage:viewport-changed", {
@@ -21231,7 +21233,17 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                   mScr = imageToScreen(posHandles.move);
                   stemScr = imageToScreen(posHandles.topOfBlock);
                 }
-                if (rScr && mScr && stemScr) {
+                /* P4.6a — exposer positions PH3 pour KonvaPH3HandlesLayer */
+                if (typeof window !== "undefined") {
+                  window.CALPINAGE_PH3_HANDLES = (posHandles && rScr && mScr) ? {
+                    rotate:     posHandles.rotate,
+                    move:       posHandles.move,
+                    topOfBlock: posHandles.topOfBlock,
+                    hoverHandle: (drawState && drawState.ph3HandleHover) || null,
+                  } : null;
+                }
+                var _konvaPh3Active = window.__CALPINAGE_KONVA_LAYERS__ && window.__CALPINAGE_KONVA_LAYERS__.has("ph3Handles");
+                if (!_konvaPh3Active && rScr && mScr && stemScr) {
                   var ph3HH = drawState.ph3HandleHover;
                   ctx.save();
                   ctx.strokeStyle = ph3HH ? "rgba(255,255,255,0.42)" : "rgba(255,255,255,0.3)";
