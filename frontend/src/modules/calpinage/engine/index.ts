@@ -175,14 +175,3 @@ export type {
   BlockLike,
   ValidationCaches,
 } from "./validation/panelValidator";
-
-  buildValidationCaches,
-} from "./validation/panelValidator";
-
-export type {
-  RoofConstraints,
-  AutofillValidationResult,
-  PanelLike,
-  BlockLike,
-  ValidationCaches,
-} from "./validation/panelValidator";
