@@ -21301,12 +21301,17 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 }
                 /* P4.6a — exposer positions PH3 pour KonvaPH3HandlesLayer */
                 if (typeof window !== "undefined") {
-                  window.CALPINAGE_PH3_HANDLES = (posHandles && rScr && mScr) ? {
-                    rotate:     posHandles.rotate,
-                    move:       posHandles.move,
-                    topOfBlock: posHandles.topOfBlock,
+                  // P4.6a-fix : stockage en screen-space (rScr/mScr/stemScr) — évite la mauvaise transformation imgToStage dans KonvaPH3HandlesLayer
+                  window.CALPINAGE_PH3_HANDLES = (posHandles && rScr && mScr && stemScr) ? {
+                    rotate:     rScr,
+                    move:       mScr,
+                    topOfBlock: stemScr,
                     hoverHandle: (drawState && drawState.ph3HandleHover) || null,
                   } : null;
+                  // P4.6a-fix : dispatcher APRÈS écriture pour éviter la race condition viewport-changed
+                  if (typeof window.dispatchEvent === "function") {
+                    try { window.dispatchEvent(new CustomEvent("calpinage:ph3-handles-changed")); } catch (_e) {}
+                  }
                 }
                 var _konvaPh3Active = window.__CALPINAGE_KONVA_LAYERS__ && window.__CALPINAGE_KONVA_LAYERS__.has("ph3Handles");
                 if (!_konvaPh3Active && rScr && mScr && stemScr) {

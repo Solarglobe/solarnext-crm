@@ -40,9 +40,7 @@ type HandlePositions = {
 
 type HandleSnap = {
   handles: HandlePositions;
-  scale:   number;
-  offsetX: number;
-  offsetY: number;
+  // P4.6a-fix : coordonnées désormais en screen-space — scale/offset supprimés
 };
 
 // ─── Constantes (identiques renderImpl) ──────────────────────────────────────
@@ -56,6 +54,7 @@ const ARR_LEN   = 2.2;
 const CROSS_LEN = 3.5;
 
 const VIEWPORT_EVENT = "calpinage:viewport-changed";
+const HANDLES_EVENT  = "calpinage:ph3-handles-changed"; // P4.6a-fix : dispatché après écriture de CALPINAGE_PH3_HANDLES
 
 // ─── Lecture état legacy ──────────────────────────────────────────────────────
 
@@ -67,10 +66,8 @@ function readHandleSnap(): HandleSnap | null {
   const handles = w["CALPINAGE_PH3_HANDLES"] as HandlePositions | null | undefined;
   if (!handles) return null;
 
-  const scale  = (w["CALPINAGE_VIEWPORT_SCALE"]  as number                      | undefined) ?? 1;
-  const offset = (w["CALPINAGE_VIEWPORT_OFFSET"] as { x: number; y: number }   | undefined) ?? { x: 0, y: 0 };
-
-  return { handles, scale, offsetX: offset.x, offsetY: offset.y };
+  // P4.6a-fix : coordonnées déjà en screen-space — pas de conversion nécessaire
+  return { handles };
 }
 
 // ─── Helper géométrie ─────────────────────────────────────────────────────────
@@ -93,8 +90,12 @@ export function KonvaPH3HandlesLayer() {
   useEffect(() => {
     const sync = () => setSnap(readHandleSnap());
     sync();
-    window.addEventListener(VIEWPORT_EVENT, sync);
-    return () => window.removeEventListener(VIEWPORT_EVENT, sync);
+    window.addEventListener(VIEWPORT_EVENT, sync);   // transitions de phase (null quand hors PV_LAYOUT)
+    window.addEventListener(HANDLES_EVENT,  sync);   // P4.6a-fix : données courantes après écriture
+    return () => {
+      window.removeEventListener(VIEWPORT_EVENT, sync);
+      window.removeEventListener(HANDLES_EVENT,  sync);
+    };
   }, []);
 
   /* Kill switch — enregistrer la couche */
@@ -108,12 +109,13 @@ export function KonvaPH3HandlesLayer() {
 
   if (!snap) return null;
 
-  const { handles, scale, offsetX, offsetY } = snap;
+  const { handles } = snap;
   const { rotate, move, topOfBlock, hoverHandle } = handles;
 
-  const rSc    = imgToStage(rotate,     scale, offsetX, offsetY);
-  const mSc    = imgToStage(move,       scale, offsetX, offsetY);
-  const stemSc = imgToStage(topOfBlock, scale, offsetX, offsetY);
+  // P4.6a-fix : coordonnées déjà en screen-space — utilisation directe sans imgToStage
+  const rSc    = rotate;
+  const mSc    = move;
+  const stemSc = topOfBlock;
 
   const hovAny = !!hoverHandle;
   const hovRot = hoverHandle === "rotate";
