@@ -268,8 +268,8 @@ export function KonvaOverlay({ containerRef }: Props) {
           {/* P4.5b — handles shadow volume sélectionné (ROOF_EDIT) */}
           <KonvaShadowVolumeHandlesLayer />
 
-          {/* P4.6a — handles PH3 bloc PV actif (PV_LAYOUT) */}
-          <KonvaPH3HandlesLayer />
+          {/* P4.6a — handles PH3 bloc PV actif (PV_LAYOUT) — temporairement désactivé (bugs inversion + décalage + persistance) → legacy reprend le rendu */}
+          {/* <KonvaPH3HandlesLayer /> */}
 
         </Layer>
       </Stage>
