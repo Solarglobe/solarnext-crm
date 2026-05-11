@@ -1,15 +1,17 @@
 /**
- * KonvaPVPanelsLayer — P4.6b : rendu panneaux PV (frozen + active).
+ * KonvaPVPanelsLayer — P4.6b/P4.6c : rendu + hit-test panneaux PV (frozen + active).
  *
- * Scope P4.6b : rendu uniquement. Hit-test panel → P4.6c.
+ * ── Rendu ────────────────────────────────────────────────────────────────────
+ * Un Shape.sceneFunc unique dessine tous les panneaux (zéro nœud par panneau).
  *
- * Convention coordonnées (WorldGroup x=ox y=oy scaleX=s scaleY=-s) :
- *   y_world = imgH - imgPt.y  (identique aux autres couches world-space)
+ * ── Hit-test (P4.6c) ─────────────────────────────────────────────────────────
+ * N Shapes invisibles (hitFunc seulement, sceneFunc vide) — un par panneau.
+ * Chaque Shape a id="pvp-{idx}" ; KonvaOverlay expose __CALPINAGE_KONVA_PANEL_HIT__
+ * qui lit panels[idx].{blockId,panelId} depuis CALPINAGE_PV_PANELS_DATA.
  *
- * ── Rendu par Shape.sceneFunc unique ─────────────────────────────────────────
- * Tous les panneaux sont dessinés dans un unique Shape (aucun nœud Konva
- * par panneau) pour minimiser l'overhead Konva. P4.6c découpera en shapes
- * individuels pour le hit-test.
+ * ── Convention coordonnées ───────────────────────────────────────────────────
+ * world-space (WorldGroup x=ox y=oy scaleX=s scaleY=-s) :
+ *   wx = imgPt.x,  wy = imgH - imgPt.y
  *
  * ── Visuels par panneau (identiques renderImpl) ───────────────────────────────
  *   1. Fill #13171B
@@ -27,6 +29,7 @@
 
 import { useEffect, useState } from "react";
 import { Shape } from "react-konva";
+import type Konva from "konva";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -39,6 +42,10 @@ type PanelEntry = {
   invalid:      boolean;
   dormerShaded: boolean;
   glow:         boolean;
+  /** P4.6c — identifiant bloc (UUID) ; null si non encore renseigné (données P4.6b sans mise à jour) */
+  blockId:      string | null;
+  /** P4.6c — identifiant panneau (UUID ou "legacy-{idx}") ; null si non encore renseigné */
+  panelId:      string | null;
 };
 
 type PVPanelsSnap = {
@@ -100,11 +107,12 @@ export function KonvaPVPanelsLayer() {
   const { panels, imgH, scale } = snap;
 
   return (
-    /*
-     * Shape unique pour tous les panneaux — sceneFunc dessine dans le
-     * ctx WorldGroup (transform déjà appliqué). Coordonnées world-space :
-     * wx = imgPt.x, wy = imgH - imgPt.y.
-     */
+    <>
+    {/*
+     * ── Shape rendu unique ────────────────────────────────────────────────
+     * listening=false : aucune interactivité sur ce shape.
+     * Le hit-test est délégué aux N shapes hitFunc ci-dessous (P4.6c).
+     */}
     <Shape
       listening={false}
       sceneFunc={(ctx) => {
@@ -221,6 +229,38 @@ export function KonvaPVPanelsLayer() {
         native.shadowBlur = 0;
       }}
     />
+
+    {/*
+     * ── P4.6c : N shapes hit-test invisibles ─────────────────────────────
+     * Un Shape par panneau, sceneFunc vide, hitFunc = polygone exact.
+     * id="pvp-{idx}" → KonvaOverlay.__CALPINAGE_KONVA_PANEL_HIT__ résout
+     * blockId/panelId via CALPINAGE_PV_PANELS_DATA.panels[idx].
+     */}
+    {panels.map((entry, idx) => {
+      if (!entry.points || entry.points.length < 3) return null;
+      const pts = entry.points;
+      const n   = pts.length;
+      const wy0 = imgH - pts[0].y;
+      return (
+        <Shape
+          key={`pvp-hit-${idx}`}
+          id={`pvp-${idx}`}
+          listening={true}
+          perfectDrawEnabled={false}
+          sceneFunc={() => {}}
+          hitFunc={(ctx: Konva.Context, shape: Konva.Shape) => {
+            ctx.beginPath();
+            ctx.moveTo(pts[0].x, wy0);
+            for (let i = 1; i < n; i++) {
+              ctx.lineTo(pts[i].x, imgH - pts[i].y);
+            }
+            ctx.closePath();
+            ctx.fillStrokeShape(shape);
+          }}
+        />
+      );
+    })}
+    </>
   );
 }
 

@@ -15803,6 +15803,8 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               }
 
               /* Mode ajout Phase 3 : priorité ABSOLUE — clic sur un panneau DÉJÀ POSÉ du bloc focus => suppression seule (pas ghost, pas autofill, pas add). */
+              /* P4.6c — kill switch hit-test panneau (réutilisé dans tout le bloc pointerdown PV_LAYOUT) */
+              var _pvKonvaHit = window.__CALPINAGE_KONVA_LAYERS__ && window.__CALPINAGE_KONVA_LAYERS__.has("pvPanels") && typeof window.__CALPINAGE_KONVA_PANEL_HIT__ === "function";
               if (
                 drawState.activeTool !== "select" &&
                 window.CALPINAGE_INTERACTION_MODE !== "SELECT" &&
@@ -15810,7 +15812,9 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 typeof hitTestFocusBlockPanelId === "function" &&
                 typeof ENG.removePanelById === "function"
               ) {
-                var hitRmEarly = hitTestFocusBlockPanelId(imgPt);
+                var hitRmEarly = _pvKonvaHit
+                  ? (function () { var _h = window.__CALPINAGE_KONVA_PANEL_HIT__(e.clientX, e.clientY); return (_h && focusBlock && _h.blockId === focusBlock.id) ? _h : null; }())
+                  : hitTestFocusBlockPanelId(imgPt);
                 if (hitRmEarly && hitRmEarly.panelId) {
                   CALPINAGE_STATE.selectedPlacedPanelId = hitRmEarly.panelId;
                   CALPINAGE_STATE.selectedPlacedBlockId = hitRmEarly.blockId;
@@ -15906,7 +15910,9 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               if (drawState.activeTool === "select") {
                 /* Mode Sélectionner : clic sur bloc => setActiveBlock ; clic vide => clearSelection. Pas d'ajout, pas de suppression au clic. */
                 if (typeof hitTestFrozenBlock === "function") {
-                  var frozenHitSel = hitTestFrozenBlock(imgPt);
+                  var frozenHitSel = _pvKonvaHit
+                    ? (function () { var _h = window.__CALPINAGE_KONVA_PANEL_HIT__(e.clientX, e.clientY); return (_h && _h.blockId && _h.blockId !== (focusBlock && focusBlock.id)) ? { blockId: _h.blockId } : null; }())
+                    : hitTestFrozenBlock(imgPt);
                   if (frozenHitSel) {
                     var setRes = ENG.setActiveBlock(frozenHitSel.blockId);
                     if (setRes && setRes.success) {
@@ -15931,7 +15937,9 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                   }
                 }
                 if (focusBlock && typeof hitTestFocusBlockPanelId === "function") {
-                  var hitSel = hitTestFocusBlockPanelId(imgPt);
+                  var hitSel = _pvKonvaHit
+                    ? (function () { var _h = window.__CALPINAGE_KONVA_PANEL_HIT__(e.clientX, e.clientY); return (_h && focusBlock && _h.blockId === focusBlock.id) ? _h : null; }())
+                    : hitTestFocusBlockPanelId(imgPt);
                   if (hitSel && hitSel.panelId) {
                     CALPINAGE_STATE.selectedPlacedPanelId = hitSel.panelId;
                     CALPINAGE_STATE.selectedPlacedBlockId = hitSel.blockId;
@@ -15952,7 +15960,9 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                   return;
                 }
                 if (focusBlock && panAtPointSel) {
-                  var hitPanelSel = typeof hitTestFocusBlockPanelIndex === "function" && hitTestFocusBlockPanelIndex(imgPt) >= 0;
+                  var hitPanelSel = _pvKonvaHit
+                    ? !!(function () { var _h = window.__CALPINAGE_KONVA_PANEL_HIT__(e.clientX, e.clientY); return _h && focusBlock && _h.blockId === focusBlock.id; }())
+                    : (typeof hitTestFocusBlockPanelIndex === "function" && hitTestFocusBlockPanelIndex(imgPt) >= 0);
                   if (!hitPanelSel && typeof ENG.clearSelection === "function") {
                     ENG.clearSelection();
                     CALPINAGE_STATE.activeManipulationBlockId = null;
@@ -16006,7 +16016,9 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
 
               /* Mode "panels" : clic sur un bloc figé => le rendre sélectionné et manipulable (sans changer d'outil). */
               if (typeof hitTestFrozenBlock === "function") {
-                var frozenHitPanels = hitTestFrozenBlock(imgPt);
+                var frozenHitPanels = _pvKonvaHit
+                  ? (function () { var _h = window.__CALPINAGE_KONVA_PANEL_HIT__(e.clientX, e.clientY); return (_h && _h.blockId && _h.blockId !== (focusBlock && focusBlock.id)) ? { blockId: _h.blockId } : null; }())
+                  : hitTestFrozenBlock(imgPt);
                 if (frozenHitPanels) {
                   var setResPanels = ENG.setActiveBlock(frozenHitPanels.blockId);
                   if (setResPanels && setResPanels.success) {
@@ -16087,7 +16099,9 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 return;
               }
               if (focusBlock && panAtPoint) {
-                var hitPanel = focusBlock && typeof hitTestFocusBlockPanelIndex === "function" && hitTestFocusBlockPanelIndex(imgPt) >= 0;
+                var hitPanel = _pvKonvaHit
+                  ? !!(function () { var _h = window.__CALPINAGE_KONVA_PANEL_HIT__(e.clientX, e.clientY); return _h && focusBlock && _h.blockId === focusBlock.id; }())
+                  : (focusBlock && typeof hitTestFocusBlockPanelIndex === "function" && hitTestFocusBlockPanelIndex(imgPt) >= 0);
                 if (!hitPanel && typeof ENG.clearSelection === "function") {
                   ENG.clearSelection();
                   CALPINAGE_STATE.activeManipulationBlockId = null;
@@ -18201,7 +18215,10 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                   if (focusUp) {
                     var screenUp = getMouseScreen(e);
                     var imgPtUp = screenToImage(screenUp);
-                    var hitPanelUp = focusUp && typeof hitTestFocusBlockPanelIndex === "function" && hitTestFocusBlockPanelIndex(imgPtUp) >= 0;
+                    var _pvKonvaHitUp = window.__CALPINAGE_KONVA_LAYERS__ && window.__CALPINAGE_KONVA_LAYERS__.has("pvPanels") && typeof window.__CALPINAGE_KONVA_PANEL_HIT__ === "function";
+                    var hitPanelUp = _pvKonvaHitUp
+                      ? !!(function () { var _h = window.__CALPINAGE_KONVA_PANEL_HIT__(e.clientX, e.clientY); return _h && focusUp && _h.blockId === focusUp.id; }())
+                      : (focusUp && typeof hitTestFocusBlockPanelIndex === "function" && hitTestFocusBlockPanelIndex(imgPtUp) >= 0);
                     var keepActive = focusUp.panels && focusUp.panels.length > 0;
                     if (!hitPanelUp && !keepActive && typeof ENGup.clearSelection === "function") {
                       ENGup.clearSelection();
@@ -20839,6 +20856,9 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                     invalid: effInvalid,
                     dormerShaded: isDormerShaded,
                     glow: isSelectedFrozen && !effInvalid,
+                    /* P4.6c — hit-test */
+                    blockId: bl.id,
+                    panelId: (p && typeof p.id === "string" && p.id) ? p.id : ("legacy-" + pi),
                   });
                   if (!_konvaPvActive) {
                     if (p.enabled === false) {
@@ -21000,6 +21020,9 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                       invalid: isInvalid,
                       dormerShaded: isDormerShadedAct,
                       glow: !isInvalid,
+                      /* P4.6c — hit-test */
+                      blockId: activeBl.id,
+                      panelId: (p && typeof p.id === "string" && p.id) ? p.id : ("legacy-" + pi),
                     });
                     if (vp && typeof vp.scale === "number" && focusBlock && activeBl.id === focusBlock.id) {
                       for (var vk = 0; vk < panelPolyAct.length; vk++) visibleScreenPtsForHandles.push(imageToScreen(panelPolyAct[vk]));

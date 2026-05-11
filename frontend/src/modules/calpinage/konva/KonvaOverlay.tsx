@@ -184,6 +184,40 @@ export function KonvaOverlay({ containerRef }: Props) {
     };
   }, []);
 
+  /**
+   * P4.6c — Expose le hit-test Konva pour les panneaux PV.
+   * Retourne { blockId, panelId } du panneau touché, ou null si aucun.
+   * Résolution via CALPINAGE_PV_PANELS_DATA.panels[idx] (même frame).
+   */
+  useEffect(() => {
+    const w = window as Record<string, unknown>;
+    w["__CALPINAGE_KONVA_PANEL_HIT__"] = (
+      clientX: number,
+      clientY: number,
+    ): { blockId: string; panelId: string } | null => {
+      const stage = stageRef.current;
+      if (!stage) return null;
+      const stageContainer = stage.container();
+      const rect = stageContainer.getBoundingClientRect();
+      const pos = { x: clientX - rect.left, y: clientY - rect.top };
+      const shape = stage.getIntersection(pos);
+      if (!shape) return null;
+      const match = shape.id().match(/^pvp-(\d+)$/);
+      if (!match) return null;
+      const idx  = parseInt(match[1], 10);
+      const data = w["CALPINAGE_PV_PANELS_DATA"] as
+        | { panels: { blockId?: string | null; panelId?: string | null }[] }
+        | null
+        | undefined;
+      const entry = data?.panels?.[idx];
+      if (!entry?.blockId || !entry?.panelId) return null;
+      return { blockId: entry.blockId, panelId: entry.panelId };
+    };
+    return () => {
+      delete (w as Record<string, unknown>)["__CALPINAGE_KONVA_PANEL_HIT__"];
+    };
+  }, []);
+
   const container = containerRef.current;
   if (!container || !canvasEl || vp.width === 0 || vp.height === 0) return null;
 
