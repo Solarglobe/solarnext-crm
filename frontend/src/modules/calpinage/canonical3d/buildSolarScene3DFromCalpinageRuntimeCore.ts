@@ -76,8 +76,8 @@ export type BuildSolarScene3DFromCalpinageRuntimeOptions = ValidateCanonicalScen
   readonly placementEngine?: PlacementEngineLike | null;
   /**
    * Politique de construction du `RoofModel3D` :
-   * - défaut produit : `fidelity` ({@link DEFAULT_PRODUCT_ROOF_GEOMETRY_FIDELITY_MODE}) — priorité aux sommets relevés ; pas de raffinement normales.
-   * - `hybrid` : discipline Z proche fidélité + raffinement normales inter-pans (passer explicitement pour l’ancien défaut).
+   * - défaut produit : `hybrid` ({@link DEFAULT_PRODUCT_ROOF_GEOMETRY_FIDELITY_MODE}) — discipline Z fidélité + raffinement normales inter-pans (élimine les craquelures visuelles).
+   * - `fidelity` : priorité aux sommets relevés, pas de raffinement normales (passer explicitement si besoin).
    * - `reconstruction` : comportement historique (unify / impose / anti-spike / raffinement normales).
    */
   readonly roofGeometryFidelityMode?: RoofGeometryFidelityMode;
