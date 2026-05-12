@@ -66,6 +66,7 @@ import { dump3DRuntimePreViewer, resetAutopsyLegacyRoofPath } from "./dev/runtim
 import type { MapCalpinageRoofToLegacyRoofGeometryInputOptions } from "../integration/mapCalpinageToCanonicalNearShading";
 import { rememberOfficialRoofModelForNearShading } from "../integration/officialRoofModelNearShadingCache";
 import { buildValidatedCanonicalScene3DInputWithOfficialRoofTruth } from "./scene/buildValidatedCanonicalScene3DInputWithOfficialRoofTruth";
+import { prepareCanonicalObstacles3DFromCalpinageState } from "../integration/prepareCanonicalObstacles3D";
 
 export type BuildSolarScene3DFromCalpinageRuntimeOptions = ValidateCanonicalScene3DInputOptions & {
   /**
@@ -508,7 +509,18 @@ export function buildSolarScene3DFromCalpinageRuntime(
       roofPlanePatchIds,
     });
     const zSceneAdjustM = -roofRes.worldZOriginShiftM;
-    const obstaclesForVolumes = shiftCanonicalObstaclesZWorld(sceneInput.obstacles.items, zSceneAdjustM);
+
+    // Reconstruire les obstacles avec defaultBaseHeightM = worldZOriginShiftM.
+    // Raison : dans buildCanonicalScene3DInput les obstacles sont assemblés avant que worldZOriginShiftM
+    // soit connu → defaultBaseHeightM = 0. Sans ça : base Z = 0 → après zSceneAdjustM = -worldZOriginShiftM
+    // → obstacle en sous-sol (ex : cheminée à -5.5 m quand resolver indisponible).
+    // Identique au fix defaultZFallbackM appliqué aux panneaux (loadPanelsFromCalpinageState).
+    const obsRebuiltForShift = prepareCanonicalObstacles3DFromCalpinageState(runtime, {
+      metersPerPixel: validation.scene.world.metersPerPixel,
+      northAngleDeg: validation.scene.world.northAngleDeg,
+      defaultBaseHeightM: roofRes.worldZOriginShiftM,
+    });
+    const obstaclesForVolumes = shiftCanonicalObstaclesZWorld(obsRebuiltForShift.obstacles, zSceneAdjustM);
     const panelsShifted = shiftCanonicalPanelsZWorld(sceneInput.panels.items, zSceneAdjustM);
     const filteredPanels = filterPvPlacementInputsForOfficialBinding(
       panelsShifted,
