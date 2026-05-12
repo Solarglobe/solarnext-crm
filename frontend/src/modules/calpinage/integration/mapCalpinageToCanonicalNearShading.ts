@@ -413,4 +413,39 @@ export function mapPanelsToPvPlacementInputs(
       }
     } else if (typeof extras?.resolveZWorldAtImageWithPanId === "function") {
       const rawZ = extras.resolveZWorldAtImageWithPanId({ x: c.x, y: c.y }, panIdForZ);
- 
+      if (typeof rawZ === "number" && Number.isFinite(rawZ)) {
+        z = rawZ;
+      } else {
+        diag.push(`${panelLabel}: Z centre — valeur non finie depuis resolveZWorldAtImageWithPanId (0 non métier)`);
+        z = 0;
+      }
+    } else if (typeof getHeightAtImagePoint === "function") {
+      const rawZ = getHeightAtImagePoint({ x: c.x, y: c.y });
+      if (typeof rawZ === "number" && Number.isFinite(rawZ)) {
+        z = rawZ;
+      } else {
+        diag.push(`${panelLabel}: Z centre — getHeightAtImagePoint non fini (0 non métier)`);
+        z = 0;
+      }
+    } else {
+      diag.push(`${panelLabel}: Z centre — aucun fournisseur hauteur (0 legacy explicite)`);
+      z = 0;
+    }
+    const rot =
+      inferPanelRotationDegInPatchPlane(poly, patch, metersPerPixel, northAngleDeg) ??
+      normalizeRotationDegInPlane(p.rotationDeg ?? 0, p.localRotationDeg ?? 0);
+
+    out.push({
+      id: p.id != null ? String(p.id) : `pv-${i}`,
+      roofPlanePatchId: patchId,
+      center: { mode: "world", position: { x: xy.x, y: xy.y, z } },
+      widthM: w,
+      heightM: h,
+      orientation: "portrait",
+      rotationDegInPlane: rot,
+      sampling: { nx, ny },
+    });
+  }
+
+  return { inputs: out, diagnostics: diag };
+}
