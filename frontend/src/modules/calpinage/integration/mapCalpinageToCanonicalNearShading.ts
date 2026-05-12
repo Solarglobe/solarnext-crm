@@ -287,25 +287,69 @@ function normalizeRotationDegInPlane(blockDeg: number, localDeg: number): number
   return ((s % 360) + 360) % 360;
 }
 
+/**
+ * Déduit l'angle de rotation du panneau dans le plan de patch à partir de la forme du polygone (image px → monde).
+ *
+ * Problème précédent : l'ancienne version utilisait `poly[0]→poly[1]`, qui correspond à l'axe `slopeAxis`
+ * du moteur de placement (= direction de la pente). Pour les panneaux portrait, cet axe est la direction
+ * HAUTEUR (1.7 m) et non la largeur (1.0 m). Résultat : `widthDir` dans le viewer 3D pointait le long de
+ * la hauteur → les panneaux apparaissaient en paysage (landscape) et les espacements rangée/colonne
+ * étaient inversés.
+ *
+ * Correction : on projette tous les sommets du quadrilatère en mètres horizontaux, on calcule la longueur
+ * de chaque arête, et on retient l'arête dont la longueur est la plus proche de `widthM` (la largeur physique
+ * du module). Pour portrait (widthM ≈ 1 m), c'est l'arête la plus courte. Pour landscape (widthM ≈ 1.7 m),
+ * c'est l'arête la plus longue. Robuste à la projection en perspective (raccourcissement selon la pente).
+ */
 function inferPanelRotationDegInPatchPlane(
   poly: ReadonlyArray<{ x: number; y: number }>,
   patch: RoofPlanePatch3D | null,
   metersPerPixel: number,
   northAngleDeg: number,
+  widthM: number,
 ): number | null {
-  if (!patch || poly.length < 2) return null;
-  const a = imagePxToWorldHorizontalM(poly[0]!.x, poly[0]!.y, metersPerPixel, northAngleDeg);
-  const b = imagePxToWorldHorizontalM(poly[1]!.x, poly[1]!.y, metersPerPixel, northAngleDeg);
-  const vx = b.x - a.x;
-  const vy = b.y - a.y;
-  const vz = 0;
+  if (!patch || poly.length < 3) return null;
+
+  // Projeter tous les sommets en coordonnées monde horizontales (mètres)
+  const pts = poly.map((pt) => imagePxToWorldHorizontalM(pt.x, pt.y, metersPerPixel, northAngleDeg));
+
+  // Calculer les vecteurs et longueurs des arêtes consécutives du polygone
+  // (limité aux 4 premières arêtes — un panneau est un quadrilatère)
+  const n = Math.min(pts.length, 4);
+  const edges: { dx: number; dy: number; len: number }[] = [];
+  for (let i = 0; i < n; i++) {
+    const a = pts[i]!;
+    const b = pts[(i + 1) % pts.length]!;
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const len = Math.hypot(dx, dy);
+    if (len > 1e-6) {
+      edges.push({ dx, dy, len });
+    }
+  }
+
+  if (edges.length < 2) return null;
+
+  // Sélectionner l'arête dont la longueur projetée est la plus proche de widthM.
+  // Pour portrait (widthM < heightM) : l'arête courte (≈ widthM) = direction largeur.
+  // Pour landscape (widthM > heightM) : l'arête longue (≈ widthM) = direction largeur.
+  // NB : sur toitures inclinées, l'axe de pente est raccourci par projection → l'arête
+  // perpendiculaire à la pente garde sa longueur réelle. L'approche par valeur absolue est
+  // donc plus robuste qu'un simple tri court/long.
+  const widthEdge = edges.reduce((best, e) =>
+    Math.abs(e.len - widthM) < Math.abs(best.len - widthM) ? e : best,
+  );
+
+  // Exprimer la direction de l'arête-largeur dans le repère UV du patch
   const u = patch.localFrame.xAxis;
   const v = patch.localFrame.yAxis;
-  const alongU = vx * u.x + vy * u.y + vz * u.z;
-  const alongV = vx * v.x + vy * v.y + vz * v.z;
+  const alongU = widthEdge.dx * u.x + widthEdge.dy * u.y;
+  const alongV = widthEdge.dx * v.x + widthEdge.dy * v.y;
+
   if (!Number.isFinite(alongU) || !Number.isFinite(alongV) || Math.hypot(alongU, alongV) < 1e-6) {
     return null;
   }
+
   return ((Math.atan2(alongV, alongU) * 180) / Math.PI + 360) % 360;
 }
 
@@ -396,56 +440,4 @@ export function mapPanelsToPvPlacementInputs(
     const panIdForZ = p.panId != null ? String(p.panId) : null;
     let z: number;
     const zFromPatch = patch ? zOnPlaneEquationAtFixedXY(patch.equation, xy.x, xy.y) : null;
-    if (zFromPatch !== null && Number.isFinite(zFromPatch)) {
-      // Vérification : si le centroïde est hors emprise du patch, l'extrapolation peut donner un Z aberrant
-      // (surtout sur les plans inclinés où n.z est faible → amplification de l'erreur).
-      const patchZs = patch!.cornersWorld.map((corner) => corner.z);
-      const minPatchZ = Math.min(...patchZs);
-      const maxPatchZ = Math.max(...patchZs);
-      const PATCH_Z_TOLERANCE_M = 3;
-      if (zFromPatch < minPatchZ - PATCH_Z_TOLERANCE_M || zFromPatch > maxPatchZ + PATCH_Z_TOLERANCE_M) {
-        z = (minPatchZ + maxPatchZ) / 2;
-        diag.push(
-          `${panelLabel}: Z extrapolé hors plage patch (${zFromPatch.toFixed(2)}m vs [${minPatchZ.toFixed(2)}, ${maxPatchZ.toFixed(2)}]m) → Z moyen patch`,
-        );
-      } else {
-        z = zFromPatch;
-      }
-    } else if (typeof extras?.resolveZWorldAtImageWithPanId === "function") {
-      const rawZ = extras.resolveZWorldAtImageWithPanId({ x: c.x, y: c.y }, panIdForZ);
-      if (typeof rawZ === "number" && Number.isFinite(rawZ)) {
-        z = rawZ;
-      } else {
-        diag.push(`${panelLabel}: Z centre — valeur non finie depuis resolveZWorldAtImageWithPanId (0 non métier)`);
-        z = 0;
-      }
-    } else if (typeof getHeightAtImagePoint === "function") {
-      const rawZ = getHeightAtImagePoint({ x: c.x, y: c.y });
-      if (typeof rawZ === "number" && Number.isFinite(rawZ)) {
-        z = rawZ;
-      } else {
-        diag.push(`${panelLabel}: Z centre — getHeightAtImagePoint non fini (0 non métier)`);
-        z = 0;
-      }
-    } else {
-      diag.push(`${panelLabel}: Z centre — aucun fournisseur hauteur (0 legacy explicite)`);
-      z = 0;
-    }
-    const rot =
-      inferPanelRotationDegInPatchPlane(poly, patch, metersPerPixel, northAngleDeg) ??
-      normalizeRotationDegInPlane(p.rotationDeg ?? 0, p.localRotationDeg ?? 0);
-
-    out.push({
-      id: p.id != null ? String(p.id) : `pv-${i}`,
-      roofPlanePatchId: patchId,
-      center: { mode: "world", position: { x: xy.x, y: xy.y, z } },
-      widthM: w,
-      heightM: h,
-      orientation: "portrait",
-      rotationDegInPlane: rot,
-      sampling: { nx, ny },
-    });
-  }
-
-  return { inputs: out, diagnostics: diag };
-}
+    if (zFromPatch !
