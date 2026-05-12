@@ -23,6 +23,7 @@ import { coerceFiniteRoofHeightMInput, finiteRoofHeightMOrUndefined } from "../c
 import { readOfficialRoofPanRecordsForCanonical3D } from "./readOfficialCalpinageGeometryForCanonical3D";
 import { resolvePanPolygonFor3D } from "./resolvePanPolygonFor3D";
 import { recordAutopsyLegacyRoofPath } from "../canonical3d/dev/runtime3DAutopsy";
+import { zOnPlaneEquationAtFixedXY } from "../canonical3d/volumes/planeAnchor";
 
 const DEFAULT_MODULE_W_M = 1;
 const DEFAULT_MODULE_H_M = 1.7;
@@ -386,9 +387,18 @@ export function mapPanelsToPvPlacementInputs(
     if (!patchId) continue;
 
     const c = polygonCentroidPx(poly);
+    const xy = imagePxToWorldHorizontalM(c.x, c.y, metersPerPixel, northAngleDeg);
+    const { w, h } = getPanelModuleDimsM(p);
+    const patch = patchById.get(patchId) ?? null;
+
+    // Z : plan de patch officiel en priorité (centre posé exactement sur la pente → sd=0, pas de décalage XY).
+    // Fallback : height resolver (extras) → getHeightAtImagePoint → 0.
     const panIdForZ = p.panId != null ? String(p.panId) : null;
     let z: number;
-    if (typeof extras?.resolveZWorldAtImageWithPanId === "function") {
+    const zFromPatch = patch ? zOnPlaneEquationAtFixedXY(patch.equation, xy.x, xy.y) : null;
+    if (zFromPatch !== null && Number.isFinite(zFromPatch)) {
+      z = zFromPatch;
+    } else if (typeof extras?.resolveZWorldAtImageWithPanId === "function") {
       const rawZ = extras.resolveZWorldAtImageWithPanId({ x: c.x, y: c.y }, panIdForZ);
       if (typeof rawZ === "number" && Number.isFinite(rawZ)) {
         z = rawZ;
@@ -408,24 +418,5 @@ export function mapPanelsToPvPlacementInputs(
       diag.push(`${panelLabel}: Z centre — aucun fournisseur hauteur (0 legacy explicite)`);
       z = 0;
     }
-    const xy = imagePxToWorldHorizontalM(c.x, c.y, metersPerPixel, northAngleDeg);
-    const { w, h } = getPanelModuleDimsM(p);
-    const patch = patchById.get(patchId) ?? null;
     const rot =
-      inferPanelRotationDegInPatchPlane(poly, patch, metersPerPixel, northAngleDeg) ??
-      normalizeRotationDegInPlane(p.rotationDeg ?? 0, p.localRotationDeg ?? 0);
-
-    out.push({
-      id: p.id != null ? String(p.id) : `pv-${i}`,
-      roofPlanePatchId: patchId,
-      center: { mode: "world", position: { x: xy.x, y: xy.y, z } },
-      widthM: w,
-      heightM: h,
-      orientation: "portrait",
-      rotationDegInPlane: rot,
-      sampling: { nx, ny },
-    });
-  }
-
-  return { inputs: out, diagnostics: diag };
-}
+      inferPanelRotationDegInPatchPl

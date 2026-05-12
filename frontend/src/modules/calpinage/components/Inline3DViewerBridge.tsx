@@ -320,14 +320,8 @@ function Inline3DViewer({
         ...(displayReconstruction ? { roofGeometryFidelityMode: "reconstruction" as const } : {}),
         ...(optimalSingleBuilding ? { legacyRoofMapOptions: optimalSingleBuildingLegacyRoofMapOptions() } : {}),
         // T13 : accès typé via façade runtime — cohérent avec L.117 du même fichier.
-        getAllPanels: () => {
-          try {
-            return getCalpinageRuntime()?.getPlacementEngine()?.getAllPanels() ?? [];
-          } catch {
-            /* ignore */
-          }
-          return [];
-        },
+        // getAllPanelsFromRuntime() exclut le bloc actif non figé (panneau fantôme flottant).
+        getAllPanels: () => getAllPanelsFromRuntime(),
       });
       if (import.meta.env.DEV) {
         const s = result.sceneSyncDiagnostics;
@@ -1058,46 +1052,4 @@ export type Inline3DViewerBridgeProps = {
   /** Après mutation ou undo/redo réussi : clone JSON du runtime pour intégration React contrôlée. */
   readonly setCalpinageState?: (next: unknown) => void;
   /** Compteur externe (ex. incrémenté par le parent à chaque mutation) pour rerendre le viewer monté par createRoot. */
-  readonly runtimeNotifyEpoch?: number;
-};
-
-export function Inline3DViewerBridge({
-  containerRef,
-  calpinageState,
-  setCalpinageState,
-  runtimeNotifyEpoch = 0,
-}: Inline3DViewerBridgeProps) {
-  const rootRef = useRef<ReturnType<typeof createRoot> | null>(null);
-  const setCalpinageStateRef = useRef(setCalpinageState);
-  setCalpinageStateRef.current = setCalpinageState;
-
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-    const mount = container.querySelector("#" + MOUNT_ID) as HTMLElement | null;
-    if (!mount || !mount.isConnected) return;
-
-    if (!rootRef.current) {
-      rootRef.current = createRoot(mount);
-    }
-    rootRef.current.render(
-      <Inline3DViewer
-        calpinageState={calpinageState}
-        setCalpinageState={(next) => setCalpinageStateRef.current?.(next)}
-        runtimeNotifyEpoch={runtimeNotifyEpoch}
-      />,
-    );
-  }, [containerRef, calpinageState, runtimeNotifyEpoch]);
-
-  useEffect(
-    () => () => {
-      rootRef.current?.unmount();
-      rootRef.current = null;
-    },
-    [],
-  );
-
-  return null;
-}
-
-export default Inline3DViewerBridge;
+  r
