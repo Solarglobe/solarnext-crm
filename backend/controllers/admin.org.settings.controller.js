@@ -44,7 +44,7 @@ const DEFAULT_SETTINGS = {
   },
   economics: {
     price_eur_kwh: 0.1952,      // TRV EDF option base 2023-S1
-    elec_growth_pct: 4,         // Défaut UI admin — le fallback moteur est 5 (orgEconomics.common.js), écart volontaire
+    elec_growth_pct: 4,         // Valeur initiale UI admin, ensuite source de vérité persistée par organisation
     pv_degradation_pct: 0.5,
     horizon_years: 25,
     oa_rate_lt_9: 0.0762,       // S24 — 3-9 kWc (arrêté du 11 juillet 2024)

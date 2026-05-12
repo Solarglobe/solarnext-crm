@@ -41,6 +41,7 @@ import {
   DEFAULT_ECONOMICS_FALLBACK,
   mergeOrgEconomicsPartial,
   overlayFormEconomics,
+  resolveElectricityGrowthPctFromOrg,
 } from "./economicsResolve.service.js";
 
 // ======================================================================
@@ -48,7 +49,11 @@ import {
 // ======================================================================
 function pickEconomics(ctx) {
   const f = ctx.form || {};
+  const rawOrgEconomics = ctx.settings?.economics_raw ?? ctx.settings?.economics;
   const e = overlayFormEconomics(mergeOrgEconomicsPartial(ctx.settings?.economics), f.economics);
+  const elecGrowth = resolveElectricityGrowthPctFromOrg(rawOrgEconomics, {
+    context: "financeService.pickEconomics",
+  });
 
   const num = (v, fb) => {
     const n = Number(v);
@@ -61,7 +66,10 @@ function pickEconomics(ctx) {
       f.params?.tarif_kwh ?? f.params?.tarif_actuel ?? e.price_eur_kwh,
       DEFAULT_ECONOMICS_FALLBACK.price_eur_kwh
     ),
-    elec_growth_pct: num(e.elec_growth_pct, DEFAULT_ECONOMICS_FALLBACK.elec_growth_pct),
+    elec_growth_pct: elecGrowth.elec_growth_pct,
+    elec_growth_source: elecGrowth.source,
+    elec_growth_missing: elecGrowth.missing,
+    elec_growth_warnings: elecGrowth.warnings,
     // Dégradation PV annuelle : fiche panneau > params.degradation > form.economics > admin > défaut
     pv_degradation_pct: num(
       f.panel_input?.degradation_annual_pct ??
@@ -74,6 +82,7 @@ function pickEconomics(ctx) {
     // Évolution future : si f.panel_input?.technology est connu (PERC/TOPCon → ~2-3%, HJT/BSF → ~0.5%),
     //   utiliser un fallback technologique plutôt que 0. À implémenter avec le catalogue panneaux.
     pv_degradation_first_year_pct: num(f.panel_input?.degradation_first_year_pct ?? 0, 0),
+    oa_rate_lt_3: num(e.oa_rate_lt_3, DEFAULT_ECONOMICS_FALLBACK.oa_rate_lt_3),
     oa_rate_lt_9: num(e.oa_rate_lt_9, DEFAULT_ECONOMICS_FALLBACK.oa_rate_lt_9),
     oa_rate_gte_9: num(e.oa_rate_gte_9, DEFAULT_ECONOMICS_FALLBACK.oa_rate_gte_9),
     prime_lt9: num(e.prime_lt9, DEFAULT_ECONOMICS_FALLBACK.prime_lt9),
@@ -168,7 +177,11 @@ export function recalcCumulColumns(flows, capexTtc) {
 function buildFinanceWarningsV2({
   capex_ttc,
   roi_years,
-  flows
+  flows,
+  maintenance_pct,
+  elec_growth_pct,
+  elec_growth_missing,
+  horizon_years,
 }) {
   const w = [];
   const capex = capex_ttc != null ? Number(capex_ttc) : null;
@@ -176,6 +189,19 @@ function buildFinanceWarningsV2({
   const t1 = y1 != null ? Number(y1.total_eur) : null;
   const c1 = y1 != null ? Number(y1.cumul_eur) : null;
 
+  if (maintenance_pct != null && Number.isFinite(Number(maintenance_pct)) && Number(maintenance_pct) === 0) {
+    w.push("MAINTENANCE_PCT_ZERO");
+  }
+  if (elec_growth_pct != null && Number.isFinite(Number(elec_growth_pct)) && Number(elec_growth_pct) > 3) {
+    w.push("ELEC_GROWTH_OVER_3_PCT");
+  }
+  if (elec_growth_missing === true) {
+    w.push("ELEC_GROWTH_MISSING");
+  }
+  if (horizon_years != null && Number.isFinite(Number(horizon_years)) && Number(horizon_years) > 20) {
+    w.push("HORIZON_LONG_PROJECTION_NOTE");
+  }
+  w.push("PRIME_ELIGIBILITY_NOT_CONFIRMED");
   if (capex != null && Number.isFinite(capex) && capex > 0 && capex < 1000) {
     w.push("LOW_CAPEX_SUSPICIOUS");
   }
@@ -548,9 +574,14 @@ export async function computeFinance(ctx, scenarios) {
       const finance_warnings = buildFinanceWarningsV2({
         capex_ttc,
         roi_years,
-        flows
+        flows,
+        maintenance_pct: econ.maintenance_pct,
+        elec_growth_pct: econ.elec_growth_pct,
+        elec_growth_missing: econ.elec_growth_missing,
+        horizon_years: econ.horizon_years,
       });
 
+      const horizonY = Number(econ.horizon_years) || 25;
       const annualSavings = flows[0]?.total_eur ?? null;
       if (process.env.NODE_ENV !== "production") {
         console.log("[D3] scenario", key, "capex_ttc =", capex_ttc, "capex_net =", capex_net, "annual savings =", annualSavings, "flows length =", flows?.length);
@@ -594,6 +625,19 @@ export async function computeFinance(ctx, scenarios) {
         economie_an1: round(flows[0].total_eur, 0),
         gain_25a: flows[flows.length - 1].cumul_eur,
         economie_25a: flows[flows.length - 1].cumul_eur,
+        economie_horizon_years: horizonY,
+        economie_total_horizon_label: `Projection sur ${horizonY} ans`,
+        finance_meta: {
+          horizon_years: horizonY,
+          horizon_years_display: horizonY,
+          elec_growth_pct: econ.elec_growth_pct,
+          elec_growth_source: econ.elec_growth_source,
+          elec_growth_missing: econ.elec_growth_missing,
+          economie_total_label: `Gain net cumulé sur ${horizonY} ans`,
+          cumul_eur_definition: "net_after_capex_ttc",
+          prime_disclaimer:
+            "Prime et tarifs d'obligation d'achat : sous réserve d'éligibilité du projet et des tarifs en vigueur à la date de mise en service.",
+        },
         flows,
         finance_warnings
       };
@@ -622,4 +666,3 @@ export async function computeFinance(ctx, scenarios) {
 
   return out;
 }
- 

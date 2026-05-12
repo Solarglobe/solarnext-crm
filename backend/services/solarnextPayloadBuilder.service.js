@@ -71,6 +71,7 @@ const FALLBACK_PARAMS = {
     battery_atmoce_unit_price_ht: 450,
   },
   economics: DEFAULT_ECONOMICS_FALLBACK,
+  economics_raw: null,
   /** Enveloppe `settings_json.pvtech` (héritage) — voir `orgSettingsDeprecated.js` ; hypothèses effectives = catalogues + étude. */
   pvtech: {
     system_yield_pct: 85,
@@ -194,6 +195,8 @@ async function loadOrgParams(organizationId) {
   if (r.rows.length === 0) return FALLBACK_PARAMS;
 
   const settings = r.rows[0].settings_json || {};
+  const rawEconomics =
+    settings.economics && typeof settings.economics === "object" ? settings.economics : null;
   const basePricing =
     settings.pricing && typeof settings.pricing === "object"
       ? { ...FALLBACK_PARAMS.pricing, ...settings.pricing }
@@ -206,9 +209,8 @@ async function loadOrgParams(organizationId) {
   const pricing = { ...basePricing, battery_atmoce_unit_price_ht: batteryPrice };
   return {
     pricing,
-    economics: mergeOrgEconomicsPartial(
-      settings.economics && typeof settings.economics === "object" ? settings.economics : null
-    ),
+    economics: mergeOrgEconomicsPartial(rawEconomics),
+    economics_raw: rawEconomics,
     pvtech: settings.pvtech && typeof settings.pvtech === "object"
       ? { ...FALLBACK_PARAMS.pvtech, ...settings.pvtech }
       : FALLBACK_PARAMS.pvtech,

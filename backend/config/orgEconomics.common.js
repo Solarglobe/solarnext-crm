@@ -12,8 +12,8 @@
  *   oa_rate_lt_9       : Arrêté S24 — autoconsommation individuelle avec vente du surplus,
  *                        tranche 3-9 kWc, T4 2024. Source : arrêté du 11 juillet 2024.
  *   oa_rate_gte_9      : Arrêté S24 — tranche 9-36 kWc, T4 2024.
- *   elec_growth_pct    : 4 %/an — aligné avec le défaut UI admin (admin.org.settings.controller.js).
- *                        Configurable par organisation via Paramètres → Économie.
+ *   elec_growth_pct    : Configurable par organisation via Paramètres → Économie.
+ *                        Le 4 ci-dessous est un fallback technique tracé, jamais une hypothèse client silencieuse.
  */
 
 /** @type {readonly string[]} */
@@ -22,6 +22,7 @@ export const ORG_ECONOMICS_NUMERIC_KEYS = Object.freeze([
   "elec_growth_pct",
   "pv_degradation_pct",
   "horizon_years",
+  "oa_rate_lt_3",
   "oa_rate_lt_9",
   "oa_rate_gte_9",
   "prime_lt9",
@@ -39,17 +40,17 @@ export const ORG_ECONOMICS_NUMERIC_KEY_SET = new Set(ORG_ECONOMICS_NUMERIC_KEYS)
  * Toute nouvelle clé « moteur » doit exister ici et dans ORG_ECONOMICS_NUMERIC_KEYS.
  *
  * MISE À JOUR OA S24 (arrêté du 11 juillet 2024, applicable T4 2024 / S25) :
- *   oa_rate_lt_9  : 0.0762 €/kWh (tranche 3-9 kWc)  — était 0.04 (S16, périmé)
- *   oa_rate_gte_9 : 0.0606 €/kWh (tranche 9-36 kWc) — était 0.0617 (S21)
- * Note : pour les installations < 3 kWc le taux S24 est ~0.1305 €/kWh.
- *   À affiner si un bracket oa_rate_lt_3 est ajouté ultérieurement.
+ *   oa_rate_lt_3  : 0,1305 €/kWh (< 3 kWc, ordre de grandeur — à vérifier au tarif en vigueur)
+ *   oa_rate_lt_9  : 0,0762 €/kWh (tranche 3-9 kWc)  — était 0,04 (S16, périmé)
+ *   oa_rate_gte_9 : 0,0606 €/kWh (tranche 9-36 kWc) — était 0,0617 (S21)
  */
 export const ORG_ECONOMICS_ENGINE_DEFAULTS = Object.freeze({
   price_eur_kwh: 0.1952,        // TRV EDF option base 2023-S1 — à mettre à jour T1 chaque année
-  elec_growth_pct: 4,           // Aligné sur le défaut UI admin (admin.org.settings.controller.js)
+  elec_growth_pct: 4,           // Fallback technique tracé si settings_json.economics.elec_growth_pct est absent
   pv_degradation_pct: 0.5,
-  oa_rate_lt_9: 0.0762,         // S24 — 3-9 kWc (mis à jour depuis 0.04 S16)
-  oa_rate_gte_9: 0.0606,        // S24 — 9-36 kWc (mis à jour depuis 0.0617 S21)
+  oa_rate_lt_3: 0.1305,         // S24 — < 3 kWc (approximation arrêté CRE ; à affiner par mise à jour réglementaire)
+  oa_rate_lt_9: 0.0762,         // S24 — 3-9 kWc (mis à jour depuis 0,04 S16)
+  oa_rate_gte_9: 0.0606,        // S24 — 9-36 kWc (mis à jour depuis 0,0617 S21)
   prime_lt9: 80,
   prime_gte9: 180,
   horizon_years: 25,

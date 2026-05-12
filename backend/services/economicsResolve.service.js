@@ -15,6 +15,11 @@ import { ORG_ECONOMICS_ENGINE_DEFAULTS, ORG_ECONOMICS_NUMERIC_KEYS } from "../co
 
 /** @deprecated Import direct préféré : `ORG_ECONOMICS_ENGINE_DEFAULTS` depuis `config/orgEconomics.common.js` */
 export const DEFAULT_ECONOMICS_FALLBACK = { ...ORG_ECONOMICS_ENGINE_DEFAULTS };
+export const ELEC_GROWTH_MISSING_WARNING = "ELEC_GROWTH_MISSING";
+
+function isFiniteNumberLike(v) {
+  return v != null && v !== "" && Number.isFinite(Number(v));
+}
 
 /** Merge shallow : org partiel + défauts (même logique que loadOrgParams). */
 export function mergeOrgEconomicsPartial(orgEconomics) {
@@ -32,11 +37,46 @@ export function overlayFormEconomics(base, formEconomics) {
   if (!formEconomics || typeof formEconomics !== "object") return { ...base };
   const out = { ...base };
   for (const k of ORG_ECONOMICS_NUMERIC_KEYS) {
+    if (k === "elec_growth_pct") continue;
     if (!Object.prototype.hasOwnProperty.call(formEconomics, k)) continue;
     const v = formEconomics[k];
     if (v != null && Number.isFinite(Number(v))) out[k] = Number(v);
   }
   return out;
+}
+
+/**
+ * Source unique croissance prix elec : settings_json.economics.elec_growth_pct.
+ * Le fallback technique existe pour ne pas crasher, mais il est toujours visible.
+ * @param {unknown} orgEconomicsRaw
+ * @param {{ log?: boolean, context?: string }} [opts]
+ * @returns {{ elec_growth_pct: number, source: "organization_settings" | "technical_fallback", missing: boolean, warnings: string[] }}
+ */
+export function resolveElectricityGrowthPctFromOrg(orgEconomicsRaw, opts = {}) {
+  const raw = orgEconomicsRaw && typeof orgEconomicsRaw === "object" ? orgEconomicsRaw : null;
+  const candidate = raw?.elec_growth_pct;
+  if (isFiniteNumberLike(candidate)) {
+    return {
+      elec_growth_pct: Number(candidate),
+      source: "organization_settings",
+      missing: false,
+      warnings: [],
+    };
+  }
+
+  const fallback = Number(DEFAULT_ECONOMICS_FALLBACK.elec_growth_pct);
+  if (opts.log !== false) {
+    console.warn(
+      `[ENGINE WARNING] ${ELEC_GROWTH_MISSING_WARNING}: settings_json.economics.elec_growth_pct absent ou invalide` +
+        `${opts.context ? ` (${opts.context})` : ""}; fallback technique temporaire ${fallback}%/an.`
+    );
+  }
+  return {
+    elec_growth_pct: fallback,
+    source: "technical_fallback",
+    missing: true,
+    warnings: [ELEC_GROWTH_MISSING_WARNING],
+  };
 }
 
 /**
@@ -72,11 +112,14 @@ export function resolveRetailElectricityKwhPrice(ctx) {
   return Number.isFinite(n) && n >= 0 ? n : DEFAULT_ECONOMICS_FALLBACK.price_eur_kwh;
 }
 
-/** Taux OA effectif selon kWc installé. */
+/** Taux OA effectif selon kWc installé (< 3, 3–9, 9–36 kWc). */
 export function resolveOaRateForKwc(ctx, kwc) {
   const e = mergedEconomicsFromCtx(ctx);
   const k = Number(kwc) || 0;
+  const lt3 = Number(e.oa_rate_lt_3 ?? DEFAULT_ECONOMICS_FALLBACK.oa_rate_lt_3);
   const lt = Number(e.oa_rate_lt_9 ?? DEFAULT_ECONOMICS_FALLBACK.oa_rate_lt_9);
   const gte = Number(e.oa_rate_gte_9 ?? DEFAULT_ECONOMICS_FALLBACK.oa_rate_gte_9);
-  return k < 9 ? lt : gte;
+  if (k > 0 && k < 3) return lt3;
+  if (k < 9) return lt;
+  return gte;
 }

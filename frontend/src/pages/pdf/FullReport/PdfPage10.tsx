@@ -26,6 +26,11 @@ function num(v: unknown): number | null {
 export default function PdfPage10({ data }: { data?: P10Data }) {
   const meta = data?.meta ?? {};
   const best = data?.best ?? {};
+  const hyp = data?.hyp ?? {};
+  const rawHy = best.horizon_years_finance ?? hyp.horizon_years;
+  const gainsHy =
+    typeof rawHy === "number" && Number.isFinite(rawHy) && rawHy > 0 ? Math.floor(rawHy) : 25;
+  const gainsLabel = `Gains (${gainsHy} ans)`;
 
   return (
     <div className="pdf-page">
@@ -57,11 +62,11 @@ export default function PdfPage10({ data }: { data?: P10Data }) {
           <span className="pdf-kpi-value">{num(best.savings_year1_eur) != null ? `${num(best.savings_year1_eur)?.toLocaleString("fr-FR")} €` : EMPTY}</span>
         </div>
         <div className="pdf-kpi-card">
-          <span className="pdf-kpi-label">Gains 25 ans</span>
+          <span className="pdf-kpi-label">{gainsLabel}</span>
           <span className="pdf-kpi-value">{num(best.gains_25_eur) != null ? `${num(best.gains_25_eur)?.toLocaleString("fr-FR")} €` : EMPTY}</span>
         </div>
         <div className="pdf-kpi-card">
-          <span className="pdf-kpi-label">Autoprod</span>
+          <span className="pdf-kpi-label">Autoconso PV</span>
           <span className="pdf-kpi-value">{num(best.autoprod_pct) != null ? `${num(best.autoprod_pct)} %` : EMPTY}</span>
         </div>
         <div className="pdf-kpi-card">
@@ -81,7 +86,9 @@ export default function PdfPage10({ data }: { data?: P10Data }) {
             <div className="pdf-value">Dégradation PV : {num(data.hyp.pv_degrad)} % / an</div>
           ) : null}
           {num(data.hyp.elec_infl) != null ? (
-            <div className="pdf-value">Inflation électricité : {num(data.hyp.elec_infl)} % / an</div>
+            <div className="pdf-value">
+              Hypothèse de croissance du prix de l'électricité : {num(data.hyp.elec_infl)} % / an
+            </div>
           ) : null}
           {num(data.hyp.oa_price) != null ? (
             <div className="pdf-value">Rachat surplus (OA) : {num(data.hyp.oa_price)?.toFixed(4)} €/kWh</div>

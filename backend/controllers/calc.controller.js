@@ -46,6 +46,11 @@ import {
   resolveOaRateForKwc,
   mergeOrgEconomicsPartial,
 } from "../services/economicsResolve.service.js";
+import { CalcEngineValidationError, CALC_INVALID_8760_PROFILE } from "../services/calcEngineErrors.js";
+import {
+  buildCalculationConfidenceFromCalc,
+  finalizeCalculationConfidence,
+} from "../services/calculationConfidence.service.js";
 
 function round(n, d = 2) {
   return Math.round(n * 10 ** d) / 10 ** d;
@@ -320,6 +325,7 @@ ctx.conso = {
 
 // META
 ctx.meta.conso_annuelle_kwh = annualExact;
+ctx.meta.engine_consumption_source = conso.engine_consumption_source ?? "UNKNOWN";
 
 if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1") {
   const h = ctx.conso.hourly || [];
@@ -918,7 +924,7 @@ if (devLog) {
           virtualScenario.autoproduction_kwh = autoproduction_kwh;
           virtualScenario.autoconsumption_kwh = vbSim.auto_kwh;
           virtualScenario.self_consumption_pct =
-            production > 0 ? Math.round((vbSim.auto_kwh / production) * 10000) / 100 : Math.round(self_consumption_pct * 100) / 100;
+            production > 0 ? Math.round((vbSim.auto_kwh / production) * 10000) / 100 : 0;
           virtualScenario.self_production_pct = Math.round(self_production_pct * 100) / 100;
           virtualScenario.prod_kwh = baseScenario.energy.prod;
           virtualScenario.auto_kwh = vbSim.auto_kwh;
@@ -1500,7 +1506,8 @@ const ctxFinal = {
   scenarios_v2: scenariosV2,
   finance,
   impact,
-  settings: ctx.settings
+  settings: ctx.settings,
+  calculation_confidence: buildCalculationConfidenceFromCalc(ctx, scenariosFinal),
 };
 
 if (process.env.NODE_ENV !== "production" && process.env.DEBUG_FINAL_SCENARIOS_V2 === "1") {
@@ -1517,6 +1524,29 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_FINAL_SCENARIOS_V
 
   } catch (err) {
     console.error("❌ ERREUR SMARTPITCH :", err);
+    if (err instanceof CalcEngineValidationError && err.code === CALC_INVALID_8760_PROFILE) {
+      return res.status(400).json({
+        error: err.message,
+        code: err.code,
+        meta: err.meta ?? {},
+        calculation_confidence: finalizeCalculationConfidence({
+          blocking_warnings: [CALC_INVALID_8760_PROFILE],
+          non_blocking_warnings: [],
+          assumptions: {
+            consumption_source: err.meta?.consumption_source ?? null,
+            production_source: null,
+            pvgis_fallback_used: false,
+            enedis_profile_used: false,
+            maintenance_pct: null,
+            elec_growth_pct: null,
+            horizon_years: null,
+            oa_rate_source: null,
+            battery_cost_configured: null,
+            shading_source: null,
+          },
+        }),
+      });
+    }
     return res.status(500).json({
       error: "Erreur interne SmartPitch",
       details: err.message
@@ -1708,8 +1738,10 @@ function buildContext(form, settings) {
   };
 
   const rawSettings = settings && typeof settings === "object" ? settings : {};
+  const rawEconomics =
+    rawSettings.economics && typeof rawSettings.economics === "object" ? rawSettings.economics : null;
   const mergedEconomics = mergeOrgEconomicsPartial(
-    rawSettings.economics && typeof rawSettings.economics === "object" ? rawSettings.economics : null
+    rawEconomics
   );
 
   return {
@@ -1745,6 +1777,7 @@ function buildContext(form, settings) {
       ...rawSettings,
       pricing: rawSettings.pricing || {},
       economics: mergedEconomics,
+      economics_raw: rawEconomics,
     },
     organization_settings:
       rawSettings?.organization_settings && typeof rawSettings.organization_settings === "object"

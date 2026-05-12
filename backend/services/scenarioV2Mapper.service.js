@@ -4,6 +4,12 @@
  */
 
 import { resolveShadingTotalLossPct } from "./shading/resolveShadingTotalLossPct.js";
+import {
+  computeExportPct,
+  computePvSelfConsumptionPct,
+  computeSiteAutonomyPct,
+  computeSolarCoveragePct,
+} from "./energyKpiDefinitions.service.js";
 
 const LABELS = {
   BASE: "Sans batterie",
@@ -55,10 +61,48 @@ export function mapScenarioToV2(scenario, ctx) {
     ? (scenario.energy?.import_kwh ?? scenario.import_kwh ?? scenario.energy?.billable_import_kwh ?? scenario.billable_import_kwh ?? scenario.energy?.import ?? null)
     : (scenario.energy?.import ?? null);
 
-  const selfConsumptionPct = scenario.self_consumption_pct ?? scenario.auto_pct_real ?? (consoKwh > 0 && autoKwh != null ? (autoKwh / consoKwh) * 100 : null);
-  const selfProductionPct = isVirtualLike && (scenario.self_production_pct != null || (autoproductionKwh != null && consoKwh > 0))
-    ? (scenario.self_production_pct ?? (consoKwh > 0 && autoproductionKwh != null ? (autoproductionKwh / consoKwh) * 100 : 0))
-    : (prodKwh > 0 && consoKwh > 0 ? (prodKwh / consoKwh) * 100 : 0);
+  const pvUsedKwh = firstFiniteNum(
+    scenario.energy?.total_pv_used_on_site_kwh,
+    scenario.energy?.autoconsumption_kwh,
+    autoKwh
+  );
+  const importForKpi = firstFiniteNum(
+    importKwhDisplay,
+    scenario.energy?.import_kwh,
+    scenario.energy?.grid_import_kwh,
+    scenario.import_kwh
+  );
+  const surplusKwhForKpi = firstFiniteNum(
+    scenario.energy?.exported_kwh,
+    scenario.energy?.surplus,
+    scenario.surplus_kwh
+  );
+
+  const kpiPayload = {
+    production_kwh: prodKwh,
+    total_pv_used_on_site_kwh: pvUsedKwh,
+    consumption_kwh: consoKwh,
+    grid_import_kwh: importForKpi,
+    surplus_kwh: surplusKwhForKpi,
+  };
+
+  const pvSelfPct =
+    scenario.energy?.pv_self_consumption_pct ??
+    computePvSelfConsumptionPct(kpiPayload);
+  const siteAutPct =
+    scenario.energy?.site_autonomy_pct ??
+    computeSiteAutonomyPct(kpiPayload);
+  const solarCoverPct =
+    scenario.energy?.solar_coverage_pct ??
+    computeSolarCoveragePct(kpiPayload);
+  const exportPct =
+    scenario.energy?.export_pct ??
+    computeExportPct(kpiPayload);
+
+  /** @deprecated Alias — = taux d’autoconsommation PV (pv_self_consumption_pct). */
+  const selfConsumptionPctAlias = pvSelfPct;
+  /** @deprecated Alias — = couverture solaire (solar_coverage_pct), pas prod/conso. */
+  const selfProductionPctLegacy = solarCoverPct;
 
   const energyBase = {
     production_kwh: prodKwh,
@@ -67,8 +111,12 @@ export function mapScenarioToV2(scenario, ctx) {
     surplus_kwh: scenario.energy?.surplus ?? scenario.surplus_kwh ?? null,
     import_kwh: importKwhDisplay,
     monthly: scenario.energy?.monthly ?? null,
-    self_consumption_pct: selfConsumptionPct,
-    self_production_pct: selfProductionPct,
+    /** Alias legacy — voir pv_self_consumption_pct. */
+    self_consumption_pct: selfConsumptionPctAlias,
+    /** Alias legacy — voir solar_coverage_pct. */
+    self_production_pct: selfProductionPctLegacy,
+    solar_coverage_pct: solarCoverPct,
+    export_pct: exportPct,
     // BATTERY_VIRTUAL / BATTERY_HYBRID : lecture directe depuis le scénario (energy ou racine)
     ...(isVirtualLike ? {
       production_kwh: prodKwh,
@@ -137,8 +185,10 @@ export function mapScenarioToV2(scenario, ctx) {
     battery_discharge_kwh: scenario.energy?.battery_discharge_kwh ?? null,
     total_pv_used_on_site_kwh: scenario.energy?.total_pv_used_on_site_kwh ?? null,
     exported_kwh: scenario.energy?.exported_kwh ?? null,
-    pv_self_consumption_pct: scenario.energy?.pv_self_consumption_pct ?? null,
-    site_autonomy_pct: scenario.energy?.site_autonomy_pct ?? null,
+    pv_self_consumption_pct: pvSelfPct ?? scenario.energy?.pv_self_consumption_pct ?? null,
+    site_autonomy_pct: siteAutPct ?? scenario.energy?.site_autonomy_pct ?? null,
+    solar_coverage_pct: solarCoverPct ?? scenario.energy?.solar_coverage_pct ?? null,
+    export_pct: exportPct ?? scenario.energy?.export_pct ?? null,
   };
   if (isVirtualLike) {
     const restored = firstFiniteNum(energy.restored_kwh, energy.used_credit_kwh, scenario.battery_virtual?.annual_discharge_kwh) ?? 0;
@@ -162,8 +212,11 @@ export function mapScenarioToV2(scenario, ctx) {
     annual_cashflows: scenario.flows ?? null,
     economie_year_1: scenario.economie_an1 ?? null,
     economie_total: scenario.economie_25a ?? scenario.gain_25a ?? null,
+    economie_horizon_years: scenario.economie_horizon_years ?? null,
+    economie_total_horizon_label: scenario.economie_total_horizon_label ?? null,
     virtual_battery_cost_annual: scenario._virtualBatteryQuote?.annual_cost_ttc ?? null,
     finance_meta: {
+      ...(scenario.finance_meta && typeof scenario.finance_meta === "object" ? scenario.finance_meta : {}),
       cumul_eur_definition: "net_after_capex_ttc",
       cumul_gains_eur_definition: "cumulative_sum_of_total_eur",
       prime_included_in_year1_total_eur: true
@@ -301,6 +354,9 @@ export function mapScenarioToV2(scenario, ctx) {
         scenario.battery.enabled === true),
     virtual_enabled: isVirtualLike,
     shading_source: shadingSrc.farSource ?? shadingSrc.far_source ?? null,
+    elec_growth_pct: scenario.finance_meta?.elec_growth_pct ?? null,
+    elec_growth_source: scenario.finance_meta?.elec_growth_source ?? null,
+    elec_growth_missing: scenario.finance_meta?.elec_growth_missing === true,
     model_version: "ENGINE_V2",
   };
 

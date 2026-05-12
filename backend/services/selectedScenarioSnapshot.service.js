@@ -251,6 +251,8 @@ export async function buildSelectedScenarioSnapshot({
     exported_kwh: scenario.energy?.exported_kwh ?? null,
     pv_self_consumption_pct: scenario.energy?.pv_self_consumption_pct ?? null,
     site_autonomy_pct: scenario.energy?.site_autonomy_pct ?? null,
+    solar_coverage_pct: scenario.energy?.solar_coverage_pct ?? null,
+    export_pct: scenario.energy?.export_pct ?? null,
     energy_solar_used_kwh: scenario.energy?.energy_solar_used_kwh ?? null,
     energy_grid_import_kwh:
       scenario.energy?.energy_grid_import_kwh ??
@@ -295,6 +297,9 @@ export async function buildSelectedScenarioSnapshot({
     capex_ttc: scenario.finance?.capex_ttc ?? null,
     economie_year_1: scenario.finance?.economie_year_1 ?? null,
     economie_total: scenario.finance?.economie_total ?? null,
+    economie_horizon_years: scenario.finance?.economie_horizon_years ?? null,
+    economie_total_horizon_label: scenario.finance?.economie_total_horizon_label ?? null,
+    finance_meta: scenario.finance?.finance_meta ?? null,
     roi_years: scenario.finance?.roi_years ?? null,
     irr_pct: scenario.finance?.irr_pct ?? null,
     facture_restante: scenario.finance?.residual_bill_eur ?? null,
@@ -325,6 +330,17 @@ export async function buildSelectedScenarioSnapshot({
     shading_source: scenario.assumptions?.shading_source ?? null,
     battery_enabled: scenario.assumptions?.battery_enabled ?? false,
     virtual_enabled: scenario.assumptions?.virtual_enabled ?? false,
+    elec_growth_pct:
+      scenario.assumptions?.elec_growth_pct ??
+      scenario.finance?.finance_meta?.elec_growth_pct ??
+      null,
+    elec_growth_source:
+      scenario.assumptions?.elec_growth_source ??
+      scenario.finance?.finance_meta?.elec_growth_source ??
+      null,
+    elec_growth_missing:
+      scenario.assumptions?.elec_growth_missing === true ||
+      scenario.finance?.finance_meta?.elec_growth_missing === true,
   };
 
   const created_at = new Date().toISOString();

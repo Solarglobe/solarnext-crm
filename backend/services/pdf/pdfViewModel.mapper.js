@@ -9,6 +9,7 @@ import {
   mergeOrgEconomicsPartial,
   overlayFormEconomics,
   DEFAULT_ECONOMICS_FALLBACK,
+  resolveElectricityGrowthPctFromOrg,
   resolveOaRateForKwc,
 } from "../economicsResolve.service.js";
 import {
@@ -42,7 +43,10 @@ function mirrorPickEconomicsForPdf(form, orgEconomics) {
       f.params?.tarif_kwh ?? f.params?.tarif_actuel ?? e.price_eur_kwh,
       DEFAULT_ECONOMICS_FALLBACK.price_eur_kwh
     ),
-    elec_growth_pct: n(e.elec_growth_pct, DEFAULT_ECONOMICS_FALLBACK.elec_growth_pct),
+    elec_growth_pct: resolveElectricityGrowthPctFromOrg(orgEconomics ?? null, {
+      context: "pdfViewModel.mapper",
+      log: false,
+    }).elec_growth_pct,
     pv_degradation_pct: n(
       f.panel_input?.degradation_annual_pct ?? f.params?.degradation ?? e.pv_degradation_pct,
       DEFAULT_ECONOMICS_FALLBACK.pv_degradation_pct
@@ -319,11 +323,12 @@ function safeRatio(numerator, denominator) {
  * correspondre au coût de remplacement onduleur déduit dans buildCashflows (financeService.js :
  * inverter_replacement_year / inverter_cost_pct), pas à un défaut de mapping.
  */
-function annualGainsEur25FromCashflows(flows) {
+function annualGainsEurFromCashflows(flows, horizonYears = 25) {
   if (!Array.isArray(flows) || flows.length === 0) return null;
+  const n = Math.max(1, Math.min(50, Math.floor(Number(horizonYears)) || 25));
   const out = [];
   let any = false;
-  for (let i = 0; i < 25; i++) {
+  for (let i = 0; i < n; i++) {
     const year = i + 1;
     const row = flows.find((f) => num(f?.year) === year) ?? flows[i];
     let v = null;
@@ -362,17 +367,18 @@ function buildP11Section({
   economieTotal,
   economicConfigJson,
   annualCashflows,
+  horizonYears = 25,
 }) {
   const fin = normalizeQuoteFinancing(economicConfigJson, capex);
   const monthly = fin.enabled ? loanMonthlyPaymentEur(fin.amount, fin.interest_rate_annual, fin.duration_months) : null;
   const totalPaid =
     monthly != null && fin.duration_months > 0 ? Math.round(monthly * fin.duration_months) : null;
 
-  const fromFlows = annualGainsEur25FromCashflows(annualCashflows);
+  const fromFlows = annualGainsEurFromCashflows(annualCashflows, horizonYears);
   const economies25 =
-    fromFlows != null ? fromFlows : Array.from({ length: 25 }, () => numOrZero(annualSavings));
+    fromFlows != null ? fromFlows : Array.from({ length: horizonYears }, () => numOrZero(annualSavings));
 
-  const paiement25 = Array.from({ length: 25 }, (_, i) =>
+  const paiement25 = Array.from({ length: horizonYears }, (_, i) =>
     annualLoanPaymentForCalendarYear(i + 1, monthly, fin.duration_months)
   );
   const reste25 = economies25.map((eco, i) => paiement25[i] - eco);
@@ -388,7 +394,7 @@ function buildP11Section({
   const apportDisplay = apportVal != null && apportVal > 0 ? formatEur0(apportVal) : "—";
 
   const avgAnnualEco =
-    economies25.length === 25 ? economies25.reduce((a, b) => a + numOrZero(b), 0) / 25 : numOrZero(annualSavings);
+    economies25.length > 0 ? economies25.reduce((a, b) => a + numOrZero(b), 0) / economies25.length : numOrZero(annualSavings);
   const resteMoyenMois =
     monthly != null ? Math.round(monthly - avgAnnualEco / 12) : null;
 
@@ -399,7 +405,7 @@ function buildP11Section({
     factureRestante != null && Number.isFinite(factureRestante) ? Math.round(factureRestante / 12) : null;
 
   const p11 = {
-    meta: { client: clientName, ref, date: dateDisplay },
+    meta: { client: clientName, ref, date: dateDisplay, horizon_years_pdf: horizonYears },
     data: {
       capex_ttc: capex,
       kwc: systemPowerKw,
@@ -515,7 +521,7 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
     settings: { economics: mergeOrgEconomicsPartial(options.org_economics ?? null) },
     form,
   };
-  const econDisplay = mirrorPickEconomicsForPdf(form, options.org_economics);
+  let econDisplay = mirrorPickEconomicsForPdf(form, options.org_economics);
 
   const scenariosArr = options.scenarios_v2 ?? [];
   const selectedKey = options.selected_scenario_id ?? snapshot.scenario_type ?? "BASE";
@@ -583,6 +589,12 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
     scenarioForFinance && typeof scenarioForFinance.finance === "object" && scenarioForFinance.finance !== null
       ? scenarioForFinance.finance
       : finance;
+  const snapshotElecGrowth =
+    num(financeActive?.finance_meta?.elec_growth_pct) ??
+    num(snapshot.assumptions?.elec_growth_pct);
+  if (snapshotElecGrowth != null) {
+    econDisplay = { ...econDisplay, elec_growth_pct: snapshotElecGrowth };
+  }
 
   const clientName = str(meta.client_nom) || [str(client.prenom), str(client.nom)].filter(Boolean).join(" ") || "";
   const ref = options.studyNumber || "—";
@@ -602,13 +614,17 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
   const puissanceKva = num(formParams.puissance_kva) ?? num(site.puissance_compteur_kva);
   const reseauType = str(formParams.reseau_type) || str(site.type_reseau) || "";
   // Conso annuelle : fallback robuste (priorité 1→4), valeur numérique ou null
+  const horizonYearsPdf =
+    Number(financeActive.economie_horizon_years ?? financeActive.finance_meta?.horizon_years) || 25;
   const consoAnnuelle =
     num(conso.annual_kwh) ??
     num(energy.consumption_kwh) ??
     num(form.conso?.annuelle_kwh) ??
     num(meta.annual_consumption_kwh) ??
     null;
-  const economieTotal = num(financeActive.economie_total) ?? numOrZero(financeActive.economie_year_1) * 25;
+  const economieTotal =
+    num(financeActive.economie_total) ??
+    numOrZero(financeActive.economie_year_1) * horizonYearsPdf;
   const irrPct = num(financeActive.irr_pct);
 
   const p1_auto = {
@@ -618,11 +634,12 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
     p1_why: "Étude photovoltaïque personnalisée",
     p1_m_kwc: formatKwC(systemPowerKw) || systemPowerKw,
     p1_m_auto: autonomyPct != null ? roundPercent(autonomyPct) : null,
-    p1_m_gain: formatCurrency0(economieTotal) || formatCurrency0(numOrZero(financeActive.economie_year_1) * 25),
+    p1_m_gain: formatCurrency0(economieTotal) || formatCurrency0(numOrZero(financeActive.economie_year_1) * horizonYearsPdf),
     p1_k_puissance: formatKwC(num(hardware.kwc) ?? systemPowerKw),
-    p1_k_autonomie: roundPercent(num(energy.energy_independence_pct) ?? autonomyPct),
+    p1_k_autonomie: roundPercent(autonomyPct ?? num(energy.energy_independence_pct)),
     p1_k_tri: oneDecimalPercent(irrPct),
     p1_k_gains: formatCurrency0(economieTotal),
+    p1_k_gains_label: `Gains (${horizonYearsPdf} ans)`,
     p1_param_kva: puissanceKva != null ? `${puissanceKva} kVA` : "",
     p1_param_reseau: reseauType === "mono" ? "Monophasé" : reseauType === "tri" ? "Triphasé" : reseauType || "—",
     p1_param_conso: consoAnnuelle,
@@ -642,7 +659,7 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
   //                        garantit la cohérence : eco_Y = sans_Y - avec_Y pour chaque jalon
   //   • économie NETTE  = economieTotal (après capex)  → bénéfice réel de l'investissement
   //                        stockée dans p2_economie_nette pour usage séparé si besoin
-  const gridCostWithSolar = Math.round(factureRestante * 25);
+  const gridCostWithSolar = Math.round(factureRestante * horizonYearsPdf);
   const gridCostWithoutSolar = Math.round(economieTotal + gridCostWithSolar + capex);
   // Économie brute = différence pure de factures électricité (sans investissement)
   const economieGross = gridCostWithoutSolar - gridCostWithSolar;
@@ -655,7 +672,10 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
   });
   const resteACharge = Math.max(0, Math.round(capex - primeAmount));
 
-  const lcoeVal = systemPowerKw > 0 && annualKwh > 0 ? capex / (annualKwh * 25) : null;
+  const lcoeVal =
+    systemPowerKw > 0 && annualKwh > 0 && horizonYearsPdf > 0
+      ? capex / (annualKwh * horizonYearsPdf)
+      : null;
 
   const p2_auto = {
     p2_client: clientName,
@@ -717,6 +737,7 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
     economieTotal,
     economicConfigJson: options.economic_snapshot_config ?? null,
     annualCashflows: annualCashflowsForP11,
+    horizonYears: horizonYearsPdf,
   });
 
   const energyP10 =
@@ -1468,7 +1489,7 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
         let optionSupplementKwh25y = null;
         let optionSupplementAutonomiePts = null;
         if (reductionAchatKwh > 0 && Number.isFinite(reductionAchatKwh)) {
-          const kwhProj = Math.round(reductionAchatKwh * 25);
+          const kwhProj = Math.round(reductionAchatKwh * horizonYearsPdf);
           if (kwhProj > 0) optionSupplementKwh25y = kwhProj;
         }
         if (optionSupplementKwh25y == null && gainAutonomie > 0 && Number.isFinite(gainAutonomie)) {
@@ -1547,7 +1568,8 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
         const p9Key = options.selected_scenario_id;
         const scenariosArr = Array.isArray(options.scenarios_v2) ? options.scenarios_v2 : [];
         const scenariosByKey = Object.fromEntries(scenariosArr.map((s) => [s.id ?? s.name ?? "BASE", s]));
-        const meta = { client: clientName, ref, date: dateDisplay };
+        const p9HorizonMeta = Math.max(1, Math.min(50, Math.floor(Number(horizonYearsPdf)) || 25));
+        const meta = { client: clientName, ref, date: dateDisplay, horizon_years_pdf: p9HorizonMeta };
 
         const notFound = {
           meta,
@@ -1566,10 +1588,11 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
         }
 
         const flows = scenario.finance?.annual_cashflows ?? [];
+        const p9Horizon = p9HorizonMeta;
 
         const buildCumul25yP9 = (sc) => {
           const f = sc.finance?.annual_cashflows ?? [];
-          return Array.from({ length: 25 }, (_, i) => {
+          return Array.from({ length: p9Horizon }, (_, i) => {
             const row = f[i] ?? f.find((x) => num(x?.year) === i + 1);
             return num(row?.cumul_eur ?? row?.cumul);
           });
@@ -1589,7 +1612,7 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
           if (!Array.isArray(f) || f.length === 0) return null;
           let sum = 0;
           let n = 0;
-          for (let i = 0; i < Math.min(25, f.length); i++) {
+          for (let i = 0; i < Math.min(p9Horizon, f.length); i++) {
             const y = yearlyNetFromFlow(f[i]);
             if (y != null && Number.isFinite(y)) {
               sum += y;
@@ -1601,8 +1624,8 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
 
         function finalCumulFrom25(arr) {
           if (!Array.isArray(arr)) return null;
-          const y25 = num(arr[24]);
-          if (y25 != null) return y25;
+          const yLast = num(arr[p9Horizon - 1]);
+          if (yLast != null) return yLast;
           for (let i = arr.length - 1; i >= 0; i--) {
             const v = num(arr[i]);
             if (v != null) return v;
@@ -1637,7 +1660,7 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
           cumul_gains_end != null &&
           Number.isFinite(avg_savings_eur_year) &&
           Number.isFinite(cumul_gains_end) &&
-          avg_savings_eur_year * 25 < cumul_gains_end
+          avg_savings_eur_year * p9Horizon < cumul_gains_end
         ) {
           warningsRaw.push("INCOHERENT_AVG_VS_CUMUL");
         }
@@ -1672,6 +1695,7 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
           autoprod_pct: selfConsumptionPctP10,
           autonomy_pct: autonomyPctP10,
           gains_25_eur: economieTotal,
+          horizon_years_finance: horizonYearsPdf,
           lcoe_eur_kwh: lcoeVal,
           nb_panels: numOrZero(installation.panneaux_nombre),
           annual_production_kwh: annualKwh,
@@ -1690,14 +1714,14 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
       },
       p11: p11Section,
       p12: {
-        meta: { client: clientName, ref, date: dateDisplay },
+        meta: { client: clientName, ref, date: dateDisplay, horizon_years_pdf: horizonYearsPdf },
         env: { autocons_pct: pvSelfConsumptionPct ?? selfConsumptionPct ?? 0 },
         v_co2: `${co2Evite.toLocaleString("fr-FR")} kg`,
         v_trees: treesEquiv.toString(),
         v_cars: carsEquiv.toString(),
-        v_co2_25: `${(co2Evite * 25).toLocaleString("fr-FR")} kg`,
-        v_trees_25: (treesEquiv * 25).toString(),
-        v_cars_25: (carsEquiv * 25).toString(),
+        v_co2_25: `${(co2Evite * horizonYearsPdf).toLocaleString("fr-FR")} kg`,
+        v_trees_25: (treesEquiv * horizonYearsPdf).toString(),
+        v_cars_25: (carsEquiv * horizonYearsPdf).toString(),
       },
       p13: { meta: { client: clientName, ref, date: dateDisplay } },
       p14: { meta: { client: clientName, ref, date: dateDisplay } },
@@ -1806,7 +1830,16 @@ function buildEmptyFullReport() {
         post_loan: {},
       },
     },
-    p12: { meta: emptyMeta, env: {}, v_co2: "", v_trees: "", v_cars: "", v_co2_25: "", v_trees_25: "", v_cars_25: "" },
+    p12: {
+      meta: { ...emptyMeta, horizon_years_pdf: 25 },
+      env: {},
+      v_co2: "",
+      v_trees: "",
+      v_cars: "",
+      v_co2_25: "",
+      v_trees_25: "",
+      v_cars_25: "",
+    },
     p13: { meta: emptyMeta },
     p14: { meta: emptyMeta },
   };
