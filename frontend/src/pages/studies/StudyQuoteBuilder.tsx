@@ -468,7 +468,7 @@ function ModalCatalogSelector({
       className="sqb-modal-overlay"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="sn-card sqb-modal-panel" onClick={(e) => e.stopPropagation()}>
+      <div className="sn-card sqb-modal-panel sqb-modal-panel--catalog" onClick={(e) => e.stopPropagation()}>
         <div className="sqb-modal-header">
           <h2 id="modal-catalog-title" className="sqb-h2">{effectiveTitle}</h2>
           <div className="sqb-modal-stack">

@@ -1039,6 +1039,11 @@ html.theme-dark .sqb-battery-power--capped {
   padding: 0;
 }
 
+.sqb-modal-panel--catalog {
+  max-width: min(960px, calc(100vw - 48px));
+  width: 92vw;
+}
+
 .sqb-modal-header {
   padding: var(--spacing-20);
   border-bottom: 1px solid var(--border);
@@ -1113,9 +1118,20 @@ html.theme-dark .sqb-battery-power--capped {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--spacing-12);
+  gap: var(--spacing-20);
   padding: 10px var(--spacing-12);
   border-bottom: 1px solid var(--border);
+}
+
+.sqb-modal-catalog-row > div:first-child {
+  min-width: 0;
+}
+
+.sqb-modal-catalog-row .sn-btn {
+  flex: 0 0 auto;
+  min-width: 132px;
+  justify-content: center;
+  white-space: nowrap;
 }
 
 .sqb-modal-catalog-row:last-child {
@@ -1144,6 +1160,22 @@ html.theme-dark .sqb-battery-power--capped {
   margin-bottom: var(--spacing-12);
   font-size: 0.75rem;
   color: var(--danger);
+}
+
+@media (max-width: 640px) {
+  .sqb-modal-panel--catalog {
+    max-width: calc(100vw - 24px);
+    width: calc(100vw - 24px);
+  }
+
+  .sqb-modal-catalog-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .sqb-modal-catalog-row .sn-btn {
+    width: 100%;
+  }
 }
 
 /* ── Bandeau marge négative ──────────────────────────────────── */
