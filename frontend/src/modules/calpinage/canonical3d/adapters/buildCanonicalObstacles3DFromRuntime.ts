@@ -36,6 +36,7 @@ import {
   type HeightResolverContext,
 } from "../../core/heightResolver";
 import { extractHeightStateContextFromCalpinageState } from "./buildCanonicalPans3DFromRuntime";
+import { sanePanHeightM } from "../../adapter/heightSanityFilter";
 
 // ─── Typologie canonique (BLOC D) ───────────────────────────────────────────
 
@@ -521,8 +522,11 @@ export function buildCanonicalObstacles3DFromRuntime(
         panId: panIdForZ,
         defaultHeightM: defaultBaseFallback,
       });
-      const zBase =
+      // sanePanHeightM filtre les valeurs aberrantes de fitPlaneWorldENU
+      // (même bug que pour les patches/panneaux : valeurs ~47m ou ~-320m au lieu de 4-7m).
+      const zBaseRaw =
         hz.heightM !== undefined && Number.isFinite(hz.heightM) ? hz.heightM : defaultBaseFallback;
+      const zBase = sanePanHeightM(zBaseRaw, rawState, panIdForZ ?? null, defaultBaseFallback);
       zBaseSources.push(hz.source);
       confMin = Math.min(confMin, hz.confidence);
       confSum += hz.confidence;
@@ -564,10 +568,12 @@ export function buildCanonicalObstacles3DFromRuntime(
       panId: panIdForZ,
       defaultHeightM: defaultBaseFallback,
     });
-    const czNum =
+    const czRaw =
       czBase.heightM !== undefined && Number.isFinite(czBase.heightM)
         ? czBase.heightM
         : defaultBaseFallback;
+    // Même filtre sanePanHeightM que pour les vertices (valeurs aberrantes fitPlaneWorldENU).
+    const czNum = sanePanHeightM(czRaw, rawState, panIdForZ ?? null, defaultBaseFallback);
     const centroid3D = {
       xWorldM: cxW.x,
       yWorldM: cxW.y,
