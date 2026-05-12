@@ -1100,8 +1100,8 @@ function ViewerSceneContent({
                 flatShading={mRoof.flatShading ?? false}
                 side={THREE.DoubleSide}
                 polygonOffset
-                polygonOffsetFactor={-1}
-                polygonOffsetUnits={-1}
+                polygonOffsetFactor={1}
+                polygonOffsetUnits={1}
                 emissive={emissiveHex}
                 emissiveIntensity={emissiveIntensity}
               />
@@ -1126,8 +1126,8 @@ function ViewerSceneContent({
             flatShading={mRoof.flatShading ?? false}
             side={THREE.DoubleSide}
             polygonOffset
-            polygonOffsetFactor={-1}
-            polygonOffsetUnits={-1}
+            polygonOffsetFactor={1}
+            polygonOffsetUnits={1}
           />
         </mesh>
       )}
@@ -1314,6 +1314,9 @@ function ViewerSceneContent({
                 metalness={pvB.panelMetalness}
                 roughness={pvB.panelRoughness}
                 side={THREE.DoubleSide}
+                polygonOffset
+                polygonOffsetFactor={-1}
+                polygonOffsetUnits={-1}
               />
               {thinOutline}
               {inspectMode && pvSel && (
