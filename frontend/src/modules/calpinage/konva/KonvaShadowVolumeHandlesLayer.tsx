@@ -57,6 +57,7 @@ type HandleSnap = {
   scale: number;
   offsetX: number;
   offsetY: number;
+  imgH: number;
   mpp: number;
   rotateHovered: boolean;
 };
@@ -115,10 +116,11 @@ function readHandleSnap(): HandleSnap | null {
 
   const scale   = (w["CALPINAGE_VIEWPORT_SCALE"] as number | undefined) ?? 1;
   const offset  = (w["CALPINAGE_VIEWPORT_OFFSET"] as { x: number; y: number } | undefined) ?? { x: 0, y: 0 };
+  const imgH    = (st as { roof?: { image?: { height?: number } } }).roof?.image?.height ?? 0;
   const mpp     = st.roof?.scale?.metersPerPixel ?? 1;
   const rotateHovered = (w["CALPINAGE_SV_ROTATE_HOVERED"] as boolean | undefined) ?? false;
 
-  return { volume: sv, scale, offsetX: offset.x, offsetY: offset.y, mpp, rotateHovered };
+  return { volume: sv, scale, offsetX: offset.x, offsetY: offset.y, imgH, mpp, rotateHovered };
 }
 
 // ─── Helpers géométrie ────────────────────────────────────────────────────────
@@ -132,14 +134,22 @@ function rotPt(
   return { x: cx + lx * cos - ly * sin, y: cy + lx * sin + ly * cos };
 }
 
-/** Conversion image-space → coordonnées Stage (screen px dans l'overlay). */
+/**
+ * Conversion image-space → coordonnées Stage (screen px dans l'overlay).
+ *
+ * Identique au WorldGroup (scaleY=-scale) + convention `y_world = imgH - imgPt.y` :
+ *   screenX = ox + pt.x * scale
+ *   screenY = oy - (imgH - pt.y) * scale
+ * Sans `imgH` les handles seraient décalés d'exactement `imgH * scale` px vers le bas.
+ */
 function imgToStage(
   pt: { x: number; y: number },
   scale: number,
   ox: number,
   oy: number,
+  imgH: number,
 ): { x: number; y: number } {
-  return { x: pt.x * scale + ox, y: -pt.y * scale + oy };
+  return { x: pt.x * scale + ox, y: -(imgH - pt.y) * scale + oy };
 }
 
 // ─── Sub-composants ───────────────────────────────────────────────────────────
@@ -255,7 +265,7 @@ export function KonvaShadowVolumeHandlesLayer() {
 
   if (!snap) return null;
 
-  const { volume: sv, scale, offsetX, offsetY, mpp, rotateHovered } = snap;
+  const { volume: sv, scale, offsetX, offsetY, imgH, mpp, rotateHovered } = snap;
 
   const wPx  = (sv.width  || 0.6) / mpp;
   const dPx  = (sv.depth  || 0.6) / mpp;
@@ -267,9 +277,9 @@ export function KonvaShadowVolumeHandlesLayer() {
   // Offset handle rotate en image-px (depuis le bord supérieur)
   const offsetImg = HANDLE_OFFSET / scale;
 
-  // Helper : image-space → stage
+  // Helper : image-space → stage (avec imgH pour aligner sur le WorldGroup)
   const toStage = (pt: { x: number; y: number }) =>
-    imgToStage(pt, scale, offsetX, offsetY);
+    imgToStage(pt, scale, offsetX, offsetY, imgH);
 
   if (sv.shape === "tube") {
     const r = wPx / 2;

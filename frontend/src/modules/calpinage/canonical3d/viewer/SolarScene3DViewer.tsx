@@ -318,7 +318,9 @@ function panelSurfaceMaterial(
     return {
       color: c,
       emissive: em.getHex(),
-      emissiveIntensity: 0.02 + emissiveBonus + (inspectSelected ? 0.06 : 0),
+      // 0.12 : plancher d'émissivité pour que les panneaux restent visibles
+      // même sans données d'ombrage (fond sombre, ACES tonemapping).
+      emissiveIntensity: 0.12 + emissiveBonus + (inspectSelected ? 0.06 : 0),
     };
   }
   const eff = getEffectivePanelVisualShading(panelId, scene);

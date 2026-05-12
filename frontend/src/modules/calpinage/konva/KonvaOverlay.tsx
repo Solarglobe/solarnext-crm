@@ -48,6 +48,22 @@ type CanvasOffset = { left: number; top: number };
 export function KonvaOverlay({ containerRef }: Props) {
   const stageRef = useRef<Konva.Stage | null>(null);
 
+  // Masquage automatique en mode 3D : le viewer 3D couvre le canvas, l'overlay 2D ne doit pas s'afficher.
+  const [is3DMode, setIs3DMode] = useState(
+    () => typeof window !== "undefined" &&
+      (window as unknown as { __CALPINAGE_VIEW_MODE__?: string }).__CALPINAGE_VIEW_MODE__ === "3D",
+  );
+
+  useEffect(() => {
+    const update = () => {
+      setIs3DMode(
+        (window as unknown as { __CALPINAGE_VIEW_MODE__?: string }).__CALPINAGE_VIEW_MODE__ === "3D",
+      );
+    };
+    window.addEventListener("calpinage:viewmode", update);
+    return () => window.removeEventListener("calpinage:viewmode", update);
+  }, []);
+
   // Attendre que #calpinage-canvas-el existe (injecté de façon impérative par le legacy)
   const [canvasEl, setCanvasEl] = useState<HTMLCanvasElement | null>(null);
 
@@ -220,6 +236,8 @@ export function KonvaOverlay({ containerRef }: Props) {
 
   const container = containerRef.current;
   if (!container || !canvasEl || vp.width === 0 || vp.height === 0) return null;
+  // En mode 3D le viewer Three.js couvre tout le canvas — ne pas rendre le Stage Konva 2D par-dessus.
+  if (is3DMode) return null;
 
   const overlay = (
     <div
