@@ -19965,10 +19965,13 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 ctx.fillText(label, sc.x - 20, sc.y + 4);
               }
             }
+            } /* end P4.2 kill switch : !_konvaLayers.has("obstacles") */
+            /* Handles obstacles — en dehors du kill switch Konva corps (P4.2).
+             * drawObstacles dessine UNIQUEMENT les handles (coins, arêtes, rotate) + preview,
+             * pas les bodies → pas de double-rendu quand Konva prend en charge les corps. */
             if (CalpinageCanvas.drawObstacles) {
               CalpinageCanvas.drawObstacles(ctx, CALPINAGE_STATE.obstacles || [], imageToScreen, obstaclePreview, vp.scale, obstacleSelectedIndex);
             }
-            } /* end P4.2 kill switch : !_konvaLayers.has("obstacles") */
             var rxList = CALPINAGE_STATE.roofExtensions || [];
             if (rxList.length > 0) {
               ctx.save();
