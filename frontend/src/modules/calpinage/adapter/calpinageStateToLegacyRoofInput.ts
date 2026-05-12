@@ -54,6 +54,7 @@ import { resolvePanPolygonFor3D } from "../integration/resolvePanPolygonFor3D";
 import { coerceFiniteRoofHeightMInput, finiteRoofHeightMOrUndefined } from "../core/vertexHeightSemantics";
 import { legacySharedCornerClusterTolPx } from "../canonical3d/builder/legacyRoofPixelTolerances";
 import { snapLegacyPanPolygonVerticesInPlace } from "../canonical3d/builder/snapLegacyPanPolygonVertices";
+import { sanePanHeightM } from "./heightSanityFilter";
 
 // ─── Options ───────────────────────────────────────────────────────────────
 
@@ -279,6 +280,12 @@ export function calpinageStateToLegacyRoofInput(
     // ── Résolution hauteur pour chaque sommet du polygone ─────────────────
     // Moteur canonique uniquement (P1 si state injecté + P2 fitPlane) — isValidH dans heightResolver.
     // Pas de heightM si indisponible ou hors plage : le builder utilise resolveZForPanCorner B→G.
+    //
+    // FILTRE SANITÉ (bug pans-bundle) : fitPlaneWorldENU peut retourner des valeurs aberrantes
+    // (ex. 47m au lieu de 5.5m). Sans filtre, le résidu du plan 3D dépasse RESIDUAL_HIGH → patch
+    // classé INCOHERENT → tous les panneaux de ce pan sont filtrés → invisibles en 3D.
+    // `sanePanHeightM` compare la valeur runtime à la plage [minH, maxH] des coins explicites ± 10m
+    // et retourne la moyenne des coins si la valeur est hors plage.
     const polygonPx: LegacyImagePoint2D[] = poly.map((pt) => {
       const xPx = typeof pt.x === "number" ? pt.x : 0;
       const yPx = typeof pt.y === "number" ? pt.y : 0;
@@ -286,8 +293,17 @@ export function calpinageStateToLegacyRoofInput(
       const explicitH = finiteRoofHeightMOrUndefined(
         coerceFiniteRoofHeightMInput(pr.h ?? pr.heightM),
       );
-      const heightM =
-        explicitH !== undefined ? explicitH : legacyHeightMFromValidatedRuntime(panId, xPx, yPx, heightState);
+      let heightM: number | undefined;
+      if (explicitH !== undefined) {
+        heightM = explicitH;
+      } else {
+        const rawH = legacyHeightMFromValidatedRuntime(panId, xPx, yPx, heightState);
+        if (rawH !== undefined) {
+          // Filtre anti-aberrant : clamp la valeur runtime dans la plage plausible du pan.
+          heightM = sanePanHeightM(rawH, panRoot, panId, defaultHeightM);
+        }
+        // rawH === undefined → heightM reste undefined → le builder applique B→G
+      }
       return { xPx, yPx, ...(heightM !== undefined ? { heightM } : {}) };
     });
 

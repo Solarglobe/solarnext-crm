@@ -18,6 +18,7 @@
 
 import { useEffect, useState } from "react";
 import { Group, Line } from "react-konva";
+import { resolveImgH } from "./resolveImgH";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -72,7 +73,9 @@ function readLayerSnap(): LayerSnap | null {
   if (!st) return null;
   // imgH = hauteur de l'image SOURCE (roofImg), pas du canvas HTML.
   // Le legacy utilise CALPINAGE_STATE.roof.image.height dans imageToScreen.
-  const imgH = (st.roof?.image?.height ?? 0);
+  // resolveImgH() ajoute des fallbacks (CALPINAGE_PV_PANELS_DATA) pour éviter imgH=0
+  // quand roof.image n'est pas encore initialisé (→ couche retournait null, contours rouges legacy visibles).
+  const imgH = resolveImgH();
   if (imgH === 0) return null;
   return {
     contours: Array.isArray(st.contours) ? st.contours : [],

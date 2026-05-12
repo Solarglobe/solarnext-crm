@@ -20,6 +20,7 @@
 
 import { useEffect, useState } from "react";
 import { Group, Line, Text } from "react-konva";
+import { resolveImgH } from "./resolveImgH";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -61,7 +62,7 @@ function readLayerSnap(): LayerSnap | null {
     | null
     | undefined;
   if (!st) return null;
-  const imgH = st.roof?.image?.height ?? 0;
+  const imgH = resolveImgH();
   if (imgH === 0) return null;
   const scale = (w["CALPINAGE_VIEWPORT_SCALE"] as number | undefined) ?? 1;
   return {

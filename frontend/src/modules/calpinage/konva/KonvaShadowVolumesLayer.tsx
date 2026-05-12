@@ -31,6 +31,7 @@
 
 import { useEffect, useState } from "react";
 import { Group, Circle, Line } from "react-konva";
+import { resolveImgH } from "./resolveImgH";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -88,7 +89,7 @@ function readLayerSnap(): LayerSnap | null {
     | null
     | undefined;
   if (!st) return null;
-  const imgH = st.roof?.image?.height ?? 0;
+  const imgH = resolveImgH();
   if (imgH === 0) return null;
   const mpp = st.roof?.scale?.metersPerPixel ?? 1;
   return {

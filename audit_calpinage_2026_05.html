@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Audit Calpinage 2D/3D — SolarNext — Mai 2026</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f7f7f5; color: #1a1a18; line-height: 1.5; }
+  a { color: inherit; }
+  code { font-family: 'SFMono-Regular', Consolas, monospace; font-size: 11px; background: #ebebeb; padding: 1px 5px; border-radius: 3px; }
+
+  .page { max-width: 960px; margin: 0 auto; padding: 32px 24px 64px; }
+
+  /* Header */
+  .header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 28px; }
+  .header-title { font-size: 22px; font-weight: 600; color: #1a1a18; }
+  .header-sub { font-size: 13px; color: #6b6b66; margin-top: 4px; }
+  .commit-pill { display: inline-flex; align-items: center; gap: 5px; background: #ebebeb; border-radius: 20px; padding: 3px 11px; font-size: 12px; font-family: monospace; color: #444; }
+  .header-right { text-align: right; }
+  .big-pct { font-size: 36px; font-weight: 600; color: #1a1a18; line-height: 1; }
+  .big-pct-sub { font-size: 12px; color: #6b6b66; }
+
+  /* Warning banner */
+  .warn-banner { background: #fff3cd; border: 1px solid #f0c040; border-radius: 8px; padding: 11px 16px; margin-bottom: 24px; font-size: 13px; color: #7a5200; display: flex; gap: 10px; align-items: flex-start; }
+  .warn-banner strong { font-weight: 600; }
+
+  /* Metric grid */
+  .metric-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 28px; }
+  .metric-card { background: #fff; border: 1px solid #e0e0da; border-radius: 10px; padding: 14px 16px; }
+  .metric-label { font-size: 11px; color: #6b6b66; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .metric-value { font-size: 24px; font-weight: 600; color: #1a1a18; }
+  .metric-sub { font-size: 11px; color: #6b6b66; margin-top: 3px; }
+
+  /* Tabs */
+  .tabs { display: flex; gap: 2px; border-bottom: 1.5px solid #e0e0da; margin-bottom: 24px; }
+  .tab-btn { font-size: 13px; padding: 9px 16px; border: none; background: none; cursor: pointer; color: #6b6b66; border-bottom: 2.5px solid transparent; margin-bottom: -1.5px; font-family: inherit; transition: color 0.12s; }
+  .tab-btn.active { color: #1a1a18; border-bottom-color: #534AB7; font-weight: 600; }
+  .tab-btn:hover:not(.active) { color: #1a1a18; }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* Section label */
+  .section-label { font-size: 11px; font-weight: 600; color: #6b6b66; text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 10px; margin-top: 8px; }
+
+  /* Phase rows */
+  .phase-row { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-bottom: 1px solid #f0f0ec; }
+  .phase-row:last-child { border-bottom: none; }
+  .phase-badge { font-size: 11px; font-weight: 600; padding: 2px 9px; border-radius: 6px; min-width: 52px; text-align: center; }
+  .badge-done { background: #d4edda; color: #1a5c2a; }
+  .badge-partial { background: #fff3cd; color: #7a5200; }
+  .badge-todo { background: #fde8e8; color: #8b1a1a; }
+  .badge-off { background: #ebebeb; color: #555; }
+  .phase-id { font-size: 12px; font-weight: 600; color: #6b6b66; min-width: 30px; }
+  .phase-name { font-size: 13px; font-weight: 600; color: #1a1a18; min-width: 165px; }
+  .phase-desc { font-size: 12px; color: #6b6b66; flex: 1; }
+  .bar-wrap { width: 100px; height: 6px; background: #e8e8e4; border-radius: 3px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 3px; }
+  .fill-done { background: #27a745; }
+  .fill-partial { background: #f0a500; }
+  .fill-todo { background: #e24b4a; }
+  .fill-off { background: #999; }
+  .phase-pct { font-size: 12px; font-weight: 600; color: #1a1a18; min-width: 34px; text-align: right; }
+
+  /* Table */
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  thead th { font-size: 11px; font-weight: 600; color: #6b6b66; text-align: left; padding: 7px 10px; border-bottom: 1px solid #e0e0da; text-transform: uppercase; letter-spacing: 0.04em; }
+  tbody td { padding: 8px 10px; border-bottom: 1px solid #f0f0ec; color: #1a1a18; vertical-align: middle; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover td { background: #f7f7f5; }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; vertical-align: 1px; }
+  .dot-green { background: #27a745; }
+  .dot-amber { background: #f0a500; }
+  .dot-red { background: #e24b4a; }
+
+  /* Risk cards */
+  .risk-card { background: #fff; border: 1px solid #e0e0da; border-radius: 10px; padding: 14px 16px; margin-bottom: 10px; }
+  .risk-header { display: flex; align-items: center; gap: 10px; margin-bottom: 7px; }
+  .sev-badge { font-size: 10px; font-weight: 700; padding: 2px 9px; border-radius: 6px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .sev-high { background: #fde8e8; color: #8b1a1a; }
+  .sev-med { background: #fff3cd; color: #7a5200; }
+  .sev-low { background: #d4edda; color: #1a5c2a; }
+  .risk-title { font-size: 13px; font-weight: 600; color: #1a1a18; }
+  .risk-body { font-size: 12px; color: #6b6b66; line-height: 1.6; }
+  .risk-action { font-size: 11px; color: #534AB7; margin-top: 6px; font-weight: 600; }
+
+  /* Steps */
+  .step-row { display: flex; gap: 14px; padding: 12px 0; border-bottom: 1px solid #f0f0ec; align-items: flex-start; }
+  .step-row:last-child { border-bottom: none; }
+  .step-num { font-size: 12px; font-weight: 700; width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px; }
+  .step-num-hot { background: #EEEDFE; color: #534AB7; }
+  .step-num-norm { background: #ebebeb; color: #666; }
+  .step-title { font-size: 13px; font-weight: 600; color: #1a1a18; margin-bottom: 3px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .step-detail { font-size: 12px; color: #6b6b66; line-height: 1.6; }
+  .step-tag { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 6px; }
+  .tag-quick { background: #d4edda; color: #1a5c2a; }
+  .tag-week { background: #fff3cd; color: #7a5200; }
+  .tag-long { background: #fde8e8; color: #8b1a1a; }
+
+  /* SWOT */
+  .sw-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .sw-card { background: #fff; border: 1px solid #e0e0da; border-radius: 10px; padding: 16px; }
+  .sw-head { font-size: 14px; font-weight: 700; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+  .sw-head-forces { color: #1a5c2a; }
+  .sw-head-weak { color: #8b1a1a; }
+  .sw-item { font-size: 12px; color: #6b6b66; padding: 4px 0; display: flex; gap: 7px; align-items: flex-start; line-height: 1.5; border-bottom: 1px solid #f7f7f5; }
+  .sw-item:last-child { border-bottom: none; }
+  .sw-icon { flex-shrink: 0; font-weight: 700; font-size: 13px; margin-top: 1px; }
+
+  /* Arch boxes */
+  .arch-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 18px; }
+  .arch-box { background: #f7f7f5; border: 1px solid #e0e0da; border-radius: 8px; padding: 12px 14px; font-size: 12px; color: #6b6b66; line-height: 1.7; }
+  .arch-box-title { font-size: 12px; font-weight: 700; color: #1a1a18; margin-bottom: 6px; }
+
+  /* Activation block */
+  .activation-block { background: #fde8e8; border: 1px solid #f5bcbc; border-radius: 10px; padding: 14px 16px; margin-top: 18px; }
+  .activation-block .risk-title { color: #8b1a1a; }
+  .activation-block .risk-body { color: #8b1a1a; }
+  .activation-block .risk-action { color: #534AB7; }
+
+  /* Print */
+  @media print {
+    .tab-btn { display: none; }
+    .tab-panel { display: block !important; page-break-inside: avoid; margin-bottom: 32px; }
+    .tab-panel::before { content: attr(data-title); display: block; font-size: 16px; font-weight: 700; margin-bottom: 12px; border-bottom: 2px solid #534AB7; padding-bottom: 6px; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="header">
+    <div>
+      <div class="header-title">Audit calpinage 2D/3D — SolarNext</div>
+      <div class="header-sub">
+        Dernier commit : <span class="commit-pill">9aad0f0 — P4.6c</span> &nbsp;·&nbsp; Mai 2026
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="big-pct">74%</div>
+      <div class="big-pct-sub">avancement global</div>
+    </div>
+  </div>
+
+  <div class="warn-banner">
+    ⚠ &nbsp;<span><strong>Action immédiate :</strong> <code>VITE_CALPINAGE_KONVA</code> non défini sur Vercel → Phase 4 (10 couches Konva, 7 kill switches) entièrement codée mais <strong>invisible en production</strong>. Corriger en 5 minutes dans le dashboard Vercel.</span>
+  </div>
+
+  <div class="metric-grid">
+    <div class="metric-card">
+      <div class="metric-label">Phases terminées</div>
+      <div class="metric-value">6 <span style="font-size:15px;color:#6b6b66;">/ 8</span></div>
+      <div class="metric-sub">P0, PA, P3, P4, P5 ✓</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Legacy JS</div>
+      <div class="metric-value">22 768</div>
+      <div class="metric-sub">lignes · P4.6c propre</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Couches Konva</div>
+      <div class="metric-value">10</div>
+      <div class="metric-sub">7 kill switches · 4 hit-tests</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Tests unitaires</div>
+      <div class="metric-value">21+</div>
+      <div class="metric-sub">P3 parity ±0.1° · P5 migration</div>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('overview')">Vue d'ensemble</button>
+    <button class="tab-btn" onclick="switchTab('konva')">Phase 4 · Konva</button>
+    <button class="tab-btn" onclick="switchTab('risks')">Risques</button>
+    <button class="tab-btn" onclick="switchTab('next')">Prochaines étapes</button>
+    <button class="tab-btn" onclick="switchTab('sw')">Forces / Faiblesses</button>
+  </div>
+
+  <!-- TAB 1 — VUE D'ENSEMBLE -->
+  <div id="tab-overview" class="tab-panel active" data-title="Vue d'ensemble — phases d'exécution">
+    <div class="section-label">Phases d'exécution</div>
+    <div id="phases-list"></div>
+  </div>
+
+  <!-- TAB 2 — KONVA -->
+  <div id="tab-konva" class="tab-panel" data-title="Phase 4 · Konva — couches et architecture">
+    <div class="section-label">Couches Konva (P4.0 → P4.6c)</div>
+    <table>
+      <thead>
+        <tr>
+          <th>Phase</th>
+          <th>Composant</th>
+          <th>Kill switch</th>
+          <th>Hit-test global</th>
+          <th>Statut</th>
+        </tr>
+      </thead>
+      <tbody id="konva-table-body"></tbody>
+    </table>
+
+    <div class="arch-grid">
+      <div class="arch-box">
+        <div class="arch-box-title">WorldGroup — image-space → écran</div>
+        <code>x=offsetX y=offsetY scaleX=s scaleY=-s</code><br>
+        Identique à <code>ctx.transform(s,0,0,-s,ox,oy)</code> legacy.<br>
+        Texte nodes : <code>scaleY(-1)</code> local requis.<br>
+        Handles screen-space hors WorldGroup.
+      </div>
+      <div class="arch-box">
+        <div class="arch-box-title">Stratégie kill switch</div>
+        Legacy <code>renderImpl</code> vérifie <code>_konvaLayers.has(key)</code> et skip le dessin canvas — évite le double rendu.<br>
+        Réversible à chaud via <code>window.__CALPINAGE_KONVA_LAYERS__</code>.<br>
+        Feature flag : <code>window.__CALPINAGE_KONVA__</code> > localStorage > VITE env.
+      </div>
+    </div>
+
+    <div class="activation-block" style="margin-top:18px;">
+      <div class="risk-header">
+        <span class="sev-badge sev-high">Bloquant</span>
+        <span class="risk-title">VITE_CALPINAGE_KONVA non activé en production</span>
+      </div>
+      <div class="risk-body">P4 est code-complete et stable. Aucun utilisateur n'en bénéficie car la variable d'env n'est pas définie sur Vercel.</div>
+      <div class="risk-action">→ Vercel dashboard → Project settings → Environment Variables → VITE_CALPINAGE_KONVA=true (Production + Preview) → Redeploy</div>
+    </div>
+  </div>
+
+  <!-- TAB 3 — RISQUES -->
+  <div id="tab-risks" class="tab-panel" data-title="Risques ouverts">
+    <div id="risks-list"></div>
+  </div>
+
+  <!-- TAB 4 — NEXT STEPS -->
+  <div id="tab-next" class="tab-panel" data-title="Prochaines étapes">
+    <div id="steps-list"></div>
+  </div>
+
+  <!-- TAB 5 — FORCES / FAIBLESSES -->
+  <div id="tab-sw" class="tab-panel" data-title="Forces et Faiblesses">
+    <div class="sw-grid">
+      <div class="sw-card">
+        <div class="sw-head sw-head-forces">✓ Forces (10)</div>
+        <div id="forces-list"></div>
+      </div>
+      <div class="sw-card">
+        <div class="sw-head sw-head-weak">✗ Faiblesses (8)</div>
+        <div id="weaknesses-list"></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const phases = [
+  { id:"P0",  name:"Fondations",           pct:100, status:"done",    desc:"Scale calibration · ground image · reload integrity hash (mapBlockForPanelsHash aligné legacy)" },
+  { id:"PA",  name:"Interfaces pures",     pct:100, status:"done",    desc:"HeightResolver · PanContext · PlacementRules · EngineCallbacks · WorldTransform · Dp2Boundary — zéro window.*" },
+  { id:"P1",  name:"Zustand store",        pct:60,  status:"partial", desc:"Snapshot read-only Phase2+3 ✓ — store.faces / vertices / undoStack / redoStack manquants" },
+  { id:"P2",  name:"pvPlacementEngine",    pct:0,   status:"todo",    desc:"ghostSlots · collisionCheck · blockBuilder · flatRoofEngine — NON DÉMARRÉ · 6-8 semaines · chemin critique" },
+  { id:"P3",  name:"roofGeometryEngine",   pct:100, status:"done",    desc:"faceSolver · heightInterpolator · normalCalc · ridgeSolver · tiltAzimuthCalc — parity tests ±0.1°" },
+  { id:"P4",  name:"Konva overlay",        pct:100, status:"off",     desc:"10 couches · 7 kill switches · 4 hit-tests — CODE-COMPLETE — commit 9aad0f0 — VITE_CALPINAGE_KONVA OFF sur Vercel" },
+  { id:"P5",  name:"Schéma V2",            pct:100, status:"done",    desc:"Migration 5 cas · backup V1 localStorage · 21 tests · commit d571855" },
+  { id:"P6",  name:"Suppression legacy",   pct:0,   status:"todo",    desc:"Différé : 3 mois après P4 stable en prod — bloqué sur P2 + P4 activée" },
+];
+
+const fillClass = { done:"fill-done", partial:"fill-partial", todo:"fill-todo", off:"fill-off" };
+const badgeClass = { done:"badge-done", partial:"badge-partial", todo:"badge-todo", off:"badge-off" };
+const badgeText = { done:"✓ Done", partial:"Partiel", todo:"À faire", off:"OFF prod" };
+
+const phasesList = document.getElementById("phases-list");
+phases.forEach(p => {
+  const row = document.createElement("div");
+  row.className = "phase-row";
+  row.innerHTML = `
+    <span class="phase-badge ${badgeClass[p.status]}">${badgeText[p.status]}</span>
+    <span class="phase-id">${p.id}</span>
+    <span class="phase-name">${p.name}</span>
+    <span class="phase-desc">${p.desc}</span>
+    <div class="bar-wrap"><div class="bar-fill ${fillClass[p.status]}" style="width:${p.pct}%"></div></div>
+    <span class="phase-pct">${p.pct}%</span>
+  `;
+  phasesList.appendChild(row);
+});
+
+const konvaLayers = [
+  { phase:"P4.0",  component:"KonvaContoursLayer",              killSwitch:"contours",              hitTest:"—",                                  commit:"" },
+  { phase:"P4.1",  component:"KonvaPansLayer",                  killSwitch:"pans",                  hitTest:"__CALPINAGE_KONVA_PAN_HIT__",         commit:"" },
+  { phase:"P4.2",  component:"KonvaObstaclesLayer",             killSwitch:"obstacles",             hitTest:"__CALPINAGE_KONVA_OBS_HIT__",         commit:"" },
+  { phase:"P4.3",  component:"KonvaObstaclesLayer (handles)",   killSwitch:"obstacle-handles",      hitTest:"—",                                  commit:"" },
+  { phase:"P4.4",  component:"KonvaPansLayer (handles)",        killSwitch:"pan-handles",           hitTest:"—",                                  commit:"" },
+  { phase:"P4.5a", component:"KonvaShadowVolumesLayer",         killSwitch:"shadow-volumes",        hitTest:"__CALPINAGE_KONVA_SV_HIT__",          commit:"" },
+  { phase:"P4.5b", component:"KonvaShadowVolumeHandlesLayer",   killSwitch:"shadow-volume-handles", hitTest:"—",                                  commit:"" },
+  { phase:"P4.6a", component:"KonvaPH3HandlesLayer",            killSwitch:"ph3-handles",           hitTest:"—",                                  commit:"" },
+  { phase:"P4.6b", component:"KonvaPVPanelsLayer (rendu)",      killSwitch:"pv-panels",             hitTest:"—",                                  commit:"" },
+  { phase:"P4.6c", component:"KonvaPVPanelsLayer (hit shapes)", killSwitch:"pv-panels",             hitTest:"__CALPINAGE_KONVA_PANEL_HIT__",       commit:"9aad0f0" },
+];
+
+const tb = document.getElementById("konva-table-body");
+konvaLayers.forEach(l => {
+  const tr = document.createElement("tr");
+  tr.innerHTML = `
+    <td><code>${l.phase}</code></td>
+    <td><code>${l.component}</code></td>
+    <td><code>${l.killSwitch}</code></td>
+    <td style="color:${l.hitTest==='—'?'#aaa':'inherit'}">${l.hitTest !== '—' ? `<code>${l.hitTest}</code>` : '—'}</td>
+    <td><span class="dot dot-green"></span>prod-prêt${l.commit ? ` · <code>${l.commit}</code>` : ''}</td>
+  `;
+  tb.appendChild(tr);
+});
+
+const risks = [
+  { sev:"high", title:"VITE_CALPINAGE_KONVA OFF en production",         body:"Phase 4 (10 couches, 7 kill switches, 4 hit-tests) entièrement fonctionnelle côté code mais désactivée pour tous les utilisateurs. Aucune valeur livrée aux clients.", action:"Action immédiate : Vercel → Env Vars → VITE_CALPINAGE_KONVA=true → Redeploy" },
+  { sev:"high", title:"Phase 2 (pvPlacementEngine) non démarrée",       body:"Le moteur de placement PV (ghostSlots, collisionCheck, blockBuilder, flatRoofEngine) reste 100 % dans le legacy JS non typé. Estimation : 6-8 semaines. C'est le plus grand bloc de travail restant et le chemin critique vers P6.", action:"Planifier P2 après validation P4 en prod. Commencer par ghostSlots (interface la plus propre)." },
+  { sev:"med",  title:"Fragilité CIFS — troncatures git",               body:"git hash-object -w via le mount CIFS tronque les fichiers > ~200 lignes. Pattern reproductible (3 occurrences sur P4.6c). Toute opération git plumbing directe via bash est risquée.", action:"Règle de travail : écrire via Python3 bash → git add → git commit. Jamais git hash-object via CIFS." },
+  { sev:"med",  title:"Legacy 22 768 lignes sans tests unitaires",       body:"calpinage.module.js n'a pas de tests unitaires. Toute régression introduite lors des étapes Konva (9 call-sites P4.6c) est invisible jusqu'au test manuel.", action:"Ajouter smoke tests Playwright pour les 3 études cibles : ROUXEL, sans panneaux, toiture plate." },
+  { sev:"low",  title:"VITE_CALPINAGE_CANONICAL_3D — statut Vercel non vérifié", body:"Confirmé dans .env.development (root), mais l'état de la variable sur Vercel prod/preview n'est pas vérifiable depuis le code. Le viewer 3D pourrait être OFF en prod.", action:"Vérifier dans Vercel dashboard → Environment Variables." },
+  { sev:"low",  title:"Zustand store P1 incomplet",                     body:"store.faces, store.vertices, store.undoStack/redoStack manquants. L'interface ne peut pas encore faire d'undo ou accéder aux données géométriques 3D directement.", action:"Compléter P1 en parallèle de P2. Faible risque — le store existant est read-only et stable." },
+];
+
+const risksList = document.getElementById("risks-list");
+risks.forEach(r => {
+  const div = document.createElement("div");
+  div.className = "risk-card";
+  div.innerHTML = `
+    <div class="risk-header">
+      <span class="sev-badge sev-${r.sev}">${r.sev==='high'?'⚠ Élevé':r.sev==='med'?'Moyen':'Faible'}</span>
+      <span class="risk-title">${r.title}</span>
+    </div>
+    <div class="risk-body">${r.body}</div>
+    <div class="risk-action">→ ${r.action}</div>
+  `;
+  risksList.appendChild(div);
+});
+
+const steps = [
+  { num:1, hot:true,  title:"Activer VITE_CALPINAGE_KONVA=true sur Vercel",   tag:"quick", tagLabel:"< 5 min",   detail:"Vercel dashboard → Project settings → Environment Variables → ajouter VITE_CALPINAGE_KONVA=true (Production + Preview) → Redeploy. Immédiatement visible pour tous les utilisateurs sans aucun changement de code." },
+  { num:2, hot:true,  title:"Vérifier VITE_CALPINAGE_CANONICAL_3D sur Vercel", tag:"quick", tagLabel:"< 5 min",   detail:"Confirmer que la variable est bien définie en prod. Vite lira .env.development localement mais Vercel a son propre store d'env vars." },
+  { num:3, hot:false, title:"Smoke tests Konva avec études réelles",           tag:"week",  tagLabel:"1-2 jours", detail:"Valider P4 en prod avec 3 études : ROUXEL (panneaux + shadow volumes), étude sans panneaux (contours/pans uniquement), toiture plate. Vérifier kill switches, hit-tests PV, handles PH3 et PV_LAYOUT." },
+  { num:4, hot:false, title:"Compléter Zustand store P1",                      tag:"week",  tagLabel:"2-3 jours", detail:"Ajouter store.faces, store.vertices (depuis roofGeometryEngine), undoStack/redoStack (array bounded, N=20). Prépare le terrain pour P2 et la suppression du store legacy." },
+  { num:5, hot:false, title:"Démarrer Phase 2 — pvPlacementEngine",            tag:"long",  tagLabel:"6-8 sem.",  detail:"Extraction du moteur de placement PV depuis le legacy. Ordre suggéré : interfaces ghostSlots → collisionCheck → blockBuilder → flatRoofEngine → PlacementEngineAdapter. Chemin critique vers la suppression legacy (P6)." },
+  { num:6, hot:false, title:"Ajouter smoke tests Playwright",                  tag:"week",  tagLabel:"3-5 jours", detail:"Couvrir les scénarios critiques : ajout panneau, déplacement volume ombrage, reload avec schéma V2, migration V1→V2. Protège contre les régressions lors du développement P2." },
+];
+
+const stepsList = document.getElementById("steps-list");
+const tagClass = { quick:"tag-quick", week:"tag-week", long:"tag-long" };
+steps.forEach(s => {
+  const div = document.createElement("div");
+  div.className = "step-row";
+  div.innerHTML = `
+    <div class="step-num ${s.hot?'step-num-hot':'step-num-norm'}">${s.num}</div>
+    <div style="flex:1">
+      <div class="step-title">
+        <span class="step-tag ${tagClass[s.tag]}">${s.tagLabel}</span>
+        ${s.title}
+      </div>
+      <div class="step-detail">${s.detail}</div>
+    </div>
+  `;
+  stepsList.appendChild(div);
+});
+
+const forces = [
+  "Architecture Strangler Fig propre — legacy intact, Konva wrap progressif, zéro régression possible",
+  "roofGeometryEngine P3 : pure TS, parity ±0.1°, testé indépendamment",
+  "Schéma V2 P5 : migration 5 cas, backup V1, 21 tests — zéro perte de données utilisateur",
+  "Kill switches granulaires : chaque couche activable/désactivable à chaud sans déploiement",
+  "Hit-tests Konva (4 globals) : routing événements souris découplé du canvas legacy",
+  "Interfaces Phase A : contrats TS purs, zéro window.* — testables indépendamment",
+  "useViewportSync : synchronisation pixel-perfect avec renderer legacy (offsetX/Y, scale, flip Y)",
+  "Feature flag triple fallback : window.__CALPINAGE_KONVA__ > localStorage > VITE env",
+  "CIFS write pattern établi et documenté : Python3 bash → git add → commit (sans troncature)",
+  "Commit 9aad0f0 : P4.6c complet avec 3 blobs vérifiés indépendamment (f9580121, f8a4bf1e, 1d6003d5)",
+];
+
+const weaknesses = [
+  "P2 (pvPlacementEngine) à 0 % : le plus grand bloc restant, 6-8 semaines, chemin critique",
+  "VITE_CALPINAGE_KONVA OFF en prod : tout P4 invisible aux utilisateurs finaux",
+  "Legacy JS 22 768 lignes sans couverture de tests automatisés",
+  "Zustand store P1 incomplet : faces/vertices/undoStack/redoStack manquants",
+  "Dépendance CIFS : fragilité structurelle git, pattern de contournement systématique requis",
+  "VITE_CALPINAGE_CANONICAL_3D non confirmé en production (viewer 3D potentiellement OFF)",
+  "P6 (suppression legacy) bloquée sur P2 + 3 mois de stabilité P4 — horizon > 1 an",
+  "Pas de smoke tests automatisés Playwright couvrant les scénarios calpinage réels",
+];
+
+const forcesList = document.getElementById("forces-list");
+forces.forEach(f => {
+  const div = document.createElement("div");
+  div.className = "sw-item";
+  div.innerHTML = `<span class="sw-icon" style="color:#27a745;">✓</span><span>${f}</span>`;
+  forcesList.appendChild(div);
+});
+
+const weaknessesList = document.getElementById("weaknesses-list");
+weaknesses.forEach(w => {
+  const div = document.createElement("div");
+  div.className = "sw-item";
+  div.innerHTML = `<span class="sw-icon" style="color:#e24b4a;">✗</span><span>${w}</span>`;
+  weaknessesList.appendChild(div);
+});
+
+function switchTab(name) {
+  document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+  document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
+  document.querySelector(`.tab-btn[onclick="switchTab('${name}')"]`).classList.add("active");
+  document.getElementById("tab-" + name).classList.add("active");
+}
+</script>
+</body>
+</html>

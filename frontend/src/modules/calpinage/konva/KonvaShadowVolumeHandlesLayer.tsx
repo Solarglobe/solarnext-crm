@@ -38,6 +38,7 @@
 
 import { useEffect, useState } from "react";
 import { Group, Circle, Line, Shape } from "react-konva";
+import { resolveImgH } from "./resolveImgH";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -116,7 +117,7 @@ function readHandleSnap(): HandleSnap | null {
 
   const scale   = (w["CALPINAGE_VIEWPORT_SCALE"] as number | undefined) ?? 1;
   const offset  = (w["CALPINAGE_VIEWPORT_OFFSET"] as { x: number; y: number } | undefined) ?? { x: 0, y: 0 };
-  const imgH    = (st as { roof?: { image?: { height?: number } } }).roof?.image?.height ?? 0;
+  const imgH    = resolveImgH();
   const mpp     = st.roof?.scale?.metersPerPixel ?? 1;
   const rotateHovered = (w["CALPINAGE_SV_ROTATE_HOVERED"] as boolean | undefined) ?? false;
 
