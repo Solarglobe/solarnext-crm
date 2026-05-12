@@ -21384,6 +21384,14 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                   ctx.restore();
                   ctx.restore();
                 }
+              } else if (typeof window !== "undefined") {
+                /* Pas de focusBlock — effacer les poignées Konva si elles traînent (P4.6d-fix).
+                 * Bug P4.6c : CALPINAGE_PH3_HANDLES n'était pas mis à null quand le if(focusBlock)
+                 * était skippé → les poignées restaient affichées après désélection du bloc. */
+                if (window.CALPINAGE_PH3_HANDLES !== null && window.CALPINAGE_PH3_HANDLES !== undefined) {
+                  window.CALPINAGE_PH3_HANDLES = null;
+                  try { window.dispatchEvent(new CustomEvent("calpinage:ph3-handles-changed")); } catch (_e) {}
+                }
               }
               /* Message ajout de bloc : visible lorsqu'aucun focus */
               var pvHintEl = container.querySelector("#pv-add-block-hint");
