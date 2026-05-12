@@ -2663,6 +2663,13 @@ function SolarScene3DViewer({
         }
         onCreated={({ gl }) => {
           applyCanonicalViewerGlOutput(gl);
+          // Fix R3F canvas sizing : quand le container était display:none au montage,
+          // le ResizeObserver reçoit 0×0 et le canvas reste à 300×150 (défaut navigateur).
+          // Un requestAnimationFrame laisse le browser calculer le layout (reflow) avant
+          // que R3F mesure les dimensions réelles du container via son ResizeObserver.
+          requestAnimationFrame(() => {
+            window.dispatchEvent(new Event("resize"));
+          });
         }}
         onPointerMissed={() => {
           if (zDragGestureActiveRef.current) return;
