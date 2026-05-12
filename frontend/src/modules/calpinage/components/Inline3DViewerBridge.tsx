@@ -114,7 +114,31 @@ function assertRoofVertexEditTarget(
 
 function getAllPanelsFromRuntime(): unknown[] {
   try {
-    return getCalpinageRuntime()?.getPlacementEngine()?.getAllPanels() ?? [];
+    const eng = getCalpinageRuntime()?.getPlacementEngine();
+    if (!eng) return [];
+    const allPanels = (eng.getAllPanels() ?? []) as unknown[];
+    // Exclure les panneaux du bloc actif s'il n'est pas figé.
+    // Un bloc actif non-frozen a des coordonnées temporaires (pose en cours) qui
+    // projettent le panneau hors-image → plan incliné → panneau fantôme flottant.
+    const engRaw = eng as Record<string, unknown>;
+    const activeBlock =
+      typeof engRaw["getActiveBlock"] === "function"
+        ? (engRaw["getActiveBlock"]() as { id?: string } | null)
+        : null;
+    if (!activeBlock?.id) return allPanels;
+    const frozenBlocks =
+      typeof engRaw["getFrozenBlocks"] === "function"
+        ? (engRaw["getFrozenBlocks"]() as Array<{ id?: string }>)
+        : [];
+    const activeInFrozen = frozenBlocks.some((b) => b?.id === activeBlock.id);
+    if (activeInFrozen) return allPanels; // bloc actif = sélection d'un figé → pas de ghost
+    // Bloc actif non figé → on l'exclut du rendu 3D
+    const prefix = activeBlock.id + "_";
+    return allPanels.filter((p) => {
+      if (!p || typeof p !== "object") return true;
+      const pid = (p as { id?: unknown }).id;
+      return typeof pid !== "string" || !pid.startsWith(prefix);
+    });
   } catch {
     /* ignore */
   }
