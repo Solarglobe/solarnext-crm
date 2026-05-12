@@ -397,26 +397,20 @@ export function mapPanelsToPvPlacementInputs(
     let z: number;
     const zFromPatch = patch ? zOnPlaneEquationAtFixedXY(patch.equation, xy.x, xy.y) : null;
     if (zFromPatch !== null && Number.isFinite(zFromPatch)) {
-      z = zFromPatch;
+      // Vérification : si le centroïde est hors emprise du patch, l'extrapolation peut donner un Z aberrant
+      // (surtout sur les plans inclinés où n.z est faible → amplification de l'erreur).
+      const patchZs = patch!.cornersWorld.map((corner) => corner.z);
+      const minPatchZ = Math.min(...patchZs);
+      const maxPatchZ = Math.max(...patchZs);
+      const PATCH_Z_TOLERANCE_M = 3;
+      if (zFromPatch < minPatchZ - PATCH_Z_TOLERANCE_M || zFromPatch > maxPatchZ + PATCH_Z_TOLERANCE_M) {
+        z = (minPatchZ + maxPatchZ) / 2;
+        diag.push(
+          `${panelLabel}: Z extrapolé hors plage patch (${zFromPatch.toFixed(2)}m vs [${minPatchZ.toFixed(2)}, ${maxPatchZ.toFixed(2)}]m) → Z moyen patch`,
+        );
+      } else {
+        z = zFromPatch;
+      }
     } else if (typeof extras?.resolveZWorldAtImageWithPanId === "function") {
       const rawZ = extras.resolveZWorldAtImageWithPanId({ x: c.x, y: c.y }, panIdForZ);
-      if (typeof rawZ === "number" && Number.isFinite(rawZ)) {
-        z = rawZ;
-      } else {
-        diag.push(`${panelLabel}: Z centre — valeur non finie depuis resolveZWorldAtImageWithPanId (0 non métier)`);
-        z = 0;
-      }
-    } else if (typeof getHeightAtImagePoint === "function") {
-      const rawZ = getHeightAtImagePoint({ x: c.x, y: c.y });
-      if (typeof rawZ === "number" && Number.isFinite(rawZ)) {
-        z = rawZ;
-      } else {
-        diag.push(`${panelLabel}: Z centre — getHeightAtImagePoint non fini (0 non métier)`);
-        z = 0;
-      }
-    } else {
-      diag.push(`${panelLabel}: Z centre — aucun fournisseur hauteur (0 legacy explicite)`);
-      z = 0;
-    }
-    const rot =
-      inferPanelRotationDegInPatchPl
+ 
