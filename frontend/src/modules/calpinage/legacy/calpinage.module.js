@@ -19898,9 +19898,8 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               }
             }
             /* 4c-2. Obstacles polygones (A-2) ??? contour + remplissage semi-transparent, label si dispo */
-            /* P4.2 kill switch : si KonvaObstaclesLayer actif, les obstacles sont dessinés par Konva */
-            if (!_konvaLayers || !_konvaLayers.has("obstacles")) {
-            var obstaclesList = CALPINAGE_STATE.obstacles || [];
+            /* obstacleSelectedIndex calculé ICI (avant le kill switch Konva) afin d'être
+             * disponible pour drawObstacles (handles) même quand Konva prend en charge les corps. */
             var obstacleSelectedIndexRaw = drawState.activeTool === "select" ? drawState.selectedObstacleIndex : -1;
             var obstacleSelectedIndex =
               obstacleSelectedIndexRaw != null &&
@@ -19909,6 +19908,9 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               obstacleSelectedIndexRaw < CALPINAGE_STATE.obstacles.length
                 ? obstacleSelectedIndexRaw
                 : -1;
+            /* P4.2 kill switch : si KonvaObstaclesLayer actif, les obstacles sont dessinés par Konva */
+            if (!_konvaLayers || !_konvaLayers.has("obstacles")) {
+            var obstaclesList = CALPINAGE_STATE.obstacles || [];
             for (var oi = 0; oi < obstaclesList.length; oi++) {
               var o = obstaclesList[oi];
               if (!o || !o.points || !Array.isArray(o.points) || o.points.length < 3) continue;
