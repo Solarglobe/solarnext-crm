@@ -1525,7 +1525,7 @@ function SolarScene3DViewer({
   cameraViewMode: cameraViewModeControlled,
   onCameraViewModeChange,
   defaultCameraViewMode,
-  showCameraViewModeToggle,
+  showCameraViewModeToggle: _showCameraViewModeToggle,
   premiumViewMode: premiumViewModeControlled,
   onPremiumViewModeChange,
   geometryValidationReport = null,
@@ -1556,16 +1556,15 @@ function SolarScene3DViewer({
   }, [scene]);
 
   /**
-   * Mode caméra initial : PLAN_2D quand une image satellite est fournie (vue zénithale, parallaxe ≈ 0 →
-   * la maison 3D s'aligne parfaitement sur le fond plan). Sinon SCENE_3D perspective orbitale.
-   * Le prop `defaultCameraViewMode` prime toujours sur cette heuristique.
+   * Mode caméra initial : toujours SCENE_3D (perspective orbitale libre).
+   * La vue de départ est quasiment zénithale (VIEWER_DEFAULT_CAMERA_OFFSET ≈ top-down)
+   * pour une transition imperceptible depuis la 2D Konva.
+   * Le prop `defaultCameraViewMode` prime sur ce défaut si fourni explicitement.
    */
   const effectiveDefaultViewMode: CameraViewMode =
-    defaultCameraViewMode ?? (groundImage ? "PLAN_2D" : DEFAULT_CAMERA_VIEW_MODE);
+    defaultCameraViewMode ?? DEFAULT_CAMERA_VIEW_MODE;
   const [internalViewMode, setInternalViewMode] = useState<CameraViewMode>(effectiveDefaultViewMode);
   const cameraViewMode = cameraViewModeControlled ?? internalViewMode;
-  /** Toggle affiché automatiquement quand l'image satellite est présente (sauf override explicite). */
-  const effectiveShowCameraViewModeToggle = showCameraViewModeToggle ?? !!groundImage;
   const setCameraViewMode = useCallback(
     (m: CameraViewMode) => {
       onCameraViewModeChange?.(m);
@@ -2580,59 +2579,6 @@ function SolarScene3DViewer({
             setGlCursor("");
           }}
         />
-      )}
-      {effectiveShowCameraViewModeToggle && (
-        <div
-          role="toolbar"
-          aria-label="Mode d’affichage"
-          style={{
-            position: "absolute",
-            top: 8,
-            left: 8,
-            zIndex: 5,
-            display: "flex",
-            gap: 6,
-            background: "rgba(15,18,24,0.82)",
-            borderRadius: 6,
-            padding: 4,
-            border: "1px solid rgba(255,255,255,0.12)",
-          }}
-        >
-          <button
-            type="button"
-            data-testid="calpinage-viewer-mode-plan"
-            aria-pressed={cameraViewMode === "PLAN_2D"}
-            onClick={() => setCameraViewMode("PLAN_2D")}
-            style={{
-              fontSize: 12,
-              padding: "6px 10px",
-              borderRadius: 4,
-              border: "none",
-              cursor: "pointer",
-              background: cameraViewMode === "PLAN_2D" ? "rgba(59,130,246,0.35)" : "transparent",
-              color: "rgba(248,250,252,0.95)",
-            }}
-          >
-            Plan
-          </button>
-          <button
-            type="button"
-            data-testid="calpinage-viewer-mode-3d"
-            aria-pressed={cameraViewMode === "SCENE_3D"}
-            onClick={() => setCameraViewMode("SCENE_3D")}
-            style={{
-              fontSize: 12,
-              padding: "6px 10px",
-              borderRadius: 4,
-              border: "none",
-              cursor: "pointer",
-              background: cameraViewMode === "SCENE_3D" ? "rgba(59,130,246,0.35)" : "transparent",
-              color: "rgba(248,250,252,0.95)",
-            }}
-          >
-            Vue 3D
-          </button>
-        </div>
       )}
       {showPremiumViewModeToolbar && (
         <div

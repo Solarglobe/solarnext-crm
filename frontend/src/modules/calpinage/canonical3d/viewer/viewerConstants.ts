@@ -26,27 +26,33 @@ export const VIEWER_MAX_DISTANCE_RADIUS_RATIO = 22;
 
 /**
  * Direction de la caméra initiale (monde Z-up ENU) — normalisée dans le calcul.
- * Élévation ~44° au-dessus de l'horizon : vue ¾ aérienne, lisible pour une toiture.
+ * Quasiment zénithale (z >> x,y) avec léger biais sud (y < 0) pour garantir
+ * camera_right = Est dès le premier frame (même convention que computePlanOrthographicFraming).
+ * Donne une vue « dessus » à l'entrée en 3D, cohérente avec la 2D Konva.
  */
-export const VIEWER_DEFAULT_CAMERA_OFFSET = { x: 0.55, y: -0.72, z: 0.88 } as const;
+export const VIEWER_DEFAULT_CAMERA_OFFSET = { x: 0, y: -0.05, z: 1 } as const;
 
 export const VIEWER_ORBIT_DAMPING = true;
 export const VIEWER_ORBIT_DAMPING_FACTOR = 0.075;
-/** Évite le pôle singulier et un flip complet sous le plan XY. */
+/**
+ * Angles polaires SCENE_3D :
+ * - min = 0.12 rad (~7°) : évite la singularité zénithale.
+ * - max = π/2 − 0.04 (~88°) : bloque avant l'horizon — empêche de passer sous le bâtiment.
+ */
 export const VIEWER_ORBIT_MIN_POLAR_ANGLE = 0.12;
-export const VIEWER_ORBIT_MAX_POLAR_ANGLE = Math.PI / 2 + 0.38;
+export const VIEWER_ORBIT_MAX_POLAR_ANGLE = Math.PI / 2 - 0.04;
 
 /** Mode plan (ortho dessus) : orbite limitée près du zénith pour garder une lecture « calpinage ». */
 export const VIEWER_PLAN_ORBIT_MIN_POLAR = 0.06;
 export const VIEWER_PLAN_ORBIT_MAX_POLAR = 0.42;
 
 /**
- * Contrainte azimutale SCENE_3D — empêche la caméra de passer dans l'hémisphère nord
- * (theta > π/2 ou < -π/2) où camera.up=(0,0,1) provoque camera_right = WEST = miroir horizontal.
- * Plage (-π/2, π/2) : caméra toujours au sud de la cible → camera_right = Est ✓.
+ * Azimut SCENE_3D : rotation 360° libre (pas de contrainte).
+ * Lorsque la caméra passe au nord de la cible, camera_right = Ouest (comportement 3D standard :
+ * l'utilisateur voit la scène depuis le côté opposé). Conservé pour référence éventuelle.
  */
-export const VIEWER_ORBIT_MIN_AZIMUTH = -Math.PI / 2;
-export const VIEWER_ORBIT_MAX_AZIMUTH = Math.PI / 2;
+export const VIEWER_ORBIT_MIN_AZIMUTH = -Infinity;
+export const VIEWER_ORBIT_MAX_AZIMUTH = Infinity;
 
 /** Lumières neutres (physiquement modestes — pas de look produit). */
 export const VIEWER_AMBIENT_INTENSITY = 0.36;
