@@ -475,6 +475,15 @@ export function buildSolarScene3DFromCalpinageRuntime(
       // Aligne le Z de repli panneaux sur l'origine Z du modèle toiture.
       // Sans ça : panneaux à Z=0 → après zSceneAdjustM = -worldZOriginShiftM → Z négatif (sous-sol).
       defaultZFallbackM: roofRes.worldZOriginShiftM,
+      // Correctif double-shift (bug "panneaux trop bas") :
+      // Les patches sont dans l'espace normalisé (décalés de -worldZOriginShiftM).
+      // zFromPatch retourne donc Z dans [0, Δh]m au lieu de [h_min, h_max]m.
+      // Sans ce décalage, shiftCanonicalPanelsZWorld(-worldZOriginShiftM) décale à nouveau
+      // → Z trop négatif → projectPointOntoPlane déplace (x,y) le long de la normale → panneau
+      // positionné trop bas sur la pente.
+      // Fix : on ajoute worldZOriginShiftM ici pour revenir en espace absolu ; le shift suivant
+      // re-normalise correctement → sd ≈ 0 sur le plan du patch → pas de déplacement (x,y).
+      zFromPatchAbsoluteOffsetM: roofRes.worldZOriginShiftM,
     });
     const mergedScene = mergePlacedPanelsIntoCanonicalScene3DInput(
       validation.scene,

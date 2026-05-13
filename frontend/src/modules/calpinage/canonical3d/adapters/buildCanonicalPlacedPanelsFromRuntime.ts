@@ -59,6 +59,11 @@ export interface BuildCanonicalPlacedPanelsFromRuntimeOptions {
   readonly defaultZFallbackM?: number;
   /** Si false, n’utilise pas resolveHeightAtXY (Z = getHeightAtImagePoint ou 0). @default true */
   readonly useHeightResolverForCenterZ?: boolean;
+  /**
+   * Décalage Z à ajouter à `zFromPatch` pour corriger le double-shift.
+   * Doit être égal à `worldZOriginShiftM` du modèle toiture. @see MapPanelsToPvPlacementExtras.zFromPatchAbsoluteOffsetM
+   */
+  readonly zFromPatchAbsoluteOffsetM?: number;
 }
 
 export interface BuildCanonicalPlacedPanelsFromRuntimeInput {
@@ -233,6 +238,11 @@ export function buildCanonicalPlacedPanelsFromRuntime(
     input.heightResolverContext ??
     (useResolver ? buildRuntimeContext(heightState) : null);
 
+  const zFromPatchAbsoluteOffsetM = opt.zFromPatchAbsoluteOffsetM;
+  const zPatchOffsetEntry =
+    typeof zFromPatchAbsoluteOffsetM === "number" && zFromPatchAbsoluteOffsetM !== 0
+      ? ({ zFromPatchAbsoluteOffsetM } as const)
+      : {};
   const extras: MapPanelsToPvPlacementExtras | undefined =
     useResolver && resolverCtx
       ? {
@@ -245,8 +255,11 @@ export function buildCanonicalPlacedPanelsFromRuntime(
             // (ex. 47m ou -320m au lieu de 4–7m pour l'étude Rouxel).
             return sanePanHeightM(r.heightM, input.state, panId ?? null, defaultZFallbackM);
           },
+          ...zPatchOffsetEntry,
         }
-      : undefined;
+      : Object.keys(zPatchOffsetEntry).length > 0
+        ? zPatchOffsetEntry
+        : undefined;
 
   const { inputs, diagnostics: mapDiag } = mapPanelsToPvPlacementInputs(
     panelInputs,

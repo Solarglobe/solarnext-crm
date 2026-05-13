@@ -256,6 +256,13 @@ export function loadPanelsFromCalpinageState(args: {
    * `zSceneAdjustM = -worldZOriginShiftM` place les panneaux au niveau du toit et non en sous-sol.
    */
   readonly defaultZFallbackM?: number;
+  /**
+   * Décalage Z (m) à ajouter à `zFromPatch` pour corriger le double-shift.
+   * Les patches fournis sont dans l’espace normalisé (décalés de -worldZOriginShiftM).
+   * Sans ce décalage, `shiftCanonicalPanelsZWorld` décale à nouveau → Z trop bas → déplacement (x,y).
+   * Doit être égal à `roofRes.worldZOriginShiftM`.
+   */
+  readonly zFromPatchAbsoluteOffsetM?: number;
 }): { readonly panels: CanonicalPlacedPanel3D[]; readonly notes: string[] } {
   const notes: string[] = [];
   if (!args.state || typeof args.state !== "object") {
@@ -273,6 +280,14 @@ export function loadPanelsFromCalpinageState(args: {
   }
   const patches = args.roofPlanePatches;
   notes.push("PANELS_USED_OFFICIAL_ROOF_PLANE_PATCHES");
+  const panelOpts = {
+    ...(typeof args.defaultZFallbackM === "number" && Number.isFinite(args.defaultZFallbackM)
+      ? { defaultZFallbackM: args.defaultZFallbackM }
+      : {}),
+    ...(typeof args.zFromPatchAbsoluteOffsetM === "number" && Number.isFinite(args.zFromPatchAbsoluteOffsetM)
+      ? { zFromPatchAbsoluteOffsetM: args.zFromPatchAbsoluteOffsetM }
+      : {}),
+  };
   const placRes = prepareCanonicalPlacedPanelsFromCalpinageState({
     roofPlanePatches: patches,
     metersPerPixel: args.metersPerPixel,
@@ -280,9 +295,7 @@ export function loadPanelsFromCalpinageState(args: {
     state: args.state,
     placementEngine: args.placementEngine,
     getAllPanels: args.getAllPanels,
-    ...(typeof args.defaultZFallbackM === "number" && Number.isFinite(args.defaultZFallbackM)
-      ? { options: { defaultZFallbackM: args.defaultZFallbackM } }
-      : {}),
+    ...(Object.keys(panelOpts).length > 0 ? { options: panelOpts } : {}),
   });
   notes.push(...placRes.diagnostics);
   if (!placRes.ok && placRes.placementInputs.length === 0) {

@@ -389,6 +389,20 @@ export interface MapPanelsToPvPlacementExtras {
     pt: { x: number; y: number },
     panId: string | null,
   ) => number;
+  /**
+   * Décalage Z (m) à ajouter à `zFromPatch` pour convertir l'espace normalisé (shifted par
+   * `worldZOriginShiftM` dans `buildRoofModel3DFromLegacyGeometry`) vers l'espace absolu.
+   *
+   * Problème sans ce décalage : `zFromPatch` est déjà dans l'espace shifted [0, Δh]m.
+   * Quand `shiftCanonicalPanelsZWorld(-worldZOriginShiftM)` s'applique ensuite, les panneaux
+   * se retrouvent à Z négatif → `projectPointOntoPlane` déplace aussi (x,y) → "panneaux trop bas".
+   *
+   * Fix : stocker Z absolu ici (= zFromPatch + worldZOriginShiftM) ; le shift suivant ramène
+   * correctement à l'espace shifted → sd ≈ 0 sur le plan du patch → pas de déplacement (x,y).
+   *
+   * Doit être égal à `roofRes.worldZOriginShiftM` passé depuis `buildSolarScene3DFromCalpinageRuntimeCore`.
+   */
+  readonly zFromPatchAbsoluteOffsetM?: number;
 }
 
 /**
@@ -440,6 +454,10 @@ export function mapPanelsToPvPlacementInputs(
     const panIdForZ = p.panId != null ? String(p.panId) : null;
     let z: number;
     const zFromPatch = patch ? zOnPlaneEquationAtFixedXY(patch.equation, xy.x, xy.y) : null;
+    // Décalage correctif : les patches sont déjà dans l'espace normalisé (worldZOriginShiftM soustrait).
+    // On restitue l'espace absolu ici pour que shiftCanonicalPanelsZWorld(-worldZOriginShiftM) place
+    // le panneau correctement sur le plan (sd ≈ 0 → pas de déplacement (x,y) par projectPointOntoPlane).
+    const zPatchOffset = extras?.zFromPatchAbsoluteOffsetM ?? 0;
     if (zFromPatch !== null && Number.isFinite(zFromPatch)) {
       // Vérification : si le centroïde est hors emprise du patch, l'extrapolation peut donner un Z aberrant
       // (surtout sur les plans inclinés où n.z est faible → amplification de l'erreur).
@@ -448,12 +466,12 @@ export function mapPanelsToPvPlacementInputs(
       const maxPatchZ = Math.max(...patchZs);
       const PATCH_Z_TOLERANCE_M = 3;
       if (zFromPatch < minPatchZ - PATCH_Z_TOLERANCE_M || zFromPatch > maxPatchZ + PATCH_Z_TOLERANCE_M) {
-        z = (minPatchZ + maxPatchZ) / 2;
+        z = (minPatchZ + maxPatchZ) / 2 + zPatchOffset;
         diag.push(
           `${panelLabel}: Z extrapolé hors plage patch (${zFromPatch.toFixed(2)}m vs [${minPatchZ.toFixed(2)}, ${maxPatchZ.toFixed(2)}]m) → Z moyen patch`,
         );
       } else {
-        z = zFromPatch;
+        z = zFromPatch + zPatchOffset;
       }
     } else if (typeof extras?.resolveZWorldAtImageWithPanId === "function") {
       const rawZ = extras.resolveZWorldAtImageWithPanId({ x: c.x, y: c.y }, panIdForZ);
