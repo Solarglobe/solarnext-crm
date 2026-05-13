@@ -28,6 +28,7 @@ import {
   slimUiForParityDebug,
 } from "./calpinage/shadingParity.service.js";
 import { computeWeightedShadingCombinedPct } from "./shading/weightedShadingKpi.js";
+import { auditMultiPanShadingMismatch } from "./shading/shadingCommercialAudit.service.js";
 import { resolveConsumptionCsv } from "./consumptionCsvResolver.service.js";
 import { extractPvInverterFromCalpinagePayload } from "./pv/inverterFinanceContext.js";
 import { resolvePvInverterEngineFields } from "./pv/resolveInverterFromDb.service.js";
@@ -315,7 +316,7 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading
     lon,
     geometry,
     storedNearLossPct,
-    options: { includePerPanelBreakdown: true },
+    options: { includePerPanelBreakdown: true, strictCommercialShading: true },
   });
   const hasGps =
     lat != null &&
@@ -363,6 +364,45 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading
       /** Miroir obligatoire de la vérité officielle (combined.totalLossPct) — évite divergences lecteurs legacy. */
       totalLossPct: weightedCombinedKpi,
     };
+  }
+
+  const shadingCommercialAudit = {
+    blocking_warnings: [],
+    non_blocking_warnings: [],
+    flags: {},
+  };
+  if (shadingResult.farHorizonStatus === "FAR_UNAVAILABLE_ERROR" || shadingResult.farShadingUnavailable === true) {
+    shadingCommercialAudit.non_blocking_warnings.push("FAR_SHADING_UNAVAILABLE");
+    shadingCommercialAudit.blocking_warnings.push("FAR_SHADING_UNAVAILABLE_BLOCK_PDF");
+    shadingCommercialAudit.flags.farHorizonUnavailable = true;
+  }
+  for (const w of shadingResult.geometryCommercialWarnings || []) {
+    if (w && !shadingCommercialAudit.non_blocking_warnings.includes(w)) {
+      shadingCommercialAudit.non_blocking_warnings.push(w);
+    }
+  }
+  if ((shadingResult.geometryCommercialWarnings || []).length > 0) {
+    if (!shadingCommercialAudit.blocking_warnings.includes("SHADING_GEOMETRY_BLOCK_PDF")) {
+      shadingCommercialAudit.blocking_warnings.push("SHADING_GEOMETRY_BLOCK_PDF");
+    }
+    shadingCommercialAudit.flags.geometryWarnings = [
+      ...new Set(shadingResult.geometryCommercialWarnings.filter(Boolean)),
+    ];
+  }
+  const panAudit = auditMultiPanShadingMismatch(
+    roofPansForKpi,
+    shadingResult.perPanelBreakdown,
+    weightedCombinedKpi
+  );
+  if (panAudit.status === "WARN" || panAudit.status === "BLOCK") {
+    if (!shadingCommercialAudit.non_blocking_warnings.includes("SHADING_PAN_MISMATCH")) {
+      shadingCommercialAudit.non_blocking_warnings.push("SHADING_PAN_MISMATCH");
+    }
+    shadingCommercialAudit.flags.shadingPanMismatch = true;
+    shadingCommercialAudit.flags.shadingPanMismatchAbsDiff = panAudit.absDiff ?? null;
+  }
+  if (panAudit.status === "BLOCK") {
+    shadingCommercialAudit.blocking_warnings.push("SHADING_PAN_MISMATCH_BLOCK_PDF");
   }
 
   const officialShading = buildOfficialShadingFromComputeResult(shadingResult, hasGps, hasPanels);
@@ -929,6 +969,8 @@ export async function buildSolarNextPayload({ studyId, versionId, orgId, shading
     panel_input,
     battery_input,
     virtual_battery_input,
+    /** Audit commercial ombrage (PDF / calculation_confidence) — non consommé par le moteur PV. */
+    shading_commercial_audit: shadingCommercialAudit,
   };
 
   if (isUseOfficialShadingEnabled()) {

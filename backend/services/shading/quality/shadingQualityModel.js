@@ -15,12 +15,14 @@ export function computeShadingQuality(params) {
   const {
     nearLossPct = 0,
     farLossPct = 0,
+    farUnavailable = false,
     resolutionMeters = 30,
     coverageRatio = 1,
   } = params;
 
   const near = Math.max(0, Number(nearLossPct) || 0);
-  const far = Math.max(0, Number(farLossPct) || 0);
+  const farUnknown = farUnavailable === true || farLossPct === null || farLossPct === "";
+  const far = farUnknown ? null : Math.max(0, Number(farLossPct) || 0);
   const resolution_m = Math.max(0, Number(resolutionMeters) || 30);
   const coverage = Math.max(0, Math.min(1, Number(coverageRatio) || 1));
 
@@ -34,7 +36,8 @@ export function computeShadingQuality(params) {
 
   // B) Pertes far (poids 30%)
   let farPenalty = 0;
-  if (far <= 1) farPenalty = 0;
+  if (farUnknown) farPenalty = 22;
+  else if (far <= 1) farPenalty = 0;
   else if (far <= 3) farPenalty = 4;
   else if (far <= 6) farPenalty = 10;
   else if (far <= 10) farPenalty = 18;
@@ -69,7 +72,7 @@ export function computeShadingQuality(params) {
     grade,
     inputs: {
       near,
-      far,
+      far: far ?? null,
       resolution_m,
       coveragePct: coverage,
     },

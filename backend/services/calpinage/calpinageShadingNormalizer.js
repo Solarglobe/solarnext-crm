@@ -97,7 +97,11 @@ function normalizeFar(far, meta = {}) {
   }
   const dc = far.dataCoverage || {};
   const srcForKind = far.source ?? dc.provider ?? null;
-  const unavailableFar = far.source === "UNAVAILABLE_NO_GPS" || srcForKind === "UNAVAILABLE_NO_GPS";
+  const unavailableFar =
+    far.source === "UNAVAILABLE_NO_GPS" ||
+    srcForKind === "UNAVAILABLE_NO_GPS" ||
+    far.source === "FAR_UNAVAILABLE_ERROR" ||
+    srcForKind === "FAR_UNAVAILABLE_ERROR";
   const totalLossPct =
     unavailableFar && (far.totalLossPct == null || far.totalLossPct === "")
       ? null
@@ -168,7 +172,10 @@ export function normalizeCalpinageShading(rawShading, meta = {}) {
         grade: rawShading.shadingQuality.grade ?? "D",
         inputs: {
           near: Number(rawShading.shadingQuality.inputs?.near) ?? 0,
-          far: Number(rawShading.shadingQuality.inputs?.far) ?? 0,
+          far:
+            rawShading.shadingQuality.inputs?.far == null || rawShading.shadingQuality.inputs?.far === ""
+              ? null
+              : Number(rawShading.shadingQuality.inputs.far),
           resolution_m: Number(rawShading.shadingQuality.inputs?.resolution_m) ?? 0,
           coveragePct: Number(rawShading.shadingQuality.inputs?.coveragePct) ?? 0,
         },

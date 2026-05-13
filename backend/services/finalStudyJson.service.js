@@ -11,6 +11,15 @@ function safeNum(v, fallback) {
   return fallback != null ? fallback : 0;
 }
 
+/** Ombrage : null = inconnu (ne pas sérialiser en 0 %). */
+function shadingOptNum(v) {
+  if (v == null || v === "") return null;
+  if (typeof v === "number" && Number.isFinite(v)) return Math.max(0, Math.min(100, v));
+  const n = Number(String(v).replace(",", "."));
+  if (!Number.isFinite(n)) return null;
+  return Math.max(0, Math.min(100, n));
+}
+
 /**
  * Dérive le bloc "geometry" (schéma FINAL_JSON V1) depuis geometry_json.
  * @param {object} geometryJson - geometry_json (buildGeometryForExport)
@@ -29,9 +38,9 @@ export function deriveGeometryFromGeometryJson(geometryJson) {
     panelCount: Math.max(0, Math.floor(safeNum(p.panelCount, 0))),
     surface: safeNum(p.surface, p.surfaceM2 ?? 0),
     geometryRef: p.geometryRef ?? p.id,
-    shadingNearPct: safeNum(p.shadingNearPct, 0),
-    shadingFarPct: safeNum(p.shadingFarPct, 0),
-    shadingCombinedPct: safeNum(p.shadingCombinedPct, 0),
+    shadingNearPct: shadingOptNum(p.shadingNearPct ?? p.shading_near_pct),
+    shadingFarPct: shadingOptNum(p.shadingFarPct ?? p.shading_far_pct),
+    shadingCombinedPct: shadingOptNum(p.shadingCombinedPct ?? p.shading_combined_pct),
   }));
 
   const panels = [];
@@ -61,7 +70,7 @@ export function deriveGeometryFromGeometryJson(geometryJson) {
           norm.far && typeof norm.far === "object"
             ? { ...norm.far }
             : {
-                totalLossPct: norm.farLossPct === null ? null : safeNum(norm.farLossPct, 0),
+                totalLossPct: shadingOptNum(norm.farLossPct),
                 source: norm.farSource ?? "RELIEF_ONLY",
               },
         combined:
@@ -70,14 +79,16 @@ export function deriveGeometryFromGeometryJson(geometryJson) {
             : {
                 totalLossPct: (() => {
                   const v = norm.combined?.totalLossPct ?? norm.totalLossPct;
-                  if (v === null) return null;
-                  return safeNum(v, 0);
+                  if (v == null || v === "") return null;
+                  const n = Number(v);
+                  return Number.isFinite(n) ? Math.max(0, Math.min(100, n)) : null;
                 })(),
               },
         totalLossPct: (() => {
           const v = norm.combined?.totalLossPct ?? norm.totalLossPct;
-          if (v === null) return null;
-          return safeNum(v, 0);
+          if (v == null || v === "") return null;
+          const n = Number(v);
+          return Number.isFinite(n) ? Math.max(0, Math.min(100, n)) : null;
         })(),
         confidence: norm.shadingQuality?.confidence ?? norm.far?.confidenceLevel ?? "UNKNOWN",
         source: norm.far?.source ?? norm.farSource ?? "RELIEF_ONLY",
@@ -252,7 +263,7 @@ export function buildFinalStudyJson({ geometryJson, calcResult, production }) {
           norm.far && typeof norm.far === "object"
             ? { ...norm.far }
             : {
-                totalLossPct: norm.farLossPct === null ? null : safeNum(norm.farLossPct, 0),
+                totalLossPct: shadingOptNum(norm.farLossPct),
                 source: norm.farSource ?? "RELIEF_ONLY",
               },
         combined:
@@ -261,14 +272,16 @@ export function buildFinalStudyJson({ geometryJson, calcResult, production }) {
             : {
                 totalLossPct: (() => {
                   const v = norm.combined?.totalLossPct ?? norm.totalLossPct;
-                  if (v === null) return null;
-                  return safeNum(v, 0);
+                  if (v == null || v === "") return null;
+                  const n = Number(v);
+                  return Number.isFinite(n) ? Math.max(0, Math.min(100, n)) : null;
                 })(),
               },
         totalLossPct: (() => {
           const v = norm.combined?.totalLossPct ?? norm.totalLossPct;
-          if (v === null) return null;
-          return safeNum(v, 0);
+          if (v == null || v === "") return null;
+          const n = Number(v);
+          return Number.isFinite(n) ? Math.max(0, Math.min(100, n)) : null;
         })(),
         confidence: norm.shadingQuality?.confidence ?? norm.far?.confidenceLevel ?? "UNKNOWN",
         source: norm.far?.source ?? norm.farSource ?? "RELIEF_ONLY",

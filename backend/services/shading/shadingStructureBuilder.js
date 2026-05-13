@@ -24,6 +24,9 @@ import { capConfidence01ForSource, SYNTHETIC_MAX_CONFIDENCE_01 } from "./synthet
 export function buildStructuredShading(shadingResult, hasGps, hasPanels, existingShading = {}) {
   const farActive = hasGps && hasPanels;
   const farUnavailableNoGps = shadingResult.farUnavailable === true;
+  const farUnavailableError =
+    shadingResult.farHorizonStatus === "FAR_UNAVAILABLE_ERROR" ||
+    shadingResult.farShadingUnavailable === true;
   const meta = shadingResult.farMetadata;
 
   const near = {
@@ -38,7 +41,24 @@ export function buildStructuredShading(shadingResult, hasGps, hasPanels, existin
   };
 
   const far = farActive
-    ? (() => {
+    ? farUnavailableError
+      ? {
+          source: "FAR_UNAVAILABLE_ERROR",
+          farHorizonKind: "UNAVAILABLE",
+          radius_m: null,
+          confidence: null,
+          totalLossPct: null,
+          dataCoverage: {
+            ratio: 0,
+            effectiveRadiusMeters: 0,
+            gridResolutionMeters: 0,
+            provider: "FAR_UNAVAILABLE_ERROR",
+          },
+          confidenceScore: 0,
+          confidenceLevel: "LOW",
+          confidenceBreakdown: {},
+        }
+      : (() => {
         const dc = meta?.dataCoverage || {};
         const farSource = meta?.dataCoverage?.provider ?? meta?.source ?? "RELIEF_ONLY";
         const farHorizonKind = farHorizonKindFromProvider(farSource);
@@ -112,23 +132,31 @@ export function buildStructuredShading(shadingResult, hasGps, hasPanels, existin
 
   const sq = computeShadingQuality({
     nearLossPct: shadingResult.nearLossPct,
-    farLossPct: farActive ? (shadingResult.farLossPct ?? 0) : 0,
-    resolutionMeters: farActive ? resolutionMeters : 30,
-    coverageRatio: farUnavailableNoGps ? 0 : farActive ? coverageRatio : 1,
+    farLossPct:
+      farActive && !farUnavailableError && !farUnavailableNoGps
+        ? (shadingResult.farLossPct ?? 0)
+        : farUnavailableError || farUnavailableNoGps
+          ? null
+          : 0,
+    farUnavailable: farUnavailableNoGps || farUnavailableError,
+    resolutionMeters: farActive && !farUnavailableError ? resolutionMeters : 30,
+    coverageRatio: farUnavailableNoGps ? 0 : farUnavailableError ? 0 : farActive ? coverageRatio : 1,
   });
 
   const provider = farUnavailableNoGps
     ? "UNAVAILABLE_NO_GPS"
-    : far?.source ?? meta?.dataCoverage?.provider ?? meta?.source ?? "RELIEF_ONLY";
+    : farUnavailableError
+      ? "FAR_UNAVAILABLE_ERROR"
+      : far?.source ?? meta?.dataCoverage?.provider ?? meta?.source ?? "RELIEF_ONLY";
   const effectiveRadiusMeters = dc.effectiveRadiusMeters ?? meta?.radius_m ?? 500;
   const farHorizonKind =
     farActive && far?.farHorizonKind != null
       ? far.farHorizonKind
-      : farUnavailableNoGps
+      : farUnavailableNoGps || farUnavailableError
         ? "UNAVAILABLE"
         : farHorizonKindFromProvider(provider);
   let confidence = "LOW";
-  if (!farUnavailableNoGps) {
+  if (!farUnavailableNoGps && !farUnavailableError) {
     if (provider === "IGN_RGE_ALTI" && resolutionMeters <= 10) confidence = "HIGH";
     else if (provider === "HTTP_GEOTIFF") confidence = "MEDIUM";
     if (farHorizonKind === "SYNTHETIC") confidence = "LOW";
@@ -138,11 +166,16 @@ export function buildStructuredShading(shadingResult, hasGps, hasPanels, existin
     ...sq,
     provider,
     farHorizonKind,
-    modelType: farUnavailableNoGps ? "UNAVAILABLE" : REAL_TERRAIN_PROVIDERS.has(provider) ? "DSM" : "SYNTHETIC",
-    resolutionMeters: farActive ? resolutionMeters : farUnavailableNoGps ? 0 : 30,
-    effectiveRadiusMeters: farActive ? effectiveRadiusMeters : 0,
+    modelType: farUnavailableNoGps || farUnavailableError
+      ? "UNAVAILABLE"
+      : REAL_TERRAIN_PROVIDERS.has(provider)
+        ? "DSM"
+        : "SYNTHETIC",
+    resolutionMeters: farActive && !farUnavailableError ? resolutionMeters : farUnavailableNoGps || farUnavailableError ? 0 : 30,
+    effectiveRadiusMeters: farActive && !farUnavailableError ? effectiveRadiusMeters : 0,
     confidence,
     ...(farUnavailableNoGps && { blockingReason: "missing_gps" }),
+    ...(farUnavailableError && { farShadingUnavailable: true }),
   };
 
   return {

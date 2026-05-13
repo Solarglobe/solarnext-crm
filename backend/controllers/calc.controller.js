@@ -191,6 +191,15 @@ export async function calculateSmartpitch(req, res) {
     // ------------------------------------------------------------
     const ctx = buildContext(form, settings);
     ctx.form = form;
+    if (
+      solarnextPayloadForLog?.shading_commercial_audit &&
+      typeof solarnextPayloadForLog.shading_commercial_audit === "object"
+    ) {
+      ctx.meta = {
+        ...ctx.meta,
+        shading_commercial_audit: solarnextPayloadForLog.shading_commercial_audit,
+      };
+    }
     ctx.finance_input = form?.finance_input ?? null;
     ctx.battery_input = form?.battery_input ?? null;
     ctx.virtual_battery_input = form?.virtual_battery_input ?? null;
@@ -424,9 +433,17 @@ if (devLog) {
       const pvMonthly = await pvgisService.computeProductionMonthly(ctx);
       console.log("STEP 2 OK — PV mensuel (source =", pvMonthly.source, ")");
 
-      const shadingLossPct = Number(form.shadingLossPct || 0);
-      if (!isNaN(shadingLossPct) && shadingLossPct > 0) {
-        const multiplier = 1 - Math.max(0, Math.min(100, shadingLossPct)) / 100;
+      const rawMonoShading = form.shadingLossPct;
+      const shadingLossPctNum =
+        rawMonoShading == null || rawMonoShading === ""
+          ? null
+          : Number(rawMonoShading);
+      if (
+        shadingLossPctNum != null &&
+        !isNaN(shadingLossPctNum) &&
+        shadingLossPctNum > 0
+      ) {
+        const multiplier = 1 - Math.max(0, Math.min(100, shadingLossPctNum)) / 100;
         if (pvMonthly.monthly_kwh && Array.isArray(pvMonthly.monthly_kwh)) {
           pvMonthly.monthly_kwh = pvMonthly.monthly_kwh.map(v => v * multiplier);
         }

@@ -20,8 +20,8 @@ const geometry = { frozenBlocks: [{ panels: [panel] }] };
 const INTERNAL_FIELDS = ["farLossPct", "nearLossPct", "confidence", "mask", "elapsedMs", "earlyExitCount", "samplerStats"];
 
 function hasNoInternalFields(obj) {
-  const str = JSON.stringify(obj);
-  return !INTERNAL_FIELDS.some((f) => str.includes(`"${f}"`));
+  if (!obj || typeof obj !== "object") return true;
+  return !INTERNAL_FIELDS.some((f) => Object.prototype.hasOwnProperty.call(obj, f));
 }
 
 (async () => {

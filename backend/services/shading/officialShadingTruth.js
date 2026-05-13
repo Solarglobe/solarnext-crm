@@ -26,7 +26,9 @@ export function getOfficialGlobalShadingLossPct(shading) {
 
   if (
     shading.shadingQuality?.blockingReason === "missing_gps" ||
-    shading.far?.source === "UNAVAILABLE_NO_GPS"
+    shading.far?.source === "UNAVAILABLE_NO_GPS" ||
+    shading.far?.source === "FAR_UNAVAILABLE_ERROR" ||
+    shading.shadingQuality?.farShadingUnavailable === true
   ) {
     return null;
   }

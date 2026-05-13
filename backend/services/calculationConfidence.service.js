@@ -13,6 +13,9 @@ const BLOCKING = new Set([
   "PVGIS_FALLBACK_USED",
   "VB_COST_UNCONFIGURED_BLOCK_PDF",
   "VB_UNBOUNDED_DISABLED_FOR_COMMERCIAL_USE",
+  "FAR_SHADING_UNAVAILABLE_BLOCK_PDF",
+  "SHADING_PAN_MISMATCH_BLOCK_PDF",
+  "SHADING_GEOMETRY_BLOCK_PDF",
 ]);
 
 /**
@@ -41,6 +44,9 @@ export function finalizeCalculationConfidence({
       assumptions?.elec_growth_missing === true,
       Number(assumptions?.elec_growth_pct) > 3,
       Number(assumptions?.oversell_risk_score) >= 70,
+      assumptions?.far_shading_unavailable === true,
+      (assumptions?.shading_geometry_strict_warnings || []).length > 0,
+      assumptions?.shading_pan_mismatch === true,
     ].filter(Boolean).length;
     if (
       Number(assumptions?.oversell_risk_score) >= 70 ||
@@ -54,7 +60,10 @@ export function finalizeCalculationConfidence({
       Number(assumptions?.maintenance_pct) === 0 ||
       assumptions?.elec_growth_missing === true ||
       Number(assumptions?.elec_growth_pct) > 3 ||
-      Number(assumptions?.oversell_risk_score) >= 40
+      Number(assumptions?.oversell_risk_score) >= 40 ||
+      assumptions?.far_shading_unavailable === true ||
+      (assumptions?.shading_geometry_strict_warnings || []).length > 0 ||
+      assumptions?.shading_pan_mismatch === true
     ) {
       level = "MEDIUM";
     }
@@ -136,6 +145,22 @@ export function buildCalculationConfidenceFromCalc(ctx, scenariosFinal = {}) {
     blocking.push("VB_UNBOUNDED_DISABLED_FOR_COMMERCIAL_USE");
   }
 
+  const shadingCommercialAudit = ctx?.meta?.shading_commercial_audit;
+  if (shadingCommercialAudit && typeof shadingCommercialAudit === "object") {
+    const bw = Array.isArray(shadingCommercialAudit.blocking_warnings)
+      ? shadingCommercialAudit.blocking_warnings
+      : [];
+    const nbw = Array.isArray(shadingCommercialAudit.non_blocking_warnings)
+      ? shadingCommercialAudit.non_blocking_warnings
+      : [];
+    for (const w of bw) {
+      if (w && !blocking.includes(w)) blocking.push(w);
+    }
+    for (const w of nbw) {
+      if (w && !nonBlocking.includes(w)) nonBlocking.push(w);
+    }
+  }
+
   let oversellRiskScore = 0;
   const antiOversellFlags = [];
   for (const sc of Object.values(scenariosFinal)) {
@@ -153,6 +178,10 @@ export function buildCalculationConfidenceFromCalc(ctx, scenariosFinal = {}) {
   }
 
   const shadingSrc = ctx?.form?.installation?.shading ?? ctx?.shading ?? {};
+  const auditFlags =
+    shadingCommercialAudit && typeof shadingCommercialAudit.flags === "object"
+      ? shadingCommercialAudit.flags
+      : {};
   const vbWarnings = Array.isArray(vbSc?.finance_warnings) ? vbSc.finance_warnings : [];
   const assumptions = {
     consumption_source: consoSrc,
@@ -175,6 +204,11 @@ export function buildCalculationConfidenceFromCalc(ctx, scenariosFinal = {}) {
     oversell_risk_score: oversellRiskScore,
     anti_oversell_flags: antiOversellFlags,
     shading_source: shadingSrc.farSource ?? shadingSrc.far_source ?? null,
+    far_shading_unavailable: auditFlags.farHorizonUnavailable === true,
+    shading_pan_mismatch: auditFlags.shadingPanMismatch === true,
+    shading_geometry_strict_warnings: Array.isArray(auditFlags.geometryWarnings)
+      ? auditFlags.geometryWarnings
+      : [],
   };
 
   return finalizeCalculationConfidence({

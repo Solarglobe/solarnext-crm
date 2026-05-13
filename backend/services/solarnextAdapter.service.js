@@ -46,8 +46,14 @@ export function buildLegacyPayloadFromSolarNext(solarnextPayload) {
     panel_input: solarnextPayload?.panel_input ?? null,
     battery_input: solarnextPayload?.battery_input ?? null,
     virtual_battery_input: solarnextPayload?.virtual_battery_input ?? null,
-    /** Mono-pan : appliqué au moteur sur la prod PV. Multi-pan : KPI global (moyenne pondérée) — la prod utilise roof.pans[].shadingCombinedPct uniquement. */
-    shadingLossPct: installation.shading_loss_pct || 0,
+    installation: installation && typeof installation === "object" ? installation : null,
+    /** Ombrage mono-pan (null = inconnu / non transmis — ne pas traiter comme 0 % fiable). */
+    shadingLossPct: (() => {
+      const rawSL = installation.shading_loss_pct;
+      if (rawSL == null || rawSL === "") return null;
+      const n = Number(rawSL);
+      return Number.isFinite(n) ? Math.max(0, Math.min(100, n)) : null;
+    })(),
     roof: {
       pans: Array.isArray(installation.roof_pans) ? installation.roof_pans : []
     }

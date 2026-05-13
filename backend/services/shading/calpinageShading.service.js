@@ -42,20 +42,29 @@ function computeShadowRayDirection(azimuthDeg, elevationDeg) {
 /**
  * m/px pour near shading (polygonPx). Priorité : param explicite → geometry.scale.
  * Sans échelle : 1 (compat anciens jeux de tests « 1 px ≈ 1 m »).
+ * @returns {{ value: number, isDefault: boolean }}
  */
-export function resolveMetersPerPixelFromParams(params) {
+export function resolveMetersPerPixelFromParamsWithMeta(params) {
   const p = params && typeof params === "object" ? params : {};
   const direct = p.metersPerPixel;
-  if (typeof direct === "number" && direct > 0 && Number.isFinite(direct)) return direct;
+  if (typeof direct === "number" && direct > 0 && Number.isFinite(direct)) {
+    return { value: direct, isDefault: false };
+  }
   const g = p.geometry;
   if (g && typeof g === "object") {
     const m =
       g.roofState?.scale?.metersPerPixel ??
       g.scale?.metersPerPixel ??
       g.roof?.scale?.metersPerPixel;
-    if (typeof m === "number" && m > 0 && Number.isFinite(m)) return m;
+    if (typeof m === "number" && m > 0 && Number.isFinite(m)) {
+      return { value: m, isDefault: false };
+    }
   }
-  return 1;
+  return { value: 1, isDefault: true };
+}
+
+export function resolveMetersPerPixelFromParams(params) {
+  return resolveMetersPerPixelFromParamsWithMeta(params).value;
 }
 
 /** Cache échantillons annuels (lat/lon/year/step/seuil) — évite recalculs dans la même instance Node. */
@@ -121,10 +130,12 @@ export function getAnnualSunVectorsForNear(lat, lon, config = {}) {
 /**
  * Extrait panels et obstacles depuis geometry (format calpinage).
  * @param {number} metersPerPixel - requis pour construire un footprint depuis width/depth en mètres
+ * @param {boolean} [strictCommercial] — étude client : hauteur / échelle implicites → warnings (calcul inchangé, pas de faux « connu »).
  */
-function extractFromGeometry(geometry, metersPerPixel) {
+function extractFromGeometry(geometry, metersPerPixel, strictCommercial = false) {
   const panels = [];
   const obstacles = [];
+  const warnings = [];
 
   const roofState = geometry.roofState || {};
   const obsList = roofState.obstacles || geometry.obstacles || [];
@@ -132,12 +143,20 @@ function extractFromGeometry(geometry, metersPerPixel) {
     if (!o) continue;
     const pts = o.points || o.polygon || o.polygonPx;
     if (Array.isArray(pts) && pts.length >= 3) {
+      const rawH = o.heightM ?? o.heightRelM ?? o.height;
+      const hasExplicit =
+        rawH != null &&
+        rawH !== "" &&
+        Number.isFinite(Number(rawH));
+      if (strictCommercial && !hasExplicit) {
+        warnings.push("OBSTACLE_HEIGHT_MISSING");
+      }
       obstacles.push({
         id: o.id || "obs-" + obstacles.length,
         points: pts,
         polygon: pts.map((p) => ({ x: Number(p.x) || 0, y: Number(p.y) || 0 })),
         polygonPx: pts,
-        heightM: o.heightM ?? o.heightRelM ?? o.height ?? 1,
+        heightM: hasExplicit ? Number(rawH) : 1,
       });
     }
   }
@@ -166,11 +185,19 @@ function extractFromGeometry(geometry, metersPerPixel) {
       ];
     }
     if (Array.isArray(polygonPx) && polygonPx.length >= 3) {
+      const rawH = o.heightM ?? o.ridgeHeightRelM ?? o.heightRelM;
+      const hasExplicit =
+        rawH != null &&
+        rawH !== "" &&
+        Number.isFinite(Number(rawH));
+      if (strictCommercial && !hasExplicit) {
+        warnings.push("OBSTACLE_HEIGHT_MISSING");
+      }
       obstacles.push({
         id: o.id || "sv-" + obstacles.length,
         polygon: polygonPx.map((p) => ({ x: Number(p.x) || 0, y: Number(p.y) || 0 })),
         polygonPx,
-        heightM: o.heightM ?? o.ridgeHeightRelM ?? o.heightRelM ?? 1,
+        heightM: hasExplicit ? Number(rawH) : 1,
       });
     }
   }
@@ -191,7 +218,7 @@ function extractFromGeometry(geometry, metersPerPixel) {
     }
   }
 
-  return { panels, obstacles };
+  return { panels, obstacles, warnings };
 }
 
 /**
@@ -218,15 +245,34 @@ export async function computeCalpinageShading(params) {
     storedNearLossPct = 0,
   } = params || {};
 
-  const metersPerPixel = resolveMetersPerPixelFromParams(params);
+  const metersPerPixelMeta = resolveMetersPerPixelFromParamsWithMeta(params);
+  const metersPerPixel = metersPerPixelMeta.value;
 
   let panels = Array.isArray(panelsParam) ? panelsParam : [];
   let obstacles = Array.isArray(obstaclesParam) ? obstaclesParam : [];
+  const geometryCommercialWarnings = [];
 
   if (panels.length === 0 && geometry && typeof geometry === "object") {
-    const extracted = extractFromGeometry(geometry, metersPerPixel);
+    const extracted = extractFromGeometry(
+      geometry,
+      metersPerPixel,
+      options.strictCommercialShading === true
+    );
     panels = extracted.panels;
     obstacles = extracted.obstacles;
+    for (const w of extracted.warnings || []) {
+      if (w && !geometryCommercialWarnings.includes(w)) geometryCommercialWarnings.push(w);
+    }
+  }
+
+  if (
+    options.strictCommercialShading === true &&
+    metersPerPixelMeta.isDefault &&
+    panels.length > 0
+  ) {
+    if (!geometryCommercialWarnings.includes("SHADING_SCALE_MISSING")) {
+      geometryCommercialWarnings.push("SHADING_SCALE_MISSING");
+    }
   }
 
   const hasGps = typeof lat === "number" && typeof lon === "number" && !isNaN(lat) && !isNaN(lon) && lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180;
@@ -264,6 +310,9 @@ export async function computeCalpinageShading(params) {
       }
     }
     try {
+      if (options.__testForceHorizonFailure === true) {
+        throw new Error("__test_force_horizon_failure");
+      }
       const hdEnabled = process.env.FAR_HORIZON_HD_ENABLE === "true";
       const stepDeg = 2;
       const radius = 500;
@@ -313,10 +362,20 @@ export async function computeCalpinageShading(params) {
                 : "HTTP_GEOTIFF"),
         },
       };
-    } catch (_) {
+    } catch (err) {
       horizonMask = null;
+      console.warn("[HORIZON] computeHorizonMaskAuto failed:", err?.message ?? err);
     }
   }
+
+  const validHorizonMask =
+    horizonMask &&
+    Array.isArray(horizonMask.mask) &&
+    horizonMask.mask.length > 0;
+  const farHorizonUnavailable =
+    hasGps &&
+    options.__testHorizonMaskOverride == null &&
+    !validHorizonMask;
   if (horizonMask && options.__testHorizonMaskOverride) {
     const dc = horizonMask.dataCoverage || {};
     const farSource = dc.provider ?? horizonMask.source ?? horizonMask.meta?.source ?? "RELIEF_ONLY";
@@ -414,11 +473,28 @@ export async function computeCalpinageShading(params) {
   }
 
   const result = {
-    farLossPct: Number(farLossPct.toFixed(3)),
+    farLossPct: farHorizonUnavailable ? null : Number(farLossPct.toFixed(3)),
     nearLossPct: Number(nearLossPct.toFixed(3)),
     totalLossPct: Number(totalLossPct.toFixed(3)),
   };
-  if (farMetadata) {
+  if (farHorizonUnavailable) {
+    result.farHorizonStatus = "FAR_UNAVAILABLE_ERROR";
+    result.farShadingUnavailable = true;
+    result.farMetadata = {
+      source: "FAR_UNAVAILABLE_ERROR",
+      confidence: null,
+      radius_m: null,
+      step_deg: null,
+      resolution_m: 0,
+      meta: { reason: "horizon_mask_unavailable" },
+      dataCoverage: {
+        ratio: 0,
+        effectiveRadiusMeters: 0,
+        gridResolutionMeters: 0,
+        provider: "FAR_UNAVAILABLE_ERROR",
+      },
+    };
+  } else if (farMetadata) {
     result.farMetadata = farMetadata;
   }
   if (horizonMask && Array.isArray(horizonMask.mask) && horizonMask.mask.length > 0) {
@@ -442,6 +518,9 @@ export async function computeCalpinageShading(params) {
       panelId: String(p.id ?? `p-${i}`),
       lossPct: Number((clamp01(1 - perPanelFarNear[i] / totalWeightBaseline) * 100).toFixed(2)),
     }));
+  }
+  if (geometryCommercialWarnings.length > 0) {
+    result.geometryCommercialWarnings = geometryCommercialWarnings;
   }
   return result;
 }
