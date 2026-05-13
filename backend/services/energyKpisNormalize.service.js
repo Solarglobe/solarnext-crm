@@ -2,6 +2,13 @@
  * KPIs énergie normalisés (audit P0) — une seule définition pour moteur / scenarios_v2 / PDF.
  */
 
+import {
+  computeExportPct,
+  computePvSelfConsumptionPct,
+  computeSiteAutonomyPct,
+  computeSolarCoveragePct,
+} from "./energyKpiDefinitions.service.js";
+
 function round2(x) {
   if (x == null || !Number.isFinite(Number(x))) return null;
   return Math.round(Number(x) * 100) / 100;
@@ -95,12 +102,22 @@ export function attachNormalizedEnergyKpiFields(scenario) {
     e.autoconsumption_kwh = round2(totalPvUsed);
   }
 
-  if (prod > 0 && totalPvUsed >= 0) {
-    e.pv_self_consumption_pct = round2(Math.min(100, (totalPvUsed / prod) * 100));
-  }
-  if (conso > 0 && gridImport >= 0) {
-    e.site_autonomy_pct = round2(Math.max(0, Math.min(100, (1 - gridImport / conso) * 100)));
-  }
+  const kpiIn = {
+    production_kwh: prod,
+    total_pv_used_on_site_kwh: totalPvUsed,
+    consumption_kwh: conso,
+    grid_import_kwh: gridImport,
+    surplus_kwh: exported,
+  };
+  e.pv_self_consumption_pct = computePvSelfConsumptionPct(kpiIn);
+  e.site_autonomy_pct = computeSiteAutonomyPct(kpiIn);
+  e.solar_coverage_pct = computeSolarCoveragePct(kpiIn);
+  e.export_pct = computeExportPct(kpiIn);
+
+  /** @deprecated Alias legacy — = pv_self_consumption_pct (ne pas confondre avec couverture conso). */
+  scenario.self_consumption_pct = e.pv_self_consumption_pct;
+  /** Couverture besoins par le solaire (kWh utiles / conso) — aligné sur solar_coverage_pct. */
+  scenario.self_production_pct = e.solar_coverage_pct;
 
   scenario.energy = e;
 }

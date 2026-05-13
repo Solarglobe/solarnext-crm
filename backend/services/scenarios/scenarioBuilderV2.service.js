@@ -10,6 +10,7 @@ import {
   computeInstalledKwcRounded2,
   ENGINE_ERROR_PANEL_REQUIRED,
 } from "../../utils/resolvePanelPowerWc.js";
+import { CalcEngineValidationError, CALC_INVALID_8760_PROFILE } from "../calcEngineErrors.js";
 
 const HOURS_PER_YEAR = 8760;
 const DAYS_PER_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
@@ -23,16 +24,22 @@ export function buildScenarioBaseV2(ctx) {
   const pvHourly = Array.isArray(ctx?.pv?.hourly) && ctx.pv.hourly.length === HOURS_PER_YEAR
     ? ctx.pv.hourly.map(v => Number(v) || 0)
     : null;
-  const consoHourly = Array.isArray(ctx?.conso_p_pilotee) && ctx.conso_p_pilotee.length === HOURS_PER_YEAR
-    ? ctx.conso_p_pilotee
-    : Array.isArray(ctx?.conso?.hourly) && ctx.conso.hourly.length === HOURS_PER_YEAR
+  const consoHourly = Array.isArray(ctx?.conso?.hourly) && ctx.conso.hourly.length === HOURS_PER_YEAR
       ? ctx.conso.hourly.map(v => Number(v) || 0)
       : Array.isArray(ctx?.conso?.clamped) && ctx.conso.clamped.length === HOURS_PER_YEAR
         ? ctx.conso.clamped.map(v => Number(v) || 0)
         : null;
 
   if (!pvHourly || !consoHourly) {
-    return buildFallbackBaseV2(ctx);
+    throw new CalcEngineValidationError(
+      CALC_INVALID_8760_PROFILE,
+      "Profil de consommation ou production horaire 8760 h invalide ou absent. Vérifiez la courbe de charge (CSV Enedis / 8760 h) et le calpinage.",
+      {
+        pv_hours: pvHourly?.length ?? null,
+        conso_hours: consoHourly?.length ?? null,
+        consumption_source: ctx?.meta?.engine_consumption_source ?? null,
+      }
+    );
   }
 
   const months = aggregateMonthly(pvHourly, consoHourly);
@@ -80,8 +87,8 @@ export function buildScenarioBaseV2(ctx) {
   };
 
   if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1") {
-    const selfProdPct = prod > 0 ? (auto / prod) * 100 : null;
-    const selfConsoPct = conso > 0 ? (auto / conso) * 100 : null;
+    const pvSelfConsumptionPct = prod > 0 ? (auto / prod) * 100 : null;
+    const solarCoveragePct = conso > 0 ? (auto / conso) * 100 : null;
     console.log(JSON.stringify({
       tag: "TRACE_SCENARIO_BASE",
       prodKwh: prod,
@@ -89,8 +96,8 @@ export function buildScenarioBaseV2(ctx) {
       autoKwh: auto,
       importKwh,
       surplusKwh: surplus,
-      self_prod_pct: selfProdPct,
-      self_conso_pct: selfConsoPct,
+      pv_self_consumption_pct_trace: pvSelfConsumptionPct,
+      solar_coverage_pct_trace: solarCoveragePct,
     }));
   }
 
@@ -102,6 +109,7 @@ export function buildScenarioBaseV2(ctx) {
     energy,
     finance,
     metadata,
+    scenario_uses_piloted_profile: false,
     battery: false,
     batterie: false,
 
@@ -116,56 +124,6 @@ export function buildScenarioBaseV2(ctx) {
       auto_kwh: auto,
       surplus_kwh: surplus,
     },
-    roi_years: null,
-    irr_pct: null,
-    lcoe_eur_kwh: null,
-    flows: null,
-  };
-}
-
-function buildFallbackBaseV2(ctx) {
-  const kwc = resolveKwc(ctx);
-  const nbPanneaux = resolveNbPanneaux(ctx);
-  const prod = 0;
-  const conso = typeof ctx?.conso?.annual_kwh === "number" && Number.isFinite(ctx.conso.annual_kwh) && ctx.conso.annual_kwh >= 0
-    ? ctx.conso.annual_kwh
-    : 0;
-  const auto = 0;
-  const surplus = 0;
-  const importKwh = 0;
-  const monthlyEmpty = Array.from({ length: 12 }, () => ({
-    prod_kwh: 0,
-    conso_kwh: 0,
-    auto_kwh: 0,
-    surplus_kwh: 0,
-    import_kwh: 0,
-    auto_pct: 0,
-  }));
-
-  return {
-    name: "BASE",
-    _v2: true,
-    capex: null,
-    capex_ttc: null,
-    energy: {
-      prod,
-      auto,
-      surplus,
-      import: importKwh,
-      conso,
-      monthly: monthlyEmpty.map(m => ({ prod: m.prod_kwh, conso: m.conso_kwh, auto: m.auto_kwh, surplus: m.surplus_kwh, import: m.import_kwh })),
-      hourly: null,
-    },
-    finance: { roi_years: null, irr: null, lcoe: null, cashflows: null, note: "capex_required" },
-    metadata: { kwc, nb_panneaux: nbPanneaux },
-    battery: false,
-    batterie: false,
-    prod_kwh: prod,
-    conso_kwh: conso,
-    auto_kwh: auto,
-    surplus_kwh: surplus,
-    monthly: monthlyEmpty,
-    annual: { prod_kwh: prod, conso_kwh: conso, auto_kwh: auto, surplus_kwh: surplus },
     roi_years: null,
     irr_pct: null,
     lcoe_eur_kwh: null,

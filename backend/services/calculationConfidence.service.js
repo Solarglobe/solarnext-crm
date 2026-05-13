@@ -12,6 +12,7 @@ const BLOCKING = new Set([
   "CALC_INVALID_8760_PROFILE",
   "PVGIS_FALLBACK_USED",
   "VB_COST_UNCONFIGURED_BLOCK_PDF",
+  "VB_UNBOUNDED_DISABLED_FOR_COMMERCIAL_USE",
 ]);
 
 /**
@@ -39,15 +40,21 @@ export function finalizeCalculationConfidence({
       Number(assumptions?.maintenance_pct) === 0,
       assumptions?.elec_growth_missing === true,
       Number(assumptions?.elec_growth_pct) > 3,
+      Number(assumptions?.oversell_risk_score) >= 70,
     ].filter(Boolean).length;
-    if (lowSignals >= 2 || (assumptions?.pvgis_fallback_used && assumptions?.enedis_profile_used === false)) {
+    if (
+      Number(assumptions?.oversell_risk_score) >= 70 ||
+      lowSignals >= 2 ||
+      (assumptions?.pvgis_fallback_used && assumptions?.enedis_profile_used === false)
+    ) {
       level = "LOW";
     } else if (
       assumptions?.enedis_profile_used === false ||
       assumptions?.pvgis_fallback_used === true ||
       Number(assumptions?.maintenance_pct) === 0 ||
       assumptions?.elec_growth_missing === true ||
-      Number(assumptions?.elec_growth_pct) > 3
+      Number(assumptions?.elec_growth_pct) > 3 ||
+      Number(assumptions?.oversell_risk_score) >= 40
     ) {
       level = "MEDIUM";
     }
@@ -118,9 +125,26 @@ export function buildCalculationConfidenceFromCalc(ctx, scenariosFinal = {}) {
       blocking.push("VB_COST_UNCONFIGURED_BLOCK_PDF");
     }
   }
+  const hasUnboundedCommercialBlock = Object.values(scenariosFinal || {}).some((sc) => {
+    const flags = [
+      ...(Array.isArray(sc?.finance_warnings) ? sc.finance_warnings : []),
+      ...(Array.isArray(sc?.anti_oversell_flags) ? sc.anti_oversell_flags : []),
+    ];
+    return flags.includes("VB_UNBOUNDED_DISABLED_FOR_COMMERCIAL_USE");
+  });
+  if (hasUnboundedCommercialBlock) {
+    blocking.push("VB_UNBOUNDED_DISABLED_FOR_COMMERCIAL_USE");
+  }
 
+  let oversellRiskScore = 0;
+  const antiOversellFlags = [];
   for (const sc of Object.values(scenariosFinal)) {
-    if (!sc || sc._skipped) continue;
+    if (!sc) continue;
+    oversellRiskScore = Math.max(oversellRiskScore, Number(sc.oversell_risk_score) || 0);
+    for (const flag of Array.isArray(sc.anti_oversell_flags) ? sc.anti_oversell_flags : []) {
+      if (flag && !antiOversellFlags.includes(flag)) antiOversellFlags.push(flag);
+    }
+    if (sc._skipped) continue;
     const fw = sc.finance_warnings;
     if (!Array.isArray(fw)) continue;
     for (const w of fw) {
@@ -148,6 +172,8 @@ export function buildCalculationConfidenceFromCalc(ctx, scenariosFinal = {}) {
       !vbSc._skipped &&
       vbWarnings.includes("VB_COST_UNCONFIGURED")
     ),
+    oversell_risk_score: oversellRiskScore,
+    anti_oversell_flags: antiOversellFlags,
     shading_source: shadingSrc.farSource ?? shadingSrc.far_source ?? null,
   };
 

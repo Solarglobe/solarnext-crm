@@ -9,6 +9,7 @@
 import { pool } from "../config/db.js";
 import { buildSelectedScenarioSnapshot } from "../services/selectedScenarioSnapshot.service.js";
 import { generatePdfForVersion } from "./pdfGeneration.controller.js";
+import { isPdfBlockedByConfidence } from "../services/calculationConfidence.service.js";
 import { logAuditEvent } from "../services/audit/auditLog.service.js";
 import { AuditActions } from "../services/audit/auditActions.js";
 
@@ -55,6 +56,16 @@ export async function selectScenario(req, res) {
     if (!Array.isArray(scenariosV2) || scenariosV2.length === 0) {
       return res.status(400).json({
         error: "scenarios_v2 absent ou vide. Lancez le calcul (run-study) avant de sélectionner un scénario.",
+      });
+    }
+
+    const cc = dataJson.calculation_confidence;
+    if (isPdfBlockedByConfidence(cc)) {
+      return res.status(409).json({
+        error:
+          "Impossible de figer le scénario : le calcul comporte des avertissements bloquants (données incomplètes, production en mode fallback, ou batterie virtuelle sans coût configuré). Corrigez l’étude puis relancez le calcul.",
+        code: "SNAPSHOT_BLOCKED_CALCULATION_CONFIDENCE",
+        calculation_confidence: cc ?? null,
       });
     }
 

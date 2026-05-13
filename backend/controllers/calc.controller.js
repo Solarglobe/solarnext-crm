@@ -51,6 +51,11 @@ import {
   buildCalculationConfidenceFromCalc,
   finalizeCalculationConfidence,
 } from "../services/calculationConfidence.service.js";
+import {
+  attachAntiOversellToScenarios,
+  isCommercialUnboundedVirtualBatteryAllowed,
+  markVirtualBatteryUnboundedBlocked,
+} from "../services/antiOversell.service.js";
 
 function round(n, d = 2) {
   return Math.round(n * 10 ** d) / 10 ** d;
@@ -508,6 +513,7 @@ if (devLog) {
       pilotageBudget ? { pilotageBudget } : {}
     );
     ctx.conso_p_pilotee = pilotage.conso_pilotee_hourly;
+    ctx.pilotage_stats = pilotage.stats;
 
     console.log("STEP 4 OK — Pilotage équilibré appliqué");
 
@@ -539,6 +545,8 @@ if (devLog) {
     console.log("STEP 5 OK — Calcul BASE généré");
 
     const baseScenario = scenarios.BASE;
+    baseScenario.scenario_uses_piloted_profile = false;
+    console.log(JSON.stringify({ tag: "SCENARIO_PROFILE_SOURCE", scenario: "BASE", scenario_uses_piloted_profile: false }));
     addEnergyKpisToScenario(baseScenario, ctx);
 
     const batteryEnabled = ctx.battery_input?.enabled === true && Number(ctx.battery_input?.capacity_kwh) > 0;
@@ -587,6 +595,7 @@ if (devLog) {
           const monthlyBatt = aggregateMonthly(ctx.pv.hourly, consoHourly, batt);
           const batteryScenario = JSON.parse(JSON.stringify(baseScenario));
           batteryScenario.name = "BATTERY_PHYSICAL";
+          batteryScenario.scenario_uses_piloted_profile = Array.isArray(ctx.conso_p_pilotee);
           batteryScenario.battery = {
             enabled: true,
             annual_charge_kwh: batt.annual_charge_kwh,
@@ -636,6 +645,11 @@ if (devLog) {
             (baseCapexTtc != null && Number.isFinite(Number(baseCapexTtc)) ? Number(baseCapexTtc) : 0) +
             (batteryPhysicalPriceTtc != null && Number.isFinite(Number(batteryPhysicalPriceTtc)) ? Number(batteryPhysicalPriceTtc) : 0);
           addEnergyKpisToScenario(batteryScenario, ctx);
+          console.log(JSON.stringify({
+            tag: "SCENARIO_PROFILE_SOURCE",
+            scenario: "BATTERY_PHYSICAL",
+            scenario_uses_piloted_profile: batteryScenario.scenario_uses_piloted_profile,
+          }));
           battPhysicalResult = batt; // conservé pour BATTERY_HYBRID
           scenarios.BATTERY_PHYSICAL = batteryScenario;
 
@@ -678,6 +692,7 @@ if (devLog) {
       virtualScenario.battery = "virtual";
       virtualScenario.batterie = "virtual";
       virtualScenario._v2 = true;
+      virtualScenario.scenario_uses_piloted_profile = Array.isArray(ctx.conso_p_pilotee);
 
       const consoHourlyVirtual = ctx.conso_p_pilotee || ctx.conso?.hourly || ctx.conso?.clamped;
       const hasConso8760Vb = Array.isArray(consoHourlyVirtual) && consoHourlyVirtual.length === 8760;
@@ -728,7 +743,17 @@ if (devLog) {
             const requiredCap = unbounded.required_capacity_kwh;
             const pc = String(providerRaw).toUpperCase();
             let simCapacityKwh;
-            if (pc === "MYLIGHT_MYSMARTBATTERY") {
+            const selectedCapForCommercialGate = resolveVirtualBatteryCapacityKwh(vbInput);
+            if (selectedCapForCommercialGate == null && !isCommercialUnboundedVirtualBatteryAllowed(ctx)) {
+              virtualScenario._virtualBatteryP2 = {
+                required_capacity_kwh: requiredCap,
+                provider_tier_status: "BLOCKED_UNBOUNDED_COMMERCIAL",
+                capacity_auto_from_unbounded: true,
+              };
+              markVirtualBatteryUnboundedBlocked(virtualScenario, "virtual_battery_unbounded_disabled");
+              console.warn("[BATTERY_VIRTUAL] VB_UNBOUNDED_DISABLED_FOR_COMMERCIAL_USE");
+            }
+            if (!virtualScenario._skipped && pc === "MYLIGHT_MYSMARTBATTERY") {
               const selectedContractualCap = resolveVirtualBatteryCapacityKwh(vbInput);
               if (selectedContractualCap != null && selectedContractualCap > 0) {
                 simCapacityKwh = selectedContractualCap;
@@ -773,7 +798,7 @@ if (devLog) {
                   auto_selected_capacity_from_required: true,
                 };
               }
-            } else {
+            } else if (!virtualScenario._skipped) {
               simCapacityKwh = Math.max(requiredCap, 1e-9);
               vbSim = simulateVirtualBattery8760({
                 pv_hourly: ctx.pv.hourly,
@@ -812,22 +837,34 @@ if (devLog) {
               conso_hourly: consoHourlyVirtual,
             });
             if (ub.ok && Number(ub.required_capacity_kwh) > 0) {
-              vbConfig.capacity_kwh = Math.max(Number(ub.required_capacity_kwh), 1e-9);
+              if (!isCommercialUnboundedVirtualBatteryAllowed(ctx)) {
+                virtualScenario._virtualBatteryP2 = {
+                  required_capacity_kwh: Number(ub.required_capacity_kwh),
+                  provider_tier_status: "BLOCKED_UNBOUNDED_COMMERCIAL",
+                  capacity_auto_from_unbounded: true,
+                };
+                markVirtualBatteryUnboundedBlocked(virtualScenario, "virtual_battery_unbounded_disabled");
+                console.warn("[BATTERY_VIRTUAL] VB_UNBOUNDED_DISABLED_FOR_COMMERCIAL_USE");
+              } else {
+                vbConfig.capacity_kwh = Math.max(Number(ub.required_capacity_kwh), 1e-9);
+              }
               // RISQUE 1 : capacité auto-résolue au maximum théorique (unbounded).
               // La capacité contractuelle réelle du fournisseur peut être inférieure.
               if (!Array.isArray(virtualScenario.finance_warnings)) virtualScenario.finance_warnings = [];
-              virtualScenario.finance_warnings.push("VB_CAPACITY_AUTO_UNBOUNDED");
-              virtualScenario._vb_capacity_auto_from_unbounded = true;
-              if (process.env.NODE_ENV !== "production") {
+              if (!virtualScenario._skipped) virtualScenario.finance_warnings.push("VB_CAPACITY_AUTO_UNBOUNDED");
+              if (!virtualScenario._skipped) virtualScenario._vb_capacity_auto_from_unbounded = true;
+              if (!virtualScenario._skipped && process.env.NODE_ENV !== "production") {
                 console.warn(`[BATTERY_VIRTUAL] capacité auto depuis sim unbounded : ${vbConfig.capacity_kwh.toFixed(1)} kWh — capacity_kwh non configurée`);
               }
             }
           }
-          vbSim = simulateVirtualBattery8760({
-            pv_hourly: ctx.pv.hourly,
-            conso_hourly: consoHourlyVirtual,
-            config: vbConfig,
-          });
+          if (!virtualScenario._skipped) {
+            vbSim = simulateVirtualBattery8760({
+              pv_hourly: ctx.pv.hourly,
+              conso_hourly: consoHourlyVirtual,
+              config: vbConfig,
+            });
+          }
         }
 
         if (!virtualScenario._skipped && (!vbSim || !vbSim.ok)) {
@@ -1087,6 +1124,11 @@ if (devLog) {
             console.log("[VIRTUAL_BATTERY] billable_import =", billable_import_kwh);
           }
           addEnergyKpisToScenario(virtualScenario, ctx);
+          console.log(JSON.stringify({
+            tag: "SCENARIO_PROFILE_SOURCE",
+            scenario: "BATTERY_VIRTUAL",
+            scenario_uses_piloted_profile: virtualScenario.scenario_uses_piloted_profile,
+          }));
 
           if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1") {
             const importPhysicalKwh = baseScenario?.energy?.import ?? baseScenario?.import_kwh ?? 0;
@@ -1130,6 +1172,7 @@ if (devLog) {
       const hybridScenario = JSON.parse(JSON.stringify(scenarios.BATTERY_PHYSICAL));
       hybridScenario.name = "BATTERY_HYBRID";
       hybridScenario._v2 = true;
+      hybridScenario.scenario_uses_piloted_profile = Array.isArray(ctx.conso_p_pilotee);
 
       if (!hasSurplus8760H || !hasConso8760H) {
         hybridScenario._skipped = true;
@@ -1167,6 +1210,17 @@ if (devLog) {
         } else {
           const requiredCapH = unboundedH.required_capacity_kwh;
           const selectedContractCapH = resolveVirtualBatteryCapacityKwh(vbInputH);
+          if (selectedContractCapH == null && !isCommercialUnboundedVirtualBatteryAllowed(ctx)) {
+            hybridScenario._virtualBatteryP2 = {
+              required_capacity_kwh: requiredCapH,
+              provider_tier_status: "BLOCKED_UNBOUNDED_COMMERCIAL",
+              capacity_auto_from_unbounded: true,
+            };
+            markVirtualBatteryUnboundedBlocked(hybridScenario, "hybrid_virtual_battery_unbounded_disabled");
+            scenarios.BATTERY_HYBRID = hybridScenario;
+            console.warn("[BATTERY_HYBRID] VB_UNBOUNDED_DISABLED_FOR_COMMERCIAL_USE");
+          }
+          if (!hybridScenario._skipped) {
           const simCapacityKwhH = selectedContractCapH != null && selectedContractCapH > 0
             ? selectedContractCapH
             : Math.max(requiredCapH, 1e-9);
@@ -1335,6 +1389,11 @@ if (devLog) {
             hybridScenario.costs = { battery_virtual_annual_cost: subscriptionAnnualH };
 
             addEnergyKpisToScenario(hybridScenario, ctx);
+            console.log(JSON.stringify({
+              tag: "SCENARIO_PROFILE_SOURCE",
+              scenario: "BATTERY_HYBRID",
+              scenario_uses_piloted_profile: hybridScenario.scenario_uses_piloted_profile,
+            }));
             scenarios.BATTERY_HYBRID = hybridScenario;
             if (devLog) {
               console.log("[HYBRID] auto=", hybridAutoKwh, "import=", hybridImportKwh, "surplus=", hybridSurplusKwh, "sub=", subscriptionAnnualH);
@@ -1373,6 +1432,7 @@ if (devLog) {
 
     const finance = await financeService.computeFinance(ctx, scenarios);
     const scenariosFinal = mergeFinanceIntoScenarios(scenarios, finance.scenarios);
+    attachAntiOversellToScenarios(ctx, scenariosFinal);
 
     // Contrôle équilibre énergétique : CONSOMMATION = auto + import ; PRODUCTION = auto + surplus
     for (const [key, sc] of Object.entries(scenariosFinal)) {
@@ -1522,6 +1582,7 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_FINAL_SCENARIOS_V
 
     return res.json(ctxFinal);
 
+  }
   } catch (err) {
     console.error("❌ ERREUR SMARTPITCH :", err);
     if (err instanceof CalcEngineValidationError && err.code === CALC_INVALID_8760_PROFILE) {

@@ -63,7 +63,23 @@ function main() {
   attachNormalizedEnergyKpiFields(virt);
   assert(virt.energy.site_autonomy_pct < 100, "BV autonomie site jamais 100 % si import réseau > 0");
   assert(virt.energy.pv_self_consumption_pct < 100, "BV autoconsommation PV < 100 % si surplus exporté");
-  assert(virt.energy.pv_self_consumption_pct > 60, "BV : part production valorisée sur site peut dépasser l’ancien biais « direct seul »");
+  assert(virt.energy.export_pct != null && virt.energy.export_pct < 100, "BV export_pct");
+
+  const audit = {
+    name: "BASE",
+    _skipped: false,
+    energy: { prod: 4500, conso: 3300, auto: 1500, surplus: 3000, import: 1800 },
+    prod_kwh: 4500,
+    conso_kwh: 3300,
+    auto_kwh: 1500,
+    surplus_kwh: 3000,
+    import_kwh: 1800,
+  };
+  attachNormalizedEnergyKpiFields(audit);
+  assert(Math.abs((audit.energy.pv_self_consumption_pct ?? 0) - 33.33) < 0.05, "audit pv_self");
+  assert(Math.abs((audit.energy.site_autonomy_pct ?? 0) - 45.45) < 0.05, "audit site_autonomy");
+  assert(Math.abs((audit.energy.solar_coverage_pct ?? 0) - 45.45) < 0.05, "audit solar_coverage");
+  assert(Math.abs((audit.energy.export_pct ?? 0) - 66.67) < 0.05, "audit export");
 
   console.log("OK — energyKpisNormalize\n");
 }

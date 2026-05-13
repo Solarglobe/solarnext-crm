@@ -13,6 +13,7 @@ import { saveStudyPdfDocument } from "../services/documents.service.js";
 import { buildStudyPdfFileName } from "../services/studyPdfFileName.util.js";
 import { mergeOrganizationCgvPdfAppend } from "../services/legalCgvPdfMerge.service.js";
 import { FINANCIAL_DOCUMENT_PDF_KIND } from "../constants/financialDocumentPdfKind.js";
+import { isPdfBlockedByConfidence } from "../services/calculationConfidence.service.js";
 
 const orgId = (req) => req.user?.organizationId ?? req.user?.organization_id;
 const userId = (req) => req.user?.userId ?? req.user?.id ?? null;
@@ -47,6 +48,15 @@ export async function generatePdfForVersion(params, options = {}) {
     throw e;
   }
   console.log("STEP 1c OK: version row loaded for PDF");
+
+  const dataJsonPdf = version.data && typeof version.data === "object" ? version.data : {};
+  const ccPdf = dataJsonPdf.calculation_confidence;
+  if (isPdfBlockedByConfidence(ccPdf)) {
+    const e = new Error("PDF_BLOCKED_CALCULATION_CONFIDENCE");
+    e.code = "PDF_BLOCKED_CALCULATION_CONFIDENCE";
+    e.calculation_confidence = ccPdf;
+    throw e;
+  }
 
   let renderToken;
   if (ephemeralSnapshot != null && typeof ephemeralSnapshot === "object") {
@@ -146,6 +156,12 @@ export async function generatePdf(req, res, nextOrOptions) {
   } catch (e) {
     if (e.code === "VERSION_NOT_FOUND") {
       return res.status(404).json({ error: "VERSION_NOT_FOUND" });
+    }
+    if (e.code === "PDF_BLOCKED_CALCULATION_CONFIDENCE") {
+      return res.status(409).json({
+        error: "PDF_BLOCKED_CALCULATION_CONFIDENCE",
+        calculation_confidence: e.calculation_confidence ?? null,
+      });
     }
     if (e.code === "SCENARIO_SNAPSHOT_REQUIRED") {
       return res.status(400).json({ error: "SCENARIO_SNAPSHOT_REQUIRED" });

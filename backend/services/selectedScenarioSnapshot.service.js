@@ -309,6 +309,8 @@ export async function buildSelectedScenarioSnapshot({
       scenario.finance?.residual_bill_eur ??
       null,
     residual_bill_virtual_breakdown: residualBillVirtualBreakdown,
+    anti_oversell_flags: Array.isArray(scenario.anti_oversell_flags) ? scenario.anti_oversell_flags : [],
+    oversell_risk_score: Number.isFinite(Number(scenario.oversell_risk_score)) ? Number(scenario.oversell_risk_score) : 0,
   };
 
   const production = {
@@ -341,6 +343,13 @@ export async function buildSelectedScenarioSnapshot({
     elec_growth_missing:
       scenario.assumptions?.elec_growth_missing === true ||
       scenario.finance?.finance_meta?.elec_growth_missing === true,
+    scenario_uses_piloted_profile: scenario.scenario_uses_piloted_profile === true || scenario.assumptions?.scenario_uses_piloted_profile === true,
+    anti_oversell_flags:
+      scenario.assumptions?.anti_oversell_flags ??
+      (Array.isArray(scenario.anti_oversell_flags) ? scenario.anti_oversell_flags : []),
+    oversell_risk_score:
+      scenario.assumptions?.oversell_risk_score ??
+      (Number.isFinite(Number(scenario.oversell_risk_score)) ? Number(scenario.oversell_risk_score) : 0),
   };
 
   const created_at = new Date().toISOString();

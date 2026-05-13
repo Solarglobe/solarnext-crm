@@ -127,6 +127,7 @@ export async function getPdfViewModelForVersion(studyId, versionId, organization
   });
 
   viewModel.selected_scenario_snapshot = snapshot;
+  viewModel.calculation_confidence = dj.calculation_confidence ?? null;
 
   const orgRow = orgRowPdf;
   const settings = settingsJson;

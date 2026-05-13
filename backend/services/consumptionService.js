@@ -514,6 +514,12 @@ function ensureConsumptionConsistent(result) {
   return result;
 }
 
+/** Traçabilité moteur / calculation_confidence — n’impacte pas les calculs kWh. */
+function tagEngineConsumptionSource(result, engine_consumption_source) {
+  if (!result || typeof result !== "object") return result;
+  return { ...result, engine_consumption_source };
+}
+
 // ======================================================================
 // 8) EXPORT PRINCIPAL — VERSION V7 (compatible anciennes signatures)
 // ======================================================================
@@ -624,7 +630,9 @@ export function loadConsumption(formOrConso = {}, csvPath, formParams = {}) {
           hourly_len: result.hourly.length,
         });
       }
-      return ensureConsumptionConsistent(result);
+      const csvHourlySource =
+        rows.length >= 8760 ? "CSV_HOURLY_FULL_YEAR" : "CSV_HOURLY_PARTIAL_REBUILT";
+      return ensureConsumptionConsistent(tagEngineConsumptionSource(result, csvHourlySource));
     }
 
     if (format === "daily") {
@@ -645,7 +653,7 @@ export function loadConsumption(formOrConso = {}, csvPath, formParams = {}) {
           console.log("DEBUG_CSV_ANNUAL_KWH", r.annual_kwh);
           console.log("DEBUG_CONSUMPTION_RESULT", { annual_kwh: r?.annual_kwh, hourly_len: r?.hourly?.length });
         }
-        return ensureConsumptionConsistent(r);
+        return ensureConsumptionConsistent(tagEngineConsumptionSource(r, "CSV_DAILY_REBUILT"));
       }
     }
 
@@ -667,7 +675,7 @@ export function loadConsumption(formOrConso = {}, csvPath, formParams = {}) {
           console.log("DEBUG_CSV_ANNUAL_KWH", r.annual_kwh);
           console.log("DEBUG_CONSUMPTION_RESULT", { annual_kwh: r?.annual_kwh, hourly_len: r?.hourly?.length });
         }
-        return ensureConsumptionConsistent(r);
+        return ensureConsumptionConsistent(tagEngineConsumptionSource(r, "CSV_MONTHLY_REBUILT"));
       }
     }
 
@@ -704,7 +712,7 @@ export function loadConsumption(formOrConso = {}, csvPath, formParams = {}) {
         hourly_len: out?.hourly?.length
       });
     }
-    return ensureConsumptionConsistent(out);
+    return ensureConsumptionConsistent(tagEngineConsumptionSource(out, "PROFILE_8760_PREBUILT"));
   }
 
   // ----------------------------
@@ -728,7 +736,7 @@ export function loadConsumption(formOrConso = {}, csvPath, formParams = {}) {
         hourly_len: manual?.hourly?.length
       });
     }
-    return ensureConsumptionConsistent(manual);
+    return ensureConsumptionConsistent(tagEngineConsumptionSource(manual, "SYNTHETIC_MANUAL_PROFILE"));
   }
 
   // ----------------------------
@@ -750,7 +758,7 @@ export function loadConsumption(formOrConso = {}, csvPath, formParams = {}) {
       hourly_len: nat?.hourly?.length
     });
   }
-  return ensureConsumptionConsistent(nat);
+  return ensureConsumptionConsistent(tagEngineConsumptionSource(nat, "SYNTHETIC_NATIONAL_FALLBACK"));
 }
 
 // ======================================================================

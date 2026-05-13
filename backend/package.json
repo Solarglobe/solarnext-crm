@@ -138,6 +138,7 @@
     "test:lead-meters-api": "node scripts/test-lead-meters-api.js",
     "test:energy-profile-builder": "node tests/energyProfileBuilder.test.js",
     "test:enedis-energy-service": "node tests/enedisEnergyService.test.js",
+    "test:solar-calc-guards": "node --test tests/energyKpiDefinitions.test.mjs tests/calculationConfidence.test.mjs tests/calculationConfidenceOversell.test.mjs tests/antiOversellGuards.test.mjs tests/antiOversellRisk.test.mjs && node tests/energyKpisNormalize.test.js",
     "test:pdf-generation": "node scripts/test-pdf-generation.js",
     "test:pdf-storage": "node scripts/test-pdf-storage.js",
     "audit:official-shading-sanity": "node scripts/audit-official-shading-external-sanity.mjs",

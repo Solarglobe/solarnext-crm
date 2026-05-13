@@ -146,6 +146,7 @@ export async function runStudyCalc(req, res) {
         summary,
         computed_at: new Date().toISOString(),
         shading: solarnextPayload?.installation?.shading ?? undefined,
+        calculation_confidence: ctxFinal.calculation_confidence ?? null,
       };
 
       const meterCtx = await resolveStudyVersionMeterContext(pool, {
@@ -179,6 +180,7 @@ export async function runStudyCalc(req, res) {
 
       const merged = {
         ...dataJson,
+        calculation_confidence: ctxFinal.calculation_confidence ?? dataJson.calculation_confidence,
         ...(dataJson.selected_meter_id == null &&
         meterCtx?.resolvedSelectedMeterId != null
           ? { selected_meter_id: meterCtx.resolvedSelectedMeterId }

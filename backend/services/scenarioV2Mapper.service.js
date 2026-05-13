@@ -357,6 +357,9 @@ export function mapScenarioToV2(scenario, ctx) {
     elec_growth_pct: scenario.finance_meta?.elec_growth_pct ?? null,
     elec_growth_source: scenario.finance_meta?.elec_growth_source ?? null,
     elec_growth_missing: scenario.finance_meta?.elec_growth_missing === true,
+    scenario_uses_piloted_profile: scenario.scenario_uses_piloted_profile === true,
+    oversell_risk_score: Number.isFinite(Number(scenario.oversell_risk_score)) ? Number(scenario.oversell_risk_score) : 0,
+    anti_oversell_flags: Array.isArray(scenario.anti_oversell_flags) ? scenario.anti_oversell_flags : [],
     model_version: "ENGINE_V2",
   };
 
@@ -390,6 +393,9 @@ export function mapScenarioToV2(scenario, ctx) {
     shading,
     production,
     assumptions,
+    scenario_uses_piloted_profile: scenario.scenario_uses_piloted_profile === true,
+    anti_oversell_flags: Array.isArray(scenario.anti_oversell_flags) ? scenario.anti_oversell_flags : [],
+    oversell_risk_score: Number.isFinite(Number(scenario.oversell_risk_score)) ? Number(scenario.oversell_risk_score) : 0,
     computed_at: new Date().toISOString(),
     battery_virtual:
       isVirtualLike
