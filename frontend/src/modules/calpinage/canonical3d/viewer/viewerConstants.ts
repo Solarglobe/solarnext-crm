@@ -6,6 +6,9 @@
 /** FOV vertical perspective (deg) — compromis emprise / déformation. */
 export const VIEWER_CAMERA_FOV_DEG = 42;
 
+/** Durée interpolation PLAN_2D ↔ SCENE_3D (continuité spatiale). */
+export const VIEWER_CAMERA_MODE_TRANSITION_MS = 560;
+
 /** Marge autour du contenu après calcul de distance (≥ 1). */
 export const VIEWER_FRAMING_MARGIN = 1.22;
 
@@ -32,9 +35,10 @@ export const VIEWER_DEFAULT_CAMERA_OFFSET = { x: 0.55, y: -0.72, z: 0.88 } as co
 
 export const VIEWER_ORBIT_DAMPING = true;
 export const VIEWER_ORBIT_DAMPING_FACTOR = 0.075;
-/** Évite le pôle singulier et un flip complet sous le plan XY. */
+/** Évite le pôle singulier ; garde la caméra au-dessus de l’horizon toiture (jamais sous le plan XY). */
 export const VIEWER_ORBIT_MIN_POLAR_ANGLE = 0.12;
-export const VIEWER_ORBIT_MAX_POLAR_ANGLE = Math.PI / 2 + 0.38;
+/** Strictement < π/2 : pas de vue « par-dessous » / monde retourné. */
+export const VIEWER_ORBIT_MAX_POLAR_ANGLE = Math.PI / 2 - 0.08;
 
 /** Mode plan (ortho dessus) : orbite limitée près du zénith pour garder une lecture « calpinage ». */
 export const VIEWER_PLAN_ORBIT_MIN_POLAR = 0.06;
