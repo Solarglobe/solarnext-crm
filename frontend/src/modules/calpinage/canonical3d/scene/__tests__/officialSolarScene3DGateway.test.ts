@@ -162,6 +162,35 @@ describe("officialSolarScene3DGateway (Prompt 6)", () => {
     expect(roofA).not.toBe(roofB);
   });
 
+  it("CACHE GUARD — scène 0-panneau non mise en cache si getAllPanels() > 0 (bloc actif non figé)", () => {
+    // Simule le cas : getAllPanels() retourne des panneaux (pipeline en a reçu)
+    // mais la scène produite contient 0 pvPanels (résultat transitoire ou bug pipeline).
+    // Le gateway ne doit PAS mettre en cache ce résultat → 2e appel relance le pipeline.
+    const getAllPanels = () => [
+      { id: "activeBlock_0", panId: "pan-1", enabled: true, polygonPx: null },
+    ] as unknown[];
+
+    const r1 = getOrBuildOfficialSolarScene3DFromCalpinageRuntime(minimalCalpinageRuntimeFixture, {
+      getAllPanels,
+    });
+    // Le fixture minimal produit 0 pvPanels ; getAllPanels > 0 → guard active → pas de cache
+    const hasPvPanels = (r1.scene?.pvPanels?.length ?? 0) > 0;
+    if (!hasPvPanels) {
+      // Guard attendue : 2e appel doit relancer le pipeline (pas de cache hit)
+      const r2 = getOrBuildOfficialSolarScene3DFromCalpinageRuntime(minimalCalpinageRuntimeFixture, {
+        getAllPanels,
+      });
+      expect(r2.sceneSyncDiagnostics.usedSceneCache).toBe(false);
+      expect(r2.sceneSyncDiagnostics.rebuildCountForCurrentSignature).toBe(2);
+    } else {
+      // Si le fixture produit des panneaux, la garde ne s'active pas (comportement normal)
+      const r2 = getOrBuildOfficialSolarScene3DFromCalpinageRuntime(minimalCalpinageRuntimeFixture, {
+        getAllPanels,
+      });
+      expect(r2.sceneSyncDiagnostics.usedSceneCache).toBe(true);
+    }
+  });
+
   it("forceStructuralRebuild relance le pipeline et ré-enregistre RoofTruth", () => {
     const getAllPanels = () => [] as unknown[];
     getOrBuildOfficialSolarScene3DFromCalpinageRuntime(minimalCalpinageRuntimeFixture, { getAllPanels });

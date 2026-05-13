@@ -178,7 +178,33 @@ export function getOrBuildOfficialSolarScene3DFromCalpinageRuntime(
   }
 
   const built = buildSolarScene3DFromCalpinageRuntime(runtime, options);
-  structuralCache.set(key, built);
+
+  // Guard: ne pas mettre en cache un résultat 0-panneau quand le moteur dispose de panneaux.
+  //
+  // Scénario reproductible : l'utilisateur pose des panneaux alors que le bloc actif n'est pas
+  // encore figé. getAllPanelsFromRuntime() exclut intentionnellement ce bloc (panneaux fantômes
+  // non engagés) → pvSig = hash([]) → pipeline produit 0 pvPanels → résultat mis en cache.
+  // Tant que le bloc reste actif, la même clé de cache est retournée → vue 3D bloquée à 0
+  // panneaux même après que l'utilisateur revient en 2D, fige le bloc et repasse en 3D.
+  //
+  // Correction : si la scène est valide mais vide (0 pvPanels) alors que getAllPanels() retourne
+  // des panneaux, ce résultat est transitoire (bloc actif en cours) → on ne le met PAS en cache.
+  // Dès que le bloc est figé, getAllPanelsFromRuntime() retourne les panneaux → pvSig change
+  // → nouvelle clé → pipeline correct → résultat mis en cache normalement.
+  const pvPanelsInScene = built.scene?.pvPanels?.length ?? 0;
+  let panelsAvailableInEngine = 0;
+  if (built.ok && built.scene != null && pvPanelsInScene === 0 && options?.getAllPanels) {
+    try {
+      panelsAvailableInEngine = options.getAllPanels().length;
+    } catch {
+      /* défensif — ne jamais laisser le garde crasher le pipeline */
+    }
+  }
+  const isTransientZeroPanelResult = built.ok && built.scene != null && pvPanelsInScene === 0 && panelsAvailableInEngine > 0;
+
+  if (!isTransientZeroPanelResult) {
+    structuralCache.set(key, built);
+  }
   pipelineInvocationCountBySignature.set(key, (pipelineInvocationCountBySignature.get(key) ?? 0) + 1);
 
   if (import.meta.env.DEV) {
@@ -189,7 +215,16 @@ export function getOrBuildOfficialSolarScene3DFromCalpinageRuntime(
       hasScene: built.scene != null,
       autopsyLegacyPath: built.autopsyLegacyPath ?? "unknown",
       lastBuildReason: "full_structural_pipeline",
+      ...(isTransientZeroPanelResult
+        ? { cacheSkipped: true, cacheSkipReason: "transient_zero_panel_active_block", panelsAvailableInEngine }
+        : {}),
     });
+    if (isTransientZeroPanelResult) {
+      console.warn(
+        "[3D-RUNTIME][CACHE GUARD] Scène 0-panneau non mise en cache : bloc actif non figé détecté.",
+        { panelsAvailableInEngine, pvPanelsInScene, signature: key },
+      );
+    }
   }
 
   return {
