@@ -23,8 +23,7 @@
  * Mode `panSelection3DMode` : sélection locale pan / sommet (surbrillance + marqueur) — pas d’écriture interne ;
  * mêmes hooks B4 / B5 possibles via les props ci-dessus.
  *
- * Prompt 34 — `cameraViewMode` : même `scene`, projection plan (FOV zénithal) ou perspective (orbite).
- * Canvas WebGL unique (pas de remount au toggle) ; interpolation caméra PLAN ↔ SCENE (~560 ms).
+ * Prompt 34 — `cameraViewMode` : même `scene`, projection plan orthographique (dessus) ou perspective (orbite).
  *
  * Pass 4–5 — pose PV 3D : sonde `window.__CALPINAGE_3D_PV_PLACE_PROBE__` ou produit `pvLayout3DInteractionMode`
  * (`__CALPINAGE_3D_PV_LAYOUT_MODE__` + phase `PV_LAYOUT`) — clic toiture → `tryCommitPvPlacementFrom3dRoofHit` ;
@@ -75,7 +74,6 @@ import {
   extendBoundingBoxWithSatelliteImageFootprint,
 } from "./solarSceneBounds";
 import { CameraFramingRig } from "./CameraFramingRig";
-import { worldEastUnitFromNorthDeg } from "./cameraOrbitContinuity";
 import { logIfGeometryNormalsSuspect } from "./geometryNormalsAudit";
 import { ShadingLegend3D } from "./ShadingLegend3D";
 import {
@@ -1662,14 +1660,6 @@ function SolarScene3DViewer({
     );
   }, [geometryBox, groundPlaneConfig]);
 
-  const cameraWorldEast = useMemo(() => {
-    const d = scene.worldConfig?.northAngleDeg;
-    if (d === undefined || d === null || !Number.isFinite(Number(d))) {
-      return new THREE.Vector3(1, 0, 0);
-    }
-    return worldEastUnitFromNorthDeg(Number(d));
-  }, [scene.worldConfig?.northAngleDeg]);
-
   const { center, maxDim } = useMemo(() => {
     const c = new THREE.Vector3();
     const s = new THREE.Vector3();
@@ -2737,16 +2727,27 @@ function SolarScene3DViewer({
         </div>
       )}
       <Canvas
+        key={cameraViewMode}
+        orthographic={cameraViewMode === "PLAN_2D"}
         shadows
         dpr={[1, 2]}
         gl={{ antialias: true, powerPreference: "high-performance" }}
-        camera={{
-          position: [0, 0, 50],
-          fov: VIEWER_CAMERA_FOV_DEG,
-          near: 0.05,
-          far: 1e6,
-          up: [0, 0, 1],
-        }}
+        camera={
+          cameraViewMode === "PLAN_2D"
+            ? {
+                position: [0, 0, 50],
+                near: 0.05,
+                far: 1e6,
+                up: [0, 0, 1],
+              }
+            : {
+                position: [0, 0, 10],
+                fov: VIEWER_CAMERA_FOV_DEG,
+                near: 0.1,
+                far: 1e6,
+                up: [0, 0, 1],
+              }
+        }
         onCreated={({ gl }) => {
           applyCanonicalViewerGlOutput(gl);
           // Fix R3F canvas sizing : quand le container était display:none au montage,
@@ -2775,7 +2776,6 @@ function SolarScene3DViewer({
           framingMargin={premiumAssembly.framingMargin}
           orbitEnabled={!orbitSuppressed}
           orbitControlsInstanceRef={orbitControlsRef}
-          worldEastUnit={cameraWorldEast}
         />
         <ViewerSceneContent
           key={scene.metadata.createdAtIso}

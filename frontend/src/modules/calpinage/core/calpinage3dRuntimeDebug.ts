@@ -7,8 +7,6 @@ declare global {
   interface Window {
     /** Activer : `window.__CALPINAGE_3D_DEBUG__ = true` puis ouvrir l’aperçu 3D. */
     __CALPINAGE_3D_DEBUG__?: boolean;
-    /** Audit caméra / orbite (position, azimut, Est·droite) — logs structurés sur transitions. */
-    __CALPINAGE_3D_CAMERA_AUDIT__?: boolean;
   }
 }
 
@@ -19,21 +17,6 @@ export function isCalpinage3DRuntimeDebugEnabled(): boolean {
   } catch {
     return false;
   }
-}
-
-export function isCalpinage3dCameraAuditEnabled(): boolean {
-  if (typeof window === "undefined") return false;
-  try {
-    return window.__CALPINAGE_3D_CAMERA_AUDIT__ === true;
-  } catch {
-    return false;
-  }
-}
-
-/** Logs audit caméra ; no-op si `__CALPINAGE_3D_CAMERA_AUDIT__` est faux. */
-export function logCalpinage3dCameraAudit(payload: Record<string, unknown>): void {
-  if (!isCalpinage3dCameraAuditEnabled()) return;
-  console.info("[3D CAMERA AUDIT]", payload);
 }
 
 /** Log structuré ; no-op si debug OFF. */
