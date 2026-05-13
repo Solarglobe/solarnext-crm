@@ -33,10 +33,16 @@ export function useDataUrlTexture(dataUrl: string): THREE.Texture | null {
   useEffect(() => {
     const img = new Image();
     const tex = new THREE.Texture(img);
-    /** true (défaut Three.js) : corrige la convention WebGL (V=0=bas) pour aligner image HTML (row 0=haut)
-     *  avec l'UV Three.js (V=1=local+Y=monde Y=0=haut image per imagePxToWorldHorizontalM).
-     *  flipY=false provoquait une inversion N/S de l'orthophoto par rapport aux panneaux. */
-    tex.flipY = true;
+    /**
+     * flipY=false (intentionnel) — Three.js PlaneGeometry r183 génère avec `-y` donc :
+     *   Nord du plan (local+Y, iy=0) → UV v=1 ; Sud → UV v=0.
+     * Convention WebGL sans flip : UV v=1 → rangée 0 de l'image (Nord) ✓
+     *                              UV v=0 → rangée H        de l'image (Sud)  ✓
+     * Avec flipY=true le résultat est inversé N/S (Nord du plan affiche Sud de l'image).
+     * Idem pour la texture satellite projetée sur les pans (satelliteUvMapper : v = 1 − yPx/H).
+     * Cohérent avec worldMapping.ts : "Texture satellite : flipY = false dans le viewer".
+     */
+    tex.flipY = false;
     tex.colorSpace = THREE.SRGBColorSpace;
     tex.minFilter = THREE.LinearMipmapLinearFilter;
     tex.magFilter = THREE.LinearFilter;
