@@ -63,8 +63,15 @@ function triangleWindAlongNormal(
 /**
  * Polygone plan : triangulation oreilles en UV (concave) avec repli éventail.
  * Faces verticales le long des arêtes **bord libre** (un seul pan incident) jusqu’au Z minimal du modèle.
+ *
+ * @param uvMapper — optionnel : projection satellite top-down. Reçoit (wx, wy) monde → retourne UV [0,1]
+ *   avec u = xPx/declaredW et v = 1 - yPx/declaredH (avant correction repeat/offset texture).
+ *   Quand fourni, l’attribut `uv` est ajouté à la géométrie pour le matériau texturé.
  */
-export function roofPatchGeometry(patch: RoofPlanePatch3D): THREE.BufferGeometry {
+export function roofPatchGeometry(
+  patch: RoofPlanePatch3D,
+  uvMapper?: ((wx: number, wy: number) => { u: number; v: number }) | null,
+): THREE.BufferGeometry {
   const corners = patch.cornersWorld;
   const n = corners.length;
   const positions = new Float32Array(n * 3);
@@ -128,6 +135,17 @@ export function roofPatchGeometry(patch: RoofPlanePatch3D): THREE.BufferGeometry
     normals[i * 3 + 2] = n3.z;
   }
   geo.setAttribute("normal", new THREE.BufferAttribute(normals, 3));
+
+  if (uvMapper) {
+    const uvs = new Float32Array(n * 2);
+    for (let i = 0; i < n; i++) {
+      const { u, v } = uvMapper(corners[i]!.x, corners[i]!.y);
+      uvs[i * 2] = u;
+      uvs[i * 2 + 1] = v;
+    }
+    geo.setAttribute("uv", new THREE.BufferAttribute(uvs, 2));
+  }
+
   return geo;
 }
 

@@ -151,7 +151,12 @@ function roofModelingSkipOccluderRaycast(
 }
 import { PREMIUM_HOUSE_3D_VIEW_MODES } from "./premium/premiumHouse3DViewModes";
 import type { CanonicalHouse3DValidationReport } from "../validation/canonicalHouse3DValidationModel";
-import { GroundPlaneTexture, type GroundPlaneImageData } from "./GroundPlaneTexture";
+import {
+  GroundPlaneTexture,
+  useDataUrlTexture,
+  applyTextureCropToMatch2DCanvas,
+  type GroundPlaneImageData,
+} from "./GroundPlaneTexture";
 import { DebugXYAlignmentOverlay } from "./DebugXYAlignmentOverlay";
 import { blendPvSurfaceColor, premiumTintHexForQualityScore } from "./visualShading/premiumVisualShadingColors";
 import {
@@ -658,6 +663,8 @@ function ViewerSceneContent({
   pvLayout3DInteractionMode = false,
   onPvPanelPvLayout3dPointerDown,
   debugRuntime,
+  satelliteTexture,
+  satelliteUvMapper,
 }: Required<
   Pick<
     SolarScene3DViewerProps,
@@ -704,6 +711,16 @@ function ViewerSceneContent({
   readonly onPvPanelPvLayout3dPointerDown?: (e: ThreeEvent<PointerEvent>, panelId: string) => void;
   /** Runtime brut (ex. CALPINAGE_STATE) — champs 2D lucarne pour rendu dormer premium (couche visuelle). */
   readonly debugRuntime?: unknown;
+  /**
+   * Texture satellite (orthophoto 2D) déjà chargée + crop appliqué — projetée en top-down sur les pans.
+   * Null si l'image n'est pas encore prête ou absente.
+   */
+  readonly satelliteTexture?: THREE.Texture | null;
+  /**
+   * Mapper UV (wx, wy) → {u, v} [0,1] en espace déclaré pour la projection satellite sur la toiture.
+   * Doit être cohérent avec satelliteTexture (même repeat/offset).
+   */
+  readonly satelliteUvMapper?: ((wx: number, wy: number) => { u: number; v: number }) | null;
 }) {
   const pvPanelRaycastPassThrough = roofModelingPassThroughOccluders && !pvLayout3DInteractionMode;
   const center = useMemo(() => box.getCenter(new THREE.Vector3()).clone(), [box]);
@@ -729,9 +746,10 @@ function ViewerSceneContent({
   const roofGeos = useMemo(() => {
     return scene.roofModel.roofPlanePatches.map((p) => ({
       id: p.id,
-      geo: roofPatchGeometry(p),
+      geo: roofPatchGeometry(p, satelliteUvMapper ?? undefined),
     }));
-  }, [scene.roofModel.roofPlanePatches]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scene.roofModel.roofPlanePatches, satelliteUvMapper]);
 
   useEffect(() => {
     if (!import.meta.env.DEV) return;
@@ -1093,18 +1111,33 @@ function ViewerSceneContent({
               onPointerOut={showRoofModelingHoverUx ? () => onRoofModelingPointerUi!(null) : undefined}
               onPointerDown={onRoofTessellationPv3dProbePointerDown}
             >
-              <meshStandardMaterial
-                color={autopsyDevColors ? "#00ffff" : mRoof.color}
-                metalness={mRoof.metalness}
-                roughness={mRoof.roughness}
-                flatShading={mRoof.flatShading ?? false}
-                side={THREE.DoubleSide}
-                polygonOffset
-                polygonOffsetFactor={1}
-                polygonOffsetUnits={1}
-                emissive={emissiveHex}
-                emissiveIntensity={emissiveIntensity}
-              />
+              {satelliteTexture && !autopsyDevColors ? (
+                <meshStandardMaterial
+                  map={satelliteTexture}
+                  color="#ffffff"
+                  metalness={0}
+                  roughness={0.92}
+                  side={THREE.DoubleSide}
+                  polygonOffset
+                  polygonOffsetFactor={1}
+                  polygonOffsetUnits={1}
+                  emissive={emissiveHex}
+                  emissiveIntensity={emissiveIntensity}
+                />
+              ) : (
+                <meshStandardMaterial
+                  color={autopsyDevColors ? "#00ffff" : mRoof.color}
+                  metalness={mRoof.metalness}
+                  roughness={mRoof.roughness}
+                  flatShading={mRoof.flatShading ?? false}
+                  side={THREE.DoubleSide}
+                  polygonOffset
+                  polygonOffsetFactor={1}
+                  polygonOffsetUnits={1}
+                  emissive={emissiveHex}
+                  emissiveIntensity={emissiveIntensity}
+                />
+              )}
               {panHighlighted && (
                 <Outlines
                   thickness={outlineThickness}
@@ -1561,6 +1594,45 @@ function SolarScene3DViewer({
       northAngleDeg: wc.northAngleDeg,
     };
   }, [groundImage, scene.worldConfig]);
+
+  // ── Texture satellite toiture ──────────────────────────────────────────────────────────────
+  // Instance séparée du fond plan (même image, même paramètres) pour disposer les UVs sur les pans.
+  const roofSatelliteRawTexture = useDataUrlTexture(groundPlaneConfig?.image.dataUrl ?? "");
+
+  /** Correction crop : même logique que GroundPlaneTexture — aligne le sous-rectangle déclaré. */
+  useLayoutEffect(() => {
+    if (!roofSatelliteRawTexture || !groundPlaneConfig) return;
+    applyTextureCropToMatch2DCanvas(
+      roofSatelliteRawTexture,
+      groundPlaneConfig.image.widthPx,
+      groundPlaneConfig.image.heightPx,
+    );
+  }, [roofSatelliteRawTexture, groundPlaneConfig]);
+
+  /**
+   * Projection top-down : (wx, wy) monde → UV [0,1] en espace déclaré.
+   * u = xPx / declaredW, v = 1 − yPx / declaredH
+   * La correction repeat/offset du texture gère l'éventuel bitmap surdimensionné.
+   */
+  const satelliteUvMapper = useMemo(():
+    | ((wx: number, wy: number) => { u: number; v: number })
+    | null => {
+    if (!groundPlaneConfig) return null;
+    const {
+      metersPerPixel,
+      northAngleDeg,
+      image: { widthPx, heightPx },
+    } = groundPlaneConfig;
+    return (wx: number, wy: number) => {
+      const { xPx, yPx } = worldHorizontalMToImagePx(wx, wy, metersPerPixel, northAngleDeg);
+      return { u: xPx / widthPx, v: 1 - yPx / heightPx };
+    };
+  }, [groundPlaneConfig]);
+
+  /** Texture prête (image chargée + crop appliqué) — null si pas encore chargée ou pas de config. */
+  const satelliteTexture =
+    roofSatelliteRawTexture && groundPlaneConfig ? roofSatelliteRawTexture : null;
+  // ─────────────────────────────────────────────────────────────────────────────────────────────
 
   /** Bbox passée à `CameraFramingRig` : géométrie ∪ emprise image satellite (si fond plan présent). */
   const framingBox = useMemo(() => {
@@ -2742,6 +2814,8 @@ function SolarScene3DViewer({
           pvLayout3DInteractionMode={pvLayout3DInteractionMode}
           onPvPanelPvLayout3dPointerDown={onPvPanelPvLayout3dPointerDown}
           debugRuntime={debugRuntime}
+          satelliteTexture={satelliteTexture}
+          satelliteUvMapper={satelliteUvMapper}
         />
         {pvLayout3DInteractionMode && scene.worldConfig && pv3dDragSession ? (
           <PvLayout3dDragController

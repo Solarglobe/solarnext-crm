@@ -27,7 +27,7 @@ export interface GroundPlaneConfig {
   readonly northAngleDeg: number;
 }
 
-function useDataUrlTexture(dataUrl: string): THREE.Texture | null {
+export function useDataUrlTexture(dataUrl: string): THREE.Texture | null {
   const [texture, setTexture] = useState<THREE.Texture | null>(null);
 
   useEffect(() => {
@@ -64,8 +64,9 @@ function useDataUrlTexture(dataUrl: string): THREE.Texture | null {
 
 /**
  * Ajuste la texture pour coller au recadrage source du canvas 2D (voir en-tête).
+ * Exportée pour réutilisation par la couche texture satellite sur la toiture.
  */
-function applyTextureCropToMatch2DCanvas(
+export function applyTextureCropToMatch2DCanvas(
   texture: THREE.Texture,
   declaredW: number,
   declaredH: number,
