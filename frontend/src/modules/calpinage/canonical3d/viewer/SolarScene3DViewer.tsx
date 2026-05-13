@@ -1523,8 +1523,8 @@ function SolarScene3DViewer({
   debugRuntime,
   cameraViewMode: cameraViewModeControlled,
   onCameraViewModeChange,
-  defaultCameraViewMode = DEFAULT_CAMERA_VIEW_MODE,
-  showCameraViewModeToggle = false,
+  defaultCameraViewMode,
+  showCameraViewModeToggle,
   premiumViewMode: premiumViewModeControlled,
   onPremiumViewModeChange,
   geometryValidationReport = null,
@@ -1554,8 +1554,17 @@ function SolarScene3DViewer({
     });
   }, [scene]);
 
-  const [internalViewMode, setInternalViewMode] = useState<CameraViewMode>(defaultCameraViewMode);
+  /**
+   * Mode caméra initial : PLAN_2D quand une image satellite est fournie (vue zénithale, parallaxe ≈ 0 →
+   * la maison 3D s'aligne parfaitement sur le fond plan). Sinon SCENE_3D perspective orbitale.
+   * Le prop `defaultCameraViewMode` prime toujours sur cette heuristique.
+   */
+  const effectiveDefaultViewMode: CameraViewMode =
+    defaultCameraViewMode ?? (groundImage ? "PLAN_2D" : DEFAULT_CAMERA_VIEW_MODE);
+  const [internalViewMode, setInternalViewMode] = useState<CameraViewMode>(effectiveDefaultViewMode);
   const cameraViewMode = cameraViewModeControlled ?? internalViewMode;
+  /** Toggle affiché automatiquement quand l'image satellite est présente (sauf override explicite). */
+  const effectiveShowCameraViewModeToggle = showCameraViewModeToggle ?? !!groundImage;
   const setCameraViewMode = useCallback(
     (m: CameraViewMode) => {
       onCameraViewModeChange?.(m);
@@ -2571,7 +2580,7 @@ function SolarScene3DViewer({
           }}
         />
       )}
-      {showCameraViewModeToggle && (
+      {effectiveShowCameraViewModeToggle && (
         <div
           role="toolbar"
           aria-label="Mode d’affichage"
