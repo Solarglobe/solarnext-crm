@@ -1112,17 +1112,16 @@ function ViewerSceneContent({
               onPointerDown={onRoofTessellationPv3dProbePointerDown}
             >
               {satelliteTexture && !autopsyDevColors ? (
-                <meshStandardMaterial
+                /* meshBasicMaterial : affiche la texture satellite telle quelle,
+                   sans dépendance à l'éclairage — la photo aérienne a déjà sa propre lumière. */
+                <meshBasicMaterial
                   map={satelliteTexture}
-                  color="#ffffff"
-                  metalness={0}
-                  roughness={0.92}
+                  color={panHighlighted ? "#aaccff" : "#ffffff"}
                   side={THREE.DoubleSide}
                   polygonOffset
                   polygonOffsetFactor={1}
                   polygonOffsetUnits={1}
-                  emissive={emissiveHex}
-                  emissiveIntensity={emissiveIntensity}
+                  toneMapped={false}
                 />
               ) : (
                 <meshStandardMaterial
