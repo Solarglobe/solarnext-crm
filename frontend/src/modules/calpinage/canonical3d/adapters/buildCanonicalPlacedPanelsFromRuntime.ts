@@ -96,9 +96,9 @@ export interface BuildCanonicalPlacedPanelsFromRuntimeInput {
  * de la pente est déjà multipliée par cos(tilt). Si on l’utilise directement comme dimension
  * physique dans `panelOnPlaneGeometry`, elle subit un deuxième cos(tilt) → double-projection.
  *
- * Correction : on décompose le vecteur horizontal de l’arête sur les axes du patch (eave = xAxis,
- * pente = yAxis projeté). La composante pente horizontale vaut `physique × cos(tilt)`, donc on
- * divise par cos(tilt) = patch.equation.normal.z pour récupérer la longueur physique réelle.
+ * Correction : depuis la normale du plan (n·dp = 0), on calcule la composante verticale dz de
+ * chaque arête (dz = -(nx·dx + ny·dy)/nz), puis la longueur physique = √(dx²+dy²+dz²).
+ * Aucune hypothèse sur les axes locaux du patch (xAxis/yAxis). Exact pour toute direction.
  *
  * Pour une arête entièrement dans la direction de l’auvent (pas de pente) : correction = 1.
  * Pour une arête entièrement dans la direction de la pente : correction = 1/cos(tilt).
@@ -116,26 +116,21 @@ function physicalEdgeLengthM(
   const dx = wb.x - wa.x;
   const dy = wb.y - wa.y;
 
-  // cos(tilt) = composante z de la normale unitaire du patch (= 1 pour plan horizontal)
-  const cosTilt = patch.equation.normal.z;
-  if (!Number.isFinite(cosTilt) || cosTilt < 0.1) {
-    // Toit très raide (>84°) : pas de correction fiable, on retourne la longueur horizontale brute
+  const { x: nx, y: ny, z: nz } = patch.equation.normal;
+  if (!Number.isFinite(nz) || Math.abs(nz) < 0.1) {
+    // Toit quasi-vertical (>84°) : pas de correction fiable → longueur horizontale brute
     return Math.hypot(dx, dy);
   }
 
-  // xAxis : direction de l’auvent (z = 0, vecteur unitaire dans le plan horizontal)
-  // yAxis : direction montante de la pente ; sa projection horizontale a une magnitude = cos(tilt)
-  const ax = patch.localFrame.xAxis;
-  const ay = patch.localFrame.yAxis;
-
-  // Composante de l’arête le long de l’auvent (pas de raccourcissement)
-  const alongEave = dx * ax.x + dy * ax.y;
-  // Composante le long de la pente (raccourcie par cos(tilt) dans la vue du dessus)
-  const alongSlopeProjected = dx * ay.x + dy * ay.y;
-
-  // Longueur physique réelle dans le plan du pan :
-  // √( eave² + (slope_projected / cos(tilt))² )
-  return Math.hypot(alongEave, alongSlopeProjected / cosTilt);
+  // L’arête 3D réelle a une composante verticale dz imposée par l’équation du plan (n·dp = 0).
+  // Sans hypothèse sur les axes locaux du patch : dz = -(nx·dx + ny·dy) / nz
+  // Longueur physique : √(dx² + dy² + dz²)
+  //
+  // Vérification : arête le long de la pente (dx=0, dy=L_proj), normal=(0,-sin,cos) →
+  //   dz = sin·L_proj/cos = tan·L_proj → L_phys = L_proj/cos(tilt) ✓
+  // Arête le long de l’auvent (dy=0) → dz=0 → L_phys = dx ✓ (pas de correction)
+  const dz = -(nx * dx + ny * dy) / nz;
+  return Math.hypot(dx, dy, dz);
 }
 
 /**
