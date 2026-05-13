@@ -16,7 +16,7 @@ interface P9Scenario {
 }
 
 interface P9Data {
-  meta?: Record<string, unknown>;
+  meta?: (Record<string, unknown> & { horizon_years_pdf?: number }) | undefined;
   scenario?: P9Scenario | null;
   error?: string | null;
   warnings?: string[];
@@ -44,6 +44,10 @@ function fmtRoiAns(y: number | null | undefined): string {
 
 export default function PdfPage9({ data }: { data?: P9Data }) {
   const meta = data?.meta ?? {};
+  const rawH = meta.horizon_years_pdf;
+  const horizonYears =
+    typeof rawH === "number" && Number.isFinite(rawH) && rawH > 0 ? Math.floor(rawH) : 25;
+
   const sc = data?.scenario ?? null;
   const finalNet =
     sc?.final_cumul != null && Number.isFinite(Number(sc.final_cumul)) ? Number(sc.final_cumul) : null;
@@ -51,14 +55,14 @@ export default function PdfPage9({ data }: { data?: P9Data }) {
 
   return (
     <div className="pdf-page">
-      <h2 className="pdf-title">Impact — gains cumulés (25 ans)</h2>
+      <h2 className="pdf-title">Impact — gains cumulés ({horizonYears} ans)</h2>
       <div className="pdf-meta">
         <span>{val(meta.client)}</span>
         <span>{val(meta.ref)}</span>
         <span>{val(meta.date)}</span>
       </div>
       <div className="pdf-hero-impact" style={{ textAlign: "center", margin: "12px 0" }}>
-        <div style={{ fontSize: 11, opacity: 0.85 }}>Gain net estimé sur 25 ans</div>
+        <div style={{ fontSize: 11, opacity: 0.85 }}>Gain net estimé sur {horizonYears} ans</div>
         <div style={{ fontSize: 28, fontWeight: 800, color: "#C39847" }}>
           {finalNet != null ? `${finalNet >= 0 ? "+ " : ""}${Math.abs(Math.round(finalNet)).toLocaleString("fr-FR")} €` : EMPTY}
         </div>

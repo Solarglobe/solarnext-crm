@@ -7,7 +7,7 @@ import React from "react";
 import DonutP12 from "./components/DonutP12";
 
 interface P12Data {
-  meta?: Record<string, unknown>;
+  meta?: (Record<string, unknown> & { horizon_years_pdf?: number }) | undefined;
   env?: { autocons_pct?: number };
   v_co2?: string;
   v_trees?: string;
@@ -27,6 +27,9 @@ function val(v: unknown): string {
 export default function PdfPage12({ data }: { data?: P12Data }) {
   const meta = data?.meta ?? {};
   const autoconsPct = data?.env?.autocons_pct ?? 0;
+  const rawH = meta.horizon_years_pdf;
+  const horizonYears =
+    typeof rawH === "number" && Number.isFinite(rawH) && rawH > 0 ? Math.floor(rawH) : 25;
 
   return (
     <div className="pdf-page">
@@ -54,15 +57,15 @@ export default function PdfPage12({ data }: { data?: P12Data }) {
             <span className="pdf-kpi-value">{val(data?.v_cars)}</span>
           </div>
           <div className="pdf-kpi-card">
-            <span className="pdf-kpi-label">CO₂ évité (25 ans)</span>
+            <span className="pdf-kpi-label">CO₂ évité ({horizonYears} ans)</span>
             <span className="pdf-kpi-value">{val(data?.v_co2_25)}</span>
           </div>
           <div className="pdf-kpi-card">
-            <span className="pdf-kpi-label">Arbres (25 ans)</span>
+            <span className="pdf-kpi-label">Arbres ({horizonYears} ans)</span>
             <span className="pdf-kpi-value">{val(data?.v_trees_25)}</span>
           </div>
           <div className="pdf-kpi-card">
-            <span className="pdf-kpi-label">Voitures (25 ans)</span>
+            <span className="pdf-kpi-label">Voitures ({horizonYears} ans)</span>
             <span className="pdf-kpi-value">{val(data?.v_cars_25)}</span>
           </div>
         </div>

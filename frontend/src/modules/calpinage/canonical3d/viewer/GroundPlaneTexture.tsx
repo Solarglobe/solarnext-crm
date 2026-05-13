@@ -33,8 +33,10 @@ function useDataUrlTexture(dataUrl: string): THREE.Texture | null {
   useEffect(() => {
     const img = new Image();
     const tex = new THREE.Texture(img);
-    /** false : même ordre de lignes que le bitmap / canvas 2D (flipY=true inverserait V vs géométrie monde). */
-    tex.flipY = false;
+    /** true (défaut Three.js) : corrige la convention WebGL (V=0=bas) pour aligner image HTML (row 0=haut)
+     *  avec l'UV Three.js (V=1=local+Y=monde Y=0=haut image per imagePxToWorldHorizontalM).
+     *  flipY=false provoquait une inversion N/S de l'orthophoto par rapport aux panneaux. */
+    tex.flipY = true;
     tex.colorSpace = THREE.SRGBColorSpace;
     tex.minFilter = THREE.LinearMipmapLinearFilter;
     tex.magFilter = THREE.LinearFilter;

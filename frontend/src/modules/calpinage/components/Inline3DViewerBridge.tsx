@@ -320,14 +320,8 @@ function Inline3DViewer({
         ...(displayReconstruction ? { roofGeometryFidelityMode: "reconstruction" as const } : {}),
         ...(optimalSingleBuilding ? { legacyRoofMapOptions: optimalSingleBuildingLegacyRoofMapOptions() } : {}),
         // T13 : accès typé via façade runtime — cohérent avec L.117 du même fichier.
-        getAllPanels: () => {
-          try {
-            return getCalpinageRuntime()?.getPlacementEngine()?.getAllPanels() ?? [];
-          } catch {
-            /* ignore */
-          }
-          return [];
-        },
+        // getAllPanelsFromRuntime() exclut le bloc actif non figé (panneau fantôme flottant).
+        getAllPanels: () => getAllPanelsFromRuntime(),
       });
       if (import.meta.env.DEV) {
         const s = result.sceneSyncDiagnostics;

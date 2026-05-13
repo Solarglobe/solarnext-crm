@@ -38,11 +38,17 @@ export default function PdfPage2({
   totalPages?: number;
 }) {
   const a = data?.p2_auto ?? {};
+  const hy =
+    typeof a.horizonYears === "number" && Number.isFinite(a.horizonYears) && a.horizonYears > 0
+      ? Math.floor(a.horizonYears)
+      : 25;
+  const titleFinance = `Étude financière (${hy} ans)`;
+  const chartTitle = `Évolution financière sur ${hy} ans`;
 
   const meta: PdfMeta = {
     client: fmt(a.p2_client),
-    ref:    fmt(a.p2_ref),
-    date:   fmt(a.p2_date),
+    ref: fmt(a.p2_ref),
+    date: fmt(a.p2_date),
   };
 
   // KPI grid
@@ -50,14 +56,14 @@ export default function PdfPage2({
     { label: "TRI",            value: fmt(a.p2_k_tri),      unit: "%",   accent: true },
     { label: "ROI",            value: fmt(a.p2_k_roi) },
     { label: "LCOE",           value: fmt(a.p2_k_lcoe),     unit: "€/kWh" },
-    { label: "Économie 25 ans",value: fmt(a.p2_k_economie25), unit: "€" },
+    { label: `Économie (${hy} ans)`, value: fmt(a.p2_k_economie25), unit: "€" },
     { label: "Gains",          value: fmt(a.p2_k_gains),    unit: "€",   accent: true },
     { label: "Reste à charge", value: fmt(a.p2_k_reste),    unit: "€" },
   ];
 
   return (
     <PdfPageLayout
-      title="Étude financière 25 ans"
+      title={titleFinance}
       meta={meta}
       pageNumber={pageNumber}
       totalPages={totalPages}
@@ -86,7 +92,7 @@ export default function PdfPage2({
       </PdfBlock>
 
       {/* ── BLOC 2 : Graphique ── */}
-      <PdfBlock title="Évolution financière sur 25 ans">
+      <PdfBlock title={chartTitle}>
         <div style={{ width: "100%", height: "100%", overflow: "hidden" }}>
           <ChartP2
             labels={(a.p2_chart_labels as string[]) ?? []}

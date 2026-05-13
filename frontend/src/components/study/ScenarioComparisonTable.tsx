@@ -17,6 +17,8 @@ export interface ScenarioV2Finance {
   tri?: number | null;
   economie_year_1?: number | null;
   economie_total?: number | null;
+  economie_horizon_years?: number | null;
+  economie_total_horizon_label?: string | null;
   /** Alias possible scenarios_v2 (sinon economie_total) */
   total_savings_25y?: number | null;
   annual_cashflows?: unknown;
@@ -44,8 +46,13 @@ export interface ScenarioV2Energy {
   used_credit_kwh?: number | null;
   remaining_credit_kwh?: number | null;
   monthly?: unknown;
-  /** Autoconsommation (%) — alias poss. ; sinon self_consumption_pct */
+  /** Autoconsommation (%) — alias legacy ; préférer pv_self_consumption_pct */
   autoconsumption_pct?: number | null;
+  /** Taux d’autoconsommation PV (production) — prioritaire sur les alias legacy */
+  pv_self_consumption_pct?: number | null;
+  site_autonomy_pct?: number | null;
+  solar_coverage_pct?: number | null;
+  export_pct?: number | null;
   self_consumption_pct?: number | null;
   self_production_pct?: number | null;
   energy_independence_pct?: number | null;
@@ -196,10 +203,16 @@ function columnIndicesAtNumericMax(values: readonly (number | null)[]): Set<numb
   return new Set(finite.filter((p) => p.v === max).map((p) => p.i));
 }
 
-/** Repères ⭐ : meilleur TRI, meilleures économies 25 ans, meilleure autoconsommation % (entre les 3 colonnes). */
+/** Repères ⭐ : meilleur TRI, meilleures économies sur l’horizon paramétré, meilleure autoconsommation PV % (entre les 3 colonnes). */
 function computeCommercialIndicatorStars(scenarios: readonly (ScenarioV2 | null)[]) {
   const autoVals = scenarios.map((s) =>
-    s ? finiteNumberOrNull(s.energy?.self_consumption_pct ?? s.energy?.autoconsumption_pct) : null
+    s
+      ? finiteNumberOrNull(
+          s.energy?.pv_self_consumption_pct ??
+            s.energy?.self_consumption_pct ??
+            s.energy?.autoconsumption_pct
+        )
+      : null
   );
   const triVals = scenarios.map((s) =>
     s ? finiteNumberOrNull(s.finance?.irr_pct ?? s.finance?.tri) : null
@@ -229,11 +242,13 @@ function buildKeyIndicatorRows(
   const conso = finiteNumberOrNull(energy.consumption_kwh);
   if (conso != null) rows.push({ label: "Consommation annuelle", value: formatKwh(conso), star: false });
 
-  const selfCons = finiteNumberOrNull(energy.self_consumption_pct ?? energy.autoconsumption_pct);
+  const selfCons = finiteNumberOrNull(
+    energy.pv_self_consumption_pct ?? energy.self_consumption_pct ?? energy.autoconsumption_pct
+  );
   if (selfCons != null)
-    rows.push({ label: "Autoconsommation", value: formatPercent(selfCons), star: stars.auto });
+    rows.push({ label: "Autoconsommation PV", value: formatPercent(selfCons), star: stars.auto });
 
-  const coverPref = finiteNumberOrNull(energy.self_production_pct);
+  const coverPref = finiteNumberOrNull(energy.solar_coverage_pct ?? energy.self_production_pct);
   let cover: number | null = coverPref;
   if (cover == null && solarCoveragePctDerived != null && Number.isFinite(solarCoveragePctDerived)) {
     cover = solarCoveragePctDerived;
@@ -242,15 +257,31 @@ function buildKeyIndicatorRows(
     rows.push({ label: "Couverture solaire", value: formatPercent(cover), star: false });
   }
 
+  const siteAut = finiteNumberOrNull(energy.site_autonomy_pct);
+  if (siteAut != null) rows.push({ label: "Autonomie site", value: formatPercent(siteAut), star: false });
+
   const roi = finiteNumberOrNull(finance.roi_years);
   if (roi != null) rows.push({ label: "ROI", value: formatYears(roi), star: false });
 
   const tri = finiteNumberOrNull(finance.irr_pct ?? finance.tri);
   if (tri != null) rows.push({ label: "TRI", value: formatPercent(tri), star: stars.tri });
 
+  const horizonEco =
+    finiteNumberOrNull(finance.economie_horizon_years) ??
+    finiteNumberOrNull(
+      finance.finance_meta && typeof finance.finance_meta === "object"
+        ? (finance.finance_meta as { horizon_years?: number }).horizon_years
+        : null
+    );
+  const horizonYears = horizonEco != null && horizonEco > 0 ? Math.floor(horizonEco) : 25;
+
   const sav25 = finiteNumberOrNull(finance.economie_total ?? finance.total_savings_25y);
   if (sav25 != null)
-    rows.push({ label: "Économies (25 ans)", value: formatCurrency(sav25), star: stars.savings });
+    rows.push({
+      label: `Économies (${horizonYears} ans)`,
+      value: formatCurrency(sav25),
+      star: stars.savings,
+    });
 
   return rows;
 }
@@ -728,7 +759,7 @@ export default function ScenarioComparisonTable({
                           const lineClass = [
                             "scenario-key-indicator-line",
                             row.label === "TRI" || row.label === "Économies (25 ans)" ? "is-key" : "",
-                            row.label === "Autoconsommation" ? "is-secondary" : "",
+                            row.label === "Autoconsommation PV" ? "is-secondary" : "",
                           ]
                             .filter(Boolean)
                             .join(" ");

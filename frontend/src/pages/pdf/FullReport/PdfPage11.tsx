@@ -5,7 +5,7 @@
 import React from "react";
 
 interface P11Data {
-  meta?: Record<string, unknown>;
+  meta?: (Record<string, unknown> & { horizon_years_pdf?: number }) | undefined;
   data?: { capex_ttc?: number; kwc?: number; battery_kwh?: number; economies_annuelles_25?: number[] };
 }
 
@@ -27,6 +27,9 @@ export default function PdfPage11({ data }: { data?: P11Data }) {
   const d = data?.data ?? {};
   const economies = d.economies_annuelles_25 ?? [];
   const total25 = economies.reduce((a, b) => a + b, 0);
+  const rawH = meta.horizon_years_pdf;
+  const horizonYears =
+    typeof rawH === "number" && Number.isFinite(rawH) && rawH > 0 ? Math.floor(rawH) : 25;
 
   return (
     <div className="pdf-page">
@@ -50,7 +53,7 @@ export default function PdfPage11({ data }: { data?: P11Data }) {
           <span className="pdf-kpi-value">{num(d.battery_kwh)} kWh</span>
         </div>
         <div className="pdf-kpi-card">
-          <span className="pdf-kpi-label">Économies 25 ans</span>
+          <span className="pdf-kpi-label">Économies ({horizonYears} ans)</span>
           <span className="pdf-kpi-value">{total25.toLocaleString("fr-FR")} €</span>
         </div>
       </div>

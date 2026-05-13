@@ -79,7 +79,7 @@ export function mapStructuralTraits(traits: readonly unknown[] | undefined): Leg
 }
 
 /**
- * Verifie qu'un `LegacyRoofGeometryInput` est utilisable pour le pipeline 3D (rejet -> fallback mapper historique).
+ * Vérifie qu'un `LegacyRoofGeometryInput` est utilisable pour le pipeline 3D (rejet → fallback mapper historique).
  */
 export function isExploitableLegacyRoofGeometryInput(
   input: LegacyRoofGeometryInput | null | undefined,
@@ -98,19 +98,19 @@ export type MapCalpinageRoofToLegacyRoofGeometryInputOptions = {
   /** Produit : `state.pans` racine seule (pas de miroir `roof.roofPans`). */
   readonly productStrictStatePans?: boolean;
   /**
-   * Produit : n'appelle pas le mapper fallback pauvre (`defaultHeightM: 5`, traits/ridges sans Z).
-   * Retourne `null` si le chemin riche n'est pas exploitable.
+   * Produit : n’appelle pas le mapper fallback pauvre (`defaultHeightM: 5`, traits/ridges sans Z).
+   * Retourne `null` si le chemin riche n’est pas exploitable.
    */
   readonly disallowPoorLegacyFallback?: boolean;
   /**
-   * Desactive le rapprochement px entre sommets de pans distincts -- voir `CalpinageRoofAdapterOptions.skipInterPanVertexSnap`.
+   * Désactive le rapprochement px entre sommets de pans distincts — voir `CalpinageRoofAdapterOptions.skipInterPanVertexSnap`.
    */
   readonly skipInterPanVertexSnap?: boolean;
 };
 
 /**
- * Preset **un seul batiment** : `state.pans` strict, pas de snap inter-pans (meilleure fidelite aux cotes).
- * Ajoutez `disallowPoorLegacyFallback: true` si vous preferez echouer plutot que le repli `defaultHeightM: 5`.
+ * Preset **un seul bâtiment** : `state.pans` strict, pas de snap inter-pans (meilleure fidélité aux cotes).
+ * Ajoutez `disallowPoorLegacyFallback: true` si vous préférez échouer plutôt que le repli `defaultHeightM: 5`.
  */
 export function optimalSingleBuildingLegacyRoofMapOptions(): MapCalpinageRoofToLegacyRoofGeometryInputOptions {
   return {
@@ -119,7 +119,7 @@ export function optimalSingleBuildingLegacyRoofMapOptions(): MapCalpinageRoofToL
   };
 }
 
-/** Copie tableaux pour `calpinageStateToLegacyRoofInput` (contrat `unknown[]` mutable) sans changer la semantique. */
+/** Copie tableaux pour `calpinageStateToLegacyRoofInput` (contrat `unknown[]` mutable) sans changer la sémantique. */
 function structuralPayloadToLegacyMutable(
   structural:
     | { readonly ridges?: readonly unknown[]; readonly traits?: readonly unknown[] }
@@ -137,7 +137,7 @@ function structuralPayloadToLegacyMutable(
 }
 
 /**
- * Mapper historique (comportement strict inchange) -- repli si `calpinageStateToLegacyRoofInput` est indisponible ou invalide.
+ * Mapper historique (comportement strict inchangé) — repli si `calpinageStateToLegacyRoofInput` est indisponible ou invalide.
  */
 function mapCalpinageRoofToLegacyRoofGeometryInputFallback(
   roof: unknown,
@@ -193,12 +193,12 @@ function mapCalpinageRoofToLegacyRoofGeometryInputFallback(
 }
 
 /**
- * Entree officielle `LegacyRoofGeometryInput` pour le pipeline 3D produit.
+ * Entrée officielle `LegacyRoofGeometryInput` pour le pipeline 3D produit.
  *
- * 1) Tente `calpinageStateToLegacyRoofInput` (Z sommets / faitage / hints `physical`) -- sans warning console en usage normal.
- * 2) Si resultat non exploitable, repli strict sur le mapper historique (`defaultHeightM: 5`, ridges/traits XY seuls).
+ * 1) Tente `calpinageStateToLegacyRoofInput` (Z sommets / faîtages / hints `physical`) — sans warning console en usage normal.
+ * 2) Si résultat non exploitable, repli strict sur le mapper historique (`defaultHeightM: 5`, ridges/traits XY seuls).
  *
- * @param runtimeRoot -- `CALPINAGE_STATE` complet : **obligatoire** pour prioriser `state.pans` sur `roof.roofPans`.
+ * @param runtimeRoot — `CALPINAGE_STATE` complet : **obligatoire** pour prioriser `state.pans` sur `roof.roofPans`.
  */
 export function mapCalpinageRoofToLegacyRoofGeometryInput(
   roof: unknown,
@@ -224,7 +224,7 @@ export function mapCalpinageRoofToLegacyRoofGeometryInput(
       return rich;
     }
   } catch {
-    /* defense : ne jamais casser le pipeline si le chemin riche leve */
+    /* défense : ne jamais casser le pipeline si le chemin riche lève */
   }
   if (noPoor) {
     recordAutopsyLegacyRoofPath("none");
@@ -258,7 +258,7 @@ export function mapNearObstaclesToVolumeInputs(
   };
 }
 
-/** Dimensions module (m) pour `PanelInput` -- reutilisable par l'adaptateur placement engine. */
+/** Dimensions module (m) pour `PanelInput` — réutilisable par l’adaptateur placement engine. */
 export function getPanelModuleDimsM(p: PanelInput): { w: number; h: number } {
   const pr = p as Record<string, unknown>;
   let w =
@@ -288,18 +288,18 @@ function normalizeRotationDegInPlane(blockDeg: number, localDeg: number): number
 }
 
 /**
- * Deduit l'angle de rotation du panneau dans le plan de patch a partir de la forme du polygone (image px -> monde).
+ * Déduit l'angle de rotation du panneau dans le plan de patch à partir de la forme du polygone (image px → monde).
  *
- * Probleme precedent : l'ancienne version utilisait `poly[0]->poly[1]`, qui correspond a l'axe `slopeAxis`
+ * Problème précédent : l'ancienne version utilisait `poly[0]→poly[1]`, qui correspond à l'axe `slopeAxis`
  * du moteur de placement (= direction de la pente). Pour les panneaux portrait, cet axe est la direction
- * HAUTEUR (1.7 m) et non la largeur (1.0 m). Resultat : `widthDir` dans le viewer 3D pointait le long de
- * la hauteur -> les panneaux apparaissaient en paysage (landscape) et les espacements rangee/colonne
- * etaient inverses.
+ * HAUTEUR (1.7 m) et non la largeur (1.0 m). Résultat : `widthDir` dans le viewer 3D pointait le long de
+ * la hauteur → les panneaux apparaissaient en paysage (landscape) et les espacements rangée/colonne
+ * étaient inversés.
  *
- * Correction : on projette tous les sommets du quadrilatere en metres horizontaux, on calcule la longueur
- * de chaque arete, et on retient l'arete dont la longueur est la plus proche de `widthM` (la largeur physique
- * du module). Pour portrait (widthM ~= 1 m), c'est l'arete la plus courte. Pour landscape (widthM ~= 1.7 m),
- * c'est l'arete la plus longue. Robuste a la projection en perspective (raccourcissement selon la pente).
+ * Correction : on projette tous les sommets du quadrilatère en mètres horizontaux, on calcule la longueur
+ * de chaque arête, et on retient l'arête dont la longueur est la plus proche de `widthM` (la largeur physique
+ * du module). Pour portrait (widthM ≈ 1 m), c'est l'arête la plus courte. Pour landscape (widthM ≈ 1.7 m),
+ * c'est l'arête la plus longue. Robuste à la projection en perspective (raccourcissement selon la pente).
  */
 function inferPanelRotationDegInPatchPlane(
   poly: ReadonlyArray<{ x: number; y: number }>,
@@ -310,11 +310,11 @@ function inferPanelRotationDegInPatchPlane(
 ): number | null {
   if (!patch || poly.length < 3) return null;
 
-  // Projeter tous les sommets en coordonnees monde horizontales (metres)
+  // Projeter tous les sommets en coordonnées monde horizontales (mètres)
   const pts = poly.map((pt) => imagePxToWorldHorizontalM(pt.x, pt.y, metersPerPixel, northAngleDeg));
 
-  // Calculer les vecteurs et longueurs des aretes consecutives du polygone
-  // (limite aux 4 premieres aretes -- un panneau est un quadrilatere)
+  // Calculer les vecteurs et longueurs des arêtes consécutives du polygone
+  // (limité aux 4 premières arêtes — un panneau est un quadrilatère)
   const n = Math.min(pts.length, 4);
   const edges: { dx: number; dy: number; len: number }[] = [];
   for (let i = 0; i < n; i++) {
@@ -330,17 +330,17 @@ function inferPanelRotationDegInPatchPlane(
 
   if (edges.length < 2) return null;
 
-  // Selectionner l'arete dont la longueur projetee est la plus proche de widthM.
-  // Pour portrait (widthM < heightM) : l'arete courte (~= widthM) = direction largeur.
-  // Pour landscape (widthM > heightM) : l'arete longue (~= widthM) = direction largeur.
-  // NB : sur toitures inclinees, l'axe de pente est raccourci par projection -> l'arete
-  // perpendiculaire a la pente garde sa longueur reelle. L'approche par valeur absolue est
+  // Sélectionner l'arête dont la longueur projetée est la plus proche de widthM.
+  // Pour portrait (widthM < heightM) : l'arête courte (≈ widthM) = direction largeur.
+  // Pour landscape (widthM > heightM) : l'arête longue (≈ widthM) = direction largeur.
+  // NB : sur toitures inclinées, l'axe de pente est raccourci par projection → l'arête
+  // perpendiculaire à la pente garde sa longueur réelle. L'approche par valeur absolue est
   // donc plus robuste qu'un simple tri court/long.
   const widthEdge = edges.reduce((best, e) =>
     Math.abs(e.len - widthM) < Math.abs(best.len - widthM) ? e : best,
   );
 
-  // Exprimer la direction de l'arete-largeur dans le repere UV du patch
+  // Exprimer la direction de l'arête-largeur dans le repère UV du patch
   const u = patch.localFrame.xAxis;
   const v = patch.localFrame.yAxis;
   const alongU = widthEdge.dx * u.x + widthEdge.dy * u.y;
@@ -364,15 +364,15 @@ function resolvePatchIdForPanel(
   if (!hasPan) {
     if (patchIds.size === 1) {
       const only = [...patchIds][0]!;
-      diagnostics.push(`${panelLabel}: panId absent -- mono-pan, patch ${only}`);
+      diagnostics.push(`${panelLabel}: panId absent — mono-pan, patch ${only}`);
       return only;
     }
-    diagnostics.push(`${panelLabel}: panId absent -- ignore (multi-pan)`);
+    diagnostics.push(`${panelLabel}: panId absent — ignoré (multi-pan)`);
     return null;
   }
   const pid = String(raw);
   if (!patchIds.has(pid)) {
-    diagnostics.push(`${panelLabel}: panId=${pid} sans patch 3D -- ignore`);
+    diagnostics.push(`${panelLabel}: panId=${pid} sans patch 3D — ignoré`);
     return null;
   }
   return pid;
@@ -383,7 +383,7 @@ export interface MapPanelsToPvPlacementResult {
   readonly diagnostics: readonly string[];
 }
 
-/** Options avancees : Z monde au centre avec `panId` (moteur heightResolver / fitPlane par pan). */
+/** Options avancées : Z monde au centre avec `panId` (moteur heightResolver / fitPlane par pan). */
 export interface MapPanelsToPvPlacementExtras {
   readonly resolveZWorldAtImageWithPanId?: (
     pt: { x: number; y: number },
@@ -393,7 +393,7 @@ export interface MapPanelsToPvPlacementExtras {
 
 /**
  * Mappe chaque panneau vers le patch 3D de **son** pan (id pan === id patch).
- * Centre image : `center` moteur si present, sinon centroide du polygone px.
+ * Centre image : `center` moteur si présent, sinon centroïde du polygone px.
  *
  * Si `extras.resolveZWorldAtImageWithPanId` est fourni, il prime sur `getHeightAtImagePoint`
  * pour le Z initial du centre (meilleur collage au toit par pan).
@@ -423,7 +423,7 @@ export function mapPanelsToPvPlacementInputs(
       p.points ||
       (p as { projection?: { points?: { x: number; y: number }[] } }).projection?.points;
     if (!Array.isArray(poly) || poly.length < 3) {
-      diag.push(`panel[${i}]: polygone invalide -- ignore`);
+      diag.push(`panel[${i}]: polygone invalide — ignoré`);
       continue;
     }
     const panelLabel = p.id != null ? `panel ${p.id}` : `panel[${i}]`;
@@ -435,14 +435,14 @@ export function mapPanelsToPvPlacementInputs(
     const { w, h } = getPanelModuleDimsM(p);
     const patch = patchById.get(patchId) ?? null;
 
-    // Z : plan de patch officiel en priorite (centre pose exactement sur la pente -> sd=0, pas de decalage XY).
-    // Fallback : height resolver (extras) -> getHeightAtImagePoint -> 0.
+    // Z : plan de patch officiel en priorité (centre posé exactement sur la pente → sd=0, pas de décalage XY).
+    // Fallback : height resolver (extras) → getHeightAtImagePoint → 0.
     const panIdForZ = p.panId != null ? String(p.panId) : null;
     let z: number;
     const zFromPatch = patch ? zOnPlaneEquationAtFixedXY(patch.equation, xy.x, xy.y) : null;
     if (zFromPatch !== null && Number.isFinite(zFromPatch)) {
-      // Verification : si le centroide est hors emprise du patch, l'extrapolation peut donner un Z aberrant
-      // (surtout sur les plans inclines ou n.z est faible -> amplification de l'erreur).
+      // Vérification : si le centroïde est hors emprise du patch, l'extrapolation peut donner un Z aberrant
+      // (surtout sur les plans inclinés où n.z est faible → amplification de l'erreur).
       const patchZs = patch!.cornersWorld.map((corner) => corner.z);
       const minPatchZ = Math.min(...patchZs);
       const maxPatchZ = Math.max(...patchZs);
@@ -450,7 +450,7 @@ export function mapPanelsToPvPlacementInputs(
       if (zFromPatch < minPatchZ - PATCH_Z_TOLERANCE_M || zFromPatch > maxPatchZ + PATCH_Z_TOLERANCE_M) {
         z = (minPatchZ + maxPatchZ) / 2;
         diag.push(
-          `${panelLabel}: Z extrapole hors plage patch (${zFromPatch.toFixed(2)}m vs [${minPatchZ.toFixed(2)}, ${maxPatchZ.toFixed(2)}]m) -> Z moyen patch`,
+          `${panelLabel}: Z extrapolé hors plage patch (${zFromPatch.toFixed(2)}m vs [${minPatchZ.toFixed(2)}, ${maxPatchZ.toFixed(2)}]m) → Z moyen patch`,
         );
       } else {
         z = zFromPatch;
@@ -460,7 +460,7 @@ export function mapPanelsToPvPlacementInputs(
       if (typeof rawZ === "number" && Number.isFinite(rawZ)) {
         z = rawZ;
       } else {
-        diag.push(`${panelLabel}: Z centre -- valeur non finie depuis resolveZWorldAtImageWithPanId (0 non metier)`);
+        diag.push(`${panelLabel}: Z centre — valeur non finie depuis resolveZWorldAtImageWithPanId (0 non métier)`);
         z = 0;
       }
     } else if (typeof getHeightAtImagePoint === "function") {
@@ -468,11 +468,11 @@ export function mapPanelsToPvPlacementInputs(
       if (typeof rawZ === "number" && Number.isFinite(rawZ)) {
         z = rawZ;
       } else {
-        diag.push(`${panelLabel}: Z centre -- getHeightAtImagePoint non fini (0 non metier)`);
+        diag.push(`${panelLabel}: Z centre — getHeightAtImagePoint non fini (0 non métier)`);
         z = 0;
       }
     } else {
-      diag.push(`${panelLabel}: Z centre -- aucun fournisseur hauteur (0 legacy explicite)`);
+      diag.push(`${panelLabel}: Z centre — aucun fournisseur hauteur (0 legacy explicite)`);
       z = 0;
     }
     const rot =

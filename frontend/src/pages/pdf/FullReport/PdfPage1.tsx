@@ -45,7 +45,7 @@ export default function PdfPage1({ data }: { data?: P1Data }) {
           <span className="pdf-kpi-value">{triStr}</span>
         </div>
         <div className="pdf-kpi-card">
-          <span className="pdf-kpi-label">Gains 25 ans</span>
+          <span className="pdf-kpi-label">{typeof a.p1_k_gains_label === "string" ? a.p1_k_gains_label : "Gains (horizon étude)"}</span>
           <span className="pdf-kpi-value">{gainsStr}</span>
         </div>
       </div>
