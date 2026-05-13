@@ -27,7 +27,7 @@ import {
   type HeightResolverContext,
 } from "../../core/heightResolver";
 import { extractHeightStateContextFromCalpinageState } from "./buildCanonicalPans3DFromRuntime";
-import { segmentHorizontalLengthMFromImagePx } from "../builder/worldMapping";
+import { segmentHorizontalLengthMFromImagePx, imagePxToWorldHorizontalM } from "../builder/worldMapping";
 import { sanePanHeightM } from "../../adapter/heightSanityFilter";
 
 
@@ -90,19 +90,77 @@ export interface BuildCanonicalPlacedPanelsFromRuntimeInput {
 // ─── Inférence dimensions depuis projection ───────────────────────────────────
 
 /**
+ * Longueur physique réelle (m) d’une arête image sur un plan incliné.
+ *
+ * Problème : le moteur 2D enregistre les panneaux en "vue du dessus" — la dimension dans le sens
+ * de la pente est déjà multipliée par cos(tilt). Si on l’utilise directement comme dimension
+ * physique dans `panelOnPlaneGeometry`, elle subit un deuxième cos(tilt) → double-projection.
+ *
+ * Correction : on décompose le vecteur horizontal de l’arête sur les axes du patch (eave = xAxis,
+ * pente = yAxis projeté). La composante pente horizontale vaut `physique × cos(tilt)`, donc on
+ * divise par cos(tilt) = patch.equation.normal.z pour récupérer la longueur physique réelle.
+ *
+ * Pour une arête entièrement dans la direction de l’auvent (pas de pente) : correction = 1.
+ * Pour une arête entièrement dans la direction de la pente : correction = 1/cos(tilt).
+ * Pour toute direction intermédiaire : correction exacte par décomposition.
+ */
+function physicalEdgeLengthM(
+  a: { x: number; y: number },
+  b: { x: number; y: number },
+  metersPerPixel: number,
+  northAngleDeg: number,
+  patch: RoofPlanePatch3D,
+): number {
+  const wa = imagePxToWorldHorizontalM(a.x, a.y, metersPerPixel, northAngleDeg);
+  const wb = imagePxToWorldHorizontalM(b.x, b.y, metersPerPixel, northAngleDeg);
+  const dx = wb.x - wa.x;
+  const dy = wb.y - wa.y;
+
+  // cos(tilt) = composante z de la normale unitaire du patch (= 1 pour plan horizontal)
+  const cosTilt = patch.equation.normal.z;
+  if (!Number.isFinite(cosTilt) || cosTilt < 0.1) {
+    // Toit très raide (>84°) : pas de correction fiable, on retourne la longueur horizontale brute
+    return Math.hypot(dx, dy);
+  }
+
+  // xAxis : direction de l’auvent (z = 0, vecteur unitaire dans le plan horizontal)
+  // yAxis : direction montante de la pente ; sa projection horizontale a une magnitude = cos(tilt)
+  const ax = patch.localFrame.xAxis;
+  const ay = patch.localFrame.yAxis;
+
+  // Composante de l’arête le long de l’auvent (pas de raccourcissement)
+  const alongEave = dx * ax.x + dy * ax.y;
+  // Composante le long de la pente (raccourcie par cos(tilt) dans la vue du dessus)
+  const alongSlopeProjected = dx * ay.x + dy * ay.y;
+
+  // Longueur physique réelle dans le plan du pan :
+  // √( eave² + (slope_projected / cos(tilt))² )
+  return Math.hypot(alongEave, alongSlopeProjected / cosTilt);
+}
+
+/**
  * Estime largeur / hauteur module (m) à partir d’un quad image (4 sommets) et du mpp.
- * Moyenne des longueurs d’arêtes opposées en **plan horizontal monde** (`segmentHorizontalLengthMFromImagePx`, Niveau 3).
+ *
+ * Quand `patch` est fourni : corrige la double-projection cos(tilt) dans la direction de la pente
+ * (le quad 2D est déjà une vue du dessus — dimension pente déjà raccourcie par le moteur legacy).
+ * Sans patch : longueur horizontale brute (comportement legacy, valide uniquement pour toits plats).
  */
 export function inferModuleDimsFromProjectionQuadPx(
   poly: ReadonlyArray<{ x: number; y: number }>,
   metersPerPixel: number,
   northAngleDeg: number = 0,
+  patch?: RoofPlanePatch3D | null,
 ): { widthM: number; heightM: number } {
   const north = Number.isFinite(northAngleDeg) ? northAngleDeg : 0;
   if (!poly.length) return { widthM: 1, heightM: 1.7 };
   if (poly.length === 4) {
-    const edgeLen = (i: number) =>
-      segmentHorizontalLengthMFromImagePx(poly[i]!, poly[(i + 1) % 4]!, metersPerPixel, north);
+    const edgeLen = (i: number): number => {
+      const a = poly[i]!;
+      const b = poly[(i + 1) % 4]!;
+      return patch
+        ? physicalEdgeLengthM(a, b, metersPerPixel, north, patch)
+        : segmentHorizontalLengthMFromImagePx(a, b, metersPerPixel, north);
+    };
     const e0 = edgeLen(0);
     const e1 = edgeLen(1);
     const e2 = edgeLen(2);
@@ -111,6 +169,7 @@ export function inferModuleDimsFromProjectionQuadPx(
     const h = (e1 + e3) / 2;
     return { widthM: Math.max(w, 0.05), heightM: Math.max(h, 0.05) };
   }
+  // Fallback bounding-box (polygone non-quad) : pas de correction tilt (cas rare)
   let minX = Infinity;
   let maxX = -Infinity;
   let minY = Infinity;
@@ -136,13 +195,21 @@ function blockOrientationToPanelOrientation(block: { orientation?: string | null
 /**
  * Convertit la sortie de `pvPlacementEngine.getAllPanels()` en `PanelInput[]`
  * (dimensions inférées depuis `polygonPx` si besoin, orientation depuis le bloc).
+ *
+ * @param roofPlanePatches — patches 3D indexés par id (= panId). Quand fourni, corrige la
+ *   double-projection cos(tilt) dans `inferModuleDimsFromProjectionQuadPx`.
  */
 export function mapPvEnginePanelsToPanelInputs(
   rawPanels: readonly unknown[],
   placementEngine: PlacementEngineLike | null | undefined,
   metersPerPixel: number,
   northAngleDeg: number = 0,
+  roofPlanePatches?: readonly RoofPlanePatch3D[] | null,
 ): PanelInput[] {
+  const patchByPanId = roofPlanePatches
+    ? new Map(roofPlanePatches.map((p) => [String(p.id), p] as const))
+    : null;
+
   const out: PanelInput[] = [];
   for (let i = 0; i < rawPanels.length; i++) {
     const raw = rawPanels[i];
@@ -161,7 +228,10 @@ export function mapPvEnginePanelsToPanelInputs(
         ? { x: (p.center as { x: number }).x, y: (p.center as { y: number }).y }
         : undefined;
 
-    const inferred = inferModuleDimsFromProjectionQuadPx(poly, metersPerPixel, northAngleDeg);
+    // Résoudre le patch correspondant au panId pour corriger le double cos(tilt)
+    const patch = panId !== null ? (patchByPanId?.get(panId) ?? null) : null;
+    const inferred = inferModuleDimsFromProjectionQuadPx(poly, metersPerPixel, northAngleDeg, patch);
+
     let orientation: string | undefined;
     if (placementEngine && typeof placementEngine.getBlockById === "function") {
       const parsed = parsePanelCompositeId(id);
@@ -230,6 +300,7 @@ export function buildCanonicalPlacedPanelsFromRuntime(
     input.placementEngine ?? null,
     input.metersPerPixel,
     input.northAngleDeg,
+    patches, // corrige double-projection cos(tilt) : quad 2D déjà projeté → dimensions physiques réelles
   );
   panelInputs = enrichPanelsForCanonicalShading(panelInputs, input.placementEngine ?? null);
 
