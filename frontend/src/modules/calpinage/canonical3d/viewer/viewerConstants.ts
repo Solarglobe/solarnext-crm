@@ -40,6 +40,14 @@ export const VIEWER_ORBIT_MAX_POLAR_ANGLE = Math.PI / 2 + 0.38;
 export const VIEWER_PLAN_ORBIT_MIN_POLAR = 0.06;
 export const VIEWER_PLAN_ORBIT_MAX_POLAR = 0.42;
 
+/**
+ * Contrainte azimutale SCENE_3D — empêche la caméra de passer dans l'hémisphère nord
+ * (theta > π/2 ou < -π/2) où camera.up=(0,0,1) provoque camera_right = WEST = miroir horizontal.
+ * Plage (-π/2, π/2) : caméra toujours au sud de la cible → camera_right = Est ✓.
+ */
+export const VIEWER_ORBIT_MIN_AZIMUTH = -Math.PI / 2;
+export const VIEWER_ORBIT_MAX_AZIMUTH = Math.PI / 2;
+
 /** Lumières neutres (physiquement modestes — pas de look produit). */
 export const VIEWER_AMBIENT_INTENSITY = 0.36;
 export const VIEWER_KEY_LIGHT_INTENSITY = 0.88;

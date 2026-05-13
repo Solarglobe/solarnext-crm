@@ -19,7 +19,9 @@ import {
   VIEWER_FRAMING_MARGIN,
   VIEWER_ORBIT_DAMPING,
   VIEWER_ORBIT_DAMPING_FACTOR,
+  VIEWER_ORBIT_MAX_AZIMUTH,
   VIEWER_ORBIT_MAX_POLAR_ANGLE,
+  VIEWER_ORBIT_MIN_AZIMUTH,
   VIEWER_ORBIT_MIN_POLAR_ANGLE,
   VIEWER_PLAN_ORBIT_MAX_POLAR,
   VIEWER_PLAN_ORBIT_MIN_POLAR,
@@ -119,10 +121,13 @@ export function CameraFramingRig({
 
       if (ctrl) {
         ctrl.target.copy(f3.target);
-        ctrl.minDistance   = f3.minDistance;
-        ctrl.maxDistance   = f3.maxDistance;
-        ctrl.minPolarAngle = VIEWER_ORBIT_MIN_POLAR_ANGLE;
-        ctrl.maxPolarAngle = VIEWER_ORBIT_MAX_POLAR_ANGLE;
+        ctrl.minDistance      = f3.minDistance;
+        ctrl.maxDistance      = f3.maxDistance;
+        ctrl.minPolarAngle    = VIEWER_ORBIT_MIN_POLAR_ANGLE;
+        ctrl.maxPolarAngle    = VIEWER_ORBIT_MAX_POLAR_ANGLE;
+        /** Empêche l'hémisphère nord (camera_right = OUEST = miroir horizontal image satellite). */
+        ctrl.minAzimuthAngle  = VIEWER_ORBIT_MIN_AZIMUTH;
+        ctrl.maxAzimuthAngle  = VIEWER_ORBIT_MAX_AZIMUTH;
         ctrl.update();
       }
 
