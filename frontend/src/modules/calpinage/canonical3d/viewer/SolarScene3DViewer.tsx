@@ -102,6 +102,7 @@ import {
   GROUND_PLANE_CONTACT_OFFSET_M,
   VIEWER_AMBIENT_INTENSITY,
   VIEWER_CAMERA_FOV_DEG,
+  VIEWER_DEFAULT_CAMERA_OFFSET,
   VIEWER_FILL_LIGHT_INTENSITY,
   VIEWER_KEY_LIGHT_INTENSITY,
   VIEWER_SHADOW_BIAS,
@@ -2741,7 +2742,18 @@ function SolarScene3DViewer({
                 up: [0, 0, 1],
               }
             : {
-                position: [0, 0, 10],
+                /**
+                 * Position initiale garantissant camera.y < centre_scène.y (caméra au SUD),
+                 * donc camera_right = Est dès le premier frame — sans miroir horizontal.
+                 * Même direction que VIEWER_DEFAULT_CAMERA_OFFSET, scalée × 1000 pour être
+                 * loin derrière n'importe quelle scène réelle (~27m × quelques dizaines de m).
+                 * CameraFramingRig repositionne ensuite précisément via computeViewerFraming.
+                 */
+                position: [
+                  VIEWER_DEFAULT_CAMERA_OFFSET.x * 1000,
+                  VIEWER_DEFAULT_CAMERA_OFFSET.y * 1000,
+                  VIEWER_DEFAULT_CAMERA_OFFSET.z * 1000,
+                ] as [number, number, number],
                 fov: VIEWER_CAMERA_FOV_DEG,
                 near: 0.1,
                 far: 1e6,
