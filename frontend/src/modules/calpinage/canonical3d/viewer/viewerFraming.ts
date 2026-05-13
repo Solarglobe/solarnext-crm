@@ -113,7 +113,19 @@ export function computePlanOrthographicFraming(
   const target = new THREE.Vector3(_center.x, _center.y, _center.z);
   const dist = margin * Math.max(radius * 1.05, Math.hypot(halfW, halfH));
   const jitter = Math.max(1e-5, radius * 1e-6);
-  const position = new THREE.Vector3(_center.x + jitter, _center.y + jitter, _center.z + dist);
+  /**
+   * Jitter (0, -ε, 0) : caméra légèrement au SUD du centre — seule position compatible avec
+   * camera.up=(0,0,1) qui donne Nord-en-haut, Est-à-droite, sans miroir.
+   *
+   * Démonstration :
+   *   camera_z  ≈ normalize(0, -ε, dist) ≈ (0, 0, 1)
+   *   camera_right = up × camera_z = (0,0,1) × (0, -ε/n, D/n)
+   *                = (0·D/n − 1·(−ε/n), 1·0 − 0·D/n, 0) = (ε/n, 0, 0) → Est ✓
+   *
+   * Avec jitter (+ε, +ε) précédent :
+   *   camera_right = (0,0,1) × (ε, ε, D)/n = (−ε/n, ε/n, 0) → NW → Est=gauche → miroir ✗
+   */
+  const position = new THREE.Vector3(_center.x, _center.y - jitter, _center.z + dist);
 
   const near = Math.max(VIEWER_NEAR_MIN_M, dist * VIEWER_NEAR_DISTANCE_RATIO);
   const far = Math.max(

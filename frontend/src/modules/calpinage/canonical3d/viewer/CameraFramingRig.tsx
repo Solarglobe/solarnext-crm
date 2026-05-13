@@ -70,13 +70,7 @@ export function CameraFramingRig({
           camera.near   = f.near;
           camera.far    = f.far;
           camera.position.copy(f.position);
-          /**
-           * up=(0,1,0) = Nord monde = haut écran en vue plan (axe Y haut de l'image).
-           * up=(0,0,1) serait dégénéré ici : la caméra regarde vers -Z, et un `up` colinéaire à
-           * l'axe de visée produit un `right = up × look = 0` → orientation aléatoire basée sur
-           * le seul jitter, souvent un miroir horizontal (Est à gauche).
-           */
-          camera.up.set(0, 1, 0);
+          camera.up.set(0, 0, 1);
           camera.lookAt(f.target);
           camera.zoom = 1;
           camera.updateProjectionMatrix();
@@ -89,8 +83,7 @@ export function CameraFramingRig({
           camera.near = f.near;
           camera.far  = f.far;
           camera.position.copy(f.position);
-          // même raison : up=(0,1,0) pour éviter la dégénérescence en vue zénithale.
-          camera.up.set(0, 1, 0);
+          camera.up.set(0, 0, 1);
           camera.lookAt(f.target);
           camera.updateProjectionMatrix();
         } else {
