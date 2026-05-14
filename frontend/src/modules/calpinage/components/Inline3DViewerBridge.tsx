@@ -474,6 +474,24 @@ function Inline3DViewer({
       const detail = (e as CustomEvent<OfficialRuntimeStructuralChangePayload>).detail;
       if (is3d && detail && typeof detail === "object" && typeof detail.reason === "string") {
         pendingStructuralEventRef.current = detail;
+        /**
+         * Les actions PV (pose, déplacement, suppression panneau) ne changent pas la géométrie
+         * structurelle du toit, donc la signature de cache scène reste identique → buildScene()
+         * renverrait la scène cachée sans les nouveaux panneaux.
+         * On invalide le cache explicitement pour forcer un rebuild complet avec les panneaux à jour.
+         */
+        if (
+          detail.reason === "PV_PLACEMENT_SYNC" ||
+          detail.reason === "PV_MOVE_SYNC" ||
+          detail.reason === "PV_DELETE_SYNC" ||
+          (Array.isArray(detail.changedDomains) &&
+            detail.changedDomains.includes("pv") &&
+            !detail.changedDomains.some((d: string) =>
+              ["contours", "ridges", "traits", "pans"].includes(d),
+            ))
+        ) {
+          lastDisplayedStructuralSignatureRef.current = null;
+        }
       }
       if (is3d) {
         buildScene();
@@ -1028,16 +1046,21 @@ function Inline3DViewer({
         }
         debugRuntime={resolveCalpinageRuntime(calpinageStateProp) ?? (window as any).CALPINAGE_STATE}
         calpinagePansForProvenance={calpinagePansForProvenance}
-        inspectMode={enableInspectorChrome}
+        /**
+         * En phase PV_LAYOUT, l'édition toiture (Z / XY / arête structurelle) est désactivée :
+         * les deux modes sont mutuellement exclusifs pour éviter le conflit de handlers
+         * (clic pan → pose panneau PV, pas sélection de sommet).
+         */
+        inspectMode={enableModelingHistory && !pvLayout3DActive}
         pvLayout3DInteractionMode={pvLayout3DActive}
-        panSelection3DMode={enableVertexZEditFlag || enableVertexXYEditFlag}
-        enableRoofVertexZEdit={enableVertexZEditFlag}
-        onRoofVertexHeightCommit={enableVertexZEditFlag ? handleRoofVertexHeightCommit : undefined}
-        enableRoofVertexXYEdit={enableVertexXYEditFlag}
-        onRoofVertexXYCommit={enableVertexXYEditFlag ? handleRoofVertexXYCommit : undefined}
-        enableStructuralRidgeHeightEdit={enableStructuralRidgeHeightEditFlag}
+        panSelection3DMode={(enableVertexZEditFlag || enableVertexXYEditFlag) && !pvLayout3DActive}
+        enableRoofVertexZEdit={enableVertexZEditFlag && !pvLayout3DActive}
+        onRoofVertexHeightCommit={enableVertexZEditFlag && !pvLayout3DActive ? handleRoofVertexHeightCommit : undefined}
+        enableRoofVertexXYEdit={enableVertexXYEditFlag && !pvLayout3DActive}
+        onRoofVertexXYCommit={enableVertexXYEditFlag && !pvLayout3DActive ? handleRoofVertexXYCommit : undefined}
+        enableStructuralRidgeHeightEdit={enableStructuralRidgeHeightEditFlag && !pvLayout3DActive}
         onStructuralRidgeHeightCommit={
-          enableStructuralRidgeHeightEditFlag ? handleStructuralRidgeHeightCommit : undefined
+          enableStructuralRidgeHeightEditFlag && !pvLayout3DActive ? handleStructuralRidgeHeightCommit : undefined
         }
         roofModelingHistory={roofModelingHistory}
       />

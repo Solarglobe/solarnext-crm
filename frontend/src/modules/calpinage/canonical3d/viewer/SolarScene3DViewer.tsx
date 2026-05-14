@@ -1756,6 +1756,8 @@ function SolarScene3DViewer({
 
   const onRoofMeshClick = useCallback(
     (e: ThreeEvent<MouseEvent>) => {
+      /** En mode pose PV 3D, le clic toiture est réservé au placement de panneaux — pas d'édition sommet. */
+      if (pvLayout3DInteractionMode) return;
       const allowStructuralPick = enableStructuralRidgeHeightEdit && onStructuralRidgeHeightCommit;
       if (!inspectMode && !panSelection3DMode && !allowStructuralPick) return;
       e.stopPropagation();
