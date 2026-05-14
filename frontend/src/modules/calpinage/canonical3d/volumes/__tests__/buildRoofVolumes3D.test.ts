@@ -296,6 +296,46 @@ describe("buildRoofVolumes3D", () => {
     expect(o.roofAttachment.extrusionChoice).toBe("hybrid_vertical_base_on_plane");
   });
 
+  it("garde le dessus horizontal pour un obstacle physique sur pan incline", () => {
+    const patch = makeSlopedTestPatch("pan-flat-top");
+    const { obstacleVolumes } = buildRoofVolumes3D(
+      {
+        obstacles: [
+          {
+            id: "chimney-flat-top",
+            kind: "chimney",
+            structuralRole: "obstacle_structuring",
+            visualRole: "physical_roof_body",
+            heightM: 1.8,
+            footprint: {
+              mode: "world",
+              footprintWorld: [
+                { x: 2, y: 1, z: 10 },
+                { x: 3, y: 1, z: 10 },
+                { x: 3, y: 2, z: 10 },
+                { x: 2, y: 2, z: 10 },
+              ],
+            },
+            relatedPlanePatchIds: ["pan-flat-top"],
+            extrusionPreference: "hybrid_vertical_on_plane",
+            topSurfaceMode: "horizontal_flat",
+          },
+        ],
+        extensions: [],
+      },
+      { roofPlanePatches: [patch] },
+    );
+
+    const o = obstacleVolumes[0]!;
+    const n = o.footprintWorld.length;
+    const baseZ = o.vertices.slice(0, n).map((v) => v.position.z);
+    const topZ = o.vertices.slice(n).map((v) => v.position.z);
+    expect(new Set(topZ.map((z) => z.toFixed(6))).size).toBe(1);
+    expect(Math.max(...baseZ) - Math.min(...baseZ)).toBeGreaterThan(0.1);
+    expect(topZ[0]).toBeCloseTo(Math.max(...baseZ) + 1.8, 6);
+    expect(validateRoofObstacleVolume3D(o)).toHaveLength(0);
+  });
+
   it("pan introuvable : primary_plane_not_found", () => {
     const { obstacleVolumes } = buildRoofVolumes3D({
       obstacles: [

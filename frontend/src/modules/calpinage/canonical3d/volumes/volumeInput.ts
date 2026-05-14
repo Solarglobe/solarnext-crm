@@ -7,6 +7,7 @@
 import type { WorldPosition3D } from "../types/coordinates";
 import type { RoofExtensionKind } from "../types/extension";
 import type { RoofObstacleKind } from "../types/obstacle";
+import type { RoofObstacleVisualRole } from "../types/roof-obstacle-volume";
 import type { RoofPlanePatch3D } from "../types/roof-surface";
 import type { RoofVolumeStructuralRole } from "../types/roof-volume-common";
 
@@ -19,6 +20,8 @@ export type VolumeExtrusionPreference =
   | "vertical_world_z"
   | "along_pan_normal"
   | "hybrid_vertical_on_plane";
+
+export type VolumeTopSurfaceMode = "parallel_to_base" | "horizontal_flat";
 
 /** Point image pour footprint horizontal (même convention que le builder toiture). */
 export interface VolumeImagePoint2D {
@@ -49,10 +52,12 @@ export interface LegacyObstacleVolumeInput {
   readonly kind: RoofObstacleKind;
   /** Doit être `obstacle_simple` ou `obstacle_structuring` (pas `roof_extension`). */
   readonly structuralRole: Exclude<RoofVolumeStructuralRole, "roof_extension">;
+  readonly visualRole?: RoofObstacleVisualRole;
   readonly heightM: number;
   readonly footprint: LegacyVolumeFootprintSource;
   readonly relatedPlanePatchIds?: readonly string[];
   readonly extrusionPreference?: VolumeExtrusionPreference;
+  readonly topSurfaceMode?: VolumeTopSurfaceMode;
 }
 
 export interface LegacyExtensionVolumeInput {

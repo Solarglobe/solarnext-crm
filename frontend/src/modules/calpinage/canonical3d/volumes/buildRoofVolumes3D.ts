@@ -96,6 +96,16 @@ type MeshPack = {
   extrusion: RoofObstacleVolume3D["extrusion"];
 };
 
+function horizontalFlatTopElevationM(
+  footprintWorld: readonly { readonly z: number }[],
+  heightM: number,
+): number | undefined {
+  if (heightM <= 0 || footprintWorld.length === 0) return undefined;
+  let maxZ = -Infinity;
+  for (const p of footprintWorld) maxZ = Math.max(maxZ, p.z);
+  return Number.isFinite(maxZ) ? maxZ + heightM : undefined;
+}
+
 function buildObstacleMeshAndMeta(
   o: LegacyObstacleVolumeInput,
   context: BuildRoofVolumes3DContext | undefined,
@@ -153,7 +163,12 @@ function buildObstacleMeshAndMeta(
 
   if (planeResolved && patch && mode === "hybrid_vertical_on_plane") {
     const { projected, maxAbsDistanceM } = projectFootprintOntoPlaneAtFixedXY(fp.footprintHorizontal, patch.equation);
-    const g = extrudeVerticalPrismWorld(projected, o.heightM, prefix);
+    const g = extrudeVerticalPrismWorld(
+      projected,
+      o.heightM,
+      prefix,
+      { topElevationM: o.topSurfaceMode === "horizontal_flat" ? horizontalFlatTopElevationM(projected, o.heightM) : undefined },
+    );
     if (g.vertices.length === 0) return null;
     mesh = {
       vertices: g.vertices,
@@ -178,7 +193,12 @@ function buildObstacleMeshAndMeta(
     return mesh;
   }
 
-  const g = extrudeVerticalPrismWorld(fp.footprintHorizontal, o.heightM, prefix);
+  const g = extrudeVerticalPrismWorld(
+    fp.footprintHorizontal,
+    o.heightM,
+    prefix,
+    { topElevationM: o.topSurfaceMode === "horizontal_flat" ? horizontalFlatTopElevationM(fp.footprintHorizontal, o.heightM) : undefined },
+  );
   if (g.vertices.length === 0) return null;
   return {
     vertices: g.vertices,
@@ -252,6 +272,7 @@ function buildObstacleVolume(
     id: o.id,
     kind: o.kind,
     structuralRole: o.structuralRole,
+    visualRole: o.visualRole,
     baseElevationM: mesh.baseElevationM,
     heightM: o.heightM,
     extrusion: mesh.extrusion,

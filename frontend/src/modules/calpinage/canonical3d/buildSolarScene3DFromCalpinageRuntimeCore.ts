@@ -130,6 +130,8 @@ function roofObstacleKindFromCanonical(k: CanonicalObstacleKind): RoofObstacleKi
       return "chimney";
     case "VMC":
       return "hvac";
+    case "ANTENNA":
+      return "antenna";
     case "SKYLIGHT":
       return "skylight";
     default:
@@ -203,13 +205,32 @@ function canonicalObstaclesToVolumeInput(obstacles: readonly CanonicalObstacle3D
       continue;
     }
 
+    const visualRole =
+      o.semanticRole === "SHADOW_VOLUME_ABSTRACT"
+        ? "abstract_shadow_volume"
+        : o.kind === "SKYLIGHT"
+          ? "roof_window_flush"
+          : o.semanticRole === "PHYSICAL_KEEPOUT_ONLY"
+            ? "keepout_surface"
+            : "physical_roof_body";
+    const visualHeightM =
+      o.heightM > 0
+        ? o.heightM
+        : visualRole === "roof_window_flush"
+          ? 0.035
+          : visualRole === "keepout_surface"
+            ? 0.012
+            : o.heightM;
+
     legacyObstacles.push({
       id: o.obstacleId,
       kind: roofObstacleKindFromCanonical(o.kind),
       structuralRole: obstacleStructuralRole(o.kind),
-      heightM: o.heightM,
+      visualRole,
+      heightM: visualHeightM,
       footprint: { mode: "world", footprintWorld },
       extrusionPreference: "hybrid_vertical_on_plane",
+      topSurfaceMode: visualRole === "abstract_shadow_volume" ? "parallel_to_base" : "horizontal_flat",
       ...(related ? { relatedPlanePatchIds: related } : {}),
     });
   }

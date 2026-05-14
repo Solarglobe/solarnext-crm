@@ -330,6 +330,86 @@ const PREMIUM_PV_SELECTED_FILL = "#27346a";
 const PREMIUM_PV_LIVE_FILL = "#172033";
 const PREMIUM_PV_INVALID_FILL = "#b91c1c";
 
+function obstacleMaterialForVolume(vol: SolarScene3D["obstacleVolumes"][number], fallback: {
+  readonly color: number;
+  readonly metalness: number;
+  readonly roughness: number;
+  readonly flatShading?: boolean;
+}): {
+  readonly color: number | string;
+  readonly metalness: number;
+  readonly roughness: number;
+  readonly flatShading: boolean;
+  readonly transparent: boolean;
+  readonly opacity: number;
+  readonly emissive: string;
+} {
+  if (vol.visualRole === "roof_window_flush" || vol.kind === "skylight") {
+    return {
+      color: "#102033",
+      metalness: 0.18,
+      roughness: 0.28,
+      flatShading: false,
+      transparent: true,
+      opacity: 0.82,
+      emissive: "#0b2239",
+    };
+  }
+  if (vol.visualRole === "keepout_surface") {
+    return {
+      color: "#f59e0b",
+      metalness: 0.02,
+      roughness: 0.7,
+      flatShading: false,
+      transparent: true,
+      opacity: 0.34,
+      emissive: "#3b1f05",
+    };
+  }
+  if (vol.visualRole === "abstract_shadow_volume") {
+    return {
+      color: "#64748b",
+      metalness: 0.02,
+      roughness: 0.85,
+      flatShading: true,
+      transparent: true,
+      opacity: 0.28,
+      emissive: "#0f172a",
+    };
+  }
+  if (vol.kind === "chimney") {
+    return {
+      color: "#9a6b55",
+      metalness: 0.03,
+      roughness: 0.88,
+      flatShading: false,
+      transparent: false,
+      opacity: 1,
+      emissive: "#000000",
+    };
+  }
+  if (vol.kind === "hvac" || vol.kind === "antenna") {
+    return {
+      color: "#d1d5db",
+      metalness: 0.42,
+      roughness: 0.38,
+      flatShading: false,
+      transparent: false,
+      opacity: 1,
+      emissive: "#000000",
+    };
+  }
+  return {
+    color: fallback.color,
+    metalness: fallback.metalness,
+    roughness: fallback.roughness,
+    flatShading: fallback.flatShading ?? false,
+    transparent: false,
+    opacity: 1,
+    emissive: "#000000",
+  };
+}
+
 function panelSurfaceMaterial(
   scene: SolarScene3D,
   panelId: string,
@@ -1209,7 +1289,7 @@ function ViewerSceneContent({
   const ridgeGeo = useMemo(() => roofRidgesLineGeometry(scene.roofModel), [scene.roofModel]);
 
   const obsGeos = useMemo(() => {
-    return scene.obstacleVolumes.map((v) => ({ id: v.id, geo: obstacleVolumeGeometry(v) }));
+    return scene.obstacleVolumes.map((v) => ({ id: v.id, volume: v, geo: obstacleVolumeGeometry(v) }));
   }, [scene.obstacleVolumes]);
 
   const dormerPremiumLayer = useMemo(() => {
@@ -1747,9 +1827,10 @@ function ViewerSceneContent({
           );
         })}
       {visObs &&
-        obsGeos.map(({ id, geo }) => {
+        obsGeos.map(({ id, volume, geo }) => {
           const sid = String(id);
           const sel = isInspectSelected(inspectionSelection, "OBSTACLE", sid);
+          const mat = obstacleMaterialForVolume(volume, mObs);
           return (
             <mesh
               key={`obs-${id}`}
@@ -1761,12 +1842,15 @@ function ViewerSceneContent({
               onClick={inspectMode ? onInspectClick : undefined}
             >
               <meshStandardMaterial
-                color={mObs.color}
-                metalness={mObs.metalness}
-                roughness={mObs.roughness}
-                flatShading={mObs.flatShading ?? false}
-                emissive={sel ? "#6d4c41" : "#000000"}
-                emissiveIntensity={sel ? 0.35 : 0}
+                color={mat.color}
+                metalness={mat.metalness}
+                roughness={mat.roughness}
+                flatShading={mat.flatShading}
+                transparent={mat.transparent}
+                opacity={mat.opacity}
+                depthWrite={!mat.transparent}
+                emissive={sel ? "#6d4c41" : mat.emissive}
+                emissiveIntensity={sel ? 0.35 : volume.visualRole === "roof_window_flush" ? 0.08 : 0}
               />
               {inspectMode && sel && (
                 <Outlines

@@ -27,6 +27,15 @@ export interface VerticalPrismMeshResult {
   readonly bounds: { readonly min: WorldPosition3D; readonly max: WorldPosition3D };
 }
 
+export interface VerticalPrismOptions {
+  /**
+   * Force tous les sommets du dessus sur cette cote Z monde.
+   * Utile pour les objets physiques verticaux posés sur un toit incliné :
+   * la base suit le pan, mais le dessus reste horizontal.
+   */
+  readonly topElevationM?: number;
+}
+
 function centroidPoints(pts: readonly Vector3[]): WorldPosition3D {
   let x = 0;
   let y = 0;
@@ -96,7 +105,8 @@ function orientNormalForFaceKind(
 export function extrudeVerticalPrismWorld(
   baseFootprintHorizontal: readonly WorldPosition3D[],
   heightM: number,
-  idPrefix: string
+  idPrefix: string,
+  options?: VerticalPrismOptions
 ): VerticalPrismMeshResult {
   const n = baseFootprintHorizontal.length;
   if (n < 3 || !Number.isFinite(heightM) || heightM <= 0) {
@@ -114,10 +124,15 @@ export function extrudeVerticalPrismWorld(
     };
   }
 
+  const topElevationM =
+    typeof options?.topElevationM === "number" && Number.isFinite(options.topElevationM)
+      ? options.topElevationM
+      : null;
+
   const top: WorldPosition3D[] = baseFootprintHorizontal.map((p) => ({
     x: p.x,
     y: p.y,
-    z: p.z + heightM,
+    z: topElevationM ?? p.z + heightM,
   }));
 
   const allPts: Vector3[] = [...baseFootprintHorizontal, ...top];

@@ -42,6 +42,16 @@ export type ObstacleVolumeExtrusionMode =
 
   | "hybrid_vertical_on_plane";
 
+export type RoofObstacleVisualRole =
+
+  | "physical_roof_body"
+
+  | "roof_window_flush"
+
+  | "keepout_surface"
+
+  | "abstract_shadow_volume";
+
 
 
 export interface ObstacleVolumeExtrusionSpec {
@@ -63,6 +73,8 @@ export interface RoofObstacleVolume3D {
   readonly kind: RoofObstacleKind;
 
   readonly structuralRole: RoofVolumeStructuralRole;
+
+  readonly visualRole?: RoofObstacleVisualRole;
 
   readonly baseElevationM: number;
 

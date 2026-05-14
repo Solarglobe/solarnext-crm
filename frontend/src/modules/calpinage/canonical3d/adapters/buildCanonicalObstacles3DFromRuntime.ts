@@ -43,6 +43,7 @@ import { sanePanHeightM } from "../../adapter/heightSanityFilter";
 export type CanonicalObstacleKind =
   | "CHIMNEY"
   | "VMC"
+  | "ANTENNA"
   | "SKYLIGHT"
   | "DORMER"
   | "ROOF_EXTENSION"
@@ -236,7 +237,7 @@ function mapBusinessIdToKind(id: string | null): CanonicalObstacleKind | null {
     generic_polygon_keepout: "FREE_POLYGON_OBSTACLE",
     legacy_shadow_cube: "SHADOW_VOLUME",
     legacy_shadow_tube: "SHADOW_VOLUME",
-    antenna: "CIRCLE_OBSTACLE",
+    antenna: "ANTENNA",
   };
   return map[id as RoofObstacleBusinessId] ?? null;
 }
