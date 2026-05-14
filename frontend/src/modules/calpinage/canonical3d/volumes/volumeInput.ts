@@ -50,6 +50,7 @@ export type LegacyVolumeFootprintSource =
 export interface LegacyObstacleVolumeInput {
   readonly id: string;
   readonly kind: RoofObstacleKind;
+  readonly visualKey?: string;
   /** Doit être `obstacle_simple` ou `obstacle_structuring` (pas `roof_extension`). */
   readonly structuralRole: Exclude<RoofVolumeStructuralRole, "roof_extension">;
   readonly visualRole?: RoofObstacleVisualRole;

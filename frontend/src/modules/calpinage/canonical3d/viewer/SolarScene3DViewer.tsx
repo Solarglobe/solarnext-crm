@@ -64,7 +64,7 @@ import {
   ROOF_VERTEX_XY_EDIT_DEFAULT_MAX_DISPLACEMENT_PX,
   type RoofVertexXYEdit,
 } from "../../runtime/applyRoofVertexXYEdit";
-import { worldHorizontalMToImagePx } from "../builder/worldMapping";
+import { imagePxToWorldHorizontalM, worldHorizontalMToImagePx } from "../builder/worldMapping";
 import {
   computeRoofShellAlignmentDiagnostics,
   formatRoofShellAlignmentOneLine,
@@ -137,6 +137,7 @@ import {
   type DormerRuntimeExtensionInput,
 } from "./dormer/buildDormerMesh";
 import { extractRuntimeRoofExtensions } from "./dormer/extractRuntimeRoofExtensions";
+import { sampleRoofZAtImagePxFromPatches } from "./dormer/sampleRoofZAtImagePxFromPatches";
 import { buildPremiumHouse3DScene } from "./premium/buildPremiumHouse3DScene";
 import type { PremiumHouse3DSceneAssembly } from "./premium/premiumHouse3DSceneTypes";
 import { PremiumGeometryTrustStripe } from "./premium/PremiumGeometryTrustStripe";
@@ -508,6 +509,11 @@ function volumePlanMetrics(vol: SolarScene3D["obstacleVolumes"][number]): {
   };
 }
 
+function isRoundChimneyVolume(vol: SolarScene3D["obstacleVolumes"][number]): boolean {
+  const visualKey = String(vol.visualKey ?? "").toLowerCase();
+  return vol.kind === "chimney" && (visualKey.includes("chimney_round") || vol.footprintWorld.length >= 8);
+}
+
 function cylinderLikeGeometry(
   center: THREE.Vector3,
   radius: number,
@@ -519,6 +525,42 @@ function cylinderLikeGeometry(
   const geo = new THREE.CylinderGeometry(radius, radius, height, segments, 1, false);
   geo.rotateX(Math.PI / 2);
   geo.translate(center.x, center.y, zBase + height * 0.5);
+  return geo;
+}
+
+function roundChimneyBodyGeometry(vol: SolarScene3D["obstacleVolumes"][number]): THREE.BufferGeometry | null {
+  const metrics = volumePlanMetrics(vol);
+  if (!metrics) return null;
+  const radius = Math.max(0.08, metrics.maxRadius * 0.82);
+  const height = Math.max(0.2, metrics.topZ - metrics.bottomZ);
+  return cylinderLikeGeometry(metrics.center, radius, height, 36, metrics.bottomZ);
+}
+
+function roundChimneyRingLineGeometry(vol: SolarScene3D["obstacleVolumes"][number]): THREE.BufferGeometry | null {
+  const metrics = volumePlanMetrics(vol);
+  if (!metrics) return null;
+  const radius = Math.max(0.08, metrics.maxRadius * 0.84);
+  const height = Math.max(0.2, metrics.topZ - metrics.bottomZ);
+  const rows = Math.max(5, Math.min(18, Math.round(height / 0.16)));
+  const segments = 36;
+  const positions: number[] = [];
+  for (let row = 1; row < rows; row++) {
+    const z = metrics.bottomZ + (height * row) / rows + 0.012;
+    for (let i = 0; i < segments; i++) {
+      const a = (i / segments) * Math.PI * 2;
+      const b = ((i + 1) / segments) * Math.PI * 2;
+      positions.push(
+        metrics.center.x + Math.cos(a) * radius,
+        metrics.center.y + Math.sin(a) * radius,
+        z,
+        metrics.center.x + Math.cos(b) * radius,
+        metrics.center.y + Math.sin(b) * radius,
+        z,
+      );
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
   return geo;
 }
 
@@ -688,21 +730,72 @@ function roofObstacleDetailGeometries(vol: SolarScene3D["obstacleVolumes"][numbe
   readonly vmcCap: THREE.BufferGeometry | null;
   readonly vmcVentLines: THREE.BufferGeometry | null;
   readonly antennaLines: THREE.BufferGeometry | null;
+  readonly roundChimneyBody: THREE.BufferGeometry | null;
+  readonly roundChimneyLines: THREE.BufferGeometry | null;
+  readonly replaceBaseMesh: boolean;
 } {
   const topRing = volumeRingAt(vol, 1, vol.visualRole === "roof_window_flush" || vol.visualRole === "keepout_surface" ? 0.018 : 0.012);
+  const roundChimney = isRoundChimneyVolume(vol);
   return {
-    topCap: vol.kind === "chimney" || vol.visualRole === "roof_window_flush"
+    topCap: (vol.kind === "chimney" && !roundChimney) || vol.visualRole === "roof_window_flush"
       ? volumeTopCapGeometry(vol, vol.kind === "chimney" ? 0.045 : 0.024, vol.kind === "chimney" ? 1.12 : 0.6)
       : null,
     edgeLines: vol.visualRole === "roof_window_flush" ? null : volumeLoopLineGeometry(topRing),
-    brickLines: vol.kind === "chimney" ? chimneyBrickLineGeometry(vol) : null,
+    brickLines: vol.kind === "chimney" && !roundChimney ? chimneyBrickLineGeometry(vol) : null,
     windowFrame: vol.visualRole === "roof_window_flush" ? roofWindowFrameGeometry(vol) : null,
     windowHighlight: vol.visualRole === "roof_window_flush" ? roofWindowHighlightLineGeometry(vol) : null,
     windowOuterFrame: vol.visualRole === "roof_window_flush" ? roofWindowGreyFrameGeometry(vol) : null,
     vmcCap: vol.kind === "hvac" ? vmcCapGeometry(vol) : null,
     vmcVentLines: vol.kind === "hvac" ? vmcVentLineGeometry(vol) : null,
     antennaLines: vol.kind === "antenna" ? antennaLineGeometry(vol) : null,
+    roundChimneyBody: roundChimney ? roundChimneyBodyGeometry(vol) : null,
+    roundChimneyLines: roundChimney ? roundChimneyRingLineGeometry(vol) : null,
+    replaceBaseMesh: roundChimney || vol.kind === "antenna",
   };
+}
+
+function buildDormerDrawnStructureLines(
+  ext: DormerRuntimeExtensionInput,
+  roofModel: { readonly world: SolarScene3D["worldConfig"]; readonly roofPlanePatches: SolarScene3D["roofModel"]["roofPlanePatches"] },
+): THREE.BufferGeometry | null {
+  const wc = roofModel.world;
+  if (!wc || !isValidCanonicalWorldConfig(wc)) return null;
+  const positions: number[] = [];
+  const point3 = (p: { readonly x?: number; readonly y?: number } | undefined, liftM: number): THREE.Vector3 | null => {
+    if (!p || typeof p.x !== "number" || typeof p.y !== "number") return null;
+    const xy = imagePxToWorldHorizontalM(p.x, p.y, wc.metersPerPixel, wc.northAngleDeg);
+    const z = sampleRoofZAtImagePxFromPatches(p.x, p.y, roofModel.roofPlanePatches, wc);
+    if (z == null) return null;
+    return new THREE.Vector3(xy.x, xy.y, z + liftM);
+  };
+  const pushLine = (
+    a: { readonly x?: number; readonly y?: number } | undefined,
+    b: { readonly x?: number; readonly y?: number } | undefined,
+    liftM: number,
+  ) => {
+    const pa = point3(a, liftM);
+    const pb = point3(b, liftM);
+    if (!pa || !pb) return;
+    positions.push(pa.x, pa.y, pa.z, pb.x, pb.y, pb.z);
+  };
+  const contourPts = ext.contour?.points ?? [];
+  for (let i = 0; i < contourPts.length; i++) {
+    pushLine(contourPts[i], contourPts[(i + 1) % contourPts.length], 0.075);
+  }
+  const ridgeLift = Math.max(0.12, (typeof ext.ridgeHeightRelM === "number" ? ext.ridgeHeightRelM : 0.8) + 0.08);
+  pushLine(ext.ridge?.a, ext.ridge?.b, ridgeLift);
+  const hips = (ext as DormerRuntimeExtensionInput & {
+    readonly hips?: {
+      readonly left?: { readonly a?: { readonly x?: number; readonly y?: number }; readonly b?: { readonly x?: number; readonly y?: number } };
+      readonly right?: { readonly a?: { readonly x?: number; readonly y?: number }; readonly b?: { readonly x?: number; readonly y?: number } };
+    };
+  }).hips;
+  pushLine(hips?.left?.a, hips?.left?.b, ridgeLift * 0.5);
+  pushLine(hips?.right?.a, hips?.right?.b, ridgeLift * 0.5);
+  if (!positions.length) return null;
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  return geo;
 }
 
 function panelSurfaceMaterial(
@@ -1608,7 +1701,7 @@ function ViewerSceneContent({
         patchCount: patches?.length ?? 0,
       });
       return {
-        meshes: [] as { id: string; geo: THREE.BufferGeometry; edges: THREE.BufferGeometry | null }[],
+        meshes: [] as { id: string; geo: THREE.BufferGeometry; edges: THREE.BufferGeometry | null; structure: THREE.BufferGeometry | null }[],
         replaceKey: "",
         premiumIds: new Set<string>(),
       };
@@ -1619,7 +1712,7 @@ function ViewerSceneContent({
     const volIdSet = new Set(scene.extensionVolumes.map((v) => String(v.id)));
     const volIdsArr = [...volIdSet];
     const replaceIds: string[] = [];
-    const meshes: { id: string; geo: THREE.BufferGeometry; edges: THREE.BufferGeometry | null }[] = [];
+    const meshes: { id: string; geo: THREE.BufferGeometry; edges: THREE.BufferGeometry | null; structure: THREE.BufferGeometry | null }[] = [];
 
     for (let ri = 0; ri < rawList.length; ri++) {
       const raw = rawList[ri];
@@ -1672,8 +1765,9 @@ function ViewerSceneContent({
       }
       dormerPremiumAuditLog("RESULT: geometry (viewer)", { id });
       const edges = buildDormerEdgesGeometry(geo);
+      const structure = buildDormerDrawnStructureLines(rec as DormerRuntimeExtensionInput, roofModel);
       replaceIds.push(id);
-      meshes.push({ id, geo, edges });
+      meshes.push({ id, geo, edges, structure });
     }
     replaceIds.sort();
     const premiumIds = new Set(meshes.map((m) => String(m.id)));
@@ -1765,7 +1859,7 @@ function ViewerSceneContent({
       ...(roofClosureGeo ? [roofClosureGeo] : []),
       ...(edgeGeo ? [edgeGeo] : []),
       ...(ridgeGeo ? [ridgeGeo] : []),
-      ...dormerPremiumLayer.meshes.flatMap((m) => [m.geo, ...(m.edges ? [m.edges] : [])]),
+      ...dormerPremiumLayer.meshes.flatMap((m) => [m.geo, ...(m.edges ? [m.edges] : []), ...(m.structure ? [m.structure] : [])]),
       ...obsGeos.flatMap((x) => [
         x.geo,
         x.details.topCap,
@@ -1777,6 +1871,8 @@ function ViewerSceneContent({
         x.details.vmcCap,
         x.details.vmcVentLines,
         x.details.antennaLines,
+        x.details.roundChimneyBody,
+        x.details.roundChimneyLines,
       ].filter((g): g is THREE.BufferGeometry => g != null)),
       ...extGeos.map((x) => x.geo),
       ...panelGeos.flatMap((x) => [x.geo, x.cell].filter((g): g is THREE.BufferGeometry => g != null)),
@@ -1805,7 +1901,7 @@ function ViewerSceneContent({
       ...(shellGeo ? [shellGeo] : []),
       ...roofGeos.map((x) => x.geo),
       ...(roofClosureGeo ? [roofClosureGeo] : []),
-      ...dormerPremiumLayer.meshes.map((m) => m.geo),
+      ...dormerPremiumLayer.meshes.flatMap((m) => [m.geo, m.edges, m.structure].filter((g): g is THREE.BufferGeometry => g != null)),
       ...obsGeos.map((x) => x.geo),
       ...extGeos.map((x) => x.geo),
       ...panelGeos.map((x) => x.geo),
@@ -2098,7 +2194,7 @@ function ViewerSceneContent({
         </lineSegments>
       )}
       {visDormerPremium &&
-        dormerPremiumLayer.meshes.map(({ id, geo, edges }) => {
+        dormerPremiumLayer.meshes.map(({ id, geo, edges, structure }) => {
           const sid = String(id);
           const sel = isInspectSelected(inspectionSelection, "EXTENSION", sid);
           return (
@@ -2140,6 +2236,17 @@ function ViewerSceneContent({
                   />
                 </lineSegments>
               )}
+              {structure && (
+                <lineSegments geometry={structure} renderOrder={8}>
+                  <lineBasicMaterial
+                    color="#f8fafc"
+                    transparent
+                    opacity={0.92}
+                    toneMapped={false}
+                    depthTest
+                  />
+                </lineSegments>
+              )}
             </group>
           );
         })}
@@ -2148,6 +2255,7 @@ function ViewerSceneContent({
           const sid = String(id);
           const sel = isInspectSelected(inspectionSelection, "OBSTACLE", sid);
           const mat = obstacleMaterialForVolume(volume, mObs);
+          const hideBaseMesh = details.replaceBaseMesh;
           return (
             <mesh
               key={`obs-${id}`}
@@ -2163,13 +2271,35 @@ function ViewerSceneContent({
                 metalness={mat.metalness}
                 roughness={mat.roughness}
                 flatShading={mat.flatShading}
-                transparent={mat.transparent}
-                opacity={mat.opacity}
-                depthWrite={!mat.transparent}
+                transparent={hideBaseMesh || mat.transparent}
+                opacity={hideBaseMesh ? 0 : mat.opacity}
+                depthWrite={!hideBaseMesh && !mat.transparent}
                 side={mat.side}
                 emissive={sel ? "#6d4c41" : mat.emissive}
-                emissiveIntensity={sel ? 0.35 : volume.visualRole === "roof_window_flush" ? 0.08 : 0}
+                emissiveIntensity={hideBaseMesh ? 0 : sel ? 0.35 : volume.visualRole === "roof_window_flush" ? 0.08 : 0}
               />
+              {details.roundChimneyBody ? (
+                <mesh geometry={details.roundChimneyBody} renderOrder={8} castShadow receiveShadow>
+                  <meshStandardMaterial
+                    color="#b77961"
+                    metalness={0.03}
+                    roughness={0.82}
+                    flatShading={false}
+                    side={THREE.DoubleSide}
+                  />
+                </mesh>
+              ) : null}
+              {details.roundChimneyLines ? (
+                <lineSegments geometry={details.roundChimneyLines} renderOrder={9}>
+                  <lineBasicMaterial
+                    color="#e0b195"
+                    transparent
+                    opacity={0.56}
+                    toneMapped={false}
+                    depthTest
+                  />
+                </lineSegments>
+              ) : null}
               {details.topCap ? (
                 <mesh geometry={details.topCap} renderOrder={8}>
                   <meshStandardMaterial

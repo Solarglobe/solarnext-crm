@@ -72,6 +72,8 @@ export interface RoofObstacleVolume3D {
 
   readonly kind: RoofObstacleKind;
 
+  readonly visualKey?: string;
+
   readonly structuralRole: RoofVolumeStructuralRole;
 
   readonly visualRole?: RoofObstacleVisualRole;

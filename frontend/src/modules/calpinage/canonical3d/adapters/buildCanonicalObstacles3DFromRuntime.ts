@@ -632,7 +632,9 @@ export function buildCanonicalObstacles3DFromRuntime(
       stableId,
       kind,
       sourceKind:
-        typeof raw.kind === "string"
+        businessId != null
+          ? businessId
+          : typeof raw.kind === "string"
           ? raw.kind
           : typeof raw.type === "string"
             ? raw.type

@@ -227,6 +227,7 @@ function canonicalObstaclesToVolumeInput(obstacles: readonly CanonicalObstacle3D
     legacyObstacles.push({
       id: o.obstacleId,
       kind: roofObstacleKindFromCanonical(o.kind),
+      visualKey: o.sourceKind ?? undefined,
       structuralRole: obstacleStructuralRole(o.kind),
       visualRole,
       heightM: visualHeightM,

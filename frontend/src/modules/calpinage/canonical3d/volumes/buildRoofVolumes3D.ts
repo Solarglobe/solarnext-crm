@@ -271,6 +271,7 @@ function buildObstacleVolume(
   return {
     id: o.id,
     kind: o.kind,
+    visualKey: o.visualKey,
     structuralRole: o.structuralRole,
     visualRole: o.visualRole,
     baseElevationM: mesh.baseElevationM,
