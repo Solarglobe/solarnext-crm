@@ -25,7 +25,7 @@ import {
   COHERENCE_MIN_PATCH_AREA_M2,
   COHERENCE_MIN_VOLUME_HEIGHT_M,
 } from "./coherenceConstants";
-import { polygonHorizontalAreaM2FromImagePx } from "../builder/worldMapping";
+import { polygonHorizontalAreaM2FromImagePx, worldHorizontalMToImagePx } from "../builder/worldMapping";
 import { appendUnifiedBusinessSceneIssues } from "./validateUnifiedBusinessScene";
 import { appendUnifiedWorldAlignmentIssues } from "./validateUnifiedWorldAlignment";
 import {
@@ -62,6 +62,22 @@ function jaccardStringSets(a: ReadonlySet<string>, b: ReadonlySet<string>): numb
   }
   const union = a.size + b.size - inter;
   return union === 0 ? 0 : inter / union;
+}
+
+function maxPairedPolygonDistancePx(
+  a: ReadonlyArray<{ readonly x: number; readonly y: number }>,
+  b: ReadonlyArray<{ readonly x: number; readonly y: number }>
+): number {
+  if (a.length !== b.length || a.length === 0) return Infinity;
+  let max = 0;
+  for (let i = 0; i < a.length; i++) {
+    const pa = a[i]!;
+    const pb = b[i]!;
+    const d = Math.hypot(pa.x - pb.x, pa.y - pb.y);
+    if (!Number.isFinite(d)) return Infinity;
+    max = Math.max(max, d);
+  }
+  return max;
 }
 
 function bboxHorizFromPatches(patches: readonly RoofPlanePatch3D[]): {
@@ -457,6 +473,38 @@ function validateSourceFidelity(scene: SolarScene3D, issues: CoherenceIssue[]): 
         message: `Obstacle source « ${id} » absent des volumes scène`,
         entityId: id,
       });
+    }
+  }
+
+  const obstacleFootprints = st.sourceObstacleFootprints2D ?? [];
+  const wc = scene.worldConfig;
+  if (obstacleFootprints.length > 0 && wc?.metersPerPixel != null && wc?.northAngleDeg != null) {
+    const volumeById = new Map<string, RoofObstacleVolume3D | RoofExtensionVolume3D>();
+    for (const v of scene.obstacleVolumes) volumeById.set(String(v.id), v);
+    for (const v of scene.extensionVolumes) volumeById.set(String(v.id), v);
+    for (const src of obstacleFootprints) {
+      const vol = volumeById.get(String(src.id));
+      if (!vol || !vol.footprintWorld?.length) continue;
+      const backToPx = vol.footprintWorld.map((p) => {
+        const px = worldHorizontalMToImagePx(p.x, p.y, wc.metersPerPixel, wc.northAngleDeg);
+        return { x: px.xPx, y: px.yPx };
+      });
+      const maxDeltaPx = maxPairedPolygonDistancePx(src.polygonPx, backToPx);
+      if (maxDeltaPx > 0.25) {
+        issues.push({
+          code: "OBSTACLE_2D_3D_FOOTPRINT_MISMATCH",
+          severity: "ERROR",
+          scope: "OBSTACLE",
+          message: `Obstacle ${src.id}: footprint 3D reprojeté en px différent du dessin source 2D`,
+          entityId: src.id,
+          details: {
+            maxDeltaPx,
+            tolerancePx: 0.25,
+            sourceVertexCount: src.polygonPx.length,
+            sceneVertexCount: backToPx.length,
+          },
+        });
+      }
     }
   }
 

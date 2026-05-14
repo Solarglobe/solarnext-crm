@@ -4,6 +4,7 @@ import {
   buildLossPctByPanelIdFromPerPanelRows,
   resolvePanelVisualShadingForPanels,
   buildPanelVisualShadingMapFromRuntime,
+  extractRuntimeShadingSummary,
 } from "../resolvePanelVisualShading";
 
 describe("lossPctToQualityScore01", () => {
@@ -100,5 +101,45 @@ describe("buildPanelVisualShadingMapFromRuntime", () => {
   it("runtime sans shading -> tous MISSING", () => {
     const out = buildPanelVisualShadingMapFromRuntime(["x"], {});
     expect(out.x!.state).toBe("MISSING");
+  });
+});
+
+describe("extractRuntimeShadingSummary", () => {
+  it("lit le resume normalise du runtime legacy", () => {
+    const out = extractRuntimeShadingSummary({
+      shading: {
+        normalized: {
+          totalLossPct: 12.4,
+          near: { totalLossPct: 7.1 },
+          far: { totalLossPct: 5.7 },
+          panelCount: 8,
+          computedAt: 123,
+        },
+      },
+    });
+    expect(out).toEqual({
+      totalLossPct: 12.4,
+      nearLossPct: 7.1,
+      farLossPct: 5.7,
+      panelCount: 8,
+      computedAt: 123,
+      blockingReason: null,
+    });
+  });
+
+  it("remonte la raison GPS absent", () => {
+    const out = extractRuntimeShadingSummary({
+      shading: {
+        normalized: {
+          totalLossPct: null,
+          near: { totalLossPct: null },
+          far: { totalLossPct: null, source: "UNAVAILABLE_NO_GPS" },
+          shadingQuality: { blockingReason: "missing_gps" },
+          panelCount: 0,
+        },
+      },
+    });
+    expect(out?.blockingReason).toBe("missing_gps");
+    expect(out?.totalLossPct).toBeNull();
   });
 });

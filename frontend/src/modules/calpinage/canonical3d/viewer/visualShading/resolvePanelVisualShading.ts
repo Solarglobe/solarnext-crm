@@ -2,7 +2,7 @@
  * Adapter pur : runtime `shading.perPanel` → entrées viewer (aucun recalcul ombrage).
  */
 
-import type { PanelVisualShading } from "../../types/panelVisualShading";
+import type { PanelVisualShading, PanelVisualShadingSummary } from "../../types/panelVisualShading";
 
 export function lossPctToQualityScore01(lossPct: number): number {
   return Math.max(0, Math.min(1, 1 - lossPct / 100));
@@ -95,4 +95,72 @@ export function buildPanelVisualShadingMapFromRuntime(
   const rows = extractRuntimeShadingPerPanelRows(runtime);
   const lossBy = buildLossPctByPanelIdFromPerPanelRows(rows);
   return resolvePanelVisualShadingForPanels(panelIds, lossBy);
+}
+
+function finitePctOrNull(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 100 ? value : null;
+}
+
+function readNestedPct(source: Record<string, unknown>, key: string): number | null {
+  const raw = source[key];
+  if (raw && typeof raw === "object") {
+    return finitePctOrNull((raw as Record<string, unknown>).totalLossPct);
+  }
+  return finitePctOrNull(raw);
+}
+
+export function extractRuntimeShadingSummary(runtime: unknown): PanelVisualShadingSummary | null {
+  if (!runtime || typeof runtime !== "object") return null;
+  const sh = (runtime as Record<string, unknown>).shading;
+  if (!sh || typeof sh !== "object") return null;
+  const shading = sh as Record<string, unknown>;
+  const normalizedRaw = shading.normalized;
+  const source =
+    normalizedRaw && typeof normalizedRaw === "object"
+      ? (normalizedRaw as Record<string, unknown>)
+      : shading;
+
+  const totalLossPct =
+    finitePctOrNull(source.totalLossPct) ??
+    readNestedPct(source, "combined") ??
+    finitePctOrNull(source.annualLossPercent);
+  const nearLossPct = readNestedPct(source, "near") ?? finitePctOrNull(source.nearLossPct);
+  const farLossPct = readNestedPct(source, "far") ?? finitePctOrNull(source.farLossPct);
+  const rows = extractRuntimeShadingPerPanelRows(runtime);
+  const panelCount =
+    typeof source.panelCount === "number" && Number.isFinite(source.panelCount)
+      ? source.panelCount
+      : rows.length > 0
+        ? rows.length
+        : null;
+  const quality = source.shadingQuality;
+  const far = source.far;
+  const blockingReason =
+    quality && typeof quality === "object" && typeof (quality as Record<string, unknown>).blockingReason === "string"
+      ? String((quality as Record<string, unknown>).blockingReason)
+      : far && typeof far === "object" && typeof (far as Record<string, unknown>).source === "string"
+        ? String((far as Record<string, unknown>).source)
+        : null;
+
+  if (
+    totalLossPct == null &&
+    nearLossPct == null &&
+    farLossPct == null &&
+    panelCount == null &&
+    blockingReason == null
+  ) {
+    return null;
+  }
+
+  return {
+    totalLossPct,
+    nearLossPct,
+    farLossPct,
+    panelCount,
+    computedAt:
+      typeof source.computedAt === "number" || typeof source.computedAt === "string"
+        ? source.computedAt
+        : null,
+    blockingReason,
+  };
 }

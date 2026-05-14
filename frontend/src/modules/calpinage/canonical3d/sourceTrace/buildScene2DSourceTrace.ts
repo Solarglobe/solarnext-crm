@@ -81,6 +81,12 @@ export function buildScene2DSourceTraceFromCalpinage(input: BuildScene2DSourceTr
   const sourcePanIds = canonicalScene.roof.pans.map((p) => String(p.panId));
   const sourceObstacleIds = canonicalScene.obstacles.items.map((o) => String(o.obstacleId));
   const sourcePanelIds = canonicalScene.panels.items.map((p) => String(p.id));
+  const sourceObstacleFootprints2D = canonicalScene.obstacles.items
+    .filter((o) => Array.isArray(o.polygon2D) && o.polygon2D.length >= 3)
+    .map((o) => ({
+      id: String(o.obstacleId),
+      polygonPx: o.polygon2D.map((p) => ({ x: p.x, y: p.y })),
+    }));
 
   const contourPx = extractRoofOutlineContourPx(runtime);
   let roofOutlineArea2DPx: number | undefined;
@@ -113,6 +119,7 @@ export function buildScene2DSourceTraceFromCalpinage(input: BuildScene2DSourceTr
     sourcePanIds: [...sourcePanIds],
     sourceObstacleIds: [...sourceObstacleIds],
     sourcePanelIds: [...sourcePanelIds],
+    ...(sourceObstacleFootprints2D.length > 0 ? { sourceObstacleFootprints2D } : {}),
     expectedRoofPlanePatchIds: [...roofPlanePatchIds.map(String)],
     metrics: {
       ...(typeof roofOutlineArea2DPx === "number" && roofOutlineArea2DPx > 0

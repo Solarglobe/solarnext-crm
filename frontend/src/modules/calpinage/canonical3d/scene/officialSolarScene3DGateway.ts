@@ -17,7 +17,10 @@
 
 import { buildSolarScene3DFromCalpinageRuntime } from "../buildSolarScene3DFromCalpinageRuntimeCore";
 import type { BuildSolarScene3DFromCalpinageRuntimeOptions } from "../buildSolarScene3DFromCalpinageRuntimeCore";
-import { buildPanelVisualShadingMapFromRuntime } from "../viewer/visualShading/resolvePanelVisualShading";
+import {
+  buildPanelVisualShadingMapFromRuntime,
+  extractRuntimeShadingSummary,
+} from "../viewer/visualShading/resolvePanelVisualShading";
 import { syncRoofPansMirrorFromPans } from "../../legacy/phase2RoofDerivedModel";
 import {
   computeRuntimeSceneStructuralSignatures,
@@ -75,14 +78,18 @@ function refreshSceneVisualShadingFromRuntime(
   runtime: unknown,
 ): ReturnType<typeof buildSolarScene3DFromCalpinageRuntime> {
   const scene = cached.scene;
-  if (!cached.ok || scene == null || scene.pvPanels.length === 0) return cached;
+  if (!cached.ok || scene == null) return cached;
   const panelIds = scene.pvPanels.map((p) => String(p.id));
   const panelVisualShadingByPanelId = buildPanelVisualShadingMapFromRuntime(panelIds, runtime);
+  const panelVisualShadingSummary = extractRuntimeShadingSummary(runtime);
   return {
     ...cached,
     scene: {
       ...scene,
       panelVisualShadingByPanelId,
+      ...(panelVisualShadingSummary != null
+        ? { panelVisualShadingSummary }
+        : { panelVisualShadingSummary: undefined }),
     },
   };
 }

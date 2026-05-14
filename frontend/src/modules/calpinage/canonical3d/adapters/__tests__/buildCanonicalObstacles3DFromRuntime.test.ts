@@ -51,6 +51,47 @@ describe("CAS 1 — Rectangle avec hauteur explicite", () => {
   });
 });
 
+describe("shapeMeta fidelity", () => {
+  it("prioritizes rect shapeMeta over stale points so phase 3 matches the phase 2 drawing", () => {
+    const ctx: HeightResolverContext = { state: {}, getHeightAtXY: () => 3 };
+    const state = baseRoofState({
+      obstacles: [
+        {
+          id: "chimney-shapemeta",
+          type: "polygon",
+          points: [
+            { x: 10, y: 10 },
+            { x: 20, y: 10 },
+            { x: 20, y: 20 },
+            { x: 10, y: 20 },
+          ],
+          shapeMeta: {
+            originalType: "rect",
+            centerX: 100,
+            centerY: 200,
+            width: 40,
+            height: 20,
+            angle: 0,
+          },
+          meta: { businessObstacleId: "chimney_square" },
+          heightM: 1.8,
+        },
+      ],
+    });
+
+    const res = buildCanonicalObstacles3DFromRuntime({ state, heightResolverContext: ctx });
+    const o = res.obstacles[0]!;
+    const xs = o.polygon2D.map((p) => p.x);
+    const ys = o.polygon2D.map((p) => p.y);
+    expect(Math.min(...xs)).toBeCloseTo(80);
+    expect(Math.max(...xs)).toBeCloseTo(120);
+    expect(Math.min(...ys)).toBeCloseTo(190);
+    expect(Math.max(...ys)).toBeCloseTo(210);
+    expect(o.centroid2D.x).toBeCloseTo(100);
+    expect(o.centroid2D.y).toBeCloseTo(200);
+  });
+});
+
 describe("CAS 2 — Obstacle sur toiture inclinée (Z par sommet)", () => {
   it("baseZ varie selon le plan simulé, top = base + h", () => {
     const getHeightAtXY = (_pid: string, x: number, y: number) => 4 + 0.01 * (x + y);

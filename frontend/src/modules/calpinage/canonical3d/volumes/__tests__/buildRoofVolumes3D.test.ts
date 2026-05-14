@@ -195,7 +195,39 @@ describe("buildRoofVolumes3D", () => {
     expect(validateRoofObstacleVolume3D(o)).toHaveLength(0);
   });
 
-  it("préférence vertical_world_z : repli +Z même si un pan est fourni", () => {
+  it("keeps obstacle footprint X/Y fixed while anchoring Z on a sloped roof plane", () => {
+    const patch = makeSlopedTestPatch("pan-slope-xy");
+    const source = [
+      { x: 2, y: 1, z: 10 },
+      { x: 3, y: 1, z: 10 },
+      { x: 3, y: 2, z: 10 },
+      { x: 2, y: 2, z: 10 },
+    ];
+    const xyLocked = buildRoofVolumes3D(
+      {
+        obstacles: [
+          {
+            id: "xy-lock",
+            kind: "chimney",
+            structuralRole: "obstacle_structuring",
+            heightM: 1,
+            footprint: { mode: "world", footprintWorld: source },
+            relatedPlanePatchIds: ["pan-slope-xy"],
+            extrusionPreference: "hybrid_vertical_on_plane",
+          },
+        ],
+        extensions: [],
+      },
+      { roofPlanePatches: [patch] }
+    ).obstacleVolumes[0]!;
+
+    for (let i = 0; i < source.length; i++) {
+      expect(xyLocked.footprintWorld[i]!.x).toBeCloseTo(source[i]!.x, 10);
+      expect(xyLocked.footprintWorld[i]!.y).toBeCloseTo(source[i]!.y, 10);
+    }
+  });
+
+  it("vertical_world_z preference keeps world +Z even when a roof plane is provided", () => {
     const patch = makeSlopedTestPatch("pan-slope-2");
     const { obstacleVolumes } = buildRoofVolumes3D(
       {

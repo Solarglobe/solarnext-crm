@@ -16,7 +16,7 @@ import { vec3, normalize3 } from "../utils/math3";
 import { extrudeVerticalPrismWorld } from "./extrudeVerticalPrism";
 import { extrudePrismAlongUnitDirection } from "./extrudePrismAlongAxis";
 import { resolveFootprintHorizontalWorld } from "./footprintWorld";
-import { projectFootprintOntoPlane, resolvePlanePatchByRelatedIds } from "./planeAnchor";
+import { projectFootprintOntoPlane, projectFootprintOntoPlaneAtFixedXY, resolvePlanePatchByRelatedIds } from "./planeAnchor";
 import type {
   BuildRoofVolumes3DContext,
   BuildRoofVolumes3DInput,
@@ -124,7 +124,7 @@ function buildObstacleMeshAndMeta(
   let mesh: MeshPack;
 
   if (planeResolved && patch && mode === "along_pan_normal") {
-    const { projected, maxAbsDistanceM } = projectFootprintOntoPlane(fp.footprintHorizontal, patch.equation);
+    const { projected, maxAbsDistanceM } = projectFootprintOntoPlaneAtFixedXY(fp.footprintHorizontal, patch.equation);
     const nu = normalize3(patch.normal) ?? patch.normal;
     const g = extrudePrismAlongUnitDirection(projected, nu, o.heightM, prefix);
     if (g.vertices.length === 0) return null;
@@ -152,7 +152,7 @@ function buildObstacleMeshAndMeta(
   }
 
   if (planeResolved && patch && mode === "hybrid_vertical_on_plane") {
-    const { projected, maxAbsDistanceM } = projectFootprintOntoPlane(fp.footprintHorizontal, patch.equation);
+    const { projected, maxAbsDistanceM } = projectFootprintOntoPlaneAtFixedXY(fp.footprintHorizontal, patch.equation);
     const g = extrudeVerticalPrismWorld(projected, o.heightM, prefix);
     if (g.vertices.length === 0) return null;
     mesh = {

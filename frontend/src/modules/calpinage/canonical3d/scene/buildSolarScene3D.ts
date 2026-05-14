@@ -14,7 +14,7 @@ import type { RoofObstacleVolume3D } from "../types/roof-obstacle-volume";
 import type { BuildingShell3D } from "../types/building-shell-3d";
 import type { Vector3 } from "../types/primitives";
 import { normalize3 } from "../utils/math3";
-import type { PanelVisualShading } from "../types/panelVisualShading";
+import type { PanelVisualShading, PanelVisualShadingSummary } from "../types/panelVisualShading";
 import type {
   SolarScene3D,
   SolarScene3DMetadata,
@@ -52,6 +52,7 @@ export interface BuildSolarScene3DInput {
   readonly sourceTrace?: Scene2DSourceTrace;
   /** Lecture seule runtime / export — coloration viewer sans recalcul ombrage. */
   readonly panelVisualShadingByPanelId?: Readonly<Record<string, PanelVisualShading>>;
+  readonly panelVisualShadingSummary?: PanelVisualShadingSummary;
   readonly roofGeometrySource?: SolarSceneRoofGeometrySource;
   readonly roofGeometryFallbackReason?: string | null;
   /** Prisme bâtiment (runtime calpinage) — optionnel. */
@@ -156,6 +157,9 @@ export function buildSolarScene3D(input: BuildSolarScene3DInput): SolarScene3D {
     pvPanels: input.pvPanels,
     ...(input.panelVisualShadingByPanelId != null && {
       panelVisualShadingByPanelId: input.panelVisualShadingByPanelId,
+    }),
+    ...(input.panelVisualShadingSummary != null && {
+      panelVisualShadingSummary: input.panelVisualShadingSummary,
     }),
     ...(solarContext && { solarContext }),
     ...(nearShadingSnapshot && { nearShadingSnapshot }),

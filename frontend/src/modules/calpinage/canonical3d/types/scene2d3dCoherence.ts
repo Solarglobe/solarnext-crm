@@ -34,6 +34,10 @@ export type Scene2DSourceTrace = {
   readonly sourcePanIds: readonly string[];
   readonly sourceObstacleIds: readonly string[];
   readonly sourcePanelIds: readonly string[];
+  readonly sourceObstacleFootprints2D?: ReadonlyArray<{
+    readonly id: string;
+    readonly polygonPx: ReadonlyArray<{ readonly x: number; readonly y: number }>;
+  }>;
   /** Ids patches issus du builder toiture (chemin legacy / roof model). */
   readonly expectedRoofPlanePatchIds?: readonly string[];
   readonly metrics?: {

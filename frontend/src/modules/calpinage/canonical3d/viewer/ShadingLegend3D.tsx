@@ -3,6 +3,7 @@
  */
 
 import type { CSSProperties } from "react";
+import type { PanelVisualShadingSummary } from "../types/panelVisualShading";
 
 const wrap: CSSProperties = {
   position: "absolute",
@@ -40,20 +41,62 @@ const dotStyle = (hex: string): CSSProperties => ({
 
 export interface ShadingLegend3DProps {
   readonly mode: "active" | "unavailable";
+  readonly summary?: PanelVisualShadingSummary | null;
 }
 
-export function ShadingLegend3D({ mode }: ShadingLegend3DProps) {
+function pctFr(value: number | null): string {
+  if (value == null) return "-";
+  return `${value.toLocaleString("fr-FR", {
+    minimumFractionDigits: Number.isInteger(value) ? 0 : 1,
+    maximumFractionDigits: 1,
+  })} %`;
+}
+
+function summaryRows(summary: PanelVisualShadingSummary | null | undefined): Array<[string, string]> {
+  if (!summary) return [];
+  const rows: Array<[string, string]> = [["Perte totale", pctFr(summary.totalLossPct)]];
+  rows.push(["Proche", pctFr(summary.nearLossPct)]);
+  rows.push(["Lointain", pctFr(summary.farLossPct)]);
+  if (summary.panelCount != null) rows.push(["Panneaux", String(summary.panelCount)]);
+  return rows;
+}
+
+export function ShadingLegend3D({ mode, summary }: ShadingLegend3DProps) {
+  const rows = summaryRows(summary);
   if (mode === "unavailable") {
     return (
       <div style={wrap} data-testid="shading-legend-3d">
         <div style={{ fontWeight: 600, letterSpacing: "0.02em", opacity: 0.95 }}>Ombrage</div>
-        <div style={{ marginTop: 4, opacity: 0.75 }}>Lecture shading non disponible pour ce dossier.</div>
+        <div style={{ marginTop: 4, opacity: 0.75 }}>
+          {summary?.blockingReason ? "Calcul ombrage indisponible." : "Lecture shading non disponible pour ce dossier."}
+        </div>
+        {rows.length > 0 && (
+          <div style={{ marginTop: 8, borderTop: "1px solid rgba(255,255,255,0.1)", paddingTop: 7 }}>
+            {rows.map(([label, value]) => (
+              <div key={label} style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                <span style={{ opacity: 0.75 }}>{label}</span>
+                <strong>{value}</strong>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     );
   }
 
   return (
     <div style={wrap} data-testid="shading-legend-3d">
+      {rows.length > 0 && (
+        <div style={{ marginBottom: 9, borderBottom: "1px solid rgba(255,255,255,0.1)", paddingBottom: 8 }}>
+          <div style={{ fontWeight: 600, letterSpacing: "0.02em", opacity: 0.95 }}>Resultat ombrage</div>
+          {rows.map(([label, value]) => (
+            <div key={label} style={{ display: "flex", justifyContent: "space-between", gap: 12, marginTop: 4 }}>
+              <span style={{ opacity: 0.75 }}>{label}</span>
+              <strong>{value}</strong>
+            </div>
+          ))}
+        </div>
+      )}
       <div style={{ fontWeight: 600, letterSpacing: "0.02em", opacity: 0.95 }}>Ensoleillement relatif</div>
       <div style={row({ first: true })}>
         <span style={dotStyle("#d6c28a")} />

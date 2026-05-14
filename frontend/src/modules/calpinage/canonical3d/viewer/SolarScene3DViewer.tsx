@@ -3251,7 +3251,7 @@ function SolarScene3DViewer({
           groundZ={groundZ}
         />
       )}
-      {legendMode != null && <ShadingLegend3D mode={legendMode} />}
+      {legendMode != null && <ShadingLegend3D mode={legendMode} summary={scene.panelVisualShadingSummary} />}
       {pvLayout3DInteractionMode && pv3dHasSelectedPanel ? (
         <div
           role="toolbar"

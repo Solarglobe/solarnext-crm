@@ -47,6 +47,25 @@ export function projectFootprintOntoPlane(
 }
 
 /**
+ * Pose une empreinte sur le plan sans changer son ancrage horizontal.
+ * Contrairement à la projection orthogonale, cette fonction conserve strictement X/Y et ne modifie que Z.
+ */
+export function projectFootprintOntoPlaneAtFixedXY(
+  points: readonly WorldPosition3D[],
+  eq: PlaneEquation
+): { projected: WorldPosition3D[]; maxAbsDistanceM: number } {
+  let maxD = 0;
+  const projected: WorldPosition3D[] = [];
+  for (const p of points) {
+    const sd = Math.abs(signedDistanceToPlane(p, eq));
+    maxD = Math.max(maxD, sd);
+    const z = zOnPlaneEquationAtFixedXY(eq, p.x, p.y);
+    projected.push({ x: p.x, y: p.y, z: z ?? p.z });
+  }
+  return { projected, maxAbsDistanceM: maxD };
+}
+
+/**
  * Résout le premier `RoofPlanePatch3D` dont l’id figure dans `relatedPlanePatchIds` et `candidates`.
  */
 export function resolvePlanePatchByRelatedIds(

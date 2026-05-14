@@ -216,6 +216,7 @@ describe("officialSolarScene3DGateway (Prompt 6)", () => {
     const withShading = structuredClone(base) as typeof base;
     withShading.shading = {
       normalized: {
+        totalLossPct: 22,
         perPanel: [{ panelId: "pv-cache", lossPct: 22 }],
       },
     };
@@ -223,6 +224,7 @@ describe("officialSolarScene3DGateway (Prompt 6)", () => {
     expect(second.sceneSyncDiagnostics.usedSceneCache).toBe(true);
     expect(second.scene?.panelVisualShadingByPanelId?.["pv-cache"]?.state).toBe("AVAILABLE");
     expect(second.scene?.panelVisualShadingByPanelId?.["pv-cache"]?.lossPct).toBe(22);
+    expect(second.scene?.panelVisualShadingSummary?.totalLossPct).toBe(22);
   });
 
   it("forceStructuralRebuild relance le pipeline et ré-enregistre RoofTruth", () => {

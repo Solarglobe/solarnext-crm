@@ -91,6 +91,23 @@ function circleToPolygon(cx: number, cy: number, radius: number, n: number): Poi
   return pts;
 }
 
+function rectCenterToPolygon(cx: number, cy: number, width: number, height: number, angleRad: number): Point2D[] {
+  const hw = width / 2;
+  const hh = height / 2;
+  const c = Math.cos(angleRad || 0);
+  const s = Math.sin(angleRad || 0);
+  const corners = [
+    { x: -hw, y: -hh },
+    { x: hw, y: -hh },
+    { x: hw, y: hh },
+    { x: -hw, y: hh },
+  ];
+  return corners.map((p) => ({
+    x: cx + p.x * c - p.y * s,
+    y: cy + p.x * s + p.y * c,
+  }));
+}
+
 function toPoint2D(p: unknown): Point2D | null {
   if (!p || typeof p !== "object") return null;
   const o = p as Record<string, unknown>;
@@ -107,6 +124,34 @@ function toPoint2D(p: unknown): Point2D | null {
 export function toFootprintPx(entity: unknown): Point2D[] | null {
   if (!entity || typeof entity !== "object") return null;
   const e = entity as Record<string, unknown>;
+
+  const shapeMeta = e.shapeMeta as Record<string, unknown> | undefined;
+  if (shapeMeta && typeof shapeMeta === "object") {
+    const originalType = shapeMeta.originalType;
+    const cx = shapeMeta.centerX;
+    const cy = shapeMeta.centerY;
+    if (
+      originalType === "circle" &&
+      typeof cx === "number" &&
+      typeof cy === "number" &&
+      typeof shapeMeta.radius === "number" &&
+      shapeMeta.radius > 0
+    ) {
+      return ensureClosedPolygon(circleToPolygon(cx, cy, shapeMeta.radius, CIRCLE_SEGMENTS));
+    }
+    if (
+      originalType === "rect" &&
+      typeof cx === "number" &&
+      typeof cy === "number" &&
+      typeof shapeMeta.width === "number" &&
+      typeof shapeMeta.height === "number" &&
+      shapeMeta.width > 0 &&
+      shapeMeta.height > 0
+    ) {
+      const angle = typeof shapeMeta.angle === "number" ? shapeMeta.angle : 0;
+      return ensureClosedPolygon(rectCenterToPolygon(cx, cy, shapeMeta.width, shapeMeta.height, angle));
+    }
+  }
 
   // polygonPx / polygon / points
   const poly = e.polygonPx ?? e.polygon ?? e.points;

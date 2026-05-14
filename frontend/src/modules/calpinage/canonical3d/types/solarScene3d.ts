@@ -13,7 +13,7 @@ import type { PvPanelSurface3D } from "./pv-panel-3d";
 import type { NearShadingSeriesResult } from "./near-shading-3d";
 import type { QualityBlock } from "./quality";
 import type { Scene2DSourceTrace, Validate2DTo3DCoherenceResult } from "./scene2d3dCoherence";
-import type { PanelVisualShading } from "./panelVisualShading";
+import type { PanelVisualShading, PanelVisualShadingSummary } from "./panelVisualShading";
 import type { BuildingShell3D } from "./building-shell-3d";
 
 /** Version du schéma d’export `SolarScene3D` (distinct du schéma `RoofModel3D`). */
@@ -201,6 +201,7 @@ export interface SolarScene3D {
    * Absent si aucune donnée injectée à l’assemblage.
    */
   readonly panelVisualShadingByPanelId?: Readonly<Record<string, PanelVisualShading>>;
+  readonly panelVisualShadingSummary?: PanelVisualShadingSummary;
   /** Qualité globale volumes (builder). */
   readonly volumesQuality: QualityBlock;
   readonly solarContext?: SolarSceneSolarContext3D;

@@ -18,3 +18,12 @@ export interface PanelVisualShading {
   readonly state: PanelVisualShadingState;
   readonly provenance?: PanelVisualShadingProvenance;
 }
+
+export interface PanelVisualShadingSummary {
+  readonly totalLossPct: number | null;
+  readonly nearLossPct: number | null;
+  readonly farLossPct: number | null;
+  readonly panelCount: number | null;
+  readonly computedAt: number | string | null;
+  readonly blockingReason?: string | null;
+}

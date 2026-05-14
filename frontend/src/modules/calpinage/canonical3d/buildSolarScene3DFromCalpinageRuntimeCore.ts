@@ -59,7 +59,10 @@ import { canonicalWorldConfigFromSceneWorld, type CanonicalWorldConfig } from ".
 import { buildRoofQualityPhaseAActionPlan } from "./product/roofQualityPhaseAActionPlan";
 import { buildRoofQualityPhaseBTechnicalProof } from "./product/roofQualityPhaseBTechnicalProof";
 import { buildScene2DSourceTraceFromCalpinage } from "./sourceTrace/buildScene2DSourceTrace";
-import { buildPanelVisualShadingMapFromRuntime } from "./viewer/visualShading/resolvePanelVisualShading";
+import {
+  buildPanelVisualShadingMapFromRuntime,
+  extractRuntimeShadingSummary,
+} from "./viewer/visualShading/resolvePanelVisualShading";
 import type { PlacementEngineLike } from "../integration/enrichPanelsForCanonicalShading";
 import type { AutopsyLegacyRoofPath } from "./dev/runtime3DAutopsy";
 import { dump3DRuntimePreViewer, resetAutopsyLegacyRoofPath } from "./dev/runtime3DAutopsy";
@@ -194,6 +197,7 @@ function canonicalObstaclesToVolumeInput(obstacles: readonly CanonicalObstacle3D
         kind: extensionKindFromCanonical(o),
         heightM: o.heightM,
         footprint: { mode: "world", footprintWorld },
+        extrusionPreference: "hybrid_vertical_on_plane",
         ...(related ? { relatedPlanePatchIds: related } : {}),
       });
       continue;
@@ -205,6 +209,7 @@ function canonicalObstaclesToVolumeInput(obstacles: readonly CanonicalObstacle3D
       structuralRole: obstacleStructuralRole(o.kind),
       heightM: o.heightM,
       footprint: { mode: "world", footprintWorld },
+      extrusionPreference: "hybrid_vertical_on_plane",
       ...(related ? { relatedPlanePatchIds: related } : {}),
     });
   }
@@ -552,6 +557,7 @@ export function buildSolarScene3DFromCalpinageRuntime(
     const panelIds = pvRes.panels.map((p) => String(p.id));
     const panelVisualShadingByPanelId =
       panelIds.length > 0 ? buildPanelVisualShadingMapFromRuntime(panelIds, runtime) : undefined;
+    const panelVisualShadingSummary = extractRuntimeShadingSummary(runtime);
 
     const footprintProbe = resolveOfficialShellFootprintRingWorld({
       runtime,
@@ -601,6 +607,7 @@ export function buildSolarScene3DFromCalpinageRuntime(
       volumesQuality: volRes.globalQuality,
       pvPanels: pvRes.panels,
       ...(panelVisualShadingByPanelId != null && { panelVisualShadingByPanelId }),
+      ...(panelVisualShadingSummary != null && { panelVisualShadingSummary }),
       generator: "manual",
       integrationNotes,
       ...(level0.guards.length > 0 ? { buildGuards: level0.guards } : {}),
