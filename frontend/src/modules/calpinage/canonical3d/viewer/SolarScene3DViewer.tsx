@@ -176,10 +176,12 @@ import {
   addPvPanelFrom3dImagePoint,
   applyPvMoveLiveFrom3d,
   beginPvMoveFrom3d,
+  clearPvSelectionFrom3d,
   cancelPvMoveFrom3d,
   finalizePvMoveFrom3d,
   hitTestPvBlockPanelFromImagePoint,
   readPvLayout3dOverlayState,
+  removePvPanelFrom3d,
   removeSelectedPvPanelFrom3d,
   selectPvBlockFrom3d,
   type PvLayout3dOverlayState,
@@ -1436,14 +1438,14 @@ function ViewerSceneContent({
             pv3dInvalid ? (
               <Outlines
                 thickness={outlineThickness * 1.35}
-                color="#ef4444"
+                color="#f59e0b"
                 opacity={0.96}
                 toneMapped={false}
               />
             ) : pv3dSelected ? (
               <Outlines
                 thickness={outlineThickness * 1.25}
-                color="#38bdf8"
+                color="#ef4444"
                 opacity={0.95}
                 toneMapped={false}
               />
@@ -1462,12 +1464,34 @@ function ViewerSceneContent({
               geometry={geo}
               castShadow
               receiveShadow
+              renderOrder={pvLayout3DInteractionMode ? 20 : 0}
               raycast={pvPanelRaycastPassThrough ? roofModelingSkipOccluderRaycast : undefined}
               onClick={inspectMode ? onInspectClick : undefined}
               onPointerDown={
                 pvLayout3DInteractionMode && onPvPanelPvLayout3dPointerDown
                   ? (e) => {
                       onPvPanelPvLayout3dPointerDown(e, String(id));
+                    }
+                  : undefined
+              }
+              onDoubleClick={
+                pvLayout3DInteractionMode && pv3dPanel
+                  ? (e) => {
+                      e.stopPropagation();
+                      if (removePvPanelFrom3d(pv3dPanel.blockId, pv3dPanel.panelId)) {
+                        onPanelHover?.(null);
+                      }
+                    }
+                  : undefined
+              }
+              onContextMenu={
+                pvLayout3DInteractionMode && pv3dPanel
+                  ? (e) => {
+                      e.stopPropagation();
+                      e.nativeEvent.preventDefault();
+                      if (removePvPanelFrom3d(pv3dPanel.blockId, pv3dPanel.panelId)) {
+                        onPanelHover?.(null);
+                      }
                     }
                   : undefined
               }
@@ -1485,15 +1509,15 @@ function ViewerSceneContent({
               }}
             >
               <meshStandardMaterial
-                color={pv3dInvalid ? "#b91c1c" : mat.color}
-                emissive={pv3dInvalid ? "#ef4444" : pv3dSelected ? "#0ea5e9" : mat.emissive}
-                emissiveIntensity={pv3dInvalid ? 0.34 : pv3dSelected ? mat.emissiveIntensity + 0.2 : mat.emissiveIntensity}
+                color={pv3dInvalid ? "#d97706" : pv3dSelected ? "#b91c1c" : mat.color}
+                emissive={pv3dInvalid ? "#f59e0b" : pv3dSelected ? "#ef4444" : mat.emissive}
+                emissiveIntensity={pv3dInvalid ? 0.34 : pv3dSelected ? mat.emissiveIntensity + 0.22 : mat.emissiveIntensity}
                 metalness={pvB.panelMetalness}
                 roughness={pvB.panelRoughness}
                 side={THREE.DoubleSide}
                 polygonOffset
-                polygonOffsetFactor={-1}
-                polygonOffsetUnits={-1}
+                polygonOffsetFactor={pvLayout3DInteractionMode ? -3 : -1}
+                polygonOffsetUnits={pvLayout3DInteractionMode ? -3 : -1}
               />
               {thinOutline}
               {inspectMode && pvSel && (
@@ -2394,8 +2418,25 @@ function SolarScene3DViewer({
   }, [calpinageRuntimeForPv, pvLayout3DInteractionMode]);
 
   const [pv3dOverlayEpoch, setPv3dOverlayEpoch] = useState(0);
+  const pv3dOverlayRefreshTimerRef = useRef<number | null>(null);
   const refreshPv3dOverlay = useCallback(() => {
     setPv3dOverlayEpoch((n) => n + 1);
+  }, []);
+  const refreshPv3dOverlayThrottled = useCallback(() => {
+    if (pv3dOverlayRefreshTimerRef.current != null) return;
+    pv3dOverlayRefreshTimerRef.current = window.setTimeout(() => {
+      pv3dOverlayRefreshTimerRef.current = null;
+      refreshPv3dOverlay();
+    }, 80);
+  }, [refreshPv3dOverlay]);
+
+  useEffect(() => {
+    return () => {
+      if (pv3dOverlayRefreshTimerRef.current != null) {
+        window.clearTimeout(pv3dOverlayRefreshTimerRef.current);
+        pv3dOverlayRefreshTimerRef.current = null;
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -2416,8 +2457,8 @@ function SolarScene3DViewer({
 
   const onPv3dLiveOffsetImg = useCallback((dxImg: number, dyImg: number) => {
     applyPvMoveLiveFrom3d(dxImg, dyImg);
-    refreshPv3dOverlay();
-  }, [refreshPv3dOverlay]);
+    refreshPv3dOverlayThrottled();
+  }, [refreshPv3dOverlayThrottled]);
 
   const endPv3dDragSession = useCallback(() => {
     const s = pv3dDragSessionRef.current;
@@ -2428,7 +2469,7 @@ function SolarScene3DViewer({
   }, [refreshPv3dOverlay]);
 
   const onPvPanelPvLayout3dPointerDown = useCallback(
-    (e: ThreeEvent<PointerEvent>, _panelIdFromMesh: string) => {
+    (e: ThreeEvent<PointerEvent>, panelIdFromMesh: string) => {
       if (!pvLayout3DInteractionMode) return;
       if (e.button !== 0) return;
       const wc = scene.worldConfig;
@@ -2444,6 +2485,19 @@ function SolarScene3DViewer({
       const img = worldPointToImage({ x: e.point.x, y: e.point.y, z: e.point.z }, wc);
       const hit = hitTestPvBlockPanelFromImagePoint(img);
       if (!hit) return;
+      const overlayPanel = pvLayout3dOverlayState?.panels.find((p) => String(p.id) === String(panelIdFromMesh));
+      const removeOnSimpleClick =
+        overlayPanel?.selected === true &&
+        (pvLayout3dOverlayState?.ghosts.length ?? 0) > 0 &&
+        pv3dDragSessionRef.current == null;
+      if (removeOnSimpleClick) {
+        if (removePvPanelFrom3d(overlayPanel.blockId, overlayPanel.panelId)) {
+          refreshPv3dOverlay();
+          setPanelHover(null);
+        }
+        e.stopPropagation();
+        return;
+      }
       selectPvBlockFrom3d(hit.blockId, hit.panelId);
       refreshPv3dOverlay();
       const ptr = (e.nativeEvent as PointerEvent).pointerId ?? 0;
@@ -2456,7 +2510,7 @@ function SolarScene3DViewer({
       setOrbitSuppressed(true);
       e.stopPropagation();
     },
-    [pvLayout3DInteractionMode, scene.worldConfig, debugRuntime, refreshPv3dOverlay],
+    [pvLayout3DInteractionMode, scene.worldConfig, debugRuntime, pvLayout3dOverlayState, refreshPv3dOverlay],
   );
 
   /** Pass 4–5 — toit : sonde (`__CALPINAGE_3D_PV_PLACE_PROBE__`) ou produit (`pvLayout3DInteractionMode`) en phase PV_LAYOUT. */
@@ -2969,6 +3023,10 @@ function SolarScene3DViewer({
         }}
         onPointerMissed={() => {
           if (zDragGestureActiveRef.current) return;
+          if (pvLayout3DInteractionMode && pv3dDragSessionRef.current == null) {
+            clearPvSelectionFrom3d();
+            refreshPv3dOverlay();
+          }
           if (inspectMode) setInspectionSelection(null);
           if (panSelection3DMode) setSelectedHit(null);
           if (enableStructuralRidgeHeightEdit) setStructuralHeightSelection(null);

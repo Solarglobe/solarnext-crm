@@ -164,3 +164,17 @@ export function removeSelectedPvPanelFrom3d(): boolean {
     ? !!w.__calpinageRemoveSelectedPvPanelFrom3d()
     : false;
 }
+
+export function removePvPanelFrom3d(blockId: string, panelId: string): boolean {
+  if (typeof window === "undefined") return false;
+  const w = window as unknown as { __calpinageRemovePvPanelFrom3d?: (blockId: string, panelId: string) => boolean };
+  return typeof w.__calpinageRemovePvPanelFrom3d === "function"
+    ? !!w.__calpinageRemovePvPanelFrom3d(blockId, panelId)
+    : false;
+}
+
+export function clearPvSelectionFrom3d(): boolean {
+  if (typeof window === "undefined") return false;
+  const w = window as unknown as { __calpinageClearPvSelectionFrom3d?: () => boolean };
+  return typeof w.__calpinageClearPvSelectionFrom3d === "function" ? !!w.__calpinageClearPvSelectionFrom3d() : false;
+}

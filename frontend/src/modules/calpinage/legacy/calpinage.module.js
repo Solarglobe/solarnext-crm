@@ -5862,8 +5862,23 @@ export function initCalpinage(container, options = {}) {
         var getCtx = function () {
           return typeof getProjectionContextForBlock === "function" ? getProjectionContextForBlock(block) : null;
         };
+        var normalizedPanelId = String(panelId);
+        var blockPrefix = String(block.id) + "_";
+        if (normalizedPanelId.indexOf(blockPrefix) === 0) {
+          var meshIdx = parseInt(normalizedPanelId.slice(blockPrefix.length), 10);
+          if (Number.isFinite(meshIdx)) normalizedPanelId = "legacy-" + meshIdx;
+        }
         var removeNow = function () {
-          ENG.removePanelById(block, String(panelId), getCtx);
+          var rm = ENG.removePanelById(block, normalizedPanelId, getCtx);
+          if (rm && rm.success === false && String(normalizedPanelId).indexOf("legacy-") !== 0 && block.panels) {
+            for (var rp = 0; rp < block.panels.length; rp++) {
+              if (block.panels[rp] && block.panels[rp].id === normalizedPanelId) {
+                rm = ENG.removePanelById(block, "legacy-" + rp, getCtx);
+                break;
+              }
+            }
+          }
+          if (rm && rm.success === false) return;
           if (typeof setSafeZonePanelsDirty === "function") setSafeZonePanelsDirty();
           if (block.panels && block.panels.length === 0 && typeof ENG.removeBlock === "function") ENG.removeBlock(block.id);
           if (typeof recomputeAllPlacementBlocksFromRules === "function") recomputeAllPlacementBlocksFromRules(true);
@@ -5883,6 +5898,32 @@ export function initCalpinage(container, options = {}) {
           return true;
         }
         removeNow();
+        return true;
+      }
+
+      function removePvPanelFrom3d(blockId, panelId) {
+        if (!CALPINAGE_STATE || CALPINAGE_STATE.currentPhase !== "PV_LAYOUT") return false;
+        if (blockId != null) CALPINAGE_STATE.selectedPlacedBlockId = String(blockId);
+        if (panelId != null) CALPINAGE_STATE.selectedPlacedPanelId = String(panelId);
+        return removeSelectedPvPanelFrom3d();
+      }
+
+      function clearPvSelectionFrom3d() {
+        if (!CALPINAGE_STATE || CALPINAGE_STATE.currentPhase !== "PV_LAYOUT") return false;
+        var ENG = window.pvPlacementEngine;
+        if (ENG && typeof ENG.clearSelection === "function") ENG.clearSelection();
+        CALPINAGE_STATE.activeManipulationBlockId = null;
+        CALPINAGE_STATE.selectedPlacedBlockId = null;
+        CALPINAGE_STATE.selectedPlacedPanelId = null;
+        try {
+          window.PV_LAYOUT_STATE = PV_LAYOUT_FLOW.SELECT;
+        } catch (_pv3dClearState) {}
+        if (typeof resetInteractionState === "function") resetInteractionState();
+        if (typeof syncPlacedPanelsFromBlocks === "function") syncPlacedPanelsFromBlocks();
+        if (typeof saveCalpinageState === "function") saveCalpinageState();
+        if (typeof window.syncPhase3LayoutUI === "function") window.syncPhase3LayoutUI();
+        notifyPhase3Pv3dOverlayChanged();
+        if (typeof window.CALPINAGE_RENDER === "function") requestAnimationFrame(window.CALPINAGE_RENDER);
         return true;
       }
 
@@ -7087,6 +7128,8 @@ export function initCalpinage(container, options = {}) {
           window.__calpinageSelectPvBlockFrom3d = selectPvBlockFrom3d;
           window.__calpinageAddPvPanelFrom3dImagePoint = addPvPanelFrom3dImagePoint;
           window.__calpinageRemoveSelectedPvPanelFrom3d = removeSelectedPvPanelFrom3d;
+          window.__calpinageRemovePvPanelFrom3d = removePvPanelFrom3d;
+          window.__calpinageClearPvSelectionFrom3d = clearPvSelectionFrom3d;
         }
       } catch (_expRidgeStruct) { /* ignore */ }
 
