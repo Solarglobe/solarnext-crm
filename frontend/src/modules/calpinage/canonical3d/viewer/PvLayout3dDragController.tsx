@@ -30,6 +30,12 @@ export type PvLayout3dDragSession = {
   readonly centerImg?: { readonly x: number; readonly y: number } | null;
 };
 
+type PvLayout3dPick = {
+  readonly point: { readonly x: number; readonly y: number; readonly z: number };
+  readonly plane: THREE.Plane;
+  readonly object: THREE.Object3D;
+};
+
 type Props = {
   readonly session: PvLayout3dDragSession | null;
   readonly worldConfig: CanonicalWorldConfig | null;
@@ -47,6 +53,8 @@ export function PvLayout3dDragController({ session, worldConfig, onLiveOffsetImg
   const endRef = useRef(onSessionEnd);
   endRef.current = onSessionEnd;
   const raycasterRef = useRef(new THREE.Raycaster());
+  const lockedRoofObjectRef = useRef<THREE.Object3D | null>(null);
+  const lastRoofPlaneRef = useRef<THREE.Plane | null>(null);
   /** Passe 6 — au plus une mise à jour moteur / frame (perf). */
   const rafRef = useRef(0);
   const pendingOffsetRef = useRef<{ dx: number; dy: number; rotationDeg: number } | null>(null);
@@ -62,13 +70,21 @@ export function PvLayout3dDragController({ session, worldConfig, onLiveOffsetImg
     const el = gl.domElement;
     const raycaster = raycasterRef.current;
 
-    const pickWorldFromClient = (clientX: number, clientY: number): { x: number; y: number; z: number } | null => {
+    const planeFromHit = (h: THREE.Intersection): THREE.Plane | null => {
+      if (!h.face) return null;
+      const normal = h.face.normal.clone().transformDirection(h.object.matrixWorld).normalize();
+      if (normal.lengthSq() <= 1e-12) return null;
+      return new THREE.Plane().setFromNormalAndCoplanarPoint(normal, h.point);
+    };
+
+    const pickWorldFromClient = (clientX: number, clientY: number): PvLayout3dPick | null => {
       const rect = el.getBoundingClientRect();
       if (rect.width === 0 || rect.height === 0) return null;
       const ndcX = ((clientX - rect.left) / rect.width) * 2 - 1;
       const ndcY = -((clientY - rect.top) / rect.height) * 2 + 1;
       raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), camera);
-      const hits = raycaster.intersectObjects(scene.children, true);
+      const locked = lockedRoofObjectRef.current;
+      const hits = locked ? raycaster.intersectObject(locked, true) : raycaster.intersectObjects(scene.children, true);
       for (const h of hits) {
         let o: THREE.Object3D | null = h.object;
         let allowed = false;
@@ -79,7 +95,24 @@ export function PvLayout3dDragController({ session, worldConfig, onLiveOffsetImg
           }
           o = o.parent;
         }
-        if (allowed && h.point) return { x: h.point.x, y: h.point.y, z: h.point.z };
+        if (allowed && h.point) {
+          const plane = planeFromHit(h);
+          if (!plane) continue;
+          lockedRoofObjectRef.current = h.object;
+          lastRoofPlaneRef.current = plane;
+          return { point: { x: h.point.x, y: h.point.y, z: h.point.z }, plane, object: h.object };
+        }
+      }
+      const fallbackPlane = lastRoofPlaneRef.current;
+      if (fallbackPlane && lockedRoofObjectRef.current) {
+        const p = raycaster.ray.intersectPlane(fallbackPlane, new THREE.Vector3());
+        if (p) {
+          return {
+            point: { x: p.x, y: p.y, z: p.z },
+            plane: fallbackPlane,
+            object: lockedRoofObjectRef.current,
+          };
+        }
       }
       return null;
     };
@@ -89,19 +122,21 @@ export function PvLayout3dDragController({ session, worldConfig, onLiveOffsetImg
       const wc = worldConfig;
       if (!s || ev.pointerId !== s.pointerId || !wc) return;
       if (!wc || wc.metersPerPixel <= 0) return;
-      const w = pickWorldFromClient(ev.clientX, ev.clientY);
-      if (!w) return;
-      const img = worldPointToImage(w, wc);
+      const sessionKey = `${s.blockId}:${s.pointerId}`;
+      if (sessionKey !== prevSessionKeyRef.current) {
+        prevSessionKeyRef.current = sessionKey;
+        firstHitImgRef.current = null;
+        lockedRoofObjectRef.current = null;
+        lastRoofPlaneRef.current = null;
+      }
+      const picked = pickWorldFromClient(ev.clientX, ev.clientY);
+      if (!picked) return;
+      const img = worldPointToImage(picked.point, wc);
 
       // Recalage d'origine : si c'est le premier hit réel de cette session,
       // on l'utilise comme origine 3D canonique. Le delta au frame 1 sera (0,0)
       // — aucun saut — et tous les deltas suivants sont cohérents dans le même
       // système de coordonnées que le raycast (pas de désalignement 2D/3D).
-      const sessionKey = `${s.blockId}:${s.pointerId}`;
-      if (sessionKey !== prevSessionKeyRef.current) {
-        prevSessionKeyRef.current = sessionKey;
-        firstHitImgRef.current = null;
-      }
       if (firstHitImgRef.current === null) {
         firstHitImgRef.current = { x: img.x, y: img.y };
       }
@@ -142,6 +177,8 @@ export function PvLayout3dDragController({ session, worldConfig, onLiveOffsetImg
       if (p) liveRef.current(p.dx, p.dy, p.rotationDeg);
       firstHitImgRef.current = null;
       prevSessionKeyRef.current = null;
+      lockedRoofObjectRef.current = null;
+      lastRoofPlaneRef.current = null;
       endRef.current();
     };
 
@@ -154,6 +191,8 @@ export function PvLayout3dDragController({ session, worldConfig, onLiveOffsetImg
         rafRef.current = 0;
       }
       pendingOffsetRef.current = null;
+      lockedRoofObjectRef.current = null;
+      lastRoofPlaneRef.current = null;
       window.removeEventListener("pointermove", onMove, true);
       window.removeEventListener("pointerup", onUp, true);
       window.removeEventListener("pointercancel", onUp, true);
