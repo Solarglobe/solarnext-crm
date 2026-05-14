@@ -987,12 +987,35 @@ function ViewerSceneContent({
 
   const pv3dHandlePositions = useMemo(() => {
     const h = pvLayout3dOverlayState?.handles;
-    if (!pvLayout3DInteractionMode || !h) return null;
-    const rotate = imagePolygonToRoofWorldPoints(scene, [h.rotate, h.rotate], null, 0.16)[0] ?? null;
-    const move = imagePolygonToRoofWorldPoints(scene, [h.move, h.move], null, 0.16)[0] ?? null;
-    const top = imagePolygonToRoofWorldPoints(scene, [h.topOfBlock, h.topOfBlock], null, 0.15)[0] ?? null;
-    return rotate && move && top ? { blockId: h.blockId, rotate, move, top } : null;
-  }, [scene, pvLayout3DInteractionMode, pvLayout3dOverlayState]);
+    if (!pvLayout3DInteractionMode || !pvLayout3dOverlayState?.focusBlockId) return null;
+    const selectedPanId = pvLayout3dOverlayState.panels.find((p) => p.selected)?.panId ?? null;
+    if (h) {
+      const rotate = imagePolygonToRoofWorldPoints(scene, [h.rotate, h.rotate], selectedPanId, 0.22)[0] ?? null;
+      const move = imagePolygonToRoofWorldPoints(scene, [h.move, h.move], selectedPanId, 0.22)[0] ?? null;
+      const top = imagePolygonToRoofWorldPoints(scene, [h.topOfBlock, h.topOfBlock], selectedPanId, 0.2)[0] ?? null;
+      if (rotate && move && top) return { blockId: h.blockId, rotate, move, top };
+    }
+    const selectedPanelIds = new Set(
+      pvLayout3dOverlayState.panels.filter((p) => p.selected).map((p) => String(p.id)),
+    );
+    if (selectedPanelIds.size === 0) return null;
+    const boxSel = new THREE.Box3();
+    for (const { id, geo } of panelGeos) {
+      if (!selectedPanelIds.has(String(id))) continue;
+      geo.computeBoundingBox();
+      const b = geo.boundingBox;
+      if (b) boxSel.union(b);
+    }
+    if (boxSel.isEmpty()) return null;
+    const centerSel = boxSel.getCenter(new THREE.Vector3());
+    const sizeSel = boxSel.getSize(new THREE.Vector3());
+    const lift = Math.max(maxDimLocal * 0.018, 0.18);
+    const reach = Math.max(Math.max(sizeSel.x, sizeSel.y) * 0.38, maxDimLocal * 0.035, 0.28);
+    const top = centerSel.clone().setZ(boxSel.max.z + lift);
+    const move = centerSel.clone().setZ(boxSel.max.z + lift * 1.4);
+    const rotate = centerSel.clone().add(new THREE.Vector3(0, -reach, 0)).setZ(boxSel.max.z + lift * 1.6);
+    return { blockId: pvLayout3dOverlayState.focusBlockId, rotate, move, top };
+  }, [scene, panelGeos, maxDimLocal, pvLayout3DInteractionMode, pvLayout3dOverlayState]);
 
   const allGeos = useMemo(
     () => [
@@ -1480,7 +1503,7 @@ function ViewerSceneContent({
             renderOrder={30}
             onPointerDown={onPvRotateHandlePointerDown}
           >
-            <sphereGeometry args={[Math.max(maxDimLocal * 0.008, 0.08), 24, 12]} />
+            <sphereGeometry args={[Math.max(maxDimLocal * 0.014, 0.14), 24, 12]} />
             <meshBasicMaterial color="#6366f1" toneMapped={false} depthTest={false} />
           </mesh>
           <mesh
@@ -1488,7 +1511,7 @@ function ViewerSceneContent({
             renderOrder={30}
             onPointerDown={onPvMoveHandlePointerDown}
           >
-            <sphereGeometry args={[Math.max(maxDimLocal * 0.006, 0.06), 18, 10]} />
+            <sphereGeometry args={[Math.max(maxDimLocal * 0.012, 0.12), 18, 10]} />
             <meshBasicMaterial color="#ffffff" toneMapped={false} depthTest={false} />
             <Outlines thickness={outlineThickness * 0.8} color="#6366f1" opacity={0.95} toneMapped={false} />
           </mesh>
