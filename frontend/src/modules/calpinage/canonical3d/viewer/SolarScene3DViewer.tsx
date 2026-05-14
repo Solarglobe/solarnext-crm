@@ -423,6 +423,44 @@ function imagePolygonToRoofWorldPoints(
   });
 }
 
+function imagePolygonToRoofMeshGeometry(
+  scene: SolarScene3D,
+  points: readonly { readonly x: number; readonly y: number }[],
+  panId: string | null | undefined,
+  offsetM: number,
+): THREE.BufferGeometry | null {
+  const world = imagePolygonToRoofWorldPoints(scene, points, panId, offsetM);
+  if (world.length < 3) return null;
+  const positions: number[] = [];
+  for (const p of world) positions.push(p.x, p.y, p.z);
+  const indices: number[] = [];
+  for (let i = 1; i < world.length - 1; i++) indices.push(0, i, i + 1);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geo.setIndex(indices);
+  geo.computeVertexNormals();
+  return geo;
+}
+
+function imagePolygonToRoofLineGeometry(
+  scene: SolarScene3D,
+  points: readonly { readonly x: number; readonly y: number }[],
+  panId: string | null | undefined,
+  offsetM: number,
+): THREE.BufferGeometry | null {
+  const world = imagePolygonToRoofWorldPoints(scene, points, panId, offsetM);
+  if (world.length < 2) return null;
+  const positions: number[] = [];
+  for (let i = 0; i < world.length; i++) {
+    const a = world[i]!;
+    const b = world[(i + 1) % world.length]!;
+    positions.push(a.x, a.y, a.z, b.x, b.y, b.z);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  return geo;
+}
+
 type PvLayout3dScreenPoint = { readonly x: number; readonly y: number };
 
 type PvLayout3dProjectedPanel = {
@@ -661,51 +699,6 @@ function PvLayout3dSvgOverlay({
         overflow: "hidden",
       }}
     >
-      {overlay.safeZones.map((z) => (
-        <polygon
-          key={`safe-${z.id}`}
-          points={pointsToSvg(z.points)}
-          fill="rgba(239,68,68,0.08)"
-          stroke="rgba(239,68,68,0.95)"
-          strokeWidth={1}
-          vectorEffect="non-scaling-stroke"
-        />
-      ))}
-      {overlay.ghosts.map((g) => (
-        <polygon
-          key={`ghost-${g.id}`}
-          points={pointsToSvg(g.points)}
-          fill={
-            g.valid
-              ? g.excluded
-                ? "rgba(190,190,205,0.14)"
-                : "rgba(200,200,200,0.35)"
-              : "rgba(220,60,60,0.22)"
-          }
-          stroke={
-            g.valid
-              ? g.excluded
-                ? "rgba(110,110,130,0.65)"
-                : "rgba(160,160,160,0.72)"
-              : "rgba(170,30,30,0.9)"
-          }
-          strokeDasharray={g.valid && !g.excluded ? undefined : "4 3"}
-          strokeWidth={1}
-          vectorEffect="non-scaling-stroke"
-        />
-      ))}
-      {overlay.panels.map((p) =>
-        p.selected || p.invalid ? (
-          <polygon
-            key={`panel-${p.id}`}
-            points={pointsToSvg(p.points)}
-            fill={p.invalid ? "rgba(245,158,11,0.18)" : "rgba(99,102,241,0.08)"}
-            stroke={p.invalid ? "rgba(245,158,11,0.98)" : "rgba(99,102,241,0.98)"}
-            strokeWidth={p.selected ? 1.8 : 1.25}
-            vectorEffect="non-scaling-stroke"
-          />
-        ) : null,
-      )}
       {h ? (
         <g>
           <line
@@ -1269,6 +1262,51 @@ function ViewerSceneContent({
     return m;
   }, [pvLayout3dOverlayState]);
 
+  const pv3dLivePanelGeos = useMemo(() => {
+    if (!pvLayout3DInteractionMode || !pvLayout3dOverlayState) return [];
+    return pvLayout3dOverlayState.panels.flatMap((p) => {
+      if (!p.selected) return [];
+      const fill = imagePolygonToRoofMeshGeometry(scene, p.points, p.panId, 0.075);
+      const line = imagePolygonToRoofLineGeometry(scene, p.points, p.panId, 0.082);
+      return fill || line
+        ? [{
+            id: p.id,
+            fill,
+            line,
+            selected: !!p.selected,
+            invalid: !!p.invalid,
+            enabled: p.enabled !== false,
+          }]
+        : [];
+    });
+  }, [scene, pvLayout3DInteractionMode, pvLayout3dOverlayState]);
+
+  const pv3dSelectedLivePanelIds = useMemo(
+    () => new Set(pv3dLivePanelGeos.filter((p) => p.selected).map((p) => String(p.id))),
+    [pv3dLivePanelGeos],
+  );
+
+  const pv3dGhostGeos = useMemo(() => {
+    if (!pvLayout3DInteractionMode || !pvLayout3dOverlayState) return [];
+    return pvLayout3dOverlayState.ghosts.flatMap((g) => {
+      const fill = imagePolygonToRoofMeshGeometry(scene, g.points, g.panId, 0.052);
+      const line = imagePolygonToRoofLineGeometry(scene, g.points, g.panId, 0.06);
+      return fill || line
+        ? [{ id: g.id, fill, line, valid: g.valid !== false, excluded: !!g.excluded, source: g.source }]
+        : [];
+    });
+  }, [scene, pvLayout3DInteractionMode, pvLayout3dOverlayState]);
+
+  const pv3dSafeZoneGeos = useMemo(() => {
+    if (!pvLayout3DInteractionMode || !pvLayout3dOverlayState) return [];
+    return pvLayout3dOverlayState.safeZones.flatMap((z) =>
+      z.polygons.flatMap((poly, index) => {
+        const line = imagePolygonToRoofLineGeometry(scene, poly, z.panId, 0.04);
+        return line ? [{ id: `${z.panId}-${index}`, line }] : [];
+      }),
+    );
+  }, [scene, pvLayout3DInteractionMode, pvLayout3dOverlayState]);
+
   const allGeos = useMemo(
     () => [
       ...(shellGeo ? [shellGeo] : []),
@@ -1280,8 +1318,24 @@ function ViewerSceneContent({
       ...obsGeos.map((x) => x.geo),
       ...extGeos.map((x) => x.geo),
       ...panelGeos.map((x) => x.geo),
+      ...pv3dLivePanelGeos.flatMap((x) => [x.fill, x.line].filter((g): g is THREE.BufferGeometry => g != null)),
+      ...pv3dGhostGeos.flatMap((x) => [x.fill, x.line].filter((g): g is THREE.BufferGeometry => g != null)),
+      ...pv3dSafeZoneGeos.map((x) => x.line),
     ],
-    [shellGeo, roofGeos, roofClosureGeo, edgeGeo, ridgeGeo, dormerPremiumLayer.meshes, obsGeos, extGeos, panelGeos],
+    [
+      shellGeo,
+      roofGeos,
+      roofClosureGeo,
+      edgeGeo,
+      ridgeGeo,
+      dormerPremiumLayer.meshes,
+      obsGeos,
+      extGeos,
+      panelGeos,
+      pv3dLivePanelGeos,
+      pv3dGhostGeos,
+      pv3dSafeZoneGeos,
+    ],
   );
 
   const solidGeosForNormalsAudit = useMemo(
@@ -1687,12 +1741,82 @@ function ViewerSceneContent({
             </mesh>
           );
         })}
+      {pvLayout3DInteractionMode &&
+        pv3dSafeZoneGeos.map(({ id, line }) => (
+          <lineSegments key={`pv3d-safe-${id}`} geometry={line} renderOrder={21}>
+            <lineBasicMaterial color="#ef4444" transparent opacity={0.95} toneMapped={false} depthTest />
+          </lineSegments>
+        ))}
+      {pvLayout3DInteractionMode &&
+        pv3dGhostGeos.map(({ id, fill, line, valid, excluded }) => (
+          <group key={`pv3d-ghost-${id}`}>
+            {fill ? (
+              <mesh geometry={fill} renderOrder={22}>
+                <meshBasicMaterial
+                  color={valid ? (excluded ? "#a1a1aa" : "#94a3b8") : "#ef4444"}
+                  transparent
+                  opacity={valid ? (excluded ? 0.12 : 0.28) : 0.2}
+                  side={THREE.DoubleSide}
+                  depthWrite={false}
+                  depthTest
+                  toneMapped={false}
+                />
+              </mesh>
+            ) : null}
+            {line ? (
+              <lineSegments geometry={line} renderOrder={23}>
+                <lineBasicMaterial
+                  color={valid ? (excluded ? "#71717a" : "#cbd5e1") : "#ef4444"}
+                  transparent
+                  opacity={valid ? 0.78 : 0.92}
+                  toneMapped={false}
+                  depthTest
+                />
+              </lineSegments>
+            ) : null}
+          </group>
+        ))}
+      {pvLayout3DInteractionMode &&
+        pv3dLivePanelGeos.map(({ id, fill, line, selected, invalid, enabled }) => (
+          <group key={`pv3d-live-${id}`}>
+            {fill ? (
+              <mesh geometry={fill} renderOrder={30}>
+                <meshStandardMaterial
+                  color={invalid ? "#dc2626" : selected ? "#30396f" : "#2c334a"}
+                  emissive={invalid ? "#ef4444" : selected ? "#6366f1" : "#111827"}
+                  emissiveIntensity={invalid ? 0.5 : selected ? 0.26 : 0.1}
+                  metalness={pvB.panelMetalness}
+                  roughness={pvB.panelRoughness}
+                  transparent={enabled === false}
+                  opacity={enabled === false ? 0.42 : 1}
+                  side={THREE.DoubleSide}
+                  polygonOffset
+                  polygonOffsetFactor={-4}
+                  polygonOffsetUnits={-4}
+                  depthTest
+                />
+              </mesh>
+            ) : null}
+            {line ? (
+              <lineSegments geometry={line} renderOrder={31}>
+                <lineBasicMaterial
+                  color={invalid ? "#f87171" : "#6366f1"}
+                  transparent
+                  opacity={invalid ? 0.98 : 0.92}
+                  toneMapped={false}
+                  depthTest
+                />
+              </lineSegments>
+            ) : null}
+          </group>
+        ))}
       {visPanels &&
         panelGeos.map(({ id, geo }) => {
           const pvSel = isInspectSelected(inspectionSelection, "PV_PANEL", id);
           const pv3dPanel = pvLayout3DInteractionMode ? pv3dOverlayPanelById.get(id) : null;
           const pv3dSelected = !!pv3dPanel?.selected;
           const pv3dInvalid = !!pv3dPanel?.invalid;
+          if (pvLayout3DInteractionMode && pv3dSelectedLivePanelIds.has(String(id))) return null;
           const mat = panelSurfaceMaterial(scene, id, visPanelShading, pvSel || pv3dSelected, pvB.panelEmissiveIntensityBonus);
           const thinOutline =
             pv3dInvalid ? (
