@@ -596,6 +596,34 @@ function PvLayout3dScreenOverlayProjector({
         };
       }
     }
+    if (!handles) {
+      const selectedPanels = overlay.panels.filter((p) => p.selected && p.points.length >= 3);
+      const selectedProjected = panels.filter((p) => p.selected && p.points.length >= 3);
+      if (overlay.focusBlockId && selectedPanels.length > 0 && selectedProjected.length > 0) {
+        const screenPts = selectedProjected.flatMap((p) => p.points);
+        const imagePts = selectedPanels.flatMap((p) => p.points);
+        const minX = Math.min(...screenPts.map((p) => p.x));
+        const maxX = Math.max(...screenPts.map((p) => p.x));
+        const minY = Math.min(...screenPts.map((p) => p.y));
+        const maxY = Math.max(...screenPts.map((p) => p.y));
+        const imgMinY = Math.min(...imagePts.map((p) => p.y));
+        const imgMaxY = Math.max(...imagePts.map((p) => p.y));
+        const cx = screenPts.reduce((sum, p) => sum + p.x, 0) / screenPts.length;
+        const cy = screenPts.reduce((sum, p) => sum + p.y, 0) / screenPts.length;
+        const imgCx = imagePts.reduce((sum, p) => sum + p.x, 0) / imagePts.length;
+        const imgCy = imagePts.reduce((sum, p) => sum + p.y, 0) / imagePts.length;
+        const screenOffset = Math.max(36, Math.min(56, (maxY - minY) * 0.35 || 48));
+        const imgOffset = Math.max(20, Math.min(90, (imgMaxY - imgMinY) * 0.45 || 48));
+        handles = {
+          blockId: overlay.focusBlockId,
+          rotate: { x: Math.min(Math.max(cx, minX), maxX), y: cy - screenOffset },
+          move: { x: Math.min(Math.max(cx, minX), maxX), y: cy + screenOffset },
+          topOfBlock: { x: cx, y: cy },
+          rotateImg: { x: imgCx, y: imgCy - imgOffset },
+          moveImg: { x: imgCx, y: imgCy + imgOffset },
+        };
+      }
+    }
 
     const projected: PvLayout3dScreenOverlayState = { width, height, panels, ghosts, safeZones, handles };
     const sig = overlaySignature(projected);
@@ -2688,6 +2716,7 @@ function SolarScene3DViewer({
     (e: ThreeEvent<PointerEvent>, panelIdFromMesh: string) => {
       if (!pvLayout3DInteractionMode) return;
       if (e.button !== 0) return;
+      e.stopPropagation();
       const wc = scene.worldConfig;
       if (!wc) return;
       const rt =
@@ -2700,8 +2729,10 @@ function SolarScene3DViewer({
       }
       const img = worldPointToImage({ x: e.point.x, y: e.point.y, z: e.point.z }, wc);
       const hit = hitTestPvBlockPanelFromImagePoint(img);
-      if (!hit) return;
       const overlayPanel = pvLayout3dOverlayState?.panels.find((p) => String(p.id) === String(panelIdFromMesh));
+      const resolvedBlockId = hit?.blockId ?? overlayPanel?.blockId ?? null;
+      const resolvedPanelId = hit?.panelId ?? overlayPanel?.panelId ?? null;
+      if (!resolvedBlockId) return;
       const removeOnSimpleClick =
         overlayPanel?.selected === true &&
         (pvLayout3dOverlayState?.ghosts.length ?? 0) > 0 &&
@@ -2711,12 +2742,10 @@ function SolarScene3DViewer({
           refreshPv3dOverlay();
           setPanelHover(null);
         }
-        e.stopPropagation();
         return;
       }
-      selectPvBlockFrom3d(hit.blockId, hit.panelId);
+      selectPvBlockFrom3d(resolvedBlockId, resolvedPanelId);
       refreshPv3dOverlay();
-      e.stopPropagation();
     },
     [pvLayout3DInteractionMode, scene.worldConfig, debugRuntime, pvLayout3dOverlayState, refreshPv3dOverlay],
   );
