@@ -10,6 +10,18 @@ import { worldPointToImage } from "../world/worldToImage";
 import type { CanonicalWorldConfig } from "../world/worldConvention";
 import { INSPECT_USERDATA_KEY } from "./inspection/sceneInspectionTypes";
 
+/**
+ * Filtre les maillages autorisés pour le raycast PV-layout en mode drag.
+ * Seuls les maillages de tessellation toit (kind="PAN", meshRole="roof_tessellation")
+ * participent : cela évite de picker les panneaux PV eux-mêmes lors du déplacement.
+ */
+function meshParticipatesInPvLayout3dRaycast(o: THREE.Object3D): boolean {
+  const raw = (o.userData as Record<string, unknown> | undefined)?.[INSPECT_USERDATA_KEY];
+  if (!raw || typeof raw !== "object") return false;
+  const r = raw as Record<string, unknown>;
+  return r.kind === "PAN" && r.meshRole === "roof_tessellation";
+}
+
 export type PvLayout3dDragSession = {
   readonly blockId: string;
   readonly pointerId: number;
@@ -38,6 +50,13 @@ export function PvLayout3dDragController({ session, worldConfig, onLiveOffsetImg
   /** Passe 6 — au plus une mise à jour moteur / frame (perf). */
   const rafRef = useRef(0);
   const pendingOffsetRef = useRef<{ dx: number; dy: number; rotationDeg: number } | null>(null);
+  /**
+   * Recalage d'origine : premier hit 3D réel capturé au premier pointermove.
+   * Élimine le saut initial dû au désalignement entre le startImg 2D (pointerdown)
+   * et la position image dérivée du raycast 3D (premiers pointermove).
+   */
+  const firstHitImgRef = useRef<{ x: number; y: number } | null>(null);
+  const prevSessionKeyRef = useRef<string | null>(null);
 
   useLayoutEffect(() => {
     const el = gl.domElement;
@@ -45,6 +64,7 @@ export function PvLayout3dDragController({ session, worldConfig, onLiveOffsetImg
 
     const pickWorldFromClient = (clientX: number, clientY: number): { x: number; y: number; z: number } | null => {
       const rect = el.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) return null;
       const ndcX = ((clientX - rect.left) / rect.width) * 2 - 1;
       const ndcY = -((clientY - rect.top) / rect.height) * 2 + 1;
       raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), camera);
@@ -68,14 +88,32 @@ export function PvLayout3dDragController({ session, worldConfig, onLiveOffsetImg
       const s = sessionRef.current;
       const wc = worldConfig;
       if (!s || ev.pointerId !== s.pointerId || !wc) return;
+      if (!wc || wc.metersPerPixel <= 0) return;
       const w = pickWorldFromClient(ev.clientX, ev.clientY);
       if (!w) return;
       const img = worldPointToImage(w, wc);
-      const dx = img.x - s.startImg.x;
-      const dy = img.y - s.startImg.y;
+
+      // Recalage d'origine : si c'est le premier hit réel de cette session,
+      // on l'utilise comme origine 3D canonique. Le delta au frame 1 sera (0,0)
+      // — aucun saut — et tous les deltas suivants sont cohérents dans le même
+      // système de coordonnées que le raycast (pas de désalignement 2D/3D).
+      const sessionKey = `${s.blockId}:${s.pointerId}`;
+      if (sessionKey !== prevSessionKeyRef.current) {
+        prevSessionKeyRef.current = sessionKey;
+        firstHitImgRef.current = null;
+      }
+      if (firstHitImgRef.current === null) {
+        firstHitImgRef.current = { x: img.x, y: img.y };
+      }
+      const origin = firstHitImgRef.current;
+
+      const dx = img.x - origin.x;
+      const dy = img.y - origin.y;
       let rotationDeg = 0;
       if (s.mode === "rotate" && s.centerImg) {
-        const start = Math.atan2(s.startImg.y - s.centerImg.y, s.startImg.x - s.centerImg.x);
+        // Angle depuis le premier hit réel (pas depuis startImg 2D) pour éviter
+        // un saut angulaire initial identique au saut de translation.
+        const start = Math.atan2(origin.y - s.centerImg.y, origin.x - s.centerImg.x);
         const now = Math.atan2(img.y - s.centerImg.y, img.x - s.centerImg.x);
         rotationDeg = ((now - start) * 180) / Math.PI;
       }
@@ -102,6 +140,8 @@ export function PvLayout3dDragController({ session, worldConfig, onLiveOffsetImg
       const p = pendingOffsetRef.current;
       pendingOffsetRef.current = null;
       if (p) liveRef.current(p.dx, p.dy, p.rotationDeg);
+      firstHitImgRef.current = null;
+      prevSessionKeyRef.current = null;
       endRef.current();
     };
 
@@ -123,14 +163,3 @@ export function PvLayout3dDragController({ session, worldConfig, onLiveOffsetImg
   return null;
 }
 
-/** Filtre optionnel : prioriser les maillages pan / PV (évite le sol). */
-export function meshParticipatesInPvLayout3dRaycast(obj: THREE.Object3D): boolean {
-  let o: THREE.Object3D | null = obj;
-  while (o) {
-    const u = o.userData?.[INSPECT_USERDATA_KEY] as { kind?: string; meshRole?: string } | undefined;
-    if (u?.kind === "PAN" && u.meshRole === "roof_tessellation") return true;
-    if (u?.kind === "PV_PANEL") return true;
-    o = o.parent;
-  }
-  return false;
-}
