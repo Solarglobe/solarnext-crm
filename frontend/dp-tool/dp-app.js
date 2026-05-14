@@ -660,7 +660,7 @@ function initDPGeneralOverview() {
     { label: "DP4 plan avant et après enregistrés", ok: !!window.DP4_STATE?.plans?.before && !!window.DP4_STATE?.plans?.after },
     { label: "DP6 avant + photomontage après distinct", ok: hasDataImage(window.DP6_STATE?.beforeImage) && hasDataImage(window.DP6_STATE?.afterImage) && window.DP6_STATE?.beforeImage !== window.DP6_STATE?.afterImage },
     { label: "DP7 implantation annotée et validée", ok: hasDataImage(window.DP7_STATE?.finalImage) },
-    { label: "DP8 paysage proche annoté et validé", ok: hasDataImage(window.DP8_STATE?.finalImage) },
+    { label: "DP8 paysage lointain annoté et validé", ok: hasDataImage(window.DP8_STATE?.finalImage) },
   ];
   const done = items.filter((it) => it.ok).length;
   list.innerHTML = items
@@ -20817,6 +20817,7 @@ function initDP6() {
   const deleteBtn = document.getElementById("dp6-delete");
   const undoBtn = document.getElementById("dp6-undo");
   const panelSelect = document.getElementById("dp6-panel-select");
+  const workflowHintEl = document.getElementById("dp6-workflow-hint");
   const orientationPortrait = document.getElementById("dp6-orientation-portrait");
   const orientationPaysage = document.getElementById("dp6-orientation-paysage");
   const categoryLabelEl = document.getElementById("dp6-photo-category-label");
@@ -21387,6 +21388,23 @@ function initDP6() {
     const patches = dp6EnsurePatchState();
     const isBefore = window.DP6_STATE?.category === "BEFORE";
     const hasPanels = Array.isArray(patches) && patches.length > 0;
+    const activeIdxRaw = window.DP6_STATE?.activePatchIndex;
+    const activeIdx = typeof activeIdxRaw === "number" ? activeIdxRaw : Number(activeIdxRaw);
+    const hasActivePatch = Number.isFinite(activeIdx) && activeIdx >= 0 && activeIdx < patches.length;
+
+    if (workflowHintEl) {
+      if (!okImage) {
+        workflowHintEl.textContent = "Étape 1 : chargez une photo Street View ou importée.";
+      } else if (isBefore) {
+        workflowHintEl.textContent = "Photo avant : vérifiez le cadrage, puis validez l'image avant travaux.";
+      } else if (!hasPanels) {
+        workflowHintEl.textContent = "Photo après : dessinez une zone sur les panneaux. La zone est créée automatiquement au relâchement.";
+      } else if (hasActivePatch) {
+        workflowHintEl.textContent = "Zone sélectionnée : déplacez-la, ajustez ses poignées, supprimez-la ou validez le photomontage.";
+      } else {
+        workflowHintEl.textContent = `${patches.length} zone(s) panneaux validée(s). Cliquez une zone pour la modifier ou validez le photomontage.`;
+      }
+    }
 
     // DP6 UX : suppression totale de la validation/manipulation via boutons de sélection.
     // (Les zones sont créées et modifiées directement par interaction.)

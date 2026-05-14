@@ -218,6 +218,14 @@
                 <span class="dp2-tool-icon">T</span>
                 <span class="dp2-tool-label">Ajouter un texte</span>
               </button>
+              <button id="dp8-undo" class="dp2-tool-btn" type="button" disabled title="Annuler">
+                <span class="dp2-tool-icon">↶</span>
+                <span class="dp2-tool-label">Annuler</span>
+              </button>
+              <button id="dp8-redo" class="dp2-tool-btn" type="button" disabled title="Rétablir">
+                <span class="dp2-tool-icon">↷</span>
+                <span class="dp2-tool-label">Rétablir</span>
+              </button>
             </div>
             <canvas id="dp8-canvas" aria-label="Rendu DP8"></canvas>
           </div>
@@ -247,6 +255,10 @@
       <button id="dp8-cancel" class="dp-btn dp-btn-outline" type="button">
         Annuler
       </button>
+
+      <div id="dp8-work-status" class="dp-hint" style="margin:0; padding:0">
+        Non validé
+      </div>
 
       <button id="dp8-validate" class="dp-btn dp-btn-primary" type="button" disabled>
         Valider l’implantation

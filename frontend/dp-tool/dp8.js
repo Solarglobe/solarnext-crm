@@ -147,6 +147,9 @@
       const categoryLabelEl = document.getElementById("dp8-photo-category-label");
       const arrowToolBtn = document.getElementById("dp8-tool-arrow");
       const textToolBtn = document.getElementById("dp8-tool-text");
+      const undoBtn = document.getElementById("dp8-undo");
+      const redoBtn = document.getElementById("dp8-redo");
+      const statusEl = document.getElementById("dp8-work-status");
       const useCurrentViewBtn = document.getElementById("dp8-use-current-view");
 
       if (!modal || (!btnBefore && !btnAfter) || !workspace) return;
@@ -345,6 +348,7 @@
       let selectedTextId = null;
       let activeTool = "arrow";
       let active = null; // interaction en cours
+      const dp8History = { undo: [], redo: [] };
       let draftArrow = null; // prévisualisation pendant le drag de création
 
       function dp8SetActiveTool(tool) {
@@ -355,6 +359,69 @@
           arrowToolBtn?.setAttribute("aria-pressed", activeTool === "arrow" ? "true" : "false");
           textToolBtn?.setAttribute("aria-pressed", activeTool === "text" ? "true" : "false");
         } catch (_) {}
+      }
+
+      function dp8Snapshot() {
+        return {
+          arrows: JSON.parse(JSON.stringify(dp8NormalizeArrowsArray())),
+          textBoxes: JSON.parse(JSON.stringify(dp8NormalizeTextBoxesArray())),
+          selectedArrowId,
+          selectedTextId,
+        };
+      }
+
+      function dp8RestoreSnapshot(snap) {
+        if (!snap) return;
+        window.DP8_STATE.arrows = Array.isArray(snap.arrows) ? JSON.parse(JSON.stringify(snap.arrows)) : [];
+        window.DP8_STATE.textBoxes = Array.isArray(snap.textBoxes) ? JSON.parse(JSON.stringify(snap.textBoxes)) : [];
+        selectedArrowId = snap.selectedArrowId || null;
+        selectedTextId = snap.selectedTextId || null;
+        draftArrow = null;
+        active = null;
+        if (window.DP8_STATE?.finalImage) window.DP8_STATE.finalImage = null;
+        dp8SyncHistoryUI();
+        dp8SyncValidateButtonUI();
+        renderDP8Canvas();
+      }
+
+      function dp8CommitHistoryPoint() {
+        dp8History.undo.push(dp8Snapshot());
+        if (dp8History.undo.length > 80) dp8History.undo.shift();
+        dp8History.redo.length = 0;
+        dp8SyncHistoryUI();
+      }
+
+      function dp8MarkWorkingChanged() {
+        try {
+          if (window.DP8_STATE?.finalImage) window.DP8_STATE.finalImage = null;
+        } catch (_) {}
+        dp8SyncHistoryUI();
+      }
+
+      function dp8Undo() {
+        if (!dp8History.undo.length) return;
+        const current = dp8Snapshot();
+        const prev = dp8History.undo.pop();
+        dp8History.redo.push(current);
+        dp8RestoreSnapshot(prev);
+      }
+
+      function dp8Redo() {
+        if (!dp8History.redo.length) return;
+        const current = dp8Snapshot();
+        const next = dp8History.redo.pop();
+        dp8History.undo.push(current);
+        dp8RestoreSnapshot(next);
+      }
+
+      function dp8SyncHistoryUI() {
+        if (undoBtn) undoBtn.disabled = !dp8History.undo.length;
+        if (redoBtn) redoBtn.disabled = !dp8History.redo.length;
+        if (statusEl) {
+          const hasFinal = dp8CoerceDataUrl(window.DP8_STATE?.finalImage);
+          const hasAnnotations = dp8NormalizeArrowsArray().length > 0 || dp8NormalizeTextBoxesArray().length > 0;
+          statusEl.textContent = hasFinal ? "Validé" : hasAnnotations ? "Modifié - à valider" : "Non validé";
+        }
       }
 
       function dp8GetWorkspaceBoundsCss() {
@@ -512,6 +579,7 @@
         const textBoxes = dp8NormalizeTextBoxesArray();
         const okTexts = Array.isArray(textBoxes) && textBoxes.length > 0;
         if (validateBtn) validateBtn.disabled = !(okImage && (okArrows || okTexts));
+        dp8SyncHistoryUI();
       }
 
       // ==============================
@@ -580,6 +648,8 @@
           window.DP8_STATE.textBoxes = [];
           window.DP8_STATE.finalImage = null;
         } catch (_) {}
+        dp8History.undo.length = 0;
+        dp8History.redo.length = 0;
 
         selectedArrowId = null;
         selectedTextId = null;
@@ -885,12 +955,14 @@
 
       function dp8RemoveSelectedArrow() {
         if (!selectedArrowId) return;
+        dp8CommitHistoryPoint();
         const arrows = dp8NormalizeArrowsArray();
         const next = arrows.filter((a) => a && a.id !== selectedArrowId);
         try {
           window.DP8_STATE.arrows = next;
         } catch (_) {}
         selectedArrowId = null;
+        dp8MarkWorkingChanged();
         dp8SyncValidateButtonUI();
         renderDP8Canvas();
       }
@@ -902,11 +974,13 @@
 
       function dp8RemoveSelectedText() {
         if (!selectedTextId) return;
+        dp8CommitHistoryPoint();
         const boxes = dp8NormalizeTextBoxesArray();
         try {
           window.DP8_STATE.textBoxes = boxes.filter((b) => b && b.id !== selectedTextId);
         } catch (_) {}
         selectedTextId = null;
+        dp8MarkWorkingChanged();
         dp8SyncValidateButtonUI();
         renderDP8Canvas();
       }
@@ -937,6 +1011,7 @@
 
         if (hit) {
           if (hit.type === "text") {
+            dp8CommitHistoryPoint();
             selectedArrowId = null;
             selectedTextId = hit.id;
             const box = dp8GetTextBoxById(hit.id);
@@ -955,6 +1030,7 @@
           selectedTextId = null;
           const ar = dp8GetArrowById(hit.id);
           if (!ar) return;
+          dp8CommitHistoryPoint();
           active = {
             type: hit.handle === "body" ? "move" : hit.handle === "start" ? "resize_start" : "resize_end",
             id: hit.id,
@@ -970,10 +1046,12 @@
         if (activeTool === "text") {
           const text = String(prompt("Texte à afficher sur la photo :", "") || "").trim();
           if (text) {
+            dp8CommitHistoryPoint();
             const box = dp8MakeTextBox(dp8ClampPoint(p, bounds), text);
             dp8NormalizeTextBoxesArray().push(box);
             selectedTextId = box.id;
             selectedArrowId = null;
+            dp8MarkWorkingChanged();
             dp8SyncValidateButtonUI();
           }
           renderDP8Canvas();
@@ -982,6 +1060,7 @@
 
         selectedArrowId = null;
         selectedTextId = null;
+        dp8CommitHistoryPoint();
         active = { type: "draw", startMouse: p, bounds };
         draftArrow = dp8MakeArrow(dp8ClampPoint(p, bounds), dp8ClampPoint(p, bounds));
         renderDP8Canvas();
@@ -1010,6 +1089,7 @@
           const dy = cp.y - active.startMouse.y;
           box.x = +Number(dp8Clamp(active.startBox.x + dx, 0, bounds.w - 20)).toFixed(2);
           box.y = +Number(dp8Clamp(active.startBox.y + dy, 0, bounds.h - 20)).toFixed(2);
+          active.changed = true;
           renderDP8Canvas();
           return;
         }
@@ -1032,6 +1112,7 @@
           ar.y1 = +Number(a.y).toFixed(2);
           ar.x2 = +Number(b.x).toFixed(2);
           ar.y2 = +Number(b.y).toFixed(2);
+          active.changed = true;
 
           renderDP8Canvas();
           return;
@@ -1040,6 +1121,7 @@
         if (active.type === "resize_start") {
           ar.x1 = +Number(cp.x).toFixed(2);
           ar.y1 = +Number(cp.y).toFixed(2);
+          active.changed = true;
           renderDP8Canvas();
           return;
         }
@@ -1047,6 +1129,7 @@
         if (active.type === "resize_end") {
           ar.x2 = +Number(cp.x).toFixed(2);
           ar.y2 = +Number(cp.y).toFixed(2);
+          active.changed = true;
           renderDP8Canvas();
           return;
         }
@@ -1060,18 +1143,25 @@
           active = null;
           if (!ar) return;
           if (dp8ArrowLen(ar) < DP8_MIN_ARROW_LEN) {
+            if (dp8History.undo.length) dp8History.undo.pop();
+            dp8SyncHistoryUI();
             renderDP8Canvas();
             return;
           }
           const arrows = dp8NormalizeArrowsArray();
           arrows.push(ar);
           selectedArrowId = ar.id;
+          dp8MarkWorkingChanged();
           dp8SyncValidateButtonUI();
           renderDP8Canvas();
           return;
         }
+        const changed = !!active.changed;
+        if (!changed && dp8History.undo.length) dp8History.undo.pop();
         draftArrow = null;
         active = null;
+        if (changed) dp8MarkWorkingChanged();
+        else dp8SyncHistoryUI();
         dp8SyncValidateButtonUI();
         renderDP8Canvas();
       }
@@ -1090,13 +1180,24 @@
           if (!box) return;
           const next = String(prompt("Modifier le texte :", box.text || "") || "").trim();
           if (!next) return;
+          dp8CommitHistoryPoint();
           box.text = next;
           selectedTextId = box.id;
           selectedArrowId = null;
+          dp8MarkWorkingChanged();
           dp8SyncValidateButtonUI();
           renderDP8Canvas();
         });
       }
+
+      undoBtn?.addEventListener("click", (e) => {
+        e.preventDefault();
+        dp8Undo();
+      });
+      redoBtn?.addEventListener("click", (e) => {
+        e.preventDefault();
+        dp8Redo();
+      });
 
       arrowToolBtn?.addEventListener("click", (e) => {
         e.preventDefault();
@@ -1119,6 +1220,19 @@
             e.preventDefault();
             if (selectedTextId) dp8RemoveSelectedText();
             else dp8RemoveSelectedArrow();
+            return;
+          }
+          const mod = e.ctrlKey || e.metaKey;
+          const key = String(e.key || "").toLowerCase();
+          if (mod && key === "z") {
+            e.preventDefault();
+            if (e.shiftKey) dp8Redo();
+            else dp8Undo();
+            return;
+          }
+          if (mod && key === "y") {
+            e.preventDefault();
+            dp8Redo();
           }
         });
       }
@@ -1248,14 +1362,10 @@
           try {
             window.DP8_STATE = window.DP8_STATE || {};
             window.DP8_STATE.finalImage = out;
-            // ✅ Source de vérité après validation :
-            // - l'accueil (miniature visible) lit `backgroundImage`
-            // - le PDF lit `finalImage` (inchangé)
-            // On force donc `backgroundImage` = image finale validée, et on vide les flèches
-            // pour éviter une double superposition (flèches baked + flèches redessinées).
           } catch (_) {}
 
           dp8RenderEntryMiniatures(out);
+          dp8SyncHistoryUI();
           dp8SyncValidateButtonUI();
           closeDP8Modal();
         });

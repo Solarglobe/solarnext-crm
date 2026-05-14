@@ -144,6 +144,9 @@
       const categoryLabelEl = document.getElementById("dp7-photo-category-label");
       const arrowToolBtn = document.getElementById("dp7-tool-arrow");
       const textToolBtn = document.getElementById("dp7-tool-text");
+      const undoBtn = document.getElementById("dp7-undo");
+      const redoBtn = document.getElementById("dp7-redo");
+      const statusEl = document.getElementById("dp7-work-status");
       const useCurrentViewBtn = document.getElementById("dp7-use-current-view");
 
       if (!modal || (!btnBefore && !btnAfter) || !workspace) return;
@@ -342,6 +345,7 @@
       let selectedTextId = null;
       let activeTool = "arrow";
       let active = null; // interaction en cours
+      const dp7History = { undo: [], redo: [] };
       function dp7SetActiveTool(tool) {
         activeTool = tool === "text" ? "text" : "arrow";
         try {
@@ -352,6 +356,69 @@
         } catch (_) {}
       }
       let draftArrow = null; // prévisualisation pendant le drag de création
+
+      function dp7Snapshot() {
+        return {
+          arrows: JSON.parse(JSON.stringify(dp7NormalizeArrowsArray())),
+          textBoxes: JSON.parse(JSON.stringify(dp7NormalizeTextBoxesArray())),
+          selectedArrowId,
+          selectedTextId,
+        };
+      }
+
+      function dp7RestoreSnapshot(snap) {
+        if (!snap) return;
+        window.DP7_STATE.arrows = Array.isArray(snap.arrows) ? JSON.parse(JSON.stringify(snap.arrows)) : [];
+        window.DP7_STATE.textBoxes = Array.isArray(snap.textBoxes) ? JSON.parse(JSON.stringify(snap.textBoxes)) : [];
+        selectedArrowId = snap.selectedArrowId || null;
+        selectedTextId = snap.selectedTextId || null;
+        draftArrow = null;
+        active = null;
+        if (window.DP7_STATE?.finalImage) window.DP7_STATE.finalImage = null;
+        dp7SyncHistoryUI();
+        dp7SyncValidateButtonUI();
+        renderDP7Canvas();
+      }
+
+      function dp7CommitHistoryPoint() {
+        dp7History.undo.push(dp7Snapshot());
+        if (dp7History.undo.length > 80) dp7History.undo.shift();
+        dp7History.redo.length = 0;
+        dp7SyncHistoryUI();
+      }
+
+      function dp7MarkWorkingChanged() {
+        try {
+          if (window.DP7_STATE?.finalImage) window.DP7_STATE.finalImage = null;
+        } catch (_) {}
+        dp7SyncHistoryUI();
+      }
+
+      function dp7Undo() {
+        if (!dp7History.undo.length) return;
+        const current = dp7Snapshot();
+        const prev = dp7History.undo.pop();
+        dp7History.redo.push(current);
+        dp7RestoreSnapshot(prev);
+      }
+
+      function dp7Redo() {
+        if (!dp7History.redo.length) return;
+        const current = dp7Snapshot();
+        const next = dp7History.redo.pop();
+        dp7History.undo.push(current);
+        dp7RestoreSnapshot(next);
+      }
+
+      function dp7SyncHistoryUI() {
+        if (undoBtn) undoBtn.disabled = !dp7History.undo.length;
+        if (redoBtn) redoBtn.disabled = !dp7History.redo.length;
+        if (statusEl) {
+          const hasFinal = dp7CoerceDataUrl(window.DP7_STATE?.finalImage);
+          const hasAnnotations = dp7NormalizeArrowsArray().length > 0 || dp7NormalizeTextBoxesArray().length > 0;
+          statusEl.textContent = hasFinal ? "Validé" : hasAnnotations ? "Modifié - à valider" : "Non validé";
+        }
+      }
 
       function dp7GetWorkspaceBoundsCss() {
         const r = workspace.getBoundingClientRect();
@@ -505,6 +572,7 @@
         const textBoxes = dp7NormalizeTextBoxesArray();
         const okTexts = Array.isArray(textBoxes) && textBoxes.length > 0;
         if (validateBtn) validateBtn.disabled = !(okImage && (okArrows || okTexts));
+        dp7SyncHistoryUI();
       }
 
       // ==============================
@@ -578,6 +646,8 @@
         selectedTextId = null;
         draftArrow = null;
         active = null;
+        dp7History.undo.length = 0;
+        dp7History.redo.length = 0;
 
         try {
           dp7ResetView();
@@ -880,12 +950,14 @@
 
       function dp7RemoveSelectedArrow() {
         if (!selectedArrowId) return;
+        dp7CommitHistoryPoint();
         const arrows = dp7NormalizeArrowsArray();
         const next = arrows.filter((a) => a && a.id !== selectedArrowId);
         try {
           window.DP7_STATE.arrows = next;
         } catch (_) {}
         selectedArrowId = null;
+        dp7MarkWorkingChanged();
         dp7SyncValidateButtonUI();
         renderDP7Canvas();
       }
@@ -897,11 +969,13 @@
 
       function dp7RemoveSelectedText() {
         if (!selectedTextId) return;
+        dp7CommitHistoryPoint();
         const boxes = dp7NormalizeTextBoxesArray();
         try {
           window.DP7_STATE.textBoxes = boxes.filter((b) => b && b.id !== selectedTextId);
         } catch (_) {}
         selectedTextId = null;
+        dp7MarkWorkingChanged();
         dp7SyncValidateButtonUI();
         renderDP7Canvas();
       }
@@ -932,6 +1006,7 @@
 
         if (hit) {
           if (hit.type === "text") {
+            dp7CommitHistoryPoint();
             selectedArrowId = null;
             selectedTextId = hit.id;
             const box = dp7GetTextBoxById(hit.id);
@@ -950,6 +1025,7 @@
           selectedTextId = null;
           const ar = dp7GetArrowById(hit.id);
           if (!ar) return;
+          dp7CommitHistoryPoint();
           active = {
             type: hit.handle === "body" ? "move" : hit.handle === "start" ? "resize_start" : "resize_end",
             id: hit.id,
@@ -965,10 +1041,12 @@
         if (activeTool === "text") {
           const text = String(prompt("Texte à afficher sur la photo :", "") || "").trim();
           if (text) {
+            dp7CommitHistoryPoint();
             const box = dp7MakeTextBox(dp7ClampPoint(p, bounds), text);
             dp7NormalizeTextBoxesArray().push(box);
             selectedTextId = box.id;
             selectedArrowId = null;
+            dp7MarkWorkingChanged();
             dp7SyncValidateButtonUI();
           }
           renderDP7Canvas();
@@ -977,6 +1055,7 @@
 
         selectedArrowId = null;
         selectedTextId = null;
+        dp7CommitHistoryPoint();
         active = { type: "draw", startMouse: p, bounds };
         draftArrow = dp7MakeArrow(dp7ClampPoint(p, bounds), dp7ClampPoint(p, bounds));
         renderDP7Canvas();
@@ -1005,6 +1084,7 @@
           const dy = cp.y - active.startMouse.y;
           box.x = +Number(dp7Clamp(active.startBox.x + dx, 0, bounds.w - 20)).toFixed(2);
           box.y = +Number(dp7Clamp(active.startBox.y + dy, 0, bounds.h - 20)).toFixed(2);
+          active.changed = true;
           renderDP7Canvas();
           return;
         }
@@ -1027,6 +1107,7 @@
           ar.y1 = +Number(a.y).toFixed(2);
           ar.x2 = +Number(b.x).toFixed(2);
           ar.y2 = +Number(b.y).toFixed(2);
+          active.changed = true;
 
           renderDP7Canvas();
           return;
@@ -1035,6 +1116,7 @@
         if (active.type === "resize_start") {
           ar.x1 = +Number(cp.x).toFixed(2);
           ar.y1 = +Number(cp.y).toFixed(2);
+          active.changed = true;
           renderDP7Canvas();
           return;
         }
@@ -1042,6 +1124,7 @@
         if (active.type === "resize_end") {
           ar.x2 = +Number(cp.x).toFixed(2);
           ar.y2 = +Number(cp.y).toFixed(2);
+          active.changed = true;
           renderDP7Canvas();
           return;
         }
@@ -1055,18 +1138,25 @@
           active = null;
           if (!ar) return;
           if (dp7ArrowLen(ar) < DP7_MIN_ARROW_LEN) {
+            if (dp7History.undo.length) dp7History.undo.pop();
+            dp7SyncHistoryUI();
             renderDP7Canvas();
             return;
           }
           const arrows = dp7NormalizeArrowsArray();
           arrows.push(ar);
           selectedArrowId = ar.id;
+          dp7MarkWorkingChanged();
           dp7SyncValidateButtonUI();
           renderDP7Canvas();
           return;
         }
+        const changed = !!active.changed;
+        if (!changed && dp7History.undo.length) dp7History.undo.pop();
         draftArrow = null;
         active = null;
+        if (changed) dp7MarkWorkingChanged();
+        else dp7SyncHistoryUI();
         dp7SyncValidateButtonUI();
         renderDP7Canvas();
       }
@@ -1085,13 +1175,24 @@
           if (!box) return;
           const next = String(prompt("Modifier le texte :", box.text || "") || "").trim();
           if (!next) return;
+          dp7CommitHistoryPoint();
           box.text = next;
           selectedTextId = box.id;
           selectedArrowId = null;
+          dp7MarkWorkingChanged();
           dp7SyncValidateButtonUI();
           renderDP7Canvas();
         });
       }
+
+      undoBtn?.addEventListener("click", (e) => {
+        e.preventDefault();
+        dp7Undo();
+      });
+      redoBtn?.addEventListener("click", (e) => {
+        e.preventDefault();
+        dp7Redo();
+      });
 
       arrowToolBtn?.addEventListener("click", (e) => {
         e.preventDefault();
@@ -1114,6 +1215,19 @@
             e.preventDefault();
             if (selectedTextId) dp7RemoveSelectedText();
             else dp7RemoveSelectedArrow();
+            return;
+          }
+          const mod = e.ctrlKey || e.metaKey;
+          const key = String(e.key || "").toLowerCase();
+          if (mod && key === "z") {
+            e.preventDefault();
+            if (e.shiftKey) dp7Redo();
+            else dp7Undo();
+            return;
+          }
+          if (mod && key === "y") {
+            e.preventDefault();
+            dp7Redo();
           }
         });
       }
@@ -1243,14 +1357,10 @@
           try {
             window.DP7_STATE = window.DP7_STATE || {};
             window.DP7_STATE.finalImage = out;
-            // ✅ Source de vérité après validation :
-            // - l'accueil (miniature visible) lit `backgroundImage`
-            // - le PDF lit `finalImage` (inchangé)
-            // On force donc `backgroundImage` = image finale validée, et on vide les flèches
-            // pour éviter une double superposition (flèches baked + flèches redessinées).
           } catch (_) {}
 
           dp7RenderEntryMiniatures(out);
+          dp7SyncHistoryUI();
           dp7SyncValidateButtonUI();
           closeDP7Modal();
         });
