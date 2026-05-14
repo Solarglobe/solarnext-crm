@@ -383,7 +383,7 @@ function obstacleMaterialForVolume(vol: SolarScene3D["obstacleVolumes"][number],
   }
   if (vol.kind === "chimney") {
     return {
-      color: "#9a6b55",
+      color: "#b77961",
       metalness: 0.03,
       roughness: 0.88,
       flatShading: true,
@@ -444,6 +444,16 @@ function volumeRingAt(vol: SolarScene3D["obstacleVolumes"][number], t: number, l
   });
 }
 
+function scaleRingFromCenter(points: readonly THREE.Vector3[], scale: number): THREE.Vector3[] {
+  if (points.length === 0 || scale === 1) return [...points];
+  const center = points.reduce((sum, pnt) => sum.add(pnt), new THREE.Vector3()).multiplyScalar(1 / points.length);
+  return points.map((pnt) => new THREE.Vector3(
+    center.x + (pnt.x - center.x) * scale,
+    center.y + (pnt.y - center.y) * scale,
+    pnt.z,
+  ));
+}
+
 function volumeTopCapGeometry(
   vol: SolarScene3D["obstacleVolumes"][number],
   lift = 0.014,
@@ -453,12 +463,7 @@ function volumeTopCapGeometry(
   if (top.length < 3) return null;
   const positions: number[] = [];
   const indices: number[] = [];
-  const center = top.reduce((sum, pnt) => sum.add(pnt), new THREE.Vector3()).multiplyScalar(1 / top.length);
-  for (const pnt of top) {
-    const x = center.x + (pnt.x - center.x) * scale;
-    const y = center.y + (pnt.y - center.y) * scale;
-    positions.push(x, y, pnt.z);
-  }
+  for (const pnt of scaleRingFromCenter(top, scale)) positions.push(pnt.x, pnt.y, pnt.z);
   for (let i = 1; i < top.length - 1; i++) indices.push(0, i, i + 1);
   const geo = new THREE.BufferGeometry();
   geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
@@ -467,22 +472,39 @@ function volumeTopCapGeometry(
   return geo;
 }
 
-function roofWindowFrameLineGeometry(vol: SolarScene3D["obstacleVolumes"][number]): THREE.BufferGeometry | null {
+function roofWindowFrameGeometry(vol: SolarScene3D["obstacleVolumes"][number]): THREE.BufferGeometry | null {
   const ring = volumeRingAt(vol, 1, 0.032);
-  if (ring.length < 4) return volumeLoopLineGeometry(ring);
+  if (ring.length < 4) return null;
+  const outer = scaleRingFromCenter(ring, 1.04);
+  const inner = scaleRingFromCenter(ring, 0.78);
+  const positions: number[] = [];
+  const indices: number[] = [];
+  for (const pnt of outer) positions.push(pnt.x, pnt.y, pnt.z);
+  for (const pnt of inner) positions.push(pnt.x, pnt.y, pnt.z + 0.002);
+  for (let i = 0; i < ring.length; i++) {
+    const next = (i + 1) % ring.length;
+    indices.push(i, next, ring.length + next, i, ring.length + next, ring.length + i);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geo.setIndex(indices);
+  geo.computeVertexNormals();
+  return geo;
+}
+
+function roofWindowHighlightLineGeometry(vol: SolarScene3D["obstacleVolumes"][number]): THREE.BufferGeometry | null {
+  const ring = scaleRingFromCenter(volumeRingAt(vol, 1, 0.04), 0.62);
+  if (ring.length < 4) return null;
   const positions: number[] = [];
   const pushLine = (a: THREE.Vector3, b: THREE.Vector3) => {
     positions.push(a.x, a.y, a.z, b.x, b.y, b.z);
   };
   const lerp = (a: THREE.Vector3, b: THREE.Vector3, t: number) => a.clone().lerp(b, t);
-  for (let i = 0; i < ring.length; i++) pushLine(ring[i]!, ring[(i + 1) % ring.length]!);
   const p0 = ring[0]!;
   const p1 = ring[1]!;
   const p2 = ring[2]!;
   const p3 = ring[3]!;
-  pushLine(lerp(p0, p1, 0.5), lerp(p3, p2, 0.5));
-  pushLine(lerp(p0, p3, 0.5), lerp(p1, p2, 0.5));
-  pushLine(lerp(p0, p1, 0.18).lerp(lerp(p0, p3, 0.18), 0.35), lerp(p3, p2, 0.42));
+  pushLine(lerp(p0, p1, 0.18).lerp(lerp(p0, p3, 0.22), 0.42), lerp(p3, p2, 0.42));
   const geo = new THREE.BufferGeometry();
   geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
   return geo;
@@ -538,15 +560,17 @@ function roofObstacleDetailGeometries(vol: SolarScene3D["obstacleVolumes"][numbe
   readonly edgeLines: THREE.BufferGeometry | null;
   readonly brickLines: THREE.BufferGeometry | null;
   readonly windowFrame: THREE.BufferGeometry | null;
+  readonly windowHighlight: THREE.BufferGeometry | null;
 } {
   const topRing = volumeRingAt(vol, 1, vol.visualRole === "roof_window_flush" || vol.visualRole === "keepout_surface" ? 0.018 : 0.012);
   return {
     topCap: vol.kind === "chimney" || vol.visualRole === "roof_window_flush"
-      ? volumeTopCapGeometry(vol, vol.kind === "chimney" ? 0.045 : 0.02, vol.kind === "chimney" ? 1.12 : 1)
+      ? volumeTopCapGeometry(vol, vol.kind === "chimney" ? 0.045 : 0.022, vol.kind === "chimney" ? 1.12 : 0.76)
       : null,
-    edgeLines: volumeLoopLineGeometry(topRing),
+    edgeLines: vol.visualRole === "roof_window_flush" ? null : volumeLoopLineGeometry(topRing),
     brickLines: vol.kind === "chimney" ? chimneyBrickLineGeometry(vol) : null,
-    windowFrame: vol.visualRole === "roof_window_flush" ? roofWindowFrameLineGeometry(vol) : null,
+    windowFrame: vol.visualRole === "roof_window_flush" ? roofWindowFrameGeometry(vol) : null,
+    windowHighlight: vol.visualRole === "roof_window_flush" ? roofWindowHighlightLineGeometry(vol) : null,
   };
 }
 
@@ -1617,6 +1641,7 @@ function ViewerSceneContent({
         x.details.edgeLines,
         x.details.brickLines,
         x.details.windowFrame,
+        x.details.windowHighlight,
       ].filter((g): g is THREE.BufferGeometry => g != null)),
       ...extGeos.map((x) => x.geo),
       ...panelGeos.flatMap((x) => [x.geo, x.cell].filter((g): g is THREE.BufferGeometry => g != null)),
@@ -2007,13 +2032,13 @@ function ViewerSceneContent({
               {details.topCap ? (
                 <mesh geometry={details.topCap} renderOrder={8}>
                   <meshStandardMaterial
-                    color={volume.kind === "chimney" ? "#3b241d" : "#0f2a44"}
+                    color={volume.kind === "chimney" ? "#8a5140" : "#17304d"}
                     metalness={volume.kind === "chimney" ? 0.04 : 0.22}
-                    roughness={volume.kind === "chimney" ? 0.82 : 0.24}
+                    roughness={volume.kind === "chimney" ? 0.78 : 0.2}
                     transparent={volume.visualRole === "roof_window_flush"}
-                    opacity={volume.visualRole === "roof_window_flush" ? 0.78 : 1}
-                    emissive={volume.visualRole === "roof_window_flush" ? "#0b2239" : "#000000"}
-                    emissiveIntensity={volume.visualRole === "roof_window_flush" ? 0.08 : 0}
+                    opacity={volume.visualRole === "roof_window_flush" ? 0.86 : 1}
+                    emissive={volume.visualRole === "roof_window_flush" ? "#102a44" : "#000000"}
+                    emissiveIntensity={volume.visualRole === "roof_window_flush" ? 0.1 : 0}
                     side={THREE.DoubleSide}
                     polygonOffset
                     polygonOffsetFactor={-2}
@@ -2024,9 +2049,9 @@ function ViewerSceneContent({
               {details.brickLines ? (
                 <lineSegments geometry={details.brickLines} renderOrder={9}>
                   <lineBasicMaterial
-                    color="#5f3b31"
+                    color="#e0b195"
                     transparent
-                    opacity={0.72}
+                    opacity={0.58}
                     toneMapped={false}
                     depthTest
                   />
@@ -2037,7 +2062,7 @@ function ViewerSceneContent({
                   <lineBasicMaterial
                     color={
                       volume.kind === "chimney"
-                        ? "#2f1e19"
+                        ? "#704332"
                         : volume.visualRole === "roof_window_flush" || volume.visualRole === "keepout_surface"
                           ? "#94a3b8"
                           : "#334155"
@@ -2050,11 +2075,24 @@ function ViewerSceneContent({
                 </lineSegments>
               ) : null}
               {details.windowFrame ? (
-                <lineSegments geometry={details.windowFrame} renderOrder={11}>
+                <mesh geometry={details.windowFrame} renderOrder={11}>
+                  <meshStandardMaterial
+                    color="#263241"
+                    metalness={0.28}
+                    roughness={0.34}
+                    transparent={false}
+                    polygonOffset
+                    polygonOffsetFactor={-3}
+                    polygonOffsetUnits={-3}
+                  />
+                </mesh>
+              ) : null}
+              {details.windowHighlight ? (
+                <lineSegments geometry={details.windowHighlight} renderOrder={12}>
                   <lineBasicMaterial
-                    color="#c7d2fe"
+                    color="#e0f2fe"
                     transparent
-                    opacity={0.7}
+                    opacity={0.42}
                     toneMapped={false}
                     depthTest
                   />
