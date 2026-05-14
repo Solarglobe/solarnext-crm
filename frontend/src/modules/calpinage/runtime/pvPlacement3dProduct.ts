@@ -6,6 +6,43 @@ export type PvHitFromImage = { readonly blockId: string; readonly panelId: strin
 
 type LegacyHitFn = (img: { x: number; y: number }) => PvHitFromImage | null;
 
+export type PvLayout3dOverlayPoint = { readonly x: number; readonly y: number };
+
+export type PvLayout3dOverlayPanel = {
+  readonly id: string;
+  readonly blockId: string;
+  readonly panelId: string;
+  readonly panId: string | null;
+  readonly points: readonly PvLayout3dOverlayPoint[];
+  readonly selected: boolean;
+  readonly invalid: boolean;
+  readonly enabled: boolean;
+};
+
+export type PvLayout3dOverlayGhost = {
+  readonly id: string;
+  readonly blockId: string;
+  readonly panId: string | null;
+  readonly center: PvLayout3dOverlayPoint;
+  readonly points: readonly PvLayout3dOverlayPoint[];
+};
+
+export type PvLayout3dOverlaySafeZone = {
+  readonly panId: string;
+  readonly polygons: readonly (readonly PvLayout3dOverlayPoint[])[];
+};
+
+export type PvLayout3dOverlayState = {
+  readonly focusBlockId: string | null;
+  readonly activeBlockId: string | null;
+  readonly selectedPanelId: string | null;
+  readonly selectedPanelCount: number;
+  readonly selectedPowerKwc: number | null;
+  readonly panels: readonly PvLayout3dOverlayPanel[];
+  readonly ghosts: readonly PvLayout3dOverlayGhost[];
+  readonly safeZones: readonly PvLayout3dOverlaySafeZone[];
+};
+
 type LegacyBeginFn = (
   blockId: string,
   startImg: { x: number; y: number },
@@ -84,5 +121,46 @@ export function finalizePvMoveFrom3d(opts?: LegacyFinalizeOpts): boolean {
   };
   return typeof w.__calpinageFinalizePhase3PvHandleManipulation === "function"
     ? !!w.__calpinageFinalizePhase3PvHandleManipulation(opts ?? {})
+    : false;
+}
+
+export function readPvLayout3dOverlayState(): PvLayout3dOverlayState | null {
+  if (typeof window === "undefined") return null;
+  const w = window as unknown as {
+    __calpinageGetPhase3Pv3dOverlayState?: () => PvLayout3dOverlayState | null;
+  };
+  if (typeof w.__calpinageGetPhase3Pv3dOverlayState !== "function") return null;
+  try {
+    return w.__calpinageGetPhase3Pv3dOverlayState();
+  } catch {
+    return null;
+  }
+}
+
+export function selectPvBlockFrom3d(blockId: string, panelId?: string | null): boolean {
+  if (typeof window === "undefined") return false;
+  const w = window as unknown as {
+    __calpinageSelectPvBlockFrom3d?: (blockId: string, panelId?: string | null) => boolean;
+  };
+  return typeof w.__calpinageSelectPvBlockFrom3d === "function"
+    ? !!w.__calpinageSelectPvBlockFrom3d(blockId, panelId ?? null)
+    : false;
+}
+
+export function addPvPanelFrom3dImagePoint(img: { readonly x: number; readonly y: number }): boolean {
+  if (typeof window === "undefined") return false;
+  const w = window as unknown as {
+    __calpinageAddPvPanelFrom3dImagePoint?: (img: { x: number; y: number }) => boolean;
+  };
+  return typeof w.__calpinageAddPvPanelFrom3dImagePoint === "function"
+    ? !!w.__calpinageAddPvPanelFrom3dImagePoint({ x: img.x, y: img.y })
+    : false;
+}
+
+export function removeSelectedPvPanelFrom3d(): boolean {
+  if (typeof window === "undefined") return false;
+  const w = window as unknown as { __calpinageRemoveSelectedPvPanelFrom3d?: () => boolean };
+  return typeof w.__calpinageRemoveSelectedPvPanelFrom3d === "function"
+    ? !!w.__calpinageRemoveSelectedPvPanelFrom3d()
     : false;
 }

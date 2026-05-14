@@ -5746,6 +5746,285 @@ export function initCalpinage(container, options = {}) {
         finalizePhase3PvHandleManipulation({});
       }
 
+      function notifyPhase3Pv3dOverlayChanged() {
+        try {
+          if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
+            window.dispatchEvent(new CustomEvent("calpinage:pv3d-overlay-changed"));
+          }
+        } catch (_pv3dEvt) {}
+      }
+
+      function pickPhase3GhostUnderImagePointFor3d(ghosts, imgPt) {
+        if (!Array.isArray(ghosts) || !imgPt || typeof imgPt.x !== "number" || typeof imgPt.y !== "number") return null;
+        var best = null;
+        var bestRank = 0;
+        var bestDist = Infinity;
+        var tol = 14;
+        for (var gi = 0; gi < ghosts.length; gi++) {
+          var g = ghosts[gi];
+          if (!g || !g.center || typeof g.center.x !== "number" || typeof g.center.y !== "number") continue;
+          var pts = g.projection && g.projection.points;
+          if (!pts || pts.length < 3) continue;
+          var dx = imgPt.x - g.center.x;
+          var dy = imgPt.y - g.center.y;
+          var dist = Math.hypot(dx, dy);
+          var inside = typeof pointInPolygonImage === "function" ? pointInPolygonImage(imgPt, pts) : false;
+          if (inside) {
+            if (bestRank < 2 || (bestRank === 2 && dist < bestDist)) {
+              best = g;
+              bestRank = 2;
+              bestDist = dist;
+            }
+          } else if (dist <= tol && bestRank < 2 && (bestRank < 1 || dist < bestDist)) {
+            best = g;
+            bestRank = 1;
+            bestDist = dist;
+          }
+        }
+        return best;
+      }
+
+      function selectPvBlockFrom3d(blockId, panelId) {
+        if (!CALPINAGE_STATE || CALPINAGE_STATE.currentPhase !== "PV_LAYOUT") return false;
+        var ENG = window.pvPlacementEngine;
+        if (!ENG || typeof ENG.setActiveBlock !== "function") return false;
+        var bid = blockId != null ? String(blockId) : "";
+        if (!bid) return false;
+        var res = ENG.setActiveBlock(bid);
+        if (res && res.success === false) return false;
+        var block = ENG.getFocusBlock ? ENG.getFocusBlock() : (ENG.getBlockById ? ENG.getBlockById(bid) : null);
+        if (block && typeof getProjectionContextForBlock === "function") {
+          var ctx = getProjectionContextForBlock(block);
+          if (ctx && typeof ENG.recomputeBlock === "function") ENG.recomputeBlock(block.id, window.PV_LAYOUT_RULES, ctx);
+          if (typeof ENG.updatePanelValidationForBlock === "function") {
+            ENG.updatePanelValidationForBlock(block, function () { return getProjectionContextForBlock(block); });
+          }
+        }
+        CALPINAGE_STATE.activeManipulationBlockId = bid;
+        CALPINAGE_STATE.selectedPlacedBlockId = bid;
+        if (panelId != null) CALPINAGE_STATE.selectedPlacedPanelId = String(panelId);
+        try {
+          window.PV_LAYOUT_STATE = PV_LAYOUT_FLOW.SELECT;
+        } catch (_pv3dState) {}
+        if (typeof setInteractionState === "function") setInteractionState(InteractionStates.SELECTED);
+        if (typeof window.syncPhase3LayoutUI === "function") window.syncPhase3LayoutUI();
+        if (typeof window.CALPINAGE_RENDER === "function") requestAnimationFrame(window.CALPINAGE_RENDER);
+        notifyPhase3Pv3dOverlayChanged();
+        return true;
+      }
+
+      function addPvPanelFrom3dImagePoint(imgPt) {
+        if (!CALPINAGE_STATE || CALPINAGE_STATE.currentPhase !== "PV_LAYOUT") return false;
+        var ENG = window.pvPlacementEngine;
+        var activeBlock = ENG && ENG.getActiveBlock ? ENG.getActiveBlock() : null;
+        if (!ENG || !activeBlock || typeof ENG.computeExpansionGhosts !== "function" || typeof ENG.addPanelAtCenter !== "function") return false;
+        var getCtxGhost = function () {
+          return typeof getProjectionContextForBlock === "function" ? getProjectionContextForBlock(activeBlock) : null;
+        };
+        var prevGhostSzOk = typeof window !== "undefined" ? window.__CALPINAGE_GHOST_SAFE_ZONE_OK__ : undefined;
+        try {
+          var ctxG = getCtxGhost();
+          var isFlat = ctxG && ((ctxG.roofType === "FLAT") || (ctxG.roofParams && ctxG.roofParams.roofType === "FLAT"));
+          if (isFlat && typeof window.__CALPINAGE_GET_SAFE_ZONE_DATA_FOR_AUTOFILL_PAN__ === "function") {
+            var szGhost = window.__CALPINAGE_GET_SAFE_ZONE_DATA_FOR_AUTOFILL_PAN__(activeBlock.panId);
+            if (szGhost && szGhost.polys && szGhost.polys.length) {
+              window.__CALPINAGE_GHOST_SAFE_ZONE_OK__ = function (pp) {
+                return isPanelInsideSafeZone(pp, szGhost.polys, szGhost.edges);
+              };
+            }
+          }
+          var ghosts = ENG.computeExpansionGhosts(activeBlock, getCtxGhost);
+          var hit = pickPhase3GhostUnderImagePointFor3d(ghosts, imgPt);
+          if (!hit || !hit.center) return false;
+          var res = ENG.addPanelAtCenter(activeBlock, hit.center, getCtxGhost);
+          if (!res || !res.success) return false;
+          if (typeof window.showCalpinageUxToast === "function") window.showCalpinageUxToast("+1 panneau ajouté");
+          if (typeof setSafeZonePanelsDirty === "function") setSafeZonePanelsDirty();
+          if (typeof recomputeAllPlacementBlocksFromRules === "function") recomputeAllPlacementBlocksFromRules(true);
+          if (typeof saveCalpinageState === "function") saveCalpinageState();
+          notifyPhase3Pv3dOverlayChanged();
+          if (typeof pvSyncSaveRender === "function") pvSyncSaveRender();
+          return true;
+        } finally {
+          if (typeof window !== "undefined") window.__CALPINAGE_GHOST_SAFE_ZONE_OK__ = prevGhostSzOk;
+        }
+      }
+
+      function removeSelectedPvPanelFrom3d() {
+        if (!CALPINAGE_STATE || CALPINAGE_STATE.currentPhase !== "PV_LAYOUT") return false;
+        var ENG = window.pvPlacementEngine;
+        if (!ENG || typeof ENG.removePanelById !== "function") return false;
+        var blockId = CALPINAGE_STATE.selectedPlacedBlockId || CALPINAGE_STATE.activeManipulationBlockId;
+        var panelId = CALPINAGE_STATE.selectedPlacedPanelId;
+        if (!blockId || !panelId || typeof ENG.getBlockById !== "function") return false;
+        var block = ENG.getBlockById(String(blockId));
+        if (!block) return false;
+        var getCtx = function () {
+          return typeof getProjectionContextForBlock === "function" ? getProjectionContextForBlock(block) : null;
+        };
+        var removeNow = function () {
+          ENG.removePanelById(block, String(panelId), getCtx);
+          if (typeof setSafeZonePanelsDirty === "function") setSafeZonePanelsDirty();
+          if (block.panels && block.panels.length === 0 && typeof ENG.removeBlock === "function") ENG.removeBlock(block.id);
+          if (typeof recomputeAllPlacementBlocksFromRules === "function") recomputeAllPlacementBlocksFromRules(true);
+          CALPINAGE_STATE.selectedPlacedPanelId = null;
+          notifyPhase3Pv3dOverlayChanged();
+          if (typeof pvSyncSaveRender === "function") pvSyncSaveRender();
+        };
+        if (block.panels && block.panels.length === 1) {
+          if (typeof window.requestCalpinageConfirm !== "function") return false;
+          window.requestCalpinageConfirm({
+            title: "Supprimer ce bloc ?",
+            description: "Le dernier panneau du bloc sera supprimé. Le bloc entier sera supprimé.",
+            confirmLabel: "Supprimer",
+            cancelLabel: "Annuler",
+            onConfirm: removeNow
+          });
+          return true;
+        }
+        removeNow();
+        return true;
+      }
+
+      function getPhase3Pv3dOverlayState() {
+        if (!CALPINAGE_STATE || CALPINAGE_STATE.currentPhase !== "PV_LAYOUT") return null;
+        var ENG = window.pvPlacementEngine;
+        if (!ENG) return null;
+        var focusBlock = ENG.getFocusBlock ? ENG.getFocusBlock() : null;
+        var activeBlock = ENG.getActiveBlock ? ENG.getActiveBlock() : null;
+        var selectedPanelId = CALPINAGE_STATE.selectedPlacedPanelId ? String(CALPINAGE_STATE.selectedPlacedPanelId) : null;
+        var panels = [];
+        function pushBlockPanels(block, isSelected) {
+          if (!block || !block.panels) return;
+          for (var i = 0; i < block.panels.length; i++) {
+            var p = block.panels[i];
+            if (!p) continue;
+            var proj = null;
+            if (activeBlock && activeBlock.id === block.id && ENG.getEffectivePanelProjection) {
+              proj = ENG.getEffectivePanelProjection(block, i);
+            } else {
+              proj = p.projection;
+            }
+            if (!proj || !proj.points || proj.points.length < 3) continue;
+            var pid = p && typeof p.id === "string" && p.id ? p.id : ("legacy-" + i);
+            var invalid = p.state === "invalid";
+            try {
+              var zc = window.__SAFE_ZONE_PH3__ && window.__SAFE_ZONE_PH3__.cache;
+              var zpan = zc && block.panId ? (zc.byPanId && zc.byPanId[block.panId]) : null;
+              var zpolys = zpan && zpan.safeZonePolygonsPx ? zpan.safeZonePolygonsPx : [];
+              var zedges = zc && block.panId && zc._edgesByPanId ? zc._edgesByPanId[block.panId] : null;
+              if (!invalid && zpolys.length > 0 && typeof isPanelInsideSafeZone === "function") {
+                invalid = !isPanelInsideSafeZone(proj.points, zpolys, zedges);
+              }
+            } catch (_pv3dInvalid) {}
+            panels.push({
+              id: String(block.id) + "_" + i,
+              blockId: String(block.id),
+              panelId: String(pid),
+              panId: block.panId != null ? String(block.panId) : null,
+              points: proj.points.map(function (pt) { return { x: pt.x, y: pt.y }; }),
+              selected: !!isSelected,
+              invalid: !!invalid,
+              enabled: p.enabled !== false
+            });
+          }
+        }
+        var frozen = ENG.getFrozenBlocks ? ENG.getFrozenBlocks() : [];
+        for (var fi = 0; fi < frozen.length; fi++) pushBlockPanels(frozen[fi], !!(focusBlock && frozen[fi] && frozen[fi].id === focusBlock.id));
+        if (activeBlock && (!frozen || !frozen.some || !frozen.some(function (b) { return b && b.id === activeBlock.id; }))) {
+          pushBlockPanels(activeBlock, !!(focusBlock && activeBlock.id === focusBlock.id));
+        }
+        var konva = window.CALPINAGE_PV_PANELS_DATA && window.CALPINAGE_PV_PANELS_DATA.panels;
+        if (Array.isArray(konva)) {
+          var byKey = {};
+          for (var kp = 0; kp < konva.length; kp++) {
+            var kd = konva[kp];
+            if (kd && kd.blockId && kd.panelId) byKey[String(kd.blockId) + "|" + String(kd.panelId)] = kd;
+          }
+          for (var pp = 0; pp < panels.length; pp++) {
+            var kv = byKey[panels[pp].blockId + "|" + panels[pp].panelId];
+            if (kv) {
+              panels[pp].invalid = !!kv.invalid;
+              panels[pp].selected = panels[pp].selected || !!kv.glow;
+            }
+          }
+        }
+        var ghostsOut = [];
+        if (activeBlock && typeof ENG.computeExpansionGhosts === "function" && typeof getProjectionContextForBlock === "function") {
+          var getCtx = function () { return getProjectionContextForBlock(activeBlock); };
+          var prev = window.__CALPINAGE_GHOST_SAFE_ZONE_OK__;
+          try {
+            var ctx = getCtx();
+            var flat = ctx && ((ctx.roofType === "FLAT") || (ctx.roofParams && ctx.roofParams.roofType === "FLAT"));
+            if (flat && typeof window.__CALPINAGE_GET_SAFE_ZONE_DATA_FOR_AUTOFILL_PAN__ === "function") {
+              var sz = window.__CALPINAGE_GET_SAFE_ZONE_DATA_FOR_AUTOFILL_PAN__(activeBlock.panId);
+              if (sz && sz.polys && sz.polys.length) {
+                window.__CALPINAGE_GHOST_SAFE_ZONE_OK__ = function (pp) { return isPanelInsideSafeZone(pp, sz.polys, sz.edges); };
+              }
+            }
+            var ghosts = ENG.computeExpansionGhosts(activeBlock, getCtx);
+            if (Array.isArray(ghosts)) {
+              for (var gi = 0; gi < ghosts.length; gi++) {
+                var g = ghosts[gi];
+                if (!g || !g.center || !g.projection || !g.projection.points || g.projection.points.length < 3) continue;
+                ghostsOut.push({
+                  id: String(activeBlock.id) + "_ghost_" + gi,
+                  blockId: String(activeBlock.id),
+                  panId: activeBlock.panId != null ? String(activeBlock.panId) : null,
+                  center: { x: g.center.x, y: g.center.y },
+                  points: g.projection.points.map(function (pt) { return { x: pt.x, y: pt.y }; })
+                });
+              }
+            }
+          } finally {
+            window.__CALPINAGE_GHOST_SAFE_ZONE_OK__ = prev;
+          }
+        }
+        var safeZones = [];
+        var szCache = window.__SAFE_ZONE_PH3__ && window.__SAFE_ZONE_PH3__.cache;
+        if (!szCache && typeof window.CALPINAGE_RENDER === "function" && !window.__PV3D_SAFE_ZONE_RENDER_REQUESTED__) {
+          window.__PV3D_SAFE_ZONE_RENDER_REQUESTED__ = true;
+          requestAnimationFrame(function () {
+            try {
+              window.CALPINAGE_RENDER();
+            } catch (_pv3dSzRender) {}
+            setTimeout(function () {
+              window.__PV3D_SAFE_ZONE_RENDER_REQUESTED__ = false;
+              notifyPhase3Pv3dOverlayChanged();
+            }, 0);
+          });
+        }
+        if (szCache && szCache.byPanId) {
+          for (var panId in szCache.byPanId) {
+            var z = szCache.byPanId[panId];
+            if (!z || !Array.isArray(z.safeZonePolygonsPx)) continue;
+            safeZones.push({
+              panId: String(panId),
+              polygons: z.safeZonePolygonsPx.map(function (poly) {
+                return (poly || []).map(function (pt) { return { x: pt.x, y: pt.y }; });
+              })
+            });
+          }
+        }
+        var selectedPanelCount = 0;
+        for (var sp = 0; sp < panels.length; sp++) {
+          if (panels[sp].selected && panels[sp].enabled !== false) selectedPanelCount++;
+        }
+        var selPanelSpec = window.PV_SELECTED_PANEL || (window.CALPINAGE_SELECTED_PANEL_ID && typeof findPanelById === "function" ? findPanelById(window.CALPINAGE_SELECTED_PANEL_ID) : null);
+        var powerWc = selPanelSpec && (selPanelSpec.power_wc != null || selPanelSpec.powerWc != null) ? (Number(selPanelSpec.power_wc || selPanelSpec.powerWc) || 0) : 0;
+        var selectedPowerKwc = selectedPanelCount > 0 && powerWc > 0 ? (selectedPanelCount * powerWc) / 1000 : null;
+        return {
+          focusBlockId: focusBlock && focusBlock.id != null ? String(focusBlock.id) : null,
+          activeBlockId: activeBlock && activeBlock.id != null ? String(activeBlock.id) : null,
+          selectedPanelId: selectedPanelId,
+          selectedPanelCount: selectedPanelCount,
+          selectedPowerKwc: selectedPowerKwc,
+          panels: panels,
+          ghosts: ghostsOut,
+          safeZones: safeZones
+        };
+      }
+
       /** CP-PV-015-PERF-FINAL : marque panelsDirty pour forcer revalidation event-driven. */
       function setSafeZonePanelsDirty() {
         var ph3 = window.__SAFE_ZONE_PH3__;
@@ -6804,6 +7083,10 @@ export function initCalpinage(container, options = {}) {
           window.__calpinageApplyPhase3PvMoveLiveFrom3d = applyPhase3PvMoveLiveFrom3d;
           window.__calpinageCancelPhase3PvMoveFrom3d = cancelPhase3PvMoveFrom3d;
           window.__calpinageFinalizePhase3PvHandleManipulation = finalizePhase3PvHandleManipulation;
+          window.__calpinageGetPhase3Pv3dOverlayState = getPhase3Pv3dOverlayState;
+          window.__calpinageSelectPvBlockFrom3d = selectPvBlockFrom3d;
+          window.__calpinageAddPvPanelFrom3dImagePoint = addPvPanelFrom3dImagePoint;
+          window.__calpinageRemoveSelectedPvPanelFrom3d = removeSelectedPvPanelFrom3d;
         }
       } catch (_expRidgeStruct) { /* ignore */ }
 
