@@ -3,7 +3,7 @@
  * → `setManipulationTransform` (même logique delta que les poignées 2D).
  */
 
-import { useLayoutEffect, useEffect, useRef } from "react";
+import { useLayoutEffect, useRef } from "react";
 import { useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { worldPointToImage } from "../world/worldToImage";
@@ -38,34 +38,6 @@ export function PvLayout3dDragController({ session, worldConfig, onLiveOffsetImg
   /** Passe 6 — au plus une mise à jour moteur / frame (perf). */
   const rafRef = useRef(0);
   const pendingOffsetRef = useRef<{ dx: number; dy: number; rotationDeg: number } | null>(null);
-
-  /**
-   * Positions monde initiales des meshes du bloc en cours de drag.
-   * Renseignées au début de chaque session, vidées à la fin.
-   * Permet de déplacer directement les meshes Three.js pendant le drag
-   * sans attendre le rebuild React (rendu live immédiat).
-   */
-  const initialMeshPositions = useRef<Map<THREE.Mesh, THREE.Vector3>>(new Map());
-
-  useEffect(() => {
-    if (!session) {
-      initialMeshPositions.current.clear();
-      return;
-    }
-    const blockPrefix = session.blockId + "_";
-    const map = new Map<THREE.Mesh, THREE.Vector3>();
-    scene.traverse((obj) => {
-      if (!(obj instanceof THREE.Mesh)) return;
-      const u = (obj.userData?.[INSPECT_USERDATA_KEY] ?? {}) as { kind?: string; id?: string };
-      if (u.kind === "PV_PANEL" && typeof u.id === "string") {
-        const pid = u.id;
-        if (pid === session.blockId || pid.startsWith(blockPrefix)) {
-          map.set(obj, obj.position.clone());
-        }
-      }
-    });
-    initialMeshPositions.current = map;
-  }, [session, scene]);
 
   useLayoutEffect(() => {
     const el = gl.domElement;
@@ -115,22 +87,6 @@ export function PvLayout3dDragController({ session, worldConfig, onLiveOffsetImg
         pendingOffsetRef.current = null;
         if (p) {
           liveRef.current(p.dx, p.dy, p.rotationDeg);
-          /**
-           * Mise à jour directe des mesh.position Three.js pour un rendu live immédiat,
-           * sans attendre le rebuild React (qui n'arrive qu'au pointerup).
-           * Delta image px → delta monde ENU : même loi que imagePxToWorldHorizontalM.
-           */
-          if (wc && initialMeshPositions.current.size > 0 && s.mode !== "rotate") {
-            const mpp = wc.metersPerPixel;
-            const rad = (wc.northAngleDeg * Math.PI) / 180;
-            const cos = Math.cos(rad);
-            const sin = Math.sin(rad);
-            const dwx = mpp * (p.dx * cos + p.dy * sin);
-            const dwy = mpp * (p.dx * sin - p.dy * cos);
-            for (const [mesh, init] of initialMeshPositions.current) {
-              mesh.position.set(init.x + dwx, init.y + dwy, init.z);
-            }
-          }
           invalidate();
         }
       });

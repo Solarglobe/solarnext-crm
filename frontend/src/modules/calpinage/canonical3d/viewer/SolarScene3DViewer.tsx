@@ -30,13 +30,13 @@
  * clic panneau → manipulation (finalize = chaîne Phase 3 / `pvSyncSaveRender`).
  */
 
-import { Canvas, type ThreeEvent, useThree } from "@react-three/fiber";
+import { Canvas, type ThreeEvent, useFrame, useThree } from "@react-three/fiber";
 
 /** @react-three/fiber : `gl` / `camera` sur l’événement (types ThreeEvent incomplets selon versions). */
 function r3fGl(e: ThreeEvent<PointerEvent | MouseEvent>): THREE.WebGLRenderer {
   return (e as any).gl;
 }
-import { Grid, Html, Outlines } from "@react-three/drei";
+import { Grid, Outlines } from "@react-three/drei";
 import {
   useCallback,
   useEffect,
@@ -45,7 +45,6 @@ import {
   useId,
   useRef,
   useState,
-  type CSSProperties,
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { flushSync } from "react-dom";
@@ -424,80 +423,321 @@ function imagePolygonToRoofWorldPoints(
   });
 }
 
-function imagePolygonToRoofMeshGeometry(
-  scene: SolarScene3D,
-  points: readonly { readonly x: number; readonly y: number }[],
-  panId: string | null | undefined,
-  offsetM: number,
-): THREE.BufferGeometry | null {
-  const world = imagePolygonToRoofWorldPoints(scene, points, panId, offsetM);
-  if (world.length < 3) return null;
-  const positions: number[] = [];
-  for (const p of world) positions.push(p.x, p.y, p.z);
-  const indices: number[] = [];
-  for (let i = 1; i < world.length - 1; i++) indices.push(0, i, i + 1);
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-  geo.setIndex(indices);
-  geo.computeVertexNormals();
-  return geo;
-}
+type PvLayout3dScreenPoint = { readonly x: number; readonly y: number };
 
-function imagePolygonToRoofLineGeometry(
-  scene: SolarScene3D,
-  points: readonly { readonly x: number; readonly y: number }[],
-  panId: string | null | undefined,
-  offsetM: number,
-): THREE.BufferGeometry | null {
-  const world = imagePolygonToRoofWorldPoints(scene, points, panId, offsetM);
-  if (world.length < 2) return null;
-  const positions: number[] = [];
-  for (let i = 0; i < world.length; i++) {
-    const a = world[i]!;
-    const b = world[(i + 1) % world.length]!;
-    positions.push(a.x, a.y, a.z, b.x, b.y, b.z);
-  }
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-  return geo;
-}
+type PvLayout3dProjectedPanel = {
+  readonly id: string;
+  readonly selected: boolean;
+  readonly invalid: boolean;
+  readonly enabled: boolean;
+  readonly points: readonly PvLayout3dScreenPoint[];
+};
 
-type PvLayout3dHandleUi = {
+type PvLayout3dProjectedGhost = {
+  readonly id: string;
+  readonly valid: boolean;
+  readonly excluded: boolean;
+  readonly source?: "expansion" | "autofill";
+  readonly points: readonly PvLayout3dScreenPoint[];
+};
+
+type PvLayout3dProjectedSafeZone = {
+  readonly id: string;
+  readonly points: readonly PvLayout3dScreenPoint[];
+};
+
+type PvLayout3dProjectedHandles = {
   readonly blockId: string;
-  readonly rotate: THREE.Vector3;
-  readonly move: THREE.Vector3;
-  readonly top: THREE.Vector3;
+  readonly rotate: PvLayout3dScreenPoint;
+  readonly move: PvLayout3dScreenPoint;
+  readonly topOfBlock: PvLayout3dScreenPoint;
   readonly rotateImg: { readonly x: number; readonly y: number };
   readonly moveImg: { readonly x: number; readonly y: number };
 };
 
-const pv3dHandleBaseButtonStyle: CSSProperties = {
-  width: 34,
-  height: 34,
-  borderRadius: 17,
-  border: "1px solid rgba(255,255,255,0.78)",
-  boxShadow: "0 4px 14px rgba(0,0,0,0.35)",
-  cursor: "grab",
-  fontSize: 15,
-  fontWeight: 700,
-  lineHeight: "32px",
-  padding: 0,
-  textAlign: "center",
-  userSelect: "none",
+type PvLayout3dScreenOverlayState = {
+  readonly width: number;
+  readonly height: number;
+  readonly panels: readonly PvLayout3dProjectedPanel[];
+  readonly ghosts: readonly PvLayout3dProjectedGhost[];
+  readonly safeZones: readonly PvLayout3dProjectedSafeZone[];
+  readonly handles: PvLayout3dProjectedHandles | null;
 };
 
-const pv3dRotateHandleButtonStyle: CSSProperties = {
-  ...pv3dHandleBaseButtonStyle,
-  background: "#6366f1",
-  color: "#ffffff",
-};
+type PvLayout3dHandleUi = PvLayout3dProjectedHandles;
 
-const pv3dMoveHandleButtonStyle: CSSProperties = {
-  ...pv3dHandleBaseButtonStyle,
-  background: "#ffffff",
-  color: "#6366f1",
-  border: "2px solid #6366f1",
-};
+function projectWorldToScreenPoint(
+  world: THREE.Vector3,
+  camera: THREE.Camera,
+  width: number,
+  height: number,
+): PvLayout3dScreenPoint | null {
+  const p = world.clone().project(camera);
+  if (!Number.isFinite(p.x) || !Number.isFinite(p.y) || !Number.isFinite(p.z)) return null;
+  return {
+    x: ((p.x + 1) / 2) * width,
+    y: ((-p.y + 1) / 2) * height,
+  };
+}
+
+function pointsToSvg(points: readonly PvLayout3dScreenPoint[]): string {
+  return points.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+}
+
+function overlaySignature(o: PvLayout3dScreenOverlayState | null): string {
+  if (!o) return "null";
+  const h = o.handles
+    ? `${o.handles.blockId}:${o.handles.rotate.x.toFixed(1)},${o.handles.rotate.y.toFixed(1)}:${o.handles.move.x.toFixed(1)},${o.handles.move.y.toFixed(1)}`
+    : "none";
+  const panels = o.panels
+    .filter((p) => p.selected || p.invalid)
+    .map((p) => `${p.id}:${p.selected ? 1 : 0}:${p.invalid ? 1 : 0}:${p.points.map((pt) => `${pt.x.toFixed(0)},${pt.y.toFixed(0)}`).join(";")}`)
+    .join("|");
+  const ghosts = o.ghosts
+    .map((g) => `${g.id}:${g.valid ? 1 : 0}:${g.excluded ? 1 : 0}:${g.points.map((pt) => `${pt.x.toFixed(0)},${pt.y.toFixed(0)}`).join(";")}`)
+    .join("|");
+  const safeZones = o.safeZones
+    .map((z) => `${z.id}:${z.points.map((pt) => `${pt.x.toFixed(0)},${pt.y.toFixed(0)}`).join(";")}`)
+    .join("|");
+  return `${o.width}x${o.height}|${h}|${panels}|${ghosts}|${safeZones}`;
+}
+
+function PvLayout3dScreenOverlayProjector({
+  scene,
+  overlay,
+  enabled,
+  onProjected,
+}: {
+  readonly scene: SolarScene3D;
+  readonly overlay: PvLayout3dOverlayState | null;
+  readonly enabled: boolean;
+  readonly onProjected: (overlay: PvLayout3dScreenOverlayState | null) => void;
+}) {
+  const { camera, gl } = useThree();
+  const lastSigRef = useRef("");
+
+  useEffect(() => {
+    if (!enabled || !overlay) onProjected(null);
+  }, [enabled, overlay, onProjected]);
+
+  useFrame(() => {
+    if (!enabled || !overlay) {
+      if (lastSigRef.current !== "null") {
+        lastSigRef.current = "null";
+        onProjected(null);
+      }
+      return;
+    }
+    const rect = gl.domElement.getBoundingClientRect();
+    const width = Math.max(1, rect.width);
+    const height = Math.max(1, rect.height);
+    const projectImagePoly = (
+      points: readonly { readonly x: number; readonly y: number }[],
+      panId: string | null | undefined,
+      offsetM: number,
+    ): PvLayout3dScreenPoint[] => {
+      const world = imagePolygonToRoofWorldPoints(scene, points, panId, offsetM);
+      const projected: PvLayout3dScreenPoint[] = [];
+      for (const w of world) {
+        const p = projectWorldToScreenPoint(w, camera, width, height);
+        if (!p) return [];
+        projected.push(p);
+      }
+      return projected;
+    };
+
+    const panels = overlay.panels
+      .map((p) => ({
+        id: p.id,
+        selected: p.selected,
+        invalid: p.invalid,
+        enabled: p.enabled,
+        points: projectImagePoly(p.points, p.panId, 0.24),
+      }))
+      .filter((p) => p.points.length >= 3);
+    const ghosts = overlay.ghosts
+      .map((g) => ({
+        id: g.id,
+        valid: g.valid !== false,
+        excluded: !!g.excluded,
+        source: g.source,
+        points: projectImagePoly(g.points, g.panId, 0.26),
+      }))
+      .filter((g) => g.points.length >= 3);
+    const safeZones = overlay.safeZones.flatMap((z) =>
+      z.polygons
+        .map((poly, index) => ({
+          id: `${z.panId}-${index}`,
+          points: projectImagePoly(poly, z.panId, 0.28),
+        }))
+        .filter((z2) => z2.points.length >= 3),
+    );
+
+    let handles: PvLayout3dProjectedHandles | null = null;
+    if (overlay.handles) {
+      const selectedPanId = overlay.panels.find((p) => p.selected)?.panId ?? null;
+      const [rotateW, moveW, topW] = imagePolygonToRoofWorldPoints(
+        scene,
+        [overlay.handles.rotate, overlay.handles.move, overlay.handles.topOfBlock],
+        selectedPanId,
+        0.32,
+      );
+      const rotate = rotateW ? projectWorldToScreenPoint(rotateW, camera, width, height) : null;
+      const move = moveW ? projectWorldToScreenPoint(moveW, camera, width, height) : null;
+      const topOfBlock = topW ? projectWorldToScreenPoint(topW, camera, width, height) : null;
+      if (rotate && move && topOfBlock) {
+        handles = {
+          blockId: overlay.handles.blockId,
+          rotate,
+          move,
+          topOfBlock,
+          rotateImg: overlay.handles.rotate,
+          moveImg: overlay.handles.move,
+        };
+      }
+    }
+
+    const projected: PvLayout3dScreenOverlayState = { width, height, panels, ghosts, safeZones, handles };
+    const sig = overlaySignature(projected);
+    if (sig !== lastSigRef.current) {
+      lastSigRef.current = sig;
+      onProjected(projected);
+    }
+  });
+
+  return null;
+}
+
+function PvLayout3dSvgOverlay({
+  overlay,
+  onMovePointerDown,
+  onRotatePointerDown,
+}: {
+  readonly overlay: PvLayout3dScreenOverlayState | null;
+  readonly onMovePointerDown: (e: ReactPointerEvent<Element>, h: PvLayout3dHandleUi) => void;
+  readonly onRotatePointerDown: (e: ReactPointerEvent<Element>, h: PvLayout3dHandleUi) => void;
+}) {
+  if (!overlay) return null;
+  const h = overlay.handles;
+  return (
+    <svg
+      aria-hidden="true"
+      width={overlay.width}
+      height={overlay.height}
+      viewBox={`0 0 ${overlay.width} ${overlay.height}`}
+      style={{
+        position: "absolute",
+        inset: 0,
+        zIndex: 6,
+        pointerEvents: "none",
+        overflow: "hidden",
+      }}
+    >
+      {overlay.safeZones.map((z) => (
+        <polygon
+          key={`safe-${z.id}`}
+          points={pointsToSvg(z.points)}
+          fill="rgba(239,68,68,0.08)"
+          stroke="rgba(239,68,68,0.95)"
+          strokeWidth={1}
+          vectorEffect="non-scaling-stroke"
+        />
+      ))}
+      {overlay.ghosts.map((g) => (
+        <polygon
+          key={`ghost-${g.id}`}
+          points={pointsToSvg(g.points)}
+          fill={
+            g.valid
+              ? g.excluded
+                ? "rgba(190,190,205,0.14)"
+                : "rgba(200,200,200,0.35)"
+              : "rgba(220,60,60,0.22)"
+          }
+          stroke={
+            g.valid
+              ? g.excluded
+                ? "rgba(110,110,130,0.65)"
+                : "rgba(160,160,160,0.72)"
+              : "rgba(170,30,30,0.9)"
+          }
+          strokeDasharray={g.valid && !g.excluded ? undefined : "4 3"}
+          strokeWidth={1}
+          vectorEffect="non-scaling-stroke"
+        />
+      ))}
+      {overlay.panels.map((p) =>
+        p.selected || p.invalid ? (
+          <polygon
+            key={`panel-${p.id}`}
+            points={pointsToSvg(p.points)}
+            fill={p.invalid ? "rgba(245,158,11,0.18)" : "rgba(99,102,241,0.08)"}
+            stroke={p.invalid ? "rgba(245,158,11,0.98)" : "rgba(99,102,241,0.98)"}
+            strokeWidth={p.selected ? 1.8 : 1.25}
+            vectorEffect="non-scaling-stroke"
+          />
+        ) : null,
+      )}
+      {h ? (
+        <g>
+          <line
+            x1={h.topOfBlock.x}
+            y1={h.topOfBlock.y}
+            x2={h.rotate.x}
+            y2={h.rotate.y}
+            stroke="rgba(255,255,255,0.34)"
+            strokeWidth={1}
+            vectorEffect="non-scaling-stroke"
+          />
+          <line
+            x1={h.topOfBlock.x}
+            y1={h.topOfBlock.y}
+            x2={h.move.x}
+            y2={h.move.y}
+            stroke="rgba(255,255,255,0.34)"
+            strokeWidth={1}
+            vectorEffect="non-scaling-stroke"
+          />
+          <circle
+            cx={h.rotate.x}
+            cy={h.rotate.y}
+            r={24}
+            fill="transparent"
+            style={{ pointerEvents: "auto", cursor: "grab" }}
+            onPointerDown={(e) => onRotatePointerDown(e, h)}
+          />
+          <circle cx={h.rotate.x} cy={h.rotate.y} r={9} fill="#6366F1" stroke="rgba(0,0,0,0.35)" strokeWidth={1} />
+          <path
+            d={`M ${(h.rotate.x - 4.6).toFixed(1)} ${(h.rotate.y + 2.6).toFixed(1)} A 5 5 0 1 1 ${(h.rotate.x + 4.7).toFixed(1)} ${(h.rotate.y - 1.8).toFixed(1)}`}
+            fill="none"
+            stroke="rgba(0,0,0,0.55)"
+            strokeWidth={1}
+          />
+          <path
+            d={`M ${(h.rotate.x + 4.7).toFixed(1)} ${(h.rotate.y - 1.8).toFixed(1)} l -0.4 3.0 l -2.5 -1.7`}
+            fill="none"
+            stroke="rgba(0,0,0,0.55)"
+            strokeWidth={1}
+          />
+          <circle
+            cx={h.move.x}
+            cy={h.move.y}
+            r={22}
+            fill="transparent"
+            style={{ pointerEvents: "auto", cursor: "move" }}
+            onPointerDown={(e) => onMovePointerDown(e, h)}
+          />
+          <circle cx={h.move.x} cy={h.move.y} r={6} fill="#ffffff" stroke="#6366F1" strokeWidth={1.25} />
+          <path
+            d={`M ${(h.move.x - 3.5).toFixed(1)} ${h.move.y.toFixed(1)} L ${(h.move.x + 3.5).toFixed(1)} ${h.move.y.toFixed(1)} M ${h.move.x.toFixed(1)} ${(h.move.y - 3.5).toFixed(1)} L ${h.move.x.toFixed(1)} ${(h.move.y + 3.5).toFixed(1)}`}
+            stroke="#6366F1"
+            strokeWidth={1}
+          />
+        </g>
+      ) : null}
+    </svg>
+  );
+}
 
 function getActiveRoofVertexModelingTarget(
   inspectMode: boolean,
@@ -772,8 +1012,6 @@ function ViewerSceneContent({
   pvLayout3DInteractionMode = false,
   pvLayout3dOverlayState,
   onPvPanelPvLayout3dPointerDown,
-  onPvMoveHandlePointerDown,
-  onPvRotateHandlePointerDown,
   debugRuntime,
   satelliteTexture,
   satelliteUvMapper,
@@ -822,8 +1060,6 @@ function ViewerSceneContent({
   readonly pvLayout3DInteractionMode?: boolean;
   readonly pvLayout3dOverlayState?: PvLayout3dOverlayState | null;
   readonly onPvPanelPvLayout3dPointerDown?: (e: ThreeEvent<PointerEvent>, panelId: string) => void;
-  readonly onPvMoveHandlePointerDown?: (e: ReactPointerEvent<HTMLButtonElement>, h: PvLayout3dHandleUi) => void;
-  readonly onPvRotateHandlePointerDown?: (e: ReactPointerEvent<HTMLButtonElement>, h: PvLayout3dHandleUi) => void;
   /** Runtime brut (ex. CALPINAGE_STATE) — champs 2D lucarne pour rendu dormer premium (couche visuelle). */
   readonly debugRuntime?: unknown;
   /**
@@ -1005,75 +1241,6 @@ function ViewerSceneContent({
     return m;
   }, [pvLayout3dOverlayState]);
 
-  const pv3dGhostGeos = useMemo(() => {
-    if (!pvLayout3DInteractionMode || !pvLayout3dOverlayState) return [];
-    return pvLayout3dOverlayState.ghosts.flatMap((g) => {
-      const fill = imagePolygonToRoofMeshGeometry(scene, g.points, g.panId, 0.045);
-      const line = imagePolygonToRoofLineGeometry(scene, g.points, g.panId, 0.052);
-      return fill || line ? [{ id: g.id, fill, line, valid: g.valid !== false, excluded: !!g.excluded, source: g.source }] : [];
-    });
-  }, [scene, pvLayout3DInteractionMode, pvLayout3dOverlayState]);
-
-  const pv3dSafeZoneGeos = useMemo(() => {
-    if (!pvLayout3DInteractionMode || !pvLayout3dOverlayState) return [];
-    return pvLayout3dOverlayState.safeZones.flatMap((z) =>
-      z.polygons.flatMap((poly, index) => {
-        const line = imagePolygonToRoofLineGeometry(scene, poly, z.panId, 0.062);
-        return line ? [{ id: `${z.panId}-${index}`, line }] : [];
-      }),
-    );
-  }, [scene, pvLayout3DInteractionMode, pvLayout3dOverlayState]);
-
-  const pv3dHandlePositions = useMemo(() => {
-    const h = pvLayout3dOverlayState?.handles;
-    if (!pvLayout3DInteractionMode || !pvLayout3dOverlayState?.focusBlockId) return null;
-    const selectedPanId = pvLayout3dOverlayState.panels.find((p) => p.selected)?.panId ?? null;
-    if (h) {
-      const rotate = imagePolygonToRoofWorldPoints(scene, [h.rotate, h.rotate], selectedPanId, 0.22)[0] ?? null;
-      const move = imagePolygonToRoofWorldPoints(scene, [h.move, h.move], selectedPanId, 0.22)[0] ?? null;
-      const top = imagePolygonToRoofWorldPoints(scene, [h.topOfBlock, h.topOfBlock], selectedPanId, 0.2)[0] ?? null;
-      if (rotate && move && top) {
-        return {
-          blockId: h.blockId,
-          rotate,
-          move,
-          top,
-          rotateImg: h.rotate,
-          moveImg: h.move,
-        };
-      }
-    }
-    const selectedPanelIds = new Set(
-      pvLayout3dOverlayState.panels.filter((p) => p.selected).map((p) => String(p.id)),
-    );
-    if (selectedPanelIds.size === 0) return null;
-    const boxSel = new THREE.Box3();
-    for (const { id, geo } of panelGeos) {
-      if (!selectedPanelIds.has(String(id))) continue;
-      geo.computeBoundingBox();
-      const b = geo.boundingBox;
-      if (b) boxSel.union(b);
-    }
-    if (boxSel.isEmpty()) return null;
-    const centerSel = boxSel.getCenter(new THREE.Vector3());
-    const sizeSel = boxSel.getSize(new THREE.Vector3());
-    const lift = Math.max(maxDimLocal * 0.018, 0.18);
-    const reach = Math.max(Math.max(sizeSel.x, sizeSel.y) * 0.38, maxDimLocal * 0.035, 0.28);
-    const top = centerSel.clone().setZ(boxSel.max.z + lift);
-    const move = centerSel.clone().setZ(boxSel.max.z + lift * 1.4);
-    const rotate = centerSel.clone().add(new THREE.Vector3(0, -reach, 0)).setZ(boxSel.max.z + lift * 1.6);
-    const wc = scene.worldConfig;
-    if (!wc) return null;
-    return {
-      blockId: pvLayout3dOverlayState.focusBlockId,
-      rotate,
-      move,
-      top,
-      rotateImg: worldPointToImage({ x: rotate.x, y: rotate.y, z: rotate.z }, wc),
-      moveImg: worldPointToImage({ x: move.x, y: move.y, z: move.z }, wc),
-    };
-  }, [scene, panelGeos, maxDimLocal, pvLayout3DInteractionMode, pvLayout3dOverlayState]);
-
   const allGeos = useMemo(
     () => [
       ...(shellGeo ? [shellGeo] : []),
@@ -1085,10 +1252,8 @@ function ViewerSceneContent({
       ...obsGeos.map((x) => x.geo),
       ...extGeos.map((x) => x.geo),
       ...panelGeos.map((x) => x.geo),
-      ...pv3dGhostGeos.flatMap((x) => [x.fill, x.line].filter((g): g is THREE.BufferGeometry => g != null)),
-      ...pv3dSafeZoneGeos.map((x) => x.line),
     ],
-    [shellGeo, roofGeos, roofClosureGeo, edgeGeo, ridgeGeo, dormerPremiumLayer.meshes, obsGeos, extGeos, panelGeos, pv3dGhostGeos, pv3dSafeZoneGeos],
+    [shellGeo, roofGeos, roofClosureGeo, edgeGeo, ridgeGeo, dormerPremiumLayer.meshes, obsGeos, extGeos, panelGeos],
   );
 
   const solidGeosForNormalsAudit = useMemo(
@@ -1494,91 +1659,6 @@ function ViewerSceneContent({
             </mesh>
           );
         })}
-      {pvLayout3DInteractionMode &&
-        pv3dSafeZoneGeos.map(({ id, line }) => (
-          <lineSegments key={`pv3d-safe-${id}`} geometry={line} renderOrder={18}>
-            <lineBasicMaterial color="#ef4444" transparent opacity={0.95} toneMapped={false} depthTest={false} />
-          </lineSegments>
-        ))}
-      {pvLayout3DInteractionMode &&
-        pv3dGhostGeos.map(({ id, fill, line, valid, excluded }) => (
-          <group key={`pv3d-ghost-${id}`}>
-            {fill ? (
-              <mesh geometry={fill} renderOrder={16}>
-                <meshBasicMaterial
-                  color={valid ? (excluded ? "#a1a1aa" : "#94a3b8") : "#ef4444"}
-                  transparent
-                  opacity={valid ? (excluded ? 0.14 : 0.34) : 0.22}
-                  side={THREE.DoubleSide}
-                  depthWrite={false}
-                  toneMapped={false}
-                />
-              </mesh>
-            ) : null}
-            {line ? (
-              <lineSegments geometry={line} renderOrder={17}>
-                <lineBasicMaterial
-                  color={valid ? (excluded ? "#71717a" : "#cbd5e1") : "#ef4444"}
-                  transparent
-                  opacity={valid ? 0.82 : 0.9}
-                  toneMapped={false}
-                  depthTest={false}
-                />
-              </lineSegments>
-            ) : null}
-          </group>
-        ))}
-      {pv3dHandlePositions ? (
-        <group>
-          <lineSegments>
-            <bufferGeometry>
-              <bufferAttribute
-                attach="attributes-position"
-                args={[
-                  new Float32Array([
-                    pv3dHandlePositions.top.x,
-                    pv3dHandlePositions.top.y,
-                    pv3dHandlePositions.top.z,
-                    pv3dHandlePositions.rotate.x,
-                    pv3dHandlePositions.rotate.y,
-                    pv3dHandlePositions.rotate.z,
-                    pv3dHandlePositions.top.x,
-                    pv3dHandlePositions.top.y,
-                    pv3dHandlePositions.top.z,
-                    pv3dHandlePositions.move.x,
-                    pv3dHandlePositions.move.y,
-                    pv3dHandlePositions.move.z,
-                  ]),
-                  3,
-                ]}
-              />
-            </bufferGeometry>
-            <lineBasicMaterial color="#6366f1" transparent opacity={0.7} toneMapped={false} depthTest={false} />
-          </lineSegments>
-          <Html position={pv3dHandlePositions.rotate} center zIndexRange={[80, 20]} style={{ pointerEvents: "auto" }}>
-            <button
-              type="button"
-              aria-label="Tourner la selection PV"
-              title="Tourner"
-              onPointerDown={(e) => onPvRotateHandlePointerDown?.(e, pv3dHandlePositions)}
-              style={pv3dRotateHandleButtonStyle}
-            >
-              R
-            </button>
-          </Html>
-          <Html position={pv3dHandlePositions.move} center zIndexRange={[80, 20]} style={{ pointerEvents: "auto" }}>
-            <button
-              type="button"
-              aria-label="Deplacer la selection PV"
-              title="Deplacer"
-              onPointerDown={(e) => onPvMoveHandlePointerDown?.(e, pv3dHandlePositions)}
-              style={pv3dMoveHandleButtonStyle}
-            >
-              +
-            </button>
-          </Html>
-        </group>
-      ) : null}
       {visPanels &&
         panelGeos.map(({ id, geo }) => {
           const pvSel = isInspectSelected(inspectionSelection, "PV_PANEL", id);
@@ -2585,6 +2665,7 @@ function SolarScene3DViewer({
     () => (pvLayout3DInteractionMode ? readPvLayout3dOverlayState() : null),
     [pvLayout3DInteractionMode, pv3dOverlayEpoch, scene],
   );
+  const [pvLayout3dScreenOverlay, setPvLayout3dScreenOverlay] = useState<PvLayout3dScreenOverlayState | null>(null);
 
   const onPv3dLiveOffsetImg = useCallback((dxImg: number, dyImg: number, rotationDeg = 0) => {
     if (pv3dDragSessionRef.current?.mode === "rotate") {
@@ -2641,7 +2722,7 @@ function SolarScene3DViewer({
   );
 
   const beginPv3dHandleDrag = useCallback(
-    (e: ReactPointerEvent<HTMLButtonElement>, mode: "move" | "rotate", h: PvLayout3dHandleUi) => {
+    (e: ReactPointerEvent<Element>, mode: "move" | "rotate", h: PvLayout3dHandleUi) => {
       if (!pvLayout3DInteractionMode) return;
       if (e.button !== 0) return;
       const wc = scene.worldConfig;
@@ -2672,12 +2753,12 @@ function SolarScene3DViewer({
   );
 
   const onPvMoveHandlePointerDown = useCallback(
-    (e: ReactPointerEvent<HTMLButtonElement>, h: PvLayout3dHandleUi) => beginPv3dHandleDrag(e, "move", h),
+    (e: ReactPointerEvent<Element>, h: PvLayout3dHandleUi) => beginPv3dHandleDrag(e, "move", h),
     [beginPv3dHandleDrag],
   );
 
   const onPvRotateHandlePointerDown = useCallback(
-    (e: ReactPointerEvent<HTMLButtonElement>, h: PvLayout3dHandleUi) => beginPv3dHandleDrag(e, "rotate", h),
+    (e: ReactPointerEvent<Element>, h: PvLayout3dHandleUi) => beginPv3dHandleDrag(e, "rotate", h),
     [beginPv3dHandleDrag],
   );
 
@@ -2696,6 +2777,12 @@ function SolarScene3DViewer({
         e.stopPropagation();
         return;
       }
+      if (pvLayout3DInteractionMode && (pvLayout3dOverlayState?.focusBlockId || pvLayout3dOverlayState?.activeBlockId)) {
+        clearPvSelectionFrom3d();
+        refreshPv3dOverlay();
+        e.stopPropagation();
+        return;
+      }
       const r = tryCommitPvPlacementFrom3dRoofHit({
         panId,
         worldPointM: { x: e.point.x, y: e.point.y, z: e.point.z },
@@ -2710,7 +2797,7 @@ function SolarScene3DViewer({
         e.stopPropagation();
       }
     },
-    [scene.worldConfig, pvRoofPlacementEnabled, pvLayout3DInteractionMode, refreshPv3dOverlay],
+    [scene.worldConfig, pvRoofPlacementEnabled, pvLayout3DInteractionMode, pvLayout3dOverlayState, refreshPv3dOverlay],
   );
 
   const structuralRidgeHeightEditPanel = useMemo((): StructuralRidgeHeightEditUiModel | null => {
@@ -3127,6 +3214,11 @@ function SolarScene3DViewer({
           ))}
         </div>
       )}
+      <PvLayout3dSvgOverlay
+        overlay={pvLayout3DInteractionMode ? pvLayout3dScreenOverlay : null}
+        onMovePointerDown={onPvMoveHandlePointerDown}
+        onRotatePointerDown={onPvRotateHandlePointerDown}
+      />
       <Canvas
         key={cameraViewMode}
         orthographic={cameraViewMode === "PLAN_2D"}
@@ -3186,6 +3278,12 @@ function SolarScene3DViewer({
         <color attach="background" args={[premiumAssembly.backgroundHex]} />
         <GlCursorBinder cursor={glCursor} />
         <LineRaycastThreshold maxDim={maxDim} enabled={enableStructuralRidgeHeightEdit} />
+        <PvLayout3dScreenOverlayProjector
+          scene={scene}
+          overlay={pvLayout3dOverlayState}
+          enabled={pvLayout3DInteractionMode}
+          onProjected={setPvLayout3dScreenOverlay}
+        />
         <CameraFramingRig
           box={framingBox}
           mode={cameraViewMode}
@@ -3242,8 +3340,6 @@ function SolarScene3DViewer({
           pvLayout3DInteractionMode={pvLayout3DInteractionMode}
           pvLayout3dOverlayState={pvLayout3dOverlayState}
           onPvPanelPvLayout3dPointerDown={onPvPanelPvLayout3dPointerDown}
-          onPvMoveHandlePointerDown={onPvMoveHandlePointerDown}
-          onPvRotateHandlePointerDown={onPvRotateHandlePointerDown}
           debugRuntime={debugRuntime}
           satelliteTexture={satelliteTexture}
           satelliteUvMapper={satelliteUvMapper}
