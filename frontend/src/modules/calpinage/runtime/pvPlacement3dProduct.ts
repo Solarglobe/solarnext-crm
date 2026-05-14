@@ -286,12 +286,12 @@ export function readPvLayout3dOverlayState(): PvLayout3dOverlayState | null {
   }
 }
 
-/** Sélectionne un bloc PV depuis la vue 3D. */
-export function selectPvBlockFrom3d(blockId: string): boolean {
+/** Sélectionne un bloc PV depuis la vue 3D, avec optionnellement un panneau. */
+export function selectPvBlockFrom3d(blockId: string, panelId?: string | null): boolean {
   const fn = readSelectBlock();
   if (!fn) return false;
   try {
-    return fn(blockId) === true;
+    return fn(blockId, panelId ?? null) === true;
   } catch {
     return false;
   }
@@ -299,10 +299,8 @@ export function selectPvBlockFrom3d(blockId: string): boolean {
 
 /** Ajoute un panneau PV à partir d'un point image 3D. */
 export function addPvPanelFrom3dImagePoint(
-  blockId: string,
   imagePoint: { readonly x: number; readonly y: number },
 ): boolean {
-  void blockId; // le bridge utilise le bloc actif ; blockId sert au contexte appelant
   const fn = readAddPanel();
   if (!fn) return false;
   try {
@@ -313,13 +311,11 @@ export function addPvPanelFrom3dImagePoint(
 }
 
 /** Supprime un panneau PV spécifique depuis la vue 3D. */
-export function removePvPanelFrom3d(panelId: string): boolean {
+export function removePvPanelFrom3d(blockId: string, panelId: string): boolean {
   const fn = readRemovePanel();
   if (!fn) return false;
   try {
-    // Le bridge JS attend (blockId, panelId) mais utilise selectedPlacedBlockId en interne.
-    // On passe une chaîne vide pour blockId car le bridge gère la résolution via CALPINAGE_STATE.
-    return fn("", panelId) === true;
+    return fn(blockId, panelId) === true;
   } catch {
     return false;
   }

@@ -5764,6 +5764,7 @@ export function initCalpinage(container, options = {}) {
           return false;
         }
         ENG.setManipulationTransform(dxImg, dyImg, 0);
+        notifyPhase3Pv3dOverlayChanged();
         return true;
       }
 
