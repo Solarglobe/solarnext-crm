@@ -5764,6 +5764,7 @@ export function initCalpinage(container, options = {}) {
           return false;
         }
         ENG.setManipulationTransform(dxImg, dyImg, 0);
+        validateActivePvManipulationBlockLive();
         notifyPhase3Pv3dOverlayChanged();
         return true;
       }
@@ -5782,8 +5783,21 @@ export function initCalpinage(container, options = {}) {
         } else {
           ENG.setManipulationTransform(dxImg, dyImg, 0);
         }
+        validateActivePvManipulationBlockLive();
         notifyPhase3Pv3dOverlayChanged();
         return true;
+      }
+
+      function validateActivePvManipulationBlockLive() {
+        var ENG = window.pvPlacementEngine;
+        if (!ENG || typeof ENG.getActiveBlock !== "function" || typeof ENG.updatePanelValidationForBlock !== "function") return;
+        var block = ENG.getActiveBlock();
+        if (!block || typeof getProjectionContextForBlock !== "function") return;
+        ENG.updatePanelValidationForBlock(
+          block,
+          function () { return getProjectionContextForBlock(block, { allowDuringManipulation: true }); },
+          { allowDuringManipulation: true }
+        );
       }
 
       function cancelPhase3PvMoveFrom3d() {
@@ -6057,7 +6071,7 @@ export function initCalpinage(container, options = {}) {
           pushBlockPanels(activeBlock, !!(focusBlock && activeBlock.id === focusBlock.id));
         }
         var konva = window.CALPINAGE_PV_PANELS_DATA && window.CALPINAGE_PV_PANELS_DATA.panels;
-        if (Array.isArray(konva)) {
+        if (Array.isArray(konva) && !window.CALPINAGE_IS_MANIPULATING) {
           var byKey = {};
           for (var kp = 0; kp < konva.length; kp++) {
             var kd = konva[kp];
@@ -17756,6 +17770,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               var dxPv = imgPtPv.x - calpinageHandleDrag.startImgX;
               var dyPv = imgPtPv.y - calpinageHandleDrag.startImgY;
               ENGwm.setManipulationTransform(dxPv, dyPv, 0);
+              validateActivePvManipulationBlockLive();
             } else if (calpinageHandleDrag.type === "rotate") {
               var cImgPv = calpinageHandleDrag.centerImg;
               if (cImgPv) {
@@ -17770,6 +17785,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 }
                 drawState.ph3RotationLiveDeg = deltaDeg;
                 ENGwm.setManipulationTransform(0, 0, deltaDeg);
+                validateActivePvManipulationBlockLive();
               }
             }
             if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();

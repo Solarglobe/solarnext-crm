@@ -710,8 +710,9 @@
    * @param {Object} block - Bloc (actif ou figé)
    * @param {function(): Object} getProjectionContext - Fonction retournant le contexte (roofPolygon, roofConstraints, etc.)
    */
-  function updatePanelValidationForBlock(block, getProjectionContext) {
-    if (typeof window !== "undefined" && window.CALPINAGE_IS_MANIPULATING) return;
+  function updatePanelValidationForBlock(block, getProjectionContext, opts) {
+    opts = opts || {};
+    if (typeof window !== "undefined" && window.CALPINAGE_IS_MANIPULATING && opts.allowDuringManipulation !== true) return;
     if (!block || !block.panels || typeof getProjectionContext !== "function") return;
     var caches = buildValidationCaches(block, getProjectionContext);
     if (!caches) return;
