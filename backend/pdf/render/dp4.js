@@ -235,7 +235,7 @@
 
     // DP4 (page)
     const label = p.label || (p.category === "before" ? "Avant travaux" : p.category === "after" ? "Après travaux" : "—");
-    setText(pageEl, "page.title", `DP4 – Plan de toiture — ${label}`);
+    setText(pageEl, "page.title", `DP4 – Plan des toitures / implantation photovoltaïque — ${label}`);
     setText(pageEl, "page.roofType", roofTypeLabel(p.roofType));
     setText(pageEl, "page.panelModel", formatPanelModel(p.panelModel));
     setText(pageEl, "page.viewHeightMeters", (typeof p.viewHeightMeters === "number" && Number.isFinite(p.viewHeightMeters)) ? p.viewHeightMeters.toFixed(1) : "—");

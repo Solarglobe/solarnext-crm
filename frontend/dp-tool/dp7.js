@@ -11,6 +11,7 @@
     backgroundImage: null,
     finalImage: null,
     arrows: [],
+    textBoxes: [],
   };
 
   const DP7_ARROW_COLOR = "#D72626";
@@ -20,6 +21,10 @@
   const DP7_HIT_TOL = 10;
   const DP7_HANDLE_R = 8;
   const DP7_MIN_ARROW_LEN = 10;
+  const DP7_TEXT_FONT = "600 16px Arial, sans-serif";
+  const DP7_TEXT_COLOR = "#ffffff";
+  const DP7_TEXT_STROKE = "rgba(0,0,0,.72)";
+  const DP7_TEXT_PADDING_X = 8;
 
   function __snGoogleMapsPublicKey() {
     var w = typeof window !== "undefined" ? window : {};
@@ -86,6 +91,13 @@
     return Array.isArray(window.DP7_STATE?.arrows) ? window.DP7_STATE.arrows : [];
   }
 
+  function dp7NormalizeTextBoxesArray() {
+    try {
+      if (!Array.isArray(window.DP7_STATE.textBoxes)) window.DP7_STATE.textBoxes = [];
+    } catch (_) {}
+    return Array.isArray(window.DP7_STATE?.textBoxes) ? window.DP7_STATE.textBoxes : [];
+  }
+
   function dp7MakeArrow(a, b) {
     return {
       id: dp7GenId(),
@@ -93,6 +105,15 @@
       y1: +Number(a.y || 0).toFixed(2),
       x2: +Number(b.x || 0).toFixed(2),
       y2: +Number(b.y || 0).toFixed(2),
+    };
+  }
+
+  function dp7MakeTextBox(p, text) {
+    return {
+      id: `dp7_text_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
+      x: +Number(p.x || 0).toFixed(2),
+      y: +Number(p.y || 0).toFixed(2),
+      text: String(text || "").trim(),
     };
   }
 
@@ -122,11 +143,13 @@
       const validateBtn = document.getElementById("dp7-validate");
       const categoryLabelEl = document.getElementById("dp7-photo-category-label");
       const arrowToolBtn = document.getElementById("dp7-tool-arrow");
+      const textToolBtn = document.getElementById("dp7-tool-text");
       const useCurrentViewBtn = document.getElementById("dp7-use-current-view");
 
       if (!modal || (!btnBefore && !btnAfter) || !workspace) return;
 
       dp7NormalizeArrowsArray();
+      dp7NormalizeTextBoxesArray();
 
       // ==============================
       // Vue (zoom/pan) — visuel uniquement
@@ -316,7 +339,18 @@
       // Rendu (canvas)
       // ==============================
       let selectedArrowId = null;
+      let selectedTextId = null;
+      let activeTool = "arrow";
       let active = null; // interaction en cours
+      function dp7SetActiveTool(tool) {
+        activeTool = tool === "text" ? "text" : "arrow";
+        try {
+          arrowToolBtn?.classList.toggle("dp2-tool-active", activeTool === "arrow");
+          textToolBtn?.classList.toggle("dp2-tool-active", activeTool === "text");
+          arrowToolBtn?.setAttribute("aria-pressed", activeTool === "arrow" ? "true" : "false");
+          textToolBtn?.setAttribute("aria-pressed", activeTool === "text" ? "true" : "false");
+        } catch (_) {}
+      }
       let draftArrow = null; // prévisualisation pendant le drag de création
 
       function dp7GetWorkspaceBoundsCss() {
@@ -375,6 +409,38 @@
         ctx.restore();
       }
 
+      function dp7MeasureTextBox(ctx, box) {
+        const text = String(box?.text || "").trim() || " ";
+        ctx.save();
+        ctx.font = DP7_TEXT_FONT;
+        const w = Math.ceil(ctx.measureText(text).width) + DP7_TEXT_PADDING_X * 2;
+        ctx.restore();
+        return { x: Number(box?.x || 0), y: Number(box?.y || 0), w: Math.max(36, w), h: 28 };
+      }
+
+      function dp7DrawTextBox(ctx, box, selected) {
+        const text = String(box?.text || "").trim();
+        if (!text) return;
+        const b = dp7MeasureTextBox(ctx, box);
+        ctx.save();
+        ctx.font = DP7_TEXT_FONT;
+        ctx.lineJoin = "round";
+        ctx.fillStyle = "rgba(17,24,39,.74)";
+        ctx.strokeStyle = selected ? "#2563eb" : "rgba(255,255,255,.9)";
+        ctx.lineWidth = selected ? 2 : 1;
+        ctx.beginPath();
+        if (typeof ctx.roundRect === "function") ctx.roundRect(b.x, b.y, b.w, b.h, 4);
+        else ctx.rect(b.x, b.y, b.w, b.h);
+        ctx.fill();
+        ctx.stroke();
+        ctx.strokeStyle = DP7_TEXT_STROKE;
+        ctx.lineWidth = 3;
+        ctx.strokeText(text, b.x + DP7_TEXT_PADDING_X, b.y + 19);
+        ctx.fillStyle = DP7_TEXT_COLOR;
+        ctx.fillText(text, b.x + DP7_TEXT_PADDING_X, b.y + 19);
+        ctx.restore();
+      }
+
       async function renderDP7Canvas() {
         const struct = dp7EnsureWorkspaceStructure();
         if (!struct) return;
@@ -413,6 +479,12 @@
           dp7DrawArrow(ctx, ar);
         }
 
+        const textBoxes = dp7NormalizeTextBoxesArray();
+        for (let i = 0; i < textBoxes.length; i++) {
+          const box = textBoxes[i];
+          dp7DrawTextBox(ctx, box, !!(box && box.id === selectedTextId));
+        }
+
         if (draftArrow) {
           dp7DrawArrow(ctx, draftArrow);
         }
@@ -430,7 +502,9 @@
         const okImage = dp7HasBackground();
         const arrows = dp7NormalizeArrowsArray();
         const okArrows = Array.isArray(arrows) && arrows.length > 0;
-        if (validateBtn) validateBtn.disabled = !(okImage && okArrows);
+        const textBoxes = dp7NormalizeTextBoxesArray();
+        const okTexts = Array.isArray(textBoxes) && textBoxes.length > 0;
+        if (validateBtn) validateBtn.disabled = !(okImage && (okArrows || okTexts));
       }
 
       // ==============================
@@ -496,9 +570,12 @@
           window.DP7_STATE = window.DP7_STATE || {};
           window.DP7_STATE.backgroundImage = s;
           window.DP7_STATE.arrows = [];
+          window.DP7_STATE.textBoxes = [];
+          window.DP7_STATE.finalImage = null;
         } catch (_) {}
 
         selectedArrowId = null;
+        selectedTextId = null;
         draftArrow = null;
         active = null;
 
@@ -767,6 +844,18 @@
       }
 
       function dp7HitTest(p) {
+        const canvas = canvasForEvents || workspace.querySelector("#dp7-canvas");
+        const ctx = canvas ? canvas.getContext("2d") : null;
+        if (ctx) {
+          const textBoxes = dp7NormalizeTextBoxesArray();
+          for (let i = textBoxes.length - 1; i >= 0; i--) {
+            const box = textBoxes[i];
+            const b = dp7MeasureTextBox(ctx, box);
+            if (p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h) {
+              return { type: "text", id: box.id };
+            }
+          }
+        }
         const arrows = dp7NormalizeArrowsArray();
         // top-most : on parcourt à l'envers
         for (let i = arrows.length - 1; i >= 0; i--) {
@@ -776,10 +865,10 @@
           const b = { x: ar.x2, y: ar.y2 };
           const d1 = dp7Dist(p, a);
           const d2 = dp7Dist(p, b);
-          if (d1 <= DP7_HIT_TOL) return { id: ar.id, handle: "start" };
-          if (d2 <= DP7_HIT_TOL) return { id: ar.id, handle: "end" };
+          if (d1 <= DP7_HIT_TOL) return { type: "arrow", id: ar.id, handle: "start" };
+          if (d2 <= DP7_HIT_TOL) return { type: "arrow", id: ar.id, handle: "end" };
           const ds = dp7DistPointToSegment(p, a, b);
-          if (ds <= DP7_HIT_TOL) return { id: ar.id, handle: "body" };
+          if (ds <= DP7_HIT_TOL) return { type: "arrow", id: ar.id, handle: "body" };
         }
         return null;
       }
@@ -797,6 +886,22 @@
           window.DP7_STATE.arrows = next;
         } catch (_) {}
         selectedArrowId = null;
+        dp7SyncValidateButtonUI();
+        renderDP7Canvas();
+      }
+
+      function dp7GetTextBoxById(id) {
+        const boxes = dp7NormalizeTextBoxesArray();
+        return boxes.find((b) => b && b.id === id) || null;
+      }
+
+      function dp7RemoveSelectedText() {
+        if (!selectedTextId) return;
+        const boxes = dp7NormalizeTextBoxesArray();
+        try {
+          window.DP7_STATE.textBoxes = boxes.filter((b) => b && b.id !== selectedTextId);
+        } catch (_) {}
+        selectedTextId = null;
         dp7SyncValidateButtonUI();
         renderDP7Canvas();
       }
@@ -826,7 +931,23 @@
         const bounds = dp7GetBoundsForClamp();
 
         if (hit) {
+          if (hit.type === "text") {
+            selectedArrowId = null;
+            selectedTextId = hit.id;
+            const box = dp7GetTextBoxById(hit.id);
+            if (!box) return;
+            active = {
+              type: "move_text",
+              id: hit.id,
+              startMouse: p,
+              startBox: { x: box.x, y: box.y },
+              bounds,
+            };
+            renderDP7Canvas();
+            return;
+          }
           selectedArrowId = hit.id;
+          selectedTextId = null;
           const ar = dp7GetArrowById(hit.id);
           if (!ar) return;
           active = {
@@ -841,7 +962,21 @@
         }
 
         // Création : clic + drag + release
+        if (activeTool === "text") {
+          const text = String(prompt("Texte à afficher sur la photo :", "") || "").trim();
+          if (text) {
+            const box = dp7MakeTextBox(dp7ClampPoint(p, bounds), text);
+            dp7NormalizeTextBoxesArray().push(box);
+            selectedTextId = box.id;
+            selectedArrowId = null;
+            dp7SyncValidateButtonUI();
+          }
+          renderDP7Canvas();
+          return;
+        }
+
         selectedArrowId = null;
+        selectedTextId = null;
         active = { type: "draw", startMouse: p, bounds };
         draftArrow = dp7MakeArrow(dp7ClampPoint(p, bounds), dp7ClampPoint(p, bounds));
         renderDP7Canvas();
@@ -859,6 +994,17 @@
           if (!draftArrow) return;
           draftArrow.x2 = +Number(cp.x).toFixed(2);
           draftArrow.y2 = +Number(cp.y).toFixed(2);
+          renderDP7Canvas();
+          return;
+        }
+
+        if (active.type === "move_text") {
+          const box = dp7GetTextBoxById(active.id);
+          if (!box) return;
+          const dx = cp.x - active.startMouse.x;
+          const dy = cp.y - active.startMouse.y;
+          box.x = +Number(dp7Clamp(active.startBox.x + dx, 0, bounds.w - 20)).toFixed(2);
+          box.y = +Number(dp7Clamp(active.startBox.y + dy, 0, bounds.h - 20)).toFixed(2);
           renderDP7Canvas();
           return;
         }
@@ -931,7 +1077,31 @@
         canvasForEvents.addEventListener("pointermove", onPointerMove);
         canvasForEvents.addEventListener("pointerup", onPointerUp);
         canvasForEvents.addEventListener("pointercancel", onPointerUp);
+        canvasForEvents.addEventListener("dblclick", (e) => {
+          if (!dp7HasBackground()) return;
+          const hit = dp7HitTest(dp7GetLayerPointFromEvent(e));
+          if (!hit || hit.type !== "text") return;
+          const box = dp7GetTextBoxById(hit.id);
+          if (!box) return;
+          const next = String(prompt("Modifier le texte :", box.text || "") || "").trim();
+          if (!next) return;
+          box.text = next;
+          selectedTextId = box.id;
+          selectedArrowId = null;
+          dp7SyncValidateButtonUI();
+          renderDP7Canvas();
+        });
       }
+
+      arrowToolBtn?.addEventListener("click", (e) => {
+        e.preventDefault();
+        dp7SetActiveTool("arrow");
+      });
+      textToolBtn?.addEventListener("click", (e) => {
+        e.preventDefault();
+        dp7SetActiveTool("text");
+      });
+      dp7SetActiveTool(activeTool);
 
       // Suppression clavier (individuelle)
       if (!window.__DP7_KEY_BOUND) {
@@ -940,9 +1110,10 @@
           const isOpen = modal && modal.getAttribute("aria-hidden") === "false";
           if (!isOpen) return;
           if (e.key === "Delete" || e.key === "Backspace") {
-            if (!selectedArrowId) return;
+            if (!selectedArrowId && !selectedTextId) return;
             e.preventDefault();
-            dp7RemoveSelectedArrow();
+            if (selectedTextId) dp7RemoveSelectedText();
+            else dp7RemoveSelectedArrow();
           }
         });
       }
@@ -1049,10 +1220,12 @@
           e.preventDefault();
           if (!dp7HasBackground()) return;
           const arrows = dp7NormalizeArrowsArray();
-          if (!arrows.length) return;
+          const textBoxes = dp7NormalizeTextBoxesArray();
+          if (!arrows.length && !textBoxes.length) return;
 
           // Snapshot FINAL (photo + flèches) — sans UI/poignées
           selectedArrowId = null;
+          selectedTextId = null;
           draftArrow = null;
           active = null;
           await renderDP7Canvas();
@@ -1075,8 +1248,6 @@
             // - le PDF lit `finalImage` (inchangé)
             // On force donc `backgroundImage` = image finale validée, et on vide les flèches
             // pour éviter une double superposition (flèches baked + flèches redessinées).
-            window.DP7_STATE.backgroundImage = out;
-            window.DP7_STATE.arrows = [];
           } catch (_) {}
 
           dp7RenderEntryMiniatures(out);
@@ -1116,4 +1287,3 @@
       console.log("[DP7] init ok");
     };
 })();
-

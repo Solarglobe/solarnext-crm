@@ -649,7 +649,30 @@ function solarnextDpMountNavigationShell() {
     });
   }
 
+function initDPGeneralOverview() {
+  const list = document.getElementById("dp-completion-list");
+  const count = document.getElementById("dp-completion-count");
+  if (!list) return;
+  const hasDataImage = (v) => typeof v === "string" && v.startsWith("data:image");
+  const items = [
+    { label: "DP1 parcelle cadastrale validée", ok: !!window.DP1_STATE?.selectedParcel },
+    { label: "DP3 insertion / photo simple validée", ok: !!window.DP3_STATE?.hasDP3 || hasDataImage(window.DP3_STATE?.baseImage) },
+    { label: "DP4 plan avant et après enregistrés", ok: !!window.DP4_STATE?.plans?.before && !!window.DP4_STATE?.plans?.after },
+    { label: "DP6 avant + photomontage après distinct", ok: hasDataImage(window.DP6_STATE?.beforeImage) && hasDataImage(window.DP6_STATE?.afterImage) && window.DP6_STATE?.beforeImage !== window.DP6_STATE?.afterImage },
+    { label: "DP7 implantation annotée et validée", ok: hasDataImage(window.DP7_STATE?.finalImage) },
+    { label: "DP8 paysage proche annoté et validé", ok: hasDataImage(window.DP8_STATE?.finalImage) },
+  ];
+  const done = items.filter((it) => it.ok).length;
+  list.innerHTML = items
+    .map((it) => `<li style="margin:6px 0;color:${it.ok ? "#166534" : "#92400e"}">${it.ok ? "OK" : "À faire"} — ${it.label}</li>`)
+    .join("");
+  if (count) count.textContent = `${done}/${items.length}`;
+}
+
 function initInjectedPage(page) {
+  if (page.endsWith("general.html")) {
+    initDPGeneralOverview();
+  } else
   if (page.endsWith("dp1.html")) {
     // ✅ initialise TOUT le DP1 (upload + états + modal + lead)
     if (typeof initDP1 === "function") {
@@ -758,6 +781,9 @@ function initInjectedPage(page) {
     var slot = document.getElementById("view-" + pageId);
     if (slot) slot.classList.add("dp-view--active");
     setActive(pagePath);
+    if (pagePath && pagePath.endsWith("general.html")) {
+      try { initDPGeneralOverview(); } catch (_) {}
+    }
     try {
       if (window.DpDraftStore && typeof window.DpDraftStore.setCurrentPage === "function") {
         window.DpDraftStore.setCurrentPage(pageId);
@@ -5140,7 +5166,7 @@ async function generateDP4PDF() {
   const dp4Data = {
     meta: {
       generatedAt: new Date().toISOString(),
-      titleBase: "DP4 – Plan de toiture",
+      titleBase: "DP4 – Plan des toitures / implantation photovoltaïque",
     },
     client: buildPdfClientFromDP1Context(),
     parcel: {
@@ -20097,7 +20123,7 @@ function initDP4() {
   const validateBtn = document.getElementById("dp4-map-validate");
 
   // Sauvegarde du "template" de l'étape carte (pour pouvoir la restaurer si besoin)
-  const DP4_MODAL_TITLE_INITIAL = titleEl ? titleEl.textContent : "DP4 — Plan de toiture";
+  const DP4_MODAL_TITLE_INITIAL = titleEl ? titleEl.textContent : "DP4 — Plan des toitures / implantation photovoltaïque";
   const DP4_MODAL_BODY_INITIAL_HTML = bodyEl ? bodyEl.innerHTML : "";
 
   function dp4SetValidateVisible(visible) {
@@ -22916,7 +22942,11 @@ function initDP6() {
 
       try {
         window.DP6_STATE = window.DP6_STATE || {};
-        window.DP6_STATE.afterImage = out;
+        if (isBefore) {
+          window.DP6_STATE.beforeImage = out;
+        } else {
+          window.DP6_STATE.afterImage = out;
+        }
       } catch (_) {}
 
       dp6RenderEntryMiniatures();
@@ -23035,6 +23065,16 @@ window.bindDP6ExportPdfButton = window.bindDP6ExportPdfButton || function bindDP
     const hasAfter = !!(st && typeof st.afterImage === "string" && st.afterImage.startsWith("data:image"));
     if (!hasBefore || !hasAfter) {
       alert("DP6 : images AVANT et APRÈS requises pour l’export PDF");
+      return;
+    }
+
+    if (st.beforeImage === st.afterImage) {
+      alert("DP6 : l'image AVANT et l'image APRÈS sont identiques. Validez un vrai photomontage après travaux avant l'export PDF.");
+      return;
+    }
+    const patches = Array.isArray(st.patches) ? st.patches : [];
+    if (!patches.length) {
+      alert("DP6 : ajoutez au moins une zone de panneaux sur l'image APRÈS avant l'export PDF.");
       return;
     }
 
