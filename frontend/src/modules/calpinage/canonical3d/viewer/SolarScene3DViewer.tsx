@@ -2750,6 +2750,30 @@ function SolarScene3DViewer({
     [pvLayout3DInteractionMode, scene.worldConfig, debugRuntime, pvLayout3dOverlayState, refreshPv3dOverlay],
   );
 
+  const handleExistingPvPanelHitFrom3dImagePoint = useCallback(
+    (img: { readonly x: number; readonly y: number }): boolean => {
+      if (!pvLayout3DInteractionMode) return false;
+      const hit = hitTestPvBlockPanelFromImagePoint(img);
+      if (!hit) return false;
+      const overlayPanel = pvLayout3dOverlayState?.panels.find(
+        (p) => String(p.blockId) === String(hit.blockId) && String(p.panelId) === String(hit.panelId),
+      );
+      const removeOnSimpleClick =
+        overlayPanel?.selected === true &&
+        (pvLayout3dOverlayState?.ghosts.length ?? 0) > 0 &&
+        pv3dDragSessionRef.current == null;
+      if (removeOnSimpleClick && removePvPanelFrom3d(overlayPanel.blockId, overlayPanel.panelId)) {
+        refreshPv3dOverlay();
+        setPanelHover(null);
+        return true;
+      }
+      selectPvBlockFrom3d(hit.blockId, hit.panelId);
+      refreshPv3dOverlay();
+      return true;
+    },
+    [pvLayout3DInteractionMode, pvLayout3dOverlayState, refreshPv3dOverlay],
+  );
+
   const beginPv3dHandleDrag = useCallback(
     (e: ReactPointerEvent<Element>, mode: "move" | "rotate", h: PvLayout3dHandleUi) => {
       if (!pvLayout3DInteractionMode) return;
@@ -2801,6 +2825,10 @@ function SolarScene3DViewer({
       const panId = pickRoofTessellationPanIdFromIntersections(e.intersections);
       if (!panId) return;
       const img = worldPointToImage({ x: e.point.x, y: e.point.y, z: e.point.z }, wc);
+      if (handleExistingPvPanelHitFrom3dImagePoint(img)) {
+        e.stopPropagation();
+        return;
+      }
       if (pvLayout3DInteractionMode && addPvPanelFrom3dImagePoint(img)) {
         refreshPv3dOverlay();
         e.stopPropagation();
@@ -2826,7 +2854,14 @@ function SolarScene3DViewer({
         e.stopPropagation();
       }
     },
-    [scene.worldConfig, pvRoofPlacementEnabled, pvLayout3DInteractionMode, pvLayout3dOverlayState, refreshPv3dOverlay],
+    [
+      scene.worldConfig,
+      pvRoofPlacementEnabled,
+      pvLayout3DInteractionMode,
+      pvLayout3dOverlayState,
+      refreshPv3dOverlay,
+      handleExistingPvPanelHitFrom3dImagePoint,
+    ],
   );
 
   const structuralRidgeHeightEditPanel = useMemo((): StructuralRidgeHeightEditUiModel | null => {
@@ -3243,11 +3278,6 @@ function SolarScene3DViewer({
           ))}
         </div>
       )}
-      <PvLayout3dSvgOverlay
-        overlay={pvLayout3DInteractionMode ? pvLayout3dScreenOverlay : null}
-        onMovePointerDown={onPvMoveHandlePointerDown}
-        onRotatePointerDown={onPvRotateHandlePointerDown}
-      />
       <Canvas
         key={cameraViewMode}
         orthographic={cameraViewMode === "PLAN_2D"}
@@ -3410,6 +3440,11 @@ function SolarScene3DViewer({
           <DebugXYAlignmentOverlay scene={scene} zLevel={groundZ} runtime={debugRuntime} />
         )}
       </Canvas>
+      <PvLayout3dSvgOverlay
+        overlay={pvLayout3DInteractionMode ? pvLayout3dScreenOverlay : null}
+        onMovePointerDown={onPvMoveHandlePointerDown}
+        onRotatePointerDown={onPvRotateHandlePointerDown}
+      />
     </div>
   );
 }

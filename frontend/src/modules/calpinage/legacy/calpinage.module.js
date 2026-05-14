@@ -5875,6 +5875,7 @@ export function initCalpinage(container, options = {}) {
 
       function addPvPanelFrom3dImagePoint(imgPt) {
         if (!CALPINAGE_STATE || CALPINAGE_STATE.currentPhase !== "PV_LAYOUT") return false;
+        if (typeof hitTestAnyPvBlockPanelFromImage === "function" && hitTestAnyPvBlockPanelFromImage(imgPt)) return false;
         var ENG = window.pvPlacementEngine;
         var activeBlock = ENG && ENG.getActiveBlock ? ENG.getActiveBlock() : null;
         if (!ENG || !activeBlock || typeof ENG.computeExpansionGhosts !== "function" || typeof ENG.addPanelAtCenter !== "function") return false;
