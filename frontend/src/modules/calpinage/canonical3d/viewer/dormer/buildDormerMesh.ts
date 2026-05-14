@@ -45,14 +45,6 @@ function finiteNum(n: unknown): n is number {
   return typeof n === "number" && Number.isFinite(n);
 }
 
-function distPointToLine2d(px: number, py: number, ax: number, ay: number, bx: number, by: number): number {
-  const dx = bx - ax;
-  const dy = by - ay;
-  const len = Math.hypot(dx, dy);
-  if (len < 1e-9) return Math.hypot(px - ax, py - ay);
-  return Math.abs(dy * px - dx * py + bx * ay - by * ax) / len;
-}
-
 function pushTri(
   positions: number[],
   indices: number[],
@@ -147,78 +139,81 @@ export function buildDormerMesh(ext: DormerRuntimeExtensionInput, roofModel: Dor
   const sampleZ = (xPx: number, yPx: number): number | null =>
     sampleRoofZAtImagePxFromPatches(xPx, yPx, roofPlanePatches, world);
 
-  let bestI = -1;
-  let bestD = -1;
-  const n = ring.length;
-  for (let i = 0; i < n; i++) {
-    const p0 = ring[i]!;
-    const p1 = ring[(i + 1) % n]!;
-    const mx = (p0.x + p1.x) * 0.5;
-    const my = (p0.y + p1.y) * 0.5;
-    const d = distPointToLine2d(mx, my, ra.x, ra.y, rb.x, rb.y);
-    if (d > bestD) {
-      bestD = d;
-      bestI = i;
-    }
-  }
-  if (bestI < 0 || bestD < 1e-6) {
-    dormerAuditLog("GUARD: back edge invalid (ridge alignment / bestD)", { bestI, bestD });
-    return null;
-  }
-
-  const F0i = ring[bestI]!;
-  const F1i = ring[(bestI + 1) % n]!;
-
-  const zF0 = sampleZ(F0i.x, F0i.y);
-  const zF1 = sampleZ(F1i.x, F1i.y);
   const zR0b = sampleZ(ra.x, ra.y);
   const zR1b = sampleZ(rb.x, rb.y);
-  if (zF0 == null || zF1 == null || zR0b == null || zR1b == null) {
+  if (zR0b == null || zR1b == null) {
     dormerAuditLog("GUARD: sampleRoofZ null", {
-      zF0: zF0 === null ? "null" : zF0,
-      zF1: zF1 === null ? "null" : zF1,
       zR0b: zR0b === null ? "null" : zR0b,
       zR1b: zR1b === null ? "null" : zR1b,
     });
     return null;
   }
 
-  const wF0 = imagePxToWorldHorizontalM(F0i.x, F0i.y, mpp, north);
-  const wF1 = imagePxToWorldHorizontalM(F1i.x, F1i.y, mpp, north);
   const wR0 = imagePxToWorldHorizontalM(ra.x, ra.y, mpp, north);
   const wR1 = imagePxToWorldHorizontalM(rb.x, rb.y, mpp, north);
 
-  const zR0 = zR0b + ridgeH;
-  const zR1 = zR1b + ridgeH;
+  const baseRing: [number, number, number][] = [];
+  for (const p of ring) {
+    const z = sampleZ(p.x, p.y);
+    if (z == null) {
+      dormerAuditLog("GUARD: sampleRoofZ null on contour", { x: p.x, y: p.y });
+      return null;
+    }
+    const w = imagePxToWorldHorizontalM(p.x, p.y, mpp, north);
+    baseRing.push([w.x, w.y, z]);
+  }
 
+  const n = baseRing.length;
+  let perimeterM = 0;
+  for (let i = 0; i < n; i++) {
+    const a = baseRing[i]!;
+    const b = baseRing[(i + 1) % n]!;
+    perimeterM += Math.hypot(b[0] - a[0], b[1] - a[1]);
+  }
   const depthGuess =
     ext.depthM != null && finiteNum(ext.depthM) && ext.depthM > 0
       ? ext.depthM
-      : Math.max(0.3, bestD * mpp);
+      : Math.max(0.4, perimeterM / Math.max(4, n * 2));
 
   const wallH =
     ext.wallHeightM != null && finiteNum(ext.wallHeightM) && ext.wallHeightM > 0
       ? ext.wallHeightM
-      : Math.max(0.25, Math.min(ridgeH * 0.55, depthGuess * 0.45));
+      : Math.max(0.18, Math.min(ridgeH * 0.42, depthGuess * 0.32));
 
-  const F0b: [number, number, number] = [wF0.x, wF0.y, zF0];
-  const F1b: [number, number, number] = [wF1.x, wF1.y, zF1];
-  const F0t: [number, number, number] = [wF0.x, wF0.y, zF0 + wallH];
-  const F1t: [number, number, number] = [wF1.x, wF1.y, zF1 + wallH];
-  const R0b: [number, number, number] = [wR0.x, wR0.y, zR0b];
-  const R1b: [number, number, number] = [wR1.x, wR1.y, zR1b];
-  const R0t: [number, number, number] = [wR0.x, wR0.y, zR0];
-  const R1t: [number, number, number] = [wR1.x, wR1.y, zR1];
+  const eaveRing: [number, number, number][] = baseRing.map((p) => [p[0], p[1], p[2] + wallH]);
+  const R0t: [number, number, number] = [wR0.x, wR0.y, zR0b + ridgeH];
+  const R1t: [number, number, number] = [wR1.x, wR1.y, zR1b + ridgeH];
+
+  const ridgeDx = R1t[0] - R0t[0];
+  const ridgeDy = R1t[1] - R0t[1];
+  const ridgeLenSq = ridgeDx * ridgeDx + ridgeDy * ridgeDy;
+  if (ridgeLenSq < 1e-9) {
+    dormerAuditLog("GUARD: ridge world length invalid", { ridgeLenSq });
+    return null;
+  }
+  const ridgeAt = (p: readonly [number, number, number]): [number, number, number] => {
+    const tRaw = ((p[0] - R0t[0]) * ridgeDx + (p[1] - R0t[1]) * ridgeDy) / ridgeLenSq;
+    const t = Math.max(0, Math.min(1, tRaw));
+    return [
+      R0t[0] + (R1t[0] - R0t[0]) * t,
+      R0t[1] + (R1t[1] - R0t[1]) * t,
+      R0t[2] + (R1t[2] - R0t[2]) * t,
+    ];
+  };
 
   const positions: number[] = [];
   const indices: number[] = [];
 
-  pushQuad(positions, indices, F0b, F1b, F1t, F0t);
-  pushQuad(positions, indices, F0b, F0t, R0t, R0b);
-  pushQuad(positions, indices, F1b, F1t, R1t, R1b);
-  pushQuad(positions, indices, R0b, R1b, R1t, R0t);
-  pushTri(positions, indices, F0t[0], F0t[1], F0t[2], R0t[0], R0t[1], R0t[2], R1t[0], R1t[1], R1t[2]);
-  pushTri(positions, indices, F1t[0], F1t[1], F1t[2], R1t[0], R1t[1], R1t[2], R0t[0], R0t[1], R0t[2]);
+  for (let i = 0; i < n; i++) {
+    pushQuad(positions, indices, baseRing[i]!, baseRing[(i + 1) % n]!, eaveRing[(i + 1) % n]!, eaveRing[i]!);
+  }
+  for (let i = 0; i < n; i++) {
+    const a = eaveRing[i]!;
+    const b = eaveRing[(i + 1) % n]!;
+    const raTop = ridgeAt(a);
+    const rbTop = ridgeAt(b);
+    pushQuad(positions, indices, a, b, rbTop, raTop);
+  }
 
   const geo = new THREE.BufferGeometry();
   geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
