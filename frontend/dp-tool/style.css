@@ -1705,6 +1705,68 @@ body.dp-lock-scroll {
   color: rgba(17, 24, 39, 0.55);
 }
 
+.dp2-selection-card {
+  border-color: rgba(15, 23, 42, 0.10);
+}
+
+.dp2-selection-summary {
+  min-height: 46px;
+  padding: 10px 12px;
+  border: 1px solid rgba(148, 163, 184, 0.32);
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #111827;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.dp2-selection-summary strong {
+  display: block;
+  margin-bottom: 2px;
+  color: #0f172a;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.dp2-selection-summary span {
+  display: block;
+  color: rgba(15, 23, 42, 0.66);
+  font-size: 12px;
+}
+
+.dp2-selection-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.dp2-selection-action {
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+  background: #ffffff;
+  color: #111827;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.dp2-selection-action:hover:not(:disabled) {
+  background: #f3f4f6;
+  border-color: #9ca3af;
+}
+
+.dp2-selection-action:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.dp2-selection-action-danger {
+  color: #b91c1c;
+  border-color: rgba(185, 28, 28, 0.28);
+}
+
 /* Message discret (panneaux sans module sélectionné) */
 .dp2-toast {
   position: absolute;

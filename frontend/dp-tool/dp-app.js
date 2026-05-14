@@ -9191,19 +9191,19 @@ function dp2IsAnyMeasureOverlayOpen() {
 //   v1 : snap uniquement si rotations identiques (à epsilon près)
 // --------------------------
 const DP2_PANEL_STYLE = {
-  fill: "rgba(17, 24, 39, 0.92)",      // très sombre (imprimable, lisible)
-  stroke: "rgba(17, 24, 39, 0.98)",
-  lineWidth: 1.5
+  fill: "rgba(15, 23, 42, 0.82)",
+  stroke: "rgba(248, 250, 252, 0.92)",
+  lineWidth: 1.15
 };
 const DP2_PANEL_PREVIEW_STYLE = {
-  fill: "rgba(0, 0, 0, 1)",            // NOIR plein (preview)
-  stroke: "rgba(0, 0, 0, 1)",
-  lineWidth: 1
+  fill: "rgba(15, 23, 42, 0.74)",
+  stroke: "rgba(37, 99, 235, 0.95)",
+  lineWidth: 1.4
 };
 const DP2_PANEL_GHOST_STYLE = {
-  fill: "rgba(200, 200, 200, 0.35)",   // GRIS clair semi-transparent (fantôme)
-  stroke: "rgba(160, 160, 160, 0.55)",
-  lineWidth: 1
+  fill: "rgba(37, 99, 235, 0.13)",
+  stroke: "rgba(37, 99, 235, 0.72)",
+  lineWidth: 1.2
 };
 const DP2_PANEL_SNAP_TOL_PX = 12;
 const DP2_PANEL_SNAP_ANGLE_EPS_RAD = Math.PI / 90; // ~2°
@@ -9323,6 +9323,141 @@ function dp2ClearSelectedTexts() {
   state.selectedTextId = null;
 }
 
+function dp2SelectionLabelForInspector() {
+  const st = window.DP2_STATE;
+  if (!st) return { title: "Aucun objet sélectionné.", detail: "" };
+  const panelIds = typeof dp2GetEffectiveSelectedPanelIds === "function" ? dp2GetEffectiveSelectedPanelIds() : [];
+  const textIds = typeof dp2GetEffectiveSelectedTextIds === "function" ? dp2GetEffectiveSelectedTextIds() : [];
+  if (panelIds.length >= 2) {
+    return { title: `${panelIds.length} panneaux sélectionnés`, detail: "Déplacez le groupe, tournez-le ou dupliquez-le." };
+  }
+  if (panelIds.length === 1) {
+    const p = dp2GetPanelById(panelIds[0]);
+    const rot = p?.geometry?.rotation;
+    const deg = typeof rot === "number" ? Math.round((rot * 180) / Math.PI) : 0;
+    return { title: "Panneau photovoltaïque", detail: `Rotation ${deg}°. Taille verrouillée par le module.` };
+  }
+  if (textIds.length >= 2) {
+    return { title: `${textIds.length} textes sélectionnés`, detail: "Déplacez ou supprimez la sélection." };
+  }
+  if (textIds.length === 1) {
+    const t = dp2GetTextById(textIds[0]);
+    return { title: t?.textKind === "free" ? "Texte libre" : `Repère ${t?.textKind || "DP"}`, detail: "Double-cliquez le texte libre pour l'éditer." };
+  }
+  if (st.selectedBusinessObjectId) {
+    const obj = getDP2BusinessObjectById(st.selectedBusinessObjectId);
+    const meta = obj ? DP2_BUSINESS_OBJECT_META[obj.type] : null;
+    return { title: meta?.label || "Forme métier", detail: "Déplacez, tournez ou redimensionnez depuis le plan." };
+  }
+  if (st.selectedBuildingContourId) {
+    return { title: "Contour bâti", detail: "Le bâti se modifie depuis l'outil Contour bâti." };
+  }
+  if (st.selectedObjectId != null && st.objects?.[st.selectedObjectId]) {
+    const obj = st.objects[st.selectedObjectId];
+    const labels = {
+      measure_line: "Trait de mesure",
+      ridge_line: "Faîtage",
+      gutter_height_dimension: "Hauteur égout",
+      rectangle: "Rectangle",
+      circle: "Cercle",
+      arrow: "Flèche",
+    };
+    return { title: labels[obj.type] || "Objet de dessin", detail: "Déplacez les points ou double-cliquez les valeurs si disponible." };
+  }
+  return { title: "Aucun objet sélectionné.", detail: "Cliquez un panneau, texte, mesure, forme ou contour pour le modifier." };
+}
+
+function syncDP2SelectionInspectorUI() {
+  const summary = document.getElementById("dp2-selection-summary");
+  const actions = document.getElementById("dp2-selection-actions");
+  const duplicateBtn = document.getElementById("dp2-selection-duplicate");
+  const rotateBtn = document.getElementById("dp2-selection-rotate");
+  const deleteBtn = document.getElementById("dp2-selection-delete");
+  if (!summary) return;
+  const info = dp2SelectionLabelForInspector();
+  summary.innerHTML = `<strong>${info.title}</strong>${info.detail ? `<span>${info.detail}</span>` : ""}`;
+  const panelIds = typeof dp2GetEffectiveSelectedPanelIds === "function" ? dp2GetEffectiveSelectedPanelIds() : [];
+  const textIds = typeof dp2GetEffectiveSelectedTextIds === "function" ? dp2GetEffectiveSelectedTextIds() : [];
+  const hasDeletable = !!(
+    panelIds.length ||
+    textIds.length ||
+    window.DP2_STATE?.selectedBusinessObjectId ||
+    window.DP2_STATE?.selectedBuildingContourId ||
+    window.DP2_STATE?.selectedObjectId != null
+  );
+  if (actions) actions.hidden = !hasDeletable;
+  if (duplicateBtn) duplicateBtn.disabled = panelIds.length === 0;
+  if (rotateBtn) rotateBtn.disabled = panelIds.length === 0;
+  if (deleteBtn) deleteBtn.disabled = !hasDeletable;
+}
+
+function dp2DuplicateSelectedPanels() {
+  const ids = typeof dp2GetEffectiveSelectedPanelIds === "function" ? dp2GetEffectiveSelectedPanelIds() : [];
+  if (!ids.length || !window.DP2_STATE) return;
+  const panels = window.DP2_STATE.panels || (window.DP2_STATE.panels = []);
+  dp2CommitHistoryPoint();
+  const created = [];
+  const offset = 18;
+  for (const id of ids) {
+    const p = dp2GetPanelById(id);
+    if (!p || !p.geometry) continue;
+    const next = {
+      id: "panel_" + Date.now() + "_" + Math.random().toString(16).slice(2),
+      type: "panel",
+      geometry: {
+        ...JSON.parse(JSON.stringify(p.geometry)),
+        x: (p.geometry.x || 0) + offset,
+        y: (p.geometry.y || 0) + offset,
+      },
+      lockedSize: true,
+      visible: true,
+    };
+    panels.push(next);
+    created.push(next.id);
+  }
+  if (created.length) dp2SetSelectedPanelIds(created);
+  renderDP2FromState();
+}
+
+function dp2RotateSelectedPanelsByQuarterTurn() {
+  const ids = typeof dp2GetEffectiveSelectedPanelIds === "function" ? dp2GetEffectiveSelectedPanelIds() : [];
+  if (!ids.length || !window.DP2_STATE) return;
+  dp2CommitHistoryPoint();
+  for (const id of ids) {
+    const p = dp2GetPanelById(id);
+    if (!p || !p.geometry) continue;
+    p.geometry.rotation = (p.geometry.rotation || 0) + Math.PI / 2;
+  }
+  renderDP2FromState();
+}
+
+function bindDP2SelectionInspectorActions() {
+  const duplicateBtn = document.getElementById("dp2-selection-duplicate");
+  const rotateBtn = document.getElementById("dp2-selection-rotate");
+  const deleteBtn = document.getElementById("dp2-selection-delete");
+  if (duplicateBtn && duplicateBtn.dataset.dp2Bound !== "1") {
+    duplicateBtn.dataset.dp2Bound = "1";
+    duplicateBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      dp2DuplicateSelectedPanels();
+    });
+  }
+  if (rotateBtn && rotateBtn.dataset.dp2Bound !== "1") {
+    rotateBtn.dataset.dp2Bound = "1";
+    rotateBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      dp2RotateSelectedPanelsByQuarterTurn();
+    });
+  }
+  if (deleteBtn && deleteBtn.dataset.dp2Bound !== "1") {
+    deleteBtn.dataset.dp2Bound = "1";
+    deleteBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      if (typeof dp2DeleteSelected === "function") dp2DeleteSelected();
+    });
+  }
+}
+
 function dp2PointInAABB(x, y, aabb) {
   if (!aabb) return false;
   return x >= aabb.minX && x <= aabb.maxX && y >= aabb.minY && y <= aabb.maxY;
@@ -9433,8 +9568,9 @@ function dp2HitTestPanelGroup(x, y) {
   if (ids.length < 2) return null;
   const aabb = dp2PanelsGroupAABB(ids);
   if (!aabb) return null;
-  const rotateHandleOffset = 18;
-  const hr = 8;
+  const ui = dp2GetPanelSelectionUiScale();
+  const rotateHandleOffset = 20 * ui;
+  const hr = 12 * ui;
   const hx = aabb.cx;
   const hy = aabb.minY - rotateHandleOffset;
   const onRotate = Math.hypot(x - hx, y - hy) <= hr;
@@ -9448,6 +9584,12 @@ function dp2HitTestPanelGroup(x, y) {
   }
   if (dp2PointInAABB(x, y, aabb)) return { part: "body", aabb };
   return null;
+}
+
+function dp2GetPanelSelectionUiScale() {
+  const z = window.DP2_STATE?.viewZoom;
+  if (typeof z !== "number" || z <= 0) return 1;
+  return Math.max(0.7, Math.min(1.65, 1 / z));
 }
 
 function dp2PanelHitTestPart(panel, x, y) {
@@ -9465,11 +9607,13 @@ function dp2PanelHitTestPart(panel, x, y) {
   const s = Math.sin(-rot);
   const lx = dx * c - dy * s;
   const ly = dx * s + dy * c;
-  const inside = lx >= -w / 2 && lx <= w / 2 && ly >= -h / 2 && ly <= h / 2;
-  const rotateHandleOffset = 18;
+  const ui = dp2GetPanelSelectionUiScale();
+  const bodyPad = 3 * ui;
+  const inside = lx >= -w / 2 - bodyPad && lx <= w / 2 + bodyPad && ly >= -h / 2 - bodyPad && ly <= h / 2 + bodyPad;
+  const rotateHandleOffset = 20 * ui;
   const rhX = 0;
   const rhY = -h / 2 - rotateHandleOffset;
-  const onRotateHandle = Math.hypot(lx - rhX, ly - rhY) <= 8;
+  const onRotateHandle = Math.hypot(lx - rhX, ly - rhY) <= 12 * ui;
   if (onRotateHandle) return "rotate";
   if (typeof dp2IsDP4RoofProfile === "function" && dp2IsDP4RoofProfile()) {
     const half = 4;
@@ -9664,8 +9808,9 @@ function dp2HitTestText(x, y) {
   const state = window.DP2_STATE;
   const items = state?.textObjects || [];
   const handleSize = 10;
-  const rotateHandleR = 8;
-  const rotateHandleOffset = 18;
+  const ui = dp2GetPanelSelectionUiScale();
+  const rotateHandleR = 10 * ui;
+  const rotateHandleOffset = 20 * ui;
   const selectedIds = typeof dp2GetEffectiveSelectedTextIds === "function" ? dp2GetEffectiveSelectedTextIds() : [];
   const selectedSingleId = selectedIds.length === 1 ? selectedIds[0] : null;
 
@@ -10324,12 +10469,18 @@ function initDP2CanvasEvents() {
       }
     }
 
+    const hitTextBeforeBuilding = tool === "select" ? dp2HitTestText(coords.x, coords.y) : null;
+    const hitPanelBeforeBuilding = tool === "select" ? dp2HitTestPanel(coords.x, coords.y) : null;
+    const hitPanelGroupBeforeBuilding = tool === "select" ? dp2HitTestPanelGroup(coords.x, coords.y) : null;
     const hitBizBeforeBuilding = tool === "select" ? dp2HitTestBusiness(coords.x, coords.y) : null;
 
     // DP2 — Hybrid : sommet contour bâti (`buildingContours.points`) → priorité OL temporaire + pointerdown sur la carte (Modify)
     if (
       tool === "select" &&
       !hitBizBeforeBuilding &&
+      !hitTextBeforeBuilding &&
+      !hitPanelBeforeBuilding &&
+      !hitPanelGroupBeforeBuilding &&
       dp2HitTestBuildingContourVertexForOlHandoff(coords.x, coords.y, DP2_BUILDING_VERTEX_OL_HANDOFF_TOL_PX)
     ) {
       window.__DP2_TEMP_OL_DRAG__ = true;
@@ -10355,6 +10506,9 @@ function initDP2CanvasEvents() {
       tool === "select" &&
       typeof dp2PickDp2BuildingOlFeatureAtCanvasPixel === "function" &&
       !hitBizBeforeBuilding &&
+      !hitTextBeforeBuilding &&
+      !hitPanelBeforeBuilding &&
+      !hitPanelGroupBeforeBuilding &&
       !dp2PointerDownDeferBuildingOlPick(canvas, coords.x, coords.y)
     ) {
       const olFeat = dp2PickDp2BuildingOlFeatureAtCanvasPixel(canvas, coords.x, coords.y);
@@ -10368,7 +10522,7 @@ function initDP2CanvasEvents() {
       }
     }
 
-    const hitText = dp2HitTestText(coords.x, coords.y);
+    const hitText = hitTextBeforeBuilding || dp2HitTestText(coords.x, coords.y);
 
     // 0) Textes (annotations) : sélection + move/resize/rotate
     if (hitText && hitText.id) {
@@ -12423,6 +12577,7 @@ function renderDP2FromState() {
   dp2TryScheduleBizUiChromeFrame();
   syncDP2LegendOverlayUI();
   syncDP2DrawActionsUI();
+  syncDP2SelectionInspectorUI();
   dp2SyncMeasureResizePreviewOverlay();
   try {
     dp2FinalizeInteractionChrome();
@@ -13199,6 +13354,19 @@ function renderDP2PanelRect(ctx, geom, style) {
   ctx.fill();
   if (st.stroke) ctx.stroke();
 
+  if (st === DP2_PANEL_STYLE) {
+    const cols = Math.max(2, Math.min(6, Math.round(w / Math.max(12, h * 0.42))));
+    ctx.strokeStyle = "rgba(248, 250, 252, 0.18)";
+    ctx.lineWidth = 0.7;
+    for (let i = 1; i < cols; i++) {
+      const gx = x + (w * i) / cols;
+      ctx.beginPath();
+      ctx.moveTo(gx, y + 1);
+      ctx.lineTo(gx, y + h - 1);
+      ctx.stroke();
+    }
+  }
+
   ctx.restore();
 }
 
@@ -13236,7 +13404,8 @@ function renderDP2PanelSelection(ctx, panel) {
   const cx = (g.x || 0) + w / 2;
   const cy = (g.y || 0) + h / 2;
   const rot = g.rotation || 0;
-  const rotateHandleOffset = 18;
+  const ui = dp2GetPanelSelectionUiScale();
+  const rotateHandleOffset = 20 * ui;
 
   ctx.save();
   ctx.translate(cx, cy);
@@ -13246,22 +13415,23 @@ function renderDP2PanelSelection(ctx, panel) {
   const y = -h / 2;
 
   // bbox
-  ctx.setLineDash([6, 4]);
-  ctx.strokeStyle = "#111827";
-  ctx.lineWidth = 2;
-  ctx.strokeRect(x, y, w, h);
+  ctx.fillStyle = "rgba(37, 99, 235, 0.08)";
+  ctx.fillRect(x, y, w, h);
   ctx.setLineDash([]);
+  ctx.strokeStyle = "#2563eb";
+  ctx.lineWidth = Math.max(1.4, 2 * ui);
+  ctx.strokeRect(x, y, w, h);
 
   // poignée rotation (pas de resize)
-  ctx.strokeStyle = "#111827";
-  ctx.lineWidth = 2;
+  ctx.strokeStyle = "#2563eb";
+  ctx.lineWidth = Math.max(1.2, 1.5 * ui);
   ctx.beginPath();
   ctx.moveTo(0, y);
   ctx.lineTo(0, y - rotateHandleOffset);
   ctx.stroke();
   ctx.fillStyle = "#ffffff";
   ctx.beginPath();
-  ctx.arc(0, y - rotateHandleOffset, 8, 0, Math.PI * 2);
+  ctx.arc(0, y - rotateHandleOffset, 9 * ui, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
 
@@ -13273,7 +13443,7 @@ function renderDP2PanelSelection(ctx, panel) {
     const scaleHandleX = wEff / 2 + 14;
     const scaleHandleY = hEff / 2 + 14;
     ctx.fillStyle = "#C39847";
-    ctx.fillRect(scaleHandleX - 4, scaleHandleY - 4, 8, 8);
+    ctx.fillRect(scaleHandleX - 5 * ui, scaleHandleY - 5 * ui, 10 * ui, 10 * ui);
   }
 
   ctx.restore();
@@ -13296,24 +13466,25 @@ function renderDP2PanelGroupSelection(ctx, panelIds) {
   ctx.save();
 
   // bbox groupe (axis-aligned)
-  ctx.setLineDash([6, 4]);
-  ctx.strokeStyle = "#111827";
-  ctx.lineWidth = 2;
-  ctx.strokeRect(x, y, w, h);
+  ctx.fillStyle = "rgba(37, 99, 235, 0.06)";
+  ctx.fillRect(x, y, w, h);
   ctx.setLineDash([]);
+  ctx.strokeStyle = "#2563eb";
+  ctx.lineWidth = Math.max(1.4, 2 * ui);
+  ctx.strokeRect(x, y, w, h);
 
   // poignée rotation unique (haut-centre)
   const hx = aabb.cx;
   const hy = y - rotateHandleOffset;
-  ctx.strokeStyle = "#111827";
-  ctx.lineWidth = 2;
+  ctx.strokeStyle = "#2563eb";
+  ctx.lineWidth = Math.max(1.2, 1.5 * ui);
   ctx.beginPath();
   ctx.moveTo(hx, y);
   ctx.lineTo(hx, hy);
   ctx.stroke();
   ctx.fillStyle = "#ffffff";
   ctx.beginPath();
-  ctx.arc(hx, hy, 8, 0, Math.PI * 2);
+  ctx.arc(hx, hy, 9 * ui, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
 
@@ -13321,7 +13492,7 @@ function renderDP2PanelGroupSelection(ctx, panelIds) {
     const scaleHx = aabb.maxX + 14;
     const scaleHy = aabb.maxY + 14;
     ctx.fillStyle = "#C39847";
-    ctx.fillRect(scaleHx - 4, scaleHy - 4, 8, 8);
+    ctx.fillRect(scaleHx - 5 * ui, scaleHy - 5 * ui, 10 * ui, 10 * ui);
   }
 
   ctx.restore();
@@ -14303,6 +14474,9 @@ function dp2ClearTempOlBuildingDragIfNeeded() {
 
 /** true si un hit canvas (mesure / faîtage / …) doit passer avant le pick bâti OpenLayers en pointerdown. */
 function dp2PointerDownDeferBuildingOlPick(canvas, x, y) {
+  if (dp2HitTestPanelGroup(x, y)) return true;
+  if (dp2HitTestPanel(x, y)) return true;
+  if (dp2HitTestText(x, y)) return true;
   if (dp2HitTestBusiness(x, y)) return true;
   const hit = dp2HitTest(canvas, x, y);
   if (!hit || hit.kind !== "object" || typeof hit.index !== "number") return false;
@@ -15974,6 +16148,7 @@ async function initDP2() {
   // Canvas = image-dependent : initialisé uniquement dans img.onload via initDP2Editor().
   initDP2Toolbar();
   initDP2DrawActions();
+  bindDP2SelectionInspectorActions();
 
   function closeDP2Modal() {
     try {
