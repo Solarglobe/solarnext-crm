@@ -36,7 +36,7 @@ import { Canvas, type ThreeEvent, useThree } from "@react-three/fiber";
 function r3fGl(e: ThreeEvent<PointerEvent | MouseEvent>): THREE.WebGLRenderer {
   return (e as any).gl;
 }
-import { Grid, Outlines } from "@react-three/drei";
+import { Grid, Html, Outlines } from "@react-three/drei";
 import {
   useCallback,
   useEffect,
@@ -45,6 +45,8 @@ import {
   useId,
   useRef,
   useState,
+  type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
 } from "react";
 import { flushSync } from "react-dom";
 import * as THREE from "three";
@@ -460,6 +462,43 @@ function imagePolygonToRoofLineGeometry(
   return geo;
 }
 
+type PvLayout3dHandleUi = {
+  readonly blockId: string;
+  readonly rotate: THREE.Vector3;
+  readonly move: THREE.Vector3;
+  readonly top: THREE.Vector3;
+  readonly rotateImg: { readonly x: number; readonly y: number };
+  readonly moveImg: { readonly x: number; readonly y: number };
+};
+
+const pv3dHandleBaseButtonStyle: CSSProperties = {
+  width: 34,
+  height: 34,
+  borderRadius: 17,
+  border: "1px solid rgba(255,255,255,0.78)",
+  boxShadow: "0 4px 14px rgba(0,0,0,0.35)",
+  cursor: "grab",
+  fontSize: 15,
+  fontWeight: 700,
+  lineHeight: "32px",
+  padding: 0,
+  textAlign: "center",
+  userSelect: "none",
+};
+
+const pv3dRotateHandleButtonStyle: CSSProperties = {
+  ...pv3dHandleBaseButtonStyle,
+  background: "#6366f1",
+  color: "#ffffff",
+};
+
+const pv3dMoveHandleButtonStyle: CSSProperties = {
+  ...pv3dHandleBaseButtonStyle,
+  background: "#ffffff",
+  color: "#6366f1",
+  border: "2px solid #6366f1",
+};
+
 function getActiveRoofVertexModelingTarget(
   inspectMode: boolean,
   panSelection3DMode: boolean,
@@ -783,8 +822,8 @@ function ViewerSceneContent({
   readonly pvLayout3DInteractionMode?: boolean;
   readonly pvLayout3dOverlayState?: PvLayout3dOverlayState | null;
   readonly onPvPanelPvLayout3dPointerDown?: (e: ThreeEvent<PointerEvent>, panelId: string) => void;
-  readonly onPvMoveHandlePointerDown?: (e: ThreeEvent<PointerEvent>) => void;
-  readonly onPvRotateHandlePointerDown?: (e: ThreeEvent<PointerEvent>) => void;
+  readonly onPvMoveHandlePointerDown?: (e: ReactPointerEvent<HTMLButtonElement>, h: PvLayout3dHandleUi) => void;
+  readonly onPvRotateHandlePointerDown?: (e: ReactPointerEvent<HTMLButtonElement>, h: PvLayout3dHandleUi) => void;
   /** Runtime brut (ex. CALPINAGE_STATE) — champs 2D lucarne pour rendu dormer premium (couche visuelle). */
   readonly debugRuntime?: unknown;
   /**
@@ -993,7 +1032,16 @@ function ViewerSceneContent({
       const rotate = imagePolygonToRoofWorldPoints(scene, [h.rotate, h.rotate], selectedPanId, 0.22)[0] ?? null;
       const move = imagePolygonToRoofWorldPoints(scene, [h.move, h.move], selectedPanId, 0.22)[0] ?? null;
       const top = imagePolygonToRoofWorldPoints(scene, [h.topOfBlock, h.topOfBlock], selectedPanId, 0.2)[0] ?? null;
-      if (rotate && move && top) return { blockId: h.blockId, rotate, move, top };
+      if (rotate && move && top) {
+        return {
+          blockId: h.blockId,
+          rotate,
+          move,
+          top,
+          rotateImg: h.rotate,
+          moveImg: h.move,
+        };
+      }
     }
     const selectedPanelIds = new Set(
       pvLayout3dOverlayState.panels.filter((p) => p.selected).map((p) => String(p.id)),
@@ -1014,7 +1062,16 @@ function ViewerSceneContent({
     const top = centerSel.clone().setZ(boxSel.max.z + lift);
     const move = centerSel.clone().setZ(boxSel.max.z + lift * 1.4);
     const rotate = centerSel.clone().add(new THREE.Vector3(0, -reach, 0)).setZ(boxSel.max.z + lift * 1.6);
-    return { blockId: pvLayout3dOverlayState.focusBlockId, rotate, move, top };
+    const wc = scene.worldConfig;
+    if (!wc) return null;
+    return {
+      blockId: pvLayout3dOverlayState.focusBlockId,
+      rotate,
+      move,
+      top,
+      rotateImg: worldPointToImage({ x: rotate.x, y: rotate.y, z: rotate.z }, wc),
+      moveImg: worldPointToImage({ x: move.x, y: move.y, z: move.z }, wc),
+    };
   }, [scene, panelGeos, maxDimLocal, pvLayout3DInteractionMode, pvLayout3dOverlayState]);
 
   const allGeos = useMemo(
@@ -1498,23 +1555,28 @@ function ViewerSceneContent({
             </bufferGeometry>
             <lineBasicMaterial color="#6366f1" transparent opacity={0.7} toneMapped={false} depthTest={false} />
           </lineSegments>
-          <mesh
-            position={pv3dHandlePositions.rotate}
-            renderOrder={30}
-            onPointerDown={onPvRotateHandlePointerDown}
-          >
-            <sphereGeometry args={[Math.max(maxDimLocal * 0.014, 0.14), 24, 12]} />
-            <meshBasicMaterial color="#6366f1" toneMapped={false} depthTest={false} />
-          </mesh>
-          <mesh
-            position={pv3dHandlePositions.move}
-            renderOrder={30}
-            onPointerDown={onPvMoveHandlePointerDown}
-          >
-            <sphereGeometry args={[Math.max(maxDimLocal * 0.012, 0.12), 18, 10]} />
-            <meshBasicMaterial color="#ffffff" toneMapped={false} depthTest={false} />
-            <Outlines thickness={outlineThickness * 0.8} color="#6366f1" opacity={0.95} toneMapped={false} />
-          </mesh>
+          <Html position={pv3dHandlePositions.rotate} center zIndexRange={[80, 20]} style={{ pointerEvents: "auto" }}>
+            <button
+              type="button"
+              aria-label="Tourner la selection PV"
+              title="Tourner"
+              onPointerDown={(e) => onPvRotateHandlePointerDown?.(e, pv3dHandlePositions)}
+              style={pv3dRotateHandleButtonStyle}
+            >
+              R
+            </button>
+          </Html>
+          <Html position={pv3dHandlePositions.move} center zIndexRange={[80, 20]} style={{ pointerEvents: "auto" }}>
+            <button
+              type="button"
+              aria-label="Deplacer la selection PV"
+              title="Deplacer"
+              onPointerDown={(e) => onPvMoveHandlePointerDown?.(e, pv3dHandlePositions)}
+              style={pv3dMoveHandleButtonStyle}
+            >
+              +
+            </button>
+          </Html>
         </group>
       ) : null}
       {visPanels &&
@@ -1561,27 +1623,6 @@ function ViewerSceneContent({
                 pvLayout3DInteractionMode && onPvPanelPvLayout3dPointerDown
                   ? (e) => {
                       onPvPanelPvLayout3dPointerDown(e, String(id));
-                    }
-                  : undefined
-              }
-              onDoubleClick={
-                pvLayout3DInteractionMode && pv3dPanel
-                  ? (e) => {
-                      e.stopPropagation();
-                      if (removePvPanelFrom3d(pv3dPanel.blockId, pv3dPanel.panelId)) {
-                        onPanelHover?.(null);
-                      }
-                    }
-                  : undefined
-              }
-              onContextMenu={
-                pvLayout3DInteractionMode && pv3dPanel
-                  ? (e) => {
-                      e.stopPropagation();
-                      e.nativeEvent.preventDefault();
-                      if (removePvPanelFrom3d(pv3dPanel.blockId, pv3dPanel.panelId)) {
-                        onPanelHover?.(null);
-                      }
                     }
                   : undefined
               }
@@ -2517,7 +2558,7 @@ function SolarScene3DViewer({
     pv3dOverlayRefreshTimerRef.current = window.setTimeout(() => {
       pv3dOverlayRefreshTimerRef.current = null;
       refreshPv3dOverlay();
-    }, 80);
+    }, 16);
   }, [refreshPv3dOverlay]);
 
   useEffect(() => {
@@ -2600,14 +2641,15 @@ function SolarScene3DViewer({
   );
 
   const beginPv3dHandleDrag = useCallback(
-    (e: ThreeEvent<PointerEvent>, mode: "move" | "rotate") => {
+    (e: ReactPointerEvent<HTMLButtonElement>, mode: "move" | "rotate", h: PvLayout3dHandleUi) => {
       if (!pvLayout3DInteractionMode) return;
       if (e.button !== 0) return;
       const wc = scene.worldConfig;
-      const blockId = pvLayout3dOverlayState?.handles?.blockId;
+      const blockId = h.blockId;
       if (!wc || !blockId) return;
-      const img = worldPointToImage({ x: e.point.x, y: e.point.y, z: e.point.z }, wc);
+      const img = mode === "rotate" ? h.rotateImg : h.moveImg;
       const ptr = (e.nativeEvent as PointerEvent).pointerId ?? 0;
+      e.preventDefault();
       if (mode === "rotate") {
         const r = beginPvRotateFrom3d(blockId, img, ptr);
         if (!r.ok) {
@@ -2626,16 +2668,16 @@ function SolarScene3DViewer({
       setOrbitSuppressed(true);
       e.stopPropagation();
     },
-    [pvLayout3DInteractionMode, scene.worldConfig, pvLayout3dOverlayState],
+    [pvLayout3DInteractionMode, scene.worldConfig],
   );
 
   const onPvMoveHandlePointerDown = useCallback(
-    (e: ThreeEvent<PointerEvent>) => beginPv3dHandleDrag(e, "move"),
+    (e: ReactPointerEvent<HTMLButtonElement>, h: PvLayout3dHandleUi) => beginPv3dHandleDrag(e, "move", h),
     [beginPv3dHandleDrag],
   );
 
   const onPvRotateHandlePointerDown = useCallback(
-    (e: ThreeEvent<PointerEvent>) => beginPv3dHandleDrag(e, "rotate"),
+    (e: ReactPointerEvent<HTMLButtonElement>, h: PvLayout3dHandleUi) => beginPv3dHandleDrag(e, "rotate", h),
     [beginPv3dHandleDrag],
   );
 
@@ -2966,25 +3008,6 @@ function SolarScene3DViewer({
             {pv3dSelectedCount} panneau{pv3dSelectedCount > 1 ? "x" : ""}
             {pv3dSelectedKwc ? ` - ${pv3dSelectedKwc} kWc` : ""}
           </div>
-          <button
-            type="button"
-            aria-label="Supprimer le panneau selectionne"
-            onClick={() => {
-              if (removeSelectedPvPanelFrom3d()) refreshPv3dOverlay();
-            }}
-            style={{
-              border: "1px solid rgba(248,113,113,0.45)",
-              borderRadius: 4,
-              background: "rgba(127,29,29,0.72)",
-              color: "rgba(255,255,255,0.96)",
-              cursor: "pointer",
-              fontSize: 12,
-              lineHeight: "16px",
-              padding: "5px 8px",
-            }}
-          >
-            Supprimer
-          </button>
         </div>
       ) : null}
       {(inspectMode ||
