@@ -5715,6 +5715,48 @@ export function initCalpinage(container, options = {}) {
         return { ok: true };
       }
 
+      function beginPhase3PvRotateManipulationFrom3d(blockId, startImg, pointerId) {
+        if (CALPINAGE_STATE.currentPhase !== "PV_LAYOUT") {
+          return { ok: false, code: "WRONG_PHASE", message: "Phase Implantation PV requise." };
+        }
+        if (window.CALPINAGE_IS_MANIPULATING) {
+          return { ok: false, code: "ALREADY_MANIPULATING", message: "Une manipulation PV est dÃ©jÃ  en cours." };
+        }
+        var ENG = window.pvPlacementEngine;
+        if (!ENG || typeof ENG.beginManipulation !== "function") {
+          return { ok: false, code: "ENGINE_UNAVAILABLE", message: "Moteur Phase 3 indisponible." };
+        }
+        var bid = blockId != null ? String(blockId) : "";
+        var block = typeof ENG.getBlockById === "function" ? ENG.getBlockById(bid) : null;
+        if (!block) return { ok: false, code: "BLOCK_NOT_FOUND", message: "Bloc PV introuvable." };
+        if (typeof ENG.setActiveBlock === "function") ENG.setActiveBlock(bid);
+        ENG.beginManipulation(bid);
+        window.CALPINAGE_IS_MANIPULATING = true;
+        window.__FORCE_PV_MANIP_LOCK__ = true;
+        if (typeof setInteractionState === "function") setInteractionState(InteractionStates.ROTATING);
+        try {
+          window.PV_LAYOUT_STATE = PV_LAYOUT_FLOW.ROTATE;
+        } catch (_pvlr3d) {}
+        CALPINAGE_STATE.activeManipulationBlockId = bid;
+        var centerImgPv = ENG.getBlockCenter && ENG.getBlockCenter(block);
+        var sx = startImg && typeof startImg.x === "number" ? startImg.x : 0;
+        var sy = startImg && typeof startImg.y === "number" ? startImg.y : 0;
+        var ptr = pointerId != null && pointerId !== undefined ? pointerId : -1;
+        calpinageHandleDrag = {
+          type: "rotate",
+          blockId: bid,
+          pointerId: ptr,
+          startImg: { x: sx, y: sy },
+          centerImg: centerImgPv || null,
+          startAngleRad: centerImgPv ? Math.atan2(sy - centerImgPv.y, sx - centerImgPv.x) : 0,
+          lastAngleRad: centerImgPv ? Math.atan2(sy - centerImgPv.y, sx - centerImgPv.x) : 0
+        };
+        try {
+          if (drawState) drawState.ph3RotationLiveDeg = 0;
+        } catch (_dsRot3d) {}
+        return { ok: true, centerImg: centerImgPv || null };
+      }
+
       function applyPhase3PvMoveLiveFrom3d(dxImg, dyImg) {
         var ENG = window.pvPlacementEngine;
         if (!ENG || typeof ENG.setManipulationTransform !== "function") return false;
@@ -5722,6 +5764,24 @@ export function initCalpinage(container, options = {}) {
           return false;
         }
         ENG.setManipulationTransform(dxImg, dyImg, 0);
+        return true;
+      }
+
+      function applyPhase3PvTransformLiveFrom3d(dxImg, dyImg, rotationDeg) {
+        var ENG = window.pvPlacementEngine;
+        if (!ENG || typeof ENG.setManipulationTransform !== "function") return false;
+        if (!window.CALPINAGE_IS_MANIPULATING || !calpinageHandleDrag) return false;
+        var rot = Number(rotationDeg);
+        if (!Number.isFinite(rot)) rot = 0;
+        if (calpinageHandleDrag.type === "rotate") {
+          try {
+            if (drawState) drawState.ph3RotationLiveDeg = rot;
+          } catch (_dsRotLive3d) {}
+          ENG.setManipulationTransform(0, 0, rot);
+        } else {
+          ENG.setManipulationTransform(dxImg, dyImg, 0);
+        }
+        notifyPhase3Pv3dOverlayChanged();
         return true;
       }
 
@@ -5935,13 +5995,32 @@ export function initCalpinage(container, options = {}) {
         var activeBlock = ENG.getActiveBlock ? ENG.getActiveBlock() : null;
         var selectedPanelId = CALPINAGE_STATE.selectedPlacedPanelId ? String(CALPINAGE_STATE.selectedPlacedPanelId) : null;
         var panels = [];
+        function transformPanelPointsFor3d(block, panel) {
+          if (!block || !panel || !panel.projection || !panel.projection.points) return null;
+          if (!window.CALPINAGE_IS_MANIPULATING || !block.manipulationTransform) return panel.projection.points;
+          var centerAct = ENG.getBlockCenter ? ENG.getBlockCenter(block) : null;
+          if (!centerAct) return panel.projection.points;
+          var t = block.manipulationTransform;
+          var cos = Math.cos((t.rotationDeg || 0) * Math.PI / 180);
+          var sin = Math.sin((t.rotationDeg || 0) * Math.PI / 180);
+          var ox = t.offsetX || 0, oy = t.offsetY || 0;
+          var outPts = [];
+          for (var ti = 0; ti < panel.projection.points.length; ti++) {
+            var pt = panel.projection.points[ti];
+            var dx = pt.x - centerAct.x, dy = pt.y - centerAct.y;
+            outPts.push({ x: centerAct.x + dx * cos - dy * sin + ox, y: centerAct.y + dx * sin + dy * cos + oy });
+          }
+          return outPts;
+        }
         function pushBlockPanels(block, isSelected) {
           if (!block || !block.panels) return;
           for (var i = 0; i < block.panels.length; i++) {
             var p = block.panels[i];
             if (!p) continue;
             var proj = null;
-            if (activeBlock && activeBlock.id === block.id && ENG.getEffectivePanelProjection) {
+            if (activeBlock && activeBlock.id === block.id && window.CALPINAGE_IS_MANIPULATING && p.projection) {
+              proj = { points: transformPanelPointsFor3d(block, p) };
+            } else if (activeBlock && activeBlock.id === block.id && ENG.getEffectivePanelProjection) {
               proj = ENG.getEffectivePanelProjection(block, i);
             } else {
               proj = p.projection;
@@ -6013,7 +6092,10 @@ export function initCalpinage(container, options = {}) {
                   blockId: String(activeBlock.id),
                   panId: activeBlock.panId != null ? String(activeBlock.panId) : null,
                   center: { x: g.center.x, y: g.center.y },
-                  points: g.projection.points.map(function (pt) { return { x: pt.x, y: pt.y }; })
+                  points: g.projection.points.map(function (pt) { return { x: pt.x, y: pt.y }; }),
+                  valid: true,
+                  excluded: false,
+                  source: "expansion"
                 });
               }
             }
@@ -6047,6 +6129,47 @@ export function initCalpinage(container, options = {}) {
             });
           }
         }
+        var afLive3d = typeof window.__getLiveAutofillRenderData === "function" ? window.__getLiveAutofillRenderData() : null;
+        var afItemsRaw3d = afLive3d && Array.isArray(afLive3d.items) ? afLive3d.items : [];
+        var afUxFilter3d = typeof window.__filterAutofillPreviewItemsForUx === "function" ? window.__filterAutofillPreviewItemsForUx : null;
+        var afItems3d = afUxFilter3d ? afUxFilter3d(afItemsRaw3d) : afItemsRaw3d;
+        var afMode3d = window.__CALPINAGE_AUTOFILL_MODE__;
+        var afBlockId3d = afMode3d && afMode3d.sourceBlockId ? String(afMode3d.sourceBlockId) : (activeBlock && activeBlock.id ? String(activeBlock.id) : "");
+        var afPanId3d = afMode3d && afMode3d.sourcePanId != null ? String(afMode3d.sourcePanId) : (activeBlock && activeBlock.panId != null ? String(activeBlock.panId) : null);
+        var selAf3d = window.__CALPINAGE_AUTOFILL_SELECTION__;
+        var mkAfKey3d = typeof window.__makeAutofillCellKey === "function" ? window.__makeAutofillCellKey : null;
+        if (Array.isArray(afItems3d)) {
+          for (var ai3 = 0; ai3 < afItems3d.length; ai3++) {
+            var af = afItems3d[ai3];
+            if (!af || !af.projection || !af.projection.points || af.projection.points.length < 3) continue;
+            var excluded = false;
+            if (af.valid && mkAfKey3d && selAf3d && selAf3d.excludedKeys && typeof af.iu === "number" && typeof af.iv === "number") {
+              excluded = selAf3d.excludedKeys.has(mkAfKey3d(afBlockId3d, afPanId3d, af.iu, af.iv));
+            }
+            ghostsOut.push({
+              id: afBlockId3d + "_autofill_" + ai3,
+              blockId: afBlockId3d,
+              panId: afPanId3d,
+              center: af.center ? { x: af.center.x, y: af.center.y } : { x: af.projection.points[0].x, y: af.projection.points[0].y },
+              points: af.projection.points.map(function (pt) { return { x: pt.x, y: pt.y }; }),
+              valid: !!af.valid,
+              excluded: excluded,
+              source: "autofill"
+            });
+          }
+        }
+        var handlesOut = null;
+        if (focusBlock && typeof getManipulationHandlePositions === "function") {
+          var hp = getManipulationHandlePositions(focusBlock);
+          if (hp && hp.rotate && hp.move && hp.topOfBlock) {
+            handlesOut = {
+              blockId: String(focusBlock.id),
+              rotate: { x: hp.rotate.x, y: hp.rotate.y },
+              move: { x: hp.move.x, y: hp.move.y },
+              topOfBlock: { x: hp.topOfBlock.x, y: hp.topOfBlock.y }
+            };
+          }
+        }
         var selectedPanelCount = 0;
         for (var sp = 0; sp < panels.length; sp++) {
           if (panels[sp].selected && panels[sp].enabled !== false) selectedPanelCount++;
@@ -6060,6 +6183,7 @@ export function initCalpinage(container, options = {}) {
           selectedPanelId: selectedPanelId,
           selectedPanelCount: selectedPanelCount,
           selectedPowerKwc: selectedPowerKwc,
+          handles: handlesOut,
           panels: panels,
           ghosts: ghostsOut,
           safeZones: safeZones
@@ -7121,7 +7245,9 @@ export function initCalpinage(container, options = {}) {
           window.__calpinageCommitPvPlacementFrom3DImagePoint = commitPvPlacementFrom3DImagePoint;
           window.__calpinageHitTestPvBlockPanelFromImagePoint = hitTestAnyPvBlockPanelFromImage;
           window.__calpinageBeginPhase3PvMoveFrom3d = beginPhase3PvMoveManipulationFrom3d;
+          window.__calpinageBeginPhase3PvRotateFrom3d = beginPhase3PvRotateManipulationFrom3d;
           window.__calpinageApplyPhase3PvMoveLiveFrom3d = applyPhase3PvMoveLiveFrom3d;
+          window.__calpinageApplyPhase3PvTransformLiveFrom3d = applyPhase3PvTransformLiveFrom3d;
           window.__calpinageCancelPhase3PvMoveFrom3d = cancelPhase3PvMoveFrom3d;
           window.__calpinageFinalizePhase3PvHandleManipulation = finalizePhase3PvHandleManipulation;
           window.__calpinageGetPhase3Pv3dOverlayState = getPhase3Pv3dOverlayState;

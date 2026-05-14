@@ -14,13 +14,15 @@ export type PvLayout3dDragSession = {
   readonly blockId: string;
   readonly pointerId: number;
   readonly startImg: { readonly x: number; readonly y: number };
+  readonly mode?: "move" | "rotate";
+  readonly centerImg?: { readonly x: number; readonly y: number } | null;
 };
 
 type Props = {
   readonly session: PvLayout3dDragSession | null;
   readonly worldConfig: CanonicalWorldConfig | null;
   /** Delta px image cumulé depuis le pointerdown (aligné Phase 3). */
-  readonly onLiveOffsetImg: (dxImg: number, dyImg: number) => void;
+  readonly onLiveOffsetImg: (dxImg: number, dyImg: number, rotationDeg?: number) => void;
   readonly onSessionEnd: () => void;
 };
 
@@ -35,7 +37,7 @@ export function PvLayout3dDragController({ session, worldConfig, onLiveOffsetImg
   const raycasterRef = useRef(new THREE.Raycaster());
   /** Passe 6 — au plus une mise à jour moteur / frame (perf). */
   const rafRef = useRef(0);
-  const pendingOffsetRef = useRef<{ dx: number; dy: number } | null>(null);
+  const pendingOffsetRef = useRef<{ dx: number; dy: number; rotationDeg: number } | null>(null);
 
   /**
    * Positions monde initiales des meshes du bloc en cours de drag.
@@ -99,20 +101,26 @@ export function PvLayout3dDragController({ session, worldConfig, onLiveOffsetImg
       const img = worldPointToImage(w, wc);
       const dx = img.x - s.startImg.x;
       const dy = img.y - s.startImg.y;
-      pendingOffsetRef.current = { dx, dy };
+      let rotationDeg = 0;
+      if (s.mode === "rotate" && s.centerImg) {
+        const start = Math.atan2(s.startImg.y - s.centerImg.y, s.startImg.x - s.centerImg.x);
+        const now = Math.atan2(img.y - s.centerImg.y, img.x - s.centerImg.x);
+        rotationDeg = ((now - start) * 180) / Math.PI;
+      }
+      pendingOffsetRef.current = { dx, dy, rotationDeg };
       if (rafRef.current !== 0) return;
       rafRef.current = requestAnimationFrame(() => {
         rafRef.current = 0;
         const p = pendingOffsetRef.current;
         pendingOffsetRef.current = null;
         if (p) {
-          liveRef.current(p.dx, p.dy);
+          liveRef.current(p.dx, p.dy, p.rotationDeg);
           /**
            * Mise à jour directe des mesh.position Three.js pour un rendu live immédiat,
            * sans attendre le rebuild React (qui n'arrive qu'au pointerup).
            * Delta image px → delta monde ENU : même loi que imagePxToWorldHorizontalM.
            */
-          if (wc && initialMeshPositions.current.size > 0) {
+          if (wc && initialMeshPositions.current.size > 0 && s.mode !== "rotate") {
             const mpp = wc.metersPerPixel;
             const rad = (wc.northAngleDeg * Math.PI) / 180;
             const cos = Math.cos(rad);
@@ -137,7 +145,7 @@ export function PvLayout3dDragController({ session, worldConfig, onLiveOffsetImg
       }
       const p = pendingOffsetRef.current;
       pendingOffsetRef.current = null;
-      if (p) liveRef.current(p.dx, p.dy);
+      if (p) liveRef.current(p.dx, p.dy, p.rotationDeg);
       endRef.current();
     };
 

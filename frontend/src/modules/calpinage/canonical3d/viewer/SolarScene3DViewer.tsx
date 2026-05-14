@@ -175,6 +175,8 @@ import { tryCommitPvPlacementFrom3dRoofHit } from "../../runtime/pvPlacementFrom
 import {
   addPvPanelFrom3dImagePoint,
   applyPvMoveLiveFrom3d,
+  applyPvTransformLiveFrom3d,
+  beginPvRotateFrom3d,
   beginPvMoveFrom3d,
   clearPvSelectionFrom3d,
   cancelPvMoveFrom3d,
@@ -731,6 +733,8 @@ function ViewerSceneContent({
   pvLayout3DInteractionMode = false,
   pvLayout3dOverlayState,
   onPvPanelPvLayout3dPointerDown,
+  onPvMoveHandlePointerDown,
+  onPvRotateHandlePointerDown,
   debugRuntime,
   satelliteTexture,
   satelliteUvMapper,
@@ -779,6 +783,8 @@ function ViewerSceneContent({
   readonly pvLayout3DInteractionMode?: boolean;
   readonly pvLayout3dOverlayState?: PvLayout3dOverlayState | null;
   readonly onPvPanelPvLayout3dPointerDown?: (e: ThreeEvent<PointerEvent>, panelId: string) => void;
+  readonly onPvMoveHandlePointerDown?: (e: ThreeEvent<PointerEvent>) => void;
+  readonly onPvRotateHandlePointerDown?: (e: ThreeEvent<PointerEvent>) => void;
   /** Runtime brut (ex. CALPINAGE_STATE) — champs 2D lucarne pour rendu dormer premium (couche visuelle). */
   readonly debugRuntime?: unknown;
   /**
@@ -965,7 +971,7 @@ function ViewerSceneContent({
     return pvLayout3dOverlayState.ghosts.flatMap((g) => {
       const fill = imagePolygonToRoofMeshGeometry(scene, g.points, g.panId, 0.045);
       const line = imagePolygonToRoofLineGeometry(scene, g.points, g.panId, 0.052);
-      return fill || line ? [{ id: g.id, fill, line }] : [];
+      return fill || line ? [{ id: g.id, fill, line, valid: g.valid !== false, excluded: !!g.excluded, source: g.source }] : [];
     });
   }, [scene, pvLayout3DInteractionMode, pvLayout3dOverlayState]);
 
@@ -977,6 +983,15 @@ function ViewerSceneContent({
         return line ? [{ id: `${z.panId}-${index}`, line }] : [];
       }),
     );
+  }, [scene, pvLayout3DInteractionMode, pvLayout3dOverlayState]);
+
+  const pv3dHandlePositions = useMemo(() => {
+    const h = pvLayout3dOverlayState?.handles;
+    if (!pvLayout3DInteractionMode || !h) return null;
+    const rotate = imagePolygonToRoofWorldPoints(scene, [h.rotate, h.rotate], null, 0.16)[0] ?? null;
+    const move = imagePolygonToRoofWorldPoints(scene, [h.move, h.move], null, 0.16)[0] ?? null;
+    const top = imagePolygonToRoofWorldPoints(scene, [h.topOfBlock, h.topOfBlock], null, 0.15)[0] ?? null;
+    return rotate && move && top ? { blockId: h.blockId, rotate, move, top } : null;
   }, [scene, pvLayout3DInteractionMode, pvLayout3dOverlayState]);
 
   const allGeos = useMemo(
@@ -1406,14 +1421,14 @@ function ViewerSceneContent({
           </lineSegments>
         ))}
       {pvLayout3DInteractionMode &&
-        pv3dGhostGeos.map(({ id, fill, line }) => (
+        pv3dGhostGeos.map(({ id, fill, line, valid, excluded }) => (
           <group key={`pv3d-ghost-${id}`}>
             {fill ? (
               <mesh geometry={fill} renderOrder={16}>
                 <meshBasicMaterial
-                  color="#94a3b8"
+                  color={valid ? (excluded ? "#a1a1aa" : "#94a3b8") : "#ef4444"}
                   transparent
-                  opacity={0.34}
+                  opacity={valid ? (excluded ? 0.14 : 0.34) : 0.22}
                   side={THREE.DoubleSide}
                   depthWrite={false}
                   toneMapped={false}
@@ -1422,11 +1437,63 @@ function ViewerSceneContent({
             ) : null}
             {line ? (
               <lineSegments geometry={line} renderOrder={17}>
-                <lineBasicMaterial color="#cbd5e1" transparent opacity={0.82} toneMapped={false} depthTest={false} />
+                <lineBasicMaterial
+                  color={valid ? (excluded ? "#71717a" : "#cbd5e1") : "#ef4444"}
+                  transparent
+                  opacity={valid ? 0.82 : 0.9}
+                  toneMapped={false}
+                  depthTest={false}
+                />
               </lineSegments>
             ) : null}
           </group>
         ))}
+      {pv3dHandlePositions ? (
+        <group>
+          <lineSegments>
+            <bufferGeometry>
+              <bufferAttribute
+                attach="attributes-position"
+                args={[
+                  new Float32Array([
+                    pv3dHandlePositions.top.x,
+                    pv3dHandlePositions.top.y,
+                    pv3dHandlePositions.top.z,
+                    pv3dHandlePositions.rotate.x,
+                    pv3dHandlePositions.rotate.y,
+                    pv3dHandlePositions.rotate.z,
+                    pv3dHandlePositions.top.x,
+                    pv3dHandlePositions.top.y,
+                    pv3dHandlePositions.top.z,
+                    pv3dHandlePositions.move.x,
+                    pv3dHandlePositions.move.y,
+                    pv3dHandlePositions.move.z,
+                  ]),
+                  3,
+                ]}
+              />
+            </bufferGeometry>
+            <lineBasicMaterial color="#6366f1" transparent opacity={0.7} toneMapped={false} depthTest={false} />
+          </lineSegments>
+          <mesh
+            position={pv3dHandlePositions.rotate}
+            renderOrder={30}
+            onPointerDown={onPvRotateHandlePointerDown}
+          >
+            <sphereGeometry args={[Math.max(maxDimLocal * 0.008, 0.08), 24, 12]} />
+            <meshBasicMaterial color="#6366f1" toneMapped={false} depthTest={false} />
+          </mesh>
+          <mesh
+            position={pv3dHandlePositions.move}
+            renderOrder={30}
+            onPointerDown={onPvMoveHandlePointerDown}
+          >
+            <sphereGeometry args={[Math.max(maxDimLocal * 0.006, 0.06), 18, 10]} />
+            <meshBasicMaterial color="#ffffff" toneMapped={false} depthTest={false} />
+            <Outlines thickness={outlineThickness * 0.8} color="#6366f1" opacity={0.95} toneMapped={false} />
+          </mesh>
+        </group>
+      ) : null}
       {visPanels &&
         panelGeos.map(({ id, geo }) => {
           const pvSel = isInspectSelected(inspectionSelection, "PV_PANEL", id);
@@ -1445,7 +1512,7 @@ function ViewerSceneContent({
             ) : pv3dSelected ? (
               <Outlines
                 thickness={outlineThickness * 1.25}
-                color="#ef4444"
+                color="#6366f1"
                 opacity={0.95}
                 toneMapped={false}
               />
@@ -1509,8 +1576,8 @@ function ViewerSceneContent({
               }}
             >
               <meshStandardMaterial
-                color={pv3dInvalid ? "#d97706" : pv3dSelected ? "#b91c1c" : mat.color}
-                emissive={pv3dInvalid ? "#f59e0b" : pv3dSelected ? "#ef4444" : mat.emissive}
+                color={pv3dInvalid ? "#d97706" : mat.color}
+                emissive={pv3dInvalid ? "#f59e0b" : pv3dSelected ? "#6366f1" : mat.emissive}
                 emissiveIntensity={pv3dInvalid ? 0.34 : pv3dSelected ? mat.emissiveIntensity + 0.22 : mat.emissiveIntensity}
                 metalness={pvB.panelMetalness}
                 roughness={pvB.panelRoughness}
@@ -2455,8 +2522,12 @@ function SolarScene3DViewer({
     [pvLayout3DInteractionMode, pv3dOverlayEpoch, scene],
   );
 
-  const onPv3dLiveOffsetImg = useCallback((dxImg: number, dyImg: number) => {
-    applyPvMoveLiveFrom3d(dxImg, dyImg);
+  const onPv3dLiveOffsetImg = useCallback((dxImg: number, dyImg: number, rotationDeg = 0) => {
+    if (pv3dDragSessionRef.current?.mode === "rotate") {
+      applyPvTransformLiveFrom3d(0, 0, rotationDeg);
+    } else {
+      applyPvMoveLiveFrom3d(dxImg, dyImg);
+    }
     refreshPv3dOverlayThrottled();
   }, [refreshPv3dOverlayThrottled]);
 
@@ -2500,17 +2571,49 @@ function SolarScene3DViewer({
       }
       selectPvBlockFrom3d(hit.blockId, hit.panelId);
       refreshPv3dOverlay();
-      const ptr = (e.nativeEvent as PointerEvent).pointerId ?? 0;
-      const r = beginPvMoveFrom3d(hit.blockId, img, ptr);
-      if (!r.ok) {
-        if (import.meta.env.DEV) console.warn("[CALPINAGE][PV_3D_MOVE]", r);
-        return;
-      }
-      setPv3dDragSession({ blockId: hit.blockId, pointerId: ptr, startImg: { x: img.x, y: img.y } });
-      setOrbitSuppressed(true);
       e.stopPropagation();
     },
     [pvLayout3DInteractionMode, scene.worldConfig, debugRuntime, pvLayout3dOverlayState, refreshPv3dOverlay],
+  );
+
+  const beginPv3dHandleDrag = useCallback(
+    (e: ThreeEvent<PointerEvent>, mode: "move" | "rotate") => {
+      if (!pvLayout3DInteractionMode) return;
+      if (e.button !== 0) return;
+      const wc = scene.worldConfig;
+      const blockId = pvLayout3dOverlayState?.handles?.blockId;
+      if (!wc || !blockId) return;
+      const img = worldPointToImage({ x: e.point.x, y: e.point.y, z: e.point.z }, wc);
+      const ptr = (e.nativeEvent as PointerEvent).pointerId ?? 0;
+      if (mode === "rotate") {
+        const r = beginPvRotateFrom3d(blockId, img, ptr);
+        if (!r.ok) {
+          if (import.meta.env.DEV) console.warn("[CALPINAGE][PV_3D_ROTATE]", r);
+          return;
+        }
+        setPv3dDragSession({ blockId, pointerId: ptr, startImg: { x: img.x, y: img.y }, mode: "rotate", centerImg: r.centerImg });
+      } else {
+        const r = beginPvMoveFrom3d(blockId, img, ptr);
+        if (!r.ok) {
+          if (import.meta.env.DEV) console.warn("[CALPINAGE][PV_3D_MOVE]", r);
+          return;
+        }
+        setPv3dDragSession({ blockId, pointerId: ptr, startImg: { x: img.x, y: img.y }, mode: "move" });
+      }
+      setOrbitSuppressed(true);
+      e.stopPropagation();
+    },
+    [pvLayout3DInteractionMode, scene.worldConfig, pvLayout3dOverlayState],
+  );
+
+  const onPvMoveHandlePointerDown = useCallback(
+    (e: ThreeEvent<PointerEvent>) => beginPv3dHandleDrag(e, "move"),
+    [beginPv3dHandleDrag],
+  );
+
+  const onPvRotateHandlePointerDown = useCallback(
+    (e: ThreeEvent<PointerEvent>) => beginPv3dHandleDrag(e, "rotate"),
+    [beginPv3dHandleDrag],
   );
 
   /** Pass 4–5 — toit : sonde (`__CALPINAGE_3D_PV_PLACE_PROBE__`) ou produit (`pvLayout3DInteractionMode`) en phase PV_LAYOUT. */
@@ -3093,6 +3196,8 @@ function SolarScene3DViewer({
           pvLayout3DInteractionMode={pvLayout3DInteractionMode}
           pvLayout3dOverlayState={pvLayout3dOverlayState}
           onPvPanelPvLayout3dPointerDown={onPvPanelPvLayout3dPointerDown}
+          onPvMoveHandlePointerDown={onPvMoveHandlePointerDown}
+          onPvRotateHandlePointerDown={onPvRotateHandlePointerDown}
           debugRuntime={debugRuntime}
           satelliteTexture={satelliteTexture}
           satelliteUvMapper={satelliteUvMapper}

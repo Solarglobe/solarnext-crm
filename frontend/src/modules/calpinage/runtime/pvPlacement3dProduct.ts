@@ -25,11 +25,21 @@ export type PvLayout3dOverlayGhost = {
   readonly panId: string | null;
   readonly center: PvLayout3dOverlayPoint;
   readonly points: readonly PvLayout3dOverlayPoint[];
+  readonly valid?: boolean;
+  readonly excluded?: boolean;
+  readonly source?: "expansion" | "autofill";
 };
 
 export type PvLayout3dOverlaySafeZone = {
   readonly panId: string;
   readonly polygons: readonly (readonly PvLayout3dOverlayPoint[])[];
+};
+
+export type PvLayout3dOverlayHandles = {
+  readonly blockId: string;
+  readonly rotate: PvLayout3dOverlayPoint;
+  readonly move: PvLayout3dOverlayPoint;
+  readonly topOfBlock: PvLayout3dOverlayPoint;
 };
 
 export type PvLayout3dOverlayState = {
@@ -38,6 +48,7 @@ export type PvLayout3dOverlayState = {
   readonly selectedPanelId: string | null;
   readonly selectedPanelCount: number;
   readonly selectedPowerKwc: number | null;
+  readonly handles: PvLayout3dOverlayHandles | null;
   readonly panels: readonly PvLayout3dOverlayPanel[];
   readonly ghosts: readonly PvLayout3dOverlayGhost[];
   readonly safeZones: readonly PvLayout3dOverlaySafeZone[];
@@ -122,6 +133,46 @@ export function finalizePvMoveFrom3d(opts?: LegacyFinalizeOpts): boolean {
   return typeof w.__calpinageFinalizePhase3PvHandleManipulation === "function"
     ? !!w.__calpinageFinalizePhase3PvHandleManipulation(opts ?? {})
     : false;
+}
+
+export function applyPvTransformLiveFrom3d(dxImg: number, dyImg: number, rotationDeg: number): boolean {
+  if (typeof window === "undefined") return false;
+  const w = window as unknown as {
+    __calpinageApplyPhase3PvTransformLiveFrom3d?: (dx: number, dy: number, rot: number) => boolean;
+  };
+  return typeof w.__calpinageApplyPhase3PvTransformLiveFrom3d === "function"
+    ? !!w.__calpinageApplyPhase3PvTransformLiveFrom3d(dxImg, dyImg, rotationDeg)
+    : false;
+}
+
+export function beginPvRotateFrom3d(
+  blockId: string,
+  startImg: { readonly x: number; readonly y: number },
+  pointerId: number,
+): { readonly ok: true; readonly centerImg: { readonly x: number; readonly y: number } | null } | { readonly ok: false; readonly code: string; readonly message: string } {
+  if (typeof window === "undefined") {
+    return { ok: false, code: "LEGACY_UNAVAILABLE", message: "Calpinage legacy non chargÃ©." };
+  }
+  const w = window as unknown as {
+    __calpinageBeginPhase3PvRotateFrom3d?: (
+      blockId: string,
+      startImg: { x: number; y: number },
+      pointerId: number,
+    ) => { ok?: boolean; code?: string; message?: string; centerImg?: { x: number; y: number } | null };
+  };
+  const fn = w.__calpinageBeginPhase3PvRotateFrom3d;
+  if (typeof fn !== "function") {
+    return { ok: false, code: "LEGACY_UNAVAILABLE", message: "Calpinage legacy non chargÃ©." };
+  }
+  const r = fn(String(blockId), { x: startImg.x, y: startImg.y }, pointerId);
+  if (r && r.ok === false) {
+    return {
+      ok: false,
+      code: String(r.code ?? "BEGIN_REJECT"),
+      message: String(r.message ?? "Rotation refusÃ©e."),
+    };
+  }
+  return { ok: true, centerImg: r?.centerImg ?? null };
 }
 
 export function readPvLayout3dOverlayState(): PvLayout3dOverlayState | null {
