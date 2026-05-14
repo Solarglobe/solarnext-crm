@@ -70,6 +70,7 @@ import {
   formatRoofShellAlignmentOneLine,
 } from "../diagnostics/computeRoofShellAlignmentDiagnostics";
 import type { SolarScene3D } from "../types/solarScene3d";
+import type { PvPanelSurface3D } from "../types/pv-panel-3d";
 import {
   computeSolarSceneBoundingBox,
   extendBoundingBoxWithSatelliteImageFootprint,
@@ -322,6 +323,13 @@ function formatPanelTooltip(panelId: string, scene: SolarScene3D): string {
   return `${title}\nDonnée shading non disponible`;
 }
 
+const PREMIUM_PV_SURFACE_HEX = new THREE.Color("#111827").getHex();
+const PREMIUM_PV_EMISSIVE_HEX = new THREE.Color("#16243b").getHex();
+const PREMIUM_PV_CELL_LINE = "#cbd5e1";
+const PREMIUM_PV_SELECTED_FILL = "#27346a";
+const PREMIUM_PV_LIVE_FILL = "#172033";
+const PREMIUM_PV_INVALID_FILL = "#b91c1c";
+
 function panelSurfaceMaterial(
   scene: SolarScene3D,
   panelId: string,
@@ -330,14 +338,12 @@ function panelSurfaceMaterial(
   emissiveBonus: number,
 ): { color: number; emissive: number; emissiveIntensity: number } {
   if (!showShading) {
-    const c = blendPvSurfaceColor(premiumTintHexForQualityScore(null), 0.2);
-    const em = new THREE.Color(c);
     return {
-      color: c,
-      emissive: em.getHex(),
+      color: PREMIUM_PV_SURFACE_HEX,
+      emissive: PREMIUM_PV_EMISSIVE_HEX,
       // 0.12 : plancher d'émissivité pour que les panneaux restent visibles
       // même sans données d'ombrage (fond sombre, ACES tonemapping).
-      emissiveIntensity: 0.12 + emissiveBonus + (inspectSelected ? 0.06 : 0),
+      emissiveIntensity: 0.1 + emissiveBonus + (inspectSelected ? 0.08 : 0),
     };
   }
   const eff = getEffectivePanelVisualShading(panelId, scene);
@@ -352,6 +358,56 @@ function panelSurfaceMaterial(
     emissiveIntensity:
       (eff.state === "AVAILABLE" ? 0.05 : 0.028) + emissiveBonus + (inspectSelected ? 0.07 : 0),
   };
+}
+
+function premiumPvCellLineGeometryFromWorldPoints(
+  world: readonly THREE.Vector3[],
+  offsetM: number,
+): THREE.BufferGeometry | null {
+  if (world.length < 4) return null;
+  const p0 = world[0]!;
+  const p1 = world[1]!;
+  const p2 = world[2]!;
+  const p3 = world[3]!;
+  const normal = new THREE.Vector3()
+    .crossVectors(new THREE.Vector3().subVectors(p1, p0), new THREE.Vector3().subVectors(p3, p0))
+    .normalize();
+  if (!Number.isFinite(normal.x) || normal.lengthSq() < 1e-8) return null;
+
+  const wM = p0.distanceTo(p1);
+  const hM = p0.distanceTo(p3);
+  const cols = Math.max(4, Math.min(12, Math.round(wM / 0.18)));
+  const rows = Math.max(4, Math.min(10, Math.round(hM / 0.18)));
+  const positions: number[] = [];
+  const push = (a: THREE.Vector3, b: THREE.Vector3) => {
+    const ao = a.clone().addScaledVector(normal, offsetM);
+    const bo = b.clone().addScaledVector(normal, offsetM);
+    positions.push(ao.x, ao.y, ao.z, bo.x, bo.y, bo.z);
+  };
+  const lerp = (a: THREE.Vector3, b: THREE.Vector3, t: number) => new THREE.Vector3().lerpVectors(a, b, t);
+
+  for (let i = 1; i < cols; i++) {
+    const t = i / cols;
+    push(lerp(p0, p3, t), lerp(p1, p2, t));
+  }
+  for (let i = 1; i < rows; i++) {
+    const t = i / rows;
+    push(lerp(p0, p1, t), lerp(p3, p2, t));
+  }
+  for (let i = 1; i <= 2; i++) {
+    const t = i / 3;
+    if (wM >= hM) push(lerp(p0, p1, t), lerp(p3, p2, t));
+    else push(lerp(p0, p3, t), lerp(p1, p2, t));
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  return geo;
+}
+
+function premiumPvPanelCellLineGeometry(panel: PvPanelSurface3D): THREE.BufferGeometry | null {
+  const world = panel.corners3D.map((p) => new THREE.Vector3(p.x, p.y, p.z));
+  return premiumPvCellLineGeometryFromWorldPoints(world, 0.018);
 }
 
 function inspectData(kind: SceneInspectableKind, id: string, meshRole?: SceneInspectMeshRole): Record<string, unknown> {
@@ -459,6 +515,18 @@ function imagePolygonToRoofLineGeometry(
   const geo = new THREE.BufferGeometry();
   geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
   return geo;
+}
+
+function imagePolygonToRoofCellLineGeometry(
+  scene: SolarScene3D,
+  points: readonly { readonly x: number; readonly y: number }[],
+  panId: string | null | undefined,
+  offsetM: number,
+): THREE.BufferGeometry | null {
+  return premiumPvCellLineGeometryFromWorldPoints(
+    imagePolygonToRoofWorldPoints(scene, points, panId, offsetM),
+    0,
+  );
 }
 
 type PvLayout3dScreenPoint = { readonly x: number; readonly y: number };
@@ -1252,6 +1320,7 @@ function ViewerSceneContent({
     return scene.pvPanels.map((p) => ({
       id: String(p.id),
       geo: panelQuadGeometry(p),
+      cell: premiumPvPanelCellLineGeometry(p),
     }));
   }, [scene.pvPanels]);
 
@@ -1268,11 +1337,13 @@ function ViewerSceneContent({
       if (!p.selected) return [];
       const fill = imagePolygonToRoofMeshGeometry(scene, p.points, p.panId, 0.075);
       const line = imagePolygonToRoofLineGeometry(scene, p.points, p.panId, 0.082);
-      return fill || line
+      const cell = imagePolygonToRoofCellLineGeometry(scene, p.points, p.panId, 0.088);
+      return fill || line || cell
         ? [{
             id: p.id,
             fill,
             line,
+            cell,
             selected: !!p.selected,
             invalid: !!p.invalid,
             enabled: p.enabled !== false,
@@ -1317,8 +1388,8 @@ function ViewerSceneContent({
       ...dormerPremiumLayer.meshes.flatMap((m) => [m.geo, ...(m.edges ? [m.edges] : [])]),
       ...obsGeos.map((x) => x.geo),
       ...extGeos.map((x) => x.geo),
-      ...panelGeos.map((x) => x.geo),
-      ...pv3dLivePanelGeos.flatMap((x) => [x.fill, x.line].filter((g): g is THREE.BufferGeometry => g != null)),
+      ...panelGeos.flatMap((x) => [x.geo, x.cell].filter((g): g is THREE.BufferGeometry => g != null)),
+      ...pv3dLivePanelGeos.flatMap((x) => [x.fill, x.line, x.cell].filter((g): g is THREE.BufferGeometry => g != null)),
       ...pv3dGhostGeos.flatMap((x) => [x.fill, x.line].filter((g): g is THREE.BufferGeometry => g != null)),
       ...pv3dSafeZoneGeos.map((x) => x.line),
     ],
@@ -1777,14 +1848,14 @@ function ViewerSceneContent({
           </group>
         ))}
       {pvLayout3DInteractionMode &&
-        pv3dLivePanelGeos.map(({ id, fill, line, selected, invalid, enabled }) => (
+        pv3dLivePanelGeos.map(({ id, fill, line, cell, selected, invalid, enabled }) => (
           <group key={`pv3d-live-${id}`}>
             {fill ? (
               <mesh geometry={fill} renderOrder={30}>
                 <meshStandardMaterial
-                  color={invalid ? "#dc2626" : selected ? "#30396f" : "#2c334a"}
-                  emissive={invalid ? "#ef4444" : selected ? "#6366f1" : "#111827"}
-                  emissiveIntensity={invalid ? 0.5 : selected ? 0.26 : 0.1}
+                  color={invalid ? PREMIUM_PV_INVALID_FILL : selected ? PREMIUM_PV_SELECTED_FILL : PREMIUM_PV_LIVE_FILL}
+                  emissive={invalid ? "#ef4444" : selected ? "#5865d9" : "#16243b"}
+                  emissiveIntensity={invalid ? 0.42 : selected ? 0.22 : 0.1}
                   metalness={pvB.panelMetalness}
                   roughness={pvB.panelRoughness}
                   transparent={enabled === false}
@@ -1797,12 +1868,23 @@ function ViewerSceneContent({
                 />
               </mesh>
             ) : null}
+            {cell ? (
+              <lineSegments geometry={cell} renderOrder={32}>
+                <lineBasicMaterial
+                  color={PREMIUM_PV_CELL_LINE}
+                  transparent
+                  opacity={invalid ? 0.28 : 0.2}
+                  toneMapped={false}
+                  depthTest
+                />
+              </lineSegments>
+            ) : null}
             {line ? (
               <lineSegments geometry={line} renderOrder={31}>
                 <lineBasicMaterial
-                  color={invalid ? "#f87171" : "#6366f1"}
+                  color={invalid ? "#f87171" : "#7c8cff"}
                   transparent
-                  opacity={invalid ? 0.98 : 0.92}
+                  opacity={invalid ? 0.98 : 0.88}
                   toneMapped={false}
                   depthTest
                 />
@@ -1811,7 +1893,7 @@ function ViewerSceneContent({
           </group>
         ))}
       {visPanels &&
-        panelGeos.map(({ id, geo }) => {
+        panelGeos.map(({ id, geo, cell }) => {
           const pvSel = isInspectSelected(inspectionSelection, "PV_PANEL", id);
           const pv3dPanel = pvLayout3DInteractionMode ? pv3dOverlayPanelById.get(id) : null;
           const pv3dSelected = !!pv3dPanel?.selected;
@@ -1882,6 +1964,17 @@ function ViewerSceneContent({
                 polygonOffsetFactor={pvLayout3DInteractionMode ? -3 : -1}
                 polygonOffsetUnits={pvLayout3DInteractionMode ? -3 : -1}
               />
+              {cell ? (
+                <lineSegments geometry={cell} renderOrder={pvLayout3DInteractionMode ? 22 : 1}>
+                  <lineBasicMaterial
+                    color={PREMIUM_PV_CELL_LINE}
+                    transparent
+                    opacity={pv3dSelected || pvSel ? 0.24 : 0.16}
+                    toneMapped={false}
+                    depthTest
+                  />
+                </lineSegments>
+              ) : null}
               {thinOutline}
               {inspectMode && pvSel && (
                 <Outlines
@@ -3174,7 +3267,6 @@ function SolarScene3DViewer({
     [geometryBox.min.z],
   );
 
-  const tooltipText = panelHover ? formatPanelTooltip(panelHover.panelId, scene) : null;
   const pv3dHasSelectedPanel = !!(
     pvLayout3DInteractionMode &&
     pvLayout3dOverlayState?.panels.some((p) => p.selected)
@@ -3374,32 +3466,6 @@ function SolarScene3DViewer({
           }}
         >
           {roofPickHover.label}
-        </div>
-      )}
-      {tooltipText != null && panelHover != null && (
-        <div
-          role="tooltip"
-          style={{
-            position: "fixed",
-            left: panelHover.clientX + 14,
-            top: panelHover.clientY + 14,
-            zIndex: 10000,
-            pointerEvents: "none",
-            padding: "8px 10px",
-            borderRadius: 6,
-            background: "rgba(15,18,24,0.92)",
-            border: "1px solid rgba(255,255,255,0.1)",
-            color: "rgba(248,250,252,0.95)",
-            fontSize: 12,
-            lineHeight: 1.4,
-            maxWidth: 260,
-            boxShadow: "0 8px 24px rgba(0,0,0,0.35)",
-            fontFamily: "system-ui, sans-serif",
-          }}
-        >
-          {tooltipText.split("\n").map((line, i) => (
-            <div key={i}>{line}</div>
-          ))}
         </div>
       )}
       <Canvas

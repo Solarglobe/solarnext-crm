@@ -56,11 +56,12 @@ type PVPanelsSnap = {
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 
-const PANEL_FILL         = "#13171B";
-const PANEL_BORDER       = "#242A2F";
-const PANEL_BORDER_W     = 1.2;   // px écran
-const GRID_STROKE        = "rgba(255,255,255,0.30)";
-const GLOW_COLOR         = "rgba(99,102,241,0.55)";
+const PANEL_FILL         = "#111827";
+const PANEL_BORDER       = "rgba(226,232,240,0.34)";
+const PANEL_BORDER_W     = 1;     // px ecran
+const GRID_STROKE        = "rgba(203,213,225,0.16)";
+const BUSBAR_STROKE      = "rgba(226,232,240,0.24)";
+const GLOW_COLOR         = "rgba(124,140,255,0.55)";
 const GLOW_BLUR_SC       = 10;    // px écran
 const DORMER_FILL        = "rgba(0,0,0,0.18)";
 const INVALID_FILL       = "rgba(239,68,68,0.25)";
@@ -141,7 +142,16 @@ export function KonvaPVPanelsLayer() {
           if (!entry.outlineOnly) {
             // ── 1. Fill ────────────────────────────────────────────────────
             buildPath();
-            ctx.fillStyle = PANEL_FILL;
+            if (n >= 4 && native.createLinearGradient) {
+              const p0 = pts[0]!, p2 = pts[2]!;
+              const glass = native.createLinearGradient(p0.x, imgH - p0.y, p2.x, imgH - p2.y);
+              glass.addColorStop(0, "#0b1120");
+              glass.addColorStop(0.52, PANEL_FILL);
+              glass.addColorStop(1, "#182235");
+              ctx.fillStyle = glass as unknown as string;
+            } else {
+              ctx.fillStyle = PANEL_FILL;
+            }
             ctx.fill();
 
             // ── 2. Grille bilinéaire (clip) ───────────────────────────────
@@ -163,7 +173,7 @@ export function KonvaPVPanelsLayer() {
               const rows = Math.max(4, Math.min(30, Math.floor(hPx / cell)));
 
               ctx.strokeStyle = GRID_STROKE;
-              ctx.lineWidth   = 1 / scale; // 1 px écran
+              ctx.lineWidth   = 0.7 / scale;
               native.setLineDash([]);
 
               // Colonnes : interpolation le long de l'arête gauche (p0→p3) et droite (p1→p2)
@@ -180,6 +190,21 @@ export function KonvaPVPanelsLayer() {
                 ctx.beginPath();
                 ctx.moveTo(p0x + (p1x - p0x) * t, p0y + (p1y - p0y) * t);
                 ctx.lineTo(p3x + (p2x - p3x) * t, p3y + (p2y - p3y) * t);
+                ctx.stroke();
+              }
+
+              ctx.strokeStyle = BUSBAR_STROKE;
+              ctx.lineWidth = 0.9 / scale;
+              for (let bi = 1; bi <= 2; bi++) {
+                const t = bi / 3;
+                ctx.beginPath();
+                if (wPx >= hPx) {
+                  ctx.moveTo(p0x + (p1x - p0x) * t, p0y + (p1y - p0y) * t);
+                  ctx.lineTo(p3x + (p2x - p3x) * t, p3y + (p2y - p3y) * t);
+                } else {
+                  ctx.moveTo(p0x + (p3x - p0x) * t, p0y + (p3y - p0y) * t);
+                  ctx.lineTo(p1x + (p2x - p1x) * t, p1y + (p2y - p1y) * t);
+                }
                 ctx.stroke();
               }
 

@@ -272,6 +272,22 @@ function circleToPolygon(cx, cy, radius, n) {
   }
   return pts;
 }
+function rectCenterToPolygon(cx, cy, width, height, angleRad) {
+  const hw = width / 2;
+  const hh = height / 2;
+  const c = Math.cos(angleRad || 0);
+  const s = Math.sin(angleRad || 0);
+  const corners = [
+    { x: -hw, y: -hh },
+    { x: hw, y: -hh },
+    { x: hw, y: hh },
+    { x: -hw, y: hh }
+  ];
+  return corners.map((p) => ({
+    x: cx + p.x * c - p.y * s,
+    y: cy + p.x * s + p.y * c
+  }));
+}
 function toPoint2D(p) {
   if (!p || typeof p !== "object") return null;
   const o = p;
@@ -283,6 +299,19 @@ function toPoint2D(p) {
 function toFootprintPx(entity) {
   if (!entity || typeof entity !== "object") return null;
   const e = entity;
+  const shapeMeta = e.shapeMeta;
+  if (shapeMeta && typeof shapeMeta === "object") {
+    const originalType = shapeMeta.originalType;
+    const cx2 = shapeMeta.centerX;
+    const cy2 = shapeMeta.centerY;
+    if (originalType === "circle" && typeof cx2 === "number" && typeof cy2 === "number" && typeof shapeMeta.radius === "number" && shapeMeta.radius > 0) {
+      return ensureClosedPolygon(circleToPolygon(cx2, cy2, shapeMeta.radius, CIRCLE_SEGMENTS));
+    }
+    if (originalType === "rect" && typeof cx2 === "number" && typeof cy2 === "number" && typeof shapeMeta.width === "number" && typeof shapeMeta.height === "number" && shapeMeta.width > 0 && shapeMeta.height > 0) {
+      const angle = typeof shapeMeta.angle === "number" ? shapeMeta.angle : 0;
+      return ensureClosedPolygon(rectCenterToPolygon(cx2, cy2, shapeMeta.width, shapeMeta.height, angle));
+    }
+  }
   const poly = e.polygonPx ?? e.polygon ?? e.points;
   if (Array.isArray(poly) && poly.length >= 3) {
     const pts = poly.map((p) => toPoint2D(p)).filter((p) => p !== null);

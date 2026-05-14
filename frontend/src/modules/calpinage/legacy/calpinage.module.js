@@ -21021,12 +21021,15 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 prof.blockT0 = nowProf;
               }
               var ENG = window.pvPlacementEngine;
-              var PANEL_OUTLINE_ACTIVE = "#6366F1";
-              var PANEL_OUTLINE_SELECTED = "#6366F1";
+              var PANEL_OUTLINE_ACTIVE = "#7c8cff";
+              var PANEL_OUTLINE_SELECTED = "#7c8cff";
               var PANEL_OUTLINE_FROZEN = "#e5e7eb";
               var PANEL_OUTLINE_INVALID = "#ef4444";
-              var PANEL_FILL = "#13171B";
-              var PANEL_BORDER = "#242A2F";
+              var PANEL_FILL = "#111827";
+              var PANEL_GLASS_TOP = "rgba(51,65,85,0.30)";
+              var PANEL_GRID = "rgba(203,213,225,0.16)";
+              var PANEL_BUS = "rgba(226,232,240,0.24)";
+              var PANEL_BORDER = "rgba(226,232,240,0.34)";
 
               var sunVec = window.__CALPINAGE_SUN_VECTOR;
               var mpp = (CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.scale && CALPINAGE_STATE.roof.scale.metersPerPixel) || 1;
@@ -21173,12 +21176,37 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 if (!outlineOnly) {
                   ctx.beginPath();
                   buildPanelPathSimple(ctx, screenPts);
-                  ctx.fillStyle = PANEL_FILL;
+                  if (screenPts.length >= 4 && ctx.createLinearGradient) {
+                    var fp0 = screenPts[0], fp2 = screenPts[2];
+                    var glassGradient = ctx.createLinearGradient(fp0.x, fp0.y, fp2.x, fp2.y);
+                    glassGradient.addColorStop(0, "#0b1120");
+                    glassGradient.addColorStop(0.52, PANEL_FILL);
+                    glassGradient.addColorStop(1, "#182235");
+                    ctx.fillStyle = glassGradient;
+                  } else {
+                    ctx.fillStyle = PANEL_FILL;
+                  }
                   ctx.fill();
                   ctx.save();
                   ctx.beginPath();
                   buildPanelPathSimple(ctx, screenPts);
                   ctx.clip();
+                  if (screenPts.length >= 4) {
+                    var hp0 = screenPts[0], hp1 = screenPts[1], hp2 = screenPts[2], hp3 = screenPts[3];
+                    var sheen = ctx.createLinearGradient(hp0.x, hp0.y, hp2.x, hp2.y);
+                    sheen.addColorStop(0, "rgba(255,255,255,0.03)");
+                    sheen.addColorStop(0.45, PANEL_GLASS_TOP);
+                    sheen.addColorStop(1, "rgba(255,255,255,0.02)");
+                    ctx.fillStyle = sheen;
+                    ctx.globalAlpha = 0.22;
+                    ctx.fillRect(
+                      Math.min(hp0.x, hp1.x, hp2.x, hp3.x),
+                      Math.min(hp0.y, hp1.y, hp2.y, hp3.y),
+                      Math.max(hp0.x, hp1.x, hp2.x, hp3.x) - Math.min(hp0.x, hp1.x, hp2.x, hp3.x),
+                      Math.max(hp0.y, hp1.y, hp2.y, hp3.y) - Math.min(hp0.y, hp1.y, hp2.y, hp3.y)
+                    );
+                    ctx.globalAlpha = 1;
+                  }
                   if (screenPts.length >= 4) {
                     var p0 = screenPts[0], p1 = screenPts[1], p2 = screenPts[2], p3 = screenPts[3];
                     var wPx = Math.hypot(p1.x - p0.x, p1.y - p0.y);
@@ -21186,8 +21214,8 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                     var cellSize = Math.max(4, Math.min(wPx, hPx) / 10);
                     var cols = Math.max(4, Math.min(30, Math.floor(wPx / cellSize)));
                     var rows = Math.max(4, Math.min(30, Math.floor(hPx / cellSize)));
-                    ctx.strokeStyle = "rgba(255,255,255,0.30)";
-                    ctx.lineWidth = 1;
+                    ctx.strokeStyle = PANEL_GRID;
+                    ctx.lineWidth = 0.7;
                     for (var ci = 1; ci < cols; ci++) {
                       var t = ci / cols;
                       var startX = p0.x + (p3.x - p0.x) * t;
@@ -21210,10 +21238,24 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                       ctx.lineTo(endX, endY);
                       ctx.stroke();
                     }
+                    ctx.strokeStyle = PANEL_BUS;
+                    ctx.lineWidth = 0.9;
+                    for (var bi = 1; bi <= 2; bi++) {
+                      var bt = bi / 3;
+                      ctx.beginPath();
+                      if (wPx >= hPx) {
+                        ctx.moveTo(p0.x + (p1.x - p0.x) * bt, p0.y + (p1.y - p0.y) * bt);
+                        ctx.lineTo(p3.x + (p2.x - p3.x) * bt, p3.y + (p2.y - p3.y) * bt);
+                      } else {
+                        ctx.moveTo(p0.x + (p3.x - p0.x) * bt, p0.y + (p3.y - p0.y) * bt);
+                        ctx.lineTo(p1.x + (p2.x - p1.x) * bt, p1.y + (p2.y - p1.y) * bt);
+                      }
+                      ctx.stroke();
+                    }
                   }
                   ctx.restore();
                   ctx.strokeStyle = PANEL_BORDER;
-                  ctx.lineWidth = 1.2;
+                  ctx.lineWidth = 1;
                   ctx.setLineDash([]);
                   ctx.beginPath();
                   buildPanelPathSimple(ctx, screenPts);
