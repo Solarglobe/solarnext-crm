@@ -2878,6 +2878,13 @@ html.theme-dark .sn-leads-page__main {
   box-sizing: border-box;
 }
 
+/* RESPONSIVE: gap réduit sur mobile pour économiser ~30px de largeur totale */
+@media (max-width: 639px) {
+  .sn-leads-kanban {
+    gap: 4px;
+  }
+}
+
 .sn-leads-kanban-col {
   position: relative;
   flex: 0 0 var(--sn-kanban-col-w);
@@ -3107,6 +3114,8 @@ html.theme-dark .sn-leads-kanban-col-signed {
   border-radius: 0 0 16px 16px;
   overflow-x: hidden;
   overflow-y: visible;
+  /* Zone de drop accessible même colonne vide (sinon la cible fait ~20px) */
+  min-height: 80px;
 }
 
 .sn-leads-kanban-col__empty {
