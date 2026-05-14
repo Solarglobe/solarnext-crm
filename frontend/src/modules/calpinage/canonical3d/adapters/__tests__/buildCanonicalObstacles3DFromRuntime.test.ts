@@ -181,6 +181,55 @@ describe("CAS 4 — Chien-assis / extension", () => {
   });
 });
 
+describe("Catalogue obstacle visuel", () => {
+  it("traite une cheminée créée comme shadow volume métier en objet physique opaque", () => {
+    const ctx: HeightResolverContext = { state: {}, getHeightAtXY: () => 5 };
+    const state = baseRoofState({
+      shadowVolumes: [
+        {
+          id: "chimney-sv",
+          type: "shadow_volume",
+          shape: "cube",
+          x: 100,
+          y: 120,
+          width: 0.6,
+          depth: 0.6,
+          meta: { businessObstacleId: "chimney_square" },
+        },
+      ],
+    });
+
+    const res = buildCanonicalObstacles3DFromRuntime({ state, heightResolverContext: ctx });
+    const o = res.obstacles[0]!;
+    expect(o.kind).toBe("CHIMNEY");
+    expect(o.semanticRole).toBe("PHYSICAL_SHADING_BODY");
+    expect(o.heightM).toBeCloseTo(1.8);
+  });
+
+  it("donne une hauteur visible aux lucarnes keepout métier", () => {
+    const ctx: HeightResolverContext = { state: {}, getHeightAtXY: () => 5 };
+    const state = baseRoofState({
+      obstacles: [
+        {
+          id: "dormer-keepout",
+          type: "rect",
+          x: 80,
+          y: 90,
+          w: 40,
+          h: 30,
+          meta: { businessObstacleId: "dormer_keepout", isShadingObstacle: false },
+        },
+      ],
+    });
+
+    const res = buildCanonicalObstacles3DFromRuntime({ state, heightResolverContext: ctx });
+    const o = res.obstacles[0]!;
+    expect(o.kind).toBe("DORMER");
+    expect(o.semanticRole).toBe("PHYSICAL_SHADING_BODY");
+    expect(o.heightM).toBeCloseTo(0.85);
+  });
+});
+
 describe("CAS 5 — Hauteur dégradée / fallback", () => {
   it("obstacle construit, warning et confiance plus faible", () => {
     const getHeightAtXY = () => 4;

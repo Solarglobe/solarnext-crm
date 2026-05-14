@@ -314,6 +314,7 @@ function buildExtensionVolume(
     footprint: e.footprint,
     relatedPlanePatchIds: e.relatedPlanePatchIds,
     extrusionPreference: e.extrusionPreference,
+    topSurfaceMode: "horizontal_flat",
   };
   const mesh = buildObstacleMeshAndMeta(oLike, context, globalDiag);
   if (!mesh) return null;

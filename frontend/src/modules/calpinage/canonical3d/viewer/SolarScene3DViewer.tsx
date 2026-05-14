@@ -343,6 +343,7 @@ function obstacleMaterialForVolume(vol: SolarScene3D["obstacleVolumes"][number],
   readonly transparent: boolean;
   readonly opacity: number;
   readonly emissive: string;
+  readonly side: THREE.Side;
 } {
   if (vol.visualRole === "roof_window_flush" || vol.kind === "skylight") {
     return {
@@ -353,6 +354,7 @@ function obstacleMaterialForVolume(vol: SolarScene3D["obstacleVolumes"][number],
       transparent: true,
       opacity: 0.82,
       emissive: "#0b2239",
+      side: THREE.DoubleSide,
     };
   }
   if (vol.visualRole === "keepout_surface") {
@@ -364,6 +366,7 @@ function obstacleMaterialForVolume(vol: SolarScene3D["obstacleVolumes"][number],
       transparent: true,
       opacity: 0.34,
       emissive: "#3b1f05",
+      side: THREE.DoubleSide,
     };
   }
   if (vol.visualRole === "abstract_shadow_volume") {
@@ -375,6 +378,7 @@ function obstacleMaterialForVolume(vol: SolarScene3D["obstacleVolumes"][number],
       transparent: true,
       opacity: 0.28,
       emissive: "#0f172a",
+      side: THREE.DoubleSide,
     };
   }
   if (vol.kind === "chimney") {
@@ -386,6 +390,7 @@ function obstacleMaterialForVolume(vol: SolarScene3D["obstacleVolumes"][number],
       transparent: false,
       opacity: 1,
       emissive: "#000000",
+      side: THREE.DoubleSide,
     };
   }
   if (vol.kind === "hvac" || vol.kind === "antenna") {
@@ -397,6 +402,7 @@ function obstacleMaterialForVolume(vol: SolarScene3D["obstacleVolumes"][number],
       transparent: false,
       opacity: 1,
       emissive: "#000000",
+      side: THREE.DoubleSide,
     };
   }
   return {
@@ -407,6 +413,7 @@ function obstacleMaterialForVolume(vol: SolarScene3D["obstacleVolumes"][number],
     transparent: false,
     opacity: 1,
     emissive: "#000000",
+    side: THREE.DoubleSide,
   };
 }
 
@@ -1849,9 +1856,18 @@ function ViewerSceneContent({
                 transparent={mat.transparent}
                 opacity={mat.opacity}
                 depthWrite={!mat.transparent}
+                side={mat.side}
                 emissive={sel ? "#6d4c41" : mat.emissive}
                 emissiveIntensity={sel ? 0.35 : volume.visualRole === "roof_window_flush" ? 0.08 : 0}
               />
+              {!mat.transparent && !inspectMode ? (
+                <Outlines
+                  thickness={outlineThickness * 0.55}
+                  color={volume.kind === "chimney" ? "#4b2f25" : "#334155"}
+                  opacity={0.45}
+                  toneMapped={false}
+                />
+              ) : null}
               {inspectMode && sel && (
                 <Outlines
                   thickness={outlineThickness}
@@ -1882,9 +1898,18 @@ function ViewerSceneContent({
                 metalness={mExt.metalness}
                 roughness={mExt.roughness}
                 flatShading={mExt.flatShading ?? false}
+                side={THREE.DoubleSide}
                 emissive={sel ? "#33691e" : "#000000"}
                 emissiveIntensity={sel ? 0.32 : 0}
               />
+              {!inspectMode ? (
+                <Outlines
+                  thickness={outlineThickness * 0.55}
+                  color="#365314"
+                  opacity={0.45}
+                  toneMapped={false}
+                />
+              ) : null}
               {inspectMode && sel && (
                 <Outlines
                   thickness={outlineThickness}

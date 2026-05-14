@@ -197,7 +197,7 @@ function canonicalObstaclesToVolumeInput(obstacles: readonly CanonicalObstacle3D
       extensions.push({
         id: o.obstacleId,
         kind: extensionKindFromCanonical(o),
-        heightM: o.heightM,
+        heightM: o.heightM > 0 ? o.heightM : 0.85,
         footprint: { mode: "world", footprintWorld },
         extrusionPreference: "hybrid_vertical_on_plane",
         ...(related ? { relatedPlanePatchIds: related } : {}),

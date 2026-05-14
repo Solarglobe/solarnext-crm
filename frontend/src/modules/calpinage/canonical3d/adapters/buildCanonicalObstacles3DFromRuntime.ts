@@ -272,9 +272,14 @@ function resolveSemanticRole(
   o: Record<string, unknown>,
   listKind: "obstacles" | "shadowVolumes" | "roofExtensions",
   kind: CanonicalObstacleKind,
+  businessId: string | null,
 ): CanonicalObstacleSemanticRole {
-  if (listKind === "shadowVolumes") return "SHADOW_VOLUME_ABSTRACT";
+  if (listKind === "shadowVolumes") {
+    const legacyAbstract = businessId === "legacy_shadow_cube" || businessId === "legacy_shadow_tube" || kind === "SHADOW_VOLUME";
+    return legacyAbstract ? "SHADOW_VOLUME_ABSTRACT" : "PHYSICAL_SHADING_BODY";
+  }
   if (listKind === "roofExtensions") return "ROOF_EXTENSION_VOLUME";
+  if (kind === "DORMER") return "PHYSICAL_SHADING_BODY";
   if (isKeepoutNonShadingObstacle(o)) return "PHYSICAL_KEEPOUT_ONLY";
   return "PHYSICAL_SHADING_BODY";
 }
@@ -332,6 +337,14 @@ function resolveObstacleHeightDetailed(
   }
 
   if (listKind === "obstacles") {
+    if (bid === "dormer_keepout") {
+      return {
+        heightM: 0.85,
+        source: "catalog_visual_default:dormer_keepout",
+        confidence: 0.72,
+        wasFallback: false,
+      };
+    }
     if (entry && entry.isShadingObstacle && typeof entry.defaultHeightM === "number") {
       return {
         heightM: entry.defaultHeightM,
@@ -470,7 +483,7 @@ export function buildCanonicalObstacles3DFromRuntime(
 
     const businessId = readBusinessObstacleId(raw);
     const { kind: kindResolved, ambiguous } = resolveCanonicalKind(raw, businessId);
-    const semantic = resolveSemanticRole(raw, listKind, kindResolved);
+    const semantic = resolveSemanticRole(raw, listKind, kindResolved, businessId);
     const kind: CanonicalObstacleKind = kindResolved;
 
     const heightR = resolveObstacleHeightDetailed(raw, listKind, defaultObstacleHeightM);
