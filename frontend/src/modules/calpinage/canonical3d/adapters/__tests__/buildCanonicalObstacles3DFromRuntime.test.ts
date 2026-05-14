@@ -206,7 +206,7 @@ describe("Catalogue obstacle visuel", () => {
     expect(o.heightM).toBeCloseTo(1.8);
   });
 
-  it("donne une hauteur visible aux lucarnes keepout métier", () => {
+  it("garde les lucarnes keepout comme surfaces toiture quasi plates", () => {
     const ctx: HeightResolverContext = { state: {}, getHeightAtXY: () => 5 };
     const state = baseRoofState({
       obstacles: [
@@ -225,8 +225,8 @@ describe("Catalogue obstacle visuel", () => {
     const res = buildCanonicalObstacles3DFromRuntime({ state, heightResolverContext: ctx });
     const o = res.obstacles[0]!;
     expect(o.kind).toBe("DORMER");
-    expect(o.semanticRole).toBe("PHYSICAL_SHADING_BODY");
-    expect(o.heightM).toBeCloseTo(0.85);
+    expect(o.semanticRole).toBe("PHYSICAL_KEEPOUT_ONLY");
+    expect(o.heightM).toBe(0);
   });
 });
 

@@ -219,8 +219,10 @@ function canonicalObstaclesToVolumeInput(obstacles: readonly CanonicalObstacle3D
         : visualRole === "roof_window_flush"
           ? 0.035
           : visualRole === "keepout_surface"
-            ? 0.012
+            ? 0.025
             : o.heightM;
+    const topSurfaceMode =
+      visualRole === "physical_roof_body" ? "horizontal_flat" : "parallel_to_base";
 
     legacyObstacles.push({
       id: o.obstacleId,
@@ -230,7 +232,7 @@ function canonicalObstaclesToVolumeInput(obstacles: readonly CanonicalObstacle3D
       heightM: visualHeightM,
       footprint: { mode: "world", footprintWorld },
       extrusionPreference: "hybrid_vertical_on_plane",
-      topSurfaceMode: visualRole === "abstract_shadow_volume" ? "parallel_to_base" : "horizontal_flat",
+      topSurfaceMode,
       ...(related ? { relatedPlanePatchIds: related } : {}),
     });
   }

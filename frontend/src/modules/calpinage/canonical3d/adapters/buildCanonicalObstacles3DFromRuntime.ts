@@ -279,8 +279,8 @@ function resolveSemanticRole(
     return legacyAbstract ? "SHADOW_VOLUME_ABSTRACT" : "PHYSICAL_SHADING_BODY";
   }
   if (listKind === "roofExtensions") return "ROOF_EXTENSION_VOLUME";
-  if (kind === "DORMER") return "PHYSICAL_SHADING_BODY";
   if (isKeepoutNonShadingObstacle(o)) return "PHYSICAL_KEEPOUT_ONLY";
+  if (kind === "DORMER") return "PHYSICAL_SHADING_BODY";
   return "PHYSICAL_SHADING_BODY";
 }
 
@@ -337,14 +337,6 @@ function resolveObstacleHeightDetailed(
   }
 
   if (listKind === "obstacles") {
-    if (bid === "dormer_keepout") {
-      return {
-        heightM: 0.85,
-        source: "catalog_visual_default:dormer_keepout",
-        confidence: 0.72,
-        wasFallback: false,
-      };
-    }
     if (entry && entry.isShadingObstacle && typeof entry.defaultHeightM === "number") {
       return {
         heightM: entry.defaultHeightM,

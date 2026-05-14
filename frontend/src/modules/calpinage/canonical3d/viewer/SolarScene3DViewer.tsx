@@ -359,13 +359,13 @@ function obstacleMaterialForVolume(vol: SolarScene3D["obstacleVolumes"][number],
   }
   if (vol.visualRole === "keepout_surface") {
     return {
-      color: "#f59e0b",
+      color: vol.kind === "other" ? "#f59e0b" : "#111827",
       metalness: 0.02,
-      roughness: 0.7,
+      roughness: 0.62,
       flatShading: false,
       transparent: true,
-      opacity: 0.34,
-      emissive: "#3b1f05",
+      opacity: vol.kind === "other" ? 0.24 : 0.78,
+      emissive: vol.kind === "other" ? "#3b1f05" : "#050816",
       side: THREE.DoubleSide,
     };
   }
@@ -386,7 +386,7 @@ function obstacleMaterialForVolume(vol: SolarScene3D["obstacleVolumes"][number],
       color: "#9a6b55",
       metalness: 0.03,
       roughness: 0.88,
-      flatShading: false,
+      flatShading: true,
       transparent: false,
       opacity: 1,
       emissive: "#000000",
@@ -1860,14 +1860,6 @@ function ViewerSceneContent({
                 emissive={sel ? "#6d4c41" : mat.emissive}
                 emissiveIntensity={sel ? 0.35 : volume.visualRole === "roof_window_flush" ? 0.08 : 0}
               />
-              {!mat.transparent && !inspectMode ? (
-                <Outlines
-                  thickness={outlineThickness * 0.55}
-                  color={volume.kind === "chimney" ? "#4b2f25" : "#334155"}
-                  opacity={0.45}
-                  toneMapped={false}
-                />
-              ) : null}
               {inspectMode && sel && (
                 <Outlines
                   thickness={outlineThickness}
@@ -1902,14 +1894,6 @@ function ViewerSceneContent({
                 emissive={sel ? "#33691e" : "#000000"}
                 emissiveIntensity={sel ? 0.32 : 0}
               />
-              {!inspectMode ? (
-                <Outlines
-                  thickness={outlineThickness * 0.55}
-                  color="#365314"
-                  opacity={0.45}
-                  toneMapped={false}
-                />
-              ) : null}
               {inspectMode && sel && (
                 <Outlines
                   thickness={outlineThickness}
