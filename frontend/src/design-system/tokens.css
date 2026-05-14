@@ -179,3 +179,23 @@ html.theme-dark {
 html body {
   font-size: var(--font-size-body);
 }
+
+/*
+ * ── RÉFÉRENTIEL DE BREAKPOINTS SOLARNEXT CRM ────────────────────────────────
+ * Les custom properties ne peuvent pas être utilisées dans @media queries (CSS pur).
+ * Ce bloc documente les valeurs canoniques à utiliser dans tout le projet.
+ *
+ *  640px  — mobile portrait    : 1 colonne, navigation plein écran
+ *  900px  — tablette portrait  : mise en page simplifiée, grilles 1-col
+ * 1100px  — tablette paysage   : sidebar passe en drawer (hamburger visible)
+ *                                sticky bars : left: 0 (plus de sidebar fixe)
+ * 1400px  — grand écran        : layout élargi, colonnes supplémentaires
+ *
+ * Usage :
+ *   @media (max-width: 1099px) { ... }   ← tablette/mobile (drawer sidebar)
+ *   @media (max-width: 899px)  { ... }   ← mobile / tablette portrait
+ *   @media (max-width: 639px)  { ... }   ← mobile portrait uniquement
+ *   @media (min-width: 1400px) { ... }   ← grand écran
+ * ────────────────────────────────────────────────────────────────────────────
+ */
+ */

@@ -466,6 +466,8 @@ export function AppLayout() {
   const [theme, setTheme] = useState<ThemeMode>(readStoredTheme);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [isCreateLeadOpen, setIsCreateLeadOpen] = useState(false);
+  // RESPONSIVE FIX: drawer sidebar pour tablette/mobile (< 1100px)
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [impersonationMeta, setImpersonationMeta] = useState<ImpersonationMetaState | null>(() =>
     readImpersonationMetaState()
   );
@@ -484,6 +486,11 @@ export function AppLayout() {
   const toggleSection = useCallback((id: SidebarSectionId) => {
     setSectionOpen((prev) => ({ ...prev, [id]: !prev[id] }));
   }, []);
+
+  // RESPONSIVE FIX: fermer le drawer sidebar à chaque changement de route
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [pathname]);
 
   useEffect(() => {
     setSectionOpen((prev) => {
@@ -600,7 +607,15 @@ export function AppLayout() {
       )}
       <SuperAdminSupportBanner />
       <div className="sn-app-shell">
-      <aside className="sn-sidebar">
+      {/* RESPONSIVE FIX: overlay semi-opaque cliquable pour fermer la sidebar en mode drawer */}
+      {sidebarOpen && (
+        <div
+          className="sn-sidebar-overlay"
+          aria-hidden="true"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+      <aside className={`sn-sidebar${sidebarOpen ? " sn-sidebar--open" : ""}`}>
         <div className="sn-sidebar-header">
           <div
             className="sn-sidebar-brand sidebar-brand sn-logo"
@@ -756,6 +771,29 @@ export function AppLayout() {
         </nav>
       </aside>
       <div style={{ flex: "1 1 auto", display: "flex", flexDirection: "column", minWidth: 0 }}>
+        {/* RESPONSIVE FIX: bouton hamburger — visible uniquement sous 1100px (CSS .sn-hamburger) */}
+        <div className="sn-mobile-topbar">
+          <button
+            type="button"
+            className="sn-hamburger"
+            aria-label={sidebarOpen ? "Fermer le menu" : "Ouvrir le menu"}
+            aria-expanded={sidebarOpen}
+            onClick={() => setSidebarOpen((o) => !o)}
+          >
+            {sidebarOpen ? (
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            ) : (
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="3" y1="6" x2="21" y2="6" />
+                <line x1="3" y1="12" x2="21" y2="12" />
+                <line x1="3" y1="18" x2="21" y2="18" />
+              </svg>
+            )}
+          </button>
+        </div>
         <GlobalSearchBar />
         <main className="sn-main">
           <Outlet />

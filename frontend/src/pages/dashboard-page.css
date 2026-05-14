@@ -1821,3 +1821,87 @@ html.theme-dark .sn-dashboard-wrap .sn-dashboard-chart-card {
   border-color: rgba(255,255,255,0.06);
 }
 
+/* ── RESPONSIVE FIX #6 : breakpoints dashboard grids ─────────────────────── */
+
+/* 1100px — tablette paysage : grilles fixes → 2 colonnes */
+@media (max-width: 1099px) {
+  /* KPI material (3 colonnes fixes → 2) */
+  .sn-dashboard-kpi-grid--material {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  /* Forecast priority (2 colonnes → conservé, ok) */
+
+  /* Conv grid : minmax(240px) déjà responsive — force 2 col min pour lisibilité */
+  .sn-dashboard-conv-grid {
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  }
+}
+
+/* 900px — tablette portrait : 1 colonne partout */
+@media (max-width: 899px) {
+  .sn-dashboard-kpi-grid--material {
+    grid-template-columns: 1fr;
+  }
+
+  .sn-dashboard-forecast-grid--priority {
+    grid-template-columns: 1fr;
+  }
+
+  /* KPI auto-fit : minmax réduit pour mobile */
+  .sn-dashboard-kpi-grid {
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  }
+
+  /* Conv grid 1 colonne */
+  .sn-dashboard-conv-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Forecast grid 1 colonne */
+  .sn-dashboard-forecast-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+
+/* ── RESPONSIVE FIX #6 : breakpoints dashboard grids ─────────────────────── */
+
+/* 1100px — tablette paysage : grilles fixes → 2 colonnes */
+@media (max-width: 1099px) {
+  /* KPI material (3 colonnes fixes → 2) */
+  .sn-dashboard-kpi-grid--material {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  /* Conv grid : minmax(240px) déjà responsive — force minmax réduit */
+  .sn-dashboard-conv-grid {
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  }
+}
+
+/* 900px — tablette portrait : 1 colonne partout */
+@media (max-width: 899px) {
+  .sn-dashboard-kpi-grid--material {
+    grid-template-columns: 1fr;
+  }
+
+  .sn-dashboard-forecast-grid--priority {
+    grid-template-columns: 1fr;
+  }
+
+  /* KPI auto-fit : minmax réduit pour mobile */
+  .sn-dashboard-kpi-grid {
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  }
+
+  /* Conv grid 1 colonne */
+  .sn-dashboard-conv-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Forecast grid 1 colonne */
+  .sn-dashboard-forecast-grid {
+    grid-template-columns: 1fr;
+  }
+}

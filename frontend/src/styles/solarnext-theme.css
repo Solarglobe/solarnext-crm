@@ -1487,7 +1487,11 @@ html.sn-app-page.crm-app .sn-app-root.sn-app-bg {
 .sn-sidebar {
   display: flex;
   flex-direction: column;
-  width: 280px;
+  /* RESPONSIVE FIX: width passe par la custom property définie dans primitives.css
+     (--sn-ui-shell-sidebar-w: 200px) — suppression du 280px hardcodé qui créait un conflit.
+     La règle html.sn-app-page aside.sn-sidebar dans primitives.css gagne en spécificité
+     et reste la seule source de vérité pour la largeur. */
+  width: var(--sn-ui-shell-sidebar-w, 200px);
   flex-shrink: 0;
   align-self: stretch;
   min-height: 0;
@@ -1503,11 +1507,13 @@ html.sn-app-page.crm-app .sn-app-root.sn-app-bg {
 }
 
 /* Colonne recherche + .sn-main : scroll vertical propre (complément de la sidebar) */
+/* RESPONSIVE FIX: overflow-x:hidden supprimé — il empêchait le scroll horizontal des tables
+   (leads, devis, factures…). Le scroll horizontal est géré par les wrappers .qb-table-wrap
+   et les conteneurs de modules individuels (overflow-x:auto). */
 .sn-app-shell > aside.sn-sidebar + div {
   min-height: 0;
   flex: 1 1 auto;
   min-width: 0;
-  overflow-x: hidden;
   overflow-y: auto;
   scrollbar-width: thin;
   background: var(--bg-page);
@@ -2775,6 +2781,9 @@ html.theme-dark .sn-leads-page__main {
   background: rgba(15, 23, 42, 0.26);
 }
 
+/* RESPONSIVE FIX #7: scroll horizontal Kanban — le overflow-x:auto ici est
+   fonctionnel uniquement si le parent .sn-app-shell > aside + div ne force pas
+   overflow-x:hidden. Ce bug a été corrigé dans Fix #1 (shell column). */
 .sn-leads-kanban-scroll {
   display: block;
   width: 100%;
@@ -2782,6 +2791,7 @@ html.theme-dark .sn-leads-page__main {
   overflow-y: visible;
   cursor: grab;
   overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
   scrollbar-gutter: auto;
   padding: 0;
   box-sizing: border-box;

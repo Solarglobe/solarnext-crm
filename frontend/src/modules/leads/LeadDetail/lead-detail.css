@@ -55,10 +55,12 @@
 }
 
 /* ——— Bandeau compact fixe (hors zone header) ——— */
+/* RESPONSIVE FIX: left décalé de la largeur sidebar pour ne pas la recouvrir.
+   Revient à 0 sous 1100px quand la sidebar passe en drawer (fix #4). */
 .crm-lead-sticky-bar {
   position: fixed;
   top: 0;
-  left: 0;
+  left: var(--sn-ui-shell-sidebar-w, 200px);
   right: 0;
   z-index: 45;
   padding: 6px 16px;
@@ -67,6 +69,13 @@
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.22);
+}
+
+/* Sous 1100px : sidebar repliée en drawer, la barre occupe toute la largeur */
+@media (max-width: 1099px) {
+  .crm-lead-sticky-bar {
+    left: 0;
+  }
 }
 
 .theme-light .crm-lead-sticky-bar {

@@ -762,3 +762,163 @@ html.sn-app-page .badge-project.ETUDE {
   border-color: var(--sn-badge-neutral-border);
   color: var(--sn-badge-neutral-fg);
 }
+
+/* ── RESPONSIVE FIX #4 : sidebar drawer tablette/mobile (< 1100px) ──────── */
+
+/* Hamburger : caché sur desktop, visible sur tablette/mobile */
+html.sn-app-page .sn-hamburger {
+  display: none;
+}
+
+html.sn-app-page .sn-mobile-topbar {
+  display: none;
+}
+
+/* Overlay : toujours rendu dans le DOM mais masqué (géré par React conditionnel) */
+html.sn-app-page .sn-sidebar-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 49;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(1px);
+  -webkit-backdrop-filter: blur(1px);
+}
+
+@media (max-width: 1099px) {
+  /* Sidebar : drawer fixe translateX hors-écran par défaut */
+  html.sn-app-page aside.sn-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    height: 100%;
+    max-height: 100%;
+    z-index: 50;
+    overflow-y: auto;
+    transform: translateX(-100%);
+    transition: transform 0.22s ease;
+    box-shadow: none;
+  }
+
+  /* Sidebar ouverte : glisse dans la vue */
+  html.sn-app-page aside.sn-sidebar.sn-sidebar--open {
+    transform: translateX(0);
+    box-shadow: 4px 0 32px rgba(0, 0, 0, 0.22);
+  }
+
+  /* Hamburger visible sur tablette/mobile */
+  html.sn-app-page .sn-mobile-topbar {
+    display: flex;
+    align-items: center;
+    padding: 8px 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-card);
+    min-height: 44px;
+    flex-shrink: 0;
+  }
+
+  html.sn-app-page .sn-hamburger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-control);
+    background: transparent;
+    color: var(--text-primary);
+    cursor: pointer;
+    flex-shrink: 0;
+    padding: 0;
+    transition: background 0.12s ease;
+  }
+
+  html.sn-app-page .sn-hamburger:hover {
+    background: var(--sn-ui-hover-bg);
+  }
+
+  html.sn-app-page .sn-hamburger:focus-visible {
+    outline: none;
+    box-shadow: var(--sn-ui-focus-ring);
+  }
+}
+
+/* ── RESPONSIVE FIX #4 : sidebar drawer tablette/mobile (< 1100px) ──────── */
+
+/* Hamburger : caché sur desktop, visible sur tablette/mobile */
+html.sn-app-page .sn-hamburger {
+  display: none;
+}
+
+html.sn-app-page .sn-mobile-topbar {
+  display: none;
+}
+
+/* Overlay : toujours rendu dans le DOM mais masqué (géré par React conditionnel) */
+html.sn-app-page .sn-sidebar-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 49;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(1px);
+  -webkit-backdrop-filter: blur(1px);
+}
+
+@media (max-width: 1099px) {
+  /* Sidebar : drawer fixe translateX hors-écran par défaut */
+  html.sn-app-page aside.sn-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    height: 100%;
+    max-height: 100%;
+    z-index: 50;
+    overflow-y: auto;
+    transform: translateX(-100%);
+    transition: transform 0.22s ease;
+    box-shadow: none;
+  }
+
+  /* Sidebar ouverte : glisse dans la vue */
+  html.sn-app-page aside.sn-sidebar.sn-sidebar--open {
+    transform: translateX(0);
+    box-shadow: 4px 0 32px rgba(0, 0, 0, 0.22);
+  }
+
+  /* Hamburger visible sur tablette/mobile */
+  html.sn-app-page .sn-mobile-topbar {
+    display: flex;
+    align-items: center;
+    padding: 8px 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-card);
+    min-height: 44px;
+    flex-shrink: 0;
+  }
+
+  html.sn-app-page .sn-hamburger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-control);
+    background: transparent;
+    color: var(--text-primary);
+    cursor: pointer;
+    flex-shrink: 0;
+    padding: 0;
+    transition: background 0.12s ease;
+  }
+
+  html.sn-app-page .sn-hamburger:hover {
+    background: var(--sn-ui-hover-bg);
+  }
+
+  html.sn-app-page .sn-hamburger:focus-visible {
+    outline: none;
+    box-shadow: var(--sn-ui-focus-ring);
+  }
+}
