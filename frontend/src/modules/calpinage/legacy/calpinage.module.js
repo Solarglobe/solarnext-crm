@@ -21023,13 +21023,13 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               var ENG = window.pvPlacementEngine;
               var PANEL_OUTLINE_ACTIVE = "#7c8cff";
               var PANEL_OUTLINE_SELECTED = "#7c8cff";
-              var PANEL_OUTLINE_FROZEN = "#e5e7eb";
+              var PANEL_OUTLINE_FROZEN = "rgba(51,65,85,0.58)";
               var PANEL_OUTLINE_INVALID = "#ef4444";
               var PANEL_FILL = "#111827";
               var PANEL_GLASS_TOP = "rgba(51,65,85,0.30)";
-              var PANEL_GRID = "rgba(203,213,225,0.16)";
-              var PANEL_BUS = "rgba(226,232,240,0.24)";
-              var PANEL_BORDER = "rgba(226,232,240,0.34)";
+              var PANEL_GRID = "rgba(148,163,184,0.11)";
+              var PANEL_BUS = "rgba(148,163,184,0.16)";
+              var PANEL_BORDER = "rgba(15,23,42,0.72)";
 
               var sunVec = window.__CALPINAGE_SUN_VECTOR;
               var mpp = (CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.scale && CALPINAGE_STATE.roof.scale.metersPerPixel) || 1;

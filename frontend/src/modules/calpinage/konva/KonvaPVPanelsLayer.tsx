@@ -57,10 +57,10 @@ type PVPanelsSnap = {
 // ─── Constantes ───────────────────────────────────────────────────────────────
 
 const PANEL_FILL         = "#111827";
-const PANEL_BORDER       = "rgba(226,232,240,0.34)";
+const PANEL_BORDER       = "rgba(15,23,42,0.72)";
 const PANEL_BORDER_W     = 1;     // px ecran
-const GRID_STROKE        = "rgba(203,213,225,0.16)";
-const BUSBAR_STROKE      = "rgba(226,232,240,0.24)";
+const GRID_STROKE        = "rgba(148,163,184,0.11)";
+const BUSBAR_STROKE      = "rgba(148,163,184,0.16)";
 const GLOW_COLOR         = "rgba(124,140,255,0.55)";
 const GLOW_BLUR_SC       = 10;    // px écran
 const DORMER_FILL        = "rgba(0,0,0,0.18)";
