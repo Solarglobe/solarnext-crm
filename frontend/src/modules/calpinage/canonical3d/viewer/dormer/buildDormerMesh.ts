@@ -35,6 +35,10 @@ export type DormerRuntimeExtensionInput = {
   readonly wallHeightM?: number;
   readonly ridgeHeightRelM?: number;
   readonly ridge?: { readonly a?: { readonly x?: number; readonly y?: number }; readonly b?: { readonly x?: number; readonly y?: number } };
+  readonly hips?: {
+    readonly left?: { readonly a?: { readonly x?: number; readonly y?: number }; readonly b?: { readonly x?: number; readonly y?: number } };
+    readonly right?: { readonly a?: { readonly x?: number; readonly y?: number }; readonly b?: { readonly x?: number; readonly y?: number } };
+  };
   readonly contour?: {
     readonly closed?: boolean;
     readonly points?: ReadonlyArray<{ readonly x?: number; readonly y?: number }>;
@@ -75,6 +79,44 @@ function pushQuad(
   pushTri(positions, indices, a[0], a[1], a[2], c[0], c[1], c[2], d[0], d[1], d[2]);
 }
 
+function dist2d(a: { readonly x: number; readonly y: number }, b: { readonly x: number; readonly y: number }): number {
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+function nearestRingIndex(ring: readonly { readonly x: number; readonly y: number }[], p: { readonly x: number; readonly y: number }): number {
+  let best = 0;
+  let bestD = Infinity;
+  for (let i = 0; i < ring.length; i++) {
+    const d = dist2d(ring[i]!, p);
+    if (d < bestD) {
+      best = i;
+      bestD = d;
+    }
+  }
+  return best;
+}
+
+function ringPathIndices(from: number, to: number, count: number, clockwise: boolean): number[] {
+  const out: number[] = [];
+  let i = from;
+  for (let guard = 0; guard <= count; guard++) {
+    out.push(i);
+    if (i === to) break;
+    i = clockwise ? (i + 1) % count : (i - 1 + count) % count;
+  }
+  return out;
+}
+
+function polygonArea2d(pts: readonly { readonly x: number; readonly y: number }[]): number {
+  let s = 0;
+  for (let i = 0; i < pts.length; i++) {
+    const a = pts[i]!;
+    const b = pts[(i + 1) % pts.length]!;
+    s += a.x * b.y - b.x * a.y;
+  }
+  return Math.abs(s) * 0.5;
+}
+
 /**
  * @returns géométrie triangulée ou `null` si données insuffisantes / type non supporté (repli viewer : ancien prismatique).
  */
@@ -99,11 +141,12 @@ export function buildDormerMesh(ext: DormerRuntimeExtensionInput, roofModel: Dor
     return null;
   }
 
-  const ridgeH = ext.ridgeHeightRelM;
-  if (!finiteNum(ridgeH) || ridgeH <= 0.02) {
-    dormerAuditLog("GUARD: ridgeHeightRelM invalid", { ridgeHeightRelM: ridgeH });
+  const ridgeHRaw = ext.ridgeHeightRelM;
+  if (!finiteNum(ridgeHRaw) || ridgeHRaw <= 0.02) {
+    dormerAuditLog("GUARD: ridgeHeightRelM invalid", { ridgeHeightRelM: ridgeHRaw });
     return null;
   }
+  const ridgeH = Math.max(0.35, Math.min(1.0, ridgeHRaw));
 
   const ptsIn = ext.contour?.points;
   if (!ptsIn || ptsIn.length < 3) {
@@ -207,12 +250,77 @@ export function buildDormerMesh(ext: DormerRuntimeExtensionInput, roofModel: Dor
   for (let i = 0; i < n; i++) {
     pushQuad(positions, indices, baseRing[i]!, baseRing[(i + 1) % n]!, eaveRing[(i + 1) % n]!, eaveRing[i]!);
   }
-  for (let i = 0; i < n; i++) {
-    const a = eaveRing[i]!;
-    const b = eaveRing[(i + 1) % n]!;
-    const raTop = ridgeAt(a);
-    const rbTop = ridgeAt(b);
-    pushQuad(positions, indices, a, b, rbTop, raTop);
+
+  const leftHipA = ext.hips?.left?.a;
+  const rightHipA = ext.hips?.right?.a;
+  const hipPeak = ext.hips?.left?.b ?? ext.hips?.right?.b ?? ra;
+  const drawnAreaPx = polygonArea2d(ring);
+  if (
+    leftHipA &&
+    rightHipA &&
+    hipPeak &&
+    finiteNum(leftHipA.x) &&
+    finiteNum(leftHipA.y) &&
+    finiteNum(rightHipA.x) &&
+    finiteNum(rightHipA.y) &&
+    finiteNum(hipPeak.x) &&
+    finiteNum(hipPeak.y) &&
+    drawnAreaPx > 1e-6
+  ) {
+    const zPeakBase = sampleZ(hipPeak.x, hipPeak.y);
+    if (zPeakBase == null) {
+      dormerAuditLog("GUARD: sampleRoofZ null on hip peak", { x: hipPeak.x, y: hipPeak.y });
+      return null;
+    }
+    const leftHipPoint = { x: leftHipA.x, y: leftHipA.y };
+    const rightHipPoint = { x: rightHipA.x, y: rightHipA.y };
+    const wPeak = imagePxToWorldHorizontalM(hipPeak.x, hipPeak.y, mpp, north);
+    const peakTop: [number, number, number] = [wPeak.x, wPeak.y, zPeakBase + ridgeH];
+    const li = nearestRingIndex(ring, leftHipPoint);
+    const ri = nearestRingIndex(ring, rightHipPoint);
+    const cw = ringPathIndices(li, ri, n, true);
+    const ccw = ringPathIndices(li, ri, n, false);
+    const polyArea = (path: readonly number[]) => polygonArea2d(path.map((idx) => ring[idx]!));
+    const front = polyArea(cw) <= polyArea(ccw) ? cw : ccw;
+    const back = front === cw ? ccw : cw;
+    for (let i = 0; i < front.length - 1; i++) {
+      pushTri(
+        positions,
+        indices,
+        eaveRing[front[i]!]![0],
+        eaveRing[front[i]!]![1],
+        eaveRing[front[i]!]![2],
+        eaveRing[front[i + 1]!]![0],
+        eaveRing[front[i + 1]!]![1],
+        eaveRing[front[i + 1]!]![2],
+        peakTop[0],
+        peakTop[1],
+        peakTop[2],
+      );
+    }
+    for (let i = 0; i < back.length - 1; i++) {
+      pushTri(
+        positions,
+        indices,
+        eaveRing[back[i]!]![0],
+        eaveRing[back[i]!]![1],
+        eaveRing[back[i]!]![2],
+        eaveRing[back[i + 1]!]![0],
+        eaveRing[back[i + 1]!]![1],
+        eaveRing[back[i + 1]!]![2],
+        peakTop[0],
+        peakTop[1],
+        peakTop[2],
+      );
+    }
+  } else {
+    for (let i = 0; i < n; i++) {
+      const a = eaveRing[i]!;
+      const b = eaveRing[(i + 1) % n]!;
+      const raTop = ridgeAt(a);
+      const rbTop = ridgeAt(b);
+      pushQuad(positions, indices, a, b, rbTop, raTop);
+    }
   }
 
   const geo = new THREE.BufferGeometry();
