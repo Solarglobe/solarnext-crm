@@ -3260,7 +3260,7 @@ function SolarScene3DViewer({
             position: "absolute",
             top: 8,
             left: 8,
-            zIndex: 7,
+            zIndex: 1200,
             display: "flex",
             gap: 6,
             background: "rgba(15,18,24,0.86)",

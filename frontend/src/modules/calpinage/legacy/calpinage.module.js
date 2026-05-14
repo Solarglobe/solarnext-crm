@@ -1270,7 +1270,7 @@ export function initCalpinage(container, options = {}) {
       border-radius: var(--sg-radius-sm);
       box-shadow: var(--sg-shadow-soft);
       pointer-events: none;
-      z-index: 50;
+      z-index: 1200;
     }
     .calpinage-obstacle-ux-hud div + div { margin-top: 4px; opacity: 0.92; }
     .calpinage-tool-obstacle-option.active,
@@ -1630,7 +1630,7 @@ export function initCalpinage(container, options = {}) {
       font-size: 13px;
       border-radius: var(--sg-radius-sm);
       pointer-events: none;
-      z-index: 10;
+      z-index: 1200;
       opacity: 0;
       transition: opacity 120ms ease-out;
     }
@@ -1650,13 +1650,35 @@ export function initCalpinage(container, options = {}) {
       font-size: 13px;
       border-radius: var(--sg-radius-sm);
       pointer-events: none;
-      z-index: 10;
+      z-index: 1200;
       opacity: 0;
       transition: opacity 120ms ease-out;
     }
     .pv-layout-error.visible {
       opacity: 1;
       transition: opacity 80ms ease-out;
+    }
+    .pv-layout-selection-hud {
+      position: absolute;
+      min-width: 86px;
+      padding: 7px 10px;
+      color: #e5e7eb;
+      background: rgba(15, 15, 15, 0.94);
+      border: 1px solid #6366F1;
+      border-radius: 8px;
+      box-shadow: 0 10px 22px rgba(15, 23, 42, 0.22);
+      font: 600 11px system-ui, -apple-system, sans-serif;
+      line-height: 1.25;
+      text-align: center;
+      pointer-events: none;
+      z-index: 1200;
+      transform: translate(-50%, -50%);
+      white-space: nowrap;
+    }
+    .pv-layout-selection-hud strong,
+    .pv-layout-selection-hud span {
+      display: block;
+      font: inherit;
     }
     #map-container.hidden {
       display: none;
@@ -2362,9 +2384,10 @@ export function initCalpinage(container, options = {}) {
               </div>
             </div>
             <div id="calpinage-obstacle-ux-hud" class="calpinage-obstacle-ux-hud" aria-live="polite" style="display:none;"></div>
-            <div id="height-edit-inplace-container" style="position:absolute;top:0;left:0;right:0;bottom:0;pointer-events:none;z-index:100;overflow:visible;"></div>
+            <div id="height-edit-inplace-container" style="position:absolute;top:0;left:0;right:0;bottom:0;pointer-events:none;z-index:1200;overflow:visible;"></div>
             <div id="pv-layout-error" class="pv-layout-error" aria-live="polite"></div>
             <div id="pv-layout-feedback" class="pv-layout-feedback" aria-live="polite" style="display: none;">Bloc de panneaux validé</div>
+            <div id="pv-layout-selection-hud" class="pv-layout-selection-hud" aria-live="polite" style="display:none;"></div>
             <div id="calpinage-shadow-volume-overlay" class="sg-obstacle-overlay" style="display:none;top:20px;left:20px;">
               <div class="obstacle-dim-title sg-title-md">Volume ombrant</div>
               <div class="sg-field">
@@ -21259,6 +21282,13 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 if (ty < 8) ty = maxY + 14;
                 if (canvasH > 0 && ty + th > canvasH - 8) ty = Math.max(8, canvasH - th - 8);
                 var tx = centerX - tw / 2;
+                var hud = container.querySelector("#pv-layout-selection-hud");
+                if (hud) {
+                  hud.innerHTML = "<strong>" + txt1 + "</strong><span>" + txt2 + "</span>";
+                  hud.style.left = centerX + "px";
+                  hud.style.top = (ty + th / 2) + "px";
+                  hud.style.display = "block";
+                }
                 ctx.fillStyle = "rgba(15,15,15,0.92)";
                 ctx.strokeStyle = "#6366F1";
                 ctx.lineWidth = 1;
@@ -21282,6 +21312,13 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               }
 
               /* P4.6b — kill switch panneaux PV + collecte donn�es pour KonvaPVPanelsLayer */
+              function hidePvLayoutSelectionHud() {
+                var hud = container.querySelector("#pv-layout-selection-hud");
+                if (hud) {
+                  hud.style.display = "none";
+                  hud.textContent = "";
+                }
+              }
               var _konvaPvActive = _konvaLayers && _konvaLayers.has("pvPanels");
               var _pvPanelsForKonva = [];
 
@@ -21770,6 +21807,8 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               /* Couche sélection bloc : bordure nette + mini infobulle (après panneaux, avant handles) */
               if (focusBlock && selectedBlockScreenPts && selectedBlockForTooltip) {
                 drawBlockSelectionBorderAndTooltip(ctx, selectedBlockScreenPts, selectedBlockForTooltip);
+              } else {
+                hidePvLayoutSelectionHud();
               }
               /* Poignées rotation / déplacement du bloc focus — source unique getManipulationHandlePositions */
               if (
