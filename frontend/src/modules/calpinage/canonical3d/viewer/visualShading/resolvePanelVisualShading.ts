@@ -13,8 +13,15 @@ export function extractRuntimeShadingPerPanelRows(runtime: unknown): readonly un
   if (!runtime || typeof runtime !== "object") return [];
   const sh = (runtime as Record<string, unknown>).shading;
   if (!sh || typeof sh !== "object") return [];
-  const pp = (sh as Record<string, unknown>).perPanel;
-  return Array.isArray(pp) ? pp : [];
+  const shading = sh as Record<string, unknown>;
+  const direct = shading.perPanel;
+  if (Array.isArray(direct)) return direct;
+  const normalized = shading.normalized;
+  if (normalized && typeof normalized === "object") {
+    const nested = (normalized as Record<string, unknown>).perPanel;
+    if (Array.isArray(nested)) return nested;
+  }
+  return [];
 }
 
 /**

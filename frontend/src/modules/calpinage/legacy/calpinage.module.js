@@ -3442,6 +3442,13 @@ export function initCalpinage(container, options = {}) {
             farSource: "UNAVAILABLE_NO_GPS",
           };
           CALPINAGE_STATE.shading.normalized = normalizedMissing;
+          try {
+            calpinageLegacyEmitOfficialStructuralChange({
+              reason: "SHADING_NORMALIZED",
+              changedDomains: ["shading"],
+              debug: { sourceFile: "calpinage.module.js", sourceAction: "normalizeCalpinageShading:missingGps" },
+            });
+          } catch (_shadingEmitMissing) {}
           // Refresh intégrité : shading bloqué (GPS absent)
           if (typeof refreshCalpinageIntegrity === "function") refreshCalpinageIntegrity();
           return normalizedMissing;
@@ -3493,6 +3500,13 @@ export function initCalpinage(container, options = {}) {
         enrichNormalizedShadingFromHorizon(horizonPayload, normalized);
 
         CALPINAGE_STATE.shading.normalized = normalized;
+        try {
+          calpinageLegacyEmitOfficialStructuralChange({
+            reason: "SHADING_NORMALIZED",
+            changedDomains: ["shading"],
+            debug: { sourceFile: "calpinage.module.js", sourceAction: "normalizeCalpinageShading" },
+          });
+        } catch (_shadingEmit) {}
         warnIfOfficialShadingRootMismatch(normalized);
         // Refresh intégrité : le shading vient de changer, sans save obligatoire
         if (typeof refreshCalpinageIntegrity === "function") refreshCalpinageIntegrity();

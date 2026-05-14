@@ -7,18 +7,22 @@ import {
 } from "../resolvePanelVisualShading";
 
 describe("lossPctToQualityScore01", () => {
-  it("0 % → 1", () => {
+  it("0 percent -> 1", () => {
     expect(lossPctToQualityScore01(0)).toBe(1);
   });
-  it("100 % → 0", () => {
+
+  it("100 percent -> 0", () => {
     expect(lossPctToQualityScore01(100)).toBe(0);
   });
-  it("5 % → 0.95", () => {
+
+  it("5 percent -> 0.95", () => {
     expect(lossPctToQualityScore01(5)).toBeCloseTo(0.95, 6);
   });
+
   it("clamp > 100", () => {
     expect(lossPctToQualityScore01(120)).toBe(0);
   });
+
   it("clamp < 0", () => {
     expect(lossPctToQualityScore01(-10)).toBe(1);
   });
@@ -43,7 +47,7 @@ describe("buildLossPctByPanelIdFromPerPanelRows", () => {
 });
 
 describe("resolvePanelVisualShadingForPanels", () => {
-  it("correspondance exacte → AVAILABLE", () => {
+  it("correspondance exacte -> AVAILABLE", () => {
     const map = new Map<string, number | "invalid">([["p1", 12]]);
     const out = resolvePanelVisualShadingForPanels(["p1"], map);
     expect(out.p1!.state).toBe("AVAILABLE");
@@ -51,13 +55,13 @@ describe("resolvePanelVisualShadingForPanels", () => {
     expect(out.p1!.qualityScore01).toBeCloseTo(0.88, 5);
   });
 
-  it("sans correspondance → MISSING", () => {
+  it("sans correspondance -> MISSING", () => {
     const out = resolvePanelVisualShadingForPanels(["p9"], new Map());
     expect(out.p9!.state).toBe("MISSING");
     expect(out.p9!.lossPct).toBeNull();
   });
 
-  it("perte invalide stockée → INVALID", () => {
+  it("perte invalide stockee -> INVALID", () => {
     const map = new Map<string, number | "invalid">([["p1", "invalid"]]);
     const out = resolvePanelVisualShadingForPanels(["p1"], map);
     expect(out.p1!.state).toBe("INVALID");
@@ -80,7 +84,20 @@ describe("buildPanelVisualShadingMapFromRuntime", () => {
     expect(out.c!.state).toBe("MISSING");
   });
 
-  it("runtime sans shading → tous MISSING", () => {
+  it("lit aussi shading.normalized.perPanel du runtime legacy", () => {
+    const runtime = {
+      shading: {
+        normalized: {
+          perPanel: [{ panelId: "legacy-pv", lossPct: 18 }],
+        },
+      },
+    };
+    const out = buildPanelVisualShadingMapFromRuntime(["legacy-pv"], runtime);
+    expect(out["legacy-pv"]!.state).toBe("AVAILABLE");
+    expect(out["legacy-pv"]!.lossPct).toBe(18);
+  });
+
+  it("runtime sans shading -> tous MISSING", () => {
     const out = buildPanelVisualShadingMapFromRuntime(["x"], {});
     expect(out.x!.state).toBe("MISSING");
   });

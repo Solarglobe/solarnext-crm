@@ -191,6 +191,40 @@ describe("officialSolarScene3DGateway (Prompt 6)", () => {
     }
   });
 
+  it("rafraichit l'ombrage visuel des panneaux sur hit cache", () => {
+    const panel = {
+      id: "pv-cache",
+      panId: "pan-a",
+      enabled: true,
+      center: { x: 150, y: 150 },
+      polygonPx: [
+        { x: 135, y: 140 },
+        { x: 165, y: 140 },
+        { x: 165, y: 160 },
+        { x: 135, y: 160 },
+      ],
+    };
+    const getAllPanels = () => [panel] as unknown[];
+    const base = structuredClone(minimalCalpinageRuntimeFixture) as typeof minimalCalpinageRuntimeFixture & {
+      shading?: unknown;
+    };
+
+    const first = getOrBuildOfficialSolarScene3DFromCalpinageRuntime(base, { getAllPanels });
+    expect(first.ok).toBe(true);
+    expect(first.scene?.pvPanels.some((p) => String(p.id) === "pv-cache")).toBe(true);
+
+    const withShading = structuredClone(base) as typeof base;
+    withShading.shading = {
+      normalized: {
+        perPanel: [{ panelId: "pv-cache", lossPct: 22 }],
+      },
+    };
+    const second = getOrBuildOfficialSolarScene3DFromCalpinageRuntime(withShading, { getAllPanels });
+    expect(second.sceneSyncDiagnostics.usedSceneCache).toBe(true);
+    expect(second.scene?.panelVisualShadingByPanelId?.["pv-cache"]?.state).toBe("AVAILABLE");
+    expect(second.scene?.panelVisualShadingByPanelId?.["pv-cache"]?.lossPct).toBe(22);
+  });
+
   it("forceStructuralRebuild relance le pipeline et ré-enregistre RoofTruth", () => {
     const getAllPanels = () => [] as unknown[];
     getOrBuildOfficialSolarScene3DFromCalpinageRuntime(minimalCalpinageRuntimeFixture, { getAllPanels });

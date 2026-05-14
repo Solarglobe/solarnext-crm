@@ -17,6 +17,7 @@
 
 import { buildSolarScene3DFromCalpinageRuntime } from "../buildSolarScene3DFromCalpinageRuntimeCore";
 import type { BuildSolarScene3DFromCalpinageRuntimeOptions } from "../buildSolarScene3DFromCalpinageRuntimeCore";
+import { buildPanelVisualShadingMapFromRuntime } from "../viewer/visualShading/resolvePanelVisualShading";
 import { syncRoofPansMirrorFromPans } from "../../legacy/phase2RoofDerivedModel";
 import {
   computeRuntimeSceneStructuralSignatures,
@@ -68,6 +69,23 @@ export type BuildSolarScene3DFromCalpinageRuntimeWithSyncResult = ReturnType<
 
 const structuralCache = new Map<string, ReturnType<typeof buildSolarScene3DFromCalpinageRuntime>>();
 const pipelineInvocationCountBySignature = new Map<string, number>();
+
+function refreshSceneVisualShadingFromRuntime(
+  cached: ReturnType<typeof buildSolarScene3DFromCalpinageRuntime>,
+  runtime: unknown,
+): ReturnType<typeof buildSolarScene3DFromCalpinageRuntime> {
+  const scene = cached.scene;
+  if (!cached.ok || scene == null || scene.pvPanels.length === 0) return cached;
+  const panelIds = scene.pvPanels.map((p) => String(p.id));
+  const panelVisualShadingByPanelId = buildPanelVisualShadingMapFromRuntime(panelIds, runtime);
+  return {
+    ...cached,
+    scene: {
+      ...scene,
+      panelVisualShadingByPanelId,
+    },
+  };
+}
 
 /** Tests / reset session : vide le cache officiel. */
 export function clearOfficialSolarScene3DCache(): void {
@@ -143,7 +161,8 @@ export function getOrBuildOfficialSolarScene3DFromCalpinageRuntime(
   }
 
   if (!options?.forceStructuralRebuild && structuralCache.has(key)) {
-    const cached = structuralCache.get(key)!;
+    const cached = refreshSceneVisualShadingFromRuntime(structuralCache.get(key)!, runtime);
+    structuralCache.set(key, cached);
     if (import.meta.env.DEV) {
       console.log("[3D-RUNTIME][PIPELINE]", {
         cacheHit: true,
