@@ -195,7 +195,8 @@ export function getOrBuildOfficialSolarScene3DFromCalpinageRuntime(
   let panelsAvailableInEngine = 0;
   if (built.ok && built.scene != null && pvPanelsInScene === 0 && options?.getAllPanels) {
     try {
-      panelsAvailableInEngine = options.getAllPanels().length;
+      const panelsFromEngine = options.getAllPanels();
+      panelsAvailableInEngine = Array.isArray(panelsFromEngine) ? panelsFromEngine.length : 0;
     } catch {
       /* défensif — ne jamais laisser le garde crasher le pipeline */
     }

@@ -8407,6 +8407,12 @@ export function initCalpinage(container, options = {}) {
               restoreStats.frozenBlocksRestored++;
             }
             restoreBlocks(filteredFrozenBlocks);
+            if (window.pvPlacementEngine && typeof window.pvPlacementEngine.clearSelection === "function") {
+              window.pvPlacementEngine.clearSelection();
+            }
+            CALPINAGE_STATE.activeManipulationBlockId = null;
+            CALPINAGE_STATE.selectedPlacedBlockId = null;
+            CALPINAGE_STATE.selectedPlacedPanelId = null;
             if (_dbgLoad && typeof console !== "undefined" && console.log) {
               console.log("[CALPINAGE] loadCalpinageState PV", {
                 frozenBlocksRestored: filteredFrozenBlocks.length,
@@ -20775,8 +20781,14 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 var m2 = ctx.measureText(txt2);
                 var tw = Math.max(m1.width, m2.width) + 20;
                 var th = 40;
-                var tx = centerX - tw / 2;
+                var canvasRect = canvasEl && typeof canvasEl.getBoundingClientRect === "function" ? canvasEl.getBoundingClientRect() : null;
+                var canvasW = canvasRect && canvasRect.width ? canvasRect.width : (canvasEl && canvasEl.width ? canvasEl.width : 0);
+                var canvasH = canvasRect && canvasRect.height ? canvasRect.height : (canvasEl && canvasEl.height ? canvasEl.height : 0);
+                if (canvasW > 0) centerX = Math.max(tw / 2 + 8, Math.min(canvasW - tw / 2 - 8, centerX));
                 var ty = tooltipY - th / 2;
+                if (ty < 8) ty = maxY + 14;
+                if (canvasH > 0 && ty + th > canvasH - 8) ty = Math.max(8, canvasH - th - 8);
+                var tx = centerX - tw / 2;
                 ctx.fillStyle = "rgba(15,15,15,0.92)";
                 ctx.strokeStyle = "#6366F1";
                 ctx.lineWidth = 1;

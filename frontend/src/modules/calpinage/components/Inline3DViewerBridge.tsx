@@ -117,10 +117,23 @@ function getAllPanelsFromRuntime(): unknown[] {
     const eng = getCalpinageRuntime()?.getPlacementEngine();
     if (!eng) return [];
     const allPanels = (eng.getAllPanels() ?? []) as unknown[];
+    const w =
+      typeof window !== "undefined"
+        ? (window as unknown as {
+            __CALPINAGE_VIEW_MODE__?: string;
+            __CALPINAGE_3D_PV_LAYOUT_MODE__?: boolean;
+            CALPINAGE_STATE?: { currentPhase?: string };
+          })
+        : null;
+    const pvLayout3DActive =
+      w?.__CALPINAGE_VIEW_MODE__ === "3D" &&
+      w.__CALPINAGE_3D_PV_LAYOUT_MODE__ === true &&
+      w.CALPINAGE_STATE?.currentPhase === "PV_LAYOUT";
+    if (pvLayout3DActive) return allPanels;
     // Exclure les panneaux du bloc actif s'il n'est pas figé.
     // Un bloc actif non-frozen a des coordonnées temporaires (pose en cours) qui
     // projettent le panneau hors-image → plan incliné → panneau fantôme flottant.
-    const engRaw = eng as Record<string, unknown>;
+    const engRaw = eng as unknown as Record<string, unknown>;
     const activeBlock =
       typeof engRaw["getActiveBlock"] === "function"
         ? (engRaw["getActiveBlock"]() as { id?: string } | null)
@@ -295,6 +308,7 @@ function Inline3DViewer({
   const [error, setError] = useState<string | null>(null);
   const lastDisplayedStructuralSignatureRef = useRef<string | null>(null);
   const pendingStructuralEventRef = useRef<OfficialRuntimeStructuralChangePayload | null>(null);
+  const forceNextSceneRebuildRef = useRef(false);
 
   const buildScene = useCallback(() => {
     try {
@@ -306,6 +320,8 @@ function Inline3DViewer({
       }
       const structuralChangeEventDetail = pendingStructuralEventRef.current;
       pendingStructuralEventRef.current = null;
+      const forceStructuralRebuild = forceNextSceneRebuildRef.current;
+      forceNextSceneRebuildRef.current = false;
       const displayReconstruction =
         typeof window !== "undefined" &&
         (window as unknown as { __CALPINAGE_3D_ROOF_DISPLAY_FIDELITY__?: string })
@@ -319,6 +335,7 @@ function Inline3DViewer({
         structuralChangeEventDetail,
         ...(displayReconstruction ? { roofGeometryFidelityMode: "reconstruction" as const } : {}),
         ...(optimalSingleBuilding ? { legacyRoofMapOptions: optimalSingleBuildingLegacyRoofMapOptions() } : {}),
+        ...(forceStructuralRebuild ? { forceStructuralRebuild: true } : {}),
         // T13 : accès typé via façade runtime — cohérent avec L.117 du même fichier.
         // getAllPanelsFromRuntime() exclut le bloc actif non figé (panneau fantôme flottant).
         getAllPanels: () => getAllPanelsFromRuntime(),
@@ -491,6 +508,7 @@ function Inline3DViewer({
             ))
         ) {
           lastDisplayedStructuralSignatureRef.current = null;
+          forceNextSceneRebuildRef.current = true;
         }
       }
       if (is3d) {

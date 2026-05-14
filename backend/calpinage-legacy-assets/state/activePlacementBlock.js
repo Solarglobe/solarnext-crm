@@ -980,14 +980,10 @@
         useScreenAxes: b.useScreenAxes === true,
       });
     }
-    // Restauration de la sélection par défaut : le dernier bloc devient actif/sélectionné
-    if (frozenBlocks.length > 0) {
-      var lastBlock = frozenBlocks.pop();
-      lastBlock.isActive = true;
-      lastBlock.manipulationTransform = null;
-      selectedBlockId = lastBlock.id;
-      activeBlock = lastBlock;
-    }
+    // Au chargement : tous les blocs restent figés, aucun actif — l'utilisateur doit
+    // cliquer explicitement sur un panneau pour le sélectionner.
+    activeBlock = null;
+    selectedBlockId = null;
   }
 
   var ActivePlacementBlockModule = {
