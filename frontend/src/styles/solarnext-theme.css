@@ -1983,6 +1983,14 @@ html {
   flex-shrink: 0;
 }
 
+/* RESPONSIVE: sous 900px le titre et les actions wrappent plutôt que de s'écraser */
+@media (max-width: 899px) {
+  .sn-leads-page__header {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+}
+
 .sn-leads-page__header--compact {
   min-height: 0;
 }
@@ -2549,6 +2557,34 @@ html.theme-dark .sn-leads-filters-select--subtle {
     margin-left: 0;
     width: 100%;
     justify-content: flex-end;
+  }
+}
+
+/* RESPONSIVE: sous 640px — tous les champs de filtre passent en pleine largeur */
+@media (max-width: 639px) {
+  .sn-leads-filters-primary,
+  .sn-leads-filters-secondary {
+    gap: 8px;
+  }
+
+  .sn-leads-filters-field,
+  .sn-leads-filters-field:not(.sn-leads-filters-field--daterange) {
+    width: 100%;
+    flex: 1 1 100%;
+  }
+
+  .sn-leads-filters-field--daterange {
+    width: 100%;
+    min-width: 0;
+    flex: 1 1 100%;
+  }
+
+  .sn-leads-filters-daterange {
+    flex-wrap: wrap;
+  }
+
+  .sn-leads-filters-daterange__sep {
+    display: none;
   }
 }
 
@@ -3564,9 +3600,15 @@ html.theme-dark .sn-leads-kanban-col-signed {
   box-shadow: 0 12px 40px rgba(15, 23, 42, 0.06) !important;
 }
 
+/* RESPONSIVE: conteneur de scroll horizontal pour la table leads.
+   Sans overflow-x:auto ici, la grille min-width:1020px déborde au niveau page. */
 .sn-leads-premium-scroll {
   width: 100%;
   min-width: 0;
+  overflow-x: auto;
+  overflow-y: visible;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
 }
 
 .sn-leads-premium {
