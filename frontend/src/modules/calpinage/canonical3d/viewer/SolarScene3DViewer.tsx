@@ -417,6 +417,139 @@ function obstacleMaterialForVolume(vol: SolarScene3D["obstacleVolumes"][number],
   };
 }
 
+function volumeLoopLineGeometry(points: readonly THREE.Vector3[]): THREE.BufferGeometry | null {
+  if (points.length < 3) return null;
+  const positions: number[] = [];
+  for (let i = 0; i < points.length; i++) {
+    const a = points[i]!;
+    const b = points[(i + 1) % points.length]!;
+    positions.push(a.x, a.y, a.z, b.x, b.y, b.z);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  return geo;
+}
+
+function volumeRingAt(vol: SolarScene3D["obstacleVolumes"][number], t: number, lift = 0.006): THREE.Vector3[] {
+  const n = vol.footprintWorld.length;
+  if (n < 3 || vol.vertices.length < n * 2) return [];
+  return Array.from({ length: n }, (_, i) => {
+    const base = vol.vertices[i]!.position;
+    const top = vol.vertices[i + n]!.position;
+    return new THREE.Vector3(
+      base.x + (top.x - base.x) * t,
+      base.y + (top.y - base.y) * t,
+      base.z + (top.z - base.z) * t + lift,
+    );
+  });
+}
+
+function volumeTopCapGeometry(
+  vol: SolarScene3D["obstacleVolumes"][number],
+  lift = 0.014,
+  scale = 1,
+): THREE.BufferGeometry | null {
+  const top = volumeRingAt(vol, 1, lift);
+  if (top.length < 3) return null;
+  const positions: number[] = [];
+  const indices: number[] = [];
+  const center = top.reduce((sum, pnt) => sum.add(pnt), new THREE.Vector3()).multiplyScalar(1 / top.length);
+  for (const pnt of top) {
+    const x = center.x + (pnt.x - center.x) * scale;
+    const y = center.y + (pnt.y - center.y) * scale;
+    positions.push(x, y, pnt.z);
+  }
+  for (let i = 1; i < top.length - 1; i++) indices.push(0, i, i + 1);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geo.setIndex(indices);
+  geo.computeVertexNormals();
+  return geo;
+}
+
+function roofWindowFrameLineGeometry(vol: SolarScene3D["obstacleVolumes"][number]): THREE.BufferGeometry | null {
+  const ring = volumeRingAt(vol, 1, 0.032);
+  if (ring.length < 4) return volumeLoopLineGeometry(ring);
+  const positions: number[] = [];
+  const pushLine = (a: THREE.Vector3, b: THREE.Vector3) => {
+    positions.push(a.x, a.y, a.z, b.x, b.y, b.z);
+  };
+  const lerp = (a: THREE.Vector3, b: THREE.Vector3, t: number) => a.clone().lerp(b, t);
+  for (let i = 0; i < ring.length; i++) pushLine(ring[i]!, ring[(i + 1) % ring.length]!);
+  const p0 = ring[0]!;
+  const p1 = ring[1]!;
+  const p2 = ring[2]!;
+  const p3 = ring[3]!;
+  pushLine(lerp(p0, p1, 0.5), lerp(p3, p2, 0.5));
+  pushLine(lerp(p0, p3, 0.5), lerp(p1, p2, 0.5));
+  pushLine(lerp(p0, p1, 0.18).lerp(lerp(p0, p3, 0.18), 0.35), lerp(p3, p2, 0.42));
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  return geo;
+}
+
+function chimneyBrickLineGeometry(vol: SolarScene3D["obstacleVolumes"][number]): THREE.BufferGeometry | null {
+  const n = vol.footprintWorld.length;
+  if (n < 4 || vol.vertices.length < n * 2) return null;
+  const positions: number[] = [];
+  const pushLine = (a: THREE.Vector3, b: THREE.Vector3) => {
+    positions.push(a.x, a.y, a.z, b.x, b.y, b.z);
+  };
+  const baseMinZ = Math.min(...Array.from({ length: n }, (_, i) => vol.vertices[i]!.position.z));
+  const topMaxZ = Math.max(...Array.from({ length: n }, (_, i) => vol.vertices[i + n]!.position.z));
+  const approxRows = Math.max(4, Math.min(18, Math.round((topMaxZ - baseMinZ) / 0.18)));
+  for (let row = 1; row < approxRows; row++) {
+    const t = row / approxRows;
+    const ring = volumeRingAt(vol, t, 0.018);
+    for (let i = 0; i < ring.length; i++) pushLine(ring[i]!, ring[(i + 1) % ring.length]!);
+  }
+  for (let i = 0; i < n; i++) {
+    const b0 = vol.vertices[i]!.position;
+    const b1 = vol.vertices[(i + 1) % n]!.position;
+    const t0 = vol.vertices[i + n]!.position;
+    const t1 = vol.vertices[((i + 1) % n) + n]!.position;
+    const sideWidth = Math.hypot(b1.x - b0.x, b1.y - b0.y);
+    const cols = Math.max(1, Math.min(4, Math.round(sideWidth / 0.22)));
+    for (let c = 1; c < cols; c++) {
+      const u = c / cols;
+      const stagger = i % 2 === 0 ? 0 : 0.5 / Math.max(1, cols);
+      const uu = Math.min(0.92, Math.max(0.08, u + stagger));
+      pushLine(
+        new THREE.Vector3(
+          b0.x + (b1.x - b0.x) * uu,
+          b0.y + (b1.y - b0.y) * uu,
+          b0.z + (b1.z - b0.z) * uu + 0.018,
+        ),
+        new THREE.Vector3(
+          t0.x + (t1.x - t0.x) * uu,
+          t0.y + (t1.y - t0.y) * uu,
+          t0.z + (t1.z - t0.z) * uu + 0.018,
+        ),
+      );
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  return geo;
+}
+
+function roofObstacleDetailGeometries(vol: SolarScene3D["obstacleVolumes"][number]): {
+  readonly topCap: THREE.BufferGeometry | null;
+  readonly edgeLines: THREE.BufferGeometry | null;
+  readonly brickLines: THREE.BufferGeometry | null;
+  readonly windowFrame: THREE.BufferGeometry | null;
+} {
+  const topRing = volumeRingAt(vol, 1, vol.visualRole === "roof_window_flush" || vol.visualRole === "keepout_surface" ? 0.018 : 0.012);
+  return {
+    topCap: vol.kind === "chimney" || vol.visualRole === "roof_window_flush"
+      ? volumeTopCapGeometry(vol, vol.kind === "chimney" ? 0.045 : 0.02, vol.kind === "chimney" ? 1.12 : 1)
+      : null,
+    edgeLines: volumeLoopLineGeometry(topRing),
+    brickLines: vol.kind === "chimney" ? chimneyBrickLineGeometry(vol) : null,
+    windowFrame: vol.visualRole === "roof_window_flush" ? roofWindowFrameLineGeometry(vol) : null,
+  };
+}
+
 function panelSurfaceMaterial(
   scene: SolarScene3D,
   panelId: string,
@@ -1296,7 +1429,12 @@ function ViewerSceneContent({
   const ridgeGeo = useMemo(() => roofRidgesLineGeometry(scene.roofModel), [scene.roofModel]);
 
   const obsGeos = useMemo(() => {
-    return scene.obstacleVolumes.map((v) => ({ id: v.id, volume: v, geo: obstacleVolumeGeometry(v) }));
+    return scene.obstacleVolumes.map((v) => ({
+      id: v.id,
+      volume: v,
+      geo: obstacleVolumeGeometry(v),
+      details: roofObstacleDetailGeometries(v),
+    }));
   }, [scene.obstacleVolumes]);
 
   const dormerPremiumLayer = useMemo(() => {
@@ -1473,7 +1611,13 @@ function ViewerSceneContent({
       ...(edgeGeo ? [edgeGeo] : []),
       ...(ridgeGeo ? [ridgeGeo] : []),
       ...dormerPremiumLayer.meshes.flatMap((m) => [m.geo, ...(m.edges ? [m.edges] : [])]),
-      ...obsGeos.map((x) => x.geo),
+      ...obsGeos.flatMap((x) => [
+        x.geo,
+        x.details.topCap,
+        x.details.edgeLines,
+        x.details.brickLines,
+        x.details.windowFrame,
+      ].filter((g): g is THREE.BufferGeometry => g != null)),
       ...extGeos.map((x) => x.geo),
       ...panelGeos.flatMap((x) => [x.geo, x.cell].filter((g): g is THREE.BufferGeometry => g != null)),
       ...pv3dLivePanelGeos.flatMap((x) => [x.fill, x.line, x.cell].filter((g): g is THREE.BufferGeometry => g != null)),
@@ -1834,7 +1978,7 @@ function ViewerSceneContent({
           );
         })}
       {visObs &&
-        obsGeos.map(({ id, volume, geo }) => {
+        obsGeos.map(({ id, volume, geo, details }) => {
           const sid = String(id);
           const sel = isInspectSelected(inspectionSelection, "OBSTACLE", sid);
           const mat = obstacleMaterialForVolume(volume, mObs);
@@ -1860,6 +2004,62 @@ function ViewerSceneContent({
                 emissive={sel ? "#6d4c41" : mat.emissive}
                 emissiveIntensity={sel ? 0.35 : volume.visualRole === "roof_window_flush" ? 0.08 : 0}
               />
+              {details.topCap ? (
+                <mesh geometry={details.topCap} renderOrder={8}>
+                  <meshStandardMaterial
+                    color={volume.kind === "chimney" ? "#3b241d" : "#0f2a44"}
+                    metalness={volume.kind === "chimney" ? 0.04 : 0.22}
+                    roughness={volume.kind === "chimney" ? 0.82 : 0.24}
+                    transparent={volume.visualRole === "roof_window_flush"}
+                    opacity={volume.visualRole === "roof_window_flush" ? 0.78 : 1}
+                    emissive={volume.visualRole === "roof_window_flush" ? "#0b2239" : "#000000"}
+                    emissiveIntensity={volume.visualRole === "roof_window_flush" ? 0.08 : 0}
+                    side={THREE.DoubleSide}
+                    polygonOffset
+                    polygonOffsetFactor={-2}
+                    polygonOffsetUnits={-2}
+                  />
+                </mesh>
+              ) : null}
+              {details.brickLines ? (
+                <lineSegments geometry={details.brickLines} renderOrder={9}>
+                  <lineBasicMaterial
+                    color="#5f3b31"
+                    transparent
+                    opacity={0.72}
+                    toneMapped={false}
+                    depthTest
+                  />
+                </lineSegments>
+              ) : null}
+              {details.edgeLines ? (
+                <lineSegments geometry={details.edgeLines} renderOrder={10}>
+                  <lineBasicMaterial
+                    color={
+                      volume.kind === "chimney"
+                        ? "#2f1e19"
+                        : volume.visualRole === "roof_window_flush" || volume.visualRole === "keepout_surface"
+                          ? "#94a3b8"
+                          : "#334155"
+                    }
+                    transparent
+                    opacity={volume.visualRole === "keepout_surface" ? 0.52 : 0.72}
+                    toneMapped={false}
+                    depthTest
+                  />
+                </lineSegments>
+              ) : null}
+              {details.windowFrame ? (
+                <lineSegments geometry={details.windowFrame} renderOrder={11}>
+                  <lineBasicMaterial
+                    color="#c7d2fe"
+                    transparent
+                    opacity={0.7}
+                    toneMapped={false}
+                    depthTest
+                  />
+                </lineSegments>
+              ) : null}
               {inspectMode && sel && (
                 <Outlines
                   thickness={outlineThickness}
