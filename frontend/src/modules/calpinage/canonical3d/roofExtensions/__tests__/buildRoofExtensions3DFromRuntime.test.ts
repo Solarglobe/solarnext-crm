@@ -354,4 +354,57 @@ describe("buildRoofExtensions3DFromRuntime", () => {
     );
     expect(hit?.volumeId).toBe("rx-test");
   });
+
+  it("P3 hips-aware : topologie v3, sans facettes contour→ridge legacy (:face:roof:<n>)", () => {
+    const patch = makePatch("pan-p3-hips", 0);
+    const res = buildRoofExtensions3DFromRuntime({
+      runtime: {
+        roofExtensions: [
+          {
+            id: "rx-p3",
+            type: "roof_extension",
+            kind: "chien_assis",
+            visualModel: "manual_outline_gable",
+            supportPanId: "pan-p3-hips",
+            contour: {
+              closed: true,
+              points: [
+                { x: 1, y: 1, h: 0 },
+                { x: 3, y: 1, h: 0 },
+                { x: 3, y: 4, h: 0 },
+                { x: 1, y: 4, h: 0 },
+              ],
+            },
+            ridge: {
+              a: { x: 2, y: 4, h: 1 },
+              b: { x: 2, y: 1, h: 1 },
+            },
+            hips: {
+              left: {
+                a: { x: 1, y: 1, h: 0 },
+                b: { x: 2, y: 2.5, h: 1 },
+              },
+              right: {
+                a: { x: 3, y: 1, h: 0 },
+                b: { x: 2, y: 2.5, h: 1 },
+              },
+            },
+            apexVertex: { id: "rx-p3:apex", x: 2, y: 3.8, h: 1 },
+            ridgeHeightRelM: 1,
+          },
+        ],
+      },
+      roofPlanePatches: [patch],
+      ...WORLD,
+    });
+    const vol = res.extensionVolumes[0]!;
+    expect(vol.topology?.version).toBe("roof_extension_topology_v3");
+    expect(vol.topology?.meshStrategy).toBe("hips_aware");
+    const legacyContourToRidgeFan = /^rx-p3:face:roof:\d+$/;
+    expect(vol.faces.some((f) => legacyContourToRidgeFan.test(f.id))).toBe(false);
+    expect(vol.faces.some((f) => f.id.includes(":face:roof:left:"))).toBe(true);
+    expect(vol.faces.some((f) => f.id.includes(":face:roof:right:"))).toBe(true);
+    const apexMeshId = "rx-p3:rx-p3:apex";
+    expect(vol.vertices.filter((v) => v.id === apexMeshId)).toHaveLength(1);
+  });
 });

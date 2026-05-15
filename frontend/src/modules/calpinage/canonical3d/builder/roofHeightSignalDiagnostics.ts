@@ -38,6 +38,7 @@ export function emptyRoofHeightSignalDiagnostics(): RoofHeightSignalDiagnostics 
 function isInterpolatedTrace(source: string): boolean {
   return (
     source === "pan_local_mean" ||
+    source === "slope_azimuth_anchor" ||
     source.includes("interpolated") ||
     source === "structural_ridge_endpoint" ||
     source === "structural_trait_endpoint"

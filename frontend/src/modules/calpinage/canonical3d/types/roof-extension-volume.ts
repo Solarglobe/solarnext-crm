@@ -24,7 +24,7 @@ import type { VolumeRoofAttachment } from "./volume-roof-attachment";
 
 
 
-export type RoofExtensionTopologyVersion = "roof_extension_topology_v2";
+export type RoofExtensionTopologyVersion = "roof_extension_topology_v2" | "roof_extension_topology_v3";
 
 export interface RoofExtensionSourcePointTopology2D {
   readonly x: number;
@@ -34,6 +34,8 @@ export interface RoofExtensionSourcePointTopology2D {
 
 export interface RoofExtensionTopologyMetadata {
   readonly version: RoofExtensionTopologyVersion;
+  /** v3 hips_aware : maillage depuis contour + hips + ridge + apex ; v2 fallback éventuel */
+  readonly meshStrategy?: "hips_aware" | "contour_ridge_fan";
   readonly source: "roofExtensions.runtime.contour_ridge";
   readonly heightReference: "support_plane_normal";
   readonly supportPlanePatchId: StableEntityId;

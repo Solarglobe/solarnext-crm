@@ -2,16 +2,14 @@ import type { WorldPosition3D } from "../types/coordinates";
 import type { Vector3 } from "../types/primitives";
 import type { AxisAlignedBounds3D, VolumeEdge3D, VolumeFace3D, VolumeVertex3D } from "../types/volumetric-mesh";
 import { add3, cross3, dot3, length3, normalize3, scale3, sub3 } from "../utils/math3";
-import type { ProjectedRoofExtensionGeometry } from "./projectRoofExtensionToSupportPlane";
-import type { RoofExtensionSource2D } from "./roofExtensionSource";
+import type { ProjectedRoofExtensionGeometry, ProjectedRoofExtensionPoint3D } from "./projectRoofExtensionToSupportPlane";
+import type { RoofExtensionSource2D, RoofExtensionSourcePoint2D } from "./roofExtensionSource";
 
 const AREA_EPS_M2 = 1e-8;
 const LENGTH_EPS_M = 1e-7;
 const RIDGE_T_EPS = 1e-6;
 
-function nearlySameWorld(a: Vector3, b: Vector3, eps = 5e-5): boolean {
-  return length3(sub3(a, b)) < eps;
-}
+export type RoofExtensionMeshStrategy = "hips_aware" | "contour_ridge_fan";
 
 export interface DormerTopologyMesh {
   readonly vertices: readonly VolumeVertex3D[];
@@ -21,6 +19,11 @@ export interface DormerTopologyMesh {
   readonly centroid: WorldPosition3D;
   readonly surfaceAreaM2: number;
   readonly volumeM3: number;
+  readonly meshStrategy: RoofExtensionMeshStrategy;
+}
+
+function nearlySameWorld(a: Vector3, b: Vector3, eps = 5e-5): boolean {
+  return length3(sub3(a, b)) < eps;
 }
 
 function centroidPoints(points: readonly Vector3[]): WorldPosition3D {
@@ -152,7 +155,232 @@ function computeVolumeM3(positions: readonly Vector3[], faces: readonly VolumeFa
   return Math.abs(sum);
 }
 
-export function buildDormerTopologyFromOutline(
+function nearestContourVertexIndex(px: number, py: number, contour: readonly RoofExtensionSourcePoint2D[]): number {
+  let bi = 0;
+  let bd = Infinity;
+  for (let i = 0; i < contour.length; i++) {
+    const p = contour[i]!;
+    const d = Math.hypot(p.x - px, p.y - py);
+    if (d < bd) {
+      bd = d;
+      bi = i;
+    }
+  }
+  return bi;
+}
+
+function nearestContourIndexOnArc(
+  px: number,
+  py: number,
+  arcOrdered: readonly number[],
+  contour: readonly RoofExtensionSourcePoint2D[],
+): number {
+  let bestIdx = arcOrdered[0]!;
+  let bd = Infinity;
+  for (const ci of arcOrdered) {
+    const p = contour[ci]!;
+    const d = Math.hypot(p.x - px, p.y - py);
+    if (d < bd) {
+      bd = d;
+      bestIdx = ci;
+    }
+  }
+  return bestIdx;
+}
+
+function walkContourInclusive(from: number, to: number, n: number, clockwise: boolean): number[] {
+  const out: number[] = [];
+  let i = from;
+  for (let guard = 0; guard <= n + 2; guard++) {
+    out.push(i);
+    if (i === to) break;
+    i = clockwise ? (i + 1) % n : (i - 1 + n) % n;
+  }
+  return out;
+}
+
+function contourArcLengthWorld(
+  indices: readonly number[],
+  projectedContour: readonly ProjectedRoofExtensionPoint3D[],
+): number {
+  let sum = 0;
+  for (let k = 0; k < indices.length - 1; k++) {
+    sum += length3(sub3(projectedContour[indices[k + 1]!]!.base, projectedContour[indices[k]!]!.base));
+  }
+  return sum;
+}
+
+function longerContourArcBetween(
+  iL: number,
+  iR: number,
+  n: number,
+  projectedContour: readonly ProjectedRoofExtensionPoint3D[],
+): number[] {
+  const cw = walkContourInclusive(iL, iR, n, true);
+  const ccw = walkContourInclusive(iL, iR, n, false);
+  return contourArcLengthWorld(cw, projectedContour) >= contourArcLengthWorld(ccw, projectedContour) ? cw : ccw;
+}
+
+function subpathAlongContourRing(ring: readonly number[], fromVertex: number, toVertex: number): number[] | null {
+  const ia = ring.indexOf(fromVertex);
+  const ib = ring.indexOf(toVertex);
+  if (ia === -1 || ib === -1) return null;
+  const out: number[] = [];
+  let i = ia;
+  for (let guard = 0; guard <= ring.length + 2; guard++) {
+    out.push(ring[i]!);
+    if (ring[i] === toVertex) break;
+    i = (i + 1) % ring.length;
+  }
+  return out.length >= 2 ? out : null;
+}
+
+function tryBuildHipsAwareRoofExtensionTopology(
+  source: RoofExtensionSource2D,
+  projected: ProjectedRoofExtensionGeometry,
+): DormerTopologyMesh | null {
+  const hips = source.hips;
+  if (
+    !hips?.left?.a ||
+    !hips?.left?.b ||
+    !hips?.right?.a ||
+    !hips?.right?.b ||
+    !source.apexVertex ||
+    !projected.apex ||
+    !projected.apexTopVertexId
+  ) {
+    return null;
+  }
+
+  const n = projected.contour.length;
+  if (n < 3) return null;
+
+  const contour = source.contour;
+  const iL = nearestContourVertexIndex(hips.left.a.x, hips.left.a.y, contour);
+  const iR = nearestContourVertexIndex(hips.right.a.x, hips.right.a.y, contour);
+  if (iL === iR) return null;
+
+  const ridgeArcLong = longerContourArcBetween(iL, iR, n, projected.contour);
+  let apexFootIdx = nearestContourVertexIndex(source.apexVertex.x, source.apexVertex.y, contour);
+  if (!ridgeArcLong.includes(apexFootIdx)) {
+    apexFootIdx = nearestContourIndexOnArc(source.apexVertex.x, source.apexVertex.y, ridgeArcLong, contour);
+  }
+
+  const leftChain = subpathAlongContourRing(ridgeArcLong, iL, apexFootIdx);
+  const rightChain = subpathAlongContourRing(ridgeArcLong, iR, apexFootIdx);
+  if (!leftChain || !rightChain || leftChain.length < 2 || rightChain.length < 2) return null;
+
+  const vertices: VolumeVertex3D[] = [];
+  const addVertex = (id: string, position: Vector3): number => {
+    const index = vertices.length;
+    vertices.push({ id, position: { x: position.x, y: position.y, z: position.z } });
+    return index;
+  };
+
+  const baseIndexes = projected.contour.map((point, index) =>
+    addVertex(`${source.id}:base:${index}`, point.base),
+  );
+  const topIndexes = projected.contour.map((point, index) =>
+    addVertex(`${source.id}:outline:${index}`, point.top),
+  );
+
+  const apx = projected.apex;
+  const apexId = projected.apexTopVertexId;
+  const sharedApexTopIndex = addVertex(`${source.id}:${apexId}`, apx.top);
+
+  const ridgeAIndex =
+    nearlySameWorld(projected.ridge.a.top, apx.top)
+      ? sharedApexTopIndex
+      : addVertex(`${source.id}:ridge:a`, projected.ridge.a.top);
+  const ridgeBIndex =
+    nearlySameWorld(projected.ridge.b.top, apx.top)
+      ? sharedApexTopIndex
+      : addVertex(`${source.id}:ridge:b`, projected.ridge.b.top);
+
+  const edges: VolumeEdge3D[] = [];
+  const edgeKeys = new Set<string>();
+  const addEdge = (id: string, a: number, b: number, kind: VolumeEdge3D["kind"]): void => {
+    if (a === b) return;
+    const pa = vertices[a]!.position;
+    const pb = vertices[b]!.position;
+    if (length3(sub3(pa, pb)) < LENGTH_EPS_M) return;
+    const key = a < b ? `${a}:${b}` : `${b}:${a}`;
+    if (edgeKeys.has(key)) return;
+    edgeKeys.add(key);
+    edges.push({ id, vertexAIndex: a, vertexBIndex: b, kind });
+  };
+
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    addEdge(`${source.id}:edge:base:${i}`, baseIndexes[i]!, baseIndexes[j]!, "base");
+    addEdge(`${source.id}:edge:outline:${i}`, topIndexes[i]!, topIndexes[j]!, "top");
+    addEdge(`${source.id}:edge:lateral:${i}`, baseIndexes[i]!, topIndexes[i]!, "lateral");
+  }
+  addEdge(`${source.id}:edge:ridge`, ridgeAIndex, ridgeBIndex, "top");
+  addEdge(`${source.id}:edge:hip:left`, topIndexes[iL]!, sharedApexTopIndex, "other");
+  addEdge(`${source.id}:edge:hip:right`, topIndexes[iR]!, sharedApexTopIndex, "other");
+
+  const positions = vertices.map((v) => v.position);
+  const centroid = centroidPoints(positions);
+  const faces: VolumeFace3D[] = [];
+  const addFace = (id: string, kind: VolumeFace3D["kind"], cycle: readonly number[]): void => {
+    const face = orientedFace(id, kind, cycle, positions, centroid);
+    if (face) faces.push(face);
+  };
+
+  addFace(`${source.id}:face:base`, "base", [...baseIndexes].reverse());
+
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    const hi = projected.contour[i]!.heightRelM;
+    const hj = projected.contour[j]!.heightRelM;
+    if (hi > LENGTH_EPS_M || hj > LENGTH_EPS_M) {
+      addFace(`${source.id}:face:wall:${i}`, "side", [
+        baseIndexes[i]!,
+        baseIndexes[j]!,
+        topIndexes[j]!,
+        topIndexes[i]!,
+      ]);
+    }
+  }
+
+  const fanTrianglesAlongChain = (prefix: string, chain: readonly number[]): void => {
+    for (let k = 0; k < chain.length - 1; k++) {
+      const a = topIndexes[chain[k]!]!;
+      const b = topIndexes[chain[k + 1]!]!;
+      addFace(`${source.id}:face:${prefix}:${k}`, "top", [sharedApexTopIndex, a, b]);
+    }
+  };
+
+  fanTrianglesAlongChain("roof:left", leftChain);
+  fanTrianglesAlongChain("roof:right", rightChain);
+
+  const apexFootTop = topIndexes[apexFootIdx]!;
+  addFace(`${source.id}:face:roof:ridge:a`, "top", [sharedApexTopIndex, ridgeAIndex, apexFootTop]);
+  addFace(`${source.id}:face:roof:ridge:b`, "top", [sharedApexTopIndex, apexFootTop, ridgeBIndex]);
+
+  const ra = vertices[ridgeAIndex]!.position;
+  const rb = vertices[ridgeBIndex]!.position;
+  if (!nearlySameWorld(ra, rb) && length3(sub3(ra, rb)) > LENGTH_EPS_M) {
+    addFace(`${source.id}:face:roof:ridge:seg`, "top", [ridgeAIndex, ridgeBIndex, apexFootTop]);
+  }
+
+  if (faces.length === 0) return null;
+  const surfaceAreaM2 = faces.reduce((sum, face) => sum + face.areaM2, 0);
+
+  return {
+    vertices,
+    edges,
+    faces,
+    bounds: boundsOf(positions),
+    centroid,
+    surfaceAreaM2,
+    volumeM3: computeVolumeM3(positions, faces),
+    meshStrategy: "hips_aware",
+  };
+}
+
+function buildContourRidgeFanTopology(
   source: RoofExtensionSource2D,
   projected: ProjectedRoofExtensionGeometry,
 ): DormerTopologyMesh | null {
@@ -274,9 +502,7 @@ export function buildDormerTopologyFromOutline(
 
     const ri = ridgeIndexesForContour[i]!;
     const rj = ridgeIndexesForContour[j]!;
-    const roofCycle = ri === rj
-      ? [topIndexes[i]!, topIndexes[j]!, ri]
-      : [topIndexes[i]!, topIndexes[j]!, rj, ri];
+    const roofCycle = ri === rj ? [topIndexes[i]!, topIndexes[j]!, ri] : [topIndexes[i]!, topIndexes[j]!, rj, ri];
     addFace(`${source.id}:face:roof:${i}`, "top", roofCycle);
   }
 
@@ -291,5 +517,17 @@ export function buildDormerTopologyFromOutline(
     centroid,
     surfaceAreaM2,
     volumeM3: computeVolumeM3(positions, faces),
+    meshStrategy: "contour_ridge_fan",
   };
+}
+
+export function buildDormerTopologyFromOutline(
+  source: RoofExtensionSource2D,
+  projected: ProjectedRoofExtensionGeometry,
+): DormerTopologyMesh | null {
+  const hipsAware = tryBuildHipsAwareRoofExtensionTopology(source, projected);
+  if (hipsAware && hipsAware.faces.length > 0) {
+    return hipsAware;
+  }
+  return buildContourRidgeFanTopology(source, projected);
 }

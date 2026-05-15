@@ -80,6 +80,9 @@ export function buildRoofExtensionVolume3D(
     return { volume: null, diagnostics };
   }
 
+  const topologyVersion: "roof_extension_topology_v2" | "roof_extension_topology_v3" =
+    mesh.meshStrategy === "hips_aware" ? "roof_extension_topology_v3" : "roof_extension_topology_v2";
+
   const footprintWorld = projected.contour.map((p) => p.base);
   const volume: RoofExtensionVolume3D = {
     id: source.id,
@@ -104,7 +107,8 @@ export function buildRoofExtensionVolume3D(
     provenance: { source: "extension2d", extensionId: source.id },
     quality: qualityFor(diagnostics),
     topology: {
-      version: "roof_extension_topology_v2",
+      version: topologyVersion,
+      meshStrategy: mesh.meshStrategy,
       source: "roofExtensions.runtime.contour_ridge",
       heightReference: "support_plane_normal",
       supportPlanePatchId: patch.id,

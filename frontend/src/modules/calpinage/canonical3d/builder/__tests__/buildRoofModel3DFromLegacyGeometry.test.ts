@@ -277,6 +277,40 @@ describe("buildRoofModel3DFromLegacyGeometry", () => {
     }
   });
 
+  it("reconstruit les sommets manquants avec pente + azimut + hauteur d'ancrage", () => {
+    const { model, roofHeightSignal } = buildRoofModel3DFromLegacyGeometry({
+      metersPerPixel: 1,
+      northAngleDeg: 0,
+      defaultHeightM: 0,
+      pans: [
+        {
+          id: "p-slope-anchor",
+          tiltDegHint: 30,
+          azimuthDegHint: 0,
+          polygonPx: [
+            { xPx: 0, yPx: 0, heightM: 10 },
+            { xPx: 10, yPx: 0 },
+            { xPx: 10, yPx: 10 },
+            { xPx: 0, yPx: 10 },
+          ],
+        },
+      ],
+    });
+
+    const patch = model.roofPlanePatches[0]!;
+    const zValues = patch.cornersWorld.map((p) => p.z);
+    const zSpan = Math.max(...zValues) - Math.min(...zValues);
+    expect(patch.tiltDeg).toBeCloseTo(30, 6);
+    expect(zSpan).toBeCloseTo(Math.tan((30 * Math.PI) / 180) * 10, 5);
+    expect(patch.quality.diagnostics.some((d) => d.code === "HEIGHT_RECONSTRUCTED_FROM_SLOPE_AZIMUTH_ANCHOR")).toBe(true);
+    expect(patch.quality.diagnostics.some((d) => d.code === "HEIGHT_FALLBACK_DEFAULT_ON_CORNERS")).toBe(false);
+    expect(patch.quality.diagnostics.some((d) => d.code === "HEIGHT_INTERPOLATED_OR_DEFAULT")).toBe(false);
+    expect(roofHeightSignal.explicitVertexHeightCount).toBe(1);
+    expect(roofHeightSignal.interpolatedVertexHeightCount).toBe(3);
+    expect(roofHeightSignal.fallbackVertexHeightCount).toBe(0);
+    expect(roofHeightSignal.heightSignalStatus).toBe("SUFFICIENT");
+  });
+
   const twoAdjacentPansInput = {
     metersPerPixel: 0.05,
     northAngleDeg: 0,

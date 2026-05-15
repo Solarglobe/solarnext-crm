@@ -28,6 +28,7 @@ export type HeightResolutionSource =
   | "structural_trait_endpoint"
   | "structural_line_interpolated_ridge"
   | "structural_line_interpolated_trait"
+  | "slope_azimuth_anchor"
   | "pan_local_mean"
   | "default_global";
 
@@ -48,6 +49,8 @@ export function structuralHeightUnifyWeight(trace: HeightResolutionTrace): numbe
     case "structural_trait_endpoint":
     case "structural_line_interpolated_trait":
       return 40;
+    case "slope_azimuth_anchor":
+      return 30;
     case "explicit_polygon_vertex":
       return 25;
     case "pan_local_mean":

@@ -101,6 +101,9 @@ import {
 const POS_KEY_PRECISION = 1e5;
 const RESIDUAL_HIGH = 0.05;
 const RESIDUAL_OK = 0.005;
+const SLOPE_ANCHOR_MIN_TILT_DEG = 0.75;
+const SLOPE_ANCHOR_MAX_TILT_DEG = 75;
+const SLOPE_ANCHOR_MIN_NORMAL_Z = 0.05;
 
 /**
  * Ratio Z-range / XY-diagonale au-delà duquel un pan est considéré comme un "spike".
@@ -159,6 +162,92 @@ function shoelaceXYSigned(pts: readonly Vector3[]): number {
     s += pts[i].x * pts[j].y - pts[j].x * pts[i].y;
   }
   return s * 0.5;
+}
+
+function normalizeAzimuthDeg(deg: number): number {
+  return ((deg % 360) + 360) % 360;
+}
+
+function roofNormalFromSlopeAzimuthHints(tiltDeg: unknown, azimuthDeg: unknown): Vector3 | null {
+  if (typeof tiltDeg !== "number" || typeof azimuthDeg !== "number") return null;
+  if (!Number.isFinite(tiltDeg) || !Number.isFinite(azimuthDeg)) return null;
+  if (tiltDeg < SLOPE_ANCHOR_MIN_TILT_DEG || tiltDeg > SLOPE_ANCHOR_MAX_TILT_DEG) return null;
+  const tiltRad = (tiltDeg * Math.PI) / 180;
+  const azRad = (normalizeAzimuthDeg(azimuthDeg) * Math.PI) / 180;
+  const normal = normalize3({
+    x: Math.sin(azRad) * Math.sin(tiltRad),
+    y: Math.cos(azRad) * Math.sin(tiltRad),
+    z: Math.cos(tiltRad),
+  });
+  if (!normal || normal.z < SLOPE_ANCHOR_MIN_NORMAL_Z) return null;
+  return normal;
+}
+
+function slopeAnchorCanReplaceTrace(t: HeightResolutionTrace): boolean {
+  return t.source === "pan_local_mean" || t.source === "default_global";
+}
+
+function slopeAnchorTraceCanAnchor(t: HeightResolutionTrace): boolean {
+  return (
+    t.source === "explicit_polygon_vertex" ||
+    t.source === "structural_ridge_endpoint" ||
+    t.source === "structural_trait_endpoint" ||
+    t.source === "structural_line_interpolated_ridge" ||
+    t.source === "structural_line_interpolated_trait"
+  );
+}
+
+function findSlopeAnchorCorner(
+  raw: readonly LegacyPanInput["polygonPx"][number][],
+  cornersWorld: readonly Vector3[],
+  cornerTraces: readonly HeightResolutionTrace[],
+): Vector3 | null {
+  for (let i = 0; i < raw.length; i++) {
+    if (typeof raw[i]?.heightM === "number" && Number.isFinite(raw[i]?.heightM)) {
+      return cornersWorld[i] ? { ...cornersWorld[i] } : null;
+    }
+  }
+  for (let i = 0; i < cornerTraces.length; i++) {
+    if (slopeAnchorTraceCanAnchor(cornerTraces[i]!) && cornersWorld[i]) {
+      return { ...cornersWorld[i]! };
+    }
+  }
+  return null;
+}
+
+function applySlopeAzimuthAnchorReconstruction(args: {
+  readonly pan: LegacyPanInput;
+  readonly raw: readonly LegacyPanInput["polygonPx"][number][];
+  readonly cornersWorld: Vector3[];
+  readonly cornerTraces: HeightResolutionTrace[];
+}): number {
+  const normal = roofNormalFromSlopeAzimuthHints(args.pan.tiltDegHint, args.pan.azimuthDegHint);
+  if (!normal) return 0;
+  const replaceIndices = args.cornerTraces
+    .map((t, index) => (slopeAnchorCanReplaceTrace(t) ? index : -1))
+    .filter((index) => index >= 0);
+  if (replaceIndices.length === 0) return 0;
+  const anchor = findSlopeAnchorCorner(args.raw, args.cornersWorld, args.cornerTraces);
+  if (!anchor) return 0;
+  let replaced = 0;
+  for (const index of replaceIndices) {
+    const p = args.cornersWorld[index]!;
+    const z =
+      anchor.z -
+      (normal.x * (p.x - anchor.x) + normal.y * (p.y - anchor.y)) / normal.z;
+    if (!Number.isFinite(z)) continue;
+    args.cornersWorld[index] = { ...p, z };
+    args.cornerTraces[index] = { source: "slope_azimuth_anchor", tier: "medium" };
+    if (isRoofZPipelineDevTraceEnabled()) {
+      roofZTraceRecordStep(args.pan.id, index, "S", z, {
+        tiltDegHint: args.pan.tiltDegHint,
+        azimuthDegHint: args.pan.azimuthDegHint,
+        anchor,
+      });
+    }
+    replaced++;
+  }
+  return replaced;
 }
 
 /**
@@ -347,6 +436,25 @@ export function buildRoofModel3DFromLegacyGeometry(
       cornerTraces.push(trace);
       const xy = imagePxToWorldHorizontalM(raw[i].xPx, raw[i].yPx, mpp, input.northAngleDeg);
       cornersWorld.push({ x: xy.x, y: xy.y, z });
+    }
+    const slopeAnchorReplacedCount = applySlopeAzimuthAnchorReconstruction({
+      pan,
+      raw,
+      cornersWorld,
+      cornerTraces,
+    });
+    if (slopeAnchorReplacedCount > 0) {
+      globalDiagnostics.push({
+        code: "SLOPE_AZIMUTH_ANCHOR_RECONSTRUCTION_APPLIED",
+        severity: "info",
+        message: `Pan ${pan.id} : ${slopeAnchorReplacedCount} sommet(s) reconstruits par pente + azimut + hauteur d'ancrage.`,
+        context: {
+          panId: pan.id,
+          tiltDegHint: pan.tiltDegHint ?? null,
+          azimuthDegHint: pan.azimuthDegHint ?? null,
+          replacedCornerCount: slopeAnchorReplacedCount,
+        },
+      });
     }
 
     // ── GARDE-FOU ANTI-SPIKE ──
@@ -574,13 +682,23 @@ export function buildRoofModel3DFromLegacyGeometry(
     }
 
     const explicitH = raw.every((p) => typeof p.heightM === "number" && Number.isFinite(p.heightM));
-    if (!explicitH) {
+    const hasMeanOrDefaultHeight = cornerTraces.some((t) => t.source === "pan_local_mean" || t.source === "default_global");
+    if (!explicitH && hasMeanOrDefaultHeight) {
       confidence = confidence === "high" ? "medium" : "low";
       panDiagnostics.push({
         code: "HEIGHT_INTERPOLATED_OR_DEFAULT",
         severity: "info",
         message: "Hauteurs Z non explicites sur tous les sommets (moyennes / défaut / lignes structurantes)",
         context: { panId: pan.id },
+      });
+    }
+    if (cornerTraces.some((t) => t.source === "slope_azimuth_anchor")) {
+      confidence = confidence === "high" ? "medium" : confidence;
+      panDiagnostics.push({
+        code: "HEIGHT_RECONSTRUCTED_FROM_SLOPE_AZIMUTH_ANCHOR",
+        severity: "info",
+        message: "Hauteurs manquantes reconstruites depuis pente + azimut + hauteur d'ancrage.",
+        context: { panId: pan.id, tiltDegHint: pan.tiltDegHint ?? null, azimuthDegHint: pan.azimuthDegHint ?? null },
       });
     }
 
