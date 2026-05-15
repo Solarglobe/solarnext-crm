@@ -52,6 +52,15 @@
   color: var(--text-on-dark);
 }
 
+.sn-crm-inline-toast--warning {
+  background: linear-gradient(
+    155deg,
+    rgba(245, 158, 11, 0.97) 0%,
+    rgba(217, 119, 6, 0.99) 100%
+  );
+  color: #fff;
+}
+
 html.theme-dark .sn-crm-inline-toast {
   box-shadow:
     0 20px 48px rgba(0, 0, 0, 0.45),

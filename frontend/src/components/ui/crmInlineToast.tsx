@@ -5,7 +5,7 @@
 
 import "./crm-inline-toast.css";
 
-export type CrmInlineToastVariant = "success" | "error";
+export type CrmInlineToastVariant = "success" | "error" | "warning";
 
 const EXIT_MS = 200;
 
@@ -17,8 +17,8 @@ export function showCrmInlineToast(
   const el = document.createElement("div");
   el.className = `sn-crm-inline-toast sn-crm-inline-toast--${variant}`;
   el.textContent = message;
-  el.setAttribute("role", variant === "error" ? "alert" : "status");
-  el.setAttribute("aria-live", variant === "error" ? "assertive" : "polite");
+  el.setAttribute("role", variant === "error" || variant === "warning" ? "alert" : "status");
+  el.setAttribute("aria-live", variant === "error" || variant === "warning" ? "assertive" : "polite");
   document.body.appendChild(el);
   requestAnimationFrame(() => {
     el.classList.add("sn-crm-inline-toast--visible");
