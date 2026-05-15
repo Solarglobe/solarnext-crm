@@ -16,6 +16,7 @@ import { optimalSingleBuildingLegacyRoofMapOptions } from "../integration/mapCal
 import { getOrBuildOfficialSolarScene3DFromCalpinageRuntime } from "../canonical3d/scene/officialSolarScene3DGateway";
 import { CALPINAGE_OFFICIAL_RUNTIME_STRUCTURAL_CHANGE } from "../canonical3d/scene/sceneRuntimeStructuralSignature";
 import { readPvLayout3dProductEnabledFromWindow } from "../runtime/pvLayout3dRollout";
+import { getPvLayout3dProductCapabilityReport } from "../runtime/pvPlacement3dProduct";
 import type { OfficialRuntimeStructuralChangePayload } from "../runtime/emitOfficialRuntimeStructuralChange";
 import type { SolarScene3D } from "../canonical3d/types/solarScene3d";
 import type { RoofVertexXYEdit } from "../runtime/applyRoofVertexXYEdit";
@@ -555,6 +556,8 @@ function Inline3DViewer({
     enableVertexZEditFlag || enableVertexXYEditFlag || enableStructuralRidgeHeightEditFlag;
 
   const enablePvLayout3dFlag = readPvLayout3dProductEnabledFromWindow();
+  const pvLayout3dCapabilities = getPvLayout3dProductCapabilityReport();
+  const pvLayout3dCapabilitiesMissingKey = pvLayout3dCapabilities.missing.join("|");
   const rootRt = resolveCalpinageRuntime(calpinageStateProp);
   const pvLayoutPhase =
     rootRt != null &&
@@ -563,7 +566,14 @@ function Inline3DViewer({
   const mode3d =
     typeof window !== "undefined" &&
     (window as unknown as { __CALPINAGE_VIEW_MODE__?: string }).__CALPINAGE_VIEW_MODE__ === "3D";
-  const pvLayout3DActive = enablePvLayout3dFlag && pvLayoutPhase && mode3d;
+  const pvLayout3DActive = enablePvLayout3dFlag && pvLayout3dCapabilities.ready && pvLayoutPhase && mode3d;
+
+  useEffect(() => {
+    if (!import.meta.env.DEV || !enablePvLayout3dFlag || pvLayout3dCapabilities.ready) return;
+    console.warn("[CALPINAGE][PV_3D_PRODUCT_UNARMED]", {
+      missing: pvLayout3dCapabilities.missing,
+    });
+  }, [enablePvLayout3dFlag, pvLayout3dCapabilities.ready, pvLayout3dCapabilitiesMissingKey]);
 
   useEffect(() => {
     if (!import.meta.env.DEV || !scene || zDragBridgeUnarmedLoggedRef.current) return;

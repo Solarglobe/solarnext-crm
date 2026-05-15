@@ -83,6 +83,26 @@ type LegacyRemovePanelFn = (blockId: string, panelId: string) => boolean;
 type LegacyRemoveSelectedFn = () => boolean;
 type LegacyClearSelectionFn = () => boolean;
 
+export type PvLayout3dProductCapability =
+  | "hitTest"
+  | "beginMove"
+  | "beginRotate"
+  | "applyMove"
+  | "applyTransform"
+  | "cancel"
+  | "finalize"
+  | "overlay"
+  | "select"
+  | "addPanel"
+  | "removePanel"
+  | "removeSelected"
+  | "clearSelection";
+
+export type PvLayout3dProductCapabilityReport = {
+  readonly ready: boolean;
+  readonly missing: readonly PvLayout3dProductCapability[];
+};
+
 function readHit(): LegacyHitFn | null {
   if (typeof window === "undefined") return null;
   const w = window as unknown as { __calpinageHitTestPvBlockPanelFromImagePoint?: LegacyHitFn };
@@ -171,6 +191,32 @@ function readClearSelection(): LegacyClearSelectionFn | null {
   if (typeof window === "undefined") return null;
   const w = window as unknown as { __calpinageClearPvSelectionFrom3d?: LegacyClearSelectionFn };
   return typeof w.__calpinageClearPvSelectionFrom3d === "function" ? w.__calpinageClearPvSelectionFrom3d : null;
+}
+
+/** Contrat produit minimal : pose, sélection, déplacement, rotation, suppression et overlay doivent être branchés. */
+export function getPvLayout3dProductCapabilityReport(): PvLayout3dProductCapabilityReport {
+  const required: readonly [PvLayout3dProductCapability, () => unknown][] = [
+    ["hitTest", readHit],
+    ["beginMove", readBegin],
+    ["beginRotate", readBeginRotate],
+    ["applyMove", readApplyMoveLive],
+    ["applyTransform", readApplyTransformLive],
+    ["cancel", readCancel],
+    ["finalize", readFinalize],
+    ["overlay", readGetOverlayState],
+    ["select", readSelectBlock],
+    ["addPanel", readAddPanel],
+    ["removePanel", readRemovePanel],
+    ["removeSelected", readRemoveSelected],
+    ["clearSelection", readClearSelection],
+  ];
+  const missing = required
+    .filter(([, read]) => read() == null)
+    .map(([name]) => name);
+  return {
+    ready: missing.length === 0,
+    missing,
+  };
 }
 
 /** Hit-test px image → bloc + panneau (focus puis blocs figés). */
