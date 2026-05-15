@@ -8651,6 +8651,23 @@ export function initCalpinage(container, options = {}) {
         if (typeof resetActiveToolToSelect === "function") resetActiveToolToSelect();
       }
 
+      function clearTransientCanvasModeForToolSwitch() {
+        var mode = window.CALPINAGE_MODE;
+        var isDormerMode = mode === MODE_CREATE_DORMER || mode === MODE_DORMER_CONTOUR || mode === MODE_DORMER_RIDGE || mode === MODE_DORMER_HIPS;
+        if (isDormerMode) {
+          if (mode === MODE_CREATE_DORMER || mode === MODE_DORMER_CONTOUR) drawState.dormerDraft = null;
+          drawState.dormerActiveTool = null;
+          drawState.dormerEditRxIndex = null;
+        }
+        if (mode === "CREATE_SHADOW_VOLUME") {
+          drawState.shadowVolumeCreateShape = null;
+          drawState.shadowVolumeBusinessId = null;
+        }
+        if (isDormerMode || mode === "CREATE_SHADOW_VOLUME") {
+          window.CALPINAGE_MODE = null;
+        }
+      }
+
       /* Phase 2 — Centralisation sélection : reset uniquement les indices selected* */
       function clearSelection() {
         drawState.selectedContourIndex = null;
@@ -14243,6 +14260,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
           if (typeof devLog !== "undefined" && devLog) console.log("[activateTool]", toolName);
           var prevHeightEdit = CALPINAGE_STATE.heightEditMode;
           var prevTool = drawState.activeTool;
+          clearTransientCanvasModeForToolSwitch();
           if (prevHeightEdit && toolName !== "heightEdit") {
             exitHeightEdit(true);
           }
@@ -14307,6 +14325,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
         }
         function setObstacleActive(shape, businessId) {
           if (CALPINAGE_STATE.heightEditMode) exitHeightEdit(true);
+          clearTransientCanvasModeForToolSwitch();
           drawState.activeTool = "obstacle";
           drawState.obstacleShape = shape;
           drawState.obstacleBusinessId = businessId != null && businessId !== "" ? businessId : null;
@@ -14496,6 +14515,8 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               e.stopPropagation();
               var businessId = opt.getAttribute("data-shadow-business-id");
               if (businessId) {
+                if (CALPINAGE_STATE.heightEditMode) exitHeightEdit(true);
+                clearTransientCanvasModeForToolSwitch();
                 var payload = getShadowVolumeCreationPayload(businessId);
                 window.CALPINAGE_MODE = "CREATE_SHADOW_VOLUME";
                 drawState.shadowVolumeCreateShape = payload.shape;
@@ -14529,6 +14550,8 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             addSafeListener(opt, "click", function (e) {
               console.log("[PHASE2 CLICK]", "roof-extension-option-" + (opt.getAttribute("data-dormer-tool") || ""));
               e.stopPropagation();
+              if (CALPINAGE_STATE.heightEditMode) exitHeightEdit(true);
+              clearTransientCanvasModeForToolSwitch();
               var tool = opt.getAttribute("data-dormer-tool");
               if (!tool) return;
               var targetIdx = getDormerTargetIndexForTool();
