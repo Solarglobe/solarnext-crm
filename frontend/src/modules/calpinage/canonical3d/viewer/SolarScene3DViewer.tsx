@@ -312,6 +312,16 @@ const PREMIUM_PV_CELL_LINE = "#cbd5e1";
 const PREMIUM_PV_SELECTED_FILL = "#27346a";
 const PREMIUM_PV_LIVE_FILL = "#172033";
 const PREMIUM_PV_INVALID_FILL = "#b91c1c";
+const PV3D_SAFE_ZONE_FILL = "#ef4444";
+const PV3D_SAFE_ZONE_LINE = "#f87171";
+const PV3D_GHOST_VALID_FILL = "#22c55e";
+const PV3D_GHOST_VALID_LINE = "#86efac";
+const PV3D_GHOST_AUTOFILL_FILL = "#38bdf8";
+const PV3D_GHOST_AUTOFILL_LINE = "#bae6fd";
+const PV3D_GHOST_EXCLUDED_FILL = "#a1a1aa";
+const PV3D_GHOST_EXCLUDED_LINE = "#71717a";
+const PV3D_GHOST_INVALID_FILL = "#f97316";
+const PV3D_GHOST_INVALID_LINE = "#fdba74";
 
 function obstacleMaterialForVolume(vol: SolarScene3D["obstacleVolumes"][number], fallback: {
   readonly color: number;
@@ -951,11 +961,14 @@ type PvLayout3dProjectedGhost = {
   readonly excluded: boolean;
   readonly source?: "expansion" | "autofill";
   readonly points: readonly PvLayout3dScreenPoint[];
+  readonly labelPoint: PvLayout3dScreenPoint;
+  readonly label: string;
 };
 
 type PvLayout3dProjectedSafeZone = {
   readonly id: string;
   readonly points: readonly PvLayout3dScreenPoint[];
+  readonly labelPoint: PvLayout3dScreenPoint;
 };
 
 type PvLayout3dProjectedHandles = {
@@ -992,6 +1005,20 @@ function projectWorldToScreenPoint(
   };
 }
 
+function screenPolygonCentroid(points: readonly PvLayout3dScreenPoint[]): PvLayout3dScreenPoint {
+  if (points.length === 0) return { x: 0, y: 0 };
+  return {
+    x: points.reduce((sum, p) => sum + p.x, 0) / points.length,
+    y: points.reduce((sum, p) => sum + p.y, 0) / points.length,
+  };
+}
+
+function pv3dGhostLabel(g: { readonly valid?: boolean; readonly excluded?: boolean; readonly source?: "expansion" | "autofill" }): string {
+  if (g.excluded) return "Retire";
+  if (g.valid === false) return "Refuse";
+  return g.source === "autofill" ? "Auto" : "OK";
+}
+
 function overlaySignature(o: PvLayout3dScreenOverlayState | null): string {
   if (!o) return "null";
   const h = o.handles
@@ -1002,7 +1029,7 @@ function overlaySignature(o: PvLayout3dScreenOverlayState | null): string {
     .map((p) => `${p.id}:${p.selected ? 1 : 0}:${p.invalid ? 1 : 0}:${p.points.map((pt) => `${pt.x.toFixed(0)},${pt.y.toFixed(0)}`).join(";")}`)
     .join("|");
   const ghosts = o.ghosts
-    .map((g) => `${g.id}:${g.valid ? 1 : 0}:${g.excluded ? 1 : 0}:${g.points.map((pt) => `${pt.x.toFixed(0)},${pt.y.toFixed(0)}`).join(";")}`)
+    .map((g) => `${g.id}:${g.valid ? 1 : 0}:${g.excluded ? 1 : 0}:${g.label}:${g.points.map((pt) => `${pt.x.toFixed(0)},${pt.y.toFixed(0)}`).join(";")}`)
     .join("|");
   const safeZones = o.safeZones
     .map((z) => `${z.id}:${z.points.map((pt) => `${pt.x.toFixed(0)},${pt.y.toFixed(0)}`).join(";")}`)
@@ -1479,20 +1506,29 @@ function PvLayout3dScreenOverlayProjector({
       }))
       .filter((p) => p.points.length >= 3);
     const ghosts = overlay.ghosts
-      .map((g) => ({
-        id: g.id,
-        valid: g.valid !== false,
-        excluded: !!g.excluded,
-        source: g.source,
-        points: projectImagePoly(g.points, g.panId, 0.26),
-      }))
+      .map((g) => {
+        const points = projectImagePoly(g.points, g.panId, 0.26);
+        return {
+          id: g.id,
+          valid: g.valid !== false,
+          excluded: !!g.excluded,
+          source: g.source,
+          points,
+          labelPoint: screenPolygonCentroid(points),
+          label: pv3dGhostLabel(g),
+        };
+      })
       .filter((g) => g.points.length >= 3);
     const safeZones = overlay.safeZones.flatMap((z) =>
       z.polygons
-        .map((poly, index) => ({
-          id: `${z.panId}-${index}`,
-          points: projectImagePoly(poly, z.panId, 0.28),
-        }))
+        .map((poly, index) => {
+          const points = projectImagePoly(poly, z.panId, 0.28);
+          return {
+            id: `${z.panId}-${index}`,
+            points,
+            labelPoint: screenPolygonCentroid(points),
+          };
+        })
         .filter((z2) => z2.points.length >= 3),
     );
 
@@ -1570,9 +1606,15 @@ function PvLayout3dSvgOverlay({
 }) {
   if (!overlay) return null;
   const h = overlay.handles;
+  const invalidPanelsCount = overlay.panels.filter((p) => p.invalid).length;
+  const refusedGhostsCount = overlay.ghosts.filter((g) => g.valid === false).length;
+  const allowedGhostsCount = overlay.ghosts.filter((g) => g.valid && !g.excluded).length;
+  const polyPoints = (points: readonly PvLayout3dScreenPoint[]): string =>
+    points.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
   return (
     <svg
-      aria-hidden="true"
+      role="img"
+      aria-label="Aide visuelle pose photovoltaïque 3D"
       width={overlay.width}
       height={overlay.height}
       viewBox={`0 0 ${overlay.width} ${overlay.height}`}
@@ -1584,6 +1626,102 @@ function PvLayout3dSvgOverlay({
         overflow: "hidden",
       }}
     >
+      <defs>
+        <pattern id="pv3d-safe-hatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+          <line x1="0" y1="0" x2="0" y2="8" stroke="rgba(248,113,113,0.72)" strokeWidth="2" />
+        </pattern>
+        <filter id="pv3d-label-shadow" x="-20%" y="-20%" width="140%" height="140%">
+          <feDropShadow dx="0" dy="1" stdDeviation="1.4" floodColor="rgba(0,0,0,0.55)" />
+        </filter>
+      </defs>
+      {overlay.safeZones.map((z) => (
+        <g key={`pv3d-svg-safe-${z.id}`}>
+          <polygon
+            points={polyPoints(z.points)}
+            fill="url(#pv3d-safe-hatch)"
+            stroke="rgba(248,113,113,0.95)"
+            strokeWidth={1.5}
+            vectorEffect="non-scaling-stroke"
+            opacity={0.78}
+          />
+          <g transform={`translate(${z.labelPoint.x.toFixed(1)} ${z.labelPoint.y.toFixed(1)})`} filter="url(#pv3d-label-shadow)">
+            <rect x={-44} y={-12} width={88} height={24} rx={6} fill="rgba(127,29,29,0.9)" stroke="rgba(248,113,113,0.76)" />
+            <text x={0} y={4} textAnchor="middle" fontSize={11} fontWeight={700} fill="#fee2e2">
+              Zone interdite
+            </text>
+          </g>
+        </g>
+      ))}
+      {overlay.ghosts.map((g) => {
+        const fill = g.excluded
+          ? "rgba(113,113,122,0.18)"
+          : g.valid
+            ? g.source === "autofill"
+              ? "rgba(56,189,248,0.22)"
+              : "rgba(34,197,94,0.22)"
+            : "rgba(249,115,22,0.24)";
+        const stroke = g.excluded
+          ? "rgba(161,161,170,0.8)"
+          : g.valid
+            ? g.source === "autofill"
+              ? "rgba(186,230,253,0.96)"
+              : "rgba(134,239,172,0.96)"
+            : "rgba(253,186,116,0.98)";
+        const labelBg = g.excluded
+          ? "rgba(63,63,70,0.9)"
+          : g.valid
+            ? "rgba(20,83,45,0.9)"
+            : "rgba(154,52,18,0.92)";
+        const dash = g.excluded ? "4 4" : g.valid ? undefined : "6 3";
+        return (
+          <g key={`pv3d-svg-ghost-${g.id}`}>
+            <polygon
+              points={polyPoints(g.points)}
+              fill={fill}
+              stroke={stroke}
+              strokeWidth={1.7}
+              strokeDasharray={dash}
+              vectorEffect="non-scaling-stroke"
+            />
+            <g transform={`translate(${g.labelPoint.x.toFixed(1)} ${g.labelPoint.y.toFixed(1)})`} filter="url(#pv3d-label-shadow)">
+              <rect x={-20} y={-11} width={40} height={22} rx={6} fill={labelBg} stroke={stroke} strokeOpacity={0.68} />
+              <text x={0} y={4} textAnchor="middle" fontSize={11} fontWeight={800} fill="#ffffff">
+                {g.label}
+              </text>
+            </g>
+          </g>
+        );
+      })}
+      {overlay.panels.filter((p) => p.invalid).map((p) => {
+        const c = screenPolygonCentroid(p.points);
+        return (
+          <g key={`pv3d-svg-invalid-${p.id}`}>
+            <polygon
+              points={polyPoints(p.points)}
+              fill="rgba(220,38,38,0.18)"
+              stroke="rgba(252,165,165,0.98)"
+              strokeWidth={2}
+              strokeDasharray="7 4"
+              vectorEffect="non-scaling-stroke"
+            />
+            <g transform={`translate(${c.x.toFixed(1)} ${c.y.toFixed(1)})`} filter="url(#pv3d-label-shadow)">
+              <rect x={-32} y={-12} width={64} height={24} rx={6} fill="rgba(127,29,29,0.92)" stroke="rgba(252,165,165,0.8)" />
+              <text x={0} y={4} textAnchor="middle" fontSize={11} fontWeight={800} fill="#fee2e2">
+                Invalide
+              </text>
+            </g>
+          </g>
+        );
+      })}
+      <g transform="translate(12 12)" filter="url(#pv3d-label-shadow)">
+        <rect width="220" height="76" rx="8" fill="rgba(15,23,42,0.84)" stroke="rgba(148,163,184,0.28)" />
+        <circle cx="16" cy="19" r="5" fill="rgba(34,197,94,0.9)" />
+        <text x="30" y="23" fontSize="11" fill="#dcfce7">Emplacement OK ({allowedGhostsCount})</text>
+        <circle cx="16" cy="39" r="5" fill="rgba(249,115,22,0.95)" />
+        <text x="30" y="43" fontSize="11" fill="#ffedd5">Pose refusée ({refusedGhostsCount})</text>
+        <circle cx="16" cy="59" r="5" fill="rgba(239,68,68,0.95)" />
+        <text x="30" y="63" fontSize="11" fill="#fee2e2">Zone interdite / panneau invalide ({invalidPanelsCount})</text>
+      </g>
       {h ? (
         <g>
           <line
@@ -2131,8 +2269,9 @@ function ViewerSceneContent({
     if (!pvLayout3DInteractionMode || !pvLayout3dOverlayState) return [];
     return pvLayout3dOverlayState.safeZones.flatMap((z) =>
       z.polygons.flatMap((poly, index) => {
-        const line = imagePolygonToRoofLineGeometry(scene, poly, z.panId, 0.04);
-        return line ? [{ id: `${z.panId}-${index}`, line }] : [];
+        const fill = imagePolygonToRoofMeshGeometry(scene, poly, z.panId, 0.032);
+        const line = imagePolygonToRoofLineGeometry(scene, poly, z.panId, 0.046);
+        return fill || line ? [{ id: `${z.panId}-${index}`, fill, line }] : [];
       }),
     );
   }, [scene, pvLayout3DInteractionMode, pvLayout3dOverlayState]);
@@ -2162,7 +2301,7 @@ function ViewerSceneContent({
       ...panelGeos.flatMap((x) => [x.geo, x.cell].filter((g): g is THREE.BufferGeometry => g != null)),
       ...pv3dLivePanelGeos.flatMap((x) => [x.fill, x.line, x.cell].filter((g): g is THREE.BufferGeometry => g != null)),
       ...pv3dGhostGeos.flatMap((x) => [x.fill, x.line].filter((g): g is THREE.BufferGeometry => g != null)),
-      ...pv3dSafeZoneGeos.map((x) => x.line),
+      ...pv3dSafeZoneGeos.flatMap((x) => [x.fill, x.line].filter((g): g is THREE.BufferGeometry => g != null)),
     ],
     [
       shellGeo,
@@ -2700,20 +2839,45 @@ function ViewerSceneContent({
         </>
       )}
       {pvLayout3DInteractionMode &&
-        pv3dSafeZoneGeos.map(({ id, line }) => (
-          <lineSegments key={`pv3d-safe-${id}`} geometry={line} renderOrder={21}>
-            <lineBasicMaterial color="#ef4444" transparent opacity={0.95} toneMapped={false} depthTest />
-          </lineSegments>
+        pv3dSafeZoneGeos.map(({ id, fill, line }) => (
+          <group key={`pv3d-safe-${id}`}>
+            {fill ? (
+              <mesh geometry={fill} renderOrder={18}>
+                <meshBasicMaterial
+                  color={PV3D_SAFE_ZONE_FILL}
+                  transparent
+                  opacity={0.1}
+                  side={THREE.DoubleSide}
+                  depthWrite={false}
+                  depthTest
+                  toneMapped={false}
+                />
+              </mesh>
+            ) : null}
+            {line ? (
+              <lineSegments geometry={line} renderOrder={21}>
+                <lineBasicMaterial color={PV3D_SAFE_ZONE_LINE} transparent opacity={0.98} toneMapped={false} depthTest />
+              </lineSegments>
+            ) : null}
+          </group>
         ))}
       {pvLayout3DInteractionMode &&
-        pv3dGhostGeos.map(({ id, fill, line, valid, excluded }) => (
+        pv3dGhostGeos.map(({ id, fill, line, valid, excluded, source }) => (
           <group key={`pv3d-ghost-${id}`}>
             {fill ? (
               <mesh geometry={fill} renderOrder={22}>
                 <meshBasicMaterial
-                  color={valid ? (excluded ? "#a1a1aa" : "#94a3b8") : "#ef4444"}
+                  color={
+                    valid
+                      ? excluded
+                        ? PV3D_GHOST_EXCLUDED_FILL
+                        : source === "autofill"
+                          ? PV3D_GHOST_AUTOFILL_FILL
+                          : PV3D_GHOST_VALID_FILL
+                      : PV3D_GHOST_INVALID_FILL
+                  }
                   transparent
-                  opacity={valid ? (excluded ? 0.12 : 0.28) : 0.2}
+                  opacity={valid ? (excluded ? 0.14 : 0.34) : 0.3}
                   side={THREE.DoubleSide}
                   depthWrite={false}
                   depthTest
@@ -2724,9 +2888,17 @@ function ViewerSceneContent({
             {line ? (
               <lineSegments geometry={line} renderOrder={23}>
                 <lineBasicMaterial
-                  color={valid ? (excluded ? "#71717a" : "#cbd5e1") : "#ef4444"}
+                  color={
+                    valid
+                      ? excluded
+                        ? PV3D_GHOST_EXCLUDED_LINE
+                        : source === "autofill"
+                          ? PV3D_GHOST_AUTOFILL_LINE
+                          : PV3D_GHOST_VALID_LINE
+                      : PV3D_GHOST_INVALID_LINE
+                  }
                   transparent
-                  opacity={valid ? 0.78 : 0.92}
+                  opacity={valid ? (excluded ? 0.7 : 0.96) : 0.98}
                   toneMapped={false}
                   depthTest
                 />
@@ -2769,7 +2941,7 @@ function ViewerSceneContent({
             {line ? (
               <lineSegments geometry={line} renderOrder={31}>
                 <lineBasicMaterial
-                  color={invalid ? "#f87171" : "#7c8cff"}
+                  color={invalid ? "#fecaca" : "#7c8cff"}
                   transparent
                   opacity={invalid ? 0.98 : 0.88}
                   toneMapped={false}
