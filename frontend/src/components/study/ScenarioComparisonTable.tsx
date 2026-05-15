@@ -33,6 +33,8 @@ export interface ScenarioV2Finance {
   /** Présent si le moteur expose une note (ex. skip virtuel) */
   note?: string | null;
   estimated_annual_bill_eur?: number | null;
+  /** Métadonnées moteur financier (horizon_years, méthode calcul, etc.) */
+  finance_meta?: Record<string, unknown> | null;
 }
 
 export interface ScenarioV2Energy {

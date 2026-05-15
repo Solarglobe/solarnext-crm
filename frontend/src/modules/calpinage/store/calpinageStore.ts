@@ -71,7 +71,7 @@ const initialPhase3: CalpinagePhase3Snapshot = {
  * Hook Zustand — consommé uniquement dans les composants React et les hooks custom.
  * L'adapter accède au store via `useCalpinageStore.setState()` (API hors-React de Zustand).
  */
-export const useCalpinageStore = create<CalpinageStore>()(() => ({
+export const useCalpinageStore = create<CalpinageStore>(() => ({
   initialized: false,
   phase2: initialPhase2,
   phase3: initialPhase3,
