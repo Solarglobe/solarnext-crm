@@ -1,24 +1,25 @@
 /**
- * Construction **pure** d’un maillage lucarne / chien assis (pignon simple).
- * Aucune mutation d’état calpinage — uniquement géométrie Three.js.
+ * Construction pure d'un maillage lucarne / chien assis.
+ *
+ * Regle metier importante :
+ * - le contour Phase 2 definit l'emprise toiture ;
+ * - le faitage Phase 2 definit l'orientation quand il est disponible ;
+ * - les aretiers Phase 2 restent des guides de dessin/compatibilite, mais ne sont plus interpretes
+ *   comme des sommets 3D libres. C'est ce qui produisait les pyramides/tentes instables.
  */
 
 import * as THREE from "three";
-import { imagePxToWorldHorizontalM } from "../../builder/worldMapping";
+import { imagePxToWorldHorizontalM, worldHorizontalMToImagePx } from "../../builder/worldMapping";
 import type { CanonicalWorldConfig } from "../../world/worldConvention";
 import type { RoofPlanePatch3D } from "../../types/roof-surface";
 import { sampleRoofZAtImagePxFromPatches } from "./sampleRoofZAtImagePxFromPatches";
 
-/** Audit runtime temporaire — `window.__CALPINAGE_DORMER_AUDIT__ === true` uniquement. */
 function dormerAuditLog(msg: string, detail?: Record<string, unknown>): void {
   if (typeof window === "undefined") return;
   const w = window as unknown as { __CALPINAGE_DORMER_AUDIT__?: boolean };
   if (w.__CALPINAGE_DORMER_AUDIT__ !== true) return;
-  if (detail && Object.keys(detail).length > 0) {
-    console.log("[DORMER_AUDIT]", msg, detail);
-  } else {
-    console.log("[DORMER_AUDIT]", msg);
-  }
+  if (detail && Object.keys(detail).length > 0) console.log("[DORMER_AUDIT]", msg, detail);
+  else console.log("[DORMER_AUDIT]", msg);
 }
 
 export type DormerRoofModelForMesh = {
@@ -27,106 +28,114 @@ export type DormerRoofModelForMesh = {
 };
 
 export type DormerRuntimeExtensionInput = {
-  /** Legacy : `"roof_extension"` ; visuel dormer si `kind === "dormer"`. */
   readonly type?: string;
   readonly kind?: string;
   readonly dormerType?: string;
+  readonly visualModel?: string;
   readonly depthM?: number;
   readonly wallHeightM?: number;
+  readonly roofRiseM?: number;
   readonly ridgeHeightRelM?: number;
   readonly ridge?: { readonly a?: { readonly x?: number; readonly y?: number }; readonly b?: { readonly x?: number; readonly y?: number } };
-  readonly hips?: {
-    readonly left?: { readonly a?: { readonly x?: number; readonly y?: number }; readonly b?: { readonly x?: number; readonly y?: number } };
-    readonly right?: { readonly a?: { readonly x?: number; readonly y?: number }; readonly b?: { readonly x?: number; readonly y?: number } };
-  };
+  readonly hips?: unknown;
   readonly contour?: {
     readonly closed?: boolean;
     readonly points?: ReadonlyArray<{ readonly x?: number; readonly y?: number }>;
   };
 };
 
+type Point2 = { readonly x: number; readonly y: number };
+type Point3 = readonly [number, number, number];
+
 function finiteNum(n: unknown): n is number {
   return typeof n === "number" && Number.isFinite(n);
 }
 
-function pushTri(
-  positions: number[],
-  indices: number[],
-  ax: number,
-  ay: number,
-  az: number,
-  bx: number,
-  by: number,
-  bz: number,
-  cx: number,
-  cy: number,
-  cz: number,
-): void {
+function validPoint(p: { readonly x?: number; readonly y?: number } | undefined): p is Point2 {
+  return !!p && finiteNum(p.x) && finiteNum(p.y);
+}
+
+function pushTri(positions: number[], indices: number[], a: Point3, b: Point3, c: Point3): void {
   const base = positions.length / 3;
-  positions.push(ax, ay, az, bx, by, bz, cx, cy, cz);
+  positions.push(a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2]);
   indices.push(base, base + 1, base + 2);
 }
 
-function pushQuad(
-  positions: number[],
-  indices: number[],
-  a: readonly [number, number, number],
-  b: readonly [number, number, number],
-  c: readonly [number, number, number],
-  d: readonly [number, number, number],
-): void {
-  pushTri(positions, indices, a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2]);
-  pushTri(positions, indices, a[0], a[1], a[2], c[0], c[1], c[2], d[0], d[1], d[2]);
+function pushQuad(positions: number[], indices: number[], a: Point3, b: Point3, c: Point3, d: Point3): void {
+  pushTri(positions, indices, a, b, c);
+  pushTri(positions, indices, a, c, d);
 }
 
-function dist2d(a: { readonly x: number; readonly y: number }, b: { readonly x: number; readonly y: number }): number {
-  return Math.hypot(a.x - b.x, a.y - b.y);
+function clamp(n: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, n));
 }
 
-function nearestRingIndex(ring: readonly { readonly x: number; readonly y: number }[], p: { readonly x: number; readonly y: number }): number {
-  let best = 0;
-  let bestD = Infinity;
-  for (let i = 0; i < ring.length; i++) {
-    const d = dist2d(ring[i]!, p);
-    if (d < bestD) {
-      best = i;
-      bestD = d;
+function longestRingEdgeDirection(baseRing: readonly Point3[]): { x: number; y: number } | null {
+  let bestLen = 0;
+  let best = { x: 1, y: 0 };
+  for (let i = 0; i < baseRing.length; i++) {
+    const a = baseRing[i]!;
+    const b = baseRing[(i + 1) % baseRing.length]!;
+    const dx = b[0] - a[0];
+    const dy = b[1] - a[1];
+    const len = Math.hypot(dx, dy);
+    if (len > bestLen) {
+      bestLen = len;
+      best = { x: dx / len, y: dy / len };
     }
   }
-  return best;
+  return bestLen > 1e-6 ? best : null;
 }
 
-function ringPath(from: number, to: number, count: number, clockwise: boolean): number[] {
-  const out: number[] = [];
-  let i = from;
-  for (let guard = 0; guard <= count; guard++) {
-    out.push(i);
-    if (i === to) break;
-    i = clockwise ? (i + 1) % count : (i - 1 + count) % count;
+function makeWorldSampler(roofModel: DormerRoofModelForMesh): (x: number, y: number) => Point3 | null {
+  const { metersPerPixel, northAngleDeg } = roofModel.world;
+  return (x: number, y: number) => {
+    const img = worldHorizontalMToImagePx(x, y, metersPerPixel, northAngleDeg);
+    const z = sampleRoofZAtImagePxFromPatches(img.xPx, img.yPx, roofModel.roofPlanePatches, roofModel.world);
+    if (z != null) return [x, y, z];
+    const plane = roofModel.roofPlanePatches.find((p) => {
+      const n = p.equation?.normal;
+      return n && finiteNum(n.x) && finiteNum(n.y) && finiteNum(n.z) && Math.abs(n.z) > 1e-6 && finiteNum(p.equation?.d);
+    })?.equation;
+    if (!plane) return null;
+    return [x, y, -((plane.normal.x * x + plane.normal.y * y + plane.d) / plane.normal.z)];
+  };
+}
+
+function buildBaseRing(
+  ring: readonly Point2[],
+  roofModel: DormerRoofModelForMesh,
+): Point3[] | null {
+  const { metersPerPixel, northAngleDeg } = roofModel.world;
+  const out: Point3[] = [];
+  for (const p of ring) {
+    const z = sampleRoofZAtImagePxFromPatches(p.x, p.y, roofModel.roofPlanePatches, roofModel.world);
+    if (z == null) {
+      dormerAuditLog("GUARD: sampleRoofZ null on contour", { x: p.x, y: p.y });
+      return null;
+    }
+    const w = imagePxToWorldHorizontalM(p.x, p.y, metersPerPixel, northAngleDeg);
+    out.push([w.x, w.y, z]);
   }
   return out;
 }
 
-function pathAvoiding(from: number, to: number, count: number, avoid: number): number[] {
-  const cw = ringPath(from, to, count, true);
-  const ccw = ringPath(from, to, count, false);
-  const cwAvoids = !cw.slice(1, -1).includes(avoid);
-  const ccwAvoids = !ccw.slice(1, -1).includes(avoid);
-  if (cwAvoids && !ccwAvoids) return cw;
-  if (ccwAvoids && !cwAvoids) return ccw;
-  return cw.length <= ccw.length ? cw : ccw;
-}
-
-function lerp3(a: readonly [number, number, number], b: readonly [number, number, number], t: number): [number, number, number] {
-  return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
-}
-
-function validPoint(p: { readonly x?: number; readonly y?: number } | undefined): p is { readonly x: number; readonly y: number } {
-  return !!p && finiteNum(p.x) && finiteNum(p.y);
+function pointAt(
+  cx: number,
+  cy: number,
+  ux: number,
+  uy: number,
+  vx: number,
+  vy: number,
+  u: number,
+  v: number,
+  sampleWorld: (x: number, y: number) => Point3 | null,
+): Point3 | null {
+  return sampleWorld(cx + ux * u + vx * v, cy + uy * u + vy * v);
 }
 
 /**
- * @returns géométrie triangulée ou `null` si données insuffisantes / type non supporté (repli viewer : ancien prismatique).
+ * Retourne une geometrie triangulee ou `null` si les donnees sont insuffisantes.
  */
 export function buildDormerMesh(ext: DormerRuntimeExtensionInput, roofModel: DormerRoofModelForMesh): THREE.BufferGeometry | null {
   if (ext.kind != null && ext.kind !== "dormer") {
@@ -142,226 +151,166 @@ export function buildDormerMesh(ext: DormerRuntimeExtensionInput, roofModel: Dor
     return null;
   }
 
-  const ra = ext.ridge?.a;
-  const rb = ext.ridge?.b;
-  if (!ra || !rb || !finiteNum(ra.x) || !finiteNum(ra.y) || !finiteNum(rb.x) || !finiteNum(rb.y)) {
-    dormerAuditLog("GUARD: ridge invalid", { hasRa: !!ra, hasRb: !!rb });
-    return null;
-  }
-
-  const ridgeHRaw = ext.ridgeHeightRelM;
-  if (!finiteNum(ridgeHRaw) || ridgeHRaw <= 0.02) {
-    dormerAuditLog("GUARD: ridgeHeightRelM invalid", { ridgeHeightRelM: ridgeHRaw });
-    return null;
-  }
-  const ridgeH = Math.max(0.35, Math.min(1.0, ridgeHRaw));
-
   const ptsIn = ext.contour?.points;
   if (!ptsIn || ptsIn.length < 3) {
     dormerAuditLog("GUARD: contour invalid (points length)", { contourPointsLen: ptsIn?.length ?? 0 });
     return null;
   }
-  const ring: { x: number; y: number }[] = [];
-  for (const p of ptsIn) {
-    if (p && finiteNum(p.x) && finiteNum(p.y)) ring.push({ x: p.x, y: p.y });
+  const ring: Point2[] = [];
+  for (const p of ptsIn) if (validPoint(p)) ring.push({ x: p.x, y: p.y });
+  if (ring.length > 1 && Math.hypot(ring[0]!.x - ring[ring.length - 1]!.x, ring[0]!.y - ring[ring.length - 1]!.y) < 1e-6) {
+    ring.pop();
   }
   if (ring.length < 3) {
     dormerAuditLog("GUARD: contour invalid (finite points < 3)", { finitePoints: ring.length });
     return null;
   }
-  if (ring.length > 1) {
-    const a0 = ring[0]!;
-    const a1 = ring[ring.length - 1]!;
-    if (Math.hypot(a0.x - a1.x, a0.y - a1.y) < 1e-6) ring.pop();
-  }
-  if (ring.length < 3) {
-    dormerAuditLog("GUARD: contour invalid (after duplicate close)", { ringLen: ring.length });
+
+  const { metersPerPixel, northAngleDeg } = roofModel.world;
+  if (!finiteNum(metersPerPixel) || metersPerPixel <= 0) {
+    dormerAuditLog("GUARD: metersPerPixel invalid", { metersPerPixel });
     return null;
   }
 
-  const { world, roofPlanePatches } = roofModel;
-  const mpp = world.metersPerPixel;
-  const north = world.northAngleDeg;
-  if (!finiteNum(mpp) || mpp <= 0) {
-    dormerAuditLog("GUARD: metersPerPixel invalid", { mpp });
-    return null;
-  }
+  const baseRing = buildBaseRing(ring, roofModel);
+  if (!baseRing) return null;
 
-  const sampleZ = (xPx: number, yPx: number): number | null =>
-    sampleRoofZAtImagePxFromPatches(xPx, yPx, roofPlanePatches, world);
-
-  const wR0 = imagePxToWorldHorizontalM(ra.x, ra.y, mpp, north);
-  const wR1 = imagePxToWorldHorizontalM(rb.x, rb.y, mpp, north);
-
-  const baseRing: [number, number, number][] = [];
-  for (const p of ring) {
-    const z = sampleZ(p.x, p.y);
-    if (z == null) {
-      dormerAuditLog("GUARD: sampleRoofZ null on contour", { x: p.x, y: p.y });
-      return null;
-    }
-    const w = imagePxToWorldHorizontalM(p.x, p.y, mpp, north);
-    baseRing.push([w.x, w.y, z]);
-  }
-
-  const n = baseRing.length;
   let cx = 0;
   let cy = 0;
-  let cz = 0;
   for (const p of baseRing) {
     cx += p[0];
     cy += p[1];
-    cz += p[2];
   }
-  cx /= n;
-  cy /= n;
-  cz /= n;
+  cx /= baseRing.length;
+  cy /= baseRing.length;
 
-  let ux = wR1.x - wR0.x;
-  let uy = wR1.y - wR0.y;
+  const ra = ext.ridge?.a;
+  const rb = ext.ridge?.b;
+  let ux = 0;
+  let uy = 0;
+  if (validPoint(ra) && validPoint(rb)) {
+    const a = imagePxToWorldHorizontalM(ra.x, ra.y, metersPerPixel, northAngleDeg);
+    const b = imagePxToWorldHorizontalM(rb.x, rb.y, metersPerPixel, northAngleDeg);
+    ux = b.x - a.x;
+    uy = b.y - a.y;
+  }
   let uLen = Math.hypot(ux, uy);
   if (uLen < 1e-6) {
-    let bestLen = 0;
-    for (let i = 0; i < n; i++) {
-      const a = baseRing[i]!;
-      const b = baseRing[(i + 1) % n]!;
-      const dx = b[0] - a[0];
-      const dy = b[1] - a[1];
-      const len = Math.hypot(dx, dy);
-      if (len > bestLen) {
-        bestLen = len;
-        ux = dx;
-        uy = dy;
-      }
+    const best = longestRingEdgeDirection(baseRing);
+    if (!best) {
+      dormerAuditLog("GUARD: dormer orientation invalid");
+      return null;
     }
-    uLen = Math.hypot(ux, uy);
-  }
-  if (uLen < 1e-6) {
-    dormerAuditLog("GUARD: dormer orientation invalid");
-    return null;
+    ux = best.x;
+    uy = best.y;
+    uLen = 1;
   }
   ux /= uLen;
   uy /= uLen;
+  const vx = -uy;
+  const vy = ux;
 
   let minU = Infinity;
   let maxU = -Infinity;
+  let minV = Infinity;
+  let maxV = -Infinity;
   for (const p of baseRing) {
     const dx = p[0] - cx;
     const dy = p[1] - cy;
     const u = dx * ux + dy * uy;
+    const v = dx * vx + dy * vy;
     minU = Math.min(minU, u);
     maxU = Math.max(maxU, u);
+    minV = Math.min(minV, v);
+    maxV = Math.max(maxV, v);
   }
-  let perimeterM = 0;
-  for (let i = 0; i < n; i++) {
-    const a = baseRing[i]!;
-    const b = baseRing[(i + 1) % n]!;
-    perimeterM += Math.hypot(b[0] - a[0], b[1] - a[1]);
+
+  const spanU = maxU - minU;
+  const spanV = maxV - minV;
+  if (spanU < 0.12 || spanV < 0.12) {
+    dormerAuditLog("GUARD: contour too small", { spanU, spanV });
+    return null;
   }
-  const spanU = Math.max(0.4, maxU - minU);
-  const depthGuess = ext.depthM != null && finiteNum(ext.depthM) && ext.depthM > 0
-    ? ext.depthM
-    : Math.max(0.4, perimeterM / Math.max(4, n * 2));
 
-  const wallH =
-    ext.wallHeightM != null && finiteNum(ext.wallHeightM) && ext.wallHeightM > 0
-      ? ext.wallHeightM
-      : Math.max(0.18, Math.min(ridgeH * 0.42, depthGuess * 0.32));
+  const shrink = 0.92;
+  let halfU = Math.max(0.06, (spanU * shrink) / 2);
+  let halfV = Math.max(0.06, (spanV * shrink) / 2);
+  const minX = Math.min(...baseRing.map((p) => p[0]));
+  const maxX = Math.max(...baseRing.map((p) => p[0]));
+  const minY = Math.min(...baseRing.map((p) => p[1]));
+  const maxY = Math.max(...baseRing.map((p) => p[1]));
+  const insideWorldBounds = (u: number, v: number): boolean => {
+    const x = cx + ux * u + vx * v;
+    const y = cy + uy * u + vy * v;
+    return x >= minX - 1e-6 && x <= maxX + 1e-6 && y >= minY - 1e-6 && y <= maxY + 1e-6;
+  };
+  for (let guard = 0; guard < 10; guard++) {
+    if (
+      insideWorldBounds(-halfU, -halfV) &&
+      insideWorldBounds(halfU, -halfV) &&
+      insideWorldBounds(halfU, halfV) &&
+      insideWorldBounds(-halfU, halfV)
+    ) {
+      break;
+    }
+    halfU *= 0.9;
+    halfV *= 0.9;
+  }
+  const totalH = clamp(finiteNum(ext.ridgeHeightRelM) ? ext.ridgeHeightRelM : 0.9, 0.55, 1.05);
+  const wallH = clamp(finiteNum(ext.wallHeightM) ? ext.wallHeightM : totalH * 0.38, 0.22, Math.min(0.48, totalH - 0.2));
+  const roofRise = clamp(finiteNum(ext.roofRiseM) ? ext.roofRiseM : totalH - wallH, 0.25, Math.max(0.25, totalH - wallH));
+  const finalTotalH = clamp(wallH + roofRise, 0.55, 1.05);
+  const ridgeHalfU = Math.max(0.05, halfU * 0.7);
 
-  const eaveRing: [number, number, number][] = baseRing.map((p) => [p[0], p[1], p[2] + wallH]);
+  const sampleWorld = makeWorldSampler(roofModel);
+  const b0 = pointAt(cx, cy, ux, uy, vx, vy, -halfU, -halfV, sampleWorld);
+  const b1 = pointAt(cx, cy, ux, uy, vx, vy, halfU, -halfV, sampleWorld);
+  const b2 = pointAt(cx, cy, ux, uy, vx, vy, halfU, halfV, sampleWorld);
+  const b3 = pointAt(cx, cy, ux, uy, vx, vy, -halfU, halfV, sampleWorld);
+  const r0Base = pointAt(cx, cy, ux, uy, vx, vy, -ridgeHalfU, 0, sampleWorld);
+  const r1Base = pointAt(cx, cy, ux, uy, vx, vy, ridgeHalfU, 0, sampleWorld);
+  if (!b0 || !b1 || !b2 || !b3 || !r0Base || !r1Base) {
+    dormerAuditLog("GUARD: generated point outside roof patches");
+    return null;
+  }
+
+  const e0: Point3 = [b0[0], b0[1], b0[2] + wallH];
+  const e1: Point3 = [b1[0], b1[1], b1[2] + wallH];
+  const e2: Point3 = [b2[0], b2[1], b2[2] + wallH];
+  const e3: Point3 = [b3[0], b3[1], b3[2] + wallH];
+  const r0: Point3 = [r0Base[0], r0Base[1], r0Base[2] + finalTotalH];
+  const r1: Point3 = [r1Base[0], r1Base[1], r1Base[2] + finalTotalH];
 
   const positions: number[] = [];
   const indices: number[] = [];
 
-  const leftHipA = ext.hips?.left?.a;
-  const rightHipA = ext.hips?.right?.a;
-  const hipPeak = validPoint(ext.hips?.left?.b) ? ext.hips.left.b : validPoint(ext.hips?.right?.b) ? ext.hips.right.b : ra;
-  if (validPoint(leftHipA) && validPoint(rightHipA) && validPoint(hipPeak)) {
-    const ridgeEnd = { x: rb.x, y: rb.y };
-    const apexIdx = nearestRingIndex(ring, ridgeEnd);
-    const leftIdx = nearestRingIndex(ring, leftHipA);
-    const rightIdx = nearestRingIndex(ring, rightHipA);
-    const peakBaseZ = sampleZ(hipPeak.x, hipPeak.y);
-    if (peakBaseZ == null) {
-      dormerAuditLog("GUARD: sampleRoofZ null on dormer peak", { x: hipPeak.x, y: hipPeak.y });
-      return null;
-    }
-    const peakWorld = imagePxToWorldHorizontalM(hipPeak.x, hipPeak.y, mpp, north);
-    const peakTop: [number, number, number] = [peakWorld.x, peakWorld.y, peakBaseZ + ridgeH];
-    const apexTop: [number, number, number] = [baseRing[apexIdx]![0], baseRing[apexIdx]![1], baseRing[apexIdx]![2] + ridgeH];
-    const topRing = eaveRing.map((p, i) => (i === apexIdx ? apexTop : p));
-
-    for (let i = 0; i < n; i++) {
-      pushQuad(positions, indices, baseRing[i]!, baseRing[(i + 1) % n]!, topRing[(i + 1) % n]!, topRing[i]!);
-    }
-
-    const leftPath = pathAvoiding(leftIdx, apexIdx, n, rightIdx);
-    const rightPath = pathAvoiding(apexIdx, rightIdx, n, leftIdx);
-    const frontPath = pathAvoiding(rightIdx, leftIdx, n, apexIdx);
-    for (let i = 0; i < leftPath.length - 1; i++) {
-      const t0 = i / Math.max(1, leftPath.length - 1);
-      const t1 = (i + 1) / Math.max(1, leftPath.length - 1);
-      pushQuad(positions, indices, topRing[leftPath[i]!]!, topRing[leftPath[i + 1]!]!, lerp3(peakTop, apexTop, t1), lerp3(peakTop, apexTop, t0));
-    }
-    for (let i = 0; i < rightPath.length - 1; i++) {
-      const t0 = i / Math.max(1, rightPath.length - 1);
-      const t1 = (i + 1) / Math.max(1, rightPath.length - 1);
-      pushQuad(positions, indices, topRing[rightPath[i]!]!, topRing[rightPath[i + 1]!]!, lerp3(apexTop, peakTop, t1), lerp3(apexTop, peakTop, t0));
-    }
-    for (let i = 0; i < frontPath.length - 1; i++) {
-      pushTri(
-        positions,
-        indices,
-        topRing[frontPath[i]!]![0],
-        topRing[frontPath[i]!]![1],
-        topRing[frontPath[i]!]![2],
-        topRing[frontPath[i + 1]!]![0],
-        topRing[frontPath[i + 1]!]![1],
-        topRing[frontPath[i + 1]!]![2],
-        peakTop[0],
-        peakTop[1],
-        peakTop[2],
-      );
-    }
-  } else {
-    const ridgeHalfLength = Math.max(0.16, Math.min(0.55, spanU * 0.22));
-    const R0t: [number, number, number] = [cx - ux * ridgeHalfLength, cy - uy * ridgeHalfLength, cz + ridgeH];
-    const R1t: [number, number, number] = [cx + ux * ridgeHalfLength, cy + uy * ridgeHalfLength, cz + ridgeH];
-    const ridgePointFor = (i: number): [number, number, number] => {
-      const p = baseRing[i]!;
-      const u = (p[0] - cx) * ux + (p[1] - cy) * uy;
-      return u < 0 ? R0t : R1t;
-    };
-
-    for (let i = 0; i < n; i++) {
-      pushQuad(positions, indices, baseRing[i]!, baseRing[(i + 1) % n]!, eaveRing[(i + 1) % n]!, eaveRing[i]!);
-    }
-    for (let i = 0; i < n; i++) {
-      const a = eaveRing[i]!;
-      const b = eaveRing[(i + 1) % n]!;
-      const rA = ridgePointFor(i);
-      const rB = ridgePointFor((i + 1) % n);
-      if (rA === rB) {
-        pushTri(positions, indices, a[0], a[1], a[2], b[0], b[1], b[2], rA[0], rA[1], rA[2]);
-      } else {
-        pushQuad(positions, indices, a, b, rB, rA);
-      }
-    }
-  }
+  pushQuad(positions, indices, b0, b1, e1, e0);
+  pushQuad(positions, indices, b1, b2, e2, e1);
+  pushQuad(positions, indices, b2, b3, e3, e2);
+  pushQuad(positions, indices, b3, b0, e0, e3);
+  pushQuad(positions, indices, e0, e1, r1, r0);
+  pushQuad(positions, indices, e3, r0, r1, e2);
+  pushTri(positions, indices, e0, r0, e3);
+  pushTri(positions, indices, e1, e2, r1);
 
   const geo = new THREE.BufferGeometry();
   geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
   geo.setIndex(indices);
   geo.computeVertexNormals();
   const posAttr = geo.getAttribute("position") as THREE.BufferAttribute | undefined;
-  dormerAuditLog("RESULT: geometry", { positionCount: posAttr?.count ?? 0 });
+  dormerAuditLog("RESULT: parametric_gable geometry", {
+    positionCount: posAttr?.count ?? 0,
+    spanU,
+    spanV,
+    wallH,
+    finalTotalH,
+  });
   return geo;
 }
 
-/** Arêtes pour `lineSegments` (debug `window.__CALPINAGE_DORMER_DEBUG__`). */
 export function buildDormerEdgesGeometry(meshGeo: THREE.BufferGeometry): THREE.BufferGeometry | null {
   try {
-    return new THREE.EdgesGeometry(meshGeo, 30);
+    return new THREE.EdgesGeometry(meshGeo, 38);
   } catch {
     return null;
   }

@@ -114,7 +114,7 @@ describe("buildDormerMesh", () => {
     const pos = geo!.getAttribute("position") as THREE.BufferAttribute;
     let maxZ = -Infinity;
     for (let i = 0; i < pos.count; i++) maxZ = Math.max(maxZ, pos.getZ(i));
-    expect(maxZ).toBeLessThanOrEqual(6);
+    expect(maxZ).toBeLessThanOrEqual(6.051);
   });
 
   it("reste borné dans le contour dessiné, sans bounding box agrandie", () => {

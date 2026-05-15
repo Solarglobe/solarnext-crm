@@ -3799,6 +3799,25 @@ export function initCalpinage(container, options = {}) {
         return out;
       }
 
+      function applyDormerParametricVisualDefaults(rx) {
+        if (!rx || rx.kind !== "dormer") return rx;
+        rx.dormerType = "gable";
+        rx.visualModel = "parametric_gable";
+        if (typeof rx.ridgeHeightRelM !== "number" || !Number.isFinite(rx.ridgeHeightRelM) || rx.ridgeHeightRelM <= 0) {
+          rx.ridgeHeightRelM = 0.9;
+        }
+        rx.ridgeHeightRelM = Math.max(0.55, Math.min(1.05, rx.ridgeHeightRelM));
+        if (typeof rx.wallHeightM !== "number" || !Number.isFinite(rx.wallHeightM) || rx.wallHeightM <= 0) {
+          rx.wallHeightM = Math.min(0.42, Math.max(0.28, rx.ridgeHeightRelM * 0.38));
+        }
+        rx.wallHeightM = Math.max(0.22, Math.min(0.48, rx.wallHeightM));
+        if (typeof rx.roofRiseM !== "number" || !Number.isFinite(rx.roofRiseM) || rx.roofRiseM <= 0) {
+          rx.roofRiseM = Math.max(0.28, rx.ridgeHeightRelM - rx.wallHeightM);
+        }
+        rx.roofRiseM = Math.max(0.25, Math.min(0.7, rx.roofRiseM));
+        return rx;
+      }
+
       /** Retourne la cible d'édition hips/ridge : roofExtensions[dormerEditRxIndex] ou selectedRoofExtensionIndex, sinon dormerDraft. */
       function getDormerEditTarget() {
         var rxList = CALPINAGE_STATE.roofExtensions || [];
@@ -3830,6 +3849,7 @@ export function initCalpinage(container, options = {}) {
           ridgeHeightRelM: draft.ridgeHeightRelM != null ? draft.ridgeHeightRelM : 0.8,
           baseZ: 0
         };
+        applyDormerParametricVisualDefaults(rxPartiel);
         CALPINAGE_STATE.roofExtensions = CALPINAGE_STATE.roofExtensions || [];
         CALPINAGE_STATE.roofExtensions.push(rxPartiel);
         return CALPINAGE_STATE.roofExtensions.length - 1;
@@ -3849,6 +3869,7 @@ export function initCalpinage(container, options = {}) {
           if (rx) {
             rx.ridge = { a: clonePointPreserveHeight(ridge.a), b: clonePointPreserveHeight(ridge.b) };
             rx.stage = "COMPLETE";
+            applyDormerParametricVisualDefaults(rx);
           }
           drawState.dormerEditRxIndex = null;
         } else {
@@ -3857,6 +3878,7 @@ export function initCalpinage(container, options = {}) {
           dormerFinal.stage = "COMPLETE";
           dormerFinal.ridge = dormerFinal.ridge || { a: null, b: null };
           dormerFinal.hips = dormerFinal.hips || { left: null, right: null };
+          applyDormerParametricVisualDefaults(dormerFinal);
           CALPINAGE_STATE.roofExtensions = CALPINAGE_STATE.roofExtensions || [];
           CALPINAGE_STATE.roofExtensions.push(dormerFinal);
           drawState.dormerDraft = null;

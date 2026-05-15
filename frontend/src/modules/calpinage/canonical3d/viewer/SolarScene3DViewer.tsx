@@ -2184,7 +2184,7 @@ function ViewerSceneContent({
                   <lineBasicMaterial
                     color={showDormerDebugWire ? "#33e6ff" : "#d5dde6"}
                     transparent={!showDormerDebugWire}
-                    opacity={showDormerDebugWire ? 1 : 0.68}
+                    opacity={showDormerDebugWire ? 1 : 0.34}
                     toneMapped={false}
                     depthTest
                   />
