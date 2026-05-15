@@ -12,6 +12,13 @@
  */
 
 import express from "express";
+import { validate } from "../../middleware/validate.middleware.js";
+import {
+  CreateQuoteSchema,
+  PatchQuoteSchema,
+  PatchQuoteStatusSchema,
+  UuidParamsSchema,
+} from "../../lib/schemas/index.js";
 import { verifyJWT } from "../../middleware/auth.middleware.js";
 import { requirePermission } from "../../rbac/rbac.middleware.js";
 import * as controller from "./quotes.controller.js";
@@ -294,6 +301,7 @@ router.post(
   "/",
   verifyJWT,
   requirePermission("quote.manage"),
+  validate({ body: CreateQuoteSchema }),
   async (req, res) => {
     try {
       const org = orgId(req);
@@ -382,6 +390,7 @@ router.patch(
   "/:id",
   verifyJWT,
   requirePermission("quote.manage"),
+  validate({ body: PatchQuoteSchema, params: UuidParamsSchema }),
   handleQuoteUpdate
 );
 
@@ -389,6 +398,7 @@ router.put(
   "/:id",
   verifyJWT,
   requirePermission("quote.manage"),
+  validate({ body: CreateQuoteSchema, params: UuidParamsSchema }),
   handleQuoteUpdate
 );
 
@@ -396,6 +406,7 @@ router.patch(
   "/:id/status",
   verifyJWT,
   requirePermission("quote.manage"),
+  validate({ body: PatchQuoteStatusSchema, params: UuidParamsSchema }),
   async (req, res) => {
     try {
       const org = orgId(req);
