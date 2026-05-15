@@ -11211,11 +11211,12 @@ export function initCalpinage(container, options = {}) {
       function captureGeometrySnapshot() {
         try {
           return JSON.stringify({
-            contours:  CALPINAGE_STATE.contours,
-            ridges:    CALPINAGE_STATE.ridges,
-            traits:    CALPINAGE_STATE.traits,
-            pans:      CALPINAGE_STATE.pans,
-            obstacles: CALPINAGE_STATE.obstacles,
+            contours:       CALPINAGE_STATE.contours,
+            ridges:         CALPINAGE_STATE.ridges,
+            traits:         CALPINAGE_STATE.traits,
+            pans:           CALPINAGE_STATE.pans,
+            obstacles:      CALPINAGE_STATE.obstacles,
+            roofExtensions: CALPINAGE_STATE.roofExtensions,
           });
         } catch (_) { return null; }
       }
@@ -11232,11 +11233,24 @@ export function initCalpinage(container, options = {}) {
       function applyGeometrySnapshot(snap) {
         try {
           var s = JSON.parse(snap);
-          CALPINAGE_STATE.contours  = s.contours  || [];
-          CALPINAGE_STATE.ridges    = s.ridges    || [];
-          CALPINAGE_STATE.traits    = s.traits    || [];
-          CALPINAGE_STATE.pans      = s.pans      || [];
-          CALPINAGE_STATE.obstacles = s.obstacles || [];
+          CALPINAGE_STATE.contours       = s.contours  || [];
+          CALPINAGE_STATE.ridges         = s.ridges    || [];
+          CALPINAGE_STATE.traits         = s.traits    || [];
+          CALPINAGE_STATE.pans           = s.pans      || [];
+          CALPINAGE_STATE.obstacles      = s.obstacles || [];
+          if (s.roofExtensions !== undefined) {
+            CALPINAGE_STATE.roofExtensions = s.roofExtensions || [];
+            // Rebuild canonical geometry for manual_outline_gable dormers after restore
+            CALPINAGE_STATE.roofExtensions.forEach(function(rx) {
+              if (rx.kind === "dormer" && rx.visualModel === "manual_outline_gable") {
+                try {
+                  if (typeof rebuildDormerCanonicalGeometry === "function") {
+                    rebuildDormerCanonicalGeometry(rx);
+                  }
+                } catch (_) {}
+              }
+            });
+          }
         } catch (_) {}
       }
 
@@ -16360,7 +16374,8 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             }
 
             /* Pan implantation : clic-glisser sur le fond hors pans (sans Ctrl). Pas en mode volume ombrant / chien assis / manip bloc.
-             * Avant : ce return court-circuitait le bloc Phase 3 « clic dans le vide » qui appelait clearSelection — on réapplique la même désélection ici. */
+             * Avant : ce return court-circuitait le bloc Phase 3 « clic dans le vide » qui appelait clearSelection — on réapplique la même désélection ici.
+             * EXCEPTION : si le clic touche un chien assis (vertex, arête, corps), on laisse passer vers le hit-test complet. */
             if (
               !e.ctrlKey &&
               CALPINAGE_STATE.currentPhase === "PV_LAYOUT" &&
@@ -16370,22 +16385,52 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               !window.CALPINAGE_IS_MANIPULATING &&
               !insideAnyPan(imgPt)
             ) {
-              var ENGbg = window.pvPlacementEngine;
-              var focusBg = ENGbg && typeof ENGbg.getFocusBlock === "function" ? ENGbg.getFocusBlock() : null;
-              if (focusBg && typeof ENGbg.clearSelection === "function") {
-                ENGbg.clearSelection();
-                CALPINAGE_STATE.activeManipulationBlockId = null;
-                if (typeof syncPlacedPanelsFromBlocks === "function") syncPlacedPanelsFromBlocks();
-                if (typeof saveCalpinageState === "function") saveCalpinageState();
-                if (typeof window.syncPhase3LayoutUI === "function") window.syncPhase3LayoutUI();
+              /* Pré-test rapide roofExtensions — évite de déclencher un pan-fond si le clic touche un chien assis */
+              var _rxPh3EarlyHit = null;
+              if ((CALPINAGE_STATE.roofExtensions || []).length > 0) {
+                try {
+                  _rxPh3EarlyHit = unifiedHitTest({
+                    screenPt: screen,
+                    screenToImage: screenToImage,
+                    imageToScreen: imageToScreen,
+                    roofExtensions: CALPINAGE_STATE.roofExtensions || [],
+                    obstacles: [],
+                    shadowVolumes: [],
+                    context: {
+                      activeTool: "select",
+                      phase: CALPINAGE_STATE.currentPhase,
+                      ridges: [],
+                      traits: [],
+                      measures: [],
+                      contours: [],
+                      resolveRidgePoint: resolveRidgePoint,
+                      metersPerPixel: (CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.scale && CALPINAGE_STATE.roof.scale.metersPerPixel) || 1,
+                      vpScale: vp.scale,
+                      selectedRoofExtensionIndex: drawState.selectedRoofExtensionIndex,
+                    }
+                  });
+                } catch (_rxPre) {}
               }
-              drawState.phase3PanFixMoveFluxLogged = null;
-              panStart = { x: e.clientX, y: e.clientY };
-              if (typeof process !== "undefined" && process.env && process.env.NODE_ENV !== "production") {
-                try { console.log("[PHASE3-PAN-FIX][START]", { kind: "phase3-bg" }); } catch (_ls) {}
+              /* Si le clic touche un chien assis → ne pas déclencher le pan fond, laisser le hit-test complet gérer */
+              if (!_rxPh3EarlyHit || _rxPh3EarlyHit.type !== "roofExtension") {
+                var ENGbg = window.pvPlacementEngine;
+                var focusBg = ENGbg && typeof ENGbg.getFocusBlock === "function" ? ENGbg.getFocusBlock() : null;
+                if (focusBg && typeof ENGbg.clearSelection === "function") {
+                  ENGbg.clearSelection();
+                  CALPINAGE_STATE.activeManipulationBlockId = null;
+                  if (typeof syncPlacedPanelsFromBlocks === "function") syncPlacedPanelsFromBlocks();
+                  if (typeof saveCalpinageState === "function") saveCalpinageState();
+                  if (typeof window.syncPhase3LayoutUI === "function") window.syncPhase3LayoutUI();
+                }
+                drawState.phase3PanFixMoveFluxLogged = null;
+                panStart = { x: e.clientX, y: e.clientY };
+                if (typeof process !== "undefined" && process.env && process.env.NODE_ENV !== "production") {
+                  try { console.log("[PHASE3-PAN-FIX][START]", { kind: "phase3-bg" }); } catch (_ls) {}
+                }
+                if (canvasEl && e.pointerId != null) try { canvasEl.setPointerCapture(e.pointerId); } catch (_) {}
+                return;
               }
-              if (canvasEl && e.pointerId != null) try { canvasEl.setPointerCapture(e.pointerId); } catch (_) {}
-              return;
+              /* Clic sur un chien assis hors pans → on tombe dans le hit-test complet ci-dessous */
             }
 
             if (window.CALPINAGE_MODE === MODE_DORMER_HIPS) {
@@ -16906,6 +16951,127 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             /* Phase 3 : mode "panels" = ajout uniquement ; mode "select" = sélection / déplacement / suppression bloc (clavier). */
             if (CALPINAGE_STATE.currentPhase === "PV_LAYOUT") {
               if (window.CALPINAGE_IS_MANIPULATING) return;
+
+              /* ── Priorité absolue chien assis (Phase 3) : intercepter avant la logique panneaux ── */
+              if ((CALPINAGE_STATE.roofExtensions || []).length > 0) {
+                var _rxPvHit = null;
+                try {
+                  /* Vérifier d'abord les poignées de manipulation (rotate/move) si le dormer est sélectionné */
+                  if (drawState.selectedRoofExtensionIndex != null) {
+                    var _selRxPv = (CALPINAGE_STATE.roofExtensions || [])[drawState.selectedRoofExtensionIndex];
+                    if (_selRxPv && typeof hitRoofExtensionManipHandle === "function") {
+                      var _manipHitPv = hitRoofExtensionManipHandle(screen, _selRxPv);
+                      if (_manipHitPv) {
+                        _rxPvHit = {
+                          type: "roofExtension",
+                          index: drawState.selectedRoofExtensionIndex,
+                          subType: _manipHitPv.handle === "rotate" ? "rotate-handle" : "move-handle",
+                          data: _manipHitPv
+                        };
+                      }
+                    }
+                  }
+                  if (!_rxPvHit) {
+                    _rxPvHit = unifiedHitTest({
+                      screenPt: screen,
+                      screenToImage: screenToImage,
+                      imageToScreen: imageToScreen,
+                      roofExtensions: CALPINAGE_STATE.roofExtensions || [],
+                      obstacles: [],
+                      shadowVolumes: [],
+                      context: {
+                        activeTool: "select",
+                        phase: CALPINAGE_STATE.currentPhase,
+                        ridges: [], traits: [], measures: [], contours: [],
+                        resolveRidgePoint: resolveRidgePoint,
+                        metersPerPixel: (CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.scale && CALPINAGE_STATE.roof.scale.metersPerPixel) || 1,
+                        vpScale: vp.scale,
+                        selectedRoofExtensionIndex: drawState.selectedRoofExtensionIndex,
+                      }
+                    });
+                  }
+                } catch (_rxPvE) {}
+                if (_rxPvHit && _rxPvHit.type === "roofExtension") {
+                  if (drawState.activeTool !== "select" && typeof resetActiveToolToSelect === "function") resetActiveToolToSelect();
+                  drawState.selectedRoofExtensionIndex = _rxPvHit.index;
+                  drawState.selectedContourIndex = null;
+                  drawState.selectedRidgeIndex = null;
+                  drawState.selectedTraitIndex = null;
+                  drawState.selectedObstacleIndex = null;
+                  drawState.selectedContourIds = [];
+                  drawState.selectedRidgeIds = [];
+                  drawState.selectedTraitIds = [];
+                  var _rxForPv = (CALPINAGE_STATE.roofExtensions || [])[_rxPvHit.index];
+                  if (_rxPvHit.subType === "rotate-handle") {
+                    var _rxCtrRot = getRoofExtensionCenter(_rxForPv);
+                    if (_rxCtrRot) {
+                      drawState.dragMode = "roofExtensionRotate";
+                      drawState.dragBase = { rxIndex: _rxPvHit.index, center: _rxCtrRot, startAngle: Math.atan2(imgPt.y - _rxCtrRot.y, imgPt.x - _rxCtrRot.x), lastDelta: 0 };
+                      setInteractionState(InteractionStates.ROTATING);
+                      if (canvasEl && e.pointerId != null && canvasEl.setPointerCapture) canvasEl.setPointerCapture(e.pointerId);
+                    }
+                  } else if (_rxPvHit.subType === "move-handle") {
+                    var _rxCtrMov = getRoofExtensionCenter(_rxForPv);
+                    if (_rxCtrMov) {
+                      drawState.dragMode = "roofExtensionMove";
+                      drawState.dragBase = { rxIndex: _rxPvHit.index, startImg: { x: imgPt.x, y: imgPt.y }, lastDx: 0, lastDy: 0 };
+                      setInteractionState(InteractionStates.DRAGGING);
+                      if (canvasEl && e.pointerId != null && canvasEl.setPointerCapture) canvasEl.setPointerCapture(e.pointerId);
+                    }
+                  } else if (_rxPvHit.subType === "vertex" && _rxPvHit.data && _rxPvHit.data.pointRef) {
+                    beginRoofExtensionPointDrag(e, _rxPvHit.index, "vertex", _rxPvHit.data.vertexIndex, _rxPvHit.data.pointRef, imgPt);
+                  } else if ((_rxPvHit.subType === "ridge-a" || _rxPvHit.subType === "ridge-b" ||
+                              _rxPvHit.subType === "hip-left-a" || _rxPvHit.subType === "hip-left-b" ||
+                              _rxPvHit.subType === "hip-right-a" || _rxPvHit.subType === "hip-right-b") &&
+                             _rxPvHit.data && _rxPvHit.data.pointRef) {
+                    beginRoofExtensionPointDrag(e, _rxPvHit.index, _rxPvHit.subType, 0, _rxPvHit.data.pointRef, imgPt);
+                  } else if (_rxPvHit.subType === "edge-mid" && _rxForPv && _rxPvHit.data) {
+                    var _eiPv = _rxPvHit.data.edgeIndex;
+                    var _edPtsPv = _rxForPv.contour && _rxForPv.contour.points;
+                    if (typeof _eiPv === "number" && _edPtsPv && _edPtsPv.length === 4) {
+                      drawState.dragMode = "roofExtensionEdge";
+                      drawState.dragBase = { rxIndex: _rxPvHit.index, edgeIndex: _eiPv, startImg: { x: imgPt.x, y: imgPt.y }, originalPts: _edPtsPv.map(function(p) { return { x: p.x, y: p.y }; }) };
+                      setInteractionState(InteractionStates.RESIZING);
+                      if (canvasEl && e.pointerId != null && canvasEl.setPointerCapture) canvasEl.setPointerCapture(e.pointerId);
+                    }
+                  } else if (_rxPvHit.subType === "contour-edge" && _rxForPv && _rxPvHit.data) {
+                    var _segPv = _rxPvHit.data.segmentIndex;
+                    var _ctsPv = _rxForPv.contour && _rxForPv.contour.points;
+                    if (typeof _segPv === "number" && _ctsPv) {
+                      var _prevPv = _ctsPv[_segPv], _nextPv = _ctsPv[(_segPv + 1) % _ctsPv.length];
+                      var _insPv = { x: imgPt.x, y: imgPt.y };
+                      if (_prevPv && _nextPv && Number.isFinite(_prevPv.h) && Number.isFinite(_nextPv.h)) _insPv.h = (_prevPv.h + _nextPv.h) / 2;
+                      _ctsPv.splice(_segPv + 1, 0, _insPv);
+                      if (_rxForPv.visualModel === "manual_outline_gable") rebuildDormerCanonicalGeometry(_rxForPv);
+                      else if (typeof syncDormerParametricGeometry === "function") syncDormerParametricGeometry(_rxForPv);
+                      drawState.dragMode = "roofExtensionVertex";
+                      drawState.dragBase = { rxIndex: _rxPvHit.index, type: "contour", subtype: "vertex", index: _segPv + 1, pointRef: _insPv };
+                      drawState.dragOffset = { dx: 0, dy: 0 };
+                      drawState.dragLastMouseImg = { x: imgPt.x, y: imgPt.y };
+                      drawState.rxDragSnap = null;
+                      drawState.snapPreview = null;
+                      setInteractionState(InteractionStates.DRAGGING);
+                      if (canvasEl && e.pointerId != null && canvasEl.setPointerCapture) canvasEl.setPointerCapture(e.pointerId);
+                    }
+                  } else {
+                    /* Corps / fallback : déplacer le dormer */
+                    var _rxCtrPv = getRoofExtensionCenter(_rxForPv);
+                    if (_rxCtrPv) {
+                      drawState.dragMode = "roofExtensionMove";
+                      drawState.dragBase = { rxIndex: _rxPvHit.index, startImg: { x: imgPt.x, y: imgPt.y }, lastDx: 0, lastDy: 0 };
+                      setInteractionState(InteractionStates.DRAGGING);
+                      if (canvasEl && e.pointerId != null && canvasEl.setPointerCapture) canvasEl.setPointerCapture(e.pointerId);
+                    } else {
+                      drawState.dragMode = null;
+                      drawState.dragBase = null;
+                    }
+                  }
+                  if (typeof requestAnimationFrame !== "undefined" && typeof window.CALPINAGE_RENDER === "function") requestAnimationFrame(window.CALPINAGE_RENDER);
+                  return;
+                }
+              }
+              /* ── fin priorité chien assis ── */
+
               var data = CALPINAGE_STATE.validatedRoofData;
               if (!data || !data.pans) {
                 console.log("[PV] Pas de données toiture.");
@@ -21433,6 +21599,26 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                   ctx.lineWidth = sel ? 2.8 : 2.0;
                   ctx.stroke(rxRidgePath);
                 }
+                /* ── Arêtiers : segments hip.a → hip.b (dessinés en Phase 2 ET Phase 3) */
+                if (rx.hips) {
+                  var _hipsToRender = [rx.hips.left, rx.hips.right];
+                  for (var _hi = 0; _hi < _hipsToRender.length; _hi++) {
+                    var _hipSeg = _hipsToRender[_hi];
+                    if (!_hipSeg || !_hipSeg.a || !_hipSeg.b) continue;
+                    var rxHipLine = new Path2D();
+                    var rHaS = imageToScreen(_hipSeg.a);
+                    var rHbS = imageToScreen(_hipSeg.b);
+                    rxHipLine.moveTo(rHaS.x, rHaS.y);
+                    rxHipLine.lineTo(rHbS.x, rHbS.y);
+                    ctx.setLineDash([]);
+                    ctx.strokeStyle = PHASE2_DRAW_STYLE.rxHalo;
+                    ctx.lineWidth = sel ? 4.5 : 3.0;
+                    ctx.stroke(rxHipLine);
+                    ctx.strokeStyle = PHASE2_DRAW_STYLE.rxHipStroke;
+                    ctx.lineWidth = sel ? 2.2 : 1.6;
+                    ctx.stroke(rxHipLine);
+                  }
+                }
                 /* ── Chien assis : FACE AVANT (façade) en bleu gras ───────────────────
                  * La face avant est le côté visible depuis la rue / le bas du versant.
                  * Elle est différenciée visuellement du reste du contour pour donner
@@ -21487,7 +21673,9 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                   ctx.stroke(rxBackPath);
                   ctx.setLineDash([]);
                 }
-                if (sel && drawState.activeTool === "select") {
+                /* Afficher les poignées quand le chien assis est sélectionné, quelle que soit la phase.
+                 * En Phase 3, activeTool peut être "panels" → on force l'affichage si selectedRoofExtensionIndex match. */
+                if (sel && (drawState.activeTool === "select" || CALPINAGE_STATE.currentPhase === "PV_LAYOUT")) {
                   var allRxPts = [];
                   pts.forEach(function (p) { allRxPts.push({ p: p, kind: "contour" }); });
                   // Faîtage et arêtiers toujours affichés et ajustables.

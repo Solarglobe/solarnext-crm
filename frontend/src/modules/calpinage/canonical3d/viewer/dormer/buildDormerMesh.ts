@@ -69,14 +69,24 @@ export type DormerRuntimeExtensionInput = {
     readonly axes?: { readonly ux?: number; readonly uy?: number; readonly vx?: number; readonly vy?: number };
     readonly bounds?: { readonly minU?: number; readonly maxU?: number; readonly minV?: number; readonly maxV?: number };
   };
-  readonly hips?: unknown;
+  readonly hips?: {
+    readonly left?: {
+      readonly a?: { readonly x?: number; readonly y?: number; readonly h?: number };
+      readonly b?: { readonly x?: number; readonly y?: number; readonly h?: number };
+    } | null;
+    readonly right?: {
+      readonly a?: { readonly x?: number; readonly y?: number; readonly h?: number };
+      readonly b?: { readonly x?: number; readonly y?: number; readonly h?: number };
+    } | null;
+  } | null;
   readonly contour?: {
     readonly closed?: boolean;
-    readonly points?: ReadonlyArray<{ readonly x?: number; readonly y?: number }>;
+    readonly points?: ReadonlyArray<{ readonly x?: number; readonly y?: number; readonly h?: number }>;
   };
 };
 
 type Point2 = { readonly x: number; readonly y: number };
+type Point2H = { readonly x: number; readonly y: number; readonly h?: number };
 type Point3 = readonly [number, number, number];
 
 function finiteNum(n: unknown): n is number {
@@ -217,9 +227,10 @@ function makeWorldSampler(roofModel: DormerRoofModelForMesh): (x: number, y: num
 /**
  * Construit le ring de base en coordonnees monde a partir des points contour (pixels image).
  * Fallback sur l'equation de plan si sampleRoofZAtImagePxFromPatches ne couvre pas le point.
+ * Si le point contient un champ `.h` (hauteur manuelle relative à la surface), il est additionné au Z.
  */
 function buildBaseRing(
-  ring: readonly Point2[],
+  ring: readonly Point2H[],
   roofModel: DormerRoofModelForMesh,
 ): Point3[] | null {
   const { metersPerPixel, northAngleDeg } = roofModel.world;
@@ -235,7 +246,8 @@ function buildBaseRing(
       dormerAuditLog("GUARD: sampleRoofZ null on contour (no fallback plane)", { x: p.x, y: p.y });
       return null;
     }
-    out.push([w.x, w.y, z]);
+    const hOffset = finiteNum(p.h) ? p.h : 0;
+    out.push([w.x, w.y, z + hOffset]);
   }
   return out;
 }
@@ -274,9 +286,12 @@ export function buildDormerMesh(ext: DormerRuntimeExtensionInput, roofModel: Dor
 
   const canonicalGeo = buildDormerMeshFromCanonicalGeometry(ext, roofModel);
   if (canonicalGeo) return canonicalGeo;
+  /* Pour les chiens-assis dessinés manuellement (manual_outline_gable) : si la géométrie
+   * canonique est absente ou incomplète (ex. dormer encore en phase CONTOUR sans faîtage),
+   * on tente quand même les chemins fallback (dormerModel puis paramétrique) plutôt que
+   * de renvoyer null et d'avoir un objet invisible en 3D. */
   if (ext.visualModel === "manual_outline_gable") {
-    dormerAuditLog("GUARD: manual dormer without canonical geometry");
-    return null;
+    dormerAuditLog("INFO: manual dormer without canonical geometry — falling back to parametric paths");
   }
 
   const ptsIn = ext.contour?.points;
@@ -284,8 +299,8 @@ export function buildDormerMesh(ext: DormerRuntimeExtensionInput, roofModel: Dor
     dormerAuditLog("GUARD: contour invalid (points length)", { contourPointsLen: ptsIn?.length ?? 0 });
     return null;
   }
-  const ring: Point2[] = [];
-  for (const p of ptsIn) if (validPoint(p)) ring.push({ x: p.x, y: p.y });
+  const ring: Array<{ x: number; y: number; h?: number }> = [];
+  for (const p of ptsIn) if (validPoint(p)) ring.push({ x: p.x, y: p.y, ...(finiteNum(p.h) ? { h: p.h } : {}) });
   if (ring.length > 1 && Math.hypot(ring[0]!.x - ring[ring.length - 1]!.x, ring[0]!.y - ring[ring.length - 1]!.y) < 1e-6) {
     ring.pop();
   }
