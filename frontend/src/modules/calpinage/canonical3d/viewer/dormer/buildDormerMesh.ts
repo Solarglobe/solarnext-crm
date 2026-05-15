@@ -297,11 +297,16 @@ export function buildDormerMesh(ext: DormerRuntimeExtensionInput, roofModel: Dor
 
   const canonicalGeo = buildDormerMeshFromCanonicalGeometry(ext, roofModel);
   if (canonicalGeo) return canonicalGeo;
-  /* Les chiens-assis manuels ne doivent jamais être reconstruits en boite
-   * paramétrique : sans géométrie canonique explicite, le rendu 3D attend. */
+  /* Manual dormers without a ridge still wait for user geometry. If a manual
+   * contour has a ridge but predates canonicalDormerGeometry, build a bounded
+   * gable from contour + ridge instead of falling back to a rectangle. */
   if (ext.visualModel === "manual_outline_gable") {
-    dormerAuditLog("GUARD: manual dormer without canonical geometry");
-    return null;
+    const hasManualRidge = validPoint(ext.ridge?.a) && validPoint(ext.ridge?.b);
+    if (!hasManualRidge) {
+      dormerAuditLog("GUARD: manual dormer without ridge/canonical geometry");
+      return null;
+    }
+    dormerAuditLog("FALLBACK: manual dormer from contour + ridge");
   }
 
   const ptsIn = ext.contour?.points;
