@@ -4777,6 +4777,7 @@ export function initCalpinage(container, options = {}) {
         var currentVal = Number.isFinite(pointRef.h)
           ? pointRef.h
           : (isDormerRidgeHeightRole(role || label) ? (rx.ridgeHeightRelM || 0.8) : 0);
+        var roleLabel = String(role || label || "").toLowerCase();
         var cont = container.querySelector("#height-edit-inplace-container");
         if (!cont || typeof imageToScreenFn !== "function") {
           if (typeof window.calpinageToast !== "undefined" && window.calpinageToast.error) {
@@ -4802,7 +4803,9 @@ export function initCalpinage(container, options = {}) {
         box.style.pointerEvents = "auto";
         box.style.zIndex = "1300";
         var title = document.createElement("span");
-        title.textContent = "H";
+        title.textContent = isDormerRidgeHeightRole(role || label)
+          ? "H faitage"
+          : (roleLabel.indexOf("hip") >= 0 || roleLabel.indexOf("ar") >= 0 ? "H arete" : "H point");
         title.style.color = "#e5e7eb";
         title.style.font = "700 12px system-ui, sans-serif";
         var input = document.createElement("input");
@@ -7725,17 +7728,31 @@ export function initCalpinage(container, options = {}) {
         var roofExtensions = CALPINAGE_STATE.roofExtensions || [];
         var best = null;
         var bestDist = Infinity;
+        var bestPriority = -1;
         var screenPt = imageToScreen(imgPt);
-        function check(distPx, type, index, pointIndex, maxDistPx) {
+        function roofExtensionHeightPriority(pointIndex) {
+          var key = String(pointIndex || "");
+          if (key.indexOf("ridge:") === 0) return 30;
+          if (key.indexOf("hip:") === 0) return 20;
+          if (key.indexOf("contour:") === 0) return 10;
+          return 0;
+        }
+        function check(distPx, type, index, pointIndex, maxDistPx, priority) {
           var maxDist = Number.isFinite(maxDistPx) ? maxDistPx : 20;
-          if (distPx <= maxDist && distPx < bestDist) { bestDist = distPx; best = { type: type, index: index, pointIndex: pointIndex }; }
+          var prio = Number.isFinite(priority) ? priority : 0;
+          var sameSpot = Math.abs(distPx - bestDist) <= 0.75;
+          if (distPx <= maxDist && (distPx < bestDist || (sameSpot && prio > bestPriority))) {
+            bestDist = distPx;
+            bestPriority = prio;
+            best = { type: type, index: index, pointIndex: pointIndex };
+          }
         }
         function checkRoofExtensionHeightItems(rxIndex) {
           var rxItems = getRoofExtensionHeightPointItems(roofExtensions[rxIndex]);
           for (var rj = 0; rj < rxItems.length; rj++) {
             var rxSc = imageToScreen(rxItems[rj].point);
             var rxD = Math.hypot(screenPt.x - rxSc.x, screenPt.y - rxSc.y);
-            check(rxD, "roofExtension", rxIndex, rxItems[rj].key, 48);
+            check(rxD, "roofExtension", rxIndex, rxItems[rj].key, 48, roofExtensionHeightPriority(rxItems[rj].key));
           }
         }
         var selectedHeightRxIndex = (
