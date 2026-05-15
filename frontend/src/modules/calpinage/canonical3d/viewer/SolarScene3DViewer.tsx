@@ -423,6 +423,21 @@ function volumeLoopLineGeometry(points: readonly THREE.Vector3[]): THREE.BufferG
   return geo;
 }
 
+function volumeAllEdgeLineGeometry(vol: SolarScene3D["obstacleVolumes"][number], lift = 0.01): THREE.BufferGeometry | null {
+  if (!vol.edges.length || !vol.vertices.length) return null;
+  const positions: number[] = [];
+  for (const edge of vol.edges) {
+    const a = vol.vertices[edge.vertexAIndex]?.position;
+    const b = vol.vertices[edge.vertexBIndex]?.position;
+    if (!a || !b) continue;
+    positions.push(a.x, a.y, a.z + lift, b.x, b.y, b.z + lift);
+  }
+  if (positions.length === 0) return null;
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  return geo;
+}
+
 function volumeRingAt(vol: SolarScene3D["obstacleVolumes"][number], t: number, lift = 0.006): THREE.Vector3[] {
   const n = vol.footprintWorld.length;
   if (n < 3 || vol.vertices.length < n * 2) return [];
@@ -614,6 +629,26 @@ function roofWindowGreyFrameGeometry(vol: SolarScene3D["obstacleVolumes"][number
   return geo;
 }
 
+function keepoutHatchLineGeometry(vol: SolarScene3D["obstacleVolumes"][number]): THREE.BufferGeometry | null {
+  const ring = volumeRingAt(vol, 1, 0.035);
+  if (ring.length < 4) return volumeLoopLineGeometry(ring);
+  const p0 = ring[0]!;
+  const p1 = ring[1]!;
+  const p2 = ring[2]!;
+  const p3 = ring[3]!;
+  const positions: number[] = [];
+  const lerp = (a: THREE.Vector3, b: THREE.Vector3, t: number) => new THREE.Vector3().lerpVectors(a, b, t);
+  const push = (a: THREE.Vector3, b: THREE.Vector3) => positions.push(a.x, a.y, a.z, b.x, b.y, b.z);
+  for (let i = 1; i <= 5; i++) {
+    const t = i / 6;
+    push(lerp(p0, p3, t), lerp(p1, p2, t));
+    push(lerp(p0, p1, t), lerp(p3, p2, t));
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  return geo;
+}
+
 function chimneyBrickLineGeometry(vol: SolarScene3D["obstacleVolumes"][number]): THREE.BufferGeometry | null {
   const n = vol.footprintWorld.length;
   if (n < 4 || vol.vertices.length < n * 2) return null;
@@ -665,6 +700,29 @@ function vmcCapGeometry(vol: SolarScene3D["obstacleVolumes"][number]): THREE.Buf
   const radius = Math.max(0.08, metrics.maxRadius * 0.92);
   const height = Math.max(0.08, Math.min(0.18, (metrics.topZ - metrics.bottomZ) * 0.42));
   return cylinderLikeGeometry(metrics.center, radius, height, 28, metrics.topZ - height * 0.45);
+}
+
+function antennaBaseGeometry(vol: SolarScene3D["obstacleVolumes"][number]): THREE.BufferGeometry | null {
+  const metrics = volumePlanMetrics(vol);
+  if (!metrics) return null;
+  const radius = Math.max(0.07, metrics.maxRadius * 0.72);
+  const height = Math.max(0.035, Math.min(0.08, (metrics.topZ - metrics.bottomZ) * 0.12));
+  return cylinderLikeGeometry(metrics.center, radius, height, 24, metrics.bottomZ + 0.015);
+}
+
+function shadowVolumeRayGeometry(vol: SolarScene3D["obstacleVolumes"][number]): THREE.BufferGeometry | null {
+  if (vol.visualRole !== "abstract_shadow_volume") return null;
+  const n = vol.footprintWorld.length;
+  if (n < 3 || vol.vertices.length < n * 2) return null;
+  const positions: number[] = [];
+  for (let i = 0; i < n; i++) {
+    const base = vol.vertices[i]!.position;
+    const top = vol.vertices[i + n]!.position;
+    positions.push(base.x, base.y, base.z + 0.016, top.x, top.y, top.z + 0.016);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  return geo;
 }
 
 function vmcVentLineGeometry(vol: SolarScene3D["obstacleVolumes"][number]): THREE.BufferGeometry | null {
@@ -722,8 +780,12 @@ function roofObstacleDetailGeometries(vol: SolarScene3D["obstacleVolumes"][numbe
   readonly vmcCap: THREE.BufferGeometry | null;
   readonly vmcVentLines: THREE.BufferGeometry | null;
   readonly antennaLines: THREE.BufferGeometry | null;
+  readonly antennaBase: THREE.BufferGeometry | null;
   readonly roundChimneyBody: THREE.BufferGeometry | null;
   readonly roundChimneyLines: THREE.BufferGeometry | null;
+  readonly keepoutHatch: THREE.BufferGeometry | null;
+  readonly allEdgeLines: THREE.BufferGeometry | null;
+  readonly shadowVolumeRays: THREE.BufferGeometry | null;
   readonly replaceBaseMesh: boolean;
 } {
   const topRing = volumeRingAt(vol, 1, vol.visualRole === "roof_window_flush" || vol.visualRole === "keepout_surface" ? 0.018 : 0.012);
@@ -740,8 +802,12 @@ function roofObstacleDetailGeometries(vol: SolarScene3D["obstacleVolumes"][numbe
     vmcCap: vol.kind === "hvac" ? vmcCapGeometry(vol) : null,
     vmcVentLines: vol.kind === "hvac" ? vmcVentLineGeometry(vol) : null,
     antennaLines: vol.kind === "antenna" ? antennaLineGeometry(vol) : null,
+    antennaBase: vol.kind === "antenna" ? antennaBaseGeometry(vol) : null,
     roundChimneyBody: roundChimney ? roundChimneyBodyGeometry(vol) : null,
     roundChimneyLines: roundChimney ? roundChimneyRingLineGeometry(vol) : null,
+    keepoutHatch: vol.visualRole === "keepout_surface" ? keepoutHatchLineGeometry(vol) : null,
+    allEdgeLines: volumeAllEdgeLineGeometry(vol, vol.visualRole === "keepout_surface" ? 0.028 : 0.012),
+    shadowVolumeRays: shadowVolumeRayGeometry(vol),
     replaceBaseMesh: roundChimney || vol.kind === "antenna",
   };
 }
@@ -2294,8 +2360,12 @@ function ViewerSceneContent({
         x.details.vmcCap,
         x.details.vmcVentLines,
         x.details.antennaLines,
+        x.details.antennaBase,
         x.details.roundChimneyBody,
         x.details.roundChimneyLines,
+        x.details.keepoutHatch,
+        x.details.allEdgeLines,
+        x.details.shadowVolumeRays,
       ].filter((g): g is THREE.BufferGeometry => g != null)),
       ...extGeos.map((x) => x.geo),
       ...panelGeos.flatMap((x) => [x.geo, x.cell].filter((g): g is THREE.BufferGeometry => g != null)),
@@ -2719,6 +2789,49 @@ function ViewerSceneContent({
                   />
                 </lineSegments>
               ) : null}
+              {details.allEdgeLines && volume.visualRole !== "roof_window_flush" ? (
+                <lineSegments geometry={details.allEdgeLines} renderOrder={10}>
+                  <lineBasicMaterial
+                    color={
+                      volume.visualRole === "abstract_shadow_volume"
+                        ? "#cbd5e1"
+                        : volume.visualRole === "keepout_surface"
+                          ? "#f59e0b"
+                          : volume.kind === "hvac"
+                            ? "#7dd3fc"
+                            : volume.kind === "antenna"
+                              ? "#e5e7eb"
+                              : "#f8d1bd"
+                    }
+                    transparent
+                    opacity={volume.visualRole === "abstract_shadow_volume" ? 0.5 : 0.68}
+                    toneMapped={false}
+                    depthTest
+                  />
+                </lineSegments>
+              ) : null}
+              {details.keepoutHatch ? (
+                <lineSegments geometry={details.keepoutHatch} renderOrder={12}>
+                  <lineBasicMaterial
+                    color="#fbbf24"
+                    transparent
+                    opacity={0.86}
+                    toneMapped={false}
+                    depthTest
+                  />
+                </lineSegments>
+              ) : null}
+              {details.shadowVolumeRays ? (
+                <lineSegments geometry={details.shadowVolumeRays} renderOrder={7}>
+                  <lineBasicMaterial
+                    color="#e2e8f0"
+                    transparent
+                    opacity={0.36}
+                    toneMapped={false}
+                    depthTest
+                  />
+                </lineSegments>
+              ) : null}
               {details.windowFrame ? (
                 <mesh geometry={details.windowFrame} renderOrder={11}>
                   <meshStandardMaterial
@@ -2775,6 +2888,16 @@ function ViewerSceneContent({
                     depthTest
                   />
                 </lineSegments>
+              ) : null}
+              {details.antennaBase ? (
+                <mesh geometry={details.antennaBase} renderOrder={11} castShadow receiveShadow>
+                  <meshStandardMaterial
+                    color="#475569"
+                    metalness={0.58}
+                    roughness={0.28}
+                    side={THREE.DoubleSide}
+                  />
+                </mesh>
               ) : null}
               {inspectMode && sel && (
                 <Outlines
