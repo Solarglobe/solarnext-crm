@@ -4283,6 +4283,22 @@ export function initCalpinage(container, options = {}) {
         }
         return best;
       }
+      function nearestPointOnContourEdge(imgPt, contourPts) {
+        var best = null;
+        var bestDist = Infinity;
+        for (var i = 0; i < contourPts.length; i++) {
+          var a = contourPts[i];
+          var b = contourPts[(i + 1) % contourPts.length];
+          var proj = projectPointOnSegment(imgPt, a, b);
+          if (!proj) continue;
+          var d = Math.hypot(imgPt.x - proj.x, imgPt.y - proj.y);
+          if (d < bestDist) {
+            best = proj;
+            bestDist = d;
+          }
+        }
+        return best;
+      }
       function intersectLines(p1, p2, p3, p4) {
         var a1 = p2.y - p1.y;
         var b1 = p1.x - p2.x;
@@ -4573,6 +4589,88 @@ export function initCalpinage(container, options = {}) {
       }
 
       function openDormerPointHeightOverlay(rx, pointRef, label) {
+        if (!rx || !pointRef) return;
+        var currentVal = Number.isFinite(pointRef.h)
+          ? pointRef.h
+          : ((label === "faÃ®tage" || label === "faitage") ? (rx.ridgeHeightRelM || 0.8) : 0);
+        var cont = container.querySelector("#height-edit-inplace-container");
+        if (!cont || typeof imageToScreen !== "function") {
+          openDormerPointHeightOverlayPrompt(rx, pointRef, label);
+          return;
+        }
+        cont.innerHTML = "";
+        var sc = imageToScreen(pointRef);
+        var box = document.createElement("div");
+        box.style.position = "absolute";
+        box.style.left = Math.round(sc.x + 12) + "px";
+        box.style.top = Math.round(sc.y - 18) + "px";
+        box.style.display = "flex";
+        box.style.alignItems = "center";
+        box.style.gap = "6px";
+        box.style.padding = "6px 8px";
+        box.style.border = "1px solid rgba(148,163,184,0.55)";
+        box.style.borderRadius = "8px";
+        box.style.background = "rgba(15,23,42,0.96)";
+        box.style.boxShadow = "0 10px 28px rgba(15,23,42,0.28)";
+        box.style.pointerEvents = "auto";
+        box.style.zIndex = "1300";
+        var input = document.createElement("input");
+        input.type = "number";
+        input.step = "0.05";
+        input.min = "0";
+        input.value = String(Math.round(currentVal * 100) / 100);
+        input.setAttribute("aria-label", "Hauteur point chien assis");
+        input.style.width = "72px";
+        input.style.height = "30px";
+        input.style.border = "1px solid rgba(148,163,184,0.7)";
+        input.style.borderRadius = "6px";
+        input.style.padding = "0 8px";
+        input.style.background = "#ffffff";
+        input.style.color = "#0f172a";
+        input.style.font = "600 13px system-ui, sans-serif";
+        var unit = document.createElement("span");
+        unit.textContent = "m";
+        unit.style.color = "#e5e7eb";
+        unit.style.font = "600 12px system-ui, sans-serif";
+        var apply = function () {
+          var num = parseFloat(String(input.value).replace(",", "."));
+          if (!Number.isFinite(num) || num < 0) {
+            if (typeof window.calpinageToast !== "undefined" && window.calpinageToast.error) {
+              window.calpinageToast.error("Valeur invalide.");
+            } else if (typeof console !== "undefined") console.warn("[CALPINAGE]", "Valeur invalide.");
+            input.focus();
+            input.select();
+            return;
+          }
+          pointRef.h = num;
+          rebuildDormerCanonicalGeometry(rx);
+          cont.innerHTML = "";
+          if (typeof saveCalpinageState === "function") saveCalpinageState();
+          if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
+        };
+        input.addEventListener("keydown", function (ev) {
+          if (ev.key === "Enter") {
+            ev.preventDefault();
+            apply();
+          } else if (ev.key === "Escape") {
+            ev.preventDefault();
+            cont.innerHTML = "";
+            if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
+          }
+        });
+        input.addEventListener("blur", function () {
+          if (cont.contains(box)) apply();
+        });
+        box.appendChild(input);
+        box.appendChild(unit);
+        cont.appendChild(box);
+        setTimeout(function () {
+          input.focus();
+          input.select();
+        }, 0);
+      }
+
+      function openDormerPointHeightOverlayPrompt(rx, pointRef, label) {
         if (!rx || !pointRef) return;
         var currentVal = Number.isFinite(pointRef.h)
           ? pointRef.h
@@ -16266,7 +16364,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               if (!contourPts || contourPts.length < 3) return;
               /* 1er arêtier : départ sur contour */
               if (!draft.hips.left) {
-                var startSnap = snapToContourEdge(imgPt, contourPts, getDormerSnapToleranceImg());
+                var startSnap = snapToContourEdge(imgPt, contourPts, getDormerSnapToleranceImg()) || nearestPointOnContourEdge(imgPt, contourPts);
                 if (!startSnap) return;
                 draft.hips.left = { a: startSnap, b: null };
                 if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
@@ -16280,7 +16378,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               }
               /* 3e clic : départ 2e arêtier sur contour */
               if (!draft.hips.right) {
-                var startSnap2 = snapToContourEdge(imgPt, contourPts, getDormerSnapToleranceImg());
+                var startSnap2 = snapToContourEdge(imgPt, contourPts, getDormerSnapToleranceImg()) || nearestPointOnContourEdge(imgPt, contourPts);
                 if (!startSnap2) return;
                 draft.hips.right = { a: startSnap2, b: null };
                 if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
@@ -21623,7 +21721,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 ctx.setLineDash([5, 5]);
                 ctx.lineWidth = 1.5;
                 if (!hips.left && contourPts && contourPts.length >= 3) {
-                  var startSnap = snapToContourEdge(imgMousePt, contourPts, getDormerSnapToleranceImg());
+                  var startSnap = snapToContourEdge(imgMousePt, contourPts, getDormerSnapToleranceImg()) || nearestPointOnContourEdge(imgMousePt, contourPts);
                   if (startSnap) drawState.dormerSnapActive = true;
                   ctx.strokeStyle = startSnap ? "#00aa00" : "#666";
                   ctx.beginPath();
@@ -21643,7 +21741,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                   ctx.lineTo(imageToScreen(imgMousePt).x, imageToScreen(imgMousePt).y);
                   ctx.stroke();
                 } else if (!hips.right && contourPts && contourPts.length >= 3) {
-                  var startSnap2 = snapToContourEdge(imgMousePt, contourPts, getDormerSnapToleranceImg());
+                  var startSnap2 = snapToContourEdge(imgMousePt, contourPts, getDormerSnapToleranceImg()) || nearestPointOnContourEdge(imgMousePt, contourPts);
                   if (startSnap2) drawState.dormerSnapActive = true;
                   ctx.strokeStyle = startSnap2 ? "#00aa00" : "#666";
                   ctx.beginPath();

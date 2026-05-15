@@ -15,6 +15,8 @@ import {
 } from "./geometryCore2d.js";
 
 const VERTEX_HIT_RADIUS_PX = 8;
+const ROOF_EXTENSION_VERTEX_HIT_RADIUS_PX = 14;
+const ROOF_EXTENSION_EDGE_HIT_RADIUS_PX = 6;
 const HIT_TOL_OBSTACLE_PX = 8;
 const SEGMENT_INSERT_HIT_RADIUS_PX = 6;
 
@@ -68,12 +70,12 @@ export function unifiedHitTest({
   const tolImg = Math.max(0.5, VERTEX_HIT_RADIUS_PX / vpScale);
 
   // Helper: distance écran pour tests vertex/segment (tolérance en px)
-  function hitVertexScreen(ptScreen, imgPtRef) {
+  function hitVertexScreen(ptScreen, imgPtRef, radiusPx = VERTEX_HIT_RADIUS_PX) {
     const s = imageToScreen(imgPtRef);
-    return Math.hypot(ptScreen.x - s.x, ptScreen.y - s.y) <= VERTEX_HIT_RADIUS_PX;
+    return Math.hypot(ptScreen.x - s.x, ptScreen.y - s.y) <= radiusPx;
   }
-  function hitSegmentScreen(ptScreen, imgA, imgB) {
-    return distSegmentScreen(ptScreen, imgA, imgB, imageToScreen) <= VERTEX_HIT_RADIUS_PX;
+  function hitSegmentScreen(ptScreen, imgA, imgB, radiusPx = VERTEX_HIT_RADIUS_PX) {
+    return distSegmentScreen(ptScreen, imgA, imgB, imageToScreen) <= radiusPx;
   }
 
   // 1. roofExtensions (fin → début)
@@ -89,32 +91,32 @@ export function unifiedHitTest({
         const eiA = pts[ei], eiB = pts[(ei + 1) % 4];
         const emS = { x: (imageToScreen(eiA).x + imageToScreen(eiB).x) / 2,
                       y: (imageToScreen(eiA).y + imageToScreen(eiB).y) / 2 };
-        if (Math.hypot(screenPt.x - emS.x, screenPt.y - emS.y) <= VERTEX_HIT_RADIUS_PX + 3) {
+        if (Math.hypot(screenPt.x - emS.x, screenPt.y - emS.y) <= 11) {
           return { type: "roofExtension", index: ri, subType: "edge-mid", data: { edgeIndex: ei, pts: pts } };
         }
       }
     }
     // Priorité 1 : vertices de contour
     for (let i = 0; i < pts.length; i++) {
-      if (hitVertexScreen(screenPt, pts[i])) {
+      if (hitVertexScreen(screenPt, pts[i], ROOF_EXTENSION_VERTEX_HIT_RADIUS_PX)) {
         return { type: "roofExtension", index: ri, subType: "vertex", data: { vertexIndex: i, pointRef: pts[i] } };
       }
     }
     // Priorité 2 : vertices ridge/hip — testés AVANT corps, qu'il y ait dormerModel ou non
     if (rx.ridge && rx.ridge.a && rx.ridge.b) {
-      if (hitVertexScreen(screenPt, rx.ridge.a)) return { type: "roofExtension", index: ri, subType: "ridge-a", data: { pointRef: rx.ridge.a } };
-      if (hitVertexScreen(screenPt, rx.ridge.b)) return { type: "roofExtension", index: ri, subType: "ridge-b", data: { pointRef: rx.ridge.b } };
+      if (hitVertexScreen(screenPt, rx.ridge.a, ROOF_EXTENSION_VERTEX_HIT_RADIUS_PX)) return { type: "roofExtension", index: ri, subType: "ridge-a", data: { pointRef: rx.ridge.a } };
+      if (hitVertexScreen(screenPt, rx.ridge.b, ROOF_EXTENSION_VERTEX_HIT_RADIUS_PX)) return { type: "roofExtension", index: ri, subType: "ridge-b", data: { pointRef: rx.ridge.b } };
     }
     if (rx.hips) {
-      if (rx.hips.left && rx.hips.left.a && hitVertexScreen(screenPt, rx.hips.left.a)) return { type: "roofExtension", index: ri, subType: "hip-left-a", data: { pointRef: rx.hips.left.a } };
-      if (rx.hips.left && rx.hips.left.b && hitVertexScreen(screenPt, rx.hips.left.b)) return { type: "roofExtension", index: ri, subType: "hip-left-b", data: { pointRef: rx.hips.left.b } };
-      if (rx.hips.right && rx.hips.right.a && hitVertexScreen(screenPt, rx.hips.right.a)) return { type: "roofExtension", index: ri, subType: "hip-right-a", data: { pointRef: rx.hips.right.a } };
-      if (rx.hips.right && rx.hips.right.b && hitVertexScreen(screenPt, rx.hips.right.b)) return { type: "roofExtension", index: ri, subType: "hip-right-b", data: { pointRef: rx.hips.right.b } };
+      if (rx.hips.left && rx.hips.left.a && hitVertexScreen(screenPt, rx.hips.left.a, ROOF_EXTENSION_VERTEX_HIT_RADIUS_PX)) return { type: "roofExtension", index: ri, subType: "hip-left-a", data: { pointRef: rx.hips.left.a } };
+      if (rx.hips.left && rx.hips.left.b && hitVertexScreen(screenPt, rx.hips.left.b, ROOF_EXTENSION_VERTEX_HIT_RADIUS_PX)) return { type: "roofExtension", index: ri, subType: "hip-left-b", data: { pointRef: rx.hips.left.b } };
+      if (rx.hips.right && rx.hips.right.a && hitVertexScreen(screenPt, rx.hips.right.a, ROOF_EXTENSION_VERTEX_HIT_RADIUS_PX)) return { type: "roofExtension", index: ri, subType: "hip-right-a", data: { pointRef: rx.hips.right.a } };
+      if (rx.hips.right && rx.hips.right.b && hitVertexScreen(screenPt, rx.hips.right.b, ROOF_EXTENSION_VERTEX_HIT_RADIUS_PX)) return { type: "roofExtension", index: ri, subType: "hip-right-b", data: { pointRef: rx.hips.right.b } };
     }
     // Priorité 3 : arêtes de contour (insertion de point)
     for (let i = 0; i < pts.length; i++) {
       const a = pts[i], b = pts[(i + 1) % pts.length];
-      if (hitSegmentScreen(screenPt, a, b)) {
+      if (hitSegmentScreen(screenPt, a, b, ROOF_EXTENSION_EDGE_HIT_RADIUS_PX)) {
         return { type: "roofExtension", index: ri, subType: "contour-edge", data: { segmentIndex: i } };
       }
     }
@@ -123,13 +125,13 @@ export function unifiedHitTest({
       return { type: "roofExtension", index: ri, subType: "body", data: { area: "contour" } };
     }
     // Priorité 5 : segments ridge/hip (clic sur la ligne, pas sur le vertex)
-    if (rx.ridge && rx.ridge.a && rx.ridge.b && hitSegmentScreen(screenPt, rx.ridge.a, rx.ridge.b)) {
+    if (rx.ridge && rx.ridge.a && rx.ridge.b && hitSegmentScreen(screenPt, rx.ridge.a, rx.ridge.b, ROOF_EXTENSION_EDGE_HIT_RADIUS_PX)) {
       return { type: "roofExtension", index: ri, subType: "body", data: { area: "ridge" } };
     }
-    if (rx.hips && rx.hips.left && rx.hips.left.a && rx.hips.left.b && hitSegmentScreen(screenPt, rx.hips.left.a, rx.hips.left.b)) {
+    if (rx.hips && rx.hips.left && rx.hips.left.a && rx.hips.left.b && hitSegmentScreen(screenPt, rx.hips.left.a, rx.hips.left.b, ROOF_EXTENSION_EDGE_HIT_RADIUS_PX)) {
       return { type: "roofExtension", index: ri, subType: "body", data: { area: "hip-left" } };
     }
-    if (rx.hips && rx.hips.right && rx.hips.right.a && rx.hips.right.b && hitSegmentScreen(screenPt, rx.hips.right.a, rx.hips.right.b)) {
+    if (rx.hips && rx.hips.right && rx.hips.right.a && rx.hips.right.b && hitSegmentScreen(screenPt, rx.hips.right.a, rx.hips.right.b, ROOF_EXTENSION_EDGE_HIT_RADIUS_PX)) {
       return { type: "roofExtension", index: ri, subType: "body", data: { area: "hip-right" } };
     }
   }

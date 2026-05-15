@@ -49,4 +49,19 @@ describe("unifiedHitTest roofExtensions", () => {
     expect(hit).toMatchObject({ type: "roofExtension", index: 0, subType: "edge-mid" });
     expect(hit.data.edgeIndex).toBe(0);
   });
+
+  it("garde les sommets faciles a attraper apres fermeture du contour", () => {
+    const hit = unifiedHitTest({
+      screenPt: { x: 43, y: 10 },
+      screenToImage,
+      imageToScreen,
+      obstacles: [],
+      roofExtensions: [manualDormer],
+      shadowVolumes: [],
+      context: { vpScale: 1, selectedRoofExtensionIndex: 0 },
+    });
+
+    expect(hit).toMatchObject({ type: "roofExtension", index: 0, subType: "vertex" });
+    expect(hit.data.vertexIndex).toBe(1);
+  });
 });
