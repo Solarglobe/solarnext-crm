@@ -137,7 +137,6 @@ import {
   type DormerRuntimeExtensionInput,
 } from "./dormer/buildDormerMesh";
 import { extractRuntimeRoofExtensions } from "./dormer/extractRuntimeRoofExtensions";
-import { sampleRoofZAtImagePxFromPatches } from "./dormer/sampleRoofZAtImagePxFromPatches";
 import { buildPremiumHouse3DScene } from "./premium/buildPremiumHouse3DScene";
 import type { PremiumHouse3DSceneAssembly } from "./premium/premiumHouse3DSceneTypes";
 import { PremiumGeometryTrustStripe } from "./premium/PremiumGeometryTrustStripe";
@@ -752,50 +751,6 @@ function roofObstacleDetailGeometries(vol: SolarScene3D["obstacleVolumes"][numbe
     roundChimneyLines: roundChimney ? roundChimneyRingLineGeometry(vol) : null,
     replaceBaseMesh: roundChimney || vol.kind === "antenna",
   };
-}
-
-function buildDormerDrawnStructureLines(
-  ext: DormerRuntimeExtensionInput,
-  roofModel: { readonly world: SolarScene3D["worldConfig"]; readonly roofPlanePatches: SolarScene3D["roofModel"]["roofPlanePatches"] },
-): THREE.BufferGeometry | null {
-  const wc = roofModel.world;
-  if (!wc || !isValidCanonicalWorldConfig(wc)) return null;
-  const positions: number[] = [];
-  const point3 = (p: { readonly x?: number; readonly y?: number } | undefined, liftM: number): THREE.Vector3 | null => {
-    if (!p || typeof p.x !== "number" || typeof p.y !== "number") return null;
-    const xy = imagePxToWorldHorizontalM(p.x, p.y, wc.metersPerPixel, wc.northAngleDeg);
-    const z = sampleRoofZAtImagePxFromPatches(p.x, p.y, roofModel.roofPlanePatches, wc);
-    if (z == null) return null;
-    return new THREE.Vector3(xy.x, xy.y, z + liftM);
-  };
-  const pushLine = (
-    a: { readonly x?: number; readonly y?: number } | undefined,
-    b: { readonly x?: number; readonly y?: number } | undefined,
-    liftM: number,
-  ) => {
-    const pa = point3(a, liftM);
-    const pb = point3(b, liftM);
-    if (!pa || !pb) return;
-    positions.push(pa.x, pa.y, pa.z, pb.x, pb.y, pb.z);
-  };
-  const contourPts = ext.contour?.points ?? [];
-  for (let i = 0; i < contourPts.length; i++) {
-    pushLine(contourPts[i], contourPts[(i + 1) % contourPts.length], 0.075);
-  }
-  const ridgeLift = Math.max(0.12, (typeof ext.ridgeHeightRelM === "number" ? ext.ridgeHeightRelM : 0.8) + 0.08);
-  pushLine(ext.ridge?.a, ext.ridge?.b, ridgeLift);
-  const hips = (ext as DormerRuntimeExtensionInput & {
-    readonly hips?: {
-      readonly left?: { readonly a?: { readonly x?: number; readonly y?: number }; readonly b?: { readonly x?: number; readonly y?: number } };
-      readonly right?: { readonly a?: { readonly x?: number; readonly y?: number }; readonly b?: { readonly x?: number; readonly y?: number } };
-    };
-  }).hips;
-  pushLine(hips?.left?.a, hips?.left?.b, ridgeLift * 0.5);
-  pushLine(hips?.right?.a, hips?.right?.b, ridgeLift * 0.5);
-  if (!positions.length) return null;
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-  return geo;
 }
 
 function panelSurfaceMaterial(
@@ -1701,7 +1656,7 @@ function ViewerSceneContent({
         patchCount: patches?.length ?? 0,
       });
       return {
-        meshes: [] as { id: string; geo: THREE.BufferGeometry; edges: THREE.BufferGeometry | null; structure: THREE.BufferGeometry | null }[],
+        meshes: [] as { id: string; geo: THREE.BufferGeometry; edges: THREE.BufferGeometry | null }[],
         replaceKey: "",
         premiumIds: new Set<string>(),
       };
@@ -1712,7 +1667,7 @@ function ViewerSceneContent({
     const volIdSet = new Set(scene.extensionVolumes.map((v) => String(v.id)));
     const volIdsArr = [...volIdSet];
     const replaceIds: string[] = [];
-    const meshes: { id: string; geo: THREE.BufferGeometry; edges: THREE.BufferGeometry | null; structure: THREE.BufferGeometry | null }[] = [];
+    const meshes: { id: string; geo: THREE.BufferGeometry; edges: THREE.BufferGeometry | null }[] = [];
 
     for (let ri = 0; ri < rawList.length; ri++) {
       const raw = rawList[ri];
@@ -1765,9 +1720,8 @@ function ViewerSceneContent({
       }
       dormerPremiumAuditLog("RESULT: geometry (viewer)", { id });
       const edges = buildDormerEdgesGeometry(geo);
-      const structure = buildDormerDrawnStructureLines(rec as DormerRuntimeExtensionInput, roofModel);
       replaceIds.push(id);
-      meshes.push({ id, geo, edges, structure });
+      meshes.push({ id, geo, edges });
     }
     replaceIds.sort();
     const premiumIds = new Set(meshes.map((m) => String(m.id)));
@@ -1859,7 +1813,7 @@ function ViewerSceneContent({
       ...(roofClosureGeo ? [roofClosureGeo] : []),
       ...(edgeGeo ? [edgeGeo] : []),
       ...(ridgeGeo ? [ridgeGeo] : []),
-      ...dormerPremiumLayer.meshes.flatMap((m) => [m.geo, ...(m.edges ? [m.edges] : []), ...(m.structure ? [m.structure] : [])]),
+      ...dormerPremiumLayer.meshes.flatMap((m) => [m.geo, ...(m.edges ? [m.edges] : [])]),
       ...obsGeos.flatMap((x) => [
         x.geo,
         x.details.topCap,
@@ -1901,7 +1855,7 @@ function ViewerSceneContent({
       ...(shellGeo ? [shellGeo] : []),
       ...roofGeos.map((x) => x.geo),
       ...(roofClosureGeo ? [roofClosureGeo] : []),
-      ...dormerPremiumLayer.meshes.flatMap((m) => [m.geo, m.edges, m.structure].filter((g): g is THREE.BufferGeometry => g != null)),
+      ...dormerPremiumLayer.meshes.flatMap((m) => [m.geo, m.edges].filter((g): g is THREE.BufferGeometry => g != null)),
       ...obsGeos.map((x) => x.geo),
       ...extGeos.map((x) => x.geo),
       ...panelGeos.map((x) => x.geo),
@@ -2194,7 +2148,7 @@ function ViewerSceneContent({
         </lineSegments>
       )}
       {visDormerPremium &&
-        dormerPremiumLayer.meshes.map(({ id, geo, edges, structure }) => {
+        dormerPremiumLayer.meshes.map(({ id, geo, edges }) => {
           const sid = String(id);
           const sel = isInspectSelected(inspectionSelection, "EXTENSION", sid);
           return (
@@ -2231,17 +2185,6 @@ function ViewerSceneContent({
                     color={showDormerDebugWire ? "#33e6ff" : "#d5dde6"}
                     transparent={!showDormerDebugWire}
                     opacity={showDormerDebugWire ? 1 : 0.68}
-                    toneMapped={false}
-                    depthTest
-                  />
-                </lineSegments>
-              )}
-              {structure && (
-                <lineSegments geometry={structure} renderOrder={8}>
-                  <lineBasicMaterial
-                    color="#f8fafc"
-                    transparent
-                    opacity={0.92}
                     toneMapped={false}
                     depthTest
                   />
