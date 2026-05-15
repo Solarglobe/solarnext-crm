@@ -4635,25 +4635,123 @@ export function initCalpinage(container, options = {}) {
         return dist <= tolerance;
       }
 
-      function openDormerHeightOverlay(rx, index) {
-        var currentVal = rx.ridgeHeightRelM || 0.8;
-        var val = prompt("Hauteur du faîtage (m au-dessus du toit) :", currentVal);
-        if (val === null) return;
-        var num = parseFloat(val);
-        if (isNaN(num) || num < 0) {
+      function openDormerHeightOverlay(rx, imageToScreenFn) {
+        if (!rx) return;
+        var currentVal = Number.isFinite(rx.ridgeHeightRelM) ? rx.ridgeHeightRelM : 0.8;
+        var cont = container.querySelector("#height-edit-inplace-container");
+        var anchor = null;
+        if (rx.ridge && rx.ridge.a && rx.ridge.b) {
+          anchor = {
+            x: (rx.ridge.a.x + rx.ridge.b.x) / 2,
+            y: (rx.ridge.a.y + rx.ridge.b.y) / 2
+          };
+        } else if (rx.contour && Array.isArray(rx.contour.points) && rx.contour.points.length) {
+          var sx = 0;
+          var sy = 0;
+          rx.contour.points.forEach(function (p) { sx += p.x; sy += p.y; });
+          anchor = { x: sx / rx.contour.points.length, y: sy / rx.contour.points.length };
+        }
+        if (!cont || typeof imageToScreenFn !== "function" || !anchor) {
           if (typeof window.calpinageToast !== "undefined" && window.calpinageToast.error) {
-            window.calpinageToast.error("Valeur invalide.");
-          } else if (typeof console !== "undefined") console.warn("[CALPINAGE]", "Valeur invalide.");
+            window.calpinageToast.error("Edition de hauteur indisponible.");
+          }
           return;
         }
-        rx.ridgeHeightRelM = num;
-        rebuildDormerCanonicalGeometry(rx);
-        if (typeof saveCalpinageState === "function") {
-          saveCalpinageState();
-        }
-        if (typeof window.CALPINAGE_RENDER === "function") {
-          window.CALPINAGE_RENDER();
-        }
+        var sc = imageToScreenFn(anchor);
+        if (!sc || !Number.isFinite(sc.x) || !Number.isFinite(sc.y)) return;
+        cont.innerHTML = "";
+        var box = document.createElement("div");
+        box.style.position = "absolute";
+        box.style.left = Math.round(sc.x + 12) + "px";
+        box.style.top = Math.round(sc.y - 18) + "px";
+        box.style.display = "flex";
+        box.style.alignItems = "center";
+        box.style.gap = "6px";
+        box.style.padding = "6px 8px";
+        box.style.border = "1px solid rgba(148,163,184,0.55)";
+        box.style.borderRadius = "8px";
+        box.style.background = "rgba(15,23,42,0.96)";
+        box.style.boxShadow = "0 10px 28px rgba(15,23,42,0.28)";
+        box.style.pointerEvents = "auto";
+        box.style.zIndex = "1300";
+        var title = document.createElement("span");
+        title.textContent = "H faitage";
+        title.style.color = "#e5e7eb";
+        title.style.font = "700 12px system-ui, sans-serif";
+        var input = document.createElement("input");
+        input.type = "number";
+        input.step = "0.05";
+        input.min = "0";
+        input.value = String(Math.round(currentVal * 100) / 100);
+        input.setAttribute("aria-label", "Hauteur faitage chien assis");
+        input.style.width = "72px";
+        input.style.height = "30px";
+        input.style.border = "1px solid rgba(148,163,184,0.7)";
+        input.style.borderRadius = "6px";
+        input.style.padding = "0 8px";
+        input.style.background = "#ffffff";
+        input.style.color = "#0f172a";
+        input.style.font = "600 13px system-ui, sans-serif";
+        var unit = document.createElement("span");
+        unit.textContent = "m";
+        unit.style.color = "#e5e7eb";
+        unit.style.font = "600 12px system-ui, sans-serif";
+        var okBtn = document.createElement("button");
+        okBtn.type = "button";
+        okBtn.textContent = "OK";
+        okBtn.title = "Valider la hauteur verticale depuis le toit";
+        okBtn.style.height = "30px";
+        okBtn.style.border = "0";
+        okBtn.style.borderRadius = "6px";
+        okBtn.style.padding = "0 10px";
+        okBtn.style.background = "#16a34a";
+        okBtn.style.color = "#ffffff";
+        okBtn.style.font = "700 12px system-ui, sans-serif";
+        okBtn.style.cursor = "pointer";
+        var apply = function () {
+          var num = parseFloat(String(input.value).replace(",", "."));
+          if (!Number.isFinite(num) || num < 0) {
+            if (typeof window.calpinageToast !== "undefined" && window.calpinageToast.error) {
+              window.calpinageToast.error("Valeur invalide.");
+            } else if (typeof console !== "undefined") console.warn("[CALPINAGE]", "Valeur invalide.");
+            input.focus();
+            input.select();
+            return;
+          }
+          rx.ridgeHeightRelM = num;
+          if (rx.ridge && rx.ridge.a) rx.ridge.a.h = num;
+          if (rx.ridge && rx.ridge.b) rx.ridge.b.h = num;
+          rebuildDormerCanonicalGeometry(rx);
+          cont.innerHTML = "";
+          if (typeof saveCalpinageState === "function") saveCalpinageState();
+          if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
+        };
+        input.addEventListener("keydown", function (ev) {
+          if (ev.key === "Enter") {
+            ev.preventDefault();
+            apply();
+          } else if (ev.key === "Escape") {
+            ev.preventDefault();
+            cont.innerHTML = "";
+            if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
+          }
+        });
+        input.addEventListener("blur", function () {
+          if (cont.contains(box)) apply();
+        });
+        okBtn.addEventListener("pointerdown", function (ev) {
+          ev.preventDefault();
+          apply();
+        });
+        box.appendChild(title);
+        box.appendChild(input);
+        box.appendChild(unit);
+        box.appendChild(okBtn);
+        cont.appendChild(box);
+        setTimeout(function () {
+          input.focus();
+          input.select();
+        }, 0);
       }
 
       function isDormerRidgeHeightRole(roleOrLabel) {
@@ -4681,11 +4779,14 @@ export function initCalpinage(container, options = {}) {
           : (isDormerRidgeHeightRole(role || label) ? (rx.ridgeHeightRelM || 0.8) : 0);
         var cont = container.querySelector("#height-edit-inplace-container");
         if (!cont || typeof imageToScreenFn !== "function") {
-          openDormerPointHeightOverlayPrompt(rx, pointRef, label, role);
+          if (typeof window.calpinageToast !== "undefined" && window.calpinageToast.error) {
+            window.calpinageToast.error("Edition de hauteur indisponible.");
+          }
           return;
         }
         cont.innerHTML = "";
         var sc = imageToScreenFn(pointRef);
+        if (!sc || !Number.isFinite(sc.x) || !Number.isFinite(sc.y)) return;
         var box = document.createElement("div");
         box.style.position = "absolute";
         box.style.left = Math.round(sc.x + 12) + "px";
@@ -4777,27 +4878,6 @@ export function initCalpinage(container, options = {}) {
           input.focus();
           input.select();
         }, 0);
-      }
-
-      function openDormerPointHeightOverlayPrompt(rx, pointRef, label, role) {
-        if (!rx || !pointRef) return;
-        var currentVal = Number.isFinite(pointRef.h)
-          ? pointRef.h
-          : (isDormerRidgeHeightRole(role || label) ? (rx.ridgeHeightRelM || 0.8) : 0);
-        var val = prompt("Hauteur du point " + (label || "chien assis") + " (m au-dessus du toit, vertical) :", currentVal);
-        if (val === null) return;
-        var num = parseFloat(val);
-        if (!Number.isFinite(num) || num < 0) {
-          if (typeof window.calpinageToast !== "undefined" && window.calpinageToast.error) {
-            window.calpinageToast.error("Valeur invalide.");
-          } else if (typeof console !== "undefined") console.warn("[CALPINAGE]", "Valeur invalide.");
-          return;
-        }
-        pointRef.h = num;
-        if (isDormerRidgeHeightRole(role || label)) syncDormerRidgeHeightFromPointHeights(rx, num);
-        rebuildDormerCanonicalGeometry(rx);
-        if (typeof saveCalpinageState === "function") saveCalpinageState();
-        if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
       }
 
       function hitDormerEditableHeightPoint(imgPt, rx, tolerance) {
@@ -18911,7 +18991,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                   return;
                 }
                 if (rx.ridge && hitTestRidge(imgPt, rx.ridge, 8)) {
-                  openDormerHeightOverlay(rx, i);
+                  openDormerHeightOverlay(rx, imageToScreen);
                   return;
                 }
               }
