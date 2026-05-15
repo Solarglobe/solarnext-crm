@@ -418,6 +418,30 @@ function collectRawEntities(
   return out;
 }
 
+function hasFiniteImagePoint(value: unknown): boolean {
+  if (!value || typeof value !== "object") return false;
+  const p = value as { x?: unknown; y?: unknown };
+  return typeof p.x === "number" && Number.isFinite(p.x) && typeof p.y === "number" && Number.isFinite(p.y);
+}
+
+function hasCanonicalDormerGeometry(raw: Record<string, unknown>): boolean {
+  const geom = raw.canonicalDormerGeometry;
+  if (!geom || typeof geom !== "object") return false;
+  const g = geom as { vertices?: unknown; faces?: unknown };
+  return Array.isArray(g.vertices) && g.vertices.length >= 3 && Array.isArray(g.faces) && g.faces.length >= 1;
+}
+
+function isIncompleteManualRoofExtension(raw: Record<string, unknown>): boolean {
+  if (raw.visualModel !== "manual_outline_gable") return false;
+  if (hasCanonicalDormerGeometry(raw)) return false;
+  const ridge = raw.ridge;
+  if (ridge && typeof ridge === "object") {
+    const r = ridge as { a?: unknown; b?: unknown };
+    if (hasFiniteImagePoint(r.a) && hasFiniteImagePoint(r.b)) return false;
+  }
+  return true;
+}
+
 /**
  * Transforme obstacles, shadowVolumes et roofExtensions en fiches 3D canoniques.
  */
@@ -453,6 +477,11 @@ export function buildCanonicalObstacles3DFromRuntime(
 
   for (let i = 0; i < rawEntries.length; i++) {
     const { raw, listKind, index } = rawEntries[i];
+    if (listKind === "roofExtensions" && isIncompleteManualRoofExtension(raw)) {
+      invalid++;
+      globalWarnings.push(`SKIP_MANUAL_ROOF_EXTENSION_INCOMPLETE:${index}`);
+      continue;
+    }
     const footprintFull =
       listKind === "shadowVolumes"
         ? toFootprintPx({ ...raw, metersPerPixel: mpp })

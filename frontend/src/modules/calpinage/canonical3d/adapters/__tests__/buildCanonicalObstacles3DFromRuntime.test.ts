@@ -179,6 +179,38 @@ describe("CAS 4 — Chien-assis / extension", () => {
     expect(o.heightM).toBeCloseTo(1.2);
     expect(o.diagnostics.warnings).toContain("DORMER_SIMPLIFIED_TO_VERTICAL_PRISM_FROM_FOOTPRINT");
   });
+
+  it("ignore un chien-assis manuel encore limite au contour pour ne pas creer de prisme parasite", () => {
+    const getHeightAtXY = () => 6;
+    const ctx: HeightResolverContext = { state: {}, getHeightAtXY };
+    const state = baseRoofState({
+      roofExtensions: [
+        {
+          id: "rx-manual-draft",
+          type: "roof_extension",
+          kind: "dormer",
+          visualModel: "manual_outline_gable",
+          stage: "CONTOUR",
+          ridgeHeightRelM: 0.8,
+          contour: {
+            points: [
+              { x: 50, y: 50 },
+              { x: 80, y: 50 },
+              { x: 80, y: 80 },
+              { x: 50, y: 80 },
+            ],
+            closed: true,
+          },
+          ridge: null,
+          hips: null,
+        },
+      ],
+    });
+    const res = buildCanonicalObstacles3DFromRuntime({ state, heightResolverContext: ctx });
+
+    expect(res.obstacles).toHaveLength(0);
+    expect(res.diagnostics.warnings).toContain("SKIP_MANUAL_ROOF_EXTENSION_INCOMPLETE:0");
+  });
 });
 
 describe("Catalogue obstacle visuel", () => {

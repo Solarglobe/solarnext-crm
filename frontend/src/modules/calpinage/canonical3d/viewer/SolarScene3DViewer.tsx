@@ -1636,6 +1636,7 @@ function ViewerSceneContent({
         meshes: [] as { id: string; geo: THREE.BufferGeometry; edges: THREE.BufferGeometry | null }[],
         replaceKey: "",
         premiumIds: new Set<string>(),
+        handledIds: new Set<string>(),
       };
     }
     const roofModel = { world: wc, roofPlanePatches: patches };
@@ -1644,6 +1645,7 @@ function ViewerSceneContent({
     const volIdSet = new Set(scene.extensionVolumes.map((v) => String(v.id)));
     const volIdsArr = [...volIdSet];
     const replaceIds: string[] = [];
+    const handledIds = new Set<string>();
     const meshes: { id: string; geo: THREE.BufferGeometry; edges: THREE.BufferGeometry | null }[] = [];
 
     for (let ri = 0; ri < rawList.length; ri++) {
@@ -1661,6 +1663,7 @@ function ViewerSceneContent({
         typeof (ridge.b as { y?: number })?.y === "number";
       const contourPts = (rec.contour as { points?: unknown[] } | undefined)?.points;
       const contourCount = Array.isArray(contourPts) ? contourPts.length : 0;
+      const isManualDormer = rec.visualModel === "manual_outline_gable";
       dormerPremiumAuditLog("roofExtension candidate", {
         index: ri,
         runtimeId: id || "(empty)",
@@ -1679,7 +1682,10 @@ function ViewerSceneContent({
         });
         continue;
       }
-      if (!volIdSet.has(id)) {
+      if (isManualDormer) {
+        handledIds.add(id);
+      }
+      if (!isManualDormer && !volIdSet.has(id)) {
         dormerPremiumAuditLog("MATCH FAIL: runtime id not in extensionVolumes", {
           runtimeId: id,
           volumeIds: volIdsArr,
@@ -1702,24 +1708,27 @@ function ViewerSceneContent({
     }
     replaceIds.sort();
     const premiumIds = new Set(meshes.map((m) => String(m.id)));
-    return { meshes, replaceKey: replaceIds.join("|"), premiumIds };
+    premiumIds.forEach((id) => handledIds.add(id));
+    return { meshes, replaceKey: replaceIds.join("|"), premiumIds, handledIds };
   }, [debugRuntime, scene.worldConfig, scene.roofModel.roofPlanePatches, scene.extensionVolumes]);
 
   const extGeos = useMemo(() => {
     const premiumIds = dormerPremiumLayer.premiumIds;
+    const handledIds = dormerPremiumLayer.handledIds;
     if (typeof window !== "undefined") {
       const w = window as unknown as { __CALPINAGE_DORMER_AUDIT__?: boolean };
       if (w.__CALPINAGE_DORMER_AUDIT__ === true) {
         console.log("[DORMER_REPLACE]", {
           premiumIds: Array.from(premiumIds),
+          handledIds: Array.from(handledIds),
           extensionVolumes: scene.extensionVolumes.map((v) => v.id),
         });
       }
     }
     return scene.extensionVolumes
-      .filter((v) => !premiumIds.has(String(v.id)))
+      .filter((v) => !handledIds.has(String(v.id)))
       .map((v) => ({ id: v.id, geo: extensionVolumeGeometry(v) }));
-  }, [scene.extensionVolumes, dormerPremiumLayer.premiumIds]);
+  }, [scene.extensionVolumes, dormerPremiumLayer.premiumIds, dormerPremiumLayer.handledIds]);
 
   const panelGeos = useMemo(() => {
     return scene.pvPanels.map((p) => ({

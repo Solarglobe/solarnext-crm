@@ -4183,7 +4183,7 @@ export function initCalpinage(container, options = {}) {
         var rxList = CALPINAGE_STATE.roofExtensions || [];
         if (drawState.dormerEditRxIndex != null && rxList[drawState.dormerEditRxIndex]) return drawState.dormerEditRxIndex;
         if (drawState.selectedRoofExtensionIndex != null && rxList[drawState.selectedRoofExtensionIndex]) return drawState.selectedRoofExtensionIndex;
-        return rxList.length ? rxList.length - 1 : null;
+        return null;
       }
 
       /** Crée et push une roofExtension partielle (stage CONTOUR) dès la fermeture du contour. */
@@ -4343,6 +4343,15 @@ export function initCalpinage(container, options = {}) {
       function getDormerSnapToleranceImg() {
         var scale = (typeof vp !== "undefined" && vp && typeof vp.scale === "number" && vp.scale > 0) ? vp.scale : 1;
         return Math.max(15, 20 / scale);
+      }
+      function warnDormerSnapMiss(message) {
+        if (drawState.dormerSnapWarnUntil && Date.now() < drawState.dormerSnapWarnUntil) return;
+        drawState.dormerSnapWarnUntil = Date.now() + 900;
+        if (typeof window.calpinageToast !== "undefined" && window.calpinageToast.warning) {
+          window.calpinageToast.warning(message);
+        } else if (typeof console !== "undefined") {
+          console.warn("[CALPINAGE]", message);
+        }
       }
       function findNearestContourVertex(imgPt, contourPts, maxDist) {
         var best = null;
@@ -4607,14 +4616,32 @@ export function initCalpinage(container, options = {}) {
         }
       }
 
-      function openDormerPointHeightOverlay(rx, pointRef, label) {
+      function isDormerRidgeHeightRole(roleOrLabel) {
+        if (roleOrLabel === "ridge" || roleOrLabel === "faitage") return true;
+        var s = String(roleOrLabel || "").toLowerCase();
+        return s.indexOf("ridge") >= 0 || s.indexOf("fait") >= 0;
+      }
+
+      function syncDormerRidgeHeightFromPointHeights(rx, fallbackHeight) {
+        if (!rx || !rx.ridge) return;
+        var vals = [];
+        if (rx.ridge.a && Number.isFinite(rx.ridge.a.h)) vals.push(rx.ridge.a.h);
+        if (rx.ridge.b && Number.isFinite(rx.ridge.b.h)) vals.push(rx.ridge.b.h);
+        if (vals.length) {
+          rx.ridgeHeightRelM = vals.reduce(function (sum, v) { return sum + v; }, 0) / vals.length;
+        } else if (Number.isFinite(fallbackHeight)) {
+          rx.ridgeHeightRelM = fallbackHeight;
+        }
+      }
+
+      function openDormerPointHeightOverlay(rx, pointRef, label, role) {
         if (!rx || !pointRef) return;
         var currentVal = Number.isFinite(pointRef.h)
           ? pointRef.h
-          : ((label === "faÃ®tage" || label === "faitage") ? (rx.ridgeHeightRelM || 0.8) : 0);
+          : (isDormerRidgeHeightRole(role || label) ? (rx.ridgeHeightRelM || 0.8) : 0);
         var cont = container.querySelector("#height-edit-inplace-container");
         if (!cont || typeof imageToScreen !== "function") {
-          openDormerPointHeightOverlayPrompt(rx, pointRef, label);
+          openDormerPointHeightOverlayPrompt(rx, pointRef, label, role);
           return;
         }
         cont.innerHTML = "";
@@ -4633,6 +4660,10 @@ export function initCalpinage(container, options = {}) {
         box.style.boxShadow = "0 10px 28px rgba(15,23,42,0.28)";
         box.style.pointerEvents = "auto";
         box.style.zIndex = "1300";
+        var title = document.createElement("span");
+        title.textContent = "H";
+        title.style.color = "#e5e7eb";
+        title.style.font = "700 12px system-ui, sans-serif";
         var input = document.createElement("input");
         input.type = "number";
         input.step = "0.05";
@@ -4651,6 +4682,18 @@ export function initCalpinage(container, options = {}) {
         unit.textContent = "m";
         unit.style.color = "#e5e7eb";
         unit.style.font = "600 12px system-ui, sans-serif";
+        var okBtn = document.createElement("button");
+        okBtn.type = "button";
+        okBtn.textContent = "OK";
+        okBtn.title = "Valider la hauteur verticale depuis le toit";
+        okBtn.style.height = "30px";
+        okBtn.style.border = "0";
+        okBtn.style.borderRadius = "6px";
+        okBtn.style.padding = "0 10px";
+        okBtn.style.background = "#16a34a";
+        okBtn.style.color = "#ffffff";
+        okBtn.style.font = "700 12px system-ui, sans-serif";
+        okBtn.style.cursor = "pointer";
         var apply = function () {
           var num = parseFloat(String(input.value).replace(",", "."));
           if (!Number.isFinite(num) || num < 0) {
@@ -4662,6 +4705,7 @@ export function initCalpinage(container, options = {}) {
             return;
           }
           pointRef.h = num;
+          if (isDormerRidgeHeightRole(role || label)) syncDormerRidgeHeightFromPointHeights(rx, num);
           rebuildDormerCanonicalGeometry(rx);
           cont.innerHTML = "";
           if (typeof saveCalpinageState === "function") saveCalpinageState();
@@ -4680,8 +4724,14 @@ export function initCalpinage(container, options = {}) {
         input.addEventListener("blur", function () {
           if (cont.contains(box)) apply();
         });
+        okBtn.addEventListener("pointerdown", function (ev) {
+          ev.preventDefault();
+          apply();
+        });
+        box.appendChild(title);
         box.appendChild(input);
         box.appendChild(unit);
+        box.appendChild(okBtn);
         cont.appendChild(box);
         setTimeout(function () {
           input.focus();
@@ -4689,11 +4739,11 @@ export function initCalpinage(container, options = {}) {
         }, 0);
       }
 
-      function openDormerPointHeightOverlayPrompt(rx, pointRef, label) {
+      function openDormerPointHeightOverlayPrompt(rx, pointRef, label, role) {
         if (!rx || !pointRef) return;
         var currentVal = Number.isFinite(pointRef.h)
           ? pointRef.h
-          : ((label === "faîtage" || label === "faitage") ? (rx.ridgeHeightRelM || 0.8) : 0);
+          : (isDormerRidgeHeightRole(role || label) ? (rx.ridgeHeightRelM || 0.8) : 0);
         var val = prompt("Hauteur du point " + (label || "chien assis") + " (m au-dessus du toit, vertical) :", currentVal);
         if (val === null) return;
         var num = parseFloat(val);
@@ -4704,6 +4754,7 @@ export function initCalpinage(container, options = {}) {
           return;
         }
         pointRef.h = num;
+        if (isDormerRidgeHeightRole(role || label)) syncDormerRidgeHeightFromPointHeights(rx, num);
         rebuildDormerCanonicalGeometry(rx);
         if (typeof saveCalpinageState === "function") saveCalpinageState();
         if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
@@ -4712,20 +4763,20 @@ export function initCalpinage(container, options = {}) {
       function hitDormerEditableHeightPoint(imgPt, rx, tolerance) {
         var best = null;
         var bestD = tolerance;
-        function test(p, label) {
+        function test(p, label, role) {
           if (!p || typeof p.x !== "number" || typeof p.y !== "number") return;
           var d = Math.hypot(imgPt.x - p.x, imgPt.y - p.y);
           if (d <= bestD) {
             bestD = d;
-            best = { pointRef: p, label: label };
+            best = { pointRef: p, label: label, role: role };
           }
         }
         var pts = rx && rx.contour && Array.isArray(rx.contour.points) ? rx.contour.points : [];
-        pts.forEach(function (p) { test(p, "contour"); });
-        if (rx && rx.ridge) { test(rx.ridge.a, "faîtage"); test(rx.ridge.b, "faîtage"); }
+        pts.forEach(function (p) { test(p, "contour", "contour"); });
+        if (rx && rx.ridge) { test(rx.ridge.a, "faîtage", "ridge"); test(rx.ridge.b, "faîtage", "ridge"); }
         if (rx && rx.hips) {
-          if (rx.hips.left) { test(rx.hips.left.a, "arête"); test(rx.hips.left.b, "arête"); }
-          if (rx.hips.right) { test(rx.hips.right.a, "arête"); test(rx.hips.right.b, "arête"); }
+          if (rx.hips.left) { test(rx.hips.left.a, "arête", "hip"); test(rx.hips.left.b, "arête", "hip"); }
+          if (rx.hips.right) { test(rx.hips.right.a, "arête", "hip"); test(rx.hips.right.b, "arête", "hip"); }
         }
         return best;
       }
@@ -16232,6 +16283,171 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             }
             return false;
           }
+
+          function clearStructuralDraftsForRoofExtensionEdit() {
+            if (CALPINAGE_STATE.activeContour && CALPINAGE_STATE.activeContour.points) {
+              CALPINAGE_STATE.activeContour.points = [];
+              CALPINAGE_STATE.activeContour.hoverPoint = null;
+            }
+            if (CALPINAGE_STATE.activeRidge) {
+              CALPINAGE_STATE.activeRidge.a = null;
+              CALPINAGE_STATE.activeRidge.b = null;
+              CALPINAGE_STATE.activeRidge.hover = null;
+              CALPINAGE_STATE.activeRidge.hoverSnap = null;
+              CALPINAGE_STATE.activeRidge.snapEdge = null;
+              CALPINAGE_STATE.activeRidge.frozenStructuralSnap = null;
+            }
+            drawState.traitLineStart = null;
+            drawState.traitSnapPreview = null;
+            drawState.traitSnapPreviewSource = null;
+            drawState.traitSnapEdge = null;
+            drawState.traitFrozenStructuralSnap = null;
+            drawState.measureLineStart = null;
+          }
+
+          function getRoofExtensionPointerHit(screenPt) {
+            var rxList = CALPINAGE_STATE.roofExtensions || [];
+            if (!rxList.length) return null;
+            try {
+              if (drawState.selectedRoofExtensionIndex != null) {
+                var selectedRx = rxList[drawState.selectedRoofExtensionIndex];
+                if (selectedRx && typeof hitRoofExtensionManipHandle === "function") {
+                  var manipHit = hitRoofExtensionManipHandle(screenPt, selectedRx);
+                  if (manipHit) {
+                    return {
+                      type: "roofExtension",
+                      index: drawState.selectedRoofExtensionIndex,
+                      subType: manipHit.handle === "rotate" ? "rotate-handle" : "move-handle",
+                      data: manipHit
+                    };
+                  }
+                }
+              }
+              return unifiedHitTest({
+                screenPt: screenPt,
+                screenToImage: screenToImage,
+                imageToScreen: imageToScreen,
+                roofExtensions: rxList,
+                obstacles: [],
+                shadowVolumes: [],
+                context: {
+                  activeTool: "select",
+                  phase: CALPINAGE_STATE.currentPhase,
+                  ridges: [],
+                  traits: [],
+                  measures: [],
+                  contours: [],
+                  resolveRidgePoint: resolveRidgePoint,
+                  metersPerPixel: (CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.scale && CALPINAGE_STATE.roof.scale.metersPerPixel) || 1,
+                  vpScale: vp.scale,
+                  selectedRoofExtensionIndex: drawState.selectedRoofExtensionIndex,
+                }
+              });
+            } catch (_) {
+              return null;
+            }
+          }
+
+          function beginRoofExtensionPointerInteraction(e, rxHit, imgPt) {
+            if (!rxHit || rxHit.type !== "roofExtension") return false;
+            var rxList = CALPINAGE_STATE.roofExtensions || [];
+            var rxForManip = rxList[rxHit.index];
+            if (!rxForManip) return false;
+            if (drawState.activeTool !== "select") {
+              clearStructuralDraftsForRoofExtensionEdit();
+              if (typeof resetActiveToolToSelect === "function") resetActiveToolToSelect();
+            }
+            drawState.selectedRoofExtensionIndex = rxHit.index;
+            drawState.selectedContourIndex = null;
+            drawState.selectedRidgeIndex = null;
+            drawState.selectedTraitIndex = null;
+            drawState.selectedObstacleIndex = null;
+            drawState.selectedShadowVolumeIndex = null;
+            drawState.selectedContourIds = [];
+            drawState.selectedRidgeIds = [];
+            drawState.selectedTraitIds = [];
+            CALPINAGE_STATE.selected = { type: null, id: null, pointIndex: null };
+            CALPINAGE_STATE.selectedPanId = null;
+            CALPINAGE_STATE.editingPanId = null;
+            CALPINAGE_STATE.selectedPointId = null;
+
+            function capturePointer() {
+              if (canvasEl && e && e.pointerId != null && canvasEl.setPointerCapture) {
+                try { canvasEl.setPointerCapture(e.pointerId); } catch (_) {}
+              }
+            }
+
+            if (rxHit.subType === "rotate-handle") {
+              var rxCenterRot = getRoofExtensionCenter(rxForManip);
+              if (rxCenterRot) {
+                drawState.dragMode = "roofExtensionRotate";
+                drawState.dragBase = {
+                  rxIndex: rxHit.index,
+                  center: rxCenterRot,
+                  startAngle: Math.atan2(imgPt.y - rxCenterRot.y, imgPt.x - rxCenterRot.x),
+                  lastDelta: 0
+                };
+                setInteractionState(InteractionStates.ROTATING);
+                capturePointer();
+              }
+            } else if (rxHit.subType === "move-handle" || rxHit.subType === "body") {
+              var rxCenterMove = getRoofExtensionCenter(rxForManip);
+              if (rxCenterMove) {
+                drawState.dragMode = "roofExtensionMove";
+                drawState.dragBase = { rxIndex: rxHit.index, startImg: { x: imgPt.x, y: imgPt.y }, lastDx: 0, lastDy: 0 };
+                setInteractionState(InteractionStates.DRAGGING);
+                capturePointer();
+              } else {
+                drawState.dragMode = null;
+                drawState.dragBase = null;
+              }
+            } else if (rxHit.subType === "edge-mid" && rxHit.data) {
+              var eiD = rxHit.data.edgeIndex;
+              var edPts = rxForManip.contour && rxForManip.contour.points;
+              if (typeof eiD === "number" && edPts && edPts.length === 4) {
+                drawState.dragMode = "roofExtensionEdge";
+                drawState.dragBase = {
+                  rxIndex: rxHit.index,
+                  edgeIndex: eiD,
+                  startImg: { x: imgPt.x, y: imgPt.y },
+                  originalPts: edPts.map(function (p) { return { x: p.x, y: p.y }; })
+                };
+                setInteractionState(InteractionStates.RESIZING);
+                capturePointer();
+              }
+            } else if (rxHit.subType === "contour-edge" && rxHit.data) {
+              var segIdxRx = rxHit.data.segmentIndex;
+              var contourPtsRx = rxForManip.contour && rxForManip.contour.points;
+              if (typeof segIdxRx === "number" && contourPtsRx) {
+                var prevRxPt = contourPtsRx[segIdxRx];
+                var nextRxPt = contourPtsRx[(segIdxRx + 1) % contourPtsRx.length];
+                var insertedRxPt = { x: imgPt.x, y: imgPt.y };
+                if (prevRxPt && nextRxPt && Number.isFinite(prevRxPt.h) && Number.isFinite(nextRxPt.h)) {
+                  insertedRxPt.h = (prevRxPt.h + nextRxPt.h) / 2;
+                }
+                contourPtsRx.splice(segIdxRx + 1, 0, insertedRxPt);
+                if (rxForManip.visualModel === "manual_outline_gable") rebuildDormerCanonicalGeometry(rxForManip);
+                else syncDormerParametricGeometry(rxForManip);
+                drawState.dragMode = "roofExtensionVertex";
+                drawState.dragBase = { rxIndex: rxHit.index, type: "contour", subtype: "vertex", index: segIdxRx + 1, pointRef: insertedRxPt };
+                drawState.dragOffset = { dx: 0, dy: 0 };
+                drawState.dragLastMouseImg = { x: imgPt.x, y: imgPt.y };
+                drawState.rxDragSnap = null;
+                drawState.snapPreview = null;
+                setInteractionState(InteractionStates.DRAGGING);
+                capturePointer();
+              }
+            } else if (rxHit.data && rxHit.data.pointRef) {
+              beginRoofExtensionPointDrag(e, rxHit.index, rxHit.subType, rxHit.data.vertexIndex || 0, rxHit.data.pointRef, imgPt);
+            } else {
+              drawState.dragMode = null;
+              drawState.dragBase = null;
+            }
+
+            if (typeof updatePansListUI === "function") updatePansListUI();
+            if (typeof requestAnimationFrame !== "undefined" && typeof window.CALPINAGE_RENDER === "function") requestAnimationFrame(window.CALPINAGE_RENDER);
+            return true;
+          }
           addSafeListener(canvasEl, "pointerdown", function (e) {
             var rect = canvasEl.getBoundingClientRect();
             var x = e.clientX - rect.left;
@@ -16410,9 +16626,21 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                     }
                   });
                 } catch (_rxPre) {}
+                var _rxPh3HandleAwareHit = getRoofExtensionPointerHit(screen);
+                if (_rxPh3HandleAwareHit && _rxPh3HandleAwareHit.type === "roofExtension") {
+                  _rxPh3EarlyHit = _rxPh3HandleAwareHit;
+                }
               }
               /* Si le clic touche un chien assis → ne pas déclencher le pan fond, laisser le hit-test complet gérer */
               if (!_rxPh3EarlyHit || _rxPh3EarlyHit.type !== "roofExtension") {
+                if (drawState.selectedRoofExtensionIndex != null) {
+                  drawState.selectedRoofExtensionIndex = null;
+                  drawState.dormerEditRxIndex = null;
+                  drawState.dragMode = null;
+                  drawState.dragBase = null;
+                  drawState.dragOffset = null;
+                  if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
+                }
                 var ENGbg = window.pvPlacementEngine;
                 var focusBg = ENGbg && typeof ENGbg.getFocusBlock === "function" ? ENGbg.getFocusBlock() : null;
                 if (focusBg && typeof ENGbg.clearSelection === "function") {
@@ -16447,7 +16675,10 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               if (!draft.hips.left) {
                 var startSnap = snapToContourEdge(imgPt, contourPts, _hipsTolSnap)
                              || snapToContourEdge(imgPt, contourPts, _hipsTolFallback);
-                if (!startSnap) return; /* clic trop loin du contour → ignorer */
+                if (!startSnap) {
+                  warnDormerSnapMiss("Cliquez sur le contour du chien assis pour demarrer l'arete.");
+                  return;
+                }
                 draft.hips.left = { a: startSnap, b: null };
                 if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
                 return;
@@ -16462,7 +16693,10 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               if (!draft.hips.right) {
                 var startSnap2 = snapToContourEdge(imgPt, contourPts, _hipsTolSnap)
                               || snapToContourEdge(imgPt, contourPts, _hipsTolFallback);
-                if (!startSnap2) return;
+                if (!startSnap2) {
+                  warnDormerSnapMiss("Cliquez sur le contour du chien assis pour demarrer la deuxieme arete.");
+                  return;
+                }
                 draft.hips.right = { a: startSnap2, b: null };
                 if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
                 return;
@@ -16779,6 +17013,11 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                   if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
                 }
               }
+            }
+
+            var _rxPriorityHit = getRoofExtensionPointerHit(screen);
+            if (_rxPriorityHit && _rxPriorityHit.type === "roofExtension") {
+              if (beginRoofExtensionPointerInteraction(e, _rxPriorityHit, imgPt)) return;
             }
 
             // --- ROOF OBSTACLE INTERACTION (RECT + CIRCLE) ---
@@ -18557,7 +18796,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 var rx = CALPINAGE_STATE.roofExtensions[i];
                 var pointHit = hitDormerEditableHeightPoint(imgPt, rx, 9);
                 if (pointHit && pointHit.pointRef) {
-                  openDormerPointHeightOverlay(rx, pointHit.pointRef, pointHit.label);
+                  openDormerPointHeightOverlay(rx, pointHit.pointRef, pointHit.label, pointHit.role);
                   return;
                 }
                 if (rx.ridge && hitTestRidge(imgPt, rx.ridge, 8)) {
