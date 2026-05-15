@@ -3824,12 +3824,13 @@ export function initCalpinage(container, options = {}) {
         cy /= ring.length;
 
         var bestIdx = 0;
-        var bestLen = -Infinity;
+        var bestLen = ring.length === 4 ? Infinity : -Infinity;
         for (var i = 0; i < ring.length; i++) {
           var a = ring[i];
           var b = ring[(i + 1) % ring.length];
           var len = Math.hypot(b.x - a.x, b.y - a.y);
-          if (len > bestLen) {
+          var isBetter = ring.length === 4 ? len < bestLen : len > bestLen;
+          if (isBetter) {
             bestLen = len;
             bestIdx = i;
           }
@@ -3861,22 +3862,23 @@ export function initCalpinage(container, options = {}) {
         if (!Number.isFinite(minU) || !Number.isFinite(maxU) || !Number.isFinite(minV) || !Number.isFinite(maxV)) return null;
         var depth = Math.max(0.000001, maxV - minV);
         var frontV = minV;
-        var backV = maxV;
-        var ridgeFrontV = frontV + depth * 0.28;
-        var ridgeBackV = backV - depth * 0.08;
-        if (ridgeBackV <= ridgeFrontV) ridgeBackV = frontV + depth * 0.78;
-        var frontLeft = { x: mid.x + ux * minU + vx * frontV, y: mid.y + uy * minU + vy * frontV };
+        // ─── Faîtage LATÉRAL au milieu de la profondeur ──────────────────────
+        // Un chien assis à pignon (le plus courant) a son faîtage parallèle à la
+        // façade avant, centré dans la profondeur.  L'ancienne formule (28 %→92 %)
+        // plaçait le faîtage dans le sens de la profondeur — forme de pyramide.
+        var ridgeV = frontV + depth * 0.50;
+        var frontLeft  = { x: mid.x + ux * minU + vx * frontV, y: mid.y + uy * minU + vy * frontV };
         var frontRight = { x: mid.x + ux * maxU + vx * frontV, y: mid.y + uy * maxU + vy * frontV };
-        var ridgeA = { x: mid.x + vx * ridgeFrontV, y: mid.y + vy * ridgeFrontV };
-        var ridgeB = { x: mid.x + vx * ridgeBackV, y: mid.y + vy * ridgeBackV };
+        var ridgeA = { x: mid.x + ux * minU + vx * ridgeV, y: mid.y + uy * minU + vy * ridgeV }; // bout gauche
+        var ridgeB = { x: mid.x + ux * maxU + vx * ridgeV, y: mid.y + uy * maxU + vy * ridgeV }; // bout droit
         return {
           version: 2,
           source: "phase2_parametric_contour",
           front: { a: frontLeft, b: frontRight },
           ridge: { a: ridgeA, b: ridgeB },
           hips: {
-            left: { a: frontLeft, b: ridgeA },
-            right: { a: frontRight, b: ridgeA }
+            left:  { a: frontLeft,  b: ridgeA }, // arête gauche (façade → faîtage gauche)
+            right: { a: frontRight, b: ridgeB }  // arête droite (façade → faîtage droit)
           },
           axes: { ux: ux, uy: uy, vx: vx, vy: vy },
           bounds: { minU: minU, maxU: maxU, minV: minV, maxV: maxV }
@@ -3904,6 +3906,72 @@ export function initCalpinage(container, options = {}) {
         };
         rx.ridgeOrigin = clonePointPreserveHeight(model.ridge.a);
         return rx;
+      }
+
+      function getRoofExtensionCenter(rx) {
+        var pts = rx && rx.contour && Array.isArray(rx.contour.points) ? rx.contour.points : [];
+        if (!pts.length) return null;
+        var cx = 0;
+        var cy = 0;
+        pts.forEach(function (p) { cx += p.x; cy += p.y; });
+        return { x: cx / pts.length, y: cy / pts.length };
+      }
+
+      function moveRoofExtensionBy(rx, dx, dy) {
+        if (!rx || !rx.contour || !Array.isArray(rx.contour.points)) return rx;
+        rx.contour.points.forEach(function (p) { p.x += dx; p.y += dy; });
+        syncDormerParametricGeometry(rx);
+        return rx;
+      }
+
+      function rotateRoofExtensionAround(rx, center, deltaRad) {
+        if (!rx || !center || !rx.contour || !Array.isArray(rx.contour.points)) return rx;
+        var c = Math.cos(deltaRad);
+        var s = Math.sin(deltaRad);
+        rx.contour.points.forEach(function (p) {
+          var dx = p.x - center.x;
+          var dy = p.y - center.y;
+          p.x = center.x + dx * c - dy * s;
+          p.y = center.y + dx * s + dy * c;
+        });
+        syncDormerParametricGeometry(rx);
+        return rx;
+      }
+
+      function getRoofExtensionManipHandles(rx) {
+        var model = rx && rx.dormerModel;
+        var center = getRoofExtensionCenter(rx);
+        if (!model || !model.axes || !model.front || !model.front.a || !model.front.b || !center) return null;
+        var fa = model.front.a;
+        var fb = model.front.b;
+        var frontMid = { x: (fa.x + fb.x) / 2, y: (fa.y + fb.y) / 2 };
+        var vx = Number(model.axes.vx) || 0;
+        var vy = Number(model.axes.vy) || 0;
+        var outward = { x: frontMid.x - center.x, y: frontMid.y - center.y };
+        var len = Math.hypot(outward.x, outward.y);
+        if (len < 0.001) {
+          outward = { x: -vx, y: -vy };
+          len = Math.hypot(outward.x, outward.y) || 1;
+        }
+        outward.x /= len;
+        outward.y /= len;
+        var frontLen = Math.hypot(fb.x - fa.x, fb.y - fa.y);
+        var rotateGap = Math.max(20, frontLen * 0.35);
+        return {
+          move: center,
+          rotate: { x: frontMid.x + outward.x * rotateGap, y: frontMid.y + outward.y * rotateGap },
+          anchor: frontMid
+        };
+      }
+
+      function hitRoofExtensionManipHandle(screenPt, rx) {
+        var handles = getRoofExtensionManipHandles(rx);
+        if (!handles) return null;
+        var moveSc = imageToScreen(handles.move);
+        var rotSc = imageToScreen(handles.rotate);
+        if (Math.hypot(screenPt.x - rotSc.x, screenPt.y - rotSc.y) <= 18) return { handle: "rotate", handles: handles };
+        if (Math.hypot(screenPt.x - moveSc.x, screenPt.y - moveSc.y) <= 16) return { handle: "move", handles: handles };
+        return null;
       }
 
       function applyDormerParametricVisualDefaults(rx) {
@@ -16035,8 +16103,10 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 window.CALPINAGE_MODE = null;
                 if (canvasEl) canvasEl.style.cursor = "default";
                 if (typeof saveCalpinageState === "function") saveCalpinageState();
-                if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
+                // resetActiveToolToSelect en premier pour que activeTool === "select" soit
+                // déjà positionné quand CALPINAGE_RENDER dessine les poignées de sélection.
                 if (typeof resetActiveToolToSelect === "function") resetActiveToolToSelect();
+                if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
                 return;
               }
               var pts0 = pts[0];
@@ -16052,8 +16122,8 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                   window.CALPINAGE_MODE = null;
                   if (canvasEl) canvasEl.style.cursor = "default";
                   if (typeof saveCalpinageState === "function") saveCalpinageState();
-                  if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
                   if (typeof resetActiveToolToSelect === "function") resetActiveToolToSelect();
+                  if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
                   return;
                 }
               }
@@ -16897,6 +16967,24 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 selectedObstacleIndex: drawState.selectedObstacleIndex,
               },
             });
+            if (
+              drawState.activeTool === "select" &&
+              drawState.selectedRoofExtensionIndex != null &&
+              CALPINAGE_STATE.roofExtensions &&
+              drawState.selectedRoofExtensionIndex >= 0 &&
+              drawState.selectedRoofExtensionIndex < CALPINAGE_STATE.roofExtensions.length
+            ) {
+              var selectedRxForHandle = CALPINAGE_STATE.roofExtensions[drawState.selectedRoofExtensionIndex];
+              var rxManipHit = hitRoofExtensionManipHandle(screen, selectedRxForHandle);
+              if (rxManipHit) {
+                hit = {
+                  type: "roofExtension",
+                  index: drawState.selectedRoofExtensionIndex,
+                  subType: rxManipHit.handle === "rotate" ? "rotate-handle" : "move-handle",
+                  data: rxManipHit
+                };
+              }
+            }
             /* 🔥 PRIORITÉ : test des handles obstacle AVANT désélection */
             if (
               drawState.activeTool === "select" &&
@@ -17515,7 +17603,37 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 drawState.selectedContourIds = [];
                 drawState.selectedRidgeIds = [];
                 drawState.selectedTraitIds = [];
-                if (rxHitCompat.type !== "body" && rxHitCompat.pointRef) {
+                var rxForManip = (CALPINAGE_STATE.roofExtensions || [])[rxHitCompat.rxIndex];
+                if (hit.subType === "rotate-handle" && rxForManip) {
+                  var rxCenterRot = getRoofExtensionCenter(rxForManip);
+                  if (rxCenterRot) {
+                    drawState.dragMode = "roofExtensionRotate";
+                    drawState.dragBase = {
+                      rxIndex: rxHitCompat.rxIndex,
+                      center: rxCenterRot,
+                      startAngle: Math.atan2(imgPt.y - rxCenterRot.y, imgPt.x - rxCenterRot.x),
+                      lastDelta: 0
+                    };
+                    setInteractionState(InteractionStates.ROTATING);
+                    if (canvasEl && e.pointerId != null && canvasEl.setPointerCapture) canvasEl.setPointerCapture(e.pointerId);
+                  }
+                } else if (hit.subType === "move-handle" || rxHitCompat.type === "body") {
+                  var rxCenterMove = getRoofExtensionCenter(rxForManip);
+                  if (rxCenterMove) {
+                    drawState.dragMode = "roofExtensionMove";
+                    drawState.dragBase = {
+                      rxIndex: rxHitCompat.rxIndex,
+                      startImg: { x: imgPt.x, y: imgPt.y },
+                      lastDx: 0,
+                      lastDy: 0
+                    };
+                    setInteractionState(InteractionStates.DRAGGING);
+                    if (canvasEl && e.pointerId != null && canvasEl.setPointerCapture) canvasEl.setPointerCapture(e.pointerId);
+                  } else {
+                    drawState.dragMode = null;
+                    drawState.dragBase = null;
+                  }
+                } else if (rxHitCompat.type !== "body" && rxHitCompat.pointRef) {
                   drawState.dragMode = "roofExtensionVertex";
                   drawState.dragBase = { rxIndex: rxHitCompat.rxIndex, type: rxHitCompat.type, subtype: rxHitCompat.subtype, index: rxHitCompat.index, pointRef: rxHitCompat.pointRef };
                   drawState.dragOffset = { dx: rxHitCompat.pointRef.x - imgPt.x, dy: rxHitCompat.pointRef.y - imgPt.y };
@@ -18109,6 +18227,35 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               }
               return;
             }
+            if (drawState.dragMode === "roofExtensionMove" && drawState.dragBase) {
+              var baseMoveRx = drawState.dragBase;
+              var rxListMove = CALPINAGE_STATE.roofExtensions || [];
+              var rxMove = rxListMove[baseMoveRx.rxIndex];
+              if (!rxMove || !baseMoveRx.startImg) return;
+              var dxMove = imgPt.x - baseMoveRx.startImg.x;
+              var dyMove = imgPt.y - baseMoveRx.startImg.y;
+              moveRoofExtensionBy(rxMove, dxMove - (baseMoveRx.lastDx || 0), dyMove - (baseMoveRx.lastDy || 0));
+              baseMoveRx.lastDx = dxMove;
+              baseMoveRx.lastDy = dyMove;
+              if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
+              return;
+            }
+            if (drawState.dragMode === "roofExtensionRotate" && drawState.dragBase) {
+              var baseRotRx = drawState.dragBase;
+              var rxListRot = CALPINAGE_STATE.roofExtensions || [];
+              var rxRot = rxListRot[baseRotRx.rxIndex];
+              if (!rxRot || !baseRotRx.center) return;
+              var angleNowRx = Math.atan2(imgPt.y - baseRotRx.center.y, imgPt.x - baseRotRx.center.x);
+              var deltaRx = angleNowRx - (baseRotRx.startAngle || 0);
+              if (e && e.shiftKey) {
+                var stepRx = Math.PI / 12;
+                deltaRx = Math.round(deltaRx / stepRx) * stepRx;
+              }
+              rotateRoofExtensionAround(rxRot, baseRotRx.center, deltaRx - (baseRotRx.lastDelta || 0));
+              baseRotRx.lastDelta = deltaRx;
+              if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
+              return;
+            }
             if (drawState.dragMode === "roofExtensionVertex" && drawState.dragBase) {
               var base = drawState.dragBase;
               var rxList = CALPINAGE_STATE.roofExtensions || [];
@@ -18157,7 +18304,17 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 base.pointRef.x = imgTarget.x;
                 base.pointRef.y = imgTarget.y;
               }
-              syncDormerParametricGeometry(rx);
+              // Pour les sommets de contour : re-dériver le dormerModel depuis le contour.
+              // Pour le faîtage / les arêtiers : mettre à jour dormerModel.ridge directement
+              // afin de ne pas écraser la position déplacée manuellement.
+              if (!base.subtype || base.subtype === "vertex" || base.subtype === "contour") {
+                syncDormerParametricGeometry(rx);
+              } else if (base.subtype === "ridge" && rx.dormerModel && rx.ridge) {
+                rx.dormerModel.ridge = {
+                  a: { x: rx.ridge.a ? rx.ridge.a.x : 0, y: rx.ridge.a ? rx.ridge.a.y : 0 },
+                  b: { x: rx.ridge.b ? rx.ridge.b.x : 0, y: rx.ridge.b ? rx.ridge.b.y : 0 }
+                };
+              }
 
               if (e && e.ctrlKey) {
                 drawState.rxDragSnap = null;
@@ -18758,6 +18915,13 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                   saveCalpinageState();
                 }
               }
+              if ((drawState.dragMode === "roofExtensionMove" || drawState.dragMode === "roofExtensionRotate") && drawState.dragBase) {
+                if (typeof saveCalpinageState === "function") saveCalpinageState();
+                if (typeof recomputeAllPlacementBlocksFromRules === "function") {
+                  recomputeAllPlacementBlocksFromRules(true);
+                }
+                if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
+              }
               if (drawState.dragMode === "roofExtensionVertex" && drawState.dragBase) {
                 var baseRx = drawState.dragBase;
                 var rxList = CALPINAGE_STATE.roofExtensions || [];
@@ -18918,7 +19082,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 recomputeRoofPlanes();
                 saveCalpinageState();
               }
-              if (drawState.dragMode === "ridge-move" || drawState.dragMode === "ridge-endA" || drawState.dragMode === "ridge-endB" || drawState.dragMode === "trait-move" || drawState.dragMode === "trait-endA" || drawState.dragMode === "trait-endB" || drawState.dragMode === "contour-vertex" || drawState.dragMode === "contour-move" || drawState.dragMode === "contour-pending" || drawState.dragMode === "roofExtensionVertex") {
+              if (drawState.dragMode === "ridge-move" || drawState.dragMode === "ridge-endA" || drawState.dragMode === "ridge-endB" || drawState.dragMode === "trait-move" || drawState.dragMode === "trait-endA" || drawState.dragMode === "trait-endB" || drawState.dragMode === "contour-vertex" || drawState.dragMode === "contour-move" || drawState.dragMode === "contour-pending" || drawState.dragMode === "roofExtensionVertex" || drawState.dragMode === "roofExtensionMove" || drawState.dragMode === "roofExtensionRotate") {
               }
               /* Clic vide Phase PV_LAYOUT : hit-test au point rel??ch? ; si aucun hit panneau => clearSelection.
                * En mode "Ajouter panneaux", ne pas clear au mouseup si le bloc a encore des panneaux (évite clear après suppression d'un panneau). */
@@ -20750,17 +20914,18 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 if (sel && drawState.activeTool === "select") {
                   var allRxPts = [];
                   pts.forEach(function (p) { allRxPts.push({ p: p, kind: "contour" }); });
-                  if (!rx.dormerModel) {
-                    if (rx.ridge && rx.ridge.a) allRxPts.push({ p: rx.ridge.a, kind: "ridge" });
-                    if (rx.ridge && rx.ridge.b) allRxPts.push({ p: rx.ridge.b, kind: "ridge" });
-                    if (rx.hips && rx.hips.left) {
-                      if (rx.hips.left.a) allRxPts.push({ p: rx.hips.left.a, kind: "hip" });
-                      if (rx.hips.left.b) allRxPts.push({ p: rx.hips.left.b, kind: "hip" });
-                    }
-                    if (rx.hips && rx.hips.right) {
-                      if (rx.hips.right.a) allRxPts.push({ p: rx.hips.right.a, kind: "hip" });
-                      if (rx.hips.right.b) allRxPts.push({ p: rx.hips.right.b, kind: "hip" });
-                    }
+                  // Faîtage et arêtiers toujours affichés et ajustables.
+                  // Quand dormerModel est présent le drag met à jour dormerModel.ridge directement
+                  // (sans syncDormerParametricGeometry) pour ne pas écraser la position manuelle.
+                  if (rx.ridge && rx.ridge.a) allRxPts.push({ p: rx.ridge.a, kind: "ridge" });
+                  if (rx.ridge && rx.ridge.b) allRxPts.push({ p: rx.ridge.b, kind: "ridge" });
+                  if (rx.hips && rx.hips.left) {
+                    if (rx.hips.left.a) allRxPts.push({ p: rx.hips.left.a, kind: "hip" });
+                    if (rx.hips.left.b) allRxPts.push({ p: rx.hips.left.b, kind: "hip" });
+                  }
+                  if (rx.hips && rx.hips.right) {
+                    if (rx.hips.right.a) allRxPts.push({ p: rx.hips.right.a, kind: "hip" });
+                    if (rx.hips.right.b) allRxPts.push({ p: rx.hips.right.b, kind: "hip" });
                   }
                   allRxPts.forEach(function (item) {
                     var sc = imageToScreen(item.p);
@@ -20789,6 +20954,44 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                     ctx.fill();
                     ctx.stroke();
                   });
+                  if (rx.dormerModel) {
+                    var rxHandles = getRoofExtensionManipHandles(rx);
+                    if (rxHandles) {
+                      var mv = imageToScreen(rxHandles.move);
+                      var rt = imageToScreen(rxHandles.rotate);
+                      var an = imageToScreen(rxHandles.anchor);
+                      ctx.save();
+                      ctx.strokeStyle = "rgba(15, 23, 42, 0.36)";
+                      ctx.lineWidth = 2;
+                      ctx.beginPath();
+                      ctx.moveTo(an.x, an.y);
+                      ctx.lineTo(rt.x, rt.y);
+                      ctx.stroke();
+                      ctx.beginPath();
+                      ctx.arc(mv.x, mv.y, 11, 0, Math.PI * 2);
+                      ctx.fillStyle = "#ffffff";
+                      ctx.strokeStyle = "#4f46e5";
+                      ctx.lineWidth = 2.3;
+                      ctx.fill();
+                      ctx.stroke();
+                      ctx.fillStyle = "#4f46e5";
+                      ctx.font = "bold 13px Arial";
+                      ctx.textAlign = "center";
+                      ctx.textBaseline = "middle";
+                      ctx.fillText("+", mv.x, mv.y + 0.5);
+                      ctx.beginPath();
+                      ctx.arc(rt.x, rt.y, 12, 0, Math.PI * 2);
+                      ctx.fillStyle = "#4f46e5";
+                      ctx.strokeStyle = "#ffffff";
+                      ctx.lineWidth = 2;
+                      ctx.fill();
+                      ctx.stroke();
+                      ctx.fillStyle = "#ffffff";
+                      ctx.font = "bold 14px Arial";
+                      ctx.fillText("R", rt.x, rt.y + 0.5);
+                      ctx.restore();
+                    }
+                  }
                 }
               });
               ctx.restore();
@@ -20833,22 +21036,39 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               }
               if (pts.length > 0) {
                 ctx.save();
-                ctx.strokeStyle = "#000000";
-                ctx.lineWidth = 2;
-                ctx.beginPath();
+                ctx.lineJoin = "round";
+                ctx.lineCap = "round";
+                ctx.setLineDash([]);
+                var draftPath = new Path2D();
                 var d0 = imageToScreen(pts[0]);
-                ctx.moveTo(d0.x, d0.y);
+                draftPath.moveTo(d0.x, d0.y);
                 for (var i = 1; i < pts.length; i++) {
                   var di = imageToScreen(pts[i]);
-                  ctx.lineTo(di.x, di.y);
+                  draftPath.lineTo(di.x, di.y);
                 }
                 if (dormerDraftForRender.contour && dormerDraftForRender.contour.closed) {
-                  ctx.closePath();
+                  draftPath.closePath();
+                  ctx.fillStyle = PHASE2_DRAW_STYLE.rxContourFill;
+                  ctx.fill(draftPath);
                 }
-                ctx.stroke();
+                // Halo blanc puis couleur contour — identique au rendu committed
+                ctx.strokeStyle = PHASE2_DRAW_STYLE.rxHalo;
+                ctx.lineWidth = 3.8;
+                ctx.stroke(draftPath);
+                ctx.strokeStyle = PHASE2_DRAW_STYLE.rxContourStroke;
+                ctx.lineWidth = 1.7;
+                ctx.stroke(draftPath);
                 ctx.restore();
+                // Poignées de vertex colorées
                 for (var i = 0; i < pts.length; i++) {
-                  drawPointMarker(imageToScreen(pts[i]));
+                  var sc = imageToScreen(pts[i]);
+                  ctx.beginPath();
+                  ctx.rect(sc.x - 4.5, sc.y - 4.5, 9, 9);
+                  ctx.fillStyle = "#ffffff";
+                  ctx.strokeStyle = PHASE2_DRAW_STYLE.rxContourStroke;
+                  ctx.lineWidth = 1.8;
+                  ctx.fill();
+                  ctx.stroke();
                 }
               }
               if ((drawState.dormerStep === 2 || window.CALPINAGE_MODE === MODE_DORMER_CONTOUR) && pts.length > 0 && imgMousePt && (!dormerDraftForRender.contour || !dormerDraftForRender.contour.closed)) {
@@ -20881,37 +21101,55 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               }
               if (ridge && ridge.a) {
                 ctx.save();
-                ctx.strokeStyle = "#000000";
-                ctx.lineWidth = 2;
-                ctx.beginPath();
+                ctx.lineJoin = "round"; ctx.lineCap = "round"; ctx.setLineDash([]);
+                var ridgeDraftPath = new Path2D();
                 var sa = imageToScreen(ridge.a);
-                ctx.moveTo(sa.x, sa.y);
+                ridgeDraftPath.moveTo(sa.x, sa.y);
                 if (ridge.b) {
                   var sb = imageToScreen(ridge.b);
-                  ctx.lineTo(sb.x, sb.y);
+                  ridgeDraftPath.lineTo(sb.x, sb.y);
                 }
-                ctx.stroke();
+                ctx.strokeStyle = PHASE2_DRAW_STYLE.rxHalo;
+                ctx.lineWidth = 5.5;
+                ctx.stroke(ridgeDraftPath);
+                ctx.strokeStyle = PHASE2_DRAW_STYLE.rxRidgeStroke;
+                ctx.lineWidth = 2.0;
+                ctx.stroke(ridgeDraftPath);
+                // Poignées faîtage (losange)
+                [ridge.a, ridge.b].forEach(function (rpt) {
+                  if (!rpt) return;
+                  var rsc = imageToScreen(rpt);
+                  ctx.beginPath();
+                  ctx.moveTo(rsc.x, rsc.y - 5.5);
+                  ctx.lineTo(rsc.x + 5.5, rsc.y);
+                  ctx.lineTo(rsc.x, rsc.y + 5.5);
+                  ctx.lineTo(rsc.x - 5.5, rsc.y);
+                  ctx.closePath();
+                  ctx.fillStyle = "#ffffff";
+                  ctx.strokeStyle = PHASE2_DRAW_STYLE.rxRidgeStroke;
+                  ctx.lineWidth = 1.8;
+                  ctx.fill(); ctx.stroke();
+                });
                 ctx.restore();
-                drawPointMarker(imageToScreen(ridge.a));
-                if (ridge.b) drawPointMarker(imageToScreen(ridge.b));
               }
               var hips = dormerDraftForRender.hips;
               if (hips) {
                 ctx.save();
-                ctx.strokeStyle = "#000000";
-                ctx.lineWidth = 2;
-                if (hips.left && hips.left.a && hips.left.b) {
-                  ctx.beginPath();
-                  ctx.moveTo(imageToScreen(hips.left.a).x, imageToScreen(hips.left.a).y);
-                  ctx.lineTo(imageToScreen(hips.left.b).x, imageToScreen(hips.left.b).y);
-                  ctx.stroke();
-                }
-                if (hips.right && hips.right.a && hips.right.b) {
-                  ctx.beginPath();
-                  ctx.moveTo(imageToScreen(hips.right.a).x, imageToScreen(hips.right.a).y);
-                  ctx.lineTo(imageToScreen(hips.right.b).x, imageToScreen(hips.right.b).y);
-                  ctx.stroke();
-                }
+                ctx.lineJoin = "round"; ctx.lineCap = "round"; ctx.setLineDash([]);
+                var drawDraftHip = function (ha, hb) {
+                  if (!ha || !hb) return;
+                  var hipPath = new Path2D();
+                  hipPath.moveTo(imageToScreen(ha).x, imageToScreen(ha).y);
+                  hipPath.lineTo(imageToScreen(hb).x, imageToScreen(hb).y);
+                  ctx.strokeStyle = PHASE2_DRAW_STYLE.rxHalo;
+                  ctx.lineWidth = 3.5;
+                  ctx.stroke(hipPath);
+                  ctx.strokeStyle = PHASE2_DRAW_STYLE.rxHipStroke;
+                  ctx.lineWidth = 1.6;
+                  ctx.stroke(hipPath);
+                };
+                drawDraftHip(hips.left && hips.left.a, hips.left && hips.left.b);
+                drawDraftHip(hips.right && hips.right.a, hips.right && hips.right.b);
                 ctx.restore();
               }
               if (window.CALPINAGE_MODE === MODE_DORMER_RIDGE && ridge && ridge.a && !ridge.b && imgMousePt) {

@@ -6,6 +6,11 @@
  * - le faitage Phase 2 definit l'orientation quand il est disponible ;
  * - les aretiers Phase 2 restent des guides de dessin/compatibilite, mais ne sont plus interpretes
  *   comme des sommets 3D libres. C'est ce qui produisait les pyramides/tentes instables.
+ *
+ * Topologie mesh : pignon (gable dormer) avec faitage lateral, identique au chemin fallback.
+ *   - 4 murs verticaux (base ring -> hauteur mur)
+ *   - versant avant et versant arriere (2 quads)
+ *   - 2 pignons lateraux (triangles)
  */
 
 import * as THREE from "three";
@@ -58,14 +63,37 @@ function finiteNum(n: unknown): n is number {
   return typeof n === "number" && Number.isFinite(n);
 }
 
+/** Extrait le premier plan de toit avec equation valide (fallback Z). */
+function findFallbackPlane(
+  roofPlanePatches: readonly RoofPlanePatch3D[],
+): { normal: { x: number; y: number; z: number }; d: number } | null {
+  for (const patch of roofPlanePatches) {
+    const n = patch.equation?.normal;
+    const d = patch.equation?.d;
+    if (n && finiteNum(n.x) && finiteNum(n.y) && finiteNum(n.z) && Math.abs(n.z) > 1e-6 && finiteNum(d)) {
+      return { normal: { x: n.x, y: n.y, z: n.z }, d };
+    }
+  }
+  return null;
+}
+
+/**
+ * Convertit un point image en point 3D monde.
+ * Fallback automatique sur l'equation de plan si le sampler ne couvre pas ce pixel
+ * (evite le retour null qui bloquait tout le mesh).
+ */
 function imagePointToWorld3(
   p: Point2,
   roofModel: DormerRoofModelForMesh,
 ): Point3 | null {
   const { metersPerPixel, northAngleDeg } = roofModel.world;
-  const z = sampleRoofZAtImagePxFromPatches(p.x, p.y, roofModel.roofPlanePatches, roofModel.world);
-  if (z == null) return null;
   const w = imagePxToWorldHorizontalM(p.x, p.y, metersPerPixel, northAngleDeg);
+  let z = sampleRoofZAtImagePxFromPatches(p.x, p.y, roofModel.roofPlanePatches, roofModel.world);
+  if (z == null) {
+    const plane = findFallbackPlane(roofModel.roofPlanePatches);
+    if (plane) z = -((plane.normal.x * w.x + plane.normal.y * w.y + plane.d) / plane.normal.z);
+  }
+  if (z == null) return null;
   return [w.x, w.y, z];
 }
 
@@ -120,19 +148,27 @@ function makeWorldSampler(roofModel: DormerRoofModelForMesh): (x: number, y: num
   };
 }
 
+/**
+ * Construit le ring de base en coordonnees monde a partir des points contour (pixels image).
+ * Fallback sur l'equation de plan si sampleRoofZAtImagePxFromPatches ne couvre pas le point.
+ */
 function buildBaseRing(
   ring: readonly Point2[],
   roofModel: DormerRoofModelForMesh,
 ): Point3[] | null {
   const { metersPerPixel, northAngleDeg } = roofModel.world;
+  const fallbackPlane = findFallbackPlane(roofModel.roofPlanePatches);
   const out: Point3[] = [];
   for (const p of ring) {
-    const z = sampleRoofZAtImagePxFromPatches(p.x, p.y, roofModel.roofPlanePatches, roofModel.world);
+    const w = imagePxToWorldHorizontalM(p.x, p.y, metersPerPixel, northAngleDeg);
+    let z = sampleRoofZAtImagePxFromPatches(p.x, p.y, roofModel.roofPlanePatches, roofModel.world);
+    if (z == null && fallbackPlane) {
+      z = -((fallbackPlane.normal.x * w.x + fallbackPlane.normal.y * w.y + fallbackPlane.d) / fallbackPlane.normal.z);
+    }
     if (z == null) {
-      dormerAuditLog("GUARD: sampleRoofZ null on contour", { x: p.x, y: p.y });
+      dormerAuditLog("GUARD: sampleRoofZ null on contour (no fallback plane)", { x: p.x, y: p.y });
       return null;
     }
-    const w = imagePxToWorldHorizontalM(p.x, p.y, metersPerPixel, northAngleDeg);
     out.push([w.x, w.y, z]);
   }
   return out;
@@ -154,6 +190,7 @@ function pointAt(
 
 /**
  * Retourne une geometrie triangulee ou `null` si les donnees sont insuffisantes.
+ * Topologie : pignon (gable dormer) avec faitage lateral.
  */
 export function buildDormerMesh(ext: DormerRuntimeExtensionInput, roofModel: DormerRoofModelForMesh): THREE.BufferGeometry | null {
   if (ext.kind != null && ext.kind !== "dormer") {
@@ -281,34 +318,70 @@ export function buildDormerMesh(ext: DormerRuntimeExtensionInput, roofModel: Dor
 
   const modelRidgeA = ext.dormerModel?.ridge?.a;
   const modelRidgeB = ext.dormerModel?.ridge?.b;
-  if (validPoint(modelRidgeA) && validPoint(modelRidgeB)) {
+  const modelFrontA = ext.dormerModel?.front?.a;
+  const modelFrontB = ext.dormerModel?.front?.b;
+  const modelAxes = ext.dormerModel?.axes;
+  const modelBounds = ext.dormerModel?.bounds;
+  if (
+    validPoint(modelRidgeA) &&
+    validPoint(modelRidgeB) &&
+    validPoint(modelFrontA) &&
+    validPoint(modelFrontB) &&
+    finiteNum(modelAxes?.ux) &&
+    finiteNum(modelAxes?.uy) &&
+    finiteNum(modelAxes?.vx) &&
+    finiteNum(modelAxes?.vy) &&
+    finiteNum(modelBounds?.minU) &&
+    finiteNum(modelBounds?.maxU) &&
+    finiteNum(modelBounds?.minV) &&
+    finiteNum(modelBounds?.maxV)
+  ) {
     const ridgeBase0 = imagePointToWorld3(modelRidgeA, roofModel);
     const ridgeBase1 = imagePointToWorld3(modelRidgeB, roofModel);
-    if (ridgeBase0 && ridgeBase1) {
+    const frontBase0 = imagePointToWorld3(modelFrontA, roofModel);
+    const frontBase1 = imagePointToWorld3(modelFrontB, roofModel);
+    if (ridgeBase0 && ridgeBase1 && frontBase0 && frontBase1) {
+      const uxi = modelAxes.ux;
+      const uyi = modelAxes.uy;
+      const vxi = modelAxes.vx;
+      const vyi = modelAxes.vy;
+      const minUImg = modelBounds.minU;
+      const maxUImg = modelBounds.maxU;
+      const minVImg = modelBounds.minV;
+      const maxVImg = modelBounds.maxV;
+      const originImg = {
+        x: modelFrontA.x - uxi * minUImg - vxi * minVImg,
+        y: modelFrontA.y - uyi * minUImg - vyi * minVImg,
+      };
+      const imageAt = (u: number, v: number): Point2 => ({
+        x: originImg.x + uxi * u + vxi * v,
+        y: originImg.y + uyi * u + vyi * v,
+      });
+      const frontLeftBase = imagePointToWorld3(imageAt(minUImg, minVImg), roofModel);
+      const frontRightBase = imagePointToWorld3(imageAt(maxUImg, minVImg), roofModel);
+      const backRightBase = imagePointToWorld3(imageAt(maxUImg, maxVImg), roofModel);
+      const backLeftBase = imagePointToWorld3(imageAt(minUImg, maxVImg), roofModel);
+      if (!frontLeftBase || !frontRightBase || !backRightBase || !backLeftBase) return null;
+      const eFrontLeft: Point3 = [frontLeftBase[0], frontLeftBase[1], frontLeftBase[2] + wallH];
+      const eFrontRight: Point3 = [frontRightBase[0], frontRightBase[1], frontRightBase[2] + wallH];
+      const eBackRight: Point3 = [backRightBase[0], backRightBase[1], backRightBase[2] + wallH];
+      const eBackLeft: Point3 = [backLeftBase[0], backLeftBase[1], backLeftBase[2] + wallH];
+      // r0 = extremite GAUCHE du faitage lateral, r1 = extremite DROITE
       const r0: Point3 = [ridgeBase0[0], ridgeBase0[1], ridgeBase0[2] + finalTotalH];
       const r1: Point3 = [ridgeBase1[0], ridgeBase1[1], ridgeBase1[2] + finalTotalH];
-      const rdx = r1[0] - r0[0];
-      const rdy = r1[1] - r0[1];
-      const rLenSq = rdx * rdx + rdy * rdy;
-      const eaveRing: Point3[] = baseRing.map((p) => [p[0], p[1], p[2] + wallH]);
-      const ridgePointFor = (p: Point3): Point3 => {
-        if (rLenSq < 1e-8) return r0;
-        const t = clamp(((p[0] - r0[0]) * rdx + (p[1] - r0[1]) * rdy) / rLenSq, 0, 1);
-        return t < 0.5 ? r0 : r1;
-      };
       const positions: number[] = [];
       const indices: number[] = [];
-      for (let i = 0; i < baseRing.length; i++) {
-        pushQuad(positions, indices, baseRing[i]!, baseRing[(i + 1) % baseRing.length]!, eaveRing[(i + 1) % eaveRing.length]!, eaveRing[i]!);
-      }
-      for (let i = 0; i < eaveRing.length; i++) {
-        const a = eaveRing[i]!;
-        const b = eaveRing[(i + 1) % eaveRing.length]!;
-        const ra2 = ridgePointFor(a);
-        const rb2 = ridgePointFor(b);
-        if (ra2 === rb2) pushTri(positions, indices, a, b, ra2);
-        else pushQuad(positions, indices, a, b, rb2, ra2);
-      }
+      // Murs verticaux (base ring -> hauteur mur)
+      pushQuad(positions, indices, frontLeftBase, frontRightBase, eFrontRight, eFrontLeft);
+      pushQuad(positions, indices, frontRightBase, backRightBase, eBackRight, eFrontRight);
+      pushQuad(positions, indices, backRightBase, backLeftBase, eBackLeft, eBackRight);
+      pushQuad(positions, indices, backLeftBase, frontLeftBase, eFrontLeft, eBackLeft);
+      // Toiture : versant avant (facade -> faitage) et versant arriere (faitage -> arriere)
+      pushQuad(positions, indices, eFrontLeft, eFrontRight, r1, r0);
+      pushQuad(positions, indices, r0, r1, eBackRight, eBackLeft);
+      // Pignons : triangles verticaux gauche et droit
+      pushTri(positions, indices, eFrontLeft, r0, eBackLeft);
+      pushTri(positions, indices, eFrontRight, eBackRight, r1);
       const geo = new THREE.BufferGeometry();
       geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
       geo.setIndex(indices);
@@ -377,4 +450,50 @@ export function buildDormerEdgesGeometry(meshGeo: THREE.BufferGeometry): THREE.B
   } catch {
     return null;
   }
+}
+
+export function buildDormerFrontWindowGeometry(
+  ext: DormerRuntimeExtensionInput,
+  roofModel: DormerRoofModelForMesh,
+): THREE.BufferGeometry | null {
+  const modelFrontA = ext.dormerModel?.front?.a;
+  const modelFrontB = ext.dormerModel?.front?.b;
+  const modelRidgeA = ext.dormerModel?.ridge?.a;
+  if (!validPoint(modelFrontA) || !validPoint(modelFrontB) || !validPoint(modelRidgeA)) return null;
+  const a = imagePointToWorld3(modelFrontA, roofModel);
+  const b = imagePointToWorld3(modelFrontB, roofModel);
+  const r = imagePointToWorld3(modelRidgeA, roofModel);
+  if (!a || !b || !r) return null;
+  const totalH = clamp(finiteNum(ext.ridgeHeightRelM) ? ext.ridgeHeightRelM : 0.9, 0.55, 1.05);
+  const wallH = clamp(finiteNum(ext.wallHeightM) ? ext.wallHeightM : totalH * 0.38, 0.22, Math.min(0.48, totalH - 0.2));
+  const ux = b[0] - a[0];
+  const uy = b[1] - a[1];
+  const uLen = Math.hypot(ux, uy);
+  if (uLen < 0.15) return null;
+  const uxn = ux / uLen;
+  const uyn = uy / uLen;
+  const midX = (a[0] + b[0]) / 2;
+  const midY = (a[1] + b[1]) / 2;
+  let nx = midX - r[0];
+  let ny = midY - r[1];
+  const nLen = Math.hypot(nx, ny) || 1;
+  nx /= nLen;
+  ny /= nLen;
+  const zBase = (a[2] + b[2]) / 2;
+  const winHalf = Math.min(0.42, uLen * 0.24);
+  const z0 = zBase + Math.max(0.1, wallH * 0.2);
+  const z1 = zBase + Math.max(z0 + 0.08, wallH * 0.84);
+  const offset = 0.018;
+  const p0: Point3 = [midX - uxn * winHalf + nx * offset, midY - uyn * winHalf + ny * offset, z0];
+  const p1: Point3 = [midX + uxn * winHalf + nx * offset, midY + uyn * winHalf + ny * offset, z0];
+  const p2: Point3 = [midX + uxn * winHalf + nx * offset, midY + uyn * winHalf + ny * offset, z1];
+  const p3: Point3 = [midX - uxn * winHalf + nx * offset, midY - uyn * winHalf + ny * offset, z1];
+  const positions: number[] = [];
+  const indices: number[] = [];
+  pushQuad(positions, indices, p0, p1, p2, p3);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geo.setIndex(indices);
+  geo.computeVertexNormals();
+  return geo;
 }
