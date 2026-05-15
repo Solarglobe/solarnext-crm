@@ -480,6 +480,11 @@ function volumeTopCapGeometry(
   return geo;
 }
 
+function chimneyFlueOpeningGeometry(vol: SolarScene3D["obstacleVolumes"][number]): THREE.BufferGeometry | null {
+  if (vol.kind !== "chimney") return null;
+  return volumeTopCapGeometry(vol, 0.058, isRoundChimneyVolume(vol) ? 0.48 : 0.42);
+}
+
 function volumePlanMetrics(vol: SolarScene3D["obstacleVolumes"][number]): {
   readonly center: THREE.Vector3;
   readonly minRadius: number;
@@ -609,6 +614,23 @@ function roofWindowHighlightLineGeometry(vol: SolarScene3D["obstacleVolumes"][nu
   return geo;
 }
 
+function roofWindowSashLineGeometry(vol: SolarScene3D["obstacleVolumes"][number]): THREE.BufferGeometry | null {
+  const ring = scaleRingFromCenter(volumeRingAt(vol, 1, 0.043), 0.7);
+  if (ring.length < 4) return null;
+  const positions: number[] = [];
+  const lerp = (a: THREE.Vector3, b: THREE.Vector3, t: number) => new THREE.Vector3().lerpVectors(a, b, t);
+  const push = (a: THREE.Vector3, b: THREE.Vector3) => positions.push(a.x, a.y, a.z, b.x, b.y, b.z);
+  const p0 = ring[0]!;
+  const p1 = ring[1]!;
+  const p2 = ring[2]!;
+  const p3 = ring[3]!;
+  push(lerp(p0, p1, 0.5), lerp(p3, p2, 0.5));
+  push(lerp(p0, p3, 0.5), lerp(p1, p2, 0.5));
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  return geo;
+}
+
 function roofWindowGreyFrameGeometry(vol: SolarScene3D["obstacleVolumes"][number]): THREE.BufferGeometry | null {
   const ring = volumeRingAt(vol, 1, 0.038);
   if (ring.length < 4) return null;
@@ -643,6 +665,22 @@ function keepoutHatchLineGeometry(vol: SolarScene3D["obstacleVolumes"][number]):
     const t = i / 6;
     push(lerp(p0, p3, t), lerp(p1, p2, t));
     push(lerp(p0, p1, t), lerp(p3, p2, t));
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  return geo;
+}
+
+function keepoutCornerMarkLineGeometry(vol: SolarScene3D["obstacleVolumes"][number]): THREE.BufferGeometry | null {
+  const ring = volumeRingAt(vol, 1, 0.052);
+  if (ring.length < 4) return null;
+  const positions: number[] = [];
+  const push = (a: THREE.Vector3, b: THREE.Vector3) => positions.push(a.x, a.y, a.z, b.x, b.y, b.z);
+  for (let i = 0; i < ring.length; i++) {
+    const prev = ring[(i - 1 + ring.length) % ring.length]!;
+    const cur = ring[i]!;
+    const next = ring[(i + 1) % ring.length]!;
+    push(cur.clone().lerp(prev, 0.18), cur.clone().lerp(next, 0.18));
   }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
@@ -772,10 +810,12 @@ function antennaLineGeometry(vol: SolarScene3D["obstacleVolumes"][number]): THRE
 
 function roofObstacleDetailGeometries(vol: SolarScene3D["obstacleVolumes"][number]): {
   readonly topCap: THREE.BufferGeometry | null;
+  readonly chimneyFlueOpening: THREE.BufferGeometry | null;
   readonly edgeLines: THREE.BufferGeometry | null;
   readonly brickLines: THREE.BufferGeometry | null;
   readonly windowFrame: THREE.BufferGeometry | null;
   readonly windowHighlight: THREE.BufferGeometry | null;
+  readonly windowSashLines: THREE.BufferGeometry | null;
   readonly windowOuterFrame: THREE.BufferGeometry | null;
   readonly vmcCap: THREE.BufferGeometry | null;
   readonly vmcVentLines: THREE.BufferGeometry | null;
@@ -784,6 +824,7 @@ function roofObstacleDetailGeometries(vol: SolarScene3D["obstacleVolumes"][numbe
   readonly roundChimneyBody: THREE.BufferGeometry | null;
   readonly roundChimneyLines: THREE.BufferGeometry | null;
   readonly keepoutHatch: THREE.BufferGeometry | null;
+  readonly keepoutCornerMarks: THREE.BufferGeometry | null;
   readonly allEdgeLines: THREE.BufferGeometry | null;
   readonly shadowVolumeRays: THREE.BufferGeometry | null;
   readonly replaceBaseMesh: boolean;
@@ -794,10 +835,12 @@ function roofObstacleDetailGeometries(vol: SolarScene3D["obstacleVolumes"][numbe
     topCap: (vol.kind === "chimney" && !roundChimney) || vol.visualRole === "roof_window_flush"
       ? volumeTopCapGeometry(vol, vol.kind === "chimney" ? 0.045 : 0.024, vol.kind === "chimney" ? 1.12 : 0.6)
       : null,
+    chimneyFlueOpening: vol.kind === "chimney" ? chimneyFlueOpeningGeometry(vol) : null,
     edgeLines: vol.visualRole === "roof_window_flush" ? null : volumeLoopLineGeometry(topRing),
     brickLines: vol.kind === "chimney" && !roundChimney ? chimneyBrickLineGeometry(vol) : null,
     windowFrame: vol.visualRole === "roof_window_flush" ? roofWindowFrameGeometry(vol) : null,
     windowHighlight: vol.visualRole === "roof_window_flush" ? roofWindowHighlightLineGeometry(vol) : null,
+    windowSashLines: vol.visualRole === "roof_window_flush" ? roofWindowSashLineGeometry(vol) : null,
     windowOuterFrame: vol.visualRole === "roof_window_flush" ? roofWindowGreyFrameGeometry(vol) : null,
     vmcCap: vol.kind === "hvac" ? vmcCapGeometry(vol) : null,
     vmcVentLines: vol.kind === "hvac" ? vmcVentLineGeometry(vol) : null,
@@ -806,6 +849,7 @@ function roofObstacleDetailGeometries(vol: SolarScene3D["obstacleVolumes"][numbe
     roundChimneyBody: roundChimney ? roundChimneyBodyGeometry(vol) : null,
     roundChimneyLines: roundChimney ? roundChimneyRingLineGeometry(vol) : null,
     keepoutHatch: vol.visualRole === "keepout_surface" ? keepoutHatchLineGeometry(vol) : null,
+    keepoutCornerMarks: vol.visualRole === "keepout_surface" ? keepoutCornerMarkLineGeometry(vol) : null,
     allEdgeLines: volumeAllEdgeLineGeometry(vol, vol.visualRole === "keepout_surface" ? 0.028 : 0.012),
     shadowVolumeRays: shadowVolumeRayGeometry(vol),
     replaceBaseMesh: roundChimney || vol.kind === "antenna",
@@ -2352,10 +2396,12 @@ function ViewerSceneContent({
       ...obsGeos.flatMap((x) => [
         x.geo,
         x.details.topCap,
+        x.details.chimneyFlueOpening,
         x.details.edgeLines,
         x.details.brickLines,
         x.details.windowFrame,
         x.details.windowHighlight,
+        x.details.windowSashLines,
         x.details.windowOuterFrame,
         x.details.vmcCap,
         x.details.vmcVentLines,
@@ -2364,6 +2410,7 @@ function ViewerSceneContent({
         x.details.roundChimneyBody,
         x.details.roundChimneyLines,
         x.details.keepoutHatch,
+        x.details.keepoutCornerMarks,
         x.details.allEdgeLines,
         x.details.shadowVolumeRays,
       ].filter((g): g is THREE.BufferGeometry => g != null)),
@@ -2747,6 +2794,23 @@ function ViewerSceneContent({
                   />
                 </mesh>
               ) : null}
+              {details.chimneyFlueOpening ? (
+                <mesh geometry={details.chimneyFlueOpening} renderOrder={11}>
+                  <meshStandardMaterial
+                    color="#1c1412"
+                    metalness={0.02}
+                    roughness={0.88}
+                    transparent
+                    opacity={0.96}
+                    emissive="#140f0d"
+                    emissiveIntensity={0.06}
+                    side={THREE.DoubleSide}
+                    polygonOffset
+                    polygonOffsetFactor={-4}
+                    polygonOffsetUnits={-4}
+                  />
+                </mesh>
+              ) : null}
               {details.brickLines ? (
                 <lineSegments geometry={details.brickLines} renderOrder={9}>
                   <lineBasicMaterial
@@ -2821,6 +2885,17 @@ function ViewerSceneContent({
                   />
                 </lineSegments>
               ) : null}
+              {details.keepoutCornerMarks ? (
+                <lineSegments geometry={details.keepoutCornerMarks} renderOrder={13}>
+                  <lineBasicMaterial
+                    color="#fff7ad"
+                    transparent
+                    opacity={0.95}
+                    toneMapped={false}
+                    depthTest
+                  />
+                </lineSegments>
+              ) : null}
               {details.shadowVolumeRays ? (
                 <lineSegments geometry={details.shadowVolumeRays} renderOrder={7}>
                   <lineBasicMaterial
@@ -2845,6 +2920,17 @@ function ViewerSceneContent({
                     polygonOffsetUnits={-3}
                   />
                 </mesh>
+              ) : null}
+              {details.windowSashLines ? (
+                <lineSegments geometry={details.windowSashLines} renderOrder={12}>
+                  <lineBasicMaterial
+                    color="#d8e5ee"
+                    transparent
+                    opacity={0.72}
+                    toneMapped={false}
+                    depthTest
+                  />
+                </lineSegments>
               ) : null}
               {details.windowHighlight ? (
                 <lineSegments geometry={details.windowHighlight} renderOrder={12}>
