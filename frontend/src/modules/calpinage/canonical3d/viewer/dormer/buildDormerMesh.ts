@@ -79,6 +79,52 @@ function pushQuad(
   pushTri(positions, indices, a[0], a[1], a[2], c[0], c[1], c[2], d[0], d[1], d[2]);
 }
 
+function dist2d(a: { readonly x: number; readonly y: number }, b: { readonly x: number; readonly y: number }): number {
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+function nearestRingIndex(ring: readonly { readonly x: number; readonly y: number }[], p: { readonly x: number; readonly y: number }): number {
+  let best = 0;
+  let bestD = Infinity;
+  for (let i = 0; i < ring.length; i++) {
+    const d = dist2d(ring[i]!, p);
+    if (d < bestD) {
+      best = i;
+      bestD = d;
+    }
+  }
+  return best;
+}
+
+function ringPath(from: number, to: number, count: number, clockwise: boolean): number[] {
+  const out: number[] = [];
+  let i = from;
+  for (let guard = 0; guard <= count; guard++) {
+    out.push(i);
+    if (i === to) break;
+    i = clockwise ? (i + 1) % count : (i - 1 + count) % count;
+  }
+  return out;
+}
+
+function pathAvoiding(from: number, to: number, count: number, avoid: number): number[] {
+  const cw = ringPath(from, to, count, true);
+  const ccw = ringPath(from, to, count, false);
+  const cwAvoids = !cw.slice(1, -1).includes(avoid);
+  const ccwAvoids = !ccw.slice(1, -1).includes(avoid);
+  if (cwAvoids && !ccwAvoids) return cw;
+  if (ccwAvoids && !cwAvoids) return ccw;
+  return cw.length <= ccw.length ? cw : ccw;
+}
+
+function lerp3(a: readonly [number, number, number], b: readonly [number, number, number], t: number): [number, number, number] {
+  return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+}
+
+function validPoint(p: { readonly x?: number; readonly y?: number } | undefined): p is { readonly x: number; readonly y: number } {
+  return !!p && finiteNum(p.x) && finiteNum(p.y);
+}
+
 /**
  * @returns géométrie triangulée ou `null` si données insuffisantes / type non supporté (repli viewer : ancien prismatique).
  */
@@ -223,30 +269,83 @@ export function buildDormerMesh(ext: DormerRuntimeExtensionInput, roofModel: Dor
       : Math.max(0.18, Math.min(ridgeH * 0.42, depthGuess * 0.32));
 
   const eaveRing: [number, number, number][] = baseRing.map((p) => [p[0], p[1], p[2] + wallH]);
-  const ridgeHalfLength = Math.max(0.16, Math.min(0.55, spanU * 0.22));
-  const R0t: [number, number, number] = [cx - ux * ridgeHalfLength, cy - uy * ridgeHalfLength, cz + ridgeH];
-  const R1t: [number, number, number] = [cx + ux * ridgeHalfLength, cy + uy * ridgeHalfLength, cz + ridgeH];
-  const ridgePointFor = (i: number): [number, number, number] => {
-    const p = baseRing[i]!;
-    const u = (p[0] - cx) * ux + (p[1] - cy) * uy;
-    return u < 0 ? R0t : R1t;
-  };
 
   const positions: number[] = [];
   const indices: number[] = [];
 
-  for (let i = 0; i < n; i++) {
-    pushQuad(positions, indices, baseRing[i]!, baseRing[(i + 1) % n]!, eaveRing[(i + 1) % n]!, eaveRing[i]!);
-  }
-  for (let i = 0; i < n; i++) {
-    const a = eaveRing[i]!;
-    const b = eaveRing[(i + 1) % n]!;
-    const rA = ridgePointFor(i);
-    const rB = ridgePointFor((i + 1) % n);
-    if (rA === rB) {
-      pushTri(positions, indices, a[0], a[1], a[2], b[0], b[1], b[2], rA[0], rA[1], rA[2]);
-    } else {
-      pushQuad(positions, indices, a, b, rB, rA);
+  const leftHipA = ext.hips?.left?.a;
+  const rightHipA = ext.hips?.right?.a;
+  const hipPeak = validPoint(ext.hips?.left?.b) ? ext.hips.left.b : validPoint(ext.hips?.right?.b) ? ext.hips.right.b : ra;
+  if (validPoint(leftHipA) && validPoint(rightHipA) && validPoint(hipPeak)) {
+    const ridgeEnd = { x: rb.x, y: rb.y };
+    const apexIdx = nearestRingIndex(ring, ridgeEnd);
+    const leftIdx = nearestRingIndex(ring, leftHipA);
+    const rightIdx = nearestRingIndex(ring, rightHipA);
+    const peakBaseZ = sampleZ(hipPeak.x, hipPeak.y);
+    if (peakBaseZ == null) {
+      dormerAuditLog("GUARD: sampleRoofZ null on dormer peak", { x: hipPeak.x, y: hipPeak.y });
+      return null;
+    }
+    const peakWorld = imagePxToWorldHorizontalM(hipPeak.x, hipPeak.y, mpp, north);
+    const peakTop: [number, number, number] = [peakWorld.x, peakWorld.y, peakBaseZ + ridgeH];
+    const apexTop: [number, number, number] = [baseRing[apexIdx]![0], baseRing[apexIdx]![1], baseRing[apexIdx]![2] + ridgeH];
+    const topRing = eaveRing.map((p, i) => (i === apexIdx ? apexTop : p));
+
+    for (let i = 0; i < n; i++) {
+      pushQuad(positions, indices, baseRing[i]!, baseRing[(i + 1) % n]!, topRing[(i + 1) % n]!, topRing[i]!);
+    }
+
+    const leftPath = pathAvoiding(leftIdx, apexIdx, n, rightIdx);
+    const rightPath = pathAvoiding(apexIdx, rightIdx, n, leftIdx);
+    const frontPath = pathAvoiding(rightIdx, leftIdx, n, apexIdx);
+    for (let i = 0; i < leftPath.length - 1; i++) {
+      const t0 = i / Math.max(1, leftPath.length - 1);
+      const t1 = (i + 1) / Math.max(1, leftPath.length - 1);
+      pushQuad(positions, indices, topRing[leftPath[i]!]!, topRing[leftPath[i + 1]!]!, lerp3(peakTop, apexTop, t1), lerp3(peakTop, apexTop, t0));
+    }
+    for (let i = 0; i < rightPath.length - 1; i++) {
+      const t0 = i / Math.max(1, rightPath.length - 1);
+      const t1 = (i + 1) / Math.max(1, rightPath.length - 1);
+      pushQuad(positions, indices, topRing[rightPath[i]!]!, topRing[rightPath[i + 1]!]!, lerp3(apexTop, peakTop, t1), lerp3(apexTop, peakTop, t0));
+    }
+    for (let i = 0; i < frontPath.length - 1; i++) {
+      pushTri(
+        positions,
+        indices,
+        topRing[frontPath[i]!]![0],
+        topRing[frontPath[i]!]![1],
+        topRing[frontPath[i]!]![2],
+        topRing[frontPath[i + 1]!]![0],
+        topRing[frontPath[i + 1]!]![1],
+        topRing[frontPath[i + 1]!]![2],
+        peakTop[0],
+        peakTop[1],
+        peakTop[2],
+      );
+    }
+  } else {
+    const ridgeHalfLength = Math.max(0.16, Math.min(0.55, spanU * 0.22));
+    const R0t: [number, number, number] = [cx - ux * ridgeHalfLength, cy - uy * ridgeHalfLength, cz + ridgeH];
+    const R1t: [number, number, number] = [cx + ux * ridgeHalfLength, cy + uy * ridgeHalfLength, cz + ridgeH];
+    const ridgePointFor = (i: number): [number, number, number] => {
+      const p = baseRing[i]!;
+      const u = (p[0] - cx) * ux + (p[1] - cy) * uy;
+      return u < 0 ? R0t : R1t;
+    };
+
+    for (let i = 0; i < n; i++) {
+      pushQuad(positions, indices, baseRing[i]!, baseRing[(i + 1) % n]!, eaveRing[(i + 1) % n]!, eaveRing[i]!);
+    }
+    for (let i = 0; i < n; i++) {
+      const a = eaveRing[i]!;
+      const b = eaveRing[(i + 1) % n]!;
+      const rA = ridgePointFor(i);
+      const rB = ridgePointFor((i + 1) % n);
+      if (rA === rB) {
+        pushTri(positions, indices, a[0], a[1], a[2], b[0], b[1], b[2], rA[0], rA[1], rA[2]);
+      } else {
+        pushQuad(positions, indices, a, b, rB, rA);
+      }
     }
   }
 
