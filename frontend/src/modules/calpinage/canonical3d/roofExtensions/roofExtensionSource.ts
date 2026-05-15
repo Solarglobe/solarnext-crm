@@ -2,6 +2,7 @@ import type { RoofExtensionKind } from "../types/extension";
 import {
   intersectInfiniteLines2D,
   pointsCoincidePx,
+  quantizeRoofExtensionImagePxCoord,
   stableApexId,
   type RoofExtensionApexPersisted,
 } from "../../runtime/roofExtensionApex";
@@ -151,8 +152,8 @@ function readPersistedApexVertex(raw: Record<string, unknown>, extensionId: stri
   const h = finiteNumber(av.h);
   return {
     id: vid,
-    x,
-    y,
+    x: quantizeRoofExtensionImagePxCoord(x),
+    y: quantizeRoofExtensionImagePxCoord(y),
     ...(h != null && h >= 0 ? { h } : {}),
   };
 }
@@ -187,8 +188,8 @@ function deriveApexFromHipsSegments(
   if (!ix) return null;
   const out: RoofExtensionApexPersisted = {
     id: stableApexId(extensionId),
-    x: ix.x,
-    y: ix.y,
+    x: quantizeRoofExtensionImagePxCoord(ix.x),
+    y: quantizeRoofExtensionImagePxCoord(ix.y),
   };
   if (ridgeHeightRelM != null) return { ...out, h: ridgeHeightRelM };
   return out;
@@ -210,8 +211,8 @@ function resolveApexVertex(
   if (legacyRo) {
     const out: RoofExtensionApexPersisted = {
       id: stableApexId(extensionId),
-      x: legacyRo.x,
-      y: legacyRo.y,
+      x: quantizeRoofExtensionImagePxCoord(legacyRo.x),
+      y: quantizeRoofExtensionImagePxCoord(legacyRo.y),
     };
     if (ridgeHeightRelM != null) return { ...out, h: ridgeHeightRelM };
     return out;

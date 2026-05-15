@@ -1,6 +1,6 @@
 /**
  * Sommet central unique du chien assis : intersection des arêtiers (plans infinis en 2D image).
- * Aligné sur la géométrie legacy `intersectLines` (calpinage.module.js).
+ * Aligné sur la géométrie legacy `calpinage.module.js`.
  */
 
 export interface RoofExtensionApexPersisted {
@@ -10,6 +10,17 @@ export interface RoofExtensionApexPersisted {
   readonly y: number;
   /** Hauteur métrique relative au pan support (optionnel ; pilotée souvent par ridgeHeightRelM). */
   readonly h?: number;
+}
+
+/** Doit rester aligné avec `quantizeRoofExtensionImagePxCoord` dans calpinage.module.js */
+export const ROOF_EXTENSION_IMAGE_COORD_DECIMALS = 4;
+
+export function quantizeRoofExtensionImagePxCoord(
+  value: number,
+  decimals: number = ROOF_EXTENSION_IMAGE_COORD_DECIMALS,
+): number {
+  const f = 10 ** decimals;
+  return Math.round(value * f) / f;
 }
 
 export function intersectInfiniteLines2D(
@@ -36,16 +47,25 @@ export function intersectInfiniteLines2D(
   };
 }
 
-/** Tolérance pixels image : coincide après sync legacy ; tolère léger jitter float JSON */
-export const ROOF_EXTENSION_APEX_PIXEL_MERGE_TOL = 0.5;
+/**
+ * Tolérance pixels image pour considérer deux points comme le même sommet apex.
+ * Alignée sur le plancher du snap dormer legacy (~15 px, voir getDormerSnapToleranceImg).
+ * Les coordonnées quantifiées après sync rendent souvent cette tolérance inutile ; elle couvre rechargements / anciens états.
+ */
+export const ROOF_EXTENSION_APEX_PIXEL_MERGE_TOL = 15;
 
 export function pointsCoincidePx(
   ax: number,
   ay: number,
   bx: number,
   by: number,
-  tolPx = ROOF_EXTENSION_APEX_PIXEL_MERGE_TOL,
+  tolPx: number = ROOF_EXTENSION_APEX_PIXEL_MERGE_TOL,
 ): boolean {
+  const qax = quantizeRoofExtensionImagePxCoord(ax);
+  const qay = quantizeRoofExtensionImagePxCoord(ay);
+  const qbx = quantizeRoofExtensionImagePxCoord(bx);
+  const qby = quantizeRoofExtensionImagePxCoord(by);
+  if (qax === qbx && qay === qby) return true;
   return Math.hypot(ax - bx, ay - by) <= tolPx;
 }
 

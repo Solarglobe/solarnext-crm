@@ -4438,6 +4438,28 @@ export function initCalpinage(container, options = {}) {
         var scale = (typeof vp !== "undefined" && vp && typeof vp.scale === "number" && vp.scale > 0) ? vp.scale : 1;
         return Math.max(15, 20 / scale);
       }
+
+      /** Aligné sur ROOF_EXTENSION_IMAGE_COORD_DECIMALS / quantizeRoofExtensionImagePxCoord (roofExtensionApex.ts). */
+      function quantizeRoofExtensionImagePxCoord(v) {
+        var f = 10000;
+        return Math.round(Number(v) * f) / f;
+      }
+
+      /**
+       * Fin du 2e arêtier : priorité au sommet d'intersection (apex), puis segment du 1er arêtier.
+       */
+      function snapDormerSecondHipEndPt(imgPt, left, rightA) {
+        var baseTol = getDormerSnapToleranceImg();
+        var tolApex = Math.max(baseTol * 2.25, 36);
+        var fromIntersect = intersectLines(left.a, left.b, rightA, imgPt);
+        if (fromIntersect && Math.hypot(imgPt.x - fromIntersect.x, imgPt.y - fromIntersect.y) <= tolApex) {
+          return { pt: fromIntersect, snapKind: "apex" };
+        }
+        var seg = snapToSegment(imgPt, left.a, left.b, baseTol);
+        if (seg) return { pt: seg, snapKind: "segment" };
+        return { pt: { x: imgPt.x, y: imgPt.y }, snapKind: "free" };
+      }
+
       function warnDormerSnapMiss(message) {
         if (drawState.dormerSnapWarnUntil && Date.now() < drawState.dormerSnapWarnUntil) return;
         drawState.dormerSnapWarnUntil = Date.now() + 900;
@@ -4460,7 +4482,8 @@ export function initCalpinage(container, options = {}) {
         var apexXY = null;
         if (rx.hips && rx.hips.left && rx.hips.right && rx.hips.left.a && rx.hips.left.b && rx.hips.right.a && rx.hips.right.b) {
           apexXY = intersectLines(rx.hips.left.a, rx.hips.left.b, rx.hips.right.a, rx.hips.right.b);
-          if (apexXY && rx.hips.left.b && rx.hips.right.b) {
+          if (apexXY) {
+            apexXY = { x: quantizeRoofExtensionImagePxCoord(apexXY.x), y: quantizeRoofExtensionImagePxCoord(apexXY.y) };
             rx.hips.left.b.x = apexXY.x;
             rx.hips.left.b.y = apexXY.y;
             rx.hips.right.b.x = apexXY.x;
@@ -4468,7 +4491,10 @@ export function initCalpinage(container, options = {}) {
           }
         }
         if (!apexXY && rx.ridgeOrigin && typeof rx.ridgeOrigin.x === "number" && typeof rx.ridgeOrigin.y === "number") {
-          apexXY = { x: rx.ridgeOrigin.x, y: rx.ridgeOrigin.y };
+          apexXY = {
+            x: quantizeRoofExtensionImagePxCoord(rx.ridgeOrigin.x),
+            y: quantizeRoofExtensionImagePxCoord(rx.ridgeOrigin.y),
+          };
         }
         if (!apexXY) {
           delete rx.apexVertex;
@@ -4481,18 +4507,20 @@ export function initCalpinage(container, options = {}) {
         if (apexH != null && apexH >= 0) rx.apexVertex.h = apexH;
 
         if (rx.ridge && rx.ridge.a && rx.ridge.b && apexXY) {
-          var da = Math.hypot(rx.ridge.a.x - apexXY.x, rx.ridge.a.y - apexXY.y);
-          var db = Math.hypot(rx.ridge.b.x - apexXY.x, rx.ridge.b.y - apexXY.y);
+          var qax = apexXY.x;
+          var qay = apexXY.y;
+          var da = Math.hypot(rx.ridge.a.x - qax, rx.ridge.a.y - qay);
+          var db = Math.hypot(rx.ridge.b.x - qax, rx.ridge.b.y - qay);
           var tolMerge = Math.max(36, getDormerSnapToleranceImg() * 2.5);
           var dMin = Math.min(da, db);
           if (dMin <= tolMerge) {
             if (da <= db) {
-              rx.ridge.a.x = apexXY.x;
-              rx.ridge.a.y = apexXY.y;
+              rx.ridge.a.x = qax;
+              rx.ridge.a.y = qay;
               if (ridgeH != null) rx.ridge.a.h = ridgeH;
             } else {
-              rx.ridge.b.x = apexXY.x;
-              rx.ridge.b.y = apexXY.y;
+              rx.ridge.b.x = qax;
+              rx.ridge.b.y = qay;
               if (ridgeH != null) rx.ridge.b.h = ridgeH;
             }
           }
@@ -17072,23 +17100,21 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
                 return;
               }
-              /* 4e clic : fin 2e arêtier.
-               * Snap prioritaire : point d'intersection live des deux arêtiers (sommet du chien assis).
-               * Fallback : snap sur segment du 1er arêtier, puis point libre. */
+              /* 4e clic : fin 2e arêtier — priorité au sommet apex (intersection des deux arêtiers),
+               * puis snap segment du 1er arêtier ; sync aligne hips.left.b / hips.right.b / apexVertex. */
               if (draft.hips.right.b === null) {
-                var _liveIntersect = intersectLines(draft.hips.left.a, draft.hips.left.b, draft.hips.right.a, imgPt);
-                var _snapIntersect = (_liveIntersect && Math.hypot(imgPt.x - _liveIntersect.x, imgPt.y - _liveIntersect.y) <= _hipsTolSnap)
-                  ? _liveIntersect : null;
-                var snapOnFirst = !_snapIntersect
-                  ? snapToSegment(imgPt, draft.hips.left.a, draft.hips.left.b, _hipsTolSnap)
-                  : null;
-                var _hip4end = _snapIntersect || snapOnFirst || imgPt;
-                draft.hips.right.b = { x: _hip4end.x, y: _hip4end.y };
+                var _snapEnd = snapDormerSecondHipEndPt(imgPt, draft.hips.left, draft.hips.right.a);
+                draft.hips.right.b = { x: _snapEnd.pt.x, y: _snapEnd.pt.y };
                 var intersection = intersectLines(
                   draft.hips.left.a, draft.hips.left.b,
                   draft.hips.right.a, draft.hips.right.b
                 );
-                draft.ridgeOrigin = intersection;
+                if (intersection) {
+                  draft.ridgeOrigin = { x: intersection.x, y: intersection.y };
+                } else if (draft.hips.right.b) {
+                  draft.ridgeOrigin = { x: draft.hips.right.b.x, y: draft.hips.right.b.y };
+                }
+                syncRoofExtensionSharedApex(draft);
                 draft.stage = draft.ridge && draft.ridge.a && draft.ridge.b ? "COMPLETE" : "HIPS";
                 rebuildDormerCanonicalGeometry(draft);
                 drawState.dormerEditRxIndex = null;
@@ -22708,28 +22734,17 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                     ctx.fill();
                   }
                 } else if (hips.right && hips.right.b === null) {
-                  /* Clic 4 : snap prioritaire sur intersection live (sommet du chien assis),
-                   * fallback sur segment du 1er arêtier. */
-                  var _livePtPrev = hips.left && hips.left.a && hips.left.b
-                    ? intersectLines(hips.left.a, hips.left.b, hips.right.a, imgMousePt)
-                    : null;
-                  var snapIntersectPrev = (_livePtPrev
-                    && Math.hypot(imgMousePt.x - _livePtPrev.x, imgMousePt.y - _livePtPrev.y) <= _hpTolPrev)
-                    ? _livePtPrev : null;
-                  var snapOnFirst = !snapIntersectPrev
-                    ? snapToSegment(imgMousePt, hips.left.a, hips.left.b, _hpTolPrev)
-                    : null;
-                  var bestSnap4 = snapIntersectPrev || snapOnFirst;
-                  if (bestSnap4) drawState.dormerSnapActive = true;
-                  var endPt = bestSnap4 || imgMousePt;
-                  ctx.strokeStyle = bestSnap4 ? "#00aa00" : "#666";
+                  /* Clic 4 : priorité apex (intersection), puis segment 1er arêtier */
+                  var _sn4 = snapDormerSecondHipEndPt(imgMousePt, hips.left, hips.right.a);
+                  if (_sn4.snapKind === "apex" || _sn4.snapKind === "segment") drawState.dormerSnapActive = true;
+                  var endPt = _sn4.pt;
+                  ctx.strokeStyle = (_sn4.snapKind === "apex" || _sn4.snapKind === "segment") ? "#00aa00" : "#666";
                   ctx.beginPath();
                   ctx.moveTo(imageToScreen(hips.right.a).x, imageToScreen(hips.right.a).y);
                   ctx.lineTo(imageToScreen(endPt).x, imageToScreen(endPt).y);
                   ctx.stroke();
-                  if (snapIntersectPrev) {
-                    /* Indicateur jaune = sommet du chien assis */
-                    var _sc4 = imageToScreen(snapIntersectPrev);
+                  if (_sn4.snapKind === "apex") {
+                    var _sc4 = imageToScreen(endPt);
                     ctx.beginPath();
                     ctx.arc(_sc4.x, _sc4.y, 7, 0, Math.PI * 2);
                     ctx.fillStyle = "#facc15";
@@ -22738,9 +22753,9 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                     ctx.lineWidth = 1.5;
                     ctx.setLineDash([]);
                     ctx.stroke();
-                  } else if (snapOnFirst) {
+                  } else if (_sn4.snapKind === "segment") {
                     ctx.beginPath();
-                    ctx.arc(imageToScreen(snapOnFirst).x, imageToScreen(snapOnFirst).y, 5, 0, Math.PI * 2);
+                    ctx.arc(imageToScreen(endPt).x, imageToScreen(endPt).y, 5, 0, Math.PI * 2);
                     ctx.fillStyle = "#00aa00";
                     ctx.fill();
                   }
@@ -22757,7 +22772,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 text = "Tracez le contour - cliquez pres du 1er point pour fermer";
               }
               if (window.CALPINAGE_MODE === MODE_DORMER_HIPS) {
-                text = "1er arêtier : contour → intérieur | 2e arêtier : contour → snap sur 1er";
+                text = "Arêtier : contour vers apex — le 2e clic final magnetise le sommet central";
               }
               if (window.CALPINAGE_MODE === MODE_DORMER_RIDGE) {
                 text = "Cliquez pour définir l'extrémité du faîtage";
