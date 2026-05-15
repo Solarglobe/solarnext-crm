@@ -67,6 +67,7 @@ import {
 import type { PlacementEngineLike } from "../integration/enrichPanelsForCanonicalShading";
 import type { AutopsyLegacyRoofPath } from "./dev/runtime3DAutopsy";
 import { dump3DRuntimePreViewer, resetAutopsyLegacyRoofPath } from "./dev/runtime3DAutopsy";
+import { reportOfficialSolarPipelineFailure } from "./dev/officialSolarScenePipelineFailure";
 import type { MapCalpinageRoofToLegacyRoofGeometryInputOptions } from "../integration/mapCalpinageToCanonicalNearShading";
 import { rememberOfficialRoofModelForNearShading } from "../integration/officialRoofModelNearShadingCache";
 import { buildValidatedCanonicalScene3DInputWithOfficialRoofTruth } from "./scene/buildValidatedCanonicalScene3DInputWithOfficialRoofTruth";
@@ -436,6 +437,18 @@ export function buildSolarScene3DFromCalpinageRuntime(
     });
 
     if (!roofTruthPipe.ok) {
+      reportOfficialSolarPipelineFailure({
+        where: "buildSolarScene3DFromCalpinageRuntimeCore",
+        stage:
+          roofTruthPipe.stage === "pre_roof_validation"
+            ? "roof_truth_gate_PRE_ROOF_VALIDATION"
+            : roofTruthPipe.stage === "roof_truth_build"
+              ? "roof_truth_gate_ROOF_TRUTH_BUILD"
+              : "roof_truth_gate_POST_DERIVATION_VALIDATION",
+        diagnostics: roofTruthPipe.diagnostics,
+        roofTruthStage: roofTruthPipe.stage,
+        extra: { autopsyLegacyPath: roofTruthPipe.autopsyLegacyPath ?? null },
+      });
       const stage = roofTruthPipe.stage;
       if (stage === "pre_roof_validation") {
         dumpPipelineDiagnostics(runtime, null, null);
@@ -518,6 +531,12 @@ export function buildSolarScene3DFromCalpinageRuntime(
     );
     const validationMerged = validateCanonicalScene3DInput(mergedScene, validateOpts);
     if (!validationMerged.ok || !validationMerged.scene) {
+      reportOfficialSolarPipelineFailure({
+        where: "buildSolarScene3DFromCalpinageRuntimeCore",
+        stage: "validateCanonicalScene3DInput_after_panel_merge",
+        diagnostics: validationMerged.diagnostics,
+        extra: { sceneAfterMergeNull: validationMerged.scene == null },
+      });
       dumpPipelineDiagnostics(runtime, legacy, roofRes);
       if (import.meta.env.DEV) {
         console.log("[3D-RUNTIME][ENTRY]", { ok: false, stage: "validateCanonicalScene3DInput_after_panel_merge" });
@@ -703,6 +722,12 @@ export function buildSolarScene3DFromCalpinageRuntime(
     };
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
+    reportOfficialSolarPipelineFailure({
+      where: "buildSolarScene3DFromCalpinageRuntimeCore",
+      stage: "uncaught_exception",
+      exception: e,
+      extra: { message },
+    });
     if (import.meta.env.DEV) {
       console.log("[3D-RUNTIME][ENTRY]", { ok: false, stage: "throw", message });
       console.log("[3D-RUNTIME][PIPELINE]", { official: true, buildEnded: "throw" });

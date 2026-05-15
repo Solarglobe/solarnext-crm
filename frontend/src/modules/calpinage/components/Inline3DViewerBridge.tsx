@@ -12,6 +12,7 @@ import { createRoot } from "react-dom/client";
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { SolarScene3DViewer } from "../canonical3d/viewer/SolarScene3DViewer";
 import { buildEmergencySolarScene3DFromRuntime } from "../canonical3d/emergency/buildEmergencySolarScene3DFromRuntime";
+import { reportOfficialSolarPipelineFailure } from "../canonical3d/dev/officialSolarScenePipelineFailure";
 import { optimalSingleBuildingLegacyRoofMapOptions } from "../integration/mapCalpinageToCanonicalNearShading";
 import { getOrBuildOfficialSolarScene3DFromCalpinageRuntime } from "../canonical3d/scene/officialSolarScene3DGateway";
 import { CALPINAGE_OFFICIAL_RUNTIME_STRUCTURAL_CHANGE } from "../canonical3d/scene/sceneRuntimeStructuralSignature";
@@ -385,6 +386,18 @@ function Inline3DViewer({
         setCalpinagePansForProvenance(extractCalpinagePansForProvenance(state));
         setError(null);
       } else {
+        reportOfficialSolarPipelineFailure({
+          where: "Inline3DViewerBridge.buildScene",
+          stage: "gateway_ready_but_scene_missing_or_ok_false_before_emergency",
+          diagnostics: result.diagnostics,
+          extra: {
+            officialOk: result.ok,
+            hasScene: result.scene != null,
+            sceneSyncStatus: result.sceneSyncDiagnostics.sceneSyncStatus,
+            usedSceneCache: result.sceneSyncDiagnostics.usedSceneCache,
+            signature: result.sceneStructuralSignatures.sceneRuntimeSignature,
+          },
+        });
         const emergency = buildEmergencySolarScene3DFromRuntime(state);
         if (emergency) {
           lastDisplayedStructuralSignatureRef.current = "emergency-fallback";
@@ -417,6 +430,11 @@ function Inline3DViewer({
       if (import.meta.env.DEV) {
         console.error("[Inline3DViewer] buildScene error:", e);
       }
+      reportOfficialSolarPipelineFailure({
+        where: "Inline3DViewerBridge.buildScene",
+        stage: "uncaught_exception",
+        exception: e,
+      });
       try {
         const state = resolveCalpinageRuntime(calpinageStateProp);
         const emergency = state ? buildEmergencySolarScene3DFromRuntime(state) : null;

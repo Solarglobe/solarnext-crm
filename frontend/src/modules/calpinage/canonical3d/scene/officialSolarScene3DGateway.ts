@@ -167,6 +167,18 @@ export function getOrBuildOfficialSolarScene3DFromCalpinageRuntime(
     evictOfficialRoofTruthForSceneRuntimeSignature(key);
   }
 
+  /**
+   * Ne jamais réutiliser une entrée `ok: false` ou sans scène : sinon le bridge bascule en emergency
+   * de façon permanente pour cette signature (extensions / chien assis absents du fallback).
+   */
+  if (!options?.forceStructuralRebuild) {
+    const poisoned = structuralCache.get(key);
+    if (poisoned != null && (!poisoned.ok || poisoned.scene == null)) {
+      structuralCache.delete(key);
+      evictOfficialRoofTruthForSceneRuntimeSignature(key);
+    }
+  }
+
   if (!options?.forceStructuralRebuild && structuralCache.has(key)) {
     const cached = refreshSceneVisualShadingFromRuntime(structuralCache.get(key)!, runtime);
     structuralCache.set(key, cached);
@@ -215,8 +227,9 @@ export function getOrBuildOfficialSolarScene3DFromCalpinageRuntime(
   //
   // Correction : si la scène est valide mais vide (0 pvPanels) alors que getAllPanels() retourne
   // des panneaux, ce résultat est transitoire (bloc actif en cours) → on ne le met PAS en cache.
-  // Dès que le bloc est figé, getAllPanelsFromRuntime() retourne les panneaux → pvSig change
-  // → nouvelle clé → pipeline correct → résultat mis en cache normalement.
+  //
+  // Autre garde : ne jamais mettre en cache un build officiel `ok: false` / sans `scene` — sinon le
+  // bridge réutilise éternellement cet échec (fallback emergency, extensions absentes).
   const pvPanelsInScene = built.scene?.pvPanels?.length ?? 0;
   let panelsAvailableInEngine = 0;
   if (built.ok && built.scene != null && pvPanelsInScene === 0 && options?.getAllPanels) {
@@ -229,7 +242,10 @@ export function getOrBuildOfficialSolarScene3DFromCalpinageRuntime(
   }
   const isTransientZeroPanelResult = built.ok && built.scene != null && pvPanelsInScene === 0 && panelsAvailableInEngine > 0;
 
-  if (!isTransientZeroPanelResult) {
+  const shouldCacheStructuralResult =
+    built.ok && built.scene != null && !isTransientZeroPanelResult;
+
+  if (shouldCacheStructuralResult) {
     structuralCache.set(key, built);
   }
   pipelineInvocationCountBySignature.set(key, (pipelineInvocationCountBySignature.get(key) ?? 0) + 1);
@@ -250,6 +266,11 @@ export function getOrBuildOfficialSolarScene3DFromCalpinageRuntime(
       console.warn(
         "[3D-RUNTIME][CACHE GUARD] Scène 0-panneau non mise en cache : bloc actif non figé détecté.",
         { panelsAvailableInEngine, pvPanelsInScene, signature: key },
+      );
+    } else if (!shouldCacheStructuralResult) {
+      console.warn(
+        "[3D-RUNTIME][CACHE GUARD] Pipeline officiel en échec ou résultat non stabilisable : non mis en cache (nouvelle tentative au prochain appel même signature).",
+        { ok: built.ok, hasScene: built.scene != null, signature: key },
       );
     }
   }
