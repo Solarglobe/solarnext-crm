@@ -82,3 +82,20 @@ Même périmètre que le point 4.
   - Variables destructurées inutilisées retirées du pattern
 - **0 erreur** TS après correction (vérifié `tsc --noEmit`)
 - `any` documentés ci-dessus — **42 occurrences** toutes justifiées, aucun `any` sauvage
+
+---
+
+## Step #5 — Schémas Zod canoniques (2026-05-15)
+
+- **`shared/schemas/`** créé à la racine du monorepo (7 fichiers)
+- **Zod v4.4.3** installé dans `frontend/` ; résolu depuis `shared/schemas/` via `paths.zod` dans `frontend/tsconfig.json`
+- **`@shared/*`** alias ajouté dans `frontend/tsconfig.json` + `include: ["../shared/schemas"]`
+- Fichiers créés :
+  - `geometry.schema.ts` — Point2D/3D, GpsCoordinates, SatelliteCalibration, RoofPan 2D/3D, PanelLayout, ShadingResult, HorizonMask
+  - `scenario.schema.ts` — VirtualBatteryConfig (avec contrainte MYSMARTBATTERY), ConsumptionMode, EnergyScenario, FinancialSnapshot (avec hash SHA-256 intégrité)
+  - `lead.schema.ts` — LeadShapeSchema + CreateLead (superRefine PRO), UpdateLead, LeadResponse
+  - `study.schema.ts` — MeterSnapshot, StudyCalcResult, StudyVersionDataJson, StudyVersion/StudyResponse
+  - `quote.schema.ts` — QuoteLine + Quote (Create/Update/Response)
+  - `invoice.schema.ts` — InvoiceLineResponse, PaymentResponse + Invoice (Create/Update/Response)
+  - `index.ts` — barrel export
+- **0 erreur** `tsc --noEmit` après création (vérifié avec Zod v4)

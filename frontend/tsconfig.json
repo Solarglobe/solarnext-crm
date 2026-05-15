@@ -26,12 +26,19 @@
     "paths": {
       "@/*": [
         "src/*"
+      ],
+      "@shared/*": [
+        "../shared/*"
+      ],
+      "zod": [
+        "./node_modules/zod"
       ]
     }
   },
   "include": [
     "src",
-    "src/vite-env.d.ts"
+    "src/vite-env.d.ts",
+    "../shared/schemas"
   ],
   "exclude": [
     "**/__tests__/**"
