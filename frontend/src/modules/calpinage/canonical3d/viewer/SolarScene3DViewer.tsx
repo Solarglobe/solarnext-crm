@@ -218,6 +218,8 @@ export interface SolarScene3DViewerProps {
   readonly showRoofTruthBadges?: boolean;
   /** Alerte compacte quand un pan utilise une hauteur moyenne / par défaut. */
   readonly showMissingHeightAlerts?: boolean;
+  /** Diagnostic des jonctions multi-pans avant pose PV. */
+  readonly showMultiPanDiagnostics?: boolean;
   readonly showRoofEdges?: boolean;
   readonly showObstacles?: boolean;
   readonly showExtensions?: boolean;
@@ -1316,6 +1318,109 @@ function MissingHeightAlertsOverlay({
           </span>
         ) : null}
       </div>
+    </div>
+  );
+}
+
+function MultiPanDiagnosticsOverlay({
+  scene,
+  visible,
+}: {
+  readonly scene: SolarScene3D;
+  readonly visible: boolean;
+}) {
+  const diag = scene.metadata.roofMultiPanDiagnostics;
+  if (!visible || !diag || diag.relationCount === 0) return null;
+  const blocking = !diag.okForPvLayout;
+  const tone = blocking
+    ? {
+        border: "rgba(248,113,113,0.35)",
+        bg: "rgba(35, 18, 18, 0.84)",
+        dot: "#ef4444",
+        text: "rgba(254,242,242,0.96)",
+      }
+    : {
+        border: "rgba(34,197,94,0.28)",
+        bg: "rgba(12, 32, 25, 0.78)",
+        dot: "#22c55e",
+        text: "rgba(220,252,231,0.94)",
+      };
+  const items = diag.items.filter((i) => i.severity !== "info").slice(0, 4);
+  return (
+    <div
+      data-testid="multi-pan-diagnostics-3d"
+      role="status"
+      aria-label="Diagnostic multi-pans"
+      style={{
+        position: "absolute",
+        left: 10,
+        top: 10,
+        zIndex: 7,
+        width: "min(380px, calc(100% - 20px))",
+        padding: "10px 12px",
+        borderRadius: 8,
+        border: `1px solid ${tone.border}`,
+        background: tone.bg,
+        color: tone.text,
+        boxShadow: "0 12px 28px rgba(0,0,0,0.28)",
+        backdropFilter: "blur(10px)",
+        WebkitBackdropFilter: "blur(10px)",
+        fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+        pointerEvents: "none",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <span
+          style={{
+            width: 8,
+            height: 8,
+            borderRadius: 999,
+            background: tone.dot,
+            boxShadow: `0 0 0 3px ${tone.border}`,
+            flex: "0 0 auto",
+          }}
+        />
+        <div style={{ fontSize: 12, fontWeight: 800, lineHeight: "16px", letterSpacing: 0 }}>
+          Multi-pans {blocking ? "à vérifier" : "OK"}
+        </div>
+        <div style={{ marginLeft: "auto", fontSize: 10, lineHeight: "16px", opacity: 0.72, whiteSpace: "nowrap" }}>
+          {diag.relationCount} jonction{diag.relationCount > 1 ? "s" : ""}
+        </div>
+      </div>
+      <div style={{ marginTop: 5, fontSize: 11, lineHeight: "15px", opacity: 0.78 }}>
+        {diag.summaryFr}
+      </div>
+      {items.length > 0 ? (
+        <div style={{ display: "grid", gap: 5, marginTop: 8 }}>
+          {items.map((item) => (
+            <div
+              key={`${item.edgeId}-${item.kind}-${item.panIds.join("-")}`}
+              title={item.codes.join(", ")}
+              style={{
+                display: "flex",
+                gap: 7,
+                alignItems: "flex-start",
+                padding: "6px 7px",
+                borderRadius: 6,
+                background: "rgba(255,255,255,0.07)",
+                border: "1px solid rgba(255,255,255,0.08)",
+                fontSize: 10,
+                lineHeight: "14px",
+              }}
+            >
+              <span style={{ fontWeight: 800, color: item.severity === "error" ? "#fecaca" : "#fde68a" }}>
+                {item.panIds.join(" ↔ ")}
+              </span>
+              <span style={{ opacity: 0.82 }}>{item.messageFr}</span>
+            </div>
+          ))}
+          {diag.items.filter((i) => i.severity !== "info").length > items.length ? (
+            <div style={{ fontSize: 10, opacity: 0.6 }}>
+              +{diag.items.filter((i) => i.severity !== "info").length - items.length} autre(s) jonction(s)
+            </div>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -2923,6 +3028,7 @@ function SolarScene3DViewer({
   showRoof = true,
   showRoofTruthBadges = true,
   showMissingHeightAlerts = true,
+  showMultiPanDiagnostics = true,
   showRoofEdges = true,
   showObstacles = true,
   showExtensions = true,
@@ -4159,6 +4265,7 @@ function SolarScene3DViewer({
         />
       )}
       {legendMode != null && <ShadingLegend3D mode={legendMode} summary={scene.panelVisualShadingSummary} />}
+      <MultiPanDiagnosticsOverlay scene={scene} visible={showRoof && showMultiPanDiagnostics} />
       <MissingHeightAlertsOverlay
         alerts={missingHeightAlerts}
         visible={showRoof && showMissingHeightAlerts}

@@ -24,6 +24,7 @@ import type {
   SolarSceneRoofGeometrySource,
   SolarSceneRoofQualityPhaseA,
   SolarSceneRoofQualityPhaseB,
+  SolarSceneRoofMultiPanDiagnostics,
   SolarSceneShadingSnapshot3D,
   SolarSceneSolarContext3D,
 } from "../types/solarScene3d";
@@ -63,6 +64,7 @@ export interface BuildSolarScene3DInput {
   readonly roofQualityPhaseA?: SolarSceneRoofQualityPhaseA;
   /** Preuve technique Phase B (métriques, export support) — optionnel. */
   readonly roofQualityPhaseB?: SolarSceneRoofQualityPhaseB;
+  readonly roofMultiPanDiagnostics?: SolarSceneRoofMultiPanDiagnostics;
 }
 
 function summarizePanelsFromNearSeries(
@@ -125,6 +127,7 @@ export function buildSolarScene3D(input: BuildSolarScene3DInput): SolarScene3D {
       input.buildGuards.length > 0 && { buildGuards: input.buildGuards }),
     ...(input.roofQualityPhaseA != null && { roofQualityPhaseA: input.roofQualityPhaseA }),
     ...(input.roofQualityPhaseB != null && { roofQualityPhaseB: input.roofQualityPhaseB }),
+    ...(input.roofMultiPanDiagnostics != null && { roofMultiPanDiagnostics: input.roofMultiPanDiagnostics }),
   };
 
   let solarContext: SolarSceneSolarContext3D | undefined;

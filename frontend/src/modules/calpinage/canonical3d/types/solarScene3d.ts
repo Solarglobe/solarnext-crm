@@ -116,6 +116,41 @@ export type SolarSceneRoofQualityPhaseB = {
   readonly supportLinesFr: readonly string[];
 };
 
+export type SolarSceneRoofMultiPanDiagnosticKind =
+  | "edge_conflict"
+  | "weak_join"
+  | "z_divergence"
+  | "unstructured_join"
+  | "non_manifold"
+  | "suspicious_join";
+
+export type SolarSceneRoofMultiPanDiagnosticSeverity = "info" | "warning" | "error";
+
+export type SolarSceneRoofMultiPanDiagnosticItem = {
+  readonly kind: SolarSceneRoofMultiPanDiagnosticKind;
+  readonly severity: SolarSceneRoofMultiPanDiagnosticSeverity;
+  readonly edgeId: string;
+  readonly panIds: readonly string[];
+  readonly messageFr: string;
+  readonly angleBetweenNormalsDeg?: number;
+  readonly dihedralProfileDeg?: number;
+  readonly structuralHeightDeltaM?: number;
+  readonly codes: readonly string[];
+};
+
+export type SolarSceneRoofMultiPanDiagnostics = {
+  readonly relationCount: number;
+  readonly sharedEdgeCount: number;
+  readonly conflictCount: number;
+  readonly weakJoinCount: number;
+  readonly zDivergenceCount: number;
+  readonly suspiciousJoinCount: number;
+  readonly nonManifoldCount: number;
+  readonly okForPvLayout: boolean;
+  readonly items: readonly SolarSceneRoofMultiPanDiagnosticItem[];
+  readonly summaryFr: string;
+};
+
 export interface SolarScene3DMetadata {
   readonly schemaVersion: typeof SOLAR_SCENE_3D_SCHEMA_VERSION;
   readonly createdAtIso: string;
@@ -143,6 +178,8 @@ export interface SolarScene3DMetadata {
    * @see `buildRoofQualityPhaseBTechnicalProof`
    */
   readonly roofQualityPhaseB?: SolarSceneRoofQualityPhaseB;
+  /** Diagnostic produit des jonctions multi-pans avant pose PV. */
+  readonly roofMultiPanDiagnostics?: SolarSceneRoofMultiPanDiagnostics;
 }
 
 /**

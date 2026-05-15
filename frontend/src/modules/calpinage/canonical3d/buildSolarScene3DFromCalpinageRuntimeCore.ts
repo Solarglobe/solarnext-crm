@@ -58,6 +58,7 @@ import {
 import { canonicalWorldConfigFromSceneWorld, type CanonicalWorldConfig } from "./world/worldConvention";
 import { buildRoofQualityPhaseAActionPlan } from "./product/roofQualityPhaseAActionPlan";
 import { buildRoofQualityPhaseBTechnicalProof } from "./product/roofQualityPhaseBTechnicalProof";
+import { buildRoofMultiPanDiagnostics } from "./product/roofMultiPanDiagnostics";
 import { buildScene2DSourceTraceFromCalpinage } from "./sourceTrace/buildScene2DSourceTrace";
 import {
   buildPanelVisualShadingMapFromRuntime,
@@ -622,6 +623,10 @@ export function buildSolarScene3DFromCalpinageRuntime(
       roofQuality: roofRes.roofReconstructionQuality,
       roofHeightSignal: roofRes.roofHeightSignal,
     });
+    const roofMultiPanDiagnostics = buildRoofMultiPanDiagnostics({
+      model: roofRes.model,
+      interPanReports: roofRes.interPanReports,
+    });
     const scene3d = buildSolarScene3D({
       worldConfig: canonicalWorldConfigFromSceneWorld(sceneInput.world as CanonicalWorldConfig),
       sourceTrace,
@@ -640,6 +645,7 @@ export function buildSolarScene3DFromCalpinageRuntime(
       ...(level0.guards.length > 0 ? { buildGuards: level0.guards } : {}),
       roofQualityPhaseA,
       roofQualityPhaseB,
+      roofMultiPanDiagnostics,
     });
 
     if (isCalpinage3DRuntimeDebugEnabled()) {

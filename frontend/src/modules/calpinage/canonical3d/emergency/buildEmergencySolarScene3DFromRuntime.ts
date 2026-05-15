@@ -21,6 +21,7 @@ import { peekCalpinageRuntimeWorldFrame } from "../world/normalizeWorldConfig";
 import { dump3DRuntimePreViewer, recordAutopsyLegacyRoofPath, resetAutopsyLegacyRoofPath } from "../dev/runtime3DAutopsy";
 import { buildRoofQualityPhaseAActionPlan } from "../product/roofQualityPhaseAActionPlan";
 import { buildRoofQualityPhaseBTechnicalProof } from "../product/roofQualityPhaseBTechnicalProof";
+import { buildRoofMultiPanDiagnostics } from "../product/roofMultiPanDiagnostics";
 
 const DEFAULT_TILT_DEG = 28;
 const DEFAULT_AZIMUTH_DEG = 200;
@@ -286,6 +287,7 @@ export function buildEmergencySolarScene3DFromRuntime(runtime: unknown): SolarSc
     roofQuality,
     roofHeightSignal,
   });
+  const roofMultiPanDiagnostics = buildRoofMultiPanDiagnostics({ model: roofModel, interPanReports: [] });
   const scene = buildSolarScene3D({
     worldConfig,
     roofModel,
@@ -301,6 +303,7 @@ export function buildEmergencySolarScene3DFromRuntime(runtime: unknown): SolarSc
     ...(level0.guards.length > 0 ? { buildGuards: level0.guards } : {}),
     roofQualityPhaseA,
     roofQualityPhaseB,
+    roofMultiPanDiagnostics,
   });
 
   if (import.meta.env.DEV) {
