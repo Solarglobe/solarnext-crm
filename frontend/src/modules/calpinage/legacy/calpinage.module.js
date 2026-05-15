@@ -4446,7 +4446,8 @@ export function initCalpinage(container, options = {}) {
       }
 
       /**
-       * Fin du 2e arêtier : priorité au sommet d'intersection (apex), puis segment du 1er arêtier.
+       * Fin du 2e arêtier : priorité au sommet d'intersection (apex),
+       * puis magnétisme uniquement sur l'extrémité du 1er arêtier (left.b), pas sur tout le segment.
        */
       function snapDormerSecondHipEndPt(imgPt, left, rightA) {
         var baseTol = getDormerSnapToleranceImg();
@@ -4455,8 +4456,10 @@ export function initCalpinage(container, options = {}) {
         if (fromIntersect && Math.hypot(imgPt.x - fromIntersect.x, imgPt.y - fromIntersect.y) <= tolApex) {
           return { pt: fromIntersect, snapKind: "apex" };
         }
-        var seg = snapToSegment(imgPt, left.a, left.b, baseTol);
-        if (seg) return { pt: seg, snapKind: "segment" };
+        var dEnd = Math.hypot(imgPt.x - left.b.x, imgPt.y - left.b.y);
+        if (dEnd <= baseTol) {
+          return { pt: left.b, snapKind: "firstHipEnd" };
+        }
         return { pt: { x: imgPt.x, y: imgPt.y }, snapKind: "free" };
       }
 
@@ -17100,11 +17103,10 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
                 return;
               }
-              /* 4e clic : fin 2e arêtier — priorité au sommet apex (intersection des deux arêtiers),
-               * puis snap segment du 1er arêtier ; sync aligne hips.left.b / hips.right.b / apexVertex. */
+              /* 4e clic : fin 2e arêtier — priorité apex (intersection), puis extrémité du 1er arêtier (pas le trait entier). */
               if (draft.hips.right.b === null) {
                 var _snapEnd = snapDormerSecondHipEndPt(imgPt, draft.hips.left, draft.hips.right.a);
-                draft.hips.right.b = { x: _snapEnd.pt.x, y: _snapEnd.pt.y };
+                draft.hips.right.b = _snapEnd.snapKind === "firstHipEnd" ? draft.hips.left.b : { x: _snapEnd.pt.x, y: _snapEnd.pt.y };
                 var intersection = intersectLines(
                   draft.hips.left.a, draft.hips.left.b,
                   draft.hips.right.a, draft.hips.right.b
@@ -22734,11 +22736,11 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                     ctx.fill();
                   }
                 } else if (hips.right && hips.right.b === null) {
-                  /* Clic 4 : priorité apex (intersection), puis segment 1er arêtier */
+                  /* Clic 4 : apex (intersection), puis extrémité 1er arêtier uniquement */
                   var _sn4 = snapDormerSecondHipEndPt(imgMousePt, hips.left, hips.right.a);
-                  if (_sn4.snapKind === "apex" || _sn4.snapKind === "segment") drawState.dormerSnapActive = true;
+                  if (_sn4.snapKind === "apex" || _sn4.snapKind === "firstHipEnd") drawState.dormerSnapActive = true;
                   var endPt = _sn4.pt;
-                  ctx.strokeStyle = (_sn4.snapKind === "apex" || _sn4.snapKind === "segment") ? "#00aa00" : "#666";
+                  ctx.strokeStyle = (_sn4.snapKind === "apex" || _sn4.snapKind === "firstHipEnd") ? "#00aa00" : "#666";
                   ctx.beginPath();
                   ctx.moveTo(imageToScreen(hips.right.a).x, imageToScreen(hips.right.a).y);
                   ctx.lineTo(imageToScreen(endPt).x, imageToScreen(endPt).y);
@@ -22753,10 +22755,10 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                     ctx.lineWidth = 1.5;
                     ctx.setLineDash([]);
                     ctx.stroke();
-                  } else if (_sn4.snapKind === "segment") {
+                  } else if (_sn4.snapKind === "firstHipEnd") {
                     ctx.beginPath();
-                    ctx.arc(imageToScreen(endPt).x, imageToScreen(endPt).y, 5, 0, Math.PI * 2);
-                    ctx.fillStyle = "#00aa00";
+                    ctx.arc(imageToScreen(endPt).x, imageToScreen(endPt).y, 6, 0, Math.PI * 2);
+                    ctx.fillStyle = "#16a34a";
                     ctx.fill();
                   }
                 }
@@ -22772,7 +22774,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 text = "Tracez le contour - cliquez pres du 1er point pour fermer";
               }
               if (window.CALPINAGE_MODE === MODE_DORMER_HIPS) {
-                text = "Arêtier : contour vers apex — le 2e clic final magnetise le sommet central";
+                text = "Arêtier : 2e clic final vers apex (jaune) ou extrémité du 1er arêtier (vert)";
               }
               if (window.CALPINAGE_MODE === MODE_DORMER_RIDGE) {
                 text = "Cliquez pour définir l'extrémité du faîtage";
