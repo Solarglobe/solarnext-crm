@@ -133,6 +133,11 @@ import { buildPremiumHouse3DScene } from "./premium/buildPremiumHouse3DScene";
 import type { PremiumHouse3DSceneAssembly } from "./premium/premiumHouse3DSceneTypes";
 import { PremiumGeometryTrustStripe } from "./premium/PremiumGeometryTrustStripe";
 import type { PremiumHouse3DViewMode } from "./premium/premiumHouse3DViewModes";
+import {
+  resolveRoofTruthBadge,
+  type RoofTruthBadgeModel,
+  type RoofTruthBadgeTone,
+} from "./roofTruthBadges";
 
 /** En mode édition sommet toit : laisse le rayon atteindre le maillage toiture (ignore PV / obstacles / extensions). */
 function roofModelingSkipOccluderRaycast(
@@ -202,6 +207,8 @@ export interface SolarScene3DViewerProps {
   readonly className?: string;
   readonly height?: number | string;
   readonly showRoof?: boolean;
+  /** Badges produit par pan : Mesuré / Déduit / Générique / Incohérent. */
+  readonly showRoofTruthBadges?: boolean;
   readonly showRoofEdges?: boolean;
   readonly showObstacles?: boolean;
   readonly showExtensions?: boolean;
@@ -989,6 +996,198 @@ function overlaySignature(o: PvLayout3dScreenOverlayState | null): string {
     .map((z) => `${z.id}:${z.points.map((pt) => `${pt.x.toFixed(0)},${pt.y.toFixed(0)}`).join(";")}`)
     .join("|");
   return `${o.width}x${o.height}|${h}|${panels}|${ghosts}|${safeZones}`;
+}
+
+interface RoofTruthBadgeScreenModel extends RoofTruthBadgeModel {
+  readonly x: number;
+  readonly y: number;
+  readonly visible: boolean;
+}
+
+const ROOF_TRUTH_BADGE_TOKENS: Record<
+  RoofTruthBadgeTone,
+  {
+    readonly dot: string;
+    readonly text: string;
+    readonly border: string;
+    readonly background: string;
+  }
+> = {
+  measured: {
+    dot: "#22c55e",
+    text: "#dcfce7",
+    border: "rgba(34,197,94,0.38)",
+    background: "rgba(6,78,59,0.74)",
+  },
+  deduced: {
+    dot: "#38bdf8",
+    text: "#e0f2fe",
+    border: "rgba(56,189,248,0.36)",
+    background: "rgba(12,74,110,0.74)",
+  },
+  generic: {
+    dot: "#f59e0b",
+    text: "#fffbeb",
+    border: "rgba(245,158,11,0.42)",
+    background: "rgba(120,53,15,0.76)",
+  },
+  incoherent: {
+    dot: "#ef4444",
+    text: "#fee2e2",
+    border: "rgba(239,68,68,0.48)",
+    background: "rgba(127,29,29,0.78)",
+  },
+};
+
+function roofTruthBadgesSignature(badges: readonly RoofTruthBadgeScreenModel[]): string {
+  return badges
+    .map((b) => `${b.panId}:${b.truthClass}:${b.visible ? 1 : 0}:${b.x.toFixed(0)},${b.y.toFixed(0)}`)
+    .join("|");
+}
+
+function roofPatchBadgeAnchor(patch: SolarScene3D["roofModel"]["roofPlanePatches"][number]): THREE.Vector3 | null {
+  const c = patch.centroid;
+  const n = patch.normal;
+  if (
+    !c ||
+    !n ||
+    !Number.isFinite(c.x) ||
+    !Number.isFinite(c.y) ||
+    !Number.isFinite(c.z) ||
+    !Number.isFinite(n.x) ||
+    !Number.isFinite(n.y) ||
+    !Number.isFinite(n.z)
+  ) {
+    return null;
+  }
+  return new THREE.Vector3(c.x + n.x * 0.18, c.y + n.y * 0.18, c.z + n.z * 0.18);
+}
+
+function RoofTruthBadgesProjector({
+  scene,
+  enabled,
+  onProjected,
+}: {
+  readonly scene: SolarScene3D;
+  readonly enabled: boolean;
+  readonly onProjected: (badges: RoofTruthBadgeScreenModel[]) => void;
+}) {
+  const { camera, gl } = useThree();
+  const lastSigRef = useRef("");
+
+  useEffect(() => {
+    if (!enabled) onProjected([]);
+  }, [enabled, onProjected]);
+
+  useFrame(() => {
+    if (!enabled) {
+      if (lastSigRef.current !== "empty") {
+        lastSigRef.current = "empty";
+        onProjected([]);
+      }
+      return;
+    }
+    const rect = gl.domElement.getBoundingClientRect();
+    const width = Math.max(1, rect.width);
+    const height = Math.max(1, rect.height);
+    const badges: RoofTruthBadgeScreenModel[] = scene.roofModel.roofPlanePatches.flatMap((patch) => {
+      const anchor = roofPatchBadgeAnchor(patch);
+      if (!anchor) return [];
+      const projected = anchor.clone().project(camera);
+      if (!Number.isFinite(projected.x) || !Number.isFinite(projected.y) || !Number.isFinite(projected.z)) return [];
+      const x = ((projected.x + 1) / 2) * width;
+      const y = ((-projected.y + 1) / 2) * height;
+      const badge = resolveRoofTruthBadge(scene, patch);
+      const visible =
+        projected.z >= -1 &&
+        projected.z <= 1 &&
+        x >= -36 &&
+        y >= -18 &&
+        x <= width + 36 &&
+        y <= height + 18;
+      return [{ ...badge, x, y, visible }];
+    });
+    const sig = roofTruthBadgesSignature(badges);
+    if (sig !== lastSigRef.current) {
+      lastSigRef.current = sig;
+      onProjected(badges);
+    }
+  });
+
+  return null;
+}
+
+function RoofTruthBadgesOverlay({
+  badges,
+  visible,
+}: {
+  readonly badges: readonly RoofTruthBadgeScreenModel[];
+  readonly visible: boolean;
+}) {
+  if (!visible || badges.length === 0) return null;
+  return (
+    <div
+      aria-hidden="true"
+      data-testid="roof-truth-badges-overlay"
+      style={{
+        position: "absolute",
+        inset: 0,
+        zIndex: 6,
+        pointerEvents: "none",
+        fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+      }}
+    >
+      {badges.filter((b) => b.visible).map((b) => {
+        const tokens = ROOF_TRUTH_BADGE_TOKENS[b.tone];
+        return (
+          <div
+            key={b.panId}
+            data-testid={`roof-truth-badge-${b.panId}`}
+            data-roof-truth={b.truthClass}
+            title={b.title}
+            style={{
+              position: "absolute",
+              left: b.x,
+              top: b.y,
+              transform: "translate(-50%, -50%)",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 5,
+              height: 22,
+              maxWidth: 112,
+              padding: "0 8px",
+              borderRadius: 999,
+              border: `1px solid ${tokens.border}`,
+              background: tokens.background,
+              color: tokens.text,
+              boxShadow: "0 8px 20px rgba(0,0,0,0.28)",
+              backdropFilter: "blur(8px)",
+              WebkitBackdropFilter: "blur(8px)",
+              fontSize: 10,
+              fontWeight: 700,
+              lineHeight: "22px",
+              letterSpacing: 0,
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+          >
+            <span
+              style={{
+                width: 6,
+                height: 6,
+                borderRadius: 999,
+                background: tokens.dot,
+                boxShadow: `0 0 0 2px ${tokens.border}`,
+                flex: "0 0 auto",
+              }}
+            />
+            <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{b.label}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 function PvLayout3dScreenOverlayProjector({
@@ -2520,6 +2719,7 @@ function SolarScene3DViewer({
   className,
   height = 420,
   showRoof = true,
+  showRoofTruthBadges = true,
   showRoofEdges = true,
   showObstacles = true,
   showExtensions = true,
@@ -3296,6 +3496,7 @@ function SolarScene3DViewer({
     [pvLayout3DInteractionMode, pv3dOverlayEpoch, scene],
   );
   const [pvLayout3dScreenOverlay, setPvLayout3dScreenOverlay] = useState<PvLayout3dScreenOverlayState | null>(null);
+  const [roofTruthBadges, setRoofTruthBadges] = useState<RoofTruthBadgeScreenModel[]>([]);
 
   const onPv3dLiveOffsetImg = useCallback((dxImg: number, dyImg: number, rotationDeg = 0) => {
     if (pv3dDragSessionRef.current?.mode === "rotate") {
@@ -3729,6 +3930,7 @@ function SolarScene3DViewer({
         />
       )}
       {legendMode != null && <ShadingLegend3D mode={legendMode} summary={scene.panelVisualShadingSummary} />}
+      <RoofTruthBadgesOverlay badges={roofTruthBadges} visible={showRoof && showRoofTruthBadges} />
       {pvLayout3DInteractionMode && pv3dHasSelectedPanel ? (
         <div
           role="toolbar"
@@ -3917,6 +4119,11 @@ function SolarScene3DViewer({
           overlay={pvLayout3dOverlayState}
           enabled={pvLayout3DInteractionMode}
           onProjected={setPvLayout3dScreenOverlay}
+        />
+        <RoofTruthBadgesProjector
+          scene={scene}
+          enabled={showRoof && showRoofTruthBadges}
+          onProjected={setRoofTruthBadges}
         />
         <CameraFramingRig
           box={framingBox}
