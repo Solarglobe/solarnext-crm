@@ -48,6 +48,24 @@ import { getCalpinageRuntime } from "../../runtime/calpinageRuntime";
 
 type Win = Window & Record<string, unknown>;
 
+function normalizePhase3ActiveTool(raw: unknown): "panels" | "select" | null {
+  if (raw === "select") return "select";
+  if (raw === "panels") return "panels";
+  return null;
+}
+
+function readPhase3ActiveTool(win: Win): "panels" | "select" {
+  const fromGetter =
+    typeof win.getPhase3ActiveTool === "function"
+      ? normalizePhase3ActiveTool((win.getPhase3ActiveTool as () => unknown)())
+      : null;
+  if (fromGetter) return fromGetter;
+
+  const dpState = win.CALPINAGE_DP2_STATE as Record<string, unknown> | null | undefined;
+  const fromDpState = normalizePhase3ActiveTool(dpState?.currentTool);
+  return fromDpState ?? "panels";
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Lecture Phase 2
 // ─────────────────────────────────────────────────────────────────────────────
@@ -140,12 +158,7 @@ function readPhase3Snapshot(): CalpinagePhase3Snapshot {
       : null;
 
   // ── Outil Phase 3 ───────────────────────────────────────────────────────
-  const rawTool3 =
-    typeof win.getPhase3ActiveTool === "function"
-      ? (win.getPhase3ActiveTool as () => unknown)()
-      : "panels";
-  const activeTool: "panels" | "select" =
-    String(rawTool3 || "panels") === "select" ? "select" : "panels";
+  const activeTool = readPhase3ActiveTool(win);
 
   // ── Autofill ────────────────────────────────────────────────────────────
   const autofillMode = win.__CALPINAGE_AUTOFILL_MODE__ as

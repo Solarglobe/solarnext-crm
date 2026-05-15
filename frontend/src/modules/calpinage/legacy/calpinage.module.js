@@ -14798,8 +14798,20 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
         if (!ph3Toolbar) return;
         var btnPanels = container.querySelector("#pv-tool-panels");
         var ACTIVE = "calpinage-tool-active";
+        function normalizePhase3ActiveTool(tool) {
+          return tool === "select" ? "select" : "panels";
+        }
+        function resolvePhase3ActiveTool() {
+          if (drawState.activeTool === "panels" || drawState.activeTool === "select") {
+            return drawState.activeTool;
+          }
+          var dpTool = window.CALPINAGE_DP2_STATE && window.CALPINAGE_DP2_STATE.currentTool;
+          if (dpTool === "panels" || dpTool === "select") return dpTool;
+          return "panels";
+        }
         function syncPhase3ToolbarActiveTool() {
-          var t = (drawState.activeTool === "panels" || drawState.activeTool === "select") ? drawState.activeTool : "panels";
+          var t = resolvePhase3ActiveTool();
+          drawState.activeTool = t;
           window.CALPINAGE_INTERACTION_MODE = (t === "select") ? "SELECT" : "CALPINAGE";
           if (btnPanels) {
             btnPanels.classList.toggle(ACTIVE, t === "panels");
@@ -14809,16 +14821,28 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
           if (typeof window.refreshAutofillToolbar === "function") window.refreshAutofillToolbar();
         }
         window.syncPhase3ToolbarActiveTool = syncPhase3ToolbarActiveTool;
+        window.setPhase3ActiveTool = function (toolName, options) {
+          var t = normalizePhase3ActiveTool(toolName);
+          drawState.activeTool = t;
+          if (window.CALPINAGE_DP2_STATE) window.CALPINAGE_DP2_STATE.currentTool = t;
+          syncPhase3ToolbarActiveTool();
+          if (!options || options.render !== false) {
+            if (typeof window.CALPINAGE_RENDER === "function") requestAnimationFrame(window.CALPINAGE_RENDER);
+          }
+          if (!options || options.notify !== false) {
+            if (typeof window.notifyPhase3SidebarUpdate === "function") window.notifyPhase3SidebarUpdate();
+          }
+          if (!options || options.dirty !== false) {
+            if (typeof window.notifyCalpinageDirty === "function") window.notifyCalpinageDirty();
+          }
+          return t;
+        };
         window.getPhase3ActiveTool = function () {
-          return (drawState.activeTool === "panels" || drawState.activeTool === "select") ? drawState.activeTool : "panels";
+          return resolvePhase3ActiveTool();
         };
         if (btnPanels) {
           addSafeListener(btnPanels, "click", function () {
-            drawState.activeTool = "panels";
-            window.CALPINAGE_INTERACTION_MODE = "CALPINAGE";
-            syncPhase3ToolbarActiveTool();
-            if (typeof window.CALPINAGE_RENDER === "function") requestAnimationFrame(window.CALPINAGE_RENDER);
-            if (typeof window.notifyPhase3SidebarUpdate === "function") window.notifyPhase3SidebarUpdate(); if (typeof window.notifyCalpinageDirty === "function") window.notifyCalpinageDirty();
+            window.setPhase3ActiveTool("panels");
           });
         }
       })();

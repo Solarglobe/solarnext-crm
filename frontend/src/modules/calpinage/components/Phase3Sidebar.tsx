@@ -41,22 +41,38 @@ function globalStatusLabel(
 function Phase3ModeSegment() {
   const { activeTool } = usePhase3Data();
 
-  const setPanelsMode = () => {
-    document.getElementById("pv-tool-panels")?.click();
-  };
-
-  const setSelectMode = () => {
+  const setPhase3Tool = (tool: "panels" | "select") => {
     const win = window as unknown as {
+      setPhase3ActiveTool?: (
+        toolName: "panels" | "select",
+        options?: { render?: boolean; notify?: boolean; dirty?: boolean },
+      ) => "panels" | "select";
       syncPhase3ToolbarActiveTool?: () => void;
       notifyPhase3SidebarUpdate?: () => void;
     };
-    document.getElementById("calpinage-tool-select")?.click();
-    if (typeof win.syncPhase3ToolbarActiveTool === "function") {
-      win.syncPhase3ToolbarActiveTool();
+    if (typeof win.setPhase3ActiveTool === "function") {
+      win.setPhase3ActiveTool(tool);
+      return;
     }
-    if (typeof win.notifyPhase3SidebarUpdate === "function") {
-      win.notifyPhase3SidebarUpdate();
+    if (tool === "panels") {
+      document.getElementById("pv-tool-panels")?.click();
+    } else {
+      document.getElementById("calpinage-tool-select")?.click();
+      if (typeof win.syncPhase3ToolbarActiveTool === "function") {
+        win.syncPhase3ToolbarActiveTool();
+      }
+      if (typeof win.notifyPhase3SidebarUpdate === "function") {
+        win.notifyPhase3SidebarUpdate();
+      }
     }
+  };
+
+  const setPanelsMode = () => {
+    setPhase3Tool("panels");
+  };
+
+  const setSelectMode = () => {
+    setPhase3Tool("select");
   };
 
   return (
