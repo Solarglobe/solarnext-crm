@@ -134,7 +134,9 @@ import type { PremiumHouse3DSceneAssembly } from "./premium/premiumHouse3DSceneT
 import { PremiumGeometryTrustStripe } from "./premium/PremiumGeometryTrustStripe";
 import type { PremiumHouse3DViewMode } from "./premium/premiumHouse3DViewModes";
 import {
+  resolveRoofMissingHeightAlerts,
   resolveRoofTruthBadge,
+  type RoofMissingHeightAlert,
   type RoofTruthBadgeModel,
   type RoofTruthBadgeTone,
 } from "./roofTruthBadges";
@@ -209,6 +211,8 @@ export interface SolarScene3DViewerProps {
   readonly showRoof?: boolean;
   /** Badges produit par pan : Mesuré / Déduit / Générique / Incohérent. */
   readonly showRoofTruthBadges?: boolean;
+  /** Alerte compacte quand un pan utilise une hauteur moyenne / par défaut. */
+  readonly showMissingHeightAlerts?: boolean;
   readonly showRoofEdges?: boolean;
   readonly showObstacles?: boolean;
   readonly showExtensions?: boolean;
@@ -1186,6 +1190,126 @@ function RoofTruthBadgesOverlay({
           </div>
         );
       })}
+    </div>
+  );
+}
+
+function MissingHeightAlertsOverlay({
+  alerts,
+  visible,
+}: {
+  readonly alerts: readonly RoofMissingHeightAlert[];
+  readonly visible: boolean;
+}) {
+  if (!visible || alerts.length === 0) return null;
+  const defaultCount = alerts.filter((a) => a.kind === "default").length;
+  const averageCount = alerts.length - defaultCount;
+  return (
+    <div
+      data-testid="missing-height-alerts-3d"
+      role="status"
+      aria-label="Alertes hauteur manquante"
+      style={{
+        position: "absolute",
+        left: 10,
+        bottom: 10,
+        zIndex: 7,
+        width: "min(360px, calc(100% - 20px))",
+        padding: "10px 12px",
+        borderRadius: 8,
+        border: "1px solid rgba(245,158,11,0.28)",
+        background: "rgba(24, 20, 14, 0.82)",
+        color: "rgba(255,251,235,0.95)",
+        boxShadow: "0 12px 28px rgba(0,0,0,0.28)",
+        backdropFilter: "blur(10px)",
+        WebkitBackdropFilter: "blur(10px)",
+        fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+        pointerEvents: "none",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <span
+          style={{
+            width: 8,
+            height: 8,
+            borderRadius: 999,
+            background: defaultCount > 0 ? "#f59e0b" : "#38bdf8",
+            boxShadow: "0 0 0 3px rgba(245,158,11,0.16)",
+            flex: "0 0 auto",
+          }}
+        />
+        <div style={{ fontSize: 12, fontWeight: 800, lineHeight: "16px", letterSpacing: 0 }}>
+          Hauteurs à compléter
+        </div>
+        <div
+          style={{
+            marginLeft: "auto",
+            fontSize: 10,
+            lineHeight: "16px",
+            color: "rgba(254,243,199,0.72)",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {alerts.length} pan{alerts.length > 1 ? "s" : ""}
+        </div>
+      </div>
+      <div style={{ marginTop: 5, fontSize: 11, lineHeight: "15px", color: "rgba(254,243,199,0.78)" }}>
+        {defaultCount > 0 ? `${defaultCount} par défaut` : null}
+        {defaultCount > 0 && averageCount > 0 ? " · " : null}
+        {averageCount > 0 ? `${averageCount} moyenne/déduite` : null}
+      </div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 8 }}>
+        {alerts.slice(0, 8).map((a) => (
+          <span
+            key={`${a.panId}-${a.kind}`}
+            data-testid={`missing-height-alert-pan-${a.panId}`}
+            title={a.detail}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              minHeight: 20,
+              maxWidth: 120,
+              padding: "0 7px",
+              borderRadius: 999,
+              border:
+                a.kind === "default"
+                  ? "1px solid rgba(245,158,11,0.42)"
+                  : "1px solid rgba(56,189,248,0.34)",
+              background:
+                a.kind === "default"
+                  ? "rgba(120,53,15,0.52)"
+                  : "rgba(12,74,110,0.48)",
+              color: "rgba(255,251,235,0.94)",
+              fontSize: 10,
+              fontWeight: 700,
+              lineHeight: "20px",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            Pan {a.panId} · {a.kind === "default" ? "défaut" : "moyenne"}
+          </span>
+        ))}
+        {alerts.length > 8 ? (
+          <span
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              minHeight: 20,
+              padding: "0 7px",
+              borderRadius: 999,
+              background: "rgba(255,255,255,0.08)",
+              color: "rgba(255,251,235,0.74)",
+              fontSize: 10,
+              fontWeight: 700,
+              lineHeight: "20px",
+            }}
+          >
+            +{alerts.length - 8}
+          </span>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -2720,6 +2844,7 @@ function SolarScene3DViewer({
   height = 420,
   showRoof = true,
   showRoofTruthBadges = true,
+  showMissingHeightAlerts = true,
   showRoofEdges = true,
   showObstacles = true,
   showExtensions = true,
@@ -3839,6 +3964,11 @@ function SolarScene3DViewer({
     return sceneHasAnyPanelVisualShadingData(scene) ? ("active" as const) : ("unavailable" as const);
   }, [showPanelShading, showShadingLegend, scene]);
 
+  const missingHeightAlerts = useMemo(
+    () => resolveRoofMissingHeightAlerts(scene),
+    [scene],
+  );
+
   const effectiveShowSun =
     showSun && cameraViewMode !== "PLAN_2D" && premiumAssembly.layers.showSun;
 
@@ -3930,6 +4060,10 @@ function SolarScene3DViewer({
         />
       )}
       {legendMode != null && <ShadingLegend3D mode={legendMode} summary={scene.panelVisualShadingSummary} />}
+      <MissingHeightAlertsOverlay
+        alerts={missingHeightAlerts}
+        visible={showRoof && showMissingHeightAlerts}
+      />
       <RoofTruthBadgesOverlay badges={roofTruthBadges} visible={showRoof && showRoofTruthBadges} />
       {pvLayout3DInteractionMode && pv3dHasSelectedPanel ? (
         <div

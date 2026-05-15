@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildDemoSolarScene3D } from "../demoSolarScene3d";
-import { resolveRoofTruthBadge } from "../roofTruthBadges";
+import { resolveRoofMissingHeightAlerts, resolveRoofTruthBadge } from "../roofTruthBadges";
 
 describe("roofTruthBadges", () => {
   it("traduit la vérité géométrique Phase A en libellés produit par pan", () => {
@@ -55,5 +55,49 @@ describe("roofTruthBadges", () => {
     const badge = resolveRoofTruthBadge(scene, patch);
     expect(badge.truthClass).toBe("FALLBACK");
     expect(badge.label).toBe("Générique");
+  });
+
+  it("liste les pans qui utilisent une hauteur moyenne ou par défaut", () => {
+    const base = buildDemoSolarScene3D();
+    const patchDefault = {
+      ...base.roofModel.roofPlanePatches[0]!,
+      id: "pan-default",
+      quality: {
+        confidence: "low" as const,
+        diagnostics: [
+          {
+            code: "HEIGHT_FALLBACK_DEFAULT_ON_CORNERS",
+            severity: "warning" as const,
+            message: "Hauteur par défaut.",
+          },
+        ],
+      },
+    };
+    const patchAverage = {
+      ...base.roofModel.roofPlanePatches[0]!,
+      id: "pan-average",
+      quality: {
+        confidence: "medium" as const,
+        diagnostics: [
+          {
+            code: "HEIGHT_INTERPOLATED_OR_DEFAULT",
+            severity: "info" as const,
+            message: "Hauteur moyenne.",
+          },
+        ],
+      },
+    };
+    const scene = {
+      ...base,
+      roofModel: {
+        ...base.roofModel,
+        roofPlanePatches: [patchDefault, patchAverage],
+      },
+    };
+
+    const alerts = resolveRoofMissingHeightAlerts(scene);
+    expect(alerts).toHaveLength(2);
+    expect(alerts[0]).toMatchObject({ panId: "pan-default", kind: "default" });
+    expect(alerts[1]).toMatchObject({ panId: "pan-average", kind: "average_or_deduced" });
   });
 });

@@ -13,6 +13,15 @@ export interface RoofTruthBadgeModel {
   readonly title: string;
 }
 
+export type RoofMissingHeightAlertKind = "average_or_deduced" | "default";
+
+export interface RoofMissingHeightAlert {
+  readonly panId: string;
+  readonly kind: RoofMissingHeightAlertKind;
+  readonly label: string;
+  readonly detail: string;
+}
+
 const TRUTH_BADGE_COPY: Record<
   RoofTruthBadgeClass,
   { readonly tone: RoofTruthBadgeTone; readonly label: string; readonly summary: string }
@@ -69,6 +78,37 @@ export function resolveRoofTruthBadge(scene: SolarScene3D, patch: RoofPlanePatch
     label: copy.label,
     title: titleParts.filter(Boolean).join(" · "),
   };
+}
+
+export function resolveRoofMissingHeightAlerts(scene: SolarScene3D): RoofMissingHeightAlert[] {
+  return scene.roofModel.roofPlanePatches.flatMap<RoofMissingHeightAlert>((patch) => {
+    const panId = String(patch.id);
+    const codes = new Set(patch.quality.diagnostics.map((d) => d.code));
+    const phaseB = scene.metadata.roofQualityPhaseB?.panTechnical.find((p) => String(p.panId) === panId);
+    const phaseBCodes = new Set(phaseB?.diagnosticCodes ?? []);
+    const hasCode = (code: string) => codes.has(code) || phaseBCodes.has(code);
+    if (hasCode("HEIGHT_FALLBACK_DEFAULT_ON_CORNERS") || hasCode("HEIGHT_FALLBACK_DEFAULT")) {
+      return [
+        {
+          panId,
+          kind: "default" as const,
+          label: "Hauteur par défaut",
+          detail: "Au moins un sommet du pan utilise la hauteur générique : saisir une cote explicite.",
+        },
+      ];
+    }
+    if (hasCode("HEIGHT_INTERPOLATED_OR_DEFAULT") || hasCode("HEIGHT_INTERPOLATED_ON_CORNERS")) {
+      return [
+        {
+          panId,
+          kind: "average_or_deduced" as const,
+          label: "Hauteur moyenne",
+          detail: "Un ou plusieurs sommets sont déduits par moyenne, trait ou contrainte partielle.",
+        },
+      ];
+    }
+    return [];
+  });
 }
 
 function inferTruthClassFromPatchQuality(patch: RoofPlanePatch3D): RoofTruthBadgeClass {
