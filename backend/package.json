@@ -19,6 +19,7 @@
     "check:schema": "node scripts/check-db-schema.js",
     "migrate:auto": "node scripts/run-migrations-safe.js",
     "audit:migrations": "node scripts/audit-migrations.js",
+    "db:snapshot": "node scripts/db-snapshot.js",
     "org:audit": "node scripts/org-audit-report.mjs",
     "repair:rbac-users": "node scripts/repair-rbac-users.js",
     "org:cleanup": "node scripts/org-cleanup.mjs",
