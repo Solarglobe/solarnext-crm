@@ -79,44 +79,6 @@ function pushQuad(
   pushTri(positions, indices, a[0], a[1], a[2], c[0], c[1], c[2], d[0], d[1], d[2]);
 }
 
-function dist2d(a: { readonly x: number; readonly y: number }, b: { readonly x: number; readonly y: number }): number {
-  return Math.hypot(a.x - b.x, a.y - b.y);
-}
-
-function nearestRingIndex(ring: readonly { readonly x: number; readonly y: number }[], p: { readonly x: number; readonly y: number }): number {
-  let best = 0;
-  let bestD = Infinity;
-  for (let i = 0; i < ring.length; i++) {
-    const d = dist2d(ring[i]!, p);
-    if (d < bestD) {
-      best = i;
-      bestD = d;
-    }
-  }
-  return best;
-}
-
-function ringPathIndices(from: number, to: number, count: number, clockwise: boolean): number[] {
-  const out: number[] = [];
-  let i = from;
-  for (let guard = 0; guard <= count; guard++) {
-    out.push(i);
-    if (i === to) break;
-    i = clockwise ? (i + 1) % count : (i - 1 + count) % count;
-  }
-  return out;
-}
-
-function polygonArea2d(pts: readonly { readonly x: number; readonly y: number }[]): number {
-  let s = 0;
-  for (let i = 0; i < pts.length; i++) {
-    const a = pts[i]!;
-    const b = pts[(i + 1) % pts.length]!;
-    s += a.x * b.y - b.x * a.y;
-  }
-  return Math.abs(s) * 0.5;
-}
-
 /**
  * @returns géométrie triangulée ou `null` si données insuffisantes / type non supporté (repli viewer : ancien prismatique).
  */
@@ -199,12 +161,15 @@ export function buildDormerMesh(ext: DormerRuntimeExtensionInput, roofModel: Dor
   const n = baseRing.length;
   let cx = 0;
   let cy = 0;
+  let cz = 0;
   for (const p of baseRing) {
     cx += p[0];
     cy += p[1];
+    cz += p[2];
   }
   cx /= n;
   cy /= n;
+  cz /= n;
 
   let ux = wR1.x - wR0.x;
   let uy = wR1.y - wR0.y;
@@ -231,71 +196,59 @@ export function buildDormerMesh(ext: DormerRuntimeExtensionInput, roofModel: Dor
   }
   ux /= uLen;
   uy /= uLen;
-  const vx = -uy;
-  const vy = ux;
 
   let minU = Infinity;
   let maxU = -Infinity;
-  let minV = Infinity;
-  let maxV = -Infinity;
   for (const p of baseRing) {
     const dx = p[0] - cx;
     const dy = p[1] - cy;
     const u = dx * ux + dy * uy;
-    const v = dx * vx + dy * vy;
     minU = Math.min(minU, u);
     maxU = Math.max(maxU, u);
-    minV = Math.min(minV, v);
-    maxV = Math.max(maxV, v);
   }
-  const halfLength = Math.max(0.35, (maxU - minU) * 0.5);
-  const halfDepth = Math.max(0.25, (maxV - minV) * 0.5);
-  const depthGuess = ext.depthM != null && finiteNum(ext.depthM) && ext.depthM > 0 ? ext.depthM : halfDepth * 2;
+  let perimeterM = 0;
+  for (let i = 0; i < n; i++) {
+    const a = baseRing[i]!;
+    const b = baseRing[(i + 1) % n]!;
+    perimeterM += Math.hypot(b[0] - a[0], b[1] - a[1]);
+  }
+  const spanU = Math.max(0.4, maxU - minU);
+  const depthGuess = ext.depthM != null && finiteNum(ext.depthM) && ext.depthM > 0
+    ? ext.depthM
+    : Math.max(0.4, perimeterM / Math.max(4, n * 2));
 
   const wallH =
     ext.wallHeightM != null && finiteNum(ext.wallHeightM) && ext.wallHeightM > 0
       ? ext.wallHeightM
       : Math.max(0.18, Math.min(ridgeH * 0.42, depthGuess * 0.32));
 
-  const nearestBaseZ = (x: number, y: number): number => {
-    let best = baseRing[0]!;
-    let bestD = Infinity;
-    for (const p of baseRing) {
-      const d = Math.hypot(p[0] - x, p[1] - y);
-      if (d < bestD) {
-        best = p;
-        bestD = d;
-      }
-    }
-    return best[2];
+  const eaveRing: [number, number, number][] = baseRing.map((p) => [p[0], p[1], p[2] + wallH]);
+  const ridgeHalfLength = Math.max(0.16, Math.min(0.55, spanU * 0.22));
+  const R0t: [number, number, number] = [cx - ux * ridgeHalfLength, cy - uy * ridgeHalfLength, cz + ridgeH];
+  const R1t: [number, number, number] = [cx + ux * ridgeHalfLength, cy + uy * ridgeHalfLength, cz + ridgeH];
+  const ridgePointFor = (i: number): [number, number, number] => {
+    const p = baseRing[i]!;
+    const u = (p[0] - cx) * ux + (p[1] - cy) * uy;
+    return u < 0 ? R0t : R1t;
   };
-  const pointAt = (u: number, v: number): [number, number, number] => {
-    const x = cx + ux * u + vx * v;
-    const y = cy + uy * u + vy * v;
-    return [x, y, nearestBaseZ(x, y)];
-  };
-  const baseAuto: [number, number, number][] = [
-    pointAt(-halfLength, -halfDepth),
-    pointAt(halfLength, -halfDepth),
-    pointAt(halfLength, halfDepth),
-    pointAt(-halfLength, halfDepth),
-  ];
-  const eaveAuto: [number, number, number][] = baseAuto.map((p) => [p[0], p[1], p[2] + wallH]);
-  const zRidgeBase = (baseAuto[0]![2] + baseAuto[1]![2] + baseAuto[2]![2] + baseAuto[3]![2]) * 0.25;
-  const ridgeHalfLength = Math.max(0.22, halfLength * 0.78);
-  const R0t: [number, number, number] = [cx - ux * ridgeHalfLength, cy - uy * ridgeHalfLength, zRidgeBase + ridgeH];
-  const R1t: [number, number, number] = [cx + ux * ridgeHalfLength, cy + uy * ridgeHalfLength, zRidgeBase + ridgeH];
 
   const positions: number[] = [];
   const indices: number[] = [];
 
-  for (let i = 0; i < 4; i++) {
-    pushQuad(positions, indices, baseAuto[i]!, baseAuto[(i + 1) % 4]!, eaveAuto[(i + 1) % 4]!, eaveAuto[i]!);
+  for (let i = 0; i < n; i++) {
+    pushQuad(positions, indices, baseRing[i]!, baseRing[(i + 1) % n]!, eaveRing[(i + 1) % n]!, eaveRing[i]!);
   }
-  pushQuad(positions, indices, eaveAuto[0]!, eaveAuto[1]!, R1t, R0t);
-  pushQuad(positions, indices, eaveAuto[3]!, R0t, R1t, eaveAuto[2]!);
-  pushTri(positions, indices, eaveAuto[0]![0], eaveAuto[0]![1], eaveAuto[0]![2], eaveAuto[3]![0], eaveAuto[3]![1], eaveAuto[3]![2], R0t[0], R0t[1], R0t[2]);
-  pushTri(positions, indices, eaveAuto[1]![0], eaveAuto[1]![1], eaveAuto[1]![2], R1t[0], R1t[1], R1t[2], eaveAuto[2]![0], eaveAuto[2]![1], eaveAuto[2]![2]);
+  for (let i = 0; i < n; i++) {
+    const a = eaveRing[i]!;
+    const b = eaveRing[(i + 1) % n]!;
+    const rA = ridgePointFor(i);
+    const rB = ridgePointFor((i + 1) % n);
+    if (rA === rB) {
+      pushTri(positions, indices, a[0], a[1], a[2], b[0], b[1], b[2], rA[0], rA[1], rA[2]);
+    } else {
+      pushQuad(positions, indices, a, b, rB, rA);
+    }
+  }
 
   const geo = new THREE.BufferGeometry();
   geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));

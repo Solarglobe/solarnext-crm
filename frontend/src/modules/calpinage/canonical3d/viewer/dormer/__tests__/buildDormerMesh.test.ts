@@ -116,4 +116,67 @@ describe("buildDormerMesh", () => {
     for (let i = 0; i < pos.count; i++) maxZ = Math.max(maxZ, pos.getZ(i));
     expect(maxZ).toBeLessThanOrEqual(6);
   });
+
+  it("reste borné dans le contour dessiné, sans bounding box agrandie", () => {
+    const patch = {
+      id: "pan-test",
+      topologyRole: "primary_shell",
+      boundaryVertexIds: ["a", "b", "c", "d"],
+      boundaryEdgeIds: ["e0", "e1", "e2", "e3"],
+      cornersWorld: [
+        { x: 0, y: 0, z: 5 },
+        { x: 30, y: 0, z: 5 },
+        { x: 30, y: -30, z: 5 },
+        { x: 0, y: -30, z: 5 },
+      ],
+      localFrame: {
+        origin: { x: 0, y: 0, z: 5 },
+        xAxis: { x: 1, y: 0, z: 0 },
+        yAxis: { x: 0, y: 1, z: 0 },
+        zAxis: { x: 0, y: 0, z: 1 },
+      },
+      normal: { x: 0, y: 0, z: 1 },
+      equation: { normal: { x: 0, y: 0, z: 1 }, d: -5 },
+      boundaryCycleWinding: "unspecified",
+      centroid: { x: 15, y: -15, z: 5 },
+      surface: { areaM2: 900, perimeterM: 120 },
+      adjacentPlanePatchIds: [],
+      provenance: { source: "test" },
+      quality: { confidence: "high", diagnostics: [] },
+    } as unknown as RoofPlanePatch3D;
+
+    const contour = [
+      { x: 10, y: 20 },
+      { x: 15, y: 12 },
+      { x: 22, y: 17 },
+      { x: 20, y: 27 },
+      { x: 9, y: 28 },
+    ];
+    const geo = buildDormerMesh(
+      {
+        kind: "dormer",
+        type: "roof_extension",
+        ridgeHeightRelM: 0.8,
+        ridge: { a: { x: 14, y: 19 }, b: { x: 18, y: 21 } },
+        contour: { closed: true, points: contour },
+      },
+      {
+        world: { metersPerPixel: 1, northAngleDeg: 0, referenceFrame: "LOCAL_IMAGE_ENU" },
+        roofPlanePatches: [patch],
+      },
+    );
+
+    expect(geo).not.toBeNull();
+    const pos = geo!.getAttribute("position") as THREE.BufferAttribute;
+    const minX = Math.min(...contour.map((p) => p.x));
+    const maxX = Math.max(...contour.map((p) => p.x));
+    const minY = Math.min(...contour.map((p) => -p.y));
+    const maxY = Math.max(...contour.map((p) => -p.y));
+    for (let i = 0; i < pos.count; i++) {
+      expect(pos.getX(i)).toBeGreaterThanOrEqual(minX - 1e-6);
+      expect(pos.getX(i)).toBeLessThanOrEqual(maxX + 1e-6);
+      expect(pos.getY(i)).toBeGreaterThanOrEqual(minY - 1e-6);
+      expect(pos.getY(i)).toBeLessThanOrEqual(maxY + 1e-6);
+    }
+  });
 });
