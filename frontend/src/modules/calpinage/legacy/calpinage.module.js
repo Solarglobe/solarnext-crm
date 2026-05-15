@@ -2667,6 +2667,28 @@ export function initCalpinage(container, options = {}) {
         }
       }
 
+      function beginRoofExtensionPointDrag(e, rxIndex, subtype, index, pointRef, imgPt) {
+        if (!pointRef) return false;
+        drawState.dragMode = "roofExtensionVertex";
+        drawState.dragBase = {
+          rxIndex: rxIndex,
+          type: subtype && subtype.indexOf("ridge") === 0 ? "ridge" : (subtype && subtype.indexOf("hip") === 0 ? "hip" : "contour"),
+          subtype: subtype,
+          index: index,
+          pointRef: pointRef
+        };
+        drawState.dragOffset = { dx: pointRef.x - imgPt.x, dy: pointRef.y - imgPt.y };
+        drawState.dragLastMouseImg = { x: imgPt.x, y: imgPt.y };
+        drawState.rxDragSnap = null;
+        drawState.snapPreview = null;
+        setInteractionState(InteractionStates.DRAGGING);
+        if (canvasEl && e && e.pointerId != null && canvasEl.setPointerCapture) {
+          canvasEl.setPointerCapture(e.pointerId);
+          drawState.activePointerId = e.pointerId;
+        }
+        return true;
+      }
+
       /**
        * Hiérarchie : (1) géométrie sérieuse déjà sauvegardée → centre + zoom sauvegardés
        * (2) GPS officiel lead → zoom selon précision / validation
@@ -17997,12 +18019,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                     drawState.dragBase = null;
                   }
                 } else if (rxHitCompat.type !== "body" && rxHitCompat.pointRef) {
-                  drawState.dragMode = "roofExtensionVertex";
-                  drawState.dragBase = { rxIndex: rxHitCompat.rxIndex, type: rxHitCompat.type, subtype: rxHitCompat.subtype, index: rxHitCompat.index, pointRef: rxHitCompat.pointRef };
-                  drawState.dragOffset = { dx: rxHitCompat.pointRef.x - imgPt.x, dy: rxHitCompat.pointRef.y - imgPt.y };
-                  drawState.dragLastMouseImg = { x: imgPt.x, y: imgPt.y };
-                  drawState.rxDragSnap = null;
-                  drawState.snapPreview = null;
+                  beginRoofExtensionPointDrag(e, rxHitCompat.rxIndex, rxHitCompat.subtype, rxHitCompat.index, rxHitCompat.pointRef, imgPt);
                 } else {
                   drawState.dragMode = null;
                   drawState.dragBase = null;
