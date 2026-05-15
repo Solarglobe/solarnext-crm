@@ -5,7 +5,8 @@
  * spécifiques (auth.js, mailEncryptionKey.js).
  *
  * Règles d'arrêt :
- *   - NODE_ENV=production  → process.exit(1) pour toute variable manquante ou invalide
+ *   - NODE_ENV=production  → process.exit(1) pour les vars critiques manquantes/invalides
+ *   - SMTP                 → warning uniquement (jamais fatal sauf si SMTP_REQUIRED=1)
  *   - NODE_ENV=development → warning coloré, pas d'arrêt pour les vars optionnelles
  *
  * Ce module sera enrichi en :
@@ -21,7 +22,7 @@ const IS_TEST = process.env.NODE_ENV === "test";
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-const RED   = "\x1b[31m";
+const RED    = "\x1b[31m";
 const YELLOW = "\x1b[33m";
 const GREEN  = "\x1b[32m";
 const RESET  = "\x1b[0m";
@@ -65,10 +66,9 @@ function check({ name, value, required, validate, hint }) {
 // Règles de validation
 // ─────────────────────────────────────────────────────────────────────────────
 
-// NODE_ENV — enum strict
+// NODE_ENV — enum strict (toujours fatal, quelle que soit l'env)
 const nodeEnv = String(process.env.NODE_ENV ?? "").trim();
 if (!["development", "production", "test"].includes(nodeEnv)) {
-  // Toujours fatal quelle que soit l'env — une valeur inconnue = config cassée
   fatal(
     "NODE_ENV",
     `valeur invalide : "${nodeEnv}". Valeurs acceptées : development | production | test`
@@ -120,20 +120,26 @@ check({
   hint: "Exemple : https://solarnext-crm.vercel.app",
 });
 
-// SMTP — toutes les vars sont obligatoires en production
-if (IS_PROD) {
-  for (const name of ["SMTP_HOST", "SMTP_USER", "SMTP_PASS"]) {
-    check({
-      name,
-      value: process.env[name],
-      required: true,
-    });
-  }
+// SMTP — warning uniquement (jamais fatal sauf si SMTP_REQUIRED=1 sur Railway).
+// Logique : si aucune var SMTP n'est définie → warning global "mail désactivé".
+//           Si partiellement défini → warning par var manquante.
+//           Ajouter SMTP_REQUIRED=1 dans Railway pour rendre le bloc bloquant.
+const SMTP_REQUIRED = IS_PROD && process.env.SMTP_REQUIRED === "1";
+const smtpVarNames = ["SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_PASS"];
+const smtpDefined = smtpVarNames.filter((k) => String(process.env[k] ?? "").trim());
 
+if (smtpDefined.length === 0) {
+  if (!IS_TEST) {
+    warn("SMTP", "aucune variable SMTP définie — envoi mail désactivé. (Définir SMTP_REQUIRED=1 pour bloquer au démarrage.)");
+  }
+} else {
+  for (const name of ["SMTP_HOST", "SMTP_USER", "SMTP_PASS"]) {
+    check({ name, value: process.env[name], required: SMTP_REQUIRED });
+  }
   check({
     name: "SMTP_PORT",
     value: process.env.SMTP_PORT,
-    required: true,
+    required: SMTP_REQUIRED,
     validate: (v) => {
       const n = Number(v);
       if (!Number.isInteger(n) || n < 1 || n > 65535) {
@@ -143,18 +149,10 @@ if (IS_PROD) {
     },
     hint: "Valeurs courantes : 587 (STARTTLS), 465 (SSL), 25",
   });
-} else {
-  // En dev : warnings si partiellement défini (probable erreur de config)
-  const smtpVars = ["SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_PASS"];
-  const defined = smtpVars.filter((k) => process.env[k]);
-  if (defined.length > 0 && defined.length < smtpVars.length) {
-    const missing = smtpVars.filter((k) => !process.env[k]);
-    warn("SMTP", `configuration partielle — manquants : ${missing.join(", ")}`);
-  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Confirmation silencieuse en dev (visible pour diagnostic sans polluer les logs)
+// Confirmation en fin de validation
 // ─────────────────────────────────────────────────────────────────────────────
 if (!IS_TEST) {
   const label = IS_PROD ? "production" : "development";
