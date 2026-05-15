@@ -2275,9 +2275,6 @@ export function initCalpinage(container, options = {}) {
                 <button type="button" class="calpinage-tool-obstacle-option" data-dormer-tool="hips" title="Tracer les arêtes du chien assis sélectionné">
                   <span class="calpinage-tool-label">Tracer arêtes</span>
                 </button>
-                <button type="button" class="calpinage-tool-obstacle-option" data-dormer-tool="place" title="Dessiner un nouveau chien assis manuel, sans gabarit automatique">
-                  <span class="calpinage-tool-label">Nouveau chien assis manuel</span>
-                </button>
               </div>
             </div>
 
@@ -14241,7 +14238,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               if (!tool) return;
               var targetIdx = getDormerTargetIndexForTool();
               var target = targetIdx != null ? (CALPINAGE_STATE.roofExtensions || [])[targetIdx] : getDormerEditTarget();
-              if (tool === "place" || tool === "contour") {
+              if (tool === "contour") {
                 drawState.dormerDraft = createRoofExtensionDormerDraft("dormer", { x: 0, y: 0 });
                 drawState.dormerEditRxIndex = null;
                 window.CALPINAGE_MODE = MODE_DORMER_CONTOUR;
@@ -16409,7 +16406,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             if (window.CALPINAGE_MODE === MODE_DORMER_CONTOUR) {
               if (!drawState.dormerDraft) return;
               var pts = drawState.dormerDraft.contour.points;
-              if (false && drawState.dormerActiveTool === "place" && pts.length === 0) {
+              if (false) {
                 var placedIdx = createCompleteDormerAtPoint(imgPt);
                 drawState.selectedRoofExtensionIndex = placedIdx >= 0 ? placedIdx : null;
                 drawState.dormerDraft = null;
@@ -17778,8 +17775,10 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               console.log("[MD] return ridge");
               return;
             }
-            /* Outil S?lection ??? extension toiture (chien assis) puis obstacles, fa??tages, traits, contours ; clic vide = pan */
-            if (drawState.activeTool === "select") {
+            /* Outil S?lection ??? extension toiture (chien assis) puis obstacles, fa??tages, traits, contours ; clic vide = pan.
+             * Le chien assis reste éditable même si l'UI est encore sur un autre outil :
+             * un clic sur un roofExtension existant force l'édition de cet objet. */
+            if (drawState.activeTool === "select" || (hit && hit.type === "roofExtension")) {
               /* Phase 2 — Centralisation : sélection via selectEntityFromHit */
               if (hit && hit.type != null) {
                 /* Shift+clic : bascule l'entité dans la multi-sélection ; pas de drag */
@@ -17919,6 +17918,9 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               }
               if (hit && hit.type === "roofExtension") {
                 var rxHitCompat = { rxIndex: hit.index, type: hit.subType === "body" ? "body" : "contour", subtype: hit.subType, index: (hit.data && (hit.data.vertexIndex != null || hit.data.segmentIndex != null)) ? (hit.data.vertexIndex ?? hit.data.segmentIndex) : 0, pointRef: hit.data && hit.data.pointRef };
+                if (drawState.activeTool !== "select" && typeof resetActiveToolToSelect === "function") {
+                  resetActiveToolToSelect();
+                }
                 drawState.selectedRoofExtensionIndex = rxHitCompat.rxIndex;
                 drawState.selectedContourIndex = null;
                 drawState.selectedRidgeIndex = null;
