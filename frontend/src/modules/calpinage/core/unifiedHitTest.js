@@ -64,6 +64,7 @@ export function unifiedHitTest({
   const resolveRidgePoint = (context && context.resolveRidgePoint) || ((p) => p);
   const metersPerPixel = (context && context.metersPerPixel) || 1;
   const vpScale = (context && context.vpScale) != null ? context.vpScale : 1;
+  const selectedRoofExtensionIndex = context && context.selectedRoofExtensionIndex;
   const tolImg = Math.max(0.5, VERTEX_HIT_RADIUS_PX / vpScale);
 
   // Helper: distance écran pour tests vertex/segment (tolérance en px)
@@ -83,7 +84,7 @@ export function unifiedHitTest({
     const pts = (rx.contour && rx.contour.points) ? rx.contour.points : [];
 
     // Priorité 0 : edge midpoint handles (redimensionnement par arête)
-    if (rx.dormerModel && pts.length === 4) {
+    if (selectedRoofExtensionIndex === ri && pts.length === 4) {
       for (let ei = 0; ei < 4; ei++) {
         const eiA = pts[ei], eiB = pts[(ei + 1) % 4];
         const emS = { x: (imageToScreen(eiA).x + imageToScreen(eiB).x) / 2,
