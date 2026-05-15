@@ -93,6 +93,12 @@ export function unifiedHitTest({
         return { type: "roofExtension", index: ri, subType: "contour-edge", data: { segmentIndex: i } };
       }
     }
+    if (rx.dormerModel) {
+      if (pts.length >= 3 && pointInPolygonImage(imgPt, pts)) {
+        return { type: "roofExtension", index: ri, subType: "body", data: { area: "contour" } };
+      }
+      continue;
+    }
     if (rx.ridge && rx.ridge.a && rx.ridge.b) {
       if (hitVertexScreen(screenPt, rx.ridge.a)) return { type: "roofExtension", index: ri, subType: "ridge-a", data: { pointRef: rx.ridge.a } };
       if (hitVertexScreen(screenPt, rx.ridge.b)) return { type: "roofExtension", index: ri, subType: "ridge-b", data: { pointRef: rx.ridge.b } };
