@@ -2266,8 +2266,11 @@ export function initCalpinage(container, options = {}) {
                 <span class="calpinage-tool-obstacle-chevron" aria-hidden="true">▾</span>
               </button>
               <div class="calpinage-tool-obstacle-dropdown" id="calpinage-roof-extension-dropdown" hidden>
-                <button type="button" class="calpinage-tool-obstacle-option" data-dormer-tool="place" title="Poser un chien assis complet">
-                  <span class="calpinage-tool-label">Chien assis</span>
+                <button type="button" class="calpinage-tool-obstacle-option" data-dormer-tool="contour" title="Dessiner le contour du chien assis point par point">
+                  <span class="calpinage-tool-label">Dessiner chien assis</span>
+                </button>
+                <button type="button" class="calpinage-tool-obstacle-option" data-dormer-tool="place" title="Poser un gabarit éditable de chien assis">
+                  <span class="calpinage-tool-label">Gabarit chien assis</span>
                 </button>
               </div>
             </div>
@@ -3939,6 +3942,56 @@ export function initCalpinage(container, options = {}) {
           b: clonePointPreserveHeight(model.ridge.b)
         };
         rx.ridgeOrigin = clonePointPreserveHeight(model.ridge.a);
+        rebuildDormerCanonicalGeometry(rx);
+        return rx;
+      }
+
+      function rebuildDormerCanonicalGeometry(rx) {
+        if (!rx || !rx.contour || !Array.isArray(rx.contour.points) || rx.contour.points.length < 3) return rx;
+        var ring = stripDormerClosingDuplicate(rx.contour.points);
+        if (ring.length < 3) return rx;
+        var ridge = rx.ridge && rx.ridge.a && rx.ridge.b ? rx.ridge : (rx.dormerModel && rx.dormerModel.ridge ? rx.dormerModel.ridge : null);
+        if (!ridge || !ridge.a || !ridge.b) return rx;
+        var wallH = Number.isFinite(rx.wallHeightM) ? Math.max(0, rx.wallHeightM) : 0.35;
+        var ridgeH = Number.isFinite(rx.ridgeHeightRelM) ? Math.max(wallH + 0.05, rx.ridgeHeightRelM) : Math.max(0.85, wallH + 0.35);
+        var vertices = [];
+        var edges = [];
+        var faces = [];
+        ring.forEach(function (p, i) {
+          vertices.push({ id: "b" + i, role: "base_contour", x: p.x, y: p.y, h: Number.isFinite(p.h) ? p.h : 0 });
+        });
+        ring.forEach(function (p, i) {
+          vertices.push({ id: "e" + i, role: "wall_eave", x: p.x, y: p.y, h: Number.isFinite(p.h) ? p.h + wallH : wallH });
+        });
+        vertices.push({ id: "r0", role: "ridge", x: ridge.a.x, y: ridge.a.y, h: Number.isFinite(ridge.a.h) ? ridge.a.h : ridgeH });
+        vertices.push({ id: "r1", role: "ridge", x: ridge.b.x, y: ridge.b.y, h: Number.isFinite(ridge.b.h) ? ridge.b.h : ridgeH });
+        for (var i = 0; i < ring.length; i++) {
+          var j = (i + 1) % ring.length;
+          edges.push({ id: "base-" + i, a: "b" + i, b: "b" + j, role: "base_contour" });
+          edges.push({ id: "wall-" + i, a: "b" + i, b: "e" + i, role: "wall_vertical" });
+          edges.push({ id: "eave-" + i, a: "e" + i, b: "e" + j, role: "eave_contour" });
+          faces.push({ id: "wall-face-" + i, role: "wall", vertexIds: ["b" + i, "b" + j, "e" + j, "e" + i] });
+        }
+        edges.push({ id: "ridge", a: "r0", b: "r1", role: "ridge" });
+        var rdx = ridge.b.x - ridge.a.x;
+        var rdy = ridge.b.y - ridge.a.y;
+        var rLenSq = rdx * rdx + rdy * rdy;
+        for (var k = 0; k < ring.length; k++) {
+          var n = (k + 1) % ring.length;
+          var mid = { x: (ring[k].x + ring[n].x) / 2, y: (ring[k].y + ring[n].y) / 2 };
+          var t = rLenSq > 0.000001 ? (((mid.x - ridge.a.x) * rdx + (mid.y - ridge.a.y) * rdy) / rLenSq) : 0;
+          var nearRidge = t < 0.5 ? "r0" : "r1";
+          edges.push({ id: "rafter-" + k, a: "e" + k, b: nearRidge, role: "roof_slope_edge" });
+          faces.push({ id: "roof-face-" + k, role: "roof_slope", vertexIds: ["e" + k, "e" + n, nearRidge] });
+        }
+        rx.canonicalDormerGeometry = {
+          version: 1,
+          coordinateSpace: "image_px_height_m",
+          heightReference: "vertical_from_main_roof",
+          vertices: vertices,
+          edges: edges,
+          faces: faces
+        };
         return rx;
       }
 
@@ -4011,7 +4064,7 @@ export function initCalpinage(container, options = {}) {
       function applyDormerParametricVisualDefaults(rx) {
         if (!rx || rx.kind !== "dormer") return rx;
         rx.dormerType = "gable";
-        rx.visualModel = "parametric_gable";
+        if (!rx.visualModel) rx.visualModel = "parametric_gable";
         if (typeof rx.ridgeHeightRelM !== "number" || !Number.isFinite(rx.ridgeHeightRelM) || rx.ridgeHeightRelM <= 0) {
           rx.ridgeHeightRelM = 0.9;
         }
@@ -4056,6 +4109,7 @@ export function initCalpinage(container, options = {}) {
           contour: { points: draft.contour.points.map(function (p) { return clonePointPreserveHeight(p); }), closed: true },
           hips: null,
           ridge: null,
+          visualModel: "manual_outline_gable",
           ridgeHeightRelM: draft.ridgeHeightRelM != null ? draft.ridgeHeightRelM : 0.8,
           baseZ: 0
         };
@@ -4436,6 +4490,7 @@ export function initCalpinage(container, options = {}) {
           return;
         }
         rx.ridgeHeightRelM = num;
+        rebuildDormerCanonicalGeometry(rx);
         if (typeof saveCalpinageState === "function") {
           saveCalpinageState();
         }
@@ -13976,7 +14031,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 drawState.dormerDraft = createRoofExtensionDormerDraft("dormer", { x: 0, y: 0 });
                 drawState.dormerEditRxIndex = null;
                 window.CALPINAGE_MODE = MODE_DORMER_CONTOUR;
-                drawState.dormerActiveTool = "place";
+                drawState.dormerActiveTool = tool === "place" ? "place" : "contour";
               } else if (tool === "hips") {
                 if (target && target.contour && target.contour.closed && target.contour.points && target.contour.points.length >= 3) {
                   applyDormerParametricVisualDefaults(target);

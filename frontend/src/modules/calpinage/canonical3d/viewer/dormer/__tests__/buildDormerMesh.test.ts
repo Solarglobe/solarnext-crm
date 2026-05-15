@@ -179,4 +179,67 @@ describe("buildDormerMesh", () => {
       expect(pos.getY(i)).toBeLessThanOrEqual(maxY + 1e-6);
     }
   });
+  it("consomme la geometrie canonique Phase 2 au lieu de reconstruire une boite", () => {
+    const patch = {
+      id: "pan-test",
+      cornersWorld: [
+        { x: 0, y: 0, z: 5 },
+        { x: 30, y: 0, z: 5 },
+        { x: 30, y: -30, z: 5 },
+        { x: 0, y: -30, z: 5 },
+      ],
+      localFrame: {
+        origin: { x: 0, y: 0, z: 5 },
+        xAxis: { x: 1, y: 0, z: 0 },
+        yAxis: { x: 0, y: 1, z: 0 },
+        zAxis: { x: 0, y: 0, z: 1 },
+      },
+      normal: { x: 0, y: 0, z: 1 },
+      equation: { normal: { x: 0, y: 0, z: 1 }, d: -5 },
+    } as unknown as RoofPlanePatch3D;
+
+    const geo = buildDormerMesh(
+      {
+        kind: "dormer",
+        type: "roof_extension",
+        visualModel: "manual_outline_gable",
+        contour: {
+          closed: true,
+          points: [
+            { x: 10, y: 10 },
+            { x: 22, y: 12 },
+            { x: 20, y: 23 },
+            { x: 12, y: 20 },
+          ],
+        },
+        canonicalDormerGeometry: {
+          vertices: [
+            { id: "b0", x: 10, y: 10, h: 0 },
+            { id: "b1", x: 22, y: 12, h: 0 },
+            { id: "b2", x: 20, y: 23, h: 0 },
+            { id: "b3", x: 12, y: 20, h: 0 },
+            { id: "r0", x: 13, y: 16, h: 1.1 },
+            { id: "r1", x: 19, y: 18, h: 1.1 },
+          ],
+          faces: [
+            { id: "custom-roof-a", vertexIds: ["b0", "b1", "r1", "r0"] },
+            { id: "custom-roof-b", vertexIds: ["b3", "r0", "r1", "b2"] },
+          ],
+        },
+      },
+      {
+        world: { metersPerPixel: 1, northAngleDeg: 0, referenceFrame: "LOCAL_IMAGE_ENU" },
+        roofPlanePatches: [patch],
+      },
+    );
+
+    expect(geo).not.toBeNull();
+    const pos = geo!.getAttribute("position") as THREE.BufferAttribute;
+    expect(pos.count).toBe(12);
+    let hasManualSkewPoint = false;
+    for (let i = 0; i < pos.count; i++) {
+      hasManualSkewPoint ||= Math.abs(pos.getX(i) - 22) < 1e-6 && Math.abs(pos.getY(i) + 12) < 1e-6;
+    }
+    expect(hasManualSkewPoint).toBe(true);
+  });
 });
