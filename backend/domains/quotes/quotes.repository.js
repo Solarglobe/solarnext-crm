@@ -69,6 +69,7 @@ import { ensureClientForQuote } from "../../services/ensureClientForQuote.servic
 import { mergeQuoteOrgDocumentFieldsIntoPayload } from "../../services/quoteDocumentOrgSettings.service.js";
 import { buildQuotePdfPayloadFromSnapshot } from "../../services/financialDocumentPdfPayload.service.js";
 import { normalizeQuoteStatusInput } from "../../utils/financialDocumentStatus.js";
+import { logMutationDiff, readTrackedFields, TRACKED_QUOTE_FIELDS, TRACKED_QUOTE_LINE_FIELDS } from "../../services/mutationLog.service.js";
 import { logAuditEvent } from "../../services/audit/auditLog.service.js";
 import { AuditActions } from "../../services/audit/auditActions.js";
 import { assertOrgOwnership } from "../../services/security/assertOrgOwnership.js";
@@ -954,6 +955,9 @@ export async function getQuoteById(quoteId, organizationId) {
  * @param {{ req?: import("express").Request; userId?: string | null }} [auditContext]
  */
 export async function updateQuote(quoteId, organizationId, body, auditContext = null) {
+  /* Lire l'etat avant mise a jour pour diff mutation_log. */
+  const _beforeQuote = await readTrackedFields('quotes', quoteId, organizationId, TRACKED_QUOTE_FIELDS).catch(() => null);
+
   await withTx(pool, async (client) => {
     const defaultVat = await getOrgDefaultVatRate(client, organizationId);
     const quoteRow = await assertOrgEntity(client, "quotes", quoteId, organizationId);
@@ -1208,6 +1212,22 @@ export async function updateQuote(quoteId, organizationId, body, auditContext = 
         });
       }
     }
+    /* Diff champ-par-champ pour mutation_log. */
+    const _ip = auditContext?.req?.ip ?? auditContext?.req?.headers?.['x-forwarded-for'] ?? null;
+    const _uid = auditContext?.userId ?? null;
+    void readTrackedFields('quotes', quoteId, organizationId, TRACKED_QUOTE_FIELDS)
+      .then((_afterQuote) => logMutationDiff({
+        organizationId,
+        userId: _uid,
+        tableName: 'quotes',
+        recordId: quoteId,
+        operation: 'UPDATE',
+        before: _beforeQuote,
+        after: _afterQuote,
+        fields: TRACKED_QUOTE_FIELDS,
+        ipAddress: _ip,
+      }))
+      .catch(() => {});
     return detail;
   });
 }
@@ -2099,6 +2119,9 @@ export async function addItemFromCatalog(quoteId, organizationId, body) {
   const catalogItemId = body.catalogItemId;
   if (!catalogItemId) throw new Error("catalogItemId requis");
 
+  /* Lire la ligne avant modification pour diff mutation_log. */
+  const _beforeLine = await readTrackedFields('quote_lines', itemId, organizationId, TRACKED_QUOTE_LINE_FIELDS).catch(() => null);
+
   const quoteRow = await pool.query(
     "SELECT id, status FROM quotes WHERE id = $1 AND organization_id = $2 AND (archived_at IS NULL)",
     [quoteId, organizationId]
@@ -2330,6 +2353,19 @@ export async function patchQuoteLine(quoteId, itemId, organizationId, body) {
   }
 
   const totals = await computeQuoteTotalsFromLines({ quoteId, orgId: organizationId });
+
+  /* Diff mutation_log pour la ligne devis. */
+  void logMutationDiff({
+    organizationId,
+    userId: null,
+    tableName: 'quote_lines',
+    recordId: itemId,
+    operation: 'UPDATE',
+    before: _beforeLine ?? {},
+    after: item ?? {},
+    fields: TRACKED_QUOTE_LINE_FIELDS,
+  }).catch(() => {});
+
   return {
     item: { ...item, unit_price_ht_cents: unitPriceHtCents, vat_rate_bps: vatRateBps },
     totals: {

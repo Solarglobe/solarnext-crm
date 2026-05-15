@@ -30,6 +30,7 @@ import adminQuoteCatalogRouter from "./routes/admin.quote-catalog.routes.js";
 import adminQuoteTextTemplatesRouter from "./routes/admin.quote-text-templates.routes.js";
 import adminPvRouter from "./routes/admin.pv.routes.js";
 import adminOrganizationsRouter from "./routes/admin.organizations.routes.js";
+import adminMutationLogRouter from "./routes/admin.mutation-log.routes.js";
 import settingsLegalRouter from "./routes/settingsLegal.routes.js";
 import dashboardRouter from "./routes/dashboard.routes.js";
 import searchRouter from "./routes/search.routes.js";
@@ -209,6 +210,7 @@ export function buildHttpApp() {
   app.use("/api/admin/quote-text-templates", adminQuoteTextTemplatesRouter);
   app.use("/api/admin/pv", adminPvRouter);
   app.use("/api/admin/organizations", adminOrganizationsRouter);
+  app.use("/api/admin/mutation-log", adminMutationLogRouter);
   app.use("/api", settingsLegalRouter);
 
   app.use("/api", clientPortalRouter);

@@ -285,3 +285,53 @@ PATCH /api/quotes/:acceptedQuoteId retourne :
 ```
 HTTP 409 { "error": "Ce document est verrouille -- il a ete signe le 15/05/2026. Creer un avenant ou un avoir.", "code": "DOCUMENT_LOCKED" }
 ```
+
+---
+
+## Step #12 -- Mutation log : audit trail champ-par-champ (2026-05-16)
+
+### Contexte
+
+Repond a : "Qui a modifie le prix de ce devis, de combien, et quand ?" en < 30 secondes.
+Different de audit_logs (evenements auth/securite) : mutation_log trace chaque modification
+de valeur individuelle sur les tables critiques. 3 champs changes = 3 lignes.
+
+### Implementation
+
+- **`backend/migrations/1780200000000_cp-mutation-log.js`** : Table `mutation_log` avec
+  `organization_id, user_id, table_name, record_id, operation, field_name, old_value JSONB,
+  new_value JSONB, ip_address, created_at`. Trigger Postgres immutabilite (meme pattern que
+  audit_logs). Index sur (table_name, record_id), created_at, user_id.
+
+- **`backend/services/mutationLog.service.js`** : `logMutation()` (batch INSERT non-bloquant),
+  `logMutationDiff()` (compare before/after sur liste de champs, n'insere que les diffs),
+  `getMutationLog()` (lecture paginee pour API admin), `readTrackedFields()` (helper SELECT).
+  Exports : TRACKED_QUOTE_FIELDS, TRACKED_QUOTE_LINE_FIELDS, TRACKED_INVOICE_FIELDS, TRACKED_LEAD_FIELDS.
+
+- **`backend/routes/admin.mutation-log.routes.js`** : GET /api/admin/mutation-log
+  Filtres : table_name, record_id, field_name, user_id, limit, offset.
+  Permission : org.settings.manage (admin). SUPER_ADMIN peut passer ?org_id= pour une org tierce.
+
+- **`backend/httpApp.js`** : Route branchy sur /api/admin/mutation-log.
+
+- **`backend/domains/quotes/quotes.repository.js`** : updateQuote (read before TX, diff after),
+  patchQuoteLine (read before, diff after sur quote_lines).
+
+- **`backend/domains/leads/leads.controller.js`** : existingLead deja disponible avant UPDATE,
+  logMutationDiff(before=existingLead, after=rowOut) apres logAuditEvent(LEAD_UPDATED).
+
+- **`backend/services/invoices.service.js`** : updateInvoice (read before, diff after).
+
+### Champs surveilles
+
+- quotes : status, total_ht/vat/ttc, discount_ht, global_discount_percent, deposit_percent,
+  valid_until, payment_terms, notes, client_id, lead_id
+- quote_lines : label, quantity, unit_price_ht, discount_ht, vat_rate, total_line_ht/ttc
+- invoices : status, total_ht/vat/ttc, notes, payment_terms, client_id, lead_id
+- leads : status, stage_id, first/last/full_name, email, phone, address, company_name,
+  assigned_user_id, project_status, marketing_opt_in
+
+### Non-bloquant
+
+Toutes les ecritures dans mutation_log sont dans des void + .catch(() => {}) --
+une defaillance de la table d'audit n'interrompt jamais le flux metier.

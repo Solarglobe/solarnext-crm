@@ -5,6 +5,7 @@
 import { pool } from "../config/db.js";
 import { withTx } from "../db/tx.js";
 import { assertOrgEntity } from "../services/guards.service.js";
+import { logMutationDiff, readTrackedFields, TRACKED_INVOICE_FIELDS } from "./mutationLog.service.js";
 import {
   isInvoiceEditable,
 } from "../services/finance/financialImmutability.js";
@@ -471,6 +472,9 @@ function normalizeId(value) {
  * @param {object} body
  */
 export async function updateInvoice(invoiceId, organizationId, body) {
+  /* Lire l'etat avant modification pour diff mutation_log. */
+  const _beforeInvoice = await readTrackedFields('invoices', invoiceId, organizationId, TRACKED_INVOICE_FIELDS).catch(() => null);
+
   console.info({
     event: "invoice_update_attempt",
     invoice_id: invoiceId,
@@ -566,6 +570,19 @@ export async function updateInvoice(invoiceId, organizationId, body) {
     organization_id: organizationId,
     archived_at: detail?.archived_at ?? null,
   });
+  /* Diff champ-par-champ pour mutation_log. */
+  void readTrackedFields('invoices', invoiceId, organizationId, TRACKED_INVOICE_FIELDS)
+    .then((_afterInvoice) => logMutationDiff({
+      organizationId,
+      userId: null,
+      tableName: 'invoices',
+      recordId: invoiceId,
+      operation: 'UPDATE',
+      before: _beforeInvoice,
+      after: _afterInvoice,
+      fields: TRACKED_INVOICE_FIELDS,
+    }))
+    .catch(() => {});
   return detail;
 }
 

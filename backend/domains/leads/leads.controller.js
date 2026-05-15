@@ -23,6 +23,7 @@ import {
   syncDefaultMeterFromLeadRow,
 } from "../../services/leadMeters.service.js";
 import { logAuditEvent } from "../../services/audit/auditLog.service.js";
+import { logMutationDiff, TRACKED_LEAD_FIELDS } from "../../services/mutationLog.service.js";
 import { AuditActions } from "../../services/audit/auditActions.js";
 import { assertOrgOwnership } from "../../services/security/assertOrgOwnership.js";
 import { resolveArchiveScopeFromQuery } from "../../services/leadsListFilterSql.service.js";
@@ -1064,6 +1065,18 @@ export async function update(req, res) {
       statusCode: 200,
       metadata: { changed_fields: changedFields },
     });
+    /* Diff champ-par-champ mutation_log (existingLead = snapshot avant modification). */
+    void logMutationDiff({
+      organizationId: org,
+      userId: uid,
+      tableName: 'leads',
+      recordId: id,
+      operation: 'UPDATE',
+      before: existingLead,
+      after: rowOut,
+      fields: TRACKED_LEAD_FIELDS,
+      ipAddress: req?.ip ?? req?.headers?.['x-forwarded-for'] ?? null,
+    }).catch(() => {});
     if (marketing_opt_in !== undefined) {
       void logAuditEvent({
         action: AuditActions.LEAD_MARKETING_OPT_IN_UPDATED,
