@@ -450,8 +450,8 @@ export function buildRoofModel3DFromLegacyGeometry(
         message: `Pan ${pan.id} : ${slopeAnchorReplacedCount} sommet(s) reconstruits par pente + azimut + hauteur d'ancrage.`,
         context: {
           panId: pan.id,
-          tiltDegHint: pan.tiltDegHint ?? null,
-          azimuthDegHint: pan.azimuthDegHint ?? null,
+          tiltDegHint: pan.tiltDegHint ?? "n/a",
+          azimuthDegHint: pan.azimuthDegHint ?? "n/a",
           replacedCornerCount: slopeAnchorReplacedCount,
         },
       });
@@ -698,7 +698,7 @@ export function buildRoofModel3DFromLegacyGeometry(
         code: "HEIGHT_RECONSTRUCTED_FROM_SLOPE_AZIMUTH_ANCHOR",
         severity: "info",
         message: "Hauteurs manquantes reconstruites depuis pente + azimut + hauteur d'ancrage.",
-        context: { panId: pan.id, tiltDegHint: pan.tiltDegHint ?? null, azimuthDegHint: pan.azimuthDegHint ?? null },
+        context: { panId: pan.id, tiltDegHint: pan.tiltDegHint ?? "n/a", azimuthDegHint: pan.azimuthDegHint ?? "n/a" },
       });
     }
 
