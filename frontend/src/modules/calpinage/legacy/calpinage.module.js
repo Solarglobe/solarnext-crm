@@ -17812,6 +17812,23 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 selectEntityFromHit(hit);
               } else {
                 clearSelection();
+                drawState.isSelectingBox = false;
+                drawState.selectionBoxStart = null;
+                drawState.selectionBoxEnd = null;
+                drawState.dragMode = null;
+                drawState.dragBase = null;
+                drawState.dragOffset = null;
+                drawState.draggingObstacleOffset = null;
+                drawState.draggingObstacleHandle = null;
+                drawState.draggingVertex = null;
+                drawState.draggingRidgePoint = null;
+                drawState.draggingRidgeOffset = null;
+                drawState.draggingTraitPoint = null;
+                drawState.draggingTraitSegmentStart = null;
+                drawState.draggingMesureStartImage = null;
+                CALPINAGE_STATE.selected = { type: null, id: null, pointIndex: null };
+                if (typeof requestAnimationFrame !== "undefined" && typeof window.CALPINAGE_RENDER === "function") requestAnimationFrame(window.CALPINAGE_RENDER);
+                return;
               }
               /* Mode édition obstacle — handles AVANT vertex/segment/drag (fix resize coin rectangle) */
               if ((hit && (hit.type === "obstacle-vertex" || hit.type === "obstacle-segment" || hit.type === "obstacle")) || (drawState.selectedObstacleIndex != null && !(hit && hit.type === "roofExtension"))) {
