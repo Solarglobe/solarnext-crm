@@ -21,7 +21,6 @@
  *   - Aucune référence à window.* (pure TS)
  */
 
-import { getCalpinageScopedKey } from "./calpinageStorage";
 import type { CalpinageMetaV2 } from "./integrity/calpinageReloadIntegrity";
 import {
   computeGeometryHashFromRoofState,

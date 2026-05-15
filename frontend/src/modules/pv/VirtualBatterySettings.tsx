@@ -57,7 +57,7 @@ function isHphcSegment(segmentKey: SegmentKey): boolean {
 }
 
 export default function VirtualBatterySettings() {
-  const [settings, setSettings] = useState<OrgPvSettings | null>(null);
+  const [_settings, setSettings] = useState<OrgPvSettings | null>(null);
   const [data, setData] = useState<PvVirtualBatterySettings>(() => ({ providers: {} }));
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);

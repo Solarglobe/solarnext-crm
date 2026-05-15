@@ -2,7 +2,6 @@
  * Origine de facturation — base préparation (`prepared_total_ttc_reference`) et type (acompte, solde…).
  */
 
-import React from "react";
 import { Link } from "react-router-dom";
 import { formatInvoiceOriginQuoteType } from "./invoiceBillingLabels";
 

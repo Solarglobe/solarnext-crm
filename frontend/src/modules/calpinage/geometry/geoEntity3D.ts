@@ -493,7 +493,7 @@ export function buildGeometry3DExportSection(
     missingHeightCount: number;
   };
 } {
-  const { entities, index } = normalized;
+  const { entities, } = normalized;
   const countsByType: Record<string, number> = {};
   let fallbackBaseZCount = 0;
   let missingHeightCount = 0;

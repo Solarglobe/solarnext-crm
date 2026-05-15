@@ -2,7 +2,7 @@
  * Vue liste Leads — tableau dense type SaaS (tri serveur + pagination serveur).
  */
 
-import React, { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card } from "../ui/Card";
 import type { Lead, LeadsFilters } from "../../services/leads.service";

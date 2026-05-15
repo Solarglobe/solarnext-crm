@@ -2,7 +2,6 @@
  * Carte centrale — situation de paiement (lisibilité comptable).
  */
 
-import React from "react";
 
 function eur(n: number) {
   return n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";

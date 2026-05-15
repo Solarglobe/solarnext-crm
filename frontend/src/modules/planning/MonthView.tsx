@@ -3,7 +3,6 @@
  * Click sur jour → callback pour basculer en DayView
  */
 
-import React from "react";
 import type { Mission } from "../../services/missions.service";
 import { toLocalISODate } from "../../utils/date.utils";
 
@@ -73,7 +72,7 @@ export default function MonthView({
                     <div className="day-number">{day.getDate()}</div>
                     {dayMissions.length > 0 && (
                       <div className="month-mission-dots">
-                        {dotsToShow.map((m, i) => (
+                        {dotsToShow.map((m, _i) => (
                           <span
                             key={m.id}
                             className="month-mission-dot"

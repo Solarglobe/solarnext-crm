@@ -3,7 +3,7 @@
  * Page commerciale orientée : combien le client dépend encore du réseau.
  * Graphique dessiné par engine-p6.js. Structure alignée P4/P5.
  */
-import React, { useMemo } from "react";
+import { useMemo } from "react";
 import PdfPageLayout from "../PdfEngine/PdfPageLayout";
 import PdfHeader from "../../../components/pdf/PdfHeader";
 import { hexToRgba } from "../pdfBrand";

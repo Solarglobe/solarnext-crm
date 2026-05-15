@@ -6,7 +6,6 @@
  * Ne pas mélanger avec d’autres champs côté rendu.
  */
 
-import React from "react";
 
 interface P8DetailsBatterie {
   credited_kwh?: number;

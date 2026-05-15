@@ -3,7 +3,6 @@
  * Remise commerciale : ligne au PU HT négatif (tableau des lignes).
  */
 
-import React from "react";
 import QuoteDepositSection from "./QuoteDepositSection";
 import type { QuoteDeposit } from "./quote.types";
 import LocaleNumberInput from "./LocaleNumberInput";

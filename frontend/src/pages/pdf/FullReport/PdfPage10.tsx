@@ -2,7 +2,6 @@
  * Page 10 — Synthèse finale
  */
 
-import React from "react";
 
 interface P10Data {
   meta?: Record<string, unknown>;

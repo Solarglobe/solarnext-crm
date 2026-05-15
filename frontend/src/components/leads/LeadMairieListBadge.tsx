@@ -1,7 +1,6 @@
 /**
  * CP-MAIRIES-004 — pastille discrète dans les listes leads.
  */
-import React from "react";
 import type { Lead } from "../../services/leads.service";
 
 function labelAndClass(lead: Pick<Lead, "mairie_id" | "mairie_account_status">): {

@@ -2,7 +2,7 @@
  * Textes destinés au client / au PDF (hors notes internes équipe).
  */
 
-import React, { useState } from "react";
+import { useState } from "react";
 import type { QuoteTextTemplateItem } from "../../services/admin.api";
 
 export interface QuoteClientContentSectionProps {

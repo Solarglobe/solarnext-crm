@@ -2,7 +2,7 @@
  * Overlay centré type outil métier (backdrop + panneau scrollable).
  */
 
-import React, { useEffect } from "react";
+import { useEffect } from "react";
 import { VisiteTechniqueV2 } from "./VisiteTechniqueV2";
 import styles from "./VisiteTechniqueModal.module.css";
 

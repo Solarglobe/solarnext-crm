@@ -2,7 +2,7 @@
  * Hub financier — pilotage (KPIs + accès directs + aperçu récent).
  */
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { fetchInvoicesList, fetchQuotesList, type InvoiceListRow, type QuoteListRow } from "../services/financial.api";
 import { quoteDisplayTotals } from "../services/quotes.service";

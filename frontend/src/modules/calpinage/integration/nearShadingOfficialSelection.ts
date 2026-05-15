@@ -16,7 +16,6 @@ import {
 
   type NearShadingCanonical3dEnvelope,
 
-  type NearShadingOfficialNear,
 
 } from "./canonicalNearShadingTypes";
 

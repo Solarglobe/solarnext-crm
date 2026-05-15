@@ -571,7 +571,6 @@ export function AdminTabQuoteCatalog() {
             </thead>
             <tbody>
               {items.map((item) => {
-                const mEur = marginEur(item.sale_price_ht_cents, item.purchase_price_ht_cents);
                 const mPct = marginPct(item.sale_price_ht_cents, item.purchase_price_ht_cents);
                 const level = marginLevel(mPct);
                 return (

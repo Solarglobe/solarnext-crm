@@ -3,7 +3,6 @@
  * Aligné sur fullReport.p9 (pdfViewModel.mapper).
  */
 
-import React from "react";
 import ChartP9 from "./components/ChartP9";
 
 interface P9Scenario {

@@ -3,7 +3,6 @@
  */
 
 import type { GeometryDiagnostic } from "../types/quality";
-import type { QualityBlock } from "../types/quality";
 import type {
   NearShadingAnnualAggregate,
   NearShadingPanelResult,

@@ -5,7 +5,7 @@
  * Puissance + production : selected_scenario_snapshot.
  * Logo organisation : logo_url si existe, sinon rien.
  */
-import React, { useMemo, useEffect } from "react";
+import { useMemo, useEffect } from "react";
 import PdfPageLayout from "../PdfEngine/PdfPageLayout";
 import PdfHeader from "../../../components/pdf/PdfHeader";
 import { usePdfOrgBranding } from "./pdfOrgBrandingContext";

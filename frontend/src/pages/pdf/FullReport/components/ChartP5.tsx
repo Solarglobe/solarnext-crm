@@ -3,7 +3,7 @@
  * Production, Consommation, Batterie
  */
 
-import React, { useMemo } from "react";
+import { useMemo } from "react";
 
 interface ChartP5Props {
   production: number[];
@@ -29,7 +29,7 @@ function buildPath(values: number[], maxVal: number): string {
 }
 
 export default function ChartP5({ production, consommation, batterie }: ChartP5Props) {
-  const { maxVal, paths } = useMemo(() => {
+  const { paths } = useMemo(() => {
     const all = [...production, ...consommation, ...batterie].filter(Number.isFinite);
     const max = Math.max(0.01, ...all);
     return {

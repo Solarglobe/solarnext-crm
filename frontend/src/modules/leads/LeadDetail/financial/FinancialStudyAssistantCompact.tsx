@@ -1,4 +1,3 @@
-import React from "react";
 import type { Study } from "../../../../services/studies.service";
 import { Button } from "../../../../components/ui/Button";
 

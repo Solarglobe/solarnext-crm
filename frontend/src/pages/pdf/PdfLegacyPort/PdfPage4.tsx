@@ -4,7 +4,7 @@
  * Logo : même logique que P1 (organization + getStorageUrl + fallback).
  */
 
-import React, { useMemo } from "react";
+import { useMemo } from "react";
 import ChartP4Production from "./ChartP4Production";
 import PdfPageLayout from "../PdfEngine/PdfPageLayout";
 import PdfHeader from "../../../components/pdf/PdfHeader";

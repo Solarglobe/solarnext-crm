@@ -224,21 +224,6 @@ export function extractHeightStateContextFromCalpinageState(state: unknown): Hei
   return { contours, ridges, traits };
 }
 
-function readPanPolygon2D(pan: Record<string, unknown>): { x: number; y: number }[] | null {
-  const resolved = resolvePanPolygonFor3D(pan);
-  const poly = resolved.raw;
-  if (!poly || poly.length < 2) return null;
-  const out: { x: number; y: number }[] = [];
-  for (const rawPt of poly) {
-    const pt = rawPt as Record<string, unknown>;
-    const x = typeof pt.x === "number" ? pt.x : 0;
-    const y = typeof pt.y === "number" ? pt.y : 0;
-    out.push({ x, y });
-  }
-  const stripped = stripClosingDuplicate2D(out);
-  return stripped.length >= 3 ? stripped : null;
-}
-
 /** Lit le polygone pan avec `h` / `heightM` explicites sur les sommets (Prompt 22). */
 function readPanPolygon2DWithHeights(
   pan: Record<string, unknown>,
@@ -344,14 +329,13 @@ function finalizeCanonicalPan3DFromMutable(
   area2d: number,
   centroidPx: { x: number; y: number },
   vertices: readonly MutablePanVertexBuild[],
-  mpp: number,
-  north: number,
+  _mpp: number,
+  _north: number,
   opt: BuildCanonicalPans3DFromRuntimeOptions,
   upWorld: Vector3,
 ): CanonicalPan3D {
   const {
     includeDiagnostics = true,
-    defaultHeightM = 5.5,
     epsilonFlatDeg = 0.75,
     epsilonFlatZRangeM = 1e-4,
   } = opt;
@@ -531,8 +515,6 @@ export function buildCanonicalPans3DFromRuntime(
   const {
     includeDegeneratePans = true,
     defaultHeightM = 5.5,
-    epsilonFlatDeg = 0.75,
-    epsilonFlatZRangeM = 1e-4,
     skipSharedVertexUnify = false,
   } = opt;
 

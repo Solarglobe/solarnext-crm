@@ -4,7 +4,7 @@
  * Axe Y : un seul max(kW) pour toutes les séries — pas de double échelle ; courbes comparables à l’identique.
  */
 
-import React, { useMemo } from "react";
+import { useMemo } from "react";
 
 const N = 24;
 

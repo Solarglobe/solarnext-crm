@@ -3,7 +3,6 @@
  * Donut autoconsommation + KPI CO2, arbres, voitures
  */
 
-import React from "react";
 import DonutP12 from "./components/DonutP12";
 
 interface P12Data {

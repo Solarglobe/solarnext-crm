@@ -4,7 +4,7 @@
  * APIs : POST generate-pdf, GET documents/study_version/:versionId, GET documents/:id/download
  */
 
-import React, { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { getCrmApiBase } from "@/config/crmApiBase";
 import { apiFetch, getAuthToken } from "../../services/api";
 import { assertDocumentDownloadOk, DOCUMENT_DOWNLOAD_UNAVAILABLE } from "../../utils/documentDownload";

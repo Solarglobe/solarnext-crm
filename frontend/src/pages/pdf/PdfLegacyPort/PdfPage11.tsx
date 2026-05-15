@@ -2,7 +2,7 @@
  * CP-PDF — Page 11 Financement (optionnel)
  * Hydratation engine-p11.js : conserver les id #p11_* et synthèse #p11_syn_*.
  */
-import React, { useMemo } from "react";
+import { useMemo } from "react";
 import PdfPageLayout from "../PdfEngine/PdfPageLayout";
 import PdfHeader from "../../../components/pdf/PdfHeader";
 import { getCrmApiBaseWithWindowFallback } from "@/config/crmApiBase";

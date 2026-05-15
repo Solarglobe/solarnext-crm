@@ -4,7 +4,7 @@
  * marker draggable, récupération parcelle cadastrale, validation via POST /api/addresses/verify-pin
  */
 
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Map from "ol/Map";
 import MapBrowserEvent from "ol/MapBrowserEvent";
 import View from "ol/View";

@@ -77,17 +77,6 @@ function closestPointOnSegmentXY(
   return { x: qx, y: qy, distSq: u * u + v * v };
 }
 
-function distSqPointSegment(
-  px: number,
-  py: number,
-  ax: number,
-  ay: number,
-  bx: number,
-  by: number,
-): number {
-  return closestPointOnSegmentXY(px, py, ax, ay, bx, by).distSq;
-}
-
 /** Plus proche point sur le cycle d’arêtes (fermé) du polygone XY. */
 export function closestPointOnPolygonBoundaryXY(
   px: number,

@@ -9,7 +9,7 @@ import type {
   VirtualBatteryRow,
   SegmentKey,
 } from "../types/pvVirtualBatterySettings";
-import { KVA_KEYS, isMySmartBatteryConfig } from "../types/pvVirtualBatterySettings";
+import { isMySmartBatteryConfig } from "../types/pvVirtualBatterySettings";
 import {
   getVirtualBatteryTariffs2026,
   DEFAULT_VB_MYLIGHT_MYBATT_RESEAU_HT,

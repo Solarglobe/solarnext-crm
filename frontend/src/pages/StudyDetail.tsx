@@ -4,7 +4,7 @@
  * → redirection vers .../versions/:versionUuid/scenarios (version URL ou current_version).
  */
 
-import React, { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { getCrmApiBase } from "@/config/crmApiBase";
 import { apiFetch } from "../services/api";

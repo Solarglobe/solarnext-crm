@@ -2,7 +2,7 @@
  * SUPER_ADMIN — liste des entreprises clientes et accès au compte (mode support).
  */
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "../../components/ui/Button";
 import { useOrganization } from "../../contexts/OrganizationContext";
 import {

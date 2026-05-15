@@ -4,7 +4,6 @@
  * source unique = Paramètres PV > Économie → organizations.settings_json.economics
  */
 
-import React from "react";
 import { Link } from "react-router-dom";
 import { Card } from "../components/ui/Card";
 

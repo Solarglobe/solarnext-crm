@@ -3,7 +3,7 @@
  * pv (#FFD54F), load (#CFCFCF), charge (#A6E3AE), discharge (#2E8B57)
  */
 
-import React, { useMemo } from "react";
+import { useMemo } from "react";
 
 interface ChartP8Props {
   pv: number[];
@@ -30,7 +30,7 @@ function buildPath(values: number[], maxVal: number): string {
 }
 
 export default function ChartP8({ pv, load, charge, discharge }: ChartP8Props) {
-  const { maxVal, paths } = useMemo(() => {
+  const { paths } = useMemo(() => {
     const all = [...pv, ...load, ...charge, ...discharge].filter(Number.isFinite);
     const max = Math.max(0.01, ...all);
     return {

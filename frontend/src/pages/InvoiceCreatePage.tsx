@@ -9,7 +9,7 @@
  * - FREE_CONTEXT : aucun paramètre — choix exclusif client ou lead, devis après choix
  */
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "../components/ui/Button";
 import {

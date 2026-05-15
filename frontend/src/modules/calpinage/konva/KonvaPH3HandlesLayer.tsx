@@ -69,18 +69,6 @@ function readHandleSnap(): HandleSnap | null {
   // P4.6a-fix : coordonnées déjà en screen-space — pas de conversion nécessaire
   return { handles };
 }
-
-// ─── Helper géométrie ─────────────────────────────────────────────────────────
-
-function imgToStage(
-  pt: { x: number; y: number },
-  scale: number,
-  ox: number,
-  oy: number,
-): { x: number; y: number } {
-  return { x: pt.x * scale + ox, y: -pt.y * scale + oy };
-}
-
 // ─── Composant principal ──────────────────────────────────────────────────────
 
 export function KonvaPH3HandlesLayer() {

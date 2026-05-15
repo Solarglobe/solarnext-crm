@@ -10,7 +10,6 @@ import type { BuildingLocalVec3 } from "../model/canonicalHouse3DModel";
 import type { RoofTopologyGraph } from "../model/roofTopologyModel";
 import type {
   HeightConstraintUsed,
-  RoofPatchPlaneDiagnostics,
   RoofPatchPlaneSolution,
   RoofPlaneEquation,
   RoofPlaneSolutionSet,

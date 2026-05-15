@@ -4,7 +4,7 @@
  * Données : GET study + GET scenarios (aucun recalcul ici).
  */
 
-import React, { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { apiFetch } from "../../services/api";
 import { forkStudyVersionApi, patchStudyTitle, type StudyWithVersions } from "../../services/studies.service";
@@ -20,7 +20,6 @@ const API_BASE = getCrmApiBaseWithWindowFallback();
 
 type ScenarioId = "BASE" | "BATTERY_PHYSICAL" | "BATTERY_VIRTUAL" | "BATTERY_HYBRID";
 
-type ScenarioV2 = ScenarioV2Type;
 
 const COLUMN_ORDER: ScenarioId[] = ["BASE", "BATTERY_PHYSICAL", "BATTERY_VIRTUAL", "BATTERY_HYBRID"];
 const COLUMN_LABELS: Record<ScenarioId, string> = {

@@ -3,7 +3,6 @@
  * Barres empilées : direct PV, batterie, réseau
  */
 
-import React from "react";
 import ChartP6 from "./components/ChartP6";
 
 interface P6Data {

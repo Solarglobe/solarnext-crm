@@ -1,4 +1,3 @@
-import React from "react";
 
 export type SaasTabItem<T extends string = string> = { id: T; label: string };
 

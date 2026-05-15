@@ -3,7 +3,6 @@
  * KPI : Puissance, Autonomie, TRI, Gains
  */
 
-import React from "react";
 
 interface P1Data {
   p1_auto?: Record<string, unknown>;

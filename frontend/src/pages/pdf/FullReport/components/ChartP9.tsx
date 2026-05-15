@@ -2,7 +2,7 @@
  * Chart P9 — Courbe cumulée unique (25 ans), style sobre
  */
 
-import React, { useMemo } from "react";
+import { useMemo } from "react";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, XAxis, YAxis, ReferenceLine } from "recharts";
 
 interface ChartP9Props {

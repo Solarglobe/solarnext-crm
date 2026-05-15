@@ -2,7 +2,6 @@
  * CP-LEAD-V3 — Cockpit : pipeline interactif + actions études / calcul
  */
 
-import React from "react";
 import LeadPipelineBar, { type PipelineStageItem } from "./LeadPipelineBar";
 import { formatEuroAmount, formatProductionKwh } from "./leadEnergyFormat";
 

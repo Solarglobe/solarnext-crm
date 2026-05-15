@@ -3,7 +3,7 @@
  * direct PV (#86D8F1), batterie (#B3F4C4), réseau (#CFCBFF)
  */
 
-import React, { useMemo } from "react";
+import { useMemo } from "react";
 
 interface ChartP6Props {
   dir: number[];

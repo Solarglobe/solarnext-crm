@@ -2,7 +2,7 @@
  * CP-PDF — Page 12 — Clôture impact & accompagnement (alignée P7/P11)
  * Fond standard PDF, cartes premium beige/doré. Meta #p12_* pour engine-p12.js.
  */
-import React, { useMemo } from "react";
+import { useMemo } from "react";
 import PdfPageLayout from "../PdfEngine/PdfPageLayout";
 import PdfHeader from "../../../components/pdf/PdfHeader";
 import { getCrmApiBaseWithWindowFallback } from "@/config/crmApiBase";

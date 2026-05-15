@@ -1,4 +1,3 @@
-import React from "react";
 import type { InvoiceBalanceSnapshot } from "./invoice-financial.types";
 
 function eur(n: number) {

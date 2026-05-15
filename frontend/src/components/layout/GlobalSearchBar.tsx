@@ -2,7 +2,7 @@
  * Recherche globale CRM — barre visible dans AppLayout (debounce 300ms)
  */
 
-import React, { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { fetchGlobalSearch, type GlobalSearchHit } from "../../services/search.service";
 

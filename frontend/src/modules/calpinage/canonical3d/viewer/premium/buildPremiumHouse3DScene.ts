@@ -122,7 +122,7 @@ function validationPresentation(
 function applyBuildingFallbackOverlay(
   base: PremiumHouse3DValidationPresentation,
   scene: SolarScene3D,
-  viewMode: PremiumHouse3DViewMode,
+  _viewMode: PremiumHouse3DViewMode,
 ): PremiumHouse3DValidationPresentation {
   if (scene.metadata?.roofGeometrySource !== "FALLBACK_BUILDING_CONTOUR") return base;
   const reason = typeof scene.metadata?.roofGeometryFallbackReason === "string"

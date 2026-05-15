@@ -2,7 +2,6 @@
  * Barre filtres Leads — toolbar SaaS (Kanban + Liste), logique métier inchangée.
  */
 
-import React from "react";
 import type { LeadsFilters, LeadsMeta } from "../../services/leads.service";
 
 interface LeadFiltersProps {

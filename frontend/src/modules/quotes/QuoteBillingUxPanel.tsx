@@ -3,7 +3,7 @@
  */
 
 import "./quote-billing-ux.css";
-import React, { useMemo } from "react";
+import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import type { QuoteInvoiceBillingContext } from "../../services/financial.api";
 import { formatInvoiceType } from "../invoices/invoiceBillingLabels";

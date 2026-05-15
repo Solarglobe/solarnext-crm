@@ -2,7 +2,6 @@
  * Carte lead — pipeline Kanban & overlay drag (v3 business)
  */
 
-import React from "react";
 import { useNavigate } from "react-router-dom";
 import type { Lead } from "../../services/leads.service";
 import {
@@ -40,7 +39,6 @@ export function LeadCard({
 
   const visualStage = Math.min(Math.max(stageIndex ?? 1, 1), 5);
 
-  const pipelineModifier =
     pipelineCode && CARD_PIPELINE_CLASS_BY_CODE[pipelineCode]
       ? CARD_PIPELINE_CLASS_BY_CODE[pipelineCode]
       : "";

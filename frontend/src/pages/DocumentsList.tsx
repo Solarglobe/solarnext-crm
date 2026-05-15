@@ -2,7 +2,7 @@
  * Document Center — vue globale des documents organisation (GET /api/documents).
  */
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { apiFetch, getAuthToken } from "../services/api";
 import { getCrmApiBase } from "../config/crmApiBase";

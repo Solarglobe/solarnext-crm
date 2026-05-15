@@ -6,8 +6,6 @@ import {
   wasImpersonationTokenExpiredAndCleared,
 } from "../services/organizations.service";
 import {
-  AUTH_TOKEN_STORAGE_KEY,
-  AUTH_TOKEN_PRE_IMPERSONATION_KEY,
   IMPERSONATION_BANNER_KEY,
   IMPERSONATION_META_KEY,
 } from "../services/api";

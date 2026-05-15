@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { sanitizeMailHtml } from "../../mail/sanitizeMailHtml";
 import { MAIL_HTML_MAX_UTF8_BYTES, mailHtmlExceedsLimit } from "../../mail/mailHtmlEditorLimits";

@@ -5,7 +5,6 @@
  * Contenu : branding gauche + numéro de page droite
  */
 
-import React from "react";
 import { FOOTER_H_PX, CONTENT_W_PX, COLORS, FONT } from "./pdfLayout";
 import { resolvePdfPrimaryColor } from "../pdfBrand";
 

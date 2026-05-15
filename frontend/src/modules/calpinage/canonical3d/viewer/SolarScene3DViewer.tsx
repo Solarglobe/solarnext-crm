@@ -64,7 +64,7 @@ import {
   ROOF_VERTEX_XY_EDIT_DEFAULT_MAX_DISPLACEMENT_PX,
   type RoofVertexXYEdit,
 } from "../../runtime/applyRoofVertexXYEdit";
-import { imagePxToWorldHorizontalM, worldHorizontalMToImagePx } from "../builder/worldMapping";
+import { worldHorizontalMToImagePx } from "../builder/worldMapping";
 import {
   computeRoofShellAlignmentDiagnostics,
   formatRoofShellAlignmentOneLine,
@@ -108,7 +108,6 @@ import {
   VIEWER_FILL_LIGHT_INTENSITY,
   VIEWER_KEY_LIGHT_INTENSITY,
   VIEWER_SHADOW_BIAS,
-  VIEWER_SHADOW_MAP_SIZE,
   VIEWER_SHADOW_NORMAL_BIAS,
 } from "./viewerConstants";
 import {
@@ -305,22 +304,6 @@ export interface SolarScene3DViewerProps {
    * Même chaîne legacy que le 2D (`pvSyncSaveRender`).
    */
   readonly pvLayout3DInteractionMode?: boolean;
-}
-
-function formatPanelTooltip(panelId: string, scene: SolarScene3D): string {
-  const eff = getEffectivePanelVisualShading(panelId, scene);
-  const title = `Panneau ${panelId}`;
-  if (eff.state === "AVAILABLE" && eff.lossPct != null) {
-    const pct = eff.lossPct.toLocaleString("fr-FR", {
-      maximumFractionDigits: 1,
-      minimumFractionDigits: Number.isInteger(eff.lossPct) ? 0 : 1,
-    });
-    if (eff.provenance === "near_snapshot_mean_fraction") {
-      return `${title}\nIndicateur d'ombrage (scène 3D) : ${pct} %`;
-    }
-    return `${title}\nPerte shading : ${pct} %`;
-  }
-  return `${title}\nDonnée shading non disponible`;
 }
 
 const PREMIUM_PV_SURFACE_HEX = new THREE.Color("#111827").getHex();
@@ -1009,10 +992,6 @@ function projectWorldToScreenPoint(
   };
 }
 
-function pointsToSvg(points: readonly PvLayout3dScreenPoint[]): string {
-  return points.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
-}
-
 function overlaySignature(o: PvLayout3dScreenOverlayState | null): string {
   if (!o) return "null";
   const h = o.handles
@@ -1507,8 +1486,6 @@ function ViewerSceneContent({
   onPanelHover,
   inspectMode,
   panSelection3DMode,
-  enableRoofVertexZEdit,
-  enableRoofVertexXYEdit,
   selectedHit,
   inspectionSelection,
   onInspectClick,
@@ -2588,7 +2565,6 @@ function DebugSceneHelpers({
   box,
   center,
   maxDim,
-  scene,
 }: {
   readonly box: THREE.Box3;
   readonly center: THREE.Vector3;
@@ -2735,7 +2711,6 @@ function SolarScene3DViewer({
   groundImage,
   debugRuntime,
   cameraViewMode: cameraViewModeControlled,
-  onCameraViewModeChange,
   defaultCameraViewMode,
   showCameraViewModeToggle: _showCameraViewModeToggle,
   premiumViewMode: premiumViewModeControlled,
@@ -2775,15 +2750,8 @@ function SolarScene3DViewer({
    */
   const effectiveDefaultViewMode: CameraViewMode =
     defaultCameraViewMode ?? DEFAULT_CAMERA_VIEW_MODE;
-  const [internalViewMode, setInternalViewMode] = useState<CameraViewMode>(effectiveDefaultViewMode);
+  const [internalViewMode] = useState<CameraViewMode>(effectiveDefaultViewMode);
   const cameraViewMode = cameraViewModeControlled ?? internalViewMode;
-  const setCameraViewMode = useCallback(
-    (m: CameraViewMode) => {
-      onCameraViewModeChange?.(m);
-      if (cameraViewModeControlled === undefined) setInternalViewMode(m);
-    },
-    [cameraViewModeControlled, onCameraViewModeChange],
-  );
 
   const [internalPremiumMode, setInternalPremiumMode] = useState<PremiumHouse3DViewMode>("presentation");
   const premiumMode = premiumViewModeControlled ?? internalPremiumMode;

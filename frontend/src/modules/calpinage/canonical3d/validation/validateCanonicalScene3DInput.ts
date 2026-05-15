@@ -5,8 +5,6 @@
 
 import type { CanonicalScene3DInput } from "../adapters/buildCanonicalScene3DInput";
 import { computeCanonicalScene3DId } from "../adapters/buildCanonicalScene3DInput";
-import type { CanonicalPan3D } from "../adapters/buildCanonicalPans3DFromRuntime";
-import type { CanonicalObstacle3D } from "../adapters/buildCanonicalObstacles3DFromRuntime";
 import type { PvPanelPlacementInput } from "../pvPanels/pvPanelInput";
 
 // ─── Codes normalisés (contrat stable pour UI / logs) ───────────────────────

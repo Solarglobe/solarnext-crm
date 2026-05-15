@@ -2,7 +2,7 @@
  * Section « Page de suivi client » — lien magique portail (state local uniquement).
  */
 
-import React, { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiFetch } from "../../../services/api";
 import { fetchMailAccounts } from "../../../services/mailApi";

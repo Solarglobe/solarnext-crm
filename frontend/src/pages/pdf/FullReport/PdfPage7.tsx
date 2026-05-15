@@ -3,7 +3,6 @@
  * Barres segmentées (origine conso, destination prod)
  */
 
-import React from "react";
 
 interface P7Data {
   meta?: Record<string, unknown>;
@@ -22,7 +21,6 @@ function val(v: unknown): string {
 export default function PdfPage7({ data }: { data?: P7Data }) {
   const meta = data?.meta ?? {};
   const pct = data?.pct ?? {};
-  const cGrid = data?.c_grid ?? 0;
   const pSurplus = data?.p_surplus ?? 0;
 
   const cPv = pct.c_pv_pct ?? 0;

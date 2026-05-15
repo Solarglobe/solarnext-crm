@@ -10,7 +10,6 @@
  *   />
  */
 
-import React from "react";
 import { COLORS, FONT } from "./pdfLayout";
 
 export interface TableRow {

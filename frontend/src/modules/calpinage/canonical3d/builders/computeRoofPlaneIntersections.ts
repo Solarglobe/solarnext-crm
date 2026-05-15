@@ -22,7 +22,7 @@ import {
   ROOF_INTERSECTION_SET_SCHEMA_ID,
   intersectImplicitPlanes,
 } from "../model/roofIntersectionModel";
-import type { RoofTopologyGraph, RoofTopologyGraphEdge } from "../model/roofTopologyModel";
+import type { RoofTopologyGraphEdge } from "../model/roofTopologyModel";
 import { evaluateZOnRoofPlane } from "./solveRoofPlanes";
 
 const DEFAULT_XY_ALIGN = 0.02;

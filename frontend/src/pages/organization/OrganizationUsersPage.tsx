@@ -2,7 +2,6 @@
  * CP-REFAC-004.1 — Utilisateurs (entreprise)
  */
 
-import React from "react";
 import { AdminTabUsers } from "../../modules/admin/AdminTabUsers";
 import "../../modules/finance/financial-pole.css";
 

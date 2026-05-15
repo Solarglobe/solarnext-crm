@@ -2,7 +2,7 @@
  * Mission Engine V1 — Planning (vues Jour / Semaine / Mois)
  */
 
-import React, { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
   fetchMissions,
   fetchMissionTypes,
@@ -53,7 +53,7 @@ export default function PlanningPage() {
   const [dayDate, setDayDate] = useState(() => new Date());
   const [monthStart, setMonthStart] = useState(() => getMonthStart(new Date()));
   const [missions, setMissions] = useState<Mission[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [_loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filters, setFilters] = useState<MissionsFilters>({});
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -65,8 +65,8 @@ export default function PlanningPage() {
   >([]);
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [editingMissionId, setEditingMissionId] = useState<string | null>(null);
-  const [draggingMission, setDraggingMission] = useState<Mission | null>(null);
-  const [dragRevert, setDragRevert] = useState<{
+  const [_draggingMission, setDraggingMission] = useState<Mission | null>(null);
+  const [_dragRevert, setDragRevert] = useState<{
     id: string;
     start: string;
     end: string;

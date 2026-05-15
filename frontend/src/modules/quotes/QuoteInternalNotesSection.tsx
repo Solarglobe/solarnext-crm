@@ -2,7 +2,6 @@
  * Notes strictement internes — non destinées au PDF client (phase produit ultérieure pour le masquage exact).
  */
 
-import React from "react";
 
 export interface QuoteInternalNotesSectionProps {
   canEdit: boolean;

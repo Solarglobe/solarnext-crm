@@ -2,7 +2,6 @@
  * CP-LEAD-V2 — Onglet Études (grille de cartes + création)
  */
 
-import React from "react";
 import type { Study } from "../../../services/studies.service";
 import StudyCard from "./StudyCard";
 import CreateStudyCard from "./CreateStudyCard";

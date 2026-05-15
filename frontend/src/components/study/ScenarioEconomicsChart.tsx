@@ -5,7 +5,7 @@
  * Si un seul scénario disponible : message invitant à activer les options batterie.
  */
 
-import React, { useMemo } from "react";
+import { useMemo } from "react";
 import {
   LineChart,
   Line,

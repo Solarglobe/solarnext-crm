@@ -2,7 +2,6 @@
  * Badges statuts devis / facture / avoir — palette SaaS sobre.
  */
 
-import React from "react";
 import { formatCreditNoteStatusFr, formatInvoiceStatusFr, formatQuoteStatusFr } from "../../../finance/financialLabels";
 
 const QUOTE_STYLES: Record<string, string> = {
@@ -27,19 +26,6 @@ const CN_STYLES: Record<string, string> = {
   DRAFT: "sn-badge sn-badge-neutral",
   ISSUED: "sn-badge sn-badge-info",
   CANCELLED: "sn-badge sn-badge-danger",
-};
-
-const LABELS: Record<string, string> = {
-  DRAFT: "Brouillon",
-  READY_TO_SEND: "Prêt à envoyer",
-  SENT: "Envoyé",
-  ACCEPTED: "Accepté",
-  REJECTED: "Refusé",
-  EXPIRED: "Expiré",
-  CANCELLED: "Annulé",
-  ISSUED: "Émise",
-  PARTIALLY_PAID: "Partiellement payée",
-  PAID: "Payée",
 };
 
 function norm(s: string | undefined) {

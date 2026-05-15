@@ -3,7 +3,7 @@
  * Production (or), Consommation (bleu), Autoconso (turquoise), Batterie (vert)
  */
 
-import React, { useMemo } from "react";
+import { useMemo } from "react";
 
 interface ChartP4Props {
   production: number[];
@@ -17,7 +17,7 @@ const H = 180;
 const PAD = { t: 20, r: 20, b: 30, l: 50 };
 const COLORS = { prod: "#C39847", conso: "#4A90E2", auto: "#40E0D0", batt: "#2E8B57" };
 
-function buildPath(values: number[], maxVal: number, color: string): string {
+function buildPath(values: number[], maxVal: number, _color: string): string {
   if (values.length === 0 || maxVal <= 0) return "";
   const step = (W - PAD.l - PAD.r) / Math.max(1, values.length - 1);
   const pts = values.map((v, i) => {
@@ -29,7 +29,7 @@ function buildPath(values: number[], maxVal: number, color: string): string {
 }
 
 export default function ChartP4({ production, consommation, autoconso, batterie }: ChartP4Props) {
-  const { maxVal, paths } = useMemo(() => {
+  const { paths } = useMemo(() => {
     const all = [...production, ...consommation, ...autoconso, ...batterie].filter(Number.isFinite);
     const max = Math.max(1, ...all);
     const prod = production.length >= 12 ? production : [...production, ...Array(12 - production.length).fill(0)];

@@ -559,7 +559,6 @@ function Inline3DViewer({
     typeof window !== "undefined" &&
     (window as unknown as { __CALPINAGE_VIEW_MODE__?: string }).__CALPINAGE_VIEW_MODE__ === "3D";
   const pvLayout3DActive = enablePvLayout3dFlag && pvLayoutPhase && mode3d;
-  const enableInspectorChrome = enableModelingHistory || pvLayout3DActive;
 
   useEffect(() => {
     if (!import.meta.env.DEV || !scene || zDragBridgeUnarmedLoggedRef.current) return;

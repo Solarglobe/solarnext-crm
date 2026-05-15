@@ -60,7 +60,7 @@ interface LeadHeaderProps {
 
 export default function LeadHeader({
   fullName,
-  companyName,
+  
   contactName,
   customerType,
   status,

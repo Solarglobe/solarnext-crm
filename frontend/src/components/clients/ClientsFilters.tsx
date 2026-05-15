@@ -2,7 +2,7 @@
  * Filtres Clients — barre compacte : Recherche → Statut → Responsable → Tri → Période → Reset
  */
 
-import React, { useMemo } from "react";
+import { useMemo } from "react";
 import type { LeadsFilters, ProjectStatus } from "../../services/leads.service";
 
 const PROJECT_STATUS_LABELS: Record<ProjectStatus, string> = {

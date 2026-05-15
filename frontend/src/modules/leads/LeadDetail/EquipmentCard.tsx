@@ -2,7 +2,6 @@
  * Carte équipement — 1 groupe = 1 type (plusieurs lignes = plusieurs unités).
  * Persistance : toujours un tableau plat d’EquipmentItem (schema V2 inchangé côté API).
  */
-import React from "react";
 import type { EquipmentItem, PacType } from "./equipmentTypes";
 import {
   getEquipmentCardHeading,

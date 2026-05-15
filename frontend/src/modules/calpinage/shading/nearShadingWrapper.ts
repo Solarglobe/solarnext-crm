@@ -25,7 +25,6 @@ import type {
   ComputeNearShadingFrontendParams,
   ComputeNearShadingFrontendResult,
   NearShadingConfig,
-  NearShadingPanelResult,
 } from "./nearShadingTypes";
 import type { ObstacleInput, PanelInput } from "./shadingInputTypes";
 import { getCalpinageRuntime } from "../runtime/calpinageRuntime";

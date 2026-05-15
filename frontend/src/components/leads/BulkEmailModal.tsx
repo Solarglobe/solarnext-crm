@@ -2,7 +2,7 @@
  * Modal envoi email groupé (segment leads — opt-in + email)
  */
 
-import React, { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { ModalShell } from "../ui/ModalShell";
 import { Button } from "../ui/Button";
 import {

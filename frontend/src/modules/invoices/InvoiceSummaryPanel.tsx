@@ -1,4 +1,3 @@
-import React from "react";
 import type { InvoiceStatusUi } from "./invoice.types";
 import { invoiceStatusClass, invoiceStatusLabel } from "./invoiceStatusUi";
 

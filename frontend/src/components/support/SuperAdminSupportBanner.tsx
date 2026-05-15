@@ -2,7 +2,7 @@
  * CP-078B — Bandeau SUPER_ADMIN : mode support (autre tenant) + édition explicite.
  */
 
-import React, { useCallback, useState } from "react";
+import { useCallback, useState } from "react";
 import { useOrganization } from "../../contexts/OrganizationContext";
 
 export function SuperAdminSupportBanner() {

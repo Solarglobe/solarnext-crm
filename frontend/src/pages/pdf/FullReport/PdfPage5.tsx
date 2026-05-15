@@ -3,7 +3,6 @@
  * SVG courbes : production, consommation, batterie (24h)
  */
 
-import React from "react";
 import ChartP5 from "./components/ChartP5";
 
 interface P5Data {

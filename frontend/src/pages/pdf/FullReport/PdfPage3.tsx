@@ -2,7 +2,6 @@
  * Page 3 — Offre chiffrée
  */
 
-import React from "react";
 
 interface P3Data {
   meta?: { client?: string; ref?: string; date?: string };

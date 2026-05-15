@@ -2,7 +2,6 @@
  * Page 3b — Calepinage toiture
  */
 
-import React from "react";
 
 interface P3bData {
   p3b_auto?: Record<string, unknown>;

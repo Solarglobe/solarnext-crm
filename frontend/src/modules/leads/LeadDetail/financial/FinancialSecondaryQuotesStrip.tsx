@@ -1,4 +1,3 @@
-import React from "react";
 import { useNavigate } from "react-router-dom";
 import { quoteDisplayTotals, type Quote } from "../../../../services/quotes.service";
 import { QuoteStatusBadge } from "./financialStatusBadges";

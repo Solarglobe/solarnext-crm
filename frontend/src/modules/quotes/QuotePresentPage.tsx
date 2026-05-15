@@ -3,7 +3,7 @@
  * Même rendu que le PDF officiel (QuoteDocumentView) + barre d’actions + signatures interactives.
  */
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { apiFetch, getAuthToken } from "../../services/api";
 import {

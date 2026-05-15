@@ -1,4 +1,3 @@
-import React from "react";
 import type { QuoteDeposit, QuoteTotals } from "./quote.types";
 import { computeExpectedDepositTtc } from "./quoteCalc";
 

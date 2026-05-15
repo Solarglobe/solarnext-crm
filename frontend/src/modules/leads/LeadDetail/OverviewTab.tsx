@@ -504,7 +504,6 @@ export default function OverviewTab({
   showEnergyConsoBody = true,
   energyConsoBlockedSummary,
   hasMeters = false,
-  readOnly = false,
 }: OverviewTabProps) {
   const readOnlySuper = useSuperAdminReadOnly();
   const overviewStudies = Array.isArray(leadOverview?.studies)

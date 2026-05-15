@@ -9,7 +9,6 @@
 import type { BuildingLocalVec3 } from "../model/canonicalHouse3DModel";
 import type { BuildingShell3D } from "../model/buildingShell3DModel";
 import type { RoofPlaneEquation, RoofPatchPlaneSolution, RoofPlaneSolutionSet } from "../model/roofPlaneSolutionModel";
-import type { RoofIntersectionSet } from "../model/roofIntersectionModel";
 import type {
   BindRoofToBuildingInput,
   BindRoofToBuildingOutput,

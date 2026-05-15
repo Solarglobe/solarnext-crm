@@ -3,7 +3,7 @@
  * Route : /quotes/:id
  */
 
-import React, { useCallback, useEffect, useMemo, useReducer, useState } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { apiFetch, getAuthToken } from "../../services/api";
 import { fetchStudiesByLeadId, type Study } from "../../services/studies.service";

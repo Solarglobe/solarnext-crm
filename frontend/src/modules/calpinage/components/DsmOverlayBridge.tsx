@@ -16,7 +16,7 @@ export function DsmOverlayBridge({
   containerRef: React.RefObject<HTMLDivElement | null>;
 }) {
   const buttonRef = useRef<HTMLButtonElement | null>(null);
-  const [active, setActive] = useState(false);
+  const [_active, setActive] = useState(false);
 
   useEffect(() => {
     const container = containerRef.current;

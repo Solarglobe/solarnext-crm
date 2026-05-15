@@ -3,7 +3,6 @@
  * Sans solaire (noir pointillé), Avec solaire (doré #C39847)
  */
 
-import React from "react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Legend } from "recharts";
 
 interface ChartP2Props {

@@ -3,7 +3,7 @@
  * Données : fullReport.p9 (engine-p9.js) — section DOM #p8 pour le flux legacy.
  * En-tête SolarGlobe + badge central alignés sur les autres pages premium.
  */
-import React, { useMemo } from "react";
+import { useMemo } from "react";
 import PdfPageLayout from "../PdfEngine/PdfPageLayout";
 import PdfHeader from "../../../components/pdf/PdfHeader";
 import "./pdf-page8-premium.css";

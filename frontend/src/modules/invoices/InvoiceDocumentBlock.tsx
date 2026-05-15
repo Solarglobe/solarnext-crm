@@ -2,7 +2,7 @@
  * Bloc document PDF — état clair + actions (sans modifier le pipeline génération).
  */
 
-import React, { useCallback, useState } from "react";
+import { useCallback, useState } from "react";
 import { Button } from "../../components/ui/Button";
 import { DOCUMENT_ACCESS_DENIED, openAuthenticatedDocumentInNewTab } from "@/utils/documentDownload";
 

@@ -3,7 +3,7 @@
  * Page commerciale de synthèse : compréhension immédiate des flux.
  * Rendu React pur (données via fullReport.p7), aligné P4/P5/P6.
  */
-import React, { useMemo } from "react";
+import { useMemo } from "react";
 import PdfPageLayout from "../PdfEngine/PdfPageLayout";
 import PdfHeader from "../../../components/pdf/PdfHeader";
 import { usePdfOrgBranding } from "./pdfOrgBrandingContext";

@@ -2,7 +2,6 @@
  * Page 11 — Finance
  */
 
-import React from "react";
 
 interface P11Data {
   meta?: (Record<string, unknown> & { horizon_years_pdf?: number }) | undefined;

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "../../components/ui/Button";
 import type { InvoiceCreditNoteApi } from "./invoice-financial.types";
 import CreateCreditModal from "./CreateCreditModal";

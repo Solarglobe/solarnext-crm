@@ -3,7 +3,7 @@
  * Paramètres URL : financialQuoteId, renderToken [, quoteSigned=1]
  */
 
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { QuoteDocumentView } from "../../modules/quotes/QuoteDocumentView";
 import type { QuotePdfPayload } from "../../modules/quotes/quoteDocumentTypes";
 import { quoteShowsOfficialNumber } from "../../modules/quotes/quoteUiStatus";

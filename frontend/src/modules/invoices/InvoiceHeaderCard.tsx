@@ -2,7 +2,6 @@
  * En-tête facture — lecture immédiate (document financier pro).
  */
 
-import React from "react";
 import type { InvoiceStatusUi } from "./invoice.types";
 import { invoiceStatusClass, invoiceStatusLabel } from "./invoiceStatusUi";
 import { formatInvoiceTypeHeaderLine } from "./invoiceBillingLabels";

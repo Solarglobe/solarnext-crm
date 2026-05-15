@@ -2,7 +2,6 @@
  * Bloc CGV en fin de PDF d'étude (HTML ou URL + QR ; mode PDF fusionné côté serveur).
  */
 
-import React from "react";
 import type { QuotePdfLegalCgv } from "../../../modules/quotes/quoteDocumentTypes";
 
 export type PdfLegalCgvVm = QuotePdfLegalCgv | null | undefined;

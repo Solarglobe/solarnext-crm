@@ -16,7 +16,7 @@ import { buildCalpinageLevel0Guards } from "../scene/calpinageLevel0BuildGuards"
 import { buildSolarScene3D } from "../scene/buildSolarScene3D";
 import type { SolarScene3D } from "../types/solarScene3d";
 import { createDefaultQualityBlock } from "../utils/factories";
-import { canonicalSceneWorldFromConfig, type CanonicalWorldConfig } from "../world/worldConvention";
+import { type CanonicalWorldConfig } from "../world/worldConvention";
 import { peekCalpinageRuntimeWorldFrame } from "../world/normalizeWorldConfig";
 import { dump3DRuntimePreViewer, recordAutopsyLegacyRoofPath, resetAutopsyLegacyRoofPath } from "../dev/runtime3DAutopsy";
 import { buildRoofQualityPhaseAActionPlan } from "../product/roofQualityPhaseAActionPlan";

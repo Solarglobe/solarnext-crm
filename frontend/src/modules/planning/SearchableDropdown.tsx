@@ -3,7 +3,7 @@
  * LOT C — panneau en portail (PlanningDropdownPanel), z-index CRM, pas de clip overflow modal.
  */
 
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import PlanningDropdownPanel from "./PlanningDropdownPanel";
 import "./searchable-dropdown.css";
 

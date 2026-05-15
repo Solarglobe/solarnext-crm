@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   MAIL_SETTINGS_TAB_IDS,

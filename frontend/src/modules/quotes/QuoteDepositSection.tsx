@@ -1,4 +1,3 @@
-import React from "react";
 import type { QuoteDeposit, QuoteDepositType } from "./quote.types";
 import LocaleNumberInput from "./LocaleNumberInput";
 

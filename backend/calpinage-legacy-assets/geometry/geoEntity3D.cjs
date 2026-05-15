@@ -526,7 +526,7 @@ function normalizeCalpinageGeometry3DReady(calpinageState, ctx, options) {
   return { entities, index: { byType: index } };
 }
 function buildGeometry3DExportSection(normalized, ctx) {
-  const { entities, index } = normalized;
+  const { entities } = normalized;
   const countsByType = {};
   let fallbackBaseZCount = 0;
   let missingHeightCount = 0;

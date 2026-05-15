@@ -4,7 +4,7 @@
  * Affiche CalpinageOverlay ; à la fermeture, redirige vers l'étude (version).
  */
 
-import React, { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import CalpinageOverlay from "../../components/CalpinageOverlay";
 import { getCrmApiBase } from "@/config/crmApiBase";

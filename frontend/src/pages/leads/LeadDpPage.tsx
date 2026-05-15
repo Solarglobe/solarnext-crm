@@ -3,7 +3,7 @@
  * Charge GET /api/leads/:id/dp puis ouvre DpOverlay ; à la fermeture, retour fiche lead.
  */
 
-import React, { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import DpOverlay from "../../components/DpOverlay";
 import { getCrmApiBase } from "../../config/crmApiBase";

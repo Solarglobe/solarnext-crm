@@ -2,7 +2,6 @@
  * CP-LEAD-V2 / P3 — Onglet Documents (hub métier sectionné)
  */
 
-import React from "react";
 import DocumentUploader, { type Document } from "../../../components/DocumentUploader";
 
 interface DocumentsTabProps {

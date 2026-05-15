@@ -3,12 +3,10 @@
  * Activités type === NOTE, liste + formulaire rapide ajout
  */
 
-import React from "react";
 import {
   ACTIVITY_TYPE_LABELS,
   type Activity,
   type ActivityType,
-  type CreateActivityPayload,
 } from "../../../services/activities.service";
 import LeadEmptyState from "./LeadEmptyState";
 

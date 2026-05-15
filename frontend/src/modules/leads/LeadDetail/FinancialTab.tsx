@@ -2,7 +2,7 @@
  * Onglet Financier — cockpit dossier (devis, facturation, assistant étude).
  */
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { Quote } from "../../../services/quotes.service";
 import type { Study } from "../../../services/studies.service";
@@ -55,8 +55,8 @@ export default function FinancialTab({
   studies,
   studiesLoading,
   onRefreshQuotes,
-  onCreateStudy,
-  createStudyLoading,
+  
+  
   onOpenStudyCalpinage,
   onOpenStudyQuoteBuilder,
 }: FinancialTabProps) {

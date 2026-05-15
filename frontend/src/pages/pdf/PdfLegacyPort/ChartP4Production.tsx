@@ -4,15 +4,13 @@
  * Production solaire, consommation, énergie utilisée directement, batterie (si > 0).
  */
 
-import React, { useMemo } from "react";
+import { useMemo } from "react";
 
 const MONTHS = ["Jan", "Fév", "Mar", "Avr", "Mai", "Juin", "Juil", "Aoû", "Sep", "Oct", "Nov", "Déc"];
 
 function catmullRom2bezier(pts: { x: number; y: number }[]): string {
   if (pts.length < 2) return "";
   let d = `M ${pts[0].x},${pts[0].y}`;
-  const H = 600;
-  const PAD_B = 55;
   for (let i = 0; i < pts.length - 1; i++) {
     const p0 = pts[i - 1] ?? pts[i];
     const p1 = pts[i];

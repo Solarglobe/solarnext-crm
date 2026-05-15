@@ -18,7 +18,6 @@
  *  - Hauteurs automatiques via blockRatios=[1,4,2]
  */
 
-import React from "react";
 import PdfPageLayout, { PdfBlock } from "../PdfEngine/PdfPageLayout";
 import PdfKpiGrid, { KpiItem } from "../PdfEngine/PdfKpiGrid";
 import { COLORS, FONT, PdfMeta, fmt } from "../PdfEngine/pdfLayout";

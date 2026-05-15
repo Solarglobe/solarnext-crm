@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 
 const SPACE_CHARS = /[\s\u202f\u00a0]/g;
 

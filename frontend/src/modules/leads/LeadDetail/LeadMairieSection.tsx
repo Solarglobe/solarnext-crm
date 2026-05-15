@@ -1,7 +1,7 @@
 /**
  * CP-MAIRIES-004-CLEAN — Bloc Mairie sur fiche lead : affiché seulement si une mairie est liée (consultation).
  */
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "../../../components/ui/Button";
 import { LeadMairieListBadge } from "../../../components/leads/LeadMairieListBadge";

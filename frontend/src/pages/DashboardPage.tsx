@@ -2,7 +2,7 @@
  * Tableau de bord — pilotage direction (données serveur, hiérarchie visuelle premium).
  */
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import {
   AreaChart,
@@ -211,44 +211,6 @@ function buildTimelineTrendSentence(
   return parts.slice(0, 2).join(" · ");
 }
 
-function TimelineSparkline({
-  rows,
-  accessor,
-}: {
-  rows: DashboardOverview["activity_timeline"];
-  accessor: "quotes_signed" | "cash_collected";
-}) {
-  const vals = rows.map((r) => safeNum(r[accessor]));
-  if (!vals.length) return null;
-  const max = Math.max(...vals, 1);
-  const w = 120;
-  const h = 36;
-  const pad = 2;
-  const span = Math.max(vals.length - 1, 1);
-  let pts = vals.map((v, i) => {
-    const x = pad + (i * (w - pad * 2)) / span;
-    const y = h - pad - (v / max) * (h - pad * 2);
-    return `${x.toFixed(1)},${y.toFixed(1)}`;
-  });
-  if (pts.length === 1) {
-    const v = vals[0];
-    const y = h - pad - (v / max) * (h - pad * 2);
-    pts = [`${pad},${y.toFixed(1)}`, `${w - pad},${y.toFixed(1)}`];
-  }
-  return (
-    <svg className="sn-dashboard-sparkline" viewBox={`0 0 ${w} ${h}`} aria-hidden>
-      <polyline
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        points={pts.join(" ")}
-      />
-    </svg>
-  );
-}
-
 /* ─── Gauge circulaire SVG (taux de conversion) ───────────────────────────── */
 function ConversionGauge({ pctValue, label }: { pctValue: number; label: string }) {
   const r = 52;
@@ -311,22 +273,6 @@ function KpiSparkline({ values, color = "#7c3aed" }: { values: number[]; color?:
       <polygon points={areaPoints} fill={`url(#kpi-grad-${color.replace("#","")})`} />
       <polyline fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" points={pts.join(" ")} />
     </svg>
-  );
-}
-
-/* ─── Trend badge (flèche + delta) ──────────────────────────────────────────*/
-function TrendBadge({ current, previous, formatter }: { current: number; previous: number; formatter: (v: number) => string }) {
-  if (!previous || previous === 0) return null;
-  const delta = current - previous;
-  const pctChange = (delta / previous) * 100;
-  const isUp = delta >= 0;
-  const isNeutral = Math.abs(pctChange) < 2;
-  if (isNeutral) return <span className="sn-dashboard-trend sn-dashboard-trend--neutral">→ stable</span>;
-  return (
-    <span className={`sn-dashboard-trend ${isUp ? "sn-dashboard-trend--up" : "sn-dashboard-trend--down"}`}>
-      {isUp ? "↑" : "↓"} {Math.abs(pctChange).toFixed(0)}%
-      <span className="sn-dashboard-trend__abs"> ({isUp ? "+" : ""}{formatter(delta)})</span>
-    </span>
   );
 }
 
@@ -470,7 +416,7 @@ function SourceDonutChart({ rows }: { rows: DashboardOverview["acquisition_perfo
             paddingAngle={3}
             dataKey="value"
           >
-            {data.map((entry, i) => (
+            {data.map((entry, _i) => (
               <Cell key={entry.name} fill={entry.color} strokeWidth={0} />
             ))}
           </Pie>
@@ -936,7 +882,7 @@ export default function DashboardPage() {
           <Card variant="premium" padding="md" className="sn-dashboard-pipeline-card">
             <div className="sn-dashboard-pipeline-bar" role="img" aria-label="Répartition des leads ouverts par étape">
               {pipelineTotal > 0 ? (
-                data.pipeline.leads_by_stage.map((st, i) => {
+                data.pipeline.leads_by_stage.map((st, _i) => {
                   const w = (100 * st.leads_count) / pipelineTotal;
                   if (st.leads_count === 0) return null;
                   return (
@@ -969,7 +915,7 @@ export default function DashboardPage() {
             </div>
 
             <div className="sn-dashboard-stage-grid">
-              {data.pipeline.leads_by_stage.map((st, i) => (
+              {data.pipeline.leads_by_stage.map((st, _i) => (
                 <div
                   key={st.stage_id}
                   className={`sn-dashboard-stage-tile${st.is_closed ? " sn-dashboard-stage-tile--closed" : ""}`}

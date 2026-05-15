@@ -101,8 +101,7 @@ function mapRing2dToWorldZ(
   return poly.map((p) => applySceneChain({ x: p.x, y: p.y, z }, centroid, trans));
 }
 
-function buildSceneFrame(doc: CanonicalHouseDocument, northDeg: number, mpp: number | undefined): SceneFrameDescriptor {
-  const wp = doc.worldPlacement;
+function buildSceneFrame(_doc: CanonicalHouseDocument, northDeg: number, mpp: number | undefined): SceneFrameDescriptor {
   return {
     conventionId: "ENU_Z_UP_OFFICIAL",
     horizontalAxis1: "+X",

@@ -154,7 +154,7 @@ function readPanVertexHeight(panRaw: Record<string, unknown>, polyLen: number, v
   return isRecord(p) ? pointH(p) : null;
 }
 
-function classifyObstacleAnnex(o: Record<string, unknown>, idx: number): { family: AnnexDiscriminated["family"]; ambiguous: boolean } {
+function classifyObstacleAnnex(o: Record<string, unknown>, _idx: number): { family: AnnexDiscriminated["family"]; ambiguous: boolean } {
   if (isKeepoutNonShadingObstacle(o)) {
     return { family: "layout_keepout", ambiguous: false };
   }
@@ -916,7 +916,7 @@ export function parseCalpinageStateToCanonicalHouse3D(
   );
 }
 
-function buildEmptyDocument(bid: string, diagnostics: ParseDiagnostic[]): CanonicalHouseDocument {
+function buildEmptyDocument(bid: string, _diagnostics: ParseDiagnostic[]): CanonicalHouseDocument {
   const zBase: HeightQuantity = {
     id: "hq-z-base-convention",
     role: "z_base",

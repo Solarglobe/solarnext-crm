@@ -3,7 +3,7 @@
  * Source : study_versions.data_json.selected_meter_id + GET lead meters.
  */
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiFetch } from "../../../services/api";
 import { getCrmApiBase } from "@/config/crmApiBase";

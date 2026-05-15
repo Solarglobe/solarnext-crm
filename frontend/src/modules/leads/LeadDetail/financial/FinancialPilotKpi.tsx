@@ -1,4 +1,3 @@
-import React from "react";
 import { Button } from "../../../../components/ui/Button";
 import type { FinancialKpiDerived } from "./leadFinancialDerive";
 import type { NextActionModel } from "./leadFinancialDerive";

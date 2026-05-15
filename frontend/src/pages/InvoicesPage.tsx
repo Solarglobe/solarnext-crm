@@ -2,7 +2,7 @@
  * Liste factures — filtres métier, colonnes encours, création depuis devis (recherche, pas d’UUID).
  */
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "../components/ui/Button";
 import { ModalShell } from "../components/ui/ModalShell";
@@ -199,7 +199,7 @@ function quoteRowCanInvoice(q: QuoteListRow): boolean {
   return hasClient || hasLead;
 }
 
-function quoteRowInvoiceBlockedReason(q: QuoteListRow): string {
+function quoteRowInvoiceBlockedReason(_q: QuoteListRow): string {
   return "Ce devis accepté n’a ni fiche client ni dossier (lead) : facturation impossible. Corrigez le rattachement du devis.";
 }
 
@@ -219,7 +219,7 @@ export default function InvoicesPage() {
   const [quotesLoading, setQuotesLoading] = useState(false);
   const [quoteSearch, setQuoteSearch] = useState("");
   const [selectedQuote, setSelectedQuote] = useState<QuoteListRow | null>(null);
-  const [creating, setCreating] = useState(false);
+  const [creating, _setCreating] = useState(false);
   const [quoteModalError, setQuoteModalError] = useState<string | null>(null);
 
   const load = useCallback(async () => {

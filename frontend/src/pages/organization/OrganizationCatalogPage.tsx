@@ -3,7 +3,7 @@
  * + modèles de texte (notes, technique, paiement).
  */
 
-import React, { useState } from "react";
+import { useState } from "react";
 import { SaasTabs } from "../../components/ui/SaasTabs";
 import { AdminTabQuoteCatalog } from "../../modules/admin/AdminTabQuoteCatalog";
 import { AdminTabQuoteTextTemplates } from "../../modules/admin/AdminTabQuoteTextTemplates";

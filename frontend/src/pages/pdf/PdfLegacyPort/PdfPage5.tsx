@@ -2,7 +2,7 @@
  * CP-PDF — Page 5 Journée type (projection client)
  * Graphique : même famille visuelle que P4 (`ChartP4Production`) — `ChartP5DayProfile`, données `fullReport.p5`.
  */
-import React, { useMemo } from "react";
+import { useMemo } from "react";
 import PdfPageLayout from "../PdfEngine/PdfPageLayout";
 import PdfHeader from "../../../components/pdf/PdfHeader";
 import { hexToRgba } from "../pdfBrand";

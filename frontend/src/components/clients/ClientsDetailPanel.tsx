@@ -2,7 +2,7 @@
  * Panneau détail dossier projet PV — données Lead existantes, focus project_status.
  */
 
-import React, { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getCrmApiBase, buildApiUrl } from "@/config/crmApiBase";
 import { apiFetch, getAuthToken } from "../../services/api";

@@ -15,7 +15,6 @@
  * └─────────────────────────────────────────────────────────────────┘
  */
 
-import React from "react";
 import {
   HEADER_H_PX,
   CONTENT_W_PX,

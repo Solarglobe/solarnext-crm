@@ -10,7 +10,6 @@
  *   vérifier visuellement l'alignement avant de brancher les vraies données.
  */
 
-import React from "react";
 import PdfPageLayout, { PdfBlock } from "./PdfPageLayout";
 import PdfKpiGrid from "./PdfKpiGrid";
 import { COLORS, FONT } from "./pdfLayout";

@@ -3,7 +3,7 @@
  * CP-ARCHIVE-EXPORT-09 — Export CSV + recherche rapide
  */
 
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "../../components/ui/Button";
 import {
   adminGetArchives,

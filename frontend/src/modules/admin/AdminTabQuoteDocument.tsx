@@ -2,7 +2,7 @@
  * Texte « Informations réglementaires & conformité » — stocké dans organizations.settings_json.quote_pdf.regulatory_text
  */
 
-import React, { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Button } from "../../components/ui/Button";
 import { orgGetSettings, orgPutSettings } from "../../services/admin.api";
 import "./admin-tab-quote-catalog.css";

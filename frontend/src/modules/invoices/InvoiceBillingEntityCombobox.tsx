@@ -2,7 +2,7 @@
  * Sélection client / lead facturation — recherche locale sur données déjà chargées.
  */
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { BillingSelectRow } from "@/services/billingContacts.api";
 
 const MAX_RESULTS = 20;

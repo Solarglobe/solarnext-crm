@@ -1,4 +1,3 @@
-import React from "react";
 import type { Quote } from "../../../../services/quotes.service";
 import type { InvoiceListRow } from "../../../../services/financial.api";
 

@@ -2,7 +2,7 @@
  * Page Leads — shell outil unifié (Kanban + liste : même viewport, même zone données)
  */
 
-import React, { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Card } from "../components/ui/Card";
 import { Button } from "../components/ui/Button";
 import { LeadsKanbanView } from "../components/leads/LeadsKanbanView";

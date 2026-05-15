@@ -3,7 +3,6 @@
  * Missions liées, bouton Nouveau RDV (MissionCreateModal)
  */
 
-import React from "react";
 import { useNavigate } from "react-router-dom";
 import type { Mission } from "../../../services/missions.service";
 import LeadEmptyState from "./LeadEmptyState";

@@ -5,7 +5,7 @@
  * Signal de readiness : __pdf_render_ready et #pdf-ready[data-status="ready"] dès view-model chargé (P10 ne bloque plus).
  */
 
-import React, { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { apiFetch } from "../../services/api";
 import PdfLegacyPort from "./PdfLegacyPort";

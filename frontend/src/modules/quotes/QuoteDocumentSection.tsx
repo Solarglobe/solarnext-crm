@@ -2,7 +2,6 @@
  * Bloc « Document » — identité du devis, client, mode d’affichage PDF (metadata_json.pdf_show_line_pricing).
  */
 
-import React from "react";
 import { Link } from "react-router-dom";
 import { quoteBuilderTitleDisplay } from "./quoteUiStatus";
 

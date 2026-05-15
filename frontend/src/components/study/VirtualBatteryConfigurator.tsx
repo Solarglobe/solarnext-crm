@@ -4,7 +4,7 @@
  * Le reste est calculé automatiquement depuis les grilles.
  */
 
-import React, { useMemo } from "react";
+import { useMemo } from "react";
 import type { PvVirtualBatterySettings, VirtualBatteryConfig } from "../../types/pvVirtualBatterySettings";
 import { resolveVirtualBatteryPricing } from "../../services/virtualBatteryPricing";
 import { getVirtualBatteryTariffs2026 } from "../../data/virtualBatteryTariffs2026";

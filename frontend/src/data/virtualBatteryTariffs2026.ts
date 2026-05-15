@@ -4,14 +4,12 @@
  */
 
 import type { PvVirtualBatterySettings, VirtualBatteryRow, CapacityTier } from "../types/pvVirtualBatterySettings";
-import { KVA_KEYS, SEGMENT_KEYS, createEmptyRow, createEmptySegmentRows, createEmptySegments } from "../types/pvVirtualBatterySettings";
+import { KVA_KEYS, SEGMENT_KEYS, createEmptySegments } from "../types/pvVirtualBatterySettings";
 
 // ——— MyLight Offre électricité (mylight150) — BASE HT
 const MYLIGHT_BASE_ABO: Record<string, number> = {
   "3": 9.16, "6": 11.76, "9": 14.46, "12": 16.24, "15": 17.62, "18": 20.6, "24": 24.51, "30": 28.41, "36": 32.31,
 };
-const MYLIGHT_BASE_ENERGY_LOW = 0.1308;  // 3-15 kVA
-const MYLIGHT_BASE_ENERGY_HIGH = 0.1297; // 18-36 kVA
 
 // ——— MyLight Offre électricité — HP/HC HT
 const MYLIGHT_HPHC_ABO: Record<string, number> = {

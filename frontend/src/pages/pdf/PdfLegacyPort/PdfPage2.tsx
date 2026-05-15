@@ -1,7 +1,7 @@
 /**
  * CP-PDF — Page 2 Étude financière 25 ans (engine summary, ids p2_* inchangés).
  */
-import React, { useMemo } from "react";
+import { useMemo } from "react";
 import PdfPageLayout from "../PdfEngine/PdfPageLayout";
 import PdfHeader from "../../../components/pdf/PdfHeader";
 import { BLOCK_GAP_PX } from "../PdfEngine/pdfLayout";

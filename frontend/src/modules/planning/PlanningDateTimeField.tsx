@@ -2,7 +2,6 @@
  * LOT B — Champ date/heure mission (MUI X) : comportement métier unique, styles centralisés.
  */
 
-import React from "react";
 import { DateTimePicker } from "@mui/x-date-pickers/DateTimePicker";
 import dayjs from "dayjs";
 import { buildPlanningDateTimePickerSlotProps } from "./planningDateTimePicker.theme";

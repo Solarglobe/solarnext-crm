@@ -40,7 +40,7 @@ export function expectImageToWorldHorizontalMatchesConvention(
   northAngleDeg: number,
   xWorldM: number,
   yWorldM: number,
-  eps = 1e-9,
+  _eps = 1e-9,
 ): void {
   const exp = imagePxToWorldHorizontalM(xPx, yPx, metersPerPixel, northAngleDeg);
   expect(xWorldM, "xWorldM vs imagePxToWorldHorizontalM").toBeCloseTo(exp.x, 8);
@@ -97,7 +97,7 @@ export function expectObstacleVerticalExtrusion(params: {
   readonly heightM: number;
   readonly tolM?: number;
 }): void {
-  const { baseVertices, topVertices, heightM, tolM = 1e-5 } = params;
+  const { baseVertices, topVertices, heightM } = params;
   expect(baseVertices.length).toBe(topVertices.length);
   for (let i = 0; i < baseVertices.length; i++) {
     expect(topVertices[i]!.zWorldM - baseVertices[i]!.zWorldM).toBeCloseTo(heightM, 5);

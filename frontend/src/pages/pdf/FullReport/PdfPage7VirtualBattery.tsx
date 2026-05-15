@@ -56,12 +56,6 @@ function fmtPctFromRatio(v: unknown): string {
   return `${(n * 100).toFixed(1).replace(".", ",")} %`;
 }
 
-function fmtPtsFromRatio(v: unknown): string {
-  const n = num(v);
-  if (n == null) return EMPTY;
-  return `${(n * 100).toFixed(1).replace(".", ",")} pts`;
-}
-
 const CARD_SOFT_BASE: React.CSSProperties = {
   padding: "3.6mm 3.3mm",
   border: "0.4mm solid rgba(195,152,71,.28)",
@@ -121,10 +115,8 @@ export default function PdfPage7VirtualBattery({
   }, [organization?.id, organization?.logo_image_key, organization?.logo_url, viewModel?.meta]);
 
   const meta = data.meta ?? {};
-  const withoutBattery = data.without_battery ?? {};
   const withBattery = data.with_virtual_battery ?? {};
   const maxTheoretical = data.max_theoretical ?? {};
-  const contribution = data.contribution ?? {};
   const kpis = (data as { kpis?: Record<string, unknown> }).kpis ?? {};
   const limits = Array.isArray(data.limits) ? data.limits.slice(0, 3) : [];
 

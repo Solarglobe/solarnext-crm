@@ -3,7 +3,7 @@
  * Liste rôles + modal permissions groupées par domaine métier
  */
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "../../components/ui/Button";
 import { ModalShell } from "../../components/ui/ModalShell";
 import {

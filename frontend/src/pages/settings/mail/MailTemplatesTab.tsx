@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { MailHtmlEditor, type MailHtmlEditorHandle } from "../../mail/MailHtmlEditor";
 import { sanitizeMailHtml } from "../../mail/sanitizeMailHtml";

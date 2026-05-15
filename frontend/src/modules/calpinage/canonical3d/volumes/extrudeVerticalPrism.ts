@@ -12,7 +12,7 @@
 import type { Vector3 } from "../types/primitives";
 import type { WorldPosition3D } from "../types/coordinates";
 import type { VolumeEdge3D, VolumeFace3D, VolumeVertex3D } from "../types/volumetric-mesh";
-import { add3, cross3, dot3, length3, normalize3, scale3, sub3, vec3 } from "../utils/math3";
+import { cross3, dot3, length3, normalize3, scale3, sub3, vec3 } from "../utils/math3";
 import { computeVolumeM3FromTriangleMesh } from "./meshVolume";
 
 const UP = vec3(0, 0, 1);

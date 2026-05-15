@@ -2,7 +2,7 @@
  * CP-REFAC-004.1 — Équipes & entreprise (rôles, agences, équipes, org, archives)
  */
 
-import React, { useState } from "react";
+import { useState } from "react";
 import { SaasTabs } from "../../components/ui/SaasTabs";
 import { AdminTabRoles } from "../../modules/admin/AdminTabRoles";
 import { AdminTabAgencies } from "../../modules/admin/AdminTabAgencies";

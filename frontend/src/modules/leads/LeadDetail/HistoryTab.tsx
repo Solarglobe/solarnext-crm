@@ -3,7 +3,6 @@
  * Activités non-NOTE (changements statut, stage, etc.) ou data.history si disponible
  */
 
-import React from "react";
 import { ACTIVITY_TYPE_LABELS, type Activity } from "../../../services/activities.service";
 import LeadEmptyState from "./LeadEmptyState";
 

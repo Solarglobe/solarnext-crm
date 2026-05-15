@@ -3,7 +3,7 @@
  * Drag custom via pointer events (plus de HTML5 DnD)
  */
 
-import React, { useRef } from "react";
+import { useRef } from "react";
 import type { Mission } from "../../services/missions.service";
 import { toLocalISODate } from "../../utils/date.utils";
 import { HOUR_HEIGHT_DAY } from "./planning-drag.utils";

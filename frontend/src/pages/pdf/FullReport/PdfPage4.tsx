@@ -16,7 +16,6 @@
  *  - Hauteurs automatiques via blockRatios=[5,2]
  */
 
-import React from "react";
 import PdfPageLayout, { PdfBlock } from "../PdfEngine/PdfPageLayout";
 import PdfTable, { TableRow } from "../PdfEngine/PdfTable";
 import { PdfMeta } from "../PdfEngine/pdfLayout";

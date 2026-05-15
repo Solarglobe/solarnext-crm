@@ -78,7 +78,7 @@ export default function MissionCreateModal({
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [users, setUsers] = useState(usersProp);
-  const [teams, setTeams] = useState(teamsProp);
+  const [_teams, setTeams] = useState(teamsProp);
   const [missionTypes, setMissionTypes] = useState(typesProp);
   const [clients, setClients] = useState<Client[]>([]);
   const [studies, setStudies] = useState<Study[]>([]);

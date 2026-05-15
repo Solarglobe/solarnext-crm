@@ -37,15 +37,6 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const timersRef = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
 
-  const removeToast = useCallback((id: number) => {
-    const t = timersRef.current.get(id);
-    if (t) {
-      clearTimeout(t);
-      timersRef.current.delete(id);
-    }
-    setToasts((prev) => prev.filter((t) => t.id !== id));
-  }, []);
-
   const addToast = useCallback(
     (message: string, type: ToastType) => {
       const id = ++nextId;

@@ -3,7 +3,6 @@
  * stroke-dasharray pour cercle partiel
  */
 
-import React from "react";
 
 interface DonutP12Props {
   autoconsPct: number;

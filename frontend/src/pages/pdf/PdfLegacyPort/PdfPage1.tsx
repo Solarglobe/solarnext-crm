@@ -4,7 +4,7 @@
  * Logo / couverture : organization (logo_image_key, pdf_cover_image_key).
  * Données chiffrées : selected_scenario_snapshot → fullReport.p1.p1_auto.
  */
-import React, { useMemo, useEffect } from "react";
+import { useMemo, useEffect } from "react";
 import PdfPageLayout from "../PdfEngine/PdfPageLayout";
 import PdfHeader from "../../../components/pdf/PdfHeader";
 import "./pdf-page1-premium.css";

@@ -623,7 +623,6 @@ export function buildCanonicalObstacles3DFromRuntime(
     const zSourceSummary =
       opt.includeDiagnostics === false ? [] : [...uniqueBaseZ].sort();
 
-    const confCombined = Math.min(confidenceAvgBase, heightR.confidence);
 
     const stableId = computeStableObstacle3DId(obstacleId, kind, semantic, openRing);
 

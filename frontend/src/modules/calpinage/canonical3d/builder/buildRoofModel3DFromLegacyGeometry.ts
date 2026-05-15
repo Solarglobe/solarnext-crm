@@ -40,7 +40,7 @@ import type { GeometryProvenance } from "../types/provenance";
 import type { GeometryDiagnostic, QualityBlock } from "../types/quality";
 import type { Vector3 } from "../types/primitives";
 import { CANONICAL_ROOF_MODEL_SCHEMA_VERSION } from "../types/units";
-import { createDefaultQualityBlock, createEmptyRoofModel3D } from "../utils/factories";
+import { createEmptyRoofModel3D } from "../utils/factories";
 import { distance3, normalize3, sub3, vec3 } from "../utils/math3";
 import { assembleRoofRidges3DFromStructuralInput } from "./assembleRoofRidges3D";
 import {
@@ -54,7 +54,6 @@ import {
   buildInterPanRelationReports,
 } from "./interPanSharedEdges";
 import {
-  LEGACY_SHARED_CORNER_CLUSTER_TOL_PX,
   unifyLegacyPanCornerZAcrossPans,
   type LegacyPanCornerPhase,
 } from "./unifyLegacyPanSharedCornersZ";
@@ -257,7 +256,7 @@ export function buildRoofModel3DFromLegacyGeometry(
   const vertexMap = new Map<string, { id: string; position: Vector3 }>();
   let vertexCounter = 0;
 
-  function getOrCreateVertex(position: Vector3, panId: string, localIndex: number): string {
+  function getOrCreateVertex(position: Vector3, _panId: string, _localIndex: number): string {
     const k = vertexKeyWorldXY(position);
     const ex = vertexMap.get(k);
     if (ex) return ex.id;

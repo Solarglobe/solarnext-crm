@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { ModalShell } from "../../components/ui/ModalShell";
 import { Button } from "../../components/ui/Button";
 import { postInvoicePayment } from "./invoice-financial.api";
