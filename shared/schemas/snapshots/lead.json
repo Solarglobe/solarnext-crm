@@ -1,0 +1,189 @@
+{
+  "_meta": {
+    "version": "1.0.0",
+    "entity": "lead",
+    "generatedAt": "2026-05-15",
+    "generator": "shared/schemas/scripts/generate-snapshots.mts"
+  },
+  "schemas": {
+    "LeadResponse": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "civility": {
+          "type": "string",
+          "enum": [
+            "M",
+            "Mme",
+            "Dr",
+            "Me"
+          ]
+        },
+        "first_name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "last_name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "email": {
+          "type": "string",
+          "maxLength": 255,
+          "format": "email",
+          "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+        },
+        "phone": {
+          "type": "string",
+          "maxLength": 30
+        },
+        "customer_type": {
+          "default": "PERSON",
+          "type": "string",
+          "enum": [
+            "PERSON",
+            "PRO"
+          ]
+        },
+        "company_name": {
+          "type": "string",
+          "maxLength": 255
+        },
+        "siret": {
+          "type": "string",
+          "pattern": "^\\d{14}$"
+        },
+        "address_line1": {
+          "type": "string",
+          "maxLength": 255
+        },
+        "address_line2": {
+          "type": "string",
+          "maxLength": 255
+        },
+        "city": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "postal_code": {
+          "type": "string",
+          "maxLength": 20
+        },
+        "country": {
+          "default": "France",
+          "type": "string",
+          "maxLength": 100
+        },
+        "construction_year": {
+          "type": "integer",
+          "minimum": 1800,
+          "maximum": 2100
+        },
+        "is_primary_residence": {
+          "default": true,
+          "type": "boolean"
+        },
+        "consumption_mode": {
+          "default": "ANNUAL",
+          "type": "string",
+          "enum": [
+            "ANNUAL",
+            "MONTHLY",
+            "PDL"
+          ]
+        },
+        "consumption_annual_kwh": {
+          "type": "number",
+          "minimum": 0
+        },
+        "rgpd_consent": {
+          "default": false,
+          "type": "boolean"
+        },
+        "status": {
+          "default": "LEAD",
+          "type": "string",
+          "enum": [
+            "LEAD",
+            "CLIENT"
+          ]
+        },
+        "project_status": {
+          "type": "string",
+          "enum": [
+            "NOUVEAU",
+            "CONTACTE",
+            "RDV_PLANIFIE",
+            "VISITE_EFFECTUEE",
+            "DEVIS_ENVOYE",
+            "DEVIS_ACCEPTE",
+            "EN_INSTALLATION",
+            "INSTALLE",
+            "PERDU",
+            "SANS_SUITE"
+          ]
+        },
+        "stage_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "assigned_user_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "source_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "notes": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "organization_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+        },
+        "study_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "first_name",
+        "last_name",
+        "customer_type",
+        "country",
+        "is_primary_residence",
+        "consumption_mode",
+        "rgpd_consent",
+        "status",
+        "id",
+        "organization_id",
+        "created_at",
+        "updated_at"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

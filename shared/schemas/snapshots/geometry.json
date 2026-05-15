@@ -1,0 +1,280 @@
+{
+  "_meta": {
+    "version": "1.0.0",
+    "entity": "geometry",
+    "generatedAt": "2026-05-15",
+    "generator": "shared/schemas/scripts/generate-snapshots.mts"
+  },
+  "schemas": {
+    "RoofPolygon": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "roofId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "pans": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "cornersWorld": {
+                "minItems": 3,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "xM": {
+                      "type": "number"
+                    },
+                    "yM": {
+                      "type": "number"
+                    },
+                    "zM": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "xM",
+                    "yM",
+                    "zM"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "tiltDeg": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 90
+              },
+              "azimuthDeg": {
+                "type": "number",
+                "minimum": 0,
+                "exclusiveMaximum": 360
+              },
+              "normalWorld": {
+                "type": "object",
+                "properties": {
+                  "xM": {
+                    "type": "number"
+                  },
+                  "yM": {
+                    "type": "number"
+                  },
+                  "zM": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "xM",
+                  "yM",
+                  "zM"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "id",
+              "cornersWorld",
+              "tiltDeg",
+              "azimuthDeg"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "footprintWorld": {
+          "minItems": 3,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "xM": {
+                "type": "number"
+              },
+              "yM": {
+                "type": "number"
+              },
+              "zM": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "xM",
+              "yM",
+              "zM"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "roofId",
+        "pans"
+      ],
+      "additionalProperties": false
+    },
+    "PanelLayout": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "studyId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "totalPowerKwc": {
+          "type": "number",
+          "minimum": 0
+        },
+        "panelCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "panels": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "panelId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "panId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "centerWorld": {
+                "type": "object",
+                "properties": {
+                  "xM": {
+                    "type": "number"
+                  },
+                  "yM": {
+                    "type": "number"
+                  },
+                  "zM": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "xM",
+                  "yM",
+                  "zM"
+                ],
+                "additionalProperties": false
+              },
+              "rotationRad": {
+                "type": "number"
+              },
+              "powerWc": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              }
+            },
+            "required": [
+              "panelId",
+              "panId",
+              "centerWorld",
+              "powerWc"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "generatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+        }
+      },
+      "required": [
+        "studyId",
+        "totalPowerKwc",
+        "panelCount",
+        "panels"
+      ],
+      "additionalProperties": false
+    },
+    "ShadingResult": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "panId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "nearShadingLossRatio": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "farHorizonLossRatio": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "totalShadingLossRatio": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "shadingPerformanceFactor": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "horizonMask": {
+          "type": "object",
+          "properties": {
+            "azimuthsDeg": {
+              "type": "array",
+              "items": {
+                "type": "number",
+                "minimum": 0,
+                "exclusiveMaximum": 360
+              }
+            },
+            "elevationsDeg": {
+              "type": "array",
+              "items": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 90
+              }
+            }
+          },
+          "required": [
+            "azimuthsDeg",
+            "elevationsDeg"
+          ],
+          "additionalProperties": false
+        },
+        "computedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+        }
+      },
+      "required": [
+        "panId",
+        "nearShadingLossRatio",
+        "farHorizonLossRatio",
+        "totalShadingLossRatio",
+        "shadingPerformanceFactor"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

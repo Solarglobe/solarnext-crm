@@ -1,0 +1,258 @@
+{
+  "_meta": {
+    "version": "1.0.0",
+    "entity": "scenario",
+    "generatedAt": "2026-05-15",
+    "generator": "shared/schemas/scripts/generate-snapshots.mts"
+  },
+  "schemas": {
+    "EnergyScenario": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "scenarioId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1
+        },
+        "installedPowerKwc": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "irradiationKwhM2Year": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "performanceRatio": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "annualProductionKwh": {
+          "type": "number",
+          "minimum": 0
+        },
+        "monthlyProductionKwh": {
+          "minItems": 12,
+          "maxItems": 12,
+          "type": "array",
+          "items": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "consumptionMode": {
+          "type": "string",
+          "enum": [
+            "ANNUAL",
+            "MONTHLY",
+            "PDL"
+          ]
+        },
+        "annualConsumptionKwh": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "monthlyConsumptionKwh": {
+          "minItems": 12,
+          "maxItems": 12,
+          "type": "array",
+          "items": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "selfConsumptionRatio": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "selfSufficiencyRatio": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "virtualBattery": {
+          "type": "object",
+          "properties": {
+            "provider": {
+              "type": "string",
+              "enum": [
+                "MYLIGHT_MYBATTERY",
+                "MYLIGHT_MYSMARTBATTERY",
+                "URBAN_SOLAR"
+              ]
+            },
+            "contractType": {
+              "type": "string",
+              "enum": [
+                "BASE",
+                "HPHC"
+              ]
+            },
+            "capacityKwh": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "contractId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "provider",
+            "contractType"
+          ],
+          "additionalProperties": false
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+        }
+      },
+      "required": [
+        "scenarioId",
+        "label",
+        "installedPowerKwc",
+        "irradiationKwhM2Year",
+        "performanceRatio",
+        "annualProductionKwh",
+        "consumptionMode",
+        "annualConsumptionKwh"
+      ],
+      "additionalProperties": false
+    },
+    "FinancialSnapshot": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "snapshotId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "scenarioId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "studyVersionId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "totalCostTtcEur": {
+          "type": "number",
+          "minimum": 0
+        },
+        "aids": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "label": {
+                "type": "string",
+                "minLength": 1
+              },
+              "amountEur": {
+                "type": "number",
+                "minimum": 0
+              },
+              "aidType": {
+                "type": "string",
+                "enum": [
+                  "PRIME_INVESTISSEMENT",
+                  "SUBVENTION",
+                  "CREDIT_IMPOT",
+                  "AUTRE"
+                ]
+              },
+              "provider": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "label",
+              "amountEur",
+              "aidType"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "netCostAfterAidsEur": {
+          "type": "number",
+          "minimum": 0
+        },
+        "annualSavingsEur": {
+          "type": "number",
+          "minimum": 0
+        },
+        "annualRevenueEur": {
+          "default": null,
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "annualTotalGainEur": {
+          "type": "number",
+          "minimum": 0
+        },
+        "paybackYears": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "irr25Pct": {
+          "type": "number"
+        },
+        "npv25Eur": {
+          "type": "number"
+        },
+        "cumulativeGain25Eur": {
+          "type": "number"
+        },
+        "integrityHash": {
+          "default": null,
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "computedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+        },
+        "engineVersion": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "snapshotId",
+        "scenarioId",
+        "studyVersionId",
+        "totalCostTtcEur",
+        "aids",
+        "netCostAfterAidsEur",
+        "annualSavingsEur",
+        "annualRevenueEur",
+        "annualTotalGainEur",
+        "paybackYears",
+        "integrityHash",
+        "computedAt"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

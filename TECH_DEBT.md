@@ -85,17 +85,29 @@ Même périmètre que le point 4.
 
 ---
 
-## Step #5 — Schémas Zod canoniques (2026-05-15)
+## Step #5 — Schemas Zod canoniques (2026-05-15)
 
-- **`shared/schemas/`** créé à la racine du monorepo (7 fichiers)
-- **Zod v4.4.3** installé dans `frontend/` ; résolu depuis `shared/schemas/` via `paths.zod` dans `frontend/tsconfig.json`
-- **`@shared/*`** alias ajouté dans `frontend/tsconfig.json` + `include: ["../shared/schemas"]`
-- Fichiers créés :
-  - `geometry.schema.ts` — Point2D/3D, GpsCoordinates, SatelliteCalibration, RoofPan 2D/3D, PanelLayout, ShadingResult, HorizonMask
-  - `scenario.schema.ts` — VirtualBatteryConfig (avec contrainte MYSMARTBATTERY), ConsumptionMode, EnergyScenario, FinancialSnapshot (avec hash SHA-256 intégrité)
-  - `lead.schema.ts` — LeadShapeSchema + CreateLead (superRefine PRO), UpdateLead, LeadResponse
-  - `study.schema.ts` — MeterSnapshot, StudyCalcResult, StudyVersionDataJson, StudyVersion/StudyResponse
-  - `quote.schema.ts` — QuoteLine + Quote (Create/Update/Response)
-  - `invoice.schema.ts` — InvoiceLineResponse, PaymentResponse + Invoice (Create/Update/Response)
-  - `index.ts` — barrel export
-- **0 erreur** `tsc --noEmit` après création (vérifié avec Zod v4)
+- **`shared/schemas/`** cree a la racine du monorepo (7 fichiers TypeScript + barrel index.ts)
+- **Zod v4.4.3** installe dans `frontend/` ; resolu via `paths.zod` dans `frontend/tsconfig.json`
+- **`@shared/*`** alias ajoute dans `frontend/tsconfig.json` + `include: ["../shared/schemas"]`
+- Schemas couverts : geometry, scenario (VirtualBattery + FinancialSnapshot SHA-256), lead, study, quote, invoice
+- **0 erreur** `tsc --noEmit` apres creation
+
+---
+
+## Step #6 — Versioning des contrats de donnees (2026-05-15)
+
+- **`shared/schemas/version.ts`** : `SCHEMA_VERSION = "1.0.0"` — bumper a chaque changement
+- **Snapshots JSON Schema 2020-12** commites dans `shared/schemas/snapshots/` (9 schemas, 6 entites)
+- **Scripts de detection** :
+  - `generate-snapshots.mts` — genere les snapshots via `toJSONSchema()` de Zod v4
+  - `check-breaking-ci.mts` — compare current vs commite, classifie BREAKING vs warnings
+- **CI** : `.github/workflows/schema-check.yml` — execute sur chaque PR touchant `shared/schemas/`
+- **Backend** : `backend/middleware/schemaVersion.middleware.js` branche dans `httpApp.js`
+  — header `X-Schema-Version` sur toutes les reponses API
+- **Frontend** : `frontend/src/utils/schemaVersionCheck.ts`
+  — detecte un changement de version et force un reload propre (delai 3s + toast)
+- **CONTRIBUTING.md** : procedure obligatoire documentee (bump version + snapshot + migration SQL + CHANGELOG)
+- **Fix bonus** : `buildDormerMesh.ts` — `validPoint()` narrowait vers `Point2` (sans `h`)
+  au lieu de `Point2H` — corrige via patch Python (protection contre troncature)
+- **0 erreur** `tsc --noEmit` apres tous les changements

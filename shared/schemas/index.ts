@@ -1,17 +1,21 @@
 /**
- * shared/schemas/index.ts — Barrel export des schémas Zod canoniques SolarNext.
+ * shared/schemas/index.ts — Barrel export des schemas Zod canoniques SolarNext.
  *
  * Importer depuis le frontend :
  *   import { CreateLeadSchema, LeadResponse } from "@shared/schemas";
- *   import { VirtualBatteryConfigSchema } from "@shared/schemas/scenario.schema";
+ *   import { SCHEMA_VERSION } from "@shared/schemas/version";
  *
  * @module shared/schemas
  */
 
-// Géométrie
+// Version des contrats
+export { SCHEMA_VERSION, SCHEMA_ENTITIES } from "./version";
+export type { SchemaEntity } from "./version";
+
+// Geometrie
 export * from "./geometry.schema";
 
-// Scénarios énergétiques & financiers
+// Scenarios energetiques & financiers
 export * from "./scenario.schema";
 
 // CRM

@@ -1,0 +1,55 @@
+name: Schema Breaking Change Check
+
+on:
+  pull_request:
+    paths:
+      - "shared/schemas/**"
+  push:
+    branches:
+      - main
+    paths:
+      - "shared/schemas/**"
+
+jobs:
+  schema-check:
+    name: Detect breaking schema changes
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Fetch full history so we can compare against committed snapshots
+          fetch-depth: 1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies (includes Zod + tsx)
+        working-directory: frontend
+        run: npm ci
+
+      - name: Generate current snapshots to temp dir
+        working-directory: frontend
+        run: |
+          mkdir -p /tmp/current-snapshots
+          npx tsx ../shared/schemas/scripts/generate-snapshots-to.mts /tmp/current-snapshots
+
+      - name: Compare snapshots against committed baseline
+        working-directory: frontend
+        run: |
+          npx tsx ../shared/schemas/scripts/check-breaking-ci.mts /tmp/current-snapshots
+        env:
+          COMMITTED_SNAPSHOTS: ${{ github.workspace }}/shared/schemas/snapshots
+
+      - name: Upload current snapshots as artifact (for review)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: schema-snapshots-current
+          path: /tmp/current-snapshots/
+          retention-days: 7

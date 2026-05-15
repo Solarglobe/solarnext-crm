@@ -127,7 +127,7 @@ function imagePointToWorld3(
   return [w.x, w.y, z];
 }
 
-function validPoint(p: { readonly x?: number; readonly y?: number } | undefined): p is Point2 {
+function validPoint(p: { readonly x?: number; readonly y?: number; readonly h?: number } | undefined): p is Point2H {
   return !!p && finiteNum(p.x) && finiteNum(p.y);
 }
 
@@ -286,12 +286,11 @@ export function buildDormerMesh(ext: DormerRuntimeExtensionInput, roofModel: Dor
 
   const canonicalGeo = buildDormerMeshFromCanonicalGeometry(ext, roofModel);
   if (canonicalGeo) return canonicalGeo;
-  /* Pour les chiens-assis dessinés manuellement (manual_outline_gable) : si la géométrie
-   * canonique est absente ou incomplète (ex. dormer encore en phase CONTOUR sans faîtage),
-   * on tente quand même les chemins fallback (dormerModel puis paramétrique) plutôt que
-   * de renvoyer null et d'avoir un objet invisible en 3D. */
+  /* Les chiens-assis manuels ne doivent jamais être reconstruits en boite
+   * paramétrique : sans géométrie canonique explicite, le rendu 3D attend. */
   if (ext.visualModel === "manual_outline_gable") {
-    dormerAuditLog("INFO: manual dormer without canonical geometry — falling back to parametric paths");
+    dormerAuditLog("GUARD: manual dormer without canonical geometry");
+    return null;
   }
 
   const ptsIn = ext.contour?.points;
