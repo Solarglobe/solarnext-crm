@@ -7724,17 +7724,18 @@ export function initCalpinage(container, options = {}) {
         var traits = (CALPINAGE_STATE.traits || []).filter(function (t) { return t.roofRole !== "chienAssis"; });
         var roofExtensions = CALPINAGE_STATE.roofExtensions || [];
         var best = null;
-        var bestDist = 20;
+        var bestDist = Infinity;
         var screenPt = imageToScreen(imgPt);
-        function check(distPx, type, index, pointIndex) {
-          if (distPx < bestDist) { bestDist = distPx; best = { type: type, index: index, pointIndex: pointIndex }; }
+        function check(distPx, type, index, pointIndex, maxDistPx) {
+          var maxDist = Number.isFinite(maxDistPx) ? maxDistPx : 20;
+          if (distPx <= maxDist && distPx < bestDist) { bestDist = distPx; best = { type: type, index: index, pointIndex: pointIndex }; }
         }
         function checkRoofExtensionHeightItems(rxIndex) {
           var rxItems = getRoofExtensionHeightPointItems(roofExtensions[rxIndex]);
           for (var rj = 0; rj < rxItems.length; rj++) {
             var rxSc = imageToScreen(rxItems[rj].point);
             var rxD = Math.hypot(screenPt.x - rxSc.x, screenPt.y - rxSc.y);
-            check(rxD, "roofExtension", rxIndex, rxItems[rj].key);
+            check(rxD, "roofExtension", rxIndex, rxItems[rj].key, 48);
           }
         }
         var selectedHeightRxIndex = (
