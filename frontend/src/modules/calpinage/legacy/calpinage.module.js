@@ -4165,11 +4165,12 @@ export function initCalpinage(container, options = {}) {
         };
       }
 
-      function hitRoofExtensionManipHandle(screenPt, rx) {
+      function hitRoofExtensionManipHandle(screenPt, rx, imageToScreenFn) {
         var handles = getRoofExtensionManipHandles(rx);
         if (!handles) return null;
-        var moveSc = imageToScreen(handles.move);
-        var rotSc = imageToScreen(handles.rotate);
+        if (typeof imageToScreenFn !== "function") return null;
+        var moveSc = imageToScreenFn(handles.move);
+        var rotSc = imageToScreenFn(handles.rotate);
         if (Math.hypot(screenPt.x - rotSc.x, screenPt.y - rotSc.y) <= 18) return { handle: "rotate", handles: handles };
         if (Math.hypot(screenPt.x - moveSc.x, screenPt.y - moveSc.y) <= 16) return { handle: "move", handles: handles };
         return null;
@@ -4673,18 +4674,18 @@ export function initCalpinage(container, options = {}) {
         }
       }
 
-      function openDormerPointHeightOverlay(rx, pointRef, label, role) {
+      function openDormerPointHeightOverlay(rx, pointRef, label, role, imageToScreenFn) {
         if (!rx || !pointRef) return;
         var currentVal = Number.isFinite(pointRef.h)
           ? pointRef.h
           : (isDormerRidgeHeightRole(role || label) ? (rx.ridgeHeightRelM || 0.8) : 0);
         var cont = container.querySelector("#height-edit-inplace-container");
-        if (!cont || typeof imageToScreen !== "function") {
+        if (!cont || typeof imageToScreenFn !== "function") {
           openDormerPointHeightOverlayPrompt(rx, pointRef, label, role);
           return;
         }
         cont.innerHTML = "";
-        var sc = imageToScreen(pointRef);
+        var sc = imageToScreenFn(pointRef);
         var box = document.createElement("div");
         box.style.position = "absolute";
         box.style.left = Math.round(sc.x + 12) + "px";
@@ -16439,7 +16440,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               if (drawState.selectedRoofExtensionIndex != null) {
                 var selectedRx = rxList[drawState.selectedRoofExtensionIndex];
                 if (selectedRx && typeof hitRoofExtensionManipHandle === "function") {
-                  var manipHit = hitRoofExtensionManipHandle(screenPt, selectedRx);
+                  var manipHit = hitRoofExtensionManipHandle(screenPt, selectedRx, imageToScreen);
                   if (manipHit) {
                     return {
                       type: "roofExtension",
@@ -17337,7 +17338,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                   if (drawState.selectedRoofExtensionIndex != null) {
                     var _selRxPv = (CALPINAGE_STATE.roofExtensions || [])[drawState.selectedRoofExtensionIndex];
                     if (_selRxPv && typeof hitRoofExtensionManipHandle === "function") {
-                      var _manipHitPv = hitRoofExtensionManipHandle(screen, _selRxPv);
+                      var _manipHitPv = hitRoofExtensionManipHandle(screen, _selRxPv, imageToScreen);
                       if (_manipHitPv) {
                         _rxPvHit = {
                           type: "roofExtension",
@@ -17885,7 +17886,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               drawState.selectedRoofExtensionIndex < CALPINAGE_STATE.roofExtensions.length
             ) {
               var selectedRxForHandle = CALPINAGE_STATE.roofExtensions[drawState.selectedRoofExtensionIndex];
-              var rxManipHit = hitRoofExtensionManipHandle(screen, selectedRxForHandle);
+              var rxManipHit = hitRoofExtensionManipHandle(screen, selectedRxForHandle, imageToScreen);
               if (rxManipHit) {
                 hit = {
                   type: "roofExtension",
@@ -18906,7 +18907,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 var rx = CALPINAGE_STATE.roofExtensions[i];
                 var pointHit = hitDormerEditableHeightPoint(imgPt, rx, 9);
                 if (pointHit && pointHit.pointRef) {
-                  openDormerPointHeightOverlay(rx, pointHit.pointRef, pointHit.label, pointHit.role);
+                  openDormerPointHeightOverlay(rx, pointHit.pointRef, pointHit.label, pointHit.role, imageToScreen);
                   return;
                 }
                 if (rx.ridge && hitTestRidge(imgPt, rx.ridge, 8)) {
