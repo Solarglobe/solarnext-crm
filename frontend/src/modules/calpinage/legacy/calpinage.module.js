@@ -17256,7 +17256,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               }
             }
 
-            if (!isDormerMode) {
+            if (!isDormerMode && !CALPINAGE_STATE.heightEditMode) {
               var _rxPriorityHit = getRoofExtensionPointerHit(screen);
               if (_rxPriorityHit && _rxPriorityHit.type === "roofExtension") {
                 if (beginRoofExtensionPointerInteraction(e, _rxPriorityHit, imgPt)) return;
