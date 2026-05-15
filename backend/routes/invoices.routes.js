@@ -9,6 +9,7 @@ import { requirePermission } from "../rbac/rbac.middleware.js";
 import * as controller from "../controllers/invoices.controller.js";
 import * as invoiceFinance from "../controllers/invoiceFinance.controller.js";
 import { archiveEntity, restoreEntity } from "../services/archive.service.js";
+import { immutabilityGuard } from "../middleware/immutabilityGuard.middleware.js";
 
 const router = express.Router();
 const orgId = (req) => req.user.organizationId ?? req.user.organization_id;
@@ -135,8 +136,8 @@ router.patch(
 );
 
 router.post("/", verifyJWT, requirePermission("invoice.manage"), controller.create);
-router.patch("/:id", verifyJWT, requirePermission("invoice.manage"), controller.update);
-router.put("/:id", verifyJWT, requirePermission("invoice.manage"), controller.update);
-router.delete("/:id", verifyJWT, requirePermission("invoice.manage"), controller.remove);
+router.patch("/:id", verifyJWT, requirePermission("invoice.manage"), immutabilityGuard("invoices"), controller.update);
+router.put("/:id", verifyJWT, requirePermission("invoice.manage"), immutabilityGuard("invoices"), controller.update);
+router.delete("/:id", verifyJWT, requirePermission("invoice.manage"), immutabilityGuard("invoices"), controller.remove);
 
 export default router;

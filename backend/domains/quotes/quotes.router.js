@@ -32,6 +32,7 @@ import * as invoiceService from "../../services/invoices.service.js";
 import { heavyUserRateLimiter } from "../../middleware/security/rateLimit.presets.js";
 import { logAuditEvent } from "../../services/audit/auditLog.service.js";
 import { AuditActions } from "../../services/audit/auditActions.js";
+import { immutabilityGuard } from "../../middleware/immutabilityGuard.middleware.js";
 
 const router = express.Router();
 const orgId = (req) => req.user.organizationId ?? req.user.organization_id;
@@ -390,6 +391,7 @@ router.patch(
   "/:id",
   verifyJWT,
   requirePermission("quote.manage"),
+  immutabilityGuard("quotes"),
   validate({ body: PatchQuoteSchema, params: UuidParamsSchema }),
   handleQuoteUpdate
 );
@@ -398,6 +400,7 @@ router.put(
   "/:id",
   verifyJWT,
   requirePermission("quote.manage"),
+  immutabilityGuard("quotes"),
   validate({ body: CreateQuoteSchema, params: UuidParamsSchema }),
   handleQuoteUpdate
 );
@@ -427,6 +430,7 @@ router.delete(
   "/:id",
   verifyJWT,
   requirePermission("quote.manage"),
+  immutabilityGuard("quotes"),
   async (req, res) => {
     try {
       const org = orgId(req);

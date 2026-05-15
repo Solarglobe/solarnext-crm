@@ -24,6 +24,7 @@ import { listFinancialDocumentsForEntity } from "./financialPdfDocument.service.
 import {
   persistInvoiceOfficialDocumentSnapshot,
   buildQuoteDepositFreeze,
+  computeSnapshotChecksum,
 } from "./financialDocumentSnapshot.service.js";
 import { buildInvoicePdfPayloadFromSnapshot } from "./financialDocumentPdfPayload.service.js";
 import { createFinancialInvoiceRenderToken } from "./pdfRenderToken.service.js";
@@ -614,15 +615,18 @@ export async function patchInvoiceStatus(invoiceId, organizationId, newStatusRaw
       const { issuer_snapshot, recipient_snapshot } = await buildInvoiceIssuerRecipientSnapshots(fullRow, organizationId);
       const source_quote_snapshot = quoteRow ? buildSourceQuoteSnapshot(quoteRow) : {};
 
+      /* Snapshot contractuel : copier document_snapshot_json apres persistInvoiceOfficialDocumentSnapshot. */
+      /* Note : on appelle persistInvoiceOfficialDocumentSnapshot APRES ce UPDATE (ordre conserve). */
       await client.query(
         `UPDATE invoices SET
-          status = 'ISSUED',
-          invoice_number = $1,
-          issue_date = COALESCE(issue_date, CURRENT_DATE),
-          issuer_snapshot = $2::jsonb,
-          recipient_snapshot = $3::jsonb,
+          status                = 'ISSUED',
+          invoice_number        = $1,
+          issue_date            = COALESCE(issue_date, CURRENT_DATE),
+          issuer_snapshot       = $2::jsonb,
+          recipient_snapshot    = $3::jsonb,
           source_quote_snapshot = $4::jsonb,
-          updated_at = now()
+          locked_at             = COALESCE(locked_at, now()),
+          updated_at            = now()
         WHERE id = $5 AND organization_id = $6`,
         [fullNumber, JSON.stringify(issuer_snapshot), JSON.stringify(recipient_snapshot), JSON.stringify(source_quote_snapshot), invoiceId, organizationId]
       );
@@ -633,6 +637,24 @@ export async function patchInvoiceStatus(invoiceId, organizationId, newStatusRaw
         frozenBy: userId,
         generatedFrom: "PATCH_INVOICE_STATUS_ISSUED",
       });
+
+      /* Copier document_snapshot_json dans snapshot_v1 + calculer hash SHA-256. */
+      const invSnapRow = await client.query(
+        `SELECT document_snapshot_json FROM invoices WHERE id = $1`,
+        [invoiceId]
+      );
+      const invSnapJson = invSnapRow.rows[0]?.document_snapshot_json ?? null;
+      const invSnapStr  = invSnapJson != null ? JSON.stringify(invSnapJson) : null;
+      const invSnapHash = invSnapStr  != null ? computeSnapshotChecksum(invSnapJson) : null;
+      if (invSnapStr) {
+        await client.query(
+          `UPDATE invoices SET
+            snapshot_v1   = COALESCE(snapshot_v1, $2::jsonb),
+            snapshot_hash = COALESCE(snapshot_hash, $3)
+          WHERE id = $1`,
+          [invoiceId, invSnapStr, invSnapHash]
+        );
+      }
     } else if (normalized === "CANCELLED") {
       const paid = Number(row.total_paid) || 0;
       const cred = Number(row.total_credited) || 0;

@@ -63,6 +63,7 @@ import {
   persistQuoteOfficialDocumentSnapshot,
   buildQuotePdfPayloadForLivePreview,
   mapQuoteLine,
+  computeSnapshotChecksum,
 } from "../../services/financialDocumentSnapshot.service.js";
 import { ensureClientForQuote } from "../../services/ensureClientForQuote.service.js";
 import { mergeQuoteOrgDocumentFieldsIntoPayload } from "../../services/quoteDocumentOrgSettings.service.js";
@@ -1278,14 +1279,26 @@ export async function patchQuoteStatus(quoteId, organizationId, newStatus, userI
       /* Source de vérité lignes : recalcul en-tête puis blocage si écart (aucun ACCEPTED incohérent). */
       await computeQuoteTotalsFromLines({ quoteId, orgId: organizationId, client });
       await assertQuoteLinesMatchHeaderOrThrow(client, quoteId, organizationId);
+      /* Copier le snapshot figé (document_snapshot_json) comme archive contractuelle. */
+      const snapRow = await client.query(
+        `SELECT document_snapshot_json FROM quotes WHERE id = $1`,
+        [quoteId]
+      );
+      const snapJson = snapRow.rows[0]?.document_snapshot_json ?? null;
+      const snapStr  = snapJson != null ? JSON.stringify(snapJson) : null;
+      const snapHash = snapStr  != null ? computeSnapshotChecksum(snapJson) : null;
+
       await client.query(
         `UPDATE quotes SET
-          status = 'ACCEPTED',
-          accepted_at = COALESCE(accepted_at, now()),
-          client_id = COALESCE($2::uuid, client_id),
-          updated_at = now()
+          status        = 'ACCEPTED',
+          accepted_at   = COALESCE(accepted_at, now()),
+          client_id     = COALESCE($2::uuid, client_id),
+          locked_at     = COALESCE(locked_at, now()),
+          snapshot_v1   = COALESCE(snapshot_v1, $3::jsonb),
+          snapshot_hash = COALESCE(snapshot_hash, $4),
+          updated_at    = now()
         WHERE id = $1`,
-        [quoteId, clientIdForAccept]
+        [quoteId, clientIdForAccept, snapStr, snapHash]
       );
     } else if (normalized === "REJECTED") {
       await client.query(

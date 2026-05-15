@@ -226,3 +226,62 @@ Un polygone invalide (< 3 points distincts) sur un endpoint geometry retourne :
 HTTP 422 { "error": "Validation failed", "details": { "roof_polygon": ["..."] } }
 ```
 avant d'atteindre le moteur de calcul.
+
+---
+
+## Step #11 -- Immutabilite des donnees contractuelles (2026-05-16)
+
+### Contexte
+
+Les devis acceptes (ACCEPTED) et factures emises (ISSUED) sont des documents contractuels
+qui ne doivent jamais etre modifies en place. Cette etape implemente le verrou formel
+s'appuyant sur l'infrastructure deja en place (financialImmutability.js, document_snapshot_json).
+
+### Implementation
+
+- **`backend/migrations/1780100000000_cp-financial-immutability-lock.js`** : Ajoute
+  `locked_at TIMESTAMPTZ`, `snapshot_v1 JSONB`, `snapshot_hash TEXT` sur `quotes` et `invoices`.
+  Note : `billing_locked_at` (quotes, migration 1778000000000) et `study_versions.locked_at`
+  (migration 1771162300000) existaient deja. Le `locked_at` ici concerne le document contractuel.
+
+- **`backend/middleware/immutabilityGuard.middleware.js`** : Middleware Express generique.
+  Verifie `locked_at IS NOT NULL` sur `quotes` ou `invoices` et retourne :
+  `HTTP 409 { error: "Ce document est verrouille -- il a ete signe le JJ/MM/YYYY. Creer un avenant ou un avoir.", code: "DOCUMENT_LOCKED" }`
+
+- **`backend/domains/quotes/quotes.router.js`** : `immutabilityGuard('quotes')` ajoute sur
+  `PATCH /:id`, `PUT /:id`, `DELETE /:id`.
+
+- **`backend/routes/invoices.routes.js`** : `immutabilityGuard('invoices')` ajoute sur
+  `PATCH /:id`, `PUT /:id`, `DELETE /:id`.
+
+- **`backend/domains/quotes/quotes.repository.js`** (patchQuoteStatus, branche ACCEPTED) :
+  Ecrit `locked_at = COALESCE(locked_at, now())`, `snapshot_v1`, `snapshot_hash` (SHA-256
+  via computeSnapshotChecksum) lors du passage en ACCEPTED. `finalizeQuoteSigned` delegue
+  a patchQuoteStatus -- couvert automatiquement.
+
+- **`backend/services/invoices.service.js`** (patchInvoiceStatus, branche ISSUED) :
+  Ecrit `locked_at = COALESCE(locked_at, now())` dans l'UPDATE ISSUED. Apres
+  `persistInvoiceOfficialDocumentSnapshot`, copie `document_snapshot_json` dans
+  `snapshot_v1` + calcul `snapshot_hash`.
+
+### Architecture de protection a deux niveaux
+
+1. **Couche applicative (pre-existante)** : `isQuoteEditable` (DRAFT/READY_TO_SEND seulement)
+   et `isInvoiceEditable` (DRAFT seulement, + fenetre grace 24h ISSUED) lancent une erreur
+   403 dans `updateQuote` / `updateInvoice`.
+
+2. **Couche middleware (nouvelle)** : `immutabilityGuard` verifie `locked_at IS NOT NULL`
+   avant d'atteindre le handler metier -- retourne 409 avec message utilisateur explicite.
+
+### Actions post-verrou
+
+- **Devis** : `POST /:id/duplicate` cree un avenant (brouillon, nouveau numero).
+- **Factures** : `POST /:invoiceId/credit-notes` cree un avoir.
+- Jamais de modification en place d'un document verrouille.
+
+### Critere de succes
+
+PATCH /api/quotes/:acceptedQuoteId retourne :
+```
+HTTP 409 { "error": "Ce document est verrouille -- il a ete signe le 15/05/2026. Creer un avenant ou un avoir.", "code": "DOCUMENT_LOCKED" }
+```
