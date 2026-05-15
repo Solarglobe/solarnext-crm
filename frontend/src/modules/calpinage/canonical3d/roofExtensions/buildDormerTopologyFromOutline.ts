@@ -9,6 +9,10 @@ const AREA_EPS_M2 = 1e-8;
 const LENGTH_EPS_M = 1e-7;
 const RIDGE_T_EPS = 1e-6;
 
+function nearlySameWorld(a: Vector3, b: Vector3, eps = 5e-5): boolean {
+  return length3(sub3(a, b)) < eps;
+}
+
 export interface DormerTopologyMesh {
   readonly vertices: readonly VolumeVertex3D[];
   readonly edges: readonly VolumeEdge3D[];
@@ -168,8 +172,21 @@ export function buildDormerTopologyFromOutline(
   const topIndexes = projected.contour.map((point, index) =>
     addVertex(`${source.id}:outline:${index}`, point.top),
   );
-  const ridgeAIndex = addVertex(`${source.id}:ridge:a`, projected.ridge.a.top);
-  const ridgeBIndex = addVertex(`${source.id}:ridge:b`, projected.ridge.b.top);
+  const apx = projected.apex;
+  const apexId = projected.apexTopVertexId;
+  let sharedApexTopIndex: number | null = null;
+  if (apx && apexId) {
+    sharedApexTopIndex = addVertex(`${source.id}:${apexId}`, apx.top);
+  }
+
+  const ridgeAIndex =
+    sharedApexTopIndex != null && apx != null && nearlySameWorld(projected.ridge.a.top, apx.top)
+      ? sharedApexTopIndex
+      : addVertex(`${source.id}:ridge:a`, projected.ridge.a.top);
+  const ridgeBIndex =
+    sharedApexTopIndex != null && apx != null && nearlySameWorld(projected.ridge.b.top, apx.top)
+      ? sharedApexTopIndex
+      : addVertex(`${source.id}:ridge:b`, projected.ridge.b.top);
   const ridgeSampleByKey = new Map<string, number>([
     ["0", ridgeAIndex],
     ["1", ridgeBIndex],
@@ -190,10 +207,21 @@ export function buildDormerTopologyFromOutline(
     const base = interpolate3(ridgeBaseA, ridgeBaseB, t);
     const h = ridgeHeightA + (ridgeHeightB - ridgeHeightA) * t;
     const top = add3(base, scale3(projected.supportNormal, h));
+    if (sharedApexTopIndex != null && apx != null && nearlySameWorld(top, apx.top)) {
+      ridgeSampleByKey.set(key, sharedApexTopIndex);
+      return sharedApexTopIndex;
+    }
     const idx = addVertex(`${source.id}:ridge:sample:${key}`, top);
     ridgeSampleByKey.set(key, idx);
     return idx;
   };
+
+  if (sharedApexTopIndex != null && apx != null) {
+    const tApex = projectionParamOnRidge(apx.base, ridgeBaseA, ridgeBaseB);
+    if (tApex > RIDGE_T_EPS && tApex < 1 - RIDGE_T_EPS) {
+      ridgeSampleByKey.set(tApex.toFixed(6), sharedApexTopIndex);
+    }
+  }
 
   const ridgeIndexesForContour = projected.contour.map((point) =>
     ridgeIndexAt(projectionParamOnRidge(point.base, ridgeBaseA, ridgeBaseB)),

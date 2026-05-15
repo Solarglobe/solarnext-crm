@@ -1,4 +1,10 @@
 import type { RoofExtensionKind } from "../types/extension";
+import {
+  intersectInfiniteLines2D,
+  pointsCoincidePx,
+  stableApexId,
+  type RoofExtensionApexPersisted,
+} from "../../runtime/roofExtensionApex";
 
 export interface RoofExtensionSourcePoint2D {
   readonly x: number;
@@ -27,6 +33,8 @@ export interface RoofExtensionSource2D {
   readonly contour: readonly RoofExtensionSourcePoint2D[];
   readonly ridge: RoofExtensionSourceSegment2D | null;
   readonly hips: RoofExtensionSourceHips2D | null;
+  /** Sommet partagé hips → faîtage ; même vérité que fins des arêtiers si géométrie cohérente */
+  readonly apexVertex: RoofExtensionApexPersisted | null;
   readonly ridgeHeightRelM: number | null;
   readonly wallHeightM: number | null;
   readonly hadLegacyCanonicalDormerGeometry: boolean;
@@ -133,14 +141,116 @@ function readSupportPanId(raw: Record<string, unknown>): string | null {
   return typeof panId === "string" && panId.length > 0 ? panId : null;
 }
 
+function readPersistedApexVertex(raw: Record<string, unknown>, extensionId: string): RoofExtensionApexPersisted | null {
+  const av = raw.apexVertex;
+  if (!isRecord(av)) return null;
+  const vid = typeof av.id === "string" && av.id.length > 0 ? av.id : stableApexId(extensionId);
+  const x = finiteNumber(av.x);
+  const y = finiteNumber(av.y);
+  if (x == null || y == null) return null;
+  const h = finiteNumber(av.h);
+  return {
+    id: vid,
+    x,
+    y,
+    ...(h != null && h >= 0 ? { h } : {}),
+  };
+}
+
+function readLegacyRidgeOriginPx(raw: Record<string, unknown>): { readonly x: number; readonly y: number } | null {
+  const ro = raw.ridgeOrigin;
+  if (!isRecord(ro)) return null;
+  const x = finiteNumber(ro.x);
+  const y = finiteNumber(ro.y);
+  if (x == null || y == null) return null;
+  return { x, y };
+}
+
+function deriveApexFromHipsSegments(
+  extensionId: string,
+  hips: RoofExtensionSourceHips2D,
+  ridgeHeightRelM: number | null,
+): RoofExtensionApexPersisted | null {
+  const left = hips.left;
+  const right = hips.right;
+  if (!left?.a || !left.b || !right?.a || !right.b) return null;
+  const ix = intersectInfiniteLines2D(
+    left.a.x,
+    left.a.y,
+    left.b.x,
+    left.b.y,
+    right.a.x,
+    right.a.y,
+    right.b.x,
+    right.b.y,
+  );
+  if (!ix) return null;
+  const out: RoofExtensionApexPersisted = {
+    id: stableApexId(extensionId),
+    x: ix.x,
+    y: ix.y,
+  };
+  if (ridgeHeightRelM != null) return { ...out, h: ridgeHeightRelM };
+  return out;
+}
+
+function resolveApexVertex(
+  raw: Record<string, unknown>,
+  extensionId: string,
+  hips: RoofExtensionSourceHips2D | null,
+  ridgeHeightRelM: number | null,
+): RoofExtensionApexPersisted | null {
+  const persisted = readPersistedApexVertex(raw, extensionId);
+  if (persisted) return persisted;
+  if (hips) {
+    const derived = deriveApexFromHipsSegments(extensionId, hips, ridgeHeightRelM);
+    if (derived) return derived;
+  }
+  const legacyRo = readLegacyRidgeOriginPx(raw);
+  if (legacyRo) {
+    const out: RoofExtensionApexPersisted = {
+      id: stableApexId(extensionId),
+      x: legacyRo.x,
+      y: legacyRo.y,
+    };
+    if (ridgeHeightRelM != null) return { ...out, h: ridgeHeightRelM };
+    return out;
+  }
+  return null;
+}
+
+/** True si le point image est le sommet apex (pour fusion projection faîtage). */
+export function ridgeEndpointSharesApexVertex(
+  px: RoofExtensionSourcePoint2D,
+  apex: RoofExtensionApexPersisted,
+): boolean {
+  return pointsCoincidePx(px.x, px.y, apex.x, apex.y);
+}
+
 function readSource(raw: Record<string, unknown>, index: number): RoofExtensionSource2D {
   const id = raw.id != null ? String(raw.id) : `roof-extension-${index}`;
   const contour = readContour(raw);
   const ridge = readRidge(raw);
+  const hips = readHips(raw);
+  const ridgeHeightRelM = nonNegativeNumber(raw.ridgeHeightRelM);
+  const apexVertex = resolveApexVertex(raw, id, hips, ridgeHeightRelM);
   const warnings: string[] = [];
   if (contour.length < 3) warnings.push("ROOF_EXTENSION_CONTOUR_INVALID");
   if (!ridge) warnings.push("ROOF_EXTENSION_RIDGE_MISSING");
   if (hasLegacyCanonicalDormerGeometry(raw)) warnings.push("LEGACY_CANONICAL_DORMER_GEOMETRY_IGNORED");
+  if (hips?.left?.b && hips.right?.b && apexVertex && ridge) {
+    const la = hips.left.b;
+    const ra = hips.right.b;
+    if (
+      !pointsCoincidePx(la.x, la.y, apexVertex.x, apexVertex.y) ||
+      !pointsCoincidePx(ra.x, ra.y, apexVertex.x, apexVertex.y)
+    ) {
+      warnings.push("ROOF_EXTENSION_APEX_HIP_MISMATCH");
+    }
+    const hitsRidge =
+      ridgeEndpointSharesApexVertex(ridge.a, apexVertex) || ridgeEndpointSharesApexVertex(ridge.b, apexVertex);
+    if (!hitsRidge) warnings.push("ROOF_EXTENSION_APEX_RIDGE_MISMATCH");
+  }
 
   return {
     id,
@@ -151,8 +261,9 @@ function readSource(raw: Record<string, unknown>, index: number): RoofExtensionS
     supportPanId: readSupportPanId(raw),
     contour,
     ridge,
-    hips: readHips(raw),
-    ridgeHeightRelM: nonNegativeNumber(raw.ridgeHeightRelM),
+    hips,
+    apexVertex,
+    ridgeHeightRelM,
     wallHeightM: nonNegativeNumber(raw.wallHeightM),
     hadLegacyCanonicalDormerGeometry: hasLegacyCanonicalDormerGeometry(raw),
     warnings,

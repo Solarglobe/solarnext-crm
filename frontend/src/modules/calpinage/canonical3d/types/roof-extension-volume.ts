@@ -44,6 +44,13 @@ export interface RoofExtensionTopologyMetadata {
     readonly a: RoofExtensionSourcePointTopology2D;
     readonly b: RoofExtensionSourcePointTopology2D;
   };
+  /** Sommet central unique (hips / faîtage) persisté en pixels image ; même identité que mesh.vertices pour ce sommet */
+  readonly apexVertexPx?: {
+    readonly id: string;
+    readonly x: number;
+    readonly y: number;
+    readonly heightRelM: number;
+  };
 }
 
 

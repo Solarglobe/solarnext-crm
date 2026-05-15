@@ -127,6 +127,19 @@ export function buildRoofExtensionVolume3D(
           heightRelM: projected.ridge.b.heightRelM,
         },
       },
+      ...(source.apexVertex
+        ? {
+            apexVertexPx: {
+              id: source.apexVertex.id,
+              x: source.apexVertex.x,
+              y: source.apexVertex.y,
+              heightRelM:
+                source.apexVertex.h ??
+                projected.apex?.heightRelM ??
+                projected.maxHeightRelM,
+            },
+          }
+        : {}),
     },
   };
 

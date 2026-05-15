@@ -134,6 +134,54 @@ describe("buildRoofExtensions3DFromRuntime", () => {
     ]);
   });
 
+  it("sommet apex partagé : faîtage confondu avec apex → un seul vertex 3D (pas ridge:a séparé)", () => {
+    const patch = makePatch("pan-apex-merge", 0);
+    const ax = 2;
+    const ay = 2.5;
+    const res = buildRoofExtensions3DFromRuntime({
+      runtime: {
+        roofExtensions: [
+          {
+            id: "rx-apex",
+            type: "roof_extension",
+            kind: "chien_assis",
+            visualModel: "manual_outline_gable",
+            contour: {
+              closed: true,
+              points: [
+                { x: 1, y: 1, h: 0 },
+                { x: 3, y: 1, h: 0 },
+                { x: 3, y: 4, h: 0 },
+                { x: 1, y: 4, h: 0 },
+              ],
+            },
+            ridge: {
+              a: { x: ax, y: ay, h: 1 },
+              b: { x: 2, y: 4, h: 1 },
+            },
+            apexVertex: { id: "rx-apex:apex", x: ax, y: ay, h: 1 },
+            ridgeHeightRelM: 1,
+          },
+        ],
+      },
+      roofPlanePatches: [patch],
+      ...WORLD,
+    });
+    const vol = res.extensionVolumes[0]!;
+    const apexMeshId = "rx-apex:rx-apex:apex";
+    const apexVert = vol.vertices.find((v) => v.id === apexMeshId);
+    expect(apexVert).toBeTruthy();
+    expect(vol.vertices.some((v) => v.id.endsWith(":ridge:a"))).toBe(false);
+    const samePos = vol.vertices.filter(
+      (v) =>
+        Math.abs(v.position.x - apexVert!.position.x) < 1e-5 &&
+        Math.abs(v.position.y - apexVert!.position.y) < 1e-5 &&
+        Math.abs(v.position.z - apexVert!.position.z) < 1e-5,
+    );
+    expect(samePos.length).toBe(1);
+    expect(vol.topology?.apexVertexPx?.id).toBe("rx-apex:apex");
+  });
+
   it("toit incline 30 degres : hauteur 1 m selon normale du pan, pas +Z monde", () => {
     const patch = makePatch("pan-30", 30);
     const vol = buildOne(

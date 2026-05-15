@@ -10,6 +10,7 @@ import type {
   RoofExtensionSourcePoint2D,
   RoofExtensionSourceSegment2D,
 } from "./roofExtensionSource";
+import { ridgeEndpointSharesApexVertex } from "./roofExtensionSource";
 import type { RoofExtensionWorldMapping } from "./resolveSupportPan";
 
 export interface ProjectedRoofExtensionPoint3D {
@@ -28,6 +29,9 @@ export interface ProjectedRoofExtensionGeometry {
   readonly supportNormal: Vector3;
   readonly contour: readonly ProjectedRoofExtensionPoint3D[];
   readonly ridge: ProjectedRoofExtensionSegment3D;
+  /** Sommet partagé projeté ; même base/top que l’extrémité du faîtage qui coïncide en 2D */
+  readonly apex: ProjectedRoofExtensionPoint3D | null;
+  readonly apexTopVertexId: string | null;
   readonly maxHeightRelM: number;
   readonly diagnostics: readonly GeometryDiagnostic[];
 }
@@ -63,18 +67,37 @@ function projectSourcePoint(
   };
 }
 
-function projectSegment(
+function projectRidgeEndpointWithApexMerge(
+  endpoint: RoofExtensionSourcePoint2D,
+  source: RoofExtensionSource2D,
+  apexProj: ProjectedRoofExtensionPoint3D | null,
+  fallbackHeight: number,
+  patch: RoofPlanePatch3D,
+  normal: Vector3,
+  world: RoofExtensionWorldMapping,
+): ProjectedRoofExtensionPoint3D | null {
+  if (
+    apexProj &&
+    source.apexVertex &&
+    ridgeEndpointSharesApexVertex(endpoint, source.apexVertex)
+  ) {
+    return apexProj;
+  }
+  const h = heightOrDefault(endpoint.heightRelM, fallbackHeight);
+  return projectSourcePoint(endpoint, h, patch, normal, world);
+}
+
+function buildProjectedRidgeSegment(
   segment: RoofExtensionSourceSegment2D,
   source: RoofExtensionSource2D,
+  apexProj: ProjectedRoofExtensionPoint3D | null,
   patch: RoofPlanePatch3D,
   normal: Vector3,
   world: RoofExtensionWorldMapping,
 ): ProjectedRoofExtensionSegment3D | null {
   const fallbackHeight = heightOrDefault(source.ridgeHeightRelM, 1);
-  const aHeight = heightOrDefault(segment.a.heightRelM, fallbackHeight);
-  const bHeight = heightOrDefault(segment.b.heightRelM, fallbackHeight);
-  const a = projectSourcePoint(segment.a, aHeight, patch, normal, world);
-  const b = projectSourcePoint(segment.b, bHeight, patch, normal, world);
+  const a = projectRidgeEndpointWithApexMerge(segment.a, source, apexProj, fallbackHeight, patch, normal, world);
+  const b = projectRidgeEndpointWithApexMerge(segment.b, source, apexProj, fallbackHeight, patch, normal, world);
   if (!a || !b) return null;
   return { a, b };
 }
@@ -108,7 +131,37 @@ export function projectRoofExtensionToSupportPlane(
   });
   if (contour.length < 3) return null;
 
-  const ridge = projectSegment(source.ridge, source, patch, normal, world);
+  const fallbackRidgeH = heightOrDefault(source.ridgeHeightRelM, 1);
+  const apexPilotH = heightOrDefault(
+    source.apexVertex != null && typeof source.apexVertex.h === "number"
+      ? source.apexVertex.h
+      : null,
+    fallbackRidgeH,
+  );
+  let apexProj: ProjectedRoofExtensionPoint3D | null = null;
+  let apexTopVertexId: string | null = null;
+  if (source.apexVertex) {
+    apexTopVertexId = source.apexVertex.id;
+    apexProj = projectSourcePoint(
+      { x: source.apexVertex.x, y: source.apexVertex.y, heightRelM: apexPilotH },
+      apexPilotH,
+      patch,
+      normal,
+      world,
+    );
+    if (!apexProj) {
+      diagnostics.push({
+        code: "ROOF_EXTENSION_APEX_PROJECTION_FAILED",
+        severity: "warning",
+        message: `Extension ${source.id} : apex non projetable sur le pan support.`,
+        context: { extensionId: source.id },
+      });
+    }
+  }
+
+  const ridge = source.ridge
+    ? buildProjectedRidgeSegment(source.ridge, source, apexProj, patch, normal, world)
+    : null;
   if (!ridge) return null;
 
   const maxHeightRelM = Math.max(
@@ -116,6 +169,7 @@ export function projectRoofExtensionToSupportPlane(
     ...contour.map((p) => p.heightRelM),
     ridge.a.heightRelM,
     ridge.b.heightRelM,
+    apexProj?.heightRelM ?? 0,
   );
 
   diagnostics.push({
@@ -129,6 +183,8 @@ export function projectRoofExtensionToSupportPlane(
     supportNormal: normal,
     contour,
     ridge,
+    apex: apexProj,
+    apexTopVertexId,
     maxHeightRelM,
     diagnostics,
   };

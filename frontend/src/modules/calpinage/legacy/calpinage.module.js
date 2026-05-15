@@ -3832,6 +3832,10 @@ export function initCalpinage(container, options = {}) {
         return out;
       }
 
+      function isManualDormerOutline(rx) {
+        return !!rx && rx.visualModel === "manual_outline_gable";
+      }
+
       function stripDormerClosingDuplicate(points) {
         var out = [];
         (points || []).forEach(function (p) {
@@ -3976,6 +3980,8 @@ export function initCalpinage(container, options = {}) {
 
       function rebuildDormerCanonicalGeometry(rx) {
         if (!rx || !rx.contour || !Array.isArray(rx.contour.points) || rx.contour.points.length < 3) return rx;
+        var manualOutline = isManualDormerOutline(rx);
+        if (manualOutline && rx.dormerModel) delete rx.dormerModel;
         var ring = stripDormerClosingDuplicate(rx.contour.points);
         if (ring.length < 3) return rx;
         var ridge = rx.ridge && rx.ridge.a && rx.ridge.b ? rx.ridge : (rx.dormerModel && rx.dormerModel.ridge ? rx.dormerModel.ridge : null);
@@ -4040,15 +4046,17 @@ export function initCalpinage(container, options = {}) {
         var frontRight = pointAtUv(maxU, minV);
         var backRight = pointAtUv(maxU, maxV);
         var backLeft = pointAtUv(minU, maxV);
-        rx.dormerModel = {
-          version: 3,
-          source: "manual_ridge_axis_gable",
-          front: { a: frontLeft, b: frontRight },
-          back: { a: backLeft, b: backRight },
-          ridge: { a: clonePointPreserveHeight(ridge.a), b: clonePointPreserveHeight(ridge.b) },
-          axes: { ux: ux, uy: uy, vx: vx, vy: vy },
-          bounds: { minU: minU, maxU: maxU, minV: minV, maxV: maxV }
-        };
+        if (!manualOutline) {
+          rx.dormerModel = {
+            version: 3,
+            source: "manual_ridge_axis_gable",
+            front: { a: frontLeft, b: frontRight },
+            back: { a: backLeft, b: backRight },
+            ridge: { a: clonePointPreserveHeight(ridge.a), b: clonePointPreserveHeight(ridge.b) },
+            axes: { ux: ux, uy: uy, vx: vx, vy: vy },
+            bounds: { minU: minU, maxU: maxU, minV: minV, maxV: maxV }
+          };
+        }
         var vertices = [];
         var edges = [];
         var faces = [];
@@ -4096,6 +4104,7 @@ export function initCalpinage(container, options = {}) {
           edges: edges,
           faces: faces
         };
+        syncRoofExtensionSharedApex(rx);
         return rx;
       }
 
@@ -4156,8 +4165,7 @@ export function initCalpinage(container, options = {}) {
           if (rx.hips.left) { movePt(rx.hips.left.a); movePt(rx.hips.left.b); }
           if (rx.hips.right) { movePt(rx.hips.right.a); movePt(rx.hips.right.b); }
         }
-        if (rx.visualModel === "manual_outline_gable") rebuildDormerCanonicalGeometry(rx);
-        else syncDormerParametricGeometry(rx);
+        rebuildRoofExtensionVisualGeometry(rx);
         return rx;
       }
 
@@ -4180,8 +4188,7 @@ export function initCalpinage(container, options = {}) {
           if (rx.hips.left) { rotatePt(rx.hips.left.a); rotatePt(rx.hips.left.b); }
           if (rx.hips.right) { rotatePt(rx.hips.right.a); rotatePt(rx.hips.right.b); }
         }
-        if (rx.visualModel === "manual_outline_gable") rebuildDormerCanonicalGeometry(rx);
-        else syncDormerParametricGeometry(rx);
+        rebuildRoofExtensionVisualGeometry(rx);
         return rx;
       }
 
@@ -4440,6 +4447,59 @@ export function initCalpinage(container, options = {}) {
           console.warn("[CALPINAGE]", message);
         }
       }
+
+      /** Sommet unique hips ⟷ faîtage : même coords image + pilotage h ridgeHeightRelM pour le pipeline TS */
+      function stableRoofExtensionApexId(rx) {
+        var baseId = rx && rx.id ? String(rx.id) : "roof-extension";
+        return baseId + ":apex";
+      }
+
+      function syncRoofExtensionSharedApex(rx) {
+        if (!rx || rx.visualModel !== "manual_outline_gable") return rx;
+        var ridgeH = Number.isFinite(rx.ridgeHeightRelM) ? rx.ridgeHeightRelM : null;
+        var apexXY = null;
+        if (rx.hips && rx.hips.left && rx.hips.right && rx.hips.left.a && rx.hips.left.b && rx.hips.right.a && rx.hips.right.b) {
+          apexXY = intersectLines(rx.hips.left.a, rx.hips.left.b, rx.hips.right.a, rx.hips.right.b);
+          if (apexXY && rx.hips.left.b && rx.hips.right.b) {
+            rx.hips.left.b.x = apexXY.x;
+            rx.hips.left.b.y = apexXY.y;
+            rx.hips.right.b.x = apexXY.x;
+            rx.hips.right.b.y = apexXY.y;
+          }
+        }
+        if (!apexXY && rx.ridgeOrigin && typeof rx.ridgeOrigin.x === "number" && typeof rx.ridgeOrigin.y === "number") {
+          apexXY = { x: rx.ridgeOrigin.x, y: rx.ridgeOrigin.y };
+        }
+        if (!apexXY) {
+          delete rx.apexVertex;
+          return rx;
+        }
+        rx.ridgeOrigin = { x: apexXY.x, y: apexXY.y };
+        var apexId = rx.apexVertex && typeof rx.apexVertex.id === "string" && rx.apexVertex.id.length ? rx.apexVertex.id : stableRoofExtensionApexId(rx);
+        var apexH = ridgeH != null ? ridgeH : (rx.apexVertex && Number.isFinite(rx.apexVertex.h) ? rx.apexVertex.h : undefined);
+        rx.apexVertex = { id: apexId, x: apexXY.x, y: apexXY.y };
+        if (apexH != null && apexH >= 0) rx.apexVertex.h = apexH;
+
+        if (rx.ridge && rx.ridge.a && rx.ridge.b && apexXY) {
+          var da = Math.hypot(rx.ridge.a.x - apexXY.x, rx.ridge.a.y - apexXY.y);
+          var db = Math.hypot(rx.ridge.b.x - apexXY.x, rx.ridge.b.y - apexXY.y);
+          var tolMerge = Math.max(36, getDormerSnapToleranceImg() * 2.5);
+          var dMin = Math.min(da, db);
+          if (dMin <= tolMerge) {
+            if (da <= db) {
+              rx.ridge.a.x = apexXY.x;
+              rx.ridge.a.y = apexXY.y;
+              if (ridgeH != null) rx.ridge.a.h = ridgeH;
+            } else {
+              rx.ridge.b.x = apexXY.x;
+              rx.ridge.b.y = apexXY.y;
+              if (ridgeH != null) rx.ridge.b.h = ridgeH;
+            }
+          }
+        }
+        return rx;
+      }
+
       function findNearestContourVertex(imgPt, contourPts, maxDist) {
         var best = null;
         var bestDist = maxDist;
@@ -9762,6 +9822,7 @@ export function initCalpinage(container, options = {}) {
                 else rx.stage = "CONTOUR";
               }
               if (rx.visualModel === "manual_outline_gable" && hasRidge) rebuildDormerCanonicalGeometry(rx);
+              if (rx.visualModel === "manual_outline_gable") syncRoofExtensionSharedApex(rx);
             });
           }
           var restoreBlocks = (window.pvPlacementEngine && window.pvPlacementEngine.restoreFrozenBlocks) || (window.ActivePlacementBlock && window.ActivePlacementBlock.restoreFrozenBlocks);
@@ -22154,6 +22215,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               var rxActivePointRef = (drawState.dragMode === "roofExtensionVertex" && drawState.dragBase) ? drawState.dragBase.pointRef : null;
               rxList.forEach(function (rx, rxIdx) {
                 var sel = drawState.selectedRoofExtensionIndex === rxIdx;
+                var rxManualOutline = isManualDormerOutline(rx);
                 ctx.lineJoin = "round";
                 ctx.lineCap = "round";
                 ctx.setLineDash([]);
@@ -22213,7 +22275,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                  * La face avant est le côté visible depuis la rue / le bas du versant.
                  * Elle est différenciée visuellement du reste du contour pour donner
                  * au chien assis une identité claire (pas juste un rectangle).          */
-                if (rx.dormerModel && rx.dormerModel.front && rx.dormerModel.front.a && rx.dormerModel.front.b) {
+                if (!rxManualOutline && rx.dormerModel && rx.dormerModel.front && rx.dormerModel.front.a && rx.dormerModel.front.b) {
                   var rfA = imageToScreen(rx.dormerModel.front.a);
                   var rfB = imageToScreen(rx.dormerModel.front.b);
                   var rxFacePath = new Path2D();
@@ -22251,7 +22313,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                   ctx.fill();
                 }
                 /* ── Arête arrière en tirets (raccord toit principal) ─────────────── */
-                if (rx.dormerModel && rx.dormerModel.back && rx.dormerModel.back.a && rx.dormerModel.back.b) {
+                if (!rxManualOutline && rx.dormerModel && rx.dormerModel.back && rx.dormerModel.back.a && rx.dormerModel.back.b) {
                   var rbA = imageToScreen(rx.dormerModel.back.a);
                   var rbB = imageToScreen(rx.dormerModel.back.b);
                   var rxBackPath = new Path2D();
