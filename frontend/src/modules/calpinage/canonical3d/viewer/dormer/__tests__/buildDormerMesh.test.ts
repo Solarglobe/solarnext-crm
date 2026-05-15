@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import * as THREE from "three";
 import type { RoofPlanePatch3D } from "../../../types/roof-surface";
-import { buildDormerMesh } from "../buildDormerMesh";
+import { buildDormerCanonicalEdgesGeometry, buildDormerMesh } from "../buildDormerMesh";
 
 describe("buildDormerMesh", () => {
   it("retourne une géométrie non vide pour un pignon minimal (plan toit horizontal)", () => {
@@ -198,8 +198,7 @@ describe("buildDormerMesh", () => {
       equation: { normal: { x: 0, y: 0, z: 1 }, d: -5 },
     } as unknown as RoofPlanePatch3D;
 
-    const geo = buildDormerMesh(
-      {
+    const ext = {
         kind: "dormer",
         type: "roof_extension",
         visualModel: "manual_outline_gable",
@@ -225,13 +224,17 @@ describe("buildDormerMesh", () => {
             { id: "custom-roof-a", vertexIds: ["b0", "b1", "r1", "r0"] },
             { id: "custom-roof-b", vertexIds: ["b3", "r0", "r1", "b2"] },
           ],
+          edges: [
+            { id: "base", a: "b0", b: "b1", role: "base_contour" },
+            { id: "ridge", a: "r0", b: "r1", role: "ridge" },
+          ],
         },
-      },
-      {
-        world: { metersPerPixel: 1, northAngleDeg: 0, referenceFrame: "LOCAL_IMAGE_ENU" },
-        roofPlanePatches: [patch],
-      },
-    );
+      } as const;
+    const roofModel = {
+      world: { metersPerPixel: 1, northAngleDeg: 0, referenceFrame: "LOCAL_IMAGE_ENU" },
+      roofPlanePatches: [patch],
+    } as const;
+    const geo = buildDormerMesh(ext, roofModel);
 
     expect(geo).not.toBeNull();
     const pos = geo!.getAttribute("position") as THREE.BufferAttribute;
@@ -241,6 +244,14 @@ describe("buildDormerMesh", () => {
       hasManualSkewPoint ||= Math.abs(pos.getX(i) - 22) < 1e-6 && Math.abs(pos.getY(i) + 12) < 1e-6;
     }
     expect(hasManualSkewPoint).toBe(true);
+    let maxZ = -Infinity;
+    for (let i = 0; i < pos.count; i++) maxZ = Math.max(maxZ, pos.getZ(i));
+    expect(maxZ).toBeCloseTo(6.1, 6);
+
+    const edges = buildDormerCanonicalEdgesGeometry(ext, roofModel);
+    expect(edges).not.toBeNull();
+    const edgePos = edges!.getAttribute("position") as THREE.BufferAttribute;
+    expect(edgePos.count).toBe(4);
   });
 
   it("ne reconstruit pas de boite automatique pour un chien assis manuel sans faitage", () => {

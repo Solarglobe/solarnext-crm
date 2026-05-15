@@ -4047,6 +4047,39 @@ export function initCalpinage(container, options = {}) {
         return rx;
       }
 
+      function rebuildRoofExtensionVisualGeometry(rx) {
+        if (!rx) return rx;
+        if (rx.visualModel === "manual_outline_gable") rebuildDormerCanonicalGeometry(rx);
+        else syncDormerParametricGeometry(rx);
+        return rx;
+      }
+
+      function insertRoofExtensionContourPoint(rx, segmentIndex, imgPt) {
+        var pts = rx && rx.contour && Array.isArray(rx.contour.points) ? rx.contour.points : null;
+        if (!pts || typeof segmentIndex !== "number" || segmentIndex < 0 || segmentIndex >= pts.length || !imgPt) return null;
+        var prevPt = pts[segmentIndex];
+        var nextPt = pts[(segmentIndex + 1) % pts.length];
+        if (!prevPt || !nextPt) return null;
+        var abx = nextPt.x - prevPt.x;
+        var aby = nextPt.y - prevPt.y;
+        var apx = imgPt.x - prevPt.x;
+        var apy = imgPt.y - prevPt.y;
+        var tRaw = (apx * abx + apy * aby) / (abx * abx + aby * aby + 1e-10);
+        var t = Math.max(0.001, Math.min(0.999, tRaw));
+        var inserted = {
+          x: prevPt.x + abx * t,
+          y: prevPt.y + aby * t
+        };
+        var hA = Number.isFinite(prevPt.h) ? prevPt.h : null;
+        var hB = Number.isFinite(nextPt.h) ? nextPt.h : null;
+        if (hA !== null && hB !== null) inserted.h = hA + (hB - hA) * t;
+        else if (hA !== null) inserted.h = hA;
+        else if (hB !== null) inserted.h = hB;
+        pts.splice(segmentIndex + 1, 0, inserted);
+        rebuildRoofExtensionVisualGeometry(rx);
+        return inserted;
+      }
+
       function getRoofExtensionCenter(rx) {
         var pts = rx && rx.contour && Array.isArray(rx.contour.points) ? rx.contour.points : [];
         if (!pts.length) return null;
@@ -4183,6 +4216,7 @@ export function initCalpinage(container, options = {}) {
         var rxList = CALPINAGE_STATE.roofExtensions || [];
         if (drawState.dormerEditRxIndex != null && rxList[drawState.dormerEditRxIndex]) return drawState.dormerEditRxIndex;
         if (drawState.selectedRoofExtensionIndex != null && rxList[drawState.selectedRoofExtensionIndex]) return drawState.selectedRoofExtensionIndex;
+        if (rxList.length === 1 && rxList[0] && rxList[0].visualModel === "manual_outline_gable") return 0;
         return null;
       }
 
@@ -4441,6 +4475,9 @@ export function initCalpinage(container, options = {}) {
         var traits = (CALPINAGE_STATE.traits || []).filter(function (t) { return t && t.a && t.b; });
         var ridges = (CALPINAGE_STATE.ridges || []).filter(function (r) { return r && r.roofRole !== "chienAssis"; });
         var rxList = CALPINAGE_STATE.roofExtensions || [];
+        var activeRxSnap = rxList[rxIndex];
+        var activeContourPtsSnap = activeRxSnap && activeRxSnap.contour && activeRxSnap.contour.points ? activeRxSnap.contour.points : [];
+        var draggingOwnContourPoint = activeContourPtsSnap.indexOf(pointRef) >= 0;
         var bestVert = null, bestVertD = vImg;
         var bestEdge = null, bestEdgeD = eImg;
         function tryVertex(p) {
@@ -4464,6 +4501,7 @@ export function initCalpinage(container, options = {}) {
           if (ra) tryVertex(ra); if (rb) tryVertex(rb);
         });
         rxList.forEach(function (rx, ri) {
+          if (ri === rxIndex && draggingOwnContourPoint) return;
           if (rx.contour && rx.contour.points) rx.contour.points.forEach(tryVertex);
           if (rx.hips && rx.hips.left && rx.hips.left.a) tryVertex(rx.hips.left.a);
           if (rx.hips && rx.hips.left && rx.hips.left.b) tryVertex(rx.hips.left.b);
@@ -4481,7 +4519,8 @@ export function initCalpinage(container, options = {}) {
           var ra = r.a, rb = r.b;
           if (ra && rb && typeof ra.x === "number" && typeof rb.x === "number") tryEdge(ra, rb);
         });
-        rxList.forEach(function (rx) {
+        rxList.forEach(function (rx, ri) {
+          if (ri === rxIndex && draggingOwnContourPoint) return;
           var pts = rx.contour && rx.contour.points ? rx.contour.points : [];
           for (var i = 0; i < pts.length; i++) tryEdge(pts[i], pts[(i + 1) % pts.length]);
           if (rx.hips && rx.hips.left && rx.hips.left.a && rx.hips.left.b) tryEdge(rx.hips.left.a, rx.hips.left.b);
@@ -7556,6 +7595,44 @@ export function initCalpinage(container, options = {}) {
           if (!t) return null;
           return sel.pointIndex === 0 ? t.a : t.b;
         }
+        if (sel.type === "roofExtension") return getRoofExtensionHeightPointForSelection(sel);
+        return null;
+      }
+
+      function getRoofExtensionHeightPointItems(rx) {
+        var items = [];
+        function add(key, p) {
+          if (p && typeof p.x === "number" && typeof p.y === "number") items.push({ key: key, point: p });
+        }
+        var pts = rx && rx.contour && Array.isArray(rx.contour.points) ? rx.contour.points : [];
+        for (var i = 0; i < pts.length; i++) add("contour:" + i, pts[i]);
+        if (rx && rx.ridge) {
+          add("ridge:a", rx.ridge.a);
+          add("ridge:b", rx.ridge.b);
+        }
+        if (rx && rx.hips) {
+          if (rx.hips.left) {
+            add("hip:left:a", rx.hips.left.a);
+            add("hip:left:b", rx.hips.left.b);
+          }
+          if (rx.hips.right) {
+            add("hip:right:a", rx.hips.right.a);
+            add("hip:right:b", rx.hips.right.b);
+          }
+        }
+        return items;
+      }
+
+      function getRoofExtensionHeightPointForSelection(sel, listOverride) {
+        if (!sel || sel.type !== "roofExtension") return null;
+        var rxList = listOverride || CALPINAGE_STATE.roofExtensions || [];
+        var rx = rxList[sel.index];
+        if (!rx) return null;
+        var key = String(sel.pointIndex);
+        var items = getRoofExtensionHeightPointItems(rx);
+        for (var i = 0; i < items.length; i++) {
+          if (items[i].key === key) return items[i].point;
+        }
         return null;
       }
 
@@ -7564,12 +7641,26 @@ export function initCalpinage(container, options = {}) {
         var contours = (CALPINAGE_STATE.contours || []).filter(function (c) { return c.roofRole !== "chienAssis"; });
         var ridges = (CALPINAGE_STATE.ridges || []).filter(function (r) { return r.roofRole !== "chienAssis"; });
         var traits = (CALPINAGE_STATE.traits || []).filter(function (t) { return t.roofRole !== "chienAssis"; });
+        var roofExtensions = CALPINAGE_STATE.roofExtensions || [];
         var best = null;
         var bestDist = 20;
         var screenPt = imageToScreen(imgPt);
         function check(distPx, type, index, pointIndex) {
           if (distPx < bestDist) { bestDist = distPx; best = { type: type, index: index, pointIndex: pointIndex }; }
         }
+        function checkRoofExtensionHeightItems(rxIndex) {
+          var rxItems = getRoofExtensionHeightPointItems(roofExtensions[rxIndex]);
+          for (var rj = 0; rj < rxItems.length; rj++) {
+            var rxSc = imageToScreen(rxItems[rj].point);
+            var rxD = Math.hypot(screenPt.x - rxSc.x, screenPt.y - rxSc.y);
+            check(rxD, "roofExtension", rxIndex, rxItems[rj].key);
+          }
+        }
+        var selectedHeightRxIndex = (
+          drawState.selectedRoofExtensionIndex != null &&
+          roofExtensions[drawState.selectedRoofExtensionIndex]
+        ) ? drawState.selectedRoofExtensionIndex : null;
+        if (selectedHeightRxIndex != null) checkRoofExtensionHeightItems(selectedHeightRxIndex);
         var i, j, sc, d;
         for (i = 0; i < contours.length; i++) {
           if (!contours[i].points) continue;
@@ -7588,6 +7679,10 @@ export function initCalpinage(container, options = {}) {
         for (i = 0; i < traits.length; i++) {
           if (traits[i].a) { sc = imageToScreen(traits[i].a); d = Math.hypot(screenPt.x - sc.x, screenPt.y - sc.y); check(d, "trait", i, 0); }
           if (traits[i].b) { sc = imageToScreen(traits[i].b); d = Math.hypot(screenPt.x - sc.x, screenPt.y - sc.y); check(d, "trait", i, 1); }
+        }
+        for (i = 0; i < roofExtensions.length; i++) {
+          if (i === selectedHeightRxIndex) continue;
+          checkRoofExtensionHeightItems(i);
         }
         return best;
       }
@@ -7653,6 +7748,11 @@ export function initCalpinage(container, options = {}) {
           var th = tend && tend.h;
           return typeof th === "number" && Number.isFinite(th) ? th : null;
         }
+        if (sel.type === "roofExtension") {
+          var rxPt = getRoofExtensionHeightPointForSelection(sel);
+          var rxh = rxPt && rxPt.h;
+          return typeof rxh === "number" && Number.isFinite(rxh) ? rxh : 0;
+        }
         return null;
       }
 
@@ -7672,25 +7772,51 @@ export function initCalpinage(container, options = {}) {
         var contours = (CALPINAGE_STATE.contours || []).filter(function (c) { return c.roofRole !== "chienAssis"; });
         var ridges = (CALPINAGE_STATE.ridges || []).filter(function (r) { return r.roofRole !== "chienAssis"; });
         var traits = (CALPINAGE_STATE.traits || []).filter(function (t) { return t.roofRole !== "chienAssis"; });
+        var roofExtensions = CALPINAGE_STATE.roofExtensions || [];
+        var touchedStructuralHeight = false;
+        var touchedRoofExtensionIndexes = [];
+        function rememberRoofExtensionHeight(idx) {
+          if (touchedRoofExtensionIndexes.indexOf(idx) < 0) touchedRoofExtensionIndexes.push(idx);
+        }
         function setOne(sel) {
           if (sel.type === "contour") {
             var c = contours[sel.index];
             if (c && c.points && c.points[sel.pointIndex]) c.points[sel.pointIndex].h = v;
+            touchedStructuralHeight = true;
           } else if (sel.type === "ridge") {
             var r = ridges[sel.index];
             if (r) { var end = sel.pointIndex === 0 ? r.a : r.b; if (end) end.h = v; }
+            touchedStructuralHeight = true;
           } else if (sel.type === "trait") {
             var t = traits[sel.index];
             if (t) { var end = sel.pointIndex === 0 ? t.a : t.b; if (end) end.h = v; }
+            touchedStructuralHeight = true;
+          } else if (sel.type === "roofExtension") {
+            var p = getRoofExtensionHeightPointForSelection(sel, roofExtensions);
+            if (p) {
+              var rxH = roofExtensions[sel.index];
+              var rxItems = getRoofExtensionHeightPointItems(rxH);
+              rxItems.forEach(function (item) {
+                if (item.point === p || Math.hypot(item.point.x - p.x, item.point.y - p.y) < 0.001) {
+                  item.point.h = v;
+                }
+              });
+              rememberRoofExtensionHeight(sel.index);
+            }
           }
         }
         sels.forEach(setOne);
-        tracePanPhysicsPipeline("A_after_height_edit");
+        touchedRoofExtensionIndexes.forEach(function (idx) {
+          rebuildRoofExtensionVisualGeometry(roofExtensions[idx]);
+        });
+        if (touchedStructuralHeight) tracePanPhysicsPipeline("A_after_height_edit");
         if (optionalSels == null) CALPINAGE_STATE.selectedHeightPoint = sels[0];
-        computePansFromGeometry();
-        ensurePanPointsWithHeights();
-        if (window.CalpinagePans && CalpinagePans.recomputeAllPanPhysicalProps && CALPINAGE_STATE.pans.length) {
-          CalpinagePans.recomputeAllPanPhysicalProps(CALPINAGE_STATE.pans, getStateForPans());
+        if (touchedStructuralHeight) {
+          computePansFromGeometry();
+          ensurePanPointsWithHeights();
+          if (window.CalpinagePans && CalpinagePans.recomputeAllPanPhysicalProps && CALPINAGE_STATE.pans.length) {
+            CalpinagePans.recomputeAllPanPhysicalProps(CALPINAGE_STATE.pans, getStateForPans());
+          }
         }
         updatePansListUI();
         if (typeof requestAnimationFrame !== "undefined" && typeof window.CALPINAGE_RENDER === "function") requestAnimationFrame(window.CALPINAGE_RENDER);
@@ -7718,6 +7844,7 @@ export function initCalpinage(container, options = {}) {
           if (!t) return null;
           return sel.pointIndex === 0 ? t.a : t.b;
         }
+        if (sel.type === "roofExtension") return getRoofExtensionHeightPointForSelection(sel);
         return null;
       }
 
@@ -16348,6 +16475,31 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             }
           }
 
+          function beginRoofExtensionContourPending(e, rxIndex, segmentIndex, imgPt, capturePointerFn) {
+            if (typeof rxIndex !== "number" || typeof segmentIndex !== "number" || !imgPt) return false;
+            drawState.dragMode = "roofExtensionPending";
+            drawState.dragBase = {
+              rxIndex: rxIndex,
+              segmentIndex: segmentIndex,
+              clickImgPt: { x: imgPt.x, y: imgPt.y },
+              startImg: { x: imgPt.x, y: imgPt.y },
+              lastDx: 0,
+              lastDy: 0,
+              moved: false,
+              edgeSplitPending: true
+            };
+            drawState.dragLastMouseImg = { x: imgPt.x, y: imgPt.y };
+            drawState.rxDragSnap = null;
+            drawState.snapPreview = null;
+            setInteractionState(InteractionStates.DRAGGING);
+            if (typeof capturePointerFn === "function") {
+              capturePointerFn();
+            } else if (canvasEl && e && e.pointerId != null && canvasEl.setPointerCapture) {
+              try { canvasEl.setPointerCapture(e.pointerId); drawState.activePointerId = e.pointerId; } catch (_) {}
+            }
+            return true;
+          }
+
           function beginRoofExtensionPointerInteraction(e, rxHit, imgPt) {
             if (!rxHit || rxHit.type !== "roofExtension") return false;
             var rxList = CALPINAGE_STATE.roofExtensions || [];
@@ -16373,7 +16525,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
 
             function capturePointer() {
               if (canvasEl && e && e.pointerId != null && canvasEl.setPointerCapture) {
-                try { canvasEl.setPointerCapture(e.pointerId); } catch (_) {}
+                try { canvasEl.setPointerCapture(e.pointerId); drawState.activePointerId = e.pointerId; } catch (_) {}
               }
             }
 
@@ -16419,23 +16571,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               var segIdxRx = rxHit.data.segmentIndex;
               var contourPtsRx = rxForManip.contour && rxForManip.contour.points;
               if (typeof segIdxRx === "number" && contourPtsRx) {
-                var prevRxPt = contourPtsRx[segIdxRx];
-                var nextRxPt = contourPtsRx[(segIdxRx + 1) % contourPtsRx.length];
-                var insertedRxPt = { x: imgPt.x, y: imgPt.y };
-                if (prevRxPt && nextRxPt && Number.isFinite(prevRxPt.h) && Number.isFinite(nextRxPt.h)) {
-                  insertedRxPt.h = (prevRxPt.h + nextRxPt.h) / 2;
-                }
-                contourPtsRx.splice(segIdxRx + 1, 0, insertedRxPt);
-                if (rxForManip.visualModel === "manual_outline_gable") rebuildDormerCanonicalGeometry(rxForManip);
-                else syncDormerParametricGeometry(rxForManip);
-                drawState.dragMode = "roofExtensionVertex";
-                drawState.dragBase = { rxIndex: rxHit.index, type: "contour", subtype: "vertex", index: segIdxRx + 1, pointRef: insertedRxPt };
-                drawState.dragOffset = { dx: 0, dy: 0 };
-                drawState.dragLastMouseImg = { x: imgPt.x, y: imgPt.y };
-                drawState.rxDragSnap = null;
-                drawState.snapPreview = null;
-                setInteractionState(InteractionStates.DRAGGING);
-                capturePointer();
+                beginRoofExtensionContourPending(e, rxHit.index, segIdxRx, imgPt, capturePointer);
               }
             } else if (rxHit.data && rxHit.data.pointRef) {
               beginRoofExtensionPointDrag(e, rxHit.index, rxHit.subType, rxHit.data.vertexIndex || 0, rxHit.data.pointRef, imgPt);
@@ -17015,9 +17151,11 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               }
             }
 
-            var _rxPriorityHit = getRoofExtensionPointerHit(screen);
-            if (_rxPriorityHit && _rxPriorityHit.type === "roofExtension") {
-              if (beginRoofExtensionPointerInteraction(e, _rxPriorityHit, imgPt)) return;
+            if (!isDormerMode) {
+              var _rxPriorityHit = getRoofExtensionPointerHit(screen);
+              if (_rxPriorityHit && _rxPriorityHit.type === "roofExtension") {
+                if (beginRoofExtensionPointerInteraction(e, _rxPriorityHit, imgPt)) return;
+              }
             }
 
             // --- ROOF OBSTACLE INTERACTION (RECT + CIRCLE) ---
@@ -17277,20 +17415,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                     var _segPv = _rxPvHit.data.segmentIndex;
                     var _ctsPv = _rxForPv.contour && _rxForPv.contour.points;
                     if (typeof _segPv === "number" && _ctsPv) {
-                      var _prevPv = _ctsPv[_segPv], _nextPv = _ctsPv[(_segPv + 1) % _ctsPv.length];
-                      var _insPv = { x: imgPt.x, y: imgPt.y };
-                      if (_prevPv && _nextPv && Number.isFinite(_prevPv.h) && Number.isFinite(_nextPv.h)) _insPv.h = (_prevPv.h + _nextPv.h) / 2;
-                      _ctsPv.splice(_segPv + 1, 0, _insPv);
-                      if (_rxForPv.visualModel === "manual_outline_gable") rebuildDormerCanonicalGeometry(_rxForPv);
-                      else if (typeof syncDormerParametricGeometry === "function") syncDormerParametricGeometry(_rxForPv);
-                      drawState.dragMode = "roofExtensionVertex";
-                      drawState.dragBase = { rxIndex: _rxPvHit.index, type: "contour", subtype: "vertex", index: _segPv + 1, pointRef: _insPv };
-                      drawState.dragOffset = { dx: 0, dy: 0 };
-                      drawState.dragLastMouseImg = { x: imgPt.x, y: imgPt.y };
-                      drawState.rxDragSnap = null;
-                      drawState.snapPreview = null;
-                      setInteractionState(InteractionStates.DRAGGING);
-                      if (canvasEl && e.pointerId != null && canvasEl.setPointerCapture) canvasEl.setPointerCapture(e.pointerId);
+                      beginRoofExtensionContourPending(e, _rxPvHit.index, _segPv, imgPt);
                     }
                   } else {
                     /* Corps / fallback : déplacer le dormer */
@@ -18414,24 +18539,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 if (hit.subType === "contour-edge" && rxForManip && rxForManip.contour && Array.isArray(rxForManip.contour.points) && hit.data != null) {
                   var segIdxRx = hit.data.segmentIndex;
                   if (typeof segIdxRx === "number") {
-                    var contourPtsRx = rxForManip.contour.points;
-                    var prevRxPt = contourPtsRx[segIdxRx];
-                    var nextRxPt = contourPtsRx[(segIdxRx + 1) % contourPtsRx.length];
-                    var insertedRxPt = { x: imgPt.x, y: imgPt.y };
-                    if (prevRxPt && nextRxPt && Number.isFinite(prevRxPt.h) && Number.isFinite(nextRxPt.h)) {
-                      insertedRxPt.h = (prevRxPt.h + nextRxPt.h) / 2;
-                    }
-                    contourPtsRx.splice(segIdxRx + 1, 0, insertedRxPt);
-                    if (rxForManip.visualModel === "manual_outline_gable") rebuildDormerCanonicalGeometry(rxForManip);
-                    else syncDormerParametricGeometry(rxForManip);
-                    drawState.dragMode = "roofExtensionVertex";
-                    drawState.dragBase = { rxIndex: rxHitCompat.rxIndex, type: "contour", subtype: "vertex", index: segIdxRx + 1, pointRef: insertedRxPt };
-                    drawState.dragOffset = { dx: 0, dy: 0 };
-                    drawState.dragLastMouseImg = { x: imgPt.x, y: imgPt.y };
-                    drawState.rxDragSnap = null;
-                    drawState.snapPreview = null;
-                    setInteractionState(InteractionStates.DRAGGING);
-                    if (canvasEl && e.pointerId != null && canvasEl.setPointerCapture) canvasEl.setPointerCapture(e.pointerId);
+                    beginRoofExtensionContourPending(e, rxHitCompat.rxIndex, segIdxRx, imgPt);
                   }
                 } else if (hit.subType === "edge-mid" && rxForManip && hit.data != null) {
                   /* Handle de milieu d'arête : resize directionnel par arête */
@@ -18729,6 +18837,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 return;
               }
               if (hitPan) {
+                drawState.selectedRoofExtensionIndex = null;
                 if (CALPINAGE_STATE.currentPhase === "PV_LAYOUT") {
                   setPhase3ActivePan(hitPan.id, "canvas-hit-pan");
                 } else {
@@ -18758,6 +18867,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 return;
               }
               CALPINAGE_STATE.selected = { type: null, id: null, pointIndex: null };
+              drawState.selectedRoofExtensionIndex = null;
               if (CALPINAGE_STATE.currentPhase === "PV_LAYOUT") {
                 setPhase3ActivePan(null, "canvas-fallthrough-no-pan");
               } else {
@@ -19071,6 +19181,29 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               }
               return;
             }
+            if (drawState.dragMode === "roofExtensionPending" && drawState.dragBase) {
+              var basePendingRx = drawState.dragBase;
+              var rxListPending = CALPINAGE_STATE.roofExtensions || [];
+              var rxPending = rxListPending[basePendingRx.rxIndex];
+              if (!rxPending || !basePendingRx.startImg) return;
+              var pendingStartScreen = imageToScreen(basePendingRx.startImg);
+              var pendingNowScreen = getMouseScreen(e);
+              var pendingScreenDist = Math.hypot(pendingNowScreen.x - pendingStartScreen.x, pendingNowScreen.y - pendingStartScreen.y);
+              if (pendingScreenDist > 5) {
+                var dxPending = imgPt.x - basePendingRx.startImg.x;
+                var dyPending = imgPt.y - basePendingRx.startImg.y;
+                moveRoofExtensionBy(
+                  rxPending,
+                  dxPending - (basePendingRx.lastDx || 0),
+                  dyPending - (basePendingRx.lastDy || 0)
+                );
+                basePendingRx.lastDx = dxPending;
+                basePendingRx.lastDy = dyPending;
+                basePendingRx.moved = true;
+              }
+              if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
+              return;
+            }
             if (drawState.dragMode === "roofExtensionEdge" && drawState.dragBase) {
               var baseEdge = drawState.dragBase;
               var rxListEdge = CALPINAGE_STATE.roofExtensions || [];
@@ -19170,7 +19303,16 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               if (!rx || !base.pointRef) return;
 
               var off = drawState.dragOffset || { dx: 0, dy: 0 };
-              var imgTarget = { x: imgPt.x + off.dx, y: imgPt.y + off.dy };
+              var rawImgTarget = { x: imgPt.x + off.dx, y: imgPt.y + off.dy };
+              var imgTarget = (e && e.ctrlKey)
+                ? rawImgTarget
+                : softSnapRoofExtensionVertex(
+                    rawImgTarget,
+                    base.pointRef,
+                    base.rxIndex,
+                    (vp && typeof vp.scale === "number") ? vp.scale : 1,
+                    false
+                  );
               if (
                 base.subtype === "vertex" &&
                 rx.visualModel !== "manual_outline_gable" &&
@@ -19259,8 +19401,6 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
 
               if (e && e.ctrlKey) {
                 drawState.rxDragSnap = null;
-              } else {
-                softSnapRoofExtensionVertex(imgTarget, base.pointRef, base.rxIndex, (vp && typeof vp.scale === "number") ? vp.scale : 1, false);
               }
               drawState.snapPreview = null;
 
@@ -19863,13 +20003,31 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 }
                 if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
               }
+              if (drawState.dragMode === "roofExtensionPending" && drawState.dragBase) {
+                var basePendingUp = drawState.dragBase;
+                var rxPendingUp = (CALPINAGE_STATE.roofExtensions || [])[basePendingUp.rxIndex];
+                if (rxPendingUp && !basePendingUp.moved && basePendingUp.edgeSplitPending) {
+                  var insertedPending = insertRoofExtensionContourPoint(rxPendingUp, basePendingUp.segmentIndex, basePendingUp.clickImgPt);
+                  if (insertedPending) {
+                    drawState.selectedRoofExtensionIndex = basePendingUp.rxIndex;
+                  }
+                }
+                if (rxPendingUp) {
+                  rebuildRoofExtensionVisualGeometry(rxPendingUp);
+                  if (typeof saveCalpinageState === "function") saveCalpinageState();
+                  if (typeof recomputeAllPlacementBlocksFromRules === "function") {
+                    recomputeAllPlacementBlocksFromRules(true);
+                  }
+                  if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
+                }
+              }
               if (drawState.dragMode === "roofExtensionVertex" && drawState.dragBase) {
                 var baseRx = drawState.dragBase;
                 var rxList = CALPINAGE_STATE.roofExtensions || [];
                 var rx = rxList[baseRx.rxIndex];
 
                 if (rx && baseRx.pointRef) {
-                  if (!(e && e.ctrlKey) && (e && e.shiftKey) && drawState.rxDragSnap && drawState.rxDragSnap.active && drawState.rxDragSnap.x != null && drawState.rxDragSnap.y != null) {
+                  if (!(e && e.ctrlKey) && drawState.rxDragSnap && drawState.rxDragSnap.active && drawState.rxDragSnap.x != null && drawState.rxDragSnap.y != null) {
                     baseRx.pointRef.x = drawState.rxDragSnap.x;
                     baseRx.pointRef.y = drawState.rxDragSnap.y;
                   }
@@ -20024,7 +20182,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 recomputeRoofPlanes();
                 saveCalpinageState();
               }
-              if (drawState.dragMode === "ridge-move" || drawState.dragMode === "ridge-endA" || drawState.dragMode === "ridge-endB" || drawState.dragMode === "trait-move" || drawState.dragMode === "trait-endA" || drawState.dragMode === "trait-endB" || drawState.dragMode === "contour-vertex" || drawState.dragMode === "contour-move" || drawState.dragMode === "contour-pending" || drawState.dragMode === "roofExtensionVertex" || drawState.dragMode === "roofExtensionMove" || drawState.dragMode === "roofExtensionRotate") {
+              if (drawState.dragMode === "ridge-move" || drawState.dragMode === "ridge-endA" || drawState.dragMode === "ridge-endB" || drawState.dragMode === "trait-move" || drawState.dragMode === "trait-endA" || drawState.dragMode === "trait-endB" || drawState.dragMode === "contour-vertex" || drawState.dragMode === "contour-move" || drawState.dragMode === "contour-pending" || drawState.dragMode === "roofExtensionVertex" || drawState.dragMode === "roofExtensionMove" || drawState.dragMode === "roofExtensionRotate" || drawState.dragMode === "roofExtensionPending") {
               }
               /* Clic vide Phase PV_LAYOUT : hit-test au point rel??ch? ; si aucun hit panneau => clearSelection.
                * En mode "Ajouter panneaux", ne pas clear au mouseup si le bloc a encore des panneaux (évite clear après suppression d'un panneau). */
@@ -21914,7 +22072,16 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 }
                 /* Afficher les poignées quand le chien assis est sélectionné, quelle que soit la phase.
                  * En Phase 3, activeTool peut être "panels" → on force l'affichage si selectedRoofExtensionIndex match. */
-                if (sel && (drawState.activeTool === "select" || CALPINAGE_STATE.currentPhase === "PV_LAYOUT")) {
+                var showRxHandles =
+                  sel &&
+                  (
+                    drawState.activeTool === "select" ||
+                    CALPINAGE_STATE.currentPhase === "PV_LAYOUT" ||
+                    window.CALPINAGE_MODE === MODE_DORMER_HIPS ||
+                    window.CALPINAGE_MODE === MODE_DORMER_RIDGE ||
+                    (drawState.dragMode && String(drawState.dragMode).indexOf("roofExtension") === 0)
+                  );
+                if (showRxHandles) {
                   var allRxPts = [];
                   pts.forEach(function (p) { allRxPts.push({ p: p, kind: "contour" }); });
                   // Faîtage et arêtiers toujours affichés et ajustables.
@@ -23702,11 +23869,12 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               var contours = (CALPINAGE_STATE.contours || []).filter(function (c) { return c.roofRole !== "chienAssis"; });
               var ridges = (CALPINAGE_STATE.ridges || []).filter(function (r) { return r.roofRole !== "chienAssis"; });
               var traits = (CALPINAGE_STATE.traits || []).filter(function (t) { return t.roofRole !== "chienAssis"; });
+              var roofExtensionsHeight = CALPINAGE_STATE.roofExtensions || [];
               var pts = CALPINAGE_STATE.selectedHeightPoints;
               var sel = (pts && pts.length) ? pts[0] : CALPINAGE_STATE.selectedHeightPoint;
               function isHeightPointSelected(type, idx, pIdx) {
-                if (pts && pts.length) return pts.some(function (p) { return p.type === type && p.index === idx && p.pointIndex === pIdx; });
-                return sel && sel.type === type && sel.index === idx && sel.pointIndex === pIdx;
+                if (pts && pts.length) return pts.some(function (p) { return p.type === type && p.index === idx && String(p.pointIndex) === String(pIdx); });
+                return sel && sel.type === type && sel.index === idx && String(sel.pointIndex) === String(pIdx);
               }
               var RAD = 6;
               var RAD_SEL = 8;
@@ -23753,6 +23921,20 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                   ctx.arc(tSc.x, tSc.y, isSel ? RAD_SEL : RAD, 0, Math.PI * 2);
                   ctx.fill();
                   if (isSel) { ctx.strokeStyle = "#3b82f6"; ctx.lineWidth = 2; ctx.stroke(); }
+                }
+              }
+              for (var rxi = 0; rxi < roofExtensionsHeight.length; rxi++) {
+                var rxItemsH = getRoofExtensionHeightPointItems(roofExtensionsHeight[rxi]);
+                for (var rxhi = 0; rxhi < rxItemsH.length; rxhi++) {
+                  var rxScH = imageToScreen(rxItemsH[rxhi].point);
+                  var rxSelH = isHeightPointSelected("roofExtension", rxi, rxItemsH[rxhi].key);
+                  ctx.fillStyle = rxSelH ? "#14b8a6" : "#0f766e";
+                  ctx.beginPath();
+                  ctx.rect(rxScH.x - (rxSelH ? RAD_SEL : RAD), rxScH.y - (rxSelH ? RAD_SEL : RAD), (rxSelH ? RAD_SEL : RAD) * 2, (rxSelH ? RAD_SEL : RAD) * 2);
+                  ctx.fill();
+                  ctx.strokeStyle = rxSelH ? "#ccfbf1" : "#134e4a";
+                  ctx.lineWidth = rxSelH ? 2 : 1.4;
+                  ctx.stroke();
                 }
               }
               if (typeof updateHeightEditInplaceOverlay === "function") updateHeightEditInplaceOverlay(imageToScreen, canvasEl);

@@ -131,6 +131,23 @@ function validPoint(p: { readonly x?: number; readonly y?: number; readonly h?: 
   return !!p && finiteNum(p.x) && finiteNum(p.y);
 }
 
+function canonicalDormerWorldVertexMap(
+  ext: DormerRuntimeExtensionInput,
+  roofModel: DormerRoofModelForMesh,
+): Map<string, Point3> | null {
+  const vertices = ext.canonicalDormerGeometry?.vertices;
+  if (!vertices || vertices.length < 2) return null;
+  const byId = new Map<string, Point3>();
+  for (const v of vertices) {
+    if (!v.id || !finiteNum(v.x) || !finiteNum(v.y)) continue;
+    const base = imagePointToWorld3({ x: v.x, y: v.y }, roofModel);
+    if (!base) continue;
+    const h = finiteNum(v.h) ? v.h : 0;
+    byId.set(v.id, [base[0], base[1], base[2] + h]);
+  }
+  return byId.size >= 2 ? byId : null;
+}
+
 function pushTri(positions: number[], indices: number[], a: Point3, b: Point3, c: Point3): void {
   const base = positions.length / 3;
   positions.push(a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2]);
@@ -155,14 +172,8 @@ function buildDormerMeshFromCanonicalGeometry(
   const faces = model?.faces;
   if (!vertices || !faces || vertices.length < 3 || faces.length < 1) return null;
 
-  const byId = new Map<string, Point3>();
-  for (const v of vertices) {
-    if (!v.id || !finiteNum(v.x) || !finiteNum(v.y)) continue;
-    const base = imagePointToWorld3({ x: v.x, y: v.y }, roofModel);
-    if (!base) continue;
-    const h = finiteNum(v.h) ? v.h : 0;
-    byId.set(v.id, [base[0], base[1], base[2] + h]);
-  }
+  const byId = canonicalDormerWorldVertexMap(ext, roofModel);
+  if (!byId) return null;
 
   const positions: number[] = [];
   const indices: number[] = [];
@@ -537,6 +548,28 @@ export function buildDormerEdgesGeometry(meshGeo: THREE.BufferGeometry): THREE.B
   } catch {
     return null;
   }
+}
+
+export function buildDormerCanonicalEdgesGeometry(
+  ext: DormerRuntimeExtensionInput,
+  roofModel: DormerRoofModelForMesh,
+): THREE.BufferGeometry | null {
+  const edges = ext.canonicalDormerGeometry?.edges;
+  if (!edges || edges.length < 1) return null;
+  const byId = canonicalDormerWorldVertexMap(ext, roofModel);
+  if (!byId) return null;
+  const positions: number[] = [];
+  for (const edge of edges) {
+    if (!edge.a || !edge.b) continue;
+    const a = byId.get(edge.a);
+    const b = byId.get(edge.b);
+    if (!a || !b) continue;
+    positions.push(a[0], a[1], a[2], b[0], b[1], b[2]);
+  }
+  if (positions.length < 6) return null;
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  return geo;
 }
 
 export function buildDormerFrontWindowGeometry(

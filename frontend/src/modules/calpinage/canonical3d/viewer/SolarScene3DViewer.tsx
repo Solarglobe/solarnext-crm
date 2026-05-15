@@ -131,6 +131,7 @@ import {
 } from "./solarSceneThreeGeometry";
 import { isValidCanonicalWorldConfig } from "../world/worldConvention";
 import {
+  buildDormerCanonicalEdgesGeometry,
   buildDormerEdgesGeometry,
   buildDormerMesh,
   type DormerRuntimeExtensionInput,
@@ -1702,7 +1703,9 @@ function ViewerSceneContent({
         continue;
       }
       dormerPremiumAuditLog("RESULT: geometry (viewer)", { id });
-      const edges = buildDormerEdgesGeometry(geo);
+      const edges =
+        buildDormerCanonicalEdgesGeometry(rec as DormerRuntimeExtensionInput, roofModel) ??
+        buildDormerEdgesGeometry(geo);
       replaceIds.push(id);
       meshes.push({ id, geo, edges });
     }
