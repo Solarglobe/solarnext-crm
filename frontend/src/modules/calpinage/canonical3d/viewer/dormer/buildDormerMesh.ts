@@ -37,6 +37,26 @@ export type DormerRuntimeExtensionInput = {
   readonly kind?: string;
   readonly dormerType?: string;
   readonly visualModel?: string;
+  readonly canonicalDormerGeometry?: {
+    readonly vertices?: ReadonlyArray<{
+      readonly id?: string;
+      readonly role?: string;
+      readonly x?: number;
+      readonly y?: number;
+      readonly h?: number;
+    }>;
+    readonly edges?: ReadonlyArray<{
+      readonly id?: string;
+      readonly a?: string;
+      readonly b?: string;
+      readonly role?: string;
+    }>;
+    readonly faces?: ReadonlyArray<{
+      readonly id?: string;
+      readonly role?: string;
+      readonly vertexIds?: ReadonlyArray<string>;
+    }>;
+  };
   readonly depthM?: number;
   readonly wallHeightM?: number;
   readonly roofRiseM?: number;
@@ -114,6 +134,52 @@ function pushQuad(positions: number[], indices: number[], a: Point3, b: Point3, 
 
 function clamp(n: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, n));
+}
+
+function buildDormerMeshFromCanonicalGeometry(
+  ext: DormerRuntimeExtensionInput,
+  roofModel: DormerRoofModelForMesh,
+): THREE.BufferGeometry | null {
+  const model = ext.canonicalDormerGeometry;
+  const vertices = model?.vertices;
+  const faces = model?.faces;
+  if (!vertices || !faces || vertices.length < 3 || faces.length < 1) return null;
+
+  const byId = new Map<string, Point3>();
+  for (const v of vertices) {
+    if (!v.id || !finiteNum(v.x) || !finiteNum(v.y)) continue;
+    const base = imagePointToWorld3({ x: v.x, y: v.y }, roofModel);
+    if (!base) continue;
+    const h = finiteNum(v.h) ? v.h : 0;
+    byId.set(v.id, [base[0], base[1], base[2] + h]);
+  }
+
+  const positions: number[] = [];
+  const indices: number[] = [];
+  for (const face of faces) {
+    const ids = face.vertexIds ?? [];
+    if (ids.length < 3) continue;
+    const p0 = byId.get(ids[0]!);
+    if (!p0) continue;
+    for (let i = 1; i < ids.length - 1; i++) {
+      const p1 = byId.get(ids[i]!);
+      const p2 = byId.get(ids[i + 1]!);
+      if (!p1 || !p2) continue;
+      pushTri(positions, indices, p0, p1, p2);
+    }
+  }
+
+  if (positions.length < 9 || indices.length < 3) return null;
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geo.setIndex(indices);
+  geo.computeVertexNormals();
+  dormerAuditLog("RESULT: canonicalDormerGeometry", {
+    vertexCount: vertices.length,
+    faceCount: faces.length,
+    positionCount: (geo.getAttribute("position") as THREE.BufferAttribute | undefined)?.count ?? 0,
+  });
+  return geo;
 }
 
 function longestRingEdgeDirection(baseRing: readonly Point3[]): { x: number; y: number } | null {
@@ -203,6 +269,13 @@ export function buildDormerMesh(ext: DormerRuntimeExtensionInput, roofModel: Dor
   }
   if (ext.dormerType != null && ext.dormerType !== "gable") {
     dormerAuditLog("GUARD: dormerType reject", { dormerType: ext.dormerType });
+    return null;
+  }
+
+  const canonicalGeo = buildDormerMeshFromCanonicalGeometry(ext, roofModel);
+  if (canonicalGeo) return canonicalGeo;
+  if (ext.visualModel === "manual_outline_gable") {
+    dormerAuditLog("GUARD: manual dormer without canonical geometry");
     return null;
   }
 

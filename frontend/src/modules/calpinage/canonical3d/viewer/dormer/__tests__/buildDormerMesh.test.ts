@@ -242,4 +242,46 @@ describe("buildDormerMesh", () => {
     }
     expect(hasManualSkewPoint).toBe(true);
   });
+
+  it("ne reconstruit pas de boite automatique pour un chien assis manuel sans faitage", () => {
+    const patch = {
+      id: "pan-test",
+      cornersWorld: [
+        { x: 0, y: 0, z: 5 },
+        { x: 30, y: 0, z: 5 },
+        { x: 30, y: -30, z: 5 },
+        { x: 0, y: -30, z: 5 },
+      ],
+      localFrame: {
+        origin: { x: 0, y: 0, z: 5 },
+        xAxis: { x: 1, y: 0, z: 0 },
+        yAxis: { x: 0, y: 1, z: 0 },
+        zAxis: { x: 0, y: 0, z: 1 },
+      },
+      normal: { x: 0, y: 0, z: 1 },
+      equation: { normal: { x: 0, y: 0, z: 1 }, d: -5 },
+    } as unknown as RoofPlanePatch3D;
+
+    const geo = buildDormerMesh(
+      {
+        kind: "dormer",
+        type: "roof_extension",
+        visualModel: "manual_outline_gable",
+        contour: {
+          closed: true,
+          points: [
+            { x: 10, y: 10 },
+            { x: 20, y: 10 },
+            { x: 20, y: 20 },
+            { x: 10, y: 20 },
+          ],
+        },
+      },
+      {
+        world: { metersPerPixel: 1, northAngleDeg: 0, referenceFrame: "LOCAL_IMAGE_ENU" },
+        roofPlanePatches: [patch],
+      },
+    );
+    expect(geo).toBeNull();
+  });
 });

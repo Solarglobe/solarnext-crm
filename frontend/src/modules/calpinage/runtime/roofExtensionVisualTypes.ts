@@ -46,4 +46,28 @@ export interface RuntimeRoofExtensionVisualAugment {
       };
     };
   };
+  /** Maillage explicite Phase 2 : points image + hauteur verticale en metres au-dessus du toit local. */
+  readonly canonicalDormerGeometry?: {
+    readonly version?: number;
+    readonly coordinateSpace?: "image_px_height_m" | string;
+    readonly heightReference?: "vertical_from_main_roof" | string;
+    readonly vertices?: ReadonlyArray<{
+      readonly id?: string;
+      readonly role?: string;
+      readonly x?: number;
+      readonly y?: number;
+      readonly h?: number;
+    }>;
+    readonly edges?: ReadonlyArray<{
+      readonly id?: string;
+      readonly a?: string;
+      readonly b?: string;
+      readonly role?: string;
+    }>;
+    readonly faces?: ReadonlyArray<{
+      readonly id?: string;
+      readonly role?: string;
+      readonly vertexIds?: readonly string[];
+    }>;
+  };
 }

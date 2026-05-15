@@ -2269,6 +2269,12 @@ export function initCalpinage(container, options = {}) {
                 <button type="button" class="calpinage-tool-obstacle-option" data-dormer-tool="contour" title="Dessiner le contour du chien assis point par point">
                   <span class="calpinage-tool-label">Dessiner chien assis</span>
                 </button>
+                <button type="button" class="calpinage-tool-obstacle-option" data-dormer-tool="ridge" title="Tracer le faîtage du chien assis sélectionné">
+                  <span class="calpinage-tool-label">Tracer faîtage</span>
+                </button>
+                <button type="button" class="calpinage-tool-obstacle-option" data-dormer-tool="hips" title="Tracer les arêtes du chien assis sélectionné">
+                  <span class="calpinage-tool-label">Tracer arêtes</span>
+                </button>
                 <button type="button" class="calpinage-tool-obstacle-option" data-dormer-tool="place" title="Poser un gabarit éditable de chien assis">
                   <span class="calpinage-tool-label">Gabarit chien assis</span>
                 </button>
@@ -3801,7 +3807,10 @@ export function initCalpinage(container, options = {}) {
       }
 
       function cloneDormerPoint2(p) {
-        return p && finiteDormerNumber(p.x) && finiteDormerNumber(p.y) ? { x: p.x, y: p.y } : null;
+        if (!p || !finiteDormerNumber(p.x) || !finiteDormerNumber(p.y)) return null;
+        var out = { x: p.x, y: p.y };
+        if (finiteDormerNumber(p.h)) out.h = p.h;
+        return out;
       }
 
       function stripDormerClosingDuplicate(points) {
@@ -3951,7 +3960,10 @@ export function initCalpinage(container, options = {}) {
         var ring = stripDormerClosingDuplicate(rx.contour.points);
         if (ring.length < 3) return rx;
         var ridge = rx.ridge && rx.ridge.a && rx.ridge.b ? rx.ridge : (rx.dormerModel && rx.dormerModel.ridge ? rx.dormerModel.ridge : null);
-        if (!ridge || !ridge.a || !ridge.b) return rx;
+        if (!ridge || !ridge.a || !ridge.b) {
+          delete rx.canonicalDormerGeometry;
+          return rx;
+        }
         var wallH = Number.isFinite(rx.wallHeightM) ? Math.max(0, rx.wallHeightM) : 0.35;
         var ridgeH = Number.isFinite(rx.ridgeHeightRelM) ? Math.max(wallH + 0.05, rx.ridgeHeightRelM) : Math.max(0.85, wallH + 0.35);
         var vertices = [];
@@ -3973,6 +3985,16 @@ export function initCalpinage(container, options = {}) {
           faces.push({ id: "wall-face-" + i, role: "wall", vertexIds: ["b" + i, "b" + j, "e" + j, "e" + i] });
         }
         edges.push({ id: "ridge", a: "r0", b: "r1", role: "ridge" });
+        if (rx.hips && rx.hips.left && rx.hips.left.a && rx.hips.left.b) {
+          vertices.push({ id: "hl0", role: "hip", x: rx.hips.left.a.x, y: rx.hips.left.a.y, h: Number.isFinite(rx.hips.left.a.h) ? rx.hips.left.a.h : 0 });
+          vertices.push({ id: "hl1", role: "hip", x: rx.hips.left.b.x, y: rx.hips.left.b.y, h: Number.isFinite(rx.hips.left.b.h) ? rx.hips.left.b.h : ridgeH });
+          edges.push({ id: "hip-left", a: "hl0", b: "hl1", role: "hip" });
+        }
+        if (rx.hips && rx.hips.right && rx.hips.right.a && rx.hips.right.b) {
+          vertices.push({ id: "hr0", role: "hip", x: rx.hips.right.a.x, y: rx.hips.right.a.y, h: Number.isFinite(rx.hips.right.a.h) ? rx.hips.right.a.h : 0 });
+          vertices.push({ id: "hr1", role: "hip", x: rx.hips.right.b.x, y: rx.hips.right.b.y, h: Number.isFinite(rx.hips.right.b.h) ? rx.hips.right.b.h : ridgeH });
+          edges.push({ id: "hip-right", a: "hr0", b: "hr1", role: "hip" });
+        }
         var rdx = ridge.b.x - ridge.a.x;
         var rdy = ridge.b.y - ridge.a.y;
         var rLenSq = rdx * rdx + rdy * rdy;
@@ -4006,8 +4028,21 @@ export function initCalpinage(container, options = {}) {
 
       function moveRoofExtensionBy(rx, dx, dy) {
         if (!rx || !rx.contour || !Array.isArray(rx.contour.points)) return rx;
-        rx.contour.points.forEach(function (p) { p.x += dx; p.y += dy; });
-        syncDormerParametricGeometry(rx);
+        var seen = [];
+        function movePt(p) {
+          if (!p || typeof p.x !== "number" || typeof p.y !== "number" || seen.indexOf(p) >= 0) return;
+          seen.push(p);
+          p.x += dx;
+          p.y += dy;
+        }
+        rx.contour.points.forEach(movePt);
+        if (rx.ridge) { movePt(rx.ridge.a); movePt(rx.ridge.b); }
+        if (rx.hips) {
+          if (rx.hips.left) { movePt(rx.hips.left.a); movePt(rx.hips.left.b); }
+          if (rx.hips.right) { movePt(rx.hips.right.a); movePt(rx.hips.right.b); }
+        }
+        if (rx.visualModel === "manual_outline_gable") rebuildDormerCanonicalGeometry(rx);
+        else syncDormerParametricGeometry(rx);
         return rx;
       }
 
@@ -4015,25 +4050,41 @@ export function initCalpinage(container, options = {}) {
         if (!rx || !center || !rx.contour || !Array.isArray(rx.contour.points)) return rx;
         var c = Math.cos(deltaRad);
         var s = Math.sin(deltaRad);
-        rx.contour.points.forEach(function (p) {
+        var seen = [];
+        function rotatePt(p) {
+          if (!p || typeof p.x !== "number" || typeof p.y !== "number" || seen.indexOf(p) >= 0) return;
+          seen.push(p);
           var dx = p.x - center.x;
           var dy = p.y - center.y;
           p.x = center.x + dx * c - dy * s;
           p.y = center.y + dx * s + dy * c;
-        });
-        syncDormerParametricGeometry(rx);
+        }
+        rx.contour.points.forEach(rotatePt);
+        if (rx.ridge) { rotatePt(rx.ridge.a); rotatePt(rx.ridge.b); }
+        if (rx.hips) {
+          if (rx.hips.left) { rotatePt(rx.hips.left.a); rotatePt(rx.hips.left.b); }
+          if (rx.hips.right) { rotatePt(rx.hips.right.a); rotatePt(rx.hips.right.b); }
+        }
+        if (rx.visualModel === "manual_outline_gable") rebuildDormerCanonicalGeometry(rx);
+        else syncDormerParametricGeometry(rx);
         return rx;
       }
 
       function getRoofExtensionManipHandles(rx) {
         var model = rx && rx.dormerModel;
         var center = getRoofExtensionCenter(rx);
-        if (!model || !model.axes || !model.front || !model.front.a || !model.front.b || !center) return null;
-        var fa = model.front.a;
-        var fb = model.front.b;
+        if (!center) return null;
+        var pts = rx && rx.contour && Array.isArray(rx.contour.points) ? rx.contour.points : [];
+        var fa = model && model.front ? model.front.a : null;
+        var fb = model && model.front ? model.front.b : null;
+        if ((!fa || !fb) && pts.length >= 2) {
+          fa = pts[0];
+          fb = pts[1];
+        }
+        if (!fa || !fb) return null;
         var frontMid = { x: (fa.x + fb.x) / 2, y: (fa.y + fb.y) / 2 };
-        var vx = Number(model.axes.vx) || 0;
-        var vy = Number(model.axes.vy) || 0;
+        var vx = model && model.axes ? Number(model.axes.vx) || 0 : 0;
+        var vy = model && model.axes ? Number(model.axes.vy) || 0 : 0;
         var outward = { x: frontMid.x - center.x, y: frontMid.y - center.y };
         var len = Math.hypot(outward.x, outward.y);
         if (len < 0.001) {
@@ -4113,7 +4164,7 @@ export function initCalpinage(container, options = {}) {
           ridgeHeightRelM: draft.ridgeHeightRelM != null ? draft.ridgeHeightRelM : 0.8,
           baseZ: 0
         };
-        applyDormerParametricVisualDefaults(rxPartiel);
+        rebuildDormerCanonicalGeometry(rxPartiel);
         CALPINAGE_STATE.roofExtensions = CALPINAGE_STATE.roofExtensions || [];
         CALPINAGE_STATE.roofExtensions.push(rxPartiel);
         return CALPINAGE_STATE.roofExtensions.length - 1;
@@ -4497,6 +4548,50 @@ export function initCalpinage(container, options = {}) {
         if (typeof window.CALPINAGE_RENDER === "function") {
           window.CALPINAGE_RENDER();
         }
+      }
+
+      function openDormerPointHeightOverlay(rx, pointRef, label) {
+        if (!rx || !pointRef) return;
+        var currentVal = Number.isFinite(pointRef.h)
+          ? pointRef.h
+          : ((label === "faîtage" || label === "faitage") ? (rx.ridgeHeightRelM || 0.8) : 0);
+        var val = prompt("Hauteur du point " + (label || "chien assis") + " (m au-dessus du toit, vertical) :", currentVal);
+        if (val === null) return;
+        var num = parseFloat(val);
+        if (!Number.isFinite(num) || num < 0) {
+          if (typeof window.calpinageToast !== "undefined" && window.calpinageToast.error) {
+            window.calpinageToast.error("Valeur invalide.");
+          } else if (typeof console !== "undefined") console.warn("[CALPINAGE]", "Valeur invalide.");
+          return;
+        }
+        pointRef.h = num;
+        if (rx.ridge && (pointRef === rx.ridge.a || pointRef === rx.ridge.b)) {
+          rx.ridgeHeightRelM = num;
+        }
+        rebuildDormerCanonicalGeometry(rx);
+        if (typeof saveCalpinageState === "function") saveCalpinageState();
+        if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
+      }
+
+      function hitDormerEditableHeightPoint(imgPt, rx, tolerance) {
+        var best = null;
+        var bestD = tolerance;
+        function test(p, label) {
+          if (!p || typeof p.x !== "number" || typeof p.y !== "number") return;
+          var d = Math.hypot(imgPt.x - p.x, imgPt.y - p.y);
+          if (d <= bestD) {
+            bestD = d;
+            best = { pointRef: p, label: label };
+          }
+        }
+        var pts = rx && rx.contour && Array.isArray(rx.contour.points) ? rx.contour.points : [];
+        pts.forEach(function (p) { test(p, "contour"); });
+        if (rx && rx.ridge) { test(rx.ridge.a, "faîtage"); test(rx.ridge.b, "faîtage"); }
+        if (rx && rx.hips) {
+          if (rx.hips.left) { test(rx.hips.left.a, "arête"); test(rx.hips.left.b, "arête"); }
+          if (rx.hips.right) { test(rx.hips.right.a, "arête"); test(rx.hips.right.b, "arête"); }
+        }
+        return best;
       }
 
       /** Copie pvParams (snapshot) vers PV_LAYOUT_RULES (source de v?rit?). Utilis? une seule fois au chargement. */
@@ -14034,14 +14129,12 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 drawState.dormerActiveTool = tool === "place" ? "place" : "contour";
               } else if (tool === "hips") {
                 if (target && target.contour && target.contour.closed && target.contour.points && target.contour.points.length >= 3) {
-                  applyDormerParametricVisualDefaults(target);
-                  target.stage = "HIPS";
-                  drawState.dormerEditRxIndex = null;
+                  target.hips = null;
+                  target.stage = "HIPS_DRAW";
+                  drawState.dormerEditRxIndex = targetIdx;
                   drawState.dormerDraft = null;
-                  window.CALPINAGE_MODE = null;
-                  drawState.dormerActiveTool = null;
-                  if (typeof saveCalpinageState === "function") saveCalpinageState();
-                  if (typeof resetActiveToolToSelect === "function") resetActiveToolToSelect();
+                  window.CALPINAGE_MODE = MODE_DORMER_HIPS;
+                  drawState.dormerActiveTool = "hips";
                 } else {
                   if (typeof window.calpinageToast !== "undefined" && window.calpinageToast.warning) {
                     window.calpinageToast.warning("Veuillez d'abord tracer et fermer le contour du chien assis, puis le s\u00E9lectionner.");
@@ -14050,14 +14143,12 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 }
               } else if (tool === "ridge") {
                 if (target && target.contour && target.contour.closed && target.contour.points && target.contour.points.length >= 3) {
-                  applyDormerParametricVisualDefaults(target);
-                  target.stage = "COMPLETE";
-                  drawState.dormerEditRxIndex = null;
+                  target.ridge = { a: null, b: null };
+                  target.stage = "RIDGE_DRAW";
+                  drawState.dormerEditRxIndex = targetIdx;
                   drawState.dormerDraft = null;
-                  window.CALPINAGE_MODE = null;
-                  drawState.dormerActiveTool = null;
-                  if (typeof saveCalpinageState === "function") saveCalpinageState();
-                  if (typeof resetActiveToolToSelect === "function") resetActiveToolToSelect();
+                  window.CALPINAGE_MODE = MODE_DORMER_RIDGE;
+                  drawState.dormerActiveTool = "ridge";
                 } else {
                   if (typeof window.calpinageToast !== "undefined" && window.calpinageToast.warning) {
                     window.calpinageToast.warning("Veuillez d'abord tracer et fermer le contour du chien assis, puis le s\u00E9lectionner.");
@@ -16183,7 +16274,8 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                   draft.hips.right.a, draft.hips.right.b
                 );
                 draft.ridgeOrigin = intersection;
-                draft.stage = "HIPS";
+                draft.stage = draft.ridge && draft.ridge.a && draft.ridge.b ? "COMPLETE" : "HIPS";
+                rebuildDormerCanonicalGeometry(draft);
                 drawState.dormerEditRxIndex = null;
                 window.CALPINAGE_MODE = null;
                 drawState.dormerActiveTool = null;
@@ -16240,13 +16332,21 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               var draft = getDormerEditTarget();
               if (!draft || !draft.ridge) return;
               var ridge = draft.ridge;
-              if (!ridge.a) return;
+              if (!ridge.a) {
+                var snapStartVertex = draft.contour && draft.contour.points
+                  ? snapToDormerVertex(imgPt, draft.contour.points, 15)
+                  : null;
+                ridge.a = snapStartVertex ? { x: snapStartVertex.x, y: snapStartVertex.y } : { x: imgPt.x, y: imgPt.y };
+                if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
+                return;
+              }
               if (!ridge.b) {
                 var snapVertex = draft.contour && draft.contour.points
                   ? snapToDormerVertex(imgPt, draft.contour.points, 15)
                   : null;
                 ridge.b = snapVertex ? { x: snapVertex.x, y: snapVertex.y } : { x: imgPt.x, y: imgPt.y };
-                draft.stage = "COMPLETE";
+                draft.stage = draft.hips && draft.hips.left && draft.hips.right ? "COMPLETE" : "RIDGE";
+                rebuildDormerCanonicalGeometry(draft);
                 drawState.dormerEditRxIndex = null;
                 window.CALPINAGE_MODE = null;
                 drawState.dormerActiveTool = null;
@@ -18074,6 +18174,11 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               var imgPt = screenToImage(getMouseScreen(e));
               for (var i = CALPINAGE_STATE.roofExtensions.length - 1; i >= 0; i--) {
                 var rx = CALPINAGE_STATE.roofExtensions[i];
+                var pointHit = hitDormerEditableHeightPoint(imgPt, rx, 9);
+                if (pointHit && pointHit.pointRef) {
+                  openDormerPointHeightOverlay(rx, pointHit.pointRef, pointHit.label);
+                  return;
+                }
                 if (rx.ridge && hitTestRidge(imgPt, rx.ridge, 8)) {
                   openDormerHeightOverlay(rx, i);
                   return;
@@ -18499,12 +18604,18 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               // Pour le faîtage / les arêtiers : mettre à jour dormerModel.ridge directement
               // afin de ne pas écraser la position déplacée manuellement.
               if (!base.subtype || base.subtype === "vertex" || base.subtype === "contour") {
-                syncDormerParametricGeometry(rx);
-              } else if (base.subtype === "ridge" && rx.dormerModel && rx.ridge) {
-                rx.dormerModel.ridge = {
-                  a: { x: rx.ridge.a ? rx.ridge.a.x : 0, y: rx.ridge.a ? rx.ridge.a.y : 0 },
-                  b: { x: rx.ridge.b ? rx.ridge.b.x : 0, y: rx.ridge.b ? rx.ridge.b.y : 0 }
-                };
+                if (rx.visualModel === "manual_outline_gable") rebuildDormerCanonicalGeometry(rx);
+                else syncDormerParametricGeometry(rx);
+              } else if (base.subtype && base.subtype.indexOf("ridge") === 0) {
+                if (rx.dormerModel && rx.ridge) {
+                  rx.dormerModel.ridge = {
+                    a: { x: rx.ridge.a ? rx.ridge.a.x : 0, y: rx.ridge.a ? rx.ridge.a.y : 0 },
+                    b: { x: rx.ridge.b ? rx.ridge.b.x : 0, y: rx.ridge.b ? rx.ridge.b.y : 0 }
+                  };
+                }
+                rebuildDormerCanonicalGeometry(rx);
+              } else if (base.subtype && base.subtype.indexOf("hip") === 0) {
+                rebuildDormerCanonicalGeometry(rx);
               }
 
               if (e && e.ctrlKey) {
@@ -19123,6 +19234,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                     baseRx.pointRef.x = drawState.rxDragSnap.x;
                     baseRx.pointRef.y = drawState.rxDragSnap.y;
                   }
+                  if (rx.visualModel === "manual_outline_gable") rebuildDormerCanonicalGeometry(rx);
                   if (typeof saveCalpinageState === "function") saveCalpinageState();
                   if (typeof recomputeAllPlacementBlocksFromRules === "function") {
                     recomputeAllPlacementBlocksFromRules(true);
@@ -21210,9 +21322,8 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                       ctx.fillText(edgeLabels[ei], emSc.x, emSc.y + 0.5);
                     }
                   }
-                  if (rx.dormerModel) {
-                    var rxHandles = getRoofExtensionManipHandles(rx);
-                    if (rxHandles) {
+                  var rxHandles = getRoofExtensionManipHandles(rx);
+                  if (rxHandles) {
                       var mv = imageToScreen(rxHandles.move);
                       var rt = imageToScreen(rxHandles.rotate);
                       var an = imageToScreen(rxHandles.anchor);
@@ -21246,7 +21357,6 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                       ctx.font = "bold 14px Arial";
                       ctx.fillText("R", rt.x, rt.y + 0.5);
                       ctx.restore();
-                    }
                   }
                 }
               });
