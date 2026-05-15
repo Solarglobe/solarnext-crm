@@ -37,6 +37,13 @@ export type DormerRuntimeExtensionInput = {
   readonly roofRiseM?: number;
   readonly ridgeHeightRelM?: number;
   readonly ridge?: { readonly a?: { readonly x?: number; readonly y?: number }; readonly b?: { readonly x?: number; readonly y?: number } };
+  readonly dormerModel?: {
+    readonly version?: number;
+    readonly front?: { readonly a?: { readonly x?: number; readonly y?: number }; readonly b?: { readonly x?: number; readonly y?: number } };
+    readonly ridge?: { readonly a?: { readonly x?: number; readonly y?: number }; readonly b?: { readonly x?: number; readonly y?: number } };
+    readonly axes?: { readonly ux?: number; readonly uy?: number; readonly vx?: number; readonly vy?: number };
+    readonly bounds?: { readonly minU?: number; readonly maxU?: number; readonly minV?: number; readonly maxV?: number };
+  };
   readonly hips?: unknown;
   readonly contour?: {
     readonly closed?: boolean;
@@ -49,6 +56,17 @@ type Point3 = readonly [number, number, number];
 
 function finiteNum(n: unknown): n is number {
   return typeof n === "number" && Number.isFinite(n);
+}
+
+function imagePointToWorld3(
+  p: Point2,
+  roofModel: DormerRoofModelForMesh,
+): Point3 | null {
+  const { metersPerPixel, northAngleDeg } = roofModel.world;
+  const z = sampleRoofZAtImagePxFromPatches(p.x, p.y, roofModel.roofPlanePatches, roofModel.world);
+  if (z == null) return null;
+  const w = imagePxToWorldHorizontalM(p.x, p.y, metersPerPixel, northAngleDeg);
+  return [w.x, w.y, z];
 }
 
 function validPoint(p: { readonly x?: number; readonly y?: number } | undefined): p is Point2 {
@@ -260,6 +278,51 @@ export function buildDormerMesh(ext: DormerRuntimeExtensionInput, roofModel: Dor
   const wallH = clamp(finiteNum(ext.wallHeightM) ? ext.wallHeightM : totalH * 0.38, 0.22, Math.min(0.48, totalH - 0.2));
   const roofRise = clamp(finiteNum(ext.roofRiseM) ? ext.roofRiseM : totalH - wallH, 0.25, Math.max(0.25, totalH - wallH));
   const finalTotalH = clamp(wallH + roofRise, 0.55, 1.05);
+
+  const modelRidgeA = ext.dormerModel?.ridge?.a;
+  const modelRidgeB = ext.dormerModel?.ridge?.b;
+  if (validPoint(modelRidgeA) && validPoint(modelRidgeB)) {
+    const ridgeBase0 = imagePointToWorld3(modelRidgeA, roofModel);
+    const ridgeBase1 = imagePointToWorld3(modelRidgeB, roofModel);
+    if (ridgeBase0 && ridgeBase1) {
+      const r0: Point3 = [ridgeBase0[0], ridgeBase0[1], ridgeBase0[2] + finalTotalH];
+      const r1: Point3 = [ridgeBase1[0], ridgeBase1[1], ridgeBase1[2] + finalTotalH];
+      const rdx = r1[0] - r0[0];
+      const rdy = r1[1] - r0[1];
+      const rLenSq = rdx * rdx + rdy * rdy;
+      const eaveRing: Point3[] = baseRing.map((p) => [p[0], p[1], p[2] + wallH]);
+      const ridgePointFor = (p: Point3): Point3 => {
+        if (rLenSq < 1e-8) return r0;
+        const t = clamp(((p[0] - r0[0]) * rdx + (p[1] - r0[1]) * rdy) / rLenSq, 0, 1);
+        return t < 0.5 ? r0 : r1;
+      };
+      const positions: number[] = [];
+      const indices: number[] = [];
+      for (let i = 0; i < baseRing.length; i++) {
+        pushQuad(positions, indices, baseRing[i]!, baseRing[(i + 1) % baseRing.length]!, eaveRing[(i + 1) % eaveRing.length]!, eaveRing[i]!);
+      }
+      for (let i = 0; i < eaveRing.length; i++) {
+        const a = eaveRing[i]!;
+        const b = eaveRing[(i + 1) % eaveRing.length]!;
+        const ra2 = ridgePointFor(a);
+        const rb2 = ridgePointFor(b);
+        if (ra2 === rb2) pushTri(positions, indices, a, b, ra2);
+        else pushQuad(positions, indices, a, b, rb2, ra2);
+      }
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+      geo.setIndex(indices);
+      geo.computeVertexNormals();
+      dormerAuditLog("RESULT: phase2_model geometry", {
+        positionCount: (geo.getAttribute("position") as THREE.BufferAttribute | undefined)?.count ?? 0,
+        contourVertices: baseRing.length,
+        wallH,
+        finalTotalH,
+      });
+      return geo;
+    }
+  }
+
   const ridgeHalfU = Math.max(0.05, halfU * 0.7);
 
   const sampleWorld = makeWorldSampler(roofModel);

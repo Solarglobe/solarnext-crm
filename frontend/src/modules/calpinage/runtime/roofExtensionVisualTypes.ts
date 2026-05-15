@@ -23,4 +23,27 @@ export interface RuntimeRoofExtensionVisualAugment {
   readonly wallHeightM?: number;
   /** Surhausse du toit du chien assis au-dessus des murs verticaux (m). */
   readonly roofRiseM?: number;
+  /** Geometrie metier generee par la Phase 2, consommee telle quelle par la 2D et la 3D. */
+  readonly dormerModel?: {
+    readonly version?: number;
+    readonly source?: string;
+    readonly front?: {
+      readonly a?: { readonly x?: number; readonly y?: number };
+      readonly b?: { readonly x?: number; readonly y?: number };
+    };
+    readonly ridge?: {
+      readonly a?: { readonly x?: number; readonly y?: number };
+      readonly b?: { readonly x?: number; readonly y?: number };
+    };
+    readonly hips?: {
+      readonly left?: {
+        readonly a?: { readonly x?: number; readonly y?: number };
+        readonly b?: { readonly x?: number; readonly y?: number };
+      };
+      readonly right?: {
+        readonly a?: { readonly x?: number; readonly y?: number };
+        readonly b?: { readonly x?: number; readonly y?: number };
+      };
+    };
+  };
 }

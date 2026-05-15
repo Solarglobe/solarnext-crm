@@ -3799,6 +3799,119 @@ export function initCalpinage(container, options = {}) {
         return out;
       }
 
+      function finiteDormerNumber(n) {
+        return typeof n === "number" && Number.isFinite(n);
+      }
+
+      function cloneDormerPoint2(p) {
+        return p && finiteDormerNumber(p.x) && finiteDormerNumber(p.y) ? { x: p.x, y: p.y } : null;
+      }
+
+      function stripDormerClosingDuplicate(points) {
+        var out = [];
+        (points || []).forEach(function (p) {
+          var cp = cloneDormerPoint2(p);
+          if (cp) out.push(cp);
+        });
+        if (out.length > 1) {
+          var a = out[0];
+          var b = out[out.length - 1];
+          if (Math.hypot(a.x - b.x, a.y - b.y) < 0.000001) out.pop();
+        }
+        return out;
+      }
+
+      function buildDormerParametricGeometryFromContour(points) {
+        var ring = stripDormerClosingDuplicate(points);
+        if (ring.length < 3) return null;
+        var cx = 0, cy = 0;
+        ring.forEach(function (p) { cx += p.x; cy += p.y; });
+        cx /= ring.length;
+        cy /= ring.length;
+
+        var bestIdx = 0;
+        var bestLen = -Infinity;
+        for (var i = 0; i < ring.length; i++) {
+          var a = ring[i];
+          var b = ring[(i + 1) % ring.length];
+          var len = Math.hypot(b.x - a.x, b.y - a.y);
+          if (len > bestLen) {
+            bestLen = len;
+            bestIdx = i;
+          }
+        }
+        if (!(bestLen > 0.000001)) return null;
+        var frontA0 = ring[bestIdx];
+        var frontB0 = ring[(bestIdx + 1) % ring.length];
+        var mid = { x: (frontA0.x + frontB0.x) / 2, y: (frontA0.y + frontB0.y) / 2 };
+        var ux = (frontB0.x - frontA0.x) / bestLen;
+        var uy = (frontB0.y - frontA0.y) / bestLen;
+        var vx = -uy;
+        var vy = ux;
+        if ((cx - mid.x) * vx + (cy - mid.y) * vy < 0) {
+          vx = -vx;
+          vy = -vy;
+        }
+
+        var minU = Infinity, maxU = -Infinity, minV = Infinity, maxV = -Infinity;
+        ring.forEach(function (p) {
+          var dx = p.x - mid.x;
+          var dy = p.y - mid.y;
+          var u = dx * ux + dy * uy;
+          var v = dx * vx + dy * vy;
+          minU = Math.min(minU, u);
+          maxU = Math.max(maxU, u);
+          minV = Math.min(minV, v);
+          maxV = Math.max(maxV, v);
+        });
+        if (!Number.isFinite(minU) || !Number.isFinite(maxU) || !Number.isFinite(minV) || !Number.isFinite(maxV)) return null;
+        var depth = Math.max(0.000001, maxV - minV);
+        var frontV = minV;
+        var backV = maxV;
+        var ridgeFrontV = frontV + depth * 0.28;
+        var ridgeBackV = backV - depth * 0.08;
+        if (ridgeBackV <= ridgeFrontV) ridgeBackV = frontV + depth * 0.78;
+        var frontLeft = { x: mid.x + ux * minU + vx * frontV, y: mid.y + uy * minU + vy * frontV };
+        var frontRight = { x: mid.x + ux * maxU + vx * frontV, y: mid.y + uy * maxU + vy * frontV };
+        var ridgeA = { x: mid.x + vx * ridgeFrontV, y: mid.y + vy * ridgeFrontV };
+        var ridgeB = { x: mid.x + vx * ridgeBackV, y: mid.y + vy * ridgeBackV };
+        return {
+          version: 2,
+          source: "phase2_parametric_contour",
+          front: { a: frontLeft, b: frontRight },
+          ridge: { a: ridgeA, b: ridgeB },
+          hips: {
+            left: { a: frontLeft, b: ridgeA },
+            right: { a: frontRight, b: ridgeA }
+          },
+          axes: { ux: ux, uy: uy, vx: vx, vy: vy },
+          bounds: { minU: minU, maxU: maxU, minV: minV, maxV: maxV }
+        };
+      }
+
+      function syncDormerParametricGeometry(rx) {
+        if (!rx || !rx.contour || !rx.contour.points || rx.contour.points.length < 3) return rx;
+        var model = buildDormerParametricGeometryFromContour(rx.contour.points);
+        if (!model) return rx;
+        rx.dormerModel = model;
+        rx.hips = {
+          left: {
+            a: clonePointPreserveHeight(model.hips.left.a),
+            b: clonePointPreserveHeight(model.hips.left.b)
+          },
+          right: {
+            a: clonePointPreserveHeight(model.hips.right.a),
+            b: clonePointPreserveHeight(model.hips.right.b)
+          }
+        };
+        rx.ridge = {
+          a: clonePointPreserveHeight(model.ridge.a),
+          b: clonePointPreserveHeight(model.ridge.b)
+        };
+        rx.ridgeOrigin = clonePointPreserveHeight(model.ridge.a);
+        return rx;
+      }
+
       function applyDormerParametricVisualDefaults(rx) {
         if (!rx || rx.kind !== "dormer") return rx;
         rx.dormerType = "gable";
@@ -3815,6 +3928,7 @@ export function initCalpinage(container, options = {}) {
           rx.roofRiseM = Math.max(0.28, rx.ridgeHeightRelM - rx.wallHeightM);
         }
         rx.roofRiseM = Math.max(0.25, Math.min(0.7, rx.roofRiseM));
+        syncDormerParametricGeometry(rx);
         return rx;
       }
 
@@ -13733,11 +13847,14 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 drawState.dormerActiveTool = "contour";
               } else if (tool === "hips") {
                 if (target && target.contour && target.contour.closed && target.contour.points && target.contour.points.length >= 3) {
-                  drawState.dormerEditRxIndex = targetIdx;
+                  applyDormerParametricVisualDefaults(target);
+                  target.stage = "HIPS";
+                  drawState.dormerEditRxIndex = null;
                   drawState.dormerDraft = null;
-                  target.hips = target.hips || { left: null, right: null };
-                  window.CALPINAGE_MODE = MODE_DORMER_HIPS;
-                  drawState.dormerActiveTool = "hips";
+                  window.CALPINAGE_MODE = null;
+                  drawState.dormerActiveTool = null;
+                  if (typeof saveCalpinageState === "function") saveCalpinageState();
+                  if (typeof resetActiveToolToSelect === "function") resetActiveToolToSelect();
                 } else {
                   if (typeof window.calpinageToast !== "undefined" && window.calpinageToast.warning) {
                     window.calpinageToast.warning("Veuillez d'abord tracer et fermer le contour du chien assis, puis le s\u00E9lectionner.");
@@ -13745,32 +13862,24 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                   return;
                 }
               } else if (tool === "ridge") {
-                if (target && target.contour && target.contour.closed && target.hips && target.hips.left && target.hips.right && target.hips.left.b && target.hips.right.b) {
-                  drawState.dormerEditRxIndex = targetIdx;
+                if (target && target.contour && target.contour.closed && target.contour.points && target.contour.points.length >= 3) {
+                  applyDormerParametricVisualDefaults(target);
+                  target.stage = "COMPLETE";
+                  drawState.dormerEditRxIndex = null;
                   drawState.dormerDraft = null;
-                  var ridgeOrigin = intersectLines(
-                    target.hips.left.b, target.hips.left.a,
-                    target.hips.right.b, target.hips.right.a
-                  );
-                  if (!ridgeOrigin) {
-                    if (typeof window.calpinageToast !== "undefined" && window.calpinageToast.error) {
-                      window.calpinageToast.error("Impossible de calculer la jonction des ar\u00EAtiers.");
-                    } else if (typeof console !== "undefined") console.warn("[CALPINAGE]", "Impossible de calculer la jonction des ar\u00EAtiers.");
-                    return;
-                  }
-                  target.ridgeOrigin = ridgeOrigin;
-                  target.ridge = { a: { x: ridgeOrigin.x, y: ridgeOrigin.y }, b: null };
-                  window.CALPINAGE_MODE = MODE_DORMER_RIDGE;
-                  drawState.dormerActiveTool = "ridge";
+                  window.CALPINAGE_MODE = null;
+                  drawState.dormerActiveTool = null;
+                  if (typeof saveCalpinageState === "function") saveCalpinageState();
+                  if (typeof resetActiveToolToSelect === "function") resetActiveToolToSelect();
                 } else {
                   if (typeof window.calpinageToast !== "undefined" && window.calpinageToast.warning) {
-                    window.calpinageToast.warning("Contour ferm\u00E9 et 2 ar\u00EAtiers requis. S\u00E9lectionnez un chien assis avec ar\u00EAtiers pos\u00E9s.");
-                  } else if (typeof console !== "undefined") console.warn("[CALPINAGE]", "Contour ferm\u00E9 et 2 ar\u00EAtiers requis.");
+                    window.calpinageToast.warning("Veuillez d'abord tracer et fermer le contour du chien assis, puis le s\u00E9lectionner.");
+                  } else if (typeof console !== "undefined") console.warn("[CALPINAGE]", "Veuillez d'abord tracer et fermer le contour du chien assis.");
                   return;
                 }
               }
               roofExtensionDropdown.hidden = true;
-              if (canvasEl) canvasEl.style.cursor = "crosshair";
+              if (canvasEl) canvasEl.style.cursor = window.CALPINAGE_MODE ? "crosshair" : "default";
               if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
             });
           });
@@ -17979,6 +18088,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               var imgTarget = { x: imgPt.x + off.dx, y: imgPt.y + off.dy };
               base.pointRef.x = imgTarget.x;
               base.pointRef.y = imgTarget.y;
+              syncDormerParametricGeometry(rx);
 
               if (e && e.ctrlKey) {
                 drawState.rxDragSnap = null;
