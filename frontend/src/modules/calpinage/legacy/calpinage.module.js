@@ -4058,8 +4058,11 @@ export function initCalpinage(container, options = {}) {
           vertices.push({ id: "b" + i, role: "base_contour", x: p.x, y: p.y, h: h });
           vertices.push({ id: "e" + i, role: "wall_eave", x: p.x, y: p.y, h: h + wallH });
         });
-        vertices.push({ id: "r0", role: "ridge", x: ridge.a.x, y: ridge.a.y, h: Number.isFinite(ridge.a.h) ? ridge.a.h : ridgeH });
-        vertices.push({ id: "r1", role: "ridge", x: ridge.b.x, y: ridge.b.y, h: Number.isFinite(ridge.b.h) ? ridge.b.h : ridgeH });
+        function ridgeVertexHeight(p) {
+          return p && Number.isFinite(p.h) && p.h > wallH + 0.02 ? p.h : ridgeH;
+        }
+        vertices.push({ id: "r0", role: "ridge", x: ridge.a.x, y: ridge.a.y, h: ridgeVertexHeight(ridge.a) });
+        vertices.push({ id: "r1", role: "ridge", x: ridge.b.x, y: ridge.b.y, h: ridgeVertexHeight(ridge.b) });
         edges.push({ id: "base-front", a: "b0", b: "b1", role: "base_contour" });
         edges.push({ id: "base-right", a: "b1", b: "b2", role: "base_contour" });
         edges.push({ id: "base-back", a: "b2", b: "b3", role: "base_contour" });

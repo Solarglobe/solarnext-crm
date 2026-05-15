@@ -137,12 +137,26 @@ function canonicalDormerWorldVertexMap(
 ): Map<string, Point3> | null {
   const vertices = ext.canonicalDormerGeometry?.vertices;
   if (!vertices || vertices.length < 2) return null;
+  const isManualGable = ext.visualModel === "manual_outline_gable";
+  const fallbackTotalH = clamp(finiteNum(ext.ridgeHeightRelM) ? ext.ridgeHeightRelM : 0.9, 0.55, 1.05);
+  const fallbackWallH = clamp(
+    finiteNum(ext.wallHeightM) ? ext.wallHeightM : fallbackTotalH * 0.38,
+    0.22,
+    Math.min(0.48, fallbackTotalH - 0.2),
+  );
   const byId = new Map<string, Point3>();
   for (const v of vertices) {
     if (!v.id || !finiteNum(v.x) || !finiteNum(v.y)) continue;
     const base = imagePointToWorld3({ x: v.x, y: v.y }, roofModel);
     if (!base) continue;
-    const h = finiteNum(v.h) ? v.h : 0;
+    let h = finiteNum(v.h) ? v.h : 0;
+    if (isManualGable) {
+      if (v.role === "ridge" && (!finiteNum(v.h) || v.h <= fallbackWallH + 0.02)) {
+        h = fallbackTotalH;
+      } else if (v.role === "wall_eave" && (!finiteNum(v.h) || v.h < fallbackWallH * 0.5)) {
+        h = fallbackWallH;
+      }
+    }
     byId.set(v.id, [base[0], base[1], base[2] + h]);
   }
   return byId.size >= 2 ? byId : null;
