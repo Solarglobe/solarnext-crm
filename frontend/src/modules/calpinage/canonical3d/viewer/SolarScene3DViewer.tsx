@@ -133,6 +133,7 @@ import { isValidCanonicalWorldConfig } from "../world/worldConvention";
 import {
   buildDormerCanonicalEdgesGeometry,
   buildDormerEdgesGeometry,
+  buildDormerFrontWindowGeometry,
   buildDormerMesh,
   type DormerRuntimeExtensionInput,
 } from "./dormer/buildDormerMesh";
@@ -1634,7 +1635,12 @@ function ViewerSceneContent({
         patchCount: patches?.length ?? 0,
       });
       return {
-        meshes: [] as { id: string; geo: THREE.BufferGeometry; edges: THREE.BufferGeometry | null }[],
+        meshes: [] as {
+          id: string;
+          geo: THREE.BufferGeometry;
+          edges: THREE.BufferGeometry | null;
+          window: THREE.BufferGeometry | null;
+        }[],
         replaceKey: "",
         premiumIds: new Set<string>(),
         handledIds: new Set<string>(),
@@ -1647,7 +1653,12 @@ function ViewerSceneContent({
     const volIdsArr = [...volIdSet];
     const replaceIds: string[] = [];
     const handledIds = new Set<string>();
-    const meshes: { id: string; geo: THREE.BufferGeometry; edges: THREE.BufferGeometry | null }[] = [];
+    const meshes: {
+      id: string;
+      geo: THREE.BufferGeometry;
+      edges: THREE.BufferGeometry | null;
+      window: THREE.BufferGeometry | null;
+    }[] = [];
 
     for (let ri = 0; ri < rawList.length; ri++) {
       const raw = rawList[ri];
@@ -1706,8 +1717,9 @@ function ViewerSceneContent({
       const edges =
         buildDormerCanonicalEdgesGeometry(rec as DormerRuntimeExtensionInput, roofModel) ??
         buildDormerEdgesGeometry(geo);
+      const windowGeo = buildDormerFrontWindowGeometry(rec as DormerRuntimeExtensionInput, roofModel);
       replaceIds.push(id);
-      meshes.push({ id, geo, edges });
+      meshes.push({ id, geo, edges, window: windowGeo });
     }
     replaceIds.sort();
     const premiumIds = new Set(meshes.map((m) => String(m.id)));
@@ -1802,7 +1814,7 @@ function ViewerSceneContent({
       ...(roofClosureGeo ? [roofClosureGeo] : []),
       ...(edgeGeo ? [edgeGeo] : []),
       ...(ridgeGeo ? [ridgeGeo] : []),
-      ...dormerPremiumLayer.meshes.flatMap((m) => [m.geo, ...(m.edges ? [m.edges] : [])]),
+      ...dormerPremiumLayer.meshes.flatMap((m) => [m.geo, ...(m.edges ? [m.edges] : []), ...(m.window ? [m.window] : [])]),
       ...obsGeos.flatMap((x) => [
         x.geo,
         x.details.topCap,
@@ -1844,7 +1856,9 @@ function ViewerSceneContent({
       ...(shellGeo ? [shellGeo] : []),
       ...roofGeos.map((x) => x.geo),
       ...(roofClosureGeo ? [roofClosureGeo] : []),
-      ...dormerPremiumLayer.meshes.flatMap((m) => [m.geo, m.edges].filter((g): g is THREE.BufferGeometry => g != null)),
+      ...dormerPremiumLayer.meshes.flatMap((m) =>
+        [m.geo, m.edges, m.window].filter((g): g is THREE.BufferGeometry => g != null),
+      ),
       ...obsGeos.map((x) => x.geo),
       ...extGeos.map((x) => x.geo),
       ...panelGeos.map((x) => x.geo),
@@ -2137,7 +2151,7 @@ function ViewerSceneContent({
         </lineSegments>
       )}
       {visDormerPremium &&
-        dormerPremiumLayer.meshes.map(({ id, geo, edges }) => {
+        dormerPremiumLayer.meshes.map(({ id, geo, edges, window }) => {
           const sid = String(id);
           const sel = isInspectSelected(inspectionSelection, "EXTENSION", sid);
           return (
@@ -2151,13 +2165,13 @@ function ViewerSceneContent({
                 onClick={inspectMode ? onInspectClick : undefined}
               >
                 <meshStandardMaterial
-                  color="#8b949e"
-                  metalness={0.08}
-                  roughness={0.72}
+                  color="#b8c0c8"
+                  metalness={0.06}
+                  roughness={0.66}
                   flatShading={false}
                   side={THREE.DoubleSide}
-                  emissive={sel ? "#1f3a2d" : "#101820"}
-                  emissiveIntensity={sel ? 0.28 : 0.04}
+                  emissive={sel ? "#1f3a2d" : "#16202a"}
+                  emissiveIntensity={sel ? 0.32 : 0.08}
                 />
                 {inspectMode && sel && (
                   <Outlines
@@ -2171,13 +2185,28 @@ function ViewerSceneContent({
               {edges && (
                 <lineSegments geometry={edges} renderOrder={7}>
                   <lineBasicMaterial
-                    color={showDormerDebugWire ? "#33e6ff" : "#d5dde6"}
-                    transparent={!showDormerDebugWire}
-                    opacity={showDormerDebugWire ? 1 : 0.34}
+                    color={showDormerDebugWire ? "#33e6ff" : "#f8fafc"}
+                    transparent
+                    opacity={showDormerDebugWire ? 1 : 0.68}
                     toneMapped={false}
                     depthTest
                   />
                 </lineSegments>
+              )}
+              {window && (
+                <mesh geometry={window} renderOrder={8}>
+                  <meshStandardMaterial
+                    color="#132033"
+                    emissive="#1e3a5f"
+                    emissiveIntensity={0.18}
+                    metalness={0.04}
+                    roughness={0.35}
+                    side={THREE.DoubleSide}
+                    polygonOffset
+                    polygonOffsetFactor={-2}
+                    polygonOffsetUnits={-2}
+                  />
+                </mesh>
               )}
             </group>
           );
