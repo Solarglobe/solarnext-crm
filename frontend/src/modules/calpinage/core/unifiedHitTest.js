@@ -82,23 +82,24 @@ export function unifiedHitTest({
     if (!rx) continue;
     const pts = (rx.contour && rx.contour.points) ? rx.contour.points : [];
 
+    // Priorité 0 : edge midpoint handles (redimensionnement par arête)
+    if (rx.dormerModel && pts.length === 4) {
+      for (let ei = 0; ei < 4; ei++) {
+        const eiA = pts[ei], eiB = pts[(ei + 1) % 4];
+        const emS = { x: (imageToScreen(eiA).x + imageToScreen(eiB).x) / 2,
+                      y: (imageToScreen(eiA).y + imageToScreen(eiB).y) / 2 };
+        if (Math.hypot(screenPt.x - emS.x, screenPt.y - emS.y) <= VERTEX_HIT_RADIUS_PX + 3) {
+          return { type: "roofExtension", index: ri, subType: "edge-mid", data: { edgeIndex: ei, pts: pts } };
+        }
+      }
+    }
+    // Priorité 1 : vertices de contour
     for (let i = 0; i < pts.length; i++) {
       if (hitVertexScreen(screenPt, pts[i])) {
         return { type: "roofExtension", index: ri, subType: "vertex", data: { vertexIndex: i, pointRef: pts[i] } };
       }
     }
-    for (let i = 0; i < pts.length; i++) {
-      const a = pts[i], b = pts[(i + 1) % pts.length];
-      if (hitSegmentScreen(screenPt, a, b)) {
-        return { type: "roofExtension", index: ri, subType: "contour-edge", data: { segmentIndex: i } };
-      }
-    }
-    if (rx.dormerModel) {
-      if (pts.length >= 3 && pointInPolygonImage(imgPt, pts)) {
-        return { type: "roofExtension", index: ri, subType: "body", data: { area: "contour" } };
-      }
-      continue;
-    }
+    // Priorité 2 : vertices ridge/hip — testés AVANT corps, qu'il y ait dormerModel ou non
     if (rx.ridge && rx.ridge.a && rx.ridge.b) {
       if (hitVertexScreen(screenPt, rx.ridge.a)) return { type: "roofExtension", index: ri, subType: "ridge-a", data: { pointRef: rx.ridge.a } };
       if (hitVertexScreen(screenPt, rx.ridge.b)) return { type: "roofExtension", index: ri, subType: "ridge-b", data: { pointRef: rx.ridge.b } };
@@ -109,9 +110,18 @@ export function unifiedHitTest({
       if (rx.hips.right && rx.hips.right.a && hitVertexScreen(screenPt, rx.hips.right.a)) return { type: "roofExtension", index: ri, subType: "hip-right-a", data: { pointRef: rx.hips.right.a } };
       if (rx.hips.right && rx.hips.right.b && hitVertexScreen(screenPt, rx.hips.right.b)) return { type: "roofExtension", index: ri, subType: "hip-right-b", data: { pointRef: rx.hips.right.b } };
     }
+    // Priorité 3 : arêtes de contour (insertion de point)
+    for (let i = 0; i < pts.length; i++) {
+      const a = pts[i], b = pts[(i + 1) % pts.length];
+      if (hitSegmentScreen(screenPt, a, b)) {
+        return { type: "roofExtension", index: ri, subType: "contour-edge", data: { segmentIndex: i } };
+      }
+    }
+    // Priorité 4 : corps (intérieur du polygone)
     if (pts.length >= 3 && pointInPolygonImage(imgPt, pts)) {
       return { type: "roofExtension", index: ri, subType: "body", data: { area: "contour" } };
     }
+    // Priorité 5 : segments ridge/hip (clic sur la ligne, pas sur le vertex)
     if (rx.ridge && rx.ridge.a && rx.ridge.b && hitSegmentScreen(screenPt, rx.ridge.a, rx.ridge.b)) {
       return { type: "roofExtension", index: ri, subType: "body", data: { area: "ridge" } };
     }

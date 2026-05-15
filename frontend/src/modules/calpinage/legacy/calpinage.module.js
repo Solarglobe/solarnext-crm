@@ -3871,18 +3871,52 @@ export function initCalpinage(container, options = {}) {
         var frontRight = { x: mid.x + ux * maxU + vx * frontV, y: mid.y + uy * maxU + vy * frontV };
         var ridgeA = { x: mid.x + ux * minU + vx * ridgeV, y: mid.y + uy * minU + vy * ridgeV }; // bout gauche
         var ridgeB = { x: mid.x + ux * maxU + vx * ridgeV, y: mid.y + uy * maxU + vy * ridgeV }; // bout droit
+        var depthV = maxV - minV;
+        var backLeft  = { x: frontLeft.x  + vx * depthV, y: frontLeft.y  + vy * depthV };
+        var backRight = { x: frontRight.x + vx * depthV, y: frontRight.y + vy * depthV };
         return {
           version: 2,
           source: "phase2_parametric_contour",
-          front: { a: frontLeft, b: frontRight },
+          front: { a: frontLeft,  b: frontRight },
+          back:  { a: backLeft,   b: backRight  },
           ridge: { a: ridgeA, b: ridgeB },
           hips: {
-            left:  { a: frontLeft,  b: ridgeA }, // arête gauche (façade → faîtage gauche)
-            right: { a: frontRight, b: ridgeB }  // arête droite (façade → faîtage droit)
+            left:  { a: frontLeft,  b: ridgeA },
+            right: { a: frontRight, b: ridgeB }
           },
           axes: { ux: ux, uy: uy, vx: vx, vy: vy },
           bounds: { minU: minU, maxU: maxU, minV: minV, maxV: maxV }
         };
+      }
+
+      /**
+       * Retourne l'angle (radians) du faîtage principal le plus proche de imgPt,
+       * ou 0 si aucun faîtage disponible.
+       * Utilisé pour orienter le chien assis au placement : la largeur du dormer
+       * (axe U) est alignée sur la direction du faîtage, et la profondeur (axe V)
+       * est perpendiculaire.
+       */
+      function getDormerInitialAngle(imgPt) {
+        var ridges = (CALPINAGE_STATE.ridges || []).filter(function (r) {
+          return r && r.a && r.b && r.roofRole !== "chienAssis" &&
+                 typeof r.a.x === "number" && typeof r.b.x === "number";
+        });
+        if (!ridges.length) return 0;
+        var best = null;
+        var bestDist = Infinity;
+        ridges.forEach(function (r) {
+          var rax = r.a.x, ray = r.a.y, rbx = r.b.x, rby = r.b.y;
+          var ddx = rbx - rax, ddy = rby - ray;
+          var len2 = ddx * ddx + ddy * ddy;
+          if (len2 < 1e-6) return;
+          var t = ((imgPt.x - rax) * ddx + (imgPt.y - ray) * ddy) / len2;
+          t = Math.max(0, Math.min(1, t));
+          var px = rax + t * ddx, py = ray + t * ddy;
+          var d = Math.hypot(imgPt.x - px, imgPt.y - py);
+          if (d < bestDist) { bestDist = d; best = r; }
+        });
+        if (!best) return 0;
+        return Math.atan2(best.b.y - best.a.y, best.b.x - best.a.x);
       }
 
       function syncDormerParametricGeometry(rx) {
@@ -4040,13 +4074,25 @@ export function initCalpinage(container, options = {}) {
         var halfD = depthPx / 2;
         var draft = createRoofExtensionDormerDraft("dormer", imgPt);
         draft.stage = "COMPLETE";
+        /* Orienter le chien assis selon le faîtage le plus proche :
+         * l'axe U (largeur) est parallèle au faîtage principal → chien assis
+         * posé correctement sur le versant dès le premier clic.            */
+        var initAngle = getDormerInitialAngle(imgPt);
+        var cosA = Math.cos(initAngle);
+        var sinA = Math.sin(initAngle);
+        function rotCorner(du, dv) {
+          return {
+            x: imgPt.x + cosA * du - sinA * dv,
+            y: imgPt.y + sinA * du + cosA * dv
+          };
+        }
         draft.contour = {
           closed: true,
           points: [
-            { x: imgPt.x - halfW, y: imgPt.y - halfD },
-            { x: imgPt.x + halfW, y: imgPt.y - halfD },
-            { x: imgPt.x + halfW, y: imgPt.y + halfD },
-            { x: imgPt.x - halfW, y: imgPt.y + halfD }
+            rotCorner(-halfW, -halfD),
+            rotCorner(+halfW, -halfD),
+            rotCorner(+halfW, +halfD),
+            rotCorner(-halfW, +halfD)
           ]
         };
         applyDormerParametricVisualDefaults(draft);
@@ -15293,6 +15339,9 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
           rxContourFillSelected: "rgba(51, 65, 85, 0.16)",
           rxRidgeStroke: "#c2410c",
           rxHipStroke: "#0f766e",
+          rxFaceStroke: "#1d4ed8",         /* face avant (façade) — bleu indigo */
+          rxFaceStrokeSelected: "#1e3a8a",
+          rxBackEdge: "rgba(100,116,139,0.55)", /* arête arrière — raccord toit principal */
           rxHalo: "rgba(255, 255, 255, 0.88)",
           /* Guide / snap */
           guideStroke: "rgba(37, 99, 235, 0.62)",
@@ -17604,7 +17653,22 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 drawState.selectedRidgeIds = [];
                 drawState.selectedTraitIds = [];
                 var rxForManip = (CALPINAGE_STATE.roofExtensions || [])[rxHitCompat.rxIndex];
-                if (hit.subType === "rotate-handle" && rxForManip) {
+                if (hit.subType === "edge-mid" && rxForManip && hit.data != null) {
+                  /* Handle de milieu d'arête : resize directionnel par arête */
+                  var eiD = hit.data.edgeIndex;
+                  var edPts = rxForManip.contour && rxForManip.contour.points;
+                  if (typeof eiD === "number" && edPts && edPts.length === 4 && rxForManip.dormerModel) {
+                    drawState.dragMode = "roofExtensionEdge";
+                    drawState.dragBase = {
+                      rxIndex: rxHitCompat.rxIndex,
+                      edgeIndex: eiD,
+                      startImg: { x: imgPt.x, y: imgPt.y },
+                      originalPts: edPts.map(function (p) { return { x: p.x, y: p.y }; })
+                    };
+                    setInteractionState(InteractionStates.RESIZING);
+                    if (canvasEl && e.pointerId != null && canvasEl.setPointerCapture) canvasEl.setPointerCapture(e.pointerId);
+                  }
+                } else if (hit.subType === "rotate-handle" && rxForManip) {
                   var rxCenterRot = getRoofExtensionCenter(rxForManip);
                   if (rxCenterRot) {
                     drawState.dragMode = "roofExtensionRotate";
@@ -18227,6 +18291,51 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               }
               return;
             }
+            if (drawState.dragMode === "roofExtensionEdge" && drawState.dragBase) {
+              var baseEdge = drawState.dragBase;
+              var rxListEdge = CALPINAGE_STATE.roofExtensions || [];
+              var rxEdge = rxListEdge[baseEdge.rxIndex];
+              if (rxEdge && rxEdge.dormerModel && rxEdge.dormerModel.axes && rxEdge.contour && Array.isArray(rxEdge.contour.points) && rxEdge.contour.points.length === 4) {
+                var axEdge = rxEdge.dormerModel.axes;
+                var eiEdge = baseEdge.edgeIndex;
+                /* Axe de déplacement : edges 0 et 2 (front/back) → axe V ; edges 1 et 3 (right/left) → axe U */
+                var isVEdge = eiEdge === 0 || eiEdge === 2;
+                var movDx = isVEdge ? axEdge.vx : axEdge.ux;
+                var movDy = isVEdge ? axEdge.vy : axEdge.uy;
+                /* Projection du déplacement de la souris sur l'axe de déplacement */
+                var dMouseX = imgPt.x - baseEdge.startImg.x;
+                var dMouseY = imgPt.y - baseEdge.startImg.y;
+                var proj = dMouseX * movDx + dMouseY * movDy;
+                /* Les deux coins de l'arête déplacée (0→1, 1→2, 2→3, 3→0) */
+                var ept1 = eiEdge;
+                var ept2 = (eiEdge + 1) % 4;
+                var origPts = baseEdge.originalPts;
+                var ptsEdge = rxEdge.contour.points;
+                ptsEdge[ept1].x = origPts[ept1].x + movDx * proj;
+                ptsEdge[ept1].y = origPts[ept1].y + movDy * proj;
+                ptsEdge[ept2].x = origPts[ept2].x + movDx * proj;
+                ptsEdge[ept2].y = origPts[ept2].y + movDy * proj;
+                /* Taille minimale : si l'arête opposée est trop proche, clamper */
+                var oppEdge = (eiEdge + 2) % 4;
+                var oppEpt1 = oppEdge, oppEpt2 = (oppEdge + 1) % 4;
+                var midMovedX = (ptsEdge[ept1].x + ptsEdge[ept2].x) / 2;
+                var midMovedY = (ptsEdge[ept1].y + ptsEdge[ept2].y) / 2;
+                var midOppX = (ptsEdge[oppEpt1].x + ptsEdge[oppEpt2].x) / 2;
+                var midOppY = (ptsEdge[oppEpt1].y + ptsEdge[oppEpt2].y) / 2;
+                var distNow = Math.abs((midMovedX - midOppX) * movDx + (midMovedY - midOppY) * movDy);
+                var minDist = 10;
+                if (distNow < minDist) {
+                  var clamp = proj + (distNow < 0 ? minDist - distNow : -(distNow - minDist));
+                  ptsEdge[ept1].x = origPts[ept1].x + movDx * clamp;
+                  ptsEdge[ept1].y = origPts[ept1].y + movDy * clamp;
+                  ptsEdge[ept2].x = origPts[ept2].x + movDx * clamp;
+                  ptsEdge[ept2].y = origPts[ept2].y + movDy * clamp;
+                }
+                syncDormerParametricGeometry(rxEdge);
+              }
+              if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
+              return;
+            }
             if (drawState.dragMode === "roofExtensionMove" && drawState.dragBase) {
               var baseMoveRx = drawState.dragBase;
               var rxListMove = CALPINAGE_STATE.roofExtensions || [];
@@ -18276,26 +18385,53 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 var oppRx = (viRx + 2) % 4;
                 var oppPt = ptsRx[oppRx];
                 if (oppPt && typeof oppPt.x === "number" && typeof oppPt.y === "number") {
-                  var left = Math.min(imgTarget.x, oppPt.x);
-                  var right = Math.max(imgTarget.x, oppPt.x);
-                  var top = Math.min(imgTarget.y, oppPt.y);
-                  var bottom = Math.max(imgTarget.y, oppPt.y);
-                  var minSide = 12;
-                  if (right - left < minSide) {
-                    if (imgTarget.x < oppPt.x) left = right - minSide;
-                    else right = left + minSide;
+                  /* ── Resize orienté axes U/V ────────────────────────────────────────
+                   * Si le dormerModel a des axes définis (cas normal après placement),
+                   * on reconstruit les 4 coins en maintenant l'orientation du rectangle.
+                   * Si pas de dormerModel, fallback sur l'ancien bounding-box axis-aligned.
+                   */
+                  var model = rx.dormerModel;
+                  if (model && model.axes) {
+                    var ax = model.axes;
+                    /* Centre entre coin traîné et coin fixe */
+                    var cxRx = (imgTarget.x + oppPt.x) / 2;
+                    var cyRx = (imgTarget.y + oppPt.y) / 2;
+                    /* Demi-extension sur l'axe U et l'axe V */
+                    var dCxRx = imgTarget.x - cxRx;
+                    var dCyRx = imgTarget.y - cyRx;
+                    var halfU = Math.abs(dCxRx * ax.ux + dCyRx * ax.uy);
+                    var halfV = Math.abs(dCxRx * ax.vx + dCyRx * ax.vy);
+                    var minSideImg = 8;
+                    halfU = Math.max(minSideImg, halfU);
+                    halfV = Math.max(minSideImg, halfV);
+                    /* Reconstruire 4 coins dans l'ordre original (0=front-left, 1=front-right, 2=back-right, 3=back-left) */
+                    var newPts = [
+                      { x: cxRx - ax.ux * halfU - ax.vx * halfV, y: cyRx - ax.uy * halfU - ax.vy * halfV },
+                      { x: cxRx + ax.ux * halfU - ax.vx * halfV, y: cyRx + ax.uy * halfU - ax.vy * halfV },
+                      { x: cxRx + ax.ux * halfU + ax.vx * halfV, y: cyRx + ax.uy * halfU + ax.vy * halfV },
+                      { x: cxRx - ax.ux * halfU + ax.vx * halfV, y: cyRx - ax.uy * halfU + ax.vy * halfV }
+                    ];
+                    rx.contour.points = newPts.map(function (np, ni) {
+                      return clonePointPreserveHeight(ptsRx[ni], np);
+                    });
+                    base.pointRef = rx.contour.points[viRx];
+                  } else {
+                    /* Fallback : axis-aligned (formes sans dormerModel — legacy) */
+                    var left = Math.min(imgTarget.x, oppPt.x);
+                    var right = Math.max(imgTarget.x, oppPt.x);
+                    var top = Math.min(imgTarget.y, oppPt.y);
+                    var bottom = Math.max(imgTarget.y, oppPt.y);
+                    var minSideLeg = 12;
+                    if (right - left < minSideLeg) { if (imgTarget.x < oppPt.x) left = right - minSideLeg; else right = left + minSideLeg; }
+                    if (bottom - top < minSideLeg) { if (imgTarget.y < oppPt.y) top = bottom - minSideLeg; else bottom = top + minSideLeg; }
+                    rx.contour.points = [
+                      clonePointPreserveHeight(ptsRx[0], { x: left,  y: top    }),
+                      clonePointPreserveHeight(ptsRx[1], { x: right, y: top    }),
+                      clonePointPreserveHeight(ptsRx[2], { x: right, y: bottom }),
+                      clonePointPreserveHeight(ptsRx[3], { x: left,  y: bottom })
+                    ];
+                    base.pointRef = rx.contour.points[viRx];
                   }
-                  if (bottom - top < minSide) {
-                    if (imgTarget.y < oppPt.y) top = bottom - minSide;
-                    else bottom = top + minSide;
-                  }
-                  rx.contour.points = [
-                    clonePointPreserveHeight(ptsRx[0], { x: left, y: top }),
-                    clonePointPreserveHeight(ptsRx[1], { x: right, y: top }),
-                    clonePointPreserveHeight(ptsRx[2], { x: right, y: bottom }),
-                    clonePointPreserveHeight(ptsRx[3], { x: left, y: bottom })
-                  ];
-                  base.pointRef = rx.contour.points[viRx];
                 } else {
                   base.pointRef.x = imgTarget.x;
                   base.pointRef.y = imgTarget.y;
@@ -18915,7 +19051,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                   saveCalpinageState();
                 }
               }
-              if ((drawState.dragMode === "roofExtensionMove" || drawState.dragMode === "roofExtensionRotate") && drawState.dragBase) {
+              if ((drawState.dragMode === "roofExtensionMove" || drawState.dragMode === "roofExtensionRotate" || drawState.dragMode === "roofExtensionEdge") && drawState.dragBase) {
                 if (typeof saveCalpinageState === "function") saveCalpinageState();
                 if (typeof recomputeAllPlacementBlocksFromRules === "function") {
                   recomputeAllPlacementBlocksFromRules(true);
@@ -20893,23 +21029,59 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                   ctx.lineWidth = sel ? 2.8 : 2.0;
                   ctx.stroke(rxRidgePath);
                 }
-                if (rx.hips) {
-                  var drawRxHip = function (ha, hb) {
-                    if (!ha || !hb) return;
-                    var rxHipPath = new Path2D();
-                    var hpa = imageToScreen(ha);
-                    var hpb = imageToScreen(hb);
-                    rxHipPath.moveTo(hpa.x, hpa.y);
-                    rxHipPath.lineTo(hpb.x, hpb.y);
-                    ctx.strokeStyle = PHASE2_DRAW_STYLE.rxHalo;
-                    ctx.lineWidth = sel ? 4.8 : 3.5;
-                    ctx.stroke(rxHipPath);
-                    ctx.strokeStyle = PHASE2_DRAW_STYLE.rxHipStroke;
-                    ctx.lineWidth = sel ? 2.2 : 1.6;
-                    ctx.stroke(rxHipPath);
-                  };
-                  drawRxHip(rx.hips.left && rx.hips.left.a, rx.hips.left && rx.hips.left.b);
-                  drawRxHip(rx.hips.right && rx.hips.right.a, rx.hips.right && rx.hips.right.b);
+                /* ── Chien assis : FACE AVANT (façade) en bleu gras ───────────────────
+                 * La face avant est le côté visible depuis la rue / le bas du versant.
+                 * Elle est différenciée visuellement du reste du contour pour donner
+                 * au chien assis une identité claire (pas juste un rectangle).          */
+                if (rx.dormerModel && rx.dormerModel.front && rx.dormerModel.front.a && rx.dormerModel.front.b) {
+                  var rfA = imageToScreen(rx.dormerModel.front.a);
+                  var rfB = imageToScreen(rx.dormerModel.front.b);
+                  var rxFacePath = new Path2D();
+                  rxFacePath.moveTo(rfA.x, rfA.y);
+                  rxFacePath.lineTo(rfB.x, rfB.y);
+                  ctx.strokeStyle = PHASE2_DRAW_STYLE.rxHalo;
+                  ctx.lineWidth = sel ? 7.0 : 5.5;
+                  ctx.setLineDash([]);
+                  ctx.stroke(rxFacePath);
+                  ctx.strokeStyle = sel ? PHASE2_DRAW_STYLE.rxFaceStrokeSelected : PHASE2_DRAW_STYLE.rxFaceStroke;
+                  ctx.lineWidth = sel ? 3.2 : 2.5;
+                  ctx.stroke(rxFacePath);
+                  /* Petit triangle directeur centré sur la face avant → indique la façade */
+                  var rfMx = (rfA.x + rfB.x) / 2;
+                  var rfMy = (rfA.y + rfB.y) / 2;
+                  var rfDx = rfB.x - rfA.x;
+                  var rfDy = rfB.y - rfA.y;
+                  var rfLen = Math.hypot(rfDx, rfDy) || 1;
+                  /* Normale vers l'INTÉRIEUR du dormer (côté versant avant) */
+                  var rxVx = rx.dormerModel.axes ? rx.dormerModel.axes.vx : 0;
+                  var rxVy = rx.dormerModel.axes ? rx.dormerModel.axes.vy : 1;
+                  var rscVx = rxVx * vp.scale;
+                  var rscVy = rxVy * vp.scale;
+                  var arrowLen = Math.min(10, rfLen * 0.22);
+                  var wingSize = arrowLen * 0.55;
+                  var arrowTip = { x: rfMx + rscVx * arrowLen, y: rfMy + rscVy * arrowLen };
+                  var perpX = -(rfDy / rfLen);
+                  var perpY =  (rfDx / rfLen);
+                  ctx.beginPath();
+                  ctx.moveTo(arrowTip.x, arrowTip.y);
+                  ctx.lineTo(rfMx + perpX * wingSize, rfMy + perpY * wingSize);
+                  ctx.lineTo(rfMx - perpX * wingSize, rfMy - perpY * wingSize);
+                  ctx.closePath();
+                  ctx.fillStyle = sel ? PHASE2_DRAW_STYLE.rxFaceStrokeSelected : PHASE2_DRAW_STYLE.rxFaceStroke;
+                  ctx.fill();
+                }
+                /* ── Arête arrière en tirets (raccord toit principal) ─────────────── */
+                if (rx.dormerModel && rx.dormerModel.back && rx.dormerModel.back.a && rx.dormerModel.back.b) {
+                  var rbA = imageToScreen(rx.dormerModel.back.a);
+                  var rbB = imageToScreen(rx.dormerModel.back.b);
+                  var rxBackPath = new Path2D();
+                  rxBackPath.moveTo(rbA.x, rbA.y);
+                  rxBackPath.lineTo(rbB.x, rbB.y);
+                  ctx.setLineDash([4, 4]);
+                  ctx.strokeStyle = PHASE2_DRAW_STYLE.rxBackEdge;
+                  ctx.lineWidth = sel ? 2.0 : 1.5;
+                  ctx.stroke(rxBackPath);
+                  ctx.setLineDash([]);
                 }
                 if (sel && drawState.activeTool === "select") {
                   var allRxPts = [];
@@ -20954,6 +21126,35 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                     ctx.fill();
                     ctx.stroke();
                   });
+                  /* ── Edge midpoint handles : redimensionnement par arête ──────────
+                   * 4 poignées losange sur les milieux des arêtes du chien assis.
+                   * Edge 0 = avant (face visible), 1 = droite, 2 = arrière, 3 = gauche.
+                   * L'utilisateur les déplace pour ajuster largeur ou profondeur.    */
+                  if (rx.dormerModel && pts.length === 4) {
+                    var edgeLabels = ["↕","↔","↕","↔"];
+                    for (var ei = 0; ei < 4; ei++) {
+                      var eiA = pts[ei], eiB = pts[(ei + 1) % 4];
+                      var emSc = { x: (imageToScreen(eiA).x + imageToScreen(eiB).x) / 2,
+                                   y: (imageToScreen(eiA).y + imageToScreen(eiB).y) / 2 };
+                      var emR = 7.5;
+                      ctx.beginPath();
+                      ctx.arc(emSc.x, emSc.y, emR + 2, 0, Math.PI * 2);
+                      ctx.fillStyle = "rgba(255,255,255,0.9)";
+                      ctx.fill();
+                      ctx.beginPath();
+                      ctx.arc(emSc.x, emSc.y, emR, 0, Math.PI * 2);
+                      ctx.fillStyle = "#e2e8f0";
+                      ctx.strokeStyle = "#475569";
+                      ctx.lineWidth = 1.5;
+                      ctx.fill();
+                      ctx.stroke();
+                      ctx.fillStyle = "#1e293b";
+                      ctx.font = "bold 9px Arial";
+                      ctx.textAlign = "center";
+                      ctx.textBaseline = "middle";
+                      ctx.fillText(edgeLabels[ei], emSc.x, emSc.y + 0.5);
+                    }
+                  }
                   if (rx.dormerModel) {
                     var rxHandles = getRoofExtensionManipHandles(rx);
                     if (rxHandles) {
