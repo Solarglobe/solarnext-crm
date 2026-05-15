@@ -17891,6 +17891,25 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             if (CALPINAGE_STATE.heightEditMode) {
               var hit = hitTestHeightPoints(imgPt, imageToScreen, screenToImage);
               if (!hit) {
+                var rxHeightFallbackHit = getRoofExtensionPointerHit(screen);
+                if (rxHeightFallbackHit && rxHeightFallbackHit.type === "roofExtension") {
+                  var rxHeightFallbackList = CALPINAGE_STATE.roofExtensions || [];
+                  var rxHeightFallback = rxHeightFallbackList[rxHeightFallbackHit.index];
+                  var rxHeightItems = getRoofExtensionHeightPointItems(rxHeightFallback);
+                  var rxHeightBest = null;
+                  var rxHeightBestDist = 96;
+                  for (var rxHi = 0; rxHi < rxHeightItems.length; rxHi++) {
+                    var rxHiSc = imageToScreen(rxHeightItems[rxHi].point);
+                    var rxHiDist = Math.hypot(screen.x - rxHiSc.x, screen.y - rxHiSc.y);
+                    if (rxHiDist <= rxHeightBestDist) {
+                      rxHeightBestDist = rxHiDist;
+                      rxHeightBest = rxHeightItems[rxHi];
+                    }
+                  }
+                  if (rxHeightBest) hit = { type: "roofExtension", index: rxHeightFallbackHit.index, pointIndex: rxHeightBest.key };
+                }
+              }
+              if (!hit) {
                 if (heightEditDraftValue != null) commitHeightEdit();
                 exitHeightEdit(false);
                 return;
