@@ -3985,59 +3985,108 @@ export function initCalpinage(container, options = {}) {
         }
         var wallH = Number.isFinite(rx.wallHeightM) ? Math.max(0, rx.wallHeightM) : 0.35;
         var ridgeH = Number.isFinite(rx.ridgeHeightRelM) ? Math.max(wallH + 0.05, rx.ridgeHeightRelM) : Math.max(0.85, wallH + 0.35);
+        var rdx = ridge.b.x - ridge.a.x;
+        var rdy = ridge.b.y - ridge.a.y;
+        var rLen = Math.hypot(rdx, rdy);
+        if (!(rLen > 0.000001)) {
+          delete rx.canonicalDormerGeometry;
+          return rx;
+        }
+        var ux = rdx / rLen;
+        var uy = rdy / rLen;
+        var vx = -uy;
+        var vy = ux;
+        var cx = 0;
+        var cy = 0;
+        ring.forEach(function (p) {
+          cx += p.x;
+          cy += p.y;
+        });
+        cx /= ring.length;
+        cy /= ring.length;
+        var minU = Infinity, maxU = -Infinity, minV = Infinity, maxV = -Infinity;
+        ring.forEach(function (p) {
+          var du = (p.x - cx) * ux + (p.y - cy) * uy;
+          var dv = (p.x - cx) * vx + (p.y - cy) * vy;
+          minU = Math.min(minU, du);
+          maxU = Math.max(maxU, du);
+          minV = Math.min(minV, dv);
+          maxV = Math.max(maxV, dv);
+        });
+        if (!Number.isFinite(minU) || !Number.isFinite(maxU) || !Number.isFinite(minV) || !Number.isFinite(maxV)) {
+          delete rx.canonicalDormerGeometry;
+          return rx;
+        }
+        if (Math.abs(maxU - minU) < 0.000001 || Math.abs(maxV - minV) < 0.000001) {
+          delete rx.canonicalDormerGeometry;
+          return rx;
+        }
+        function pointAtUv(u, v) {
+          return { x: cx + ux * u + vx * v, y: cy + uy * u + vy * v };
+        }
+        function nearestContourHeight(pt) {
+          var best = null;
+          var bestDist = Infinity;
+          ring.forEach(function (p) {
+            var d = Math.hypot(p.x - pt.x, p.y - pt.y);
+            if (d < bestDist) {
+              bestDist = d;
+              best = p;
+            }
+          });
+          return best && Number.isFinite(best.h) ? best.h : 0;
+        }
+        var frontLeft = pointAtUv(minU, minV);
+        var frontRight = pointAtUv(maxU, minV);
+        var backRight = pointAtUv(maxU, maxV);
+        var backLeft = pointAtUv(minU, maxV);
+        rx.dormerModel = {
+          version: 3,
+          source: "manual_ridge_axis_gable",
+          front: { a: frontLeft, b: frontRight },
+          back: { a: backLeft, b: backRight },
+          ridge: { a: clonePointPreserveHeight(ridge.a), b: clonePointPreserveHeight(ridge.b) },
+          axes: { ux: ux, uy: uy, vx: vx, vy: vy },
+          bounds: { minU: minU, maxU: maxU, minV: minV, maxV: maxV }
+        };
         var vertices = [];
         var edges = [];
         var faces = [];
-        ring.forEach(function (p, i) {
-          vertices.push({ id: "b" + i, role: "base_contour", x: p.x, y: p.y, h: Number.isFinite(p.h) ? p.h : 0 });
-        });
-        ring.forEach(function (p, i) {
-          vertices.push({ id: "e" + i, role: "wall_eave", x: p.x, y: p.y, h: Number.isFinite(p.h) ? p.h + wallH : wallH });
+        var basePts = [frontLeft, frontRight, backRight, backLeft];
+        basePts.forEach(function (p, i) {
+          var h = nearestContourHeight(p);
+          vertices.push({ id: "b" + i, role: "base_contour", x: p.x, y: p.y, h: h });
+          vertices.push({ id: "e" + i, role: "wall_eave", x: p.x, y: p.y, h: h + wallH });
         });
         vertices.push({ id: "r0", role: "ridge", x: ridge.a.x, y: ridge.a.y, h: Number.isFinite(ridge.a.h) ? ridge.a.h : ridgeH });
         vertices.push({ id: "r1", role: "ridge", x: ridge.b.x, y: ridge.b.y, h: Number.isFinite(ridge.b.h) ? ridge.b.h : ridgeH });
-        for (var i = 0; i < ring.length; i++) {
-          var j = (i + 1) % ring.length;
-          edges.push({ id: "base-" + i, a: "b" + i, b: "b" + j, role: "base_contour" });
-          edges.push({ id: "wall-" + i, a: "b" + i, b: "e" + i, role: "wall_vertical" });
-          edges.push({ id: "eave-" + i, a: "e" + i, b: "e" + j, role: "eave_contour" });
-          faces.push({ id: "wall-face-" + i, role: "wall", vertexIds: ["b" + i, "b" + j, "e" + j, "e" + i] });
-        }
+        edges.push({ id: "base-front", a: "b0", b: "b1", role: "base_contour" });
+        edges.push({ id: "base-right", a: "b1", b: "b2", role: "base_contour" });
+        edges.push({ id: "base-back", a: "b2", b: "b3", role: "base_contour" });
+        edges.push({ id: "base-left", a: "b3", b: "b0", role: "base_contour" });
+        edges.push({ id: "wall-front-left", a: "b0", b: "e0", role: "wall_vertical" });
+        edges.push({ id: "wall-front-right", a: "b1", b: "e1", role: "wall_vertical" });
+        edges.push({ id: "wall-back-right", a: "b2", b: "e2", role: "wall_vertical" });
+        edges.push({ id: "wall-back-left", a: "b3", b: "e3", role: "wall_vertical" });
+        edges.push({ id: "eave-front", a: "e0", b: "e1", role: "eave_front" });
+        edges.push({ id: "eave-back", a: "e3", b: "e2", role: "eave_back" });
+        edges.push({ id: "gable-left-base", a: "e0", b: "e3", role: "gable_edge" });
+        edges.push({ id: "gable-right-base", a: "e1", b: "e2", role: "gable_edge" });
         edges.push({ id: "ridge", a: "r0", b: "r1", role: "ridge" });
-        if (rx.hips && rx.hips.left && rx.hips.left.a && rx.hips.left.b) {
-          vertices.push({ id: "hl0", role: "hip", x: rx.hips.left.a.x, y: rx.hips.left.a.y, h: Number.isFinite(rx.hips.left.a.h) ? rx.hips.left.a.h : 0 });
-          vertices.push({ id: "hl1", role: "hip", x: rx.hips.left.b.x, y: rx.hips.left.b.y, h: Number.isFinite(rx.hips.left.b.h) ? rx.hips.left.b.h : ridgeH });
-          edges.push({ id: "hip-left", a: "hl0", b: "hl1", role: "hip" });
-        }
-        if (rx.hips && rx.hips.right && rx.hips.right.a && rx.hips.right.b) {
-          vertices.push({ id: "hr0", role: "hip", x: rx.hips.right.a.x, y: rx.hips.right.a.y, h: Number.isFinite(rx.hips.right.a.h) ? rx.hips.right.a.h : 0 });
-          vertices.push({ id: "hr1", role: "hip", x: rx.hips.right.b.x, y: rx.hips.right.b.y, h: Number.isFinite(rx.hips.right.b.h) ? rx.hips.right.b.h : ridgeH });
-          edges.push({ id: "hip-right", a: "hr0", b: "hr1", role: "hip" });
-        }
-        var rdx = ridge.b.x - ridge.a.x;
-        var rdy = ridge.b.y - ridge.a.y;
-        var rLenSq = rdx * rdx + rdy * rdy;
-        var r0h = Number.isFinite(ridge.a.h) ? ridge.a.h : ridgeH;
-        var r1h = Number.isFinite(ridge.b.h) ? ridge.b.h : ridgeH;
-        for (var rp = 0; rp < ring.length; rp++) {
-          var tProj = rLenSq > 0.000001 ? (((ring[rp].x - ridge.a.x) * rdx + (ring[rp].y - ridge.a.y) * rdy) / rLenSq) : 0;
-          tProj = Math.max(0, Math.min(1, tProj));
-          vertices.push({
-            id: "rp" + rp,
-            role: "ridge_projection",
-            x: ridge.a.x + rdx * tProj,
-            y: ridge.a.y + rdy * tProj,
-            h: r0h + (r1h - r0h) * tProj
-          });
-          edges.push({ id: "rafter-" + rp, a: "e" + rp, b: "rp" + rp, role: "roof_slope_edge" });
-        }
-        for (var k = 0; k < ring.length; k++) {
-          var n = (k + 1) % ring.length;
-          edges.push({ id: "roof-ridge-projection-" + k, a: "rp" + k, b: "rp" + n, role: "roof_ridge_projection" });
-          faces.push({ id: "roof-face-" + k, role: "roof_slope", vertexIds: ["e" + k, "e" + n, "rp" + n, "rp" + k] });
-        }
+        edges.push({ id: "roof-front-left", a: "e0", b: "r0", role: "roof_slope_edge" });
+        edges.push({ id: "roof-front-right", a: "e1", b: "r1", role: "roof_slope_edge" });
+        edges.push({ id: "roof-back-left", a: "e3", b: "r0", role: "roof_slope_edge" });
+        edges.push({ id: "roof-back-right", a: "e2", b: "r1", role: "roof_slope_edge" });
+        faces.push({ id: "wall-front", role: "wall_front", vertexIds: ["b0", "b1", "e1", "e0"] });
+        faces.push({ id: "wall-right", role: "wall_side", vertexIds: ["b1", "b2", "e2", "e1"] });
+        faces.push({ id: "wall-back", role: "wall_back", vertexIds: ["b2", "b3", "e3", "e2"] });
+        faces.push({ id: "wall-left", role: "wall_side", vertexIds: ["b3", "b0", "e0", "e3"] });
+        faces.push({ id: "roof-front-slope", role: "roof_slope", vertexIds: ["e0", "e1", "r1", "r0"] });
+        faces.push({ id: "roof-back-slope", role: "roof_slope", vertexIds: ["e3", "r0", "r1", "e2"] });
+        faces.push({ id: "gable-left", role: "gable", vertexIds: ["e0", "r0", "e3"] });
+        faces.push({ id: "gable-right", role: "gable", vertexIds: ["e1", "e2", "r1"] });
         rx.canonicalDormerGeometry = {
-          version: 1,
+          version: 2,
           coordinateSpace: "image_px_height_m",
           heightReference: "vertical_from_main_roof",
           vertices: vertices,

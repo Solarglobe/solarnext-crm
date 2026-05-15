@@ -171,6 +171,10 @@ function buildDormerMeshFromCanonicalGeometry(
   const vertices = model?.vertices;
   const faces = model?.faces;
   if (!vertices || !faces || vertices.length < 3 || faces.length < 1) return null;
+  if (ext.visualModel === "manual_outline_gable" && vertices.some((v) => v.role === "ridge_projection")) {
+    dormerAuditLog("GUARD: skip legacy ridge_projection canonical geometry");
+    return null;
+  }
 
   const byId = canonicalDormerWorldVertexMap(ext, roofModel);
   if (!byId) return null;
