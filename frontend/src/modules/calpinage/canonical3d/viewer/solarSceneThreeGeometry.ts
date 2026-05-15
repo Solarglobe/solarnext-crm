@@ -346,6 +346,49 @@ function volumeGeometry(vol: {
   return geo;
 }
 
+/**
+ * Segments pour debug viewer : une petite ligne par triangle (centrée + normale géométrique × scale).
+ * Lecture directe du maillage indexé produit par {@link volumeGeometry} — sans modifier les données métier.
+ */
+export function volumeMeshFaceNormalsDebugLineGeometry(
+  indexedTriMesh: THREE.BufferGeometry,
+  scaleM: number,
+): THREE.BufferGeometry | null {
+  const index = indexedTriMesh.index;
+  const posAttr = indexedTriMesh.getAttribute("position") as THREE.BufferAttribute | undefined;
+  if (!index || !posAttr || index.count < 3) return null;
+  const arr = posAttr.array as Float32Array;
+  const iaBuf = index.array as Uint32Array | Uint16Array;
+  const positions: number[] = [];
+  const a = new THREE.Vector3();
+  const b = new THREE.Vector3();
+  const c = new THREE.Vector3();
+  const ab = new THREE.Vector3();
+  const ac = new THREE.Vector3();
+  const centroid = new THREE.Vector3();
+  const fn = new THREE.Vector3();
+  for (let t = 0; t < index.count; t += 3) {
+    const ia = iaBuf[t]!;
+    const ib = iaBuf[t + 1]!;
+    const ic = iaBuf[t + 2]!;
+    a.set(arr[ia * 3]!, arr[ia * 3 + 1]!, arr[ia * 3 + 2]!);
+    b.set(arr[ib * 3]!, arr[ib * 3 + 1]!, arr[ib * 3 + 2]!);
+    c.set(arr[ic * 3]!, arr[ic * 3 + 1]!, arr[ic * 3 + 2]!);
+    centroid.copy(a).add(b).add(c).multiplyScalar(1 / 3);
+    ab.subVectors(b, a);
+    ac.subVectors(c, a);
+    fn.crossVectors(ab, ac);
+    const len = fn.length();
+    if (len < 1e-18) continue;
+    fn.multiplyScalar(scaleM / len);
+    positions.push(centroid.x, centroid.y, centroid.z, centroid.x + fn.x, centroid.y + fn.y, centroid.z + fn.z);
+  }
+  if (positions.length === 0) return null;
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  return geo;
+}
+
 export function obstacleVolumeGeometry(vol: RoofObstacleVolume3D): THREE.BufferGeometry {
   return volumeGeometry(vol);
 }
