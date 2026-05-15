@@ -28,6 +28,9 @@
  * Pass 4–5 — pose PV 3D : sonde `window.__CALPINAGE_3D_PV_PLACE_PROBE__` ou produit `pvLayout3DInteractionMode`
  * (`__CALPINAGE_3D_PV_LAYOUT_MODE__` + phase `PV_LAYOUT`) — clic toiture → `tryCommitPvPlacementFrom3dRoofHit` ;
  * clic panneau → manipulation (finalize = chaîne Phase 3 / `pvSyncSaveRender`).
+ *
+ * Dev — debug maillage extensions (chien assis) : **Shift+Alt+E** cycle fil de fer / normales faces sur `extensionVolumes`
+ * (voir `roofExtensions/VIEWER_VALIDATION_P3.md`).
  */
 
 import { Canvas, type ThreeEvent, useFrame, useThree } from "@react-three/fiber";
@@ -80,6 +83,7 @@ import { logIfGeometryNormalsSuspect } from "./geometryNormalsAudit";
 import { ShadingLegend3D } from "./ShadingLegend3D";
 import {
   SceneInspectionPanel3D,
+  type RoofHeightAssistantUiModel,
   type RoofModelingHistoryUiModel,
   type StructuralRidgeHeightEditUiModel,
 } from "./SceneInspectionPanel3D";
@@ -128,6 +132,7 @@ import {
   roofEdgesLineGeometry,
   roofPatchGeometry,
   roofRidgesLineGeometry,
+  volumeMeshFaceNormalsDebugLineGeometry,
 } from "./solarSceneThreeGeometry";
 import { buildPremiumHouse3DScene } from "./premium/buildPremiumHouse3DScene";
 import type { PremiumHouse3DSceneAssembly } from "./premium/premiumHouse3DSceneTypes";
@@ -291,6 +296,7 @@ export interface SolarScene3DViewerProps {
    */
   readonly enableStructuralRidgeHeightEdit?: boolean;
   readonly onStructuralRidgeHeightCommit?: (edit: StructuralHeightEdit) => void;
+  readonly roofHeightAssistant?: RoofHeightAssistantUiModel | null;
   /**
    * Pass 5 — interaction pose / déplacement PV en 3D (phase `PV_LAYOUT`, vue 3D, flag `__CALPINAGE_3D_PV_LAYOUT_MODE__`).
    * Même chaîne legacy que le 2D (`pvSyncSaveRender`).
@@ -1807,6 +1813,7 @@ function ViewerSceneContent({
   onPvPanelPvLayout3dPointerDown,
   satelliteTexture,
   satelliteUvMapper,
+  extensionVolDebugLevel = 0,
 }: Required<
   Pick<
     SolarScene3DViewerProps,
@@ -1862,6 +1869,8 @@ function ViewerSceneContent({
    * Doit être cohérent avec satelliteTexture (même repeat/offset).
    */
   readonly satelliteUvMapper?: ((wx: number, wy: number) => { u: number; v: number }) | null;
+  /** Dev uniquement : Shift+Alt+E cycle fil de fer / normales sur les volumes extension (chien assis). */
+  readonly extensionVolDebugLevel?: 0 | 1 | 2;
 }) {
   const pvPanelRaycastPassThrough = roofModelingPassThroughOccluders && !pvLayout3DInteractionMode;
   const center = useMemo(() => box.getCenter(new THREE.Vector3()).clone(), [box]);
@@ -1921,6 +1930,45 @@ function ViewerSceneContent({
   const extGeos = useMemo(() => {
     return scene.extensionVolumes.map((v) => ({ id: v.id, geo: extensionVolumeGeometry(v) }));
   }, [scene.extensionVolumes]);
+
+  const extensionVolDebugEdgesGeos = useMemo(() => {
+    if (!import.meta.env.DEV || extensionVolDebugLevel < 1 || !showExtensions || extGeos.length === 0) {
+      return [];
+    }
+    return extGeos.map(({ id, geo }) => ({
+      id,
+      edges: new THREE.EdgesGeometry(geo, 38),
+    }));
+  }, [extGeos, extensionVolDebugLevel, showExtensions]);
+
+  const extensionVolDebugNormalsGeos = useMemo(() => {
+    if (!import.meta.env.DEV || extensionVolDebugLevel < 2 || !showExtensions || extGeos.length === 0) {
+      return [];
+    }
+    const scale = Math.max(0.06, maxDimLocal * 0.015);
+    const out: { id: string; normals: THREE.BufferGeometry }[] = [];
+    for (const { id, geo } of extGeos) {
+      const lines = volumeMeshFaceNormalsDebugLineGeometry(geo, scale);
+      if (lines) out.push({ id, normals: lines });
+    }
+    return out;
+  }, [extGeos, extensionVolDebugLevel, showExtensions, maxDimLocal]);
+
+  const extensionVolDebugDisposableGeos = useMemo(
+    () => [
+      ...extensionVolDebugEdgesGeos.map((x) => x.edges),
+      ...extensionVolDebugNormalsGeos.map((x) => x.normals),
+    ],
+    [extensionVolDebugEdgesGeos, extensionVolDebugNormalsGeos],
+  );
+
+  useEffect(() => {
+    return () => {
+      for (const g of extensionVolDebugDisposableGeos) {
+        g.dispose();
+      }
+    };
+  }, [extensionVolDebugDisposableGeos]);
 
   const panelGeos = useMemo(() => {
     return scene.pvPanels.map((p) => ({
@@ -2495,40 +2543,57 @@ function ViewerSceneContent({
             </mesh>
           );
         })}
-      {visExt &&
-        extGeos.map(({ id, geo }) => {
-          const sid = String(id);
-          const sel = isInspectSelected(inspectionSelection, "EXTENSION", sid);
-          return (
-            <mesh
-              key={`ext-${id}`}
-              userData={inspectData("EXTENSION", sid)}
-              geometry={geo}
-              castShadow
-              receiveShadow
-              raycast={roofModelingPassThroughOccluders ? roofModelingSkipOccluderRaycast : undefined}
-              onClick={inspectMode ? onInspectClick : undefined}
-            >
-              <meshStandardMaterial
-                color={mExt.color}
-                metalness={mExt.metalness}
-                roughness={mExt.roughness}
-                flatShading={mExt.flatShading ?? false}
-                side={THREE.DoubleSide}
-                emissive={sel ? "#33691e" : "#000000"}
-                emissiveIntensity={sel ? 0.32 : 0}
-              />
-              {inspectMode && sel && (
-                <Outlines
-                  thickness={outlineThickness}
-                  color={VIEWER_INSPECT_OUTLINE_HEX.extension}
-                  opacity={0.95}
-                  toneMapped={false}
+      {visExt && (
+        <>
+          {extGeos.map(({ id, geo }) => {
+            const sid = String(id);
+            const sel = isInspectSelected(inspectionSelection, "EXTENSION", sid);
+            return (
+              <mesh
+                key={`ext-${id}`}
+                userData={inspectData("EXTENSION", sid)}
+                geometry={geo}
+                castShadow
+                receiveShadow
+                raycast={roofModelingPassThroughOccluders ? roofModelingSkipOccluderRaycast : undefined}
+                onClick={inspectMode ? onInspectClick : undefined}
+              >
+                <meshStandardMaterial
+                  color={mExt.color}
+                  metalness={mExt.metalness}
+                  roughness={mExt.roughness}
+                  flatShading={mExt.flatShading ?? false}
+                  side={THREE.DoubleSide}
+                  emissive={sel ? "#33691e" : "#000000"}
+                  emissiveIntensity={sel ? 0.32 : 0}
                 />
-              )}
-            </mesh>
-          );
-        })}
+                {inspectMode && sel && (
+                  <Outlines
+                    thickness={outlineThickness}
+                    color={VIEWER_INSPECT_OUTLINE_HEX.extension}
+                    opacity={0.95}
+                    toneMapped={false}
+                  />
+                )}
+              </mesh>
+            );
+          })}
+          {import.meta.env.DEV &&
+            extensionVolDebugLevel >= 1 &&
+            extensionVolDebugEdgesGeos.map(({ id, edges }) => (
+              <lineSegments key={`ext-dbg-edges-${id}`} geometry={edges} renderOrder={88}>
+                <lineBasicMaterial color="#18ffff" toneMapped={false} transparent opacity={0.92} depthTest />
+              </lineSegments>
+            ))}
+          {import.meta.env.DEV &&
+            extensionVolDebugLevel >= 2 &&
+            extensionVolDebugNormalsGeos.map(({ id, normals }) => (
+              <lineSegments key={`ext-dbg-nrm-${id}`} geometry={normals} renderOrder={89}>
+                <lineBasicMaterial color="#fff176" toneMapped={false} transparent opacity={0.88} depthTest />
+              </lineSegments>
+            ))}
+        </>
+      )}
       {pvLayout3DInteractionMode &&
         pv3dSafeZoneGeos.map(({ id, line }) => (
           <lineSegments key={`pv3d-safe-${id}`} geometry={line} renderOrder={21}>
@@ -2758,11 +2823,13 @@ function DebugStatsOverlay({
   box,
   groundPlaneConfig,
   groundZ,
+  extensionVolDebugLevel = 0,
 }: {
   readonly scene: SolarScene3D;
   readonly box: THREE.Box3;
   readonly groundPlaneConfig?: { metersPerPixel: number; northAngleDeg: number; image: GroundPlaneImageData } | null;
   readonly groundZ?: number;
+  readonly extensionVolDebugLevel?: 0 | 1 | 2;
 }) {
   const patches = scene.roofModel.roofPlanePatches.length;
   const panels = scene.pvPanels.length;
@@ -2798,6 +2865,17 @@ function DebugStatsOverlay({
       <div>
         Pans: {patches} | Shell: {scene.buildingShell ? 1 : 0} | Panels: {panels} | Obs: {obs} | Ext: {ext}
       </div>
+      {import.meta.env.DEV && (
+        <div style={{ marginTop: 4, opacity: 0.85, fontSize: 10 }}>
+          Ext debug (dev):{" "}
+          {extensionVolDebugLevel === 0
+            ? "off"
+            : extensionVolDebugLevel === 1
+              ? "fil de fer cyan"
+              : "fil de fer + normales jaunes"}{" "}
+          — <kbd style={{ opacity: 0.9 }}>Shift+Alt+E</kbd>
+        </div>
+      )}
       {scene.metadata.buildGuards != null && scene.metadata.buildGuards.length > 0 ? (
         <div style={{ marginTop: 6, borderTop: "1px solid rgba(255,180,0,0.25)", paddingTop: 6 }}>
           <div>
@@ -2876,6 +2954,7 @@ function SolarScene3DViewer({
   roofModelingHistory = null,
   enableStructuralRidgeHeightEdit = false,
   onStructuralRidgeHeightCommit,
+  roofHeightAssistant = null,
   pvLayout3DInteractionMode = false,
 }: SolarScene3DViewerProps) {
   const baseScene = sceneProp ?? runtimeScene;
@@ -2883,6 +2962,25 @@ function SolarScene3DViewer({
     throw new Error("[SolarScene3DViewer] Fournir `scene` ou `runtimeScene` (SolarScene3D).");
   }
   const scene = baseScene;
+
+  const [extensionVolDebugLevel, setExtensionVolDebugLevel] = useState<0 | 1 | 2>(0);
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (!e.shiftKey || !e.altKey || e.code !== "KeyE") return;
+      const t = e.target as HTMLElement | null;
+      if (t?.closest?.("input, textarea, select, [contenteditable=true]")) return;
+      e.preventDefault();
+      setExtensionVolDebugLevel((v) => {
+        const n = ((v + 1) % 3) as 0 | 1 | 2;
+        const labels = ["off", "fil de fer extensions", "fil de fer + normales faces"] as const;
+        console.info(`[Calpinage3D] debug volumes extension : ${labels[n]} — Shift+Alt+E`);
+        return n;
+      });
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   useEffect(() => {
     if (!import.meta.env.DEV) return;
@@ -4057,6 +4155,7 @@ function SolarScene3DViewer({
           box={geometryBox}
           groundPlaneConfig={groundPlaneConfig}
           groundZ={groundZ}
+          extensionVolDebugLevel={extensionVolDebugLevel}
         />
       )}
       {legendMode != null && <ShadingLegend3D mode={legendMode} summary={scene.panelVisualShadingSummary} />}
@@ -4100,7 +4199,7 @@ function SolarScene3DViewer({
       ) : null}
       {(inspectMode ||
         panSelection3DMode ||
-        (enableStructuralRidgeHeightEdit && structuralHeightSelection != null)) && (
+        (enableStructuralRidgeHeightEdit && (structuralHeightSelection != null || roofHeightAssistant != null))) && (
         <SceneInspectionPanel3D
           model={inspectMode ? inspectionModel : null}
           pickProvenance2D={pickProvenance2DModel}
@@ -4110,6 +4209,7 @@ function SolarScene3DViewer({
           roofVertexHeightEdit={roofVertexHeightEdit}
           roofVertexXYEdit={roofVertexXYEdit}
           structuralRidgeHeightEdit={structuralRidgeHeightEditPanel}
+          roofHeightAssistant={enableStructuralRidgeHeightEdit ? roofHeightAssistant : null}
           roofModelingHistory={roofModelingHistory}
           onVertexModelingPointerActiveChange={setOrbitSuppressed}
           onDismiss={() => {
@@ -4317,6 +4417,7 @@ function SolarScene3DViewer({
           onPvPanelPvLayout3dPointerDown={onPvPanelPvLayout3dPointerDown}
           satelliteTexture={satelliteTexture}
           satelliteUvMapper={satelliteUvMapper}
+          extensionVolDebugLevel={extensionVolDebugLevel}
         />
         {pvLayout3DInteractionMode && scene.worldConfig && pv3dDragSession ? (
           <PvLayout3dDragController

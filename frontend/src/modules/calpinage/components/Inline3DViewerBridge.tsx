@@ -46,6 +46,11 @@ import {
   applyStructuralHeightEdit,
   type StructuralHeightEdit,
 } from "../runtime/applyStructuralRidgeHeightEdit";
+import {
+  applyRoofHeightAssistant,
+  summarizeRoofHeightAssistantRuntime,
+  type RoofHeightAssistantCommand,
+} from "../runtime/applyRoofHeightAssistant";
 import { emitRoofVertexZTelemetry } from "../runtime/roofVertexZEditTelemetry";
 
 const MOUNT_ID = "zone-c-3d";
@@ -961,6 +966,61 @@ function Inline3DViewer({
     [bumpRoofHist, buildScene, calpinageStateProp, enableModelingHistory, notifyParentState],
   );
 
+  const handleRoofHeightAssistantApply = useCallback(
+    (command: RoofHeightAssistantCommand) => {
+      const root = resolveCalpinageRuntime(calpinageStateProp);
+      if (!root) return;
+      const stateBefore = JSON.parse(JSON.stringify(root)) as Record<string, unknown>;
+      const pansBefore = Array.isArray(root.pans) ? JSON.parse(JSON.stringify(root.pans)) : null;
+      const r = applyRoofHeightAssistant(root, command);
+      if (!r.ok) {
+        restoreCalpinageRuntimeFromSnapshot(root, stateBefore);
+        syncRoofDerivedMirrors(root);
+        showCalpinageRoofEditErrorToast(r.message);
+        return;
+      }
+      syncRoofDerivedMirrors(root);
+      const post = validateCalpinageRuntimeAfterRoofEdit(root, {
+        editedPanId: firstPanIdForStructuralValidation(root),
+        getAllPanels: getAllPanelsFromRuntime,
+        validateSlopeOnAllPans: true,
+        scopePanGeometryErrorsToEditedPanId: false,
+      });
+      if (!post.ok) {
+        restoreCalpinageRuntimeFromSnapshot(root, stateBefore);
+        syncRoofDerivedMirrors(root);
+        showCalpinageRoofEditErrorToast(post.userMessage);
+        return;
+      }
+      if (enableModelingHistory && pansBefore != null) pushRoofModelingPastSnapshot(pansBefore);
+      refreshLegacyCalpinage2DAfterPanVertexHeightEdit();
+      notifyParentState(root);
+      emitOfficialRuntimeStructuralChange({
+        reason: "ROOF_HEIGHT_ASSISTANT",
+        changedDomains: ["contours", "ridges", "traits", "pans"],
+        debug: { sourceFile: "Inline3DViewerBridge.tsx", sourceAction: "applyRoofHeightAssistant" },
+      });
+      if (enableModelingHistory) bumpRoofHist();
+      buildScene();
+    },
+    [bumpRoofHist, buildScene, calpinageStateProp, enableModelingHistory, notifyParentState],
+  );
+
+  const roofHeightAssistant = useMemo(() => {
+    if (!enableStructuralRidgeHeightEditFlag || pvLayout3DActive) return null;
+    const root = resolveCalpinageRuntime(calpinageStateProp);
+    if (!root) return null;
+    const summary = summarizeRoofHeightAssistantRuntime(root);
+    if (summary.contourPointCount + summary.ridgeEndpointCount + summary.traitEndpointCount === 0) return null;
+    return {
+      ...summary,
+      defaultEaveHeightM: 4,
+      defaultRidgeHeightM: 7,
+      defaultTraitHeightM: 5.5,
+      onApply: handleRoofHeightAssistantApply,
+    };
+  }, [calpinageStateProp, enableStructuralRidgeHeightEditFlag, handleRoofHeightAssistantApply, pvLayout3DActive, runtimeNotifyEpoch]);
+
   const roofModelingHistory = useMemo(() => {
     if (!enableModelingHistory) return null;
     return {
@@ -1079,6 +1139,7 @@ function Inline3DViewer({
         onStructuralRidgeHeightCommit={
           enableStructuralRidgeHeightEditFlag && !pvLayout3DActive ? handleStructuralRidgeHeightCommit : undefined
         }
+        roofHeightAssistant={roofHeightAssistant}
         roofModelingHistory={roofModelingHistory}
       />
     </Canonical3DViewerErrorBoundary>

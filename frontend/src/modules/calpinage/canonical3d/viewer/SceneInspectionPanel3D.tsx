@@ -51,6 +51,20 @@ export type StructuralRidgeHeightEditUiModel = {
   readonly onApplyHeightM: (heightM: number) => void;
 };
 
+export type RoofHeightAssistantUiModel = {
+  readonly contourPointCount: number;
+  readonly ridgeEndpointCount: number;
+  readonly traitEndpointCount: number;
+  readonly defaultEaveHeightM: number;
+  readonly defaultRidgeHeightM: number;
+  readonly defaultTraitHeightM: number;
+  readonly onApply: (command: {
+    readonly eaveHeightM?: number | null;
+    readonly ridgeHeightM?: number | null;
+    readonly traitHeightM?: number | null;
+  }) => void;
+};
+
 const panelStyle: CSSProperties = {
   position: "absolute",
   top: 10,
@@ -107,6 +121,7 @@ export interface SceneInspectionPanel3DProps {
   readonly roofModelingHistory?: RoofModelingHistoryUiModel | null;
   /** Hauteur point structurel (contour / faîtage / trait, index filtré chienAssis) — exclusif aux autres blocs d’édition sommet. */
   readonly structuralRidgeHeightEdit?: StructuralRidgeHeightEditUiModel | null;
+  readonly roofHeightAssistant?: RoofHeightAssistantUiModel | null;
   /** Pendant un pointer down sur les contrôles d’édition sommet : désactive l’orbite du viewer 3D. */
   readonly onVertexModelingPointerActiveChange?: (active: boolean) => void;
   readonly onDismiss?: () => void;
@@ -815,6 +830,117 @@ function StructuralRidgeHeightEditBlock({ edit }: { readonly edit: StructuralRid
   );
 }
 
+function RoofHeightAssistantBlock({ assistant }: { readonly assistant: RoofHeightAssistantUiModel }) {
+  const [eaveText, setEaveText] = useState(String(assistant.defaultEaveHeightM));
+  const [ridgeText, setRidgeText] = useState(String(assistant.defaultRidgeHeightM));
+  const [traitText, setTraitText] = useState(String(assistant.defaultTraitHeightM));
+  const [includeTrait, setIncludeTrait] = useState(assistant.traitEndpointCount > 0);
+  const [inputError, setInputError] = useState<string | null>(null);
+  const [appliedFlash, setAppliedFlash] = useState(false);
+
+  useEffect(() => {
+    setEaveText(String(assistant.defaultEaveHeightM));
+    setRidgeText(String(assistant.defaultRidgeHeightM));
+    setTraitText(String(assistant.defaultTraitHeightM));
+    setIncludeTrait(assistant.traitEndpointCount > 0);
+  }, [assistant.defaultEaveHeightM, assistant.defaultRidgeHeightM, assistant.defaultTraitHeightM, assistant.traitEndpointCount]);
+
+  const parseHeightM = (raw: string): number | null => {
+    const t = raw.trim().replace(",", ".");
+    if (t === "") return null;
+    const n = Number(t);
+    return Number.isFinite(n) ? n : null;
+  };
+
+  const inputStyle: CSSProperties = {
+    width: 82,
+    padding: "5px 7px",
+    borderRadius: 6,
+    border: "1px solid rgba(255,255,255,0.14)",
+    background: "rgba(0,0,0,0.22)",
+    color: "inherit",
+    fontSize: 12,
+  };
+
+  return (
+    <div data-testid="roof-height-assistant-block" style={{ marginBottom: 12, paddingBottom: 12, borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+      <div style={{ ...titleStyle, marginBottom: 8 }}>Assistant hauteur toiture</div>
+      <div style={{ fontSize: 11, opacity: 0.72, marginBottom: 10 }}>
+        {assistant.contourPointCount} points egout · {assistant.ridgeEndpointCount} extremites faitage · {assistant.traitEndpointCount} lignes rupture
+      </div>
+      <div style={{ display: "grid", gap: 8 }}>
+        <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, fontSize: 11 }}>
+          Hauteur egout
+          <input data-testid="roof-height-assistant-eave" inputMode="decimal" value={eaveText} onChange={(e) => setEaveText(e.target.value)} style={inputStyle} />
+        </label>
+        <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, fontSize: 11 }}>
+          Hauteur faitage
+          <input data-testid="roof-height-assistant-ridge" inputMode="decimal" value={ridgeText} onChange={(e) => setRidgeText(e.target.value)} style={inputStyle} />
+        </label>
+        <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, fontSize: 11, opacity: assistant.traitEndpointCount > 0 ? 1 : 0.5 }}>
+          <span>
+            <input
+              type="checkbox"
+              checked={includeTrait}
+              disabled={assistant.traitEndpointCount === 0}
+              onChange={(e) => setIncludeTrait(e.target.checked)}
+              style={{ marginRight: 6 }}
+            />
+            Arêtier / noue / rupture
+          </span>
+          <input data-testid="roof-height-assistant-trait" inputMode="decimal" disabled={!includeTrait || assistant.traitEndpointCount === 0} value={traitText} onChange={(e) => setTraitText(e.target.value)} style={inputStyle} />
+        </label>
+      </div>
+      {inputError != null ? (
+        <div role="alert" style={{ fontSize: 11, color: "rgba(252, 165, 165, 0.95)", marginTop: 8 }}>
+          {inputError}
+        </div>
+      ) : null}
+      {appliedFlash ? (
+        <div style={{ fontSize: 11, color: "rgba(134, 239, 172, 0.95)", marginTop: 8 }}>Assistant appliqué.</div>
+      ) : null}
+      <button
+        type="button"
+        data-testid="roof-height-assistant-apply"
+        onClick={() => {
+          const eave = parseHeightM(eaveText);
+          const ridge = parseHeightM(ridgeText);
+          const trait = includeTrait ? parseHeightM(traitText) : null;
+          if (eave == null || ridge == null || (includeTrait && trait == null)) {
+            setInputError("Saisissez des hauteurs valides.");
+            return;
+          }
+          setInputError(null);
+          assistant.onApply({
+            eaveHeightM: eave,
+            ridgeHeightM: ridge,
+            traitHeightM: includeTrait ? trait : null,
+          });
+          setAppliedFlash(true);
+          window.setTimeout(() => setAppliedFlash(false), 1600);
+        }}
+        style={{
+          width: "100%",
+          marginTop: 10,
+          padding: "8px 10px",
+          borderRadius: 6,
+          border: "1px solid rgba(96, 165, 250, 0.42)",
+          background: "rgba(37, 99, 235, 0.24)",
+          color: "inherit",
+          fontSize: 12,
+          fontWeight: 700,
+          cursor: "pointer",
+        }}
+      >
+        Reconstruire les hauteurs
+      </button>
+      <div style={{ marginTop: 6, fontSize: 10, opacity: 0.55, lineHeight: 1.35 }}>
+        Applique les cotes aux lignes structurelles, puis le solveur interpole les pans. Les chiens assis sont exclus.
+      </div>
+    </div>
+  );
+}
+
 export function SceneInspectionPanel3D({
   model,
   pickProvenance2D = null,
@@ -825,6 +951,7 @@ export function SceneInspectionPanel3D({
   roofVertexHeightEdit = null,
   roofVertexXYEdit = null,
   structuralRidgeHeightEdit = null,
+  roofHeightAssistant = null,
   roofModelingHistory = null,
   onVertexModelingPointerActiveChange,
 }: SceneInspectionPanel3DProps) {
@@ -841,11 +968,11 @@ export function SceneInspectionPanel3D({
 
   const vertexEditCapture =
     onVertexModelingPointerActiveChange != null &&
-    (roofVertexHeightEdit != null || roofVertexXYEdit != null || structuralRidgeHeightEdit != null);
+    (roofVertexHeightEdit != null || roofVertexXYEdit != null || structuralRidgeHeightEdit != null || roofHeightAssistant != null);
 
   /** Clic sommet / outils Z·XY : overlay allégé (pas d’historique, provenance 2D ni fiche inspection). */
   const vertexModelingActive =
-    roofVertexHeightEdit != null || roofVertexXYEdit != null || structuralRidgeHeightEdit != null;
+    roofVertexHeightEdit != null || roofVertexXYEdit != null || structuralRidgeHeightEdit != null || roofHeightAssistant != null;
 
   const panelStyleResolved: CSSProperties = vertexModelingActive
     ? { ...panelStyle, width: "min(300px, 92vw)", maxHeight: "min(55vh, 400px)" }
@@ -982,6 +1109,7 @@ export function SceneInspectionPanel3D({
         : null}
       {vertexEditCapture ? (
         <div onPointerDownCapture={() => onVertexModelingPointerActiveChange!(true)}>
+          {roofHeightAssistant != null ? <RoofHeightAssistantBlock assistant={roofHeightAssistant} /> : null}
           {roofVertexHeightEdit != null ? <RoofVertexHeightEditBlock edit={roofVertexHeightEdit} /> : null}
           {roofVertexXYEdit != null ? <RoofVertexXYEditBlock edit={roofVertexXYEdit} /> : null}
           {structuralRidgeHeightEdit != null ? (
@@ -990,6 +1118,7 @@ export function SceneInspectionPanel3D({
         </div>
       ) : (
         <>
+          {roofHeightAssistant != null ? <RoofHeightAssistantBlock assistant={roofHeightAssistant} /> : null}
           {roofVertexHeightEdit != null ? <RoofVertexHeightEditBlock edit={roofVertexHeightEdit} /> : null}
           {roofVertexXYEdit != null ? <RoofVertexXYEditBlock edit={roofVertexXYEdit} /> : null}
           {structuralRidgeHeightEdit != null ? (
