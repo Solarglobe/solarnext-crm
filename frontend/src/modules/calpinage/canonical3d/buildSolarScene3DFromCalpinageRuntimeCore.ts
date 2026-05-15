@@ -37,14 +37,14 @@ import { buildCalpinageLevel0Guards } from "./scene/calpinageLevel0BuildGuards";
 import { buildSolarScene3D } from "./scene/buildSolarScene3D";
 import type { SolarScene3D } from "./types/solarScene3d";
 import type { RoofObstacleKind } from "./types/obstacle";
-import type { RoofExtensionKind } from "./types/extension";
 import type { RoofVolumeStructuralRole } from "./types/roof-volume-common";
+import type { QualityBlock } from "./types/quality";
 import type {
-  LegacyExtensionVolumeInput,
   LegacyObstacleVolumeInput,
   BuildRoofVolumes3DInput,
 } from "./volumes/volumeInput";
 import { buildRoofVolumes3D } from "./volumes/buildRoofVolumes3D";
+import { buildRoofExtensions3DFromRuntime } from "./roofExtensions/buildRoofExtensions3DFromRuntime";
 import {
   validateCanonicalScene3DInput,
   type CanonicalSceneValidationResult,
@@ -146,14 +146,6 @@ function obstacleStructuralRole(
   return "obstacle_simple";
 }
 
-function extensionKindFromCanonical(o: CanonicalObstacle3D): RoofExtensionKind {
-  const s = String(o.sourceKind ?? "").toLowerCase();
-  if (s.includes("dormer")) return "dormer";
-  if (s.includes("chien")) return "chien_assis";
-  if (s.includes("shed")) return "shed";
-  return "other";
-}
-
 /** Même translation Z que `buildRoofModel3DFromLegacyGeometry` (obstacles encore en cotes « brutes »). */
 function shiftCanonicalObstaclesZWorld(obstacles: readonly CanonicalObstacle3D[], deltaZ: number): CanonicalObstacle3D[] {
   if (deltaZ === 0) return [...obstacles];
@@ -183,7 +175,6 @@ function shiftCanonicalPanelsZWorld(panels: readonly CanonicalPlacedPanel3D[], d
 
 function canonicalObstaclesToVolumeInput(obstacles: readonly CanonicalObstacle3D[]): BuildRoofVolumes3DInput {
   const legacyObstacles: LegacyObstacleVolumeInput[] = [];
-  const extensions: LegacyExtensionVolumeInput[] = [];
 
   for (const o of obstacles) {
     const footprintWorld = o.baseVertices3D.map((v) => ({
@@ -194,14 +185,6 @@ function canonicalObstaclesToVolumeInput(obstacles: readonly CanonicalObstacle3D
     const related = o.relatedPanId ? [o.relatedPanId] : undefined;
 
     if (o.semanticRole === "ROOF_EXTENSION_VOLUME") {
-      extensions.push({
-        id: o.obstacleId,
-        kind: extensionKindFromCanonical(o),
-        heightM: o.heightM > 0 ? o.heightM : 0.85,
-        footprint: { mode: "world", footprintWorld },
-        extrusionPreference: "hybrid_vertical_on_plane",
-        ...(related ? { relatedPlanePatchIds: related } : {}),
-      });
       continue;
     }
 
@@ -238,7 +221,20 @@ function canonicalObstaclesToVolumeInput(obstacles: readonly CanonicalObstacle3D
     });
   }
 
-  return { obstacles: legacyObstacles, extensions };
+  return { obstacles: legacyObstacles, extensions: [] };
+}
+
+function mergeVolumeQuality(a: QualityBlock, b: QualityBlock): QualityBlock {
+  const diagnostics = [...a.diagnostics, ...b.diagnostics];
+  const confidence =
+    a.confidence === "low" || b.confidence === "low"
+      ? "low"
+      : a.confidence === "medium" || b.confidence === "medium"
+        ? "medium"
+        : a.confidence === "unknown" || b.confidence === "unknown"
+          ? "unknown"
+          : "high";
+  return { confidence, diagnostics };
 }
 
 function emptyValidationStats(): CanonicalSceneValidationResult["diagnostics"]["stats"] {
@@ -566,6 +562,13 @@ export function buildSolarScene3DFromCalpinageRuntime(
     );
     const volumeInput = canonicalObstaclesToVolumeInput(obstaclesForVolumes);
     const volRes = buildRoofVolumes3D(volumeInput, { roofPlanePatches: patches });
+    const roofExtRes = buildRoofExtensions3DFromRuntime({
+      runtime,
+      roofPlanePatches: patches,
+      metersPerPixel: validation.scene.world.metersPerPixel,
+      northAngleDeg: validation.scene.world.northAngleDeg,
+    });
+    const volumesQuality = mergeVolumeQuality(volRes.globalQuality, roofExtRes.quality);
     const pvRes = buildPvPanels3D({ panels: [...filteredPanels] }, { roofPlanePatches: patches });
     const rawPanels = options?.getAllPanels?.();
     const rawEnginePanelCount = Array.isArray(rawPanels) ? rawPanels.length : 0;
@@ -627,8 +630,8 @@ export function buildSolarScene3DFromCalpinageRuntime(
       roofGeometryFallbackReason: sceneInput.diagnostics.fallbackReason ?? null,
       ...(buildingShell != null ? { buildingShell } : {}),
       obstacleVolumes: volRes.obstacleVolumes,
-      extensionVolumes: volRes.extensionVolumes,
-      volumesQuality: volRes.globalQuality,
+      extensionVolumes: roofExtRes.extensionVolumes,
+      volumesQuality,
       pvPanels: pvRes.panels,
       ...(panelVisualShadingByPanelId != null && { panelVisualShadingByPanelId }),
       ...(panelVisualShadingSummary != null && { panelVisualShadingSummary }),

@@ -129,15 +129,6 @@ import {
   roofPatchGeometry,
   roofRidgesLineGeometry,
 } from "./solarSceneThreeGeometry";
-import { isValidCanonicalWorldConfig } from "../world/worldConvention";
-import {
-  buildDormerCanonicalEdgesGeometry,
-  buildDormerEdgesGeometry,
-  buildDormerFrontWindowGeometry,
-  buildDormerMesh,
-  type DormerRuntimeExtensionInput,
-} from "./dormer/buildDormerMesh";
-import { extractRuntimeRoofExtensions } from "./dormer/extractRuntimeRoofExtensions";
 import { buildPremiumHouse3DScene } from "./premium/buildPremiumHouse3DScene";
 import type { PremiumHouse3DSceneAssembly } from "./premium/premiumHouse3DSceneTypes";
 import { PremiumGeometryTrustStripe } from "./premium/PremiumGeometryTrustStripe";
@@ -199,18 +190,6 @@ import {
   log3DRuntimeVerdictFinal,
   type AutopsyLegacyRoofPath,
 } from "../dev/runtime3DAutopsy";
-
-/** Audit runtime temporaire — activer : `window.__CALPINAGE_DORMER_AUDIT__ = true` puis recharger. */
-function dormerPremiumAuditLog(msg: string, detail?: Record<string, unknown>): void {
-  if (typeof window === "undefined") return;
-  const w = window as unknown as { __CALPINAGE_DORMER_AUDIT__?: boolean };
-  if (w.__CALPINAGE_DORMER_AUDIT__ !== true) return;
-  if (detail && Object.keys(detail).length > 0) {
-    console.log("[DORMER_AUDIT]", msg, detail);
-  } else {
-    console.log("[DORMER_AUDIT]", msg);
-  }
-}
 
 export interface SolarScene3DViewerProps {
   /**
@@ -1503,7 +1482,6 @@ function ViewerSceneContent({
   pvLayout3DInteractionMode = false,
   pvLayout3dOverlayState,
   onPvPanelPvLayout3dPointerDown,
-  debugRuntime,
   satelliteTexture,
   satelliteUvMapper,
 }: Required<
@@ -1551,8 +1529,6 @@ function ViewerSceneContent({
   readonly pvLayout3DInteractionMode?: boolean;
   readonly pvLayout3dOverlayState?: PvLayout3dOverlayState | null;
   readonly onPvPanelPvLayout3dPointerDown?: (e: ThreeEvent<PointerEvent>, panelId: string) => void;
-  /** Runtime brut (ex. CALPINAGE_STATE) — champs 2D lucarne pour rendu dormer premium (couche visuelle). */
-  readonly debugRuntime?: unknown;
   /**
    * Texture satellite (orthophoto 2D) déjà chargée + crop appliqué — projetée en top-down sur les pans.
    * Null si l'image n'est pas encore prête ou absente.
@@ -1619,131 +1595,9 @@ function ViewerSceneContent({
     }));
   }, [scene.obstacleVolumes]);
 
-  const dormerPremiumLayer = useMemo(() => {
-    const wc = scene.worldConfig;
-    const patches = scene.roofModel.roofPlanePatches;
-    const volumeRows = scene.extensionVolumes.map((v, index) => ({
-      index,
-      id: String(v.id),
-    }));
-    dormerPremiumAuditLog("canonical extensionVolumes[]", { volumes: volumeRows });
-
-    if (!wc || !isValidCanonicalWorldConfig(wc) || !patches?.length) {
-      dormerPremiumAuditLog("premium layer early_exit", {
-        hasWc: !!wc,
-        wcValid: !!(wc && isValidCanonicalWorldConfig(wc)),
-        patchCount: patches?.length ?? 0,
-      });
-      return {
-        meshes: [] as {
-          id: string;
-          geo: THREE.BufferGeometry;
-          edges: THREE.BufferGeometry | null;
-          window: THREE.BufferGeometry | null;
-        }[],
-        replaceKey: "",
-        premiumIds: new Set<string>(),
-        handledIds: new Set<string>(),
-      };
-    }
-    const roofModel = { world: wc, roofPlanePatches: patches };
-    const rawList = extractRuntimeRoofExtensions(debugRuntime);
-    dormerPremiumAuditLog("roofExtensions[] count", { count: rawList.length });
-    const volIdSet = new Set(scene.extensionVolumes.map((v) => String(v.id)));
-    const volIdsArr = [...volIdSet];
-    const replaceIds: string[] = [];
-    const handledIds = new Set<string>();
-    const meshes: {
-      id: string;
-      geo: THREE.BufferGeometry;
-      edges: THREE.BufferGeometry | null;
-      window: THREE.BufferGeometry | null;
-    }[] = [];
-
-    for (let ri = 0; ri < rawList.length; ri++) {
-      const raw = rawList[ri];
-      if (!raw || typeof raw !== "object") continue;
-      const rec = raw as Record<string, unknown>;
-      const id = rec.id != null ? String(rec.id) : "";
-      const ridge = rec.ridge as { a?: unknown; b?: unknown } | undefined;
-      const ridgePresent =
-        !!ridge?.a &&
-        !!ridge?.b &&
-        typeof (ridge.a as { x?: number })?.x === "number" &&
-        typeof (ridge.a as { y?: number })?.y === "number" &&
-        typeof (ridge.b as { x?: number })?.x === "number" &&
-        typeof (ridge.b as { y?: number })?.y === "number";
-      const contourPts = (rec.contour as { points?: unknown[] } | undefined)?.points;
-      const contourCount = Array.isArray(contourPts) ? contourPts.length : 0;
-      const isManualDormer = rec.visualModel === "manual_outline_gable";
-      dormerPremiumAuditLog("roofExtension candidate", {
-        index: ri,
-        runtimeId: id || "(empty)",
-        type: rec.type,
-        kind: rec.kind,
-        dormerType: rec.dormerType,
-        ridgeHeightRelM: rec.ridgeHeightRelM,
-        contourPointsCount: contourCount,
-        ridgePresent: ridgePresent ? "OUI" : "NON",
-      });
-
-      if (!id) {
-        dormerPremiumAuditLog("MATCH FAIL: empty runtime id", {
-          index: ri,
-          volumeIds: volIdsArr,
-        });
-        continue;
-      }
-      if (isManualDormer) {
-        handledIds.add(id);
-      }
-      if (!isManualDormer && !volIdSet.has(id)) {
-        dormerPremiumAuditLog("MATCH FAIL: runtime id not in extensionVolumes", {
-          runtimeId: id,
-          volumeIds: volIdsArr,
-        });
-        continue;
-      }
-      dormerPremiumAuditLog("MATCH OK", { id });
-      dormerPremiumAuditLog("CALLED buildDormerMesh", { id });
-      const geo = buildDormerMesh(rec as DormerRuntimeExtensionInput, roofModel);
-      if (!geo) {
-        dormerPremiumAuditLog("RESULT: null (voir GUARD [DORMER_AUDIT] ci-dessus dans buildDormerMesh)", {
-          id,
-        });
-        continue;
-      }
-      dormerPremiumAuditLog("RESULT: geometry (viewer)", { id });
-      const edges =
-        buildDormerCanonicalEdgesGeometry(rec as DormerRuntimeExtensionInput, roofModel) ??
-        buildDormerEdgesGeometry(geo);
-      const windowGeo = buildDormerFrontWindowGeometry(rec as DormerRuntimeExtensionInput, roofModel);
-      replaceIds.push(id);
-      meshes.push({ id, geo, edges, window: windowGeo });
-    }
-    replaceIds.sort();
-    const premiumIds = new Set(meshes.map((m) => String(m.id)));
-    premiumIds.forEach((id) => handledIds.add(id));
-    return { meshes, replaceKey: replaceIds.join("|"), premiumIds, handledIds };
-  }, [debugRuntime, scene.worldConfig, scene.roofModel.roofPlanePatches, scene.extensionVolumes]);
-
   const extGeos = useMemo(() => {
-    const premiumIds = dormerPremiumLayer.premiumIds;
-    const handledIds = dormerPremiumLayer.handledIds;
-    if (typeof window !== "undefined") {
-      const w = window as unknown as { __CALPINAGE_DORMER_AUDIT__?: boolean };
-      if (w.__CALPINAGE_DORMER_AUDIT__ === true) {
-        console.log("[DORMER_REPLACE]", {
-          premiumIds: Array.from(premiumIds),
-          handledIds: Array.from(handledIds),
-          extensionVolumes: scene.extensionVolumes.map((v) => v.id),
-        });
-      }
-    }
-    return scene.extensionVolumes
-      .filter((v) => !handledIds.has(String(v.id)))
-      .map((v) => ({ id: v.id, geo: extensionVolumeGeometry(v) }));
-  }, [scene.extensionVolumes, dormerPremiumLayer.premiumIds, dormerPremiumLayer.handledIds]);
+    return scene.extensionVolumes.map((v) => ({ id: v.id, geo: extensionVolumeGeometry(v) }));
+  }, [scene.extensionVolumes]);
 
   const panelGeos = useMemo(() => {
     return scene.pvPanels.map((p) => ({
@@ -1814,7 +1668,6 @@ function ViewerSceneContent({
       ...(roofClosureGeo ? [roofClosureGeo] : []),
       ...(edgeGeo ? [edgeGeo] : []),
       ...(ridgeGeo ? [ridgeGeo] : []),
-      ...dormerPremiumLayer.meshes.flatMap((m) => [m.geo, ...(m.edges ? [m.edges] : []), ...(m.window ? [m.window] : [])]),
       ...obsGeos.flatMap((x) => [
         x.geo,
         x.details.topCap,
@@ -1841,7 +1694,6 @@ function ViewerSceneContent({
       roofClosureGeo,
       edgeGeo,
       ridgeGeo,
-      dormerPremiumLayer.meshes,
       obsGeos,
       extGeos,
       panelGeos,
@@ -1856,14 +1708,11 @@ function ViewerSceneContent({
       ...(shellGeo ? [shellGeo] : []),
       ...roofGeos.map((x) => x.geo),
       ...(roofClosureGeo ? [roofClosureGeo] : []),
-      ...dormerPremiumLayer.meshes.flatMap((m) =>
-        [m.geo, m.edges, m.window].filter((g): g is THREE.BufferGeometry => g != null),
-      ),
       ...obsGeos.map((x) => x.geo),
       ...extGeos.map((x) => x.geo),
       ...panelGeos.map((x) => x.geo),
     ],
-    [shellGeo, roofGeos, roofClosureGeo, dormerPremiumLayer.meshes, obsGeos, extGeos, panelGeos],
+    [shellGeo, roofGeos, roofClosureGeo, obsGeos, extGeos, panelGeos],
   );
 
   useEffect(() => {
@@ -1918,10 +1767,6 @@ function ViewerSceneContent({
   const visRidges = L.showStructuralRidgeLines && ridgeGeo != null;
   const visObs = showObstacles && L.showObstacles;
   const visExt = showExtensions && L.showExtensions;
-  const visDormerPremium = visExt && dormerPremiumLayer.meshes.length > 0;
-  const showDormerDebugWire =
-    typeof window !== "undefined" &&
-    (window as unknown as { __CALPINAGE_DORMER_DEBUG__?: boolean }).__CALPINAGE_DORMER_DEBUG__ === true;
   const visPanels = showPanels && L.showPanels;
   const visPanelShading = showPanelShading && L.showPanelShading;
   const visSun = showSun && L.showSun;
@@ -2150,67 +1995,6 @@ function ViewerSceneContent({
           />
         </lineSegments>
       )}
-      {visDormerPremium &&
-        dormerPremiumLayer.meshes.map(({ id, geo, edges, window }) => {
-          const sid = String(id);
-          const sel = isInspectSelected(inspectionSelection, "EXTENSION", sid);
-          return (
-            <group key={`dormer-premium-${id}`}>
-              <mesh
-                userData={inspectData("EXTENSION", sid, "volume_surface")}
-                geometry={geo}
-                castShadow
-                receiveShadow
-                raycast={roofModelingPassThroughOccluders ? roofModelingSkipOccluderRaycast : undefined}
-                onClick={inspectMode ? onInspectClick : undefined}
-              >
-                <meshStandardMaterial
-                  color="#b8c0c8"
-                  metalness={0.06}
-                  roughness={0.66}
-                  flatShading={false}
-                  side={THREE.DoubleSide}
-                  emissive={sel ? "#1f3a2d" : "#16202a"}
-                  emissiveIntensity={sel ? 0.32 : 0.08}
-                />
-                {inspectMode && sel && (
-                  <Outlines
-                    thickness={outlineThickness}
-                    color={VIEWER_INSPECT_OUTLINE_HEX.extension}
-                    opacity={0.95}
-                    toneMapped={false}
-                  />
-                )}
-              </mesh>
-              {edges && (
-                <lineSegments geometry={edges} renderOrder={7}>
-                  <lineBasicMaterial
-                    color={showDormerDebugWire ? "#33e6ff" : "#f8fafc"}
-                    transparent
-                    opacity={showDormerDebugWire ? 1 : 0.68}
-                    toneMapped={false}
-                    depthTest
-                  />
-                </lineSegments>
-              )}
-              {window && (
-                <mesh geometry={window} renderOrder={8}>
-                  <meshStandardMaterial
-                    color="#132033"
-                    emissive="#1e3a5f"
-                    emissiveIntensity={0.18}
-                    metalness={0.04}
-                    roughness={0.35}
-                    side={THREE.DoubleSide}
-                    polygonOffset
-                    polygonOffsetFactor={-2}
-                    polygonOffsetUnits={-2}
-                  />
-                </mesh>
-              )}
-            </group>
-          );
-        })}
       {visObs &&
         obsGeos.map(({ id, volume, geo, details }) => {
           const sid = String(id);
@@ -4190,7 +3974,6 @@ function SolarScene3DViewer({
           pvLayout3DInteractionMode={pvLayout3DInteractionMode}
           pvLayout3dOverlayState={pvLayout3dOverlayState}
           onPvPanelPvLayout3dPointerDown={onPvPanelPvLayout3dPointerDown}
-          debugRuntime={debugRuntime}
           satelliteTexture={satelliteTexture}
           satelliteUvMapper={satelliteUvMapper}
         />

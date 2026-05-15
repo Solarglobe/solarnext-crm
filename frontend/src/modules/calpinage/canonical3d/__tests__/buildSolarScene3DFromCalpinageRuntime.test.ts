@@ -40,7 +40,7 @@ describe("buildSolarScene3DFromCalpinageRuntime", () => {
     expect(res.scene?.sourceTrace?.sourcePanIds.length).toBeGreaterThan(0);
     expect(res.scene?.sourceTrace?.expectedRoofPlanePatchIds?.length).toBeGreaterThan(0);
     expect(
-      res.scene!.metadata.buildGuards?.some((g) => g.code === "LEVEL2_ROOF_GEOMETRY_FIDELITY_MODE"),
+      res.scene!.metadata.buildGuards?.some((g) => g.code === "LEVEL2_ROOF_GEOMETRY_HYBRID_MODE"),
     ).toBe(true);
     const contourPts = minimalCalpinageRuntimeFixture.contours[0]!.points;
     const expFootprintM2 = polygonHorizontalAreaM2FromImagePx(contourPts, 0.02, 0);
@@ -166,6 +166,87 @@ describe("buildSolarScene3DFromCalpinageRuntime", () => {
     expect(res.scene!.roofModel.roofPlanePatches.some((p) => String(p.id) === "pan-official")).toBe(true);
     expect(res.productPipeline3DDiagnostics.panSource).toBe("STATE_PANS_STRICT");
     expect(res.productPipeline3DDiagnostics.legacyInputMode).toBe("LEGACY_RICH_INPUT_USED");
+  });
+
+  it("roofExtensions : la scene utilise le volume unifie issu du contour/ridge runtime", () => {
+    const res = buildSolarScene3DFromCalpinageRuntime({
+      pans: [
+        {
+          id: "pan-dormer",
+          polygonPx: [
+            { x: 100, y: 100, h: 8 },
+            { x: 220, y: 100, h: 8 },
+            { x: 220, y: 220, h: 8 },
+            { x: 100, y: 220, h: 8 },
+          ],
+        },
+      ],
+      roofExtensions: [
+        {
+          id: "rx-scene",
+          kind: "dormer",
+          visualModel: "manual_outline_gable",
+          supportPanId: "pan-dormer",
+          contour: {
+            closed: true,
+            points: [
+              { x: 120, y: 120, h: 0 },
+              { x: 170, y: 120, h: 0 },
+              { x: 185, y: 180, h: 0 },
+              { x: 120, y: 190, h: 0 },
+            ],
+          },
+          ridge: {
+            a: { x: 145, y: 125, h: 1 },
+            b: { x: 145, y: 180, h: 1 },
+          },
+          canonicalDormerGeometry: {
+            vertices: [{ id: "legacy-bbox", x: 999, y: 999, h: 4 }],
+            faces: [],
+          },
+        },
+      ],
+      roof: {
+        scale: { metersPerPixel: 0.02 },
+        roof: { north: { angleDeg: 0 } },
+        canonical3DWorldContract: {
+          schemaVersion: 1,
+          metersPerPixel: 0.02,
+          northAngleDeg: 0,
+          referenceFrame: "LOCAL_IMAGE_ENU" as const,
+        },
+        roofPans: [],
+      },
+      contours: [
+        {
+          roofRole: "contour",
+          points: [
+            { x: 100, y: 100 },
+            { x: 220, y: 100 },
+            { x: 220, y: 220 },
+            { x: 100, y: 220 },
+          ],
+        },
+      ],
+    });
+
+    expect(res.ok).toBe(true);
+    expect(res.scene).not.toBeNull();
+    expect(res.scene!.extensionVolumes).toHaveLength(1);
+    const ext = res.scene!.extensionVolumes[0]!;
+    expect(ext.id).toBe("rx-scene");
+    expect(ext.extrusion.mode).toBe("along_pan_normal");
+    expect(ext.relatedPlanePatchIds).toEqual(["pan-dormer"]);
+    expect(ext.topology?.version).toBe("roof_extension_topology_v2");
+    expect(ext.topology?.source).toBe("roofExtensions.runtime.contour_ridge");
+    expect(ext.topology?.heightReference).toBe("support_plane_normal");
+    expect(ext.topology?.ignoredLegacyCanonicalDormerGeometry).toBe(true);
+    expect(ext.topology?.sourceContourPx.map((p) => [p.x, p.y])).toEqual([
+      [120, 120],
+      [170, 120],
+      [185, 180],
+      [120, 190],
+    ]);
   });
 
   it("CAS 4 — un seul appel buildRoofModel3DFromLegacyGeometry pour la scène complète", () => {
