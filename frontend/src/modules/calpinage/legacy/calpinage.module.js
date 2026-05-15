@@ -14267,7 +14267,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 drawState.dormerActiveTool = "contour";
               } else if (tool === "hips") {
                 if (target && target.contour && target.contour.closed && target.contour.points && target.contour.points.length >= 3) {
-                  target.hips = null;
+                  target.hips = { left: null, right: null };
                   target.stage = "HIPS_DRAW";
                   drawState.dormerEditRxIndex = targetIdx;
                   drawState.dormerDraft = null;
@@ -16258,6 +16258,18 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             // Phase 3 (PV_LAYOUT) ne dépend PAS de drawState.activeTool (outil Phase 2).
             // On ne doit pas bloquer la pose / sélection de panneaux à cause d'un outil Phase 2.
             var isDormerMode = window.CALPINAGE_MODE === MODE_CREATE_DORMER || window.CALPINAGE_MODE === MODE_DORMER_CONTOUR || window.CALPINAGE_MODE === MODE_DORMER_RIDGE || window.CALPINAGE_MODE === MODE_DORMER_HIPS;
+            /* Clic droit dans un mode de dessin chien assis → annulation immédiate (UX CAO standard) */
+            if (isDormerMode && e.button === 2) {
+              e.preventDefault();
+              window.CALPINAGE_MODE = null;
+              drawState.dormerActiveTool = null;
+              if (drawState.dormerDraft) drawState.dormerDraft = null;
+              drawState.dormerEditRxIndex = null;
+              if (canvasEl) canvasEl.style.cursor = "default";
+              if (typeof resetActiveToolToSelect === "function") resetActiveToolToSelect();
+              if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
+              return;
+            }
             if (
               CALPINAGE_STATE.roofSurveyLocked &&
               CALPINAGE_STATE.currentPhase !== "PV_LAYOUT" &&
@@ -16381,15 +16393,21 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               if (!draft) return;
               var contourPts = draft.contour && draft.contour.points ? draft.contour.points : [];
               if (!contourPts || contourPts.length < 3) return;
-              /* 1er arêtier : départ sur contour */
+              /* Guard null — hips peut être null si l'objet vient de pushRoofExtensionFromContour */
+              if (!draft.hips) draft.hips = { left: null, right: null };
+              /* Tolérance snap arêtiers : principale (proche contour) + fallback borné (3× tol max ~60px image) */
+              var _hipsTolSnap = getDormerSnapToleranceImg();
+              var _hipsTolFallback = _hipsTolSnap * 4;
+              /* 1er arêtier : départ sur contour — snap strict puis fallback borné */
               if (!draft.hips.left) {
-                var startSnap = snapToContourEdge(imgPt, contourPts, getDormerSnapToleranceImg()) || nearestPointOnContourEdge(imgPt, contourPts);
-                if (!startSnap) return;
+                var startSnap = snapToContourEdge(imgPt, contourPts, _hipsTolSnap)
+                             || snapToContourEdge(imgPt, contourPts, _hipsTolFallback);
+                if (!startSnap) return; /* clic trop loin du contour → ignorer */
                 draft.hips.left = { a: startSnap, b: null };
                 if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
                 return;
               }
-              /* 2e clic : fin 1er arêtier (point libre) */
+              /* 2e clic : fin 1er arêtier (point libre — pas de snap forcé) */
               if (draft.hips.left.b === null) {
                 draft.hips.left.b = { x: imgPt.x, y: imgPt.y };
                 if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
@@ -16397,16 +16415,25 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               }
               /* 3e clic : départ 2e arêtier sur contour */
               if (!draft.hips.right) {
-                var startSnap2 = snapToContourEdge(imgPt, contourPts, getDormerSnapToleranceImg()) || nearestPointOnContourEdge(imgPt, contourPts);
+                var startSnap2 = snapToContourEdge(imgPt, contourPts, _hipsTolSnap)
+                              || snapToContourEdge(imgPt, contourPts, _hipsTolFallback);
                 if (!startSnap2) return;
                 draft.hips.right = { a: startSnap2, b: null };
                 if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
                 return;
               }
-              /* 4e clic : fin 2e arêtier (snap sur 1er ou libre) */
+              /* 4e clic : fin 2e arêtier.
+               * Snap prioritaire : point d'intersection live des deux arêtiers (sommet du chien assis).
+               * Fallback : snap sur segment du 1er arêtier, puis point libre. */
               if (draft.hips.right.b === null) {
-                var snapOnFirst = snapToSegment(imgPt, draft.hips.left.a, draft.hips.left.b, getDormerSnapToleranceImg());
-                draft.hips.right.b = snapOnFirst ? { x: snapOnFirst.x, y: snapOnFirst.y } : { x: imgPt.x, y: imgPt.y };
+                var _liveIntersect = intersectLines(draft.hips.left.a, draft.hips.left.b, draft.hips.right.a, imgPt);
+                var _snapIntersect = (_liveIntersect && Math.hypot(imgPt.x - _liveIntersect.x, imgPt.y - _liveIntersect.y) <= _hipsTolSnap)
+                  ? _liveIntersect : null;
+                var snapOnFirst = !_snapIntersect
+                  ? snapToSegment(imgPt, draft.hips.left.a, draft.hips.left.b, _hipsTolSnap)
+                  : null;
+                var _hip4end = _snapIntersect || snapOnFirst || imgPt;
+                draft.hips.right.b = { x: _hip4end.x, y: _hip4end.y };
                 var intersection = intersectLines(
                   draft.hips.left.a, draft.hips.left.b,
                   draft.hips.right.a, draft.hips.right.b
@@ -16470,19 +16497,29 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               var draft = getDormerEditTarget();
               if (!draft || !draft.ridge) return;
               var ridge = draft.ridge;
+              var _ridgeTolR = getDormerSnapToleranceImg();
+              /* Helpers snap faîtage — priorité : ridgeOrigin (jonction arêtiers) > vertex contour */
+              function _snapRidgePoint(pt) {
+                /* 1. Snap sur ridgeOrigin (sommet du chien assis = jonction des deux arêtiers) */
+                if (draft.ridgeOrigin && Math.hypot(pt.x - draft.ridgeOrigin.x, pt.y - draft.ridgeOrigin.y) <= _ridgeTolR) {
+                  return { x: draft.ridgeOrigin.x, y: draft.ridgeOrigin.y };
+                }
+                /* 2. Snap sur vertex du contour du chien assis */
+                if (draft.contour && draft.contour.points) {
+                  var sv = snapToDormerVertex(pt, draft.contour.points, _ridgeTolR);
+                  if (sv) return { x: sv.x, y: sv.y };
+                }
+                return null;
+              }
               if (!ridge.a) {
-                var snapStartVertex = draft.contour && draft.contour.points
-                  ? snapToDormerVertex(imgPt, draft.contour.points, getDormerSnapToleranceImg())
-                  : null;
-                ridge.a = snapStartVertex ? { x: snapStartVertex.x, y: snapStartVertex.y } : { x: imgPt.x, y: imgPt.y };
+                var _sA = _snapRidgePoint(imgPt);
+                ridge.a = _sA || { x: imgPt.x, y: imgPt.y };
                 if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
                 return;
               }
               if (!ridge.b) {
-                var snapVertex = draft.contour && draft.contour.points
-                  ? snapToDormerVertex(imgPt, draft.contour.points, getDormerSnapToleranceImg())
-                  : null;
-                ridge.b = snapVertex ? { x: snapVertex.x, y: snapVertex.y } : { x: imgPt.x, y: imgPt.y };
+                var _sB = _snapRidgePoint(imgPt);
+                ridge.b = _sB || { x: imgPt.x, y: imgPt.y };
                 draft.stage = draft.hips && draft.hips.left && draft.hips.right ? "COMPLETE" : "RIDGE";
                 rebuildDormerCanonicalGeometry(draft);
                 drawState.dormerEditRxIndex = null;
@@ -20613,6 +20650,9 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             addSafeListener(canvasEl, "contextmenu", function (e) {
               e.preventDefault();
               removeCtxMenu();
+              /* En mode de dessin chien assis, le clic droit est traité par pointerdown → pas de menu */
+              var _inDormerDraw = window.CALPINAGE_MODE === MODE_CREATE_DORMER || window.CALPINAGE_MODE === MODE_DORMER_CONTOUR || window.CALPINAGE_MODE === MODE_DORMER_RIDGE || window.CALPINAGE_MODE === MODE_DORMER_HIPS;
+              if (_inDormerDraw) return;
               if (CALPINAGE_STATE.currentPhase !== "ROOF_EDIT") return;
               _updateCtxTheme();
               var menu = document.createElement("div");
@@ -21717,15 +21757,23 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               }
               if (window.CALPINAGE_MODE === MODE_DORMER_RIDGE && ridge && ridge.a && !ridge.b && imgMousePt) {
                 var draft = dormerDraftForRender;
-                var snapVertex = draft && draft.contour && draft.contour.points
-                  ? snapToDormerVertex(imgMousePt, draft.contour.points, getDormerSnapToleranceImg())
+                var _ridgeTolPrev = getDormerSnapToleranceImg();
+                /* Snap prioritaire sur ridgeOrigin (jonction arêtiers = sommet du chien assis) */
+                var snapRidgeOriginPrev = (draft && draft.ridgeOrigin
+                  && Math.hypot(imgMousePt.x - draft.ridgeOrigin.x, imgMousePt.y - draft.ridgeOrigin.y) <= _ridgeTolPrev)
+                  ? draft.ridgeOrigin : null;
+                /* Snap sur vertex du contour du chien assis */
+                var snapVertex = !snapRidgeOriginPrev && draft && draft.contour && draft.contour.points
+                  ? snapToDormerVertex(imgMousePt, draft.contour.points, _ridgeTolPrev)
                   : null;
+                /* Snap sur contour principal du toit (fallback) */
                 var roofContours = (CALPINAGE_STATE.contours || []).filter(function (c) { return c.roofRole !== "chienAssis"; });
-                var ridgeSnap = snapToRoofContour(imgMousePt, roofContours, 15);
-                if (snapVertex) drawState.dormerSnapActive = true;
+                var ridgeSnap = (!snapRidgeOriginPrev && !snapVertex)
+                  ? snapToRoofContour(imgMousePt, roofContours, 15) : null;
+                if (snapRidgeOriginPrev || snapVertex) drawState.dormerSnapActive = true;
                 else if (ridgeSnap) drawState.dormerSnapActive = true;
-                var ridgeEndPt = snapVertex || ridgeSnap || imgMousePt;
-                var hasSnap = !!snapVertex || !!ridgeSnap;
+                var ridgeEndPt = snapRidgeOriginPrev || snapVertex || ridgeSnap || imgMousePt;
+                var hasSnap = !!(snapRidgeOriginPrev || snapVertex || ridgeSnap);
                 ctx.save();
                 ctx.strokeStyle = hasSnap ? "#00aa00" : "#666";
                 ctx.setLineDash([5, 5]);
@@ -21736,7 +21784,17 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 ctx.moveTo(raSc.x, raSc.y);
                 ctx.lineTo(endSc.x, endSc.y);
                 ctx.stroke();
-                if (snapVertex) {
+                if (snapRidgeOriginPrev) {
+                  /* Indicateur spécial : jonction arêtiers = sommet du chien assis */
+                  ctx.beginPath();
+                  ctx.arc(endSc.x, endSc.y, 7, 0, Math.PI * 2);
+                  ctx.fillStyle = "#facc15"; /* jaune vif */
+                  ctx.fill();
+                  ctx.strokeStyle = "#92400e";
+                  ctx.lineWidth = 1.5;
+                  ctx.setLineDash([]);
+                  ctx.stroke();
+                } else if (snapVertex) {
                   ctx.beginPath();
                   ctx.arc(endSc.x, endSc.y, 6, 0, Math.PI * 2);
                   ctx.fillStyle = "#00dd00";
@@ -21751,17 +21809,23 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               }
               if (window.CALPINAGE_MODE === MODE_DORMER_HIPS && imgMousePt) {
                 var draft = dormerDraftForRender;
-                var hips = draft.hips;
-                var contourPts = draft.contour.points;
+                /* Guard null — hips initialisé à null jusqu'au 1er clic ou si ancienne sérialisation */
+                var hips = draft.hips || { left: null, right: null };
+                var contourPts = draft.contour && draft.contour.points ? draft.contour.points : [];
                 ctx.save();
                 ctx.setLineDash([5, 5]);
                 ctx.lineWidth = 1.5;
+                var _hpTolPrev = getDormerSnapToleranceImg();
+                var _hpTolFbPrev = _hpTolPrev * 4; /* fallback borné (~60px image) */
                 if (!hips.left && contourPts && contourPts.length >= 3) {
-                  var startSnap = snapToContourEdge(imgMousePt, contourPts, getDormerSnapToleranceImg()) || nearestPointOnContourEdge(imgMousePt, contourPts);
+                  /* Clic 1 : snap sur arête du contour (borné) */
+                  var startSnap = snapToContourEdge(imgMousePt, contourPts, _hpTolPrev)
+                               || snapToContourEdge(imgMousePt, contourPts, _hpTolFbPrev);
                   if (startSnap) drawState.dormerSnapActive = true;
-                  ctx.strokeStyle = startSnap ? "#00aa00" : "#666";
+                  var _p1 = startSnap || imgMousePt;
+                  ctx.strokeStyle = startSnap ? "#00aa00" : "#aaa";
                   ctx.beginPath();
-                  ctx.moveTo(imageToScreen(startSnap || imgMousePt).x, imageToScreen(startSnap || imgMousePt).y);
+                  ctx.moveTo(imageToScreen(_p1).x, imageToScreen(_p1).y);
                   ctx.lineTo(imageToScreen(imgMousePt).x, imageToScreen(imgMousePt).y);
                   ctx.stroke();
                   if (startSnap) {
@@ -21771,17 +21835,21 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                     ctx.fill();
                   }
                 } else if (hips.left && hips.left.b === null) {
+                  /* Clic 2 : ligne libre du départ vers curseur */
                   ctx.strokeStyle = "#666";
                   ctx.beginPath();
                   ctx.moveTo(imageToScreen(hips.left.a).x, imageToScreen(hips.left.a).y);
                   ctx.lineTo(imageToScreen(imgMousePt).x, imageToScreen(imgMousePt).y);
                   ctx.stroke();
                 } else if (!hips.right && contourPts && contourPts.length >= 3) {
-                  var startSnap2 = snapToContourEdge(imgMousePt, contourPts, getDormerSnapToleranceImg()) || nearestPointOnContourEdge(imgMousePt, contourPts);
+                  /* Clic 3 : snap sur arête du contour (borné) */
+                  var startSnap2 = snapToContourEdge(imgMousePt, contourPts, _hpTolPrev)
+                                || snapToContourEdge(imgMousePt, contourPts, _hpTolFbPrev);
                   if (startSnap2) drawState.dormerSnapActive = true;
-                  ctx.strokeStyle = startSnap2 ? "#00aa00" : "#666";
+                  var _p3 = startSnap2 || imgMousePt;
+                  ctx.strokeStyle = startSnap2 ? "#00aa00" : "#aaa";
                   ctx.beginPath();
-                  ctx.moveTo(imageToScreen(startSnap2 || imgMousePt).x, imageToScreen(startSnap2 || imgMousePt).y);
+                  ctx.moveTo(imageToScreen(_p3).x, imageToScreen(_p3).y);
                   ctx.lineTo(imageToScreen(imgMousePt).x, imageToScreen(imgMousePt).y);
                   ctx.stroke();
                   if (startSnap2) {
@@ -21791,15 +21859,37 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                     ctx.fill();
                   }
                 } else if (hips.right && hips.right.b === null) {
-                  var snapOnFirst = snapToSegment(imgMousePt, hips.left.a, hips.left.b, getDormerSnapToleranceImg());
-                  if (snapOnFirst) drawState.dormerSnapActive = true;
-                  var endPt = snapOnFirst || imgMousePt;
-                  ctx.strokeStyle = snapOnFirst ? "#00aa00" : "#666";
+                  /* Clic 4 : snap prioritaire sur intersection live (sommet du chien assis),
+                   * fallback sur segment du 1er arêtier. */
+                  var _livePtPrev = hips.left && hips.left.a && hips.left.b
+                    ? intersectLines(hips.left.a, hips.left.b, hips.right.a, imgMousePt)
+                    : null;
+                  var snapIntersectPrev = (_livePtPrev
+                    && Math.hypot(imgMousePt.x - _livePtPrev.x, imgMousePt.y - _livePtPrev.y) <= _hpTolPrev)
+                    ? _livePtPrev : null;
+                  var snapOnFirst = !snapIntersectPrev
+                    ? snapToSegment(imgMousePt, hips.left.a, hips.left.b, _hpTolPrev)
+                    : null;
+                  var bestSnap4 = snapIntersectPrev || snapOnFirst;
+                  if (bestSnap4) drawState.dormerSnapActive = true;
+                  var endPt = bestSnap4 || imgMousePt;
+                  ctx.strokeStyle = bestSnap4 ? "#00aa00" : "#666";
                   ctx.beginPath();
                   ctx.moveTo(imageToScreen(hips.right.a).x, imageToScreen(hips.right.a).y);
                   ctx.lineTo(imageToScreen(endPt).x, imageToScreen(endPt).y);
                   ctx.stroke();
-                  if (snapOnFirst) {
+                  if (snapIntersectPrev) {
+                    /* Indicateur jaune = sommet du chien assis */
+                    var _sc4 = imageToScreen(snapIntersectPrev);
+                    ctx.beginPath();
+                    ctx.arc(_sc4.x, _sc4.y, 7, 0, Math.PI * 2);
+                    ctx.fillStyle = "#facc15";
+                    ctx.fill();
+                    ctx.strokeStyle = "#92400e";
+                    ctx.lineWidth = 1.5;
+                    ctx.setLineDash([]);
+                    ctx.stroke();
+                  } else if (snapOnFirst) {
                     ctx.beginPath();
                     ctx.arc(imageToScreen(snapOnFirst).x, imageToScreen(snapOnFirst).y, 5, 0, Math.PI * 2);
                     ctx.fillStyle = "#00aa00";
