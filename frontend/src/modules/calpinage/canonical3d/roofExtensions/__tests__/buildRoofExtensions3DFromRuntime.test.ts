@@ -1,58 +1,18 @@
 import { describe, expect, it } from "vitest";
 import * as THREE from "three";
-import type { PlaneEquation } from "../../types/plane";
 import type { RoofPlanePatch3D } from "../../types/roof-surface";
-import type { Vector3 } from "../../types/primitives";
 import type { RoofExtensionVolume3D } from "../../types/roof-extension-volume";
-import { dot3, normalize3, sub3 } from "../../utils/math3";
+import { dot3, sub3 } from "../../utils/math3";
 import { extensionVolumeGeometry } from "../../viewer/solarSceneThreeGeometry";
 import { findClosestOccluderHit } from "../../nearShading3d/volumeRaycast";
 import { buildRoofExtensions3DFromRuntime } from "../buildRoofExtensions3DFromRuntime";
-
-const WORLD = { metersPerPixel: 1, northAngleDeg: 0 };
-
-function makePatch(id: string, slopeDeg: number): RoofPlanePatch3D {
-  const slope = Math.tan((slopeDeg * Math.PI) / 180);
-  const normal = normalize3({ x: 0, y: -slope, z: 1 })!;
-  const z0 = 10;
-  const equation: PlaneEquation = { normal, d: -normal.z * z0 };
-  const zAt = (y: number) => z0 + slope * y;
-  const xAxis = { x: 1, y: 0, z: 0 };
-  const yRaw = {
-    x: normal.y * xAxis.z - normal.z * xAxis.y,
-    y: normal.z * xAxis.x - normal.x * xAxis.z,
-    z: normal.x * xAxis.y - normal.y * xAxis.x,
-  };
-  const yLen = Math.hypot(yRaw.x, yRaw.y, yRaw.z) || 1;
-  const yAxis = { x: yRaw.x / yLen, y: yRaw.y / yLen, z: yRaw.z / yLen };
-  return {
-    id,
-    topologyRole: "primary_shell",
-    boundaryVertexIds: [`${id}:v0`, `${id}:v1`, `${id}:v2`, `${id}:v3`],
-    boundaryEdgeIds: [`${id}:e0`, `${id}:e1`, `${id}:e2`, `${id}:e3`],
-    cornersWorld: [
-      { x: 0, y: -10, z: zAt(-10) },
-      { x: 10, y: -10, z: zAt(-10) },
-      { x: 10, y: 0, z: zAt(0) },
-      { x: 0, y: 0, z: zAt(0) },
-    ],
-    localFrame: {
-      role: "roof_face",
-      origin: { x: 0, y: 0, z: z0 },
-      xAxis,
-      yAxis,
-      zAxis: { ...normal },
-    },
-    normal,
-    equation,
-    boundaryCycleWinding: "unspecified",
-    centroid: { x: 5, y: -5, z: zAt(-5) },
-    surface: { areaM2: 100 },
-    adjacentPlanePatchIds: [],
-    provenance: { source: "solver", solverStep: "test:roofExtensionPatch" },
-    quality: { confidence: "high", diagnostics: [] },
-  };
-}
+import {
+  WORLD_FIXTURE as WORLD,
+  assertFootprintOnSupportPlane as assertBaseOnPlane,
+  assertVertexHeightAlongNormal as assertHeightAlongNormal,
+  makeSupportPatch as makePatch,
+  signedDistanceToPlane as signedDistance,
+} from "./roofExtensionVolumeTestUtils";
 
 function runtimeWithExtension(points: readonly { x: number; y: number; h?: number }[], ridgeH: number) {
   return {
@@ -85,27 +45,6 @@ function buildOne(
   });
   expect(res.extensionVolumes).toHaveLength(1);
   return res.extensionVolumes[0]!;
-}
-
-function signedDistance(point: Vector3, eq: PlaneEquation): number {
-  return dot3(eq.normal, point) + eq.d;
-}
-
-function assertBaseOnPlane(vol: RoofExtensionVolume3D, patch: RoofPlanePatch3D): void {
-  for (const p of vol.footprintWorld) {
-    expect(Math.abs(signedDistance(p, patch.equation))).toBeLessThan(1e-6);
-  }
-}
-
-function assertHeightAlongNormal(
-  vol: RoofExtensionVolume3D,
-  patch: RoofPlanePatch3D,
-  vertexIdPart: string,
-  height: number,
-): void {
-  const vertex = vol.vertices.find((v) => v.id.includes(vertexIdPart));
-  expect(vertex).toBeTruthy();
-  expect(Math.abs(signedDistance(vertex!.position, patch.equation) - height)).toBeLessThan(1e-6);
 }
 
 describe("buildRoofExtensions3DFromRuntime", () => {
@@ -353,58 +292,5 @@ describe("buildRoofExtensions3DFromRuntime", () => {
       true,
     );
     expect(hit?.volumeId).toBe("rx-test");
-  });
-
-  it("P3 hips-aware : topologie v3, sans facettes contour→ridge legacy (:face:roof:<n>)", () => {
-    const patch = makePatch("pan-p3-hips", 0);
-    const res = buildRoofExtensions3DFromRuntime({
-      runtime: {
-        roofExtensions: [
-          {
-            id: "rx-p3",
-            type: "roof_extension",
-            kind: "chien_assis",
-            visualModel: "manual_outline_gable",
-            supportPanId: "pan-p3-hips",
-            contour: {
-              closed: true,
-              points: [
-                { x: 1, y: 1, h: 0 },
-                { x: 3, y: 1, h: 0 },
-                { x: 3, y: 4, h: 0 },
-                { x: 1, y: 4, h: 0 },
-              ],
-            },
-            ridge: {
-              a: { x: 2, y: 4, h: 1 },
-              b: { x: 2, y: 1, h: 1 },
-            },
-            hips: {
-              left: {
-                a: { x: 1, y: 1, h: 0 },
-                b: { x: 2, y: 2.5, h: 1 },
-              },
-              right: {
-                a: { x: 3, y: 1, h: 0 },
-                b: { x: 2, y: 2.5, h: 1 },
-              },
-            },
-            apexVertex: { id: "rx-p3:apex", x: 2, y: 3.8, h: 1 },
-            ridgeHeightRelM: 1,
-          },
-        ],
-      },
-      roofPlanePatches: [patch],
-      ...WORLD,
-    });
-    const vol = res.extensionVolumes[0]!;
-    expect(vol.topology?.version).toBe("roof_extension_topology_v3");
-    expect(vol.topology?.meshStrategy).toBe("hips_aware");
-    const legacyContourToRidgeFan = /^rx-p3:face:roof:\d+$/;
-    expect(vol.faces.some((f) => legacyContourToRidgeFan.test(f.id))).toBe(false);
-    expect(vol.faces.some((f) => f.id.includes(":face:roof:left:"))).toBe(true);
-    expect(vol.faces.some((f) => f.id.includes(":face:roof:right:"))).toBe(true);
-    const apexMeshId = "rx-p3:rx-p3:apex";
-    expect(vol.vertices.filter((v) => v.id === apexMeshId)).toHaveLength(1);
   });
 });
