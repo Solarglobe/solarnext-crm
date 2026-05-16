@@ -1758,18 +1758,6 @@ function PvLayout3dSvgOverlay({
         overflow: "hidden",
       }}
     >
-      {overlay.safeZones.map((z) => (
-        <g key={`pv3d-svg-safe-${z.id}`}>
-          <polygon
-            points={polyPoints(z.points)}
-            fill="none"
-            stroke="rgba(239,68,68,0.58)"
-            strokeWidth={1.15}
-            strokeDasharray="6 7"
-            vectorEffect="non-scaling-stroke"
-          />
-        </g>
-      ))}
       {overlay.ghosts.map((g) => {
         const fill = g.excluded
           ? "rgba(113,113,122,0.07)"
@@ -2365,9 +2353,8 @@ function ViewerSceneContent({
     if (!pvLayout3DInteractionMode || !pvLayout3dOverlayState) return [];
     return pvLayout3dOverlayState.safeZones.flatMap((z) =>
       z.polygons.flatMap((poly, index) => {
-        const fill = imagePolygonToRoofMeshGeometry(scene, poly, z.panId, 0.032);
-        const line = imagePolygonToRoofLineGeometry(scene, poly, z.panId, 0.046);
-        return fill || line ? [{ id: `${z.panId}-${index}`, fill, line }] : [];
+        const line = imagePolygonToRoofLineGeometry(scene, poly, z.panId, 0.012);
+        return line ? [{ id: `${z.panId}-${index}`, line }] : [];
       }),
     );
   }, [scene, pvLayout3DInteractionMode, pvLayout3dOverlayState]);
@@ -2407,7 +2394,7 @@ function ViewerSceneContent({
       ...panelGeos.flatMap((x) => [x.geo, x.cell].filter((g): g is THREE.BufferGeometry => g != null)),
       ...pv3dLivePanelGeos.flatMap((x) => [x.fill, x.line, x.cell].filter((g): g is THREE.BufferGeometry => g != null)),
       ...pv3dGhostGeos.flatMap((x) => [x.fill, x.line].filter((g): g is THREE.BufferGeometry => g != null)),
-      ...pv3dSafeZoneGeos.flatMap((x) => [x.fill, x.line].filter((g): g is THREE.BufferGeometry => g != null)),
+      ...pv3dSafeZoneGeos.map((x) => x.line),
     ],
     [
       shellGeo,
