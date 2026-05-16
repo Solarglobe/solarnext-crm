@@ -139,6 +139,45 @@ var ROOF_OBSTACLE_CATALOG = {
     iconKey: "polygon"
   },
   /** Fallback affichage / compat pour anciens volumes ombrants shape=cube sans meta métier. */
+  tree_shadow: {
+    id: "tree_shadow",
+    label: "Arbre / ombre",
+    category: "opaque_shading",
+    isShadingObstacle: true,
+    geometryShape: "circle",
+    defaultWidthM: null,
+    defaultDepthM: null,
+    defaultDiameterM: 2.5,
+    defaultHeightM: 4,
+    description: "Volume proxy pour ombrage d'arbre ou ombre distante.",
+    iconKey: "tree"
+  },
+  parapet: {
+    id: "parapet",
+    label: "Acrotere",
+    category: "opaque_shading",
+    isShadingObstacle: true,
+    geometryShape: "rect",
+    defaultWidthM: 2,
+    defaultDepthM: 0.25,
+    defaultDiameterM: null,
+    defaultHeightM: 0.45,
+    description: "Acrotere ou releve de toiture - ombrage opaque.",
+    iconKey: "rect"
+  },
+  roof_drain: {
+    id: "roof_drain",
+    label: "Evacuation",
+    category: "opaque_shading",
+    isShadingObstacle: true,
+    geometryShape: "circle",
+    defaultWidthM: null,
+    defaultDepthM: null,
+    defaultDiameterM: 0.18,
+    defaultHeightM: 0.12,
+    description: "Evacuation toiture - petit obstacle technique.",
+    iconKey: "tube"
+  },
   legacy_shadow_cube: {
     id: "legacy_shadow_cube",
     label: "Volume ombrant (ancien)",

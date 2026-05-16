@@ -121,3 +121,4 @@ backend/scripts/output/
 # --- CP-073 : sauvegardes PostgreSQL locales (ne pas versionner les dumps) ---
 backend/backups/*
 !backend/backups/.gitkeep
+.claude/ 
