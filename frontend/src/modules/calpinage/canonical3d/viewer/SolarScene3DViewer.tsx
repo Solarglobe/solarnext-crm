@@ -140,6 +140,11 @@ import type { PremiumHouse3DSceneAssembly } from "./premium/premiumHouse3DSceneT
 import { PremiumGeometryTrustStripe } from "./premium/PremiumGeometryTrustStripe";
 import type { PremiumHouse3DViewMode } from "./premium/premiumHouse3DViewModes";
 import {
+  buildPremiumObstacleAssets,
+  type PremiumObstacleAssetPack,
+  type PremiumObstacleBodyRole,
+} from "./obstacles/premiumObstacleAssets";
+import {
   resolveRoofMissingHeightAlerts,
   resolveRoofTruthBadge,
   type RoofMissingHeightAlert,
@@ -433,6 +438,33 @@ function obstacleMaterialForVolume(vol: SolarScene3D["obstacleVolumes"][number],
     emissive: "#000000",
     side: THREE.DoubleSide,
   };
+}
+
+function premiumObstacleAssetMaterial(role: PremiumObstacleBodyRole): {
+  readonly color: string;
+  readonly metalness: number;
+  readonly roughness: number;
+  readonly transparent: boolean;
+  readonly opacity: number;
+  readonly emissive: string;
+  readonly emissiveIntensity: number;
+} {
+  switch (role) {
+    case "brick":
+      return { color: "#b77961", metalness: 0.03, roughness: 0.82, transparent: false, opacity: 1, emissive: "#000000", emissiveIntensity: 0 };
+    case "metal":
+      return { color: "#7f8b96", metalness: 0.42, roughness: 0.32, transparent: false, opacity: 1, emissive: "#000000", emissiveIntensity: 0 };
+    case "cap":
+      return { color: "#d9e2ea", metalness: 0.34, roughness: 0.36, transparent: false, opacity: 1, emissive: "#000000", emissiveIntensity: 0 };
+    case "darkInset":
+      return { color: "#1c1412", metalness: 0.02, roughness: 0.88, transparent: true, opacity: 0.96, emissive: "#140f0d", emissiveIntensity: 0.06 };
+    case "glass":
+      return { color: "#6f879b", metalness: 0.12, roughness: 0.18, transparent: true, opacity: 0.56, emissive: "#102a44", emissiveIntensity: 0.08 };
+    case "warning":
+      return { color: "#f59e0b", metalness: 0.02, roughness: 0.62, transparent: true, opacity: 0.24, emissive: "#3b1f05", emissiveIntensity: 0 };
+    case "shadow":
+      return { color: "#64748b", metalness: 0.02, roughness: 0.85, transparent: true, opacity: 0.28, emissive: "#0f172a", emissiveIntensity: 0 };
+  }
 }
 
 function volumeLoopLineGeometry(points: readonly THREE.Vector3[]): THREE.BufferGeometry | null {
@@ -852,10 +884,12 @@ function roofObstacleDetailGeometries(vol: SolarScene3D["obstacleVolumes"][numbe
   readonly keepoutCornerMarks: THREE.BufferGeometry | null;
   readonly allEdgeLines: THREE.BufferGeometry | null;
   readonly shadowVolumeRays: THREE.BufferGeometry | null;
+  readonly premiumAssets: PremiumObstacleAssetPack;
   readonly replaceBaseMesh: boolean;
 } {
   const topRing = volumeRingAt(vol, 1, vol.visualRole === "roof_window_flush" || vol.visualRole === "keepout_surface" ? 0.018 : 0.012);
   const roundChimney = isRoundChimneyVolume(vol);
+  const premiumAssets = buildPremiumObstacleAssets(vol);
   return {
     topCap: (vol.kind === "chimney" && !roundChimney) || vol.visualRole === "roof_window_flush"
       ? volumeTopCapGeometry(vol, vol.kind === "chimney" ? 0.045 : 0.024, vol.kind === "chimney" ? 1.12 : 0.6)
@@ -877,7 +911,8 @@ function roofObstacleDetailGeometries(vol: SolarScene3D["obstacleVolumes"][numbe
     keepoutCornerMarks: vol.visualRole === "keepout_surface" ? keepoutCornerMarkLineGeometry(vol) : null,
     allEdgeLines: volumeAllEdgeLineGeometry(vol, vol.visualRole === "keepout_surface" ? 0.028 : 0.012),
     shadowVolumeRays: shadowVolumeRayGeometry(vol),
-    replaceBaseMesh: roundChimney || vol.kind === "antenna",
+    premiumAssets,
+    replaceBaseMesh: premiumAssets.replaceBaseMesh || roundChimney || vol.kind === "antenna",
   };
 }
 
@@ -2438,6 +2473,8 @@ function ViewerSceneContent({
         x.details.keepoutCornerMarks,
         x.details.allEdgeLines,
         x.details.shadowVolumeRays,
+        ...x.details.premiumAssets.meshes.map((asset) => asset.geometry),
+        ...x.details.premiumAssets.lines.map((asset) => asset.geometry),
       ].filter((g): g is THREE.BufferGeometry => g != null)),
       ...extGeos.map((x) => x.geo),
       ...panelGeos.flatMap((x) => [x.geo, x.cell].filter((g): g is THREE.BufferGeometry => g != null)),
@@ -2759,6 +2796,7 @@ function ViewerSceneContent({
           const mat = obstacleMaterialForVolume(volume, mObs);
           const premium = getPremiumRoofObstacleSpec(volume.visualKey);
           const hideBaseMesh = details.replaceBaseMesh;
+          const premiumAssetActive = details.premiumAssets.meshes.length > 0 || details.premiumAssets.lines.length > 0;
           return (
             <mesh
               key={`obs-${id}`}
@@ -2781,6 +2819,43 @@ function ViewerSceneContent({
                 emissive={sel ? "#6d4c41" : mat.emissive}
                 emissiveIntensity={hideBaseMesh ? 0 : sel ? 0.35 : volume.visualRole === "roof_window_flush" ? 0.08 : 0}
               />
+              {details.premiumAssets.meshes.map((asset) => {
+                const assetMat = premiumObstacleAssetMaterial(asset.role);
+                return (
+                  <mesh
+                    key={`premium-mesh-${id}-${asset.key}`}
+                    geometry={asset.geometry}
+                    renderOrder={asset.renderOrder}
+                    castShadow={asset.castShadow}
+                    receiveShadow={asset.receiveShadow}
+                  >
+                    <meshStandardMaterial
+                      color={assetMat.color}
+                      metalness={assetMat.metalness}
+                      roughness={assetMat.roughness}
+                      transparent={assetMat.transparent}
+                      opacity={assetMat.opacity}
+                      emissive={assetMat.emissive}
+                      emissiveIntensity={assetMat.emissiveIntensity}
+                      side={THREE.DoubleSide}
+                      polygonOffset
+                      polygonOffsetFactor={-3}
+                      polygonOffsetUnits={-3}
+                    />
+                  </mesh>
+                );
+              })}
+              {details.premiumAssets.lines.map((asset) => (
+                <lineSegments key={`premium-line-${id}-${asset.key}`} geometry={asset.geometry} renderOrder={asset.renderOrder}>
+                  <lineBasicMaterial
+                    color={asset.color}
+                    transparent
+                    opacity={asset.opacity}
+                    toneMapped={false}
+                    depthTest
+                  />
+                </lineSegments>
+              ))}
               {details.roundChimneyBody ? (
                 <mesh geometry={details.roundChimneyBody} renderOrder={8} castShadow receiveShadow>
                   <meshStandardMaterial
@@ -2803,7 +2878,7 @@ function ViewerSceneContent({
                   />
                 </lineSegments>
               ) : null}
-              {details.topCap ? (
+              {details.topCap && !premiumAssetActive ? (
                 <mesh geometry={details.topCap} renderOrder={8}>
                   <meshStandardMaterial
                     color={volume.kind === "chimney" ? "#8a5140" : "#8aa3b8"}
@@ -2848,7 +2923,7 @@ function ViewerSceneContent({
                   />
                 </lineSegments>
               ) : null}
-              {details.windowOuterFrame ? (
+              {details.windowOuterFrame && !premiumAssetActive ? (
                 <mesh geometry={details.windowOuterFrame} renderOrder={10}>
                   <meshStandardMaterial
                     color="#b8c2cc"
@@ -2923,7 +2998,7 @@ function ViewerSceneContent({
                   />
                 </lineSegments>
               ) : null}
-              {details.shadowVolumeRays ? (
+              {details.shadowVolumeRays && !premiumAssetActive ? (
                 <lineSegments geometry={details.shadowVolumeRays} renderOrder={7}>
                   <lineBasicMaterial
                     color="#e2e8f0"
@@ -2934,7 +3009,7 @@ function ViewerSceneContent({
                   />
                 </lineSegments>
               ) : null}
-              {details.windowFrame ? (
+              {details.windowFrame && !premiumAssetActive ? (
                 <mesh geometry={details.windowFrame} renderOrder={11}>
                   <meshStandardMaterial
                     color="#7f8b96"
@@ -2948,7 +3023,7 @@ function ViewerSceneContent({
                   />
                 </mesh>
               ) : null}
-              {details.windowSashLines ? (
+              {details.windowSashLines && !premiumAssetActive ? (
                 <lineSegments geometry={details.windowSashLines} renderOrder={12}>
                   <lineBasicMaterial
                     color="#d8e5ee"
@@ -2959,7 +3034,7 @@ function ViewerSceneContent({
                   />
                 </lineSegments>
               ) : null}
-              {details.windowHighlight ? (
+              {details.windowHighlight && !premiumAssetActive ? (
                 <lineSegments geometry={details.windowHighlight} renderOrder={12}>
                   <lineBasicMaterial
                     color="#e0f2fe"
@@ -2970,7 +3045,7 @@ function ViewerSceneContent({
                   />
                 </lineSegments>
               ) : null}
-              {details.vmcCap ? (
+              {details.vmcCap && !premiumAssetActive ? (
                 <mesh geometry={details.vmcCap} renderOrder={11}>
                   <meshStandardMaterial
                     color="#e5edf4"
@@ -2980,7 +3055,7 @@ function ViewerSceneContent({
                   />
                 </mesh>
               ) : null}
-              {details.vmcVentLines ? (
+              {details.vmcVentLines && !premiumAssetActive ? (
                 <lineSegments geometry={details.vmcVentLines} renderOrder={12}>
                   <lineBasicMaterial
                     color="#64748b"
@@ -2991,7 +3066,7 @@ function ViewerSceneContent({
                   />
                 </lineSegments>
               ) : null}
-              {details.antennaLines ? (
+              {details.antennaLines && !premiumAssetActive ? (
                 <lineSegments geometry={details.antennaLines} renderOrder={12}>
                   <lineBasicMaterial
                     color="#dbe4ee"
@@ -3002,7 +3077,7 @@ function ViewerSceneContent({
                   />
                 </lineSegments>
               ) : null}
-              {details.antennaBase ? (
+              {details.antennaBase && !premiumAssetActive ? (
                 <mesh geometry={details.antennaBase} renderOrder={11} castShadow receiveShadow>
                   <meshStandardMaterial
                     color="#475569"
