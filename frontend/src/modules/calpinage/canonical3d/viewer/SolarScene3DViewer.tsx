@@ -320,7 +320,6 @@ const PREMIUM_PV_CELL_LINE = SOLARNEXT_3D_PREMIUM_THEME.pv.cellLine;
 const PREMIUM_PV_SELECTED_FILL = SOLARNEXT_3D_PREMIUM_THEME.pv.selectedFill;
 const PREMIUM_PV_LIVE_FILL = SOLARNEXT_3D_PREMIUM_THEME.pv.liveFill;
 const PREMIUM_PV_INVALID_FILL = SOLARNEXT_3D_PREMIUM_THEME.pv.invalidFill;
-const PV3D_SAFE_ZONE_FILL = SOLARNEXT_3D_PREMIUM_THEME.safeZone.fill;
 const PV3D_SAFE_ZONE_LINE = SOLARNEXT_3D_PREMIUM_THEME.safeZone.line;
 const PV3D_GHOST_VALID_FILL = SOLARNEXT_3D_PREMIUM_THEME.ghost.validFill;
 const PV3D_GHOST_VALID_LINE = SOLARNEXT_3D_PREMIUM_THEME.ghost.validLine;
@@ -710,42 +709,6 @@ function roofWindowGreyFrameGeometry(vol: SolarScene3D["obstacleVolumes"][number
   return geo;
 }
 
-function keepoutHatchLineGeometry(vol: SolarScene3D["obstacleVolumes"][number]): THREE.BufferGeometry | null {
-  const ring = volumeRingAt(vol, 1, 0.035);
-  if (ring.length < 4) return volumeLoopLineGeometry(ring);
-  const p0 = ring[0]!;
-  const p1 = ring[1]!;
-  const p2 = ring[2]!;
-  const p3 = ring[3]!;
-  const positions: number[] = [];
-  const lerp = (a: THREE.Vector3, b: THREE.Vector3, t: number) => new THREE.Vector3().lerpVectors(a, b, t);
-  const push = (a: THREE.Vector3, b: THREE.Vector3) => positions.push(a.x, a.y, a.z, b.x, b.y, b.z);
-  for (let i = 1; i <= 5; i++) {
-    const t = i / 6;
-    push(lerp(p0, p3, t), lerp(p1, p2, t));
-    push(lerp(p0, p1, t), lerp(p3, p2, t));
-  }
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-  return geo;
-}
-
-function keepoutCornerMarkLineGeometry(vol: SolarScene3D["obstacleVolumes"][number]): THREE.BufferGeometry | null {
-  const ring = volumeRingAt(vol, 1, 0.052);
-  if (ring.length < 4) return null;
-  const positions: number[] = [];
-  const push = (a: THREE.Vector3, b: THREE.Vector3) => positions.push(a.x, a.y, a.z, b.x, b.y, b.z);
-  for (let i = 0; i < ring.length; i++) {
-    const prev = ring[(i - 1 + ring.length) % ring.length]!;
-    const cur = ring[i]!;
-    const next = ring[(i + 1) % ring.length]!;
-    push(cur.clone().lerp(prev, 0.18), cur.clone().lerp(next, 0.18));
-  }
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-  return geo;
-}
-
 function chimneyBrickLineGeometry(vol: SolarScene3D["obstacleVolumes"][number]): THREE.BufferGeometry | null {
   const n = vol.footprintWorld.length;
   if (n < 4 || vol.vertices.length < n * 2) return null;
@@ -909,8 +872,8 @@ function roofObstacleDetailGeometries(vol: SolarScene3D["obstacleVolumes"][numbe
     antennaBase: vol.kind === "antenna" ? antennaBaseGeometry(vol) : null,
     roundChimneyBody: roundChimney ? roundChimneyBodyGeometry(vol) : null,
     roundChimneyLines: roundChimney ? roundChimneyRingLineGeometry(vol) : null,
-    keepoutHatch: vol.visualRole === "keepout_surface" ? keepoutHatchLineGeometry(vol) : null,
-    keepoutCornerMarks: vol.visualRole === "keepout_surface" ? keepoutCornerMarkLineGeometry(vol) : null,
+    keepoutHatch: null,
+    keepoutCornerMarks: null,
     allEdgeLines: volumeAllEdgeLineGeometry(vol, vol.visualRole === "keepout_surface" ? 0.028 : 0.012),
     shadowVolumeRays: shadowVolumeRayGeometry(vol),
     premiumAssets,
@@ -1778,9 +1741,6 @@ function PvLayout3dSvgOverlay({
 }) {
   if (!overlay) return null;
   const h = overlay.handles;
-  const invalidPanelsCount = overlay.panels.filter((p) => p.invalid).length;
-  const refusedGhostsCount = overlay.ghosts.filter((g) => g.valid === false).length;
-  const allowedGhostsCount = overlay.ghosts.filter((g) => g.valid && !g.excluded).length;
   const polyPoints = (points: readonly PvLayout3dScreenPoint[]): string =>
     points.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
   return (
@@ -1798,52 +1758,33 @@ function PvLayout3dSvgOverlay({
         overflow: "hidden",
       }}
     >
-      <defs>
-        <pattern id="pv3d-safe-hatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-          <line x1="0" y1="0" x2="0" y2="8" stroke="rgba(248,113,113,0.72)" strokeWidth="2" />
-        </pattern>
-        <filter id="pv3d-label-shadow" x="-20%" y="-20%" width="140%" height="140%">
-          <feDropShadow dx="0" dy="1" stdDeviation="1.4" floodColor="rgba(0,0,0,0.55)" />
-        </filter>
-      </defs>
       {overlay.safeZones.map((z) => (
         <g key={`pv3d-svg-safe-${z.id}`}>
           <polygon
             points={polyPoints(z.points)}
-            fill="url(#pv3d-safe-hatch)"
-            stroke="rgba(248,113,113,0.95)"
-            strokeWidth={1.5}
+            fill="none"
+            stroke="rgba(239,68,68,0.58)"
+            strokeWidth={1.15}
+            strokeDasharray="6 7"
             vectorEffect="non-scaling-stroke"
-            opacity={0.78}
           />
-          <g transform={`translate(${z.labelPoint.x.toFixed(1)} ${z.labelPoint.y.toFixed(1)})`} filter="url(#pv3d-label-shadow)">
-            <rect x={-44} y={-12} width={88} height={24} rx={6} fill="rgba(127,29,29,0.9)" stroke="rgba(248,113,113,0.76)" />
-            <text x={0} y={4} textAnchor="middle" fontSize={11} fontWeight={700} fill="#fee2e2">
-              Zone interdite
-            </text>
-          </g>
         </g>
       ))}
       {overlay.ghosts.map((g) => {
         const fill = g.excluded
-          ? "rgba(113,113,122,0.18)"
+          ? "rgba(113,113,122,0.07)"
           : g.valid
             ? g.source === "autofill"
-              ? "rgba(56,189,248,0.22)"
-              : "rgba(34,197,94,0.22)"
-            : "rgba(249,115,22,0.24)";
+              ? "rgba(56,189,248,0.11)"
+              : "rgba(34,197,94,0.1)"
+            : "rgba(249,115,22,0.12)";
         const stroke = g.excluded
-          ? "rgba(161,161,170,0.8)"
+          ? "rgba(161,161,170,0.42)"
           : g.valid
             ? g.source === "autofill"
-              ? "rgba(186,230,253,0.96)"
-              : "rgba(134,239,172,0.96)"
-            : "rgba(253,186,116,0.98)";
-        const labelBg = g.excluded
-          ? "rgba(63,63,70,0.9)"
-          : g.valid
-            ? "rgba(20,83,45,0.9)"
-            : "rgba(154,52,18,0.92)";
+              ? "rgba(186,230,253,0.62)"
+              : "rgba(134,239,172,0.58)"
+            : "rgba(253,186,116,0.68)";
         const dash = g.excluded ? "4 4" : g.valid ? undefined : "6 3";
         return (
           <g key={`pv3d-svg-ghost-${g.id}`}>
@@ -1855,45 +1796,20 @@ function PvLayout3dSvgOverlay({
               strokeDasharray={dash}
               vectorEffect="non-scaling-stroke"
             />
-            <g transform={`translate(${g.labelPoint.x.toFixed(1)} ${g.labelPoint.y.toFixed(1)})`} filter="url(#pv3d-label-shadow)">
-              <rect x={-20} y={-11} width={40} height={22} rx={6} fill={labelBg} stroke={stroke} strokeOpacity={0.68} />
-              <text x={0} y={4} textAnchor="middle" fontSize={11} fontWeight={800} fill="#ffffff">
-                {g.label}
-              </text>
-            </g>
           </g>
         );
       })}
-      {overlay.panels.filter((p) => p.invalid).map((p) => {
-        const c = screenPolygonCentroid(p.points);
-        return (
-          <g key={`pv3d-svg-invalid-${p.id}`}>
-            <polygon
-              points={polyPoints(p.points)}
-              fill="rgba(220,38,38,0.18)"
-              stroke="rgba(252,165,165,0.98)"
-              strokeWidth={2}
-              strokeDasharray="7 4"
-              vectorEffect="non-scaling-stroke"
-            />
-            <g transform={`translate(${c.x.toFixed(1)} ${c.y.toFixed(1)})`} filter="url(#pv3d-label-shadow)">
-              <rect x={-32} y={-12} width={64} height={24} rx={6} fill="rgba(127,29,29,0.92)" stroke="rgba(252,165,165,0.8)" />
-              <text x={0} y={4} textAnchor="middle" fontSize={11} fontWeight={800} fill="#fee2e2">
-                Invalide
-              </text>
-            </g>
-          </g>
-        );
-      })}
-      <g transform="translate(12 12)" filter="url(#pv3d-label-shadow)">
-        <rect width="220" height="76" rx="8" fill="rgba(15,23,42,0.84)" stroke="rgba(148,163,184,0.28)" />
-        <circle cx="16" cy="19" r="5" fill="rgba(34,197,94,0.9)" />
-        <text x="30" y="23" fontSize="11" fill="#dcfce7">Emplacement OK ({allowedGhostsCount})</text>
-        <circle cx="16" cy="39" r="5" fill="rgba(249,115,22,0.95)" />
-        <text x="30" y="43" fontSize="11" fill="#ffedd5">Pose refusée ({refusedGhostsCount})</text>
-        <circle cx="16" cy="59" r="5" fill="rgba(239,68,68,0.95)" />
-        <text x="30" y="63" fontSize="11" fill="#fee2e2">Zone interdite / panneau invalide ({invalidPanelsCount})</text>
-      </g>
+      {overlay.panels.filter((p) => p.invalid).map((p) => (
+        <polygon
+          key={`pv3d-svg-invalid-${p.id}`}
+          points={polyPoints(p.points)}
+          fill="rgba(220,38,38,0.07)"
+          stroke="rgba(252,165,165,0.64)"
+          strokeWidth={1.45}
+          strokeDasharray="7 5"
+          vectorEffect="non-scaling-stroke"
+        />
+      ))}
       {h ? (
         <g>
           <line
@@ -3186,24 +3102,11 @@ function ViewerSceneContent({
         </>
       )}
       {pvLayout3DInteractionMode &&
-        pv3dSafeZoneGeos.map(({ id, fill, line }) => (
+        pv3dSafeZoneGeos.map(({ id, line }) => (
           <group key={`pv3d-safe-${id}`}>
-            {fill ? (
-              <mesh geometry={fill} renderOrder={18}>
-                <meshBasicMaterial
-                  color={PV3D_SAFE_ZONE_FILL}
-                  transparent
-                  opacity={0.1}
-                  side={THREE.DoubleSide}
-                  depthWrite={false}
-                  depthTest
-                  toneMapped={false}
-                />
-              </mesh>
-            ) : null}
             {line ? (
               <lineSegments geometry={line} renderOrder={21}>
-                <lineBasicMaterial color={PV3D_SAFE_ZONE_LINE} transparent opacity={0.98} toneMapped={false} depthTest />
+                <lineBasicMaterial color={PV3D_SAFE_ZONE_LINE} transparent opacity={0.58} toneMapped={false} depthTest />
               </lineSegments>
             ) : null}
           </group>
@@ -3224,7 +3127,7 @@ function ViewerSceneContent({
                       : PV3D_GHOST_INVALID_FILL
                   }
                   transparent
-                  opacity={valid ? (excluded ? 0.14 : 0.34) : 0.3}
+                  opacity={valid ? (excluded ? 0.06 : 0.16) : 0.13}
                   side={THREE.DoubleSide}
                   depthWrite={false}
                   depthTest
@@ -3245,7 +3148,7 @@ function ViewerSceneContent({
                       : PV3D_GHOST_INVALID_LINE
                   }
                   transparent
-                  opacity={valid ? (excluded ? 0.7 : 0.96) : 0.98}
+                  opacity={valid ? (excluded ? 0.42 : 0.72) : 0.68}
                   toneMapped={false}
                   depthTest
                 />
