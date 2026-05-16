@@ -14,6 +14,7 @@ import type {
 } from "./premiumHouse3DSceneTypes";
 import { PREMIUM_HOUSE_3D_SCENE_ASSEMBLY_SCHEMA_ID } from "./premiumHouse3DSceneTypes";
 import type { PremiumHouse3DViewMode } from "./premiumHouse3DViewModes";
+import { SOLARNEXT_3D_PREMIUM_THEME } from "../viewerVisualTokens";
 
 export interface BuildPremiumHouse3DSceneInput {
   readonly scene: SolarScene3D;
@@ -172,15 +173,15 @@ export function buildPremiumHouse3DScene(input: BuildPremiumHouse3DSceneInput): 
           showSun: true,
         },
         materials: {
-          roof: { color: 0x4a5c6e, metalness: 0.18, roughness: 0.62 },
+          roof: { color: 0x566b7b, metalness: 0.16, roughness: 0.64 },
           obstacle: { color: 0x7d5e52, metalness: 0.08, roughness: 0.82, flatShading: false },
-          extension: { color: 0x4a6b3a, metalness: 0.06, roughness: 0.78, flatShading: false },
-          roofEdgeLine: { color: 0xd4b896, opacity: 0.92 },
-          structuralRidgeLine: { color: 0xf0e6d2, opacity: 0.95 },
+          extension: { color: 0x536f43, metalness: 0.06, roughness: 0.78, flatShading: false },
+          roofEdgeLine: { color: 0xdbc49a, opacity: 0.88 },
+          structuralRidgeLine: { color: 0xfff1d6, opacity: 0.92 },
         },
-        lighting: { ambientScale: 0.42, keyScale: 1.02, fillScale: 0.28, shadowMapSize: 2048 },
+        lighting: { ambientScale: 0.46, keyScale: 1.08, fillScale: 0.32, shadowMapSize: 2048 },
         framingMargin: 1.28,
-        backgroundHex: "#0f1218",
+        backgroundHex: SOLARNEXT_3D_PREMIUM_THEME.background,
         validation,
         pvBoost: {
           panelMetalness: 0.26,
@@ -199,15 +200,15 @@ export function buildPremiumHouse3DScene(input: BuildPremiumHouse3DSceneInput): 
           showSun: true,
         },
         materials: {
-          roof: { color: 0x556878, metalness: 0.12, roughness: 0.72 },
+          roof: { color: 0x5c7080, metalness: 0.1, roughness: 0.72 },
           obstacle: { color: 0x8b7355, metalness: 0.05, roughness: 0.88, flatShading: true },
           extension: { color: 0x5d7a45, metalness: 0.05, roughness: 0.86, flatShading: true },
-          roofEdgeLine: { color: 0xffb74d, opacity: 1 },
-          structuralRidgeLine: { color: 0xffe0b2, opacity: 1 },
+          roofEdgeLine: { color: 0xf0bd72, opacity: 0.96 },
+          structuralRidgeLine: { color: 0xffedd5, opacity: 0.96 },
         },
         lighting: { ambientScale: 0.48, keyScale: 1.05, fillScale: 0.32, shadowMapSize: 1024 },
         framingMargin: 1.22,
-        backgroundHex: "#0c0f14",
+        backgroundHex: "#0a1018",
         validation,
         pvBoost: {
           panelMetalness: 0.22,
@@ -226,15 +227,15 @@ export function buildPremiumHouse3DScene(input: BuildPremiumHouse3DSceneInput): 
           showSun: false,
         },
         materials: {
-          roof: { color: 0x5a6d7e, metalness: 0.1, roughness: 0.75 },
+          roof: { color: 0x5c7080, metalness: 0.09, roughness: 0.76 },
           obstacle: { color: 0x866a5e, metalness: 0.05, roughness: 0.9, flatShading: true },
           extension: { color: 0x567d40, metalness: 0.05, roughness: 0.88, flatShading: true },
-          roofEdgeLine: { color: 0xffcc80, opacity: 1 },
-          structuralRidgeLine: { color: 0xfff3e0, opacity: 0.98 },
+          roofEdgeLine: { color: 0xf0bd72, opacity: 0.95 },
+          structuralRidgeLine: { color: 0xfff1d6, opacity: 0.94 },
         },
         lighting: { ambientScale: 0.52, keyScale: 0.95, fillScale: 0.38, shadowMapSize: 1024 },
         framingMargin: 1.2,
-        backgroundHex: "#0a0d12",
+        backgroundHex: "#090f16",
         validation,
         pvBoost: {
           panelMetalness: 0.2,
@@ -253,15 +254,15 @@ export function buildPremiumHouse3DScene(input: BuildPremiumHouse3DSceneInput): 
           showSun: true,
         },
         materials: {
-          roof: { color: 0x455a68, metalness: 0.14, roughness: 0.68 },
+          roof: { color: 0x4d6475, metalness: 0.13, roughness: 0.68 },
           obstacle: { color: 0x6d5346, metalness: 0.06, roughness: 0.85, flatShading: false },
-          extension: { color: 0x3d5230, metalness: 0.06, roughness: 0.8, flatShading: false },
-          roofEdgeLine: { color: 0xc9b79a, opacity: 0.85 },
-          structuralRidgeLine: { color: 0xe8dcc8, opacity: 0.9 },
+          extension: { color: 0x48623a, metalness: 0.06, roughness: 0.8, flatShading: false },
+          roofEdgeLine: { color: 0xcdbd9f, opacity: 0.82 },
+          structuralRidgeLine: { color: 0xf3e7cf, opacity: 0.86 },
         },
         lighting: { ambientScale: 0.45, keyScale: 1.08, fillScale: 0.3, shadowMapSize: 2048 },
         framingMargin: 1.26,
-        backgroundHex: "#0e1117",
+        backgroundHex: SOLARNEXT_3D_PREMIUM_THEME.background,
         validation,
         pvBoost: {
           panelMetalness: 0.32,

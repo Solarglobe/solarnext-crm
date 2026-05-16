@@ -54,10 +54,10 @@ export const VIEWER_PLAN_ORBIT_MAX_POLAR = 0.42;
 export const VIEWER_ORBIT_MIN_AZIMUTH = -Infinity;
 export const VIEWER_ORBIT_MAX_AZIMUTH = Infinity;
 
-/** Lumières neutres (physiquement modestes — pas de look produit). */
-export const VIEWER_AMBIENT_INTENSITY = 0.36;
-export const VIEWER_KEY_LIGHT_INTENSITY = 0.88;
-export const VIEWER_FILL_LIGHT_INTENSITY = 0.22;
+/** Lumières sobres premium : relief net, ombres douces, sans look jeu vidéo. */
+export const VIEWER_AMBIENT_INTENSITY = 0.3;
+export const VIEWER_KEY_LIGHT_INTENSITY = 1.04;
+export const VIEWER_FILL_LIGHT_INTENSITY = 0.26;
 
 /** Ombre douce légère — map modeste pour éviter coût / artefacts excessifs. */
 export const VIEWER_SHADOW_MAP_SIZE = 1024;

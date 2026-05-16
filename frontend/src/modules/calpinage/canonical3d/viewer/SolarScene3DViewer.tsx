@@ -118,6 +118,7 @@ import {
 import {
   applyCanonicalViewerGlOutput,
   getViewerPanVertexSelectionMarkerGeometry,
+  SOLARNEXT_3D_PREMIUM_THEME,
   viewerFallbackGridProps,
   VIEWER_INSPECT_OUTLINE_HEX,
   VIEWER_OUTLINE_THICKNESS_FACTOR,
@@ -314,21 +315,21 @@ export interface SolarScene3DViewerProps {
 }
 
 const PREMIUM_PV_SURFACE_HEX = new THREE.Color("#111827").getHex();
-const PREMIUM_PV_EMISSIVE_HEX = new THREE.Color("#16243b").getHex();
-const PREMIUM_PV_CELL_LINE = "#cbd5e1";
-const PREMIUM_PV_SELECTED_FILL = "#27346a";
-const PREMIUM_PV_LIVE_FILL = "#172033";
-const PREMIUM_PV_INVALID_FILL = "#b91c1c";
-const PV3D_SAFE_ZONE_FILL = "#ef4444";
-const PV3D_SAFE_ZONE_LINE = "#f87171";
-const PV3D_GHOST_VALID_FILL = "#22c55e";
-const PV3D_GHOST_VALID_LINE = "#86efac";
-const PV3D_GHOST_AUTOFILL_FILL = "#38bdf8";
-const PV3D_GHOST_AUTOFILL_LINE = "#bae6fd";
-const PV3D_GHOST_EXCLUDED_FILL = "#a1a1aa";
-const PV3D_GHOST_EXCLUDED_LINE = "#71717a";
-const PV3D_GHOST_INVALID_FILL = "#f97316";
-const PV3D_GHOST_INVALID_LINE = "#fdba74";
+const PREMIUM_PV_EMISSIVE_HEX = new THREE.Color(SOLARNEXT_3D_PREMIUM_THEME.pv.liveEmissive).getHex();
+const PREMIUM_PV_CELL_LINE = SOLARNEXT_3D_PREMIUM_THEME.pv.cellLine;
+const PREMIUM_PV_SELECTED_FILL = SOLARNEXT_3D_PREMIUM_THEME.pv.selectedFill;
+const PREMIUM_PV_LIVE_FILL = SOLARNEXT_3D_PREMIUM_THEME.pv.liveFill;
+const PREMIUM_PV_INVALID_FILL = SOLARNEXT_3D_PREMIUM_THEME.pv.invalidFill;
+const PV3D_SAFE_ZONE_FILL = SOLARNEXT_3D_PREMIUM_THEME.safeZone.fill;
+const PV3D_SAFE_ZONE_LINE = SOLARNEXT_3D_PREMIUM_THEME.safeZone.line;
+const PV3D_GHOST_VALID_FILL = SOLARNEXT_3D_PREMIUM_THEME.ghost.validFill;
+const PV3D_GHOST_VALID_LINE = SOLARNEXT_3D_PREMIUM_THEME.ghost.validLine;
+const PV3D_GHOST_AUTOFILL_FILL = SOLARNEXT_3D_PREMIUM_THEME.ghost.autofillFill;
+const PV3D_GHOST_AUTOFILL_LINE = SOLARNEXT_3D_PREMIUM_THEME.ghost.autofillLine;
+const PV3D_GHOST_EXCLUDED_FILL = SOLARNEXT_3D_PREMIUM_THEME.ghost.excludedFill;
+const PV3D_GHOST_EXCLUDED_LINE = SOLARNEXT_3D_PREMIUM_THEME.ghost.excludedLine;
+const PV3D_GHOST_INVALID_FILL = SOLARNEXT_3D_PREMIUM_THEME.ghost.invalidFill;
+const PV3D_GHOST_INVALID_LINE = SOLARNEXT_3D_PREMIUM_THEME.ghost.invalidLine;
 
 function obstacleMaterialForVolume(vol: SolarScene3D["obstacleVolumes"][number], fallback: {
   readonly color: number;
@@ -2137,9 +2138,13 @@ function CanonicalViewerLights({
 
   return (
     <>
+      <hemisphereLight
+        args={[SOLARNEXT_3D_PREMIUM_THEME.lighting.skyColor, SOLARNEXT_3D_PREMIUM_THEME.lighting.groundColor]}
+        intensity={SOLARNEXT_3D_PREMIUM_THEME.lighting.hemisphereIntensity * ambientScale}
+      />
       <ambientLight intensity={VIEWER_AMBIENT_INTENSITY * ambientScale} />
       <directionalLight
-        position={[cx + m * 1.65, cy + m * 1.35, cz + m * 2.15]}
+        position={[cx + m * 1.8, cy + m * 1.2, cz + m * 2.45]}
         intensity={VIEWER_KEY_LIGHT_INTENSITY * keyScale}
         castShadow
         shadow-mapSize={[shadowMapSize, shadowMapSize]}
@@ -2147,7 +2152,7 @@ function CanonicalViewerLights({
         shadow-normalBias={VIEWER_SHADOW_NORMAL_BIAS}
       />
       <directionalLight
-        position={[cx - m * 1.25, cy - m * 0.95, cz + m * 0.55]}
+        position={[cx - m * 1.4, cy - m * 1.05, cz + m * 0.72]}
         intensity={VIEWER_FILL_LIGHT_INTENSITY * fillScale}
       />
     </>
@@ -2639,8 +2644,8 @@ function ViewerSceneContent({
             polygonOffset
             polygonOffsetFactor={1}
             polygonOffsetUnits={1}
-            emissive={shellInspectSelected ? "#4a3f6b" : "#000000"}
-            emissiveIntensity={shellInspectSelected ? 0.12 : 0}
+            emissive={shellInspectSelected ? SOLARNEXT_3D_PREMIUM_THEME.shell.selectedEmissive : "#000000"}
+            emissiveIntensity={shellInspectSelected ? 0.1 : 0}
           />
           {inspectMode && shellInspectSelected && (
             <Outlines
@@ -2658,8 +2663,12 @@ function ViewerSceneContent({
           const inspectPan = inspectMode && isInspectSelected(inspectionSelection, "PAN", sid);
           const pan3d = panSelection3DMode && isPanHittingPatchId(selectedHit, sid);
           const panHighlighted = inspectPan || pan3d;
-          const emissiveHex = inspectPan ? "#3d5a80" : pan3d ? "#6a4c9c" : "#000000";
-          const emissiveIntensity = panHighlighted ? (inspectPan ? 0.22 : 0.2) : 0;
+          const emissiveHex = inspectPan
+            ? SOLARNEXT_3D_PREMIUM_THEME.roof.selectedEmissive
+            : pan3d
+              ? SOLARNEXT_3D_PREMIUM_THEME.roof.panSelectionEmissive
+              : "#000000";
+          const emissiveIntensity = panHighlighted ? (inspectPan ? 0.18 : 0.16) : 0;
           const outlineHex = inspectPan ? VIEWER_INSPECT_OUTLINE_HEX.pan : VIEWER_INSPECT_OUTLINE_HEX.panSelection3d;
           return (
             <mesh
@@ -3126,8 +3135,8 @@ function ViewerSceneContent({
                     roughness={mExt.roughness}
                     flatShading={mExt.flatShading ?? false}
                     side={THREE.DoubleSide}
-                    emissive={sel ? "#33691e" : "#000000"}
-                    emissiveIntensity={sel ? 0.32 : 0}
+                    emissive={sel ? SOLARNEXT_3D_PREMIUM_THEME.extension.selectedEmissive : "#000000"}
+                    emissiveIntensity={sel ? 0.22 : 0}
                   />
                   {inspectMode && sel && (
                     <Outlines
@@ -3143,15 +3152,15 @@ function ViewerSceneContent({
                     <lineBasicMaterial
                       color={
                         line.role === "ridge"
-                          ? "#f8fafc"
+                          ? SOLARNEXT_3D_PREMIUM_THEME.extension.ridge
                           : line.role === "hip"
-                            ? "#bae6fd"
+                            ? SOLARNEXT_3D_PREMIUM_THEME.extension.hip
                             : line.role === "support_seam"
-                              ? "#f59e0b"
-                              : "#cbd5e1"
+                              ? SOLARNEXT_3D_PREMIUM_THEME.extension.supportSeam
+                              : SOLARNEXT_3D_PREMIUM_THEME.extension.eave
                       }
                       transparent
-                      opacity={line.role === "support_seam" ? 0.7 : 0.88}
+                      opacity={line.role === "support_seam" ? 0.68 : 0.82}
                       toneMapped={false}
                       depthTest
                     />
@@ -3251,8 +3260,14 @@ function ViewerSceneContent({
               <mesh geometry={fill} renderOrder={30}>
                 <meshStandardMaterial
                   color={invalid ? PREMIUM_PV_INVALID_FILL : selected ? PREMIUM_PV_SELECTED_FILL : PREMIUM_PV_LIVE_FILL}
-                  emissive={invalid ? "#ef4444" : selected ? "#5865d9" : "#16243b"}
-                  emissiveIntensity={invalid ? 0.42 : selected ? 0.22 : 0.1}
+                  emissive={
+                    invalid
+                      ? SOLARNEXT_3D_PREMIUM_THEME.pv.invalidEmissive
+                      : selected
+                        ? SOLARNEXT_3D_PREMIUM_THEME.pv.selectedEmissive
+                        : SOLARNEXT_3D_PREMIUM_THEME.pv.liveEmissive
+                  }
+                  emissiveIntensity={invalid ? 0.34 : selected ? 0.18 : 0.08}
                   metalness={pvB.panelMetalness}
                   roughness={pvB.panelRoughness}
                   transparent={enabled === false}
@@ -3279,7 +3294,7 @@ function ViewerSceneContent({
             {line ? (
               <lineSegments geometry={line} renderOrder={31}>
                 <lineBasicMaterial
-                  color={invalid ? "#fecaca" : "#7c8cff"}
+                  color={invalid ? SOLARNEXT_3D_PREMIUM_THEME.pv.invalidLine : SOLARNEXT_3D_PREMIUM_THEME.pv.selectedLine}
                   transparent
                   opacity={invalid ? 0.98 : 0.88}
                   toneMapped={false}
@@ -3301,15 +3316,15 @@ function ViewerSceneContent({
             pv3dInvalid ? (
               <Outlines
                 thickness={outlineThickness * 1.35}
-                color="#f59e0b"
-                opacity={0.96}
+                color={SOLARNEXT_3D_PREMIUM_THEME.selection.pvInvalid}
+                opacity={0.9}
                 toneMapped={false}
               />
             ) : pv3dSelected ? (
               <Outlines
                 thickness={outlineThickness * 1.25}
-                color="#6366f1"
-                opacity={0.95}
+                color={SOLARNEXT_3D_PREMIUM_THEME.pv.selectedLine}
+                opacity={0.9}
                 toneMapped={false}
               />
             ) : pvB.outlinePanelsWhenNotInspecting && !inspectMode ? (
@@ -3351,9 +3366,15 @@ function ViewerSceneContent({
               }}
             >
               <meshStandardMaterial
-                color={pv3dInvalid ? "#d97706" : mat.color}
-                emissive={pv3dInvalid ? "#f59e0b" : pv3dSelected ? "#6366f1" : mat.emissive}
-                emissiveIntensity={pv3dInvalid ? 0.34 : pv3dSelected ? mat.emissiveIntensity + 0.22 : mat.emissiveIntensity}
+                color={pv3dInvalid ? SOLARNEXT_3D_PREMIUM_THEME.pv.invalidFill : mat.color}
+                emissive={
+                  pv3dInvalid
+                    ? SOLARNEXT_3D_PREMIUM_THEME.pv.invalidEmissive
+                    : pv3dSelected
+                      ? SOLARNEXT_3D_PREMIUM_THEME.pv.selectedEmissive
+                      : mat.emissive
+                }
+                emissiveIntensity={pv3dInvalid ? 0.28 : pv3dSelected ? mat.emissiveIntensity + 0.16 : mat.emissiveIntensity}
                 metalness={pvB.panelMetalness}
                 roughness={pvB.panelRoughness}
                 side={THREE.DoubleSide}
