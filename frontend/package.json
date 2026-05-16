@@ -30,6 +30,8 @@
     "test:stress": "playwright test -g \"STRESS\"",
     "test:provider": "playwright test -g \"PROVIDER-STRESS\"",
     "test:exportjson": "playwright test -g \"EXPORT-JSON\"",
+    "test:visual:calpinage": "playwright test -c playwright.visual.config.ts",
+    "test:visual:calpinage:update": "playwright test -c playwright.visual.config.ts --update-snapshots",
     "check:calpinage:lock": "node scripts/check-calpinage-lock.js",
     "qa:calpinage:v1": "npm run check:calpinage:lock && npm run test:stability && npm run test:stress && npm run test:provider && npm run test:exportjson && npm run test:performance",
     "test:calpinage-final-json": "vitest run src/modules/calpinage/__tests__/calpinage-final-json-validate.test.js src/modules/calpinage/__tests__/calpinage-json-reload-integrity.test.js",

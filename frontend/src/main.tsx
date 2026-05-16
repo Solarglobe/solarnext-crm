@@ -49,6 +49,7 @@ import OrganizationUsersPage from "./pages/organization/OrganizationUsersPage";
 import OrganizationStructurePage from "./pages/organization/OrganizationStructurePage";
 import OrganizationCatalogPage from "./pages/organization/OrganizationCatalogPage";
 import SolarScene3DDebugPage from "./pages/dev/SolarScene3DDebugPage";
+import CalpinageVisualQaPage from "./modules/calpinage/canonical3d/dev/CalpinageVisualQaPage";
 import Dev3DPage from "./modules/calpinage/canonical3d/dev/Dev3DPage";
 import ClientPortalPage from "./pages/ClientPortalPage";
 import RouterNotFoundPage from "./pages/RouterNotFoundPage";
@@ -93,6 +94,10 @@ const router = createBrowserRouter(
     {
       path: "/dev/3d",
       element: import.meta.env.DEV ? <Dev3DPage /> : <Navigate to="/" replace />
+    },
+    {
+      path: "/dev/calpinage-visual-qa",
+      element: import.meta.env.DEV ? <CalpinageVisualQaPage /> : <Navigate to="/" replace />
     },
     {
       path: "/",

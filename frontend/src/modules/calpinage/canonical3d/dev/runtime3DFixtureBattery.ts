@@ -808,6 +808,328 @@ const denseLoadedCase: Runtime3DFixtureBundle = {
   ],
 };
 
+const visualQaSimpleHouse: Runtime3DFixtureBundle = {
+  id: "visual_qa_simple_house",
+  title: "QA visuelle - maison simple",
+  description: "Maison simple deux pans, panneaux et cheminee : baseline visuelle rapide desktop/mobile.",
+  runtime: {
+    roof: {
+      ...roofBase(8),
+      roofPans: [
+        {
+          id: "qa-simple-west",
+          polygonPx: [
+            { x: 120, y: 120 },
+            { x: 260, y: 120 },
+            { x: 260, y: 300 },
+            { x: 120, y: 300 },
+          ],
+          h: 5.25,
+        },
+        {
+          id: "qa-simple-east",
+          polygonPx: [
+            { x: 260, y: 120 },
+            { x: 430, y: 120 },
+            { x: 430, y: 300 },
+            { x: 260, y: 300 },
+          ],
+          h: 5.25,
+        },
+      ],
+    },
+    ridges: [{ id: "qa-simple-ridge", a: { x: 260, y: 120 }, b: { x: 260, y: 300 } }],
+    contours: [
+      {
+        roofRole: "contour",
+        points: [
+          { x: 120, y: 120, h: 5.25 },
+          { x: 260, y: 120, h: 5.25 },
+          { x: 260, y: 300, h: 5.25 },
+          { x: 120, y: 300, h: 5.25 },
+        ],
+      },
+      {
+        roofRole: "contour",
+        points: [
+          { x: 260, y: 120, h: 5.25 },
+          { x: 430, y: 120, h: 5.25 },
+          { x: 430, y: 300, h: 5.25 },
+          { x: 260, y: 300, h: 5.25 },
+        ],
+      },
+    ],
+    obstacles: [
+      {
+        id: "qa-simple-chimney",
+        type: "polygon",
+        panId: "qa-simple-east",
+        heightM: 1.25,
+        points: [
+          { x: 330, y: 170 },
+          { x: 360, y: 170 },
+          { x: 360, y: 205 },
+          { x: 330, y: 205 },
+        ],
+        meta: { businessObstacleId: "chimney_square" },
+      },
+    ],
+    shading: {
+      computedAt: "2026-05-16T10:00:00.000Z",
+      perPanel: [
+        { panelId: "qa-simple-pv-1", lossPct: 3.2 },
+        { panelId: "qa-simple-pv-2", lossPct: 4.6 },
+        { panelId: "qa-simple-pv-3", lossPct: 6.4 },
+        { panelId: "qa-simple-pv-4", lossPct: 5.1 },
+      ],
+    },
+  },
+  panels: [
+    makeSyntheticPanel("qa-simple-pv-1", "qa-simple-west", 170, 175, 12),
+    makeSyntheticPanel("qa-simple-pv-2", "qa-simple-west", 210, 235, 12),
+    makeSyntheticPanel("qa-simple-pv-3", "qa-simple-east", 310, 245, 12),
+    makeSyntheticPanel("qa-simple-pv-4", "qa-simple-east", 385, 235, 12),
+  ],
+};
+
+const visualQaPremiumComplex: Runtime3DFixtureBundle = {
+  id: "visual_qa_premium_complex",
+  title: "QA visuelle - premium complex",
+  description:
+    "Multi-pans, cheminee carree/ronde, Velux, VMC, antenne, keepout, ombre arbre, evacuation et chien assis.",
+  runtime: {
+    roof: {
+      ...roofBase(-6),
+      roofPans: [
+        {
+          id: "qa-main-left",
+          polygonPx: [
+            { x: 240, y: 340 },
+            { x: 460, y: 340 },
+            { x: 460, y: 520 },
+            { x: 240, y: 520 },
+          ],
+          h: 5.35,
+        },
+        {
+          id: "qa-main-right",
+          polygonPx: [
+            { x: 460, y: 340 },
+            { x: 700, y: 340 },
+            { x: 700, y: 520 },
+            { x: 460, y: 520 },
+          ],
+          h: 5.32,
+        },
+        {
+          id: "qa-upper",
+          polygonPx: [
+            { x: 340, y: 170 },
+            { x: 580, y: 170 },
+            { x: 580, y: 340 },
+            { x: 340, y: 340 },
+          ],
+          h: 5.55,
+        },
+      ],
+    },
+    ridges: [
+      { id: "qa-ridge-main", a: { x: 460, y: 340 }, b: { x: 460, y: 520 } },
+      { id: "qa-ridge-upper", a: { x: 340, y: 340 }, b: { x: 580, y: 340 } },
+    ],
+    traits: [{ id: "qa-valley", a: { x: 380, y: 300 }, b: { x: 520, y: 380 } }],
+    contours: [
+      {
+        roofRole: "contour",
+        points: [
+          { x: 240, y: 340, h: 5.35 },
+          { x: 460, y: 340, h: 5.35 },
+          { x: 460, y: 520, h: 5.35 },
+          { x: 240, y: 520, h: 5.35 },
+        ],
+      },
+      {
+        roofRole: "contour",
+        points: [
+          { x: 460, y: 340, h: 5.32 },
+          { x: 700, y: 340, h: 5.32 },
+          { x: 700, y: 520, h: 5.32 },
+          { x: 460, y: 520, h: 5.32 },
+        ],
+      },
+      {
+        roofRole: "contour",
+        points: [
+          { x: 340, y: 170, h: 5.55 },
+          { x: 580, y: 170, h: 5.55 },
+          { x: 580, y: 340, h: 5.55 },
+          { x: 340, y: 340, h: 5.55 },
+        ],
+      },
+    ],
+    roofExtensions: [
+      {
+        id: "qa-dormer-1",
+        type: "roof_extension",
+        kind: "chien_assis",
+        stage: "COMPLETE",
+        visualModel: "manual_outline_gable",
+        supportPanId: "qa-main-right",
+        contour: {
+          closed: true,
+          points: [
+            { x: 520, y: 385, h: 0 },
+            { x: 610, y: 385, h: 0 },
+            { x: 610, y: 465, h: 0 },
+            { x: 520, y: 465, h: 0 },
+          ],
+        },
+        ridge: {
+          a: { x: 565, y: 465, h: 1.05 },
+          b: { x: 565, y: 395, h: 1.05 },
+        },
+        hips: {
+          left: { a: { x: 520, y: 385, h: 0 }, b: { x: 590, y: 425, h: 1.05 } },
+          right: { a: { x: 610, y: 385, h: 0 }, b: { x: 590, y: 425, h: 1.05 } },
+        },
+        apexVertex: { id: "qa-dormer-1:apex", x: 590, y: 425, h: 1.05 },
+        ridgeHeightRelM: 1.05,
+      },
+    ],
+    obstacles: [
+      {
+        id: "qa-chimney-square",
+        type: "polygon",
+        panId: "qa-main-left",
+        heightM: 1.35,
+        points: [
+          { x: 300, y: 405 },
+          { x: 332, y: 405 },
+          { x: 332, y: 445 },
+          { x: 300, y: 445 },
+        ],
+        meta: { businessObstacleId: "chimney_square" },
+      },
+      {
+        id: "qa-chimney-round",
+        type: "polygon",
+        panId: "qa-upper",
+        heightM: 1.55,
+        points: [
+          { x: 488, y: 228 },
+          { x: 510, y: 228 },
+          { x: 518, y: 246 },
+          { x: 510, y: 264 },
+          { x: 488, y: 264 },
+          { x: 480, y: 246 },
+        ],
+        meta: { businessObstacleId: "chimney_round" },
+      },
+      {
+        id: "qa-vmc",
+        type: "polygon",
+        panId: "qa-main-right",
+        heightM: 0.35,
+        points: [
+          { x: 652, y: 402 },
+          { x: 670, y: 402 },
+          { x: 670, y: 420 },
+          { x: 652, y: 420 },
+        ],
+        meta: { businessObstacleId: "vmc_round" },
+      },
+      {
+        id: "qa-antenna",
+        type: "polygon",
+        panId: "qa-upper",
+        heightM: 1.45,
+        points: [
+          { x: 405, y: 210 },
+          { x: 417, y: 210 },
+          { x: 417, y: 222 },
+          { x: 405, y: 222 },
+        ],
+        meta: { businessObstacleId: "antenna" },
+      },
+      {
+        id: "qa-velux",
+        type: "polygon",
+        panId: "qa-upper",
+        heightM: 0.08,
+        points: [
+          { x: 430, y: 270 },
+          { x: 490, y: 270 },
+          { x: 490, y: 315 },
+          { x: 430, y: 315 },
+        ],
+        meta: { businessObstacleId: "roof_window" },
+      },
+      {
+        id: "qa-keepout",
+        type: "polygon",
+        panId: "qa-main-left",
+        heightM: 0.02,
+        points: [
+          { x: 355, y: 455 },
+          { x: 430, y: 455 },
+          { x: 430, y: 505 },
+          { x: 355, y: 505 },
+        ],
+        meta: { businessObstacleId: "keepout_zone" },
+      },
+      {
+        id: "qa-drain",
+        type: "polygon",
+        panId: "qa-main-right",
+        heightM: 0.12,
+        points: [
+          { x: 675, y: 485 },
+          { x: 690, y: 485 },
+          { x: 690, y: 500 },
+          { x: 675, y: 500 },
+        ],
+        meta: { businessObstacleId: "roof_drain" },
+      },
+    ],
+    shadowVolumes: [
+      {
+        id: "qa-tree-shadow",
+        type: "polygon",
+        panId: "qa-main-right",
+        heightM: 4.5,
+        points: [
+          { x: 715, y: 385 },
+          { x: 790, y: 385 },
+          { x: 810, y: 465 },
+          { x: 735, y: 505 },
+        ],
+        meta: { businessObstacleId: "tree_shadow" },
+      },
+    ],
+    shading: {
+      computedAt: "2026-05-16T11:00:00.000Z",
+      perPanel: Array.from({ length: 12 }, (_, i) => ({
+        panelId: `qa-premium-pv-${String(i + 1).padStart(2, "0")}`,
+        lossPct: [3.5, 4.2, 5.8, 7.1, 11.4, 8.6, 6.2, 5.4, 9.8, 12.2, 7.7, 4.9][i]!,
+      })),
+    },
+  },
+  panels: [
+    makeSyntheticPanel("qa-premium-pv-01", "qa-main-left", 275, 375, 10),
+    makeSyntheticPanel("qa-premium-pv-02", "qa-main-left", 350, 375, 10),
+    makeSyntheticPanel("qa-premium-pv-03", "qa-main-left", 420, 390, 10),
+    makeSyntheticPanel("qa-premium-pv-04", "qa-main-left", 300, 485, 10),
+    makeSyntheticPanel("qa-premium-pv-05", "qa-main-right", 500, 365, 10),
+    makeSyntheticPanel("qa-premium-pv-06", "qa-main-right", 645, 455, 10),
+    makeSyntheticPanel("qa-premium-pv-07", "qa-main-right", 675, 455, 10),
+    makeSyntheticPanel("qa-premium-pv-08", "qa-upper", 370, 225, 10),
+    makeSyntheticPanel("qa-premium-pv-09", "qa-upper", 455, 225, 10),
+    makeSyntheticPanel("qa-premium-pv-10", "qa-upper", 535, 225, 10),
+    makeSyntheticPanel("qa-premium-pv-11", "qa-upper", 370, 305, 10),
+    makeSyntheticPanel("qa-premium-pv-12", "qa-upper", 535, 305, 10),
+  ],
+};
+
 /**
  * Duplique `roof.roofPans` → racine `pans` si absent — aligné sur `CALPINAGE_STATE.pans` en produit.
  * Les fixtures historiques ne portaient que le miroir.
@@ -826,6 +1148,8 @@ export function runtimeFixtureWithStrictRootPans(runtime: Record<string, unknown
 
 /** Point d’entrée unique : clé → bundle (ordre stable pour docs / tests). */
 export const RUNTIME_3D_FIXTURE_BATTERY: Readonly<Record<string, Runtime3DFixtureBundle>> = {
+  [visualQaSimpleHouse.id]: visualQaSimpleHouse,
+  [visualQaPremiumComplex.id]: visualQaPremiumComplex,
   [simpleGableClean.id]: simpleGableClean,
   [gableWithChimney.id]: gableWithChimney,
   [multiPanComplex.id]: multiPanComplex,
@@ -840,6 +1164,8 @@ export const RUNTIME_3D_FIXTURE_BATTERY: Readonly<Record<string, Runtime3DFixtur
 
 /** Ordre stable : familles officielles d’abord, puis ids legacy. */
 export const RUNTIME_3D_FIXTURE_KEYS = [
+  visualQaSimpleHouse.id,
+  visualQaPremiumComplex.id,
   ...RUNTIME_3D_OFFICIAL_FAMILY_FIXTURE_IDS,
   monoPanNominal.id,
   dualPanRidge.id,
