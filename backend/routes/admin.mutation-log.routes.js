@@ -17,7 +17,7 @@ import express from "express";
 import { verifyJWT } from "../middleware/auth.middleware.js";
 import { requirePermission } from "../rbac/rbac.middleware.js";
 import { getMutationLog } from "../services/mutationLog.service.js";
-import { effectiveSuperAdminRequestBypass } from "../middleware/superAdminBypass.middleware.js";
+import { effectiveSuperAdminRequestBypass } from "../lib/superAdminUserGuards.js";
 
 const router = express.Router();
 const orgId = (req) => req.user.organizationId ?? req.user.organization_id;
