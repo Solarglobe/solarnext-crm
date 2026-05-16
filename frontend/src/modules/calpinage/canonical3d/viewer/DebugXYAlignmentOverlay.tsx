@@ -5,7 +5,7 @@
  * - **CYAN** : **emprise officielle du shell** (`resolveOfficialShellFootprintRingWorld`) — contour bâti uniquement ; absent si pas de contour.
  */
 
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import * as THREE from "three";
 import type { SolarScene3D } from "../types/solarScene3d";
 import { imagePxToWorldHorizontalM } from "../builder/worldMapping";
@@ -183,7 +183,9 @@ export function DebugXYAlignmentOverlay({ scene, zLevel, runtime }: Props) {
               : "DIVERGENCE ROUGE vs VERT — le mesh ne correspond pas au roofPans lu",
     };
 
-    console.warn("[XY OVERLAY — CAS RÉEL]", verdictObj);
+    if (import.meta.env.DEV) {
+      console.warn("[XY OVERLAY — CAS RÉEL]", verdictObj);
+    }
 
     return {
       redGeo: rGeo,
@@ -191,6 +193,14 @@ export function DebugXYAlignmentOverlay({ scene, zLevel, runtime }: Props) {
       cyanGeo: cGeo,
     };
   }, [scene, mpp, north, zLevel, runtime]);
+
+  useEffect(() => {
+    return () => {
+      redGeo?.dispose();
+      greenGeo?.dispose();
+      cyanGeo?.dispose();
+    };
+  }, [redGeo, greenGeo, cyanGeo]);
 
   if (!redGeo || !greenGeo) {
     return null;
