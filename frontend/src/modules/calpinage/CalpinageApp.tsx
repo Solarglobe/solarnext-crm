@@ -20,6 +20,7 @@ import { getCrmApiBase } from "@/config/crmApiBase";
 import { ConfirmProvider } from "./ui/ConfirmProvider";
 import { ToastProvider } from "./ui/ToastProvider";
 import { KonvaOverlay, isKonvaOverlayEnabled } from "./konva";
+import { useNearShadingDivergence } from "./hooks/useNearShadingDivergence";
 
 const DEV = typeof import.meta !== "undefined" && import.meta.env?.DEV;
 
@@ -124,6 +125,19 @@ export default function CalpinageApp({
     return () => window.removeEventListener("calpinage:3d-degraded", handler);
   }, []);
 
+  /** Écoute l'event calpinage:near-shading-divergence émis par useNearShadingDivergence. */
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<{ canonical: number; backend: number; delta: number }>).detail;
+      if (detail) setNearShadingDivergence(detail);
+    };
+    window.addEventListener("calpinage:near-shading-divergence", handler);
+    return () => window.removeEventListener("calpinage:near-shading-divergence", handler);
+  }, []);
+
+  /** Détection divergence near shading canonical vs backend. */
+  useNearShadingDivergence();
+
   /** Parité UI ↔ serveur : lecture seule, appelable depuis la console ou un POST /calc avec body JSON. */
   useEffect(() => {
     const w = window as Window & {
@@ -147,6 +161,16 @@ export default function CalpinageApp({
    * Émis par officialSolarScene3DGateway via CustomEvent "calpinage:3d-degraded".
    */
   const [degraded3DReason, setDegraded3DReason] = useState<string | null>(null);
+  /**
+   * Banner non-bloquant affiché quand le near shading canonical TS diverge du near backend.
+   * Émis par useNearShadingDivergence via CustomEvent "calpinage:near-shading-divergence".
+   * Mutuellement exclusif avec degraded3DReason (si 3D échoue, canonical ne tourne pas).
+   */
+  const [nearShadingDivergence, setNearShadingDivergence] = useState<{
+    canonical: number;
+    backend: number;
+    delta: number;
+  } | null>(null);
 
   const runInit = useCallback(async (isRetry = false) => {
     if (initInFlightRef.current) {
@@ -306,6 +330,57 @@ export default function CalpinageApp({
             type="button"
             aria-label="Fermer l'alerte reconstruction 3D"
             onClick={() => setDegraded3DReason(null)}
+            style={{
+              marginLeft: 8,
+              background: "none",
+              border: "none",
+              color: "#fef3c7",
+              cursor: "pointer",
+              fontSize: 16,
+              lineHeight: 1,
+              padding: 0,
+            }}
+          >
+            ×
+          </button>
+        </div>
+      )}
+
+      {/* Banner near shading divergence — non-bloquant, avertissement uniquement */}
+      {nearShadingDivergence != null && (
+        <div
+          role="alert"
+          style={{
+            position: "absolute",
+            top: 12,
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 30,
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            padding: "10px 16px",
+            borderRadius: "var(--sg-radius-md, 8px)",
+            background: "#713f12",
+            border: "1px solid #d97706",
+            color: "#fef3c7",
+            fontSize: 13,
+            fontWeight: 500,
+            boxShadow: "0 4px 16px rgba(0,0,0,0.5)",
+            maxWidth: "calc(100% - 48px)",
+          }}
+        >
+          <span aria-hidden="true" style={{ fontSize: 16 }}>⚠️</span>
+          <span>
+            Near shading UI diverge du calcul backend
+            {DEV
+              ? ` — Δ${(nearShadingDivergence.delta * 100).toFixed(1)}% (UI: ${(nearShadingDivergence.canonical * 100).toFixed(1)}%, backend: ${(nearShadingDivergence.backend * 100).toFixed(1)}%)`
+              : ""}
+          </span>
+          <button
+            type="button"
+            aria-label="Fermer l'alerte divergence near shading"
+            onClick={() => setNearShadingDivergence(null)}
             style={{
               marginLeft: 8,
               background: "none",
