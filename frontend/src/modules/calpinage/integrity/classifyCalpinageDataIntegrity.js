@@ -234,10 +234,11 @@ function classifyShading(data, gpsStatus) {
     (shading.far && shading.far.source === "UNAVAILABLE_NO_GPS");
   if (gpsBlockedInShading) return "UNTRUSTED";
 
-  // Meta V1 disponible : shading explicitement invalidé
+  // Meta V1 ou V2 disponible : shading explicitement invalidé
   const meta = data.calpinage_meta;
   const hasValidMeta =
-    meta && typeof meta === "object" && meta.version === "CALPINAGE_V1";
+    meta && typeof meta === "object" &&
+    ["CALPINAGE_V1", "CALPINAGE_V2"].includes(meta.version);
   if (hasValidMeta && meta.shadingValid === false) return "STALE";
 
   // Vérifier computedAt (depuis shading.computedAt ou meta.shadingComputedAt)
@@ -357,7 +358,7 @@ export function classifyCalpinageDataIntegrity(data) {
     const hasMeta =
       data.calpinage_meta != null &&
       typeof data.calpinage_meta === "object" &&
-      data.calpinage_meta.version === "CALPINAGE_V1";
+      ["CALPINAGE_V1", "CALPINAGE_V2"].includes(data.calpinage_meta.version);
 
     const gpsStatus = classifyGps(roofState);
     const geometryStatus = classifyGeometry(roofState);

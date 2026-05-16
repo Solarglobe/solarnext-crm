@@ -588,6 +588,63 @@ describe("Cas 10 — Dossier incohérent mais toléré en lecture", () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Cas 11 — CALPINAGE_V2 (régression couverte par fix hasMeta + hasValidMeta)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("Cas 11 — CALPINAGE_V2", () => {
+  /** Fixture V2 : même structure que V1, version bumped. */
+  function freshMetaV2(shading) {
+    return {
+      version: "CALPINAGE_V2",
+      savedAt: "2026-05-01T10:00:00.000Z",
+      geometryHash: "aaaaaaaa",
+      panelsHash: "bbbbbbbb",
+      shadingHash: "cccccccc",
+      shadingComputedAt: shading ? shading.computedAt : null,
+      shadingSource: shading ? "recomputed" : "none",
+      shadingValid: !!shading,
+    };
+  }
+
+  it("document V2 valide → dataLevel !== LEGACY", () => {
+    // Avant le fix, hasMeta était false pour V2 → dataLevel forcé à LEGACY.
+    const shading = freshShading();
+    const data = {
+      roofState: freshRoofState(),
+      frozenBlocks: freshFrozenBlocks(),
+      shading,
+      calpinage_meta: freshMetaV2(shading),
+    };
+    const result = classifyCalpinageDataIntegrity(data);
+
+    expect(result.dataLevel).not.toBe("LEGACY");
+    expect(result.dataLevel).toBe("COMPLETE");
+    expect(result.shadingStatus).toBe("OK");
+    expect(result.canTrustForDisplay).toBe(true);
+    expect(result.canTrustForShading).toBe(true);
+    expect(result.reason).toBe("OK");
+  });
+
+  it("document V2 avec shadingValid=false → shadingStatus STALE détecté", () => {
+    // Avant le fix, hasValidMeta était false pour V2 → shadingValid=false ignoré
+    // → shadingStatus restait OK malgré un shading invalidé → shading_stale non signalé.
+    const shading = freshShading();
+    const meta = { ...freshMetaV2(shading), shadingValid: false };
+    const data = {
+      roofState: freshRoofState(),
+      frozenBlocks: freshFrozenBlocks(),
+      shading,
+      calpinage_meta: meta,
+    };
+    const result = classifyCalpinageDataIntegrity(data);
+
+    expect(result.shadingStatus).toBe("STALE");
+    expect(result.canTrustForShading).toBe(false);
+    expect(result.reason).toContain("shading_stale");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Règles fondamentales transversales
 // ─────────────────────────────────────────────────────────────────────────────
 
