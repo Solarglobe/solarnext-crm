@@ -20,6 +20,7 @@ import {
   uploadFile as localStorageUpload,
   getAbsolutePath
 } from "../services/localStorage.service.js";
+import { verifyDocumentIntegrity } from "../services/documentIntegrity.service.js";
 import { deleteDocument, listOrganizationDocuments, patchEntityDocument } from "../services/documents.service.js";
 import { deleteFile as localStorageDelete } from "../services/localStorage.service.js";
 import { archiveEntity, restoreEntity } from "../services/archive.service.js";
@@ -161,7 +162,7 @@ router.get(
       const { id } = req.params;
 
       const doc = await pool.query(
-        `SELECT id, storage_key, file_name, organization_id, mime_type FROM entity_documents WHERE id = $1 AND (archived_at IS NULL)`,
+        `SELECT id, storage_key, file_name, organization_id, mime_type, file_hash FROM entity_documents WHERE id = $1 AND (archived_at IS NULL)`,
         [id]
       );
 
@@ -193,6 +194,22 @@ router.get(
           organizationId: org,
         });
         return res.status(404).json({ error: "Fichier non trouvé sur le disque" });
+      }
+
+      // Vérification d'intégrité SHA-256 (ignorée si file_hash absent = document antérieur à la feature)
+      const integrityCheck = verifyDocumentIntegrity(filePath, doc.rows[0].file_hash);
+      if (!integrityCheck.ok && integrityCheck.reason === "HASH_MISMATCH") {
+        logger.error("DOCUMENT_INTEGRITY_FAILURE", {
+          documentId: id,
+          storageKey,
+          organizationId: org,
+          expected: integrityCheck.expected,
+          actual: integrityCheck.actual,
+        });
+        return res.status(409).json({
+          error: "Intégrité du document compromise — le fichier a été modifié depuis sa génération. Contactez votre administrateur.",
+          code: "FILE_INTEGRITY_ERROR",
+        });
       }
 
       res.setHeader("Content-Type", mimeType);

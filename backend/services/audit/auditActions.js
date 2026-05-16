@@ -73,6 +73,8 @@ export const AuditActions = {
 
   /** Suppression définitive facture (DELETE HTTP, hors factures acompte/solde workflow) */
   INVOICE_DELETED: "INVOICE_DELETED",
+  /** PDF facture généré et persisté dans entity_documents */
+  INVOICE_PDF_GENERATED: "INVOICE_PDF_GENERATED",
 
   /** CP-075 — RGPD */
   RGPD_EXPORT_REQUESTED: "RGPD_EXPORT_REQUESTED",

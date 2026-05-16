@@ -16,6 +16,9 @@ import { assertOrgOwnership } from "./security/assertOrgOwnership.js";
 import { getDpPdfFileName, normalizeDpPieceKey } from "../constants/dpPdfFileNames.js";
 import { SIGNATURE_READ_ACCEPTANCE_LABEL_FR } from "../constants/signatureReadAcceptance.js";
 import { buildQuoteSignedPdfFileName, buildQuoteUnsignedPdfFileName, normalizeClientName } from "./quotePdfStorageName.js";
+import { computeFileHash } from "./documentIntegrity.service.js";
+import { logAuditEvent } from "./audit/auditLog.service.js";
+import { AuditActions } from "./audit/auditActions.js";
 
 /** Slugs fichier par scénario pour les propositions commerciales */
 const SCENARIO_FILE_SLUGS = {
@@ -216,6 +219,9 @@ export async function saveQuoteSignedPdfDocument(pdfBuffer, organizationId, quot
   } else {
     fileName = buildQuoteSignedPdfFileName(opts.quoteNumber, quoteId, opts.quotePdfClientSlug ?? null);
   }
+  const fileHash = computeFileHash(pdfBuffer);
+  const snapshotChecksum = opts.snapshotChecksum ?? opts.metadata?.snapshot_checksum ?? null;
+
   const { storage_path } = await localStorageUpload(pdfBuffer, organizationId, "quote", quoteId, fileName);
   const metadata =
     opts.metadata && typeof opts.metadata === "object" && !Array.isArray(opts.metadata) ? opts.metadata : {};
@@ -226,8 +232,9 @@ export async function saveQuoteSignedPdfDocument(pdfBuffer, organizationId, quot
   const ins = await pool.query(
     `INSERT INTO entity_documents
      (organization_id, entity_type, entity_id, file_name, file_size, mime_type, storage_key, url, uploaded_by, document_type, metadata_json,
-      document_category, source_type, is_client_visible, display_name, description)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12, $13, $14, $15, $16)
+      document_category, source_type, is_client_visible, display_name, description,
+      file_hash, snapshot_checksum_at_generation)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12, $13, $14, $15, $16, $17, $18)
      RETURNING id, file_name, storage_key`,
     [
       organizationId,
@@ -246,6 +253,8 @@ export async function saveQuoteSignedPdfDocument(pdfBuffer, organizationId, quot
       bm.is_client_visible,
       bm.display_name,
       bm.description,
+      fileHash,
+      snapshotChecksum,
     ]
   );
   return ins.rows[0];
@@ -368,6 +377,8 @@ export async function saveStudyPdfDocument(pdfBuffer, organizationId, studyId, v
     fileName = `solarnext-study-${studyId}-v${versionId}-${timestamp}-${suffix}.pdf`;
   }
 
+  const fileHash = computeFileHash(pdfBuffer);
+
   const { storage_path } = await localStorageUpload(
     pdfBuffer,
     organizationId,
@@ -380,8 +391,8 @@ export async function saveStudyPdfDocument(pdfBuffer, organizationId, studyId, v
   const ins = await pool.query(
     `INSERT INTO entity_documents
      (organization_id, entity_type, entity_id, file_name, file_size, mime_type, storage_key, url, uploaded_by, document_type,
-      document_category, source_type, is_client_visible, display_name, description)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+      document_category, source_type, is_client_visible, display_name, description, file_hash)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
      RETURNING id, file_name, storage_key`,
     [
       organizationId,
@@ -399,6 +410,7 @@ export async function saveStudyPdfDocument(pdfBuffer, organizationId, studyId, v
       bm.is_client_visible,
       bm.display_name,
       bm.description,
+      fileHash,
     ]
   );
 
@@ -610,6 +622,10 @@ export async function saveQuotePdfDocument(pdfBuffer, organizationId, quoteId, u
     fileName = buildQuoteUnsignedPdfFileName(opts.quoteNumber, quoteId, opts.quotePdfClientSlug ?? null);
   }
 
+  const fileHash = computeFileHash(pdfBuffer);
+  // snapshot_checksum du devis au moment de la génération (passé par l'appelant via opts)
+  const snapshotChecksum = opts.snapshotChecksum ?? opts.metadata?.snapshot_checksum ?? null;
+
   const { storage_path } = await localStorageUpload(
     pdfBuffer,
     organizationId,
@@ -629,8 +645,9 @@ export async function saveQuotePdfDocument(pdfBuffer, organizationId, quoteId, u
   const ins = await pool.query(
     `INSERT INTO entity_documents
      (organization_id, entity_type, entity_id, file_name, file_size, mime_type, storage_key, url, uploaded_by, document_type, metadata_json,
-      document_category, source_type, is_client_visible, display_name, description)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12, $13, $14, $15, $16)
+      document_category, source_type, is_client_visible, display_name, description,
+      file_hash, snapshot_checksum_at_generation)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12, $13, $14, $15, $16, $17, $18)
      RETURNING id, file_name, storage_key`,
     [
       organizationId,
@@ -649,10 +666,32 @@ export async function saveQuotePdfDocument(pdfBuffer, organizationId, quoteId, u
       bm.is_client_visible,
       bm.display_name,
       bm.description,
+      fileHash,
+      snapshotChecksum,
     ]
   );
 
-  return ins.rows[0];
+  const doc = ins.rows[0];
+
+  // Audit non-bloquant — qui a généré ce PDF, depuis quel snapshot
+  void logAuditEvent({
+    action: AuditActions.QUOTE_PDF_GENERATED,
+    entityType: "quote",
+    entityId: quoteId,
+    organizationId,
+    userId: userId || null,
+    req: opts.req ?? null,
+    statusCode: 201,
+    metadata: {
+      document_id: doc.id,
+      file_name: fileName,
+      file_hash: fileHash,
+      snapshot_checksum_at_generation: snapshotChecksum ?? null,
+      quote_number: opts.quoteNumber ?? null,
+    },
+  }).catch(() => {});
+
+  return doc;
 }
 
 /**
@@ -677,6 +716,9 @@ export async function saveInvoicePdfDocument(pdfBuffer, organizationId, invoiceI
     fileName = `solarnext-facture-${invoiceId}-${timestamp}-${suffix}.pdf`;
   }
 
+  const fileHash = computeFileHash(pdfBuffer);
+  const snapshotChecksum = opts.snapshotChecksum ?? opts.metadata?.snapshot_checksum ?? null;
+
   const { storage_path } = await localStorageUpload(
     pdfBuffer,
     organizationId,
@@ -696,8 +738,9 @@ export async function saveInvoicePdfDocument(pdfBuffer, organizationId, invoiceI
   const ins = await pool.query(
     `INSERT INTO entity_documents
      (organization_id, entity_type, entity_id, file_name, file_size, mime_type, storage_key, url, uploaded_by, document_type, metadata_json,
-      document_category, source_type, is_client_visible, display_name, description)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12, $13, $14, $15, $16)
+      document_category, source_type, is_client_visible, display_name, description,
+      file_hash, snapshot_checksum_at_generation)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12, $13, $14, $15, $16, $17, $18)
      RETURNING id, file_name, storage_key`,
     [
       organizationId,
@@ -716,10 +759,31 @@ export async function saveInvoicePdfDocument(pdfBuffer, organizationId, invoiceI
       bm.is_client_visible,
       bm.display_name,
       bm.description,
+      fileHash,
+      snapshotChecksum,
     ]
   );
 
-  return ins.rows[0];
+  const doc = ins.rows[0];
+
+  void logAuditEvent({
+    action: AuditActions.INVOICE_PDF_GENERATED,
+    entityType: "invoice",
+    entityId: invoiceId,
+    organizationId,
+    userId: userId || null,
+    req: opts.req ?? null,
+    statusCode: 201,
+    metadata: {
+      document_id: doc.id,
+      file_name: fileName,
+      file_hash: fileHash,
+      snapshot_checksum_at_generation: snapshotChecksum ?? null,
+      invoice_number: opts.invoiceNumber ?? null,
+    },
+  }).catch(() => {});
+
+  return doc;
 }
 
 /**
