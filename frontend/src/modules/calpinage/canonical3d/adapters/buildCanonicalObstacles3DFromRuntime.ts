@@ -25,6 +25,7 @@ import {
   LEGACY_SHADOW_VOLUME_DEFAULT_HEIGHT_M,
   type RoofObstacleBusinessId,
 } from "../../catalog/roofObstacleCatalog";
+import { getPremiumRoofObstacleSpec } from "../../catalog/roofObstaclePremiumCatalog";
 import {
   isKeepoutNonShadingObstacle,
   readExplicitHeightM,
@@ -46,6 +47,9 @@ export type CanonicalObstacleKind =
   | "ANTENNA"
   | "SKYLIGHT"
   | "DORMER"
+  | "TREE_PROXY"
+  | "PARAPET"
+  | "ROOF_DRAIN"
   | "ROOF_EXTENSION"
   | "RECT_OBSTACLE"
   | "CIRCLE_OBSTACLE"
@@ -227,6 +231,13 @@ function readBusinessObstacleId(o: Record<string, unknown>): string | null {
 
 function mapBusinessIdToKind(id: string | null): CanonicalObstacleKind | null {
   if (!id) return null;
+  if (id === "legacy_shadow_cube" || id === "legacy_shadow_tube") return "SHADOW_VOLUME";
+  const premium = getPremiumRoofObstacleSpec(id);
+  if (premium) {
+    if (premium.business.canonicalKind === "tree_proxy") return "TREE_PROXY";
+    if (premium.business.canonicalKind === "parapet") return "PARAPET";
+    if (premium.business.canonicalKind === "drain") return "ROOF_DRAIN";
+  }
   const map: Partial<Record<RoofObstacleBusinessId, CanonicalObstacleKind>> = {
     chimney_square: "CHIMNEY",
     chimney_round: "CHIMNEY",
@@ -235,6 +246,9 @@ function mapBusinessIdToKind(id: string | null): CanonicalObstacleKind | null {
     dormer_keepout: "DORMER",
     keepout_zone: "FREE_POLYGON_OBSTACLE",
     generic_polygon_keepout: "FREE_POLYGON_OBSTACLE",
+    tree_shadow: "TREE_PROXY",
+    parapet: "PARAPET",
+    roof_drain: "ROOF_DRAIN",
     legacy_shadow_cube: "SHADOW_VOLUME",
     legacy_shadow_tube: "SHADOW_VOLUME",
     antenna: "ANTENNA",
@@ -279,6 +293,9 @@ function resolveSemanticRole(
     return legacyAbstract ? "SHADOW_VOLUME_ABSTRACT" : "PHYSICAL_SHADING_BODY";
   }
   if (listKind === "roofExtensions") return "ROOF_EXTENSION_VOLUME";
+  const premium = getPremiumRoofObstacleSpec(businessId);
+  if (premium?.business.family === "abstract_shadow") return "SHADOW_VOLUME_ABSTRACT";
+  if (premium?.business.family === "non_shading_keepout") return "PHYSICAL_KEEPOUT_ONLY";
   if (isKeepoutNonShadingObstacle(o)) return "PHYSICAL_KEEPOUT_ONLY";
   if (kind === "DORMER") return "PHYSICAL_SHADING_BODY";
   return "PHYSICAL_SHADING_BODY";

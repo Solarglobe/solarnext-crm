@@ -53,6 +53,7 @@ import {
 import { flushSync } from "react-dom";
 import * as THREE from "three";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
+import { getPremiumRoofObstacleSpec } from "../../catalog/roofObstaclePremiumCatalog";
 import { isCalpinage3DRuntimeDebugEnabled } from "../../core/calpinage3dRuntimeDebug";
 import { isValidBuildingHeightM } from "../../core/heightResolver";
 import type { RoofVertexHeightEdit } from "../../runtime/applyRoofVertexHeightEdit";
@@ -338,6 +339,30 @@ function obstacleMaterialForVolume(vol: SolarScene3D["obstacleVolumes"][number],
   readonly emissive: string;
   readonly side: THREE.Side;
 } {
+  const premium = getPremiumRoofObstacleSpec(vol.visualKey);
+  if (premium) {
+    const profile = premium.rendering3d.materialProfile;
+    return {
+      color: premium.rendering3d.baseColor,
+      metalness:
+        profile === "brushed_metal" ? 0.58 :
+        profile === "painted_metal" || profile === "roof_edge_metal" ? 0.32 :
+        profile === "glass" ? 0.12 : 0.03,
+      roughness:
+        profile === "glass" ? 0.18 :
+        profile === "brushed_metal" ? 0.3 :
+        profile === "shadow_volume" ? 0.85 :
+        profile === "keepout_warning" ? 0.62 : 0.78,
+      flatShading: profile === "brick" || profile === "dark_brick" || profile === "shadow_volume",
+      transparent: premium.rendering3d.transparent,
+      opacity: premium.rendering3d.opacity,
+      emissive:
+        profile === "glass" ? "#102a44" :
+        profile === "keepout_warning" ? "#3b1f05" :
+        profile === "shadow_volume" ? "#0f172a" : "#000000",
+      side: THREE.DoubleSide,
+    };
+  }
   if (vol.visualRole === "roof_window_flush" || vol.kind === "skylight") {
     return {
       color: "#6f879b",
@@ -842,7 +867,7 @@ function roofObstacleDetailGeometries(vol: SolarScene3D["obstacleVolumes"][numbe
     windowHighlight: vol.visualRole === "roof_window_flush" ? roofWindowHighlightLineGeometry(vol) : null,
     windowSashLines: vol.visualRole === "roof_window_flush" ? roofWindowSashLineGeometry(vol) : null,
     windowOuterFrame: vol.visualRole === "roof_window_flush" ? roofWindowGreyFrameGeometry(vol) : null,
-    vmcCap: vol.kind === "hvac" ? vmcCapGeometry(vol) : null,
+    vmcCap: vol.kind === "hvac" || vol.kind === "drain" ? vmcCapGeometry(vol) : null,
     vmcVentLines: vol.kind === "hvac" ? vmcVentLineGeometry(vol) : null,
     antennaLines: vol.kind === "antenna" ? antennaLineGeometry(vol) : null,
     antennaBase: vol.kind === "antenna" ? antennaBaseGeometry(vol) : null,
@@ -2732,6 +2757,7 @@ function ViewerSceneContent({
           const sid = String(id);
           const sel = isInspectSelected(inspectionSelection, "OBSTACLE", sid);
           const mat = obstacleMaterialForVolume(volume, mObs);
+          const premium = getPremiumRoofObstacleSpec(volume.visualKey);
           const hideBaseMesh = details.replaceBaseMesh;
           return (
             <mesh
@@ -2857,7 +2883,8 @@ function ViewerSceneContent({
                 <lineSegments geometry={details.allEdgeLines} renderOrder={10}>
                   <lineBasicMaterial
                     color={
-                      volume.visualRole === "abstract_shadow_volume"
+                      premium?.rendering3d.lineColor ??
+                      (volume.visualRole === "abstract_shadow_volume"
                         ? "#cbd5e1"
                         : volume.visualRole === "keepout_surface"
                           ? "#f59e0b"
@@ -2865,7 +2892,7 @@ function ViewerSceneContent({
                             ? "#7dd3fc"
                             : volume.kind === "antenna"
                               ? "#e5e7eb"
-                              : "#f8d1bd"
+                              : "#f8d1bd")
                     }
                     transparent
                     opacity={volume.visualRole === "abstract_shadow_volume" ? 0.5 : 0.68}

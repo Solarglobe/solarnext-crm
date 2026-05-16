@@ -18,6 +18,7 @@ export type RoofObstacleKind =
   | "parapet"
   | "antenna"
   | "tree_proxy"
+  | "drain"
   | "other";
 
 /**

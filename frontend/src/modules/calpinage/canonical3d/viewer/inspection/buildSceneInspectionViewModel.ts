@@ -25,6 +25,7 @@ function formatObstacleKindFr(k: RoofObstacleKind): string {
     parapet: "Acrotère",
     antenna: "Antenne",
     tree_proxy: "Arbre (proxy)",
+    drain: "Evacuation",
     other: "Autre",
   };
   return map[k] ?? k;

@@ -43,6 +43,7 @@ import type {
   LegacyObstacleVolumeInput,
   BuildRoofVolumes3DInput,
 } from "./volumes/volumeInput";
+import { getPremiumRoofObstacleSpec } from "../catalog/roofObstaclePremiumCatalog";
 import { buildRoofVolumes3D } from "./volumes/buildRoofVolumes3D";
 import { buildRoofExtensions3DFromRuntime } from "./roofExtensions/buildRoofExtensions3DFromRuntime";
 import {
@@ -134,6 +135,12 @@ function roofObstacleKindFromCanonical(k: CanonicalObstacleKind): RoofObstacleKi
       return "hvac";
     case "ANTENNA":
       return "antenna";
+    case "TREE_PROXY":
+      return "tree_proxy";
+    case "PARAPET":
+      return "parapet";
+    case "ROOF_DRAIN":
+      return "drain";
     case "SKYLIGHT":
       return "skylight";
     default:
@@ -144,7 +151,7 @@ function roofObstacleKindFromCanonical(k: CanonicalObstacleKind): RoofObstacleKi
 function obstacleStructuralRole(
   k: CanonicalObstacleKind,
 ): Exclude<RoofVolumeStructuralRole, "roof_extension"> {
-  if (k === "CHIMNEY" || k === "DORMER") return "obstacle_structuring";
+  if (k === "CHIMNEY" || k === "DORMER" || k === "PARAPET") return "obstacle_structuring";
   return "obstacle_simple";
 }
 
@@ -190,14 +197,16 @@ function canonicalObstaclesToVolumeInput(obstacles: readonly CanonicalObstacle3D
       continue;
     }
 
+    const premium = getPremiumRoofObstacleSpec(o.sourceKind);
     const visualRole =
-      o.semanticRole === "SHADOW_VOLUME_ABSTRACT"
+      premium?.business.visualRole ??
+      (o.semanticRole === "SHADOW_VOLUME_ABSTRACT"
         ? "abstract_shadow_volume"
         : o.kind === "SKYLIGHT"
           ? "roof_window_flush"
           : o.semanticRole === "PHYSICAL_KEEPOUT_ONLY"
             ? "keepout_surface"
-            : "physical_roof_body";
+            : "physical_roof_body");
     const visualHeightM =
       o.heightM > 0
         ? o.heightM
