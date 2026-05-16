@@ -31,6 +31,7 @@ import adminQuoteTextTemplatesRouter from "./routes/admin.quote-text-templates.r
 import adminPvRouter from "./routes/admin.pv.routes.js";
 import adminOrganizationsRouter from "./routes/admin.organizations.routes.js";
 import adminMutationLogRouter from "./routes/admin.mutation-log.routes.js";
+import adminTrashRouter from "./routes/admin.trash.routes.js";
 import settingsLegalRouter from "./routes/settingsLegal.routes.js";
 import dashboardRouter from "./routes/dashboard.routes.js";
 import searchRouter from "./routes/search.routes.js";
@@ -211,6 +212,7 @@ export function buildHttpApp() {
   app.use("/api/admin/pv", adminPvRouter);
   app.use("/api/admin/organizations", adminOrganizationsRouter);
   app.use("/api/admin/mutation-log", adminMutationLogRouter);
+  app.use("/api/admin/trash", adminTrashRouter);
   app.use("/api", settingsLegalRouter);
 
   app.use("/api", clientPortalRouter);

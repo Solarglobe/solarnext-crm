@@ -492,3 +492,30 @@ export async function revertLeadToLead(id: string): Promise<{ ok: boolean; lead_
   }
   return res.json();
 }
+
+/** Nombre d'éléments liés à un lead (pour DeleteConfirmModal). */
+export interface LeadLinkedCounts {
+  studies: number;
+  quotes: number;
+  invoices: number;
+  documents: number;
+}
+
+export async function fetchLeadLinkedCounts(id: string): Promise<LeadLinkedCounts> {
+  const res = await apiFetch(`${API_BASE}/api/leads/${id}/linked`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { error?: string }).error || `Erreur ${res.status}`);
+  }
+  return res.json();
+}
+
+/** Soft-delete d'un lead (PII anonymisées, 30 jours de grâce). */
+export async function deleteLead(id: string): Promise<{ deleted: boolean; id: string; deleted_at: string }> {
+  const res = await apiFetch(`${API_BASE}/api/leads/${id}`, { method: "DELETE" });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { error?: string }).error || `Erreur ${res.status}`);
+  }
+  return res.json();
+}

@@ -33,6 +33,7 @@ import { heavyUserRateLimiter } from "../../middleware/security/rateLimit.preset
 import { logAuditEvent } from "../../services/audit/auditLog.service.js";
 import { AuditActions } from "../../services/audit/auditActions.js";
 import { immutabilityGuard } from "../../middleware/immutabilityGuard.middleware.js";
+import { softDeleteEntity } from "../../services/softDelete.service.js";
 
 const router = express.Router();
 const orgId = (req) => req.user.organizationId ?? req.user.organization_id;
@@ -440,25 +441,31 @@ router.delete(
         [qid, org]
       );
       const quoteNumber = qnumRes.rows[0]?.quote_number ?? null;
-      const ok = await service.deleteQuote(qid, org);
-      if (!ok) return res.status(404).json({ error: "Devis non trouvé" });
+      const statusBefore = qnumRes.rows[0]?.status ?? null;
+      // Seuls les DRAFT peuvent être supprimés (immutabilityGuard bloque les ACCEPTED/ISSUED)
+      if (statusBefore && !["DRAFT", "SENT", "CANCELLED"].includes(statusBefore)) {
+        return res.status(403).json({ error: `Suppression interdite pour un devis au statut ${statusBefore}` });
+      }
+      const uid = userId(req);
+      const deleted = await softDeleteEntity("quotes", qid, org, uid);
+      if (!deleted) return res.status(404).json({ error: "Devis non trouvé" });
       void logAuditEvent({
         action: AuditActions.QUOTE_DELETED,
         entityType: "quote",
         entityId: qid,
         organizationId: org,
-        userId: userId(req),
+        userId: uid,
         targetLabel: quoteNumber != null ? String(quoteNumber) : undefined,
         req,
-        statusCode: 204,
+        statusCode: 200,
         metadata: {
-          hard_delete: true,
-          draft_only: true,
+          soft_delete: true,
           quote_number: quoteNumber,
-          status_before: qnumRes.rows[0]?.status ?? null,
+          status_before: statusBefore,
+          deleted_at: deleted.deleted_at,
         },
-      });
-      res.status(204).send();
+      }).catch(() => {});
+      res.json({ deleted: true, id: deleted.id, deleted_at: deleted.deleted_at });
     } catch (e) {
       const status = e.message?.includes("interdite") ? 403 : 400;
       res.status(status).json({ error: e.message });

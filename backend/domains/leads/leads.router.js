@@ -33,6 +33,9 @@ import {
   postCreateClientPortalToken,
   getClientPortalTokenForLead,
 } from "../../controllers/clientPortal.controller.js";
+import { softDeleteEntity, countLinkedItems } from "../../services/softDelete.service.js";
+import { logAuditEvent } from "../../services/audit/auditLog.service.js";
+import { AuditActions } from "../../services/audit/auditActions.js";
 import { getLeadDp, putLeadDp } from "../../controllers/leadDp.controller.js";
 import { exportLeadsCsv } from "../../controllers/crmExport.controller.js";
 
@@ -174,5 +177,55 @@ router.post("/", verifyJWT, requirePermission("lead.create"), validate({ body: C
 router.put("/:id", verifyJWT, requireAnyPermission(["lead.update.all", "lead.update.self"]), validate({ body: CreateLeadSchema, params: UuidParamsSchema }), controller.update);
 router.patch("/:id", verifyJWT, requireAnyPermission(["lead.update.all", "lead.update.self"]), validate({ body: PatchLeadSchema, params: UuidParamsSchema }), controller.update);
 router.patch("/:id/consumption", verifyJWT, requireAnyPermission(["lead.update.all", "lead.update.self"]), patchConsumption);
+
+/** GET /:id/linked — nb d'éléments liés (pour DeleteConfirmModal) */
+router.get(
+  "/:id/linked",
+  verifyJWT,
+  requireAnyPermission(["lead.read.all", "lead.read.self"]),
+  async (req, res) => {
+    try {
+      const org = req.user.organizationId ?? req.user.organization_id;
+      if (!org) return res.status(400).json({ error: "organization_id requis" });
+      const counts = await countLinkedItems(req.params.id, org);
+      res.json(counts);
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  }
+);
+
+/** DELETE /:id — soft delete avec anonymisation PII + 30 jours de grâce */
+router.delete(
+  "/:id",
+  verifyJWT,
+  requireAnyPermission(["lead.update.all", "lead.update.self"]),
+  async (req, res) => {
+    try {
+      const org = req.user.organizationId ?? req.user.organization_id;
+      const uid = req.user.userId ?? req.user.id;
+      if (!org) return res.status(400).json({ error: "organization_id requis" });
+
+      const deleted = await softDeleteEntity("leads", req.params.id, org, uid);
+      if (!deleted) return res.status(404).json({ error: "Lead non trouvé" });
+
+      void logAuditEvent({
+        action: AuditActions.LEAD_UPDATED,
+        entityType: "lead",
+        entityId: req.params.id,
+        organizationId: org,
+        userId: uid,
+        req,
+        statusCode: 200,
+        metadata: { soft_delete: true, deleted_at: deleted.deleted_at },
+      }).catch(() => {});
+
+      res.json({ deleted: true, id: deleted.id, deleted_at: deleted.deleted_at });
+    } catch (e) {
+      const status = e.statusCode === 404 ? 404 : e.statusCode === 409 ? 409 : 500;
+      res.status(status).json({ error: e.message });
+    }
+  }
+);
 
 export default router;

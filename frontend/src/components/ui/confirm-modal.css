@@ -220,3 +220,117 @@ html.theme-dark .sn-confirm-modal-btn--ghost:hover:not(:disabled) {
 html.theme-dark .sn-confirm-modal-btn--danger {
   color: var(--text-on-dark);
 }
+
+/* ── DeleteConfirmModal — extensions spécifiques ───────────────────────── */
+
+.sn-delete-modal-panel {
+  width: min(480px, 100%);
+}
+
+.sn-delete-modal-loading {
+  margin: 0 20px 8px;
+  font-size: 0.8125rem;
+  color: var(--sn-confirm-text-muted);
+}
+
+.sn-delete-modal-linked {
+  margin: 0 20px 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: color-mix(in srgb, #dc2626 6%, transparent);
+  border: 1px solid color-mix(in srgb, #dc2626 18%, transparent);
+}
+
+.sn-delete-modal-linked-title {
+  margin: 0 0 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #b91c1c;
+}
+
+.sn-delete-modal-linked-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sn-delete-modal-linked-item {
+  font-size: 0.8rem;
+  color: var(--sn-confirm-text-muted);
+}
+
+.sn-delete-modal-linked-count {
+  font-weight: 700;
+  color: #b91c1c;
+}
+
+.sn-delete-modal-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0 20px 14px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: color-mix(in srgb, #2563eb 6%, transparent);
+  border: 1px solid color-mix(in srgb, #2563eb 18%, transparent);
+  font-size: 0.8rem;
+  color: #1d4ed8;
+}
+
+.sn-delete-modal-notice svg {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  margin-top: 1px;
+}
+
+.sn-delete-modal-confirm-input {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 20px 4px;
+}
+
+.sn-delete-modal-input-label {
+  font-size: 0.8125rem;
+  color: var(--sn-confirm-text-muted);
+}
+
+.sn-delete-modal-input {
+  height: 36px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--sn-confirm-text) 18%, transparent);
+  background: var(--sn-confirm-panel-bg);
+  color: var(--sn-confirm-text);
+  font-size: 0.875rem;
+  width: 100%;
+  box-sizing: border-box;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.sn-delete-modal-input:focus {
+  border-color: #dc2626;
+  box-shadow: 0 0 0 3px color-mix(in srgb, #dc2626 15%, transparent);
+}
+
+html.theme-dark .sn-delete-modal-linked {
+  background: color-mix(in srgb, #dc2626 10%, transparent);
+  border-color: color-mix(in srgb, #dc2626 22%, transparent);
+}
+
+html.theme-dark .sn-delete-modal-notice {
+  background: color-mix(in srgb, #3b82f6 10%, transparent);
+  border-color: color-mix(in srgb, #3b82f6 22%, transparent);
+  color: #93c5fd;
+}
+
+html.theme-dark .sn-delete-modal-input {
+  border-color: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(248, 250, 252, 0.95);
+}
