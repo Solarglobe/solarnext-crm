@@ -20,9 +20,9 @@
  * 3. Aucune logique de panneau unique — uniquement le rendu.
  */
 
-import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
-import type { ThreeEvent } from "@react-three/fiber";
+import { useThree, type ThreeEvent } from "@react-three/fiber";
 import type { PvPanelSurface3D } from "../types/pv-panel-3d";
 
 // ── Géométrie partagée ────────────────────────────────────────────────────────
@@ -146,6 +146,7 @@ export function PvPanelInstanced({
 }: PvPanelInstancedProps) {
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const count = panels.length;
+  const { invalidate } = useThree();
 
   // Géométrie partagée entre toutes les instances — dispose au démontage
   const sharedGeometry = useMemo(() => buildSharedPanelGeometry(), []);
@@ -155,8 +156,17 @@ export function PvPanelInstanced({
     };
   }, [sharedGeometry]);
 
-  // Met à jour les matrices et couleurs d'instance après chaque changement de panels/colors/hidden
-  useLayoutEffect(() => {
+  /**
+   * Met à jour les matrices et couleurs d'instance.
+   *
+   * useEffect (pas useLayoutEffect) : R3F peut rendre un frame AVANT que
+   * useLayoutEffect ne se déclenche lors du premier montage (count 0→N),
+   * laissant les matrices à zéro (panneaux invisibles). useEffect se déclenche
+   * après le paint, quand meshRef.current est garanti non-null, puis invalidate()
+   * demande à R3F de re-rendre immédiatement avec les bonnes matrices.
+   * Coût : 1 frame invisible au premier montage — imperceptible à 60 fps.
+   */
+  useEffect(() => {
     const mesh = meshRef.current;
     if (!mesh || count === 0) return;
 
@@ -189,7 +199,11 @@ export function PvPanelInstanced({
       // panelColors supprimé → réinitialise instanceColor pour revenir à la couleur uniforme
       mesh.instanceColor = null;
     }
-  }, [panels, panelColors, count, hiddenPanelIds]);
+
+    // Force R3F à rendre le frame suivant avec les nouvelles matrices.
+    // Indispensable si frameloop="demand" ou si le RAF a déjà consommé le frame courant.
+    invalidate();
+  }, [panels, panelColors, count, hiddenPanelIds, invalidate]);
 
   if (count === 0) return null;
 
