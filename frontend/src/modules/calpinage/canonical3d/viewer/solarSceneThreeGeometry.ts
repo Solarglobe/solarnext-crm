@@ -397,6 +397,44 @@ export function extensionVolumeGeometry(vol: RoofExtensionVolume3D): THREE.Buffe
   return volumeGeometry(vol);
 }
 
+export type ExtensionMiniRoofLineRole = "ridge" | "hip" | "support_seam" | "mini_roof_eave";
+
+export interface ExtensionMiniRoofLineGeometry {
+  readonly role: ExtensionMiniRoofLineRole;
+  readonly geometry: THREE.BufferGeometry;
+}
+
+export function extensionMiniRoofLineGeometries(vol: RoofExtensionVolume3D): readonly ExtensionMiniRoofLineGeometry[] {
+  const semantics = vol.topology?.miniRoof;
+  if (!semantics) return [];
+  const positionsByRole = new Map<ExtensionMiniRoofLineRole, number[]>();
+  const add = (role: ExtensionMiniRoofLineRole, values: readonly number[]) => {
+    const arr = positionsByRole.get(role) ?? [];
+    arr.push(...values);
+    positionsByRole.set(role, arr);
+  };
+
+  const rolesByEdgeId = new Map(semantics.edgeRoles.map((edge) => [edge.edgeId, edge.roles] as const));
+  for (const edge of vol.edges) {
+    const roles = rolesByEdgeId.get(edge.id);
+    if (!roles) continue;
+    const a = vol.vertices[edge.vertexAIndex]?.position;
+    const b = vol.vertices[edge.vertexBIndex]?.position;
+    if (!a || !b) continue;
+    const coords = [a.x, a.y, a.z, b.x, b.y, b.z] as const;
+    if (roles.includes("ridge")) add("ridge", coords);
+    if (roles.includes("hip")) add("hip", coords);
+    if (roles.includes("support_seam")) add("support_seam", coords);
+    if (roles.includes("mini_roof_eave")) add("mini_roof_eave", coords);
+  }
+
+  return Array.from(positionsByRole.entries()).map(([role, positions]) => {
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+    return { role, geometry };
+  });
+}
+
 export function buildingShellGeometry(shell: BuildingShell3D): THREE.BufferGeometry {
   return volumeGeometry(shell);
 }

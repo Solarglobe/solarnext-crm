@@ -235,6 +235,13 @@ function assertRaycastUsesSameVertices(vol: RoofExtensionVolume3D): void {
 function validateP3HipsAwareCore(vol: RoofExtensionVolume3D, extId: string, patch: RoofPlanePatch3D): void {
   expect(vol.topology?.version).toBe("roof_extension_topology_v3");
   expect(vol.topology?.meshStrategy).toBe("hips_aware");
+  expect(vol.topology?.miniRoof?.hasCheeks).toBe(true);
+  expect(vol.topology?.miniRoof?.hasRidge).toBe(true);
+  expect(vol.topology?.miniRoof?.hasMiniRoofPlanes).toBe(true);
+  expect(vol.topology?.miniRoof?.hasSupportSeam).toBe(true);
+  expect(vol.topology?.miniRoof?.edgeRoles.some((x) => x.roles.includes("hip"))).toBe(true);
+  expect(vol.topology?.miniRoof?.edgeRoles.some((x) => x.roles.includes("support_seam"))).toBe(true);
+  expect(vol.topology?.miniRoof?.keepout.footprintWorldVertexIds.length).toBeGreaterThanOrEqual(3);
   assertNoLegacyBBoxOrPrismArtifacts(vol);
   assertNoContourRidgeFanFaces(vol, extId);
   assertExplicitHipsSlopePatches(vol);

@@ -71,6 +71,14 @@ describe("buildRoofExtensions3DFromRuntime", () => {
       [3, 4],
       [1, 4],
     ]);
+    expect(vol.topology?.miniRoof?.version).toBe("roof_extension_mini_roof_semantics_v1");
+    expect(vol.topology?.miniRoof?.hasRidge).toBe(true);
+    expect(vol.topology?.miniRoof?.hasMiniRoofPlanes).toBe(true);
+    expect(vol.topology?.miniRoof?.hasSupportSeam).toBe(true);
+    expect(vol.topology?.miniRoof?.keepout.source).toBe("footprint");
+    expect(vol.topology?.miniRoof?.keepout.supportPlanePatchId).toBe("pan-flat");
+    expect(vol.topology?.miniRoof?.faceRoles.some((x) => x.role === "mini_roof_plane")).toBe(true);
+    expect(vol.topology?.miniRoof?.edgeRoles.some((x) => x.roles.includes("base_keepout"))).toBe(true);
   });
 
   it("sommet apex partagé : faîtage confondu avec apex → un seul vertex 3D (pas ridge:a séparé)", () => {

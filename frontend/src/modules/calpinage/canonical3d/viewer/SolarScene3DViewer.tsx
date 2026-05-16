@@ -126,6 +126,7 @@ import {
 } from "./viewerVisualTokens";
 import {
   buildingShellGeometry,
+  extensionMiniRoofLineGeometries,
   extensionVolumeGeometry,
   obstacleVolumeGeometry,
   panelQuadGeometry,
@@ -2341,7 +2342,11 @@ function ViewerSceneContent({
   }, [scene.obstacleVolumes]);
 
   const extGeos = useMemo(() => {
-    return scene.extensionVolumes.map((v) => ({ id: v.id, geo: extensionVolumeGeometry(v) }));
+    return scene.extensionVolumes.map((v) => ({
+      id: v.id,
+      geo: extensionVolumeGeometry(v),
+      miniRoofLines: extensionMiniRoofLineGeometries(v),
+    }));
   }, [scene.extensionVolumes]);
 
   const extensionVolDebugEdgesGeos = useMemo(() => {
@@ -2477,6 +2482,7 @@ function ViewerSceneContent({
         ...x.details.premiumAssets.lines.map((asset) => asset.geometry),
       ].filter((g): g is THREE.BufferGeometry => g != null)),
       ...extGeos.map((x) => x.geo),
+      ...extGeos.flatMap((x) => x.miniRoofLines.map((line) => line.geometry)),
       ...panelGeos.flatMap((x) => [x.geo, x.cell].filter((g): g is THREE.BufferGeometry => g != null)),
       ...pv3dLivePanelGeos.flatMap((x) => [x.fill, x.line, x.cell].filter((g): g is THREE.BufferGeometry => g != null)),
       ...pv3dGhostGeos.flatMap((x) => [x.fill, x.line].filter((g): g is THREE.BufferGeometry => g != null)),
@@ -2504,6 +2510,7 @@ function ViewerSceneContent({
       ...(roofClosureGeo ? [roofClosureGeo] : []),
       ...obsGeos.map((x) => x.geo),
       ...extGeos.map((x) => x.geo),
+      ...extGeos.flatMap((x) => x.miniRoofLines.map((line) => line.geometry)),
       ...panelGeos.map((x) => x.geo),
     ],
     [shellGeo, roofGeos, roofClosureGeo, obsGeos, extGeos, panelGeos],
@@ -3100,37 +3107,57 @@ function ViewerSceneContent({
         })}
       {visExt && (
         <>
-          {extGeos.map(({ id, geo }) => {
+          {extGeos.map(({ id, geo, miniRoofLines }) => {
             const sid = String(id);
             const sel = isInspectSelected(inspectionSelection, "EXTENSION", sid);
             return (
-              <mesh
-                key={`ext-${id}`}
-                userData={inspectData("EXTENSION", sid)}
-                geometry={geo}
-                castShadow
-                receiveShadow
-                raycast={roofModelingPassThroughOccluders ? roofModelingSkipOccluderRaycast : undefined}
-                onClick={inspectMode ? onInspectClick : undefined}
-              >
-                <meshStandardMaterial
-                  color={mExt.color}
-                  metalness={mExt.metalness}
-                  roughness={mExt.roughness}
-                  flatShading={mExt.flatShading ?? false}
-                  side={THREE.DoubleSide}
-                  emissive={sel ? "#33691e" : "#000000"}
-                  emissiveIntensity={sel ? 0.32 : 0}
-                />
-                {inspectMode && sel && (
-                  <Outlines
-                    thickness={outlineThickness}
-                    color={VIEWER_INSPECT_OUTLINE_HEX.extension}
-                    opacity={0.95}
-                    toneMapped={false}
+              <group key={`ext-${id}`}>
+                <mesh
+                  userData={inspectData("EXTENSION", sid)}
+                  geometry={geo}
+                  castShadow
+                  receiveShadow
+                  raycast={roofModelingPassThroughOccluders ? roofModelingSkipOccluderRaycast : undefined}
+                  onClick={inspectMode ? onInspectClick : undefined}
+                >
+                  <meshStandardMaterial
+                    color={mExt.color}
+                    metalness={mExt.metalness}
+                    roughness={mExt.roughness}
+                    flatShading={mExt.flatShading ?? false}
+                    side={THREE.DoubleSide}
+                    emissive={sel ? "#33691e" : "#000000"}
+                    emissiveIntensity={sel ? 0.32 : 0}
                   />
-                )}
-              </mesh>
+                  {inspectMode && sel && (
+                    <Outlines
+                      thickness={outlineThickness}
+                      color={VIEWER_INSPECT_OUTLINE_HEX.extension}
+                      opacity={0.95}
+                      toneMapped={false}
+                    />
+                  )}
+                </mesh>
+                {miniRoofLines.map((line) => (
+                  <lineSegments key={`ext-mini-roof-${id}-${line.role}`} geometry={line.geometry} renderOrder={18}>
+                    <lineBasicMaterial
+                      color={
+                        line.role === "ridge"
+                          ? "#f8fafc"
+                          : line.role === "hip"
+                            ? "#bae6fd"
+                            : line.role === "support_seam"
+                              ? "#f59e0b"
+                              : "#cbd5e1"
+                      }
+                      transparent
+                      opacity={line.role === "support_seam" ? 0.7 : 0.88}
+                      toneMapped={false}
+                      depthTest
+                    />
+                  </lineSegments>
+                ))}
+              </group>
             );
           })}
           {import.meta.env.DEV &&

@@ -7,6 +7,7 @@ import { projectRoofExtensionToSupportPlane } from "./projectRoofExtensionToSupp
 import type { RoofExtensionWorldMapping } from "./resolveSupportPan";
 import type { RoofExtensionSource2D } from "./roofExtensionSource";
 import { buildDormerTopologyFromOutline } from "./buildDormerTopologyFromOutline";
+import { buildRoofExtensionMiniRoofSemantics } from "./roofExtensionMiniRoofSemantics";
 
 export interface BuildRoofExtensionVolume3DResult {
   readonly volume: RoofExtensionVolume3D | null;
@@ -82,6 +83,7 @@ export function buildRoofExtensionVolume3D(
 
   const topologyVersion: "roof_extension_topology_v2" | "roof_extension_topology_v3" =
     mesh.meshStrategy === "hips_aware" ? "roof_extension_topology_v3" : "roof_extension_topology_v2";
+  const miniRoof = buildRoofExtensionMiniRoofSemantics(source, mesh, patch.id);
 
   const footprintWorld = projected.contour.map((p) => p.base);
   const volume: RoofExtensionVolume3D = {
@@ -144,6 +146,7 @@ export function buildRoofExtensionVolume3D(
             },
           }
         : {}),
+      miniRoof,
     },
   };
 
