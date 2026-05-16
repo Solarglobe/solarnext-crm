@@ -38,27 +38,37 @@ function buildSharedPanelGeometry(): THREE.PlaneGeometry {
 // ── Matrice d'instance ────────────────────────────────────────────────────────
 
 /**
- * Matrice locale → monde à partir du LocalFrame3D du panneau.
+ * Matrice locale → monde construite depuis corners3D + center3D + outwardNormal.
  *
- * set(row-major) :
- *   col0 = xAxis * widthM   (direction largeur dans le monde, mise à l'échelle)
- *   col1 = yAxis * heightM  (direction hauteur dans le monde, mise à l'échelle)
- *   col2 = zAxis            (normale sortante, vecteur unitaire — pas de scale profondeur pour un plan)
- *   col3 = origin           (centre monde du panneau)
+ * N'utilise PAS localFrame pour éviter tout décalage entre le pipeline de placement
+ * 3D et le pipeline canonique 2D→3D (buildPvPanels3D). Même source de vérité que
+ * panelQuadGeometry (corners3D), ce qui garantit que la surface InstancedMesh
+ * coïncide exactement avec la géométrie des cell lines.
  *
- * Pour un PlaneGeometry(1,1), les vertices sont à (±0.5, ±0.5, 0) en local.
- * Après transformation : ±widthM/2 le long de xAxis, ±heightM/2 le long de yAxis. ✓
+ * Pour PlaneGeometry(1,1) avec vertices à (±0.5, ±0.5, 0) :
+ *   col0 = c1 - c0  (vecteur largeur pleine, scale implicite)
+ *   col1 = c3 - c0  (vecteur hauteur pleine, scale implicite)
+ *   col2 = outwardNormal
+ *   col3 = center3D
+ *
+ * Preuve coins (center = (c1+c3)/2 pour un rectangle) :
+ *   M*(−.5,−.5,0) = c0  ✓   M*( .5,−.5,0) = c1  ✓
+ *   M*( .5, .5,0) = c2  ✓   M*(−.5, .5,0) = c3  ✓
  */
 function applyPanelInstanceMatrix(panel: PvPanelSurface3D, target: THREE.Matrix4): void {
-  const { xAxis: x, yAxis: y, zAxis: z, origin: o } = panel.localFrame;
-  const w = panel.widthM;
-  const h = panel.heightM;
+  const c0 = panel.corners3D[0]!;
+  const c1 = panel.corners3D[1]!;
+  const c3 = panel.corners3D[3]!;
+  const ctr = panel.center3D;
+  const n = panel.outwardNormal;
+  const wx = c1.x - c0.x, wy = c1.y - c0.y, wz = c1.z - c0.z;
+  const hx = c3.x - c0.x, hy = c3.y - c0.y, hz = c3.z - c0.z;
   // THREE.Matrix4.set prend les arguments en ordre row-major
   target.set(
-    w * x.x,  h * y.x,  z.x,  o.x,
-    w * x.y,  h * y.y,  z.y,  o.y,
-    w * x.z,  h * y.z,  z.z,  o.z,
-    0,        0,        0,    1,
+    wx,  hx,  n.x,  ctr.x,
+    wy,  hy,  n.y,  ctr.y,
+    wz,  hz,  n.z,  ctr.z,
+    0,   0,   0,    1,
   );
 }
 
