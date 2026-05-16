@@ -138,6 +138,7 @@ import {
   volumeMeshFaceNormalsDebugLineGeometry,
 } from "./solarSceneThreeGeometry";
 import { buildPremiumHouse3DScene } from "./premium/buildPremiumHouse3DScene";
+import { PvPanelInstanced } from "../pvPanels/PvPanelInstanced";
 import type { PremiumHouse3DSceneAssembly } from "./premium/premiumHouse3DSceneTypes";
 import { PremiumGeometryTrustStripe } from "./premium/PremiumGeometryTrustStripe";
 import type { PremiumHouse3DViewMode } from "./premium/premiumHouse3DViewModes";
@@ -2488,6 +2489,37 @@ function ViewerSceneContent({
   const mRidge = assembly.materials.structuralRidgeLine;
   const pvB = assembly.pvBoost;
 
+  /**
+   * Couleurs hex par instance pour PvPanelInstanced — même logique que panelSurfaceMaterial.
+   * Dépendances : toutes déclarées au-dessus (pvB, visPanelShading, pv3dOverlayPanelById, etc.).
+   */
+  const panelInstanceColors = useMemo(() => {
+    return scene.pvPanels.map((p) => {
+      const id = String(p.id);
+      const pvSel = isInspectSelected(inspectionSelection, "PV_PANEL", id);
+      const pv3dPanel = pvLayout3DInteractionMode ? pv3dOverlayPanelById.get(id) : null;
+      const pv3dSelected = !!pv3dPanel?.selected;
+      const pv3dInvalid = !!pv3dPanel?.invalid;
+      if (pv3dInvalid) {
+        return new THREE.Color(SOLARNEXT_3D_PREMIUM_THEME.pv.invalidFill).getHex();
+      }
+      return panelSurfaceMaterial(
+        scene,
+        id,
+        visPanelShading,
+        pvSel || pv3dSelected,
+        pvB.panelEmissiveIntensityBonus,
+      ).color;
+    });
+  }, [
+    scene,
+    visPanelShading,
+    inspectionSelection,
+    pvLayout3DInteractionMode,
+    pv3dOverlayPanelById,
+    pvB.panelEmissiveIntensityBonus,
+  ]);
+
   const showRoofModelingHoverUx =
     roofModelingSurfaceUx && (inspectMode || panSelection3DMode) && onRoofModelingPointerUi != null;
 
@@ -3208,107 +3240,88 @@ function ViewerSceneContent({
             ) : null}
           </group>
         ))}
-      {visPanels &&
-        panelGeos.map(({ id, geo, cell }) => {
-          const pvSel = isInspectSelected(inspectionSelection, "PV_PANEL", id);
-          const pv3dPanel = pvLayout3DInteractionMode ? pv3dOverlayPanelById.get(id) : null;
-          const pv3dSelected = !!pv3dPanel?.selected;
-          const pv3dInvalid = !!pv3dPanel?.invalid;
-          if (pvLayout3DInteractionMode && pv3dSelectedLivePanelIds.has(String(id))) return null;
-          const mat = panelSurfaceMaterial(scene, id, visPanelShading, pvSel || pv3dSelected, pvB.panelEmissiveIntensityBonus);
-          const thinOutline =
-            pv3dInvalid ? (
-              <Outlines
-                thickness={outlineThickness * 1.35}
-                color={SOLARNEXT_3D_PREMIUM_THEME.selection.pvInvalid}
-                opacity={0.9}
-                toneMapped={false}
-              />
-            ) : pv3dSelected ? (
-              <Outlines
-                thickness={outlineThickness * 1.25}
-                color={SOLARNEXT_3D_PREMIUM_THEME.pv.selectedLine}
-                opacity={0.9}
-                toneMapped={false}
-              />
-            ) : pvB.outlinePanelsWhenNotInspecting && !inspectMode ? (
-              <Outlines
-                thickness={outlineThickness * 0.85}
-                color={VIEWER_PV_OUTLINE_IDLE_HEX}
-                opacity={0.35}
-                toneMapped={false}
-              />
-            ) : null;
-          return (
-            <mesh
-              key={`pv-${id}`}
-              userData={inspectData("PV_PANEL", id)}
-              geometry={geo}
-              castShadow
-              receiveShadow
-              renderOrder={pvLayout3DInteractionMode ? 20 : 0}
-              raycast={pvPanelRaycastPassThrough ? roofModelingSkipOccluderRaycast : undefined}
-              onClick={inspectMode ? onInspectClick : undefined}
-              onPointerDown={
-                pvLayout3DInteractionMode && onPvPanelPvLayout3dPointerDown
-                  ? (e) => {
-                      onPvPanelPvLayout3dPointerDown(e, String(id));
-                    }
-                  : undefined
-              }
-              onPointerOver={(e) => {
-                e.stopPropagation();
-                onPanelHover?.({ panelId: id, clientX: e.clientX, clientY: e.clientY });
-              }}
-              onPointerOut={(e) => {
-                e.stopPropagation();
-                onPanelHover?.(null);
-              }}
-              onPointerMove={(e) => {
-                e.stopPropagation();
-                onPanelHover?.({ panelId: id, clientX: e.clientX, clientY: e.clientY });
-              }}
-            >
-              <meshStandardMaterial
-                color={pv3dInvalid ? SOLARNEXT_3D_PREMIUM_THEME.pv.invalidFill : mat.color}
-                emissive={
-                  pv3dInvalid
-                    ? SOLARNEXT_3D_PREMIUM_THEME.pv.invalidEmissive
-                    : pv3dSelected
-                      ? SOLARNEXT_3D_PREMIUM_THEME.pv.selectedEmissive
-                      : mat.emissive
-                }
-                emissiveIntensity={pv3dInvalid ? 0.28 : pv3dSelected ? mat.emissiveIntensity + 0.16 : mat.emissiveIntensity}
-                metalness={pvB.panelMetalness}
-                roughness={pvB.panelRoughness}
-                side={THREE.DoubleSide}
-                polygonOffset
-                polygonOffsetFactor={pvLayout3DInteractionMode ? -3 : -1}
-                polygonOffsetUnits={pvLayout3DInteractionMode ? -3 : -1}
-              />
-              {cell ? (
-                <lineSegments geometry={cell} renderOrder={pvLayout3DInteractionMode ? 22 : 1}>
-                  <lineBasicMaterial
-                    color={PREMIUM_PV_CELL_LINE}
-                    transparent
-                    opacity={pv3dSelected || pvSel ? 0.24 : 0.16}
-                    toneMapped={false}
-                    depthTest
-                  />
-                </lineSegments>
-              ) : null}
-              {thinOutline}
-              {inspectMode && pvSel && (
-                <Outlines
-                  thickness={outlineThickness}
-                  color={VIEWER_INSPECT_OUTLINE_HEX.pvPanelSelected}
-                  opacity={0.9}
+      {visPanels && (
+        <>
+          {/*
+           * Rendu InstancedMesh : 1 draw call pour N panneaux.
+           * Sélection individuelle via e.instanceId (raycasting THREE.js).
+           * Panneaux masqués en pvLayout3D (pv3dSelectedLivePanelIds) → scale=0.
+           * Couleurs per-instance via instanceColor (shading viz + invalid/selected states).
+           * Note : outlines pv3dSelected/pv3dInvalid perdues (limitation InstancedMesh) ;
+           * les états sont compensés par la couleur d'instance.
+           */}
+          <PvPanelInstanced
+            panels={scene.pvPanels}
+            panelColors={panelInstanceColors}
+            baseColor={PREMIUM_PV_SURFACE_HEX}
+            emissiveColor={PREMIUM_PV_EMISSIVE_HEX}
+            emissiveIntensity={pvB.panelEmissiveIntensityBonus + 0.1}
+            metalness={pvB.panelMetalness}
+            roughness={pvB.panelRoughness}
+            renderOrder={pvLayout3DInteractionMode ? 20 : 0}
+            polygonOffsetFactor={pvLayout3DInteractionMode ? -3 : -1}
+            polygonOffsetUnits={pvLayout3DInteractionMode ? -3 : -1}
+            hiddenPanelIds={pvLayout3DInteractionMode ? pv3dSelectedLivePanelIds : undefined}
+            raycastFn={pvPanelRaycastPassThrough ? roofModelingSkipOccluderRaycast : undefined}
+            onPanelClick={
+              inspectMode
+                ? (panel, e) => {
+                    // Patch userData pour compatibilité avec le système d'inspection existant
+                    // (onInspectClick lit e.object.userData[INSPECT_USERDATA_KEY])
+                    e.object.userData[INSPECT_USERDATA_KEY] = {
+                      kind: "PV_PANEL" as const,
+                      id: String(panel.id),
+                    };
+                    onInspectClick(e);
+                  }
+                : undefined
+            }
+            onPanelPointerDown={
+              pvLayout3DInteractionMode && onPvPanelPvLayout3dPointerDown
+                ? (panel, e) => {
+                    onPvPanelPvLayout3dPointerDown(e, String(panel.id));
+                  }
+                : undefined
+            }
+            onPanelHover={onPanelHover}
+          />
+          {/* Cell lines : lineSegments individuels (géométries de type LINE, pas mesh) */}
+          {panelGeos.map(({ id, cell }) =>
+            cell ? (
+              <lineSegments
+                key={`pvcell-${id}`}
+                geometry={cell}
+                renderOrder={pvLayout3DInteractionMode ? 22 : 1}
+              >
+                <lineBasicMaterial
+                  color={PREMIUM_PV_CELL_LINE}
+                  transparent
+                  opacity={isInspectSelected(inspectionSelection, "PV_PANEL", id) ? 0.24 : 0.16}
                   toneMapped={false}
+                  depthTest
                 />
-              )}
-            </mesh>
-          );
-        })}
+              </lineSegments>
+            ) : null,
+          )}
+          {/* Outline inspection : rendu individuel pour les panneaux sélectionnés en inspect mode */}
+          {inspectMode &&
+            panelGeos.map(({ id, geo }) => {
+              const pvSel = isInspectSelected(inspectionSelection, "PV_PANEL", id);
+              if (!pvSel) return null;
+              return (
+                <mesh key={`pvsel-${id}`} geometry={geo}>
+                  <meshStandardMaterial visible={false} />
+                  <Outlines
+                    thickness={outlineThickness}
+                    color={VIEWER_INSPECT_OUTLINE_HEX.pvPanelSelected}
+                    opacity={0.9}
+                    toneMapped={false}
+                  />
+                </mesh>
+              );
+            })}
+        </>
+      )}
       {visSun && <primitive object={arrowRef} />}
     </>
   );
