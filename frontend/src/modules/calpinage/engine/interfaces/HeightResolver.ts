@@ -44,6 +44,13 @@ export interface HeightResolution {
   readonly source: "explicit" | "runtime" | "fallback";
   /** true si la valeur est fiable pour les calculs PV (source explicite ou runtime fitPlane). */
   readonly reliable: boolean;
+  /**
+   * Raison du fallback — présent uniquement quand reliable === false.
+   * Permet aux diagnostics aval d'identifier la cause précise sans inspecter la stack.
+   *
+   * "RUNTIME_NOT_MOUNTED" : getCalpinageRuntime().getHeightAtXY() absent au moment de la résolution.
+   */
+  readonly reason?: string;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -1,0 +1,807 @@
+/* ================================================================
+   CARDS.CSS — Task cards, badges, stat blocks, buttons, modal content
+   ================================================================ */
+
+/* ----------------------------------------------------------------
+   Task card
+   ---------------------------------------------------------------- */
+.task-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4) var(--space-5);
+  cursor: pointer;
+  transition:
+    border-color var(--t-base),
+    background var(--t-base),
+    transform var(--t-base),
+    box-shadow var(--t-base);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  position: relative;
+  overflow: hidden;
+  /* For grid role="list" pattern */
+  role: listitem;
+}
+
+/* Priority accent bar — left edge */
+.task-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0;
+  width: 3px;
+  height: 100%;
+}
+
+.task-card[data-priority="critique"]::before  { background: var(--critical); }
+.task-card[data-priority="important"]::before { background: var(--warning); }
+.task-card[data-priority="polish"]::before    { background: var(--info); }
+
+.task-card:hover {
+  border-color: var(--border-strong);
+  background: var(--bg-elevated);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md), 0 0 0 1px var(--border-default);
+}
+
+.task-card:active {
+  transform: translateY(0);
+}
+
+/* Validated card: dimmed */
+.task-card[data-status="validated"] {
+  opacity: 0.55;
+}
+.task-card[data-status="validated"]:hover {
+  opacity: 0.75;
+}
+
+/* Blocked card */
+.task-card[data-status="blocked"] {
+  border-color: var(--blocked-border);
+}
+
+/* ----------------------------------------------------------------
+   Card header
+   ---------------------------------------------------------------- */
+.card-header {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.card-check {
+  width: 18px;
+  height: 18px;
+  border: 1.5px solid var(--border-strong);
+  border-radius: 5px;
+  flex-shrink: 0;
+  margin-top: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition:
+    border-color var(--t-fast),
+    background var(--t-fast);
+  position: relative;
+}
+
+.card-check:hover {
+  border-color: var(--accent);
+}
+
+.card-check.checked {
+  background: var(--success);
+  border-color: var(--success);
+}
+
+.card-check.checked::after {
+  content: '';
+  position: absolute;
+  width: 9px;
+  height: 5px;
+  border-left: 2px solid white;
+  border-bottom: 2px solid white;
+  transform: rotate(-45deg) translateY(-1px);
+}
+
+.card-title-area {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.card-id {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.04em;
+}
+
+.card-title {
+  font-size: var(--text-md);
+  font-weight: var(--weight-semi);
+  color: var(--text-primary);
+  line-height: 1.35;
+}
+
+/* ----------------------------------------------------------------
+   Card meta row (badges)
+   ---------------------------------------------------------------- */
+.card-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+/* ----------------------------------------------------------------
+   Badges — base
+   ---------------------------------------------------------------- */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+  line-height: 1.5;
+  border: 1px solid transparent;
+}
+
+/* Priority */
+.badge-critique  { background: var(--critical-muted);  color: var(--critical);  border-color: var(--critical-border); }
+.badge-important { background: var(--warning-muted);   color: var(--warning);   border-color: var(--warning-border);  }
+.badge-polish    { background: var(--info-muted);      color: var(--info);      border-color: var(--info-border);     }
+
+/* Status */
+.badge-todo       { background: rgba(40,44,65,0.6);    color: var(--text-muted);  border-color: var(--border-default);  }
+.badge-inprogress { background: var(--warning-muted);  color: var(--warning);     border-color: var(--warning-border);  }
+.badge-validated  { background: var(--success-muted);  color: var(--success);     border-color: var(--success-border);  }
+.badge-blocked    { background: var(--blocked-muted);  color: var(--blocked);     border-color: var(--blocked-border);  }
+
+/* Area tags */
+.badge-frontend { background: rgba(56,189,248,0.08);  color: var(--area-frontend); border-color: rgba(56,189,248,0.2); }
+.badge-backend  { background: rgba(244,114,182,0.08); color: var(--area-backend);  border-color: rgba(244,114,182,0.2); }
+.badge-3d       { background: rgba(167,139,250,0.08); color: var(--area-3d);       border-color: rgba(167,139,250,0.2); }
+.badge-css      { background: rgba(52,211,153,0.08);  color: var(--area-css);      border-color: rgba(52,211,153,0.2); }
+.badge-tests    { background: rgba(251,146,60,0.08);  color: var(--area-tests);    border-color: rgba(251,146,60,0.2); }
+
+/* ----------------------------------------------------------------
+   Card body (description excerpt)
+   ---------------------------------------------------------------- */
+.card-body {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  line-height: 1.6;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ----------------------------------------------------------------
+   Card footer
+   ---------------------------------------------------------------- */
+.card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-subtle);
+  margin-top: auto;
+}
+
+.card-metrics {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.card-metric {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.card-metric-icon { font-size: 11px; line-height: 1; }
+
+.card-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* ----------------------------------------------------------------
+   Stat block (phase stats, welcome page)
+   ---------------------------------------------------------------- */
+.stat-block {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4) var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 100px;
+  transition: border-color var(--t-fast);
+}
+
+.stat-block:hover { border-color: var(--border-strong); }
+
+.stat-value {
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-bold);
+  color: var(--text-primary);
+  letter-spacing: -0.03em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-value.accent   { color: var(--accent);   }
+.stat-value.success  { color: var(--success);  }
+.stat-value.critical { color: var(--critical); }
+.stat-value.warning  { color: var(--warning);  }
+
+.stat-label {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  font-weight: var(--weight-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+
+/* ----------------------------------------------------------------
+   Phase progress mini-bar
+   ---------------------------------------------------------------- */
+.phase-progress-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 140px;
+}
+
+.phase-progress-bar {
+  flex: 1;
+  height: 6px;
+  background: var(--border-default);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.phase-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), var(--accent-hover));
+  border-radius: 3px;
+  transition: width var(--t-slow);
+}
+
+.phase-progress-pct {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  min-width: 32px;
+  text-align: right;
+}
+
+/* ----------------------------------------------------------------
+   Buttons
+   ---------------------------------------------------------------- */
+.btn-primary {
+  background: var(--accent);
+  color: white;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  transition: background var(--t-fast), transform var(--t-fast), box-shadow var(--t-fast);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.btn-primary:hover {
+  background: var(--accent-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(79,124,255,0.3);
+}
+
+.btn-primary:active { transform: translateY(0); }
+
+.btn-secondary {
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-default);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  transition:
+    background var(--t-fast),
+    color var(--t-fast),
+    border-color var(--t-fast);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.btn-secondary:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+
+.btn-icon {
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  color: var(--text-muted);
+  font-size: 13px;
+  transition:
+    background var(--t-fast),
+    color var(--t-fast),
+    border-color var(--t-fast);
+}
+
+.btn-icon:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+
+/* ----------------------------------------------------------------
+   Modal content — sections
+   ---------------------------------------------------------------- */
+.modal-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.section-label {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semi);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.modal-text {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+
+.modal-section--warning {
+  background: var(--warning-muted);
+  border: 1px solid var(--warning-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+}
+
+.modal-section--warning .section-label {
+  color: var(--warning);
+}
+
+.modal-section--warning .modal-text {
+  color: rgba(245, 158, 11, 0.85);
+}
+
+/* Files list */
+.files-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.file-tag {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  padding: 3px 8px;
+  color: var(--area-frontend);
+}
+
+/* Dependencies */
+.deps-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* Status changer */
+.status-buttons {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.status-btn {
+  padding: var(--space-1) var(--space-3);
+  border-radius: 20px;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  border: 1px solid var(--border-default);
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+  transition:
+    background var(--t-fast),
+    color var(--t-fast),
+    border-color var(--t-fast);
+}
+
+.status-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+
+.status-btn.active[data-status="todo"]        { background: rgba(40,44,65,0.6);   color: var(--text-secondary); border-color: var(--border-strong); }
+.status-btn.active[data-status="inprogress"]  { background: var(--warning-muted);  color: var(--warning);  border-color: var(--warning-border); }
+.status-btn.active[data-status="validated"]   { background: var(--success-muted);  color: var(--success);  border-color: var(--success-border); }
+.status-btn.active[data-status="blocked"]     { background: var(--blocked-muted);  color: var(--blocked);  border-color: var(--blocked-border); }
+
+/* Prompt block */
+.modal-section--prompt {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+}
+
+.prompt-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.prompt-block {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: var(--bg-base);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: var(--space-4);
+  max-height: 340px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+/* ----------------------------------------------------------------
+   Prompt meta row (stats + copy button)
+   ---------------------------------------------------------------- */
+.prompt-meta-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-top: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.prompt-stat {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  background: var(--bg-base);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 2px 8px;
+}
+
+.prompt-stat-sep {
+  color: var(--border-strong);
+  font-size: var(--text-xs);
+}
+
+/* Copy prompt button (modal) */
+.btn-copy-prompt {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--accent-muted);
+  border: 1px solid var(--accent-border);
+  color: var(--accent);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  transition:
+    background var(--t-fast),
+    color var(--t-fast),
+    border-color var(--t-fast),
+    transform var(--t-fast);
+  cursor: pointer;
+}
+
+.btn-copy-prompt:hover {
+  background: var(--accent);
+  color: white;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(79,124,255,0.25);
+}
+
+.btn-copy-prompt.copy-success {
+  background: var(--success-muted);
+  border-color: var(--success-border);
+  color: var(--success);
+}
+
+.copy-icon { font-size: 13px; line-height: 1; }
+
+/* ----------------------------------------------------------------
+   Risk badges
+   ---------------------------------------------------------------- */
+.risk-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: var(--weight-semi);
+  white-space: nowrap;
+  letter-spacing: 0.03em;
+}
+
+.risk-high   { background: rgba(255,74,74,0.1);  color: var(--critical); border: 1px solid rgba(255,74,74,0.25);  }
+.risk-medium { background: rgba(245,158,11,0.1); color: var(--warning);  border: 1px solid rgba(245,158,11,0.25); }
+.risk-low    { background: rgba(100,116,139,0.1);color: var(--text-muted); border: 1px solid var(--border-subtle); }
+
+/* ----------------------------------------------------------------
+   Effort tag (colored by duration)
+   ---------------------------------------------------------------- */
+.effort-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: var(--weight-semi);
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+
+.effort-quick  { background: rgba(34,197,94,0.1);  color: var(--success);  border: 1px solid rgba(34,197,94,0.2); }
+.effort-medium { background: rgba(245,158,11,0.1); color: var(--warning);  border: 1px solid rgba(245,158,11,0.2); }
+.effort-heavy  { background: rgba(251,146,60,0.1); color: #fb923c;         border: 1px solid rgba(251,146,60,0.2); }
+.effort-epic   { background: rgba(255,74,74,0.1);  color: var(--critical); border: 1px solid rgba(255,74,74,0.2); }
+
+/* ----------------------------------------------------------------
+   Difficulty dots
+   ---------------------------------------------------------------- */
+.diff-dots {
+  font-size: 9px;
+  letter-spacing: -1.5px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.diff-1 { color: var(--success);  }
+.diff-2 { color: var(--success);  }
+.diff-3 { color: var(--warning);  }
+.diff-4 { color: #fb923c;         }
+.diff-5 { color: var(--critical); }
+
+/* ----------------------------------------------------------------
+   Impact bar (5-segment)
+   ---------------------------------------------------------------- */
+.impact-bar {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  cursor: default;
+}
+
+.impact-seg {
+  width: 6px;
+  height: 10px;
+  border-radius: 2px;
+  background: var(--border-default);
+  display: inline-block;
+  transition: background var(--t-fast);
+}
+
+.impact-seg.filled {
+  background: var(--accent);
+}
+
+.impact-label {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  margin-left: var(--space-2);
+}
+
+/* ----------------------------------------------------------------
+   Deps pill (on card)
+   ---------------------------------------------------------------- */
+.deps-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+  background: rgba(79,124,255,0.08);
+  color: var(--accent);
+  border: 1px solid rgba(79,124,255,0.2);
+}
+
+.deps-pill--blocked {
+  background: rgba(168,85,247,0.1);
+  color: var(--blocked);
+  border-color: rgba(168,85,247,0.25);
+}
+
+.dep-blocked-hint {
+  font-size: 10px;
+  color: var(--blocked);
+  background: rgba(168,85,247,0.08);
+  border: 1px solid rgba(168,85,247,0.2);
+  border-radius: 4px;
+  padding: 2px 7px;
+}
+
+/* ----------------------------------------------------------------
+   Card pills row
+   ---------------------------------------------------------------- */
+.card-pills {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  min-height: 0;
+}
+
+/* Hide pills row if empty */
+.card-pills:empty { display: none; }
+
+/* ----------------------------------------------------------------
+   Card state modifiers
+   ---------------------------------------------------------------- */
+.card-validated {
+  opacity: 0.5;
+}
+.card-validated:hover {
+  opacity: 0.75;
+}
+
+.card-blocked-state {
+  border-color: var(--blocked-border) !important;
+  background: rgba(168,85,247,0.03);
+}
+
+/* ----------------------------------------------------------------
+   Phase card footer (charge + critiques count)
+   ---------------------------------------------------------------- */
+.phase-card-footer {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-subtle);
+  margin-top: var(--space-1);
+}
+
+.phase-charge {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-weight: var(--weight-medium);
+}
+
+.phase-crits {
+  font-size: var(--text-xs);
+  color: var(--critical);
+  margin-left: auto;
+}
+
+/* ----------------------------------------------------------------
+   Dependency cards (modal)
+   ---------------------------------------------------------------- */
+.deps-cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.dep-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-elevated);
+  font-size: var(--text-xs);
+}
+
+.dep-card--pending {
+  border-color: rgba(168,85,247,0.25);
+  background: rgba(168,85,247,0.04);
+}
+
+.dep-card--done {
+  opacity: 0.7;
+}
+
+.dep-card-id {
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  flex-shrink: 0;
+  min-width: 32px;
+}
+
+.dep-card-title {
+  color: var(--text-secondary);
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ----------------------------------------------------------------
+   Modal metrics bar
+   ---------------------------------------------------------------- */
+.modal-metrics-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  padding: var(--space-3) var(--space-4);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  flex-wrap: wrap;
+}
+
+.modal-metric {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.modal-metric-label {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: var(--weight-medium);
+}
+
+.modal-impact-bar {
+  gap: 3px;
+}
+
+.modal-impact-bar .impact-seg {
+  width: 7px;
+  height: 12px;
+}

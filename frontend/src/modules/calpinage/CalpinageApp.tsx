@@ -114,6 +114,16 @@ export default function CalpinageApp({
     };
   }, []);
 
+  /** Écoute l'event calpinage:3d-degraded émis par officialSolarScene3DGateway. */
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<{ reason?: string }>).detail;
+      setDegraded3DReason(detail?.reason ?? "UNKNOWN");
+    };
+    window.addEventListener("calpinage:3d-degraded", handler);
+    return () => window.removeEventListener("calpinage:3d-degraded", handler);
+  }, []);
+
   /** Parité UI ↔ serveur : lecture seule, appelable depuis la console ou un POST /calc avec body JSON. */
   useEffect(() => {
     const w = window as Window & {
@@ -131,6 +141,12 @@ export default function CalpinageApp({
   const [error, setError] = useState<Error | null>(null);
   /** Synchronise le bridge 3D (createRoot) avec les mutations `CALPINAGE_STATE` hors React. */
   const [calpinageRuntimeNotifyEpoch, setCalpinageRuntimeNotifyEpoch] = useState(0);
+  /**
+   * Banner non-bloquant affiché quand la reconstruction 3D est dégradée
+   * (runtime non initialisé → toiture plate silencieuse évitée).
+   * Émis par officialSolarScene3DGateway via CustomEvent "calpinage:3d-degraded".
+   */
+  const [degraded3DReason, setDegraded3DReason] = useState<string | null>(null);
 
   const runInit = useCallback(async (isRetry = false) => {
     if (initInFlightRef.current) {
@@ -256,6 +272,56 @@ export default function CalpinageApp({
           />
         </>
       )}
+      {/* Banner 3D dégradé — non-bloquant, le rendu 2D reste actif */}
+      {degraded3DReason != null && (
+        <div
+          role="alert"
+          style={{
+            position: "absolute",
+            top: 12,
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 30,
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            padding: "10px 16px",
+            borderRadius: "var(--sg-radius-md, 8px)",
+            background: "#7c2d12",
+            border: "1px solid #b45309",
+            color: "#fef3c7",
+            fontSize: 13,
+            fontWeight: 500,
+            boxShadow: "0 4px 16px rgba(0,0,0,0.5)",
+            maxWidth: "calc(100% - 48px)",
+          }}
+        >
+          <span aria-hidden="true" style={{ fontSize: 16 }}>⚠️</span>
+          <span>
+            Reconstruction 3D indisponible — runtime non initialisé
+            {DEV && degraded3DReason !== "UNKNOWN" ? ` (${degraded3DReason})` : ""}
+            . Le calpinage 2D reste actif.
+          </span>
+          <button
+            type="button"
+            aria-label="Fermer l'alerte reconstruction 3D"
+            onClick={() => setDegraded3DReason(null)}
+            style={{
+              marginLeft: 8,
+              background: "none",
+              border: "none",
+              color: "#fef3c7",
+              cursor: "pointer",
+              fontSize: 16,
+              lineHeight: 1,
+              padding: 0,
+            }}
+          >
+            ×
+          </button>
+        </div>
+      )}
+
       {loading && (
         <div
           style={{

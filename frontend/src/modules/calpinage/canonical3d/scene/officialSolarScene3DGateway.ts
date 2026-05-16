@@ -16,6 +16,7 @@
  */
 
 import { buildSolarScene3DFromCalpinageRuntime } from "../buildSolarScene3DFromCalpinageRuntimeCore";
+import { getCalpinageRuntime } from "../../runtime/calpinageRuntime";
 import type { BuildSolarScene3DFromCalpinageRuntimeOptions } from "../buildSolarScene3DFromCalpinageRuntimeCore";
 import {
   buildPanelVisualShadingMapFromRuntime,
@@ -149,6 +150,29 @@ export function getOrBuildOfficialSolarScene3DFromCalpinageRuntime(
   runtime: unknown,
   options?: OfficialSolarSceneGatewayOptions,
 ): BuildSolarScene3DFromCalpinageRuntimeWithSyncResult {
+  // ── Guard: runtime de hauteur disponible ? ─────────────────────────────────
+  // Si getCalpinageRuntime().getHeightAtXY() est absent, RuntimeHeightResolver
+  // retournera RUNTIME_FALLBACK (Z=0) sur tous les sommets → toiture plate
+  // silencieuse. On détecte ce cas ICI, avant que le pipeline soit lancé, pour
+  // notifier l'UI via un CustomEvent. Le pipeline continue malgré tout (rendu 2D
+  // non bloqué, résultat 3D dégradé géré par le bridge en emergency fallback).
+  const _heightFnAvailable = getCalpinageRuntime()?.getHeightAtXY != null;
+  if (!_heightFnAvailable) {
+    if (import.meta.env.DEV) {
+      console.warn(
+        "[3D-GATEWAY] RUNTIME_NOT_MOUNTED — getCalpinageRuntime().getHeightAtXY indisponible.\n" +
+        "La reconstruction 3D va produire une toiture plate (Z=0 sur tous les sommets).\n" +
+        "Émission de calpinage:3d-degraded pour notification UI.",
+      );
+    }
+    window.dispatchEvent(
+      new CustomEvent("calpinage:3d-degraded", {
+        detail: { reason: "RUNTIME_NOT_MOUNTED" },
+      }),
+    );
+  }
+  // ──────────────────────────────────────────────────────────────────────────
+
   if (runtime && typeof runtime === "object" && (runtime as Record<string, unknown>).pans) {
     try {
       syncRoofPansMirrorFromPans(runtime as Record<string, unknown>);

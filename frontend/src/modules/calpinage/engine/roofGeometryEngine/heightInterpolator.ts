@@ -21,7 +21,14 @@ const RUNTIME_FALLBACK: HeightResolution = {
   heightM: 0,
   source: "fallback",
   reliable: false,
+  reason: "RUNTIME_NOT_MOUNTED",
 };
+
+/**
+ * Flag module pour éviter le spam console sur le chemin hot (résolution par pan).
+ * Réinitialisé uniquement lors d'un rechargement de module (HMR ou reload complet).
+ */
+let _runtimeNotMountedWarnedOnce = false;
 
 /**
  * HeightResolver branché sur window.getHeightAtXY via CalpinageRuntime (Phase 2).
@@ -39,7 +46,19 @@ export class RuntimeHeightResolver implements HeightResolver {
 
   getHeightAtImagePoint(xPx: number, yPx: number, panId?: string): HeightResolution {
     const fn = getCalpinageRuntime()?.getHeightAtXY();
-    if (!fn) return RUNTIME_FALLBACK;
+    if (!fn) {
+      if (import.meta.env.DEV && !_runtimeNotMountedWarnedOnce) {
+        _runtimeNotMountedWarnedOnce = true;
+        console.warn(
+          "[RuntimeHeightResolver] RUNTIME_NOT_MOUNTED — getHeightAtXY() indisponible.\n" +
+          "Fallback Z=0 appliqué sur tous les sommets → toiture plate silencieuse.\n" +
+          "Cause probable : registerCalpinageRuntime() non appelé avant la reconstruction 3D.\n" +
+          "Ce warning n'est affiché qu'une fois par session.",
+          { xPx, yPx, panId },
+        );
+      }
+      return RUNTIME_FALLBACK;
+    }
     try {
       const h = fn(panId ?? "", xPx, yPx);
       if (h == null || !Number.isFinite(h)) return RUNTIME_FALLBACK;
