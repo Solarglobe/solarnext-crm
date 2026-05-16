@@ -1068,6 +1068,45 @@ function imagePolygonToRoofLineGeometry(
   return geo;
 }
 
+function imagePolygonToRoofRibbonGeometry(
+  scene: SolarScene3D,
+  points: readonly { readonly x: number; readonly y: number }[],
+  panId: string | null | undefined,
+  offsetM: number,
+  widthM: number,
+): THREE.BufferGeometry | null {
+  const patch =
+    scene.roofModel.roofPlanePatches.find((p) => String(p.id) === String(panId ?? "")) ??
+    scene.roofModel.roofPlanePatches[0];
+  if (!patch) return null;
+  const normal = new THREE.Vector3(patch.normal.x, patch.normal.y, patch.normal.z).normalize();
+  const world = imagePolygonToRoofWorldPoints(scene, points, panId, offsetM);
+  if (world.length < 2) return null;
+  const positions: number[] = [];
+  const indices: number[] = [];
+  const halfWidth = Math.max(0.01, widthM) / 2;
+  for (let i = 0; i < world.length; i++) {
+    const a = world[i]!;
+    const b = world[(i + 1) % world.length]!;
+    const edge = new THREE.Vector3().subVectors(b, a);
+    if (edge.lengthSq() < 1e-8) continue;
+    const side = new THREE.Vector3().crossVectors(edge.normalize(), normal).normalize().multiplyScalar(halfWidth);
+    const base = positions.length / 3;
+    const a1 = a.clone().add(side);
+    const b1 = b.clone().add(side);
+    const b2 = b.clone().sub(side);
+    const a2 = a.clone().sub(side);
+    positions.push(a1.x, a1.y, a1.z, b1.x, b1.y, b1.z, b2.x, b2.y, b2.z, a2.x, a2.y, a2.z);
+    indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
+  }
+  if (positions.length === 0) return null;
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geo.setIndex(indices);
+  geo.computeVertexNormals();
+  return geo;
+}
+
 function imagePolygonToRoofCellLineGeometry(
   scene: SolarScene3D,
   points: readonly { readonly x: number; readonly y: number }[],
@@ -1741,8 +1780,6 @@ function PvLayout3dSvgOverlay({
 }) {
   if (!overlay) return null;
   const h = overlay.handles;
-  const polyPoints = (points: readonly PvLayout3dScreenPoint[]): string =>
-    points.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
   return (
     <svg
       role="img"
@@ -1758,46 +1795,6 @@ function PvLayout3dSvgOverlay({
         overflow: "hidden",
       }}
     >
-      {overlay.ghosts.map((g) => {
-        const fill = g.excluded
-          ? "rgba(113,113,122,0.07)"
-          : g.valid
-            ? g.source === "autofill"
-              ? "rgba(56,189,248,0.11)"
-              : "rgba(34,197,94,0.1)"
-            : "rgba(249,115,22,0.12)";
-        const stroke = g.excluded
-          ? "rgba(161,161,170,0.42)"
-          : g.valid
-            ? g.source === "autofill"
-              ? "rgba(186,230,253,0.62)"
-              : "rgba(134,239,172,0.58)"
-            : "rgba(253,186,116,0.68)";
-        const dash = g.excluded ? "4 4" : g.valid ? undefined : "6 3";
-        return (
-          <g key={`pv3d-svg-ghost-${g.id}`}>
-            <polygon
-              points={polyPoints(g.points)}
-              fill={fill}
-              stroke={stroke}
-              strokeWidth={1.7}
-              strokeDasharray={dash}
-              vectorEffect="non-scaling-stroke"
-            />
-          </g>
-        );
-      })}
-      {overlay.panels.filter((p) => p.invalid).map((p) => (
-        <polygon
-          key={`pv3d-svg-invalid-${p.id}`}
-          points={polyPoints(p.points)}
-          fill="rgba(220,38,38,0.07)"
-          stroke="rgba(252,165,165,0.64)"
-          strokeWidth={1.45}
-          strokeDasharray="7 5"
-          vectorEffect="non-scaling-stroke"
-        />
-      ))}
       {h ? (
         <g>
           <line
@@ -2353,8 +2350,9 @@ function ViewerSceneContent({
     if (!pvLayout3DInteractionMode || !pvLayout3dOverlayState) return [];
     return pvLayout3dOverlayState.safeZones.flatMap((z) =>
       z.polygons.flatMap((poly, index) => {
-        const line = imagePolygonToRoofLineGeometry(scene, poly, z.panId, 0.012);
-        return line ? [{ id: `${z.panId}-${index}`, line }] : [];
+        const ribbon = imagePolygonToRoofRibbonGeometry(scene, poly, z.panId, 0.008, 0.06);
+        const line = imagePolygonToRoofLineGeometry(scene, poly, z.panId, 0.014);
+        return ribbon || line ? [{ id: `${z.panId}-${index}`, ribbon, line }] : [];
       }),
     );
   }, [scene, pvLayout3DInteractionMode, pvLayout3dOverlayState]);
@@ -2394,7 +2392,7 @@ function ViewerSceneContent({
       ...panelGeos.flatMap((x) => [x.geo, x.cell].filter((g): g is THREE.BufferGeometry => g != null)),
       ...pv3dLivePanelGeos.flatMap((x) => [x.fill, x.line, x.cell].filter((g): g is THREE.BufferGeometry => g != null)),
       ...pv3dGhostGeos.flatMap((x) => [x.fill, x.line].filter((g): g is THREE.BufferGeometry => g != null)),
-      ...pv3dSafeZoneGeos.map((x) => x.line),
+      ...pv3dSafeZoneGeos.flatMap((x) => [x.ribbon, x.line].filter((g): g is THREE.BufferGeometry => g != null)),
     ],
     [
       shellGeo,
@@ -3089,11 +3087,27 @@ function ViewerSceneContent({
         </>
       )}
       {pvLayout3DInteractionMode &&
-        pv3dSafeZoneGeos.map(({ id, line }) => (
+        pv3dSafeZoneGeos.map(({ id, ribbon, line }) => (
           <group key={`pv3d-safe-${id}`}>
+            {ribbon ? (
+              <mesh geometry={ribbon} renderOrder={20}>
+                <meshBasicMaterial
+                  color={PV3D_SAFE_ZONE_LINE}
+                  transparent
+                  opacity={0.78}
+                  side={THREE.DoubleSide}
+                  depthWrite={false}
+                  depthTest
+                  toneMapped={false}
+                  polygonOffset
+                  polygonOffsetFactor={-1}
+                  polygonOffsetUnits={-1}
+                />
+              </mesh>
+            ) : null}
             {line ? (
               <lineSegments geometry={line} renderOrder={21}>
-                <lineBasicMaterial color={PV3D_SAFE_ZONE_LINE} transparent opacity={0.58} toneMapped={false} depthTest />
+                <lineBasicMaterial color="#fecaca" transparent opacity={0.88} toneMapped={false} depthTest />
               </lineSegments>
             ) : null}
           </group>
