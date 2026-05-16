@@ -81,6 +81,7 @@
     "test:battery-virtual": "node scripts/test-battery-virtual.js",
     "validate:battery-virtual-persist": "node scripts/validate-battery-virtual-persistence.js",
     "test:virtual-battery-8760": "node tests/virtualBattery8760.test.js",
+    "test:energy-coherence": "node tests/energyCoherence.test.js",
     "test-economics-patch": "node scripts/test-economics-patch.js",
     "test-cp-lead-client-split-06": "node scripts/test-cp-lead-client-split-06.js",
     "test-cp-lead-client-split-06-lock": "node scripts/test-cp-lead-client-split-06-lock.js",
