@@ -3,7 +3,7 @@
  */
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
-import type { PickProvenance2DViewModel, SceneInspectionViewModel } from "./inspection/sceneInspectionTypes";
+import type { PickProvenance2DViewModel, SceneInspectionTone, SceneInspectionViewModel } from "./inspection/sceneInspectionTypes";
 
 /** Édition Z sommet (phase B4) — valeur métier `h` sur `state.pans`. */
 export type RoofVertexHeightEditUiModel = {
@@ -102,6 +102,32 @@ const rowLabel: CSSProperties = {
   minWidth: 118,
   flexShrink: 0,
 };
+
+function toneColor(tone: SceneInspectionTone): string {
+  switch (tone) {
+    case "ok":
+      return "rgba(34, 197, 94, 0.92)";
+    case "warning":
+      return "rgba(251, 191, 36, 0.95)";
+    case "danger":
+      return "rgba(248, 113, 113, 0.95)";
+    default:
+      return "rgba(148, 163, 184, 0.95)";
+  }
+}
+
+function toneBackground(tone: SceneInspectionTone): string {
+  switch (tone) {
+    case "ok":
+      return "rgba(22, 101, 52, 0.22)";
+    case "warning":
+      return "rgba(120, 83, 22, 0.28)";
+    case "danger":
+      return "rgba(127, 29, 29, 0.3)";
+    default:
+      return "rgba(30, 41, 59, 0.42)";
+  }
+}
 
 export interface SceneInspectionPanel3DProps {
   readonly model: SceneInspectionViewModel | null;
@@ -1074,6 +1100,43 @@ export function SceneInspectionPanel3D({
               </button>
             )}
           </div>
+          {model.hero ? (
+            <div
+              data-testid="obstacle-inspection-hero"
+              style={{
+                marginBottom: 12,
+                padding: "10px 11px",
+                borderRadius: 8,
+                border: `1px solid ${toneColor(model.hero.tone)}`,
+                background: toneBackground(model.hero.tone),
+                boxShadow: "inset 0 1px 0 rgba(255,255,255,0.06)",
+              }}
+            >
+              <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.04em", opacity: 0.68 }}>
+                {model.hero.eyebrow}
+              </div>
+              <div style={{ marginTop: 3, fontSize: 14, fontWeight: 700, lineHeight: 1.25 }}>{model.hero.title}</div>
+              <div style={{ marginTop: 4, fontSize: 11, opacity: 0.76 }}>{model.hero.subtitle}</div>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
+                {model.hero.badges.map((badge) => (
+                  <span
+                    key={badge.label}
+                    style={{
+                      border: `1px solid ${toneColor(badge.tone)}`,
+                      background: toneBackground(badge.tone),
+                      color: "rgba(248, 250, 252, 0.94)",
+                      borderRadius: 999,
+                      padding: "2px 7px",
+                      fontSize: 10,
+                      fontWeight: 650,
+                    }}
+                  >
+                    {badge.label}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ) : null}
           <dl style={{ margin: 0 }}>
             {model.rows.map((r, idx) => (
               <div

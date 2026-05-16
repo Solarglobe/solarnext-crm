@@ -20,8 +20,12 @@ describe("buildSceneInspectionViewModel", () => {
 
   it("résout un obstacle", () => {
     const m = buildSceneInspectionViewModel(scene, { kind: "OBSTACLE", id: "obs-block" });
+    expect(m.hero?.eyebrow).toBe("Inspection obstacle 3D");
     expect(m.rows.some((r) => r.label === "Sous-type")).toBe(true);
     expect(m.rows.some((r) => r.label === "Hauteur")).toBe(true);
+    expect(m.rows.some((r) => r.label === "Role shading")).toBe(true);
+    expect(m.rows.some((r) => r.label === "Role keepout")).toBe(true);
+    expect(m.rows.some((r) => r.label === "Surface impactee")).toBe(true);
   });
 
   it("panneau inexistant → message clair", () => {

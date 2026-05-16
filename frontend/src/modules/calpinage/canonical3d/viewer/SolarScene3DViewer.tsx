@@ -4787,6 +4787,34 @@ function SolarScene3DViewer({
           </div>
         </div>
       ) : null}
+      {inspectMode && inspectionSelection?.kind === "OBSTACLE" && inspectionModel?.hero ? (
+        <div
+          role="tooltip"
+          data-testid="obstacle-inspection-tooltip"
+          style={{
+            position: "absolute",
+            left: 12,
+            bottom: 12,
+            zIndex: 4,
+            maxWidth: "min(360px, calc(100vw - 24px))",
+            padding: "9px 11px",
+            borderRadius: 8,
+            background: "rgba(15, 23, 42, 0.88)",
+            border: "1px solid rgba(226,232,240,0.16)",
+            boxShadow: "0 12px 32px rgba(0,0,0,0.32)",
+            color: "rgba(248,250,252,0.95)",
+            pointerEvents: "none",
+            backdropFilter: "blur(10px)",
+            fontFamily: "system-ui, -apple-system, sans-serif",
+          }}
+        >
+          <div style={{ fontSize: 10, opacity: 0.62, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+            {inspectionModel.hero.eyebrow}
+          </div>
+          <div style={{ marginTop: 2, fontSize: 13, fontWeight: 750 }}>{inspectionModel.hero.title}</div>
+          <div style={{ marginTop: 3, fontSize: 11, opacity: 0.74 }}>{inspectionModel.hero.subtitle}</div>
+        </div>
+      ) : null}
       {(inspectMode ||
         panSelection3DMode ||
         (enableStructuralRidgeHeightEdit && (structuralHeightSelection != null || roofHeightAssistant != null))) && (

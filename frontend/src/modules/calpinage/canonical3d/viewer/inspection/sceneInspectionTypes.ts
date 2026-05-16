@@ -44,9 +44,25 @@ export type InspectionRow = {
   readonly value: string;
 };
 
+export type SceneInspectionTone = "neutral" | "ok" | "warning" | "danger";
+
+export type SceneInspectionBadge = {
+  readonly label: string;
+  readonly tone: SceneInspectionTone;
+};
+
+export type SceneInspectionHero = {
+  readonly eyebrow: string;
+  readonly title: string;
+  readonly subtitle: string;
+  readonly tone: SceneInspectionTone;
+  readonly badges: readonly SceneInspectionBadge[];
+};
+
 /** Données formatées pour `SceneInspectionPanel3D`. */
 export type SceneInspectionViewModel = {
   readonly title: string;
+  readonly hero?: SceneInspectionHero;
   readonly rows: readonly InspectionRow[];
   readonly warnings: readonly string[];
 };

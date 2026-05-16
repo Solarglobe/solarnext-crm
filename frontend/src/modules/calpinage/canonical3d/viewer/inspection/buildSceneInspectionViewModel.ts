@@ -16,6 +16,7 @@ import {
 } from "./formatInspectionValue";
 import type { InspectionRow, SceneInspectionSelection, SceneInspectionViewModel } from "./sceneInspectionTypes";
 import { azimuthDegFromOutwardNormalWorld, tiltDegFromOutwardNormalWorld } from "./tiltAzimuthFromNormal";
+import { buildObstacleInspection3DModel } from "./obstacleInspection3D";
 
 function formatObstacleKindFr(k: RoofObstacleKind): string {
   const map: Record<RoofObstacleKind, string> = {
@@ -276,9 +277,13 @@ export function buildSceneInspectionViewModel(
     const panLink =
       v.relatedPlanePatchIds.length > 0 ? v.relatedPlanePatchIds.map(String).join(", ") : "—";
 
+    const premiumInspection = buildObstacleInspection3DModel(v);
+    const premiumRowLabels = new Set(["ID", "Hauteur", "Dimensions XY", "Base Z", "Mode extrusion"]);
+
     rows.push({ label: "Type", value: "Obstacle volumique" });
     rows.push({ label: "ID", value: String(v.id) });
     rows.push({ label: "Sous-type", value: formatObstacleKindFr(v.kind) });
+    rows.push(...premiumInspection.rows.filter((r) => !premiumRowLabels.has(r.label)));
     rows.push({ label: "Pan(s) lié(s)", value: panLink });
     rows.push({ label: "Hauteur", value: formatLengthM(v.heightM) });
     rows.push({ label: "Élévation base", value: formatLengthM(v.baseElevationM) });
@@ -292,8 +297,9 @@ export function buildSceneInspectionViewModel(
       warnings.push(`[${d.severity}] ${d.code} : ${d.message}`);
     }
     warnings.push(...collectCoherenceForObstacle(scene, String(v.id)));
+    warnings.push(...premiumInspection.warnings.filter((w) => !warnings.includes(w)));
+    return { title: "Inspection obstacle", hero: premiumInspection.hero, rows, warnings };
 
-    return { title: "Inspection — obstacle", rows, warnings };
   }
 
   if (selection.kind === "SHELL") {
