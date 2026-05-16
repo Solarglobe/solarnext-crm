@@ -18,6 +18,7 @@ import { isUseOfficialShadingEnabled } from "../services/calpinage/officialShadi
 import { isShadingParityPersistEnabled } from "../services/calpinage/shadingParity.service.js";
 import { logAuditEvent } from "../services/audit/auditLog.service.js";
 import { AuditActions } from "../services/audit/auditActions.js";
+import { upsertFinancialScenariosForVersion } from "../services/financialScenarios.service.js";
 
 const orgId = (req) => req.user?.organizationId ?? req.user?.organization_id;
 const userIdFromReq = (req) => req.user?.userId ?? req.user?.id ?? null;
@@ -235,6 +236,19 @@ export async function runStudyCalc(req, res) {
           [JSON.stringify(merged), versionId]
         );
       }
+
+      // CP-FINSCEN-001 — écriture canonique non-bloquante dans financial_scenarios
+      void upsertFinancialScenariosForVersion({
+        organizationId: org,
+        studyId,
+        studyVersionId: versionId,
+        solarnextPayload,
+        scenariosV2: ctxFinal.scenarios_v2 ?? [],
+        userId: userIdFromReq(req),
+      }).catch((err) =>
+        console.error("[studyCalc] upsertFinancialScenarios non-fatal:", err?.message)
+      );
+
       if (process.env.NODE_ENV !== "production" || process.env.LOG_STUDY_CALC_PERSIST === "1") {
         const persistedIds = (ctxFinal.scenarios_v2 || []).map((s) => s?.id ?? s?.name).filter(Boolean);
         console.log(

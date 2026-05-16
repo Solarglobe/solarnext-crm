@@ -12,6 +12,7 @@ import { generatePdfForVersion } from "./pdfGeneration.controller.js";
 import { isPdfBlockedByConfidence } from "../services/calculationConfidence.service.js";
 import { logAuditEvent } from "../services/audit/auditLog.service.js";
 import { AuditActions } from "../services/audit/auditActions.js";
+import { lockFinancialScenario } from "../services/financialScenarios.service.js";
 
 const VALID_SCENARIO_IDS = ["BASE", "BATTERY_PHYSICAL", "BATTERY_VIRTUAL", "BATTERY_HYBRID"];
 const orgId = (req) => req.user?.organizationId ?? req.user?.organization_id;
@@ -82,6 +83,11 @@ export async function selectScenario(req, res) {
        SET selected_scenario_id = $1, selected_scenario_snapshot = $2::jsonb, is_locked = true, locked_at = NOW()
        WHERE id = $3 AND organization_id = $4`,
       [scenarioId, JSON.stringify(snapshot), versionId, org]
+    );
+
+    // CP-FINSCEN-001 — verrouillage canonique non-bloquant dans financial_scenarios
+    void lockFinancialScenario(versionId, scenarioId).catch((err) =>
+      console.error("[selectScenario] lockFinancialScenario non-fatal:", err?.message)
     );
 
     void logAuditEvent({
