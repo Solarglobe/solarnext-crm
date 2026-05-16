@@ -7,6 +7,37 @@ import { useEffect, useRef, useState } from "react";
 import styles from "./Phase2Sidebar.module.css";
 import { usePhase2Data, setupPhase2SidebarNotify } from "../hooks/usePhase2Data";
 import Phase2ObstaclePanel from "./Phase2ObstaclePanel";
+import { useToast } from "../ui/useToast";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Helpers module-level (pas de dépendance React)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Tente de cliquer sur un bouton DOM identifié par `id`.
+ * Retry jusqu'à `maxRetries` fois avec `delayMs` entre chaque tentative.
+ * Appelle `onFail` si le bouton reste introuvable après tous les essais.
+ *
+ * Cas couvert : race condition où React monte Phase2Sidebar avant que le module
+ * legacy ait injecté son template (et donc avant que #btn-validate-roof soit dans le DOM).
+ */
+function clickWithRetry(
+  id: string,
+  maxRetries: number,
+  delayMs: number,
+  onFail: () => void,
+): void {
+  const btn = document.getElementById(id) as HTMLButtonElement | null;
+  if (btn) {
+    btn.click();
+    return;
+  }
+  if (maxRetries <= 0) {
+    onFail();
+    return;
+  }
+  setTimeout(() => clickWithRetry(id, maxRetries - 1, delayMs, onFail), delayMs);
+}
 
 function Phase2Header() {
   return (
@@ -197,9 +228,42 @@ function Phase2StateBlock() {
 
 function Phase2Actions() {
   const { canValidate, validateHint } = usePhase2Data();
+  const toast = useToast();
 
   const handleValidate = () => {
-    document.getElementById("btn-validate-roof")?.click();
+    const btn = document.getElementById("btn-validate-roof") as HTMLButtonElement | null;
+
+    // Cas 1 : bouton présent mais désactivé côté legacy (incohérence avec canValidate React).
+    // Ne devrait pas arriver (React reflète l'état legacy), mais on guard défensivement.
+    if (btn?.disabled) {
+      toast.error("Validation impossible — contour bâti valide et au moins un pan requis.");
+      return;
+    }
+
+    // Cas 2 : bouton présent et actif → click direct (cas nominal).
+    if (btn) {
+      btn.click();
+      return;
+    }
+
+    // Cas 3 : bouton absent du DOM → race condition (React monté avant le template legacy).
+    // Retry 3× toutes les 100ms, toast d'erreur si toujours absent.
+    clickWithRetry(
+      "btn-validate-roof",
+      3,
+      100,
+      () => {
+        toast.error(
+          "Validation indisponible — le module de relevé toiture n'est pas encore initialisé. Veuillez réessayer.",
+        );
+        if (import.meta.env.DEV) {
+          console.error(
+            "[Phase2Actions] #btn-validate-roof introuvable après 3 tentatives.",
+            "Cause probable : initValidateRoofButton() non encore exécuté.",
+          );
+        }
+      },
+    );
   };
 
   return (
