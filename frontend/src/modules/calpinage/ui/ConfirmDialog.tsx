@@ -8,7 +8,8 @@ import styles from "./ConfirmDialog.module.css";
 
 export interface ConfirmDialogProps {
   open: boolean;
-  title: string;
+  /** Titre affiché dans le <h2> de la dialog. Optionnel — fallback "⚠️ Action importante". */
+  title?: string;
   description: string;
   confirmLabel?: string;
   cancelLabel?: string;
@@ -18,13 +19,27 @@ export interface ConfirmDialogProps {
 
 export function ConfirmDialog({
   open,
-  title,
+  title = "⚠️ Action importante",
   description,
   confirmLabel = "Confirmer",
   cancelLabel = "Annuler",
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
+  // ── Hooks — tous AVANT tout return conditionnel (Rules of Hooks) ───────────
+
+  /** Verrou anti double-submit : empêche deux appels onConfirm si clics rapides. */
+  const submittedRef = useRef(false);
+
+  /** Référence sur le bouton de confirmation pour le focus trap. */
+  const confirmBtnRef = useRef<HTMLButtonElement>(null);
+
+  /** Reset du verrou à chaque ouverture. */
+  useEffect(() => {
+    if (open) submittedRef.current = false;
+  }, [open]);
+
+  /** Fermeture par Escape. */
   useEffect(() => {
     if (!open) return;
     const handleEscape = (e: KeyboardEvent) => {
@@ -34,12 +49,15 @@ export function ConfirmDialog({
     return () => window.removeEventListener("keydown", handleEscape);
   }, [open, onCancel]);
 
-  if (!open) return null;
-
-  const submittedRef = useRef(false);
+  /** Focus trap : focus le bouton de confirmation à l'ouverture. */
   useEffect(() => {
-    if (open) submittedRef.current = false;
+    if (!open) return;
+    const frame = requestAnimationFrame(() => confirmBtnRef.current?.focus());
+    return () => cancelAnimationFrame(frame);
   }, [open]);
+
+  // ── Guard conditionnel (après tous les hooks) ─────────────────────────────
+  if (!open) return null;
 
   const handleConfirm = () => {
     if (submittedRef.current) return;
@@ -63,12 +81,11 @@ export function ConfirmDialog({
     >
       <div className={styles.card}>
         <h2 id="confirm-dialog-title" className={styles.title}>
-          ⚠️ Action importante
-        </h2>
-        <p id="confirm-dialog-description" className={styles.subtitle}>
           {title}
+        </h2>
+        <p id="confirm-dialog-description" className={styles.description}>
+          {description}
         </p>
-        <p className={styles.description}>{description}</p>
         <div className={styles.actions}>
           <button
             type="button"
@@ -79,6 +96,7 @@ export function ConfirmDialog({
             {cancelLabel}
           </button>
           <button
+            ref={confirmBtnRef}
             type="button"
             className={styles.btnConfirm}
             onClick={handleConfirm}

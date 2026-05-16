@@ -27,11 +27,11 @@
     0 24px 48px rgba(0, 0, 0, 0.4),
     0 0 0 1px rgba(99, 102, 241, 0.20),
     inset 0 1px 0 rgba(255, 255, 255, 0.05);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition: box-shadow 0.2s ease;
 }
 
 .card:hover {
-  transform: scale(1.02);
+  /* transform: scale(1.02) supprimé — une modale ne doit pas bouger au survol */
   box-shadow:
     0 28px 56px rgba(0, 0, 0, 0.45),
     0 0 0 1px rgba(99, 102, 241, 0.25),
