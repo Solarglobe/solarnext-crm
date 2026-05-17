@@ -63,8 +63,13 @@ export function buildPremiumShadingExport(normalized) {
   const source = normalized.far?.source ?? normalized.farSource ?? "RELIEF_ONLY";
   const farHorizonKind = resolveFarHorizonKindForExport(normalized);
 
+  let _syntheticTimestamp = false;
   let computedAt = normalized.computedAt;
   if (computedAt == null) {
+    _syntheticTimestamp = true;
+    if (import.meta.env?.DEV || process.env?.NODE_ENV === "development") {
+      console.warn("[buildShadingExport] computedAt absent — timestamp synthétisé.");
+    }
     computedAt = new Date().toISOString();
   } else if (typeof computedAt === "number") {
     computedAt = new Date(computedAt).toISOString();
@@ -83,6 +88,18 @@ export function buildPremiumShadingExport(normalized) {
     // DEPRECATED — alias miroir de combined.totalLossPct (SmartPitch / export-json)
     totalLossPct: combined.totalLossPct ?? null,
   };
+  if (!VALID_CONFIDENCE.includes(out.confidence)) {
+    console.warn("[buildShadingExport] confidence invalide:", out.confidence, "→ fallback UNKNOWN");
+    out.confidence = "UNKNOWN";
+  }
+  if (!VALID_SOURCE.includes(out.source)) {
+    console.warn("[buildShadingExport] source invalide:", out.source);
+    out.source = "UNKNOWN";
+  }
+  if (_syntheticTimestamp) {
+    out._syntheticTimestamp = true;
+  }
+
   if (Array.isArray(normalized.perPanel)) out.perPanel = normalized.perPanel;
   if (normalized.horizonMask != null && typeof normalized.horizonMask === "object") {
     out.horizonMask = normalized.horizonMask;
