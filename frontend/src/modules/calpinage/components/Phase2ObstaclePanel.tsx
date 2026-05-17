@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import styles from "./Phase2ObstaclePanel.module.css";
 import { usePhase2Data } from "../hooks/usePhase2Data";
 import { estimateSolarImpactFromHeuristic } from "../catalog/obstacleSolarImpact";
+import { ConfirmDialog } from "../ui/ConfirmDialog";
 
 type EditorState =
   | { kind: null; metersPerPixel: number }
@@ -60,6 +61,7 @@ function formatCmFromM(m: number, digits = 0): string {
 export default function Phase2ObstaclePanel({ compact = false }: { compact?: boolean }) {
   usePhase2Data();
   const [tick, setTick] = useState(0);
+  const [confirmTarget, setConfirmTarget] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -307,8 +309,8 @@ export default function Phase2ObstaclePanel({ compact = false }: { compact?: boo
             <button
               type="button"
               className={`${styles.actionBtn} ${styles.actionDanger}`}
-              onClick={() => api?.deleteSelection()}
-              title="Supprime l’élément sélectionné du plan (action immédiate)"
+              onClick={() => setConfirmTarget(s.label)}
+              aria-label={"Supprimer l'obstacle " + s.label}
             >
               Supprimer
             </button>
@@ -323,6 +325,13 @@ export default function Phase2ObstaclePanel({ compact = false }: { compact?: boo
               Taille par défaut
             </button>
           </div>
+        <ConfirmDialog
+          open={confirmTarget !== null}
+          title="Supprimer l'élément ?"
+          description="Cette action est irréversible."
+          onConfirm={() => { api?.deleteSelection(); setConfirmTarget(null); }}
+          onCancel={() => setConfirmTarget(null)}
+        />
         </div>
       </div>
     );
@@ -473,8 +482,8 @@ export default function Phase2ObstaclePanel({ compact = false }: { compact?: boo
           <button
             type="button"
             className={`${styles.actionBtn} ${styles.actionDanger}`}
-            onClick={() => api?.deleteSelection()}
-            title="Supprime l’élément sélectionné du plan (action immédiate)"
+            onClick={() => setConfirmTarget(v.label)}
+            aria-label={"Supprimer l'obstacle " + v.label}
           >
             Supprimer
           </button>
@@ -489,6 +498,13 @@ export default function Phase2ObstaclePanel({ compact = false }: { compact?: boo
             Taille par défaut
           </button>
         </div>
+      <ConfirmDialog
+        open={confirmTarget !== null}
+        title="Supprimer l'élément ?"
+        description="Cette action est irréversible."
+        onConfirm={() => { api?.deleteSelection(); setConfirmTarget(null); }}
+        onCancel={() => setConfirmTarget(null)}
+      />
       </div>
     </div>
   );
