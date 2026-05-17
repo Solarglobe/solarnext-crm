@@ -552,4 +552,5 @@ export {
   pickSceneHitFromIntersections,
   scenePickHitToInspectionSelection,
 } from "./viewer/inspection/pickInspectableIntersection";
-export { buildDemoSolarScene3D } from "./viewer/demoSolarScene3d";
+// buildDemoSolarScene3D : dev-only, import dynamique — ne pas re-exporter depuis le barrel public.
+// Importer directement depuis "./viewer/demoSolarScene3d" dans les pages dev.

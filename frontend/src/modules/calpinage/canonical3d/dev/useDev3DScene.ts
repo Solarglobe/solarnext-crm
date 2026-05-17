@@ -12,7 +12,7 @@
  * Injection optionnelle (dev) : `sessionStorage.setItem("solarnext_dev_3d_runtime_json", JSON.stringify(runtime))`
  */
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import type { SolarScene3D } from "../types/solarScene3d";
 import { buildDemoSolarScene3D } from "../viewer/demoSolarScene3d";
@@ -33,6 +33,13 @@ export type Dev3DRuntimeBuildInput = {
 
 export type Dev3DSceneState =
   | {
+      /** Construction de la scène en cours (ex. import dynamique demo). */
+      readonly status: "loading";
+      readonly mode: Dev3DSceneMode;
+      readonly scene: null;
+      readonly runtimeSource: "demo";
+    }
+  | {
       readonly status: "ok";
       readonly mode: Dev3DSceneMode;
       readonly scene: SolarScene3D;
@@ -45,7 +52,7 @@ export type Dev3DSceneState =
       readonly mode: Dev3DSceneMode;
       readonly scene: null;
       readonly message: string;
-      readonly runtimeSource: "fixture" | "sessionStorage" | "battery";
+      readonly runtimeSource: "demo" | "fixture" | "sessionStorage" | "battery";
       readonly runtimeBuildInput?: Dev3DRuntimeBuildInput;
     };
 
@@ -76,15 +83,28 @@ export function useDev3DScene(): Dev3DSceneState {
   const fixtureParam = params.get("fixture");
   const mode: Dev3DSceneMode = modeParam === "runtime" ? "runtime" : "demo";
 
+  // buildDemoSolarScene3D est async (import dynamique dev-only) → useState + useEffect
+  const [demoScene, setDemoScene] = useState<SolarScene3D | null>(null);
+  const [demoError, setDemoError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (mode !== "demo") return;
+    setDemoScene(null);
+    setDemoError(null);
+    buildDemoSolarScene3D()
+      .then(setDemoScene)
+      .catch((e: unknown) => setDemoError(e instanceof Error ? e.message : String(e)));
+  }, [mode]);
+
   return useMemo((): Dev3DSceneState => {
     if (mode === "demo") {
-      return {
-        status: "ok",
-        mode: "demo",
-        scene: buildDemoSolarScene3D(),
-        runtimeSource: "demo",
-        runtimeBuildInput: undefined,
-      };
+      if (demoError) {
+        return { status: "error", mode: "demo", scene: null, message: demoError, runtimeSource: "demo" };
+      }
+      if (!demoScene) {
+        return { status: "loading", mode: "demo", scene: null, runtimeSource: "demo" };
+      }
+      return { status: "ok", mode: "demo", scene: demoScene, runtimeSource: "demo" };
     }
 
     const batteryBundle = fixtureParam ? getRuntime3DFixture(fixtureParam) : undefined;
@@ -161,5 +181,5 @@ export function useDev3DScene(): Dev3DSceneState {
       runtimeSource,
       runtimeBuildInput: { sceneId, runtime },
     };
-  }, [mode, fixtureParam]);
+  }, [mode, fixtureParam, demoScene, demoError]);
 }

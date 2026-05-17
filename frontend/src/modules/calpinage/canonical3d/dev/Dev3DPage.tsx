@@ -175,6 +175,10 @@ export default function Dev3DPage() {
             </div>
           </main>
         </>
+      ) : state.status === "loading" ? (
+        <main style={mainStyle}>
+          <div style={errorStyle}>Chargement de la scène demo…</div>
+        </main>
       ) : (
         <>
           <header style={headerStyle}>
