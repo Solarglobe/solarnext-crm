@@ -513,6 +513,13 @@
   color: var(--text, #E8ECF8);
 }
 
+/* Doit venir APRÈS .toggleCompactBtn dark pour gagner en spécificité égale (source order). */
+:global(html.theme-dark) .toggleCompactBtnOn {
+  background: var(--brand-accent, #6366F1);
+  color: #ffffff;
+  box-shadow: 0 1px 3px rgba(99, 102, 241, 0.3);
+}
+
 :global(html.theme-dark) .toggleCompactBtn:hover {
   background: rgba(99, 102, 241, 0.15);
   color: #c7d2fe;
