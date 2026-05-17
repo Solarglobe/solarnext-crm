@@ -28,6 +28,8 @@ export interface FaceAabbEntry {
 /** Index plat (pas d'arbre -- suffisant pour des volumes a <= ~200 faces). */
 export interface VolumeFaceIndex {
   readonly entries: readonly FaceAabbEntry[];
+  /** Positions des sommets du volume, co-calculees lors de la construction de l'index. */
+  readonly positions: readonly Vector3[];
 }
 
 /** Shape minimale requise pour construire l'index (obstacle ou extension). */
@@ -89,7 +91,7 @@ export function getOrBuildVolumeFaceIndex(vol: VolumeWithVerticesAndFaces): Volu
     bounds: buildFaceAabb(face, positions),
   }));
 
-  const index: VolumeFaceIndex = { entries };
+  const index: VolumeFaceIndex = { entries, positions };
   _cache.set(vol as object, index);
   return index;
 }

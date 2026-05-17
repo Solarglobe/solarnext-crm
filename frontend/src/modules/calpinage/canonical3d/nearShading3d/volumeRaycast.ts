@@ -31,10 +31,6 @@ export interface VolumeRaycastHit {
   readonly kind: NearShadingOccluderKind;
 }
 
-function positionsFromVolumeVertices(v: { readonly vertices: readonly { readonly position: Vector3 }[] }): Vector3[] {
-  return v.vertices.map((x) => x.position);
-}
-
 /**
  * Raycast contre un volume unique.
  *
@@ -100,15 +96,15 @@ export function findClosestOccluderHit(
     // Broad phase volume AABB -- elimine le volume entier rapidement
     if (useAabb && !rayAabbIntersects(origin, dirUnit, vol.bounds, tMinRay, tMaxRay)) continue;
 
-    const pos = positionsFromVolumeVertices(vol);
     // BVH niveau 1 : filtrage AABB par face (construit une seule fois par vol)
+    // positions mises en cache dans le meme index -- zero allocation supplementaire
     const faceIndex = getOrBuildVolumeFaceIndex(vol);
     const candidateFaces = filterFacesByRayAabb(faceIndex, origin, dirUnit, tMinRay, tMaxRay);
     if (candidateFaces.length === 0) continue;
 
     const hit = raycastSingleVolume(
       origin, dirUnit, tMinRay, tMaxRay,
-      vol.id, "obstacle", pos, vol,
+      vol.id, "obstacle", faceIndex.positions, vol,
       false, // AABB volume deja teste ci-dessus
       candidateFaces,
     );
@@ -118,14 +114,13 @@ export function findClosestOccluderHit(
   for (const vol of extensions) {
     if (useAabb && !rayAabbIntersects(origin, dirUnit, vol.bounds, tMinRay, tMaxRay)) continue;
 
-    const pos = positionsFromVolumeVertices(vol);
     const faceIndex = getOrBuildVolumeFaceIndex(vol);
     const candidateFaces = filterFacesByRayAabb(faceIndex, origin, dirUnit, tMinRay, tMaxRay);
     if (candidateFaces.length === 0) continue;
 
     const hit = raycastSingleVolume(
       origin, dirUnit, tMinRay, tMaxRay,
-      vol.id, "extension", pos, vol,
+      vol.id, "extension", faceIndex.positions, vol,
       false,
       candidateFaces,
     );
