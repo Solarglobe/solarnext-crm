@@ -21,6 +21,49 @@ export type Phase3ChecklistData = {
   inverterFamily?: InverterFamily;
 };
 
+// ---------------------------------------------------------------------------
+// Near shading fallback status — lecture seule sur CALPINAGE_STATE (window)
+// ---------------------------------------------------------------------------
+
+interface NearShadingStatus {
+  nearShadingPct: number | null;
+  fallbackTriggered: boolean;
+  fallbackReason: string | undefined;
+}
+
+type CalpinageStateWindow = {
+  CALPINAGE_STATE?: {
+    shading?: {
+      lastResult?: {
+        meta?: {
+          nearOfficial?: {
+            officialLossPct?: number | null;
+            fallbackTriggered?: boolean;
+            canonicalRejectedBecause?: string;
+          };
+        };
+      };
+    };
+  };
+};
+
+function getNearShadingStatus(): NearShadingStatus {
+  try {
+    const nearOfficial = (window as unknown as CalpinageStateWindow)
+      .CALPINAGE_STATE?.shading?.lastResult?.meta?.nearOfficial;
+    if (!nearOfficial) {
+      return { nearShadingPct: null, fallbackTriggered: false, fallbackReason: undefined };
+    }
+    return {
+      nearShadingPct: typeof nearOfficial.officialLossPct === "number" ? nearOfficial.officialLossPct : null,
+      fallbackTriggered: !!nearOfficial.fallbackTriggered,
+      fallbackReason: nearOfficial.canonicalRejectedBecause ?? undefined,
+    };
+  } catch {
+    return { nearShadingPct: null, fallbackTriggered: false, fallbackReason: undefined };
+  }
+}
+
 function getData(): Phase3ChecklistData | null {
   const fn = (window as unknown as { getPhase3ChecklistData?: () => Phase3ChecklistData })
     .getPhase3ChecklistData;
@@ -36,16 +79,21 @@ export function usePhase3ChecklistData(isVisible = true): {
   data: Phase3ChecklistData | null;
   checklistOk: boolean;
   catalogModuleSelected: boolean;
+  nearShadingPct: number | null;
+  fallbackTriggered: boolean;
+  fallbackReason: string | undefined;
 } {
   const [data, setData] = useState<Phase3ChecklistData | null>(null);
   const [catalogModuleSelected, setCatalogModuleSelected] = useState(() =>
     hasPhase3CatalogModuleSelected(),
   );
+  const [nearShadingStatus, setNearShadingStatus] = useState<NearShadingStatus>(getNearShadingStatus);
 
   const refresh = useCallback(() => {
     const next = getData();
     const cat = hasPhase3CatalogModuleSelected();
     setCatalogModuleSelected((c) => (c === cat ? c : cat));
+    setNearShadingStatus(getNearShadingStatus());
     setData((prev) => {
       if (!next && !prev) return prev;
       if (
@@ -88,5 +136,5 @@ export function usePhase3ChecklistData(isVisible = true): {
   }, [isVisible, refresh]);
 
   const checklistOk = data ? isPhase3ChecklistOk(data) : false;
-  return { data, checklistOk, catalogModuleSelected };
+  return { data, checklistOk, catalogModuleSelected, ...nearShadingStatus };
 }

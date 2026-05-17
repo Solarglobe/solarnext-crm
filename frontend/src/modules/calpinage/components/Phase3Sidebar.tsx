@@ -21,6 +21,15 @@ import { apiFetch } from "../../../services/api";
 import { useToast } from "../ui/useToast";
 import "../dsmOverlay/dsmOverlay.css";
 
+function formatFallbackReason(reason?: string): string {
+  switch (reason) {
+    case "NO_ROOF_STATE": return "Toiture non définie";
+    case "PERF_BUDGET_EXCEEDED": return "Trop complexe — calcul simplifié";
+    case "RUNTIME_NOT_MOUNTED": return "Moteur non initialisé";
+    default: return "Calcul indisponible";
+  }
+}
+
 function globalStatusLabel(
   canValidate: boolean,
   blockingReason: Phase3ValidateBlockingReason,
@@ -263,9 +272,15 @@ function Phase3OrientationToggle() {
 function Phase3StateSummary({
   canValidate,
   blockingReason,
+  nearShadingPct,
+  fallbackTriggered,
+  fallbackReason,
 }: {
   canValidate: boolean;
   blockingReason: Phase3ValidateBlockingReason;
+  nearShadingPct?: number | null;
+  fallbackTriggered?: boolean;
+  fallbackReason?: string;
 }) {
   const {
     modulesCount,
@@ -327,6 +342,23 @@ function Phase3StateSummary({
           <div className={styles.stateDlRow}>
             <dt>AC total</dt>
             <dd>{acTotal.toFixed(2)} kW</dd>
+          </div>
+        ) : null}
+        {!fallbackTriggered && nearShadingPct !== null && nearShadingPct !== undefined ? (
+          <div className={styles.stateDlRow}>
+            <dt>Ombrage proche</dt>
+            <dd>{nearShadingPct.toFixed(1)} %</dd>
+          </div>
+        ) : null}
+        {fallbackTriggered ? (
+          <div className={styles.stateDlRow}>
+            <dt>Ombrage proche</dt>
+            <dd
+              className={styles.metricWarn}
+              title={fallbackReason}
+            >
+              ⚠️ N/A — {formatFallbackReason(fallbackReason)}
+            </dd>
           </div>
         ) : null}
       </dl>
@@ -601,7 +633,13 @@ export function Phase3Sidebar({
   const [dsmActive, setDsmActive] = useState(false);
   const validateHintId = useId();
   usePhase3Data();
-  const { data: checklistData, catalogModuleSelected } = usePhase3ChecklistData();
+  const {
+    data: checklistData,
+    catalogModuleSelected,
+    nearShadingPct,
+    fallbackTriggered,
+    fallbackReason,
+  } = usePhase3ChecklistData();
   const canValidate = computeLegacyPhase3CanValidate();
   const blockingReason = getPhase3ValidateBlockingReason();
   const blockedHint = canValidate ? null : getPhase3ValidateBlockedHint();
@@ -635,7 +673,13 @@ export function Phase3Sidebar({
 
       {/* ZONE 3 — État */}
       <section className={styles.zoneState} aria-label="État">
-        <Phase3StateSummary canValidate={canValidate} blockingReason={blockingReason} />
+        <Phase3StateSummary
+          canValidate={canValidate}
+          blockingReason={blockingReason}
+          nearShadingPct={nearShadingPct}
+          fallbackTriggered={fallbackTriggered}
+          fallbackReason={fallbackReason}
+        />
       </section>
 
       {/* ZONE 4 — Validation (checklist + synthèse + boutons, un seul bloc) */}
