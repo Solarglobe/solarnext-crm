@@ -397,11 +397,25 @@ export default defineConfig(({ mode }) => {
         // (which defines `wrapEffect` as a const), causing: Cannot access 'm' before initialization.
         // Isolating them lets the native ESM loader handle evaluation order correctly.
         manualChunks(id) {
+          // Isole postprocessing pour éviter le crash TDZ prod :
+          // @react-three/postprocessing ship des ESM avec des const au niveau module
+          // (SMAA, Bloom, Vignette = wrapEffect(...)) qui causent un TDZ si Rollup
+          // les inline dans le chunk CalpinageApp avant util.js.
           if (
             id.includes("@react-three/postprocessing") ||
             id.includes("/node_modules/postprocessing/")
           ) {
             return "vendor-postprocessing";
+          }
+          // Groupe Three.js + fiber + drei dans un chunk dédié (~1.2 MB).
+          // Ce chunk est chargé uniquement à la première entrée en vue 3D
+          // (lazy import de Inline3DViewerBridge), jamais au démarrage.
+          if (
+            id.includes("/node_modules/three/") ||
+            id.includes("/node_modules/@react-three/fiber/") ||
+            id.includes("/node_modules/@react-three/drei/")
+          ) {
+            return "vendor-three";
           }
         },
       },

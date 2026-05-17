@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { installEmitOfficialRuntimeStructuralChangeOnWindow } from "./runtime/emitOfficialRuntimeStructuralChange";
 import { installRoofModelingHistoryOnWindow, resetRoofModelingHistory } from "./runtime/roofModelingHistory";
 import { initCalpinage } from "./legacy/calpinage.module.js";
@@ -8,7 +8,13 @@ import { getUiShadingSnapshot } from "./shading/getUiShadingSnapshot";
 import { getDsmOverlayManager } from "./dsmOverlay";
 import { Phase2SidebarBridge } from "./components/Phase2SidebarBridge";
 import { Phase3SidebarBridge } from "./components/Phase3SidebarBridge";
-import { Inline3DViewerBridge } from "./components/Inline3DViewerBridge";
+/**
+ * Lazy-load du viewer 3D : Three.js (~1.2 MB) n'est chargé qu'à la première
+ * entrée en vue 3D. Le module 2D (calpinage.module.js) reste synchrone.
+ * Le chunk est mis en cache après le premier chargement — Suspense ne se
+ * déclenchera plus (React.lazy résout de façon synchrone sur les renders suivants).
+ */
+const Inline3DViewerBridge = lazy(() => import("./components/Inline3DViewerBridge"));
 import { logCanonical3DFlagResolutionOnce } from "./canonical3d/featureFlags";
 import {
   getPvLayout3dProductRolloutResolution,
@@ -336,11 +342,14 @@ export default function CalpinageApp({
           {isKonvaOverlayEnabled() && <KonvaOverlay containerRef={containerRef} />}
           <Phase2SidebarBridge containerRef={containerRef} />
           <Phase3SidebarBridge containerRef={containerRef} />
-          <Inline3DViewerBridge
-            containerRef={containerRef}
-            runtimeNotifyEpoch={calpinageRuntimeNotifyEpoch}
-            setCalpinageState={() => setCalpinageRuntimeNotifyEpoch((n) => n + 1)}
-          />
+          {/* Suspense : fallback null = aucun flash si chunk déjà en cache */}
+          <Suspense fallback={null}>
+            <Inline3DViewerBridge
+              containerRef={containerRef}
+              runtimeNotifyEpoch={calpinageRuntimeNotifyEpoch}
+              setCalpinageState={() => setCalpinageRuntimeNotifyEpoch((n) => n + 1)}
+            />
+          </Suspense>
         </>
       )}
       {/* Banner 3D dégradé — non-bloquant, le rendu 2D reste actif */}
