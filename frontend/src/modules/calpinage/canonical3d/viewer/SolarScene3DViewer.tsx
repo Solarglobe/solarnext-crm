@@ -319,6 +319,12 @@ export interface SolarScene3DViewerProps {
    */
   readonly pvLayout3DInteractionMode?: boolean;
   /**
+   * Appelé immédiatement après `finalizePvMoveFrom3d` (commit déplacement/rotation bloc PV).
+   * Le bridge doit invalider le cache gateway et déclencher un rebuild 3D sans attendre le RAF
+   * de pvSyncSaveRender — évite le panneau fantôme à l'ancienne position pendant le délai RAF.
+   */
+  readonly onPanelMoveCommit?: () => void;
+  /**
    * Active les effets postprocessing (SMAA + Vignette, Bloom si flag canonical3D ON).
    * Désactiver si le GPU cible ne supporte pas les FBO multiples. Défaut : true.
    */
@@ -2142,6 +2148,7 @@ function ViewerSceneContent({
   pvLayout3DInteractionMode = false,
   pvLayout3dOverlayState,
   onPvPanelPvLayout3dPointerDown,
+  pvRebuildBlockPanelIds,
   satelliteTexture,
   satelliteUvMapper,
   extensionVolDebugLevel = 0,
@@ -2190,6 +2197,12 @@ function ViewerSceneContent({
   readonly pvLayout3DInteractionMode?: boolean;
   readonly pvLayout3dOverlayState?: PvLayout3dOverlayState | null;
   readonly onPvPanelPvLayout3dPointerDown?: (e: ThreeEvent<PointerEvent>, panelId: string) => void;
+  /**
+   * IDs des panneaux déplacés dont le commit vient d'être fait mais dont la scène 3D n'est pas encore
+   * rebuildée. Ces panneaux sont masqués dans l'InstancedMesh jusqu'au prochain rebuild (via
+   * pvLayout3DEffectiveHiddenIds) pour éviter le panneau fantôme à l'ancienne position.
+   */
+  readonly pvRebuildBlockPanelIds?: ReadonlySet<string>;
   /**
    * Texture satellite (orthophoto 2D) déjà chargée + crop appliqué — projetée en top-down sur les pans.
    * Null si l'image n'est pas encore prête ou absente.
@@ -2357,9 +2370,16 @@ function ViewerSceneContent({
   );
 
   /**
-   * hiddenPanelIds effectif : uniquement les panneaux live NON encore validés.
-   * Filtre les IDs qui existent déjà dans scene.pvPanels pour éviter de masquer
-   * des panneaux validés qui attendent que l'overlay soit nettoyé.
+   * hiddenPanelIds effectif : panneaux live NON encore validés + panneaux en attente de rebuild.
+   *
+   * Règle de base : masquer les panneaux sélectionnés dans l'overlay qui n'existent pas encore
+   * dans scene.pvPanels (première pose) — l'InstancedMesh ne les connaît pas encore.
+   *
+   * Cas déplacement (bug fantôme) : après commit d'un déplacement, le panneau EST dans
+   * scene.pvPanels (à l'ANCIENNE position). Sans garde supplémentaire, l'InstancedMesh
+   * l'afficherait à l'ancienne position pendant que l'overlay le montre à la nouvelle →
+   * double affichage. On masque donc aussi les IDs présents dans pvRebuildBlockPanelIds
+   * jusqu'à ce que le rebuild 3D complète.
    */
   const pvLayout3DEffectiveHiddenIds = useMemo(() => {
     if (!pvLayout3DInteractionMode) return undefined;
@@ -2367,8 +2387,14 @@ function ViewerSceneContent({
     for (const id of pv3dSelectedLivePanelIds) {
       if (!validatedPanelIdSet.has(id)) result.add(id);
     }
+    // Panneaux déplacés en attente de rebuild : masquer même s'ils sont dans validatedPanelIdSet.
+    if (pvRebuildBlockPanelIds) {
+      for (const id of pvRebuildBlockPanelIds) {
+        result.add(id);
+      }
+    }
     return result;
-  }, [pvLayout3DInteractionMode, pv3dSelectedLivePanelIds, validatedPanelIdSet]);
+  }, [pvLayout3DInteractionMode, pv3dSelectedLivePanelIds, validatedPanelIdSet, pvRebuildBlockPanelIds]);
 
   const pv3dGhostGeos = useMemo(() => {
     if (!pvLayout3DInteractionMode || !pvLayout3dOverlayState) return [];
@@ -3545,6 +3571,7 @@ function SolarScene3DViewer({
   onStructuralRidgeHeightCommit,
   roofHeightAssistant = null,
   pvLayout3DInteractionMode = false,
+  onPanelMoveCommit,
   enablePostProcessing = true,
 }: SolarScene3DViewerProps) {
   const baseScene = sceneProp ?? runtimeScene;
@@ -3709,6 +3736,21 @@ function SolarScene3DViewer({
   useEffect(() => {
     pv3dDragSessionRef.current = pv3dDragSession;
   }, [pv3dDragSession]);
+  /**
+   * IDs des panneaux dont le déplacement vient d'être commité dans le moteur mais dont la
+   * scène 3D n'a pas encore été rebuildée. Ces panneaux sont masqués dans l'InstancedMesh
+   * (évite le panneau fantôme à l'ancienne position) jusqu'à ce que le rebuild complète et
+   * que `scene` change (ce qui vide cet ensemble via l'useEffect ci-dessous).
+   */
+  const [pvRebuildBlockPanelIds, setPvRebuildBlockPanelIds] = useState<ReadonlySet<string>>(new Set());
+  useEffect(() => {
+    // Dès que la scène est reconstruite, les panneaux déplacés ont leurs nouvelles positions
+    // dans l'InstancedMesh → on peut arrêter de les masquer.
+    if (pvRebuildBlockPanelIds.size > 0) {
+      setPvRebuildBlockPanelIds(new Set());
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scene]);
   const zDragLiveCommitRafRef = useRef<number | null>(null);
   const zDragLivePendingHeightRef = useRef<number | null>(null);
   const zEditUnarmedLoggedRef = useRef(false);
@@ -4322,11 +4364,31 @@ function SolarScene3DViewer({
 
   const endPv3dDragSession = useCallback(() => {
     const s = pv3dDragSessionRef.current;
+
+    // Capturer les IDs des panneaux du bloc en cours de déplacement AVANT le commit.
+    // Après finalize, le moteur a commité les nouvelles positions mais la scène 3D n'est
+    // pas encore rebuildée. On masque ces panneaux dans l'InstancedMesh jusqu'au rebuild
+    // pour éviter d'afficher simultanément l'ancienne position (InstancedMesh) et la
+    // nouvelle (overlay) → panneau fantôme.
+    if (s?.blockId && pvLayout3dOverlayState) {
+      const movedIds = pvLayout3dOverlayState.panels
+        .filter((p) => String(p.blockId) === String(s.blockId))
+        .map((p) => String(p.id));
+      if (movedIds.length > 0) {
+        setPvRebuildBlockPanelIds(new Set(movedIds));
+      }
+    }
+
     finalizePvMoveFrom3d({ pointerId: s?.pointerId ?? null, releaseCaptureEl: null });
+
+    // Déclencher un rebuild 3D immédiat (sans attendre le RAF de pvSyncSaveRender).
+    // Le moteur a déjà commité les nouvelles positions → getAllPanels() retourne les bonnes coords.
+    onPanelMoveCommit?.();
+
     setPv3dDragSession(null);
     setOrbitSuppressed(false);
     refreshPv3dOverlay();
-  }, [refreshPv3dOverlay]);
+  }, [refreshPv3dOverlay, pvLayout3dOverlayState, onPanelMoveCommit]);
 
   const onPvPanelPvLayout3dPointerDown = useCallback(
     (e: ThreeEvent<PointerEvent>, panelIdFromMesh: string) => {
@@ -5034,6 +5096,7 @@ function SolarScene3DViewer({
           pvLayout3DInteractionMode={pvLayout3DInteractionMode}
           pvLayout3dOverlayState={pvLayout3dOverlayState}
           onPvPanelPvLayout3dPointerDown={onPvPanelPvLayout3dPointerDown}
+          pvRebuildBlockPanelIds={pvRebuildBlockPanelIds}
           satelliteTexture={satelliteTexture}
           satelliteUvMapper={satelliteUvMapper}
           extensionVolDebugLevel={extensionVolDebugLevel}
