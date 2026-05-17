@@ -16,7 +16,7 @@ import type { Vector3 } from "../types/primitives";
 import type { AxisAlignedBounds3D, VolumeFace3D } from "../types/volumetric-mesh";
 import { rayAabbIntersects } from "./rayAabb";
 import { rayTriangleIntersectMollerTrumbore } from "./rayTriangle";
-import { fanTriangulateVertexIndexCycle, trianglePositionsFromIndices } from "./triangulateFace";
+import { earcutTriangulateVertexIndexCycle, trianglePositionsFromIndices } from "./triangulateFace";
 import { filterFacesByRayAabb, getOrBuildVolumeFaceIndex } from "./volumeFaceIndex";
 
 interface VolumeMeshLike {
@@ -55,7 +55,8 @@ function raycastSingleVolume(
   let bestT = Infinity;
   let bestFaceId: string | null = null;
   for (const face of candidateFaces) {
-    const tris = fanTriangulateVertexIndexCycle(face.vertexIndexCycle);
+    // Ear-clipping : correct pour les faces concaves (obstacles en L, U, T…)
+    const tris = earcutTriangulateVertexIndexCycle(face.vertexIndexCycle, positions);
     for (const [ia, ib, ic] of tris) {
       const tri = trianglePositionsFromIndices(positions as Vector3[], ia, ib, ic);
       if (!tri) continue;
