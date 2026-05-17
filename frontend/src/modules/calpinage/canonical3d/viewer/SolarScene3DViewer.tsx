@@ -75,6 +75,7 @@ import {
 } from "../diagnostics/computeRoofShellAlignmentDiagnostics";
 import type { SolarScene3D } from "../types/solarScene3d";
 import { keepoutHatchGeometry, keepoutCornerMarksGeometry } from "./keepout3DGeometry";
+import { KeepoutZone3D } from "./KeepoutZone3D";
 import type { PvPanelSurface3D } from "../types/pv-panel-3d";
 import {
   computeSolarSceneBoundingBox,
@@ -3069,6 +3070,7 @@ function ViewerSceneContent({
                   toneMapped={false}
                 />
               )}
+              {volume.visualRole === "keepout_surface" && <KeepoutZone3D vol={volume} />}
             </mesh>
           );
         })}
