@@ -2335,6 +2335,10 @@ function ViewerSceneContent({
 
   const pv3dLivePanelGeos = useMemo(() => {
     if (!pvLayout3DInteractionMode || !pvLayout3dOverlayState) return [];
+    // Gate sur isManipulating : le live overlay ne s'affiche QUE pendant un drag actif.
+    // Quand le bloc est seulement sélectionné (sans drag), les panneaux sont rendus
+    // normalement via l'InstancedMesh — évite tout Z-fighting overlay vs InstancedMesh.
+    if (!pvLayout3dOverlayState.isManipulating) return [];
     return pvLayout3dOverlayState.panels.flatMap((p) => {
       if (!p.selected) return [];
       const fill = imagePolygonToRoofMeshGeometry(scene, p.points, p.panId, 0.075);
@@ -2360,67 +2364,34 @@ function ViewerSceneContent({
   );
 
   /**
-   * Ensemble des IDs de panneaux déjà validés et présents dans scene.pvPanels.
-   * Sert à distinguer un panneau en cours de pose (nouveau) d'un panneau validé déplacé.
-   */
-  const pvLayout3DValidatedPanelIdSet = useMemo(
-    () => new Set(scene.pvPanels.map((p) => String(p.id))),
-    [scene.pvPanels],
-  );
-
-  /**
-   * hiddenPanelIds effectif : panneaux live sélectionnés (sous conditions) + panneaux en attente de rebuild.
+   * hiddenPanelIds effectif : panneaux live (drag actif) + panneaux en attente de rebuild.
    *
-   * Règle :
-   * - Un panneau live (pv3dSelectedLivePanelIds) est masqué dans l'InstancedMesh UNIQUEMENT si :
-   *   a) il n'est pas encore dans scene.pvPanels (nouveau panneau en cours de pose), OU
-   *   b) il appartient au bloc actif (activeBlockId) — pendant le drag d'un bloc existant,
-   *      pvLayout3DActive=true retourne allPanels → le panneau est dans scene.pvPanels MAIS doit
-   *      être masqué de l'InstancedMesh pour éviter le double rendu (ancienne pos + live overlay).
+   * Règle simplifiée (rendue possible par le gate isManipulating sur pv3dLivePanelGeos) :
+   * - pv3dSelectedLivePanelIds n'est non-vide QUE quand CALPINAGE_IS_MANIPULATING=true.
+   *   → On peut masquer tous ces panneaux dans l'InstancedMesh sans risque de régression :
+   *     l'overlay live les remplace pendant le drag, et dès que le drag finit, l'ensemble
+   *     se vide → l'InstancedMesh reprend le rendu normalement.
+   * - pvRebuildBlockPanelIds masque les panneaux dont le commit vient d'être fait jusqu'à
+   *   ce que pvSyncSaveRender → buildScene() complète (≤ 1 RAF ≈ 16 ms).
    *
-   * - Un panneau validé (dans scene.pvPanels) d'un autre bloc n'est PAS masqué : il reste visible
-   *   dans l'InstancedMesh même si le bloc actif est en cours de manipulation.
-   *
-   * Cas déplacement : pvRebuildBlockPanelIds masque les panneaux dont le commit vient d'être fait
-   * jusqu'à ce que le rebuild 3D complète.
-   *
-   * Correction régression : sans validatedPanelIdSet, tous les panneaux live étaient masqués →
-   * après validation, sélection vidée mais scene.pvPanels pas encore mis à jour → invisible.
+   * Plus de validatedPanelIdSet ni de logique activeBlock : le gate isManipulating garantit
+   * qu'on n'a jamais overlay ET InstancedMesh qui rendent le même panneau simultanément.
    */
   const pvLayout3DEffectiveHiddenIds = useMemo(() => {
     if (!pvLayout3DInteractionMode) return undefined;
     const result = new Set<string>();
-    const activeBlockId = pvLayout3dOverlayState?.activeBlockId ?? null;
-    // Panneaux du bloc actif (pour exception b ci-dessus)
-    const activeBlockPanelIds =
-      activeBlockId != null
-        ? new Set(
-            (pvLayout3dOverlayState?.panels ?? [])
-              .filter((p) => String(p.blockId) === String(activeBlockId))
-              .map((p) => String(p.id)),
-          )
-        : new Set<string>();
+    // Pendant le drag : masquer dans l'InstancedMesh (l'overlay live prend le relais)
     for (const id of pv3dSelectedLivePanelIds) {
-      const isValidated = pvLayout3DValidatedPanelIdSet.has(id);
-      const isActiveBlock = activeBlockPanelIds.has(id);
-      // Masquer si nouveau (pas encore validé) OU si appartient au bloc actif (anti-clignotement)
-      if (!isValidated || isActiveBlock) {
-        result.add(id);
-      }
+      result.add(id);
     }
+    // Post-commit drag : masquer jusqu'au rebuild 3D
     if (pvRebuildBlockPanelIds) {
       for (const id of pvRebuildBlockPanelIds) {
         result.add(id);
       }
     }
     return result;
-  }, [
-    pvLayout3DInteractionMode,
-    pv3dSelectedLivePanelIds,
-    pvRebuildBlockPanelIds,
-    pvLayout3DValidatedPanelIdSet,
-    pvLayout3dOverlayState,
-  ]);
+  }, [pvLayout3DInteractionMode, pv3dSelectedLivePanelIds, pvRebuildBlockPanelIds]);
 
   const pv3dGhostGeos = useMemo(() => {
     if (!pvLayout3DInteractionMode || !pvLayout3dOverlayState) return [];
@@ -2853,6 +2824,9 @@ function ViewerSceneContent({
                 side={mat.side}
                 emissive={sel ? "#6d4c41" : mat.emissive}
                 emissiveIntensity={hideBaseMesh ? 0 : sel ? 0.35 : volume.visualRole === "roof_window_flush" ? 0.08 : 0}
+                polygonOffset
+                polygonOffsetFactor={-2}
+                polygonOffsetUnits={-2}
               />
               {details.premiumAssets.meshes.map((asset) => {
                 const assetMat = premiumObstacleAssetMaterial(asset.role);
@@ -2899,6 +2873,9 @@ function ViewerSceneContent({
                     roughness={0.82}
                     flatShading={false}
                     side={THREE.DoubleSide}
+                    polygonOffset
+                    polygonOffsetFactor={-2}
+                    polygonOffsetUnits={-2}
                   />
                 </mesh>
               ) : null}

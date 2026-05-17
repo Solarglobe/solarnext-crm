@@ -62,4 +62,5 @@ export const VIEWER_FILL_LIGHT_INTENSITY = 0.26;
 /** Ombre douce légère — map modeste pour éviter coût / artefacts excessifs. */
 export const VIEWER_SHADOW_MAP_SIZE = 1024;
 export const VIEWER_SHADOW_BIAS = -0.00025;
-export const VIEWER_SHADOW_NORMAL_BIAS = 0.02;
+/** normalBias augmenté à 0.04 pour réduire le shadow acne sur les surfaces inclinées (tuiles, cheminées). */
+export const VIEWER_SHADOW_NORMAL_BIAS = 0.04;

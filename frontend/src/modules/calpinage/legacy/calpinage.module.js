@@ -7107,6 +7107,7 @@ export function initCalpinage(container, options = {}) {
         return {
           focusBlockId: focusBlock && focusBlock.id != null ? String(focusBlock.id) : null,
           activeBlockId: activeBlock && activeBlock.id != null ? String(activeBlock.id) : null,
+          isManipulating: !!window.CALPINAGE_IS_MANIPULATING,
           selectedPanelId: selectedPanelId,
           selectedPanelCount: selectedPanelCount,
           selectedPowerKwc: selectedPowerKwc,

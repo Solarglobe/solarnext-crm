@@ -52,6 +52,13 @@ export type PvLayout3dOverlayState = {
   readonly panels: readonly PvLayout3dOverlayPanel[];
   readonly ghosts: readonly PvLayout3dOverlayGhost[];
   readonly safeZones: readonly PvLayout3dOverlaySafeZone[];
+  /**
+   * Vrai si window.CALPINAGE_IS_MANIPULATING — bloc en cours de drag (déplacement / rotation).
+   * Utilisé pour gater le live overlay 3D : les panneaux ne sont rendus en overlay qu'pendant
+   * la manipulation active, évitant tout Z-fighting avec l'InstancedMesh quand le bloc est
+   * simplement sélectionné (sans être déplacé).
+   */
+  readonly isManipulating?: boolean;
 };
 
 type LegacyBeginFn = (
