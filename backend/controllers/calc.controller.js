@@ -1,7 +1,7 @@
 // ======================================================================
-// SMARTPITCH V-LIGHT — Contrôleur principal (Version PRO V12 - corrigé)
+// SMARTPITCH V-LIGHT — Contrôleur principal
 // ======================================================================
-console.log(">>> CONTROLLER CHARGED OK (V12-PATCHED) <<<");
+import { CALC_ENGINE_VERSION } from "../services/calc/calc.constants.js";
 
 import { pool } from "../config/db.js";
 import { applyPanelPowerFromCatalog } from "../services/pv/resolvePanelFromDb.service.js";
@@ -47,6 +47,7 @@ import {
   mergeOrgEconomicsPartial,
 } from "../services/economicsResolve.service.js";
 import { CalcEngineValidationError, CALC_INVALID_8760_PROFILE } from "../services/calcEngineErrors.js";
+import { buildCalcResponse } from "../services/calc/calcResponseBuilder.js";
 import {
   buildCalculationConfidenceFromCalc,
   finalizeCalculationConfidence,
@@ -91,8 +92,6 @@ export async function calculateSmartpitch(req, res) {
   if (devLog) {
     console.log(">> ROUTE /api/calc HIT");
     console.log("REQ.FILE =", req.file);
-  } else {
-    console.log("[calc] POST /api/calc");
   }
 
   try {
@@ -152,12 +151,6 @@ export async function calculateSmartpitch(req, res) {
     }
 
     const payload = solarnextPayloadForLog || req.body || {};
-    console.log("[SMARTPITCH INPUT]", {
-      hasPayload: !!payload,
-      hasConso: !!payload?.conso,
-      hasProduction: !!payload?.production,
-      hasCalpinage: !!payload?.calpinage,
-    });
 
     // ===== DEBUG SOLARNEXT (jamais de dump form/settings en production — RGPD) =====
     if (devLog) {
@@ -180,8 +173,6 @@ export async function calculateSmartpitch(req, res) {
       }
       console.log("===== SETTINGS JSON END =====");
       console.log("==============================\n");
-    } else {
-      console.log("[calc] payload reçu (prod): solarnext_payload=", Boolean(req.body.solarnext_payload));
     }
 
 // ===== FIN DEBUG =====
@@ -203,10 +194,6 @@ export async function calculateSmartpitch(req, res) {
     ctx.finance_input = form?.finance_input ?? null;
     ctx.battery_input = form?.battery_input ?? null;
     ctx.virtual_battery_input = form?.virtual_battery_input ?? null;
-    console.log("STEP 0 OK — Contexte construit");
-    console.log("[D2] battery_input.enabled =", ctx.battery_input?.enabled);
-    console.log("[D2] battery_input.capacity_kwh =", ctx.battery_input?.capacity_kwh);
-    console.log("[D2] virtual_battery_input.enabled =", ctx.virtual_battery_input?.enabled);
 
     // ------------------------------------------------------------
     // FORÇAGE — Version PRO unifiée (Pipeline identique au normal)
@@ -276,11 +263,6 @@ if (devLog) {
       conso_keys: Object.keys(form.conso || {}),
     }));
   }
-} else {
-  console.log(JSON.stringify({
-    tag: "CONSO_SOURCE_DECISION",
-    source: csvPath ? "CSV" : "SYNTHETIC",
-  }));
 }
 
 // Fusion conso + params (pour envoyer puissance_kva) — form.params garanti objet après parsing
@@ -299,14 +281,6 @@ if (devLog) {
     versionId,
     leadId,
     csvPath,
-  }));
-} else {
-  console.log(JSON.stringify({
-    tag: "DEBUG_CALC_BEFORE_LOAD_CONSUMPTION",
-    studyId,
-    versionId,
-    leadId,
-    hasCsv: Boolean(csvPath),
   }));
 }
 
@@ -362,9 +336,6 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
 
 if (devLog) {
   console.log("LOAD_8760_SUM =", load8760Sum);
-  console.log("STEP 1 OK — Conso 8760 chargée (" + annualExact + " kWh)");
-} else {
-  console.log("STEP 1 OK — Conso 8760 chargée");
 }
 
 
@@ -428,10 +399,8 @@ if (devLog) {
           monthly_sum: Array.isArray(ctx.pv.monthly) ? ctx.pv.monthly.reduce((a, b) => a + b, 0) : null,
         }));
       }
-      console.log("STEP 2 OK — PV multi-pan (pans =", roofPans.length, ")");
     } else {
       const pvMonthly = await pvgisService.computeProductionMonthly(ctx);
-      console.log("STEP 2 OK — PV mensuel (source =", pvMonthly.source, ")");
 
       const rawMonoShading = form.shadingLossPct;
       const shadingLossPctNum =
@@ -516,7 +485,6 @@ if (devLog) {
     // ------------------------------------------------------------
     // 3) PRODUCTION PV HORAIRE (déjà rempli ci-dessus)
     // ------------------------------------------------------------
-    console.log("STEP 3 OK — PV horaire AC généré");
 
     // ------------------------------------------------------------
     // 4) PILOTAGE
@@ -532,7 +500,6 @@ if (devLog) {
     ctx.conso_p_pilotee = pilotage.conso_pilotee_hourly;
     ctx.pilotage_stats = pilotage.stats;
 
-    console.log("STEP 4 OK — Pilotage équilibré appliqué");
 
     // ------------------------------------------------------------
     // 5) CALCUL PRINCIPAL (BASE + BATTERY_PHYSICAL si batterie valide)
@@ -557,13 +524,10 @@ if (devLog) {
         hourly_len: ctx.conso?.hourly?.length
       });
     }
-    console.log("STEP 5 — Calcul BASE…");
     const scenarios = await buildBaseScenarioOnly(ctx);
-    console.log("STEP 5 OK — Calcul BASE généré");
 
     const baseScenario = scenarios.BASE;
     baseScenario.scenario_uses_piloted_profile = false;
-    console.log(JSON.stringify({ tag: "SCENARIO_PROFILE_SOURCE", scenario: "BASE", scenario_uses_piloted_profile: false }));
     addEnergyKpisToScenario(baseScenario, ctx);
 
     const batteryEnabled = ctx.battery_input?.enabled === true && Number(ctx.battery_input?.capacity_kwh) > 0;
@@ -662,11 +626,6 @@ if (devLog) {
             (baseCapexTtc != null && Number.isFinite(Number(baseCapexTtc)) ? Number(baseCapexTtc) : 0) +
             (batteryPhysicalPriceTtc != null && Number.isFinite(Number(batteryPhysicalPriceTtc)) ? Number(batteryPhysicalPriceTtc) : 0);
           addEnergyKpisToScenario(batteryScenario, ctx);
-          console.log(JSON.stringify({
-            tag: "SCENARIO_PROFILE_SOURCE",
-            scenario: "BATTERY_PHYSICAL",
-            scenario_uses_piloted_profile: batteryScenario.scenario_uses_piloted_profile,
-          }));
           battPhysicalResult = batt; // conservé pour BATTERY_HYBRID
           scenarios.BATTERY_PHYSICAL = batteryScenario;
 
@@ -1141,11 +1100,6 @@ if (devLog) {
             console.log("[VIRTUAL_BATTERY] billable_import =", billable_import_kwh);
           }
           addEnergyKpisToScenario(virtualScenario, ctx);
-          console.log(JSON.stringify({
-            tag: "SCENARIO_PROFILE_SOURCE",
-            scenario: "BATTERY_VIRTUAL",
-            scenario_uses_piloted_profile: virtualScenario.scenario_uses_piloted_profile,
-          }));
 
           if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1") {
             const importPhysicalKwh = baseScenario?.energy?.import ?? baseScenario?.import_kwh ?? 0;
@@ -1406,11 +1360,6 @@ if (devLog) {
             hybridScenario.costs = { battery_virtual_annual_cost: subscriptionAnnualH };
 
             addEnergyKpisToScenario(hybridScenario, ctx);
-            console.log(JSON.stringify({
-              tag: "SCENARIO_PROFILE_SOURCE",
-              scenario: "BATTERY_HYBRID",
-              scenario_uses_piloted_profile: hybridScenario.scenario_uses_piloted_profile,
-            }));
             scenarios.BATTERY_HYBRID = hybridScenario;
             if (devLog) {
               console.log("[HYBRID] auto=", hybridAutoKwh, "import=", hybridImportKwh, "surplus=", hybridSurplusKwh, "sub=", subscriptionAnnualH);
@@ -1420,11 +1369,6 @@ if (devLog) {
       }
     }
 
-    console.log("[D2] SCENARIO GENERATED:", Object.keys(scenarios).join(", "));
-    console.log("[D3] battery enabled =", ctx.battery_input?.enabled);
-    console.log("[D3] battery capacity =", ctx.battery_input?.capacity_kwh);
-    console.log("[D3] virtual battery =", ctx.virtual_battery_input?.enabled);
-    console.log("[D3] scenarios generated =", Object.keys(scenarios));
 
     for (const _sk of Object.keys(scenarios)) {
       attachNormalizedEnergyKpiFields(scenarios[_sk]);
@@ -1433,7 +1377,6 @@ if (devLog) {
     // ------------------------------------------------------------
     // 6) FINANCE (CAPEX 100 % devis / finance_input, pas de pricing moteur)
     // ------------------------------------------------------------
-    console.log("STEP 6 — Finance…");
 
     if (!ctx.form || typeof ctx.form !== "object") {
       console.error("[SMARTPITCH ERROR] Missing params", { someObject: ctx.form });
@@ -1527,75 +1470,28 @@ if (devLog) {
       }
     }
 
-    console.log("STEP 6 OK — Finance OK");
 
     // ------------------------------------------------------------
     // 8) IMPACT
     // ------------------------------------------------------------
-    console.log("STEP 8 — Impact CO₂…");
     const impact = await impactService.computeImpact(ctx, scenariosFinal);
 
     // ------------------------------------------------------------
     // 9) JSON FINAL
     // ------------------------------------------------------------
-  const production = ctx.productionMultiPan
-    ? {
-        byPan: ctx.productionMultiPan.byPan,
-        annualKwh: ctx.productionMultiPan.annualKwh,
-        monthlyKwh: ctx.productionMultiPan.monthlyKwh,
-      }
-    : (ctx.pv?.monthly && ctx.pv?.total_kwh != null
-        ? {
-            byPan: [],
-            annualKwh: ctx.pv.total_kwh,
-            monthlyKwh: Array.isArray(ctx.pv.monthly) ? ctx.pv.monthly : [],
-          }
-        : null);
+  if (devLog) {
+    console.log("=== RAW SCENARIOS BEFORE MAPPER ===");
+    console.log(Object.keys(scenariosFinal));
+    console.log(scenariosFinal.BATTERY_VIRTUAL);
+  }
 
-const ctxWithProduction = { ...ctx, production };
-if (devLog) {
-  console.log("=== RAW SCENARIOS BEFORE MAPPER ===");
-  console.log(Object.keys(scenariosFinal));
-  console.log(scenariosFinal.BATTERY_VIRTUAL);
-}
-const scenariosV2 = Object.values(scenariosFinal)
-  .filter((sc) => sc._v2 === true)
-  .map((sc) => mapScenarioToV2(sc, ctxWithProduction));
-console.log("[D2] scenarios avant mapping (scenariosFinal keys):", Object.keys(scenariosFinal).length, Object.keys(scenariosFinal).join(", "));
-console.log("[D2] scenarios après mapping (scenarios_v2 length):", scenariosV2.length);
+  const ctxFinal = buildCalcResponse({ ctx, form, conso, annualExact, pilotage, scenariosFinal, finance, impact });
 
-const ctxFinal = {
-  meta: ctx.meta,
-  site: ctx.site,
-  erpnext_lead_id: form?.erpnext_lead_id || null, // 👈 AJOUT UNIQUE
-  house: {
-    ...ctx.house,
-    conso_annuelle_kwh: annualExact
-  },
-  conso: {
-    ...conso,
-    annual_kwh: annualExact
-  },
-  pv: ctx.pv,
-  production,
-  pilotage: pilotage.stats,
-  scenarios: scenariosFinal,
-  scenarios_v2: scenariosV2,
-  finance,
-  impact,
-  settings: ctx.settings,
-  calculation_confidence: buildCalculationConfidenceFromCalc(ctx, scenariosFinal),
-};
+  if (process.env.NODE_ENV !== "production" && process.env.DEBUG_FINAL_SCENARIOS_V2 === "1") {
+    console.log("=== FINAL scenarios_v2 ===");
+    console.log(JSON.stringify(ctxFinal.scenarios_v2, null, 2));
+  }
 
-if (process.env.NODE_ENV !== "production" && process.env.DEBUG_FINAL_SCENARIOS_V2 === "1") {
-  console.log("=== FINAL scenarios_v2 ===");
-  console.log(JSON.stringify(ctxFinal.scenarios_v2, null, 2));
-} else {
-  const ids = (ctxFinal.scenarios_v2 || []).map((s) => s?.id ?? s?.name).filter(Boolean);
-  console.log("[calc] scenarios_v2 summary:", { count: ids.length, ids: ids.join(",") });
-}
-
-    console.log("===== JSON FINAL SMARTPITCH (V12-PATCHED) =====");
 
     return res.json(ctxFinal);
 
@@ -1824,7 +1720,7 @@ function buildContext(form, settings) {
 
   return {
     meta: {
-      version: "SmartPitch V-LIGHT V12-PATCHED",
+      version: CALC_ENGINE_VERSION,
       generated_at: new Date().toISOString(),
       client_nom: take(form, "client.nom", "—"),
       client_ville: take(form, "client.ville", "—")
