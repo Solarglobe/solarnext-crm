@@ -564,5 +564,3 @@ export default function CalpinageApp({
     </ToastProvider>
   );
 }
-
-}
