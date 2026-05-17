@@ -5,10 +5,13 @@
  *
  * Architecture :
  * - Géométrie partagée : PlaneGeometry(1, 1) centrée à l'origine, normale +Z.
- *   La matrice d'instance applique scale(widthM, heightM) + rotation(localFrame) + translation(origin).
+ *   La matrice d'instance est construite depuis corners3D + center3D + outwardNormal
+ *   (même source de vérité que panelQuadGeometry — indépendant de localFrame).
  * - Per-instance color : si panelColors fourni, instanceColor est utilisé (material.color = white).
  *   Sinon, material.color = baseColor uniforme.
  * - Panneaux masqués (pvLayout3DInteractionMode) : matrice scale(0,0,0).
+ * - Mise à jour matrices : via useFrame (RAF) + flag dirty — garantit l'application
+ *   dans la même RAF que le rendu, sans dépendance au cycle React.
  * - Sélection / inspection : onPanelClick reçoit (PvPanelSurface3D, ThreeEvent).
  *   Le caller (SolarScene3DViewer.tsx) est responsable de patcher e.object.userData pour
  *   la compatibilité avec le système d'inspection existant.
@@ -22,14 +25,14 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
-import { useThree, type ThreeEvent } from "@react-three/fiber";
+import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import type { PvPanelSurface3D } from "../types/pv-panel-3d";
 
 // ── Géométrie partagée ────────────────────────────────────────────────────────
 
 /**
  * Plan unité 1×1, normal +Z, centré à l'origine.
- * La matrice d'instance scale par (widthM, heightM) et oriente selon localFrame.
+ * La matrice d'instance positionne et dimensionne chaque panneau en world space.
  */
 function buildSharedPanelGeometry(): THREE.PlaneGeometry {
   return new THREE.PlaneGeometry(1, 1);
@@ -146,7 +149,6 @@ export function PvPanelInstanced({
 }: PvPanelInstancedProps) {
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const count = panels.length;
-  const { invalidate } = useThree();
 
   // Géométrie partagée entre toutes les instances — dispose au démontage
   const sharedGeometry = useMemo(() => buildSharedPanelGeometry(), []);
@@ -157,26 +159,55 @@ export function PvPanelInstanced({
   }, [sharedGeometry]);
 
   /**
-   * Met à jour les matrices et couleurs d'instance.
+   * Flag dirty : signale que les matrices/couleurs doivent être recalculées.
+   * Mis à true à chaque changement de panels / colors / count / hidden.
+   * Remis à false dans useFrame après application.
    *
-   * useEffect (pas useLayoutEffect) : R3F peut rendre un frame AVANT que
-   * useLayoutEffect ne se déclenche lors du premier montage (count 0→N),
-   * laissant les matrices à zéro (panneaux invisibles). useEffect se déclenche
-   * après le paint, quand meshRef.current est garanti non-null, puis invalidate()
-   * demande à R3F de re-rendre immédiatement avec les bonnes matrices.
-   * Coût : 1 frame invisible au premier montage — imperceptible à 60 fps.
+   * On stocke également les props courantes en refs pour y accéder depuis useFrame
+   * sans déclencher de re-render ni risquer une closure périmée.
    */
+  const dirtyRef = useRef(true);
+  const panelsRef = useRef(panels);
+  const panelColorsRef = useRef(panelColors);
+  const hiddenPanelIdsRef = useRef(hiddenPanelIds);
+
   useEffect(() => {
+    panelsRef.current = panels;
+    panelColorsRef.current = panelColors;
+    hiddenPanelIdsRef.current = hiddenPanelIds;
+    dirtyRef.current = true;
+  }, [panels, panelColors, count, hiddenPanelIds]);
+
+  /**
+   * Application des matrices et couleurs dans la RAF (useFrame).
+   *
+   * Pourquoi useFrame plutôt que useLayoutEffect/useEffect :
+   * - useFrame s'exécute DANS la RAF de R3F, juste avant le rendu THREE.js.
+   * - Les matrices sont donc TOUJOURS à jour pour le frame courant, sans aucune
+   *   dépendance au cycle React (résout les problèmes de premier montage,
+   *   de count changeant, et de mode frameloop="demand").
+   * - Le flag dirtyRef évite tout travail inutile sur les frames sans changement.
+   */
+  useFrame(() => {
+    if (!dirtyRef.current) return;
     const mesh = meshRef.current;
-    if (!mesh || count === 0) return;
+    if (!mesh) return;
+
+    dirtyRef.current = false;
+
+    const currentPanels = panelsRef.current;
+    const currentColors = panelColorsRef.current;
+    const currentHidden = hiddenPanelIdsRef.current;
+    const n = currentPanels.length;
+    if (n === 0) return;
 
     const m = new THREE.Matrix4();
     const c = new THREE.Color();
-    const hasPerInstanceColors = panelColors != null && panelColors.length === count;
+    const hasPerInstanceColors = currentColors != null && currentColors.length === n;
 
-    for (let i = 0; i < count; i++) {
-      const panel = panels[i]!;
-      const isHidden = hiddenPanelIds?.has(String(panel.id)) ?? false;
+    for (let i = 0; i < n; i++) {
+      const panel = currentPanels[i]!;
+      const isHidden = currentHidden?.has(String(panel.id)) ?? false;
 
       if (isHidden) {
         mesh.setMatrixAt(i, HIDDEN_INSTANCE_MATRIX);
@@ -186,7 +217,7 @@ export function PvPanelInstanced({
       }
 
       if (hasPerInstanceColors) {
-        c.setHex(panelColors![i]!);
+        c.setHex(currentColors![i]!);
         mesh.setColorAt(i, c);
       }
     }
@@ -196,14 +227,9 @@ export function PvPanelInstanced({
     if (hasPerInstanceColors && mesh.instanceColor) {
       mesh.instanceColor.needsUpdate = true;
     } else if (!hasPerInstanceColors && mesh.instanceColor) {
-      // panelColors supprimé → réinitialise instanceColor pour revenir à la couleur uniforme
       mesh.instanceColor = null;
     }
-
-    // Force R3F à rendre le frame suivant avec les nouvelles matrices.
-    // Indispensable si frameloop="demand" ou si le RAF a déjà consommé le frame courant.
-    invalidate();
-  }, [panels, panelColors, count, hiddenPanelIds, invalidate]);
+  });
 
   if (count === 0) return null;
 
