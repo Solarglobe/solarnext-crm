@@ -161,21 +161,6 @@ export default function CalpinageApp({
     return () => window.removeEventListener("calpinage:unsupported-roof-plane", handler);
   }, []);
 
-  /**
-   * Synchronise le miroir de pans toiture depuis le runtime (responsabilité déplacée hors gateway).
-   * Exécuté à chaque mutation du runtime (calpinageRuntimeNotifyEpoch).
-   */
-  useEffect(() => {
-    const runtime = getCalpinageRuntime();
-    if (runtime && typeof runtime === "object" && (runtime as Record<string, unknown>).pans) {
-      try {
-        syncRoofPansMirrorFromPans(runtime as Record<string, unknown>);
-      } catch {
-        /* défensif */
-      }
-    }
-  }, [calpinageRuntimeNotifyEpoch]);
-
   /** Détection divergence near shading canonical vs backend. */
   useNearShadingDivergence();
 
@@ -196,6 +181,22 @@ export default function CalpinageApp({
   const [error, setError] = useState<Error | null>(null);
   /** Synchronise le bridge 3D (createRoot) avec les mutations `CALPINAGE_STATE` hors React. */
   const [calpinageRuntimeNotifyEpoch, setCalpinageRuntimeNotifyEpoch] = useState(0);
+
+  /**
+   * Synchronise le miroir de pans toiture depuis le runtime (responsabilité déplacée hors gateway).
+   * Exécuté à chaque mutation du runtime (calpinageRuntimeNotifyEpoch).
+   */
+  useEffect(() => {
+    const state = getCalpinageRuntime()?.getState();
+    if (state && typeof state === "object" && (state as Record<string, unknown>).pans) {
+      try {
+        syncRoofPansMirrorFromPans(state as Record<string, unknown>);
+      } catch {
+        /* défensif */
+      }
+    }
+  }, [calpinageRuntimeNotifyEpoch]);
+
   /**
    * Banner non-bloquant affiché quand la reconstruction 3D est dégradée
    * (runtime non initialisé → toiture plate silencieuse évitée).

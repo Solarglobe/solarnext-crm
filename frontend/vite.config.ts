@@ -389,35 +389,16 @@ export default defineConfig(({ mode }) => {
         "calpinage-render": "./calpinage-render.html",
         dp2: "./dp2.html",
       },
-    },
-  },
-  server: {
-    port: 5173,
-    host: true,
-    proxy: {
-      "^/api/pdf": {
-        target: process.env.VITE_PROXY_BACKEND || "http://localhost:3000",
-        changeOrigin: true,
-        rewrite: (p) => p.replace(/^\/api\/pdf/, "/pdf"),
-      },
-      "/api": {
-        target: process.env.VITE_PROXY_BACKEND || "http://localhost:3000",
-        changeOrigin: true,
-      },
-      "/auth": {
-        target: process.env.VITE_PROXY_BACKEND || "http://localhost:3000",
-        changeOrigin: true,
-      },
-      "/pdf-assets": {
-        target: process.env.VITE_PROXY_BACKEND || "http://localhost:3000",
-        changeOrigin: true,
-      },
-      "/calpinage": {
-        target: process.env.VITE_PROXY_BACKEND || "http://localhost:3000",
-        changeOrigin: true,
-        bypass: calpinageProxyBypass,
-      },
-    },
-  },
-};
-});
+      output: {
+        /**
+         * Isole @react-three/postprocessing et postprocessing dans leur propre chunk.
+         *
+         * Ces deux packages publient des fichiers ESM individuels avec des `const` au
+         * niveau module qui appellent des fonctions importées (ex. `const SMAA = wrapEffect(…)`).
+         * Quand Rollup les inline dans le même chunk que CalpinageApp, tout changement d'ordre
+         * d'évaluation (déclenché par un nouvel import dans CalpinageApp) peut placer l'un de
+         * ces fichiers avant `util.js` (qui définit `wrapEffect` en tant que `const`), créant
+         * une ReferenceError TDZ : "Cannot access 'm' before initialization".
+         *
+         * En les isolant dans un chunk séparé, le loader ESM natif du navigateur gère l'ordre
+         * d'évaluation correctement — le TDZ

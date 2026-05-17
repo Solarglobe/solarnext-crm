@@ -34,11 +34,6 @@
  */
 
 import { Canvas, type ThreeEvent, useFrame, useThree } from "@react-three/fiber";
-
-/** @react-three/fiber : `gl` / `camera` sur l’événement (types ThreeEvent incomplets selon versions). */
-function r3fGl(e: ThreeEvent<PointerEvent | MouseEvent>): THREE.WebGLRenderer {
-  return (e as any).gl;
-}
 import { Environment, Grid, Outlines } from "@react-three/drei";
 import { EffectComposer, SMAA, Bloom, Vignette } from "@react-three/postprocessing";
 import { isCanonical3DEnabled } from "../featureFlags";
@@ -159,6 +154,11 @@ import {
   type RoofTruthBadgeModel,
   type RoofTruthBadgeTone,
 } from "./roofTruthBadges";
+
+/** @react-three/fiber : `gl` / `camera` sur l'événement (types ThreeEvent incomplets selon versions). */
+function r3fGl(e: ThreeEvent<PointerEvent | MouseEvent>): THREE.WebGLRenderer {
+  return (e as any).gl;
+}
 
 /** En mode édition sommet toit : laisse le rayon atteindre le maillage toiture (ignore PV / obstacles / extensions). */
 function roofModelingSkipOccluderRaycast(
