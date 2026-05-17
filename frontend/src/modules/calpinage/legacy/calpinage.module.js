@@ -7029,7 +7029,10 @@ export function initCalpinage(container, options = {}) {
         }
         var safeZones = [];
         var szCache = window.__SAFE_ZONE_PH3__ && window.__SAFE_ZONE_PH3__.cache;
-        if (!szCache && typeof window.CALPINAGE_RENDER === "function" && !window.__PV3D_SAFE_ZONE_RENDER_REQUESTED__) {
+        // Déclencher CALPINAGE_RENDER seulement si un bloc actif existe : évite la boucle
+        // render Konva → notifyPhase3Pv3dOverlayChanged → getPhase3Pv3dOverlayState → re-render
+        // qui se produisait à chaque refreshPv3dOverlay() quand szCache était null sans bloc actif.
+        if (!szCache && activeBlock && typeof window.CALPINAGE_RENDER === "function" && !window.__PV3D_SAFE_ZONE_RENDER_REQUESTED__) {
           window.__PV3D_SAFE_ZONE_RENDER_REQUESTED__ = true;
           requestAnimationFrame(function () {
             try {

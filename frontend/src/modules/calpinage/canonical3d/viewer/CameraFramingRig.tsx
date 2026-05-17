@@ -34,14 +34,6 @@ import { isCalpinage3DRuntimeDebugEnabled, logCalpinage3DDebug } from "../../cor
 /** Seuil de snap : quand la caméra est à < LERP_SNAP_THRESHOLD m de la cible, snap immédiat. */
 const LERP_SNAP_THRESHOLD = 0.01;
 
-/**
- * Seuil de redémarrage du lerp : si la cible framing change de moins de LERP_RESTART_DELTA_M
- * ET que le lerp est déjà inactif (utilisateur en train d'orbiter), on ne relance PAS le lerp.
- * Évite les sauts caméra lors des recomputes mineurs de bbox (ex. déplacement panneau PV ≈ 0.05m).
- * Les changements majeurs (mode switch, chargement initial, toiture restructurée) dépassent ce seuil.
- */
-const LERP_RESTART_DELTA_M = 0.5;
-
 export function CameraFramingRig({
   box,
   mode,
@@ -141,15 +133,9 @@ export function CameraFramingRig({
       camera.far  = f3.far;
       camera.updateProjectionMatrix();
       // Lerp depuis la position initiale 1000× distante (montage Canvas) vers la cible.
-      // Guard : ne pas relancer le lerp si la cible bouge de < LERP_RESTART_DELTA_M
-      // ET que l'utilisateur a déjà pris la main (lerpActive=false). Évite les sauts
-      // caméra lors des recomputes mineurs de bbox (ex. déplacement panneau PV ≈ 0.05m).
-      const targetDeltaM = lerpTargetPos.current.distanceTo(f3.position);
       lerpTargetPos.current.copy(f3.position);
       lerpTargetLookAt.current.copy(f3.target);
-      if (lerpActive.current || targetDeltaM > LERP_RESTART_DELTA_M) {
-        lerpActive.current = true;
-      }
+      lerpActive.current = true;
 
       if (ctrl) {
         ctrl.target.copy(f3.target);

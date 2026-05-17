@@ -389,22 +389,6 @@ export default defineConfig(({ mode }) => {
         "calpinage-render": "./calpinage-render.html",
         dp2: "./dp2.html",
       },
-      output: {
-        // Isolate postprocessing in its own chunk to fix TDZ prod crash.
-        // @react-three/postprocessing ships individual ESM files (SMAA.js, Bloom.js, Vignette.js)
-        // with module-level `const X = wrapEffect(...)` calls. When Rollup inlines them into the
-        // CalpinageApp chunk, any dependency-order shift can place an effect file before util.js
-        // (which defines `wrapEffect` as a const), causing: Cannot access 'm' before initialization.
-        // Isolating them lets the native ESM loader handle evaluation order correctly.
-        manualChunks(id) {
-          if (
-            id.includes("@react-three/postprocessing") ||
-            id.includes("/node_modules/postprocessing/")
-          ) {
-            return "vendor-postprocessing";
-          }
-        },
-      },
     },
   },
   server: {

@@ -556,18 +556,6 @@ function Inline3DViewer({
     buildScene();
   }, [buildScene]);
 
-  /**
-   * Appelé immédiatement après `finalizePvMoveFrom3d` dans SolarScene3DViewer.
-   * Invalide le cache gateway + force un rebuild 3D synchrone (sans attendre le RAF de
-   * pvSyncSaveRender) pour que l'InstancedMesh reflète les nouvelles positions aussitôt que
-   * possible → élimine la fenêtre de temps où l'ancienne position reste visible (bug fantôme).
-   */
-  const handlePanelMoveCommit = useCallback(() => {
-    lastDisplayedStructuralSignatureRef.current = null;
-    forceNextSceneRebuildRef.current = true;
-    buildScene();
-  }, [buildScene]);
-
   const [roofHistSeq, setRoofHistSeq] = useState(0);
   const bumpRoofHist = useCallback(() => setRoofHistSeq((n) => n + 1), []);
 
@@ -1170,7 +1158,6 @@ function Inline3DViewer({
          */
         inspectMode={enableModelingHistory && !pvLayout3DActive}
         pvLayout3DInteractionMode={pvLayout3DActive}
-        onPanelMoveCommit={pvLayout3DActive ? handlePanelMoveCommit : undefined}
         panSelection3DMode={(enableVertexZEditFlag || enableVertexXYEditFlag) && !pvLayout3DActive}
         enableRoofVertexZEdit={enableVertexZEditFlag && !pvLayout3DActive}
         onRoofVertexHeightCommit={enableVertexZEditFlag && !pvLayout3DActive ? handleRoofVertexHeightCommit : undefined}

@@ -2360,41 +2360,31 @@ function ViewerSceneContent({
   );
 
   /**
-   * IDs des panneaux DÉJÀ validés (présents dans scene.pvPanels).
-   * Un panneau validé ne doit JAMAIS être masqué dans InstancedMesh même si
-   * l'overlay le garde encore comme "selected" (ex. après validation de la 1ère section).
-   */
-  const validatedPanelIdSet = useMemo(
-    () => new Set(scene.pvPanels.map((p) => String(p.id))),
-    [scene.pvPanels],
-  );
-
-  /**
-   * hiddenPanelIds effectif : panneaux live NON encore validés + panneaux en attente de rebuild.
+   * hiddenPanelIds effectif : panneaux live sélectionnés + panneaux en attente de rebuild.
    *
-   * Règle de base : masquer les panneaux sélectionnés dans l'overlay qui n'existent pas encore
-   * dans scene.pvPanels (première pose) — l'InstancedMesh ne les connaît pas encore.
+   * Règle : masquer dans l'InstancedMesh TOUT panneau affiché en géométrie live (pv3dLivePanelGeos),
+   * qu'il soit ou non déjà dans scene.pvPanels. En mode pvLayout3DActive, getAllPanelsFromRuntime
+   * retourne allPanels (bloc actif inclus) → le panneau actif EST dans scene.pvPanels mais doit
+   * quand même être masqué dans l'InstancedMesh quand il est rendu en live overlay, sinon double
+   * affichage simultané (InstancedMesh ancienne position + live overlay nouvelle position) → clignotement.
    *
-   * Cas déplacement (bug fantôme) : après commit d'un déplacement, le panneau EST dans
-   * scene.pvPanels (à l'ANCIENNE position). Sans garde supplémentaire, l'InstancedMesh
-   * l'afficherait à l'ancienne position pendant que l'overlay le montre à la nouvelle →
-   * double affichage. On masque donc aussi les IDs présents dans pvRebuildBlockPanelIds
+   * Cas déplacement : pvRebuildBlockPanelIds masque les panneaux dont le commit vient d'être fait
    * jusqu'à ce que le rebuild 3D complète.
    */
   const pvLayout3DEffectiveHiddenIds = useMemo(() => {
     if (!pvLayout3DInteractionMode) return undefined;
     const result = new Set<string>();
+    // Toujours masquer dans l'InstancedMesh si rendu en live overlay — évite le double rendu.
     for (const id of pv3dSelectedLivePanelIds) {
-      if (!validatedPanelIdSet.has(id)) result.add(id);
+      result.add(id);
     }
-    // Panneaux déplacés en attente de rebuild : masquer même s'ils sont dans validatedPanelIdSet.
     if (pvRebuildBlockPanelIds) {
       for (const id of pvRebuildBlockPanelIds) {
         result.add(id);
       }
     }
     return result;
-  }, [pvLayout3DInteractionMode, pv3dSelectedLivePanelIds, validatedPanelIdSet, pvRebuildBlockPanelIds]);
+  }, [pvLayout3DInteractionMode, pv3dSelectedLivePanelIds, pvRebuildBlockPanelIds]);
 
   const pv3dGhostGeos = useMemo(() => {
     if (!pvLayout3DInteractionMode || !pvLayout3dOverlayState) return [];
@@ -2813,7 +2803,7 @@ function ViewerSceneContent({
               geometry={geo}
               castShadow
               receiveShadow
-              raycast={roofModelingPassThroughOccluders ? roofModelingSkipOccluderRaycast : undefined}
+              raycast={(roofModelingPassThroughOccluders || pvLayout3DInteractionMode) ? roofModelingSkipOccluderRaycast : undefined}
               onClick={inspectMode ? onInspectClick : undefined}
             >
               <meshStandardMaterial
@@ -3120,7 +3110,7 @@ function ViewerSceneContent({
                   geometry={geo}
                   castShadow
                   receiveShadow
-                  raycast={roofModelingPassThroughOccluders ? roofModelingSkipOccluderRaycast : undefined}
+                  raycast={(roofModelingPassThroughOccluders || pvLayout3DInteractionMode) ? roofModelingSkipOccluderRaycast : undefined}
                   onClick={inspectMode ? onInspectClick : undefined}
                 >
                   <meshStandardMaterial
@@ -4348,7 +4338,11 @@ function SolarScene3DViewer({
 
   const pvLayout3dOverlayState = useMemo(
     () => (pvLayout3DInteractionMode ? readPvLayout3dOverlayState() : null),
-    [pvLayout3DInteractionMode, pv3dOverlayEpoch, scene],
+    // `scene` retiré intentionnellement : l'overlay est déjà rafraîchi par pv3dOverlayEpoch
+    // (refreshPv3dOverlay) et les events calpinage:pv3d-overlay-changed. L'inclure déclenchait
+    // un recalcul overlay sur chaque rebuild de scène, causant un flash de l'overlay.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [pvLayout3DInteractionMode, pv3dOverlayEpoch],
   );
   const [pvLayout3dScreenOverlay, setPvLayout3dScreenOverlay] = useState<PvLayout3dScreenOverlayState | null>(null);
   const [roofTruthBadges, setRoofTruthBadges] = useState<RoofTruthBadgeScreenModel[]>([]);
@@ -4528,6 +4522,10 @@ function SolarScene3DViewer({
         else console.warn("[CALPINAGE][PV_3D_ROOF]", r);
       }
       if (r.ok) {
+        // Forcer la sélection du nouveau bloc immédiatement : garantit que focusBlock = nouveau bloc
+        // avant refreshPv3dOverlay(), ce qui met selected=true dans l'overlay → panneau visible
+        // dès le premier frame (sinon invisible pendant les 1-2 frames RAF de pvSyncSaveRender).
+        if (r.blockId) selectPvBlockFrom3d(r.blockId, null);
         refreshPv3dOverlay();
         e.stopPropagation();
       }
