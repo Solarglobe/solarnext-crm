@@ -10,6 +10,8 @@ import { usePhase3ChecklistData } from "../hooks/usePhase3ChecklistData";
 import {
   computeLegacyPhase3CanValidate,
   getPhase3ValidateBlockedHint,
+  getPhase3ValidateBlockingReason,
+  type Phase3ValidateBlockingReason,
 } from "../hooks/phase3LegacyValidateUi";
 import { Phase3ChecklistPanel } from "../Phase3ChecklistPanel";
 import { createDsmOverlayManager } from "../dsmOverlay";
@@ -21,18 +23,10 @@ import "../dsmOverlay/dsmOverlay.css";
 
 function globalStatusLabel(
   canValidate: boolean,
-  blockedHint: string | null,
+  blockingReason: Phase3ValidateBlockingReason,
 ): "Prêt à valider" | "Incomplet" | "Bloqué" {
   if (canValidate) return "Prêt à valider";
-  const h = blockedHint || "";
-  if (
-    h.includes("ratio") ||
-    h.includes("DC/AC") ||
-    h.includes("0,80") ||
-    h.includes("central")
-  ) {
-    return "Bloqué";
-  }
+  if (blockingReason === "RATIO_INVALID") return "Bloqué";
   return "Incomplet";
 }
 
@@ -268,10 +262,10 @@ function Phase3OrientationToggle() {
 
 function Phase3StateSummary({
   canValidate,
-  blockedHint,
+  blockingReason,
 }: {
   canValidate: boolean;
-  blockedHint: string | null;
+  blockingReason: Phase3ValidateBlockingReason;
 }) {
   const {
     modulesCount,
@@ -281,7 +275,7 @@ function Phase3StateSummary({
     dcAcRatio,
   } = usePhase3Data();
 
-  const status = globalStatusLabel(canValidate, blockedHint);
+  const status = globalStatusLabel(canValidate, blockingReason);
   const statusClass =
     status === "Prêt à valider"
       ? styles.stateStatusOk
@@ -609,6 +603,7 @@ export function Phase3Sidebar({
   usePhase3Data();
   const { data: checklistData, catalogModuleSelected } = usePhase3ChecklistData();
   const canValidate = computeLegacyPhase3CanValidate();
+  const blockingReason = getPhase3ValidateBlockingReason();
   const blockedHint = canValidate ? null : getPhase3ValidateBlockedHint();
 
   useEffect(() => {
@@ -640,7 +635,7 @@ export function Phase3Sidebar({
 
       {/* ZONE 3 — État */}
       <section className={styles.zoneState} aria-label="État">
-        <Phase3StateSummary canValidate={canValidate} blockedHint={blockedHint} />
+        <Phase3StateSummary canValidate={canValidate} blockingReason={blockingReason} />
       </section>
 
       {/* ZONE 4 — Validation (checklist + synthèse + boutons, un seul bloc) */}
