@@ -22,7 +22,6 @@ import {
   buildPanelVisualShadingMapFromRuntime,
   extractRuntimeShadingSummary,
 } from "../viewer/visualShading/resolvePanelVisualShading";
-import { syncRoofPansMirrorFromPans } from "../../legacy/phase2RoofDerivedModel";
 import {
   computeRuntimeSceneStructuralSignatures,
   type RuntimeSceneStructuralSignatures,
@@ -102,6 +101,14 @@ export function clearOfficialSolarScene3DCache(): void {
   clearOfficialRoofModelNearShadingCache();
 }
 
+/**
+ * Alias sémantique : purge au changement d’étude (appelé depuis CalpinageApp.tsx).
+ * Équivalent de clearOfficialSolarScene3DCache — interface publique inchangée.
+ */
+export function clearGatewayCache(): void {
+  clearOfficialSolarScene3DCache();
+}
+
 function finalizeDiagnostics(args: {
   readonly key: string;
   readonly sigs: RuntimeSceneStructuralSignatures;
@@ -172,14 +179,6 @@ export function getOrBuildOfficialSolarScene3DFromCalpinageRuntime(
     );
   }
   // ──────────────────────────────────────────────────────────────────────────
-
-  if (runtime && typeof runtime === "object" && (runtime as Record<string, unknown>).pans) {
-    try {
-      syncRoofPansMirrorFromPans(runtime as Record<string, unknown>);
-    } catch {
-      /* défensif — aligné sur buildSolarScene3DFromCalpinageRuntime */
-    }
-  }
 
   const sigs = computeRuntimeSceneStructuralSignatures(runtime, options);
   const key = sigs.sceneRuntimeSignature;
@@ -272,6 +271,8 @@ export function getOrBuildOfficialSolarScene3DFromCalpinageRuntime(
   if (shouldCacheStructuralResult) {
     structuralCache.set(key, built);
   }
+  // Borne à 100 entrées — évite la croissance infinie entre études (clear simple, pas LRU).
+  if (pipelineInvocationCountBySignature.size >= 100) pipelineInvocationCountBySignature.clear();
   pipelineInvocationCountBySignature.set(key, (pipelineInvocationCountBySignature.get(key) ?? 0) + 1);
 
   if (import.meta.env.DEV) {

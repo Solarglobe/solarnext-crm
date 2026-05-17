@@ -21,6 +21,9 @@ import { ConfirmProvider } from "./ui/ConfirmProvider";
 import { ToastProvider } from "./ui/ToastProvider";
 import { KonvaOverlay, isKonvaOverlayEnabled } from "./konva";
 import { useNearShadingDivergence } from "./hooks/useNearShadingDivergence";
+import { clearGatewayCache } from "./canonical3d/scene/officialSolarScene3DGateway";
+import { getCalpinageRuntime } from "./runtime/calpinageRuntime";
+import { syncRoofPansMirrorFromPans } from "./legacy/phase2RoofDerivedModel";
 
 const DEV = typeof import.meta !== "undefined" && import.meta.env?.DEV;
 
@@ -66,6 +69,8 @@ export default function CalpinageApp({
   // Réinitialise aussi lors d’un changement d’étude (nouvelle étude = historique vierge).
   useEffect(() => {
     resetRoofModelingHistory();
+    // Purge le cache de scène 3D — évite les entrées de l’étude précédente visibles dans la nouvelle.
+    clearGatewayCache();
   }, [studyId]);
 
   /**
@@ -155,6 +160,21 @@ export default function CalpinageApp({
     window.addEventListener("calpinage:unsupported-roof-plane", handler);
     return () => window.removeEventListener("calpinage:unsupported-roof-plane", handler);
   }, []);
+
+  /**
+   * Synchronise le miroir de pans toiture depuis le runtime (responsabilité déplacée hors gateway).
+   * Exécuté à chaque mutation du runtime (calpinageRuntimeNotifyEpoch).
+   */
+  useEffect(() => {
+    const runtime = getCalpinageRuntime();
+    if (runtime && typeof runtime === "object" && (runtime as Record<string, unknown>).pans) {
+      try {
+        syncRoofPansMirrorFromPans(runtime as Record<string, unknown>);
+      } catch {
+        /* défensif */
+      }
+    }
+  }, [calpinageRuntimeNotifyEpoch]);
 
   /** Détection divergence near shading canonical vs backend. */
   useNearShadingDivergence();
