@@ -16,6 +16,7 @@ import { createDsmOverlayManager } from "../dsmOverlay";
 import { getCurrentUser } from "../../../services/auth.service";
 import { getCrmApiBase } from "@/config/crmApiBase";
 import { apiFetch } from "../../../services/api";
+import { useToast } from "../ui/useToast";
 import "../dsmOverlay/dsmOverlay.css";
 
 function globalStatusLabel(
@@ -339,17 +340,6 @@ function Phase3StateSummary({
   );
 }
 
-function showDsmToast(message: string, isError = false) {
-  const toast = document.createElement("div");
-  toast.className = "dsm-pdf-toast";
-  toast.textContent = message;
-  toast.setAttribute("role", "alert");
-  toast.style.cssText = isError
-    ? "position:fixed;top:20px;right:20px;z-index:99999;padding:14px 20px;background:linear-gradient(135deg,#dc2626,#b91c1c);color:#fff;border-radius:8px;font-weight:500;box-shadow:0 4px 12px rgba(0,0,0,0.3);"
-    : "position:fixed;top:20px;right:20px;z-index:99999;padding:14px 20px;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;border-radius:8px;font-weight:500;box-shadow:0 4px 12px rgba(0,0,0,0.3);";
-  document.body.appendChild(toast);
-  setTimeout(() => toast.remove(), 4000);
-}
 
 function DsmOverlayButton({
   containerRef,
@@ -400,13 +390,14 @@ function DsmOverlayButton({
 
 function DsmPdfExportButton({ active }: { active: boolean }) {
   const [loading, setLoading] = useState(false);
+  const toast = useToast();
 
   const handleClick = async () => {
     if (!active) return;
     const studyId = (window as any).CALPINAGE_STUDY_ID;
     const version = (window as any).CALPINAGE_VERSION_ID ?? "1";
     if (!studyId) {
-      showDsmToast("Impossible : studyId manquant", true);
+      toast.error("Impossible : studyId manquant");
       return;
     }
     setLoading(true);
@@ -414,7 +405,7 @@ function DsmPdfExportButton({ active }: { active: boolean }) {
       const user = await getCurrentUser();
       const orgId = user?.organizationId;
       if (!orgId) {
-        showDsmToast("Impossible : orgId manquant", true);
+        toast.error("Impossible : orgId manquant");
         setLoading(false);
         return;
       }
@@ -460,10 +451,10 @@ function DsmPdfExportButton({ active }: { active: boolean }) {
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(blobUrl);
-      showDsmToast("PDF téléchargé", false);
+      toast.success("PDF téléchargé");
     } catch (e) {
       console.error("Erreur téléchargement PDF :", e);
-      showDsmToast(e instanceof Error ? e.message : "Impossible de télécharger le PDF", true);
+      toast.error(e instanceof Error ? e.message : "Impossible de télécharger le PDF");
     } finally {
       setLoading(false);
     }
