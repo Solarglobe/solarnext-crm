@@ -41,6 +41,11 @@ export type Canonical3DFlagResolution = {
 function readWindowOverride(): boolean | undefined {
   if (typeof window === "undefined") return undefined;
   const w = window.__CALPINAGE_CANONICAL_3D__;
+  if (w !== undefined && import.meta.env?.DEV) {
+    console.warn(
+      "[featureFlags] window.__CALPINAGE_CANONICAL_3D__ est d\xc3\xa9pr\xc3\xa9ci\xc3\xa9. Utiliser VITE_CALPINAGE_CANONICAL_3D."
+    );
+  }
   return typeof w === "boolean" ? w : undefined;
 }
 
@@ -61,7 +66,13 @@ function normalizeEnvToken(raw: string | undefined): "off" | "preview" | "produc
   return "off";
 }
 
-let loggedOnce = false;
+const _logged = new Set<string>();
+
+function logOnce(key: string, msg: string): void {
+  if (_logged.has(key)) return;
+  _logged.add(key);
+  if (import.meta.env?.DEV && typeof console !== "undefined") console.info(msg);
+}
 
 /**
  * Résolution complète (source de vérité unique). Pure hors lecture `window` / `import.meta.env`.
@@ -143,16 +154,20 @@ export function isCanonical3DDevSandboxRouteAllowed(): boolean {
  * Log unique en dev : état du flag (pas à chaque render).
  */
 export function logCanonical3DFlagResolutionOnce(): void {
-  if (!import.meta.env?.DEV || typeof console === "undefined" || loggedOnce) return;
-  loggedOnce = true;
   const r = getCanonical3DFlagResolution();
   const enabled = isCanonical3DEnabled();
-  console.info(
+  logOnce(
+    "canonical3d-flag",
     `[Canonical3D][Flag] enabled=${enabled} mode=${r.mode} product=${r.productMountAllowed} previewSurfaces=${r.previewDevSurfacesAllowed} source=${r.source}`,
   );
 }
 
 /** Tests : réinitialiser le log « once ». @internal */
 export function __resetCanonical3DFlagLogForTests(): void {
-  loggedOnce = false;
+  _logged.clear();
+}
+
+/** Alias explicite pour les tests unitaires. @internal */
+export function _resetLoggedOnceForTests(): void {
+  _logged.clear();
 }
