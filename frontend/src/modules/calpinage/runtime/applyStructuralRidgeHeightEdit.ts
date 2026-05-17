@@ -43,6 +43,18 @@ function getLegacyApplyStructuralHeight(): LegacyApplyFn | null {
 
 /**
  * Appelle le legacy (mutation `CALPINAGE_STATE` + recalcul pans). Exige que le module calpinage soit chargé.
+ *
+ * @param _runtime — Ignoré intentionnellement. Raison :
+ *   `window.__calpinageApplyStructuralHeightSelection` est une fonction legacy qui opère directement
+ *   sur `window.CALPINAGE_STATE` en interne ; elle n'accepte pas d'objet runtime en paramètre et
+ *   il n'existe pas d'équivalent `runtime.applyHeightEdit()`. Le paramètre est conservé pour la
+ *   cohérence de signature avec les autres fonctions de la couche runtime.
+ *
+ *   Undo/redo : capturé au niveau des appelants (`handleStructuralRidgeHeightCommit` et
+ *   `handleRoofHeightAssistantApply` dans Inline3DViewerBridge.tsx) via
+ *   `pushRoofModelingPastSnapshot(pansBefore)` après chaque mutation réussie. NE PAS déplacer
+ *   la capture ici : (1) double-capture dans handleStructuralRidgeHeightCommit, (2) N captures
+ *   distinctes pour une seule commande assistant (qui appelle cette fn en boucle sur N points).
  */
 export function applyStructuralHeightEdit(
   _runtime: unknown,
