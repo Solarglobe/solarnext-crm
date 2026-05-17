@@ -39,10 +39,11 @@ import { Canvas, type ThreeEvent, useFrame, useThree } from "@react-three/fiber"
 function r3fGl(e: ThreeEvent<PointerEvent | MouseEvent>): THREE.WebGLRenderer {
   return (e as any).gl;
 }
-import { Grid, Outlines } from "@react-three/drei";
+import { Environment, Grid, Outlines } from "@react-three/drei";
 import { EffectComposer, SMAA, Bloom, Vignette } from "@react-three/postprocessing";
 import { isCanonical3DEnabled } from "../featureFlags";
 import {
+  Suspense,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -5073,6 +5074,14 @@ function SolarScene3DViewer({
         {(showDebugOverlay || showXYAlignmentOverlay) && (
           <DebugXYAlignmentOverlay scene={scene} zLevel={groundZ} runtime={debugRuntime} />
         )}
+        {/* IBL — overcast sky, background=false, chargement lazy (Suspense) */}
+        <Suspense fallback={null}>
+          <Environment
+            files="/assets/hdri/overcast_sky_1k.hdr"
+            background={false}
+            environmentIntensity={0.35}
+          />
+        </Suspense>
         {enablePostProcessing && (
           isCanonical3DEnabled() ? (
             <EffectComposer multisampling={0}>
