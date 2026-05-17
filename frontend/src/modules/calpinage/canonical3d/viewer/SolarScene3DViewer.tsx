@@ -40,6 +40,8 @@ function r3fGl(e: ThreeEvent<PointerEvent | MouseEvent>): THREE.WebGLRenderer {
   return (e as any).gl;
 }
 import { Grid, Outlines } from "@react-three/drei";
+import { EffectComposer, SMAA, Bloom, Vignette } from "@react-three/postprocessing";
+import { isCanonical3DEnabled } from "../featureFlags";
 import {
   useCallback,
   useEffect,
@@ -315,6 +317,11 @@ export interface SolarScene3DViewerProps {
    * Même chaîne legacy que le 2D (`pvSyncSaveRender`).
    */
   readonly pvLayout3DInteractionMode?: boolean;
+  /**
+   * Active les effets postprocessing (SMAA + Vignette, Bloom si flag canonical3D ON).
+   * Désactiver si le GPU cible ne supporte pas les FBO multiples. Défaut : true.
+   */
+  readonly enablePostProcessing?: boolean;
 }
 
 const PREMIUM_PV_SURFACE_HEX = new THREE.Color("#111827").getHex();
@@ -3537,6 +3544,7 @@ function SolarScene3DViewer({
   onStructuralRidgeHeightCommit,
   roofHeightAssistant = null,
   pvLayout3DInteractionMode = false,
+  enablePostProcessing = true,
 }: SolarScene3DViewerProps) {
   const baseScene = sceneProp ?? runtimeScene;
   if (baseScene == null) {
@@ -5064,6 +5072,25 @@ function SolarScene3DViewer({
         )}
         {(showDebugOverlay || showXYAlignmentOverlay) && (
           <DebugXYAlignmentOverlay scene={scene} zLevel={groundZ} runtime={debugRuntime} />
+        )}
+        {enablePostProcessing && (
+          isCanonical3DEnabled() ? (
+            <EffectComposer multisampling={0}>
+              <SMAA />
+              <Bloom
+                intensity={0.25}
+                luminanceThreshold={0.85}
+                luminanceSmoothing={0.9}
+                mipmapBlur
+              />
+              <Vignette offset={0.25} darkness={0.45} />
+            </EffectComposer>
+          ) : (
+            <EffectComposer multisampling={0}>
+              <SMAA />
+              <Vignette offset={0.25} darkness={0.45} />
+            </EffectComposer>
+          )
         )}
       </Canvas>
       <PvLayout3dSvgOverlay

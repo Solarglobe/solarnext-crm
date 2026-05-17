@@ -46,6 +46,7 @@
     "@mui/x-date-pickers": "^8.27.0",
     "@react-three/drei": "^9.122.0",
     "@react-three/fiber": "^8.18.0",
+    "@react-three/postprocessing": "^2.19.1",
     "@tiptap/core": "^3.22.3",
     "@tiptap/extension-color": "^3.22.3",
     "@tiptap/extension-image": "^3.22.3",
