@@ -74,6 +74,7 @@ import {
   formatRoofShellAlignmentOneLine,
 } from "../diagnostics/computeRoofShellAlignmentDiagnostics";
 import type { SolarScene3D } from "../types/solarScene3d";
+import { keepoutHatchGeometry, keepoutCornerMarksGeometry } from "./keepout3DGeometry";
 import type { PvPanelSurface3D } from "../types/pv-panel-3d";
 import {
   computeSolarSceneBoundingBox,
@@ -873,8 +874,8 @@ function roofObstacleDetailGeometries(vol: SolarScene3D["obstacleVolumes"][numbe
     antennaBase: vol.kind === "antenna" ? antennaBaseGeometry(vol) : null,
     roundChimneyBody: roundChimney ? roundChimneyBodyGeometry(vol) : null,
     roundChimneyLines: roundChimney ? roundChimneyRingLineGeometry(vol) : null,
-    keepoutHatch: null,
-    keepoutCornerMarks: null,
+    keepoutHatch: keepoutHatchGeometry(vol),
+    keepoutCornerMarks: keepoutCornerMarksGeometry(vol),
     allEdgeLines: volumeAllEdgeLineGeometry(vol, vol.visualRole === "keepout_surface" ? 0.028 : 0.012),
     shadowVolumeRays: shadowVolumeRayGeometry(vol),
     premiumAssets,
