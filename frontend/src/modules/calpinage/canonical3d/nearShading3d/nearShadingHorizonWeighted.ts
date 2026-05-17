@@ -1,5 +1,18 @@
 /**
- * Agrégation near shading avec pondération dz et gate horizon (alignement backend calpinageShading.service).
+ * Agrégation near shading avec pondération par panneau et gate horizon.
+ *
+ * Pondération :
+ *   ANCIENNE (approx. toiture plate) : w = max(0, uz)  — cosinus zénithal de la direction solaire.
+ *   NOUVELLE (correcte pour panneaux inclinés) : wp = max(0, dot(sunDir, panelNormal))
+ *     — cosinus d'incidence sur la normale du panneau, calculé PER-PANEL.
+ *
+ * Pour un panneau horizontal (normal={0,0,1}) les deux pondérations sont identiques.
+ * Pour un panneau incliné à 45° sud, le soleil perpendiculaire au panneau donne
+ *   OLD: w = cos(45°) ≈ 0.707, NEW: wp = 1.0 → résultat pondéré correct.
+ *
+ * Alignement backend calpinageShading.service : le backend utilise max(0, uz) qui est une
+ * approximation valide pour toitures faiblement inclinées. La pondération per-panneau est
+ * plus exacte pour les cas à forte inclinaison.
  */
 
 import type {
@@ -35,7 +48,11 @@ export interface NearShadingHorizonWeightedResult {
 }
 
 /**
- * Pour chaque direction soleil : si sous horizon → ignoré ; sinon pondération w=max(0,uz) comme le backend.
+ * Pour chaque direction soleil : si sous horizon → ignoré ; sinon pondération per-panneau
+ * wp = max(0, dot(sunDir, panelNormal)) — correcte pour les panneaux inclinés.
+ *
+ * L'ancienne pondération max(0, uz) reste valide pour les panneaux horizontaux (cas identique)
+ * mais sous-estime/surestime l'irradiance pour les panneaux inclinés.
  */
 export function runNearShadingSeriesHorizonWeighted(
   scene: NearShadingSceneContext,
@@ -51,6 +68,14 @@ export function runNearShadingSeriesHorizonWeighted(
     panelWeightSum.set(id, 0);
   }
 
+  // Pré-calcul des normales par panneau pour pondération correcte (inclinaison quelconque).
+  // Fallback {0,0,1} si la normale n'est pas disponible (panneau dégénéré ou non résolu).
+  const panelNormalMap = new Map<string, { x: number; y: number; z: number }>();
+  for (const p of scene.panels) {
+    // TODO: vérifier que outwardNormal est normalisé (buildPvPanels3D le garantit)
+    panelNormalMap.set(String(p.id), p.outwardNormal ?? { x: 0, y: 0, z: 1 });
+  }
+
   let globalWeightedShaded = 0;
   let globalWeight = 0;
 
@@ -60,8 +85,8 @@ export function runNearShadingSeriesHorizonWeighted(
     const ux = v.dx / len;
     const uy = v.dy / len;
     const uz = v.dz / len;
-    const w = Math.max(0, uz);
-    if (w <= 0) continue;
+    // Préfiltrage : soleil sous le plan horizontal → aucun panneau ne reçoit d'irradiance directe.
+    if (uz <= 0) continue;
 
     const { azimuthDeg, elevationDeg } = sunAzimuthElevationFromUnitTowardSun(ux, uy, uz);
     if (isSunBlockedByHorizonForNear(horizonMask ?? null, azimuthDeg, elevationDeg)) {
@@ -74,13 +99,17 @@ export function runNearShadingSeriesHorizonWeighted(
     const step = runNearShadingTimeStep(scene, solar);
     steps.push(step);
 
-    globalWeightedShaded += w * step.globalShadedFraction;
-    globalWeight += w;
-
+    // Pondération per-panneau : cos d'incidence sur la normale du panneau.
+    // Correcte pour panneaux inclinés (45°, etc.) contrairement à max(0, uz) qui
+    // n'est exact que pour les panneaux horizontaux.
     for (const pr of step.panelResults) {
       const pid = String(pr.panelId);
-      panelWeightedSum.set(pid, (panelWeightedSum.get(pid) ?? 0) + w * pr.shadingRatio);
-      panelWeightSum.set(pid, (panelWeightSum.get(pid) ?? 0) + w);
+      const n = panelNormalMap.get(pid) ?? { x: 0, y: 0, z: 1 }; // fallback plat
+      const wp = Math.max(0, ux * n.x + uy * n.y + uz * n.z);
+      panelWeightedSum.set(pid, (panelWeightedSum.get(pid) ?? 0) + wp * pr.shadingRatio);
+      panelWeightSum.set(pid, (panelWeightSum.get(pid) ?? 0) + wp);
+      globalWeightedShaded += wp * pr.shadingRatio;
+      globalWeight += wp;
     }
   }
 
@@ -100,7 +129,7 @@ export function runNearShadingSeriesHorizonWeighted(
     {
       code: "NS_HORIZON_WEIGHTED_AGGREGATE",
       severity: "info",
-      message: `Near horizon-weighted : ${steps.length} pas soleil visibles / ${sunVectors.length} vecteurs, meanShaded=${mean.toFixed(4)}.`,
+      message: `Near horizon-weighted (pondération per-panneau) : ${steps.length} pas soleil visibles / ${sunVectors.length} vecteurs, meanShaded=${mean.toFixed(4)}.`,
     },
   ];
 
