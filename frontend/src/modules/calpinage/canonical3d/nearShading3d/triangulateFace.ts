@@ -16,7 +16,7 @@
  */
 
 import type { Vector3 } from "../types/primitives";
-import { signedArea2d, triangulateSimplePolygon2dCcW } from "../../utils/triangulateSimplePolygon2d";
+import { signedArea2d, triangulateSimplePolygon2dCcW } from "../utils/triangulateSimplePolygon2d";
 
 // ---------------------------------------------------------------------------
 // Fan triangulation (convexes uniquement — maintenu pour compatibilité)
@@ -52,7 +52,6 @@ function projectCycleTo2d(
   cycle: readonly number[],
   positions: readonly Vector3[],
 ): { pts2d: { x: number; y: number }[]; cycleOrdered: number[] } | null {
-  const n = cycle.length;
   const p0 = positions[cycle[0]!];
   const p1 = positions[cycle[1]!];
   const p2 = positions[cycle[2]!];
