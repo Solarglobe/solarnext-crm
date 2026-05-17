@@ -485,6 +485,18 @@ export function solveRoofPlanes(input: SolveRoofPlanesInput): SolveRoofPlanesRes
     });
   }
 
+  // Notification UI — plans quasi-verticaux non supportés (navigateur uniquement).
+  const verticalCount = solutions.filter((s) =>
+    s.diagnostics.conflicts.includes("PLANE_NEAR_VERTICAL_UNSUPPORTED_V1"),
+  ).length;
+  if (typeof window !== "undefined" && verticalCount > 0) {
+    window.dispatchEvent(
+      new CustomEvent("calpinage:unsupported-roof-plane", {
+        detail: { reason: "PLANE_NEAR_VERTICAL_UNSUPPORTED_V1", count: verticalCount },
+      }),
+    );
+  }
+
   const patchCount = topologyGraph.patches.length;
   const setDiagnostics: RoofPlaneSolutionSetDiagnostics = {
     isValid: invalidPatchCount === 0 && constraintConflictCount === 0,

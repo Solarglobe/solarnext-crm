@@ -146,6 +146,16 @@ export default function CalpinageApp({
     return () => window.removeEventListener("calpinage:near-shading-divergence", handler);
   }, []);
 
+  /** Écoute l'event calpinage:unsupported-roof-plane émis par solveRoofPlanes. */
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<{ reason?: string; count?: number }>).detail;
+      setUnsupportedRoofPlaneCount(detail?.count ?? 1);
+    };
+    window.addEventListener("calpinage:unsupported-roof-plane", handler);
+    return () => window.removeEventListener("calpinage:unsupported-roof-plane", handler);
+  }, []);
+
   /** Détection divergence near shading canonical vs backend. */
   useNearShadingDivergence();
 
@@ -182,6 +192,11 @@ export default function CalpinageApp({
     backend: number;
     delta: number;
   } | null>(null);
+  /**
+   * Banner non-bloquant affiché quand solveRoofPlanes détecte des pans quasi-verticaux.
+   * Émis via CustomEvent "calpinage:unsupported-roof-plane" depuis solveRoofPlanes.ts.
+   */
+  const [unsupportedRoofPlaneCount, setUnsupportedRoofPlaneCount] = useState(0);
 
   const runInit = useCallback(async (isRetry = false) => {
     if (initInFlightRef.current) {
@@ -392,6 +407,54 @@ export default function CalpinageApp({
             type="button"
             aria-label="Fermer l'alerte divergence near shading"
             onClick={() => setNearShadingDivergence(null)}
+            style={{
+              marginLeft: 8,
+              background: "none",
+              border: "none",
+              color: "#fef3c7",
+              cursor: "pointer",
+              fontSize: 16,
+              lineHeight: 1,
+              padding: 0,
+            }}
+          >
+            ×
+          </button>
+        </div>
+      )}
+
+      {/* Banner pans quasi-verticaux — non-bloquant, avertissement uniquement */}
+      {unsupportedRoofPlaneCount > 0 && (
+        <div
+          role="alert"
+          style={{
+            position: "absolute",
+            top: nearShadingDivergence != null ? 60 : 12,
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 30,
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            padding: "10px 16px",
+            borderRadius: "var(--sg-radius-md, 8px)",
+            background: "#78350f",
+            border: "1px solid #b45309",
+            color: "#fef3c7",
+            fontSize: 13,
+            fontWeight: 500,
+            boxShadow: "0 4px 16px rgba(0,0,0,0.5)",
+            maxWidth: "calc(100% - 48px)",
+          }}
+        >
+          <span aria-hidden="true" style={{ fontSize: 16 }}>⚠️</span>
+          <span>
+            {unsupportedRoofPlaneCount} pan{unsupportedRoofPlaneCount > 1 ? "s" : ""} quasi-vertical{unsupportedRoofPlaneCount > 1 ? "aux" : ""} détecté{unsupportedRoofPlaneCount > 1 ? "s" : ""} — panneaux PV non placés sur {unsupportedRoofPlaneCount > 1 ? "ces surfaces" : "cette surface"}.
+          </span>
+          <button
+            type="button"
+            aria-label="Fermer l'alerte pans quasi-verticaux"
+            onClick={() => setUnsupportedRoofPlaneCount(0)}
             style={{
               marginLeft: 8,
               background: "none",
