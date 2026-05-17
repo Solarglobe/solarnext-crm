@@ -1,13 +1,17 @@
 /**
  * Données checklist Phase 3 depuis window.getPhase3ChecklistData (legacy).
  * Réutilisable par Phase3ChecklistBridge et Phase3Sidebar.
+ *
+ * Mise à jour pilotée par événements uniquement (pas de polling) :
+ *  - "phase3:update"         — émis par setupPhase3SidebarNotify (→ notifyPhase3SidebarUpdate)
+ *  - notifyPhase3ChecklistUpdate — monkey-patché pour un refresh synchrone immédiat
+ * Le refresh initial se produit au montage (ou quand isVisible passe à true).
  */
 import { useCallback, useEffect, useState } from "react";
 import { isPhase3ChecklistOk } from "../Phase3ChecklistPanel";
 import type { InverterFamily } from "../utils/inverterSizing";
 import { hasPhase3CatalogModuleSelected } from "./phase3LegacyValidateUi";
 
-const POLL_MS = 400;
 const PHASE3_UPDATE = "phase3:update";
 
 export type Phase3ChecklistData = {
@@ -28,7 +32,7 @@ function getData(): Phase3ChecklistData | null {
   }
 }
 
-export function usePhase3ChecklistData(): {
+export function usePhase3ChecklistData(isVisible = true): {
   data: Phase3ChecklistData | null;
   checklistOk: boolean;
   catalogModuleSelected: boolean;
@@ -58,23 +62,30 @@ export function usePhase3ChecklistData(): {
     });
   }, []);
 
+  // Refresh initial à l'activation (montage ou isVisible → true).
   useEffect(() => {
+    if (!isVisible) return;
     refresh();
+  }, [isVisible, refresh]);
+
+  // Abonnement événements — aucun polling, zéro appel superflu sidebar fermée.
+  useEffect(() => {
+    if (!isVisible) return;
     const onPhase3 = () => refresh();
     window.addEventListener(PHASE3_UPDATE, onPhase3);
+    // Monkey-patch notifyPhase3ChecklistUpdate : refresh synchrone immédiat
+    // avant la prochaine frame RAF (complémentaire à l'événement phase3:update).
     const win = window as unknown as { notifyPhase3ChecklistUpdate?: () => void };
     const prevNotify = win.notifyPhase3ChecklistUpdate;
     win.notifyPhase3ChecklistUpdate = () => {
       if (typeof prevNotify === "function") prevNotify();
       refresh();
     };
-    const id = setInterval(refresh, POLL_MS);
     return () => {
       window.removeEventListener(PHASE3_UPDATE, onPhase3);
       win.notifyPhase3ChecklistUpdate = prevNotify;
-      clearInterval(id);
     };
-  }, [refresh]);
+  }, [isVisible, refresh]);
 
   const checklistOk = data ? isPhase3ChecklistOk(data) : false;
   return { data, checklistOk, catalogModuleSelected };
