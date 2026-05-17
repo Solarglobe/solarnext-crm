@@ -3372,8 +3372,13 @@ export function initCalpinage(container, options = {}) {
             },
           });
           var farPct = (resultFar && typeof resultFar.annualLossPercent === "number") ? resultFar.annualLossPercent : 0;
-          var nearPct = (nearResult && typeof nearResult.totalLossPct === "number") ? nearResult.totalLossPct : 0;
-          var combinedPct = 100 * (1 - (1 - farPct / 100) * (1 - nearPct / 100));
+          // null = near shading indisponible (bundle non chargé) — NE PAS remplacer par 0 silencieusement
+          var nearPct = (nearResult && typeof nearResult.totalLossPct === "number") ? nearResult.totalLossPct : null;
+          var nearUnavailable = nearPct === null && !!(nearResult && nearResult.unavailable);
+          // Si near indisponible, combined = far seul (pas 0 × far qui serait faux)
+          var combinedPct = nearPct != null
+            ? 100 * (1 - (1 - farPct / 100) * (1 - nearPct / 100))
+            : farPct;
           var panelStats = (Array.isArray(nearResult.perPanel) ? nearResult.perPanel : []).map(function (p) {
             var stepMin = (shadingConfig && shadingConfig.stepMinutes) || 30;
             return {
@@ -3391,14 +3396,15 @@ export function initCalpinage(container, options = {}) {
           }
           result = resultFar ? {
             annualLossPercent: Number(combinedPct.toFixed(3)),
-            nearLossPct: Number(nearPct.toFixed(3)),
+            nearLossPct: nearPct != null ? Number(nearPct.toFixed(3)) : null,
+            nearUnavailable: nearUnavailable ? true : undefined,
             farLossPct: Number(farPct.toFixed(3)),
             annualLossKWh: resultFar.annualLossKWh,
             meta: shadingMetaNear,
             panelStats: panelStats
           } : { annualLossPercent: 0, nearLossPct: 0, farLossPct: 0, annualLossKWh: undefined, meta: Object.assign({ samples: 0, model: "annual-raycast-weighted-v2", year: shadingConfig.year, stepMinutes: shadingConfig.stepMinutes }, (function () { var m = {}; if (nearResult && nearResult.canonicalNear) m.nearCanonical3d = nearResult.canonicalNear; if (nearResult && nearResult.officialNear) m.nearOfficial = nearResult.officialNear; return m; })()), panelStats: panelStats };
           if (typeof window !== "undefined" && window.SHADING_DEBUG && nearResult && nearResult.debugInfo) {
-            console.log("[SHADING_DEBUG] near=" + nearPct.toFixed(2) + "% combined=" + combinedPct.toFixed(2) + "% samples=" + (nearResult.debugInfo.sunVectorCount || 0));
+            console.log("[SHADING_DEBUG] near=" + (nearPct != null ? nearPct.toFixed(2) + "%" : "N/A (indisponible)") + " combined=" + combinedPct.toFixed(2) + "% samples=" + (nearResult.debugInfo.sunVectorCount || 0));
           }
         } else {
           result = null;
@@ -3480,7 +3486,8 @@ export function initCalpinage(container, options = {}) {
           typeof raw.annualLossPercent === "number"
             ? raw.annualLossPercent
             : null;
-        const nearPct = typeof raw.nearLossPct === "number" ? raw.nearLossPct : 0;
+        // null = near non calculé (moteur absent) — NE PAS substituer 0 (perte fictive)
+        const nearPct = typeof raw.nearLossPct === "number" ? raw.nearLossPct : null;
         const farPct = typeof raw.farLossPct === "number" ? raw.farLossPct : null;
 
         const perPanel = Array.isArray(raw.panelStats)

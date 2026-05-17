@@ -34,11 +34,12 @@ function buildOfficialPans(pans, getAllPanels, shadingNormalized) {
   const gpsBlocked =
     shadingNormalized?.shadingQuality?.blockingReason === "missing_gps" ||
     shadingNormalized?.far?.source === "UNAVAILABLE_NO_GPS";
+  // null = near non calculé (moteur absent) — distinguer de 0 % (perte calculée légale)
   const globalNear = gpsBlocked
     ? null
     : (shadingNormalized && shadingNormalized.near && typeof shadingNormalized.near.totalLossPct === "number")
         ? shadingNormalized.near.totalLossPct
-        : (typeof shadingNormalized?.nearLossPct === "number" ? shadingNormalized.nearLossPct : 0);
+        : (typeof shadingNormalized?.nearLossPct === "number" ? shadingNormalized.nearLossPct : null);
   const globalFar = gpsBlocked
     ? null
     : (shadingNormalized && shadingNormalized.far && typeof shadingNormalized.far.totalLossPct === "number")

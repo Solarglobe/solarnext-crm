@@ -34,9 +34,10 @@ export function buildPremiumShadingExport(normalized) {
   if (normalized == null || typeof normalized !== "object") return null;
   warnIfOfficialShadingRootMismatch(normalized);
 
+  // null conservé tel quel : les consommateurs affichent "N/A" si null (jamais "0 %")
   const near = normalized.near != null && typeof normalized.near === "object"
     ? { ...normalized.near }
-    : { totalLossPct: Number(normalized.nearLossPct) || 0 };
+    : { totalLossPct: normalized.nearLossPct != null ? Number(normalized.nearLossPct) : null };
 
   const far =
     normalized.far != null && typeof normalized.far === "object"

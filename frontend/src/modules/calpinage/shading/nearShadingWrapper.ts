@@ -73,12 +73,25 @@ function computeNearShadingLegacy(
     (typeof window !== "undefined" ? window.nearShadingCore : undefined);
 
   if (typeof getAnnualSunVectors !== "function" || !core?.computeNearShading) {
-    if (debug) {
-      console.warn(
-        "[nearShadingWrapper] getAnnualSunVectors ou nearShadingCore absent, retour 0"
+    // ERREUR EXPLICITE — ne jamais retourner 0 silencieusement pour une valeur de perte.
+    // Un 0 silencieux est commercialement dangereux (client voit 0 % de perte alors que
+    // rien n'a été calculé). On retourne null + signal d'indisponibilité.
+    console.error(
+      "[nearShadingWrapper] nearShadingCore ou getAnnualSunVectors non chargé — " +
+        "near shading indisponible. Retour null (pas 0)."
+    );
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent("calpinage:near-shading-unavailable", {
+          detail: { reason: "BUNDLE_NOT_LOADED" },
+        })
       );
     }
-    return emptyResult;
+    return {
+      totalLossPct: null,
+      perPanel: panels.map((p) => ({ panelId: p.id, shadedFractionAvg: 0, lossPct: 0 })),
+      unavailable: { reliable: false, reason: "BUNDLE_NOT_LOADED" },
+    };
   }
 
   const sunVectors = getAnnualSunVectors(latitude, longitude, {

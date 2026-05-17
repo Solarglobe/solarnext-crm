@@ -31,8 +31,10 @@ export type NearShadingOfficialEngineId = "canonical_3d" | "legacy_polygon";
  */
 export interface NearShadingOfficialNear {
   readonly engine: NearShadingOfficialEngineId;
-  readonly officialLossPct: number;
-  readonly legacyReferenceLossPct: number;
+  /** null si le moteur near était indisponible lors du calcul (bundle non chargé). */
+  readonly officialLossPct: number | null;
+  /** null si le near legacy était indisponible (même raison). */
+  readonly legacyReferenceLossPct: number | null;
   readonly canonicalUsable: boolean;
   readonly fallbackTriggered: boolean;
   readonly canonicalRejectedBecause?: string;

@@ -48,8 +48,18 @@ export interface NearShadingPanelResult {
 }
 
 export interface ComputeNearShadingFrontendResult {
-  totalLossPct: number;
+  /**
+   * null = moteur near shading indisponible (bundle non chargé ou moteur absent).
+   * Distinguer impérativement de 0 (= 0 % de perte calculée, valeur légitime).
+   * Les consommateurs NE DOIVENT PAS afficher "0 %" si cette valeur est null.
+   */
+  totalLossPct: number | null;
   perPanel: NearShadingPanelResult[];
+  /**
+   * Présent uniquement si le moteur était absent au moment du calcul.
+   * Permet aux UI et exports de distinguer "non calculé" de "calculé à 0 %".
+   */
+  unavailable?: { readonly reliable: false; readonly reason: string };
   debugInfo?: {
     totalWeight: number;
     totalWeightedFraction: number;
