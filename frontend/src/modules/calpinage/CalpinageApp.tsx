@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { installEmitOfficialRuntimeStructuralChangeOnWindow } from "./runtime/emitOfficialRuntimeStructuralChange";
-import { installRoofModelingHistoryOnWindow } from "./runtime/roofModelingHistory";
+import { installRoofModelingHistoryOnWindow, resetRoofModelingHistory } from "./runtime/roofModelingHistory";
 import { initCalpinage } from "./legacy/calpinage.module.js";
 import { bootstrapCalpinageStore } from "./store/adapters/legacyCalpinageStateAdapter";
 import { ensureCalpinageDeps, resetCalpinageDepsCache } from "./legacy/loadCalpinageDeps";
@@ -56,6 +56,17 @@ export default function CalpinageApp({
     const off = installRoofModelingHistoryOnWindow();
     return () => off();
   }, []);
+
+  // Réinitialise les stacks undo/redo au démontage (variable module-level non réinitialisée
+  // automatiquement) — évite l’accumulation d’états obsolètes entre sessions.
+  useEffect(() => {
+    return () => resetRoofModelingHistory();
+  }, []);
+
+  // Réinitialise aussi lors d’un changement d’étude (nouvelle étude = historique vierge).
+  useEffect(() => {
+    resetRoofModelingHistory();
+  }, [studyId]);
 
   /**
    * Mode édition sommet toiture en 3D (Z / XY) — flags globaux pour le bridge + viewer.
@@ -467,5 +478,8 @@ export default function CalpinageApp({
       </div>
       </ConfirmProvider>
     </ToastProvider>
+  );
+}
+er>
   );
 }

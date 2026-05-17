@@ -94,6 +94,25 @@ export function resetRoofModelingHistoryForTests(): void {
   redoStack.length = 0;
 }
 
+/**
+ * Réinitialise les stacks undo/redo — à appeler lors du démontage de CalpinageApp
+ * ou lors d’un changement d’étude, pour éviter l’accumulation d’états obsolètes
+ * entre sessions (les stacks sont des variables module-level, non réinitialisées
+ * automatiquement entre montages/démontages).
+ */
+export function resetRoofModelingHistory(): void {
+  undoStack.length = 0;
+  redoStack.length = 0;
+}
+
+/**
+ * Lecture seule des compteurs — pour debug et tests d’intégration.
+ * Ne pas utiliser pour piloter la UI (préférer canUndoRoofModeling / canRedoRoofModeling).
+ */
+export function getRoofModelingHistoryState(): { undoCount: number; redoCount: number } {
+  return { undoCount: undoStack.length, redoCount: redoStack.length };
+}
+
 export function installRoofModelingHistoryOnWindow(): () => void {
   if (typeof window === "undefined") return () => {};
   const w = window as Window & {
