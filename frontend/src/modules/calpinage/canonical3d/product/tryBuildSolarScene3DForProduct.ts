@@ -17,14 +17,14 @@ import {
   emptyCanonical3DGeometryProvenance,
   type Canonical3DGeometryProvenanceDiagnostics,
 } from "../../integration/readOfficialCalpinageGeometryForCanonical3D";
-
-const PRODUCT_CTX = { productStrictStatePans: true } as const;
 import { emptyRoofHeightSignalDiagnostics, type RoofHeightSignalDiagnostics } from "../builder/roofHeightSignalDiagnostics";
 import { emptyRoofReconstructionQualityDiagnostics, type RoofReconstructionQualityDiagnostics } from "../builder/roofReconstructionQuality";
 import { emptyPvBindingDiagnostics, type PvBindingDiagnostics } from "../pvPanels/pvBindingDiagnostics";
 import type { Validate2DTo3DCoherenceResult } from "../types/scene2d3dCoherence";
 import type { CanonicalSceneValidationResult } from "../validation/validateCanonicalScene3DInput";
 import type { SolarScene3D } from "../types/solarScene3d";
+
+const PRODUCT_CTX = { productStrictStatePans: true } as const;
 
 function emptyProductPipelineDiagnostics(): ProductPipeline3DDiagnostics {
   return {
