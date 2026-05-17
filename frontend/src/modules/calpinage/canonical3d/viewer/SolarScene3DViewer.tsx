@@ -2336,6 +2336,30 @@ function ViewerSceneContent({
     [pv3dLivePanelGeos],
   );
 
+  /**
+   * IDs des panneaux DÉJÀ validés (présents dans scene.pvPanels).
+   * Un panneau validé ne doit JAMAIS être masqué dans InstancedMesh même si
+   * l'overlay le garde encore comme "selected" (ex. après validation de la 1ère section).
+   */
+  const validatedPanelIdSet = useMemo(
+    () => new Set(scene.pvPanels.map((p) => String(p.id))),
+    [scene.pvPanels],
+  );
+
+  /**
+   * hiddenPanelIds effectif : uniquement les panneaux live NON encore validés.
+   * Filtre les IDs qui existent déjà dans scene.pvPanels pour éviter de masquer
+   * des panneaux validés qui attendent que l'overlay soit nettoyé.
+   */
+  const pvLayout3DEffectiveHiddenIds = useMemo(() => {
+    if (!pvLayout3DInteractionMode) return undefined;
+    const result = new Set<string>();
+    for (const id of pv3dSelectedLivePanelIds) {
+      if (!validatedPanelIdSet.has(id)) result.add(id);
+    }
+    return result;
+  }, [pvLayout3DInteractionMode, pv3dSelectedLivePanelIds, validatedPanelIdSet]);
+
   const pv3dGhostGeos = useMemo(() => {
     if (!pvLayout3DInteractionMode || !pvLayout3dOverlayState) return [];
     return pvLayout3dOverlayState.ghosts.flatMap((g) => {
@@ -3261,7 +3285,7 @@ function ViewerSceneContent({
             renderOrder={pvLayout3DInteractionMode ? 20 : 0}
             polygonOffsetFactor={pvLayout3DInteractionMode ? -3 : -1}
             polygonOffsetUnits={pvLayout3DInteractionMode ? -3 : -1}
-            hiddenPanelIds={pvLayout3DInteractionMode ? pv3dSelectedLivePanelIds : undefined}
+            hiddenPanelIds={pvLayout3DEffectiveHiddenIds}
             raycastFn={pvPanelRaycastPassThrough ? roofModelingSkipOccluderRaycast : undefined}
             onPanelClick={
               inspectMode
