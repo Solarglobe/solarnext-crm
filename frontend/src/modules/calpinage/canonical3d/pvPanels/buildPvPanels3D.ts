@@ -9,6 +9,7 @@ import type { ConfidenceTier } from "../types/quality";
 import type { PvPanelAttachment3D, PvPanelBuildResult, PvPanelSurface3D } from "../types/pv-panel-3d";
 import type { RoofPlanePatch3D } from "../types/roof-surface";
 import type { BuildPvPanels3DContext, BuildPvPanels3DInput, PvPanelPlacementInput } from "./pvPanelInput";
+import { NEAR_SHADING_SAMPLING } from "../../config/nearShadingConfig";
 import { computePvPanelSpatialContext } from "./panelContextComputer";
 import {
   buildPanelLocalFrame,
@@ -78,8 +79,8 @@ function buildOnePanel(
     rotationRad
   );
 
-  const nx = Math.max(1, Math.floor(input.sampling?.nx ?? 4));
-  const ny = Math.max(1, Math.floor(input.sampling?.ny ?? 4));
+  const nx = Math.max(1, Math.floor(input.sampling?.nx ?? NEAR_SHADING_SAMPLING.nx));
+  const ny = Math.max(1, Math.floor(input.sampling?.ny ?? NEAR_SHADING_SAMPLING.ny));
   const includeEdgeMidpoints = input.sampling?.includeEdgeMidpoints ?? false;
 
   const samplingGrid = buildSamplingGrid(
