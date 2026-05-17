@@ -1304,12 +1304,15 @@ function RoofTruthBadgesProjector({
 }) {
   const { camera, gl } = useThree();
   const lastSigRef = useRef("");
+  /** Accumulateur delta pour throttler la projection à max 10fps (100ms). */
+  const projectionAccRef = useRef(0);
 
   useEffect(() => {
     if (!enabled) onProjected([]);
   }, [enabled, onProjected]);
 
-  useFrame(() => {
+  useFrame((_, delta) => {
+    // Désactivation : nettoyage immédiat, pas throttlé.
     if (!enabled) {
       if (lastSigRef.current !== "empty") {
         lastSigRef.current = "empty";
@@ -1317,6 +1320,10 @@ function RoofTruthBadgesProjector({
       }
       return;
     }
+    // Throttle projection matricielle : max 10fps (100ms entre mises à jour).
+    projectionAccRef.current += delta;
+    if (projectionAccRef.current < 0.1) return;
+    projectionAccRef.current = 0;
     const rect = gl.domElement.getBoundingClientRect();
     const width = Math.max(1, rect.width);
     const height = Math.max(1, rect.height);
@@ -1656,12 +1663,15 @@ function PvLayout3dScreenOverlayProjector({
 }) {
   const { camera, gl } = useThree();
   const lastSigRef = useRef("");
+  /** Accumulateur delta pour throttler la projection à max 10fps (100ms). */
+  const projectionAccRef = useRef(0);
 
   useEffect(() => {
     if (!enabled || !overlay) onProjected(null);
   }, [enabled, overlay, onProjected]);
 
-  useFrame(() => {
+  useFrame((_, delta) => {
+    // Désactivation : nettoyage immédiat, pas throttlé.
     if (!enabled || !overlay) {
       if (lastSigRef.current !== "null") {
         lastSigRef.current = "null";
@@ -1669,6 +1679,10 @@ function PvLayout3dScreenOverlayProjector({
       }
       return;
     }
+    // Throttle projection matricielle : max 10fps (100ms entre mises à jour).
+    projectionAccRef.current += delta;
+    if (projectionAccRef.current < 0.1) return;
+    projectionAccRef.current = 0;
     const rect = gl.domElement.getBoundingClientRect();
     const width = Math.max(1, rect.width);
     const height = Math.max(1, rect.height);
