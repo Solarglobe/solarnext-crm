@@ -21,6 +21,15 @@ const skipDownload =
   process.env.PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD === "true" ||
   process.env.PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD === "1";
 
+/**
+ * Sur Railway/nixpacks, nixpacks.toml déclare déjà tous les paquets système Chromium
+ * → `playwright install-deps` est redondant et double le temps de build.
+ * Skippé par défaut sur Railway ; forçable via PLAYWRIGHT_FORCE_INSTALL_DEPS=1.
+ */
+const skipInstallDeps =
+  process.env.PLAYWRIGHT_FORCE_INSTALL_DEPS !== "1" &&
+  (Boolean(process.env.RAILWAY_ENVIRONMENT) || process.env.RAILWAY === "true");
+
 function log(marker, details) {
   if (details) {
     process.stdout.write(`${marker} ${details}\n`);
@@ -69,12 +78,16 @@ try {
   execSync("npx playwright install chromium", { stdio: "inherit" });
 
   // Install system-level OS dependencies for Chromium (libnss3, libglib2 etc.)
-  // This is a safety net alongside nixpacks.toml apt packages.
-  // On Railway the command may need sudo — it silently continues on error.
-  try {
-    execSync("npx playwright install-deps chromium", { stdio: "inherit" });
-  } catch (depErr) {
-    console.warn("PLAYWRIGHT_INSTALL_DEPS_WARN", String(depErr.message || depErr).slice(0, 200));
+  // Skippé sur Railway car nixpacks.toml déclare déjà tous ces paquets (évite un double apt-get
+  // qui double le temps de build et peut déclencher un timeout). Activer via PLAYWRIGHT_FORCE_INSTALL_DEPS=1.
+  if (skipInstallDeps) {
+    console.log("PLAYWRIGHT_INSTALL_DEPS_SKIP reason=nixpacks_handles_system_deps");
+  } else {
+    try {
+      execSync("npx playwright install-deps chromium", { stdio: "inherit" });
+    } catch (depErr) {
+      console.warn("PLAYWRIGHT_INSTALL_DEPS_WARN", String(depErr.message || depErr).slice(0, 200));
+    }
   }
 
   console.log("PLAYWRIGHT_INSTALL_DONE");
