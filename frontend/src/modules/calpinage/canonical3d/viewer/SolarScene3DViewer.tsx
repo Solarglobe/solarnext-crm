@@ -2360,23 +2360,53 @@ function ViewerSceneContent({
   );
 
   /**
-   * hiddenPanelIds effectif : panneaux live sélectionnés + panneaux en attente de rebuild.
+   * Ensemble des IDs de panneaux déjà validés et présents dans scene.pvPanels.
+   * Sert à distinguer un panneau en cours de pose (nouveau) d'un panneau validé déplacé.
+   */
+  const pvLayout3DValidatedPanelIdSet = useMemo(
+    () => new Set(scene.pvPanels.map((p) => String(p.id))),
+    [scene.pvPanels],
+  );
+
+  /**
+   * hiddenPanelIds effectif : panneaux live sélectionnés (sous conditions) + panneaux en attente de rebuild.
    *
-   * Règle : masquer dans l'InstancedMesh TOUT panneau affiché en géométrie live (pv3dLivePanelGeos),
-   * qu'il soit ou non déjà dans scene.pvPanels. En mode pvLayout3DActive, getAllPanelsFromRuntime
-   * retourne allPanels (bloc actif inclus) → le panneau actif EST dans scene.pvPanels mais doit
-   * quand même être masqué dans l'InstancedMesh quand il est rendu en live overlay, sinon double
-   * affichage simultané (InstancedMesh ancienne position + live overlay nouvelle position) → clignotement.
+   * Règle :
+   * - Un panneau live (pv3dSelectedLivePanelIds) est masqué dans l'InstancedMesh UNIQUEMENT si :
+   *   a) il n'est pas encore dans scene.pvPanels (nouveau panneau en cours de pose), OU
+   *   b) il appartient au bloc actif (activeBlockId) — pendant le drag d'un bloc existant,
+   *      pvLayout3DActive=true retourne allPanels → le panneau est dans scene.pvPanels MAIS doit
+   *      être masqué de l'InstancedMesh pour éviter le double rendu (ancienne pos + live overlay).
+   *
+   * - Un panneau validé (dans scene.pvPanels) d'un autre bloc n'est PAS masqué : il reste visible
+   *   dans l'InstancedMesh même si le bloc actif est en cours de manipulation.
    *
    * Cas déplacement : pvRebuildBlockPanelIds masque les panneaux dont le commit vient d'être fait
    * jusqu'à ce que le rebuild 3D complète.
+   *
+   * Correction régression : sans validatedPanelIdSet, tous les panneaux live étaient masqués →
+   * après validation, sélection vidée mais scene.pvPanels pas encore mis à jour → invisible.
    */
   const pvLayout3DEffectiveHiddenIds = useMemo(() => {
     if (!pvLayout3DInteractionMode) return undefined;
     const result = new Set<string>();
-    // Toujours masquer dans l'InstancedMesh si rendu en live overlay — évite le double rendu.
+    const activeBlockId = pvLayout3dOverlayState?.activeBlockId ?? null;
+    // Panneaux du bloc actif (pour exception b ci-dessus)
+    const activeBlockPanelIds =
+      activeBlockId != null
+        ? new Set(
+            (pvLayout3dOverlayState?.panels ?? [])
+              .filter((p) => String(p.blockId) === String(activeBlockId))
+              .map((p) => String(p.id)),
+          )
+        : new Set<string>();
     for (const id of pv3dSelectedLivePanelIds) {
-      result.add(id);
+      const isValidated = pvLayout3DValidatedPanelIdSet.has(id);
+      const isActiveBlock = activeBlockPanelIds.has(id);
+      // Masquer si nouveau (pas encore validé) OU si appartient au bloc actif (anti-clignotement)
+      if (!isValidated || isActiveBlock) {
+        result.add(id);
+      }
     }
     if (pvRebuildBlockPanelIds) {
       for (const id of pvRebuildBlockPanelIds) {
@@ -2384,7 +2414,13 @@ function ViewerSceneContent({
       }
     }
     return result;
-  }, [pvLayout3DInteractionMode, pv3dSelectedLivePanelIds, pvRebuildBlockPanelIds]);
+  }, [
+    pvLayout3DInteractionMode,
+    pv3dSelectedLivePanelIds,
+    pvRebuildBlockPanelIds,
+    pvLayout3DValidatedPanelIdSet,
+    pvLayout3dOverlayState,
+  ]);
 
   const pv3dGhostGeos = useMemo(() => {
     if (!pvLayout3DInteractionMode || !pvLayout3dOverlayState) return [];
