@@ -201,15 +201,33 @@ function Phase3FlatRoofControls() {
 }
 
 function Phase3OrientationToggle() {
-  const { orientation, flatRoof } = usePhase3Data();
+  const { orientation: storeOrientation, flatRoof } = usePhase3Data();
   const orientationLabelId = useId();
   const win = window as any;
+
+  /**
+   * État local optimiste : mis à jour immédiatement au click,
+   * indépendant du round-trip legacy → Zustand → re-render.
+   * Effacé dès que le store rattrape la même valeur.
+   */
+  const [localOrientation, setLocalOrientation] = useState<"portrait" | "landscape" | null>(null);
+
+  useEffect(() => {
+    // Le store a rattrapé la valeur cliquée → on peut libérer l'override local
+    if (localOrientation !== null && localOrientation === storeOrientation) {
+      setLocalOrientation(null);
+    }
+  }, [storeOrientation]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const orientation = localOrientation ?? storeOrientation;
 
   if (flatRoof.inPvLayout && flatRoof.hasPanCtx && flatRoof.isFlat) {
     return null;
   }
 
   const setOrientation = (value: "portrait" | "landscape") => {
+    // Mise à jour visuelle immédiate — le store peut prendre une frame de plus
+    setLocalOrientation(value);
     if (typeof win.setPvOrientation === "function") {
       win.setPvOrientation(value);
     }
