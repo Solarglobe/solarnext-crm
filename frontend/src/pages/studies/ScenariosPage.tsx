@@ -263,15 +263,27 @@ export default function ScenariosPage() {
     try {
       const pdfRes = await apiFetch(
         `${base}/api/studies/${encodeURIComponent(studyId)}/versions/${encodeURIComponent(versionId)}/generate-pdf`,
-        { method: "POST" }
+        { method: "POST", skipErrorToast: true }
       );
       const pdfBody = (await pdfRes.json().catch(() => ({}))) as {
         downloadUrl?: string;
         fileName?: string;
         error?: string;
+        message?: string;
       };
       if (!pdfRes.ok || !pdfBody.downloadUrl) {
-        showToast(pdfBody.error || "Impossible de régénérer le PDF", true);
+        const errCode = pdfBody.error ?? "";
+        const errMsg =
+          errCode === "PDF_BLOCKED_CALCULATION_CONFIDENCE"
+            ? "Données de calcul invalides — relancez le calcul pour cette étude puis réessayez."
+            : errCode === "SCENARIO_SNAPSHOT_REQUIRED"
+              ? "Scénario non figé. Choisissez un scénario avant de générer le PDF."
+              : errCode === "PDF_RENDER_TIMEOUT"
+                ? "Délai dépassé lors de la génération du PDF."
+                : errCode === "PDF_RENDER_FAILED"
+                  ? "Échec du rendu PDF — réessayez dans quelques instants."
+                  : pdfBody.message || errCode || "Impossible de régénérer le PDF";
+        showToast(errMsg, true);
         return;
       }
       await openAuthenticatedDocumentInNewTab(pdfBody.downloadUrl);

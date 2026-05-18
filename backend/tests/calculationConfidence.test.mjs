@@ -16,29 +16,24 @@ test("finalizeCalculationConfidence : BLOCKED si avertissement bloquant", () => 
   assert.ok(isPdfBlockedByConfidence(c));
 });
 
-test("isPdfBlockedByConfidence : PVGIS_FALLBACK_USED n'est plus bloquant pour les PDFs", () => {
-  // PVGIS_FALLBACK_USED produit des estimations géographiques exploitables → PDF autorisé avec warning.
-  // Des études stockées antérieurement peuvent avoir level="BLOCKED" + blocking_warnings=["PVGIS_FALLBACK_USED"].
-  // isPdfBlockedByConfidence doit retourner false dans ce cas (ne se base pas sur le level).
+test("isPdfBlockedByConfidence : PVGIS_FALLBACK_USED non bloquant", () => {
   const legacyStoredData = finalizeCalculationConfidence({
     blocking_warnings: ["PVGIS_FALLBACK_USED"],
     non_blocking_warnings: [],
     assumptions: {},
   });
-  // level="BLOCKED" est présent dans les données legacy mais ne doit pas bloquer les PDFs
   assert.equal(legacyStoredData.level, "BLOCKED");
   assert.ok(!isPdfBlockedByConfidence(legacyStoredData), "PVGIS_FALLBACK_USED seul ne doit pas bloquer les PDFs");
 
-  // S'assurer que d'autres codes bloquants fonctionnent toujours
   const reallyBlocked = finalizeCalculationConfidence({
     blocking_warnings: ["CALC_INVALID_8760_PROFILE"],
     non_blocking_warnings: [],
     assumptions: {},
   });
-  assert.ok(isPdfBlockedByConfidence(reallyBlocked), "CALC_INVALID_8760_PROFILE doit toujours bloquer");
+  assert.ok(isPdfBlockedByConfidence(reallyBlocked), "CALC_INVALID_8760_PROFILE doit bloquer");
 });
 
-test("buildCalculationConfidenceFromCalc : VB sans coût → blocking VB_COST_UNCONFIGURED_BLOCK_PDF", () => {
+test("buildCalculationConfidenceFromCalc : VB sans cout - non bloquant", () => {
   const ctx = {
     pv: { source: "PVGIS" },
     meta: { engine_consumption_source: "CSV_HOURLY_ENEDIS" },
@@ -53,6 +48,27 @@ test("buildCalculationConfidenceFromCalc : VB sans coût → blocking VB_COST_UN
     },
   };
   const c = buildCalculationConfidenceFromCalc(ctx, scenarios);
-  assert.ok(c.blocking_warnings.includes("VB_COST_UNCONFIGURED_BLOCK_PDF"));
+  assert.ok(!c.blocking_warnings.includes("VB_COST_UNCONFIGURED_BLOCK_PDF"), "pas dans blocking_warnings");
+  assert.ok(c.non_blocking_warnings.includes("VB_COST_UNCONFIGURED_BLOCK_PDF"), "dans non_blocking_warnings");
+  assert.ok(!isPdfBlockedByConfidence(c), "PDF ne doit pas etre bloque");
+});
+
+test("buildCalculationConfidenceFromCalc : VB_UNBOUNDED_DISABLED bloque toujours", () => {
+  const ctx = {
+    pv: { source: "PVGIS" },
+    meta: { engine_consumption_source: "CSV_HOURLY_ENEDIS" },
+    form: { economics: {} },
+    settings: { economics: {} },
+    virtual_battery_input: { enabled: true },
+  };
+  const scenarios = {
+    BATTERY_VIRTUAL: {
+      _skipped: false,
+      finance_warnings: [],
+      anti_oversell_flags: ["VB_UNBOUNDED_DISABLED_FOR_COMMERCIAL_USE"],
+    },
+  };
+  const c = buildCalculationConfidenceFromCalc(ctx, scenarios);
+  assert.ok(c.blocking_warnings.includes("VB_UNBOUNDED_DISABLED_FOR_COMMERCIAL_USE"), "doit rester bloquant");
   assert.ok(isPdfBlockedByConfidence(c));
 });

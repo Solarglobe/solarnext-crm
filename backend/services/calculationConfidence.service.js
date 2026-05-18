@@ -9,18 +9,22 @@ import {
 } from "./economicsResolve.service.js";
 
 // Codes qui bloquent HARD la génération de PDF.
-// PVGIS_FALLBACK_USED est intentionnellement absent : les données de fallback géographique
-// sont des estimations exploitables. Le PDF est autorisé avec un avertissement UI.
-// Les études calculées avant ce changement peuvent avoir level="BLOCKED" à cause de
-// PVGIS_FALLBACK_USED dans blocking_warnings — c'est pourquoi isPdfBlockedByConfidence
-// ne se base plus sur le champ level mais uniquement sur les codes de cette liste.
+// Seuls 2 codes restent vraiement bloquants :
+//   - CALC_INVALID_8760_PROFILE  : données de calcul corrompues/absentes, aucun PDF exploitable possible
+//   - VB_UNBOUNDED_DISABLED_FOR_COMMERCIAL_USE : batterie virtuelle illimitée bloquée pour usage commercial
+//
+// Les codes suivants sont intentionnellement ABSENTS (classés non-bloquants, affichés en avertissement UI) :
+//   - PVGIS_FALLBACK_USED              : fallback géographique, estimations exploitables
+//   - VB_COST_UNCONFIGURED_BLOCK_PDF   : coût batterie non configuré, PDF autorisé avec mention
+//   - FAR_SHADING_UNAVAILABLE_BLOCK_PDF: masque horizon indisponible, calcul dégradé acceptable
+//   - SHADING_PAN_MISMATCH_BLOCK_PDF   : décalage panneaux/ombrage, avertissement qualitatif
+//   - SHADING_GEOMETRY_BLOCK_PDF       : géométrie ombrage avec réserves, PDF autorisé
+//
+// NB : des études stockées avant ce changement peuvent avoir level="BLOCKED" à cause de ces codes.
+// isPdfBlockedByConfidence ne se base PAS sur le champ level mais uniquement sur cette liste.
 const BLOCKING = new Set([
   "CALC_INVALID_8760_PROFILE",
-  "VB_COST_UNCONFIGURED_BLOCK_PDF",
   "VB_UNBOUNDED_DISABLED_FOR_COMMERCIAL_USE",
-  "FAR_SHADING_UNAVAILABLE_BLOCK_PDF",
-  "SHADING_PAN_MISMATCH_BLOCK_PDF",
-  "SHADING_GEOMETRY_BLOCK_PDF",
 ]);
 
 /**
@@ -140,7 +144,8 @@ export function buildCalculationConfidenceFromCalc(ctx, scenariosFinal = {}) {
   if (ctx?.virtual_battery_input?.enabled === true && vbSc && !vbSc._skipped) {
     const fw = vbSc.finance_warnings;
     if (Array.isArray(fw) && fw.includes("VB_COST_UNCONFIGURED")) {
-      blocking.push("VB_COST_UNCONFIGURED_BLOCK_PDF");
+      // Non-bloquant : coût batterie virtuelle non configuré — PDF autorisé avec avertissement visible
+      nonBlocking.push("VB_COST_UNCONFIGURED_BLOCK_PDF");
     }
   }
   const hasUnboundedCommercialBlock = Object.values(scenariosFinal || {}).some((sc) => {
@@ -163,7 +168,13 @@ export function buildCalculationConfidenceFromCalc(ctx, scenariosFinal = {}) {
       ? shadingCommercialAudit.non_blocking_warnings
       : [];
     for (const w of bw) {
-      if (w && !blocking.includes(w)) blocking.push(w);
+      // Seuls les codes présents dans BLOCKING restent bloquants ; les autres sont des avertissements qualitatifs
+      if (!w) continue;
+      if (BLOCKING.has(String(w))) {
+        if (!blocking.includes(w)) blocking.push(w);
+      } else {
+        if (!nonBlocking.includes(w)) nonBlocking.push(w);
+      }
     }
     for (const w of nbw) {
       if (w && !nonBlocking.includes(w)) nonBlocking.push(w);

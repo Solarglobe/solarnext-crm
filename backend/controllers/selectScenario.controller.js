@@ -63,9 +63,9 @@ export async function selectScenario(req, res) {
     const cc = dataJson.calculation_confidence;
     if (isPdfBlockedByConfidence(cc)) {
       return res.status(409).json({
-        error:
-          "Impossible de figer le scénario : le calcul comporte des avertissements bloquants (données incomplètes, production en mode fallback, ou batterie virtuelle sans coût configuré). Corrigez l’étude puis relancez le calcul.",
-        code: "SNAPSHOT_BLOCKED_CALCULATION_CONFIDENCE",
+        error: "SNAPSHOT_BLOCKED_CALCULATION_CONFIDENCE",
+        message:
+          "Impossible de figer le scénario : le calcul comporte des avertissements bloquants (données de calcul invalides ou batterie virtuelle illimitée en usage commercial). Corrigez l’étude puis relancez le calcul.",
         calculation_confidence: cc ?? null,
       });
     }

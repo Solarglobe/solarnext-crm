@@ -90,23 +90,39 @@ export default function StudyPdfActions({
     try {
       const res = await apiFetch(
         `${API_BASE}/api/studies/${encodeURIComponent(studyId)}/versions/${encodeURIComponent(versionId)}/generate-pdf`,
-        { method: "POST" }
+        { method: "POST", skipErrorToast: true }
       );
-      const body = await res.json().catch(() => ({}));
+      const body = (await res.json().catch(() => ({}))) as {
+        success?: boolean;
+        error?: string;
+        message?: string;
+        calculation_confidence?: { blocking_warnings?: string[] };
+      };
       if (res.ok && body.success) {
         showToast("PDF généré avec succès", true);
         await fetchPdfDocuments();
       } else {
-        const errMsg =
-          body.error === "PDF_RENDER_TIMEOUT"
-            ? "Délai dépassé lors de la génération du PDF"
-            : body.error === "PDF_RENDER_FAILED"
-              ? "Échec du rendu du PDF"
-              : body.error === "SCENARIO_SNAPSHOT_REQUIRED"
-                ? "Scénario non figé. Choisissez un scénario avant de générer le PDF."
-                : body.error === "PDF_BLOCKED_CALCULATION_CONFIDENCE"
-                  ? "PDF bloqué : données de calcul incomplètes (relancez le calcul)"
-                  : body.error || "Impossible de générer le PDF";
+        let errMsg: string;
+        if (body.error === "PDF_BLOCKED_CALCULATION_CONFIDENCE") {
+          const bw = body.calculation_confidence?.blocking_warnings ?? [];
+          const LABELS: Record<string, string> = {
+            CALC_INVALID_8760_PROFILE: "profil horaire de calcul invalide",
+            VB_UNBOUNDED_DISABLED_FOR_COMMERCIAL_USE: "batterie virtuelle illimitée désactivée (usage commercial)",
+          };
+          const detail = bw.length > 0
+            ? ` (${bw.map((w) => LABELS[w] ?? w).join(", ")})`
+            : "";
+          errMsg = `PDF bloqué : données de calcul invalides${detail} — relancez le calcul.`;
+        } else {
+          errMsg =
+            body.error === "PDF_RENDER_TIMEOUT"
+              ? "Délai dépassé lors de la génération du PDF"
+              : body.error === "PDF_RENDER_FAILED"
+                ? "Échec du rendu du PDF"
+                : body.error === "SCENARIO_SNAPSHOT_REQUIRED"
+                  ? "Scénario non figé. Choisissez un scénario avant de générer le PDF."
+                  : body.message || body.error || "Impossible de générer le PDF";
+        }
         showToast(errMsg, false);
       }
     } catch (e) {

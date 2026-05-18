@@ -142,7 +142,11 @@ export async function generatePdfFromRendererUrl(rendererUrl) {
     e.code = "PDF_RENDER_FAILED";
     throw e;
   } finally {
-    if (browser) await browser.close();
+    if (browser) {
+      try { await browser.close(); } catch (closeErr) {
+        logger.warn("PDF browser.close() failed (non-fatal)", { message: closeErr?.message });
+      }
+    }
     logger.info("PDF generation finished", { rendererUrl });
   }
 }
@@ -295,7 +299,11 @@ export async function generatePdfFromPortraitFinanceUrl(rendererUrl, logLabel = 
     e.code = "PDF_RENDER_FAILED";
     throw e;
   } finally {
-    if (browser) await browser.close();
+    if (browser) {
+      try { await browser.close(); } catch (closeErr) {
+        logger.warn(`PDF ${logLabel} browser.close() failed (non-fatal)`, { message: closeErr?.message });
+      }
+    }
     logger.info(`PDF ${logLabel} generation finished`, { rendererUrl });
   }
 }
