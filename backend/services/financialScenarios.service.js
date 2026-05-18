@@ -17,7 +17,7 @@
 
 import { createHash } from "crypto";
 import { pool } from "../config/db.js";
-import { ENGINE_VERSION } from "../constants/engineVersion.js";
+import { FINANCIAL_ENGINE_VERSION } from "../constants/engineVersion.js";
 
 /* ── helpers ─────────────────────────────────────────────────────────────── */
 
@@ -130,7 +130,7 @@ export async function upsertFinancialScenariosForVersion({
           JSON.stringify(solarnextPayload ?? {}),                 // $6
           JSON.stringify(scenario),                               // $7
           inputHash, resultHash,                                  // $8-$9
-          ENGINE_VERSION,                                         // $10
+          FINANCIAL_ENGINE_VERSION,                               // $10
           capex_ttc, roi_years, irr_pct,                         // $11-$13
           userId,                                                 // $14
         ]

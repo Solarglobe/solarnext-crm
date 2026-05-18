@@ -1,0 +1,62 @@
+[
+  {
+    "name": "base_3kwc_residential",
+    "ctx": { "form": { "params": { "tarif_kwh": 0.22 }, "economics": { "horizon_years": 25, "elec_growth_pct": 3, "pv_degradation_pct": 0.5, "oa_rate_lt_9": 0.13, "oa_rate_gte_9": 0.078, "prime_lt9": 80, "prime_gte9": 80, "maintenance_pct": 1, "onduleur_year": 12, "onduleur_cost_pct": 8 }, "pv_inverter": { "type": "string" } }, "finance_input": { "capex_ttc": 8000 }, "settings": {} },
+    "scenarios": { "BASE": { "_v2": true, "name": "BASE", "kwc": 3, "prod_kwh": 3600, "conso_kwh": 4200, "auto_kwh": 2100, "surplus_kwh": 1500, "energy": { "production_kwh": 3600, "consumption_kwh": 4200, "autoconsumption_kwh": 2100, "surplus": 1500 } } },
+    "expected": { "BASE": { "capex_ttc": 8000, "capex_net": 7760, "roi_years": 13, "irr_pct": 7.77, "lcoe_eur_kwh": 0.1538, "economie_an1": 817, "gain_25a": 12140.448068797803 } }
+  },
+  {
+    "name": "base_6kwc_family",
+    "ctx": { "form": { "params": { "tarif_kwh": 0.22 }, "economics": { "horizon_years": 25, "elec_growth_pct": 3, "pv_degradation_pct": 0.5, "oa_rate_lt_9": 0.13, "oa_rate_gte_9": 0.078, "prime_lt9": 80, "prime_gte9": 80, "maintenance_pct": 1, "onduleur_year": 12, "onduleur_cost_pct": 8 }, "pv_inverter": { "type": "string" } }, "finance_input": { "capex_ttc": 13500 }, "settings": {} },
+    "scenarios": { "BASE": { "_v2": true, "name": "BASE", "kwc": 6, "prod_kwh": 7200, "conso_kwh": 6500, "auto_kwh": 3900, "surplus_kwh": 3300, "energy": { "production_kwh": 7200, "consumption_kwh": 6500, "autoconsumption_kwh": 3900, "surplus": 3300 } } },
+    "expected": { "BASE": { "capex_ttc": 13500, "capex_net": 13020, "roi_years": 11, "irr_pct": 9.49, "lcoe_eur_kwh": 0.1291, "economie_an1": 1632, "gain_25a": 25960.715736337675 } }
+  },
+  {
+    "name": "base_9kwc_boundary",
+    "ctx": { "form": { "params": { "tarif_kwh": 0.22 }, "economics": { "horizon_years": 25, "elec_growth_pct": 3, "pv_degradation_pct": 0.5, "oa_rate_lt_9": 0.13, "oa_rate_gte_9": 0.078, "prime_lt9": 80, "prime_gte9": 80, "maintenance_pct": 1, "onduleur_year": 12, "onduleur_cost_pct": 8 }, "pv_inverter": { "type": "string" } }, "finance_input": { "capex_ttc": 18000 }, "settings": {} },
+    "scenarios": { "BASE": { "_v2": true, "name": "BASE", "kwc": 9, "prod_kwh": 10800, "conso_kwh": 9000, "auto_kwh": 5200, "surplus_kwh": 5600, "energy": { "production_kwh": 10800, "consumption_kwh": 9000, "autoconsumption_kwh": 5200, "surplus": 5600 } } },
+    "expected": { "BASE": { "capex_ttc": 18000, "capex_net": 17280, "roi_years": 11, "irr_pct": 8.74, "lcoe_eur_kwh": 0.1143, "economie_an1": 2121, "gain_25a": 31509.523017785818 } }
+  },
+  {
+    "name": "base_36kwc_pro",
+    "ctx": { "form": { "params": { "tarif_kwh": 0.18 }, "economics": { "horizon_years": 25, "elec_growth_pct": 2.2, "pv_degradation_pct": 0.45, "oa_rate_lt_9": 0.13, "oa_rate_gte_9": 0.078, "prime_lt9": 80, "prime_gte9": 40, "maintenance_pct": 1.2, "onduleur_year": 13, "onduleur_cost_pct": 7 }, "pv_inverter": { "type": "string" } }, "finance_input": { "capex_ttc": 52000 }, "settings": {} },
+    "scenarios": { "BASE": { "_v2": true, "name": "BASE", "kwc": 36, "prod_kwh": 42000, "conso_kwh": 58000, "auto_kwh": 31000, "surplus_kwh": 11000, "energy": { "production_kwh": 42000, "consumption_kwh": 58000, "autoconsumption_kwh": 31000, "surplus": 11000 } } },
+    "expected": { "BASE": { "capex_ttc": 52000, "capex_net": 50560, "roi_years": 8, "irr_pct": 13.61, "lcoe_eur_kwh": 0.088, "economie_an1": 7254, "gain_25a": 168798.35382133568 } }
+  },
+  {
+    "name": "micro_no_inverter_replacement",
+    "ctx": { "form": { "params": { "tarif_kwh": 0.24 }, "economics": { "horizon_years": 25, "elec_growth_pct": 2.8, "pv_degradation_pct": 0.4, "oa_rate_lt_9": 0.13, "oa_rate_gte_9": 0.078, "prime_lt9": 80, "prime_gte9": 80, "maintenance_pct": 0.9, "onduleur_year": 12, "onduleur_cost_pct": 9 }, "pv_inverter": { "type": "micro" } }, "finance_input": { "capex_ttc": 15500 }, "settings": {} },
+    "scenarios": { "BASE": { "_v2": true, "name": "BASE", "kwc": 7, "prod_kwh": 8200, "conso_kwh": 7600, "auto_kwh": 4800, "surplus_kwh": 3400, "energy": { "production_kwh": 8200, "consumption_kwh": 7600, "autoconsumption_kwh": 4800, "surplus": 3400 } } },
+    "expected": { "BASE": { "capex_ttc": 15500, "capex_net": 14940, "roi_years": 10, "irr_pct": 10.86, "lcoe_eur_kwh": 0.1268, "economie_an1": 2015, "gain_25a": 36087.95341747292 } }
+  },
+  {
+    "name": "physical_battery_6kwc",
+    "ctx": { "form": { "params": { "tarif_kwh": 0.22 }, "economics": { "horizon_years": 25, "elec_growth_pct": 3, "pv_degradation_pct": 0.5, "oa_rate_lt_9": 0.13, "oa_rate_gte_9": 0.078, "prime_lt9": 80, "prime_gte9": 80, "maintenance_pct": 1, "onduleur_year": 12, "onduleur_cost_pct": 8 }, "pv_inverter": { "type": "string" } }, "finance_input": { "capex_ttc": 13500, "battery_physical_price_ttc": 6200 }, "settings": {} },
+    "scenarios": { "BASE": { "_v2": true, "name": "BASE", "kwc": 6, "prod_kwh": 7200, "conso_kwh": 6500, "auto_kwh": 3900, "surplus_kwh": 3300, "energy": { "production_kwh": 7200, "consumption_kwh": 6500, "autoconsumption_kwh": 3900, "surplus": 3300 } }, "BATTERY_PHYSICAL": { "_v2": true, "name": "BATTERY_PHYSICAL", "kwc": 6, "prod_kwh": 7200, "conso_kwh": 6500, "auto_kwh": 5400, "surplus_kwh": 1800, "energy": { "production_kwh": 7200, "consumption_kwh": 6500, "autoconsumption_kwh": 5400, "surplus": 1800 } } },
+    "expected": { "BASE": { "capex_ttc": 13500, "capex_net": 13020, "roi_years": 11, "irr_pct": 9.49, "lcoe_eur_kwh": 0.1291, "economie_an1": 1632, "gain_25a": 25960.715736337675 }, "BATTERY_PHYSICAL": { "capex_ttc": 19700, "capex_net": 19220, "roi_years": 14, "irr_pct": 6.75, "lcoe_eur_kwh": 0.1903, "economie_an1": 1705, "gain_25a": 25940.617742627393 } }
+  },
+  {
+    "name": "physical_battery_high_capex",
+    "ctx": { "form": { "params": { "tarif_kwh": 0.22 }, "economics": { "horizon_years": 25, "elec_growth_pct": 3, "pv_degradation_pct": 0.5, "oa_rate_lt_9": 0.13, "oa_rate_gte_9": 0.078, "prime_lt9": 80, "prime_gte9": 80, "maintenance_pct": 1, "onduleur_year": 12, "onduleur_cost_pct": 8 }, "pv_inverter": { "type": "string" } }, "finance_input": { "capex_ttc": 17000, "battery_physical_price_ttc": 9500 }, "settings": {} },
+    "scenarios": { "BASE": { "_v2": true, "name": "BASE", "kwc": 8, "prod_kwh": 9400, "conso_kwh": 9000, "auto_kwh": 5000, "surplus_kwh": 4400, "energy": { "production_kwh": 9400, "consumption_kwh": 9000, "autoconsumption_kwh": 5000, "surplus": 4400 } }, "BATTERY_PHYSICAL": { "_v2": true, "name": "BATTERY_PHYSICAL", "kwc": 8, "prod_kwh": 9400, "conso_kwh": 9000, "auto_kwh": 7600, "surplus_kwh": 1800, "energy": { "production_kwh": 9400, "consumption_kwh": 9000, "autoconsumption_kwh": 7600, "surplus": 1800 } } },
+    "expected": { "BASE": { "capex_ttc": 17000, "capex_net": 16360, "roi_years": 10, "irr_pct": 9.87, "lcoe_eur_kwh": 0.1243, "economie_an1": 2142, "gain_25a": 34235.04597761201 }, "BATTERY_PHYSICAL": { "capex_ttc": 26500, "capex_net": 25860, "roi_years": 14, "irr_pct": 6.85, "lcoe_eur_kwh": 0.1961, "economie_an1": 2281, "gain_25a": 35858.276121847535 } }
+  },
+  {
+    "name": "low_tariff_slow_roi",
+    "ctx": { "form": { "params": { "tarif_kwh": 0.14 }, "economics": { "horizon_years": 25, "elec_growth_pct": 1.5, "pv_degradation_pct": 0.5, "oa_rate_lt_9": 0.1, "oa_rate_gte_9": 0.06, "prime_lt9": 60, "prime_gte9": 40, "maintenance_pct": 1, "onduleur_year": 12, "onduleur_cost_pct": 8 }, "pv_inverter": { "type": "string" } }, "finance_input": { "capex_ttc": 14500 }, "settings": {} },
+    "scenarios": { "BASE": { "_v2": true, "name": "BASE", "kwc": 6, "prod_kwh": 6900, "conso_kwh": 5200, "auto_kwh": 3000, "surplus_kwh": 3900, "energy": { "production_kwh": 6900, "consumption_kwh": 5200, "autoconsumption_kwh": 3000, "surplus": 3900 } } },
+    "expected": { "BASE": { "capex_ttc": 14500, "capex_net": 14140, "roi_years": 19, "irr_pct": 2.85, "lcoe_eur_kwh": 0.1461, "economie_an1": 1025, "gain_25a": 6577.309726176278 } }
+  },
+  {
+    "name": "high_tariff_fast_roi",
+    "ctx": { "form": { "params": { "tarif_kwh": 0.32 }, "economics": { "horizon_years": 25, "elec_growth_pct": 4, "pv_degradation_pct": 0.35, "oa_rate_lt_9": 0.13, "oa_rate_gte_9": 0.078, "prime_lt9": 80, "prime_gte9": 80, "maintenance_pct": 0.8, "onduleur_year": 12, "onduleur_cost_pct": 7 }, "pv_inverter": { "type": "string" } }, "finance_input": { "capex_ttc": 12500 }, "settings": {} },
+    "scenarios": { "BASE": { "_v2": true, "name": "BASE", "kwc": 6, "prod_kwh": 7600, "conso_kwh": 9000, "auto_kwh": 5900, "surplus_kwh": 1700, "energy": { "production_kwh": 7600, "consumption_kwh": 9000, "autoconsumption_kwh": 5900, "surplus": 1700 } } },
+    "expected": { "BASE": { "capex_ttc": 12500, "capex_net": 12020, "roi_years": 6, "irr_pct": 19.44, "lcoe_eur_kwh": 0.1078, "economie_an1": 2489, "gain_25a": 64786.142152536035 } }
+  },
+  {
+    "name": "zero_surplus_self_consumption",
+    "ctx": { "form": { "params": { "tarif_kwh": 0.22 }, "economics": { "horizon_years": 25, "elec_growth_pct": 3, "pv_degradation_pct": 0.5, "oa_rate_lt_9": 0.13, "oa_rate_gte_9": 0.078, "prime_lt9": 80, "prime_gte9": 80, "maintenance_pct": 1, "onduleur_year": 12, "onduleur_cost_pct": 8 }, "pv_inverter": { "type": "string" } }, "finance_input": { "capex_ttc": 11000 }, "settings": {} },
+    "scenarios": { "BASE": { "_v2": true, "name": "BASE", "kwc": 5, "prod_kwh": 5600, "conso_kwh": 11000, "auto_kwh": 5600, "surplus_kwh": 0, "energy": { "production_kwh": 5600, "consumption_kwh": 11000, "autoconsumption_kwh": 5600, "surplus": 0 } } },
+    "expected": { "BASE": { "capex_ttc": 11000, "capex_net": 10600, "roi_years": 9, "irr_pct": 12.82, "lcoe_eur_kwh": 0.1352, "economie_an1": 1522, "gain_25a": 33628.76678346951 } }
+  }
+]

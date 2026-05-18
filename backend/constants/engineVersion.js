@@ -1,14 +1,12 @@
 /**
- * ENGINE_VERSION — Constante versionnée du moteur de calcul Smartpitch/SolarNext.
+ * Version du moteur de calcul financier SolarNext.
  *
- * Format : "calc-vYYYY-MM" — mois de la dernière modification significative
- * du moteur (algorithme, formules financières, mapping scénarios).
- *
- * Règle : incrémenter cette constante à chaque modification du moteur qui
- * pourrait produire des résultats différents à partir des mêmes inputs.
- * Cela permet de détecter, dans financial_scenarios, les enregistrements
- * calculés avec une version antérieure du moteur.
- *
- * Utilisé par : financialScenarios.service.js → colonne engine_version.
+ * Regle: incrementer cette constante a chaque changement de formule,
+ * de logique ou de mapping susceptible de modifier les resultats a inputs
+ * identiques. La valeur est stockee dans financial_scenarios.engine_version.
  */
-export const ENGINE_VERSION = "calc-v2026-05";
+export const FINANCIAL_ENGINE_VERSION = "2.1.0";
+
+// Alias conserve pour les imports historiques.
+export const ENGINE_VERSION = FINANCIAL_ENGINE_VERSION;
+
