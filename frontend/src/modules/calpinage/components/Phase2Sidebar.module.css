@@ -207,6 +207,25 @@
 }
 
 /*
+ * ── AUDIT CSS :global() — intentionnel, ne pas scoper davantage ──────────────
+ *
+ * Tous les sélecteurs ci-dessous sont de la forme :
+ *   :global(#zone-a-pans-block) :global(.pans-accordion-*)
+ *
+ * POURQUOI :global() :
+ *   Le DOM des cartes PAN est injecté par calpinage.module.js (JS legacy non React).
+ *   CSS Modules ne peut pas scoper les classes générées par du code extérieur au
+ *   composant React. L'ID #zone-a-pans-block (unique dans le document) sert d'ancre
+ *   de confinement : ces règles ne ciblent que les éléments enfants de ce conteneur,
+ *   ce qui reproduit le comportement d'un scope local.
+ *
+ * RISQUE DE COLLISION : quasi-nul — l'ancre #zone-a-pans-block (ID) est générée
+ *   une seule fois par Phase2PansBlock (id="zone-a-pans-block"). Si jamais cet ID
+ *   disparaît, les règles deviennent silencieusement inactives (aucun effet de bord).
+ *
+ * AUDIT 2026-05-18 : intentionnel, aucune refactorisation requise.
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
  * Cartes PAN — format ultra-compact (accordéon dense, pas fiche formulaire)
  * DOM inchangé (legacy) ; layout grille : orientation | sens côte à côte
  */

@@ -284,6 +284,18 @@
   white-space: nowrap;
 }
 
+/*
+ * .metricOk / .metricWarn — !important intentionnel.
+ *
+ * Ces classes s'appliquent sur les <dd> à l'intérieur de .stateDlRow.
+ * La règle générique `.stateDlRow dd { color: var(--text, #0F172A); }` (ligne ~251)
+ * a la même spécificité — sans !important la cascade CSS prendrait la couleur neutre
+ * en fonction de l'ordre source, ce qui rendrait les indicateurs rouge/vert invisibles.
+ *
+ * Alternative si on veut éliminer !important : augmenter la spécificité via
+ * `.stateDlRow .metricOk {}` — mais ce serait une modification fonctionnelle,
+ * pas uniquement documentaire. AUDIT 2026-05-18 : laisser en l'état.
+ */
 .metricOk {
   color: #15803d !important;
 }
@@ -300,6 +312,20 @@
   margin-bottom: 12px;
 }
 
+/*
+ * .checklistEmbed — !important intentionnel.
+ *
+ * Phase3ChecklistPanel.module.css définit `.panel { margin-bottom: 12px; }`.
+ * Quand le panel est intégré en mode complet (non-compact) dans la sidebar,
+ * ce margin-bottom crée un espace indésirable. Le !important est nécessaire
+ * parce que la règle source `.panel` est dans un autre CSS Module — sa spécificité
+ * ne peut pas être battue par un sélecteur local de même niveau.
+ *
+ * Alternative clean : passer `compact` prop qui active `.panelCompact`
+ * (qui reset déjà margin-bottom à 0). Vérifier si Phase3ChecklistPanel
+ * est toujours appelé sans prop `compact` ici avant de retirer !important.
+ * AUDIT 2026-05-18 : laisser en l'état.
+ */
 .checklistEmbed {
   margin: 0 !important;
 }
