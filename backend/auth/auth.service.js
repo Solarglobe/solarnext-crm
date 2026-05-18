@@ -186,7 +186,7 @@ export async function createRefreshSession(user, req, db = pool) {
        user_id, token_hash, session_id, ip_hint, user_agent_hint, device_hint, ip_address,
        country_hint, last_used_at, created_at, expires_at
      )
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9, $10)`,
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::timestamptz, $9::timestamptz, $10)`,
     [
       user.id,
       hashRefreshToken(refreshToken),
