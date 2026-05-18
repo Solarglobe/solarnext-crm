@@ -20,6 +20,8 @@ export interface LoginResponse {
     role: string;
     organizationId: string;
     onboardingCompleted?: boolean;
+    planId?: string | null;
+    internalHomeOrganization?: boolean;
   };
 }
 

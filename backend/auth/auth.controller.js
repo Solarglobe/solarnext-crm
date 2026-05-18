@@ -51,6 +51,13 @@ import { ensureLegacyRoleAndUserBridge } from "../services/rbac/legacyRoleBridge
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+const SOLARGLOBE_ORG_SQL = `(
+  LOWER(COALESCE(o.name, '')) LIKE '%solarglobe%'
+  OR LOWER(COALESCE(o.legal_name, '')) LIKE '%solarglobe%'
+  OR LOWER(COALESCE(o.trade_name, '')) LIKE '%solarglobe%'
+  OR LOWER(COALESCE(o.email, '')) LIKE '%@solarglobe.fr'
+)`;
+
 function cleanText(value, max = 255) {
   const text = String(value ?? "").trim();
   return text ? text.slice(0, max) : "";
@@ -105,7 +112,9 @@ export async function login(req, res) {
       `SELECT u.id, u.email, u.organization_id, u.password_hash,
               COALESCE(u.email_verified, false) AS email_verified,
               o.name AS organization_name,
-              COALESCE(o.onboarding_completed, false) AS onboarding_completed,
+              CASE WHEN ${SOLARGLOBE_ORG_SQL} THEN true ELSE COALESCE(o.onboarding_completed, false) END AS onboarding_completed,
+              CASE WHEN ${SOLARGLOBE_ORG_SQL} THEN 'INTERNAL_FREE' ELSE NULL END AS plan_id,
+              CASE WHEN ${SOLARGLOBE_ORG_SQL} THEN true ELSE false END AS internal_home_organization,
               COALESCE(o.require_mfa, false) AS organization_require_mfa,
               COALESCE(u.mfa_enabled, false) AS mfa_enabled,
               u.mfa_secret
@@ -267,6 +276,8 @@ export async function login(req, res) {
         organizationId: user.organization_id,
         emailVerified: user.email_verified === true,
         onboardingCompleted: user.onboarding_completed === true,
+        planId: user.plan_id ?? null,
+        internalHomeOrganization: user.internal_home_organization === true,
         mfaEnabled: user.mfa_enabled === true,
         organizationRequiresMfa: user.organization_require_mfa === true,
       }
@@ -468,7 +479,9 @@ export async function verifyMfaLogin(req, res) {
               COALESCE(u.email_verified, false) AS email_verified,
               COALESCE(u.mfa_enabled, false) AS mfa_enabled,
               u.mfa_secret,
-              COALESCE(o.onboarding_completed, false) AS onboarding_completed,
+              CASE WHEN ${SOLARGLOBE_ORG_SQL} THEN true ELSE COALESCE(o.onboarding_completed, false) END AS onboarding_completed,
+              CASE WHEN ${SOLARGLOBE_ORG_SQL} THEN 'INTERNAL_FREE' ELSE NULL END AS plan_id,
+              CASE WHEN ${SOLARGLOBE_ORG_SQL} THEN true ELSE false END AS internal_home_organization,
               COALESCE(o.require_mfa, false) AS organization_require_mfa
        FROM users u
        JOIN organizations o ON o.id = u.organization_id
@@ -505,6 +518,8 @@ export async function verifyMfaLogin(req, res) {
         organizationId: user.organization_id,
         emailVerified: user.email_verified === true,
         onboardingCompleted: user.onboarding_completed === true,
+        planId: user.plan_id ?? null,
+        internalHomeOrganization: user.internal_home_organization === true,
         mfaEnabled: true,
         organizationRequiresMfa: user.organization_require_mfa === true,
       },

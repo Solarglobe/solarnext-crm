@@ -8,6 +8,12 @@ const SALT_ROUNDS = 12;
 const ACCESS_TOKEN_TTL = "15m";
 const REFRESH_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 export const REFRESH_TOKEN_COOKIE_NAME = "solarnext_refresh_token";
+const SOLARGLOBE_ORG_SQL = `(
+  LOWER(COALESCE(o.name, '')) LIKE '%solarglobe%'
+  OR LOWER(COALESCE(o.legal_name, '')) LIKE '%solarglobe%'
+  OR LOWER(COALESCE(o.trade_name, '')) LIKE '%solarglobe%'
+  OR LOWER(COALESCE(o.email, '')) LIKE '%@solarglobe.fr'
+)`;
 
 export async function hashPassword(password) {
   return bcrypt.hash(password, SALT_ROUNDS);
@@ -215,6 +221,7 @@ export async function rotateRefreshSession(refreshToken, req, db = pool) {
       `SELECT rt.id, rt.user_id, rt.session_id, rt.expires_at, rt.revoked_at,
               u.email, u.organization_id, u.status, COALESCE(u.email_verified, false) AS email_verified,
               COALESCE(u.mfa_enabled, false) AS mfa_enabled,
+              CASE WHEN ${SOLARGLOBE_ORG_SQL} THEN 'INTERNAL_FREE' ELSE NULL END AS plan_id,
               COALESCE(o.require_mfa, false) AS organization_require_mfa
        FROM refresh_tokens rt
        JOIN users u ON u.id = rt.user_id
@@ -241,7 +248,7 @@ export async function rotateRefreshSession(refreshToken, req, db = pool) {
       email: row.email,
       organization_id: row.organization_id,
       role: null,
-      plan_id: null,
+      plan_id: row.plan_id ?? null,
       email_verified: row.email_verified === true,
       mfa_enabled: row.mfa_enabled === true,
       sessionId: row.session_id,
