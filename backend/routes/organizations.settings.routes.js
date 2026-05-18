@@ -18,6 +18,14 @@ router.get("/", verifyJWT, controller.listOrganizations);
 
 router.get("/onboarding", verifyJWT, controller.getOnboarding);
 router.patch("/onboarding", verifyJWT, controller.patchOnboarding);
+router.get("/security", verifyJWT, requirePermission("org.settings.manage"), controller.getSecurity);
+router.patch(
+  "/security",
+  verifyJWT,
+  requirePermission("org.settings.manage"),
+  sensitiveUserRateLimiter,
+  controller.patchSecurity
+);
 
 /** SUPER_ADMIN — audit entrée/sortie mode support (exempt enforceSuperAdminWriteAccess). */
 router.post(

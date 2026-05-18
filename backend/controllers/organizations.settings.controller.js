@@ -482,6 +482,50 @@ export async function postSuperAdminOrgSwitchAudit(req, res) {
   }
 }
 
+export async function getSecurity(req, res) {
+  try {
+    const org = orgId(req);
+    if (!org) return res.status(403).json({ error: "Organisation manquante" });
+    const result = await pool.query(
+      "SELECT COALESCE(require_mfa, false) AS require_mfa FROM organizations WHERE id = $1",
+      [org]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: "Organisation non trouvee" });
+    res.json({ requireMfa: result.rows[0].require_mfa === true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+}
+
+export async function patchSecurity(req, res) {
+  try {
+    const org = orgId(req);
+    if (!org) return res.status(403).json({ error: "Organisation manquante" });
+    const requireMfa = req.body?.requireMfa === true || req.body?.require_mfa === true;
+    const result = await pool.query(
+      `UPDATE organizations
+       SET require_mfa = $2
+       WHERE id = $1
+       RETURNING COALESCE(require_mfa, false) AS require_mfa`,
+      [org, requireMfa]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: "Organisation non trouvee" });
+    void logAuditEvent({
+      action: AuditActions.ORG_SETTINGS_UPDATED,
+      entityType: "organization_security",
+      entityId: org,
+      organizationId: org,
+      userId: userId(req),
+      req,
+      statusCode: 200,
+      metadata: { require_mfa: requireMfa },
+    });
+    res.json({ requireMfa: result.rows[0].require_mfa === true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+}
+
 export async function getOnboarding(req, res) {
   try {
     const org = orgId(req);

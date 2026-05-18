@@ -23,6 +23,7 @@ import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
+import MfaVerify from "./pages/MfaVerify";
 import LeadDetail from "./pages/LeadDetail";
 import QuoteBuilderPage from "./modules/quotes/QuoteBuilderPage";
 import QuotePresentPage from "./modules/quotes/QuotePresentPage";
@@ -61,6 +62,7 @@ import AdminOrganizationsPage from "./pages/admin/AdminOrganizationsPage";
 import MailInboxPage from "./pages/mail/MailInboxPage";
 import MailOutboxPage from "./pages/mail/MailOutboxPage";
 import MailSettingsPage from "./pages/settings/MailSettingsPage";
+import SecuritySettingsPage from "./pages/SecuritySettingsPage";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { initFrontendSentry } from "./lib/sentry";
 import "./styles/theme-overrides.css";
@@ -85,6 +87,10 @@ const router = createBrowserRouter(
     {
       path: "/reset-password",
       element: <ResetPassword />
+    },
+    {
+      path: "/mfa-verify",
+      element: <MfaVerify />
     },
     {
       path: "/onboarding",
@@ -169,6 +175,7 @@ const router = createBrowserRouter(
         { path: "mail/access", element: <Navigate to="/settings/mail?tab=access" replace /> },
         { path: "mail/outbox", element: <MailOutboxPage /> },
         { path: "settings/mail", element: <MailSettingsPage /> },
+        { path: "settings/security", element: <SecuritySettingsPage /> },
         { path: "settings/mail-signatures", element: <Navigate to="/settings/mail?tab=signatures" replace /> },
         { path: "settings/mail-templates", element: <Navigate to="/settings/mail?tab=templates" replace /> },
         { path: "settings/mail-permissions", element: <Navigate to="/settings/mail?tab=access" replace /> },

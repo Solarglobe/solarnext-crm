@@ -10,9 +10,11 @@ import {
 } from "./api";
 
 export interface LoginResponse {
-  token: string;
+  token?: string;
   accessToken?: string;
-  user: {
+  mfaRequired?: boolean;
+  mfaToken?: string;
+  user?: {
     id: string;
     email: string;
     role: string;
@@ -80,10 +82,13 @@ export async function login(
     }
     throw new Error(data.error || text || "Erreur de connexion");
   }
-  if (!data.token) {
+  if (data.mfaRequired === true && data.mfaToken) {
+    return data as LoginResponse;
+  }
+  if (!data.token && !data.accessToken) {
     throw new Error("Réponse serveur invalide (pas de token)");
   }
-  setAuthToken(data.accessToken || data.token);
+  setAuthToken(data.accessToken || data.token || null);
   const stored = getAuthToken();
   console.log(
     "[auth/login] solarnext_token stocké :",
@@ -109,6 +114,29 @@ export function logout(): void {
   localStorage.removeItem("solarnext_super_admin");
   localStorage.removeItem("solarnext_super_admin_edit_mode");
   window.location.href = "/login";
+}
+
+export async function verifyMfaLogin(mfaToken: string, code: string): Promise<LoginResponse> {
+  const res = await fetch(buildApiUrl("/auth/mfa/login/verify"), {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ mfaToken, code }),
+  });
+  const text = await res.text();
+  let data: Partial<LoginResponse> & { error?: string } = {};
+  if (text) {
+    try {
+      data = JSON.parse(text) as typeof data;
+    } catch {
+      throw new Error(text.slice(0, 240) || "Erreur MFA");
+    }
+  }
+  if (!res.ok) throw new Error(data.error || text || "Code MFA invalide");
+  const token = data.accessToken || data.token;
+  if (!token) throw new Error("RÃ©ponse serveur invalide (pas de token)");
+  setAuthToken(token);
+  return data as LoginResponse;
 }
 
 /**
@@ -202,6 +230,8 @@ export interface CurrentUser {
   email: string;
   organizationId: string;
   emailVerified?: boolean;
+  mfaEnabled?: boolean;
+  organizationRequiresMfa?: boolean;
   firstName?: string | null;
   lastName?: string | null;
   /** Prénom + nom ou email */

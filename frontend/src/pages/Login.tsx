@@ -138,9 +138,14 @@ export default function Login() {
       const orgId =
         orgChoices && orgChoices.length > 0 ? selectedOrgId || undefined : undefined;
       const session = await login(email, password, orgId);
+      if (session.mfaRequired && session.mfaToken) {
+        sessionStorage.setItem("solarnext_mfa_token", session.mfaToken);
+        navigate("/mfa-verify", { replace: true });
+        return;
+      }
       setOrgChoices(null);
       setSelectedOrgId("");
-      navigate(session.user.onboardingCompleted === false ? "/onboarding" : "/dashboard", { replace: true });
+      navigate(session.user?.onboardingCompleted === false ? "/onboarding" : "/dashboard", { replace: true });
     } catch (err) {
       if (err instanceof LoginAmbiguousError) {
         setOrgChoices(err.organizations);

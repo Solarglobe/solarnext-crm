@@ -128,9 +128,12 @@ export async function rotateRefreshSession(refreshToken, req, db = pool) {
     await client.query("BEGIN");
     const current = await client.query(
       `SELECT rt.id, rt.user_id, rt.session_id, rt.expires_at, rt.revoked_at,
-              u.email, u.organization_id, u.status, COALESCE(u.email_verified, false) AS email_verified
+              u.email, u.organization_id, u.status, COALESCE(u.email_verified, false) AS email_verified,
+              COALESCE(u.mfa_enabled, false) AS mfa_enabled,
+              COALESCE(o.require_mfa, false) AS organization_require_mfa
        FROM refresh_tokens rt
        JOIN users u ON u.id = rt.user_id
+       JOIN organizations o ON o.id = u.organization_id
        WHERE rt.token_hash = $1
        FOR UPDATE`,
       [tokenHash]
@@ -138,6 +141,11 @@ export async function rotateRefreshSession(refreshToken, req, db = pool) {
     const row = current.rows[0];
     if (!row || row.revoked_at || new Date(row.expires_at).getTime() <= Date.now() || row.status !== "active") {
       await client.query("ROLLBACK");
+      return null;
+    }
+    if (row.organization_require_mfa === true && row.mfa_enabled !== true) {
+      await client.query("UPDATE refresh_tokens SET revoked_at = now() WHERE id = $1", [row.id]);
+      await client.query("COMMIT");
       return null;
     }
 
@@ -150,6 +158,7 @@ export async function rotateRefreshSession(refreshToken, req, db = pool) {
       role: null,
       plan_id: null,
       email_verified: row.email_verified === true,
+      mfa_enabled: row.mfa_enabled === true,
       sessionId: row.session_id,
     };
     const { resolveEffectiveHighestRole } = await import("../lib/superAdminUserGuards.js");

@@ -3,13 +3,18 @@ import { verifyJWT } from "../middleware/auth.middleware.js";
 import { authStrictRateLimiter, registerRateLimiter } from "../middleware/rateLimit.middleware.js";
 import {
   forgotPassword,
+  confirmMfaSetup,
+  disableMfa,
+  getMfaStatus,
   login,
   logout,
   register,
   refresh,
   resendVerificationEmail,
   resetPassword,
+  startMfaSetup,
   validateResetPasswordToken,
+  verifyMfaLogin,
   verifyEmail,
 } from "../auth/auth.controller.js";
 import { pool } from "../config/db.js";
@@ -31,12 +36,23 @@ router.get("/reset-password/:token", authStrictRateLimiter, validateResetPasswor
 router.post("/reset", authStrictRateLimiter, resetPassword);
 router.post("/reset-password", authStrictRateLimiter, resetPassword);
 router.post("/register", registerRateLimiter, register);
+router.post("/mfa/login/verify", authStrictRateLimiter, verifyMfaLogin);
+router.get("/mfa/status", verifyJWT, getMfaStatus);
+router.post("/mfa/setup/start", verifyJWT, authStrictRateLimiter, startMfaSetup);
+router.post("/mfa/setup/confirm", verifyJWT, authStrictRateLimiter, confirmMfaSetup);
+router.post("/mfa/disable", verifyJWT, authStrictRateLimiter, disableMfa);
 
 router.get("/me", verifyJWT, async (req, res) => {
   const uid = req.user?.userId ?? req.user?.id;
   if (!uid) return res.status(401).json({ error: "Non authentifié" });
   const r = await pool.query(
-    "SELECT id, email, organization_id, first_name, last_name, COALESCE(email_verified, false) AS email_verified FROM users WHERE id = $1",
+    `SELECT u.id, u.email, u.organization_id, u.first_name, u.last_name,
+            COALESCE(u.email_verified, false) AS email_verified,
+            COALESCE(u.mfa_enabled, false) AS mfa_enabled,
+            COALESCE(o.require_mfa, false) AS organization_require_mfa
+     FROM users u
+     JOIN organizations o ON o.id = u.organization_id
+     WHERE u.id = $1`,
     [uid]
   );
   if (r.rows.length === 0) return res.status(404).json({ error: "Utilisateur non trouvé" });
@@ -54,6 +70,8 @@ router.get("/me", verifyJWT, async (req, res) => {
     lastName: u.last_name ?? null,
     name,
     emailVerified: u.email_verified === true,
+    mfaEnabled: u.mfa_enabled === true,
+    organizationRequiresMfa: u.organization_require_mfa === true,
     superAdmin: req.user?.role === "SUPER_ADMIN",
     impersonation: Boolean(isOrgImp || isUserImp),
     impersonationType: isUserImp

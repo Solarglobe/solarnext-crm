@@ -21,6 +21,16 @@ import {
   sendPasswordResetEmail,
   sendWelcomeEmail,
 } from "../services/mail.service.js";
+import {
+  buildTotpQrDataUrl,
+  buildOtpAuthUrl,
+  createMfaTempToken,
+  generateRecoveryCodes,
+  generateTotpSecret,
+  hashRecoveryCode,
+  verifyMfaTempToken,
+  verifyTotpCode,
+} from "../services/mfa.service.js";
 import logger from "../app/core/logger.js";
 import { logAuditEvent } from "../services/audit/auditLog.service.js";
 import { AuditActions } from "../services/audit/auditActions.js";
@@ -80,7 +90,10 @@ export async function login(req, res) {
       `SELECT u.id, u.email, u.organization_id, u.password_hash,
               COALESCE(u.email_verified, false) AS email_verified,
               o.name AS organization_name,
-              COALESCE(o.onboarding_completed, false) AS onboarding_completed
+              COALESCE(o.onboarding_completed, false) AS onboarding_completed,
+              COALESCE(o.require_mfa, false) AS organization_require_mfa,
+              COALESCE(u.mfa_enabled, false) AS mfa_enabled,
+              u.mfa_secret
        FROM users u
        LEFT JOIN organizations o ON o.id = u.organization_id
        WHERE LOWER(TRIM(u.email)) = $1 AND u.status = 'active'
@@ -193,6 +206,19 @@ export async function login(req, res) {
     }
     user.role = role;
 
+    if (user.mfa_enabled === true) {
+      return res.json({
+        mfaRequired: true,
+        mfaToken: createMfaTempToken(user),
+      });
+    }
+    if (user.organization_require_mfa === true) {
+      return res.status(403).json({
+        error: "MFA obligatoire pour cette organisation. Activez le MFA avant de poursuivre.",
+        code: "MFA_ENROLLMENT_REQUIRED",
+      });
+    }
+
     await syncAdminRbacOnLogin(client, user.id, user.organization_id);
 
     await client.query(
@@ -225,6 +251,8 @@ export async function login(req, res) {
         organizationId: user.organization_id,
         emailVerified: user.email_verified === true,
         onboardingCompleted: user.onboarding_completed === true,
+        mfaEnabled: user.mfa_enabled === true,
+        organizationRequiresMfa: user.organization_require_mfa === true,
       }
     });
   } catch (err) {
@@ -271,6 +299,251 @@ export async function refresh(req, res) {
     logger.error("AUTH_REFRESH_ERROR", { err: err?.message, stack: err?.stack });
     clearRefreshCookie(res);
     return res.status(500).json({ error: "Erreur refresh session" });
+  }
+}
+
+const authUserId = (req) => req.user?.userId ?? req.user?.id;
+const authOrgId = (req) => req.user?.organizationId ?? req.user?.organization_id;
+
+export async function getMfaStatus(req, res) {
+  try {
+    const uid = authUserId(req);
+    const org = authOrgId(req);
+    if (!uid || !org) return res.status(401).json({ error: "Non authentifie" });
+    const result = await pool.query(
+      `SELECT COALESCE(u.mfa_enabled, false) AS mfa_enabled,
+              COALESCE(o.require_mfa, false) AS organization_require_mfa
+       FROM users u
+       JOIN organizations o ON o.id = u.organization_id
+       WHERE u.id = $1 AND u.organization_id = $2`,
+      [uid, org]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: "Utilisateur non trouve" });
+    res.json({
+      enabled: result.rows[0].mfa_enabled === true,
+      organizationRequiresMfa: result.rows[0].organization_require_mfa === true,
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+}
+
+export async function startMfaSetup(req, res) {
+  try {
+    const uid = authUserId(req);
+    const org = authOrgId(req);
+    if (!uid || !org) return res.status(401).json({ error: "Non authentifie" });
+    const userRes = await pool.query(
+      "SELECT id, email, COALESCE(mfa_enabled, false) AS mfa_enabled FROM users WHERE id = $1 AND organization_id = $2",
+      [uid, org]
+    );
+    const user = userRes.rows[0];
+    if (!user) return res.status(404).json({ error: "Utilisateur non trouve" });
+    if (user.mfa_enabled) return res.status(409).json({ error: "MFA deja active", code: "MFA_ALREADY_ENABLED" });
+
+    const secret = generateTotpSecret();
+    await pool.query("UPDATE users SET mfa_setup_secret = $1 WHERE id = $2", [secret, uid]);
+    const otpauthUrl = buildOtpAuthUrl({ secret, email: user.email });
+    const qrCodeDataUrl = await buildTotpQrDataUrl({ secret, email: user.email });
+    res.json({ secret, manualKey: secret, otpauthUrl, qrCodeDataUrl });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+}
+
+export async function confirmMfaSetup(req, res) {
+  const uid = authUserId(req);
+  const org = authOrgId(req);
+  const code = req.body?.code;
+  if (!uid || !org) return res.status(401).json({ error: "Non authentifie" });
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const userRes = await client.query(
+      `SELECT id, mfa_setup_secret, COALESCE(mfa_enabled, false) AS mfa_enabled
+       FROM users
+       WHERE id = $1 AND organization_id = $2
+       FOR UPDATE`,
+      [uid, org]
+    );
+    const user = userRes.rows[0];
+    if (!user) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ error: "Utilisateur non trouve" });
+    }
+    if (user.mfa_enabled) {
+      await client.query("ROLLBACK");
+      return res.status(409).json({ error: "MFA deja active", code: "MFA_ALREADY_ENABLED" });
+    }
+    if (!user.mfa_setup_secret) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ error: "Setup MFA non initialise", code: "MFA_SETUP_NOT_STARTED" });
+    }
+    if (!verifyTotpCode({ secret: user.mfa_setup_secret, code })) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ error: "Code MFA invalide", code: "MFA_CODE_INVALID" });
+    }
+
+    const recoveryCodes = generateRecoveryCodes(10);
+    await client.query("DELETE FROM mfa_recovery_codes WHERE user_id = $1", [uid]);
+    for (const recoveryCode of recoveryCodes) {
+      await client.query(
+        "INSERT INTO mfa_recovery_codes (user_id, code_hash) VALUES ($1, $2)",
+        [uid, hashRecoveryCode(recoveryCode)]
+      );
+    }
+    await client.query(
+      `UPDATE users
+       SET mfa_enabled = true,
+           mfa_secret = mfa_setup_secret,
+           mfa_setup_secret = NULL,
+           mfa_enabled_at = now()
+       WHERE id = $1`,
+      [uid]
+    );
+    await client.query("COMMIT");
+    res.json({ enabled: true, recoveryCodes });
+  } catch (e) {
+    try {
+      await client.query("ROLLBACK");
+    } catch {
+      // ignore rollback failure
+    }
+    res.status(500).json({ error: e.message });
+  } finally {
+    client.release();
+  }
+}
+
+async function consumeRecoveryCode(client, userId, code) {
+  const codeHash = hashRecoveryCode(code);
+  const result = await client.query(
+    `SELECT id FROM mfa_recovery_codes
+     WHERE user_id = $1 AND code_hash = $2 AND used_at IS NULL
+     FOR UPDATE`,
+    [userId, codeHash]
+  );
+  const row = result.rows[0];
+  if (!row) return false;
+  await client.query("UPDATE mfa_recovery_codes SET used_at = now() WHERE id = $1", [row.id]);
+  return true;
+}
+
+export async function verifyMfaLogin(req, res) {
+  const decoded = verifyMfaTempToken(req.body?.mfaToken);
+  const code = req.body?.code;
+  if (!decoded) return res.status(401).json({ error: "Session MFA expiree", code: "MFA_TOKEN_INVALID" });
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const userRes = await client.query(
+      `SELECT u.id, u.email, u.organization_id, u.status,
+              COALESCE(u.email_verified, false) AS email_verified,
+              COALESCE(u.mfa_enabled, false) AS mfa_enabled,
+              u.mfa_secret,
+              COALESCE(o.onboarding_completed, false) AS onboarding_completed,
+              COALESCE(o.require_mfa, false) AS organization_require_mfa
+       FROM users u
+       JOIN organizations o ON o.id = u.organization_id
+       WHERE u.id = $1 AND u.organization_id = $2
+       FOR UPDATE`,
+      [decoded.userId, decoded.organizationId]
+    );
+    const user = userRes.rows[0];
+    if (!user || user.status !== "active" || !user.mfa_enabled || !user.mfa_secret) {
+      await client.query("ROLLBACK");
+      return res.status(401).json({ error: "MFA non disponible", code: "MFA_NOT_AVAILABLE" });
+    }
+
+    const totpOk = verifyTotpCode({ secret: user.mfa_secret, code });
+    const backupOk = totpOk ? false : await consumeRecoveryCode(client, user.id, code);
+    if (!totpOk && !backupOk) {
+      await client.query("ROLLBACK");
+      return res.status(401).json({ error: "Code MFA invalide", code: "MFA_CODE_INVALID" });
+    }
+
+    user.role = decoded.role;
+    const session = await createRefreshSession(user, req, client);
+    await client.query("UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1", [user.id]);
+    await client.query("COMMIT");
+    res.cookie("solarnext_refresh_token", session.refreshToken, refreshCookieOptions());
+    return res.json({
+      token: session.accessToken,
+      accessToken: session.accessToken,
+      user: {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        organizationId: user.organization_id,
+        emailVerified: user.email_verified === true,
+        onboardingCompleted: user.onboarding_completed === true,
+        mfaEnabled: true,
+        organizationRequiresMfa: user.organization_require_mfa === true,
+      },
+    });
+  } catch (e) {
+    try {
+      await client.query("ROLLBACK");
+    } catch {
+      // ignore rollback failure
+    }
+    res.status(500).json({ error: e.message });
+  } finally {
+    client.release();
+  }
+}
+
+export async function disableMfa(req, res) {
+  const uid = authUserId(req);
+  const org = authOrgId(req);
+  const password = String(req.body?.password ?? "");
+  const code = req.body?.code;
+  if (!uid || !org) return res.status(401).json({ error: "Non authentifie" });
+  if (!password || !code) return res.status(400).json({ error: "Mot de passe et code requis" });
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const userRes = await client.query(
+      `SELECT id, password_hash, COALESCE(mfa_enabled, false) AS mfa_enabled, mfa_secret
+       FROM users
+       WHERE id = $1 AND organization_id = $2
+       FOR UPDATE`,
+      [uid, org]
+    );
+    const user = userRes.rows[0];
+    if (!user) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ error: "Utilisateur non trouve" });
+    }
+    if (!(await comparePassword(password, user.password_hash))) {
+      await client.query("ROLLBACK");
+      return res.status(401).json({ error: "Mot de passe invalide", code: "PASSWORD_INVALID" });
+    }
+    if (!user.mfa_enabled || !user.mfa_secret || !verifyTotpCode({ secret: user.mfa_secret, code })) {
+      await client.query("ROLLBACK");
+      return res.status(401).json({ error: "Code MFA invalide", code: "MFA_CODE_INVALID" });
+    }
+    await client.query(
+      `UPDATE users
+       SET mfa_enabled = false, mfa_secret = NULL, mfa_setup_secret = NULL, mfa_enabled_at = NULL
+       WHERE id = $1`,
+      [uid]
+    );
+    await client.query("DELETE FROM mfa_recovery_codes WHERE user_id = $1", [uid]);
+    await client.query("COMMIT");
+    res.json({ enabled: false });
+  } catch (e) {
+    try {
+      await client.query("ROLLBACK");
+    } catch {
+      // ignore rollback failure
+    }
+    res.status(500).json({ error: e.message });
+  } finally {
+    client.release();
   }
 }
 

@@ -431,4 +431,30 @@ export default defineConfig(({ mode }) => {
   server: {
     port: 5173,
     host: true,
-   
+    proxy: {
+      "^/api/pdf": {
+        target: process.env.VITE_PROXY_BACKEND || "http://localhost:3000",
+        changeOrigin: true,
+        rewrite: (p) => p.replace(/^\/api\/pdf/, "/pdf"),
+      },
+      "/api": {
+        target: process.env.VITE_PROXY_BACKEND || "http://localhost:3000",
+        changeOrigin: true,
+      },
+      "/auth": {
+        target: process.env.VITE_PROXY_BACKEND || "http://localhost:3000",
+        changeOrigin: true,
+      },
+      "/pdf-assets": {
+        target: process.env.VITE_PROXY_BACKEND || "http://localhost:3000",
+        changeOrigin: true,
+      },
+      "/calpinage": {
+        target: process.env.VITE_PROXY_BACKEND || "http://localhost:3000",
+        changeOrigin: true,
+        bypass: calpinageProxyBypass,
+      },
+    },
+  },
+};
+});
