@@ -1270,7 +1270,8 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
               consumption_kwh: consumption,
               autoconsumption_kwh: hybridAutoKwh,
               import_kwh: hybridImportKwh,
-              billable_import_kwh: hybridImportKwh,
+              // Import AVANT application des crédits VB : évite le double comptage (vbCreditsUsed déjà valorisé via hybridAutoKwh)
+              billable_import_kwh: importAfterPhysical.reduce((s, v) => s + (v || 0), 0),
               surplus_kwh: hybridSurplusKwh,
               grid_import_kwh: hybridImportKwh,
               grid_export_kwh: hybridSurplusKwh,
@@ -1292,7 +1293,8 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
             hybridScenario.surplus_kwh = hybridSurplusKwh;
             hybridScenario.conso_kwh = consumption;
             hybridScenario.import_kwh = hybridImportKwh;
-            hybridScenario.billable_import_kwh = hybridImportKwh;
+            // Import AVANT application des crédits VB : évite le double comptage (vbCreditsUsed déjà valorisé via hybridAutoKwh)
+            hybridScenario.billable_import_kwh = importAfterPhysical.reduce((s, v) => s + (v || 0), 0);
             hybridScenario.credited_kwh = hybridCredited;
             hybridScenario.used_credit_kwh = vbCreditsUsed;
             // Taux d'autoconsommation (auto / production) et couverture solaire (auto / conso) — cohérents avec BATTERY_PHYSICAL et BATTERY_VIRTUAL
