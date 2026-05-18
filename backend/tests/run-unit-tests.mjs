@@ -150,14 +150,40 @@ const UNIT_TEST_FILES = [
   'tests/weightedShadingKpi.test.js',
 ];
 
+// ─── Tests nécessitant --experimental-test-module-mocks ──────────────────────
+//
+// mock.module() (ES module mocking) requiert ce flag en Node 22.
+// Ces fichiers sont exécutés dans un second spawn pour ne pas impacter
+// les tests standards.
+
+const MODULE_MOCK_TEST_FILES = [
+  'tests/controllers/calc.controller.test.js',
+];
+
 // ─── Exécution ────────────────────────────────────────────────────────────────
 
-console.log(`▶  test:unit — ${UNIT_TEST_FILES.length} fichiers (sans DB)\n`);
+const total = UNIT_TEST_FILES.length + MODULE_MOCK_TEST_FILES.length;
+console.log(`▶  test:unit — ${total} fichiers (sans DB)\n`);
 
-const proc = spawn(
-  process.execPath,
-  ['--test', ...UNIT_TEST_FILES],
-  { cwd: backendRoot, stdio: 'inherit' },
+function runTests(nodeArgs, files, label) {
+  return new Promise((resolve) => {
+    const proc = spawn(
+      process.execPath,
+      [...nodeArgs, '--test', ...files],
+      { cwd: backendRoot, stdio: 'inherit' },
+    );
+    proc.on('exit', (code) => {
+      if (code !== 0) console.error(`\n✗ ${label} : ${code} test(s) en échec`);
+      resolve(code ?? 1);
+    });
+  });
+}
+
+const code1 = await runTests([], UNIT_TEST_FILES, 'tests standard');
+const code2 = await runTests(
+  ['--experimental-test-module-mocks'],
+  MODULE_MOCK_TEST_FILES,
+  'tests mock.module',
 );
 
-proc.on('exit', (code) => process.exit(code ?? 1));
+process.exit(code1 !== 0 || code2 !== 0 ? 1 : 0);
