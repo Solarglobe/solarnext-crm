@@ -18,6 +18,7 @@
  */
 import { create } from "zustand";
 import type { CalpinageStore, CalpinagePhase2Snapshot, CalpinagePhase3Snapshot } from "./storeTypes";
+import { invalidateMppDependentCache } from "../adapter/calpinageStateToLegacyRoofInput";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Valeurs initiales (avant bootstrap de l'adapter)
@@ -70,9 +71,20 @@ const initialPhase3: CalpinagePhase3Snapshot = {
 /**
  * Hook Zustand — consommé uniquement dans les composants React et les hooks custom.
  * L'adapter accède au store via `useCalpinageStore.setState()` (API hors-React de Zustand).
+ *
+ * Mutations via setState() (adapter) : initialized, phase2, phase3, metersPerPixel.
+ * Actions typées (Phase 2+) : setMetersPerPixel — appelée par le ResizeObserver du viewer satellite.
  */
-export const useCalpinageStore = create<CalpinageStore>(() => ({
+export const useCalpinageStore = create<CalpinageStore>((set) => ({
   initialized: false,
   phase2: initialPhase2,
   phase3: initialPhase3,
+  metersPerPixel: null,
+
+  setMetersPerPixel(mpp: number): void {
+    if (!Number.isFinite(mpp) || mpp <= 0) return;
+    set({ metersPerPixel: mpp });
+    // Invalide les caches de surfaces/longueurs qui dépendent du mpp.
+    invalidateMppDependentCache();
+  },
 }));

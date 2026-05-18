@@ -25,6 +25,8 @@ import { createPortal } from "react-dom";
 import { Layer, Group, Stage } from "react-konva";
 import type Konva from "konva";
 import { useViewportSync } from "./useViewportSync";
+import { useCalpinageStore } from "../store/calpinageStore";
+import { computeMpp } from "../map/computeMpp";
 import { KonvaContoursLayer } from "./KonvaContoursLayer";
 import { KonvaPansLayer } from "./KonvaPansLayer";
 import { KonvaObstaclesLayer } from "./KonvaObstaclesLayer";
@@ -124,6 +126,71 @@ export function KonvaOverlay({ containerRef }: Props) {
       ro.disconnect();
     };
   }, [canvasEl, containerRef]);
+
+  /**
+   * Mise à jour du metersPerPixel (mpp) au resize du canvas satellite.
+   *
+   * Debounce 300 ms obligatoire — un resize déclenche plusieurs events consécutifs,
+   * chacun provoquant un re-render de la grille calpinage via le store.
+   *
+   * Lit zoom + latitude depuis window.CALPINAGE_STATE.roof.map (disponible après capture).
+   * Le store est la seule source de vérité pour mpp côté React.
+   */
+  useEffect(() => {
+    if (!canvasEl) return;
+
+    type CalpinageWindow = {
+      CALPINAGE_STATE?: {
+        roof?: {
+          map?: {
+            zoom?: number;
+            centerLatLng?: { lat?: number };
+          };
+          scale?: { metersPerPixel?: number };
+        };
+      };
+    };
+
+    const updateMpp = () => {
+      const w = window as unknown as CalpinageWindow;
+      const map = w.CALPINAGE_STATE?.roof?.map;
+      const zoom = typeof map?.zoom === "number" ? map.zoom : null;
+      const lat = typeof map?.centerLatLng?.lat === "number" ? map.centerLatLng!.lat! : null;
+
+      let mpp: number | null = null;
+      if (zoom !== null && lat !== null) {
+        mpp = computeMpp(zoom, lat);
+      }
+      // Fallback : mpp stocké directement dans scale à la capture
+      if (mpp === null || mpp <= 0) {
+        const stored = w.CALPINAGE_STATE?.roof?.scale?.metersPerPixel;
+        if (typeof stored === "number" && stored > 0) mpp = stored;
+      }
+      if (mpp !== null && mpp > 0) {
+        useCalpinageStore.getState().setMetersPerPixel(mpp);
+      }
+    };
+
+    // Debounce 300 ms — évite les re-renders grille consécutifs lors d'un resize
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const debouncedUpdateMpp = () => {
+      if (timer !== null) clearTimeout(timer);
+      timer = setTimeout(() => {
+        timer = null;
+        updateMpp();
+      }, 300);
+    };
+
+    // Lecture initiale (sync) au montage — avant tout resize
+    updateMpp();
+
+    const ro = new ResizeObserver(debouncedUpdateMpp);
+    ro.observe(canvasEl);
+    return () => {
+      ro.disconnect();
+      if (timer !== null) clearTimeout(timer);
+    };
+  }, [canvasEl]);
 
   // Expose les couches actives pour le kill switch legacy (P4.1+)
   useEffect(() => {

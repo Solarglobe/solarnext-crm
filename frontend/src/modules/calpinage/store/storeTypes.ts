@@ -128,9 +128,10 @@ export interface CalpinagePhase3Snapshot {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Interface complète du store Zustand calpinage — Phase 1.
+ * Interface complète du store Zustand calpinage — Phase 1 / Phase 2+.
  *
- * Phase 1 : lecture seule, pas d'actions. Le legacy est source d'écriture.
+ * Phase 1 : lecture seule, le legacy est source d'écriture.
+ * Phase 2 : première action ajoutée — setMetersPerPixel (resize-driven).
  * Phase 2+ : les actions PV et roof seront ajoutées ici.
  */
 export interface CalpinageStore {
@@ -146,4 +147,22 @@ export interface CalpinageStore {
 
   /** Snapshot Phase 3 — placement PV (données brutes). */
   phase3: CalpinagePhase3Snapshot;
+
+  /**
+   * metersPerPixel courant (m/px image, repère satellite).
+   * Initialisé depuis CALPINAGE_STATE.roof.scale.metersPerPixel à l'init.
+   * Mis à jour via setMetersPerPixel() sur chaque resize du viewer satellite.
+   * null avant le premier calcul (avant capture).
+   *
+   * Source de vérité unique pour le mpp côté React — l'adapter doit lire ce
+   * champ plutôt que CALPINAGE_STATE.roof.scale.metersPerPixel directement.
+   */
+  metersPerPixel: number | null;
+
+  /**
+   * Met à jour le metersPerPixel et invalide les caches de surfaces/longueurs.
+   * Appelé par le ResizeObserver du viewer satellite (debounce 300 ms).
+   * No-op si mpp ≤ 0 ou non fini.
+   */
+  setMetersPerPixel(mpp: number): void;
 }

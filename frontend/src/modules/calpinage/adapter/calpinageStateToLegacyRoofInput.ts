@@ -56,6 +56,34 @@ import { legacySharedCornerClusterTolPx } from "../canonical3d/builder/legacyRoo
 import { snapLegacyPanPolygonVerticesInPlace } from "../canonical3d/builder/snapLegacyPanPolygonVertices";
 import { sanePanHeightM } from "./heightSanityFilter";
 
+// ─── Cache invalidation (mpp) ──────────────────────────────────────────────
+
+/**
+ * Invalide les caches de surfaces et longueurs calculées qui dépendent du mpp.
+ *
+ * Appelé par `store.setMetersPerPixel()` à chaque mise à jour du mpp (resize).
+ * Aucun cache interne aujourd'hui (l'adaptateur est une fonction pure) ;
+ * cette fonction est un hook d'extension explicite pour les implémentations futures.
+ *
+ * CONTRAT : tout module qui mémoïse des valeurs dépendant de metersPerPixel
+ * doit s'abonner via `onMppInvalidate` ou être réappelé après ce hook.
+ */
+const _mppInvalidateListeners: Array<() => void> = [];
+
+export function onMppInvalidate(cb: () => void): () => void {
+  _mppInvalidateListeners.push(cb);
+  return () => {
+    const idx = _mppInvalidateListeners.indexOf(cb);
+    if (idx !== -1) _mppInvalidateListeners.splice(idx, 1);
+  };
+}
+
+export function invalidateMppDependentCache(): void {
+  for (const cb of _mppInvalidateListeners) {
+    try { cb(); } catch { /* listener ne doit pas crasher l'action store */ }
+  }
+}
+
 // ─── Options ───────────────────────────────────────────────────────────────
 
 export interface CalpinageRoofAdapterOptions {
