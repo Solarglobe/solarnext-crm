@@ -69,7 +69,7 @@ export interface CalpinageWindow extends Window {
     info(msg: string): void;
   } | undefined;
   /** Alias legacy pour calpinageToast (conservé pour compatibilité window.showToast). */
-  showToast: ((msg: string, success: boolean) => void) | undefined;
+  showToast: ((msg: string, level?: string) => void) | undefined;
 
   // ── Runtime calpinage ─────────────────────────────────────────────────────
   /** État global legacy — source de vérité pour les adaptateurs. */
