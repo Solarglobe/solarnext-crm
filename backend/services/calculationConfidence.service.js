@@ -9,22 +9,23 @@ import {
 } from "./economicsResolve.service.js";
 
 // Codes qui bloquent HARD la génération de PDF.
-// Seuls 2 codes restent vraiement bloquants :
+// Seul 1 code reste vraiment bloquant :
 //   - CALC_INVALID_8760_PROFILE  : données de calcul corrompues/absentes, aucun PDF exploitable possible
-//   - VB_UNBOUNDED_DISABLED_FOR_COMMERCIAL_USE : batterie virtuelle illimitée bloquée pour usage commercial
 //
 // Les codes suivants sont intentionnellement ABSENTS (classés non-bloquants, affichés en avertissement UI) :
-//   - PVGIS_FALLBACK_USED              : fallback géographique, estimations exploitables
-//   - VB_COST_UNCONFIGURED_BLOCK_PDF   : coût batterie non configuré, PDF autorisé avec mention
-//   - FAR_SHADING_UNAVAILABLE_BLOCK_PDF: masque horizon indisponible, calcul dégradé acceptable
-//   - SHADING_PAN_MISMATCH_BLOCK_PDF   : décalage panneaux/ombrage, avertissement qualitatif
-//   - SHADING_GEOMETRY_BLOCK_PDF       : géométrie ombrage avec réserves, PDF autorisé
+//   - PVGIS_FALLBACK_USED                     : fallback géographique, estimations exploitables
+//   - VB_COST_UNCONFIGURED_BLOCK_PDF           : coût batterie non configuré, PDF autorisé avec mention
+//   - FAR_SHADING_UNAVAILABLE_BLOCK_PDF        : masque horizon indisponible, calcul dégradé acceptable
+//   - SHADING_PAN_MISMATCH_BLOCK_PDF           : décalage panneaux/ombrage, avertissement qualitatif
+//   - SHADING_GEOMETRY_BLOCK_PDF               : géométrie ombrage avec réserves, PDF autorisé
+//   - VB_UNBOUNDED_DISABLED_FOR_COMMERCIAL_USE : scénario VB déjà _skipped=true → n'apparaît pas dans le PDF ;
+//                                                bloquer TOUS les PDFs (y compris BASE) à cause du scénario
+//                                                VB skippé n'a aucun sens.
 //
 // NB : des études stockées avant ce changement peuvent avoir level="BLOCKED" à cause de ces codes.
 // isPdfBlockedByConfidence ne se base PAS sur le champ level mais uniquement sur cette liste.
 const BLOCKING = new Set([
   "CALC_INVALID_8760_PROFILE",
-  "VB_UNBOUNDED_DISABLED_FOR_COMMERCIAL_USE",
 ]);
 
 /**
@@ -156,7 +157,11 @@ export function buildCalculationConfidenceFromCalc(ctx, scenariosFinal = {}) {
     return flags.includes("VB_UNBOUNDED_DISABLED_FOR_COMMERCIAL_USE");
   });
   if (hasUnboundedCommercialBlock) {
-    blocking.push("VB_UNBOUNDED_DISABLED_FOR_COMMERCIAL_USE");
+    // Non-bloquant : le scénario VB est déjà _skipped=true quand ce flag est levé.
+    // Il n'apparaît pas dans le PDF — bloquer TOUS les PDFs (y compris BASE) n'a aucun sens.
+    if (!nonBlocking.includes("VB_UNBOUNDED_DISABLED_FOR_COMMERCIAL_USE")) {
+      nonBlocking.push("VB_UNBOUNDED_DISABLED_FOR_COMMERCIAL_USE");
+    }
   }
 
   const shadingCommercialAudit = ctx?.meta?.shading_commercial_audit;

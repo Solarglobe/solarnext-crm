@@ -53,7 +53,7 @@ test("buildCalculationConfidenceFromCalc : VB sans cout - non bloquant", () => {
   assert.ok(!isPdfBlockedByConfidence(c), "PDF ne doit pas etre bloque");
 });
 
-test("buildCalculationConfidenceFromCalc : VB_UNBOUNDED_DISABLED bloque toujours", () => {
+test("buildCalculationConfidenceFromCalc : VB_UNBOUNDED_DISABLED non bloquant (scenario deja _skipped)", () => {
   const ctx = {
     pv: { source: "PVGIS" },
     meta: { engine_consumption_source: "CSV_HOURLY_ENEDIS" },
@@ -63,12 +63,13 @@ test("buildCalculationConfidenceFromCalc : VB_UNBOUNDED_DISABLED bloque toujours
   };
   const scenarios = {
     BATTERY_VIRTUAL: {
-      _skipped: false,
+      _skipped: true,
       finance_warnings: [],
       anti_oversell_flags: ["VB_UNBOUNDED_DISABLED_FOR_COMMERCIAL_USE"],
     },
   };
   const c = buildCalculationConfidenceFromCalc(ctx, scenarios);
-  assert.ok(c.blocking_warnings.includes("VB_UNBOUNDED_DISABLED_FOR_COMMERCIAL_USE"), "doit rester bloquant");
-  assert.ok(isPdfBlockedByConfidence(c));
+  assert.ok(!c.blocking_warnings.includes("VB_UNBOUNDED_DISABLED_FOR_COMMERCIAL_USE"), "pas dans blocking_warnings");
+  assert.ok(c.non_blocking_warnings.includes("VB_UNBOUNDED_DISABLED_FOR_COMMERCIAL_USE"), "dans non_blocking_warnings");
+  assert.ok(!isPdfBlockedByConfidence(c), "PDF ne doit pas etre bloque - scenario VB est deja skipped");
 });

@@ -6,7 +6,7 @@ import {
   isPdfBlockedByConfidence,
 } from "../services/calculationConfidence.service.js";
 
-test("buildCalculationConfidenceFromCalc : VB unbounded commercial bloque PDF", () => {
+test("buildCalculationConfidenceFromCalc : VB unbounded commercial - non bloquant PDF (scenario _skipped)", () => {
   const ctx = {
     pv: { source: "PVGIS" },
     meta: { engine_consumption_source: "SYNTHETIC_MANUAL_PROFILE" },
@@ -23,9 +23,9 @@ test("buildCalculationConfidenceFromCalc : VB unbounded commercial bloque PDF", 
     },
   };
   const c = buildCalculationConfidenceFromCalc(ctx, scenarios);
-  assert.equal(c.level, "BLOCKED");
-  assert.ok(c.blocking_warnings.includes("VB_UNBOUNDED_DISABLED_FOR_COMMERCIAL_USE"));
-  assert.ok(isPdfBlockedByConfidence(c));
+  assert.ok(c.non_blocking_warnings.includes("VB_UNBOUNDED_DISABLED_FOR_COMMERCIAL_USE"), "dans non_blocking");
+  assert.ok(!c.blocking_warnings.includes("VB_UNBOUNDED_DISABLED_FOR_COMMERCIAL_USE"), "pas dans blocking");
+  assert.ok(!isPdfBlockedByConfidence(c), "PDF ne doit pas etre bloque - scenario VB skipped");
 });
 
 test("finalizeCalculationConfidence : score anti-survente eleve downgrade LOW", () => {
