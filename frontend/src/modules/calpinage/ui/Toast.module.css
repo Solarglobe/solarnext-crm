@@ -76,13 +76,13 @@
 
 .toastClose:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px #6366F1;
+  box-shadow: 0 0 0 2px var(--brand-accent, #6366F1);
 }
 
 /* ── Types ───────────────────────────────────── */
 
 .toastSuccess {
-  border-left-color: #6366F1;
+  border-left-color: var(--brand-accent, #6366F1);
 }
 
 .toastError {
