@@ -18,9 +18,16 @@
  *
  * @see docs/architecture/canonical3d-feature-flag.md
  * @see docs/architecture/legacy-3d-fallback-sunset.md (Prompt 30 — legacy hors vérité produit)
+ * @see ../config/featureFlags.ts pour le registre central des flags calpinage.
  */
 
-export const VITE_CALPINAGE_CANONICAL_3D_ENV_KEY = "VITE_CALPINAGE_CANONICAL_3D" as const;
+import { CALPINAGE_FLAG_ENV_KEYS, resolveEnvFlag } from "../config/featureFlags";
+
+/**
+ * Alias de rétrocompatibilité — la clé d’env vit maintenant dans CALPINAGE_FLAG_ENV_KEYS.CANONICAL_3D.
+ * @deprecated Utiliser `CALPINAGE_FLAG_ENV_KEYS.CANONICAL_3D` depuis `config/featureFlags`.
+ */
+export const VITE_CALPINAGE_CANONICAL_3D_ENV_KEY = CALPINAGE_FLAG_ENV_KEYS.CANONICAL_3D;
 
 export type Canonical3DFlagSource = "default" | "env" | "window";
 
@@ -50,12 +57,7 @@ function readWindowOverride(): boolean | undefined {
 }
 
 function readEnvRaw(): string | undefined {
-  try {
-    const v = import.meta.env?.[VITE_CALPINAGE_CANONICAL_3D_ENV_KEY];
-    return v != null && String(v).trim() !== "" ? String(v).trim() : undefined;
-  } catch {
-    return undefined;
-  }
+  return resolveEnvFlag(CALPINAGE_FLAG_ENV_KEYS.CANONICAL_3D);
 }
 
 function normalizeEnvToken(raw: string | undefined): "off" | "preview" | "product" {
