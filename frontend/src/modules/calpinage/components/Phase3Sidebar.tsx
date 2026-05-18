@@ -6,6 +6,7 @@
 import { useEffect, useId, useState } from "react";
 import styles from "./Phase3Sidebar.module.css";
 import { usePhase3Data, setupPhase3SidebarNotify } from "../hooks/usePhase3Data";
+import { getCalpinageWindow } from "../calpinageWindowGlobals";
 import { usePhase3ChecklistData } from "../hooks/usePhase3ChecklistData";
 import {
   computeLegacyPhase3CanValidate,
@@ -114,7 +115,7 @@ const API_BASE = getCrmApiBase();
 
 function Phase3FlatRoofControls() {
   const { flatRoof } = usePhase3Data();
-  const win = window as any;
+  const w = getCalpinageWindow();
 
   if (!flatRoof.inPvLayout || !flatRoof.hasPanCtx) return null;
   const pid = flatRoof.activePanId;
@@ -122,25 +123,25 @@ function Phase3FlatRoofControls() {
   if (!flatRoof.showFlatEnable && !flatRoof.isFlat) return null;
 
   const applyPatch = (patch: Record<string, unknown>) => {
-    if (typeof win.__applyFlatRoofConfigAndRecompute !== "function") return;
-    win.__applyFlatRoofConfigAndRecompute(pid, patch);
-    if (typeof win.notifyPhase3SidebarUpdate === "function") {
-      win.notifyPhase3SidebarUpdate();
+    if (typeof w.__applyFlatRoofConfigAndRecompute !== "function") return;
+    w.__applyFlatRoofConfigAndRecompute(pid, patch);
+    if (typeof w.notifyPhase3SidebarUpdate === "function") {
+      w.notifyPhase3SidebarUpdate();
     }
   };
 
   const setRoofType = (t: "FLAT" | "PITCHED") => {
-    if (typeof win.__applyManualPanRoofTypeAndRecompute !== "function") return;
-    const ok = win.__applyManualPanRoofTypeAndRecompute(pid, t) as boolean;
-    if (!ok && typeof win.showCalpinageUxToast === "function") {
-      win.showCalpinageUxToast(
+    if (typeof w.__applyManualPanRoofTypeAndRecompute !== "function") return;
+    const ok = w.__applyManualPanRoofTypeAndRecompute(pid, t) as boolean;
+    if (!ok && typeof w.showCalpinageUxToast === "function") {
+      w.showCalpinageUxToast(
         t === "FLAT"
           ? "Impossible d'activer le mode toiture plate sur ce pan."
           : "Impossible de revenir en toiture inclinée sur ce pan.",
       );
     }
-    if (typeof win.notifyPhase3SidebarUpdate === "function") {
-      win.notifyPhase3SidebarUpdate();
+    if (typeof w.notifyPhase3SidebarUpdate === "function") {
+      w.notifyPhase3SidebarUpdate();
     }
   };
 
@@ -207,7 +208,7 @@ function Phase3FlatRoofControls() {
 function Phase3OrientationToggle() {
   const { orientation: storeOrientation, flatRoof } = usePhase3Data();
   const orientationLabelId = useId();
-  const win = window as any;
+  const w = getCalpinageWindow();
 
   /**
    * État local optimiste : mis à jour immédiatement au click,
@@ -232,11 +233,11 @@ function Phase3OrientationToggle() {
   const setOrientation = (value: "portrait" | "landscape") => {
     // Mise à jour visuelle immédiate — le store peut prendre une frame de plus
     setLocalOrientation(value);
-    if (typeof win.setPvOrientation === "function") {
-      win.setPvOrientation(value);
+    if (typeof w.setPvOrientation === "function") {
+      w.setPvOrientation(value);
     }
-    if (typeof win.notifyPhase3SidebarUpdate === "function") {
-      win.notifyPhase3SidebarUpdate();
+    if (typeof w.notifyPhase3SidebarUpdate === "function") {
+      w.notifyPhase3SidebarUpdate();
     }
   };
 
@@ -423,8 +424,9 @@ function DsmPdfExportButton({ active }: { active: boolean }) {
 
   const handleClick = async () => {
     if (!active) return;
-    const studyId = (window as any).CALPINAGE_STUDY_ID;
-    const version = (window as any).CALPINAGE_VERSION_ID ?? "1";
+    const cw = getCalpinageWindow();
+    const studyId = cw.CALPINAGE_STUDY_ID;
+    const version = cw.CALPINAGE_VERSION_ID ?? "1";
     if (!studyId) {
       toast.error("Impossible : studyId manquant");
       return;
@@ -648,12 +650,13 @@ export function Phase3Sidebar({
   const blockedHint = canValidate ? null : getPhase3ValidateBlockedHint();
 
   useEffect(() => {
-    const previous = (window as any).notifyPhase3SidebarUpdate;
+    const cw = getCalpinageWindow();
+    const previous = cw.notifyPhase3SidebarUpdate;
     const fn = setupPhase3SidebarNotify();
     return () => {
-      if ((window as any).notifyPhase3SidebarUpdate === fn) {
-        if (previous) (window as any).notifyPhase3SidebarUpdate = previous;
-        else delete (window as any).notifyPhase3SidebarUpdate;
+      if (cw.notifyPhase3SidebarUpdate === fn) {
+        if (previous) cw.notifyPhase3SidebarUpdate = previous;
+        else delete cw.notifyPhase3SidebarUpdate;
       }
     };
   }, []);

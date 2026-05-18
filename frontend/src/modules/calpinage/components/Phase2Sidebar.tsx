@@ -6,6 +6,7 @@
 import { useEffect, useRef, useState } from "react";
 import styles from "./Phase2Sidebar.module.css";
 import { usePhase2Data, setupPhase2SidebarNotify } from "../hooks/usePhase2Data";
+import { getCalpinageWindow } from "../calpinageWindowGlobals";
 import Phase2ObstaclePanel from "./Phase2ObstaclePanel";
 import { useToast } from "../ui/useToast";
 import { onQuasiVerticalError } from "../roofModelV1/placement/placementSlopeGuard";
@@ -430,12 +431,13 @@ export default function Phase2Sidebar() {
   const toast = useToast();
 
   useEffect(() => {
-    const previous = (window as any).notifyPhase2SidebarUpdate;
+    const w = getCalpinageWindow();
+    const previous = w.notifyPhase2SidebarUpdate;
     const fn = setupPhase2SidebarNotify();
     return () => {
-      if ((window as any).notifyPhase2SidebarUpdate === fn) {
-        if (previous) (window as any).notifyPhase2SidebarUpdate = previous;
-        else delete (window as any).notifyPhase2SidebarUpdate;
+      if (w.notifyPhase2SidebarUpdate === fn) {
+        if (previous) w.notifyPhase2SidebarUpdate = previous;
+        else delete w.notifyPhase2SidebarUpdate;
       }
     };
   }, []);

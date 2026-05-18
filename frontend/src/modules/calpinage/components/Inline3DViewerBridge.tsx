@@ -10,6 +10,7 @@
 
 import { createRoot } from "react-dom/client";
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { getCalpinageWindow } from "../calpinageWindowGlobals";
 import { SolarScene3DViewer } from "../canonical3d/viewer/SolarScene3DViewer";
 import { buildEmergencySolarScene3DFromRuntime } from "../canonical3d/emergency/buildEmergencySolarScene3DFromRuntime";
 import { reportOfficialSolarPipelineFailure } from "../canonical3d/dev/officialSolarScenePipelineFailure";
@@ -511,7 +512,7 @@ function Inline3DViewer({
       }
     }
     function onStructuralChange(e: Event) {
-      const is3d = (window as any).__CALPINAGE_VIEW_MODE__ === "3D";
+      const is3d = getCalpinageWindow().__CALPINAGE_VIEW_MODE__ === "3D";
       const detail = (e as CustomEvent<OfficialRuntimeStructuralChangePayload>).detail;
       if (is3d && detail && typeof detail === "object" && typeof detail.reason === "string") {
         pendingStructuralEventRef.current = detail;
@@ -542,7 +543,7 @@ function Inline3DViewer({
     window.addEventListener("calpinage:viewmode", onViewMode);
     window.addEventListener(CALPINAGE_OFFICIAL_RUNTIME_STRUCTURAL_CHANGE, onStructuralChange);
 
-    if ((window as any).__CALPINAGE_VIEW_MODE__ === "3D") {
+    if (getCalpinageWindow().__CALPINAGE_VIEW_MODE__ === "3D") {
       buildScene();
     }
 
@@ -1157,11 +1158,11 @@ function Inline3DViewer({
         showShadingLegend={false}
         showSun={false}
         groundImage={groundImage ?? undefined}
-        showDebugOverlay={!!(window as any).__CALPINAGE_3D_DEBUG__}
+        showDebugOverlay={!!getCalpinageWindow().__CALPINAGE_3D_DEBUG__}
         showXYAlignmentOverlay={
-          !!(window as any).__CALPINAGE_3D_XY_OVERLAY__ || !!(window as any).__CALPINAGE_3D_DEBUG__
+          !!getCalpinageWindow().__CALPINAGE_3D_XY_OVERLAY__ || !!getCalpinageWindow().__CALPINAGE_3D_DEBUG__
         }
-        debugRuntime={resolveCalpinageRuntime(calpinageStateProp) ?? (window as any).CALPINAGE_STATE}
+        debugRuntime={resolveCalpinageRuntime(calpinageStateProp) ?? getCalpinageWindow().CALPINAGE_STATE}
         calpinagePansForProvenance={calpinagePansForProvenance}
         /**
          * En phase PV_LAYOUT, l'édition toiture (Z / XY / arête structurelle) est désactivée :

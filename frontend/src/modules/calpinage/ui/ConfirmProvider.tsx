@@ -4,6 +4,7 @@
  */
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { getCalpinageWindow } from "../calpinageWindowGlobals";
 
 export interface ConfirmOptions {
   title: string;
@@ -35,9 +36,10 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    (window as any).requestCalpinageConfirm = requestConfirm;
+    const w = getCalpinageWindow();
+    w.requestCalpinageConfirm = requestConfirm;
     return () => {
-      delete (window as any).requestCalpinageConfirm;
+      delete w.requestCalpinageConfirm;
     };
   }, [requestConfirm]);
 

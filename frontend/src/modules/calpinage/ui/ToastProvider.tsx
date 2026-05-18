@@ -17,6 +17,7 @@ import {
   type ReactNode,
 } from "react";
 import styles from "./Toast.module.css";
+import { getCalpinageWindow } from "../calpinageWindowGlobals";
 
 const AUTO_DISMISS_MS = 4000;
 
@@ -178,13 +179,14 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    (window as any).calpinageToast = toastApi;
-    (window as any).showToast = (message: string, success: boolean) => {
-      addToast(message, success ? "success" : "error");
+    const w = getCalpinageWindow();
+    w.calpinageToast = toastApi;
+    w.showToast = (message: string, level?: string) => {
+      addToast(message, level === "success" ? "success" : "error");
     };
     return () => {
-      delete (window as any).calpinageToast;
-      delete (window as any).showToast;
+      delete w.calpinageToast;
+      delete w.showToast;
       timersRef.current.forEach((t) => clearTimeout(t));
       timersRef.current.clear();
     };
