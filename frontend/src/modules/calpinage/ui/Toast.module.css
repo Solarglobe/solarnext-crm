@@ -24,6 +24,14 @@
   line-height: 1.4;
   border-left: 3px solid;
   animation: toastSlideUp 0.3s ease-out;
+  /* Flex row : message + bouton × */
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  /* Swipe : ne pas bloquer le scroll vertical natif */
+  touch-action: pan-y;
+  /* will-change optimise les transforms de swipe sur GPU */
+  will-change: transform;
 }
 
 @keyframes toastSlideUp {
@@ -36,6 +44,42 @@
     transform: translateY(0);
   }
 }
+
+/* Texte du toast — flex: 1 pour pousser le bouton × à droite */
+.toastMessage {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Bouton × — masqué sur desktop, visible sur mobile */
+.toastClose {
+  display: none;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 50%;
+  color: #f3f4f6;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.toastClose:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.toastClose:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px #6366F1;
+}
+
+/* ── Types ───────────────────────────────────── */
 
 .toastSuccess {
   border-left-color: #6366F1;
@@ -51,4 +95,26 @@
 
 .toastInfo {
   border-left-color: rgba(107, 114, 128, 0.9);
+}
+
+/* ── Responsive mobile (≤ 768 px) ───────────── */
+
+@media (max-width: 768px) {
+  .container {
+    /* Sur mobile : ancré en bas, pleine largeur avec marge */
+    bottom: 16px;
+    right: 12px;
+    left: 12px;
+  }
+
+  .toast {
+    min-width: 0;
+    max-width: 100%;
+    width: 100%;
+  }
+
+  /* Bouton × visible sur mobile */
+  .toastClose {
+    display: flex;
+  }
 }
