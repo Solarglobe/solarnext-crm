@@ -9,6 +9,8 @@
 // ======================================================================
 
 import fetch from "node-fetch";
+import logger from "../app/core/logger.js";
+import { recordPvgisApiCall } from "../app/core/metrics.js";
 import { round } from "./utils/helpers.js";
 import {
   L_CABLE,
@@ -107,16 +109,21 @@ export async function computeProductionMonthly(ctx) {
 
   console.log("🔎 PVcalc URL:", url);
 
+  logger.info("PVGIS_PVCALC_REQUEST", { context: { calculationType: "shading" } });
+
   let js = null;
 
   try {
     const res = await Promise.race([fetch(url), timeout(PVGIS_FETCH_TIMEOUT_MS)]);
+    recordPvgisApiCall(res.ok ? "ok" : String(res.status));
     if (!res.ok) {
       console.error("❌ PVGIS HTTP ERROR:", res.status);
       throw new Error("PVGIS HTTP " + res.status);
     }
     js = await res.json();
   } catch (err) {
+    recordPvgisApiCall("error");
+    logger.error("PVGIS_FETCH_ERROR", { error: err });
     console.error("❌ PVGIS FETCH ERROR:", err);
     return fallbackPV(ctx);
   }

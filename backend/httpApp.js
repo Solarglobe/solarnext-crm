@@ -7,7 +7,9 @@ import cors from "cors";
 import path from "path";
 import net from "net";
 import { fileURLToPath } from "url";
+import logger from "./app/core/logger.js";
 import { httpLogger } from "./app/core/httpLogger.js";
+import { metricsRegistry } from "./app/core/metrics.js";
 import { attachAuditRequestId } from "./services/audit/auditLog.service.js";
 import { applyTrustProxy } from "./middleware/security/trustProxy.js";
 import { securityHeadersMiddleware } from "./middleware/security/securityHeaders.middleware.js";
@@ -286,16 +288,17 @@ export function buildHttpApp() {
     }
   }
 
-  console.log("[CORS] origines fixes (toujours) :", [...CORS_ORIGINS_ALWAYS]);
+  logger.info("CORS_ALLOWED_ORIGINS", { origins: [...CORS_ORIGINS_ALWAYS] });
   if (fromEnv.length) {
-    console.log("[CORS] + CORS_ORIGIN :", fromEnv);
+    logger.info("CORS_ENV_ORIGINS", { origins: fromEnv });
   } else {
-    console.warn(
-      "[CORS] CORS_ORIGIN est vide — seules les origines fixes prod + éventuel repli Vercel (si une URL .vercel.app est ajoutée) s’appliquent. En dev local, ajouter http://localhost:5173 dans CORS_ORIGIN."
-    );
+    logger.warn("CORS_ORIGIN_EMPTY", {
+      message:
+        "CORS_ORIGIN est vide; seules les origines fixes prod et le repli Vercel eventuel s'appliquent.",
+    });
   }
   if (allowAllVercelAppOrigins) {
-    console.log("[CORS] toutes les origines https://*.vercel.app sont aussi autorisées (previews / déploiements Vercel).");
+    logger.info("CORS_VERCEL_PREVIEWS_ALLOWED");
   }
 
   const corsConfig = {
@@ -335,8 +338,8 @@ export function buildHttpApp() {
 
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ extended: true, limit: "50mb" }));
-  app.use(httpLogger);
   app.use(attachAuditRequestId);
+  app.use(httpLogger);
   app.use(sentryRequestContextMiddleware);
 
   app.get("/api/health/live", (_req, res) => {
@@ -345,6 +348,11 @@ export function buildHttpApp() {
       uptime: process.uptime(),
       version: PACKAGE_VERSION,
     });
+  });
+
+  app.get("/api/metrics", async (_req, res) => {
+    res.setHeader("Content-Type", metricsRegistry.contentType);
+    res.send(await metricsRegistry.metrics());
   });
 
   app.get("/api/health/ready", async (_req, res) => {
@@ -487,9 +495,7 @@ export function buildHttpApp() {
    */
   const calpinageLegacyRoot = path.resolve(__dirname, "calpinage-legacy-assets");
   if (!fs.existsSync(path.join(calpinageLegacyRoot, "canvas-bundle.js"))) {
-    console.warn(
-      "[CALPINAGE] calpinage-legacy-assets/canvas-bundle.js absent — exécuter le prebuild frontend (copie vers backend) ou vérifier le dépôt / image Docker."
-    );
+    logger.warn("CALPINAGE_LEGACY_ASSET_MISSING", { asset: "canvas-bundle.js" });
   }
   app.use(
     "/calpinage",

@@ -88,12 +88,6 @@ function addEnergyKpisToScenario(scenario, ctx) {
 // 🌞 CONTRÔLEUR PRINCIPAL
 // ======================================================================
 export async function calculateSmartpitch(req, res) {
-  const devLog = process.env.NODE_ENV !== "production";
-  if (devLog) {
-    console.log(">> ROUTE /api/calc HIT");
-    console.log("REQ.FILE =", req.file);
-  }
-
   try {
     let form, settings;
     let solarnextPayloadForLog = null;
@@ -152,31 +146,6 @@ export async function calculateSmartpitch(req, res) {
 
     const payload = solarnextPayloadForLog || req.body || {};
 
-    // ===== DEBUG SOLARNEXT (jamais de dump form/settings en production — RGPD) =====
-    if (devLog) {
-      console.log("\n\n==============================");
-      console.log("===== FORM JSON START =====");
-      try {
-        console.log(JSON.stringify(form, null, 2));
-      } catch (e) {
-        console.log("FORM stringify failed");
-      }
-      console.log("===== FORM JSON END =====");
-      console.log("==============================\n");
-
-      console.log("\n\n==============================");
-      console.log("===== SETTINGS JSON START =====");
-      try {
-        console.log(JSON.stringify(settings, null, 2));
-      } catch (e) {
-        console.log("SETTINGS stringify failed");
-      }
-      console.log("===== SETTINGS JSON END =====");
-      console.log("==============================\n");
-    }
-
-// ===== FIN DEBUG =====
-
     // ------------------------------------------------------------
     // 0) Contexte global
     // ------------------------------------------------------------
@@ -231,10 +200,6 @@ export async function calculateSmartpitch(req, res) {
       }
     };
 
-    if (devLog) {
-      console.log("FORCAGE CONTEXTE =", ctx.force);
-    }
-
 // ------------------------------------------------------------
 // 1) CONSOMMATION 8760h — Si un CSV existe (upload ou csv_path résolu backend), le moteur l'utilise obligatoirement (aucun profil synthétique).
 // ------------------------------------------------------------
@@ -242,28 +207,6 @@ const csvPath =
   req.file?.path ||
   form?.conso?.csv_path ||
   null;
-
-// Log temporaire — décision source conso (répété ici pour traçabilité dans les logs calc)
-if (devLog) {
-  console.log(JSON.stringify({
-    tag: "CONSO_SOURCE_DECISION",
-    source: csvPath ? "CSV" : "SYNTHETIC",
-    csvPath: csvPath ?? null,
-  }));
-  console.log(JSON.stringify({
-    tag: "DEBUG CSV RECEIVED BY CALC",
-    csvPath: csvPath ?? null,
-  }));
-  console.log("DEBUG_CALC_CSV_PATH", csvPath);
-  if (!csvPath && form?.conso) {
-    console.log(JSON.stringify({
-      tag: "CALC_CSV_PATH_NULL",
-      has_conso: true,
-      csv_path_from_form: form.conso.csv_path ?? null,
-      conso_keys: Object.keys(form.conso || {}),
-    }));
-  }
-}
 
 // Fusion conso + params (pour envoyer puissance_kva) — form.params garanti objet après parsing
 const mergedConso = {
@@ -274,16 +217,6 @@ const mergedConso = {
 const studyId = form?.studyId ?? req.body?.studyId ?? null;
 const versionId = form?.versionId ?? req.body?.versionId ?? null;
 const leadId = form?.lead_id ?? form?.leadId ?? req.body?.leadId ?? null;
-if (devLog) {
-  console.log(JSON.stringify({
-    tag: "DEBUG_CALC_BEFORE_LOAD_CONSUMPTION",
-    studyId,
-    versionId,
-    leadId,
-    csvPath,
-  }));
-}
-
 // Chargement : ordre 1 CSV, 2 hourly_prebuilt, 3 manual, 4 national. CSV prioritaire sur tout.
 const _consoBase = consumptionService.loadConsumption(mergedConso, csvPath);
 const conso = consumptionService.applyEquipmentShape(_consoBase, mergedConso, Boolean(csvPath));
@@ -291,17 +224,8 @@ const conso = consumptionService.applyEquipmentShape(_consoBase, mergedConso, Bo
 // Conso injectée dans ctx = source unique pour scenarioBuilderV2 (hourly + annual_kwh = SUM(hourly))
 const load8760Sum = (conso.hourly || []).reduce((a, b) => a + (Number(b) || 0), 0);
 const annualExact = load8760Sum;
-if (process.env.NODE_ENV !== "production") {
-  console.log("DEBUG_FINAL_CONSUMPTION_USED", annualExact);
-}
 if (Math.abs(load8760Sum - (conso.annual_kwh ?? 0)) >= 0.1) {
-  console.warn("CONSO_COHERENCE: |sum(hourly) - annual_kwh| >= 0.1");
-  if (devLog) {
-    console.warn({
-      sum_hourly: load8760Sum,
-      annual_kwh: conso.annual_kwh
-    });
-  }
+  console.warn("CONSO_COHERENCE: |sum(hourly) - annual_kwh| >= 0.1", { sum_hourly: load8760Sum, annual_kwh: conso.annual_kwh });
 }
 
 // Valeurs utilisées par scenarioBuilderV2 : hourly et annual_kwh = SUM(hourly)
@@ -333,11 +257,6 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
     last5_kwh: h.slice(-5),
   }));
 }
-
-if (devLog) {
-  console.log("LOAD_8760_SUM =", load8760Sum);
-}
-
 
     // ------------------------------------------------------------
     // 2) PRODUCTION PV MENSUELLE (mono-pan ou multi-pan)
@@ -504,26 +423,6 @@ if (devLog) {
     // ------------------------------------------------------------
     // 5) CALCUL PRINCIPAL (BASE + BATTERY_PHYSICAL si batterie valide)
     // ------------------------------------------------------------
-    function sanitizeForD3Log(obj, maxArrayLen = 5) {
-      if (obj == null) return obj;
-      if (Array.isArray(obj)) {
-        if (obj.length > maxArrayLen) return `[Array(${obj.length})]`;
-        return obj.map((v) => sanitizeForD3Log(v, maxArrayLen));
-      }
-      if (typeof obj === "object") {
-        const out = {};
-        for (const k of Object.keys(obj)) out[k] = sanitizeForD3Log(obj[k], maxArrayLen);
-        return out;
-      }
-      return obj;
-    }
-    if (devLog) {
-      console.log("[D3] ctx payload =", JSON.stringify(sanitizeForD3Log(ctx), null, 2));
-      console.log("DEBUG_CALC_INPUT", {
-        payload_conso: ctx.conso?.annual_kwh,
-        hourly_len: ctx.conso?.hourly?.length
-      });
-    }
     const scenarios = await buildBaseScenarioOnly(ctx);
 
     const baseScenario = scenarios.BASE;
@@ -1089,16 +988,6 @@ if (devLog) {
 
           virtualScenario.costs = { battery_virtual_annual_cost: subscriptionAnnual };
 
-          if (devLog) {
-            console.log("DEBUG_VIRTUAL_IMPORT", {
-              energy_import: virtualScenario.energy.import,
-              import_kwh: virtualScenario.import_kwh,
-              billable_import_kwh: virtualScenario.billable_import_kwh
-            });
-            console.log("[VIRTUAL_BATTERY] annual_subscription =", subscriptionAnnual);
-            console.log("[VIRTUAL_BATTERY] credited_kwh =", credited_kwh);
-            console.log("[VIRTUAL_BATTERY] billable_import =", billable_import_kwh);
-          }
           addEnergyKpisToScenario(virtualScenario, ctx);
 
           if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1") {
@@ -1361,9 +1250,6 @@ if (devLog) {
 
             addEnergyKpisToScenario(hybridScenario, ctx);
             scenarios.BATTERY_HYBRID = hybridScenario;
-            if (devLog) {
-              console.log("[HYBRID] auto=", hybridAutoKwh, "import=", hybridImportKwh, "surplus=", hybridSurplusKwh, "sub=", subscriptionAnnualH);
-            }
           }
         }
       }
@@ -1398,13 +1284,6 @@ if (devLog) {
     for (const [key, sc] of Object.entries(scenariosFinal)) {
       if (!sc) continue;
 
-      if (devLog) {
-        console.log("DEBUG_SCENARIO_CONSUMPTION", key, {
-          conso_kwh: sc.conso_kwh,
-          energy_conso: sc.energy?.conso
-        });
-      }
-
       const consumption =
         sc.conso_kwh ?? sc.energy?.conso ?? 0;
 
@@ -1431,30 +1310,12 @@ if (devLog) {
         sc.surplus_kwh ??
         0;
 
-      if (devLog) {
-        console.warn("SCENARIO ENERGY SUMMARY", key, {
-          consumption,
-          production,
-          auto,
-          importGrid,
-          surplus
-        });
-      }
-
       // ----------------------------------
       // CONSOMMATION CHECK
       // ----------------------------------
       const consCheck = auto + importGrid;
       if (Number.isFinite(consumption) && Number.isFinite(consCheck) && Math.abs(consCheck - consumption) > 5) {
-        console.warn("ENERGY BALANCE ERROR — CONSUMPTION", key);
-        if (devLog) {
-          console.warn({
-            consumption,
-            auto,
-            importGrid,
-            auto_plus_import: consCheck
-          });
-        }
+        console.warn("ENERGY BALANCE ERROR — CONSUMPTION", key, { consumption, auto, importGrid, auto_plus_import: consCheck });
       }
 
       // ----------------------------------
@@ -1463,10 +1324,7 @@ if (devLog) {
       const batteryLosses = (key === "BATTERY_PHYSICAL" && (sc.energy?.battery_losses_kwh != null)) ? Number(sc.energy.battery_losses_kwh) : 0;
       const prodCheck = auto + surplus + batteryLosses;
       if (Number.isFinite(production) && Number.isFinite(prodCheck) && Math.abs(prodCheck - production) > 1) {
-        console.warn("ENERGY_BALANCE_ERROR", key);
-        if (devLog) {
-          console.warn({ production, auto, surplus, battery_losses: batteryLosses, auto_plus_surplus_plus_losses: prodCheck });
-        }
+        console.warn("ENERGY_BALANCE_ERROR", key, { production, auto, surplus, battery_losses: batteryLosses, auto_plus_surplus_plus_losses: prodCheck });
       }
     }
 
@@ -1479,12 +1337,6 @@ if (devLog) {
     // ------------------------------------------------------------
     // 9) JSON FINAL
     // ------------------------------------------------------------
-  if (devLog) {
-    console.log("=== RAW SCENARIOS BEFORE MAPPER ===");
-    console.log(Object.keys(scenariosFinal));
-    console.log(scenariosFinal.BATTERY_VIRTUAL);
-  }
-
   const ctxFinal = buildCalcResponse({ ctx, form, conso, annualExact, pilotage, scenariosFinal, finance, impact });
 
   if (process.env.NODE_ENV !== "production" && process.env.DEBUG_FINAL_SCENARIOS_V2 === "1") {
