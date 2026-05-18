@@ -1,0 +1,78 @@
+# nixpacks.toml — RACINE du repo (source of truth pour Railway)
+#
+# POURQUOI CE FICHIER EST À LA RACINE :
+#   Railway construit depuis la racine du repo (le start command fait `cd backend && ...`).
+#   Nixpacks cherche nixpacks.toml dans le build root → racine.
+#   Le fichier backend/nixpacks.toml est ignoré par Railway dans cette configuration.
+#
+# CE QUE CE FICHIER FAIT :
+#   1. [phases.setup]   → installe les libs système requises par Chromium headless (apt)
+#   2. [phases.install] → installe les dépendances Node du backend + télécharge Chromium
+#                         au BUILD (pas au cold-start → démarrage rapide en prod)
+#   3. [phases.build]   → vide (pas de compilation frontend ici, Vercel gère ça)
+#
+# Le start command Railway reste inchangé :
+#   cd backend && npm install && npm run migrate && node server.js
+# Le `npm install` runtime détecte Chromium déjà en cache → skip → démarrage <5s.
+#
+# Référence : https://playwright.dev/docs/browsers#install-system-dependencies
+#             https://docs.railway.com/guides/nixpacks
+
+# ── 1. Libs système Chromium (installées dans l'image au build) ─────────────
+[phases.setup]
+aptPkgs = [
+  # GLib / GObject / GIO — requis par quasiment tout le runtime Chromium
+  "libglib2.0-0",
+  # NSS / NSPR — sécurité réseau TLS
+  "libnss3",
+  "libnspr4",
+  # ATK / AT-SPI2 — accessibilité (Chromium en a besoin même headless)
+  "libatk1.0-0",
+  "libatk-bridge2.0-0",
+  "libatspi2.0-0",
+  # CUPS — impression (Chromium linke contre même sans imprimante)
+  "libcups2",
+  # DRM / GBM — abstraction GPU kernel
+  "libdrm2",
+  "libgbm1",
+  # D-Bus IPC
+  "libdbus-1-3",
+  # X11 / XCB / Wayland shims (headless-shell en a besoin)
+  "libxcb1",
+  "libxkbcommon0",
+  "libx11-6",
+  "libxcomposite1",
+  "libxdamage1",
+  "libxext6",
+  "libxfixes3",
+  "libxrandr2",
+  # Pango / Cairo — rendu texte et graphiques 2D
+  "libpango-1.0-0",
+  "libcairo2",
+  # ALSA — audio (headless ne joue rien mais Chromium y linke)
+  "libasound2",
+  # Polices — nécessaires pour le rendu PDF fidèle
+  "fonts-liberation",
+  "libfontconfig1",
+  # Expat XML
+  "libexpat1",
+  # Atomic ops (sécurité/lint niveau bas)
+  "libatomic1",
+]
+
+# ── 2. Install Node + Chromium au BUILD ──────────────────────────────────────
+[phases.install]
+# On installe les dépendances backend (--omit=dev = prod only) puis on télécharge
+# le binaire Chromium dans l'image Docker. Résultat : au cold-start, Chromium est
+# déjà présent → postinstall-playwright.cjs détecte le cache → skip download → rapide.
+#
+# PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=0 : force le dl même si la var était positionnée.
+# PLAYWRIGHT_FORCE_INSTALL=1         : indique au postinstall qu'on est dans un contexte CI/build.
+cmds = [
+  "cd backend && npm ci --omit=dev",
+  "cd backend && PLAYWRIGHT_FORCE_INSTALL=1 npx playwright install chromium",
+]
+
+# ── 3. Build — vide (front = Vercel, back = Node pur, rien à compiler) ───────
+[phases.build]
+cmds = []

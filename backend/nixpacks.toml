@@ -1,6 +1,11 @@
-# Railpack / Nixpacks — system dependencies for Playwright/Chromium headless
-# These packages are required at runtime by the Chromium binary installed via
-# `npx playwright install chromium`. Without them Railway returns:
+# backend/nixpacks.toml — SECONDAIRE (utilisé seulement si Railway Root Dir = "backend/")
+#
+# SOURCE OF TRUTH : nixpacks.toml à la RACINE du repo.
+# Dans la configuration standard de solarnext-crm, Railway construit depuis la racine
+# (start command : `cd backend && ...`) → ce fichier est IGNORÉ par Railway.
+# Il n'est actif que si vous changez Railway Settings → Source → Root Directory = "backend/".
+#
+# CONTENU : libs système Playwright/Chromium (apt). Sans elles, Railway renvoie :
 #   error while loading shared libraries: libglib-2.0.so.0: cannot open shared object file
 #
 # Reference: https://playwright.dev/docs/browsers#install-system-dependencies
