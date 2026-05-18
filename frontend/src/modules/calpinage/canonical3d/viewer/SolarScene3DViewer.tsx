@@ -74,6 +74,7 @@ import {
 import type { SolarScene3D } from "../types/solarScene3d";
 import { keepoutHatchGeometry, keepoutCornerMarksGeometry } from "./keepout3DGeometry";
 import { KeepoutZone3D } from "./KeepoutZone3D";
+import { RoofContourLine2 } from "./RoofContourLine2";
 import type { PvPanelSurface3D } from "../types/pv-panel-3d";
 import {
   computeSolarSceneBoundingBox,
@@ -123,7 +124,6 @@ import {
   viewerFallbackGridProps,
   VIEWER_INSPECT_OUTLINE_HEX,
   VIEWER_OUTLINE_THICKNESS_FACTOR,
-  VIEWER_PV_OUTLINE_IDLE_HEX,
   VIEWER_SHELL_MESH_HEX,
 } from "./viewerVisualTokens";
 import {
@@ -2783,17 +2783,17 @@ function ViewerSceneContent({
         </mesh>
       )}
       {visRoofEdges && edgeGeo && (
-        <lineSegments geometry={edgeGeo}>
-          <lineBasicMaterial
-            color={mEdge.color}
-            transparent={mEdge.opacity < 1}
-            opacity={mEdge.opacity}
-          />
-        </lineSegments>
+        <RoofContourLine2
+          sourceGeo={edgeGeo}
+          color={mEdge.color}
+          opacity={mEdge.opacity}
+        />
       )}
       {visRidges && ridgeGeo && (
-        <lineSegments
-          geometry={ridgeGeo}
+        <RoofContourLine2
+          sourceGeo={ridgeGeo}
+          color={mRidge.color}
+          opacity={mRidge.opacity}
           onPointerDown={
             enableStructuralRidgeHeightEdit && onStructuralRidgeLinePointerDown
               ? (e) => {
@@ -2802,13 +2802,7 @@ function ViewerSceneContent({
                 }
               : undefined
           }
-        >
-          <lineBasicMaterial
-            color={mRidge.color}
-            transparent={mRidge.opacity < 1}
-            opacity={mRidge.opacity}
-          />
-        </lineSegments>
+        />
       )}
       {visObs &&
         obsGeos.map(({ id, volume, geo, details }) => {
