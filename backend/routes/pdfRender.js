@@ -16,6 +16,7 @@ import { respondWithDpPdfOrJson } from "../services/dpPdfPersistResponse.service
 import { publicHeavyRateLimiter } from "../middleware/security/rateLimit.presets.js";
 import { pdfConcurrencyLimiter } from "../middleware/rateLimit.middleware.js";
 import { verifyJWT } from "../middleware/auth.middleware.js";
+import { requireEmailVerified } from "../middleware/emailVerification.middleware.js";
 import { requirePermission } from "../rbac/rbac.middleware.js";
 
 const router = express.Router();
@@ -56,7 +57,7 @@ function isValidMandatSignaturePayload(ms) {
  * POST /pdf/render/mandat/signature-stamp
  * Horodatage serveur au moment de la validation du pad (ne fait pas confiance au client pour signedAtServer).
  */
-router.post("/pdf/render/mandat/signature-stamp", verifyJWT, async (req, res) => {
+router.post("/pdf/render/mandat/signature-stamp", verifyJWT, requireEmailVerified, async (req, res) => {
   try {
     const ms = req.body && req.body.mandatSignature;
     if (!isValidMandatSignaturePayload(ms)) {
@@ -72,7 +73,7 @@ router.post("/pdf/render/mandat/signature-stamp", verifyJWT, async (req, res) =>
 /**
  * POST /pdf/render/mandat/pdf
  */
-router.post("/pdf/render/mandat/pdf", verifyJWT, async (req, res) => {
+router.post("/pdf/render/mandat/pdf", verifyJWT, requireEmailVerified, async (req, res) => {
   try {
     const { mandatData } = req.body;
 
@@ -101,7 +102,7 @@ router.post("/pdf/render/mandat/pdf", verifyJWT, async (req, res) => {
 /**
  * POST /pdf/render/dp1/pdf
  */
-router.post("/pdf/render/dp1/pdf", verifyJWT, async (req, res) => {
+router.post("/pdf/render/dp1/pdf", verifyJWT, requireEmailVerified, async (req, res) => {
   try {
     const { dp1Data } = req.body;
 
@@ -122,7 +123,7 @@ router.post("/pdf/render/dp1/pdf", verifyJWT, async (req, res) => {
 /**
  * POST /pdf/render/dp2/pdf
  */
-router.post("/pdf/render/dp2/pdf", verifyJWT, async (req, res) => {
+router.post("/pdf/render/dp2/pdf", verifyJWT, requireEmailVerified, async (req, res) => {
   try {
     const { dp2Data } = req.body;
 
@@ -143,7 +144,7 @@ router.post("/pdf/render/dp2/pdf", verifyJWT, async (req, res) => {
 /**
  * POST /pdf/render/dp3/pdf
  */
-router.post("/pdf/render/dp3/pdf", verifyJWT, async (req, res) => {
+router.post("/pdf/render/dp3/pdf", verifyJWT, requireEmailVerified, async (req, res) => {
   try {
     const { dp3Data, dp2Data, client } = req.body || {};
 
@@ -179,7 +180,7 @@ router.post("/pdf/render/dp3/pdf", verifyJWT, async (req, res) => {
  * - DP4 = 1 ou 2 pages (before/after)
  * - Source d’image obligatoire : rendu FINAL stocké (data:image...)
  */
-router.post("/pdf/render/dp4/pdf", verifyJWT, async (req, res) => {
+router.post("/pdf/render/dp4/pdf", verifyJWT, requireEmailVerified, async (req, res) => {
   try {
     const { dp4Data } = req.body || {};
 
@@ -215,7 +216,7 @@ router.post("/pdf/render/dp4/pdf", verifyJWT, async (req, res) => {
  * POST /pdf/render/dp6/pdf
  * - DP6 = 1 page (AVANT + APRÈS)
  */
-router.post("/pdf/render/dp6/pdf", verifyJWT, async (req, res) => {
+router.post("/pdf/render/dp6/pdf", verifyJWT, requireEmailVerified, async (req, res) => {
   try {
     const { dp6Data } = req.body || {};
 
@@ -282,8 +283,8 @@ async function renderDP7PDF(req, res) {
   }
 }
 
-router.post("/pdf/render/dp7/pdf", verifyJWT, renderDP7PDF);
-router.post("/pdf/render/dp8/pdf", verifyJWT, renderDP7PDF);
+router.post("/pdf/render/dp7/pdf", verifyJWT, requireEmailVerified, renderDP7PDF);
+router.post("/pdf/render/dp8/pdf", verifyJWT, requireEmailVerified, renderDP7PDF);
 
 /**
  * CP-DSM-PDF-004 — GET /internal/pdf/dsm-analysis/:studyId

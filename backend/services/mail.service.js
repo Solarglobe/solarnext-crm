@@ -90,3 +90,36 @@ export async function sendPasswordChangedEmail({ to }) {
     `),
   });
 }
+
+export async function sendEmailVerificationEmail({ to, token }) {
+  const verifyUrl = `${appBaseUrl().replace(/\/+$/, "")}/api/auth/verify-email?token=${encodeURIComponent(token)}`;
+  return sendSystemMail({
+    to,
+    subject: "Confirmez votre email SolarNext",
+    text: `Confirmez votre adresse email SolarNext dans les 24 heures : ${verifyUrl}`,
+    html: shellHtml(`
+      <p style="margin:0 0 16px">Bienvenue sur SolarNext.</p>
+      <p style="margin:0 0 22px">Confirmez votre adresse email pour debloquer les fonctions critiques : devis, etudes PV, PDF et facturation.</p>
+      <p style="margin:0 0 22px">
+        <a href="${verifyUrl}" style="display:inline-block;background:#2e1a47;color:#fff;text-decoration:none;padding:12px 18px;border-radius:6px;font-weight:700">Verifier mon email</a>
+      </p>
+      <p style="margin:0;color:#64748b;font-size:13px">Ce lien expire dans 24 heures.</p>
+    `),
+  });
+}
+
+export async function sendWelcomeEmail({ to }) {
+  const onboardingUrl = `${appBaseUrl().replace(/\/+$/, "")}/dashboard?onboarding=1`;
+  return sendSystemMail({
+    to,
+    subject: "Bienvenue sur SolarNext",
+    text: `Votre email est confirme. Demarrez l'onboarding SolarNext : ${onboardingUrl}`,
+    html: shellHtml(`
+      <p style="margin:0 0 16px">Votre email est confirme. Bienvenue sur SolarNext.</p>
+      <p style="margin:0 0 22px">Vous pouvez maintenant utiliser les fonctions critiques de votre CRM photovoltaique.</p>
+      <p style="margin:0">
+        <a href="${onboardingUrl}" style="display:inline-block;background:#2e1a47;color:#fff;text-decoration:none;padding:12px 18px;border-radius:6px;font-weight:700">Demarrer l'onboarding</a>
+      </p>
+    `),
+  });
+}

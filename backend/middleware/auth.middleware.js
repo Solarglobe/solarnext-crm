@@ -152,6 +152,8 @@ export async function verifyJWT(req, res, next) {
       id: userId,
       organizationId,
       organization_id: organizationId,
+      emailVerified: decoded.emailVerified === true || decoded.email_verified === true,
+      email_verified: decoded.emailVerified === true || decoded.email_verified === true,
       /** Toujours l’organisation du JWT (avant override SUPER_ADMIN x-organization-id). */
       jwtOrganizationId: organizationId,
       jwt_organization_id: organizationId,
@@ -213,6 +215,8 @@ export function tryParseJwtUser(req) {
       id: userId,
       organizationId,
       organization_id: organizationId,
+      emailVerified: decoded.emailVerified === true || decoded.email_verified === true,
+      email_verified: decoded.emailVerified === true || decoded.email_verified === true,
     };
   } catch {
     return null;

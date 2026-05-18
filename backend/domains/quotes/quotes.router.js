@@ -20,6 +20,7 @@ import {
   UuidParamsSchema,
 } from "../../lib/schemas/index.js";
 import { verifyJWT } from "../../middleware/auth.middleware.js";
+import { requireEmailVerified } from "../../middleware/emailVerification.middleware.js";
 import { requirePermission } from "../../rbac/rbac.middleware.js";
 import * as controller from "./quotes.controller.js";
 import * as service from "./quotes.repository.js";
@@ -210,6 +211,7 @@ router.post(
   "/:id/finalize-signed",
   verifyJWT,
   requirePermission("quote.manage"),
+  requireEmailVerified,
   heavyUserRateLimiter,
   async (req, res) => {
     try {
@@ -261,6 +263,7 @@ router.post(
   "/:id/pdf",
   verifyJWT,
   requirePermission("quote.manage"),
+  requireEmailVerified,
   heavyUserRateLimiter,
   async (req, res) => {
     try {
@@ -279,6 +282,7 @@ router.post(
   "/:id/add-to-documents",
   verifyJWT,
   requirePermission("quote.manage"),
+  requireEmailVerified,
   heavyUserRateLimiter,
   async (req, res) => {
     try {
@@ -303,6 +307,7 @@ router.post(
   "/",
   verifyJWT,
   requirePermission("quote.manage"),
+  requireEmailVerified,
   validate({ body: CreateQuoteSchema }),
   async (req, res) => {
     try {

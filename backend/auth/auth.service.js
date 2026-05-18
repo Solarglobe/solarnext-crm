@@ -24,6 +24,7 @@ export function generateJWT(user) {
     role: user.role,
     sessionId: user.sessionId ?? user.session_id ?? crypto.randomUUID(),
     planId: user.plan_id ?? user.planId ?? null,
+    emailVerified: user.email_verified === true || user.emailVerified === true,
   };
   return jwt.sign(payload, JWT_SECRET, { expiresIn: ACCESS_TOKEN_TTL });
 }
@@ -33,6 +34,10 @@ export function hashRefreshToken(token) {
 }
 
 export function hashPasswordResetToken(token) {
+  return crypto.createHash("sha256").update(String(token), "utf8").digest("hex");
+}
+
+export function hashEmailVerificationToken(token) {
   return crypto.createHash("sha256").update(String(token), "utf8").digest("hex");
 }
 
@@ -123,7 +128,7 @@ export async function rotateRefreshSession(refreshToken, req, db = pool) {
     await client.query("BEGIN");
     const current = await client.query(
       `SELECT rt.id, rt.user_id, rt.session_id, rt.expires_at, rt.revoked_at,
-              u.email, u.organization_id, u.status
+              u.email, u.organization_id, u.status, COALESCE(u.email_verified, false) AS email_verified
        FROM refresh_tokens rt
        JOIN users u ON u.id = rt.user_id
        WHERE rt.token_hash = $1
@@ -144,6 +149,7 @@ export async function rotateRefreshSession(refreshToken, req, db = pool) {
       organization_id: row.organization_id,
       role: null,
       plan_id: null,
+      email_verified: row.email_verified === true,
       sessionId: row.session_id,
     };
     const { resolveEffectiveHighestRole } = await import("../lib/superAdminUserGuards.js");
@@ -235,6 +241,61 @@ export async function findValidPasswordResetToken(token, db = pool) {
     return { ok: false, code: "RESET_TOKEN_EXPIRED" };
   }
   return { ok: true, token: row };
+}
+
+export async function createEmailVerificationToken(userId, db = pool) {
+  const token = crypto.randomUUID();
+  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  await db.query(
+    "DELETE FROM email_verification_tokens WHERE user_id = $1",
+    [userId]
+  );
+  await db.query(
+    `INSERT INTO email_verification_tokens (user_id, token_hash, expires_at)
+     VALUES ($1, $2, $3)`,
+    [userId, hashEmailVerificationToken(token), expiresAt]
+  );
+  return { token, expiresAt };
+}
+
+export async function verifyEmailToken(token, db = pool) {
+  const tokenHash = hashEmailVerificationToken(token);
+  const client = db.connect ? await db.connect() : db;
+  const shouldRelease = Boolean(db.connect);
+  try {
+    await client.query("BEGIN");
+    const result = await client.query(
+      `SELECT evt.id, evt.user_id, evt.expires_at, u.email
+       FROM email_verification_tokens evt
+       JOIN users u ON u.id = evt.user_id
+       WHERE evt.token_hash = $1
+       LIMIT 1
+       FOR UPDATE`,
+      [tokenHash]
+    );
+    const row = result.rows[0];
+    if (!row) {
+      await client.query("ROLLBACK");
+      return { ok: false, code: "EMAIL_VERIFY_TOKEN_INVALID" };
+    }
+    if (new Date(row.expires_at).getTime() <= Date.now()) {
+      await client.query("ROLLBACK");
+      return { ok: false, code: "EMAIL_VERIFY_TOKEN_EXPIRED" };
+    }
+    await client.query("UPDATE users SET email_verified = true WHERE id = $1", [row.user_id]);
+    await client.query("DELETE FROM email_verification_tokens WHERE user_id = $1", [row.user_id]);
+    await client.query("COMMIT");
+    return { ok: true, userId: row.user_id, email: row.email };
+  } catch (e) {
+    try {
+      await client.query("ROLLBACK");
+    } catch {
+      // ignore rollback failure
+    }
+    throw e;
+  } finally {
+    if (shouldRelease) client.release();
+  }
 }
 
 /**

@@ -200,6 +200,7 @@ export interface CurrentUser {
   id: string;
   email: string;
   organizationId: string;
+  emailVerified?: boolean;
   firstName?: string | null;
   lastName?: string | null;
   /** Prénom + nom ou email */

@@ -5,6 +5,7 @@
 
 import express from "express";
 import { verifyJWT } from "../middleware/auth.middleware.js";
+import { requireEmailVerified } from "../middleware/emailVerification.middleware.js";
 import { requirePermission } from "../rbac/rbac.middleware.js";
 import * as controller from "../controllers/invoices.controller.js";
 import * as invoiceFinance from "../controllers/invoiceFinance.controller.js";
@@ -14,6 +15,8 @@ import { immutabilityGuard } from "../middleware/immutabilityGuard.middleware.js
 const router = express.Router();
 const orgId = (req) => req.user.organizationId ?? req.user.organization_id;
 const userId = (req) => req.user.userId ?? req.user.id;
+
+router.use(verifyJWT, requireEmailVerified);
 
 router.get("/", verifyJWT, requirePermission("invoice.manage"), controller.getAll);
 

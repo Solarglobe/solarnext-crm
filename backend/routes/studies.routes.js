@@ -6,6 +6,7 @@
 
 import express from "express";
 import { verifyJWT } from "../middleware/auth.middleware.js";
+import { requireEmailVerified } from "../middleware/emailVerification.middleware.js";
 import { requirePermission } from "../rbac/rbac.middleware.js";
 import logger from "../app/core/logger.js";
 import { pool } from "../config/db.js";
@@ -28,6 +29,7 @@ router.post(
   "/:id/geometry/calculate",
   verifyJWT,
   requirePermission("study.manage"),
+  requireEmailVerified,
   shadingCalculationRateLimiter,
   (_req, _res, next) => next()
 );
@@ -36,6 +38,7 @@ router.post(
   "/:id/financial/compute",
   verifyJWT,
   requirePermission("study.manage"),
+  requireEmailVerified,
   financialCalculationRateLimiter,
   (_req, _res, next) => next()
 );
@@ -44,6 +47,7 @@ router.get(
   "/",
   verifyJWT,
   requirePermission("study.manage"),
+  requireEmailVerified,
   async (req, res) => {
     try {
       const org = orgId(req);
@@ -67,6 +71,7 @@ router.post(
   "/",
   verifyJWT,
   requirePermission("study.manage"),
+  requireEmailVerified,
   async (req, res) => {
     try {
       const org = orgId(req);
@@ -88,6 +93,7 @@ router.post(
   "/duplicate-from",
   verifyJWT,
   requirePermission("study.manage"),
+  requireEmailVerified,
   async (req, res) => {
     try {
       const org = orgId(req);
@@ -113,6 +119,7 @@ router.post(
   "/:id/versions",
   verifyJWT,
   requirePermission("study.manage"),
+  requireEmailVerified,
   async (req, res) => {
     try {
       const org = orgId(req);
@@ -499,6 +506,7 @@ router.post(
   "/:studyId/versions/:versionId/generate-pdf",
   verifyJWT,
   requirePermission("study.manage"),
+  requireEmailVerified,
   pdfConcurrencyLimiter,
   generatePdf
 );
@@ -508,6 +516,7 @@ router.post(
   "/:studyId/versions/:versionId/generate-pdf-from-scenario",
   verifyJWT,
   requirePermission("study.manage"),
+  requireEmailVerified,
   pdfConcurrencyLimiter,
   generatePdfFromScenario
 );

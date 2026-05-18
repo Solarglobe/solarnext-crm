@@ -3,6 +3,7 @@ import {
   clearRefreshCookie,
   comparePassword,
   createPasswordResetToken,
+  createEmailVerificationToken,
   createRefreshSession,
   findValidPasswordResetToken,
   hashPassword,
@@ -12,8 +13,14 @@ import {
   revokeRefreshSession,
   rotateRefreshSession,
   validateResetPasswordPolicy,
+  verifyEmailToken,
 } from "./auth.service.js";
-import { sendPasswordChangedEmail, sendPasswordResetEmail } from "../services/mail.service.js";
+import {
+  sendEmailVerificationEmail,
+  sendPasswordChangedEmail,
+  sendPasswordResetEmail,
+  sendWelcomeEmail,
+} from "../services/mail.service.js";
 import logger from "../app/core/logger.js";
 import { logAuditEvent } from "../services/audit/auditLog.service.js";
 import { AuditActions } from "../services/audit/auditActions.js";
@@ -54,7 +61,9 @@ export async function login(req, res) {
   try {
     client = await pool.connect();
     const result = await client.query(
-      `SELECT u.id, u.email, u.organization_id, u.password_hash, o.name AS organization_name
+      `SELECT u.id, u.email, u.organization_id, u.password_hash,
+              COALESCE(u.email_verified, false) AS email_verified,
+              o.name AS organization_name
        FROM users u
        LEFT JOIN organizations o ON o.id = u.organization_id
        WHERE LOWER(TRIM(u.email)) = $1 AND u.status = 'active'
@@ -196,7 +205,8 @@ export async function login(req, res) {
         id: user.id,
         email: user.email,
         role: user.role,
-        organizationId: user.organization_id
+        organizationId: user.organization_id,
+        emailVerified: user.email_verified === true,
       }
     });
   } catch (err) {
@@ -236,12 +246,61 @@ export async function refresh(req, res) {
         email: session.user.email,
         role: session.user.role,
         organizationId: session.user.organization_id,
+        emailVerified: session.user.email_verified === true,
       },
     });
   } catch (err) {
     logger.error("AUTH_REFRESH_ERROR", { err: err?.message, stack: err?.stack });
     clearRefreshCookie(res);
     return res.status(500).json({ error: "Erreur refresh session" });
+  }
+}
+
+function verifiedRedirectUrl(query) {
+  const base =
+    String(process.env.FRONTEND_URL || process.env.APP_BASE_URL || process.env.PUBLIC_APP_URL || "https://app.solarnext.fr")
+      .replace(/\/+$/, "");
+  return `${base}/dashboard?${query}`;
+}
+
+export async function verifyEmail(req, res) {
+  const token = String(req.query?.token ?? "").trim();
+  if (!token) {
+    return res.redirect(302, verifiedRedirectUrl("verified=false&reason=missing"));
+  }
+  try {
+    const result = await verifyEmailToken(token);
+    if (!result.ok) {
+      const reason = result.code === "EMAIL_VERIFY_TOKEN_EXPIRED" ? "expired" : "invalid";
+      return res.redirect(302, verifiedRedirectUrl(`verified=false&reason=${reason}`));
+    }
+    sendWelcomeEmail({ to: result.email }).catch((err) => {
+      logger.warn("AUTH_WELCOME_MAIL_FAILED", { err: err?.message, userId: result.userId });
+    });
+    return res.redirect(302, verifiedRedirectUrl("verified=true"));
+  } catch (err) {
+    logger.error("AUTH_VERIFY_EMAIL_ERROR", { err: err?.message, stack: err?.stack });
+    return res.redirect(302, verifiedRedirectUrl("verified=false&reason=server"));
+  }
+}
+
+export async function resendVerificationEmail(req, res) {
+  const userId = req.user?.userId ?? req.user?.id;
+  if (!userId) return res.status(401).json({ error: "Non authentifie" });
+  try {
+    const result = await pool.query(
+      "SELECT id, email, COALESCE(email_verified, false) AS email_verified FROM users WHERE id = $1",
+      [userId]
+    );
+    const user = result.rows[0];
+    if (!user) return res.status(404).json({ error: "Utilisateur non trouve" });
+    if (user.email_verified === true) return res.json({ ok: true, alreadyVerified: true });
+    const verification = await createEmailVerificationToken(user.id);
+    await sendEmailVerificationEmail({ to: user.email, token: verification.token });
+    return res.json({ ok: true });
+  } catch (err) {
+    logger.error("AUTH_RESEND_VERIFY_EMAIL_ERROR", { err: err?.message, stack: err?.stack });
+    return res.status(500).json({ error: "Erreur envoi verification email" });
   }
 }
 

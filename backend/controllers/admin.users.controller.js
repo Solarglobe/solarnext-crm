@@ -9,7 +9,8 @@
  */
 
 import { pool } from "../config/db.js";
-import { hashPassword, generateUserImpersonationJWT } from "../auth/auth.service.js";
+import { createEmailVerificationToken, hashPassword, generateUserImpersonationJWT } from "../auth/auth.service.js";
+import { sendEmailVerificationEmail } from "../services/mail.service.js";
 import { logAuditEvent } from "../services/audit/auditLog.service.js";
 import { AuditActions } from "../services/audit/auditActions.js";
 import {
@@ -129,13 +130,15 @@ export async function create(req, res) {
 
     const passwordHash = await hashPassword(password);
     const insert = await pool.query(
-      `INSERT INTO users (organization_id, email, password_hash, status, first_name, last_name)
-       VALUES ($1, $2, $3, 'active', $4, $5)
-       RETURNING id, email, status, created_at, first_name, last_name,
+      `INSERT INTO users (organization_id, email, password_hash, status, first_name, last_name, email_verified)
+       VALUES ($1, $2, $3, 'active', $4, $5, false)
+       RETURNING id, email, status, created_at, first_name, last_name, email_verified,
          NULLIF(TRIM(CONCAT_WS(' ', first_name, last_name)), '') AS name`,
       [org, emailNorm, passwordHash, firstName, lastName]
     );
     const user = insert.rows[0];
+    const verification = await createEmailVerificationToken(user.id);
+    sendEmailVerificationEmail({ to: user.email, token: verification.token }).catch(() => {});
 
     for (const roleId of roleIds) {
       const role = await pool.query(

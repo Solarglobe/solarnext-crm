@@ -6,8 +6,10 @@ import {
   login,
   logout,
   refresh,
+  resendVerificationEmail,
   resetPassword,
   validateResetPasswordToken,
+  verifyEmail,
 } from "../auth/auth.controller.js";
 import { pool } from "../config/db.js";
 import { getUserPermissions } from "../rbac/rbac.service.js";
@@ -21,6 +23,8 @@ const router = express.Router();
 router.post("/login", authStrictRateLimiter, login);
 router.post("/refresh", authStrictRateLimiter, refresh);
 router.post("/logout", authStrictRateLimiter, logout);
+router.get("/verify-email", authStrictRateLimiter, verifyEmail);
+router.post("/resend-verification-email", verifyJWT, authStrictRateLimiter, resendVerificationEmail);
 router.post("/forgot-password", authStrictRateLimiter, forgotPassword);
 router.get("/reset-password/:token", authStrictRateLimiter, validateResetPasswordToken);
 router.post("/reset", authStrictRateLimiter, resetPassword);
@@ -31,7 +35,7 @@ router.get("/me", verifyJWT, async (req, res) => {
   const uid = req.user?.userId ?? req.user?.id;
   if (!uid) return res.status(401).json({ error: "Non authentifié" });
   const r = await pool.query(
-    "SELECT id, email, organization_id, first_name, last_name FROM users WHERE id = $1",
+    "SELECT id, email, organization_id, first_name, last_name, COALESCE(email_verified, false) AS email_verified FROM users WHERE id = $1",
     [uid]
   );
   if (r.rows.length === 0) return res.status(404).json({ error: "Utilisateur non trouvé" });
@@ -48,6 +52,7 @@ router.get("/me", verifyJWT, async (req, res) => {
     firstName: u.first_name ?? null,
     lastName: u.last_name ?? null,
     name,
+    emailVerified: u.email_verified === true,
     superAdmin: req.user?.role === "SUPER_ADMIN",
     impersonation: Boolean(isOrgImp || isUserImp),
     impersonationType: isUserImp

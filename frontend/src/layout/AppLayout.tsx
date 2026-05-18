@@ -12,6 +12,7 @@ import {
 import CreateLeadModal from "../modules/leads/CreateLeadModal";
 import { OrganizationSwitcher } from "../components/organization/OrganizationSwitcher";
 import { SuperAdminSupportBanner } from "../components/support/SuperAdminSupportBanner";
+import { EmailVerificationBanner } from "../components/EmailVerificationBanner";
 import { GlobalSearchBar } from "../components/layout/GlobalSearchBar";
 import { useOrganization, useSuperAdminReadOnly } from "../contexts/OrganizationContext";
 import { applyTheme, persistTheme, readStoredTheme, type ThemeMode } from "../theme/themeApply";
@@ -604,6 +605,7 @@ export function AppLayout() {
         </div>
       )}
       <SuperAdminSupportBanner />
+      <EmailVerificationBanner />
       <div className="sn-app-shell">
       {/* RESPONSIVE FIX: overlay semi-opaque cliquable pour fermer la sidebar en mode drawer */}
       {sidebarOpen && (
