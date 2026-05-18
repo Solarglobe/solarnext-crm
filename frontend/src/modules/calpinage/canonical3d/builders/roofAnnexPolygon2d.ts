@@ -3,6 +3,8 @@
  * Utilisé par bindRoofAnnexesToRoofPatches — pas de runtime calpinage.
  */
 
+import { getCentroid } from "../builder/centroid";
+
 export type XY = Readonly<{ x: number; y: number }>;
 export type Ring2D = readonly XY[];
 
@@ -25,14 +27,7 @@ export function polygonAreaM2(poly: Ring2D): number {
 }
 
 export function centroid2d(poly: Ring2D): XY {
-  let cx = 0;
-  let cy = 0;
-  const n = poly.length;
-  for (const p of poly) {
-    cx += p.x;
-    cy += p.y;
-  }
-  return { x: cx / n, y: cy / n };
+  return getCentroid(poly);
 }
 
 /** Ray casting — contour fermé, tolérance limitée sur les arêtes. */

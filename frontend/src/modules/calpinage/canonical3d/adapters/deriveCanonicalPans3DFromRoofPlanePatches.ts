@@ -9,6 +9,7 @@ import { worldHorizontalMToImagePx } from "../builder/worldMapping";
 import { polygonArea3dIntrinsic, polygonProjectedHorizontalAreaXY } from "../builder/planePolygon3d";
 import { computeOfficialPanPhysicsFromCornersWorld } from "../builder/officialPanPhysics";
 import { normalize3, vec3 } from "../utils/math3";
+import { getCentroid } from "../builder/centroid";
 import type { RoofPlanePatch3D } from "../types/roof-surface";
 import type { Vector3 } from "../types/primitives";
 import {
@@ -32,14 +33,8 @@ function area2DPxFromPoints(pts: ReadonlyArray<{ readonly x: number; readonly y:
 }
 
 function centroid2DPx(pts: ReadonlyArray<{ readonly x: number; readonly y: number }>): { x: number; y: number } {
-  let sx = 0;
-  let sy = 0;
-  for (const p of pts) {
-    sx += p.x;
-    sy += p.y;
-  }
-  const n = pts.length;
-  return n > 0 ? { x: sx / n, y: sy / n } : { x: 0, y: 0 };
+  if (pts.length === 0) return { x: 0, y: 0 };
+  return getCentroid(pts);
 }
 
 /**
