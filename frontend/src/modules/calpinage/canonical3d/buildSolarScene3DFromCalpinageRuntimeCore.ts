@@ -280,14 +280,15 @@ function dumpPipelineDiagnostics(
   const s = runtime as Record<string, unknown> | null;
   const roof = s?.roof as Record<string, unknown> | undefined;
   const pans = s?.pans as unknown[] | undefined;
-  const roofPans = (roof as any)?.roofPans as unknown[] | undefined;
+  const roofPans = roof?.roofPans as unknown[] | undefined;
   const ridges = s?.ridges as unknown[] | undefined;
   const traits = s?.traits as unknown[] | undefined;
   const contours = s?.contours as unknown[] | undefined;
-  const scale = (roof as any)?.scale as { metersPerPixel?: number } | undefined;
-  const north = (roof as any)?.roof?.north as { angleDeg?: number } | undefined;
+  const scale = roof?.scale as { metersPerPixel?: number } | undefined;
+  const roofNested = roof?.roof as Record<string, unknown> | undefined;
+  const north = roofNested?.north as { angleDeg?: number } | undefined;
 
-  const w = typeof window !== "undefined" ? (window as any) : {};
+  const w = typeof window !== "undefined" ? (window as unknown as Record<string, unknown>) : {};
 
   console.group("[3D PIPELINE AUDIT] ===== DIAGNOSTIC COMPLET 2D→3D =====");
 
@@ -309,16 +310,20 @@ function dumpPipelineDiagnostics(
   const maxDump = Math.min(srcPans.length, 4);
   for (let i = 0; i < maxDump; i++) {
     const p = srcPans[i] as Record<string, unknown>;
-    const poly = (p?.polygonPx ?? p?.points ?? p?.polygon ?? (p?.contour as any)?.points) as any[];
-    const firstPts = Array.isArray(poly) ? poly.slice(0, 5).map((pt: any) => ({
+    const contourPts = (p?.contour as Record<string, unknown> | undefined)?.points;
+    const poly = (p?.polygonPx ?? p?.points ?? p?.polygon ?? contourPts) as Record<string, unknown>[] | undefined;
+    const firstPts = Array.isArray(poly) ? poly.slice(0, 5).map((pt) => ({
       x: pt?.x, y: pt?.y, h: pt?.h, heightM: pt?.heightM,
     })) : "NO_POLYGON";
+    const physical = p?.physical as Record<string, unknown> | undefined;
+    const slope = physical?.slope as Record<string, unknown> | undefined;
+    const orientation = physical?.orientation as Record<string, unknown> | undefined;
     console.info(`[AUDIT §2] Source pan[${i}] id=${p?.id}`, {
       polyLength: Array.isArray(poly) ? poly.length : 0,
       firstPoints: firstPts,
       hasPhysical: !!p?.physical,
-      tiltDeg: (p?.physical as any)?.slope?.valueDeg,
-      azimuthDeg: (p?.physical as any)?.orientation?.azimuthDeg,
+      tiltDeg: slope?.valueDeg,
+      azimuthDeg: orientation?.azimuthDeg,
     });
   }
 
@@ -425,7 +430,7 @@ function dumpPipelineDiagnostics(
 }
 
 export function buildSolarScene3DFromCalpinageRuntime(
-  runtime: any,
+  runtime: unknown,
   options?: BuildSolarScene3DFromCalpinageRuntimeOptions,
 ): BuildSolarScene3DFromCalpinageRuntimeResult {
   try {

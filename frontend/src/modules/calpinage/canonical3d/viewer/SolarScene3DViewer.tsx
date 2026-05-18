@@ -156,9 +156,9 @@ import {
   type RoofTruthBadgeTone,
 } from "./roofTruthBadges";
 
-/** @react-three/fiber : `gl` / `camera` sur l'événement (types ThreeEvent incomplets selon versions). */
+/** @react-three/fiber : `gl` exposé sur l'événement mais absent des types ThreeEvent — cast explicite documenté. */
 function r3fGl(e: ThreeEvent<PointerEvent | MouseEvent>): THREE.WebGLRenderer {
-  return (e as any).gl;
+  return (e as ThreeEvent<PointerEvent | MouseEvent> & { gl: THREE.WebGLRenderer }).gl;
 }
 
 /** En mode édition sommet toit : laisse le rayon atteindre le maillage toiture (ignore PV / obstacles / extensions). */

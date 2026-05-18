@@ -3,11 +3,12 @@
  * Lecture seule, pas de modification DB.
  */
 
-export function normalizeInverterFamily(inv: any): "MICRO" | "CENTRAL" | null {
-  if (!inv) return null;
-  const fam = inv.inverter_family;
+export function normalizeInverterFamily(inv: unknown): "MICRO" | "CENTRAL" | null {
+  if (!inv || typeof inv !== "object") return null;
+  const rec = inv as Record<string, unknown>;
+  const fam = rec.inverter_family;
   if (fam === "MICRO" || fam === "CENTRAL") return fam;
-  const t = (inv.inverter_type || inv.type || "").toLowerCase();
+  const t = String(rec.inverter_type ?? rec.type ?? "").toLowerCase();
   if (t === "micro") return "MICRO";
   if (t === "string") return "CENTRAL";
   return null;
