@@ -10,9 +10,7 @@ const REFRESH_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 export const REFRESH_TOKEN_COOKIE_NAME = "solarnext_refresh_token";
 const SOLARGLOBE_ORG_SQL = `(
   LOWER(COALESCE(o.name, '')) LIKE '%solarglobe%'
-  OR LOWER(COALESCE(o.legal_name, '')) LIKE '%solarglobe%'
-  OR LOWER(COALESCE(o.trade_name, '')) LIKE '%solarglobe%'
-  OR LOWER(COALESCE(o.email, '')) LIKE '%@solarglobe.fr'
+  OR LOWER(COALESCE(u.email, '')) LIKE '%@solarglobe.fr'
 )`;
 
 export async function hashPassword(password) {

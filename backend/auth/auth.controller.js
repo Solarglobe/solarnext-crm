@@ -53,9 +53,7 @@ const UUID_RE =
 
 const SOLARGLOBE_ORG_SQL = `(
   LOWER(COALESCE(o.name, '')) LIKE '%solarglobe%'
-  OR LOWER(COALESCE(o.legal_name, '')) LIKE '%solarglobe%'
-  OR LOWER(COALESCE(o.trade_name, '')) LIKE '%solarglobe%'
-  OR LOWER(COALESCE(o.email, '')) LIKE '%@solarglobe.fr'
+  OR LOWER(COALESCE(u.email, '')) LIKE '%@solarglobe.fr'
 )`;
 
 function cleanText(value, max = 255) {

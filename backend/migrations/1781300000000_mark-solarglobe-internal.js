@@ -23,9 +23,11 @@ export const up = (pgm) => {
              true
            )
      WHERE LOWER(COALESCE(name, '')) LIKE '%solarglobe%'
-        OR LOWER(COALESCE(legal_name, '')) LIKE '%solarglobe%'
-        OR LOWER(COALESCE(trade_name, '')) LIKE '%solarglobe%'
-        OR LOWER(COALESCE(email, '')) LIKE '%@solarglobe.fr';
+        OR id IN (
+          SELECT organization_id
+            FROM users
+           WHERE LOWER(COALESCE(email, '')) LIKE '%@solarglobe.fr'
+        );
   `);
 };
 

@@ -534,17 +534,11 @@ export async function getOnboarding(req, res) {
       `SELECT id, name,
               CASE
                 WHEN LOWER(COALESCE(name, '')) LIKE '%solarglobe%'
-                  OR LOWER(COALESCE(legal_name, '')) LIKE '%solarglobe%'
-                  OR LOWER(COALESCE(trade_name, '')) LIKE '%solarglobe%'
-                  OR LOWER(COALESCE(email, '')) LIKE '%@solarglobe.fr'
                 THEN true
                 ELSE onboarding_completed
               END AS onboarding_completed,
               CASE
                 WHEN LOWER(COALESCE(name, '')) LIKE '%solarglobe%'
-                  OR LOWER(COALESCE(legal_name, '')) LIKE '%solarglobe%'
-                  OR LOWER(COALESCE(trade_name, '')) LIKE '%solarglobe%'
-                  OR LOWER(COALESCE(email, '')) LIKE '%@solarglobe.fr'
                 THEN ARRAY['company','mail','team','pipeline','lead']::text[]
                 ELSE onboarding_step_completed
               END AS onboarding_step_completed,
