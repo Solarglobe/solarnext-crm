@@ -436,6 +436,7 @@ export interface CreateLeadPayload {
   // Commun
   phone?: string;
   email?: string;
+  address?: string;
 }
 
 export async function createLead(payload: CreateLeadPayload): Promise<Lead> {
@@ -449,6 +450,7 @@ export async function createLead(payload: CreateLeadPayload): Promise<Lead> {
     contact_last_name: isPro ? (payload.contactLastName?.trim() || undefined) : undefined,
     phone: payload.phone?.trim() || undefined,
     email: payload.email?.trim() || undefined,
+    address: payload.address?.trim() || undefined,
   };
   const res = await apiFetch(`${API_BASE}/api/leads`, {
     method: "POST",

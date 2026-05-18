@@ -137,10 +137,10 @@ export default function Login() {
     try {
       const orgId =
         orgChoices && orgChoices.length > 0 ? selectedOrgId || undefined : undefined;
-      await login(email, password, orgId);
+      const session = await login(email, password, orgId);
       setOrgChoices(null);
       setSelectedOrgId("");
-      navigate("/dashboard", { replace: true });
+      navigate(session.user.onboardingCompleted === false ? "/onboarding" : "/dashboard", { replace: true });
     } catch (err) {
       if (err instanceof LoginAmbiguousError) {
         setOrgChoices(err.organizations);

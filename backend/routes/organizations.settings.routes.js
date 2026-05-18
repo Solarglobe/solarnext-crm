@@ -16,6 +16,9 @@ const router = express.Router();
 /** CP-078 — Liste des organisations accessibles (JWT ; pas de RBAC module ici). */
 router.get("/", verifyJWT, controller.listOrganizations);
 
+router.get("/onboarding", verifyJWT, controller.getOnboarding);
+router.patch("/onboarding", verifyJWT, controller.patchOnboarding);
+
 /** SUPER_ADMIN — audit entrée/sortie mode support (exempt enforceSuperAdminWriteAccess). */
 router.post(
   "/super-admin/org-switch-audit",

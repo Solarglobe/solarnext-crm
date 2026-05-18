@@ -31,6 +31,7 @@ import StudyQuoteBuilder from "./pages/studies/StudyQuoteBuilder";
 import StudyCalpinagePage from "./pages/studies/StudyCalpinagePage";
 import ScenariosPage from "./pages/studies/ScenariosPage";
 import DashboardPage from "./pages/DashboardPage";
+import Onboarding from "./pages/Onboarding";
 import LeadsPage from "./pages/LeadsPage";
 import LeadDpPage from "./pages/leads/LeadDpPage";
 import ClientsList from "./pages/ClientsList";
@@ -86,6 +87,14 @@ const router = createBrowserRouter(
       element: <ResetPassword />
     },
     {
+      path: "/onboarding",
+      element: (
+        <ProtectedRoute>
+          <Onboarding />
+        </ProtectedRoute>
+      )
+    },
+    {
       path: "/client-portal/:token",
       element: <ClientPortalPage />
     },
@@ -128,7 +137,6 @@ const router = createBrowserRouter(
       children: [
         { index: true, element: <Navigate to="/dashboard" replace /> },
         { path: "crm", element: <Navigate to="/dashboard" replace /> },
-        { path: "onboarding", element: <DashboardPage /> },
         { path: "dashboard", element: <DashboardPage /> },
         { path: "leads", element: <LeadsPage /> },
         { path: "leads/:id", element: <LeadDetail /> },

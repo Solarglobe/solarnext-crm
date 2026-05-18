@@ -17,6 +17,7 @@ export interface LoginResponse {
     email: string;
     role: string;
     organizationId: string;
+    onboardingCompleted?: boolean;
   };
 }
 

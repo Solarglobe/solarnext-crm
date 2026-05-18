@@ -33,6 +33,8 @@ const FINANCE_DEFAULT = {
   default_vat_rate: 20,
 };
 
+const ONBOARDING_STEPS = new Set(["company", "mail", "team", "pipeline", "lead"]);
+
 function deepMerge(target, source) {
   const out = { ...target };
   for (const key of Object.keys(source)) {
@@ -43,6 +45,97 @@ function deepMerge(target, source) {
     }
   }
   return out;
+}
+
+function cleanText(value, max = 255) {
+  if (value == null) return "";
+  return String(value).trim().slice(0, max);
+}
+
+function cleanObject(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return value;
+}
+
+function cleanStringArray(value, maxItems = 20, maxLength = 255) {
+  if (!Array.isArray(value)) return [];
+  const out = [];
+  for (const item of value) {
+    const text = cleanText(item, maxLength);
+    if (text && !out.includes(text)) out.push(text);
+    if (out.length >= maxItems) break;
+  }
+  return out;
+}
+
+function cleanPipeline(value) {
+  const rows = Array.isArray(value) ? value : [];
+  return rows
+    .map((row, index) => ({
+      id: cleanText(row?.id, 80) || `stage-${index + 1}`,
+      name: cleanText(row?.name, 80),
+    }))
+    .filter((row) => row.name)
+    .slice(0, 10);
+}
+
+function cleanCollaborators(value) {
+  const rows = Array.isArray(value) ? value : [];
+  return rows
+    .map((row) => ({
+      email: cleanText(row?.email, 255).toLowerCase(),
+      role: cleanText(row?.role, 40).toUpperCase(),
+    }))
+    .filter((row) => row.email && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(row.email))
+    .slice(0, 20);
+}
+
+function cleanLeadDraft(value) {
+  const raw = cleanObject(value);
+  return {
+    first_name: cleanText(raw.first_name ?? raw.firstName, 100),
+    last_name: cleanText(raw.last_name ?? raw.lastName, 100),
+    email: cleanText(raw.email, 255),
+    phone: cleanText(raw.phone, 50),
+    address: cleanText(raw.address, 500),
+  };
+}
+
+function buildOnboardingPatch(body) {
+  const raw = cleanObject(body);
+  const patch = {};
+  if (Object.prototype.hasOwnProperty.call(raw, "profile")) {
+    const profile = cleanObject(raw.profile);
+    patch.profile = {
+      name: cleanText(profile.name, 180),
+      address: cleanText(profile.address, 500),
+      siret: cleanText(profile.siret, 20),
+      rge_number: cleanText(profile.rge_number ?? profile.rgeNumber, 100),
+      primary_color: cleanText(profile.primary_color ?? profile.primaryColor, 20),
+      intervention_region: cleanText(profile.intervention_region ?? profile.interventionRegion, 120),
+      logo_name: cleanText(profile.logo_name ?? profile.logoName, 180),
+    };
+  }
+  if (Object.prototype.hasOwnProperty.call(raw, "mail")) {
+    const mail = cleanObject(raw.mail);
+    patch.mail = {
+      mode: cleanText(mail.mode, 40),
+      imap_host: cleanText(mail.imap_host ?? mail.imapHost, 180),
+      smtp_host: cleanText(mail.smtp_host ?? mail.smtpHost, 180),
+      email: cleanText(mail.email, 255),
+      tested: Boolean(mail.tested),
+    };
+  }
+  if (Object.prototype.hasOwnProperty.call(raw, "collaborators")) {
+    patch.collaborators = cleanCollaborators(raw.collaborators);
+  }
+  if (Object.prototype.hasOwnProperty.call(raw, "pipeline")) {
+    patch.pipeline = cleanPipeline(raw.pipeline);
+  }
+  if (Object.prototype.hasOwnProperty.call(raw, "lead")) {
+    patch.lead = cleanLeadDraft(raw.lead);
+  }
+  return patch;
 }
 
 function validateEconomicsPatch(economicsPatch) {
@@ -385,6 +478,108 @@ export async function postSuperAdminOrgSwitchAudit(req, res) {
       organization: { id: row.id, name: row.name },
     });
   } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+}
+
+export async function getOnboarding(req, res) {
+  try {
+    const org = orgId(req);
+    if (!org) return res.status(403).json({ error: "Organisation manquante" });
+    const result = await pool.query(
+      `SELECT id, name, onboarding_completed, onboarding_step_completed, settings_json
+       FROM organizations
+       WHERE id = $1`,
+      [org]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Organisation non trouvee" });
+    }
+    const row = result.rows[0];
+    const settings = row.settings_json ?? {};
+    res.json({
+      completed: Boolean(row.onboarding_completed),
+      completedSteps: row.onboarding_step_completed ?? [],
+      organization: { id: row.id, name: row.name },
+      data: settings.onboarding ?? {},
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+}
+
+export async function patchOnboarding(req, res) {
+  try {
+    const org = orgId(req);
+    if (!org) return res.status(403).json({ error: "Organisation manquante" });
+
+    const body = cleanObject(req.body);
+    const completedSteps = cleanStringArray(body.completedSteps, 5, 40)
+      .filter((step) => ONBOARDING_STEPS.has(step));
+    const activeStep = cleanText(body.activeStep, 40);
+    const completed = Boolean(body.completed);
+    const dataPatch = buildOnboardingPatch(body.data ?? {});
+
+    let responseRow;
+    await withTx(pool, async (client) => {
+      const current = await client.query(
+        `SELECT settings_json FROM organizations WHERE id = $1 FOR UPDATE`,
+        [org]
+      );
+      if (current.rows.length === 0) {
+        const err = new Error("Organisation non trouvee");
+        err.statusCode = 404;
+        throw err;
+      }
+
+      const settings = current.rows[0].settings_json ?? {};
+      const onboarding = cleanObject(settings.onboarding);
+      const mergedOnboarding = {
+        ...onboarding,
+        ...dataPatch,
+        active_step: ONBOARDING_STEPS.has(activeStep) ? activeStep : onboarding.active_step,
+        updated_at: new Date().toISOString(),
+      };
+      if (completed) mergedOnboarding.completed_at = new Date().toISOString();
+
+      const nextSettings = {
+        ...settings,
+        onboarding: mergedOnboarding,
+      };
+
+      const update = await client.query(
+        `UPDATE organizations
+         SET onboarding_completed = CASE WHEN $2 THEN true ELSE onboarding_completed END,
+             onboarding_step_completed = $3::text[],
+             settings_json = $4::jsonb
+         WHERE id = $1
+         RETURNING id, name, onboarding_completed, onboarding_step_completed, settings_json`,
+        [org, completed, completedSteps, JSON.stringify(nextSettings)]
+      );
+      responseRow = update.rows[0];
+    });
+
+    void logAuditEvent({
+      action: AuditActions.ORG_SETTINGS_UPDATED,
+      entityType: "organization_onboarding",
+      entityId: org,
+      organizationId: org,
+      userId: userId(req),
+      req,
+      statusCode: 200,
+      metadata: { completed, completed_steps: completedSteps },
+    });
+
+    res.json({
+      completed: Boolean(responseRow.onboarding_completed),
+      completedSteps: responseRow.onboarding_step_completed ?? [],
+      organization: { id: responseRow.id, name: responseRow.name },
+      data: responseRow.settings_json?.onboarding ?? {},
+    });
+  } catch (e) {
+    if (e && e.statusCode === 404) {
+      return res.status(404).json({ error: e.message });
+    }
     res.status(500).json({ error: e.message });
   }
 }

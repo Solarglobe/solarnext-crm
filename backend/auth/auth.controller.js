@@ -79,7 +79,8 @@ export async function login(req, res) {
     const result = await client.query(
       `SELECT u.id, u.email, u.organization_id, u.password_hash,
               COALESCE(u.email_verified, false) AS email_verified,
-              o.name AS organization_name
+              o.name AS organization_name,
+              COALESCE(o.onboarding_completed, false) AS onboarding_completed
        FROM users u
        LEFT JOIN organizations o ON o.id = u.organization_id
        WHERE LOWER(TRIM(u.email)) = $1 AND u.status = 'active'
@@ -223,6 +224,7 @@ export async function login(req, res) {
         role: user.role,
         organizationId: user.organization_id,
         emailVerified: user.email_verified === true,
+        onboardingCompleted: user.onboarding_completed === true,
       }
     });
   } catch (err) {
@@ -429,6 +431,7 @@ export async function register(req, res) {
         role: "ADMIN",
         organizationId: org.id,
         emailVerified: false,
+        onboardingCompleted: false,
         firstName,
         lastName,
       },
