@@ -8,6 +8,7 @@ import styles from "./Phase2Sidebar.module.css";
 import { usePhase2Data, setupPhase2SidebarNotify } from "../hooks/usePhase2Data";
 import Phase2ObstaclePanel from "./Phase2ObstaclePanel";
 import { useToast } from "../ui/useToast";
+import { onQuasiVerticalError } from "../roofModelV1/placement/placementSlopeGuard";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers module-level (pas de dépendance React)
@@ -426,6 +427,8 @@ function Phase2PansBlock() {
 }
 
 export default function Phase2Sidebar() {
+  const toast = useToast();
+
   useEffect(() => {
     const previous = (window as any).notifyPhase2SidebarUpdate;
     const fn = setupPhase2SidebarNotify();
@@ -436,6 +439,15 @@ export default function Phase2Sidebar() {
       }
     };
   }, []);
+
+  // ── Alerte pan quasi-vertical ──────────────────────────────────────────────
+  // Le moteur de placement lève QUASI_VERTICAL_FACE quand slope > CALPINAGE_CONFIG.maxSlopeDeg.
+  // On subscribe ici pour afficher le toast sans coupler le moteur à React.
+  useEffect(() => {
+    return onQuasiVerticalError((slopeDeg) => {
+      toast.error(`Pan quasi-vertical (${slopeDeg.toFixed(1)}°) — placement impossible`);
+    });
+  }, [toast]);
 
   return (
     <aside className={styles.sidebar}>
