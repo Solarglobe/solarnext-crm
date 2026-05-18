@@ -23,17 +23,26 @@ import {
   createPanel,
   updatePanel,
   togglePanelActive,
+  importPanels,
   listInverters,
   createInverter,
   updateInverter,
   toggleInverterActive,
+  importInverters,
   listBatteries,
   createBattery,
   updateBattery,
   toggleBatteryActive,
+  importBatteries,
+  listMountingSystems,
+  createMountingSystem,
+  updateMountingSystem,
+  toggleMountingSystemActive,
+  importMountingSystems,
   type PvPanel,
   type PvInverter,
   type PvBattery,
+  type PvMountingSystem,
 } from "../api/pvCatalogApi";
 
 /** Brouillon pour duplication catalogue batteries — POST création, sans identifiants serveur. */
@@ -61,13 +70,14 @@ function IconCopySmall() {
 }
 
 /** Onglets paramètres PV — ids stables pour SaasTabs */
-type PvSettingsTabId = "economie" | "panneaux" | "onduleurs" | "batteries" | "virtuelles";
+type PvSettingsTabId = "economie" | "panneaux" | "onduleurs" | "batteries" | "fixations" | "virtuelles";
 
 const PV_TAB_ITEMS: { id: PvSettingsTabId; label: string }[] = [
   { id: "economie", label: "Économie" },
   { id: "panneaux", label: "Panneaux" },
   { id: "onduleurs", label: "Micro/Onduleurs" },
   { id: "batteries", label: "Batteries" },
+  { id: "fixations", label: "Fixations" },
   { id: "virtuelles", label: "Batteries virtuelles" },
 ];
 
@@ -131,6 +141,7 @@ export default function PvSettingsPage() {
   const [invertersCentral, setInvertersCentral] = useState<PvInverter[]>([]);
   const [invertersMicro, setInvertersMicro] = useState<PvInverter[]>([]);
   const [batteries, setBatteries] = useState<PvBattery[]>([]);
+  const [mountingSystems, setMountingSystems] = useState<PvMountingSystem[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [editingPanel, setEditingPanel] = useState<PvPanel | null>(null);
   const [panelModalOpen, setPanelModalOpen] = useState(false);
@@ -140,6 +151,8 @@ export default function PvSettingsPage() {
   const [editingBattery, setEditingBattery] = useState<PvBattery | null>(null);
   const [batteryModalInitialData, setBatteryModalInitialData] = useState<Partial<PvBattery> | null>(null);
   const [batteryModalOpen, setBatteryModalOpen] = useState(false);
+  const [editingMounting, setEditingMounting] = useState<PvMountingSystem | null>(null);
+  const [mountingModalOpen, setMountingModalOpen] = useState(false);
   const [catalogSaveError, setCatalogSaveError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -159,16 +172,18 @@ export default function PvSettingsPage() {
   const loadCatalogs = useCallback(async () => {
     setCatalogLoading(true);
     try {
-      const [p, iCentral, iMicro, b] = await Promise.all([
+      const [p, iCentral, iMicro, b, m] = await Promise.all([
         listPanels(),
         listInverters("CENTRAL"),
         listInverters("MICRO"),
         listBatteries(),
+        listMountingSystems(),
       ]);
       setPanels(p);
       setInvertersCentral(iCentral);
       setInvertersMicro(iMicro);
       setBatteries(b);
+      setMountingSystems(m);
     } catch {
       // ignore
     } finally {
@@ -282,6 +297,23 @@ export default function PvSettingsPage() {
       setBatteryModalOpen(false);
       setEditingBattery(null);
       setBatteryModalInitialData(null);
+      loadCatalogs();
+    } catch (e) {
+      setCatalogSaveError((e as Error).message);
+      showToast((e as Error).message, "error");
+    }
+  };
+
+  const handleMountingSave = async (mounting: Partial<PvMountingSystem>) => {
+    setCatalogSaveError(null);
+    try {
+      if (editingMounting) {
+        await updateMountingSystem(editingMounting.id, mounting);
+      } else {
+        await createMountingSystem(mounting);
+      }
+      setMountingModalOpen(false);
+      setEditingMounting(null);
       loadCatalogs();
     } catch (e) {
       setCatalogSaveError((e as Error).message);
@@ -513,6 +545,8 @@ export default function PvSettingsPage() {
           onAdd={() => { setEditingPanel(null); setPanelModalOpen(true); }}
           onEdit={(p) => { setEditingPanel(p); setPanelModalOpen(true); }}
           onToggle={async (p) => { await togglePanelActive(p); loadCatalogs(); }}
+          onFavorite={async (p) => { await updatePanel(p.id, { is_favorite: !p.is_favorite }); loadCatalogs(); }}
+          onImport={async (rows) => { const r = await importPanels(rows as Partial<PvPanel>[]); await loadCatalogs(); showToast(`${r.results.length} ligne(s) importee(s)`); }}
           onBulkActiveChange={async (ids, active) => {
             const results = await Promise.allSettled(ids.map((id) => updatePanel(id, { active })));
             const ok = results.filter((r) => r.status === "fulfilled").length;
@@ -533,6 +567,8 @@ export default function PvSettingsPage() {
           onAddMicro={() => { setEditingInverter(null); setInverterDefaultFamily("MICRO"); setInverterModalOpen(true); }}
           onEdit={(i) => { setEditingInverter(i); setInverterModalOpen(true); }}
           onToggle={async (i) => { await toggleInverterActive(i); loadCatalogs(); }}
+          onFavorite={async (i) => { await updateInverter(i.id, { is_favorite: !i.is_favorite }); loadCatalogs(); }}
+          onImport={async (rows) => { const r = await importInverters(rows as Partial<PvInverter>[]); await loadCatalogs(); showToast(`${r.results.length} ligne(s) importee(s)`); }}
           onBulkActiveChange={async (ids, active) => {
             const results = await Promise.allSettled(ids.map((id) => updateInverter(id, { active })));
             const ok = results.filter((r) => r.status === "fulfilled").length;
@@ -552,6 +588,8 @@ export default function PvSettingsPage() {
           onEdit={(b) => { setEditingBattery(b); setBatteryModalInitialData(null); setBatteryModalOpen(true); }}
           onDuplicate={handleDuplicateBattery}
           onToggle={async (b) => { await toggleBatteryActive(b); loadCatalogs(); }}
+          onFavorite={async (b) => { await updateBattery(b.id, { is_favorite: !b.is_favorite }); loadCatalogs(); }}
+          onImport={async (rows) => { const r = await importBatteries(rows as Partial<PvBattery>[]); await loadCatalogs(); showToast(`${r.results.length} ligne(s) importee(s)`); }}
           onBulkActiveChange={async (ids, active) => {
             const results = await Promise.allSettled(ids.map((id) => updateBattery(id, { active })));
             const ok = results.filter((r) => r.status === "fulfilled").length;
@@ -561,6 +599,20 @@ export default function PvSettingsPage() {
             else showToast(`${ok} batterie(s) ${active ? "activée(s)" : "désactivée(s)"}`);
           }}
         />
+        </div>
+      )}
+
+      {pvTab === "fixations" && (
+        <div className="pv-cat-page">
+          <CatalogMountingTab
+            mountingSystems={mountingSystems}
+            loading={catalogLoading}
+            onAdd={() => { setEditingMounting(null); setMountingModalOpen(true); }}
+            onEdit={(m) => { setEditingMounting(m); setMountingModalOpen(true); }}
+            onToggle={async (m) => { await toggleMountingSystemActive(m); loadCatalogs(); }}
+            onFavorite={async (m) => { await updateMountingSystem(m.id, { is_favorite: !m.is_favorite }); loadCatalogs(); }}
+            onImport={async (rows) => { const r = await importMountingSystems(rows as Partial<PvMountingSystem>[]); await loadCatalogs(); showToast(`${r.results.length} ligne(s) importee(s)`); }}
+          />
         </div>
       )}
 
@@ -600,7 +652,66 @@ export default function PvSettingsPage() {
           saveError={catalogSaveError}
         />
       )}
+      {mountingModalOpen && (
+        <PvMountingModal
+          mounting={editingMounting}
+          onSave={handleMountingSave}
+          onClose={() => { setMountingModalOpen(false); setEditingMounting(null); setCatalogSaveError(null); }}
+          saveError={catalogSaveError}
+        />
+      )}
     </div>
+  );
+}
+
+function ProductThumb({ src, label }: { src?: string | null; label: string }) {
+  if (!src) return <span className="pv-cat-thumb pv-cat-thumb--empty" aria-hidden />;
+  return <img className="pv-cat-thumb" src={src} alt={label} loading="lazy" />;
+}
+
+function parseCatalogCsv(text: string): Record<string, unknown>[] {
+  const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  if (lines.length < 2) return [];
+  const separator = lines[0].includes(";") ? ";" : ",";
+  const headers = lines[0].split(separator).map((h) => h.trim());
+  return lines.slice(1).map((line) => {
+    const cells = line.split(separator);
+    const row: Record<string, unknown> = {};
+    headers.forEach((header, index) => {
+      const value = (cells[index] ?? "").trim();
+      if (value === "") return;
+      const numeric = Number(value.replace(",", "."));
+      row[header] = Number.isFinite(numeric) && /^-?\d+([,.]\d+)?$/.test(value) ? numeric : value;
+    });
+    return row;
+  });
+}
+
+function CatalogImportButton({
+  label,
+  onImport,
+}: {
+  label: string;
+  onImport: (rows: Record<string, unknown>[]) => Promise<void>;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  return (
+    <>
+      <input
+        ref={inputRef}
+        type="file"
+        accept=".csv,.txt"
+        style={{ display: "none" }}
+        onChange={async (event) => {
+          const file = event.target.files?.[0];
+          if (!file) return;
+          const rows = parseCatalogCsv(await file.text());
+          await onImport(rows);
+          event.target.value = "";
+        }}
+      />
+      <Button variant="secondary" size="sm" onClick={() => inputRef.current?.click()}>{label}</Button>
+    </>
   );
 }
 
@@ -610,6 +721,8 @@ function CatalogPanelsTab({
   onAdd,
   onEdit,
   onToggle,
+  onFavorite,
+  onImport,
   onBulkActiveChange,
 }: {
   panels: PvPanel[];
@@ -617,6 +730,8 @@ function CatalogPanelsTab({
   onAdd: () => void;
   onEdit: (p: PvPanel) => void;
   onToggle: (p: PvPanel) => void;
+  onFavorite: (p: PvPanel) => void;
+  onImport: (rows: Record<string, unknown>[]) => Promise<void>;
   onBulkActiveChange: (ids: string[], active: boolean) => Promise<void>;
 }) {
   const [search, setSearch] = useState("");
@@ -631,7 +746,7 @@ function CatalogPanelsTab({
     const matchBrand = !brandFilter || p.brand === brandFilter;
     const matchActive = !activeOnly || p.active;
     return matchSearch && matchBrand && matchActive;
-  });
+  }).sort((a, b) => Number(b.is_favorite ?? false) - Number(a.is_favorite ?? false));
 
   const visibleIds = new Set(filtered.map((p) => p.id));
   const selectedOnPage = [...selectedIds].filter((id) => visibleIds.has(id));
@@ -671,7 +786,10 @@ function CatalogPanelsTab({
     <section className="sn-saas-form-section">
       <div className="sn-saas-form-section__head">
         <h2 className="sn-saas-form-section__title">Catalogue panneaux</h2>
-        <Button variant="primary" size="sm" onClick={onAdd}>+ Ajouter</Button>
+        <div className="pv-cat-head-actions">
+          <CatalogImportButton label="Importer CSV" onImport={onImport} />
+          <Button variant="primary" size="sm" onClick={onAdd}>+ Ajouter</Button>
+        </div>
       </div>
       <p className="pv-eco-hint" style={{ marginTop: -6, marginBottom: 12 }}>Filtrez par marque ou texte, puis activez ou éditez les références.</p>
       <div className="pv-cat-toolbar">
@@ -743,6 +861,7 @@ function CatalogPanelsTab({
                   <td className="pv-cat-table__td--right">
                     <div className="pv-cat-row-actions">
                       <Button variant="ghost" size="sm" onClick={() => onToggle(p)}>{p.active ? "Désact." : "Activer"}</Button>
+                      <Button variant="ghost" size="sm" onClick={() => onFavorite(p)}>{p.is_favorite ? "Favori" : "Favori +"}</Button>
                       <Button variant="ghost" size="sm" onClick={() => onEdit(p)}>Modifier</Button>
                     </div>
                   </td>
@@ -762,6 +881,8 @@ function InverterBlock({
   onAdd,
   onEdit,
   onToggle,
+  onFavorite,
+  onImport,
   onBulkActiveChange,
   addButtonVariant = "primary",
 }: {
@@ -770,6 +891,8 @@ function InverterBlock({
   onAdd: () => void;
   onEdit: (i: PvInverter) => void;
   onToggle: (i: PvInverter) => void;
+  onFavorite: (i: PvInverter) => void;
+  onImport: (rows: Record<string, unknown>[]) => Promise<void>;
   onBulkActiveChange: (ids: string[], active: boolean) => Promise<void>;
   /** Une seule action primaire par écran : le second bloc catalogue passe en secondary. */
   addButtonVariant?: "primary" | "secondary";
@@ -786,7 +909,7 @@ function InverterBlock({
     const matchBrand = !brandFilter || i.brand === brandFilter;
     const matchActive = !activeOnly || i.active;
     return matchSearch && matchBrand && matchActive;
-  });
+  }).sort((a, b) => Number(b.is_favorite ?? false) - Number(a.is_favorite ?? false));
 
   const visibleIds = new Set(filtered.map((i) => i.id));
   const selectedOnPage = [...selectedIds].filter((id) => visibleIds.has(id));
@@ -825,7 +948,10 @@ function InverterBlock({
     <section className="sn-saas-form-section">
       <div className="sn-saas-form-section__head">
         <h2 className="sn-saas-form-section__title">{title}</h2>
-        <Button variant={addButtonVariant} size="sm" onClick={onAdd}>+ Ajouter</Button>
+        <div className="pv-cat-head-actions">
+          <CatalogImportButton label="Importer CSV" onImport={onImport} />
+          <Button variant={addButtonVariant} size="sm" onClick={onAdd}>+ Ajouter</Button>
+        </div>
       </div>
       <div className="pv-cat-toolbar">
         <input
@@ -896,6 +1022,7 @@ function InverterBlock({
                   <td className="pv-cat-table__td--right">
                     <div className="pv-cat-row-actions">
                       <Button variant="ghost" size="sm" onClick={() => onToggle(i)}>{i.active ? "Désact." : "Activer"}</Button>
+                      <Button variant="ghost" size="sm" onClick={() => onFavorite(i)}>{i.is_favorite ? "Favori" : "Favori +"}</Button>
                       <Button variant="ghost" size="sm" onClick={() => onEdit(i)}>Modifier</Button>
                     </div>
                   </td>
@@ -917,6 +1044,8 @@ function CatalogInvertersTab({
   onAddMicro,
   onEdit,
   onToggle,
+  onFavorite,
+  onImport,
   onBulkActiveChange,
 }: {
   invertersCentral: PvInverter[];
@@ -926,6 +1055,8 @@ function CatalogInvertersTab({
   onAddMicro: () => void;
   onEdit: (i: PvInverter) => void;
   onToggle: (i: PvInverter) => void;
+  onFavorite: (i: PvInverter) => void;
+  onImport: (rows: Record<string, unknown>[]) => Promise<void>;
   onBulkActiveChange: (ids: string[], active: boolean) => Promise<void>;
 }) {
   if (loading) return <div className="pv-cat-empty">Chargement…</div>;
@@ -937,6 +1068,8 @@ function CatalogInvertersTab({
         onAdd={onAddMicro}
         onEdit={onEdit}
         onToggle={onToggle}
+        onFavorite={onFavorite}
+        onImport={onImport}
         onBulkActiveChange={onBulkActiveChange}
         addButtonVariant="primary"
       />
@@ -947,6 +1080,8 @@ function CatalogInvertersTab({
           onAdd={onAddCentral}
           onEdit={onEdit}
           onToggle={onToggle}
+          onFavorite={onFavorite}
+          onImport={onImport}
           onBulkActiveChange={onBulkActiveChange}
           addButtonVariant="secondary"
         />
@@ -962,6 +1097,8 @@ function CatalogBatteriesTab({
   onEdit,
   onDuplicate,
   onToggle,
+  onFavorite,
+  onImport,
   onBulkActiveChange,
 }: {
   batteries: PvBattery[];
@@ -970,6 +1107,8 @@ function CatalogBatteriesTab({
   onEdit: (b: PvBattery) => void;
   onDuplicate: (b: PvBattery) => void;
   onToggle: (b: PvBattery) => void;
+  onFavorite: (b: PvBattery) => void;
+  onImport: (rows: Record<string, unknown>[]) => Promise<void>;
   onBulkActiveChange: (ids: string[], active: boolean) => Promise<void>;
 }) {
   const [search, setSearch] = useState("");
@@ -984,7 +1123,7 @@ function CatalogBatteriesTab({
     const matchBrand = !brandFilter || b.brand === brandFilter;
     const matchActive = !activeOnly || b.active;
     return matchSearch && matchBrand && matchActive;
-  });
+  }).sort((a, b) => Number(b.is_favorite ?? false) - Number(a.is_favorite ?? false));
 
   const visibleIds = new Set(filtered.map((b) => b.id));
   const selectedOnPage = [...selectedIds].filter((id) => visibleIds.has(id));
@@ -1024,7 +1163,10 @@ function CatalogBatteriesTab({
     <section className="sn-saas-form-section">
       <div className="sn-saas-form-section__head">
         <h2 className="sn-saas-form-section__title">Catalogue batteries</h2>
-        <Button variant="primary" size="sm" onClick={onAdd}>+ Ajouter</Button>
+        <div className="pv-cat-head-actions">
+          <CatalogImportButton label="Importer CSV" onImport={onImport} />
+          <Button variant="primary" size="sm" onClick={onAdd}>+ Ajouter</Button>
+        </div>
       </div>
       <p className="pv-eco-hint" style={{ marginTop: -6, marginBottom: 12 }}>Prix catalogue et achat optionnel pour le suivi de marge.</p>
       <div className="pv-cat-toolbar">
@@ -1098,6 +1240,7 @@ function CatalogBatteriesTab({
                   <td className="pv-cat-table__td--right">
                     <div className="pv-cat-row-actions">
                       <Button variant="ghost" size="sm" onClick={() => onToggle(b)}>{b.active ? "Désact." : "Activer"}</Button>
+                      <Button variant="ghost" size="sm" onClick={() => onFavorite(b)}>{b.is_favorite ? "Favori" : "Favori +"}</Button>
                       <Button variant="ghost" size="sm" onClick={() => onEdit(b)}>Modifier</Button>
                       <Button
                         variant="ghost"
@@ -1114,6 +1257,90 @@ function CatalogBatteriesTab({
                 </tr>
               ))
             )}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function CatalogMountingTab({
+  mountingSystems,
+  loading,
+  onAdd,
+  onEdit,
+  onToggle,
+  onFavorite,
+  onImport,
+}: {
+  mountingSystems: PvMountingSystem[];
+  loading: boolean;
+  onAdd: () => void;
+  onEdit: (m: PvMountingSystem) => void;
+  onToggle: (m: PvMountingSystem) => void;
+  onFavorite: (m: PvMountingSystem) => void;
+  onImport: (rows: Record<string, unknown>[]) => Promise<void>;
+}) {
+  const [search, setSearch] = useState("");
+  const [activeOnly, setActiveOnly] = useState(false);
+  const filtered = mountingSystems
+    .filter((m) => {
+      const text = [m.brand, m.model_ref, m.name, m.mounting_type, ...(m.roof_compatibility ?? [])].join(" ").toLowerCase();
+      return (!search || text.includes(search.toLowerCase())) && (!activeOnly || m.active);
+    })
+    .sort((a, b) => Number(b.is_favorite ?? false) - Number(a.is_favorite ?? false));
+
+  if (loading) return <div className="pv-cat-empty">Chargement...</div>;
+  return (
+    <section className="sn-saas-form-section">
+      <div className="sn-saas-form-section__head">
+        <h2 className="sn-saas-form-section__title">Catalogue fixations</h2>
+        <div className="pv-cat-head-actions">
+          <CatalogImportButton label="Importer CSV" onImport={onImport} />
+          <Button variant="primary" size="sm" onClick={onAdd}>+ Ajouter</Button>
+        </div>
+      </div>
+      <p className="pv-eco-hint" style={{ marginTop: -6, marginBottom: 12 }}>Fixations globales sans prix, avec compatibilite toiture et sources fabricant.</p>
+      <div className="pv-cat-toolbar">
+        <input type="text" placeholder="Recherche..." value={search} onChange={(e) => setSearch(e.target.value)} className="pv-cat-filter" />
+        <label className="pv-cat-check">
+          <input type="checkbox" checked={activeOnly} onChange={(e) => setActiveOnly(e.target.checked)} />
+          Actifs seulement
+        </label>
+      </div>
+      <div className="pv-cat-table-wrap">
+        <table className="sn-ui-table sn-ui-table--editable pv-cat-table">
+          <thead>
+            <tr>
+              <th scope="col">Marque</th>
+              <th scope="col">Photo</th>
+              <th scope="col">Modele</th>
+              <th scope="col">Type</th>
+              <th scope="col">Toitures</th>
+              <th scope="col">Statut</th>
+              <th className="pv-cat-table__th--right" scope="col">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.length === 0 ? (
+              <tr><td colSpan={7}><p className="pv-cat-empty">Aucune fixation.</p></td></tr>
+            ) : filtered.map((m) => (
+              <tr key={m.id}>
+                <td>{m.brand}</td>
+                <td><ProductThumb src={m.image_url} label={`${m.brand} ${m.model_ref}`} /></td>
+                <td>{m.model_ref}</td>
+                <td>{m.mounting_type}</td>
+                <td>{(m.roof_compatibility ?? []).join(", ") || "-"}</td>
+                <td><span className={m.active ? "sn-badge sn-badge-success" : "sn-badge sn-badge-neutral"}>{m.active ? "Actif" : "Inactif"}</span></td>
+                <td className="pv-cat-table__td--right">
+                  <div className="pv-cat-row-actions">
+                    <Button variant="ghost" size="sm" onClick={() => onToggle(m)}>{m.active ? "Desact." : "Activer"}</Button>
+                    <Button variant="ghost" size="sm" onClick={() => onFavorite(m)}>{m.is_favorite ? "Favori" : "Favori +"}</Button>
+                    <Button variant="ghost" size="sm" onClick={() => onEdit(m)}>Modifier</Button>
+                  </div>
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
@@ -1209,7 +1436,20 @@ function PvPanelModal({ panel, onSave, onClose, saveError }: { panel: PvPanel | 
             <Field label="Poids (kg)"><input type="number" step={0.01} value={form.weight_kg ?? ""} onChange={(e) => setForm({ ...form, weight_kg: e.target.value ? Number(e.target.value) : undefined })} className="qc-modal-input" /></Field>
             <Field label="Garantie produit (ans)"><input type="number" value={form.warranty_product_years ?? ""} onChange={(e) => setForm({ ...form, warranty_product_years: e.target.value ? Number(e.target.value) : undefined })} className="qc-modal-input" /></Field>
             <Field label="Garantie perf. (ans)"><input type="number" value={form.warranty_performance_years ?? ""} onChange={(e) => setForm({ ...form, warranty_performance_years: e.target.value ? Number(e.target.value) : undefined })} className="qc-modal-input" /></Field>
+            <Field label="Certificat IEC"><input type="text" value={form.certificate_iec ?? ""} onChange={(e) => setForm({ ...form, certificate_iec: e.target.value })} className="qc-modal-input" placeholder="IEC 61215 / IEC 61730" /></Field>
+            <Field label="Compatible shading"><label className="pv-cat-check"><input type="checkbox" checked={form.shading_compatible !== false} onChange={(e) => setForm({ ...form, shading_compatible: e.target.checked })} /> Oui</label></Field>
+            <Field label="Statut"><select value={form.status ?? "active"} onChange={(e) => setForm({ ...form, status: e.target.value as PvPanel["status"] })} className="qc-modal-input"><option value="active">Actif</option><option value="out_of_stock">En rupture</option><option value="discontinued">Arrete</option></select></Field>
+            <Field label="Favori"><label className="pv-cat-check"><input type="checkbox" checked={form.is_favorite ?? false} onChange={(e) => setForm({ ...form, is_favorite: e.target.checked })} /> Remonter en premier</label></Field>
             <Field label="Actif"><label className="pv-cat-check"><input type="checkbox" checked={form.active !== false} onChange={(e) => setForm({ ...form, active: e.target.checked })} /> Catalogue actif</label></Field>
+          </div>
+        </div>
+        <div className="qc-modal-section">
+          <h3 className="qc-modal-section__title">Source &amp; media</h3>
+          <div className="qc-modal-field-grid qc-modal-field-grid--2">
+            <Field label="Source"><input type="text" value={form.source_name ?? ""} onChange={(e) => setForm({ ...form, source_name: e.target.value })} className="qc-modal-input" /></Field>
+            <Field label="URL source"><input type="url" value={form.source_url ?? ""} onChange={(e) => setForm({ ...form, source_url: e.target.value })} className="qc-modal-input" /></Field>
+            <Field label="Datasheet URL"><input type="url" value={form.datasheet_url ?? ""} onChange={(e) => setForm({ ...form, datasheet_url: e.target.value })} className="qc-modal-input" /></Field>
+            <Field label="Image URL"><input type="url" value={form.image_url ?? ""} onChange={(e) => setForm({ ...form, image_url: e.target.value })} className="qc-modal-input" /></Field>
           </div>
         </div>
       </form>
@@ -1315,8 +1555,20 @@ function PvInverterModal({ inverter, defaultFamily, onSave, onClose, saveError }
           <div className="qc-modal-field-grid qc-modal-field-grid--2">
             <Field label="Max input current (A)"><input type="number" step={0.01} value={form.max_input_current_a ?? ""} onChange={(e) => setForm({ ...form, max_input_current_a: e.target.value ? Number(e.target.value) : undefined })} className="qc-modal-input" /></Field>
             <Field label="Max DC power (kW)"><input type="number" step={0.01} value={form.max_dc_power_kw ?? ""} onChange={(e) => setForm({ ...form, max_dc_power_kw: e.target.value ? Number(e.target.value) : undefined })} className="qc-modal-input" /></Field>
+            <Field label="Monitoring integre"><label className="pv-cat-check"><input type="checkbox" checked={form.monitoring_integrated ?? false} onChange={(e) => setForm({ ...form, monitoring_integrated: e.target.checked })} /> Oui</label></Field>
             <Field label="Compatible batterie"><label className="pv-cat-check"><input type="checkbox" checked={form.compatible_battery ?? false} onChange={(e) => setForm({ ...form, compatible_battery: e.target.checked })} /> Oui</label></Field>
+            <Field label="Statut"><select value={form.status ?? "active"} onChange={(e) => setForm({ ...form, status: e.target.value as PvInverter["status"] })} className="qc-modal-input"><option value="active">Actif</option><option value="out_of_stock">En rupture</option><option value="discontinued">Arrete</option></select></Field>
+            <Field label="Favori"><label className="pv-cat-check"><input type="checkbox" checked={form.is_favorite ?? false} onChange={(e) => setForm({ ...form, is_favorite: e.target.checked })} /> Remonter en premier</label></Field>
             <Field label="Actif"><label className="pv-cat-check"><input type="checkbox" checked={form.active !== false} onChange={(e) => setForm({ ...form, active: e.target.checked })} /> Catalogue actif</label></Field>
+          </div>
+        </div>
+        <div className="qc-modal-section">
+          <h3 className="qc-modal-section__title">Source &amp; media</h3>
+          <div className="qc-modal-field-grid qc-modal-field-grid--2">
+            <Field label="Source"><input type="text" value={form.source_name ?? ""} onChange={(e) => setForm({ ...form, source_name: e.target.value })} className="qc-modal-input" /></Field>
+            <Field label="URL source"><input type="url" value={form.source_url ?? ""} onChange={(e) => setForm({ ...form, source_url: e.target.value })} className="qc-modal-input" /></Field>
+            <Field label="Datasheet URL"><input type="url" value={form.datasheet_url ?? ""} onChange={(e) => setForm({ ...form, datasheet_url: e.target.value })} className="qc-modal-input" /></Field>
+            <Field label="Image URL"><input type="url" value={form.image_url ?? ""} onChange={(e) => setForm({ ...form, image_url: e.target.value })} className="qc-modal-input" /></Field>
           </div>
         </div>
       </form>
@@ -1465,6 +1717,91 @@ function PvBatteryModal({
             <Field label="Décharge max système (kW)" sublabel="Cap global décharge, indépendant de qty.">
               <input type="number" step={0.01} min={0} value={form.max_system_discharge_kw ?? ""} onChange={(e) => setForm({ ...form, max_system_discharge_kw: e.target.value ? Number(e.target.value) : null })} className="qc-modal-input" placeholder="ex. 5 (Huawei LUNA)" />
             </Field>
+            <Field label="Actif"><label className="pv-cat-check"><input type="checkbox" checked={form.active !== false} onChange={(e) => setForm({ ...form, active: e.target.checked })} /> Catalogue actif</label></Field>
+          </div>
+        </div>
+      </form>
+    </ModalShell>
+  );
+}
+
+const PV_MOUNTING_FORM_ID = "pv-catalog-mounting-form";
+
+function PvMountingModal({
+  mounting,
+  onSave,
+  onClose,
+  saveError,
+}: {
+  mounting: PvMountingSystem | null;
+  onSave: (m: Partial<PvMountingSystem>) => void;
+  onClose: () => void;
+  saveError?: string | null;
+}) {
+  const [form, setForm] = useState<Partial<PvMountingSystem>>(() =>
+    mounting ? { ...mounting } : { name: "", brand: "", model_ref: "", mounting_type: "surimposition", roof_compatibility: [], active: true, status: "active" }
+  );
+
+  useEffect(() => {
+    setForm(mounting ? { ...mounting } : { name: "", brand: "", model_ref: "", mounting_type: "surimposition", roof_compatibility: [], active: true, status: "active" });
+  }, [mounting]);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const roofText = Array.isArray(form.roof_compatibility) ? form.roof_compatibility.join(",") : "";
+    const payload = {
+      ...form,
+      name: (form.name ?? "").trim() || `${form.brand ?? ""} ${form.model_ref ?? ""}`.trim(),
+      brand: (form.brand ?? "").trim(),
+      model_ref: (form.model_ref ?? "").trim(),
+      roof_compatibility: roofText.split(",").map((v) => v.trim()).filter(Boolean),
+    };
+    if (!payload.brand || !payload.model_ref || !payload.mounting_type) return;
+    onSave(payload);
+  };
+
+  return (
+    <ModalShell
+      open
+      onClose={onClose}
+      size="lg"
+      panelClassName="qc-modal-panel"
+      bodyClassName="qc-modal-shell-body"
+      title={mounting ? "Modifier la fixation" : "Ajouter une fixation"}
+      subtitle="Catalogue global sans prix, alimente par sources fabricant."
+      footer={
+        <>
+          <Button type="button" variant="secondary" onClick={onClose}>Annuler</Button>
+          <Button type="submit" variant="primary" form={PV_MOUNTING_FORM_ID}>Enregistrer</Button>
+        </>
+      }
+    >
+      {saveError ? <div style={alertErrorStyle} role="alert">{saveError}</div> : null}
+      <form id={PV_MOUNTING_FORM_ID} className="qc-modal-form" onSubmit={handleSubmit}>
+        <div className="qc-modal-section">
+          <h3 className="qc-modal-section__title">Identite</h3>
+          <div className="qc-modal-field-grid qc-modal-field-grid--2">
+            <Field label="Marque *"><input type="text" value={form.brand ?? ""} onChange={(e) => setForm({ ...form, brand: e.target.value })} className="qc-modal-input" required /></Field>
+            <Field label="Modele / Ref *"><input type="text" value={form.model_ref ?? ""} onChange={(e) => setForm({ ...form, model_ref: e.target.value })} className="qc-modal-input" required /></Field>
+            <div className="qc-modal-field-span-2">
+              <Field label="Nom affiche"><input type="text" value={form.name ?? ""} onChange={(e) => setForm({ ...form, name: e.target.value })} className="qc-modal-input" /></Field>
+            </div>
+            <Field label="Type"><select value={form.mounting_type ?? "surimposition"} onChange={(e) => setForm({ ...form, mounting_type: e.target.value })} className="qc-modal-input"><option value="surimposition">Surimposition</option><option value="integration">Integration</option><option value="sol">Sol</option></select></Field>
+            <Field label="Toitures compatibles" sublabel="Separez par virgules">
+              <input type="text" value={(form.roof_compatibility ?? []).join(", ")} onChange={(e) => setForm({ ...form, roof_compatibility: e.target.value.split(",").map((v) => v.trim()).filter(Boolean) })} className="qc-modal-input" placeholder="tuile, ardoise, bac acier" />
+            </Field>
+          </div>
+        </div>
+        <div className="qc-modal-section">
+          <h3 className="qc-modal-section__title">Technique & source</h3>
+          <div className="qc-modal-field-grid qc-modal-field-grid--2">
+            <Field label="Materiau"><input type="text" value={form.material ?? ""} onChange={(e) => setForm({ ...form, material: e.target.value })} className="qc-modal-input" /></Field>
+            <Field label="Certificat / ETN"><input type="text" value={form.certificate_iec ?? ""} onChange={(e) => setForm({ ...form, certificate_iec: e.target.value })} className="qc-modal-input" /></Field>
+            <Field label="Source"><input type="text" value={form.source_name ?? ""} onChange={(e) => setForm({ ...form, source_name: e.target.value })} className="qc-modal-input" /></Field>
+            <Field label="URL fiche"><input type="url" value={form.datasheet_url ?? ""} onChange={(e) => setForm({ ...form, datasheet_url: e.target.value })} className="qc-modal-input" /></Field>
+            <Field label="Image URL"><input type="url" value={form.image_url ?? ""} onChange={(e) => setForm({ ...form, image_url: e.target.value })} className="qc-modal-input" /></Field>
+            <Field label="Statut"><select value={form.status ?? "active"} onChange={(e) => setForm({ ...form, status: e.target.value as PvMountingSystem["status"] })} className="qc-modal-input"><option value="active">Actif</option><option value="out_of_stock">En rupture</option><option value="discontinued">Arrete</option></select></Field>
+            <Field label="Favori"><label className="pv-cat-check"><input type="checkbox" checked={form.is_favorite ?? false} onChange={(e) => setForm({ ...form, is_favorite: e.target.checked })} /> Remonter en premier</label></Field>
             <Field label="Actif"><label className="pv-cat-check"><input type="checkbox" checked={form.active !== false} onChange={(e) => setForm({ ...form, active: e.target.checked })} /> Catalogue actif</label></Field>
           </div>
         </div>

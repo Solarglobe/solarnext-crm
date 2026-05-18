@@ -40,6 +40,17 @@ export interface PvPanel {
   weight_kg?: number;
   warranty_product_years?: number;
   warranty_performance_years?: number;
+  certificate_iec?: string | null;
+  shading_compatible?: boolean;
+  area_m2?: number | null;
+  source_name?: string | null;
+  source_url?: string | null;
+  datasheet_url?: string | null;
+  image_url?: string | null;
+  last_verified_at?: string | null;
+  data_confidence?: number | null;
+  status?: "active" | "out_of_stock" | "discontinued";
+  is_favorite?: boolean;
   active: boolean;
   created_at?: string;
   updated_at?: string;
@@ -70,6 +81,14 @@ export async function togglePanelActive(panel: PvPanel): Promise<PvPanel> {
   return updatePanel(panel.id, { active: !panel.active });
 }
 
+export async function importPanels(rows: Partial<PvPanel>[]): Promise<{ results: Array<{ status: number; row: unknown }> }> {
+  const res = await apiFetch(u(`${BASE}/panels/import`), {
+    method: "POST",
+    body: JSON.stringify({ rows }),
+  });
+  return handleResponse(res);
+}
+
 // --- Onduleurs ---
 export interface PvInverter {
   id: string;
@@ -90,6 +109,15 @@ export interface PvInverter {
   max_dc_power_kw?: number;
   euro_efficiency_pct?: number;
   compatible_battery: boolean;
+  monitoring_integrated?: boolean;
+  source_name?: string | null;
+  source_url?: string | null;
+  datasheet_url?: string | null;
+  image_url?: string | null;
+  last_verified_at?: string | null;
+  data_confidence?: number | null;
+  status?: "active" | "out_of_stock" | "discontinued";
+  is_favorite?: boolean;
   active: boolean;
   created_at?: string;
   updated_at?: string;
@@ -121,6 +149,14 @@ export async function toggleInverterActive(inv: PvInverter): Promise<PvInverter>
   return updateInverter(inv.id, { active: !inv.active });
 }
 
+export async function importInverters(rows: Partial<PvInverter>[]): Promise<{ results: Array<{ status: number; row: unknown }> }> {
+  const res = await apiFetch(u(`${BASE}/inverters/import`), {
+    method: "POST",
+    body: JSON.stringify({ rows }),
+  });
+  return handleResponse(res);
+}
+
 // --- Batteries ---
 export interface PvBattery {
   id: string;
@@ -141,6 +177,15 @@ export interface PvBattery {
   max_system_charge_kw?: number | null;
   /** Puissance de décharge maximale du système, indépendante de qty. null = pur parallèle. */
   max_system_discharge_kw?: number | null;
+  warranty_years?: number | null;
+  source_name?: string | null;
+  source_url?: string | null;
+  datasheet_url?: string | null;
+  image_url?: string | null;
+  last_verified_at?: string | null;
+  data_confidence?: number | null;
+  status?: "active" | "out_of_stock" | "discontinued";
+  is_favorite?: boolean;
   active: boolean;
   default_price_ht?: number | null;
   /** Coût d'achat unitaire HT (marge interne) — optionnel */
@@ -172,4 +217,70 @@ export async function updateBattery(id: string, body: Partial<PvBattery>): Promi
 
 export async function toggleBatteryActive(bat: PvBattery): Promise<PvBattery> {
   return updateBattery(bat.id, { active: !bat.active });
+}
+
+export async function importBatteries(rows: Partial<PvBattery>[]): Promise<{ results: Array<{ status: number; row: unknown }> }> {
+  const res = await apiFetch(u(`${BASE}/batteries/import`), {
+    method: "POST",
+    body: JSON.stringify({ rows }),
+  });
+  return handleResponse(res);
+}
+
+// --- Fixations ---
+export interface PvMountingSystem {
+  id: string;
+  name: string;
+  brand: string;
+  model_ref: string;
+  mounting_type: "surimposition" | "integration" | "sol" | string;
+  roof_compatibility: string[];
+  material?: string | null;
+  max_panel_width_mm?: number | null;
+  max_panel_height_mm?: number | null;
+  certificate_iec?: string | null;
+  source_name?: string | null;
+  source_url?: string | null;
+  datasheet_url?: string | null;
+  image_url?: string | null;
+  last_verified_at?: string | null;
+  data_confidence?: number | null;
+  status?: "active" | "out_of_stock" | "discontinued";
+  is_favorite?: boolean;
+  active: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export async function listMountingSystems(): Promise<PvMountingSystem[]> {
+  const res = await apiFetch(u(`${BASE}/mounting-systems`));
+  return handleResponse<PvMountingSystem[]>(res);
+}
+
+export async function createMountingSystem(body: Partial<PvMountingSystem>): Promise<PvMountingSystem> {
+  const res = await apiFetch(u(`${BASE}/mounting-systems`), {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+  return handleResponse<PvMountingSystem>(res);
+}
+
+export async function updateMountingSystem(id: string, body: Partial<PvMountingSystem>): Promise<PvMountingSystem> {
+  const res = await apiFetch(u(`${BASE}/mounting-systems/${id}`), {
+    method: "PUT",
+    body: JSON.stringify(body),
+  });
+  return handleResponse<PvMountingSystem>(res);
+}
+
+export async function toggleMountingSystemActive(row: PvMountingSystem): Promise<PvMountingSystem> {
+  return updateMountingSystem(row.id, { active: !row.active });
+}
+
+export async function importMountingSystems(rows: Partial<PvMountingSystem>[]): Promise<{ results: Array<{ status: number; row: unknown }> }> {
+  const res = await apiFetch(u(`${BASE}/mounting-systems/import`), {
+    method: "POST",
+    body: JSON.stringify({ rows }),
+  });
+  return handleResponse(res);
 }

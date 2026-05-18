@@ -325,6 +325,28 @@
   flex-wrap: wrap;
 }
 
+.pv-cat-head-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.pv-cat-thumb {
+  display: block;
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.pv-cat-thumb--empty {
+  background: linear-gradient(135deg, #f8fafc, #e2e8f0);
+}
+
 .pv-cat-empty {
   margin: 0;
   padding: 32px 16px;

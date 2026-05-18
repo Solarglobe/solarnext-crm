@@ -37,6 +37,7 @@ import {
 } from "./leadEnergyFormat";
 import LeadQuickSummary from "./LeadQuickSummary";
 import LeadMairieSection from "./LeadMairieSection";
+import LeadPvEstimator from "../../../components/lead-detail/LeadPvEstimator";
 import type { EquipementActuelParams, EquipementsAVenir } from "./equipmentPilotageHelpers";
 import type { EquipmentItem, EquipmentKind, EquipmentV2 } from "./equipmentTypes";
 import {
@@ -1029,6 +1030,18 @@ export default function OverviewTab({
             ) : null}
           </div>
         </section>
+        <LeadPvEstimator
+          leadId={lead.id}
+          energyProfile={lead.energy_profile}
+          defaultPostalCode={siteAddr?.postal_code}
+          defaultAnnualConsumptionKwh={
+            annualCalculated != null && Number.isFinite(annualCalculated)
+              ? annualCalculated
+              : lead.consumption_annual_kwh ?? 5000
+          }
+          readOnly={readOnlySuper}
+          onSaved={(energyProfile) => onLeadChange({ energy_profile: energyProfile })}
+        />
       </div>
       <div className="crm-lead-overview-surface">
       <div className="lead-overview-grid">

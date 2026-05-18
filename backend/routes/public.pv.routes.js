@@ -10,5 +10,6 @@ const router = express.Router();
 router.get("/panels", ctrl.listPanelsPublic);
 router.get("/inverters", ctrl.listInvertersPublic);
 router.get("/batteries", ctrl.listBatteriesPublic);
+router.get("/mounting-systems", ctrl.listMountingSystemsPublic);
 
 export default router;

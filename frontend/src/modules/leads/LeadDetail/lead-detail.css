@@ -1420,6 +1420,119 @@
   align-items: center;
 }
 
+.lead-pv-estimator {
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 8px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.lead-pv-estimator__head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.lead-pv-estimator__head h3 {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.25;
+}
+
+.lead-pv-estimator__head p {
+  margin: 3px 0 0;
+  color: var(--text-muted);
+  font-size: 0.84rem;
+}
+
+.lead-pv-estimator__form,
+.lead-pv-estimator__results {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.lead-pv-estimator__form label,
+.lead-pv-estimator__control {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.lead-pv-estimator__form span,
+.lead-pv-estimator__control > span,
+.lead-pv-estimator__results span {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.lead-pv-estimator__controls {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.lead-pv-estimator__compass,
+.lead-pv-estimator__tilts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.lead-pv-estimator__compass button,
+.lead-pv-estimator__tilts button {
+  min-height: 34px;
+  border: 1px solid rgba(15, 23, 42, 0.14);
+  border-radius: 7px;
+  background: #fff;
+  color: var(--text);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.lead-pv-estimator__compass button.active,
+.lead-pv-estimator__tilts button.active {
+  border-color: var(--accent, #c9a227);
+  background: rgba(201, 162, 39, 0.12);
+}
+
+.lead-pv-estimator__results {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  margin-top: 12px;
+}
+
+.lead-pv-estimator__results div {
+  min-width: 0;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 8px;
+  padding: 9px;
+  background: rgba(248, 250, 252, 0.86);
+}
+
+.lead-pv-estimator__results strong {
+  display: block;
+  margin-top: 3px;
+  font-size: 0.95rem;
+  line-height: 1.2;
+}
+
+@media (max-width: 760px) {
+  .lead-pv-estimator__head {
+    display: grid;
+  }
+
+  .lead-pv-estimator__controls,
+  .lead-pv-estimator__form,
+  .lead-pv-estimator__results {
+    grid-template-columns: 1fr;
+  }
+}
+
 .crm-lead-timeline-wrap {
   margin-top: 12px;
   max-height: 360px;

@@ -1293,9 +1293,16 @@ export function useLeadDetail() {
     setCreateStudyLoading(true);
     setError(null);
     try {
+      const quickPvEstimation =
+        formLeadRef.current?.energy_profile &&
+        typeof formLeadRef.current.energy_profile === "object" &&
+        "quick_pv_estimation" in formLeadRef.current.energy_profile
+          ? (formLeadRef.current.energy_profile as { quick_pv_estimation?: unknown }).quick_pv_estimation
+          : undefined;
       const result = await createStudy({
         lead_id: id,
         ...(selectedMeterId ? { selected_meter_id: selectedMeterId } : {}),
+        ...(quickPvEstimation ? { data: { quick_pv_estimation: quickPvEstimation } } : {}),
       });
       const studyIdNew = result.study?.id;
       const versionId = result.versions?.[0]?.id;

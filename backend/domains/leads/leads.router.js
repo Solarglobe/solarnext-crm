@@ -38,6 +38,7 @@ import { logAuditEvent } from "../../services/audit/auditLog.service.js";
 import { AuditActions } from "../../services/audit/auditActions.js";
 import { getLeadDp, putLeadDp } from "../../controllers/leadDp.controller.js";
 import { exportLeadsCsv } from "../../controllers/crmExport.controller.js";
+import { postQuickPvEstimation } from "./leadPvEstimator.controller.js";
 
 const router = express.Router();
 
@@ -124,6 +125,12 @@ router.put(
 );
 
 router.get("/:id", verifyJWT, requireAnyPermission(["lead.read.all", "lead.read.self"]), getDetail);
+router.post(
+  "/:id/pv-estimation",
+  verifyJWT,
+  requireAnyPermission(["lead.update.all", "lead.update.self"]),
+  postQuickPvEstimation
+);
 router.delete(
   "/:id/energy-profile",
   verifyJWT,
