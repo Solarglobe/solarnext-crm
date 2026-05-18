@@ -11,7 +11,9 @@
   overflow-y: auto;
   overflow-x: hidden;
   /* Responsive : empêche la sidebar de dépasser la largeur de l'écran sur mobile */
-  width: min(320px, 100vw - 16px);
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 /* ——— ZONE 1 — HEADER ——— */
@@ -832,7 +834,8 @@
   .sidebar {
     /* Sur très petit écran (iPhone SE…), la sidebar occupe toute la largeur
        moins 8 px de chaque côté pour rester visible. */
-    width: calc(100vw - 16px);
+    width: 100%;
+    max-width: 100%;
     padding: 8px 8px 12px;
     gap: 8px;
     border-right: none;

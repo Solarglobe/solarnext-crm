@@ -939,9 +939,17 @@ export function initCalpinage(container, options = {}) {
       background: rgba(99,102,241,0.08);
     }
     /* Bascule Phase 2 / Phase 3 : une seule colonne gauche visible */
+    #zone-a:not(.phase-pv-layout) {
+      padding: 0;
+    }
     #zone-a.phase-pv-layout #zone-a-phase2 { display: none !important; }
     #zone-a.phase-pv-layout #zone-a-phase3 { display: block !important; }
-    #zone-a:not(.phase-pv-layout) #zone-a-phase2 { display: block; }
+    #zone-a:not(.phase-pv-layout) #zone-a-phase2 {
+      display: block;
+      width: 100%;
+      max-width: 100%;
+      box-sizing: border-box;
+    }
     #zone-a:not(.phase-pv-layout) #zone-a-phase3 { display: none !important; }
     /* Toiture plate — contrôle principal dans la sidebar React ; slot legacy masqué pour éviter doublon visuel (syncPhase3LayoutUI met display:inline — !important gagne). DOM conservé pour compat handlers. */
     #p3-flat-roof-slot {
