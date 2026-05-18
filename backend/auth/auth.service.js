@@ -32,6 +32,19 @@ export function hashRefreshToken(token) {
   return crypto.createHash("sha256").update(String(token), "utf8").digest("hex");
 }
 
+export function hashPasswordResetToken(token) {
+  return crypto.createHash("sha256").update(String(token), "utf8").digest("hex");
+}
+
+export function validateResetPasswordPolicy(password) {
+  const value = String(password ?? "");
+  const errors = [];
+  if (value.length < 8) errors.push("PASSWORD_MIN_LENGTH");
+  if (!/[A-Z]/.test(value)) errors.push("PASSWORD_REQUIRES_UPPERCASE");
+  if (!/[0-9]/.test(value)) errors.push("PASSWORD_REQUIRES_DIGIT");
+  return { ok: errors.length === 0, errors };
+}
+
 function addDaysMs(date, ms) {
   return new Date(date.getTime() + ms);
 }
@@ -183,6 +196,45 @@ export async function revokeRefreshSession(refreshToken, db = pool) {
     [hashRefreshToken(refreshToken)]
   );
   return result.rowCount > 0;
+}
+
+export async function revokeAllRefreshSessionsForUser(userId, db = pool) {
+  const result = await db.query(
+    "UPDATE refresh_tokens SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL",
+    [userId]
+  );
+  return result.rowCount;
+}
+
+export async function createPasswordResetToken(userId, db = pool) {
+  const token = crypto.randomBytes(32).toString("hex");
+  const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+  await db.query(
+    `INSERT INTO password_reset_tokens (user_id, token_hash, expires_at)
+     VALUES ($1, $2, $3)`,
+    [userId, hashPasswordResetToken(token), expiresAt]
+  );
+  return { token, expiresAt };
+}
+
+export async function findValidPasswordResetToken(token, db = pool) {
+  const tokenHash = hashPasswordResetToken(token);
+  const result = await db.query(
+    `SELECT prt.id, prt.user_id, prt.expires_at, prt.used_at, u.email
+     FROM password_reset_tokens prt
+     JOIN users u ON u.id = prt.user_id
+     WHERE prt.token_hash = $1
+     LIMIT 1
+     FOR UPDATE`,
+    [tokenHash]
+  );
+  const row = result.rows[0];
+  if (!row) return { ok: false, code: "RESET_TOKEN_INVALID" };
+  if (row.used_at) return { ok: false, code: "RESET_TOKEN_USED" };
+  if (new Date(row.expires_at).getTime() <= Date.now()) {
+    return { ok: false, code: "RESET_TOKEN_EXPIRED" };
+  }
+  return { ok: true, token: row };
 }
 
 /**

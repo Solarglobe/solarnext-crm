@@ -1,0 +1,92 @@
+import nodemailer from "nodemailer";
+import logger from "../app/core/logger.js";
+
+function env(name, fallback = "") {
+  return String(process.env[name] ?? fallback).trim();
+}
+
+function appBaseUrl() {
+  return env("APP_BASE_URL") || env("FRONTEND_URL") || env("PUBLIC_APP_URL") || "https://app.solarnext.fr";
+}
+
+function smtpConfig() {
+  const host = env("SMTP_HOST");
+  const port = Number(env("SMTP_PORT", "587"));
+  const user = env("SMTP_USER");
+  const pass = env("SMTP_PASS");
+  const from = env("AUTH_MAIL_FROM") || env("SMTP_FROM") || user;
+  if (!host || !port || !from) return null;
+  return {
+    host,
+    port,
+    secure: env("SMTP_SECURE").toLowerCase() === "true" || port === 465,
+    auth: user && pass ? { user, pass } : undefined,
+    from,
+  };
+}
+
+async function sendSystemMail({ to, subject, text, html }) {
+  const config = smtpConfig();
+  if (!config) {
+    logger.warn("AUTH_MAIL_SKIPPED_SMTP_NOT_CONFIGURED", { to, subject });
+    return { skipped: true };
+  }
+  const transport = nodemailer.createTransport({
+    host: config.host,
+    port: config.port,
+    secure: config.secure,
+    auth: config.auth,
+  });
+  try {
+    const info = await transport.sendMail({
+      from: config.from,
+      to,
+      subject,
+      text,
+      html,
+    });
+    return { skipped: false, messageId: info.messageId ?? null };
+  } finally {
+    transport.close();
+  }
+}
+
+function shellHtml(content) {
+  return `
+    <div style="font-family:Inter,Arial,sans-serif;background:#f6f3ef;padding:32px;color:#1f2933">
+      <div style="max-width:560px;margin:0 auto;background:#ffffff;border:1px solid #e8dfd2;border-radius:8px;padding:28px">
+        <div style="font-size:20px;font-weight:700;color:#2e1a47;margin-bottom:18px">SolarNext</div>
+        ${content}
+      </div>
+    </div>
+  `;
+}
+
+export async function sendPasswordResetEmail({ to, token }) {
+  const resetUrl = `${appBaseUrl().replace(/\/+$/, "")}/reset-password?token=${encodeURIComponent(token)}`;
+  return sendSystemMail({
+    to,
+    subject: "Reinitialisation de votre mot de passe SolarNext",
+    text: `Vous avez demande la reinitialisation de votre mot de passe SolarNext. Ouvrez ce lien dans l'heure : ${resetUrl}`,
+    html: shellHtml(`
+      <p style="margin:0 0 16px">Vous avez demande la reinitialisation de votre mot de passe SolarNext.</p>
+      <p style="margin:0 0 22px">Ce lien est valable 1 heure et ne peut etre utilise qu'une seule fois.</p>
+      <p style="margin:0 0 22px">
+        <a href="${resetUrl}" style="display:inline-block;background:#2e1a47;color:#fff;text-decoration:none;padding:12px 18px;border-radius:6px;font-weight:700">Reinitialiser mon mot de passe</a>
+      </p>
+      <p style="margin:0;color:#64748b;font-size:13px">Si vous n'etes pas a l'origine de cette demande, ignorez cet email.</p>
+    `),
+  });
+}
+
+export async function sendPasswordChangedEmail({ to }) {
+  return sendSystemMail({
+    to,
+    subject: "Votre mot de passe SolarNext a ete modifie",
+    text: "Votre mot de passe SolarNext vient d'etre modifie. Si vous n'etes pas a l'origine de cette action, contactez immediatement votre administrateur.",
+    html: shellHtml(`
+      <p style="margin:0 0 16px">Votre mot de passe SolarNext vient d'etre modifie.</p>
+      <p style="margin:0;color:#64748b;font-size:13px">Si vous n'etes pas a l'origine de cette action, contactez immediatement votre administrateur.</p>
+    `),
+  });
+}

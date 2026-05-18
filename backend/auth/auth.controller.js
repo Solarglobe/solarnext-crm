@@ -2,12 +2,18 @@ import { pool } from "../config/db.js";
 import {
   clearRefreshCookie,
   comparePassword,
+  createPasswordResetToken,
   createRefreshSession,
+  findValidPasswordResetToken,
+  hashPassword,
   readRefreshTokenFromCookie,
   refreshCookieOptions,
+  revokeAllRefreshSessionsForUser,
   revokeRefreshSession,
   rotateRefreshSession,
+  validateResetPasswordPolicy,
 } from "./auth.service.js";
+import { sendPasswordChangedEmail, sendPasswordResetEmail } from "../services/mail.service.js";
 import logger from "../app/core/logger.js";
 import { logAuditEvent } from "../services/audit/auditLog.service.js";
 import { AuditActions } from "../services/audit/auditActions.js";
@@ -248,4 +254,101 @@ export async function logout(req, res) {
   }
   clearRefreshCookie(res);
   return res.status(204).send();
+}
+
+export async function forgotPassword(req, res) {
+  const emailNorm = String(req.body?.email ?? "").toLowerCase().trim();
+  if (!emailNorm) {
+    return res.json({ ok: true });
+  }
+  try {
+    const result = await pool.query(
+      `SELECT id, email
+       FROM users
+       WHERE LOWER(TRIM(email)) = $1 AND status = 'active'
+       ORDER BY created_at ASC`,
+      [emailNorm]
+    );
+    for (const user of result.rows) {
+      const reset = await createPasswordResetToken(user.id);
+      sendPasswordResetEmail({ to: user.email, token: reset.token }).catch((err) => {
+        logger.warn("AUTH_PASSWORD_RESET_MAIL_FAILED", { err: err?.message, userId: user.id });
+      });
+    }
+    return res.json({ ok: true });
+  } catch (err) {
+    logger.error("AUTH_FORGOT_PASSWORD_ERROR", { err: err?.message, stack: err?.stack });
+    return res.json({ ok: true });
+  }
+}
+
+export async function validateResetPasswordToken(req, res) {
+  const token = String(req.params?.token ?? "").trim();
+  if (!token) {
+    return res.status(400).json({ ok: false, code: "RESET_TOKEN_REQUIRED", error: "Token requis" });
+  }
+  try {
+    const validation = await findValidPasswordResetToken(token);
+    if (!validation.ok) {
+      return res.status(400).json({ ok: false, code: validation.code, error: resetTokenMessage(validation.code) });
+    }
+    return res.json({ ok: true });
+  } catch (err) {
+    logger.error("AUTH_RESET_TOKEN_VALIDATE_ERROR", { err: err?.message });
+    return res.status(500).json({ ok: false, error: "Erreur validation token" });
+  }
+}
+
+function resetTokenMessage(code) {
+  if (code === "RESET_TOKEN_EXPIRED") return "Le lien de reinitialisation a expire";
+  if (code === "RESET_TOKEN_USED") return "Ce lien de reinitialisation a deja ete utilise";
+  return "Lien de reinitialisation invalide";
+}
+
+export async function resetPassword(req, res) {
+  const token = String(req.body?.token ?? "").trim();
+  const newPassword = String(req.body?.newPassword ?? req.body?.password ?? "");
+  if (!token) {
+    return res.status(400).json({ ok: false, code: "RESET_TOKEN_REQUIRED", error: "Token requis" });
+  }
+  const policy = validateResetPasswordPolicy(newPassword);
+  if (!policy.ok) {
+    return res.status(400).json({
+      ok: false,
+      code: "PASSWORD_POLICY_INVALID",
+      error: "Mot de passe invalide",
+      details: policy.errors,
+    });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const validation = await findValidPasswordResetToken(token, client);
+    if (!validation.ok) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ ok: false, code: validation.code, error: resetTokenMessage(validation.code) });
+    }
+    const row = validation.token;
+    const passwordHash = await hashPassword(newPassword);
+    await client.query("UPDATE users SET password_hash = $1 WHERE id = $2", [passwordHash, row.user_id]);
+    await client.query("UPDATE password_reset_tokens SET used_at = now() WHERE id = $1", [row.id]);
+    await revokeAllRefreshSessionsForUser(row.user_id, client);
+    await client.query("COMMIT");
+    clearRefreshCookie(res);
+    sendPasswordChangedEmail({ to: row.email }).catch((err) => {
+      logger.warn("AUTH_PASSWORD_CHANGED_MAIL_FAILED", { err: err?.message, userId: row.user_id });
+    });
+    return res.json({ ok: true });
+  } catch (err) {
+    try {
+      await client.query("ROLLBACK");
+    } catch {
+      // ignore rollback failure
+    }
+    logger.error("AUTH_RESET_PASSWORD_ERROR", { err: err?.message, stack: err?.stack });
+    return res.status(500).json({ ok: false, error: "Erreur reinitialisation mot de passe" });
+  } finally {
+    client.release();
+  }
 }

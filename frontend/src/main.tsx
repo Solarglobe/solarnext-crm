@@ -20,6 +20,8 @@ import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import { AdminRoute } from "./components/auth/AdminRoute";
 import { SuperAdminRoute } from "./components/auth/SuperAdminRoute";
 import Login from "./pages/Login";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 import LeadDetail from "./pages/LeadDetail";
 import QuoteBuilderPage from "./modules/quotes/QuoteBuilderPage";
 import QuotePresentPage from "./modules/quotes/QuotePresentPage";
@@ -69,6 +71,14 @@ const router = createBrowserRouter(
     {
       path: "/login",
       element: <Login />
+    },
+    {
+      path: "/forgot-password",
+      element: <ForgotPassword />
+    },
+    {
+      path: "/reset-password",
+      element: <ResetPassword />
     },
     {
       path: "/client-portal/:token",

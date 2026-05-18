@@ -1,7 +1,14 @@
 import express from "express";
 import { verifyJWT } from "../middleware/auth.middleware.js";
 import { authStrictRateLimiter } from "../middleware/rateLimit.middleware.js";
-import { login, logout, refresh } from "../auth/auth.controller.js";
+import {
+  forgotPassword,
+  login,
+  logout,
+  refresh,
+  resetPassword,
+  validateResetPasswordToken,
+} from "../auth/auth.controller.js";
 import { pool } from "../config/db.js";
 import { getUserPermissions } from "../rbac/rbac.service.js";
 import {
@@ -14,9 +21,10 @@ const router = express.Router();
 router.post("/login", authStrictRateLimiter, login);
 router.post("/refresh", authStrictRateLimiter, refresh);
 router.post("/logout", authStrictRateLimiter, logout);
-router.post("/forgot-password", authStrictRateLimiter);
-router.post("/reset", authStrictRateLimiter);
-router.post("/reset-password", authStrictRateLimiter);
+router.post("/forgot-password", authStrictRateLimiter, forgotPassword);
+router.get("/reset-password/:token", authStrictRateLimiter, validateResetPasswordToken);
+router.post("/reset", authStrictRateLimiter, resetPassword);
+router.post("/reset-password", authStrictRateLimiter, resetPassword);
 router.post("/register", authStrictRateLimiter);
 
 router.get("/me", verifyJWT, async (req, res) => {
