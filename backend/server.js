@@ -23,9 +23,17 @@ import { pool } from "./config/db.js";
 import { getRateLimitStore } from "./middleware/security/rateLimitStore.factory.js";
 import { buildHttpApp } from "./httpApp.js";
 import { startMailOutboxProcessor } from "./workers/mailOutbox.worker.js";
+import { captureBackendException, flushBackendSentry } from "./services/sentry.service.js";
 
-process.on("uncaughtException", console.error);
-process.on("unhandledRejection", console.error);
+process.on("uncaughtException", (error) => {
+  captureBackendException(error, { tags: { process_event: "uncaughtException" } });
+  void flushBackendSentry().finally(() => console.error(error));
+});
+process.on("unhandledRejection", (reason) => {
+  const error = reason instanceof Error ? reason : new Error(String(reason));
+  captureBackendException(error, { tags: { process_event: "unhandledRejection" } });
+  void flushBackendSentry().finally(() => console.error(reason));
+});
 
 const app = buildHttpApp();
 

@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
+import { captureFrontendException } from "../lib/sentry";
 
 type Props = { children: ReactNode };
 type State = { hasError: boolean; errorId: string | null };
@@ -19,9 +20,11 @@ export class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, info: ErrorInfo): void {
     console.error("[ErrorBoundary]", error, info.componentStack);
-    // Phase 7 Sentry :
-    // const id = Sentry.captureException(error, { extra: { componentStack: info.componentStack } });
-    // this.setState({ errorId: id });
+    const errorId = captureFrontendException(error, {
+      tags: { source: "global_error_boundary" },
+      extra: { componentStack: info.componentStack },
+    });
+    this.setState({ errorId });
   }
 
   private handleReload = (): void => {

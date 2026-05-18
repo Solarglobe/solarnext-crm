@@ -58,8 +58,10 @@ import MailInboxPage from "./pages/mail/MailInboxPage";
 import MailOutboxPage from "./pages/mail/MailOutboxPage";
 import MailSettingsPage from "./pages/settings/MailSettingsPage";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { initFrontendSentry } from "./lib/sentry";
 import "./styles/theme-overrides.css";
 
+initFrontendSentry();
 applyTheme(readStoredTheme());
 
 const router = createBrowserRouter(

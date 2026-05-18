@@ -12,6 +12,7 @@ import { attachAuditRequestId } from "./services/audit/auditLog.service.js";
 import { applyTrustProxy } from "./middleware/security/trustProxy.js";
 import { securityHeadersMiddleware } from "./middleware/security/securityHeaders.middleware.js";
 import { schemaVersionMiddleware } from "./middleware/schemaVersion.middleware.js";
+import { initBackendSentry, sentryErrorHandler, sentryRequestContextMiddleware } from "./services/sentry.service.js";
 import calcRouter from "./routes/calc.routes.js";
 import horizonRouter from "./routes/horizon.routes.js";
 import systemRouter from "./routes/system.routes.js";
@@ -77,6 +78,7 @@ import pdfRenderRoutes from "./routes/pdfRender.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+initBackendSentry();
 const PACKAGE_VERSION = (() => {
   try {
     const raw = fs.readFileSync(path.resolve(__dirname, "package.json"), "utf8");
@@ -335,6 +337,7 @@ export function buildHttpApp() {
   app.use(express.urlencoded({ extended: true, limit: "50mb" }));
   app.use(httpLogger);
   app.use(attachAuditRequestId);
+  app.use(sentryRequestContextMiddleware);
 
   app.get("/api/health/live", (_req, res) => {
     res.json({
@@ -520,6 +523,7 @@ export function buildHttpApp() {
     res.json({ status: "SmartPitch backend actif ✅" });
   });
 
+  app.use(sentryErrorHandler);
   app.use((err, req, res, next) => {
     if (!res.headersSent) {
       res.status(err?.status || 500).json({

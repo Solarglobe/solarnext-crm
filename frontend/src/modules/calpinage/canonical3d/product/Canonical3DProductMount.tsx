@@ -5,6 +5,7 @@
  */
 
 import { Component, type ErrorInfo, type ReactNode } from "react";
+import { captureFrontendException } from "../../../../lib/sentry";
 
 type BoundaryState = { hasError: boolean };
 
@@ -19,6 +20,10 @@ export class Canonical3DViewerErrorBoundary extends Component<{ readonly childre
     if (import.meta.env.DEV && typeof console !== "undefined") {
       console.error("[Canonical3D][ProductMount] viewer error — fallback safe", error, info.componentStack);
     }
+    captureFrontendException(error, {
+      tags: { source: "canonical_3d_viewer", calculation_type: "shading" },
+      extra: { componentStack: info.componentStack },
+    });
   }
 
   render(): ReactNode {
