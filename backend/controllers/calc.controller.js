@@ -55,6 +55,8 @@ import {
 import { CalcEngineValidationError, CALC_INVALID_8760_PROFILE } from "../services/calcEngineErrors.js";
 import { buildCalcResponse } from "../services/calc/calcResponseBuilder.js";
 import { computeElectricalValidation } from "../electrical/electricalValidation.js";
+import { computeHorizonFarLoss } from "../shading/horizonMaskEngine.js";
+import { buildFarShadingSunSamples } from "../services/shading/calpinageShading.service.js";
 import {
   buildCalculationConfidenceFromCalc,
   finalizeCalculationConfidence,
@@ -429,6 +431,58 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
     // ------------------------------------------------------------
     // 3) PRODUCTION PV HORAIRE (déjà rempli ci-dessus)
     // ------------------------------------------------------------
+
+    // ------------------------------------------------------------
+    // FAR SHADING — correction masque d'horizon (form.horizonMask)
+    // Actif uniquement si le frontend envoie form.horizonMask (fetché par useHorizonMaskFetch).
+    // No-op si horizonMask absent, GPS invalide ou calcul de perte = 0.
+    // Appliqué APRÈS clipping onduleur, AVANT pilotage.
+    // ------------------------------------------------------------
+    {
+      const rawHm = form.horizonMask;
+      const lat = Number(ctx.site?.lat);
+      const lon = Number(ctx.site?.lon);
+      const maskIsValid =
+        rawHm &&
+        Array.isArray(rawHm.mask) &&
+        rawHm.mask.length > 0 &&
+        Number.isFinite(lat) && lat >= -90 && lat <= 90 &&
+        Number.isFinite(lon) && lon >= -180 && lon <= 180;
+
+      if (maskIsValid) {
+        const stepDeg =
+          typeof rawHm.step_deg === "number" && rawHm.step_deg > 0
+            ? rawHm.step_deg
+            : 2;
+        const engineMask = {
+          azimuthStepDeg: stepDeg,
+          elevations: rawHm.mask.map((p) =>
+            typeof p.elev === "number" && Number.isFinite(p.elev) ? p.elev : 0
+          ),
+        };
+        const sunSamples = buildFarShadingSunSamples(lat, lon);
+        const farLossFraction = computeHorizonFarLoss(sunSamples, engineMask);
+        const farLossPct = Math.round(farLossFraction * 10000) / 100; // 2 decimal %
+
+        if (farLossFraction > 0 && ctx.pv) {
+          const multiplier = 1 - farLossFraction;
+          if (Array.isArray(ctx.pv.monthly)) {
+            ctx.pv.monthly = ctx.pv.monthly.map((v) => (Number(v) || 0) * multiplier);
+          }
+          if (typeof ctx.pv.total_kwh === "number") {
+            ctx.pv.total_kwh = Math.round(ctx.pv.total_kwh * multiplier * 100) / 100;
+          }
+          if (typeof ctx.pv.total_raw_kwh === "number") {
+            ctx.pv.total_raw_kwh = Math.round(ctx.pv.total_raw_kwh * multiplier * 100) / 100;
+          }
+          if (Array.isArray(ctx.pv.hourly)) {
+            ctx.pv.hourly = ctx.pv.hourly.map((h) => (Number(h) || 0) * multiplier);
+          }
+          ctx.pv.far_shading_loss_pct = farLossPct;
+          ctx.pv.far_shading_source = rawHm.source ?? "RELIEF_ONLY";
+        }
+      }
+    }
 
     // ------------------------------------------------------------
     // 4) PILOTAGE

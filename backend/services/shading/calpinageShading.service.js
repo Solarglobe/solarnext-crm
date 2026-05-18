@@ -128,6 +128,25 @@ export function getAnnualSunVectorsForNear(lat, lon, config = {}) {
 }
 
 /**
+ * Échantillons annuels de positions solaires pour le calcul far shading (computeHorizonFarLoss).
+ * Retourne { azimuthDeg, elevationDeg } — filtre uniquement les instants où le soleil est levé (> 0°).
+ *
+ * @param {number} lat - Latitude [−90, 90]
+ * @param {number} lon - Longitude [−180, 180]
+ * @param {{ year?: number, stepMinutes?: number }} [config]
+ * @returns {Array<{ azimuthDeg: number, elevationDeg: number }>}
+ */
+export function buildFarShadingSunSamples(lat, lon, config = {}) {
+  const c = {
+    year: config.year ?? 2026,
+    stepMinutes: config.stepMinutes ?? 60,
+    minSunElevationDeg: 0,
+  };
+  const samples = generateAnnualSamples(c, lat, lon);
+  return samples.map((s) => ({ azimuthDeg: s.azimuthDeg, elevationDeg: s.elevationDeg }));
+}
+
+/**
  * Extrait panels et obstacles depuis geometry (format calpinage).
  * @param {number} metersPerPixel - requis pour construire un footprint depuis width/depth en mètres
  * @param {boolean} [strictCommercial] — étude client : hauteur / échelle implicites → warnings (calcul inchangé, pas de faux « connu »).

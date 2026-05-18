@@ -115,12 +115,46 @@ export interface CalpinagePhase3Snapshot {
   autofillValidCount: number;
 
   // ── Bloc actif ──────────────────────────────────────────────────────────
-  /** true si un panneau catalogue est sélectionné ET le bloc actif a ≥ 1 panneau posé. */
+  /** true si un panneau catalogue est sélectionné ET le bloc actif a >= 1 panneau posé. */
   hasActiveBlockWithPanels: boolean;
 
   // ── Toiture plate ───────────────────────────────────────────────────────
   /** Projection UI toiture plate — résultat de projectCalpinageUi(state). */
   flatRoofProjection: FlatRoofUiProjection;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FAR SHADING — masque d'horizon lointain
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Un azimut / élévation du masque horizon retourné par GET /api/horizon-mask.
+ * `az` = azimut [0-360 deg], `elev` = élévation en degrés.
+ */
+export interface HorizonMaskPoint {
+  az: number;
+  elev: number;
+}
+
+/**
+ * Résultat de GET /api/horizon-mask — stocké dans le store après fetch.
+ * Converti en { azimuthStepDeg, elevations[] } par convertHorizonToMask avant passage
+ * à horizonMaskEngine.js.
+ */
+export interface HorizonMaskData {
+  /** Format natif API : liste d'azimuts/élévations. */
+  mask: HorizonMaskPoint[];
+  /** Pas angulaire utilisé pour le calcul (degrés). */
+  step_deg: number;
+  /** Source : "SURFACE_DSM" | "RELIEF_ONLY" */
+  source: string;
+  /** Confiance [0-1]. */
+  confidence?: number;
+  meta?: Record<string, unknown>;
+  dataCoverage?: Record<string, unknown>;
+  /** GPS pour lequel ce masque a été calculé (permet l'invalidation si GPS change). */
+  computedForGps: { lat: number; lon: number };
+  fetchedAt: number;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -163,7 +197,7 @@ export interface CalpinageStore {
    * Raison de dégradation de la reconstruction 3D.
    * null = reconstruction normale.
    * Valeur non-null = officialSolarScene3DGateway a détecté que le runtime
-   * n'était pas monté au moment du build (getHeightAtXY indisponible) →
+   * n'était pas monté au moment du build (getHeightAtXY indisponible) ->
    * la toiture 3D est plate (Z=0).
    *
    * Écrit par officialSolarScene3DGateway.ts via useCalpinageStore.setState().
@@ -174,9 +208,31 @@ export interface CalpinageStore {
   degraded3DReason: string | null;
 
   /**
+   * Masque d'horizon lointain (far shading) — résultat de GET /api/horizon-mask.
+   * null = pas encore fetchée ou invalidée (changement GPS).
+   * Mise à jour par setHorizonMask() après fetch réussi.
+   * Invalidée par clearHorizonMask() quand le GPS change.
+   *
+   * Flag ENABLE_FAR_SHADING (VITE_CALPINAGE_FAR_SHADING) à vérifier avant utilisation.
+   */
+  horizonMask: HorizonMaskData | null;
+
+  /**
    * Met à jour le metersPerPixel et invalide les caches de surfaces/longueurs.
    * Appelé par le ResizeObserver du viewer satellite (debounce 300 ms).
-   * No-op si mpp ≤ 0 ou non fini.
+   * No-op si mpp <= 0 ou non fini.
    */
   setMetersPerPixel(mpp: number): void;
+
+  /**
+   * Stocke le masque d'horizon lointain après un fetch réussi.
+   * Appelé par useHorizonMaskFetch après GET /api/horizon-mask.
+   */
+  setHorizonMask(data: HorizonMaskData): void;
+
+  /**
+   * Invalide le masque d'horizon (GPS a changé ou nouvelle étude chargée).
+   * Remet horizonMask à null pour forcer un re-fetch.
+   */
+  clearHorizonMask(): void;
 }

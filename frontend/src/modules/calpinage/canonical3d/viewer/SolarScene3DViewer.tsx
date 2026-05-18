@@ -156,6 +156,68 @@ import {
   type RoofTruthBadgeTone,
 } from "./roofTruthBadges";
 
+// ─── HorizonMaskRing3D ────────────────────────────────────────────────────────
+// Visualise le masque d'horizon lointain comme une couronne LineLoop 3D.
+// Chaque point = { azimuth 0°=Nord, elevation_deg } → position Three.js (X=Est, Y=Sud, Z=Up).
+// Rayon fixe 500 m (HORIZON_RING_RADIUS_M), hauteur Y = tan(elevDeg°) × rayon.
+
+const HORIZON_RING_RADIUS_M = 500;
+const HORIZON_RING_COLOR = 0xff6b35; // orange vif
+const HORIZON_RING_OPACITY = 0.6;
+
+interface HorizonMaskPoint3D {
+  az: number;  // azimut [0–360°]
+  elev: number; // élévation [degrés]
+}
+
+interface HorizonMaskRing3DProps {
+  mask: HorizonMaskPoint3D[];
+  center: THREE.Vector3;
+}
+
+function HorizonMaskRing3D({ mask, center }: HorizonMaskRing3DProps) {
+  const geometry = useMemo(() => {
+    if (!mask || mask.length === 0) return null;
+    const positions: number[] = [];
+    // Convention axes : X=Est, Y=-Sud (Y=Nord positif), Z=Up (selon worldConvention)
+    // Azimut météo : 0=Nord, 90=Est, 180=Sud, 270=Ouest → angle depuis Y+ dans sens horaire vu du dessus
+    for (const pt of mask) {
+      const azRad = (pt.az * Math.PI) / 180;
+      // X = R × sin(az)  (Est positif)
+      // Y = -R × cos(az) (Sud positif = -Y dans convention ENU où Y=Nord)
+      // Z = R × tan(elev)
+      const elevRad = (Math.max(0, pt.elev) * Math.PI) / 180;
+      const x = center.x + HORIZON_RING_RADIUS_M * Math.sin(azRad);
+      const y = center.y - HORIZON_RING_RADIUS_M * Math.cos(azRad);
+      const z = center.z + HORIZON_RING_RADIUS_M * Math.tan(elevRad);
+      positions.push(x, y, z);
+    }
+    // Fermer la boucle en répétant le premier point
+    if (positions.length >= 3) {
+      positions.push(positions[0], positions[1], positions[2]);
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+    return geo;
+  }, [mask, center]);
+
+  if (!geometry) return null;
+
+  return (
+    <lineLoop geometry={geometry}>
+      <lineBasicMaterial
+        color={HORIZON_RING_COLOR}
+        transparent
+        opacity={HORIZON_RING_OPACITY}
+        depthTest={false}
+        linewidth={2}
+      />
+    </lineLoop>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 /** @react-three/fiber : `gl` exposé sur l'événement mais absent des types ThreeEvent — cast explicite documenté. */
 function r3fGl(e: ThreeEvent<PointerEvent | MouseEvent>): THREE.WebGLRenderer {
   return (e as ThreeEvent<PointerEvent | MouseEvent> & { gl: THREE.WebGLRenderer }).gl;
@@ -330,6 +392,12 @@ export interface SolarScene3DViewerProps {
    * Désactiver si le GPU cible ne supporte pas les FBO multiples. Défaut : true.
    */
   readonly enablePostProcessing?: boolean;
+  /**
+   * Masque d'horizon lointain (far shading) — list { az, elev } depuis GET /api/horizon-mask.
+   * Si fourni, affiche une couronne LineLoop orange (rayon 500 m) dans la scène 3D.
+   * null / undefined = pas de visualisation.
+   */
+  readonly horizonMask?: ReadonlyArray<{ az: number; elev: number }> | null;
 }
 
 const PREMIUM_PV_SURFACE_HEX = new THREE.Color("#111827").getHex();
@@ -3585,6 +3653,7 @@ function SolarScene3DViewer({
   pvLayout3DInteractionMode = false,
   onPanelMoveCommit,
   enablePostProcessing = true,
+  horizonMask = null,
 }: SolarScene3DViewerProps) {
   const baseScene = sceneProp ?? runtimeScene;
   if (baseScene == null) {
@@ -5172,6 +5241,10 @@ function SolarScene3DViewer({
         )}
         {(showDebugOverlay || showXYAlignmentOverlay) && (
           <DebugXYAlignmentOverlay scene={scene} zLevel={groundZ} runtime={debugRuntime} />
+        )}
+        {/* ── Masque d'horizon lointain (far shading) — LineLoop orange ──── */}
+        {horizonMask && horizonMask.length > 0 && cameraViewMode !== "PLAN_2D" && (
+          <HorizonMaskRing3D mask={horizonMask as HorizonMaskPoint3D[]} center={center} />
         )}
         {/* IBL — overcast sky, background=false, chargement lazy (Suspense) */}
         <Suspense fallback={null}>

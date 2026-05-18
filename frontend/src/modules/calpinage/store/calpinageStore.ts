@@ -17,7 +17,7 @@
  *   - Aucune dépendance à window.* dans ce fichier
  */
 import { create } from "zustand";
-import type { CalpinageStore, CalpinagePhase2Snapshot, CalpinagePhase3Snapshot } from "./storeTypes";
+import type { CalpinageStore, CalpinagePhase2Snapshot, CalpinagePhase3Snapshot, HorizonMaskData } from "./storeTypes";
 import { invalidateMppDependentCache } from "../adapter/calpinageStateToLegacyRoofInput";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -74,6 +74,7 @@ const initialPhase3: CalpinagePhase3Snapshot = {
  *
  * Mutations via setState() (adapter) : initialized, phase2, phase3, metersPerPixel.
  * Actions typées (Phase 2+) : setMetersPerPixel — appelée par le ResizeObserver du viewer satellite.
+ * Actions far shading : setHorizonMask / clearHorizonMask.
  */
 export const useCalpinageStore = create<CalpinageStore>((set) => ({
   initialized: false,
@@ -81,11 +82,20 @@ export const useCalpinageStore = create<CalpinageStore>((set) => ({
   phase3: initialPhase3,
   metersPerPixel: null,
   degraded3DReason: null,
+  horizonMask: null,
 
   setMetersPerPixel(mpp: number): void {
     if (!Number.isFinite(mpp) || mpp <= 0) return;
     set({ metersPerPixel: mpp });
     // Invalide les caches de surfaces/longueurs qui dépendent du mpp.
     invalidateMppDependentCache();
+  },
+
+  setHorizonMask(data: HorizonMaskData): void {
+    set({ horizonMask: data });
+  },
+
+  clearHorizonMask(): void {
+    set({ horizonMask: null });
   },
 }));

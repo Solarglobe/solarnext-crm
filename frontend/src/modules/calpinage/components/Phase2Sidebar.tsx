@@ -10,6 +10,7 @@ import { getCalpinageWindow } from "../calpinageWindowGlobals";
 import Phase2ObstaclePanel from "./Phase2ObstaclePanel";
 import { useToast } from "../ui/useToast";
 import { onQuasiVerticalError } from "../roofModelV1/placement/placementSlopeGuard";
+import { useHorizonMaskFetch } from "../hooks/useHorizonMaskFetch";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers module-level (pas de dépendance React)
@@ -429,6 +430,10 @@ function Phase2PansBlock() {
 
 export default function Phase2Sidebar() {
   const toast = useToast();
+
+  // ── Far shading — fetch masque horizon dès que le GPS est disponible ──────
+  // No-op si VITE_CALPINAGE_FAR_SHADING n'est pas activé.
+  useHorizonMaskFetch();
 
   useEffect(() => {
     const w = getCalpinageWindow();
