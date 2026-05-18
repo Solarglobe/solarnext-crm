@@ -117,3 +117,45 @@
   width: 14px;
   height: 14px;
 }
+
+/* ─── Section Validation Électrique ──────────────────────────────────────── */
+
+.sectionDivider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  margin-bottom: 2px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #6b7280;
+}
+
+.sectionDivider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--sg-border, #e5e7eb);
+}
+
+.elecMessage {
+  font-size: 11px;
+  color: #6b7280;
+  font-style: italic;
+  padding-left: 28px;
+  line-height: 1.4;
+}
+
+.elecValue {
+  font-weight: 600;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.elecMeasured {
+  font-size: 11px;
+  color: #6b7280;
+  margin-left: 4px;
+}

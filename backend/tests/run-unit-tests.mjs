@@ -148,6 +148,7 @@ const UNIT_TEST_FILES = [
   'tests/virtualBatteryP2CapacityResolve.test.mjs',
   'tests/virtualBatteryP2Finance.test.js',
   'tests/weightedShadingKpi.test.js',
+  'tests/electrical.stringSizing.test.js',
 ];
 
 // ─── Tests nécessitant --experimental-test-module-mocks ──────────────────────

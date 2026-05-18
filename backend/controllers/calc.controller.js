@@ -54,6 +54,7 @@ import {
 } from "../services/economicsResolve.service.js";
 import { CalcEngineValidationError, CALC_INVALID_8760_PROFILE } from "../services/calcEngineErrors.js";
 import { buildCalcResponse } from "../services/calc/calcResponseBuilder.js";
+import { computeElectricalValidation } from "../electrical/electricalValidation.js";
 import {
   buildCalculationConfidenceFromCalc,
   finalizeCalculationConfidence,
@@ -1375,6 +1376,15 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
     console.log(JSON.stringify(ctxFinal.scenarios_v2, null, 2));
   }
 
+    // ------------------------------------------------------------
+    // 10) VALIDATION ÉLECTRIQUE (string sizing, DC/AC, MPPT)
+    // Moteur pur — jamais bloquant, toujours présent dans la réponse.
+    // ------------------------------------------------------------
+    try {
+      ctxFinal.electricalValidation = computeElectricalValidation(form);
+    } catch (_elecErr) {
+      ctxFinal.electricalValidation = { status: "neutral", checks: [], error: _elecErr?.message };
+    }
 
     return res.json(ctxFinal);
 

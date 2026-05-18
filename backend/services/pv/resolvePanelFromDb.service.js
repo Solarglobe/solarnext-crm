@@ -6,7 +6,13 @@
 /**
  * @param {import("pg").Pool | import("pg").PoolClient} poolOrClient
  * @param {string} panelId
- * @returns {Promise<null | { id: string, power_wc: number, brand: string | null, model_ref: string | null, name: string | null, width_mm: number | null, height_mm: number | null, temp_coeff_pct_per_deg: number | null, degradation_annual_pct: number | null, degradation_first_year_pct: number | null }>}
+ * @returns {Promise<null | {
+ *   id: string, power_wc: number, brand: string | null, model_ref: string | null,
+ *   name: string | null, width_mm: number | null, height_mm: number | null,
+ *   temp_coeff_pct_per_deg: number | null,
+ *   voc_v: number | null, isc_a: number | null, vmp_v: number | null,
+ *   degradation_annual_pct: number | null, degradation_first_year_pct: number | null
+ * }>}
  */
 export async function fetchPvPanelRowById(poolOrClient, panelId) {
   if (panelId == null || panelId === "") return null;
@@ -16,7 +22,8 @@ export async function fetchPvPanelRowById(poolOrClient, panelId) {
     const { rows } = await poolOrClient.query(
       `SELECT id, power_wc, brand, model_ref, name,
               width_mm, height_mm,
-              temp_coeff_pct_per_deg, degradation_annual_pct, degradation_first_year_pct
+              temp_coeff_pct_per_deg, degradation_annual_pct, degradation_first_year_pct,
+              voc_v, isc_a, vmp_v
        FROM pv_panels
        WHERE id = $1::uuid AND active = true
        LIMIT 1`,
@@ -60,5 +67,9 @@ export async function applyPanelPowerFromCatalog(poolOrClient, panelInput) {
       row.degradation_annual_pct ?? panelInput.degradation_annual_pct ?? null,
     degradation_first_year_pct:
       row.degradation_first_year_pct ?? panelInput.degradation_first_year_pct ?? null,
+    // Caractéristiques électriques STC — pour validation string sizing
+    voc_v: row.voc_v != null ? Number(row.voc_v) : (panelInput.voc_v ?? null),
+    isc_a: row.isc_a != null ? Number(row.isc_a) : (panelInput.isc_a ?? null),
+    vmp_v: row.vmp_v != null ? Number(row.vmp_v) : (panelInput.vmp_v ?? null),
   };
 }

@@ -1,0 +1,122 @@
+[
+  {
+    "brand": "Fronius",
+    "modelRef": "Fronius Symo 5.0-3-M",
+    "nominalKw": 5.0,
+    "vocMax": 1000,
+    "vmppMin": 200,
+    "vmppMax": 800,
+    "imaxMppt": 27.0,
+    "mpptCount": 2,
+    "inputsPerMppt": 2,
+    "phases": "3P"
+  },
+  {
+    "brand": "Fronius",
+    "modelRef": "Fronius Symo 15.0-3-M",
+    "nominalKw": 15.0,
+    "vocMax": 1000,
+    "vmppMin": 200,
+    "vmppMax": 800,
+    "imaxMppt": 27.0,
+    "mpptCount": 2,
+    "inputsPerMppt": 3,
+    "phases": "3P"
+  },
+  {
+    "brand": "Fronius",
+    "modelRef": "Fronius Symo Advanced 20.0-3-M",
+    "nominalKw": 20.0,
+    "vocMax": 1000,
+    "vmppMin": 200,
+    "vmppMax": 800,
+    "imaxMppt": 33.0,
+    "mpptCount": 3,
+    "inputsPerMppt": 2,
+    "phases": "3P"
+  },
+  {
+    "brand": "SMA",
+    "modelRef": "SMA Sunny Tripower 6.0",
+    "nominalKw": 6.0,
+    "vocMax": 1000,
+    "vmppMin": 170,
+    "vmppMax": 800,
+    "imaxMppt": 25.0,
+    "mpptCount": 2,
+    "inputsPerMppt": 2,
+    "phases": "3P"
+  },
+  {
+    "brand": "SMA",
+    "modelRef": "SMA Sunny Tripower 15000TL",
+    "nominalKw": 15.0,
+    "vocMax": 1000,
+    "vmppMin": 175,
+    "vmppMax": 800,
+    "imaxMppt": 30.0,
+    "mpptCount": 2,
+    "inputsPerMppt": 3,
+    "phases": "3P"
+  },
+  {
+    "brand": "SMA",
+    "modelRef": "SMA Sunny Boy 5.0",
+    "nominalKw": 5.0,
+    "vocMax": 600,
+    "vmppMin": 100,
+    "vmppMax": 500,
+    "imaxMppt": 15.0,
+    "mpptCount": 2,
+    "inputsPerMppt": 1,
+    "phases": "1P"
+  },
+  {
+    "brand": "Huawei",
+    "modelRef": "Huawei SUN2000-5KTL-M1",
+    "nominalKw": 5.0,
+    "vocMax": 1100,
+    "vmppMin": 200,
+    "vmppMax": 1000,
+    "imaxMppt": 13.0,
+    "mpptCount": 2,
+    "inputsPerMppt": 2,
+    "phases": "1P"
+  },
+  {
+    "brand": "Huawei",
+    "modelRef": "Huawei SUN2000-10KTL-M1",
+    "nominalKw": 10.0,
+    "vocMax": 1100,
+    "vmppMin": 200,
+    "vmppMax": 1000,
+    "imaxMppt": 26.0,
+    "mpptCount": 2,
+    "inputsPerMppt": 2,
+    "phases": "3P"
+  },
+  {
+    "brand": "Huawei",
+    "modelRef": "Huawei SUN2000-20KTL-M3",
+    "nominalKw": 20.0,
+    "vocMax": 1100,
+    "vmppMin": 200,
+    "vmppMax": 1000,
+    "imaxMppt": 33.0,
+    "mpptCount": 4,
+    "inputsPerMppt": 2,
+    "phases": "3P"
+  },
+  {
+    "brand": "GoodWe",
+    "modelRef": "GoodWe GW5000D-NS",
+    "nominalKw": 5.0,
+    "vocMax": 1000,
+    "vmppMin": 180,
+    "vmppMax": 800,
+    "imaxMppt": 25.0,
+    "mpptCount": 2,
+    "inputsPerMppt": 2,
+    "phases": "1P"
+  }
+]

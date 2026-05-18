@@ -8,6 +8,28 @@
 import styles from "./Phase3ChecklistPanel.module.css";
 import { computeInverterSizing, type InverterFamily } from "./utils/inverterSizing";
 
+/** Critère de validation électrique individuel (issu du backend electricalValidation). */
+export type ElectricalCheck = {
+  criterion: string;
+  measured: number | null;
+  limit: number | null;
+  status: "ok" | "warning" | "error" | "neutral";
+  message: string;
+  unit?: string;
+};
+
+/** Résultat complet de validation électrique renvoyé par l'API SmartPitch. */
+export type ElectricalValidation = {
+  status: "ok" | "warning" | "error" | "neutral";
+  checks: ElectricalCheck[];
+  meta?: {
+    panelCount?: number;
+    nSeries?: number | null;
+    tMinC?: number;
+    inverterModel?: string | null;
+  };
+};
+
 export type Phase3ChecklistProps = {
   panelCount: number;
   totalDcKw: number;
@@ -25,6 +47,11 @@ export type Phase3ChecklistProps = {
   className?: string;
   /** Sidebar Phase 3 : liste courte, sans ligne « Validation » (déjà en zone État). */
   sidebarCompact?: boolean;
+  /**
+   * Résultat de validation électrique renvoyé par l'API SmartPitch (electricalValidation).
+   * Si absent ou null, la section est masquée.
+   */
+  electricalValidation?: ElectricalValidation | null;
 };
 
 type Status = "ok" | "warning" | "error" | "neutral";
@@ -90,6 +117,7 @@ export function Phase3ChecklistPanel({
   catalogModuleSelected = true,
   className,
   sidebarCompact = false,
+  electricalValidation,
 }: Phase3ChecklistProps) {
   const { acTotalKw, ratio } = computeInverterSizing({
     panelCount,
@@ -186,7 +214,68 @@ export function Phase3ChecklistPanel({
           </span>
         </div>
       )}
+
+      {/* ── Section Validation Électrique (optionnelle, pilotée par prop) ── */}
+      {electricalValidation != null && !sidebarCompact && (
+        <ElectricalValidationSection validation={electricalValidation} statusClass={statusClass} />
+      )}
     </div>
+  );
+}
+
+// ─── Sous-composant : Section Validation Électrique ───────────────────────────
+
+type ElectricalValidationSectionProps = {
+  validation: ElectricalValidation;
+  statusClass: (s: Status) => string;
+};
+
+function ElectricalValidationSection({ validation, statusClass }: ElectricalValidationSectionProps) {
+  const { checks, meta } = validation;
+
+  return (
+    <>
+      <div className={styles.sectionDivider}>
+        Validation électrique
+        {meta?.inverterModel && (
+          <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0, fontSize: 10 }}>
+            {" "}— {meta.inverterModel}
+          </span>
+        )}
+      </div>
+
+      {checks.length === 0 && (
+        <p className={styles.elecMessage}>Aucun critère disponible (données panneau/onduleur manquantes).</p>
+      )}
+
+      {checks.map((check, i) => {
+        const s = check.status as Status;
+        return (
+          <div key={i} className={styles.row} title={check.message}>
+            <StatusIcon status={s} />
+            <span className={`${styles.label} sg-label`} style={{ fontSize: 12 }}>
+              {check.criterion}
+            </span>
+            <span className={`${styles.elecValue} ${statusClass(s)}`}>
+              {check.measured != null
+                ? `${check.measured}${check.unit ? " " + check.unit : ""}`
+                : "—"}
+              {check.limit != null && s !== "ok" && (
+                <span className={styles.elecMeasured}>
+                  {" "}/ {check.limit}{check.unit ? " " + check.unit : ""}
+                </span>
+              )}
+            </span>
+          </div>
+        );
+      })}
+
+      {meta?.nSeries == null && (
+        <p className={styles.elecMessage}>
+          💡 Ajoutez <code>pvParams.nSeries</code> pour activer le string sizing.
+        </p>
+      )}
+    </>
   );
 }
 
