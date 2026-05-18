@@ -16,13 +16,26 @@ test("finalizeCalculationConfidence : BLOCKED si avertissement bloquant", () => 
   assert.ok(isPdfBlockedByConfidence(c));
 });
 
-test("isPdfBlockedByConfidence : PVGIS fallback dans blocking_warnings", () => {
-  const c = finalizeCalculationConfidence({
+test("isPdfBlockedByConfidence : PVGIS_FALLBACK_USED n'est plus bloquant pour les PDFs", () => {
+  // PVGIS_FALLBACK_USED produit des estimations géographiques exploitables → PDF autorisé avec warning.
+  // Des études stockées antérieurement peuvent avoir level="BLOCKED" + blocking_warnings=["PVGIS_FALLBACK_USED"].
+  // isPdfBlockedByConfidence doit retourner false dans ce cas (ne se base pas sur le level).
+  const legacyStoredData = finalizeCalculationConfidence({
     blocking_warnings: ["PVGIS_FALLBACK_USED"],
     non_blocking_warnings: [],
     assumptions: {},
   });
-  assert.ok(isPdfBlockedByConfidence(c));
+  // level="BLOCKED" est présent dans les données legacy mais ne doit pas bloquer les PDFs
+  assert.equal(legacyStoredData.level, "BLOCKED");
+  assert.ok(!isPdfBlockedByConfidence(legacyStoredData), "PVGIS_FALLBACK_USED seul ne doit pas bloquer les PDFs");
+
+  // S'assurer que d'autres codes bloquants fonctionnent toujours
+  const reallyBlocked = finalizeCalculationConfidence({
+    blocking_warnings: ["CALC_INVALID_8760_PROFILE"],
+    non_blocking_warnings: [],
+    assumptions: {},
+  });
+  assert.ok(isPdfBlockedByConfidence(reallyBlocked), "CALC_INVALID_8760_PROFILE doit toujours bloquer");
 });
 
 test("buildCalculationConfidenceFromCalc : VB sans coût → blocking VB_COST_UNCONFIGURED_BLOCK_PDF", () => {

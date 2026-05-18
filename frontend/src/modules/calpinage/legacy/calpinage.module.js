@@ -951,6 +951,12 @@ export function initCalpinage(container, options = {}) {
       box-sizing: border-box;
     }
     #zone-a:not(.phase-pv-layout) #zone-a-phase3 { display: none !important; }
+    /* Phase 2 — React Phase2Sidebar fournit son propre header (Phase2Header).
+       On masque les éléments legacy pour éviter la duplication visuelle et la déformation. */
+    #zone-a-phase2 > .phase-title,
+    #zone-a-phase2 > .phase-desc {
+      display: none !important;
+    }
     /* Toiture plate — contrôle principal dans la sidebar React ; slot legacy masqué pour éviter doublon visuel (syncPhase3LayoutUI met display:inline — !important gagne). DOM conservé pour compat handlers. */
     #p3-flat-roof-slot {
       display: none !important;

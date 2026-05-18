@@ -104,7 +104,9 @@ export default function StudyPdfActions({
               ? "Échec du rendu du PDF"
               : body.error === "SCENARIO_SNAPSHOT_REQUIRED"
                 ? "Scénario non figé. Choisissez un scénario avant de générer le PDF."
-                : body.error || "Impossible de générer le PDF";
+                : body.error === "PDF_BLOCKED_CALCULATION_CONFIDENCE"
+                  ? "PDF bloqué : données de calcul incomplètes (relancez le calcul)"
+                  : body.error || "Impossible de générer le PDF";
         showToast(errMsg, false);
       }
     } catch (e) {

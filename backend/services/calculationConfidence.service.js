@@ -8,9 +8,14 @@ import {
   resolveElectricityGrowthPctFromOrg,
 } from "./economicsResolve.service.js";
 
+// Codes qui bloquent HARD la génération de PDF.
+// PVGIS_FALLBACK_USED est intentionnellement absent : les données de fallback géographique
+// sont des estimations exploitables. Le PDF est autorisé avec un avertissement UI.
+// Les études calculées avant ce changement peuvent avoir level="BLOCKED" à cause de
+// PVGIS_FALLBACK_USED dans blocking_warnings — c'est pourquoi isPdfBlockedByConfidence
+// ne se base plus sur le champ level mais uniquement sur les codes de cette liste.
 const BLOCKING = new Set([
   "CALC_INVALID_8760_PROFILE",
-  "PVGIS_FALLBACK_USED",
   "VB_COST_UNCONFIGURED_BLOCK_PDF",
   "VB_UNBOUNDED_DISABLED_FOR_COMMERCIAL_USE",
   "FAR_SHADING_UNAVAILABLE_BLOCK_PDF",
@@ -79,7 +84,9 @@ export function finalizeCalculationConfidence({
 
 export function isPdfBlockedByConfidence(confidence) {
   if (!confidence || typeof confidence !== "object") return false;
-  if (confidence.level === "BLOCKED") return true;
+  // Ne pas court-circuiter sur confidence.level === "BLOCKED" : des études stockées avant
+  // ce changement ont level="BLOCKED" à cause de PVGIS_FALLBACK_USED qui est maintenant
+  // non-bloquant. On vérifie uniquement les codes présents dans BLOCKING.
   const bw = confidence.blocking_warnings;
   if (!Array.isArray(bw) || bw.length === 0) return false;
   return bw.some((w) => BLOCKING.has(String(w)));
@@ -97,7 +104,9 @@ export function buildCalculationConfidenceFromCalc(ctx, scenariosFinal = {}) {
   const pvSrc = String(ctx?.pv?.source ?? "");
   const pvgisFallback = /fallback/i.test(pvSrc);
   if (pvgisFallback) {
-    blocking.push("PVGIS_FALLBACK_USED");
+    // Non-bloquant : le fallback géographique produit des estimations exploitables.
+    // Affiché en avertissement UI (jaune) mais n'empêche pas la génération de PDF.
+    nonBlocking.push("PVGIS_FALLBACK_USED");
   }
 
   const consoSrc = ctx?.meta?.engine_consumption_source ?? "UNKNOWN";
