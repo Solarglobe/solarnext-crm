@@ -27,7 +27,12 @@ import {
   assertQuoteLinesMatchHeaderOrThrow,
   PRICING_MODE_PERCENT_TOTAL,
 } from "../../services/quoteEngine.service.js";
-import { computeFinancialLineDbFields } from "../../services/finance/financialLine.js";
+import {
+  buildScenarioQuoteCoherenceError,
+  validateScenarioQuoteCoherence,
+} from "../studies/financial/scenarioQuoteCoherence.js";
+
+import { computeFinancialLineDbFields } from "../../services/finance/financialLine.js";
 import { roundMoney2 } from "../../services/finance/moneyRounding.js";
 import { isQuoteEditable } from "../../services/finance/financialImmutability.js";
 import { allocateNextDocumentNumber } from "../../services/documentSequence.service.js";
@@ -730,7 +735,109 @@ function buildQuoteLineSnapshotJsonForWrite(it) {
  * metadata optionnel : fusionné dans metadata_json (ex. study_import).
  * @param {{ req?: import("express").Request; userId?: string | null }} [auditContext]
  */
-export async function createQuote(organizationId, body, auditContext = null) {
+async function loadLockedScenarioQuoteCoherenceContext(client, organizationId, studyVersionId) {
+  if (!studyVersionId) return null;
+
+  const versionRes = await client.query(
+    `SELECT id, is_locked, selected_scenario_id, selected_scenario_snapshot
+       FROM study_versions
+      WHERE id = $1 AND organization_id = $2
+      FOR UPDATE`,
+    [studyVersionId, organizationId]
+  );
+  const version = versionRes.rows[0] || null;
+  if (!version || (!version.is_locked && !version.selected_scenario_snapshot)) return null;
+
+  const economicRes = await client.query(
+    `SELECT config_json
+       FROM economic_snapshots
+      WHERE study_version_id = $1 AND organization_id = $2
+      ORDER BY created_at DESC
+      LIMIT 1`,
+    [studyVersionId, organizationId]
+  );
+
+  const calpinageRes = await client.query(
+    `SELECT total_power_kwc, annual_production_kwh
+       FROM calpinage_data
+      WHERE study_version_id = $1 AND organization_id = $2
+      LIMIT 1`,
+    [studyVersionId, organizationId]
+  );
+
+  return {
+    selectedScenarioId: version.selected_scenario_id,
+    selectedScenarioSnapshot: version.selected_scenario_snapshot || null,
+    economicConfig: economicRes.rows[0]?.config_json || {},
+    calpinage: calpinageRes.rows[0] || {},
+  };
+}
+
+function pickFirstPresent(...values) {
+  for (const value of values) {
+    if (value != null && value !== "") return value;
+  }
+  return null;
+}
+
+function buildQuoteCoherenceReference({ quoteRow, lockedContext }) {
+  const economicConfig = lockedContext?.economicConfig || {};
+  const calpinage = lockedContext?.calpinage || {};
+  const selected = lockedContext?.selectedScenarioSnapshot || {};
+  const technical = economicConfig.technical_snapshot_summary || economicConfig.technical || {};
+
+  return {
+    production_annual_kwh: pickFirstPresent(
+      calpinage.annual_production_kwh,
+      technical.production_annual_kwh,
+      technical.annual_production_kwh,
+      selected.installation?.production_annuelle_kwh
+    ),
+    total_ttc: quoteRow?.total_ttc,
+    aides_total_eur: pickFirstPresent(
+      economicConfig.aides_total_eur,
+      economicConfig.aids_total_eur,
+      economicConfig.prime_eur,
+      economicConfig.totals?.aides_total_eur,
+      selected.finance?.aides_total_eur,
+      selected.finance?.prime_eur
+    ),
+    total_power_kwc: pickFirstPresent(
+      calpinage.total_power_kwc,
+      technical.power_kwc,
+      technical.total_power_kwc,
+      selected.installation?.puissance_kwc
+    ),
+  };
+}
+
+function assertLockedScenarioQuoteCoherence(lockedContext, quoteRow) {
+  if (!lockedContext) return;
+  if (!lockedContext.selectedScenarioSnapshot) {
+    const err = new Error("Creation du devis bloquee: version verrouillee sans snapshot de scenario financier.");
+    err.code = "LOCKED_SCENARIO_SNAPSHOT_MISSING";
+    err.statusCode = 409;
+    throw err;
+  }
+
+  const validation = validateScenarioQuoteCoherence(
+    lockedContext.selectedScenarioSnapshot,
+    buildQuoteCoherenceReference({ quoteRow, lockedContext })
+  );
+
+  if (!validation.ok) {
+    throw buildScenarioQuoteCoherenceError(validation);
+  }
+}
+
+/**
+ * Creer devis en draft avec items.
+ *
+ * Rattachement : client_id et/ou lead_id (au moins un des deux). study_id / study_version_id facultatifs.
+ * metadata optionnel : fusionne dans metadata_json (ex. study_import).
+ * @param {{ req?: import("express").Request; userId?: string | null }} [auditContext]
+ */
+export async function createQuote(organizationId, body, auditContext = null) {
   const { client_id, lead_id, study_id, study_version_id, items = [], metadata } = body;
 
   const hasClient = client_id != null && String(client_id).trim() !== "";
@@ -756,7 +863,8 @@ export async function createQuote(organizationId, body, auditContext = null) {
     const clientIdVal = hasClient ? client_id : null;
     const leadIdVal = lead_id || null;
     const studyIdVal = study_id || null;
-    const studyVersionVal = study_version_id || null;
+    const studyVersionVal = study_version_id || null;
+    const lockedScenarioContext = await loadLockedScenarioQuoteCoherenceContext(client, organizationId, studyVersionVal);
 
     let metadataJson = {};
     if (!hasClient && leadIdVal) {
@@ -877,7 +985,9 @@ export async function createQuote(organizationId, body, auditContext = null) {
         [quoteId, organizationId]
       )
     ).rows;
-    const itemsRows = (
+    assertLockedScenarioQuoteCoherence(lockedScenarioContext, quoteRow);
+
+    const itemsRows = (
       await client.query(
         "SELECT * FROM quote_lines WHERE quote_id = $1 AND organization_id = $2 ORDER BY position",
         [quoteId, organizationId]

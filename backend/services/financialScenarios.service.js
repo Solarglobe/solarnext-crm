@@ -122,15 +122,8 @@ export async function upsertFinancialScenariosForVersion({
            capex_ttc      = EXCLUDED.capex_ttc,
            roi_years      = EXCLUDED.roi_years,
            irr_pct        = EXCLUDED.irr_pct,
-           status         = CASE
-             WHEN financial_scenarios.status = 'LOCKED' THEN 'DRAFT'
-             ELSE financial_scenarios.status
-           END,
-           locked_at      = CASE
-             WHEN financial_scenarios.status = 'LOCKED' THEN NULL
-             ELSE financial_scenarios.locked_at
-           END,
-           updated_at     = NOW()`,
+           updated_at     = NOW()
+         WHERE financial_scenarios.status != 'LOCKED'`,
         [
           organizationId, studyId, studyVersionId, scenarioId,  // $1-$4
           label,                                                  // $5

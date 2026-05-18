@@ -310,7 +310,7 @@ router.post(
       const data = await service.createQuote(org, req.body, { req, userId: userId(req) });
       res.status(201).json(data);
     } catch (e) {
-      res.status(400).json({ error: e.message });
+      res.status(e.statusCode ?? 400).json({ error: e.message, code: e.code, details: e.details });
     }
   }
 );

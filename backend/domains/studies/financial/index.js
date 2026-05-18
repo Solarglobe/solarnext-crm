@@ -19,3 +19,4 @@
 export * from "./energyCalculator.js";
 export * from "./batterySimulator.js";
 export * from "./roiCalculator.js";
+export * from "./scenarioQuoteCoherence.js";
