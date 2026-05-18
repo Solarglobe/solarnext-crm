@@ -28,4 +28,11 @@ export const rateLimitEnv = {
   /** Routes non authentifiées coûteuses (calc CSV, rendu PDF Playwright, calpinage fichier) */
   publicHeavyMax: intEnv("RATE_LIMIT_PUBLIC_HEAVY_MAX", 15),
   publicHeavyWindowMs: msEnv("RATE_LIMIT_PUBLIC_HEAVY_WINDOW_MS", 60 * 1000),
+
+  apiAuthenticatedMax: intEnv("RATE_LIMIT_API_AUTH_MAX", 100),
+  apiAnonymousMax: intEnv("RATE_LIMIT_API_ANON_MAX", 20),
+  shadingOrgMax: intEnv("RATE_LIMIT_SHADING_ORG_MAX", 10),
+  financialOrgMax: intEnv("RATE_LIMIT_FINANCIAL_ORG_MAX", 20),
+  pdfConcurrentMax: intEnv("RATE_LIMIT_PDF_CONCURRENT_MAX", 3),
+  pdfQueueTimeoutMs: msEnv("RATE_LIMIT_PDF_QUEUE_TIMEOUT_MS", 30 * 1000),
 };

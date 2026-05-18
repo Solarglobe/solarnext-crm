@@ -14,6 +14,7 @@ import { attachAuditRequestId } from "./services/audit/auditLog.service.js";
 import { applyTrustProxy } from "./middleware/security/trustProxy.js";
 import { securityHeadersMiddleware } from "./middleware/security/securityHeaders.middleware.js";
 import { schemaVersionMiddleware } from "./middleware/schemaVersion.middleware.js";
+import { generalApiRateLimiter } from "./middleware/rateLimit.middleware.js";
 import { initBackendSentry, sentryErrorHandler, sentryRequestContextMiddleware } from "./services/sentry.service.js";
 import calcRouter from "./routes/calc.routes.js";
 import horizonRouter from "./routes/horizon.routes.js";
@@ -341,6 +342,7 @@ export function buildHttpApp() {
   app.use(attachAuditRequestId);
   app.use(httpLogger);
   app.use(sentryRequestContextMiddleware);
+  app.use("/api", generalApiRateLimiter);
 
   app.get("/api/health/live", (_req, res) => {
     res.json({
@@ -426,6 +428,7 @@ export function buildHttpApp() {
   app.use("/api/system", systemRouter);
   app.use("/api", internalRouter);
   app.use("/auth", authRouter);
+  app.use("/api/auth", authRouter);
   app.use("/api/enedis", enedisRouter);
   app.use("/api/energy", energyRouter);
   app.use("/api/rbac", rbacRouter);

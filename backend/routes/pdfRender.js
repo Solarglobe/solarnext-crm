@@ -14,6 +14,7 @@ import { buildDsmCombinedHtml } from "../pdf/dsmCombinedHtmlBuilder.js";
 import { buildHorizonMaskSinglePageHtml } from "../pdf/horizonMaskHtmlBuilder.js";
 import { respondWithDpPdfOrJson } from "../services/dpPdfPersistResponse.service.js";
 import { publicHeavyRateLimiter } from "../middleware/security/rateLimit.presets.js";
+import { pdfConcurrencyLimiter } from "../middleware/rateLimit.middleware.js";
 import { verifyJWT } from "../middleware/auth.middleware.js";
 import { requirePermission } from "../rbac/rbac.middleware.js";
 
@@ -33,7 +34,12 @@ function requireInternalPdfQueryOrgMatchesJwt(req, res, next) {
 }
 
 router.use((req, res, next) => {
-  if (req.method === "POST") return publicHeavyRateLimiter(req, res, next);
+  if (req.method === "POST") {
+    return pdfConcurrencyLimiter(req, res, (err) => {
+      if (err) return next(err);
+      return publicHeavyRateLimiter(req, res, next);
+    });
+  }
   next();
 });
 

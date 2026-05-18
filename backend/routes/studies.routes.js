@@ -12,12 +12,33 @@ import { pool } from "../config/db.js";
 import * as service from "./studies/service.js";
 import { archiveEntity, restoreEntity } from "../services/archive.service.js";
 import { heavyUserRateLimiter } from "../middleware/security/rateLimit.presets.js";
+import {
+  financialCalculationRateLimiter,
+  pdfConcurrencyLimiter,
+  shadingCalculationRateLimiter,
+} from "../middleware/rateLimit.middleware.js";
 import { logAuditEvent } from "../services/audit/auditLog.service.js";
 import { AuditActions } from "../services/audit/auditActions.js";
 
 const router = express.Router();
 const orgId = (req) => req.user.organizationId ?? req.user.organization_id;
 const userId = (req) => req.user?.id ?? req.user?.userId ?? null;
+
+router.post(
+  "/:id/geometry/calculate",
+  verifyJWT,
+  requirePermission("study.manage"),
+  shadingCalculationRateLimiter,
+  (_req, _res, next) => next()
+);
+
+router.post(
+  "/:id/financial/compute",
+  verifyJWT,
+  requirePermission("study.manage"),
+  financialCalculationRateLimiter,
+  (_req, _res, next) => next()
+);
 
 router.get(
   "/",
@@ -478,6 +499,7 @@ router.post(
   "/:studyId/versions/:versionId/generate-pdf",
   verifyJWT,
   requirePermission("study.manage"),
+  pdfConcurrencyLimiter,
   generatePdf
 );
 
@@ -486,6 +508,7 @@ router.post(
   "/:studyId/versions/:versionId/generate-pdf-from-scenario",
   verifyJWT,
   requirePermission("study.manage"),
+  pdfConcurrencyLimiter,
   generatePdfFromScenario
 );
 
