@@ -1,4 +1,35 @@
-import { defineConfig } from '@playwright/test';
+import { defineConfig, devices } from '@playwright/test';
+
+/**
+ * CI_MOBILE=1 → active les projets Mobile Chrome et Mobile Safari.
+ * Ces projets ne font tourner que tests/e2e/mobile.smoke.spec.ts.
+ *
+ * En local ou sur des branches autres que main/staging, les projets mobile
+ * sont désactivés par défaut pour ne pas alourdir le CI.
+ *
+ * Activation :
+ *   CI_MOBILE=1 npx playwright test
+ *   ou dans le pipeline GitHub Actions :
+ *     env: { CI_MOBILE: '1' }  (uniquement sur main/staging)
+ */
+const CI_MOBILE = !!process.env.CI_MOBILE;
+
+/** Projets mobile — injectés seulement si CI_MOBILE est positionné. */
+const mobileProjects = CI_MOBILE
+  ? [
+      {
+        name: 'Mobile Chrome',
+        use: { ...devices['Pixel 5'] },
+        // N'exécute que le fichier de smoke mobile — aucune interférence desktop.
+        testMatch: '**/e2e/mobile.smoke.spec.ts',
+      },
+      {
+        name: 'Mobile Safari',
+        use: { ...devices['iPhone 13'] },
+        testMatch: '**/e2e/mobile.smoke.spec.ts',
+      },
+    ]
+  : [];
 
 export default defineConfig({
   testDir: './tests',
@@ -34,6 +65,10 @@ export default defineConfig({
     {
       name: 'chromium',
       use: { browserName: 'chromium' },
+      // Exclut le smoke mobile du projet desktop — pas de doublon d'exécution.
+      testIgnore: ['**/mobile.smoke.spec.ts'],
     },
+    // Projets mobile — vides si CI_MOBILE non défini
+    ...mobileProjects,
   ],
 });
