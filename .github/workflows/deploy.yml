@@ -71,6 +71,13 @@ jobs:
             exit "$status"
           fi
 
+      - name: Import official PV equipment catalog
+        working-directory: backend
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run import:official-pv-catalog
+
   deploy-vercel:
     name: Deploy Frontend to Vercel
     runs-on: ubuntu-latest
