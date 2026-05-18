@@ -104,11 +104,13 @@
 }
 
 .orientationMicroLabel {
-  font-size: 10px;
+  /* 10px → 11px : iOS Safari ne scale plus automatiquement au-dessus de 11px */
+  font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--text-secondary, #374151);
+  -webkit-text-size-adjust: 100%;
 }
 
 .toggleCompact {
@@ -154,11 +156,13 @@
 }
 
 .flatRoofTinyLabel {
-  font-size: 10px;
+  /* 10px → 11px : prévient le zoom automatique iOS Safari */
+  font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.03em;
   color: var(--text-secondary, #374151);
+  -webkit-text-size-adjust: 100%;
 }
 
 .toolLinkBtn {
@@ -199,16 +203,37 @@
 }
 
 .stateStatusKey {
-  font-size: 10px;
+  /* 10px → 11px : prévient le zoom automatique iOS Safari */
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-secondary, #374151);
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Badge générique — cible WCAG 2.5.5 + iOS text-size-adjust.
+   Couleurs et border-radius NON définis ici — hérités des classes sémantiques. */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  min-height: 20px;
+  border-radius: inherit;
+  -webkit-text-size-adjust: 100%;
 }
 
 .stateStatusVal {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
+  padding: 3px 8px;
+  min-height: 20px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 6px;
+  -webkit-text-size-adjust: 100%;
 }
 
 .stateStatusOk {

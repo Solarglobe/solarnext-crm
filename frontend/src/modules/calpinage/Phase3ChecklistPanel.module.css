@@ -33,6 +33,18 @@
   color: var(--sg-text);
 }
 
+/* Badge générique — prévient le zoom auto iOS Safari, surface min WCAG 2.5.5.
+   Les couleurs sémantiques restent sur .statusOk/.statusWarning/etc. */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  min-height: 20px;
+  -webkit-text-size-adjust: 100%;
+}
+
 .statusOk { color: var(--sg-success); }
 .statusWarning { color: var(--sg-warning); }
 .statusError { color: var(--sg-error); }

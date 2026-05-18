@@ -309,7 +309,10 @@ function Phase3StateSummary({
     <div className={styles.stateBlock}>
       <div className={styles.stateStatusRow}>
         <span className={styles.stateStatusKey}>Statut</span>
-        <span className={`${styles.stateStatusVal} ${statusClass}`}>{status}</span>
+        {/* Touch-target WCAG 2.5.5 : surface min 44×44 px autour du badge statut */}
+        <span style={{ minWidth: 44, minHeight: 44, display: 'inline-flex', alignItems: 'center' }}>
+          <span className={`${styles.stateStatusVal} ${statusClass}`}>{status}</span>
+        </span>
       </div>
       <dl className={styles.stateDl}>
         <div className={styles.stateDlRow}>
