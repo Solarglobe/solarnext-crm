@@ -160,6 +160,20 @@ export interface CalpinageStore {
   metersPerPixel: number | null;
 
   /**
+   * Raison de dégradation de la reconstruction 3D.
+   * null = reconstruction normale.
+   * Valeur non-null = officialSolarScene3DGateway a détecté que le runtime
+   * n'était pas monté au moment du build (getHeightAtXY indisponible) →
+   * la toiture 3D est plate (Z=0).
+   *
+   * Écrit par officialSolarScene3DGateway.ts via useCalpinageStore.setState().
+   * Lu par CalpinageApp.tsx pour afficher un banner non-bloquant.
+   *
+   * Valeurs possibles : "RUNTIME_NOT_MOUNTED" | "UNKNOWN" | null
+   */
+  degraded3DReason: string | null;
+
+  /**
    * Met à jour le metersPerPixel et invalide les caches de surfaces/longueurs.
    * Appelé par le ResizeObserver du viewer satellite (debounce 300 ms).
    * No-op si mpp ≤ 0 ou non fini.

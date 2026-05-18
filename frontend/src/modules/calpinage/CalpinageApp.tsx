@@ -1,4 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCalpinageStore } from "./store/calpinageStore";
 import { installEmitOfficialRuntimeStructuralChangeOnWindow } from "./runtime/emitOfficialRuntimeStructuralChange";
 import { installRoofModelingHistoryOnWindow, resetRoofModelingHistory } from "./runtime/roofModelingHistory";
 import { initCalpinage } from "./legacy/calpinage.module.js";
@@ -137,15 +138,7 @@ export default function CalpinageApp({
     };
   }, []);
 
-  /** Écoute l'event calpinage:3d-degraded émis par officialSolarScene3DGateway. */
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const detail = (e as CustomEvent<{ reason?: string }>).detail;
-      setDegraded3DReason(detail?.reason ?? "UNKNOWN");
-    };
-    window.addEventListener("calpinage:3d-degraded", handler);
-    return () => window.removeEventListener("calpinage:3d-degraded", handler);
-  }, []);
+  // calpinage:3d-degraded migré vers Zustand — voir MIGRATION-EVENTS.md
 
   /** Écoute l'event calpinage:near-shading-divergence émis par useNearShadingDivergence. */
   useEffect(() => {
@@ -206,9 +199,9 @@ export default function CalpinageApp({
   /**
    * Banner non-bloquant affiché quand la reconstruction 3D est dégradée
    * (runtime non initialisé → toiture plate silencieuse évitée).
-   * Émis par officialSolarScene3DGateway via CustomEvent "calpinage:3d-degraded".
+   * Écrit par officialSolarScene3DGateway via useCalpinageStore.setState() — migré depuis CustomEvent.
    */
-  const [degraded3DReason, setDegraded3DReason] = useState<string | null>(null);
+  const degraded3DReason = useCalpinageStore((s) => s.degraded3DReason);
   /**
    * Banner non-bloquant affiché quand le near shading canonical TS diverge du near backend.
    * Émis par useNearShadingDivergence via CustomEvent "calpinage:near-shading-divergence".
@@ -385,7 +378,7 @@ export default function CalpinageApp({
           <button
             type="button"
             aria-label="Fermer l'alerte reconstruction 3D"
-            onClick={() => setDegraded3DReason(null)}
+            onClick={() => useCalpinageStore.setState({ degraded3DReason: null })}
             style={{
               marginLeft: 8,
               background: "none",

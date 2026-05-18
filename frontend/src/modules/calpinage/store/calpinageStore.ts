@@ -80,6 +80,7 @@ export const useCalpinageStore = create<CalpinageStore>((set) => ({
   phase2: initialPhase2,
   phase3: initialPhase3,
   metersPerPixel: null,
+  degraded3DReason: null,
 
   setMetersPerPixel(mpp: number): void {
     if (!Number.isFinite(mpp) || mpp <= 0) return;

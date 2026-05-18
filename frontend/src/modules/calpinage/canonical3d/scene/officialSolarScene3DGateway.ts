@@ -17,6 +17,7 @@
 
 import { buildSolarScene3DFromCalpinageRuntime } from "../buildSolarScene3DFromCalpinageRuntimeCore";
 import { getCalpinageRuntime } from "../../runtime/calpinageRuntime";
+import { useCalpinageStore } from "../../store/calpinageStore";
 import type { BuildSolarScene3DFromCalpinageRuntimeOptions } from "../buildSolarScene3DFromCalpinageRuntimeCore";
 import {
   buildPanelVisualShadingMapFromRuntime,
@@ -169,14 +170,10 @@ export function getOrBuildOfficialSolarScene3DFromCalpinageRuntime(
       console.warn(
         "[3D-GATEWAY] RUNTIME_NOT_MOUNTED — getCalpinageRuntime().getHeightAtXY indisponible.\n" +
         "La reconstruction 3D va produire une toiture plate (Z=0 sur tous les sommets).\n" +
-        "Émission de calpinage:3d-degraded pour notification UI.",
+        "Mise à jour store.degraded3DReason → notification UI via Zustand.",
       );
     }
-    window.dispatchEvent(
-      new CustomEvent("calpinage:3d-degraded", {
-        detail: { reason: "RUNTIME_NOT_MOUNTED" },
-      }),
-    );
+    useCalpinageStore.setState({ degraded3DReason: "RUNTIME_NOT_MOUNTED" });
   }
   // ──────────────────────────────────────────────────────────────────────────
 
