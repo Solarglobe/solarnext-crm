@@ -127,6 +127,12 @@ import {
   technicalMinObstaclePixels,
   TECH_MIN_DIM_M,
 } from "../catalog/roofObstaclePlacement";
+import {
+  FLAT_ROOF_ROW_SPACING_CM,
+  FLAT_ROOF_ROW_SPACING_MM,
+  normalizeFlatRoofConfig,
+  getAutoRowSpacingCmFromTilt,
+} from "./flatRoofConfig.js";
 
 /** Même priorité que `readNorthDeg` (panPhysical) / `getNorthAngleDeg` (pans-bundle). */
 function readNorthAngleDegFromCalpinageRoof(roof) {
@@ -138,48 +144,8 @@ function readNorthAngleDegFromCalpinageRoof(roof) {
   return 0;
 }
 
-/** Inter-rangées toit plat Phase 3 — unique produit (550 mm = 55 cm). */
-var FLAT_ROOF_ROW_SPACING_CM = 55;
-var FLAT_ROOF_ROW_SPACING_MM = 550;
-
-/** Même contrat que normalizeFlatRoofConfig (IIFE calpinage) — utilisé hors de cette portée (ex. buildFinalCalpinageJSON). */
-function __safeNormalizeFlatRoofConfig(fc) {
-  var DEFAULT_FLAT_ROOF_CONFIG = {
-    supportTiltDeg: 10,
-    layoutOrientation: "portrait",
-    setbackRoofEdgeCm: 60,
-    setbackObstacleCm: 60,
-    rowSpacingCm: FLAT_ROOF_ROW_SPACING_CM,
-    colSpacingCm: 2,
-  };
-  fc = fc && typeof fc === "object" ? fc : {};
-  var st = Number(fc.supportTiltDeg);
-  var supportTiltDeg = (st === 5 || st === 10 || st === 15) ? st : DEFAULT_FLAT_ROOF_CONFIG.supportTiltDeg;
-  var lo = (fc.layoutOrientation != null ? String(fc.layoutOrientation) : "").toLowerCase();
-  var layoutOrientation = (lo === "landscape" || lo === "paysage") ? "landscape" : "portrait";
-  function numCm(k, def) {
-    var v = Number(fc[k]);
-    return Number.isFinite(v) && v >= 0 ? v : def;
-  }
-  return {
-    supportTiltDeg: supportTiltDeg,
-    layoutOrientation: layoutOrientation,
-    setbackRoofEdgeCm: numCm("setbackRoofEdgeCm", DEFAULT_FLAT_ROOF_CONFIG.setbackRoofEdgeCm),
-    setbackObstacleCm: numCm("setbackObstacleCm", DEFAULT_FLAT_ROOF_CONFIG.setbackObstacleCm),
-    rowSpacingCm: FLAT_ROOF_ROW_SPACING_CM,
-    rowSpacingMm: FLAT_ROOF_ROW_SPACING_MM,
-    colSpacingCm: numCm("colSpacingCm", DEFAULT_FLAT_ROOF_CONFIG.colSpacingCm),
-    rowSpacingManual: fc.rowSpacingManual === true,
-  };
-}
-
-/**
- * Toit plat : inter-rangées figée (55 cm) — plus de variation selon l’inclinaison support.
- * @returns {number}
- */
-function getAutoRowSpacingCmFromTilt(_tiltDeg) {
-  return FLAT_ROOF_ROW_SPACING_CM;
-}
+// FLAT_ROOF_ROW_SPACING_CM, FLAT_ROOF_ROW_SPACING_MM, normalizeFlatRoofConfig,
+// getAutoRowSpacingCmFromTilt -> imports depuis ./flatRoofConfig.js (extraction Phase 1)
 
 function debugStateConsistency(drawState) {
   const state = getInteractionState();
@@ -5274,37 +5240,8 @@ export function initCalpinage(container, options = {}) {
         }
         return true;
       }
-      /** Config par défaut — toiture plate (V1). */
-      var DEFAULT_FLAT_ROOF_CONFIG = {
-        supportTiltDeg: 10,
-        layoutOrientation: "portrait",
-        setbackRoofEdgeCm: 60,
-        setbackObstacleCm: 60,
-        rowSpacingCm: FLAT_ROOF_ROW_SPACING_CM,
-        colSpacingCm: 2,
-      };
+      // normalizeFlatRoofConfig -> importe depuis ./flatRoofConfig.js (extraction Phase 1)
 
-      function normalizeFlatRoofConfig(fc) {
-        fc = fc && typeof fc === "object" ? fc : {};
-        var st = Number(fc.supportTiltDeg);
-        var supportTiltDeg = (st === 5 || st === 10 || st === 15) ? st : DEFAULT_FLAT_ROOF_CONFIG.supportTiltDeg;
-        var lo = (fc.layoutOrientation != null ? String(fc.layoutOrientation) : "").toLowerCase();
-        var layoutOrientation = (lo === "landscape" || lo === "paysage") ? "landscape" : "portrait";
-        function numCm(k, def) {
-          var v = Number(fc[k]);
-          return Number.isFinite(v) && v >= 0 ? v : def;
-        }
-        return {
-          supportTiltDeg: supportTiltDeg,
-          layoutOrientation: layoutOrientation,
-          setbackRoofEdgeCm: numCm("setbackRoofEdgeCm", DEFAULT_FLAT_ROOF_CONFIG.setbackRoofEdgeCm),
-          setbackObstacleCm: numCm("setbackObstacleCm", DEFAULT_FLAT_ROOF_CONFIG.setbackObstacleCm),
-          rowSpacingCm: FLAT_ROOF_ROW_SPACING_CM,
-          rowSpacingMm: FLAT_ROOF_ROW_SPACING_MM,
-          colSpacingCm: numCm("colSpacingCm", DEFAULT_FLAT_ROOF_CONFIG.colSpacingCm),
-          rowSpacingManual: fc.rowSpacingManual === true,
-        };
-      }
 
       /** Marque l’espacement rangées comme saisi manuellement sur chaque pan FLAT (ne plus l’écraser au changement d’inclinaison). */
       function markAllFlatPansRowSpacingManual() {
@@ -25253,9 +25190,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               }
             }
             var flatRoofConfig = (liveExp && liveExp.flatRoofConfig) || p.flatRoofConfig;
-            row.flatRoofConfig = (typeof normalizeFlatRoofConfig === "function"
-              ? normalizeFlatRoofConfig(flatRoofConfig)
-              : (typeof console !== "undefined" && console.warn && console.warn("[FLAT CONFIG FALLBACK]", flatRoofConfig), __safeNormalizeFlatRoofConfig(flatRoofConfig)));
+            row.flatRoofConfig = normalizeFlatRoofConfig(flatRoofConfig);
           }
           return row;
         }),
@@ -25345,29 +25280,4 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
       try { delete window.__computePanelsHashForExport; } catch (_) {}
       try { delete window.__computeShadingHashForExport; } catch (_) {}
       try { delete window.__calpinageRefreshLegacyUiAfterPanVertexHeightEdit; } catch (_) {}
-      try { delete window.__calpinageCommitRoofVertexHeightLike2D; } catch (_) {}
-      try { delete window.__calpinage_hitTestPan__; } catch (_) {}
-      try { delete window.__calpinageRecomputePansFromGeometryAndUI; } catch (_) {}
-      window.CALPINAGE_STUDY_ID = null;
-      window.CALPINAGE_VERSION_ID = null;
-      window.PV_SELECTED_PANEL = null;
-      window.CALPINAGE_SELECTED_PANEL_ID = null;
-      window.PV_SELECTED_INVERTER = null;
-      window.CALPINAGE_SELECTED_INVERTER_ID = null;
-      window.CALPINAGE_ALLOWED = false;
-    }
-    /* Vider le container pour que le prochain init (étude B) ne trouve pas #calpinage-root et réinjecte proprement */
-    try {
-      if (container && container.firstChild) {
-        while (container.firstChild) container.removeChild(container.firstChild);
-      }
-    } catch (e) { if (typeof console !== "undefined") console.warn("[CALPINAGE] container clear error", e); }
-    _calpinageInitInFlight = false;
-    if (devLog) {
-      console.log("[CALPINAGE] cleanup done (state isolated, ready for next study)");
-    }
-  };
-  container.__CALPINAGE_MOUNTED__ = true;
-  container.__CALPINAGE_TEARDOWN__ = cleanup;
-  return cleanup;
-}
+      try { delete window.__calpinageCommitRoofVertexHeightLike2D; } catch
