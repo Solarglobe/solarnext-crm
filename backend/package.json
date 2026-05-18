@@ -93,6 +93,7 @@
     "test-pv-validation": "node scripts/test-pv-validation.js",
     "audit-pv-catalog": "node scripts/audit-pv-catalog.js",
     "fix-pv-catalog": "node scripts/fix-pv-catalog.js",
+    "import:official-pv-catalog": "node scripts/import-official-pv-catalog.mjs",
     "test-phase3-inverter-sampling": "node scripts/test-phase3-inverter-sampling.js",
     "test-inverter-family": "node tests/inverterFamily.test.js",
     "test-inverter-family-sync": "node tests/inverterFamilySync.test.js",

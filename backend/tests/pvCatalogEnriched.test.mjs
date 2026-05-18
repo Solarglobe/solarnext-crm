@@ -47,3 +47,12 @@ test("pv settings UI includes fixations, CSV import and favorite controls", () =
   assert.match(page, /Favori \+/);
   assert.match(page, /ProductThumb/);
 });
+
+test("official CER/CEC importer downloads public CSVs and never imports prices", () => {
+  const importer = read("backend/scripts/import-official-pv-catalog.mjs");
+  assert.match(importer, /cec-approved-pv-modules-0/);
+  assert.match(importer, /cec-approved-inverters-0/);
+  assert.match(importer, /cec-approved-solar-batteries-0/);
+  assert.match(importer, /shading_compatible/);
+  assert.doesNotMatch(importer, /purchase_price_ht\s*=\s*\$|default_price_ht\s*=\s*\$/);
+});
