@@ -1,0 +1,73 @@
+{
+  "energySites": [
+    {
+      "name": "Lille residential 3 kWc",
+      "peakPowerKwc": 3,
+      "monthlyProductionKwh": [95, 130, 230, 315, 385, 410, 420, 370, 290, 190, 105, 80],
+      "annualConsumptionKwh": 4200
+    },
+    {
+      "name": "Nantes residential 6 kWc",
+      "peakPowerKwc": 6,
+      "monthlyProductionKwh": [210, 290, 470, 610, 735, 790, 820, 760, 610, 410, 250, 185],
+      "annualConsumptionKwh": 6100
+    },
+    {
+      "name": "Lyon commercial 9 kWc",
+      "peakPowerKwc": 9,
+      "monthlyProductionKwh": [360, 500, 760, 930, 1110, 1220, 1280, 1190, 930, 690, 430, 330],
+      "annualConsumptionKwh": 15800,
+      "consumptionProfile": "commercial"
+    },
+    {
+      "name": "Marseille commercial 36 kWc",
+      "peakPowerKwc": 36,
+      "monthlyProductionKwh": [1700, 2350, 3550, 4300, 5050, 5550, 5750, 5350, 4250, 3150, 2050, 1550],
+      "annualConsumptionKwh": 76000,
+      "consumptionProfile": "commercial"
+    },
+    {
+      "name": "Polar edge case",
+      "peakPowerKwc": 6,
+      "monthlyProductionKwh": [0, 0, 85, 390, 710, 840, 820, 520, 180, 20, 0, 0],
+      "annualConsumptionKwh": 5200
+    }
+  ],
+  "batteryCases": [
+    {
+      "name": "no battery baseline",
+      "type": "none",
+      "dailyPvKwh": [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 3, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      "dailyLoadKwh": [0.4, 0.3, 0.3, 0.3, 0.4, 0.6, 0.8, 0.7, 0.5, 0.4, 0.4, 0.5, 0.7, 0.5, 0.4, 0.5, 0.8, 1.1, 1.2, 1, 0.8, 0.6, 0.5, 0.4]
+    },
+    {
+      "name": "full physical battery",
+      "type": "physical",
+      "battery": {
+        "usableCapacityKwh": 8,
+        "depthOfDischargePct": 100,
+        "chargeEfficiencyPct": 95,
+        "dischargeEfficiencyPct": 95
+      },
+      "dailyPvKwh": [0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 4, 4, 3, 2, 1, 0, 0, 0, 0, 0, 0, 0],
+      "dailyLoadKwh": [0.4, 0.3, 0.3, 0.3, 0.4, 0.6, 0.8, 0.7, 0.5, 0.4, 0.4, 0.5, 0.7, 0.5, 0.4, 0.5, 0.8, 1.1, 1.2, 1, 0.8, 0.6, 0.5, 0.4]
+    },
+    {
+      "name": "virtual battery contract",
+      "type": "virtual",
+      "virtualBattery": {
+        "annualCapKwh": 1800,
+        "creditRateEurKwh": 0.04
+      },
+      "retailElectricityRateEurKwh": 0.24,
+      "dailyPvKwh": [0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 4, 4, 3, 2, 1, 0, 0, 0, 0, 0, 0, 0],
+      "dailyLoadKwh": [0.4, 0.3, 0.3, 0.3, 0.4, 0.6, 0.8, 0.7, 0.5, 0.4, 0.4, 0.5, 0.7, 0.5, 0.4, 0.5, 0.8, 1.1, 1.2, 1, 0.8, 0.6, 0.5, 0.4]
+    }
+  ],
+  "oaBracketChecks": [
+    { "powerKwc": 3, "expectedRateEurKwh": 0.04, "expectedLabel": "P <= 3 kWc" },
+    { "powerKwc": 9, "expectedRateEurKwh": 0.04, "expectedLabel": "3 < P <= 9 kWc" },
+    { "powerKwc": 36, "expectedRateEurKwh": 0.0473, "expectedLabel": "9 < P <= 36 kWc" },
+    { "powerKwc": 100, "expectedRateEurKwh": 0.0473, "expectedLabel": "36 < P <= 100 kWc" }
+  ]
+}
