@@ -58,7 +58,7 @@
   gap: 0;
   padding: 3px;
   background: var(--color-bg-muted, #e5e7eb);
-  border-radius: 10px;
+  border-radius: var(--radius-card-sm);
 }
 
 .modeSegmentBtn {
@@ -68,7 +68,7 @@
   font-size: 12px;
   font-weight: 600;
   border: none;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: transparent;
   color: var(--text, #111827);
   cursor: pointer;
@@ -124,7 +124,7 @@
   font-size: 12px;
   font-weight: 600;
   border: none;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--color-bg-muted, #e5e7eb);
   color: var(--text, #111827);
   cursor: pointer;
@@ -232,7 +232,7 @@
   min-height: 20px;
   display: inline-flex;
   align-items: center;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   -webkit-text-size-adjust: 100%;
 }
 
@@ -370,7 +370,7 @@
   font-weight: 700;
   letter-spacing: 0.01em;
   border: none;
-  border-radius: 10px;
+  border-radius: var(--radius-card-sm);
   background: linear-gradient(180deg, #818CF8 0%, #6366F1 100%);
   color: #ffffff;
   cursor: pointer;
@@ -417,7 +417,7 @@
   font-size: 12px;
   font-weight: 600;
   border: 1px solid var(--color-border-default, #d1d5db);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--color-bg-card, #ffffff);
   color: var(--text, #111827);
   cursor: pointer;
@@ -450,7 +450,7 @@
   font-size: 11px;
   font-weight: 600;
   border: none;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--color-bg-muted, #f3f4f6);
   color: var(--text, #111827);
   cursor: pointer;
@@ -488,7 +488,7 @@
 
 .autofillActive {
   padding: 8px 10px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--color-bg-muted, #f3f4f6);
   display: flex;
   flex-direction: column;
@@ -513,7 +513,7 @@
   font-size: 11px;
   font-weight: 600;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--brand-accent, #6366F1);
   color: #ffffff;
   cursor: pointer;
@@ -530,7 +530,7 @@
   font-size: 11px;
   font-weight: 600;
   border: 1px solid var(--color-border-default, #d1d5db);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--color-bg-card, #ffffff);
   color: var(--text, #111827);
   cursor: pointer;

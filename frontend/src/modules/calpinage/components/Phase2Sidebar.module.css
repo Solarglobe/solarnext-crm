@@ -80,7 +80,7 @@
   padding: 8px 10px;
   background: var(--color-bg-card, #fff);
   border: 1px solid var(--color-border-default, #e8e8e8);
-  border-radius: 10px;
+  border-radius: var(--radius-card-sm);
 }
 
 .toolbar {
@@ -138,7 +138,7 @@
   font-size: 11px;
   font-weight: 600;
   border: 1px solid var(--color-border-default, #e5e7eb);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--color-bg-card, #fff);
   color: var(--sg-text, #374151);
   cursor: pointer;
@@ -177,7 +177,7 @@
   padding: 6px 8px 8px;
   background: var(--color-bg-card, #fff);
   border: 1px solid var(--color-border-default, #e8e8e8);
-  border-radius: 10px;
+  border-radius: var(--radius-card-sm);
   min-height: 0;
 }
 
@@ -203,7 +203,7 @@
   font-size: 12px;
   padding: 4px 6px;
   margin: 1px 0;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
 }
 
 /*
@@ -242,7 +242,7 @@
 
 :global(#zone-a-pans-block) :global(.pans-accordion-item) {
   margin: 0 0 4px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   border: 1px solid rgba(17, 24, 39, 0.12);
   background: #fff;
   overflow: hidden;
@@ -311,7 +311,7 @@
   letter-spacing: 0.08em;
   text-transform: uppercase;
   padding: 1px 4px;
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
   border: 1px solid transparent;
   line-height: 1.2;
 }
@@ -409,7 +409,7 @@
   padding: 4px 5px;
   background: #f8fafc;
   border: 1px solid rgba(15, 23, 42, 0.08);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   box-sizing: border-box;
 }
 
@@ -456,7 +456,7 @@
   width: 44px;
   min-width: 44px;
   padding: 2px 4px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   border: 1px solid rgba(15, 23, 42, 0.15);
   font-size: 12px;
   font-weight: 700;
@@ -517,7 +517,7 @@
   gap: 4px;
   background: var(--color-bg-card, #fff);
   border: 1px solid var(--color-border-default, #e8e8e8);
-  border-radius: 10px;
+  border-radius: var(--radius-card-sm);
 }
 
 .stepChip {
@@ -525,7 +525,7 @@
   align-items: center;
   gap: 4px;
   padding: 3px 8px 3px 5px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   font-size: 11px;
   font-weight: 600;
   color: #4b5563;
@@ -586,7 +586,7 @@
   padding: 11px 14px;
   font-size: 13px;
   font-weight: 700;
-  border-radius: 10px;
+  border-radius: var(--radius-card-sm);
   border: 1px solid var(--sg-border, #e5e7eb);
   background: #ffffff;
   color: var(--sg-text, #1f2937);
@@ -646,7 +646,7 @@
 
 .secondaryDetails {
   border: 1px solid var(--color-border-default, #ebebeb);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--color-bg-card, #fff);
   overflow: hidden;
 }
@@ -720,7 +720,7 @@
   color: var(--text-secondary, #475569);
   background: var(--brand-accent-soft, rgba(99, 102, 241, 0.07));
   border: 1px solid rgba(99, 102, 241, 0.18);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
 }
 
 .propertiesSlot {
@@ -768,7 +768,7 @@
   color: var(--sg-text, #1f2937);
   background: var(--color-bg-card, #ffffff);
   border: 1px solid var(--color-border-default, #e5e7eb);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   cursor: pointer;
   text-align: left;
   transition: background 0.15s ease;
@@ -793,7 +793,7 @@
   background: var(--color-bg-card, #ffffff);
   border: 1px solid var(--color-border-default, #e5e7eb);
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   overflow: hidden;
   z-index: 1000;
 }
