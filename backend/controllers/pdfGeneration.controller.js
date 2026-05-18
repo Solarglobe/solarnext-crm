@@ -51,6 +51,13 @@ export async function generatePdfForVersion(params, options = {}) {
 
   const dataJsonPdf = version.data && typeof version.data === "object" ? version.data : {};
   const ccPdf = dataJsonPdf.calculation_confidence;
+  console.log("PDF_CONFIDENCE_CHECK", JSON.stringify({
+    versionId,
+    has_cc: !!ccPdf,
+    level: ccPdf?.level ?? null,
+    blocking_warnings: ccPdf?.blocking_warnings ?? [],
+    blocked: isPdfBlockedByConfidence(ccPdf),
+  }));
   if (isPdfBlockedByConfidence(ccPdf)) {
     const e = new Error("PDF_BLOCKED_CALCULATION_CONFIDENCE");
     e.code = "PDF_BLOCKED_CALCULATION_CONFIDENCE";

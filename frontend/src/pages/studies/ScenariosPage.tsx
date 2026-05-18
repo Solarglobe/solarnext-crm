@@ -183,6 +183,7 @@ export default function ScenariosPage() {
           message?: string;
           downloadUrl?: string;
           fileName?: string;
+          calculation_confidence?: { blocking_warnings?: string[] };
           leadDocument?: {
             status?: string;
             id?: string;
@@ -193,16 +194,27 @@ export default function ScenariosPage() {
 
         if (!pdfRes.ok) {
           const errCode = body.error ?? "";
-          const errMsg =
-            errCode === "PDF_BLOCKED_CALCULATION_CONFIDENCE"
-              ? "Données de calcul incomplètes — relancez le calcul pour cette étude puis réessayez."
-              : errCode === "SCENARIO_SNAPSHOT_REQUIRED"
+          let errMsg: string;
+          if (errCode === "PDF_BLOCKED_CALCULATION_CONFIDENCE") {
+            const bw = body.calculation_confidence?.blocking_warnings ?? [];
+            const LABELS: Record<string, string> = {
+              CALC_INVALID_8760_PROFILE: "profil horaire de calcul invalide",
+              VB_UNBOUNDED_DISABLED_FOR_COMMERCIAL_USE: "batterie virtuelle illimitée désactivée (usage commercial)",
+            };
+            const detail = bw.length > 0
+              ? ` (${bw.map((w) => LABELS[w] ?? w).join(", ")})`
+              : "";
+            errMsg = `PDF bloqué : données de calcul invalides${detail} — relancez le calcul.`;
+          } else {
+            errMsg =
+              errCode === "SCENARIO_SNAPSHOT_REQUIRED"
                 ? "Scénario non figé. Choisissez un scénario avant de générer le PDF."
                 : errCode === "PDF_RENDER_TIMEOUT"
                   ? "Délai dépassé lors de la génération du PDF."
                   : errCode === "PDF_RENDER_FAILED"
                     ? "Échec du rendu PDF — réessayez dans quelques instants."
                     : body.message || errCode || "Génération PDF impossible";
+          }
           showToast(errMsg, true);
           return;
         }
