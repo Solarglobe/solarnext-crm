@@ -232,6 +232,9 @@ export interface CurrentUser {
   email: string;
   organizationId: string;
   emailVerified?: boolean;
+  onboardingCompleted?: boolean;
+  planId?: string | null;
+  internalHomeOrganization?: boolean;
   mfaEnabled?: boolean;
   organizationRequiresMfa?: boolean;
   firstName?: string | null;

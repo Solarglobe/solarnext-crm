@@ -14,6 +14,8 @@ test("public signup endpoint is wired with strict register limiter and atomic tr
   assert.match(controller, /export async function register/);
   assert.match(controller, /await client\.query\("BEGIN"\)/);
   assert.match(controller, /INSERT INTO organizations/);
+  assert.doesNotMatch(controller, /VALUES \(\$1, \$1, \$1/);
+  assert.match(controller, /SOLARGLOBE_INTERNAL_ORG_EXISTS/);
   assert.match(controller, /INSERT INTO users/);
   assert.match(controller, /sg_seed_rbac_roles_for_org/);
   assert.match(controller, /createEmailVerificationToken/);

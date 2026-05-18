@@ -759,6 +759,12 @@ export async function register(req, res) {
   if (!cguAccepted(body)) {
     return res.status(400).json({ error: "Acceptation des CGU obligatoire", code: "CGU_REQUIRED" });
   }
+  if (emailNorm.endsWith("@solarglobe.fr")) {
+    return res.status(409).json({
+      error: "Solarglobe est une organisation interne existante. Demandez l'ajout du compte dans l'organisation Solarglobe.",
+      code: "SOLARGLOBE_INTERNAL_ORG_EXISTS",
+    });
+  }
 
   const client = await pool.connect();
   try {
@@ -779,9 +785,17 @@ export async function register(req, res) {
     };
     const orgResult = await client.query(
       `INSERT INTO organizations (name, legal_name, trade_name, email, phone, rge_number, settings_json, created_at)
-       VALUES ($1, $1, $1, $2, $3, $4, $5::jsonb, now())
+       VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, now())
        RETURNING id, name`,
-      [organizationName, emailNorm, phone, rgeNumber, JSON.stringify(settings)]
+      [
+        organizationName,
+        organizationName,
+        organizationName,
+        emailNorm,
+        phone,
+        rgeNumber,
+        JSON.stringify(settings),
+      ]
     );
     const org = orgResult.rows[0];
 

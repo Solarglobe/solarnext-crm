@@ -9,6 +9,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 test("Solarglobe is explicitly treated as the internal free home organization", () => {
   const authController = readFileSync(join(__dirname, "../auth/auth.controller.js"), "utf8");
   const authService = readFileSync(join(__dirname, "../auth/auth.service.js"), "utf8");
+  const authRoutes = readFileSync(join(__dirname, "../routes/auth.routes.js"), "utf8");
   const onboardingController = readFileSync(
     join(__dirname, "../controllers/organizations.settings.controller.js"),
     "utf8"
@@ -26,6 +27,8 @@ test("Solarglobe is explicitly treated as the internal free home organization", 
 
   assert.match(authService, /isSolarglobeHomeAccount/);
   assert.match(authService, /"INTERNAL_FREE"/);
+  assert.match(authRoutes, /internalHomeOrganization/);
+  assert.match(authRoutes, /planId: internalHomeOrganization \? "INTERNAL_FREE"/);
   assert.match(onboardingController, /\["company", "mail", "team", "pipeline", "lead"\]/);
 
   assert.match(migration, /onboarding_completed = true/);

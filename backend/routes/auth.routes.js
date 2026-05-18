@@ -55,6 +55,8 @@ router.get("/me", verifyJWT, async (req, res) => {
     `SELECT u.id, u.email, u.organization_id, u.first_name, u.last_name,
             COALESCE(u.email_verified, false) AS email_verified,
             COALESCE(u.mfa_enabled, false) AS mfa_enabled,
+            o.name AS organization_name,
+            COALESCE(o.onboarding_completed, false) AS onboarding_completed,
             COALESCE(o.require_mfa, false) AS organization_require_mfa
      FROM users u
      JOIN organizations o ON o.id = u.organization_id
@@ -68,6 +70,9 @@ router.get("/me", verifyJWT, async (req, res) => {
   const isUserImp = String(req.user?.impersonationType) === USER_IMPERSONATION_TYPE;
   const effectiveOrg =
     isOrgImp || isUserImp ? (req.user.organizationId ?? req.user.organization_id) : u.organization_id;
+  const internalHomeOrganization =
+    String(u.organization_name ?? "").toLowerCase().includes("solarglobe") ||
+    String(u.email ?? "").toLowerCase().endsWith("@solarglobe.fr");
   res.json({
     id: u.id,
     email: u.email,
@@ -76,6 +81,9 @@ router.get("/me", verifyJWT, async (req, res) => {
     lastName: u.last_name ?? null,
     name,
     emailVerified: u.email_verified === true,
+    onboardingCompleted: internalHomeOrganization ? true : u.onboarding_completed === true,
+    planId: internalHomeOrganization ? "INTERNAL_FREE" : req.user?.planId ?? null,
+    internalHomeOrganization,
     mfaEnabled: u.mfa_enabled === true,
     organizationRequiresMfa: u.organization_require_mfa === true,
     superAdmin: req.user?.role === "SUPER_ADMIN",
