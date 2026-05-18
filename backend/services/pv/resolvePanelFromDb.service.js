@@ -64,12 +64,4 @@ export async function applyPanelPowerFromCatalog(poolOrClient, panelInput) {
     temp_coeff_pct_per_deg:
       row.temp_coeff_pct_per_deg ?? panelInput.temp_coeff_pct_per_deg ?? null,
     degradation_annual_pct:
-      row.degradation_annual_pct ?? panelInput.degradation_annual_pct ?? null,
-    degradation_first_year_pct:
-      row.degradation_first_year_pct ?? panelInput.degradation_first_year_pct ?? null,
-    // Caractéristiques électriques STC — pour validation string sizing
-    voc_v: row.voc_v != null ? Number(row.voc_v) : (panelInput.voc_v ?? null),
-    isc_a: row.isc_a != null ? Number(row.isc_a) : (panelInput.isc_a ?? null),
-    vmp_v: row.vmp_v != null ? Number(row.vmp_v) : (panelInput.vmp_v ?? null),
-  };
-}
+      row.degradation_annual_pct ?? panelInput.degradation_annual_pct ?? n

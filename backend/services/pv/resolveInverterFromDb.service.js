@@ -115,27 +115,3 @@ export async function resolvePvInverterEngineFields(poolOrClient, calpinagePaylo
       row.nominal_va != null && Number.isFinite(Number(row.nominal_va))
         ? Number(row.nominal_va)
         : base.nominal_va ?? null,
-    units_required: units,
-    // Caractéristiques électriques MPPT — pour validation string sizing
-    mppt_count:
-      row.mppt_count != null && Number.isFinite(Number(row.mppt_count))
-        ? Number(row.mppt_count)
-        : base.mppt_count ?? null,
-    inputs_per_mppt:
-      row.inputs_per_mppt != null && Number.isFinite(Number(row.inputs_per_mppt))
-        ? Number(row.inputs_per_mppt)
-        : base.inputs_per_mppt ?? null,
-    max_input_current_a:
-      row.max_input_current_a != null && Number.isFinite(Number(row.max_input_current_a))
-        ? Number(row.max_input_current_a)
-        : base.max_input_current_a ?? null,
-    mppt_min_v:
-      row.mppt_min_v != null && Number.isFinite(Number(row.mppt_min_v))
-        ? Number(row.mppt_min_v)
-        : base.mppt_min_v ?? null,
-    mppt_max_v:
-      row.mppt_max_v != null && Number.isFinite(Number(row.mppt_max_v))
-        ? Number(row.mppt_max_v)
-        : base.mppt_max_v ?? null,
-  };
-}
