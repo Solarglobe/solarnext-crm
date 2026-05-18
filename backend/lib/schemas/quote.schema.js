@@ -32,7 +32,7 @@ const QuoteShapeSchema = z.object({
   lines:        z.array(QuoteLineSchema).optional().default([]),
   discount_pct: z.number().min(0).max(100).optional().nullable(),
   payment_terms: z.string().max(500).optional().nullable(),
-});
+}).passthrough();
 
 export const CreateQuoteSchema = QuoteShapeSchema;
 export const PatchQuoteSchema  = QuoteShapeSchema.partial();
