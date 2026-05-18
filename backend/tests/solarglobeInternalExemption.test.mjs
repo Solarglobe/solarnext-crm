@@ -18,13 +18,15 @@ test("Solarglobe is explicitly treated as the internal free home organization", 
     "utf8"
   );
 
-  assert.match(authController, /SOLARGLOBE_ORG_SQL/);
+  assert.match(authController, /applySolarglobeHomeExemption/);
+  assert.match(authController, /email\.endsWith\("@solarglobe\.fr"\)/);
   assert.match(authController, /INTERNAL_FREE/);
   assert.match(authController, /onboardingCompleted: user\.onboarding_completed === true/);
   assert.match(authController, /internalHomeOrganization/);
 
-  assert.match(authService, /CASE WHEN \$\{SOLARGLOBE_ORG_SQL\} THEN 'INTERNAL_FREE'/);
-  assert.match(onboardingController, /ARRAY\['company','mail','team','pipeline','lead'\]::text\[\]/);
+  assert.match(authService, /isSolarglobeHomeAccount/);
+  assert.match(authService, /"INTERNAL_FREE"/);
+  assert.match(onboardingController, /\["company", "mail", "team", "pipeline", "lead"\]/);
 
   assert.match(migration, /onboarding_completed = true/);
   assert.match(migration, /onboarding_step_completed = ARRAY\['company','mail','team','pipeline','lead'\]::text\[\]/);

@@ -531,18 +531,7 @@ export async function getOnboarding(req, res) {
     const org = orgId(req);
     if (!org) return res.status(403).json({ error: "Organisation manquante" });
     const result = await pool.query(
-      `SELECT id, name,
-              CASE
-                WHEN LOWER(COALESCE(name, '')) LIKE '%solarglobe%'
-                THEN true
-                ELSE onboarding_completed
-              END AS onboarding_completed,
-              CASE
-                WHEN LOWER(COALESCE(name, '')) LIKE '%solarglobe%'
-                THEN ARRAY['company','mail','team','pipeline','lead']::text[]
-                ELSE onboarding_step_completed
-              END AS onboarding_step_completed,
-              settings_json
+      `SELECT id, name, onboarding_completed, onboarding_step_completed, settings_json
        FROM organizations
        WHERE id = $1`,
       [org]
@@ -552,9 +541,12 @@ export async function getOnboarding(req, res) {
     }
     const row = result.rows[0];
     const settings = row.settings_json ?? {};
+    const solarglobeHome = String(row.name ?? "").toLowerCase().includes("solarglobe");
     res.json({
-      completed: Boolean(row.onboarding_completed),
-      completedSteps: row.onboarding_step_completed ?? [],
+      completed: solarglobeHome ? true : Boolean(row.onboarding_completed),
+      completedSteps: solarglobeHome
+        ? ["company", "mail", "team", "pipeline", "lead"]
+        : row.onboarding_step_completed ?? [],
       organization: { id: row.id, name: row.name },
       data: settings.onboarding ?? {},
     });
