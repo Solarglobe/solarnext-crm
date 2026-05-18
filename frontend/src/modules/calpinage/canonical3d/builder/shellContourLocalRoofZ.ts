@@ -5,6 +5,16 @@
  * - **`resolveRoofPlaneZAtXYFromPatches`** (shell, diagnostics) : emprise contient `(x,y)` → min(Z) si chevauchement ;
  *   sinon fallback = plan du patch d’empreinte XY la plus proche, **toujours au (x,y) query** (pas de snap bord).
  * - **`resolveShellContourVertexWorldXYAndZ`** : ancien mode avec recalage XY sur le bord (usages hors shell).
+ *
+ * ⚠️ ANTI-RÉGRESSION (bug C2) :
+ *   Z est calculé depuis l’équation du plan du patch :   z = -(a·x + b·y + d) / c
+ *   où (a,b,c) = patch.equation.normal et d = patch.equation.d.
+ *
+ *   NE PAS substituer `heightInterpolator.getHeightAtXY()` ici — ce résolveur retourne l’altitude
+ *   terrain IGN (z sol), pas la Z de la surface du pan incliné. Pour un pan à 30°, l’erreur serait
+ *   de l’ordre de plusieurs mètres (différence sol ↔ toiture + erreur de pente).
+ *
+ *   Cette fonction ne dépend PAS de heightInterpolator.ts (fix C1 séparé).
  */
 
 import type { RoofPlanePatch3D } from "../types/roof-surface";
