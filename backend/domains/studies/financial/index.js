@@ -16,3 +16,4 @@
  */
 
 // export { runFinancialCalculation } from "./financial.engine.js";
+export * from "./energyCalculator.js";
