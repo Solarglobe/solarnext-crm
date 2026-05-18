@@ -1421,10 +1421,19 @@
 }
 
 .lead-pv-estimator {
-  border: 1px solid rgba(15, 23, 42, 0.12);
+  border: 1px solid color-mix(in srgb, var(--border) 86%, var(--violet-strong));
   border-radius: 8px;
   padding: 14px;
-  background: rgba(255, 255, 255, 0.78);
+  background: color-mix(in srgb, var(--surface-elevated, var(--surface)) 96%, var(--violet-strong));
+  color: var(--text-primary);
+  box-shadow:
+    0 1px 0 color-mix(in srgb, var(--color-bg-card) 5%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--color-bg-card) 4%, transparent);
+}
+
+.theme-light .lead-pv-estimator {
+  background: color-mix(in srgb, var(--color-bg-card) 96%, var(--violet-strong));
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
 }
 
 .lead-pv-estimator__head {
@@ -1439,6 +1448,7 @@
   margin: 0;
   font-size: 1rem;
   line-height: 1.25;
+  color: var(--text-primary);
 }
 
 .lead-pv-estimator__head p {
@@ -1487,18 +1497,30 @@
 .lead-pv-estimator__compass button,
 .lead-pv-estimator__tilts button {
   min-height: 34px;
-  border: 1px solid rgba(15, 23, 42, 0.14);
+  border: 1px solid color-mix(in srgb, var(--border) 88%, var(--violet-strong));
   border-radius: 7px;
-  background: #fff;
-  color: var(--text);
+  background: var(--surface);
+  color: var(--text-primary);
   font-weight: 700;
   cursor: pointer;
+  transition:
+    background 0.14s ease,
+    border-color 0.14s ease,
+    color 0.14s ease,
+    box-shadow 0.14s ease;
+}
+
+.lead-pv-estimator__compass button:hover,
+.lead-pv-estimator__tilts button:hover {
+  border-color: color-mix(in srgb, var(--violet-strong) 42%, var(--border));
+  background: color-mix(in srgb, var(--violet-strong) 8%, var(--surface));
 }
 
 .lead-pv-estimator__compass button.active,
 .lead-pv-estimator__tilts button.active {
-  border-color: var(--accent, #c9a227);
-  background: rgba(201, 162, 39, 0.12);
+  border-color: var(--gold, var(--accent, #c9a227));
+  background: color-mix(in srgb, var(--gold, var(--accent, #c9a227)) 16%, var(--surface));
+  color: var(--text-primary);
 }
 
 .lead-pv-estimator__results {
@@ -1508,10 +1530,10 @@
 
 .lead-pv-estimator__results div {
   min-width: 0;
-  border: 1px solid rgba(15, 23, 42, 0.1);
+  border: 1px solid color-mix(in srgb, var(--border) 84%, var(--violet-strong));
   border-radius: 8px;
   padding: 9px;
-  background: rgba(248, 250, 252, 0.86);
+  background: color-mix(in srgb, var(--surface) 94%, var(--violet-strong));
 }
 
 .lead-pv-estimator__results strong {
@@ -1519,6 +1541,7 @@
   margin-top: 3px;
   font-size: 0.95rem;
   line-height: 1.2;
+  color: var(--text-primary);
 }
 
 @media (max-width: 760px) {
