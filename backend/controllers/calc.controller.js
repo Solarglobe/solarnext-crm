@@ -1151,7 +1151,10 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
         } else {
           const requiredCapH = unboundedH.required_capacity_kwh;
           const selectedContractCapH = resolveVirtualBatteryCapacityKwh(vbInputH);
-          if (selectedContractCapH == null && !isCommercialUnboundedVirtualBatteryAllowed(ctx)) {
+          // La gate commerciale ne s'applique qu'aux fournisseurs P2 (cohérent avec BATTERY_VIRTUAL
+          // qui applique cette restriction uniquement dans le bloc if (useP2)).
+          // Pour les non-P2, on utilise Math.max(requiredCapH, VB_CAPACITY_MIN_KWH) comme simCapacity.
+          if (useP2H && selectedContractCapH == null && !isCommercialUnboundedVirtualBatteryAllowed(ctx)) {
             hybridScenario._virtualBatteryP2 = {
               required_capacity_kwh: requiredCapH,
               provider_tier_status: "BLOCKED_UNBOUNDED_COMMERCIAL",
