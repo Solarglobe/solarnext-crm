@@ -80,6 +80,7 @@ import {
   extendBoundingBoxWithSatelliteImageFootprint,
 } from "./solarSceneBounds";
 import { CameraFramingRig } from "./CameraFramingRig";
+import { useViewerGestures } from "./useViewerGestures";
 import { logIfGeometryNormalsSuspect } from "./geometryNormalsAudit";
 import { ShadingLegend3D } from "./ShadingLegend3D";
 import {
@@ -3775,6 +3776,12 @@ function SolarScene3DViewer({
     null,
   );
   const orbitControlsRef = useRef<OrbitControlsImpl | null>(null);
+
+  // ── Gestes tactiles (pinch-zoom + tap) ─────────────────────────────────────
+  // Coexistence souris/touch : pointer events unifient les deux sources sans
+  // double-déclenchement. OrbitControls reste le système de base (pan/orbite).
+  // touch-action:none est posé sur le wrapper div ET sur gl.domElement (onCreated).
+  const { wrapperPointerProps } = useViewerGestures({ orbitControlsRef });
   const onRoofVertexHeightCommitRef = useRef(onRoofVertexHeightCommit);
   onRoofVertexHeightCommitRef.current = onRoofVertexHeightCommit;
   const zDragTelemetrySessionIdRef = useRef<string | null>(null);
@@ -4785,7 +4792,12 @@ function SolarScene3DViewer({
         borderRadius: 8,
         overflow: "hidden",
         position: "relative",
+        // touch-action:none sur le wrapper : empêche le browser d'intercepter
+        // les gestes (scroll, pinch-zoom natif) avant que pointer events soient dispatched.
+        // Complété par gl.domElement.style.touchAction="none" dans onCreated.
+        touchAction: "none",
       }}
+      {...wrapperPointerProps}
       aria-label={pvLayout3DInteractionMode ? "Vue solaire — implantation photovoltaïque" : undefined}
       aria-describedby={pvLayout3DInteractionMode ? pvLayout3dA11yDescId : undefined}
       data-testid="solar-scene-3d-viewer-root"
@@ -5030,6 +5042,11 @@ function SolarScene3DViewer({
         }
         onCreated={({ gl }) => {
           applyCanonicalViewerGlOutput(gl);
+          // touch-action:none sur le canvas WebGL : requis pour que Pointer Events
+          // (et OrbitControls three-stdlib) reçoivent les gestes tactiles sans que
+          // le browser n'intercepte le scroll ou le pinch-zoom au niveau du viewport.
+          // Viewport cibles : 375px (iPhone SE) et 820px (iPad Air).
+          gl.domElement.style.touchAction = "none";
           // Fix R3F canvas sizing : quand le container était display:none au montage,
           // le ResizeObserver reçoit 0×0 et le canvas reste à 300×150 (défaut navigateur).
           // Un requestAnimationFrame laisse le browser calculer le layout (reflow) avant
