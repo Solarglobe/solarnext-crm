@@ -20,13 +20,19 @@ const mobileProjects = CI_MOBILE
       {
         name: 'Mobile Chrome',
         use: { ...devices['Pixel 5'] },
-        // N'exécute que le fichier de smoke mobile — aucune interférence desktop.
-        testMatch: '**/e2e/mobile.smoke.spec.ts',
+        // Smoke + régression M1-M4 — aucune interférence desktop.
+        testMatch: [
+          '**/e2e/mobile.smoke.spec.ts',
+          '**/e2e/mobile.regression.spec.ts',
+        ],
       },
       {
         name: 'Mobile Safari',
         use: { ...devices['iPhone 13'] },
-        testMatch: '**/e2e/mobile.smoke.spec.ts',
+        testMatch: [
+          '**/e2e/mobile.smoke.spec.ts',
+          '**/e2e/mobile.regression.spec.ts',
+        ],
       },
     ]
   : [];
@@ -65,8 +71,8 @@ export default defineConfig({
     {
       name: 'chromium',
       use: { browserName: 'chromium' },
-      // Exclut le smoke mobile du projet desktop — pas de doublon d'exécution.
-      testIgnore: ['**/mobile.smoke.spec.ts'],
+      // Exclut les specs mobiles du projet desktop — pas de doublon d'exécution.
+      testIgnore: ['**/mobile.smoke.spec.ts', '**/mobile.regression.spec.ts'],
     },
     // Projets mobile — vides si CI_MOBILE non défini
     ...mobileProjects,
