@@ -376,6 +376,13 @@ export default defineConfig(({ mode }) => {
     environment: "jsdom",
     globals: true,
     setupFiles: ["./src/test-setup.ts"],
+    coverage: {
+      provider: "v8",
+      include: ["src/modules/calpinage/**/*.{ts,tsx}"],
+      exclude: ["src/**/*.d.ts", "src/**/__tests__/**"],
+      reporter: ["text", "lcov", "html"],
+      reportsDirectory: "./coverage",
+    },
   },
   root: ".",
   build: {
@@ -424,30 +431,4 @@ export default defineConfig(({ mode }) => {
   server: {
     port: 5173,
     host: true,
-    proxy: {
-      "^/api/pdf": {
-        target: process.env.VITE_PROXY_BACKEND || "http://localhost:3000",
-        changeOrigin: true,
-        rewrite: (p) => p.replace(/^\/api\/pdf/, "/pdf"),
-      },
-      "/api": {
-        target: process.env.VITE_PROXY_BACKEND || "http://localhost:3000",
-        changeOrigin: true,
-      },
-      "/auth": {
-        target: process.env.VITE_PROXY_BACKEND || "http://localhost:3000",
-        changeOrigin: true,
-      },
-      "/pdf-assets": {
-        target: process.env.VITE_PROXY_BACKEND || "http://localhost:3000",
-        changeOrigin: true,
-      },
-      "/calpinage": {
-        target: process.env.VITE_PROXY_BACKEND || "http://localhost:3000",
-        changeOrigin: true,
-        bypass: calpinageProxyBypass,
-      },
-    },
-  },
-};
-});
+   
