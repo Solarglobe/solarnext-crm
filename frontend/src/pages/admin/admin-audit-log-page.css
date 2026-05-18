@@ -1,0 +1,121 @@
+.admin-audit {
+  display: grid;
+  gap: 18px;
+  padding: 28px;
+}
+
+.admin-audit__head {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.admin-audit__head h1 {
+  margin: 0;
+  font-size: 30px;
+  letter-spacing: 0;
+}
+
+.admin-audit__head p {
+  margin: 8px 0 0;
+  color: #64748b;
+}
+
+.admin-audit__filters {
+  display: grid;
+  grid-template-columns: minmax(180px, 260px) minmax(220px, 1fr) repeat(2, minmax(150px, 190px));
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.admin-audit__filters label {
+  display: grid;
+  gap: 6px;
+}
+
+.admin-audit__filters span {
+  font-size: 13px;
+  font-weight: 800;
+  color: #334155;
+}
+
+.admin-audit__filters input,
+.admin-audit__filters select {
+  min-height: 40px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 8px 10px;
+  font: inherit;
+}
+
+.admin-audit__table-wrap {
+  overflow: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.admin-audit__table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 980px;
+}
+
+.admin-audit__table th,
+.admin-audit__table td {
+  padding: 11px 12px;
+  border-bottom: 1px solid #e2e8f0;
+  text-align: left;
+  vertical-align: top;
+  font-size: 13px;
+}
+
+.admin-audit__table th {
+  color: #475569;
+  background: #f8fafc;
+  font-weight: 800;
+}
+
+.admin-audit__table code {
+  font-size: 12px;
+  background: #eef2ff;
+  color: #3730a3;
+  padding: 3px 6px;
+  border-radius: 6px;
+}
+
+.admin-audit__pager {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+}
+
+.admin-audit__error {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: #fef2f2;
+  color: #991b1b;
+  font-weight: 750;
+}
+
+@media (max-width: 900px) {
+  .admin-audit {
+    padding: 16px;
+  }
+
+  .admin-audit__head,
+  .admin-audit__pager {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .admin-audit__filters {
+    grid-template-columns: 1fr;
+  }
+}

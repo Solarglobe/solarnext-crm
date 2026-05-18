@@ -317,6 +317,31 @@ export async function update(req, res) {
         statusCode: 200,
         metadata: { changed_fields: changedNoRoles },
       });
+      if (email !== undefined) {
+        void logAuditEvent({
+          action: AuditActions.AUTH_EMAIL_CHANGED,
+          entityType: "user",
+          entityId: id,
+          organizationId: org,
+          userId: actorId,
+          targetLabel: row.email,
+          req,
+          statusCode: 200,
+        });
+      }
+      if (password !== undefined && password !== "") {
+        void logAuditEvent({
+          action: AuditActions.AUTH_PASSWORD_CHANGED,
+          entityType: "user",
+          entityId: id,
+          organizationId: org,
+          userId: actorId,
+          targetLabel: row.email,
+          req,
+          statusCode: 200,
+          metadata: { source: "admin_user_update" },
+        });
+      }
     }
     if (roleIds !== undefined) {
       void logAuditEvent({

@@ -419,6 +419,15 @@ export async function confirmMfaSetup(req, res) {
       [uid]
     );
     await client.query("COMMIT");
+    void logAuditEvent({
+      action: AuditActions.MFA_ENABLED,
+      entityType: "user",
+      entityId: uid,
+      organizationId: org,
+      userId: uid,
+      req,
+      statusCode: 200,
+    });
     res.json({ enabled: true, recoveryCodes });
   } catch (e) {
     try {
@@ -551,6 +560,15 @@ export async function disableMfa(req, res) {
     );
     await client.query("DELETE FROM mfa_recovery_codes WHERE user_id = $1", [uid]);
     await client.query("COMMIT");
+    void logAuditEvent({
+      action: AuditActions.MFA_DISABLED,
+      entityType: "user",
+      entityId: uid,
+      organizationId: org,
+      userId: uid,
+      req,
+      statusCode: 200,
+    });
     res.json({ enabled: false });
   } catch (e) {
     try {
@@ -590,6 +608,15 @@ export async function revokeSession(req, res) {
         code: "SESSION_NOT_REVOKED",
       });
     }
+    void logAuditEvent({
+      action: AuditActions.SESSION_REVOKED,
+      entityType: "refresh_token",
+      entityId: tokenId,
+      organizationId: authOrgId(req),
+      userId: uid,
+      req,
+      statusCode: 200,
+    });
     res.json({ revoked: true });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -602,6 +629,15 @@ export async function revokeOtherSessions(req, res) {
     const currentSessionId = req.user?.sessionId ?? req.user?.session_id;
     if (!uid || !currentSessionId) return res.status(401).json({ error: "Non authentifie" });
     const revokedCount = await revokeOtherRefreshSessions(uid, currentSessionId);
+    void logAuditEvent({
+      action: AuditActions.SESSION_REVOKED_OTHERS,
+      entityType: "refresh_token",
+      organizationId: authOrgId(req),
+      userId: uid,
+      req,
+      statusCode: 200,
+      metadata: { revoked_count: revokedCount },
+    });
     res.json({ revokedCount });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -864,6 +900,16 @@ export async function resetPassword(req, res) {
     await revokeAllRefreshSessionsForUser(row.user_id, client);
     await client.query("COMMIT");
     clearRefreshCookie(res);
+    void logAuditEvent({
+      action: AuditActions.AUTH_PASSWORD_CHANGED,
+      entityType: "user",
+      entityId: row.user_id,
+      organizationId: null,
+      userId: row.user_id,
+      req,
+      statusCode: 200,
+      metadata: { source: "password_reset" },
+    });
     sendPasswordChangedEmail({ to: row.email }).catch((err) => {
       logger.warn("AUTH_PASSWORD_CHANGED_MAIL_FAILED", { err: err?.message, userId: row.user_id });
     });

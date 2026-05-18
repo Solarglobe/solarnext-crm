@@ -59,6 +59,7 @@ import Dev3DPage from "./modules/calpinage/canonical3d/dev/Dev3DPage";
 import ClientPortalPage from "./pages/ClientPortalPage";
 import RouterNotFoundPage from "./pages/RouterNotFoundPage";
 import AdminOrganizationsPage from "./pages/admin/AdminOrganizationsPage";
+import AdminAuditLogPage from "./pages/admin/AdminAuditLogPage";
 import MailInboxPage from "./pages/mail/MailInboxPage";
 import MailOutboxPage from "./pages/mail/MailOutboxPage";
 import MailSettingsPage from "./pages/settings/MailSettingsPage";
@@ -224,6 +225,14 @@ const router = createBrowserRouter(
             <SuperAdminRoute>
               <AdminOrganizationsPage />
             </SuperAdminRoute>
+          ),
+        },
+        {
+          path: "admin/audit-log",
+          element: (
+            <AdminRoute>
+              <AdminAuditLogPage />
+            </AdminRoute>
           ),
         },
         {
