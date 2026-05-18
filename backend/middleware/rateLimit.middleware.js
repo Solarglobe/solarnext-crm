@@ -27,6 +27,13 @@ export const authStrictRateLimiter = createRateLimiter({
   keyGenerator: keyIpOnly,
 });
 
+export const registerRateLimiter = createRateLimiter({
+  name: "auth_register",
+  windowMs: rateLimitEnv.registerWindowMs,
+  max: rateLimitEnv.registerMax,
+  keyGenerator: keyIpOnly,
+});
+
 const authenticatedApiRateLimiter = createRateLimiter({
   name: "api_authenticated",
   windowMs: 60 * 1000,

@@ -202,6 +202,9 @@ export default function Login() {
             <p className="login-tagline">
               Entrez vos identifiants pour accéder à votre espace.
             </p>
+            <p className="login-tagline">
+              Pas encore de compte ? <a href="/signup">Essayez gratuitement 14 jours</a>
+            </p>
           </header>
 
           <form onSubmit={handleSubmit} className="login-form" noValidate>

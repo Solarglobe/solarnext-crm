@@ -31,10 +31,26 @@ import {
 } from "../middleware/security/loginRateLimit.helper.js";
 import { resolveEffectiveHighestRole } from "../lib/superAdminUserGuards.js";
 import { syncAdminRbacOnLogin } from "../rbac/rbac.service.js";
+import { ensureLegacyRoleAndUserBridge } from "../services/rbac/legacyRoleBridge.service.js";
 
 /** Aligné sur auth.middleware (validation organizationId login). */
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function cleanText(value, max = 255) {
+  const text = String(value ?? "").trim();
+  return text ? text.slice(0, max) : "";
+}
+
+function splitName(fullName) {
+  const parts = cleanText(fullName, 200).split(/\s+/).filter(Boolean);
+  if (parts.length <= 1) return { firstName: parts[0] ?? "", lastName: "" };
+  return { firstName: parts.slice(0, -1).join(" "), lastName: parts.at(-1) ?? "" };
+}
+
+function cguAccepted(body) {
+  return body?.acceptCgu === true || body?.acceptedCgu === true || body?.cguAccepted === true;
+}
 
 export async function login(req, res) {
   if (process.env.NODE_ENV !== "production") {
@@ -313,6 +329,121 @@ export async function logout(req, res) {
   }
   clearRefreshCookie(res);
   return res.status(204).send();
+}
+
+export async function register(req, res) {
+  const body = req.body ?? {};
+  const organizationName = cleanText(body.organizationName ?? body.companyName ?? body.company_name, 255);
+  const adminName = cleanText(body.adminName ?? body.name ?? `${body.firstName ?? ""} ${body.lastName ?? ""}`, 200);
+  const firstNameInput = cleanText(body.firstName ?? body.first_name, 100);
+  const lastNameInput = cleanText(body.lastName ?? body.last_name, 100);
+  const split = splitName(adminName);
+  const firstName = firstNameInput || split.firstName;
+  const lastName = lastNameInput || split.lastName;
+  const emailNorm = String(body.email ?? "").toLowerCase().trim();
+  const password = String(body.password ?? "");
+  const passwordConfirm = String(body.passwordConfirm ?? body.confirmPassword ?? "");
+  const phone = cleanText(body.phone, 50) || null;
+  const rgeNumber = cleanText(body.rgeNumber ?? body.rge_number, 100) || null;
+  const cguVersion = cleanText(body.cguVersion ?? body.cgu_version, 30) || "1.x";
+
+  if (!organizationName || !firstName || !lastName || !emailNorm || !password) {
+    return res.status(400).json({ error: "Champs obligatoires manquants", code: "REGISTER_REQUIRED_FIELDS" });
+  }
+  if (password !== passwordConfirm) {
+    return res.status(400).json({ error: "La confirmation du mot de passe ne correspond pas", code: "PASSWORD_CONFIRM_MISMATCH" });
+  }
+  const policy = validateResetPasswordPolicy(password);
+  if (!policy.ok) {
+    return res.status(400).json({ error: "Mot de passe invalide", code: "PASSWORD_POLICY_INVALID", details: policy.errors });
+  }
+  if (!cguAccepted(body)) {
+    return res.status(400).json({ error: "Acceptation des CGU obligatoire", code: "CGU_REQUIRED" });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const existingUser = await client.query("SELECT id FROM users WHERE LOWER(TRIM(email)) = $1 LIMIT 1", [emailNorm]);
+    if (existingUser.rows.length > 0) {
+      await client.query("ROLLBACK");
+      return res.status(409).json({ error: "Un compte existe deja avec cet email", code: "EMAIL_ALREADY_EXISTS" });
+    }
+
+    const settings = {
+      signup: {
+        source: "public_self_service",
+        cgu_version: cguVersion,
+        cgu_accepted_at: new Date().toISOString(),
+        trial_days: 14,
+      },
+    };
+    const orgResult = await client.query(
+      `INSERT INTO organizations (name, legal_name, trade_name, email, phone, rge_number, settings_json, created_at)
+       VALUES ($1, $1, $1, $2, $3, $4, $5::jsonb, now())
+       RETURNING id, name`,
+      [organizationName, emailNorm, phone, rgeNumber, JSON.stringify(settings)]
+    );
+    const org = orgResult.rows[0];
+
+    const passwordHash = await hashPassword(password);
+    const userResult = await client.query(
+      `INSERT INTO users (organization_id, email, password_hash, status, first_name, last_name, email_verified)
+       VALUES ($1, $2, $3, 'active', $4, $5, false)
+       RETURNING id, email, organization_id, first_name, last_name, email_verified`,
+      [org.id, emailNorm, passwordHash, firstName, lastName]
+    );
+    const user = { ...userResult.rows[0], role: "ADMIN" };
+
+    await client.query("SELECT sg_seed_rbac_roles_for_org($1)", [org.id]);
+    const roleResult = await client.query(
+      "SELECT id FROM rbac_roles WHERE organization_id = $1 AND UPPER(TRIM(code)) = 'ADMIN' LIMIT 1",
+      [org.id]
+    );
+    const adminRoleId = roleResult.rows[0]?.id;
+    if (!adminRoleId) {
+      throw new Error("ADMIN_ROLE_NOT_FOUND");
+    }
+    await client.query(
+      "INSERT INTO rbac_user_roles (user_id, role_id) VALUES ($1, $2) ON CONFLICT (user_id, role_id) DO NOTHING",
+      [user.id, adminRoleId]
+    );
+    await ensureLegacyRoleAndUserBridge(client, user.id, "ADMIN");
+
+    const verification = await createEmailVerificationToken(user.id, client);
+    const session = await createRefreshSession(user, req, client);
+    await client.query("COMMIT");
+
+    sendEmailVerificationEmail({ to: user.email, token: verification.token }).catch((err) => {
+      logger.warn("AUTH_REGISTER_VERIFY_MAIL_FAILED", { err: err?.message, userId: user.id });
+    });
+    res.cookie("solarnext_refresh_token", session.refreshToken, refreshCookieOptions());
+    return res.status(201).json({
+      token: session.accessToken,
+      accessToken: session.accessToken,
+      organization: { id: org.id, name: org.name },
+      trialDays: 14,
+      user: {
+        id: user.id,
+        email: user.email,
+        role: "ADMIN",
+        organizationId: org.id,
+        emailVerified: false,
+        firstName,
+        lastName,
+      },
+    });
+  } catch (err) {
+    try {
+      await client.query("ROLLBACK");
+    } catch {
+      // ignore rollback failure
+    }
+    logger.error("AUTH_REGISTER_ERROR", { err: err?.message, stack: err?.stack });
+    return res.status(500).json({ error: "Inscription impossible", code: "REGISTER_FAILED" });
+  } finally {
+    client.release();
+  }
 }
 
 export async function forgotPassword(req, res) {

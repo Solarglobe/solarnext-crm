@@ -16,6 +16,8 @@ function msEnv(name, def) {
 export const rateLimitEnv = {
   loginMax: intEnv("RATE_LIMIT_LOGIN_MAX", 5),
   loginWindowMs: msEnv("RATE_LIMIT_LOGIN_WINDOW_MS", 15 * 60 * 1000),
+  registerMax: intEnv("RATE_LIMIT_REGISTER_MAX", 3),
+  registerWindowMs: msEnv("RATE_LIMIT_REGISTER_WINDOW_MS", 60 * 60 * 1000),
 
   /** Routes authentifiées sensibles (RGPD, mail send, uploads, réglages org, etc.) */
   sensitiveMax: intEnv("RATE_LIMIT_USER_SENSITIVE_MAX", 30),

@@ -1,10 +1,11 @@
 import express from "express";
 import { verifyJWT } from "../middleware/auth.middleware.js";
-import { authStrictRateLimiter } from "../middleware/rateLimit.middleware.js";
+import { authStrictRateLimiter, registerRateLimiter } from "../middleware/rateLimit.middleware.js";
 import {
   forgotPassword,
   login,
   logout,
+  register,
   refresh,
   resendVerificationEmail,
   resetPassword,
@@ -29,7 +30,7 @@ router.post("/forgot-password", authStrictRateLimiter, forgotPassword);
 router.get("/reset-password/:token", authStrictRateLimiter, validateResetPasswordToken);
 router.post("/reset", authStrictRateLimiter, resetPassword);
 router.post("/reset-password", authStrictRateLimiter, resetPassword);
-router.post("/register", authStrictRateLimiter);
+router.post("/register", registerRateLimiter, register);
 
 router.get("/me", verifyJWT, async (req, res) => {
   const uid = req.user?.userId ?? req.user?.id;

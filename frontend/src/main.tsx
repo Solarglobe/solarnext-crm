@@ -20,6 +20,7 @@ import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import { AdminRoute } from "./components/auth/AdminRoute";
 import { SuperAdminRoute } from "./components/auth/SuperAdminRoute";
 import Login from "./pages/Login";
+import Signup from "./pages/Signup";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import LeadDetail from "./pages/LeadDetail";
@@ -73,6 +74,10 @@ const router = createBrowserRouter(
       element: <Login />
     },
     {
+      path: "/signup",
+      element: <Signup />
+    },
+    {
       path: "/forgot-password",
       element: <ForgotPassword />
     },
@@ -123,6 +128,7 @@ const router = createBrowserRouter(
       children: [
         { index: true, element: <Navigate to="/dashboard" replace /> },
         { path: "crm", element: <Navigate to="/dashboard" replace /> },
+        { path: "onboarding", element: <DashboardPage /> },
         { path: "dashboard", element: <DashboardPage /> },
         { path: "leads", element: <LeadsPage /> },
         { path: "leads/:id", element: <LeadDetail /> },
