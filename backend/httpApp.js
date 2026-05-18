@@ -5,6 +5,7 @@ import express from "express";
 import fs from "fs";
 import cors from "cors";
 import path from "path";
+import net from "net";
 import { fileURLToPath } from "url";
 import { httpLogger } from "./app/core/httpLogger.js";
 import { attachAuditRequestId } from "./services/audit/auditLog.service.js";
@@ -76,6 +77,14 @@ import pdfRenderRoutes from "./routes/pdfRender.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const PACKAGE_VERSION = (() => {
+  try {
+    const raw = fs.readFileSync(path.resolve(__dirname, "package.json"), "utf8");
+    return JSON.parse(raw).version || "unknown";
+  } catch {
+    return "unknown";
+  }
+})();
 
 /** Toujours autorisées (prod SolarNext) — en plus de `CORS_ORIGIN`. Inclut l’API sur domaine custom (pas seulement *.railway.app). */
 const CORS_ORIGINS_ALWAYS = Object.freeze([
@@ -107,6 +116,141 @@ function normalizeCanonicalOrigin(raw) {
   } catch {
     return "";
   }
+}
+
+function nowMs() {
+  return Number(process.hrtime.bigint() / 1000000n);
+}
+
+function timeoutError(label) {
+  const err = new Error(`${label} timeout`);
+  err.code = "ETIMEDOUT";
+  return err;
+}
+
+async function withTimeout(label, timeoutMs, fn) {
+  const started = nowMs();
+  let timer;
+  try {
+    const result = await Promise.race([
+      Promise.resolve().then(fn),
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(timeoutError(label)), timeoutMs);
+      }),
+    ]);
+    return { ...result, latency: nowMs() - started };
+  } catch (e) {
+    return {
+      ok: false,
+      latency: nowMs() - started,
+      error: e?.code || e?.message || String(e),
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function firstEnv(...names) {
+  for (const name of names) {
+    const value = String(process.env[name] || "").trim();
+    if (value) return value;
+  }
+  return "";
+}
+
+async function fetchJsonHealth(url, timeoutMs) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    if (!res.ok) throw new Error(`HTTP_${res.status}`);
+    return { ok: true, statusCode: res.status };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function checkDatabase() {
+  return withTimeout("database", 3000, async () => {
+    const { pool } = await import("./config/db.js");
+    await pool.query("SELECT 1 AS ok");
+    return { ok: true };
+  });
+}
+
+async function checkPdfRenderer() {
+  const base = firstEnv("PDF_RENDERER_BASE_URL", "FRONTEND_URL");
+  if (!base) return { ok: true, skipped: true, reason: "PDF_RENDERER_BASE_URL not configured" };
+  const url = `${base.replace(/\/+$/, "")}/health`;
+  return withTimeout("pdf_renderer", 3000, async () => fetchJsonHealth(url, 3000));
+}
+
+function checkTcpConnection({ host, port, label, timeoutMs }) {
+  if (!host || !port) return Promise.resolve({ ok: true, skipped: true, reason: `${label} not configured` });
+  return withTimeout(label, timeoutMs, () => new Promise((resolve, reject) => {
+    const socket = net.createConnection({ host, port: Number(port) });
+    socket.setTimeout(timeoutMs);
+    socket.once("connect", () => {
+      socket.destroy();
+      resolve({ ok: true });
+    });
+    socket.once("timeout", () => {
+      socket.destroy();
+      reject(timeoutError(label));
+    });
+    socket.once("error", reject);
+  }));
+}
+
+async function checkMail() {
+  const [smtp, imap] = await Promise.all([
+    checkTcpConnection({
+      host: firstEnv("SMTP_HOST"),
+      port: firstEnv("SMTP_PORT"),
+      label: "smtp",
+      timeoutMs: 2000,
+    }),
+    checkTcpConnection({
+      host: firstEnv("IMAP_HOST", "MAIL_IMAP_HOST"),
+      port: firstEnv("IMAP_PORT", "MAIL_IMAP_PORT"),
+      label: "imap",
+      timeoutMs: 2000,
+    }),
+  ]);
+  return {
+    ok: smtp.ok && imap.ok,
+    smtp,
+    imap,
+  };
+}
+
+async function checkShadingCache(databaseCheckPromise = null) {
+  const redisUrl = firstEnv("REDIS_URL", "UPSTASH_REDIS_REST_URL");
+  if (redisUrl && redisUrl.startsWith("redis")) {
+    return withTimeout("shading_cache", 2000, async () => {
+      const { default: Redis } = await import("ioredis");
+      const redis = new Redis(redisUrl, { lazyConnect: true, maxRetriesPerRequest: 0, enableOfflineQueue: false });
+      try {
+        await redis.connect();
+        const pong = await redis.ping();
+        return { ok: pong === "PONG", backend: "redis" };
+      } finally {
+        redis.disconnect();
+      }
+    });
+  }
+  const db = databaseCheckPromise ? await databaseCheckPromise : await checkDatabase();
+  return { ...db, backend: "database" };
+}
+
+async function checkPvgisApi() {
+  const url =
+    "https://re.jrc.ec.europa.eu/api/v5_2/PVcalc?lat=48.8566&lon=2.3522&angle=30&aspect=0&peakpower=1&loss=0&outputformat=json";
+  return withTimeout("pvgis_api", 5000, async () => fetchJsonHealth(url, 5000));
+}
+
+function summarizeReadiness(checks) {
+  return Object.values(checks).every((check) => check?.ok === true);
 }
 
 export function buildHttpApp() {
@@ -192,14 +336,43 @@ export function buildHttpApp() {
   app.use(httpLogger);
   app.use(attachAuditRequestId);
 
+  app.get("/api/health/live", (_req, res) => {
+    res.json({
+      status: "ok",
+      uptime: process.uptime(),
+      version: PACKAGE_VERSION,
+    });
+  });
+
   app.get("/api/health/ready", async (_req, res) => {
-    try {
-      const { pool } = await import("./config/db.js");
-      await pool.query("SELECT 1 AS ok");
-      res.json({ ok: true, status: "ready" });
-    } catch (e) {
-      res.status(503).json({ ok: false, status: "not_ready", error: e?.message || "readiness check failed" });
-    }
+    const databasePromise = checkDatabase();
+    const [
+      database,
+      pdfRenderer,
+      mail,
+      shadingCache,
+      pvgisApi,
+    ] = await Promise.all([
+      databasePromise,
+      checkPdfRenderer(),
+      checkMail(),
+      checkShadingCache(databasePromise),
+      checkPvgisApi(),
+    ]);
+    const checks = {
+      database,
+      pdf_renderer: pdfRenderer,
+      mail,
+      shading_cache: shadingCache,
+      pvgis_api: pvgisApi,
+    };
+    const ok = summarizeReadiness(checks);
+    res.status(ok ? 200 : 503).json({
+      status: ok ? "ready" : "degraded",
+      uptime: process.uptime(),
+      version: PACKAGE_VERSION,
+      checks,
+    });
   });
 
   app.get("/api/health/financial-engine", async (_req, res) => {
