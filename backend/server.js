@@ -72,7 +72,19 @@ try {
   console.error("STARTUP: vérif DB / rate limit —", e);
 }
 
-console.log("🔥 SERVER STARTING");
+// Auto-migration : correction calculation_confidence.blocking_warnings en DB.
+// Corrige les etudes calculees avant le reclassement de PVGIS_FALLBACK_USED, VB_COST, etc.
+// S'execute une fois au demarrage (non-bloquant, fire-and-forget).
+void (async () => {
+  try {
+    const { runConfidenceMigration } = await import("./services/confidenceMigration.service.js");
+    await runConfidenceMigration();
+  } catch (err) {
+    console.error("[STARTUP] confidenceMigration non-fatale:", err?.message || err);
+  }
+})();
+
+console.log("SERVER STARTING");
 app.listen(PORT, () => {
   console.log("API RUNNING ON PORT", PORT, "— process.env.PORT =", process.env.PORT ?? "(défaut 3000)");
   const rbacMode = getRbacMode();
