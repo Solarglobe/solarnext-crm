@@ -501,7 +501,7 @@ export async function computeFinance(ctx, scenarios) {
       const baseImportKwh = baseScenario?.energy?.import ?? baseScenario?.import_kwh ?? 0;
       const billableImportKwh = sc.billable_import_kwh ?? sc.energy?.billable_import_kwh ?? null;
       const virtualImportSavingsKwh =
-        sc.name === "BATTERY_VIRTUAL" && billableImportKwh != null && Number.isFinite(billableImportKwh)
+        (sc.name === "BATTERY_VIRTUAL" || sc.name === "BATTERY_HYBRID") && billableImportKwh != null && Number.isFinite(billableImportKwh)
           ? Math.max(0, (baseImportKwh || 0) - billableImportKwh)
           : null;
 
@@ -529,7 +529,7 @@ export async function computeFinance(ctx, scenarios) {
         inverter_cost_pct: econ.inverter_cost_pct,
         capex_ttc,
         virtual_battery_import_savings: virtualImportSavingsKwh,
-        virtual_battery_mode: sc.name === "BATTERY_VIRTUAL",
+        virtual_battery_mode: sc.name === "BATTERY_VIRTUAL" || sc.name === "BATTERY_HYBRID",
         virtual_overflow_export_kwh:
           sc._virtualBattery8760?.virtual_battery_overflow_export_kwh ??
           sc.energy?.virtual_battery_overflow_export_kwh ??
@@ -600,7 +600,7 @@ export async function computeFinance(ctx, scenarios) {
           roi_years,
           irr_pct: irr_pct !== null ? round(irr_pct * 100, 2) : null
         };
-        if (sc.name === "BATTERY_VIRTUAL") {
+        if (sc.name === "BATTERY_VIRTUAL" || sc.name === "BATTERY_HYBRID") {
           const virtualImportSavingsEur =
             virtualImportSavingsKwh != null && Number.isFinite(virtualImportSavingsKwh)
               ? virtualImportSavingsKwh * econ.price_eur_kwh

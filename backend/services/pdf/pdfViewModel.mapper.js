@@ -24,6 +24,7 @@ const SCENARIO_LABELS = {
   BASE: "Sans batterie",
   BATTERY_PHYSICAL: "Batterie physique",
   BATTERY_VIRTUAL: "Batterie virtuelle",
+  BATTERY_HYBRID: "Hybride : physique + virtuelle",
 };
 
 const MONTHS_COUNT = 12;
@@ -124,7 +125,7 @@ function resolveSiteCoverageFromPvPct(energy) {
 /** Détail facture résiduelle BV (TTC) — même logique que selectedScenarioSnapshot. */
 function buildResidualBillVirtualVmFromScenario(scenario) {
   const sid = scenario?.id ?? scenario?.scenario_type;
-  if (sid !== "BATTERY_VIRTUAL") return null;
+  if (sid !== "BATTERY_VIRTUAL" && sid !== "BATTERY_HYBRID") return null;
   const vf = scenario.virtual_battery_finance;
   if (!vf || typeof vf !== "object") return null;
   const e = scenario.energy || {};
@@ -1063,7 +1064,7 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
         const surplusPctP7 = prodP7 > 0 && surplusP7 != null ? Math.min(100, (surplusP7 / prodP7) * 100) : (selfConsP7 != null ? 100 - selfConsP7 : 0);
         const autonomiePct = autonomyP7 != null ? Math.round(autonomyP7) : (partReseauP7 > 0 ? Math.max(0, 100 - partReseauP7) : 0);
 
-        const isBatScen = selectedKey === "BATTERY_PHYSICAL" || selectedKey === "BATTERY_VIRTUAL";
+        const isBatScen = selectedKey === "BATTERY_PHYSICAL" || selectedKey === "BATTERY_VIRTUAL" || selectedKey === "BATTERY_HYBRID";
         const restoredP7 =
           num(energyP7.restored_kwh) ?? num(energyP7.used_credit_kwh) ?? 0;
         const creditedP7 = num(energyP7.credited_kwh) ?? 0;
@@ -1142,7 +1143,7 @@ export function mapSelectedScenarioSnapshotToPdfViewModel(snapshot, options = {}
         // Affichage strictement réservé au scénario sélectionné BATTERY_VIRTUAL.
         // On utilise selectedKey (déjà résolu) plutôt que selectedScenario?.scenario_type / .id
         // qui peuvent être undefined si l'objet scénario n'expose pas ces champs explicitement.
-        if (selectedKey !== "BATTERY_VIRTUAL") return null;
+        if (selectedKey !== "BATTERY_VIRTUAL" && selectedKey !== "BATTERY_HYBRID") return null;
         if (!selectedScenario || typeof selectedScenario !== "object") return null;
 
         const baseScenario = baseFromV2;
