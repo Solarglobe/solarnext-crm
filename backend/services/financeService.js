@@ -464,6 +464,19 @@ export async function computeFinance(ctx, scenarios) {
     if (sc._v2 === true) {
       const capex_ttc = resolveScenarioCapexTtcV2(sc, ctx);
 
+      if (key === "BATTERY_HYBRID") {
+        console.log("[FINANCE_HYBRID_DEBUG]", JSON.stringify({
+          key,
+          _skipped: sc._skipped,
+          _v2: sc._v2,
+          capex_ttc_resolved: capex_ttc,
+          fi_capex: ctx.finance_input?.capex_ttc,
+          fi_batt_price: ctx.finance_input?.battery_physical_price_ttc,
+          has_vb_quote: !!sc._virtualBatteryQuote,
+          billable_import_kwh: sc.billable_import_kwh ?? sc.energy?.billable_import_kwh,
+        }));
+      }
+
       if (capex_ttc == null) {
         out.scenarios[key] = {
           ...sc,
