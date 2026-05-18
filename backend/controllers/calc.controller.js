@@ -1,7 +1,13 @@
 // ======================================================================
 // SMARTPITCH V-LIGHT — Contrôleur principal
 // ======================================================================
-import { CALC_ENGINE_VERSION } from "../services/calc/calc.constants.js";
+import {
+  CALC_ENGINE_VERSION,
+  P2_PROVIDER_CODES,
+  VB_CAPACITY_MIN_KWH,
+  ENERGY_BALANCE_CONSO_TOLERANCE_KWH,
+  ENERGY_BALANCE_PROD_TOLERANCE_KWH,
+} from "../services/calc/calc.constants.js";
 
 import { pool } from "../config/db.js";
 import { applyPanelPowerFromCatalog } from "../services/pv/resolvePanelFromDb.service.js";
@@ -89,6 +95,10 @@ function addEnergyKpisToScenario(scenario, ctx) {
 // ======================================================================
 export async function calculateSmartpitch(req, res) {
   try {
+    // ======================================================================
+    // SECTION 1 — Parsing & validation des inputs HTTP
+    // Responsabilité future : InputParserUseCase
+    // ======================================================================
     let form, settings;
     let solarnextPayloadForLog = null;
 
@@ -122,6 +132,10 @@ export async function calculateSmartpitch(req, res) {
       settings = {};
     }
 
+    // ======================================================================
+    // SECTION 2 — Résolution catalogue (panel, onduleur, batterie physique)
+    // Responsabilité future : CatalogueResolverUseCase + PvRepository
+    // ======================================================================
     if (form.panel_input && typeof form.panel_input === "object") {
       form.panel_input = await applyPanelPowerFromCatalog(pool, form.panel_input);
     }
@@ -200,6 +214,11 @@ export async function calculateSmartpitch(req, res) {
       }
     };
 
+    // ======================================================================
+    // SECTION 3 — Consommation 8760h
+    // Sources par priorité : CSV uploadé > hourly_prebuilt > manual > national
+    // Responsabilité future : ConsumptionLoaderUseCase
+    // ======================================================================
 // ------------------------------------------------------------
 // 1) CONSOMMATION 8760h — Si un CSV existe (upload ou csv_path résolu backend), le moteur l'utilise obligatoirement (aucun profil synthétique).
 // ------------------------------------------------------------
@@ -258,6 +277,11 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
   }));
 }
 
+    // ======================================================================
+    // SECTION 4 — Production PV + clipping onduleur
+    // Sources : PVGIS mono-pan ou multi-pan ; clipping AC post-branche
+    // Responsabilité future : PvProductionUseCase + PvgisRepository
+    // ======================================================================
     // ------------------------------------------------------------
     // 2) PRODUCTION PV MENSUELLE (mono-pan ou multi-pan)
     // ------------------------------------------------------------
@@ -420,6 +444,11 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
     ctx.pilotage_stats = pilotage.stats;
 
 
+    // ======================================================================
+    // SECTION 5 — Calcul des scénarios énergie
+    // Scénarios : BASE · BATTERY_PHYSICAL · BATTERY_VIRTUAL · BATTERY_HYBRID
+    // Responsabilité future : ScenarioBuilderUseCase (4 sous-use-cases)
+    // ======================================================================
     // ------------------------------------------------------------
     // 5) CALCUL PRINCIPAL (BASE + BATTERY_PHYSICAL si batterie valide)
     // ------------------------------------------------------------
@@ -530,12 +559,11 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
 
           const sumAuto = monthlyBatt.reduce((a, m) => a + m.auto_kwh, 0);
           const sumSurplus = monthlyBatt.reduce((a, m) => a + m.surplus_kwh, 0);
-          const tol = 5;
           const battLosses = batteryScenario.energy.battery_losses_kwh ?? 0;
-          if (process.env.NODE_ENV !== "production" && Math.abs((batteryScenario.energy.auto + batteryScenario.energy.surplus + battLosses) - batteryScenario.energy.prod) > tol) {
+          if (process.env.NODE_ENV !== "production" && Math.abs((batteryScenario.energy.auto + batteryScenario.energy.surplus + battLosses) - batteryScenario.energy.prod) > ENERGY_BALANCE_CONSO_TOLERANCE_KWH) {
             console.warn("BATTERY MONTHLY INCONSISTENT: auto+surplus+losses=", batteryScenario.energy.auto + batteryScenario.energy.surplus + battLosses, "prod=", batteryScenario.energy.prod);
           }
-          if (process.env.NODE_ENV !== "production" && (Math.abs(sumAuto - batt.auto_kwh) > tol || Math.abs(sumSurplus - batt.surplus_kwh) > tol)) {
+          if (process.env.NODE_ENV !== "production" && (Math.abs(sumAuto - batt.auto_kwh) > ENERGY_BALANCE_CONSO_TOLERANCE_KWH || Math.abs(sumSurplus - batt.surplus_kwh) > ENERGY_BALANCE_CONSO_TOLERANCE_KWH)) {
             console.warn("BATTERY MONTHLY SUM MISMATCH: Σmonthly.auto=", sumAuto, "energy.auto=", batt.auto_kwh, "| Σmonthly.surplus=", sumSurplus, "energy.surplus=", batt.surplus_kwh);
           }
           if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1") {
@@ -586,8 +614,7 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
       } else {
         const vbInput = ctx.virtual_battery_input || {};
         const providerRaw = vbInput.provider_code || vbInput.provider;
-        const P2_PROVIDERS = new Set(["URBAN_SOLAR", "MYLIGHT_MYBATTERY", "MYLIGHT_MYSMARTBATTERY"]);
-        const useP2 = providerRaw && P2_PROVIDERS.has(String(providerRaw).toUpperCase());
+        const useP2 = providerRaw && P2_PROVIDER_CODES.has(String(providerRaw).toUpperCase());
 
         const meterKva = Number(ctx.site?.puissance_kva ?? ctx.form?.params?.puissance_kva ?? 9);
         const installedKwc =
@@ -659,7 +686,7 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
                   ];
                 }
               } else {
-                simCapacityKwh = Math.max(requiredCap, 1e-9);
+                simCapacityKwh = Math.max(requiredCap, VB_CAPACITY_MIN_KWH);
                 vbSim = simulateVirtualBattery8760({
                   pv_hourly: ctx.pv.hourly,
                   conso_hourly: consoHourlyVirtual,
@@ -674,7 +701,7 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
                 };
               }
             } else if (!virtualScenario._skipped) {
-              simCapacityKwh = Math.max(requiredCap, 1e-9);
+              simCapacityKwh = Math.max(requiredCap, VB_CAPACITY_MIN_KWH);
               vbSim = simulateVirtualBattery8760({
                 pv_hourly: ctx.pv.hourly,
                 conso_hourly: consoHourlyVirtual,
@@ -721,7 +748,7 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
                 markVirtualBatteryUnboundedBlocked(virtualScenario, "virtual_battery_unbounded_disabled");
                 console.warn("[BATTERY_VIRTUAL] VB_UNBOUNDED_DISABLED_FOR_COMMERCIAL_USE");
               } else {
-                vbConfig.capacity_kwh = Math.max(Number(ub.required_capacity_kwh), 1e-9);
+                vbConfig.capacity_kwh = Math.max(Number(ub.required_capacity_kwh), VB_CAPACITY_MIN_KWH);
               }
               // RISQUE 1 : capacité auto-résolue au maximum théorique (unbounded).
               // La capacité contractuelle réelle du fournisseur peut être inférieure.
@@ -1049,8 +1076,7 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
 
         const vbInputH = ctx.virtual_battery_input || {};
         const providerRawH = vbInputH.provider_code || vbInputH.provider;
-        const P2_PROVIDERS_H = new Set(["URBAN_SOLAR", "MYLIGHT_MYBATTERY", "MYLIGHT_MYSMARTBATTERY"]);
-        const useP2H = providerRawH && P2_PROVIDERS_H.has(String(providerRawH).toUpperCase());
+        const useP2H = providerRawH && P2_PROVIDER_CODES.has(String(providerRawH).toUpperCase());
         const meterKvaH = Number(ctx.site?.puissance_kva ?? ctx.form?.params?.puissance_kva ?? 9);
         const installedKwcH = scenarios.BATTERY_PHYSICAL.kwc ?? scenarios.BATTERY_PHYSICAL.metadata?.kwc ?? ctx.pv?.kwc ?? resolveKwcMono(ctx.form);
         const tariffKwhH = resolveRetailElectricityKwhPrice(ctx);
@@ -1083,7 +1109,7 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
           if (!hybridScenario._skipped) {
           const simCapacityKwhH = selectedContractCapH != null && selectedContractCapH > 0
             ? selectedContractCapH
-            : Math.max(requiredCapH, 1e-9);
+            : Math.max(requiredCapH, VB_CAPACITY_MIN_KWH);
 
           const vbSimH = simulateVirtualBattery8760({
             pv_hourly: surplusAfterPhysical,
@@ -1260,6 +1286,11 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
       attachNormalizedEnergyKpiFields(scenarios[_sk]);
     }
 
+    // ======================================================================
+    // SECTION 6 — Finance · impact CO₂ · construction réponse HTTP
+    // calcResponseBuilder.js (ÉTAPE 2 DDD) déjà extrait — fonction pure testable.
+    // Responsabilité future : FinanceUseCase · ImpactUseCase
+    // ======================================================================
     // ------------------------------------------------------------
     // 6) FINANCE (CAPEX 100 % devis / finance_input, pas de pricing moteur)
     // ------------------------------------------------------------
@@ -1314,7 +1345,7 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
       // CONSOMMATION CHECK
       // ----------------------------------
       const consCheck = auto + importGrid;
-      if (Number.isFinite(consumption) && Number.isFinite(consCheck) && Math.abs(consCheck - consumption) > 5) {
+      if (Number.isFinite(consumption) && Number.isFinite(consCheck) && Math.abs(consCheck - consumption) > ENERGY_BALANCE_CONSO_TOLERANCE_KWH) {
         console.warn("ENERGY BALANCE ERROR — CONSUMPTION", key, { consumption, auto, importGrid, auto_plus_import: consCheck });
       }
 
@@ -1323,7 +1354,7 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
       // ----------------------------------
       const batteryLosses = (key === "BATTERY_PHYSICAL" && (sc.energy?.battery_losses_kwh != null)) ? Number(sc.energy.battery_losses_kwh) : 0;
       const prodCheck = auto + surplus + batteryLosses;
-      if (Number.isFinite(production) && Number.isFinite(prodCheck) && Math.abs(prodCheck - production) > 1) {
+      if (Number.isFinite(production) && Number.isFinite(prodCheck) && Math.abs(prodCheck - production) > ENERGY_BALANCE_PROD_TOLERANCE_KWH) {
         console.warn("ENERGY_BALANCE_ERROR", key, { production, auto, surplus, battery_losses: batteryLosses, auto_plus_surplus_plus_losses: prodCheck });
       }
     }
