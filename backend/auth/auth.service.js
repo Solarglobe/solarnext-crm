@@ -55,13 +55,78 @@ function addDaysMs(date, ms) {
 }
 
 function requestIpHint(req) {
-  const ip = req?.ip || req?.socket?.remoteAddress || "";
-  return String(ip).slice(0, 120) || null;
+  return requestIpAddress(req);
 }
 
 function requestUserAgentHint(req) {
   const ua = req?.headers?.["user-agent"] || "";
   return String(Array.isArray(ua) ? ua[0] : ua).slice(0, 300) || null;
+}
+
+function headerValue(req, name) {
+  const raw = req?.headers?.[name.toLowerCase()];
+  if (Array.isArray(raw)) return raw[0] ?? "";
+  return raw ?? "";
+}
+
+export function requestIpAddress(req) {
+  const cf = headerValue(req, "cf-connecting-ip");
+  const forwarded = headerValue(req, "x-forwarded-for");
+  const firstForwarded = String(forwarded || "").split(",")[0]?.trim();
+  const ip = cf || firstForwarded || req?.ip || req?.socket?.remoteAddress || "";
+  return String(ip).replace(/^::ffff:/, "").slice(0, 120) || null;
+}
+
+export function requestCountryHint(req) {
+  const country =
+    headerValue(req, "cf-ipcountry") ||
+    headerValue(req, "x-vercel-ip-country") ||
+    headerValue(req, "x-country-code");
+  return String(country || "").trim().slice(0, 120) || null;
+}
+
+export function parseDeviceHint(userAgent) {
+  const ua = String(userAgent || "");
+  const browser =
+    /Edg\//.test(ua) ? "Edge" :
+      /Chrome\//.test(ua) || /CriOS\//.test(ua) ? "Chrome" :
+        /Firefox\//.test(ua) ? "Firefox" :
+          /Safari\//.test(ua) ? "Safari" :
+            "Navigateur inconnu";
+  const os =
+    /Windows NT/.test(ua) ? "Windows" :
+      /iPhone|iPad|iPod/.test(ua) ? "iOS" :
+        /Android/.test(ua) ? "Android" :
+          /Mac OS X/.test(ua) ? "macOS" :
+            /Linux/.test(ua) ? "Linux" :
+              "OS inconnu";
+  const device = /Mobi|Android|iPhone|iPad|iPod/.test(ua) ? "Mobile" : "Desktop";
+  return `${device} - ${browser} / ${os}`.slice(0, 255);
+}
+
+function requestDeviceHint(req) {
+  return parseDeviceHint(requestUserAgentHint(req));
+}
+
+async function detectNewSessionContext(db, userId, countryHint, deviceHint) {
+  const previous = await db.query(
+    `SELECT country_hint, device_hint
+     FROM refresh_tokens
+     WHERE user_id = $1
+       AND created_at > now() - interval '180 days'
+       AND (country_hint IS NOT NULL OR device_hint IS NOT NULL)
+     ORDER BY created_at DESC
+     LIMIT 50`,
+    [userId]
+  );
+  if (previous.rows.length === 0) return { isNewContext: false };
+  const countryKnown = !countryHint || previous.rows.some((row) => row.country_hint === countryHint);
+  const deviceKnown = !deviceHint || previous.rows.some((row) => row.device_hint === deviceHint);
+  return {
+    isNewContext: !countryKnown || !deviceKnown,
+    newCountry: !countryKnown,
+    newDevice: !deviceKnown,
+  };
 }
 
 export function refreshCookieOptions() {
@@ -99,26 +164,46 @@ export function readRefreshTokenFromCookie(req) {
 
 export async function createRefreshSession(user, req, db = pool) {
   const sessionId = user.sessionId ?? user.session_id ?? crypto.randomUUID();
+  const isNewSession = !(user.sessionId ?? user.session_id);
   const refreshToken = crypto.randomUUID();
   const now = new Date();
   const expiresAt = addDaysMs(now, REFRESH_TOKEN_TTL_MS);
+  const ipAddress = requestIpAddress(req);
+  const userAgentHint = requestUserAgentHint(req);
+  const deviceHint = requestDeviceHint(req);
+  const countryHint = requestCountryHint(req);
+  const context = isNewSession
+    ? await detectNewSessionContext(db, user.id, countryHint, deviceHint)
+    : { isNewContext: false };
   await db.query(
     `INSERT INTO refresh_tokens (
-       user_id, token_hash, session_id, ip_hint, user_agent_hint, created_at, expires_at
+       user_id, token_hash, session_id, ip_hint, user_agent_hint, device_hint, ip_address,
+       country_hint, last_used_at, created_at, expires_at
      )
-     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9, $10)`,
     [
       user.id,
       hashRefreshToken(refreshToken),
       sessionId,
-      requestIpHint(req),
-      requestUserAgentHint(req),
+      ipAddress,
+      userAgentHint,
+      deviceHint,
+      ipAddress,
+      countryHint,
       now,
       expiresAt,
     ]
   );
   const accessToken = generateJWT({ ...user, sessionId });
-  return { accessToken, refreshToken, sessionId, expiresAt };
+  return {
+    accessToken,
+    refreshToken,
+    sessionId,
+    expiresAt,
+    securityAlert: context.isNewContext
+      ? { countryHint, deviceHint, ipAddress, newCountry: context.newCountry, newDevice: context.newDevice }
+      : null,
+  };
 }
 
 export async function rotateRefreshSession(refreshToken, req, db = pool) {
@@ -170,17 +255,25 @@ export async function rotateRefreshSession(refreshToken, req, db = pool) {
 
     const nextToken = crypto.randomUUID();
     const expiresAt = addDaysMs(new Date(), REFRESH_TOKEN_TTL_MS);
+    const ipAddress = requestIpAddress(req);
+    const userAgentHint = requestUserAgentHint(req);
+    const deviceHint = requestDeviceHint(req);
+    const countryHint = requestCountryHint(req);
     await client.query(
       `INSERT INTO refresh_tokens (
-         user_id, token_hash, session_id, ip_hint, user_agent_hint, created_at, expires_at
+         user_id, token_hash, session_id, ip_hint, user_agent_hint, device_hint, ip_address,
+         country_hint, last_used_at, created_at, expires_at
        )
-       VALUES ($1, $2, $3, $4, $5, now(), $6)`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now(), now(), $9)`,
       [
         user.id,
         hashRefreshToken(nextToken),
         user.sessionId,
-        requestIpHint(req),
-        requestUserAgentHint(req),
+        ipAddress,
+        userAgentHint,
+        deviceHint,
+        ipAddress,
+        countryHint,
         expiresAt,
       ]
     );
@@ -217,6 +310,56 @@ export async function revokeAllRefreshSessionsForUser(userId, db = pool) {
   const result = await db.query(
     "UPDATE refresh_tokens SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL",
     [userId]
+  );
+  return result.rowCount;
+}
+
+export async function listActiveRefreshSessions(userId, currentSessionId, db = pool) {
+  const result = await db.query(
+    `SELECT id, session_id, device_hint, user_agent_hint, ip_address, country_hint,
+            created_at, last_used_at, expires_at
+     FROM refresh_tokens
+     WHERE user_id = $1
+       AND revoked_at IS NULL
+       AND expires_at > now()
+     ORDER BY COALESCE(last_used_at, created_at) DESC`,
+    [userId]
+  );
+  return result.rows.map((row) => ({
+    id: row.id,
+    sessionId: row.session_id,
+    deviceHint: row.device_hint || parseDeviceHint(row.user_agent_hint),
+    userAgentHint: row.user_agent_hint,
+    ipAddress: row.ip_address,
+    countryHint: row.country_hint,
+    createdAt: row.created_at,
+    lastUsedAt: row.last_used_at || row.created_at,
+    expiresAt: row.expires_at,
+    current: String(row.session_id) === String(currentSessionId),
+  }));
+}
+
+export async function revokeRefreshSessionById(userId, tokenId, currentSessionId, db = pool) {
+  const result = await db.query(
+    `UPDATE refresh_tokens
+     SET revoked_at = now()
+     WHERE id = $1
+       AND user_id = $2
+       AND session_id <> $3
+       AND revoked_at IS NULL`,
+    [tokenId, userId, currentSessionId]
+  );
+  return result.rowCount > 0;
+}
+
+export async function revokeOtherRefreshSessions(userId, currentSessionId, db = pool) {
+  const result = await db.query(
+    `UPDATE refresh_tokens
+     SET revoked_at = now()
+     WHERE user_id = $1
+       AND session_id <> $2
+       AND revoked_at IS NULL`,
+    [userId, currentSessionId]
   );
   return result.rowCount;
 }

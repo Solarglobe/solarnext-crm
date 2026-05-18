@@ -7,9 +7,12 @@ import {
   createRefreshSession,
   findValidPasswordResetToken,
   hashPassword,
+  listActiveRefreshSessions,
   readRefreshTokenFromCookie,
   refreshCookieOptions,
+  revokeOtherRefreshSessions,
   revokeAllRefreshSessionsForUser,
+  revokeRefreshSessionById,
   revokeRefreshSession,
   rotateRefreshSession,
   validateResetPasswordPolicy,
@@ -17,6 +20,7 @@ import {
 } from "./auth.service.js";
 import {
   sendEmailVerificationEmail,
+  sendNewSessionAlertEmail,
   sendPasswordChangedEmail,
   sendPasswordResetEmail,
   sendWelcomeEmail,
@@ -60,6 +64,17 @@ function splitName(fullName) {
 
 function cguAccepted(body) {
   return body?.acceptCgu === true || body?.acceptedCgu === true || body?.cguAccepted === true;
+}
+
+function notifyNewSessionIfNeeded(user, session) {
+  if (!session?.securityAlert || !user?.email) return;
+  sendNewSessionAlertEmail({
+    to: user.email,
+    location: session.securityAlert.countryHint || session.securityAlert.ipAddress || "lieu inconnu",
+    device: session.securityAlert.deviceHint || "appareil inconnu",
+  }).catch((err) => {
+    logger.warn("AUTH_NEW_SESSION_ALERT_FAILED", { err: err?.message, userId: user.id });
+  });
 }
 
 export async function login(req, res) {
@@ -229,6 +244,7 @@ export async function login(req, res) {
     await resetLoginFailures(req, emailNorm);
 
     const session = await createRefreshSession(user, req, client);
+    notifyNewSessionIfNeeded(user, session);
     res.cookie("solarnext_refresh_token", session.refreshToken, refreshCookieOptions());
     void logAuditEvent({
       action: AuditActions.AUTH_LOGIN_SUCCESS,
@@ -466,6 +482,7 @@ export async function verifyMfaLogin(req, res) {
 
     user.role = decoded.role;
     const session = await createRefreshSession(user, req, client);
+    notifyNewSessionIfNeeded(user, session);
     await client.query("UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1", [user.id]);
     await client.query("COMMIT");
     res.cookie("solarnext_refresh_token", session.refreshToken, refreshCookieOptions());
@@ -544,6 +561,50 @@ export async function disableMfa(req, res) {
     res.status(500).json({ error: e.message });
   } finally {
     client.release();
+  }
+}
+
+export async function listSessions(req, res) {
+  try {
+    const uid = authUserId(req);
+    const currentSessionId = req.user?.sessionId ?? req.user?.session_id;
+    if (!uid || !currentSessionId) return res.status(401).json({ error: "Non authentifie" });
+    const sessions = await listActiveRefreshSessions(uid, currentSessionId);
+    res.json({ sessions });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+}
+
+export async function revokeSession(req, res) {
+  try {
+    const uid = authUserId(req);
+    const currentSessionId = req.user?.sessionId ?? req.user?.session_id;
+    const tokenId = String(req.params?.id ?? "").trim();
+    if (!uid || !currentSessionId) return res.status(401).json({ error: "Non authentifie" });
+    if (!tokenId) return res.status(400).json({ error: "Session requise" });
+    const revoked = await revokeRefreshSessionById(uid, tokenId, currentSessionId);
+    if (!revoked) {
+      return res.status(404).json({
+        error: "Session introuvable, deja revoquee ou session actuelle",
+        code: "SESSION_NOT_REVOKED",
+      });
+    }
+    res.json({ revoked: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+}
+
+export async function revokeOtherSessions(req, res) {
+  try {
+    const uid = authUserId(req);
+    const currentSessionId = req.user?.sessionId ?? req.user?.session_id;
+    if (!uid || !currentSessionId) return res.status(401).json({ error: "Non authentifie" });
+    const revokedCount = await revokeOtherRefreshSessions(uid, currentSessionId);
+    res.json({ revokedCount });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
   }
 }
 
@@ -692,6 +753,7 @@ export async function register(req, res) {
     sendEmailVerificationEmail({ to: user.email, token: verification.token }).catch((err) => {
       logger.warn("AUTH_REGISTER_VERIFY_MAIL_FAILED", { err: err?.message, userId: user.id });
     });
+    notifyNewSessionIfNeeded(user, session);
     res.cookie("solarnext_refresh_token", session.refreshToken, refreshCookieOptions());
     return res.status(201).json({
       token: session.accessToken,

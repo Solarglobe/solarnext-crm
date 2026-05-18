@@ -6,11 +6,14 @@ import {
   confirmMfaSetup,
   disableMfa,
   getMfaStatus,
+  listSessions,
   login,
   logout,
   register,
   refresh,
   resendVerificationEmail,
+  revokeOtherSessions,
+  revokeSession,
   resetPassword,
   startMfaSetup,
   validateResetPasswordToken,
@@ -41,6 +44,9 @@ router.get("/mfa/status", verifyJWT, getMfaStatus);
 router.post("/mfa/setup/start", verifyJWT, authStrictRateLimiter, startMfaSetup);
 router.post("/mfa/setup/confirm", verifyJWT, authStrictRateLimiter, confirmMfaSetup);
 router.post("/mfa/disable", verifyJWT, authStrictRateLimiter, disableMfa);
+router.get("/sessions", verifyJWT, listSessions);
+router.delete("/sessions/:id", verifyJWT, authStrictRateLimiter, revokeSession);
+router.post("/sessions/revoke-others", verifyJWT, authStrictRateLimiter, revokeOtherSessions);
 
 router.get("/me", verifyJWT, async (req, res) => {
   const uid = req.user?.userId ?? req.user?.id;

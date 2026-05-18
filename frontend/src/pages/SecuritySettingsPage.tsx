@@ -9,6 +9,12 @@ import {
   type MfaSetupStart,
   type MfaStatus,
 } from "../services/mfa.service";
+import {
+  fetchActiveSessions,
+  revokeOtherSessions,
+  revokeSession,
+  type ActiveSession,
+} from "../services/sessions.service";
 import "./security-settings-page.css";
 
 export default function SecuritySettingsPage() {
@@ -19,6 +25,7 @@ export default function SecuritySettingsPage() {
   const [disableCode, setDisableCode] = useState("");
   const [recoveryCodes, setRecoveryCodes] = useState<string[]>([]);
   const [requireMfa, setRequireMfa] = useState(false);
+  const [sessions, setSessions] = useState<ActiveSession[]>([]);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
 
@@ -29,6 +36,7 @@ export default function SecuritySettingsPage() {
     ]);
     setStatus(mfa);
     setRequireMfa(security.requireMfa);
+    setSessions(await fetchActiveSessions().catch(() => []));
   };
 
   useEffect(() => {
@@ -75,6 +83,27 @@ export default function SecuritySettingsPage() {
     } catch (err) {
       setRequireMfa(!checked);
       setMessage(err instanceof Error ? err.message : "Mise a jour impossible");
+    }
+  };
+
+  const revokeOneSession = async (id: string) => {
+    setMessage("");
+    try {
+      await revokeSession(id);
+      setSessions(await fetchActiveSessions());
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Revocation impossible");
+    }
+  };
+
+  const revokeOthers = async () => {
+    setMessage("");
+    try {
+      const count = await revokeOtherSessions();
+      setMessage(`${count} session(s) revoquee(s).`);
+      setSessions(await fetchActiveSessions());
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Revocation impossible");
     }
   };
 
@@ -157,6 +186,49 @@ export default function SecuritySettingsPage() {
           <input type="checkbox" checked={requireMfa} onChange={(event) => void toggleOrgMfa(event.target.checked)} />
           <span>MFA obligatoire</span>
         </label>
+      </section>
+
+      <section className="security-card">
+        <div className="security-card__split">
+          <div>
+            <h2>Sessions actives</h2>
+            <p>Appareils connectes a votre compte avec refresh token actif.</p>
+          </div>
+          <button type="button" className="sn-btn sn-btn-secondary" onClick={() => void revokeOthers()}>
+            Deconnecter toutes les autres sessions
+          </button>
+        </div>
+        <div className="security-session-list">
+          {sessions.length === 0 ? (
+            <p>Aucune session active trouvee.</p>
+          ) : (
+            sessions.map((session) => (
+              <article className="security-session" key={session.id}>
+                <div className="security-session__icon" aria-hidden>
+                  {session.deviceHint?.toLowerCase().includes("mobile") ? "M" : "D"}
+                </div>
+                <div className="security-session__body">
+                  <strong>
+                    {session.deviceHint || "Appareil inconnu"}
+                    {session.current ? <span className="security-current-badge">Session actuelle</span> : null}
+                  </strong>
+                  <span>
+                    IP {session.ipAddress || "inconnue"}
+                    {session.countryHint ? ` - ${session.countryHint}` : ""}
+                  </span>
+                  <small>
+                    Derniere activite : {new Date(session.lastUsedAt).toLocaleString("fr-FR")}
+                  </small>
+                </div>
+                {!session.current ? (
+                  <button type="button" className="sn-btn sn-btn-ghost" onClick={() => void revokeOneSession(session.id)}>
+                    Revoquer
+                  </button>
+                ) : null}
+              </article>
+            ))
+          )}
+        </div>
       </section>
 
       {message ? <p className="security-message">{message}</p> : null}

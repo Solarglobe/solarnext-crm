@@ -123,3 +123,22 @@ export async function sendWelcomeEmail({ to }) {
     `),
   });
 }
+
+export async function sendNewSessionAlertEmail({ to, location, device }) {
+  const secureUrl = `${appBaseUrl().replace(/\/+$/, "")}/settings/security`;
+  const place = location || "lieu inconnu";
+  const deviceLabel = device || "appareil inconnu";
+  return sendSystemMail({
+    to,
+    subject: "Nouvelle connexion SolarNext",
+    text: `Nouvelle connexion detectee depuis ${place}, ${deviceLabel}. Si ce n'etait pas vous, securisez votre compte : ${secureUrl}`,
+    html: shellHtml(`
+      <p style="margin:0 0 16px">Nouvelle connexion detectee sur votre compte SolarNext.</p>
+      <p style="margin:0 0 18px"><strong>Lieu :</strong> ${place}<br/><strong>Appareil :</strong> ${deviceLabel}</p>
+      <p style="margin:0 0 22px">
+        <a href="${secureUrl}" style="display:inline-block;background:#2e1a47;color:#fff;text-decoration:none;padding:12px 18px;border-radius:6px;font-weight:700">Ce n'etait pas moi - securiser mon compte</a>
+      </p>
+      <p style="margin:0;color:#64748b;font-size:13px">Depuis la page securite, vous pouvez revoquer toutes les autres sessions actives.</p>
+    `),
+  });
+}
