@@ -1,6 +1,6 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Navigate } from "react-router-dom";
-import { isAuthenticated } from "../../services/auth.service";
+import { ensureAuthenticated } from "../../services/auth.service";
 import { wasImpersonationTokenExpiredAndCleared } from "../../services/organizations.service";
 
 interface ProtectedRouteProps {
@@ -9,10 +9,25 @@ interface ProtectedRouteProps {
 
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
   const impersonationExpired = useMemo(() => wasImpersonationTokenExpiredAndCleared(), []);
+  const [authenticated, setAuthenticated] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    ensureAuthenticated().then((ok) => {
+      if (!cancelled) setAuthenticated(ok);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   if (impersonationExpired) {
     return <Navigate to="/admin/organizations" replace />;
   }
-  if (!isAuthenticated()) {
+  if (authenticated === null) {
+    return null;
+  }
+  if (!authenticated) {
     return <Navigate to="/login" replace />;
   }
   return <>{children}</>;

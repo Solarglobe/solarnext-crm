@@ -1,15 +1,17 @@
 import {
   apiFetch,
   AUTH_TOKEN_PRE_IMPERSONATION_KEY,
-  AUTH_TOKEN_STORAGE_KEY,
+  getAuthToken,
   IMPERSONATION_BANNER_KEY,
   IMPERSONATION_META_KEY,
+  setAuthToken,
 } from "./api";
 import { adminImpersonateUser } from "./admin.api";
 import { decodeJwtPayloadUnsafe } from "./auth.service";
 import { getCrmApiBase } from "../config/crmApiBase";
 
 const LS_ORG = "solarnext_current_organization_id";
+let preImpersonationTokenMemory: string | null = null;
 
 /**
  * Si le jeton courant est une impersonation expirée, purge le stockage client.
@@ -17,14 +19,15 @@ const LS_ORG = "solarnext_current_organization_id";
  */
 export function wasImpersonationTokenExpiredAndCleared(): boolean {
   if (typeof window === "undefined") return false;
-  const token = localStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
+  const token = getAuthToken();
   if (!token) return false;
   const p = decodeJwtPayloadUnsafe(token);
   if (!p?.impersonation) return false;
   if (typeof p.exp !== "number") return false;
   const now = Math.floor(Date.now() / 1000);
   if (p.exp > now - 30) return false;
-  localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
+  setAuthToken(null);
+  preImpersonationTokenMemory = null;
   localStorage.removeItem(AUTH_TOKEN_PRE_IMPERSONATION_KEY);
   localStorage.removeItem(IMPERSONATION_META_KEY);
   localStorage.removeItem(IMPERSONATION_BANNER_KEY);
@@ -129,21 +132,23 @@ export type AdminImpersonateResponse = {
  */
 export async function adminImpersonateAndEnterSession(organizationId: string): Promise<AdminImpersonateResponse> {
   const API_BASE = getCrmApiBase();
-  const current = localStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
+  const current = getAuthToken();
   if (current) {
-    localStorage.setItem(AUTH_TOKEN_PRE_IMPERSONATION_KEY, current);
+    preImpersonationTokenMemory = current;
+    localStorage.removeItem(AUTH_TOKEN_PRE_IMPERSONATION_KEY);
   }
   const res = await apiFetch(`${API_BASE}/api/admin/organizations/${organizationId}/impersonate`, {
     method: "POST",
   });
   if (!res.ok) {
+    preImpersonationTokenMemory = null;
     localStorage.removeItem(AUTH_TOKEN_PRE_IMPERSONATION_KEY);
     const t = await res.text();
     const j = parseErrorJson(t);
     throw new Error(j.error || t || "Impersonation impossible");
   }
   const data = (await res.json()) as AdminImpersonateResponse;
-  localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, data.token);
+  setAuthToken(data.token);
   const meta = {
     type: "ORG" as const,
     organizationName: data.organization.name,
@@ -164,13 +169,14 @@ export async function adminUserImpersonateAndEnterSession(
   userId: string,
   labels: { userName: string; organizationName: string }
 ): Promise<void> {
-  const current = localStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
+  const current = getAuthToken();
   if (current) {
-    localStorage.setItem(AUTH_TOKEN_PRE_IMPERSONATION_KEY, current);
+    preImpersonationTokenMemory = current;
+    localStorage.removeItem(AUTH_TOKEN_PRE_IMPERSONATION_KEY);
   }
   try {
     const data = await adminImpersonateUser(userId);
-    localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, data.token);
+    setAuthToken(data.token);
     localStorage.setItem(
       IMPERSONATION_META_KEY,
       JSON.stringify({
@@ -186,6 +192,7 @@ export async function adminUserImpersonateAndEnterSession(
     localStorage.setItem("solarnext_super_admin", "0");
     localStorage.setItem("solarnext_super_admin_edit_mode", "0");
   } catch (e) {
+    preImpersonationTokenMemory = null;
     localStorage.removeItem(AUTH_TOKEN_PRE_IMPERSONATION_KEY);
     throw e;
   }
@@ -193,9 +200,9 @@ export async function adminUserImpersonateAndEnterSession(
 
 /** Retour super-admin : restaure le jeton d’origine (après impersonation). */
 export function exitAdminImpersonationSession(): void {
-  const prev = localStorage.getItem(AUTH_TOKEN_PRE_IMPERSONATION_KEY);
+  const prev = preImpersonationTokenMemory;
   if (prev) {
-    localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, prev);
+    setAuthToken(prev);
     const p = decodeJwtPayloadUnsafe(prev);
     if (p?.organizationId) {
       localStorage.setItem(LS_ORG, p.organizationId);
@@ -203,6 +210,7 @@ export function exitAdminImpersonationSession(): void {
       localStorage.removeItem(LS_ORG);
     }
   }
+  preImpersonationTokenMemory = null;
   localStorage.removeItem(AUTH_TOKEN_PRE_IMPERSONATION_KEY);
   localStorage.removeItem(IMPERSONATION_BANNER_KEY);
   localStorage.removeItem(IMPERSONATION_META_KEY);

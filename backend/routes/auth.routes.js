@@ -1,7 +1,7 @@
 import express from "express";
 import { verifyJWT } from "../middleware/auth.middleware.js";
 import { authStrictRateLimiter } from "../middleware/rateLimit.middleware.js";
-import { login } from "../auth/auth.controller.js";
+import { login, logout, refresh } from "../auth/auth.controller.js";
 import { pool } from "../config/db.js";
 import { getUserPermissions } from "../rbac/rbac.service.js";
 import {
@@ -12,6 +12,8 @@ import {
 const router = express.Router();
 
 router.post("/login", authStrictRateLimiter, login);
+router.post("/refresh", authStrictRateLimiter, refresh);
+router.post("/logout", authStrictRateLimiter, logout);
 router.post("/forgot-password", authStrictRateLimiter);
 router.post("/reset", authStrictRateLimiter);
 router.post("/reset-password", authStrictRateLimiter);

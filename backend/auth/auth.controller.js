@@ -1,5 +1,13 @@
 import { pool } from "../config/db.js";
-import { comparePassword, generateJWT } from "./auth.service.js";
+import {
+  clearRefreshCookie,
+  comparePassword,
+  createRefreshSession,
+  readRefreshTokenFromCookie,
+  refreshCookieOptions,
+  revokeRefreshSession,
+  rotateRefreshSession,
+} from "./auth.service.js";
 import logger from "../app/core/logger.js";
 import { logAuditEvent } from "../services/audit/auditLog.service.js";
 import { AuditActions } from "../services/audit/auditActions.js";
@@ -162,7 +170,8 @@ export async function login(req, res) {
 
     await resetLoginFailures(req, emailNorm);
 
-    const token = generateJWT(user);
+    const session = await createRefreshSession(user, req, client);
+    res.cookie("solarnext_refresh_token", session.refreshToken, refreshCookieOptions());
     void logAuditEvent({
       action: AuditActions.AUTH_LOGIN_SUCCESS,
       entityType: "user",
@@ -175,7 +184,8 @@ export async function login(req, res) {
       metadata: { role },
     });
     return res.json({
-      token,
+      token: session.accessToken,
+      accessToken: session.accessToken,
       user: {
         id: user.id,
         email: user.email,
@@ -197,4 +207,45 @@ export async function login(req, res) {
   } finally {
     if (client) client.release();
   }
+}
+
+export async function refresh(req, res) {
+  const token = readRefreshTokenFromCookie(req);
+  if (!token) {
+    clearRefreshCookie(res);
+    return res.status(401).json({ error: "Refresh token manquant", code: "REFRESH_TOKEN_MISSING" });
+  }
+  try {
+    const session = await rotateRefreshSession(token, req);
+    if (!session) {
+      clearRefreshCookie(res);
+      return res.status(401).json({ error: "Refresh token invalide", code: "REFRESH_TOKEN_INVALID" });
+    }
+    res.cookie("solarnext_refresh_token", session.refreshToken, refreshCookieOptions());
+    return res.json({
+      token: session.accessToken,
+      accessToken: session.accessToken,
+      user: {
+        id: session.user.id,
+        email: session.user.email,
+        role: session.user.role,
+        organizationId: session.user.organization_id,
+      },
+    });
+  } catch (err) {
+    logger.error("AUTH_REFRESH_ERROR", { err: err?.message, stack: err?.stack });
+    clearRefreshCookie(res);
+    return res.status(500).json({ error: "Erreur refresh session" });
+  }
+}
+
+export async function logout(req, res) {
+  const token = readRefreshTokenFromCookie(req);
+  try {
+    await revokeRefreshSession(token);
+  } catch (err) {
+    logger.warn("AUTH_LOGOUT_REVOKE_FAILED", { err: err?.message });
+  }
+  clearRefreshCookie(res);
+  return res.status(204).send();
 }

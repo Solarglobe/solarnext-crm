@@ -1,15 +1,17 @@
 import { buildApiUrl } from "@/config/crmApiBase";
 import {
   apiFetch,
-  AUTH_TOKEN_STORAGE_KEY,
   AUTH_TOKEN_PRE_IMPERSONATION_KEY,
+  ensureAuthToken,
   getAuthToken,
   IMPERSONATION_BANNER_KEY,
   IMPERSONATION_META_KEY,
+  setAuthToken,
 } from "./api";
 
 export interface LoginResponse {
   token: string;
+  accessToken?: string;
   user: {
     id: string;
     email: string;
@@ -41,6 +43,7 @@ export async function login(
 
   const res = await fetch(buildApiUrl("/auth/login"), {
     method: "POST",
+    credentials: "include",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
@@ -79,20 +82,25 @@ export async function login(
   if (!data.token) {
     throw new Error("Réponse serveur invalide (pas de token)");
   }
-  localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, data.token);
-  const stored = localStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
+  setAuthToken(data.accessToken || data.token);
+  const stored = getAuthToken();
   console.log(
     "[auth/login] solarnext_token stocké :",
     Boolean(stored && stored.length > 0),
     "longueur :",
     stored?.length ?? 0,
-    import.meta.env.DEV ? `| jeton : ${stored}` : ""
+    ""
   );
   return data as LoginResponse;
 }
 
 export function logout(): void {
-  localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
+  void fetch(buildApiUrl("/auth/logout"), {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+  }).catch(() => undefined);
+  setAuthToken(null);
   localStorage.removeItem(AUTH_TOKEN_PRE_IMPERSONATION_KEY);
   localStorage.removeItem(IMPERSONATION_BANNER_KEY);
   localStorage.removeItem(IMPERSONATION_META_KEY);
@@ -140,6 +148,7 @@ export function decodeJwtPayloadUnsafe(token: string): {
   organizationId?: string;
   role?: string;
   userId?: string;
+  planId?: string | null;
   impersonation?: boolean;
   impersonationType?: string;
 } | null {
@@ -158,6 +167,7 @@ export function decodeJwtPayloadUnsafe(token: string): {
     organizationId,
     role: typeof raw.role === "string" ? raw.role : undefined,
     userId,
+    planId: typeof raw.planId === "string" ? raw.planId : null,
     impersonation: raw.impersonation === true,
     impersonationType: typeof raw.impersonationType === "string" ? raw.impersonationType : undefined,
   };
@@ -169,6 +179,16 @@ export function decodeJwtPayloadUnsafe(token: string): {
  */
 export function isAuthenticated(): boolean {
   const token = getAuthToken();
+  if (!token) return false;
+  const payload = decodeJwtPayload(token);
+  if (!payload || typeof payload.exp !== "number") return false;
+  const nowSec = Math.floor(Date.now() / 1000);
+  return payload.exp > nowSec - 30;
+}
+
+export async function ensureAuthenticated(): Promise<boolean> {
+  if (isAuthenticated()) return true;
+  const token = await ensureAuthToken();
   if (!token) return false;
   const payload = decodeJwtPayload(token);
   if (!payload || typeof payload.exp !== "number") return false;
