@@ -9,6 +9,9 @@
   border-right: 1px solid var(--color-border-default, #E2E8F0);
   min-height: 0;
   overflow-y: auto;
+  overflow-x: hidden;
+  /* Responsive : empêche la sidebar de dépasser la largeur de l'écran sur mobile */
+  width: min(320px, 100vw - 16px);
 }
 
 /* ——— ZONE 1 — HEADER ——— */
@@ -705,6 +708,12 @@
   min-height: 0;
 }
 
+/* Utilitaire responsive : appliquer sur tout conteneur panneau pour éviter l'overflow horizontal. */
+.propertyPanel {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
 /* ----- Source carte (compacte, zone secondaire) ----- */
 .mapSourceRoot {
   display: flex;
@@ -794,6 +803,37 @@
 .mapSourceOptionActive.mapSourceOptionHighlight,
 .mapSourceOptionActive:hover {
   background: rgba(99, 102, 241, 0.18);
+}
+
+/* ══════════════════════════════════════════════
+   RESPONSIVE — MOBILE ÉTROIT (≤ 390 px)
+   Ne touche pas au desktop (> 768 px).
+   ══════════════════════════════════════════════ */
+@media (max-width: 390px) {
+  .sidebar {
+    /* Sur très petit écran (iPhone SE…), la sidebar occupe toute la largeur
+       moins 8 px de chaque côté pour rester visible. */
+    width: calc(100vw - 16px);
+    padding: 8px 8px 12px;
+    gap: 8px;
+    border-right: none;
+  }
+
+  .zoneHeaderSubtitle {
+    font-size: 13px;
+  }
+
+  .zoneHeaderTagline {
+    font-size: 10px;
+  }
+
+  .actionCard {
+    padding: 6px 8px;
+  }
+
+  .zoneEyebrow {
+    font-size: 8px;
+  }
 }
 
 /* ══════════════════════════════════════════════

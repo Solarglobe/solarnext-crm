@@ -479,7 +479,7 @@ export default function Phase2Sidebar() {
           <summary className={styles.secondarySummary}>État et propriétés</summary>
           <div className={styles.secondaryDetailsBody}>
             <Phase2StateBlock />
-            <div className={styles.propertiesSlot}>
+            <div className={styles.propertiesSlot} style={{ overflowY: 'auto' }}>
               <Phase2ObstaclePanel compact />
             </div>
           </div>
