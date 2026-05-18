@@ -18,3 +18,4 @@
 // export { runFinancialCalculation } from "./financial.engine.js";
 export * from "./energyCalculator.js";
 export * from "./batterySimulator.js";
+export * from "./roiCalculator.js";
