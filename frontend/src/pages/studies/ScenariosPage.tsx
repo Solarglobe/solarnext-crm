@@ -173,6 +173,8 @@ export default function ScenariosPage() {
               scenario_id: scenarioId,
               ...(addToDocuments ? { add_to_documents: true } : {}),
             }),
+            // On gère les erreurs ici — évite le toast "Erreur serveur" générique de apiFetch
+            skipErrorToast: true,
           }
         );
         const body = (await pdfRes.json().catch(() => ({}))) as {
@@ -190,10 +192,18 @@ export default function ScenariosPage() {
         };
 
         if (!pdfRes.ok) {
-          showToast(
-            body.message || body.error || (pdfRes.status >= 500 ? "Génération PDF impossible" : "Requête invalide"),
-            true
-          );
+          const errCode = body.error ?? "";
+          const errMsg =
+            errCode === "PDF_BLOCKED_CALCULATION_CONFIDENCE"
+              ? "Données de calcul incomplètes — relancez le calcul pour cette étude puis réessayez."
+              : errCode === "SCENARIO_SNAPSHOT_REQUIRED"
+                ? "Scénario non figé. Choisissez un scénario avant de générer le PDF."
+                : errCode === "PDF_RENDER_TIMEOUT"
+                  ? "Délai dépassé lors de la génération du PDF."
+                  : errCode === "PDF_RENDER_FAILED"
+                    ? "Échec du rendu PDF — réessayez dans quelques instants."
+                    : body.message || errCode || "Génération PDF impossible";
+          showToast(errMsg, true);
           return;
         }
         if (!body.success || !body.downloadUrl) {

@@ -209,6 +209,16 @@ export async function generatePdfFromScenario(req, res) {
     if (e.code === "PDF_RENDER_FAILED") {
       return res.status(500).json({ error: "PDF_RENDER_FAILED", message: e.message });
     }
+    if (e.code === "PDF_BLOCKED_CALCULATION_CONFIDENCE") {
+      // 409 (pas 500) — données de calcul bloquantes ; le frontend affiche un message actionnable
+      return res.status(409).json({
+        error: "PDF_BLOCKED_CALCULATION_CONFIDENCE",
+        calculation_confidence: e.calculation_confidence ?? null,
+      });
+    }
+    if (e.code === "SCENARIO_SNAPSHOT_REQUIRED") {
+      return res.status(400).json({ error: "SCENARIO_SNAPSHOT_REQUIRED" });
+    }
     if (e.message && e.message.includes("scenarios_v2")) {
       return res.status(400).json({ error: e.message });
     }
