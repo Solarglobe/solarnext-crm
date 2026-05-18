@@ -1,0 +1,136 @@
+{
+  "_fixture": "complex-hip",
+  "_description": "Toit à 4 pans (hip roof) — S/N/E/O, inclinaisons 30°, surfaces asymétriques",
+  "_anonymized": true,
+  "gps": { "lat": 45.5, "lon": 4.8 },
+  "roofState": {
+    "gps": { "lat": 45.5, "lon": 4.8 },
+    "roofType": "4-pans-hip"
+  },
+  "validatedRoofData": {
+    "scale": 0.05,
+    "north": 15,
+    "pans": [
+      {
+        "id": "pan-S",
+        "orientationDeg": 180,
+        "azimuth": 180,
+        "tiltDeg": 30,
+        "tilt": 30,
+        "surfaceM2": 40.0,
+        "surface": 40.0,
+        "panelCount": 10,
+        "geometryRef": "pan-S"
+      },
+      {
+        "id": "pan-N",
+        "orientationDeg": 0,
+        "azimuth": 0,
+        "tiltDeg": 30,
+        "tilt": 30,
+        "surfaceM2": 40.0,
+        "surface": 40.0,
+        "panelCount": 10,
+        "geometryRef": "pan-N"
+      },
+      {
+        "id": "pan-E",
+        "orientationDeg": 90,
+        "azimuth": 90,
+        "tiltDeg": 30,
+        "tilt": 30,
+        "surfaceM2": 20.0,
+        "surface": 20.0,
+        "panelCount": 5,
+        "geometryRef": "pan-E"
+      },
+      {
+        "id": "pan-O",
+        "orientationDeg": 270,
+        "azimuth": 270,
+        "tiltDeg": 30,
+        "tilt": 30,
+        "surfaceM2": 20.0,
+        "surface": 20.0,
+        "panelCount": 5,
+        "geometryRef": "pan-O"
+      }
+    ]
+  },
+  "pvParams": {
+    "panelSpec": { "powerWc": 500 }
+  },
+  "panel": {
+    "id": "fixture-panel-500",
+    "panel_id": "fixture-panel-500",
+    "brand": "FixtureBrand",
+    "model": "FixtureModel-500",
+    "model_ref": "FixtureModel-500",
+    "power_wc": 500,
+    "width_mm": 1134,
+    "height_mm": 1762,
+    "technology": "Monocristallin",
+    "efficiency_pct": 21.2
+  },
+  "frozenBlocks": [
+    {
+      "id": "block-S",
+      "panId": "pan-S",
+      "orientation": "portrait",
+      "panels": [
+        { "center": { "x": 100, "y": 80  }, "state": "placed" },
+        { "center": { "x": 120, "y": 80  }, "state": "placed" },
+        { "center": { "x": 140, "y": 80  }, "state": "placed" },
+        { "center": { "x": 160, "y": 80  }, "state": "placed" },
+        { "center": { "x": 180, "y": 80  }, "state": "placed" },
+        { "center": { "x": 100, "y": 120 }, "state": "placed" },
+        { "center": { "x": 120, "y": 120 }, "state": "placed" },
+        { "center": { "x": 140, "y": 120 }, "state": "placed" },
+        { "center": { "x": 160, "y": 120 }, "state": "placed" },
+        { "center": { "x": 180, "y": 120 }, "state": "placed" }
+      ]
+    },
+    {
+      "id": "block-N",
+      "panId": "pan-N",
+      "orientation": "portrait",
+      "panels": [
+        { "center": { "x": 100, "y": 200 }, "state": "placed" },
+        { "center": { "x": 120, "y": 200 }, "state": "placed" },
+        { "center": { "x": 140, "y": 200 }, "state": "placed" },
+        { "center": { "x": 160, "y": 200 }, "state": "placed" },
+        { "center": { "x": 180, "y": 200 }, "state": "placed" },
+        { "center": { "x": 100, "y": 240 }, "state": "placed" },
+        { "center": { "x": 120, "y": 240 }, "state": "placed" },
+        { "center": { "x": 140, "y": 240 }, "state": "placed" },
+        { "center": { "x": 160, "y": 240 }, "state": "placed" },
+        { "center": { "x": 180, "y": 240 }, "state": "placed" }
+      ]
+    },
+    {
+      "id": "block-E",
+      "panId": "pan-E",
+      "orientation": "portrait",
+      "panels": [
+        { "center": { "x": 280, "y": 120 }, "state": "placed" },
+        { "center": { "x": 280, "y": 160 }, "state": "placed" },
+        { "center": { "x": 280, "y": 200 }, "state": "placed" },
+        { "center": { "x": 280, "y": 240 }, "state": "placed" },
+        { "center": { "x": 280, "y": 280 }, "state": "placed" }
+      ]
+    },
+    {
+      "id": "block-O",
+      "panId": "pan-O",
+      "orientation": "portrait",
+      "panels": [
+        { "center": { "x": 20, "y": 120 }, "state": "placed" },
+        { "center": { "x": 20, "y": 160 }, "state": "placed" },
+        { "center": { "x": 20, "y": 200 }, "state": "placed" },
+        { "center": { "x": 20, "y": 240 }, "state": "placed" },
+        { "center": { "x": 20, "y": 280 }, "state": "placed" }
+      ]
+    }
+  ],
+  "shading": null
+}

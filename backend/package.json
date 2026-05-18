@@ -158,7 +158,9 @@
     "test:db-backup-retention": "node scripts/db-backup-test-retention.mjs",
     "backup:db:schedule": "node scripts/db-backup-scheduler.mjs",
     "backup:files": "node scripts/files-backup.js",
-    "restore:files": "node scripts/files-restore.js"
+    "restore:files": "node scripts/files-restore.js",
+    "validate:calpinage": "node scripts/validate-calpinage.js",
+    "validate:calpinage:record": "node scripts/validate-calpinage.js --record"
   },
   "author": "Solarglobe",
   "license": "ISC",

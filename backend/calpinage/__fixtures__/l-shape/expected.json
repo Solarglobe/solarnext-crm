@@ -1,0 +1,27 @@
+{
+  "_fixture": "l-shape",
+  "_note": "Généré par validate-calpinage.js --record. Ne pas éditer manuellement les valeurs numériques.",
+  "_recordedAt": "2026-05-18T11:28:30.651Z",
+  "schemaValid": true,
+  "panelCount": 14,
+  "totalPanelAreaM2": 27.974,
+  "totalRoofAreaM2": 60,
+  "coverageRatio": 0.4662,
+  "pans": [
+    {
+      "id": "pan-S-main",
+      "azimuth": 190,
+      "tilt": 28,
+      "panelCount": 8,
+      "surfaceM2": 35
+    },
+    {
+      "id": "pan-S-wing",
+      "azimuth": 185,
+      "tilt": 28,
+      "panelCount": 6,
+      "surfaceM2": 25
+    }
+  ],
+  "geometryHash": "a403a8c1133d2f4b3b71fb90e0235c92f9b6c97d7198e9fb6d924268a610c10a"
+}

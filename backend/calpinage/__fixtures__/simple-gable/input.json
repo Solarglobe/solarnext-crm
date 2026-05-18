@@ -1,0 +1,94 @@
+{
+  "_fixture": "simple-gable",
+  "_description": "Toit 2 pans simple — orientation Sud/Nord, 30° inclinaison, 12 panneaux par pan",
+  "_anonymized": true,
+  "gps": { "lat": 44.0, "lon": 3.0 },
+  "roofState": {
+    "gps": { "lat": 44.0, "lon": 3.0 },
+    "roofType": "2-pans"
+  },
+  "validatedRoofData": {
+    "scale": 0.05,
+    "north": 0,
+    "pans": [
+      {
+        "id": "pan-S",
+        "orientationDeg": 180,
+        "azimuth": 180,
+        "tiltDeg": 30,
+        "tilt": 30,
+        "surfaceM2": 50.0,
+        "surface": 50.0,
+        "panelCount": 12,
+        "geometryRef": "pan-S"
+      },
+      {
+        "id": "pan-N",
+        "orientationDeg": 0,
+        "azimuth": 0,
+        "tiltDeg": 30,
+        "tilt": 30,
+        "surfaceM2": 50.0,
+        "surface": 50.0,
+        "panelCount": 12,
+        "geometryRef": "pan-N"
+      }
+    ]
+  },
+  "pvParams": {
+    "panelSpec": { "powerWc": 500 }
+  },
+  "panel": {
+    "id": "fixture-panel-500",
+    "panel_id": "fixture-panel-500",
+    "brand": "FixtureBrand",
+    "model": "FixtureModel-500",
+    "model_ref": "FixtureModel-500",
+    "power_wc": 500,
+    "width_mm": 1134,
+    "height_mm": 1762,
+    "technology": "Monocristallin",
+    "efficiency_pct": 21.2
+  },
+  "frozenBlocks": [
+    {
+      "id": "block-S",
+      "panId": "pan-S",
+      "orientation": "portrait",
+      "panels": [
+        { "center": { "x": 100, "y": 100 }, "state": "placed" },
+        { "center": { "x": 120, "y": 100 }, "state": "placed" },
+        { "center": { "x": 140, "y": 100 }, "state": "placed" },
+        { "center": { "x": 160, "y": 100 }, "state": "placed" },
+        { "center": { "x": 100, "y": 140 }, "state": "placed" },
+        { "center": { "x": 120, "y": 140 }, "state": "placed" },
+        { "center": { "x": 140, "y": 140 }, "state": "placed" },
+        { "center": { "x": 160, "y": 140 }, "state": "placed" },
+        { "center": { "x": 100, "y": 180 }, "state": "placed" },
+        { "center": { "x": 120, "y": 180 }, "state": "placed" },
+        { "center": { "x": 140, "y": 180 }, "state": "placed" },
+        { "center": { "x": 160, "y": 180 }, "state": "placed" }
+      ]
+    },
+    {
+      "id": "block-N",
+      "panId": "pan-N",
+      "orientation": "portrait",
+      "panels": [
+        { "center": { "x": 100, "y": 250 }, "state": "placed" },
+        { "center": { "x": 120, "y": 250 }, "state": "placed" },
+        { "center": { "x": 140, "y": 250 }, "state": "placed" },
+        { "center": { "x": 160, "y": 250 }, "state": "placed" },
+        { "center": { "x": 100, "y": 290 }, "state": "placed" },
+        { "center": { "x": 120, "y": 290 }, "state": "placed" },
+        { "center": { "x": 140, "y": 290 }, "state": "placed" },
+        { "center": { "x": 160, "y": 290 }, "state": "placed" },
+        { "center": { "x": 100, "y": 330 }, "state": "placed" },
+        { "center": { "x": 120, "y": 330 }, "state": "placed" },
+        { "center": { "x": 140, "y": 330 }, "state": "placed" },
+        { "center": { "x": 160, "y": 330 }, "state": "placed" }
+      ]
+    }
+  ],
+  "shading": null
+}

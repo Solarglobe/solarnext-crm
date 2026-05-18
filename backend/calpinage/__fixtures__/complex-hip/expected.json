@@ -1,0 +1,41 @@
+{
+  "_fixture": "complex-hip",
+  "_note": "Généré par validate-calpinage.js --record. Ne pas éditer manuellement les valeurs numériques.",
+  "_recordedAt": "2026-05-18T11:28:30.639Z",
+  "schemaValid": true,
+  "panelCount": 30,
+  "totalPanelAreaM2": 59.943,
+  "totalRoofAreaM2": 120,
+  "coverageRatio": 0.4995,
+  "pans": [
+    {
+      "id": "pan-S",
+      "azimuth": 180,
+      "tilt": 30,
+      "panelCount": 10,
+      "surfaceM2": 40
+    },
+    {
+      "id": "pan-N",
+      "azimuth": 0,
+      "tilt": 30,
+      "panelCount": 10,
+      "surfaceM2": 40
+    },
+    {
+      "id": "pan-E",
+      "azimuth": 90,
+      "tilt": 30,
+      "panelCount": 5,
+      "surfaceM2": 20
+    },
+    {
+      "id": "pan-O",
+      "azimuth": 270,
+      "tilt": 30,
+      "panelCount": 5,
+      "surfaceM2": 20
+    }
+  ],
+  "geometryHash": "ddea411290b0acbaa18b98280abd3db95b85cc0fb810a91837406181b18e7c2e"
+}

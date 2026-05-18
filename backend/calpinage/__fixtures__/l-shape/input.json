@@ -1,0 +1,98 @@
+{
+  "_fixture": "l-shape",
+  "_description": "Toit en L — 2 pans avec keepout zone (cheminée), orientation principale Sud",
+  "_anonymized": true,
+  "gps": { "lat": 47.2, "lon": 2.1 },
+  "roofState": {
+    "gps": { "lat": 47.2, "lon": 2.1 },
+    "roofType": "l-shape"
+  },
+  "validatedRoofData": {
+    "scale": 0.05,
+    "north": 350,
+    "pans": [
+      {
+        "id": "pan-S-main",
+        "orientationDeg": 190,
+        "azimuth": 190,
+        "tiltDeg": 28,
+        "tilt": 28,
+        "surfaceM2": 35.0,
+        "surface": 35.0,
+        "panelCount": 8,
+        "geometryRef": "pan-S-main"
+      },
+      {
+        "id": "pan-S-wing",
+        "orientationDeg": 185,
+        "azimuth": 185,
+        "tiltDeg": 28,
+        "tilt": 28,
+        "surfaceM2": 25.0,
+        "surface": 25.0,
+        "panelCount": 6,
+        "geometryRef": "pan-S-wing"
+      }
+    ]
+  },
+  "pvParams": {
+    "panelSpec": { "powerWc": 500 }
+  },
+  "panel": {
+    "id": "fixture-panel-500",
+    "panel_id": "fixture-panel-500",
+    "brand": "FixtureBrand",
+    "model": "FixtureModel-500",
+    "model_ref": "FixtureModel-500",
+    "power_wc": 500,
+    "width_mm": 1134,
+    "height_mm": 1762,
+    "technology": "Monocristallin",
+    "efficiency_pct": 21.2
+  },
+  "frozenBlocks": [
+    {
+      "id": "block-main",
+      "panId": "pan-S-main",
+      "orientation": "portrait",
+      "panels": [
+        { "center": { "x": 100, "y": 100 }, "state": "placed" },
+        { "center": { "x": 125, "y": 100 }, "state": "placed" },
+        { "center": { "x": 150, "y": 100 }, "state": "placed" },
+        { "center": { "x": 175, "y": 100 }, "state": "placed" },
+        { "center": { "x": 100, "y": 145 }, "state": "placed" },
+        { "center": { "x": 125, "y": 145 }, "state": "placed" },
+        { "center": { "x": 150, "y": 145 }, "state": "placed" },
+        { "center": { "x": 175, "y": 145 }, "state": "placed" }
+      ]
+    },
+    {
+      "id": "block-wing",
+      "panId": "pan-S-wing",
+      "orientation": "portrait",
+      "panels": [
+        { "center": { "x": 250, "y": 100 }, "state": "placed" },
+        { "center": { "x": 275, "y": 100 }, "state": "placed" },
+        { "center": { "x": 300, "y": 100 }, "state": "placed" },
+        { "center": { "x": 250, "y": 145 }, "state": "placed" },
+        { "center": { "x": 275, "y": 145 }, "state": "placed" },
+        { "center": { "x": 300, "y": 145 }, "state": "placed" }
+      ]
+    }
+  ],
+  "obstacles": [
+    {
+      "id": "keepout-chimney",
+      "type": "chimney",
+      "center": { "x": 200, "y": 120 },
+      "polygon": [
+        { "x": 190, "y": 110 },
+        { "x": 215, "y": 110 },
+        { "x": 215, "y": 135 },
+        { "x": 190, "y": 135 }
+      ],
+      "heightM": 1.2
+    }
+  ],
+  "shading": null
+}
