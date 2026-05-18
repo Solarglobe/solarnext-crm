@@ -2,6 +2,8 @@ import { defineConfig, devices } from "./frontend/node_modules/@playwright/test"
 
 const CI = !!process.env.CI;
 const startServers = process.env.E2E_START_SERVERS === "1";
+const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
+const npxCommand = process.platform === "win32" ? "npx.cmd" : "npx";
 
 export default defineConfig({
   testDir: "./e2e",
@@ -23,7 +25,7 @@ export default defineConfig({
   webServer: startServers
     ? [
         {
-          command: "npm.cmd run start",
+          command: `${npmCommand} run start`,
           cwd: "./backend",
           url: process.env.E2E_API_URL || "http://127.0.0.1:3000",
           reuseExistingServer: !CI,
@@ -35,7 +37,7 @@ export default defineConfig({
           },
         },
         {
-          command: "npm.cmd run dev -- --host 127.0.0.1",
+          command: `${npxCommand} vite --host 127.0.0.1`,
           cwd: "./frontend",
           url: process.env.E2E_BASE_URL || "http://127.0.0.1:5173",
           reuseExistingServer: !CI,
@@ -50,4 +52,3 @@ export default defineConfig({
     },
   ],
 });
-

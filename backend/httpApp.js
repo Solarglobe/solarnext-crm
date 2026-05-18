@@ -192,6 +192,51 @@ export function buildHttpApp() {
   app.use(httpLogger);
   app.use(attachAuditRequestId);
 
+  app.get("/api/health/ready", async (_req, res) => {
+    try {
+      const { pool } = await import("./config/db.js");
+      await pool.query("SELECT 1 AS ok");
+      res.json({ ok: true, status: "ready" });
+    } catch (e) {
+      res.status(503).json({ ok: false, status: "not_ready", error: e?.message || "readiness check failed" });
+    }
+  });
+
+  app.get("/api/health/financial-engine", async (_req, res) => {
+    try {
+      const { calculateRoiTriVan } = await import("./domains/studies/financial/roiCalculator.js");
+      const { FINANCIAL_ENGINE_VERSION } = await import("./constants/engineVersion.js");
+      const result = calculateRoiTriVan({
+        netCostEur: 12000,
+        annualSavingsEur: 1350,
+        annualSavingsGrowthPct: 2,
+        horizonYears: 25,
+        discountRate: 0.04,
+        oa: {
+          powerKwc: 6,
+          injectedKwhYear1: 1800,
+          indexationPct: 1,
+          annualDegradationPct: 0.5,
+        },
+      });
+      if (!result.ok) {
+        return res.status(503).json({ ok: false, engineVersion: FINANCIAL_ENGINE_VERSION, errors: result.errors });
+      }
+      res.json({
+        ok: true,
+        engineVersion: FINANCIAL_ENGINE_VERSION,
+        reference: {
+          roiPct: result.roiPct,
+          triPct: result.triPct,
+          vanEur: result.vanEur,
+          paybackYear: result.paybackYear,
+        },
+      });
+    } catch (e) {
+      res.status(503).json({ ok: false, error: e?.message || "financial engine health failed" });
+    }
+  });
+
   app.use("/api", calcRouter);
   app.use("/api", horizonRouter);
   app.use("/api/system", systemRouter);

@@ -3,6 +3,12 @@
   "private": true,
   "scripts": {
     "start": "cd backend && npm install && npm start",
+    "ci:lint": "npx --cache ./.npm-cache --yes eslint@9.39.1 . --max-warnings=0",
+    "ci:typecheck": "cd frontend && npx tsc --noEmit",
+    "ci:unit": "npm --prefix backend run test:critical-calculators",
+    "ci:schema": "cd frontend && npx tsx ../shared/schemas/scripts/generate-snapshots-to.mts ../shared/schemas/.tmp-current && npx tsx ../shared/schemas/scripts/check-breaking-ci.mts ../shared/schemas/.tmp-current",
+    "ci:financial-regression": "node --test backend/tests/financialEngineRegression.test.mjs",
+    "ci:financial-health": "node backend/scripts/financial-engine-health.mjs",
     "test:e2e": "npm --prefix frontend exec -- playwright test -c playwright.config.ts",
     "restore:storage:railway": "node backend/scripts/railway-restore-storage.mjs",
     "push:github": "git push -u origin HEAD",

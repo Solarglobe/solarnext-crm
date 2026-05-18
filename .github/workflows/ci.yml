@@ -1,0 +1,213 @@
+name: CI Quality Gates
+
+on:
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-typecheck:
+    name: 1. Lint and Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: ESLint
+        run: npm run ci:lint
+
+      - name: TypeScript noEmit
+        run: npm run ci:typecheck
+
+  unit-tests:
+    name: 2. Unit Tests and Critical Coverage
+    runs-on: ubuntu-latest
+    needs: lint-typecheck
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Critical calculator coverage gate
+        run: npm run ci:unit
+
+  frontend-build:
+    name: 3. Frontend Build
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Vite build
+        working-directory: frontend
+        run: |
+          npm run sync:calpinage-shading-from-shared
+          npx vite build
+
+  e2e:
+    name: 4. Playwright E2E Critical Flows
+    runs-on: ubuntu-latest
+    needs: frontend-build
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: solarnext_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      NODE_ENV: test
+      CI: "true"
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/solarnext_ci
+      JWT_SECRET: ci-jwt-secret
+      CORS_ORIGIN: http://127.0.0.1:5173
+      E2E_START_SERVERS: "1"
+      E2E_API_URL: http://127.0.0.1:3000
+      E2E_BASE_URL: http://127.0.0.1:5173
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Install Playwright browser
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Run database migrations
+        working-directory: backend
+        run: npm run migrate:up
+
+      - name: Run Playwright critical flows
+        run: npm run test:e2e
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+
+  schema-snapshot:
+    name: 5. Schema Snapshot Breaking Change Check
+    runs-on: ubuntu-latest
+    needs: e2e
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Check schema snapshots
+        run: npm run ci:schema
+        env:
+          COMMITTED_SNAPSHOTS: ${{ github.workspace }}/shared/schemas/snapshots
+
+      - name: Upload generated schema snapshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: schema-snapshots-current
+          path: shared/schemas/.tmp-current/
+          retention-days: 7
+
+  financial-regression:
+    name: 6. Financial Engine Non Regression
+    runs-on: ubuntu-latest
+    needs: schema-snapshot
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Run financial regression fixtures
+        run: npm run ci:financial-regression
+
+      - name: Run financial engine health check
+        run: npm run ci:financial-health
+
+  ci-green:
+    name: CI Green
+    runs-on: ubuntu-latest
+    needs:
+      - lint-typecheck
+      - unit-tests
+      - frontend-build
+      - e2e
+      - schema-snapshot
+      - financial-regression
+    steps:
+      - run: echo "All CI quality gates passed."

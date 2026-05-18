@@ -2785,14 +2785,14 @@ function ViewerSceneContent({
       {visRoofEdges && edgeGeo && (
         <RoofContourLine2
           sourceGeo={edgeGeo}
-          color={mEdge.color}
+          color={String(mEdge.color)}
           opacity={mEdge.opacity}
         />
       )}
       {visRidges && ridgeGeo && (
         <RoofContourLine2
           sourceGeo={ridgeGeo}
-          color={mRidge.color}
+          color={String(mRidge.color)}
           opacity={mRidge.opacity}
           onPointerDown={
             enableStructuralRidgeHeightEdit && onStructuralRidgeLinePointerDown

@@ -1,0 +1,47 @@
+export default [
+  {
+    ignores: [
+      "**/node_modules/**",
+      "**/dist/**",
+      "**/build/**",
+      "**/coverage/**",
+      "**/.playwright/**",
+      "**/playwright-report/**",
+      "**/test-results/**",
+      "backend/calpinage-legacy-assets/**",
+      "frontend/calpinage/**/*.js",
+      "frontend/src/**/*.ts",
+      "frontend/src/**/*.tsx",
+    ],
+  },
+  {
+    files: ["**/*.{js,mjs,cjs}"],
+    languageOptions: {
+      ecmaVersion: "latest",
+      sourceType: "module",
+      parserOptions: {
+        ecmaFeatures: { jsx: true },
+      },
+      globals: {
+        console: "readonly",
+        process: "readonly",
+        Buffer: "readonly",
+        URL: "readonly",
+        URLSearchParams: "readonly",
+        setTimeout: "readonly",
+        clearTimeout: "readonly",
+        setInterval: "readonly",
+        clearInterval: "readonly",
+        fetch: "readonly",
+        window: "readonly",
+        document: "readonly",
+        localStorage: "readonly",
+        module: "readonly",
+        require: "readonly",
+        __dirname: "readonly",
+        __filename: "readonly",
+      },
+    },
+    rules: {},
+  },
+];
