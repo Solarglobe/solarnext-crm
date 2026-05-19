@@ -2236,7 +2236,6 @@ function ViewerSceneContent({
   pvLayout3DInteractionMode = false,
   pvLayout3dOverlayState,
   onPvPanelPvLayout3dPointerDown,
-  pvRebuildBlockPanelIds,
   satelliteTexture,
   satelliteUvMapper,
   extensionVolDebugLevel = 0,
@@ -2285,12 +2284,6 @@ function ViewerSceneContent({
   readonly pvLayout3DInteractionMode?: boolean;
   readonly pvLayout3dOverlayState?: PvLayout3dOverlayState | null;
   readonly onPvPanelPvLayout3dPointerDown?: (e: ThreeEvent<PointerEvent>, panelId: string) => void;
-  /**
-   * IDs des panneaux déplacés dont le commit vient d'être fait mais dont la scène 3D n'est pas encore
-   * rebuildée. Ces panneaux sont masqués dans l'InstancedMesh jusqu'au prochain rebuild (via
-   * pvLayout3DEffectiveHiddenIds) pour éviter le panneau fantôme à l'ancienne position.
-   */
-  readonly pvRebuildBlockPanelIds?: ReadonlySet<string>;
   /**
    * Texture satellite (orthophoto 2D) déjà chargée + crop appliqué — projetée en top-down sur les pans.
    * Null si l'image n'est pas encore prête ou absente.
@@ -2467,11 +2460,10 @@ function ViewerSceneContent({
    *   → On peut masquer tous ces panneaux dans l'InstancedMesh sans risque de régression :
    *     l'overlay live les remplace pendant le drag, et dès que le drag finit, l'ensemble
    *     se vide → l'InstancedMesh reprend le rendu normalement.
-   * - pvRebuildBlockPanelIds masque les panneaux dont le commit vient d'être fait jusqu'à
-   *   ce que pvSyncSaveRender → buildScene() complète (≤ 1 RAF ≈ 16 ms).
-   *
    * Plus de validatedPanelIdSet ni de logique activeBlock : le gate isManipulating garantit
    * qu'on n'a jamais overlay ET InstancedMesh qui rendent le même panneau simultanément.
+   * La déduplication par blockId dans buildCanonicalPlacedPanelsFromRuntime garantit
+   * qu'aucune ancienne position ne subsiste dans pvPanels après rebuild.
    */
   const pvLayout3DEffectiveHiddenIds = useMemo(() => {
     if (!pvLayout3DInteractionMode) return undefined;
@@ -2480,14 +2472,8 @@ function ViewerSceneContent({
     for (const id of pv3dSelectedLivePanelIds) {
       result.add(id);
     }
-    // Post-commit drag : masquer jusqu'au rebuild 3D
-    if (pvRebuildBlockPanelIds) {
-      for (const id of pvRebuildBlockPanelIds) {
-        result.add(id);
-      }
-    }
     return result;
-  }, [pvLayout3DInteractionMode, pv3dSelectedLivePanelIds, pvRebuildBlockPanelIds]);
+  }, [pvLayout3DInteractionMode, pv3dSelectedLivePanelIds]);
 
   const pv3dGhostGeos = useMemo(() => {
     if (!pvLayout3DInteractionMode || !pvLayout3dOverlayState) return [];
@@ -3827,21 +3813,9 @@ export function SolarScene3DViewer({
   useEffect(() => {
     pv3dDragSessionRef.current = pv3dDragSession;
   }, [pv3dDragSession]);
-  /**
-   * IDs des panneaux dont le déplacement vient d'être commité dans le moteur mais dont la
-   * scène 3D n'a pas encore été rebuildée. Ces panneaux sont masqués dans l'InstancedMesh
-   * (évite le panneau fantôme à l'ancienne position) jusqu'à ce que le rebuild complète et
-   * que `scene` change (ce qui vide cet ensemble via l'useEffect ci-dessous).
-   */
-  const [pvRebuildBlockPanelIds, setPvRebuildBlockPanelIds] = useState<ReadonlySet<string>>(new Set());
-  useEffect(() => {
-    // Dès que la scène est reconstruite, les panneaux déplacés ont leurs nouvelles positions
-    // dans l'InstancedMesh → on peut arrêter de les masquer.
-    if (pvRebuildBlockPanelIds.size > 0) {
-      setPvRebuildBlockPanelIds(new Set());
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scene]);
+  // pvRebuildBlockPanelIds supprimé : la déduplication par blockId dans
+  // buildCanonicalPlacedPanelsFromRuntime garantit l'unicité des panneaux dans pvPanels.
+  // Aucun panneau fantôme ne peut subsister après rebuild → workaround inutile.
   const zDragLiveCommitRafRef = useRef<number | null>(null);
   const zDragLivePendingHeightRef = useRef<number | null>(null);
   const zEditUnarmedLoggedRef = useRef(false);
@@ -4454,20 +4428,6 @@ export function SolarScene3DViewer({
 
   const endPv3dDragSession = useCallback(() => {
     const s = pv3dDragSessionRef.current;
-
-    // Capturer les IDs des panneaux du bloc en cours de déplacement AVANT le commit.
-    // Après finalize, le moteur a commité les nouvelles positions mais la scène 3D n'est
-    // pas encore rebuildée. On masque ces panneaux dans l'InstancedMesh jusqu'au rebuild
-    // pour éviter d'afficher simultanément l'ancienne position (InstancedMesh) et la
-    // nouvelle (overlay) → panneau fantôme.
-    if (s?.blockId && pvLayout3dOverlayState) {
-      const movedIds = pvLayout3dOverlayState.panels
-        .filter((p) => String(p.blockId) === String(s.blockId))
-        .map((p) => String(p.id));
-      if (movedIds.length > 0) {
-        setPvRebuildBlockPanelIds(new Set(movedIds));
-      }
-    }
 
     finalizePvMoveFrom3d({ pointerId: s?.pointerId ?? null, releaseCaptureEl: null });
 
@@ -5193,7 +5153,6 @@ export function SolarScene3DViewer({
           pvLayout3DInteractionMode={pvLayout3DInteractionMode}
           pvLayout3dOverlayState={pvLayout3dOverlayState}
           onPvPanelPvLayout3dPointerDown={onPvPanelPvLayout3dPointerDown}
-          pvRebuildBlockPanelIds={pvRebuildBlockPanelIds}
           satelliteTexture={satelliteTexture}
           satelliteUvMapper={satelliteUvMapper}
           extensionVolDebugLevel={extensionVolDebugLevel}
