@@ -276,6 +276,7 @@ import {
   log3DRuntimeVerdictFinal,
   type AutopsyLegacyRoofPath,
 } from "../dev/runtime3DAutopsy";
+import { diffSolarScene3D } from "../scene/diffSolarScene3D";
 
 export interface SolarScene3DViewerProps {
   /**
@@ -2111,6 +2112,29 @@ function ViewerSceneContent({
   readonly extensionVolDebugLevel?: 0 | 1 | 2;
 }) {
   const pvPanelRaycastPassThrough = roofModelingPassThroughOccluders && !pvLayout3DInteractionMode;
+
+  // ── Diff de scène incrémental (D2) ────────────────────────────────────────
+  // Remplace le key instable sur createdAtIso (supprimé D2) : au lieu de démonter/remonter ViewerSceneContent
+  // entier, on compare prev/next et on dispatche les deltas minimaux.
+  // Les useMemo ci-dessous (roofGeos, panelGeos…) gèrent déjà les mises à jour
+  // incrémentales via leurs deps — ce useEffect sert à :
+  //   1. Détecter FULL_REBUILD explicitement (log dev + guard futur).
+  //   2. Fournir un point d'extension pour les optimisations impératives Three.js.
+  const prevSceneRef = useRef<typeof scene | null>(null);
+  useEffect(() => {
+    const deltas = diffSolarScene3D(prevSceneRef.current, scene);
+    prevSceneRef.current = scene;
+
+    if (!import.meta.env.DEV) return;
+    if (deltas.length === 0) return;
+    const isFullRebuild = deltas.some((d) => d.type === "FULL_REBUILD");
+    if (isFullRebuild) {
+      console.log("[3D DIFF] FULL_REBUILD", { createdAtIso: scene.metadata.createdAtIso });
+    } else {
+      console.log("[3D DIFF] incremental", deltas.length, "delta(s)", deltas);
+    }
+  }, [scene]);
+
   const center = useMemo(() => box.getCenter(new THREE.Vector3()).clone(), [box]);
   const maxDimLocal = useMemo(() => {
     const s = new THREE.Vector3();
@@ -4535,39 +4559,4 @@ export function SolarScene3DViewer({
         )}
         {/* ── Masque d'horizon lointain (far shading) — LineLoop orange ──── */}
         {horizonMask && horizonMask.length > 0 && cameraViewMode !== "PLAN_2D" && (
-          <HorizonMaskRing3D mask={horizonMask as HorizonMaskPoint3D[]} center={center} />
-        )}
-        {/* IBL — overcast sky, background=false, chargement lazy (Suspense).
-            environmentIntensity=0.52 : reflections IBL visibles sur zinc, bacs acier, panneaux PV.
-            Valeur calibrée pour que les panneaux "brillent" sans surexposer les surfaces mates (ardoise). */}
-        <Suspense fallback={null}>
-          <Environment
-            files="/assets/hdri/overcast_sky_1k.hdr"
-            background={false}
-            environmentIntensity={0.52}
-          />
-        </Suspense>
-        {enablePostProcessing && (
-          isCanonical3DEnabled() ? (
-            <EffectComposer multisampling={0}>
-              <SMAA />
-              <Bloom
-                intensity={0.35}
-                luminanceThreshold={0.78}
-                luminanceSmoothing={0.88}
-                mipmapBlur
-              />
-              <Vignette offset={0.25} darkness={0.45} />
-            </EffectComposer>
-          ) : (
-            <EffectComposer multisampling={0}>
-              <SMAA />
-              <Vignette offset={0.25} darkness={0.45} />
-            </EffectComposer>
-          )
-        )}
-      </Canvas>
-    </div>
-  );
-}
-                                            
+          <Horizon
