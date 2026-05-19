@@ -39,6 +39,11 @@ const TARGET = "1776300000000_leads_assigned_user_source_normalize";
 
 /** @param {import('node-pg-migrate').MigrationBuilder} pgm */
 export const up = async (pgm) => {
+  const table = await pgm.db.query(`SELECT to_regclass('public.migration_checksums') AS reg`);
+  if (!table.rows?.[0]?.reg) {
+    return;
+  }
+
   const filePath = path.join(__dirname, `${TARGET}.js`);
   if (!fs.existsSync(filePath)) {
     throw new Error(`[1776300001000] Fichier manquant : ${filePath}`);

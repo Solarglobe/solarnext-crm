@@ -16,7 +16,7 @@ SELECT id,
          AND NULLIF(TRIM(COALESCE(first_name, '') || ' ' || COALESCE(last_name, '')), '') IS NULL
          AND NULLIF(TRIM(email), '') IS NULL
          AND NULLIF(TRIM(client_number), '') IS NOT NULL
-        THEN ('Client — ' || TRIM(client_number))
+        THEN ('Client sans nom — ' || TRIM(client_number))
         ELSE NULLIF(TRIM(client_number), '')
       END
     )

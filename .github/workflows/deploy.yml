@@ -13,12 +13,14 @@ concurrency:
 jobs:
   quality-gates:
     name: Re-run CI gates before deploy
+    if: ${{ vars.DEPLOY_ENABLED == 'true' }}
     uses: ./.github/workflows/ci.yml
 
   docker-build:
     name: Build Docker Image
     runs-on: ubuntu-latest
     needs: quality-gates
+    if: ${{ vars.DEPLOY_ENABLED == 'true' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -153,7 +155,6 @@ jobs:
   deploy-disabled:
     name: Deploy Disabled Notice
     runs-on: ubuntu-latest
-    needs: docker-build
     if: ${{ vars.DEPLOY_ENABLED != 'true' }}
     steps:
       - run: echo "Deployment is disabled. Set repository variable DEPLOY_ENABLED=true and required secrets to activate deploy."
