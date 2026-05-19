@@ -404,7 +404,8 @@ export interface SolarScene3DViewerProps {
   readonly horizonMask?: ReadonlyArray<{ az: number; elev: number }> | null;
 }
 
-const PREMIUM_PV_SURFACE_HEX = new THREE.Color("#111827").getHex();
+// #0c131f = quasi-noir bleu nuit : couleur réelle cellule monocristalline (vs #111827 trop gris)
+const PREMIUM_PV_SURFACE_HEX = new THREE.Color("#0c131f").getHex();
 const PREMIUM_PV_EMISSIVE_HEX = new THREE.Color(SOLARNEXT_3D_PREMIUM_THEME.pv.liveEmissive).getHex();
 const PREMIUM_PV_CELL_LINE = SOLARNEXT_3D_PREMIUM_THEME.pv.cellLine;
 const PREMIUM_PV_SELECTED_FILL = SOLARNEXT_3D_PREMIUM_THEME.pv.selectedFill;
@@ -3338,6 +3339,7 @@ function ViewerSceneContent({
                   emissiveIntensity={invalid ? 0.34 : selected ? 0.18 : 0.08}
                   metalness={pvB.panelMetalness}
                   roughness={pvB.panelRoughness}
+                  envMapIntensity={1.45}
                   transparent={enabled === false}
                   opacity={enabled === false ? 0.42 : 1}
                   side={THREE.DoubleSide}
@@ -3389,6 +3391,7 @@ function ViewerSceneContent({
             emissiveIntensity={pvB.panelEmissiveIntensityBonus + 0.1}
             metalness={pvB.panelMetalness}
             roughness={pvB.panelRoughness}
+            envMapIntensity={1.45}
             renderOrder={pvLayout3DInteractionMode ? 20 : 0}
             polygonOffsetFactor={pvLayout3DInteractionMode ? getDepthOffset("PV_PANEL").polygonOffsetFactor : getDepthOffset("BUILDING_SHELL").polygonOffsetFactor}
             polygonOffsetUnits={pvLayout3DInteractionMode ? getDepthOffset("PV_PANEL").polygonOffsetUnits : getDepthOffset("BUILDING_SHELL").polygonOffsetUnits}
@@ -3599,7 +3602,7 @@ function DebugStatsOverlay({
   );
 }
 
-function SolarScene3DViewer({
+export function SolarScene3DViewer({
   scene: sceneProp,
   runtimeScene,
   className,
@@ -5225,12 +5228,14 @@ function SolarScene3DViewer({
         {horizonMask && horizonMask.length > 0 && cameraViewMode !== "PLAN_2D" && (
           <HorizonMaskRing3D mask={horizonMask as HorizonMaskPoint3D[]} center={center} />
         )}
-        {/* IBL — overcast sky, background=false, chargement lazy (Suspense) */}
+        {/* IBL — overcast sky, background=false, chargement lazy (Suspense).
+            environmentIntensity=0.52 : reflections IBL visibles sur zinc, bacs acier, panneaux PV.
+            Valeur calibrée pour que les panneaux "brillent" sans surexposer les surfaces mates (ardoise). */}
         <Suspense fallback={null}>
           <Environment
             files="/assets/hdri/overcast_sky_1k.hdr"
             background={false}
-            environmentIntensity={0.35}
+            environmentIntensity={0.52}
           />
         </Suspense>
         {enablePostProcessing && (
@@ -5238,9 +5243,9 @@ function SolarScene3DViewer({
             <EffectComposer multisampling={0}>
               <SMAA />
               <Bloom
-                intensity={0.25}
-                luminanceThreshold={0.85}
-                luminanceSmoothing={0.9}
+                intensity={0.35}
+                luminanceThreshold={0.78}
+                luminanceSmoothing={0.88}
                 mipmapBlur
               />
               <Vignette offset={0.25} darkness={0.45} />
@@ -5253,14 +5258,6 @@ function SolarScene3DViewer({
           )
         )}
       </Canvas>
-      <PvLayout3dSvgOverlay
-        overlay={pvLayout3DInteractionMode ? pvLayout3dScreenOverlay : null}
-        onMovePointerDown={onPvMoveHandlePointerDown}
-        onRotatePointerDown={onPvRotateHandlePointerDown}
-      />
     </div>
   );
 }
-
-export { SolarScene3DViewer };
-export default SolarScene3DViewer;
