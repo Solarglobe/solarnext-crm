@@ -163,6 +163,9 @@ import {
   r3fGl,
   roofModelingSkipOccluderRaycast,
 } from "./viewerHelpers";
+import { PanelTooltip3D } from "./overlays/PanelTooltip3D";
+import { PowerIndicator3D } from "./overlays/PowerIndicator3D";
+import { MagneticGrid3D } from "./overlays/MagneticGrid3D";
 
 // ─── HorizonMaskRing3D ────────────────────────────────────────────────────────
 // Visualise le masque d'horizon lointain comme une couronne LineLoop 3D.
@@ -3786,6 +3789,98 @@ export function SolarScene3DViewer({
   const [pvLayout3dScreenOverlay, setPvLayout3dScreenOverlay] = useState<PvLayout3dScreenOverlayState | null>(null);
   const [roofTruthBadges, setRoofTruthBadges] = useState<RoofTruthBadgeScreenModel[]>([]);
 
+
+  // ── Overlays interactifs ──────────────────────────────────────────────────
+
+  /** Panneau PV survolé — lookup par panelHover.panelId dans scene.pvPanels. */
+  const hoveredPanel = useMemo(
+    () =>
+      panelHover
+        ? (scene.pvPanels.find((p) => String(p.id) === panelHover.panelId) ?? null)
+        : null,
+    [panelHover, scene.pvPanels],
+  );
+
+  /** Position world du centre du panneau survolé — THREE.Vector3 pour PanelTooltip3D. */
+  const hoveredPanelWorldPos = useMemo(() => {
+    if (!hoveredPanel) return null;
+    const c = hoveredPanel.center3D;
+    return new THREE.Vector3(c.x, c.y, c.z);
+  }, [hoveredPanel]);
+
+  /** Puissance totale installée (Wc) + nombre de panneaux — pour PowerIndicator3D. */
+  const { totalPowerWc, pvPanelCount } = useMemo(() => {
+    const panels = scene.pvPanels;
+    const count = panels.length;
+    // Estimation mono-Si : 215 Wc/m²
+    const totalWc = panels.reduce(
+      (sum, p) => sum + Math.round(p.widthM * p.heightM * 215),
+      0,
+    );
+    return { totalPowerWc: totalWc, pvPanelCount: count };
+  }, [scene.pvPanels]);
+
+  /**
+   * Pan de toit actif en mode placement PV.
+   * Dérivé de pvLayout3dOverlayState — bloc actif ou premier pan disponible.
+   */
+  const pvLayoutActivePanId = useMemo(() => {
+    if (!pvLayout3DInteractionMode || !pvLayout3dOverlayState) return null;
+    const activeId = pvLayout3dOverlayState.activeBlockId ?? pvLayout3dOverlayState.focusBlockId;
+    if (activeId) {
+      const panelOfBlock = pvLayout3dOverlayState.panels.find((p) => p.blockId === activeId);
+      if (panelOfBlock?.panId) return panelOfBlock.panId;
+    }
+    return pvLayout3dOverlayState.panels[0]?.panId ?? null;
+  }, [pvLayout3DInteractionMode, pvLayout3dOverlayState]);
+
+  /**
+   * Points de snap magnétiques sur le pan actif — grille 9x9 world space.
+   * Recalculé uniquement quand le pan ou le modèle toiture change.
+   */
+  const magneticGridSnapPoints = useMemo((): THREE.Vector3[] => {
+    if (!pvLayout3DInteractionMode || !pvLayoutActivePanId) return [];
+    const patch = scene.roofModel.roofPlanePatches.find(
+      (p) => String(p.id) === pvLayoutActivePanId,
+    );
+    if (!patch || patch.cornersWorld.length < 3) return [];
+
+    const { origin, xAxis, yAxis, zAxis } = patch.localFrame;
+    let uMin = Infinity, uMax = -Infinity, vMin = Infinity, vMax = -Infinity;
+    for (const c of patch.cornersWorld) {
+      const dx = c.x - origin.x, dy = c.y - origin.y, dz = c.z - origin.z;
+      const u = dx * xAxis.x + dy * xAxis.y + dz * xAxis.z;
+      const v = dx * yAxis.x + dy * yAxis.y + dz * yAxis.z;
+      if (u < uMin) uMin = u;
+      if (u > uMax) uMax = u;
+      if (v < vMin) vMin = v;
+      if (v > vMax) vMax = v;
+    }
+
+    const GRID_N = 9;
+    const MARGIN = 0.18;
+    const SURFACE_OFFSET = 0.025;
+    const uRange = uMax - uMin - 2 * MARGIN;
+    const vRange = vMax - vMin - 2 * MARGIN;
+    if (uRange <= 0 || vRange <= 0) return [];
+
+    const points: THREE.Vector3[] = [];
+    for (let i = 0; i < GRID_N; i++) {
+      for (let j = 0; j < GRID_N; j++) {
+        const u = uMin + MARGIN + (i / (GRID_N - 1)) * uRange;
+        const v = vMin + MARGIN + (j / (GRID_N - 1)) * vRange;
+        points.push(
+          new THREE.Vector3(
+            origin.x + u * xAxis.x + v * yAxis.x + SURFACE_OFFSET * zAxis.x,
+            origin.y + u * xAxis.y + v * yAxis.y + SURFACE_OFFSET * zAxis.y,
+            origin.z + u * xAxis.z + v * yAxis.z + SURFACE_OFFSET * zAxis.z,
+          ),
+        );
+      }
+    }
+    return points;
+  }, [pvLayout3DInteractionMode, pvLayoutActivePanId, scene.roofModel.roofPlanePatches]);
+
   const onPv3dLiveOffsetImg = useCallback((dxImg: number, dyImg: number, rotationDeg = 0) => {
     if (pvPanelDrag.sessionRef.current?.mode === "rotate") {
       applyPvTransformLiveFrom3d(0, 0, rotationDeg);
@@ -4240,6 +4335,8 @@ export function SolarScene3DViewer({
         visible={showRoof && showMissingHeightAlerts}
       />
       <RoofTruthBadgesOverlay badges={roofTruthBadges} visible={showRoof && showRoofTruthBadges} />
+      {/* PowerIndicator3D - puissance totale installée, temps réel */}
+      <PowerIndicator3D totalPowerWc={totalPowerWc} panelCount={pvPanelCount} />
       {pvLayout3DInteractionMode && pv3dHasSelectedPanel ? (
         <div
           role="toolbar"
@@ -4533,6 +4630,18 @@ export function SolarScene3DViewer({
           satelliteTexture={satelliteTexture}
           satelliteUvMapper={satelliteUvMapper}
           extensionVolDebugLevel={extensionVolDebugLevel}
+        />
+        {/* PanelTooltip3D - label Html drei sur le panneau survole */}
+        <PanelTooltip3D
+          panelId={panelHover?.panelId ?? null}
+          panel={hoveredPanel}
+          worldPosition={hoveredPanelWorldPos}
+        />
+        {/* MagneticGrid3D - grille snap en mode placement PV */}
+        <MagneticGrid3D
+          panId={pvLayoutActivePanId}
+          snapPoints={magneticGridSnapPoints}
+          visible={pvLayout3DInteractionMode ?? false}
         />
         {pvLayout3DInteractionMode && scene.worldConfig && pvPanelDrag.session ? (
           <PvLayout3dDragController
