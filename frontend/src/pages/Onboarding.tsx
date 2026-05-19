@@ -31,27 +31,43 @@ function isValidEmail(value: string): boolean {
   return !value || /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value.trim());
 }
 
-function readLocalFallback(): { data: OnboardingData; completedSteps: OnboardingStepId[] } {
-  if (typeof window === "undefined") return { data: DEFAULT_ONBOARDING_DATA, completedSteps: [] };
-  try {
-    const raw = localStorage.getItem("solarnext_onboarding_draft_v1");
-    if (!raw) return { data: DEFAULT_ONBOARDING_DATA, completedSteps: [] };
-    const parsed = JSON.parse(raw) as { data?: OnboardingData; completedSteps?: OnboardingStepId[] };
-    return {
-      data: parsed.data ?? DEFAULT_ONBOARDING_DATA,
-      completedSteps: parsed.completedSteps ?? [],
-    };
-  } catch {
-    return { data: DEFAULT_ONBOARDING_DATA, completedSteps: [] };
+function validateStep(step: OnboardingStepId, data: OnboardingData): string[] {
+  if (step === "company") {
+    return data.profile.name.trim() ? [] : ["Nom de l'entreprise"];
   }
+  if (step === "mail") {
+    return data.mail.email.trim() && !isValidEmail(data.mail.email) ? ["Email expediteur invalide"] : [];
+  }
+  if (step === "team") {
+    return data.collaborators.some((row) => row.email.trim() && !isValidEmail(row.email))
+      ? ["Une invitation contient un email invalide"]
+      : [];
+  }
+  if (step === "lead") {
+    const missing: string[] = [];
+    if (!data.lead.firstName.trim()) missing.push("Prenom du premier lead");
+    if (!data.lead.lastName.trim()) missing.push("Nom du premier lead");
+    if (!isValidEmail(data.lead.email)) missing.push("Email du premier lead invalide");
+    return missing;
+  }
+  return [];
 }
 
-function writeLocalFallback(data: OnboardingData, completedSteps: OnboardingStepId[]) {
-  try {
-    localStorage.setItem("solarnext_onboarding_draft_v1", JSON.stringify({ data, completedSteps }));
-  } catch {
-    /* ignore */
-  }
+function getStepValidationMessage(step: OnboardingStepId, data: OnboardingData): string | null {
+  const issues = validateStep(step, data);
+  if (issues.length === 0) return null;
+  if (step === "company") return "Le nom de l'entreprise est obligatoire.";
+  if (step === "mail") return "L'email expediteur est invalide.";
+  if (step === "team") return "Une invitation contient un email invalide.";
+  return issues.join(", ");
+}
+
+function validateAllSteps(data: OnboardingData): string[] {
+  return STEPS.flatMap((step) => validateStep(step.id, data).map((issue) => `${step.title} : ${issue}`));
+}
+
+function getErrorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error && error.message ? error.message : fallback;
 }
 
 export default function Onboarding() {
@@ -62,11 +78,14 @@ export default function Onboarding() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [issues, setIssues] = useState<string[]>([]);
 
   const activeIndex = STEPS.findIndex((step) => step.id === activeStep);
   const activeMeta = STEPS[Math.max(0, activeIndex)];
   const visibleCompletedSteps = normalizeCompletedSteps(completedSteps);
   const progress = Math.min(100, Math.round((visibleCompletedSteps.length / STEPS.length) * 100));
+  const firstIncompleteIndex = STEPS.findIndex((step) => !visibleCompletedSteps.includes(step.id));
+  const maxAccessibleIndex = firstIncompleteIndex === -1 ? STEPS.length - 1 : firstIncompleteIndex;
 
   useEffect(() => {
     let cancelled = false;
@@ -78,13 +97,9 @@ export default function Onboarding() {
         setCompletedSteps(normalizedCompleted);
         setActiveStep(getNextIncompleteStep(STEP_IDS, normalizedCompleted));
       })
-      .catch(() => {
+      .catch((error) => {
         if (cancelled) return;
-        const fallback = readLocalFallback();
-        const normalizedCompleted = normalizeCompletedSteps(fallback.completedSteps);
-        setData(fallback.data);
-        setCompletedSteps(normalizedCompleted);
-        setActiveStep(getNextIncompleteStep(STEP_IDS, normalizedCompleted));
+        setMessage(getErrorMessage(error, "Impossible de charger l'onboarding"));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -95,29 +110,11 @@ export default function Onboarding() {
   }, []);
 
   const validationMessage = useMemo(() => {
-    if (activeStep === "company") {
-      if (!data.profile.name.trim()) return "Le nom de l'entreprise est obligatoire.";
-    }
-    if (activeStep === "mail") {
-      if (data.mail.email.trim() && !isValidEmail(data.mail.email)) {
-        return "L'email expediteur est invalide.";
-      }
-    }
-    if (activeStep === "team") {
-      const invalid = data.collaborators.some((row) => row.email.trim() && !isValidEmail(row.email));
-      if (invalid) return "Une invitation contient un email invalide.";
-    }
-    if (activeStep === "lead") {
-      if (!data.lead.firstName.trim()) return "Le prenom du premier lead est obligatoire.";
-      if (!data.lead.lastName.trim()) return "Le nom du premier lead est obligatoire.";
-      if (!isValidEmail(data.lead.email)) return "L'email du premier lead est invalide.";
-    }
-    return null;
+    return getStepValidationMessage(activeStep, data);
   }, [activeStep, data]);
 
   const persist = useCallback(
     async (steps: OnboardingStepId[], nextStep: OnboardingStepId, completed = false) => {
-      writeLocalFallback(data, steps);
       await saveOnboardingState({ data, completedSteps: steps, activeStep: nextStep, completed });
     },
     [data]
@@ -126,10 +123,12 @@ export default function Onboarding() {
   const completeCurrentStep = async () => {
     if (validationMessage) {
       setMessage(validationMessage);
+      setIssues(validateStep(activeStep, data));
       return;
     }
     setSaving(true);
     setMessage(null);
+    setIssues([]);
     const nextCompleted = completedSteps.includes(activeStep) ? completedSteps : [...completedSteps, activeStep];
     const nextStep = STEPS[Math.min(activeIndex + 1, STEPS.length - 1)].id;
     try {
@@ -137,20 +136,25 @@ export default function Onboarding() {
       setCompletedSteps(nextCompleted);
       setActiveStep(nextStep);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Sauvegarde impossible");
+      setMessage(getErrorMessage(error, "Sauvegarde impossible"));
     } finally {
       setSaving(false);
     }
   };
 
   const finish = async () => {
-    if (validationMessage) {
-      setMessage(validationMessage);
+    const globalIssues = validateAllSteps(data);
+    if (globalIssues.length > 0) {
+      setIssues(globalIssues);
+      setMessage("Impossible de terminer : certains champs obligatoires sont incomplets.");
+      const firstInvalidStep = STEPS.find((step) => validateStep(step.id, data).length > 0);
+      if (firstInvalidStep) setActiveStep(firstInvalidStep.id);
       return;
     }
     setSaving(true);
     setMessage(null);
-    const nextCompleted = Array.from(new Set([...completedSteps, activeStep]));
+    setIssues([]);
+    const nextCompleted = STEP_IDS;
     try {
       await createLead({
         firstName: data.lead.firstName,
@@ -160,10 +164,9 @@ export default function Onboarding() {
         address: data.lead.address || undefined,
       });
       await persist(nextCompleted, "lead", true);
-      localStorage.removeItem("solarnext_onboarding_draft_v1");
       navigate("/leads", { replace: true, state: { onboardingLeadCreated: true } });
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Creation du premier lead impossible");
+      setMessage(getErrorMessage(error, "Creation du premier lead impossible"));
     } finally {
       setSaving(false);
     }
@@ -182,14 +185,25 @@ export default function Onboarding() {
         </div>
         <nav className="onboarding-steps">
           {STEPS.map((step, index) => {
-            const done = completedSteps.includes(step.id);
+            const done = visibleCompletedSteps.includes(step.id);
             const active = step.id === activeStep;
+            const accessible = index <= maxAccessibleIndex || done;
             return (
               <button
                 type="button"
                 key={step.id}
-                className={`onboarding-step-link${active ? " is-active" : ""}${done ? " is-done" : ""}`}
-                onClick={() => setActiveStep(step.id)}
+                className={`onboarding-step-link${active ? " is-active" : ""}${done ? " is-done" : ""}${
+                  !accessible ? " is-locked" : ""
+                }`}
+                disabled={!accessible}
+                aria-disabled={!accessible}
+                onClick={() => {
+                  if (accessible) {
+                    setActiveStep(step.id);
+                    setMessage(null);
+                    setIssues([]);
+                  }
+                }}
               >
                 <span>{done ? "✓" : index + 1}</span>
                 <strong>{step.title}</strong>
@@ -227,6 +241,13 @@ export default function Onboarding() {
           ) : null}
 
           {message ? <p className="onboarding-message">{message}</p> : null}
+          {issues.length > 0 ? (
+            <ul className="onboarding-issue-list" aria-label="Champs a corriger">
+              {issues.map((issue) => (
+                <li key={issue}>{issue}</li>
+              ))}
+            </ul>
+          ) : null}
 
           <footer className="onboarding-actions">
             <button
