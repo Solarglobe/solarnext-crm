@@ -19,6 +19,12 @@ export type Phase3ChecklistData = {
   totalDcKw: number;
   selectedInverter: { name: string; acPowerKw: number } | null;
   inverterFamily?: InverterFamily;
+  /** Données ombrage inter-rangées — présentes si le backend a calculé row_to_row. */
+  rowToRow?: {
+    pitchActualM: number;
+    pitchMinM: number;
+    annualLossPct: number;
+  } | null;
 };
 
 // ---------------------------------------------------------------------------
@@ -31,6 +37,12 @@ interface NearShadingStatus {
   fallbackReason: string | undefined;
 }
 
+type RowToRowData = {
+  pitchActualM: number;
+  pitchMinM: number;
+  annualLossPct: number;
+} | null;
+
 type CalpinageStateWindow = {
   CALPINAGE_STATE?: {
     shading?: {
@@ -41,11 +53,54 @@ type CalpinageStateWindow = {
             fallbackTriggered?: boolean;
             canonicalRejectedBecause?: string;
           };
+          row_to_row?: {
+            pitch_actual_m?: number;
+            pitch_min_m?: number;
+            annual_loss_pct?: number;
+          } | null;
         };
       };
     };
+    rowToRow?: {
+      pitchActualM?: number;
+      pitchMinM?: number;
+      annualLossPct?: number;
+    } | null;
+  };
+  LAST_CALC_RESULT?: {
+    meta?: {
+      row_to_row?: {
+        pitch_actual_m?: number;
+        pitch_min_m?: number;
+        annual_loss_pct?: number;
+      } | null;
+    };
   };
 };
+
+function getRowToRowData(): RowToRowData {
+  try {
+    const win = window as unknown as CalpinageStateWindow;
+    // Priorité 1 : CALPINAGE_STATE.rowToRow (format camelCase injecté par le store)
+    const rtr = win.CALPINAGE_STATE?.rowToRow;
+    if (rtr && typeof rtr.pitchActualM === "number" && typeof rtr.pitchMinM === "number" && typeof rtr.annualLossPct === "number") {
+      return { pitchActualM: rtr.pitchActualM, pitchMinM: rtr.pitchMinM, annualLossPct: rtr.annualLossPct };
+    }
+    // Priorité 2 : CALPINAGE_STATE.shading.lastResult.meta.row_to_row (format snake_case backend)
+    const shadingRtr = win.CALPINAGE_STATE?.shading?.lastResult?.meta?.row_to_row;
+    if (shadingRtr && typeof shadingRtr.pitch_actual_m === "number" && typeof shadingRtr.pitch_min_m === "number" && typeof shadingRtr.annual_loss_pct === "number") {
+      return { pitchActualM: shadingRtr.pitch_actual_m, pitchMinM: shadingRtr.pitch_min_m, annualLossPct: shadingRtr.annual_loss_pct };
+    }
+    // Priorité 3 : LAST_CALC_RESULT.meta.row_to_row
+    const calcRtr = win.LAST_CALC_RESULT?.meta?.row_to_row;
+    if (calcRtr && typeof calcRtr.pitch_actual_m === "number" && typeof calcRtr.pitch_min_m === "number" && typeof calcRtr.annual_loss_pct === "number") {
+      return { pitchActualM: calcRtr.pitch_actual_m, pitchMinM: calcRtr.pitch_min_m, annualLossPct: calcRtr.annual_loss_pct };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
 
 function getNearShadingStatus(): NearShadingStatus {
   try {
@@ -82,18 +137,21 @@ export function usePhase3ChecklistData(isVisible = true): {
   nearShadingPct: number | null;
   fallbackTriggered: boolean;
   fallbackReason: string | undefined;
+  rowToRow: RowToRowData;
 } {
   const [data, setData] = useState<Phase3ChecklistData | null>(null);
   const [catalogModuleSelected, setCatalogModuleSelected] = useState(() =>
     hasPhase3CatalogModuleSelected(),
   );
   const [nearShadingStatus, setNearShadingStatus] = useState<NearShadingStatus>(getNearShadingStatus);
+  const [rowToRow, setRowToRow] = useState<RowToRowData>(getRowToRowData);
 
   const refresh = useCallback(() => {
     const next = getData();
     const cat = hasPhase3CatalogModuleSelected();
     setCatalogModuleSelected((c) => (c === cat ? c : cat));
     setNearShadingStatus(getNearShadingStatus());
+    setRowToRow(getRowToRowData());
     setData((prev) => {
       if (!next && !prev) return prev;
       if (
@@ -136,5 +194,5 @@ export function usePhase3ChecklistData(isVisible = true): {
   }, [isVisible, refresh]);
 
   const checklistOk = data ? isPhase3ChecklistOk(data) : false;
-  return { data, checklistOk, catalogModuleSelected, ...nearShadingStatus };
+  return { data, checklistOk, catalogModuleSelected, rowToRow, ...nearShadingStatus };
 }

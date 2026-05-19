@@ -57,6 +57,7 @@ import { buildCalcResponse } from "../services/calc/calcResponseBuilder.js";
 import { computeElectricalValidation } from "../electrical/electricalValidation.js";
 import { computeHorizonFarLoss } from "../shading/horizonMaskEngine.js";
 import { buildFarShadingSunSamples } from "../services/shading/calpinageShading.service.js";
+import { computeRowToRowShading } from "../shading/rowToRowShading.js";
 import {
   buildCalculationConfidenceFromCalc,
   finalizeCalculationConfidence,
@@ -481,6 +482,108 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
           ctx.pv.far_shading_loss_pct = farLossPct;
           ctx.pv.far_shading_source = rawHm.source ?? "RELIEF_ONLY";
         }
+      }
+    }
+
+    // ------------------------------------------------------------
+    // ROW-TO-ROW SHADING — ombrage inter-rangées
+    // Actif uniquement si tous les pans ont pitchM ET panelHeightM valides.
+    // Moyenne pondérée par panelCount sur l'ensemble des pans.
+    // No-op silencieux si champs absents ou GPS invalide.
+    // Appliqué APRÈS far shading, AVANT pilotage.
+    // ------------------------------------------------------------
+    {
+      const pans = form.roof?.pans;
+      const lat = Number(ctx.site?.lat);
+      const lon = Number(ctx.site?.lon);
+      const gpsValid =
+        Number.isFinite(lat) && lat >= -90 && lat <= 90 &&
+        Number.isFinite(lon) && lon >= -180 && lon <= 180;
+
+      const eligiblePans = Array.isArray(pans)
+        ? pans.filter(
+            (p) =>
+              p &&
+              Number.isFinite(Number(p.pitchM)) && Number(p.pitchM) > 0 &&
+              Number.isFinite(Number(p.panelHeightM)) && Number(p.panelHeightM) > 0 &&
+              Number.isFinite(Number(p.tilt)) &&
+              Number.isFinite(Number(p.azimuth))
+          )
+        : [];
+
+      if (gpsValid && eligiblePans.length > 0 && ctx.pv) {
+        // Pondération par panelCount (défaut 1 si absent)
+        const totalWeight = eligiblePans.reduce(
+          (acc, p) => acc + (Number(p.panelCount) > 0 ? Number(p.panelCount) : 1),
+          0
+        );
+
+        // shadingFactor8760 pondéré : moyenne pondérée des facteurs horaires
+        const weighted8760 = new Array(8760).fill(0);
+        let weightedLossPct = 0;
+        let weightedPitchMin = 0;
+        let weightedPitchActual = 0;
+
+        for (const pan of eligiblePans) {
+          const panWeight = (Number(pan.panelCount) > 0 ? Number(pan.panelCount) : 1) / totalWeight;
+          let result;
+          try {
+            result = computeRowToRowShading({
+              tiltDeg: Number(pan.tilt),
+              azimuthDeg: Number(pan.azimuth),
+              pitchM: Number(pan.pitchM),
+              panelHeightM: Number(pan.panelHeightM),
+              latitudeDeg: lat,
+              longitudeDeg: lon,
+            });
+          } catch (e) {
+            // Pan invalide → skip silencieux
+            continue;
+          }
+
+          for (let h = 0; h < 8760; h++) {
+            weighted8760[h] += result.shadingFactor8760[h] * panWeight;
+          }
+          weightedLossPct += result.annualLossPct * panWeight;
+          weightedPitchMin += result.pitchMinRecommendedM * panWeight;
+          weightedPitchActual += Number(pan.pitchM) * panWeight;
+        }
+
+        // Arrondi à 2 décimales
+        weightedLossPct = Math.round(weightedLossPct * 100) / 100;
+        weightedPitchMin = Math.round(weightedPitchMin * 100) / 100;
+        weightedPitchActual = Math.round(weightedPitchActual * 100) / 100;
+
+        if (weightedLossPct > 0) {
+          // Appliquer le multiplicateur horaire individuellement
+          if (Array.isArray(ctx.pv.hourly)) {
+            ctx.pv.hourly = ctx.pv.hourly.map(
+              (h, i) => (Number(h) || 0) * (1 - weighted8760[i])
+            );
+          }
+          // Recalculer monthly et totaux depuis le profil horaire corrigé
+          if (Array.isArray(ctx.pv.monthly) && Array.isArray(ctx.pv.hourly)) {
+            // Facteur de correction global = 1 - weightedLossPct/100
+            const globalMultiplier = 1 - weightedLossPct / 100;
+            ctx.pv.monthly = ctx.pv.monthly.map((v) => (Number(v) || 0) * globalMultiplier);
+            if (typeof ctx.pv.total_kwh === "number") {
+              ctx.pv.total_kwh = Math.round(ctx.pv.total_kwh * globalMultiplier * 100) / 100;
+            }
+            if (typeof ctx.pv.total_raw_kwh === "number") {
+              ctx.pv.total_raw_kwh = Math.round(ctx.pv.total_raw_kwh * globalMultiplier * 100) / 100;
+            }
+          }
+          ctx.pv.row_to_row_shading_loss_pct = weightedLossPct;
+          ctx.pv.row_to_row_pitch_min_m = weightedPitchMin;
+        }
+
+        // Toujours stocker dans ctx.meta pour que le frontend affiche le warning
+        if (!ctx.meta) ctx.meta = {};
+        ctx.meta.row_to_row = {
+          loss_pct: weightedLossPct,
+          pitch_min_m: weightedPitchMin,
+          pitch_actual_m: weightedPitchActual,
+        };
       }
     }
 

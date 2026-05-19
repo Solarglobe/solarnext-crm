@@ -52,6 +52,15 @@ export type Phase3ChecklistProps = {
    * Si absent ou null, la section est masquée.
    */
   electricalValidation?: ElectricalValidation | null;
+  /**
+   * Données ombrage inter-rangées calculées par le backend (row_to_row).
+   * Affiché uniquement si pitchActualM < pitchMinM.
+   */
+  rowToRow?: {
+    pitchActualM: number;
+    pitchMinM: number;
+    annualLossPct: number;
+  } | null;
 };
 
 type Status = "ok" | "warning" | "error" | "neutral";
@@ -118,6 +127,7 @@ export function Phase3ChecklistPanel({
   className,
   sidebarCompact = false,
   electricalValidation,
+  rowToRow,
 }: Phase3ChecklistProps) {
   const { acTotalKw, ratio } = computeInverterSizing({
     panelCount,
@@ -211,6 +221,18 @@ export function Phase3ChecklistPanel({
           <span className={`${styles.label} sg-label`}>Validation</span>
           <span className={`${styles.value} ${statusClass(validationOk ? "ok" : "warning")}`}>
             {validationOk ? "Prêt" : "À compléter"}
+          </span>
+        </div>
+      )}
+
+      {/* ── Ombrage inter-rangées (warning si pitch insuffisant) ── */}
+      {rowToRow != null && rowToRow.pitchActualM < rowToRow.pitchMinM && (
+        <div className={styles.row}>
+          <StatusIcon status="warning" />
+          <span className={`${styles.label} sg-label`}>Espacement rangées</span>
+          <span className={`${styles.value} ${styles.statusWarning}`}>
+            {rowToRow.pitchActualM.toFixed(2)}m {"<"} min {rowToRow.pitchMinM.toFixed(2)}m
+            {" "}— pertes ~{rowToRow.annualLossPct.toFixed(1)}%/an
           </span>
         </div>
       )}
