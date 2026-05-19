@@ -32,6 +32,7 @@ import * as THREE from "three";
 import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import type { PvPanelSurface3D } from "../types/pv-panel-3d";
 import { INSPECT_USERDATA_KEY } from "../viewer/inspection/sceneInspectionTypes";
+import { getDepthOffset } from "../viewer/DepthRegistry";
 
 // ── Géométrie partagée ────────────────────────────────────────────────────────
 
@@ -151,8 +152,8 @@ export function PvPanelInstanced({
   roughness,
   envMapIntensity = 1.45,
   renderOrder = 0,
-  polygonOffsetFactor = -1,
-  polygonOffsetUnits = -1,
+  polygonOffsetFactor = getDepthOffset("PV_PANEL").polygonOffsetFactor,
+  polygonOffsetUnits = getDepthOffset("PV_PANEL").polygonOffsetUnits,
   hiddenPanelIds,
   onPanelClick,
   onPanelPointerDown,

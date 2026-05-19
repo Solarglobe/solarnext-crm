@@ -46,14 +46,23 @@ export interface DepthOffset {
  * sur GPU mobile (Adreno, Apple GPU) et desktop (NVIDIA, AMD, Intel).
  */
 export const DepthRegistry: Record<DepthLayer, DepthOffset> = {
+  // Sol / fond de scene -- surface de reference, aucun offset (GPU draw order naturel).
   TERRAIN:            { polygonOffsetFactor:  0, polygonOffsetUnits:  0 },
+  // Enveloppe batiment : murs, closures volumetriques, obstacles 3D -- couche 1.
   BUILDING_SHELL:     { polygonOffsetFactor: -1, polygonOffsetUnits: -1 },
+  // Surfaces de toiture (pans, coverage fill) -- couche 2, au-dessus du batiment.
   ROOF_PAN:           { polygonOffsetFactor: -2, polygonOffsetUnits: -2 },
+  // Aretes structurelles : faitages, noues, ouvrants -- couche 3, fine geometrie 3D.
   ROOF_RIDGE:         { polygonOffsetFactor: -3, polygonOffsetUnits: -3 },
+  // Panneaux PV (pose standard + live drag) -- couche 4, strictement au-dessus des pans.
   PV_PANEL:           { polygonOffsetFactor: -4, polygonOffsetUnits: -4 },
+  // Lignes de cellules PV -- couche 5, tracees par-dessus la face avant des panneaux.
   PV_CELL_LINE:       { polygonOffsetFactor: -5, polygonOffsetUnits: -5 },
+  // Zones d'exclusion keepout -- couche 3, meme plan que ROOF_RIDGE (lecture superposee).
   KEEPOUT_ZONE:       { polygonOffsetFactor: -3, polygonOffsetUnits: -3 },
+  // Contours de zone (safe-zone ribbon, lignes de marquage) -- couche 3, meme plan que ROOF_RIDGE.
   CONTOUR_LINE:       { polygonOffsetFactor: -3, polygonOffsetUnits: -3 },
+  // Surbrillance interactive -- couche 6, toujours devant tout (selection panneau, hover pan).
   SELECTION_HIGHLIGHT:{ polygonOffsetFactor: -6, polygonOffsetUnits: -6 },
 } as const;
 
