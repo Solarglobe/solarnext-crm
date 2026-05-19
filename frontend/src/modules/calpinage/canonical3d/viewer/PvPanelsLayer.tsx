@@ -24,7 +24,7 @@ import { SOLARNEXT_3D_PREMIUM_THEME, VIEWER_INSPECT_OUTLINE_HEX } from "./viewer
 // ── Debug runtime [PV3D-RENDER] ─────────────────────────────────────────────
 const _pv3dDbg = (): boolean =>
   import.meta.env.DEV ||
-  (typeof window !== "undefined" && (window as Record<string, unknown>)["__PV3D_DEBUG"] === true);
+  (typeof window !== "undefined" && (window as unknown as Record<string, unknown>)["__PV3D_DEBUG"] === true);
 
 // ── Constantes visuelles PV ───────────────────────────────────────────────────
 
@@ -127,15 +127,15 @@ export function PvPanelsLayer({
        * Note : outlines pv3dSelected/pv3dInvalid perdues (limitation InstancedMesh) ;
        * les états sont compensés par la couleur d'instance.
        */}
+      {/*
+       * LOT3-C3 : base emissiveIntensity 0.1 -> 0.40.
+       * Plancher de visibilite garanti meme sans env map ou sur GPU mobile sans IBL complet.
+       */}
       <PvPanelInstanced
         panels={panels}
         panelColors={panelColors}
         baseColor={PREMIUM_PV_SURFACE_HEX}
         emissiveColor={PREMIUM_PV_EMISSIVE_HEX}
-        {/* LOT3-C3 : base emissiveIntensity 0.1 → 0.40 — plancher de visibilité garanti même sans
-         * env map (pendant le chargement HDRI Suspense) ou sur GPU mobile sans IBL complet.
-         * Metalness=0.72 tire 72 % de sa couleur de l'IBL ; sans elle, diffuse = albedo × (1-0.72) ≈ 7 % → invisible.
-         * 0.40 + bonus (0–0.06) = 0.40–0.46 : panneaux visibles mais non saturés (PBR conservé). */}
         emissiveIntensity={pvPanelEmissiveIntensityBonus + 0.40}
         metalness={pvPanelMetalness}
         roughness={pvPanelRoughness}
