@@ -12,6 +12,10 @@
  * - Panneaux masqués (pvLayout3DInteractionMode) : matrice scale(0,0,0).
  * - Mise à jour matrices : via useFrame (RAF) + flag dirty — garantit l'application
  *   dans la même RAF que le rendu, sans dépendance au cycle React.
+ * - key={count} sur l'instancedMesh : force un remontage R3F quand le nombre de
+ *   panneaux change (ajout ou suppression). Sans cette clé, le buffer instanceMatrix
+ *   conserve sa taille initiale et les nouvelles instances sont silencieusement ignorées.
+ *   Le remontage est O(N) sur le GPU (re-upload matrices) — acceptable pour ≤ 400 panneaux.
  * - Sélection / inspection : onPanelClick reçoit (PvPanelSurface3D, ThreeEvent).
  *   Le caller (SolarScene3DViewer.tsx) est responsable de patcher e.object.userData pour
  *   la compatibilité avec le système d'inspection existant.
@@ -242,6 +246,7 @@ export function PvPanelInstanced({
 
   return (
     <instancedMesh
+      key={count}
       ref={meshRef}
       args={[sharedGeometry, undefined, count]}
       castShadow

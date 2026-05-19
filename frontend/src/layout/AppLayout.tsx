@@ -289,7 +289,7 @@ function TechSheetIcon() {
   );
 }
 
-/** Installateur / Sous-traitant — casque de chantier */
+/** Installateurs — casque de chantier */
 function InstallerIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -368,9 +368,9 @@ const superAdminModules = [
 ];
 
 const installationModules = [
-  { path: "/mairies", label: "Mairie", icon: MairiesNavIcon, end: true },
-  { path: "/installation/fiche-technique", label: "Fiche technique", icon: TechSheetIcon, end: true },
-  { path: "/installation/installateur", label: "Installateur / Sous-traitant", icon: InstallerIcon, end: true },
+  { path: "/mairies", label: "Portails mairie", icon: MairiesNavIcon, end: true },
+  { path: "/installation/fiche-technique", label: "Fiches techniques", icon: TechSheetIcon, end: true },
+  { path: "/installation/installateur", label: "Installateurs", icon: InstallerIcon, end: true },
 ];
 
 function MoonIcon() {
