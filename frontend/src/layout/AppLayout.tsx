@@ -353,13 +353,14 @@ const mailModules = [
 
 const settingsModules = [
   { path: "/settings", label: "Tous les parametres", icon: SettingsIcon, end: true },
-  { path: "/settings/security", label: "Securite", icon: ShieldIcon, end: true },
   { path: "/organization/structure", label: "Organisation", icon: StructureIcon, end: true, adminOnly: true },
   { path: "/organization/users", label: "Utilisateurs", icon: UsersIcon, end: true, adminOnly: true },
+  { path: "/organization/roles", label: "Roles", icon: ShieldIcon, end: true, adminOnly: true },
   { path: "/organization/catalog", label: "Catalogue devis", icon: CatalogIcon, end: true, adminOnly: true },
   { path: "/settings/mail", label: "Messagerie", icon: MessagerieIcon, end: true, adminOnly: true },
-  { path: "/admin/settings/pv", label: "Parametres PV", icon: SunIcon, end: true, adminOnly: true },
+  { path: "/settings/security", label: "Securite", icon: ShieldIcon, end: true },
   { path: "/admin/audit-log", label: "Journal d'audit", icon: AuditIcon, end: true, adminOnly: true },
+  { path: "/admin/settings/pv", label: "Parametres PV", icon: SunIcon, end: true, adminOnly: true },
 ];
 
 const superAdminModules = [

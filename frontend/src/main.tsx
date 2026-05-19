@@ -193,6 +193,7 @@ const router = createBrowserRouter(
             { index: true, element: <Navigate to="users" replace /> },
             { path: "users", element: <OrganizationUsersPage /> },
             { path: "structure", element: <OrganizationStructurePage /> },
+            { path: "roles", element: <OrganizationStructurePage initialTab="roles" /> },
             { path: "catalog", element: <OrganizationCatalogPage /> },
             { path: "org-settings", element: <Navigate to="/organization/structure" replace /> },
           ]

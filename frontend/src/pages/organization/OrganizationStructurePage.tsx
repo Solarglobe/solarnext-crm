@@ -24,8 +24,12 @@ const TABS: { id: StructureTab; label: string }[] = [
   { id: "archives", label: "Archives" },
 ];
 
-export default function OrganizationStructurePage() {
-  const [activeTab, setActiveTab] = useState<StructureTab>("teams");
+interface OrganizationStructurePageProps {
+  initialTab?: StructureTab;
+}
+
+export default function OrganizationStructurePage({ initialTab = "teams" }: OrganizationStructurePageProps) {
+  const [activeTab, setActiveTab] = useState<StructureTab>(initialTab);
 
   return (
     <div className="qb-page fin-pole-shell sn-saas-page">

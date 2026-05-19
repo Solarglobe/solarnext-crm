@@ -34,8 +34,15 @@ const SETTINGS_CARDS: SettingsCard[] = [
   },
   {
     title: "Utilisateurs",
-    description: "Membres, roles, permissions et acces internes.",
+    description: "Membres, invitations et acces internes.",
     href: "/organization/users",
+    group: "Organisation",
+    adminOnly: true,
+  },
+  {
+    title: "Roles",
+    description: "Roles, permissions et droits applicatifs.",
+    href: "/organization/roles",
     group: "Organisation",
     adminOnly: true,
   },
