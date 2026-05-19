@@ -32,8 +32,9 @@ export const WORLD_CONVENTION = {
   imageToWorldHorizontalOrigin: "image_top_left_px_0_0",
   /** Implémentation de référence */
   mappingImplementation: "canonical3d/builder/worldMapping.ts → imagePxToWorldHorizontalM",
-  /** Legacy preview : houseModelV2 + phase3Viewer (Y-up Three.js, originPx) — ne pas confondre avec canonique */
-  legacyApproximation: "houseModelV2.ts + calpinage/phase3/phase3Viewer.js",
+  /** Legacy preview : houseModelV2 (Y-up Three.js, originPx) — ne pas confondre avec canonique.
+   *  phase3Viewer.js supprimé en A3 (code mort — remplacé par SolarScene3DViewer.tsx). */
+  legacyApproximation: "houseModelV2.ts [phase3Viewer.js supprimé A3]",
 } as const;
 
 export type WorldHorizontalM = { readonly x: number; readonly y: number };
