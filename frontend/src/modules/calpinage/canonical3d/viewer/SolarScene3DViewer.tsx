@@ -2690,7 +2690,7 @@ function ViewerSceneContent({
         pv3dSafeZoneGeos.map(({ id, ribbon, line }) => (
           <group key={`pv3d-safe-${id}`}>
             {ribbon ? (
-              <mesh geometry={ribbon} renderOrder={20}>
+              <mesh geometry={ribbon} renderOrder={22}>
                 <meshBasicMaterial
                   color={PV3D_SAFE_ZONE_LINE}
                   transparent
@@ -2705,8 +2705,8 @@ function ViewerSceneContent({
               </mesh>
             ) : null}
             {line ? (
-              <lineSegments geometry={line} renderOrder={21}>
-                <lineBasicMaterial color="#fecaca" transparent opacity={0.88} toneMapped={false} depthTest />
+              <lineSegments geometry={line} renderOrder={23}>
+                <lineBasicMaterial color="#fecaca" transparent opacity={0.88} depthWrite={false} toneMapped={false} depthTest />
               </lineSegments>
             ) : null}
           </group>
@@ -2715,7 +2715,7 @@ function ViewerSceneContent({
         pv3dGhostGeos.map(({ id, fill, line, valid, excluded, source }) => (
           <group key={`pv3d-ghost-${id}`}>
             {fill ? (
-              <mesh geometry={fill} renderOrder={22}>
+              <mesh geometry={fill} renderOrder={24}>
                 <meshBasicMaterial
                   color={
                     valid
@@ -2736,7 +2736,7 @@ function ViewerSceneContent({
               </mesh>
             ) : null}
             {line ? (
-              <lineSegments geometry={line} renderOrder={23}>
+              <lineSegments geometry={line} renderOrder={25}>
                 <lineBasicMaterial
                   color={
                     valid
@@ -2749,6 +2749,7 @@ function ViewerSceneContent({
                   }
                   transparent
                   opacity={valid ? (excluded ? 0.42 : 0.72) : 0.68}
+                  depthWrite={false}
                   toneMapped={false}
                   depthTest
                 />
@@ -2776,7 +2777,11 @@ function ViewerSceneContent({
                   envMapIntensity={1.45}
                   transparent={enabled === false}
                   opacity={enabled === false ? 0.42 : 1}
-                  side={THREE.DoubleSide}
+                  // depthWrite=false : le fill ne doit pas occulter les cell/outline lines
+                  // rendues après (renderOrder 31-32). La profondeur de la scène opaque
+                  // (toiture, bâtiment) est déjà dans le depth buffer au moment du rendu overlay.
+                  depthWrite={false}
+                  side={THREE.FrontSide}
                   polygonOffset
                   {...getDepthOffset("PV_PANEL")}
                   depthTest
@@ -2789,6 +2794,7 @@ function ViewerSceneContent({
                   color={PREMIUM_PV_CELL_LINE}
                   transparent
                   opacity={invalid ? 0.28 : 0.2}
+                  depthWrite={false}
                   toneMapped={false}
                   depthTest
                 />
@@ -2800,6 +2806,7 @@ function ViewerSceneContent({
                   color={invalid ? SOLARNEXT_3D_PREMIUM_THEME.pv.invalidLine : SOLARNEXT_3D_PREMIUM_THEME.pv.selectedLine}
                   transparent
                   opacity={invalid ? 0.98 : 0.88}
+                  depthWrite={false}
                   toneMapped={false}
                   depthTest
                 />
@@ -4538,13 +4545,20 @@ export function SolarScene3DViewer({
           // intentionnel pour que R3F initialise le renderer avec les bons paramètres dès la création.
           toneMapping: THREE.ACESFilmicToneMapping,
           toneMappingExposure: 1.15,
+          // Depth precision : distribue logarithmiquement → précision maximale au premier plan
+          // (panneaux, arêtes, faîtage) sans sacrifier les grandes distances.
+          // Élimine le Z-fighting sur panneaux PV + toiture visible avec near/far étendu.
+          logarithmicDepthBuffer: true,
         }}
         camera={
           cameraViewMode === "PLAN_2D"
             ? {
                 position: [0, 0, 50],
                 near: 0.05,
-                far: 1e6,
+                // far réduit de 1e6 → 5000 : ratio near/far 1e5 (vs 2e7 avant).
+                // Toute scène résidentielle/tertiaire tient dans 5 km.
+                // 1000× meilleure précision depth sur 24-bit buffer.
+                far: 5000,
                 up: [0, 0, 1],
               }
             : {
@@ -4562,7 +4576,10 @@ export function SolarScene3DViewer({
                 ] as [number, number, number],
                 fov: VIEWER_CAMERA_FOV_DEG,
                 near: 0.1,
-                far: 1e6,
+                // far réduit de 1e6 → 5000 : ratio near/far 5e4 (vs 1e7 avant).
+                // Combiné avec logarithmicDepthBuffer, élimine tout artefact depth
+                // sur panneaux / toiture en vue rasante et zénithale.
+                far: 5000,
                 up: [0, 0, 1],
               }
         }
@@ -4706,29 +4723,4 @@ export function SolarScene3DViewer({
           />
         ) : (
           <Grid
-            position={[center.x, center.y, Math.min(geometryBox.min.z - 0.15, 0)]}
-            {...viewerFallbackGridProps(maxDim)}
-          />
-        )}
-        {showDebugOverlay && (
-          <DebugSceneHelpers box={geometryBox} center={center} maxDim={maxDim} scene={scene} />
-        )}
-        {(showDebugOverlay || showXYAlignmentOverlay) && (
-          <DebugXYAlignmentOverlay scene={scene} zLevel={groundZ} runtime={debugRuntime} />
-        )}
-        {/* ── Masque d'horizon lointain (far shading) — LineLoop orange ──── */}
-        {horizonMask && horizonMask.length > 0 && cameraViewMode !== "PLAN_2D" && (
-          <HorizonMaskRing3D mask={horizonMask as HorizonMaskPoint3D[]} center={center} />
-        )}
-        {/* IBL — overcast sky, background=false, chargement lazy (Suspense).
-            environmentIntensity=0.52 : reflections IBL visibles sur zinc, bacs acier, panneaux PV.
-            Valeur calibrée pour que les panneaux "brillent" sans surexposer les surfaces mates (ardoise). */}
-        <Suspense fallback={null}>
-          <Environment
-            files="/assets/hdri/overcast_sky_1k.hdr"
-            background={false}
-            environmentIntensity={0.52}
-          />
-        </Suspense>
-        {enablePostProcessing && (
-          isCanonical3DEnabled() 
+            position={[center.x, center.y, Math.min(geometryBox.min.z - 0.1

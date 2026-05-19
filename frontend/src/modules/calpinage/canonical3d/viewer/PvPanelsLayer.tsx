@@ -136,7 +136,7 @@ export function PvPanelsLayer({
       {consolidatedPvCellLinesGeo && (
         <lineSegments
           geometry={consolidatedPvCellLinesGeo}
-          renderOrder={pvLayout3DInteractionMode ? 22 : 3}
+          renderOrder={pvLayout3DInteractionMode ? 21 : 3}
         >
           <lineBasicMaterial
             color={PREMIUM_PV_CELL_LINE}
