@@ -142,6 +142,7 @@ import {
 } from "./solarSceneThreeGeometry";
 import { buildPremiumHouse3DScene } from "./premium/buildPremiumHouse3DScene";
 import { PvPanelInstanced } from "../pvPanels/PvPanelInstanced";
+import { buildConsolidatedCellLinesGeometry } from "../pvPanels/buildCellLinesGeometry";
 import type { PremiumHouse3DSceneAssembly } from "./premium/premiumHouse3DSceneTypes";
 import { PremiumGeometryTrustStripe } from "./premium/PremiumGeometryTrustStripe";
 import type { PremiumHouse3DViewMode } from "./premium/premiumHouse3DViewModes";
@@ -2409,9 +2410,17 @@ function ViewerSceneContent({
     return scene.pvPanels.map((p) => ({
       id: String(p.id),
       geo: panelQuadGeometry(p),
-      cell: premiumPvPanelCellLineGeometry(p),
     }));
   }, [scene.pvPanels]);
+
+  /**
+   * Géométrie consolidée des cell lines PV : 1 BufferGeometry pour N panneaux = 1 draw call.
+   * Remplace N <lineSegments> individuels (1 draw call par panneau).
+   */
+  const consolidatedPvCellLinesGeo = useMemo(
+    () => buildConsolidatedCellLinesGeometry(scene.pvPanels),
+    [scene.pvPanels],
+  );
 
   const pv3dOverlayPanelById = useMemo(() => {
     const m = new Map<string, PvLayout3dOverlayState["panels"][number]>();
@@ -2534,7 +2543,8 @@ function ViewerSceneContent({
       ].filter((g): g is THREE.BufferGeometry => g != null)),
       ...extGeos.map((x) => x.geo),
       ...extGeos.flatMap((x) => x.miniRoofLines.map((line) => line.geometry)),
-      ...panelGeos.flatMap((x) => [x.geo, x.cell].filter((g): g is THREE.BufferGeometry => g != null)),
+      ...panelGeos.map((x) => x.geo),
+      ...(consolidatedPvCellLinesGeo ? [consolidatedPvCellLinesGeo] : []),
       ...pv3dLivePanelGeos.flatMap((x) => [x.fill, x.line, x.cell].filter((g): g is THREE.BufferGeometry => g != null)),
       ...pv3dGhostGeos.flatMap((x) => [x.fill, x.line].filter((g): g is THREE.BufferGeometry => g != null)),
       ...pv3dSafeZoneGeos.flatMap((x) => [x.ribbon, x.line].filter((g): g is THREE.BufferGeometry => g != null)),
@@ -2548,6 +2558,7 @@ function ViewerSceneContent({
       obsGeos,
       extGeos,
       panelGeos,
+      consolidatedPvCellLinesGeo,
       pv3dLivePanelGeos,
       pv3dGhostGeos,
       pv3dSafeZoneGeos,
@@ -3419,23 +3430,22 @@ function ViewerSceneContent({
             }
             onPanelHover={onPanelHover}
           />
-          {/* Cell lines : lineSegments individuels (géométries de type LINE, pas mesh) */}
-          {panelGeos.map(({ id, cell }) =>
-            cell ? (
-              <lineSegments
-                key={`pvcell-${id}`}
-                geometry={cell}
-                renderOrder={pvLayout3DInteractionMode ? 22 : 1}
-              >
-                <lineBasicMaterial
-                  color={PREMIUM_PV_CELL_LINE}
-                  transparent
-                  opacity={isInspectSelected(inspectionSelection, "PV_PANEL", id) ? 0.24 : 0.16}
-                  toneMapped={false}
-                  depthTest
-                />
-              </lineSegments>
-            ) : null,
+          {/* Cell lines consolidées : 1 draw call pour N panneaux (vs N draw calls individuels). */}
+          {consolidatedPvCellLinesGeo && (
+            <lineSegments
+              geometry={consolidatedPvCellLinesGeo}
+              renderOrder={pvLayout3DInteractionMode ? 22 : 1}
+            >
+              <lineBasicMaterial
+                color={PREMIUM_PV_CELL_LINE}
+                transparent
+                opacity={0.16}
+                toneMapped={false}
+                depthTest
+                polygonOffset
+                {...getDepthOffset("PV_CELL_LINE")}
+              />
+            </lineSegments>
           )}
           {/* Outline inspection : rendu individuel pour les panneaux sélectionnés en inspect mode */}
           {inspectMode &&
