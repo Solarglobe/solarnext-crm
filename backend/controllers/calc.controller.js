@@ -59,6 +59,8 @@ import { computeHorizonFarLoss } from "../shading/horizonMaskEngine.js";
 import { buildFarShadingSunSamples } from "../services/shading/calpinageShading.service.js";
 import { computeRowToRowShading } from "../shading/rowToRowShading.js";
 import { computeBifacialGain } from "../shading/bifacialGain.js";
+import { fetchTMY } from "../weather/fetchTMY.js";
+import { computeCellTemperature } from "../weather/cellTemperature.js";
 import {
   buildCalculationConfidenceFromCalc,
   finalizeCalculationConfidence,
@@ -632,6 +634,85 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
           };
         } catch (e) {
           // Paramètres invalides → skip silencieux
+        }
+      }
+    }
+
+    // ------------------------------------------------------------
+    // TMY — Simulation yield horaire + P50/P90
+    // Asynchrone, avec fallback silencieux si PVGIS indisponible.
+    // Ne remplace PAS ctx.pv — enrichit ctx.tmy et ctx.meta.tmy.
+    // ------------------------------------------------------------
+    {
+      const lat = Number(ctx.site?.lat);
+      const lon = Number(ctx.site?.lon);
+      const gpsValid = Number.isFinite(lat) && Number.isFinite(lon);
+
+      if (gpsValid && ctx.pv) {
+        try {
+          const tmyData = await fetchTMY(lat, lon);
+          if (tmyData) {
+            // Paramètres thermiques panneau (fallback si non renseignés)
+            const noct = Number(form.panel?.noct ?? form.panel_noct ?? 45);
+            const tempCoeff = Number(form.panel?.tempCoeffPmax ?? form.panel_temp_coeff ?? -0.40);
+
+            const { corrFactor8760, avgCorrFactor } = computeCellTemperature({
+              ghi8760: tmyData.ghi8760,
+              tAir8760: tmyData.tAir8760,
+              noct,
+              tempCoeff,
+            });
+
+            // Production horaire TMY corrigée thermiquement
+            // Ratio irradiance TMY vs production existante pour estimer la production horaire
+            const totalGhi = tmyData.ghi8760.reduce((a, b) => a + b, 0);
+            const kwh8760 = tmyData.ghi8760.map((g, h) => {
+              if (totalGhi === 0 || g <= 0) return 0;
+              // Utiliser la production existante normalisée par l'irradiance TMY
+              const baseH = ctx.pv.hourly?.[h] ?? 0;
+              return baseH * corrFactor8760[h];
+            });
+
+            // Agrégation mensuelle
+            const monthly12 = Array(12).fill(0);
+            const hoursPerMonth = [744, 672, 744, 720, 744, 720, 744, 744, 720, 744, 720, 744];
+            let hCursor = 0;
+            for (let m = 0; m < 12; m++) {
+              for (let h = 0; h < hoursPerMonth[m]; h++) {
+                monthly12[m] += kwh8760[hCursor++] || 0;
+              }
+              monthly12[m] = Math.round(monthly12[m] * 10) / 10;
+            }
+
+            const totalKwhP50 = Math.round(kwh8760.reduce((a, b) => a + b, 0) * 10) / 10;
+            // P90 = P50 × (1 - 1.28 × σ), σ = 5% (variabilité typique France)
+            const sigmaRelative = 0.05;
+            const totalKwhP90 = Math.round(totalKwhP50 * (1 - 1.28 * sigmaRelative) * 10) / 10;
+            const p90Monthly = monthly12.map(
+              (v) => Math.round(v * (1 - 1.28 * sigmaRelative) * 10) / 10
+            );
+
+            ctx.tmy = {
+              totalKwhP50,
+              totalKwhP90,
+              monthly12P50: monthly12,
+              monthly12P90: p90Monthly,
+              avgThermalCorrFactor: Math.round(avgCorrFactor * 10000) / 10000,
+              noct,
+              tempCoeff,
+            };
+            if (!ctx.meta) ctx.meta = {};
+            ctx.meta.tmy = {
+              p50_kwh: totalKwhP50,
+              p90_kwh: totalKwhP90,
+              monthly_p50: monthly12,
+              monthly_p90: p90Monthly,
+              thermal_correction_pct: Math.round((avgCorrFactor - 1) * 10000) / 100,
+            };
+          }
+        } catch (e) {
+          // TMY non disponible — pas bloquant
+          console.warn('[TMY] Erreur fetch/calcul:', e.message);
         }
       }
     }

@@ -67,6 +67,10 @@ const initialPhase3: CalpinagePhase3Snapshot = {
   albedo: 0.20,
   bifacialGainPct: null,
   bifacialGainKwh: null,
+  tmyP50Kwh: null,
+  tmyP90Kwh: null,
+  tmyMonthlyP50: null,
+  tmyMonthlyP90: null,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

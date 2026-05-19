@@ -7,6 +7,7 @@
 
 import styles from "./Phase3ChecklistPanel.module.css";
 import { computeInverterSizing, type InverterFamily } from "./utils/inverterSizing";
+import { TmyProductionChart } from "./components/TmyProductionChart";
 
 /** Critère de validation électrique individuel (issu du backend electricalValidation). */
 export type ElectricalCheck = {
@@ -60,6 +61,16 @@ export type Phase3ChecklistProps = {
     pitchActualM: number;
     pitchMinM: number;
     annualLossPct: number;
+  } | null;
+  /**
+   * Données TMY P50/P90 calculées par le backend.
+   * Affiche un graphique de production mensuelle si présentes.
+   */
+  tmy?: {
+    p50Kwh: number;
+    p90Kwh: number;
+    monthlyP50: number[];
+    monthlyP90: number[];
   } | null;
 };
 
@@ -128,6 +139,7 @@ export function Phase3ChecklistPanel({
   sidebarCompact = false,
   electricalValidation,
   rowToRow,
+  tmy,
 }: Phase3ChecklistProps) {
   const { acTotalKw, ratio } = computeInverterSizing({
     panelCount,
@@ -234,6 +246,31 @@ export function Phase3ChecklistPanel({
             {rowToRow.pitchActualM.toFixed(2)}m {"<"} min {rowToRow.pitchMinM.toFixed(2)}m
             {" "}— pertes ~{rowToRow.annualLossPct.toFixed(1)}%/an
           </span>
+        </div>
+      )}
+
+      {/* ── Production TMY P50/P90 (résumé ligne) ── */}
+      {tmy != null && (
+        <div className={styles.row}>
+          <StatusIcon status="neutral" />
+          <span className={`${styles.label} sg-label`}>Production TMY</span>
+          <span className={`${styles.value} ${styles.statusNeutral}`}>
+            P50 : {Math.round(tmy.p50Kwh).toLocaleString("fr-FR")} kWh/an
+            {" · "}
+            P90 : {Math.round(tmy.p90Kwh).toLocaleString("fr-FR")} kWh/an
+          </span>
+        </div>
+      )}
+
+      {/* ── Graphique mensuel TMY ── */}
+      {tmy != null && !sidebarCompact && (
+        <div className={styles.tmySection}>
+          <TmyProductionChart
+            monthlyP50={tmy.monthlyP50}
+            monthlyP90={tmy.monthlyP90}
+            p50Annual={tmy.p50Kwh}
+            p90Annual={tmy.p90Kwh}
+          />
         </div>
       )}
 

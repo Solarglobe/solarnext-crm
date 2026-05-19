@@ -81,6 +81,7 @@ export function buildCalcResponse({ ctx, form, conso, annualExact, pilotage, sce
       annual_kwh: annualExact,
     },
     pv: ctx.pv,
+    tmy: ctx.tmy ?? null,
     production,
     pilotage: pilotage.stats,
     scenarios: scenariosFinal,

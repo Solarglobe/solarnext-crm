@@ -133,6 +133,14 @@ export interface CalpinagePhase3Snapshot {
   bifacialGainPct: number | null;
   /** Gain bifacial absolu en kWh/an, null si non calculé. */
   bifacialGainKwh: number | null;
+  /** Production annuelle P50 (TMY), en kWh/an. Null si non calculé. */
+  tmyP50Kwh: number | null;
+  /** Production annuelle P90 (TMY), en kWh/an. Null si non calculé. */
+  tmyP90Kwh: number | null;
+  /** Production mensuelle P50 sur 12 mois (TMY). Null si non calculé. */
+  tmyMonthlyP50: number[] | null;
+  /** Production mensuelle P90 sur 12 mois (TMY). Null si non calculé. */
+  tmyMonthlyP90: number[] | null;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

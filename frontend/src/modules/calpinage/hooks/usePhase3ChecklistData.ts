@@ -25,6 +25,13 @@ export type Phase3ChecklistData = {
     pitchMinM: number;
     annualLossPct: number;
   } | null;
+  /** Données TMY P50/P90 — présentes si le backend a calculé les probabilités de production. */
+  tmy?: {
+    p50Kwh: number;
+    p90Kwh: number;
+    monthlyP50: number[];
+    monthlyP90: number[];
+  } | null;
 };
 
 // ---------------------------------------------------------------------------
@@ -68,14 +75,27 @@ type CalpinageStateWindow = {
     } | null;
   };
   LAST_CALC_RESULT?: {
+    tmy?: TmyRawData | null;
     meta?: {
       row_to_row?: {
         pitch_actual_m?: number;
         pitch_min_m?: number;
         annual_loss_pct?: number;
       } | null;
+      tmy?: TmyRawData | null;
     };
   };
+};
+
+type TmyRawData = {
+  totalKwhP50?: number;
+  p50_kwh?: number;
+  totalKwhP90?: number;
+  p90_kwh?: number;
+  monthly12P50?: number[];
+  monthly_p50?: number[];
+  monthly12P90?: number[];
+  monthly_p90?: number[];
 };
 
 function getRowToRowData(): RowToRowData {
@@ -97,6 +117,32 @@ function getRowToRowData(): RowToRowData {
       return { pitchActualM: calcRtr.pitch_actual_m, pitchMinM: calcRtr.pitch_min_m, annualLossPct: calcRtr.annual_loss_pct };
     }
     return null;
+  } catch {
+    return null;
+  }
+}
+
+type TmyData = {
+  p50Kwh: number;
+  p90Kwh: number;
+  monthlyP50: number[];
+  monthlyP90: number[];
+} | null;
+
+function getTmyData(): TmyData {
+  try {
+    const win = window as unknown as CalpinageStateWindow;
+    const tmyRaw =
+      win.LAST_CALC_RESULT?.tmy ??
+      win.LAST_CALC_RESULT?.meta?.tmy ??
+      null;
+    if (!tmyRaw) return null;
+    const p50Kwh = tmyRaw.totalKwhP50 ?? tmyRaw.p50_kwh;
+    const p90Kwh = tmyRaw.totalKwhP90 ?? tmyRaw.p90_kwh;
+    const monthlyP50 = tmyRaw.monthly12P50 ?? tmyRaw.monthly_p50 ?? [];
+    const monthlyP90 = tmyRaw.monthly12P90 ?? tmyRaw.monthly_p90 ?? [];
+    if (typeof p50Kwh !== "number" || typeof p90Kwh !== "number") return null;
+    return { p50Kwh, p90Kwh, monthlyP50, monthlyP90 };
   } catch {
     return null;
   }
@@ -138,6 +184,7 @@ export function usePhase3ChecklistData(isVisible = true): {
   fallbackTriggered: boolean;
   fallbackReason: string | undefined;
   rowToRow: RowToRowData;
+  tmy: TmyData;
 } {
   const [data, setData] = useState<Phase3ChecklistData | null>(null);
   const [catalogModuleSelected, setCatalogModuleSelected] = useState(() =>
@@ -145,6 +192,7 @@ export function usePhase3ChecklistData(isVisible = true): {
   );
   const [nearShadingStatus, setNearShadingStatus] = useState<NearShadingStatus>(getNearShadingStatus);
   const [rowToRow, setRowToRow] = useState<RowToRowData>(getRowToRowData);
+  const [tmy, setTmy] = useState<TmyData>(getTmyData);
 
   const refresh = useCallback(() => {
     const next = getData();
@@ -152,6 +200,7 @@ export function usePhase3ChecklistData(isVisible = true): {
     setCatalogModuleSelected((c) => (c === cat ? c : cat));
     setNearShadingStatus(getNearShadingStatus());
     setRowToRow(getRowToRowData());
+    setTmy(getTmyData());
     setData((prev) => {
       if (!next && !prev) return prev;
       if (
@@ -194,5 +243,5 @@ export function usePhase3ChecklistData(isVisible = true): {
   }, [isVisible, refresh]);
 
   const checklistOk = data ? isPhase3ChecklistOk(data) : false;
-  return { data, checklistOk, catalogModuleSelected, rowToRow, ...nearShadingStatus };
+  return { data, checklistOk, catalogModuleSelected, rowToRow, tmy, ...nearShadingStatus };
 }
