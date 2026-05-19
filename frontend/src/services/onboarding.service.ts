@@ -1,7 +1,7 @@
 import { buildApiUrl } from "../config/crmApiBase";
 import { apiFetch } from "./api";
 
-export type OnboardingStepId = "company" | "mail" | "team" | "pipeline" | "lead";
+export type OnboardingStepId = "company" | "mail" | "team" | "lead";
 
 export type OnboardingProfile = {
   name: string;
@@ -25,11 +25,6 @@ export type OnboardingCollaborator = {
   role: "ADMIN" | "COMMERCIAL" | "TECHNICIEN" | "INSTALLATEUR";
 };
 
-export type OnboardingPipelineStage = {
-  id: string;
-  name: string;
-};
-
 export type OnboardingLeadDraft = {
   firstName: string;
   lastName: string;
@@ -42,7 +37,6 @@ export type OnboardingData = {
   profile: OnboardingProfile;
   mail: OnboardingMail;
   collaborators: OnboardingCollaborator[];
-  pipeline: OnboardingPipelineStage[];
   lead: OnboardingLeadDraft;
 };
 
@@ -67,7 +61,6 @@ export type OnboardingStateResponse = {
       smtp_host: string;
     }>;
     collaborators: OnboardingCollaborator[];
-    pipeline: OnboardingPipelineStage[];
     lead: Partial<{
       first_name: string;
       last_name: string;
@@ -96,13 +89,6 @@ export const DEFAULT_ONBOARDING_DATA: OnboardingData = {
     smtpHost: "",
   },
   collaborators: [],
-  pipeline: [
-    { id: "new", name: "Nouveau" },
-    { id: "qualified", name: "Qualifie" },
-    { id: "study", name: "Etude PV" },
-    { id: "quote", name: "Devis envoye" },
-    { id: "signed", name: "Signe" },
-  ],
   lead: {
     firstName: "",
     lastName: "",
@@ -133,7 +119,6 @@ function mergeOnboardingData(response?: OnboardingStateResponse): OnboardingData
       smtpHost: data.mail?.smtp_host ?? "",
     },
     collaborators: Array.isArray(data.collaborators) ? data.collaborators : [],
-    pipeline: Array.isArray(data.pipeline) && data.pipeline.length > 0 ? data.pipeline : DEFAULT_ONBOARDING_DATA.pipeline,
     lead: {
       ...DEFAULT_ONBOARDING_DATA.lead,
       firstName: data.lead?.first_name ?? "",

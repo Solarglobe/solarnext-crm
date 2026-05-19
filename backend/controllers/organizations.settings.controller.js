@@ -33,7 +33,7 @@ const FINANCE_DEFAULT = {
   default_vat_rate: 20,
 };
 
-const ONBOARDING_STEPS = new Set(["company", "mail", "team", "pipeline", "lead"]);
+const ONBOARDING_STEPS = new Set(["company", "mail", "team", "lead"]);
 
 function deepMerge(target, source) {
   const out = { ...target };
@@ -86,17 +86,6 @@ function cleanStringArray(value, maxItems = 20, maxLength = 255) {
   return out;
 }
 
-function cleanPipeline(value) {
-  const rows = Array.isArray(value) ? value : [];
-  return rows
-    .map((row, index) => ({
-      id: cleanText(row?.id, 80) || `stage-${index + 1}`,
-      name: cleanText(row?.name, 80),
-    }))
-    .filter((row) => row.name)
-    .slice(0, 10);
-}
-
 function cleanCollaborators(value) {
   const rows = Array.isArray(value) ? value : [];
   return rows
@@ -145,9 +134,6 @@ function buildOnboardingPatch(body) {
   }
   if (Object.prototype.hasOwnProperty.call(raw, "collaborators")) {
     patch.collaborators = cleanCollaborators(raw.collaborators);
-  }
-  if (Object.prototype.hasOwnProperty.call(raw, "pipeline")) {
-    patch.pipeline = cleanPipeline(raw.pipeline);
   }
   if (Object.prototype.hasOwnProperty.call(raw, "lead")) {
     patch.lead = cleanLeadDraft(raw.lead);
@@ -584,14 +570,18 @@ export async function getOnboarding(req, res) {
     }
     const row = result.rows[0];
     const settings = row.settings_json ?? {};
+    const { pipeline: _legacyPipeline, ...onboardingData } = cleanObject(settings.onboarding);
+    if (!ONBOARDING_STEPS.has(onboardingData.active_step)) {
+      onboardingData.active_step = "company";
+    }
     const solarglobeHome = String(row.name ?? "").toLowerCase().includes("solarglobe");
     res.json({
       completed: solarglobeHome ? true : Boolean(row.onboarding_completed),
       completedSteps: solarglobeHome
-        ? ["company", "mail", "team", "pipeline", "lead"]
+        ? ["company", "mail", "team", "lead"]
         : row.onboarding_step_completed ?? [],
       organization: { id: row.id, name: row.name },
-      data: settings.onboarding ?? {},
+      data: onboardingData,
     });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -624,10 +614,15 @@ export async function patchOnboarding(req, res) {
 
       const settings = current.rows[0].settings_json ?? {};
       const onboarding = cleanObject(settings.onboarding);
+      const { pipeline: _legacyPipeline, ...onboardingWithoutPipeline } = onboarding;
       const mergedOnboarding = {
-        ...onboarding,
+        ...onboardingWithoutPipeline,
         ...dataPatch,
-        active_step: ONBOARDING_STEPS.has(activeStep) ? activeStep : onboarding.active_step,
+        active_step: ONBOARDING_STEPS.has(activeStep)
+          ? activeStep
+          : ONBOARDING_STEPS.has(onboarding.active_step)
+            ? onboarding.active_step
+            : "company",
         updated_at: new Date().toISOString(),
       };
       if (completed) mergedOnboarding.completed_at = new Date().toISOString();
