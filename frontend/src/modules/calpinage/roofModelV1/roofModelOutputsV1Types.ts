@@ -7,6 +7,10 @@ export type RoofOutputsBundleV1 = Readonly<{
     specificYieldKwhPerKwc: number | null;
     totalLossPct: number | null;
     source: string;
+    /** Gain bifacial estimé en %, null si non calculé ou panneau non bifacial. */
+    bifacialGainPct?: number | null;
+    /** Gain bifacial absolu en kWh/an, null si non calculé ou panneau non bifacial. */
+    bifacialGainKwh?: number | null;
   };
   bom: {
     totalRailLinearM: number;

@@ -17,7 +17,7 @@
  *   - Aucune dépendance à window.* dans ce fichier
  */
 import { create } from "zustand";
-import type { CalpinageStore, CalpinagePhase2Snapshot, CalpinagePhase3Snapshot, HorizonMaskData } from "./storeTypes";
+import type { CalpinageStore, CalpinagePhase2Snapshot, CalpinagePhase3Snapshot, HorizonMaskData, RoofRawState } from "./storeTypes";
 import { invalidateMppDependentCache } from "../adapter/calpinageStateToLegacyRoofInput";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -92,6 +92,11 @@ export const useCalpinageStore = create<CalpinageStore>((set) => ({
   metersPerPixel: null,
   degraded3DReason: null,
   horizonMask: null,
+  roofRawState: null,
+
+  setRoofRawState(s: RoofRawState | null): void {
+    set({ roofRawState: s });
+  },
 
   setMetersPerPixel(mpp: number): void {
     if (!Number.isFinite(mpp) || mpp <= 0) return;

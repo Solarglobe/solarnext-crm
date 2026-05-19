@@ -17,7 +17,7 @@ import { reportOfficialSolarPipelineFailure } from "../canonical3d/dev/officialS
 import { optimalSingleBuildingLegacyRoofMapOptions } from "../integration/mapCalpinageToCanonicalNearShading";
 import { getOrBuildOfficialSolarScene3DFromCalpinageRuntime } from "../canonical3d/scene/officialSolarScene3DGateway";
 import { CALPINAGE_OFFICIAL_RUNTIME_STRUCTURAL_CHANGE } from "../canonical3d/scene/sceneRuntimeStructuralSignature";
-import { readPvLayout3dProductEnabledFromWindow } from "../runtime/pvLayout3dRollout";
+import { useCalpinageFeatures } from "../features/CalpinageFeatureContext";
 import { getPvLayout3dProductCapabilityReport } from "../runtime/pvPlacement3dProduct";
 import type { OfficialRuntimeStructuralChangePayload } from "../runtime/emitOfficialRuntimeStructuralChange";
 import type { SolarScene3D } from "../canonical3d/types/solarScene3d";
@@ -120,7 +120,14 @@ function assertRoofVertexEditTarget(
   return true;
 }
 
-function getAllPanelsFromRuntime(): unknown[] {
+/**
+ * Retourne les panneaux PV actuellement posés, en excluant le bloc actif non-figé
+ * (panneau fantôme flottant pendant une pose en cours).
+ *
+ * @param pvLayoutMode - true si le mode produit pose PV 3D est actif (flag A2).
+ *   Doit être passé depuis `useCalpinageFeatures().pvLayoutMode` dans le composant.
+ */
+function getAllPanelsFromRuntime(pvLayoutMode: boolean): unknown[] {
   try {
     const eng = getCalpinageRuntime()?.getPlacementEngine();
     if (!eng) return [];
@@ -129,13 +136,12 @@ function getAllPanelsFromRuntime(): unknown[] {
       typeof window !== "undefined"
         ? (window as unknown as {
             __CALPINAGE_VIEW_MODE__?: string;
-            __CALPINAGE_3D_PV_LAYOUT_MODE__?: boolean;
             CALPINAGE_STATE?: { currentPhase?: string };
           })
         : null;
     const pvLayout3DActive =
       w?.__CALPINAGE_VIEW_MODE__ === "3D" &&
-      w.__CALPINAGE_3D_PV_LAYOUT_MODE__ === true &&
+      pvLayoutMode === true &&
       w.CALPINAGE_STATE?.currentPhase === "PV_LAYOUT";
     if (pvLayout3DActive) return allPanels;
     // Exclure les panneaux du bloc actif s'il n'est pas figé.
@@ -318,6 +324,24 @@ function Inline3DViewer({
   const pendingStructuralEventRef = useRef<OfficialRuntimeStructuralChangePayload | null>(null);
   const forceNextSceneRebuildRef = useRef(false);
 
+  // ── Feature flags 3D — A2 : lecture via Context (plus de window.__CALPINAGE_3D_*__) ──
+  const {
+    vertexZEdit,
+    vertexXYEdit,
+    ridgeHeightEdit,
+    pvPlaceProbe,
+    pvLayoutMode,
+  } = useCalpinageFeatures();
+
+  /**
+   * Version liée du panneau-getter, capturant `pvLayoutMode` depuis le Context.
+   * Stable tant que pvLayoutMode ne change pas (flags résolus une seule fois au montage).
+   */
+  const getAllPanelsForRuntime = useCallback(
+    () => getAllPanelsFromRuntime(pvLayoutMode),
+    [pvLayoutMode],
+  );
+
   const buildScene = useCallback(() => {
     try {
       const state = resolveCalpinageRuntime(calpinageStateProp);
@@ -345,8 +369,8 @@ function Inline3DViewer({
         ...(optimalSingleBuilding ? { legacyRoofMapOptions: optimalSingleBuildingLegacyRoofMapOptions() } : {}),
         ...(forceStructuralRebuild ? { forceStructuralRebuild: true } : {}),
         // T13 : accès typé via façade runtime — cohérent avec L.117 du même fichier.
-        // getAllPanelsFromRuntime() exclut le bloc actif non figé (panneau fantôme flottant).
-        getAllPanels: () => getAllPanelsFromRuntime(),
+        // getAllPanelsForRuntime() exclut le bloc actif non figé (panneau fantôme flottant).
+        getAllPanels: getAllPanelsForRuntime,
       });
       if (import.meta.env.DEV) {
         const s = result.sceneSyncDiagnostics;
@@ -470,7 +494,7 @@ function Inline3DViewer({
         console.warn("[3D-EMERGENCY][FAIL]", { mode: "bridge_throw_and_emergency_exhausted" });
       }
     }
-  }, [calpinageStateProp]);
+  }, [calpinageStateProp, getAllPanelsForRuntime]);
 
   useEffect(() => {
     if (calpinageStateProp !== undefined) {
@@ -484,16 +508,16 @@ function Inline3DViewer({
     }
   }, [runtimeNotifyEpoch, buildScene]);
 
-  /** Verrouille la manipulation PV sur le canvas 2D quand le modeleur 3D toiture est actif (vue 3D). */
+  /**
+   * Verrouille la manipulation PV sur le canvas 2D quand le modeleur 3D toiture est actif (vue 3D).
+   * Lit vertexZEdit / vertexXYEdit depuis le Context (A2) au lieu de window.__CALPINAGE_3D_*__.
+   * Écrit toujours __CALPINAGE_3D_ROOF_VERTEX_EDIT_ACTIVE__ sur window (flag DERIVÉ lu par le legacy).
+   */
   useEffect(() => {
     const sync = () => {
       const w = window as Window & { __CALPINAGE_3D_ROOF_VERTEX_EDIT_ACTIVE__?: boolean };
       const mode3d = (window as unknown as { __CALPINAGE_VIEW_MODE__?: string }).__CALPINAGE_VIEW_MODE__ === "3D";
-      const z =
-        (window as unknown as { __CALPINAGE_3D_VERTEX_Z_EDIT__?: boolean }).__CALPINAGE_3D_VERTEX_Z_EDIT__ === true;
-      const xy =
-        (window as unknown as { __CALPINAGE_3D_VERTEX_XY_EDIT__?: boolean }).__CALPINAGE_3D_VERTEX_XY_EDIT__ === true;
-      w.__CALPINAGE_3D_ROOF_VERTEX_EDIT_ACTIVE__ = mode3d && (z || xy);
+      w.__CALPINAGE_3D_ROOF_VERTEX_EDIT_ACTIVE__ = mode3d && (vertexZEdit || vertexXYEdit);
     };
     sync();
     window.addEventListener("calpinage:viewmode", sync);
@@ -502,7 +526,7 @@ function Inline3DViewer({
       const w = window as Window & { __CALPINAGE_3D_ROOF_VERTEX_EDIT_ACTIVE__?: boolean };
       delete w.__CALPINAGE_3D_ROOF_VERTEX_EDIT_ACTIVE__;
     };
-  }, []);
+  }, [vertexZEdit, vertexXYEdit]);
 
   useEffect(() => {
     function onViewMode(e: Event) {
@@ -572,21 +596,15 @@ function Inline3DViewer({
   const [roofHistSeq, setRoofHistSeq] = useState(0);
   const bumpRoofHist = useCallback(() => setRoofHistSeq((n) => n + 1), []);
 
-  const enableVertexZEditFlag =
-    typeof window !== "undefined" &&
-    (window as unknown as { __CALPINAGE_3D_VERTEX_Z_EDIT__?: boolean }).__CALPINAGE_3D_VERTEX_Z_EDIT__ === true;
+  // ── Feature flags depuis Context (A2 — plus de lecture window.__CALPINAGE_3D_*__) ──
+  const enableVertexZEditFlag = vertexZEdit;
   const zDragBridgeUnarmedLoggedRef = useRef(false);
-  const enableVertexXYEditFlag =
-    typeof window !== "undefined" &&
-    (window as unknown as { __CALPINAGE_3D_VERTEX_XY_EDIT__?: boolean }).__CALPINAGE_3D_VERTEX_XY_EDIT__ === true;
-  const enableStructuralRidgeHeightEditFlag =
-    typeof window !== "undefined" &&
-    (window as unknown as { __CALPINAGE_3D_RIDGE_HEIGHT_EDIT__?: boolean }).__CALPINAGE_3D_RIDGE_HEIGHT_EDIT__ ===
-      true;
+  const enableVertexXYEditFlag = vertexXYEdit;
+  const enableStructuralRidgeHeightEditFlag = ridgeHeightEdit;
   const enableModelingHistory =
     enableVertexZEditFlag || enableVertexXYEditFlag || enableStructuralRidgeHeightEditFlag;
 
-  const enablePvLayout3dFlag = readPvLayout3dProductEnabledFromWindow();
+  const enablePvLayout3dFlag = pvLayoutMode;
   const pvLayout3dCapabilities = getPvLayout3dProductCapabilityReport();
   const pvLayout3dCapabilitiesMissingKey = pvLayout3dCapabilities.missing.join("|");
   const rootRt = resolveCalpinageRuntime(calpinageStateProp);
@@ -611,7 +629,7 @@ function Inline3DViewer({
     if (!enableVertexZEditFlag) {
       zDragBridgeUnarmedLoggedRef.current = true;
       console.warn("[3D DRAG] Z edit disabled or unarmed", {
-        cause: "window.__CALPINAGE_3D_VERTEX_Z_EDIT__ !== true",
+        cause: "CalpinageFeatureContext.vertexZEdit !== true",
       });
     }
   }, [scene, enableVertexZEditFlag]);
@@ -821,7 +839,7 @@ function Inline3DViewer({
         syncRoofDerivedMirrors(root);
         const post = validateCalpinageRuntimeAfterRoofEdit(root, {
           editedPanId: edit.panId,
-          getAllPanels: getAllPanelsFromRuntime,
+          getAllPanels: getAllPanelsForRuntime,
         });
         if (!post.ok) {
           legacy.rollback?.();
@@ -904,7 +922,7 @@ function Inline3DViewer({
       syncRoofDerivedMirrors(root);
       const post = validateCalpinageRuntimeAfterRoofEdit(root, {
         editedPanId: edit.panId,
-        getAllPanels: getAllPanelsFromRuntime,
+        getAllPanels: getAllPanelsForRuntime,
       });
       if (!post.ok) {
         if (pansBefore != null) rollbackPansAndSync(root, pansBefore);
@@ -929,7 +947,7 @@ function Inline3DViewer({
           : "applyRoofVertexHeightEdit+rebuildPanPlanarHeightsAfterZEdit",
       );
     },
-    [bumpRoofHist, buildScene, calpinageStateProp, enableModelingHistory, notifyParentState],
+    [bumpRoofHist, buildScene, calpinageStateProp, enableModelingHistory, getAllPanelsForRuntime, notifyParentState],
   );
 
   const handleRoofVertexXYCommit = useCallback(
@@ -948,7 +966,7 @@ function Inline3DViewer({
       syncRoofDerivedMirrors(root);
       const post = validateCalpinageRuntimeAfterRoofEdit(root, {
         editedPanId: edit.panId,
-        getAllPanels: getAllPanelsFromRuntime,
+        getAllPanels: getAllPanelsForRuntime,
       });
       if (!post.ok) {
         if (pansBefore != null) rollbackPansAndSync(root, pansBefore);
@@ -966,7 +984,7 @@ function Inline3DViewer({
       if (enableModelingHistory) bumpRoofHist();
       buildScene();
     },
-    [bumpRoofHist, buildScene, calpinageStateProp, enableModelingHistory, notifyParentState],
+    [bumpRoofHist, buildScene, calpinageStateProp, enableModelingHistory, getAllPanelsForRuntime, notifyParentState],
   );
 
   const handleStructuralRidgeHeightCommit = useCallback(
@@ -983,7 +1001,7 @@ function Inline3DViewer({
       syncRoofDerivedMirrors(root);
       const post = validateCalpinageRuntimeAfterRoofEdit(root, {
         editedPanId: firstPanIdForStructuralValidation(root),
-        getAllPanels: getAllPanelsFromRuntime,
+        getAllPanels: getAllPanelsForRuntime,
         validateSlopeOnAllPans: true,
         scopePanGeometryErrorsToEditedPanId: false,
       });
@@ -1004,7 +1022,7 @@ function Inline3DViewer({
       if (enableModelingHistory) bumpRoofHist();
       buildScene();
     },
-    [bumpRoofHist, buildScene, calpinageStateProp, enableModelingHistory, notifyParentState],
+    [bumpRoofHist, buildScene, calpinageStateProp, enableModelingHistory, getAllPanelsForRuntime, notifyParentState],
   );
 
   const handleRoofHeightAssistantApply = useCallback(
@@ -1023,7 +1041,7 @@ function Inline3DViewer({
       syncRoofDerivedMirrors(root);
       const post = validateCalpinageRuntimeAfterRoofEdit(root, {
         editedPanId: firstPanIdForStructuralValidation(root),
-        getAllPanels: getAllPanelsFromRuntime,
+        getAllPanels: getAllPanelsForRuntime,
         validateSlopeOnAllPans: true,
         scopePanGeometryErrorsToEditedPanId: false,
       });
@@ -1044,7 +1062,7 @@ function Inline3DViewer({
       if (enableModelingHistory) bumpRoofHist();
       buildScene();
     },
-    [bumpRoofHist, buildScene, calpinageStateProp, enableModelingHistory, notifyParentState],
+    [bumpRoofHist, buildScene, calpinageStateProp, enableModelingHistory, getAllPanelsForRuntime, notifyParentState],
   );
 
   const roofHeightAssistant = useMemo(() => {

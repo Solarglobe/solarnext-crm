@@ -144,6 +144,36 @@ export interface CalpinagePhase3Snapshot {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// ROOF RAW STATE — reflet typé du window.CALPINAGE_STATE complet
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Reflet typé du `window.CALPINAGE_STATE` complet, stocké dans le store Zustand.
+ *
+ * Seule source de vérité pour les composants React qui ont besoin du runtime legacy
+ * (SolarScene3DViewer, KonvaOverlay). Aucun composant ne lit window directement.
+ *
+ * Le champ index `[key: string]: unknown` permet de stocker le CALPINAGE_STATE complet
+ * (25 k lignes legacy) sans perte d'information, tout en documentant les champs connus.
+ *
+ * Écrit par legacyCalpinageStateAdapter.ts — jamais depuis les composants React.
+ */
+export interface RoofRawState {
+  /** Phase courante : "DRAWING" | "PV_LAYOUT" | … (guard pour les handlers PV 3D). */
+  currentPhase?: string | null;
+  /** Données toiture validées Phase 2 (CALPINAGE_STATE.validatedRoofData). */
+  validatedRoofData?: unknown;
+  /** Objet toiture : scale, map, image, pans, contours… */
+  roof?: {
+    map?: { zoom?: number; centerLatLng?: { lat?: number } };
+    scale?: { metersPerPixel?: number; canvasHeight?: number };
+    image?: { height?: number };
+  } | null;
+  /** Permet de stocker l'intégralité du CALPINAGE_STATE sans perte. */
+  [key: string]: unknown;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // FAR SHADING — masque d'horizon lointain
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -236,6 +266,22 @@ export interface CalpinageStore {
    * Flag ENABLE_FAR_SHADING (VITE_CALPINAGE_FAR_SHADING) à vérifier avant utilisation.
    */
   horizonMask: HorizonMaskData | null;
+
+  /**
+   * Reflet complet de `window.CALPINAGE_STATE` — seule source de vérité pour les
+   * composants React qui ont besoin du runtime legacy (SolarScene3DViewer, KonvaOverlay).
+   *
+   * null avant bootstrap (initCalpinage() pas encore terminé).
+   * Mis à jour à chaque "phase3:update" par legacyCalpinageStateAdapter.
+   * Remplace les lectures directes de `window.CALPINAGE_STATE` dans les composants React.
+   */
+  roofRawState: RoofRawState | null;
+
+  /**
+   * Stocke le reflet complet de window.CALPINAGE_STATE dans `roofRawState`.
+   * Appelé uniquement par legacyCalpinageStateAdapter — jamais depuis les composants React.
+   */
+  setRoofRawState: (s: RoofRawState | null) => void;
 
   /**
    * Met à jour le metersPerPixel et invalide les caches de surfaces/longueurs.

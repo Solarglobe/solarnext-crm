@@ -64,6 +64,7 @@ import MailInboxPage from "./pages/mail/MailInboxPage";
 import MailOutboxPage from "./pages/mail/MailOutboxPage";
 import MailSettingsPage from "./pages/settings/MailSettingsPage";
 import SecuritySettingsPage from "./pages/SecuritySettingsPage";
+import ReportCrmPage from "./pages/ReportCrmPage";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { initFrontendSentry } from "./lib/sentry";
 import "./styles/theme-overrides.css";
@@ -145,6 +146,7 @@ const router = createBrowserRouter(
         { index: true, element: <Navigate to="/dashboard" replace /> },
         { path: "crm", element: <Navigate to="/dashboard" replace /> },
         { path: "dashboard", element: <DashboardPage /> },
+        { path: "rapport-crm", element: <ReportCrmPage /> },
         { path: "leads", element: <LeadsPage /> },
         { path: "leads/:id", element: <LeadDetail /> },
         { path: "leads/:id/dp", element: <LeadDpPage /> },

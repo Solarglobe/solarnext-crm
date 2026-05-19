@@ -272,6 +272,8 @@ import {
   type PvLayout3dOverlayState,
 } from "../../runtime/pvPlacement3dProduct";
 import { PvLayout3dDragController, type PvLayout3dDragSession } from "./PvLayout3dDragController";
+import { useCalpinageStore } from "../../store/calpinageStore";
+import { useCalpinageFeatures } from "../../features/CalpinageFeatureContext";
 import {
   compute3DRuntimeVerdict,
   dump3DRuntimeViewerGeoCompare,
@@ -3661,6 +3663,13 @@ function SolarScene3DViewer({
   }
   const scene = baseScene;
 
+  // Reflet de window.CALPINAGE_STATE depuis le store Zustand — aucune lecture directe de window.
+  // Mis à jour à chaque "phase3:update" par legacyCalpinageStateAdapter.
+  const roofRawState = useCalpinageStore((s) => s.roofRawState);
+
+  // Feature flags 3D — A2 : lecture via Context (plus de window.__CALPINAGE_3D_PV_PLACE_PROBE__).
+  const { pvPlaceProbe } = useCalpinageFeatures();
+
   const [extensionVolDebugLevel, setExtensionVolDebugLevel] = useState<0 | 1 | 2>(0);
   useEffect(() => {
     if (!import.meta.env.DEV) return;
@@ -3913,11 +3922,7 @@ function SolarScene3DViewer({
       if (allowStructuralPick && wc) {
         const p = e.point;
         const img = worldPointToImage({ x: p.x, y: p.y, z: p.z }, wc);
-        const rt =
-          debugRuntime ??
-          (typeof window !== "undefined"
-            ? (window as unknown as { CALPINAGE_STATE?: unknown }).CALPINAGE_STATE
-            : null);
+        const rt = debugRuntime ?? roofRawState;
         const sel = resolveNearestStructuralHeightSelectionFromImagePx(
           rt,
           { x: img.x, y: img.y },
@@ -3958,6 +3963,7 @@ function SolarScene3DViewer({
     },
     [
       debugRuntime,
+      roofRawState,
       enableStructuralRidgeHeightEdit,
       inspectMode,
       onStructuralRidgeHeightCommit,
@@ -4364,11 +4370,7 @@ function SolarScene3DViewer({
       if (!wc) return;
       const p = e.point;
       const img = worldPointToImage({ x: p.x, y: p.y, z: p.z }, wc);
-      const rt =
-        debugRuntime ??
-        (typeof window !== "undefined"
-          ? (window as unknown as { CALPINAGE_STATE?: unknown }).CALPINAGE_STATE
-          : null);
+      const rt = debugRuntime ?? roofRawState;
       const sel = resolveNearestStructuralHeightSelectionFromImagePx(
         rt,
         { x: img.x, y: img.y },
@@ -4380,25 +4382,21 @@ function SolarScene3DViewer({
       setStructuralHeightSelection(sel);
       setOrbitSuppressed(true);
     },
-    [debugRuntime, scene.worldConfig],
+    [debugRuntime, roofRawState, scene.worldConfig],
   );
 
   const calpinageRuntimeForPv = useMemo(
-    () =>
-      debugRuntime ??
-      (typeof window !== "undefined" ? (window as { CALPINAGE_STATE?: unknown }).CALPINAGE_STATE : null),
-    [debugRuntime],
+    () => debugRuntime ?? roofRawState,
+    [debugRuntime, roofRawState],
   );
 
   const pvRoofPlacementEnabled = useMemo(() => {
-    const probe =
-      typeof window !== "undefined" &&
-      (window as unknown as { __CALPINAGE_3D_PV_PLACE_PROBE__?: boolean }).__CALPINAGE_3D_PV_PLACE_PROBE__ === true;
+    // pvPlaceProbe : flag Context A2 (plus de lecture window.__CALPINAGE_3D_PV_PLACE_PROBE__).
     const rt = calpinageRuntimeForPv;
     const phaseOk =
       rt != null && typeof rt === "object" && (rt as { currentPhase?: string }).currentPhase === "PV_LAYOUT";
-    return (probe || pvLayout3DInteractionMode) && phaseOk;
-  }, [calpinageRuntimeForPv, pvLayout3DInteractionMode]);
+    return (pvPlaceProbe || pvLayout3DInteractionMode) && phaseOk;
+  }, [calpinageRuntimeForPv, pvLayout3DInteractionMode, pvPlaceProbe]);
 
   const [pv3dOverlayEpoch, setPv3dOverlayEpoch] = useState(0);
   const pv3dOverlayRefreshTimerRef = useRef<number | null>(null);
@@ -4488,11 +4486,7 @@ function SolarScene3DViewer({
       e.stopPropagation();
       const wc = scene.worldConfig;
       if (!wc) return;
-      const rt =
-        debugRuntime ??
-        (typeof window !== "undefined"
-          ? (window as unknown as { CALPINAGE_STATE?: unknown }).CALPINAGE_STATE
-          : null);
+      const rt = debugRuntime ?? roofRawState;
       if (!rt || typeof rt !== "object" || (rt as { currentPhase?: string }).currentPhase !== "PV_LAYOUT") {
         return;
       }
@@ -4516,7 +4510,7 @@ function SolarScene3DViewer({
       selectPvBlockFrom3d(resolvedBlockId, resolvedPanelId);
       refreshPv3dOverlay();
     },
-    [pvLayout3DInteractionMode, scene.worldConfig, debugRuntime, pvLayout3dOverlayState, refreshPv3dOverlay],
+    [pvLayout3DInteractionMode, scene.worldConfig, debugRuntime, roofRawState, pvLayout3dOverlayState, refreshPv3dOverlay],
   );
 
   const handleExistingPvPanelHitFrom3dImagePoint = useCallback(
@@ -4641,11 +4635,7 @@ function SolarScene3DViewer({
     if (!enableStructuralRidgeHeightEdit || !onStructuralRidgeHeightCommit || structuralHeightSelection == null) {
       return null;
     }
-    const rt =
-      debugRuntime ??
-      (typeof window !== "undefined"
-        ? (window as unknown as { CALPINAGE_STATE?: unknown }).CALPINAGE_STATE
-        : null);
+    const rt = debugRuntime ?? roofRawState;
     const refH = readCalpinageStructuralHeightM(rt, structuralHeightSelection) ?? 7;
     const pointLabel =
       structuralHeightSelection.type === "contour"
@@ -4669,6 +4659,7 @@ function SolarScene3DViewer({
     onStructuralRidgeHeightCommit,
     structuralHeightSelection,
     debugRuntime,
+    roofRawState,
   ]);
 
   useEffect(() => {

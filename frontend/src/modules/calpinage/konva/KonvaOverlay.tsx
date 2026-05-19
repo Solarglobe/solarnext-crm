@@ -133,27 +133,16 @@ export function KonvaOverlay({ containerRef }: Props) {
    * Debounce 300 ms obligatoire — un resize déclenche plusieurs events consécutifs,
    * chacun provoquant un re-render de la grille calpinage via le store.
    *
-   * Lit zoom + latitude depuis window.CALPINAGE_STATE.roof.map (disponible après capture).
-   * Le store est la seule source de vérité pour mpp côté React.
+   * Lit zoom + latitude depuis store.roofRawState.roof.map (disponible après capture).
+   * Le store Zustand est la seule source de vérité pour mpp côté React.
    */
   useEffect(() => {
     if (!canvasEl) return;
 
-    type CalpinageWindow = {
-      CALPINAGE_STATE?: {
-        roof?: {
-          map?: {
-            zoom?: number;
-            centerLatLng?: { lat?: number };
-          };
-          scale?: { metersPerPixel?: number };
-        };
-      };
-    };
-
     const updateMpp = () => {
-      const w = window as unknown as CalpinageWindow;
-      const map = w.CALPINAGE_STATE?.roof?.map;
+      // Lecture depuis le store Zustand — aucune lecture directe de window.CALPINAGE_STATE.
+      const roof = useCalpinageStore.getState().roofRawState?.roof;
+      const map = roof?.map;
       const zoom = typeof map?.zoom === "number" ? map.zoom : null;
       const lat = typeof map?.centerLatLng?.lat === "number" ? map.centerLatLng!.lat! : null;
 
@@ -163,7 +152,7 @@ export function KonvaOverlay({ containerRef }: Props) {
       }
       // Fallback : mpp stocké directement dans scale à la capture
       if (mpp === null || mpp <= 0) {
-        const stored = w.CALPINAGE_STATE?.roof?.scale?.metersPerPixel;
+        const stored = roof?.scale?.metersPerPixel;
         if (typeof stored === "number" && stored > 0) mpp = stored;
       }
       if (mpp !== null && mpp > 0) {

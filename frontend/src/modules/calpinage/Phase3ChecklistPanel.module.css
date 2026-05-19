@@ -159,3 +159,11 @@
   color: #6b7280;
   margin-left: 4px;
 }
+
+/* ─── Section graphique TMY P50/P90 ────────────────────────────────────────── */
+
+.tmySection {
+  margin-top: 4px;
+  margin-bottom: 2px;
+  width: 100%;
+}

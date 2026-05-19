@@ -75,6 +75,19 @@ function DashboardNavIcon() {
   );
 }
 
+/** Rapport CRM — audit et plan de correction */
+function ReportCrmIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 4h16v16H4z" />
+      <path d="M8 8h8" />
+      <path d="M8 12h5" />
+      <path d="M8 16h7" />
+      <path d="M17 13l1.5 1.5L21 12" />
+    </svg>
+  );
+}
+
 /** Leads — prospect entrant (personne + plus) */
 function LeadIcon() {
   return (
@@ -288,6 +301,7 @@ function SuperAdminOrgsIcon() {
 
 const principalModules = [
   { path: "/dashboard", label: "Tableau de bord", icon: DashboardNavIcon, end: true },
+  { path: "/rapport-crm", label: "Rapport CRM", icon: ReportCrmIcon, end: true },
   { path: "/leads", label: "Leads", icon: LeadIcon },
   { path: "/clients", label: "Clients", icon: ClientIcon },
   { path: "/planning", label: "Planning", icon: CalendarIcon, end: true },
@@ -346,6 +360,7 @@ function pathMatchesSection(pathname: string, id: SidebarSectionId): boolean {
   if (id === "principal") {
     return (
       pathname.startsWith("/dashboard") ||
+      pathname.startsWith("/rapport-crm") ||
       pathname.startsWith("/leads") ||
       pathname.startsWith("/clients") ||
       pathname.startsWith("/planning") ||

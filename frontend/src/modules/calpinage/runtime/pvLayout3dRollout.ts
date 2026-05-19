@@ -71,7 +71,12 @@ export function getPvPlaceProbeRolloutResolution(): BooleanRolloutResolution {
   });
 }
 
-/** Lecture runtime après installation par `CalpinageApp` (bridge / tests). */
+/**
+ * @deprecated Utiliser `useCalpinageFeatures().pvLayoutMode` (CalpinageFeatureContext).
+ * `CalpinageApp` n'écrit plus `window.__CALPINAGE_3D_PV_LAYOUT_MODE__` depuis A2.
+ * Cette fonction retourne toujours `false` en production post-A2 — conservée
+ * uniquement pour éviter les erreurs d'import le temps de la migration complète.
+ */
 export function readPvLayout3dProductEnabledFromWindow(): boolean {
   if (typeof window === "undefined") return false;
   const w = window as unknown as { __CALPINAGE_3D_PV_LAYOUT_MODE__?: boolean };

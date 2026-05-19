@@ -39,7 +39,7 @@
  */
 
 import { useCalpinageStore } from "../calpinageStore";
-import type { CalpinagePhase2Snapshot, CalpinagePhase3Snapshot, FlatRoofUiProjection } from "../storeTypes";
+import type { CalpinagePhase2Snapshot, CalpinagePhase3Snapshot, FlatRoofUiProjection, RoofRawState } from "../storeTypes";
 import { getCalpinageRuntime } from "../../runtime/calpinageRuntime";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -246,6 +246,29 @@ function readPhase3Snapshot(): CalpinagePhase3Snapshot {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Lecture RoofRawState — reflet complet de window.CALPINAGE_STATE
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Lit le CALPINAGE_STATE complet et le retourne comme RoofRawState.
+ *
+ * On stocke l'objet **par référence** : window.CALPINAGE_STATE est muté in-place
+ * par le legacy IIFE à chaque événement. Le store React reçoit la même référence
+ * après chaque "phase3:update", ce qui suffit pour les composants qui ont besoin
+ * du runtime complet (SolarScene3DViewer handlers, KonvaOverlay mpp).
+ *
+ * null si le legacy n'est pas encore monté (avant initCalpinage()).
+ */
+function readRoofRawState(): RoofRawState | null {
+  const win = window as unknown as Win;
+  const state = win.CALPINAGE_STATE as Record<string, unknown> | null | undefined;
+  if (!state) return null;
+  // Cast direct — RoofRawState a un index signature [key: string]: unknown
+  // compatible avec n'importe quel objet Record.
+  return state as RoofRawState;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Bootstrap + teardown
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -266,6 +289,7 @@ export function bootstrapCalpinageStore(): () => void {
     initialized: true,
     phase2: readPhase2Snapshot(),
     phase3: readPhase3Snapshot(),
+    roofRawState: readRoofRawState(),
   });
 
   // Sync événementiel — le legacy émet ces événements après chaque mutation
@@ -273,7 +297,11 @@ export function bootstrapCalpinageStore(): () => void {
     useCalpinageStore.setState({ phase2: readPhase2Snapshot() });
   };
   const onPhase3 = (): void => {
-    useCalpinageStore.setState({ phase3: readPhase3Snapshot() });
+    // roofRawState est mis à jour en même temps que phase3 — même source (window.CALPINAGE_STATE).
+    useCalpinageStore.setState({
+      phase3: readPhase3Snapshot(),
+      roofRawState: readRoofRawState(),
+    });
   };
 
   window.addEventListener(PHASE2_EVENT, onPhase2);

@@ -536,6 +536,86 @@
   cursor: pointer;
 }
 
+/* —— Section Bifaciale —— */
+.bifacialSection {
+  margin-bottom: 12px;
+  padding: 10px 12px 12px;
+  background: var(--color-bg-card, #ffffff);
+  border: 1px solid var(--color-border-default, #e5e7eb);
+  border-radius: var(--radius-card-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sectionTitle {
+  margin: 0 0 2px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-secondary, #374151);
+}
+
+.checkLabel {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text, #111827);
+  cursor: pointer;
+  user-select: none;
+}
+
+.checkLabel input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  accent-color: var(--brand-accent, #6366F1);
+  cursor: pointer;
+}
+
+.fieldLabel {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary, #374151);
+}
+
+.numberInput,
+.selectInput {
+  width: 100%;
+  height: 30px;
+  padding: 0 8px;
+  font-size: 12px;
+  border: 1px solid var(--color-border-default, #d1d5db);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-page, #fafafa);
+  color: var(--text, #111827);
+  outline: none;
+  transition: border-color 0.12s ease;
+}
+
+.numberInput:focus,
+.selectInput:focus {
+  border-color: var(--brand-accent, #6366F1);
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
+}
+
+.bifacialResult {
+  margin: 2px 0 0;
+  padding: 6px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #15803d;
+  background: #f0fdf4;
+  border-radius: var(--radius-sm);
+  border: 1px solid #bbf7d0;
+  line-height: 1.35;
+}
+
 /* ══════════════════════════════════════════════
    DARK MODE
    ══════════════════════════════════════════════ */
@@ -627,4 +707,34 @@
 
 :global(html.theme-dark) .stateStatusKey {
   color: var(--text-secondary, #A8B3CF);
+}
+
+:global(html.theme-dark) .bifacialSection {
+  background: rgba(226, 232, 240, 0.04);
+  border-color: var(--color-border-default, rgba(226, 232, 240, 0.10));
+}
+
+:global(html.theme-dark) .sectionTitle {
+  color: var(--text-secondary, #A8B3CF);
+}
+
+:global(html.theme-dark) .checkLabel {
+  color: var(--text, #E8ECF8);
+}
+
+:global(html.theme-dark) .fieldLabel {
+  color: var(--text-secondary, #A8B3CF);
+}
+
+:global(html.theme-dark) .numberInput,
+:global(html.theme-dark) .selectInput {
+  background: rgba(226, 232, 240, 0.06);
+  border-color: var(--color-border-default, rgba(226, 232, 240, 0.15));
+  color: var(--text, #E8ECF8);
+}
+
+:global(html.theme-dark) .bifacialResult {
+  background: rgba(21, 128, 61, 0.12);
+  border-color: rgba(21, 128, 61, 0.3);
+  color: #86efac;
 }

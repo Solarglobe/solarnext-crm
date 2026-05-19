@@ -14,5 +14,11 @@
     "restore:storage:railway": "node backend/scripts/railway-restore-storage.mjs",
     "push:github": "git push -u origin HEAD",
     "push:github:tags": "git push origin --tags"
+  },
+  "dependencies": {
+    "@remotion/cli": "^4.0.462",
+    "@remotion/player": "^4.0.462",
+    "@remotion/renderer": "^4.0.462",
+    "remotion": "^4.0.462"
   }
 }

@@ -1,0 +1,464 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Rapport CRM SolarNext - Audit et prompts</title>
+  <style>
+    :root {
+      --bg:#f5f7fb; --card:#fff; --ink:#0f172a; --text:#273449; --muted:#64748b;
+      --line:#dbe3ef; --green:#0f766e; --blue:#1d4ed8; --red:#991b1b; --amber:#9a3412;
+      --shadow:0 18px 48px rgba(15,23,42,.08);
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:linear-gradient(180deg,rgba(15,118,110,.08),transparent 360px),var(--bg);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    main{max-width:1180px;margin:0 auto;padding:42px 22px 70px}
+    h1{margin:0 0 14px;font-size:clamp(38px,5vw,68px);line-height:.95;letter-spacing:0}
+    h2{margin:0 0 14px;font-size:clamp(26px,3vw,36px);line-height:1.08;letter-spacing:0}
+    h3{margin:0 0 10px;font-size:22px;line-height:1.2;letter-spacing:0}
+    p{margin:0 0 14px;color:var(--text);line-height:1.62}
+    .muted{color:var(--muted)}
+    .eyebrow{margin:0 0 8px;color:var(--green);font-size:12px;font-weight:950;letter-spacing:.06em;text-transform:uppercase}
+    .hero{display:grid;grid-template-columns:minmax(0,1fr) 190px;gap:24px;align-items:end;margin-bottom:26px}
+    .score{padding:18px;border:1px solid rgba(15,118,110,.25);border-radius:8px;background:var(--card);box-shadow:var(--shadow)}
+    .score strong{display:block;color:var(--green);font-size:42px;line-height:1}
+    .score span{display:block;margin-top:8px;color:var(--muted);font-size:13px;font-weight:800}
+    .section{margin-top:24px}
+    .panel,.finding,.phase,.prompt{border:1px solid var(--line);border-radius:8px;background:var(--card);box-shadow:var(--shadow)}
+    .panel{padding:20px;margin-bottom:16px}
+    .grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin:18px 0}
+    .metric{padding:17px;border:1px solid var(--line);border-radius:8px;background:var(--card);box-shadow:var(--shadow)}
+    .metric span{display:block;color:var(--muted);font-size:12px;font-weight:900;text-transform:uppercase}
+    .metric strong{display:block;margin-top:8px;font-size:28px}
+    .finding{padding:18px;margin-bottom:14px}
+    .head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+    .badge{display:inline-flex;align-items:center;min-height:24px;padding:0 9px;border-radius:999px;font-size:12px;font-weight:950}
+    .critical{background:#fee2e2;color:var(--red)} .high{background:#ffedd5;color:var(--amber)} .medium{background:#dbeafe;color:var(--blue)} .design{background:#dcfce7;color:#166534} .debt{background:#e2e8f0;color:#334155}
+    .area{color:var(--muted);font-size:13px;font-weight:800}
+    dl{display:grid;gap:10px;margin:0}
+    dt{font-size:13px;font-weight:950;color:var(--ink);margin-bottom:3px}
+    dd{margin:0;color:var(--text);line-height:1.58}
+    code{padding:2px 5px;border-radius:6px;background:#eef3f8;color:#334155;font-size:.92em}
+    .phase{padding:18px;margin-bottom:14px;border-left:5px solid var(--green)}
+    .phase ul{margin:10px 0 0;padding-left:20px;color:var(--text);line-height:1.58}
+    .prompt{overflow:hidden;margin-bottom:20px}
+    .prompt-head{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:18px;border-bottom:1px solid var(--line);background:#f9fbfd}
+    button{min-height:40px;padding:0 14px;border:1px solid rgba(15,118,110,.28);border-radius:8px;background:var(--green);color:#fff;font:inherit;font-weight:850;cursor:pointer;white-space:nowrap}
+    textarea{display:block;width:100%;min-height:620px;padding:20px;border:0;resize:vertical;outline:none;background:#fff;color:#172235;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono",monospace;font-size:14px;line-height:1.62}
+    .note{padding:12px 18px;border-top:1px solid var(--line);background:#eff6ff;color:#1e3a8a;line-height:1.55}
+    .toc{position:sticky;top:0;z-index:2;margin:-42px -22px 24px;padding:10px 22px;border-bottom:1px solid var(--line);background:rgba(255,255,255,.94);backdrop-filter:blur(10px);display:flex;gap:8px;flex-wrap:wrap}
+    .toc a{display:inline-flex;min-height:34px;align-items:center;padding:0 10px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--text);text-decoration:none;font-size:13px;font-weight:800}
+    @media(max-width:800px){main{padding:28px 14px 50px}.hero,.grid{grid-template-columns:1fr}.prompt-head{align-items:stretch;flex-direction:column}button{width:100%}textarea{min-height:760px}.toc{position:static;margin:-28px -14px 20px;padding:10px 14px}}
+  </style>
+</head>
+<body>
+<main>
+  <nav class="toc">
+    <a href="#synthese">Synthèse</a>
+    <a href="#audit">Audit détaillé</a>
+    <a href="#roadmap">Roadmap</a>
+    <a href="#prompts">Prompts à copier</a>
+  </nav>
+
+  <header class="hero" id="synthese">
+    <div>
+      <p class="eyebrow">Audit CRM SolarNext - un seul fichier autonome</p>
+      <h1>Rapport CRM complet + prompts prêts à copier</h1>
+      <p class="muted">Périmètre : CRM uniquement. Exclusions : calpinage, canonical3d, dp-tool, DP et déclaration préalable. Tout est dans cette seule page HTML.</p>
+    </div>
+    <div class="score"><strong>98%</strong><span>Objectif qualité après roadmap</span></div>
+  </header>
+
+  <section class="section">
+    <div class="grid">
+      <article class="metric"><span>Constats majeurs</span><strong>20</strong></article>
+      <article class="metric"><span>Critiques</span><strong>4</strong></article>
+      <article class="metric"><span>Phases</span><strong>5</strong></article>
+      <article class="metric"><span>Prompts complets</span><strong>6</strong></article>
+    </div>
+    <article class="panel">
+      <p class="eyebrow">Verdict</p>
+      <h2>Le CRM est riche, mais pas encore cohérent au niveau SaaS attendu.</h2>
+      <p>Les risques principaux sont le premier démarrage, le pipeline, la navigation des paramètres, les permissions visibles/invisibles, le modèle Clients, les endpoints settings concurrents et une couche visuelle encore trop hétérogène.</p>
+      <p>La priorité n’est pas de “faire joli” en premier. Il faut d’abord corriger ce qui casse la confiance : onboarding, pipeline réel, RBAC, settings et navigation.</p>
+    </article>
+  </section>
+
+  <section class="section" id="audit">
+    <p class="eyebrow">Audit détaillé</p>
+    <h2>Constats, preuves, impacts et corrections</h2>
+
+    <article class="finding"><div class="head"><span class="badge critical">Critique</span><span class="area">Onboarding / accès CRM</span></div><h3>L’onboarding peut être contourné</h3><dl><div><dt>Preuve</dt><dd><code>Login.tsx</code> et <code>MfaVerify.tsx</code> redirigent vers <code>/onboarding</code>, mais <code>ProtectedRoute.tsx</code> vérifie seulement l’authentification. Le shell CRM est exposé dans <code>main.tsx</code>.</dd></div><div><dt>Impact utilisateur</dt><dd>Un nouveau client peut arriver dans un CRM non configuré, avec entreprise, mail, équipe et pipeline incohérents.</dd></div><div><dt>Correction</dt><dd>Créer un garde global qui bloque toutes les routes CRM tant que <code>onboardingCompleted=false</code>.</dd></div></dl></article>
+
+    <article class="finding"><div class="head"><span class="badge critical">Critique</span><span class="area">Onboarding / pipeline</span></div><h3>L’étape Pipeline Kanban est une fausse promesse</h3><dl><div><dt>Preuve</dt><dd><code>OnboardingStepPipeline</code> modifie une liste locale stockée dans <code>settings_json.onboarding.pipeline</code>. Le vrai CRM lit <code>pipeline_stages</code>.</dd></div><div><dt>Impact utilisateur</dt><dd>L’utilisateur croit personnaliser son Kanban, mais le backend ne change pas. C’est une rupture de confiance immédiate.</dd></div><div><dt>Correction</dt><dd>Retirer l’étape ou créer une vraie API transactionnelle <code>pipeline_stages</code>.</dd></div></dl></article>
+
+    <article class="finding"><div class="head"><span class="badge critical">Critique</span><span class="area">Backend / pipeline seed</span></div><h3>Les nouvelles organisations peuvent recevoir un pipeline obsolète</h3><dl><div><dt>Preuve</dt><dd>Le trigger historique de seed pipeline peut diverger de la migration V2. La conversion client dépend de <code>stageCode === "SIGNED"</code>.</dd></div><div><dt>Impact utilisateur</dt><dd>Un lead déplacé en “Signé” peut ne pas devenir client si le stage a <code>code=NULL</code>.</dd></div><div><dt>Correction</dt><dd>Réparer le seed V2 et ajouter une migration idempotente pour les stages existants sans code.</dd></div></dl></article>
+
+    <article class="finding"><div class="head"><span class="badge critical">Critique</span><span class="area">Onboarding / validation</span></div><h3>Les étapes obligatoires peuvent être sautées</h3><dl><div><dt>Preuve</dt><dd>La sidebar d’<code>Onboarding.tsx</code> permet d’aller à n’importe quelle étape. <code>finish()</code> valide seulement l’étape active.</dd></div><div><dt>Impact utilisateur</dt><dd>Un compte peut terminer le setup sans entreprise, mail ou équipe correctement configurés.</dd></div><div><dt>Correction</dt><dd>Verrouiller les étapes futures et valider tout le parcours avant <code>completed=true</code>.</dd></div></dl></article>
+
+    <article class="finding"><div class="head"><span class="badge high">Élevé</span><span class="area">Backend / RBAC</span></div><h3>PATCH onboarding n’est pas protégé comme un réglage organisation</h3><dl><div><dt>Preuve</dt><dd><code>/api/organizations/onboarding</code> utilise <code>verifyJWT</code> seulement, alors que <code>/settings</code> et <code>/security</code> exigent <code>org.settings.manage</code>.</dd></div><div><dt>Impact utilisateur</dt><dd>N’importe quel utilisateur authentifié de l’organisation peut modifier l’état onboarding.</dd></div><div><dt>Correction</dt><dd>Exiger <code>org.settings.manage</code> ou limiter à l’admin créateur initial.</dd></div></dl></article>
+
+    <article class="finding"><div class="head"><span class="badge high">Élevé</span><span class="area">Onboarding / mail</span></div><h3>Le test mail est simulé</h3><dl><div><dt>Preuve</dt><dd><code>testMailConnection()</code> utilise <code>setTimeout</code> puis marque <code>tested=true</code>.</dd></div><div><dt>Impact utilisateur</dt><dd>L’interface annonce une connexion validée sans aucune preuve backend.</dd></div><div><dt>Correction</dt><dd>Brancher une API réelle de test mail ou renommer l’étape en configuration ultérieure.</dd></div></dl></article>
+
+    <article class="finding"><div class="head"><span class="badge high">Élevé</span><span class="area">Organisation / données</span></div><h3>Le profil entreprise onboarding n’alimente pas les données officielles</h3><dl><div><dt>Preuve</dt><dd>SIRET, RGE, couleur et adresse restent dans <code>settings_json.onboarding.profile</code>.</dd></div><div><dt>Impact utilisateur</dt><dd>Les informations saisies peuvent ne pas apparaître sur devis, factures ou PDF.</dd></div><div><dt>Correction</dt><dd>Mapper ces champs vers les colonnes/settings canoniques.</dd></div></dl></article>
+
+    <article class="finding"><div class="head"><span class="badge high">Élevé</span><span class="area">Settings</span></div><h3>Plusieurs APIs settings peuvent diverger</h3><dl><div><dt>Preuve</dt><dd><code>/api/organization/settings</code> merge arbitrairement <code>settings_json</code>, tandis que <code>/api/organizations/settings</code> valide economics/quote/finance.</dd></div><div><dt>Impact utilisateur</dt><dd>Risque de réglages corrompus ou de numérotation devis désynchronisée.</dd></div><div><dt>Correction</dt><dd>Déprécier/verrouiller l’ancien endpoint et migrer les callers.</dd></div></dl></article>
+
+    <article class="finding"><div class="head"><span class="badge high">Élevé</span><span class="area">Navigation</span></div><h3>Sécurité et audit log sont cachés</h3><dl><div><dt>Preuve</dt><dd><code>/settings/security</code> et <code>/admin/audit-log</code> existent dans le router mais ne sont pas clairement exposés.</dd></div><div><dt>Impact utilisateur</dt><dd>MFA, sessions actives et journal d’audit sont introuvables sans connaître l’URL.</dd></div><div><dt>Correction</dt><dd>Créer un hub Paramètres permissionnel.</dd></div></dl></article>
+
+    <article class="finding"><div class="head"><span class="badge high">Élevé</span><span class="area">Clients</span></div><h3>Le modèle Clients est ambigu</h3><dl><div><dt>Preuve</dt><dd><code>/clients</code> affiche une page clients, mais <code>/clients/:id</code> redirige vers <code>/leads/:id</code>.</dd></div><div><dt>Impact utilisateur</dt><dd>L’utilisateur ne sait pas si un client est une vraie fiche ou un lead converti.</dd></div><div><dt>Correction</dt><dd>Choisir un modèle officiel et aligner routes, libellés, recherche et liens.</dd></div></dl></article>
+
+    <article class="finding"><div class="head"><span class="badge design">Design</span><span class="area">SaaS UI</span></div><h3>La couche visuelle est trop hétérogène</h3><dl><div><dt>Preuve</dt><dd>CSS legacy, tokens, primitives, overrides et styles inline cohabitent. Les primitives UI sont contournées par modules.</dd></div><div><dt>Impact utilisateur</dt><dd>Le CRM paraît assemblé par couches, pas comme un produit SaaS homogène.</dd></div><div><dt>Correction</dt><dd>Stabiliser l’ordre CSS, migrer boutons/modales/états vers primitives communes.</dd></div></dl></article>
+
+    <article class="finding"><div class="head"><span class="badge medium">Moyen</span><span class="area">Mobile / feedback</span></div><h3>Tables trop larges, alertes natives, états inégaux</h3><dl><div><dt>Preuve</dt><dd>Plusieurs tables imposent >900px, et des <code>window.alert</code>/<code>window.confirm</code> restent dans des parcours importants.</dd></div><div><dt>Impact utilisateur</dt><dd>Mobile peu naturel, feedback abrupt, qualité perçue inférieure.</dd></div><div><dt>Correction</dt><dd>Créer vues responsive, toasts/modales, et composant PageState.</dd></div></dl></article>
+  </section>
+
+  <section class="section" id="roadmap">
+    <p class="eyebrow">Roadmap</p>
+    <h2>Plan de correction par phases</h2>
+    <article class="phase"><h3>Phase 1 - Onboarding fiable</h3><p>Corriger contournement, progression, pipeline fictif, mail simulé, équipe brouillon et mapping entreprise.</p><ul><li>Garde global onboarding.</li><li>Validation globale des étapes.</li><li>Retrait ou vraie API pipeline.</li><li>PATCH onboarding protégé RBAC.</li></ul></article>
+    <article class="phase"><h3>Phase 2 - Navigation et paramètres</h3><p>Remettre toutes les pages au bon endroit.</p><ul><li>Hub Paramètres.</li><li>Sidebar permission-aware.</li><li>Inventaire des routes cachées/legacy.</li></ul></article>
+    <article class="phase"><h3>Phase 3 - Parcours métier</h3><p>Clarifier Leads, Clients, Devis, Factures, Documents et Mail.</p><ul><li>Modèle Clients officiel.</li><li>Chaîne devis-facture-documents.</li><li>Dashboard actionnable.</li></ul></article>
+    <article class="phase"><h3>Phase 4 - Niveau visuel SaaS</h3><p>Unifier design system, responsive, états et microcopy.</p><ul><li>Primitives UI.</li><li>PageState.</li><li>Suppression alertes natives.</li><li>Mobile lists.</li></ul></article>
+    <article class="phase"><h3>Phase 5 - Tests et gouvernance</h3><p>Verrouiller les régressions.</p><ul><li>Matrice routes/API.</li><li>E2E critiques.</li><li>Tests backend RBAC/settings/pipeline.</li><li>Release gate CRM.</li></ul></article>
+  </section>
+
+  <section class="section" id="prompts">
+    <p class="eyebrow">Prompts complets à copier-coller</p>
+    <h2>Chaque bloc ci-dessous est un prompt autonome</h2>
+
+    <article class="prompt"><div class="prompt-head"><div><p class="eyebrow">Prompt 1</p><h3>Audit CRM complet en lecture seule</h3></div><button onclick="copyPrompt('prompt1',this)">Copier ce prompt</button></div><textarea id="prompt1" readonly>
+Tu es un agent IA senior produit + full-stack. Tu travailles dans le dépôt SolarNext CRM.
+
+Objectif :
+Faire un audit complet et structuré du CRM SolarNext, mais en excluant explicitement calpinage, canonical3d, dp-tool, DP, déclaration préalable et tout rendu PDF strictement lié à la DP.
+
+Tu dois auditer uniquement le système CRM : onboarding, authentification, navigation, menus, routes, leads, clients, devis, factures, documents, mail, organisation, utilisateurs, permissions, paramètres, sécurité, audit log, dashboard, design system, responsive, erreurs, états vides et cohérence backend/frontend.
+
+Ce que tu dois produire :
+1. Une matrice complète des routes frontend : route, composant, visible ou cachée, permission attendue, statut production/legacy/redirect/dev-only, problème éventuel, correction recommandée.
+2. Une matrice frontend -> backend : page, service frontend, endpoint backend, permission, données attendues, loading/empty/error, risques de divergence.
+3. Un audit UX utilisateur : nouvel utilisateur, admin, utilisateur standard, super-admin, pages difficiles à trouver, menus incohérents, doublons, routes legacy, libellés confus.
+4. Un audit technique : endpoints concurrents, permissions manquantes, anciens endpoints dangereux, settings_json incohérent, dette DDD, logique dupliquée, tests manquants.
+5. Un audit design SaaS : sidebar, densité, responsive, boutons, modales, alertes navigateur, loading/empty/error, design tokens, CSS legacy, microcopy.
+
+Fichiers à lire en priorité :
+frontend/src/main.tsx
+frontend/src/layout/AppLayout.tsx
+frontend/src/components/auth/*
+frontend/src/pages/Onboarding.tsx
+frontend/src/services/onboarding.service.ts
+frontend/src/pages/Login.tsx
+frontend/src/pages/MfaVerify.tsx
+frontend/src/pages/DashboardPage.tsx
+frontend/src/pages/LeadsPage.tsx
+frontend/src/pages/LeadDetail.tsx
+frontend/src/pages/clients/ClientsPage.tsx
+frontend/src/pages/QuotesList.tsx
+frontend/src/modules/quotes/QuoteBuilderPage.tsx
+frontend/src/pages/InvoicesPage.tsx
+frontend/src/modules/invoices/InvoiceBuilderPage.tsx
+frontend/src/pages/DocumentsList.tsx
+frontend/src/pages/mail/*
+frontend/src/pages/settings/*
+frontend/src/pages/organization/*
+frontend/src/pages/admin/*
+frontend/src/components/ui/*
+frontend/src/design-system/*
+frontend/src/styles/*
+backend/httpApp.js
+backend/routes/*
+backend/domains/leads/*
+backend/controllers/organizations.settings.controller.js
+backend/controllers/organization.controller.js
+backend/routes/organizations.settings.routes.js
+backend/routes/organization.routes.js
+backend/routes/admin.*
+backend/rbac/*
+backend/migrations/*pipeline*
+
+Contraintes :
+Ne modifie aucun fichier pendant cet audit. Ne donne pas de conseils vagues. Chaque constat doit avoir une preuve avec fichier ou zone de code. Classe chaque constat par criticité : Critique, Élevé, Moyen, Faible. Pour chaque constat, donne impact utilisateur et impact technique.
+
+Format de sortie attendu :
+Résumé exécutif, Top 10 risques, matrice routes frontend, matrice frontend/backend, audit UX, audit backend, audit design SaaS, roadmap de correction, tests à créer, questions ouvertes si nécessaire.
+    </textarea><div class="note">Prompt d’audit complet avant corrections.</div></article>
+
+    <article class="prompt"><div class="prompt-head"><div><p class="eyebrow">Prompt 2</p><h3>Corriger entièrement l’onboarding</h3></div><button onclick="copyPrompt('prompt2',this)">Copier ce prompt</button></div><textarea id="prompt2" readonly>
+Tu es un agent IA full-stack senior. Tu dois corriger l’onboarding du CRM SolarNext.
+
+Périmètre :
+Uniquement CRM SolarNext. Exclure calpinage, canonical3d, dp-tool, DP et déclaration préalable.
+
+Problèmes à corriger :
+1. L’onboarding peut être contourné : Login.tsx et MfaVerify.tsx redirigent vers /onboarding quand onboardingCompleted=false, mais ProtectedRoute.tsx vérifie seulement l’authentification. Avec un token valide, /dashboard reste accessible.
+2. Les étapes peuvent être sautées : Onboarding.tsx permet de cliquer directement sur n’importe quelle étape et finish() valide seulement l’étape active.
+3. Le pipeline est une fausse promesse : OnboardingStepPipeline stocke settings_json.onboarding.pipeline, mais le vrai CRM utilise pipeline_stages.
+4. Le test mail est simulé avec setTimeout.
+5. Les collaborateurs sont stockés en JSON, pas invités.
+6. Le profil entreprise ne nourrit pas forcément les données officielles.
+7. PATCH /api/organizations/onboarding n’a pas de garde RBAC admin.
+
+Fichiers à lire :
+frontend/src/components/auth/ProtectedRoute.tsx
+frontend/src/services/auth.service.ts
+frontend/src/main.tsx
+frontend/src/pages/Login.tsx
+frontend/src/pages/MfaVerify.tsx
+frontend/src/pages/Onboarding.tsx
+frontend/src/services/onboarding.service.ts
+frontend/src/components/onboarding/*
+backend/routes/organizations.settings.routes.js
+backend/controllers/organizations.settings.controller.js
+backend/routes/mailAccounts.routes.js
+backend/routes/admin.users.routes.js
+backend/controllers/admin.org.controller.js
+
+Mission :
+1. Ajouter un garde global onboarding pour rediriger toute route CRM vers /onboarding si onboardingCompleted=false, sauf routes auth/publiques nécessaires.
+2. Verrouiller la progression : étapes futures désactivées, étapes terminées revisitables, validation globale avant completed=true.
+3. Corriger le pipeline : soit retirer l’étape du premier démarrage, soit la brancher sur une vraie API pipeline_stages transactionnelle.
+4. Corriger mail : remplacer setTimeout par test backend réel ou renommer clairement en configuration ultérieure.
+5. Corriger équipe : créer de vraies invitations ou indiquer clairement qu’il s’agit de brouillons à finaliser.
+6. Corriger entreprise : mapper SIRET, RGE, adresse, couleur, logo vers les champs/settings canoniques utilisés par devis/factures/PDF.
+7. Sécuriser PATCH onboarding avec org.settings.manage ou règle stricte admin initial, et ajouter audit log sur completion.
+
+Contraintes :
+Ne pas toucher calpinage/DP. Ne pas casser les organisations existantes. Ne pas stocker de secrets mail en clair. Toute migration doit être idempotente.
+
+Tests attendus :
+Token valide + onboardingCompleted=false + /dashboard => /onboarding.
+Impossible de finaliser sans company.
+Impossible de sauter directement à Premier lead.
+Mail non testé réellement ne doit pas être marqué validé.
+PATCH onboarding refusé sans droit.
+onboardingCompleted=true donne accès au CRM.
+
+Réponse attendue :
+Fichiers modifiés, décisions produit prises, tests lancés, risques restants.
+    </textarea><div class="note">Prompt pour corriger le premier démarrage.</div></article>
+
+    <article class="prompt"><div class="prompt-head"><div><p class="eyebrow">Prompt 3</p><h3>Réparer pipeline réel et conversion client</h3></div><button onclick="copyPrompt('prompt3',this)">Copier ce prompt</button></div><textarea id="prompt3" readonly>
+Tu es un agent IA backend/full-stack senior. Tu dois réparer le pipeline commercial réel du CRM SolarNext.
+
+Périmètre :
+CRM uniquement. Exclure calpinage, canonical3d, dp-tool, DP, déclaration préalable.
+
+Problème :
+Le CRM utilise pipeline_stages pour les colonnes commerciales. L’onboarding affiche une personnalisation pipeline qui ne modifie pas pipeline_stages. Le seed des nouvelles organisations peut être obsolète ou sans codes stables. La conversion client dépend de stageCode === "SIGNED". Une nouvelle organisation peut donc avoir une colonne “Signé” qui ne déclenche pas la conversion client.
+
+Fichiers à lire :
+backend/migrations/1771074016353_create-leads-pipeline-tables.js
+backend/migrations/1771077957498_cp-026-integrity-triggers-and-indexes.js
+backend/migrations/1779999999999_update-pipeline-kanban-v2.js
+backend/domains/leads/leads.controller.js
+backend/domains/leads/sub/detail.js
+backend/domains/leads/sub/convert.js
+frontend/src/components/leads/LeadsKanbanView.tsx
+frontend/src/pages/LeadsPage.tsx
+frontend/src/components/onboarding/OnboardingStepPipeline.tsx
+
+Mission :
+1. Auditer le modèle pipeline actuel : colonnes, codes, positions, is_closed, historique, conversion client, création organisation.
+2. Définir le pipeline canonique V2 avec codes stables : NEW, QUALIFIED, APPOINTMENT, STUDY, OFFER_SENT, FOLLOW_UP, SIGNED, LOST ou équivalent confirmé par le code.
+3. Corriger le seed de création organisation pour garantir codes, positions et is_closed cohérents.
+4. Créer une migration idempotente de réparation pour les stages existants avec code NULL ou obsolète.
+5. Vérifier la conversion client : déplacer vers SIGNED doit convertir, déplacer ailleurs ne doit pas convertir.
+6. Décider du sort de l’onboarding pipeline : suppression de l’étape ou vraie API sécurisée. Ne jamais garder une UI fictive.
+
+Contraintes :
+Migration idempotente, pas de suppression de données, ne pas toucher calpinage/DP, toute modification de conversion doit être testée.
+
+Tests attendus :
+Création organisation => stages V2 avec codes.
+Lead déplacé vers SIGNED => client créé/associé.
+Stage sans code réparé.
+Kanban affiche les stages dans le bon ordre.
+
+Réponse attendue :
+Modèle pipeline actuel, modèle canonique choisi, migrations, tests, risques données restants.
+    </textarea><div class="note">Prompt pour le risque pipeline/conversion client.</div></article>
+
+    <article class="prompt"><div class="prompt-head"><div><p class="eyebrow">Prompt 4</p><h3>Refondre navigation et hub Paramètres</h3></div><button onclick="copyPrompt('prompt4',this)">Copier ce prompt</button></div><textarea id="prompt4" readonly>
+Tu es un agent IA produit/frontend senior. Tu dois refondre la navigation du CRM SolarNext pour la rendre cohérente niveau SaaS.
+
+Périmètre :
+CRM uniquement. Exclure calpinage, canonical3d, dp-tool, DP et déclaration préalable.
+
+Problèmes :
+Sécurité existe sur /settings/security mais n’est pas visible clairement.
+Journal d’audit existe sur /admin/audit-log mais n’est pas visible.
+Mail et Messagerie sont séparés de façon confuse.
+Entreprise, Utilisateurs, Catalogue devis, Paramètres PV, SmartPitch legacy et Super Admin sont dispersés.
+Des pages sont accessibles seulement par URL.
+Des routes legacy restent dans le router.
+Certains liens sont visibles mais redirigent vers /leads si l’utilisateur n’a pas les droits.
+
+Fichiers à lire :
+frontend/src/main.tsx
+frontend/src/layout/AppLayout.tsx
+frontend/src/components/auth/AdminRoute.tsx
+frontend/src/components/auth/SuperAdminRoute.tsx
+frontend/src/services/auth.service.ts
+frontend/src/pages/SecuritySettingsPage.tsx
+frontend/src/pages/settings/MailSettingsPage.tsx
+frontend/src/pages/organization/*
+frontend/src/pages/admin/*
+frontend/src/pages/AdminSmartpitchSettings.tsx
+
+Mission :
+1. Créer une carte navigation cible.
+Modules opérationnels : Dashboard, Leads, Clients, Planning, Documents, Finance, Mail si quotidien.
+Paramètres : Mon compte/Sécurité, Organisation, Utilisateurs, Équipes/Agences/Rôles, Catalogue devis, Messagerie, Paramètres PV, Journal d’audit.
+Super admin : Organisations, impersonation/support, audit global si existant.
+2. Implémenter une section/hub Paramètres claire.
+3. Rendre Sécurité et Audit log visibles pour les bons rôles.
+4. Éviter le doublon conceptuel Mail/Messagerie.
+5. Transformer SmartPitch legacy en redirect utile.
+6. Rendre la sidebar permission-aware avec matrice route/permission.
+7. Remplacer les redirects silencieux vers /leads par une 403 ou un message clair.
+8. Inventorier toutes les routes main.tsx : visible, legacy, redirect, hidden volontaire, dev-only, à supprimer.
+
+Contraintes :
+Ne pas casser les URLs existantes sans redirect. Garder mobile utilisable. Ne pas toucher calpinage/DP. Pas de refonte marketing.
+
+Critères d’acceptation :
+Un admin trouve Sécurité, Organisation, Utilisateurs, Messagerie, Catalogue, PV et Audit log.
+Un utilisateur standard ne voit pas de menus interdits.
+Les routes legacy redirigent proprement.
+Les menus sont organisés par logique métier.
+
+Réponse attendue :
+Navigation avant/après, matrice route -> menu -> permission, fichiers modifiés, tests par rôle.
+    </textarea><div class="note">Prompt pour menus, routes cachées et permissions visibles.</div></article>
+
+    <article class="prompt"><div class="prompt-head"><div><p class="eyebrow">Prompt 5</p><h3>Remettre le CRM au niveau visuel SaaS</h3></div><button onclick="copyPrompt('prompt5',this)">Copier ce prompt</button></div><textarea id="prompt5" readonly>
+Tu es un agent IA frontend/design-system senior. Tu dois améliorer la cohérence visuelle du CRM SolarNext pour le rapprocher d’un niveau SaaS B2B professionnel.
+
+Périmètre :
+CRM uniquement. Exclure calpinage, canonical3d, dp-tool, DP, déclaration préalable et rendus DP.
+
+Problèmes :
+Cascade CSS fragile.
+Fichiers globaux et legacy qui se chevauchent.
+Primitives UI existantes mais contournées.
+Boutons et modales recréés module par module.
+Alertes navigateur window.alert/window.confirm.
+Loading/empty/error states non uniformes.
+Tables trop larges sur mobile.
+Boutons icône avec title sans aria-label.
+Textes français sans accents ou risque de mojibake.
+
+Fichiers à lire :
+frontend/src/main.tsx
+frontend/src/design-system/tokens.css
+frontend/src/design-system/primitives.css
+frontend/src/design-system/sidebar-crm.css
+frontend/src/styles/*
+frontend/src/components/ui/*
+frontend/src/components/DeleteConfirmModal.tsx
+frontend/src/pages/DashboardPage.tsx
+frontend/src/pages/LeadsPage.tsx
+frontend/src/pages/clients/ClientsPage.tsx
+frontend/src/pages/DocumentsList.tsx
+frontend/src/pages/settings/mail/*
+frontend/src/modules/quotes/QuoteBuilderPage.tsx
+frontend/src/modules/invoices/InvoiceBuilderPage.tsx
+frontend/src/modules/finance/*
+frontend/src/modules/admin/*
+
+Mission :
+1. Stabiliser la cascade CSS : documenter ordre tokens -> primitives -> shell -> modules -> pages -> overrides temporaires, supprimer doublons évidents, réduire overrides globaux.
+2. Normaliser les primitives : Button, ConfirmModal, ModalShell, IconButton avec aria-label obligatoire, PageState loading/empty/error/retry/warning.
+3. Supprimer alertes natives : remplacer window.alert par toast/callout, window.confirm par ConfirmModal.
+4. Améliorer responsive : auditer min-width >900px, garder scroll horizontal seulement pour builders denses, créer vues cartes/listes pour pages de lecture.
+5. Harmoniser finition : rayons 6-8px pour CRM dense, 10-12px pour modales/surfaces spéciales, supprimer hover scale marketing dans zones denses.
+6. Microcopy : corriger accents visibles, corriger mojibake, ajouter check contre Ã, Â, â€™, �.
+
+Contraintes :
+Ne pas transformer le CRM en landing page. Garder densité SaaS de travail. Ne pas toucher calpinage/DP. Faire progressif et testable.
+
+Critères d’acceptation :
+Dashboard, Leads, Clients, Finance, Mail, Organisation ont une grammaire visuelle plus cohérente.
+Alertes natives prioritaires supprimées.
+Boutons/modales critiques utilisent primitives.
+États loading/empty/error harmonisés.
+Mobile utilisable sur listes principales.
+
+Réponse attendue :
+Composants/primitives créés ou migrés, pages améliorées, captures ou procédure de vérification, tests/build lancés, dette restante.
+    </textarea><div class="note">Prompt pour design-system et qualité perçue.</div></article>
+
+    <article class="prompt"><div class="prompt-head"><div><p class="eyebrow">Prompt 6</p><h3>Backend, RBAC et settings</h3></div><button onclick="copyPrompt('prompt6',this)">Copier ce prompt</button></div><textarea id="prompt6" readonly>
+Tu es un agent IA backend senior. Tu dois sécuriser et clarifier les endpoints CRM SolarNext liés aux réglages organisation, RBAC et routes sensibles.
+
+Périmètre :
+CRM uniquement. Exclure calpinage, canonical3d, dp-tool, DP et déclaration préalable.
+
+Problèmes :
+1. Endpoints settings concurrents :
+/api/organization/settings merge settings_json arbitrairement.
+/api/organizations/settings valide economics, quote, finance et synchronise certaines séquences.
+Cela peut permettre de contourner la validation ou désynchroniser les réglages.
+
+2. PATCH onboarding pas assez protégé :
+/api/organizations/onboarding utilise verifyJWT seulement.
+Les settings voisins exigent org.settings.manage.
+
+3. Routes super-admin à rendre plus lisibles :
+certaines routes admin utilisent verifyJWT en route et vérifient probablement le rôle dans le contrôleur.
+C’est moins auditable qu’un middleware explicite.
+
+4. Dette DDD :
+plusieurs domaines backend sont encore des façades TODO.
+routes historiques et controllers portent beaucoup de logique.
+
+Fichiers à lire :
+backend/httpApp.js
+backend/routes/organization.routes.js
+backend/controllers/organization.controller.js
+backend/routes/organizations.settings.routes.js
+backend/controllers/organizations.settings.controller.js
+backend/routes/admin.organizations.routes.js
+backend/controllers/admin.organizations.controller.js
+backend/rbac/rbac.middleware.js
+backend/rbac/rbac.service.js
+backend/services/audit/*
+backend/tests/*org*
+backend/tests/*settings*
+
+Mission :
+1. Cartographier tous les endpoints settings organisation : chemin, méthode, permission, validation, type de merge, callers frontend.
+2. Définir la source de vérité pour economics, quote, finance, branding, security, onboarding.
+3. Verrouiller l’ancien endpoint : supprimer si aucun caller, déprécier avec réponse claire, ou restreindre aux sections non critiques. Ne jamais permettre de contourner quote/finance/economics.
+4. Protéger PATCH onboarding : exiger org.settings.manage ou règle stricte admin initial tant que onboarding_completed=false, avec audit log.
+5. Clarifier super-admin : ajouter requireSuperAdmin sur routes sensibles si absent, garder contrôleur en défense secondaire.
+6. Ajouter tests backend : sans org.settings.manage ne peut pas PATCH onboarding, ancien endpoint ne peut pas modifier settings critiques sans validation, non-super-admin ne peut pas accéder aux routes sensibles.
+
+Contraintes :
+Ne pas casser production sans compatibilité. Ne pas toucher calpinage/DP. Toute migration idempotente. Erreurs claires.
+
+Critères d’acceptation :
+Une seule source validée pour settings critiques.
+RBAC cohérent onboarding/settings/security.
+Routes super-admin auditées clairement.
+Tests backend ajoutés.
+
+Réponse attendue :
+Matrice endpoints settings, changements sécurité, tests ajoutés/lancés, risques compatibilité.
+    </textarea><div class="note">Prompt pour fermer les risques backend/settings/RBAC.</div></article>
+  </section>
+</main>
+
+<script>
+async function copyPrompt(id, btn){
+  const el=document.getElementById(id);
+  el.focus(); el.select();
+  try{await navigator.clipboard.writeText(el.value.trim());}
+  catch(e){document.execCommand("copy");}
+  const old=btn.textContent; btn.textContent="Copié";
+  setTimeout(()=>btn.textContent=old,1200);
+}
+</script>
+</body>
+</html>

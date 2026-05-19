@@ -27,22 +27,28 @@ export interface CalpinageWindow extends Window {
   readonly CALPINAGE_VERSION_ID: string | null | undefined;
 
   // ── Feature flags 3D (booléens) ───────────────────────────────────────────
-  /** Édition Z des sommets toiture (activé par défaut en produit). */
-  readonly __CALPINAGE_3D_VERTEX_Z_EDIT__: boolean | undefined;
-  /** Édition XY des sommets toiture (désactivé par défaut). */
-  readonly __CALPINAGE_3D_VERTEX_XY_EDIT__: boolean | undefined;
-  /** Édition hauteur faîtière (désactivé par défaut). */
-  readonly __CALPINAGE_3D_RIDGE_HEIGHT_EDIT__: boolean | undefined;
-  /** Mode debug 3D — overlay diagnostics. */
+  /**
+   * Mode debug 3D — overlay diagnostics.
+   * Flag dev uniquement — positionné manuellement depuis la console navigateur.
+   * NE PAS migrer vers CalpinageFeatureContext (intentionnellement hors React).
+   */
   readonly __CALPINAGE_3D_DEBUG__: boolean | undefined;
-  /** Overlay XY debug (superposé en mode debug). */
+  /**
+   * Overlay XY debug (superposé en mode debug).
+   * Flag dev uniquement — positionné manuellement depuis la console navigateur.
+   */
   readonly __CALPINAGE_3D_XY_OVERLAY__: boolean | undefined;
   /** Mode vue courant ("2D" | "3D"). */
   readonly __CALPINAGE_VIEW_MODE__: "2D" | "3D" | undefined;
-  /** Sonde technique pose PV 3D (Phase 3). */
-  readonly __CALPINAGE_3D_PV_PLACE_PROBE__: boolean | undefined;
-  /** Pose/déplacement PV en 3D — mode produit (Phase PV_LAYOUT). */
-  readonly __CALPINAGE_3D_PV_LAYOUT_MODE__: boolean | undefined;
+  /**
+   * Indicateur DÉRIVÉ — écrit par Inline3DViewerBridge, lu par le legacy IIFE.
+   * Source : `CalpinageFeatureContext.vertexZEdit || vertexXYEdit` (A2).
+   * Les flags sources (`__CALPINAGE_3D_VERTEX_Z_EDIT__`, `__CALPINAGE_3D_VERTEX_XY_EDIT__`,
+   * `__CALPINAGE_3D_RIDGE_HEIGHT_EDIT__`, `__CALPINAGE_3D_PV_PLACE_PROBE__`,
+   * `__CALPINAGE_3D_PV_LAYOUT_MODE__`) ont été retirés de window en A2 →
+   * utiliser `useCalpinageFeatures()` dans les composants React.
+   */
+  __CALPINAGE_3D_ROOF_VERTEX_EDIT_ACTIVE__: boolean | undefined;
 
   // ── Callbacks sidebar ─────────────────────────────────────────────────────
   /** Callback de notification mise à jour Phase 2 (installé par Phase2Sidebar). */
