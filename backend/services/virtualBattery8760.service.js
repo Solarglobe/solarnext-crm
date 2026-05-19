@@ -14,7 +14,13 @@ const DAYS_PER_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
  */
 export function resolveVirtualBatteryCapacityKwh(config) {
   if (!config || typeof config !== "object") return null;
-  const cap = config.capacity_kwh ?? config.virtual_capacity_kwh ?? config.credit_cap_kwh;
+  const cap =
+    config.capacity_kwh ??
+    config.capacityKwh ??
+    config.virtual_capacity_kwh ??
+    config.virtualCapacityKwh ??
+    config.credit_cap_kwh ??
+    config.creditCapKwh;
   if (cap == null || !Number.isFinite(Number(cap)) || Number(cap) <= 0) return null;
   return Number(cap);
 }

@@ -64,6 +64,7 @@ function equipmentSignals(ctx) {
 }
 
 export function isCommercialUnboundedVirtualBatteryAllowed(ctx = {}) {
+  if (ctx?._vb_commercial_enforce_no_unbounded === true) return false;
   if (ctx?.virtual_battery_input?.allow_unbounded_for_commercial === true) return true;
   if (ctx?.virtual_battery_input?.allow_unbounded_for_debug === true) return true;
   if (ctx?.form?.debug?.allow_virtual_battery_unbounded === true) return true;
@@ -72,6 +73,24 @@ export function isCommercialUnboundedVirtualBatteryAllowed(ctx = {}) {
   if (process.env.NODE_ENV === "test") return true;
   if (process.env.DEBUG_BV_UNBOUNDED === "1") return true;
   return false;
+}
+
+export function markVirtualBatteryCapacityMissing(scenario, reason = "virtual_battery_capacity_missing") {
+  if (!scenario || typeof scenario !== "object") return scenario;
+  scenario._skipped = true;
+  scenario._virtualBatteryQuote = null;
+  scenario.finance = { roi_years: null, irr: null, lcoe: null, cashflows: null, note: reason };
+  scenario.finance_warnings = Array.from(new Set([
+    ...(Array.isArray(scenario.finance_warnings) ? scenario.finance_warnings : []),
+    "VB_CAPACITY_MISSING",
+  ]));
+  scenario.anti_oversell_flags = Array.from(new Set([
+    ...(Array.isArray(scenario.anti_oversell_flags) ? scenario.anti_oversell_flags : []),
+    "VB_CAPACITY_MISSING",
+  ]));
+  scenario.oversell_risk_score = Math.max(Number(scenario.oversell_risk_score) || 0, 80);
+  scenario._vb_capacity_missing = true;
+  return scenario;
 }
 
 export function markVirtualBatteryUnboundedBlocked(scenario, reason = "virtual_battery_unbounded_disabled") {

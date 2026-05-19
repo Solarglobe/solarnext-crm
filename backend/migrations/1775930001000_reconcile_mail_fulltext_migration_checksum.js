@@ -43,6 +43,11 @@ export const up = async (pgm) => {
   const checksum = hashMigration(content);
   const checksumNormalized = hashMigration(normalizeMigrationContent(content));
 
+  const table = await pgm.db.query(`SELECT to_regclass('public.migration_checksums') AS reg`);
+  if (!table.rows?.[0]?.reg) {
+    return;
+  }
+
   const chk = await pgm.db.query(
     `SELECT 1 FROM migration_checksums WHERE migration_name = $1`,
     [SOURCE_MIGRATION]
