@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import OnboardingStepCompany from "../components/onboarding/OnboardingStepCompany";
 import OnboardingStepLead from "../components/onboarding/OnboardingStepLead";
 import OnboardingStepMail from "../components/onboarding/OnboardingStepMail";
-import OnboardingStepPipeline from "../components/onboarding/OnboardingStepPipeline";
 import OnboardingStepTeam from "../components/onboarding/OnboardingStepTeam";
 import { createLead } from "../services/leads.service";
 import {
@@ -17,12 +16,16 @@ import {
 import "./onboarding.css";
 
 const STEPS: { id: OnboardingStepId; title: string; subtitle: string }[] = [
-  { id: "company", title: "Profil entreprise", subtitle: "Identite, zone et references installateur" },
-  { id: "mail", title: "Messagerie", subtitle: "Choix du canal email commercial" },
-  { id: "team", title: "Collaborateurs", subtitle: "Invitations et roles de depart" },
-  { id: "pipeline", title: "Pipeline Kanban", subtitle: "Colonnes de suivi commercial" },
-  { id: "lead", title: "Premier lead", subtitle: "Creation du premier dossier" },
+  { id: "company", title: "Entreprise", subtitle: "Le minimum pour identifier votre organisation" },
+  { id: "mail", title: "Mail", subtitle: "Optionnel, vous pourrez le configurer plus tard" },
+  { id: "team", title: "Equipe", subtitle: "Invitez quelqu'un maintenant ou passez cette etape" },
+  { id: "lead", title: "Premier lead", subtitle: "Creer un premier dossier pour demarrer" },
 ];
+const STEP_IDS = STEPS.map((step) => step.id);
+
+function normalizeCompletedSteps(steps: OnboardingStepId[]): OnboardingStepId[] {
+  return steps.filter((step): step is OnboardingStepId => STEP_IDS.includes(step));
+}
 
 function isValidEmail(value: string): boolean {
   return !value || /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value.trim());
@@ -58,28 +61,30 @@ export default function Onboarding() {
   const [activeStep, setActiveStep] = useState<OnboardingStepId>("company");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [mailTesting, setMailTesting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
   const activeIndex = STEPS.findIndex((step) => step.id === activeStep);
   const activeMeta = STEPS[Math.max(0, activeIndex)];
-  const progress = Math.round((completedSteps.length / STEPS.length) * 100);
+  const visibleCompletedSteps = normalizeCompletedSteps(completedSteps);
+  const progress = Math.min(100, Math.round((visibleCompletedSteps.length / STEPS.length) * 100));
 
   useEffect(() => {
     let cancelled = false;
     fetchOnboardingState()
       .then((state) => {
         if (cancelled) return;
+        const normalizedCompleted = normalizeCompletedSteps(state.completedSteps);
         setData(state.data);
-        setCompletedSteps(state.completedSteps);
-        setActiveStep(getNextIncompleteStep(STEPS.map((step) => step.id), state.completedSteps));
+        setCompletedSteps(normalizedCompleted);
+        setActiveStep(getNextIncompleteStep(STEP_IDS, normalizedCompleted));
       })
       .catch(() => {
         if (cancelled) return;
         const fallback = readLocalFallback();
+        const normalizedCompleted = normalizeCompletedSteps(fallback.completedSteps);
         setData(fallback.data);
-        setCompletedSteps(fallback.completedSteps);
-        setActiveStep(getNextIncompleteStep(STEPS.map((step) => step.id), fallback.completedSteps));
+        setCompletedSteps(normalizedCompleted);
+        setActiveStep(getNextIncompleteStep(STEP_IDS, normalizedCompleted));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -92,26 +97,15 @@ export default function Onboarding() {
   const validationMessage = useMemo(() => {
     if (activeStep === "company") {
       if (!data.profile.name.trim()) return "Le nom de l'entreprise est obligatoire.";
-      if (!data.profile.address.trim()) return "L'adresse de l'entreprise est obligatoire.";
-      if (!data.profile.siret.trim()) return "Le SIRET est obligatoire.";
-      if (!data.profile.rgeNumber.trim()) return "Le numero RGE est obligatoire.";
-      if (!data.profile.interventionRegion.trim()) return "La region d'intervention est obligatoire.";
     }
     if (activeStep === "mail") {
-      if (data.mail.mode === "custom") {
-        if (!data.mail.email.trim() || !isValidEmail(data.mail.email)) return "L'email expediteur est invalide.";
-        if (!data.mail.imapHost.trim() || !data.mail.smtpHost.trim()) return "Les serveurs IMAP et SMTP sont obligatoires.";
-        if (!data.mail.tested) return "Testez la connexion avant de continuer.";
+      if (data.mail.email.trim() && !isValidEmail(data.mail.email)) {
+        return "L'email expediteur est invalide.";
       }
     }
     if (activeStep === "team") {
       const invalid = data.collaborators.some((row) => row.email.trim() && !isValidEmail(row.email));
       if (invalid) return "Une invitation contient un email invalide.";
-    }
-    if (activeStep === "pipeline") {
-      const names = data.pipeline.map((stage) => stage.name.trim()).filter(Boolean);
-      if (names.length < 2) return "Gardez au moins deux colonnes dans le pipeline.";
-      if (names.length > 10) return "Le pipeline est limite a 10 colonnes.";
     }
     if (activeStep === "lead") {
       if (!data.lead.firstName.trim()) return "Le prenom du premier lead est obligatoire.";
@@ -175,15 +169,6 @@ export default function Onboarding() {
     }
   };
 
-  const testMailConnection = () => {
-    setMailTesting(true);
-    window.setTimeout(() => {
-      setData((prev) => ({ ...prev, mail: { ...prev.mail, tested: true } }));
-      setMailTesting(false);
-      setMessage("Connexion messagerie validee.");
-    }, 650);
-  };
-
   if (loading) {
     return <div className="onboarding-page onboarding-page--loading">Chargement du demarrage guide...</div>;
   }
@@ -228,9 +213,7 @@ export default function Onboarding() {
           {activeStep === "mail" ? (
             <OnboardingStepMail
               value={data.mail}
-              testing={mailTesting}
               onChange={(mail) => setData((prev) => ({ ...prev, mail }))}
-              onTest={testMailConnection}
             />
           ) : null}
           {activeStep === "team" ? (
@@ -238,9 +221,6 @@ export default function Onboarding() {
               value={data.collaborators}
               onChange={(collaborators) => setData((prev) => ({ ...prev, collaborators }))}
             />
-          ) : null}
-          {activeStep === "pipeline" ? (
-            <OnboardingStepPipeline value={data.pipeline} onChange={(pipeline) => setData((prev) => ({ ...prev, pipeline }))} />
           ) : null}
           {activeStep === "lead" ? (
             <OnboardingStepLead value={data.lead} onChange={(lead) => setData((prev) => ({ ...prev, lead }))} />
@@ -263,7 +243,7 @@ export default function Onboarding() {
               </button>
             ) : (
               <button type="button" className="sn-btn sn-btn-primary" disabled={saving} onClick={() => void completeCurrentStep()}>
-                {saving ? "Sauvegarde..." : "Continuer"}
+                {saving ? "Sauvegarde..." : activeStep === "mail" || activeStep === "team" ? "Passer ou continuer" : "Continuer"}
               </button>
             )}
           </footer>

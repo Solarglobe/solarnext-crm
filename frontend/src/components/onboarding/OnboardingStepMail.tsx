@@ -2,16 +2,19 @@ import type { OnboardingMail } from "../../services/onboarding.service";
 
 type Props = {
   value: OnboardingMail;
-  testing: boolean;
   onChange: (value: OnboardingMail) => void;
-  onTest: () => void;
 };
 
-export default function OnboardingStepMail({ value, testing, onChange, onTest }: Props) {
+export default function OnboardingStepMail({ value, onChange }: Props) {
   const update = (patch: Partial<OnboardingMail>) => onChange({ ...value, ...patch, tested: patch.tested ?? false });
 
   return (
     <div className="onboarding-stack">
+      <div className="onboarding-info-band">
+        La configuration mail est facultative au demarrage. Vous pourrez connecter vos comptes, signatures et modeles
+        depuis Parametres &gt; Configuration mail.
+      </div>
+
       <div className="onboarding-choice-row" role="group" aria-label="Mode de messagerie">
         <button
           type="button"
@@ -38,37 +41,28 @@ export default function OnboardingStepMail({ value, testing, onChange, onTest }:
               value={value.email}
               onChange={(event) => update({ email: event.target.value })}
               placeholder="contact@installateur.fr"
-              required
             />
           </label>
           <label className="onboarding-field">
-            <span>Serveur IMAP</span>
+            <span>Serveur IMAP optionnel</span>
             <input
               value={value.imapHost}
               onChange={(event) => update({ imapHost: event.target.value })}
               placeholder="imap.installateur.fr"
-              required
             />
           </label>
           <label className="onboarding-field">
-            <span>Serveur SMTP</span>
+            <span>Serveur SMTP optionnel</span>
             <input
               value={value.smtpHost}
               onChange={(event) => update({ smtpHost: event.target.value })}
               placeholder="smtp.installateur.fr"
-              required
             />
           </label>
-          <div className="onboarding-inline-action onboarding-field--wide">
-            <button type="button" className="sn-btn sn-btn-secondary" onClick={onTest} disabled={testing}>
-              {testing ? "Test en cours" : "Tester la connexion"}
-            </button>
-            {value.tested ? <span className="onboarding-success">Connexion validee</span> : null}
-          </div>
         </div>
       ) : (
         <div className="onboarding-info-band">
-          SolarNext enverra les premiers emails depuis l'adresse de plateforme. Vous pourrez connecter votre domaine plus tard.
+          Vos premiers dossiers peuvent etre crees sans compte mail connecte.
         </div>
       )}
     </div>

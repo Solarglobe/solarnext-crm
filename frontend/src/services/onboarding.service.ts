@@ -197,7 +197,6 @@ export async function saveOnboardingState(input: {
         tested: input.data.mail.tested,
       },
       collaborators: input.data.collaborators,
-      pipeline: input.data.pipeline,
       lead: {
         first_name: input.data.lead.firstName,
         last_name: input.data.lead.lastName,

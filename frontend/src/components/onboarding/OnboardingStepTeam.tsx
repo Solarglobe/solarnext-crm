@@ -20,6 +20,10 @@ export default function OnboardingStepTeam({ value, onChange }: Props) {
 
   return (
     <div className="onboarding-stack">
+      <div className="onboarding-info-band">
+        Cette etape est optionnelle. Vous pourrez inviter votre equipe depuis Parametres &gt; Utilisateurs.
+      </div>
+
       {rows.map((row, index) => (
         <div className="onboarding-row" key={`collaborator-${index}`}>
           <label className="onboarding-field onboarding-row__email">
