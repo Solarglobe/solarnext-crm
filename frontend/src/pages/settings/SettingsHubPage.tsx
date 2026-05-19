@@ -84,8 +84,8 @@ const SETTINGS_CARDS: SettingsCard[] = [
     adminOnly: true,
   },
   {
-    title: "Messagerie",
-    description: "Comptes mail, signatures, templates et droits d'acces.",
+    title: "Configuration mail",
+    description: "Comptes mail, signatures, modeles et droits d'acces.",
     href: "/settings/mail",
     group: "Organisation",
     status: "Configuration",

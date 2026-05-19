@@ -144,8 +144,8 @@ function MailIcon() {
   );
 }
 
-/** Messagerie — config SMTP (enveloppe + roue dentée) */
-function MessagerieIcon() {
+/** Configuration mail — config SMTP (enveloppe + roue dentée) */
+function MailSettingsIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <path d="M4 4h16c1.1 0 2 .9 2 2v7" />
@@ -357,7 +357,7 @@ const settingsModules = [
   { path: "/organization/users", label: "Utilisateurs", icon: UsersIcon, end: true, adminOnly: true },
   { path: "/organization/roles", label: "Roles", icon: ShieldIcon, end: true, adminOnly: true },
   { path: "/organization/catalog", label: "Catalogue devis", icon: CatalogIcon, end: true, adminOnly: true },
-  { path: "/settings/mail", label: "Messagerie", icon: MessagerieIcon, end: true, adminOnly: true },
+  { path: "/settings/mail", label: "Configuration mail", icon: MailSettingsIcon, end: true, adminOnly: true },
   { path: "/settings/security", label: "Securite", icon: ShieldIcon, end: true },
   { path: "/admin/audit-log", label: "Journal d'audit", icon: AuditIcon, end: true, adminOnly: true },
   { path: "/admin/settings/pv", label: "Parametres PV", icon: SunIcon, end: true, adminOnly: true },
@@ -813,7 +813,7 @@ export function AppLayout() {
           />
           <SidebarCollapsibleSection
             sectionId="mail"
-            title="Messagerie"
+            title="Mail"
             expanded={sectionOpen.mail}
             onToggle={() => toggleSection("mail")}
             navLinks={mailModules}

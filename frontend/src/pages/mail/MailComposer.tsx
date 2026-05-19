@@ -1022,11 +1022,11 @@ export const MailComposer = React.memo(function MailComposer({
       </div>
 
       {tmplPanelOpen && (
-        <div className="mail-composer__templates-panel" role="region" aria-label="Templates mail">
+        <div className="mail-composer__templates-panel" role="region" aria-label="Modeles mail">
           {tmplLoading && <p className="mail-composer__templates-hint">Chargement…</p>}
           {tmplErr && <div className="mail-composer__templates-err">{tmplErr}</div>}
           {!tmplLoading && tmplList.length === 0 && !tmplErr && (
-            <p className="mail-composer__templates-hint">Aucun template. Créez-en dans les réglages.</p>
+            <p className="mail-composer__templates-hint">Aucun modele. Creez-en dans Configuration mail.</p>
           )}
           <ul className="mail-composer__templates-list">
             {tmplList.map((t) => (
@@ -1047,7 +1047,7 @@ export const MailComposer = React.memo(function MailComposer({
             ))}
           </ul>
           <Link className="mail-composer__templates-manage" to="/settings/mail?tab=templates">
-            Gérer les templates →
+            Configurer les modeles
           </Link>
         </div>
       )}
@@ -1123,7 +1123,7 @@ export const MailComposer = React.memo(function MailComposer({
           </select>
         </label>
         <Link className="mail-composer__sig-settings" to="/settings/mail?tab=signatures">
-          Gérer…
+          Configurer
         </Link>
         {sigError && <span className="mail-composer__sig-err">{sigError}</span>}
       </div>

@@ -54,12 +54,12 @@ export default function MailSettingsPage() {
   return (
     <div className="mail-settings">
       <header className="mail-settings__head">
-        <h1 className="mail-settings__title">Messagerie</h1>
+        <h1 className="mail-settings__title">Configuration mail</h1>
         <p className="mail-settings__sub">
-          Comptes, signatures, modèles et droits d&apos;accès — une vue unique.
+          Comptes d&apos;envoi, signatures, modeles et droits d&apos;acces. La lecture et la composition restent dans Mail.
         </p>
       </header>
-      <nav className="mail-settings__tabs" role="tablist" aria-label="Sections messagerie">
+      <nav className="mail-settings__tabs" role="tablist" aria-label="Sections de configuration mail">
         {MAIL_SETTINGS_TAB_IDS.map((id) => (
           <button
             key={id}

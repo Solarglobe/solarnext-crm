@@ -164,7 +164,7 @@ export default function MailOutboxPage() {
   return (
     <div className="mail-outbox-page">
       <PageHeader
-        eyebrow="Messagerie"
+        eyebrow="Mail"
         title="Envois"
         description="File d'attente, retries SMTP et envois recents."
         actions={<Link to="/mail" className="sn-btn sn-btn-ghost sn-btn-sm">Boite de reception</Link>}

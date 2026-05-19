@@ -450,7 +450,7 @@ export default function MailInboxPage() {
   return (
     <div className="mail-standard-page">
       <PageHeader
-        eyebrow="Messagerie"
+        eyebrow="Mail"
         title={mailboxTitle(mailbox)}
         description="Liste, lecture, composition et suivi des conversations mail accessibles."
         meta={

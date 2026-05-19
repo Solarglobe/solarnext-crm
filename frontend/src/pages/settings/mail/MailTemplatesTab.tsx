@@ -151,7 +151,7 @@ export function MailTemplatesTab() {
     <div className="mail-tpl-page mail-tpl-page--tab">
       <div className="mail-tpl-page__head">
         <div>
-          <h2 className="sg-title-lg">Templates mail</h2>
+          <h2 className="sg-title-lg">Modeles mail</h2>
           <p className="sg-helper">
             Variables :{" "}
             <code>
