@@ -242,6 +242,201 @@
 
 /* ——— Sections ——— */
 
+.sn-dashboard-cockpit {
+  margin-bottom: 18px;
+  padding: 16px;
+  border: 1px solid var(--border, rgba(0, 0, 0, 0.08));
+  border-radius: var(--radius-lg, 12px);
+  background: var(--bg-card, #ffffff);
+  box-shadow: 0 1px 6px rgba(15, 23, 42, 0.05);
+}
+
+.theme-dark .sn-dashboard-cockpit {
+  background: rgba(255, 255, 255, 0.035);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.sn-dashboard-cockpit--empty {
+  border-color: rgba(99, 102, 241, 0.22);
+}
+
+.sn-dashboard-cockpit-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.sn-dashboard-cockpit-head h2 {
+  margin: 8px 0 4px;
+  padding: 0;
+  font-size: 18px;
+  font-weight: 650;
+  color: var(--text-primary);
+}
+
+.sn-dashboard-cockpit-head h2::after {
+  display: none;
+}
+
+.theme-dark .sn-dashboard-cockpit-head h2 {
+  color: var(--text-on-dark);
+}
+
+.sn-dashboard-cockpit-head p {
+  margin: 0;
+  max-width: 56rem;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+.sn-dashboard-cockpit-main-link {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 7px;
+  background: var(--primary, #4b2e83);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.sn-dashboard-cockpit-grid,
+.sn-dashboard-cockpit-empty-actions {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.sn-dashboard-cockpit-empty-actions {
+  grid-template-columns: repeat(2, minmax(0, 240px));
+}
+
+.sn-dashboard-cockpit-action {
+  min-height: 104px;
+  padding: 12px;
+  border: 1px solid var(--border, rgba(0, 0, 0, 0.08));
+  border-radius: var(--radius-md, 8px);
+  background: var(--surface, #f8fafc);
+  color: var(--text-primary);
+  text-decoration: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 8px;
+  transition: border-color 0.12s, background 0.12s, transform 0.12s;
+}
+
+.sn-dashboard-cockpit-action:hover {
+  transform: translateY(-1px);
+  border-color: rgba(75, 46, 131, 0.28);
+  background: #ffffff;
+}
+
+.theme-dark .sn-dashboard-cockpit-action {
+  background: rgba(255, 255, 255, 0.045);
+  color: var(--text-on-dark);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.theme-dark .sn-dashboard-cockpit-action:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.sn-dashboard-cockpit-action--primary {
+  border-color: rgba(75, 46, 131, 0.28);
+  background: rgba(75, 46, 131, 0.07);
+}
+
+.sn-dashboard-cockpit-action--warn {
+  border-color: rgba(245, 158, 11, 0.28);
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.sn-dashboard-cockpit-action--danger {
+  border-color: rgba(220, 38, 38, 0.28);
+  background: rgba(220, 38, 38, 0.07);
+}
+
+.sn-dashboard-cockpit-action__title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.sn-dashboard-cockpit-action strong {
+  font-size: 22px;
+  line-height: 1.05;
+  font-weight: 700;
+}
+
+.sn-dashboard-cockpit-action span:last-child {
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--text-secondary);
+}
+
+.sn-dashboard-cockpit-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border, rgba(0, 0, 0, 0.07));
+}
+
+.sn-dashboard-cockpit-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.sn-dashboard-cockpit-metric span,
+.sn-dashboard-cockpit-metric em {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-style: normal;
+}
+
+.sn-dashboard-cockpit-metric strong {
+  font-size: 15px;
+  color: var(--text-primary);
+}
+
+.theme-dark .sn-dashboard-cockpit-metric strong {
+  color: var(--text-on-dark);
+}
+
+@media (max-width: 960px) {
+  .sn-dashboard-cockpit-grid,
+  .sn-dashboard-cockpit-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .sn-dashboard-cockpit-head {
+    flex-direction: column;
+  }
+
+  .sn-dashboard-cockpit-main-link {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .sn-dashboard-cockpit-grid,
+  .sn-dashboard-cockpit-empty-actions,
+  .sn-dashboard-cockpit-metrics {
+    grid-template-columns: 1fr;
+  }
+}
+
 .sn-dashboard-section {
   margin-bottom: 16px;
 }

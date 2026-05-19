@@ -57,7 +57,6 @@ function pct(v: number | null | undefined) {
   return `${n.toLocaleString("fr-FR", { maximumFractionDigits: 2 })} %`;
 }
 
-/** Affichage jours (évite NaN / trop de décimales) */
 function fmtDays(v: number | null | undefined): string {
   if (v === null || v === undefined) return "—";
   const n = Number(v);
@@ -75,16 +74,12 @@ function fmtDay(d: string) {
   }
 }
 
-/** Potentiel pipeline en libellé court (k€ / M€) */
 function fmtPotentiel(n: number): string {
   if (!Number.isFinite(n) || n <= 0) return "—";
-  if (n >= 1_000_000) {
-    return `${(n / 1_000_000).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} M€`;
-  }
+  if (n >= 1_000_000) return `${(n / 1_000_000).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} M€`;
   return `${Math.round(n / 1000).toLocaleString("fr-FR")} k€`;
 }
 
-/** Variantes sn-badge pour légende pipeline (pas de couleur inline). */
 function pipelineLegendBadgeClass(i: number, closed: boolean): string {
   if (closed) return "sn-badge sn-badge-neutral";
   const cycle = ["sn-badge-info", "sn-badge-warn", "sn-badge-success"] as const;
@@ -110,6 +105,15 @@ const SERIES_LABELS: Record<SeriesKey, string> = {
 };
 
 type InsightAlert = { id: string; text: string; tone: "danger" | "warn" | "info" };
+type DashboardAction = {
+  id: string;
+  title: string;
+  value: string;
+  detail: string;
+  to: string;
+  tone: "primary" | "danger" | "warn" | "neutral";
+  allowed: boolean;
+};
 
 function insightToneBadgeClass(tone: InsightAlert["tone"]): string {
   if (tone === "danger") return "sn-badge sn-badge-danger";
@@ -131,13 +135,8 @@ function buildDashboardInsight(
   const stock = safeNum(kpis.sign_rate_stock_pct);
 
   if (overdue > 0) {
-    const tone: InsightAlert["tone"] =
-      cash30 > 0 && overdue > cash30 * 0.25 ? "danger" : "warn";
-    alerts.push({
-      id: "overdue",
-      text: `Impayés / retard : ${eur(overdue)}`,
-      tone,
-    });
+    const tone: InsightAlert["tone"] = cash30 > 0 && overdue > cash30 * 0.25 ? "danger" : "warn";
+    alerts.push({ id: "overdue", text: `Impayés / retard : ${eur(overdue)}`, tone });
   }
 
   const mo = d.margin_overview;
@@ -145,111 +144,100 @@ function buildDashboardInsight(
     const n = Math.round(safeNum(mo.lines_excluded_count));
     alerts.push({
       id: "material",
-      text: `${n} ligne${n > 1 ? "s" : ""} sans coût d’achat exclue${n > 1 ? "s" : ""} du périmètre matériel (période).`,
+      text: `${n} ligne${n > 1 ? "s" : ""} sans cout d'achat exclue${n > 1 ? "s" : ""} du perimetre materiel (periode).`,
       tone: "info",
     });
   }
 
   if (cohort > 0 && stock > 0 && cohort < stock - 8) {
-    alerts.push({
-      id: "conv",
-      text: "Conversion récente sous le niveau du stock ouvert — à surveiller.",
-      tone: "info",
-    });
+    alerts.push({ id: "conv", text: "Conversion recente sous le niveau du stock ouvert - a surveiller.", tone: "info" });
   }
 
-  let headline =
-    "Vue d’ensemble sur la période : signatures, trésorerie et pipeline sur votre périmètre.";
-  if (rev > 0 && weighted > rev * 2.5) {
-    headline =
-      "Pipeline élevé par rapport au CA signé — prioriser la conversion et les relances.";
-  } else if (overdue > 10_000 && overdue > cash30 * 0.1) {
-    headline = "L’activité progresse, mais la pression impayés mérite une attention immédiate.";
-  } else if (cohort >= stock - 3 && cohort > 0) {
-    headline = "Bon niveau de conversion sur la période, trésorerie et pipeline à cadrer.";
-  }
+  let headline = "Vue d'ensemble sur la periode : signatures, tresorerie et pipeline sur votre perimetre.";
+  if (rev > 0 && weighted > rev * 2.5) headline = "Pipeline eleve par rapport au CA signe - prioriser la conversion et les relances.";
+  else if (overdue > 10_000 && overdue > cash30 * 0.1) headline = "L'activite progresse, mais la pression impayes merite une attention immediate.";
+  else if (cohort >= stock - 3 && cohort > 0) headline = "Bon niveau de conversion sur la periode, tresorerie et pipeline a cadrer.";
 
-  const metrics = [
-    { label: "CA signé", value: eur(kpis.revenue_signed_accepted_in_period) },
-    { label: "Signatures", value: String(kpis.quotes_accepted_in_period_count ?? "—") },
-  ];
+  return {
+    headline,
+    alerts: alerts.slice(0, 2),
+    metrics: [
+      { label: "CA signé", value: eur(kpis.revenue_signed_accepted_in_period) },
+      { label: "Signatures", value: String(kpis.quotes_accepted_in_period_count ?? "—") },
+    ],
+  };
+}
 
-  return { headline, alerts: alerts.slice(0, 2), metrics };
+function findFollowUpStage(d: DashboardOverview): DashboardOverview["pipeline"]["leads_by_stage"][number] | null {
+  return (
+    d.pipeline.leads_by_stage.find((stage) => /relance|follow/i.test(stage.stage_name)) ??
+    d.pipeline.leads_by_stage.find((stage) => /injoign|contact/i.test(stage.stage_name)) ??
+    null
+  );
+}
+
+export function buildCockpitActions(
+  d: DashboardOverview,
+  permissions: { canQuote: boolean; canInvoice: boolean; canPlanning: boolean }
+): DashboardAction[] {
+  const followUp = findFollowUpStage(d);
+  const openQuotes = Math.max(0, safeNum(d.global_kpis.quotes_stock_total) - safeNum(d.global_kpis.quotes_stock_accepted_count));
+  const overdue = safeNum(d.forecast.overdue_invoices_amount);
+
+  return [
+    { id: "follow-up-leads", title: "Leads a relancer", value: followUp ? String(followUp.leads_count) : "0", detail: followUp ? `Etape ${followUp.stage_name}` : "Aucune file de relance identifiee", to: followUp ? `/leads?stage=${encodeURIComponent(followUp.stage_id)}` : "/leads", tone: followUp && followUp.leads_count > 0 ? "warn" : "neutral", allowed: true },
+    { id: "quotes-no-answer", title: "Devis a suivre", value: String(openQuotes), detail: "Devis ouverts non signes", to: "/quotes?status=SENT", tone: openQuotes > 0 ? "primary" : "neutral", allowed: permissions.canQuote },
+    { id: "overdue-invoices", title: "Factures impayees", value: eur(overdue), detail: overdue > 0 ? "Montant en retard" : "Aucun impaye en retard", to: "/invoices?status=OVERDUE", tone: overdue > 0 ? "danger" : "neutral", allowed: permissions.canInvoice },
+    { id: "today-planning", title: "RDV du jour", value: "Planning", detail: "Ouvrir l'agenda terrain et commercial", to: "/planning", tone: "neutral", allowed: permissions.canPlanning },
+  ].filter((action) => action.allowed);
+}
+
+function buildCockpitMetrics(
+  d: DashboardOverview,
+  kpis: NonNullable<DashboardOverview["global_kpis"]>,
+  fc: NonNullable<DashboardOverview["forecast"]>,
+  permissions: { canQuote: boolean; canInvoice: boolean }
+): { label: string; value: string; detail: string }[] {
+  return [
+    { label: "Leads ouverts", value: String(d.pipeline.pipeline_summary.open_leads_count ?? 0), detail: "Pipeline actif" },
+    permissions.canQuote ? { label: "Devis a signer", value: eur(fc.pipeline_quotes_to_sign_ttc), detail: "Montant ouvert" } : null,
+    permissions.canInvoice ? { label: "A encaisser", value: eur(kpis.remaining_to_collect_ttc), detail: "Factures ouvertes" } : null,
+    permissions.canInvoice ? { label: "Impayes", value: eur(fc.overdue_invoices_amount), detail: "En retard" } : null,
+  ].filter((item): item is { label: string; value: string; detail: string } => item !== null);
+}
+
+function dashboardActionClass(tone: DashboardAction["tone"]): string {
+  if (tone === "danger") return "sn-dashboard-cockpit-action sn-dashboard-cockpit-action--danger";
+  if (tone === "warn") return "sn-dashboard-cockpit-action sn-dashboard-cockpit-action--warn";
+  if (tone === "primary") return "sn-dashboard-cockpit-action sn-dashboard-cockpit-action--primary";
+  return "sn-dashboard-cockpit-action";
 }
 
 function sumStagePotential(stages: DashboardOverview["pipeline"]["leads_by_stage"]): number {
   return stages.reduce((s, x) => s + safeNum(x.total_potential_revenue), 0);
 }
 
-/** Tendance textuelle à partir de la timeline (sans backend). */
-function buildTimelineTrendSentence(
-  rows: DashboardOverview["activity_timeline"],
-  vis: Record<SeriesKey, boolean>
-): string | null {
+function buildTimelineTrendSentence(rows: DashboardOverview["activity_timeline"], vis: Record<SeriesKey, boolean>): string | null {
   if (!rows.length || rows.length < 8) return null;
   const mid = Math.floor(rows.length / 2);
   const first = rows.slice(0, mid);
   const second = rows.slice(mid);
-  const sum = (chunk: typeof rows, key: keyof (typeof rows)[0]) =>
-    chunk.reduce((a, r) => a + safeNum(r[key] as unknown as number), 0);
+  const sum = (chunk: typeof rows, key: keyof (typeof rows)[0]) => chunk.reduce((a, r) => a + safeNum(r[key] as unknown as number), 0);
   const parts: string[] = [];
   if (vis.signed) {
     const a = sum(first, "quotes_signed");
     const b = sum(second, "quotes_signed");
-    if (a > 0 || b > 0) {
-      parts.push(b >= a * 1.1 ? "signatures en hausse sur la fenêtre affichée" : b <= a * 0.9 ? "signatures en retrait" : "signatures stables");
-    }
+    if (a > 0 || b > 0) parts.push(b >= a * 1.1 ? "signatures en hausse sur la fenetre affichee" : b <= a * 0.9 ? "signatures en retrait" : "signatures stables");
   }
   if (vis.cash) {
     const a = sum(first, "cash_collected");
     const b = sum(second, "cash_collected");
-    if (a > 0 || b > 0) {
-      parts.push(b >= a * 1.1 ? "encaissements en hausse" : b <= a * 0.9 ? "encaissements en baisse" : "encaissements stables");
-    }
+    if (a > 0 || b > 0) parts.push(b >= a * 1.1 ? "encaissements en hausse" : b <= a * 0.9 ? "encaissements en baisse" : "encaissements stables");
   }
   if (!parts.length) return null;
-  return parts.slice(0, 2).join(" · ");
+  return parts.slice(0, 2).join(" Â· ");
 }
 
-/* ─── Gauge circulaire SVG (taux de conversion) ───────────────────────────── */
-function ConversionGauge({ pctValue, label }: { pctValue: number; label: string }) {
-  const r = 52;
-  const cx = 64;
-  const cy = 64;
-  const circumference = 2 * Math.PI * r;
-  const clamped = Math.min(100, Math.max(0, pctValue));
-  const dash = (clamped / 100) * circumference;
-  const gap = circumference - dash;
-  // couleur selon valeur
-  const color = clamped >= 60 ? "#22c55e" : clamped >= 35 ? "#7c3aed" : "#f59e0b";
-  return (
-    <div className="sn-dashboard-gauge">
-      <svg viewBox="0 0 128 128" className="sn-dashboard-gauge__svg" aria-hidden>
-        {/* piste */}
-        <circle cx={cx} cy={cy} r={r} fill="none" stroke="currentColor" strokeWidth="10" className="sn-dashboard-gauge__track" />
-        {/* arc valeur */}
-        <circle
-          cx={cx} cy={cy} r={r}
-          fill="none"
-          stroke={color}
-          strokeWidth="10"
-          strokeLinecap="round"
-          strokeDasharray={`${dash} ${gap}`}
-          transform={`rotate(-90 ${cx} ${cy})`}
-          style={{ transition: "stroke-dasharray 0.6s ease" }}
-        />
-        <text x={cx} y={cy - 4} textAnchor="middle" className="sn-dashboard-gauge__value" fill={color}>
-          {clamped.toLocaleString("fr-FR", { maximumFractionDigits: 0 })}%
-        </text>
-        <text x={cx} y={cy + 16} textAnchor="middle" className="sn-dashboard-gauge__sub">
-          {label}
-        </text>
-      </svg>
-    </div>
-  );
-}
-
-/* ─── Mini sparkline inline pour KPI cards ───────────────────────────────── */
 function KpiSparkline({ values, color = "#7c3aed" }: { values: number[]; color?: string }) {
   if (!values.length || values.every((v) => v === 0)) return null;
   const max = Math.max(...values, 1);
@@ -448,6 +436,9 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [canFilterScope, setCanFilterScope] = useState(false);
+  const [canQuote, setCanQuote] = useState(false);
+  const [canInvoice, setCanInvoice] = useState(false);
+  const [canPlanning, setCanPlanning] = useState(false);
   const [commercialExpanded, setCommercialExpanded] = useState(false);
   const [sourcesExpanded, setSourcesExpanded] = useState(false);
   const [seriesVis, setSeriesVis] = useState<Record<SeriesKey, boolean>>({
@@ -468,11 +459,29 @@ export default function DashboardPage() {
     getUserPermissions()
       .then((p) => {
         const perms = p.permissions ?? [];
-        setCanFilterScope(
-          perms.includes("lead.read.all") || perms.includes("quote.manage") || perms.includes("invoice.manage")
-        );
+        const superAdmin = p.superAdmin === true;
+        const hasWildcard = perms.includes("*");
+        const has = (code: string) => hasWildcard || perms.includes(code);
+        const quoteAllowed = superAdmin || has("quote.manage");
+        const invoiceAllowed = superAdmin || has("invoice.manage");
+        const planningAllowed =
+          superAdmin ||
+          has("mission.read.self") ||
+          has("mission.read.all") ||
+          has("mission.create") ||
+          has("mission.update.self") ||
+          has("mission.update.all");
+        setCanQuote(quoteAllowed);
+        setCanInvoice(invoiceAllowed);
+        setCanPlanning(planningAllowed);
+        setCanFilterScope(superAdmin || has("lead.read.all") || quoteAllowed || invoiceAllowed);
       })
-      .catch(() => setCanFilterScope(false));
+      .catch(() => {
+        setCanFilterScope(false);
+        setCanQuote(false);
+        setCanInvoice(false);
+        setCanPlanning(false);
+      });
   }, []);
 
   useEffect(() => {
@@ -519,7 +528,6 @@ export default function DashboardPage() {
 
   const kpis = data?.global_kpis;
   const fc = data?.forecast;
-  const weighted = safeNum(fc?.weighted_pipeline_ttc);
 
   const pipelineTotal = useMemo(() => {
     if (!data) return 0;
@@ -539,6 +547,26 @@ export default function DashboardPage() {
       kpis.revenue_signed_accepted_in_period === 0
     );
   }, [kpis]);
+
+  const isNewOrganization = useMemo(() => {
+    if (!data || !kpis) return false;
+    return (
+      safeNum(kpis.leads_total_cohort_created) === 0 &&
+      safeNum(kpis.quotes_stock_total) === 0 &&
+      safeNum(data.pipeline.pipeline_summary.open_leads_count) === 0 &&
+      safeNum(data.pipeline.pipeline_summary.clients_active_count ?? data.pipeline.pipeline_summary.signed_leads_count) === 0
+    );
+  }, [data, kpis]);
+
+  const cockpitActions = useMemo(
+    () => (data ? buildCockpitActions(data, { canQuote, canInvoice, canPlanning }) : []),
+    [data, canQuote, canInvoice, canPlanning]
+  );
+
+  const cockpitMetrics = useMemo(() => {
+    if (!data || !kpis || !fc) return [];
+    return buildCockpitMetrics(data, kpis, fc, { canQuote, canInvoice });
+  }, [data, kpis, fc, canQuote, canInvoice]);
 
   const timelineRows = data?.activity_timeline ?? [];
   const timelineTail = useMemo(() => {
@@ -686,8 +714,70 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {!loading && !err && data && (
+        <section
+          className={`sn-dashboard-cockpit${isNewOrganization ? " sn-dashboard-cockpit--empty" : ""}`}
+          aria-labelledby="sn-dashboard-cockpit-heading"
+        >
+          <div className="sn-dashboard-cockpit-head">
+            <div>
+              <span className="sn-badge sn-badge-info">
+                {isNewOrganization ? "Demarrage" : "Aujourd'hui"}
+              </span>
+              <h2 id="sn-dashboard-cockpit-heading">Priorites du jour</h2>
+              <p>
+                {isNewOrganization
+                  ? "Commencez par creer un premier lead. Le reste du cockpit se remplira avec l'activite reelle."
+                  : "Les actions utiles avant les indicateurs : relances, devis, encaissements et agenda."}
+              </p>
+            </div>
+            <Link to="/leads" className="sn-dashboard-cockpit-main-link">
+              {isNewOrganization ? "Creer le premier lead" : "Ouvrir le pipeline"}
+            </Link>
+          </div>
+
+          {isNewOrganization ? (
+            <div className="sn-dashboard-cockpit-empty-actions">
+              <Link to="/leads" className="sn-dashboard-cockpit-action sn-dashboard-cockpit-action--primary">
+                <span className="sn-dashboard-cockpit-action__title">Premier lead</span>
+                <strong>Creer</strong>
+                <span>Point de depart du parcours commercial</span>
+              </Link>
+              {canPlanning && (
+                <Link to="/planning" className="sn-dashboard-cockpit-action">
+                  <span className="sn-dashboard-cockpit-action__title">Agenda</span>
+                  <strong>Planning</strong>
+                  <span>Voir les rendez-vous et interventions</span>
+                </Link>
+              )}
+            </div>
+          ) : (
+            <>
+              <div className="sn-dashboard-cockpit-grid">
+                {cockpitActions.map((action) => (
+                  <Link key={action.id} to={action.to} className={dashboardActionClass(action.tone)}>
+                    <span className="sn-dashboard-cockpit-action__title">{action.title}</span>
+                    <strong className="sn-dashboard-num">{action.value}</strong>
+                    <span>{action.detail}</span>
+                  </Link>
+                ))}
+              </div>
+              <div className="sn-dashboard-cockpit-metrics" aria-label="Indicateurs utiles">
+                {cockpitMetrics.map((metric) => (
+                  <div key={metric.label} className="sn-dashboard-cockpit-metric">
+                    <span>{metric.label}</span>
+                    <strong className="sn-dashboard-num">{metric.value}</strong>
+                    <em>{metric.detail}</em>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </section>
+      )}
+
       {/* Bandeau insight + hero */}
-      {!loading && !err && insight && kpis && fc && (
+      {!loading && !err && insight && kpis && fc && (canQuote || canInvoice) && (
         <>
           <section className="sn-dashboard-insight sn-dashboard-insight--premium" aria-label="Synthèse IA">
             <div className="sn-dashboard-insight__icon" aria-hidden>✦</div>
@@ -719,7 +809,8 @@ export default function DashboardPage() {
             </h2>
 
             <div className="sn-dashboard-hero-layout">
-              <div className="sn-dashboard-hero-primary">
+              {canQuote && (
+                <div className="sn-dashboard-hero-primary">
                 <article
                   className="sn-dashboard-kpi-card sn-dashboard-kpi-card--primary sn-dashboard-kpi-card--mega sn-card"
                   title="Chiffre d’affaires des devis acceptés, comptabilisés selon la date d’acceptation dans la fenêtre sélectionnée."
@@ -747,9 +838,11 @@ export default function DashboardPage() {
                     <strong className="sn-dashboard-num">{kpis.quotes_accepted_in_period_count}</strong>
                   </span>
                 </div>
-              </div>
+                </div>
+              )}
 
               <div className="sn-dashboard-hero-secondary">
+                {canInvoice && (
                 <article
                   className="sn-dashboard-kpi-card sn-dashboard-kpi-card--secondary sn-card"
                   title="Paiements enregistrés sur la période (filtrés par lead si renseigné)."
@@ -760,6 +853,8 @@ export default function DashboardPage() {
                   <KpiSparkline values={timelineTail.map((r) => safeNum(r.cash_collected))} color="#0ea5e9" />
                   <p className="sn-dashboard-kpi-sub">TTC · encaissements sur la période</p>
                 </article>
+                )}
+                {canInvoice && (
                 <article
                   className="sn-dashboard-kpi-card sn-dashboard-kpi-card--secondary sn-card"
                   title="Soldes restants sur factures ouvertes, périmètre filtre appliqué."
@@ -769,6 +864,8 @@ export default function DashboardPage() {
                   <div className="sn-dashboard-kpi-value sn-dashboard-num">{eur(kpis.remaining_to_collect_ttc)}</div>
                   <p className="sn-dashboard-kpi-sub">TTC · factures ouvertes</p>
                 </article>
+                )}
+                {canQuote && (
                 <article
                   className="sn-dashboard-kpi-card sn-dashboard-kpi-card--secondary sn-card"
                   title="Montant TTC des devis prêts ou envoyés non signés — instantané."
@@ -779,43 +876,7 @@ export default function DashboardPage() {
                   <KpiSparkline values={timelineTail.map((r) => safeNum(r.quotes_signed))} color="#7c3aed" />
                   <p className="sn-dashboard-kpi-sub">Instantané · non signés</p>
                 </article>
-                <article
-                  className="sn-dashboard-kpi-card sn-dashboard-kpi-card--secondary sn-dashboard-kpi-card--gauge sn-card"
-                  title="Devis créés sur la période déjà acceptés ÷ devis créés. Stock : taux instantané sur l’ouvert."
-                >
-                  <div className="sn-dashboard-kpi-card__accent sn-dashboard-kpi-card__accent--subtle" aria-hidden />
-                  <div className="sn-dashboard-kpi-label">Conversion devis → signé</div>
-                  <ConversionGauge
-                    pctValue={safeNum(kpis.sign_rate_cohort_created_pct)}
-                    label="cohorte"
-                  />
-                  <p className="sn-dashboard-kpi-sub">Cohorte création sur la période</p>
-                  <p className="sn-dashboard-kpi-hint">
-                    Stock ouvert : <span className="sn-dashboard-num">{pct(kpis.sign_rate_stock_pct)}</span>
-                  </p>
-                </article>
-                <article
-                  className="sn-dashboard-kpi-card sn-dashboard-kpi-card--secondary sn-card"
-                  title="Délai moyen entre envoi du devis et acceptation, pour les devis acceptés dans la période."
-                >
-                  <div className="sn-dashboard-kpi-card__accent sn-dashboard-kpi-card__accent--subtle" aria-hidden />
-                  <div className="sn-dashboard-kpi-label">Délai moyen</div>
-                  <div className="sn-dashboard-kpi-value sn-dashboard-num">{fmtDays(kpis.avg_sent_to_sign_days)}</div>
-                  <p className="sn-dashboard-kpi-sub">Envoyé → signé</p>
-                  <p className="sn-dashboard-kpi-hint">
-                    Création → acceptation :{" "}
-                    <span className="sn-dashboard-num">{fmtDays(kpis.avg_quote_cycle_days)}</span>
-                  </p>
-                </article>
-                <article
-                  className="sn-dashboard-kpi-card sn-dashboard-kpi-card--secondary sn-card"
-                  title="Pipeline commercial pondéré par probabilité de signature."
-                >
-                  <div className="sn-dashboard-kpi-card__accent sn-dashboard-kpi-card__accent--subtle" aria-hidden />
-                  <div className="sn-dashboard-kpi-label">Pipeline pondéré</div>
-                  <div className="sn-dashboard-kpi-value sn-dashboard-num">{eur(weighted)}</div>
-                  <p className="sn-dashboard-kpi-sub">{fc.weighted_method_short ?? fc.weighted_method}</p>
-                </article>
+                )}
               </div>
             </div>
           </section>
