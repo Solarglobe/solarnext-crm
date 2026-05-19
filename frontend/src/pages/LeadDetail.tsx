@@ -1,22 +1,27 @@
 /**
- * CP-LEAD-V3 — Fiche Lead/Client
- * Composant page pur JSX — toute la logique est dans useLeadDetail().
+ * CP-LEAD-V3 - Fiche Lead/Client
+ * Composant page pur JSX - toute la logique est dans useLeadDetail().
  * Route : /leads/:id
  */
 
 import { useNavigate } from "react-router-dom";
 import { getCrmApiBase } from "../config/crmApiBase";
 import MissionCreateModal from "../modules/planning/MissionCreateModal";
-import { ConfirmModal } from "../components/ui/ConfirmModal";
-import { ModalShell } from "../components/ui/ModalShell";
-import { Button } from "../components/ui/Button";
-import { UndoToast } from "../components/ui/UndoToast";
-import { DPRefusedModal } from "../modules/leads/DPRefusedModal";
-import { PROJECT_CYCLE_LABELS } from "../modules/leads/LeadDetail/constants";
 import {
-  LeadHeader,
+  ActionBar as UiActionBar,
+  Button,
+  ConfirmDialog,
+  EmptyState,
+  KpiStrip,
+  ModalShell,
+  PageHeader,
+} from "../components/ui";
+import { UndoToast } from "../components/ui/UndoToast";
+import { CrmLeadStatusBadge } from "../components/crm/CrmLeadStatusBadge";
+import { DPRefusedModal } from "../modules/leads/DPRefusedModal";
+import { CYCLE_PROJECT_SELECT_OPTIONS, PROJECT_CYCLE_LABELS } from "../modules/leads/LeadDetail/constants";
+import {
   LeadTabs,
-  ActionBar,
   OverviewTab,
   StudiesTab,
   NotesTab,
@@ -25,14 +30,30 @@ import {
   DocumentsTab,
   FinancialTab,
 } from "../modules/leads/LeadDetail";
-import LeadDetailStickyBar from "../modules/leads/LeadDetail/LeadDetailStickyBar";
 import LeadClientAssociationCard from "../modules/leads/LeadDetail/LeadClientAssociationCard";
 import LeadMetersBar from "../modules/leads/LeadDetail/LeadMetersBar";
 import LeadMeterModal from "../modules/leads/LeadDetail/LeadMeterModal";
+import LeadPipelineBar from "../modules/leads/LeadDetail/LeadPipelineBar";
+import { formatEuroAmount, formatProductionKwh } from "../modules/leads/LeadDetail/leadEnergyFormat";
 import "../modules/leads/LeadDetail/lead-detail.css";
 import { useLeadDetail } from "../hooks/lead/useLeadDetail";
 
 const API_BASE = getCrmApiBase();
+
+type SaveSyncState = "idle" | "pending" | "saving" | "saved" | "error";
+
+function saveSyncLabel(state: SaveSyncState): string {
+  if (state === "error") return "Sauvegarde a reprendre";
+  if (state === "pending") return "Modifications en attente";
+  if (state === "saving") return "Sauvegarde...";
+  return "Sauvegarde";
+}
+
+function saveSyncBadgeClass(state: SaveSyncState): string {
+  if (state === "error") return "sn-badge-danger";
+  if (state === "pending" || state === "saving") return "sn-badge-warn";
+  return "sn-badge-success";
+}
 
 export default function LeadDetail() {
   const navigate = useNavigate();
@@ -41,7 +62,7 @@ export default function LeadDetail() {
   if (ld.loading) {
     return (
       <div className="crm-lead-page">
-        <div className="crm-lead-loading">Chargement…</div>
+        <EmptyState title="Chargement de la fiche" description="Les informations commerciales arrivent." />
       </div>
     );
   }
@@ -49,155 +70,280 @@ export default function LeadDetail() {
   if (ld.error && !ld.data) {
     return (
       <div className="crm-lead-page">
-        <div className="crm-lead-error">
-          <p>{ld.error}</p>
-          <button type="button" className="sn-btn sn-btn-primary" onClick={() => navigate(-1)}>
-            Retour
-          </button>
-        </div>
+        <EmptyState
+          title="Fiche indisponible"
+          description={ld.error}
+          actions={
+            <Button type="button" variant="primary" onClick={() => navigate(-1)}>
+              Retour
+            </Button>
+          }
+        />
       </div>
     );
   }
 
   if (!ld.data) return null;
 
-  const headerActions = ld.isArchived ? (
-    <button
-      type="button"
-      className="sn-btn sn-btn-ghost sn-btn-sm crm-lead-header-v4-back"
-      disabled={ld.isReadOnly}
-      onClick={() => void ld.handleUnarchiveLead()}
-    >
-      ♻️ Restaurer
-    </button>
-  ) : (
-    <button
-      type="button"
-      className="sn-btn sn-btn-ghost sn-btn-sm crm-lead-header-v4-back"
-      disabled={ld.isReadOnly}
-      onClick={ld.handleArchiveLeadRequest}
-    >
-      📁 Archiver
-    </button>
-  );
+  const contactName =
+    [ld.displayLead?.contact_first_name, ld.displayLead?.contact_last_name].filter(Boolean).join(" ") ||
+    undefined;
+  const phone = ld.displayLead?.phone_mobile ?? ld.displayLead?.phone ?? "";
+  const email = ld.displayLead?.email ?? "";
+  const source = ld.displayLead?.source_name ?? ld.displayLead?.lead_source ?? "";
+  const stageName = ld.displayLead?.stage_name ?? ld.data.stage?.name;
+  const canCreateStudy = ld.isLead && ld.data.stage?.code !== "SIGNED";
+  const canCreateRdv = Boolean(ld.data.lead.client_id);
+  const canWriteEmail = Boolean(email.trim() && ld.id);
+  const calcAnnualKwh =
+    ld.calcSummary?.annual_kwh != null && Number.isFinite(Number(ld.calcSummary.annual_kwh))
+      ? Number(ld.calcSummary.annual_kwh)
+      : null;
+  const calcCapexTtc =
+    ld.calcSummary?.capex_ttc != null && Number.isFinite(Number(ld.calcSummary.capex_ttc))
+      ? Number(ld.calcSummary.capex_ttc)
+      : null;
+  const kpis = [
+    ld.studies.length
+      ? { id: "studies", label: "Etudes", value: ld.studies.length, hint: "dossier commercial" }
+      : null,
+    calcAnnualKwh != null
+      ? {
+          id: "production",
+          label: "Production",
+          value: formatProductionKwh(calcAnnualKwh),
+          hint: "estimation annuelle",
+        }
+      : null,
+    calcCapexTtc != null
+      ? {
+          id: "capex",
+          label: "Budget",
+          value: formatEuroAmount(calcCapexTtc),
+          hint: "TTC estime",
+        }
+      : null,
+    ld.quotes.length ? { id: "quotes", label: "Devis", value: ld.quotes.length, hint: "finance" } : null,
+  ].filter((item): item is NonNullable<typeof item> => Boolean(item));
 
   return (
     <div className={`crm-lead-page${ld.isArchived ? " crm-lead-page--archived" : ""}`}>
-      {ld.leadStickyBarVisible ? (
-        <LeadDetailStickyBar
-          fullName={ld.fullName || "Sans nom"}
-          contactName={
-            [ld.displayLead?.contact_first_name, ld.displayLead?.contact_last_name]
-              .filter(Boolean)
-              .join(" ") || undefined
+      <div ref={ld.headerZoneRef} className="crm-lead-detail-header-zone crm-lead-detail-header-zone--foundation">
+        <PageHeader
+          eyebrow={ld.isClient ? "Fiche client" : "Fiche lead"}
+          title={ld.fullName || "Sans nom"}
+          description={
+            <span className="crm-lead-foundation-description">
+              {ld.displayLead?.company_name ? <strong>{ld.displayLead.company_name}</strong> : null}
+              {ld.displayLead?.company_name && contactName ? <span aria-hidden> · </span> : null}
+              {contactName ? <span>{contactName}</span> : null}
+              {(ld.displayLead?.company_name || contactName) && source ? <span aria-hidden> · </span> : null}
+              {source ? <span>Source {source}</span> : null}
+            </span>
           }
-          customerType={ld.displayLead?.customer_type}
-          status={ld.headerTypeStatus}
-          isArchived={ld.isArchived}
-          phone={ld.displayLead?.phone_mobile ?? ld.displayLead?.phone ?? ""}
-          source={ld.displayLead?.source_name ?? ld.displayLead?.lead_source ?? ""}
-          saveSyncState={ld.saveSyncState}
-          onRetrySave={() => void ld.performOverviewSave()}
-          onBack={() => navigate(-1)}
-          showStudyButtons={ld.isLead && ld.data.stage?.code !== "SIGNED"}
-          onStudyClick={() => ld.setActiveTab("studies")}
-          onCreateStudy={ld.handleCreateStudy}
-          createStudyLoading={ld.createStudyLoading}
-          showRevertToLead={ld.isClient && !ld.isArchived}
-          onRevertToLead={() => ld.setRevertConfirmOpen(true)}
-          revertSaving={ld.revertSaving}
-          statusSaving={ld.statusSaving}
-          actions={headerActions}
-          readOnly={ld.isReadOnly}
-          leadStatusCode={ld.displayLead?.status}
-          stageName={ld.displayLead?.stage_name ?? ld.data.stage?.name}
-          stageCode={ld.data.stage?.code}
-        />
-      ) : null}
-
-      <div ref={ld.headerZoneRef} className="crm-lead-detail-header-zone">
-        <LeadHeader
-          fullName={ld.fullName || "Sans nom"}
-          customerType={ld.displayLead?.customer_type}
-          companyName={ld.displayLead?.company_name}
-          contactName={
-            [ld.displayLead?.contact_first_name, ld.displayLead?.contact_last_name]
-              .filter(Boolean)
-              .join(" ") || undefined
+          actions={
+            <>
+              <Button type="button" variant="ghost" size="sm" onClick={() => navigate(-1)}>
+                Retour
+              </Button>
+              {ld.isArchived ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  disabled={ld.isReadOnly}
+                  onClick={() => void ld.handleUnarchiveLead()}
+                >
+                  Restaurer
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={ld.isReadOnly}
+                  onClick={ld.handleArchiveLeadRequest}
+                >
+                  Archiver
+                </Button>
+              )}
+            </>
           }
-          status={ld.headerTypeStatus}
-          projectStatus={ld.displayLead?.project_status ?? ld.data.lead.project_status ?? "SIGNE"}
-          phone={ld.displayLead?.phone_mobile ?? ld.displayLead?.phone ?? ""}
-          email={ld.displayLead?.email ?? ""}
-          commercialEmail={ld.commercialEmail}
-          source={ld.displayLead?.source_name ?? ld.displayLead?.lead_source ?? ""}
-          isLead={ld.isLead}
-          hasClientId={!!ld.data.lead.client_id}
-          onBack={() => navigate(-1)}
-          onProjectStatusIntent={(v) => void ld.handleProjectStatusIntent(v)}
-          showProjectCycle={ld.isClient}
-          showRevertToLead={ld.isClient && !ld.isArchived}
-          onRevertToLead={() => ld.setRevertConfirmOpen(true)}
-          revertSaving={ld.revertSaving}
-          onStatusChange={ld.handleStatusChange}
-          onRdvClick={() => ld.setCreateMissionModalOpen(true)}
-          statusSaving={ld.statusSaving}
-          saveSyncState={ld.saveSyncState}
-          onRetrySave={() => void ld.performOverviewSave()}
-          isArchived={ld.isArchived}
-          actions={headerActions}
-          readOnly={ld.isReadOnly}
-          onWriteEmail={
-            ld.displayLead?.email?.trim() && ld.id
-              ? () => void ld.openComposeForLeadEmail(ld.displayLead!.email!, ld.id!)
-              : undefined
+          meta={
+            <>
+              <CrmLeadStatusBadge
+                status={ld.displayLead?.status}
+                stageName={stageName}
+                stageCode={ld.data.stage?.code}
+              />
+              {ld.isArchived ? <span className="sn-badge sn-badge-danger">Archive</span> : null}
+              {stageName ? <span className="sn-badge sn-badge-info">{stageName}</span> : null}
+              <span className={`sn-badge ${saveSyncBadgeClass(ld.saveSyncState)}`}>
+                {saveSyncLabel(ld.saveSyncState)}
+              </span>
+              {ld.saveSyncState === "error" ? (
+                <Button type="button" variant="ghost" size="sm" onClick={() => void ld.performOverviewSave()}>
+                  Reessayer
+                </Button>
+              ) : null}
+            </>
           }
-          leadStatusCode={ld.displayLead?.status}
-          stageName={ld.displayLead?.stage_name ?? ld.data.stage?.name}
-          stageCode={ld.data.stage?.code}
         />
 
-        {ld.error && (
-          <div className="crm-lead-calc-error" role="alert" style={{ marginBottom: 16 }}>
+        <div className="crm-lead-foundation-contact-row" aria-label="Coordonnees principales">
+          {phone ? <a href={`tel:${phone.replace(/\s+/g, "")}`}>{phone}</a> : <span>Telephone non renseigne</span>}
+          {email ? <span title={email}>{email}</span> : <span>Email non renseigne</span>}
+          <span>Commercial {ld.commercialEmail || "non assigne"}</span>
+        </div>
+
+        {ld.error ? (
+          <div className="crm-lead-calc-error" role="alert">
             {ld.error}
           </div>
-        )}
-
-        {ld.id ? (
-          <LeadClientAssociationCard
-            leadId={ld.id}
-            clientId={ld.data.lead.client_id}
-            readOnly={ld.isReadOnly || ld.isArchived}
-          />
         ) : null}
 
-        <ActionBar
-          isLead={ld.isLead}
-          showStudyButtons={ld.isLead && ld.data.stage?.code !== "SIGNED"}
-          onStudyClick={() => ld.setActiveTab("studies")}
-          onCreateStudy={ld.handleCreateStudy}
-          createStudyLoading={ld.createStudyLoading}
-          onRunCalc={ld.handleRunCalc}
-          calcLoading={ld.calcLoading}
-          studiesCount={ld.studies.length}
-          calcSummary={ld.calcSummary}
-          stages={ld.data.stages}
-          currentStageId={ld.data.lead.stage_id}
-          onStageChange={ld.handleStageChange}
-          stageChanging={ld.stageChanging}
-          readOnly={ld.isReadOnly}
+        <UiActionBar
+          className="crm-lead-foundation-actions"
+          primary={
+            <>
+              {canCreateStudy ? (
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="sm"
+                  disabled={ld.createStudyLoading || ld.isReadOnly}
+                  onClick={ld.handleCreateStudy}
+                >
+                  {ld.createStudyLoading ? "Creation..." : "Creer etude"}
+                </Button>
+              ) : null}
+              {ld.isLead ? (
+                <Button type="button" variant="secondary" size="sm" onClick={() => ld.setActiveTab("studies")}>
+                  Voir les etudes ({ld.studies.length})
+                </Button>
+              ) : null}
+              {canCreateRdv ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  disabled={ld.isReadOnly}
+                  onClick={() => ld.setCreateMissionModalOpen(true)}
+                >
+                  Creer RDV
+                </Button>
+              ) : null}
+              {canWriteEmail ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  disabled={ld.isReadOnly}
+                  onClick={() => void ld.openComposeForLeadEmail(email, ld.id!)}
+                >
+                  Envoyer email
+                </Button>
+              ) : null}
+              <Button type="button" variant="ghost" size="sm" onClick={() => ld.setActiveTab("documents")}>
+                Documents
+              </Button>
+              {ld.dpFolderAccessible && ld.id ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  disabled={ld.isReadOnly}
+                  onClick={() => {
+                    if (ld.isReadOnly) return;
+                    navigate(`/leads/${ld.id}/dp`);
+                  }}
+                >
+                  Dossier DP
+                </Button>
+              ) : null}
+              {ld.isLead ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={ld.calcLoading || ld.isReadOnly}
+                  onClick={ld.handleRunCalc}
+                >
+                  {ld.calcLoading ? "Calcul..." : "Lancer calcul"}
+                </Button>
+              ) : null}
+            </>
+          }
+          secondary={
+            <>
+              {ld.isClient ? (
+                <label className="crm-lead-foundation-select-label">
+                  <span>Cycle</span>
+                  <select
+                    className="crm-lead-foundation-select"
+                    value={ld.displayLead?.project_status ?? ld.data.lead.project_status ?? "SIGNE"}
+                    onChange={(e) => void ld.handleProjectStatusIntent(e.target.value)}
+                    disabled={ld.isArchived || ld.isReadOnly}
+                    aria-label="Cycle projet"
+                  >
+                    {CYCLE_PROJECT_SELECT_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+              {ld.isClient && !ld.isArchived ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={ld.revertSaving || ld.isReadOnly}
+                  onClick={() => ld.setRevertConfirmOpen(true)}
+                >
+                  {ld.revertSaving ? "Retour..." : "Revenir en lead"}
+                </Button>
+              ) : null}
+              {ld.isLead && !ld.isArchived ? (
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="sm"
+                  disabled={ld.statusSaving || ld.isReadOnly}
+                  onClick={() => ld.handleStatusChange("CLIENT")}
+                >
+                  {ld.statusSaving ? "Conversion..." : "Convertir client"}
+                </Button>
+              ) : null}
+            </>
+          }
         />
 
-        {ld.dpFolderAccessible && ld.id ? (
-          <div style={{ marginTop: 12 }}>
-            <button
-              type="button"
-              className="sn-btn sn-btn-primary sn-btn-sm"
-              disabled={ld.isReadOnly}
-              onClick={() => { if (ld.isReadOnly) return; navigate(`/leads/${ld.id}/dp`); }}
-            >
-              Créer / Continuer le dossier DP
-            </button>
+        {ld.isLead && ld.data.stages.length ? (
+          <section className="crm-lead-foundation-pipeline" aria-label="Pipeline commercial">
+            <div className="crm-lead-foundation-section-heading">
+              <span>Pipeline</span>
+              {ld.stageChanging ? <small>mise a jour...</small> : null}
+            </div>
+            <LeadPipelineBar
+              stages={ld.data.stages}
+              currentStageId={ld.data.lead.stage_id}
+              onStageChange={ld.handleStageChange}
+              disabled={ld.stageChanging || ld.isReadOnly}
+            />
+          </section>
+        ) : null}
+
+        {kpis.length ? <KpiStrip items={kpis} className="crm-lead-foundation-kpis" /> : null}
+
+        {ld.id ? (
+          <div className="crm-lead-foundation-association">
+            <LeadClientAssociationCard
+              leadId={ld.id}
+              clientId={ld.data.lead.client_id}
+              readOnly={ld.isReadOnly || ld.isArchived}
+            />
           </div>
         ) : null}
       </div>
@@ -339,8 +485,8 @@ export default function LeadDetail() {
           if (!ld.studyTitleSaving && !ld.studyDuplicateBusy) ld.setStudyTitleModalStudy(null);
         }}
         size="sm"
-        title="Nom de l'étude"
-        subtitle='« Modifier le titre » renomme cette étude. « Créer une copie » ajoute une deuxième étude sur le dossier (même contenu).'
+        title="Nom de l'etude"
+        subtitle='"Modifier le titre" renomme cette etude. "Creer une copie" ajoute une deuxieme etude sur le dossier (meme contenu).'
         footer={
           <>
             <Button
@@ -357,7 +503,7 @@ export default function LeadDetail() {
               disabled={ld.studyTitleSaving || ld.studyDuplicateBusy || ld.isReadOnly}
               onClick={() => void ld.handleCreateStudyDuplicateFromTitleModal()}
             >
-              {ld.studyDuplicateBusy ? "Copie…" : "Créer une copie"}
+              {ld.studyDuplicateBusy ? "Copie..." : "Creer une copie"}
             </Button>
             <Button
               type="button"
@@ -365,7 +511,7 @@ export default function LeadDetail() {
               disabled={ld.studyTitleSaving || ld.studyDuplicateBusy || ld.isReadOnly}
               onClick={ld.handleSaveStudyTitle}
             >
-              {ld.studyTitleSaving ? "Enregistrement…" : "Modifier le titre"}
+              {ld.studyTitleSaving ? "Enregistrement..." : "Modifier le titre"}
             </Button>
           </>
         }
@@ -374,7 +520,7 @@ export default function LeadDetail() {
           htmlFor="study-rename-input"
           style={{ display: "block", marginBottom: 6, fontSize: 13, color: "var(--text-muted)" }}
         >
-          Nom (titre ou libellé de la copie)
+          Nom (titre ou libelle de la copie)
         </label>
         <input
           id="study-rename-input"
@@ -409,39 +555,36 @@ export default function LeadDetail() {
         />
       )}
 
-      <ConfirmModal
+      <ConfirmDialog
         open={ld.archiveConfirmOpen}
         title="Archiver ce lead ?"
-        message="Le lead sera retiré des actifs mais restera accessible dans les archives."
+        description="Le lead sera retire des actifs mais restera accessible dans les archives."
         confirmLabel="Archiver"
         cancelLabel="Annuler"
-        variant="default"
         onCancel={() => ld.setArchiveConfirmOpen(false)}
         onConfirm={() => void ld.performArchiveLead()}
       />
 
-      <ConfirmModal
+      <ConfirmDialog
         open={ld.revertConfirmOpen}
         title="Revenir en lead ?"
-        message="Le dossier repassera dans la liste Leads. La fiche client sera supprimée s'il n'y a pas de facture ni d'avoir lié."
+        description="Le dossier repassera dans la liste Leads. La fiche client sera supprimee s'il n'y a pas de facture ni d'avoir lie."
         confirmLabel="Revenir en lead"
         cancelLabel="Annuler"
         variant="warning"
-        confirmDisabled={ld.revertSaving}
-        cancelDisabled={ld.revertSaving}
+        loading={ld.revertSaving}
         onCancel={() => !ld.revertSaving && ld.setRevertConfirmOpen(false)}
         onConfirm={() => void ld.performRevertToLead()}
       />
 
-      <ConfirmModal
+      <ConfirmDialog
         open={ld.confirmProjectOpen}
         title="Confirmer le changement de statut"
-        message={
+        description={
           ld.pendingProjectStatus
-            ? `Passer le cycle projet à « ${
-                PROJECT_CYCLE_LABELS[ld.pendingProjectStatus] ??
-                ld.pendingProjectStatus.replace(/_/g, " ")
-              } » ?`
+            ? `Passer le cycle projet a "${
+                PROJECT_CYCLE_LABELS[ld.pendingProjectStatus] ?? ld.pendingProjectStatus.replace(/_/g, " ")
+              }" ?`
             : ""
         }
         confirmLabel="Confirmer"
