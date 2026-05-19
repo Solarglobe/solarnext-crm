@@ -3398,13 +3398,9 @@ function ViewerSceneContent({
             raycastFn={pvPanelRaycastPassThrough ? roofModelingSkipOccluderRaycast : undefined}
             onPanelClick={
               inspectMode
-                ? (panel, e) => {
-                    // Patch userData pour compatibilité avec le système d'inspection existant
-                    // (onInspectClick lit e.object.userData[INSPECT_USERDATA_KEY])
-                    e.object.userData[INSPECT_USERDATA_KEY] = {
-                      kind: "PV_PANEL" as const,
-                      id: String(panel.id),
-                    };
+                ? (_panel, e) => {
+                    // PvPanelInstanced patche userData (INSPECT_USERDATA_KEY) en interne
+                    // via panelIdByInstanceIndex — mutation déjà faite avant ce callback.
                     onInspectClick(e);
                   }
                 : undefined

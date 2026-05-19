@@ -31,6 +31,7 @@ import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import type { PvPanelSurface3D } from "../types/pv-panel-3d";
+import { INSPECT_USERDATA_KEY } from "../viewer/inspection/sceneInspectionTypes";
 
 // ── Géométrie partagée ────────────────────────────────────────────────────────
 
@@ -170,6 +171,21 @@ export function PvPanelInstanced({
   }, [sharedGeometry]);
 
   /**
+   * Map index d'instance → panelId (string).
+   *
+   * Remplace le pattern `mesh.userData.panelIds = [...]` du viewer :
+   *   - Vit dans le même scope que l'InstancedMesh (même composant, même cycle de vie)
+   *   - Reconstruit via useMemo quand panels change — jamais désynchronisé
+   *   - Typé ReadonlyMap<number, string> — pas de mutation externe possible
+   *   - Utilisé dans onClick/onPointerDown pour patcher e.object.userData[INSPECT_USERDATA_KEY]
+   *     AVANT d'appeler onPanelClick, ce qui élimine le couplage implicite viewer↔InstancedMesh.
+   */
+  const panelIdByInstanceIndex = useMemo<ReadonlyMap<number, string>>(
+    () => new Map(panels.map((p, i) => [i, String(p.id)])),
+    [panels],
+  );
+
+  /**
    * Flag dirty : signale que les matrices/couleurs doivent être recalculées.
    * Mis à true à chaque changement de panels / colors / count / hidden.
    * Remis à false dans useFrame après application.
@@ -258,6 +274,14 @@ export function PvPanelInstanced({
           ? (e: ThreeEvent<MouseEvent>) => {
               e.stopPropagation();
               if (e.instanceId !== undefined && e.instanceId < count) {
+                // Patch userData AVANT onPanelClick : le système d'inspection lit
+                // e.object.userData[INSPECT_USERDATA_KEY] pour résoudre { kind, id }.
+                // Fait ici (source de vérité : panelIdByInstanceIndex) pour éliminer
+                // la mutation externe dans le viewer.
+                const panelId = panelIdByInstanceIndex.get(e.instanceId);
+                if (panelId != null) {
+                  e.object.userData[INSPECT_USERDATA_KEY] = { kind: "PV_PANEL" as const, id: panelId };
+                }
                 onPanelClick(panels[e.instanceId]!, e);
               }
             }
