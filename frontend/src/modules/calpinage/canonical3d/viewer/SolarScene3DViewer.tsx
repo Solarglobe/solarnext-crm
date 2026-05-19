@@ -82,6 +82,7 @@ import {
 } from "./solarSceneBounds";
 import { CameraFramingRig } from "./CameraFramingRig";
 import { DynamicCamera } from "./DynamicCamera";
+import { getDepthOffset } from "./DepthRegistry";
 import { useViewerGestures } from "./useViewerGestures";
 import { logIfGeometryNormalsSuspect } from "./geometryNormalsAudit";
 import { ShadingLegend3D } from "./ShadingLegend3D";
@@ -2098,8 +2099,7 @@ function PanVertexSelectionMarkerMesh({
           toneMapped
           depthTest
           polygonOffset
-          polygonOffsetFactor={-1}
-          polygonOffsetUnits={-1}
+          {...getDepthOffset("SELECTION_HIGHLIGHT")}
         />
       </mesh>
       {usePickHelper ? (
@@ -2718,8 +2718,7 @@ function ViewerSceneContent({
             roughness={0.88}
             side={THREE.DoubleSide}
             polygonOffset
-            polygonOffsetFactor={1}
-            polygonOffsetUnits={1}
+            {...getDepthOffset("BUILDING_SHELL")}
             emissive={shellInspectSelected ? SOLARNEXT_3D_PREMIUM_THEME.shell.selectedEmissive : "#000000"}
             emissiveIntensity={shellInspectSelected ? 0.1 : 0}
           />
@@ -2810,8 +2809,7 @@ function ViewerSceneContent({
                   roughness={1}
                   side={THREE.DoubleSide}
                   polygonOffset
-                  polygonOffsetFactor={1}
-                  polygonOffsetUnits={1}
+                  {...getDepthOffset("ROOF_PAN")}
                 />
               ) : (
                 <meshStandardMaterial
@@ -2821,8 +2819,7 @@ function ViewerSceneContent({
                   flatShading={mRoof.flatShading ?? false}
                   side={THREE.DoubleSide}
                   polygonOffset
-                  polygonOffsetFactor={1}
-                  polygonOffsetUnits={1}
+                  {...getDepthOffset("ROOF_PAN")}
                   emissive={emissiveHex}
                   emissiveIntensity={emissiveIntensity}
                 />
@@ -2848,8 +2845,7 @@ function ViewerSceneContent({
             flatShading={mRoof.flatShading ?? false}
             side={THREE.DoubleSide}
             polygonOffset
-            polygonOffsetFactor={1}
-            polygonOffsetUnits={1}
+            {...getDepthOffset("ROOF_PAN")}
           />
         </mesh>
       )}
@@ -2905,8 +2901,7 @@ function ViewerSceneContent({
                 emissive={sel ? "#6d4c41" : mat.emissive}
                 emissiveIntensity={hideBaseMesh ? 0 : sel ? 0.35 : volume.visualRole === "roof_window_flush" ? 0.08 : 0}
                 polygonOffset
-                polygonOffsetFactor={-2}
-                polygonOffsetUnits={-2}
+                {...getDepthOffset("BUILDING_SHELL")}
               />
               {details.premiumAssets.meshes.map((asset) => {
                 const assetMat = premiumObstacleAssetMaterial(asset.role);
@@ -2928,8 +2923,7 @@ function ViewerSceneContent({
                       emissiveIntensity={assetMat.emissiveIntensity}
                       side={THREE.DoubleSide}
                       polygonOffset
-                      polygonOffsetFactor={-3}
-                      polygonOffsetUnits={-3}
+                      {...getDepthOffset("BUILDING_SHELL")}
                     />
                   </mesh>
                 );
@@ -2954,8 +2948,7 @@ function ViewerSceneContent({
                     flatShading={false}
                     side={THREE.DoubleSide}
                     polygonOffset
-                    polygonOffsetFactor={-2}
-                    polygonOffsetUnits={-2}
+                    {...getDepthOffset("BUILDING_SHELL")}
                   />
                 </mesh>
               ) : null}
@@ -2982,8 +2975,7 @@ function ViewerSceneContent({
                     emissiveIntensity={volume.visualRole === "roof_window_flush" ? 0.04 : 0}
                     side={THREE.DoubleSide}
                     polygonOffset
-                    polygonOffsetFactor={-2}
-                    polygonOffsetUnits={-2}
+                    {...getDepthOffset("BUILDING_SHELL")}
                   />
                 </mesh>
               ) : null}
@@ -2999,8 +2991,7 @@ function ViewerSceneContent({
                     emissiveIntensity={0.06}
                     side={THREE.DoubleSide}
                     polygonOffset
-                    polygonOffsetFactor={-4}
-                    polygonOffsetUnits={-4}
+                    {...getDepthOffset("ROOF_RIDGE")}
                   />
                 </mesh>
               ) : null}
@@ -3024,8 +3015,7 @@ function ViewerSceneContent({
                     transparent={false}
                     side={THREE.DoubleSide}
                     polygonOffset
-                    polygonOffsetFactor={-3}
-                    polygonOffsetUnits={-3}
+                    {...getDepthOffset("BUILDING_SHELL")}
                   />
                 </mesh>
               ) : null}
@@ -3110,8 +3100,7 @@ function ViewerSceneContent({
                     transparent={false}
                     side={THREE.DoubleSide}
                     polygonOffset
-                    polygonOffsetFactor={-3}
-                    polygonOffsetUnits={-3}
+                    {...getDepthOffset("BUILDING_SHELL")}
                   />
                 </mesh>
               ) : null}
@@ -3276,8 +3265,7 @@ function ViewerSceneContent({
                   depthTest
                   toneMapped={false}
                   polygonOffset
-                  polygonOffsetFactor={-1}
-                  polygonOffsetUnits={-1}
+                  {...getDepthOffset("CONTOUR_LINE")}
                 />
               </mesh>
             ) : null}
@@ -3354,8 +3342,7 @@ function ViewerSceneContent({
                   opacity={enabled === false ? 0.42 : 1}
                   side={THREE.DoubleSide}
                   polygonOffset
-                  polygonOffsetFactor={-4}
-                  polygonOffsetUnits={-4}
+                  {...getDepthOffset("PV_PANEL")}
                   depthTest
                 />
               </mesh>
@@ -3403,8 +3390,8 @@ function ViewerSceneContent({
             metalness={pvB.panelMetalness}
             roughness={pvB.panelRoughness}
             renderOrder={pvLayout3DInteractionMode ? 20 : 0}
-            polygonOffsetFactor={pvLayout3DInteractionMode ? -3 : -1}
-            polygonOffsetUnits={pvLayout3DInteractionMode ? -3 : -1}
+            polygonOffsetFactor={pvLayout3DInteractionMode ? getDepthOffset("PV_PANEL").polygonOffsetFactor : getDepthOffset("BUILDING_SHELL").polygonOffsetFactor}
+            polygonOffsetUnits={pvLayout3DInteractionMode ? getDepthOffset("PV_PANEL").polygonOffsetUnits : getDepthOffset("BUILDING_SHELL").polygonOffsetUnits}
             hiddenPanelIds={pvLayout3DEffectiveHiddenIds}
             raycastFn={pvPanelRaycastPassThrough ? roofModelingSkipOccluderRaycast : undefined}
             onPanelClick={

@@ -62,6 +62,7 @@ import AdminOrganizationsPage from "./pages/admin/AdminOrganizationsPage";
 import AdminAuditLogPage from "./pages/admin/AdminAuditLogPage";
 import MailInboxPage from "./pages/mail/MailInboxPage";
 import MailOutboxPage from "./pages/mail/MailOutboxPage";
+import SettingsHubPage from "./pages/settings/SettingsHubPage";
 import MailSettingsPage from "./pages/settings/MailSettingsPage";
 import SecuritySettingsPage from "./pages/SecuritySettingsPage";
 import { ErrorBoundary } from "./components/ErrorBoundary";
@@ -175,6 +176,7 @@ const router = createBrowserRouter(
         { path: "mail/templates", element: <Navigate to="/settings/mail?tab=templates" replace /> },
         { path: "mail/access", element: <Navigate to="/settings/mail?tab=access" replace /> },
         { path: "mail/outbox", element: <MailOutboxPage /> },
+        { path: "settings", element: <SettingsHubPage /> },
         { path: "settings/mail", element: <MailSettingsPage /> },
         { path: "settings/security", element: <SecuritySettingsPage /> },
         { path: "settings/mail-signatures", element: <Navigate to="/settings/mail?tab=signatures" replace /> },

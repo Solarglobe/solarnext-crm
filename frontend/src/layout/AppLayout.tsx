@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useLayoutEffect, useCallback } from "react";
 import { Outlet, NavLink, useLocation } from "react-router-dom";
-import { logout } from "../services/auth.service";
+import { getUserPermissions, logout } from "../services/auth.service";
 import {
   exitAdminImpersonationSession,
   wasImpersonationTokenExpiredAndCleared,
@@ -115,6 +115,16 @@ function CalendarIcon() {
   );
 }
 
+/** Boite d'envoi */
+function OutboxIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M22 2 11 13" />
+      <path d="m22 2-7 20-4-9-9-4Z" />
+    </svg>
+  );
+}
+
 /** Documents — dossier ouvert (distinct des fichiers) */
 function DocumentIcon() {
   return (
@@ -189,6 +199,39 @@ function UsersIcon() {
       <path d="M18 21a8 8 0 0 0-16 0" />
       <circle cx="10" cy="8" r="5" />
       <path d="M22 20c0-3.37-2-6.5-4-8a5 5 0 0 0-.45-8.3" />
+    </svg>
+  );
+}
+
+/** Parametres — roue dentee */
+function SettingsIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 15.5A3.5 3.5 0 1 0 12 8a3.5 3.5 0 0 0 0 7.5Z" />
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 8.92 4.6 1.65 1.65 0 0 0 10 3.09V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.66 0 1.27.39 1.51 1H21a2 2 0 1 1 0 4h-.09c-.66 0-1.27.39-1.51 1Z" />
+    </svg>
+  );
+}
+
+/** Securite — bouclier */
+function ShieldIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" />
+      <path d="m9 12 2 2 4-5" />
+    </svg>
+  );
+}
+
+/** Audit — journal de controle */
+function AuditIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" />
+      <path d="M14 2v6h6" />
+      <path d="M9 15h6" />
+      <path d="M9 11h2" />
+      <path d="M9 19h4" />
     </svg>
   );
 }
@@ -291,28 +334,32 @@ const principalModules = [
   { path: "/leads", label: "Leads", icon: LeadIcon },
   { path: "/clients", label: "Clients", icon: ClientIcon },
   { path: "/planning", label: "Planning", icon: CalendarIcon, end: true },
+];
+
+const financeModules = [
+  { path: "/quotes", label: "Devis", icon: QuoteIcon },
+  { path: "/invoices", label: "Factures", icon: InvoiceNavIcon },
+  { path: "/finance", label: "Vue financiere", icon: FinanceHubIcon, end: true },
+];
+
+const documentsModules = [
   { path: "/documents", label: "Documents", icon: DocumentIcon, end: true },
 ];
 
 const mailModules = [
-  { path: "/mail", label: "Mail", icon: MailIcon, end: true },
-  { path: "/settings/mail", label: "Messagerie", icon: MessagerieIcon, end: true },
+  { path: "/mail", label: "Boite mail", icon: MailIcon, end: true },
+  { path: "/mail/outbox", label: "Boite d'envoi", icon: OutboxIcon, end: true },
 ];
 
-const financeModules = [
-  { path: "/finance", label: "Vue d’ensemble", icon: FinanceHubIcon, end: true },
-  { path: "/quotes", label: "Devis", icon: QuoteIcon },
-  { path: "/invoices", label: "Factures", icon: InvoiceNavIcon },
-];
-
-const organizationNavItems = [
-  { path: "/organization/users", label: "Utilisateurs", icon: UsersIcon, end: true },
-  { path: "/organization/structure", label: "Équipes & entreprise", icon: StructureIcon, end: true },
-  { path: "/organization/catalog", label: "Catalogue devis", icon: CatalogIcon, end: true },
-];
-
-const technicalPvModules = [
-  { path: "/admin/settings/pv", label: "Paramètres PV", icon: SunIcon, end: true },
+const settingsModules = [
+  { path: "/settings", label: "Tous les parametres", icon: SettingsIcon, end: true },
+  { path: "/settings/security", label: "Securite", icon: ShieldIcon, end: true },
+  { path: "/organization/structure", label: "Organisation", icon: StructureIcon, end: true, adminOnly: true },
+  { path: "/organization/users", label: "Utilisateurs", icon: UsersIcon, end: true, adminOnly: true },
+  { path: "/organization/catalog", label: "Catalogue devis", icon: CatalogIcon, end: true, adminOnly: true },
+  { path: "/settings/mail", label: "Messagerie", icon: MessagerieIcon, end: true, adminOnly: true },
+  { path: "/admin/settings/pv", label: "Parametres PV", icon: SunIcon, end: true, adminOnly: true },
+  { path: "/admin/audit-log", label: "Journal d'audit", icon: AuditIcon, end: true, adminOnly: true },
 ];
 
 const superAdminModules = [
@@ -335,11 +382,11 @@ function MoonIcon() {
 
 type SidebarSectionId =
   | "principal"
-  | "installation"
-  | "mail"
   | "finance"
-  | "entreprise"
-  | "technical"
+  | "documents"
+  | "mail"
+  | "installation"
+  | "settings"
   | "superadmin";
 
 function pathMatchesSection(pathname: string, id: SidebarSectionId): boolean {
@@ -348,26 +395,30 @@ function pathMatchesSection(pathname: string, id: SidebarSectionId): boolean {
       pathname.startsWith("/dashboard") ||
       pathname.startsWith("/leads") ||
       pathname.startsWith("/clients") ||
-      pathname.startsWith("/planning") ||
-      pathname.startsWith("/documents")
+      pathname.startsWith("/planning")
     );
-  }
-  if (id === "installation") {
-    return pathname.startsWith("/mairies") || pathname.startsWith("/installation");
-  }
-  if (id === "mail") {
-    return pathname.startsWith("/mail") || pathname.startsWith("/settings/mail");
   }
   if (id === "finance") {
     return pathname.startsWith("/quotes") || pathname.startsWith("/invoices") || pathname.startsWith("/finance");
   }
-  if (id === "entreprise") {
-    return pathname.startsWith("/organization");
+  if (id === "documents") {
+    return pathname.startsWith("/documents");
   }
-  if (id === "superadmin") {
-    return pathname.startsWith("/admin/organizations");
+  if (id === "mail") {
+    return pathname.startsWith("/mail");
   }
-  return pathname.startsWith("/admin/settings/pv");
+  if (id === "installation") {
+    return pathname.startsWith("/mairies") || pathname.startsWith("/installation");
+  }
+  if (id === "settings") {
+    return (
+      pathname.startsWith("/settings") ||
+      pathname.startsWith("/organization") ||
+      pathname.startsWith("/admin/settings/pv") ||
+      pathname.startsWith("/admin/audit-log")
+    );
+  }
+  return pathname.startsWith("/admin/organizations");
 }
 
 function SidebarSectionChevron({ expanded }: { expanded: boolean }) {
@@ -389,7 +440,7 @@ function SidebarSectionChevron({ expanded }: { expanded: boolean }) {
   );
 }
 
-type NavItem = { path: string; label: string; icon: React.ComponentType; end?: boolean };
+type NavItem = { path: string; label: string; icon: React.ComponentType; end?: boolean; adminOnly?: boolean };
 
 function SidebarCollapsibleSection({
   sectionId,
@@ -451,6 +502,7 @@ function SidebarCollapsibleSection({
 export function AppLayout() {
   const { isSuperAdmin } = useOrganization();
   const { pathname } = useLocation();
+  const [canAccessAdminSettings, setCanAccessAdminSettings] = useState(false);
 
   useLayoutEffect(() => {
     const root = document.documentElement;
@@ -474,17 +526,41 @@ export function AppLayout() {
 
   const [sectionOpen, setSectionOpen] = useState<Record<SidebarSectionId, boolean>>({
     principal: true,
-    installation: false,
-    mail: false,
     finance: false,
-    entreprise: false,
-    technical: false,
+    documents: false,
+    mail: false,
+    installation: false,
+    settings: false,
     superadmin: false,
   });
 
   const toggleSection = useCallback((id: SidebarSectionId) => {
     setSectionOpen((prev) => ({ ...prev, [id]: !prev[id] }));
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    getUserPermissions()
+      .then(({ permissions, superAdmin }) => {
+        if (cancelled) return;
+        const perms = Array.isArray(permissions) ? permissions : [];
+        setCanAccessAdminSettings(
+          superAdmin === true ||
+            perms.includes("*") ||
+            perms.some((permission) =>
+              ["org.settings.manage", "structure.manage", "rbac.manage", "user.manage"].includes(permission)
+            )
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setCanAccessAdminSettings(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const visibleSettingsModules = settingsModules.filter((item) => !item.adminOnly || canAccessAdminSettings);
 
   // RESPONSIVE FIX: fermer le drawer sidebar à chaque changement de route
   useEffect(() => {
@@ -498,11 +574,11 @@ export function AppLayout() {
       (
         [
           "principal",
-          "installation",
-          "mail",
           "finance",
-          "entreprise",
-          "technical",
+          "documents",
+          "mail",
+          "installation",
+          "settings",
           "superadmin",
         ] as SidebarSectionId[]
       ).forEach((id) => {
@@ -714,33 +790,32 @@ export function AppLayout() {
         <nav className="sn-sidebar-nav" aria-label="Navigation principale">
           <SidebarCollapsibleSection
             sectionId="principal"
-            title="Principal"
+            title="Operations"
             expanded={sectionOpen.principal}
             onToggle={() => toggleSection("principal")}
             navLinks={principalModules}
           />
           <SidebarCollapsibleSection
-            sectionId="mail"
-            title="Mail"
-            expanded={sectionOpen.mail}
-            onToggle={() => toggleSection("mail")}
-            navLinks={mailModules}
-          />
-          <SidebarCollapsibleSection
             sectionId="finance"
-            title="Finance"
+            title="Ventes & finance"
             expanded={sectionOpen.finance}
             onToggle={() => toggleSection("finance")}
             navLinks={financeModules}
             linkClassName="sn-sidebar-link-nested"
           />
           <SidebarCollapsibleSection
-            sectionId="entreprise"
-            title="Entreprise"
-            expanded={sectionOpen.entreprise}
-            onToggle={() => toggleSection("entreprise")}
-            navLinks={organizationNavItems}
-            linkClassName="sn-sidebar-link-org"
+            sectionId="documents"
+            title="Documents"
+            expanded={sectionOpen.documents}
+            onToggle={() => toggleSection("documents")}
+            navLinks={documentsModules}
+          />
+          <SidebarCollapsibleSection
+            sectionId="mail"
+            title="Messagerie"
+            expanded={sectionOpen.mail}
+            onToggle={() => toggleSection("mail")}
+            navLinks={mailModules}
           />
           <SidebarCollapsibleSection
             sectionId="installation"
@@ -751,11 +826,11 @@ export function AppLayout() {
             linkClassName="sn-sidebar-link-nested"
           />
           <SidebarCollapsibleSection
-            sectionId="technical"
-            title="Paramètres techniques"
-            expanded={sectionOpen.technical}
-            onToggle={() => toggleSection("technical")}
-            navLinks={technicalPvModules}
+            sectionId="settings"
+            title="Parametres"
+            expanded={sectionOpen.settings}
+            onToggle={() => toggleSection("settings")}
+            navLinks={visibleSettingsModules}
             linkClassName="sn-sidebar-link-nested"
           />
           {isSuperAdmin ? (
