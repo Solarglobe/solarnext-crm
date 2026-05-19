@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
+import { DataTable, PageHeader, type DataTableColumn } from "../../components/ui";
 import { getUserPermissions } from "../../services/auth.service";
 import "./settings-hub-page.css";
 
@@ -7,7 +8,9 @@ type SettingsCard = {
   title: string;
   description: string;
   href: string;
-  group: "Compte" | "Organisation" | "Commercial" | "Technique";
+  group: "Compte" | "Organisation" | "Commercial" | "Technique" | "Controle";
+  status: string;
+  permission: string;
   adminOnly?: boolean;
 };
 
@@ -20,16 +23,28 @@ const ADMIN_PERMISSIONS = [
 
 const SETTINGS_CARDS: SettingsCard[] = [
   {
-    title: "Securite",
-    description: "MFA, sessions actives et regles de securite du compte.",
+    title: "Mon compte",
+    description: "Acces personnel, sessions et verification du compte.",
     href: "/settings/security",
     group: "Compte",
+    status: "Personnel",
+    permission: "Utilisateur connecte",
+  },
+  {
+    title: "Securite",
+    description: "MFA, sessions actives et regles de securite.",
+    href: "/settings/security",
+    group: "Compte",
+    status: "Disponible",
+    permission: "Utilisateur connecte",
   },
   {
     title: "Organisation",
-    description: "Identite entreprise, equipes, agences et informations officielles.",
-    href: "/organization/structure",
+    description: "Identite entreprise, logo et informations officielles.",
+    href: "/organization/company",
     group: "Organisation",
+    status: "Admin",
+    permission: "Admin org ou structure.manage",
     adminOnly: true,
   },
   {
@@ -37,6 +52,8 @@ const SETTINGS_CARDS: SettingsCard[] = [
     description: "Membres, invitations et acces internes.",
     href: "/organization/users",
     group: "Organisation",
+    status: "Admin",
+    permission: "Admin org ou user.manage",
     adminOnly: true,
   },
   {
@@ -44,6 +61,17 @@ const SETTINGS_CARDS: SettingsCard[] = [
     description: "Roles, permissions et droits applicatifs.",
     href: "/organization/roles",
     group: "Organisation",
+    status: "Admin",
+    permission: "Admin org ou rbac.manage",
+    adminOnly: true,
+  },
+  {
+    title: "Equipes / agences",
+    description: "Structure commerciale, agences et repartition des equipes.",
+    href: "/organization/teams",
+    group: "Organisation",
+    status: "Admin",
+    permission: "Admin org ou structure.manage",
     adminOnly: true,
   },
   {
@@ -51,6 +79,8 @@ const SETTINGS_CARDS: SettingsCard[] = [
     description: "Articles, textes, modeles et parametrage commercial des devis.",
     href: "/organization/catalog",
     group: "Commercial",
+    status: "Admin",
+    permission: "Admin org ou org.settings.manage",
     adminOnly: true,
   },
   {
@@ -58,6 +88,8 @@ const SETTINGS_CARDS: SettingsCard[] = [
     description: "Comptes mail, signatures, templates et droits d'acces.",
     href: "/settings/mail",
     group: "Organisation",
+    status: "Configuration",
+    permission: "Admin org ou org.settings.manage",
     adminOnly: true,
   },
   {
@@ -65,14 +97,46 @@ const SETTINGS_CARDS: SettingsCard[] = [
     description: "Parametres techniques et economiques utilises par le CRM solaire.",
     href: "/admin/settings/pv",
     group: "Technique",
+    status: "Technique",
+    permission: "Admin org ou org.settings.manage",
     adminOnly: true,
   },
   {
     title: "Journal d'audit",
     description: "Evenements sensibles, actions admin et traces de securite.",
     href: "/admin/audit-log",
-    group: "Organisation",
+    group: "Controle",
+    status: "Controle",
+    permission: "Admin org ou super admin",
     adminOnly: true,
+  },
+];
+
+const GROUP_ORDER: SettingsCard["group"][] = ["Compte", "Organisation", "Commercial", "Technique", "Controle"];
+
+const MATRIX_COLUMNS: DataTableColumn<SettingsCard>[] = [
+  {
+    id: "section",
+    header: "Section",
+    render: (row) => <strong>{row.title}</strong>,
+    width: "22%",
+  },
+  {
+    id: "path",
+    header: "Route",
+    render: (row) => <code>{row.href}</code>,
+    width: "22%",
+  },
+  {
+    id: "permission",
+    header: "Permission",
+    render: (row) => row.permission,
+  },
+  {
+    id: "status",
+    header: "Statut",
+    render: (row) => <span className="settings-hub__status">{row.status}</span>,
+    width: "16%",
   },
 ];
 
@@ -113,7 +177,7 @@ export default function SettingsHubPage() {
   }, [permissions, superAdmin]);
 
   const groups = useMemo(() => {
-    return ["Compte", "Organisation", "Commercial", "Technique"]
+    return GROUP_ORDER
       .map((group) => ({
         group,
         cards: visibleCards.filter((card) => card.group === group),
@@ -123,13 +187,11 @@ export default function SettingsHubPage() {
 
   return (
     <main className="settings-hub">
-      <header className="settings-hub__header">
-        <p>Parametres</p>
-        <h1>Centre de configuration CRM</h1>
-        <span>
-          Les reglages sont regroupes ici pour eviter les menus disperses et les pages difficiles a retrouver.
-        </span>
-      </header>
+      <PageHeader
+        eyebrow="Parametres"
+        title="Centre de configuration CRM"
+        description="Un hub unique pour retrouver les reglages compte, organisation, messagerie, securite, audit et parametres PV sans passer par les menus operationnels."
+      />
 
       {loading ? (
         <div className="settings-hub__loading">Verification des acces...</div>
@@ -140,14 +202,26 @@ export default function SettingsHubPage() {
               <h2>{group}</h2>
               <div className="settings-hub__grid">
                 {cards.map((card) => (
-                  <Link className="settings-hub__card" to={card.href} key={card.href}>
-                    <strong>{card.title}</strong>
-                    <span>{card.description}</span>
+                  <Link className="settings-hub__card" to={card.href} key={`${card.href}:${card.title}`}>
+                    <div className="settings-hub__card-head">
+                      <strong>{card.title}</strong>
+                      <span className="settings-hub__status">{card.status}</span>
+                    </div>
+                    <span className="settings-hub__card-description">{card.description}</span>
+                    <small>{card.permission}</small>
                   </Link>
                 ))}
               </div>
             </section>
           ))}
+          <DataTable
+            className="settings-hub__matrix"
+            title="Matrice sections / permissions"
+            columns={MATRIX_COLUMNS}
+            rows={visibleCards}
+            getRowKey={(row) => `${row.href}:${row.title}`}
+            dense
+          />
         </div>
       )}
     </main>

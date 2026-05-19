@@ -7,34 +7,6 @@
   padding: 28px;
 }
 
-.settings-hub__header {
-  display: grid;
-  gap: 6px;
-}
-
-.settings-hub__header p {
-  margin: 0;
-  color: var(--sn-accent, #2563eb);
-  font-size: 12px;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: .08em;
-}
-
-.settings-hub__header h1 {
-  margin: 0;
-  color: var(--text, #0f172a);
-  font-size: 28px;
-  line-height: 1.15;
-}
-
-.settings-hub__header span {
-  max-width: 760px;
-  color: var(--text-muted, #64748b);
-  font-size: 14px;
-  line-height: 1.55;
-}
-
 .settings-hub__loading {
   color: var(--text-muted, #64748b);
   font-size: 14px;
@@ -64,9 +36,10 @@
 
 .settings-hub__card {
   display: grid;
-  gap: 8px;
-  min-height: 116px;
-  padding: 16px;
+  align-content: start;
+  gap: 10px;
+  min-height: 128px;
+  padding: 14px;
   border: 1px solid var(--border, #e2e8f0);
   border-radius: 8px;
   background: var(--surface, #fff);
@@ -82,23 +55,59 @@
   transform: translateY(-1px);
 }
 
+.settings-hub__card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
 .settings-hub__card strong {
   color: var(--text, #0f172a);
   font-size: 14px;
+  line-height: 1.3;
 }
 
-.settings-hub__card span {
+.settings-hub__card-description {
   color: var(--text-muted, #64748b);
   font-size: 13px;
   line-height: 1.45;
 }
 
+.settings-hub__card small {
+  align-self: end;
+  color: var(--text-muted, #64748b);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.settings-hub__status {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  min-height: 22px;
+  padding: 3px 8px;
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface, #fff) 86%, var(--sn-accent, #2563eb) 14%);
+  color: var(--text, #0f172a);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.settings-hub__matrix {
+  margin-top: 4px;
+}
+
+.settings-hub__matrix code {
+  color: var(--text-muted, #64748b);
+  font-size: 12px;
+}
+
 @media (max-width: 720px) {
   .settings-hub {
     padding: 16px;
-  }
-
-  .settings-hub__header h1 {
-    font-size: 23px;
   }
 }
