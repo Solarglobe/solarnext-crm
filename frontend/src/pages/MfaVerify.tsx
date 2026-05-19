@@ -28,7 +28,10 @@ export default function MfaVerify() {
     try {
       const session = await verifyMfaLogin(mfaToken, code);
       sessionStorage.removeItem("solarnext_mfa_token");
-      navigate(session.user?.onboardingCompleted === false ? "/onboarding" : "/dashboard", { replace: true });
+      const shouldOnboard =
+        session.user?.onboardingCompleted === false &&
+        session.user?.internalHomeOrganization !== true;
+      navigate(shouldOnboard ? "/onboarding" : "/dashboard", { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Code MFA invalide");
     } finally {

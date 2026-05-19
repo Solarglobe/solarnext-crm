@@ -235,6 +235,8 @@ export interface CurrentUser {
   onboardingCompleted?: boolean;
   planId?: string | null;
   internalHomeOrganization?: boolean;
+  impersonation?: boolean;
+  impersonationType?: "ORG" | "USER" | string;
   mfaEnabled?: boolean;
   organizationRequiresMfa?: boolean;
   firstName?: string | null;

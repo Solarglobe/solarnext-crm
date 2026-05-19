@@ -145,7 +145,10 @@ export default function Login() {
       }
       setOrgChoices(null);
       setSelectedOrgId("");
-      navigate(session.user?.onboardingCompleted === false ? "/onboarding" : "/dashboard", { replace: true });
+      const shouldOnboard =
+        session.user?.onboardingCompleted === false &&
+        session.user?.internalHomeOrganization !== true;
+      navigate(shouldOnboard ? "/onboarding" : "/dashboard", { replace: true });
     } catch (err) {
       if (err instanceof LoginAmbiguousError) {
         setOrgChoices(err.organizations);
