@@ -1,11 +1,18 @@
 /**
- * Liste factures — filtres métier, colonnes encours, création depuis devis (recherche, pas d’UUID).
+ * Liste factures - surface SaaS standardisee, workflows conserves.
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Button } from "../components/ui/Button";
-import { ModalShell } from "../components/ui/ModalShell";
+import {
+  ActionBar,
+  Button,
+  DataTable,
+  EmptyState,
+  ModalShell,
+  PageHeader,
+  type DataTableColumn,
+} from "../components/ui";
 import {
   fetchInvoicesList,
   fetchQuotesList,
@@ -22,15 +29,17 @@ import "../modules/finance/financial-list-saas.css";
 
 function eur(v: unknown) {
   const n = Number(v);
-  return Number.isFinite(n) ? n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €" : "—";
+  return Number.isFinite(n)
+    ? `${n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} EUR`
+    : "-";
 }
 
 function fmtDate(s: string | undefined | null) {
-  if (!s) return "—";
+  if (!s) return "-";
   try {
     return new Date(s).toLocaleDateString("fr-FR", { dateStyle: "short" });
   } catch {
-    return "—";
+    return "-";
   }
 }
 
@@ -52,7 +61,7 @@ function formatInvoiceClient(row: InvoiceListRow): string {
   const parts = [row.first_name, row.last_name].filter(Boolean);
   if (parts.length) return parts.join(" ").trim();
   if (row.lead_id) return "Lead (sans fiche client)";
-  return "—";
+  return "-";
 }
 
 function invoiceRowDateMs(r: InvoiceListRow): number {
@@ -64,13 +73,10 @@ function invoiceRowDateMs(r: InvoiceListRow): number {
 
 type InvStatusFilter = "ALL" | "DRAFT" | "ISSUED" | "PAID" | "PARTIAL" | "OVERDUE";
 type InvPeriodFilter = "ALL" | "WEEK" | "MONTH" | "YEAR";
-/** Critère du filtre date à date (création / édition) */
 type InvDateRangeBasis = "CREATED" | "UPDATED" | "EITHER";
 
 function norm(s: string | undefined) {
-  return String(s || "")
-    .trim()
-    .toUpperCase();
+  return String(s || "").trim().toUpperCase();
 }
 
 function invoiceRowIsTest(r: InvoiceListRow): boolean {
@@ -103,8 +109,7 @@ function matchesInvoicePeriod(row: InvoiceListRow, f: InvPeriodFilter): boolean 
   const ms = invoiceRowDateMs(row);
   if (!ms) return true;
   const now = new Date();
-  const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-  const t0 = startOfDay(now);
+  const t0 = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
   if (f === "WEEK") return ms >= t0 - 6 * 86400000;
   if (f === "MONTH") return ms >= new Date(now.getFullYear(), now.getMonth(), 1).getTime();
   if (f === "YEAR") return ms >= new Date(now.getFullYear(), 0, 1).getTime();
@@ -122,20 +127,11 @@ function localYmdStartMs(ymd: string): number | null {
   if (!t) return null;
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(t);
   if (!m) return null;
-  const y = Number(m[1]);
-  const mo = Number(m[2]) - 1;
-  const d = Number(m[3]);
-  const ms = new Date(y, mo, d).getTime();
+  const ms = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).getTime();
   return Number.isFinite(ms) ? ms : null;
 }
 
-/** Filtre inclusif sur journées locales ; si les deux bornes sont renseignées dans le désordre, l’intervalle est normalisé. */
-function matchesInvoiceDateRange(
-  row: InvoiceListRow,
-  fromYmd: string,
-  toYmd: string,
-  basis: InvDateRangeBasis
-): boolean {
+function matchesInvoiceDateRange(row: InvoiceListRow, fromYmd: string, toYmd: string, basis: InvDateRangeBasis): boolean {
   const hasFrom = Boolean(fromYmd.trim());
   const hasTo = Boolean(toYmd.trim());
   if (!hasFrom && !hasTo) return true;
@@ -145,19 +141,8 @@ function matchesInvoiceDateRange(
   if (hasFrom && a == null) return true;
   if (hasTo && b == null) return true;
 
-  let low: number;
-  let highExclusive: number;
-  if (a != null && b != null) {
-    low = Math.min(a, b);
-    highExclusive = Math.max(a, b) + 86400000;
-  } else if (a != null) {
-    low = a;
-    highExclusive = Infinity;
-  } else {
-    low = -Infinity;
-    highExclusive = b! + 86400000;
-  }
-
+  const low = a != null && b != null ? Math.min(a, b) : a ?? -Infinity;
+  const highExclusive = a != null && b != null ? Math.max(a, b) + 86400000 : b != null ? b + 86400000 : Infinity;
   const inRange = (ts: number) => ts >= low && ts < highExclusive;
 
   if (basis === "CREATED") {
@@ -170,27 +155,20 @@ function matchesInvoiceDateRange(
   }
   const c = parseIsoToMs(row.created_at);
   const u = parseIsoToMs(row.updated_at);
-  if (c != null && inRange(c)) return true;
-  if (u != null && inRange(u)) return true;
-  return false;
+  return (c != null && inRange(c)) || (u != null && inRange(u));
 }
 
-function IconSearchFin({ className }: { className?: string }) {
-  return (
-    <svg className={className} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" />
-    </svg>
-  );
+function formatQuoteContact(row: QuoteListRow): string {
+  if (row.company_name?.trim()) return row.company_name.trim();
+  const parts = [row.first_name, row.last_name].filter(Boolean);
+  if (parts.length) return parts.join(" ").trim();
+  if (row.lead_full_name?.trim()) return row.lead_full_name.trim();
+  return "-";
 }
 
 function formatQuoteLine(q: QuoteListRow): string {
   const num = q.quote_number || q.id.slice(0, 8);
-  const contact =
-    q.company_name?.trim() ||
-    [q.first_name, q.last_name].filter(Boolean).join(" ").trim() ||
-    q.lead_full_name?.trim() ||
-    "—";
-  return `${num} — ${contact}`;
+  return `${num} - ${formatQuoteContact(q)}`;
 }
 
 function quoteRowCanInvoice(q: QuoteListRow): boolean {
@@ -200,7 +178,7 @@ function quoteRowCanInvoice(q: QuoteListRow): boolean {
 }
 
 function quoteRowInvoiceBlockedReason(_q: QuoteListRow): string {
-  return "Ce devis accepté n’a ni fiche client ni dossier (lead) : facturation impossible. Corrigez le rattachement du devis.";
+  return "Ce devis accepte n'a ni fiche client ni dossier lead : facturation impossible.";
 }
 
 export default function InvoicesPage() {
@@ -246,10 +224,7 @@ export default function InvoicesPage() {
     setQuotesLoading(true);
     void fetchQuotesList({ limit: 500 })
       .then((list) => {
-        if (!cancelled) {
-          const accepted = list.filter((q) => norm(q.status) === "ACCEPTED");
-          setQuotesForPicker(accepted);
-        }
+        if (!cancelled) setQuotesForPicker(list.filter((q) => norm(q.status) === "ACCEPTED"));
       })
       .catch(() => {
         if (!cancelled) setQuotesForPicker([]);
@@ -286,9 +261,7 @@ export default function InvoicesPage() {
     const custom = Boolean(dateFrom.trim() || dateTo.trim());
     return rows
       .filter((r) => matchesInvoiceStatus(r, statusFilter))
-      .filter((r) =>
-        custom ? matchesInvoiceDateRange(r, dateFrom, dateTo, dateRangeBasis) : matchesInvoicePeriod(r, periodFilter)
-      )
+      .filter((r) => (custom ? matchesInvoiceDateRange(r, dateFrom, dateTo, dateRangeBasis) : matchesInvoicePeriod(r, periodFilter)))
       .filter((r) => {
         if (!q) return true;
         const num = String(r.invoice_number || "").toLowerCase();
@@ -300,25 +273,20 @@ export default function InvoicesPage() {
         const oa = isInvoiceOverdue(a) ? 0 : 1;
         const ob = isInvoiceOverdue(b) ? 0 : 1;
         if (oa !== ob) return oa - ob;
-        if (oa === 0) {
-          const da = String(a.due_date || "").slice(0, 10);
-          const db = String(b.due_date || "").slice(0, 10);
-          return da.localeCompare(db);
-        }
+        if (oa === 0) return String(a.due_date || "").slice(0, 10).localeCompare(String(b.due_date || "").slice(0, 10));
         return invoiceRowDateMs(b) - invoiceRowDateMs(a);
       });
   }, [rows, statusFilter, periodFilter, dateFrom, dateTo, dateRangeBasis, search]);
 
   const quotePickerOptions = useMemo(() => {
     const q = quoteSearch.trim().toLowerCase();
-    let list = quotesForPicker;
-    if (q) {
-      list = list.filter((row) => {
-        const num = String(row.quote_number || "").toLowerCase();
-        const contact = formatQuoteLine(row).toLowerCase();
-        return num.includes(q) || contact.includes(q) || String(row.id).toLowerCase().includes(q);
-      });
-    }
+    const list = q
+      ? quotesForPicker.filter((row) => {
+          const num = String(row.quote_number || "").toLowerCase();
+          const contact = formatQuoteLine(row).toLowerCase();
+          return num.includes(q) || contact.includes(q) || String(row.id).toLowerCase().includes(q);
+        })
+      : quotesForPicker;
     return list.slice(0, 40);
   }, [quotesForPicker, quoteSearch]);
 
@@ -330,260 +298,198 @@ export default function InvoicesPage() {
     }
     setQuoteModalError(null);
     setQuoteModal(false);
-    navigate(
-      `/invoices/new?fromQuote=${encodeURIComponent(selectedQuote.id)}&billingRole=STANDARD`
-    );
+    navigate(`/invoices/new?fromQuote=${encodeURIComponent(selectedQuote.id)}&billingRole=STANDARD`);
   };
 
-  return (
-    <div className="qb-page fin-pole-shell">
-      <div className="fin-pole-list-hero">
-        <div className="fin-pole-list-hero__text">
-          <h1 className="sg-title">Factures</h1>
-          <p className="fin-pole-lead">
-            Encaissements et relances. Acomptes et soldes depuis un devis accepté ; le bouton ci-contre duplique les lignes d&apos;un
-            devis accepté en facture complète.
-          </p>
-        </div>
-        <div className="fin-pole-list-hero__actions">
-          <Link to="/finance" className="sn-btn sn-btn-ghost sn-btn-sm">
-            Vue d&apos;ensemble
-          </Link>
-          <Link to="/quotes" className="sn-btn sn-btn-ghost sn-btn-sm">
-            Devis
-          </Link>
-          <Button type="button" variant="primary" size="sm" onClick={() => setQuoteModal(true)}>
-            Créer depuis devis
+  const columns = useMemo<DataTableColumn<InvoiceListRow>[]>(
+    () => [
+      {
+        id: "number",
+        header: "Numero",
+        render: (r) => (
+          <span className="qb-mono">
+            {formatInvoiceNumberDisplay(r.invoice_number, r.status)}
+            {invoiceRowIsTest(r) ? <span className="sn-badge sn-badge-warn fin-standard-inline-badge">TEST</span> : null}
+          </span>
+        ),
+      },
+      { id: "client", header: "Client", render: (r) => formatInvoiceClient(r) },
+      { id: "total", header: "Montant TTC", align: "right", render: (r) => eur(r.total_ttc) },
+      { id: "paid", header: "Paye", align: "right", render: (r) => eur(r.total_paid) },
+      { id: "due", header: "Reste", align: "right", render: (r) => eur(r.amount_due) },
+      { id: "status", header: "Statut", render: (r) => <InvoiceStatusBadge status={r.status} /> },
+      { id: "dueDate", header: "Echeance", render: (r) => fmtDate(r.due_date) },
+      {
+        id: "late",
+        header: "Suivi",
+        render: (r) => {
+          const overdue = isInvoiceOverdue(r);
+          const paid = toAmount(r.total_paid);
+          const due = toAmount(r.amount_due);
+          const partial = norm(r.status) === "PARTIALLY_PAID" && due > 0;
+          if (overdue) return <span className="sn-badge sn-badge-danger">Retard</span>;
+          if (paid > 0 && due <= 0) return <span className="sn-badge sn-badge-success">Soldee</span>;
+          if (partial) return <span className="sn-badge sn-badge-warn">Partiel</span>;
+          return <span className="sn-badge sn-badge-neutral">A suivre</span>;
+        },
+      },
+      {
+        id: "actions",
+        header: "Actions",
+        align: "right",
+        render: (r) => (
+          <Button type="button" variant="ghost" size="sm" onClick={() => navigate(`/invoices/${r.id}`)}>
+            Ouvrir
           </Button>
-          <Button type="button" variant="ghost" size="sm" onClick={() => navigate("/invoices/new")} title="Facture vierge — préférez un devis accepté pour préremplir.">
-            Nouvelle facture
-          </Button>
-        </div>
-      </div>
+        ),
+      },
+    ],
+    [navigate]
+  );
 
-      <div className="sn-leads-toolbar-wrap">
-        <div className="sn-leads-filters-card" role="search" aria-label="Filtres factures">
-          <div className="sn-leads-filters-primary">
-            <div className="sn-leads-filters-search">
-              <IconSearchFin className="sn-leads-filters-search__icon" />
+  return (
+    <div className="qb-page fin-pole-shell fin-standard-page">
+      <PageHeader
+        eyebrow="Finance"
+        title="Factures"
+        description="Encaissements, echeances et creation de factures depuis les devis acceptes."
+        actions={
+          <>
+            <Link to="/finance" className="sn-btn sn-btn-ghost sn-btn-sm">Vue d'ensemble</Link>
+            <Link to="/quotes" className="sn-btn sn-btn-ghost sn-btn-sm">Devis</Link>
+            <Button type="button" variant="primary" size="sm" onClick={() => setQuoteModal(true)}>Creer depuis devis</Button>
+            <Button type="button" variant="ghost" size="sm" onClick={() => navigate("/invoices/new")}>Nouvelle facture</Button>
+          </>
+        }
+        meta={<span className="sn-badge sn-badge-neutral">{filtered.length} factures affichees</span>}
+      />
+
+      <ActionBar
+        className="fin-standard-filters"
+        primary={
+          <>
+            <label className="fin-standard-field fin-standard-field--search">
+              <span>Recherche</span>
               <input
                 id="fin-invoices-search"
                 type="search"
-                className="sn-leads-filters-search__input"
+                className="sn-input"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Rechercher n°, client, contact…"
-                aria-label="Rechercher une facture"
+                placeholder="Numero, client, contact"
                 autoComplete="off"
               />
-            </div>
-            {/* Status chips */}
-            <div className="fin-chips">
-              {(["ALL", "DRAFT", "ISSUED", "PARTIAL", "PAID", "OVERDUE"] as InvStatusFilter[]).map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  className={`fin-chip${statusFilter === s ? " fin-chip--active" : ""}`}
-                  onClick={() => setStatusFilter(s)}
-                >
-                  {statusFilter === s && s !== "ALL" && <span className="fin-chip__dot" />}
-                  {{ ALL: "Tous", DRAFT: "Brouillon", ISSUED: "Émise", PARTIAL: "Partiel", PAID: "Payée", OVERDUE: "En retard" }[s]}
-                </button>
-              ))}
-            </div>
-            <div className="sn-leads-filters-field sn-leads-filters-field--daterange">
-              <span className="sn-leads-filters-field__label">Plage de dates</span>
-              <div className="sn-leads-filters-daterange">
-                <input
-                  type="date"
-                  className="sn-leads-filters-input sn-leads-filters-input--date"
-                  value={dateFrom}
-                  onChange={(e) => setDateFrom(e.target.value)}
-                  aria-label="Date de début (filtre)"
-                />
-                <span className="sn-leads-filters-daterange__sep" aria-hidden>
-                  –
-                </span>
-                <input
-                  type="date"
-                  className="sn-leads-filters-input sn-leads-filters-input--date"
-                  value={dateTo}
-                  onChange={(e) => setDateTo(e.target.value)}
-                  aria-label="Date de fin (filtre)"
-                />
-              </div>
-            </div>
-            <div className="sn-leads-filters-primary__reset">
-              <button type="button" className="sn-leads-filters-reset" onClick={handleResetFilters}>
-                Réinitialiser
-              </button>
-            </div>
-          </div>
-          <div className="sn-leads-filters-secondary" aria-label="Filtres dates">
-            <div
-              className="sn-leads-filters-field sn-leads-filters-field--subtle"
-              title={useCustomDateRange ? "Désactivé tant qu’une plage Du/Au est renseignée" : undefined}
-            >
-              <label htmlFor="fin-inv-period" className="sn-leads-filters-field__label">
-                Période rapide
-              </label>
+            </label>
+            <label className="fin-standard-field">
+              <span>Statut</span>
+              <select className="sn-input" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as InvStatusFilter)}>
+                <option value="ALL">Tous</option>
+                <option value="DRAFT">Brouillon</option>
+                <option value="ISSUED">Emise</option>
+                <option value="PARTIAL">Partiel</option>
+                <option value="PAID">Payee</option>
+                <option value="OVERDUE">En retard</option>
+              </select>
+            </label>
+            <label className="fin-standard-field">
+              <span>Periode</span>
               <select
-                id="fin-inv-period"
-                className="sn-leads-filters-select sn-leads-filters-select--subtle"
+                className="sn-input"
                 value={periodFilter}
                 disabled={useCustomDateRange}
                 onChange={(e) => setPeriodFilter(e.target.value as InvPeriodFilter)}
               >
                 <option value="ALL">Toutes</option>
-                <option value="WEEK">Semaine glissante</option>
+                <option value="WEEK">Semaine</option>
                 <option value="MONTH">Mois en cours</option>
-                <option value="YEAR">Année en cours</option>
+                <option value="YEAR">Annee en cours</option>
               </select>
-            </div>
-            <div className="sn-leads-filters-field sn-leads-filters-field--subtle fin-list-field--wide">
-              <label htmlFor="fin-inv-basis" className="sn-leads-filters-field__label">
-                Filtrer sur
-              </label>
-              <select
-                id="fin-inv-basis"
-                className="sn-leads-filters-select sn-leads-filters-select--subtle"
-                value={dateRangeBasis}
-                onChange={(e) => setDateRangeBasis(e.target.value as InvDateRangeBasis)}
-                aria-label="Critère de dates"
-              >
-                <option value="EITHER">Création ou dernière modification</option>
-                <option value="CREATED">Date de création</option>
-                <option value="UPDATED">Dernière modification</option>
+            </label>
+          </>
+        }
+        secondary={
+          <>
+            <label className="fin-standard-field">
+              <span>Du</span>
+              <input type="date" className="sn-input" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+            </label>
+            <label className="fin-standard-field">
+              <span>Au</span>
+              <input type="date" className="sn-input" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+            </label>
+            <label className="fin-standard-field fin-standard-field--wide">
+              <span>Filtrer sur</span>
+              <select className="sn-input" value={dateRangeBasis} onChange={(e) => setDateRangeBasis(e.target.value as InvDateRangeBasis)}>
+                <option value="EITHER">Creation ou modification</option>
+                <option value="CREATED">Creation</option>
+                <option value="UPDATED">Modification</option>
               </select>
-            </div>
-          </div>
-        </div>
-      </div>
+            </label>
+            <Button type="button" variant="ghost" size="sm" onClick={handleResetFilters}>Reinitialiser</Button>
+            <Button type="button" variant="ghost" size="sm" onClick={() => void load()}>Actualiser</Button>
+          </>
+        }
+      />
 
       {error ? <p className="qb-error-inline">{error}</p> : null}
-      {loading ? <p className="qb-muted">Chargement…</p> : null}
 
-      {!loading && rows.length > 0 && filtered.length === 0 ? (
-        <p className="qb-muted">Aucune facture ne correspond aux filtres.</p>
-      ) : null}
-
-      {!loading && filtered.length > 0 ? (
-        <div className="qb-table-wrap qb-table-wrap--list-saas">
-          <table className="sn-ui-table qb-table qb-table--list-saas">
-            <thead>
-              <tr>
-                <th>Numéro</th>
-                <th>Client</th>
-                <th className="qb-num">Montant TTC</th>
-                <th className="qb-num">Payé</th>
-                <th className="qb-num">Reste à encaisser</th>
-                <th>Statut</th>
-                <th>Échéance</th>
-                <th>Retard</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((r) => {
-                const overdue = isInvoiceOverdue(r);
-                const paid = toAmount(r.total_paid);
-                const due = toAmount(r.amount_due);
-                const partial = norm(r.status) === "PARTIALLY_PAID" && due > 0;
-                return (
-                  <tr
-                    key={r.id}
-                    className={`qb-line${overdue ? " fin-saas-row-overdue" : ""}`}
-                    style={{ cursor: "pointer" }}
-                    onClick={() => navigate(`/invoices/${r.id}`)}
-                  >
-                    <td className="qb-mono">
-                      <span style={{ display: "inline-flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
-                        {formatInvoiceNumberDisplay(r.invoice_number, r.status)}
-                        {invoiceRowIsTest(r) ? (
-                          <span className="sn-badge sn-badge-warn" title="Facture test">
-                            TEST
-                          </span>
-                        ) : null}
-                      </span>
-                    </td>
-                    <td>{formatInvoiceClient(r)}</td>
-                    <td className="qb-num">{eur(r.total_ttc)}</td>
-                    <td className="qb-num">{eur(r.total_paid)}</td>
-                    <td className="qb-num">{eur(r.amount_due)}</td>
-                    <td onClick={(e) => e.stopPropagation()}>
-                      <InvoiceStatusBadge status={r.status} />
-                    </td>
-                    <td>{fmtDate(r.due_date)}</td>
-                    <td onClick={(e) => e.stopPropagation()}>
-                      {overdue ? (
-                        <span className="sn-badge sn-badge-danger" title="Échéance dépassée et solde dû">
-                          Retard
-                        </span>
-                      ) : paid > 0 && due <= 0 ? (
-                        <span className="sn-badge sn-badge-success">Soldée</span>
-                      ) : partial ? (
-                        <span className="sn-badge sn-badge-warn">Partiel</span>
-                      ) : (
-                        <span className="sn-badge sn-badge-neutral">—</span>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      ) : null}
-
-      {!loading && rows.length === 0 ? <p className="qb-muted">Aucune facture pour l&apos;instant.</p> : null}
+      {!loading && rows.length === 0 ? (
+        <EmptyState
+          title="Aucune facture"
+          description="Creez une facture depuis un devis accepte ou demarrez une facture vierge."
+          actions={<Button type="button" variant="primary" onClick={() => setQuoteModal(true)}>Creer depuis devis</Button>}
+        />
+      ) : (
+        <DataTable
+          dense
+          loading={loading}
+          columns={columns}
+          rows={filtered}
+          getRowKey={(row) => row.id}
+          emptyTitle="Aucune facture ne correspond aux filtres"
+          emptyDescription="Elargissez la periode, changez le statut ou effacez la recherche."
+          className="fin-standard-table"
+        />
+      )}
 
       <ModalShell
         open={quoteModal}
         onClose={() => setQuoteModal(false)}
-        title="Créer depuis un devis"
-        subtitle="Seuls les devis acceptés sont proposés. Si le devis n’a pas encore de fiche client mais un dossier (lead) est rattaché, un client sera créé ou rattaché automatiquement à la création de la facture. Pour acompte ou solde, ouvrez le devis et utilisez les liens Facturation."
+        title="Creer depuis un devis"
+        subtitle="Seuls les devis acceptes sont proposes. Pour un acompte ou un solde, ouvrez le devis et utilisez ses liens Facturation."
         size="md"
         footer={
           <>
-            <Button type="button" variant="ghost" onClick={() => setQuoteModal(false)}>
-              Fermer
-            </Button>
+            <Button type="button" variant="ghost" onClick={() => setQuoteModal(false)}>Fermer</Button>
             <Button
               type="button"
               variant="primary"
-              disabled={
-                creating ||
-                !selectedQuote ||
-                !quoteRowCanInvoice(selectedQuote)
-              }
+              disabled={creating || !selectedQuote || !quoteRowCanInvoice(selectedQuote)}
               onClick={() => void createFromSelectedQuote()}
             >
-              {creating ? "Création…" : "Créer la facture"}
+              {creating ? "Creation..." : "Creer la facture"}
             </Button>
           </>
         }
       >
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <label className="ib-label" style={{ width: "100%" }}>
-            Rechercher un devis
+        <div className="fin-standard-modal-stack">
+          <label className="fin-standard-field fin-standard-field--full">
+            <span>Rechercher un devis</span>
             <input
-              className="sn-input ib-input-full"
+              className="sn-input"
               value={quoteSearch}
               onChange={(e) => setQuoteSearch(e.target.value)}
-              placeholder="Numéro ou nom client…"
+              placeholder="Numero ou nom client"
               autoComplete="off"
             />
           </label>
-          {quotesLoading ? <p className="qb-muted">Chargement des devis acceptés…</p> : null}
-          {quoteModalError ? (
-            <p className="qb-error-inline" role="alert">
-              {quoteModalError}
-            </p>
-          ) : null}
+          {quotesLoading ? <p className="qb-muted">Chargement des devis acceptes...</p> : null}
+          {quoteModalError ? <p className="qb-error-inline" role="alert">{quoteModalError}</p> : null}
           {!quotesLoading && quotesForPicker.length === 0 ? (
-            <p className="qb-muted">Aucun devis accepté trouvé.</p>
+            <EmptyState title="Aucun devis accepte" description="Validez un devis avant de creer une facture rattachee." />
           ) : null}
           {!quotesLoading && quotePickerOptions.length > 0 ? (
-            <div className="fin-saas-quote-ac" role="listbox" aria-label="Sélection de devis">
+            <div className="fin-saas-quote-ac" role="listbox" aria-label="Selection de devis">
               {quotePickerOptions.map((q) => {
                 const sel = selectedQuote?.id === q.id;
                 const blocked = !quoteRowCanInvoice(q);
@@ -606,35 +512,20 @@ export default function InvoicesPage() {
                       setSelectedQuote(q);
                     }}
                   >
-                    <span className="qb-mono" style={{ fontSize: 13 }}>
-                      {q.quote_number || q.id.slice(0, 8)}
-                    </span>
-                    <span style={{ color: "var(--text-muted)", fontSize: 13 }}>{formatQuoteContact(q)}</span>
-                    <span style={{ marginLeft: "auto", fontSize: 12 }}>{eur(quoteDisplayTotals(q).total_ttc)}</span>
-                    {blocked ? (
-                      <span className="fin-saas-quote-ac-row__hint" style={{ flexBasis: "100%", fontSize: 11 }}>
-                        {reason}
-                      </span>
-                    ) : null}
+                    <span className="qb-mono">{q.quote_number || q.id.slice(0, 8)}</span>
+                    <span>{formatQuoteContact(q)}</span>
+                    <span className="fin-standard-amount">{eur(quoteDisplayTotals(q).total_ttc)}</span>
+                    {blocked ? <span className="fin-saas-quote-ac-row__hint">{reason}</span> : null}
                   </button>
                 );
               })}
             </div>
           ) : null}
           {!quotesLoading && quotesForPicker.length > 0 && quotePickerOptions.length === 0 ? (
-            <p className="qb-muted">Aucun résultat pour cette recherche.</p>
+            <EmptyState title="Aucun resultat" description="Essayez un autre numero ou nom client." />
           ) : null}
         </div>
       </ModalShell>
-
     </div>
   );
-}
-
-function formatQuoteContact(row: QuoteListRow): string {
-  if (row.company_name?.trim()) return row.company_name.trim();
-  const parts = [row.first_name, row.last_name].filter(Boolean);
-  if (parts.length) return parts.join(" ").trim();
-  if (row.lead_full_name?.trim()) return row.lead_full_name.trim();
-  return "—";
 }

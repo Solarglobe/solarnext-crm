@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import "./mail-inbox.css";
+import { PageHeader } from "../../components/ui";
 import { MailFilters, type MailFiltersValue } from "./MailFilters";
 import { MailInboxChips, type InboxListMode } from "./MailInboxChips";
 import { MailThreadList } from "./MailThreadList";
@@ -447,15 +448,20 @@ export default function MailInboxPage() {
   }, []);
 
   return (
-    <div style={{ padding: "var(--spacing-16, 16px)" }}>
-      <div style={{ display: "flex", alignItems: "baseline", gap: "16px", marginBottom: "16px", flexWrap: "wrap" }}>
-        <h1 className="sg-title-lg" style={{ margin: 0 }}>
-          {mailboxTitle(mailbox)}
-        </h1>
-        <span className="sg-helper" style={{ margin: 0 }}>
-          Tous les comptes accessibles
-        </span>
-      </div>
+    <div className="mail-standard-page">
+      <PageHeader
+        eyebrow="Messagerie"
+        title={mailboxTitle(mailbox)}
+        description="Liste, lecture, composition et suivi des conversations mail accessibles."
+        meta={
+          <>
+            <span className="sn-badge sn-badge-neutral">{total} conversations</span>
+            {unreadSummary.totalUnread > 0 ? (
+              <span className="sn-badge sn-badge-info">{unreadSummary.totalUnread} non lus</span>
+            ) : null}
+          </>
+        }
+      />
 
       <div className={`mail-inbox ${showRightColumn ? "mail-inbox--split" : "mail-inbox--list-only"}`}>
         <aside className="mail-inbox__nav-mail" aria-label="Navigation boîte mail">

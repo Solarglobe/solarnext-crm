@@ -1,5 +1,48 @@
 /* CP-077 — Inbox mail (léger, fond clair) */
 
+.mail-standard-page,
+.mail-outbox-page {
+  padding: var(--spacing-16, 16px);
+}
+
+.mail-outbox-page {
+  display: grid;
+  gap: 14px;
+}
+
+.mail-outbox-page a,
+.mail-standard-page a {
+  text-decoration: none;
+}
+
+.mail-standard-filters.sn-action-bar {
+  margin-bottom: 0;
+}
+
+.mail-standard-field {
+  display: grid;
+  gap: 5px;
+  min-width: 180px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.mail-standard-field .sn-input {
+  min-height: 34px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.mail-standard-table .sn-data-table__table {
+  min-width: 980px;
+}
+
 .mail-inbox {
   display: grid;
   min-height: calc(100vh - 120px);

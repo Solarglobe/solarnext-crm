@@ -1,5 +1,6 @@
 import React from "react";
 import type { InboxThreadItem } from "../../services/mailApi";
+import { EmptyState } from "../../components/ui";
 import type { InboxListMode } from "./MailInboxChips";
 import { MailInboxSkeleton } from "./MailInboxSkeleton";
 import { MailThreadRow } from "./MailThreadRow";
@@ -47,18 +48,7 @@ export const MailThreadList = React.memo(function MailThreadList({
 
   if (!loading && threads.length === 0) {
     const { title, hint } = emptyCopy(listMode);
-    return (
-      <div className="mail-inbox-empty" role="status">
-        <div className="mail-inbox-empty__icon" aria-hidden>
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.25">
-            <rect x="3" y="5" width="18" height="14" rx="2" />
-            <path d="M3 7l9 6 9-6" />
-          </svg>
-        </div>
-        <p className="mail-inbox-empty__title">{title}</p>
-        <p className="mail-inbox-empty__hint">{hint}</p>
-      </div>
-    );
+    return <EmptyState title={title} description={hint} className="mail-inbox-empty" />;
   }
 
   return (

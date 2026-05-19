@@ -1,10 +1,18 @@
 /**
- * Liste des devis — filtres, colonnes métier, actions (sans modifier l’API).
+ * Liste des devis - surface SaaS standardisee, logique API conservee.
  */
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { Button } from "../components/ui/Button";
+import {
+  ActionBar,
+  Button,
+  ConfirmDialog,
+  DataTable,
+  EmptyState,
+  PageHeader,
+  type DataTableColumn,
+} from "../components/ui";
 import {
   deleteQuote,
   duplicateQuote,
@@ -22,15 +30,17 @@ import "../modules/finance/financial-list-saas.css";
 
 function eur(v: unknown) {
   const n = Number(v);
-  return Number.isFinite(n) ? n.toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: 2 }) + " €" : "—";
+  return Number.isFinite(n)
+    ? `${n.toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: 2 })} EUR`
+    : "-";
 }
 
 function fmtDate(s: string | undefined | null) {
-  if (!s) return "—";
+  if (!s) return "-";
   try {
     return new Date(s).toLocaleDateString("fr-FR", { dateStyle: "short" });
   } catch {
-    return "—";
+    return "-";
   }
 }
 
@@ -51,7 +61,7 @@ function formatQuoteContact(row: QuoteListRow): string {
   if (parts.length) return parts.join(" ").trim();
   if (row.lead_full_name?.trim()) return row.lead_full_name.trim();
   if (row.lead_id) return "Lead (dossier)";
-  return "—";
+  return "-";
 }
 
 type QuoteStatusFilter = "ALL" | "DRAFT" | "SENT" | "ACCEPTED" | "REFUSED";
@@ -59,9 +69,7 @@ type PeriodFilter = "ALL" | "TODAY" | "7D" | "30D";
 type QuoteDateRangeBasis = "CREATED" | "UPDATED" | "EITHER";
 
 function normStatus(s: string | undefined) {
-  return String(s || "")
-    .trim()
-    .toUpperCase();
+  return String(s || "").trim().toUpperCase();
 }
 
 function matchesQuoteStatusFilter(row: QuoteListRow, f: QuoteStatusFilter): boolean {
@@ -102,10 +110,7 @@ function localYmdStartMs(ymd: string): number | null {
   if (!t) return null;
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(t);
   if (!m) return null;
-  const y = Number(m[1]);
-  const mo = Number(m[2]) - 1;
-  const d = Number(m[3]);
-  const ms = new Date(y, mo, d).getTime();
+  const ms = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).getTime();
   return Number.isFinite(ms) ? ms : null;
 }
 
@@ -119,19 +124,8 @@ function matchesQuoteDateRange(row: QuoteListRow, fromYmd: string, toYmd: string
   if (hasFrom && a == null) return true;
   if (hasTo && b == null) return true;
 
-  let low: number;
-  let highExclusive: number;
-  if (a != null && b != null) {
-    low = Math.min(a, b);
-    highExclusive = Math.max(a, b) + 86400000;
-  } else if (a != null) {
-    low = a;
-    highExclusive = Infinity;
-  } else {
-    low = -Infinity;
-    highExclusive = b! + 86400000;
-  }
-
+  const low = a != null && b != null ? Math.min(a, b) : a ?? -Infinity;
+  const highExclusive = a != null && b != null ? Math.max(a, b) + 86400000 : b != null ? b + 86400000 : Infinity;
   const inRange = (ts: number) => ts >= low && ts < highExclusive;
 
   if (basis === "CREATED") {
@@ -144,72 +138,11 @@ function matchesQuoteDateRange(row: QuoteListRow, fromYmd: string, toYmd: string
   }
   const c = parseIsoToMs(row.created_at);
   const u = parseIsoToMs(row.updated_at);
-  if (c != null && inRange(c)) return true;
-  if (u != null && inRange(u)) return true;
-  return false;
+  return (c != null && inRange(c)) || (u != null && inRange(u));
 }
 
 const PDF_OFFICIAL_HINT =
-  "Un PDF peut être généré une fois le document figé (« Envoyé » ou validation signée depuis « Présenter »). Le numéro officiel n’apparaît qu’après signature du devis.";
-
-function IconSearchFin({ className }: { className?: string }) {
-  return (
-    <svg className={className} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" />
-    </svg>
-  );
-}
-const IconEye = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
-  </svg>
-);
-const IconPresent = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>
-  </svg>
-);
-const IconFilePdf = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-    <polyline points="14 2 14 8 20 8"/><path d="M9 13h6M9 17h4"/>
-  </svg>
-);
-const IconCopy = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-  </svg>
-);
-const IconTrashQ = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-    <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
-    <path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/>
-  </svg>
-);
-const IconSpinnerQ = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
-  </svg>
-);
-
-function PdfGlyph({ hasPdf, hasSignedPdf = false }: { hasPdf: boolean; hasSignedPdf?: boolean }) {
-  const ok = hasPdf || hasSignedPdf;
-  return (
-    <span
-      className="fin-saas-pdf-ic"
-      title={ok ? "PDF disponible" : "Pas de PDF enregistré"}
-      aria-label={ok ? "PDF disponible" : "Pas de PDF"}
-    >
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-        <polyline points="14 2 14 8 20 8" />
-        <path d="M9 15h6" />
-        <path d="M9 11h6" />
-      </svg>
-      <span className={`fin-saas-pdf-sn sn-badge ${ok ? "sn-badge-success" : "sn-badge-neutral"}`}>PDF</span>
-    </span>
-  );
-}
+  "Un PDF peut etre genere une fois le document fige. Le numero officiel apparait apres signature du devis.";
 
 export default function QuotesList() {
   const navigate = useNavigate();
@@ -226,6 +159,7 @@ export default function QuotesList() {
   const [pdfBusyId, setPdfBusyId] = useState<string | null>(null);
   const [dupBusyId, setDupBusyId] = useState<string | null>(null);
   const [deleteBusyId, setDeleteBusyId] = useState<string | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -247,7 +181,6 @@ export default function QuotesList() {
   useEffect(() => {
     const raw = searchParams.get("status");
     if (!raw) return;
-    const u = raw.trim().toUpperCase();
     const map: Record<string, QuoteStatusFilter> = {
       ALL: "ALL",
       DRAFT: "DRAFT",
@@ -256,7 +189,8 @@ export default function QuotesList() {
       REFUSED: "REFUSED",
       REJECTED: "REFUSED",
     };
-    if (map[u]) setStatusFilter(map[u]);
+    const next = map[raw.trim().toUpperCase()];
+    if (next) setStatusFilter(next);
   }, [searchParams]);
 
   const useCustomDateRange = Boolean(dateFrom.trim() || dateTo.trim());
@@ -316,13 +250,19 @@ export default function QuotesList() {
     setSearch("");
   }, []);
 
-  const onDeleteQuote = async (e: React.MouseEvent, id: string) => {
+  const requestDeleteQuote = (e: React.MouseEvent, id: string) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!window.confirm("Supprimer définitivement ce devis brouillon ? Cette action est irréversible.")) return;
+    setDeleteConfirmId(id);
+  };
+
+  const performDeleteQuote = async () => {
+    if (!deleteConfirmId) return;
+    const id = deleteConfirmId;
     setDeleteBusyId(id);
     try {
       await deleteQuote(id);
+      setDeleteConfirmId(null);
       await load();
     } catch (err) {
       window.alert(err instanceof Error ? err.message : "Erreur suppression");
@@ -331,238 +271,191 @@ export default function QuotesList() {
     }
   };
 
-  return (
-    <div className="qb-page fin-pole-shell">
-      <div className="fin-pole-list-hero">
-        <div className="fin-pole-list-hero__text">
-          <h1 className="sg-title">Devis</h1>
-          <p className="fin-pole-lead">
-            Filtrez, exportez en PDF ou dupliquez un devis. Nouveau devis : ouvrez un lead → onglet Financier.
-          </p>
-        </div>
-        <div className="fin-pole-list-hero__actions">
-          <Link to="/finance" className="sn-btn sn-btn-ghost sn-btn-sm">
-            Vue d&apos;ensemble
-          </Link>
-          <Link to="/invoices" className="sn-btn sn-btn-ghost sn-btn-sm">
-            Factures
-          </Link>
-          <Link to="/leads" className="sn-btn sn-btn-outline-gold sn-btn-sm">
-            Leads
-          </Link>
-          <Button type="button" variant="ghost" size="sm" onClick={() => void load()}>
-            Actualiser
-          </Button>
-        </div>
-      </div>
+  const columns = useMemo<DataTableColumn<QuoteListRow>[]>(
+    () => [
+      {
+        id: "number",
+        header: "Numero",
+        render: (r) => <span className="qb-mono">{formatQuoteNumberDisplay(r.quote_number, r.status)}</span>,
+      },
+      { id: "client", header: "Client", render: (r) => formatQuoteContact(r) },
+      { id: "amount", header: "Montant TTC", align: "right", render: (r) => eur(quoteDisplayTotals(r).total_ttc) },
+      { id: "status", header: "Statut", render: (r) => <QuoteStatusBadge status={r.status} /> },
+      { id: "date", header: "Date", render: (r) => fmtDate(r.updated_at || r.created_at) },
+      {
+        id: "pdf",
+        header: "PDF",
+        render: (r) => (
+          <span className={`sn-badge ${r.has_pdf || r.has_signed_pdf ? "sn-badge-success" : "sn-badge-neutral"}`}>
+            {r.has_pdf || r.has_signed_pdf ? "Disponible" : "Non genere"}
+          </span>
+        ),
+      },
+      {
+        id: "actions",
+        header: "Actions",
+        align: "right",
+        render: (r) => (
+          <div className="fin-actions-cell fin-actions-cell--visible">
+            <Button type="button" variant="ghost" size="sm" onClick={() => navigate(`/quotes/${r.id}`)}>
+              Ouvrir
+            </Button>
+            <Button type="button" variant="ghost" size="sm" onClick={() => navigate(`/quotes/${r.id}/present`)}>
+              Presenter
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              title={canOfferOfficialQuotePdfFromListRow(r) ? "Generer PDF" : PDF_OFFICIAL_HINT}
+              disabled={!canOfferOfficialQuotePdfFromListRow(r) || pdfBusyId === r.id}
+              onClick={(e) => void onGeneratePdf(e, r.id)}
+            >
+              {pdfBusyId === r.id ? "PDF..." : "PDF"}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={dupBusyId === r.id}
+              onClick={(e) => void onDuplicate(e, r.id)}
+            >
+              {dupBusyId === r.id ? "Copie..." : "Dupliquer"}
+            </Button>
+            {isQuoteDeletable(r.status) ? (
+              <Button
+                type="button"
+                variant="danger"
+                size="sm"
+                disabled={deleteBusyId === r.id}
+                onClick={(e) => requestDeleteQuote(e, r.id)}
+              >
+                Supprimer
+              </Button>
+            ) : null}
+          </div>
+        ),
+      },
+    ],
+    [deleteBusyId, dupBusyId, navigate, pdfBusyId]
+  );
 
-      <div className="sn-leads-toolbar-wrap">
-        <div className="sn-leads-filters-card" role="search" aria-label="Filtres devis">
-          <div className="sn-leads-filters-primary">
-            <div className="sn-leads-filters-search">
-              <IconSearchFin className="sn-leads-filters-search__icon" />
+  return (
+    <div className="qb-page fin-pole-shell fin-standard-page">
+      <PageHeader
+        eyebrow="Finance"
+        title="Devis"
+        description="Liste de pilotage des devis, exports PDF et actions commerciales."
+        actions={
+          <>
+            <Link to="/finance" className="sn-btn sn-btn-ghost sn-btn-sm">Vue d'ensemble</Link>
+            <Link to="/invoices" className="sn-btn sn-btn-ghost sn-btn-sm">Factures</Link>
+            <Link to="/leads" className="sn-btn sn-btn-primary sn-btn-sm">Nouveau devis</Link>
+          </>
+        }
+        meta={<span className="sn-badge sn-badge-neutral">{filtered.length} devis affiches</span>}
+      />
+
+      <ActionBar
+        className="fin-standard-filters"
+        primary={
+          <>
+            <label className="fin-standard-field fin-standard-field--search">
+              <span>Recherche</span>
               <input
                 id="fin-quotes-search"
                 type="search"
-                className="sn-leads-filters-search__input"
+                className="sn-input"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Rechercher n°, client, contact…"
-                aria-label="Rechercher un devis"
+                placeholder="Numero, client, contact"
                 autoComplete="off"
               />
-            </div>
-            {/* Status chips */}
-            <div className="fin-chips">
-              {(["ALL", "DRAFT", "SENT", "ACCEPTED", "REFUSED"] as QuoteStatusFilter[]).map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  className={`fin-chip${statusFilter === s ? " fin-chip--active" : ""}`}
-                  onClick={() => setStatusFilter(s)}
-                >
-                  {statusFilter === s && s !== "ALL" && <span className="fin-chip__dot" />}
-                  {{ ALL: "Tous", DRAFT: "Brouillon", SENT: "Envoyé", ACCEPTED: "Accepté", REFUSED: "Refusé" }[s]}
-                </button>
-              ))}
-            </div>
-            <div
-              className="sn-leads-filters-field sn-leads-filters-field--daterange"
-              title="Date de création ou de modification selon « Filtrer sur »"
-            >
-              <span className="sn-leads-filters-field__label">Plage de dates</span>
-              <div className="sn-leads-filters-daterange">
-                <input
-                  type="date"
-                  className="sn-leads-filters-input sn-leads-filters-input--date"
-                  value={dateFrom}
-                  onChange={(e) => setDateFrom(e.target.value)}
-                  aria-label="Date de début (filtre)"
-                />
-                <span className="sn-leads-filters-daterange__sep" aria-hidden>–</span>
-                <input
-                  type="date"
-                  className="sn-leads-filters-input sn-leads-filters-input--date"
-                  value={dateTo}
-                  onChange={(e) => setDateTo(e.target.value)}
-                  aria-label="Date de fin (filtre)"
-                />
-              </div>
-            </div>
-            <div className="sn-leads-filters-primary__reset">
-              <button type="button" className="sn-leads-filters-reset" onClick={handleResetFilters}>
-                Réinitialiser
-              </button>
-            </div>
-          </div>
-          <div className="sn-leads-filters-secondary" aria-label="Filtres dates">
-            <div
-              className="sn-leads-filters-field sn-leads-filters-field--subtle"
-              title={useCustomDateRange ? "Désactivé tant qu’une plage Du/Au est renseignée" : undefined}
-            >
-              <label htmlFor="fin-quotes-period" className="sn-leads-filters-field__label">Période rapide</label>
+            </label>
+            <label className="fin-standard-field">
+              <span>Statut</span>
+              <select className="sn-input" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as QuoteStatusFilter)}>
+                <option value="ALL">Tous</option>
+                <option value="DRAFT">Brouillon</option>
+                <option value="SENT">Envoye</option>
+                <option value="ACCEPTED">Accepte</option>
+                <option value="REFUSED">Refuse</option>
+              </select>
+            </label>
+            <label className="fin-standard-field">
+              <span>Periode</span>
               <select
-                id="fin-quotes-period"
-                className="sn-leads-filters-select sn-leads-filters-select--subtle"
+                className="sn-input"
                 value={periodFilter}
                 disabled={useCustomDateRange}
                 onChange={(e) => setPeriodFilter(e.target.value as PeriodFilter)}
               >
                 <option value="ALL">Toutes</option>
-                <option value="TODAY">Aujourd&apos;hui</option>
+                <option value="TODAY">Aujourd'hui</option>
                 <option value="7D">7 jours</option>
                 <option value="30D">30 jours</option>
               </select>
-            </div>
-            <div className="sn-leads-filters-field sn-leads-filters-field--subtle fin-list-field--wide">
-              <label htmlFor="fin-quotes-basis" className="sn-leads-filters-field__label">Filtrer sur</label>
-              <select
-                id="fin-quotes-basis"
-                className="sn-leads-filters-select sn-leads-filters-select--subtle"
-                value={dateRangeBasis}
-                onChange={(e) => setDateRangeBasis(e.target.value as QuoteDateRangeBasis)}
-                aria-label="Critère de dates"
-              >
-                <option value="EITHER">Création ou dernière modification</option>
-                <option value="CREATED">Date de création</option>
-                <option value="UPDATED">Dernière modification</option>
+            </label>
+          </>
+        }
+        secondary={
+          <>
+            <label className="fin-standard-field">
+              <span>Du</span>
+              <input type="date" className="sn-input" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+            </label>
+            <label className="fin-standard-field">
+              <span>Au</span>
+              <input type="date" className="sn-input" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+            </label>
+            <label className="fin-standard-field fin-standard-field--wide">
+              <span>Filtrer sur</span>
+              <select className="sn-input" value={dateRangeBasis} onChange={(e) => setDateRangeBasis(e.target.value as QuoteDateRangeBasis)}>
+                <option value="EITHER">Creation ou modification</option>
+                <option value="CREATED">Creation</option>
+                <option value="UPDATED">Modification</option>
               </select>
-            </div>
-          </div>
-        </div>
-      </div>
+            </label>
+            <Button type="button" variant="ghost" size="sm" onClick={handleResetFilters}>Reinitialiser</Button>
+            <Button type="button" variant="ghost" size="sm" onClick={() => void load()}>Actualiser</Button>
+          </>
+        }
+      />
 
       {error ? <p className="qb-error-inline">{error}</p> : null}
-      {loading ? <p className="qb-muted">Chargement des devis…</p> : null}
 
       {!loading && !error && rows.length === 0 ? (
-        <div className="crm-lead-card" style={{ padding: 24, maxWidth: 560 }}>
-          <p className="fin-empty-title" style={{ marginTop: 0 }}>
-            Aucun devis pour l&apos;instant
-          </p>
-          <p className="fin-empty-desc" style={{ marginBottom: 16 }}>
-            Créez un devis depuis un lead : dossier → onglet Financier → « Créer un devis ».
-          </p>
-          <Link to="/leads" className="sn-btn sn-btn-primary" style={{ textDecoration: "none" }}>
-            Aller aux leads
-          </Link>
-        </div>
-      ) : null}
+        <EmptyState
+          title="Aucun devis"
+          description="Creez un devis depuis une fiche lead, onglet Financier."
+          actions={<Link to="/leads" className="sn-btn sn-btn-primary">Aller aux leads</Link>}
+        />
+      ) : (
+        <DataTable
+          dense
+          loading={loading}
+          columns={columns}
+          rows={filtered}
+          getRowKey={(row) => row.id}
+          emptyTitle="Aucun devis ne correspond aux filtres"
+          emptyDescription="Elargissez la periode, changez le statut ou effacez la recherche."
+          className="fin-standard-table"
+        />
+      )}
 
-      {!loading && rows.length > 0 && filtered.length === 0 ? (
-        <p className="qb-muted">Aucun devis ne correspond aux filtres.</p>
-      ) : null}
-
-      {!loading && filtered.length > 0 ? (
-        <div className="qb-table-wrap qb-table-wrap--list-saas">
-          <table className="sn-ui-table qb-table qb-table--list-saas">
-            <thead>
-              <tr>
-                <th>Numéro</th>
-                <th>Client</th>
-                <th className="qb-num">Montant TTC</th>
-                <th>Statut</th>
-                <th>Date</th>
-                <th>PDF</th>
-                <th className="fin-table-actions">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((r) => (
-                <tr key={r.id}>
-                  <td className="qb-mono">{formatQuoteNumberDisplay(r.quote_number, r.status)}</td>
-                  <td>{formatQuoteContact(r)}</td>
-                  <td className="qb-num">{eur(quoteDisplayTotals(r).total_ttc)}</td>
-                  <td>
-                    <QuoteStatusBadge status={r.status} />
-                  </td>
-                  <td>{fmtDate(r.updated_at || r.created_at)}</td>
-                  <td>
-                    <PdfGlyph hasPdf={Boolean(r.has_pdf)} hasSignedPdf={Boolean(r.has_signed_pdf)} />
-                  </td>
-                  <td>
-                    <div className="fin-actions-cell">
-                      <button
-                        type="button"
-                        className="fin-icon-btn"
-                        title="Ouvrir"
-                        onClick={() => navigate(`/quotes/${r.id}`)}
-                      >
-                        <IconEye />
-                      </button>
-                      <button
-                        type="button"
-                        className="fin-icon-btn"
-                        title="Présenter"
-                        onClick={() => navigate(`/quotes/${r.id}/present`)}
-                      >
-                        <IconPresent />
-                      </button>
-                      {canOfferOfficialQuotePdfFromListRow(r) ? (
-                        <button
-                          type="button"
-                          className={`fin-icon-btn${pdfBusyId === r.id ? " fin-icon-btn--spin" : ""}`}
-                          title="Générer PDF"
-                          disabled={pdfBusyId === r.id}
-                          onClick={(e) => void onGeneratePdf(e, r.id)}
-                        >
-                          {pdfBusyId === r.id ? <IconSpinnerQ /> : <IconFilePdf />}
-                        </button>
-                      ) : (
-                        <button type="button" className="fin-icon-btn" disabled title={PDF_OFFICIAL_HINT}>
-                          <IconFilePdf />
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        className={`fin-icon-btn${dupBusyId === r.id ? " fin-icon-btn--spin" : ""}`}
-                        title="Dupliquer"
-                        disabled={dupBusyId === r.id}
-                        onClick={(e) => void onDuplicate(e, r.id)}
-                      >
-                        {dupBusyId === r.id ? <IconSpinnerQ /> : <IconCopy />}
-                      </button>
-                      {isQuoteDeletable(r.status) ? (
-                        <button
-                          type="button"
-                          className="fin-icon-btn fin-icon-btn--danger"
-                          title="Supprimer le devis"
-                          aria-label="Supprimer le devis"
-                          disabled={deleteBusyId === r.id}
-                          onClick={(e) => void onDeleteQuote(e, r.id)}
-                        >
-                          {deleteBusyId === r.id ? <IconSpinnerQ /> : <IconTrashQ />}
-                        </button>
-                      ) : null}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : null}
-
+      <ConfirmDialog
+        open={Boolean(deleteConfirmId)}
+        title="Supprimer ce devis brouillon ?"
+        description="Cette action est definitive. Les PDFs et factures associees ne sont pas modifies."
+        confirmLabel={deleteBusyId ? "Suppression..." : "Supprimer"}
+        cancelLabel="Annuler"
+        variant="danger"
+        loading={Boolean(deleteBusyId)}
+        onCancel={() => {
+          if (!deleteBusyId) setDeleteConfirmId(null);
+        }}
+        onConfirm={() => void performDeleteQuote()}
+      />
     </div>
   );
 }

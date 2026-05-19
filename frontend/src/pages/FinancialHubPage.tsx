@@ -1,25 +1,39 @@
 /**
- * Hub financier — pilotage (KPIs + accès directs + aperçu récent).
+ * Hub financier - pilotage SaaS standardise.
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import {
+  ActionBar,
+  Button,
+  DataTable,
+  EmptyState,
+  PageHeader,
+  type DataTableColumn,
+} from "../components/ui";
 import { fetchInvoicesList, fetchQuotesList, type InvoiceListRow, type QuoteListRow } from "../services/financial.api";
 import { quoteDisplayTotals } from "../services/quotes.service";
 import { formatInvoiceStatusFr, formatQuoteStatusFr } from "../modules/finance/financialLabels";
 import { formatInvoiceNumberDisplay, formatQuoteNumberDisplay } from "../modules/finance/documentDisplay";
 import "../modules/leads/LeadDetail/financial/financial-tab.css";
 import "../modules/finance/financial-pole.css";
+import "../modules/finance/financial-list-saas.css";
 
 function eur(v: unknown) {
   const n = Number(v);
-  return Number.isFinite(n) ? n.toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: 2 }) + " €" : "—";
+  return Number.isFinite(n)
+    ? `${n.toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: 2 })} EUR`
+    : "-";
 }
 
 function fmtDate(s: string | undefined | null) {
-  if (!s) return "—";
-  try { return new Date(s).toLocaleDateString("fr-FR", { dateStyle: "short" }); }
-  catch { return "—"; }
+  if (!s) return "-";
+  try {
+    return new Date(s).toLocaleDateString("fr-FR", { dateStyle: "short" });
+  } catch {
+    return "-";
+  }
 }
 
 function toAmount(v: unknown): number {
@@ -49,7 +63,7 @@ function formatInvoiceClient(row: InvoiceListRow): string {
   const parts = [row.first_name, row.last_name].filter(Boolean);
   if (parts.length) return parts.join(" ").trim();
   if (row.lead_id) return "Lead (sans fiche client)";
-  return "—";
+  return "-";
 }
 
 function formatQuoteClient(row: QuoteListRow): string {
@@ -57,31 +71,7 @@ function formatQuoteClient(row: QuoteListRow): string {
   const parts = [row.first_name, row.last_name].filter(Boolean);
   if (parts.length) return parts.join(" ").trim();
   if (row.lead_full_name?.trim()) return row.lead_full_name.trim();
-  return "—";
-}
-
-function quoteStatusTone(status: string): "neutral" | "info" | "success" | "warning" | "danger" {
-  const st = String(status).toUpperCase();
-  if (st === "DRAFT") return "neutral";
-  if (["READY_TO_SEND", "SENT"].includes(st)) return "info";
-  if (st === "ACCEPTED") return "success";
-  if (["EXPIRED"].includes(st)) return "warning";
-  if (["REJECTED", "CANCELLED"].includes(st)) return "danger";
-  return "neutral";
-}
-
-function invoiceStatusTone(status: string, overdue: boolean): "neutral" | "info" | "success" | "warning" | "danger" {
-  const st = String(status).toUpperCase();
-  if (overdue) return "danger";
-  if (st === "PAID") return "success";
-  if (st === "PARTIALLY_PAID" || st === "PARTIAL") return "warning";
-  if (st === "ISSUED") return "info";
-  return "neutral";
-}
-
-function badgeClass(tone: "neutral" | "info" | "success" | "warning" | "danger"): string {
-  const mod = tone === "warning" ? "sn-badge-warn" : `sn-badge-${tone}`;
-  return `sn-badge ${mod}`;
+  return "-";
 }
 
 function quoteRowDateMs(q: QuoteListRow): number {
@@ -100,48 +90,21 @@ function invoiceRowDateMs(inv: InvoiceListRow): number {
 
 function invoicePriority(inv: InvoiceListRow): number {
   const st = String(inv.status).toUpperCase();
-  const overdue = isInvoiceOverdue(inv);
-  if (overdue) return 0;
+  if (isInvoiceOverdue(inv)) return 0;
   if (st === "PARTIALLY_PAID" || st === "PARTIAL") return 1;
   if (st === "ISSUED" && toAmount(inv.amount_due) > 0) return 2;
   return 3;
 }
 
-/* ── Icons ─────────────────────────────────────────────────────────────── */
-const IconRefresh = () => (
-  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>
-  </svg>
-);
-const IconEye = () => (
-  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
-  </svg>
-);
-const IconCheck = () => (
-  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <polyline points="20 6 9 17 4 12"/>
-  </svg>
-);
-const IconWarn = () => (
-  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-    <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
-  </svg>
-);
+type FinanceMetric = {
+  id: string;
+  label: string;
+  value: string | number;
+  hint: string;
+  to?: string;
+  tone?: "default" | "danger";
+};
 
-/* KPI icons */
-const IcoFileDraft = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="15"/></svg>;
-const IcoSend = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>;
-const IcoCheck = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>;
-const IcoInvDraft = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>;
-const IcoReceipt = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1z"/><line x1="9" y1="9" x2="15" y2="9"/><line x1="9" y1="13" x2="15" y2="13"/></svg>;
-const IcoAlert = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>;
-const IcoBilled = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>;
-const IcoCollected = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>;
-const IcoDue = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>;
-
-/* ── Component ─────────────────────────────────────────────────────────── */
 export default function FinancialHubPage() {
   const [quoteRows, setQuoteRows] = useState<QuoteListRow[]>([]);
   const [invoiceRows, setInvoiceRows] = useState<InvoiceListRow[]>([]);
@@ -165,19 +128,24 @@ export default function FinancialHubPage() {
     }
   }, []);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   const kpis = useMemo(() => {
-    const quoteDraft    = quoteRows.filter((q) => String(q.status).toUpperCase() === "DRAFT");
-    const quoteSent     = quoteRows.filter((q) => { const st = String(q.status).toUpperCase(); return st === "SENT" || st === "READY_TO_SEND"; });
+    const quoteDraft = quoteRows.filter((q) => String(q.status).toUpperCase() === "DRAFT");
+    const quoteSent = quoteRows.filter((q) => {
+      const st = String(q.status).toUpperCase();
+      return st === "SENT" || st === "READY_TO_SEND";
+    });
     const quoteAccepted = quoteRows.filter((q) => String(q.status).toUpperCase() === "ACCEPTED");
-    const invDraft      = invoiceRows.filter((inv) => normInvStatus(inv.status) === "DRAFT");
-    const invEmitted    = invoiceRows.filter(isInvoiceEmitted);
-    const invOverdue    = invoiceRows.filter(isInvoiceOverdue);
+    const invDraft = invoiceRows.filter((inv) => normInvStatus(inv.status) === "DRAFT");
+    const invEmitted = invoiceRows.filter(isInvoiceEmitted);
+    const invOverdue = invoiceRows.filter(isInvoiceOverdue);
     const sentAmountTtc = quoteSent.reduce((acc, q) => acc + quoteDisplayTotals(q).total_ttc, 0);
-    const billedTtc     = invEmitted.reduce((acc, inv) => acc + toAmount(inv.total_ttc), 0);
-    const collected     = invEmitted.reduce((acc, inv) => acc + toAmount(inv.total_paid), 0);
-    const remainingDue  = invEmitted.reduce((acc, inv) => acc + toAmount(inv.amount_due), 0);
+    const billedTtc = invEmitted.reduce((acc, inv) => acc + toAmount(inv.total_ttc), 0);
+    const collected = invEmitted.reduce((acc, inv) => acc + toAmount(inv.total_paid), 0);
+    const remainingDue = invEmitted.reduce((acc, inv) => acc + toAmount(inv.amount_due), 0);
     return {
       quoteDraftCount: quoteDraft.length,
       quoteSentCount: quoteSent.length,
@@ -186,12 +154,40 @@ export default function FinancialHubPage() {
       invEmittedCount: invEmitted.length,
       overdueCount: invOverdue.length,
       overdueAmount: invOverdue.reduce((acc, inv) => acc + toAmount(inv.amount_due), 0),
-      sentAmountTtc, billedTtc, collected, remainingDue,
+      sentAmountTtc,
+      billedTtc,
+      collected,
+      remainingDue,
     };
   }, [quoteRows, invoiceRows]);
 
+  const metrics = useMemo<FinanceMetric[]>(
+    () => [
+      { id: "quoteDraft", label: "Devis brouillons", value: kpis.quoteDraftCount, hint: "A finaliser", to: "/quotes?status=DRAFT" },
+      { id: "quoteSent", label: "Devis envoyes", value: kpis.quoteSentCount, hint: `${eur(kpis.sentAmountTtc)} proposes`, to: "/quotes?status=SENT" },
+      { id: "quoteAccepted", label: "Devis acceptes", value: kpis.quoteAcceptedCount, hint: "Prets pour facturation", to: "/quotes?status=ACCEPTED" },
+      { id: "invDraft", label: "Factures brouillons", value: kpis.invDraftCount, hint: "Avant emission", to: "/invoices?status=DRAFT" },
+      { id: "invEmitted", label: "Factures emises", value: kpis.invEmittedCount, hint: "Hors brouillon et annulees", to: "/invoices" },
+      {
+        id: "overdue",
+        label: "Factures en retard",
+        value: kpis.overdueCount,
+        hint: `${eur(kpis.overdueAmount)} reste du`,
+        to: "/invoices?status=OVERDUE",
+        tone: kpis.overdueCount > 0 ? "danger" : "default",
+      },
+      { id: "billed", label: "Montant facture", value: eur(kpis.billedTtc), hint: "TTC emis" },
+      { id: "collected", label: "Montant encaisse", value: eur(kpis.collected), hint: "Cumul paiements" },
+      { id: "remaining", label: "Reste a encaisser", value: eur(kpis.remainingDue), hint: "Solde du" },
+    ],
+    [kpis]
+  );
+
   const highlightedInvoices = useMemo(
-    () => [...invoiceRows].sort((a, b) => { const p = invoicePriority(a) - invoicePriority(b); return p !== 0 ? p : invoiceRowDateMs(b) - invoiceRowDateMs(a); }).slice(0, 5),
+    () => [...invoiceRows].sort((a, b) => {
+      const p = invoicePriority(a) - invoicePriority(b);
+      return p !== 0 ? p : invoiceRowDateMs(b) - invoiceRowDateMs(a);
+    }).slice(0, 5),
     [invoiceRows]
   );
 
@@ -200,195 +196,131 @@ export default function FinancialHubPage() {
     [quoteRows]
   );
 
+  const quoteColumns = useMemo<DataTableColumn<QuoteListRow>[]>(
+    () => [
+      { id: "number", header: "Numero", render: (q) => <span className="qb-mono">{formatQuoteNumberDisplay(q.quote_number, q.status)}</span> },
+      { id: "client", header: "Client", render: (q) => formatQuoteClient(q) },
+      { id: "amount", header: "Montant", align: "right", render: (q) => eur(quoteDisplayTotals(q).total_ttc) },
+      { id: "status", header: "Statut", render: (q) => <span className="sn-badge sn-badge-neutral">{formatQuoteStatusFr(q.status)}</span> },
+      { id: "date", header: "Date", render: (q) => fmtDate(q.updated_at || q.created_at) },
+      { id: "actions", header: "Actions", align: "right", render: (q) => <Link to={`/quotes/${q.id}`} className="sn-btn sn-btn-ghost sn-btn-sm">Ouvrir</Link> },
+    ],
+    []
+  );
+
+  const invoiceColumns = useMemo<DataTableColumn<InvoiceListRow>[]>(
+    () => [
+      { id: "number", header: "Numero", render: (inv) => <span className="qb-mono">{formatInvoiceNumberDisplay(inv.invoice_number, inv.status)}</span> },
+      { id: "client", header: "Client", render: (inv) => formatInvoiceClient(inv) },
+      { id: "due", header: "Reste", align: "right", render: (inv) => eur(inv.amount_due) },
+      {
+        id: "status",
+        header: "Statut",
+        render: (inv) => (
+          <span className={`sn-badge ${isInvoiceOverdue(inv) ? "sn-badge-danger" : "sn-badge-neutral"}`}>
+            {isInvoiceOverdue(inv) ? "En retard" : formatInvoiceStatusFr(inv.status)}
+          </span>
+        ),
+      },
+      { id: "date", header: "Echeance", render: (inv) => fmtDate(inv.due_date ?? inv.issue_date) },
+      { id: "actions", header: "Actions", align: "right", render: (inv) => <Link to={`/invoices/${inv.id}`} className="sn-btn sn-btn-ghost sn-btn-sm">Ouvrir</Link> },
+    ],
+    []
+  );
+
   return (
-    <div className="fin-hub fin-hub-premium fin-pole-shell fin-pole-shell--padded">
+    <div className="fin-hub fin-pole-shell fin-standard-page">
+      <PageHeader
+        eyebrow="Finance"
+        title="Vue d'ensemble financiere"
+        description="Volumes, encours, devis recents et factures a suivre."
+        actions={
+          <>
+            <Link to="/leads" className="sn-btn sn-btn-primary sn-btn-sm">Creer un devis</Link>
+            <Link to="/quotes" className="sn-btn sn-btn-ghost sn-btn-sm">Devis</Link>
+            <Link to="/invoices" className="sn-btn sn-btn-ghost sn-btn-sm">Factures</Link>
+          </>
+        }
+        meta={<span className="sn-badge sn-badge-neutral">{quoteRows.length + invoiceRows.length} documents charges</span>}
+      />
 
-      {/* ── Header compact ── */}
-      <div className="fin-hub-header">
-        <div>
-          <h1 className="fin-hub-title">Vue d'ensemble financière</h1>
-          <p className="fin-hub-subtitle">Volumes, encours et derniers mouvements</p>
-        </div>
-        <button
-          type="button"
-          className={`fin-hub-refresh-btn${refreshing ? " fin-hub-refresh-btn--spin" : ""}`}
-          title="Actualiser"
-          onClick={() => void load(true)}
-        >
-          <IconRefresh />
-        </button>
-      </div>
+      <ActionBar
+        primary={
+          <>
+            <Link to="/invoices?status=OVERDUE" className="sn-btn sn-btn-ghost sn-btn-sm">En retard</Link>
+            <Link to="/invoices/new" className="sn-btn sn-btn-ghost sn-btn-sm">Nouvelle facture</Link>
+          </>
+        }
+        secondary={<Button type="button" variant="ghost" size="sm" onClick={() => void load(true)} disabled={refreshing}>{refreshing ? "Actualisation..." : "Actualiser"}</Button>}
+      />
 
-      {/* ── CTA toolbar sans gradient ── */}
-      <div className="fin-hub-toolbar" role="navigation" aria-label="Accès rapides pôle financier">
-        <Link to="/leads" className="sn-btn sn-btn-primary" style={{ textDecoration: "none" }}>Créer un devis</Link>
-        <Link to="/quotes" className="sn-btn sn-btn-outline-gold" style={{ textDecoration: "none" }}>Devis</Link>
-        <Link to="/invoices" className="sn-btn sn-btn-outline-gold" style={{ textDecoration: "none" }}>Factures</Link>
-        <Link to="/invoices?status=OVERDUE" className="sn-btn sn-btn-ghost" style={{ textDecoration: "none" }}>En retard</Link>
-        <Link to="/invoices/new" className="sn-btn sn-btn-ghost" style={{ textDecoration: "none" }} title="Facture vierge">Nouvelle facture</Link>
-      </div>
+      {err ? <p className="qb-error-inline">{err}</p> : null}
 
-      {/* ── KPI cards ── */}
-      <section className="fin-preview-kpis fin-preview-kpis--dashboard" aria-label="Indicateurs clés">
-        <Link to="/quotes?status=DRAFT" className="fin-preview-kpi-card fin-preview-kpi-card--link">
-          <span className="fin-kpi-icon fin-kpi-icon--draft"><IcoFileDraft /></span>
-          <span className="fin-preview-kpi-label">Devis brouillons</span>
-          <strong className="fin-preview-kpi-value">{kpis.quoteDraftCount}</strong>
-          <span className="fin-preview-kpi-sub">À finaliser ou envoyer</span>
-        </Link>
-        <Link to="/quotes?status=SENT" className="fin-preview-kpi-card fin-preview-kpi-card--link">
-          <span className="fin-kpi-icon fin-kpi-icon--sent"><IcoSend /></span>
-          <span className="fin-preview-kpi-label">Devis envoyés</span>
-          <strong className="fin-preview-kpi-value">{kpis.quoteSentCount}</strong>
-          <span className="fin-preview-kpi-sub">{eur(kpis.sentAmountTtc)} proposés</span>
-        </Link>
-        <Link to="/quotes?status=ACCEPTED" className="fin-preview-kpi-card fin-preview-kpi-card--link">
-          <span className="fin-kpi-icon fin-kpi-icon--accepted"><IcoCheck /></span>
-          <span className="fin-preview-kpi-label">Devis acceptés</span>
-          <strong className="fin-preview-kpi-value">{kpis.quoteAcceptedCount}</strong>
-          <span className="fin-preview-kpi-sub">Prêts pour facturation</span>
-        </Link>
-        <Link to="/invoices?status=DRAFT" className="fin-preview-kpi-card fin-preview-kpi-card--link">
-          <span className="fin-kpi-icon fin-kpi-icon--inv"><IcoInvDraft /></span>
-          <span className="fin-preview-kpi-label">Factures brouillons</span>
-          <strong className="fin-preview-kpi-value">{kpis.invDraftCount}</strong>
-          <span className="fin-preview-kpi-sub">Avant émission</span>
-        </Link>
-        <Link to="/invoices" className="fin-preview-kpi-card fin-preview-kpi-card--link">
-          <span className="fin-kpi-icon fin-kpi-icon--emitted"><IcoReceipt /></span>
-          <span className="fin-preview-kpi-label">Factures émises</span>
-          <strong className="fin-preview-kpi-value">{kpis.invEmittedCount}</strong>
-          <span className="fin-preview-kpi-sub">Hors brouillon & annulées</span>
-        </Link>
-        <Link
-          to="/invoices?status=OVERDUE"
-          className={`fin-preview-kpi-card fin-preview-kpi-card--link${kpis.overdueCount > 0 ? " fin-preview-kpi-card--danger" : ""}`}
-        >
-          <span className={`fin-kpi-icon fin-kpi-icon--danger`}><IcoAlert /></span>
-          <span className="fin-preview-kpi-label">Factures en retard</span>
-          <strong className="fin-preview-kpi-value">{kpis.overdueCount}</strong>
-          <span className="fin-preview-kpi-sub">{eur(kpis.overdueAmount)} reste dû</span>
-        </Link>
-        <article className="fin-preview-kpi-card">
-          <span className="fin-kpi-icon fin-kpi-icon--billed"><IcoBilled /></span>
-          <span className="fin-preview-kpi-label">Montant facturé (TTC)</span>
-          <strong className="fin-preview-kpi-value">{eur(kpis.billedTtc)}</strong>
-          <span className="fin-preview-kpi-sub">Factures émises</span>
-        </article>
-        <article className="fin-preview-kpi-card">
-          <span className="fin-kpi-icon fin-kpi-icon--collected"><IcoCollected /></span>
-          <span className="fin-preview-kpi-label">Montant encaissé</span>
-          <strong className="fin-preview-kpi-value">{eur(kpis.collected)}</strong>
-          <span className="fin-preview-kpi-sub">Cumul des paiements</span>
-        </article>
-        <article className="fin-preview-kpi-card">
-          <span className="fin-kpi-icon fin-kpi-icon--due"><IcoDue /></span>
-          <span className="fin-preview-kpi-label">Reste à encaisser</span>
-          <strong className="fin-preview-kpi-value">{eur(kpis.remainingDue)}</strong>
-          <span className="fin-preview-kpi-sub">Solde dû sur émises</span>
-        </article>
+      <section className="fin-standard-metrics" aria-label="Indicateurs financiers">
+        {metrics.map((m) => {
+          const content = (
+            <>
+              <span className="fin-standard-metric__label">{m.label}</span>
+              <strong className="fin-standard-metric__value">{m.value}</strong>
+              <span className="fin-standard-metric__hint">{m.hint}</span>
+            </>
+          );
+          return m.to ? (
+            <Link key={m.id} to={m.to} className={`fin-standard-metric${m.tone === "danger" ? " fin-standard-metric--danger" : ""}`}>
+              {content}
+            </Link>
+          ) : (
+            <article key={m.id} className="fin-standard-metric">{content}</article>
+          );
+        })}
       </section>
 
-      {/* ── Alert banner ── */}
       {kpis.overdueCount > 0 ? (
-        <section className="fin-preview-alert fin-preview-alert--danger" role="alert">
-          <span className="fin-alert-icon fin-alert-icon--danger"><IconWarn /></span>
+        <section className="fin-standard-alert fin-standard-alert--danger" role="alert">
           <div>
-            <p className="fin-preview-alert-title">
-              {kpis.overdueCount} facture{kpis.overdueCount > 1 ? "s" : ""} en retard
-            </p>
-            <p className="fin-preview-alert-sub">{eur(kpis.overdueAmount)} restent à encaisser sur des échéances dépassées.</p>
+            <strong>{kpis.overdueCount} facture{kpis.overdueCount > 1 ? "s" : ""} en retard</strong>
+            <p>{eur(kpis.overdueAmount)} restent a encaisser sur des echeances depassees.</p>
           </div>
-          <Link to="/invoices?status=OVERDUE" className="sn-btn sn-btn-outline-gold" style={{ textDecoration: "none", marginLeft: "auto" }}>
-            Voir les factures
-          </Link>
+          <Link to="/invoices?status=OVERDUE" className="sn-btn sn-btn-secondary sn-btn-sm">Voir les factures</Link>
         </section>
       ) : (
-        <section className="fin-preview-alert fin-preview-alert--ok">
-          <span className="fin-alert-icon fin-alert-icon--ok"><IconCheck /></span>
-          <p className="fin-preview-alert-sub" style={{ margin: 0 }}>Aucune facture en retard — tout est à jour.</p>
+        <section className="fin-standard-alert">
+          <p>Aucune facture en retard. Le suivi d'encaissement est a jour.</p>
         </section>
       )}
 
-      {err ? <p className="qb-error-inline">{err}</p> : null}
-      {loading ? (
-        <div style={{ display: "flex", gap: 8, padding: "16px 0" }}>
-          {[1,2,3,4,5].map(i => (
-            <div key={i} style={{ flex: 1, height: 100, borderRadius: 14, background: "color-mix(in srgb, var(--text-muted) 10%, transparent)", animation: "dp-shimmer 1.4s ease-in-out infinite" }} />
-          ))}
-        </div>
-      ) : null}
+      <div className="fin-standard-grid">
+        {latestQuotes.length === 0 && !loading ? (
+          <EmptyState title="Aucun devis recent" description="Les derniers mouvements apparaitront ici." />
+        ) : (
+          <DataTable
+            dense
+            loading={loading}
+            columns={quoteColumns}
+            rows={latestQuotes}
+            getRowKey={(row) => row.id}
+            title="Devis recents"
+            actions={<Link to="/quotes" className="sn-btn sn-btn-ghost sn-btn-sm">Liste complete</Link>}
+            emptyTitle="Aucun devis recent"
+            className="fin-standard-table"
+          />
+        )}
 
-      {/* ── Panneaux Devis + Factures ── */}
-      <div className="fin-preview-stack">
-        <section className="fin-preview-panel">
-          <div className="fin-preview-panel-head">
-            <div>
-              <h2 className="fin-preview-panel-title">Devis récents</h2>
-              <p className="fin-preview-panel-sub">5 derniers mouvements</p>
-            </div>
-            <div className="fin-preview-panel-actions">
-              <Link to="/quotes" className="sn-btn sn-btn-ghost" style={{ textDecoration: "none" }}>Liste complète</Link>
-              <Link to="/leads" className="sn-btn sn-btn-primary" style={{ textDecoration: "none" }}>Créer un devis</Link>
-            </div>
-          </div>
-
-          {latestQuotes.length === 0 ? <p className="fin-muted">Aucun devis dans le périmètre chargé.</p> : null}
-          <div className="fin-preview-list">
-            {latestQuotes.map((q) => (
-              <article key={q.id} className="fin-doc-row-v2">
-                <div className="fin-doc-row-v2__main">
-                  <p className="fin-doc-row-v2__title">{formatQuoteNumberDisplay(q.quote_number, q.status)}</p>
-                  <p className="fin-doc-row-v2__sub">{formatQuoteClient(q)} · {fmtDate(q.updated_at || q.created_at)}</p>
-                </div>
-                <span className="fin-doc-row-v2__amount">{eur(quoteDisplayTotals(q).total_ttc)}</span>
-                <span className={badgeClass(quoteStatusTone(q.status))}>{formatQuoteStatusFr(q.status)}</span>
-                <div className="fin-doc-row-v2__actions">
-                  <Link to={`/quotes/${q.id}`} className="fin-icon-btn" title="Ouvrir" style={{ width: 28, height: 28, borderRadius: 7, border: "1px solid var(--border)", background: "var(--bg-card)", color: "var(--text-muted)", display: "inline-flex", alignItems: "center", justifyContent: "center", textDecoration: "none", transition: "all 0.1s" }}>
-                    <IconEye />
-                  </Link>
-                </div>
-              </article>
-            ))}
-          </div>
-        </section>
-
-        <section className="fin-preview-panel">
-          <div className="fin-preview-panel-head">
-            <div>
-              <h2 className="fin-preview-panel-title">Factures à suivre</h2>
-              <p className="fin-preview-panel-sub">En retard → partiel → encours</p>
-            </div>
-            <div className="fin-preview-panel-actions">
-              <Link to="/invoices" className="sn-btn sn-btn-ghost" style={{ textDecoration: "none" }}>Liste complète</Link>
-              <Link to="/invoices/new" className="sn-btn sn-btn-ghost" style={{ textDecoration: "none" }}>Nouvelle facture</Link>
-            </div>
-          </div>
-
-          {highlightedInvoices.length === 0 ? <p className="fin-muted">Aucune facture dans le périmètre chargé.</p> : null}
-          <div className="fin-preview-list">
-            {highlightedInvoices.map((inv) => {
-              const overdue = isInvoiceOverdue(inv);
-              return (
-                <article key={inv.id} className={`fin-doc-row-v2${overdue ? " fin-doc-row-v2--critical" : ""}`}>
-                  <div className="fin-doc-row-v2__main">
-                    <p className="fin-doc-row-v2__title">{formatInvoiceNumberDisplay(inv.invoice_number, inv.status)}</p>
-                    <p className="fin-doc-row-v2__sub">{formatInvoiceClient(inv)} · Éch. {fmtDate(inv.due_date ?? inv.issue_date)}</p>
-                  </div>
-                  <span className="fin-doc-row-v2__amount">{eur(inv.amount_due)}</span>
-                  <span className={badgeClass(invoiceStatusTone(inv.status, overdue))}>
-                    {overdue ? "En retard" : formatInvoiceStatusFr(inv.status)}
-                  </span>
-                  <div className="fin-doc-row-v2__actions">
-                    <Link to={`/invoices/${inv.id}`} className="fin-icon-btn" title="Ouvrir" style={{ width: 28, height: 28, borderRadius: 7, border: "1px solid var(--border)", background: "var(--bg-card)", color: "var(--text-muted)", display: "inline-flex", alignItems: "center", justifyContent: "center", textDecoration: "none", transition: "all 0.1s" }}>
-                      <IconEye />
-                    </Link>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-        </section>
+        {highlightedInvoices.length === 0 && !loading ? (
+          <EmptyState title="Aucune facture a suivre" description="Les factures en retard, partielles ou recentes apparaitront ici." />
+        ) : (
+          <DataTable
+            dense
+            loading={loading}
+            columns={invoiceColumns}
+            rows={highlightedInvoices}
+            getRowKey={(row) => row.id}
+            title="Factures a suivre"
+            actions={<Link to="/invoices" className="sn-btn sn-btn-ghost sn-btn-sm">Liste complete</Link>}
+            emptyTitle="Aucune facture a suivre"
+            className="fin-standard-table"
+          />
+        )}
       </div>
     </div>
   );
