@@ -329,49 +329,128 @@ function SuperAdminOrgsIcon() {
   );
 }
 
-const principalModules = [
-  { path: "/dashboard", label: "Tableau de bord", icon: DashboardNavIcon, end: true },
-  { path: "/leads", label: "Leads", icon: LeadIcon },
-  { path: "/clients", label: "Clients", icon: ClientIcon },
-  { path: "/planning", label: "Planning", icon: CalendarIcon, end: true },
+type NavItem = {
+  path: string;
+  label: string;
+  icon: React.ComponentType;
+  end?: boolean;
+  requiredPermissions?: string[];
+  superAdminOnly?: boolean;
+};
+
+const LEAD_READ_PERMISSIONS = ["lead.read.all", "lead.read.self"];
+const CLIENT_READ_PERMISSIONS = ["client.read.all", "client.read.self"];
+const DOCUMENT_READ_PERMISSIONS = ["client.read.all", "lead.read.all", "study.manage", "quote.manage", "org.settings.manage"];
+
+const principalModules: NavItem[] = [
+  {
+    path: "/dashboard",
+    label: "Tableau de bord",
+    icon: DashboardNavIcon,
+    end: true,
+    requiredPermissions: ["lead.read.all", "lead.read.self", "quote.manage", "invoice.manage"],
+  },
+  { path: "/leads", label: "Leads", icon: LeadIcon, requiredPermissions: LEAD_READ_PERMISSIONS },
+  { path: "/clients", label: "Clients", icon: ClientIcon, requiredPermissions: CLIENT_READ_PERMISSIONS },
+  {
+    path: "/planning",
+    label: "Planning",
+    icon: CalendarIcon,
+    end: true,
+    requiredPermissions: ["mission.read.self", "mission.read.all", "mission.create", "mission.update.self", "mission.update.all"],
+  },
 ];
 
-const financeModules = [
-  { path: "/quotes", label: "Devis", icon: QuoteIcon },
-  { path: "/invoices", label: "Factures", icon: InvoiceNavIcon },
-  { path: "/finance", label: "Vue financiere", icon: FinanceHubIcon, end: true },
+const financeModules: NavItem[] = [
+  { path: "/quotes", label: "Devis", icon: QuoteIcon, requiredPermissions: ["quote.manage"] },
+  { path: "/invoices", label: "Factures", icon: InvoiceNavIcon, requiredPermissions: ["invoice.manage"] },
+  {
+    path: "/finance",
+    label: "Vue financiere",
+    icon: FinanceHubIcon,
+    end: true,
+    requiredPermissions: ["quote.manage", "invoice.manage"],
+  },
 ];
 
-const documentsModules = [
-  { path: "/documents", label: "Documents", icon: DocumentIcon, end: true },
+const documentsModules: NavItem[] = [
+  { path: "/documents", label: "Documents", icon: DocumentIcon, end: true, requiredPermissions: DOCUMENT_READ_PERMISSIONS },
 ];
 
-const mailModules = [
+const mailModules: NavItem[] = [
   { path: "/mail", label: "Boite mail", icon: MailIcon, end: true },
   { path: "/mail/outbox", label: "Boite d'envoi", icon: OutboxIcon, end: true },
 ];
 
-const settingsModules = [
+const settingsModules: NavItem[] = [
   { path: "/settings", label: "Tous les parametres", icon: SettingsIcon, end: true },
-  { path: "/organization/structure", label: "Organisation", icon: StructureIcon, end: true, adminOnly: true },
-  { path: "/organization/users", label: "Utilisateurs", icon: UsersIcon, end: true, adminOnly: true },
-  { path: "/organization/roles", label: "Roles", icon: ShieldIcon, end: true, adminOnly: true },
-  { path: "/organization/catalog", label: "Catalogue devis", icon: CatalogIcon, end: true, adminOnly: true },
-  { path: "/settings/mail", label: "Configuration mail", icon: MailSettingsIcon, end: true, adminOnly: true },
+  {
+    path: "/organization/structure",
+    label: "Organisation",
+    icon: StructureIcon,
+    end: true,
+    requiredPermissions: ["org.settings.manage", "structure.manage", "rbac.manage"],
+  },
+  { path: "/organization/users", label: "Utilisateurs", icon: UsersIcon, end: true, requiredPermissions: ["user.manage"] },
+  { path: "/organization/roles", label: "Roles", icon: ShieldIcon, end: true, requiredPermissions: ["rbac.manage"] },
+  {
+    path: "/organization/catalog",
+    label: "Catalogue devis",
+    icon: CatalogIcon,
+    end: true,
+    requiredPermissions: ["QUOTE_CATALOG:READ", "QUOTE_CATALOG:WRITE"],
+  },
+  {
+    path: "/settings/mail",
+    label: "Configuration mail",
+    icon: MailSettingsIcon,
+    end: true,
+    requiredPermissions: ["mail.accounts.manage"],
+  },
   { path: "/settings/security", label: "Securite", icon: ShieldIcon, end: true },
-  { path: "/admin/audit-log", label: "Journal d'audit", icon: AuditIcon, end: true, adminOnly: true },
-  { path: "/admin/settings/pv", label: "Parametres PV", icon: SunIcon, end: true, adminOnly: true },
+  {
+    path: "/admin/audit-log",
+    label: "Journal d'audit",
+    icon: AuditIcon,
+    end: true,
+    requiredPermissions: ["org.settings.manage"],
+  },
+  {
+    path: "/admin/settings/pv",
+    label: "Parametres PV",
+    icon: SunIcon,
+    end: true,
+    requiredPermissions: ["org.settings.manage"],
+  },
 ];
 
-const superAdminModules = [
-  { path: "/admin/organizations", label: "Organisations", icon: SuperAdminOrgsIcon, end: true },
+const superAdminModules: NavItem[] = [
+  { path: "/admin/organizations", label: "Organisations", icon: SuperAdminOrgsIcon, end: true, superAdminOnly: true },
 ];
 
-const installationModules = [
-  { path: "/mairies", label: "Portails mairie", icon: MairiesNavIcon, end: true },
-  { path: "/installation/fiche-technique", label: "Fiches techniques", icon: TechSheetIcon, end: true },
+const installationModules: NavItem[] = [
+  { path: "/mairies", label: "Portails mairie", icon: MairiesNavIcon, end: true, requiredPermissions: ["mairie.read"] },
+  {
+    path: "/installation/fiche-technique",
+    label: "Fiches techniques",
+    icon: TechSheetIcon,
+    end: true,
+    requiredPermissions: DOCUMENT_READ_PERMISSIONS,
+  },
   { path: "/installation/installateur", label: "Installateurs", icon: InstallerIcon, end: true },
 ];
+
+function hasMenuAccess(item: NavItem, permissions: string[], superAdmin: boolean): boolean {
+  if (item.superAdminOnly) return superAdmin;
+  if (!item.requiredPermissions || item.requiredPermissions.length === 0) return true;
+  if (superAdmin || permissions.includes("*")) return true;
+  return item.requiredPermissions.some((permission) => permissions.includes(permission));
+}
+
+function filterNavItems(items: NavItem[], permissions: string[], superAdmin: boolean, superAdminReadOnly: boolean) {
+  if (superAdminReadOnly) return [];
+  return items.filter((item) => hasMenuAccess(item, permissions, superAdmin));
+}
 
 function MoonIcon() {
   return (
@@ -441,8 +520,6 @@ function SidebarSectionChevron({ expanded }: { expanded: boolean }) {
   );
 }
 
-type NavItem = { path: string; label: string; icon: React.ComponentType; end?: boolean; adminOnly?: boolean };
-
 function SidebarCollapsibleSection({
   sectionId,
   title,
@@ -459,6 +536,8 @@ function SidebarCollapsibleSection({
   /** ex. sn-sidebar-link-org pour sous-niveau */
   linkClassName?: string;
 }) {
+  if (navLinks.length === 0) return null;
+
   const panelId = `sn-sidebar-section-${sectionId}`;
   return (
     <div className="sn-sidebar-nav-group sn-sidebar-nav-group--collapsible">
@@ -503,7 +582,8 @@ function SidebarCollapsibleSection({
 export function AppLayout() {
   const { isSuperAdmin } = useOrganization();
   const { pathname } = useLocation();
-  const [canAccessAdminSettings, setCanAccessAdminSettings] = useState(false);
+  const [userPermissions, setUserPermissions] = useState<string[]>([]);
+  const [permissionsSuperAdmin, setPermissionsSuperAdmin] = useState(false);
 
   useLayoutEffect(() => {
     const root = document.documentElement;
@@ -544,24 +624,29 @@ export function AppLayout() {
     getUserPermissions()
       .then(({ permissions, superAdmin }) => {
         if (cancelled) return;
-        const perms = Array.isArray(permissions) ? permissions : [];
-        setCanAccessAdminSettings(
-          superAdmin === true ||
-            perms.includes("*") ||
-            perms.some((permission) =>
-              ["org.settings.manage", "structure.manage", "rbac.manage", "user.manage"].includes(permission)
-            )
-        );
+        setUserPermissions(Array.isArray(permissions) ? permissions : []);
+        setPermissionsSuperAdmin(superAdmin === true);
       })
       .catch(() => {
-        if (!cancelled) setCanAccessAdminSettings(false);
+        if (!cancelled) {
+          setUserPermissions([]);
+          setPermissionsSuperAdmin(false);
+        }
       });
     return () => {
       cancelled = true;
     };
   }, []);
 
-  const visibleSettingsModules = settingsModules.filter((item) => !item.adminOnly || canAccessAdminSettings);
+  const superAdminReadOnly = useSuperAdminReadOnly();
+  const effectiveSuperAdmin = isSuperAdmin || permissionsSuperAdmin;
+  const visiblePrincipalModules = filterNavItems(principalModules, userPermissions, effectiveSuperAdmin, superAdminReadOnly);
+  const visibleFinanceModules = filterNavItems(financeModules, userPermissions, effectiveSuperAdmin, superAdminReadOnly);
+  const visibleDocumentsModules = filterNavItems(documentsModules, userPermissions, effectiveSuperAdmin, superAdminReadOnly);
+  const visibleMailModules = filterNavItems(mailModules, userPermissions, effectiveSuperAdmin, superAdminReadOnly);
+  const visibleInstallationModules = filterNavItems(installationModules, userPermissions, effectiveSuperAdmin, superAdminReadOnly);
+  const visibleSettingsModules = filterNavItems(settingsModules, userPermissions, effectiveSuperAdmin, superAdminReadOnly);
+  const visibleSuperAdminModules = superAdminModules.filter((item) => hasMenuAccess(item, userPermissions, effectiveSuperAdmin));
 
   // RESPONSIVE FIX: fermer le drawer sidebar à chaque changement de route
   useEffect(() => {
@@ -611,8 +696,6 @@ export function AppLayout() {
     setTheme(next);
     persistTheme(next);
   };
-
-  const superAdminReadOnly = useSuperAdminReadOnly();
 
   useEffect(() => {
     setImpersonationMeta(readImpersonationMetaState());
@@ -794,14 +877,14 @@ export function AppLayout() {
             title="Operations"
             expanded={sectionOpen.principal}
             onToggle={() => toggleSection("principal")}
-            navLinks={principalModules}
+            navLinks={visiblePrincipalModules}
           />
           <SidebarCollapsibleSection
             sectionId="finance"
             title="Ventes & finance"
             expanded={sectionOpen.finance}
             onToggle={() => toggleSection("finance")}
-            navLinks={financeModules}
+            navLinks={visibleFinanceModules}
             linkClassName="sn-sidebar-link-nested"
           />
           <SidebarCollapsibleSection
@@ -809,21 +892,21 @@ export function AppLayout() {
             title="Documents"
             expanded={sectionOpen.documents}
             onToggle={() => toggleSection("documents")}
-            navLinks={documentsModules}
+            navLinks={visibleDocumentsModules}
           />
           <SidebarCollapsibleSection
             sectionId="mail"
             title="Mail"
             expanded={sectionOpen.mail}
             onToggle={() => toggleSection("mail")}
-            navLinks={mailModules}
+            navLinks={visibleMailModules}
           />
           <SidebarCollapsibleSection
             sectionId="installation"
             title="Installation"
             expanded={sectionOpen.installation}
             onToggle={() => toggleSection("installation")}
-            navLinks={installationModules}
+            navLinks={visibleInstallationModules}
             linkClassName="sn-sidebar-link-nested"
           />
           <SidebarCollapsibleSection
@@ -834,13 +917,13 @@ export function AppLayout() {
             navLinks={visibleSettingsModules}
             linkClassName="sn-sidebar-link-nested"
           />
-          {isSuperAdmin ? (
+          {visibleSuperAdminModules.length > 0 ? (
             <SidebarCollapsibleSection
               sectionId="superadmin"
               title="Super admin"
               expanded={sectionOpen.superadmin}
               onToggle={() => toggleSection("superadmin")}
-              navLinks={superAdminModules}
+              navLinks={visibleSuperAdminModules}
               linkClassName="sn-sidebar-link-nested"
             />
           ) : null}

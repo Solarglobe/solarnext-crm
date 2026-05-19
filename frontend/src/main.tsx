@@ -145,30 +145,30 @@ const router = createBrowserRouter(
       children: [
         { index: true, element: <Navigate to="/dashboard" replace /> },
         { path: "crm", element: <Navigate to="/dashboard" replace /> },
-        { path: "dashboard", element: <DashboardPage /> },
-        { path: "leads", element: <LeadsPage /> },
-        { path: "leads/:id", element: <LeadDetail /> },
+        { path: "dashboard", element: <AdminRoute anyOf={["lead.read.all", "lead.read.self", "quote.manage", "invoice.manage"]}><DashboardPage /></AdminRoute> },
+        { path: "leads", element: <AdminRoute anyOf={["lead.read.all", "lead.read.self"]}><LeadsPage /></AdminRoute> },
+        { path: "leads/:id", element: <AdminRoute anyOf={["lead.read.all", "lead.read.self"]}><LeadDetail /></AdminRoute> },
         { path: "leads/:id/dp", element: <LeadDpPage /> },
-        { path: "clients", element: <ClientsList /> },
-        { path: "planning", element: <PlanningPage /> },
+        { path: "clients", element: <AdminRoute anyOf={["client.read.all", "client.read.self"]}><ClientsList /></AdminRoute> },
+        { path: "planning", element: <AdminRoute anyOf={["mission.read.self", "mission.read.all", "mission.create", "mission.update.self", "mission.update.all"]}><PlanningPage /></AdminRoute> },
         { path: "clients/:id", element: <ClientToLeadRedirect /> },
         { path: "studies/:studyId/versions/:versionId/calpinage", element: <StudyCalpinagePage /> },
         { path: "studies/:studyId/versions/:versionId/quote-builder", element: <StudyQuoteBuilder /> },
         { path: "studies/:studyId/versions/:versionId/scenarios", element: <ScenariosPage /> },
         { path: "studies/:studyId/versions/:versionId", element: <StudyDetail /> },
         { path: "studies/:id", element: <StudyDetail /> },
-        { path: "finance", element: <FinancialHubPage /> },
-        { path: "quotes", element: <QuotesList /> },
+        { path: "finance", element: <AdminRoute anyOf={["quote.manage", "invoice.manage"]}><FinancialHubPage /></AdminRoute> },
+        { path: "quotes", element: <AdminRoute anyOf={["quote.manage"]}><QuotesList /></AdminRoute> },
         { path: "quotes/:id/present", element: <QuotePresentPage /> },
-        { path: "quotes/:id", element: <QuoteBuilderPage /> },
-        { path: "invoices", element: <InvoicesPage /> },
-        { path: "invoices/new", element: <InvoiceCreatePage /> },
-        { path: "invoices/:id", element: <InvoiceBuilderPage /> },
-        { path: "documents", element: <DocumentsList /> },
+        { path: "quotes/:id", element: <AdminRoute anyOf={["quote.manage"]}><QuoteBuilderPage /></AdminRoute> },
+        { path: "invoices", element: <AdminRoute anyOf={["invoice.manage"]}><InvoicesPage /></AdminRoute> },
+        { path: "invoices/new", element: <AdminRoute anyOf={["invoice.manage"]}><InvoiceCreatePage /></AdminRoute> },
+        { path: "invoices/:id", element: <AdminRoute anyOf={["invoice.manage"]}><InvoiceBuilderPage /></AdminRoute> },
+        { path: "documents", element: <AdminRoute anyOf={["client.read.all", "lead.read.all", "study.manage", "quote.manage", "org.settings.manage"]}><DocumentsList /></AdminRoute> },
         { path: "mairies/new", element: <Navigate to="/mairies" replace /> },
-        { path: "mairies/:id", element: <MairiesPage /> },
-        { path: "mairies", element: <MairiesPage /> },
-        { path: "installation/fiche-technique", element: <InstallationFicheTechniquePage /> },
+        { path: "mairies/:id", element: <AdminRoute anyOf={["mairie.read"]}><MairiesPage /></AdminRoute> },
+        { path: "mairies", element: <AdminRoute anyOf={["mairie.read"]}><MairiesPage /></AdminRoute> },
+        { path: "installation/fiche-technique", element: <AdminRoute anyOf={["client.read.all", "lead.read.all", "study.manage", "quote.manage", "org.settings.manage"]}><InstallationFicheTechniquePage /></AdminRoute> },
         { path: "installation/installateur", element: <InstallationInstallateurPage /> },
         { path: "mail", element: <MailInboxPage /> },
         { path: "mail/accounts", element: <Navigate to="/settings/mail?tab=accounts" replace /> },
@@ -177,7 +177,7 @@ const router = createBrowserRouter(
         { path: "mail/access", element: <Navigate to="/settings/mail?tab=access" replace /> },
         { path: "mail/outbox", element: <MailOutboxPage /> },
         { path: "settings", element: <SettingsHubPage /> },
-        { path: "settings/mail", element: <MailSettingsPage /> },
+        { path: "settings/mail", element: <AdminRoute anyOf={["mail.accounts.manage"]}><MailSettingsPage /></AdminRoute> },
         { path: "settings/security", element: <SecuritySettingsPage /> },
         { path: "settings/mail-signatures", element: <Navigate to="/settings/mail?tab=signatures" replace /> },
         { path: "settings/mail-templates", element: <Navigate to="/settings/mail?tab=templates" replace /> },
@@ -185,19 +185,19 @@ const router = createBrowserRouter(
         {
           path: "organization",
           element: (
-            <AdminRoute>
+            <AdminRoute anyOf={["org.settings.manage", "structure.manage", "rbac.manage", "user.manage", "QUOTE_CATALOG:READ", "QUOTE_CATALOG:WRITE"]}>
               <Outlet />
             </AdminRoute>
           ),
           children: [
             { index: true, element: <Navigate to="users" replace /> },
-            { path: "users", element: <OrganizationUsersPage /> },
-            { path: "structure", element: <OrganizationStructurePage /> },
-            { path: "roles", element: <OrganizationStructurePage initialTab="roles" /> },
-            { path: "teams", element: <OrganizationStructurePage initialTab="teams" /> },
-            { path: "agencies", element: <OrganizationStructurePage initialTab="agencies" /> },
-            { path: "company", element: <OrganizationStructurePage initialTab="org" /> },
-            { path: "catalog", element: <OrganizationCatalogPage /> },
+            { path: "users", element: <AdminRoute anyOf={["user.manage"]}><OrganizationUsersPage /></AdminRoute> },
+            { path: "structure", element: <AdminRoute anyOf={["org.settings.manage", "structure.manage", "rbac.manage"]}><OrganizationStructurePage /></AdminRoute> },
+            { path: "roles", element: <AdminRoute anyOf={["rbac.manage"]}><OrganizationStructurePage initialTab="roles" /></AdminRoute> },
+            { path: "teams", element: <AdminRoute anyOf={["org.settings.manage", "structure.manage"]}><OrganizationStructurePage initialTab="teams" /></AdminRoute> },
+            { path: "agencies", element: <AdminRoute anyOf={["org.settings.manage", "structure.manage"]}><OrganizationStructurePage initialTab="agencies" /></AdminRoute> },
+            { path: "company", element: <AdminRoute anyOf={["org.settings.manage"]}><OrganizationStructurePage initialTab="org" /></AdminRoute> },
+            { path: "catalog", element: <AdminRoute anyOf={["QUOTE_CATALOG:READ", "QUOTE_CATALOG:WRITE"]}><OrganizationCatalogPage /></AdminRoute> },
             { path: "org-settings", element: <Navigate to="/organization/structure" replace /> },
           ]
         },
@@ -212,7 +212,7 @@ const router = createBrowserRouter(
         {
           path: "admin/settings/pv",
           element: (
-            <AdminRoute>
+            <AdminRoute anyOf={["org.settings.manage"]}>
               <PvSettingsPage />
             </AdminRoute>
           )
@@ -220,7 +220,7 @@ const router = createBrowserRouter(
         {
           path: "admin/smartpitch-settings",
           element: (
-            <AdminRoute>
+            <AdminRoute anyOf={["org.settings.manage"]}>
               <AdminSmartpitchSettings />
             </AdminRoute>
           ),
@@ -236,7 +236,7 @@ const router = createBrowserRouter(
         {
           path: "admin/audit-log",
           element: (
-            <AdminRoute>
+            <AdminRoute anyOf={["org.settings.manage"]}>
               <AdminAuditLogPage />
             </AdminRoute>
           ),

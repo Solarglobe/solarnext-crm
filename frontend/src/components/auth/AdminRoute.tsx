@@ -4,10 +4,10 @@
  */
 
 import React, { useEffect, useState } from "react";
-import { Navigate } from "react-router-dom";
 import { getUserPermissions } from "../../services/auth.service";
+import ForbiddenPage from "../../pages/ForbiddenPage";
 
-const ADMIN_PERMISSIONS = [
+const DEFAULT_ADMIN_PERMISSIONS = [
   "org.settings.manage",
   "structure.manage",
   "rbac.manage",
@@ -16,9 +16,10 @@ const ADMIN_PERMISSIONS = [
 
 interface AdminRouteProps {
   children: React.ReactNode;
+  anyOf?: string[];
 }
 
-export function AdminRoute({ children }: AdminRouteProps) {
+export function AdminRoute({ children, anyOf = DEFAULT_ADMIN_PERMISSIONS }: AdminRouteProps) {
   const [allowed, setAllowed] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -30,7 +31,7 @@ export function AdminRoute({ children }: AdminRouteProps) {
           setAllowed(true);
           return;
         }
-        const hasAny = ADMIN_PERMISSIONS.some((p) =>
+        const hasAny = anyOf.some((p) =>
           Array.isArray(permissions) && permissions.includes(p)
         );
         setAllowed(hasAny);
@@ -41,7 +42,7 @@ export function AdminRoute({ children }: AdminRouteProps) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [anyOf]);
 
   if (allowed === null) {
     return (
@@ -60,7 +61,7 @@ export function AdminRoute({ children }: AdminRouteProps) {
   }
 
   if (!allowed) {
-    return <Navigate to="/leads" replace />;
+    return <ForbiddenPage requiredPermissions={anyOf} />;
   }
 
   return <>{children}</>;

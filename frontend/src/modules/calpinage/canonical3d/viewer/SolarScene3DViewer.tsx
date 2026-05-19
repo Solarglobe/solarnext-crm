@@ -274,7 +274,9 @@ import {
   selectPvBlockFrom3d,
   type PvLayout3dOverlayState,
 } from "../../runtime/pvPlacement3dProduct";
-import { PvLayout3dDragController, type PvLayout3dDragSession } from "./PvLayout3dDragController";
+import { PvLayout3dDragController } from "./PvLayout3dDragController";
+import { usePvPanelDrag } from "./usePvPanelDrag";
+import { useRoofVertexDrag } from "./useRoofVertexDrag";
 import { useCalpinageStore } from "../../store/calpinageStore";
 import { useCalpinageFeatures } from "../../features/CalpinageFeatureContext";
 import {
@@ -3805,14 +3807,15 @@ export function SolarScene3DViewer({
   const [structuralHeightSelection, setStructuralHeightSelection] = useState<LegacyStructuralHeightSelection | null>(
     null,
   );
-  const zDragSessionRef = useRef<RoofZDragSession | null>(null);
+  // A10 — anti-pattern useState+useRef+useEffect(async-sync) éliminé.
+  // Le ref de session Z (dead-code : jamais lu dans les handlers) est supprimé.
+  // La session PV est désormais gérée par usePvPanelDrag (architecture sync-first).
   const zDragSessionImmediateRef = useRef<RoofZDragSession | null>(null);
   const zDragGestureActiveRef = useRef(false);
-  const [pv3dDragSession, setPv3dDragSession] = useState<PvLayout3dDragSession | null>(null);
-  const pv3dDragSessionRef = useRef<PvLayout3dDragSession | null>(null);
-  useEffect(() => {
-    pv3dDragSessionRef.current = pv3dDragSession;
-  }, [pv3dDragSession]);
+  // usePvPanelDrag : sessionRef mis à jour AVANT setSession → pas de ref stale.
+  const pvPanelDrag = usePvPanelDrag();
+  // useRoofVertexDrag : state de haut niveau du geste sommet (complète zDragSessionImmediateRef).
+  const roofVertexDrag = useRoofVertexDrag(scene);
   // pvRebuildBlockPanelIds supprimé : la déduplication par blockId dans
   // buildCanonicalPlacedPanelsFromRuntime garantit l'unicité des panneaux dans pvPanels.
   // Aucun panneau fantôme ne peut subsister après rebuild → workaround inutile.
@@ -3975,7 +3978,6 @@ export function SolarScene3DViewer({
     flushSync(() => {
       setRoofZDragSession(null);
       setRoofZDragPreviewM(null);
-      zDragSessionRef.current = null;
       zDragCommitTargetRef.current = null;
       setOrbitSuppressed(false);
     });
@@ -4092,7 +4094,6 @@ export function SolarScene3DViewer({
       });
       zDragCommitTargetRef.current = { panId: t.patchId, vertexIndex: t.vertexIndex };
       zDragSessionImmediateRef.current = session;
-      zDragSessionRef.current = session;
       setRoofZDragSession(session);
       setRoofZDragPreviewM(h0);
       if (import.meta.env.DEV) {
@@ -4112,9 +4113,7 @@ export function SolarScene3DViewer({
     ],
   );
 
-  useEffect(() => {
-    zDragSessionRef.current = roofZDragSession;
-  }, [roofZDragSession]);
+  // A10 : useEffect de sync async supprimé (le ref de session Z était dead-code).
 
   useEffect(() => {
     if (zDragGestureActiveRef.current) return;
@@ -4125,7 +4124,6 @@ export function SolarScene3DViewer({
     zDragLivePendingHeightRef.current = null;
     setRoofZDragSession(null);
     setRoofZDragPreviewM(null);
-    zDragSessionRef.current = null;
     zDragSessionImmediateRef.current = null;
     zDragCommitTargetRef.current = null;
     setOrbitSuppressed(false);
@@ -4418,7 +4416,7 @@ export function SolarScene3DViewer({
   const [roofTruthBadges, setRoofTruthBadges] = useState<RoofTruthBadgeScreenModel[]>([]);
 
   const onPv3dLiveOffsetImg = useCallback((dxImg: number, dyImg: number, rotationDeg = 0) => {
-    if (pv3dDragSessionRef.current?.mode === "rotate") {
+    if (pvPanelDrag.sessionRef.current?.mode === "rotate") {
       applyPvTransformLiveFrom3d(0, 0, rotationDeg);
     } else {
       applyPvMoveLiveFrom3d(dxImg, dyImg);
@@ -4427,7 +4425,7 @@ export function SolarScene3DViewer({
   }, [refreshPv3dOverlayThrottled]);
 
   const endPv3dDragSession = useCallback(() => {
-    const s = pv3dDragSessionRef.current;
+    const s = pvPanelDrag.sessionRef.current;
 
     finalizePvMoveFrom3d({ pointerId: s?.pointerId ?? null, releaseCaptureEl: null });
 
@@ -4435,10 +4433,10 @@ export function SolarScene3DViewer({
     // Le moteur a déjà commité les nouvelles positions → getAllPanels() retourne les bonnes coords.
     onPanelMoveCommit?.();
 
-    setPv3dDragSession(null);
+    pvPanelDrag.end();
     setOrbitSuppressed(false);
     refreshPv3dOverlay();
-  }, [refreshPv3dOverlay, pvLayout3dOverlayState, onPanelMoveCommit]);
+  }, [refreshPv3dOverlay, pvLayout3dOverlayState, onPanelMoveCommit, pvPanelDrag]);
 
   const onPvPanelPvLayout3dPointerDown = useCallback(
     (e: ThreeEvent<PointerEvent>, panelIdFromMesh: string) => {
@@ -4460,7 +4458,7 @@ export function SolarScene3DViewer({
       const removeOnSimpleClick =
         overlayPanel?.selected === true &&
         (pvLayout3dOverlayState?.ghosts.length ?? 0) > 0 &&
-        pv3dDragSessionRef.current == null;
+        pvPanelDrag.sessionRef.current == null;
       if (removeOnSimpleClick) {
         if (removePvPanelFrom3d(overlayPanel.blockId, overlayPanel.panelId)) {
           refreshPv3dOverlay();
@@ -4485,7 +4483,7 @@ export function SolarScene3DViewer({
       const removeOnSimpleClick =
         overlayPanel?.selected === true &&
         (pvLayout3dOverlayState?.ghosts.length ?? 0) > 0 &&
-        pv3dDragSessionRef.current == null;
+        pvPanelDrag.sessionRef.current == null;
       if (removeOnSimpleClick && removePvPanelFrom3d(overlayPanel.blockId, overlayPanel.panelId)) {
         refreshPv3dOverlay();
         setPanelHover(null);
@@ -4514,19 +4512,19 @@ export function SolarScene3DViewer({
           if (import.meta.env.DEV) console.warn("[CALPINAGE][PV_3D_ROTATE]", r);
           return;
         }
-        setPv3dDragSession({ blockId, pointerId: ptr, startImg: { x: img.x, y: img.y }, mode: "rotate", centerImg: r.centerImg });
+        pvPanelDrag.begin({ blockId, pointerId: ptr, startImg: { x: img.x, y: img.y }, mode: "rotate", centerImg: r.centerImg });
       } else {
         const r = beginPvMoveFrom3d(blockId, img, ptr);
         if (!r.ok) {
           if (import.meta.env.DEV) console.warn("[CALPINAGE][PV_3D_MOVE]", r);
           return;
         }
-        setPv3dDragSession({ blockId, pointerId: ptr, startImg: { x: img.x, y: img.y }, mode: "move" });
+        pvPanelDrag.begin({ blockId, pointerId: ptr, startImg: { x: img.x, y: img.y }, mode: "move" });
       }
       setOrbitSuppressed(true);
       e.stopPropagation();
     },
-    [pvLayout3DInteractionMode, scene.worldConfig],
+    [pvLayout3DInteractionMode, scene.worldConfig, pvPanelDrag],
   );
 
   const onPvMoveHandlePointerDown = useCallback(
@@ -4693,7 +4691,7 @@ export function SolarScene3DViewer({
       !panSelection3DMode &&
       !(enableStructuralRidgeHeightEdit && structuralHeightSelection != null) &&
       !pvLayout3DInteractionMode &&
-      pv3dDragSession == null
+      pvPanelDrag.session == null
     ) {
       return;
     }
@@ -4710,10 +4708,10 @@ export function SolarScene3DViewer({
         return;
       }
       if (e.key !== "Escape") return;
-      if (pv3dDragSessionRef.current) {
+      if (pvPanelDrag.sessionRef.current) {
         e.preventDefault();
         cancelPvMoveFrom3d();
-        setPv3dDragSession(null);
+        pvPanelDrag.end();
         setOrbitSuppressed(false);
         refreshPv3dOverlay();
         return;
@@ -4752,7 +4750,9 @@ export function SolarScene3DViewer({
     enableStructuralRidgeHeightEdit,
     structuralHeightSelection,
     pvLayout3DInteractionMode,
-    pv3dDragSession,
+    pvPanelDrag.session,
+    pvPanelDrag.sessionRef,
+    pvPanelDrag.end,
     refreshPv3dOverlay,
   ]);
 
@@ -5071,7 +5071,7 @@ export function SolarScene3DViewer({
         }}
         onPointerMissed={() => {
           if (zDragGestureActiveRef.current) return;
-          if (pvLayout3DInteractionMode && pv3dDragSessionRef.current == null) {
+          if (pvLayout3DInteractionMode && pvPanelDrag.sessionRef.current == null) {
             clearPvSelectionFrom3d();
             refreshPv3dOverlay();
           }
@@ -5157,9 +5157,9 @@ export function SolarScene3DViewer({
           satelliteUvMapper={satelliteUvMapper}
           extensionVolDebugLevel={extensionVolDebugLevel}
         />
-        {pvLayout3DInteractionMode && scene.worldConfig && pv3dDragSession ? (
+        {pvLayout3DInteractionMode && scene.worldConfig && pvPanelDrag.session ? (
           <PvLayout3dDragController
-            session={pv3dDragSession}
+            session={pvPanelDrag.session}
             worldConfig={scene.worldConfig}
             onLiveOffsetImg={onPv3dLiveOffsetImg}
             onSessionEnd={endPv3dDragSession}

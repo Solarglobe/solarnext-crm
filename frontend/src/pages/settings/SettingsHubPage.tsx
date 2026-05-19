@@ -11,15 +11,8 @@ type SettingsCard = {
   group: "Compte" | "Organisation" | "Commercial" | "Technique" | "Controle";
   status: string;
   permission: string;
-  adminOnly?: boolean;
+  requiredPermissions?: string[];
 };
-
-const ADMIN_PERMISSIONS = [
-  "org.settings.manage",
-  "structure.manage",
-  "rbac.manage",
-  "user.manage",
-];
 
 const SETTINGS_CARDS: SettingsCard[] = [
   {
@@ -44,8 +37,8 @@ const SETTINGS_CARDS: SettingsCard[] = [
     href: "/organization/company",
     group: "Organisation",
     status: "Admin",
-    permission: "Admin org ou structure.manage",
-    adminOnly: true,
+    permission: "org.settings.manage",
+    requiredPermissions: ["org.settings.manage"],
   },
   {
     title: "Utilisateurs",
@@ -53,8 +46,8 @@ const SETTINGS_CARDS: SettingsCard[] = [
     href: "/organization/users",
     group: "Organisation",
     status: "Admin",
-    permission: "Admin org ou user.manage",
-    adminOnly: true,
+    permission: "user.manage",
+    requiredPermissions: ["user.manage"],
   },
   {
     title: "Roles",
@@ -62,8 +55,8 @@ const SETTINGS_CARDS: SettingsCard[] = [
     href: "/organization/roles",
     group: "Organisation",
     status: "Admin",
-    permission: "Admin org ou rbac.manage",
-    adminOnly: true,
+    permission: "rbac.manage",
+    requiredPermissions: ["rbac.manage"],
   },
   {
     title: "Equipes / agences",
@@ -71,8 +64,8 @@ const SETTINGS_CARDS: SettingsCard[] = [
     href: "/organization/teams",
     group: "Organisation",
     status: "Admin",
-    permission: "Admin org ou structure.manage",
-    adminOnly: true,
+    permission: "structure.manage ou org.settings.manage",
+    requiredPermissions: ["structure.manage", "org.settings.manage"],
   },
   {
     title: "Catalogue devis",
@@ -80,8 +73,8 @@ const SETTINGS_CARDS: SettingsCard[] = [
     href: "/organization/catalog",
     group: "Commercial",
     status: "Admin",
-    permission: "Admin org ou org.settings.manage",
-    adminOnly: true,
+    permission: "QUOTE_CATALOG:READ ou QUOTE_CATALOG:WRITE",
+    requiredPermissions: ["QUOTE_CATALOG:READ", "QUOTE_CATALOG:WRITE"],
   },
   {
     title: "Configuration mail",
@@ -89,8 +82,8 @@ const SETTINGS_CARDS: SettingsCard[] = [
     href: "/settings/mail",
     group: "Organisation",
     status: "Configuration",
-    permission: "Admin org ou org.settings.manage",
-    adminOnly: true,
+    permission: "mail.accounts.manage",
+    requiredPermissions: ["mail.accounts.manage"],
   },
   {
     title: "Parametres PV",
@@ -98,8 +91,8 @@ const SETTINGS_CARDS: SettingsCard[] = [
     href: "/admin/settings/pv",
     group: "Technique",
     status: "Technique",
-    permission: "Admin org ou org.settings.manage",
-    adminOnly: true,
+    permission: "org.settings.manage",
+    requiredPermissions: ["org.settings.manage"],
   },
   {
     title: "Journal d'audit",
@@ -107,8 +100,8 @@ const SETTINGS_CARDS: SettingsCard[] = [
     href: "/admin/audit-log",
     group: "Controle",
     status: "Controle",
-    permission: "Admin org ou super admin",
-    adminOnly: true,
+    permission: "org.settings.manage",
+    requiredPermissions: ["org.settings.manage"],
   },
 ];
 
@@ -140,8 +133,10 @@ const MATRIX_COLUMNS: DataTableColumn<SettingsCard>[] = [
   },
 ];
 
-function canSeeAdminSettings(permissions: string[], superAdmin: boolean) {
-  return superAdmin || permissions.includes("*") || ADMIN_PERMISSIONS.some((p) => permissions.includes(p));
+function canSeeSettingsCard(card: SettingsCard, permissions: string[], superAdmin: boolean) {
+  if (!card.requiredPermissions || card.requiredPermissions.length === 0) return true;
+  if (superAdmin || permissions.includes("*")) return true;
+  return card.requiredPermissions.some((permission) => permissions.includes(permission));
 }
 
 export default function SettingsHubPage() {
@@ -172,8 +167,7 @@ export default function SettingsHubPage() {
   }, []);
 
   const visibleCards = useMemo(() => {
-    const admin = canSeeAdminSettings(permissions, superAdmin);
-    return SETTINGS_CARDS.filter((card) => !card.adminOnly || admin);
+    return SETTINGS_CARDS.filter((card) => canSeeSettingsCard(card, permissions, superAdmin));
   }, [permissions, superAdmin]);
 
   const groups = useMemo(() => {
