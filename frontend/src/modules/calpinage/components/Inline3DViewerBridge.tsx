@@ -60,6 +60,15 @@ const MOUNT_ID = "zone-c-3d";
 
 /** Limite le spam de toasts lors d’éditions répétées (drag, micro-mouvements). */
 const CALPINAGE_ROOF_EDIT_ERROR_TOAST_DEBOUNCE_MS = 1400;
+
+/**
+ * FA-ARCH-1 — État module-level intentionnel (singleton).
+ * `Inline3DViewerBridge` n’est monté qu’une seule fois par session de calpinage
+ * (portail React dans `#zone-c-3d`). Si plusieurs instances coexistaient (cas non prévu),
+ * ce debounce partagé est conservatif : il supprime des toasts redondants au lieu d’en
+ * générer des faux. Risque : faible. Alternative : déplacer dans un ref composant si
+ * le multi-instance devient une exigence.
+ */
 let lastCalpinageRoofEditErrorToastKey = "";
 let lastCalpinageRoofEditErrorToastAt = 0;
 
@@ -283,9 +292,11 @@ function extractCalpinagePansForProvenance(state: unknown): CalpinagePanProvenan
   return out.length > 0 ? out : undefined;
 }
 
-function extractGroundImage(state: any): GroundPlaneImageData | null {
-  const img = state?.roof?.image;
-  if (!img?.dataUrl || typeof img.width !== "number" || typeof img.height !== "number") return null;
+function extractGroundImage(state: Record<string, unknown> | null): GroundPlaneImageData | null {
+  if (!state) return null;
+  const roof = state.roof as Record<string, unknown> | undefined;
+  const img = roof?.image as Record<string, unknown> | undefined;
+  if (!img || typeof img.dataUrl !== "string" || typeof img.width !== "number" || typeof img.height !== "number") return null;
   if (img.width <= 0 || img.height <= 0) return null;
   return { dataUrl: img.dataUrl, widthPx: img.width, heightPx: img.height };
 }
@@ -516,6 +527,17 @@ function Inline3DViewer({
     }
   }, [calpinageStateProp, getAllPanelsForRuntime]);
 
+  /**
+   * FA-EVENT-1 — Ref stable vers buildScene.
+   * Permet à l'effect d'enregistrement des événements window de ne s'exécuter qu'une seule
+   * fois (deps: []) sans jamais capturer une closure périmée de buildScene.
+   * Sans ce pattern, tout changement de `calpinageStateProp` (= chaque mutation runtime)
+   * déclenchait un removeEventListener + addEventListener, créant une fenêtre de temps
+   * (~1 tick React) où un event CALPINAGE_OFFICIAL_RUNTIME_STRUCTURAL_CHANGE pouvait être perdu.
+   */
+  const buildSceneRef = useRef(buildScene);
+  buildSceneRef.current = buildScene;
+
   useEffect(() => {
     if (calpinageStateProp !== undefined) {
       // FIX-2 : si ce changement de prop provient de notifyParentState() interne, le handler
@@ -554,11 +576,14 @@ function Inline3DViewer({
     };
   }, [vertexZEdit, vertexXYEdit]);
 
+  // FA-EVENT-1 : deps=[] — enregistrement une seule fois au montage.
+  // buildSceneRef.current est toujours la version fraîche (mis à jour après chaque render).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     function onViewMode(e: Event) {
       const detail = (e as CustomEvent).detail;
       if (detail?.mode === "3D") {
-        buildScene();
+        buildSceneRef.current();
       }
     }
     function onStructuralChange(e: Event) {
@@ -600,21 +625,21 @@ function Inline3DViewer({
         // FIX-1 : un handler interne bridge a levé ce flag avant d'émettre l'event structurel.
         // Il appelle buildScene() lui-même — ne pas déclencher un rebuild redondant ici.
         if (isBridgeInternalEditRef.current) return;
-        buildScene();
+        buildSceneRef.current();
       }
     }
     window.addEventListener("calpinage:viewmode", onViewMode);
     window.addEventListener(CALPINAGE_OFFICIAL_RUNTIME_STRUCTURAL_CHANGE, onStructuralChange);
 
     if (getCalpinageWindow().__CALPINAGE_VIEW_MODE__ === "3D") {
-      buildScene();
+      buildSceneRef.current();
     }
 
     return () => {
       window.removeEventListener("calpinage:viewmode", onViewMode);
       window.removeEventListener(CALPINAGE_OFFICIAL_RUNTIME_STRUCTURAL_CHANGE, onStructuralChange);
     };
-  }, [buildScene]);
+  }, []);
 
   const handleRebuild = useCallback(() => {
     buildScene();
@@ -1280,6 +1305,14 @@ export function Inline3DViewerBridge({
   runtimeNotifyEpoch = 0,
 }: Inline3DViewerBridgeProps) {
   const rootRef = useRef<ReturnType<typeof createRoot> | null>(null);
+  /**
+   * FA-ROOT-1 — Guard container stale.
+   * Mémorise l'élément DOM sur lequel le React root a été créé.
+   * Si le DOM legacy reconstruit `#zone-c-3d` (remount externe sans démontage du Bridge),
+   * on détecte le changement d'élément, on démonte l'ancien root et on en crée un nouveau
+   * sur le nouvel élément — évite le rendu silencieusement dans un nœud détaché.
+   */
+  const mountedOnRef = useRef<HTMLElement | null>(null);
   const setCalpinageStateRef = useRef(setCalpinageState);
   setCalpinageStateRef.current = setCalpinageState;
 
@@ -1289,8 +1322,16 @@ export function Inline3DViewerBridge({
     const mount = container.querySelector("#" + MOUNT_ID) as HTMLElement | null;
     if (!mount || !mount.isConnected) return;
 
+    // FA-ROOT-1: si le DOM a été reconstruit (nouvel élément), purger l'ancien root
+    if (rootRef.current && mountedOnRef.current !== mount) {
+      rootRef.current.unmount();
+      rootRef.current = null;
+      mountedOnRef.current = null;
+    }
+
     if (!rootRef.current) {
       rootRef.current = createRoot(mount);
+      mountedOnRef.current = mount;
     }
     rootRef.current.render(
       <Inline3DViewer
@@ -1305,6 +1346,7 @@ export function Inline3DViewerBridge({
     () => () => {
       rootRef.current?.unmount();
       rootRef.current = null;
+      mountedOnRef.current = null;
     },
     [],
   );

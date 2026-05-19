@@ -490,4 +490,3 @@ export function PvPanelInstanced({
     </instancedMesh>
   );
 }
-    

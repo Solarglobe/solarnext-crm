@@ -4590,10 +4590,15 @@ export function SolarScene3DViewer({
           // le browser n'intercepte le scroll ou le pinch-zoom au niveau du viewport.
           // Viewport cibles : 375px (iPhone SE) et 820px (iPad Air).
           gl.domElement.style.touchAction = "none";
-          // Fix R3F canvas sizing : quand le container était display:none au montage,
-          // le ResizeObserver reçoit 0×0 et le canvas reste à 300×150 (défaut navigateur).
-          // Un requestAnimationFrame laisse le browser calculer le layout (reflow) avant
-          // que R3F mesure les dimensions réelles du container via son ResizeObserver.
+          // FA-RESIZE-1 — Fix R3F canvas sizing one-shot au montage.
+          // Quand le container était display:none au montage, le ResizeObserver R3F reçoit
+          // 0×0 et le canvas reste bloqué à 300×150 (défaut navigateur).
+          // `window.dispatchEvent(new Event("resize"))` notifie le ResizeObserver interne
+          // de R3F (@react-three/fiber/src/core/utils.ts) qui remesure alors le container.
+          // Le RAF garantit que le browser a terminé le reflow avant la mesure.
+          // Effet de bord maîtrisé : déclenché une seule fois à la création du Canvas,
+          // les autres handlers window:resize de l'app sont idempotents sur un canvas déjà
+          // correctement dimensionné.
           requestAnimationFrame(() => {
             window.dispatchEvent(new Event("resize"));
           });
@@ -4723,4 +4728,50 @@ export function SolarScene3DViewer({
           />
         ) : (
           <Grid
-            position={[center.x, center.y, Math.min(geometryBox.min.z - 0.1
+            position={[center.x, center.y, Math.min(geometryBox.min.z - 0.1, 0)]}
+            {...viewerFallbackGridProps(maxDim)}
+          />
+        )}
+        {showDebugOverlay && (
+          <DebugSceneHelpers box={geometryBox} center={center} maxDim={maxDim} scene={scene} />
+        )}
+        {(showDebugOverlay || showXYAlignmentOverlay) && (
+          <DebugXYAlignmentOverlay scene={scene} zLevel={groundZ} runtime={debugRuntime} />
+        )}
+        {/* ── Masque d’horizon lointain (far shading) — LineLoop orange ──── */}
+        {horizonMask && horizonMask.length > 0 && cameraViewMode !== "PLAN_2D" && (
+          <HorizonMaskRing3D mask={horizonMask as HorizonMaskPoint3D[]} center={center} />
+        )}
+        {/* IBL — overcast sky, background=false, chargement lazy (Suspense).
+            environmentIntensity=0.52 : reflections IBL visibles sur zinc, bacs acier, panneaux PV.
+            Valeur calibrée pour que les panneaux "brillent" sans surexposer les surfaces mates (ardoise). */}
+        <Suspense fallback={null}>
+          <Environment
+            files="/assets/hdri/overcast_sky_1k.hdr"
+            background={false}
+            environmentIntensity={0.52}
+          />
+        </Suspense>
+        {enablePostProcessing && (
+          isCanonical3DEnabled() ? (
+            <EffectComposer multisampling={0}>
+              <SMAA />
+              <Bloom
+                intensity={0.35}
+                luminanceThreshold={0.78}
+                luminanceSmoothing={0.88}
+                mipmapBlur
+              />
+              <Vignette offset={0.25} darkness={0.45} />
+            </EffectComposer>
+          ) : (
+            <EffectComposer multisampling={0}>
+              <SMAA />
+              <Vignette offset={0.25} darkness={0.45} />
+            </EffectComposer>
+          )
+        )}
+      </Canvas>
+    </div>
+  );
+}
