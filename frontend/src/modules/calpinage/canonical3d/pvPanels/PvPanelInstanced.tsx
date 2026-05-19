@@ -80,6 +80,11 @@ import type { PvPanelSurface3D } from "../types/pv-panel-3d";
 import { INSPECT_USERDATA_KEY } from "../viewer/inspection/sceneInspectionTypes";
 import { getDepthOffset } from "../viewer/DepthRegistry";
 
+
+// ── Debug runtime [PV3D-RENDER] ───────────────────────────────────────────────
+const _pv3dDbg = (): boolean =>
+  import.meta.env.DEV ||
+  (typeof window !== "undefined" && (window as Record<string, unknown>)["__PV3D_DEBUG"] === true);
 // ── Constante pool ────────────────────────────────────────────────────────────
 
 /**
@@ -164,9 +169,19 @@ function flushInstancesToMesh(
     );
   }
 
+  // ── [PV3D-RENDER] Log entrée flush ──────────────────────────────────
+  if (_pv3dDbg()) {
+    console.log(
+      `[PV3D-RENDER] flushInstancesToMesh: panels=${panels.length} n=${n} prevCount=${prevCount} hidden=${hidden?.size ?? 0}`,
+    );
+    if (panels.length === 0)
+      console.warn("[PV3D-RENDER] ⚠️ panels.length=0 — mesh.count sera 0, rien de rendu.");
+  }
+
   const m = new THREE.Matrix4();
   const c = new THREE.Color();
   const hasColors = colors != null && colors.length >= n;
+  let _nanCount = 0;
 
   // Panneaux actifs : matrices + couleurs
   for (let i = 0; i < n; i++) {
@@ -177,6 +192,15 @@ function flushInstancesToMesh(
       mesh.setMatrixAt(i, HIDDEN_INSTANCE_MATRIX);
     } else {
       applyPanelInstanceMatrix(panel, m);
+      // ── [PV3D-RENDER] NaN check avant upload GPU ────────────────────
+      if (_pv3dDbg() && m.elements.some((v) => !Number.isFinite(v))) {
+        _nanCount++;
+        console.error(
+          `[PV3D-RENDER] ⛔ NaN/Inf dans matrice #${i} (panelId=${String(panel.id)})`,
+          { center3D: panel.center3D, outwardNormal: panel.outwardNormal,
+            corners3D: panel.corners3D, matEls: [...m.elements] },
+        );
+      }
       mesh.setMatrixAt(i, m);
     }
 
@@ -204,6 +228,14 @@ function flushInstancesToMesh(
   } else if (!hasColors && mesh.instanceColor) {
     // Retour a la couleur uniforme (material.color) - libere le buffer per-instance
     mesh.instanceColor = null;
+  }
+
+  // ── [PV3D-RENDER] Log sortie flush ──────────────────────────────────
+  if (_pv3dDbg()) {
+    if (_nanCount > 0)
+      console.error(`[PV3D-RENDER] ⛔ ${_nanCount} matrices NaN uploadées sur GPU — panneaux invisibles.`);
+    else
+      console.log(`[PV3D-RENDER] ✓ mesh.count=${n}  needsUpdate=true  nanCount=0`);
   }
 
   return n;

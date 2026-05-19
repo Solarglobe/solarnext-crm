@@ -11,6 +11,7 @@
  */
 
 import * as THREE from "three";
+import { useEffect } from "react";
 import type { ThreeEvent } from "@react-three/fiber";
 import { Outlines } from "@react-three/drei";
 import { PvPanelInstanced } from "../pvPanels/PvPanelInstanced";
@@ -19,6 +20,11 @@ import type { PvPanelSurface3D } from "../types/pv-panel-3d";
 import type { SceneInspectionSelection } from "./inspection/sceneInspectionTypes";
 import { isInspectSelected, roofModelingSkipOccluderRaycast } from "./viewerHelpers";
 import { SOLARNEXT_3D_PREMIUM_THEME, VIEWER_INSPECT_OUTLINE_HEX } from "./viewerVisualTokens";
+
+// ── Debug runtime [PV3D-RENDER] ─────────────────────────────────────────────
+const _pv3dDbg = (): boolean =>
+  import.meta.env.DEV ||
+  (typeof window !== "undefined" && (window as Record<string, unknown>)["__PV3D_DEBUG"] === true);
 
 // ── Constantes visuelles PV ───────────────────────────────────────────────────
 
@@ -90,6 +96,27 @@ export function PvPanelsLayer({
   inspectionSelection,
   outlineThickness,
 }: PvPanelsLayerProps) {
+  // ── [PV3D-RENDER] Log render-level state ──────────────────────────────
+  useEffect(() => {
+    if (!_pv3dDbg()) return;
+    const hiddenCount = pvLayout3DEffectiveHiddenIds?.size ?? 0;
+    const tag = `[PV3D-RENDER] PvPanelsLayer: panels=${panels.length} hidden=${hiddenCount}`
+      + ` interactionMode=${String(pvLayout3DInteractionMode)}`
+      + (panels.length === 0 ? " ⚠️ AUCUN PANNEAU" : "");
+    console.groupCollapsed(tag);
+    console.log("panels.length:", panels.length);
+    console.log("panelColors:", panelColors ? `${panelColors.length} couleurs` : "absent");
+    console.log("pvLayout3DInteractionMode:", pvLayout3DInteractionMode);
+    console.log("pvLayout3DEffectiveHiddenIds:", pvLayout3DEffectiveHiddenIds ? [...pvLayout3DEffectiveHiddenIds] : "undefined");
+    console.log("consolidatedPvCellLinesGeo:", consolidatedPvCellLinesGeo ? "présente" : "null");
+    console.log("renderOrder:", pvLayout3DInteractionMode ? 20 : 2);
+    if (panels.length === 0)
+      console.error("[PV3D-RENDER] ⛔ 0 panneaux transmis à PvPanelInstanced — GPU ne rendra rien.");
+    if (hiddenCount > 0 && hiddenCount === panels.length)
+      console.warn("[PV3D-RENDER] ⚠️ Tous les panneaux sont hidden (scale=0).");
+    console.groupEnd();
+  }, [panels, panelColors, pvLayout3DInteractionMode, pvLayout3DEffectiveHiddenIds, consolidatedPvCellLinesGeo]);
+
   return (
     <>
       {/*

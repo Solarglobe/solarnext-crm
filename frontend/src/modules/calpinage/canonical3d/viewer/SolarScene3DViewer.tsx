@@ -3808,6 +3808,40 @@ export function SolarScene3DViewer({
   void pvLayout3dScreenOverlay;
   const [roofTruthBadges, setRoofTruthBadges] = useState<RoofTruthBadgeScreenModel[]>([]);
 
+  // ── [PV3D-HANDLES] Log overlay + handles state ────────────────────────────
+  useEffect(() => {
+    const dbg =
+      import.meta.env.DEV ||
+      (typeof window !== "undefined" && (window as Record<string, unknown>)["__PV3D_DEBUG"] === true);
+    if (!dbg) return;
+    const ov = pvLayout3dOverlayState;
+    console.groupCollapsed(
+      `[PV3D-HANDLES] overlay update : interactionMode=${String(pvLayout3DInteractionMode)}` +
+      `  focusBlockId=${String(ov?.focusBlockId ?? null)}` +
+      `  activeBlockId=${String(ov?.activeBlockId ?? null)}` +
+      `  panels=${String(ov?.panels.length ?? 0)}` +
+      `  ghosts=${String(ov?.ghosts.length ?? 0)}` +
+      (pvLayout3DInteractionMode && !ov ? "  ⚠️ OVERLAY NULL" : ""),
+    );
+    console.log("pvLayout3DInteractionMode :", pvLayout3DInteractionMode);
+    console.log("pvLayout3dOverlayState :", ov);
+    console.log("scene.pvPanels.length :", scene.pvPanels.length);
+    if (pvLayout3DInteractionMode && ov) {
+      const selectedPanels = ov.panels.filter((p) => p.selected);
+      console.log("panels selected dans overlay :", selectedPanels.length);
+      if (selectedPanels.length === 0) {
+        console.warn("[PV3D-HANDLES] ⚠️ 0 panneaux selected dans overlay — handles masqués (selectedPanels.length > 0 fail).");
+      }
+      if (!ov.focusBlockId) {
+        console.warn("[PV3D-HANDLES] ⚠️ focusBlockId=null — handles masqués (overlay.focusBlockId fail).");
+      }
+    }
+    if (pvLayout3DInteractionMode && !ov) {
+      console.error("[PV3D-HANDLES] ⛔ overlay=null en interactionMode — event calpinage:pv3d-overlay-changed non reçu ?");
+    }
+    console.groupEnd();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pvLayout3dOverlayState, pvLayout3DInteractionMode, scene.pvPanels.length]);
 
   // ── Overlays interactifs ──────────────────────────────────────────────────
 

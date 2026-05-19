@@ -32,6 +32,11 @@ import type {
   RoofPatchTruthClass,
   RoofReconstructionQualityDiagnostics,
 } from "../builder/roofReconstructionQuality";
+// ── Debug runtime [PV3D-FILTER] ───────────────────────────────────────────────
+const _pv3dDbg = (): boolean =>
+  import.meta.env.DEV ||
+  (typeof window !== "undefined" && (window as Record<string, unknown>)["__PV3D_DEBUG"] === true);
+
 
 export type PvBindingQualityLevel = "OK" | "PARTIAL" | "ORPHAN" | "REJECTED";
 
@@ -88,8 +93,52 @@ export function filterPvPlacementInputsForOfficialBinding(
   panels: readonly PvPanelPlacementInput[],
   roofQ: RoofReconstructionQualityDiagnostics,
 ): readonly PvPanelPlacementInput[] {
-  if (panels.length === 0) return panels;
-  return panels.filter((p) => truthForPatch(roofQ, String(p.roofPlanePatchId)) !== "INCOHERENT");
+  if (panels.length === 0) {
+    if (_pv3dDbg()) console.log("[PV3D-FILTER] 0 panneaux en entrée — rien à filtrer.");
+    return panels;
+  }
+
+  const result = panels.filter((p) => truthForPatch(roofQ, String(p.roofPlanePatchId)) !== "INCOHERENT");
+
+  if (_pv3dDbg()) {
+    const rejected = panels.filter((p) => truthForPatch(roofQ, String(p.roofPlanePatchId)) === "INCOHERENT");
+    const noTruth  = panels.filter((p) => truthForPatch(roofQ, String(p.roofPlanePatchId)) === null);
+    const tag = `[PV3D-FILTER] ${panels.length} entrants → ${result.length} passants`
+      + (rejected.length > 0 ? ` ⚠️ ${rejected.length} REJETÉS (INCOHERENT)` : "")
+      + (noTruth.length  > 0 ? ` ❓ ${noTruth.length} sans qualité connue` : "");
+    console.groupCollapsed(tag);
+    console.log("roofReconstructionQuality global :", roofQ.roofReconstructionQuality);
+    console.log("perPanTruth :", roofQ.perPanTruth);
+    if (rejected.length > 0) {
+      console.warn("[PV3D-FILTER] Panneaux REJETÉS (patch INCOHERENT) :");
+      for (const p of rejected) {
+        const truth = truthForPatch(roofQ, String(p.roofPlanePatchId));
+        console.warn(`  panelId=${String(p.id)}  patchId=${String(p.roofPlanePatchId)}  truth=${String(truth)}`);
+      }
+    }
+    if (noTruth.length > 0) {
+      console.warn("[PV3D-FILTER] Panneaux sans entrée perPanTruth (patchId inconnu du modèle courant) :");
+      for (const p of noTruth) {
+        console.warn(`  panelId=${String(p.id)}  patchId=${String(p.roofPlanePatchId)}`);
+      }
+    }
+    if (result.length > 0) {
+      console.log("[PV3D-FILTER] Panneaux PASSANTS :");
+      for (const p of result) {
+        const truth = truthForPatch(roofQ, String(p.roofPlanePatchId));
+        console.log(`  panelId=${String(p.id)}  patchId=${String(p.roofPlanePatchId)}  truth=${String(truth)}`);
+      }
+    }
+    if (result.length === 0 && panels.length > 0) {
+      console.error(
+        "[PV3D-FILTER] ⛔ 100% DES PANNEAUX FILTRÉS — aucun panneau ne passera dans buildPvPanels3D." +
+        " Cause : tous les patches sont INCOHERENT ou patchId inconnu du modèle courant.",
+      );
+    }
+    console.groupEnd();
+  }
+
+  return result;
 }
 
 export function computePvBindingDiagnostics(args: {

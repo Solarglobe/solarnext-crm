@@ -22,6 +22,11 @@ import {
 } from "./panelOnPlaneGeometry";
 
 const DEG = Math.PI / 180;
+// ── Debug runtime [PV3D-MATRIX] ───────────────────────────────────────────────
+const _pv3dDbg = (): boolean =>
+  import.meta.env.DEV ||
+  (typeof window !== "undefined" && (window as Record<string, unknown>)["__PV3D_DEBUG"] === true);
+
 
 function findPatch(patches: readonly RoofPlanePatch3D[], id: string): RoofPlanePatch3D | null {
   for (const p of patches) {
@@ -53,6 +58,10 @@ function buildOnePanel(
 
   const basis = orthonormalPatchBasis(patch);
   if (!basis) {
+    if (_pv3dDbg()) {
+      console.error(`[PV3D-MATRIX] buildOnePanel: basis DÉGÉNÉRÉE panneau=${String(input.id)} patchId=${patch.id}`,
+        { normal: patch.normal, localFrame: patch.localFrame });
+    }
     globalDiag.push({
       code: "PV_PANEL_PATCH_BASIS_DEGRADED",
       severity: "warning",
@@ -67,6 +76,15 @@ function buildOnePanel(
     patch,
     patch.equation
   );
+
+  if (_pv3dDbg()) {
+    if (!Number.isFinite(centerWorld.x) || !Number.isFinite(centerWorld.y) || !Number.isFinite(centerWorld.z)) {
+      console.error(
+        `[PV3D-MATRIX] buildOnePanel: centerWorld NaN/Inf panneau=${String(input.id)} patchId=${patch.id}`,
+        { centerWorld, inputCenter: input.center },
+      );
+    }
+  }
 
   const { dimAlongU, dimAlongV } = moduleDimsAlongPatchUv(widthM, heightM, input.orientation);
   const rotationRad = input.rotationDegInPlane * DEG;
@@ -203,6 +221,21 @@ export function buildPvPanels3D(input: BuildPvPanels3DInput, context: BuildPvPan
   const panels: PvPanelSurface3D[] = [];
   const globalDiag: GeometryDiagnostic[] = [];
 
+  if (_pv3dDbg()) {
+    const patchIds = context.roofPlanePatches.map((p) => p.id);
+    console.groupCollapsed(
+      `[PV3D-MATRIX] buildPvPanels3D: ${input.panels.length} panneaux en entrée, ${context.roofPlanePatches.length} patches`,
+    );
+    console.log("patches disponibles:", patchIds);
+    const patchSet = new Set(patchIds);
+    for (const p of input.panels) {
+      const ok = patchSet.has(p.roofPlanePatchId);
+      if (!ok) console.warn(`  ❌ panneau ${String(p.id)}: patchId "${p.roofPlanePatchId}" INTROUVABLE`);
+      else      console.log(`  ✓ panneau ${String(p.id)}: patchId "${p.roofPlanePatchId}"`);
+    }
+    console.groupEnd();
+  }
+
   if (!context.roofPlanePatches.length) {
     globalDiag.push({
       code: "PV_PANEL_NO_PLANE_CONTEXT",
@@ -215,6 +248,7 @@ export function buildPvPanels3D(input: BuildPvPanels3DInput, context: BuildPvPan
   for (const p of input.panels) {
     const patch = findPatch(context.roofPlanePatches, p.roofPlanePatchId);
     if (!patch) {
+      if (_pv3dDbg()) console.warn(`[PV3D-MATRIX] buildPvPanels3D: patch "${p.roofPlanePatchId}" INTROUVABLE pour panneau ${String(p.id)}`);
       globalDiag.push({
         code: "PV_PANEL_PLANE_PATCH_NOT_FOUND",
         severity: "warning",
@@ -225,6 +259,14 @@ export function buildPvPanels3D(input: BuildPvPanels3DInput, context: BuildPvPan
     }
     const built = buildOnePanel(p, patch, context, globalDiag);
     if (built) panels.push(built);
+  }
+
+  if (_pv3dDbg()) {
+    const dropped = input.panels.length - panels.length;
+    if (dropped > 0)
+      console.warn(`[PV3D-MATRIX] buildPvPanels3D: ${panels.length}/${input.panels.length} panneaux 3D produits — ${dropped} perdus`);
+    else
+      console.log(`[PV3D-MATRIX] buildPvPanels3D: ${panels.length}/${input.panels.length} panneaux 3D produits ✓`);
   }
 
   globalDiag.push({

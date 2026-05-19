@@ -10,6 +10,11 @@ import type { Vector3 } from "../types/primitives";
 import type { RoofPlanePatch3D } from "../types/roof-surface";
 import { add3, cross3, dot3, normalize3, scale3, sub3 } from "../utils/math3";
 import { projectPointOntoPlane } from "../volumes/planeAnchor";
+// ── Debug runtime [PV3D-MATRIX] ───────────────────────────────────────────────
+const _pv3dDbg = (): boolean =>
+  import.meta.env.DEV ||
+  (typeof window !== "undefined" && (window as Record<string, unknown>)["__PV3D_DEBUG"] === true);
+
 
 export interface PatchTangentBasis {
   readonly origin: Vector3;
@@ -78,8 +83,18 @@ export function panelRectangleFromCenter(
 } {
   const c = Math.cos(rotationRad);
   const s = Math.sin(rotationRad);
-  const wu = normalize3(add3(scale3(uHat, c), scale3(vHat, s)))!;
-  const hv = normalize3(add3(scale3(uHat, -s), scale3(vHat, c)))!;
+  // ── [PV3D-MATRIX] Détection normalize3 null avant assertion ! ────────
+  const _wu0 = normalize3(add3(scale3(uHat, c), scale3(vHat, s)));
+  const _hv0 = normalize3(add3(scale3(uHat, -s), scale3(vHat, c)));
+  if (_pv3dDbg() && (!_wu0 || !_hv0)) {
+    console.error(
+      "[PV3D-MATRIX] panelRectangleFromCenter: normalize3 null — NaN IMMINENT dans la matrice",
+      { wu_null: !_wu0, hv_null: !_hv0, uHat, vHat, dimAlongU, dimAlongV, rotationRad,
+        center: `(${center.x.toFixed(4)}, ${center.y.toFixed(4)}, ${center.z.toFixed(4)})` },
+    );
+  }
+  const wu = _wu0!;  // comportement original préservé
+  const hv = _hv0!; // comportement original préservé
   const du = dimAlongU * 0.5;
   const dv = dimAlongV * 0.5;
   const c0 = add3(center, add3(scale3(wu, -du), scale3(hv, -dv)));
