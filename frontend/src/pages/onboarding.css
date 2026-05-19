@@ -220,6 +220,13 @@
   font-weight: 650;
 }
 
+.onboarding-inline-link {
+  color: inherit;
+  font-weight: 850;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .onboarding-inline-action {
   display: flex;
   align-items: center;

@@ -123,7 +123,6 @@ function buildOnboardingPatch(body) {
       imap_host: cleanText(mail.imap_host ?? mail.imapHost, 180),
       smtp_host: cleanText(mail.smtp_host ?? mail.smtpHost, 180),
       email: cleanText(mail.email, 255),
-      tested: Boolean(mail.tested),
     };
   }
   if (Object.prototype.hasOwnProperty.call(raw, "collaborators")) {

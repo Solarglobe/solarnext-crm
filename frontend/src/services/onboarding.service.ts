@@ -18,7 +18,6 @@ export type OnboardingMail = {
   email: string;
   imapHost: string;
   smtpHost: string;
-  tested: boolean;
 };
 
 export type OnboardingCollaborator = {
@@ -66,7 +65,6 @@ export type OnboardingStateResponse = {
       email: string;
       imap_host: string;
       smtp_host: string;
-      tested: boolean;
     }>;
     collaborators: OnboardingCollaborator[];
     pipeline: OnboardingPipelineStage[];
@@ -96,7 +94,6 @@ export const DEFAULT_ONBOARDING_DATA: OnboardingData = {
     email: "",
     imapHost: "",
     smtpHost: "",
-    tested: false,
   },
   collaborators: [],
   pipeline: [
@@ -134,7 +131,6 @@ function mergeOnboardingData(response?: OnboardingStateResponse): OnboardingData
       email: data.mail?.email ?? "",
       imapHost: data.mail?.imap_host ?? "",
       smtpHost: data.mail?.smtp_host ?? "",
-      tested: Boolean(data.mail?.tested),
     },
     collaborators: Array.isArray(data.collaborators) ? data.collaborators : [],
     pipeline: Array.isArray(data.pipeline) && data.pipeline.length > 0 ? data.pipeline : DEFAULT_ONBOARDING_DATA.pipeline,
@@ -194,7 +190,6 @@ export async function saveOnboardingState(input: {
         email: input.data.mail.email,
         imap_host: input.data.mail.imapHost,
         smtp_host: input.data.mail.smtpHost,
-        tested: input.data.mail.tested,
       },
       collaborators: input.data.collaborators,
       lead: {

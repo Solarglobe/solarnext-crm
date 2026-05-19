@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import type { OnboardingMail } from "../../services/onboarding.service";
 
 type Props = {
@@ -6,20 +7,23 @@ type Props = {
 };
 
 export default function OnboardingStepMail({ value, onChange }: Props) {
-  const update = (patch: Partial<OnboardingMail>) => onChange({ ...value, ...patch, tested: patch.tested ?? false });
+  const update = (patch: Partial<OnboardingMail>) => onChange({ ...value, ...patch });
 
   return (
     <div className="onboarding-stack">
       <div className="onboarding-info-band">
-        La configuration mail est facultative au demarrage. Vous pourrez connecter vos comptes, signatures et modeles
-        depuis Parametres &gt; Configuration mail.
+        La configuration mail est facultative au demarrage. Les tests IMAP/SMTP reels se font ensuite dans{" "}
+        <Link to="/settings/mail" className="onboarding-inline-link">
+          Parametres &gt; Configuration mail
+        </Link>
+        .
       </div>
 
       <div className="onboarding-choice-row" role="group" aria-label="Mode de messagerie">
         <button
           type="button"
           className={value.mode === "solarnext" ? "onboarding-choice is-active" : "onboarding-choice"}
-          onClick={() => update({ mode: "solarnext", tested: true })}
+          onClick={() => update({ mode: "solarnext" })}
         >
           Email SolarNext
         </button>
@@ -62,7 +66,7 @@ export default function OnboardingStepMail({ value, onChange }: Props) {
         </div>
       ) : (
         <div className="onboarding-info-band">
-          Vos premiers dossiers peuvent etre crees sans compte mail connecte.
+          Vos premiers dossiers peuvent etre crees sans compte mail connecte. Aucun test de connexion n'est lance ici.
         </div>
       )}
     </div>
