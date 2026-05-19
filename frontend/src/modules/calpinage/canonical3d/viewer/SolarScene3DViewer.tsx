@@ -4738,4 +4738,11 @@ export function SolarScene3DViewer({
           ) : (
             <EffectComposer multisampling={0}>
               <SMAA />
-         
+              <Vignette offset={0.25} darkness={0.45} />
+            </EffectComposer>
+          )
+        )}
+      </Canvas>
+    </div>
+  );
+}
