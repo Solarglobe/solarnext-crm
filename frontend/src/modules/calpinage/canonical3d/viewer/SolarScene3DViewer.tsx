@@ -3824,9 +3824,9 @@ export function SolarScene3DViewer({
   const { totalPowerWc, pvPanelCount } = useMemo(() => {
     const panels = scene.pvPanels;
     const count = panels.length;
-    // Estimation mono-Si : 215 Wc/m²
+    // Estimation mono-Si : 227 Wc/m²
     const totalWc = panels.reduce(
-      (sum, p) => sum + Math.round(p.widthM * p.heightM * 215),
+      (sum, p) => sum + Math.round(p.widthM * p.heightM * 227),
       0,
     );
     return { totalPowerWc: totalWc, pvPanelCount: count };
@@ -4045,6 +4045,13 @@ export function SolarScene3DViewer({
         return;
       }
       if (pvLayout3DInteractionMode && addPvPanelFrom3dImagePoint(img)) {
+        // FA-6 : sélectionner le bloc nouvellement créé pour que les handles apparaissent
+        // immédiatement — aligne ce chemin sur tryCommitPvPlacementFrom3dRoofHit qui
+        // appelle explicitement selectPvBlockFrom3d(r.blockId, null) avant le commit.
+        // readPvLayout3dOverlayState() retourne l'état frais (pas le useMemo stale).
+        const freshOverlay = readPvLayout3dOverlayState();
+        const newBlockId = freshOverlay?.focusBlockId ?? freshOverlay?.activeBlockId ?? null;
+        if (newBlockId) selectPvBlockFrom3d(newBlockId, null);
         onPanelMoveCommit?.();
         refreshPv3dOverlay();
         e.stopPropagation();
@@ -4724,25 +4731,4 @@ export function SolarScene3DViewer({
           />
         </Suspense>
         {enablePostProcessing && (
-          isCanonical3DEnabled() ? (
-            <EffectComposer multisampling={0}>
-              <SMAA />
-              <Bloom
-                intensity={0.35}
-                luminanceThreshold={0.78}
-                luminanceSmoothing={0.88}
-                mipmapBlur
-              />
-              <Vignette offset={0.25} darkness={0.45} />
-            </EffectComposer>
-          ) : (
-            <EffectComposer multisampling={0}>
-              <SMAA />
-              <Vignette offset={0.25} darkness={0.45} />
-            </EffectComposer>
-          )
-        )}
-      </Canvas>
-    </div>
-  );
-}
+          isCanonical3DEnabled() 
