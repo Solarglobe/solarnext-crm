@@ -44,7 +44,9 @@ jobs:
     needs: lint-typecheck
     env:
       NODE_ENV: test
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/solarnext_ci
       JWT_SECRET: ci-jwt-secret-1234567890abcdef1234567890abcdef
+      MAIL_ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
     steps:
       - uses: actions/checkout@v4
 
@@ -87,7 +89,8 @@ jobs:
       NODE_ENV: test
       CI: "true"
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/solarnext_ci
-      JWT_SECRET: ci-jwt-secret
+      JWT_SECRET: ci-jwt-secret-1234567890abcdef1234567890abcdef
+      MAIL_ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
       CORS_ORIGIN: http://127.0.0.1:5173
     steps:
       - uses: actions/checkout@v4
@@ -154,7 +157,8 @@ jobs:
       NODE_ENV: test
       CI: "true"
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/solarnext_ci
-      JWT_SECRET: ci-jwt-secret
+      JWT_SECRET: ci-jwt-secret-1234567890abcdef1234567890abcdef
+      MAIL_ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
       CORS_ORIGIN: http://127.0.0.1:5173
       E2E_START_SERVERS: "1"
       E2E_API_URL: http://127.0.0.1:3000

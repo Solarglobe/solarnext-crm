@@ -43,6 +43,11 @@ const NAMES = [
 
 /** @param {import('node-pg-migrate').MigrationBuilder} pgm */
 export const up = async (pgm) => {
+  const table = await pgm.db.query(`SELECT to_regclass('public.migration_checksums') AS reg`);
+  if (!table.rows?.[0]?.reg) {
+    return;
+  }
+
   for (const name of NAMES) {
     const filePath = path.join(__dirname, `${name}.js`);
     if (!fs.existsSync(filePath)) {
