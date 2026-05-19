@@ -123,7 +123,7 @@ export const PREMIUM_MATERIALS: Record<RoofMaterialType | "PV_PANEL" | "FACADE" 
   ZINC: {
     color: "#8290a2",      // Zinc naturel blue-grey (Rheinzink® Natural patina)
     roughness: 0.22,       // Joint debout laminé = surface semi-polie caractéristique
-   alness: 0.78,       // Zinc est un métal (z=30) — conductivité élevée
+    metalness: 0.78,       // Zinc est un métal (z=30) — conductivité élevée
     envMapIntensity: 1.1,  // Reflections IBL visibles sur métal plat
   },
   BACS_ACIER: {
@@ -225,5 +225,4 @@ export function viewerFallbackGridProps(maxDim: number): {
     infiniteGrid: true,
     cellColor: "#172033",
     sectionColor: "#26364d",
-  };
-}
+  }
