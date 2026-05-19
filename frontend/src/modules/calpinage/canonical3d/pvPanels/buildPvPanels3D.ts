@@ -25,7 +25,7 @@ const DEG = Math.PI / 180;
 // ── Debug runtime [PV3D-MATRIX] ───────────────────────────────────────────────
 const _pv3dDbg = (): boolean =>
   import.meta.env.DEV ||
-  (typeof window !== "undefined" && (window as Record<string, unknown>)["__PV3D_DEBUG"] === true);
+  (typeof window !== "undefined" && (window as unknown as Record<string, unknown>)["__PV3D_DEBUG"] === true);
 
 
 function findPatch(patches: readonly RoofPlanePatch3D[], id: string): RoofPlanePatch3D | null {

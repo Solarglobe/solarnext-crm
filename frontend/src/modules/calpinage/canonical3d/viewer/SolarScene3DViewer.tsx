@@ -3849,7 +3849,7 @@ export function SolarScene3DViewer({
   useEffect(() => {
     const dbg =
       import.meta.env.DEV ||
-      (typeof window !== "undefined" && (window as Record<string, unknown>)["__PV3D_DEBUG"] === true);
+      (typeof window !== "undefined" && (window as unknown as Record<string, unknown>)["__PV3D_DEBUG"] === true);
     if (!dbg) return;
     const ov = pvLayout3dOverlayState;
     console.groupCollapsed(

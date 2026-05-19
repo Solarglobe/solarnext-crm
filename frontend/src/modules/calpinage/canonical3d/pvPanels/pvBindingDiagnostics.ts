@@ -35,7 +35,7 @@ import type {
 // ── Debug runtime [PV3D-FILTER] ───────────────────────────────────────────────
 const _pv3dDbg = (): boolean =>
   import.meta.env.DEV ||
-  (typeof window !== "undefined" && (window as Record<string, unknown>)["__PV3D_DEBUG"] === true);
+  (typeof window !== "undefined" && (window as unknown as Record<string, unknown>)["__PV3D_DEBUG"] === true);
 
 
 export type PvBindingQualityLevel = "OK" | "PARTIAL" | "ORPHAN" | "REJECTED";
