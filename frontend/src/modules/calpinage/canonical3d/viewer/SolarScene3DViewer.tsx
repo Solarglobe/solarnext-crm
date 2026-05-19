@@ -81,6 +81,7 @@ import {
   extendBoundingBoxWithSatelliteImageFootprint,
 } from "./solarSceneBounds";
 import { CameraFramingRig } from "./CameraFramingRig";
+import { DynamicCamera } from "./DynamicCamera";
 import { useViewerGestures } from "./useViewerGestures";
 import { logIfGeometryNormalsSuspect } from "./geometryNormalsAudit";
 import { ShadingLegend3D } from "./ShadingLegend3D";
@@ -5062,7 +5063,6 @@ function SolarScene3DViewer({
         </div>
       )}
       <Canvas
-        key={cameraViewMode}
         orthographic={cameraViewMode === "PLAN_2D"}
         shadows
         dpr={[1, 2]}
@@ -5136,6 +5136,7 @@ function SolarScene3DViewer({
           enabled={showRoof && showRoofTruthBadges}
           onProjected={setRoofTruthBadges}
         />
+        <DynamicCamera mode={cameraViewMode} framingBox={framingBox} />
         <CameraFramingRig
           box={framingBox}
           mode={cameraViewMode}
