@@ -51,7 +51,7 @@ import {
 import { flushSync } from "react-dom";
 import * as THREE from "three";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
-import { getPremiumRoofObstacleSpec } from "../../catalog/roofObstaclePremiumCatalog";
+
 import { isCalpinage3DRuntimeDebugEnabled } from "../../core/calpinage3dRuntimeDebug";
 import { isValidBuildingHeightM } from "../../core/heightResolver";
 import type { RoofVertexHeightEdit } from "../../runtime/applyRoofVertexHeightEdit";
@@ -73,8 +73,7 @@ import {
 } from "../diagnostics/computeRoofShellAlignmentDiagnostics";
 import type { SolarScene3D } from "../types/solarScene3d";
 import { keepoutHatchGeometry, keepoutCornerMarksGeometry } from "./keepout3DGeometry";
-import { KeepoutZone3D } from "./KeepoutZone3D";
-import { RoofContourLine2 } from "./RoofContourLine2";
+
 import type { PvPanelSurface3D } from "../types/pv-panel-3d";
 import {
   computeSolarSceneBoundingBox,
@@ -99,9 +98,7 @@ import {
 import { buildSceneInspectionViewModel } from "./inspection/buildSceneInspectionViewModel";
 import {
   INSPECT_USERDATA_KEY,
-  type SceneInspectableKind,
   type SceneInspectionSelection,
-  type SceneInspectMeshRole,
   type SceneInspectUserData,
   type ScenePickHit,
 } from "./inspection/sceneInspectionTypes";
@@ -141,7 +138,7 @@ import {
   volumeMeshFaceNormalsDebugLineGeometry,
 } from "./solarSceneThreeGeometry";
 import { buildPremiumHouse3DScene } from "./premium/buildPremiumHouse3DScene";
-import { PvPanelInstanced } from "../pvPanels/PvPanelInstanced";
+
 import { buildConsolidatedCellLinesGeometry } from "../pvPanels/buildCellLinesGeometry";
 import type { PremiumHouse3DSceneAssembly } from "./premium/premiumHouse3DSceneTypes";
 import { PremiumGeometryTrustStripe } from "./premium/PremiumGeometryTrustStripe";
@@ -149,7 +146,6 @@ import type { PremiumHouse3DViewMode } from "./premium/premiumHouse3DViewModes";
 import {
   buildPremiumObstacleAssets,
   type PremiumObstacleAssetPack,
-  type PremiumObstacleBodyRole,
 } from "./obstacles/premiumObstacleAssets";
 import {
   resolveRoofMissingHeightAlerts,
@@ -158,6 +154,15 @@ import {
   type RoofTruthBadgeModel,
   type RoofTruthBadgeTone,
 } from "./roofTruthBadges";
+import { ObstaclesMesh, type ObstacleDetailGeometries } from "./ObstaclesMesh";
+import { RoofPansMesh } from "./RoofPansMesh";
+import { PvPanelsLayer } from "./PvPanelsLayer";
+import {
+  inspectData,
+  isInspectSelected,
+  r3fGl,
+  roofModelingSkipOccluderRaycast,
+} from "./viewerHelpers";
 
 // ─── HorizonMaskRing3D ────────────────────────────────────────────────────────
 // Visualise le masque d'horizon lointain comme une couronne LineLoop 3D.
@@ -221,21 +226,6 @@ function HorizonMaskRing3D({ mask, center }: HorizonMaskRing3DProps) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** @react-three/fiber : `gl` exposé sur l'événement mais absent des types ThreeEvent — cast explicite documenté. */
-function r3fGl(e: ThreeEvent<PointerEvent | MouseEvent>): THREE.WebGLRenderer {
-  return (e as ThreeEvent<PointerEvent | MouseEvent> & { gl: THREE.WebGLRenderer }).gl;
-}
-
-/** En mode édition sommet toit : laisse le rayon atteindre le maillage toiture (ignore PV / obstacles / extensions). */
-function roofModelingSkipOccluderRaycast(
-  this: THREE.Object3D,
-  _raycaster: THREE.Raycaster,
-  _intersects: THREE.Intersection[],
-): void {
-  void this;
-  void _raycaster;
-  void _intersects;
-}
 import { PREMIUM_HOUSE_3D_VIEW_MODES } from "./premium/premiumHouse3DViewModes";
 import type { CanonicalHouse3DValidationReport } from "../validation/canonicalHouse3DValidationModel";
 import {
@@ -424,143 +414,6 @@ const PV3D_GHOST_EXCLUDED_LINE = SOLARNEXT_3D_PREMIUM_THEME.ghost.excludedLine;
 const PV3D_GHOST_INVALID_FILL = SOLARNEXT_3D_PREMIUM_THEME.ghost.invalidFill;
 const PV3D_GHOST_INVALID_LINE = SOLARNEXT_3D_PREMIUM_THEME.ghost.invalidLine;
 
-function obstacleMaterialForVolume(vol: SolarScene3D["obstacleVolumes"][number], fallback: {
-  readonly color: number;
-  readonly metalness: number;
-  readonly roughness: number;
-  readonly flatShading?: boolean;
-}): {
-  readonly color: number | string;
-  readonly metalness: number;
-  readonly roughness: number;
-  readonly flatShading: boolean;
-  readonly transparent: boolean;
-  readonly opacity: number;
-  readonly emissive: string;
-  readonly side: THREE.Side;
-} {
-  const premium = getPremiumRoofObstacleSpec(vol.visualKey);
-  if (premium) {
-    const profile = premium.rendering3d.materialProfile;
-    return {
-      color: premium.rendering3d.baseColor,
-      metalness:
-        profile === "brushed_metal" ? 0.58 :
-        profile === "painted_metal" || profile === "roof_edge_metal" ? 0.32 :
-        profile === "glass" ? 0.12 : 0.03,
-      roughness:
-        profile === "glass" ? 0.18 :
-        profile === "brushed_metal" ? 0.3 :
-        profile === "shadow_volume" ? 0.85 :
-        profile === "keepout_warning" ? 0.62 : 0.78,
-      flatShading: profile === "brick" || profile === "dark_brick" || profile === "shadow_volume",
-      transparent: premium.rendering3d.transparent,
-      opacity: premium.rendering3d.opacity,
-      emissive:
-        profile === "glass" ? "#102a44" :
-        profile === "keepout_warning" ? "#3b1f05" :
-        profile === "shadow_volume" ? "#0f172a" : "#000000",
-      side: THREE.DoubleSide,
-    };
-  }
-  if (vol.visualRole === "roof_window_flush" || vol.kind === "skylight") {
-    return {
-      color: "#6f879b",
-      metalness: 0.12,
-      roughness: 0.18,
-      flatShading: false,
-      transparent: true,
-      opacity: 0.52,
-      emissive: "#102a44",
-      side: THREE.DoubleSide,
-    };
-  }
-  if (vol.visualRole === "keepout_surface") {
-    return {
-      color: vol.kind === "other" ? "#f59e0b" : "#111827",
-      metalness: 0.02,
-      roughness: 0.62,
-      flatShading: false,
-      transparent: true,
-      opacity: vol.kind === "other" ? 0.24 : 0.78,
-      emissive: vol.kind === "other" ? "#3b1f05" : "#050816",
-      side: THREE.DoubleSide,
-    };
-  }
-  if (vol.visualRole === "abstract_shadow_volume") {
-    return {
-      color: "#64748b",
-      metalness: 0.02,
-      roughness: 0.85,
-      flatShading: true,
-      transparent: true,
-      opacity: 0.28,
-      emissive: "#0f172a",
-      side: THREE.DoubleSide,
-    };
-  }
-  if (vol.kind === "chimney") {
-    return {
-      color: "#b77961",
-      metalness: 0.03,
-      roughness: 0.88,
-      flatShading: true,
-      transparent: false,
-      opacity: 1,
-      emissive: "#000000",
-      side: THREE.DoubleSide,
-    };
-  }
-  if (vol.kind === "hvac" || vol.kind === "antenna") {
-    return {
-      color: vol.kind === "antenna" ? "#4b5563" : "#d9e2ea",
-      metalness: vol.kind === "antenna" ? 0.52 : 0.34,
-      roughness: vol.kind === "antenna" ? 0.3 : 0.42,
-      flatShading: false,
-      transparent: vol.kind === "antenna",
-      opacity: vol.kind === "antenna" ? 0.18 : 1,
-      emissive: "#000000",
-      side: THREE.DoubleSide,
-    };
-  }
-  return {
-    color: fallback.color,
-    metalness: fallback.metalness,
-    roughness: fallback.roughness,
-    flatShading: fallback.flatShading ?? false,
-    transparent: false,
-    opacity: 1,
-    emissive: "#000000",
-    side: THREE.DoubleSide,
-  };
-}
-
-function premiumObstacleAssetMaterial(role: PremiumObstacleBodyRole): {
-  readonly color: string;
-  readonly metalness: number;
-  readonly roughness: number;
-  readonly transparent: boolean;
-  readonly opacity: number;
-  readonly emissive: string;
-  readonly emissiveIntensity: number;
-} {
-  switch (role) {
-    case "brick":
-      return { color: "#b77961", metalness: 0.03, roughness: 0.82, transparent: false, opacity: 1, emissive: "#000000", emissiveIntensity: 0 };
-    case "metal":
-      return { color: "#7f8b96", metalness: 0.42, roughness: 0.32, transparent: false, opacity: 1, emissive: "#000000", emissiveIntensity: 0 };
-    case "cap":
-      return { color: "#d9e2ea", metalness: 0.34, roughness: 0.36, transparent: false, opacity: 1, emissive: "#000000", emissiveIntensity: 0 };
-    case "darkInset":
-      return { color: "#1c1412", metalness: 0.02, roughness: 0.88, transparent: true, opacity: 0.96, emissive: "#140f0d", emissiveIntensity: 0.06 };
-    case "glass":
-      return { color: "#6f879b", metalness: 0.12, roughness: 0.18, transparent: true, opacity: 0.56, emissive: "#102a44", emissiveIntensity: 0.08 };
-    case "warning":
-      return { color: "#f59e0b", metalness: 0.02, roughness: 0.62, transparent: true, opacity: 0.24, emissive: "#3b1f05", emissiveIntensity: 0 };
-    case "shadow":
-      return { color: "#64748b", metalness: 0.02, roughness: 0.85, transparent: true, opacity: 0.28, emissive: "#0f172a", emissiveIntensity: 0 };
-  }
-}
 
 function volumeLoopLineGeometry(points: readonly THREE.Vector3[]): THREE.BufferGeometry | null {
   if (points.length < 3) return null;
@@ -924,28 +777,7 @@ function antennaLineGeometry(vol: SolarScene3D["obstacleVolumes"][number]): THRE
   return geo;
 }
 
-function roofObstacleDetailGeometries(vol: SolarScene3D["obstacleVolumes"][number]): {
-  readonly topCap: THREE.BufferGeometry | null;
-  readonly chimneyFlueOpening: THREE.BufferGeometry | null;
-  readonly edgeLines: THREE.BufferGeometry | null;
-  readonly brickLines: THREE.BufferGeometry | null;
-  readonly windowFrame: THREE.BufferGeometry | null;
-  readonly windowHighlight: THREE.BufferGeometry | null;
-  readonly windowSashLines: THREE.BufferGeometry | null;
-  readonly windowOuterFrame: THREE.BufferGeometry | null;
-  readonly vmcCap: THREE.BufferGeometry | null;
-  readonly vmcVentLines: THREE.BufferGeometry | null;
-  readonly antennaLines: THREE.BufferGeometry | null;
-  readonly antennaBase: THREE.BufferGeometry | null;
-  readonly roundChimneyBody: THREE.BufferGeometry | null;
-  readonly roundChimneyLines: THREE.BufferGeometry | null;
-  readonly keepoutHatch: THREE.BufferGeometry | null;
-  readonly keepoutCornerMarks: THREE.BufferGeometry | null;
-  readonly allEdgeLines: THREE.BufferGeometry | null;
-  readonly shadowVolumeRays: THREE.BufferGeometry | null;
-  readonly premiumAssets: PremiumObstacleAssetPack;
-  readonly replaceBaseMesh: boolean;
-} {
+function roofObstacleDetailGeometries(vol: SolarScene3D["obstacleVolumes"][number]): ObstacleDetailGeometries {
   const topRing = volumeRingAt(vol, 1, vol.visualRole === "roof_window_flush" || vol.visualRole === "keepout_surface" ? 0.018 : 0.012);
   const roundChimney = isRoundChimneyVolume(vol);
   const premiumAssets = buildPremiumObstacleAssets(vol);
@@ -1055,12 +887,6 @@ function premiumPvPanelCellLineGeometry(panel: PvPanelSurface3D): THREE.BufferGe
   return premiumPvCellLineGeometryFromWorldPoints(world, 0.018);
 }
 
-function inspectData(kind: SceneInspectableKind, id: string, meshRole?: SceneInspectMeshRole): Record<string, unknown> {
-  const payload: SceneInspectUserData =
-    meshRole != null ? { kind, id: String(id), meshRole } : { kind, id: String(id) };
-  return { [INSPECT_USERDATA_KEY]: payload };
-}
-
 /** Pass 4 — résout l’id pan depuis le maillage `roof_tessellation` (intersections rayon). */
 function pickRoofTessellationPanIdFromIntersections(
   intersections: ReadonlyArray<{ object?: { userData?: Record<string, unknown> } }>,
@@ -1072,21 +898,6 @@ function pickRoofTessellationPanIdFromIntersections(
     }
   }
   return null;
-}
-
-function isInspectSelected(
-  sel: SceneInspectionSelection | null,
-  kind: SceneInspectableKind,
-  id: string,
-): boolean {
-  return sel != null && sel.kind === kind && String(sel.id) === String(id);
-}
-
-function isPanHittingPatchId(hit: ScenePickHit | null, panId: string): boolean {
-  if (hit == null) return false;
-  if (hit.kind === "roof_patch") return String(hit.roofPlanePatchId) === String(panId);
-  if (hit.kind === "roof_vertex") return String(hit.roofPlanePatchId) === String(panId);
-  return false;
 }
 
 function roofVertexWorldFromScene(scene: SolarScene3D, hit: ScenePickHit): THREE.Vector3 | null {
@@ -2732,454 +2543,46 @@ function ViewerSceneContent({
           )}
         </mesh>
       )}
-      {visRoof &&
-        roofGeos.map(({ id, geo }) => {
-          const sid = String(id);
-          const inspectPan = inspectMode && isInspectSelected(inspectionSelection, "PAN", sid);
-          const pan3d = panSelection3DMode && isPanHittingPatchId(selectedHit, sid);
-          const panHighlighted = inspectPan || pan3d;
-          const emissiveHex = inspectPan
-            ? SOLARNEXT_3D_PREMIUM_THEME.roof.selectedEmissive
-            : pan3d
-              ? SOLARNEXT_3D_PREMIUM_THEME.roof.panSelectionEmissive
-              : "#000000";
-          const emissiveIntensity = panHighlighted ? (inspectPan ? 0.18 : 0.16) : 0;
-          const outlineHex = inspectPan ? VIEWER_INSPECT_OUTLINE_HEX.pan : VIEWER_INSPECT_OUTLINE_HEX.panSelection3d;
-          return (
-            <mesh
-              key={`roof-${id}`}
-              userData={inspectData("PAN", sid, "roof_tessellation")}
-              geometry={geo}
-              castShadow
-              receiveShadow
-              position={[0, 0, 0]}
-              onClick={onRoofMeshClick ?? (inspectMode ? onInspectClick : undefined)}
-              onPointerMove={
-                showRoofModelingHoverUx
-                  ? (e) => {
-                      e.stopPropagation();
-                      const ne = e.nativeEvent;
-                      const gl = r3fGl(e);
-                      const cam = e.camera;
-                      let hit = null as ReturnType<typeof pickSceneHitFromIntersections>;
-                      if (panSelection3DMode && cam && gl?.domElement) {
-                        hit = pickSceneHitForRoofVertexModeling(e.intersections, {
-                          camera: cam,
-                          canvasRect: gl.domElement.getBoundingClientRect(),
-                          clientX: ne.clientX,
-                          clientY: ne.clientY,
-                        });
-                        if (!hit) {
-                          onRoofModelingPointerUi!(null);
-                          return;
-                        }
-                      } else {
-                        hit = pickSceneHitFromIntersections(e.intersections);
-                        if (!hit || (hit.kind !== "roof_patch" && hit.kind !== "roof_vertex")) {
-                          onRoofModelingPointerUi!(null);
-                          return;
-                        }
-                      }
-                      const label =
-                        hit.kind === "roof_vertex"
-                          ? "Sommet — glisser le point orange (vertical) ou panneau pour la hauteur"
-                          : "Pan toiture — clic pour sélectionner";
-                      onRoofModelingPointerUi!({
-                        clientX: ne.clientX,
-                        clientY: ne.clientY,
-                        label,
-                        cursor: "pointer",
-                      });
-                    }
-                  : undefined
-              }
-              onPointerOut={showRoofModelingHoverUx ? () => onRoofModelingPointerUi!(null) : undefined}
-              onPointerDown={onRoofTessellationPv3dProbePointerDown}
-            >
-              {satelliteTexture && !autopsyDevColors ? (
-                /* emissiveMap : affiche la texture satellite sans dépendance lumière
-                   (même pipeline meshStandardMaterial → pas de conflit depth-buffer avec les panneaux).
-                   color="#000000" : zéro diffus — seul l'emissive (= texture satellite) s'affiche. */
-                <meshStandardMaterial
-                  emissiveMap={satelliteTexture}
-                  emissive={panHighlighted ? "#5577bb" : "#ffffff"}
-                  emissiveIntensity={panHighlighted ? 0.7 : 1}
-                  color="#000000"
-                  metalness={0}
-                  roughness={1}
-                  side={THREE.DoubleSide}
-                  polygonOffset
-                  {...getDepthOffset("ROOF_PAN")}
-                />
-              ) : (
-                <meshStandardMaterial
-                  color={autopsyDevColors ? "#00ffff" : mRoof.color}
-                  metalness={mRoof.metalness}
-                  roughness={mRoof.roughness}
-                  flatShading={mRoof.flatShading ?? false}
-                  side={THREE.DoubleSide}
-                  polygonOffset
-                  {...getDepthOffset("ROOF_PAN")}
-                  emissive={emissiveHex}
-                  emissiveIntensity={emissiveIntensity}
-                />
-              )}
-              {panHighlighted && (
-                <Outlines
-                  thickness={outlineThickness}
-                  color={outlineHex}
-                  opacity={0.95}
-                  toneMapped={false}
-                />
-              )}
-            </mesh>
-          );
-        })}
-      {panVertexSelectionMarker}
-      {visRoof && roofClosureGeo && (
-        <mesh geometry={roofClosureGeo} castShadow receiveShadow position={[0, 0, 0]}>
-          <meshStandardMaterial
-            color={autopsyDevColors ? "#6666ee" : mRoof.color}
-            metalness={mRoof.metalness}
-            roughness={Math.min(1, (mRoof.roughness ?? 0.7) + 0.06)}
-            flatShading={mRoof.flatShading ?? false}
-            side={THREE.DoubleSide}
-            polygonOffset
-            {...getDepthOffset("ROOF_PAN")}
-          />
-        </mesh>
-      )}
-      {visRoofEdges && edgeGeo && (
-        <RoofContourLine2
-          sourceGeo={edgeGeo}
-          color={String(mEdge.color)}
-          opacity={mEdge.opacity}
+      {visRoof && (
+        <RoofPansMesh
+          roofGeos={roofGeos}
+          inspectionSelection={inspectionSelection}
+          inspectMode={inspectMode}
+          panSelection3DMode={panSelection3DMode}
+          selectedHit={selectedHit}
+          satelliteTexture={satelliteTexture ?? null}
+          autopsyDevColors={autopsyDevColors}
+          onRoofMeshClick={onRoofMeshClick}
+          onInspectClick={onInspectClick}
+          showRoofModelingHoverUx={showRoofModelingHoverUx}
+          onRoofModelingPointerUi={onRoofModelingPointerUi}
+          onRoofTessellationPv3dProbePointerDown={onRoofTessellationPv3dProbePointerDown}
+          outlineThickness={outlineThickness}
+          mRoof={mRoof}
+          roofClosureGeo={roofClosureGeo}
+          visRoofEdges={visRoofEdges}
+          edgeGeo={edgeGeo}
+          mEdge={mEdge}
+          visRidges={visRidges}
+          ridgeGeo={ridgeGeo}
+          mRidge={mRidge}
+          enableStructuralRidgeHeightEdit={enableStructuralRidgeHeightEdit ?? false}
+          onStructuralRidgeLinePointerDown={onStructuralRidgeLinePointerDown}
+          panVertexSelectionMarker={panVertexSelectionMarker}
         />
       )}
-      {visRidges && ridgeGeo && (
-        <RoofContourLine2
-          sourceGeo={ridgeGeo}
-          color={String(mRidge.color)}
-          opacity={mRidge.opacity}
-          onPointerDown={
-            enableStructuralRidgeHeightEdit && onStructuralRidgeLinePointerDown
-              ? (e) => {
-                  e.stopPropagation();
-                  onStructuralRidgeLinePointerDown(e);
-                }
-              : undefined
-          }
+      {visObs && (
+        <ObstaclesMesh
+          obsGeos={obsGeos}
+          inspectionSelection={inspectionSelection}
+          mObs={mObs}
+          inspectMode={inspectMode}
+          onInspectClick={onInspectClick}
+          roofModelingPassThroughOccluders={roofModelingPassThroughOccluders}
+          pvLayout3DInteractionMode={pvLayout3DInteractionMode ?? false}
+          outlineThickness={outlineThickness}
         />
       )}
-      {visObs &&
-        obsGeos.map(({ id, volume, geo, details }) => {
-          const sid = String(id);
-          const sel = isInspectSelected(inspectionSelection, "OBSTACLE", sid);
-          const mat = obstacleMaterialForVolume(volume, mObs);
-          const premium = getPremiumRoofObstacleSpec(volume.visualKey);
-          const hideBaseMesh = details.replaceBaseMesh;
-          const premiumAssetActive = details.premiumAssets.meshes.length > 0 || details.premiumAssets.lines.length > 0;
-          return (
-            <mesh
-              key={`obs-${id}`}
-              userData={inspectData("OBSTACLE", sid)}
-              geometry={geo}
-              castShadow
-              receiveShadow
-              raycast={(roofModelingPassThroughOccluders || pvLayout3DInteractionMode) ? roofModelingSkipOccluderRaycast : undefined}
-              onClick={inspectMode ? onInspectClick : undefined}
-            >
-              <meshStandardMaterial
-                color={mat.color}
-                metalness={mat.metalness}
-                roughness={mat.roughness}
-                flatShading={mat.flatShading}
-                transparent={hideBaseMesh || mat.transparent}
-                opacity={hideBaseMesh ? 0 : mat.opacity}
-                depthWrite={!hideBaseMesh && !mat.transparent}
-                side={mat.side}
-                emissive={sel ? "#6d4c41" : mat.emissive}
-                emissiveIntensity={hideBaseMesh ? 0 : sel ? 0.35 : volume.visualRole === "roof_window_flush" ? 0.08 : 0}
-                polygonOffset
-                {...getDepthOffset("BUILDING_SHELL")}
-              />
-              {details.premiumAssets.meshes.map((asset) => {
-                const assetMat = premiumObstacleAssetMaterial(asset.role);
-                return (
-                  <mesh
-                    key={`premium-mesh-${id}-${asset.key}`}
-                    geometry={asset.geometry}
-                    renderOrder={asset.renderOrder}
-                    castShadow={asset.castShadow}
-                    receiveShadow={asset.receiveShadow}
-                  >
-                    <meshStandardMaterial
-                      color={assetMat.color}
-                      metalness={assetMat.metalness}
-                      roughness={assetMat.roughness}
-                      transparent={assetMat.transparent}
-                      opacity={assetMat.opacity}
-                      emissive={assetMat.emissive}
-                      emissiveIntensity={assetMat.emissiveIntensity}
-                      side={THREE.DoubleSide}
-                      polygonOffset
-                      {...getDepthOffset("BUILDING_SHELL")}
-                    />
-                  </mesh>
-                );
-              })}
-              {details.premiumAssets.lines.map((asset) => (
-                <lineSegments key={`premium-line-${id}-${asset.key}`} geometry={asset.geometry} renderOrder={asset.renderOrder}>
-                  <lineBasicMaterial
-                    color={asset.color}
-                    transparent
-                    opacity={asset.opacity}
-                    toneMapped={false}
-                    depthTest
-                  />
-                </lineSegments>
-              ))}
-              {details.roundChimneyBody ? (
-                <mesh geometry={details.roundChimneyBody} renderOrder={8} castShadow receiveShadow>
-                  <meshStandardMaterial
-                    color="#b77961"
-                    metalness={0.03}
-                    roughness={0.82}
-                    flatShading={false}
-                    side={THREE.DoubleSide}
-                    polygonOffset
-                    {...getDepthOffset("BUILDING_SHELL")}
-                  />
-                </mesh>
-              ) : null}
-              {details.roundChimneyLines ? (
-                <lineSegments geometry={details.roundChimneyLines} renderOrder={9}>
-                  <lineBasicMaterial
-                    color="#e0b195"
-                    transparent
-                    opacity={0.56}
-                    toneMapped={false}
-                    depthTest
-                  />
-                </lineSegments>
-              ) : null}
-              {details.topCap && !premiumAssetActive ? (
-                <mesh geometry={details.topCap} renderOrder={8}>
-                  <meshStandardMaterial
-                    color={volume.kind === "chimney" ? "#8a5140" : "#8aa3b8"}
-                    metalness={volume.kind === "chimney" ? 0.04 : 0.22}
-                    roughness={volume.kind === "chimney" ? 0.78 : 0.2}
-                    transparent={volume.visualRole === "roof_window_flush"}
-                    opacity={volume.visualRole === "roof_window_flush" ? 0.58 : 1}
-                    emissive={volume.visualRole === "roof_window_flush" ? "#1b3348" : "#000000"}
-                    emissiveIntensity={volume.visualRole === "roof_window_flush" ? 0.04 : 0}
-                    side={THREE.DoubleSide}
-                    polygonOffset
-                    {...getDepthOffset("BUILDING_SHELL")}
-                  />
-                </mesh>
-              ) : null}
-              {details.chimneyFlueOpening ? (
-                <mesh geometry={details.chimneyFlueOpening} renderOrder={11}>
-                  <meshStandardMaterial
-                    color="#1c1412"
-                    metalness={0.02}
-                    roughness={0.88}
-                    transparent
-                    opacity={0.96}
-                    emissive="#140f0d"
-                    emissiveIntensity={0.06}
-                    side={THREE.DoubleSide}
-                    polygonOffset
-                    {...getDepthOffset("ROOF_RIDGE")}
-                  />
-                </mesh>
-              ) : null}
-              {details.brickLines ? (
-                <lineSegments geometry={details.brickLines} renderOrder={9}>
-                  <lineBasicMaterial
-                    color="#e0b195"
-                    transparent
-                    opacity={0.58}
-                    toneMapped={false}
-                    depthTest
-                  />
-                </lineSegments>
-              ) : null}
-              {details.windowOuterFrame && !premiumAssetActive ? (
-                <mesh geometry={details.windowOuterFrame} renderOrder={10}>
-                  <meshStandardMaterial
-                    color="#b8c2cc"
-                    metalness={0.22}
-                    roughness={0.32}
-                    transparent={false}
-                    side={THREE.DoubleSide}
-                    polygonOffset
-                    {...getDepthOffset("BUILDING_SHELL")}
-                  />
-                </mesh>
-              ) : null}
-              {details.edgeLines ? (
-                <lineSegments geometry={details.edgeLines} renderOrder={10}>
-                  <lineBasicMaterial
-                    color={
-                      volume.kind === "chimney"
-                        ? "#704332"
-                        : volume.visualRole === "roof_window_flush" || volume.visualRole === "keepout_surface"
-                          ? "#94a3b8"
-                          : "#334155"
-                    }
-                    transparent
-                    opacity={volume.visualRole === "keepout_surface" ? 0.52 : 0.72}
-                    toneMapped={false}
-                    depthTest
-                  />
-                </lineSegments>
-              ) : null}
-              {details.allEdgeLines && volume.visualRole !== "roof_window_flush" ? (
-                <lineSegments geometry={details.allEdgeLines} renderOrder={10}>
-                  <lineBasicMaterial
-                    color={
-                      premium?.rendering3d.lineColor ??
-                      (volume.visualRole === "abstract_shadow_volume"
-                        ? "#cbd5e1"
-                        : volume.visualRole === "keepout_surface"
-                          ? "#f59e0b"
-                          : volume.kind === "hvac"
-                            ? "#7dd3fc"
-                            : volume.kind === "antenna"
-                              ? "#e5e7eb"
-                              : "#f8d1bd")
-                    }
-                    transparent
-                    opacity={volume.visualRole === "abstract_shadow_volume" ? 0.5 : 0.68}
-                    toneMapped={false}
-                    depthTest
-                  />
-                </lineSegments>
-              ) : null}
-              {details.keepoutHatch ? (
-                <lineSegments geometry={details.keepoutHatch} renderOrder={12}>
-                  <lineBasicMaterial
-                    color="#fbbf24"
-                    transparent
-                    opacity={0.86}
-                    toneMapped={false}
-                    depthTest
-                  />
-                </lineSegments>
-              ) : null}
-              {details.keepoutCornerMarks ? (
-                <lineSegments geometry={details.keepoutCornerMarks} renderOrder={13}>
-                  <lineBasicMaterial
-                    color="#fff7ad"
-                    transparent
-                    opacity={0.95}
-                    toneMapped={false}
-                    depthTest
-                  />
-                </lineSegments>
-              ) : null}
-              {details.shadowVolumeRays && !premiumAssetActive ? (
-                <lineSegments geometry={details.shadowVolumeRays} renderOrder={7}>
-                  <lineBasicMaterial
-                    color="#e2e8f0"
-                    transparent
-                    opacity={0.36}
-                    toneMapped={false}
-                    depthTest
-                  />
-                </lineSegments>
-              ) : null}
-              {details.windowFrame && !premiumAssetActive ? (
-                <mesh geometry={details.windowFrame} renderOrder={11}>
-                  <meshStandardMaterial
-                    color="#7f8b96"
-                    metalness={0.28}
-                    roughness={0.34}
-                    transparent={false}
-                    side={THREE.DoubleSide}
-                    polygonOffset
-                    {...getDepthOffset("BUILDING_SHELL")}
-                  />
-                </mesh>
-              ) : null}
-              {details.windowSashLines && !premiumAssetActive ? (
-                <lineSegments geometry={details.windowSashLines} renderOrder={12}>
-                  <lineBasicMaterial
-                    color="#d8e5ee"
-                    transparent
-                    opacity={0.72}
-                    toneMapped={false}
-                    depthTest
-                  />
-                </lineSegments>
-              ) : null}
-              {details.windowHighlight && !premiumAssetActive ? (
-                <lineSegments geometry={details.windowHighlight} renderOrder={12}>
-                  <lineBasicMaterial
-                    color="#e0f2fe"
-                    transparent
-                    opacity={0.42}
-                    toneMapped={false}
-                    depthTest
-                  />
-                </lineSegments>
-              ) : null}
-              {details.vmcCap && !premiumAssetActive ? (
-                <mesh geometry={details.vmcCap} renderOrder={11}>
-                  <meshStandardMaterial
-                    color="#e5edf4"
-                    metalness={0.34}
-                    roughness={0.36}
-                    side={THREE.DoubleSide}
-                  />
-                </mesh>
-              ) : null}
-              {details.vmcVentLines && !premiumAssetActive ? (
-                <lineSegments geometry={details.vmcVentLines} renderOrder={12}>
-                  <lineBasicMaterial
-                    color="#64748b"
-                    transparent
-                    opacity={0.82}
-                    toneMapped={false}
-                    depthTest
-                  />
-                </lineSegments>
-              ) : null}
-              {details.antennaLines && !premiumAssetActive ? (
-                <lineSegments geometry={details.antennaLines} renderOrder={12}>
-                  <lineBasicMaterial
-                    color="#dbe4ee"
-                    transparent
-                    opacity={0.95}
-                    toneMapped={false}
-                    depthTest
-                  />
-                </lineSegments>
-              ) : null}
-              {details.antennaBase && !premiumAssetActive ? (
-                <mesh geometry={details.antennaBase} renderOrder={11} castShadow receiveShadow>
-                  <meshStandardMaterial
-                    color="#475569"
-                    metalness={0.58}
-                    roughness={0.28}
-                    side={THREE.DoubleSide}
-                  />
-                </mesh>
-              ) : null}
-              {inspectMode && sel && (
-                <Outlines
-                  thickness={outlineThickness}
-                  color={VIEWER_INSPECT_OUTLINE_HEX.obstacle}
-                  opacity={0.95}
-                  toneMapped={false}
-                />
-              )}
-              {volume.visualRole === "keepout_surface" && <KeepoutZone3D vol={volume} />}
-            </mesh>
-          );
-        })}
       {visExt && (
         <>
           {extGeos.map(({ id, geo, miniRoofLines }) => {
@@ -3373,82 +2776,24 @@ function ViewerSceneContent({
           </group>
         ))}
       {visPanels && (
-        <>
-          {/*
-           * Rendu InstancedMesh : 1 draw call pour N panneaux.
-           * Sélection individuelle via e.instanceId (raycasting THREE.js).
-           * Panneaux masqués en pvLayout3D (pv3dSelectedLivePanelIds) → scale=0.
-           * Couleurs per-instance via instanceColor (shading viz + invalid/selected states).
-           * Note : outlines pv3dSelected/pv3dInvalid perdues (limitation InstancedMesh) ;
-           * les états sont compensés par la couleur d'instance.
-           */}
-          <PvPanelInstanced
-            panels={scene.pvPanels}
-            panelColors={panelInstanceColors}
-            baseColor={PREMIUM_PV_SURFACE_HEX}
-            emissiveColor={PREMIUM_PV_EMISSIVE_HEX}
-            emissiveIntensity={pvB.panelEmissiveIntensityBonus + 0.1}
-            metalness={pvB.panelMetalness}
-            roughness={pvB.panelRoughness}
-            envMapIntensity={1.45}
-            renderOrder={pvLayout3DInteractionMode ? 20 : 0}
-            polygonOffsetFactor={pvLayout3DInteractionMode ? getDepthOffset("PV_PANEL").polygonOffsetFactor : getDepthOffset("BUILDING_SHELL").polygonOffsetFactor}
-            polygonOffsetUnits={pvLayout3DInteractionMode ? getDepthOffset("PV_PANEL").polygonOffsetUnits : getDepthOffset("BUILDING_SHELL").polygonOffsetUnits}
-            hiddenPanelIds={pvLayout3DEffectiveHiddenIds}
-            raycastFn={pvPanelRaycastPassThrough ? roofModelingSkipOccluderRaycast : undefined}
-            onPanelClick={
-              inspectMode
-                ? (_panel, e) => {
-                    // PvPanelInstanced patche userData (INSPECT_USERDATA_KEY) en interne
-                    // via panelIdByInstanceIndex — mutation déjà faite avant ce callback.
-                    onInspectClick(e);
-                  }
-                : undefined
-            }
-            onPanelPointerDown={
-              pvLayout3DInteractionMode && onPvPanelPvLayout3dPointerDown
-                ? (panel, e) => {
-                    onPvPanelPvLayout3dPointerDown(e, String(panel.id));
-                  }
-                : undefined
-            }
-            onPanelHover={onPanelHover}
-          />
-          {/* Cell lines consolidées : 1 draw call pour N panneaux (vs N draw calls individuels). */}
-          {consolidatedPvCellLinesGeo && (
-            <lineSegments
-              geometry={consolidatedPvCellLinesGeo}
-              renderOrder={pvLayout3DInteractionMode ? 22 : 1}
-            >
-              <lineBasicMaterial
-                color={PREMIUM_PV_CELL_LINE}
-                transparent
-                opacity={0.16}
-                toneMapped={false}
-                depthTest
-                polygonOffset
-                {...getDepthOffset("PV_CELL_LINE")}
-              />
-            </lineSegments>
-          )}
-          {/* Outline inspection : rendu individuel pour les panneaux sélectionnés en inspect mode */}
-          {inspectMode &&
-            panelGeos.map(({ id, geo }) => {
-              const pvSel = isInspectSelected(inspectionSelection, "PV_PANEL", id);
-              if (!pvSel) return null;
-              return (
-                <mesh key={`pvsel-${id}`} geometry={geo}>
-                  <meshStandardMaterial visible={false} />
-                  <Outlines
-                    thickness={outlineThickness}
-                    color={VIEWER_INSPECT_OUTLINE_HEX.pvPanelSelected}
-                    opacity={0.9}
-                    toneMapped={false}
-                  />
-                </mesh>
-              );
-            })}
-        </>
+        <PvPanelsLayer
+          panels={scene.pvPanels}
+          panelColors={panelInstanceColors}
+          pvPanelEmissiveIntensityBonus={pvB.panelEmissiveIntensityBonus}
+          pvPanelMetalness={pvB.panelMetalness}
+          pvPanelRoughness={pvB.panelRoughness}
+          pvLayout3DInteractionMode={pvLayout3DInteractionMode ?? false}
+          pvLayout3DEffectiveHiddenIds={pvLayout3DEffectiveHiddenIds}
+          pvPanelRaycastPassThrough={pvPanelRaycastPassThrough}
+          inspectMode={inspectMode}
+          onInspectClick={onInspectClick}
+          onPvPanelPvLayout3dPointerDown={onPvPanelPvLayout3dPointerDown}
+          onPanelHover={onPanelHover}
+          consolidatedPvCellLinesGeo={consolidatedPvCellLinesGeo}
+          panelGeos={panelGeos}
+          inspectionSelection={inspectionSelection}
+          outlineThickness={outlineThickness}
+        />
       )}
       {visSun && <primitive object={arrowRef} />}
     </>
