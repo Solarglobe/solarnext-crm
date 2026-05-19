@@ -1966,12 +1966,11 @@ function CanonicalViewerLights({
 
   return (
     <>
-      {/*
-       * Environment IBL (Image-Based Lighting) — env maps pour matériaux métalliques (zinc, bacs acier, PV).
-       * preset="city" : skybox neutre urbanisé, cohérent avec une installation toiture résidentielle.
-       * background=false : la skybox n'apparaît pas en fond (fond sombre PREMIUM_THEME conservé).
-       */}
-      <Environment preset="city" background={false} />
+      {/* LOT3-C2 : <Environment preset="city"> retiré — conflictuel avec l'Environment HDRI monté
+       * dans le Canvas principal (<Suspense>). Deux <Environment> simultanés s'écrasent mutuellement
+       * selon le timing Suspense → env map incohérente ou absente → panneaux metalness=0.72 quasi-noirs.
+       * L'env map est désormais fournie uniquement par l'Environment HDRI calibré (environmentIntensity=0.52)
+       * du Canvas ; l'emissiveIntensity relevée (LOT3-C3) assure un plancher de visibilité pendant le load. */}
       <hemisphereLight
         args={[SOLARNEXT_3D_PREMIUM_THEME.lighting.skyColor, SOLARNEXT_3D_PREMIUM_THEME.lighting.groundColor]}
         intensity={SOLARNEXT_3D_PREMIUM_THEME.lighting.hemisphereIntensity * ambientScale}
@@ -3802,6 +3801,38 @@ export function SolarScene3DViewer({
     };
   }, [pvLayout3DInteractionMode, refreshPv3dOverlay]);
 
+  // LOT3-C7 : refresh automatique de l'overlay après chaque rebuild de scène en mode PV layout.
+  // Avant ce fix, buildScene() appelait setScene() mais n'incrémentait pas pv3dOverlayEpoch
+  // → pvLayout3dOverlayState restait stale après validation / autofill / suppression panneau
+  // → selectedPanels pouvait contenir des panneaux qui n'existent plus dans scene.pvPanels
+  // → handles pointaient dans le vide ou disparaissaient.
+  // `scene` délibérément absent des deps du useMemo pvLayout3dOverlayState (cf. commentaire ci-dessous) ;
+  // ce useEffect séparé assure la resync sans causer de flash overlay au render du useMemo.
+  useEffect(() => {
+    if (!pvLayout3DInteractionMode) return;
+    refreshPv3dOverlay();
+    // `scene` est la seule dep qui peut changer ici ; pvLayout3DInteractionMode et refreshPv3dOverlay sont stables.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scene]);
+
+  // LOT3-C8 : déblocage de CALPINAGE_IS_MANIPULATING après pointercancel sur le canvas R3F.
+  // Le legacy écoute pointercancel sur le canvas 2D, pas sur le canvas Three.js / R3F.
+  // Si le pointer est annulé (perte de focus, multi-touch, interruption OS) pendant un drag 3D,
+  // CALPINAGE_IS_MANIPULATING restait stuck à true → pv3dLivePanelGeos non-vide en permanence
+  // → overlay live fantôme bloqué → masquage du panneau dans l'InstancedMesh sans rendu overlay.
+  useEffect(() => {
+    if (!pvLayout3DInteractionMode) return;
+    const onPointerCancel = () => {
+      if (!pvPanelDrag.sessionRef.current) return;
+      cancelPvMoveFrom3d();
+      pvPanelDrag.end();
+      setOrbitSuppressed(false);
+      refreshPv3dOverlay();
+    };
+    window.addEventListener("pointercancel", onPointerCancel);
+    return () => window.removeEventListener("pointercancel", onPointerCancel);
+  }, [pvLayout3DInteractionMode, pvPanelDrag, refreshPv3dOverlay]);
+
   const pvLayout3dOverlayState = useMemo(
     () => (pvLayout3DInteractionMode ? readPvLayout3dOverlayState() : null),
     // `scene` retiré intentionnellement : l'overlay est déjà rafraîchi par pv3dOverlayEpoch
@@ -3810,8 +3841,8 @@ export function SolarScene3DViewer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [pvLayout3DInteractionMode, pv3dOverlayEpoch],
   );
+  // LOT3-C4 : pvLayout3dScreenOverlay consommé par <PvLayout3dSvgOverlay> ci-dessous (plus voided).
   const [pvLayout3dScreenOverlay, setPvLayout3dScreenOverlay] = useState<PvLayout3dScreenOverlayState | null>(null);
-  void pvLayout3dScreenOverlay;
   const [roofTruthBadges, setRoofTruthBadges] = useState<RoofTruthBadgeScreenModel[]>([]);
 
   // ── [PV3D-HANDLES] Log overlay + handles state ────────────────────────────
@@ -4074,8 +4105,8 @@ export function SolarScene3DViewer({
     (e: ReactPointerEvent<Element>, h: PvLayout3dHandleUi) => beginPv3dHandleDrag(e, "rotate", h),
     [beginPv3dHandleDrag],
   );
-  void onPvMoveHandlePointerDown;
-  void onPvRotateHandlePointerDown;
+  // LOT3-C4 : onPvMoveHandlePointerDown / onPvRotateHandlePointerDown consommés par
+  // <PvLayout3dSvgOverlay> monté après </Canvas> — les `void` retirés.
 
   /** Pass 4–5 — toit : sonde (`__CALPINAGE_3D_PV_PLACE_PROBE__`) ou produit (`pvLayout3DInteractionMode`) en phase PV_LAYOUT. */
   const onRoofTessellationPv3dProbePointerDown = useCallback(
@@ -4585,10 +4616,12 @@ export function SolarScene3DViewer({
           // intentionnel pour que R3F initialise le renderer avec les bons paramètres dès la création.
           toneMapping: THREE.ACESFilmicToneMapping,
           toneMappingExposure: 1.15,
-          // Depth precision : distribue logarithmiquement → précision maximale au premier plan
-          // (panneaux, arêtes, faîtage) sans sacrifier les grandes distances.
-          // Élimine le Z-fighting sur panneaux PV + toiture visible avec near/far étendu.
-          logarithmicDepthBuffer: true,
+          // LOT3-C1 : logarithmicDepthBuffer retiré — incompatible avec polygonOffset sur WebGL
+          // (les unités polygonOffset sont définies dans l'espace depth LINÉAIRE ; avec un buffer
+          // logarithmique elles ne correspondent plus à rien → polygonOffset devient inopérant
+          // → panneaux coplanaires disparaissent derrière le toit à cause du z-fighting non prévenu).
+          // Le near/far étendu (0.1 … 5 000) avec le buffer linéaire standard fonctionne correctement
+          // car la profondeur visible est limitée à < 200 m en usage résidentiel.
         }}
         camera={
           cameraViewMode === "PLAN_2D"
@@ -4617,8 +4650,7 @@ export function SolarScene3DViewer({
                 fov: VIEWER_CAMERA_FOV_DEG,
                 near: 0.1,
                 // far réduit de 1e6 → 5000 : ratio near/far 5e4 (vs 1e7 avant).
-                // Combiné avec logarithmicDepthBuffer, élimine tout artefact depth
-                // sur panneaux / toiture en vue rasante et zénithale.
+                // Élimine les artefacts depth sur panneaux / toiture en vue rasante et zénithale.
                 far: 5000,
                 up: [0, 0, 1],
               }
@@ -4736,11 +4768,14 @@ export function SolarScene3DViewer({
           panel={hoveredPanel}
           worldPosition={hoveredPanelWorldPos}
         />
-        {/* MagneticGrid3D - grille snap en mode placement PV */}
+        {/* LOT3-C5 : MagneticGrid3D — garde triple pour éviter l'état interdit "grille seule sans panneaux".
+         * `pvLayout3DInteractionMode` seul permettait la grille pendant le rebuild de scène (0 panneaux).
+         * `scene.pvPanels.length > 0` : grille invisible si aucun panneau dans la scène courante.
+         * `pvLayout3dOverlayState != null` : grille invisible si l'overlay est stale/null (transition). */}
         <MagneticGrid3D
           panId={pvLayoutActivePanId}
           snapPoints={magneticGridSnapPoints}
-          visible={pvLayout3DInteractionMode ?? false}
+          visible={!!(pvLayout3DInteractionMode && scene.pvPanels.length > 0 && pvLayout3dOverlayState != null)}
         />
         {pvLayout3DInteractionMode && scene.worldConfig && pvPanelDrag.session ? (
           <PvLayout3dDragController
@@ -4812,6 +4847,15 @@ export function SolarScene3DViewer({
           )
         )}
       </Canvas>
+      {/* LOT3-C4 : <PvLayout3dSvgOverlay> monté ici (hors Canvas, position:absolute sur le container).
+       * Avant ce fix, pvLayout3dScreenOverlay était calculé par PvLayout3dScreenOverlayProjector
+       * (useFrame dans le Canvas) mais jamais rendu → les handles n'apparaissaient JAMAIS.
+       * onMovePointerDown / onRotatePointerDown déclenchent beginPv3dHandleDrag via useCallback. */}
+      <PvLayout3dSvgOverlay
+        overlay={pvLayout3dScreenOverlay}
+        onMovePointerDown={onPvMoveHandlePointerDown}
+        onRotatePointerDown={onPvRotateHandlePointerDown}
+      />
     </div>
   );
 }

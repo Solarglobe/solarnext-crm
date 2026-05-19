@@ -626,6 +626,14 @@ function Inline3DViewer({
         // Il appelle buildScene() lui-même — ne pas déclencher un rebuild redondant ici.
         if (isBridgeInternalEditRef.current) return;
         buildSceneRef.current();
+        // LOT3-C7 (Bridge) : après chaque buildScene() structurel, déclencher un refresh overlay
+        // dans le viewer via RAF. Le RAF garantit que React a commité le setScene() avant que
+        // l'overlay lise readPvLayout3dOverlayState() → pas de race overlay/scene.
+        // Sans ce dispatch, pvLayout3dOverlayState restait stale après validation / autofill
+        // → selectedPanels contenait des panneaux supprimés → handles dans le vide.
+        requestAnimationFrame(() => {
+          window.dispatchEvent(new Event("calpinage:pv3d-overlay-changed"));
+        });
       }
     }
     window.addEventListener("calpinage:viewmode", onViewMode);

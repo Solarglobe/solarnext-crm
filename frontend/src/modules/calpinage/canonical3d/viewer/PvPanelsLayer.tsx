@@ -132,7 +132,11 @@ export function PvPanelsLayer({
         panelColors={panelColors}
         baseColor={PREMIUM_PV_SURFACE_HEX}
         emissiveColor={PREMIUM_PV_EMISSIVE_HEX}
-        emissiveIntensity={pvPanelEmissiveIntensityBonus + 0.1}
+        {/* LOT3-C3 : base emissiveIntensity 0.1 → 0.40 — plancher de visibilité garanti même sans
+         * env map (pendant le chargement HDRI Suspense) ou sur GPU mobile sans IBL complet.
+         * Metalness=0.72 tire 72 % de sa couleur de l'IBL ; sans elle, diffuse = albedo × (1-0.72) ≈ 7 % → invisible.
+         * 0.40 + bonus (0–0.06) = 0.40–0.46 : panneaux visibles mais non saturés (PBR conservé). */}
+        emissiveIntensity={pvPanelEmissiveIntensityBonus + 0.40}
         metalness={pvPanelMetalness}
         roughness={pvPanelRoughness}
         envMapIntensity={1.45}
