@@ -954,6 +954,8 @@ function imagePolygonToRoofMeshGeometry(
   geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
   geo.setIndex(indices);
   geo.computeVertexNormals();
+  // FA-7 : eager boundingSphere — évite le lazy compute au premier frame de rendu.
+  geo.computeBoundingSphere();
   return geo;
 }
 
@@ -973,6 +975,8 @@ function imagePolygonToRoofLineGeometry(
   }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  // FA-7 : eager boundingSphere pour les lineSegments live (frustum culling correct dès le 1er frame).
+  geo.computeBoundingSphere();
   return geo;
 }
 
@@ -1012,6 +1016,8 @@ function imagePolygonToRoofRibbonGeometry(
   geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
   geo.setIndex(indices);
   geo.computeVertexNormals();
+  // FA-7 : eager boundingSphere pour le ribbon safe-zone.
+  geo.computeBoundingSphere();
   return geo;
 }
 

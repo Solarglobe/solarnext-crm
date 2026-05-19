@@ -460,5 +460,7 @@ export function panelQuadGeometry(panel: PvPanelSurface3D): THREE.BufferGeometry
     normals[i * 3 + 2] = n.z;
   }
   geo.setAttribute("normal", new THREE.BufferAttribute(normals, 3));
+  // FA-7 : eager boundingSphere — évite le lazy compute au 1er frame (Outlines + inspection).
+  geo.computeBoundingSphere();
   return geo;
 }
