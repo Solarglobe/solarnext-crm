@@ -1,9 +1,10 @@
 .security-settings {
   display: grid;
   gap: 18px;
-  max-width: 960px;
-  margin: 0 auto;
+  width: 100%;
+  max-width: none;
   padding: 28px;
+  color: var(--text-primary, #0f172a);
 }
 
 .security-settings__head h1 {
@@ -14,16 +15,17 @@
 
 .security-settings__head p {
   margin: 8px 0 0;
-  color: #64748b;
+  color: var(--text-muted, #64748b);
 }
 
 .security-card {
   display: grid;
   gap: 14px;
   padding: 20px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border, #e2e8f0);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--surface, #ffffff);
+  color: var(--text-primary, #0f172a);
 }
 
 .security-card h2 {
@@ -34,7 +36,7 @@
 
 .security-card p {
   margin: 6px 0 0;
-  color: #64748b;
+  color: var(--text-muted, #64748b);
 }
 
 .security-card__split {
@@ -52,8 +54,9 @@
 .security-qr {
   width: 220px;
   height: 220px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border, #e2e8f0);
   border-radius: 8px;
+  background: #ffffff;
 }
 
 .security-field {
@@ -65,14 +68,16 @@
 .security-toggle span {
   font-size: 13px;
   font-weight: 800;
-  color: #334155;
+  color: var(--text-primary, #334155);
 }
 
 .security-field input {
   min-height: 42px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--border, #cbd5e1);
   border-radius: 6px;
   padding: 10px 12px;
+  background: var(--input-bg, var(--surface, #ffffff));
+  color: var(--text-primary, #0f172a);
   font: inherit;
 }
 
@@ -93,8 +98,8 @@
   display: inline-block;
   padding: 6px 8px;
   border-radius: 6px;
-  background: #f1f5f9;
-  color: #0f172a;
+  background: var(--surface-2, #f1f5f9);
+  color: var(--text-primary, #0f172a);
 }
 
 .security-message {
@@ -116,9 +121,9 @@
   gap: 12px;
   align-items: center;
   padding: 12px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border, #e2e8f0);
   border-radius: 8px;
-  background: #f8fafc;
+  background: var(--surface-2, #f8fafc);
 }
 
 .security-session__icon {
@@ -127,8 +132,8 @@
   width: 42px;
   height: 42px;
   border-radius: 50%;
-  background: #e0f2fe;
-  color: #0369a1;
+  background: color-mix(in srgb, var(--sn-accent-violet, #2563eb) 14%, transparent);
+  color: var(--sn-accent-violet, #0369a1);
   font-weight: 900;
 }
 
@@ -147,7 +152,7 @@
 
 .security-session__body span,
 .security-session__body small {
-  color: #64748b;
+  color: var(--text-muted, #64748b);
 }
 
 .security-current-badge {

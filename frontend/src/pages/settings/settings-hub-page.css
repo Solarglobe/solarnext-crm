@@ -2,9 +2,9 @@
   display: flex;
   flex-direction: column;
   gap: 24px;
-  max-width: 1180px;
-  margin: 0 auto;
-  padding: 32px 24px 56px;
+  width: 100%;
+  max-width: none;
+  padding: 28px;
 }
 
 .settings-hub__header {
@@ -95,7 +95,7 @@
 
 @media (max-width: 720px) {
   .settings-hub {
-    padding: 24px 16px 40px;
+    padding: 16px;
   }
 
   .settings-hub__header h1 {

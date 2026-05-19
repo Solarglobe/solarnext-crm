@@ -2,6 +2,7 @@
   display: grid;
   gap: 18px;
   padding: 28px;
+  color: var(--text-primary, #0f172a);
 }
 
 .admin-audit__head {
@@ -19,7 +20,7 @@
 
 .admin-audit__head p {
   margin: 8px 0 0;
-  color: #64748b;
+  color: var(--text-muted, #64748b);
 }
 
 .admin-audit__filters {
@@ -27,9 +28,9 @@
   grid-template-columns: minmax(180px, 260px) minmax(220px, 1fr) repeat(2, minmax(150px, 190px));
   gap: 12px;
   padding: 16px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border, #e2e8f0);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--surface, #ffffff);
 }
 
 .admin-audit__filters label {
@@ -40,23 +41,25 @@
 .admin-audit__filters span {
   font-size: 13px;
   font-weight: 800;
-  color: #334155;
+  color: var(--text-primary, #334155);
 }
 
 .admin-audit__filters input,
 .admin-audit__filters select {
   min-height: 40px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--border, #cbd5e1);
   border-radius: 6px;
   padding: 8px 10px;
+  background: var(--input-bg, var(--surface, #ffffff));
+  color: var(--text-primary, #0f172a);
   font: inherit;
 }
 
 .admin-audit__table-wrap {
   overflow: auto;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border, #e2e8f0);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--surface, #ffffff);
 }
 
 .admin-audit__table {
@@ -68,22 +71,22 @@
 .admin-audit__table th,
 .admin-audit__table td {
   padding: 11px 12px;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--border, #e2e8f0);
   text-align: left;
   vertical-align: top;
   font-size: 13px;
 }
 
 .admin-audit__table th {
-  color: #475569;
-  background: #f8fafc;
+  color: var(--text-muted, #475569);
+  background: var(--surface-2, #f8fafc);
   font-weight: 800;
 }
 
 .admin-audit__table code {
   font-size: 12px;
-  background: #eef2ff;
-  color: #3730a3;
+  background: color-mix(in srgb, var(--sn-accent-violet, #4f46e5) 14%, transparent);
+  color: var(--text-primary, #3730a3);
   padding: 3px 6px;
   border-radius: 6px;
 }
