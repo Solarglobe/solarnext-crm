@@ -358,7 +358,7 @@ export default function InvoicesPage() {
             <Link to="/finance" className="sn-btn sn-btn-ghost sn-btn-sm">Vue d'ensemble</Link>
             <Link to="/quotes" className="sn-btn sn-btn-ghost sn-btn-sm">Devis</Link>
             <Button type="button" variant="primary" size="sm" onClick={() => setQuoteModal(true)}>Creer depuis devis</Button>
-            <Button type="button" variant="ghost" size="sm" onClick={() => navigate("/invoices/new")}>Nouvelle facture</Button>
+            <Button type="button" variant="ghost" size="sm" onClick={() => navigate("/invoices/new")}>Facture manuelle</Button>
           </>
         }
         meta={<span className="sn-badge sn-badge-neutral">{filtered.length} factures affichees</span>}
@@ -436,8 +436,13 @@ export default function InvoicesPage() {
       {!loading && rows.length === 0 ? (
         <EmptyState
           title="Aucune facture"
-          description="Creez une facture depuis un devis accepte ou demarrez une facture vierge."
-          actions={<Button type="button" variant="primary" onClick={() => setQuoteModal(true)}>Creer depuis devis</Button>}
+          description="La facture doit idealement partir d'un devis accepte pour garder le lien lead, client, document et paiement."
+          actions={
+            <>
+              <Button type="button" variant="primary" onClick={() => setQuoteModal(true)}>Creer depuis devis</Button>
+              <Button type="button" variant="ghost" onClick={() => navigate("/quotes?status=ACCEPTED")}>Voir les devis acceptes</Button>
+            </>
+          }
         />
       ) : (
         <DataTable

@@ -55,8 +55,8 @@ export default function FinancialTab({
   studies,
   studiesLoading,
   onRefreshQuotes,
-  
-  
+  onCreateStudy,
+  createStudyLoading,
   onOpenStudyCalpinage,
   onOpenStudyQuoteBuilder,
 }: FinancialTabProps) {
@@ -215,6 +215,8 @@ export default function FinancialTab({
         <FinancialStudyAssistantCompact
           studies={studies}
           studiesLoading={studiesLoading}
+          onCreateStudy={onCreateStudy}
+          createStudyLoading={createStudyLoading}
           onOpenCalpinage={onOpenStudyCalpinage}
           onOpenQuoteBuilder={onOpenStudyQuoteBuilder}
           onCreateCommercialFromStudy={(s) => void handleCreateFromStudy(s)}

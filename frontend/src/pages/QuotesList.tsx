@@ -350,7 +350,7 @@ export default function QuotesList() {
           <>
             <Link to="/finance" className="sn-btn sn-btn-ghost sn-btn-sm">Vue d'ensemble</Link>
             <Link to="/invoices" className="sn-btn sn-btn-ghost sn-btn-sm">Factures</Link>
-            <Link to="/leads" className="sn-btn sn-btn-primary sn-btn-sm">Nouveau devis</Link>
+            <Link to="/leads" className="sn-btn sn-btn-primary sn-btn-sm">Creer depuis un dossier</Link>
           </>
         }
         meta={<span className="sn-badge sn-badge-neutral">{filtered.length} devis affiches</span>}
@@ -427,8 +427,8 @@ export default function QuotesList() {
       {!loading && !error && rows.length === 0 ? (
         <EmptyState
           title="Aucun devis"
-          description="Creez un devis depuis une fiche lead, onglet Financier."
-          actions={<Link to="/leads" className="sn-btn sn-btn-primary">Aller aux leads</Link>}
+          description="Le devis se cree depuis une fiche lead ou client afin de conserver le rattachement commercial."
+          actions={<Link to="/leads" className="sn-btn sn-btn-primary">Choisir un dossier</Link>}
         />
       ) : (
         <DataTable

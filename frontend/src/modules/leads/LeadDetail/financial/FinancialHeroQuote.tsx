@@ -152,7 +152,7 @@ export default function FinancialHeroQuote({
         <div className="fin-hero-top">
           <div>
             <p id="fin-hero-title" className="fin-hero-kicker">
-              Document principal
+              Devis principal
             </p>
             <div className="fin-hero-number-row">
               <span className="fin-hero-number">
