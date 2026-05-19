@@ -5,7 +5,7 @@
  * (worldPosition), légèrement au-dessus de la surface (+0.15 m selon la normale).
  *
  * Tilt et azimut calculés depuis `outwardNormal` (convention SolarNext : X=Est, Y=Nord, Z=Up).
- * Puissance estimée à 215 Wc/m² (monocristallin standard) — pas de logique métier externe.
+ * Puissance estimée à 227 Wc/m² (monocristallin standard) — pas de logique métier externe.
  */
 
 import { Html } from "@react-three/drei";
@@ -39,9 +39,9 @@ function computeAzimuthDeg(n: { x: number; y: number; z: number }): number {
   return Math.round(((azRad * 180 / Math.PI) + 360) % 360);
 }
 
-/** Estimation puissance crête : mono-Si 215 Wc/m² × surface réelle. */
+/** Estimation puissance crête : mono-Si 227 Wc/m² × surface réelle. */
 function estimatePanelPowerWc(panel: PvPanelSurface3D): number {
-  return Math.round(panel.widthM * panel.heightM * 215);
+  return Math.round(panel.widthM * panel.heightM * 227);
 }
 
 /** Tronque l'ID pour affichage (max 8 caractères, ellipsis si trop long). */

@@ -1554,7 +1554,7 @@ function PvLayout3dScreenOverlayProjector({
 }) {
   const { camera, gl } = useThree();
   const lastSigRef = useRef("");
-  /** Accumulateur delta pour throttler la projection à max 10fps (100ms). */
+  /** Accumulateur delta pour throttler la projection à max 30fps (33ms). */
   const projectionAccRef = useRef(0);
 
   useEffect(() => {
@@ -1570,9 +1570,9 @@ function PvLayout3dScreenOverlayProjector({
       }
       return;
     }
-    // Throttle projection matricielle : max 10fps (100ms entre mises à jour).
+    // Throttle projection matricielle : max 30fps (33ms entre mises à jour).
     projectionAccRef.current += delta;
-    if (projectionAccRef.current < 0.1) return;
+    if (projectionAccRef.current < 0.033) return;
     projectionAccRef.current = 0;
     const rect = gl.domElement.getBoundingClientRect();
     const width = Math.max(1, rect.width);
@@ -4045,6 +4045,7 @@ export function SolarScene3DViewer({
         return;
       }
       if (pvLayout3DInteractionMode && addPvPanelFrom3dImagePoint(img)) {
+        onPanelMoveCommit?.();
         refreshPv3dOverlay();
         e.stopPropagation();
         return;
@@ -4069,6 +4070,7 @@ export function SolarScene3DViewer({
         // avant refreshPv3dOverlay(), ce qui met selected=true dans l'overlay → panneau visible
         // dès le premier frame (sinon invisible pendant les 1-2 frames RAF de pvSyncSaveRender).
         if (r.blockId) selectPvBlockFrom3d(r.blockId, null);
+        onPanelMoveCommit?.();
         refreshPv3dOverlay();
         e.stopPropagation();
       }
@@ -4080,6 +4082,7 @@ export function SolarScene3DViewer({
       pvLayout3dOverlayState,
       refreshPv3dOverlay,
       handleExistingPvPanelHitFrom3dImagePoint,
+      onPanelMoveCommit,
     ],
   );
 
@@ -4735,11 +4738,4 @@ export function SolarScene3DViewer({
           ) : (
             <EffectComposer multisampling={0}>
               <SMAA />
-              <Vignette offset={0.25} darkness={0.45} />
-            </EffectComposer>
-          )
-        )}
-      </Canvas>
-    </div>
-  );
-}
+         
