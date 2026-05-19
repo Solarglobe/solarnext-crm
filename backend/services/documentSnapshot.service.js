@@ -10,7 +10,7 @@ import { pool } from "../config/db.js";
  */
 export async function loadOrganizationIssuerPayload(organizationId) {
   const r = await pool.query(
-    `SELECT id, name, legal_name, trade_name, siret, vat_number, rcs, capital_amount,
+    `SELECT id, name, legal_name, trade_name, siret, rge_number, vat_number, rcs, capital_amount,
             address_line1, address_line2, postal_code, city, country, phone, email, website,
             iban, bic, bank_name, default_payment_terms, default_invoice_notes,
             logo_url, pdf_primary_color, pdf_secondary_color
@@ -33,6 +33,7 @@ export function buildIssuerSnapshotFromOrganizationRow(orgRow) {
     legal_name: orgRow.legal_name ?? null,
     trade_name: orgRow.trade_name ?? null,
     siret: orgRow.siret ?? null,
+    rge_number: orgRow.rge_number ?? null,
     vat_number: orgRow.vat_number ?? null,
     rcs: orgRow.rcs ?? null,
     capital_amount: orgRow.capital_amount ?? null,

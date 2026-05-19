@@ -264,6 +264,7 @@ export function buildIssuerLines(
     }
     const leg: string[] = [];
     if (issuer.siret) leg.push(`SIRET ${issuer.siret}`);
+    if (issuer.rge_number) leg.push(`RGE ${issuer.rge_number}`);
     if (issuer.vat_number) leg.push(`N° TVA ${issuer.vat_number}`);
     if (issuer.rcs) leg.push(`RCS ${issuer.rcs}`);
     if (leg.length) compact.push(leg.join(" · "));
@@ -288,6 +289,7 @@ export function buildIssuerLines(
   }
   const leg: string[] = [];
   if (issuer.siret) leg.push(`SIRET ${issuer.siret}`);
+  if (issuer.rge_number) leg.push(`RGE ${issuer.rge_number}`);
   if (issuer.vat_number) leg.push(`N° TVA ${issuer.vat_number}`);
   if (issuer.rcs) leg.push(`RCS ${issuer.rcs}`);
   if (leg.length) lines.push(leg.join(" · "));

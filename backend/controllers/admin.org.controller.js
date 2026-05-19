@@ -13,7 +13,7 @@ const orgId = (req) => req.user.organizationId ?? req.user.organization_id;
 
 const ORG_COLUMNS = [
   "id", "name", "settings_json", "created_at",
-  "legal_name", "trade_name", "siret", "vat_number", "rcs", "capital_amount",
+  "legal_name", "trade_name", "siret", "rge_number", "vat_number", "rcs", "capital_amount",
   "address_line1", "address_line2", "postal_code", "city", "country",
   "phone", "email", "website",
   "iban", "bic", "bank_name",
@@ -30,6 +30,7 @@ const PUT_FIELDS = {
   legal_name: "string",
   trade_name: "string",
   siret: "string",
+  rge_number: "string",
   vat_number: "string",
   rcs: "string",
   capital_amount: "string",

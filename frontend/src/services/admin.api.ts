@@ -275,6 +275,7 @@ export interface AdminOrg {
   legal_name?: string;
   trade_name?: string;
   siret?: string;
+  rge_number?: string;
   vat_number?: string;
   rcs?: string;
   capital_amount?: string;

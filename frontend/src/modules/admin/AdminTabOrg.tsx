@@ -139,6 +139,7 @@ export function AdminTabOrg() {
     legal_name: "",
     trade_name: "",
     siret: "",
+    rge_number: "",
     vat_number: "",
     rcs: "",
     capital_amount: "",
@@ -212,6 +213,7 @@ export function AdminTabOrg() {
         legal_name: o.legal_name || "",
         trade_name: o.trade_name || "",
         siret: o.siret || "",
+        rge_number: o.rge_number || "",
         vat_number: o.vat_number || "",
         rcs: o.rcs || "",
         capital_amount: o.capital_amount || "",
@@ -258,6 +260,7 @@ export function AdminTabOrg() {
         legal_name: form.legal_name || undefined,
         trade_name: form.trade_name || undefined,
         siret: form.siret || undefined,
+        rge_number: form.rge_number || undefined,
         vat_number: form.vat_number || undefined,
         rcs: form.rcs || undefined,
         capital_amount: form.capital_amount || undefined,
@@ -442,6 +445,7 @@ export function AdminTabOrg() {
           <Field label="Nom juridique" value={form.legal_name} onChange={(v) => setForm((f) => ({ ...f, legal_name: v }))} />
           <Field label="Nom commercial" value={form.trade_name} onChange={(v) => setForm((f) => ({ ...f, trade_name: v }))} />
           <Field label="SIRET" value={form.siret} onChange={(v) => setForm((f) => ({ ...f, siret: v }))} />
+          <Field label="Numero RGE" value={form.rge_number} onChange={(v) => setForm((f) => ({ ...f, rge_number: v }))} />
           <Field label="TVA" value={form.vat_number} onChange={(v) => setForm((f) => ({ ...f, vat_number: v }))} />
           <Field label="RCS" value={form.rcs} onChange={(v) => setForm((f) => ({ ...f, rcs: v }))} />
           <Field label="Capital" value={form.capital_amount} onChange={(v) => setForm((f) => ({ ...f, capital_amount: v }))} />

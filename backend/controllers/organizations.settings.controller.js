@@ -52,6 +52,24 @@ function cleanText(value, max = 255) {
   return String(value).trim().slice(0, max);
 }
 
+function isValidHexColor(value) {
+  return /^#[0-9a-f]{6}$/i.test(String(value ?? "").trim());
+}
+
+function assertValidCompanyProfilePatch(profile) {
+  if (!profile) return;
+  if (profile.siret && !/^\d{14}$/.test(profile.siret)) {
+    const err = new Error("SIRET invalide : 14 chiffres attendus");
+    err.statusCode = 400;
+    throw err;
+  }
+  if (profile.primary_color && !isValidHexColor(profile.primary_color)) {
+    const err = new Error("Couleur principale invalide : format #RRGGBB attendu");
+    err.statusCode = 400;
+    throw err;
+  }
+}
+
 function cleanObject(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
   return value;
@@ -135,6 +153,32 @@ function buildOnboardingPatch(body) {
     patch.lead = cleanLeadDraft(raw.lead);
   }
   return patch;
+}
+
+function buildOrganizationPatchFromOnboardingProfile(profile) {
+  const patch = {};
+  if (!profile) return patch;
+  if (profile.name) {
+    patch.name = profile.name;
+    patch.legal_name = profile.name;
+  }
+  if (profile.address) patch.address_line1 = profile.address;
+  if (profile.siret) patch.siret = profile.siret;
+  if (profile.rge_number) patch.rge_number = profile.rge_number;
+  if (profile.primary_color) patch.pdf_primary_color = profile.primary_color;
+  return patch;
+}
+
+async function applyOnboardingProfileToOrganization(client, organizationId, profile) {
+  assertValidCompanyProfilePatch(profile);
+  const orgPatch = buildOrganizationPatchFromOnboardingProfile(profile);
+  const entries = Object.entries(orgPatch);
+  if (entries.length === 0) return;
+  const sets = entries.map(([key], index) => `${key} = $${index + 2}`);
+  await client.query(
+    `UPDATE organizations SET ${sets.join(", ")} WHERE id = $1`,
+    [organizationId, ...entries.map(([, value]) => value)]
+  );
 }
 
 function validateEconomicsPatch(economicsPatch) {
@@ -592,6 +636,10 @@ export async function patchOnboarding(req, res) {
         ...settings,
         onboarding: mergedOnboarding,
       };
+
+      if (dataPatch.profile) {
+        await applyOnboardingProfileToOrganization(client, org, dataPatch.profile);
+      }
 
       const update = await client.query(
         `UPDATE organizations
