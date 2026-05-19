@@ -109,9 +109,9 @@ export function PvPanelsLayer({
         metalness={pvPanelMetalness}
         roughness={pvPanelRoughness}
         envMapIntensity={1.45}
-        renderOrder={pvLayout3DInteractionMode ? 20 : 0}
-        polygonOffsetFactor={pvLayout3DInteractionMode ? getDepthOffset("PV_PANEL").polygonOffsetFactor : getDepthOffset("BUILDING_SHELL").polygonOffsetFactor}
-        polygonOffsetUnits={pvLayout3DInteractionMode ? getDepthOffset("PV_PANEL").polygonOffsetUnits : getDepthOffset("BUILDING_SHELL").polygonOffsetUnits}
+        renderOrder={pvLayout3DInteractionMode ? 20 : 2}
+        polygonOffsetFactor={getDepthOffset("PV_PANEL").polygonOffsetFactor}
+        polygonOffsetUnits={getDepthOffset("PV_PANEL").polygonOffsetUnits}
         hiddenPanelIds={pvLayout3DEffectiveHiddenIds}
         raycastFn={pvPanelRaycastPassThrough ? roofModelingSkipOccluderRaycast : undefined}
         onPanelClick={
@@ -136,12 +136,13 @@ export function PvPanelsLayer({
       {consolidatedPvCellLinesGeo && (
         <lineSegments
           geometry={consolidatedPvCellLinesGeo}
-          renderOrder={pvLayout3DInteractionMode ? 22 : 1}
+          renderOrder={pvLayout3DInteractionMode ? 22 : 3}
         >
           <lineBasicMaterial
             color={PREMIUM_PV_CELL_LINE}
             transparent
-            opacity={0.16}
+            opacity={0.55}
+            depthWrite={false}
             toneMapped={false}
             depthTest
             polygonOffset
