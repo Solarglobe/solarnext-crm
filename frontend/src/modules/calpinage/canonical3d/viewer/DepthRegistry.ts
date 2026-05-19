@@ -42,8 +42,15 @@ export interface DepthOffset {
 
 /**
  * Valeurs canoniques par couche.
- * `polygonOffsetFactor === polygonOffsetUnits` intentionnellement : ratio 1:1 testé
- * sur GPU mobile (Adreno, Apple GPU) et desktop (NVIDIA, AMD, Intel).
+ *
+ * Convention asymétrique (factor ≠ units) pour PV_PANEL / PV_CELL_LINE :
+ *   - `factor` pilote l'offset sur les surfaces inclinées (vue rasante) : valeur modérée
+ *     pour éviter les artefacts Peter-Panning sur GPU mobile.
+ *   - `units` pilote l'offset sur les surfaces quasi-perpendiculaires à la caméra
+ *     (vue zénithale directe, dZ/dXY ≈ 0) : valeur agressive pour garantir que les
+ *     panneaux restent devant le pan de toit même avec near=0.05 et far=5000.
+ *
+ * Testé sur GPU mobile (Adreno, Apple GPU) et desktop (NVIDIA, AMD, Intel).
  */
 export const DepthRegistry: Record<DepthLayer, DepthOffset> = {
   // Sol / fond de scene -- surface de reference, aucun offset (GPU draw order naturel).
@@ -55,9 +62,12 @@ export const DepthRegistry: Record<DepthLayer, DepthOffset> = {
   // Aretes structurelles : faitages, noues, ouvrants -- couche 3, fine geometrie 3D.
   ROOF_RIDGE:         { polygonOffsetFactor: -3, polygonOffsetUnits: -3 },
   // Panneaux PV (pose standard + live drag) -- couche 4, strictement au-dessus des pans.
-  PV_PANEL:           { polygonOffsetFactor: -4, polygonOffsetUnits: -4 },
-  // Lignes de cellules PV -- couche 5, tracees par-dessus la face avant des panneaux.
-  PV_CELL_LINE:       { polygonOffsetFactor: -5, polygonOffsetUnits: -5 },
+  // units=-8 : aggressif en vue zenithale (dZ/dXY → 0) pour eliminer le z-fighting.
+  // factor=-2 : modere en vue rasante pour eviter le Peter-Panning sur GPU mobile.
+  PV_PANEL:           { polygonOffsetFactor: -2, polygonOffsetUnits: -8 },
+  // Lignes de cellules PV -- couche 5, toujours au-dessus des panneaux.
+  // units=-10 : garantit la visibilite des cell lines quelle que soit l'inclinaison.
+  PV_CELL_LINE:       { polygonOffsetFactor: -3, polygonOffsetUnits: -10 },
   // Zones d'exclusion keepout -- couche 3, meme plan que ROOF_RIDGE (lecture superposee).
   KEEPOUT_ZONE:       { polygonOffsetFactor: -3, polygonOffsetUnits: -3 },
   // Contours de zone (safe-zone ribbon, lignes de marquage) -- couche 3, meme plan que ROOF_RIDGE.
