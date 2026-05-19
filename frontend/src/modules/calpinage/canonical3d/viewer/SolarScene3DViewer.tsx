@@ -4556,4 +4556,54 @@ export function SolarScene3DViewer({
           <GroundPlaneTexture
             config={groundPlaneConfig}
             zLevel={groundZ}
-            debug
+            debugMode={showDebugOverlay}
+          />
+        ) : (
+          <Grid
+            position={[center.x, center.y, Math.min(geometryBox.min.z - 0.15, 0)]}
+            {...viewerFallbackGridProps(maxDim)}
+          />
+        )}
+        {showDebugOverlay && (
+          <DebugSceneHelpers box={geometryBox} center={center} maxDim={maxDim} scene={scene} />
+        )}
+        {(showDebugOverlay || showXYAlignmentOverlay) && (
+          <DebugXYAlignmentOverlay scene={scene} zLevel={groundZ} runtime={debugRuntime} />
+        )}
+        {/* ── Masque d'horizon lointain (far shading) — LineLoop orange ──── */}
+        {horizonMask && horizonMask.length > 0 && cameraViewMode !== "PLAN_2D" && (
+          <HorizonMaskRing3D mask={horizonMask as HorizonMaskPoint3D[]} center={center} />
+        )}
+        {/* IBL — overcast sky, background=false, chargement lazy (Suspense).
+            environmentIntensity=0.52 : reflections IBL visibles sur zinc, bacs acier, panneaux PV.
+            Valeur calibrée pour que les panneaux "brillent" sans surexposer les surfaces mates (ardoise). */}
+        <Suspense fallback={null}>
+          <Environment
+            files="/assets/hdri/overcast_sky_1k.hdr"
+            background={false}
+            environmentIntensity={0.52}
+          />
+        </Suspense>
+        {enablePostProcessing && (
+          isCanonical3DEnabled() ? (
+            <EffectComposer multisampling={0}>
+              <SMAA />
+              <Bloom
+                intensity={0.35}
+                luminanceThreshold={0.78}
+                luminanceSmoothing={0.88}
+                mipmapBlur
+              />
+              <Vignette offset={0.25} darkness={0.45} />
+            </EffectComposer>
+          ) : (
+            <EffectComposer multisampling={0}>
+              <SMAA />
+              <Vignette offset={0.25} darkness={0.45} />
+            </EffectComposer>
+          )
+        )}
+      </Canvas>
+    </div>
+  );
+}

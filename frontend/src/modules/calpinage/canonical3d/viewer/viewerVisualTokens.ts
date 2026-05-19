@@ -225,4 +225,36 @@ export function viewerFallbackGridProps(maxDim: number): {
     infiniteGrid: true,
     cellColor: "#172033",
     sectionColor: "#26364d",
-  }
+  };
+}
+
+// ── Slices nommés pour import sélectif ───────────────────────────────────────
+
+/**
+ * Matériaux de toiture — source de vérité pour buildPremiumHouse3DScene.
+ * Importer ce slice plutôt que PREMIUM_MATERIALS complet si seule la toiture est concernée.
+ */
+export const PREMIUM_ROOF_MATERIALS = {
+  ARDOISE: PREMIUM_MATERIALS.ARDOISE,
+  TUILE_ROUGE: PREMIUM_MATERIALS.TUILE_ROUGE,
+  TUILE_BETON: PREMIUM_MATERIALS.TUILE_BETON,
+  ZINC: PREMIUM_MATERIALS.ZINC,
+  BACS_ACIER: PREMIUM_MATERIALS.BACS_ACIER,
+} as const;
+
+/**
+ * Matériaux panneaux PV (face active + cadre alu).
+ * Utilisé dans PvPanelsLayer / PvPanelInstanced / buildPremiumHouse3DScene pvBoost.
+ */
+export const PREMIUM_PV_MATERIALS = {
+  PV_PANEL: PREMIUM_MATERIALS.PV_PANEL,
+  PV_FRAME: PREMIUM_MATERIALS.PV_FRAME,
+} as const;
+
+/**
+ * Matériaux bâtiment (façade, closure).
+ * Utilisé dans la closure et le shell de buildingShell.
+ */
+export const PREMIUM_BUILDING_MATERIALS = {
+  FACADE: PREMIUM_MATERIALS.FACADE,
+} as const;

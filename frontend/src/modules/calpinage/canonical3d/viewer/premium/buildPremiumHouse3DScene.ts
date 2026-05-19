@@ -278,4 +278,23 @@ export function buildPremiumHouse3DScene(input: BuildPremiumHouse3DSceneInput): 
           roof: ROOF_ARDOISE,
           obstacle: { color: 0x6d5346, metalness: 0.06, roughness: 0.85, flatShading: false },
           extension: { color: 0x48623a, metalness: 0.06, roughness: 0.80, flatShading: false },
-          roofEdgeLine: { color: 0xcdbd9f, opacity: 0
+          roofEdgeLine: { color: 0xcdbd9f, opacity: 0.82 },
+          structuralRidgeLine: { color: 0xf3e7cf, opacity: 0.86 },
+        },
+        lighting: { ambientScale: 0.42, keyScale: 1.14, fillScale: 0.28, shadowMapSize: 2048 },
+        framingMargin: 1.26,
+        backgroundHex: SOLARNEXT_3D_PREMIUM_THEME.background,
+        validation,
+        pvBoost: {
+          // Mode PV : max reflectivité (PREMIUM_MATERIALS.PV_PANEL + bonus emissive)
+          ...PV_BOOST_PREMIUM,
+          panelEmissiveIntensityBonus: 0.06,
+          outlinePanelsWhenNotInspecting: true,
+        },
+      };
+    default: {
+      const _exhaustive: never = viewMode;
+      return _exhaustive;
+    }
+  }
+}
