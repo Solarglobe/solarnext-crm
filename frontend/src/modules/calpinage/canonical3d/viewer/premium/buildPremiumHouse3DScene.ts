@@ -20,7 +20,7 @@ export interface BuildPremiumHouse3DSceneInput {
   readonly scene: SolarScene3D;
   readonly viewMode: PremiumHouse3DViewMode;
   /**
-   * Rapport `validateCanonicalHouse3DGeometry` (Prompt 9) — si absent, le rendu n’invente pas un niveau de qualité.
+   * Rapport `validateCanonicalHouse3DGeometry` (Prompt 9) — si absent, le rendu n'invente pas un niveau de qualité.
    */
   readonly geometryValidationReport?: CanonicalHouse3DValidationReport | null;
 }
@@ -173,20 +173,22 @@ export function buildPremiumHouse3DScene(input: BuildPremiumHouse3DSceneInput): 
           showSun: true,
         },
         materials: {
-          roof: { color: 0x566b7b, metalness: 0.16, roughness: 0.64 },
+          // Toiture ardoise premium : légèrement plus sombre, contraste accru avec panneaux
+          roof: { color: 0x3d4a52, metalness: 0.08, roughness: 0.82 },
           obstacle: { color: 0x7d5e52, metalness: 0.08, roughness: 0.82, flatShading: false },
           extension: { color: 0x536f43, metalness: 0.06, roughness: 0.78, flatShading: false },
           roofEdgeLine: { color: 0xdbc49a, opacity: 0.88 },
           structuralRidgeLine: { color: 0xfff1d6, opacity: 0.92 },
         },
-        lighting: { ambientScale: 0.46, keyScale: 1.08, fillScale: 0.32, shadowMapSize: 2048 },
+        lighting: { ambientScale: 0.44, keyScale: 1.12, fillScale: 0.30, shadowMapSize: 2048 },
         framingMargin: 1.28,
         backgroundHex: SOLARNEXT_3D_PREMIUM_THEME.background,
         validation,
         pvBoost: {
-          panelMetalness: 0.26,
-          panelRoughness: 0.42,
-          panelEmissiveIntensityBonus: 0,
+          // MAX QUALITY : verre AR monocristallin — roughness 0.10, metalness 0.68
+          panelMetalness: 0.68,
+          panelRoughness: 0.10,
+          panelEmissiveIntensityBonus: 0.04,
           outlinePanelsWhenNotInspecting: false,
         },
       };
@@ -200,19 +202,19 @@ export function buildPremiumHouse3DScene(input: BuildPremiumHouse3DSceneInput): 
           showSun: true,
         },
         materials: {
-          roof: { color: 0x5c7080, metalness: 0.1, roughness: 0.72 },
+          roof: { color: 0x4a5c68, metalness: 0.08, roughness: 0.80 },
           obstacle: { color: 0x8b7355, metalness: 0.05, roughness: 0.88, flatShading: true },
           extension: { color: 0x5d7a45, metalness: 0.05, roughness: 0.86, flatShading: true },
           roofEdgeLine: { color: 0xf0bd72, opacity: 0.96 },
           structuralRidgeLine: { color: 0xffedd5, opacity: 0.96 },
         },
-        lighting: { ambientScale: 0.48, keyScale: 1.05, fillScale: 0.32, shadowMapSize: 1024 },
+        lighting: { ambientScale: 0.46, keyScale: 1.08, fillScale: 0.30, shadowMapSize: 1024 },
         framingMargin: 1.22,
         backgroundHex: "#0a1018",
         validation,
         pvBoost: {
-          panelMetalness: 0.22,
-          panelRoughness: 0.48,
+          panelMetalness: 0.65,
+          panelRoughness: 0.12,
           panelEmissiveIntensityBonus: 0.02,
           outlinePanelsWhenNotInspecting: false,
         },
@@ -227,19 +229,19 @@ export function buildPremiumHouse3DScene(input: BuildPremiumHouse3DSceneInput): 
           showSun: false,
         },
         materials: {
-          roof: { color: 0x5c7080, metalness: 0.09, roughness: 0.76 },
-          obstacle: { color: 0x866a5e, metalness: 0.05, roughness: 0.9, flatShading: true },
+          roof: { color: 0x4a5c68, metalness: 0.07, roughness: 0.84 },
+          obstacle: { color: 0x866a5e, metalness: 0.05, roughness: 0.90, flatShading: true },
           extension: { color: 0x567d40, metalness: 0.05, roughness: 0.88, flatShading: true },
           roofEdgeLine: { color: 0xf0bd72, opacity: 0.95 },
           structuralRidgeLine: { color: 0xfff1d6, opacity: 0.94 },
         },
-        lighting: { ambientScale: 0.52, keyScale: 0.95, fillScale: 0.38, shadowMapSize: 1024 },
+        lighting: { ambientScale: 0.50, keyScale: 0.96, fillScale: 0.36, shadowMapSize: 1024 },
         framingMargin: 1.2,
         backgroundHex: "#090f16",
         validation,
         pvBoost: {
-          panelMetalness: 0.2,
-          panelRoughness: 0.52,
+          panelMetalness: 0.62,
+          panelRoughness: 0.14,
           panelEmissiveIntensityBonus: 0,
           outlinePanelsWhenNotInspecting: true,
         },
@@ -254,20 +256,22 @@ export function buildPremiumHouse3DScene(input: BuildPremiumHouse3DSceneInput): 
           showSun: true,
         },
         materials: {
-          roof: { color: 0x4d6475, metalness: 0.13, roughness: 0.68 },
+          // Mode PV : toiture assombrie pour maximiser le contraste visuel avec les panneaux
+          roof: { color: 0x354048, metalness: 0.07, roughness: 0.84 },
           obstacle: { color: 0x6d5346, metalness: 0.06, roughness: 0.85, flatShading: false },
-          extension: { color: 0x48623a, metalness: 0.06, roughness: 0.8, flatShading: false },
+          extension: { color: 0x48623a, metalness: 0.06, roughness: 0.80, flatShading: false },
           roofEdgeLine: { color: 0xcdbd9f, opacity: 0.82 },
           structuralRidgeLine: { color: 0xf3e7cf, opacity: 0.86 },
         },
-        lighting: { ambientScale: 0.45, keyScale: 1.08, fillScale: 0.3, shadowMapSize: 2048 },
+        lighting: { ambientScale: 0.42, keyScale: 1.14, fillScale: 0.28, shadowMapSize: 2048 },
         framingMargin: 1.26,
         backgroundHex: SOLARNEXT_3D_PREMIUM_THEME.background,
         validation,
         pvBoost: {
-          panelMetalness: 0.32,
-          panelRoughness: 0.36,
-          panelEmissiveIntensityBonus: 0.055,
+          // Mode PV : max reflectivité panneaux — metalness 0.72, roughness 0.09
+          panelMetalness: 0.72,
+          panelRoughness: 0.09,
+          panelEmissiveIntensityBonus: 0.06,
           outlinePanelsWhenNotInspecting: true,
         },
       };

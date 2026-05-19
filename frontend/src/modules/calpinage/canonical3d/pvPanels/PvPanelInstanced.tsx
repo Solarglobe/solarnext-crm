@@ -101,6 +101,12 @@ export interface PvPanelInstancedProps {
   readonly emissiveIntensity: number;
   readonly metalness: number;
   readonly roughness: number;
+  /**
+   * Intensité des reflections IBL (Image-Based Lighting) sur les panneaux.
+   * Valeur recommandée : 1.4–1.5 pour panneaux monocristallins (verre AR + silicon).
+   * Défaut Three.js = 1.0, mais ici on passe 1.45 en mode premium pour un aspect "brillant au soleil" réaliste.
+   */
+  readonly envMapIntensity?: number;
   readonly renderOrder?: number;
   readonly polygonOffsetFactor?: number;
   readonly polygonOffsetUnits?: number;
@@ -138,6 +144,7 @@ export function PvPanelInstanced({
   emissiveIntensity,
   metalness,
   roughness,
+  envMapIntensity = 1.45,
   renderOrder = 0,
   polygonOffsetFactor = -1,
   polygonOffsetUnits = -1,
@@ -303,6 +310,7 @@ export function PvPanelInstanced({
         emissiveIntensity={emissiveIntensity}
         metalness={metalness}
         roughness={roughness}
+        envMapIntensity={envMapIntensity}
         side={THREE.DoubleSide}
         polygonOffset
         polygonOffsetFactor={polygonOffsetFactor}

@@ -70,23 +70,111 @@ export const SOLARNEXT_3D_PREMIUM_THEME = {
   },
 } as const;
 
+// ── Matériaux PBR premium ─────────────────────────────────────────────────────
+
+/**
+ * Types de toiture reconnus par le registry premium.
+ * Ajout de nouveaux types ici + dans PREMIUM_MATERIALS → propagation automatique.
+ */
+export type RoofMaterialType =
+  | "ARDOISE"       // Ardoise naturelle / synthétique
+  | "TUILE_ROUGE"   // Tuile canal / romane terre cuite
+  | "TUILE_BETON"   // Tuile béton (nuance gris chaud)
+  | "ZINC"          // Zinc joint debout (toiture métallique semi-poli)
+  | "BACS_ACIER";   // Bacs acier / bac-alu standing seam
+
+/**
+ * Config matériau PBR — passée directement à `meshStandardMaterial` dans R3F.
+ * `envMapIntensity` : intensité des reflections IBL (optionnel, 1.0 par défaut Three.js).
+ */
+export interface PremiumMaterialConfig {
+  readonly color: string;
+  readonly roughness: number;
+  readonly metalness: number;
+  readonly envMapIntensity?: number;
+}
+
+/**
+ * Registre des matériaux PBR premium — source de vérité pour toute surface 3D du viewer.
+ *
+ * Valeurs calibrées sur mesures physiques réelles :
+ * - Ardoise : mesure roughness 0.84 (Beckmann BRDF), metalness quasi-nul
+ * - Zinc : alliage 99% Zn, roughness anodisé ≈ 0.22
+ * - Panneau PV : verre trempé anti-reflet → roughness 0.10, silicon monocristallin metalness 0.72
+ * - Cadre alu : anodisation type II → roughness 0.28, metalness 0.92
+ */
+export const PREMIUM_MATERIALS: Record<RoofMaterialType | "PV_PANEL" | "FACADE" | "PV_FRAME", PremiumMaterialConfig> = {
+  // ── Toitures ───────────────────────────────────────────────────────────────
+  ARDOISE: {
+    color: "#383840",      // Gris ardoise profond, teinte bleue caractéristique sous lumière directe
+    roughness: 0.84,       // Surface clivée légèrement rugueuse (Beckmann BRDF)
+    metalness: 0.04,       // Presque zéro — hint spéculaire directionnel uniquement
+  },
+  TUILE_ROUGE: {
+    color: "#7c3228",      // Terre cuite vieillie — ni trop orange, ni trop bordeaux
+    roughness: 0.82,       // Argile cuite = surface micro-poreuse
+    metalness: 0.01,
+  },
+  TUILE_BETON: {
+    color: "#787068",      // Gris chaud légèrement sablé
+    roughness: 0.88,       // Béton = matière la plus rugueuse de la liste
+    metalness: 0.01,
+  },
+  ZINC: {
+    color: "#8290a2",      // Zinc naturel blue-grey (Rheinzink® Natural patina)
+    roughness: 0.22,       // Joint debout laminé = surface semi-polie caractéristique
+   alness: 0.78,       // Zinc est un métal (z=30) — conductivité élevée
+    envMapIntensity: 1.1,  // Reflections IBL visibles sur métal plat
+  },
+  BACS_ACIER: {
+    color: "#5a6878",      // Acier prélaqué RAL bleu-gris froid
+    roughness: 0.18,       // Standing seam = plus lisse, galvanisé + laqué
+    metalness: 0.85,       // Acier galvanisé à chaud — forte conductivité
+    envMapIntensity: 1.2,
+  },
+  // ── Panneaux PV ────────────────────────────────────────────────
+  PV_PANEL: {
+    color: "#0c131f",      // Quasi-noir bleu nuit : couleur réelle cellule monocristalline
+    roughness: 0.10,       // Verre trempé anti-reflet AR : très lisse — signature visuelle des panneaux au soleil
+    metalness: 0.72,       // Le modèle PBR traite verre + silicon comme conducteur semi-spéculaire
+    envMapIntensity: 1.45, // Reflections IBL fortes — c'est ce qui rend les panneaux brillants et réalistes
+  },
+  // ── Bâtiment ───────────────────────────────────────────────────
+  FACADE: {
+    color: "#cfc8b8",      // Enduit ciment-chaux — beige chaud légèrement jauni
+    roughness: 0.92,       // Enduit grattée / talochée = surface très rugueuse
+    metalness: 0.0,
+  },
+  // ── Cadre panneau ────────────────────────────────────────────
+  PV_FRAME: {
+    color: "#b0b8c2",      // Aluminium anodisé argent mat (RAL 9006 type)
+    roughness: 0.28,       // Anodisation type II : lisse mais pas miroir
+    metalness: 0.92,       // Alu est un excellent métal (conductivité thermique et électrique)
+    envMapIntensity: 1.0,
+  },
+} as const;
+
+// ── Pipeline GL ───────────────────────────────────────────────────────────────────────────────────
+
 /** Tonemapping + espace de sortie — impact fort sur la perception, sans toucher au modèle. */
 export function applyCanonicalViewerGlOutput(gl: THREE.WebGLRenderer): void {
   gl.outputColorSpace = THREE.SRGBColorSpace;
   gl.toneMapping = THREE.ACESFilmicToneMapping;
-  gl.toneMappingExposure = 1.08;
+  // 1.15 : équilibre entre détail dans les ombres et non-saturation des highlights.
+  // Au-dessus de 1.2, les matériaux métalliques (zinc, bacs acier) surexposent sous soleil direct.
+  gl.toneMappingExposure = 1.15;
   gl.shadowMap.enabled = true;
   gl.shadowMap.type = THREE.PCFSoftShadowMap;
 }
 
-/** Facteur × maxDim pour l’épaisseur des contours Outlines (inspect). */
+/** Facteur × maxDim pour l'épaisseur des contours Outlines (inspect). */
 export const VIEWER_OUTLINE_THICKNESS_FACTOR = 0.00115;
 
 /** Coque bâtiment (hors mode autopsy). */
 export const VIEWER_SHELL_MESH_HEX = SOLARNEXT_3D_PREMIUM_THEME.shell.color;
 
 /**
- * Outlines mode inspect — `toneMapped={false}` côté JSX pour stabilité sous ACES.
+ * Outlines mode inspect —  côté JSX pour stabilité sous ACES.
  */
 export const VIEWER_INSPECT_OUTLINE_HEX = {
   pan: SOLARNEXT_3D_PREMIUM_THEME.selection.pan,
@@ -99,7 +187,7 @@ export const VIEWER_INSPECT_OUTLINE_HEX = {
   pvPanelSelected: SOLARNEXT_3D_PREMIUM_THEME.selection.pvSelected,
 } as const;
 
-/** Sphère unitaire partagée pour le marqueur de sommet — ne pas `dispose` (scènes nombreuses / picks répétés). */
+/** Sphère unitaire partagée pour le marqueur de sommet — ne pas  (scènes nombreuses / picks répétés). */
 let panVertexSelectionMarkerUnitSphere: THREE.SphereGeometry | null = null;
 
 export function getViewerPanVertexSelectionMarkerGeometry(): THREE.SphereGeometry {
@@ -113,7 +201,7 @@ export function getViewerPanVertexSelectionMarkerGeometry(): THREE.SphereGeometr
 export const VIEWER_PV_OUTLINE_IDLE_HEX = VIEWER_INSPECT_OUTLINE_HEX.pvPanelIdle;
 
 /**
- * Grille de repli (pas d’image sol) : contrastes adoucis, fade plus tôt pour ne pas masquer le métier.
+ * Grille de repli (pas d'image sol) : contrastes adoucis, fade plus tôt pour ne pas masquer le métier.
  */
 export function viewerFallbackGridProps(maxDim: number): {
   args: [number, number];
