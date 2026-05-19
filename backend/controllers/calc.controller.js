@@ -58,6 +58,7 @@ import { computeElectricalValidation } from "../electrical/electricalValidation.
 import { computeHorizonFarLoss } from "../shading/horizonMaskEngine.js";
 import { buildFarShadingSunSamples } from "../services/shading/calpinageShading.service.js";
 import { computeRowToRowShading } from "../shading/rowToRowShading.js";
+import { computeBifacialGain } from "../shading/bifacialGain.js";
 import {
   buildCalculationConfidenceFromCalc,
   finalizeCalculationConfidence,
@@ -584,6 +585,54 @@ if (process.env.NODE_ENV !== "production" && process.env.DEBUG_CALC_TRACE === "1
           pitch_min_m: weightedPitchMin,
           pitch_actual_m: weightedPitchActual,
         };
+      }
+    }
+
+    // ------------------------------------------------------------
+    // BIFACIAL GAIN — gain face arrière panneaux bifaciaux
+    // Actif uniquement si form.bifacial.isBifacial === true.
+    // Feature flag : ENABLE_BIFACIAL côté frontend (no-op si absent).
+    // Appliqué APRÈS row-to-row shading, AVANT pilotage.
+    // ------------------------------------------------------------
+    {
+      const bf = form.bifacial;
+      if (bf?.isBifacial === true && ctx.pv) {
+        try {
+          const result = computeBifacialGain({
+            bifacialityFactor: Number(bf.bifacialityFactor ?? 0.70),
+            albedo: Number(bf.albedo ?? 0.20),
+            tiltDeg: Number(bf.tiltDeg ?? form.roof?.pans?.[0]?.tilt ?? 20),
+            pitchM: bf.pitchM != null ? Number(bf.pitchM) : undefined,
+            panelHeightM: bf.panelHeightM != null ? Number(bf.panelHeightM) : undefined,
+          });
+
+          if (result.gainFactor > 1) {
+            const gf = result.gainFactor;
+            if (Array.isArray(ctx.pv.hourly)) {
+              ctx.pv.hourly = ctx.pv.hourly.map((h) => (Number(h) || 0) * gf);
+            }
+            if (Array.isArray(ctx.pv.monthly)) {
+              ctx.pv.monthly = ctx.pv.monthly.map((v) => (Number(v) || 0) * gf);
+            }
+            if (typeof ctx.pv.total_kwh === "number") {
+              ctx.pv.total_kwh = Math.round(ctx.pv.total_kwh * gf * 100) / 100;
+            }
+            if (typeof ctx.pv.total_raw_kwh === "number") {
+              ctx.pv.total_raw_kwh = Math.round(ctx.pv.total_raw_kwh * gf * 100) / 100;
+            }
+            ctx.pv.bifacial_gain_pct = result.gainPct;
+            ctx.pv.bifacial_gain_kwh = Math.round((ctx.pv.total_kwh / gf) * (gf - 1) * 10) / 10;
+          }
+
+          if (!ctx.meta) ctx.meta = {};
+          ctx.meta.bifacial = {
+            gain_pct: result.gainPct,
+            gain_factor: result.gainFactor,
+            warning: result.warning,
+          };
+        } catch (e) {
+          // Paramètres invalides → skip silencieux
+        }
       }
     }
 

@@ -31,6 +31,8 @@ export function buildCalpinageOutputsV1Html(bundle: RoofOutputsBundleV1, ctx: Ca
         ? esc(String(Math.round(bundle.energy.annualProductionKwhAc))) + " kWh/an"
         : "—"
     }</td></tr>
+    ${bundle.energy.bifacialGainPct != null ? `
+    <tr><td>Gain bifacial</td><td>+${esc(bundle.energy.bifacialGainPct.toFixed(1))}% (+${esc(String(Math.round(bundle.energy.bifacialGainKwh ?? 0)))} kWh/an)</td></tr>` : ""}
     <tr><td>Rendement spécifique</td><td>${
       bundle.energy.specificYieldKwhPerKwc != null
         ? esc(String(Math.round(bundle.energy.specificYieldKwhPerKwc))) + " kWh/kWc/an"

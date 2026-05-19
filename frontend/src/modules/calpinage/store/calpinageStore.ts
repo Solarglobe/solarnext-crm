@@ -62,6 +62,11 @@ const initialPhase3: CalpinagePhase3Snapshot = {
     supportTiltDeg: 10,
     layoutPortrait: true,
   },
+  isBifacial: false,
+  bifacialityFactor: 0.70,
+  albedo: 0.20,
+  bifacialGainPct: null,
+  bifacialGainKwh: null,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

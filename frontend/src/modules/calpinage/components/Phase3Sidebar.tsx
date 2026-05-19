@@ -7,6 +7,8 @@ import { useEffect, useId, useState } from "react";
 import styles from "./Phase3Sidebar.module.css";
 import { usePhase3Data, setupPhase3SidebarNotify } from "../hooks/usePhase3Data";
 import { getCalpinageWindow } from "../calpinageWindowGlobals";
+import { useCalpinageStore } from "../store/calpinageStore";
+import { isEnabled } from "../config/featureFlags";
 import { usePhase3ChecklistData } from "../hooks/usePhase3ChecklistData";
 import {
   computeLegacyPhase3CanValidate,
@@ -571,6 +573,85 @@ function Phase3AutofillSection() {
   );
 }
 
+function Phase3BifacialSection() {
+  const isBifacial = useCalpinageStore((s) => s.phase3.isBifacial);
+  const bifacialityFactor = useCalpinageStore((s) => s.phase3.bifacialityFactor);
+  const albedo = useCalpinageStore((s) => s.phase3.albedo);
+  const bifacialGainPct = useCalpinageStore((s) => s.phase3.bifacialGainPct);
+  const bifacialGainKwh = useCalpinageStore((s) => s.phase3.bifacialGainKwh);
+
+  if (!isEnabled("BIFACIAL")) return null;
+
+  const setIsBifacial = (value: boolean) => {
+    useCalpinageStore.setState((s) => ({
+      phase3: { ...s.phase3, isBifacial: value },
+    }));
+  };
+
+  const setBifacialityFactor = (value: number) => {
+    useCalpinageStore.setState((s) => ({
+      phase3: { ...s.phase3, bifacialityFactor: value },
+    }));
+  };
+
+  const setAlbedo = (value: number) => {
+    useCalpinageStore.setState((s) => ({
+      phase3: { ...s.phase3, albedo: value },
+    }));
+  };
+
+  return (
+    <section className={styles.bifacialSection}>
+      <h4 className={styles.sectionTitle}>Panneau bifacial</h4>
+      <label className={styles.checkLabel}>
+        <input
+          type="checkbox"
+          checked={isBifacial}
+          onChange={(e) => setIsBifacial(e.target.checked)}
+        />
+        Bifacial activé
+      </label>
+      {isBifacial && (
+        <>
+          <label className={styles.fieldLabel}>
+            Bifacialité (%)
+            <input
+              type="number"
+              min={60}
+              max={85}
+              step={1}
+              value={Math.round(bifacialityFactor * 100)}
+              onChange={(e) => setBifacialityFactor(Number(e.target.value) / 100)}
+              className={styles.numberInput}
+            />
+          </label>
+          <label className={styles.fieldLabel}>
+            Type de sol (albédo)
+            <select
+              value={String(albedo)}
+              onChange={(e) => setAlbedo(Number(e.target.value))}
+              className={styles.selectInput}
+            >
+              <option value="0.20">Béton gris (0.20)</option>
+              <option value="0.22">Herbe (0.22)</option>
+              <option value="0.30">Gravier clair (0.30)</option>
+              <option value="0.35">Gravier blanc (0.35)</option>
+              <option value="0.60">Toiture membrane blanche (0.60)</option>
+              <option value="0.80">Neige (0.80)</option>
+            </select>
+          </label>
+          {bifacialGainPct != null && (
+            <p className={styles.bifacialResult}>
+              ✦ Gain bifacial estimé : +{bifacialGainPct.toFixed(1)}%
+              {bifacialGainKwh != null && ` (+${Math.round(bifacialGainKwh)} kWh/an)`}
+            </p>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
+
 function Phase3Actions({
   canValidate,
   validateHintId,
@@ -687,6 +768,9 @@ export function Phase3Sidebar({
           fallbackReason={fallbackReason}
         />
       </section>
+
+      {/* ZONE 3b — Bifacial (conditionnel feature flag) */}
+      <Phase3BifacialSection />
 
       {/* ZONE 4 — Validation (checklist + synthèse + boutons, un seul bloc) */}
       <section className={styles.zoneValidation} aria-label="Validation">

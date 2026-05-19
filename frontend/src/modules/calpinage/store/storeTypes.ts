@@ -121,6 +121,18 @@ export interface CalpinagePhase3Snapshot {
   // ── Toiture plate ───────────────────────────────────────────────────────
   /** Projection UI toiture plate — résultat de projectCalpinageUi(state). */
   flatRoofProjection: FlatRoofUiProjection;
+
+  // ── Bifacial (feature flag BIFACIAL) ────────────────────────────────────
+  /** true si l'utilisateur a activé le mode bifacial. */
+  isBifacial: boolean;
+  /** Facteur de bifacialité [0.60–0.85], défaut 0.70. */
+  bifacialityFactor: number;
+  /** Réflectivité du sol (albédo), défaut 0.20. */
+  albedo: number;
+  /** Gain bifacial estimé en %, null si non calculé. */
+  bifacialGainPct: number | null;
+  /** Gain bifacial absolu en kWh/an, null si non calculé. */
+  bifacialGainKwh: number | null;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
