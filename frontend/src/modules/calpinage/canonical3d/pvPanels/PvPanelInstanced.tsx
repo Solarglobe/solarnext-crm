@@ -1,45 +1,97 @@
 /**
- * PvPanelInstanced — Rendu haute performance des panneaux PV via THREE.InstancedMesh.
+ * PvPanelInstanced - Rendu haute performance des panneaux PV via THREE.InstancedMesh.
  *
- * Objectif : réduire N draw calls (1 par panneau) à 1 draw call pour la surface de base.
+ * FA-3 : Architecture pool fixe (suppression key={count}).
  *
- * Architecture :
- * - Géométrie partagée : PlaneGeometry(1, 1) centrée à l'origine, normale +Z.
- *   La matrice d'instance est construite depuis corners3D + center3D + outwardNormal
- *   (même source de vérité que panelQuadGeometry — indépendant de localFrame).
- * - Per-instance color : si panelColors fourni, instanceColor est utilisé (material.color = white).
- *   Sinon, material.color = baseColor uniforme.
- * - Panneaux masqués (pvLayout3DInteractionMode) : matrice scale(0,0,0).
- * - Mise à jour matrices : via useFrame (RAF) + flag dirty — garantit l'application
- *   dans la même RAF que le rendu, sans dépendance au cycle React.
- * - key={count} sur l'instancedMesh : force un remontage R3F quand le nombre de
- *   panneaux change (ajout ou suppression). Sans cette clé, le buffer instanceMatrix
- *   conserve sa taille initiale et les nouvelles instances sont silencieusement ignorées.
- *   Le remontage est O(N) sur le GPU (re-upload matrices) — acceptable pour ≤ 400 panneaux.
- * - Sélection / inspection : onPanelClick reçoit (PvPanelSurface3D, ThreeEvent).
- *   Le caller (SolarScene3DViewer.tsx) est responsable de patcher e.object.userData pour
- *   la compatibilité avec le système d'inspection existant.
- * - Cleanup : dispose de la géométrie partagée au démontage.
+ * PROBLEME RESOLU
+ * L'ancienne architecture utilisait key={count} sur l'instancedMesh.
+ * A chaque ajout ou suppression de panneau, React declenchait un remount complet :
+ *   - Demontage GPU (dispose geom, suppression scene graph)
+ *   - Remontage avec nouveau buffer Float32Array(count * 16)
+ *   - Frame intermediaire avec matrices non initialisees = flash / panneaux a l'origine
+ *   - Comportements differents selon count (1 panneau vs 50)
  *
- * Garanties anti-régression :
+ * SOLUTION : buffer GPU alloue une seule fois
+ * INSTANCE_POOL_SIZE = 512 instances allouees au montage initial. Jamais realloue.
+ * L'InstancedMesh ne remonte PLUS quand le nombre de panneaux change.
+ * Les slots inactifs sont masques avec HIDDEN_INSTANCE_MATRIX (scale=0).
+ * mesh.count est mis a jour dynamiquement pour l'efficacite du raycasting.
+ *
+ * CYCLE DE MISE A JOUR (zero flash, zero frame intermediaire) :
+ *
+ *   Changement panels / colors / hiddenPanelIds
+ *     -> React commit (synchrone)
+ *     -> useLayoutEffect (synchrone, post-commit, AVANT le premier rendu THREE.js) :
+ *         - Met a jour les refs (panels, colors, hidden)
+ *         - Init pool complet HIDDEN si premier montage
+ *         - flushInstancesToMesh() -> matrices CPU -> needsUpdate = true
+ *         - dirtyRef = false
+ *     -> RAF suivant (asynchrone) :
+ *         - useFrame -> dirtyRef = false -> no-op
+ *         - gl.render() -> upload GPU instanceMatrix -> image correcte des le premier frame
+ *
+ * Pourquoi useLayoutEffect et non useEffect :
+ * - useLayoutEffect : synchrone, s'execute AVANT que le navigateur peigne.
+ * - useEffect       : asynchrone, peut s'executer APRES un RAF -> flash visible.
+ * - Dans R3F, gl.render() s'execute dans la RAF suivante (async par rapport au commit React).
+ * - Donc : commit -> useLayoutEffect (matrices CPU) -> RAF -> gl.render (upload GPU)
+ *
+ * POOL INITIALIZATION
+ * new THREE.InstancedMesh(geo, mat, 512) initialise instanceMatrix avec des zeros
+ * (Float32Array), soit des matrices nulles - PAS des matrices identite. Sans init,
+ * les 512 instances seraient rendues a des positions indefinies (world origin, scale 0,
+ * ou artefacts GPU selon le driver). Le premier useLayoutEffect remplit TOUS les 512
+ * slots avec HIDDEN_INSTANCE_MATRIX, puis flushInstancesToMesh applique les vraies
+ * matrices pour les panneaux actifs. Ce n'est execute QU'UNE SEULE FOIS via poolInitializedRef.
+ *
+ * FRUSTUM CULLED = FALSE
+ * THREE.InstancedMesh.computeBoundingSphere() calcule la sphere englobante depuis la
+ * geometrie de base (PlaneGeometry 1x1 centree a l'origine), PAS depuis les matrices
+ * d'instance en world space. Le mesh serait souvent culled a tort aux angles camera
+ * extremes. frustumCulled=false desactive le culling pour ce mesh uniquement.
+ * En usage normal (camera orbitant autour d'une toiture), les panneaux sont toujours
+ * dans le frustum - aucun impact perf.
+ *
+ * MESH.COUNT DYNAMIQUE
+ * mesh.count est mis a Math.min(panels.length, INSTANCE_POOL_SIZE) apres chaque flush.
+ * THREE.js utilise mesh.count pour limiter le raycasting et le rendu aux instances actives.
+ * Les slots 0..count-1 sont actifs (ou masques), count..511 sont masques et ignores par le GPU.
+ *
+ * SUPPRESSION DE PANNEAUX - CLEANUP SLOTS
+ * prevCountRef memorise le count du flush precedent. Quand n < prevCount, les slots
+ * n..prevCount-1 sont explicitement remis a HIDDEN_INSTANCE_MATRIX (evite les fantomes).
+ *
+ * RESIZE > 512
+ * Si panels.length > INSTANCE_POOL_SIZE : warning en DEV, troncature silencieuse.
+ * Pour des installations > 512 panneaux (non residentiel), augmenter la constante.
+ *
+ * Garanties anti-regression :
  * 1. NE modifie PAS buildPvPanels3D.ts.
- * 2. Sélection par raycasting fonctionne via e.instanceId.
- * 3. Aucune logique de panneau unique — uniquement le rendu.
+ * 2. Selection par raycasting fonctionne via e.instanceId (guard < count).
+ * 3. Aucune logique metier - rendu pur.
+ * 4. Drag live overlay : hiddenPanelIds -> scale(0) pendant le drag, scale reel apres.
+ * 5. API Props inchangee - PvPanelsLayer.tsx non modifie.
  */
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import type { PvPanelSurface3D } from "../types/pv-panel-3d";
 import { INSPECT_USERDATA_KEY } from "../viewer/inspection/sceneInspectionTypes";
 import { getDepthOffset } from "../viewer/DepthRegistry";
 
-// ── Géométrie partagée ────────────────────────────────────────────────────────
+// ── Constante pool ────────────────────────────────────────────────────────────
 
 /**
- * Plan unité 1×1, normal +Z, centré à l'origine.
- * La matrice d'instance positionne et dimensionne chaque panneau en world space.
+ * Capacite du buffer GPU alloue une fois au montage.
+ * 512 couvre toute installation residentielle/petite tertiaire sans reallocation.
+ * Instances excedentaires ignorees avec warning DEV.
  */
+const INSTANCE_POOL_SIZE = 512;
+
+// ── Geometrie partagee ────────────────────────────────────────────────────────
+
+/** Plan unite 1x1, normal +Z, centre a l'origine. */
 function buildSharedPanelGeometry(): THREE.PlaneGeometry {
   return new THREE.PlaneGeometry(1, 1);
 }
@@ -47,22 +99,16 @@ function buildSharedPanelGeometry(): THREE.PlaneGeometry {
 // ── Matrice d'instance ────────────────────────────────────────────────────────
 
 /**
- * Matrice locale → monde construite depuis corners3D + center3D + outwardNormal.
+ * Construit la matrice monde depuis corners3D + center3D + outwardNormal.
  *
- * N'utilise PAS localFrame pour éviter tout décalage entre le pipeline de placement
- * 3D et le pipeline canonique 2D→3D (buildPvPanels3D). Même source de vérité que
- * panelQuadGeometry (corners3D), ce qui garantit que la surface InstancedMesh
- * coïncide exactement avec la géométrie des cell lines.
+ * N'utilise PAS localFrame - meme source de verite que panelQuadGeometry,
+ * garantit que la surface InstancedMesh coincide exactement avec les cell lines.
  *
- * Pour PlaneGeometry(1,1) avec vertices à (±0.5, ±0.5, 0) :
+ * Pour PlaneGeometry(1,1) avec vertices a (+/-0.5, +/-0.5, 0) :
  *   col0 = c1 - c0  (vecteur largeur pleine, scale implicite)
  *   col1 = c3 - c0  (vecteur hauteur pleine, scale implicite)
  *   col2 = outwardNormal
  *   col3 = center3D
- *
- * Preuve coins (center = (c1+c3)/2 pour un rectangle) :
- *   M*(−.5,−.5,0) = c0  ✓   M*( .5,−.5,0) = c1  ✓
- *   M*( .5, .5,0) = c2  ✓   M*(−.5, .5,0) = c3  ✓
  */
 function applyPanelInstanceMatrix(panel: PvPanelSurface3D, target: THREE.Matrix4): void {
   const c0 = panel.corners3D[0]!;
@@ -72,7 +118,7 @@ function applyPanelInstanceMatrix(panel: PvPanelSurface3D, target: THREE.Matrix4
   const n = panel.outwardNormal;
   const wx = c1.x - c0.x, wy = c1.y - c0.y, wz = c1.z - c0.z;
   const hx = c3.x - c0.x, hy = c3.y - c0.y, hz = c3.z - c0.z;
-  // THREE.Matrix4.set prend les arguments en ordre row-major
+  // THREE.Matrix4.set : arguments en ordre row-major
   target.set(
     wx,  hx,  n.x,  ctr.x,
     wy,  hy,  n.y,  ctr.y,
@@ -81,62 +127,132 @@ function applyPanelInstanceMatrix(panel: PvPanelSurface3D, target: THREE.Matrix4
   );
 }
 
-/** Matrice dégénérée : scale(0,0,0) pour masquer une instance sans la supprimer. */
+/**
+ * Matrice degeneree scale(0,0,0) : masque une instance sans la retirer du buffer.
+ * Utilisee pour : slots inactifs du pool, panneaux live pendant un drag.
+ */
 const HIDDEN_INSTANCE_MATRIX: THREE.Matrix4 = (() => {
   const m = new THREE.Matrix4();
   m.makeScale(0, 0, 0);
   return Object.freeze(m) as THREE.Matrix4;
 })();
 
+// ── Flush GPU ─────────────────────────────────────────────────────────────────
+
+/**
+ * Applique matrices + couleurs sur l'InstancedMesh pour les panneaux actifs,
+ * masque les slots liberes (quand panels.length a diminue), met a jour mesh.count.
+ *
+ * Retourne le nouveau count actif (Math.min(panels.length, INSTANCE_POOL_SIZE)).
+ *
+ * Appele depuis useLayoutEffect (synchrone) ET useFrame (filet de securite).
+ * Les deux ne s'executent JAMAIS simultanement - dirtyRef sert de mutex logique.
+ */
+function flushInstancesToMesh(
+  mesh: THREE.InstancedMesh,
+  panels: readonly PvPanelSurface3D[],
+  colors: readonly number[] | undefined,
+  hidden: ReadonlySet<string> | undefined,
+  prevCount: number,
+): number {
+  const n = Math.min(panels.length, INSTANCE_POOL_SIZE);
+
+  if (import.meta.env.DEV && panels.length > INSTANCE_POOL_SIZE) {
+    console.warn(
+      "[PvPanelInstanced] panels.length (" + String(panels.length) + ") > INSTANCE_POOL_SIZE (" + String(INSTANCE_POOL_SIZE) + "). " +
+      "Instances excedentaires ignorees. Augmenter INSTANCE_POOL_SIZE pour les installations > 512 panneaux.",
+    );
+  }
+
+  const m = new THREE.Matrix4();
+  const c = new THREE.Color();
+  const hasColors = colors != null && colors.length >= n;
+
+  // Panneaux actifs : matrices + couleurs
+  for (let i = 0; i < n; i++) {
+    const panel = panels[i]!;
+    const isHidden = hidden?.has(String(panel.id)) ?? false;
+
+    if (isHidden) {
+      mesh.setMatrixAt(i, HIDDEN_INSTANCE_MATRIX);
+    } else {
+      applyPanelInstanceMatrix(panel, m);
+      mesh.setMatrixAt(i, m);
+    }
+
+    if (hasColors) {
+      c.setHex(colors![i]!);
+      mesh.setColorAt(i, c);
+    }
+  }
+
+  // Slots liberes - suppression de panneaux
+  // Si panels.length a diminue depuis le dernier flush, les anciens slots
+  // doivent etre masques pour eviter les instances fantomes.
+  for (let i = n; i < prevCount; i++) {
+    mesh.setMatrixAt(i, HIDDEN_INSTANCE_MATRIX);
+  }
+
+  // mesh.count : THREE.js raycaste et rend uniquement les count premieres instances
+  mesh.count = n;
+
+  // Upload GPU
+  mesh.instanceMatrix.needsUpdate = true;
+
+  if (hasColors && mesh.instanceColor) {
+    mesh.instanceColor.needsUpdate = true;
+  } else if (!hasColors && mesh.instanceColor) {
+    // Retour a la couleur uniforme (material.color) - libere le buffer per-instance
+    mesh.instanceColor = null;
+  }
+
+  return n;
+}
+
 // ── Props ─────────────────────────────────────────────────────────────────────
 
 export interface PvPanelInstancedProps {
-  /** Surfaces 3D des panneaux — issues de buildPvPanels3D (non modifié). */
+  /** Surfaces 3D des panneaux - issues de buildPvPanels3D (non modifie). */
   readonly panels: readonly PvPanelSurface3D[];
   /**
-   * Couleurs hex par instance (même ordre que panels).
-   * Si fourni : material.color = 0xffffff (blanc), instanceColor appliqué par panneau.
+   * Couleurs hex par instance (meme ordre que panels).
+   * Si fourni : material.color = 0xffffff (blanc) pour ne pas teinter instanceColor.
    * Si absent  : material.color = baseColor uniforme.
    */
   readonly panelColors?: readonly number[];
-  /** Couleur de base quand panelColors absent, ou valeur de fallback (0x111827 = bleu foncé premium). */
+  /** Couleur de base quand panelColors absent (0x111827 = bleu fonce premium). */
   readonly baseColor: number;
-  /** Couleur emissive partagée (non per-instance — limitation InstancedMesh). */
+  /** Couleur emissive partagee (non per-instance - limitation InstancedMesh). */
   readonly emissiveColor: number;
-  /** Intensité emissive partagée. */
+  /** Intensite emissive partagee. */
   readonly emissiveIntensity: number;
   readonly metalness: number;
   readonly roughness: number;
   /**
-   * Intensité des reflections IBL (Image-Based Lighting) sur les panneaux.
-   * Valeur recommandée : 1.4–1.5 pour panneaux monocristallins (verre AR + silicon).
-   * Défaut Three.js = 1.0, mais ici on passe 1.45 en mode premium pour un aspect "brillant au soleil" réaliste.
+   * Intensite des reflections IBL sur les panneaux.
+   * Valeur recommandee : 1.45 pour panneaux monocristallins (verre AR + silicon).
    */
   readonly envMapIntensity?: number;
   readonly renderOrder?: number;
   readonly polygonOffsetFactor?: number;
   readonly polygonOffsetUnits?: number;
   /**
-   * IDs des panneaux à masquer (matrice scale=0).
-   * Utilisé en pvLayout3DInteractionMode pour les panneaux "live" rendus séparément.
+   * IDs des panneaux a masquer (matrice scale=0).
+   * Utilise en pvLayout3DInteractionMode pour les panneaux "live" rendus separement.
    */
   readonly hiddenPanelIds?: ReadonlySet<string>;
   /**
    * Callback de clic sur un panneau individuel.
-   * Reçoit la surface PV ET l'event — le caller est responsable du patch userData
-   * pour la compatibilité avec le système d'inspection.
+   * PvPanelInstanced patche e.object.userData[INSPECT_USERDATA_KEY] AVANT l'appel.
    */
   readonly onPanelClick?: (panel: PvPanelSurface3D, e: ThreeEvent<MouseEvent>) => void;
-  /**
-   * Callback pointerDown sur un panneau — utilisé en pvLayout3DInteractionMode.
-   * Reçoit la surface PV ET l'event brut.
-   */
+  /** Callback pointerDown sur un panneau - utilise en pvLayout3DInteractionMode. */
   readonly onPanelPointerDown?: (panel: PvPanelSurface3D, e: ThreeEvent<PointerEvent>) => void;
-  /** Callback hover panneau (identique à l'interface PanelHover du viewer). */
+  /** Callback hover panneau (tooltip). */
   readonly onPanelHover?: (
     payload: { panelId: string; clientX: number; clientY: number } | null,
   ) => void;
-  /** Fonction de raycast custom (ex. roofModelingSkipOccluderRaycast pour le mode modélisation toiture). */
+  /** Fonction de raycast custom (ex. roofModelingSkipOccluderRaycast). */
   readonly raycastFn?: (raycaster: THREE.Raycaster, intersects: THREE.Intersection[]) => void;
 }
 
@@ -161,111 +277,136 @@ export function PvPanelInstanced({
   raycastFn,
 }: PvPanelInstancedProps) {
   const meshRef = useRef<THREE.InstancedMesh>(null);
-  const count = panels.length;
 
-  // Géométrie partagée entre toutes les instances — dispose au démontage
+  // Geometrie partagee - allouee une fois, disposee au demontage
   const sharedGeometry = useMemo(() => buildSharedPanelGeometry(), []);
-  useEffect(() => {
-    return () => {
-      sharedGeometry.dispose();
-    };
-  }, [sharedGeometry]);
+  useEffect(() => () => { sharedGeometry.dispose(); }, [sharedGeometry]);
 
-  /**
-   * Map index d'instance → panelId (string).
-   *
-   * Remplace le pattern `mesh.userData.panelIds = [...]` du viewer :
-   *   - Vit dans le même scope que l'InstancedMesh (même composant, même cycle de vie)
-   *   - Reconstruit via useMemo quand panels change — jamais désynchronisé
-   *   - Typé ReadonlyMap<number, string> — pas de mutation externe possible
-   *   - Utilisé dans onClick/onPointerDown pour patcher e.object.userData[INSPECT_USERDATA_KEY]
-   *     AVANT d'appeler onPanelClick, ce qui élimine le couplage implicite viewer↔InstancedMesh.
-   */
-  const panelIdByInstanceIndex = useMemo<ReadonlyMap<number, string>>(
-    () => new Map(panels.map((p, i) => [i, String(p.id)])),
-    [panels],
-  );
-
-  /**
-   * Flag dirty : signale que les matrices/couleurs doivent être recalculées.
-   * Mis à true à chaque changement de panels / colors / count / hidden.
-   * Remis à false dans useFrame après application.
-   *
-   * On stocke également les props courantes en refs pour y accéder depuis useFrame
-   * sans déclencher de re-render ni risquer une closure périmée.
-   */
-  const dirtyRef = useRef(true);
+  // Refs : acces depuis useLayoutEffect + useFrame sans closure perimee
   const panelsRef = useRef(panels);
   const panelColorsRef = useRef(panelColors);
   const hiddenPanelIdsRef = useRef(hiddenPanelIds);
 
-  useEffect(() => {
+  /**
+   * Count actif lors du dernier flush - necessaire pour effacer les slots liberes
+   * quand panels.length diminue (panneau supprime).
+   */
+  const prevCountRef = useRef(0);
+
+  /**
+   * true -> useFrame doit appliquer les matrices.
+   * Arme uniquement si useLayoutEffect n'a pas pu flusher (mesh non disponible).
+   * Dans 99.9% des cas, useLayoutEffect flushe avant useFrame -> dirtyRef reste false.
+   */
+  const dirtyRef = useRef(true);
+
+  /**
+   * Indique que la totalite du pool (512 slots) a ete initialisee avec HIDDEN_INSTANCE_MATRIX.
+   * Execute une seule fois - evite de reinitialiser 512 slots a chaque mise a jour.
+   */
+  const poolInitializedRef = useRef(false);
+
+  /**
+   * Mise a jour synchrone - zero flash garanti.
+   *
+   * Execute APRES chaque commit React (synchrone), AVANT le prochain rendu THREE.js
+   * (asynchrone, dans la RAF suivante). Les donnees GPU sont donc TOUJOURS a jour
+   * pour le frame courant sans aucune frame intermediaire incorrecte.
+   */
+  useLayoutEffect(() => {
+    // Mise a jour des refs en premier - useFrame les lira si dirtyRef est encore true
     panelsRef.current = panels;
     panelColorsRef.current = panelColors;
     hiddenPanelIdsRef.current = hiddenPanelIds;
-    dirtyRef.current = true;
-  }, [panels, panelColors, count, hiddenPanelIds]);
+
+    const mesh = meshRef.current;
+    if (!mesh) {
+      // Cas theoriquement impossible (instancedMesh est toujours dans le JSX),
+      // mais defensif : useFrame prend le relais via dirtyRef.
+      dirtyRef.current = true;
+      return;
+    }
+
+    // Init pool - premier montage uniquement
+    // Float32Array de THREE.InstancedMesh est initialisee a 0 (pas a identite).
+    // Une matrice nulle provoque un rendu a des positions indefinies.
+    // On remplit TOUS les 512 slots avec HIDDEN avant le premier flush reel.
+    if (!poolInitializedRef.current) {
+      poolInitializedRef.current = true;
+      for (let i = 0; i < INSTANCE_POOL_SIZE; i++) {
+        mesh.setMatrixAt(i, HIDDEN_INSTANCE_MATRIX);
+      }
+      // needsUpdate sera positionne par flushInstancesToMesh ci-dessous.
+    }
+
+    const newCount = flushInstancesToMesh(
+      mesh,
+      panels,
+      panelColors,
+      hiddenPanelIds,
+      prevCountRef.current,
+    );
+    prevCountRef.current = newCount;
+    dirtyRef.current = false;
+  }, [panels, panelColors, hiddenPanelIds]);
 
   /**
-   * Application des matrices et couleurs dans la RAF (useFrame).
+   * Filet de securite RAF - no-op dans 99.9% des cas.
    *
-   * Pourquoi useFrame plutôt que useLayoutEffect/useEffect :
-   * - useFrame s'exécute DANS la RAF de R3F, juste avant le rendu THREE.js.
-   * - Les matrices sont donc TOUJOURS à jour pour le frame courant, sans aucune
-   *   dépendance au cycle React (résout les problèmes de premier montage,
-   *   de count changeant, et de mode frameloop="demand").
-   * - Le flag dirtyRef évite tout travail inutile sur les frames sans changement.
+   * Actif uniquement si useLayoutEffect n'a pas pu flusher (meshRef.current etait null).
+   * Conserve pour la robustesse des cas extremes (montage concurrent, Suspense, etc.).
    */
   useFrame(() => {
     if (!dirtyRef.current) return;
     const mesh = meshRef.current;
     if (!mesh) return;
 
-    dirtyRef.current = false;
-
-    const currentPanels = panelsRef.current;
-    const currentColors = panelColorsRef.current;
-    const currentHidden = hiddenPanelIdsRef.current;
-    const n = currentPanels.length;
-    if (n === 0) return;
-
-    const m = new THREE.Matrix4();
-    const c = new THREE.Color();
-    const hasPerInstanceColors = currentColors != null && currentColors.length === n;
-
-    for (let i = 0; i < n; i++) {
-      const panel = currentPanels[i]!;
-      const isHidden = currentHidden?.has(String(panel.id)) ?? false;
-
-      if (isHidden) {
+    if (!poolInitializedRef.current) {
+      poolInitializedRef.current = true;
+      for (let i = 0; i < INSTANCE_POOL_SIZE; i++) {
         mesh.setMatrixAt(i, HIDDEN_INSTANCE_MATRIX);
-      } else {
-        applyPanelInstanceMatrix(panel, m);
-        mesh.setMatrixAt(i, m);
-      }
-
-      if (hasPerInstanceColors) {
-        c.setHex(currentColors![i]!);
-        mesh.setColorAt(i, c);
       }
     }
 
-    mesh.instanceMatrix.needsUpdate = true;
-
-    if (hasPerInstanceColors && mesh.instanceColor) {
-      mesh.instanceColor.needsUpdate = true;
-    } else if (!hasPerInstanceColors && mesh.instanceColor) {
-      mesh.instanceColor = null;
-    }
+    const newCount = flushInstancesToMesh(
+      mesh,
+      panelsRef.current,
+      panelColorsRef.current,
+      hiddenPanelIdsRef.current,
+      prevCountRef.current,
+    );
+    prevCountRef.current = newCount;
+    dirtyRef.current = false;
   });
 
-  if (count === 0) return null;
+  /**
+   * Map index d'instance -> panelId - source de verite pour le patch userData.
+   * Reconstruit uniquement quand panels change - jamais desynchronise.
+   * Utilise dans onClick/onPointerDown pour patcher INSPECT_USERDATA_KEY
+   * AVANT d'appeler onPanelClick, eliminant le couplage implicite viewer/InstancedMesh.
+   */
+  const panelIdByInstanceIndex = useMemo<ReadonlyMap<number, string>>(
+    () => new Map(panels.map((p, i) => [i, String(p.id)])),
+    [panels],
+  );
+
+  // Count courant - utilise dans les handlers d'evenements (guard instanceId < count)
+  const count = panels.length;
 
   return (
     <instancedMesh
-      key={count}
+      // FA-3 : PAS de key={count}
+      // Buffer GPU fixe (INSTANCE_POOL_SIZE = 512).
+      // R3F reutilise le meme THREE.InstancedMesh quel que soit le nombre de panneaux.
+      // Zero remount, zero reallocation GPU, zero frame avec matrices non initialisees.
       ref={meshRef}
-      args={[sharedGeometry, undefined, count]}
+      args={[sharedGeometry, undefined, INSTANCE_POOL_SIZE]}
+      // frustumCulled=false : THREE.InstancedMesh calcule sa bounding sphere depuis la
+      // geometrie de base (PlaneGeometry 1x1 a l'origine, avant transformation d'instance).
+      // Resultat : le mesh est culled a tort aux angles camera extremes.
+      // Avec frustumCulled=false, les panneaux sont TOUJOURS rendus - en usage normal
+      // (camera orbitant autour de la toiture), ils sont toujours dans le frustum.
+      frustumCulled={false}
       castShadow
       receiveShadow
       renderOrder={renderOrder}
@@ -275,10 +416,8 @@ export function PvPanelInstanced({
           ? (e: ThreeEvent<MouseEvent>) => {
               e.stopPropagation();
               if (e.instanceId !== undefined && e.instanceId < count) {
-                // Patch userData AVANT onPanelClick : le système d'inspection lit
-                // e.object.userData[INSPECT_USERDATA_KEY] pour résoudre { kind, id }.
-                // Fait ici (source de vérité : panelIdByInstanceIndex) pour éliminer
-                // la mutation externe dans le viewer.
+                // Patch userData AVANT onPanelClick : le systeme d'inspection lit
+                // e.object.userData[INSPECT_USERDATA_KEY] pour resoudre { kind, id }.
                 const panelId = panelIdByInstanceIndex.get(e.instanceId);
                 if (panelId != null) {
                   e.object.userData[INSPECT_USERDATA_KEY] = { kind: "PV_PANEL" as const, id: panelId };
@@ -330,8 +469,8 @@ export function PvPanelInstanced({
       }
     >
       {/*
-       * Quand panelColors est fourni, material.color = blanc pour que instanceColor
-       * dicte la couleur finale sans teinte parasite (instanceColor × materialColor).
+       * Quand panelColors est fourni, material.color = blanc (0xffffff) pour que
+       * instanceColor dicte la couleur finale sans teinte parasite.
        * Sinon, material.color = baseColor uniforme.
        */}
       <meshStandardMaterial
