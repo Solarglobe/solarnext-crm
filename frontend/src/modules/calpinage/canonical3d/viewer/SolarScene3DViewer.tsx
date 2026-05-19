@@ -267,6 +267,9 @@ import {
   selectPvBlockFrom3d,
   type PvLayout3dOverlayState,
 } from "../../runtime/pvPlacement3dProduct";
+import { createCommandBus } from "../../commands/commandBus";
+import type { CommandBus } from "../../commands/commandBus";
+import { movePvPanelHandler } from "../../commands/handlers/movePvPanelHandler";
 import { PvLayout3dDragController } from "./PvLayout3dDragController";
 import { usePvPanelDrag } from "./usePvPanelDrag";
 import { useRoofVertexDrag } from "./useRoofVertexDrag";
@@ -3190,6 +3193,17 @@ export function SolarScene3DViewer({
   const pvPanelDrag = usePvPanelDrag();
   // useRoofVertexDrag : state de haut niveau du geste sommet (complète zDragSessionImmediateRef).
   const roofVertexDrag = useRoofVertexDrag(scene);
+
+  // CommandBus — instance isolée par composant (pattern Strangler Fig).
+  // Stable sur toute la durée de vie du composant (useMemo sans deps).
+  const commandBus: CommandBus = useMemo(() => createCommandBus(), []);
+
+  // Abonner le handler MOVE_PV_PANEL au bus pour la durée de vie du composant.
+  useEffect(() => {
+    return commandBus.subscribe((cmd) => {
+      if (cmd.type === "MOVE_PV_PANEL") movePvPanelHandler(cmd);
+    });
+  }, [commandBus]);
   // pvRebuildBlockPanelIds supprimé : la déduplication par blockId dans
   // buildCanonicalPlacedPanelsFromRuntime garantit l'unicité des panneaux dans pvPanels.
   // Aucun panneau fantôme ne peut subsister après rebuild → workaround inutile.
@@ -3893,7 +3907,20 @@ export function SolarScene3DViewer({
   const endPv3dDragSession = useCallback(() => {
     const s = pvPanelDrag.sessionRef.current;
 
-    finalizePvMoveFrom3d({ pointerId: s?.pointerId ?? null, releaseCaptureEl: null });
+    // Résoudre panelId depuis l'overlay state (best-effort — le handler n'utilise pas ces champs
+    // pour la mutation legacy, ils servent à la traçabilité et au futur module pvLayoutEngine pur).
+    const blockId = s?.blockId ?? "";
+    const panelId =
+      pvLayout3dOverlayState?.panels.find((p) => p.blockId === blockId)?.id ?? "";
+
+    // Dispatch via CommandBus — le handler movePvPanelHandler appelle finalizePvMoveFrom3d
+    // et émet calpinage:state-changed pour la sync Zustand.
+    void commandBus.dispatch({
+      type: "MOVE_PV_PANEL",
+      panelId,
+      newBlockId: blockId,
+      deltaWorld: { x: 0, y: 0, z: 0 },
+    });
 
     // Déclencher un rebuild 3D immédiat (sans attendre le RAF de pvSyncSaveRender).
     // Le moteur a déjà commité les nouvelles positions → getAllPanels() retourne les bonnes coords.
@@ -3902,7 +3929,7 @@ export function SolarScene3DViewer({
     pvPanelDrag.end();
     setOrbitSuppressed(false);
     refreshPv3dOverlay();
-  }, [refreshPv3dOverlay, pvLayout3dOverlayState, onPanelMoveCommit, pvPanelDrag]);
+  }, [commandBus, refreshPv3dOverlay, pvLayout3dOverlayState, onPanelMoveCommit, pvPanelDrag]);
 
   const onPvPanelPvLayout3dPointerDown = useCallback(
     (e: ThreeEvent<PointerEvent>, panelIdFromMesh: string) => {
