@@ -323,6 +323,27 @@ function Inline3DViewer({
   const lastDisplayedStructuralSignatureRef = useRef<string | null>(null);
   const pendingStructuralEventRef = useRef<OfficialRuntimeStructuralChangePayload | null>(null);
   const forceNextSceneRebuildRef = useRef(false);
+  /**
+   * FIX-1 — Verrou édition interne bridge.
+   * Levé juste avant `emitOfficialRuntimeStructuralChange()` dans les handlers de commit
+   * (handleRoofVertexHeightCommit, handleRoofVertexXYCommit, handleStructuralRidgeHeightCommit,
+   * handleRoofHeightAssistantApply). Permet à `onStructuralChange` de ne pas re-déclencher
+   * `buildScene()` pour cet event : le handler appelle `buildScene()` lui-même juste après.
+   */
+  const isBridgeInternalEditRef = useRef(false);
+  /**
+   * FIX-2 — Suppression du rebuild par prop-change après `notifyParentState()`.
+   * Levé dans `notifyParentState()` avant `setCalpinageState` — consommé et vidé dans
+   * l'useEffect dépendant de `calpinageStateProp` pour éviter le 3e `buildScene()` déclenché
+   * par le re-render parent qui suit la notification.
+   */
+  const skipNextPropChangeBuildRef = useRef(false);
+  /**
+   * FIX-5 — Suppression du rebuild `PV_MOVE_SYNC` déclenché par `pvSyncSaveRender` (RAF).
+   * `handlePanelMoveCommit` fait déjà un `buildScene()` immédiat avec force ; le RAF ultérieur
+   * déclencherait un 2e `buildScene()` avec force qui évicterait le cache frais inutilement.
+   */
+  const suppressNextPvMoveSyncBuildRef = useRef(false);
 
   // ── Feature flags 3D — A2 : lecture via Context (plus de window.__CALPINAGE_3D_*__) ──
   const {
@@ -497,6 +518,12 @@ function Inline3DViewer({
 
   useEffect(() => {
     if (calpinageStateProp !== undefined) {
+      // FIX-2 : si ce changement de prop provient de notifyParentState() interne, le handler
+      // a déjà appelé buildScene() directement — ne pas déclencher un 2e rebuild.
+      if (skipNextPropChangeBuildRef.current) {
+        skipNextPropChangeBuildRef.current = false;
+        return;
+      }
       buildScene();
     }
   }, [calpinageStateProp, buildScene]);
@@ -538,6 +565,16 @@ function Inline3DViewer({
       const is3d = getCalpinageWindow().__CALPINAGE_VIEW_MODE__ === "3D";
       const detail = (e as CustomEvent<OfficialRuntimeStructuralChangePayload>).detail;
       if (is3d && detail && typeof detail === "object" && typeof detail.reason === "string") {
+        // FIX-5 : PV_MOVE_SYNC / PV_PLACEMENT_SYNC émis par pvSyncSaveRender (RAF) après un
+        // handlePanelMoveCommit — buildScene() a déjà été appelé immédiatement avec force rebuild.
+        // Consommer le flag et sortir sans rebuild : le cache frais doit être préservé.
+        if (
+          suppressNextPvMoveSyncBuildRef.current &&
+          (detail.reason === "PV_MOVE_SYNC" || detail.reason === "PV_PLACEMENT_SYNC")
+        ) {
+          suppressNextPvMoveSyncBuildRef.current = false;
+          return;
+        }
         pendingStructuralEventRef.current = detail;
         /**
          * Les actions PV (pose, déplacement, suppression panneau) ne changent pas la géométrie
@@ -560,6 +597,9 @@ function Inline3DViewer({
         }
       }
       if (is3d) {
+        // FIX-1 : un handler interne bridge a levé ce flag avant d'émettre l'event structurel.
+        // Il appelle buildScene() lui-même — ne pas déclencher un rebuild redondant ici.
+        if (isBridgeInternalEditRef.current) return;
         buildScene();
       }
     }
@@ -589,6 +629,10 @@ function Inline3DViewer({
   const handlePanelMoveCommit = useCallback(() => {
     lastDisplayedStructuralSignatureRef.current = null;
     forceNextSceneRebuildRef.current = true;
+    // FIX-5 : pvSyncSaveRender (RAF) va émettre PV_MOVE_SYNC après ce buildScene() immédiat.
+    // Marquer le flag pour que onStructuralChange ignore cet event redondant et préserve le
+    // cache frais construit ici avec force rebuild.
+    suppressNextPvMoveSyncBuildRef.current = true;
     buildScene();
   }, [buildScene]);
 
@@ -635,6 +679,9 @@ function Inline3DViewer({
 
   const notifyParentState = useCallback(
     (root: Record<string, unknown>) => {
+      // FIX-2 : le handler appelant notifyParentState va appeler buildScene() lui-même.
+      // Supprimer le rebuild déclenché par la propagation prop-change qui suivra ce setCalpinageState.
+      skipNextPropChangeBuildRef.current = true;
       setCalpinageState?.(JSON.parse(JSON.stringify(root)) as unknown);
     },
     [setCalpinageState],
@@ -775,11 +822,14 @@ function Inline3DViewer({
         if (import.meta.env.DEV) {
           console.log("[3D DRAG] commit after notifyParentState");
         }
+        // FIX-1 : lever le verrou pour que onStructuralChange ignore cet event (emit sync).
+        isBridgeInternalEditRef.current = true;
         emitOfficialRuntimeStructuralChange({
           reason: "ROOF_VERTEX_HEIGHT_EDIT",
           changedDomains: ["pans"],
           debug: { sourceFile: "Inline3DViewerBridge.tsx", sourceAction },
         });
+        isBridgeInternalEditRef.current = false;
         if (enableModelingHistory) bumpRoofHist();
         if (import.meta.env.DEV) {
           console.log("[3D DRAG] commit calling buildScene()");
@@ -975,11 +1025,14 @@ function Inline3DViewer({
       }
       if (enableModelingHistory && pansBefore != null) pushRoofModelingPastSnapshot(pansBefore);
       notifyParentState(root);
+      // FIX-1 : verrou pour que onStructuralChange ignore cet event (emit synchrone).
+      isBridgeInternalEditRef.current = true;
       emitOfficialRuntimeStructuralChange({
         reason: "ROOF_VERTEX_XY_EDIT",
         changedDomains: ["pans"],
         debug: { sourceFile: "Inline3DViewerBridge.tsx", sourceAction: "applyRoofVertexXYEdit" },
       });
+      isBridgeInternalEditRef.current = false;
       if (enableModelingHistory) bumpRoofHist();
       buildScene();
     },
@@ -1013,11 +1066,14 @@ function Inline3DViewer({
       if (enableModelingHistory && pansBefore != null) pushRoofModelingPastSnapshot(pansBefore);
       refreshLegacyCalpinage2DAfterPanVertexHeightEdit();
       notifyParentState(root);
+      // FIX-1 : verrou pour que onStructuralChange ignore cet event (emit synchrone).
+      isBridgeInternalEditRef.current = true;
       emitOfficialRuntimeStructuralChange({
         reason: "STRUCTURAL_HEIGHT_EDIT",
         changedDomains: ["contours", "ridges", "traits", "pans"],
         debug: { sourceFile: "Inline3DViewerBridge.tsx", sourceAction: "applyStructuralHeightEdit" },
       });
+      isBridgeInternalEditRef.current = false;
       if (enableModelingHistory) bumpRoofHist();
       buildScene();
     },
@@ -1053,11 +1109,14 @@ function Inline3DViewer({
       if (enableModelingHistory && pansBefore != null) pushRoofModelingPastSnapshot(pansBefore);
       refreshLegacyCalpinage2DAfterPanVertexHeightEdit();
       notifyParentState(root);
+      // FIX-1 : verrou pour que onStructuralChange ignore cet event (emit synchrone).
+      isBridgeInternalEditRef.current = true;
       emitOfficialRuntimeStructuralChange({
         reason: "ROOF_HEIGHT_ASSISTANT",
         changedDomains: ["contours", "ridges", "traits", "pans"],
         debug: { sourceFile: "Inline3DViewerBridge.tsx", sourceAction: "applyRoofHeightAssistant" },
       });
+      isBridgeInternalEditRef.current = false;
       if (enableModelingHistory) bumpRoofHist();
       buildScene();
     },
@@ -1168,7 +1227,6 @@ function Inline3DViewer({
         height="100%"
         showRoof
         showRoofEdges
-        showObstacles
         showExtensions
         showPanels
         showPanelShading
