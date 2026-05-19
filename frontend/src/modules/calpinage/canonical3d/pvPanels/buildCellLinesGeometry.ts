@@ -41,9 +41,6 @@ export function buildConsolidatedCellLinesGeometry(
   const _vA = new THREE.Vector3();
   const _vB = new THREE.Vector3();
   const _normal = new THREE.Vector3();
-  const _ao = new THREE.Vector3();
-  const _bo = new THREE.Vector3();
-
   for (const panel of panels) {
     const c = panel.corners3D;
     // Extraction des coins en THREE.Vector3 (corners3D est readonly WorldPosition3D[])

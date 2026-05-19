@@ -24,7 +24,7 @@
 
 import { useRef } from "react";
 import * as THREE from "three";
-import type { SolarScene3D } from "../../types/solarScene3d";
+import type { SolarScene3D } from "../types/solarScene3d";
 
 export interface RoofVertexDragState {
   /** Geste actif (pointerdown reçu, pointerup non encore traité). */

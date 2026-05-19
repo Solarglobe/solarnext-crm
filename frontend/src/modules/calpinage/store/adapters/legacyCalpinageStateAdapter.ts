@@ -242,6 +242,15 @@ function readPhase3Snapshot(): CalpinagePhase3Snapshot {
     autofillValidCount,
     hasActiveBlockWithPanels,
     flatRoofProjection,
+    isBifacial: false,
+    bifacialityFactor: 0.70,
+    albedo: 0.20,
+    bifacialGainPct: null,
+    bifacialGainKwh: null,
+    tmyP50Kwh: null,
+    tmyP90Kwh: null,
+    tmyMonthlyP50: null,
+    tmyMonthlyP90: null,
   };
 }
 

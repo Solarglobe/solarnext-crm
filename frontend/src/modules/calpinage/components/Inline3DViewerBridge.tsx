@@ -329,7 +329,6 @@ function Inline3DViewer({
     vertexZEdit,
     vertexXYEdit,
     ridgeHeightEdit,
-    pvPlaceProbe,
     pvLayoutMode,
   } = useCalpinageFeatures();
 

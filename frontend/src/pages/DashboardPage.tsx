@@ -184,12 +184,14 @@ export function buildCockpitActions(
   const openQuotes = Math.max(0, safeNum(d.global_kpis.quotes_stock_total) - safeNum(d.global_kpis.quotes_stock_accepted_count));
   const overdue = safeNum(d.forecast.overdue_invoices_amount);
 
-  return [
+  const actions: DashboardAction[] = [
     { id: "follow-up-leads", title: "Leads a relancer", value: followUp ? String(followUp.leads_count) : "0", detail: followUp ? `Etape ${followUp.stage_name}` : "Aucune file de relance identifiee", to: followUp ? `/leads?stage=${encodeURIComponent(followUp.stage_id)}` : "/leads", tone: followUp && followUp.leads_count > 0 ? "warn" : "neutral", allowed: true },
     { id: "quotes-no-answer", title: "Devis a suivre", value: String(openQuotes), detail: "Devis ouverts non signes", to: "/quotes?status=SENT", tone: openQuotes > 0 ? "primary" : "neutral", allowed: permissions.canQuote },
     { id: "overdue-invoices", title: "Factures impayees", value: eur(overdue), detail: overdue > 0 ? "Montant en retard" : "Aucun impaye en retard", to: "/invoices?status=OVERDUE", tone: overdue > 0 ? "danger" : "neutral", allowed: permissions.canInvoice },
     { id: "today-planning", title: "RDV du jour", value: "Planning", detail: "Ouvrir l'agenda terrain et commercial", to: "/planning", tone: "neutral", allowed: permissions.canPlanning },
-  ].filter((action) => action.allowed);
+  ];
+
+  return actions.filter((action) => action.allowed);
 }
 
 function buildCockpitMetrics(

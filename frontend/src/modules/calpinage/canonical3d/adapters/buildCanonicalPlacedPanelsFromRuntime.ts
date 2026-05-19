@@ -306,8 +306,9 @@ export function buildCanonicalPlacedPanelsFromRuntime(
   {
     const deduped = new Map<string, (typeof panelInputs)[number]>();
     for (const panel of panelInputs) {
-      const parsed = parsePanelCompositeId(panel.id);
-      const key = parsed ? parsed.blockId : panel.id;
+      const panelId = panel.id ?? `panel-${deduped.size}`;
+      const parsed = parsePanelCompositeId(panelId);
+      const key = parsed ? parsed.blockId : panelId;
       deduped.set(key, panel); // le dernier écrase les précédents → position la plus récente
     }
     panelInputs = Array.from(deduped.values());

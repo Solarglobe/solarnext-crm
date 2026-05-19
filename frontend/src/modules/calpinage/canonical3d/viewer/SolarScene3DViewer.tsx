@@ -102,7 +102,7 @@ import {
   type SceneInspectUserData,
   type ScenePickHit,
 } from "./inspection/sceneInspectionTypes";
-import { pickInspectableIntersection, pickSceneHitFromIntersections } from "./inspection/pickInspectableIntersection";
+import { pickInspectableIntersection } from "./inspection/pickInspectableIntersection";
 import { pickSceneHitForRoofVertexModeling } from "./inspection/pickRoofVertexModelingPick";
 import { RoofVertexZDragController, type RoofZDragSession } from "./RoofVertexZDragController";
 import { worldZFromPointerOnVerticalThroughXY } from "./roofVertexVerticalPointerMath";
@@ -143,10 +143,7 @@ import { buildConsolidatedCellLinesGeometry } from "../pvPanels/buildCellLinesGe
 import type { PremiumHouse3DSceneAssembly } from "./premium/premiumHouse3DSceneTypes";
 import { PremiumGeometryTrustStripe } from "./premium/PremiumGeometryTrustStripe";
 import type { PremiumHouse3DViewMode } from "./premium/premiumHouse3DViewModes";
-import {
-  buildPremiumObstacleAssets,
-  type PremiumObstacleAssetPack,
-} from "./obstacles/premiumObstacleAssets";
+import { buildPremiumObstacleAssets } from "./obstacles/premiumObstacleAssets";
 import {
   resolveRoofMissingHeightAlerts,
   resolveRoofTruthBadge,
@@ -259,7 +256,6 @@ import {
   beginPvMoveFrom3d,
   clearPvSelectionFrom3d,
   cancelPvMoveFrom3d,
-  finalizePvMoveFrom3d,
   hitTestPvBlockPanelFromImagePoint,
   readPvLayout3dOverlayState,
   removePvPanelFrom3d,
@@ -889,7 +885,7 @@ function premiumPvCellLineGeometryFromWorldPoints(
   return geo;
 }
 
-function premiumPvPanelCellLineGeometry(panel: PvPanelSurface3D): THREE.BufferGeometry | null {
+export function premiumPvPanelCellLineGeometry(panel: PvPanelSurface3D): THREE.BufferGeometry | null {
   const world = panel.corners3D.map((p) => new THREE.Vector3(p.x, p.y, p.z));
   return premiumPvCellLineGeometryFromWorldPoints(world, 0.018);
 }
@@ -1695,7 +1691,7 @@ function PvLayout3dScreenOverlayProjector({
   return null;
 }
 
-function PvLayout3dSvgOverlay({
+export function PvLayout3dSvgOverlay({
   overlay,
   onMovePointerDown,
   onRotatePointerDown,
@@ -3193,6 +3189,7 @@ export function SolarScene3DViewer({
   const pvPanelDrag = usePvPanelDrag();
   // useRoofVertexDrag : state de haut niveau du geste sommet (complète zDragSessionImmediateRef).
   const roofVertexDrag = useRoofVertexDrag(scene);
+  void roofVertexDrag;
 
   // CommandBus — instance isolée par composant (pattern Strangler Fig).
   // Stable sur toute la durée de vie du composant (useMemo sans deps).
@@ -3801,6 +3798,7 @@ export function SolarScene3DViewer({
     [pvLayout3DInteractionMode, pv3dOverlayEpoch],
   );
   const [pvLayout3dScreenOverlay, setPvLayout3dScreenOverlay] = useState<PvLayout3dScreenOverlayState | null>(null);
+  void pvLayout3dScreenOverlay;
   const [roofTruthBadges, setRoofTruthBadges] = useState<RoofTruthBadgeScreenModel[]>([]);
 
 
@@ -4029,6 +4027,8 @@ export function SolarScene3DViewer({
     (e: ReactPointerEvent<Element>, h: PvLayout3dHandleUi) => beginPv3dHandleDrag(e, "rotate", h),
     [beginPv3dHandleDrag],
   );
+  void onPvMoveHandlePointerDown;
+  void onPvRotateHandlePointerDown;
 
   /** Pass 4–5 — toit : sonde (`__CALPINAGE_3D_PV_PLACE_PROBE__`) ou produit (`pvLayout3DInteractionMode`) en phase PV_LAYOUT. */
   const onRoofTessellationPv3dProbePointerDown = useCallback(
