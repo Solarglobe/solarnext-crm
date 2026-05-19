@@ -8,12 +8,14 @@ import { apiFetch } from "./api";
 const API_BASE = getCrmApiBase();
 
 export interface GlobalSearchHit {
-  type: "lead" | "client";
+  type: "lead" | "client" | "quote" | "invoice" | "document";
   id: string;
+  entity_id?: string | null;
   full_name: string;
   email: string | null;
   phone: string | null;
   status: string;
+  route?: string | null;
 }
 
 export async function fetchGlobalSearch(q: string, signal?: AbortSignal): Promise<GlobalSearchHit[]> {

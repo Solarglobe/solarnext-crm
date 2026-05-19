@@ -12,7 +12,16 @@ const router = express.Router();
 router.get(
   "/global",
   verifyJWT,
-  requireAnyPermission(["lead.read.all", "lead.read.self"]),
+  requireAnyPermission([
+    "lead.read.all",
+    "lead.read.self",
+    "client.read.all",
+    "client.read.self",
+    "quote.manage",
+    "invoice.manage",
+    "study.manage",
+    "org.settings.manage",
+  ]),
   controller.globalSearch
 );
 

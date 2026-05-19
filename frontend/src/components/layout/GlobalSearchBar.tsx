@@ -1,5 +1,5 @@
-/**
- * Recherche globale CRM — barre visible dans AppLayout (debounce 300ms)
+﻿/**
+ * Recherche globale CRM â€” barre visible dans AppLayout (debounce 300ms)
  */
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
@@ -9,12 +9,27 @@ import { fetchGlobalSearch, type GlobalSearchHit } from "../../services/search.s
 const TYPE_LABEL: Record<GlobalSearchHit["type"], string> = {
   lead: "Lead",
   client: "Client",
+  quote: "Devis",
+  invoice: "Facture",
+  document: "Document",
 };
 
 const TYPE_BADGE_CLASS: Record<GlobalSearchHit["type"], string> = {
   lead: "sn-badge sn-badge-neutral",
   client: "sn-badge sn-badge-success",
+  quote: "sn-badge sn-badge-info",
+  invoice: "sn-badge sn-badge-warn",
+  document: "sn-badge sn-badge-neutral",
 };
+
+export function getGlobalSearchDestination(hit: GlobalSearchHit): string {
+  if (hit.route) return hit.route;
+  if (hit.type === "client") return `/leads/${encodeURIComponent(hit.id)}?context=client`;
+  if (hit.type === "quote") return `/quotes/${encodeURIComponent(hit.id)}`;
+  if (hit.type === "invoice") return `/invoices/${encodeURIComponent(hit.id)}`;
+  if (hit.type === "document") return `/documents?search=${encodeURIComponent(hit.full_name || hit.id)}`;
+  return `/leads/${encodeURIComponent(hit.id)}`;
+}
 
 export function GlobalSearchBar() {
   const navigate = useNavigate();
@@ -85,8 +100,8 @@ export function GlobalSearchBar() {
   }, []);
 
   const onPick = useCallback(
-    (id: string) => {
-      navigate(`/leads/${id}`);
+    (hit: GlobalSearchHit) => {
+      navigate(getGlobalSearchDestination(hit));
       setQuery("");
       setDebounced("");
       setResults([]);
@@ -116,7 +131,7 @@ export function GlobalSearchBar() {
           id={inputId}
           type="search"
           className="sn-global-search__input"
-          placeholder="Nom, e-mail, téléphone…"
+          placeholder="Lead, client, devis, facture, document..."
           autoComplete="off"
           aria-autocomplete="list"
           aria-expanded={showPanel}
@@ -133,7 +148,7 @@ export function GlobalSearchBar() {
             <span className="sn-global-search__dot" />
           </span>
         ) : (
-          <kbd className="sn-global-search__kbd" title="Raccourci : Ctrl+K ou ⌘K (Mac)">
+          <kbd className="sn-global-search__kbd" title="Raccourci : Ctrl+K ou âŒ˜K (Mac)">
             Ctrl+K
           </kbd>
         )}
@@ -161,12 +176,16 @@ export function GlobalSearchBar() {
                   <button
                     type="button"
                     className="sn-global-search__item"
-                    onClick={() => onPick(r.id)}
+                    onClick={() => onPick(r)}
                   >
-                    <span className="sn-global-search__item-name">{r.full_name || "—"}</span>
+                    <span className="sn-global-search__item-main">
+                      <span className={TYPE_BADGE_CLASS[r.type]}>{TYPE_LABEL[r.type]}</span>
+                      <span className="sn-global-search__item-name">{r.full_name || "—"}</span>
+                    </span>
                     <span className="sn-global-search__item-meta">
                       {r.email ? <span className="sn-global-search__item-email">{r.email}</span> : null}
-                      <span className={TYPE_BADGE_CLASS[r.type]}>{TYPE_LABEL[r.type]}</span>
+                      {r.status ? <span className="sn-global-search__item-status">{r.status}</span> : null}
+                      {r.phone ? <span className="sn-global-search__item-status">{r.phone}</span> : null}
                     </span>
                   </button>
                 </li>
