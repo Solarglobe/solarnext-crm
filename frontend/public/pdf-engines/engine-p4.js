@@ -82,7 +82,6 @@
     ov.style.display = "block";
     ov.setAttribute("aria-hidden", "false");
 
-    const backendPayload = window.ViewPayload?.p4 || null;
     const prodArr = backendPayload?.production_kwh || [];
     const consoArr = backendPayload?.consommation_kwh || [];
     const autoArr = backendPayload?.autoconso_kwh || [];
