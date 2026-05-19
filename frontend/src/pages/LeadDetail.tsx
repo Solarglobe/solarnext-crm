@@ -176,6 +176,9 @@ export default function LeadDetail() {
                 stageName={stageName}
                 stageCode={ld.data.stage?.code}
               />
+              {ld.isClient && ld.data.lead.client_id ? (
+                <span className="sn-badge sn-badge-success">Client converti depuis un dossier commercial</span>
+              ) : null}
               {ld.isArchived ? <span className="sn-badge sn-badge-danger">Archive</span> : null}
               {stageName ? <span className="sn-badge sn-badge-info">{stageName}</span> : null}
               <span className={`sn-badge ${saveSyncBadgeClass(ld.saveSyncState)}`}>

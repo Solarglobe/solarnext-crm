@@ -64,6 +64,15 @@ test("lead : création + étape Signé → fiche client (organization_id cohére
   const clientId = det.data?.lead?.client_id;
   assert.ok(clientId, JSON.stringify(det.data));
 
+  const clientDetail = await api(ctx.token, "GET", `/api/clients/${clientId}`);
+  assert.equal(clientDetail.status, 200, JSON.stringify(clientDetail.data));
+  assert.equal(clientDetail.data?.primary_lead_id, leadId);
+
+  const search = await api(ctx.token, "GET", `/api/search/global?q=${encodeURIComponent(email)}`);
+  assert.equal(search.status, 200, JSON.stringify(search.data));
+  const searchHit = search.data.find((row) => row.id === leadId);
+  assert.equal(searchHit?.type, "client", JSON.stringify(search.data));
+
   const pool = getPool();
   const row = await pool.query(`SELECT organization_id FROM clients WHERE id = $1`, [clientId]);
   assert.equal(row.rows[0].organization_id, ctx.orgId);

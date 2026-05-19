@@ -5,14 +5,68 @@ import "./design-system/tokens.css";
 import "./design-system/primitives.css";
 import "./design-system/sidebar-crm.css";
 import "ol/ol.css";
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { applyTheme, readStoredTheme } from "./theme/themeApply";
 import { createRoot } from "react-dom/client";
-import { createBrowserRouter, Navigate, RouterProvider, useParams, Outlet } from "react-router-dom";
+import { createBrowserRouter, Navigate, RouterProvider, useNavigate, useParams, Outlet } from "react-router-dom";
+import { fetchClientById } from "./services/clients.service";
 
 function ClientToLeadRedirect() {
   const { id } = useParams();
-  return <Navigate to={id ? `/leads/${id}` : "/clients"} replace />;
+  const navigate = useNavigate();
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!id) {
+      navigate("/clients", { replace: true });
+      return;
+    }
+
+    let alive = true;
+    fetchClientById(id)
+      .then((client) => {
+        if (!alive) return;
+        const leadId = client.primary_lead_id?.trim();
+        if (leadId) {
+          navigate(`/leads/${encodeURIComponent(leadId)}?context=client&clientId=${encodeURIComponent(id)}`, {
+            replace: true,
+          });
+          return;
+        }
+        setError("Ce client existe, mais aucun dossier converti actif n'est rattache.");
+      })
+      .catch((e: unknown) => {
+        if (!alive) return;
+        setError(e instanceof Error ? e.message : "Client introuvable");
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [id, navigate]);
+
+  if (error) {
+    return (
+      <div className="sn-page">
+        <section className="sn-card sn-card--padded">
+          <h1>Fiche client</h1>
+          <p>{error}</p>
+          <button type="button" className="sn-button sn-button--secondary" onClick={() => navigate("/clients")}>
+            Retour aux clients
+          </button>
+        </section>
+      </div>
+    );
+  }
+
+  return (
+    <div className="sn-page">
+      <section className="sn-card sn-card--padded">
+        <h1>Ouverture de la fiche client</h1>
+        <p>Recherche du dossier client associe...</p>
+      </section>
+    </div>
+  );
 }
 import { AppLayout } from "./layout/AppLayout";
 import { OrganizationProvider } from "./contexts/OrganizationContext";

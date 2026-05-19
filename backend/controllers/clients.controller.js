@@ -185,8 +185,20 @@ export async function getById(req, res) {
     }
     const { readAll: canReadAll, readSelf: canReadSelf } = clientReadFlagsForQuery(req, perms);
 
-    let query =
-      "SELECT * FROM clients c WHERE c.id = $1 AND c.organization_id = $2 AND (c.archived_at IS NULL)";
+    let query = `
+      SELECT c.*,
+        (
+          SELECT l.id
+          FROM leads l
+          WHERE l.client_id = c.id
+            AND l.organization_id = c.organization_id
+            AND l.status = 'CLIENT'
+            AND l.archived_at IS NULL
+          ORDER BY l.updated_at DESC NULLS LAST
+          LIMIT 1
+        ) AS primary_lead_id
+      FROM clients c
+      WHERE c.id = $1 AND c.organization_id = $2 AND (c.archived_at IS NULL)`;
     const params = [id, org];
     if (canReadSelf && !canReadAll) {
       query += ` AND ${sqlClientInSelfPortfolio("c", 3)}`;

@@ -9,6 +9,7 @@ const API_BASE = getCrmApiBase();
 
 export interface Client {
   id: string;
+  primary_lead_id?: string | null;
   client_number?: string;
   first_name?: string;
   last_name?: string;
