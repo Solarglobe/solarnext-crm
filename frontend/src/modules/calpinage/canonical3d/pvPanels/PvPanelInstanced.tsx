@@ -480,7 +480,9 @@ export function PvPanelInstanced({
         metalness={metalness}
         roughness={roughness}
         envMapIntensity={envMapIntensity}
-        side={THREE.DoubleSide}
+        // FrontSide : les panneaux ont toujours la normale orientee vers l'observateur.
+        // DoubleSide causait des artefacts depth en vue rasante (backfaces dans depth buffer).
+        side={THREE.FrontSide}
         polygonOffset
         polygonOffsetFactor={polygonOffsetFactor}
         polygonOffsetUnits={polygonOffsetUnits}
@@ -488,3 +490,4 @@ export function PvPanelInstanced({
     </instancedMesh>
   );
 }
+    
