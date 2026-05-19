@@ -4446,7 +4446,6 @@ export function SolarScene3DViewer({
           orbitControlsInstanceRef={orbitControlsRef}
         />
         <ViewerSceneContent
-          key={scene.metadata.createdAtIso}
           scene={scene}
           box={geometryBox}
           assembly={premiumAssembly}
@@ -4571,3 +4570,4 @@ export function SolarScene3DViewer({
     </div>
   );
 }
+                                            
