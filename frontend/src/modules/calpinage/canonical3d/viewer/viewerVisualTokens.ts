@@ -47,7 +47,7 @@ export const SOLARNEXT_3D_PREMIUM_THEME = {
     liveFill: "#234b73",
     selectedFill: "#5568d6",
     invalidFill: "#b45309",
-    cellLine: "#d7e7f7",
+    cellLine: "#b8ccd8",
     selectedLine: "#9aa7ff",
     invalidLine: "#fed7aa",
     liveEmissive: "#12243a",
@@ -135,9 +135,10 @@ export const PREMIUM_MATERIALS: Record<RoofMaterialType | "PV_PANEL" | "FACADE" 
   // ── Panneaux PV ────────────────────────────────────────────────
   PV_PANEL: {
     color: "#0c131f",      // Quasi-noir bleu nuit : couleur réelle cellule monocristalline
-    roughness: 0.10,       // Verre trempé anti-reflet AR : très lisse — signature visuelle des panneaux au soleil
+    roughness: 0.18,       // Verre trempé AR réel ≈ 0.15–0.22 (pas un miroir parfait). 0.10 était trop
+                           // spéculaire : env map overcast blanchissait les panneaux en vue rapprochée.
     metalness: 0.72,       // Le modèle PBR traite verre + silicon comme conducteur semi-spéculaire
-    envMapIntensity: 1.45, // Reflections IBL fortes — c'est ce qui rend les panneaux brillants et réalistes
+    envMapIntensity: 1.20, // Réduit de 1.45 → 1.20 : reflections IBL visibles sans surexposer en zoom.
   },
   // ── Bâtiment ───────────────────────────────────────────────────
   FACADE: {

@@ -64,10 +64,11 @@ export const DepthRegistry: Record<DepthLayer, DepthOffset> = {
   // Panneaux PV (pose standard + live drag) -- couche 4, strictement au-dessus des pans.
   // units=-8 : aggressif en vue zenithale (dZ/dXY → 0) pour eliminer le z-fighting.
   // factor=-2 : modere en vue rasante pour eviter le Peter-Panning sur GPU mobile.
-  PV_PANEL:           { polygonOffsetFactor: -2, polygonOffsetUnits: -8 },
+  PV_PANEL:           { polygonOffsetFactor: -2, polygonOffsetUnits: -12 },
   // Lignes de cellules PV -- couche 5, toujours au-dessus des panneaux.
-  // units=-10 : garantit la visibilite des cell lines quelle que soit l'inclinaison.
-  PV_CELL_LINE:       { polygonOffsetFactor: -3, polygonOffsetUnits: -10 },
+  // units=-14 : garantit la visibilite des cell lines quelle que soit l'inclinaison.
+  // Augmenté de -10 → -14 pour compenser le z-fighting aggravé par roughness 0.18 (semi-spéculaire).
+  PV_CELL_LINE:       { polygonOffsetFactor: -3, polygonOffsetUnits: -14 },
   // Zones d'exclusion keepout -- couche 3, meme plan que ROOF_RIDGE (lecture superposee).
   KEEPOUT_ZONE:       { polygonOffsetFactor: -3, polygonOffsetUnits: -3 },
   // Contours de zone (safe-zone ribbon, lignes de marquage) -- couche 3, meme plan que ROOF_RIDGE.

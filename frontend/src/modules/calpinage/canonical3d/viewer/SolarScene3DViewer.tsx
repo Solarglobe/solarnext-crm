@@ -2801,7 +2801,7 @@ function ViewerSceneContent({
                   emissiveIntensity={invalid ? 0.34 : selected ? 0.18 : 0.08}
                   metalness={pvB.panelMetalness}
                   roughness={pvB.panelRoughness}
-                  envMapIntensity={1.45}
+                  envMapIntensity={1.20}
                   transparent={enabled === false}
                   opacity={enabled === false ? 0.42 : 1}
                   // depthWrite=false : le fill ne doit pas occulter les cell/outline lines
@@ -4855,7 +4855,7 @@ export function SolarScene3DViewer({
               <SMAA />
               <Bloom
                 intensity={0.35}
-                luminanceThreshold={0.78}
+                luminanceThreshold={0.92}
                 luminanceSmoothing={0.88}
                 mipmapBlur
               />

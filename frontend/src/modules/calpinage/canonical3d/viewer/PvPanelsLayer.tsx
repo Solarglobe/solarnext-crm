@@ -128,18 +128,21 @@ export function PvPanelsLayer({
        * les états sont compensés par la couleur d'instance.
        */}
       {/*
-       * LOT3-C3 : base emissiveIntensity 0.1 -> 0.40.
-       * Plancher de visibilite garanti meme sans env map ou sur GPU mobile sans IBL complet.
+       * emissiveIntensity abaissé de 0.40 → 0.12 :
+       * - 0.40 écrasait les réflections PBR (env map + metalness/roughness) et blanchissait
+       *   les panneaux en vue rapprochée avec l'HDRI overcast (roughness 0.18 = semi-spéculaire).
+       * - 0.12 garantit la visibilité sur GPU mobile sans IBL tout en laissant le PBR travailler.
+       * envMapIntensity abaissé de 1.45 → 1.20 pour la même raison (trop agressif en zoom).
        */}
       <PvPanelInstanced
         panels={panels}
         panelColors={panelColors}
         baseColor={PREMIUM_PV_SURFACE_HEX}
         emissiveColor={PREMIUM_PV_EMISSIVE_HEX}
-        emissiveIntensity={pvPanelEmissiveIntensityBonus + 0.40}
+        emissiveIntensity={pvPanelEmissiveIntensityBonus + 0.12}
         metalness={pvPanelMetalness}
         roughness={pvPanelRoughness}
-        envMapIntensity={1.45}
+        envMapIntensity={1.20}
         renderOrder={pvLayout3DInteractionMode ? 20 : 2}
         polygonOffsetFactor={getDepthOffset("PV_PANEL").polygonOffsetFactor}
         polygonOffsetUnits={getDepthOffset("PV_PANEL").polygonOffsetUnits}
@@ -172,7 +175,7 @@ export function PvPanelsLayer({
           <lineBasicMaterial
             color={PREMIUM_PV_CELL_LINE}
             transparent
-            opacity={0.55}
+            opacity={0.38}
             depthWrite={false}
             toneMapped={false}
             depthTest
