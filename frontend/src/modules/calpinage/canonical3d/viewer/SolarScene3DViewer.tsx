@@ -2249,28 +2249,10 @@ function ViewerSceneContent({
     };
   }, [extensionVolDebugDisposableGeos]);
 
-  const panelGeos = useMemo(() => {
-    return scene.pvPanels.map((p) => ({
-      id: String(p.id),
-      geo: panelQuadGeometry(p),
-    }));
-  }, [scene.pvPanels]);
-
-  /**
-   * Géométrie consolidée des cell lines PV : 1 BufferGeometry pour N panneaux = 1 draw call.
-   * Remplace N <lineSegments> individuels (1 draw call par panneau).
-   */
-  const consolidatedPvCellLinesGeo = useMemo(
-    () => buildConsolidatedCellLinesGeometry(scene.pvPanels),
-    [scene.pvPanels],
-  );
-
-  const pv3dOverlayPanelById = useMemo(() => {
-    const m = new Map<string, PvLayout3dOverlayState["panels"][number]>();
-    if (!pvLayout3dOverlayState) return m;
-    for (const panel of pvLayout3dOverlayState.panels) m.set(String(panel.id), panel);
-    return m;
-  }, [pvLayout3dOverlayState]);
+  // ── pvLayout3D hidden-IDs pipeline ───────────────────────────────────────────
+  // Placé AVANT panelGeos et consolidatedPvCellLinesGeo pour permettre le filtrage
+  // des panneaux masqués dans ces géométries (suppression des cell lines fantômes
+  // qui persistaient à l'ancienne position pendant et après un drag).
 
   const pv3dLivePanelGeos = useMemo(() => {
     if (!pvLayout3DInteractionMode || !pvLayout3dOverlayState) return [];
@@ -2303,7 +2285,8 @@ function ViewerSceneContent({
   );
 
   /**
-   * hiddenPanelIds effectif : panneaux live (drag actif) + panneaux en attente de rebuild.
+   * hiddenPanelIds effectif : panneaux live (drag actif) masqués dans l'InstancedMesh
+   * pendant le drag — l'overlay live les remplace.
    *
    * Règle simplifiée (rendue possible par le gate isManipulating sur pv3dLivePanelGeos) :
    * - pv3dSelectedLivePanelIds n'est non-vide QUE quand CALPINAGE_IS_MANIPULATING=true.
@@ -2312,7 +2295,7 @@ function ViewerSceneContent({
    *     se vide → l'InstancedMesh reprend le rendu normalement.
    * Plus de validatedPanelIdSet ni de logique activeBlock : le gate isManipulating garantit
    * qu'on n'a jamais overlay ET InstancedMesh qui rendent le même panneau simultanément.
-   * La déduplication par blockId dans buildCanonicalPlacedPanelsFromRuntime garantit
+   * La déduplication par panelId dans buildCanonicalPlacedPanelsFromRuntime garantit
    * qu'aucune ancienne position ne subsiste dans pvPanels après rebuild.
    */
   const pvLayout3DEffectiveHiddenIds = useMemo(() => {
@@ -2324,6 +2307,45 @@ function ViewerSceneContent({
     }
     return result;
   }, [pvLayout3DInteractionMode, pv3dSelectedLivePanelIds]);
+
+  // ── Géométries statiques filtrées ─────────────────────────────────────────────
+
+  /**
+   * panelGeos : quads d'inspection (outline sélection, raycasting).
+   * Filtré par pvLayout3DEffectiveHiddenIds pour éviter des meshes d'inspection
+   * fantômes à l'ancienne position pendant le drag.
+   */
+  const panelGeos = useMemo(() => {
+    return scene.pvPanels
+      .filter((p) => !pvLayout3DEffectiveHiddenIds?.has(String(p.id)))
+      .map((p) => ({
+        id: String(p.id),
+        geo: panelQuadGeometry(p),
+      }));
+  }, [scene.pvPanels, pvLayout3DEffectiveHiddenIds]);
+
+  /**
+   * Géométrie consolidée des cell lines PV : 1 BufferGeometry pour N panneaux = 1 draw call.
+   * Remplace N <lineSegments> individuels (1 draw call par panneau).
+   * Filtré par pvLayout3DEffectiveHiddenIds : supprime les cell lines fantômes à l'ancienne
+   * position pendant le drag (l'overlay live affiche ses propres cell lines pour les panneaux
+   * sélectionnés).
+   */
+  const consolidatedPvCellLinesGeo = useMemo(
+    () => buildConsolidatedCellLinesGeometry(
+      pvLayout3DEffectiveHiddenIds?.size
+        ? scene.pvPanels.filter((p) => !pvLayout3DEffectiveHiddenIds.has(String(p.id)))
+        : scene.pvPanels,
+    ),
+    [scene.pvPanels, pvLayout3DEffectiveHiddenIds],
+  );
+
+  const pv3dOverlayPanelById = useMemo(() => {
+    const m = new Map<string, PvLayout3dOverlayState["panels"][number]>();
+    if (!pvLayout3dOverlayState) return m;
+    for (const panel of pvLayout3dOverlayState.panels) m.set(String(panel.id), panel);
+    return m;
+  }, [pvLayout3dOverlayState]);
 
   const pv3dGhostGeos = useMemo(() => {
     if (!pvLayout3DInteractionMode || !pvLayout3dOverlayState) return [];

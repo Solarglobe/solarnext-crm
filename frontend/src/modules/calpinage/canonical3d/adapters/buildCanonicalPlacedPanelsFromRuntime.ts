@@ -299,17 +299,17 @@ export function buildCanonicalPlacedPanelsFromRuntime(
   );
   panelInputs = enrichPanelsForCanonicalShading(panelInputs, input.placementEngine ?? null);
 
-  // Déduplication par blockId : garantit qu'une seule instance par panneau est passée
-  // à buildPvPanels3D. En cas de doublon (même blockId, positions différentes — typique
-  // pendant 1 frame après un drag-commit), on conserve le dernier élément (position la
-  // plus récente). Supprime le besoin de pvRebuildBlockPanelIds dans le viewer.
+  // Déduplication par panelId complet : élimine les doublons stricts (même panneau
+  // présent deux fois dans rawList — ex. 1 frame de transition après un drag-commit).
+  // La clé est le panelId complet (ex. "blockA-3"), PAS le blockId seul, afin de
+  // conserver tous les panneaux distincts d'un même bloc.
+  // En cas de doublon réel (même id, positions différentes), le dernier gagne
+  // (position la plus récente). Supprime le besoin de pvRebuildBlockPanelIds dans le viewer.
   {
     const deduped = new Map<string, (typeof panelInputs)[number]>();
     for (const panel of panelInputs) {
       const panelId = panel.id ?? `panel-${deduped.size}`;
-      const parsed = parsePanelCompositeId(panelId);
-      const key = parsed ? parsed.blockId : panelId;
-      deduped.set(key, panel); // le dernier écrase les précédents → position la plus récente
+      deduped.set(panelId, panel); // le dernier écrase les précédents → position la plus récente
     }
     panelInputs = Array.from(deduped.values());
   }
