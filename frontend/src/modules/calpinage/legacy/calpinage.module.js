@@ -3784,7 +3784,7 @@ export function initCalpinage(container, options = {}) {
        */
       function createRoofExtensionDormerDraft(shapeId, atImgPt) {
         var id = "rx_" + Date.now() + "_" + Math.random().toString(16).slice(2);
-        return {
+        var draft = {
           id: id,
           type: "roof_extension",
           kind: "dormer",
@@ -3796,6 +3796,8 @@ export function initCalpinage(container, options = {}) {
           baseZ: 0,
           meta: { createdAt: Date.now() }
         };
+        ensureRoofExtensionSupportPanId(draft, atImgPt);
+        return draft;
       }
 
       /** Clone un point en préservant h (anti-régression recompute non destructif). */
@@ -3816,6 +3818,7 @@ export function initCalpinage(container, options = {}) {
         if (!p || !finiteDormerNumber(p.x) || !finiteDormerNumber(p.y)) return null;
         var out = { x: p.x, y: p.y };
         if (finiteDormerNumber(p.h)) out.h = p.h;
+        if (finiteDormerNumber(p.heightRelM)) out.heightRelM = p.heightRelM;
         return out;
       }
 
@@ -3835,6 +3838,244 @@ export function initCalpinage(container, options = {}) {
           if (Math.hypot(a.x - b.x, a.y - b.y) < 0.000001) out.pop();
         }
         return out;
+      }
+
+      function getRoofExtensionMetersPerPixel() {
+        var mpp = CALPINAGE_STATE && CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.scale
+          ? CALPINAGE_STATE.roof.scale.metersPerPixel
+          : null;
+        return finiteDormerNumber(mpp) && mpp > 0 ? mpp : 0.1;
+      }
+
+      function roofExtensionFindPanById(id) {
+        if (id == null) return null;
+        var sid = String(id);
+        var pans = CALPINAGE_STATE && Array.isArray(CALPINAGE_STATE.pans) ? CALPINAGE_STATE.pans : [];
+        for (var i = 0; i < pans.length; i++) {
+          if (pans[i] && String(pans[i].id) === sid) return pans[i];
+        }
+        return null;
+      }
+
+      function getRoofExtensionFootprintForMigration(rx) {
+        if (rx && rx.contour && Array.isArray(rx.contour.points) && rx.contour.points.length >= 3) {
+          return stripDormerClosingDuplicate(rx.contour.points);
+        }
+        if (rx && rx.canonicalV1 && Array.isArray(rx.canonicalV1.footprintPx)) {
+          return stripDormerClosingDuplicate(rx.canonicalV1.footprintPx);
+        }
+        return [];
+      }
+
+      function getRoofExtensionRidgeForMigration(rx) {
+        if (rx && rx.ridge && rx.ridge.a && rx.ridge.b) return rx.ridge;
+        if (rx && rx.canonicalV1 && rx.canonicalV1.ridgePx) return rx.canonicalV1.ridgePx;
+        return null;
+      }
+
+      function getRoofExtensionHipsForMigration(rx) {
+        if (rx && rx.hips) return rx.hips;
+        if (rx && rx.canonicalV1 && rx.canonicalV1.hipsPx) return rx.canonicalV1.hipsPx;
+        return null;
+      }
+
+      function roofExtensionCentroidPx(rx) {
+        var pts = getRoofExtensionFootprintForMigration(rx);
+        if (!pts.length) return null;
+        var area = 0;
+        var cx = 0;
+        var cy = 0;
+        for (var i = 0; i < pts.length; i++) {
+          var a = pts[i];
+          var b = pts[(i + 1) % pts.length];
+          var cross = a.x * b.y - b.x * a.y;
+          area += cross;
+          cx += (a.x + b.x) * cross;
+          cy += (a.y + b.y) * cross;
+        }
+        if (Math.abs(area) > 0.000001) {
+          return { x: cx / (3 * area), y: cy / (3 * area) };
+        }
+        cx = 0;
+        cy = 0;
+        pts.forEach(function (p) { cx += p.x; cy += p.y; });
+        return { x: cx / pts.length, y: cy / pts.length };
+      }
+
+      function roofExtensionSignedAreaPx(points) {
+        var area = 0;
+        for (var i = 0; i < points.length; i++) {
+          var a = points[i];
+          var b = points[(i + 1) % points.length];
+          area += a.x * b.y - b.x * a.y;
+        }
+        return area / 2;
+      }
+
+      function resolveRoofExtensionSupportPan(rx, atImgPt) {
+        if (!rx) return null;
+        var explicitId = rx.supportPanId || rx.panId || rx.parentPanId ||
+          (rx.canonicalV1 && rx.canonicalV1.supportPanId);
+        var explicitPan = roofExtensionFindPanById(explicitId);
+        if (explicitPan) return { pan: explicitPan, inferred: false, source: "explicit" };
+
+        var probe = (atImgPt && finiteDormerNumber(atImgPt.x) && finiteDormerNumber(atImgPt.y))
+          ? atImgPt
+          : roofExtensionCentroidPx(rx);
+        if (probe && typeof hitTestPan === "function") {
+          var hit = hitTestPan(probe);
+          if (hit && hit.id != null) return { pan: hit, inferred: true, source: "hit_test" };
+        }
+
+        var selectedId = CALPINAGE_STATE && (CALPINAGE_STATE.selectedPanId ||
+          (CALPINAGE_STATE.phase3 && CALPINAGE_STATE.phase3.activePanId));
+        var selectedPan = roofExtensionFindPanById(selectedId);
+        if (selectedPan) return { pan: selectedPan, inferred: true, source: "selected_pan" };
+        return null;
+      }
+
+      function ensureRoofExtensionSupportPanId(rx, atImgPt) {
+        var resolved = resolveRoofExtensionSupportPan(rx, atImgPt);
+        if (!resolved || !resolved.pan || resolved.pan.id == null) return false;
+        rx.supportPanId = String(resolved.pan.id);
+        rx.supportPanIdSource = resolved.source;
+        rx.supportPanIdInferred = resolved.inferred === true;
+        return true;
+      }
+
+      function pointToRoofExtensionV1Px(p, fallbackH) {
+        var out = { x: p.x, y: p.y, heightRelM: 0 };
+        if (finiteDormerNumber(p.h) && p.h >= 0) out.heightRelM = p.h;
+        else if (finiteDormerNumber(p.heightRelM) && p.heightRelM >= 0) out.heightRelM = p.heightRelM;
+        else if (finiteDormerNumber(fallbackH) && fallbackH >= 0) out.heightRelM = fallbackH;
+        return out;
+      }
+
+      function segmentToRoofExtensionV1(seg, fallbackH) {
+        if (!seg || !seg.a || !seg.b) return null;
+        var a = cloneDormerPoint2(seg.a);
+        var b = cloneDormerPoint2(seg.b);
+        if (!a || !b || Math.hypot(a.x - b.x, a.y - b.y) < 0.000001) return null;
+        return { a: pointToRoofExtensionV1Px(a, fallbackH), b: pointToRoofExtensionV1Px(b, fallbackH) };
+      }
+
+      function buildPersistedRoofExtensionV1(rx, sourceIndex) {
+        if (!rx) return null;
+        ensureRoofExtensionSupportPanId(rx);
+        if (!rx.supportPanId) return null;
+        var footprint = getRoofExtensionFootprintForMigration(rx);
+        if (footprint.length < 3) return null;
+        var ridgeH = finiteDormerNumber(rx.ridgeHeightRelM) && rx.ridgeHeightRelM >= 0 ? rx.ridgeHeightRelM : 1;
+        if ((!finiteDormerNumber(rx.ridgeHeightRelM) || rx.ridgeHeightRelM < 0) && rx.canonicalV1 && rx.canonicalV1.dimensions && finiteDormerNumber(rx.canonicalV1.dimensions.totalHeightM)) {
+          ridgeH = rx.canonicalV1.dimensions.totalHeightM;
+        }
+        var ridge = segmentToRoofExtensionV1(getRoofExtensionRidgeForMigration(rx), ridgeH);
+        if (!ridge) return null;
+        var mpp = getRoofExtensionMetersPerPixel();
+        var areaPx2 = roofExtensionSignedAreaPx(footprint);
+        var ridgeDx = ridge.b.x - ridge.a.x;
+        var ridgeDy = ridge.b.y - ridge.a.y;
+        var ridgeLenPx = Math.hypot(ridgeDx, ridgeDy);
+        if (ridgeLenPx < 0.000001) return null;
+        var maxDepthPx = 0;
+        footprint.forEach(function (p) {
+          maxDepthPx = Math.max(maxDepthPx, Math.abs((p.x - ridge.a.x) * ridgeDy - (p.y - ridge.a.y) * ridgeDx) / ridgeLenPx);
+        });
+        var wallHeightM = finiteDormerNumber(rx.wallHeightM) && rx.wallHeightM >= 0
+          ? rx.wallHeightM
+          : Math.min(0.45, ridgeH);
+        if ((!finiteDormerNumber(rx.wallHeightM) || rx.wallHeightM < 0) && rx.canonicalV1 && rx.canonicalV1.dimensions && finiteDormerNumber(rx.canonicalV1.dimensions.wallHeightM)) {
+          wallHeightM = rx.canonicalV1.dimensions.wallHeightM;
+        }
+        var roofHeightM = Math.max(0, ridgeH - wallHeightM);
+        var axisLen = ridgeLenPx || 1;
+        var ridgeAxisPx = { x: ridgeDx / axisLen, y: ridgeDy / axisLen };
+        var depthAxisPx = { x: -ridgeAxisPx.y, y: ridgeAxisPx.x };
+        var hips = null;
+        var hipsSource = getRoofExtensionHipsForMigration(rx);
+        if (hipsSource && (hipsSource.left || hipsSource.right)) {
+          var left = segmentToRoofExtensionV1(hipsSource.left, ridgeH);
+          var right = segmentToRoofExtensionV1(hipsSource.right, ridgeH);
+          if (left || right) {
+            hips = {};
+            if (left) hips.left = left;
+            if (right) hips.right = right;
+          }
+        }
+        var apexPx = null;
+        var apexId = null;
+        if (rx.apexVertex && finiteDormerNumber(rx.apexVertex.x) && finiteDormerNumber(rx.apexVertex.y)) {
+          apexId = typeof rx.apexVertex.id === "string" && rx.apexVertex.id ? rx.apexVertex.id : (rx.id + ":apex");
+          apexPx = pointToRoofExtensionV1Px(rx.apexVertex, ridgeH);
+        }
+        return {
+          version: "roof_extension_v1",
+          id: String(rx.id || ("roof-extension-" + (sourceIndex || 0))),
+          kind: rx.kind === "shed" || rx.kind === "flat_extension" || rx.kind === "chien_assis" ? rx.kind : "dormer",
+          supportPanId: String(rx.supportPanId),
+          footprintPx: footprint.map(function (p) { return pointToRoofExtensionV1Px(p, 0); }),
+          footprintWinding: areaPx2 >= 0 ? "counter_clockwise" : "clockwise",
+          ridgePx: ridge,
+          hipsPx: hips,
+          apexId: apexId,
+          apexPx: apexPx,
+          dimensions: {
+            widthM: ridgeLenPx * mpp,
+            depthM: maxDepthPx * mpp,
+            footprintAreaM2: Math.abs(areaPx2) * mpp * mpp,
+            wallHeightM: wallHeightM,
+            roofHeightM: roofHeightM,
+            totalHeightM: ridgeH
+          },
+          orientation: {
+            ridgeAxisPx: ridgeAxisPx,
+            depthAxisPx: depthAxisPx,
+            ridgeAngleDeg: Math.atan2(ridgeAxisPx.y, ridgeAxisPx.x) * 180 / Math.PI
+          },
+          roof: {
+            topologyType: rx.kind === "shed" ? "shed_dormer" : (rx.kind === "flat_extension" ? "flat_extension" : "gable_dormer"),
+            pitchDeg: maxDepthPx > 0.000001 ? Math.atan2(roofHeightM, maxDepthPx * mpp) * 180 / Math.PI : null,
+            eaveOffsetM: 0.04,
+            seamOffsetM: 0.02
+          },
+          render: {
+            materialFamily: "roof_extension_premium",
+            showDebugLines: false,
+            selectable: true
+          },
+          pv: {
+            keepoutSource: "footprint",
+            keepoutOffsetM: 0.08,
+            shadowSource: "canonical_mesh",
+            raycastSource: "canonical_mesh"
+          },
+          provenance: {
+            source: "legacy_runtime_roof_extension",
+            sourceIndex: typeof sourceIndex === "number" ? sourceIndex : -1,
+            inferredSupportPanId: rx.supportPanIdInferred === true,
+            ignoredLegacyFields: [
+              "canonicalDormerGeometry",
+              "dormerModel",
+              "visualModel",
+              "stage"
+            ]
+          }
+        };
+      }
+
+      function syncPersistedRoofExtensionV1(rx, sourceIndex, atImgPt) {
+        if (!rx) return rx;
+        ensureRoofExtensionSupportPanId(rx, atImgPt);
+        var v1 = buildPersistedRoofExtensionV1(rx, sourceIndex);
+        if (v1) rx.canonicalV1 = v1;
+        else delete rx.canonicalV1;
+        return rx;
+      }
+
+      function syncAllPersistedRoofExtensionV1() {
+        var list = Array.isArray(CALPINAGE_STATE.roofExtensions) ? CALPINAGE_STATE.roofExtensions : [];
+        list.forEach(function (rx, index) { syncPersistedRoofExtensionV1(rx, index); });
+        return list;
       }
 
       function buildDormerParametricGeometryFromContour(points) {
@@ -4099,6 +4340,7 @@ export function initCalpinage(container, options = {}) {
         if (!rx) return rx;
         if (rx.visualModel === "manual_outline_gable") rebuildDormerCanonicalGeometry(rx);
         else syncDormerParametricGeometry(rx);
+        syncPersistedRoofExtensionV1(rx);
         return rx;
       }
 
@@ -4280,9 +4522,12 @@ export function initCalpinage(container, options = {}) {
           ridge: null,
           visualModel: "manual_outline_gable",
           ridgeHeightRelM: draft.ridgeHeightRelM != null ? draft.ridgeHeightRelM : 0.8,
-          baseZ: 0
+          baseZ: 0,
+          supportPanId: draft.supportPanId || null
         };
+        ensureRoofExtensionSupportPanId(rxPartiel);
         rebuildDormerCanonicalGeometry(rxPartiel);
+        syncPersistedRoofExtensionV1(rxPartiel);
         CALPINAGE_STATE.roofExtensions = CALPINAGE_STATE.roofExtensions || [];
         CALPINAGE_STATE.roofExtensions.push(rxPartiel);
         return CALPINAGE_STATE.roofExtensions.length - 1;
@@ -4319,6 +4564,7 @@ export function initCalpinage(container, options = {}) {
           ]
         };
         applyDormerParametricVisualDefaults(draft);
+        syncPersistedRoofExtensionV1(draft);
         CALPINAGE_STATE.roofExtensions = CALPINAGE_STATE.roofExtensions || [];
         CALPINAGE_STATE.roofExtensions.push(draft);
         return CALPINAGE_STATE.roofExtensions.length - 1;
@@ -4339,6 +4585,7 @@ export function initCalpinage(container, options = {}) {
             rx.ridge = { a: clonePointPreserveHeight(ridge.a), b: clonePointPreserveHeight(ridge.b) };
             rx.stage = "COMPLETE";
             applyDormerParametricVisualDefaults(rx);
+            syncPersistedRoofExtensionV1(rx, drawState.dormerEditRxIndex);
           }
           drawState.dormerEditRxIndex = null;
         } else {
@@ -4348,6 +4595,7 @@ export function initCalpinage(container, options = {}) {
           dormerFinal.ridge = dormerFinal.ridge || { a: null, b: null };
           dormerFinal.hips = dormerFinal.hips || { left: null, right: null };
           applyDormerParametricVisualDefaults(dormerFinal);
+          syncPersistedRoofExtensionV1(dormerFinal);
           CALPINAGE_STATE.roofExtensions = CALPINAGE_STATE.roofExtensions || [];
           CALPINAGE_STATE.roofExtensions.push(dormerFinal);
           drawState.dormerDraft = null;
@@ -9804,7 +10052,7 @@ export function initCalpinage(container, options = {}) {
           if (Array.isArray(data.shadowVolumes)) CALPINAGE_STATE.shadowVolumes = data.shadowVolumes;
           if (Array.isArray(data.roofExtensions)) {
             CALPINAGE_STATE.roofExtensions = data.roofExtensions;
-            CALPINAGE_STATE.roofExtensions.forEach(function (rx) {
+            CALPINAGE_STATE.roofExtensions.forEach(function (rx, index) {
               if (!rx) return;
               var hasRidge = rx.ridge && rx.ridge.a && rx.ridge.b;
               var hasHips = rx.hips && rx.hips.left && rx.hips.right && rx.hips.left.b && rx.hips.right.b;
@@ -9816,6 +10064,7 @@ export function initCalpinage(container, options = {}) {
               }
               if (rx.visualModel === "manual_outline_gable" && hasRidge) rebuildDormerCanonicalGeometry(rx);
               if (rx.visualModel === "manual_outline_gable") syncRoofExtensionSharedApex(rx);
+              syncPersistedRoofExtensionV1(rx, index);
             });
           }
           var restoreBlocks = (window.pvPlacementEngine && window.pvPlacementEngine.restoreFrozenBlocks) || (window.ActivePlacementBlock && window.ActivePlacementBlock.restoreFrozenBlocks);
@@ -11397,7 +11646,7 @@ export function initCalpinage(container, options = {}) {
             pvParams: CALPINAGE_STATE.pvParams,
             placedPanels: CALPINAGE_STATE.placedPanels || [],
             shadowVolumes: CALPINAGE_STATE.shadowVolumes || [],
-            roofExtensions: CALPINAGE_STATE.roofExtensions || [],
+            roofExtensions: syncAllPersistedRoofExtensionV1(),
             frozenBlocks: (function () {
               var getFrozen = (window.pvPlacementEngine && window.pvPlacementEngine.getFrozenBlocks) || (window.ActivePlacementBlock && window.ActivePlacementBlock.getFrozenBlocks);
               return typeof getFrozen === "function" ? getFrozen() : [];

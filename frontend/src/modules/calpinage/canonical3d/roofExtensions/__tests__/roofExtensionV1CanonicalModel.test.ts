@@ -75,4 +75,80 @@ describe("RoofExtensionV1 canonical model", () => {
     expect(res.quality.diagnostics.some((d) => d.code === "ROOF_EXTENSION_V1_FOOTPRINT_SELF_INTERSECTION")).toBe(true);
     expect(res.quality.diagnostics.some((d) => d.code === "ROOF_EXTENSION_V1_BUILD_BLOCKED")).toBe(true);
   });
+
+  it("relit un modele canonicalV1 persiste quand les champs legacy libres sont absents", () => {
+    const patch = makeSupportPatch("pan-persisted-v1", 0);
+    const res = buildRoofExtensions3DFromRuntime({
+      runtime: {
+        roofExtensions: [{
+          id: "rx-persisted",
+          type: "roof_extension",
+          canonicalV1: {
+            version: "roof_extension_v1",
+            id: "rx-persisted",
+            kind: "dormer",
+            supportPanId: "pan-persisted-v1",
+            footprintPx: [
+              { x: 1, y: 1, heightRelM: 0 },
+              { x: 4, y: 1, heightRelM: 0 },
+              { x: 4, y: 4, heightRelM: 0 },
+              { x: 1, y: 4, heightRelM: 0 },
+            ],
+            footprintWinding: "counter_clockwise",
+            ridgePx: {
+              a: { x: 2.5, y: 1.5, heightRelM: 1.1 },
+              b: { x: 2.5, y: 3.5, heightRelM: 1.1 },
+            },
+            hipsPx: null,
+            apexId: null,
+            apexPx: null,
+            dimensions: {
+              widthM: 0.2,
+              depthM: 0.3,
+              footprintAreaM2: 0.09,
+              wallHeightM: 0.35,
+              roofHeightM: 0.75,
+              totalHeightM: 1.1,
+            },
+            orientation: {
+              ridgeAxisPx: { x: 0, y: 1 },
+              depthAxisPx: { x: -1, y: 0 },
+              ridgeAngleDeg: 90,
+            },
+            roof: {
+              topologyType: "gable_dormer",
+              pitchDeg: 35,
+              eaveOffsetM: 0.04,
+              seamOffsetM: 0.02,
+            },
+            render: {
+              materialFamily: "roof_extension_premium",
+              showDebugLines: false,
+              selectable: true,
+            },
+            pv: {
+              keepoutSource: "footprint",
+              keepoutOffsetM: 0.08,
+              shadowSource: "canonical_mesh",
+              raycastSource: "canonical_mesh",
+            },
+            provenance: {
+              source: "legacy_runtime_roof_extension",
+              sourceIndex: 0,
+              inferredSupportPanId: false,
+              ignoredLegacyFields: ["stage"],
+            },
+          },
+        }],
+      },
+      roofPlanePatches: [patch],
+      ...WORLD,
+    });
+
+    expect(res.extensionVolumes).toHaveLength(1);
+    expect(res.extensionVolumes[0]!.relatedPlanePatchIds).toContain("pan-persisted-v1");
+    expect(res.extensionVolumes[0]!.topology?.canonicalDimensions?.totalHeightM).toBe(1.1);
+    expect(res.quality.diagnostics.some((d) => d.code === "ROOF_EXTENSION_SOURCE_FROM_CANONICAL_V1")).toBe(true);
+    expect(res.quality.diagnostics.some((d) => d.code === "ROOF_EXTENSION_V1_VALID")).toBe(true);
+  });
 });
