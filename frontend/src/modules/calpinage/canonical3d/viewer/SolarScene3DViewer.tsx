@@ -2358,6 +2358,10 @@ function ViewerSceneContent({
 
   const pv3dGhostGeos = useMemo(() => {
     if (!pvLayout3DInteractionMode || !pvLayout3dOverlayState) return [];
+    // Gate isManipulating : les ghosts autofill ne sont visibles que pendant un drag actif.
+    // Sans ce gate, les fantômes s'affichaient en permanence dès l'entrée en mode pvLayout3D,
+    // apparaissant comme des overlays persistants hors panneaux entre deux poses.
+    if (!pvLayout3dOverlayState.isManipulating) return [];
     return pvLayout3dOverlayState.ghosts.flatMap((g) => {
       const fill = imagePolygonToRoofMeshGeometry(scene, g.points, g.panId, 0.052);
       const line = imagePolygonToRoofLineGeometry(scene, g.points, g.panId, 0.06);

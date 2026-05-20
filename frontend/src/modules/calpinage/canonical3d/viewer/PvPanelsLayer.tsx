@@ -172,6 +172,12 @@ export function PvPanelsLayer({
           geometry={consolidatedPvCellLinesGeo}
           renderOrder={pvLayout3DInteractionMode ? 21 : 3}
         >
+          {/*
+           * polygonOffset retiré : WebGL ignore gl.POLYGON_OFFSET_FILL pour les
+           * primitives LINE_SEGMENTS — c'est du dead code confirmé par la spec WebGL.
+           * Le seul mécanisme actif contre le z-fighting est CELL_LINE_NORMAL_OFFSET_M
+           * dans buildCellLinesGeometry.ts, augmenté de 0.018 → 0.040 m.
+           */}
           <lineBasicMaterial
             color={PREMIUM_PV_CELL_LINE}
             transparent
@@ -179,8 +185,6 @@ export function PvPanelsLayer({
             depthWrite={false}
             toneMapped={false}
             depthTest
-            polygonOffset
-            {...getDepthOffset("PV_CELL_LINE")}
           />
         </lineSegments>
       )}

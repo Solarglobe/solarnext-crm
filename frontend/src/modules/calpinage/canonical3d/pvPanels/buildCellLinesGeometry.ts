@@ -20,8 +20,17 @@
 import * as THREE from "three";
 import type { PvPanelSurface3D } from "../types/pv-panel-3d";
 
-/** Offset normal (m) pour éviter le z-fighting panneau/cell lines (identique à l'implémentation individuelle). */
-const CELL_LINE_NORMAL_OFFSET_M = 0.018;
+/**
+ * Offset normal (m) appliqué le long de outwardNormal pour séparer les cell lines
+ * de la surface du panneau dans le depth buffer.
+ *
+ * Note WebGL : polygonOffset est inopérant sur les primitives LINE_SEGMENTS.
+ * Ce décalage géométrique est le SEUL mécanisme actif contre le z-fighting.
+ * 0.040 m = 4 cm — suffisant jusqu'à ~300 m distance caméra avec depth buffer 24 bits
+ * (precision ≈ 0.047 m à 300 m, near=0.05, far=5000), couvre GPU mobiles depth16.
+ * Valeur précédente : 0.018 m — insuffisante sur GPU mobile ou vue éloignée.
+ */
+const CELL_LINE_NORMAL_OFFSET_M = 0.040;
 
 /**
  * Construit un seul BufferGeometry contenant les segments de grille de toutes les cellules PV
@@ -102,23 +111,11 @@ export function buildConsolidatedCellLinesGeometry(
       );
     }
 
-    // Lignes de jonction inter-cellules (2 lignes selon l'axe dominant)
-    for (let i = 1; i <= 2; i++) {
-      const t = i / 3;
-      if (wM >= hM) {
-        // Panneau en paysage : jonctions horizontales supplémentaires
-        push(
-          lx(p0x, p1x, t), lx(p0y, p1y, t), lx(p0z, p1z, t),
-          lx(p3x, p2x, t), lx(p3y, p2y, t), lx(p3z, p2z, t),
-        );
-      } else {
-        // Panneau en portrait : jonctions verticales supplémentaires
-        push(
-          lx(p0x, p3x, t), lx(p0y, p3y, t), lx(p0z, p3z, t),
-          lx(p1x, p2x, t), lx(p1y, p2y, t), lx(p1z, p2z, t),
-        );
-      }
-    }
+    // Jonctions inter-cellules supprimées : elles dupliquaient des segments déjà
+    // tracés par les boucles cols/rows quand cols ou rows est multiple de 3.
+    // Exemple : panneau 1m×1.65m → cols=6, jonctions à t=1/3=2/6 et t=2/3=4/6
+    // = identiques aux colonnes 2 et 4 → segments dessinés deux fois → lignes
+    // visuellement plus épaisses/lumineuses à ces positions (artefact confirmé).
   }
 
   if (allPositions.length === 0) return null;
