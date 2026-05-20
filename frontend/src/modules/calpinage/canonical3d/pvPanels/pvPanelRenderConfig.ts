@@ -6,7 +6,7 @@
  * solve a coplanar roof/panel depth fight with polygonOffset alone.
  */
 export const PV_PANEL_THICKNESS_M = 0.03;
-export const PV_PANEL_ROOF_GAP_M = 0.05;
+export const PV_PANEL_ROOF_GAP_M = 0.06;
 
 // Top glass surface lift. The panel underside sits PV_PANEL_ROOF_GAP_M above the roof.
 export const PV_PANEL_RENDER_LIFT_M = PV_PANEL_ROOF_GAP_M + PV_PANEL_THICKNESS_M;

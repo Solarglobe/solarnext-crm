@@ -840,7 +840,7 @@ function panelSurfaceMaterial(
   const tintHex = premiumTintHexForQualityScore(
     eff.state === "AVAILABLE" ? eff.qualityScore01 : null,
   );
-  const color = blendPvSurfaceColor(tintHex, eff.state === "AVAILABLE" ? 0.46 : 0.24);
+  const color = blendPvSurfaceColor(tintHex, eff.state === "AVAILABLE" ? 0.18 : 0.1);
   const em = new THREE.Color(tintHex);
   return {
     color,

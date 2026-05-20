@@ -44,8 +44,15 @@ export function premiumTintHexForQualityScore(score01: number | null): string {
   return lerpHex(POOR_DEEP, POOR, t);
 }
 
-/** Base module photovoltaïque (sombre, crédible). */
-export const PV_BASE_SURFACE_HEX = "#1a222c";
+/**
+ * Light multiplier for the atomic PV texture.
+ *
+ * InstancedMesh applies instanceColor as a multiplier on top of the Canvas map.
+ * A dark "PV base" here makes distant mipmaps collapse to full black, because
+ * the already-dark cell texture is multiplied again. Keep this near-white and
+ * let the texture itself carry the photovoltaic darkness/details.
+ */
+export const PV_BASE_SURFACE_HEX = "#d8e8f8";
 
 export function blendPvSurfaceColor(tintHex: string, strength = 0.42): number {
   const base = new THREE.Color(PV_BASE_SURFACE_HEX);

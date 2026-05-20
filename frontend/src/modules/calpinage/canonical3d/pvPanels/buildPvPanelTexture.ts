@@ -60,15 +60,15 @@ function drawPvPanelTexture(ctx: CanvasRenderingContext2D, variant: PvPanelTextu
   ctx.clearRect(0, 0, s, s);
 
   const bg = ctx.createLinearGradient(0, 0, s, s);
-  bg.addColorStop(0, variant === "live" ? "rgba(40, 78, 120, 1)" : "rgba(20, 43, 76, 1)");
-  bg.addColorStop(0.52, variant === "live" ? "rgba(19, 48, 88, 1)" : "rgba(11, 30, 58, 1)");
-  bg.addColorStop(1, "rgba(5, 15, 32, 1)");
+  bg.addColorStop(0, variant === "live" ? "rgba(56, 104, 150, 1)" : "rgba(34, 70, 112, 1)");
+  bg.addColorStop(0.52, variant === "live" ? "rgba(29, 72, 124, 1)" : "rgba(21, 52, 92, 1)");
+  bg.addColorStop(1, "rgba(12, 30, 58, 1)");
   ctx.globalAlpha = alpha;
   ctx.fillStyle = bg;
   drawRoundedRect(ctx, 0, 0, s, s, 12);
   ctx.fill();
 
-  ctx.fillStyle = variant === "live" ? "rgba(68, 120, 172, 0.28)" : "rgba(44, 84, 130, 0.22)";
+  ctx.fillStyle = variant === "live" ? "rgba(92, 146, 194, 0.3)" : "rgba(64, 112, 158, 0.26)";
   drawRoundedRect(ctx, bodyX, bodyY, bodyW, bodyH, 8);
   ctx.fill();
 
@@ -78,17 +78,17 @@ function drawPvPanelTexture(ctx: CanvasRenderingContext2D, variant: PvPanelTextu
       const y = bodyY + cellGap + row * (cellH + cellGap);
       const variation = ((row * 17 + col * 31) % 7) / 100;
       const g = ctx.createLinearGradient(x, y, x + cellW, y + cellH);
-      g.addColorStop(0, variant === "live" ? "rgba(60, 110, 166, 0.78)" : `rgba(31, 66, 110, ${0.84 + variation})`);
-      g.addColorStop(0.58, variant === "live" ? "rgba(28, 70, 122, 0.86)" : `rgba(13, 39, 76, ${0.91 + variation})`);
-      g.addColorStop(1, "rgba(7, 20, 42, 0.98)");
+      g.addColorStop(0, variant === "live" ? "rgba(82, 135, 190, 0.82)" : `rgba(50, 96, 150, ${0.84 + variation})`);
+      g.addColorStop(0.58, variant === "live" ? "rgba(40, 88, 145, 0.9)" : `rgba(25, 64, 116, ${0.91 + variation})`);
+      g.addColorStop(1, "rgba(13, 34, 68, 0.98)");
       ctx.fillStyle = g;
       drawRoundedRect(ctx, x, y, cellW, cellH, 4);
       ctx.fill();
     }
   }
 
-  ctx.strokeStyle = variant === "live" ? "rgba(198, 224, 242, 0.36)" : "rgba(176, 204, 226, 0.26)";
-  ctx.lineWidth = 2;
+  ctx.strokeStyle = variant === "live" ? "rgba(210, 232, 246, 0.44)" : "rgba(190, 218, 238, 0.34)";
+  ctx.lineWidth = 3;
   for (let col = 1; col < cols; col++) {
     const x = bodyX + cellGap + col * cellW + (col - 0.5) * cellGap;
     ctx.beginPath();
@@ -104,8 +104,8 @@ function drawPvPanelTexture(ctx: CanvasRenderingContext2D, variant: PvPanelTextu
     ctx.stroke();
   }
 
-  ctx.strokeStyle = "rgba(224, 237, 246, 0.18)";
-  ctx.lineWidth = 2;
+  ctx.strokeStyle = "rgba(232, 242, 250, 0.24)";
+  ctx.lineWidth = 3;
   for (const x of [bodyX + bodyW * 0.33, bodyX + bodyW * 0.67]) {
     ctx.beginPath();
     ctx.moveTo(x, bodyY + cellGap * 1.4);
@@ -114,8 +114,8 @@ function drawPvPanelTexture(ctx: CanvasRenderingContext2D, variant: PvPanelTextu
   }
 
   const shine = ctx.createLinearGradient(0, 0, s, s * 0.55);
-  shine.addColorStop(0, "rgba(255, 255, 255, 0.12)");
-  shine.addColorStop(0.25, "rgba(255, 255, 255, 0.035)");
+  shine.addColorStop(0, "rgba(255, 255, 255, 0.16)");
+  shine.addColorStop(0.25, "rgba(255, 255, 255, 0.05)");
   shine.addColorStop(0.6, "rgba(255, 255, 255, 0)");
   ctx.fillStyle = shine;
   drawRoundedRect(ctx, 0, 0, s, s, 12);
