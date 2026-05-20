@@ -209,6 +209,11 @@ function HorizonMaskRing3D({ mask, center }: HorizonMaskRing3DProps) {
     return geo;
   }, [mask, center]);
 
+  // Dispose propre : libère la mémoire GPU quand mask/center changent ou au démontage.
+  // Sans ce cleanup, chaque changement de mask alloue une nouvelle BufferGeometry
+  // sans libérer l'ancienne (fuite GPU garantie).
+  useEffect(() => () => { geometry?.dispose(); }, [geometry]);
+
   if (!geometry) return null;
 
   return (
@@ -2300,6 +2305,10 @@ function ViewerSceneContent({
    */
   const pvLayout3DEffectiveHiddenIds = useMemo(() => {
     if (!pvLayout3DInteractionMode) return undefined;
+    // Stabilise la référence : retourner undefined si aucun panneau n'est masqué.
+    // Évite de déclencher panelGeos + consolidatedPvCellLinesGeo inutilement à chaque
+    // rebuild de scène hors drag actif (thrash GPU : N dispose + N alloc par commit).
+    if (pv3dSelectedLivePanelIds.size === 0) return undefined;
     const result = new Set<string>();
     // Pendant le drag : masquer dans l'InstancedMesh (l'overlay live prend le relais)
     for (const id of pv3dSelectedLivePanelIds) {

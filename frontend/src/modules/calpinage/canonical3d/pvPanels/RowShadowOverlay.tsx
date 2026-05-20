@@ -17,7 +17,7 @@
  * Composant @react-three/fiber pur — aucune mutation store, aucun effet de bord.
  */
 
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import * as THREE from "three";
 import { computeSunPosition } from "../../dsmOverlay/solarPosition";
 
@@ -154,17 +154,27 @@ export function RowShadowOverlay({
         const shadowCenterY = cy - shadowDirHoriz.y * (shadowLen / 2);
         const shadowCenterZ = baseZ; // au sol (hauteur du bas du panneau)
 
+        // Géométrie créée une seule fois dans ce useMemo — disposée via useEffect ci-dessous.
+        // Évite la fuite GPU de <planeGeometry args> inline qui recréait une PlaneGeometry
+        // à chaque changement de width/depth sans disposer l'ancienne.
+        const geo = new THREE.PlaneGeometry(panel.widthM, shadowLen);
         return {
           key: `row-shadow-${idx}`,
           position: [shadowCenterX, shadowCenterY, shadowCenterZ] as [number, number, number],
-          width: panel.widthM,
-          depth: shadowLen,
+          geo,
           // Rotation pour aligner le plan avec la direction d'ombre
           rotationZ: Math.atan2(shadowDirHoriz.x, shadowDirHoriz.y),
         };
       })
       .filter((m): m is NonNullable<typeof m> => m !== null);
   }, [panels, sunPos, visible]);
+
+  // Dispose propre : libère la mémoire GPU quand shadowMeshes change ou au démontage.
+  useEffect(() => {
+    return () => {
+      for (const m of shadowMeshes) m.geo.dispose();
+    };
+  }, [shadowMeshes]);
 
   if (!visible || shadowMeshes.length === 0) return null;
 
@@ -173,11 +183,11 @@ export function RowShadowOverlay({
       {shadowMeshes.map((shadow) => (
         <mesh
           key={shadow.key}
+          geometry={shadow.geo}
           position={shadow.position}
           rotation={[-Math.PI / 2, 0, shadow.rotationZ]}
           raycast={() => null}
         >
-          <planeGeometry args={[shadow.width, shadow.depth]} />
           <meshBasicMaterial
             color={SHADOW_COLOR}
             transparent
