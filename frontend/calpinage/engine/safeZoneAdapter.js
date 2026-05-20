@@ -2,7 +2,7 @@
  * CP-PV-014 — Adaptateur pour Safe Zone Engine
  * CP-PV-015 — Safe Zone Visual + Panel Validation
  *
- * Mappe les structures calpinage (state.pans, state.obstacles, shadowVolumes, roofExtensions)
+ * Mappe les structures calpinage (state.pans, state.obstacles, shadowVolumes, roofExtensions canonicalV1)
  * vers le format attendu par computeSafeZones. Fournit drawSafeZoneOverlay et isPanelInsideSafeZone.
  *
  * @module safeZoneAdapter
@@ -58,23 +58,36 @@ function shadowVolumeToObstacle(sv, mpp) {
   };
 }
 
-/**
- * Convertit une roof extension en obstacle (contour.points).
- * @param {Object} rx - { id, contour: { points } }
- * @returns {{ id: string, polygonPx: Array<{x,y}> }|null}
- */
-function roofExtensionToObstacle(rx) {
-  if (!rx || !rx.contour || !rx.contour.points) return null;
-  const pts = rx.contour.points;
-  if (!Array.isArray(pts) || pts.length < 3) return null;
-  const polygonPx = pts.map((p) => ({ x: Number(p.x) || 0, y: Number(p.y) || 0 }));
+function readClosedPointPolygonPx(points) {
+  if (!Array.isArray(points) || points.length < 3) return null;
+  const polygonPx = points
+    .map((p) => ({ x: Number(p?.x), y: Number(p?.y) }))
+    .filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y));
+  if (polygonPx.length < 3) return null;
   const first = polygonPx[0];
   const last = polygonPx[polygonPx.length - 1];
   if (first.x !== last.x || first.y !== last.y) {
     polygonPx.push({ x: first.x, y: first.y });
   }
+  return polygonPx;
+}
+
+/**
+ * Convertit une roof extension en obstacle safe-zone.
+ * Source prioritaire : canonicalV1.footprintPx. Le contour legacy reste un pont UX
+ * pour les anciens dossiers et les drafts encore incomplets.
+ * @param {Object} rx - { id, canonicalV1?: { footprintPx }, contour?: { points } }
+ * @returns {{ id: string, polygonPx: Array<{x,y}> }|null}
+ */
+function roofExtensionToObstacle(rx) {
+  if (!rx) return null;
+  const canonical = rx.canonicalV1 && rx.canonicalV1.version === "roof_extension_v1" ? rx.canonicalV1 : null;
+  const polygonPx =
+    readClosedPointPolygonPx(canonical?.footprintPx) ??
+    readClosedPointPolygonPx(rx.contour?.points);
+  if (!polygonPx) return null;
   return {
-    id: "rx:" + (rx.id != null ? String(rx.id) : "rx"),
+    id: (canonical ? "rxv1:" : "rx:") + (rx.id != null ? String(rx.id) : "rx"),
     polygonPx,
   };
 }
@@ -282,7 +295,7 @@ function getObstaclePolygonPx(obstacle) {
 
 /**
  * Adapte state calpinage et appelle computeSafeZones.
- * Fusionne obstacles + shadowVolumes (convertis) + roofExtensions (contours).
+ * Fusionne obstacles + shadowVolumes (convertis) + roofExtensions (canonicalV1.footprintPx prioritaire, contour legacy en repli).
  *
  * @param {{
  *   pans: Array<Object>,

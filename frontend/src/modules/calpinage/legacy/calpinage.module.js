@@ -4143,6 +4143,23 @@ export function initCalpinage(container, options = {}) {
         return list;
       }
 
+      function roofExtensionSafeZoneCacheSignature(list) {
+        if (!Array.isArray(list) || list.length === 0) return "";
+        function q(n) {
+          return finiteDormerNumber(n) ? Math.round(n * 100) / 100 : "x";
+        }
+        return list.map(function (rx, index) {
+          var v1 = rx && rx.canonicalV1 && rx.canonicalV1.version === "roof_extension_v1" ? rx.canonicalV1 : null;
+          var pts = v1 && Array.isArray(v1.footprintPx) && v1.footprintPx.length >= 3
+            ? v1.footprintPx
+            : getRoofExtensionFootprintForMigration(rx);
+          var support = (v1 && v1.supportPanId) || (rx && (rx.supportPanId || rx.panId || rx.parentPanId)) || "";
+          var height = v1 && v1.dimensions ? v1.dimensions.totalHeightM : (rx && rx.ridgeHeightRelM);
+          var fp = (pts || []).map(function (p) { return q(p && p.x) + "," + q(p && p.y); }).join(";");
+          return String((rx && rx.id) || ("rx-" + index)) + "@" + support + "@" + q(height) + ":" + fp;
+        }).sort().join("|");
+      }
+
       function hydrateRoofExtension2DFromV1IfPresent(rx) {
         if (!rx || !rx.canonicalV1 || rx.canonicalV1.version !== "roof_extension_v1") return rx;
         mirrorRoofExtensionLegacyFromV1(rx);
@@ -23327,7 +23344,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               var panIds = pans.map(function (p) { return (p && p.id) || ""; }).sort().join(",");
               var obsIds = obstacles.map(function (o) { return (o && o.id) || ""; }).sort().join(",");
               var svIds = shadowVolumes.map(function (s) { return (s && s.id) || ""; }).sort().join(",");
-              var rxIds = roofExtensions.map(function (r) { return (r && r.id) || ""; }).sort().join(",");
+              var rxSig = roofExtensionSafeZoneCacheSignature(roofExtensions);
               var flatRoofSig = pans
                 .map(function (pp) {
                   if (!pp || pp.roofType !== "FLAT") return "";
@@ -23353,7 +23370,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 })
                 .sort()
                 .join(";");
-              var cacheKey = (panIds + "|" + obsIds + "|" + svIds + "|" + rxIds + "|" + marginOuterCm + "|" + mpp + "|" + flatRoofSig).replace(/\./g, "_");
+              var cacheKey = (panIds + "|" + obsIds + "|" + svIds + "|" + rxSig + "|" + marginOuterCm + "|" + mpp + "|" + flatRoofSig).replace(/\./g, "_");
               var safeZoneCache = safeZonePh3.cache;
               if (!safeZoneCache || safeZoneCache._key !== cacheKey) {
                 try {

@@ -981,6 +981,81 @@ function imagePolygonToRoofRibbonGeometry(
   return geo;
 }
 
+function worldPolygonLineGeometry(
+  points: readonly { readonly x: number; readonly y: number; readonly z: number }[],
+  normal: THREE.Vector3,
+  offsetM: number,
+): THREE.BufferGeometry | null {
+  if (points.length < 2) return null;
+  const positions: number[] = [];
+  for (let i = 0; i < points.length; i++) {
+    const a = points[i]!;
+    const b = points[(i + 1) % points.length]!;
+    positions.push(
+      a.x + normal.x * offsetM,
+      a.y + normal.y * offsetM,
+      a.z + normal.z * offsetM,
+      b.x + normal.x * offsetM,
+      b.y + normal.y * offsetM,
+      b.z + normal.z * offsetM,
+    );
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geo.computeBoundingSphere();
+  return geo;
+}
+
+function worldPolygonRibbonGeometry(
+  points: readonly { readonly x: number; readonly y: number; readonly z: number }[],
+  normal: THREE.Vector3,
+  offsetM: number,
+  widthM: number,
+): THREE.BufferGeometry | null {
+  if (points.length < 2) return null;
+  const positions: number[] = [];
+  const indices: number[] = [];
+  const halfWidth = Math.max(0.01, widthM) / 2;
+  for (let i = 0; i < points.length; i++) {
+    const pa = points[i]!;
+    const pb = points[(i + 1) % points.length]!;
+    const a = new THREE.Vector3(pa.x, pa.y, pa.z).addScaledVector(normal, offsetM);
+    const b = new THREE.Vector3(pb.x, pb.y, pb.z).addScaledVector(normal, offsetM);
+    const edge = new THREE.Vector3().subVectors(b, a);
+    if (edge.lengthSq() < 1e-8) continue;
+    const side = new THREE.Vector3().crossVectors(edge.normalize(), normal).normalize().multiplyScalar(halfWidth);
+    const base = positions.length / 3;
+    const a1 = a.clone().add(side);
+    const b1 = b.clone().add(side);
+    const b2 = b.clone().sub(side);
+    const a2 = a.clone().sub(side);
+    positions.push(a1.x, a1.y, a1.z, b1.x, b1.y, b1.z, b2.x, b2.y, b2.z, a2.x, a2.y, a2.z);
+    indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
+  }
+  if (positions.length === 0) return null;
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geo.setIndex(indices);
+  geo.computeVertexNormals();
+  geo.computeBoundingSphere();
+  return geo;
+}
+
+function extensionV1FootprintSafeZoneGeometries(
+  scene: SolarScene3D,
+  extension: SolarScene3D["extensionVolumes"][number],
+): { readonly id: string; readonly ribbon: THREE.BufferGeometry | null; readonly line: THREE.BufferGeometry | null } | null {
+  if (extension.footprintWorld.length < 3) return null;
+  const supportId = extension.topology?.supportPlanePatchId ?? extension.relatedPlanePatchIds[0] ?? null;
+  const patch = scene.roofModel.roofPlanePatches.find((p) => String(p.id) === String(supportId));
+  const normal = patch
+    ? new THREE.Vector3(patch.normal.x, patch.normal.y, patch.normal.z).normalize()
+    : new THREE.Vector3(0, 0, 1);
+  const ribbon = worldPolygonRibbonGeometry(extension.footprintWorld, normal, 0.026, 0.055);
+  const line = worldPolygonLineGeometry(extension.footprintWorld, normal, 0.034);
+  return ribbon || line ? { id: String(extension.id), ribbon, line } : null;
+}
+
 type PvLayout3dScreenPoint = { readonly x: number; readonly y: number };
 
 type PvLayout3dProjectedPanel = {
@@ -2315,6 +2390,14 @@ function ViewerSceneContent({
     );
   }, [scene, pvLayout3DInteractionMode, pvLayout3dOverlayState]);
 
+  const pv3dExtensionSafeZoneGeos = useMemo(() => {
+    if (!pvLayout3DInteractionMode) return [];
+    return scene.extensionVolumes.flatMap((extension) => {
+      const geos = extensionV1FootprintSafeZoneGeometries(scene, extension);
+      return geos ? [geos] : [];
+    });
+  }, [scene, pvLayout3DInteractionMode]);
+
   const allGeos = useMemo(
     () => [
       ...(shellGeo ? [shellGeo] : []),
@@ -2352,6 +2435,7 @@ function ViewerSceneContent({
       ...pv3dGhostGeos.flatMap((x) => [x.fill, x.line].filter((g): g is THREE.BufferGeometry => g != null)),
       ...pv3dSelectedPanelGeos.flatMap((x) => [x.fill, x.line].filter((g): g is THREE.BufferGeometry => g != null)),
       ...pv3dSafeZoneGeos.flatMap((x) => [x.ribbon, x.line].filter((g): g is THREE.BufferGeometry => g != null)),
+      ...pv3dExtensionSafeZoneGeos.flatMap((x) => [x.ribbon, x.line].filter((g): g is THREE.BufferGeometry => g != null)),
     ],
     [
       shellGeo,
@@ -2366,6 +2450,7 @@ function ViewerSceneContent({
       pv3dGhostGeos,
       pv3dSelectedPanelGeos,
       pv3dSafeZoneGeos,
+      pv3dExtensionSafeZoneGeos,
     ],
   );
 
@@ -2681,6 +2766,31 @@ function ViewerSceneContent({
             {line ? (
               <lineSegments geometry={line} renderOrder={23}>
                 <lineBasicMaterial color="#fecaca" transparent opacity={0.88} depthWrite={false} toneMapped={false} depthTest />
+              </lineSegments>
+            ) : null}
+          </group>
+        ))}
+      {pvLayout3DInteractionMode &&
+        pv3dExtensionSafeZoneGeos.map(({ id, ribbon, line }) => (
+          <group key={`pv3d-ext-safe-${id}`}>
+            {ribbon ? (
+              <mesh geometry={ribbon} renderOrder={23}>
+                <meshBasicMaterial
+                  color={PV3D_SAFE_ZONE_LINE}
+                  transparent
+                  opacity={0.24}
+                  side={THREE.DoubleSide}
+                  depthWrite={false}
+                  depthTest
+                  toneMapped={false}
+                  polygonOffset
+                  {...getDepthOffset("CONTOUR_LINE")}
+                />
+              </mesh>
+            ) : null}
+            {line ? (
+              <lineSegments geometry={line} renderOrder={24}>
+                <lineBasicMaterial color={PV3D_SAFE_ZONE_LINE} transparent opacity={0.48} depthWrite={false} toneMapped={false} depthTest />
               </lineSegments>
             ) : null}
           </group>

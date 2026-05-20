@@ -153,6 +153,12 @@ export function toFootprintPx(entity: unknown): Point2D[] | null {
     }
   }
 
+  const canonicalV1 = e.canonicalV1 as Record<string, unknown> | undefined;
+  if (canonicalV1?.version === "roof_extension_v1" && Array.isArray(canonicalV1.footprintPx)) {
+    const pts = (canonicalV1.footprintPx as unknown[]).map((p) => toPoint2D(p)).filter((p): p is Point2D => p !== null);
+    if (pts.length >= 3) return ensureClosedPolygon(pts);
+  }
+
   // polygonPx / polygon / points
   const poly = e.polygonPx ?? e.polygon ?? e.points;
   if (Array.isArray(poly) && poly.length >= 3) {

@@ -237,6 +237,31 @@ function testHelpers() {
   );
 }
 
+function testRoofExtensionCanonicalV1FootprintPriority() {
+  const fp = toFootprintPx({
+    contour: {
+      points: [
+        { x: 0, y: 0 },
+        { x: 10, y: 0 },
+        { x: 10, y: 10 },
+      ],
+    },
+    canonicalV1: {
+      version: "roof_extension_v1",
+      footprintPx: [
+        { x: 100, y: 100 },
+        { x: 140, y: 100 },
+        { x: 140, y: 130 },
+        { x: 100, y: 130 },
+      ],
+    },
+  });
+  return (
+    assert(fp !== null && fp.length === 5, "roofExtension canonicalV1 footprint ferme") &&
+    assert(fp![0]!.x === 100 && fp![0]!.y === 100, "canonicalV1 footprint prioritaire sur contour legacy")
+  );
+}
+
 // --- Run ---
 testObstaclePolygonPx();
 testObstacleCircle();
@@ -248,6 +273,7 @@ testKeepoutInferredFromCatalogIgnoresHeight();
 testShadowVolumeDefaultHeightFromCatalog();
 testPanPolygon();
 testHelpers();
+testRoofExtensionCanonicalV1FootprintPriority();
 
 const total = passed + failed;
 console.log("\n" + passed + "/" + total + " TESTS PASSED (geoEntity3D)");
