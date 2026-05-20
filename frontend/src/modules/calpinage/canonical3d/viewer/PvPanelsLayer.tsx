@@ -1,5 +1,5 @@
 /**
- * PvPanelsLayer — rendu des panneaux PV (InstancedMesh), cell lines et outlines d'inspection.
+ * PvPanelsLayer — rendu des panneaux PV atomiques (InstancedMesh texturé) et outlines d'inspection.
  *
  * Extrait de SolarScene3DViewer.tsx (A12 — Strangler Fig).
  * Correspond exactement au bloc `{visPanels && <>...</>}` (lignes 3375–3452 du viewer).
@@ -31,7 +31,6 @@ const _pv3dDbg = (): boolean =>
 // #0c131f = quasi-noir bleu nuit : couleur réelle cellule monocristalline
 const PREMIUM_PV_SURFACE_HEX = new THREE.Color("#0c131f").getHex();
 const PREMIUM_PV_EMISSIVE_HEX = new THREE.Color(SOLARNEXT_3D_PREMIUM_THEME.pv.liveEmissive).getHex();
-const PREMIUM_PV_CELL_LINE = SOLARNEXT_3D_PREMIUM_THEME.pv.cellLine;
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -63,8 +62,6 @@ export interface PvPanelsLayerProps {
   readonly onPvPanelPvLayout3dPointerDown?: (e: ThreeEvent<PointerEvent>, panelId: string) => void;
   /** Callback hover panneau (tooltip). */
   readonly onPanelHover?: (payload: { panelId: string; clientX: number; clientY: number } | null) => void;
-  /** Géométrie consolidée des cell lines (1 draw call pour N panneaux). Null si 0 panneaux. */
-  readonly consolidatedPvCellLinesGeo: THREE.BufferGeometry | null;
   /**
    * Géométries individuelles par panneau — utilisées pour les outlines d'inspection.
    * Seuls les panneaux sélectionnés en inspect mode génèrent un mesh invisible + Outlines.
@@ -91,7 +88,6 @@ export function PvPanelsLayer({
   onInspectClick,
   onPvPanelPvLayout3dPointerDown,
   onPanelHover,
-  consolidatedPvCellLinesGeo,
   panelGeos,
   inspectionSelection,
   outlineThickness,
@@ -108,14 +104,14 @@ export function PvPanelsLayer({
     console.log("panelColors:", panelColors ? `${panelColors.length} couleurs` : "absent");
     console.log("pvLayout3DInteractionMode:", pvLayout3DInteractionMode);
     console.log("pvLayout3DEffectiveHiddenIds:", pvLayout3DEffectiveHiddenIds ? [...pvLayout3DEffectiveHiddenIds] : "undefined");
-    console.log("consolidatedPvCellLinesGeo:", consolidatedPvCellLinesGeo ? "présente" : "null");
+    console.log("pvPanelTexture:", "canvas-map");
     console.log("renderOrder:", pvLayout3DInteractionMode ? 20 : 2);
     if (panels.length === 0)
       console.error("[PV3D-RENDER] ⛔ 0 panneaux transmis à PvPanelInstanced — GPU ne rendra rien.");
     if (hiddenCount > 0 && hiddenCount === panels.length)
       console.warn("[PV3D-RENDER] ⚠️ Tous les panneaux sont hidden (scale=0).");
     console.groupEnd();
-  }, [panels, panelColors, pvLayout3DInteractionMode, pvLayout3DEffectiveHiddenIds, consolidatedPvCellLinesGeo]);
+  }, [panels, panelColors, pvLayout3DInteractionMode, pvLayout3DEffectiveHiddenIds]);
 
   return (
     <>
@@ -166,28 +162,6 @@ export function PvPanelsLayer({
         }
         onPanelHover={onPanelHover}
       />
-      {/* Cell lines consolidées : 1 draw call pour N panneaux (vs N draw calls individuels). */}
-      {consolidatedPvCellLinesGeo && (
-        <lineSegments
-          geometry={consolidatedPvCellLinesGeo}
-          renderOrder={pvLayout3DInteractionMode ? 21 : 3}
-        >
-          {/*
-           * polygonOffset retiré : WebGL ignore gl.POLYGON_OFFSET_FILL pour les
-           * primitives LINE_SEGMENTS — c'est du dead code confirmé par la spec WebGL.
-           * Le seul mécanisme actif contre le z-fighting est CELL_LINE_NORMAL_OFFSET_M
-           * dans buildCellLinesGeometry.ts, augmenté de 0.018 → 0.040 m.
-           */}
-          <lineBasicMaterial
-            color={PREMIUM_PV_CELL_LINE}
-            transparent
-            opacity={0.38}
-            depthWrite={false}
-            toneMapped={false}
-            depthTest
-          />
-        </lineSegments>
-      )}
       {/* Outline inspection : rendu individuel pour les panneaux sélectionnés en inspect mode */}
       {inspectMode &&
         panelGeos.map(({ id, geo }) => {

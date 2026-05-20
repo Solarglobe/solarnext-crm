@@ -79,6 +79,7 @@ import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import type { PvPanelSurface3D } from "../types/pv-panel-3d";
 import { INSPECT_USERDATA_KEY } from "../viewer/inspection/sceneInspectionTypes";
 import { getDepthOffset } from "../viewer/DepthRegistry";
+import { getPvPanelTexture } from "./buildPvPanelTexture";
 
 
 // ── Debug runtime [PV3D-RENDER] ───────────────────────────────────────────────
@@ -106,8 +107,8 @@ function buildSharedPanelGeometry(): THREE.PlaneGeometry {
 /**
  * Construit la matrice monde depuis corners3D + center3D + outwardNormal.
  *
- * N'utilise PAS localFrame - meme source de verite que panelQuadGeometry,
- * garantit que la surface InstancedMesh coincide exactement avec les cell lines.
+ * N'utilise PAS localFrame - meme source de verite que panelQuadGeometry.
+ * La grille de cellules PV est integree a la texture du panneau, pas a une geometrie separee.
  *
  * Pour PlaneGeometry(1,1) avec vertices a (+/-0.5, +/-0.5, 0) :
  *   col0 = c1 - c0  (vecteur largeur pleine, scale implicite)
@@ -312,6 +313,7 @@ export function PvPanelInstanced({
 
   // Geometrie partagee - allouee une fois, disposee au demontage
   const sharedGeometry = useMemo(() => buildSharedPanelGeometry(), []);
+  const panelTexture = useMemo(() => getPvPanelTexture("standard"), []);
   useEffect(() => () => { sharedGeometry.dispose(); }, [sharedGeometry]);
 
   // Refs : acces depuis useLayoutEffect + useFrame sans closure perimee
@@ -507,6 +509,7 @@ export function PvPanelInstanced({
        */}
       <meshStandardMaterial
         color={panelColors != null ? 0xffffff : baseColor}
+        map={panelTexture}
         emissive={emissiveColor}
         emissiveIntensity={emissiveIntensity}
         metalness={metalness}

@@ -74,7 +74,6 @@ import {
 import type { SolarScene3D } from "../types/solarScene3d";
 import { keepoutHatchGeometry, keepoutCornerMarksGeometry } from "./keepout3DGeometry";
 
-import type { PvPanelSurface3D } from "../types/pv-panel-3d";
 import {
   computeSolarSceneBoundingBox,
   extendBoundingBoxWithSatelliteImageFootprint,
@@ -139,7 +138,7 @@ import {
 } from "./solarSceneThreeGeometry";
 import { buildPremiumHouse3DScene } from "./premium/buildPremiumHouse3DScene";
 
-import { buildConsolidatedCellLinesGeometry } from "../pvPanels/buildCellLinesGeometry";
+import { getPvPanelTexture } from "../pvPanels/buildPvPanelTexture";
 import type { PremiumHouse3DSceneAssembly } from "./premium/premiumHouse3DSceneTypes";
 import { PremiumGeometryTrustStripe } from "./premium/PremiumGeometryTrustStripe";
 import type { PremiumHouse3DViewMode } from "./premium/premiumHouse3DViewModes";
@@ -408,7 +407,6 @@ export interface SolarScene3DViewerProps {
 // #0c131f = quasi-noir bleu nuit : couleur réelle cellule monocristalline (vs #111827 trop gris)
 const PREMIUM_PV_SURFACE_HEX = new THREE.Color("#0c131f").getHex();
 const PREMIUM_PV_EMISSIVE_HEX = new THREE.Color(SOLARNEXT_3D_PREMIUM_THEME.pv.liveEmissive).getHex();
-const PREMIUM_PV_CELL_LINE = SOLARNEXT_3D_PREMIUM_THEME.pv.cellLine;
 const PREMIUM_PV_SELECTED_FILL = SOLARNEXT_3D_PREMIUM_THEME.pv.selectedFill;
 const PREMIUM_PV_LIVE_FILL = SOLARNEXT_3D_PREMIUM_THEME.pv.liveFill;
 const PREMIUM_PV_INVALID_FILL = SOLARNEXT_3D_PREMIUM_THEME.pv.invalidFill;
@@ -845,56 +843,6 @@ function panelSurfaceMaterial(
   };
 }
 
-function premiumPvCellLineGeometryFromWorldPoints(
-  world: readonly THREE.Vector3[],
-  offsetM: number,
-): THREE.BufferGeometry | null {
-  if (world.length < 4) return null;
-  const p0 = world[0]!;
-  const p1 = world[1]!;
-  const p2 = world[2]!;
-  const p3 = world[3]!;
-  const normal = new THREE.Vector3()
-    .crossVectors(new THREE.Vector3().subVectors(p1, p0), new THREE.Vector3().subVectors(p3, p0))
-    .normalize();
-  if (!Number.isFinite(normal.x) || normal.lengthSq() < 1e-8) return null;
-
-  const wM = p0.distanceTo(p1);
-  const hM = p0.distanceTo(p3);
-  const cols = Math.max(4, Math.min(12, Math.round(wM / 0.18)));
-  const rows = Math.max(4, Math.min(10, Math.round(hM / 0.18)));
-  const positions: number[] = [];
-  const push = (a: THREE.Vector3, b: THREE.Vector3) => {
-    const ao = a.clone().addScaledVector(normal, offsetM);
-    const bo = b.clone().addScaledVector(normal, offsetM);
-    positions.push(ao.x, ao.y, ao.z, bo.x, bo.y, bo.z);
-  };
-  const lerp = (a: THREE.Vector3, b: THREE.Vector3, t: number) => new THREE.Vector3().lerpVectors(a, b, t);
-
-  for (let i = 1; i < cols; i++) {
-    const t = i / cols;
-    push(lerp(p0, p3, t), lerp(p1, p2, t));
-  }
-  for (let i = 1; i < rows; i++) {
-    const t = i / rows;
-    push(lerp(p0, p1, t), lerp(p3, p2, t));
-  }
-  for (let i = 1; i <= 2; i++) {
-    const t = i / 3;
-    if (wM >= hM) push(lerp(p0, p1, t), lerp(p3, p2, t));
-    else push(lerp(p0, p3, t), lerp(p1, p2, t));
-  }
-
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-  return geo;
-}
-
-export function premiumPvPanelCellLineGeometry(panel: PvPanelSurface3D): THREE.BufferGeometry | null {
-  const world = panel.corners3D.map((p) => new THREE.Vector3(p.x, p.y, p.z));
-  return premiumPvCellLineGeometryFromWorldPoints(world, 0.018);
-}
-
 /** Pass 4 — résout l’id pan depuis le maillage `roof_tessellation` (intersections rayon). */
 function pickRoofTessellationPanIdFromIntersections(
   intersections: ReadonlyArray<{ object?: { userData?: Record<string, unknown> } }>,
@@ -1024,18 +972,6 @@ function imagePolygonToRoofRibbonGeometry(
   // FA-7 : eager boundingSphere pour le ribbon safe-zone.
   geo.computeBoundingSphere();
   return geo;
-}
-
-function imagePolygonToRoofCellLineGeometry(
-  scene: SolarScene3D,
-  points: readonly { readonly x: number; readonly y: number }[],
-  panId: string | null | undefined,
-  offsetM: number,
-): THREE.BufferGeometry | null {
-  return premiumPvCellLineGeometryFromWorldPoints(
-    imagePolygonToRoofWorldPoints(scene, points, panId, offsetM),
-    0,
-  );
 }
 
 type PvLayout3dScreenPoint = { readonly x: number; readonly y: number };
@@ -2255,9 +2191,8 @@ function ViewerSceneContent({
   }, [extensionVolDebugDisposableGeos]);
 
   // ── pvLayout3D hidden-IDs pipeline ───────────────────────────────────────────
-  // Placé AVANT panelGeos et consolidatedPvCellLinesGeo pour permettre le filtrage
-  // des panneaux masqués dans ces géométries (suppression des cell lines fantômes
-  // qui persistaient à l'ancienne position pendant et après un drag).
+  // Placé AVANT panelGeos pour permettre le filtrage des panneaux masqués dans
+  // les géométries d'inspection pendant un drag.
 
   const pv3dLivePanelGeos = useMemo(() => {
     if (!pvLayout3DInteractionMode || !pvLayout3dOverlayState) return [];
@@ -2269,13 +2204,11 @@ function ViewerSceneContent({
       if (!p.selected) return [];
       const fill = imagePolygonToRoofMeshGeometry(scene, p.points, p.panId, 0.075);
       const line = imagePolygonToRoofLineGeometry(scene, p.points, p.panId, 0.082);
-      const cell = imagePolygonToRoofCellLineGeometry(scene, p.points, p.panId, 0.088);
-      return fill || line || cell
+      return fill || line
         ? [{
             id: p.id,
             fill,
             line,
-            cell,
             selected: !!p.selected,
             invalid: !!p.invalid,
             enabled: p.enabled !== false,
@@ -2306,7 +2239,7 @@ function ViewerSceneContent({
   const pvLayout3DEffectiveHiddenIds = useMemo(() => {
     if (!pvLayout3DInteractionMode) return undefined;
     // Stabilise la référence : retourner undefined si aucun panneau n'est masqué.
-    // Évite de déclencher panelGeos + consolidatedPvCellLinesGeo inutilement à chaque
+    // Évite de déclencher panelGeos inutilement à chaque
     // rebuild de scène hors drag actif (thrash GPU : N dispose + N alloc par commit).
     if (pv3dSelectedLivePanelIds.size === 0) return undefined;
     const result = new Set<string>();
@@ -2333,22 +2266,7 @@ function ViewerSceneContent({
       }));
   }, [scene.pvPanels, pvLayout3DEffectiveHiddenIds]);
 
-  /**
-   * Géométrie consolidée des cell lines PV : 1 BufferGeometry pour N panneaux = 1 draw call.
-   * Remplace N <lineSegments> individuels (1 draw call par panneau).
-   * Filtré par pvLayout3DEffectiveHiddenIds : supprime les cell lines fantômes à l'ancienne
-   * position pendant le drag (l'overlay live affiche ses propres cell lines pour les panneaux
-   * sélectionnés).
-   */
-  const consolidatedPvCellLinesGeo = useMemo(
-    () => buildConsolidatedCellLinesGeometry(
-      pvLayout3DEffectiveHiddenIds?.size
-        ? scene.pvPanels.filter((p) => !pvLayout3DEffectiveHiddenIds.has(String(p.id)))
-        : scene.pvPanels,
-    ),
-    [scene.pvPanels, pvLayout3DEffectiveHiddenIds],
-  );
-
+  /** Lookup overlay PV 3D par panneau, utilisé uniquement pour les états visuels. */
   const pv3dOverlayPanelById = useMemo(() => {
     const m = new Map<string, PvLayout3dOverlayState["panels"][number]>();
     if (!pvLayout3dOverlayState) return m;
@@ -2415,8 +2333,7 @@ function ViewerSceneContent({
       ...extGeos.map((x) => x.geo),
       ...extGeos.flatMap((x) => x.miniRoofLines.map((line) => line.geometry)),
       ...panelGeos.map((x) => x.geo),
-      ...(consolidatedPvCellLinesGeo ? [consolidatedPvCellLinesGeo] : []),
-      ...pv3dLivePanelGeos.flatMap((x) => [x.fill, x.line, x.cell].filter((g): g is THREE.BufferGeometry => g != null)),
+      ...pv3dLivePanelGeos.flatMap((x) => [x.fill, x.line].filter((g): g is THREE.BufferGeometry => g != null)),
       ...pv3dGhostGeos.flatMap((x) => [x.fill, x.line].filter((g): g is THREE.BufferGeometry => g != null)),
       ...pv3dSafeZoneGeos.flatMap((x) => [x.ribbon, x.line].filter((g): g is THREE.BufferGeometry => g != null)),
     ],
@@ -2429,7 +2346,6 @@ function ViewerSceneContent({
       obsGeos,
       extGeos,
       panelGeos,
-      consolidatedPvCellLinesGeo,
       pv3dLivePanelGeos,
       pv3dGhostGeos,
       pv3dSafeZoneGeos,
@@ -2514,6 +2430,8 @@ function ViewerSceneContent({
   const mEdge = assembly.materials.roofEdgeLine;
   const mRidge = assembly.materials.structuralRidgeLine;
   const pvB = assembly.pvBoost;
+  const livePvPanelTexture = useMemo(() => getPvPanelTexture("live"), []);
+  const ghostPvPanelTexture = useMemo(() => getPvPanelTexture("ghost"), []);
 
   /**
    * Couleurs hex par instance pour PvPanelInstanced — même logique que panelSurfaceMaterial.
@@ -2766,6 +2684,7 @@ function ViewerSceneContent({
                           : PV3D_GHOST_VALID_FILL
                       : PV3D_GHOST_INVALID_FILL
                   }
+                  map={ghostPvPanelTexture}
                   transparent
                   opacity={valid ? (excluded ? 0.06 : 0.16) : 0.13}
                   side={THREE.DoubleSide}
@@ -2798,12 +2717,13 @@ function ViewerSceneContent({
           </group>
         ))}
       {pvLayout3DInteractionMode &&
-        pv3dLivePanelGeos.map(({ id, fill, line, cell, selected, invalid, enabled }) => (
+        pv3dLivePanelGeos.map(({ id, fill, line, selected, invalid, enabled }) => (
           <group key={`pv3d-live-${id}`}>
             {fill ? (
               <mesh geometry={fill} renderOrder={30}>
                 <meshStandardMaterial
                   color={invalid ? PREMIUM_PV_INVALID_FILL : selected ? PREMIUM_PV_SELECTED_FILL : PREMIUM_PV_LIVE_FILL}
+                  map={livePvPanelTexture}
                   emissive={
                     invalid
                       ? SOLARNEXT_3D_PREMIUM_THEME.pv.invalidEmissive
@@ -2817,9 +2737,9 @@ function ViewerSceneContent({
                   envMapIntensity={1.20}
                   transparent={enabled === false}
                   opacity={enabled === false ? 0.42 : 1}
-                  // depthWrite=false : le fill ne doit pas occulter les cell/outline lines
-                  // rendues après (renderOrder 31-32). La profondeur de la scène opaque
-                  // (toiture, bâtiment) est déjà dans le depth buffer au moment du rendu overlay.
+                  // depthWrite=false : le fill live ne doit pas occulter son outline.
+                  // La profondeur de la scène opaque (toiture, bâtiment) est déjà dans
+                  // le depth buffer au moment du rendu overlay.
                   depthWrite={false}
                   side={THREE.FrontSide}
                   polygonOffset
@@ -2827,18 +2747,6 @@ function ViewerSceneContent({
                   depthTest
                 />
               </mesh>
-            ) : null}
-            {cell ? (
-              <lineSegments geometry={cell} renderOrder={32}>
-                <lineBasicMaterial
-                  color={PREMIUM_PV_CELL_LINE}
-                  transparent
-                  opacity={invalid ? 0.28 : 0.2}
-                  depthWrite={false}
-                  toneMapped={false}
-                  depthTest
-                />
-              </lineSegments>
             ) : null}
             {line ? (
               <lineSegments geometry={line} renderOrder={31}>
@@ -2868,7 +2776,6 @@ function ViewerSceneContent({
           onInspectClick={onInspectClick}
           onPvPanelPvLayout3dPointerDown={onPvPanelPvLayout3dPointerDown}
           onPanelHover={onPanelHover}
-          consolidatedPvCellLinesGeo={consolidatedPvCellLinesGeo}
           panelGeos={panelGeos}
           inspectionSelection={inspectionSelection}
           outlineThickness={outlineThickness}
