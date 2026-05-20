@@ -14528,10 +14528,18 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
         function getPanelDimensions() {
           var spec = window.PV_SELECTED_PANEL;
           if (!spec || spec.widthM == null || spec.heightM == null) return null;
+          var w = Number(spec.widthM);
+          var h = Number(spec.heightM);
+          if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) return null;
+          var shortSideM = Math.min(w, h);
+          var longSideM = Math.max(w, h);
 
           return {
-            widthM: spec.widthM,
-            heightM: spec.heightM
+            // Convention moteur : portrait = petit cote en largeur, grand cote en hauteur.
+            // Certains catalogues exposent width/height dans l'ordre inverse, ce qui inversait
+            // visuellement les boutons Portrait/Paysage lors de la pose 2D.
+            widthM: shortSideM,
+            heightM: longSideM
           };
         }
         /**
