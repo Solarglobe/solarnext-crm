@@ -233,6 +233,7 @@ describe("buildSolarScene3DFromCalpinageRuntime", () => {
     expect(res.ok).toBe(true);
     expect(res.scene).not.toBeNull();
     expect(res.scene!.extensionVolumes).toHaveLength(1);
+    expect(res.scene!.obstacleVolumes.some((o) => String(o.id) === "rx-scene")).toBe(false);
     const ext = res.scene!.extensionVolumes[0]!;
     expect(ext.id).toBe("rx-scene");
     expect(ext.extrusion.mode).toBe("along_pan_normal");

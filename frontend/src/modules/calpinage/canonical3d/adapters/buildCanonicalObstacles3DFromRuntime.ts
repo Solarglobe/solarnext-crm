@@ -135,6 +135,11 @@ export interface BuildCanonicalObstacles3DFromRuntimeOptions {
   readonly includeInvalidObstacles?: boolean;
   readonly defaultObstacleHeightM?: number;
   readonly defaultBaseHeightM?: number;
+  /**
+   * Transition dormer V1: product scene consumers must read `extensionVolumes[]`
+   * instead of a simplified obstacle prism rebuilt from `roofExtensions`.
+   */
+  readonly includeRoofExtensionsAsObstacles?: boolean;
 }
 
 export interface BuildCanonicalObstacles3DFromRuntimeInput {
@@ -410,6 +415,7 @@ type RuntimeListKind = "obstacles" | "shadowVolumes" | "roofExtensions";
 function collectRawEntities(
   state: unknown,
   _mpp: number,
+  includeRoofExtensions: boolean,
 ): Array<{ raw: Record<string, unknown>; listKind: RuntimeListKind; index: number }> {
   if (!state || typeof state !== "object") return [];
   const s = state as Record<string, unknown>;
@@ -427,10 +433,12 @@ function collectRawEntities(
     }
   });
 
-  const rx = Array.isArray(s.roofExtensions) ? s.roofExtensions : [];
-  rx.forEach((raw, index) => {
-    if (raw && typeof raw === "object") out.push({ raw: raw as Record<string, unknown>, listKind: "roofExtensions", index });
-  });
+  if (includeRoofExtensions) {
+    const rx = Array.isArray(s.roofExtensions) ? s.roofExtensions : [];
+    rx.forEach((raw, index) => {
+      if (raw && typeof raw === "object") out.push({ raw: raw as Record<string, unknown>, listKind: "roofExtensions", index });
+    });
+  }
 
   return out;
 }
@@ -488,7 +496,7 @@ export function buildCanonicalObstacles3DFromRuntime(
   const resolverBase: HeightResolverContext =
     input.heightResolverContext ?? buildRuntimeContext(heightState);
 
-  const rawEntries = collectRawEntities(rawState, mpp);
+  const rawEntries = collectRawEntities(rawState, mpp, opt.includeRoofExtensionsAsObstacles !== false);
   const out: CanonicalObstacle3D[] = [];
   let invalid = 0;
 

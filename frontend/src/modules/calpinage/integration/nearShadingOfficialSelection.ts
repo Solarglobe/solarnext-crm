@@ -29,6 +29,7 @@ import { mapCalpinageRoofToLegacyRoofGeometryInput } from "./mapCalpinageToCanon
 import { buildOfficialRoofModelForNearShadingOnly } from "./buildOfficialRoofModelForNearShadingBridge";
 import { getCachedOfficialRoofModelForNearShading } from "./officialRoofModelNearShadingCache";
 import { runCanonicalNearShadingPipeline } from "./runCanonicalNearShadingPipeline";
+import { buildRoofExtensions3DFromRuntime } from "../canonical3d/roofExtensions/buildRoofExtensions3DFromRuntime";
 
 import type {
 
@@ -359,10 +360,23 @@ export function attemptCanonicalNearShading(
     };
   }
 
+  const extensionRes = buildRoofExtensions3DFromRuntime({
+    runtime: runtimeRoot,
+    roofPlanePatches: officialRoofModelResult.model.roofPlanePatches,
+    metersPerPixel: mpp,
+    northAngleDeg: legacyRoof.northAngleDeg,
+  });
+  const roofExtensionIds = new Set(extensionRes.extensionVolumes.map((v) => String(v.id)));
+  const canonicalNearObstacles = roofExtensionIds.size > 0
+    ? params.obstacles.filter((o) => !roofExtensionIds.has(String(o.id ?? "")))
+    : params.obstacles;
+
   const canon = runCanonicalNearShadingPipeline({
     officialRoofModelResult,
 
-    obstacles: params.obstacles,
+    obstacles: canonicalNearObstacles,
+
+    extensionVolumes: extensionRes.extensionVolumes,
 
     panels: panelsEnriched,
 

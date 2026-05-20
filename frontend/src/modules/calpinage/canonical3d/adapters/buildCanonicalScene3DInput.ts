@@ -424,6 +424,7 @@ export function buildCanonicalScene3DInput(input: BuildCanonicalScene3DInput): C
       const obsRes = prepareCanonicalObstacles3DFromCalpinageState(input.state, {
         metersPerPixel: mppFinal,
         northAngleDeg: northFinal,
+        includeRoofExtensionsAsObstacles: false,
       });
       obstacles = [...obsRes.obstacles];
       warnings.push(...obsRes.diagnostics.warnings);

@@ -10,6 +10,7 @@ import type { BuildRoofModel3DResult } from "../canonical3d/builder/buildRoofMod
 import { DEFAULT_NEAR_SHADING_RAYCAST_PARAMS } from "../canonical3d/nearShading3d/nearShadingParams";
 import { runNearShadingSeriesHorizonWeighted } from "../canonical3d/nearShading3d/nearShadingHorizonWeighted";
 import type { NearShadingAnnualAggregate } from "../canonical3d/types/near-shading-3d";
+import type { RoofExtensionVolume3D } from "../canonical3d/types/roof-extension-volume";
 import { buildPvPanels3D } from "../canonical3d/pvPanels/buildPvPanels3D";
 import { buildRoofVolumes3D } from "../canonical3d/volumes/buildRoofVolumes3D";
 import type { ObstacleInput, PanelInput } from "../shading/shadingInputTypes";
@@ -29,6 +30,8 @@ export interface RunCanonicalNearShadingPipelineOptions {
   /** Sortie `buildRoofModel3DFromLegacyGeometry` — même instance que le pipeline 3D officiel lorsque possible. */
   readonly officialRoofModelResult: BuildRoofModel3DResult;
   readonly obstacles: readonly ObstacleInput[];
+  /** Dormers/extensions already built from RoofExtensionV1; preferred over legacy near obstacle polygons. */
+  readonly extensionVolumes?: readonly RoofExtensionVolume3D[];
   readonly panels: readonly PanelInput[];
   readonly metersPerPixel: number;
   readonly northAngleDeg: number;
@@ -120,7 +123,15 @@ export function runCanonicalNearShadingPipeline(
   }
 
   const volRes = buildRoofVolumes3D(volumeInput, { roofPlanePatches: patches });
-  const pvRes = buildPvPanels3D({ panels: panelInputs }, { roofPlanePatches: patches });
+  const extensionVolumes = opts.extensionVolumes ?? volRes.extensionVolumes;
+  const pvRes = buildPvPanels3D(
+    { panels: panelInputs },
+    {
+      roofPlanePatches: patches,
+      obstacleVolumes: volRes.obstacleVolumes,
+      extensionVolumes,
+    },
+  );
 
   if (!pvRes.panels.length) {
     return {
@@ -133,7 +144,7 @@ export function runCanonicalNearShadingPipeline(
   const scene = {
     panels: pvRes.panels,
     obstacleVolumes: volRes.obstacleVolumes,
-    extensionVolumes: volRes.extensionVolumes,
+    extensionVolumes,
     params: DEFAULT_NEAR_SHADING_RAYCAST_PARAMS,
   };
 

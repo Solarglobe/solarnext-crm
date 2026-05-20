@@ -587,6 +587,7 @@ export function buildSolarScene3DFromCalpinageRuntime(
       metersPerPixel: validation.scene.world.metersPerPixel,
       northAngleDeg: validation.scene.world.northAngleDeg,
       defaultBaseHeightM: roofRes.worldZOriginShiftM,
+      includeRoofExtensionsAsObstacles: false,
     });
     const obstaclesForVolumes = shiftCanonicalObstaclesZWorld(obsRebuiltForShift.obstacles, zSceneAdjustM);
     const panelsShifted = shiftCanonicalPanelsZWorld(sceneInput.panels.items, zSceneAdjustM);
@@ -603,7 +604,14 @@ export function buildSolarScene3DFromCalpinageRuntime(
       northAngleDeg: validation.scene.world.northAngleDeg,
     });
     const volumesQuality = mergeVolumeQuality(volRes.globalQuality, roofExtRes.quality);
-    const pvRes = buildPvPanels3D({ panels: [...filteredPanels] }, { roofPlanePatches: patches });
+    const pvRes = buildPvPanels3D(
+      { panels: [...filteredPanels] },
+      {
+        roofPlanePatches: patches,
+        obstacleVolumes: volRes.obstacleVolumes,
+        extensionVolumes: roofExtRes.extensionVolumes,
+      },
+    );
     const rawPanels = options?.getAllPanels?.();
     const rawEnginePanelCount = Array.isArray(rawPanels) ? rawPanels.length : 0;
     const pvBindingDiagnostics = computePvBindingDiagnostics({

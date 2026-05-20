@@ -75,6 +75,88 @@ function aabbOverlap(a: AxisAlignedBounds3D, b: AxisAlignedBounds3D): boolean {
   );
 }
 
+function orient2d(a: { u: number; v: number }, b: { u: number; v: number }, c: { u: number; v: number }): number {
+  return (b.u - a.u) * (c.v - a.v) - (b.v - a.v) * (c.u - a.u);
+}
+
+function pointOnSegment2d(
+  p: { u: number; v: number },
+  a: { u: number; v: number },
+  b: { u: number; v: number },
+): boolean {
+  const eps = 1e-8;
+  if (Math.abs(orient2d(a, b, p)) > eps) return false;
+  return (
+    p.u >= Math.min(a.u, b.u) - eps &&
+    p.u <= Math.max(a.u, b.u) + eps &&
+    p.v >= Math.min(a.v, b.v) - eps &&
+    p.v <= Math.max(a.v, b.v) + eps
+  );
+}
+
+function segmentsIntersect2d(
+  a: { u: number; v: number },
+  b: { u: number; v: number },
+  c: { u: number; v: number },
+  d: { u: number; v: number },
+): boolean {
+  const o1 = orient2d(a, b, c);
+  const o2 = orient2d(a, b, d);
+  const o3 = orient2d(c, d, a);
+  const o4 = orient2d(c, d, b);
+  if ((o1 > 0) !== (o2 > 0) && (o3 > 0) !== (o4 > 0)) return true;
+  return pointOnSegment2d(c, a, b) || pointOnSegment2d(d, a, b) || pointOnSegment2d(a, c, d) || pointOnSegment2d(b, c, d);
+}
+
+function distancePointToSegment2d(
+  p: { u: number; v: number },
+  a: { u: number; v: number },
+  b: { u: number; v: number },
+): number {
+  const du = b.u - a.u;
+  const dv = b.v - a.v;
+  const denom = du * du + dv * dv;
+  const t = denom < 1e-18 ? 0 : ((p.u - a.u) * du + (p.v - a.v) * dv) / denom;
+  const tc = Math.max(0, Math.min(1, t));
+  return Math.hypot(p.u - (a.u + du * tc), p.v - (a.v + dv * tc));
+}
+
+function polygonsOverlap2d(
+  a: readonly { u: number; v: number }[],
+  b: readonly { u: number; v: number }[],
+): boolean {
+  if (a.length < 3 || b.length < 3) return false;
+  for (const p of a) if (pointInPolygon2d(p.u, p.v, b)) return true;
+  for (const p of b) if (pointInPolygon2d(p.u, p.v, a)) return true;
+  for (let i = 0; i < a.length; i++) {
+    const a1 = a[i]!;
+    const a2 = a[(i + 1) % a.length]!;
+    for (let j = 0; j < b.length; j++) {
+      if (segmentsIntersect2d(a1, a2, b[j]!, b[(j + 1) % b.length]!)) return true;
+    }
+  }
+  return false;
+}
+
+function polygonDistance2d(
+  a: readonly { u: number; v: number }[],
+  b: readonly { u: number; v: number }[],
+): number {
+  if (polygonsOverlap2d(a, b)) return 0;
+  let best = Infinity;
+  for (let i = 0; i < a.length; i++) {
+    const a1 = a[i]!;
+    const a2 = a[(i + 1) % a.length]!;
+    for (const p of b) best = Math.min(best, distancePointToSegment2d(p, a1, a2));
+  }
+  for (let i = 0; i < b.length; i++) {
+    const b1 = b[i]!;
+    const b2 = b[(i + 1) % b.length]!;
+    for (const p of a) best = Math.min(best, distancePointToSegment2d(p, b1, b2));
+  }
+  return best;
+}
+
 function panelCornersToAabb(corners: readonly WorldPosition3D[]): AxisAlignedBounds3D {
   let minX = Infinity;
   let minY = Infinity;
@@ -197,7 +279,9 @@ export function computePvPanelSpatialContext(opts: PanelContextBuildOptions): Pv
   const volumes = computeVolumeProximity(
     opts.obstacleVolumes,
     opts.extensionVolumes,
-    panelCornersWorld
+    panelCornersWorld,
+    patch,
+    basis,
   );
 
   const hadStructural = opts.structuralLineSegments !== undefined;
@@ -302,9 +386,12 @@ function computeStructuralProximity(
 function computeVolumeProximity(
   obstacles: readonly RoofObstacleVolume3D[] | undefined,
   extensions: readonly RoofExtensionVolume3D[] | undefined,
-  panelCorners: readonly WorldPosition3D[]
+  panelCorners: readonly WorldPosition3D[],
+  patch: RoofPlanePatch3D,
+  basis: PatchTangentBasis,
 ): PvPanelVolumeProximityContext3D {
   const panelAabb = panelCornersToAabb(panelCorners);
+  const panelQuadUv = panelCorners.map((p) => worldToPlaneUv(p, basis.origin, basis.uHat, basis.vHat));
 
   let bestObsId: string | null = null;
   let bestObsD = Infinity;
@@ -320,12 +407,24 @@ function computeVolumeProximity(
 
   let bestExtId: string | null = null;
   let bestExtD = Infinity;
+  let extensionFootprintOverlap = false;
   if (extensions) {
     for (const v of extensions) {
-      const d = distanceAabbToAabb(panelAabb, v.bounds);
+      const sameSupport =
+        v.relatedPlanePatchIds.length === 0 ||
+        v.relatedPlanePatchIds.map(String).includes(String(patch.id));
+      const footprintUv = sameSupport && v.footprintWorld.length >= 3
+        ? v.footprintWorld.map((p) => worldToPlaneUv(p, basis.origin, basis.uHat, basis.vHat))
+        : [];
+      const d = footprintUv.length >= 3
+        ? polygonDistance2d(panelQuadUv, footprintUv)
+        : distanceAabbToAabb(panelAabb, v.bounds);
       if (d < bestExtD) {
         bestExtD = d;
         bestExtId = v.id;
+      }
+      if (footprintUv.length >= 3 && polygonsOverlap2d(panelQuadUv, footprintUv)) {
+        extensionFootprintOverlap = true;
       }
     }
   }
@@ -338,9 +437,9 @@ function computeVolumeProximity(
     if (vols.length === 0) {
       bestOverlap = "none";
     } else {
-      let anyOverlap = false;
+      let anyOverlap = extensionFootprintOverlap;
       let minSep = Infinity;
-      for (const v of vols) {
+      for (const v of obstacles ?? []) {
         const d = distanceAabbToAabb(panelAabb, v.bounds);
         if (d < minSep) minSep = d;
         if (aabbOverlap(panelAabb, v.bounds)) {
@@ -348,6 +447,8 @@ function computeVolumeProximity(
           conflict = true;
         }
       }
+      if (bestExtD < minSep) minSep = bestExtD;
+      if (extensionFootprintOverlap) conflict = true;
       if (anyOverlap) bestOverlap = "moderate";
       else if (minSep < 0.1) bestOverlap = "low";
       else bestOverlap = "none";

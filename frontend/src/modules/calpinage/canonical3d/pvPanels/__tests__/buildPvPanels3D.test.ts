@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { RoofObstacleVolume3D } from "../../types/roof-obstacle-volume";
+import type { RoofExtensionVolume3D } from "../../types/roof-extension-volume";
 import type { RoofPlanePatch3D } from "../../types/roof-surface";
 import { buildPvPanels3D } from "../buildPvPanels3D";
 import { dot3 } from "../../utils/math3";
@@ -334,5 +335,59 @@ describe("buildPvPanels3D", () => {
     expect(p.spatialContext.volumes.nearestObstacleVolumeId).toBe("chem-1");
     expect(p.spatialContext.volumes.nearestObstacleDistanceM).toBeLessThan(1);
     expect(p.quality.diagnostics.some((d) => d.code === "PV_PANEL_NEAR_OBSTACLE_VOLUME")).toBe(true);
+  });
+
+  it("extension architecturale V1 : le keepout PV lit le footprint du volume, pas un polygone legacy", () => {
+    const patch = makeHorizontalPatch("pan-dormer-keepout");
+    const extension = {
+      id: "rx-keepout",
+      relatedPlanePatchIds: ["pan-dormer-keepout"],
+      footprintWorld: [
+        { x: 4.5, y: 4.5, z: 10 },
+        { x: 5.5, y: 4.5, z: 10 },
+        { x: 5.5, y: 5.5, z: 10 },
+        { x: 4.5, y: 5.5, z: 10 },
+      ],
+      bounds: {
+        min: { x: 4.5, y: 4.5, z: 10 },
+        max: { x: 5.5, y: 5.5, z: 11 },
+      },
+      topology: {
+        source: "roofExtensions.canonical_v1",
+        preparedUses: {
+          keepout: "footprint",
+          shading: "canonical_mesh",
+          raycast: "canonical_mesh",
+          collisions: "canonical_mesh",
+          safeZones: "footprint_offset",
+        },
+      },
+    } as RoofExtensionVolume3D;
+
+    const { panels } = buildPvPanels3D(
+      {
+        panels: [{
+          id: "pv-over-dormer",
+          roofPlanePatchId: "pan-dormer-keepout",
+          center: { mode: "plane_uv", uv: { u: 5, v: 5 } },
+          widthM: 0.8,
+          heightM: 0.8,
+          orientation: "portrait",
+          rotationDegInPlane: 0,
+          sampling: { nx: 1, ny: 1 },
+        }],
+      },
+      {
+        roofPlanePatches: [patch],
+        obstacleVolumes: [],
+        extensionVolumes: [extension],
+      },
+    );
+
+    const p = panels[0]!;
+    expect(p.spatialContext.volumes.nearestExtensionVolumeId).toBe("rx-keepout");
+    expect(p.spatialContext.volumes.nearestExtensionDistanceM).toBe(0);
+    expect(p.spatialContext.volumes.footprintConflictHint).toBe(true);
+    expect(p.spatialContext.geometricAnchorQuality).toBe("weak");
   });
 });
