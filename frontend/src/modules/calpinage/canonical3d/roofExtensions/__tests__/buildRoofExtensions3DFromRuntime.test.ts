@@ -210,13 +210,13 @@ describe("buildRoofExtensions3DFromRuntime", () => {
         { x: 1, y: 1, h: 0 },
         { x: 3, y: 1, h: 0 },
         { x: 4, y: 2.5, h: 0 },
-        { x: 2.5, y: 4, h: 0 },
+        { x: 2, y: 4, h: 0 },
         { x: 1, y: 3, h: 0 },
       ],
       1,
     );
     expect(vol.footprintWorld).toHaveLength(5);
-    expect(vol.topology?.sourceContourPx.map((p) => p.x)).toEqual([1, 3, 4, 2.5, 1]);
+    expect(vol.topology?.sourceContourPx.map((p) => p.x)).toEqual([1, 3, 4, 2, 1]);
   });
 
   it("reload ancien : canonicalDormerGeometry legacy est ignoree", () => {

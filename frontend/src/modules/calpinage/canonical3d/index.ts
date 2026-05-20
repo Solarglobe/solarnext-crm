@@ -170,7 +170,35 @@ export type {
   ObstacleVolumeExtrusionMode,
   RoofObstacleVolume3D,
 } from "./types/roof-obstacle-volume";
-export type { RoofExtensionVolume3D } from "./types/roof-extension-volume";
+export type {
+  RoofExtensionCanonicalModelVersion,
+  RoofExtensionVolume3D,
+} from "./types/roof-extension-volume";
+export type {
+  RoofExtensionDimensionsV1,
+  RoofExtensionHipsV1,
+  RoofExtensionOrientationV1,
+  RoofExtensionPointPxV1,
+  RoofExtensionPvMetadataV1,
+  RoofExtensionRenderParametersV1,
+  RoofExtensionRoofParametersV1,
+  RoofExtensionSegmentPxV1,
+  RoofExtensionTopologyTypeV1,
+  RoofExtensionV1,
+  RoofExtensionV1Version,
+  RoofExtensionWinding2D,
+} from "./roofExtensions/roofExtensionV1";
+export {
+  buildRoofExtensionV1FromSource,
+  roofExtensionV1ToSource2D,
+  type BuildRoofExtensionV1FromSourceInput,
+  type BuildRoofExtensionV1FromSourceResult,
+} from "./roofExtensions/buildRoofExtensionV1FromSource";
+export {
+  roofExtensionV1HasBlockingErrors,
+  validateRoofExtensionV1,
+  type RoofExtensionV1ValidationInput,
+} from "./roofExtensions/roofExtensionV1Validation";
 export type {
   BuildRoofVolumes3DContext,
   BuildRoofVolumes3DInput,

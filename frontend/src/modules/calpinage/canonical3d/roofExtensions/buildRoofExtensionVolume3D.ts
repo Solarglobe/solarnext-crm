@@ -8,10 +8,15 @@ import type { RoofExtensionWorldMapping } from "./resolveSupportPan";
 import type { RoofExtensionSource2D } from "./roofExtensionSource";
 import { buildDormerTopologyFromOutline } from "./buildDormerTopologyFromOutline";
 import { buildRoofExtensionMiniRoofSemantics } from "./roofExtensionMiniRoofSemantics";
+import type { RoofExtensionV1 } from "./roofExtensionV1";
 
 export interface BuildRoofExtensionVolume3DResult {
   readonly volume: RoofExtensionVolume3D | null;
   readonly diagnostics: readonly GeometryDiagnostic[];
+}
+
+export interface BuildRoofExtensionVolume3DOptions {
+  readonly canonicalModel?: RoofExtensionV1;
 }
 
 function meanElevation(points: readonly WorldPosition3D[]): number {
@@ -52,6 +57,7 @@ export function buildRoofExtensionVolume3D(
   source: RoofExtensionSource2D,
   patch: RoofPlanePatch3D,
   world: RoofExtensionWorldMapping,
+  options: BuildRoofExtensionVolume3DOptions = {},
 ): BuildRoofExtensionVolume3DResult {
   const diagnostics: GeometryDiagnostic[] = sourceDiagnostics(source);
   if (source.contour.length < 3 || !source.ridge) {
@@ -110,6 +116,19 @@ export function buildRoofExtensionVolume3D(
     quality: qualityFor(diagnostics),
     topology: {
       version: topologyVersion,
+      ...(options.canonicalModel
+        ? {
+            canonicalModelVersion: options.canonicalModel.version,
+            canonicalTopologyType: options.canonicalModel.roof.topologyType,
+            canonicalDimensions: {
+              widthM: options.canonicalModel.dimensions.widthM,
+              depthM: options.canonicalModel.dimensions.depthM,
+              wallHeightM: options.canonicalModel.dimensions.wallHeightM,
+              roofHeightM: options.canonicalModel.dimensions.roofHeightM,
+              totalHeightM: options.canonicalModel.dimensions.totalHeightM,
+            },
+          }
+        : {}),
       meshStrategy: mesh.meshStrategy,
       source: "roofExtensions.runtime.contour_ridge",
       heightReference: "support_plane_normal",

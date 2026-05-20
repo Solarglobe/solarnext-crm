@@ -26,6 +26,8 @@ import type { VolumeRoofAttachment } from "./volume-roof-attachment";
 
 export type RoofExtensionTopologyVersion = "roof_extension_topology_v2" | "roof_extension_topology_v3";
 
+export type RoofExtensionCanonicalModelVersion = "roof_extension_v1";
+
 export type RoofExtensionMiniRoofSemanticVersion = "roof_extension_mini_roof_semantics_v1";
 
 export type RoofExtensionMiniRoofFaceRole =
@@ -82,6 +84,15 @@ export interface RoofExtensionSourcePointTopology2D {
 
 export interface RoofExtensionTopologyMetadata {
   readonly version: RoofExtensionTopologyVersion;
+  readonly canonicalModelVersion?: RoofExtensionCanonicalModelVersion;
+  readonly canonicalTopologyType?: "gable_dormer" | "shed_dormer" | "flat_extension";
+  readonly canonicalDimensions?: {
+    readonly widthM: number;
+    readonly depthM: number;
+    readonly wallHeightM: number;
+    readonly roofHeightM: number;
+    readonly totalHeightM: number;
+  };
   /** v3 hips_aware : maillage depuis contour + hips + ridge + apex ; v2 fallback éventuel */
   readonly meshStrategy?: "hips_aware" | "contour_ridge_fan";
   readonly source: "roofExtensions.runtime.contour_ridge";
