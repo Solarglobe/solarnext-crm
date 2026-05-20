@@ -231,7 +231,10 @@ function normalizeObstacles(obstacles, getZWorldAtXY) {
         var r = typeof m.radius === "number" ? m.radius : (typeof o.r === "number" ? o.r : 0);
         if (r > 0) polygonPx = circleToPolygon(cx, cy, r, CIRCLE_SEGMENTS);
       } else {
-        var pts = o.points || o.polygon || (o.contour && o.contour.points);
+        var v1 = o.canonicalV1 && o.canonicalV1.version === "roof_extension_v1" ? o.canonicalV1 : null;
+        var pts = v1 && Array.isArray(v1.footprintPx) && v1.footprintPx.length >= 3
+          ? v1.footprintPx
+          : (o.points || o.polygon || (o.contour && o.contour.points));
         if (Array.isArray(pts) && pts.length >= 3) {
           polygonPx = pts.map(function (p) {
             return { x: typeof p.x === "number" ? p.x : 0, y: typeof p.y === "number" ? p.y : 0 };

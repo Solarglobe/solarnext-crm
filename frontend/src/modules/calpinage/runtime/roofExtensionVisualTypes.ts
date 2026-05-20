@@ -23,7 +23,10 @@ export interface RuntimeRoofExtensionVisualAugment {
   readonly wallHeightM?: number;
   /** Surhausse du toit du chien assis au-dessus des murs verticaux (m). */
   readonly roofRiseM?: number;
-  /** Geometrie metier generee par la Phase 2, consommee telle quelle par la 2D et la 3D. */
+  /**
+   * @deprecated Compat migration 2D uniquement. La 3D produit, le PV, les safe-zones et
+   * le shading doivent lire `canonicalV1` -> `extensionVolumes`.
+   */
   readonly dormerModel?: {
     readonly version?: number;
     readonly source?: string;
@@ -46,7 +49,10 @@ export interface RuntimeRoofExtensionVisualAugment {
       };
     };
   };
-  /** Maillage explicite Phase 2 : points image + hauteur verticale en metres au-dessus du toit local. */
+  /**
+   * @deprecated Ancien maillage explicite Phase 2. Il ne doit plus redevenir une source
+   * produit ; il est seulement conservé pour lire d'anciens dossiers puis migrer vers `canonicalV1`.
+   */
   readonly canonicalDormerGeometry?: {
     readonly version?: number;
     readonly coordinateSpace?: "image_px_height_m" | string;

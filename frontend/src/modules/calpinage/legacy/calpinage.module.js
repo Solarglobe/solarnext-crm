@@ -3126,7 +3126,7 @@ export function initCalpinage(container, options = {}) {
       }
       if (typeof window !== "undefined") window.ensureGetSunPositionAt = ensureGetSunPositionAt;
 
-      /** Normalisation unique des obstacles near : polygonPx || polygon || points || contour.points, heightM. Retourne { rawCount, validCount, obstacles }. */
+      /** Normalisation unique des obstacles near : canonicalV1.footprintPx prioritaire pour les lucarnes, puis polygonPx || polygon || points || contour.points. Retourne { rawCount, validCount, obstacles }. */
       function buildNearObstaclesFromState(state) {
         var roof = (state && state.roof) || {};
         var mpp = (roof.scale && roof.scale.metersPerPixel) || 1;
@@ -3135,7 +3135,10 @@ export function initCalpinage(container, options = {}) {
         for (var oi = 0; oi < raw.length; oi++) {
           var o = raw[oi];
           if (!o || typeof o !== "object") continue;
-          var polygonPx = o.polygonPx || o.polygon || o.points || (o.contour && o.contour.points) || null;
+          var v1 = o.canonicalV1 && o.canonicalV1.version === "roof_extension_v1" ? o.canonicalV1 : null;
+          var polygonPx = (v1 && Array.isArray(v1.footprintPx) && v1.footprintPx.length >= 3)
+            ? v1.footprintPx
+            : (o.polygonPx || o.polygon || o.points || (o.contour && o.contour.points) || null);
           if (o.type === "shadow_volume" && !polygonPx) {
             var cx = o.x, cy = o.y;
             var wM = o.width || 0.6, dM = o.depth || 0.6;
@@ -4307,8 +4310,6 @@ export function initCalpinage(container, options = {}) {
           delete rx.canonicalDormerGeometry;
           return rx;
         }
-        var wallH = Number.isFinite(rx.wallHeightM) ? Math.max(0, rx.wallHeightM) : 0.35;
-        var ridgeH = Number.isFinite(rx.ridgeHeightRelM) ? Math.max(wallH + 0.05, rx.ridgeHeightRelM) : Math.max(0.85, wallH + 0.35);
         var rdx = ridge.b.x - ridge.a.x;
         var rdy = ridge.b.y - ridge.a.y;
         var rLen = Math.hypot(rdx, rdy);
@@ -4348,18 +4349,6 @@ export function initCalpinage(container, options = {}) {
         function pointAtUv(u, v) {
           return { x: cx + ux * u + vx * v, y: cy + uy * u + vy * v };
         }
-        function nearestContourHeight(pt) {
-          var best = null;
-          var bestDist = Infinity;
-          ring.forEach(function (p) {
-            var d = Math.hypot(p.x - pt.x, p.y - pt.y);
-            if (d < bestDist) {
-              bestDist = d;
-              best = p;
-            }
-          });
-          return best && Number.isFinite(best.h) ? best.h : 0;
-        }
         var frontLeft = pointAtUv(minU, minV);
         var frontRight = pointAtUv(maxU, minV);
         var backRight = pointAtUv(maxU, maxV);
@@ -4375,53 +4364,9 @@ export function initCalpinage(container, options = {}) {
             bounds: { minU: minU, maxU: maxU, minV: minV, maxV: maxV }
           };
         }
-        var vertices = [];
-        var edges = [];
-        var faces = [];
-        var basePts = [frontLeft, frontRight, backRight, backLeft];
-        basePts.forEach(function (p, i) {
-          var h = nearestContourHeight(p);
-          vertices.push({ id: "b" + i, role: "base_contour", x: p.x, y: p.y, h: h });
-          vertices.push({ id: "e" + i, role: "wall_eave", x: p.x, y: p.y, h: h + wallH });
-        });
-        function ridgeVertexHeight(p) {
-          return p && Number.isFinite(p.h) && p.h > wallH + 0.02 ? p.h : ridgeH;
-        }
-        vertices.push({ id: "r0", role: "ridge", x: ridge.a.x, y: ridge.a.y, h: ridgeVertexHeight(ridge.a) });
-        vertices.push({ id: "r1", role: "ridge", x: ridge.b.x, y: ridge.b.y, h: ridgeVertexHeight(ridge.b) });
-        edges.push({ id: "base-front", a: "b0", b: "b1", role: "base_contour" });
-        edges.push({ id: "base-right", a: "b1", b: "b2", role: "base_contour" });
-        edges.push({ id: "base-back", a: "b2", b: "b3", role: "base_contour" });
-        edges.push({ id: "base-left", a: "b3", b: "b0", role: "base_contour" });
-        edges.push({ id: "wall-front-left", a: "b0", b: "e0", role: "wall_vertical" });
-        edges.push({ id: "wall-front-right", a: "b1", b: "e1", role: "wall_vertical" });
-        edges.push({ id: "wall-back-right", a: "b2", b: "e2", role: "wall_vertical" });
-        edges.push({ id: "wall-back-left", a: "b3", b: "e3", role: "wall_vertical" });
-        edges.push({ id: "eave-front", a: "e0", b: "e1", role: "eave_front" });
-        edges.push({ id: "eave-back", a: "e3", b: "e2", role: "eave_back" });
-        edges.push({ id: "gable-left-base", a: "e0", b: "e3", role: "gable_edge" });
-        edges.push({ id: "gable-right-base", a: "e1", b: "e2", role: "gable_edge" });
-        edges.push({ id: "ridge", a: "r0", b: "r1", role: "ridge" });
-        edges.push({ id: "roof-front-left", a: "e0", b: "r0", role: "roof_slope_edge" });
-        edges.push({ id: "roof-front-right", a: "e1", b: "r1", role: "roof_slope_edge" });
-        edges.push({ id: "roof-back-left", a: "e3", b: "r0", role: "roof_slope_edge" });
-        edges.push({ id: "roof-back-right", a: "e2", b: "r1", role: "roof_slope_edge" });
-        faces.push({ id: "wall-front", role: "wall_front", vertexIds: ["b0", "b1", "e1", "e0"] });
-        faces.push({ id: "wall-right", role: "wall_side", vertexIds: ["b1", "b2", "e2", "e1"] });
-        faces.push({ id: "wall-back", role: "wall_back", vertexIds: ["b2", "b3", "e3", "e2"] });
-        faces.push({ id: "wall-left", role: "wall_side", vertexIds: ["b3", "b0", "e0", "e3"] });
-        faces.push({ id: "roof-front-slope", role: "roof_slope", vertexIds: ["e0", "e1", "r1", "r0"] });
-        faces.push({ id: "roof-back-slope", role: "roof_slope", vertexIds: ["e3", "r0", "r1", "e2"] });
-        faces.push({ id: "gable-left", role: "gable", vertexIds: ["e0", "r0", "e3"] });
-        faces.push({ id: "gable-right", role: "gable", vertexIds: ["e1", "e2", "r1"] });
-        rx.canonicalDormerGeometry = {
-          version: 2,
-          coordinateSpace: "image_px_height_m",
-          heightReference: "vertical_from_main_roof",
-          vertices: vertices,
-          edges: edges,
-          faces: faces
-        };
+        // Phase 6 sunset: l'ancien maillage canonicalDormerGeometry n'est plus
+        // persiste ni consomme. La source produit est canonicalV1 -> extensionVolumes.
+        delete rx.canonicalDormerGeometry;
         syncRoofExtensionSharedApex(rx);
         return rx;
       }

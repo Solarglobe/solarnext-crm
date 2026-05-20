@@ -178,6 +178,62 @@ function FixturePlan2D({ bundle }: { readonly bundle: Runtime3DFixtureBundle }) 
   );
 }
 
+function translatedPoly(points: readonly Point2D[], dx: number, dy: number): readonly Point2D[] {
+  return points.map((p) => ({ x: p.x + dx, y: p.y + dy }));
+}
+
+function installPvOverlayQaFixture(bundle: Runtime3DFixtureBundle, enabled: boolean): void {
+  if (typeof window === "undefined") return;
+  const w = window as unknown as {
+    __calpinageGetPhase3Pv3dOverlayState?: () => unknown;
+    CALPINAGE_IS_MANIPULATING?: boolean;
+  };
+  if (!enabled) {
+    delete w.__calpinageGetPhase3Pv3dOverlayState;
+    return;
+  }
+  const firstExtension = asArray(bundle.runtime.roofExtensions)[0] ?? null;
+  const extPts = firstExtension ? readPoints(firstExtension) : [];
+  const panId = firstExtension && typeof firstExtension.supportPanId === "string" ? firstExtension.supportPanId : "qa-main-right";
+  const panels = bundle.panels
+    .filter((x): x is Record<string, unknown> => !!x && typeof x === "object")
+    .map((panel, index) => {
+      const id = String(panel.id ?? `qa-panel-${index}`);
+      return {
+        id,
+        blockId: "qa-v1-block",
+        panelId: id,
+        panId: typeof panel.panId === "string" ? panel.panId : panId,
+        points: readPoints(panel),
+        selected: index === 5,
+        invalid: false,
+        enabled: true,
+      };
+    })
+    .filter((panel) => panel.points.length >= 3);
+  const ghosts =
+    extPts.length >= 3
+      ? [
+          { id: "qa-autofill-ok-left", blockId: "qa-v1-block", panId, center: { x: 485, y: 425 }, points: translatedPoly(extPts, -82, 0), valid: true, excluded: false, source: "autofill" },
+          { id: "qa-autofill-refused-dormer", blockId: "qa-v1-block", panId, center: { x: 565, y: 425 }, points: extPts, valid: false, excluded: false, source: "autofill" },
+          { id: "qa-autofill-ok-right", blockId: "qa-v1-block", panId, center: { x: 645, y: 425 }, points: translatedPoly(extPts, 82, 0), valid: true, excluded: false, source: "autofill" },
+        ]
+      : [];
+  w.CALPINAGE_IS_MANIPULATING = false;
+  w.__calpinageGetPhase3Pv3dOverlayState = () => ({
+    focusBlockId: "qa-v1-block",
+    activeBlockId: "qa-v1-block",
+    selectedPanelId: panels[0]?.id ?? null,
+    selectedPanelCount: panels.filter((p) => p.selected).length,
+    selectedPowerKwc: 0.425,
+    handles: null,
+    panels,
+    ghosts,
+    safeZones: [],
+    isManipulating: false,
+  });
+}
+
 export default function CalpinageVisualQaPage() {
   if (!import.meta.env.DEV) return <Navigate to="/" replace />;
 
@@ -186,6 +242,9 @@ export default function CalpinageVisualQaPage() {
   const bundle = getRuntime3DFixture(requested) ?? getRuntime3DFixture("visual_qa_premium_complex")!;
   const viewParam = params.get("view");
   const premiumViewMode = isPremiumHouse3DViewMode(viewParam) ? viewParam : "validation";
+  const pvOverlayMode = params.get("pv") === "1";
+
+  installPvOverlayQaFixture(bundle, pvOverlayMode);
 
   const state = useMemo(() => {
     const runtime = runtimeFixtureWithStrictRootPans(bundle.runtime);
@@ -231,6 +290,7 @@ export default function CalpinageVisualQaPage() {
             showSun
             showDebugOverlay={false}
             inspectMode
+            pvLayout3DInteractionMode={pvOverlayMode}
             premiumViewMode={premiumViewMode}
             cameraViewMode="SCENE_3D"
             showCameraViewModeToggle={false}
