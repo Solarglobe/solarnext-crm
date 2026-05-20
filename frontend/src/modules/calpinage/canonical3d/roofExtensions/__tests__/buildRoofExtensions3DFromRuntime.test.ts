@@ -14,13 +14,18 @@ import {
   signedDistanceToPlane as signedDistance,
 } from "./roofExtensionVolumeTestUtils";
 
-function runtimeWithExtension(points: readonly { x: number; y: number; h?: number }[], ridgeH: number) {
+function runtimeWithExtension(
+  points: readonly { x: number; y: number; h?: number }[],
+  ridgeH: number,
+  supportPanId: string,
+) {
   return {
     roofExtensions: [
       {
         id: "rx-test",
         type: "roof_extension",
         kind: "dormer",
+        supportPanId,
         visualModel: "manual_outline_gable",
         contour: { closed: true, points },
         ridge: {
@@ -39,7 +44,7 @@ function buildOne(
   ridgeH: number,
 ): RoofExtensionVolume3D {
   const res = buildRoofExtensions3DFromRuntime({
-    runtime: runtimeWithExtension(points, ridgeH),
+    runtime: runtimeWithExtension(points, ridgeH, String(patch.id)),
     roofPlanePatches: [patch],
     ...WORLD,
   });
@@ -64,6 +69,9 @@ describe("buildRoofExtensions3DFromRuntime", () => {
     expect(vol.footprintWorld).toHaveLength(4);
     assertBaseOnPlane(vol, patch);
     expect(vol.extrusion.mode).toBe("along_pan_normal");
+    expect(vol.topology?.version).toBe("roof_extension_topology_v4");
+    expect(vol.topology?.meshStrategy).toBe("architectural_v1");
+    expect(vol.topology?.source).toBe("roofExtensions.canonical_v1");
     expect(vol.topology?.heightReference).toBe("support_plane_normal");
     expect(vol.topology?.sourceContourPx.map((p) => [p.x, p.y])).toEqual([
       [1, 1],
@@ -79,6 +87,8 @@ describe("buildRoofExtensions3DFromRuntime", () => {
     expect(vol.topology?.miniRoof?.keepout.supportPlanePatchId).toBe("pan-flat");
     expect(vol.topology?.miniRoof?.faceRoles.some((x) => x.role === "mini_roof_plane")).toBe(true);
     expect(vol.topology?.miniRoof?.edgeRoles.some((x) => x.roles.includes("base_keepout"))).toBe(true);
+    expect(vol.topology?.architecturalParts?.walls.length).toBeGreaterThanOrEqual(4);
+    expect(vol.topology?.preparedUses?.collisions).toBe("canonical_mesh");
   });
 
   it("sommet apex partagé : faîtage confondu avec apex → un seul vertex 3D (pas ridge:a séparé)", () => {
@@ -92,6 +102,7 @@ describe("buildRoofExtensions3DFromRuntime", () => {
             id: "rx-apex",
             type: "roof_extension",
             kind: "chien_assis",
+            supportPanId: "pan-apex-merge",
             visualModel: "manual_outline_gable",
             contour: {
               closed: true,
@@ -202,7 +213,7 @@ describe("buildRoofExtensions3DFromRuntime", () => {
     expect(vol.topology?.sourceContourPx[2]?.x).toBe(3);
   });
 
-  it("preserve un contour pentagone", () => {
+  it("parametrise un contour pentagone en emprise architecturale stable", () => {
     const patch = makePatch("pan-pentagon", 0);
     const vol = buildOne(
       patch,
@@ -215,7 +226,7 @@ describe("buildRoofExtensions3DFromRuntime", () => {
       ],
       1,
     );
-    expect(vol.footprintWorld).toHaveLength(5);
+    expect(vol.footprintWorld).toHaveLength(4);
     expect(vol.topology?.sourceContourPx.map((p) => p.x)).toEqual([1, 3, 4, 2, 1]);
   });
 
@@ -229,6 +240,7 @@ describe("buildRoofExtensions3DFromRuntime", () => {
         { x: 1, y: 4, h: 0 },
       ],
       1,
+      "pan-legacy",
     );
     runtime.roofExtensions[0] = {
       ...runtime.roofExtensions[0],

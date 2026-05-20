@@ -9,7 +9,7 @@ const AREA_EPS_M2 = 1e-8;
 const LENGTH_EPS_M = 1e-7;
 const RIDGE_T_EPS = 1e-6;
 
-export type RoofExtensionMeshStrategy = "hips_aware" | "contour_ridge_fan";
+export type RoofExtensionMeshStrategy = "architectural_v1" | "hips_aware" | "contour_ridge_fan";
 
 export interface DormerTopologyMesh {
   readonly vertices: readonly VolumeVertex3D[];

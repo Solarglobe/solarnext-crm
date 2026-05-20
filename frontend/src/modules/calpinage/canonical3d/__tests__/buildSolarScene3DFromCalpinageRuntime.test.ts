@@ -237,8 +237,8 @@ describe("buildSolarScene3DFromCalpinageRuntime", () => {
     expect(ext.id).toBe("rx-scene");
     expect(ext.extrusion.mode).toBe("along_pan_normal");
     expect(ext.relatedPlanePatchIds).toEqual(["pan-dormer"]);
-    expect(ext.topology?.version).toBe("roof_extension_topology_v2");
-    expect(ext.topology?.source).toBe("roofExtensions.runtime.contour_ridge");
+    expect(ext.topology?.version).toBe("roof_extension_topology_v4");
+    expect(ext.topology?.source).toBe("roofExtensions.canonical_v1");
     expect(ext.topology?.heightReference).toBe("support_plane_normal");
     expect(ext.topology?.ignoredLegacyCanonicalDormerGeometry).toBe(true);
     expect(ext.topology?.sourceContourPx.map((p) => [p.x, p.y])).toEqual([

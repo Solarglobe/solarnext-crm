@@ -24,7 +24,10 @@ import type { VolumeRoofAttachment } from "./volume-roof-attachment";
 
 
 
-export type RoofExtensionTopologyVersion = "roof_extension_topology_v2" | "roof_extension_topology_v3";
+export type RoofExtensionTopologyVersion =
+  | "roof_extension_topology_v2"
+  | "roof_extension_topology_v3"
+  | "roof_extension_topology_v4";
 
 export type RoofExtensionCanonicalModelVersion = "roof_extension_v1";
 
@@ -94,8 +97,8 @@ export interface RoofExtensionTopologyMetadata {
     readonly totalHeightM: number;
   };
   /** v3 hips_aware : maillage depuis contour + hips + ridge + apex ; v2 fallback éventuel */
-  readonly meshStrategy?: "hips_aware" | "contour_ridge_fan";
-  readonly source: "roofExtensions.runtime.contour_ridge";
+  readonly meshStrategy?: "architectural_v1" | "hips_aware" | "contour_ridge_fan";
+  readonly source: "roofExtensions.canonical_v1" | "roofExtensions.runtime.contour_ridge";
   readonly heightReference: "support_plane_normal";
   readonly supportPlanePatchId: StableEntityId;
   readonly supportPlaneNormal: Vector3;
@@ -113,6 +116,20 @@ export interface RoofExtensionTopologyMetadata {
     readonly heightRelM: number;
   };
   readonly miniRoof?: RoofExtensionMiniRoofSemantics;
+  readonly architecturalParts?: {
+    readonly walls: readonly StableEntityId[];
+    readonly cheekWalls: readonly StableEntityId[];
+    readonly dormerRoof: readonly StableEntityId[];
+    readonly seams: readonly StableEntityId[];
+    readonly flashing: readonly StableEntityId[];
+  };
+  readonly preparedUses?: {
+    readonly keepout: "footprint";
+    readonly shading: "canonical_mesh";
+    readonly raycast: "canonical_mesh";
+    readonly collisions: "canonical_mesh";
+    readonly safeZones: "footprint_offset";
+  };
 }
 
 

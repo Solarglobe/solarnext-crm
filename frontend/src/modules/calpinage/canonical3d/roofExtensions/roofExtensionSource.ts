@@ -265,8 +265,9 @@ function resolveApexVertex(
 export function ridgeEndpointSharesApexVertex(
   px: RoofExtensionSourcePoint2D,
   apex: RoofExtensionApexPersisted,
+  tolerancePx?: number,
 ): boolean {
-  return pointsCoincidePx(px.x, px.y, apex.x, apex.y);
+  return pointsCoincidePx(px.x, px.y, apex.x, apex.y, tolerancePx);
 }
 
 function readSource(raw: Record<string, unknown>, index: number): RoofExtensionSource2D {

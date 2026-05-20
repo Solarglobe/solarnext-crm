@@ -30,6 +30,9 @@ function segmentParallelScore(
 }
 
 function wallRoleForFace(source: RoofExtensionSource2D, faceId: string): "cheek_wall" | "front_wall" | "rear_wall" {
+  if (faceId.includes(":face:wall:front")) return "front_wall";
+  if (faceId.includes(":face:wall:rear")) return "rear_wall";
+  if (faceId.includes(":face:wall:cheek:")) return "cheek_wall";
   const index = parseIndexedId(faceId, ":face:wall:");
   const ridge = source.ridge;
   if (index == null || !ridge || source.contour.length < 2) return "cheek_wall";

@@ -79,7 +79,7 @@ function projectRidgeEndpointWithApexMerge(
   if (
     apexProj &&
     source.apexVertex &&
-    ridgeEndpointSharesApexVertex(endpoint, source.apexVertex)
+    ridgeEndpointSharesApexVertex(endpoint, source.apexVertex, 1e-6)
   ) {
     return apexProj;
   }

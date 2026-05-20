@@ -7,6 +7,7 @@ import { projectRoofExtensionToSupportPlane } from "./projectRoofExtensionToSupp
 import type { RoofExtensionWorldMapping } from "./resolveSupportPan";
 import type { RoofExtensionSource2D } from "./roofExtensionSource";
 import { buildDormerTopologyFromOutline } from "./buildDormerTopologyFromOutline";
+import { buildArchitecturalDormerV1Topology } from "./buildArchitecturalDormerV1Topology";
 import { buildRoofExtensionMiniRoofSemantics } from "./roofExtensionMiniRoofSemantics";
 import type { RoofExtensionV1 } from "./roofExtensionV1";
 
@@ -76,7 +77,9 @@ export function buildRoofExtensionVolume3D(
   }
   diagnostics.push(...projected.diagnostics);
 
-  const mesh = buildDormerTopologyFromOutline(source, projected);
+  const mesh = options.canonicalModel
+    ? buildArchitecturalDormerV1Topology(options.canonicalModel, projected)
+    : buildDormerTopologyFromOutline(source, projected);
   if (!mesh) {
     diagnostics.push({
       code: "ROOF_EXTENSION_TOPOLOGY_FAILED",
@@ -87,11 +90,18 @@ export function buildRoofExtensionVolume3D(
     return { volume: null, diagnostics };
   }
 
-  const topologyVersion: "roof_extension_topology_v2" | "roof_extension_topology_v3" =
-    mesh.meshStrategy === "hips_aware" ? "roof_extension_topology_v3" : "roof_extension_topology_v2";
+  const topologyVersion =
+    mesh.meshStrategy === "architectural_v1"
+      ? "roof_extension_topology_v4"
+      : mesh.meshStrategy === "hips_aware"
+        ? "roof_extension_topology_v3"
+        : "roof_extension_topology_v2";
   const miniRoof = buildRoofExtensionMiniRoofSemantics(source, mesh, patch.id);
 
-  const footprintWorld = projected.contour.map((p) => p.base);
+  const architecturalFootprint = mesh.vertices
+    .filter((vertex) => vertex.id.includes(":base:"))
+    .map((vertex) => vertex.position);
+  const footprintWorld = architecturalFootprint.length >= 3 ? architecturalFootprint : projected.contour.map((p) => p.base);
   const volume: RoofExtensionVolume3D = {
     id: source.id,
     kind: source.kind,
@@ -130,7 +140,7 @@ export function buildRoofExtensionVolume3D(
           }
         : {}),
       meshStrategy: mesh.meshStrategy,
-      source: "roofExtensions.runtime.contour_ridge",
+      source: options.canonicalModel ? "roofExtensions.canonical_v1" : "roofExtensions.runtime.contour_ridge",
       heightReference: "support_plane_normal",
       supportPlanePatchId: patch.id,
       supportPlaneNormal: { ...projected.supportNormal },
@@ -166,6 +176,25 @@ export function buildRoofExtensionVolume3D(
           }
         : {}),
       miniRoof,
+      architecturalParts: {
+        walls: mesh.faces.filter((face) => face.id.includes(":face:wall:")).map((face) => face.id),
+        cheekWalls: mesh.faces.filter((face) => face.id.includes(":face:wall:cheek:")).map((face) => face.id),
+        dormerRoof: mesh.faces.filter((face) => face.id.includes(":face:roof:")).map((face) => face.id),
+        seams: mesh.edges.filter((edge) => edge.id.includes(":edge:base:") || edge.id.includes(":edge:outline:")).map((edge) => edge.id),
+        flashing: [
+          `${source.id}:edge:base:front`,
+          `${source.id}:edge:base:rear`,
+          `${source.id}:edge:base:left`,
+          `${source.id}:edge:base:right`,
+        ].filter((id) => mesh.edges.some((edge) => edge.id === id)),
+      },
+      preparedUses: {
+        keepout: "footprint",
+        shading: "canonical_mesh",
+        raycast: "canonical_mesh",
+        collisions: "canonical_mesh",
+        safeZones: "footprint_offset",
+      },
     },
   };
 

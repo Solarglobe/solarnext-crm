@@ -7,7 +7,7 @@ import * as THREE from "three";
 import type { RoofPlanePatch3D } from "../../types/roof-surface";
 import type { RoofExtensionVolume3D } from "../../types/roof-extension-volume";
 import type { VolumeFace3D } from "../../types/volumetric-mesh";
-import { cross3, dot3, length3, normalize3, sub3 } from "../../utils/math3";
+import { cross3, dot3, normalize3, sub3 } from "../../utils/math3";
 import { extensionVolumeGeometry } from "../../viewer/solarSceneThreeGeometry";
 import { findClosestOccluderHit } from "../../nearShading3d/volumeRaycast";
 import { buildRoofExtensions3DFromRuntime } from "../buildRoofExtensions3DFromRuntime";
@@ -233,8 +233,9 @@ function assertRaycastUsesSameVertices(vol: RoofExtensionVolume3D): void {
 }
 
 function validateP3HipsAwareCore(vol: RoofExtensionVolume3D, extId: string, patch: RoofPlanePatch3D): void {
-  expect(vol.topology?.version).toBe("roof_extension_topology_v3");
-  expect(vol.topology?.meshStrategy).toBe("hips_aware");
+  expect(vol.topology?.version).toBe("roof_extension_topology_v4");
+  expect(vol.topology?.meshStrategy).toBe("architectural_v1");
+  expect(vol.topology?.source).toBe("roofExtensions.canonical_v1");
   expect(vol.topology?.miniRoof?.hasCheeks).toBe(true);
   expect(vol.topology?.miniRoof?.hasRidge).toBe(true);
   expect(vol.topology?.miniRoof?.hasMiniRoofPlanes).toBe(true);
@@ -242,6 +243,9 @@ function validateP3HipsAwareCore(vol: RoofExtensionVolume3D, extId: string, patc
   expect(vol.topology?.miniRoof?.edgeRoles.some((x) => x.roles.includes("hip"))).toBe(true);
   expect(vol.topology?.miniRoof?.edgeRoles.some((x) => x.roles.includes("support_seam"))).toBe(true);
   expect(vol.topology?.miniRoof?.keepout.footprintWorldVertexIds.length).toBeGreaterThanOrEqual(3);
+  expect(vol.topology?.architecturalParts?.cheekWalls.length).toBeGreaterThanOrEqual(2);
+  expect(vol.topology?.architecturalParts?.dormerRoof.length).toBeGreaterThanOrEqual(2);
+  expect(vol.topology?.preparedUses?.shading).toBe("canonical_mesh");
   assertNoLegacyBBoxOrPrismArtifacts(vol);
   assertNoContourRidgeFanFaces(vol, extId);
   assertExplicitHipsSlopePatches(vol);
@@ -358,10 +362,13 @@ describe("P3 hips-aware — validation complète (cas réels)", () => {
     assertFootprintOnSupportPlane(vol, patch);
     assertVertexHeightAlongNormal(vol, patch, ":p3-slope30:apex", 1);
     const apex = vol.vertices.find((v) => v.id.endsWith(":p3-slope30:apex"))!;
-    const outlineTop = vol.vertices.find((v) => v.id.endsWith(":outline:0"))!;
-    const along = sub3(apex.position, outlineTop.position);
-    expect(Math.abs(dot3(along, patch.normal) - 1)).toBeLessThan(2e-6);
-    expect(length3(along)).toBeGreaterThan(0.85);
+    const eave = vol.vertices.find((v) => v.id.endsWith(":eave:front-left"))!;
+    const base = vol.vertices.find((v) => v.id.endsWith(":base:front-left"))!;
+    expect(Math.abs(signedDistanceToPlane(base.position, patch.equation))).toBeLessThan(1e-6);
+    expect(Math.abs(signedDistanceToPlane(eave.position, patch.equation) - 0.45)).toBeLessThan(1e-6);
+    expect(signedDistanceToPlane(apex.position, patch.equation)).toBeGreaterThan(
+      signedDistanceToPlane(eave.position, patch.equation),
+    );
   });
 
   it("hauteur apex 0 m — tout adhère au pan (pas de jeu selon normale)", () => {
@@ -379,7 +386,7 @@ describe("P3 hips-aware — validation complète (cas réels)", () => {
       ridgeHeightRelM: 0,
       apexHeightRelM: 0,
     });
-    expect(vol.topology?.meshStrategy).toBe("hips_aware");
+    expect(vol.topology?.meshStrategy).toBe("architectural_v1");
     assertNoContourRidgeFanFaces(vol, "p3-h0");
     assertNoLegacyBBoxOrPrismArtifacts(vol);
     assertFootprintOnSupportPlane(vol, patch);
