@@ -80,7 +80,7 @@ import type { PvPanelSurface3D } from "../types/pv-panel-3d";
 import { INSPECT_USERDATA_KEY } from "../viewer/inspection/sceneInspectionTypes";
 import { getDepthOffset } from "../viewer/DepthRegistry";
 import { getPvPanelTexture } from "./buildPvPanelTexture";
-import { PV_PANEL_RENDER_LIFT_M } from "./pvPanelRenderConfig";
+import { PV_PANEL_RENDER_LIFT_M, PV_PANEL_THICKNESS_M } from "./pvPanelRenderConfig";
 
 
 // ── Debug runtime [PV3D-RENDER] ───────────────────────────────────────────────
@@ -98,9 +98,113 @@ const INSTANCE_POOL_SIZE = 512;
 
 // ── Geometrie partagee ────────────────────────────────────────────────────────
 
-/** Plan unite 1x1, normal +Z, centre a l'origine. */
-function buildSharedPanelGeometry(): THREE.PlaneGeometry {
-  return new THREE.PlaneGeometry(1, 1);
+/** Panneau unite 1x1 avec vraie epaisseur locale en metres, top surface en z=0. */
+function buildSharedPanelGeometry(): THREE.BufferGeometry {
+  const t = PV_PANEL_THICKNESS_M;
+  const positions: number[] = [];
+  const normals: number[] = [];
+  const uvs: number[] = [];
+  const indices: number[] = [];
+
+  const addQuad = (
+    corners: readonly [number, number, number][],
+    normal: readonly [number, number, number],
+    faceUvs: readonly [number, number][],
+  ) => {
+    const base = positions.length / 3;
+    for (let i = 0; i < 4; i++) {
+      positions.push(corners[i]![0], corners[i]![1], corners[i]![2]);
+      normals.push(normal[0], normal[1], normal[2]);
+      uvs.push(faceUvs[i]![0], faceUvs[i]![1]);
+    }
+    indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
+  };
+
+  addQuad(
+    [
+      [-0.5, -0.5, 0],
+      [0.5, -0.5, 0],
+      [0.5, 0.5, 0],
+      [-0.5, 0.5, 0],
+    ],
+    [0, 0, 1],
+    [
+      [0, 0],
+      [1, 0],
+      [1, 1],
+      [0, 1],
+    ],
+  );
+
+  addQuad(
+    [
+      [0.5, -0.5, 0],
+      [0.5, -0.5, -t],
+      [0.5, 0.5, -t],
+      [0.5, 0.5, 0],
+    ],
+    [1, 0, 0],
+    [
+      [1, 0.04],
+      [0.96, 0.04],
+      [0.96, 0.96],
+      [1, 0.96],
+    ],
+  );
+  addQuad(
+    [
+      [-0.5, 0.5, 0],
+      [0.5, 0.5, 0],
+      [0.5, 0.5, -t],
+      [-0.5, 0.5, -t],
+    ],
+    [0, 1, 0],
+    [
+      [0.04, 1],
+      [0.96, 1],
+      [0.96, 0.96],
+      [0.04, 0.96],
+    ],
+  );
+  addQuad(
+    [
+      [-0.5, -0.5, 0],
+      [-0.5, 0.5, 0],
+      [-0.5, 0.5, -t],
+      [-0.5, -0.5, -t],
+    ],
+    [-1, 0, 0],
+    [
+      [0, 0.04],
+      [0, 0.96],
+      [0.04, 0.96],
+      [0.04, 0.04],
+    ],
+  );
+  addQuad(
+    [
+      [0.5, -0.5, 0],
+      [-0.5, -0.5, 0],
+      [-0.5, -0.5, -t],
+      [0.5, -0.5, -t],
+    ],
+    [0, -1, 0],
+    [
+      [0.96, 0],
+      [0.04, 0],
+      [0.04, 0.04],
+      [0.96, 0.04],
+    ],
+  );
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geo.setAttribute("normal", new THREE.Float32BufferAttribute(normals, 3));
+  geo.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
+  geo.setIndex(indices);
+  geo.computeBoundingBox();
+  geo.computeBoundingSphere();
+  return geo;
 }
 
 // ── Matrice d'instance ────────────────────────────────────────────────────────
@@ -111,7 +215,7 @@ function buildSharedPanelGeometry(): THREE.PlaneGeometry {
  * N'utilise PAS localFrame - meme source de verite que panelQuadGeometry.
  * La grille de cellules PV est integree a la texture du panneau, pas a une geometrie separee.
  *
- * Pour PlaneGeometry(1,1) avec vertices a (+/-0.5, +/-0.5, 0) :
+ * Pour la geometrie unite 1x1 avec surface top a (+/-0.5, +/-0.5, 0) :
  *   col0 = c1 - c0  (vecteur largeur pleine, scale implicite)
  *   col1 = c3 - c0  (vecteur hauteur pleine, scale implicite)
  *   col2 = outwardNormal

@@ -5,8 +5,12 @@
  * lifted a few centimeters along the roof normal so the GPU no longer has to
  * solve a coplanar roof/panel depth fight with polygonOffset alone.
  */
-export const PV_PANEL_RENDER_LIFT_M = 0.045;
-export const PV_PANEL_LIVE_FILL_LIFT_M = 0.06;
-export const PV_PANEL_LIVE_LINE_LIFT_M = 0.074;
-export const PV_PANEL_GHOST_FILL_LIFT_M = 0.062;
-export const PV_PANEL_GHOST_LINE_LIFT_M = 0.076;
+export const PV_PANEL_THICKNESS_M = 0.03;
+export const PV_PANEL_ROOF_GAP_M = 0.05;
+
+// Top glass surface lift. The panel underside sits PV_PANEL_ROOF_GAP_M above the roof.
+export const PV_PANEL_RENDER_LIFT_M = PV_PANEL_ROOF_GAP_M + PV_PANEL_THICKNESS_M;
+export const PV_PANEL_LIVE_FILL_LIFT_M = PV_PANEL_RENDER_LIFT_M + 0.012;
+export const PV_PANEL_LIVE_LINE_LIFT_M = PV_PANEL_RENDER_LIFT_M + 0.026;
+export const PV_PANEL_GHOST_FILL_LIFT_M = PV_PANEL_RENDER_LIFT_M + 0.014;
+export const PV_PANEL_GHOST_LINE_LIFT_M = PV_PANEL_RENDER_LIFT_M + 0.028;

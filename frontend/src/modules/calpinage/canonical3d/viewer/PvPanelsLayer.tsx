@@ -138,7 +138,7 @@ export function PvPanelsLayer({
         emissiveIntensity={pvPanelEmissiveIntensityBonus + 0.12}
         metalness={pvPanelMetalness}
         roughness={pvPanelRoughness}
-        envMapIntensity={1.20}
+        envMapIntensity={1.05}
         renderOrder={pvLayout3DInteractionMode ? 20 : 2}
         polygonOffsetFactor={getDepthOffset("PV_PANEL").polygonOffsetFactor}
         polygonOffsetUnits={getDepthOffset("PV_PANEL").polygonOffsetUnits}

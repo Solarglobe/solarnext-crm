@@ -45,28 +45,28 @@ export const SOLARNEXT_3D_PREMIUM_THEME = {
   },
   pv: {
     liveFill: "#234b73",
-    selectedFill: "#5568d6",
-    invalidFill: "#b45309",
+    selectedFill: "#7c8cff",
+    invalidFill: "#ef4444",
     cellLine: "#b8ccd8",
-    selectedLine: "#9aa7ff",
-    invalidLine: "#fed7aa",
+    selectedLine: "#7c8cff",
+    invalidLine: "#ef4444",
     liveEmissive: "#12243a",
     selectedEmissive: "#4f46e5",
-    invalidEmissive: "#f59e0b",
+    invalidEmissive: "#7f1d1d",
   },
   safeZone: {
     fill: "#ef4444",
     line: "#fb7185",
   },
   ghost: {
-    validFill: "#16a34a",
-    validLine: "#bbf7d0",
-    autofillFill: "#0ea5e9",
-    autofillLine: "#bae6fd",
-    excludedFill: "#94a3b8",
-    excludedLine: "#64748b",
-    invalidFill: "#ea580c",
-    invalidLine: "#fdba74",
+    validFill: "#c8c8c8",
+    validLine: "#a0a0a0",
+    autofillFill: "#c8c8c8",
+    autofillLine: "#a0a0a0",
+    excludedFill: "#bebecd",
+    excludedLine: "#6e6e82",
+    invalidFill: "#dc3c3c",
+    invalidLine: "#aa1e1e",
   },
 } as const;
 
@@ -135,10 +135,9 @@ export const PREMIUM_MATERIALS: Record<RoofMaterialType | "PV_PANEL" | "FACADE" 
   // ── Panneaux PV ────────────────────────────────────────────────
   PV_PANEL: {
     color: "#0c131f",      // Quasi-noir bleu nuit : couleur réelle cellule monocristalline
-    roughness: 0.18,       // Verre trempé AR réel ≈ 0.15–0.22 (pas un miroir parfait). 0.10 était trop
-                           // spéculaire : env map overcast blanchissait les panneaux en vue rapprochée.
-    metalness: 0.72,       // Le modèle PBR traite verre + silicon comme conducteur semi-spéculaire
-    envMapIntensity: 1.20, // Réduit de 1.45 → 1.20 : reflections IBL visibles sans surexposer en zoom.
+    roughness: 0.32,       // Verre AR satine : reflet visible mais stable en zoom/vue rasante.
+    metalness: 0.22,       // Verre + cellule silicium : rendu surtout dielectrique, pas miroir metallique.
+    envMapIntensity: 1.05, // Reflections presentes sans surexposer en zoom.
   },
   // ── Bâtiment ───────────────────────────────────────────────────
   FACADE: {

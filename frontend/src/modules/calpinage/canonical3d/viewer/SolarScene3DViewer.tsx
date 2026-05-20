@@ -2294,6 +2294,16 @@ function ViewerSceneContent({
     });
   }, [scene, pvLayout3DInteractionMode, pvLayout3dOverlayState]);
 
+  const pv3dSelectedPanelGeos = useMemo(() => {
+    if (!pvLayout3DInteractionMode || !pvLayout3dOverlayState || pvLayout3dOverlayState.isManipulating) return [];
+    return pvLayout3dOverlayState.panels.flatMap((p) => {
+      if (!p.selected) return [];
+      const fill = imagePolygonToRoofMeshGeometry(scene, p.points, p.panId, PV_PANEL_LIVE_FILL_LIFT_M);
+      const line = imagePolygonToRoofLineGeometry(scene, p.points, p.panId, PV_PANEL_LIVE_LINE_LIFT_M);
+      return fill || line ? [{ id: p.id, fill, line, invalid: !!p.invalid }] : [];
+    });
+  }, [scene, pvLayout3DInteractionMode, pvLayout3dOverlayState]);
+
   const pv3dSafeZoneGeos = useMemo(() => {
     if (!pvLayout3DInteractionMode || !pvLayout3dOverlayState) return [];
     return pvLayout3dOverlayState.safeZones.flatMap((z) =>
@@ -2340,6 +2350,7 @@ function ViewerSceneContent({
       ...panelGeos.map((x) => x.geo),
       ...pv3dLivePanelGeos.flatMap((x) => [x.fill, x.line].filter((g): g is THREE.BufferGeometry => g != null)),
       ...pv3dGhostGeos.flatMap((x) => [x.fill, x.line].filter((g): g is THREE.BufferGeometry => g != null)),
+      ...pv3dSelectedPanelGeos.flatMap((x) => [x.fill, x.line].filter((g): g is THREE.BufferGeometry => g != null)),
       ...pv3dSafeZoneGeos.flatMap((x) => [x.ribbon, x.line].filter((g): g is THREE.BufferGeometry => g != null)),
     ],
     [
@@ -2353,6 +2364,7 @@ function ViewerSceneContent({
       panelGeos,
       pv3dLivePanelGeos,
       pv3dGhostGeos,
+      pv3dSelectedPanelGeos,
       pv3dSafeZoneGeos,
     ],
   );
@@ -2436,7 +2448,6 @@ function ViewerSceneContent({
   const mRidge = assembly.materials.structuralRidgeLine;
   const pvB = assembly.pvBoost;
   const livePvPanelTexture = useMemo(() => getPvPanelTexture("live"), []);
-  const ghostPvPanelTexture = useMemo(() => getPvPanelTexture("ghost"), []);
 
   /**
    * Couleurs hex par instance pour PvPanelInstanced — même logique que panelSurfaceMaterial.
@@ -2689,9 +2700,8 @@ function ViewerSceneContent({
                           : PV3D_GHOST_VALID_FILL
                       : PV3D_GHOST_INVALID_FILL
                   }
-                  map={ghostPvPanelTexture}
                   transparent
-                  opacity={valid ? (excluded ? 0.06 : 0.16) : 0.13}
+                  opacity={valid ? (excluded ? 0.14 : 0.35) : 0.22}
                   side={THREE.DoubleSide}
                   depthWrite={false}
                   depthTest
@@ -2712,7 +2722,37 @@ function ViewerSceneContent({
                       : PV3D_GHOST_INVALID_LINE
                   }
                   transparent
-                  opacity={valid ? (excluded ? 0.42 : 0.72) : 0.68}
+                  opacity={valid ? (excluded ? 0.55 : 0.6) : 0.88}
+                  depthWrite={false}
+                  toneMapped={false}
+                  depthTest
+                />
+              </lineSegments>
+            ) : null}
+          </group>
+        ))}
+      {pvLayout3DInteractionMode &&
+        pv3dSelectedPanelGeos.map(({ id, fill, line, invalid }) => (
+          <group key={`pv3d-selected-${id}`}>
+            {fill ? (
+              <mesh geometry={fill} renderOrder={28}>
+                <meshBasicMaterial
+                  color={invalid ? SOLARNEXT_3D_PREMIUM_THEME.pv.invalidFill : SOLARNEXT_3D_PREMIUM_THEME.pv.selectedFill}
+                  transparent
+                  opacity={invalid ? 0.28 : 0.22}
+                  side={THREE.DoubleSide}
+                  depthWrite={false}
+                  depthTest
+                  toneMapped={false}
+                />
+              </mesh>
+            ) : null}
+            {line ? (
+              <lineSegments geometry={line} renderOrder={29}>
+                <lineBasicMaterial
+                  color={invalid ? SOLARNEXT_3D_PREMIUM_THEME.pv.invalidLine : SOLARNEXT_3D_PREMIUM_THEME.pv.selectedLine}
+                  transparent
+                  opacity={invalid ? 1 : 0.95}
                   depthWrite={false}
                   toneMapped={false}
                   depthTest
@@ -2728,7 +2768,7 @@ function ViewerSceneContent({
               <mesh geometry={fill} renderOrder={30}>
                 <meshStandardMaterial
                   color={invalid ? PREMIUM_PV_INVALID_FILL : selected ? PREMIUM_PV_SELECTED_FILL : PREMIUM_PV_LIVE_FILL}
-                  map={livePvPanelTexture}
+                  map={invalid ? undefined : livePvPanelTexture}
                   emissive={
                     invalid
                       ? SOLARNEXT_3D_PREMIUM_THEME.pv.invalidEmissive
@@ -2739,9 +2779,9 @@ function ViewerSceneContent({
                   emissiveIntensity={invalid ? 0.34 : selected ? 0.18 : 0.08}
                   metalness={pvB.panelMetalness}
                   roughness={pvB.panelRoughness}
-                  envMapIntensity={1.20}
-                  transparent={enabled === false}
-                  opacity={enabled === false ? 0.42 : 1}
+                  envMapIntensity={1.05}
+                  transparent={invalid || enabled === false}
+                  opacity={invalid ? 0.74 : enabled === false ? 0.42 : 1}
                   // depthWrite=false : le fill live ne doit pas occulter son outline.
                   // La profondeur de la scène opaque (toiture, bâtiment) est déjà dans
                   // le depth buffer au moment du rendu overlay.
@@ -2758,7 +2798,7 @@ function ViewerSceneContent({
                 <lineBasicMaterial
                   color={invalid ? SOLARNEXT_3D_PREMIUM_THEME.pv.invalidLine : SOLARNEXT_3D_PREMIUM_THEME.pv.selectedLine}
                   transparent
-                  opacity={invalid ? 0.98 : 0.88}
+                  opacity={invalid ? 1 : 0.95}
                   depthWrite={false}
                   toneMapped={false}
                   depthTest
@@ -2938,7 +2978,7 @@ export function SolarScene3DViewer({
   className,
   height = 420,
   showRoof = true,
-  showRoofTruthBadges = true,
+  showRoofTruthBadges = false,
   showMissingHeightAlerts = true,
   showMultiPanDiagnostics = true,
   showRoofEdges = true,
@@ -4710,11 +4750,13 @@ export function SolarScene3DViewer({
           extensionVolDebugLevel={extensionVolDebugLevel}
         />
         {/* PanelTooltip3D - label Html drei sur le panneau survole */}
-        <PanelTooltip3D
-          panelId={panelHover?.panelId ?? null}
-          panel={hoveredPanel}
-          worldPosition={hoveredPanelWorldPos}
-        />
+        {inspectMode ? (
+          <PanelTooltip3D
+            panelId={panelHover?.panelId ?? null}
+            panel={hoveredPanel}
+            worldPosition={hoveredPanelWorldPos}
+          />
+        ) : null}
         {/* LOT3-C5 : MagneticGrid3D — garde triple pour éviter l'état interdit "grille seule sans panneaux".
          * `pvLayout3DInteractionMode` seul permettait la grille pendant le rebuild de scène (0 panneaux).
          * `scene.pvPanels.length > 0` : grille invisible si aucun panneau dans la scène courante.
@@ -4722,7 +4764,12 @@ export function SolarScene3DViewer({
         <MagneticGrid3D
           panId={pvLayoutActivePanId}
           snapPoints={magneticGridSnapPoints}
-          visible={!!(pvLayout3DInteractionMode && scene.pvPanels.length > 0 && pvLayout3dOverlayState != null)}
+          visible={!!(
+            pvLayout3DInteractionMode &&
+            scene.pvPanels.length > 0 &&
+            pvLayout3dOverlayState?.isManipulating &&
+            magneticGridSnapPoints.length > 0
+          )}
         />
         {pvLayout3DInteractionMode && scene.worldConfig && pvPanelDrag.session ? (
           <PvLayout3dDragController
