@@ -10,7 +10,7 @@ import {
   inferModuleDimsFromProjectionQuadPx,
   mapPvEnginePanelsToPanelInputs,
 } from "../buildCanonicalPlacedPanelsFromRuntime";
-import { segmentHorizontalLengthMFromImagePx } from "../../builder/worldMapping";
+import { imagePxToWorldHorizontalM, segmentHorizontalLengthMFromImagePx } from "../../builder/worldMapping";
 import type { HeightResolverContext } from "../../../core/heightResolver";
 
 function minimalLegacyRoof(panId = "pan-a") {
@@ -144,7 +144,58 @@ describe("buildCanonicalPlacedPanelsFromRuntime", () => {
     expect(pv.panels[0].surfaceAreaM2).toBeGreaterThan(0);
   });
 
-  it("Z centre suit panId via resolveHeightAtXY (pente simulée)", () => {
+  it("ne reswap pas un panneau paysage dont le quad moteur porte deja l'orientation", () => {
+    const legacy = minimalLegacyRoof("pan-a");
+    const { model } = buildRoofModel3DFromLegacyGeometry(legacy);
+    const blockId = "block-landscape";
+    const polygonPx = [
+      { x: 40, y: 30 },
+      { x: 60, y: 30 },
+      { x: 60, y: 70 },
+      { x: 40, y: 70 },
+    ];
+
+    const res = buildCanonicalPlacedPanelsFromRuntime({
+      roofPlanePatches: model.roofPlanePatches,
+      metersPerPixel: legacy.metersPerPixel,
+      northAngleDeg: 0,
+      rawPanels: [
+        {
+          id: `${blockId}_0`,
+          panId: "pan-a",
+          rotationDeg: 0,
+          center: { x: 50, y: 50 },
+          polygonPx,
+          enabled: true,
+        },
+      ],
+      placementEngine: {
+        getBlockById: (id: string) =>
+          id === blockId ? { orientation: "PAYSAGE", panels: [{}] } : null,
+      },
+      heightResolverContext: { state: {}, getHeightAtXY: () => 10 },
+      options: { useHeightResolverForCenterZ: true, defaultZFallbackM: 10 },
+    });
+
+    expect(res.placementInputs).toHaveLength(1);
+    expect(res.placementInputs[0]!.widthM).toBeCloseTo(1, 6);
+    expect(res.placementInputs[0]!.heightM).toBeCloseTo(2, 6);
+
+    const pv = buildPvPanels3D({ panels: [...res.placementInputs] }, { roofPlanePatches: model.roofPlanePatches });
+    const expected = polygonPx.map((p) => imagePxToWorldHorizontalM(p.x, p.y, legacy.metersPerPixel, 0));
+    const corners = pv.panels[0]!.corners3D;
+
+    for (const expectedCorner of expected) {
+      const found = corners.some(
+        (corner) =>
+          Math.abs(corner.x - expectedCorner.x) < 1e-6 &&
+          Math.abs(corner.y - expectedCorner.y) < 1e-6,
+      );
+      expect(found).toBe(true);
+    }
+  });
+
+  it("Z centre suit le plan de patch officiel quand il est disponible", () => {
     const legacy = minimalLegacyRoof("pan-a");
     const { model } = buildRoofModel3DFromLegacyGeometry(legacy);
     const getHeightAtXY = (_pid: string, x: number, y: number) => 10 + 0.02 * x;
@@ -176,7 +227,7 @@ describe("buildCanonicalPlacedPanelsFromRuntime", () => {
     const pi = res.placementInputs[0];
     expect(pi.center.mode).toBe("world");
     if (pi.center.mode === "world") {
-      expect(pi.center.position.z).toBeCloseTo(10 + 0.02 * 10);
+      expect(pi.center.position.z).toBeCloseTo(0);
     }
   });
 });

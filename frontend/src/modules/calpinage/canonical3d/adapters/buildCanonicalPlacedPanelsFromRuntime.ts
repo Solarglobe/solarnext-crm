@@ -18,7 +18,6 @@ import {
 } from "../../integration/mapCalpinageToCanonicalNearShading";
 import {
   enrichPanelsForCanonicalShading,
-  parsePanelCompositeId,
   type PlacementEngineLike,
 } from "../../integration/enrichPanelsForCanonicalShading";
 import {
@@ -180,23 +179,16 @@ export function inferModuleDimsFromProjectionQuadPx(
   return { widthM: Math.max(w, 0.05), heightM: Math.max(h, 0.05) };
 }
 
-function blockOrientationToPanelOrientation(block: { orientation?: string | null } | null): string | undefined {
-  if (!block?.orientation) return undefined;
-  const o = String(block.orientation).toUpperCase();
-  if (o === "PAYSAGE" || o === "LANDSCAPE") return "landscape";
-  return "portrait";
-}
-
 /**
  * Convertit la sortie de `pvPlacementEngine.getAllPanels()` en `PanelInput[]`
- * (dimensions inférées depuis `polygonPx` si besoin, orientation depuis le bloc).
+ * (dimensions inférées depuis `polygonPx` si besoin).
  *
  * @param roofPlanePatches — patches 3D indexés par id (= panId). Quand fourni, corrige la
  *   double-projection cos(tilt) dans `inferModuleDimsFromProjectionQuadPx`.
  */
 export function mapPvEnginePanelsToPanelInputs(
   rawPanels: readonly unknown[],
-  placementEngine: PlacementEngineLike | null | undefined,
+  _placementEngine: PlacementEngineLike | null | undefined,
   metersPerPixel: number,
   northAngleDeg: number = 0,
   roofPlanePatches?: readonly RoofPlanePatch3D[] | null,
@@ -227,15 +219,6 @@ export function mapPvEnginePanelsToPanelInputs(
     const patch = panId !== null ? (patchByPanId?.get(panId) ?? null) : null;
     const inferred = inferModuleDimsFromProjectionQuadPx(poly, metersPerPixel, northAngleDeg, patch);
 
-    let orientation: string | undefined;
-    if (placementEngine && typeof placementEngine.getBlockById === "function") {
-      const parsed = parsePanelCompositeId(id);
-      if (parsed) {
-        const block = placementEngine.getBlockById(parsed.blockId);
-        orientation = blockOrientationToPanelOrientation(block);
-      }
-    }
-
     out.push({
       id,
       panId,
@@ -244,7 +227,11 @@ export function mapPvEnginePanelsToPanelInputs(
       moduleWidthM: inferred.widthM,
       moduleHeightM: inferred.heightM,
       ...(typeof p.rotationDeg === "number" ? { rotationDeg: p.rotationDeg } : {}),
-      ...(orientation ? { orientation } : {}),
+      /*
+       * Important : inferred.widthM/heightM viennent du quad moteur deja oriente.
+       * Propager "landscape" ici provoquerait un second swap dans getPanelModuleDimsM,
+       * ce qui inverse visuellement portrait/paysage en 3D.
+       */
     });
   }
   return out;
