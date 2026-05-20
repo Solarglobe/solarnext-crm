@@ -28,8 +28,8 @@ const _pv3dDbg = (): boolean =>
 
 // ── Constantes visuelles PV ───────────────────────────────────────────────────
 
-// #0c131f = quasi-noir bleu nuit : couleur réelle cellule monocristalline
-const PREMIUM_PV_SURFACE_HEX = new THREE.Color("#0c131f").getHex();
+// Light multiplier: the Canvas texture already carries the dark PV cell color.
+const PREMIUM_PV_SURFACE_HEX = new THREE.Color("#d8e8f8").getHex();
 const PREMIUM_PV_EMISSIVE_HEX = new THREE.Color(SOLARNEXT_3D_PREMIUM_THEME.pv.liveEmissive).getHex();
 
 // ── Props ─────────────────────────────────────────────────────────────────────

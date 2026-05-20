@@ -13622,6 +13622,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             if (typeof window.refreshAutofillToolbar === "function") window.refreshAutofillToolbar();
             if (typeof window.CALPINAGE_RENDER === "function") requestAnimationFrame(window.CALPINAGE_RENDER);
             if (typeof window.notifyPhase3SidebarUpdate === "function") window.notifyPhase3SidebarUpdate();
+            if (typeof notifyPhase3Pv3dOverlayChanged === "function") notifyPhase3Pv3dOverlayChanged();
           }
           /** Même logique que getPhase3ActiveTool : en Phase 3, "select" et "panels" sont tous deux des modes valides pour travailler sur les blocs. Avant : seul "panels" activait le bouton — en mode sélection le bouton restait disabled et un .click() programmatique (sidebar React) ne déclenchait rien. */
           function isToolOkForAutofill() {
@@ -13799,6 +13800,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             getLiveAutofillRenderData();
             if (typeof window.CALPINAGE_RENDER === "function") requestAnimationFrame(window.CALPINAGE_RENDER);
             if (typeof window.notifyPhase3SidebarUpdate === "function") window.notifyPhase3SidebarUpdate();
+            if (typeof notifyPhase3Pv3dOverlayChanged === "function") notifyPhase3Pv3dOverlayChanged();
           }
           function confirmAutofill() {
             var modeAf = window.__CALPINAGE_AUTOFILL_MODE__;
@@ -17799,6 +17801,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                     window.__getLiveAutofillRenderData();
                     if (typeof window.notifyPhase3SidebarUpdate === "function") window.notifyPhase3SidebarUpdate();
                     if (typeof window.CALPINAGE_RENDER === "function") requestAnimationFrame(window.CALPINAGE_RENDER);
+                    if (typeof notifyPhase3Pv3dOverlayChanged === "function") notifyPhase3Pv3dOverlayChanged();
                     return;
                   }
                 }

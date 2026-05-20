@@ -80,6 +80,7 @@ import type { PvPanelSurface3D } from "../types/pv-panel-3d";
 import { INSPECT_USERDATA_KEY } from "../viewer/inspection/sceneInspectionTypes";
 import { getDepthOffset } from "../viewer/DepthRegistry";
 import { getPvPanelTexture } from "./buildPvPanelTexture";
+import { PV_PANEL_RENDER_LIFT_M } from "./pvPanelRenderConfig";
 
 
 // ── Debug runtime [PV3D-RENDER] ───────────────────────────────────────────────
@@ -116,12 +117,16 @@ function buildSharedPanelGeometry(): THREE.PlaneGeometry {
  *   col2 = outwardNormal
  *   col3 = center3D
  */
-function applyPanelInstanceMatrix(panel: PvPanelSurface3D, target: THREE.Matrix4): void {
+function applyPanelInstanceMatrix(panel: PvPanelSurface3D, target: THREE.Matrix4, renderLiftM: number): void {
   const c0 = panel.corners3D[0]!;
   const c1 = panel.corners3D[1]!;
   const c3 = panel.corners3D[3]!;
-  const ctr = panel.center3D;
   const n = panel.outwardNormal;
+  const ctr = {
+    x: panel.center3D.x + n.x * renderLiftM,
+    y: panel.center3D.y + n.y * renderLiftM,
+    z: panel.center3D.z + n.z * renderLiftM,
+  };
   const wx = c1.x - c0.x, wy = c1.y - c0.y, wz = c1.z - c0.z;
   const hx = c3.x - c0.x, hy = c3.y - c0.y, hz = c3.z - c0.z;
   // THREE.Matrix4.set : arguments en ordre row-major
@@ -160,6 +165,7 @@ function flushInstancesToMesh(
   colors: readonly number[] | undefined,
   hidden: ReadonlySet<string> | undefined,
   prevCount: number,
+  renderLiftM: number,
 ): number {
   const n = Math.min(panels.length, INSTANCE_POOL_SIZE);
 
@@ -192,7 +198,7 @@ function flushInstancesToMesh(
     if (isHidden) {
       mesh.setMatrixAt(i, HIDDEN_INSTANCE_MATRIX);
     } else {
-      applyPanelInstanceMatrix(panel, m);
+      applyPanelInstanceMatrix(panel, m, renderLiftM);
       // ── [PV3D-RENDER] NaN check avant upload GPU ────────────────────
       if (_pv3dDbg() && m.elements.some((v) => !Number.isFinite(v))) {
         _nanCount++;
@@ -269,6 +275,8 @@ export interface PvPanelInstancedProps {
   readonly renderOrder?: number;
   readonly polygonOffsetFactor?: number;
   readonly polygonOffsetUnits?: number;
+  /** Visual lift above the canonical roof plane. Keeps business geometry unchanged. */
+  readonly renderLiftM?: number;
   /**
    * IDs des panneaux a masquer (matrice scale=0).
    * Utilise en pvLayout3DInteractionMode pour les panneaux "live" rendus separement.
@@ -303,6 +311,7 @@ export function PvPanelInstanced({
   renderOrder = 0,
   polygonOffsetFactor = getDepthOffset("PV_PANEL").polygonOffsetFactor,
   polygonOffsetUnits = getDepthOffset("PV_PANEL").polygonOffsetUnits,
+  renderLiftM = PV_PANEL_RENDER_LIFT_M,
   hiddenPanelIds,
   onPanelClick,
   onPanelPointerDown,
@@ -379,10 +388,11 @@ export function PvPanelInstanced({
       panelColors,
       hiddenPanelIds,
       prevCountRef.current,
+      renderLiftM,
     );
     prevCountRef.current = newCount;
     dirtyRef.current = false;
-  }, [panels, panelColors, hiddenPanelIds]);
+  }, [panels, panelColors, hiddenPanelIds, renderLiftM]);
 
   /**
    * Filet de securite RAF - no-op dans 99.9% des cas.
@@ -408,6 +418,7 @@ export function PvPanelInstanced({
       panelColorsRef.current,
       hiddenPanelIdsRef.current,
       prevCountRef.current,
+      renderLiftM,
     );
     prevCountRef.current = newCount;
     dirtyRef.current = false;

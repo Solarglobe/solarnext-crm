@@ -440,19 +440,19 @@ export function buildingShellGeometry(shell: BuildingShell3D): THREE.BufferGeome
 }
 
 /** Quad panneau : deux triangles depuis corners3D (ordre canonique). */
-export function panelQuadGeometry(panel: PvPanelSurface3D): THREE.BufferGeometry {
+export function panelQuadGeometry(panel: PvPanelSurface3D, renderLiftM = 0): THREE.BufferGeometry {
   const corners = panel.corners3D;
+  const n = panel.outwardNormal;
   const positions = new Float32Array(12);
   for (let i = 0; i < 4; i++) {
-    positions[i * 3] = corners[i]!.x;
-    positions[i * 3 + 1] = corners[i]!.y;
-    positions[i * 3 + 2] = corners[i]!.z;
+    positions[i * 3] = corners[i]!.x + n.x * renderLiftM;
+    positions[i * 3 + 1] = corners[i]!.y + n.y * renderLiftM;
+    positions[i * 3 + 2] = corners[i]!.z + n.z * renderLiftM;
   }
   const indices = [0, 1, 2, 0, 2, 3];
   const geo = new THREE.BufferGeometry();
   geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
   geo.setIndex(indices);
-  const n = panel.outwardNormal;
   const normals = new Float32Array(12);
   for (let i = 0; i < 4; i++) {
     normals[i * 3] = n.x;

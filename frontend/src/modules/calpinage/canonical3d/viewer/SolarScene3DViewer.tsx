@@ -139,6 +139,13 @@ import {
 import { buildPremiumHouse3DScene } from "./premium/buildPremiumHouse3DScene";
 
 import { getPvPanelTexture } from "../pvPanels/buildPvPanelTexture";
+import {
+  PV_PANEL_GHOST_FILL_LIFT_M,
+  PV_PANEL_GHOST_LINE_LIFT_M,
+  PV_PANEL_LIVE_FILL_LIFT_M,
+  PV_PANEL_LIVE_LINE_LIFT_M,
+  PV_PANEL_RENDER_LIFT_M,
+} from "../pvPanels/pvPanelRenderConfig";
 import type { PremiumHouse3DSceneAssembly } from "./premium/premiumHouse3DSceneTypes";
 import { PremiumGeometryTrustStripe } from "./premium/PremiumGeometryTrustStripe";
 import type { PremiumHouse3DViewMode } from "./premium/premiumHouse3DViewModes";
@@ -404,8 +411,8 @@ export interface SolarScene3DViewerProps {
   readonly horizonMask?: ReadonlyArray<{ az: number; elev: number }> | null;
 }
 
-// #0c131f = quasi-noir bleu nuit : couleur réelle cellule monocristalline (vs #111827 trop gris)
-const PREMIUM_PV_SURFACE_HEX = new THREE.Color("#0c131f").getHex();
+// Light multiplier: the Canvas texture already carries the dark PV cell color.
+const PREMIUM_PV_SURFACE_HEX = new THREE.Color("#d8e8f8").getHex();
 const PREMIUM_PV_EMISSIVE_HEX = new THREE.Color(SOLARNEXT_3D_PREMIUM_THEME.pv.liveEmissive).getHex();
 const PREMIUM_PV_SELECTED_FILL = SOLARNEXT_3D_PREMIUM_THEME.pv.selectedFill;
 const PREMIUM_PV_LIVE_FILL = SOLARNEXT_3D_PREMIUM_THEME.pv.liveFill;
@@ -2202,8 +2209,8 @@ function ViewerSceneContent({
     if (!pvLayout3dOverlayState.isManipulating) return [];
     return pvLayout3dOverlayState.panels.flatMap((p) => {
       if (!p.selected) return [];
-      const fill = imagePolygonToRoofMeshGeometry(scene, p.points, p.panId, 0.075);
-      const line = imagePolygonToRoofLineGeometry(scene, p.points, p.panId, 0.082);
+      const fill = imagePolygonToRoofMeshGeometry(scene, p.points, p.panId, PV_PANEL_LIVE_FILL_LIFT_M);
+      const line = imagePolygonToRoofLineGeometry(scene, p.points, p.panId, PV_PANEL_LIVE_LINE_LIFT_M);
       return fill || line
         ? [{
             id: p.id,
@@ -2262,7 +2269,7 @@ function ViewerSceneContent({
       .filter((p) => !pvLayout3DEffectiveHiddenIds?.has(String(p.id)))
       .map((p) => ({
         id: String(p.id),
-        geo: panelQuadGeometry(p),
+        geo: panelQuadGeometry(p, PV_PANEL_RENDER_LIFT_M),
       }));
   }, [scene.pvPanels, pvLayout3DEffectiveHiddenIds]);
 
@@ -2276,13 +2283,11 @@ function ViewerSceneContent({
 
   const pv3dGhostGeos = useMemo(() => {
     if (!pvLayout3DInteractionMode || !pvLayout3dOverlayState) return [];
-    // Gate isManipulating : les ghosts autofill ne sont visibles que pendant un drag actif.
-    // Sans ce gate, les fantômes s'affichaient en permanence dès l'entrée en mode pvLayout3D,
-    // apparaissant comme des overlays persistants hors panneaux entre deux poses.
-    if (!pvLayout3dOverlayState.isManipulating) return [];
+    // Ghosts are placement affordances, not only drag affordances. Autofill previews
+    // and expansion candidates must stay visible whenever the 2D engine exposes them.
     return pvLayout3dOverlayState.ghosts.flatMap((g) => {
-      const fill = imagePolygonToRoofMeshGeometry(scene, g.points, g.panId, 0.052);
-      const line = imagePolygonToRoofLineGeometry(scene, g.points, g.panId, 0.06);
+      const fill = imagePolygonToRoofMeshGeometry(scene, g.points, g.panId, PV_PANEL_GHOST_FILL_LIFT_M);
+      const line = imagePolygonToRoofLineGeometry(scene, g.points, g.panId, PV_PANEL_GHOST_LINE_LIFT_M);
       return fill || line
         ? [{ id: g.id, fill, line, valid: g.valid !== false, excluded: !!g.excluded, source: g.source }]
         : [];
