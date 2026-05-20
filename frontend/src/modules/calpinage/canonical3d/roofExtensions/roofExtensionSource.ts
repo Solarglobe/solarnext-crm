@@ -118,6 +118,9 @@ function readCanonicalContour(raw: Record<string, unknown>): readonly RoofExtens
 }
 
 function readRidge(raw: Record<string, unknown>): RoofExtensionSourceSegment2D | null {
+  const canonical = readCanonicalV1(raw);
+  const canonicalRidge = canonical ? readSegment(canonical.ridgePx) : null;
+  if (canonicalRidge) return canonicalRidge;
   const direct = readSegment(raw.ridge);
   if (direct) return direct;
   const model = raw.dormerModel;
@@ -125,14 +128,13 @@ function readRidge(raw: Record<string, unknown>): RoofExtensionSourceSegment2D |
     const modelRidge = readSegment(model.ridge);
     if (modelRidge) return modelRidge;
   }
-  const canonical = readCanonicalV1(raw);
-  return canonical ? readSegment(canonical.ridgePx) : null;
+  return null;
 }
 
 function readHips(raw: Record<string, unknown>): RoofExtensionSourceHips2D | null {
   const hips = raw.hips;
   const canonical = readCanonicalV1(raw);
-  const src = isRecord(hips) ? hips : canonical && isRecord(canonical.hipsPx) ? canonical.hipsPx : null;
+  const src = canonical && isRecord(canonical.hipsPx) ? canonical.hipsPx : isRecord(hips) ? hips : null;
   if (!src) return null;
   const left = readSegment(src.left);
   const right = readSegment(src.right);
@@ -148,14 +150,14 @@ function readKind(raw: Record<string, unknown>): RoofExtensionKind {
   const dormerType = typeof raw.dormerType === "string" ? raw.dormerType.toLowerCase() : "";
   const canonical = readCanonicalV1(raw);
   const canonicalKind = canonical && typeof canonical.kind === "string" ? canonical.kind.toLowerCase() : "";
-  if (kind.includes("chien") || dormerType.includes("chien")) return "chien_assis";
-  if (kind.includes("dormer") || dormerType.includes("gable")) return "dormer";
-  if (kind.includes("shed") || dormerType.includes("shed")) return "shed";
-  if (kind.includes("flat")) return "flat_extension";
   if (canonicalKind.includes("chien")) return "chien_assis";
   if (canonicalKind.includes("shed")) return "shed";
   if (canonicalKind.includes("flat")) return "flat_extension";
   if (canonicalKind.includes("dormer")) return "dormer";
+  if (kind.includes("chien") || dormerType.includes("chien")) return "chien_assis";
+  if (kind.includes("dormer") || dormerType.includes("gable")) return "dormer";
+  if (kind.includes("shed") || dormerType.includes("shed")) return "shed";
+  if (kind.includes("flat")) return "flat_extension";
   return "dormer";
 }
 
@@ -166,11 +168,12 @@ function hasLegacyCanonicalDormerGeometry(raw: Record<string, unknown>): boolean
 }
 
 function readSupportPanId(raw: Record<string, unknown>): string | null {
-  const panId = raw.panId ?? raw.supportPanId ?? raw.parentPanId;
-  if (typeof panId === "string" && panId.length > 0) return panId;
   const canonical = readCanonicalV1(raw);
   const canonicalSupportPanId = canonical?.supportPanId;
-  return typeof canonicalSupportPanId === "string" && canonicalSupportPanId.length > 0 ? canonicalSupportPanId : null;
+  if (typeof canonicalSupportPanId === "string" && canonicalSupportPanId.length > 0) return canonicalSupportPanId;
+  const panId = raw.panId ?? raw.supportPanId ?? raw.parentPanId;
+  if (typeof panId === "string" && panId.length > 0) return panId;
+  return null;
 }
 
 function readPersistedApexVertex(raw: Record<string, unknown>, extensionId: string): RoofExtensionApexPersisted | null {
@@ -269,17 +272,17 @@ export function ridgeEndpointSharesApexVertex(
 function readSource(raw: Record<string, unknown>, index: number): RoofExtensionSource2D {
   const id = raw.id != null ? String(raw.id) : `roof-extension-${index}`;
   const canonical = readCanonicalV1(raw);
+  const canonicalContour = readCanonicalContour(raw);
   const contour = readContour(raw);
-  const canonicalContour = contour.length >= 3 ? [] : readCanonicalContour(raw);
-  const effectiveContour = contour.length >= 3 ? contour : canonicalContour;
+  const effectiveContour = canonicalContour.length >= 3 ? canonicalContour : contour;
   const ridge = readRidge(raw);
   const hips = readHips(raw);
   const dimensions = canonical && isRecord(canonical.dimensions) ? canonical.dimensions : null;
-  const ridgeHeightRelM = nonNegativeNumber(raw.ridgeHeightRelM) ?? nonNegativeNumber(dimensions?.totalHeightM);
+  const ridgeHeightRelM = nonNegativeNumber(dimensions?.totalHeightM) ?? nonNegativeNumber(raw.ridgeHeightRelM);
   const apexVertex = resolveApexVertex(raw, id, hips, ridgeHeightRelM);
   const warnings: string[] = [];
   if (effectiveContour.length < 3) warnings.push("ROOF_EXTENSION_CONTOUR_INVALID");
-  if (contour.length < 3 && effectiveContour.length >= 3) warnings.push("ROOF_EXTENSION_SOURCE_FROM_CANONICAL_V1");
+  if (canonicalContour.length >= 3) warnings.push("ROOF_EXTENSION_SOURCE_FROM_CANONICAL_V1");
   if (!ridge) warnings.push("ROOF_EXTENSION_RIDGE_MISSING");
   if (hasLegacyCanonicalDormerGeometry(raw)) warnings.push("LEGACY_CANONICAL_DORMER_GEOMETRY_IGNORED");
   if (hips?.left?.b && hips.right?.b && apexVertex && ridge) {
@@ -308,7 +311,7 @@ function readSource(raw: Record<string, unknown>, index: number): RoofExtensionS
     hips,
     apexVertex,
     ridgeHeightRelM,
-    wallHeightM: nonNegativeNumber(raw.wallHeightM) ?? nonNegativeNumber(dimensions?.wallHeightM),
+    wallHeightM: nonNegativeNumber(dimensions?.wallHeightM) ?? nonNegativeNumber(raw.wallHeightM),
     hadLegacyCanonicalDormerGeometry: hasLegacyCanonicalDormerGeometry(raw),
     warnings,
   };

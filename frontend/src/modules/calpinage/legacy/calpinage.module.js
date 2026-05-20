@@ -3951,6 +3951,20 @@ export function initCalpinage(container, options = {}) {
         return out;
       }
 
+      function pointFromRoofExtensionV1Px(p) {
+        if (!p || !finiteDormerNumber(p.x) || !finiteDormerNumber(p.y)) return null;
+        var out = { x: p.x, y: p.y };
+        if (finiteDormerNumber(p.heightRelM) && p.heightRelM >= 0) out.h = p.heightRelM;
+        return out;
+      }
+
+      function segmentFromRoofExtensionV1(seg) {
+        if (!seg || !seg.a || !seg.b) return null;
+        var a = pointFromRoofExtensionV1Px(seg.a);
+        var b = pointFromRoofExtensionV1Px(seg.b);
+        return a && b ? { a: a, b: b } : null;
+      }
+
       function segmentToRoofExtensionV1(seg, fallbackH) {
         if (!seg || !seg.a || !seg.b) return null;
         var a = cloneDormerPoint2(seg.a);
@@ -4063,19 +4077,78 @@ export function initCalpinage(container, options = {}) {
         };
       }
 
-      function syncPersistedRoofExtensionV1(rx, sourceIndex, atImgPt) {
+      function mirrorRoofExtensionLegacyFromV1(rx) {
+        var v1 = rx && rx.canonicalV1;
+        if (!v1 || v1.version !== "roof_extension_v1") return rx;
+        rx.type = "roof_extension";
+        rx.kind = v1.kind || rx.kind || "dormer";
+        rx.supportPanId = String(v1.supportPanId);
+        rx.canonicalEditMode = "roof_extension_v1_param_adapter";
+        if (Array.isArray(v1.footprintPx) && v1.footprintPx.length >= 3) {
+          rx.contour = {
+            points: v1.footprintPx.map(function (p) { return pointFromRoofExtensionV1Px(p); }).filter(Boolean),
+            closed: true
+          };
+        }
+        var ridge = segmentFromRoofExtensionV1(v1.ridgePx);
+        if (ridge) rx.ridge = ridge;
+        if (v1.hipsPx && (v1.hipsPx.left || v1.hipsPx.right)) {
+          rx.hips = {};
+          var left = segmentFromRoofExtensionV1(v1.hipsPx.left);
+          var right = segmentFromRoofExtensionV1(v1.hipsPx.right);
+          if (left) rx.hips.left = left;
+          if (right) rx.hips.right = right;
+          if (!rx.hips.left && !rx.hips.right) rx.hips = null;
+        } else if (v1.hipsPx === null) {
+          rx.hips = null;
+        }
+        if (v1.dimensions) {
+          if (finiteDormerNumber(v1.dimensions.totalHeightM) && v1.dimensions.totalHeightM >= 0) {
+            rx.ridgeHeightRelM = v1.dimensions.totalHeightM;
+          }
+          if (finiteDormerNumber(v1.dimensions.wallHeightM) && v1.dimensions.wallHeightM >= 0) {
+            rx.wallHeightM = v1.dimensions.wallHeightM;
+          }
+          if (finiteDormerNumber(v1.dimensions.roofHeightM) && v1.dimensions.roofHeightM >= 0) {
+            rx.roofRiseM = v1.dimensions.roofHeightM;
+          }
+        }
+        if (v1.apexPx && finiteDormerNumber(v1.apexPx.x) && finiteDormerNumber(v1.apexPx.y)) {
+          rx.apexVertex = {
+            id: typeof v1.apexId === "string" && v1.apexId ? v1.apexId : stableRoofExtensionApexId(rx),
+            x: v1.apexPx.x,
+            y: v1.apexPx.y
+          };
+          if (finiteDormerNumber(v1.apexPx.heightRelM) && v1.apexPx.heightRelM >= 0) rx.apexVertex.h = v1.apexPx.heightRelM;
+        }
+        return rx;
+      }
+
+      function syncPersistedRoofExtensionV1(rx, sourceIndex, atImgPt, options) {
         if (!rx) return rx;
         ensureRoofExtensionSupportPanId(rx, atImgPt);
         var v1 = buildPersistedRoofExtensionV1(rx, sourceIndex);
-        if (v1) rx.canonicalV1 = v1;
+        if (v1) {
+          rx.canonicalV1 = v1;
+          rx.canonicalEditMode = "roof_extension_v1_param_adapter";
+          if (options && options.mirrorLegacy) mirrorRoofExtensionLegacyFromV1(rx);
+        }
         else delete rx.canonicalV1;
         return rx;
       }
 
-      function syncAllPersistedRoofExtensionV1() {
+      function syncAllPersistedRoofExtensionV1(options) {
         var list = Array.isArray(CALPINAGE_STATE.roofExtensions) ? CALPINAGE_STATE.roofExtensions : [];
-        list.forEach(function (rx, index) { syncPersistedRoofExtensionV1(rx, index); });
+        list.forEach(function (rx, index) { syncPersistedRoofExtensionV1(rx, index, null, options); });
         return list;
+      }
+
+      function hydrateRoofExtension2DFromV1IfPresent(rx) {
+        if (!rx || !rx.canonicalV1 || rx.canonicalV1.version !== "roof_extension_v1") return rx;
+        mirrorRoofExtensionLegacyFromV1(rx);
+        if (!rx.stage) rx.stage = "COMPLETE";
+        if (!rx.visualModel) rx.visualModel = "manual_outline_gable";
+        return rx;
       }
 
       function buildDormerParametricGeometryFromContour(points) {
@@ -5099,7 +5172,7 @@ export function initCalpinage(container, options = {}) {
           rx.ridgeHeightRelM = num;
           if (rx.ridge && rx.ridge.a) rx.ridge.a.h = num;
           if (rx.ridge && rx.ridge.b) rx.ridge.b.h = num;
-          rebuildDormerCanonicalGeometry(rx);
+          rebuildRoofExtensionVisualGeometry(rx);
           cont.innerHTML = "";
           if (typeof saveCalpinageState === "function") saveCalpinageState();
           if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
@@ -5228,7 +5301,7 @@ export function initCalpinage(container, options = {}) {
           }
           pointRef.h = num;
           if (isDormerRidgeHeightRole(role || label)) syncDormerRidgeHeightFromPointHeights(rx, num);
-          rebuildDormerCanonicalGeometry(rx);
+          rebuildRoofExtensionVisualGeometry(rx);
           cont.innerHTML = "";
           if (typeof saveCalpinageState === "function") saveCalpinageState();
           if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
@@ -10054,6 +10127,7 @@ export function initCalpinage(container, options = {}) {
             CALPINAGE_STATE.roofExtensions = data.roofExtensions;
             CALPINAGE_STATE.roofExtensions.forEach(function (rx, index) {
               if (!rx) return;
+              hydrateRoofExtension2DFromV1IfPresent(rx);
               var hasRidge = rx.ridge && rx.ridge.a && rx.ridge.b;
               var hasHips = rx.hips && rx.hips.left && rx.hips.right && rx.hips.left.b && rx.hips.right.b;
               if (!rx.stage) {
@@ -10064,7 +10138,7 @@ export function initCalpinage(container, options = {}) {
               }
               if (rx.visualModel === "manual_outline_gable" && hasRidge) rebuildDormerCanonicalGeometry(rx);
               if (rx.visualModel === "manual_outline_gable") syncRoofExtensionSharedApex(rx);
-              syncPersistedRoofExtensionV1(rx, index);
+              syncPersistedRoofExtensionV1(rx, index, null, { mirrorLegacy: true });
             });
           }
           var restoreBlocks = (window.pvPlacementEngine && window.pvPlacementEngine.restoreFrozenBlocks) || (window.ActivePlacementBlock && window.ActivePlacementBlock.restoreFrozenBlocks);
@@ -11646,7 +11720,7 @@ export function initCalpinage(container, options = {}) {
             pvParams: CALPINAGE_STATE.pvParams,
             placedPanels: CALPINAGE_STATE.placedPanels || [],
             shadowVolumes: CALPINAGE_STATE.shadowVolumes || [],
-            roofExtensions: syncAllPersistedRoofExtensionV1(),
+            roofExtensions: syncAllPersistedRoofExtensionV1({ mirrorLegacy: true }),
             frozenBlocks: (function () {
               var getFrozen = (window.pvPlacementEngine && window.pvPlacementEngine.getFrozenBlocks) || (window.ActivePlacementBlock && window.ActivePlacementBlock.getFrozenBlocks);
               return typeof getFrozen === "function" ? getFrozen() : [];
@@ -11890,7 +11964,8 @@ export function initCalpinage(container, options = {}) {
           if (s.roofExtensions !== undefined) {
             CALPINAGE_STATE.roofExtensions = s.roofExtensions || [];
             // Rebuild canonical geometry for manual_outline_gable dormers after restore
-            CALPINAGE_STATE.roofExtensions.forEach(function(rx) {
+            CALPINAGE_STATE.roofExtensions.forEach(function(rx, index) {
+              hydrateRoofExtension2DFromV1IfPresent(rx);
               if (rx.kind === "dormer" && rx.visualModel === "manual_outline_gable") {
                 try {
                   if (typeof rebuildDormerCanonicalGeometry === "function") {
@@ -11898,6 +11973,7 @@ export function initCalpinage(container, options = {}) {
                   }
                 } catch (_) {}
               }
+              syncPersistedRoofExtensionV1(rx, index, null, { mirrorLegacy: true });
             });
           }
         } catch (_) {}
@@ -19781,8 +19857,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                   ptsEdge[ept2].x = origPts[ept2].x + movDx * clamp;
                   ptsEdge[ept2].y = origPts[ept2].y + movDy * clamp;
                 }
-                if (rxEdge.visualModel === "manual_outline_gable") rebuildDormerCanonicalGeometry(rxEdge);
-                else syncDormerParametricGeometry(rxEdge);
+                rebuildRoofExtensionVisualGeometry(rxEdge);
               }
               if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
               return;
@@ -19905,8 +19980,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               // Pour le faîtage / les arêtiers : mettre à jour dormerModel.ridge directement
               // afin de ne pas écraser la position déplacée manuellement.
               if (!base.subtype || base.subtype === "vertex" || base.subtype === "contour") {
-                if (rx.visualModel === "manual_outline_gable") rebuildDormerCanonicalGeometry(rx);
-                else syncDormerParametricGeometry(rx);
+                rebuildRoofExtensionVisualGeometry(rx);
               } else if (base.subtype && base.subtype.indexOf("ridge") === 0) {
                 if (rx.dormerModel && rx.ridge) {
                   rx.dormerModel.ridge = {
@@ -19914,9 +19988,9 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                     b: { x: rx.ridge.b ? rx.ridge.b.x : 0, y: rx.ridge.b ? rx.ridge.b.y : 0 }
                   };
                 }
-                rebuildDormerCanonicalGeometry(rx);
+                rebuildRoofExtensionVisualGeometry(rx);
               } else if (base.subtype && base.subtype.indexOf("hip") === 0) {
-                rebuildDormerCanonicalGeometry(rx);
+                rebuildRoofExtensionVisualGeometry(rx);
               }
 
               if (e && e.ctrlKey) {
@@ -20551,7 +20625,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                     baseRx.pointRef.x = drawState.rxDragSnap.x;
                     baseRx.pointRef.y = drawState.rxDragSnap.y;
                   }
-                  if (rx.visualModel === "manual_outline_gable") rebuildDormerCanonicalGeometry(rx);
+                  rebuildRoofExtensionVisualGeometry(rx);
                   if (typeof saveCalpinageState === "function") saveCalpinageState();
                   if (typeof recomputeAllPlacementBlocksFromRules === "function") {
                     recomputeAllPlacementBlocksFromRules(true);
