@@ -19809,7 +19809,12 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               ) {
                 var _htHit = hitTestHeightPoints(imgPt, imageToScreen, screenToImage);
                 if (_htHit) {
-                  activateTool("heightEdit"); /* règle heightEditMode = true, clear sels */
+                  if (typeof window.applyCalpinagePhase2Tool === "function") {
+                    window.applyCalpinagePhase2Tool("heightEdit"); /* regle heightEditMode = true, clear sels */
+                  } else {
+                    CALPINAGE_STATE.heightEditMode = true;
+                    drawState.activeTool = "heightEdit";
+                  }
                   CALPINAGE_STATE.selectedHeightPoint = _htHit;
                   CALPINAGE_STATE.selectedHeightPoints = [_htHit];
                   heightEditInplaceRollbackValues = [getHeightForSelection(_htHit)];
@@ -22086,10 +22091,10 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               var ul = document.createElement("ul");
               ul.style.cssText = "list-style:none;margin:0;padding:0 6px;";
               var t = drawState.activeTool;
-              ul.appendChild(createMenuItem("Sélectionner", "V", function () { activateTool("select"); updateToolbarActiveUI("select"); updateCursor(); }));
-              ul.appendChild(createMenuItem("Tracer contour", "C", function () { activateTool("contour"); updateToolbarActiveUI("contour"); updateCursor(); }));
-              ul.appendChild(createMenuItem("Tracer faîtage", "R", function () { activateTool("ridge"); updateToolbarActiveUI("ridge"); updateCursor(); }));
-              ul.appendChild(createMenuItem("Tracer arêtier", "T", function () { activateTool("trait"); updateToolbarActiveUI("trait"); updateCursor(); }));
+              ul.appendChild(createMenuItem("Sélectionner", "V", function () { if (typeof window.applyCalpinagePhase2Tool === "function") window.applyCalpinagePhase2Tool("select"); else if (typeof resetActiveToolToSelect === "function") resetActiveToolToSelect(); updateToolbarActiveUI("select"); updateCursor(); }));
+              ul.appendChild(createMenuItem("Tracer contour", "C", function () { if (typeof window.applyCalpinagePhase2Tool === "function") window.applyCalpinagePhase2Tool("contour"); updateToolbarActiveUI("contour"); updateCursor(); }));
+              ul.appendChild(createMenuItem("Tracer faîtage", "R", function () { if (typeof window.applyCalpinagePhase2Tool === "function") window.applyCalpinagePhase2Tool("ridge"); updateToolbarActiveUI("ridge"); updateCursor(); }));
+              ul.appendChild(createMenuItem("Tracer arêtier", "T", function () { if (typeof window.applyCalpinagePhase2Tool === "function") window.applyCalpinagePhase2Tool("trait"); updateToolbarActiveUI("trait"); updateCursor(); }));
               ul.appendChild(createSeparator());
               /* Undo/Redo */
               ul.appendChild(createMenuItem("Annuler", "Ctrl+Z", function () { undoCalpinage(); }));
