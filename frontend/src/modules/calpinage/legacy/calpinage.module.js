@@ -4208,9 +4208,23 @@ export function initCalpinage(container, options = {}) {
         };
       }
 
+      function clampParametricNumber(v, min, max) {
+        return Math.min(max, Math.max(min, v));
+      }
+
+      function expandParametricRange(min, max, minSize) {
+        var size = max - min;
+        if (Number.isFinite(size) && size >= minSize) return { min: min, max: max };
+        var center = (min + max) / 2;
+        return { min: center - minSize / 2, max: center + minSize / 2 };
+      }
+
       function roofExtensionToParametricDormerV2(rx, index) {
-        if (!rx || !rx.supportPanId || !rx.contour || !Array.isArray(rx.contour.points) || rx.contour.points.length < 4 || !rx.ridge || !rx.ridge.a || !rx.ridge.b) return null;
-        var pts = rx.contour.points.slice(0, 4);
+        if (!rx || !rx.supportPanId || !rx.contour || !Array.isArray(rx.contour.points) || rx.contour.points.length < 3 || !rx.ridge || !rx.ridge.a || !rx.ridge.b) return null;
+        var pts = rx.contour.points.filter(function (p) {
+          return p && Number.isFinite(p.x) && Number.isFinite(p.y);
+        });
+        if (pts.length < 3) return null;
         var worldPts = pts.map(imagePxToParametricDormerWorldM);
         var cx = 0;
         var cy = 0;
@@ -4218,21 +4232,49 @@ export function initCalpinage(container, options = {}) {
         var anchor = { x: cx / worldPts.length, y: cy / worldPts.length, z: 0 };
         var ridgeA = imagePxToParametricDormerWorldM(rx.ridge.a);
         var ridgeB = imagePxToParametricDormerWorldM(rx.ridge.b);
-        var uAxis = unitParametricAxis2D(ridgeB.x - ridgeA.x, ridgeB.y - ridgeA.y, { x: 1, y: 0, z: 0 });
-        var vAxis = { x: -uAxis.y, y: uAxis.x, z: 0 };
+        // Parametric V2 convention: u = dormer width, v = dormer depth / ridge axis.
+        // The legacy ridge is therefore the depth axis, not the width axis.
+        var vAxis = unitParametricAxis2D(ridgeB.x - ridgeA.x, ridgeB.y - ridgeA.y, { x: 0, y: 1, z: 0 });
+        var uAxis = { x: vAxis.y, y: -vAxis.x, z: 0 };
         var localPts = worldPts.map(function (p) { return localParametricPointFromWorld(p, anchor, uAxis, vAxis); });
-        var ridgeFront = localParametricPointFromWorld(ridgeA, anchor, uAxis, vAxis);
-        var ridgeRear = localParametricPointFromWorld(ridgeB, anchor, uAxis, vAxis);
-        if (ridgeFront.vM > ridgeRear.vM) {
-          var tmp = ridgeFront;
-          ridgeFront = ridgeRear;
-          ridgeRear = tmp;
+        var minU = Infinity;
+        var maxU = -Infinity;
+        var minV = Infinity;
+        var maxV = -Infinity;
+        localPts.forEach(function (p) {
+          minU = Math.min(minU, p.uM);
+          maxU = Math.max(maxU, p.uM);
+          minV = Math.min(minV, p.vM);
+          maxV = Math.max(maxV, p.vM);
+        });
+        var uRange = expandParametricRange(minU, maxU, 0.45);
+        var vRange = expandParametricRange(minV, maxV, 0.55);
+        minU = uRange.min;
+        maxU = uRange.max;
+        minV = vRange.min;
+        maxV = vRange.max;
+        var width = Math.max(0.001, maxU - minU);
+        var depth = Math.max(0.001, maxV - minV);
+        var ridgeLocalA = localParametricPointFromWorld(ridgeA, anchor, uAxis, vAxis);
+        var ridgeLocalB = localParametricPointFromWorld(ridgeB, anchor, uAxis, vAxis);
+        var ridgeU = (ridgeLocalA.uM + ridgeLocalB.uM) / 2;
+        if (!Number.isFinite(ridgeU)) ridgeU = (minU + maxU) / 2;
+        ridgeU = clampParametricNumber(ridgeU, minU + width * 0.2, maxU - width * 0.2);
+        var ridgeFrontV = Math.min(ridgeLocalA.vM, ridgeLocalB.vM);
+        var ridgeRearV = Math.max(ridgeLocalA.vM, ridgeLocalB.vM);
+        if (!Number.isFinite(ridgeFrontV) || !Number.isFinite(ridgeRearV) || (ridgeRearV - ridgeFrontV) < depth * 0.35) {
+          ridgeFrontV = minV;
+          ridgeRearV = maxV;
+        } else {
+          ridgeFrontV = clampParametricNumber(ridgeFrontV, minV, maxV);
+          ridgeRearV = clampParametricNumber(ridgeRearV, minV, maxV);
         }
         var ridgeH = Number.isFinite(rx.ridgeHeightRelM) && rx.ridgeHeightRelM >= 0
           ? rx.ridgeHeightRelM
-          : (Number.isFinite(rx.ridge.a.h) && Number.isFinite(rx.ridge.b.h) ? (rx.ridge.a.h + rx.ridge.b.h) / 2 : 1);
-        var facadeH = Number.isFinite(rx.wallHeightM) && rx.wallHeightM >= 0 ? rx.wallHeightM : Math.min(0.45, ridgeH);
-        ridgeH = Math.max(ridgeH, facadeH);
+          : (Number.isFinite(rx.ridge.a.h) && Number.isFinite(rx.ridge.b.h) ? (rx.ridge.a.h + rx.ridge.b.h) / 2 : 0.9);
+        ridgeH = Math.max(0.45, ridgeH);
+        var facadeH = Number.isFinite(rx.wallHeightM) && rx.wallHeightM >= 0 ? rx.wallHeightM : Math.min(0.35, ridgeH * 0.5);
+        facadeH = clampParametricNumber(facadeH, 0.12, Math.max(0.12, ridgeH - 0.08));
         return {
           version: "roof_dormer_parametric_v1",
           id: String(rx.id || ("roof-extension-" + index)) + ":parametric-v2",
@@ -4245,14 +4287,14 @@ export function initCalpinage(container, options = {}) {
             vAxisWorld: vAxis
           },
           footprint: {
-            frontLeft: localPts[0],
-            frontRight: localPts[1],
-            rearRight: localPts[2],
-            rearLeft: localPts[3]
+            frontLeft: { uM: minU, vM: minV },
+            frontRight: { uM: maxU, vM: minV },
+            rearRight: { uM: maxU, vM: maxV },
+            rearLeft: { uM: minU, vM: maxV }
           },
           ridge: {
-            front: ridgeFront,
-            rear: ridgeRear
+            front: { uM: ridgeU, vM: ridgeFrontV },
+            rear: { uM: ridgeU, vM: ridgeRearV }
           },
           heights: {
             reference: "support_plane_normal",
