@@ -1148,6 +1148,35 @@ export function initCalpinage(container, options = {}) {
       color: var(--ink);
     }
     .calpinage-tool-obstacle-option:hover { background: var(--bg-soft); }
+    .calpinage-tool-obstacle-separator {
+      height: 1px;
+      margin: 4px 0;
+      background: var(--line);
+    }
+    .calpinage-tool-option-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      min-width: 210px;
+    }
+    .calpinage-tool-option-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 38px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: var(--bg-soft);
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+    .calpinage-tool-obstacle-option[aria-pressed="true"] .calpinage-tool-option-badge {
+      background: #dcfce7;
+      color: #15803d;
+    }
     .calpinage-tool-obstacle-group-label {
       padding: 6px 14px 2px;
       font-size: 11px;
@@ -2254,6 +2283,13 @@ export function initCalpinage(container, options = {}) {
                 </button>
                 <button type="button" class="calpinage-tool-obstacle-option" data-dormer-tool="hips" title="Tracer les arêtes du chien assis sélectionné">
                   <span class="calpinage-tool-label">Tracer arêtes</span>
+                </button>
+                <div class="calpinage-tool-obstacle-separator" role="presentation"></div>
+                <button type="button" class="calpinage-tool-obstacle-option" data-dormer-tool="parametric-compare" aria-pressed="false" title="Afficher le nouveau moteur parametrique V2 en parallele du rendu legacy">
+                  <span class="calpinage-tool-option-row">
+                    <span class="calpinage-tool-label">Comparer moteur parametrique V2</span>
+                    <span class="calpinage-tool-option-badge" id="calpinage-dormer-parametric-status">OFF</span>
+                  </span>
                 </button>
               </div>
             </div>
@@ -4254,10 +4290,29 @@ export function initCalpinage(container, options = {}) {
       }
 
       window.syncCalpinageParametricDormersFromLegacy = syncParametricDormersFromRoofExtensions;
+
+      function isParametricDormerComparisonEnabled() {
+        return !!(CALPINAGE_STATE && CALPINAGE_STATE.featureFlags && CALPINAGE_STATE.featureFlags.parametricDormerComparison === true);
+      }
+
+      function updateParametricDormerComparisonUI(root) {
+        if (typeof document === "undefined") return;
+        var scope = root || document;
+        var option = scope.querySelector && scope.querySelector('[data-dormer-tool="parametric-compare"]');
+        var badge = scope.querySelector && scope.querySelector("#calpinage-dormer-parametric-status");
+        var enabled = isParametricDormerComparisonEnabled();
+        if (option) {
+          option.setAttribute("aria-pressed", enabled ? "true" : "false");
+          option.classList.toggle("active", enabled);
+        }
+        if (badge) badge.textContent = enabled ? "ON" : "OFF";
+      }
+
       window.setCalpinageDormerParametricComparison = function (enabled) {
         CALPINAGE_STATE.featureFlags = CALPINAGE_STATE.featureFlags || {};
         CALPINAGE_STATE.featureFlags.parametricDormerComparison = enabled !== false;
         syncParametricDormersFromRoofExtensions();
+        updateParametricDormerComparisonUI();
         if (typeof saveCalpinageState === "function") saveCalpinageState();
         if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
         return {
@@ -15093,6 +15148,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             if (shadowVolumeDropdown) shadowVolumeDropdown.hidden = true;
             roofExtensionDropdown.hidden = !roofExtensionDropdown.hidden;
             if (!roofExtensionDropdown.hidden) {
+              updateParametricDormerComparisonUI(container);
               var rect = roofExtensionBtn.getBoundingClientRect();
               roofExtensionDropdown.style.top = (rect.bottom + 6) + "px";
               roofExtensionDropdown.style.left = rect.left + "px";
@@ -15106,6 +15162,17 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               clearTransientCanvasModeForToolSwitch();
               var tool = opt.getAttribute("data-dormer-tool");
               if (!tool) return;
+              if (tool === "parametric-compare") {
+                var nextEnabled = !isParametricDormerComparisonEnabled();
+                var result = window.setCalpinageDormerParametricComparison(nextEnabled);
+                roofExtensionDropdown.hidden = true;
+                if (typeof window.calpinageToast !== "undefined" && window.calpinageToast.success) {
+                  window.calpinageToast.success(nextEnabled
+                    ? ("Moteur parametrique V2 active (" + result.parametricDormers + " lucarne(s)).")
+                    : "Moteur parametrique V2 desactive.");
+                }
+                return;
+              }
               var targetIdx = getDormerTargetIndexForTool();
               var target = targetIdx != null ? (CALPINAGE_STATE.roofExtensions || [])[targetIdx] : getDormerEditTarget();
               if (tool === "contour") {
@@ -15147,6 +15214,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
             });
           });
+          updateParametricDormerComparisonUI(container);
         }
         var btnDelete = toolbar.querySelector(".calpinage-btn-delete");
         var onDeleteClick = function () {
