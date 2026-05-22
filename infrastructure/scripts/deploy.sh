@@ -19,9 +19,20 @@ git pull --ff-only origin main
 cd "$BACKEND_DIR"
 npm ci --omit=dev --prefer-offline
 
-# 3. Run DB migrations
+# 3. Run DB migrations (avec rollback automatique en cas d'échec)
 echo "🗄 Migrations..."
-NODE_ENV=production npm run migrate:up
+if NODE_ENV=production npm run migrate:up; then
+  echo "✅ Migrations appliquées"
+else
+  status=$?
+  echo "❌ Migration échouée — rollback d'une étape"
+  NODE_ENV=production npm run migrate:down || true
+  exit "$status"
+fi
+
+# 3.5 Import catalogue équipements PV officiel (idempotent)
+echo "📦 Import catalogue PV..."
+NODE_ENV=production npm run import:official-pv-catalog || echo "⚠ Catalogue PV déjà à jour (ignoré)"
 
 # 4. Reload PM2 (zero-downtime)
 echo "♻ Reload PM2..."
