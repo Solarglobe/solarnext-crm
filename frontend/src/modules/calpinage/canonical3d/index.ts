@@ -200,6 +200,44 @@ export {
   type RoofExtensionV1ValidationInput,
 } from "./roofExtensions/roofExtensionV1Validation";
 export type {
+  RoofDormerHeightReference,
+  RoofDormerParametric2DDraft,
+  RoofDormerParametricFootprint,
+  RoofDormerParametricHeights,
+  RoofDormerParametricModel,
+  RoofDormerParametricOrientation,
+  RoofDormerParametricPoint2D,
+  RoofDormerParametricPreparedUses,
+  RoofDormerParametricRendering,
+  RoofDormerParametricRidge,
+  RoofDormerParametricTopology,
+  RoofDormerParametricVersion,
+} from "./roofExtensions/roofDormerParametricModel";
+export {
+  ROOF_DORMER_PARAMETRIC_PREPARED_USES,
+  createRoofDormerParametricModelFromDraft,
+} from "./roofExtensions/roofDormerParametricModel";
+export {
+  normalizeRoofDormerParametric2DDraft,
+  type NormalizeRoofDormerParametricDraftResult,
+} from "./roofExtensions/roofDormerParametric2DController";
+export {
+  roofDormerParametricFootprintCycle,
+  roofDormerParametricHasBlockingErrors,
+  validateRoofDormerParametricModel,
+} from "./roofExtensions/roofDormerParametricValidation";
+export {
+  buildRoofDormerParametric3D,
+  type BuildRoofDormerParametric3DResult,
+  type RoofDormerParametricMeshParts,
+  type RoofDormerParametricRuntimeGeometry,
+} from "./roofExtensions/buildRoofDormerParametric3D";
+export {
+  buildRoofDormerParametric3DFromRuntime,
+  type BuildRoofDormerParametric3DFromRuntimeInput,
+  type BuildRoofDormerParametric3DFromRuntimeResult,
+} from "./roofExtensions/buildRoofDormerParametric3DFromRuntime";
+export type {
   BuildRoofVolumes3DContext,
   BuildRoofVolumes3DInput,
   LegacyExtensionVolumeInput,

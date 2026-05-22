@@ -27,9 +27,10 @@ import type { VolumeRoofAttachment } from "./volume-roof-attachment";
 export type RoofExtensionTopologyVersion =
   | "roof_extension_topology_v2"
   | "roof_extension_topology_v3"
-  | "roof_extension_topology_v4";
+  | "roof_extension_topology_v4"
+  | "roof_dormer_parametric_topology_v1";
 
-export type RoofExtensionCanonicalModelVersion = "roof_extension_v1";
+export type RoofExtensionCanonicalModelVersion = "roof_extension_v1" | "roof_dormer_parametric_v1";
 
 export type RoofExtensionMiniRoofSemanticVersion = "roof_extension_mini_roof_semantics_v1";
 
@@ -97,8 +98,8 @@ export interface RoofExtensionTopologyMetadata {
     readonly totalHeightM: number;
   };
   /** v3 hips_aware : maillage depuis contour + hips + ridge + apex ; v2 fallback éventuel */
-  readonly meshStrategy?: "architectural_v1" | "hips_aware" | "contour_ridge_fan";
-  readonly source: "roofExtensions.canonical_v1" | "roofExtensions.runtime.contour_ridge";
+  readonly meshStrategy?: "architectural_v1" | "hips_aware" | "contour_ridge_fan" | "parametric_dormer_v2";
+  readonly source: "roofExtensions.canonical_v1" | "roofExtensions.runtime.contour_ridge" | "parametricDormers.v2";
   readonly heightReference: "support_plane_normal";
   readonly supportPlanePatchId: StableEntityId;
   readonly supportPlaneNormal: Vector3;

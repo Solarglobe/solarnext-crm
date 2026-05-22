@@ -45,6 +45,7 @@ import type {
 } from "./volumes/volumeInput";
 import { getPremiumRoofObstacleSpec } from "../catalog/roofObstaclePremiumCatalog";
 import { buildRoofVolumes3D } from "./volumes/buildRoofVolumes3D";
+import { buildRoofDormerParametric3DFromRuntime } from "./roofExtensions/buildRoofDormerParametric3DFromRuntime";
 import { buildRoofExtensions3DFromRuntime } from "./roofExtensions/buildRoofExtensions3DFromRuntime";
 import {
   validateCanonicalScene3DInput,
@@ -246,6 +247,31 @@ function mergeVolumeQuality(a: QualityBlock, b: QualityBlock): QualityBlock {
           ? "unknown"
           : "high";
   return { confidence, diagnostics };
+}
+
+function runtimeRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
+}
+
+function readBooleanRuntimeFlag(runtime: unknown, key: string): boolean | null {
+  const root = runtimeRecord(runtime);
+  if (!root) return null;
+  const direct = root[key];
+  if (typeof direct === "boolean") return direct;
+  const flags = runtimeRecord(root.featureFlags) ?? runtimeRecord(root.flags) ?? runtimeRecord(root.debugFlags);
+  const nested = flags?.[key];
+  return typeof nested === "boolean" ? nested : null;
+}
+
+function isParametricDormerComparisonEnabled(runtime: unknown): boolean {
+  const runtimeFlag =
+    readBooleanRuntimeFlag(runtime, "parametricDormerComparison") ??
+    readBooleanRuntimeFlag(runtime, "parametricDormerV2") ??
+    readBooleanRuntimeFlag(runtime, "useParametricDormers");
+  if (runtimeFlag != null) return runtimeFlag;
+  const globalFlag = (globalThis as { __CALPINAGE_DORMER_PARAMETRIC_COMPARE__?: unknown }).__CALPINAGE_DORMER_PARAMETRIC_COMPARE__;
+  if (typeof globalFlag === "boolean") return globalFlag;
+  return import.meta.env.VITE_CALPINAGE_DORMER_PARAMETRIC_COMPARE === "true";
 }
 
 function emptyValidationStats(): CanonicalSceneValidationResult["diagnostics"]["stats"] {
@@ -603,13 +629,23 @@ export function buildSolarScene3DFromCalpinageRuntime(
       metersPerPixel: validation.scene.world.metersPerPixel,
       northAngleDeg: validation.scene.world.northAngleDeg,
     });
-    const volumesQuality = mergeVolumeQuality(volRes.globalQuality, roofExtRes.quality);
+    const parametricDormerComparisonEnabled = isParametricDormerComparisonEnabled(runtime);
+    const paramDormerRes = buildRoofDormerParametric3DFromRuntime({
+      runtime,
+      roofPlanePatches: patches,
+    });
+    const extensionVolumesForScene = parametricDormerComparisonEnabled
+      ? [...roofExtRes.extensionVolumes, ...paramDormerRes.extensionVolumes]
+      : roofExtRes.extensionVolumes;
+    const volumesQuality = parametricDormerComparisonEnabled
+      ? mergeVolumeQuality(mergeVolumeQuality(volRes.globalQuality, roofExtRes.quality), paramDormerRes.quality)
+      : mergeVolumeQuality(volRes.globalQuality, roofExtRes.quality);
     const pvRes = buildPvPanels3D(
       { panels: [...filteredPanels] },
       {
         roofPlanePatches: patches,
         obstacleVolumes: volRes.obstacleVolumes,
-        extensionVolumes: roofExtRes.extensionVolumes,
+        extensionVolumes: extensionVolumesForScene,
       },
     );
     const rawPanels = options?.getAllPanels?.();
@@ -676,7 +712,7 @@ export function buildSolarScene3DFromCalpinageRuntime(
       roofGeometryFallbackReason: sceneInput.diagnostics.fallbackReason ?? null,
       ...(buildingShell != null ? { buildingShell } : {}),
       obstacleVolumes: volRes.obstacleVolumes,
-      extensionVolumes: roofExtRes.extensionVolumes,
+      extensionVolumes: extensionVolumesForScene,
       volumesQuality,
       pvPanels: pvRes.panels,
       ...(panelVisualShadingByPanelId != null && { panelVisualShadingByPanelId }),
