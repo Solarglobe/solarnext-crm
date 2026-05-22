@@ -17686,7 +17686,10 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               return;
             }
             if (window.CALPINAGE_MODE === MODE_PARAMETRIC_DORMER_PLACE) {
-              if (typeof insideAnyPan === "function" && !insideAnyPan(imgPt)) {
+              var parametricDormerPanHit = typeof hitTestPan === "function"
+                ? hitTestPan(imgPt)
+                : (typeof insideAnyPan === "function" && insideAnyPan(imgPt) ? { id: "validated-pan" } : null);
+              if (!parametricDormerPanHit) {
                 if (typeof window.calpinageToast !== "undefined" && window.calpinageToast.warning) {
                   window.calpinageToast.warning("Cliquez sur un pan de toiture pour placer la lucarne.");
                 }
