@@ -2275,6 +2275,10 @@ export function initCalpinage(container, options = {}) {
                 <span class="calpinage-tool-obstacle-chevron" aria-hidden="true">▾</span>
               </button>
               <div class="calpinage-tool-obstacle-dropdown" id="calpinage-roof-extension-dropdown" hidden>
+                <button type="button" class="calpinage-tool-obstacle-option" data-dormer-tool="parametric-gable-place" title="Placer une lucarne pignon parametrique complete avec dimensions pre-remplies">
+                  <span class="calpinage-tool-label">Placer lucarne pignon V2</span>
+                </button>
+                <div class="calpinage-tool-obstacle-separator" role="presentation"></div>
                 <button type="button" class="calpinage-tool-obstacle-option" data-dormer-tool="contour" title="Dessiner le contour du chien assis point par point">
                   <span class="calpinage-tool-label">Dessiner chien assis</span>
                 </button>
@@ -4789,12 +4793,20 @@ export function initCalpinage(container, options = {}) {
       function createCompleteDormerAtPoint(imgPt) {
         var mpp = (CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.scale && CALPINAGE_STATE.roof.scale.metersPerPixel) || 0.1;
         if (!Number.isFinite(mpp) || mpp <= 0) mpp = 0.1;
-        var widthPx = Math.max(28, 2.2 / mpp);
-        var depthPx = Math.max(34, 3.2 / mpp);
+        var widthPx = Math.max(28, 2.4 / mpp);
+        var depthPx = Math.max(34, 2.0 / mpp);
         var halfW = widthPx / 2;
         var halfD = depthPx / 2;
         var draft = createRoofExtensionDormerDraft("dormer", imgPt);
         draft.stage = "COMPLETE";
+        draft.visualModel = "parametric_gable";
+        draft.templateFamily = "parametric_dormer_v2";
+        draft.parametricDormerType = "gable_traditional";
+        draft.widthM = 2.4;
+        draft.depthM = 2.0;
+        draft.wallHeightM = 0.35;
+        draft.ridgeHeightRelM = 0.95;
+        draft.roofRiseM = 0.6;
         /* Orienter le chien assis selon le faîtage le plus proche :
          * l'axe U (largeur) est parallèle au faîtage principal → chien assis
          * posé correctement sur le versant dès le premier clic.            */
@@ -4820,6 +4832,7 @@ export function initCalpinage(container, options = {}) {
         syncPersistedRoofExtensionV1(draft);
         CALPINAGE_STATE.roofExtensions = CALPINAGE_STATE.roofExtensions || [];
         CALPINAGE_STATE.roofExtensions.push(draft);
+        syncParametricDormersFromRoofExtensions();
         return CALPINAGE_STATE.roofExtensions.length - 1;
       }
 
@@ -9155,6 +9168,7 @@ export function initCalpinage(container, options = {}) {
       const MODE_DORMER_CONTOUR = "DORMER_CONTOUR";
       const MODE_DORMER_RIDGE   = "DORMER_RIDGE";
       const MODE_DORMER_HIPS    = "DORMER_HIPS";
+      const MODE_PARAMETRIC_DORMER_PLACE = "PARAMETRIC_DORMER_PLACE";
 
       /* ??tat dessin : outil actif + pr?visualisation ; donn?es m?tier dans CALPINAGE_STATE */
       /* ── Undo / Redo ─────────────────────────────────────────────────────── */
@@ -9277,9 +9291,9 @@ export function initCalpinage(container, options = {}) {
 
       function clearTransientCanvasModeForToolSwitch() {
         var mode = window.CALPINAGE_MODE;
-        var isDormerMode = mode === MODE_CREATE_DORMER || mode === MODE_DORMER_CONTOUR || mode === MODE_DORMER_RIDGE || mode === MODE_DORMER_HIPS;
+        var isDormerMode = mode === MODE_CREATE_DORMER || mode === MODE_DORMER_CONTOUR || mode === MODE_DORMER_RIDGE || mode === MODE_DORMER_HIPS || mode === MODE_PARAMETRIC_DORMER_PLACE;
         if (isDormerMode) {
-          if (mode === MODE_CREATE_DORMER || mode === MODE_DORMER_CONTOUR) drawState.dormerDraft = null;
+          if (mode === MODE_CREATE_DORMER || mode === MODE_DORMER_CONTOUR || mode === MODE_PARAMETRIC_DORMER_PLACE) drawState.dormerDraft = null;
           drawState.dormerActiveTool = null;
           drawState.dormerEditRxIndex = null;
         }
@@ -9384,7 +9398,7 @@ export function initCalpinage(container, options = {}) {
 
       /* Clavier centralisé : attaché UNE FOIS sur container, dispatché vers l'outil actif. */
       addSafeListener(container, "keydown", function (e) {
-        if (e.key === "Escape" && (window.CALPINAGE_MODE === MODE_CREATE_DORMER || window.CALPINAGE_MODE === MODE_DORMER_CONTOUR || window.CALPINAGE_MODE === MODE_DORMER_RIDGE || window.CALPINAGE_MODE === MODE_DORMER_HIPS)) {
+        if (e.key === "Escape" && (window.CALPINAGE_MODE === MODE_CREATE_DORMER || window.CALPINAGE_MODE === MODE_DORMER_CONTOUR || window.CALPINAGE_MODE === MODE_DORMER_RIDGE || window.CALPINAGE_MODE === MODE_DORMER_HIPS || window.CALPINAGE_MODE === MODE_PARAMETRIC_DORMER_PLACE)) {
           cancelDormerMode();
           if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
         }
@@ -15215,6 +15229,23 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 }
                 return;
               }
+              if (tool === "parametric-gable-place") {
+                CALPINAGE_STATE.featureFlags = CALPINAGE_STATE.featureFlags || {};
+                CALPINAGE_STATE.featureFlags.parametricDormerComparison = true;
+                syncParametricDormersFromRoofExtensions();
+                updateParametricDormerComparisonUI(container);
+                drawState.dormerDraft = null;
+                drawState.dormerEditRxIndex = null;
+                window.CALPINAGE_MODE = MODE_PARAMETRIC_DORMER_PLACE;
+                drawState.dormerActiveTool = "parametric-gable-place";
+                roofExtensionDropdown.hidden = true;
+                if (canvasEl) canvasEl.style.cursor = "crosshair";
+                if (typeof window.calpinageToast !== "undefined" && window.calpinageToast.success) {
+                  window.calpinageToast.success("Cliquez sur le pan pour placer une lucarne pignon V2 pre-remplie.");
+                }
+                if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
+                return;
+              }
               var targetIdx = getDormerTargetIndexForTool();
               var target = targetIdx != null ? (CALPINAGE_STATE.roofExtensions || [])[targetIdx] : getDormerEditTarget();
               if (tool === "contour") {
@@ -17413,7 +17444,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             });
             // Phase 3 (PV_LAYOUT) ne dépend PAS de drawState.activeTool (outil Phase 2).
             // On ne doit pas bloquer la pose / sélection de panneaux à cause d'un outil Phase 2.
-            var isDormerMode = window.CALPINAGE_MODE === MODE_CREATE_DORMER || window.CALPINAGE_MODE === MODE_DORMER_CONTOUR || window.CALPINAGE_MODE === MODE_DORMER_RIDGE || window.CALPINAGE_MODE === MODE_DORMER_HIPS;
+            var isDormerMode = window.CALPINAGE_MODE === MODE_CREATE_DORMER || window.CALPINAGE_MODE === MODE_DORMER_CONTOUR || window.CALPINAGE_MODE === MODE_DORMER_RIDGE || window.CALPINAGE_MODE === MODE_DORMER_HIPS || window.CALPINAGE_MODE === MODE_PARAMETRIC_DORMER_PLACE;
             /* Clic droit dans un mode de dessin chien assis → annulation immédiate (UX CAO standard) */
             if (isDormerMode && e.button === 2) {
               e.preventDefault();
@@ -17651,6 +17682,30 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
                 if (typeof resetActiveToolToSelect === "function") resetActiveToolToSelect();
                 return;
+              }
+              return;
+            }
+            if (window.CALPINAGE_MODE === MODE_PARAMETRIC_DORMER_PLACE) {
+              if (typeof insideAnyPan === "function" && !insideAnyPan(imgPt)) {
+                if (typeof window.calpinageToast !== "undefined" && window.calpinageToast.warning) {
+                  window.calpinageToast.warning("Cliquez sur un pan de toiture pour placer la lucarne.");
+                }
+                return;
+              }
+              var placedParametricIdx = createCompleteDormerAtPoint(imgPt);
+              drawState.selectedRoofExtensionIndex = placedParametricIdx >= 0 ? placedParametricIdx : null;
+              drawState.dormerDraft = null;
+              drawState.dormerActiveTool = null;
+              drawState.dormerEditRxIndex = null;
+              CALPINAGE_STATE.featureFlags = CALPINAGE_STATE.featureFlags || {};
+              CALPINAGE_STATE.featureFlags.parametricDormerComparison = true;
+              window.CALPINAGE_MODE = null;
+              if (canvasEl) canvasEl.style.cursor = "default";
+              if (typeof saveCalpinageState === "function") saveCalpinageState();
+              if (typeof resetActiveToolToSelect === "function") resetActiveToolToSelect();
+              if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
+              if (typeof window.calpinageToast !== "undefined" && window.calpinageToast.success) {
+                window.calpinageToast.success("Lucarne pignon V2 placee avec dimensions par defaut.");
               }
               return;
             }
@@ -21352,7 +21407,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             } else {
               drawState.hoverNearFirstPointDormer = false;
             }
-            if (window.CALPINAGE_MODE === MODE_DORMER_CONTOUR || window.CALPINAGE_MODE === MODE_DORMER_HIPS || window.CALPINAGE_MODE === MODE_DORMER_RIDGE) {
+            if (window.CALPINAGE_MODE === MODE_DORMER_CONTOUR || window.CALPINAGE_MODE === MODE_DORMER_HIPS || window.CALPINAGE_MODE === MODE_DORMER_RIDGE || window.CALPINAGE_MODE === MODE_PARAMETRIC_DORMER_PLACE) {
               if (typeof window.CALPINAGE_RENDER === "function") requestAnimationFrame(window.CALPINAGE_RENDER);
             }
             /* P4.4 : hit-test pan hover délégué à Konva si KonvaPansLayer actif */
@@ -21628,7 +21683,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             } else {
               drawState.hoverNearFirstPointDormer = false;
             }
-            if (window.CALPINAGE_MODE === MODE_DORMER_CONTOUR || window.CALPINAGE_MODE === MODE_DORMER_HIPS || window.CALPINAGE_MODE === MODE_DORMER_RIDGE) {
+            if (window.CALPINAGE_MODE === MODE_DORMER_CONTOUR || window.CALPINAGE_MODE === MODE_DORMER_HIPS || window.CALPINAGE_MODE === MODE_DORMER_RIDGE || window.CALPINAGE_MODE === MODE_PARAMETRIC_DORMER_PLACE) {
               if (typeof window.CALPINAGE_RENDER === "function") requestAnimationFrame(window.CALPINAGE_RENDER);
             }
             // Debug state (temporary)
@@ -22020,7 +22075,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               e.preventDefault();
               removeCtxMenu();
               /* En mode de dessin chien assis, le clic droit est traité par pointerdown → pas de menu */
-              var _inDormerDraw = window.CALPINAGE_MODE === MODE_CREATE_DORMER || window.CALPINAGE_MODE === MODE_DORMER_CONTOUR || window.CALPINAGE_MODE === MODE_DORMER_RIDGE || window.CALPINAGE_MODE === MODE_DORMER_HIPS;
+              var _inDormerDraw = window.CALPINAGE_MODE === MODE_CREATE_DORMER || window.CALPINAGE_MODE === MODE_DORMER_CONTOUR || window.CALPINAGE_MODE === MODE_DORMER_RIDGE || window.CALPINAGE_MODE === MODE_DORMER_HIPS || window.CALPINAGE_MODE === MODE_PARAMETRIC_DORMER_PLACE;
               if (_inDormerDraw) return;
               if (CALPINAGE_STATE.currentPhase !== "ROOF_EDIT") return;
               _updateCtxTheme();
@@ -23289,7 +23344,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 ctx.restore();
               }
             }
-            if (window.CALPINAGE_MODE === MODE_CREATE_DORMER || window.CALPINAGE_MODE === MODE_DORMER_CONTOUR || window.CALPINAGE_MODE === MODE_DORMER_RIDGE || window.CALPINAGE_MODE === MODE_DORMER_HIPS) {
+            if (window.CALPINAGE_MODE === MODE_CREATE_DORMER || window.CALPINAGE_MODE === MODE_DORMER_CONTOUR || window.CALPINAGE_MODE === MODE_DORMER_RIDGE || window.CALPINAGE_MODE === MODE_DORMER_HIPS || window.CALPINAGE_MODE === MODE_PARAMETRIC_DORMER_PLACE) {
               ctx.save();
               ctx.fillStyle = "rgba(0,0,0,0.7)";
               ctx.font = "14px Arial";
@@ -23302,6 +23357,9 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               }
               if (window.CALPINAGE_MODE === MODE_DORMER_RIDGE) {
                 text = "Cliquez pour définir l'extrémité du faîtage";
+              }
+              if (window.CALPINAGE_MODE === MODE_PARAMETRIC_DORMER_PLACE) {
+                text = "Cliquez sur le pan pour placer une lucarne pignon V2 pre-remplie";
               }
               if (text) {
                 ctx.fillText(text, 20, 30);
@@ -24865,7 +24923,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               }
             }
 
-            if (window.CALPINAGE_MODE === MODE_CREATE_DORMER || window.CALPINAGE_MODE === MODE_DORMER_CONTOUR || window.CALPINAGE_MODE === MODE_DORMER_RIDGE || window.CALPINAGE_MODE === MODE_DORMER_HIPS) {
+            if (window.CALPINAGE_MODE === MODE_CREATE_DORMER || window.CALPINAGE_MODE === MODE_DORMER_CONTOUR || window.CALPINAGE_MODE === MODE_DORMER_RIDGE || window.CALPINAGE_MODE === MODE_DORMER_HIPS || window.CALPINAGE_MODE === MODE_PARAMETRIC_DORMER_PLACE) {
               var dormerPointer = (window.CALPINAGE_MODE === MODE_DORMER_CONTOUR && drawState.hoverNearFirstPointDormer) || ((drawState.dormerDraft || getDormerEditTarget()) && drawState.dormerSnapActive === true);
               canvasEl.style.cursor = dormerPointer ? "pointer" : "crosshair";
             } else if (window.CALPINAGE_IS_MANIPULATING && calpinageHandleDrag) {
