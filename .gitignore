@@ -106,6 +106,10 @@ storage_tar_parts/
 backend/dump.sql
 verify-out.json
 
+# --- Infrastructure : scripts locaux contenant des secrets ---
+infrastructure/vps-setup-env.sh
+!infrastructure/vps-setup-env.example.sh
+
 # --- Backend : téléversements & données utilisateur locales ---
 backend/backend/data/uploads/
 backend/data/uploads/
