@@ -4714,6 +4714,76 @@ export function initCalpinage(container, options = {}) {
         return null;
       }
 
+      /* ── Helpers V2 parametricDormers : poignées, hit-test, containment ── */
+
+      /** Calcule les pts image (px) du footprint d'un parametricDormer V2 + milieux nécessaires aux poignées. */
+      function getParametricDormerImagePts(model) {
+        if (!model || !model.anchorWorld || !model.orientation || !model.footprint) return null;
+        var anch = model.anchorWorld;
+        var uAx  = model.orientation.uAxisWorld;
+        var vAx  = model.orientation.vAxisWorld;
+        if (!uAx || !vAx) return null;
+        var fp = model.footprint;
+        function uvToImg(pt) {
+          var wx = anch.x + pt.uM * uAx.x + pt.vM * vAx.x;
+          var wy = anch.y + pt.uM * uAx.y + pt.vM * vAx.y;
+          return parametricDormerWorldMToImagePx({ x: wx, y: wy });
+        }
+        var iFL = uvToImg(fp.frontLeft);
+        var iFR = uvToImg(fp.frontRight);
+        var iRR = uvToImg(fp.rearRight);
+        var iRL = uvToImg(fp.rearLeft);
+        return {
+          frontLeft:  iFL,
+          frontRight: iFR,
+          rearRight:  iRR,
+          rearLeft:   iRL,
+          center:     { x: (iFL.x + iFR.x + iRR.x + iRL.x) / 4, y: (iFL.y + iFR.y + iRR.y + iRL.y) / 4 },
+          frontMid:   { x: (iFL.x + iFR.x) / 2, y: (iFL.y + iFR.y) / 2 },
+          rearMid:    { x: (iRL.x + iRR.x) / 2, y: (iRL.y + iRR.y) / 2 },
+          leftMid:    { x: (iFL.x + iRL.x) / 2, y: (iFL.y + iRL.y) / 2 },
+          rightMid:   { x: (iFR.x + iRR.x) / 2, y: (iFR.y + iRR.y) / 2 },
+        };
+      }
+
+      /**
+       * Retourne le nom du handle V2 frappé ("move","front","rear","left","right") ou null.
+       * imgPts = résultat de getParametricDormerImagePts ; imageToScreenFn = imageToScreen courant.
+       */
+      function hitParametricDormerHandle(screenPt, imgPts, imageToScreenFn) {
+        if (!imgPts || typeof imageToScreenFn !== "function") return null;
+        function distSc(imgPt) {
+          var s = imageToScreenFn(imgPt);
+          return Math.hypot(screenPt.x - s.x, screenPt.y - s.y);
+        }
+        if (distSc(imgPts.center)   <= 14) return "move";
+        if (distSc(imgPts.frontMid) <= 12) return "front";
+        if (distSc(imgPts.rearMid)  <= 12) return "rear";
+        if (distSc(imgPts.leftMid)  <= 12) return "left";
+        if (distSc(imgPts.rightMid) <= 12) return "right";
+        return null;
+      }
+
+      /**
+       * Test si un point image (px) est à l'intérieur du footprint d'un parametricDormer.
+       * imgPts = résultat de getParametricDormerImagePts.
+       * Utilise le test de signe des produits vectoriels (polygone convexe CW).
+       */
+      function isPointInParametricDormerFootprint(imgPt, imgPts) {
+        if (!imgPts) return false;
+        var poly = [imgPts.frontLeft, imgPts.frontRight, imgPts.rearRight, imgPts.rearLeft];
+        var n = poly.length;
+        var posSign = 0;
+        var negSign = 0;
+        for (var i = 0; i < n; i++) {
+          var a = poly[i], b = poly[(i + 1) % n];
+          var cross = (b.x - a.x) * (imgPt.y - a.y) - (b.y - a.y) * (imgPt.x - a.x);
+          if (cross > 0) posSign++;
+          if (cross < 0) negSign++;
+        }
+        return posSign === 0 || negSign === 0; // tous du même côté = dedans
+      }
+
       function applyDormerParametricVisualDefaults(rx) {
         if (!rx || rx.kind !== "dormer") return rx;
         rx.dormerType = "gable";
@@ -4799,8 +4869,11 @@ export function initCalpinage(container, options = {}) {
         var initAngle = getDormerInitialAngle(imgPt);
         var cosA = Math.cos(initAngle);
         var sinA = Math.sin(initAngle);
+        // U = largeur (le long du faitage principal)
+        // V = profondeur, pointant VERS LE BAS du versant (côté rue / façade visible)
+        // vAxis = +90° CW par rapport à uAxis → descend la pente
         var uAxis = { x: cosA, y: sinA, z: 0 };
-        var vAxis = { x: -sinA, y: cosA, z: 0 };
+        var vAxis = { x: sinA, y: -cosA, z: 0 };
 
         // Dimensions par défaut physiques
         var halfW  = 0.6;  // demi-largeur : lucarne 1.2 m de large
@@ -4808,7 +4881,8 @@ export function initCalpinage(container, options = {}) {
         var hWall  = 0.9;  // hauteur façade verticale
         var hRidge = 1.6;  // hauteur faitage (mur + pente)
         // Les hauteurs sont verticales monde (WORLD_UP dans buildRoofDormerParametric3D.ts).
-        // ridge.front/rear sont sur le bord avant/arrière du footprint → pas de validator RIDGE_OUTSIDE.
+        // L'ancre est au CENTRE du footprint — vM ∈ [-depth/2 ; +depth/2].
+        // La façade (front, vM=-depth/2) est en bas de pente ; l'arrière (vM=+depth/2) en haut.
 
         var id = "pdormer_" + Date.now() + "_" + Math.random().toString(36).slice(2, 7);
 
@@ -4823,14 +4897,14 @@ export function initCalpinage(container, options = {}) {
             vAxisWorld: vAxis
           },
           footprint: {
-            frontLeft:  { uM: -halfW, vM:  0     },
-            frontRight: { uM: +halfW, vM:  0     },
-            rearRight:  { uM: +halfW, vM: -depth },
-            rearLeft:   { uM: -halfW, vM: -depth }
+            frontLeft:  { uM: -halfW, vM: -depth / 2 },
+            frontRight: { uM: +halfW, vM: -depth / 2 },
+            rearRight:  { uM: +halfW, vM: +depth / 2 },
+            rearLeft:   { uM: -halfW, vM: +depth / 2 }
           },
           ridge: {
-            front: { uM: 0, vM:  0     },
-            rear:  { uM: 0, vM: -depth }
+            front: { uM: 0, vM: -depth / 2 },
+            rear:  { uM: 0, vM: +depth / 2 }
           },
           heights: {
             reference: "support_plane_normal",  // label conservé pour compat type TS
@@ -17287,8 +17361,25 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
 
           function getRoofExtensionPointerHit(screenPt) {
             var rxList = CALPINAGE_STATE.roofExtensions || [];
-            if (!rxList.length) return null;
             try {
+              /* ── V2 parametricDormers : vérifier les poignées en PRIORITÉ ── */
+              var _pdList = CALPINAGE_STATE.parametricDormers || [];
+              if (drawState.selectedRoofExtensionIndex != null && _pdList.length > 0) {
+                var _pdSel = _pdList[drawState.selectedRoofExtensionIndex];
+                if (_pdSel) {
+                  var _pdImgPts = getParametricDormerImagePts(_pdSel);
+                  var _pdHandle = hitParametricDormerHandle(screenPt, _pdImgPts, imageToScreen);
+                  if (_pdHandle) {
+                    return {
+                      type: "parametricDormer",
+                      index: drawState.selectedRoofExtensionIndex,
+                      subType: _pdHandle,  // "move","front","rear","left","right"
+                      imgPts: _pdImgPts,
+                    };
+                  }
+                }
+              }
+              if (!rxList.length) return null;
               if (drawState.selectedRoofExtensionIndex != null) {
                 var selectedRx = rxList[drawState.selectedRoofExtensionIndex];
                 if (selectedRx && typeof hitRoofExtensionManipHandle === "function") {
@@ -17437,6 +17528,64 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
             if (typeof requestAnimationFrame !== "undefined" && typeof window.CALPINAGE_RENDER === "function") requestAnimationFrame(window.CALPINAGE_RENDER);
             return true;
           }
+          /**
+           * Démarre une interaction de déplacement / redimensionnement pour un parametricDormer V2.
+           * Appelé depuis le pointerdown lorsque hit.type === "parametricDormer".
+           * subType : "move" | "front" | "rear" | "left" | "right"
+           */
+          function beginParametricDormerPointerInteraction(e, pdHit, imgPt) {
+            if (!pdHit || pdHit.type !== "parametricDormer") return false;
+            var pdList = CALPINAGE_STATE.parametricDormers || [];
+            var model = pdList[pdHit.index];
+            if (!model) return false;
+
+            drawState.selectedRoofExtensionIndex = pdHit.index;
+            drawState.selectedContourIndex  = null;
+            drawState.selectedRidgeIndex    = null;
+            drawState.selectedTraitIndex    = null;
+            drawState.selectedObstacleIndex = null;
+            drawState.selectedShadowVolumeIndex = null;
+            CALPINAGE_STATE.selected = { type: null, id: null, pointIndex: null };
+            CALPINAGE_STATE.selectedPanId = null;
+
+            if (canvasEl && e && e.pointerId != null && canvasEl.setPointerCapture) {
+              try { canvasEl.setPointerCapture(e.pointerId); drawState.activePointerId = e.pointerId; } catch (_) {}
+            }
+
+            var subType = pdHit.subType; // "move","front","rear","left","right"
+            if (subType === "move") {
+              drawState.dragMode = "parametricDormerMove";
+              drawState.dragBase = {
+                pdIndex:  pdHit.index,
+                startImg: { x: imgPt.x, y: imgPt.y },
+                startAnchor: { x: model.anchorWorld.x, y: model.anchorWorld.y },
+                lastDx: 0, lastDy: 0
+              };
+              setInteractionState(InteractionStates.DRAGGING);
+            } else if (subType === "front" || subType === "rear" || subType === "left" || subType === "right") {
+              // Stocker la géométrie initiale pour le redimensionnement
+              var fp = model.footprint;
+              drawState.dragMode = "parametricDormerEdge";
+              drawState.dragBase = {
+                pdIndex:   pdHit.index,
+                edgeSide:  subType,
+                startImg:  { x: imgPt.x, y: imgPt.y },
+                startAnchor: { x: model.anchorWorld.x, y: model.anchorWorld.y },
+                origHalfW: Math.abs(fp.frontRight.uM),
+                origDepth: Math.abs(fp.rearLeft.vM - fp.frontLeft.vM),
+                origFrontV: fp.frontLeft.vM,
+                lastDu: 0, lastDv: 0
+              };
+              setInteractionState(InteractionStates.RESIZING);
+            } else {
+              drawState.dragMode = null;
+              drawState.dragBase = null;
+            }
+
+            if (typeof window.CALPINAGE_RENDER === "function") requestAnimationFrame(window.CALPINAGE_RENDER);
+            return true;
+          }
+
           addSafeListener(canvasEl, "pointerdown", function (e) {
             var rect = canvasEl.getBoundingClientRect();
             var x = e.clientX - rect.left;
@@ -18030,8 +18179,23 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
 
             if (!isDormerMode && !CALPINAGE_STATE.heightEditMode) {
               var _rxPriorityHit = getRoofExtensionPointerHit(screen);
-              if (_rxPriorityHit && _rxPriorityHit.type === "roofExtension") {
-                if (beginRoofExtensionPointerInteraction(e, _rxPriorityHit, imgPt)) return;
+              if (_rxPriorityHit) {
+                if (_rxPriorityHit.type === "parametricDormer") {
+                  if (beginParametricDormerPointerInteraction(e, _rxPriorityHit, imgPt)) return;
+                } else if (_rxPriorityHit.type === "roofExtension") {
+                  if (beginRoofExtensionPointerInteraction(e, _rxPriorityHit, imgPt)) return;
+                }
+              }
+              /* ── Clic sur le corps d'un parametricDormer V2 : sélectionner + démarrer move ── */
+              var _pdBodyList = CALPINAGE_STATE.parametricDormers || [];
+              for (var _pdi = 0; _pdi < _pdBodyList.length; _pdi++) {
+                var _pdBody = _pdBodyList[_pdi];
+                var _pdBodyImgPts = getParametricDormerImagePts(_pdBody);
+                if (_pdBodyImgPts && isPointInParametricDormerFootprint(imgPt, _pdBodyImgPts)) {
+                  if (beginParametricDormerPointerInteraction(e,
+                    { type: "parametricDormer", index: _pdi, subType: "move", imgPts: _pdBodyImgPts },
+                    imgPt)) return;
+                }
               }
             }
 
@@ -20168,6 +20332,83 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
               return;
             }
+            /* ── V2 parametricDormer : déplacement de l'ancre ── */
+            if (drawState.dragMode === "parametricDormerMove" && drawState.dragBase) {
+              var _pdMoveBase = drawState.dragBase;
+              var _pdMoveList = CALPINAGE_STATE.parametricDormers || [];
+              var _pdMoveModel = _pdMoveList[_pdMoveBase.pdIndex];
+              if (!_pdMoveModel || !_pdMoveBase.startImg) return;
+              // Convertir le déplacement image (px) en mètres monde
+              var _mpp = getRoofExtensionMetersPerPixel();
+              var _northRad = (((CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.northAngleDeg) || CALPINAGE_STATE.northAngleDeg || 0) * Math.PI) / 180;
+              var _dxImg = imgPt.x - _pdMoveBase.startImg.x;
+              var _dyImg = imgPt.y - _pdMoveBase.startImg.y;
+              // Image px → metres monde : inverse de parametricDormerWorldMToImagePx
+              // worldMToImagePx : x0 = (w.x*cos + w.y*sin)/mpp  ; y0 = -((-w.x*sin + w.y*cos)/mpp)
+              // => deltaWx = dxImg*mpp*cos - dyImg*mpp*sin ; deltaWy = dxImg*mpp*sin + dyImg*mpp*cos
+              var _cosN = Math.cos(_northRad), _sinN = Math.sin(_northRad);
+              var _dwx = (_dxImg * _cosN + _dyImg * _sinN) * _mpp;
+              var _dwy = (-_dxImg * _sinN + _dyImg * _cosN) * _mpp;
+              // Corriger le signe y (l'image y est inversé)
+              _pdMoveModel.anchorWorld.x = _pdMoveBase.startAnchor.x + _dwx;
+              _pdMoveModel.anchorWorld.y = _pdMoveBase.startAnchor.y - _dwy;
+              if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
+              return;
+            }
+            /* ── V2 parametricDormer : redimensionnement par poignée de bord ── */
+            if (drawState.dragMode === "parametricDormerEdge" && drawState.dragBase) {
+              var _pdEdgeBase = drawState.dragBase;
+              var _pdEdgeList = CALPINAGE_STATE.parametricDormers || [];
+              var _pdEdgeModel = _pdEdgeList[_pdEdgeBase.pdIndex];
+              if (!_pdEdgeModel || !_pdEdgeBase.startImg) return;
+              var _mppE = getRoofExtensionMetersPerPixel();
+              var _northRadE = (((CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.northAngleDeg) || CALPINAGE_STATE.northAngleDeg || 0) * Math.PI) / 180;
+              var _dxImgE = imgPt.x - _pdEdgeBase.startImg.x;
+              var _dyImgE = imgPt.y - _pdEdgeBase.startImg.y;
+              var _cosNE = Math.cos(_northRadE), _sinNE = Math.sin(_northRadE);
+              var _dwxE = (_dxImgE * _cosNE + _dyImgE * _sinNE) * _mppE;
+              var _dwyE = (-_dxImgE * _sinNE + _dyImgE * _cosNE) * _mppE;
+              // Projeter le déplacement monde sur les axes U et V du dormer
+              var _uAx = _pdEdgeModel.orientation.uAxisWorld;
+              var _vAx = _pdEdgeModel.orientation.vAxisWorld;
+              var _duE = _dwxE * _uAx.x + (-_dwyE) * _uAx.y;
+              var _dvE = _dwxE * _vAx.x + (-_dwyE) * _vAx.y;
+              var _fp = _pdEdgeModel.footprint;
+              var _side = _pdEdgeBase.edgeSide;
+              var _minHalfW = 0.2, _minDepth = 0.2;
+              if (_side === "right") {
+                var _newHalfW = Math.max(_minHalfW, _pdEdgeBase.origHalfW + _duE);
+                _fp.frontRight.uM  =  _newHalfW;
+                _fp.rearRight.uM   =  _newHalfW;
+                _pdEdgeModel.ridge && (_pdEdgeModel.ridge.front.uM = 0, _pdEdgeModel.ridge.rear.uM = 0);
+              } else if (_side === "left") {
+                var _newHalfWL = Math.max(_minHalfW, _pdEdgeBase.origHalfW - _duE);
+                _fp.frontLeft.uM  = -_newHalfWL;
+                _fp.rearLeft.uM   = -_newHalfWL;
+              } else if (_side === "front") {
+                // Front = vM le plus bas (vM négatif dans notre convention centered)
+                var _newFrontV = _pdEdgeBase.origFrontV + _dvE;
+                var _rearV = _pdEdgeBase.origFrontV + _pdEdgeBase.origDepth;
+                if (_rearV - _newFrontV >= _minDepth) {
+                  _fp.frontLeft.vM  = _newFrontV;
+                  _fp.frontRight.vM = _newFrontV;
+                  if (_pdEdgeModel.ridge) _pdEdgeModel.ridge.front.vM = _newFrontV;
+                  // Déplacer l'ancre pour que le mouvement soit intuitif
+                  var _dvWorld = _dvE;
+                  _pdEdgeModel.anchorWorld.x = _pdEdgeBase.startAnchor.x + _dvWorld * _vAx.x;
+                  _pdEdgeModel.anchorWorld.y = _pdEdgeBase.startAnchor.y + _dvWorld * _vAx.y;
+                }
+              } else if (_side === "rear") {
+                var _newRearV = _pdEdgeBase.origFrontV + _pdEdgeBase.origDepth + _dvE;
+                if (_newRearV - _pdEdgeBase.origFrontV >= _minDepth) {
+                  _fp.rearLeft.vM   = _newRearV;
+                  _fp.rearRight.vM  = _newRearV;
+                  if (_pdEdgeModel.ridge) _pdEdgeModel.ridge.rear.vM = _newRearV;
+                }
+              }
+              if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
+              return;
+            }
             if (drawState.dragMode === "roofExtensionMove" && drawState.dragBase) {
               var baseMoveRx = drawState.dragBase;
               var rxListMove = CALPINAGE_STATE.roofExtensions || [];
@@ -20895,6 +21136,10 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                   recomputeRoofPlanes();
                   saveCalpinageState();
                 }
+              }
+              if ((drawState.dragMode === "parametricDormerMove" || drawState.dragMode === "parametricDormerEdge") && drawState.dragBase) {
+                if (typeof saveCalpinageState === "function") saveCalpinageState();
+                if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
               }
               if ((drawState.dragMode === "roofExtensionMove" || drawState.dragMode === "roofExtensionRotate" || drawState.dragMode === "roofExtensionEdge") && drawState.dragBase) {
                 if (typeof saveCalpinageState === "function") saveCalpinageState();
@@ -23108,7 +23353,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               ctx.save();
               ctx.lineJoin = "round";
               ctx.lineCap = "round";
-              pdListRender.forEach(function (model) {
+              pdListRender.forEach(function (model, _pdRenderIdx) {
                 if (!model || !model.anchorWorld || !model.orientation || !model.footprint || !model.ridge) return;
                 var anch = model.anchorWorld;
                 var uAx = model.orientation.uAxisWorld;
@@ -23184,6 +23429,40 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                   ctx.stroke(hip);
                 });
                 ctx.setLineDash([]);
+
+                // 5. Poignées si sélectionné
+                if (drawState.selectedRoofExtensionIndex === _pdRenderIdx) {
+                  var _pdImgPtsH = getParametricDormerImagePts(model);
+                  if (_pdImgPtsH) {
+                    function _pdHandleSc(imgPt) { return imageToScreen(imgPt); }
+                    // Anneau de contour blanc + remplissage coloré
+                    function _drawHandle(imgPt, color, r) {
+                      var sp = _pdHandleSc(imgPt);
+                      ctx.beginPath();
+                      ctx.arc(sp.x, sp.y, r + 2, 0, Math.PI * 2);
+                      ctx.fillStyle = "rgba(255,255,255,0.9)";
+                      ctx.fill();
+                      ctx.beginPath();
+                      ctx.arc(sp.x, sp.y, r, 0, Math.PI * 2);
+                      ctx.fillStyle = color;
+                      ctx.fill();
+                    }
+                    // Poignée déplacement (centre) : cercle bleu avec croix
+                    var _scCtr = _pdHandleSc(_pdImgPtsH.center);
+                    ctx.beginPath(); ctx.arc(_scCtr.x, _scCtr.y, 8, 0, Math.PI * 2);
+                    ctx.fillStyle = "rgba(255,255,255,0.9)"; ctx.fill();
+                    ctx.beginPath(); ctx.arc(_scCtr.x, _scCtr.y, 6, 0, Math.PI * 2);
+                    ctx.fillStyle = "#2563eb"; ctx.fill();
+                    ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.5; ctx.setLineDash([]);
+                    ctx.beginPath(); ctx.moveTo(_scCtr.x - 3.5, _scCtr.y); ctx.lineTo(_scCtr.x + 3.5, _scCtr.y); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(_scCtr.x, _scCtr.y - 3.5); ctx.lineTo(_scCtr.x, _scCtr.y + 3.5); ctx.stroke();
+                    // Poignées de bord (losanges orange)
+                    _drawHandle(_pdImgPtsH.frontMid,  "#ea580c", 5);
+                    _drawHandle(_pdImgPtsH.rearMid,   "#ea580c", 5);
+                    _drawHandle(_pdImgPtsH.leftMid,   "#ea580c", 5);
+                    _drawHandle(_pdImgPtsH.rightMid,  "#ea580c", 5);
+                  }
+                }
               });
               ctx.restore();
             }
