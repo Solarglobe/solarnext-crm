@@ -2275,25 +2275,8 @@ export function initCalpinage(container, options = {}) {
                 <span class="calpinage-tool-obstacle-chevron" aria-hidden="true">▾</span>
               </button>
               <div class="calpinage-tool-obstacle-dropdown" id="calpinage-roof-extension-dropdown" hidden>
-                <button type="button" class="calpinage-tool-obstacle-option" data-dormer-tool="parametric-gable-place" title="Placer une lucarne pignon parametrique complete avec dimensions pre-remplies">
-                  <span class="calpinage-tool-label">Placer lucarne pignon V2</span>
-                </button>
-                <div class="calpinage-tool-obstacle-separator" role="presentation"></div>
-                <button type="button" class="calpinage-tool-obstacle-option" data-dormer-tool="contour" title="Dessiner le contour du chien assis point par point">
-                  <span class="calpinage-tool-label">Dessiner chien assis</span>
-                </button>
-                <button type="button" class="calpinage-tool-obstacle-option" data-dormer-tool="ridge" title="Tracer le faîtage du chien assis sélectionné">
-                  <span class="calpinage-tool-label">Tracer faîtage</span>
-                </button>
-                <button type="button" class="calpinage-tool-obstacle-option" data-dormer-tool="hips" title="Tracer les arêtes du chien assis sélectionné">
-                  <span class="calpinage-tool-label">Tracer arêtes</span>
-                </button>
-                <div class="calpinage-tool-obstacle-separator" role="presentation"></div>
-                <button type="button" class="calpinage-tool-obstacle-option" data-dormer-tool="parametric-compare" aria-pressed="false" title="Afficher le nouveau moteur parametrique V2 en parallele du rendu legacy">
-                  <span class="calpinage-tool-option-row">
-                    <span class="calpinage-tool-label">Comparer moteur parametrique V2</span>
-                    <span class="calpinage-tool-option-badge" id="calpinage-dormer-parametric-status">OFF</span>
-                  </span>
+                <button type="button" class="calpinage-tool-obstacle-option" data-dormer-tool="parametric-gable-place" title="Placer une lucarne chien assis à 2 pans">
+                  <span class="calpinage-tool-label">Placer lucarne chien assis</span>
                 </button>
               </div>
             </div>
@@ -4195,6 +4178,19 @@ export function initCalpinage(container, options = {}) {
         var cos = Math.cos(rad);
         var sin = Math.sin(rad);
         return { x: x0 * cos - y0 * sin, y: x0 * sin + y0 * cos, z: 0 };
+      }
+
+      /** Inverse de imagePxToParametricDormerWorldM — coordonnées monde (m) → pixel image. */
+      function parametricDormerWorldMToImagePx(w) {
+        var mpp = getRoofExtensionMetersPerPixel();
+        var north = (CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.northAngleDeg) || CALPINAGE_STATE.northAngleDeg || 0;
+        var rad = (north * Math.PI) / 180;
+        var cos = Math.cos(rad);
+        var sin = Math.sin(rad);
+        // Rotation inverse : (worldX,worldY) → (x0,y0) avant mise à l'échelle
+        var x0 = w.x * cos + w.y * sin;
+        var y0 = -w.x * sin + w.y * cos;
+        return { x: x0 / mpp, y: -y0 / mpp };
       }
 
       function unitParametricAxis2D(dx, dy, fallback) {
@@ -23103,6 +23099,95 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               });
               ctx.restore();
             }
+            /* ── Parametric dormers V2 — plan 2D : footprint + façade + faîtage + arêtiers ──
+             * Les parametricDormers n'ont pas de contour.points (image-px) : on projette
+             * les coordonnées UV monde → pixel image via parametricDormerWorldMToImagePx,
+             * puis imageToScreen pour le canvas. Même palette que les roofExtensions V1.  */
+            var pdListRender = CALPINAGE_STATE.parametricDormers;
+            if (pdListRender && pdListRender.length > 0) {
+              ctx.save();
+              ctx.lineJoin = "round";
+              ctx.lineCap = "round";
+              pdListRender.forEach(function (model) {
+                if (!model || !model.anchorWorld || !model.orientation || !model.footprint || !model.ridge) return;
+                var anch = model.anchorWorld;
+                var uAx = model.orientation.uAxisWorld;
+                var vAx = model.orientation.vAxisWorld;
+                if (!uAx || !vAx) return;
+                var fp = model.footprint;
+                var rdg = model.ridge;
+
+                // Projection UV → pixel image → pixel écran
+                var uvToScr = function (pt) {
+                  var wx = anch.x + pt.uM * uAx.x + pt.vM * vAx.x;
+                  var wy = anch.y + pt.uM * uAx.y + pt.vM * vAx.y;
+                  return imageToScreen(parametricDormerWorldMToImagePx({ x: wx, y: wy }));
+                };
+
+                var sFL = uvToScr(fp.frontLeft);
+                var sFR = uvToScr(fp.frontRight);
+                var sRR = uvToScr(fp.rearRight);
+                var sRL = uvToScr(fp.rearLeft);
+                var sRF = uvToScr(rdg.front);
+                var sRRidge = uvToScr(rdg.rear);
+
+                // 1. Contour extérieur (rectangle FL-FR-RR-RL)
+                ctx.setLineDash([]);
+                var pdPath = new Path2D();
+                pdPath.moveTo(sFL.x, sFL.y);
+                pdPath.lineTo(sFR.x, sFR.y);
+                pdPath.lineTo(sRR.x, sRR.y);
+                pdPath.lineTo(sRL.x, sRL.y);
+                pdPath.closePath();
+                ctx.fillStyle = PHASE2_DRAW_STYLE.rxContourFill;
+                ctx.fill(pdPath);
+                ctx.strokeStyle = PHASE2_DRAW_STYLE.rxHalo;
+                ctx.lineWidth = 3.8;
+                ctx.stroke(pdPath);
+                ctx.strokeStyle = PHASE2_DRAW_STYLE.rxContourStroke;
+                ctx.lineWidth = 1.7;
+                ctx.stroke(pdPath);
+
+                // 2. Façade avant (FL → FR) en bleu
+                var pdFace = new Path2D();
+                pdFace.moveTo(sFL.x, sFL.y);
+                pdFace.lineTo(sFR.x, sFR.y);
+                ctx.strokeStyle = PHASE2_DRAW_STYLE.rxHalo;
+                ctx.lineWidth = 5.5;
+                ctx.stroke(pdFace);
+                ctx.strokeStyle = PHASE2_DRAW_STYLE.rxFaceStroke;
+                ctx.lineWidth = 2.5;
+                ctx.stroke(pdFace);
+
+                // 3. Faîtage (RF → RRidge) en rouge-orange, trait plein
+                var pdRidge = new Path2D();
+                pdRidge.moveTo(sRF.x, sRF.y);
+                pdRidge.lineTo(sRRidge.x, sRRidge.y);
+                ctx.strokeStyle = PHASE2_DRAW_STYLE.rxHalo;
+                ctx.lineWidth = 4.0;
+                ctx.stroke(pdRidge);
+                ctx.strokeStyle = PHASE2_DRAW_STYLE.rxRidgeStroke;
+                ctx.lineWidth = 2.0;
+                ctx.stroke(pdRidge);
+
+                // 4. Arêtiers (FL→RF et FR→RF) en teal, tirets
+                ctx.setLineDash([5, 4]);
+                [[sFL, sRF], [sFR, sRF]].forEach(function (seg) {
+                  var hip = new Path2D();
+                  hip.moveTo(seg[0].x, seg[0].y);
+                  hip.lineTo(seg[1].x, seg[1].y);
+                  ctx.strokeStyle = PHASE2_DRAW_STYLE.rxHalo;
+                  ctx.lineWidth = 3.0;
+                  ctx.stroke(hip);
+                  ctx.strokeStyle = PHASE2_DRAW_STYLE.rxHipStroke;
+                  ctx.lineWidth = 1.6;
+                  ctx.stroke(hip);
+                });
+                ctx.setLineDash([]);
+              });
+              ctx.restore();
+            }
+
             /* Ombre chien assis (roofExtensions) — projection au sol selon soleil */
             var sunVec = window.__CALPINAGE_SUN_VECTOR;
             if (sunVec) {

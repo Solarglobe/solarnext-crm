@@ -629,15 +629,17 @@ export function buildSolarScene3DFromCalpinageRuntime(
       metersPerPixel: validation.scene.world.metersPerPixel,
       northAngleDeg: validation.scene.world.northAngleDeg,
     });
-    const parametricDormerComparisonEnabled = isParametricDormerComparisonEnabled(runtime);
     const paramDormerRes = buildRoofDormerParametric3DFromRuntime({
       runtime,
       roofPlanePatches: patches,
     });
-    const extensionVolumesForScene = parametricDormerComparisonEnabled
+    // Inclure systématiquement les dormers parametriques s'il y en a —
+    // plus de feature flag : parametricDormers[] est la source de vérité V2.
+    const hasParametricDormers = paramDormerRes.extensionVolumes.length > 0;
+    const extensionVolumesForScene = hasParametricDormers
       ? [...roofExtRes.extensionVolumes, ...paramDormerRes.extensionVolumes]
       : roofExtRes.extensionVolumes;
-    const volumesQuality = parametricDormerComparisonEnabled
+    const volumesQuality = hasParametricDormers
       ? mergeVolumeQuality(mergeVolumeQuality(volRes.globalQuality, roofExtRes.quality), paramDormerRes.quality)
       : mergeVolumeQuality(volRes.globalQuality, roofExtRes.quality);
     const pvRes = buildPvPanels3D(
