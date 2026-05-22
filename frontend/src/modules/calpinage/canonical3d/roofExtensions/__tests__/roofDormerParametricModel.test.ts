@@ -78,17 +78,29 @@ describe("RoofDormerParametricModel", () => {
     expect(geom.volumeM3).toBeGreaterThan(0);
   });
 
-  it("applique les hauteurs selon la normale du pan support", () => {
+  it("applique les hauteurs verticalement (WORLD_UP) : murs perpendiculaires au sol, pas selon la normale du pan", () => {
+    // buildPoint utilise WORLD_UP = {0,0,1} pour les hauteurs : un chien assis sur un pan incliné
+    // doit avoir des murs verticaux (x,y inchangés entre base et eave, seul z augmente de hFacade).
     const patch = makeSupportPatch("pan-param", 30);
     const model = createRoofDormerParametricModelFromDraft(draft());
     const geom = buildRoofDormerParametric3D(model, patch).geometry!;
+
+    // Les base vertices restent sur le plan du pan.
     for (const p of geom.footprintWorld) {
       expect(Math.abs(signedDistanceToPlane(p, patch.equation))).toBeLessThan(1e-6);
     }
+
+    // Les murs sont verticaux : eave.x == base.x, eave.y == base.y, eave.z - base.z == facadeHeightM.
+    const baseFrontLeft = geom.vertices.find((v) => v.id.endsWith(":base:front-left"))!;
+    const eaveFrontLeft = geom.vertices.find((v) => v.id.endsWith(":eave:front-left"))!;
+    expect(eaveFrontLeft.position.x).toBeCloseTo(baseFrontLeft.position.x, 6);
+    expect(eaveFrontLeft.position.y).toBeCloseTo(baseFrontLeft.position.y, 6);
+    expect(eaveFrontLeft.position.z - baseFrontLeft.position.z).toBeCloseTo(0.45, 6);
+
+    // ridge.front (vM == frontLeft.vM == -1.4) partage le même z_base que baseFrontLeft.
+    // Donc ridgeFront.z - baseFrontLeft.z == ridgeHeightM.
     const ridgeFront = geom.vertices.find((v) => v.id.endsWith(":ridge:front"))!;
-    const eaveFront = geom.vertices.find((v) => v.id.endsWith(":eave:front-left"))!;
-    expect(signedDistanceToPlane(ridgeFront.position, patch.equation)).toBeCloseTo(1.15, 6);
-    expect(signedDistanceToPlane(eaveFront.position, patch.equation)).toBeCloseTo(0.45, 6);
+    expect(ridgeFront.position.z - baseFrontLeft.position.z).toBeCloseTo(1.15, 6);
   });
 
   it("relit un parametricDormers[] runtime sans passer par roofExtensions legacy", () => {

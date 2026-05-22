@@ -4325,14 +4325,11 @@ export function initCalpinage(container, options = {}) {
       }
 
       function syncParametricDormersFromRoofExtensions() {
-        var list = Array.isArray(CALPINAGE_STATE.roofExtensions) ? CALPINAGE_STATE.roofExtensions : [];
-        var out = [];
-        list.forEach(function (rx, index) {
-          var model = roofExtensionToParametricDormerV2(rx, index);
-          if (model) out.push(model);
-        });
-        CALPINAGE_STATE.parametricDormers = out;
-        return out;
+        // Phase 1A — V1→V2 sync désactivé.
+        // Les parametricDormers sont créés directement en V2 via createCompleteDormerAtPoint.
+        // Cette fonction est conservée en place pour ne pas casser les call-sites.
+        // Elle retourne l'état existant sans l'écraser.
+        return CALPINAGE_STATE.parametricDormers || [];
       }
 
       window.syncCalpinageParametricDormersFromLegacy = syncParametricDormersFromRoofExtensions;
@@ -4791,49 +4788,80 @@ export function initCalpinage(container, options = {}) {
       }
 
       function createCompleteDormerAtPoint(imgPt) {
-        var mpp = (CALPINAGE_STATE.roof && CALPINAGE_STATE.roof.scale && CALPINAGE_STATE.roof.scale.metersPerPixel) || 0.1;
-        if (!Number.isFinite(mpp) || mpp <= 0) mpp = 0.1;
-        var widthPx = Math.max(28, 2.4 / mpp);
-        var depthPx = Math.max(34, 2.0 / mpp);
-        var halfW = widthPx / 2;
-        var halfD = depthPx / 2;
-        var draft = createRoofExtensionDormerDraft("dormer", imgPt);
-        draft.stage = "COMPLETE";
-        draft.visualModel = "parametric_gable";
-        draft.templateFamily = "parametric_dormer_v2";
-        draft.parametricDormerType = "gable_traditional";
-        draft.widthM = 2.4;
-        draft.depthM = 2.0;
-        draft.wallHeightM = 0.35;
-        draft.ridgeHeightRelM = 0.95;
-        draft.roofRiseM = 0.6;
-        /* Orienter le chien assis selon le faîtage le plus proche :
-         * l'axe U (largeur) est parallèle au faîtage principal → chien assis
-         * posé correctement sur le versant dès le premier clic.            */
+        // Création directe V2 — sans V1 (roofExtensions).
+        // Le modèle est poussé dans state.parametricDormers[] et lu par buildRoofDormerParametric3DFromRuntime (TS).
+
+        // Résolution du pan support via hit-test image
+        var pan = typeof hitTestPan === "function" ? hitTestPan(imgPt) : null;
+        var supportPanId = (pan && pan.id != null) ? String(pan.id) : "";
+
+        // Ancre monde : point cliqué converti en mètres monde (z=0, projeté sur le pan côté TS)
+        var anchorWorld = imagePxToParametricDormerWorldM(imgPt);
+
+        // Orientation : U = largeur du chien assis (perpendiculaire au faitage principal)
+        //               V = profondeur (parallèle au faitage, direction de montée du versant)
         var initAngle = getDormerInitialAngle(imgPt);
         var cosA = Math.cos(initAngle);
         var sinA = Math.sin(initAngle);
-        function rotCorner(du, dv) {
-          return {
-            x: imgPt.x + cosA * du - sinA * dv,
-            y: imgPt.y + sinA * du + cosA * dv
-          };
-        }
-        draft.contour = {
-          closed: true,
-          points: [
-            rotCorner(-halfW, -halfD),
-            rotCorner(+halfW, -halfD),
-            rotCorner(+halfW, +halfD),
-            rotCorner(-halfW, +halfD)
-          ]
+        var uAxis = { x: cosA, y: sinA, z: 0 };
+        var vAxis = { x: -sinA, y: cosA, z: 0 };
+
+        // Dimensions par défaut physiques
+        var halfW  = 0.6;  // demi-largeur : lucarne 1.2 m de large
+        var depth  = 0.8;  // profondeur : 0.8 m
+        var hWall  = 0.9;  // hauteur façade verticale
+        var hRidge = 1.6;  // hauteur faitage (mur + pente)
+        // Les hauteurs sont verticales monde (WORLD_UP dans buildRoofDormerParametric3D.ts).
+        // ridge.front/rear sont sur le bord avant/arrière du footprint → pas de validator RIDGE_OUTSIDE.
+
+        var id = "pdormer_" + Date.now() + "_" + Math.random().toString(36).slice(2, 7);
+
+        var model = {
+          version: "roof_dormer_parametric_v1",
+          id: id,
+          supportPanId: supportPanId,
+          topology: "gable_trapezoid",
+          anchorWorld: { x: anchorWorld.x, y: anchorWorld.y, z: anchorWorld.z || 0 },
+          orientation: {
+            uAxisWorld: uAxis,
+            vAxisWorld: vAxis
+          },
+          footprint: {
+            frontLeft:  { uM: -halfW, vM:  0     },
+            frontRight: { uM: +halfW, vM:  0     },
+            rearRight:  { uM: +halfW, vM: -depth },
+            rearLeft:   { uM: -halfW, vM: -depth }
+          },
+          ridge: {
+            front: { uM: 0, vM:  0     },
+            rear:  { uM: 0, vM: -depth }
+          },
+          heights: {
+            reference: "support_plane_normal",  // label conservé pour compat type TS
+            facadeHeightM: hWall,
+            ridgeHeightM:  hRidge,
+            roofRiseM:     hRidge - hWall
+          },
+          eaveOverhangM:   0.04,
+          flashingOffsetM: 0.02,
+          keepoutOffsetM:  0.08,
+          render: {
+            materialFamily: "roof_dormer_parametric_premium",
+            showDebugGeometry: false
+          },
+          preparedUses: {
+            render:     "parametric_mesh",
+            keepout:    "parametric_footprint",
+            shading:    "parametric_mesh",
+            raycast:    "parametric_mesh",
+            collisions: "parametric_mesh",
+            safeZones:  "parametric_footprint_offset"
+          }
         };
-        applyDormerParametricVisualDefaults(draft);
-        syncPersistedRoofExtensionV1(draft);
-        CALPINAGE_STATE.roofExtensions = CALPINAGE_STATE.roofExtensions || [];
-        CALPINAGE_STATE.roofExtensions.push(draft);
-        syncParametricDormersFromRoofExtensions();
-        return CALPINAGE_STATE.roofExtensions.length - 1;
+
+        CALPINAGE_STATE.parametricDormers = CALPINAGE_STATE.parametricDormers || [];
+        CALPINAGE_STATE.parametricDormers.push(model);
+        return CALPINAGE_STATE.parametricDormers.length - 1;
       }
 
       function finalizeDormerIfComplete() {
@@ -10317,6 +10345,10 @@ export function initCalpinage(container, options = {}) {
           }
           if (Array.isArray(data.placedPanels)) CALPINAGE_STATE.placedPanels = data.placedPanels;
           if (Array.isArray(data.shadowVolumes)) CALPINAGE_STATE.shadowVolumes = data.shadowVolumes;
+          // Restauration des parametricDormers V2 (obligatoire depuis Phase 1A — plus de reconstruction depuis V1).
+          if (Array.isArray(data.parametricDormers)) {
+            CALPINAGE_STATE.parametricDormers = data.parametricDormers;
+          }
           if (Array.isArray(data.roofExtensions)) {
             CALPINAGE_STATE.roofExtensions = data.roofExtensions;
             CALPINAGE_STATE.roofExtensions.forEach(function (rx, index) {
@@ -12177,7 +12209,11 @@ export function initCalpinage(container, options = {}) {
               }
               syncPersistedRoofExtensionV1(rx, index, null, { mirrorLegacy: true });
             });
-            syncParametricDormersFromRoofExtensions();
+          }
+          // Restauration des parametricDormers V2 depuis le snapshot (obligatoire depuis Phase 1A —
+          // syncParametricDormersFromRoofExtensions est un no-op et ne reconstruit plus depuis V1).
+          if (Array.isArray(s.parametricDormers)) {
+            CALPINAGE_STATE.parametricDormers = s.parametricDormers;
           }
           CALPINAGE_STATE.featureFlags = s.featureFlags || CALPINAGE_STATE.featureFlags || {};
         } catch (_) {}
@@ -21731,16 +21767,20 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               }
               return;
             }
-            /* Suppression roof extension */
+            /* Suppression lucarne (V2 parametricDormers en priorité, V1 roofExtensions en compat) */
             if (drawState.selectedRoofExtensionIndex != null) {
               var idx = drawState.selectedRoofExtensionIndex;
-              if (
-                CALPINAGE_STATE.roofExtensions &&
-                idx >= 0 &&
-                idx < CALPINAGE_STATE.roofExtensions.length
-              ) {
+              var didDeleteDormer = false;
+              if (CALPINAGE_STATE.parametricDormers && idx >= 0 && idx < CALPINAGE_STATE.parametricDormers.length) {
+                // V2 direct
+                CALPINAGE_STATE.parametricDormers.splice(idx, 1);
+                didDeleteDormer = true;
+              } else if (CALPINAGE_STATE.roofExtensions && idx >= 0 && idx < CALPINAGE_STATE.roofExtensions.length) {
+                // V1 legacy (compat — ne devrait plus arriver après Phase 1A/3)
                 CALPINAGE_STATE.roofExtensions.splice(idx, 1);
-                syncParametricDormersFromRoofExtensions();
+                didDeleteDormer = true;
+              }
+              if (didDeleteDormer) {
                 drawState.selectedObstacleIndex = null;
                 drawState.selectedShadowVolumeIndex = null;
                 drawState.selectedRoofExtensionIndex = null;
