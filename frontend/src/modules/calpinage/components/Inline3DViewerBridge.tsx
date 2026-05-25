@@ -1182,6 +1182,12 @@ function Inline3DViewer({
         if (undoRoofModeling(st)) {
           notifyParentState(st);
           bumpRoofHist();
+          // C3-FIX — Force rebuild même si la signature structurelle retrouvée après undo
+          // correspond à une entrée encore en cache (scenario : edit → undo → même état).
+          // Sans ce flag, le cache retourne la scène de l'état courant (avant undo) si les
+          // deux états ont la même signature → toiture affichée reste figée après undo.
+          lastDisplayedStructuralSignatureRef.current = null;
+          forceNextSceneRebuildRef.current = true;
           buildScene();
         }
       },
@@ -1191,6 +1197,9 @@ function Inline3DViewer({
         if (redoRoofModeling(st)) {
           notifyParentState(st);
           bumpRoofHist();
+          // C3-FIX — Idem undo : forcer rebuild pour éviter cache stale sur même signature.
+          lastDisplayedStructuralSignatureRef.current = null;
+          forceNextSceneRebuildRef.current = true;
           buildScene();
         }
       },

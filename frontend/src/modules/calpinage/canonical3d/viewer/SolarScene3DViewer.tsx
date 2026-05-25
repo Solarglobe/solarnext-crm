@@ -196,6 +196,14 @@ function HorizonMaskRing3D({ mask, center }: HorizonMaskRing3DProps) {
     // Convention axes : X=Est, Y=-Sud (Y=Nord positif), Z=Up (selon worldConvention)
     // Azimut météo : 0=Nord, 90=Est, 180=Sud, 270=Ouest → angle depuis Y+ dans sens horaire vu du dessus
     for (const pt of mask) {
+      // C1-FIX — Guard NaN / Infinity : un azimut ou une élévation non-finie produit un
+      // vertex NaN dans le BufferGeometry. Avec depthTest=false, cette ligne NaN traverse
+      // toute la scène (origine GPU → infini) et reste toujours visible quelle que soit la
+      // caméra. Un seul point corrompu suffit à générer la "ligne géante sur la toiture".
+      if (
+        typeof pt.az !== "number" || !isFinite(pt.az) ||
+        typeof pt.elev !== "number" || !isFinite(pt.elev)
+      ) continue;
       const azRad = (pt.az * Math.PI) / 180;
       // X = R × sin(az)  (Est positif)
       // Y = -R × cos(az) (Sud positif = -Y dans convention ENU où Y=Nord)

@@ -47,7 +47,10 @@ export function DynamicCamera({ mode, framingBox }: DynamicCameraProps): null {
     if (mode === "PLAN_2D") {
       // Caméra orthographique pour la vue plan.
       // Frustum et position définitifs calculés par CameraFramingRig (computePlanOrthographicFraming).
-      const cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.05, 1e6);
+      // H4-FIX — far aligné sur la prop Canvas (far=5000). Avant : 1e6 → ratio near/far=2e7,
+      // soit 1000× plus mauvaise précision depth buffer que la configuration Canvas (5e4).
+      // Les valeurs polygonOffset calibrées pour far=5000 étaient inefficaces avec far=1e6.
+      const cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.05, 5000);
       cam.position.set(center.x, center.y, 50);
       cam.up.set(0, 0, 1);
       cam.lookAt(new THREE.Vector3(center.x, center.y, 0));
@@ -56,7 +59,8 @@ export function DynamicCamera({ mode, framingBox }: DynamicCameraProps): null {
       // Caméra perspective pour la vue 3D orbitale.
       // Position identique à la prop `camera` du Canvas (loin dans la direction VIEWER_DEFAULT_CAMERA_OFFSET).
       // CameraFramingRig repositionne via computeViewerFraming + lerp.
-      const cam = new THREE.PerspectiveCamera(VIEWER_CAMERA_FOV_DEG, aspect, 0.1, 1e6);
+      // H4-FIX — far=5000 aligné sur Canvas (ratio near/far=5e4, précision depth optimale).
+      const cam = new THREE.PerspectiveCamera(VIEWER_CAMERA_FOV_DEG, aspect, 0.1, 5000);
       cam.position.set(
         VIEWER_DEFAULT_CAMERA_OFFSET.x * 1000,
         VIEWER_DEFAULT_CAMERA_OFFSET.y * 1000,

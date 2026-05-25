@@ -98,7 +98,10 @@ export function KeepoutZone3D({ vol }: KeepoutZone3DProps): React.ReactElement |
   return (
     <>
       {/* ── Nappe translucide rouge ────────────────────────────────────────── */}
-      <mesh geometry={fillGeo} renderOrder={11} raycast={NO_RAYCAST}>
+      {/* C2-FIX — renderOrder élevé à 25 (> PvPanelInstanced pvLayout3D=20) pour rester
+          visible quelle que soit la couche PV. Avant : 11 < 20 → keepout invisible en mode
+          pvLayout3D. Les panneaux PV normaux ont renderOrder=2 → pas de régression. */}
+      <mesh geometry={fillGeo} renderOrder={25} raycast={NO_RAYCAST}>
         <meshBasicMaterial
           color={FILL_COLOR}
           transparent
@@ -110,11 +113,12 @@ export function KeepoutZone3D({ vol }: KeepoutZone3DProps): React.ReactElement |
       </mesh>
 
       {/* ── Marqueurs cubiques blancs aux coins ────────────────────────────── */}
+      {/* C2-FIX — renderOrder 26 > nappe (25) pour rester au-dessus. */}
       {markerRing.map((p, i) => (
         <mesh
           key={i}
           position={[p.x, p.y, p.z]}
-          renderOrder={15}
+          renderOrder={26}
           raycast={NO_RAYCAST}
         >
           <boxGeometry args={[MARKER_SIZE, MARKER_SIZE, MARKER_SIZE]} />
