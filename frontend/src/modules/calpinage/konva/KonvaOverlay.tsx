@@ -1,4 +1,4 @@
-/**
+﻿/**
  * KonvaOverlay — Stage Konva superposé au canvas legacy calpinage.
  *
  * Architecture P4.0 v3 — positionnement précis sur #calpinage-canvas-el :
