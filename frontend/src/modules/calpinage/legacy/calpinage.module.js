@@ -4882,10 +4882,8 @@ export function initCalpinage(container, options = {}) {
         // Dimensions par défaut physiques
         var halfW  = 0.75; // demi-largeur : lucarne 1.5 m de large
         var depth  = 1.50; // profondeur le long de la pente : 1.5 m (footprint carré)
-        // Avec depth=1.5 et halfW=0.75, les arêtiers FL→ridgeFront ont angle ≈ 27° (lisible en plan)
-        var hWall  = 1.20; // hauteur façade verticale (1.2m = debout sous l'appui de fenêtre)
-        var hRidge = 1.80; // hauteur faitage verticale (1.8m = debout au centre)
-        // Pente dormer : (1.8-1.2)/0.75 = 38.7° — réaliste pour un chien assis
+        var hWall  = 0;    // fond + côtés = 0 (directement sur le pan de toit)
+        var hRidge = 0.80; // apex (pointe du V) = 80 cm au-dessus du pan
         // Les hauteurs sont verticales monde (WORLD_UP dans buildRoofDormerParametric3D.ts).
         // L'ancre est au CENTRE du footprint — vM ∈ [-depth/2 ; +depth/2].
         // La façade (front, vM=-depth/2) est en bas de pente ; l'arrière (vM=+depth/2) en haut.
@@ -23460,12 +23458,11 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 ctx.lineWidth = 2.0;
                 ctx.stroke(pdRidge);
 
-                // 4. Les 4 arêtiers + le faitage central forment le symbole classique du chien assis :
-                //    Avant : FL→ridgeFront et FR→ridgeFront (V inférieur, côté façade)
-                //    Arrière : RL→ridgeRear et RR→ridgeRear (V supérieur, côté pan)
-                //    Le faitage central (ridgeFront→ridgeRear) est déjà dessiné en step 3 (orange).
+                // 4. Chien assis 2 pans : 2 arêtiers AVANT seulement (FL→ridgeFront, FR→ridgeFront).
+                //    Le faitage remonte de ridgeFront vers ridgeRear (déjà dessiné step 3, orange).
+                //    L'arrière se raccorde au pan sans arêtiers — aucune ligne arrière.
                 ctx.setLineDash([]);
-                [[sFL, sRF], [sFR, sRF], [sRL, sRRidge], [sRR, sRRidge]].forEach(function (seg) {
+                [[sFL, sRF], [sFR, sRF]].forEach(function (seg) {
                   var hip = new Path2D();
                   hip.moveTo(seg[0].x, seg[0].y);
                   hip.lineTo(seg[1].x, seg[1].y);
@@ -23525,16 +23522,23 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                       ctx.beginPath(); ctx.arc(_scRot.x, _scRot.y, 3.5, 0.5, Math.PI * 1.75);
                       ctx.stroke();
                     }
-                    // Texte hauteurs (façade / faîtage)
+                    // Labels hauteurs aux points clés
                     if (model.heights) {
-                      var _scRidgePt = _pdHandleSc(_pdImgPtsH.rearMid);
                       ctx.font = "bold 10px sans-serif";
                       ctx.textAlign = "center";
-                      ctx.fillStyle = "rgba(0,0,0,0.7)";
-                      ctx.fillText(
-                        "F:" + (model.heights.facadeHeightM || 0).toFixed(2) + "m  R:" + (model.heights.ridgeHeightM || 0).toFixed(2) + "m",
-                        _scCtr.x, _scCtr.y + 18
-                      );
+                      // Apex (pointe du V) : ridgeFront
+                      var _scApex = _pdHandleSc(getParametricDormerImagePts(model).frontMid || _pdImgPtsH.center);
+                      var _apexH = (model.heights.ridgeHeightM || 0);
+                      var _apexLabel = "↑" + Math.round(_apexH * 100) + "cm";
+                      ctx.fillStyle = "rgba(255,255,255,0.9)";
+                      ctx.fillRect(sRF.x - 22, sRF.y - 16, 44, 14);
+                      ctx.fillStyle = "#ea580c";
+                      ctx.fillText(_apexLabel, sRF.x, sRF.y - 5);
+                      // Coins façade : 0
+                      ctx.font = "9px sans-serif";
+                      ctx.fillStyle = "rgba(80,80,80,0.8)";
+                      ctx.fillText("0", sFL.x, sFL.y - 4);
+                      ctx.fillText("0", sFR.x, sFR.y - 4);
                     }
                   }
                 }
@@ -23554,9 +23558,10 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 _panel = document.createElement("div");
                 _panel.id = "calpinage-pd-props-panel";
                 _panel.style.cssText = "position:absolute;bottom:8px;right:8px;background:rgba(255,255,255,0.95);border:1px solid #d1d5db;border-radius:8px;padding:8px 12px;font-size:12px;color:#111;box-shadow:0 2px 8px rgba(0,0,0,0.15);z-index:20;display:none;min-width:200px;";
-                _panel.innerHTML = '<div style="font-weight:700;margin-bottom:6px;color:#374151;">Lucarne V2 — Hauteurs</div>' +
-                  '<label style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">Façade&nbsp;<input id="pd-facade-h-input" type="number" min="0.3" max="2.5" step="0.05" style="width:68px;padding:2px 4px;border:1px solid #d1d5db;border-radius:4px;font-size:12px;">&nbsp;m</label>' +
-                  '<label style="display:flex;align-items:center;gap:6px;">Faîtage&nbsp;<input id="pd-ridge-h-input" type="number" min="0.5" max="4" step="0.05" style="width:68px;padding:2px 4px;border:1px solid #d1d5db;border-radius:4px;font-size:12px;">&nbsp;m</label>';
+                _panel.innerHTML = '<div style="font-weight:700;margin-bottom:6px;color:#374151;">Lucarne — Hauteurs</div>' +
+                  '<div style="font-size:11px;color:#6b7280;margin-bottom:6px;">Fond &amp; côtés : 0 m (sur le pan)</div>' +
+                  '<label style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">Côtés (mur)&nbsp;<input id="pd-facade-h-input" type="number" min="0" max="2.5" step="0.05" style="width:60px;padding:2px 4px;border:1px solid #d1d5db;border-radius:4px;font-size:12px;">&nbsp;m</label>' +
+                  '<label style="display:flex;align-items:center;gap:6px;">Apex (pointe)&nbsp;<input id="pd-ridge-h-input" type="number" min="0.1" max="3" step="0.05" style="width:60px;padding:2px 4px;border:1px solid #d1d5db;border-radius:4px;font-size:12px;">&nbsp;m</label>';
                 _panelWrap.style.position = _panelWrap.style.position || "relative";
                 _panelWrap.appendChild(_panel);
                 var _facInput = _panel.querySelector("#pd-facade-h-input");

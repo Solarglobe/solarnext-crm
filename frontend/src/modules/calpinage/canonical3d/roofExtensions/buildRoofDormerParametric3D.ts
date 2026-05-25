@@ -220,26 +220,40 @@ export function buildRoofDormerParametric3D(
 
   const positions = vertices.map((v) => v.position);
   const solidCentroid = centroid(positions);
-  // La face de base (plancher) n'est PAS rendue : elle est à l'intérieur du pan de toit principal.
-  // L'omettre évite l'effet "maison fermée" et correspond à la réalité architecturale.
+
+  // Quand hFacade≈0 les murs verticaux sont dégénérés — on les omet.
+  // Les gables et panneaux utilisent alors les points de base (h=0) directement.
+  const hasFacadeWalls = hFacade > EPS;
+  const gFL = hasFacadeWalls ? eFL : bFL;
+  const gFR = hasFacadeWalls ? eFR : bFR;
+  const gRR = hasFacadeWalls ? eRR : bRR;
+  const gRL = hasFacadeWalls ? eRL : bRL;
+
   const faceSpecs: Array<{ id: string; kind: VolumeFace3D["kind"]; cycle: readonly number[] }> = [
-    { id: `${model.id}:face:front-wall`, kind: "side", cycle: [bFL, bFR, eFR, eFL] },
-    { id: `${model.id}:face:front-gable`, kind: "side", cycle: [eFL, eFR, rF] },
-    { id: `${model.id}:face:rear-wall`, kind: "side", cycle: [bRR, bRL, eRL, eRR] },
-    { id: `${model.id}:face:rear-gable`, kind: "side", cycle: [eRR, eRL, rR] },
-    { id: `${model.id}:face:left-cheek-wall`, kind: "side", cycle: [bRL, bFL, eFL, eRL] },
-    { id: `${model.id}:face:right-cheek-wall`, kind: "side", cycle: [bFR, bRR, eRR, eFR] },
-    { id: `${model.id}:face:roof:left`, kind: "top", cycle: [eFL, rF, rR, eRL] },
-    { id: `${model.id}:face:roof:right`, kind: "top", cycle: [eFR, eRR, rR, rF] },
+    ...(hasFacadeWalls ? [
+      { id: `${model.id}:face:front-wall`, kind: "side" as const, cycle: [bFL, bFR, eFR, eFL] },
+      { id: `${model.id}:face:rear-wall`, kind: "side" as const, cycle: [bRR, bRL, eRL, eRR] },
+      { id: `${model.id}:face:left-cheek-wall`, kind: "side" as const, cycle: [bRL, bFL, eFL, eRL] },
+      { id: `${model.id}:face:right-cheek-wall`, kind: "side" as const, cycle: [bFR, bRR, eRR, eFR] },
+    ] : []),
+    { id: `${model.id}:face:front-gable`, kind: "side", cycle: [gFL, gFR, rF] },
+    { id: `${model.id}:face:rear-gable`, kind: "side", cycle: [gRR, gRL, rR] },
+    { id: `${model.id}:face:roof:left`, kind: "top", cycle: [gFL, rF, rR, gRL] },
+    { id: `${model.id}:face:roof:right`, kind: "top", cycle: [gFR, gRR, rR, rF] },
   ];
   const faces = faceSpecs.flatMap((spec) => {
     const face = orientedFace(spec.id, spec.kind, spec.cycle, positions, solidCentroid);
     return face ? [face] : [];
   });
-  if (faces.length !== faceSpecs.length) {
-    diagnostics.push(diag("ROOF_DORMER_PARAMETRIC_FACE_DEGENERATE", "error", "Une face parametrique est degeneree.", model.id));
+  if (faces.length < 4) {
+    diagnostics.push(diag("ROOF_DORMER_PARAMETRIC_FACE_DEGENERATE", "error", "Trop de faces degenerees.", model.id));
     return { geometry: null, diagnostics };
   }
+
+  const wallFaceIds = hasFacadeWalls
+    ? [`${model.id}:face:front-wall`, `${model.id}:face:rear-wall`, `${model.id}:face:left-cheek-wall`, `${model.id}:face:right-cheek-wall`,
+       `${model.id}:face:front-gable`, `${model.id}:face:rear-gable`]
+    : [`${model.id}:face:front-gable`, `${model.id}:face:rear-gable`];
 
   const surfaceAreaM2 = faces.reduce((sum, face) => sum + face.areaM2, 0);
   const footprintWorld = basePts;
@@ -257,9 +271,9 @@ export function buildRoofDormerParametric3D(
     volumeM3: computeVolumeM3(positions, faces),
     footprintWorld,
     parts: {
-      walls: [`${model.id}:face:front-wall`, `${model.id}:face:front-gable`, `${model.id}:face:rear-wall`, `${model.id}:face:rear-gable`, `${model.id}:face:left-cheek-wall`, `${model.id}:face:right-cheek-wall`],
-      cheekWalls: [`${model.id}:face:left-cheek-wall`, `${model.id}:face:right-cheek-wall`],
-      facadeWalls: [`${model.id}:face:front-wall`, `${model.id}:face:front-gable`, `${model.id}:face:rear-wall`, `${model.id}:face:rear-gable`],
+      walls: wallFaceIds,
+      cheekWalls: hasFacadeWalls ? [`${model.id}:face:left-cheek-wall`, `${model.id}:face:right-cheek-wall`] : [],
+      facadeWalls: hasFacadeWalls ? [`${model.id}:face:front-wall`, `${model.id}:face:front-gable`, `${model.id}:face:rear-wall`, `${model.id}:face:rear-gable`] : [`${model.id}:face:front-gable`, `${model.id}:face:rear-gable`],
       dormerRoof: [`${model.id}:face:roof:left`, `${model.id}:face:roof:right`],
       seams: [`${model.id}:edge:base:front`, `${model.id}:edge:base:right`, `${model.id}:edge:base:rear`, `${model.id}:edge:base:left`],
       flashing: [`${model.id}:edge:base:front`, `${model.id}:edge:base:right`, `${model.id}:edge:base:rear`, `${model.id}:edge:base:left`],
