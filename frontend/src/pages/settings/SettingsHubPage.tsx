@@ -10,26 +10,24 @@ type SettingsCard = {
   href: string;
   group: "Compte" | "Organisation" | "Commercial" | "Technique" | "Controle";
   status: string;
+  statusTone?: "default" | "security" | "audit" | "admin";
   permission: string;
+  highlights?: string[];
+  audience?: "Tous" | "Admin organisation";
   requiredPermissions?: string[];
 };
 
 const SETTINGS_CARDS: SettingsCard[] = [
   {
-    title: "Mon compte",
-    description: "Acces personnel, sessions et verification du compte.",
-    href: "/settings/security",
-    group: "Compte",
-    status: "Personnel",
-    permission: "Utilisateur connecte",
-  },
-  {
     title: "Securite",
-    description: "MFA, sessions actives et regles de securite.",
+    description: "MFA personnel, sessions actives et politique de securite organisation.",
     href: "/settings/security",
     group: "Compte",
-    status: "Disponible",
+    status: "MFA + sessions",
+    statusTone: "security",
     permission: "Utilisateur connecte",
+    audience: "Tous",
+    highlights: ["MFA", "Sessions"],
   },
   {
     title: "Organisation",
@@ -37,7 +35,9 @@ const SETTINGS_CARDS: SettingsCard[] = [
     href: "/organization/company",
     group: "Organisation",
     status: "Admin",
+    statusTone: "admin",
     permission: "org.settings.manage",
+    audience: "Admin organisation",
     requiredPermissions: ["org.settings.manage"],
   },
   {
@@ -46,7 +46,9 @@ const SETTINGS_CARDS: SettingsCard[] = [
     href: "/organization/users",
     group: "Organisation",
     status: "Admin",
+    statusTone: "admin",
     permission: "user.manage",
+    audience: "Admin organisation",
     requiredPermissions: ["user.manage"],
   },
   {
@@ -55,7 +57,9 @@ const SETTINGS_CARDS: SettingsCard[] = [
     href: "/organization/roles",
     group: "Organisation",
     status: "Admin",
+    statusTone: "admin",
     permission: "rbac.manage",
+    audience: "Admin organisation",
     requiredPermissions: ["rbac.manage"],
   },
   {
@@ -64,7 +68,9 @@ const SETTINGS_CARDS: SettingsCard[] = [
     href: "/organization/teams",
     group: "Organisation",
     status: "Admin",
+    statusTone: "admin",
     permission: "structure.manage ou org.settings.manage",
+    audience: "Admin organisation",
     requiredPermissions: ["structure.manage", "org.settings.manage"],
   },
   {
@@ -73,7 +79,9 @@ const SETTINGS_CARDS: SettingsCard[] = [
     href: "/organization/catalog",
     group: "Commercial",
     status: "Admin",
+    statusTone: "admin",
     permission: "QUOTE_CATALOG:READ ou QUOTE_CATALOG:WRITE",
+    audience: "Admin organisation",
     requiredPermissions: ["QUOTE_CATALOG:READ", "QUOTE_CATALOG:WRITE"],
   },
   {
@@ -82,7 +90,9 @@ const SETTINGS_CARDS: SettingsCard[] = [
     href: "/settings/mail",
     group: "Organisation",
     status: "Configuration",
+    statusTone: "admin",
     permission: "mail.accounts.manage",
+    audience: "Admin organisation",
     requiredPermissions: ["mail.accounts.manage"],
   },
   {
@@ -91,16 +101,21 @@ const SETTINGS_CARDS: SettingsCard[] = [
     href: "/admin/settings/pv",
     group: "Technique",
     status: "Technique",
+    statusTone: "admin",
     permission: "org.settings.manage",
+    audience: "Admin organisation",
     requiredPermissions: ["org.settings.manage"],
   },
   {
     title: "Journal d'audit",
-    description: "Evenements sensibles, actions admin et traces de securite.",
+    description: "Evenements sensibles, acces, MFA et actions admin de l'organisation.",
     href: "/admin/audit-log",
     group: "Controle",
-    status: "Controle",
+    status: "Audit org",
+    statusTone: "audit",
     permission: "org.settings.manage",
+    audience: "Admin organisation",
+    highlights: ["Audit", "Export CSV"],
     requiredPermissions: ["org.settings.manage"],
   },
 ];
@@ -122,13 +137,13 @@ const MATRIX_COLUMNS: DataTableColumn<SettingsCard>[] = [
   },
   {
     id: "permission",
-    header: "Permission",
-    render: (row) => row.permission,
+    header: "Acces",
+    render: (row) => row.audience ?? row.permission,
   },
   {
     id: "status",
     header: "Statut",
-    render: (row) => <span className="settings-hub__status">{row.status}</span>,
+    render: (row) => <span className={`settings-hub__status settings-hub__status--${row.statusTone ?? "default"}`}>{row.status}</span>,
     width: "16%",
   },
 ];
@@ -201,9 +216,19 @@ export default function SettingsHubPage() {
                       as="div"
                       title={card.title}
                       description={card.description}
-                      badge={<span className="settings-hub__status">{card.status}</span>}
-                      footer={card.permission}
-                    />
+                      badge={<span className={`settings-hub__status settings-hub__status--${card.statusTone ?? "default"}`}>{card.status}</span>}
+                      footer={card.audience ? `${card.audience} - ${card.permission}` : card.permission}
+                    >
+                      {card.highlights?.length ? (
+                        <div className="settings-hub__badges" aria-label={`Statuts ${card.title}`}>
+                          {card.highlights.map((highlight) => (
+                            <span className="settings-hub__mini-badge" key={`${card.href}:${highlight}`}>
+                              {highlight}
+                            </span>
+                          ))}
+                        </div>
+                      ) : null}
+                    </SettingsCard>
                   </Link>
                 ))}
               </div>
