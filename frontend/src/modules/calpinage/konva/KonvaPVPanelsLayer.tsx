@@ -48,11 +48,24 @@ type PanelEntry = {
   panelId:      string | null;
 };
 
-type PVPanelsSnap = {
-  panels: PanelEntry[];
-  imgH:   number;
-  scale:  number;
+type GhostEntry = {
+  points:        { x: number; y: number }[];
+  valid:         boolean;
+  excludedValid: boolean;
+  isExpansion:   boolean;
 };
+
+type PVPanelsSnap = {
+  panels:            PanelEntry[];
+  imgH:              number;
+  scale:             number;
+  safeZonePolygons:  { x: number; y: number }[][];
+};
+
+type AutofillSnap = {
+  ghosts: GhostEntry[];
+  imgH:   number;
+} | null;
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 
@@ -69,6 +82,8 @@ const INVALID_FILL       = "rgba(239,68,68,0.25)";
 const VIEWPORT_EVENT    = "calpinage:viewport-changed";
 /** Dispatché APRÈS que window.CALPINAGE_PV_PANELS_DATA est écrit — fixe la race condition. */
 const PV_READY_EVENT    = "calpinage:pv-panels-ready";
+/** Dispatché APRÈS que window.CALPINAGE_AUTOFILL_GHOSTS est écrit — ghosts + safe zone. */
+const AUTOFILL_EVENT    = "calpinage:autofill-ready";
 
 // ─── Lecture état legacy ──────────────────────────────────────────────────────
 
@@ -83,10 +98,20 @@ function readSnap(): PVPanelsSnap | null {
   return data;
 }
 
+function readAutofillSnap(): AutofillSnap {
+  const w = window as unknown as Record<string, unknown>;
+  const st = w["CALPINAGE_STATE"] as { currentPhase?: string } | null | undefined;
+  if (!st || st.currentPhase !== "PV_LAYOUT") return null;
+  const data = w["CALPINAGE_AUTOFILL_GHOSTS"] as AutofillSnap | null | undefined;
+  if (!data || !Array.isArray(data.ghosts)) return null;
+  return data;
+}
+
 // ─── Composant principal ──────────────────────────────────────────────────────
 
 export function KonvaPVPanelsLayer() {
-  const [snap, setSnap] = useState<PVPanelsSnap | null>(null);
+  const [snap, setSnap]           = useState<PVPanelsSnap | null>(null);
+  const [afSnap, setAfSnap]       = useState<AutofillSnap>(null);
 
   /* Sync sur chaque frame legacy.
    * VIEWPORT_EVENT  : déclenché en DÉBUT de renderImpl (avant que CALPINAGE_PV_PANELS_DATA soit set).
@@ -95,13 +120,16 @@ export function KonvaPVPanelsLayer() {
    *   → garantit que setSnap lit des données fraîches, élimine la frame invisible post-pose.
    */
   useEffect(() => {
-    const sync = () => setSnap(readSnap());
+    const sync   = () => setSnap(readSnap());
+    const syncAf = () => setAfSnap(readAutofillSnap());
     sync();
     window.addEventListener(VIEWPORT_EVENT, sync);
     window.addEventListener(PV_READY_EVENT, sync);
+    window.addEventListener(AUTOFILL_EVENT, syncAf);
     return () => {
       window.removeEventListener(VIEWPORT_EVENT, sync);
       window.removeEventListener(PV_READY_EVENT, sync);
+      window.removeEventListener(AUTOFILL_EVENT, syncAf);
     };
   }, []);
 
@@ -265,6 +293,79 @@ export function KonvaPVPanelsLayer() {
         native.shadowBlur = 0;
       }}
     />
+
+    {/*
+     * ── P2-fix : safe zone (contour rouge) au-dessus des panneaux ────────
+     * Polygones en world-space (imgH - py pour Y-flip).
+     * Dessinée en dernier dans ce group → toujours visible par-dessus les fills panel.
+     */}
+    {snap.safeZonePolygons && snap.safeZonePolygons.length > 0 && (
+      <Shape
+        listening={false}
+        sceneFunc={(ctx) => {
+          const native = ctx as unknown as CanvasRenderingContext2D;
+          native.setLineDash([]);
+          ctx.strokeStyle = "rgba(255, 60, 60, 0.85)";
+          ctx.lineWidth   = 2 / snap.scale;
+          for (const poly of snap.safeZonePolygons) {
+            if (!poly || poly.length < 3) continue;
+            ctx.beginPath();
+            ctx.moveTo(poly[0].x, snap.imgH - poly[0].y);
+            for (let i = 1; i < poly.length; i++) ctx.lineTo(poly[i].x, snap.imgH - poly[i].y);
+            ctx.closePath();
+            ctx.stroke();
+          }
+          native.setLineDash([]);
+        }}
+      />
+    )}
+
+    {/*
+     * ── P1-fix : ghosts autofill au-dessus des panneaux ─────────────────
+     * Polygones en world-space (imgH - py pour Y-flip).
+     * Même visuels que le canvas legacy (valid=gris, invalid=rouge, excludedValid=tirets).
+     */}
+    {afSnap && afSnap.ghosts.length > 0 && (
+      <Shape
+        listening={false}
+        sceneFunc={(ctx) => {
+          const native = ctx as unknown as CanvasRenderingContext2D;
+          const { ghosts, imgH: aImgH } = afSnap;
+          for (const gh of ghosts) {
+            if (!gh.points || gh.points.length < 3) continue;
+            ctx.save();
+            if (gh.isExpansion) {
+              ctx.fillStyle   = "rgba(200,200,200,0.35)";
+              ctx.strokeStyle = "rgba(160,160,160,0.6)";
+              native.setLineDash([]);
+            } else if (gh.valid) {
+              if (gh.excludedValid) {
+                ctx.fillStyle   = "rgba(190,190,205,0.14)";
+                ctx.strokeStyle = "rgba(110,110,130,0.55)";
+                native.setLineDash([4, 4]);
+              } else {
+                ctx.fillStyle   = "rgba(200,200,200,0.35)";
+                ctx.strokeStyle = "rgba(160,160,160,0.6)";
+                native.setLineDash([]);
+              }
+            } else {
+              ctx.fillStyle   = "rgba(220,60,60,0.22)";
+              ctx.strokeStyle = "rgba(170,30,30,0.88)";
+              native.setLineDash([4, 3]);
+            }
+            ctx.lineWidth = 1 / snap.scale;
+            ctx.beginPath();
+            ctx.moveTo(gh.points[0].x, aImgH - gh.points[0].y);
+            for (let i = 1; i < gh.points.length; i++) ctx.lineTo(gh.points[i].x, aImgH - gh.points[i].y);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+            native.setLineDash([]);
+            ctx.restore();
+          }
+        }}
+      />
+    )}
 
     {/*
      * ── P4.6c : N shapes hit-test invisibles ─────────────────────────────

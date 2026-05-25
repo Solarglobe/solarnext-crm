@@ -24731,7 +24731,12 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               }
               /* P4.6b — exposition donn�es panels PV pour KonvaPVPanelsLayer */
               if (typeof window !== "undefined") {
-                window.CALPINAGE_PV_PANELS_DATA = { panels: _pvPanelsForKonva, imgH: imgH, scale: vp.scale };
+                /* P2-fix : inclure les polygones safe zone (image-space) pour rendu Konva au-dessus des panneaux */
+                var _szPolysForKonva = [];
+                if (safeZoneCache && panIdToShow && safeZoneCache.byPanId && safeZoneCache.byPanId[panIdToShow]) {
+                  _szPolysForKonva = safeZoneCache.byPanId[panIdToShow].safeZonePolygonsPx || [];
+                }
+                window.CALPINAGE_PV_PANELS_DATA = { panels: _pvPanelsForKonva, imgH: imgH, scale: vp.scale, safeZonePolygons: _szPolysForKonva };
                 /* Fix race condition : viewport-changed est dispatch� avant que ces donn�es soient pr�tes.
                    On dispatch un �v�nement d�di� ici, apr�s que CALPINAGE_PV_PANELS_DATA est rempli,
                    pour que KonvaPVPanelsLayer lise des donn�es fra�ches (non-stale). */
@@ -24754,6 +24759,8 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                   }
                 }
               }
+              /* P1-fix : collecte des ghosts pour rendu Konva (au-dessus des panneaux) */
+              var _ghostsForKonva = [];
               /* 3) Ghosts moteur (expansion) : FLAT = filtrés côté moteur (safe zone + validation alignée autofill). */
               if (activeBl && ENG.computeExpansionGhosts && typeof getProjectionContextForBlock === "function") {
                 var getCtxForGhosts = function () { return typeof getProjectionContextForBlock === "function" ? getProjectionContextForBlock(activeBl) : null; };
@@ -24778,6 +24785,8 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                   for (var gi = 0; gi < ghosts.length; gi++) {
                     var g = ghosts[gi];
                     if (!g || !g.center || !g.projection || !g.projection.points) continue;
+                    /* P1-fix : collecte pour Konva */
+                    _ghostsForKonva.push({ points: g.projection.points, valid: true, excludedValid: false, isExpansion: true });
                     ctx.save();
                     ctx.fillStyle = "rgba(200,200,200,0.35)";
                     ctx.strokeStyle = "rgba(160,160,160,0.6)";
@@ -24851,11 +24860,13 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                     }
                     afSmooth.last[skAf] = { valid: vNow, pts: ptsCopy };
                   }
-                  ctx.save();
                   var afExcludedValid = false;
                   if (afIt.valid && mkAfKeyDraw && selAfDraw && selAfDraw.excludedKeys && typeof afIt.iu === "number" && typeof afIt.iv === "number") {
                     afExcludedValid = selAfDraw.excludedKeys.has(mkAfKeyDraw(afBlockIdDraw, afPanIdDraw, afIt.iu, afIt.iv));
                   }
+                  /* P1-fix : collecte pour Konva (ptsDraw déjà lissés) */
+                  _ghostsForKonva.push({ points: ptsDraw, valid: !!afIt.valid, excludedValid: afExcludedValid, isExpansion: false });
+                  ctx.save();
                   if (afIt.valid) {
                     if (afExcludedValid) {
                       ctx.fillStyle = "rgba(190,190,205,0.14)";
@@ -24911,6 +24922,11 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                     }
                   }
                 }
+              }
+              /* P1-fix : expose les ghosts collectés pour Konva */
+              if (typeof window !== "undefined") {
+                window.CALPINAGE_AUTOFILL_GHOSTS = { ghosts: _ghostsForKonva, imgH: imgH };
+                try { window.dispatchEvent(new CustomEvent("calpinage:autofill-ready")); } catch (_e) {}
               }
               /* B2.1 ??? Fl?che sens de pente du pan actif (overlay lecture seule, fa??tage ??? goutti?re) */
               if (activeBl && typeof getProjectionContextForBlock === "function") {
@@ -25061,11 +25077,14 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               var pvHintEl = container.querySelector("#pv-add-block-hint");
               if (pvHintEl) pvHintEl.style.display = focusBlock ? "none" : "block";
 
-              ctx.save();
-              ctx.fillStyle = "rgba(0,0,0,0.7)";
-              ctx.font = "14px Arial";
-              ctx.fillText("Panneaux ombragés (chien assis) : " + dormerShadedCount, 20, 50);
-              ctx.restore();
+              /* Debug uniquement — ne pas afficher en prod */
+              if (typeof CALPINAGE_DEBUG_PANS !== "undefined" && CALPINAGE_DEBUG_PANS) {
+                ctx.save();
+                ctx.fillStyle = "rgba(0,0,0,0.7)";
+                ctx.font = "14px Arial";
+                ctx.fillText("Panneaux ombragés (chien assis) : " + dormerShadedCount, 20, 50);
+                ctx.restore();
+              }
 
               /* Aucun state.panels : les panneaux sont uniquement ceux du calpinage (blocs). DP2 utilise l'adapter. */
             }
