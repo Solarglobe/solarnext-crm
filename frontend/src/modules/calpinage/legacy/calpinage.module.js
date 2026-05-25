@@ -20428,6 +20428,8 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 if (_pdEdgeModel.ridge) { _pdEdgeModel.ridge.front.uM = 0; _pdEdgeModel.ridge.rear.uM = 0; }
               } else if (_side === "front") {
                 // Front = vM le plus bas (vM négatif dans notre convention centered)
+                // L'ancre reste FIXE — seule la coordonnée vM change.
+                // Si on déplace aussi l'ancre de _dvE*vAx, la poignée bougerait de 2×_dvE (double mouvement).
                 var _newFrontV = _pdEdgeBase.origFrontV + _dvE;
                 var _rearV = _pdEdgeBase.origFrontV + _pdEdgeBase.origDepth;
                 if (_rearV - _newFrontV >= _minDepth) {
@@ -20435,10 +20437,8 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                   _fp.frontRight.vM = _newFrontV;
                   // ridge.front reste à 1/4 de la profondeur depuis l'avant (arêtier diagonal)
                   if (_pdEdgeModel.ridge) _pdEdgeModel.ridge.front.vM = _newFrontV + (_rearV - _newFrontV) / 4;
-                  // Déplacer l'ancre pour que le mouvement soit intuitif
-                  var _dvWorld = _dvE;
-                  _pdEdgeModel.anchorWorld.x = _pdEdgeBase.startAnchor.x + _dvWorld * _vAx.x;
-                  _pdEdgeModel.anchorWorld.y = _pdEdgeBase.startAnchor.y + _dvWorld * _vAx.y;
+                  // anchorWorld intentionnellement NON déplacé : seul le resize (vM) change,
+                  // pas la position monde de l'ancre. Le handle image suit exactement la souris.
                 }
               } else if (_side === "rear") {
                 var _newRearV = _pdEdgeBase.origFrontV + _pdEdgeBase.origDepth + _dvE;
