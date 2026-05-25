@@ -60,12 +60,12 @@ function assertValidCompanyProfilePatch(profile) {
   if (!profile) return;
   if (profile.siret && !/^\d{14}$/.test(profile.siret)) {
     const err = new Error("SIRET invalide : 14 chiffres attendus");
-    err.statusCode = 400;
+    err.statusCode = 422;
     throw err;
   }
   if (profile.primary_color && !isValidHexColor(profile.primary_color)) {
     const err = new Error("Couleur principale invalide : format #RRGGBB attendu");
-    err.statusCode = 400;
+    err.statusCode = 422;
     throw err;
   }
 }
@@ -406,8 +406,8 @@ export async function put(req, res) {
       settings_json: raw,
     });
   } catch (e) {
-    if (e && e.statusCode === 404) {
-      return res.status(404).json({ error: e.message });
+    if (e && (e.statusCode === 404 || e.statusCode === 422)) {
+      return res.status(e.statusCode).json({ error: e.message });
     }
     res.status(500).json({ error: e.message });
   }
@@ -666,8 +666,8 @@ export async function patchOnboarding(req, res) {
       data: responseRow.settings_json?.onboarding ?? {},
     });
   } catch (e) {
-    if (e && e.statusCode === 404) {
-      return res.status(404).json({ error: e.message });
+    if (e && (e.statusCode === 404 || e.statusCode === 422)) {
+      return res.status(e.statusCode).json({ error: e.message });
     }
     res.status(500).json({ error: e.message });
   }

@@ -17,7 +17,13 @@ const router = express.Router();
 router.get("/", verifyJWT, controller.listOrganizations);
 
 router.get("/onboarding", verifyJWT, controller.getOnboarding);
-router.patch("/onboarding", verifyJWT, controller.patchOnboarding);
+router.patch(
+  "/onboarding",
+  verifyJWT,
+  requirePermission("org.settings.manage"),
+  sensitiveUserRateLimiter,
+  controller.patchOnboarding
+);
 router.get("/security", verifyJWT, requirePermission("org.settings.manage"), controller.getSecurity);
 router.patch(
   "/security",

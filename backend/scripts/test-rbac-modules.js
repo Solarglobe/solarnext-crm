@@ -232,7 +232,7 @@ async function testAdmin(token, { leadId, clientId }) {
     ["POST", "/api/quotes", "quotes.create", { client_id: clientId, quote_number: `DRAFT-${Date.now()}` }],
     ["GET", "/api/invoices", "invoices.list"],
     ["GET", "/api/organization/settings", "org.settings.get"],
-    ["PUT", "/api/organization/settings", "org.settings.update", { test: true }]
+    ["PUT", "/api/organization/settings", "org.settings.update", { quote_pdf: { regulatory_text: "Test RBAC legacy" } }]
   ];
 
   for (const [method, path, label, body] of routes) {
@@ -262,7 +262,7 @@ async function testSuperAdmin(token, { leadId, clientId }) {
     ["POST", "/api/quotes", "quotes.create", { client_id: clientId, quote_number: `DRAFT-SA-${Date.now()}` }],
     ["GET", "/api/invoices", "invoices.list"],
     ["GET", "/api/organization/settings", "org.settings.get"],
-    ["PUT", "/api/organization/settings", "org.settings.update", { test: true }]
+    ["PUT", "/api/organization/settings", "org.settings.update", { quote_pdf: { regulatory_text: "Test RBAC legacy" } }]
   ];
 
   for (const [method, path, label, body] of routes) {

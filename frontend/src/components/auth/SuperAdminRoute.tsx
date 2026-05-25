@@ -4,7 +4,7 @@
 
 import React, { useEffect, useState } from "react";
 import { getUserPermissions } from "../../services/auth.service";
-import ForbiddenPage from "../../pages/ForbiddenPage";
+import AccessDeniedPage from "../../pages/AccessDeniedPage";
 
 interface SuperAdminRouteProps {
   children: React.ReactNode;
@@ -46,9 +46,10 @@ export function SuperAdminRoute({ children }: SuperAdminRouteProps) {
 
   if (!allowed) {
     return (
-      <ForbiddenPage
+      <AccessDeniedPage
         title="Acces support reserve"
-        description="Cette page est reservee au support super admin SolarNext."
+        description="Cette page est reservee aux comptes support habilites SolarNext."
+        requiredRole="Support SolarNext super admin"
       />
     );
   }

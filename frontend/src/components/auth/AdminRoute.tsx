@@ -5,7 +5,7 @@
 
 import React, { useEffect, useState } from "react";
 import { getUserPermissions } from "../../services/auth.service";
-import ForbiddenPage from "../../pages/ForbiddenPage";
+import AccessDeniedPage from "../../pages/AccessDeniedPage";
 
 const DEFAULT_ADMIN_PERMISSIONS = [
   "org.settings.manage",
@@ -61,7 +61,7 @@ export function AdminRoute({ children, anyOf = DEFAULT_ADMIN_PERMISSIONS }: Admi
   }
 
   if (!allowed) {
-    return <ForbiddenPage requiredPermissions={anyOf} />;
+    return <AccessDeniedPage requiredPermissions={anyOf} />;
   }
 
   return <>{children}</>;
