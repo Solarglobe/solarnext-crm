@@ -41,7 +41,7 @@ export default function AddPaymentModal({ open, invoiceId, maxAmount, onClose, o
   const submit = async () => {
     const amt = parseFloat(amount.replace(",", "."));
     if (!Number.isFinite(amt) || amt <= 0) {
-      setErr("Montant invalide");
+      setErr("Saisissez un montant supérieur à 0.");
       return;
     }
     if (amt > maxAmount + 0.0001) {
@@ -72,7 +72,7 @@ export default function AddPaymentModal({ open, invoiceId, maxAmount, onClose, o
       open={open}
       onClose={onClose}
       title="Ajouter un paiement"
-      subtitle={`Reste encaissable au plus : ${maxAmount.toLocaleString("fr-FR", { minimumFractionDigits: 2 })} €`}
+      subtitle={`Reste à encaisser : ${maxAmount.toLocaleString("fr-FR", { minimumFractionDigits: 2 })} €`}
       size="sm"
       footer={
         <>
@@ -96,7 +96,7 @@ export default function AddPaymentModal({ open, invoiceId, maxAmount, onClose, o
           <input className="sn-input" type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} />
         </label>
         <label>
-          Méthode
+          Mode de paiement
           <select className="sn-input" value={method} onChange={(e) => setMethod(e.target.value)}>
             {METHOD_OPTIONS.map((m) => (
               <option key={m.value} value={m.value}>
@@ -105,14 +105,17 @@ export default function AddPaymentModal({ open, invoiceId, maxAmount, onClose, o
             ))}
           </select>
         </label>
-        <label>
-          Référence (optionnel)
-          <input className="sn-input" value={reference} onChange={(e) => setReference(e.target.value)} placeholder="N° transaction, chèque…" />
-        </label>
-        <label>
-          Note interne (optionnel)
-          <textarea className="sn-input" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
-        </label>
+        <details className="if-modal-advanced">
+          <summary>Informations complémentaires</summary>
+          <label>
+            Référence
+            <input className="sn-input" value={reference} onChange={(e) => setReference(e.target.value)} placeholder="N° de transaction, chèque..." />
+          </label>
+          <label>
+            Note interne
+            <textarea className="sn-input" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
+          </label>
+        </details>
       </div>
     </ModalShell>
   );

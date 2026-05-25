@@ -5,6 +5,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { ModalShell } from "../ui/ModalShell";
 import { Button } from "../ui/Button";
+import { ConfirmModal } from "../ui/ConfirmModal";
 import {
   buildBulkFiltersPayload,
   postBulkSendPreview,
@@ -30,6 +31,7 @@ export function BulkEmailModal({ open, onClose, filters, selectedLeadIds }: Prop
 
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
+  const [confirmSendOpen, setConfirmSendOpen] = useState(false);
   const [success, setSuccess] = useState<{
     queued: number;
     errors?: { email: string; message: string }[];
@@ -54,6 +56,7 @@ export function BulkEmailModal({ open, onClose, filters, selectedLeadIds }: Prop
     if (!open) return;
     setSuccess(null);
     setSendError(null);
+    setConfirmSendOpen(false);
     setSubject("");
     setHtml("");
     void refreshCount();
@@ -71,11 +74,16 @@ export function BulkEmailModal({ open, onClose, filters, selectedLeadIds }: Prop
       setSendError("Aucun destinataire pour ce segment.");
       return;
     }
-    if (
-      !window.confirm(
-        `Envoyer cet email à ${n} destinataire${n > 1 ? "s" : ""} (opt-in marketing, e-mail renseigné) ? Les messages seront mis en file d’attente d’envoi.`
-      )
-    ) {
+    setConfirmSendOpen(true);
+  };
+
+  const confirmSend = async () => {
+    const sub = subject.trim();
+    const body = html.trim();
+    const n = recipientCount ?? 0;
+    if (!sub || !body || n === 0) {
+      setConfirmSendOpen(false);
+      await handleSend();
       return;
     }
     setSending(true);
@@ -88,6 +96,7 @@ export function BulkEmailModal({ open, onClose, filters, selectedLeadIds }: Prop
         html: body,
       });
       setSuccess({ queued: result.queued, errors: result.errors });
+      setConfirmSendOpen(false);
     } catch (e) {
       setSendError(e instanceof Error ? e.message : "Erreur d’envoi");
     } finally {
@@ -120,7 +129,7 @@ export function BulkEmailModal({ open, onClose, filters, selectedLeadIds }: Prop
       open={open}
       onClose={onClose}
       title="Envoyer un email au segment"
-      subtitle="Maximum 200 envois par lot. Adresse e-mail requise."
+      subtitle="Seuls les contacts autorisés à recevoir des emails seront inclus."
       size="lg"
       footer={footer}
     >
@@ -140,9 +149,6 @@ export function BulkEmailModal({ open, onClose, filters, selectedLeadIds }: Prop
       ) : (
         <>
           <div className="sn-bulk-email-meta">
-            <p className="sn-bulk-email-optin-hint" role="note">
-              Seuls les contacts avec opt-in marketing seront inclus.
-            </p>
             {countLoading ? (
               <p>Calcul des destinataires…</p>
             ) : countError ? (
@@ -178,7 +184,7 @@ export function BulkEmailModal({ open, onClose, filters, selectedLeadIds }: Prop
           </div>
 
           <label className="sn-filter-label" htmlFor="sn-bulk-email-body">
-            Contenu (HTML simple accepté)
+            Message
           </label>
           <textarea
             id="sn-bulk-email-body"
@@ -186,7 +192,7 @@ export function BulkEmailModal({ open, onClose, filters, selectedLeadIds }: Prop
             style={{ width: "100%", minHeight: 200, resize: "vertical", boxSizing: "border-box" }}
             value={html}
             onChange={(e) => setHtml(e.target.value)}
-            placeholder="<p>Bonjour …</p>"
+            placeholder="Bonjour, ..."
           />
 
           {sendError ? (
@@ -196,6 +202,18 @@ export function BulkEmailModal({ open, onClose, filters, selectedLeadIds }: Prop
           ) : null}
         </>
       )}
+      <ConfirmModal
+        open={confirmSendOpen}
+        title="Envoyer cet email ?"
+        message={`${recipientCount ?? 0} destinataire${(recipientCount ?? 0) > 1 ? "s" : ""} recevront ce message. L'envoi sera ajouté à la file d'attente.`}
+        confirmLabel="Envoyer"
+        cancelLabel="Annuler"
+        variant="default"
+        confirmDisabled={sending}
+        cancelDisabled={sending}
+        onCancel={() => setConfirmSendOpen(false)}
+        onConfirm={() => void confirmSend()}
+      />
     </ModalShell>
   );
 }

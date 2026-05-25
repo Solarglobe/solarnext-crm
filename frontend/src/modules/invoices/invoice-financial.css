@@ -112,6 +112,30 @@
   padding: 0 14px 14px;
 }
 
+.if-modal-advanced {
+  display: grid;
+  gap: 10px;
+  padding-top: 2px;
+}
+
+.if-modal-advanced summary {
+  width: fit-content;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.if-modal-advanced[open] {
+  padding: 10px;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.08));
+  border-radius: 8px;
+}
+
+.if-modal-advanced[open] summary {
+  margin-bottom: 8px;
+}
+
 .if-panel--payments .if-panel-head {
   align-items: flex-start;
 }

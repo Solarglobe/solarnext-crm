@@ -35,6 +35,12 @@ import { apiFetch } from "../../services/api";
 import { getCrmApiBase } from "../../config/crmApiBase";
 import { assertDocumentDownloadOk, DOCUMENT_DOWNLOAD_UNAVAILABLE } from "../../utils/documentDownload";
 
+type TemplateConflictChoice = {
+  templateName: string;
+  replace: () => void;
+  append: () => void;
+} | null;
+
 function mailApiRoot(): string {
   const b = getCrmApiBase();
   return b ? b.replace(/\/$/, "") : "";
@@ -488,6 +494,7 @@ export const MailComposer = React.memo(function MailComposer({
   const [tmplLoading, setTmplLoading] = useState(false);
   const [tmplErr, setTmplErr] = useState<string | null>(null);
   const [tmplApplyId, setTmplApplyId] = useState<string | null>(null);
+  const [templateConflict, setTemplateConflict] = useState<TemplateConflictChoice>(null);
 
   /** Remonte l’éditeur TipTap quand on recharge brouillon / snapshot (fil + mode). */
   const [composerBodyKey, setComposerBodyKey] = useState("");
@@ -811,17 +818,12 @@ export const MailComposer = React.memo(function MailComposer({
         if (isEmpty) {
           applyReplace();
         } else {
-          const replaceOk = window.confirm(
-            "Un contenu est déjà présent.\n\n" +
-              "Souhaitez-vous le remplacer par le modèle sélectionné ?\n\n" +
-              "OK = Remplacer\n" +
-              "Annuler = Ajouter à la suite"
-          );
-          if (replaceOk) {
-            applyReplace();
-          } else {
-            applyAppend();
-          }
+          setTemplateConflict({
+            templateName: t.name,
+            replace: applyReplace,
+            append: applyAppend,
+          });
+          return;
         }
 
         setTmplPanelOpen(false);
@@ -842,6 +844,19 @@ export const MailComposer = React.memo(function MailComposer({
     const raw = row?.signature_html?.trim() ?? "";
     return raw ? sanitizeMailHtmlDisplay(raw) : "";
   }, [selectedSigId, sigList]);
+
+  const applyTemplateConflictChoice = useCallback(
+    (modeChoice: "replace" | "append") => {
+      if (!templateConflict) return;
+      if (modeChoice === "replace") templateConflict.replace();
+      else templateConflict.append();
+      setTemplateConflict(null);
+      setTmplPanelOpen(false);
+      markDirty();
+      setEditorTick((x) => x + 1);
+    },
+    [markDirty, templateConflict]
+  );
 
   const requestClose = useCallback(() => {
     if (sending) return;
@@ -1013,7 +1028,7 @@ export const MailComposer = React.memo(function MailComposer({
             disabled={sending}
             aria-expanded={tmplPanelOpen}
           >
-            Choisir un modèle
+            Modèles
           </button>
           <button type="button" className="mail-composer__close" onClick={requestClose} disabled={sending} aria-label="Fermer">
             ×
@@ -1022,11 +1037,24 @@ export const MailComposer = React.memo(function MailComposer({
       </div>
 
       {tmplPanelOpen && (
-        <div className="mail-composer__templates-panel" role="region" aria-label="Modeles mail">
+        <div className="mail-composer__templates-panel" role="region" aria-label="Modèles mail">
+          {templateConflict ? (
+            <div className="mail-composer__templates-choice" role="alert">
+              <p>Un message est déjà rédigé. Que faire avec le modèle “{templateConflict.templateName}” ?</p>
+              <div>
+                <button type="button" className="mail-composer__templates-btn" onClick={() => applyTemplateConflictChoice("append")}>
+                  Ajouter à la suite
+                </button>
+                <button type="button" className="mail-composer__templates-btn" onClick={() => applyTemplateConflictChoice("replace")}>
+                  Remplacer le message
+                </button>
+              </div>
+            </div>
+          ) : null}
           {tmplLoading && <p className="mail-composer__templates-hint">Chargement…</p>}
           {tmplErr && <div className="mail-composer__templates-err">{tmplErr}</div>}
           {!tmplLoading && tmplList.length === 0 && !tmplErr && (
-            <p className="mail-composer__templates-hint">Aucun modele. Creez-en dans Configuration mail.</p>
+            <p className="mail-composer__templates-hint">Aucun modèle. Créez-en dans Configuration mail.</p>
           )}
           <ul className="mail-composer__templates-list">
             {tmplList.map((t) => (
@@ -1047,7 +1075,7 @@ export const MailComposer = React.memo(function MailComposer({
             ))}
           </ul>
           <Link className="mail-composer__templates-manage" to="/settings/mail?tab=templates">
-            Configurer les modeles
+            Configurer les modèles
           </Link>
         </div>
       )}
@@ -1136,13 +1164,13 @@ export const MailComposer = React.memo(function MailComposer({
         />
       ) : null}
 
-      <p className="mail-composer-field__label mail-composer__body-label">Corps du message</p>
+      <p className="mail-composer-field__label mail-composer__body-label">Message</p>
       <MailHtmlEditor
         ref={mailBodyRef}
         variant="composer"
         docKey={composerBodyKey}
         initialHtml={composerInitialHtml}
-        placeholder="Rédigez votre message…"
+        placeholder="Rédigez votre message..."
         editable={!sending}
         onChange={() => {
           setError(null);
@@ -1157,14 +1185,13 @@ export const MailComposer = React.memo(function MailComposer({
       {error && <div className="mail-composer__err">{error}</div>}
       <div className="mail-composer__footer">
         <button type="button" className="mail-composer__send" onClick={() => void handleSend()} disabled={sending}>
-          {sending ? "Mise en file…" : "Envoyer"}
+          {sending ? "Envoi..." : "Envoyer"}
         </button>
       </div>
 
       {mode === "forward" && (
         <p className="mail-composer__hint">
-          Transfert : les pièces jointes du message source ne sont pas recopiées automatiquement — vous pouvez les joindre à
-          nouveau ci-dessus.
+          Les pièces jointes du message d'origine ne sont pas ajoutées automatiquement.
         </p>
       )}
     </div>

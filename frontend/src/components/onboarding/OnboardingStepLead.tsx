@@ -11,11 +11,11 @@ export default function OnboardingStepLead({ value, onChange }: Props) {
   return (
     <div className="onboarding-step-grid">
       <label className="onboarding-field">
-        <span>Prenom</span>
+        <span>Prénom</span>
         <input
           value={value.firstName}
           onChange={(event) => update({ firstName: event.target.value })}
-          title="Prenom du contact principal"
+          title="Prénom du contact principal"
           placeholder="Claire"
           required
         />
@@ -41,7 +41,7 @@ export default function OnboardingStepLead({ value, onChange }: Props) {
         />
       </label>
       <label className="onboarding-field">
-        <span>Telephone</span>
+        <span>Téléphone</span>
         <input
           value={value.phone}
           onChange={(event) => update({ phone: event.target.value })}
@@ -54,7 +54,7 @@ export default function OnboardingStepLead({ value, onChange }: Props) {
         <input
           value={value.address}
           onChange={(event) => update({ address: event.target.value })}
-          title="Adresse du site solaire a etudier"
+          title="Adresse du site solaire à étudier"
           placeholder="24 rue du Soleil, 33000 Bordeaux"
         />
       </label>

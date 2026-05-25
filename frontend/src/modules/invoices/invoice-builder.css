@@ -565,6 +565,18 @@
   background: color-mix(in srgb, var(--surface-2, #252032) 40%, transparent);
 }
 
+.ib-form-advanced summary {
+  width: fit-content;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.ib-form-advanced[open] summary {
+  margin-bottom: 8px;
+}
+
 .theme-light .ib-notes-shell {
   background: var(--color-bg-muted);
 }

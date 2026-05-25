@@ -45,7 +45,7 @@ export default function CreateCreditModal({ open, invoiceId, maxTtc, onClose, on
   const submit = async () => {
     const ttc = parseFloat(amountTtc.replace(",", "."));
     if (!Number.isFinite(ttc) || ttc <= 0) {
-      setErr("Montant TTC invalide");
+      setErr("Saisissez un montant TTC supérieur à 0.");
       return;
     }
     if (ttc > maxTtc + 0.01) {
@@ -82,7 +82,7 @@ export default function CreateCreditModal({ open, invoiceId, maxTtc, onClose, on
       open={open}
       onClose={onClose}
       title="Créer un avoir"
-      subtitle={`Maximum imputable : ${maxTtc.toLocaleString("fr-FR", { minimumFractionDigits: 2 })} € TTC (reste à payer).`}
+      subtitle={`Montant disponible : ${maxTtc.toLocaleString("fr-FR", { minimumFractionDigits: 2 })} € TTC`}
       size="sm"
       footer={
         <>
@@ -97,31 +97,31 @@ export default function CreateCreditModal({ open, invoiceId, maxTtc, onClose, on
     >
       <div className="if-modal-grid">
         {err ? <p className="qb-error-inline">{err}</p> : null}
-        <p className="if-muted" style={{ margin: 0 }}>
-          Une ligne unique est générée à partir du montant TTC et du taux de TVA (logique alignée sur le moteur financier).
-        </p>
         <label>
           Montant TTC (€)
           <input className="sn-input" type="number" min={0} step={0.01} value={amountTtc} onChange={(e) => setAmountTtc(e.target.value)} />
         </label>
         <label>
-          TVA
-          <select className="sn-input" value={vatRate} onChange={(e) => setVatRate(parseFloat(e.target.value))}>
-            {VAT_OPTIONS.map((v) => (
-              <option key={v} value={v}>
-                {v} %
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
           Motif
-          <textarea className="sn-input" rows={3} value={motif} onChange={(e) => setMotif(e.target.value)} placeholder="Motif commercial ou correctif…" />
+          <textarea className="sn-input" rows={3} value={motif} onChange={(e) => setMotif(e.target.value)} placeholder="Ex. geste commercial, correction de facture..." />
         </label>
-        <label style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-          <input type="checkbox" checked={issueNow} onChange={(e) => setIssueNow(e.target.checked)} />
-          <span>Émettre immédiatement (sinon brouillon)</span>
-        </label>
+        <details className="if-modal-advanced">
+          <summary>Options avancées</summary>
+          <label>
+            TVA
+            <select className="sn-input" value={vatRate} onChange={(e) => setVatRate(parseFloat(e.target.value))}>
+              {VAT_OPTIONS.map((v) => (
+                <option key={v} value={v}>
+                  {v} %
+                </option>
+              ))}
+            </select>
+          </label>
+          <label style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <input type="checkbox" checked={issueNow} onChange={(e) => setIssueNow(e.target.checked)} />
+            <span>Émettre maintenant</span>
+          </label>
+        </details>
       </div>
     </ModalShell>
   );

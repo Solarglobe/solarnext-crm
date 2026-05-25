@@ -65,7 +65,7 @@ export default function SendReminderModal({ open, invoiceId, onClose, onSuccess 
       open={open}
       onClose={onClose}
       title="Enregistrer une relance"
-      subtitle="Journal interne — pas d’envoi e-mail automatisé pour l’instant."
+      subtitle="Ajoutez la relance au suivi de la facture."
       size="sm"
       footer={
         <>
@@ -95,13 +95,16 @@ export default function SendReminderModal({ open, invoiceId, onClose, onSuccess 
           <input className="sn-input" type="datetime-local" value={remindedAt} onChange={(e) => setRemindedAt(e.target.value)} />
         </label>
         <label>
-          Note
-          <textarea className="sn-input" rows={3} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Contenu ou rappel…" />
+          Résumé
+          <textarea className="sn-input" rows={3} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Ex. message laissé au client, réponse attendue..." />
         </label>
-        <label>
-          Prochaine action (optionnel)
-          <input className="sn-input" type="datetime-local" value={nextAction} onChange={(e) => setNextAction(e.target.value)} />
-        </label>
+        <details className="if-modal-advanced">
+          <summary>Planifier une suite</summary>
+          <label>
+            Prochaine action
+            <input className="sn-input" type="datetime-local" value={nextAction} onChange={(e) => setNextAction(e.target.value)} />
+          </label>
+        </details>
       </div>
     </ModalShell>
   );

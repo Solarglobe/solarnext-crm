@@ -62,27 +62,27 @@ export default function InvoiceNotes({
           ) : null}
         </div>
         <div className="ib-notes-col">
-          <h3 className="ib-subtitle">Notes (visibles document)</h3>
+          <h3 className="ib-subtitle">Note client</h3>
           <textarea
             className="sn-input ib-textarea"
             rows={3}
             disabled={!canEdit}
             value={notes}
             onChange={(e) => onChange("notes", e.target.value)}
-            placeholder="Mention complémentaire, référence dossier…"
+            placeholder="Ex. référence dossier, précision utile au client..."
           />
         </div>
-        <div className="ib-notes-col">
-          <h3 className="ib-subtitle">Conditions de règlement</h3>
+        <details className="ib-notes-col ib-form-advanced">
+          <summary>Conditions de règlement</summary>
           <textarea
             className="sn-input ib-textarea"
             rows={4}
             disabled={!canEdit}
             value={paymentTerms}
             onChange={(e) => onChange("payment_terms", e.target.value)}
-            placeholder="Pénalités de retard, IBAN, délais, mentions légales…"
+            placeholder="Ex. délai de règlement, IBAN, pénalités de retard..."
           />
-        </div>
+        </details>
       </div>
     </section>
   );

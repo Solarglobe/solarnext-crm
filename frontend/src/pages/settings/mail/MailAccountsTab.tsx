@@ -312,7 +312,7 @@ export function MailAccountsTab() {
       <header className="mail-accts__header">
         <div>
           <h2>Comptes mail</h2>
-          <p className="mail-accts__sub">Connecteurs IMAP / SMTP de votre organisation.</p>
+          <p className="mail-accts__sub">Boîtes utilisées pour envoyer et recevoir les emails CRM.</p>
         </div>
         <button type="button" className="mail-accts__btn mail-accts__btn--primary" onClick={() => setAddOpen((v) => !v)}>
           {addOpen ? "Fermer" : "+ Ajouter une boîte mail"}
@@ -355,10 +355,10 @@ export function MailAccountsTab() {
             </label>
           </div>
 
-          <h3 className="mail-accts__section">IMAP (réception)</h3>
+          <h3 className="mail-accts__section">Réception</h3>
           <div className="mail-accts__grid">
             <label className="mail-accts__field mail-accts__field--wide">
-              <span>Serveur IMAP</span>
+              <span>Serveur</span>
               <input
                 value={addForm.imap_host}
                 onChange={(e) => setAddForm((f) => ({ ...f, imap_host: e.target.value }))}
@@ -385,7 +385,7 @@ export function MailAccountsTab() {
               <input
                 value={addForm.imap_user}
                 onChange={(e) => setAddForm((f) => ({ ...f, imap_user: e.target.value }))}
-                placeholder={addForm.email || "souvent identique à l’email"}
+                placeholder={addForm.email || "souvent identique à l'email"}
               />
             </label>
             <label className="mail-accts__field">
@@ -399,53 +399,55 @@ export function MailAccountsTab() {
             </label>
           </div>
 
-          <h3 className="mail-accts__section">SMTP (envoi)</h3>
-          <div className="mail-accts__grid">
-            <label className="mail-accts__field mail-accts__field--wide">
-              <span>Serveur SMTP</span>
-              <input
-                value={addForm.smtp_host}
-                onChange={(e) => setAddForm((f) => ({ ...f, smtp_host: e.target.value }))}
-                placeholder="smtp.exemple.fr"
-              />
-            </label>
-            <label className="mail-accts__field">
-              <span>Port</span>
-              <input
-                value={addForm.smtp_port}
-                onChange={(e) => setAddForm((f) => ({ ...f, smtp_port: e.target.value }))}
-              />
-            </label>
-            <label className="mail-accts__field mail-accts__check">
-              <input
-                type="checkbox"
-                checked={addForm.smtp_secure}
-                onChange={(e) => setAddForm((f) => ({ ...f, smtp_secure: e.target.checked }))}
-              />
-              <span>SSL / TLS</span>
-            </label>
-            <label className="mail-accts__field">
-              <span>Utilisateur</span>
-              <input
-                value={addForm.smtp_user}
-                onChange={(e) => setAddForm((f) => ({ ...f, smtp_user: e.target.value }))}
-                placeholder={addForm.email || ""}
-              />
-            </label>
-            <label className="mail-accts__field">
-              <span>Mot de passe</span>
-              <input
-                type="password"
-                value={addForm.smtp_password}
-                onChange={(e) => setAddForm((f) => ({ ...f, smtp_password: e.target.value }))}
-                autoComplete="new-password"
-              />
-            </label>
-          </div>
+          <details className="mail-accts__advanced">
+            <summary>Paramètres d'envoi</summary>
+            <div className="mail-accts__grid">
+              <label className="mail-accts__field mail-accts__field--wide">
+                <span>Serveur</span>
+                <input
+                  value={addForm.smtp_host}
+                  onChange={(e) => setAddForm((f) => ({ ...f, smtp_host: e.target.value }))}
+                  placeholder="smtp.exemple.fr"
+                />
+              </label>
+              <label className="mail-accts__field">
+                <span>Port</span>
+                <input
+                  value={addForm.smtp_port}
+                  onChange={(e) => setAddForm((f) => ({ ...f, smtp_port: e.target.value }))}
+                />
+              </label>
+              <label className="mail-accts__field mail-accts__check">
+                <input
+                  type="checkbox"
+                  checked={addForm.smtp_secure}
+                  onChange={(e) => setAddForm((f) => ({ ...f, smtp_secure: e.target.checked }))}
+                />
+                <span>SSL / TLS</span>
+              </label>
+              <label className="mail-accts__field">
+                <span>Utilisateur</span>
+                <input
+                  value={addForm.smtp_user}
+                  onChange={(e) => setAddForm((f) => ({ ...f, smtp_user: e.target.value }))}
+                  placeholder={addForm.email || ""}
+                />
+              </label>
+              <label className="mail-accts__field">
+                <span>Mot de passe</span>
+                <input
+                  type="password"
+                  value={addForm.smtp_password}
+                  onChange={(e) => setAddForm((f) => ({ ...f, smtp_password: e.target.value }))}
+                  autoComplete="new-password"
+                />
+              </label>
+            </div>
+          </details>
 
           <div className="mail-accts__actions">
             <button type="button" className="mail-accts__btn" disabled={addBusy} onClick={() => void onTestDraft("add")}>
-              Tester la connexion (IMAP)
+              Tester la réception
             </button>
             <button type="button" className="mail-accts__btn mail-accts__btn--primary" disabled={addBusy} onClick={() => void onSaveAdd()}>
               Enregistrer
@@ -520,7 +522,7 @@ export function MailAccountsTab() {
                               <span>Boîte partagée</span>
                             </label>
                           </div>
-                          <h3 className="mail-accts__section">IMAP</h3>
+                          <h3 className="mail-accts__section">Réception</h3>
                           <div className="mail-accts__grid">
                             <label className="mail-accts__field mail-accts__field--wide">
                               <span>Serveur</span>
@@ -561,47 +563,49 @@ export function MailAccountsTab() {
                               />
                             </label>
                           </div>
-                          <h3 className="mail-accts__section">SMTP</h3>
-                          <div className="mail-accts__grid">
-                            <label className="mail-accts__field mail-accts__field--wide">
-                              <span>Serveur</span>
-                              <input
-                                value={editForm.smtp_host}
-                                onChange={(e) => setEditForm((f) => ({ ...f, smtp_host: e.target.value }))}
-                              />
-                            </label>
-                            <label className="mail-accts__field">
-                              <span>Port</span>
-                              <input
-                                value={editForm.smtp_port}
-                                onChange={(e) => setEditForm((f) => ({ ...f, smtp_port: e.target.value }))}
-                              />
-                            </label>
-                            <label className="mail-accts__field mail-accts__check">
-                              <input
-                                type="checkbox"
-                                checked={editForm.smtp_secure}
-                                onChange={(e) => setEditForm((f) => ({ ...f, smtp_secure: e.target.checked }))}
-                              />
-                              <span>SSL / TLS</span>
-                            </label>
-                            <label className="mail-accts__field">
-                              <span>Utilisateur</span>
-                              <input
-                                value={editForm.smtp_user}
-                                onChange={(e) => setEditForm((f) => ({ ...f, smtp_user: e.target.value }))}
-                              />
-                            </label>
-                            <label className="mail-accts__field">
-                              <span>Mot de passe {detail.has_smtp_password ? "(laisser vide pour ne pas changer)" : ""}</span>
-                              <input
-                                type="password"
-                                value={editForm.smtp_password}
-                                onChange={(e) => setEditForm((f) => ({ ...f, smtp_password: e.target.value }))}
-                                autoComplete="new-password"
-                              />
-                            </label>
-                          </div>
+                          <details className="mail-accts__advanced">
+                            <summary>Paramètres d'envoi</summary>
+                            <div className="mail-accts__grid">
+                              <label className="mail-accts__field mail-accts__field--wide">
+                                <span>Serveur</span>
+                                <input
+                                  value={editForm.smtp_host}
+                                  onChange={(e) => setEditForm((f) => ({ ...f, smtp_host: e.target.value }))}
+                                />
+                              </label>
+                              <label className="mail-accts__field">
+                                <span>Port</span>
+                                <input
+                                  value={editForm.smtp_port}
+                                  onChange={(e) => setEditForm((f) => ({ ...f, smtp_port: e.target.value }))}
+                                />
+                              </label>
+                              <label className="mail-accts__field mail-accts__check">
+                                <input
+                                  type="checkbox"
+                                  checked={editForm.smtp_secure}
+                                  onChange={(e) => setEditForm((f) => ({ ...f, smtp_secure: e.target.checked }))}
+                                />
+                                <span>SSL / TLS</span>
+                              </label>
+                              <label className="mail-accts__field">
+                                <span>Utilisateur</span>
+                                <input
+                                  value={editForm.smtp_user}
+                                  onChange={(e) => setEditForm((f) => ({ ...f, smtp_user: e.target.value }))}
+                                />
+                              </label>
+                              <label className="mail-accts__field">
+                                <span>Mot de passe {detail.has_smtp_password ? "(laisser vide pour ne pas changer)" : ""}</span>
+                                <input
+                                  type="password"
+                                  value={editForm.smtp_password}
+                                  onChange={(e) => setEditForm((f) => ({ ...f, smtp_password: e.target.value }))}
+                                  autoComplete="new-password"
+                                />
+                              </label>
+                            </div>
+                          </details>
                           <div className="mail-accts__actions">
                             <button type="button" className="mail-accts__btn" disabled={busy} onClick={() => setEditMode(false)}>
                               Annuler
@@ -612,7 +616,7 @@ export function MailAccountsTab() {
                               disabled={busy}
                               onClick={() => void onTestDraft("edit")}
                             >
-                              Tester IMAP (saisie)
+                              Tester la réception
                             </button>
                             <button
                               type="button"

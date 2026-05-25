@@ -48,7 +48,7 @@ export default function InvoiceFinancialStrip({ balance, currency, draftMode }: 
         </div>
       </div>
       <p className="if-strip-hint">
-        Solde : TTC − encaissements − avoirs émis = reste dû (aligné moteur backend).
+        Solde : total TTC − encaissements − avoirs émis = reste dû.
       </p>
     </div>
   );

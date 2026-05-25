@@ -104,6 +104,27 @@ html.theme-light .mail-composer__templates-panel {
   color: var(--sg-text-muted, var(--text-muted));
 }
 
+.mail-composer__templates-choice {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 10px;
+  padding: 10px;
+  border: 1px solid var(--sg-border, var(--border));
+  border-radius: 8px;
+  background: var(--bg-card);
+}
+
+.mail-composer__templates-choice p {
+  margin: 0;
+  font-size: 13px;
+}
+
+.mail-composer__templates-choice div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .mail-composer__templates-err {
   font-size: 13px;
   color: #b91c1c;
@@ -538,4 +559,3 @@ html.theme-light .mail-composer__err {
   margin: 0 auto;
   box-sizing: border-box;
 }
-

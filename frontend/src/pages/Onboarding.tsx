@@ -18,8 +18,8 @@ import "./onboarding.css";
 const STEPS: { id: OnboardingStepId; title: string; subtitle: string }[] = [
   { id: "company", title: "Entreprise", subtitle: "Le minimum pour identifier votre organisation" },
   { id: "mail", title: "Mail", subtitle: "Optionnel, vous pourrez le configurer plus tard" },
-  { id: "team", title: "Equipe", subtitle: "Invitez quelqu'un maintenant ou passez cette etape" },
-  { id: "lead", title: "Premier lead", subtitle: "Creer un premier dossier pour demarrer" },
+  { id: "team", title: "Équipe", subtitle: "Invitez quelqu'un maintenant ou passez cette étape" },
+  { id: "lead", title: "Premier lead", subtitle: "Créez un premier dossier pour démarrer" },
 ];
 const STEP_IDS = STEPS.map((step) => step.id);
 
@@ -45,7 +45,7 @@ function validateStep(step: OnboardingStepId, data: OnboardingData): string[] {
   }
   if (step === "lead") {
     const missing: string[] = [];
-    if (!data.lead.firstName.trim()) missing.push("Prenom du premier lead");
+    if (!data.lead.firstName.trim()) missing.push("Prénom du premier lead");
     if (!data.lead.lastName.trim()) missing.push("Nom du premier lead");
     if (!isValidEmail(data.lead.email)) missing.push("Email du premier lead invalide");
     return missing;
@@ -57,7 +57,7 @@ function getStepValidationMessage(step: OnboardingStepId, data: OnboardingData):
   const issues = validateStep(step, data);
   if (issues.length === 0) return null;
   if (step === "company") return "Le nom de l'entreprise est obligatoire.";
-  if (step === "mail") return "L'email expediteur est invalide.";
+  if (step === "mail") return "L'email expéditeur est invalide.";
   if (step === "team") return "Une invitation contient un email invalide.";
   return issues.join(", ");
 }
@@ -136,7 +136,7 @@ export default function Onboarding() {
       setCompletedSteps(nextCompleted);
       setActiveStep(nextStep);
     } catch (error) {
-      setMessage(getErrorMessage(error, "Sauvegarde impossible"));
+      setMessage(getErrorMessage(error, "Enregistrement impossible"));
     } finally {
       setSaving(false);
     }
@@ -166,19 +166,19 @@ export default function Onboarding() {
       await persist(nextCompleted, "lead", true);
       navigate("/leads", { replace: true, state: { onboardingLeadCreated: true } });
     } catch (error) {
-      setMessage(getErrorMessage(error, "Creation du premier lead impossible"));
+      setMessage(getErrorMessage(error, "Création du premier lead impossible"));
     } finally {
       setSaving(false);
     }
   };
 
   if (loading) {
-    return <div className="onboarding-page onboarding-page--loading">Chargement du demarrage guide...</div>;
+    return <div className="onboarding-page onboarding-page--loading">Chargement du démarrage guidé...</div>;
   }
 
   return (
     <main className="onboarding-page">
-      <aside className="onboarding-rail" aria-label="Etapes onboarding">
+      <aside className="onboarding-rail" aria-label="Étapes onboarding">
         <div className="onboarding-brand">SolarNext</div>
         <div className="onboarding-progress" aria-label={`Progression ${progress}%`}>
           <span style={{ width: `${progress}%` }} />
@@ -215,7 +215,7 @@ export default function Onboarding() {
 
       <section className="onboarding-main">
         <header className="onboarding-header">
-          <p>Premier demarrage</p>
+          <p>Premier démarrage</p>
           <h1>{activeMeta.title}</h1>
           <span>{activeMeta.subtitle}</span>
         </header>
@@ -242,7 +242,7 @@ export default function Onboarding() {
 
           {message ? <p className="onboarding-message">{message}</p> : null}
           {issues.length > 0 ? (
-            <ul className="onboarding-issue-list" aria-label="Champs a corriger">
+            <ul className="onboarding-issue-list" aria-label="Champs à corriger">
               {issues.map((issue) => (
                 <li key={issue}>{issue}</li>
               ))}
@@ -260,11 +260,11 @@ export default function Onboarding() {
             </button>
             {activeStep === "lead" ? (
               <button type="button" className="sn-btn sn-btn-primary" disabled={saving} onClick={() => void finish()}>
-                {saving ? "Creation..." : "Bravo, creer le premier lead"}
+                {saving ? "Création..." : "Créer le premier lead"}
               </button>
             ) : (
               <button type="button" className="sn-btn sn-btn-primary" disabled={saving} onClick={() => void completeCurrentStep()}>
-                {saving ? "Sauvegarde..." : activeStep === "mail" || activeStep === "team" ? "Passer ou continuer" : "Continuer"}
+                {saving ? "Enregistrement..." : activeStep === "mail" || activeStep === "team" ? "Continuer" : "Continuer"}
               </button>
             )}
           </footer>
