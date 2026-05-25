@@ -5,6 +5,7 @@
 import { useCallback, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { buildApiUrl } from "@/config/crmApiBase";
 import { apiFetch, getAuthToken } from "../../services/api";
+import { ConfirmModal } from "../../components/ui/ConfirmModal";
 import { showCrmInlineToast } from "../../components/ui/crmInlineToast";
 import type { DocumentCategory, DocumentSectionKey, EntityDocument } from "./entityDocumentTypes";
 import { resolveDocumentLifecycleBadge } from "./documentLifecycleBadge";
@@ -123,6 +124,7 @@ export default function EntityDocumentsHub({
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [archivingId, setArchivingId] = useState<string | null>(null);
   const [visibilityBusyId, setVisibilityBusyId] = useState<string | null>(null);
+  const [confirmDocumentAction, setConfirmDocumentAction] = useState<{ type: "delete" | "archive"; docId: string } | null>(null);
 
   const buckets = useMemo(() => groupDocumentsBySection(documents), [documents]);
 
@@ -236,7 +238,6 @@ export default function EntityDocumentsHub({
 
   const handleDelete = async (docId: string) => {
     if (!getAuthToken()) return;
-    if (!window.confirm("Supprimer définitivement ce document ?")) return;
     setDeletingId(docId);
     setError(null);
     try {
@@ -250,12 +251,12 @@ export default function EntityDocumentsHub({
       setError(e instanceof Error ? e.message : "Erreur suppression");
     } finally {
       setDeletingId(null);
+      setConfirmDocumentAction(null);
     }
   };
 
   const handleArchive = async (docId: string) => {
     if (!getAuthToken()) return;
-    if (!window.confirm("Archiver ce document ? Il disparaîtra de cette liste (récupérable via restauration admin si prévu).")) return;
     setArchivingId(docId);
     setError(null);
     try {
@@ -269,6 +270,7 @@ export default function EntityDocumentsHub({
       setError(e instanceof Error ? e.message : "Erreur archivage");
     } finally {
       setArchivingId(null);
+      setConfirmDocumentAction(null);
     }
   };
 
@@ -425,7 +427,7 @@ export default function EntityDocumentsHub({
                           <button
                             type="button"
                             className={styles.btnArchiveDoc}
-                            onClick={() => void handleArchive(doc.id)}
+                            onClick={() => setConfirmDocumentAction({ type: "archive", docId: doc.id })}
                             disabled={archivingId === doc.id}
                           >
                             {archivingId === doc.id ? "Archivage…" : "Archiver"}
@@ -434,7 +436,7 @@ export default function EntityDocumentsHub({
                           <button
                             type="button"
                             className={styles.btnDeleteDoc}
-                            onClick={() => void handleDelete(doc.id)}
+                            onClick={() => setConfirmDocumentAction({ type: "delete", docId: doc.id })}
                             disabled={deletingId === doc.id}
                           >
                             {deletingId === doc.id ? "Suppression…" : "Supprimer"}
@@ -596,6 +598,25 @@ export default function EntityDocumentsHub({
       ) : (
         SECTION_ORDER.map((key) => renderDocumentSection(key))
       )}
+      <ConfirmModal
+        open={confirmDocumentAction !== null}
+        title={confirmDocumentAction?.type === "delete" ? "Supprimer ce document ?" : "Archiver ce document ?"}
+        message={
+          confirmDocumentAction?.type === "delete"
+            ? "Le fichier sera retiré du dossier. Cette action est définitive."
+            : "Le document disparaîtra des listes actives sans supprimer le dossier client."
+        }
+        confirmLabel={confirmDocumentAction?.type === "delete" ? "Supprimer" : "Archiver"}
+        cancelLabel="Retour"
+        variant={confirmDocumentAction?.type === "delete" ? "danger" : "default"}
+        confirmDisabled={deletingId !== null || archivingId !== null}
+        cancelDisabled={deletingId !== null || archivingId !== null}
+        onCancel={() => setConfirmDocumentAction(null)}
+        onConfirm={() => {
+          if (confirmDocumentAction?.type === "delete") void handleDelete(confirmDocumentAction.docId);
+          if (confirmDocumentAction?.type === "archive") void handleArchive(confirmDocumentAction.docId);
+        }}
+      />
     </div>
   );
 }

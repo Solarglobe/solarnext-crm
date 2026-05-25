@@ -22,6 +22,7 @@ import {
   type InvoiceDetail,
 } from "../../services/financial.api";
 import { Button } from "../../components/ui/Button";
+import { ConfirmModal } from "../../components/ui/ConfirmModal";
 import { ModalShell } from "../../components/ui/ModalShell";
 import { computeInvoiceTotalsFromLines } from "./invoiceCalc";
 import {
@@ -54,6 +55,7 @@ import { showCrmInlineToast } from "../../components/ui/crmInlineToast";
 import { markInvoiceAsPaidApi } from "./invoice-financial.api";
 
 const API_BASE = getCrmApiBase();
+type InvoiceConfirmAction = "issue" | "delete" | "markPaid" | "cancel";
 
 /** Aligné sur la comparaison backend : null si vide / absent après trim. */
 function normalizeId(value: string | null | undefined): string | null {
@@ -131,6 +133,8 @@ export default function InvoiceBuilderPage() {
   const [contactsSelectError, setContactsSelectError] = useState<string | null>(null);
   const [invoiceDueDaysDefault, setInvoiceDueDaysDefault] = useState(30);
   const [markPaidBusy, setMarkPaidBusy] = useState(false);
+  const [invoiceActionBusy, setInvoiceActionBusy] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<InvoiceConfirmAction | null>(null);
   const [paymentModalSignal, setPaymentModalSignal] = useState(0);
   const [creditModalSignal, setCreditModalSignal] = useState(0);
 
@@ -374,7 +378,7 @@ export default function InvoiceBuilderPage() {
       const newId = data?.id;
       if (newId) navigate(`/invoices/${newId}`);
     } catch (e) {
-      window.alert(e instanceof Error ? e.message : "Duplication impossible");
+      showCrmInlineToast(e instanceof Error ? e.message : "Duplication impossible", "error");
     }
   };
 
@@ -418,17 +422,21 @@ export default function InvoiceBuilderPage() {
 
   const markInvoiceIssued = async () => {
     if (!id) return;
-    if (!window.confirm("Émettre la facture (statut officiel) ? Un numéro définitif peut être attribué.")) return;
+    setInvoiceActionBusy(true);
     try {
       await patchInvoiceStatus(id, "ISSUED");
       await load();
     } catch (e) {
-      window.alert(e instanceof Error ? e.message : "Erreur statut");
+      showCrmInlineToast(e instanceof Error ? e.message : "Statut non mis à jour", "error");
+    } finally {
+      setInvoiceActionBusy(false);
+      setConfirmAction(null);
     }
   };
 
   const removeInvoice = async () => {
-    if (!id || !window.confirm("Supprimer définitivement cette facture ?")) return;
+    if (!id) return;
+    setInvoiceActionBusy(true);
     try {
       const res = await apiFetch(`${API_BASE}/api/invoices/${encodeURIComponent(id)}`, { method: "DELETE" });
       if (res.status === 204) navigate("/invoices");
@@ -437,7 +445,10 @@ export default function InvoiceBuilderPage() {
         throw new Error((err as { error?: string }).error || `Erreur ${res.status}`);
       }
     } catch (e) {
-      window.alert(e instanceof Error ? e.message : "Erreur");
+      showCrmInlineToast(e instanceof Error ? e.message : "Facture non supprimée", "error");
+    } finally {
+      setInvoiceActionBusy(false);
+      setConfirmAction(null);
     }
   };
 
@@ -573,30 +584,74 @@ export default function InvoiceBuilderPage() {
 
   const markInvoicePaidFromToolbar = async () => {
     if (!state.header?.id || !canMarkPaidToolbar || markPaidBusy) return;
-    if (!window.confirm("Marquer cette facture comme payée (enregistrer automatiquement le solde) ?")) return;
     setMarkPaidBusy(true);
     try {
       await markInvoiceAsPaidApi(state.header.id, finBalance.amount_due);
       await load();
     } catch (e) {
-      window.alert(e instanceof Error ? e.message : "Erreur");
+      showCrmInlineToast(e instanceof Error ? e.message : "Paiement non enregistré", "error");
     } finally {
       setMarkPaidBusy(false);
+      setConfirmAction(null);
     }
   };
 
   const cancelInvoiceFromToolbar = async () => {
     if (!state.header?.id || !canCancelToolbar) return;
-    if (!window.confirm("Annuler cette facture ? Cette action est irréversible.")) return;
-    const cancelledReason = window.prompt("Motif d'annulation (optionnel)", "");
+    setInvoiceActionBusy(true);
     try {
       await patchInvoiceStatus(state.header.id, "CANCELLED", {
-        cancelled_reason: cancelledReason?.trim() ? cancelledReason.trim() : null,
+        cancelled_reason: null,
       });
       await load();
     } catch (e) {
-      window.alert(e instanceof Error ? e.message : "Erreur");
+      showCrmInlineToast(e instanceof Error ? e.message : "Facture non annulée", "error");
+    } finally {
+      setInvoiceActionBusy(false);
+      setConfirmAction(null);
     }
+  };
+
+  const confirmDialog = useMemo(() => {
+    switch (confirmAction) {
+      case "issue":
+        return {
+          title: "Émettre la facture ?",
+          message: "La facture passera en statut officiel et un numéro définitif peut être attribué.",
+          confirmLabel: "Émettre",
+          variant: "default" as const,
+        };
+      case "delete":
+        return {
+          title: "Supprimer cette facture ?",
+          message: "Cette suppression est définitive. Les documents liés doivent rester consultables depuis leur dossier si nécessaire.",
+          confirmLabel: "Supprimer",
+          variant: "danger" as const,
+        };
+      case "markPaid":
+        return {
+          title: "Marquer comme payée ?",
+          message: "Le solde actuel sera enregistré automatiquement comme paiement.",
+          confirmLabel: "Marquer payée",
+          variant: "default" as const,
+        };
+      case "cancel":
+        return {
+          title: "Annuler cette facture ?",
+          message: "La facture sera clôturée comme annulée. Aucun paiement ne sera supprimé.",
+          confirmLabel: "Annuler la facture",
+          variant: "danger" as const,
+        };
+      default:
+        return null;
+    }
+  }, [confirmAction]);
+
+  const runConfirmedInvoiceAction = () => {
+    if (confirmAction === "issue") void markInvoiceIssued();
+    if (confirmAction === "delete") void removeInvoice();
+    if (confirmAction === "markPaid") void markInvoicePaidFromToolbar();
+    if (confirmAction === "cancel") void cancelInvoiceFromToolbar();
   };
 
   if (loading && !state.header) {
@@ -637,9 +692,9 @@ export default function InvoiceBuilderPage() {
         onDuplicate={() => void duplicate()}
         onPdf={() => void genPdf()}
         pdfBusy={isGeneratingPdf}
-        onMarkIssued={() => void markInvoiceIssued()}
-        onMarkPaid={() => void markInvoicePaidFromToolbar()}
-        onCancel={() => void cancelInvoiceFromToolbar()}
+        onMarkIssued={() => setConfirmAction("issue")}
+        onMarkPaid={() => setConfirmAction("markPaid")}
+        onCancel={() => setConfirmAction("cancel")}
         onAddPayment={openPaymentModalFromToolbar}
         onCreateCredit={openCreditModalFromToolbar}
         onEdit={focusEditZone}
@@ -655,7 +710,7 @@ export default function InvoiceBuilderPage() {
         cancelDisabledReason={cancelDisabledReason}
         addPaymentDisabledReason={addPaymentDisabledReason}
         createCreditDisabledReason={createCreditDisabledReason}
-        onDelete={() => void removeInvoice()}
+        onDelete={() => setConfirmAction("delete")}
         disableAllActions={disableAllActionsToolbar}
       />
 
@@ -968,6 +1023,19 @@ export default function InvoiceBuilderPage() {
             ))}
         </div>
       </ModalShell>
+
+      <ConfirmModal
+        open={confirmDialog !== null}
+        title={confirmDialog?.title ?? ""}
+        message={confirmDialog?.message ?? ""}
+        confirmLabel={confirmDialog?.confirmLabel ?? "Confirmer"}
+        cancelLabel="Retour"
+        variant={confirmDialog?.variant ?? "default"}
+        confirmDisabled={invoiceActionBusy || markPaidBusy}
+        cancelDisabled={invoiceActionBusy || markPaidBusy}
+        onCancel={() => setConfirmAction(null)}
+        onConfirm={runConfirmedInvoiceAction}
+      />
 
       {invoiceDetail && state.header ? (
         <section className="if-suite" aria-label="Suivi financier">

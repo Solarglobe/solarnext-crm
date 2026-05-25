@@ -4,6 +4,7 @@
 
 import { useCallback, useState } from "react";
 import { useOrganization } from "../../contexts/OrganizationContext";
+import { ConfirmModal } from "../ui/ConfirmModal";
 
 export function SuperAdminSupportBanner() {
   const {
@@ -16,18 +17,22 @@ export function SuperAdminSupportBanner() {
   } = useOrganization();
 
   const [quitting, setQuitting] = useState(false);
+  const [editConfirmOpen, setEditConfirmOpen] = useState(false);
 
   const orgLabel = currentOrganization?.name?.trim() || "Organisation";
 
   const toggleEdit = useCallback(() => {
     if (!superAdminEditMode) {
-      const ok = window.confirm(
-        "Activer le mode édition SUPER ADMIN ? Les écritures seront autorisées et tracées côté serveur."
-      );
-      if (!ok) return;
+      setEditConfirmOpen(true);
+      return;
     }
     setSuperAdminEditMode(!superAdminEditMode);
   }, [superAdminEditMode, setSuperAdminEditMode]);
+
+  const confirmEditMode = useCallback(() => {
+    setSuperAdminEditMode(true);
+    setEditConfirmOpen(false);
+  }, [setSuperAdminEditMode]);
 
   const onQuit = useCallback(async () => {
     if (quitting) return;
@@ -54,48 +59,60 @@ export function SuperAdminSupportBanner() {
   );
 
   return (
-    <div
-      role="status"
-      className={`sn-super-admin-banner${superAdminEditMode ? " sn-super-admin-banner--edit" : ""}`}
-      style={{
-        flexShrink: 0,
-        width: "100%",
-        padding: "8px 16px",
-        fontSize: 13,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        gap: 12,
-        flexWrap: "wrap",
-        borderBottom: "1px solid var(--border)",
-        background: superAdminEditMode
-          ? "color-mix(in srgb, var(--danger, #EF4444) 14%, var(--bg-muted))"
-          : "color-mix(in srgb, var(--primary, #6366F1) 12%, var(--bg-muted))",
-        color: "var(--text)",
-      }}
-    >
-      <span style={{ fontWeight: 600 }}>{title}</span>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-        {isSupportTenantContext && (
+    <>
+      <div
+        role="status"
+        className={`sn-super-admin-banner${superAdminEditMode ? " sn-super-admin-banner--edit" : ""}`}
+        style={{
+          flexShrink: 0,
+          width: "100%",
+          padding: "8px 16px",
+          fontSize: 13,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 12,
+          flexWrap: "wrap",
+          borderBottom: "1px solid var(--border)",
+          background: superAdminEditMode
+            ? "color-mix(in srgb, var(--danger, #EF4444) 14%, var(--bg-muted))"
+            : "color-mix(in srgb, var(--primary, #6366F1) 12%, var(--bg-muted))",
+          color: "var(--text)",
+        }}
+      >
+        <span style={{ fontWeight: 600 }}>{title}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          {isSupportTenantContext && (
+            <button
+              type="button"
+              className="sn-btn sn-btn-sm"
+              style={{ whiteSpace: "nowrap" }}
+              disabled={quitting}
+              onClick={onQuit}
+            >
+              {quitting ? "…" : "Quitter"}
+            </button>
+          )}
           <button
             type="button"
             className="sn-btn sn-btn-sm"
             style={{ whiteSpace: "nowrap" }}
-            disabled={quitting}
-            onClick={onQuit}
+            onClick={toggleEdit}
           >
-            {quitting ? "…" : "Quitter"}
+            {superAdminEditMode ? "Repasser en lecture seule" : "Activer l’édition"}
           </button>
-        )}
-        <button
-          type="button"
-          className="sn-btn sn-btn-sm"
-          style={{ whiteSpace: "nowrap" }}
-          onClick={toggleEdit}
-        >
-          {superAdminEditMode ? "Repasser en lecture seule" : "Activer l’édition"}
-        </button>
+        </div>
       </div>
-    </div>
+      <ConfirmModal
+        open={editConfirmOpen}
+        title="Activer l'édition super admin ?"
+        message="Les écritures seront autorisées pour ce tenant et tracées côté serveur."
+        confirmLabel="Activer l'édition"
+        cancelLabel="Retour"
+        variant="danger"
+        onCancel={() => setEditConfirmOpen(false)}
+        onConfirm={confirmEditMode}
+      />
+    </>
   );
 }

@@ -4,6 +4,7 @@
 
 import { useCallback, useState } from "react";
 import { Button } from "../../components/ui/Button";
+import { showCrmInlineToast } from "../../components/ui/crmInlineToast";
 import { DOCUMENT_ACCESS_DENIED, openAuthenticatedDocumentInNewTab } from "@/utils/documentDownload";
 
 export interface InvoiceDocumentRow {
@@ -53,7 +54,7 @@ export default function InvoiceDocumentBlock({
     try {
       await openAuthenticatedDocumentInNewTab(downloadPath);
     } catch (e) {
-      window.alert(e instanceof Error ? e.message : DOCUMENT_ACCESS_DENIED);
+      showCrmInlineToast(e instanceof Error ? e.message : DOCUMENT_ACCESS_DENIED, "error");
     } finally {
       setOpeningPdf(false);
     }

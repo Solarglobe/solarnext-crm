@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "../../components/ui/Button";
+import { ConfirmModal } from "../../components/ui/ConfirmModal";
+import { showCrmInlineToast } from "../../components/ui/crmInlineToast";
 import type { InvoicePaymentApi } from "./invoice-financial.types";
 import AddPaymentModal from "./AddPaymentModal";
 import { cancelPaymentApi, markInvoiceAsPaidApi } from "./invoice-financial.api";
@@ -44,6 +46,7 @@ export default function InvoicePaymentsPanel({
   const [open, setOpen] = useState(false);
   const [cancelling, setCancelling] = useState<string | null>(null);
   const [markingPaid, setMarkingPaid] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<{ type: "cancel"; paymentId: string } | { type: "markPaid" } | null>(null);
 
   useEffect(() => {
     if (externalOpenSignal > 0 && canAdd && maxPaymentAmount > 0.009) {
@@ -52,15 +55,15 @@ export default function InvoicePaymentsPanel({
   }, [externalOpenSignal, canAdd, maxPaymentAmount]);
 
   const cancel = async (paymentId: string) => {
-    if (!window.confirm("Annuler ce paiement ?")) return;
     setCancelling(paymentId);
     try {
       await cancelPaymentApi(paymentId);
       onRefresh();
     } catch (e) {
-      window.alert(e instanceof Error ? e.message : "Erreur");
+      showCrmInlineToast(e instanceof Error ? e.message : "Paiement non annulé", "error");
     } finally {
       setCancelling(null);
+      setConfirmAction(null);
     }
   };
 
@@ -69,15 +72,15 @@ export default function InvoicePaymentsPanel({
 
   const markAsPaid = async () => {
     if (!canMarkAsPaid) return;
-    if (!window.confirm("Marquer cette facture comme payée (enregistrer le solde en paiement) ?")) return;
     setMarkingPaid(true);
     try {
       await markInvoiceAsPaidApi(invoiceId, Number(maxPaymentAmount) || 0);
       onRefresh();
     } catch (e) {
-      window.alert(e instanceof Error ? e.message : "Erreur");
+      showCrmInlineToast(e instanceof Error ? e.message : "Paiement non enregistré", "error");
     } finally {
       setMarkingPaid(false);
+      setConfirmAction(null);
     }
   };
 
@@ -96,7 +99,7 @@ export default function InvoicePaymentsPanel({
           variant="primary"
           size="sm"
           disabled={!canMarkAsPaid || markingPaid}
-          onClick={() => void markAsPaid()}
+          onClick={() => setConfirmAction({ type: "markPaid" })}
         >
           {markingPaid ? "Validation…" : "Marquer comme payée"}
         </Button>
@@ -139,7 +142,7 @@ export default function InvoicePaymentsPanel({
                         type="button"
                         className="if-payment-cancel"
                         disabled={cancelling === p.id}
-                        onClick={() => void cancel(p.id)}
+                        onClick={() => setConfirmAction({ type: "cancel", paymentId: p.id })}
                       >
                         {cancelling === p.id ? "…" : "Annuler ce paiement"}
                       </button>
@@ -163,6 +166,25 @@ export default function InvoicePaymentsPanel({
         maxAmount={maxPaymentAmount}
         onClose={() => setOpen(false)}
         onSuccess={onRefresh}
+      />
+      <ConfirmModal
+        open={confirmAction !== null}
+        title={confirmAction?.type === "cancel" ? "Annuler ce paiement ?" : "Marquer comme payée ?"}
+        message={
+          confirmAction?.type === "cancel"
+            ? "Le paiement sera retiré du suivi de la facture. Vous pourrez enregistrer un nouveau paiement si besoin."
+            : "Le solde actuel sera enregistré comme paiement. Les montants de la facture ne seront pas modifiés."
+        }
+        confirmLabel={confirmAction?.type === "cancel" ? "Annuler le paiement" : "Marquer payée"}
+        cancelLabel="Retour"
+        variant={confirmAction?.type === "cancel" ? "danger" : "default"}
+        confirmDisabled={markingPaid || !!cancelling}
+        cancelDisabled={markingPaid || !!cancelling}
+        onCancel={() => setConfirmAction(null)}
+        onConfirm={() => {
+          if (confirmAction?.type === "cancel") void cancel(confirmAction.paymentId);
+          if (confirmAction?.type === "markPaid") void markAsPaid();
+        }}
       />
     </div>
   );

@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "../../components/ui/Button";
+import { ConfirmModal } from "../../components/ui/ConfirmModal";
+import { showCrmInlineToast } from "../../components/ui/crmInlineToast";
 import type { InvoiceCreditNoteApi } from "./invoice-financial.types";
 import CreateCreditModal from "./CreateCreditModal";
 import { postIssueCreditNote } from "./invoice-financial.api";
@@ -32,6 +34,7 @@ export default function InvoiceCreditsPanel({
 }: InvoiceCreditsPanelProps) {
   const [open, setOpen] = useState(false);
   const [issuing, setIssuing] = useState<string | null>(null);
+  const [confirmIssueId, setConfirmIssueId] = useState<string | null>(null);
 
   useEffect(() => {
     if (externalOpenSignal > 0 && canCreate && maxCreditTtc > 0.009) {
@@ -40,15 +43,15 @@ export default function InvoiceCreditsPanel({
   }, [externalOpenSignal, canCreate, maxCreditTtc]);
 
   const issue = async (creditNoteId: string) => {
-    if (!window.confirm("Émettre cet avoir ? Il sera imputé sur la facture et le solde mis à jour.")) return;
     setIssuing(creditNoteId);
     try {
       await postIssueCreditNote(creditNoteId);
       onRefresh();
     } catch (e) {
-      window.alert(e instanceof Error ? e.message : "Erreur");
+      showCrmInlineToast(e instanceof Error ? e.message : "Avoir non émis", "error");
     } finally {
       setIssuing(null);
+      setConfirmIssueId(null);
     }
   };
 
@@ -103,7 +106,7 @@ export default function InvoiceCreditsPanel({
                     </td>
                     <td>
                       {draft ? (
-                        <button type="button" className="qb-btn-link" disabled={issuing === c.id} onClick={() => void issue(c.id)}>
+                        <button type="button" className="qb-btn-link" disabled={issuing === c.id} onClick={() => setConfirmIssueId(c.id)}>
                           Émettre
                         </button>
                       ) : null}
@@ -122,6 +125,20 @@ export default function InvoiceCreditsPanel({
         maxTtc={maxCreditTtc}
         onClose={() => setOpen(false)}
         onSuccess={onRefresh}
+      />
+      <ConfirmModal
+        open={confirmIssueId !== null}
+        title="Émettre cet avoir ?"
+        message="L'avoir sera imputé sur la facture et le solde sera recalculé."
+        confirmLabel="Émettre l'avoir"
+        cancelLabel="Retour"
+        variant="default"
+        confirmDisabled={issuing !== null}
+        cancelDisabled={issuing !== null}
+        onCancel={() => setConfirmIssueId(null)}
+        onConfirm={() => {
+          if (confirmIssueId) void issue(confirmIssueId);
+        }}
       />
     </div>
   );

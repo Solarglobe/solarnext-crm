@@ -12,6 +12,7 @@ import {
   type MailAccountDetail,
 } from "../../../services/mailApi";
 import { getUserPermissions } from "../../../services/auth.service";
+import { ConfirmModal } from "../../../components/ui/ConfirmModal";
 import "../../mail/mail-accounts-page.css";
 
 type FormShape = {
@@ -97,6 +98,7 @@ export function MailAccountsTab() {
   const [editForm, setEditForm] = useState<FormShape>(() => emptyForm());
   const [rowBusy, setRowBusy] = useState<string | null>(null);
   const [rowErr, setRowErr] = useState<string | null>(null);
+  const [deleteAccountId, setDeleteAccountId] = useState<string | null>(null);
 
   const loadList = useCallback(async () => {
     setListError(null);
@@ -246,7 +248,6 @@ export function MailAccountsTab() {
   };
 
   const onDelete = async (id: string) => {
-    if (!window.confirm("Supprimer ce compte mail du CRM ? Cette action est irréversible.")) return;
     setRowBusy(id);
     setRowErr(null);
     try {
@@ -257,6 +258,7 @@ export function MailAccountsTab() {
       setRowErr(e instanceof Error ? e.message : String(e));
     } finally {
       setRowBusy(null);
+      setDeleteAccountId(null);
     }
   };
 
@@ -660,7 +662,7 @@ export function MailAccountsTab() {
                               type="button"
                               className="mail-accts__btn mail-accts__btn--danger"
                               disabled={busy}
-                              onClick={() => void onDelete(acc.id)}
+                              onClick={() => setDeleteAccountId(acc.id)}
                             >
                               Supprimer
                             </button>
@@ -675,6 +677,20 @@ export function MailAccountsTab() {
           })
         )}
       </section>
+      <ConfirmModal
+        open={deleteAccountId !== null}
+        title="Supprimer ce compte mail ?"
+        message="Le compte sera retiré du CRM. Les emails déjà liés restent dans l'historique."
+        confirmLabel="Supprimer"
+        cancelLabel="Retour"
+        variant="danger"
+        confirmDisabled={rowBusy !== null}
+        cancelDisabled={rowBusy !== null}
+        onCancel={() => setDeleteAccountId(null)}
+        onConfirm={() => {
+          if (deleteAccountId) void onDelete(deleteAccountId);
+        }}
+      />
     </div>
   );
 }
