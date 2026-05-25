@@ -4907,8 +4907,8 @@ export function initCalpinage(container, options = {}) {
             rearLeft:   { uM: -halfW, vM: +depth / 2 }
           },
           ridge: {
-            front: { uM: 0, vM: -depth / 2 },
-            rear:  { uM: 0, vM: +depth / 2 }
+            front: { uM: 0, vM: -depth / 4 },  // apex avant centré entre façade et centre
+            rear:  { uM: 0, vM: +depth / 4 }   // apex arrière centré entre centre et derrière
           },
           heights: {
             reference: "support_plane_normal",  // label conservé pour compat type TS
@@ -20433,7 +20433,8 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 if (_rearV - _newFrontV >= _minDepth) {
                   _fp.frontLeft.vM  = _newFrontV;
                   _fp.frontRight.vM = _newFrontV;
-                  if (_pdEdgeModel.ridge) _pdEdgeModel.ridge.front.vM = _newFrontV;
+                  // ridge.front reste à 1/4 de la profondeur depuis l'avant (arêtier diagonal)
+                  if (_pdEdgeModel.ridge) _pdEdgeModel.ridge.front.vM = _newFrontV + (_rearV - _newFrontV) / 4;
                   // Déplacer l'ancre pour que le mouvement soit intuitif
                   var _dvWorld = _dvE;
                   _pdEdgeModel.anchorWorld.x = _pdEdgeBase.startAnchor.x + _dvWorld * _vAx.x;
@@ -20444,7 +20445,8 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 if (_newRearV - _pdEdgeBase.origFrontV >= _minDepth) {
                   _fp.rearLeft.vM   = _newRearV;
                   _fp.rearRight.vM  = _newRearV;
-                  if (_pdEdgeModel.ridge) _pdEdgeModel.ridge.rear.vM = _newRearV;
+                  // ridge.rear reste à 3/4 de la profondeur depuis l'avant (arêtier diagonal)
+                  if (_pdEdgeModel.ridge) _pdEdgeModel.ridge.rear.vM = _pdEdgeBase.origFrontV + (_newRearV - _pdEdgeBase.origFrontV) * 3 / 4;
                 }
               }
               if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
@@ -23456,21 +23458,21 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 ctx.lineWidth = 2.0;
                 ctx.stroke(pdRidge);
 
-                // 4. Parois latérales (FL→RL et FR→RR) — parois pignon, tirets teal
-                //    (pas d'arêtiers pour un chien assis 2 pans : les côtés sont verticaux)
-                ctx.setLineDash([4, 4]);
-                [[sFL, sRL], [sFR, sRR]].forEach(function (seg) {
-                  var cheek = new Path2D();
-                  cheek.moveTo(seg[0].x, seg[0].y);
-                  cheek.lineTo(seg[1].x, seg[1].y);
+                // 4. Arêtiers diagonaux (coins → extrémités du faitage) : forme maison en plan
+                //    Côté avant : FL→ridgeFront et FR→ridgeFront (convergent vers apex avant)
+                //    Côté arrière : RL→ridgeRear et RR→ridgeRear (convergent vers apex arrière)
+                ctx.setLineDash([]);
+                [[sFL, sRF], [sFR, sRF], [sRL, sRRidge], [sRR, sRRidge]].forEach(function (seg) {
+                  var hip = new Path2D();
+                  hip.moveTo(seg[0].x, seg[0].y);
+                  hip.lineTo(seg[1].x, seg[1].y);
                   ctx.strokeStyle = PHASE2_DRAW_STYLE.rxHalo;
                   ctx.lineWidth = 3.0;
-                  ctx.stroke(cheek);
+                  ctx.stroke(hip);
                   ctx.strokeStyle = PHASE2_DRAW_STYLE.rxHipStroke;
                   ctx.lineWidth = 1.5;
-                  ctx.stroke(cheek);
+                  ctx.stroke(hip);
                 });
-                ctx.setLineDash([]);
 
                 // 5. Poignées si sélectionné
                 if (drawState.selectedRoofExtensionIndex === _pdRenderIdx) {
