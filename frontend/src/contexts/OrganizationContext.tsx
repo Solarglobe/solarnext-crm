@@ -16,6 +16,7 @@ import {
   postSuperAdminOrgSwitchAudit,
 } from "../services/organizations.service";
 import type { OrganizationOption } from "../services/organizations.service";
+import { showCrmInlineToast } from "../components/ui/crmInlineToast";
 
 const LS_ORG = "solarnext_current_organization_id";
 const LS_SUPER = "solarnext_super_admin";
@@ -139,7 +140,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
             await postSuperAdminOrgSwitchAudit(orgId);
           }
         } catch (e) {
-          window.alert(e instanceof Error ? e.message : "Impossible de changer d’organisation");
+          showCrmInlineToast(e instanceof Error ? e.message : "Impossible de changer d'organisation", "error", 5000);
           return;
         }
       }
@@ -158,7 +159,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
     try {
       await postSuperAdminOrgSwitchAudit(null);
     } catch (e) {
-      window.alert(e instanceof Error ? e.message : "Impossible de quitter le mode support");
+      showCrmInlineToast(e instanceof Error ? e.message : "Impossible de quitter le mode support", "error", 5000);
       throw e;
     }
     localStorage.setItem(LS_ORG, home);

@@ -4,6 +4,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "../../components/ui/Button";
+import { ConfirmModal } from "../../components/ui/ConfirmModal";
+import { showCrmInlineToast } from "../../components/ui/crmInlineToast";
 import { useOrganization } from "../../contexts/OrganizationContext";
 import {
   adminArchiveOrganization,
@@ -19,6 +21,7 @@ import "../../modules/quotes/quote-builder.css";
 const LS_ORG = "solarnext_current_organization_id";
 const LS_SUPER_EDIT = "solarnext_super_admin_edit_mode";
 const ORG_NAME_SOLAR_GLOBE = "SolarGlobe";
+type DangerousOrgAction = "archive" | "delete" | "impersonate";
 
 function formatDate(iso: string | null | undefined): string {
   if (!iso) return "—";
@@ -62,6 +65,7 @@ export default function AdminOrganizationsPage() {
   const [includeArchived, setIncludeArchived] = useState(false);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [pendingAction, setPendingAction] = useState<{ type: DangerousOrgAction; row: OrganizationListRow } | null>(null);
 
   useEffect(() => {
     const t = window.setTimeout(() => setDebouncedSearch(search), 300);
@@ -99,7 +103,7 @@ export default function AdminOrganizationsPage() {
       localStorage.setItem(LS_SUPER_EDIT, "0");
       window.location.href = "/dashboard";
     } catch (e) {
-      window.alert(e instanceof Error ? e.message : "Erreur lors de l’accès au compte");
+      showCrmInlineToast(e instanceof Error ? e.message : "Erreur lors de l'accès au compte", "error", 5000);
       setBusyId(null);
     }
   }, []);
@@ -118,15 +122,15 @@ export default function AdminOrganizationsPage() {
   const handleArchive = useCallback(
     async (row: OrganizationListRow) => {
       if (isProtected(row).archive) return;
-      if (!window.confirm(`Archiver l’organisation « ${row.name} » ?`)) return;
       setBusyId(row.id);
       try {
         await adminArchiveOrganization(row.id);
         await load();
       } catch (e) {
-        window.alert(e instanceof Error ? e.message : "Archivage impossible");
+        showCrmInlineToast(e instanceof Error ? e.message : "Archivage impossible", "error", 5000);
       } finally {
         setBusyId(null);
+        setPendingAction(null);
       }
     },
     [isProtected, load]
@@ -139,7 +143,7 @@ export default function AdminOrganizationsPage() {
         await adminRestoreOrganization(row.id);
         await load();
       } catch (e) {
-        window.alert(e instanceof Error ? e.message : "Restauration impossible");
+        showCrmInlineToast(e instanceof Error ? e.message : "Restauration impossible", "error", 5000);
       } finally {
         setBusyId(null);
       }
@@ -149,7 +153,7 @@ export default function AdminOrganizationsPage() {
 
   const handleImpersonate = useCallback(async (row: OrganizationListRow) => {
     if (row.is_archived) {
-      window.alert("Impossible d’impersonner une organisation archivée.");
+      showCrmInlineToast("Impossible d'impersonner une organisation archivée.", "error", 4500);
       return;
     }
     setBusyId(row.id);
@@ -157,36 +161,65 @@ export default function AdminOrganizationsPage() {
       await adminImpersonateAndEnterSession(row.id);
       window.location.href = "/crm";
     } catch (e) {
-      window.alert(e instanceof Error ? e.message : "Connexion en mode admin impossible");
+      showCrmInlineToast(e instanceof Error ? e.message : "Connexion en mode admin impossible", "error", 5000);
       setBusyId(null);
+      setPendingAction(null);
     }
   }, []);
 
   const handleDelete = useCallback(
     async (row: OrganizationListRow) => {
       if (isProtected(row).delete) return;
-      if (!window.confirm(`Étape 1/2 : confirmer la suppression définitive de « ${row.name} » ?`)) {
-        return;
-      }
-      if (
-        !window.confirm(
-          `Étape 2/2 : cette action est irréversible. Supprimer « ${row.name} » ?`
-        )
-      ) {
-        return;
-      }
       setBusyId(row.id);
       try {
         await adminDeleteOrganization(row.id);
         await load();
       } catch (e) {
-        window.alert(e instanceof Error ? e.message : "Suppression impossible");
+        showCrmInlineToast(e instanceof Error ? e.message : "Suppression impossible", "error", 5000);
       } finally {
         setBusyId(null);
+        setPendingAction(null);
       }
     },
     [isProtected, load]
   );
+
+  const confirmPendingAction = useCallback(() => {
+    if (!pendingAction) return;
+    if (pendingAction.type === "archive") {
+      void handleArchive(pendingAction.row);
+      return;
+    }
+    if (pendingAction.type === "delete") {
+      void handleDelete(pendingAction.row);
+      return;
+    }
+    void handleImpersonate(pendingAction.row);
+  }, [handleArchive, handleDelete, handleImpersonate, pendingAction]);
+
+  const pendingActionCopy = useMemo(() => {
+    const row = pendingAction?.row;
+    if (!pendingAction || !row) return { title: "", message: "", confirmLabel: "" };
+    if (pendingAction.type === "archive") {
+      return {
+        title: "Archiver cette organisation ?",
+        message: `L'organisation "${row.name}" ne sera plus visible par défaut. Elle pourra être restaurée par un super admin.`,
+        confirmLabel: "Archiver",
+      };
+    }
+    if (pendingAction.type === "delete") {
+      return {
+        title: "Supprimer définitivement cette organisation ?",
+        message: `Suppression irréversible de "${row.name}". Le serveur refusera l'action s'il reste des factures, paiements ou clients actifs.`,
+        confirmLabel: "Supprimer",
+      };
+    }
+    return {
+      title: "Se connecter à cette organisation ?",
+      message: `Vous allez ouvrir une session support temporaire sur "${row.name}". L'action sera tracée dans le journal d'audit.`,
+      confirmLabel: "Se connecter",
+    };
+  }, [pendingAction]);
 
   return (
     <div className="sn-saas-page sn-saas-page--constrained">
@@ -296,7 +329,7 @@ export default function AdminOrganizationsPage() {
                             type="button"
                             disabled={busyId !== null || archived}
                             title={archived ? "Organisation archivée" : "Jeton d’impersonation (2 h)"}
-                            onClick={() => void handleImpersonate(row)}
+                            onClick={() => setPendingAction({ type: "impersonate", row })}
                           >
                             {busyId === row.id ? "…" : "Se connecter"}
                           </Button>
@@ -316,7 +349,7 @@ export default function AdminOrganizationsPage() {
                                 disabled={busyId !== null || prot.archive}
                                 onClick={() => {
                                   (document.activeElement as HTMLElement | null)?.blur();
-                                  void handleArchive(row);
+                                  setPendingAction({ type: "archive", row });
                                 }}
                               >
                                 Archiver
@@ -343,7 +376,7 @@ export default function AdminOrganizationsPage() {
                               disabled={busyId !== null || prot.delete}
                               onClick={() => {
                                 (document.activeElement as HTMLElement | null)?.blur();
-                                void handleDelete(row);
+                                setPendingAction({ type: "delete", row });
                               }}
                             >
                               Supprimer
@@ -370,6 +403,18 @@ export default function AdminOrganizationsPage() {
           )}
         </div>
       )}
+      <ConfirmModal
+        open={pendingAction !== null}
+        title={pendingActionCopy.title}
+        message={pendingActionCopy.message}
+        confirmLabel={busyId ? "Traitement..." : pendingActionCopy.confirmLabel}
+        cancelLabel="Annuler"
+        variant={pendingAction?.type === "delete" || pendingAction?.type === "archive" ? "danger" : "warning"}
+        confirmDisabled={busyId !== null}
+        cancelDisabled={busyId !== null}
+        onCancel={() => setPendingAction(null)}
+        onConfirm={confirmPendingAction}
+      />
     </div>
   );
 }

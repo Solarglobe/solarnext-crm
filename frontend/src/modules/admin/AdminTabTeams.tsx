@@ -5,6 +5,7 @@
 
 import React, { useEffect, useState } from "react";
 import { Button } from "../../components/ui/Button";
+import { ConfirmModal } from "../../components/ui/ConfirmModal";
 import { ModalShell } from "../../components/ui/ModalShell";
 import {
   adminGetTeams,
@@ -55,6 +56,8 @@ export function AdminTabTeams() {
   const [error, setError] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [editingTeam, setEditingTeam] = useState<AdminTeam | null>(null);
+  const [deleteConfirmTeam, setDeleteConfirmTeam] = useState<AdminTeam | null>(null);
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
   const [form, setForm] = useState({ name: "", agency_id: "" as string | undefined });
 
   const load = async () => {
@@ -108,14 +111,18 @@ export function AdminTabTeams() {
     }
   };
 
-  const handleDelete = async (t: AdminTeam) => {
-    if (!confirm(`Supprimer l'équipe "${t.name}" ?`)) return;
+  const confirmDelete = async () => {
+    if (!deleteConfirmTeam) return;
     setError("");
+    setDeleteSubmitting(true);
     try {
-      await adminDeleteTeam(t.id);
+      await adminDeleteTeam(deleteConfirmTeam.id);
+      setDeleteConfirmTeam(null);
       load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur suppression");
+    } finally {
+      setDeleteSubmitting(false);
     }
   };
 
@@ -196,7 +203,7 @@ export function AdminTabTeams() {
                       <button
                         type="button"
                         className="org-tab-icon-btn org-tab-icon-btn--danger"
-                        onClick={() => void handleDelete(t)}
+                        onClick={() => setDeleteConfirmTeam(t)}
                         aria-label={`Supprimer ${t.name}`}
                         title="Supprimer"
                       >
@@ -290,6 +297,19 @@ export function AdminTabTeams() {
           </div>
         </form>
       </ModalShell>
+
+      <ConfirmModal
+        open={Boolean(deleteConfirmTeam)}
+        title="Supprimer cette équipe ?"
+        message={`L'équipe "${deleteConfirmTeam?.name ?? ""}" sera retirée de la structure. Les utilisateurs ne seront pas supprimés.`}
+        confirmLabel={deleteSubmitting ? "Suppression..." : "Supprimer"}
+        cancelLabel="Annuler"
+        variant="danger"
+        confirmDisabled={deleteSubmitting}
+        cancelDisabled={deleteSubmitting}
+        onCancel={() => setDeleteConfirmTeam(null)}
+        onConfirm={() => void confirmDelete()}
+      />
     </div>
   );
 }

@@ -6,6 +6,7 @@
 
 import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { Button } from "../../components/ui/Button";
+import { ConfirmModal } from "../../components/ui/ConfirmModal";
 import {
   adminGetOrg,
   adminUpdateOrg,
@@ -133,6 +134,8 @@ export function AdminTabOrg() {
   const [saving, setSaving] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingPdfCover, setUploadingPdfCover] = useState(false);
+  const [deleteAssetTarget, setDeleteAssetTarget] = useState<"logo" | "pdfCover" | null>(null);
+  const [deleteAssetSubmitting, setDeleteAssetSubmitting] = useState(false);
 
   const [form, setForm] = useState({
     name: "",
@@ -354,17 +357,27 @@ export function AdminTabOrg() {
     }
   };
 
-  const handleLogoDelete = async () => {
-    if (!confirm("Supprimer le logo ?")) return;
+  const confirmAssetDelete = async () => {
+    if (!deleteAssetTarget) return;
     setError("");
+    setDeleteAssetSubmitting(true);
     try {
-      await adminDeleteLogo();
-      setOrg((prev) => (prev ? { ...prev, logo_url: undefined } : null));
-      showCrmInlineToast("Logo supprimé", "success", 2800);
+      if (deleteAssetTarget === "logo") {
+        await adminDeleteLogo();
+        setOrg((prev) => (prev ? { ...prev, logo_url: undefined } : null));
+        showCrmInlineToast("Logo supprimé", "success", 2800);
+      } else {
+        await adminDeletePdfCover();
+        setSettingsPdfCover(null);
+        showCrmInlineToast("Image de couverture supprimée", "success", 2800);
+      }
+      setDeleteAssetTarget(null);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Erreur suppression logo";
+      const msg = e instanceof Error ? e.message : "Suppression impossible";
       setError(msg);
       showCrmInlineToast(msg, "error", 5000);
+    } finally {
+      setDeleteAssetSubmitting(false);
     }
   };
 
@@ -385,20 +398,6 @@ export function AdminTabOrg() {
     } finally {
       setUploadingPdfCover(false);
       e.target.value = "";
-    }
-  };
-
-  const handlePdfCoverDelete = async () => {
-    if (!confirm("Supprimer l'image de couverture PDF ?")) return;
-    setError("");
-    try {
-      await adminDeletePdfCover();
-      setSettingsPdfCover(null);
-      showCrmInlineToast("Image de couverture supprimée", "success", 2800);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "Erreur suppression image couverture";
-      setError(msg);
-      showCrmInlineToast(msg, "error", 5000);
     }
   };
 
@@ -605,7 +604,7 @@ export function AdminTabOrg() {
               {logoBlobUrl ? (
                 <div className="admin-org-logo-preview">
                   <img src={logoBlobUrl} alt="Logo" />
-                  <Button type="button" variant="ghost" size="sm" onClick={handleLogoDelete}>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => setDeleteAssetTarget("logo")}>
                     Supprimer
                   </Button>
                 </div>
@@ -652,7 +651,7 @@ export function AdminTabOrg() {
               {pdfCoverBlobUrl ? (
                 <div className="admin-org-logo-preview">
                   <img src={pdfCoverBlobUrl} alt="Couverture PDF" className="sg-image-preview" />
-                  <Button type="button" variant="ghost" size="sm" onClick={handlePdfCoverDelete}>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => setDeleteAssetTarget("pdfCover")}>
                     Supprimer
                   </Button>
                 </div>
@@ -696,6 +695,23 @@ export function AdminTabOrg() {
           </Button>
         </div>
       </form>
+
+      <ConfirmModal
+        open={deleteAssetTarget !== null}
+        title={deleteAssetTarget === "logo" ? "Supprimer le logo ?" : "Supprimer la couverture PDF ?"}
+        message={
+          deleteAssetTarget === "logo"
+            ? "Le logo ne sera plus affiché sur les prochains documents générés."
+            : "La couverture ne sera plus utilisée sur les prochains PDF d'étude."
+        }
+        confirmLabel={deleteAssetSubmitting ? "Suppression..." : "Supprimer"}
+        cancelLabel="Annuler"
+        variant="danger"
+        confirmDisabled={deleteAssetSubmitting}
+        cancelDisabled={deleteAssetSubmitting}
+        onCancel={() => setDeleteAssetTarget(null)}
+        onConfirm={() => void confirmAssetDelete()}
+      />
     </div>
   );
 }

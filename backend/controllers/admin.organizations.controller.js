@@ -45,6 +45,16 @@ export async function archive(req, res) {
     const id = req.params.id;
     const home = jwtOrgId(req);
     const row = await svc.archiveOrganization(id, home);
+    void logAuditEvent({
+      action: AuditActions.ORG_ARCHIVED,
+      entityType: "organization",
+      entityId: row.id,
+      organizationId: row.id,
+      userId: req.user?.userId ?? req.user?.id ?? null,
+      targetLabel: row.name,
+      req,
+      statusCode: 200,
+    });
     console.log("[admin.organizations] archived", { id: row.id, name: row.name });
     res.json({ ok: true, organization: row });
   } catch (e) {
@@ -63,6 +73,16 @@ export async function restore(req, res) {
     if (!requireSuperAdmin(req, res)) return;
     const id = req.params.id;
     const row = await svc.restoreOrganization(id);
+    void logAuditEvent({
+      action: AuditActions.ORG_RESTORED,
+      entityType: "organization",
+      entityId: row.id,
+      organizationId: row.id,
+      userId: req.user?.userId ?? req.user?.id ?? null,
+      targetLabel: row.name,
+      req,
+      statusCode: 200,
+    });
     console.log("[admin.organizations] restored", { id: row.id, name: row.name });
     res.json({ ok: true, organization: row });
   } catch (e) {
@@ -81,6 +101,16 @@ export async function remove(req, res) {
     const id = req.params.id;
     const home = jwtOrgId(req);
     const row = await svc.deleteOrganizationSafe(id, home);
+    void logAuditEvent({
+      action: AuditActions.ORG_DELETED,
+      entityType: "organization",
+      entityId: row.id,
+      organizationId: row.id,
+      userId: req.user?.userId ?? req.user?.id ?? null,
+      targetLabel: row.name,
+      req,
+      statusCode: 200,
+    });
     console.log("[admin.organizations] deleted", { id: row.id, name: row.name });
     res.json({ ok: true, deleted: row });
   } catch (e) {

@@ -5,6 +5,8 @@
 import * as paymentsService from "../services/payments.service.js";
 import * as creditNotesService from "../services/creditNotes.service.js";
 import * as remindersService from "../services/reminders.service.js";
+import { logAuditEvent } from "../services/audit/auditLog.service.js";
+import { AuditActions } from "../services/audit/auditActions.js";
 
 const orgId = (req) => req.user.organizationId ?? req.user.organization_id;
 const userId = (req) => req.user.userId ?? req.user.id;
@@ -27,6 +29,21 @@ export async function createPayment(req, res) {
     const org = orgId(req);
     if (!org) return res.status(403).json({ error: "Organization non identifiée" });
     const row = await paymentsService.recordPayment(org, req.params.invoiceId, req.body);
+    void logAuditEvent({
+      action: AuditActions.PAYMENT_RECORDED,
+      entityType: "payment",
+      entityId: row.id,
+      organizationId: org,
+      userId: userId(req),
+      targetLabel: row.reference || undefined,
+      req,
+      statusCode: 201,
+      metadata: {
+        invoice_id: req.params.invoiceId,
+        amount: row.amount,
+        payment_method: row.payment_method,
+      },
+    });
     res.status(201).json(row);
   } catch (e) {
     const code = e.statusCode || (e.message?.includes("trouvée") ? 404 : 400);

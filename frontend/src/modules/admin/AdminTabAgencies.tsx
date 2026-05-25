@@ -5,6 +5,7 @@
 
 import React, { useEffect, useState } from "react";
 import { Button } from "../../components/ui/Button";
+import { ConfirmModal } from "../../components/ui/ConfirmModal";
 import { ModalShell } from "../../components/ui/ModalShell";
 import {
   adminGetAgencies,
@@ -42,6 +43,8 @@ export function AdminTabAgencies() {
   const [error, setError] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [editingAgency, setEditingAgency] = useState<AdminAgency | null>(null);
+  const [deleteConfirmAgency, setDeleteConfirmAgency] = useState<AdminAgency | null>(null);
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
   const [name, setName] = useState("");
 
   const load = async () => {
@@ -97,14 +100,18 @@ export function AdminTabAgencies() {
     }
   };
 
-  const handleDelete = async (a: AdminAgency) => {
-    if (!confirm(`Supprimer l'agence "${a.name}" ?`)) return;
+  const confirmDelete = async () => {
+    if (!deleteConfirmAgency) return;
     setError("");
+    setDeleteSubmitting(true);
     try {
-      await adminDeleteAgency(a.id);
+      await adminDeleteAgency(deleteConfirmAgency.id);
+      setDeleteConfirmAgency(null);
       load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur suppression");
+    } finally {
+      setDeleteSubmitting(false);
     }
   };
 
@@ -183,7 +190,7 @@ export function AdminTabAgencies() {
                       <button
                         type="button"
                         className="org-tab-icon-btn org-tab-icon-btn--danger"
-                        onClick={() => void handleDelete(a)}
+                        onClick={() => setDeleteConfirmAgency(a)}
                         aria-label={`Supprimer ${a.name}`}
                         title="Supprimer"
                       >
@@ -245,6 +252,19 @@ export function AdminTabAgencies() {
           </div>
         </form>
       </ModalShell>
+
+      <ConfirmModal
+        open={Boolean(deleteConfirmAgency)}
+        title="Supprimer cette agence ?"
+        message={`L'agence "${deleteConfirmAgency?.name ?? ""}" sera retirée. Les équipes et utilisateurs ne seront pas supprimés.`}
+        confirmLabel={deleteSubmitting ? "Suppression..." : "Supprimer"}
+        cancelLabel="Annuler"
+        variant="danger"
+        confirmDisabled={deleteSubmitting}
+        cancelDisabled={deleteSubmitting}
+        onCancel={() => setDeleteConfirmAgency(null)}
+        onConfirm={() => void confirmDelete()}
+      />
     </div>
   );
 }

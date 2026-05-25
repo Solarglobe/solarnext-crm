@@ -21,7 +21,7 @@ router.put("/:id/teams", verifyJWT, requirePermission("user.manage"), controller
 router.get("/:id/agencies", verifyJWT, requirePermission("user.manage"), controller.getUserAgencies);
 router.put("/:id/agencies", verifyJWT, requirePermission("user.manage"), controller.putUserAgencies);
 
-router.post("/:id/impersonate", verifyJWT, controller.impersonateUser);
+router.post("/:id/impersonate", verifyJWT, requirePermission("user.manage"), controller.impersonateUser);
 
 router.put("/:id", verifyJWT, requirePermission("user.manage"), controller.update);
 router.delete("/:id", verifyJWT, requirePermission("user.manage"), controller.remove);

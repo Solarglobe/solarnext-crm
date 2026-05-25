@@ -7,6 +7,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Button } from "../../components/ui/Button";
 import { ConfirmModal } from "../../components/ui/ConfirmModal";
 import { ModalShell } from "../../components/ui/ModalShell";
+import { showCrmInlineToast } from "../../components/ui/crmInlineToast";
 import {
   adminGetUsers,
   adminCreateUser,
@@ -260,22 +261,26 @@ export function AdminTabUsers() {
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
   const [deleteConfirmUser, setDeleteConfirmUser] = useState<AdminUser | null>(null);
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
+  const [dirtyCloseConfirmOpen, setDirtyCloseConfirmOpen] = useState(false);
+  const [impersonateConfirmUser, setImpersonateConfirmUser] = useState<AdminUser | null>(null);
   const [form, setForm] = useState<UserFormState>(emptyForm);
   const formSnapshotRef = useRef<string>("");
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<UserStatusFilter>("all");
   const [impersonateBusyId, setImpersonateBusyId] = useState<string | null>(null);
 
-  const handleImpersonateUser = useCallback(
+  const executeImpersonateUser = useCallback(
     async (u: AdminUser) => {
       const orgName = currentOrganization?.name?.trim();
       if (!orgName) {
-        window.alert("Nom d’organisation indisponible.");
+        showCrmInlineToast("Nom d'organisation indisponible.", "error", 4500);
+        setImpersonateConfirmUser(null);
         return;
       }
       const selfId = decodeJwtPayloadUnsafe(getAuthToken() || "")?.userId;
       if (selfId && u.id === selfId) {
-        window.alert("Vous ne pouvez pas vous impersoner vous-même.");
+        showCrmInlineToast("Vous ne pouvez pas vous impersoner vous-même.", "error", 4500);
+        setImpersonateConfirmUser(null);
         return;
       }
       setImpersonateBusyId(u.id);
@@ -286,8 +291,10 @@ export function AdminTabUsers() {
         });
         window.location.href = "/crm";
       } catch (e) {
-        window.alert(e instanceof Error ? e.message : "Impersonation impossible");
+        showCrmInlineToast(e instanceof Error ? e.message : "Impersonation impossible", "error", 5000);
         setImpersonateBusyId(null);
+      } finally {
+        setImpersonateConfirmUser(null);
       }
     },
     [currentOrganization?.name]
@@ -344,11 +351,16 @@ export function AdminTabUsers() {
 
   const requestCloseModal = useCallback(() => {
     if (isFormDirty()) {
-      const ok = window.confirm("Abandonner les modifications non enregistrées ?");
-      if (!ok) return;
+      setDirtyCloseConfirmOpen(true);
+      return;
     }
     setModalOpen(false);
   }, [isFormDirty]);
+
+  const confirmCloseDirtyModal = useCallback(() => {
+    setDirtyCloseConfirmOpen(false);
+    setModalOpen(false);
+  }, []);
 
   const openCreate = () => {
     setEditingUser(null);
@@ -666,7 +678,7 @@ export function AdminTabUsers() {
                                 title="Se connecter en tant que cet utilisateur"
                                 aria-label="Se connecter en tant que cet utilisateur"
                                 disabled={impersonateBusyId !== null}
-                                onClick={() => void handleImpersonateUser(u)}
+                                onClick={() => setImpersonateConfirmUser(u)}
                               >
                                 <IconImpersonate />
                               </button>
@@ -895,6 +907,33 @@ export function AdminTabUsers() {
         cancelDisabled={deleteSubmitting}
         onCancel={() => setDeleteConfirmUser(null)}
         onConfirm={() => void confirmDelete()}
+      />
+      <ConfirmModal
+        open={dirtyCloseConfirmOpen}
+        title="Abandonner les modifications ?"
+        message="Les changements non enregistrés seront perdus. Vous pourrez rouvrir la fiche ensuite."
+        confirmLabel="Abandonner"
+        cancelLabel="Continuer l'édition"
+        variant="warning"
+        elevation="stacked"
+        onCancel={() => setDirtyCloseConfirmOpen(false)}
+        onConfirm={confirmCloseDirtyModal}
+      />
+      <ConfirmModal
+        open={Boolean(impersonateConfirmUser)}
+        title="Se connecter comme cet utilisateur ?"
+        message={`Vous allez ouvrir une session temporaire en tant que ${
+          impersonateConfirmUser ? displayPrimaryName(impersonateConfirmUser) : "cet utilisateur"
+        }. L'action sera tracée dans le journal d'audit.`}
+        confirmLabel={impersonateBusyId ? "Connexion..." : "Se connecter"}
+        cancelLabel="Annuler"
+        variant="warning"
+        confirmDisabled={impersonateBusyId !== null}
+        cancelDisabled={impersonateBusyId !== null}
+        onCancel={() => setImpersonateConfirmUser(null)}
+        onConfirm={() => {
+          if (impersonateConfirmUser) void executeImpersonateUser(impersonateConfirmUser);
+        }}
       />
     </div>
   );
