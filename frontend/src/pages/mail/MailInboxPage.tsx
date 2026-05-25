@@ -452,7 +452,11 @@ export default function MailInboxPage() {
       <PageHeader
         eyebrow="Mail"
         title={mailboxTitle(mailbox)}
-        description="Liste, lecture, composition et suivi des conversations mail accessibles."
+        actions={
+          <button type="button" className="mail-inbox__new-btn" onClick={openNewMessage}>
+            + Nouveau message
+          </button>
+        }
         meta={
           <>
             <span className="sn-badge sn-badge-neutral">{total} conversations</span>
@@ -522,10 +526,13 @@ export default function MailInboxPage() {
               aria-describedby="mail-search-syntax-hint"
               autoComplete="off"
             />
-            <p className="mail-inbox__search-hint" id="mail-search-syntax-hint">
-              Texte libre + filtres : <code>from:</code> <code>to:</code> <code>has:attachment</code>{" "}
-              <code>client:</code> <code>lead:</code>
-            </p>
+            <details className="mail-inbox__search-help" id="mail-search-syntax-hint">
+              <summary>Options de recherche</summary>
+              <p className="mail-inbox__search-hint">
+                Texte libre + filtres : <code>from:</code> <code>to:</code> <code>has:attachment</code>{" "}
+                <code>client:</code> <code>lead:</code>
+              </p>
+            </details>
           </div>
 
           <div className="mail-inbox__filter-strip">
@@ -536,11 +543,6 @@ export default function MailInboxPage() {
           </div>
 
           <div className="mail-inbox__toolbar">
-            <div className="mail-inbox__toolbar-row">
-              <button type="button" className="mail-inbox__new-btn" onClick={openNewMessage}>
-                + Nouveau message
-              </button>
-            </div>
             <span className="mail-inbox__toolbar-meta">
               {total} conversation{total !== 1 ? "s" : ""}
               {debouncedSearch.length >= 2 ? " · recherche" : ""}

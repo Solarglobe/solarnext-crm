@@ -500,6 +500,18 @@ button.mail-inbox-sn-tab:focus-visible {
   color: var(--sg-text-muted, var(--text-muted));
 }
 
+.mail-inbox__search-help {
+  margin-top: 6px;
+  color: var(--sg-text-muted, var(--text-muted));
+  font-size: 11px;
+}
+
+.mail-inbox__search-help summary {
+  width: fit-content;
+  cursor: pointer;
+  font-weight: 600;
+}
+
 .mail-inbox__search-hint code {
   font-size: 10px;
   padding: 1px 4px;

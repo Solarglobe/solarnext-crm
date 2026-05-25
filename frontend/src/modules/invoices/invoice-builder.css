@@ -532,6 +532,31 @@
   margin-top: 4px !important;
 }
 
+.ib-secondary-details {
+  margin-top: 10px;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.08));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface-2, #252032) 30%, transparent);
+  padding: 10px 12px;
+}
+
+.ib-secondary-details summary {
+  width: fit-content;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--text-muted);
+}
+
+.ib-secondary-details[open] summary {
+  margin-bottom: 10px;
+}
+
+.ib-secondary-details .fin-entity-links,
+.ib-secondary-details .ib-links-bar {
+  margin-top: 8px;
+}
+
 .ib-notes-shell {
   margin-top: 8px;
   padding: 16px 18px;

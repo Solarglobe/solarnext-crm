@@ -243,6 +243,7 @@ export default function DocumentsList() {
     ENTITY_FILTER_OPTIONS.some((o) => o.value === initialEntity) ? initialEntity : "all"
   );
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   useEffect(() => {
     const nextSearch = searchParams.get("search")?.trim() || "";
@@ -370,7 +371,6 @@ export default function DocumentsList() {
 
       <PageHeader
         title="Documents"
-        description="Recherche transversale. Le classement et l'ajout restent dans les fiches lead/client."
         meta={
           countLabel ? (
             <span className="dp-count-badge">
@@ -402,36 +402,50 @@ export default function DocumentsList() {
         }
         filters={
           <>
-        <div className="dp-filters">
-          {TYPE_FILTER_OPTIONS.map((opt) => (
-            <button
-              key={opt.value}
-              type="button"
-              className={`dp-chip${typeFilter === opt.value ? " dp-chip--active" : ""}`}
-              onClick={() => setTypeFilter(opt.value)}
-            >
-              {typeFilter === opt.value && opt.value !== "all" && (
-                <span className="dp-chip__dot" />
-              )}
-              {opt.label}
-            </button>
-          ))}
-        </div>
-        <label className="dp-select-wrap">
-          <span className="dp-select-label">Rattachement</span>
-          <select
-            className="dp-select"
-            value={entityFilter}
-            onChange={(e) => setEntityFilter(e.target.value)}
-            aria-label="Filtrer par rattachement"
-          >
-            {ENTITY_FILTER_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-        </label>
+        <button
+          type="button"
+          className={`dp-filter-toggle${filtersOpen || hasActiveFilters ? " dp-filter-toggle--active" : ""}`}
+          onClick={() => setFiltersOpen((open) => !open)}
+          aria-expanded={filtersOpen}
+          aria-controls="documents-secondary-filters"
+        >
+          Filtres
+          {hasActiveFilters ? <span className="dp-filter-toggle__count">actifs</span> : null}
+        </button>
+        {filtersOpen ? (
+          <div className="dp-secondary-filters" id="documents-secondary-filters">
+            <div className="dp-filters">
+              {TYPE_FILTER_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  className={`dp-chip${typeFilter === opt.value ? " dp-chip--active" : ""}`}
+                  onClick={() => setTypeFilter(opt.value)}
+                >
+                  {typeFilter === opt.value && opt.value !== "all" && (
+                    <span className="dp-chip__dot" />
+                  )}
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            <label className="dp-select-wrap">
+              <span className="dp-select-label">Rattachement</span>
+              <select
+                className="dp-select"
+                value={entityFilter}
+                onChange={(e) => setEntityFilter(e.target.value)}
+                aria-label="Filtrer par rattachement"
+              >
+                {ENTITY_FILTER_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        ) : null}
           </>
         }
         actions={

@@ -796,10 +796,8 @@ export default function InvoiceBuilderPage() {
 
         {invoiceDetail?.preparation_billing_summary &&
         invoiceDetail.preparation_billing_summary.preparation_base_ttc > 0.0001 ? (
-          <div className="ib-quote-billing-hint" style={{ marginTop: "0.5rem" }}>
-            <p className="ib-muted-title" style={{ margin: "0 0 0.25rem", fontWeight: 600 }}>
-              Synthèse facturation (dossier)
-            </p>
+          <details className="ib-secondary-details ib-quote-billing-hint">
+            <summary>Synthèse facturation dossier</summary>
             <p className="qb-muted" style={{ margin: "0 0 0.35rem" }}>
               Base préparation (référence de cette facture) :{" "}
               <strong>
@@ -850,7 +848,7 @@ export default function InvoiceBuilderPage() {
               })}{" "}
               {state.header.currency}
             </p>
-          </div>
+          </details>
         ) : null}
 
         <div className="ib-doc-origin-row">
@@ -871,57 +869,60 @@ export default function InvoiceBuilderPage() {
         </div>
       </div>
 
-      <nav className="fin-entity-links" aria-label="Navigation contextuelle">
-        {state.header.lead_id ? <Link to={`/leads/${state.header.lead_id}`}>Dossier lead</Link> : null}
-        {state.header.client_id ? <Link to={`/clients/${state.header.client_id}`}>Fiche client</Link> : null}
-        {state.header.quote_id ? (
-          <Link to={`/quotes/${state.header.quote_id}`}>Devis source</Link>
-        ) : null}
-        <Link to="/finance">Vue d&apos;ensemble</Link>
-        <Link to="/invoices">Liste des factures</Link>
-      </nav>
+      <details className="ib-secondary-details">
+        <summary>Rattachements et liens</summary>
+        <nav className="fin-entity-links" aria-label="Navigation contextuelle">
+          {state.header.lead_id ? <Link to={`/leads/${state.header.lead_id}`}>Dossier lead</Link> : null}
+          {state.header.client_id ? <Link to={`/clients/${state.header.client_id}`}>Fiche client</Link> : null}
+          {state.header.quote_id ? (
+            <Link to={`/quotes/${state.header.quote_id}`}>Devis source</Link>
+          ) : null}
+          <Link to="/finance">Vue d&apos;ensemble</Link>
+          <Link to="/invoices">Liste des factures</Link>
+        </nav>
 
-      <section className="ib-links-bar">
-        {contactsSelectError ? (
-          <p className="qb-error-inline" role="alert" style={{ width: "100%", marginBottom: 8 }}>
-            {contactsSelectError}
-          </p>
-        ) : null}
-        <InvoiceBillingEntityCombobox
-          label="Client"
-          disabled={!canEdit || isClientLocked}
-          value={state.header.client_id}
-          rows={billingClients}
-          onChange={(id) => dispatch({ type: "SET_HEADER", payload: { client_id: id } })}
-          fallbackId={
-            state.header!.client_id && !billingClients.some((c) => c.id === state.header!.client_id)
-              ? state.header!.client_id
-              : null
-          }
-          fallbackLabel={
-            state.header!.client_id && !billingClients.some((c) => c.id === state.header!.client_id)
-              ? state.header!.client_label || "Rattachement actuel (hors liste)"
-              : null
-          }
-        />
-        <InvoiceBillingEntityCombobox
-          label="Lead"
-          disabled={!canEdit || isLeadLocked}
-          value={state.header.lead_id}
-          rows={billingLeads}
-          onChange={(id) => dispatch({ type: "SET_HEADER", payload: { lead_id: id } })}
-          fallbackId={
-            state.header!.lead_id && !billingLeads.some((l) => l.id === state.header!.lead_id)
-              ? state.header!.lead_id
-              : null
-          }
-          fallbackLabel={
-            state.header!.lead_id && !billingLeads.some((l) => l.id === state.header!.lead_id)
-              ? state.header!.lead_label || "Rattachement actuel (hors liste)"
-              : null
-          }
-        />
-      </section>
+        <section className="ib-links-bar">
+          {contactsSelectError ? (
+            <p className="qb-error-inline" role="alert" style={{ width: "100%", marginBottom: 8 }}>
+              {contactsSelectError}
+            </p>
+          ) : null}
+          <InvoiceBillingEntityCombobox
+            label="Client"
+            disabled={!canEdit || isClientLocked}
+            value={state.header.client_id}
+            rows={billingClients}
+            onChange={(id) => dispatch({ type: "SET_HEADER", payload: { client_id: id } })}
+            fallbackId={
+              state.header!.client_id && !billingClients.some((c) => c.id === state.header!.client_id)
+                ? state.header!.client_id
+                : null
+            }
+            fallbackLabel={
+              state.header!.client_id && !billingClients.some((c) => c.id === state.header!.client_id)
+                ? state.header!.client_label || "Rattachement actuel (hors liste)"
+                : null
+            }
+          />
+          <InvoiceBillingEntityCombobox
+            label="Lead"
+            disabled={!canEdit || isLeadLocked}
+            value={state.header.lead_id}
+            rows={billingLeads}
+            onChange={(id) => dispatch({ type: "SET_HEADER", payload: { lead_id: id } })}
+            fallbackId={
+              state.header!.lead_id && !billingLeads.some((l) => l.id === state.header!.lead_id)
+                ? state.header!.lead_id
+                : null
+            }
+            fallbackLabel={
+              state.header!.lead_id && !billingLeads.some((l) => l.id === state.header!.lead_id)
+                ? state.header!.lead_label || "Rattachement actuel (hors liste)"
+                : null
+            }
+          />
+        </section>
+      </details>
 
       <div className="qb-workbench ib-workbench">
         <div className="qb-main ib-main">
@@ -929,9 +930,6 @@ export default function InvoiceBuilderPage() {
             <div className="qb-lines-head">
               <div>
                 <h2 className="qb-section-title">Lignes de facture</h2>
-                <p className="qb-section-hint ib-lines-hint">
-                  Détail comptable : libellé, quantités, PU HT, TVA et montants par ligne.
-                </p>
               </div>
               <div className="qb-lines-actions">
                 <Button type="button" variant="ghost" size="sm" disabled={!canEdit} onClick={() => void openCatalog()}>
@@ -1040,9 +1038,6 @@ export default function InvoiceBuilderPage() {
       {invoiceDetail && state.header ? (
         <section className="if-suite" aria-label="Suivi financier">
           <h2 className="ib-suite-title">Encaissements, avoirs & relances</h2>
-          <p className="ib-suite-lead">
-            Opérations après émission : enregistrez les paiements, gérez les avoirs et planifiez les relances.
-          </p>
           <div className="if-grid">
             <InvoicePaymentsPanel
               invoiceId={state.header.id}

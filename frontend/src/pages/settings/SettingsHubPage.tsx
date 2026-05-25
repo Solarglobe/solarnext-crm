@@ -184,7 +184,7 @@ export default function SettingsHubPage() {
       <PageHeader
         eyebrow="Parametres"
         title="Centre de configuration CRM"
-        description="Un hub unique pour retrouver les reglages compte, organisation, messagerie, securite, audit et parametres PV sans passer par les menus operationnels."
+        description="Retrouvez les reglages compte, organisation, messagerie, securite et audit."
       />
 
       {loading ? (
@@ -215,14 +215,16 @@ export default function SettingsHubPage() {
               description="Votre role ne donne acces a aucune section de configuration."
             />
           ) : null}
-          <DataTable
-            className="settings-hub__matrix"
-            title="Matrice sections / permissions"
-            columns={MATRIX_COLUMNS}
-            rows={visibleCards}
-            getRowKey={(row) => `${row.href}:${row.title}`}
-            dense
-          />
+          <details className="settings-hub__matrix-panel">
+            <summary>Matrice sections / permissions</summary>
+            <DataTable
+              className="settings-hub__matrix"
+              columns={MATRIX_COLUMNS}
+              rows={visibleCards}
+              getRowKey={(row) => `${row.href}:${row.title}`}
+              dense
+            />
+          </details>
         </div>
       )}
     </main>
