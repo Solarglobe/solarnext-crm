@@ -625,7 +625,7 @@ body {
 
 .sn-auth-headline {
   font-weight: 700;
-  font-size: clamp(1.35rem, 4vw, 1.55rem);
+  font-size: clamp(1.35rem, 1.45rem, 1.55rem);
   margin: 0;
   letter-spacing: -0.03em;
   line-height: 1.2;

@@ -16,7 +16,7 @@
 
 .icp-title {
   margin: 12px 0 8px;
-  font-size: clamp(1.45rem, 2.4vw, 1.85rem);
+  font-size: clamp(1.45rem, 1.65rem, 1.85rem);
   line-height: 1.2;
   font-weight: 700;
   color: var(--text, inherit);

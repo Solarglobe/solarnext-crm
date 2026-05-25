@@ -23571,8 +23571,11 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                   if (!_m || !_m.heights) return;
                   var fv = parseFloat(_facInput.value);
                   var rv = parseFloat(_ridgInput.value);
-                  if (Number.isFinite(fv) && fv >= 0.1 && fv < rv) _m.heights.facadeHeightM = fv;
-                  if (Number.isFinite(rv) && rv > 0.3) {
+                  // facadeHeightM peut être 0 (pas de murs) — la seule contrainte est fv < rv
+                  if (Number.isFinite(fv) && fv >= 0 && (Number.isFinite(rv) ? fv < rv : fv < _m.heights.ridgeHeightM)) {
+                    _m.heights.facadeHeightM = fv;
+                  }
+                  if (Number.isFinite(rv) && rv > 0.05 && rv > (_m.heights.facadeHeightM || 0)) {
                     _m.heights.ridgeHeightM = rv;
                     _m.heights.roofRiseM = rv - (_m.heights.facadeHeightM || 0);
                   }
@@ -23588,8 +23591,8 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 _panel.style.display = "block";
                 var _fIn = _panel.querySelector("#pd-facade-h-input");
                 var _rIn = _panel.querySelector("#pd-ridge-h-input");
-                if (_fIn && document.activeElement !== _fIn) _fIn.value = (_pdSelModel.heights.facadeHeightM || 0.9).toFixed(2);
-                if (_rIn && document.activeElement !== _rIn) _rIn.value = (_pdSelModel.heights.ridgeHeightM || 1.6).toFixed(2);
+                if (_fIn && document.activeElement !== _fIn) _fIn.value = ((_pdSelModel.heights.facadeHeightM != null ? _pdSelModel.heights.facadeHeightM : 0)).toFixed(2);
+                if (_rIn && document.activeElement !== _rIn) _rIn.value = ((_pdSelModel.heights.ridgeHeightM != null ? _pdSelModel.heights.ridgeHeightM : 0.80)).toFixed(2);
               }
             })();
 

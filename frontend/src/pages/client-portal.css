@@ -872,7 +872,7 @@
 }
 
 .cp-advisor-name {
-  font-size: clamp(1.35rem, 2.6vw, 1.75rem);
+  font-size: clamp(1.35rem, 1.55rem, 1.75rem);
   font-weight: 800;
   color: var(--brand-gold);
   line-height: 1.25;

@@ -88,6 +88,26 @@ export function ConfirmModal({
       if (e.key === "Escape" && !cancelDisabled) {
         e.preventDefault();
         onCancel();
+        return;
+      }
+
+      if (e.key === "Tab" && panelRef.current) {
+        const buttons = Array.from(
+          panelRef.current.querySelectorAll<HTMLButtonElement>(
+            ".sn-confirm-modal-actions .sn-confirm-modal-btn:not(:disabled)",
+          ),
+        );
+        if (buttons.length === 0) return;
+        const first = buttons[0];
+        const last = buttons[buttons.length - 1];
+        const active = document.activeElement;
+        if (e.shiftKey && active === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && active === last) {
+          e.preventDefault();
+          first.focus();
+        }
       }
     };
     window.addEventListener("keydown", onKey);

@@ -178,7 +178,9 @@ export function buildRoofDormerParametric3D(
   const basePts = roofDormerParametricFootprintCycle(fp).map((p) => buildPoint(origin, xAxis, yAxis, p, 0));
   const eavePts = roofDormerParametricFootprintCycle(fp).map((p) => buildPoint(origin, xAxis, yAxis, p, hFacade));
   const ridgeFront = buildPoint(origin, xAxis, yAxis, ridge.front, hRidge);
-  const ridgeRear = buildPoint(origin, xAxis, yAxis, ridge.rear, hRidge);
+  // ridgeRear = 0 quand pas de murs (fond collé au toit) ; sinon même hauteur que ridgeFront
+  const hRidgeRear = hFacade > EPS ? hRidge : 0;
+  const ridgeRear = buildPoint(origin, xAxis, yAxis, ridge.rear, hRidgeRear);
 
   const vertices: VolumeVertex3D[] = [];
   const addVertex = (id: string, position: Vector3): number => {

@@ -31,7 +31,7 @@
 .sn-page-header__title {
   margin: 0;
   color: var(--text-primary);
-  font-size: clamp(22px, 2.2vw, 30px);
+  font-size: clamp(22px, 1.65rem, 30px);
   font-weight: 700;
   line-height: 1.15;
   letter-spacing: 0;
@@ -54,6 +54,7 @@
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 8px;
+  min-width: 0;
   flex: 0 0 auto;
 }
 
@@ -271,10 +272,12 @@
 
 .sn-data-table__table th,
 .sn-data-table__table td {
+  min-width: 0;
   padding: 11px 12px;
   border-bottom: 1px solid var(--border-soft, var(--border));
   text-align: left;
   vertical-align: middle;
+  overflow-wrap: anywhere;
 }
 
 .sn-data-table--dense .sn-data-table__table th,
@@ -560,6 +563,26 @@
 
   .sn-error-state {
     grid-template-columns: 1fr;
+  }
+
+  .sn-page-header__actions > *,
+  .sn-section-header__actions > *,
+  .sn-toolbar button,
+  .sn-toolbar a,
+  .sn-action-bar button,
+  .sn-action-bar a,
+  .sn-empty-state__actions > *,
+  .sn-error-state__actions > *,
+  .sn-data-table button,
+  .sn-data-table a {
+    min-height: 44px;
+  }
+
+  .sn-page-header__actions,
+  .sn-section-header__actions,
+  .sn-toolbar__actions,
+  .sn-empty-state__actions {
+    width: 100%;
   }
 
     .sn-action-bar {

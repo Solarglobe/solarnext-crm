@@ -110,8 +110,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 40px;
+  height: 40px;
   margin: -4px -6px 0 0;
   padding: 0;
   border: none;
@@ -189,6 +189,12 @@
   .sn-modal-shell-footer > * {
     width: 100%;
     justify-content: center;
+    min-height: 44px;
+  }
+
+  .sn-modal-shell-close {
+    width: 44px;
+    height: 44px;
   }
 }
 

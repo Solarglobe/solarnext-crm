@@ -95,7 +95,7 @@
 
 .clients-filters-bar input,
 .clients-filters-bar select {
-  height: 32px;
+  min-height: 36px;
   padding: 4px 8px;
   font-size: 13px;
   border-radius: 8px;
@@ -166,6 +166,7 @@
   border-radius: 8px;
   flex-shrink: 0;
   line-height: 1.2;
+  min-height: 36px;
 }
 
 .filter-reset:hover {
@@ -272,8 +273,8 @@
 
 .clients-detail__close-btn {
   flex-shrink: 0;
-  width: 26px;
-  height: 26px;
+  width: 36px;
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -340,8 +341,8 @@
 }
 
 .clients-portfolio-list__bulk-check {
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   cursor: pointer;
   accent-color: var(--primary, var(--brand-gold));
 }
@@ -565,6 +566,14 @@ html.theme-dark .progress-bar {
 
   .clients-portfolio-list__cell--check {
     justify-content: start;
+    min-height: 44px;
+  }
+
+  .clients-filters-bar input,
+  .clients-filters-bar select,
+  .filter-reset,
+  .clients-detail__close-btn {
+    min-height: 44px;
   }
 
   .clients-portfolio-list__cell--check::after {

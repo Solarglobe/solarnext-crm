@@ -81,7 +81,7 @@
 
 .dp-search {
   width: 100%;
-  height: 36px;
+  min-height: 40px;
   padding: 0 12px 0 36px;
   border-radius: 8px;
   border: 1px solid var(--border);
@@ -112,7 +112,7 @@
 }
 
 .dp-filter-toggle {
-  height: 32px;
+  min-height: 36px;
   padding: 0 12px;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -155,7 +155,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  min-height: 32px;
+  min-height: 36px;
 }
 
 .dp-select-label {
@@ -165,7 +165,7 @@
 }
 
 .dp-select {
-  height: 32px;
+  min-height: 36px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--bg-card);
@@ -176,7 +176,7 @@
 }
 
 .dp-chip {
-  height: 32px;
+  min-height: 36px;
   padding: 0 12px;
   border-radius: 99px;
   border: 1px solid var(--border);
@@ -221,7 +221,7 @@
 
 /* Reset link */
 .dp-reset {
-  height: 32px;
+  min-height: 36px;
   padding: 0 10px;
   background: none;
   border: none;
@@ -408,8 +408,8 @@
 }
 
 .dp-action-btn {
-  width: 30px;
-  height: 30px;
+  width: 36px;
+  height: 36px;
   border-radius: 7px;
   border: 1px solid var(--border);
   background: var(--bg-card);
@@ -421,6 +421,15 @@
   transition: all 0.1s;
   text-decoration: none;
   flex-shrink: 0;
+}
+
+.dp-filter-toggle:focus-visible,
+.dp-select:focus-visible,
+.dp-chip:focus-visible,
+.dp-reset:focus-visible,
+.dp-action-btn:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--primary) 45%, transparent);
+  outline-offset: 2px;
 }
 
 .dp-action-btn:hover {
@@ -596,5 +605,20 @@
     opacity: 1;
     justify-content: flex-start;
     padding-top: 2px;
+  }
+
+  .dp-search,
+  .dp-filter-toggle,
+  .dp-select-wrap,
+  .dp-select,
+  .dp-chip,
+  .dp-reset,
+  .dp-action-btn {
+    min-height: 44px;
+  }
+
+  .dp-action-btn {
+    width: 44px;
+    height: 44px;
   }
 }

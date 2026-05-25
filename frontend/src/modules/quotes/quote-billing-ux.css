@@ -68,7 +68,7 @@
 
 .qb-billing-ux__ttc-value {
   display: block;
-  font-size: clamp(1.35rem, 3.5vw, 1.85rem);
+  font-size: clamp(1.35rem, 1.6rem, 1.85rem);
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   line-height: 1.1;
@@ -76,7 +76,7 @@
 }
 
 .qb-billing-ux__ttc-value--muted {
-  font-size: clamp(1.1rem, 2.8vw, 1.45rem);
+  font-size: clamp(1.1rem, 1.25rem, 1.45rem);
   font-weight: 700;
   opacity: 0.88;
 }
@@ -218,7 +218,7 @@
 }
 
 .qb-billing-ux--compact .qb-billing-ux__ttc-value {
-  font-size: clamp(1.1rem, 2.6vw, 1.45rem);
+  font-size: clamp(1.1rem, 1.25rem, 1.45rem);
 }
 
 .qb-billing-ux--compact .qb-billing-ux__list-row {

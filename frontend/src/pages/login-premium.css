@@ -87,7 +87,7 @@ html.sn-auth-page #root {
 }
 
 .login-brand-pitch {
-  font-size: clamp(15px, 1.4vw, 18px);
+  font-size: clamp(15px, 1rem, 18px);
   color: rgba(255, 255, 255, 0.72);
   line-height: 1.55;
   margin: 0 0 28px;
@@ -447,4 +447,3 @@ html.sn-auth-page #root {
     font-size: 22px;
   }
 }
-
