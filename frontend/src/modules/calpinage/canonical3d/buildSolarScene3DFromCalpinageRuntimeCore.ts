@@ -38,6 +38,8 @@ import { buildSolarScene3D } from "./scene/buildSolarScene3D";
 import type { SolarScene3D } from "./types/solarScene3d";
 import type { RoofObstacleKind } from "./types/obstacle";
 import type { RoofVolumeStructuralRole } from "./types/roof-volume-common";
+import type { RoofObstacleVolume3D } from "./types/roof-obstacle-volume";
+import type { RoofExtensionVolume3D } from "./types/roof-extension-volume";
 import type { QualityBlock } from "./types/quality";
 import type {
   LegacyObstacleVolumeInput,
@@ -234,6 +236,78 @@ function canonicalObstaclesToVolumeInput(obstacles: readonly CanonicalObstacle3D
   }
 
   return { obstacles: legacyObstacles, extensions: [] };
+}
+
+/**
+ * Convertit un `RoofExtensionVolume3D` (lucarne / chien assis) en dalle keepout fine (0.025 m)
+ * pour le pipeline obstacle. La dalle suit la normale du pan support et évite le Z-fighting
+ * avec le mesh extension rendu séparément par `extensionVolumesForScene`.
+ *
+ * Structure vertices : [0..n-1] = ring de base (footprintWorld), [n..2n-1] = ring sommet.
+ * Compatible avec `keepoutHatchGeometry` / `keepoutCornerMarksGeometry` (topRing = vertices[i+n]).
+ */
+function extensionVolumeToKeepoutSlab(ext: RoofExtensionVolume3D): RoofObstacleVolume3D {
+  const SLAB_H = 0.025;
+  const dir = ext.extrusion.directionWorld;
+  const n = ext.footprintWorld.length;
+
+  const topPts = ext.footprintWorld.map((p) => ({
+    x: p.x + dir.x * SLAB_H,
+    y: p.y + dir.y * SLAB_H,
+    z: p.z + dir.z * SLAB_H,
+  }));
+
+  const vertices = [
+    ...ext.footprintWorld.map((p, i) => ({ id: `${ext.id}:ks:b:${i}`, position: p })),
+    ...topPts.map((p, i) => ({ id: `${ext.id}:ks:t:${i}`, position: p })),
+  ];
+
+  const edges = [
+    ...Array.from({ length: n }, (_, i) => ({ id: `${ext.id}:ks:eb:${i}`, vertexAIndex: i, vertexBIndex: (i + 1) % n, kind: "base" as const })),
+    ...Array.from({ length: n }, (_, i) => ({ id: `${ext.id}:ks:et:${i}`, vertexAIndex: n + i, vertexBIndex: n + ((i + 1) % n), kind: "top" as const })),
+    ...Array.from({ length: n }, (_, i) => ({ id: `${ext.id}:ks:el:${i}`, vertexAIndex: i, vertexBIndex: n + i, kind: "lateral" as const })),
+  ];
+
+  const faces = [
+    { id: `${ext.id}:ks:fb`, kind: "base" as const, vertexIndexCycle: Array.from({ length: n }, (_, i) => i), outwardUnitNormal: { x: -dir.x, y: -dir.y, z: -dir.z }, areaM2: 0 },
+    { id: `${ext.id}:ks:ft`, kind: "top" as const, vertexIndexCycle: Array.from({ length: n }, (_, i) => n + i), outwardUnitNormal: dir, areaM2: 0 },
+    ...Array.from({ length: n }, (_, i) => ({ id: `${ext.id}:ks:fs:${i}`, kind: "side" as const, vertexIndexCycle: [i, (i + 1) % n, n + ((i + 1) % n), n + i], outwardUnitNormal: { x: 0, y: 0, z: 0 }, areaM2: 0 })),
+  ];
+
+  const allPos = [...ext.footprintWorld, ...topPts];
+  const xs = allPos.map((p) => p.x);
+  const ys = allPos.map((p) => p.y);
+  const zs = allPos.map((p) => p.z);
+  const centroid = {
+    x: ext.footprintWorld.reduce((s, p) => s + p.x, 0) / n,
+    y: ext.footprintWorld.reduce((s, p) => s + p.y, 0) / n,
+    z: ext.footprintWorld.reduce((s, p) => s + p.z, 0) / n,
+  };
+
+  return {
+    id: `${ext.id}__ks`,
+    kind: "other",
+    structuralRole: "roof_extension",
+    visualRole: "keepout_surface",
+    baseElevationM: ext.baseElevationM,
+    heightM: SLAB_H,
+    extrusion: ext.extrusion,
+    footprintWorld: ext.footprintWorld,
+    vertices,
+    edges,
+    faces,
+    bounds: {
+      min: { x: Math.min(...xs), y: Math.min(...ys), z: Math.min(...zs) },
+      max: { x: Math.max(...xs), y: Math.max(...ys), z: Math.max(...zs) },
+    },
+    centroid,
+    surfaceAreaM2: 0,
+    volumeM3: 0,
+    relatedPlanePatchIds: ext.relatedPlanePatchIds,
+    roofAttachment: ext.roofAttachment,
+    provenance: ext.provenance,
+    quality: ext.quality,
+  };
 }
 
 function mergeVolumeQuality(a: QualityBlock, b: QualityBlock): QualityBlock {
@@ -639,6 +713,10 @@ export function buildSolarScene3DFromCalpinageRuntime(
     const extensionVolumesForScene = hasParametricDormers
       ? [...roofExtRes.extensionVolumes, ...paramDormerRes.extensionVolumes]
       : roofExtRes.extensionVolumes;
+    // G2 : dalles keepout (0.025 m le long de la normale du pan) pour chaque volume extension.
+    // Ajoutées au pipeline obstacle pour déclencher la zone rouge et bloquer la pose de panneaux.
+    const dormerKeepoutVolumes = extensionVolumesForScene.map(extensionVolumeToKeepoutSlab);
+    const allObstacleVolumes = [...volRes.obstacleVolumes, ...dormerKeepoutVolumes];
     const volumesQuality = hasParametricDormers
       ? mergeVolumeQuality(mergeVolumeQuality(volRes.globalQuality, roofExtRes.quality), paramDormerRes.quality)
       : mergeVolumeQuality(volRes.globalQuality, roofExtRes.quality);
@@ -646,7 +724,7 @@ export function buildSolarScene3DFromCalpinageRuntime(
       { panels: [...filteredPanels] },
       {
         roofPlanePatches: patches,
-        obstacleVolumes: volRes.obstacleVolumes,
+        obstacleVolumes: allObstacleVolumes,
         extensionVolumes: extensionVolumesForScene,
       },
     );
@@ -713,7 +791,7 @@ export function buildSolarScene3DFromCalpinageRuntime(
       roofGeometrySource: roofGeoSrc,
       roofGeometryFallbackReason: sceneInput.diagnostics.fallbackReason ?? null,
       ...(buildingShell != null ? { buildingShell } : {}),
-      obstacleVolumes: volRes.obstacleVolumes,
+      obstacleVolumes: allObstacleVolumes,
       extensionVolumes: extensionVolumesForScene,
       volumesQuality,
       pvPanels: pvRes.panels,

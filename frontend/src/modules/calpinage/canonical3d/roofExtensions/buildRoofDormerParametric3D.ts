@@ -141,12 +141,9 @@ function tangentAxis(axis: Vector3, normal: Vector3): Vector3 | null {
   return normalize3(sub3(axis, scale3(normal, dot3(axis, normal))));
 }
 
-/** Vecteur vertical monde — les murs du chien assis poussent vers le haut, pas selon la normale du pan. */
-const WORLD_UP: Vector3 = { x: 0, y: 0, z: 1 };
-
-function buildPoint(origin: Vector3, xAxis: Vector3, yAxis: Vector3, p: RoofDormerParametricPoint2D, h: number): Vector3 {
-  // Étalement UV dans le plan du pan (xAxis/yAxis tangents projetés) + hauteur verticale monde.
-  return add3(add3(add3(origin, scale3(xAxis, p.uM)), scale3(yAxis, p.vM)), scale3(WORLD_UP, h));
+function buildPoint(origin: Vector3, xAxis: Vector3, yAxis: Vector3, upAxis: Vector3, p: RoofDormerParametricPoint2D, h: number): Vector3 {
+  // Étalement UV dans le plan du pan (xAxis/yAxis tangents projetés) + hauteur selon la normale sortante du pan support.
+  return add3(add3(add3(origin, scale3(xAxis, p.uM)), scale3(yAxis, p.vM)), scale3(upAxis, h));
 }
 
 export function buildRoofDormerParametric3D(
@@ -175,12 +172,12 @@ export function buildRoofDormerParametric3D(
   const hFacade = model.heights.facadeHeightM;
   const hRidge = model.heights.ridgeHeightM;
 
-  const basePts = roofDormerParametricFootprintCycle(fp).map((p) => buildPoint(origin, xAxis, yAxis, p, 0));
-  const eavePts = roofDormerParametricFootprintCycle(fp).map((p) => buildPoint(origin, xAxis, yAxis, p, hFacade));
-  const ridgeFront = buildPoint(origin, xAxis, yAxis, ridge.front, hRidge);
+  const basePts = roofDormerParametricFootprintCycle(fp).map((p) => buildPoint(origin, xAxis, yAxis, normal, p, 0));
+  const eavePts = roofDormerParametricFootprintCycle(fp).map((p) => buildPoint(origin, xAxis, yAxis, normal, p, hFacade));
+  const ridgeFront = buildPoint(origin, xAxis, yAxis, normal, ridge.front, hRidge);
   // ridgeRear = 0 quand pas de murs (fond collé au toit) ; sinon même hauteur que ridgeFront
   const hRidgeRear = hFacade > EPS ? hRidge : 0;
-  const ridgeRear = buildPoint(origin, xAxis, yAxis, ridge.rear, hRidgeRear);
+  const ridgeRear = buildPoint(origin, xAxis, yAxis, normal, ridge.rear, hRidgeRear);
 
   const vertices: VolumeVertex3D[] = [];
   const addVertex = (id: string, position: Vector3): number => {
