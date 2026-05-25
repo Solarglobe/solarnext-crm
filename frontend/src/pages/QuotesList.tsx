@@ -64,6 +64,69 @@ function formatQuoteContact(row: QuoteListRow): string {
   return "-";
 }
 
+function QuoteRowActions({
+  row,
+  canGeneratePdf,
+  pdfBusy,
+  duplicateBusy,
+  deleteBusy,
+  onGeneratePdf,
+  onDuplicate,
+  onDelete,
+}: {
+  row: QuoteListRow;
+  canGeneratePdf: boolean;
+  pdfBusy: boolean;
+  duplicateBusy: boolean;
+  deleteBusy: boolean;
+  onGeneratePdf: (e: React.MouseEvent, id: string) => void;
+  onDuplicate: (e: React.MouseEvent, id: string) => void;
+  onDelete: (e: React.MouseEvent, id: string) => void;
+}) {
+  return (
+    <div className="fin-actions-cell fin-actions-cell--visible">
+      <Link className="sn-btn sn-btn-ghost sn-btn-sm" to={`/quotes/${row.id}`}>
+        Ouvrir
+      </Link>
+      <details className="fin-actions-menu">
+        <summary aria-label={`Actions secondaires pour le devis ${row.quote_number || row.id}`}>Actions</summary>
+        <div className="fin-actions-menu__panel">
+          <Link className="fin-actions-menu__item" to={`/quotes/${row.id}/present`}>
+            Présenter
+          </Link>
+          <button
+            type="button"
+            className="fin-actions-menu__item"
+            title={canGeneratePdf ? "Générer PDF" : PDF_OFFICIAL_HINT}
+            disabled={!canGeneratePdf || pdfBusy}
+            onClick={(e) => onGeneratePdf(e, row.id)}
+          >
+            {pdfBusy ? "PDF..." : "Générer PDF"}
+          </button>
+          <button
+            type="button"
+            className="fin-actions-menu__item"
+            disabled={duplicateBusy}
+            onClick={(e) => onDuplicate(e, row.id)}
+          >
+            {duplicateBusy ? "Copie..." : "Dupliquer"}
+          </button>
+          {isQuoteDeletable(row.status) ? (
+            <button
+              type="button"
+              className="fin-actions-menu__item fin-actions-menu__item--danger"
+              disabled={deleteBusy}
+              onClick={(e) => onDelete(e, row.id)}
+            >
+              Supprimer
+            </button>
+          ) : null}
+        </div>
+      </details>
+    </div>
+  );
+}
+
 type QuoteStatusFilter = "ALL" | "DRAFT" | "SENT" | "ACCEPTED" | "REFUSED";
 type PeriodFilter = "ALL" | "TODAY" | "7D" | "30D";
 type QuoteDateRangeBasis = "CREATED" | "UPDATED" | "EITHER";
@@ -276,15 +339,21 @@ export default function QuotesList() {
       {
         id: "number",
         header: "Numero",
-        render: (r) => <span className="qb-mono">{formatQuoteNumberDisplay(r.quote_number, r.status)}</span>,
+        width: "18%",
+        render: (r) => (
+          <span className="fin-row-main">
+            <span className="qb-mono">{formatQuoteNumberDisplay(r.quote_number, r.status)}</span>
+            <span className="fin-row-sub">{fmtDate(r.updated_at || r.created_at)}</span>
+          </span>
+        ),
       },
-      { id: "client", header: "Client", render: (r) => formatQuoteContact(r) },
-      { id: "amount", header: "Montant TTC", align: "right", render: (r) => eur(quoteDisplayTotals(r).total_ttc) },
-      { id: "status", header: "Statut", render: (r) => <QuoteStatusBadge status={r.status} /> },
-      { id: "date", header: "Date", render: (r) => fmtDate(r.updated_at || r.created_at) },
+      { id: "client", header: "Client", width: "24%", render: (r) => <span className="fin-standard-truncate">{formatQuoteContact(r)}</span> },
+      { id: "amount", header: "TTC", align: "right", width: "13%", render: (r) => eur(quoteDisplayTotals(r).total_ttc) },
+      { id: "status", header: "Statut", width: "14%", render: (r) => <QuoteStatusBadge status={r.status} /> },
       {
         id: "pdf",
         header: "PDF",
+        width: "13%",
         render: (r) => (
           <span className={`sn-badge ${r.has_pdf || r.has_signed_pdf ? "sn-badge-success" : "sn-badge-neutral"}`}>
             {r.has_pdf || r.has_signed_pdf ? "Disponible" : "Non genere"}
@@ -295,45 +364,18 @@ export default function QuotesList() {
         id: "actions",
         header: "Actions",
         align: "right",
+        width: "18%",
         render: (r) => (
-          <div className="fin-actions-cell fin-actions-cell--visible">
-            <Button type="button" variant="ghost" size="sm" onClick={() => navigate(`/quotes/${r.id}`)}>
-              Ouvrir
-            </Button>
-            <Button type="button" variant="ghost" size="sm" onClick={() => navigate(`/quotes/${r.id}/present`)}>
-              Presenter
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              title={canOfferOfficialQuotePdfFromListRow(r) ? "Generer PDF" : PDF_OFFICIAL_HINT}
-              disabled={!canOfferOfficialQuotePdfFromListRow(r) || pdfBusyId === r.id}
-              onClick={(e) => void onGeneratePdf(e, r.id)}
-            >
-              {pdfBusyId === r.id ? "PDF..." : "PDF"}
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              disabled={dupBusyId === r.id}
-              onClick={(e) => void onDuplicate(e, r.id)}
-            >
-              {dupBusyId === r.id ? "Copie..." : "Dupliquer"}
-            </Button>
-            {isQuoteDeletable(r.status) ? (
-              <Button
-                type="button"
-                variant="danger"
-                size="sm"
-                disabled={deleteBusyId === r.id}
-                onClick={(e) => requestDeleteQuote(e, r.id)}
-              >
-                Supprimer
-              </Button>
-            ) : null}
-          </div>
+          <QuoteRowActions
+            row={r}
+            canGeneratePdf={canOfferOfficialQuotePdfFromListRow(r)}
+            pdfBusy={pdfBusyId === r.id}
+            duplicateBusy={dupBusyId === r.id}
+            deleteBusy={deleteBusyId === r.id}
+            onGeneratePdf={(e, id) => void onGeneratePdf(e, id)}
+            onDuplicate={(e, id) => void onDuplicate(e, id)}
+            onDelete={requestDeleteQuote}
+          />
         ),
       },
     ],

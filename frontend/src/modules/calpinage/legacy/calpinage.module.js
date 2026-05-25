@@ -4881,9 +4881,11 @@ export function initCalpinage(container, options = {}) {
 
         // Dimensions par défaut physiques
         var halfW  = 0.75; // demi-largeur : lucarne 1.5 m de large
-        var depth  = 0.50; // profondeur : 0.5 m (clairement plus large que profond)
-        var hWall  = 0.9;  // hauteur façade verticale
-        var hRidge = 1.6;  // hauteur faitage (mur + pente)
+        var depth  = 1.50; // profondeur le long de la pente : 1.5 m (footprint carré)
+        // Avec depth=1.5 et halfW=0.75, les arêtiers FL→ridgeFront ont angle ≈ 27° (lisible en plan)
+        var hWall  = 1.20; // hauteur façade verticale (1.2m = debout sous l'appui de fenêtre)
+        var hRidge = 1.80; // hauteur faitage verticale (1.8m = debout au centre)
+        // Pente dormer : (1.8-1.2)/0.75 = 38.7° — réaliste pour un chien assis
         // Les hauteurs sont verticales monde (WORLD_UP dans buildRoofDormerParametric3D.ts).
         // L'ancre est au CENTRE du footprint — vM ∈ [-depth/2 ; +depth/2].
         // La façade (front, vM=-depth/2) est en bas de pente ; l'arrière (vM=+depth/2) en haut.
@@ -23458,9 +23460,10 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 ctx.lineWidth = 2.0;
                 ctx.stroke(pdRidge);
 
-                // 4. Arêtiers diagonaux (coins → extrémités du faitage) : forme maison en plan
-                //    Côté avant : FL→ridgeFront et FR→ridgeFront (convergent vers apex avant)
-                //    Côté arrière : RL→ridgeRear et RR→ridgeRear (convergent vers apex arrière)
+                // 4. Les 4 arêtiers + le faitage central forment le symbole classique du chien assis :
+                //    Avant : FL→ridgeFront et FR→ridgeFront (V inférieur, côté façade)
+                //    Arrière : RL→ridgeRear et RR→ridgeRear (V supérieur, côté pan)
+                //    Le faitage central (ridgeFront→ridgeRear) est déjà dessiné en step 3 (orange).
                 ctx.setLineDash([]);
                 [[sFL, sRF], [sFR, sRF], [sRL, sRRidge], [sRR, sRRidge]].forEach(function (seg) {
                   var hip = new Path2D();

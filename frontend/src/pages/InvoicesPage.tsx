@@ -306,22 +306,24 @@ export default function InvoicesPage() {
       {
         id: "number",
         header: "Numero",
+        width: "17%",
         render: (r) => (
-          <span className="qb-mono">
-            {formatInvoiceNumberDisplay(r.invoice_number, r.status)}
+          <span className="fin-row-main">
+            <span className="qb-mono">{formatInvoiceNumberDisplay(r.invoice_number, r.status)}</span>
+            <span className="fin-row-sub">Échéance {fmtDate(r.due_date)}</span>
             {invoiceRowIsTest(r) ? <span className="sn-badge sn-badge-warn fin-standard-inline-badge">TEST</span> : null}
           </span>
         ),
       },
-      { id: "client", header: "Client", render: (r) => formatInvoiceClient(r) },
-      { id: "total", header: "Montant TTC", align: "right", render: (r) => eur(r.total_ttc) },
-      { id: "paid", header: "Paye", align: "right", render: (r) => eur(r.total_paid) },
-      { id: "due", header: "Reste", align: "right", render: (r) => eur(r.amount_due) },
-      { id: "status", header: "Statut", render: (r) => <InvoiceStatusBadge status={r.status} /> },
-      { id: "dueDate", header: "Echeance", render: (r) => fmtDate(r.due_date) },
+      { id: "client", header: "Client", width: "21%", render: (r) => <span className="fin-standard-truncate">{formatInvoiceClient(r)}</span> },
+      { id: "total", header: "TTC", align: "right", width: "12%", render: (r) => eur(r.total_ttc) },
+      { id: "paid", header: "Payé", align: "right", width: "12%", render: (r) => eur(r.total_paid) },
+      { id: "due", header: "Reste", align: "right", width: "12%", render: (r) => eur(r.amount_due) },
+      { id: "status", header: "Statut", width: "13%", render: (r) => <InvoiceStatusBadge status={r.status} /> },
       {
         id: "late",
         header: "Suivi",
+        width: "13%",
         render: (r) => {
           const overdue = isInvoiceOverdue(r);
           const paid = toAmount(r.total_paid);
@@ -337,6 +339,7 @@ export default function InvoicesPage() {
         id: "actions",
         header: "Actions",
         align: "right",
+        width: "10%",
         render: (r) => (
           <Button type="button" variant="ghost" size="sm" onClick={() => navigate(`/invoices/${r.id}`)}>
             Ouvrir

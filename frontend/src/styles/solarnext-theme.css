@@ -4019,6 +4019,78 @@ html.sn-app-page .lead-mairie-list-badge-slot {
   background: rgba(255, 255, 255, 0.65);
 }
 
+@media (max-width: 760px) {
+  .sn-leads-premium-scroll {
+    overflow-x: visible;
+  }
+
+  .sn-leads-premium,
+  .sn-leads-premium--list-v2 {
+    min-width: 0;
+  }
+
+  .sn-leads-premium--list-v2 .sn-leads-premium__row--header {
+    display: none;
+  }
+
+  .sn-leads-premium--list-v2 .sn-leads-premium__body {
+    display: grid;
+    gap: 10px;
+    padding: 10px;
+  }
+
+  .sn-leads-premium--list-v2 .sn-leads-premium__row--data,
+  .sn-leads-premium--list-v2.sn-leads-premium--selectable .sn-leads-premium__row--data {
+    grid-template-columns: 1fr;
+    min-height: 0;
+    gap: 8px;
+    padding: 12px;
+    border: 1px solid var(--border-soft);
+    border-radius: 10px;
+    background: var(--surface-card, var(--surface));
+  }
+
+  .sn-leads-premium--list-v2 .sn-leads-premium__cell {
+    min-width: 0;
+  }
+
+  .sn-leads-premium--list-v2 .sn-leads-premium__cell--phone,
+  .sn-leads-premium--list-v2 .sn-leads-premium__cell--score,
+  .sn-leads-premium--list-v2 .sn-leads-premium__cell--stage,
+  .sn-leads-premium--list-v2 .sn-leads-premium__cell--inact,
+  .sn-leads-premium--list-v2 .sn-leads-premium__cell--owner,
+  .sn-leads-premium--list-v2 .sn-leads-premium__cell--date {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 12px;
+  }
+
+  .sn-leads-premium--list-v2 .sn-leads-premium__cell--phone::before { content: "Tél."; }
+  .sn-leads-premium--list-v2 .sn-leads-premium__cell--score::before { content: "Score"; }
+  .sn-leads-premium--list-v2 .sn-leads-premium__cell--stage::before { content: "Stage"; }
+  .sn-leads-premium--list-v2 .sn-leads-premium__cell--inact::before { content: "Inactivité"; }
+  .sn-leads-premium--list-v2 .sn-leads-premium__cell--owner::before { content: "Commercial"; }
+  .sn-leads-premium--list-v2 .sn-leads-premium__cell--date::before { content: "Création"; }
+
+  .sn-leads-premium--list-v2 .sn-leads-premium__cell--phone::before,
+  .sn-leads-premium--list-v2 .sn-leads-premium__cell--score::before,
+  .sn-leads-premium--list-v2 .sn-leads-premium__cell--stage::before,
+  .sn-leads-premium--list-v2 .sn-leads-premium__cell--inact::before,
+  .sn-leads-premium--list-v2 .sn-leads-premium__cell--owner::before,
+  .sn-leads-premium--list-v2 .sn-leads-premium__cell--date::before {
+    color: var(--text-muted);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+  }
+
+  .sn-leads-premium--list-v2 .sn-leads-premium__cell--crm-actions {
+    justify-self: end;
+  }
+}
+
 .theme-dark .sn-leads-list-pagination,
 html.theme-dark .sn-leads-list-pagination {
   background: rgba(15, 23, 42, 0.5);

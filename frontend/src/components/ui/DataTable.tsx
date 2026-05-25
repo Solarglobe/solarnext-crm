@@ -78,6 +78,7 @@ export function DataTable<T>({
                       <td
                         key={column.id}
                         className={column.align ? `sn-data-table__cell--${column.align}` : undefined}
+                        data-label={typeof column.header === "string" ? column.header : undefined}
                       >
                         {column.render(row)}
                       </td>
