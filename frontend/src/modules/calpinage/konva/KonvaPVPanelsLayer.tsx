@@ -66,7 +66,9 @@ const GLOW_BLUR_SC       = 10;    // px écran
 const DORMER_FILL        = "rgba(0,0,0,0.18)";
 const INVALID_FILL       = "rgba(239,68,68,0.25)";
 
-const VIEWPORT_EVENT = "calpinage:viewport-changed";
+const VIEWPORT_EVENT    = "calpinage:viewport-changed";
+/** Dispatché APRÈS que window.CALPINAGE_PV_PANELS_DATA est écrit — fixe la race condition. */
+const PV_READY_EVENT    = "calpinage:pv-panels-ready";
 
 // ─── Lecture état legacy ──────────────────────────────────────────────────────
 
@@ -86,12 +88,21 @@ function readSnap(): PVPanelsSnap | null {
 export function KonvaPVPanelsLayer() {
   const [snap, setSnap] = useState<PVPanelsSnap | null>(null);
 
-  /* Sync sur chaque frame legacy */
+  /* Sync sur chaque frame legacy.
+   * VIEWPORT_EVENT  : déclenché en DÉBUT de renderImpl (avant que CALPINAGE_PV_PANELS_DATA soit set).
+   *   → utile pour viewport pan/zoom, mais lit des données stale juste après une pose.
+   * PV_READY_EVENT  : déclenché APRÈS que CALPINAGE_PV_PANELS_DATA est écrit.
+   *   → garantit que setSnap lit des données fraîches, élimine la frame invisible post-pose.
+   */
   useEffect(() => {
     const sync = () => setSnap(readSnap());
     sync();
     window.addEventListener(VIEWPORT_EVENT, sync);
-    return () => window.removeEventListener(VIEWPORT_EVENT, sync);
+    window.addEventListener(PV_READY_EVENT, sync);
+    return () => {
+      window.removeEventListener(VIEWPORT_EVENT, sync);
+      window.removeEventListener(PV_READY_EVENT, sync);
+    };
   }, []);
 
   /* Kill switch — enregistrer la couche dans __CALPINAGE_KONVA_LAYERS__ */

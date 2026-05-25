@@ -24732,6 +24732,10 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               /* P4.6b — exposition donn�es panels PV pour KonvaPVPanelsLayer */
               if (typeof window !== "undefined") {
                 window.CALPINAGE_PV_PANELS_DATA = { panels: _pvPanelsForKonva, imgH: imgH, scale: vp.scale };
+                /* Fix race condition : viewport-changed est dispatch� avant que ces donn�es soient pr�tes.
+                   On dispatch un �v�nement d�di� ici, apr�s que CALPINAGE_PV_PANELS_DATA est rempli,
+                   pour que KonvaPVPanelsLayer lise des donn�es fra�ches (non-stale). */
+                try { window.dispatchEvent(new CustomEvent("calpinage:pv-panels-ready")); } catch (_e) {}
               }
               if (window.__SAFE_ZONE_PROF_ENABLE__ && window.__SAFE_ZONE_PROF__) {
                 var prof = window.__SAFE_ZONE_PROF__;
