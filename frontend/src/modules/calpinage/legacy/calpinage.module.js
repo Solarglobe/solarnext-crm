@@ -4733,6 +4733,8 @@ export function initCalpinage(container, options = {}) {
         var iFR = uvToImg(fp.frontRight);
         var iRR = uvToImg(fp.rearRight);
         var iRL = uvToImg(fp.rearLeft);
+        // Poignée de rotation : 0.4 m en avant de la façade (vM encore plus négatif)
+        var iRotate = uvToImg({ uM: 0, vM: fp.frontLeft.vM - 0.4 });
         return {
           frontLeft:  iFL,
           frontRight: iFR,
@@ -4743,6 +4745,7 @@ export function initCalpinage(container, options = {}) {
           rearMid:    { x: (iRL.x + iRR.x) / 2, y: (iRL.y + iRR.y) / 2 },
           leftMid:    { x: (iFL.x + iRL.x) / 2, y: (iFL.y + iRL.y) / 2 },
           rightMid:   { x: (iFR.x + iRR.x) / 2, y: (iFR.y + iRR.y) / 2 },
+          rotateMid:  iRotate,
         };
       }
 
@@ -4756,6 +4759,7 @@ export function initCalpinage(container, options = {}) {
           var s = imageToScreenFn(imgPt);
           return Math.hypot(screenPt.x - s.x, screenPt.y - s.y);
         }
+        if (imgPts.rotateMid && distSc(imgPts.rotateMid) <= 13) return "rotate";
         if (distSc(imgPts.center)   <= 14) return "move";
         if (distSc(imgPts.frontMid) <= 12) return "front";
         if (distSc(imgPts.rearMid)  <= 12) return "rear";
@@ -4876,8 +4880,8 @@ export function initCalpinage(container, options = {}) {
         var vAxis = { x: sinA, y: -cosA, z: 0 };
 
         // Dimensions par défaut physiques
-        var halfW  = 0.6;  // demi-largeur : lucarne 1.2 m de large
-        var depth  = 0.8;  // profondeur : 0.8 m
+        var halfW  = 0.75; // demi-largeur : lucarne 1.5 m de large
+        var depth  = 0.50; // profondeur : 0.5 m (clairement plus large que profond)
         var hWall  = 0.9;  // hauteur façade verticale
         var hRidge = 1.6;  // hauteur faitage (mur + pente)
         // Les hauteurs sont verticales monde (WORLD_UP dans buildRoofDormerParametric3D.ts).
@@ -17552,7 +17556,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               try { canvasEl.setPointerCapture(e.pointerId); drawState.activePointerId = e.pointerId; } catch (_) {}
             }
 
-            var subType = pdHit.subType; // "move","front","rear","left","right"
+            var subType = pdHit.subType; // "move","rotate","front","rear","left","right"
             if (subType === "move") {
               drawState.dragMode = "parametricDormerMove";
               drawState.dragBase = {
@@ -17560,6 +17564,18 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 startImg: { x: imgPt.x, y: imgPt.y },
                 startAnchor: { x: model.anchorWorld.x, y: model.anchorWorld.y },
                 lastDx: 0, lastDy: 0
+              };
+              setInteractionState(InteractionStates.DRAGGING);
+            } else if (subType === "rotate") {
+              var _anchorImgRot = parametricDormerWorldMToImagePx(model.anchorWorld);
+              drawState.dragMode = "parametricDormerRotate";
+              drawState.dragBase = {
+                pdIndex:   pdHit.index,
+                startImg:  { x: imgPt.x, y: imgPt.y },
+                anchorImg: { x: _anchorImgRot.x, y: _anchorImgRot.y },
+                startAngle: Math.atan2(imgPt.y - _anchorImgRot.y, imgPt.x - _anchorImgRot.x),
+                origUAxis: { x: model.orientation.uAxisWorld.x, y: model.orientation.uAxisWorld.y, z: model.orientation.uAxisWorld.z },
+                origVAxis: { x: model.orientation.vAxisWorld.x, y: model.orientation.vAxisWorld.y, z: model.orientation.vAxisWorld.z }
               };
               setInteractionState(InteractionStates.DRAGGING);
             } else if (subType === "front" || subType === "rear" || subType === "left" || subType === "right") {
@@ -20332,6 +20348,25 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
               return;
             }
+            /* ── V2 parametricDormer : rotation ── */
+            if (drawState.dragMode === "parametricDormerRotate" && drawState.dragBase) {
+              var _pdRotBase = drawState.dragBase;
+              var _pdRotList = CALPINAGE_STATE.parametricDormers || [];
+              var _pdRotModel = _pdRotList[_pdRotBase.pdIndex];
+              if (!_pdRotModel || !_pdRotBase.anchorImg) return;
+              var _currentAngle = Math.atan2(imgPt.y - _pdRotBase.anchorImg.y, imgPt.x - _pdRotBase.anchorImg.x);
+              var _delta = _currentAngle - _pdRotBase.startAngle;
+              if (e && e.shiftKey) {
+                var _snapRot = Math.PI / 12; // magnétisme 15°
+                _delta = Math.round(_delta / _snapRot) * _snapRot;
+              }
+              var _cosR = Math.cos(_delta), _sinR = Math.sin(_delta);
+              var _ouR = _pdRotBase.origUAxis, _ovR = _pdRotBase.origVAxis;
+              _pdRotModel.orientation.uAxisWorld = { x: _ouR.x * _cosR - _ouR.y * _sinR, y: _ouR.x * _sinR + _ouR.y * _cosR, z: _ouR.z };
+              _pdRotModel.orientation.vAxisWorld = { x: _ovR.x * _cosR - _ovR.y * _sinR, y: _ovR.x * _sinR + _ovR.y * _cosR, z: _ovR.z };
+              if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
+              return;
+            }
             /* ── V2 parametricDormer : déplacement de l'ancre ── */
             if (drawState.dragMode === "parametricDormerMove" && drawState.dragBase) {
               var _pdMoveBase = drawState.dragBase;
@@ -20377,14 +20412,20 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
               var _side = _pdEdgeBase.edgeSide;
               var _minHalfW = 0.2, _minDepth = 0.2;
               if (_side === "right") {
+                // Resize symétrique : les deux côtés s'élargissent en même temps, faîtage reste centré
                 var _newHalfW = Math.max(_minHalfW, _pdEdgeBase.origHalfW + _duE);
                 _fp.frontRight.uM  =  _newHalfW;
                 _fp.rearRight.uM   =  _newHalfW;
-                _pdEdgeModel.ridge && (_pdEdgeModel.ridge.front.uM = 0, _pdEdgeModel.ridge.rear.uM = 0);
+                _fp.frontLeft.uM   = -_newHalfW;
+                _fp.rearLeft.uM    = -_newHalfW;
+                if (_pdEdgeModel.ridge) { _pdEdgeModel.ridge.front.uM = 0; _pdEdgeModel.ridge.rear.uM = 0; }
               } else if (_side === "left") {
                 var _newHalfWL = Math.max(_minHalfW, _pdEdgeBase.origHalfW - _duE);
-                _fp.frontLeft.uM  = -_newHalfWL;
-                _fp.rearLeft.uM   = -_newHalfWL;
+                _fp.frontLeft.uM   = -_newHalfWL;
+                _fp.rearLeft.uM    = -_newHalfWL;
+                _fp.frontRight.uM  =  _newHalfWL;
+                _fp.rearRight.uM   =  _newHalfWL;
+                if (_pdEdgeModel.ridge) { _pdEdgeModel.ridge.front.uM = 0; _pdEdgeModel.ridge.rear.uM = 0; }
               } else if (_side === "front") {
                 // Front = vM le plus bas (vM négatif dans notre convention centered)
                 var _newFrontV = _pdEdgeBase.origFrontV + _dvE;
@@ -21137,7 +21178,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                   saveCalpinageState();
                 }
               }
-              if ((drawState.dragMode === "parametricDormerMove" || drawState.dragMode === "parametricDormerEdge") && drawState.dragBase) {
+              if ((drawState.dragMode === "parametricDormerMove" || drawState.dragMode === "parametricDormerEdge" || drawState.dragMode === "parametricDormerRotate") && drawState.dragBase) {
                 if (typeof saveCalpinageState === "function") saveCalpinageState();
                 if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
               }
@@ -23415,18 +23456,19 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                 ctx.lineWidth = 2.0;
                 ctx.stroke(pdRidge);
 
-                // 4. Arêtiers (FL→RF et FR→RF) en teal, tirets
-                ctx.setLineDash([5, 4]);
-                [[sFL, sRF], [sFR, sRF]].forEach(function (seg) {
-                  var hip = new Path2D();
-                  hip.moveTo(seg[0].x, seg[0].y);
-                  hip.lineTo(seg[1].x, seg[1].y);
+                // 4. Parois latérales (FL→RL et FR→RR) — parois pignon, tirets teal
+                //    (pas d'arêtiers pour un chien assis 2 pans : les côtés sont verticaux)
+                ctx.setLineDash([4, 4]);
+                [[sFL, sRL], [sFR, sRR]].forEach(function (seg) {
+                  var cheek = new Path2D();
+                  cheek.moveTo(seg[0].x, seg[0].y);
+                  cheek.lineTo(seg[1].x, seg[1].y);
                   ctx.strokeStyle = PHASE2_DRAW_STYLE.rxHalo;
                   ctx.lineWidth = 3.0;
-                  ctx.stroke(hip);
+                  ctx.stroke(cheek);
                   ctx.strokeStyle = PHASE2_DRAW_STYLE.rxHipStroke;
-                  ctx.lineWidth = 1.6;
-                  ctx.stroke(hip);
+                  ctx.lineWidth = 1.5;
+                  ctx.stroke(cheek);
                 });
                 ctx.setLineDash([]);
 
@@ -23447,6 +23489,7 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                       ctx.fillStyle = color;
                       ctx.fill();
                     }
+                    ctx.setLineDash([]);
                     // Poignée déplacement (centre) : cercle bleu avec croix
                     var _scCtr = _pdHandleSc(_pdImgPtsH.center);
                     ctx.beginPath(); ctx.arc(_scCtr.x, _scCtr.y, 8, 0, Math.PI * 2);
@@ -23456,16 +23499,89 @@ var shadingLossPct = _norm ? getOfficialGlobalShadingLossPctOr(_norm, 0) : 0;
                     ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.5; ctx.setLineDash([]);
                     ctx.beginPath(); ctx.moveTo(_scCtr.x - 3.5, _scCtr.y); ctx.lineTo(_scCtr.x + 3.5, _scCtr.y); ctx.stroke();
                     ctx.beginPath(); ctx.moveTo(_scCtr.x, _scCtr.y - 3.5); ctx.lineTo(_scCtr.x, _scCtr.y + 3.5); ctx.stroke();
-                    // Poignées de bord (losanges orange)
+                    // Poignées de bord (orange)
                     _drawHandle(_pdImgPtsH.frontMid,  "#ea580c", 5);
                     _drawHandle(_pdImgPtsH.rearMid,   "#ea580c", 5);
                     _drawHandle(_pdImgPtsH.leftMid,   "#ea580c", 5);
                     _drawHandle(_pdImgPtsH.rightMid,  "#ea580c", 5);
+                    // Poignée rotation (vert, devant la façade) + ligne de tiret
+                    if (_pdImgPtsH.rotateMid) {
+                      var _scFm = _pdHandleSc(_pdImgPtsH.frontMid);
+                      var _scRot = _pdHandleSc(_pdImgPtsH.rotateMid);
+                      ctx.setLineDash([3, 3]);
+                      ctx.strokeStyle = "rgba(22,163,74,0.55)"; ctx.lineWidth = 1.2;
+                      ctx.beginPath(); ctx.moveTo(_scFm.x, _scFm.y); ctx.lineTo(_scRot.x, _scRot.y); ctx.stroke();
+                      ctx.setLineDash([]);
+                      ctx.beginPath(); ctx.arc(_scRot.x, _scRot.y, 9, 0, Math.PI * 2);
+                      ctx.fillStyle = "rgba(255,255,255,0.9)"; ctx.fill();
+                      ctx.beginPath(); ctx.arc(_scRot.x, _scRot.y, 7, 0, Math.PI * 2);
+                      ctx.fillStyle = "#16a34a"; ctx.fill();
+                      ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.5;
+                      ctx.beginPath(); ctx.arc(_scRot.x, _scRot.y, 3.5, 0.5, Math.PI * 1.75);
+                      ctx.stroke();
+                    }
+                    // Texte hauteurs (façade / faîtage)
+                    if (model.heights) {
+                      var _scRidgePt = _pdHandleSc(_pdImgPtsH.rearMid);
+                      ctx.font = "bold 10px sans-serif";
+                      ctx.textAlign = "center";
+                      ctx.fillStyle = "rgba(0,0,0,0.7)";
+                      ctx.fillText(
+                        "F:" + (model.heights.facadeHeightM || 0).toFixed(2) + "m  R:" + (model.heights.ridgeHeightM || 0).toFixed(2) + "m",
+                        _scCtr.x, _scCtr.y + 18
+                      );
+                    }
                   }
                 }
               });
               ctx.restore();
             }
+
+            /* ── Panel propriétés V2 dormer : hauteurs éditables ── */
+            (function _syncPdPropsPanel() {
+              var _pdSelIdx = drawState.selectedRoofExtensionIndex;
+              var _pdSelList = CALPINAGE_STATE.parametricDormers || [];
+              var _pdSelModel = (_pdSelIdx != null && _pdSelIdx >= 0 && _pdSelIdx < _pdSelList.length) ? _pdSelList[_pdSelIdx] : null;
+              var _panelWrap = canvasWrapper || (container && container.querySelector && container.querySelector("#canvas-wrapper"));
+              if (!_panelWrap) return;
+              var _panel = _panelWrap.querySelector("#calpinage-pd-props-panel");
+              if (!_panel) {
+                _panel = document.createElement("div");
+                _panel.id = "calpinage-pd-props-panel";
+                _panel.style.cssText = "position:absolute;bottom:8px;right:8px;background:rgba(255,255,255,0.95);border:1px solid #d1d5db;border-radius:8px;padding:8px 12px;font-size:12px;color:#111;box-shadow:0 2px 8px rgba(0,0,0,0.15);z-index:20;display:none;min-width:200px;";
+                _panel.innerHTML = '<div style="font-weight:700;margin-bottom:6px;color:#374151;">Lucarne V2 — Hauteurs</div>' +
+                  '<label style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">Façade&nbsp;<input id="pd-facade-h-input" type="number" min="0.3" max="2.5" step="0.05" style="width:68px;padding:2px 4px;border:1px solid #d1d5db;border-radius:4px;font-size:12px;">&nbsp;m</label>' +
+                  '<label style="display:flex;align-items:center;gap:6px;">Faîtage&nbsp;<input id="pd-ridge-h-input" type="number" min="0.5" max="4" step="0.05" style="width:68px;padding:2px 4px;border:1px solid #d1d5db;border-radius:4px;font-size:12px;">&nbsp;m</label>';
+                _panelWrap.style.position = _panelWrap.style.position || "relative";
+                _panelWrap.appendChild(_panel);
+                var _facInput = _panel.querySelector("#pd-facade-h-input");
+                var _ridgInput = _panel.querySelector("#pd-ridge-h-input");
+                function _onPdHeightChange() {
+                  var _m = (CALPINAGE_STATE.parametricDormers || [])[drawState.selectedRoofExtensionIndex];
+                  if (!_m || !_m.heights) return;
+                  var fv = parseFloat(_facInput.value);
+                  var rv = parseFloat(_ridgInput.value);
+                  if (Number.isFinite(fv) && fv >= 0.1 && fv < rv) _m.heights.facadeHeightM = fv;
+                  if (Number.isFinite(rv) && rv > 0.3) {
+                    _m.heights.ridgeHeightM = rv;
+                    _m.heights.roofRiseM = rv - (_m.heights.facadeHeightM || 0);
+                  }
+                  if (typeof saveCalpinageState === "function") saveCalpinageState();
+                  if (typeof window.CALPINAGE_RENDER === "function") window.CALPINAGE_RENDER();
+                }
+                _facInput.addEventListener("change", _onPdHeightChange);
+                _ridgInput.addEventListener("change", _onPdHeightChange);
+              }
+              if (!_pdSelModel || !_pdSelModel.heights) {
+                _panel.style.display = "none";
+              } else {
+                _panel.style.display = "block";
+                var _fIn = _panel.querySelector("#pd-facade-h-input");
+                var _rIn = _panel.querySelector("#pd-ridge-h-input");
+                if (_fIn && document.activeElement !== _fIn) _fIn.value = (_pdSelModel.heights.facadeHeightM || 0.9).toFixed(2);
+                if (_rIn && document.activeElement !== _rIn) _rIn.value = (_pdSelModel.heights.ridgeHeightM || 1.6).toFixed(2);
+              }
+            })();
 
             /* Ombre chien assis (roofExtensions) — projection au sol selon soleil */
             var sunVec = window.__CALPINAGE_SUN_VECTOR;

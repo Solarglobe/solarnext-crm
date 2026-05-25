@@ -220,8 +220,9 @@ export function buildRoofDormerParametric3D(
 
   const positions = vertices.map((v) => v.position);
   const solidCentroid = centroid(positions);
+  // La face de base (plancher) n'est PAS rendue : elle est à l'intérieur du pan de toit principal.
+  // L'omettre évite l'effet "maison fermée" et correspond à la réalité architecturale.
   const faceSpecs: Array<{ id: string; kind: VolumeFace3D["kind"]; cycle: readonly number[] }> = [
-    { id: `${model.id}:face:support-footprint`, kind: "base", cycle: [bFL, bFR, bRR, bRL] },
     { id: `${model.id}:face:front-wall`, kind: "side", cycle: [bFL, bFR, eFR, eFL] },
     { id: `${model.id}:face:front-gable`, kind: "side", cycle: [eFL, eFR, rF] },
     { id: `${model.id}:face:rear-wall`, kind: "side", cycle: [bRR, bRL, eRL, eRR] },
@@ -256,7 +257,7 @@ export function buildRoofDormerParametric3D(
     volumeM3: computeVolumeM3(positions, faces),
     footprintWorld,
     parts: {
-      walls: [`${model.id}:face:front-wall`, `${model.id}:face:rear-wall`, `${model.id}:face:left-cheek-wall`, `${model.id}:face:right-cheek-wall`],
+      walls: [`${model.id}:face:front-wall`, `${model.id}:face:front-gable`, `${model.id}:face:rear-wall`, `${model.id}:face:rear-gable`, `${model.id}:face:left-cheek-wall`, `${model.id}:face:right-cheek-wall`],
       cheekWalls: [`${model.id}:face:left-cheek-wall`, `${model.id}:face:right-cheek-wall`],
       facadeWalls: [`${model.id}:face:front-wall`, `${model.id}:face:front-gable`, `${model.id}:face:rear-wall`, `${model.id}:face:rear-gable`],
       dormerRoof: [`${model.id}:face:roof:left`, `${model.id}:face:roof:right`],
