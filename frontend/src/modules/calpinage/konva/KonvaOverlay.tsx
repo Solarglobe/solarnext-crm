@@ -345,4 +345,23 @@ export function KonvaOverlay({ containerRef }: Props) {
           </Group>
 
           {/*
-           * Couches screen-space — hors 
+           * Couches screen-space — hors WorldGroup (tailles fixes px).
+           * Positions calculées via imgToStage dans chaque composant.
+           */}
+
+          {/* P4.5b — handles shadow volume sélectionné (ROOF_EDIT) */}
+          <KonvaShadowVolumeHandlesLayer />
+
+          {/* P4.6a — handles PH3 bloc PV actif (PV_LAYOUT) */}
+          <KonvaPH3HandlesLayer />
+
+        </Layer>
+      </Stage>
+    </div>
+  );
+
+  // Portal dans containerRef : sibling de #calpinage-root dans le même stacking context
+  return createPortal(overlay, container);
+}
+
+export default KonvaOverlay;
