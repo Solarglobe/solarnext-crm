@@ -181,12 +181,22 @@ export function KonvaOverlay({ containerRef }: Props) {
     };
   }, [canvasEl]);
 
-  // Expose les couches actives pour le kill switch legacy (P4.1+)
+  /**
+   * Kill switch — expose la Set AVANT le premier rendu des enfants (render-time, pas useEffect).
+   * useEffect parent se déclenche APRÈS les effets enfants → timing bug : KonvaPVPanelsLayer
+   * essayait d'ajouter "pvPanels" à une Set qui n'existait pas encore.
+   * Fix : initialisation synchrone au premier rendu du composant (useRef garantit le one-shot).
+   */
+  const _killSwitchRef = useRef<Set<string> | null>(null);
+  if (_killSwitchRef.current === null) {
+    const s = new Set<string>();
+    _killSwitchRef.current = s;
+    (window as unknown as { __CALPINAGE_KONVA_LAYERS__?: Set<string> }).__CALPINAGE_KONVA_LAYERS__ = s;
+  }
+  // Nettoyage à l'unmount uniquement
   useEffect(() => {
-    const w = window as unknown as { __CALPINAGE_KONVA_LAYERS__?: Set<string> };
-    w.__CALPINAGE_KONVA_LAYERS__ = new Set<string>();
     return () => {
-      delete w.__CALPINAGE_KONVA_LAYERS__;
+      delete (window as unknown as { __CALPINAGE_KONVA_LAYERS__?: Set<string> }).__CALPINAGE_KONVA_LAYERS__;
     };
   }, []);
 
@@ -335,23 +345,4 @@ export function KonvaOverlay({ containerRef }: Props) {
           </Group>
 
           {/*
-           * Couches screen-space — hors WorldGroup (tailles fixes px).
-           * Positions calculées via imgToStage dans chaque composant.
-           */}
-
-          {/* P4.5b — handles shadow volume sélectionné (ROOF_EDIT) */}
-          <KonvaShadowVolumeHandlesLayer />
-
-          {/* P4.6a — handles PH3 bloc PV actif (PV_LAYOUT) */}
-          <KonvaPH3HandlesLayer />
-
-        </Layer>
-      </Stage>
-    </div>
-  );
-
-  // Portal dans containerRef : sibling de #calpinage-root dans le même stacking context
-  return createPortal(overlay, container);
-}
-
-export default KonvaOverlay;
+           * Couches screen-space — hors 
