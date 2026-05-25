@@ -275,4 +275,29 @@ export function KonvaPVPanelsLayer() {
     {panels.map((entry, idx) => {
       if (!entry.points || entry.points.length < 3) return null;
       const pts = entry.points;
- 
+      const n   = pts.length;
+      const wy0 = imgH - pts[0].y;
+      return (
+        <Shape
+          key={`pvp-hit-${idx}`}
+          id={`pvp-${idx}`}
+          listening={true}
+          perfectDrawEnabled={false}
+          sceneFunc={() => {}}
+          hitFunc={(ctx: Konva.Context, shape: Konva.Shape) => {
+            ctx.beginPath();
+            ctx.moveTo(pts[0].x, wy0);
+            for (let i = 1; i < n; i++) {
+              ctx.lineTo(pts[i].x, imgH - pts[i].y);
+            }
+            ctx.closePath();
+            ctx.fillStrokeShape(shape);
+          }}
+        />
+      );
+    })}
+    </>
+  );
+}
+
+export default KonvaPVPanelsLayer;
