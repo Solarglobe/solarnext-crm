@@ -108,3 +108,53 @@ Ordre recommandé :
 4. Pages métier profondes : Lead detail, Clients.
 
 Chaque migration doit conserver routes, APIs, permissions et actions existantes.
+
+## Primitives CRM Officielles
+
+Le kit reutilisable vit dans `frontend/src/components/ui`. Importer les primitives depuis le barrel :
+
+```tsx
+import {
+  PageHeader,
+  SectionHeader,
+  Toolbar,
+  DataTable,
+  EmptyState,
+  ErrorState,
+  ConfirmModal,
+  SettingsCard,
+  KPI,
+  KpiStrip,
+  showToast,
+} from "../components/ui";
+```
+
+Definitions :
+
+- `PageHeader` : unique header de page, avec actions haut niveau.
+- `SectionHeader` : titre interne de section, jamais un second hero.
+- `Toolbar` : recherche, filtres, meta et actions secondaires.
+- `DataTable` : liste CRM avec empty state integre.
+- `EmptyState` : absence de donnees ou resultat filtre vide.
+- `ErrorState` : erreur bloquante, avertissement ou information systeme.
+- `ConfirmModal` : confirmation explicite, surtout destructive.
+- `showToast` : notification courte non bloquante.
+- `SettingsCard` : tuile ou bloc de configuration, sans carte imbriquee.
+- `KPI` / `KpiStrip` : indicateurs courts, 3 a 6 maximum par groupe.
+
+Exemple liste :
+
+```tsx
+<PageHeader title="Documents" description="Recherche transversale CRM." actions={<Button>Ajouter</Button>} />
+<Toolbar search={<input aria-label="Rechercher" />} filters={<select aria-label="Statut" />} />
+<DataTable columns={columns} rows={rows} getRowKey={(row) => row.id} emptyTitle="Aucun document" />
+```
+
+Exemple parametres :
+
+```tsx
+<SectionHeader title="Securite" description="Regles appliquees a l'organisation." />
+<SettingsCard title="MFA" description="Statut et activation" actions={<Button>Activer</Button>} />
+```
+
+Pages migrees en premier lot : `DocumentsList`, `MairiesPage`, `SettingsHubPage`, `SecuritySettingsPage`, `PvSettingsPage`.

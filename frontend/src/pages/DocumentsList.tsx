@@ -3,13 +3,14 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { apiFetch, getAuthToken } from "../services/api";
 import { getCrmApiBase } from "../config/crmApiBase";
 import {
   fetchOrganizationDocuments,
   type OrganizationDocumentListItem,
 } from "../services/documentsList.api";
+import { EmptyState, ErrorState, PageHeader, Toolbar } from "../components/ui";
 import type { MailComposerInitialPrefill } from "./mail/MailComposer";
 import { assertDocumentDownloadOk } from "../utils/documentDownload";
 import "./documents-page.css";
@@ -34,6 +35,14 @@ const TYPE_FILTER_OPTIONS: { value: string; label: string }[] = [
   { value: "dp",      label: "DP" },
   { value: "admin",   label: "Contrats" },
   { value: "other",   label: "Autre" },
+];
+
+const ENTITY_FILTER_OPTIONS: { value: string; label: string }[] = [
+  { value: "all", label: "Tous les rattachements" },
+  { value: "lead", label: "Lead" },
+  { value: "client", label: "Client" },
+  { value: "quote", label: "Devis source" },
+  { value: "invoice", label: "Facture source" },
 ];
 
 /** Maps document to dp-{key} CSS modifier */
@@ -86,6 +95,27 @@ function resolveContactCell(doc: OrganizationDocumentListItem): string {
   return "—";
 }
 
+function resolveSourceLabel(doc: OrganizationDocumentListItem): string {
+  if (doc.entity_type === "lead") return "Lead";
+  if (doc.entity_type === "client") return "Client";
+  if (doc.entity_type === "quote") return "Devis";
+  if (doc.entity_type === "invoice") return "Facture";
+  if (doc.entity_type === "study" || doc.entity_type === "study_version") return "Étude";
+  return doc.entity_type || "Source";
+}
+
+function resolveContextLink(doc: OrganizationDocumentListItem): { to: string; title: string } | null {
+  if (doc.lead_id) return { to: `/leads/${doc.lead_id}?tab=documents`, title: "Ouvrir le dossier" };
+  if (doc.client_id) return { to: `/clients/${doc.client_id}`, title: "Ouvrir le client" };
+  if (doc.quote_id || doc.entity_type === "quote") {
+    return { to: `/quotes/${doc.quote_id || doc.entity_id}`, title: "Ouvrir le devis" };
+  }
+  if (doc.invoice_id || doc.entity_type === "invoice") {
+    return { to: `/invoices/${doc.invoice_id || doc.entity_id}`, title: "Ouvrir la facture" };
+  }
+  return null;
+}
+
 /* ── SVG icons ─────────────────────────────────────────────────────────────── */
 const IconSearch = () => (
   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -122,13 +152,6 @@ const IconExternalLink = () => (
 const IconSpinner = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
     <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
-  </svg>
-);
-
-const IconAlert = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/>
-    <line x1="12" y1="16" x2="12.01" y2="16"/>
   </svg>
 );
 
@@ -202,15 +225,34 @@ function SkeletonRows() {
 /* ── Main component ────────────────────────────────────────────────────────── */
 export default function DocumentsList() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const initialSearch = searchParams.get("search")?.trim() || "";
+  const initialType = searchParams.get("type")?.trim() || "all";
+  const initialEntity = searchParams.get("entity")?.trim() || "all";
   const [items,        setItems]        = useState<OrganizationDocumentListItem[]>([]);
   const [total,        setTotal]        = useState(0);
   const [loading,      setLoading]      = useState(true);
   const [loadingMore,  setLoadingMore]  = useState(false);
   const [error,        setError]        = useState<string | null>(null);
-  const [searchInput,  setSearchInput]  = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [typeFilter,   setTypeFilter]   = useState("all");
+  const [searchInput,  setSearchInput]  = useState(initialSearch);
+  const [debouncedSearch, setDebouncedSearch] = useState(initialSearch);
+  const [typeFilter,   setTypeFilter]   = useState(
+    TYPE_FILTER_OPTIONS.some((o) => o.value === initialType) ? initialType : "all"
+  );
+  const [entityFilter, setEntityFilter] = useState(
+    ENTITY_FILTER_OPTIONS.some((o) => o.value === initialEntity) ? initialEntity : "all"
+  );
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const nextSearch = searchParams.get("search")?.trim() || "";
+    const nextType = searchParams.get("type")?.trim() || "all";
+    const nextEntity = searchParams.get("entity")?.trim() || "all";
+    setSearchInput(nextSearch);
+    setDebouncedSearch(nextSearch);
+    setTypeFilter(TYPE_FILTER_OPTIONS.some((o) => o.value === nextType) ? nextType : "all");
+    setEntityFilter(ENTITY_FILTER_OPTIONS.some((o) => o.value === nextEntity) ? nextEntity : "all");
+  }, [searchParams]);
 
   /* debounce search */
   useEffect(() => {
@@ -228,6 +270,7 @@ export default function DocumentsList() {
         const res = await fetchOrganizationDocuments({
           search: debouncedSearch || undefined,
           type: typeFilter,
+          entity: entityFilter,
           limit: PAGE_SIZE,
           offset: 0,
         });
@@ -245,7 +288,7 @@ export default function DocumentsList() {
       }
     })();
     return () => { cancelled = true; };
-  }, [debouncedSearch, typeFilter]);
+  }, [debouncedSearch, typeFilter, entityFilter]);
 
   const listItems = items ?? [];
   const hasMore   = listItems.length < total;
@@ -258,6 +301,7 @@ export default function DocumentsList() {
       const res = await fetchOrganizationDocuments({
         search: debouncedSearch || undefined,
         type: typeFilter,
+        entity: entityFilter,
         limit: PAGE_SIZE,
         offset: items.length,
       });
@@ -269,13 +313,13 @@ export default function DocumentsList() {
     } finally {
       setLoadingMore(false);
     }
-  }, [debouncedSearch, typeFilter, items.length, hasMore, loadingMore]);
+  }, [debouncedSearch, typeFilter, entityFilter, items.length, hasMore, loadingMore]);
 
   const handleSendDocument = useCallback((doc: OrganizationDocumentListItem) => {
     const fileName = doc.file_name?.trim() || resolveDisplayName(doc);
     const prefill: MailComposerInitialPrefill = {
       crmLeadId:   doc.lead_id || null,
-      crmClientId: doc.entity_type === "client" ? doc.entity_id : null,
+      crmClientId: doc.client_id || (doc.entity_type === "client" ? doc.entity_id : null),
       subject:     `Document : ${resolveDisplayName(doc)}`,
       documents:   [{ id: doc.id, filename: fileName }],
     };
@@ -310,9 +354,10 @@ export default function DocumentsList() {
     setSearchInput("");
     setDebouncedSearch("");
     setTypeFilter("all");
+    setEntityFilter("all");
   }, []);
 
-  const hasActiveFilters = debouncedSearch !== "" || typeFilter !== "all";
+  const hasActiveFilters = debouncedSearch !== "" || typeFilter !== "all" || entityFilter !== "all";
 
   const countLabel = useMemo(() => {
     if (loading || error) return null;
@@ -323,12 +368,11 @@ export default function DocumentsList() {
   return (
     <div className="dp-page">
 
-      {/* Header */}
-      <div className="dp-header">
-        <div className="dp-header__left">
-          <h1 className="dp-title">Documents</h1>
-          <p className="dp-subtitle">Tous les documents de l&apos;organisation</p>
-          {countLabel && (
+      <PageHeader
+        title="Documents"
+        description="Recherche transversale. Le classement et l'ajout restent dans les fiches lead/client."
+        meta={
+          countLabel ? (
             <span className="dp-count-badge">
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/>
@@ -336,12 +380,14 @@ export default function DocumentsList() {
               </svg>
               {countLabel}
             </span>
-          )}
-        </div>
-      </div>
+          ) : null
+        }
+      />
 
       {/* Toolbar */}
-      <div className="dp-toolbar">
+      <Toolbar
+        className="dp-toolbar"
+        search={
         <div className="dp-search-wrap">
           <span className="dp-search-icon"><IconSearch /></span>
           <input
@@ -353,7 +399,9 @@ export default function DocumentsList() {
             aria-label="Rechercher un document"
           />
         </div>
-
+        }
+        filters={
+          <>
         <div className="dp-filters">
           {TYPE_FILTER_OPTIONS.map((opt) => (
             <button
@@ -369,6 +417,25 @@ export default function DocumentsList() {
             </button>
           ))}
         </div>
+        <label className="dp-select-wrap">
+          <span className="dp-select-label">Rattachement</span>
+          <select
+            className="dp-select"
+            value={entityFilter}
+            onChange={(e) => setEntityFilter(e.target.value)}
+            aria-label="Filtrer par rattachement"
+          >
+            {ENTITY_FILTER_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </label>
+          </>
+        }
+        actions={
+          <>
 
         {hasActiveFilters && (
           <button type="button" className="dp-reset" onClick={resetFilters}>
@@ -376,14 +443,13 @@ export default function DocumentsList() {
             Réinitialiser
           </button>
         )}
-      </div>
+          </>
+        }
+      />
 
       {/* Error */}
       {error && (
-        <div className="dp-error" role="alert">
-          <IconAlert />
-          {error}
-        </div>
+        <ErrorState message={error} />
       )}
 
       {/* Table */}
@@ -403,15 +469,15 @@ export default function DocumentsList() {
 
         {/* Empty state */}
         {!loading && !error && listItems.length === 0 && (
-          <div className="dp-empty">
-            <div className="dp-empty__icon"><IconDocFile /></div>
-            <p className="dp-empty__title">Aucun document trouvé</p>
-            <p className="dp-empty__sub">
-              {hasActiveFilters
+          <EmptyState
+            icon={<IconDocFile />}
+            title="Aucun document trouvé"
+            description={
+              hasActiveFilters
                 ? "Essayez de modifier vos filtres ou votre recherche."
-                : "Les documents générés depuis vos études et devis apparaîtront ici."}
-            </p>
-          </div>
+                : "Les documents générés ou ajoutés depuis les fiches lead et client apparaîtront ici."
+            }
+          />
         )}
 
         {/* Data rows */}
@@ -420,6 +486,7 @@ export default function DocumentsList() {
           const displayName    = resolveDisplayName(doc);
           const isDownloading  = downloadingId === doc.id;
           const isClientVisible = doc.is_visible_to_client || doc.isClientVisible;
+          const contextLink = resolveContextLink(doc);
 
           return (
             <div key={doc.id} className="dp-row">
@@ -439,6 +506,7 @@ export default function DocumentsList() {
                   {doc.file_name && doc.file_name !== displayName && (
                     <div className="dp-doc-filename">{doc.file_name}</div>
                   )}
+                  <div className="dp-doc-source">{resolveSourceLabel(doc)}</div>
                 </div>
               </div>
 
@@ -472,11 +540,11 @@ export default function DocumentsList() {
                 >
                   <IconSend />
                 </button>
-                {doc.lead_id && (
+                {contextLink && (
                   <Link
                     className="dp-action-btn"
-                    to={`/leads/${doc.lead_id}`}
-                    title="Ouvrir le lead"
+                    to={contextLink.to}
+                    title={contextLink.title}
                   >
                     <IconExternalLink />
                   </Link>

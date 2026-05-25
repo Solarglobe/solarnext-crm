@@ -5,6 +5,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
+import { EmptyState, ErrorState, PageHeader, Toolbar } from "../../components/ui";
 import { ConfirmModal } from "../../components/ui/ConfirmModal";
 import { ModalShell } from "../../components/ui/ModalShell";
 import { useMairiesPermissions } from "../../hooks/useMairiesPermissions";
@@ -340,26 +341,31 @@ export default function MairiesPage() {
 
   return (
     <div className="mairies-page">
-      <div className="mairies-page__hero">
-        <div>
-          <h1 className="mairies-page__title">Mairies / Portails DP</h1>
-          <p className="qb-muted" style={{ margin: "4px 0 0", fontSize: 14 }}>
+      <PageHeader
+        title="Mairies / Portails DP"
+        description={
+          <>
             {total} mairie{total !== 1 ? "s" : ""} répertoriée{total !== 1 ? "s" : ""}
             <span className="mairies-page__kbd-hint" aria-hidden>
               {" "}
               · Tab puis ↑↓ Enter E
               {canWrite ? " N" : ""}
             </span>
-          </p>
-        </div>
-        {canWrite ? (
-          <Button type="button" variant="primary" onClick={openCreateModal}>
-            + Ajouter une mairie
-          </Button>
-        ) : null}
-      </div>
+          </>
+        }
+        actions={
+          canWrite ? (
+            <Button type="button" variant="primary" onClick={openCreateModal}>
+              + Ajouter une mairie
+            </Button>
+          ) : null
+        }
+      />
 
-      <div className="mairies-page__filters" aria-label="Filtres mairies">
+      <Toolbar
+        className="mairies-page__filters"
+        filters={
+          <>
         <label>
           Recherche
           <input
@@ -427,9 +433,11 @@ export default function MairiesPage() {
         <Button type="button" variant="secondary" size="sm" onClick={resetFilters}>
           Réinitialiser
         </Button>
-      </div>
+          </>
+        }
+      />
 
-      {listError ? <p className="qb-error-inline">{listError}</p> : null}
+      {listError ? <ErrorState message={listError} /> : null}
 
       {listLoading && !listError ? (
         <div className="mairies-page__skeleton-wrap" aria-busy="true" aria-label="Chargement de la liste">
@@ -465,26 +473,24 @@ export default function MairiesPage() {
       ) : null}
 
       {!listLoading && !listError && list.length === 0 && hasActiveFilters ? (
-        <Card variant="app" padding="lg">
-          <p className="mairies-page__empty-title">Aucune mairie ne correspond aux filtres.</p>
-          <p className="qb-muted" style={{ marginTop: 8, fontSize: 14 }}>
-            Élargissez la recherche ou réinitialisez les filtres.
-          </p>
-        </Card>
+        <EmptyState
+          title="Aucune mairie ne correspond aux filtres."
+          description="Élargissez la recherche ou réinitialisez les filtres."
+        />
       ) : null}
 
       {!listLoading && !listError && list.length === 0 && !hasActiveFilters ? (
-        <Card variant="app" padding="lg" className="mairies-page__empty-card">
-          <h2 className="mairies-page__empty-title">Aucune mairie enregistrée</h2>
-          <p className="qb-muted" style={{ marginTop: 8, marginBottom: 20, fontSize: 15, maxWidth: 420 }}>
-            Ajoutez votre première mairie pour éviter de recréer des comptes
-          </p>
-          {canWrite ? (
-            <Button type="button" variant="primary" size="lg" onClick={openCreateModal}>
-              + Ajouter une mairie
-            </Button>
-          ) : null}
-        </Card>
+        <EmptyState
+          title="Aucune mairie enregistrée"
+          description="Ajoutez votre première mairie pour éviter de recréer des comptes."
+          actions={
+            canWrite ? (
+              <Button type="button" variant="primary" size="lg" onClick={openCreateModal}>
+                + Ajouter une mairie
+              </Button>
+            ) : null
+          }
+        />
       ) : null}
 
       {!listLoading && list.length > 0 ? (

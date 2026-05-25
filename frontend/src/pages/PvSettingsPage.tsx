@@ -7,6 +7,7 @@
 
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { Button } from "../components/ui/Button";
+import { ErrorState, PageHeader } from "../components/ui";
 import { ModalShell } from "../components/ui/ModalShell";
 import { SaasTabs } from "../components/ui/SaasTabs";
 import "../modules/admin/admin-tab-quote-catalog.css";
@@ -332,7 +333,7 @@ export default function PvSettingsPage() {
   if (error || !data) {
     return (
       <div className="pv-settings-page">
-        <p className="sn-saas-callout-error__text">{error || "Données non disponibles"}</p>
+        <ErrorState message={error || "Données non disponibles"} />
       </div>
     );
   }
@@ -342,13 +343,15 @@ export default function PvSettingsPage() {
   return (
     <div className="pv-settings-page">
       <div className="pv-settings-page__sticky">
-        <header style={{ marginBottom: 16 }}>
-          <h1 className="sg-title">Paramètres PV</h1>
-          <p className="pv-settings-page__lead">
+        <PageHeader
+          title="Paramètres PV"
+          description={
+            <span className="pv-settings-page__lead">
             Paramètres économiques, catalogues panneaux, micro-onduleurs et batteries. Les blocs API hérités{" "}
             <code>pvtech</code> / <code>ai</code> restent en base mais ne sont plus exposés ici (non branchés au moteur).
-          </p>
-        </header>
+            </span>
+          }
+        />
 
         <SaasTabs<PvSettingsTabId>
           items={PV_TAB_ITEMS}

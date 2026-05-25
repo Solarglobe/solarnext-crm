@@ -1079,6 +1079,7 @@ export async function saveLeadDpGeneratedPdfDocument(pdfBuffer, organizationId, 
  * @param {string} p.organizationId
  * @param {string} [p.search]
  * @param {string} [p.type] all | quote | invoice | study | dp | admin | other
+ * @param {string} [p.entity] all | lead | client | quote | invoice
  * @param {number} [p.limit]
  * @param {number} [p.offset]
  * @returns {Promise<{ rows: object[], total: number }>}
@@ -1087,6 +1088,7 @@ export async function listOrganizationDocuments({
   organizationId,
   search = "",
   type = "all",
+  entity = "all",
   limit = 50,
   offset = 0,
 }) {
@@ -1098,6 +1100,9 @@ export async function listOrganizationDocuments({
   const typeNorm = String(type || "all").toLowerCase();
   const allowedTypes = new Set(["all", "quote", "invoice", "study", "dp", "admin", "other"]);
   const t = allowedTypes.has(typeNorm) ? typeNorm : "all";
+  const entityNorm = String(entity || "all").toLowerCase();
+  const allowedEntities = new Set(["all", "lead", "client", "quote", "invoice"]);
+  const e = allowedEntities.has(entityNorm) ? entityNorm : "all";
 
   let typeClause = "TRUE";
   if (t === "quote") {
@@ -1121,6 +1126,11 @@ export async function listOrganizationDocuments({
     )`;
   }
 
+  let entityClause = "TRUE";
+  if (e !== "all") {
+    entityClause = `ed.entity_type = '${e}'`;
+  }
+
   const params = [organizationId];
   let searchClause = "";
   if (searchTrim) {
@@ -1136,6 +1146,10 @@ export async function listOrganizationDocuments({
       OR COALESCE(c.company_name, '') ILIKE ${sp}
       OR NULLIF(TRIM(CONCAT(COALESCE(inv_cl.first_name, ''), ' ', COALESCE(inv_cl.last_name, ''))), '') ILIKE ${sp}
       OR COALESCE(inv_cl.company_name, '') ILIKE ${sp}
+      OR COALESCE(q.quote_number::text, '') ILIKE ${sp}
+      OR COALESCE(meta_q.quote_number::text, '') ILIKE ${sp}
+      OR COALESCE(inv.invoice_number::text, '') ILIKE ${sp}
+      OR COALESCE(meta_inv.invoice_number::text, '') ILIKE ${sp}
     )`;
   }
 
@@ -1170,6 +1184,14 @@ export async function listOrganizationDocuments({
         inv_q.lead_id
       )
       AND lr.organization_id = ed.organization_id
+    LEFT JOIN quotes meta_q
+      ON COALESCE(ed.metadata_json->>'quote_id', '') <> ''
+      AND meta_q.id::text = ed.metadata_json->>'quote_id'
+      AND meta_q.organization_id = ed.organization_id
+    LEFT JOIN invoices meta_inv
+      ON COALESCE(ed.metadata_json->>'invoice_id', '') <> ''
+      AND meta_inv.id::text = ed.metadata_json->>'invoice_id'
+      AND meta_inv.organization_id = ed.organization_id
   `;
 
   const selectCore = `
@@ -1184,6 +1206,16 @@ export async function listOrganizationDocuments({
       ed.mime_type,
       ed.created_at,
       ed.is_client_visible,
+      COALESCE(q.id, meta_q.id) AS quote_id,
+      COALESCE(inv.id, meta_inv.id) AS invoice_id,
+      COALESCE(
+        CASE WHEN ed.entity_type = 'client' THEN ed.entity_id END,
+        c.id,
+        inv_cl.id,
+        q.client_id,
+        inv.client_id,
+        lr.client_id
+      ) AS client_id,
       lr.id AS lead_id,
       NULLIF(TRIM(CONCAT(COALESCE(lr.first_name, ''), ' ', COALESCE(lr.last_name, ''))), '') AS lead_name,
       CASE
@@ -1203,6 +1235,7 @@ export async function listOrganizationDocuments({
     WHERE ed.organization_id = $1
       AND (ed.archived_at IS NULL)
       AND (${typeClause})
+      AND (${entityClause})
       ${searchClause}
   `;
 

@@ -15,6 +15,7 @@ import {
   revokeSession,
   type ActiveSession,
 } from "../services/sessions.service";
+import { EmptyState, ErrorState, PageHeader, SectionHeader, SettingsCard } from "../components/ui";
 import "./security-settings-page.css";
 
 export default function SecuritySettingsPage() {
@@ -111,22 +112,20 @@ export default function SecuritySettingsPage() {
 
   return (
     <div className="security-settings">
-      <header className="security-settings__head">
-        <h1>Securite</h1>
-        <p>MFA TOTP compatible Google Authenticator et Authy.</p>
-      </header>
+      <PageHeader title="Securite" description="MFA TOTP compatible Google Authenticator et Authy." />
 
-      <section className="security-card">
-        <div>
-          <h2>Authentification MFA</h2>
-          <p>Statut : {status?.enabled ? "activee" : "inactive"}</p>
-        </div>
-        {!status?.enabled ? (
-          <button type="button" className="sn-btn sn-btn-primary" onClick={() => void startSetup()}>
-            Activer le MFA
-          </button>
-        ) : null}
-      </section>
+      <SettingsCard
+        className="security-card"
+        title="Authentification MFA"
+        description={`Statut : ${status?.enabled ? "activee" : "inactive"}`}
+        actions={
+          !status?.enabled ? (
+            <button type="button" className="sn-btn sn-btn-primary" onClick={() => void startSetup()}>
+              Activer le MFA
+            </button>
+          ) : null
+        }
+      />
 
       {setup ? (
         <section className="security-card security-card--setup">
@@ -177,22 +176,20 @@ export default function SecuritySettingsPage() {
         </section>
       ) : null}
 
-      <section className="security-card">
-        <div>
-          <h2>Politique organisation</h2>
-          <p>Imposer le MFA a tous les membres de l'organisation.</p>
-        </div>
+      <SettingsCard className="security-card" title="Politique organisation" description="Imposer le MFA a tous les membres de l'organisation.">
         <label className="security-toggle">
           <input type="checkbox" checked={requireMfa} onChange={(event) => void toggleOrgMfa(event.target.checked)} />
           <span>MFA obligatoire</span>
         </label>
-      </section>
+      </SettingsCard>
 
       <section className="security-card">
         <div className="security-card__split">
           <div>
-            <h2>Sessions actives</h2>
-            <p>Appareils connectes a votre compte avec refresh token actif.</p>
+            <SectionHeader
+              title="Sessions actives"
+              description="Appareils connectes a votre compte avec refresh token actif."
+            />
           </div>
           <button type="button" className="sn-btn sn-btn-secondary" onClick={() => void revokeOthers()}>
             Deconnecter toutes les autres sessions
@@ -200,7 +197,7 @@ export default function SecuritySettingsPage() {
         </div>
         <div className="security-session-list">
           {sessions.length === 0 ? (
-            <p>Aucune session active trouvee.</p>
+            <EmptyState title="Aucune session active trouvee" description="Les nouvelles connexions apparaitront ici." />
           ) : (
             sessions.map((session) => (
               <article className="security-session" key={session.id}>
@@ -231,7 +228,7 @@ export default function SecuritySettingsPage() {
         </div>
       </section>
 
-      {message ? <p className="security-message">{message}</p> : null}
+      {message ? <ErrorState tone="warning" message={message} /> : null}
     </div>
   );
 }

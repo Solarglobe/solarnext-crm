@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
-import { DataTable, PageHeader, type DataTableColumn } from "../../components/ui";
+import { DataTable, EmptyState, PageHeader, SectionHeader, SettingsCard, type DataTableColumn } from "../../components/ui";
 import { getUserPermissions } from "../../services/auth.service";
 import "./settings-hub-page.css";
 
@@ -193,21 +193,28 @@ export default function SettingsHubPage() {
         <div className="settings-hub__sections">
           {groups.map(({ group, cards }) => (
             <section className="settings-hub__section" key={group}>
-              <h2>{group}</h2>
+              <SectionHeader title={group} />
               <div className="settings-hub__grid">
                 {cards.map((card) => (
-                  <Link className="settings-hub__card" to={card.href} key={`${card.href}:${card.title}`}>
-                    <div className="settings-hub__card-head">
-                      <strong>{card.title}</strong>
-                      <span className="settings-hub__status">{card.status}</span>
-                    </div>
-                    <span className="settings-hub__card-description">{card.description}</span>
-                    <small>{card.permission}</small>
+                  <Link className="settings-hub__card-link" to={card.href} key={`${card.href}:${card.title}`}>
+                    <SettingsCard
+                      as="div"
+                      title={card.title}
+                      description={card.description}
+                      badge={<span className="settings-hub__status">{card.status}</span>}
+                      footer={card.permission}
+                    />
                   </Link>
                 ))}
               </div>
             </section>
           ))}
+          {visibleCards.length === 0 ? (
+            <EmptyState
+              title="Aucun parametrage disponible"
+              description="Votre role ne donne acces a aucune section de configuration."
+            />
+          ) : null}
           <DataTable
             className="settings-hub__matrix"
             title="Matrice sections / permissions"

@@ -14,6 +14,9 @@ export type OrganizationDocumentListItem = {
   id: string;
   entity_type: string;
   entity_id: string;
+  quote_id?: string | null;
+  invoice_id?: string | null;
+  client_id?: string | null;
   document_type: string | null;
   document_category: string | null;
   documentCategory?: string | null;
@@ -49,12 +52,14 @@ const EMPTY_RESPONSE = (): OrganizationDocumentsListResponse => ({
 export async function fetchOrganizationDocuments(params: {
   search?: string;
   type?: string;
+  entity?: string;
   limit?: number;
   offset?: number;
 }): Promise<OrganizationDocumentsListResponse> {
   const q = new URLSearchParams();
   if (params.search?.trim()) q.set("search", params.search.trim());
   if (params.type && params.type !== "all") q.set("type", params.type);
+  if (params.entity && params.entity !== "all") q.set("entity", params.entity);
   if (params.limit != null) q.set("limit", String(params.limit));
   if (params.offset != null) q.set("offset", String(params.offset));
   const qs = q.toString();

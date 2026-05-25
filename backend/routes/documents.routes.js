@@ -1,7 +1,7 @@
 /**
  * CP-032 — Routes Documents (Stockage Local VPS)
  * CP-032C — withTx, assertOrgEntity (archived → 404)
- * GET /api/documents — liste globale organisation (Document Center, query search|type|limit|offset)
+ * GET /api/documents — liste globale organisation (Document Center, query search|type|entity|limit|offset)
  * POST /api/documents — upload
  * GET /api/documents/:id/download — téléchargement sécurisé
  * GET /api/documents/:entityType/:entityId — liste par entité
@@ -92,7 +92,7 @@ const DOC_PERMS = ["client.read.all", "lead.read.all", "study.manage", "quote.ma
 
 /**
  * GET /api/documents — Liste globale organisation (Document Center), paginée.
- * Query: search, type (all|quote|invoice|study|dp|admin|other), limit, offset
+ * Query: search, type (all|quote|invoice|study|dp|admin|other), entity (all|lead|client|quote|invoice), limit, offset
  * Doit rester déclaré AVANT /:id/download et /:entityType/:entityId.
  */
 router.get("/", verifyJWT, requireAnyPermission(DOC_PERMS), async (req, res) => {
@@ -103,6 +103,7 @@ router.get("/", verifyJWT, requireAnyPermission(DOC_PERMS), async (req, res) => 
     }
     const search = typeof req.query.search === "string" ? req.query.search : "";
     const type = typeof req.query.type === "string" ? req.query.type : "all";
+    const entity = typeof req.query.entity === "string" ? req.query.entity : "all";
     const limit = req.query.limit != null ? Number(req.query.limit) : undefined;
     const offset = req.query.offset != null ? Number(req.query.offset) : undefined;
 
@@ -110,6 +111,7 @@ router.get("/", verifyJWT, requireAnyPermission(DOC_PERMS), async (req, res) => 
       organizationId: org,
       search,
       type,
+      entity,
       limit,
       offset,
     });
@@ -126,6 +128,9 @@ router.get("/", verifyJWT, requireAnyPermission(DOC_PERMS), async (req, res) => 
         ...base,
         entity_type: row.entity_type,
         entity_id: row.entity_id,
+        quote_id: row.quote_id ?? null,
+        invoice_id: row.invoice_id ?? null,
+        client_id: row.client_id ?? null,
         lead_id: row.lead_id ?? null,
         lead_name: row.lead_name ?? null,
         client_name: row.client_name ?? null,
