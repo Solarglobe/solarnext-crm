@@ -29,7 +29,9 @@ test("Solarglobe is explicitly treated as the internal free home organization", 
   assert.match(authService, /"INTERNAL_FREE"/);
   assert.match(authRoutes, /internalHomeOrganization/);
   assert.match(authRoutes, /planId: internalHomeOrganization \? "INTERNAL_FREE"/);
-  assert.match(onboardingController, /\["company", "mail", "team", "pipeline", "lead"\]/);
+  assert.match(onboardingController, /const ONBOARDING_STEPS = new Set\(\["company", "mail", "team", "lead"\]\)/);
+  assert.match(onboardingController, /const \{ pipeline: _legacyPipeline, \.\.\.onboardingData \} = cleanObject\(settings\.onboarding\)/);
+  assert.match(onboardingController, /completedSteps: solarglobeHome\s*\?\s*\["company", "mail", "team", "lead"\]/);
 
   assert.match(migration, /onboarding_completed = true/);
   assert.match(migration, /onboarding_step_completed = ARRAY\['company','mail','team','pipeline','lead'\]::text\[\]/);
