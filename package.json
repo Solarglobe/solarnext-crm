@@ -11,6 +11,7 @@
     "ci:financial-regression": "node --test backend/tests/financialEngineRegression.test.mjs",
     "ci:financial-health": "node backend/scripts/financial-engine-health.mjs",
     "test:e2e": "npm --prefix frontend exec -- playwright test -c playwright.config.ts",
+    "test:release-smoke": "npm --prefix frontend exec -- playwright test -c playwright.config.ts --grep \"release go/no-go CRM smoke\"",
     "restore:storage:railway": "node backend/scripts/railway-restore-storage.mjs",
     "push:github": "git push -u origin HEAD",
     "push:github:tags": "git push origin --tags"

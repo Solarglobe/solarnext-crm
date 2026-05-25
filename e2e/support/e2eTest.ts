@@ -7,11 +7,18 @@ export const API_URL = process.env.E2E_API_URL || "http://127.0.0.1:3000";
 const PREFIX = "e2e-critical";
 const PERMISSIONS = [
   "org.settings.manage",
+  "user.manage",
+  "rbac.manage",
+  "structure.manage",
   "lead.create",
   "lead.read.all",
   "lead.update.all",
+  "client.read.all",
+  "mail.accounts.manage",
   "study.manage",
   "quote.manage",
+  "QUOTE_CATALOG:READ",
+  "QUOTE_CATALOG:WRITE",
   "invoice.manage",
 ];
 
@@ -136,6 +143,21 @@ export async function api(seed: SeedContext, method: string, path: string, body?
   const text = await res.text();
   const data = text ? JSON.parse(text) : {};
   return { status: res.status, data, headers: res.headers };
+}
+
+export async function completeOnboarding(seed: SeedContext) {
+  const res = await api(seed, "PATCH", "/api/organizations/onboarding", {
+    completed: true,
+    completedSteps: ["company", "mail", "team", "lead"],
+    activeStep: "lead",
+    data: {
+      profile: {
+        name: `Organisation ${seed.orgId.slice(0, 8)}`,
+      },
+    },
+  });
+  expect(res.status, JSON.stringify(res.data)).toBe(200);
+  return res.data;
 }
 
 export function coherentQuotePayload(ids: Awaited<ReturnType<typeof seedLockedFinancialScenario>>) {

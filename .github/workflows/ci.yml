@@ -190,7 +190,7 @@ jobs:
         working-directory: backend
         run: npm run migrate:up
 
-      - name: Run Playwright critical flows
+      - name: Run Playwright critical flows and release smoke
         run: npm run test:e2e
 
       - name: Upload Playwright report
