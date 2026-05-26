@@ -78,9 +78,10 @@ describe("RoofDormerParametricModel", () => {
     expect(geom.volumeM3).toBeGreaterThan(0);
   });
 
-  it("applique les hauteurs verticalement (WORLD_UP) : murs perpendiculaires au sol, pas selon la normale du pan", () => {
-    // buildPoint utilise WORLD_UP = {0,0,1} pour les hauteurs : un chien assis sur un pan incliné
-    // doit avoir des murs verticaux (x,y inchangés entre base et eave, seul z augmente de hFacade).
+  it("applique les hauteurs selon la normale du pan support : murs dans le plan de la pente", () => {
+    // G1 : buildPoint utilise upAxis = normalize(supportPatch.normal) — les hauteurs sont mesurées
+    // le long de la normale sortante du pan, conformément à heights.reference = "support_plane_normal".
+    // Pour un pan à 30° : normal ≈ {x:0, y:-0.5, z:0.866} → eave ≠ base en y, z-delta ≠ facadeHeightM.
     const patch = makeSupportPatch("pan-param", 30);
     const model = createRoofDormerParametricModelFromDraft(draft());
     const geom = buildRoofDormerParametric3D(model, patch).geometry!;
@@ -90,17 +91,13 @@ describe("RoofDormerParametricModel", () => {
       expect(Math.abs(signedDistanceToPlane(p, patch.equation))).toBeLessThan(1e-6);
     }
 
-    // Les murs sont verticaux : eave.x == base.x, eave.y == base.y, eave.z - base.z == facadeHeightM.
-    const baseFrontLeft = geom.vertices.find((v) => v.id.endsWith(":base:front-left"))!;
+    // Eave : distance signée au plan == facadeHeightM (extrusion le long de la normale unitaire).
     const eaveFrontLeft = geom.vertices.find((v) => v.id.endsWith(":eave:front-left"))!;
-    expect(eaveFrontLeft.position.x).toBeCloseTo(baseFrontLeft.position.x, 6);
-    expect(eaveFrontLeft.position.y).toBeCloseTo(baseFrontLeft.position.y, 6);
-    expect(eaveFrontLeft.position.z - baseFrontLeft.position.z).toBeCloseTo(0.45, 6);
+    expect(signedDistanceToPlane(eaveFrontLeft.position, patch.equation)).toBeCloseTo(0.45, 6);
 
-    // ridge.front (vM == frontLeft.vM == -1.4) partage le même z_base que baseFrontLeft.
-    // Donc ridgeFront.z - baseFrontLeft.z == ridgeHeightM.
+    // Ridge front : distance signée au plan == ridgeHeightM.
     const ridgeFront = geom.vertices.find((v) => v.id.endsWith(":ridge:front"))!;
-    expect(ridgeFront.position.z - baseFrontLeft.position.z).toBeCloseTo(1.15, 6);
+    expect(signedDistanceToPlane(ridgeFront.position, patch.equation)).toBeCloseTo(1.15, 6);
   });
 
   it("relit un parametricDormers[] runtime sans passer par roofExtensions legacy", () => {
