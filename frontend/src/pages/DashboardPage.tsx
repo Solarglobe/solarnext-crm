@@ -144,7 +144,7 @@ function buildDashboardInsight(
     const n = Math.round(safeNum(mo.lines_excluded_count));
     alerts.push({
       id: "material",
-      text: `${n} ligne${n > 1 ? "s" : ""} sans cout d'achat exclue${n > 1 ? "s" : ""} du perimetre materiel (periode).`,
+      text: `${n} ligne${n > 1 ? "s" : ""} sans cout d'achat ou avec achat a 0 exclue${n > 1 ? "s" : ""} du perimetre materiel (periode).`,
       tone: "info",
     });
   }
@@ -1206,14 +1206,14 @@ export default function DashboardPage() {
         <section className="sn-dashboard-section" aria-label="Marge matériel">
           <h2 className="sn-dashboard-section-title">Marge matériel</h2>
           <p className="sn-dashboard-margin-intro">
-            Calculée uniquement sur les lignes avec coût d’achat (matériel). Les prestations (installation, services) sont
+            Calculée uniquement sur les lignes avec coût d’achat &gt; 0 (matériel). Les prestations (installation, services) sont
             exclues.
           </p>
           {data.margin_overview.lines_excluded_count > 0 && (
             <p className="sn-dashboard-micro-note sn-dashboard-micro-note--emphasis">
               <strong className="sn-dashboard-num">{data.margin_overview.lines_excluded_count}</strong> ligne
               {data.margin_overview.lines_excluded_count > 1 ? "s" : ""} de devis exclue
-              {data.margin_overview.lines_excluded_count > 1 ? "s" : ""} du calcul sur la période (sans prix d’achat).
+              {data.margin_overview.lines_excluded_count > 1 ? "s" : ""} du calcul sur la période (sans prix d’achat ou achat à 0).
             </p>
           )}
           <Card variant="premium" padding="md" className="sn-dashboard-margin-card">

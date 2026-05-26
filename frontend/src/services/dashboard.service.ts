@@ -116,7 +116,7 @@ export interface DashboardOverview {
     revenue_signed_formula?: string;
     avg_quote_value_ttc: number | null;
   }[];
-  /** Marge matériel : uniquement lignes avec coût d’achat ; lignes sans achat exclues. */
+  /** Marge matériel : uniquement lignes avec coût d’achat > 0 ; lignes sans achat ou achat à 0 exclues. */
   margin_overview: {
     material_margin_ht: number;
     material_margin_pct: number;

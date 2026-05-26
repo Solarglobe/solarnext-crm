@@ -532,10 +532,10 @@ ${INVOICE_LEAD_JOINS}
          q.id,
          q.quote_number,
          COALESCE(SUM(CASE
-           WHEN COALESCE(ql.is_active, true) AND ql.purchase_unit_price_ht_cents IS NOT NULL
+           WHEN COALESCE(ql.is_active, true) AND ql.purchase_unit_price_ht_cents > 0
            THEN ql.total_line_ht ELSE 0 END), 0)::numeric AS sales_covered_ht,
-         COALESCE(SUM(CASE WHEN COALESCE(ql.is_active, true) THEN ql.quantity * (ql.purchase_unit_price_ht_cents::numeric / 100.0) ELSE 0 END), 0)::numeric AS purchase_ht,
-         (COUNT(*) FILTER (WHERE COALESCE(ql.is_active, true) AND ql.purchase_unit_price_ht_cents IS NULL))::int AS lines_excluded
+         COALESCE(SUM(CASE WHEN COALESCE(ql.is_active, true) AND ql.purchase_unit_price_ht_cents > 0 THEN ql.quantity * (ql.purchase_unit_price_ht_cents::numeric / 100.0) ELSE 0 END), 0)::numeric AS purchase_ht,
+         (COUNT(*) FILTER (WHERE COALESCE(ql.is_active, true) AND COALESCE(ql.purchase_unit_price_ht_cents, 0) <= 0))::int AS lines_excluded
        FROM quotes q
        ${QUOTE_LEAD_JOIN}
        INNER JOIN quote_lines ql ON ql.quote_id = q.id AND ql.organization_id = q.organization_id
@@ -794,7 +794,7 @@ ${INVOICE_LEAD_JOINS}
     revenue_signed_created_in_period:
       "Somme TTC des devis créés dans [début, fin] et déjà au statut ACCEPTED.",
     material_margin:
-      "Marge matériel : CA HT et coûts uniquement sur les lignes de devis avec purchase_unit_price_ht_cents renseigné ; les lignes sans coût d’achat sont exclues (prestations, pose, etc.).",
+      "Marge matériel : CA HT et coûts uniquement sur les lignes de devis avec purchase_unit_price_ht_cents > 0 ; les lignes sans coût d’achat ou avec achat à 0 sont exclues (prestations, pose, etc.).",
   };
 
   return {

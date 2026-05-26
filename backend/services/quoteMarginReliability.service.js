@@ -39,7 +39,7 @@ export function buildQuoteMarginKpi(lines) {
     const th = Number(line.total_line_ht);
     const q = Number(line.quantity) || 0;
     const puCents = line.purchase_unit_price_ht_cents;
-    const hasPurchase = puCents != null && Number.isFinite(Number(puCents));
+    const hasPurchase = puCents != null && Number.isFinite(Number(puCents)) && Number(puCents) > 0;
     if (!hasPurchase) missing += 1;
     if (Number.isFinite(th)) saleHtTotal += th;
     if (hasPurchase) {
