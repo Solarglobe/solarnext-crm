@@ -258,6 +258,31 @@ export async function createFicheTechnique(p) {
 }
 
 /**
+ * Suppression définitive d'une fiche technique (DB + fichier disque).
+ * Si le fichier n'existe plus sur le disque, la suppression DB réussit quand même.
+ * @param {string} organizationId
+ * @param {string} id
+ */
+export async function deleteFicheTechnique(organizationId, id) {
+  const row = await getFicheTechniqueRow(organizationId, id);
+  if (!row) throw err404("Fiche technique introuvable");
+
+  await pool.query(
+    "DELETE FROM fiche_techniques WHERE id = $1 AND organization_id = $2",
+    [id, organizationId]
+  );
+
+  try {
+    await localStorageDelete(row.storageKey);
+  } catch (e) {
+    // Fichier déjà absent : pas une erreur bloquante
+    if (e?.code !== "ENOENT") {
+      console.warn("FICHE_TECHNIQUE_DELETE_FILE_WARN", { ficheId: id, error: e?.message });
+    }
+  }
+}
+
+/**
  * @param {string} organizationId
  * @param {string} id
  * @param {boolean} isFavorite

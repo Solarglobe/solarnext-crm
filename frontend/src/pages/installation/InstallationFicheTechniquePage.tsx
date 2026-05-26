@@ -7,6 +7,7 @@ import { showCrmInlineToast } from "../../components/ui/crmInlineToast";
 import { apiFetch } from "../../services/api";
 import { getCrmApiBase } from "../../config/crmApiBase";
 import {
+  deleteFicheTechnique,
   fetchFicheTechniques,
   fetchFicheTechniquesMeta,
   fetchMailAccountsForSend,
@@ -142,6 +143,17 @@ function IconExternalTab() {
   );
 }
 
+function IconTrash() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <polyline points="3 6 5 6 21 6" />
+      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+      <path d="M10 11v6M14 11v6" />
+      <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+    </svg>
+  );
+}
+
 function TableSkeleton({ rows, dense }: { rows: number; dense?: boolean }) {
   const cells = dense ? 5 : 7;
   return (
@@ -240,6 +252,9 @@ export default function InstallationFicheTechniquePage() {
   const [mailSending, setMailSending] = useState(false);
   const [mailError, setMailError] = useState<string | null>(null);
   const [mailSuccess, setMailSuccess] = useState(false);
+
+  const [deleteConfirmRow, setDeleteConfirmRow] = useState<FicheTechniqueRow | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [highlightedRowId, setHighlightedRowId] = useState<string | null>(null);
@@ -541,6 +556,22 @@ export default function InstallationFicheTechniquePage() {
     },
     [items],
   );
+
+  const handleDelete = useCallback(async () => {
+    if (!deleteConfirmRow) return;
+    setDeleting(true);
+    try {
+      await deleteFicheTechnique(deleteConfirmRow.id);
+      listCacheRef.current.clear();
+      setDeleteConfirmRow(null);
+      showCrmInlineToast("Fiche technique supprimée.", "success");
+      await refreshList();
+    } catch (e) {
+      showCrmInlineToast(e instanceof Error ? e.message : "Suppression impossible.", "error");
+    } finally {
+      setDeleting(false);
+    }
+  }, [deleteConfirmRow, refreshList]);
 
   const resetFilters = useCallback(() => {
     setSearch("");
@@ -995,6 +1026,18 @@ export default function InstallationFicheTechniquePage() {
                                 >
                                   <IconMail />
                                 </button>
+                                <button
+                                  type="button"
+                                  className="ft-icon-btn ft-icon-btn--danger"
+                                  title="Supprimer définitivement"
+                                  aria-label="Supprimer définitivement"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setDeleteConfirmRow(row);
+                                  }}
+                                >
+                                  <IconTrash />
+                                </button>
                               </div>
                             </td>
                           </tr>
@@ -1401,6 +1444,36 @@ export default function InstallationFicheTechniquePage() {
             </>
           ) : null}
         </div>
+      </ModalShell>
+      <ModalShell
+        open={deleteConfirmRow != null}
+        onClose={() => { if (!deleting) setDeleteConfirmRow(null); }}
+        closeOnBackdropClick={!deleting}
+        title="Supprimer la fiche technique ?"
+        subtitle={deleteConfirmRow ? `${deleteConfirmRow.name} — ${deleteConfirmRow.reference}` : ""}
+        size="sm"
+        footer={
+          <>
+            <Button type="button" variant="secondary" size="sm" disabled={deleting} onClick={() => setDeleteConfirmRow(null)}>
+              Annuler
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              disabled={deleting}
+              aria-busy={deleting}
+              className="ft-delete-confirm-btn"
+              onClick={() => void handleDelete()}
+            >
+              {deleting ? "Suppression…" : "Supprimer définitivement"}
+            </Button>
+          </>
+        }
+      >
+        <p style={{ margin: 0, color: "var(--color-text-secondary, #64748b)" }}>
+          Cette action est irréversible. Le PDF sera effacé du serveur.
+        </p>
       </ModalShell>
     </Card>
   );

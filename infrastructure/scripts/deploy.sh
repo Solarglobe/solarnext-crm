@@ -11,6 +11,11 @@ LOG_DIR="/home/ubuntu/logs"
 
 echo "🚀 [$(date '+%Y-%m-%d %H:%M:%S')] Déploiement démarré"
 
+# 0. Garantir que le dossier de stockage existe AVANT le pull
+#    (git pull ne le supprime jamais, mais une reinstall manuelle du VPS pourrait l'effacer)
+mkdir -p /home/ubuntu/solarnext-crm/storage
+chmod 755 /home/ubuntu/solarnext-crm/storage
+
 # 1. Pull latest code
 cd "$APP_DIR"
 git pull --ff-only origin main

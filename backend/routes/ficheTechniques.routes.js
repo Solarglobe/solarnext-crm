@@ -14,6 +14,7 @@ import {
   listFicheTechniques,
   createFicheTechnique,
   updateFavorite,
+  deleteFicheTechnique,
   readFicheFileStreamContext,
   sendFicheTechniquePdfEmail,
 } from "../services/ficheTechniques.service.js";
@@ -180,6 +181,23 @@ router.post(
     }
   }
 );
+
+router.delete("/:id", verifyJWT, requireAnyPermission(DOC_PERMS), async (req, res) => {
+  try {
+    const org = orgId(req);
+    const { id } = req.params;
+    if (!org) return jsonError(res, 403, "FORBIDDEN", "Organisation invalide");
+    await deleteFicheTechnique(org, id);
+    logger.info("FICHE_TECHNIQUE_DELETED", { ficheId: id, organizationId: org });
+    res.json({ success: true });
+  } catch (e) {
+    if (e.statusCode === 404 || e.code === "NOT_FOUND") {
+      return jsonError(res, 404, "NOT_FOUND", e.message);
+    }
+    console.error("DELETE /api/fiche-techniques/:id", e);
+    res.status(500).json({ error: "SERVER_ERROR", message: e.message || "DELETE_ERROR" });
+  }
+});
 
 router.patch("/:id/favorite", verifyJWT, requireAnyPermission(DOC_PERMS), async (req, res) => {
   try {

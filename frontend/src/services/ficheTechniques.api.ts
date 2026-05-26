@@ -140,6 +140,19 @@ export async function uploadFicheTechnique(formData: FormData): Promise<{ id: st
   }
 }
 
+export async function deleteFicheTechnique(id: string): Promise<void> {
+  const root = apiRoot();
+  try {
+    const res = await apiFetch(`${root}/api/fiche-techniques/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    });
+    if (!res.ok) await throwMappedApiError(res);
+  } catch (e) {
+    if (isNetworkFailure(e)) throw new Error(mapFicheTechniqueUserMessage({ isNetwork: true }));
+    throw e;
+  }
+}
+
 export async function patchFicheFavorite(id: string, isFavorite: boolean): Promise<void> {
   const root = apiRoot();
   try {

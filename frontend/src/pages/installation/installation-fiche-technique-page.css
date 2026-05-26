@@ -633,6 +633,21 @@
   cursor: not-allowed;
 }
 
+.ft-icon-btn--danger:hover {
+  color: #dc2626;
+  border-color: #fca5a5;
+  background: color-mix(in srgb, #dc2626 6%, transparent);
+}
+
+.ft-delete-confirm-btn {
+  background: #dc2626 !important;
+  border-color: #dc2626 !important;
+}
+.ft-delete-confirm-btn:hover:not(:disabled) {
+  background: #b91c1c !important;
+  border-color: #b91c1c !important;
+}
+
 /* Zone drag & drop modale */
 .ft-dropzone {
   margin-top: 8px;
