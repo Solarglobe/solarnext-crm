@@ -2845,7 +2845,7 @@ function ViewerSceneContent({
         ))}
       {extensionKeepoutFillGeos.map(({ id, fill }) => (
         <mesh key={`ext-keepout-fill-${id}`} geometry={fill} renderOrder={22}>
-          <meshBasicMaterial color="#ff2222" transparent opacity={0.38} depthWrite={false} side={THREE.DoubleSide} toneMapped={false} />
+          <meshBasicMaterial color="#cc0000" transparent opacity={0.65} depthWrite={false} side={THREE.DoubleSide} toneMapped={false} />
         </mesh>
       ))}
       {pvLayout3DInteractionMode &&

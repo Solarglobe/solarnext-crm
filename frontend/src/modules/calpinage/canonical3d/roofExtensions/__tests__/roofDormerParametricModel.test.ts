@@ -70,8 +70,8 @@ describe("RoofDormerParametricModel", () => {
     expect(geom.faces.map((f) => f.id)).toEqual(expect.arrayContaining([
       "param-dormer-1:face:front-wall",
       "param-dormer-1:face:left-cheek-wall",
-      "param-dormer-1:face:roof:left",
-      "param-dormer-1:face:roof:right",
+      "param-dormer-1:face:roof:front",
+      "param-dormer-1:face:roof:rear",
     ]));
     expect(geom.parts.dormerRoof).toHaveLength(2);
     expect(geom.parts.cheekWalls).toHaveLength(2);
@@ -95,9 +95,9 @@ describe("RoofDormerParametricModel", () => {
     const eaveFrontLeft = geom.vertices.find((v) => v.id.endsWith(":eave:front-left"))!;
     expect(signedDistanceToPlane(eaveFrontLeft.position, patch.equation)).toBeCloseTo(0.45, 6);
 
-    // Ridge front : distance signée au plan == ridgeHeightM.
-    const ridgeFront = geom.vertices.find((v) => v.id.endsWith(":ridge:front"))!;
-    expect(signedDistanceToPlane(ridgeFront.position, patch.equation)).toBeCloseTo(1.15, 6);
+    // Ridge left : distance signée au plan == ridgeHeightM.
+    const ridgeLeft = geom.vertices.find((v) => v.id.endsWith(":ridge:left"))!;
+    expect(signedDistanceToPlane(ridgeLeft.position, patch.equation)).toBeCloseTo(1.15, 6);
   });
 
   it("relit un parametricDormers[] runtime sans passer par roofExtensions legacy", () => {

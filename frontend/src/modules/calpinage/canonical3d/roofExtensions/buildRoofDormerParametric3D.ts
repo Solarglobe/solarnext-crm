@@ -49,32 +49,18 @@ function diag(code: string, severity: GeometryDiagnostic["severity"], message: s
 }
 
 function boundsOf(points: readonly Vector3[]): AxisAlignedBounds3D {
-  let minX = Infinity;
-  let minY = Infinity;
-  let minZ = Infinity;
-  let maxX = -Infinity;
-  let maxY = -Infinity;
-  let maxZ = -Infinity;
+  let minX = Infinity; let minY = Infinity; let minZ = Infinity;
+  let maxX = -Infinity; let maxY = -Infinity; let maxZ = -Infinity;
   for (const p of points) {
-    minX = Math.min(minX, p.x);
-    minY = Math.min(minY, p.y);
-    minZ = Math.min(minZ, p.z);
-    maxX = Math.max(maxX, p.x);
-    maxY = Math.max(maxY, p.y);
-    maxZ = Math.max(maxZ, p.z);
+    minX = Math.min(minX, p.x); minY = Math.min(minY, p.y); minZ = Math.min(minZ, p.z);
+    maxX = Math.max(maxX, p.x); maxY = Math.max(maxY, p.y); maxZ = Math.max(maxZ, p.z);
   }
   return { min: { x: minX, y: minY, z: minZ }, max: { x: maxX, y: maxY, z: maxZ } };
 }
 
 function centroid(points: readonly Vector3[]): Vector3 {
-  let x = 0;
-  let y = 0;
-  let z = 0;
-  for (const p of points) {
-    x += p.x;
-    y += p.y;
-    z += p.z;
-  }
+  let x = 0; let y = 0; let z = 0;
+  for (const p of points) { x += p.x; y += p.y; z += p.z; }
   const k = Math.max(1, points.length);
   return { x: x / k, y: y / k, z: z / k };
 }
@@ -141,8 +127,10 @@ function tangentAxis(axis: Vector3, normal: Vector3): Vector3 | null {
   return normalize3(sub3(axis, scale3(normal, dot3(axis, normal))));
 }
 
-function buildPoint(origin: Vector3, xAxis: Vector3, yAxis: Vector3, upAxis: Vector3, p: RoofDormerParametricPoint2D, h: number): Vector3 {
-  // Étalement UV dans le plan du pan (xAxis/yAxis tangents projetés) + hauteur selon la normale sortante du pan support.
+function buildPoint(
+  origin: Vector3, xAxis: Vector3, yAxis: Vector3, upAxis: Vector3,
+  p: RoofDormerParametricPoint2D, h: number,
+): Vector3 {
   return add3(add3(add3(origin, scale3(xAxis, p.uM)), scale3(yAxis, p.vM)), scale3(upAxis, h));
 }
 
@@ -156,9 +144,14 @@ export function buildRoofDormerParametric3D(
   }
 
   const normal = normalize3(supportPatch.normal);
-  const xAxis = normal ? (tangentAxis(model.orientation.uAxisWorld, normal) ?? normalize3(supportPatch.localFrame.xAxis)) : null;
+  const xAxis = normal
+    ? (tangentAxis(model.orientation.uAxisWorld, normal) ?? normalize3(supportPatch.localFrame.xAxis))
+    : null;
   const yAxisRaw = normal && xAxis
-    ? sub3(tangentAxis(model.orientation.vAxisWorld, normal) ?? supportPatch.localFrame.yAxis, scale3(xAxis, dot3(tangentAxis(model.orientation.vAxisWorld, normal) ?? supportPatch.localFrame.yAxis, xAxis)))
+    ? sub3(
+        tangentAxis(model.orientation.vAxisWorld, normal) ?? supportPatch.localFrame.yAxis,
+        scale3(xAxis, dot3(tangentAxis(model.orientation.vAxisWorld, normal) ?? supportPatch.localFrame.yAxis, xAxis)),
+      )
     : null;
   const yAxis = yAxisRaw ? normalize3(yAxisRaw) : null;
   if (!normal || !xAxis || !yAxis) {
@@ -174,10 +167,16 @@ export function buildRoofDormerParametric3D(
 
   const basePts = roofDormerParametricFootprintCycle(fp).map((p) => buildPoint(origin, xAxis, yAxis, normal, p, 0));
   const eavePts = roofDormerParametricFootprintCycle(fp).map((p) => buildPoint(origin, xAxis, yAxis, normal, p, hFacade));
-  const ridgeFront = buildPoint(origin, xAxis, yAxis, normal, ridge.front, hRidge);
-  // ridgeRear = 0 quand pas de murs (fond collé au toit) ; sinon même hauteur que ridgeFront
-  const hRidgeRear = hFacade > EPS ? hRidge : 0;
-  const ridgeRear = buildPoint(origin, xAxis, yAxis, normal, ridge.rear, hRidgeRear);
+
+  // Faîtière gauche-droite (vrai chien assis) : la faîtière court perpendiculairement
+  // à la direction de pente, entre le flanc gauche et le flanc droit.
+  // ridge.front.vM / ridge.rear.vM donnent la profondeur avant/arrière → on en déduit
+  // le centre V (= milieu de la profondeur du dormer).
+  const centerV = (ridge.front.vM + ridge.rear.vM) / 2;
+  const ridgeLeftU = (fp.frontLeft.uM + fp.rearLeft.uM) / 2;
+  const ridgeRightU = (fp.frontRight.uM + fp.rearRight.uM) / 2;
+  const ridgeLeft = buildPoint(origin, xAxis, yAxis, normal, { uM: ridgeLeftU, vM: centerV }, hRidge);
+  const ridgeRight = buildPoint(origin, xAxis, yAxis, normal, { uM: ridgeRightU, vM: centerV }, hRidge);
 
   const vertices: VolumeVertex3D[] = [];
   const addVertex = (id: string, position: Vector3): number => {
@@ -186,42 +185,42 @@ export function buildRoofDormerParametric3D(
     return idx;
   };
 
-  const bFL = addVertex(`${model.id}:base:front-left`, basePts[0]!);
-  const bFR = addVertex(`${model.id}:base:front-right`, basePts[1]!);
-  const bRR = addVertex(`${model.id}:base:rear-right`, basePts[2]!);
-  const bRL = addVertex(`${model.id}:base:rear-left`, basePts[3]!);
-  const eFL = addVertex(`${model.id}:eave:front-left`, eavePts[0]!);
-  const eFR = addVertex(`${model.id}:eave:front-right`, eavePts[1]!);
-  const eRR = addVertex(`${model.id}:eave:rear-right`, eavePts[2]!);
-  const eRL = addVertex(`${model.id}:eave:rear-left`, eavePts[3]!);
-  const rF = addVertex(`${model.id}:ridge:front`, ridgeFront);
-  const rR = addVertex(`${model.id}:ridge:rear`, ridgeRear);
+  const bFL = addVertex(model.id + ":base:front-left", basePts[0]!);
+  const bFR = addVertex(model.id + ":base:front-right", basePts[1]!);
+  const bRR = addVertex(model.id + ":base:rear-right", basePts[2]!);
+  const bRL = addVertex(model.id + ":base:rear-left", basePts[3]!);
+  const eFL = addVertex(model.id + ":eave:front-left", eavePts[0]!);
+  const eFR = addVertex(model.id + ":eave:front-right", eavePts[1]!);
+  const eRR = addVertex(model.id + ":eave:rear-right", eavePts[2]!);
+  const eRL = addVertex(model.id + ":eave:rear-left", eavePts[3]!);
+  const rLeft = addVertex(model.id + ":ridge:left", ridgeLeft);
+  const rRight = addVertex(model.id + ":ridge:right", ridgeRight);
 
+  const mid = model.id;
   const edges: VolumeEdge3D[] = [
-    { id: `${model.id}:edge:base:front`, vertexAIndex: bFL, vertexBIndex: bFR, kind: "base" },
-    { id: `${model.id}:edge:base:right`, vertexAIndex: bFR, vertexBIndex: bRR, kind: "base" },
-    { id: `${model.id}:edge:base:rear`, vertexAIndex: bRR, vertexBIndex: bRL, kind: "base" },
-    { id: `${model.id}:edge:base:left`, vertexAIndex: bRL, vertexBIndex: bFL, kind: "base" },
-    { id: `${model.id}:edge:wall:front-left`, vertexAIndex: bFL, vertexBIndex: eFL, kind: "lateral" },
-    { id: `${model.id}:edge:wall:front-right`, vertexAIndex: bFR, vertexBIndex: eFR, kind: "lateral" },
-    { id: `${model.id}:edge:wall:rear-right`, vertexAIndex: bRR, vertexBIndex: eRR, kind: "lateral" },
-    { id: `${model.id}:edge:wall:rear-left`, vertexAIndex: bRL, vertexBIndex: eRL, kind: "lateral" },
-    { id: `${model.id}:edge:eave:front`, vertexAIndex: eFL, vertexBIndex: eFR, kind: "top" },
-    { id: `${model.id}:edge:eave:right`, vertexAIndex: eFR, vertexBIndex: eRR, kind: "top" },
-    { id: `${model.id}:edge:eave:rear`, vertexAIndex: eRR, vertexBIndex: eRL, kind: "top" },
-    { id: `${model.id}:edge:eave:left`, vertexAIndex: eRL, vertexBIndex: eFL, kind: "top" },
-    { id: `${model.id}:edge:ridge`, vertexAIndex: rF, vertexBIndex: rR, kind: "top" },
-    { id: `${model.id}:edge:hip:front-left`, vertexAIndex: eFL, vertexBIndex: rF, kind: "other" },
-    { id: `${model.id}:edge:hip:front-right`, vertexAIndex: eFR, vertexBIndex: rF, kind: "other" },
-    { id: `${model.id}:edge:hip:rear-left`, vertexAIndex: eRL, vertexBIndex: rR, kind: "other" },
-    { id: `${model.id}:edge:hip:rear-right`, vertexAIndex: eRR, vertexBIndex: rR, kind: "other" },
+    { id: mid + ":edge:base:front", vertexAIndex: bFL, vertexBIndex: bFR, kind: "base" },
+    { id: mid + ":edge:base:right", vertexAIndex: bFR, vertexBIndex: bRR, kind: "base" },
+    { id: mid + ":edge:base:rear", vertexAIndex: bRR, vertexBIndex: bRL, kind: "base" },
+    { id: mid + ":edge:base:left", vertexAIndex: bRL, vertexBIndex: bFL, kind: "base" },
+    { id: mid + ":edge:wall:front-left", vertexAIndex: bFL, vertexBIndex: eFL, kind: "lateral" },
+    { id: mid + ":edge:wall:front-right", vertexAIndex: bFR, vertexBIndex: eFR, kind: "lateral" },
+    { id: mid + ":edge:wall:rear-right", vertexAIndex: bRR, vertexBIndex: eRR, kind: "lateral" },
+    { id: mid + ":edge:wall:rear-left", vertexAIndex: bRL, vertexBIndex: eRL, kind: "lateral" },
+    { id: mid + ":edge:eave:front", vertexAIndex: eFL, vertexBIndex: eFR, kind: "top" },
+    { id: mid + ":edge:eave:right", vertexAIndex: eFR, vertexBIndex: eRR, kind: "top" },
+    { id: mid + ":edge:eave:rear", vertexAIndex: eRR, vertexBIndex: eRL, kind: "top" },
+    { id: mid + ":edge:eave:left", vertexAIndex: eRL, vertexBIndex: eFL, kind: "top" },
+    { id: mid + ":edge:ridge", vertexAIndex: rLeft, vertexBIndex: rRight, kind: "top" },
+    { id: mid + ":edge:hip:front-left", vertexAIndex: eFL, vertexBIndex: rLeft, kind: "other" },
+    { id: mid + ":edge:hip:rear-left", vertexAIndex: eRL, vertexBIndex: rLeft, kind: "other" },
+    { id: mid + ":edge:hip:front-right", vertexAIndex: eFR, vertexBIndex: rRight, kind: "other" },
+    { id: mid + ":edge:hip:rear-right", vertexAIndex: eRR, vertexBIndex: rRight, kind: "other" },
   ];
 
   const positions = vertices.map((v) => v.position);
   const solidCentroid = centroid(positions);
 
   // Quand hFacade≈0 les murs verticaux sont dégénérés — on les omet.
-  // Les gables et panneaux utilisent alors les points de base (h=0) directement.
   const hasFacadeWalls = hFacade > EPS;
   const gFL = hasFacadeWalls ? eFL : bFL;
   const gFR = hasFacadeWalls ? eFR : bFR;
@@ -230,16 +229,19 @@ export function buildRoofDormerParametric3D(
 
   const faceSpecs: Array<{ id: string; kind: VolumeFace3D["kind"]; cycle: readonly number[] }> = [
     ...(hasFacadeWalls ? [
-      { id: `${model.id}:face:front-wall`, kind: "side" as const, cycle: [bFL, bFR, eFR, eFL] },
-      { id: `${model.id}:face:rear-wall`, kind: "side" as const, cycle: [bRR, bRL, eRL, eRR] },
-      { id: `${model.id}:face:left-cheek-wall`, kind: "side" as const, cycle: [bRL, bFL, eFL, eRL] },
-      { id: `${model.id}:face:right-cheek-wall`, kind: "side" as const, cycle: [bFR, bRR, eRR, eFR] },
+      { id: mid + ":face:front-wall", kind: "side" as const, cycle: [bFL, bFR, eFR, eFL] },
+      { id: mid + ":face:rear-wall", kind: "side" as const, cycle: [bRR, bRL, eRL, eRR] },
+      { id: mid + ":face:left-cheek-wall", kind: "side" as const, cycle: [bRL, bFL, eFL, eRL] },
+      { id: mid + ":face:right-cheek-wall", kind: "side" as const, cycle: [bFR, bRR, eRR, eFR] },
     ] : []),
-    { id: `${model.id}:face:front-gable`, kind: "side", cycle: [gFL, gFR, rF] },
-    { id: `${model.id}:face:rear-gable`, kind: "side", cycle: [gRR, gRL, rR] },
-    { id: `${model.id}:face:roof:left`, kind: "top", cycle: [gFL, rF, rR, gRL] },
-    { id: `${model.id}:face:roof:right`, kind: "top", cycle: [gFR, gRR, rR, rF] },
+    // Gables lateraux (flancs triangulaires, caracteristiques du vrai chien assis)
+    { id: mid + ":face:left-gable", kind: "side" as const, cycle: [gFL, gRL, rLeft] },
+    { id: mid + ":face:right-gable", kind: "side" as const, cycle: [gFR, rRight, gRR] },
+    // Pentes de toit avant et arriere
+    { id: mid + ":face:roof:front", kind: "top" as const, cycle: [gFL, gFR, rRight, rLeft] },
+    { id: mid + ":face:roof:rear", kind: "top" as const, cycle: [gRL, rLeft, rRight, gRR] },
   ];
+
   const faces = faceSpecs.flatMap((spec) => {
     const face = orientedFace(spec.id, spec.kind, spec.cycle, positions, solidCentroid);
     return face ? [face] : [];
@@ -250,9 +252,15 @@ export function buildRoofDormerParametric3D(
   }
 
   const wallFaceIds = hasFacadeWalls
-    ? [`${model.id}:face:front-wall`, `${model.id}:face:rear-wall`, `${model.id}:face:left-cheek-wall`, `${model.id}:face:right-cheek-wall`,
-       `${model.id}:face:front-gable`, `${model.id}:face:rear-gable`]
-    : [`${model.id}:face:front-gable`, `${model.id}:face:rear-gable`];
+    ? [
+        mid + ":face:front-wall",
+        mid + ":face:rear-wall",
+        mid + ":face:left-cheek-wall",
+        mid + ":face:right-cheek-wall",
+        mid + ":face:left-gable",
+        mid + ":face:right-gable",
+      ]
+    : [mid + ":face:left-gable", mid + ":face:right-gable"];
 
   const surfaceAreaM2 = faces.reduce((sum, face) => sum + face.areaM2, 0);
   const footprintWorld = basePts;
@@ -271,11 +279,15 @@ export function buildRoofDormerParametric3D(
     footprintWorld,
     parts: {
       walls: wallFaceIds,
-      cheekWalls: hasFacadeWalls ? [`${model.id}:face:left-cheek-wall`, `${model.id}:face:right-cheek-wall`] : [],
-      facadeWalls: hasFacadeWalls ? [`${model.id}:face:front-wall`, `${model.id}:face:front-gable`, `${model.id}:face:rear-wall`, `${model.id}:face:rear-gable`] : [`${model.id}:face:front-gable`, `${model.id}:face:rear-gable`],
-      dormerRoof: [`${model.id}:face:roof:left`, `${model.id}:face:roof:right`],
-      seams: [`${model.id}:edge:base:front`, `${model.id}:edge:base:right`, `${model.id}:edge:base:rear`, `${model.id}:edge:base:left`],
-      flashing: [`${model.id}:edge:base:front`, `${model.id}:edge:base:right`, `${model.id}:edge:base:rear`, `${model.id}:edge:base:left`],
+      cheekWalls: hasFacadeWalls
+        ? [mid + ":face:left-cheek-wall", mid + ":face:right-cheek-wall"]
+        : [],
+      facadeWalls: hasFacadeWalls
+        ? [mid + ":face:front-wall", mid + ":face:rear-wall"]
+        : [],
+      dormerRoof: [mid + ":face:roof:front", mid + ":face:roof:rear"],
+      seams: [mid + ":edge:base:front", mid + ":edge:base:right", mid + ":edge:base:rear", mid + ":edge:base:left"],
+      flashing: [mid + ":edge:base:front", mid + ":edge:base:right", mid + ":edge:base:rear", mid + ":edge:base:left"],
     },
     preparedUses: model.preparedUses,
     diagnostics,
