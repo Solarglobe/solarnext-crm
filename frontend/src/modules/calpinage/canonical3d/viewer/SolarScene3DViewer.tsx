@@ -1049,6 +1049,31 @@ function worldPolygonRibbonGeometry(
   return geo;
 }
 
+function worldPolygonFillGeometry(
+  points: readonly { readonly x: number; readonly y: number; readonly z: number }[],
+  normal: THREE.Vector3,
+  offsetM: number,
+): THREE.BufferGeometry | null {
+  if (points.length < 3) return null;
+  const lifted = points.map((p) => ({
+    x: p.x + normal.x * offsetM,
+    y: p.y + normal.y * offsetM,
+    z: p.z + normal.z * offsetM,
+  }));
+  const positions: number[] = [];
+  for (const p of lifted) positions.push(p.x, p.y, p.z);
+  const indices: number[] = [];
+  for (let i = 1; i < lifted.length - 1; i++) {
+    indices.push(0, i, i + 1);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geo.setIndex(indices);
+  geo.computeVertexNormals();
+  geo.computeBoundingSphere();
+  return geo;
+}
+
 function extensionV1FootprintSafeZoneGeometries(
   scene: SolarScene3D,
   extension: SolarScene3D["extensionVolumes"][number],
@@ -2241,6 +2266,19 @@ function ViewerSceneContent({
     }));
   }, [scene.extensionVolumes]);
 
+  const extensionKeepoutFillGeos = useMemo(() => {
+    return scene.extensionVolumes.flatMap((ext) => {
+      if (ext.footprintWorld.length < 3) return [];
+      const supportId = ext.topology?.supportPlanePatchId ?? ext.relatedPlanePatchIds[0] ?? null;
+      const patch = scene.roofModel.roofPlanePatches.find((p) => String(p.id) === String(supportId));
+      const normal = patch
+        ? new THREE.Vector3(patch.normal.x, patch.normal.y, patch.normal.z).normalize()
+        : new THREE.Vector3(0, 0, 1);
+      const fill = worldPolygonFillGeometry(ext.footprintWorld, normal, 0.025);
+      return fill ? [{ id: String(ext.id), fill }] : [];
+    });
+  }, [scene.extensionVolumes, scene.roofModel.roofPlanePatches]);
+
   const extensionVolDebugEdgesGeos = useMemo(() => {
     if (!import.meta.env.DEV || extensionVolDebugLevel < 1 || !showExtensions || extGeos.length === 0) {
       return [];
@@ -2444,6 +2482,7 @@ function ViewerSceneContent({
       ...pv3dSelectedPanelGeos.flatMap((x) => [x.fill, x.line].filter((g): g is THREE.BufferGeometry => g != null)),
       ...pv3dSafeZoneGeos.flatMap((x) => [x.ribbon, x.line].filter((g): g is THREE.BufferGeometry => g != null)),
       ...pv3dExtensionSafeZoneGeos.flatMap((x) => [x.ribbon, x.line].filter((g): g is THREE.BufferGeometry => g != null)),
+      ...extensionKeepoutFillGeos.map((x) => x.fill),
     ],
     [
       shellGeo,
@@ -2459,6 +2498,7 @@ function ViewerSceneContent({
       pv3dSelectedPanelGeos,
       pv3dSafeZoneGeos,
       pv3dExtensionSafeZoneGeos,
+      extensionKeepoutFillGeos,
     ],
   );
 
@@ -2803,6 +2843,11 @@ function ViewerSceneContent({
             ) : null}
           </group>
         ))}
+      {extensionKeepoutFillGeos.map(({ id, fill }) => (
+        <mesh key={`ext-keepout-fill-${id}`} geometry={fill} renderOrder={22}>
+          <meshBasicMaterial color="#ff2222" transparent opacity={0.38} depthWrite={false} side={THREE.DoubleSide} toneMapped={false} />
+        </mesh>
+      ))}
       {pvLayout3DInteractionMode &&
         pv3dGhostGeos.map(({ id, fill, line, valid, excluded, source }) => (
           <group key={`pv3d-ghost-${id}`}>
