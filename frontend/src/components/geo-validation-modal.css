@@ -2,7 +2,7 @@
 
 .geo-validation-modal__title {
   margin: 0;
-  font-size: 18px;
+  font-size: 15px;
   color: var(--text-primary);
 }
 
@@ -11,7 +11,7 @@
   border: none;
   color: var(--text-muted);
   cursor: pointer;
-  font-size: 24px;
+  font-size: 18px;
   padding: 0 8px;
 }
 
@@ -27,13 +27,13 @@
 }
 
 .geo-validation-modal__parcelle-ok {
-  font-size: 15px;
+  font-size: 13px;
   margin-bottom: 16px;
   color: var(--success, #22c55e);
 }
 
 .geo-validation-modal__parcelle-warn {
-  font-size: 15px;
+  font-size: 13px;
   margin-bottom: 16px;
   color: var(--warning, #f59e0b);
 }

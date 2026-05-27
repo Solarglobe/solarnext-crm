@@ -28,7 +28,7 @@
 
 .planning-searchable-dropdown-value,
 .planning-searchable-dropdown-placeholder {
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .planning-searchable-dropdown-placeholder {
@@ -50,7 +50,7 @@
   border-bottom: 1px solid var(--border);
   background: transparent;
   color: var(--text);
-  font-size: 14px;
+  font-size: 13px;
   outline: none;
   flex-shrink: 0;
 }
