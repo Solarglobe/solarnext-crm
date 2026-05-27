@@ -323,30 +323,6 @@ function mergeVolumeQuality(a: QualityBlock, b: QualityBlock): QualityBlock {
   return { confidence, diagnostics };
 }
 
-function runtimeRecord(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
-}
-
-function readBooleanRuntimeFlag(runtime: unknown, key: string): boolean | null {
-  const root = runtimeRecord(runtime);
-  if (!root) return null;
-  const direct = root[key];
-  if (typeof direct === "boolean") return direct;
-  const flags = runtimeRecord(root.featureFlags) ?? runtimeRecord(root.flags) ?? runtimeRecord(root.debugFlags);
-  const nested = flags?.[key];
-  return typeof nested === "boolean" ? nested : null;
-}
-
-function isParametricDormerComparisonEnabled(runtime: unknown): boolean {
-  const runtimeFlag =
-    readBooleanRuntimeFlag(runtime, "parametricDormerComparison") ??
-    readBooleanRuntimeFlag(runtime, "parametricDormerV2") ??
-    readBooleanRuntimeFlag(runtime, "useParametricDormers");
-  if (runtimeFlag != null) return runtimeFlag;
-  const globalFlag = (globalThis as { __CALPINAGE_DORMER_PARAMETRIC_COMPARE__?: unknown }).__CALPINAGE_DORMER_PARAMETRIC_COMPARE__;
-  if (typeof globalFlag === "boolean") return globalFlag;
-  return import.meta.env.VITE_CALPINAGE_DORMER_PARAMETRIC_COMPARE === "true";
-}
 
 function emptyValidationStats(): CanonicalSceneValidationResult["diagnostics"]["stats"] {
   return {
