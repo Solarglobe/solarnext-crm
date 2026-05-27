@@ -10,7 +10,7 @@ import {
   fetchOrganizationDocuments,
   type OrganizationDocumentListItem,
 } from "../services/documentsList.api";
-import { EmptyState, ErrorState, PageHeader, Toolbar } from "../components/ui";
+import { EmptyState, ErrorState, PageHeader } from "../components/ui";
 import type { MailComposerInitialPrefill } from "./mail/MailComposer";
 import { assertDocumentDownloadOk } from "../utils/documentDownload";
 import "./documents-page.css";
@@ -385,9 +385,7 @@ export default function DocumentsList() {
       />
 
       {/* Toolbar */}
-      <Toolbar
-        className="dp-toolbar"
-        search={
+      <div className="dp-toolbar">
         <div className="dp-search-wrap">
           <span className="dp-search-icon"><IconSearch /></span>
           <input
@@ -399,9 +397,6 @@ export default function DocumentsList() {
             aria-label="Rechercher un document"
           />
         </div>
-        }
-        filters={
-          <>
         <button
           type="button"
           className={`dp-filter-toggle${filtersOpen || hasActiveFilters ? " dp-filter-toggle--active" : ""}`}
@@ -412,6 +407,12 @@ export default function DocumentsList() {
           Filtres
           {hasActiveFilters ? <span className="dp-filter-toggle__count">actifs</span> : null}
         </button>
+        {hasActiveFilters && (
+          <button type="button" className="dp-reset" onClick={resetFilters}>
+            <IconReset />
+            Réinitialiser
+          </button>
+        )}
         {filtersOpen ? (
           <div className="dp-secondary-filters" id="documents-secondary-filters">
             <div className="dp-filters">
@@ -446,20 +447,7 @@ export default function DocumentsList() {
             </label>
           </div>
         ) : null}
-          </>
-        }
-        actions={
-          <>
-
-        {hasActiveFilters && (
-          <button type="button" className="dp-reset" onClick={resetFilters}>
-            <IconReset />
-            Réinitialiser
-          </button>
-        )}
-          </>
-        }
-      />
+      </div>
 
       {/* Error */}
       {error && (

@@ -605,3 +605,79 @@
   gap: 8px;
   margin-top: 8px;
 }
+
+
+/* ── ErrorState ─────────────────────────────────────────────────────────── */
+.sn-error-state {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.5;
+  margin-bottom: 12px;
+}
+
+.sn-error-state--error {
+  background: color-mix(in srgb, #ef4444 8%, transparent);
+  border: 1px solid color-mix(in srgb, #ef4444 22%, transparent);
+  color: #b91c1c;
+}
+
+.sn-error-state--warning {
+  background: color-mix(in srgb, #f59e0b 8%, transparent);
+  border: 1px solid color-mix(in srgb, #f59e0b 22%, transparent);
+  color: #92400e;
+}
+
+.sn-error-state--info {
+  background: color-mix(in srgb, #3b82f6 8%, transparent);
+  border: 1px solid color-mix(in srgb, #3b82f6 22%, transparent);
+  color: #1e40af;
+}
+
+html.theme-dark .sn-error-state--error {
+  background: color-mix(in srgb, #ef4444 12%, transparent);
+  border-color: color-mix(in srgb, #ef4444 25%, transparent);
+  color: #fca5a5;
+}
+
+html.theme-dark .sn-error-state--warning {
+  background: color-mix(in srgb, #f59e0b 12%, transparent);
+  border-color: color-mix(in srgb, #f59e0b 25%, transparent);
+  color: #fde68a;
+}
+
+html.theme-dark .sn-error-state--info {
+  background: color-mix(in srgb, #3b82f6 12%, transparent);
+  border-color: color-mix(in srgb, #3b82f6 25%, transparent);
+  color: #93c5fd;
+}
+
+.sn-error-state__icon {
+  flex-shrink: 0;
+  margin-top: 1px;
+  opacity: 0.8;
+}
+
+.sn-error-state__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.sn-error-state__title {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.sn-error-state__message {
+  margin: 0;
+}
+
+.sn-error-state__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
