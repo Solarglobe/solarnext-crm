@@ -2,7 +2,7 @@
 @import url("https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap");
 
 :root {
-  --cp-gold: var(--brand-gold);
+  --cp-gold: #c39847;
   --cp-timeline-grey: #666666;
   --cp-bg: #0b0d11;
   --cp-bg2: #0b0e13;
@@ -129,7 +129,7 @@
   left: -160px;
   width: 460px;
   height: 300px;
-  background: radial-gradient(ellipse at top left, color-mix(in srgb, var(--brand-gold) 45%, transparent), color-mix(in srgb, var(--brand-gold) 25%, transparent), transparent 65%);
+  background: radial-gradient(ellipse at top left, color-mix(in srgb, var(--cp-gold) 45%, transparent), color-mix(in srgb, var(--cp-gold) 25%, transparent), transparent 65%);
   filter: blur(40px);
   z-index: -1;
 }
@@ -165,7 +165,7 @@
   left: 6px;
   width: 1px;
   height: 88px;
-  background: linear-gradient(to bottom, var(--brand-gold), color-mix(in srgb, var(--brand-gold) 35%, transparent), transparent);
+  background: linear-gradient(to bottom, var(--cp-gold), color-mix(in srgb, var(--cp-gold) 35%, transparent), transparent);
 }
 
 .cp-hero__name {
@@ -263,7 +263,7 @@
   min-width: 0;
   padding: 24px 28px;
   background: var(--cp-panel);
-  border: 1px solid color-mix(in srgb, var(--brand-gold) 35%, transparent);
+  border: 1px solid color-mix(in srgb, var(--cp-gold) 35%, transparent);
   border-radius: 12px;
 }
 
@@ -283,8 +283,8 @@
   margin: 0 0 16px;
   padding: 14px 16px;
   border-radius: 10px;
-  background: color-mix(in srgb, var(--brand-gold) 8%, transparent);
-  border: 1px solid color-mix(in srgb, var(--brand-gold) 28%, transparent);
+  background: color-mix(in srgb, var(--cp-gold) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--cp-gold) 28%, transparent);
 }
 
 .cp-summary-status-banner__label {
@@ -302,7 +302,7 @@
   font-size: 17px;
   font-weight: 700;
   line-height: 1.35;
-  color: var(--brand-gold);
+  color: var(--cp-gold);
 }
 
 .cp-next-step {
@@ -483,7 +483,7 @@
 .cp-story .cp-story__emphasis {
   font-weight: 600;
   color: var(--cp-gold);
-  text-shadow: 0 0 8px color-mix(in srgb, var(--brand-gold) 25%, transparent);
+  text-shadow: 0 0 8px color-mix(in srgb, var(--cp-gold) 25%, transparent);
 }
 
 @media (max-width: 1100px) {
@@ -617,8 +617,8 @@
   background: var(--cp-gold);
   opacity: 1;
   box-shadow:
-    0 0 0 4px color-mix(in srgb, var(--brand-gold) 35%, transparent),
-    0 0 18px color-mix(in srgb, var(--brand-gold) 45%, transparent);
+    0 0 0 4px color-mix(in srgb, var(--cp-gold) 35%, transparent),
+    0 0 18px color-mix(in srgb, var(--cp-gold) 45%, transparent);
 }
 
 .cp-pipeline-step--upcoming {
@@ -647,7 +647,7 @@
   font-size: 13.5px;
   color: var(--cp-gold);
   opacity: 0.9;
-  text-shadow: 0 0 6px color-mix(in srgb, var(--brand-gold) 25%, transparent);
+  text-shadow: 0 0 6px color-mix(in srgb, var(--cp-gold) 25%, transparent);
 }
 
 @media (max-width: 900px) {
@@ -701,7 +701,7 @@
   max-width: 1100px;
   padding: 28px 32px;
   background: var(--cp-panel);
-  border: 1px solid color-mix(in srgb, var(--brand-gold) 25%, transparent);
+  border: 1px solid color-mix(in srgb, var(--cp-gold) 25%, transparent);
   border-radius: 12px;
 }
 
@@ -724,7 +724,7 @@
   letter-spacing: 0.45px;
   text-transform: uppercase;
   color: var(--cp-gold);
-  text-shadow: 0 0 10px color-mix(in srgb, var(--brand-gold) 22%, transparent);
+  text-shadow: 0 0 10px color-mix(in srgb, var(--cp-gold) 22%, transparent);
 }
 
 .cp-doc-group .cp-doc-row:last-child {
@@ -775,7 +775,7 @@
 
 .cp-doc-category {
   font-weight: 500;
-  color: color-mix(in srgb, var(--brand-gold) 82%, transparent);
+  color: color-mix(in srgb, var(--cp-gold) 82%, transparent);
 }
 
 .cp-doc-date {
@@ -852,7 +852,7 @@
   max-width: 760px;
   padding: 26px 28px;
   background: var(--cp-panel);
-  border: 1px solid color-mix(in srgb, var(--brand-gold) 28%, transparent);
+  border: 1px solid color-mix(in srgb, var(--cp-gold) 28%, transparent);
   border-radius: 12px;
   display: flex;
   justify-content: space-between;
@@ -874,7 +874,7 @@
 .cp-advisor-name {
   font-size: clamp(1.35rem, 1.55rem, 1.75rem);
   font-weight: 800;
-  color: var(--brand-gold);
+  color: var(--cp-gold);
   line-height: 1.25;
   letter-spacing: -0.02em;
 }
@@ -894,8 +894,8 @@
   font-size: 14px;
   line-height: 1.45;
   color: rgba(255, 255, 255, 0.88);
-  background: color-mix(in srgb, var(--brand-gold) 7%, transparent);
-  border: 1px solid color-mix(in srgb, var(--brand-gold) 22%, transparent);
+  background: color-mix(in srgb, var(--cp-gold) 7%, transparent);
+  border: 1px solid color-mix(in srgb, var(--cp-gold) 22%, transparent);
   border-radius: 10px;
 }
 
@@ -920,7 +920,7 @@
   font-size: 13px;
   font-weight: 700;
   letter-spacing: 0;
-  color: var(--brand-gold);
+  color: var(--cp-gold);
 }
 
 .cp-advisor-contact-value {
@@ -937,7 +937,7 @@
 
 .cp-advisor-contact-value:hover {
   text-decoration: underline;
-  text-decoration-color: var(--brand-gold);
+  text-decoration-color: var(--cp-gold);
   text-underline-offset: 3px;
 }
 
@@ -965,7 +965,7 @@
   color: var(--cp-gold);
   opacity: 0.9;
   font-weight: 600;
-  text-shadow: 0 0 6px color-mix(in srgb, var(--brand-gold) 25%, transparent);
+  text-shadow: 0 0 6px color-mix(in srgb, var(--cp-gold) 25%, transparent);
 }
 
 @media (max-width: 900px) {

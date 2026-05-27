@@ -1,7 +1,7 @@
 :root {
   /* Brand */
-  --sg-brand: var(--brand-gold);
-  --sg-brand-hover: var(--brand-gold-hover);
+  --sg-brand: #C39847;
+  --sg-brand-hover: #A97F35;
 
   /* States */
   --sg-success: #16A34A;
@@ -111,13 +111,13 @@
 
 /* Active state */
 .sg-icon-wrapper.is-active {
-  background: color-mix(in srgb, var(--brand-gold) 12%, transparent);
+  background: color-mix(in srgb, var(--sg-brand) 12%, transparent);
   color: var(--sg-brand);
 }
 
 /* Hover */
 .sg-icon-wrapper:hover {
-  background: color-mix(in srgb, var(--brand-gold) 8%, transparent);
+  background: color-mix(in srgb, var(--sg-brand) 8%, transparent);
   color: var(--sg-text);
 }
 
