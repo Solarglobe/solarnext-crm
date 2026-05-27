@@ -228,7 +228,7 @@
   padding: 20px 22px;
   border-radius: var(--radius-16, 16px);
   border: 1px solid color-mix(in srgb, var(--border, rgba(255, 255, 255, 0.1)) 90%, transparent);
-  background: var(--surface-elevated, #1e1a28);
+  background: var(--surface-elevated);
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset;
 }
 
@@ -305,7 +305,7 @@
   padding: 22px 24px 20px;
   border-radius: 14px;
   border: 2px solid color-mix(in srgb, var(--sg-brand, var(--brand-gold)) 35%, var(--border, rgba(255, 255, 255, 0.12)));
-  background: linear-gradient(145deg, color-mix(in srgb, var(--sg-brand, var(--brand-gold)) 12%, transparent), var(--surface-elevated, #1e1a28));
+  background: linear-gradient(145deg, color-mix(in srgb, var(--sg-brand, var(--brand-gold)) 12%, transparent), var(--surface-elevated));
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.12);
 }
 

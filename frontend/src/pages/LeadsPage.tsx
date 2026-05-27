@@ -334,19 +334,25 @@ export default function LeadsPage() {
 
   if (loading && !leads.length) {
     return (
-      <div className="sn-leads-page">
-        <Card padding="lg" variant="default" className="sn-leads-page__loading-card">
-          <div className="sn-leads-page__hero">
-            <h1 className="sn-leads-page__title">Leads</h1>
-            <p className="sn-leads-page__subtitle">
-              Chargement du pipeline…
-            </p>
+      <div className="sn-leads-page" aria-busy="true" aria-label="Chargement des leads">
+        <div className="sn-leads-skeleton" aria-hidden>
+          {/* Toolbar placeholder */}
+          <div className="sn-leads-skeleton__toolbar sn-sk" />
+          {/* En-tête colonnes */}
+          <div className="sn-leads-skeleton__header">
+            {Array.from({ length: 7 }).map((_, i) => (
+              <div key={i} className="sn-leads-skeleton__header-cell sn-sk" />
+            ))}
           </div>
-          <div className="sn-leads-skeleton" aria-hidden>
-            <div className="sn-leads-skeleton__line" />
-            <div className="sn-leads-skeleton__line sn-leads-skeleton__line--short" />
-          </div>
-        </Card>
+          {/* Lignes de données */}
+          {Array.from({ length: 9 }).map((_, i) => (
+            <div key={i} className="sn-leads-skeleton__row">
+              {Array.from({ length: 7 }).map((_, j) => (
+                <div key={j} className="sn-leads-skeleton__cell sn-sk" />
+              ))}
+            </div>
+          ))}
+        </div>
       </div>
     );
   }

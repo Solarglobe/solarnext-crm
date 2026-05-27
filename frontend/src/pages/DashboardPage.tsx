@@ -732,16 +732,23 @@ export default function DashboardPage() {
       </header>
 
       {loading && (
-        <div className="sn-dashboard-loading" aria-busy="true">
-          <div className="sn-dashboard-loading__grid sn-dashboard-loading__grid--hero">
-            <div className="sn-dashboard-loading__card sn-dashboard-loading__card--primary" />
-            <div className="sn-dashboard-loading__grid-secondary">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <div key={i} className="sn-dashboard-loading__card" />
-              ))}
-            </div>
+        <div className="sn-dashboard-loading" aria-busy="true" aria-label="Chargement du tableau de bord">
+          {/* Rangée KPI — 4 tuiles */}
+          <div className="sn-dashboard-loading__kpi-row">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="sn-dashboard-loading__card" />
+            ))}
           </div>
-          <p className="sn-dashboard-loading__text">Chargement des indicateurs…</p>
+          {/* Cockpit — insight + actions */}
+          <div className="sn-dashboard-loading__cockpit">
+            <div className="sn-dashboard-loading__card" />
+            <div className="sn-dashboard-loading__card" />
+          </div>
+          {/* Chart area — timeline + donut */}
+          <div className="sn-dashboard-loading__chart">
+            <div className="sn-dashboard-loading__card sn-dashboard-loading__card--wide" />
+            <div className="sn-dashboard-loading__card sn-dashboard-loading__card--side" />
+          </div>
         </div>
       )}
 

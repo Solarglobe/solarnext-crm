@@ -6,6 +6,10 @@
  */
 
 :root {
+  /* ── TYPOGRAPHIE — fontes système ────────────────────────────────────────── */
+  --font-sans: "Geist", system-ui, -apple-system, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, "Cascadia Code", "Fira Code", Consolas, monospace;
+
   /* Brand accent — violet SolarGlobe (source canonique : --primary dans solarnext-theme.css) */
   /* NB : --primary est défini en Layer 2 (solarnext-theme.css), tokens.css est Layer 4. */
   --brand-accent: var(--primary, #7C3AED);
@@ -207,6 +211,7 @@ html.theme-dark {
 }
 
 html body {
+  font-family: var(--font-sans);
   font-size: var(--font-size-body);
 }
 

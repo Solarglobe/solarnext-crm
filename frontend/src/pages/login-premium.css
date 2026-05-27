@@ -62,8 +62,8 @@ html.sn-auth-page #root {
     circle at 100% 0%,
     transparent 0,
     transparent 28px,
-    rgba(200, 169, 106, 0.07) 28px,
-    rgba(200, 169, 106, 0.07) 29px
+    rgba(255, 255, 255, 0.06) 28px,
+    rgba(255, 255, 255, 0.06) 29px
   );
   pointer-events: none;
 }

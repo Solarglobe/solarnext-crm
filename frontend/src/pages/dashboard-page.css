@@ -974,12 +974,79 @@ html.sn-app-page .sn-dashboard-timeline-table thead th {
   margin: 8px 0 0;
 }
 
-/* ——— Loading skeleton ——— */
+/* ——— Loading skeleton — structure mimique du dashboard ——— */
 
 .sn-dashboard-loading {
-  margin-bottom: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sn-dash-gap, 16px);
+  padding: 12px 16px 20px;
 }
 
+/* Animation partagée avec le système crm-foundation */
+@keyframes sn-dash-shimmer {
+  0%   { background-position: 200% center; }
+  100% { background-position: -200% center; }
+}
+
+/* Mixin shimmer — appliqué à toutes les cartes placeholder */
+.sn-dashboard-loading__card {
+  border-radius: var(--radius-lg, 12px);
+  background: linear-gradient(
+    90deg,
+    var(--surface-2, rgba(148,163,184,0.08)) 25%,
+    color-mix(in srgb, var(--text-primary) 5%, transparent) 50%,
+    var(--surface-2, rgba(148,163,184,0.08)) 75%
+  );
+  background-size: 400% 100%;
+  animation: sn-dash-shimmer 1.6s ease-in-out infinite;
+}
+
+/* Rangée KPI (4 cartes) */
+.sn-dashboard-loading__kpi-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.sn-dashboard-loading__kpi-row .sn-dashboard-loading__card {
+  height: 88px;
+}
+
+/* Section cockpit : insight (large) + actions (colonnes) */
+.sn-dashboard-loading__cockpit {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.sn-dashboard-loading__cockpit .sn-dashboard-loading__card {
+  height: 130px;
+}
+
+/* Chart area */
+.sn-dashboard-loading__chart {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 8px;
+}
+
+.sn-dashboard-loading__chart .sn-dashboard-loading__card--wide {
+  height: 180px;
+}
+
+.sn-dashboard-loading__chart .sn-dashboard-loading__card--side {
+  height: 180px;
+}
+
+/* Délais progressifs — vague douce sur la page */
+.sn-dashboard-loading__cockpit .sn-dashboard-loading__card:nth-child(2) { animation-delay: 0.1s; }
+.sn-dashboard-loading__kpi-row .sn-dashboard-loading__card:nth-child(2) { animation-delay: 0.05s; }
+.sn-dashboard-loading__kpi-row .sn-dashboard-loading__card:nth-child(3) { animation-delay: 0.10s; }
+.sn-dashboard-loading__kpi-row .sn-dashboard-loading__card:nth-child(4) { animation-delay: 0.15s; }
+.sn-dashboard-loading__chart .sn-dashboard-loading__card--side         { animation-delay: 0.08s; }
+
+/* Rétrocompat : les classes grid historiques restent fonctionnelles */
 .sn-dashboard-loading__grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
@@ -997,20 +1064,8 @@ html.sn-app-page .sn-dashboard-timeline-table thead th {
   gap: 8px;
 }
 
-.sn-dashboard-loading__card {
-  height: 96px;
-  border-radius: 12px;
-  background: var(--surface, rgba(0, 0, 0, 0.05));
-  animation: sn-dash-shimmer 1.4s ease-in-out infinite;
-}
-
 .sn-dashboard-loading__card--primary {
   height: 200px;
-}
-
-@keyframes sn-dash-shimmer {
-  0%, 100% { opacity: 0.55; }
-  50% { opacity: 1; }
 }
 
 .sn-dashboard-loading__text {
@@ -1903,7 +1958,7 @@ html.theme-dark .sn-dashboard-wrap .sn-dashboard-insight__metric-value {
 .sn-dashboard-wrap .sn-dashboard-gauge__value {
   font-size: 15px;
   font-weight: 700;
-  font-family: var(--font-mono, monospace);
+  font-family: var(--font-mono);
 }
 .sn-dashboard-wrap .sn-dashboard-gauge__sub {
   font-size: 10px;
