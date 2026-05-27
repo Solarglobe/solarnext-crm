@@ -210,7 +210,8 @@ html.theme-dark {
   --sn-saas-input-h: var(--control-height-sm);
 }
 
-html body {
+html.sn-app-page body,
+html.sn-auth-page body {
   font-family: var(--font-sans);
   font-size: var(--font-size-body);
 }
