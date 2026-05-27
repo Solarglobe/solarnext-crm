@@ -316,7 +316,7 @@
   justify-content: center;
 }
 
-.dp-doc-icon--devis      { background: color-mix(in srgb, #7C3AED 12%, transparent); color: #7C3AED; }
+.dp-doc-icon--devis      { background: color-mix(in srgb, var(--primary) 12%, transparent); color: var(--primary); }
 .dp-doc-icon--facture    { background: color-mix(in srgb, #059669 12%, transparent); color: #059669; }
 .dp-doc-icon--proposal   { background: color-mix(in srgb, #2563EB 12%, transparent); color: #2563EB; }
 .dp-doc-icon--dp         { background: color-mix(in srgb, #D97706 12%, transparent); color: #D97706; }
@@ -374,7 +374,7 @@
   letter-spacing: 0.1px;
 }
 
-.dp-badge--devis    { background: color-mix(in srgb, #7C3AED 12%, transparent); color: #7C3AED; }
+.dp-badge--devis    { background: color-mix(in srgb, var(--primary) 12%, transparent); color: var(--primary); }
 .dp-badge--facture  { background: color-mix(in srgb, #059669 12%, transparent); color: #059669; }
 .dp-badge--proposal { background: color-mix(in srgb, #2563EB 12%, transparent); color: #2563EB; }
 .dp-badge--dp       { background: color-mix(in srgb, #D97706 12%, transparent); color: #D97706; }

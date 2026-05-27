@@ -1,0 +1,95 @@
+/*
+ * ImpersonationBanner — bandeau de sécurité mode admin.
+ *
+ * La couleur rouge (#b91c1c) est INTENTIONNELLEMENT fixe et ne suit PAS le thème.
+ * C'est une alerte de sécurité critique : elle doit être visible et universellement
+ * reconnaissable comme "danger", indépendamment du mode clair/sombre.
+ *
+ * Toutes les autres propriétés utilisent le design system.
+ */
+
+.sn-impersonation-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 16px;
+  background: #b91c1c;  /* sémantique danger — fixe par design */
+  color: #fef2f2;
+  font-size: 13px;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  z-index: 200;
+}
+
+/* Corps : mode + identité impersonée */
+.sn-impersonation-banner__body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+/* Label "MODE ADMIN" — uppercase discret */
+.sn-impersonation-banner__mode {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.75;
+}
+
+/* Nom de l'utilisateur ou de l'organisation */
+.sn-impersonation-banner__name {
+  font-weight: 600;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Détail secondaire (organisation quand user impersoné) */
+.sn-impersonation-banner__org {
+  font-size: 12px;
+  opacity: 0.78;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Bouton Quitter — ghost sur fond rouge */
+.sn-impersonation-banner__exit {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 12px;
+  border: 1px solid rgba(254, 242, 242, 0.35);
+  border-radius: var(--radius-control, 6px);
+  background: rgba(254, 242, 242, 0.1);
+  color: #fef2f2;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition:
+    background 0.12s ease,
+    border-color 0.12s ease;
+}
+
+.sn-impersonation-banner__exit:hover {
+  background: rgba(254, 242, 242, 0.18);
+  border-color: rgba(254, 242, 242, 0.5);
+}
+
+.sn-impersonation-banner__exit:active {
+  background: rgba(254, 242, 242, 0.24);
+}
+
+.sn-impersonation-banner__exit:focus-visible {
+  outline: 2px solid rgba(254, 242, 242, 0.6);
+  outline-offset: 2px;
+}

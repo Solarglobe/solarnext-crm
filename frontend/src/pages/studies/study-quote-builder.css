@@ -721,7 +721,7 @@
 }
 html.theme-dark .sqb-battery-capacity-hint {
   background: var(--color-bg-elevated, #161C34);
-  border-left-color: var(--color-accent, #7C3AED);
+  border-left-color: var(--primary, #7C3AED);
   color: var(--text-secondary, #9ca3af);
 }
 /* Séparateur visuel entre capacité et puissance */

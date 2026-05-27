@@ -186,12 +186,12 @@
 .fin-kpi-icon--draft    { background: color-mix(in srgb, #94a3b8 14%, transparent); color: #64748b; }
 .fin-kpi-icon--sent     { background: color-mix(in srgb, #2563EB 12%, transparent); color: #2563EB; }
 .fin-kpi-icon--accepted { background: color-mix(in srgb, #059669 12%, transparent); color: #059669; }
-.fin-kpi-icon--inv      { background: color-mix(in srgb, #7C3AED 12%, transparent); color: #7C3AED; }
+.fin-kpi-icon--inv      { background: color-mix(in srgb, var(--primary) 12%, transparent); color: var(--primary); }
 .fin-kpi-icon--emitted  { background: color-mix(in srgb, #0891B2 12%, transparent); color: #0891B2; }
 .fin-kpi-icon--danger   { background: color-mix(in srgb, #dc2626 12%, transparent); color: #dc2626; }
 .fin-kpi-icon--billed   { background: color-mix(in srgb, #D97706 12%, transparent); color: #D97706; }
 .fin-kpi-icon--collected{ background: color-mix(in srgb, #059669 12%, transparent); color: #059669; }
-.fin-kpi-icon--due      { background: color-mix(in srgb, #7C3AED 12%, transparent); color: #7C3AED; }
+.fin-kpi-icon--due      { background: color-mix(in srgb, var(--primary) 12%, transparent); color: var(--primary); }
 
 /* KPI card danger (factures en retard > 0) */
 .fin-preview-kpi-card--danger {

@@ -132,8 +132,8 @@
 }
 
 .admin-users-role-badge--super {
-  background: color-mix(in srgb, #7C3AED 13%, transparent);
-  color: #7C3AED;
+  background: color-mix(in srgb, var(--primary) 13%, transparent);
+  color: var(--primary);
 }
 
 .admin-users-role-badge--admin {

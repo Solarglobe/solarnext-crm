@@ -133,3 +133,17 @@
   color: inherit;
   background: transparent;
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   DARK MODE OVERRIDES — fix sg-* variables hardcodées en valeurs "light only"
+   Sans ces overrides, --sg-text / --sg-border restent en gris foncé/blanc cassé
+   en dark mode et produisent du texte invisible ou des bordures inexistantes.
+   Utilise les tokens canoniques (Layer 4 : tokens.css) comme source de vérité.
+───────────────────────────────────────────────────────────────────────────── */
+html.theme-dark {
+  --sg-text: var(--text-primary);
+  --sg-text-muted: var(--text-muted);
+  --sg-border: var(--border);
+  --sg-bg: var(--bg-card);
+  --sg-bg-soft: var(--surface-soft, var(--color-bg-muted, #111827));
+}

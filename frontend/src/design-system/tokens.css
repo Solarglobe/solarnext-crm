@@ -6,17 +6,18 @@
  */
 
 :root {
-  /* Brand accent — indigo (remplace gold) */
-  --brand-accent: #6366F1;
-  --brand-accent-hover: #4F46E5;
-  --brand-accent-soft: #EEF2FF;
-  --brand-accent-glow: rgba(99, 102, 241, 0.15);
+  /* Brand accent — violet SolarGlobe (source canonique : --primary dans solarnext-theme.css) */
+  /* NB : --primary est défini en Layer 2 (solarnext-theme.css), tokens.css est Layer 4. */
+  --brand-accent: var(--primary, #7C3AED);
+  --brand-accent-hover: var(--primary-hover, #6D28D9);
+  --brand-accent-soft: color-mix(in srgb, var(--primary, #7C3AED) 14%, transparent);
+  --brand-accent-glow: color-mix(in srgb, var(--primary, #7C3AED) 15%, transparent);
 
-  /* Aliases legacy conservés pour compatibilité (pointent vers indigo) */
-  --brand-gold: #6366F1;
-  --brand-gold-hover: #4F46E5;
-  --brand-gold-soft: rgba(99, 102, 241, 0.12);
-  --brand-gold-glow: rgba(99, 102, 241, 0.15);
+  /* @deprecated — aliases "gold" conservés pour rétrocompatibilité, pointer vers --primary */
+  --brand-gold: var(--primary, #7C3AED);
+  --brand-gold-hover: var(--primary-hover, #6D28D9);
+  --brand-gold-soft: color-mix(in srgb, var(--primary, #7C3AED) 12%, transparent);
+  --brand-gold-glow: color-mix(in srgb, var(--primary, #7C3AED) 15%, transparent);
 
   --focus-ring: rgba(109, 40, 217, 0.22);
   --focus-ring-strong: rgba(109, 40, 217, 0.36);

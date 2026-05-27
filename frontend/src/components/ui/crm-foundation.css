@@ -31,10 +31,10 @@
 .sn-page-header__title {
   margin: 0;
   color: var(--text-primary);
-  font-size: clamp(22px, 1.65rem, 30px);
+  font-size: 20px;  /* fixe — fluid sizing banni en product UI (DPI constant, sidebar fixe) */
   font-weight: 700;
-  line-height: 1.15;
-  letter-spacing: 0;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
 }
 
 .sn-main .sn-page-header__title::after {
@@ -174,19 +174,24 @@
   justify-content: flex-end;
 }
 
+/*
+ * KPI strip — cockpit opérationnel premium (pas hero-metric SaaS).
+ * Emphase réduite : lecture rapide répétée > mise en scène de la donnée.
+ * 22px/800 → 17px/600 ; trend badge pill → badge discret 3px radius.
+ */
 .sn-kpi-strip {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 8px;
   width: 100%;
-  margin: 0 0 18px;
+  margin: 0 0 16px;
 }
 
 .sn-kpi-strip__item {
   display: grid;
-  gap: 7px;
+  gap: 5px;
   min-width: 0;
-  padding: 14px;
+  padding: 11px 14px;
   border: 1px solid var(--border-soft, var(--border));
   border-radius: var(--radius-md, 8px);
   background: var(--surface-card, var(--surface));
@@ -194,31 +199,36 @@
 
 .sn-kpi-strip__label {
   color: var(--text-muted);
-  font-size: 12px;
-  font-weight: 700;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
 }
 
 .sn-kpi-strip__value {
   color: var(--text-primary);
-  font-size: 22px;
-  font-weight: 800;
+  font-size: 17px;
+  font-weight: 600;
   line-height: 1;
+  letter-spacing: -0.01em;
   font-variant-numeric: tabular-nums;
 }
 
 .sn-kpi-strip__hint {
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: 11px;
   line-height: 1.35;
 }
 
+/* Badge trend — discret, pas pill. Informe sans décorer. */
 .sn-kpi-strip__trend {
   width: fit-content;
-  min-height: 22px;
-  padding: 3px 8px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 800;
+  min-height: 18px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
 }
 
 .sn-kpi-strip__trend--up {
