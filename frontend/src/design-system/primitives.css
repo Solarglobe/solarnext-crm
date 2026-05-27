@@ -1,6 +1,6 @@
 /**
  * SolarNext CRM primitives.
- * Phase 2.1 - cascade lock : sélecteurs `html.sn-app-page …` (sans pseudo where), sans directive important.
+ * Phase 2.1 — cascade lock : sélecteurs `html.sn-app-page …` (sans pseudo where), sans directive important.
  * Scope : pages CRM (`html.sn-app-page`). PDF / calpinage inchangés.
  */
 
@@ -34,7 +34,7 @@ html.sn-app-page.theme-dark {
 }
 
 /* -------------------------------------------------------------------------- */
-/* Boutons - châssis unique CRM (sn-btn / sg-btn / sn-saas-btn / legacy .btn) */
+/* Boutons — châssis unique CRM (sn-btn / sg-btn / sn-saas-btn / legacy .btn) */
 /* -------------------------------------------------------------------------- */
 
 html.sn-app-page .sn-btn,
@@ -240,7 +240,7 @@ html.sn-app-page .btn-secondary.is-disabled {
   box-shadow: none;
 }
 
-/* Cartes - 2 surfaces ; glass neutralisé */
+/* Cartes — 2 surfaces ; glass neutralisé */
 html.sn-app-page .sn-card-glass,
 html.sn-app-page .sn-card-premium,
 html.sn-app-page .scenarios-th-glass {
@@ -342,7 +342,7 @@ html.sn-app-page .sn-saas-textarea[readonly] {
   background: var(--bg-muted);
 }
 
-/* Shell - aside renforce la spécificité sur le thème (.sn-sidebar avec padding forcé côté thème) */
+/* Shell — aside renforce la spécificité sur le thème (.sn-sidebar avec padding forcé côté thème) */
 html.sn-app-page aside.sn-sidebar {
   width: var(--sn-ui-shell-sidebar-w);
   padding: 10px 10px 0;
@@ -387,7 +387,7 @@ html.sn-app-page .sn-main {
 }
 
 /* -------------------------------------------------------------------------- */
-/* Tables - alignées sur .sn-ui-table (listes SaaS + admin + éditable) */
+/* Tables — alignées sur .sn-ui-table (listes SaaS + admin + éditable) */
 /* -------------------------------------------------------------------------- */
 
 html.sn-app-page .sn-ui-table,

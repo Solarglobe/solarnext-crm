@@ -1,5 +1,5 @@
 /**
- * CP-PDF - Styles port PDF legacy Solarglobe (P1–P14).
+ * CP-PDF — Styles port PDF legacy Solarglobe (P1–P14).
  * Les pages sont des `<section id="pN">` rendues par PdfPageLayout (plus de classe .sheet).
  */
 
@@ -18,7 +18,7 @@
   color: #0F172A;
 }
 
-/* P2 - Lisibilité premium (typographie, contraste) */
+/* P2 — Lisibilité premium (typographie, contraste) */
 #p2 {
   color: #1a1a1a;
 }
@@ -35,7 +35,7 @@
   background: rgba(251, 246, 236, 0.35);
 }
 
-/* Tableau - chiffres plus visibles */
+/* Tableau — chiffres plus visibles */
 #p2 .p2-table-compact td {
   font-size: 1.05em;
   font-weight: 500;
@@ -55,7 +55,7 @@
   font-weight: 600;
 }
 
-/* Ligne 25 ans - LA ligne importante */
+/* Ligne 25 ans — LA ligne importante */
 #p2 .p2-highlight-row td {
   font-weight: 700;
   font-size: 1.15em;
@@ -69,7 +69,7 @@
   color: #444;
 }
 
-/* KPI droite - valeurs impactantes */
+/* KPI droite — valeurs impactantes */
 #p2 #p2_roi,
 #p2 #p2_tri,
 #p2 #p2_lcoe {
@@ -86,7 +86,7 @@
   color: #777;
 }
 
-/* Hero - chiffre principal */
+/* Hero — chiffre principal */
 #p2 .p2-hero strong {
   font-size: 1.15em;
   font-weight: 700;
@@ -99,12 +99,12 @@
   color: inherit;
 }
 
-/* Barre - séparation subtile */
+/* Barre — séparation subtile */
 #p2 .bar {
   margin-top: 1.5mm;
 }
 
-/* P2 - Colonne droite : panneau KPI + comparatif (hauteur utile, cohérence premium) */
+/* P2 — Colonne droite : panneau KPI + comparatif (hauteur utile, cohérence premium) */
 #p2 .p2-right-impact-panel {
   min-height: 0;
 }
@@ -162,7 +162,7 @@
   margin-top: 0.55mm;
 }
 
-/* P2 - Résumé client */
+/* P2 — Résumé client */
 #p2 .p2-summary {
   font-size: 0.9rem;
   line-height: 1.5;
@@ -177,7 +177,7 @@
   margin-bottom: 1mm;
 }
 
-/* P2 - Fiabilité : 2 colonnes + dernière ligne pleine largeur (gain de hauteur, PDF) */
+/* P2 — Fiabilité : 2 colonnes + dernière ligne pleine largeur (gain de hauteur, PDF) */
 #p2 .p2-reliability-bullets {
   align-items: start;
 }
@@ -256,7 +256,7 @@
   line-height: 1.05;
 }
 
-/* P4 - KPI bande premium */
+/* P4 — KPI bande premium */
 .pdf-legacy-port .p4-kpi-line {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
@@ -296,7 +296,7 @@
   color: var(--brand);
 }
 
-/* P7 - Schéma flux : traitement distinct de P6 (graphique courbe + légende) */
+/* P7 — Schéma flux : traitement distinct de P6 (graphique courbe + légende) */
 .pdf-legacy-port #p7 .p7-flux-hero {
   position: relative;
   flex-shrink: 0;
@@ -388,7 +388,7 @@
   overflow: visible;
 }
 
-/* P10 - corps principal : empilement haut → bas comme P7 (pas de consommation de la hauteur feuille) */
+/* P10 — corps principal : empilement haut → bas comme P7 (pas de consommation de la hauteur feuille) */
 .pdf-legacy-port #p10 .p10-main {
   flex: 0 0 auto;
   min-height: 0;
@@ -397,7 +397,7 @@
   overflow: visible;
 }
 
-/* Corps P9 - même logique que P7 : pas de flex-grow sur le bloc résultats */
+/* Corps P9 — même logique que P7 : pas de flex-grow sur le bloc résultats */
 .pdf-legacy-port #p9 .p9-body {
   flex: 0 0 auto;
   min-height: 0;
@@ -516,7 +516,7 @@
   align-self: stretch;
 }
 
-/* Redondant avec le hero - masqué, le graphique porte la page */
+/* Redondant avec le hero — masqué, le graphique porte la page */
 .pdf-legacy-port #p9 .p9-chart-heading {
   display: none;
 }
@@ -591,7 +591,7 @@
   line-height: 1.08;
 }
 
-/* Rentabilité (3e carte) : ~ −1/3 vs les deux autres - chiffres foncés plus discrets */
+/* Rentabilité (3e carte) : ~ −1/3 vs les deux autres — chiffres foncés plus discrets */
 .pdf-legacy-port #p9 .p9-kpi-row .p9-kpi-cell:nth-child(3) {
   min-height: 8mm;
   padding: 0.45mm 0.65mm 0.5mm;
@@ -608,7 +608,7 @@
   font-size: 2.7mm;
 }
 
-/* Bas de page - même esprit que P4 (texte pédagogique petit) */
+/* Bas de page — même esprit que P4 (texte pédagogique petit) */
 .pdf-legacy-port #p9 .p9-footer-note {
   margin: 0.65mm 0 0 0;
   padding: 0 3mm 0.25mm;
@@ -626,7 +626,7 @@
 }
 
 /*
- * Ancienne règle #p8_results (flex + gap) ciblait #p8.p8-page - classe absente après migration.
+ * Ancienne règle #p8_results (flex + gap) ciblait #p8.p8-page — classe absente après migration.
  * Ne pas réactiver sans audit PDF (changerait le layout quand l’engine affiche #p8_results).
  */
 
@@ -692,7 +692,7 @@
   line-height: 1.14;
 }
 
-/* Sous-titre dynamique (ex. « soit ~X kWh achetés en moins ») - doré, légèrement plus marqué */
+/* Sous-titre dynamique (ex. « soit ~X kWh achetés en moins ») — doré, légèrement plus marqué */
 #p8 .p8-lead-line2 {
   margin-top: 0.85mm;
   font-size: 3.55mm;
@@ -881,7 +881,7 @@
   width: 100%;
 }
 
-/* Accroche commerciale - projection 25 ans (données mapper + engine-p8) */
+/* Accroche commerciale — projection 25 ans (données mapper + engine-p8) */
 #p8 .p8-commercial-hook {
   margin: 3.35mm 0 0;
   padding: 0 3.85mm;
@@ -913,7 +913,7 @@
   text-align: left;
 }
 
-/* Disclaimer - sous le bloc carte batterie (hors carte), aligné sur le contenu */
+/* Disclaimer — sous le bloc carte batterie (hors carte), aligné sur le contenu */
 #p8 .p8-grid-bottom-disclaimer {
   margin: 2.5mm 0 0;
   padding: 0 3.85mm;

@@ -1,4 +1,4 @@
-/* Builder devis commercial - workbench unique */
+/* Builder devis commercial — workbench unique */
 
 .qb-page {
   max-width: min(1680px, 100%);
@@ -183,7 +183,7 @@
   color: var(--text-muted);
 }
 
-/* Workbench - une carte travail (esprit devis technique) */
+/* Workbench — une carte travail (esprit devis technique) */
 .qb-workbench {
   width: 100%;
   max-width: 1520px;
@@ -193,7 +193,7 @@
   gap: 20px;
 }
 
-/* Colonne principale - aussi utilisée par le builder facture */
+/* Colonne principale — aussi utilisée par le builder facture */
 .qb-main {
   display: flex;
   flex-direction: column;
@@ -254,7 +254,7 @@
   background: var(--border-soft, var(--border, rgba(255, 255, 255, 0.1)));
 }
 
-/* Titres de section - hiérarchie type devis technique */
+/* Titres de section — hiérarchie type devis technique */
 /* Surcharge .sn-main h2 : display block + trait local (bottom: 0, pas le -8px global qui chevauche le hint) */
 .qb-page h2.qb-section-title {
   margin: 0 0 10px;
@@ -348,7 +348,7 @@
   flex: 1 1 260px;
 }
 
-/* Actions lignes - boutons sobres (surcharge locale, ne touche pas au reste du CRM) */
+/* Actions lignes — boutons sobres (surcharge locale, ne touche pas au reste du CRM) */
 .qb-lines-cta--premium {
   gap: 8px;
 }
@@ -498,7 +498,7 @@
   border-bottom: 1px solid var(--border, rgba(255, 255, 255, 0.06));
 }
 
-/* Lignes éditables - densité type grille ERP, sans spinners number */
+/* Lignes éditables — densité type grille ERP, sans spinners number */
 .qb-table.qb-lines-edit th,
 .qb-table.qb-lines-edit td {
   padding: 7px 8px;
@@ -768,7 +768,7 @@
   font-size: 14px;
 }
 
-/* Panneau synthèse - type pricing (lisibilité forte) */
+/* Panneau synthèse — type pricing (lisibilité forte) */
 .qb-pricing-panel {
   padding: 14px 18px 16px;
 }
@@ -931,7 +931,7 @@
   user-select: none;
 }
 
-/* Champs hors tableau - alignés densité devis technique */
+/* Champs hors tableau — alignés densité devis technique */
 .qb-workbench-surface .qb-field-input {
   min-height: 38px;
   height: 38px;
@@ -1206,7 +1206,7 @@
   align-items: center;
 }
 
-/* --- Document commercial (en-tête builder) --- */
+/* ——— Document commercial (en-tête builder) ——— */
 .qb-doc-card {
   padding: 20px 22px 22px;
   border-radius: var(--radius-16, 16px);
@@ -1379,7 +1379,7 @@
   color: var(--text-primary);
 }
 
-/* Mode document condensé - lignes */
+/* Mode document condensé — lignes */
 .qb-lines-doc-banner {
   margin: 0;
   padding: 10px 12px;
@@ -1417,7 +1417,7 @@
   font-family: inherit;
 }
 
-/* Synthèse & zones client - finitions */
+/* Synthèse & zones client — finitions */
 .qb-pricing-panel--commercial .qb-pricing-row--sep {
   margin-top: 4px;
   padding-top: 10px;
@@ -1438,7 +1438,7 @@
   color: var(--text-muted);
 }
 
-/* -- Cycle de vie devis (workflow panel) -- */
+/* —— Cycle de vie devis (workflow panel) —— */
 .qb-workflow-panel {
   margin-bottom: 20px;
   padding: 16px 18px;

@@ -1,4 +1,4 @@
-/* CP-077 - Inbox mail (léger, fond clair) */
+/* CP-077 — Inbox mail (léger, fond clair) */
 
 .mail-standard-page,
 .mail-outbox-page {
@@ -948,7 +948,7 @@ button.mail-inbox-sn-tab:focus-visible {
   border-bottom: 1px solid #fecaca;
 }
 
-/* --- CP-078 - Thread viewer - */
+/* ——— CP-078 — Thread viewer — */
 
 .mail-viewer {
   display: flex;
@@ -1775,7 +1775,7 @@ button.mail-inbox-sn-tab:focus-visible {
   flex-shrink: 0;
 }
 
-/* Phase 3.5 - mail CRM : surfaces uniquement sous html.theme-dark */
+/* Phase 3.5 — mail CRM : surfaces uniquement sous html.theme-dark */
 html.theme-dark .mail-inbox__filter-strip,
 html.theme-dark .mail-inbox__toolbar {
   background: var(--color-bg-muted);

@@ -1,4 +1,4 @@
-/* CP-QUOTE-003 - Catalogue devis admin - Phase 2 premium */
+/* CP-QUOTE-003 — Catalogue devis admin — Phase 2 premium */
 
 .admin-tab-quote-catalog {
   display: flex;
@@ -16,7 +16,7 @@
   padding: 0 0 14px;
 }
 
-/* Search icon wrap - même pattern que org-tab-toolbar__search-wrap */
+/* Search icon wrap — même pattern que org-tab-toolbar__search-wrap */
 /* (défini dans admin-org-structure-visual.css, réutilisé ici via la classe partagée) */
 
 /* Chips catégorie */
@@ -183,7 +183,7 @@
   opacity: 1;
 }
 
-/* Boutons icône - minimalistes 22×22, fins */
+/* Boutons icône — minimalistes 22×22, fins */
 .admin-catalog-icon-btn {
   display: inline-flex;
   align-items: center;
@@ -257,7 +257,7 @@
   padding: 0;
 }
 
-/* Largeur xl réelle - le design-system plafonne xl à 720px comme lg, on force 920px */
+/* Largeur xl réelle — le design-system plafonne xl à 720px comme lg, on force 920px */
 .sn-modal-shell-panel.qc-modal-panel.sn-modal-shell-panel--xl {
   max-width: min(920px, calc(100vw - 48px)) !important;
   width: min(920px, calc(100vw - 48px)) !important;
@@ -605,4 +605,5 @@ html.theme-dark .admin-catalog-chip:hover {
 html.theme-dark .admin-catalog-chip--active {
   background: color-mix(in srgb, var(--primary) 15%, transparent);
   border-color: color-mix(in srgb, var(--primary) 45%, transparent);
-  color: var(--primary, #818c
+  color: var(--primary, #818cf8);
+}

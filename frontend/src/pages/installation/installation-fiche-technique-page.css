@@ -1,4 +1,4 @@
-/* Fiches techniques - liste CRM (API paginée, UX premium) */
+/* Fiches techniques — liste CRM (API paginée, UX premium) */
 .installation-ft-page {
   max-width: 1200px;
   margin: 0 auto;
@@ -317,7 +317,7 @@
   border-top-color: var(--brand-gold);
 }
 
-/* Boutons formulaire - spinner inline */
+/* Boutons formulaire — spinner inline */
 .installation-ft-page__btn-label {
   display: inline-flex;
   align-items: center;

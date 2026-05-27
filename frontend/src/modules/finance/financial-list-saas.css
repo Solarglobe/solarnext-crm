@@ -1,8 +1,8 @@
 /**
- * Listes Devis / Factures - toolbar + tableau alignés sur le SaaS Leads (violet / or).
+ * Listes Devis / Factures — toolbar + tableau alignés sur le SaaS Leads (violet / or).
  */
 
-/* --- Table liste (hors éditeur de lignes) --- */
+/* ——— Table liste (hors éditeur de lignes) ——— */
 .qb-table-wrap--list-saas {
   margin-top: 4px;
   border-radius: 14px;
@@ -22,12 +22,12 @@ html.theme-dark .qb-table-wrap--list-saas {
 
 /* Grille tableau liste SaaS : `design-system/primitives.css` (html.sn-app-page) */
 
-/* Retard facture - accent cohérent */
+/* Retard facture — accent cohérent */
 .qb-table--list-saas tbody tr.fin-saas-row-overdue {
   box-shadow: inset 3px 0 0 color-mix(in srgb, var(--danger, #dc2626) 88%, var(--primary));
 }
 
-/* Actions devis - liens compacts */
+/* Actions devis — liens compacts */
 .qb-table--list-saas .fin-list-actions {
   display: inline-flex;
   flex-wrap: wrap;
@@ -90,7 +90,7 @@ html.theme-dark .qb-table-wrap--list-saas {
   pointer-events: none;
 }
 
-/* Suppression devis - même esprit que liste leads */
+/* Suppression devis — même esprit que liste leads */
 .fin-quote-list-delete {
   display: inline-flex;
   align-items: center;
@@ -125,7 +125,7 @@ html.theme-dark .qb-table-wrap--list-saas {
   cursor: not-allowed;
 }
 
-/* Sélecteur devis - modal création facture */
+/* Sélecteur devis — modal création facture */
 .fin-saas-quote-ac-row {
   display: flex;
   flex-wrap: wrap;

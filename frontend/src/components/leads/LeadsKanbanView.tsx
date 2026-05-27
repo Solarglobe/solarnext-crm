@@ -924,7 +924,7 @@ export function LeadsKanbanView({
                   orderedStages.findIndex(
                     (s) =>
                       s.id ===
-                                            (optimistic[activeLead.id] ?? activeLead.stage_id)
+                      (optimistic[activeLead.id] ?? activeLead.stage_id)
                   ) + 1,
                   1
                 ),

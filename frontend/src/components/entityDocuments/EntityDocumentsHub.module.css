@@ -1,4 +1,4 @@
-/* P4 - Hub documents : finition CRM premium (sobre, structuré) */
+/* P4 — Hub documents : finition CRM premium (sobre, structuré) */
 
 .hub {
   --ed-surface: var(--color-bg-muted);
@@ -13,7 +13,7 @@
   --ed-ring: var(--border-strong);
   --ed-focus: rgba(68, 64, 60, 0.12);
   --ed-accent-brand: var(--text-muted);
-  /* Barre latérale sections - alignée sur l’or CRM (--gold dans solarnext-theme) */
+  /* Barre latérale sections — alignée sur l’or CRM (--gold dans solarnext-theme) */
   --ed-bar: linear-gradient(
     180deg,
     color-mix(in srgb, var(--gold, var(--brand-gold)) 22%, var(--bg-card)) 0%,
@@ -26,7 +26,7 @@
   gap: 1.125rem;
 }
 
-/* Regroupement DP + dossier mairie - titre global */
+/* Regroupement DP + dossier mairie — titre global */
 .dpCluster {
   display: flex;
   flex-direction: column;
@@ -63,7 +63,7 @@
   gap: 1.125rem;
 }
 
-/* --- Upload --- */
+/* ——— Upload ——— */
 .uploadPanel {
   border-radius: 12px;
   border: 1px solid var(--ed-border);
@@ -348,7 +348,7 @@
   transition: width 0.25s ease;
 }
 
-/* --- Sections --- */
+/* ——— Sections ——— */
 .section {
   border-radius: 12px;
   border: 1px solid var(--ed-border);
@@ -420,7 +420,7 @@
   color: var(--ed-text-muted);
 }
 
-/* Sous-titres « prose » (DP / dossier mairie) - phrase lisible, pas tout-caps */
+/* Sous-titres « prose » (DP / dossier mairie) — phrase lisible, pas tout-caps */
 .sectionSubtitleProse {
   text-transform: none;
   letter-spacing: 0.01em;
@@ -742,7 +742,7 @@
 }
 
 /*
- * Phase 3 - références tokens CRM (scan scripts/check-design-system-phase3.mjs) :
+ * Phase 3 — références tokens CRM (scan scripts/check-design-system-phase3.mjs) :
  * var(--sn-badge-neutral-bg)
  * var(--sn-badge-info-bg)
  * var(--sn-badge-success-bg)

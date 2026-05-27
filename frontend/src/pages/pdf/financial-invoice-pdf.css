@@ -1,4 +1,4 @@
-/* PDF Facture - A4 portrait, marges @page (cohérent avec Playwright preferCSSPageSize) */
+/* PDF Facture — A4 portrait, marges @page (cohérent avec Playwright preferCSSPageSize) */
 
 @page {
   size: A4 portrait;

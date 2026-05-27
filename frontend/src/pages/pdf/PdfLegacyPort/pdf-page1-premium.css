@@ -1,5 +1,5 @@
 /**
- * Page 1 PDF - couverture paysage premium (hero split ~44/56, bande KPI, bas de page).
+ * Page 1 PDF — couverture paysage premium (hero split ~44/56, bande KPI, bas de page).
  * Couleurs et grain typographique alignés P10 / P11 / méthodologie.
  */
 
@@ -29,7 +29,7 @@
   box-sizing: border-box;
 }
 
-/* Surcharge titre #p1 h2 legacy (9.8mm) - titres de panneaux bas de page */
+/* Surcharge titre #p1 h2 legacy (9.8mm) — titres de panneaux bas de page */
 .pdf-legacy-port #p1.p1-premium-page h2.p1-premium__panel-heading {
   margin: 0 0 2.25mm;
   font-size: 3.85mm !important;

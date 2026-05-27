@@ -1,4 +1,4 @@
-/* Toast System - SolarGlobe aligné, bottom-right */
+/* Toast System — SolarGlobe aligné, bottom-right */
 
 .container {
   position: fixed;
@@ -45,13 +45,13 @@
   }
 }
 
-/* Texte du toast - flex: 1 pour pousser le bouton × à droite */
+/* Texte du toast — flex: 1 pour pousser le bouton × à droite */
 .toastMessage {
   flex: 1;
   min-width: 0;
 }
 
-/* Bouton × - masqué sur desktop, visible sur mobile */
+/* Bouton × — masqué sur desktop, visible sur mobile */
 .toastClose {
   display: none;
   flex-shrink: 0;

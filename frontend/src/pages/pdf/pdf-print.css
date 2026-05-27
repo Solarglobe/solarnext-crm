@@ -1,5 +1,5 @@
 /**
- * PDF V2 - Styles page rendu / impression
+ * PDF V2 — Styles page rendu / impression
  * SolarGlobe : fond sombre, accent gold #C39847, cards glass
  * page-break-after: always pour chaque page
  */
@@ -206,7 +206,7 @@
   color: var(--sn-text-secondary, #9FA8C7);
 }
 
-/* P8 - 1 page, contraintes strictes (aperçu + print) */
+/* P8 — 1 page, contraintes strictes (aperçu + print) */
 .pdf-page-p8 {
   page-break-before: always;
   page-break-after: always;
@@ -646,7 +646,7 @@
   }
 }
 
-/* CGV - fin de rapport étude (PdfLegacyPort / #pdf-root) */
+/* CGV — fin de rapport étude (PdfLegacyPort / #pdf-root) */
 .pdf-legacy-port .pdf-cgv {
   page-break-before: always;
   font-size: 10px;

@@ -6,18 +6,18 @@
  */
 
 :root {
-  /* ── TYPOGRAPHIE - fontes système ────────────────────────────────────────── */
+  /* ── TYPOGRAPHIE — fontes système ────────────────────────────────────────── */
   --font-sans: "Geist", system-ui, -apple-system, sans-serif;
   --font-mono: "Geist Mono", ui-monospace, "Cascadia Code", "Fira Code", Consolas, monospace;
 
-  /* Brand accent - violet SolarGlobe (source canonique : --primary dans solarnext-theme.css) */
+  /* Brand accent — violet SolarGlobe (source canonique : --primary dans solarnext-theme.css) */
   /* NB : --primary est défini en Layer 2 (solarnext-theme.css), tokens.css est Layer 4. */
   --brand-accent: var(--primary, #7C3AED);
   --brand-accent-hover: var(--primary-hover, #6D28D9);
   --brand-accent-soft: color-mix(in srgb, var(--primary, #7C3AED) 14%, transparent);
   --brand-accent-glow: color-mix(in srgb, var(--primary, #7C3AED) 15%, transparent);
 
-  /* @deprecated - aliases "gold" conservés pour rétrocompatibilité, pointer vers --primary */
+  /* @deprecated — aliases "gold" conservés pour rétrocompatibilité, pointer vers --primary */
   --brand-gold: var(--primary, #7C3AED);
   --brand-gold-hover: var(--primary-hover, #6D28D9);
   --brand-gold-soft: color-mix(in srgb, var(--primary, #7C3AED) 12%, transparent);
@@ -47,15 +47,15 @@
   /*
    * ── EASING TOKENS ────────────────────────────────────────────────────────
    * Source unique pour toutes les courbes d'animation SolarNext.
-   * Basées sur Emil Kowalski / animations.dev - adaptées au contexte cockpit.
+   * Basées sur Emil Kowalski / animations.dev — adaptées au contexte cockpit.
    *
    * Règle : ease-out pour entrées/press (départ fort → ralentit = réactivité perçue immédiate)
    *         ease-in-out pour mouvements sur scène (naturel, accélère puis ralentit)
    *         linear pour loaders/spinners uniquement
    */
-  --ease-out:    cubic-bezier(0.23, 1, 0.32, 1);     /* fort ease-out - press, entrées */
-  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);    /* fort ease-in-out - modals, drawers */
-  --ease-subtle: cubic-bezier(0.4, 0, 0.2, 1);       /* Material-like - hover colors, subtle */
+  --ease-out:    cubic-bezier(0.23, 1, 0.32, 1);     /* fort ease-out — press, entrées */
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);    /* fort ease-in-out — modals, drawers */
+  --ease-subtle: cubic-bezier(0.4, 0, 0.2, 1);       /* Material-like — hover colors, subtle */
 
   /*
    * ── DURATION TOKENS ──────────────────────────────────────────────────────
@@ -185,4 +185,51 @@ html.theme-dark {
 
 html.theme-light,
 html.theme-dark {
-  /* Aliases ac
+  /* Aliases accent (indigo) */
+  --sn-accent-gold: var(--brand-accent);
+  --sn-accent-gold-soft: var(--brand-accent-soft);
+  --gold: var(--brand-accent);
+  --gold-accent: var(--brand-accent);
+  --gold-soft: var(--brand-accent-soft);
+  --gold-glow: var(--brand-accent-glow);
+  --sn-gold: var(--brand-accent);
+  --sg-brand: var(--brand-accent);
+  --sg-brand-hover: var(--brand-accent-hover);
+
+  --ring: var(--focus-ring);
+  --ring-strong: var(--focus-ring-strong);
+
+  --radius: var(--radius-md);
+  --radius-btn: var(--radius-control);
+  --radius-input: var(--radius-control);
+  --radius-card: var(--radius-card-default);
+  --sg-radius-sm: var(--radius-sm);
+  --sg-radius-md: var(--radius-control);
+  --sg-radius-lg: var(--radius-card-default);
+  --sn-saas-radius-surface: var(--radius-md);
+  --sn-saas-input-h: var(--control-height-sm);
+}
+
+html body {
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body);
+}
+
+/*
+ * ── RÉFÉRENTIEL DE BREAKPOINTS SOLARNEXT CRM ────────────────────────────────
+ * Les custom properties ne peuvent pas être utilisées dans @media queries (CSS pur).
+ * Ce bloc documente les valeurs canoniques à utiliser dans tout le projet.
+ *
+ *  640px  — mobile portrait    : 1 colonne, navigation plein écran
+ *  900px  — tablette portrait  : mise en page simplifiée, grilles 1-col
+ * 1100px  — tablette paysage   : sidebar passe en drawer (hamburger visible)
+ *                                sticky bars : left: 0 (plus de sidebar fixe)
+ * 1400px  — grand écran        : layout élargi, colonnes supplémentaires
+ *
+ * Usage :
+ *   @media (max-width: 1099px) { ... }   ← tablette/mobile (drawer sidebar)
+ *   @media (max-width: 899px)  { ... }   ← mobile / tablette portrait
+ *   @media (max-width: 639px)  { ... }   ← mobile portrait uniquement
+ *   @media (min-width: 1400px) { ... }   ← grand écran
+ * ────────────────────────────────────────────────────────────────────────────
+ */

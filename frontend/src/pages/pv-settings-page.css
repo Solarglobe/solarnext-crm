@@ -1,5 +1,5 @@
 /**
- * Paramètres PV - shell SaaS (sections blanches, tables denses, fond lavé).
+ * Paramètres PV — shell SaaS (sections blanches, tables denses, fond lavé).
  */
 
 .pv-settings-page {
@@ -38,7 +38,7 @@
   color: #334155;
 }
 
-/* --- Économie : compact (écrans 15" / laptop) --- */
+/* ——— Économie : compact (écrans 15" / laptop) ——— */
 .pv-eco-head {
   display: flex;
   flex-wrap: wrap;
@@ -187,7 +187,7 @@
   color: #94a3b8;
 }
 
-/* --- Catalogues (panneaux, onduleurs, batteries) --- */
+/* ——— Catalogues (panneaux, onduleurs, batteries) ——— */
 .pv-cat-page {
   display: flex;
   flex-direction: column;

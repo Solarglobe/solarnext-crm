@@ -1,4 +1,4 @@
-/* Phase3ChecklistPanel - Module UI passif, lecture seule */
+/* Phase3ChecklistPanel — Module UI passif, lecture seule */
 
 .panel {
   background: #ffffff;
@@ -33,7 +33,7 @@
   color: var(--sg-text);
 }
 
-/* Badge générique - prévient le zoom auto iOS Safari, surface min WCAG 2.5.5.
+/* Badge générique — prévient le zoom auto iOS Safari, surface min WCAG 2.5.5.
    Les couleurs sémantiques restent sur .statusOk/.statusWarning/etc. */
 .badge {
   display: inline-flex;
@@ -64,7 +64,7 @@
 .iconError { color: var(--sg-error); }
 .iconNeutral { color: #888; }
 
-/* Variante sidebar - pas de carte lourde */
+/* Variante sidebar — pas de carte lourde */
 .panelCompact {
   margin-bottom: 0;
   padding: 0;

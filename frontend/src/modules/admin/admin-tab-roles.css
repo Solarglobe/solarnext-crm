@@ -1,4 +1,4 @@
-/* Tab Rôles & permissions - clarté produit */
+/* Tab Rôles & permissions — clarté produit */
 
 .admin-tab-roles {
   min-height: 120px;
@@ -168,7 +168,7 @@
   cursor: pointer;
 }
 
-/* -- Modal phase 2 : résumé, niveau, recherche -- */
+/* —— Modal phase 2 : résumé, niveau, recherche —— */
 
 .admin-roles-modal-stack {
   display: flex;
@@ -301,7 +301,7 @@
   white-space: nowrap;
 }
 
-/* Blocs domaine - hiérarchie renforcée */
+/* Blocs domaine — hiérarchie renforcée */
 
 .admin-roles-perm-group--panel {
   margin-bottom: var(--spacing-16);

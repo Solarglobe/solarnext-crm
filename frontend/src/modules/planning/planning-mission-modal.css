@@ -1,5 +1,5 @@
 /**
- * LOT A - Formulaires mission (ModalShell) : champs + pied d’édition.
+ * LOT A — Formulaires mission (ModalShell) : champs + pied d’édition.
  */
 
 .planning-modal-field {
@@ -59,4 +59,48 @@
   gap: 12px;
   align-items: center;
   flex-wrap: wrap;
+}
+
+/* ── Input datetime-local natif (remplace MUI DateTimePicker) ───────────── */
+.planning-datetime-input {
+  width: 100%;
+  padding: 7px 10px;
+  font-size: 13px;
+  font-family: var(--font-sans, inherit);
+  color: var(--text-primary);
+  background: var(--surface-input, var(--surface-2));
+  border: 1px solid var(--border-soft, rgba(15, 23, 42, 0.12));
+  border-radius: var(--radius-sm, 6px);
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.15s var(--ease-out, ease-out),
+              box-shadow 0.15s var(--ease-out, ease-out);
+  color-scheme: light;
+}
+
+html.theme-dark .planning-datetime-input {
+  color-scheme: dark;
+  background: var(--surface-2);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.planning-datetime-input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 15%, transparent);
+}
+
+.planning-datetime-input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Icône calendrier : couleur token */
+.planning-datetime-input::-webkit-calendar-picker-indicator {
+  opacity: 0.5;
+  cursor: pointer;
+  filter: var(--calendar-icon-filter, none);
+}
+
+html.theme-dark .planning-datetime-input::-webkit-calendar-picker-indicator {
+  filter: invert(1) opacity(0.6);
 }

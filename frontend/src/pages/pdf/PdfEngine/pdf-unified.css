@@ -1,17 +1,17 @@
 /**
- * pdf-unified.css - Feuille de styles UNIQUE pour le système PDF SolarGlobe
+ * pdf-unified.css — Feuille de styles UNIQUE pour le système PDF SolarGlobe
  *
  * Règles :
  *  - Ce fichier ne définit QUE des utilitaires et des réinitialisations @media print
  *  - Toutes les dimensions critiques sont dans pdfLayout.ts (inline styles)
- *  - Pas de hauteurs codées en dur ici - tout est calculé par PdfPageLayout
+ *  - Pas de hauteurs codées en dur ici — tout est calculé par PdfPageLayout
  *  - Compatible Playwright + prévisualisation navigateur
  *
  * Structure CSS :
  *  1. Reset global pour le rendu PDF
  *  3. Conteneur racine #pdf-root
  *  3. Classes utilitaires (texte, couleurs, flex helpers)
- *  4. @media print - surcharges Playwright
+ *  4. @media print — surcharges Playwright
  */
 
 /* ─────────────────────────────────────────────────────────────────
@@ -186,7 +186,7 @@
 }
 
 /* ─────────────────────────────────────────────────────────────────
-   9. @MEDIA PRINT - Surcharges pour Playwright
+   9. @MEDIA PRINT — Surcharges pour Playwright
 ───────────────────────────────────────────────────────────────── */
 @media print {
   /* Forcer les couleurs en print */
@@ -216,7 +216,7 @@
 }
 
 /* ─────────────────────────────────────────────────────────────────
-   10. PREVIEW SCREEN - Espacement entre pages
+   10. PREVIEW SCREEN — Espacement entre pages
 ───────────────────────────────────────────────────────────────── */
 @media screen {
   .pdf-engine-page {

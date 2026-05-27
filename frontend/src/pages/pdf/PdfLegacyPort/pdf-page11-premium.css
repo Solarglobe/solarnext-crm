@@ -1,5 +1,5 @@
 /**
- * Page 11 PDF - paysage premium, budget px strict (zone utile .p11-premium).
+ * Page 11 PDF — paysage premium, budget px strict (zone utile .p11-premium).
  * Totaux : hero + central + synth + footer + 3×gap ≤ 603.56 px.
  */
 
@@ -21,7 +21,7 @@
   --p11-h-synth: 112px;
   --p11-h-foot: 20px;
 
-  /* Bloc central horizontal - plus d’air entre graphique et colonne */
+  /* Bloc central horizontal — plus d’air entre graphique et colonne */
   --p11-col-chart: 668px;
   --p11-col-gap: 20px;
   --p11-col-read: 359px;
@@ -59,7 +59,7 @@
   box-sizing: border-box;
 }
 
-/* ---------- A - Hero ---------- */
+/* ---------- A — Hero ---------- */
 .p11-hero {
   flex: 0 0 var(--p11-h-hero);
   height: var(--p11-h-hero);
@@ -128,7 +128,7 @@
   max-width: min(420px, 100%);
 }
 
-/* ---------- B - Central : graphique | lecture ---------- */
+/* ---------- B — Central : graphique | lecture ---------- */
 .p11-central {
   flex: 0 0 var(--p11-h-central);
   height: var(--p11-h-central);
@@ -365,7 +365,7 @@
   font-size: 15px;
 }
 
-/* ---------- C - Synthèse années clés ---------- */
+/* ---------- C — Synthèse années clés ---------- */
 .p11-synth {
   flex: 0 0 var(--p11-h-synth);
   height: var(--p11-h-synth);
@@ -476,7 +476,7 @@
   text-align: right;
 }
 
-/* ---------- D - Ligne finale ---------- */
+/* ---------- D — Ligne finale ---------- */
 .p11-foot {
   flex: 0 0 var(--p11-h-foot);
   height: var(--p11-h-foot);
